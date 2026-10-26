@@ -15,6 +15,7 @@ import {Space} from '../../../../src/server/boards/Space';
 import {PartyName} from '../../../../src/common/turmoil/PartyName';
 import {SpaceName} from '../../../../src/common/boards/SpaceName';
 import {BoardName} from '../../../../src/common/boards/BoardName';
+import {SpaceType} from '../../../../src/common/boards/SpaceType';
 
 // Verifies the pay-on-commit refactor: the placement-bearing standard projects
 // charge the player ONLY when a space is chosen, and the placement is cancellable
@@ -188,6 +189,44 @@ describe('StandardProject pay-on-commit: placement costs', () => {
     runAllActions(game);
     expect(player.megaCredits).eq(0);
     expect(hazard.tile?.tileType).eq(TileType.GREENERY);
+  });
+
+  // «Beside your own tile, if possible»: a neighbour the player cannot pay to
+  // clear on top of the project is not possible, so the greenery may go
+  // anywhere. The list used to decide adjacency WITHOUT the project's cost —
+  // the hazard (16 of 25 M€) won it, was then filtered out, and the project
+  // the button had offered silently cancelled.
+  it('Greenery: every neighbour an unaffordable hazard — placed anywhere else', () => {
+    [game, player] = testGame(2, {aresExtension: true});
+    game.board = EmptyBoard.newInstance();
+    const board = game.board;
+    const own = board.getAvailableSpacesOnLand(player)
+      .find((s) => board.getAdjacentSpaces(s).filter((a) => a.spaceType === SpaceType.LAND).length >= 3);
+    if (own === undefined) {
+      throw new Error('no inland space');
+    }
+    game.simpleAddTile(player, own, {tileType: TileType.CITY});
+    const hazards = board.getAdjacentSpaces(own).filter((a) => a.spaceType === SpaceType.LAND && a.tile === undefined);
+    for (const space of hazards) {
+      AresHazards.putHazardAt(game, space, TileType.EROSION_SEVERE);
+    }
+    // 23 (project) + 16 (severe hazard) = 39 > 25 ≥ 16.
+    player.megaCredits = 25;
+    const card = new GreeneryStandardProject();
+    expect(card.canAct(player)).is.true;
+
+    const selectSpace = offeredSpaces(Payment.of({megacredits: 23}), card);
+    expect(player.pendingPlacementCancelled).is.not.true;
+    expect(selectSpace.spaces).is.not.empty;
+    for (const hazard of hazards) {
+      expect(selectSpace.spaces).to.not.include(hazard);
+    }
+
+    const target = selectSpace.spaces[0];
+    selectSpace.process({type: 'space', spaceId: target.id});
+    runAllActions(game);
+    expect(target.tile?.tileType).eq(TileType.GREENERY);
+    expect(player.megaCredits).eq(2);
   });
 
   it('a Reds tax the project itself owes is reserved too', () => {

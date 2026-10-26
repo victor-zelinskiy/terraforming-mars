@@ -96,12 +96,19 @@ export class GreeneryStandardProject extends StandardProjectCard {
       super.payAndExecute(player, payment);
       return;
     }
-    const spaces = player.game.board.getAvailableSpacesForType(player, 'greenery');
+    // The list is built with the SAME affordability basis the prompt filters by:
+    // «beside your own tile, if possible» is decided over the cells the player
+    // can actually PAY for. Built without it, a neighbour hazard affordable on
+    // its own (16 M€ of 25) but not on top of the project (23 + 16) won the
+    // adjacency test, was then filtered out, and the project silently
+    // cancelled — while `canAct` (which asks with the cost) had offered it.
+    const canAffordOptions = this.placementCanAffordOptions(player, payment);
+    const spaces = player.game.board.getAvailableSpacesForType(player, 'greenery', canAffordOptions);
     player.game.defer(new StandardProjectPlacement(player, {
       placementType: 'greenery',
       title: 'Select space for greenery tile',
       spaces,
-      canAffordOptions: this.placementCanAffordOptions(player, payment),
+      canAffordOptions,
       commit: (space) => this.commitInScope(player, () => {
         // Charge BEFORE placing — see CityStandardProject for why the order is
         // load-bearing (the tile's own costs must be measured against what is
