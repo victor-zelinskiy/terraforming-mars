@@ -553,8 +553,8 @@ rail, `tokensOf` splits the held heat into six off the printed heat, `originOf` 
 row, `onDone` recedes it; a record nobody's half covers is held and flown by the standalone chain after the scene.
 Guards: `receivingStageModel.spec` (fact → spec), `playedHeroRail.spec` (the seed), the receiving stage's spec (the
 covered previous top), `cardReactionDirector.spec` (attached / standalone / claimed once), `railReward.spec` § the
-answer flight; probes `console-biological-simulations` (A): Tardigrades wakes TR38 — the «+1» born on the microbe
-medallion, the holder emerged, the capsule 2 → 3 on the touchdown; `console-hartlan-heating` (B): Nuclear Zone wakes
+answer flight; probes `console-biological-simulations` (A): Tardigrades wakes TR38 — the holder emerged, the «+1»
+born on ITS printed data icon with the microbe tag MARKED, the capsule 2 → 3 on the touchdown; `console-hartlan-heating` (B): Nuclear Zone wakes
 Hartlan — the corporation rises out of its place, six heat born on its printed heat, the M€ plate ticks on touchdown.
 
 ## i18n

@@ -13,9 +13,10 @@ import {armLeakWitness, strandedReports} from './parliamentDrive';
  *   (A) THE TABLE'S ANSWER TO A PLAY FLIES (К-S1). «Карты в руке» → Tardigrades
  *       → its composer names the answer before the press («Сработает: +1
  *       [data]»); A → EXACTLY ONE POST; in the landing scene the HOLDER (TR38)
- *       EMERGES from its strip, a «+1 data» token is BORN on the PRINTED
- *       MICROBE TAG of the landed card — the tag that woke the holder — and
- *       flies into the holder's capsule; the capsule and the ДОП. РЕСУРСЫ
+ *       EMERGES from its strip, a «+1 data» token is BORN on the HOLDER's own
+ *       printed data icon (CN — the card that pays is the birth place) while
+ *       the landed card's MICROBE TAG — the tag that woke the holder — wears
+ *       the CAUSE mark, and flies into the holder's capsule; the capsule and the ДОП. РЕСУРСЫ
  *       satellite read 2 on every sample until the TOUCHDOWN and 3 after it;
  *       the holder settles back; the flow leaves. The server agrees: 3 data,
  *       the hand one card shorter.
@@ -108,8 +109,10 @@ type Sample = {
   emerge?: Rect, emergeCap?: Rect, emergeCount: string,
   /** The landing scene's FRONT card and the zone it is composed in (PL-126: the protagonist is a third of the zone). */
   front?: Rect, recv?: Rect,
-  /** The landed card's printed MICROBE tag (the front card of the receiving stage). */
-  tag?: Rect,
+  /** The landed card's printed MICROBE tag (the front card of the receiving stage) — and whether it wears the CAUSE mark. */
+  tag?: Rect, causeTag: boolean,
+  /** The emerged holder's printed DATA icon on its effect row — the birth place since CN (PL-124 on the framework). */
+  emergeIcon?: Rect,
   /** The ДОП. РЕСУРСЫ satellite's data cell. */
   aux: string,
   /** The action composer's hero: its capsule box and count, its printed production box. */
@@ -173,6 +176,9 @@ async function armProbe(page: Page): Promise<void> {
         emerge: rect(emerge), emergeCap: rect(emerge?.querySelector('.pcard__res')),
         emergeCount: emerge === null ? '' : (emerge.querySelector('.pcard__res-count')?.textContent ?? '').trim(),
         tag: rect(document.querySelector('.con-recv [data-recv-front] .pcard-tag[data-tag="microbe"]')),
+        causeTag: document.querySelector('.con-recv [data-recv-front] .pcard-tag[data-tag="microbe"][data-reaction-cause]') !== null,
+        emergeIcon: rect(Array.from(emerge?.querySelectorAll<HTMLElement>('.pcard-effect:not(.pcard-effect--action) .pcard-ic') ?? [])
+          .find((el) => (el.style.backgroundImage ?? '').includes('data'))),
         front: rect(document.querySelector('.con-recv [data-recv-front]')),
         recv: rect(document.querySelector('.con-recv')),
         aux: read(auxSel).match(/^\d+/)?.[0] ?? '',
@@ -401,8 +407,10 @@ for (const preset of PRESETS) {
       fs.writeFileSync(`test-results/biological-simulations-play-${preset.id}.txt`, trail(samples));
       await shoot(page, preset.id, 'a-02-board');
 
-      // ── 3. The flight, by ORDER: the holder emerges; the token is born on the printed microbe tag; it rests on the
-      //       holder's capsule; the capsule and the satellite tick on the touchdown and never before.
+      // ── 3. The flight, by ORDER: the holder emerges; the token is born on the HOLDER's own printed data icon (CN —
+      //       «СРАБАТЫВАНИЕ КАРТЫ», PL-124 on the framework: the card that PAYS is the birth place) while the woken
+      //       microbe tag is MARKED (the cause, never a birth place); it rests on the holder's capsule; the capsule and
+      //       the satellite tick on the touchdown and never before.
       const v = 'data+1';
       const birth = birthOf(samples, v);
       expect(birth, `a «+1 data» token was seen (К-S1 — the table's answer to a play FLIES)\n${trail(samples)}`).toBeDefined();
@@ -417,8 +425,10 @@ for (const preset of PRESETS) {
       const zoneH = birth!.s.recv!.b - birth!.s.recv!.t;
       console.log(`[PL-126] ${preset.id}: the front card ${birth!.s.front!.r - birth!.s.front!.l} × ${frontH} in a zone ${birth!.s.recv!.r - birth!.s.recv!.l} × ${zoneH} (${(frontH / zoneH * 100).toFixed(1)} % of its height)`);
       expect(frontH / zoneH, `the front card stands at least a third of the zone's height (${frontH} of ${zoneH} px, ${preset.id})`).toBeGreaterThanOrEqual(1 / 3 - 0.02);
-      const tagSlack = Math.max(birth!.chip.w, (birth!.s.tag!.r - birth!.s.tag!.l)) * 0.75;
-      expect(inside(birth!.chip, birth!.s.tag!, tagSlack), `the token is BORN on the printed MICROBE TAG — the tag that woke the holder: chip ${birth!.chip.x},${birth!.chip.y} (w=${birth!.chip.w}) vs tag ${JSON.stringify(birth!.s.tag)}`).toBe(true);
+      expect(birth!.s.emergeIcon, 'the emerged holder\'s printed data icon was measurable at the birth').toBeDefined();
+      const iconSlack = Math.max(birth!.chip.w, (birth!.s.emergeIcon!.r - birth!.s.emergeIcon!.l)) * 0.75;
+      expect(inside(birth!.chip, birth!.s.emergeIcon!, iconSlack), `the token is BORN on the HOLDER's printed data icon — the card that pays (CN): chip ${birth!.chip.x},${birth!.chip.y} (w=${birth!.chip.w}) vs icon ${JSON.stringify(birth!.s.emergeIcon)}`).toBe(true);
+      expect(samples.some((s) => s.causeTag), `the woken microbe tag was MARKED as the cause (never a birth place)\n${trail(samples)}`).toBe(true);
       const landing = landingOf(samples, v);
       expect(landing, `the token rested with its contact beat\n${trail(samples)}`).toBeDefined();
       const cap = landing!.s.emergeCap ?? landing!.s.emerge;
