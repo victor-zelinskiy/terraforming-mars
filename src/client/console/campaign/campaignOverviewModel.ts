@@ -254,6 +254,8 @@ export type MissionDetailsRow = {
   title?: {title: TitleName, titlePoints: number};
   /** The seat's corporations AT THAT mission's end (historic composition). */
   corporations: ReadonlyArray<CardName>;
+  /** The bot's holdings at that mission's end and what their dividends paid (inside `score`). */
+  dividends?: {holdings: ReadonlyArray<CardName>, vp: number};
 };
 
 export type MissionOutgoingLegacy = {
@@ -306,6 +308,9 @@ export function buildMissionDetails(model: CampaignModel, slot: number): Mission
         megaCredits: s.megaCredits,
         title: title === undefined ? undefined : {title: title.title, titlePoints: title.titlePoints},
         corporations: s.corporations,
+        ...(s.dividends !== undefined ? {
+          dividends: {holdings: s.dividends.holdings.map((id) => marsBotCorpInfo(id).original), vp: s.dividends.vp},
+        } : {}),
       };
     });
 

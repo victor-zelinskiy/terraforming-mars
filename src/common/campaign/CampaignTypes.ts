@@ -70,6 +70,12 @@ export type MissionStanding = {
   corporations: ReadonlyArray<CardName>;
   /** Other seats sharing this place ([] normally). */
   tiedWith: ReadonlyArray<number>;
+  /**
+   * The BOT's portfolio at that mission's end — its holdings and the VP their
+   * dividends paid (already inside `score`). Absent for humans and for a bot
+   * that held nothing (mission 1, a pre-portfolio campaign).
+   */
+  dividends?: {holdings: ReadonlyArray<MarsBotCorpId>, vp: number};
 };
 
 export type MissionResult = {

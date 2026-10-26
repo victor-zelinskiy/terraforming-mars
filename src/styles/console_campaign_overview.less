@@ -146,6 +146,9 @@
     color: #b9c8d9;
     white-space: nowrap;
   }
+  /* The bot's portfolio on its row: a holding wears a dashed kant (form, never a halo), its dividend the score's gold ink. */
+  &__corp--holding { background: rgba(28, 40, 56, 0.45); box-shadow: none; outline: 0.04rem dashed rgba(150, 180, 215, 0.4); outline-offset: -0.04rem; }
+  &__corp--dividend { background: none; box-shadow: none; font-weight: 700; color: #ecd39a; }
   &__title-slot { display: flex; align-items: center; gap: 0.25rem; margin-left: auto; }
   &__title { width: 1.5rem; height: 1.5rem; object-fit: contain; }
   &__tp { font-size: 0.66rem; font-weight: 700; color: #ecd39a; white-space: nowrap; }

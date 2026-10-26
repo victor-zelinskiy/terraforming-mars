@@ -16,9 +16,15 @@ export function computeMissionStandings(game: IGame): Array<MissionStanding> {
     if (p.campaignSeat === undefined) {
       throw new Error(`campaignSeat is not set for ${p.id} in campaign mission ${game.id}`);
     }
+    const vp = p.getVictoryPoints();
+    const details = vp.automa?.detailsDividends;
     return {
       seat: p.campaignSeat,
-      total: p.getVictoryPoints().total,
+      total: vp.total,
+      // The bot's portfolio as it stood at the end — the historic record the
+      // mission results show (what was held and what it paid).
+      dividends: details !== undefined && details.length > 0 ?
+        {holdings: details.map((d) => d.corporation), vp: vp.automa?.dividendVp ?? 0} : undefined,
       megaCredits: p.megaCredits,
       corporations: p.playedCards.filter(isICorporationCard).map((c) => c.name),
     };
@@ -39,6 +45,7 @@ export function computeMissionStandings(game: IGame): Array<MissionStanding> {
       megaCredits: rows[i].megaCredits,
       corporations: rows[i].corporations,
       tiedWith: [],
+      ...(rows[i].dividends !== undefined ? {dividends: rows[i].dividends} : {}),
     });
   }
   // Fill the shared-place cross references.

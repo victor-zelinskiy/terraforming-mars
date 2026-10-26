@@ -8,6 +8,10 @@ import {CardName} from '../../src/common/cards/CardName';
 import {MarsBotCorpId, marsBotCorpInfo} from '../../src/common/automa/MarsBotCorpData';
 import {CampaignId} from '../../src/common/Types';
 import {campaignTestConfig} from './CampaignManager.spec';
+import {computeMissionStandings} from '../../src/server/campaign/missionStandings';
+import {testAutomaGame} from '../automa/AutomaTestGame';
+import {SpaceType} from '../../src/common/boards/SpaceType';
+import {TileType} from '../../src/common/TileType';
 
 const BASE = {
   primary: MarsBotCorpId.C01_CREDICOR,
@@ -57,6 +61,22 @@ describe('the bot\'s campaign portfolio', () => {
         seen.add(drawBotHoldings({...BASE, slot: 1, seed: (i + 1) / 31})[0]);
       }
       expect(seen.size, 'a seeded draw, not «take the first»').gt(10);
+    });
+  });
+
+  describe('the mission\'s record', () => {
+    it('the bot\'s standing keeps its holdings and what their dividends paid (inside its score)', () => {
+      const [game, human, bot] = testAutomaGame({corporation: MarsBotCorpId.C01_CREDICOR, portfolio: [MarsBotCorpId.C10_THARSIS_REPUBLIC]}, '-standing');
+      game.playerIsFinishedWithResearchPhase(human);
+      human.campaignSeat = 0;
+      bot.campaignSeat = 1;
+      const land = game.board.spaces.find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined)!;
+      land.tile = {tileType: TileType.CITY};
+      land.player = bot;
+      const standings = computeMissionStandings(game);
+      const botRow = standings.find((s) => s.seat === 1)!;
+      expect(botRow.dividends).deep.eq({holdings: [MarsBotCorpId.C10_THARSIS_REPUBLIC], vp: 3});
+      expect(standings.find((s) => s.seat === 0)!.dividends, 'a human holds no portfolio').is.undefined;
     });
   });
 
