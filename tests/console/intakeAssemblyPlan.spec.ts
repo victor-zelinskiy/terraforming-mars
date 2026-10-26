@@ -4,7 +4,7 @@ import {GlobalParameter} from '../../src/common/GlobalParameter';
 import {CardIntakeSegment} from '../../src/common/models/CardDrawRevealModel';
 import {cardArrivalTimings, planCardArrival} from '../../src/client/console/consoleCardArrival';
 import {
-  intakeAssemblyOwnsBatch, intakeAssemblyTimings, intakeOriginOf, intakeSearchRun, planIntakeAssembly, rowRectOf, triggerSeatRect,
+  intakeAssemblyOwnsBatch, intakeAssemblyPresentsBatch, intakeAssemblyTimings, intakeOriginOf, intakeSearchRun, planIntakeAssembly, rowRectOf, triggerSeatRect,
 } from '../../src/client/console/cardIntake/intakeAssemblyPlan';
 
 /**
@@ -24,6 +24,16 @@ describe('intakeAssemblyPlan — one row, several causes, in the rules\' order',
     expect(intakeAssemblyOwnsBatch({segments: [research]})).is.false;
     expect(intakeAssemblyOwnsBatch({segments: [research, olympus]})).is.true;
     expect(intakeAssemblyOwnsBatch(undefined)).is.false;
+  });
+
+  it('PRESENTS a one-cause batch too when its cause is a card NOT on the stage — the single hook\'s trigger rises («СРАБАТЫВАНИЕ КАРТЫ», decision 5)', () => {
+    expect(intakeAssemblyPresentsBatch({segments: [research, olympus]}, undefined), 'a merged batch — always').is.true;
+    expect(intakeAssemblyPresentsBatch({segments: [olympus]}, undefined), 'Olympus Conference\'s own draw, nobody on stage').is.true;
+    expect(intakeAssemblyPresentsBatch({segments: [olympus]}, CardName.RESEARCH), 'the stage card is another card').is.true;
+    expect(intakeAssemblyPresentsBatch({segments: [research]}, CardName.RESEARCH), 'the stage card\'s own draw comes off the deck').is.false;
+    expect(intakeAssemblyPresentsBatch({segments: [cell]}, undefined), 'a cell\'s draw keeps its family\'s scene').is.false;
+    expect(intakeAssemblyPresentsBatch({segments: [{source: undefined, count: 1}]}, undefined), 'an unattributed draw').is.false;
+    expect(intakeAssemblyPresentsBatch(undefined, undefined)).is.false;
   });
 
   it('R4 · the SEARCH RUN of a merged batch: one segment with rejects, judged on its own tape; the others plain', () => {

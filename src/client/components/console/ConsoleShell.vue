@@ -1364,6 +1364,9 @@
     <ConsoleCityPayoutLayer />
     <!-- «ШАГ ШКАЛЫ ПЛАТИТ» (TR24): a card that answers each step of a scale — its tokens condense on the marker. -->
     <ConsoleScaleStepRewardLayer />
+    <!-- «СРАБАТЫВАНИЕ КАРТЫ» (TR80): the card whose printed effect fired surfaces at a seat beside the rail; its tokens
+         are born on its effect row (cardReaction/cardReactionDirector.ts). -->
+    <ConsoleCardReactionLayer />
     <!-- «ОБРАТНЫЙ ХОД» (TR47): the tags of a parameter swing — the fall's «−1 · РТ остаётся», a limit's «МАКС.». -->
     <ConsoleScaleSwingLayer />
 
@@ -2056,6 +2059,8 @@ import {abortActionCommitMotion} from '@/client/console/consoleActionCommitMotio
 import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
 import ConsoleCityPayoutLayer from '@/client/components/console/tilePlacement/ConsoleCityPayoutLayer.vue';
 import ConsoleScaleStepRewardLayer from '@/client/components/console/scaleStepReward/ConsoleScaleStepRewardLayer.vue';
+import ConsoleCardReactionLayer from '@/client/components/console/cardReaction/ConsoleCardReactionLayer.vue';
+import {hurryCardReactions} from '@/client/console/cardReaction/cardReactionDirector';
 import ConsoleScaleSwingLayer from '@/client/components/console/scaleSwing/ConsoleScaleSwingLayer.vue';
 import {setPlacementPeek} from '@/client/components/board/placementRenderState';
 import {PlacementPeek, peekTargetOf} from '@/client/console/tilePlacement/placementPeek';
@@ -2494,6 +2499,7 @@ export default defineComponent({
     ConsoleTilePlacementLayer,
     ConsoleCityPayoutLayer,
     ConsoleScaleStepRewardLayer,
+    ConsoleCardReactionLayer,
     ConsoleScaleSwingLayer,
     ConsoleNomadMoveLayer,
     ConsoleColonyBuildLayer,
@@ -14309,6 +14315,8 @@ export default defineComponent({
         } else {
           if (intent.kind === 'press' && this.playedHeroState.phase === 'showing-result') {
             skipPlayedHeroResult();
+            // …and the table's reactions still in the air (the owner's decision 4): whatever is left ticks at once.
+            hurryCardReactions();
           }
           return true;
         }

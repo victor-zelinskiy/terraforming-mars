@@ -10,13 +10,12 @@
  * Every run flies through `runBatchArrival({from})` — the SAME director every deck flight in the fork uses — so a
  * card dealt by a trigger and a card dealt by the deck are physically the same object.
  */
-import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {CardIntakeSegment} from '@/common/models/CardDrawRevealModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {ArrivalOrigin, BatchArrivalHandle, runBatchArrival} from '@/client/console/consoleBatchArrivalMotion';
+import {recedeReactor, riseReactor} from '@/client/console/cardReaction/cardReactionStage';
 import {findPrintedCardsIcon} from '@/client/console/consoleActionCommitMotion';
 import {cardArrivalTimings, reducedCardArrivalTimings} from '@/client/console/consoleCardArrival';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
@@ -24,9 +23,6 @@ import {
   IntakeAssemblyPlan, IntakeAssemblyTimings, IntakeRun, RectLike, intakeAssemblyTimings, planIntakeAssembly,
   reducedIntakeAssemblyTimings, rowRectOf, triggerSeatRect,
 } from '@/client/console/cardIntake/intakeAssemblyPlan';
-
-/** The natural (unscaled) lite-face height — the premium card frame (320×460). */
-const CARD_NATURAL_H = 460;
 
 export type IntakeAssemblyHost = {
   /** The room the trigger seat is solved in (a workspace's band, the opening, the viewport). */
@@ -109,15 +105,17 @@ function originOf(run: IntakeRun, host: IntakeAssemblyHost): ArrivalOrigin | und
   return undefined;
 }
 
+/**
+ * THE TRIGGER RISES THROUGH THE ONE PRIMITIVE («СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК»): the assembly scene's trigger
+ * and a reacting card are the same physical move — `cardReactionStage.riseReactor` / `recedeReactor`, the numbers this
+ * scene set (surface 260 / recede 220; reduced 140 / 120). The assembly's own timings map onto the primitive's.
+ */
 function surfaceTrigger(face: HTMLElement, seat: RectLike, t: IntakeAssemblyTimings, reduced: boolean): void {
-  const scale = Math.max(0.05, seat.height / CARD_NATURAL_H);
-  gsap.set(face, {width: CARD_NATURAL_W, height: CARD_NATURAL_H, transformOrigin: 'top left', x: seat.left, y: seat.top + (reduced ? 0 : 14), scale, autoAlpha: 0});
-  // A touch below full: the trigger is the cause, the row is the subject (a kant of opacity, never a glow).
-  gsap.to(face, {autoAlpha: 0.94, y: seat.top, duration: motionMs(t.surfaceMs) / 1000, ease: 'power2.out'});
+  void riseReactor(face, seat, {riseMs: t.surfaceMs, holdMs: t.holdMs, recedeMs: t.recedeMs, overlapMs: t.overlapMs, staggerMs: 0}, reduced);
 }
 
 function recedeTrigger(face: HTMLElement, t: IntakeAssemblyTimings, reduced: boolean): void {
-  gsap.to(face, {autoAlpha: 0, y: reduced ? '+=0' : '+=10', duration: motionMs(t.recedeMs) / 1000, ease: 'power1.in'});
+  void recedeReactor(face, {riseMs: t.surfaceMs, holdMs: t.holdMs, recedeMs: t.recedeMs, overlapMs: t.overlapMs, staggerMs: 0}, reduced);
 }
 
 /**

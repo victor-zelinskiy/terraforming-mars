@@ -70,6 +70,7 @@ import {ActionCommitPlan, ActionCommitRail, actionCommitState, onActionCommitRel
 import {centreEndOf, pulseCommitRing} from '@/client/console/consoleActionCommitMotion';
 import {ResourceTransferSpec, TransferEnd, TransferEndLike} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {RailAnswerFlight, flyRailReward, flyRailRewardLink, railRewardHoldsAnswer, railRewardOwed, railRewardPending, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
+import {cardReactionAnswerFlight, composeAnswerFlights, markReactionCause} from '@/client/console/cardReaction/cardReactionDirector';
 import {noteTransferTrail, surfaceClear, surfaceHoldsTokens} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -366,8 +367,24 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined, surface
   // THE ANSWER FLIES when the composer still shows where it was promised (PL-220): the surface then stands until the
   // answer has left its chip, and every «fold now» below defers to that moment. Decided ONCE, at the flight's start —
   // with no chip standing nothing changes (the answer ticks, the fold keeps its old moment).
-  const answerFlies = railRewardHoldsAnswer(rail.key) && answerChipStands();
-  const answer: RailAnswerFlight | undefined = answerFlies ? {originOf: answerChipPoint, onLeft: foldWhenClear} : undefined;
+  const chipStands = answerChipStands();
+  // «СРАБАТЫВАНИЕ КАРТЫ» (the owner's decision 2): a reaction the server RECORDED is born on the REACTOR (risen at a
+  // seat beside the rail); the chip that promised it is MARKED. A reaction with no record keeps PL-220's chip birth.
+  const reaction = railRewardHoldsAnswer(rail.key) ? cardReactionAnswerFlight() : undefined;
+  const answerFlies = railRewardHoldsAnswer(rail.key) && (chipStands || reaction !== undefined);
+  const chipFlight: RailAnswerFlight | undefined = chipStands ? {originOf: answerChipPoint, onLeft: foldWhenClear} : undefined;
+  const reactorFlight: RailAnswerFlight | undefined = reaction === undefined ? undefined : {
+    ...reaction,
+    originOf: (spec) => {
+      const origin = reaction.originOf(spec);
+      if (origin !== undefined && chipStands) {
+        markReactionCause(answerChipPoint(spec)?.el);
+      }
+      return origin;
+    },
+    onLeft: foldWhenClear,
+  };
+  const answer: RailAnswerFlight | undefined = answerFlies ? composeAnswerFlights(reactorFlight, chipFlight) : undefined;
   const foldUnlessAnswering = (): void => {
     if (!answerFlies) {
       foldWhenClear();

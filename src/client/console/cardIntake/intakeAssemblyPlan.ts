@@ -112,6 +112,23 @@ export function intakeAssemblyOwnsBatch(batch: {segments?: ReadonlyArray<{count:
 }
 
 /**
+ * Does the deck layer PRESENT this batch through the assembly («СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК», the owner's
+ * decision 5)? A merged batch always; and a ONE-CAUSE batch whose single cause is a CARD that is NOT the card standing
+ * on the stage — the trigger of a single-hook draw (Point Luna's card for an Earth tag, Mars University's) rises
+ * beside the row and deals from its own printed icon, exactly as it does inside a merged batch, instead of degrading
+ * to the deck. The claims and the parks keep judging by `intakeAssemblyOwnsBatch` — this is the deck layer's own
+ * choice of scene, never a second owner.
+ */
+export function intakeAssemblyPresentsBatch(batch: {segments?: ReadonlyArray<CardIntakeSegment>} | undefined, stageCard: CardName | string | undefined): boolean {
+  if (intakeAssemblyOwnsBatch(batch)) {
+    return true;
+  }
+  const only = batch?.segments?.length === 1 ? batch.segments[0] : undefined;
+  return only !== undefined && only.source?.type === 'card' && only.count > 0 &&
+    !(stageCard !== undefined && stageCard !== '' && only.source.cardName === stageCard);
+}
+
+/**
  * THE SEARCH RUN of a merged batch (R4 — «a search is a segment, not a batch of its own»): exactly ONE segment carries
  * a tape with discards (a conditional search that threw cards away) and every other run is plain. The deck layer then
  * plays that run as the SEARCH THEATRE on its own tape — every card judged in turn, the rejects onto the pile, the

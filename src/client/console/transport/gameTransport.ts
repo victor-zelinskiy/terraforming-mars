@@ -117,6 +117,7 @@ import {enterParliamentSittingHolds, seedParliamentSittingHolds} from '@/client/
 import {seedBannerCubeHolds} from '@/client/console/parliament/bannerCubeScene';
 import {noteSittingRise} from '@/client/console/parliament/sittingRise';
 import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
+import {seedCardReactionHolds, snapshotRailHolds} from '@/client/console/cardReaction/cardReactionDirector';
 import {seedScaleStepRatingHold} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {seedParameterSwings} from '@/client/console/scaleSwing/scaleSwingDirector';
 import {heldStock as heldRailStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -636,6 +637,9 @@ function applyGlobalParamPreview(newView: PlayerViewModel): void {
 function seedRewardHolds(newView?: PlayerViewModel): void {
   // The rating held BEFORE this block — what this response's own owners hold is measured against it (PL-330).
   const ratingHeldBefore = heldRailStock(RATING_RAIL_KEY);
+  // …and EVERY rail row held before it («СРАБАТЫВАНИЕ КАРТЫ»): the card-reaction seeder, run after every host, tells a
+  // reaction row a host holds (its answer — the host's flight asks for the reactor) from one nobody holds (its own chain).
+  const railHeldBefore = snapshotRailHolds();
   // THE GENERATION SCENE's income (TR61): the rows the seat's own production record names keep their pre-income
   // values until each token's touchdown — a no-op unless a scene is armed (the detect claimed the record).
   seedGenerationIncomeHold(currentView(), newView);
@@ -754,6 +758,10 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // is presented from this very block, and a raise that arrived together with its fall flies its rating itself.
   seedParameterSwings(currentView(), newView);
   seedScaleStepRatingHold(currentView(), newView, heldRailStock(RATING_RAIL_KEY) - ratingHeldBefore);
+  // …and WHICH CARD REACTED («СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК», TR80 Hartlan Heating): the server's record of every
+  // card effect that fired in this response (`cardReactions`). A row a host above holds is the host's answer — its
+  // flight asks this module for the reactor; a row nobody holds is held HERE and flown by the reactor's own chain.
+  seedCardReactionHolds(currentView(), newView, railHeldBefore);
   // …and THE SCORE CELL (TR55 — «every point comes from its own cause»), the very LAST: the server's two breakdowns are
   // attributed, what every writer above holds in this block is netted out, a share a host claimed is held for its own
   // token, every other share ticks now with its cause named beside the cell (docs/claude/console/score-cell.md).

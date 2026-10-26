@@ -549,7 +549,7 @@ export function expansionIconUrl(module: GameModule | 'automa'): string | undefi
  * the REQ bar, the card-type bands — or one baked into the icon's own asset,
  * the oxygen greenery).
  */
-export type SecondaryBubbleSpec = {url: string, tag?: Tag, shape?: 'tile'};
+export type SecondaryBubbleSpec = {url: string, tag?: Tag, shape?: 'tile' | 'card', band?: 'green' | 'blue'};
 
 export function secondaryBubbleOf(item: ICardRenderItem): SecondaryBubbleSpec | undefined {
   const secondary = item.secondaryTag;
@@ -575,6 +575,14 @@ export function secondaryBubbleOf(item: ICardRenderItem): SecondaryBubbleSpec | 
   case AltSecondaryTag.MARS_TILE:
     // «a tile ON MARS» (Turmoil Redux — TR14): the set's pink hex, the owner's own asset.
     return {url: 'assets/misc/mars-tile.png', shape: 'tile'};
+  case AltSecondaryTag.GREEN:
+  case AltSecondaryTag.BLUE:
+    // «a GREEN / BLUE card» as the corner mark of ANOTHER glyph (TR80 Hartlan Heating: an empty tile wearing the
+    // green card's tab — «a green card that places a tile»): the card cover with the type's header band, the same
+    // drawing the counted «[green card]» glyph uses — a CARD-shaped corner, never a round bubble. On a CARDS item the
+    // band is the icon's own (`mechItemIcon` → `.pcard-ic--type-*`): no corner there.
+    return item.type === CardRenderItemType.CARDS ? undefined :
+      {url: countedCardCoverUrl(), shape: 'card', band: secondary === AltSecondaryTag.GREEN ? 'green' : 'blue'};
   default:
     return undefined;
   }

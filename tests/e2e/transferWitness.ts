@@ -159,6 +159,11 @@ export async function armTransferWitness(page: Page): Promise<void> {
       // the on-play row (PL-190; TR56 — the chosen branch's own icon of a row of alternatives). `printed:<sprite>`.
       // A printed TAG of the landed card — the table's answer it woke is born there (T06 GMO Contract: «+2 M€» off the
       // plant tag of Lichen). `tag:<tag>`. More specific than the card's icons below.
+      // THE REACTOR («СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК», TR80): the card whose printed effect fired, risen at a seat
+      // of the reaction layer or out of its place on the receiving stage — its answer is born on the printed icon of ITS
+      // effect row. `reactor:<card>:<sprite>`. Before the tags and the landed card's own icons: a token born here is the
+      // reactor's, never the cause's.
+      ['reactor', '.con-reaction__face[data-reaction-card] .pcard-ic, .con-recv__emerge[data-played-key] .pcard-ic'],
       ['tag', '.con-recv [data-recv-front] .pcard-tag[data-tag], .con-played [data-played-key] .pcard-tag[data-tag]'],
       ['printed', '.con-recv [data-recv-front] .pcard-ic'],
       // A party's SEAL in the chamber — a card's rating answer to a change of power is born on the seal of the party that
@@ -210,6 +215,12 @@ export async function armTransferWitness(page: Page): Promise<void> {
       case 'aux': return `aux:${name(el, 'data-aux-resource')}`;
       case 'cell': return `cell:${name(el, 'data_space_id')}`;
       case 'tag': return `tag:${name(el, 'data-tag')}`;
+      case 'reactor': {
+        const face = el.closest('[data-reaction-card], [data-played-key]');
+        const card = face === null ? '' : (face.getAttribute('data-reaction-card') ?? face.getAttribute('data-played-key') ?? '');
+        const sprite = /([\w-]+)\.(?:png|webp|svg)/.exec((el as HTMLElement).style.backgroundImage ?? '')?.[1] ?? 'icon';
+        return `reactor:${card}:${sprite}`;
+      }
       case 'seat': return `seat:${name(el.closest('[data-color]'), 'data-color')}`;
       case 'intake': return `intake:${name(el.closest('[data-intake-seat]'), 'data-intake-seat')}`;
       case 'seal': return `seal:${name(el.closest('[data-party]'), 'data-party')}`;

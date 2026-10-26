@@ -52,7 +52,9 @@
       <span v-for="i in repeats" :key="i" class="pcard-ic" :class="iconModClass" :style="iconStyle">
         <span v-if="insideText !== undefined && i === 1" class="pcard-mi__inside" :class="{'pcard-mi__inside--rating': ratingInner}">{{ insideText }}</span>
       </span>
-      <span v-if="bubbleUrl !== undefined" class="pcard-mi__bubble" :class="{'pcard-mi__bubble--tile': bubble?.shape === 'tile'}" :style="bubbleStyle"></span>
+      <span v-if="bubbleUrl !== undefined" class="pcard-mi__bubble"
+            :class="{'pcard-mi__bubble--tile': bubble?.shape === 'tile', 'pcard-mi__bubble--card': bubble?.shape === 'card', 'pcard-ic--type-green': bubble?.band === 'green', 'pcard-ic--type-blue': bubble?.band === 'blue'}"
+            :style="bubbleStyle"></span>
       <!-- «card WITH a requirement» (AltSecondaryTag.REQ — Xavier): the
            requirements plate in miniature, drawn, not an image -->
       <span v-else-if="isReqBubble" class="pcard-mi__bubble pcard-mi__bubble--req"></span>

@@ -372,13 +372,37 @@ function addHeld(map: Record<string, number>, key: string, amount: number): void
   map[key] = (map[key] ?? 0) + amount;
 }
 
-function takeHeld(map: Record<string, number>, key: string, amount: number): void {
-  const left = (map[key] ?? 0) - amount;
+/**
+ * Take `amount` off a held row — never below `floor`, the amount the KEEPERS still hold on that row (CN): the hold
+ * maps are per-resource sums with no owner, so a foreign owner's release AFTER a scene's clear (the staged seal's
+ * +3 production landing a beat after the tile scene's «safety» had dropped its hold and re-seeded the keeper's)
+ * would otherwise take the keeper's rows with it — the plate read the final number while the chain's tokens were
+ * still to be born (the second field run).
+ */
+function takeHeld(map: Record<string, number>, key: string, amount: number, floor = 0): void {
+  const left = Math.max(floor, (map[key] ?? 0) - amount);
   if (left > 0) {
     map[key] = left;
   } else {
     delete map[key];
   }
+}
+
+/** What the keepers still hold on this spec's row (same channel, resource and direction) — a release's floor. */
+function keeperFloor(spec: ResourceTransferSpec, byCard = false): number {
+  let sum = 0;
+  const loss = spec.direction === 'loss';
+  for (const keeper of rewardHoldKeepers) {
+    for (const kept of keeper()) {
+      if (kept.channel !== spec.channel || (kept.direction === 'loss') !== loss) {
+        continue;
+      }
+      if (byCard ? kept.targetCard === spec.targetCard : kept.resource === spec.resource) {
+        sum += kept.amount;
+      }
+    }
+  }
+  return sum;
 }
 
 /** Seed the hold BEFORE the commit — the panel keeps showing the pre-reward
@@ -408,9 +432,9 @@ export function releasePanelRewardHold(spec: ResourceTransferSpec): void {
     releasePanelVpHold(transferSignedAmount(spec));
     return;
   }
-  takeHeld(holdMapFor(spec), spec.resource, spec.amount);
+  takeHeld(holdMapFor(spec), spec.resource, spec.amount, keeperFloor(spec));
   if (spec.channel === 'card-resource' && spec.targetCard !== undefined) {
-    takeHeld(spec.direction === 'loss' ? panelRewardHold.capsuleLoss : panelRewardHold.capsule, spec.targetCard, spec.amount);
+    takeHeld(spec.direction === 'loss' ? panelRewardHold.capsuleLoss : panelRewardHold.capsule, spec.targetCard, spec.amount, keeperFloor(spec, true));
   }
   syncHoldActive();
 }
@@ -474,11 +498,19 @@ export function clearPanelRewardHold(): void {
   const kept = vpHoldKeeper?.() ?? {gain: 0, loss: 0};
   panelRewardHold.vp = Math.max(0, kept.gain);
   panelRewardHold.vpLoss = Math.max(0, kept.loss);
+  // …and a KEEPER's rail rows survive it the same way (CN): the card-reaction chain's holds are released by their own
+  // touchdowns or its bounded ceiling — a tile scene's «safety» clear once ticked Tharsis Republic's 3 M€ a beat
+  // before its tokens were born on its printed M€ (the first field run, 2026-10-26).
+  for (const keeper of rewardHoldKeepers) {
+    beginPanelRewardHold(keeper());
+  }
   syncHoldActive();
 }
 
 /** What the score cell's share ledger holds right now (gain · loss, both ≥ 0) — survives `clearPanelRewardHold`. */
 let vpHoldKeeper: (() => {gain: number, loss: number}) | undefined;
+/** The rail rows that survive a foreign clear — see `registerRewardHoldKeeper` (CN). */
+const rewardHoldKeepers: Array<() => ReadonlyArray<ResourceTransferSpec>> = [];
 
 /** The share ledger plugs in (`scoreCell/vpShareLedger.ts`) — one keeper; returns the unregister. */
 export function registerPanelVpKeeper(keeper: () => {gain: number, loss: number}): () => void {
@@ -1644,4 +1676,38 @@ function warnCoveredEnds(skipped: ReadonlyArray<SkippedEnd>, end: 'source' | 'de
   if (covered.length > 0 && process.env.NODE_ENV !== 'production') {
     console.warn(`[transfer] no visible ${end} — ${covered.join('; ')} — the token is not flown (the law of visible ends); its counter ticks with its chip`);
   }
+}
+
+// ── THE ANSWER LEDGER OF ONE APPLY BLOCK (the card-reaction seeder's attribution, CN) ──────────────────────────────
+/**
+ * A host that holds a TABLE'S ANSWER it PROMISED (the forecast's reactions, verified against the two views — the rail
+ * module's `seedRailReward`, the hero's PL-035 `holdHeroAnswers`) DECLARES those rows here, in the same apply block.
+ * The card-reaction seeder (last in the block) attributes a record's share to a host ONLY through this ledger: a
+ * host's OWN promise on the same row (a standard project's production step beside Tharsis Republic's) is never
+ * mistaken for the reaction's share — which would otherwise tick unseen under the host's release. Taken once per block.
+ */
+let declaredAnswers: Array<ResourceTransferSpec> = [];
+
+export function declareHeldAnswers(specs: ReadonlyArray<ResourceTransferSpec>): void {
+  if (specs.length > 0) {
+    declaredAnswers.push(...specs);
+  }
+}
+
+/** The answers declared since the last take — and the ledger starts over. */
+export function takeDeclaredAnswers(): ReadonlyArray<ResourceTransferSpec> {
+  const out = declaredAnswers;
+  declaredAnswers = [];
+  return out;
+}
+
+// ── HOLDS THAT SURVIVE A FOREIGN CLEAR (CN) ─────────────────────────────────────────────────────────────────────────
+/**
+ * A scene's belt-and-braces `clearPanelRewardHold()` drops EVERY hold on the board — including rows a LATER scene of
+ * the same response holds for its own flight (the card-reaction chain plays after the tile's story and had seeded its
+ * rows in the same apply block). A keeper returns the rows it STILL holds; the clear re-seeds them. Keepers are
+ * bounded elsewhere (the registry's ceiling aborts the chain and releases) — a keeper never makes a hold permanent.
+ */
+export function registerRewardHoldKeeper(keeper: () => ReadonlyArray<ResourceTransferSpec>): void {
+  rewardHoldKeepers.push(keeper);
 }

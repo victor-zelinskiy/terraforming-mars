@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {PartyName} from '@/common/turmoil/PartyName';
-import {HEX_TILE_ITEMS, mechItemIcon, secondaryBubbleOf, tagIconStyle, tagIconUrl, tileIcon} from '@/client/components/premiumCard/premiumCardIcons';
+import {HEX_TILE_ITEMS, countedCardCoverUrl, mechItemIcon, secondaryBubbleOf, tagIconStyle, tagIconUrl, tileIcon} from '@/client/components/premiumCard/premiumCardIcons';
 import {AltSecondaryTag} from '@/common/cards/render/AltSecondaryTag';
 import {Tag} from '@/common/cards/Tag';
 import {
@@ -105,6 +105,11 @@ describe('premiumCardIcons.mechItemIcon', () => {
     // Drawn another way (the copper bar, the card-type band): no image corner.
     expect(corner(CardRenderItemType.CARDS, AltSecondaryTag.REQ)).is.undefined;
     expect(corner(CardRenderItemType.CARDS, AltSecondaryTag.BLUE)).is.undefined;
+    expect(corner(CardRenderItemType.CARDS, AltSecondaryTag.GREEN)).is.undefined;
+    // TR80 Hartlan Heating — «a green card that PLACES A TILE»: an empty tile wearing the green card's tab — the card
+    // cover as a CARD-shaped corner with the type's band, never a round bubble.
+    expect(corner(CardRenderItemType.EMPTY_TILE, AltSecondaryTag.GREEN)).to.deep.equal({url: countedCardCoverUrl(), shape: 'card', band: 'green'});
+    expect(corner(CardRenderItemType.EMPTY_TILE, AltSecondaryTag.BLUE)).to.deep.equal({url: countedCardCoverUrl(), shape: 'card', band: 'blue'});
     // TR14 Re-settlement — «remove a city tile you own ON MARS»: the set's pink hex, never under the round mask.
     expect(corner(CardRenderItemType.CITY, AltSecondaryTag.MARS_TILE)).to.deep.equal({url: 'assets/misc/mars-tile.png', shape: 'tile'});
   });

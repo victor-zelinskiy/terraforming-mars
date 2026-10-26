@@ -59,7 +59,7 @@ import {
   killHeroTweens, HeroStageEls,
 } from '@/client/console/played/playedHeroDirector';
 import {
-  runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold,
+  runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, declareHeldAnswers, releasePanelRewardHold,
   resetCardResourceLandings, noteCardResourceLanding,
   cardResourceLanded, surfaceClear,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -72,7 +72,9 @@ import {
 import {PlayReaction, splitPlayRewards, cardTargetGroups} from '@/client/console/played/receivingStageModel';
 import {runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
 import {RailAnswerCause, RailAnswerFlight, RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
-import {TOUCHDOWN_TICK_GAP_MS, TransferEnd, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ReactorEmergence, cardReactionAnswerFlight, composeAnswerFlights, markReactionCause} from '@/client/console/cardReaction/cardReactionDirector';
+import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnds';
+import {TOUCHDOWN_TICK_GAP_MS, TransferEnd, TransferEndLike, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {bareWildIcons, centreEndOf, iconNeedlesFor, resolveActionCommitAnchors, resolveSpendIconEnds, wildChosen} from '@/client/console/consoleActionCommitMotion';
 import type {PlayCardPrice} from '@/client/console/consoleActionCommit';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
@@ -433,6 +435,8 @@ function holdHeroAnswers(rail: RailReward, before?: PlayerViewModel, after?: Pla
   heldAnswers = [...verdict.reactions];
   heldAnswerTags = rail.answerTags ?? {};
   beginPanelRewardHold(heldAnswers);
+  // Declared for the card-reaction seeder: these rows are a PROMISED answer, so the records' shares ride this hold.
+  declareHeldAnswers(heldAnswers);
 }
 
 /**
@@ -450,12 +454,29 @@ async function answerHeroAfterWave(): Promise<void> {
   }
   await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TOUCHDOWN_TICK_GAP_MS) / 1000, resolve));
   const card = playedHeroState.card ?? '';
-  const flown: Array<{spec: ResourceTransferSpec, origin: TransferEnd}> = [];
+  // «СРАБАТЫВАНИЕ КАРТЫ»: the REACTOR that paid rises first (out of its place on the receiving stage, or at a seat beside
+  // the rail) and its share is born on its effect row; the printed tag that woke it is marked. What no reactor records
+  // (a party's share) keeps the T06 birth on the tag; what no visible cause covers ticks at the beat.
+  const reaction = cardReactionAnswerFlight({emergence: playedHeroState.host === 'workspace' ? heroEmergence(effectHooks) : undefined});
+  if (reaction !== undefined && playedHeroState.active) {
+    await reaction.prepare?.();
+  }
+  const flown: Array<{spec: ResourceTransferSpec, origin: TransferEnd | TransferEndLike}> = [];
   for (const spec of answers) {
-    // One token per printed cause (a tag and its share — Ecology Research's plant, animal and microbe are three);
-    // what no visible cause covers (a party's share, a tag not on screen) ticks at the beat.
     let covered = 0;
-    for (const cause of tags[railRowKey(spec)] ?? []) {
+    const causes = tags[railRowKey(spec)] ?? [];
+    for (const token of reaction?.tokensOf?.(spec) ?? []) {
+      const origin = !playedHeroState.active ? undefined : reaction?.originOf(token);
+      if (origin !== undefined && covered + token.amount <= spec.amount) {
+        flown.push({spec: token, origin});
+        covered += token.amount;
+        if (causes[0] !== undefined) {
+          markReactionCause(heroRewardPlace(card)?.querySelector(`.pcard-tag[data-tag="${causes[0].tag}"]`));
+        }
+      }
+    }
+    // One token per printed cause (a tag and its share — Ecology Research's plant, animal and microbe are three).
+    for (const cause of causes) {
       const origin = !playedHeroState.active || covered + cause.amount > spec.amount ? undefined : heroTagOrigin(card, cause.tag);
       if (origin !== undefined) {
         flown.push({spec: {...spec, amount: cause.amount}, origin});
@@ -467,6 +488,7 @@ async function answerHeroAfterWave(): Promise<void> {
     }
   }
   if (flown.length === 0) {
+    reaction?.onDone?.();
     return;
   }
   const left = new Set(flown.map((f) => f.spec));
@@ -483,15 +505,13 @@ async function answerHeroAfterWave(): Promise<void> {
   });
   // Whatever the wave left held (it never does — the framework releases every spec) ticks now.
   left.forEach((spec) => releasePanelRewardHold(spec));
+  reaction?.onDone?.();
   playedHeroState.reactions = 'flown';
 }
 
 /** The rail answers' flight for a play WITH a rating (the rail module's answer, PL-220's shape): born on the woken tag. */
 function heroAnswerFlight(card: string, tags: Readonly<Partial<Record<string, ReadonlyArray<RailAnswerCause>>>> | undefined): RailAnswerFlight | undefined {
-  if (tags === undefined || Object.keys(tags).length === 0) {
-    return undefined;
-  }
-  return {
+  const tagFlight: RailAnswerFlight | undefined = tags === undefined || Object.keys(tags).length === 0 ? undefined : {
     // The rail module flies a held answer as ONE token: born on its first printed cause.
     originOf: (spec) => {
       const cause = tags[railRowKey(spec)]?.[0];
@@ -499,6 +519,26 @@ function heroAnswerFlight(card: string, tags: Readonly<Partial<Record<string, Re
     },
     onLeft: () => {},
   };
+  // «СРАБАТЫВАНИЕ КАРТЫ» (the owner's decision 2): the token is born on the REACTOR that paid — risen out of its place
+  // on the receiving stage, or at a seat beside the rail — and the printed tag that woke it is MARKED, not a birth place.
+  const reaction = cardReactionAnswerFlight({emergence: playedHeroState.host === 'workspace' ? heroEmergence(effectHooks) : undefined});
+  if (reaction === undefined) {
+    return tagFlight;
+  }
+  const marking: RailAnswerFlight = {
+    ...reaction,
+    originOf: (spec) => {
+      const origin = reaction.originOf(spec);
+      if (origin !== undefined) {
+        const cause = tags?.[railRowKey(spec)]?.[0];
+        if (cause !== undefined) {
+          markReactionCause(heroRewardPlace(card)?.querySelector(`.pcard-tag[data-tag="${cause.tag}"]`));
+        }
+      }
+      return origin;
+    },
+  };
+  return composeAnswerFlights(marking, tagFlight);
 }
 
 // ── stage / target registries (layer + overlay plug in) ────────────────────
@@ -550,7 +590,26 @@ export function providePlayedHeroTarget(fn: HeroTargetMeasure, peek?: HeroTarget
 export type ReceivingEffectHooks = {
   emergeTarget: (card: CardName) => Promise<void>,
   settleTarget: (card: CardName) => Promise<void>,
+  /** «СРАБАТЫВАНИЕ КАРТЫ»: the stage holds this card — a reactor rises OUT OF ITS PLACE here, never at a seat elsewhere. */
+  holdsCard?: (card: CardName) => boolean,
+  /** The emerged (or open) face of `card` on the stage — the reactor's tokens are born on its printed effect row. */
+  emergedFaceEl?: (card: CardName) => HTMLElement | undefined,
 };
+
+/** The receiving stage's way of bringing a reactor forward (the director's `ReactorEmergence`) — undefined without hooks. */
+function heroEmergence(hooks: ReceivingEffectHooks | undefined): ReactorEmergence | undefined {
+  if (hooks === undefined || hooks.holdsCard === undefined || hooks.emergedFaceEl === undefined) {
+    return undefined;
+  }
+  const holds = hooks.holdsCard;
+  const faceOf = hooks.emergedFaceEl;
+  return {
+    standsIn: (card) => holds(card),
+    emergeTarget: (card) => hooks.emergeTarget(card),
+    settleTarget: (card) => hooks.settleTarget(card),
+    emergedFaceEl: (card) => faceOf(card),
+  };
+}
 let effectHooks: ReceivingEffectHooks | undefined;
 
 export function provideReceivingEffectHooks(hooks: ReceivingEffectHooks): () => void {
@@ -2018,6 +2077,27 @@ async function flyHeroReactions(
     const tag = tagOf(spec);
     return tag === undefined ? undefined : heroTagOrigin(card, tag);
   });
+  // «СРАБАТЫВАНИЕ КАРТЫ» (PL-124 on the framework, the owner's decision 2): a holder that pays ITSELF on its own hook
+  // (Decomposers' microbe) has emerged — its token is born on ITS printed effect row and the woken tag is marked; a
+  // holder whose face prints no such icon keeps the T06 birth on the tag.
+  const originsOnHolder = (target: CardName, specs: ReadonlyArray<ResourceTransferSpec>): Array<TransferEndLike | undefined> => {
+    const face = hooks?.emergedFaceEl?.(target);
+    const fallback = originsOf(specs);
+    if (face === undefined) {
+      return fallback;
+    }
+    const own = resolveEffectIconEnds(face, undefined, specs);
+    return own.map((end, i) => {
+      if (end === undefined) {
+        return fallback[i];
+      }
+      const tag = tagOf(specs[i]);
+      if (tag !== undefined) {
+        markReactionCause(heroRewardPlace(card)?.querySelector(`.pcard-tag[data-tag="${tag}"]`));
+      }
+      return end;
+    });
+  };
   const specs = reactions.map((r) => r.spec);
   if (playedHeroState.host === 'workspace' && hooks !== undefined) {
     for (const group of cardTargetGroups(specs, playedHeroState.card as CardName)) {
@@ -2025,7 +2105,7 @@ async function flyHeroReactions(
         return;
       }
       await receiveOnStage(group, hooks, () =>
-        runResourceTransfers({specs: group.specs, source, origins: originsOf(group.specs), arrival: 'auto', onArrive: release, onAbsorbed: stageAbsorb()}));
+        runResourceTransfers({specs: group.specs, source, origins: originsOnHolder(group.target, group.specs), arrival: 'auto', onArrive: release, onAbsorbed: stageAbsorb()}));
       if (!playedHeroState.active) {
         return;
       }

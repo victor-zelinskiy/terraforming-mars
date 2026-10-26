@@ -59,7 +59,8 @@ import {
   RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TransferEndLike, mergeTransferSpecs, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
-  TransferDegradeReason, beginPanelRewardHold, beginPanelVpHold, noteTransferTrail, releasePanelRewardHold, releasePanelVpHold, runResourceTransfers,
+  TransferDegradeReason, beginPanelRewardHold, beginPanelVpHold, declareHeldAnswers, noteTransferTrail, releasePanelRewardHold, releasePanelVpHold,
+  runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {noteVpHeldElsewhere} from '@/client/console/scoreCell/vpShareLedger';
 import type {Tag} from '@/common/cards/Tag';
@@ -114,6 +115,20 @@ export type RailAnswerFlight = {
   originOf: (spec: ResourceTransferSpec) => TransferEndLike | undefined;
   /** The answer has LEFT its chips (one pop after its birth) — or ticked, or was released: the surface may let go. */
   onLeft: () => void;
+  /**
+   * THE REACTOR COMES FORWARD FIRST («СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК»): awaited at the answer's beat, BEFORE the
+   * origins are asked — the card whose effect paid rises (out of its place, or at a seat), so the token can be born
+   * on its printed effect icon. Bounded by the owner; an entry released meanwhile launches nothing.
+   */
+  prepare?: () => Promise<void>;
+  /**
+   * ONE HELD ANSWER AS SEVERAL TOKENS: a merged row («+6 heat») split into the tokens the owner wants to fly (a wave
+   * of six off the printed heat, one per unit; the shares of two reactors on one row), the sum the held amount. Each
+   * token is then asked its own origin and ticks its row on its own touchdown; `undefined` keeps the one token.
+   */
+  tokensOf?: (spec: ResourceTransferSpec) => ReadonlyArray<ResourceTransferSpec> | undefined;
+  /** Every flown token has touched down (or the answer ticked / was released): the reactors may recede. Called once. */
+  onDone?: () => void;
 };
 
 /** WHY a rail reward was not shown as promised. */
@@ -363,6 +378,8 @@ export function seedRailReward(key: string, reward: RailReward, before: PlayerVi
     return false;
   }
   beginPanelRewardHold([...verdict.cause, ...verdict.reactions]);
+  // The answers a host PROMISED, for the card-reaction seeder's attribution (never its own cause).
+  declareHeldAnswers(verdict.reactions);
   const vp = new Map<ResourceTransferSpec, number>();
   verdict.cause.forEach((spec, i) => {
     const points = verdict.vp[i] ?? 0;
@@ -533,6 +550,7 @@ function answerRailReward(key: string, answer?: RailAnswerFlight): Promise<void>
   const entry = entryOf(key);
   if (entry === undefined) {
     answer?.onLeft();
+    answer?.onDone?.();
     return Promise.resolve();
   }
   // Whatever the wave left held (it never does — the framework's safety releases every spec) goes first.
@@ -540,20 +558,40 @@ function answerRailReward(key: string, answer?: RailAnswerFlight): Promise<void>
   if (entry.reactions.length === 0) {
     dropEntry(key);
     answer?.onLeft();
+    answer?.onDone?.();
     return Promise.resolve();
   }
   entry.phase = 'answering';
   return new Promise<void>((resolve) => {
+    let settled = false;
     const settle = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
       answer?.onLeft();
+      answer?.onDone?.();
       resolve();
     };
-    const call = gsap.delayedCall(motionMs(TOUCHDOWN_TICK_GAP_MS) / 1000, () => {
-      reactionCalls.delete(key);
+    const launchAnswer = (): void => {
       const live = entryOf(key);
       if (live === undefined) {
         settle();
         return;
+      }
+      // THE REACTOR'S OWN TOKENS («СРАБАТЫВАНИЕ КАРТЫ»): a held row the flight splits (a wave of heat, two reactors'
+      // shares) is re-held as those tokens — each ticks its row on its own touchdown, the sum unchanged.
+      if (answer?.tokensOf !== undefined) {
+        for (const spec of [...live.reactions]) {
+          const tokens = answer.tokensOf(spec);
+          if (tokens !== undefined && tokens.length > 0 && !(tokens.length === 1 && tokens[0] === spec)) {
+            const total = tokens.reduce((sum, t) => sum + t.amount, 0);
+            if (total === spec.amount) {
+              const at = live.reactions.indexOf(spec);
+              live.reactions.splice(at, 1, ...tokens);
+            }
+          }
+        }
       }
       const launch = answer === undefined ? [] : live.reactions
         .map((spec) => ({spec, origin: answer.originOf(spec)}))
@@ -589,8 +627,25 @@ function answerRailReward(key: string, answer?: RailAnswerFlight): Promise<void>
           [...now.reactions].forEach((spec) => releaseSpec(now.reactions, spec));
           dropEntry(key);
         }
+        if (!settled) {
+          settled = true;
+          answer?.onDone?.();
+        }
         resolve();
       });
+    };
+    const call = gsap.delayedCall(motionMs(TOUCHDOWN_TICK_GAP_MS) / 1000, () => {
+      reactionCalls.delete(key);
+      if (entryOf(key) === undefined) {
+        settle();
+        return;
+      }
+      // The reactor comes forward BEFORE the births (`prepare` — bounded by its owner); a release meanwhile launches nothing.
+      if (answer?.prepare === undefined) {
+        launchAnswer();
+        return;
+      }
+      void answer.prepare().then(launchAnswer, launchAnswer);
     });
     // A release from outside kills the beat — it settles the promise itself (a killed call fires nothing).
     reactionCalls.set(key, {call, settle});

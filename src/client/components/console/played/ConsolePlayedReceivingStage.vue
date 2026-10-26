@@ -410,6 +410,20 @@ export default defineComponent({
     this.unregisterHooks = provideReceivingEffectHooks({
       emergeTarget: (card) => this.emergeTarget(card),
       settleTarget: (card) => this.settleTarget(card),
+      // «СРАБАТЫВАНИЕ КАРТЫ»: a reactor this stage holds rises OUT OF ITS PLACE (the open previous top, a strip, a mini) —
+      // and its tokens are born on the emerged face's effect row.
+      holdsCard: (card) => this.findTargetAnchor(card) !== undefined || (this.view.prevTop === card && !this.revealed),
+      emergedFaceEl: (card) => {
+        if (this.emerged?.name === card) {
+          return this.$refs.emergeEl as HTMLElement | undefined;
+        }
+        // The open previous top lies under the played card — its own face on the stage is the birth place.
+        if (this.targetAccent !== card) {
+          return undefined;
+        }
+        const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
+        return (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-played-key="${esc}"]`) ?? undefined;
+      },
     });
   },
   beforeUnmount() {

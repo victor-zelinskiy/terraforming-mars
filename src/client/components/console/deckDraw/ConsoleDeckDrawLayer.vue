@@ -112,7 +112,7 @@ import {
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {BatchArrivalHandle, runBatchArrival} from '@/client/console/consoleBatchArrivalMotion';
-import {intakeAssemblyOwnsBatch, intakeSearchRun} from '@/client/console/cardIntake/intakeAssemblyPlan';
+import {intakeAssemblyOwnsBatch, intakeAssemblyPresentsBatch, intakeSearchRun} from '@/client/console/cardIntake/intakeAssemblyPlan';
 import {IntakeAssemblyHandle, IntakeTriggerFace, planAssemblyFor, playIntakeAssembly} from '@/client/console/cardIntake/intakeAssemblyDirector';
 import {registerIntakeContinuation} from '@/client/console/cardIntake/intakeAssembly';
 import {conWsPresence} from '@/client/console/conWsPresenceBridge';
@@ -695,7 +695,9 @@ export default defineComponent({
      * already stand exactly on them.
      */
     async runPlainBatch(e: DrawnCardEntry): Promise<void> {
-      if (intakeAssemblyOwnsBatch(e)) {
+      // A merged batch — and a ONE-CAUSE batch whose cause is a card NOT on the stage (a single hook's draw: the
+      // trigger rises beside the row and deals from its own printed icon — «СРАБАТЫВАНИЕ КАРТЫ», decision 5).
+      if (intakeAssemblyPresentsBatch(e, workspaceClaimsRevealBatch(e) ? workspaceOutcomeState.sourceCard : undefined)) {
         await this.runAssembly(e);
         return;
       }

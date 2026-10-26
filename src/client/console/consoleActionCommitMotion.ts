@@ -126,7 +126,8 @@ export type ActionCommitAnchors = {
   costEl?: HTMLElement;
 };
 
-function iconMatches(el: HTMLElement, key: string): boolean {
+/** A printed `.pcard-ic` whose sprite is the icon of `key` — the ONE reading every birth place shares (the reaction scene's effect row reads it too). */
+export function iconMatches(el: HTMLElement, key: string): boolean {
   const needles = iconNeedlesFor(key);
   if (needles === undefined) {
     return false;
@@ -135,7 +136,7 @@ function iconMatches(el: HTMLElement, key: string): boolean {
   return needles.some((n) => bg.includes(n));
 }
 
-function measurable(el: Element | null | undefined): HTMLElement | undefined {
+export function measurable(el: Element | null | undefined): HTMLElement | undefined {
   if (el === null || el === undefined) {
     return undefined;
   }

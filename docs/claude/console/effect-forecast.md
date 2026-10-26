@@ -512,10 +512,20 @@ fold, intent, the door's flare on the animation clock), `ConsoleForecastDoor`,
 `ConsoleForecastLayer`; guards `consoleForecastHost.spec`, e2e
 `console-forecast-doors` (both, fhd + 4K).
 
-## After the press — the table's answer FLIES (К-S1 / PL-124, 2026-10-10)
+## After the press — the table's answer FLIES off the card that PAID (К-S1 / PL-124, 2026-10-10 · CN, 2026-10-26)
 
 Before the press the forecast is the whole truth («Сработает»); after the press it is a PROMISE the landing scene
-keeps. The composer hands the scene two halves of it, both read off the SAME `forecastForFixedBranch(…).facts`:
+keeps — and since CN («СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК», `docs/claude/console/card-reaction.md`) the server
+also states the TRUTH: `GameModel.cardReactions`, one `CardReactionRecord` per effect scope that produced an impact
+(the reacting card and its kind, the channel the hook fired on — the forecast fact's `source.channel` —, the CAUSE
+the trigger site named — the played card here —, the impacts with their recipients). The two never compete: the
+forecast says WHAT TO HOLD and HOW MUCH before the press (the prewarmed holders, the rail half's rows, the verified
+amounts); the record says WHICH CARD ANSWERED after it, and the reactor's rise, the birth on ITS effect row and the
+split of a held row into the records' shares are played off the record (`cardReactionAnswerFlight`, composed over
+the flights below). A record with no forecast (a hook without a twin — the parity guard names it) still rises and
+flies through the standalone chain; a forecast with no record (the hook did not fire — the ocean ceiling, a lost
+target) keeps the honest tick the verify step already gave it. The composer hands the scene two halves of the
+promise, both read off the SAME `forecastForFixedBranch(…).facts`:
 
 - **The rail half** (`playRailReward` → `RailReward.reactions`, `reactionRailSpecs`): the exact stock / production
   answers addressed to «you» (the Greens' M€). They ride with the play's direct TR when it has one — and WITHOUT one
@@ -532,10 +542,20 @@ stage paints), VERIFIED at the seed (`seedReactions` — each holder on its own 
 `card-resource:<kind>@<card>` row, the play's own gain on that holder a KNOWN move; a mismatch is not flown, is tallied as
 landed so the capsule reads the commit at once, and is named in `playedHeroState.reactions`), and FLOWN by the reward beat
 (`flyHeroReactions`) after the card's own groups and before the TR: `emergeTarget` (a covered previous top emerges too),
-`runResourceTransfers` with the chip's ORIGIN at the front card's `.pcard-tag[data-tag=<tag>]` (the card itself when the hook
-names no tag), `settleTarget`. Guards: `receivingStageModel.spec` (fact → spec), `playedHeroRail.spec` (the seed), the
-receiving stage's spec (the covered previous top); probe `console-biological-simulations` (A): Tardigrades wakes TR38 — the
-«+1» born on the microbe medallion, the holder emerged, the capsule 2 → 3 on the touchdown, on fhd and 4K.
+`runResourceTransfers` with the chip's ORIGIN on the HOLDER's own effect row when its face prints the resource
+(`originsOnHolder` → `resolveEffectIconEnds` on the emerged face — PL-124 on the framework: Decomposers' microbe is
+born on Decomposers' printed microbe), else at the front card's `.pcard-tag[data-tag=<tag>]` (the card itself when the
+hook names no tag); the woken tag is MARKED either way (`markReactionCause` — a one-shot kant, `[data-reaction-cause]`),
+`settleTarget`. **The rail half's answer is the reactor's flight**: `heroAnswerFlight` composes
+`cardReactionAnswerFlight()` over the old tag flight — `prepare` rises the reacting card OUT OF ITS PLACE on the
+receiving stage (Hartlan, a corporation, stands there — `holdsCard` / `emergedFaceEl` hooks) or at a seat beside the
+rail, `tokensOf` splits the held heat into six off the printed heat, `originOf` births each on the reactor's effect
+row, `onDone` recedes it; a record nobody's half covers is held and flown by the standalone chain after the scene.
+Guards: `receivingStageModel.spec` (fact → spec), `playedHeroRail.spec` (the seed), the receiving stage's spec (the
+covered previous top), `cardReactionDirector.spec` (attached / standalone / claimed once), `railReward.spec` § the
+answer flight; probes `console-biological-simulations` (A): Tardigrades wakes TR38 — the «+1» born on the microbe
+medallion, the holder emerged, the capsule 2 → 3 on the touchdown; `console-hartlan-heating` (B): Nuclear Zone wakes
+Hartlan — the corporation rises out of its place, six heat born on its printed heat, the M€ plate ticks on touchdown.
 
 ## i18n
 

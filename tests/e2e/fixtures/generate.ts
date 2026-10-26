@@ -33,6 +33,9 @@ import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
 import {AICentral} from '../../../src/server/cards/base/AICentral';
 import {Research} from '../../../src/server/cards/base/Research';
+import {NoctisCity} from '../../../src/server/cards/base/NoctisCity';
+import {ImmigrantCity} from '../../../src/server/cards/base/ImmigrantCity';
+import {TharsisRepublic} from '../../../src/server/cards/corporation/TharsisRepublic';
 import {Tag} from '../../../src/common/cards/Tag';
 import {Trees} from '../../../src/server/cards/base/Trees';
 import {Fish} from '../../../src/server/cards/base/Fish';
@@ -9630,3 +9633,65 @@ parliamentFixture('arwind-pay-space', {
     }
   },
 });
+
+// ── hartlan-heating: TR80 HARTLAN HEATING — the third new corporation of Turmoil Redux and the first owner of the
+//    CARD-REACTION framework («СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК», docs/claude/console/card-reaction.md). A 2p Redux
+//    table, blue on Hartlan (48 M€ + 2 heat production) with NO other reactor on its tableau, so every answer on
+//    screen is Hartlan's: the hand holds Nuclear Zone (a GREEN card that PLACES a tile — the composer's «Сработает:
+//    +6 [heat] +1 [M€ prod]», the R3 layer's Hartlan face, the corporation rising out of its place after the landing
+//    and the six heat tokens born on its printed heat) and Research (a green card with NO tile — nothing promised,
+//    nothing fires); 12 heat for the action («12 heat → 2 cards»: the price leaves the rail first, the deck answers
+//    with ONE batch). Red on Teractor (no first action). ──
+{
+  const name = 'hartlan-heating';
+  const pinned = [CardName.HARTLAN_HEATING, REDUX_TABLE_CORPORATIONS[0]];
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  if (!p1.playedCards.has(CardName.HARTLAN_HEATING)) {
+    throw new Error(`${name}: blue is not on Hartlan Heating (${p1.playedCards.corporations().map(toName).join(',')})`);
+  }
+  p1.cardsInHand.push(new NuclearZone(), new Research());
+  p1.megaCredits = 60;
+  p1.heat = 12;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  write(name, game);
+}
+
+// ── card-reaction-many: a play that WAKES FIVE REACTORS at once — the chain's tempo under its ceiling (the owner's
+//    decision 4: ≥ 3 groups → pace 1.35 + two seats; what cannot rise in 1.8 s ticks, named). Blue holds TWO
+//    corporations (Hartlan Heating + Tharsis Republic — a multicorp table) and Rover Construction, Immigrant City and
+//    Pets on its tableau; the hand holds Noctis City (a GREEN card placing a CITY on the reserved area — no cell to
+//    choose, so every answer lands in ONE response): Hartlan's +6 heat / +1 M€ production (card-played, deferred past
+//    the play), Tharsis' +3 M€ / +1 M€ production, Rover's +2 M€, Immigrant City's +1 M€ production (tile-placed) and
+//    Pets' animal onto itself. Energy production 1 for Noctis. ──
+{
+  const name = 'card-reaction-many';
+  const pinned = [CardName.HARTLAN_HEATING, REDUX_TABLE_CORPORATIONS[0]];
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  if (!p1.playedCards.has(CardName.HARTLAN_HEATING)) {
+    throw new Error(`${name}: blue is not on Hartlan Heating (${p1.playedCards.corporations().map(toName).join(',')})`);
+  }
+  p1.playedCards.push(new TharsisRepublic(), new RoverConstruction(), new ImmigrantCity(), new Pets());
+  // The seeded start flow may already have kept a Noctis City — ONE copy in the hand (the spec focuses it by name).
+  p1.cardsInHand = p1.cardsInHand.filter((c) => c.name !== CardName.NOCTIS_CITY);
+  p1.cardsInHand.push(new NoctisCity());
+  p1.production.add(Resource.ENERGY, 1);
+  p1.megaCredits = 60;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  const noctis = p1.cardsInHand.find((c) => c.name === CardName.NOCTIS_CITY);
+  if (noctis === undefined || !p1.canPlay(noctis)) {
+    throw new Error(`${name}: Noctis City is not playable (energy production ${p1.production.energy}, ${p1.megaCredits} M€)`);
+  }
+  write(name, game);
+}

@@ -91,6 +91,15 @@ this layer through `cardIntake/intakeAssembly.ts` (`continueIntakeAssembly` → 
 as a GUEST without its own scene, the cover scene owns the gates and the final handoff). A merged batch with NO scene
 armed never self-arms the cover scene (`revealToProcess`).
 
+**2026-10-26 — the trigger rises through the SHARED primitive (CN).** `surfaceTrigger` / `recedeTrigger` are
+`cardReactionStage.riseReactor` / `recedeReactor` with this scene's own timings — the card-reaction framework pinned
+its tempo to `intakeAssemblyTimings` byte for byte (`docs/claude/console/card-reaction.md` law 3, guard
+`cardReactionModel.spec`), so a trigger surfacing here and a reactor rising beside the rail are one motion. And a
+SINGLE hook's draw whose cause is a card NOT on the stage goes through this scene too (`intakeAssemblyPresentsBatch`
+— the owner's decision 5, PL-1053: Mars University's one card deals from the University's printed draw icon, the
+University surfaced beside the row) instead of degrading to the deck; `intakeAssemblyOwnsBatch` still judges the
+claims and the parks.
+
 e2e: `console-draw-one-batch-play-table.spec.ts` (Ф-А on the `mu-olympus` fixture — one reveal, one batch on the
 wire with two segments and one root, the head's two causes, the Olympus face surfaced beside the row and never over a
 slot, the stage card never surfaced, one crumb); `console-table-question-defer` (B) reads the merged batch.

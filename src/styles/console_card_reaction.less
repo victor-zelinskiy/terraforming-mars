@@ -1,0 +1,44 @@
+/* ── «СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК» — the card-reaction layer ──────────
+   The app-level stage of «a card's printed effect fired»: the reacting card
+   SURFACES at a seat beside the receiver (a real lite face — the one the
+   player knows), its tokens are born on its printed effect icons and fly to the
+   rail, it recedes. Transform/opacity only; the director sizes and places it.
+   A standing state is a KANT, never a glow: the face stands a touch below full
+   opacity (it is the cause, the row is the subject) — no halo, no light.
+   The z ladder: over the workspaces and the receiving stage's emergence layer
+   (11640), under the hero proxy (11660) and the transfer chips. */
+.con-reaction {
+    position: fixed;
+    inset: 0;
+    z-index: 11650;
+    pointer-events: none;
+}
+
+.con-reaction__face {
+    position: fixed;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform-origin: top left;
+    will-change: transform, opacity;
+}
+
+/* THE CAUSE IS MARKED, NOT A BIRTH PLACE (the owner's decision 2): the tag of
+   the played card / the composer's «Сработает» chip that woke the reactor wears
+   a ONE-SHOT kant while the token is born on the reactor — an event that ends
+   on its own (invariant 15 allows exactly this), never a standing light. */
+@keyframes con-reaction-cause {
+    0% { box-shadow: inset 0 0 0 0 fade(@con-amber, 0%); }
+    25% { box-shadow: inset 0 0 0 .14rem fade(@con-amber, 85%); }
+    100% { box-shadow: inset 0 0 0 0 fade(@con-amber, 0%); }
+}
+[data-reaction-cause] {
+    animation: con-reaction-cause calc(640ms * var(--motion-scale, 1)) ease-out 1;
+}
+
+/* Reduced motion: the face crossfades in place (the director already caps its durations); the cause keeps its mark. */
+.con-reduced-motion .con-reaction__face {
+    will-change: opacity;
+}

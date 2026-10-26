@@ -1948,6 +1948,21 @@
   background-repeat: no-repeat;
   box-shadow: none;
 }
+/* A CARD corner («a GREEN / BLUE card» — AltSecondaryTag.GREEN / BLUE on another
+   glyph; TR80 Hartlan Heating's empty tile wearing the green card's tab): the
+   card cover, portrait, with the type's header band the counted card glyph
+   draws (`.pcard-ic--type-*` — the same pseudo-elements, sized to this box).
+   No round mask, no cover crop, a hairline rim instead of the gold ring. */
+.pcard-mi__bubble--card {
+  top: -7px;
+  right: -8px;
+  width: calc(var(--pcard-mech-icon) * 0.46);
+  height: calc(var(--pcard-mech-icon) * 0.62);
+  border-radius: 6%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+}
 /* «card WITH a requirement» (AltSecondaryTag.REQ — Xavier): the premium
    requirements plate in miniature — a copper bar, drawn, no asset. */
 .pcard-mi__bubble--req {

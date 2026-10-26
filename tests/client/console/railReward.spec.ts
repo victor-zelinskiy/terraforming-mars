@@ -302,4 +302,76 @@ describe('railReward — a gain arrives on the rail as a reward', () => {
       expect(heldProduction('megacredits')).eq(0);
     });
   });
+
+  /*
+   * THE REACTOR'S ANSWER («СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК»): the answer flight may PREPARE (the reactor rises)
+   * before the origins are asked, SPLIT a held row into its own tokens (a wave of six off the printed heat — the sum the
+   * held amount, each ticking on its own touchdown), and is told ONCE when every token has landed or the answer ticked.
+   */
+  describe('the answer flight prepares, splits and is told it is done', () => {
+    const HEAT: ResourceTransferSpec = {channel: 'stock', resource: 'heat', amount: 6};
+    const heatView = (heat: number, tr: number) => ({...view({tr}), thisPlayer: {...view({tr}).thisPlayer, heat}} as unknown as PlayerViewModel);
+
+    it('prepare runs before any origin is asked; tokensOf splits the row; onDone fires once after the last touchdown', async () => {
+      const log: Array<string> = [];
+      expect(seedRailReward(KEY, {cause: [TR], reactions: [HEAT]}, heatView(0, 20), heatView(6, 21))).is.true;
+      expect(heldStock('heat')).eq(6);
+      reduceMotionOverrideState.enabled = true; // no geometry: every token «lands» at once, in order
+      const asked: Array<number> = [];
+      await flyRailReward(KEY, () => ({x: 1, y: 1}), {
+        prepare: async () => {
+          log.push('prepare');
+        },
+        tokensOf: (spec) => Array.from({length: spec.amount}, () => ({...spec, amount: 1})),
+        originOf: (spec) => {
+          log.push('origin');
+          asked.push(spec.amount);
+          return {x: 2, y: 2};
+        },
+        onLeft: () => log.push('left'),
+        onDone: () => log.push('done'),
+      });
+      expect(log[0], 'the reactor rose before a token was born').eq('prepare');
+      expect(asked, 'six tokens of one, each asked its own origin').deep.eq([1, 1, 1, 1, 1, 1]);
+      expect(log.filter((e) => e === 'done'), 'told once').to.have.lengthOf(1);
+      expect(heldStock('heat')).eq(0);
+      expect(railRewardState.lastAnswer?.flown).to.have.lengthOf(6);
+    });
+
+    it('a split whose sum is not the held amount is refused — the row keeps its one token', async () => {
+      expect(seedRailReward(KEY, {cause: [TR], reactions: [HEAT]}, heatView(0, 20), heatView(6, 21))).is.true;
+      reduceMotionOverrideState.enabled = true;
+      const asked: Array<number> = [];
+      await flyRailReward(KEY, () => ({x: 1, y: 1}), {
+        tokensOf: () => [{...HEAT, amount: 2}],
+        originOf: (spec) => {
+          asked.push(spec.amount);
+          return {x: 2, y: 2};
+        },
+        onLeft: () => {},
+      });
+      expect(asked).deep.eq([6]);
+      expect(heldStock('heat')).eq(0);
+    });
+
+    it('an entry released while the reactor prepares launches nothing — and is still told it is done', async () => {
+      const log: Array<string> = [];
+      expect(seedRailReward(KEY, {cause: [TR], reactions: [HEAT]}, heatView(0, 20), heatView(6, 21))).is.true;
+      reduceMotionOverrideState.enabled = true;
+      await flyRailReward(KEY, () => ({x: 1, y: 1}), {
+        prepare: async () => {
+          releaseRailReward(KEY, 'the surface left');
+        },
+        originOf: () => {
+          log.push('origin');
+          return {x: 2, y: 2};
+        },
+        onLeft: () => log.push('left'),
+        onDone: () => log.push('done'),
+      });
+      expect(log).to.not.include('origin');
+      expect(log.filter((e) => e === 'done')).to.have.lengthOf(1);
+      expect(heldStock('heat')).eq(0);
+    });
+  });
 });
