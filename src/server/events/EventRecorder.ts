@@ -23,7 +23,8 @@ import {ICard} from '../cards/ICard';
 /**
  * WHAT A REACTION SCOPE'S SOURCE IS ON THE SCENE: a card or a corporation by name; an ENACTED RESOLUTION (Turmoil
  * Redux) by its catalog id in the face-key slot (`CardReactionRecord.card` — the premium face's own convention, a
- * ResolutionId never collides with a CardName). A party, a colony, a rule: no reactor — nothing rises for them.
+ * ResolutionId never collides with a CardName); a PARTY by its name (the party's charter face). A colony, a rule: no
+ * reactor — nothing rises for them.
  */
 const REPLACEMENT_TRIGGERS: ReadonlySet<EventTrigger> = new Set<EventTrigger>(['terraforming-diverted', 'rating-vetoed']);
 
@@ -36,6 +37,10 @@ function reactionSourceOf(source: EventSource | undefined): {kind: CardReactionR
   }
   if (source.kind === 'resolution') {
     return {kind: 'resolution', card: source.id as CardName};
+  }
+  // A PARTY's effect (Turmoil Redux, iteration 6 of «СРАБАТЫВАНИЕ КАРТЫ»): its charter face is the reactor.
+  if (source.kind === 'party') {
+    return {kind: 'party', card: source.name as unknown as CardName};
   }
   return undefined;
 }

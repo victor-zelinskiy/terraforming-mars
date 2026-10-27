@@ -75,6 +75,8 @@ import {
 import {RailAnswerFlight} from '@/client/console/resourceTransfer/railReward';
 import {waitRewardPayoutQuiet} from '@/client/console/rewardPayoutQuiet';
 import {scaleStepRatingBusy} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
+import {hydroCeremonyOwed, hydroFlowState} from '@/client/console/hydroFlow/consoleHydroFlow';
+import {hydroTraversalPending, isHydroMarkerActive} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {RectLike} from '@/client/console/cardIntake/intakeAssemblyPlan';
 import {
   CardReactionGroup, REACTION_HURRY_PACE, REACTION_RIVAL_SCALE, ReactionTempo, freshCardReactions, groupCardReactions, planReactionChain,
@@ -310,8 +312,9 @@ export function seedCardReactionHolds(before: PlayerViewModel | undefined, after
     attached: attached.filter((a) => !a.claimed).map((a) => a.group.card), standalone: standaloneQueue.map((s) => s.group.card),
     ...(overRaw.length > 0 ? {standaloneOverRawHold: [...new Set(overRaw)]} : {}),
   });
-  // A resolution's face is built from the parliament manifest (`resolutionPremiumVm`), not the card art index.
-  preloadPremiumCardArt([...groups, ...rivals.map((r) => r.group)].filter((g) => g.record.kind !== 'resolution').map((g) => g.card));
+  // A resolution's / a party's face is built from the parliament manifest (`resolutionPremiumVm` / `partyPremiumVm`),
+  // not the card art index.
+  preloadPremiumCardArt([...groups, ...rivals.map((r) => r.group)].filter((g) => g.record.kind === 'card' || g.record.kind === 'corporation').map((g) => g.card));
   // THE FACES ARE WARMED NOW (iteration 3): mounted hidden in the layer at the stage's size — the layout and the
   // decode happen under the cause's own scene, never in the rise's first frame. A card that will rise in its place
   // never needs the warm face; it is dropped unused when the chain ends.
@@ -400,7 +403,7 @@ function openingRect(): RectLike {
  * «сдвиг за героя» — one place by meaning: the free canvas's edge). Judged by the one visibility verdict: a hero
  * parked under a hosted step (faded) does not move the edge.
  */
-const STAGE_EDGE_OCCUPANTS = ['.con-composer__actcardwrap', '.con-composer__actlaw', '.con-composer__actparty', '.con-composer__playcard'];
+const STAGE_EDGE_OCCUPANTS = ['.con-composer__actcardwrap', '.con-composer__actlaw', '.con-composer__actparty', '.con-composer__playcard', '.con-hydro__ctx'];
 
 /**
  * THE RAIL'S EDGE AND LINE (iteration 5): the row starts at the opening's left edge past any hero column standing
@@ -725,6 +728,7 @@ async function runStandalone(): Promise<void> {
     await waitRewardPayoutQuiet({alive: () => epoch === myEpoch && (standaloneQueue.length > 0 || rivalQueue.length > 0)});
     await waitBlockingQuiet(myEpoch);
     await waitRatingStoryQuiet(myEpoch);
+    await waitHydroStoryQuiet(myEpoch);
     await waitDecisionClear(myEpoch);
     if (epoch !== myEpoch) {
       return;
@@ -871,6 +875,28 @@ function runStep(entry: Standalone, slot: number, t: ReactionTempo, slots: Reado
 async function waitBlockingQuiet(myEpoch: number): Promise<void> {
   const started = typeof performance === 'undefined' ? 0 : performance.now();
   while (epoch === myEpoch && blockingAnimationHoldCount() > 0) {
+    if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
+      return;
+    }
+    await nextPaintedFrame();
+  }
+}
+
+/**
+ * THE HYDRONETWORK'S OWN STORY FIRST (iteration 6 — the owner, 2026-10-27: «после результата»): an advance's commit is
+ * the marker's glide onto the stage, a traversal's legs, the terminal ceremony — and its reward wave, which
+ * `waitRewardPayoutQuiet` above already waits out — and only THEN the table's answer to that reward (the ruling Greens'
+ * M€ production for a heat production step) rises at the rail's edge: never over the glide, never over the wave. The
+ * flow's RESULT stage is deliberately NOT waited for: it opens on the falling edge of the rail's holds, and the chain
+ * holds the party's row until its token lands — a wait for `result` was a mutual wait, broken only by the bound
+ * (the charter rose 13 s into `resolving` on the box). The hydro ceremony's hold is notification-only (the blocking
+ * wait above never sees it), so the flow's own facts are asked. Bounded like the blocking wait.
+ */
+async function waitHydroStoryQuiet(myEpoch: number): Promise<void> {
+  const started = typeof performance === 'undefined' ? 0 : performance.now();
+  const busy = (): boolean => hydroFlowState.commit !== undefined &&
+    (hydroFlowState.commit.phase === 'moving' || isHydroMarkerActive() || hydroTraversalPending() || hydroFlowState.ceremonyActive || hydroCeremonyOwed());
+  while (epoch === myEpoch && busy()) {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
       return;
     }

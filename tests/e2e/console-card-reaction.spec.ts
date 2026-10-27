@@ -37,12 +37,13 @@ const IMMIGRANT = 'Immigrant City';
 const PETS = 'Pets';
 const HOMEOSTASIS = 'Homeostasis Bureau';
 const FIBER = 'Martian Fiber';
+const GREENS = 'Greens';
 const NOCTIS = 'Noctis City';
 /** A face at the stage is a protagonist: this share of the opening's height (`REACTION_STAGE_SHARE`) — a rival's ×0.8. */
 const STAGE_SHARE = 0.34;
 const RIVAL_SCALE = 0.8;
 
-type Seat = {color: string, name: string, megacredits: number, megacreditProduction: number, heat: number, terraformRating: number, tableau: Array<{name: string, resources?: number}>};
+type Seat = {color: string, name: string, megacredits: number, megacreditProduction: number, heatProduction: number, heat: number, terraformRating: number, tableau: Array<{name: string, resources?: number}>};
 type Wire = {
   thisPlayer: Seat,
   players: Array<Seat>,
@@ -111,7 +112,7 @@ async function armReactionProbe(page: Page): Promise<void> {
       const r = px('--con-stage-r');
       const openingW = window.innerWidth - l - r;
       let edge = l;
-      for (const sel of ['.con-composer__actcardwrap', '.con-composer__actlaw', '.con-composer__actparty', '.con-composer__playcard']) {
+      for (const sel of ['.con-composer__actcardwrap', '.con-composer__actlaw', '.con-composer__actparty', '.con-composer__playcard', '.con-hydro__ctx']) {
         for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
           const rr = el.getBoundingClientRect();
           if (rr.width > 4 && getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el).opacity) > 0.3 && rr.left < l + openingW * 0.45) {
@@ -561,6 +562,134 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     const after = await wireOf(request, playerId);
     expect(after.thisPlayer.megacredits).toBe(before.thisPlayer.megacredits - 25 + 3 + 2);
     expect(after.thisPlayer.megacreditProduction).toBe(before.thisPlayer.megacreditProduction + 3);
+    expect(errors, 'no page errors').toEqual([]);
+  });
+
+  /**
+   * PARTY (iteration 6 — the owner, 2026-10-27: «карточки партий … вообще никак не подключены в новый фреймворк»): the
+   * ruling party's effect is a REACTOR like any card — its CHARTER face rises at the rail's edge, its answer born on
+   * the charter's printed icon. The asteroid standard project under the ruling Greens: the degree's TR step wakes
+   * the Greens' «+2 M€ per TR step» — a standalone rise AFTER the rating's own touchdown (the rating story first).
+   */
+  test('PARTY · the asteroid under the ruling Greens — the party\'s CHARTER rises at the rail\'s edge after the rating landed, its 2 M€ born on its printed M€', async ({page, request}) => {
+    test.setTimeout(600_000);
+    const errors: Array<string> = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    const playerId = await bootFixture(page, request, 'unmi-liner', {query: PRESET.query});
+    await settle(page, {timeoutMs: 30_000});
+    const before = await wireOf(request, playerId);
+    expect(before.thisPlayer.megacredits, 'the fixture: 20 M€').toBe(20);
+    await armTransferWitness(page);
+    await armReactionProbe(page);
+    await openStandardProject(page, 'Asteroid:SP');
+    await page.locator(`.con-reaction__face[data-reaction-card="${GREENS}"]`).waitFor({state: 'visible', timeout: 60_000});
+    await shoot(page, PRESET, 'PARTY-01-greens-rise');
+    await settle(page, {timeoutMs: 60_000});
+    await waitForBoardHome(page, 40);
+    const witness = await transferWitness(page);
+    writeTrail('party', PRESET, transferTrail(witness));
+    const samples = await reactionProbe(page);
+    console.log(`[${PRESET.id} PARTY probe] ${JSON.stringify(samples.map((s) => ({...s, faces: s.faces.map((f) => `${f.card}@${Math.round(f.l)},${Math.round(f.t)} ${Math.round(f.w)}×${Math.round(f.h)} ${f.op.toFixed(2)}`)})))}`);
+    expect(endsOverGlass(witness), `every end visible\n${transferTrail(witness)}`).toEqual([]);
+    const greens = witness.births.filter((b) => b.under.startsWith(`reactor:${GREENS}:`));
+    expect(greens.length, `the Greens' M€ born on the charter's printed M€\n${transferTrail(witness)}`).toBeGreaterThan(0);
+    expect(witness.landings.filter((l) => greens.some((b) => b.id === l.id)).every((l) => l.under.startsWith('rail:megacredits')),
+      `…and landed on the M€ row\n${transferTrail(witness)}`).toBe(true);
+    // THE ANSWER AFTER ITS CAUSE: the step's own rating leaves the marker once it has arrived — the party answering
+    // that rating may not pay before it has touched down (the rating story first, then the chain).
+    const rating = witness.landings.find((l) => l.under === 'rail:tr');
+    expect(rating, `the step's rating landed on the score cell\n${transferTrail(witness)}`).toBeDefined();
+    expect(Math.min(...greens.map((b) => b.t)), `the Greens answer after the rating's touchdown\n${transferTrail(witness)}`).toBeGreaterThan(rating?.touched ?? rating?.t ?? Infinity);
+    const seen = expectAtTheStage(samples, 'PARTY');
+    expect([...seen], 'the Greens\' charter stood at the stage').toContain(GREENS);
+    const after = await wireOf(request, playerId);
+    expect(after.thisPlayer.megacredits, 'the asteroid\'s 14 paid, the Greens\' 2 received').toBe(before.thisPlayer.megacredits - 14 + 2);
+    expect(after.thisPlayer.terraformRating).toBe(before.thisPlayer.terraformRating + 1);
+    await shoot(page, PRESET, 'PARTY-02-board');
+    expect(errors, 'no page errors').toEqual([]);
+  });
+
+  /**
+   * HYDRO (iteration 6 — the owner's «после результата»): the Hydronetwork's OWN story plays first — the marker's
+   * glide, the stage's reward wave, the result — and only THEN the table's answer rises at the rail's edge: stage 2's
+   * heat production under the ruling Greens, the charter's +1 M€ production born on its printed effect row, landing
+   * on the M€ production plate. The stage sits PAST the hydro's context column (the hero column of this workspace).
+   */
+  test('HYDRO · a heat production step of the Hydronetwork under the ruling Greens — the charter rises AFTER the flow\'s result, past the context column, its M€ production born on its printed row', async ({page, request}) => {
+    test.setTimeout(600_000);
+    const errors: Array<string> = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    const playerId = await bootFixture(page, request, 'hydro-greens', {query: PRESET.query});
+    await settle(page, {timeoutMs: 30_000});
+    const before = await wireOf(request, playerId);
+    const focusedStop = async (): Promise<string> =>
+      await page.evaluate(() => document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
+    await press(page, 'Period', 1100);
+    await press(page, 'ArrowLeft', 1600);
+    await page.waitForSelector('.con-hydro', {timeout: 10_000});
+    await settle(page, {timeoutMs: 15_000});
+    // ◀ / ▶ walk the plan's cursor onto stage 2 (the section's own grammar; RT would seat it on the farthest reachable).
+    for (let i = 0; i < 12 && await focusedStop() !== '2'; i++) {
+      const at = Number(await focusedStop());
+      await press(page, Number.isNaN(at) || at < 2 ? 'ArrowRight' : 'ArrowLeft', 500);
+    }
+    expect(await focusedStop(), 'the cursor stands on stage 2').toBe('2');
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-hydro__layer--choice').count() > 0, {tries: 3, settleMs: 1100}), 'A opens the reward choice').toBe(true);
+    const heatTile = page.locator('.con-hydro__choice-card').nth(1);
+    expect(await pressUntil(page, 'ArrowRight', async () => ((await heatTile.getAttribute('class')) ?? '').includes('con-hydro__choice-card--focused'), {tries: 3, settleMs: 500}), 'the heat option focused').toBe(true);
+    // ONE press seals the heat option (the step confirms itself — the next A is the commit).
+    await press(page, 'Enter', 900);
+    await expect(heatTile, 'the heat option is sealed').toHaveClass(/con-hydro__choice-card--selected/, {timeout: 10_000});
+    await settle(page, {timeoutMs: 15_000});
+    await armTransferWitness(page);
+    await armReactionProbe(page);
+    // THE ORDER PROBE: the flow's phase beside the charter's presence, sampled on the task clock.
+    await page.evaluate(() => {
+      const w = window as unknown as {__hydroOrder: Array<{t: number, phase: string, face: boolean}>, __conHydroDiag?: () => {commit: {phase: string} | null} | null};
+      w.__hydroOrder = [];
+      let last = '';
+      window.setInterval(() => {
+        const phase = w.__conHydroDiag?.()?.commit?.phase ?? (document.querySelector('.con-hydro') === null ? 'closed' : 'open');
+        const face = document.querySelector('.con-reaction__face[data-reaction-card="Greens"]') !== null;
+        const key = `${phase}|${face}`;
+        if (key !== last) {
+          last = key;
+          w.__hydroOrder.push({t: performance.now(), phase, face});
+        }
+      }, 16);
+    });
+    await page.keyboard.press('Enter');
+    await page.locator(`.con-reaction__face[data-reaction-card="${GREENS}"]`).waitFor({state: 'visible', timeout: 90_000});
+    await shoot(page, PRESET, 'HYDRO-01-greens-rise');
+    await settle(page, {timeoutMs: 90_000});
+    await waitForBoardHome(page, 40);
+    const witness = await transferWitness(page);
+    writeTrail('hydro', PRESET, transferTrail(witness));
+    const samples = await reactionProbe(page);
+    const order = await page.evaluate(() => (window as unknown as {__hydroOrder?: Array<{t: number, phase: string, face: boolean}>}).__hydroOrder ?? []);
+    console.log(`[${PRESET.id} HYDRO order] ${JSON.stringify(order.map((s) => ({t: Math.round(s.t), phase: s.phase, face: s.face})))}`);
+    expect(order.some((s) => s.phase === 'moving' || s.phase === 'resolving'), 'the flow\'s own story was seen').toBe(true);
+    const firstFace = order.find((s) => s.face);
+    expect(firstFace, 'the charter rose').toBeDefined();
+    // Never over the marker's glide; the flow's RESULT stage opens on the rail's holds letting go, so the charter's
+    // answer lands INSIDE `resolving` — what must precede it is the stage's OWN reward: its heat-production token down.
+    expect(firstFace?.phase, 'the charter never rises over the glide').not.toBe('moving');
+    const heatLanding = witness.landings.find((l) => l.under.startsWith('rail:heat'));
+    expect(heatLanding, `the stage's own heat-production token landed on the rail\n${transferTrail(witness)}`).toBeDefined();
+    // The stage's OWN token is born on the track's STOP inside the hydro band — the witness has no anchor for a stop
+    // and names the band it stands in (`glass:con-hydro`); it is the hydro wave's known gap, never the charter's end.
+    expect(endsOverGlass(witness).filter((e) => !(e.startsWith('birth') && e.includes('glass:con-hydro'))), `every end visible\n${transferTrail(witness)}`).toEqual([]);
+    const greens = witness.births.filter((b) => b.under.startsWith(`reactor:${GREENS}:`));
+    expect(greens.length, `the Greens' production born on the charter's printed row\n${transferTrail(witness)}`).toBeGreaterThan(0);
+    expect(Math.min(...greens.map((b) => b.t)), `the charter's answer is born only after the stage's own reward landed\n${transferTrail(witness)}`)
+      .toBeGreaterThan(heatLanding?.touched ?? heatLanding?.t ?? Infinity);
+    expect(witness.landings.filter((l) => greens.some((b) => b.id === l.id)).every((l) => l.under.startsWith('rail:megacredits')),
+      `…and landed on the M€ production plate\n${transferTrail(witness)}`).toBe(true);
+    const seen = expectAtTheStage(samples, 'HYDRO');
+    expect([...seen], 'the Greens\' charter stood at the stage').toContain(GREENS);
+    const after = await wireOf(request, playerId);
+    expect(after.thisPlayer.heatProduction, 'the stage: +1 heat production').toBe(before.thisPlayer.heatProduction + 1);
+    expect(after.thisPlayer.megacreditProduction, 'the Greens: +1 M€ production').toBe(before.thisPlayer.megacreditProduction + 1);
     expect(errors, 'no page errors').toEqual([]);
   });
 });

@@ -314,14 +314,13 @@ export class ParliamentHandler {
     if (parliament === undefined) {
       return;
     }
+    const cause: CardReactionCause = {...(space.tile === undefined ? {} : {tile: space.tile.tileType}), space: space.id};
     ParliamentHandler.forEachEffect(player, parliament, (party, effect) => {
       if (effect.onTilePlaced !== undefined) {
-        player.game.events.withEffectSource(player, partySource(party, player), 'tile-placed', () => effect.onTilePlaced?.(player, space));
+        player.game.events.withEffectSource(player, partySource(party, player), 'tile-placed', () => effect.onTilePlaced?.(player, space), cause);
       }
     });
-    ParliamentHandler.enactedPassive(player, parliament, 'tile-placed', (passive) => passive.onTilePlaced?.(player, space, placement), {
-      ...(space.tile === undefined ? {} : {tile: space.tile.tileType}), space: space.id,
-    });
+    ParliamentHandler.enactedPassive(player, parliament, 'tile-placed', (passive) => passive.onTilePlaced?.(player, space, placement), cause);
   }
 
   public static onTerraformRatingGained(player: IPlayer, steps: number): void {

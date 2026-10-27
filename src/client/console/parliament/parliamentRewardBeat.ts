@@ -57,8 +57,9 @@ import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseModel} from '@/common/models/ParliamentModel';
 import {RewardDelivery, rewardAddressOf} from '@/common/parliament/rewardAddress';
-import {RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {beginPanelRewardHold, releasePanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {beginPanelRewardHold, declareHeldAnswers, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {cardReactionAnswerFlight} from '@/client/console/cardReaction/cardReactionDirector';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleParliamentUi} from './consoleParliamentFlow';
@@ -227,10 +228,43 @@ function answerAgendaStep(step: number, specs: ReadonlyArray<ResourceTransferSpe
   answering.get(step)?.beat.kill();
   const beat = scheduleParliamentBeat(TOUCHDOWN_TICK_GAP_MS, () => {
     answering.delete(step);
-    specs.forEach((spec) => releasePanelRewardHold(spec));
     trail('answer-agenda', {step, specs: specs.map((spec) => `${spec.channel}:${spec.resource}+${spec.amount}`)});
+    void flyAgendaAnswer(specs);
   });
   answering.set(step, {beat, specs});
+}
+
+/**
+ * THE TABLE'S ANSWER TO A STEP'S RATING (iteration 6 of «СРАБАТЫВАНИЕ КАРТЫ» — a PARTY is a reactor): the answer's
+ * rows were DECLARED at the queue, so the Greens' record of it is ATTACHED to this walk — the party's CHARTER comes
+ * forward at the rail's edge, each token is born on the charter's printed icon and the row ticks on its own
+ * touchdown. Nothing attached (reduced motion, a reload, no record) or no place to be born → the rows tick at once.
+ */
+async function flyAgendaAnswer(specs: ReadonlyArray<ResourceTransferSpec>): Promise<void> {
+  const flight = cardReactionAnswerFlight({rows: [...new Set(specs.map((spec) => railRowKey(spec)))]});
+  if (flight === undefined) {
+    specs.forEach((spec) => releasePanelRewardHold(spec));
+    return;
+  }
+  try {
+    await flight.prepare?.();
+    const tokens = specs.flatMap((spec) => flight.tokensOf?.(spec) ?? [spec]);
+    const origins = tokens.map((spec) => flight.originOf(spec));
+    if (!origins.every((o) => o !== undefined)) {
+      specs.forEach((spec) => releasePanelRewardHold(spec));
+      return;
+    }
+    await runResourceTransfers({
+      specs: tokens,
+      source: {},
+      origins,
+      arrival: 'auto',
+      onArrive: (spec) => releasePanelRewardHold(spec),
+    });
+  } finally {
+    flight.onLeft();
+    flight.onDone?.();
+  }
 }
 
 function flushAgendaAnswers(why: RewardReleaseReason | string): void {
@@ -475,6 +509,9 @@ export function queueAgendaBonuses(bonuses: ReadonlyArray<AgendaBonusOwed>): voi
   for (const bonus of bonuses) {
     if (bonus.spec !== undefined) {
       beginPanelRewardHold([bonus.spec, ...(bonus.reactions ?? [])]);
+      // THE TABLE'S ANSWER IS DECLARED (iteration 6): the party's record of it attaches to this walk — never the
+      // chain's second flight over a raw hold (the seeder's `standaloneOverRawHold` class).
+      declareHeldAnswers(bonus.reactions ?? []);
     }
     parliamentRewardState.agendaBonuses.push(bonus);
     trail('owe-agenda', {kind: bonus.kind, step: bonus.step, generation: bonus.generation, reactions: bonus.reactions?.length ?? 0});

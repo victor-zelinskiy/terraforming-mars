@@ -67,7 +67,7 @@
               <div v-else-if="politicalEntry !== undefined && politicalEntry.source.kind === 'law'" :key="sourceKey" class="con-composer__actlaw" :data-reaction-home="politicalEntry.source.resolution">
                 <PremiumCard v-if="lawFaceVm !== undefined" :vmOverride="lawFaceVm" :inert="true" />
               </div>
-              <div v-else-if="politicalEntry !== undefined" :key="sourceKey" class="con-composer__actparty" :data-party-face="politicalEntry.party">
+              <div v-else-if="politicalEntry !== undefined" :key="sourceKey" class="con-composer__actparty" :data-party-face="politicalEntry.party" :data-reaction-home="politicalEntry.party">
                 <PremiumCard v-if="partyFaceVm !== undefined" :vmOverride="partyFaceVm" :inert="true" />
               </div>
             </transition>

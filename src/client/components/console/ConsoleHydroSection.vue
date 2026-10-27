@@ -49,7 +49,7 @@
                    :emblem="crumbEmblem.emblem"
                    :wheelAnchor="crumbEmblem.wheelAnchor"
                    :subject="headSubject"
-                   :stage="crumbStage"
+                   :stage="crumbStagePublished"
                    :committed="crumbCommitted">
       <span class="con-hydro__chip">
         <span class="con-hydro__chip-dim">{{ $t('Track position') }}</span>
@@ -202,7 +202,19 @@
          the whole layout contract this rework bought: no substate may move
          the surface's own coordinates. ───────────────────────────────────── -->
     <div class="con-hydro__scene" ref="sceneEl">
-      <div class="con-hydro__panel" :class="{'con-hydro__panel--immersive': immersive}">
+      <div class="con-hydro__panel" :class="{'con-hydro__panel--immersive': immersive, 'con-hydro__panel--fxopen': fxOpen}" data-forecast-host>
+        <!-- ── THE «ЭФФЕКТЫ» LAYER (R3) — a LEVEL of this workspace (iteration 6 of «СРАБАТЫВАНИЕ КАРТЫ», the owner,
+             2026-10-27 — the stdp's own grammar, PL-066): the plan's three columns PARK under it (opacity — never a
+             v-if), the explorer unfolds out of the plan body's «⚡ сработает» door with the FOCUSED destination's
+             answer (the ruling Greens' M€ production for a heat production step), B / R3 fold it back with the
+             cursor where it stood; the crumb gains «ЭФФЕКТЫ». The section routes the pad to it. ── -->
+        <ConsoleForecastLayer ref="forecastLayer"
+                              host="hydro"
+                              :forecast="focusedForecast"
+                              :cards="playerView.thisPlayer?.tableau ?? []"
+                              :color="playerView.thisPlayer?.color ?? ''"
+                              :players="playerView.players"
+                              :statsByColor="forecastStatsByColor" />
         <!-- ═══ CTX — the persistent identity column. ONE DOM node across
              every substate: the stage variant (glyph · name · position ·
              state · route) for the player's own flow, the SOURCE variant
@@ -335,6 +347,12 @@
                                  :options="model.targetNeedsChoice && rewardChoice === undefined ? selectedStage.rewardOptions : undefined"
                                  :extras="movementBonuses"
                                  data-unfold-item />
+              <!-- WHAT THE TABLE ANSWERS to this move (iteration 6) — the composers' «⚡ сработает» group and the
+                   DOOR of the R3 «Эффекты» layer. A choice stage reads the CHOSEN option's answer here (the option
+                   tiles print their own); a RESERVED line, so an answer appearing never re-flows the rows below. -->
+              <div class="con-hydro__fxline" data-unfold-item data-hydro-fxline>
+                <ConsoleForecastDoor :reaction="focusedReaction" :canOpen="forecastCanOpen" :pulse="forecastPulse" @open="openForecastLayer()" />
+              </div>
 
               <!-- ═══ THE PRICE LINE — Configure states WHAT the advance
                    costs and WHICH sources may pay it; the full composition
@@ -410,6 +428,12 @@
                                  :focus="choiceFocus"
                                  :stage="choiceStage"
                                  @pick="pickChoice" />
+          <!-- THE CHOSEN OPTION'S ANSWER and the R3 «Эффекты» door at the step's CONFIRM stage (iteration 6): the step
+               commits from HERE (A on an option arms the commit right under it — the plan body is never returned to),
+               so the door stands where the decision stands. A traversal's choice RETURNS to the rail (no door here). -->
+          <div v-if="choiceStage === 'confirm' && choicePosition === undefined" class="con-hydro__fxline con-hydro__fxline--choice" data-unfold-item data-hydro-fxline>
+            <ConsoleForecastDoor :reaction="focusedReaction" :canOpen="forecastCanOpen" :pulse="forecastPulse" @open="openForecastLayer()" />
+          </div>
         </div>
 
         <!-- ═══ TARGET PICK (pos 9) — the SHARED played-card target selector,
@@ -1253,7 +1277,16 @@ import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {actionPreviewMap, previewBranchByIndex} from '@/client/console/actionPreviewStore';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
+import {DeltaTrackDestination, DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
+import {EffectForecast} from '@/common/models/EffectForecastModel';
+import {EffectOverlayStat} from '@/client/components/effects/effectStats';
+import ConsoleForecastDoor from '@/client/components/console/ConsoleForecastDoor.vue';
+import ConsoleForecastLayer from '@/client/components/console/ConsoleForecastLayer.vue';
+import {forecastLayerAvailable, reactionChipsOf, VariantReaction} from '@/client/console/effectForecastModel';
+import {closeEffectForecastLayer, effectForecastOpen, forecastExplorerUi, forecastStageText} from '@/client/console/consoleEffectForecast';
+import {
+  foldForecastHost, forecastHostIntent, forecastOwnerColors, forecastStatsByColor, openForecastHost, pulseForecastDoor,
+} from '@/client/console/consoleForecastHost';
 import {$t, translateCardName, translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {buildHydroModel, HydroModel, HydroStageHistoryEntry, HydroStageVM, HydroTraversalStagePlan} from '@/client/components/hydronetwork/hydroNetworkModel';
@@ -1408,7 +1441,7 @@ export default defineComponent({
   components: {
     GamepadGlyph, HydroReward, ConsoleWsHead, ConsolePlayedTargetStep, ConsoleCardFaceLite, ConsoleSourceDock,
     ConsoleHydroDecisionRail, ConsoleHydroPlanSteps, ConsoleHydroGains, ConsolePaymentPanel,
-    CardRenderEffectBoxComponent, CardRenderData,
+    CardRenderEffectBoxComponent, CardRenderData, ConsoleForecastDoor, ConsoleForecastLayer,
   },
   directives: {embedZone: vEmbedZone, stripActionPrefix},
   props: {
@@ -1494,6 +1527,8 @@ export default defineComponent({
   },
   data() {
     return {
+      forecastPulse: false,
+      pulseCall: undefined as {kill: () => void} | undefined,
       flow: hydroFlowState,
       hydroMarkerState,
       landings: cardResourceLandings,
@@ -1804,6 +1839,58 @@ export default defineComponent({
         return [];
       }
       return this.model.destination?.movementBonuses ?? [];
+    },
+    /** The crumb's tail as PUBLISHED: «ЭФФЕКТЫ» rides it while the R3 layer is open (the stdp's own grammar). */
+    crumbStagePublished(): string {
+      return forecastStageText('hydro', this.crumbStage) ?? this.crumbStage;
+    },
+    /** The FOCUSED destination's server model (the planned stop, or a card entry's target). */
+    focusedDestination(): DeltaTrackDestination | undefined {
+      const pos = this.advanceOffer?.toPosition ?? this.model.selectedPosition;
+      return this.preview?.destinations.find((d) => d.position === pos);
+    },
+    /**
+     * WHAT THE TABLE ANSWERS to the focused move (iteration 6 — the server's `DeltaTrackDestination.forecast`): a
+     * choice stage's is its CHOSEN option's (`forecastOptions`); before the choice the option tiles carry their own.
+     */
+    focusedForecast(): EffectForecast | undefined {
+      const dest = this.focusedDestination;
+      if (dest === undefined) {
+        return undefined;
+      }
+      if (dest.forecastOptions !== undefined) {
+        return this.rewardChoice === undefined ? undefined : dest.forecastOptions[this.rewardChoice];
+      }
+      return dest.forecast;
+    },
+    focusedReaction(): VariantReaction {
+      return reactionChipsOf(this.focusedForecast?.facts ?? []);
+    },
+    forecastAvailable(): boolean {
+      return forecastLayerAvailable(this.focusedForecast);
+    },
+    /**
+     * The layer opens where the DECISION stands and nothing is committed: the plan's browse level, or the reward
+     * choice at its CONFIRM stage (the chosen option's answer — the step commits from there); never under a target
+     * pick, a payment, a traversal's choice (it returns to the rail) or a commit.
+     */
+    forecastCanOpen(): boolean {
+      if (!this.forecastAvailable || this.flow.commit !== undefined) {
+        return false;
+      }
+      if (this.sceneKey === 'preview') {
+        return this.model.mode === 'plan';
+      }
+      return this.sceneKey === 'choice' && this.choicePosition === undefined && this.choiceStage === 'confirm' && this.rewardChoice !== undefined;
+    },
+    fxOpen(): boolean {
+      return effectForecastOpen('hydro');
+    },
+    forecastOwnerColors(): ReadonlyArray<string> {
+      return forecastOwnerColors(this.focusedForecast, this.playerView.players);
+    },
+    forecastStatsByColor(): Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>> {
+      return forecastStatsByColor(this.forecastOwnerColors);
     },
     rewardView(): HydroRewardView {
       // A traversal's «Вы получите» is the COMBINED, snapshot-threaded view
@@ -3296,6 +3383,7 @@ export default defineComponent({
     choiceOptions(): ReadonlyArray<{
       chips: HydroStage['rewardOptions'][number],
       line: HydroDeltaLine | undefined,
+      reaction: VariantReaction,
     }> {
       const stage = this.choiceStageModel;
       if (stage === undefined) {
@@ -3306,9 +3394,13 @@ export default defineComponent({
       const snapshot = this.choicePosition !== undefined ?
         (this.traversalViews.startSnapshots[this.choicePosition] ?? this.snapshot) :
         this.snapshot;
+      // THE OPTION'S OWN ANSWER (iteration 6): the server's per-option forecast of the stage this choice belongs to.
+      const pos = this.choicePosition ?? this.advanceOffer?.toPosition ?? this.model.selectedPosition;
+      const dest = this.preview?.destinations.find((d) => d.position === pos);
       return stage.rewardOptions.map((chips, i) => ({
         chips,
         line: buildRewardView({stage, snapshot, rewardChoice: i}).lines[0],
+        reaction: reactionChipsOf(dest?.forecastOptions?.[i]?.facts ?? []),
       }));
     },
 
@@ -3484,6 +3576,10 @@ export default defineComponent({
         .map((s) => ({position: s.position, choice: s.choice as number}));
     },
     footCommands(): ReadonlyArray<ConsoleCommand> {
+      // THE R3 «ЭФФЕКТЫ» LAYER owns the bar while it is open — the explorer's own contract, verbatim (PL-394).
+      if (this.fxOpen) {
+        return [...(forecastExplorerUi('hydro').barCommands ?? [])];
+      }
       const c = this.flow.commit;
       if (c !== undefined) {
         if (c.phase === 'result') {
@@ -3515,6 +3611,8 @@ export default defineComponent({
           return [
             {control: 'dpadU', control2: 'dpadD', label: 'Change selection', priority: 2},
             {control: 'confirm', label: this.choiceSkipFocus ? this.bonusCopy.skipKey : this.choiceCommitLabel},
+            // R3 only when the table answers the chosen option (iteration 6 — the composers' order).
+            ...(this.forecastCanOpen ? [{control: 'stickR', label: 'Effects'} as ConsoleCommand] : []),
             {control: 'back', label: 'Cancel'},
           ];
         }
@@ -3614,6 +3712,10 @@ export default defineComponent({
         cmds.push({control: 'dpadU', control2: 'dpadD', label: 'Selection', priority: 3});
       }
       cmds.push({control: 'triggerR', label: 'Farthest stage'});
+      // R3 only when the table's answer has something behind it (iteration 6 — the composers' and the stages' order).
+      if (this.forecastCanOpen) {
+        cmds.push({control: 'stickR', label: 'Effects'});
+      }
       // (No LB/RB mix hint on Configure — the dial belongs to the payment
       // substep; the CTA's own «Продолжить к оплате» names the way there.)
       if (this.model.mode === 'details') {
@@ -3776,11 +3878,17 @@ export default defineComponent({
         this.syncFrameCrumb();
       },
     },
-    crumbStage: {
+    crumbStagePublished: {
       immediate: true,
       handler(stage: string): void {
         setWorkspaceFrameStage('hydro', stage);
       },
+    },
+    /** The layer lives ONLY on the plan's browse level — a step, a choice, a payment, a commit fold it instantly. */
+    forecastCanOpen(can: boolean): void {
+      if (!can) {
+        foldForecastHost('hydro');
+      }
     },
     // THE EMBED ZONE — published while the commit scene stands. `flush:
     // 'post'`: the zone must exist before the teleport looks for it.
@@ -3900,6 +4008,8 @@ export default defineComponent({
       },
     },
     'model.selectedPosition'(next: number, prev: number | undefined): void {
+      // The cursor moved to another stop: its answer is another forecast — the R3 layer folds, the next R3 opens that one.
+      foldForecastHost('hydro');
       if (prev !== undefined && next !== prev && this.sceneKey === 'preview') {
         this.retunePanel();
       }
@@ -4061,6 +4171,10 @@ export default defineComponent({
     this.maybeStartCeremony(this.markerSettled);
   },
   beforeUnmount(): void {
+    // The R3 «Эффекты» layer and the door's flare die with the section (the stdp host's own order).
+    closeEffectForecastLayer('hydro');
+    this.pulseCall?.kill();
+    this.pulseCall = undefined;
     registerHydroCeremonyStarter(undefined);
     this.cereHandle?.kill();
     this.cereHandle = undefined;
@@ -4084,6 +4198,20 @@ export default defineComponent({
   },
   methods: {
     $t,
+    /** R3 / a click on the «⚡ сработает» door — the WORKSPACE DESCEND into the layer (PL-066). */
+    openForecastLayer(): void {
+      if (!this.forecastCanOpen || this.fxOpen) {
+        return;
+      }
+      this.pulseCall = pulseForecastDoor((on) => {
+        this.forecastPulse = on;
+      }, this.pulseCall);
+      openForecastHost('hydro', this.$el as HTMLElement | undefined, this.forecastOwnerColors, this.playerView);
+    },
+    /** Input while the layer is open: B folds one level, R3 closes the whole layer, the rest is the explorer's. */
+    forecastIntent(intent: GamepadIntent): void {
+      forecastHostIntent('hydro', intent, this.$refs.forecastLayer as InstanceType<typeof ConsoleForecastLayer> | undefined);
+    },
     fetchPreview(): void {
       fetchHydroPreview(this.playerView.id, this.viewerColor, this.cacheKey + ':' + this.viewerColor);
     },
@@ -5558,6 +5686,16 @@ export default defineComponent({
     },
     // ── input ──────────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): void {
+      // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open; R3 on the plan's browse opens it (iteration 6 — resolved
+      // BEFORE the flow's own grammar, the composers' and the stages' order).
+      if (effectForecastOpen('hydro')) {
+        this.forecastIntent(intent);
+        return;
+      }
+      if (intent.kind === 'press' && intent.button === 'stickR' && this.forecastCanOpen) {
+        this.openForecastLayer();
+        return;
+      }
       const c = this.flow.commit;
       if (c !== undefined) {
         if (c.phase === 'result') {

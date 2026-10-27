@@ -11,6 +11,7 @@
  * Pure: a builder of the notification model, spec'd under the server runner.
  */
 import {Color} from '@/common/Color';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageType} from '@/common/logs/LogMessageType';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
@@ -82,7 +83,9 @@ export function buildCardReactionSummaryNotification(
         {kind: 'corporation' as const, card: g.card, owner: g.record.owner} :
         g.record.kind === 'resolution' ?
           {kind: 'resolution' as const, id: g.card, owner: g.record.owner} :
-          {kind: 'card' as const, card: g.card, owner: g.record.owner},
+          g.record.kind === 'party' ?
+            {kind: 'party' as const, name: g.card as unknown as PartyName, owner: g.record.owner} :
+            {kind: 'card' as const, card: g.card, owner: g.record.owner},
       own: true, trigger: g.record.channel,
       gains: own.filter((c) => !c.text.startsWith(MINUS)), losses: own.filter((c) => c.text.startsWith(MINUS)),
     };
@@ -97,10 +100,12 @@ export function buildCardReactionSummaryNotification(
     importance: 'notable',
     typeLabelKey: REACTION_SUMMARY_LABEL_KEY,
     ...(viewer === undefined ? {} : {actor: viewer}),
-    ...(chips.length > 0 ? {viewerImpact: {sign, gains, losses, causes, ...(groups[0].record.kind === 'resolution' ? {} : {sourceCard: groups[0].card}), ownSource: true}} : {}),
+    ...(chips.length > 0 ? {viewerImpact: {sign, gains, losses, causes, ...(groups[0].record.kind === 'card' || groups[0].record.kind === 'corporation' ? {sourceCard: groups[0].card} : {}), ownSource: true}} : {}),
     summaryLines: groups.map((g) => ({
       message: new LogMessage(LogMessageType.DEFAULT, REACTION_SUMMARY_LINE_KEY, [
-        g.record.kind === 'resolution' ? {type: LogMessageDataType.RESOLUTION, value: g.card} : {type: LogMessageDataType.CARD, value: g.card},
+        g.record.kind === 'resolution' ? {type: LogMessageDataType.RESOLUTION, value: g.card} :
+          g.record.kind === 'party' ? {type: LogMessageDataType.PARTY, value: g.card as unknown as PartyName} :
+            {type: LogMessageDataType.CARD, value: g.card},
       ]),
       kind: 'log' as const,
     })),

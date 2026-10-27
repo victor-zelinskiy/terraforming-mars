@@ -42,6 +42,9 @@
            object the government shows and the composer's law hero; its printed effect row carries the icons the
            tokens are born on. -->
       <PremiumCard v-if="face.kind === 'resolution' && lawVmOf(face.name) !== undefined" :vmOverride="lawVmOf(face.name)" :inert="true" aria-hidden="true" />
+      <!-- A PARTY's face (iteration 6): the party's CHARTER — the composer's party hero, the inspector's and the
+           effects explorer's one object (the owner's Р2) — its printed effect rows carry the icons the tokens leave. -->
+      <PremiumCard v-else-if="face.kind === 'party' && partyVmOf(face.name) !== undefined" :vmOverride="partyVmOf(face.name)" :inert="true" aria-hidden="true" />
       <ConsoleCardFaceLite v-else :name="face.name" :card="face.card" />
     </div>
   </div>
@@ -53,6 +56,11 @@ import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCar
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {partyPremiumVm} from '@/client/components/premiumCard/partyPremiumVm';
+import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+
+/** The party charters built so far — one VM per party, stable across renders. */
+const partyVms = new Map<string, PremiumCardVM | undefined>();
 
 /** The law faces built so far — one VM per resolution, stable across renders (a fresh object per render would re-mount the face). */
 const lawVms = new Map<string, PremiumCardVM | undefined>();
@@ -70,6 +78,12 @@ export default defineComponent({
     };
   },
   methods: {
+    partyVmOf(party: string): PremiumCardVM | undefined {
+      if (!partyVms.has(party)) {
+        partyVms.set(party, partyPremiumVm(party as ReduxParty));
+      }
+      return partyVms.get(party);
+    },
     lawVmOf(id: string): PremiumCardVM | undefined {
       if (!lawVms.has(id)) {
         lawVms.set(id, resolutionPremiumVmById(id));

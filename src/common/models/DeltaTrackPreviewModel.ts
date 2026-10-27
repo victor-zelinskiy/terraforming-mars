@@ -3,6 +3,7 @@ import {CardName} from '../cards/CardName';
 import {Resource} from '../Resource';
 import {Units} from '../Units';
 import {DeltaBlockade} from './DeltaProjectPlayerModel';
+import {EffectForecast} from './EffectForecastModel';
 
 /**
  * ONE passive movement bonus the viewer WOULD be paid for making a move — the
@@ -76,6 +77,20 @@ export type DeltaTrackDestination = {
    * no such card in play. See {@link DeltaMovementBonusProjection}.
    */
   movementBonuses?: ReadonlyArray<DeltaMovementBonusProjection>;
+  /**
+   * WHAT THE TABLE ANSWERS to this move («Сработает» in the Hydronetwork — iteration 6 of «СРАБАТЫВАНИЕ КАРТЫ», the
+   * owner, 2026-10-27): the forecast engine's reward pass over what the move GRANTS — the landed stage's reward, the
+   * crossed stages' fixed rewards under a traversal modifier, the movement bonuses the cards pay (the ruling Greens'
+   * M€ production for a heat production step, a card reacting to a plant gain…). The SERVER's, never re-derived.
+   * Absent when nothing reacts, so the wire carries no empty object. A CHOICE stage's answer rides `forecastOptions`.
+   */
+  forecast?: EffectForecast;
+  /**
+   * A CHOICE stage's answers, ONE PER OPTION in the stage's option order (positions 1 and 2 — steel / plants, energy /
+   * heat production): the option tiles print their own «⚡ сработает», the plan reads the chosen one. `undefined` in a
+   * slot whose option wakes nothing. Absent on a fixed-reward stage.
+   */
+  forecastOptions?: ReadonlyArray<EffectForecast | undefined>;
 };
 
 /**

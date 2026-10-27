@@ -71,10 +71,11 @@ export type CardReactionRecord = {
    * Craze's second payout) and is played by the same scene — the law's face rises, or the law standing on screen
    * (the government's card, a composer's law hero) reacts in its place.
    */
-  kind: 'card' | 'corporation' | 'resolution';
+  kind: 'card' | 'corporation' | 'resolution' | 'party';
   /**
-   * The face's key: the card's name — or, for a `resolution` record, the catalog `ResolutionId` in the same slot
-   * (the premium face's own convention, `resolutionPremiumVm`: a ResolutionId never collides with a CardName).
+   * The face's key: the card's name — or, for a `resolution` record, the catalog `ResolutionId`, for a `party`
+   * record the `PartyName`, in the same slot (the premium faces' own convention — `resolutionPremiumVm` /
+   * `partyPremiumVm` key a law's and a party's charter face by that id; neither collides with a CardName).
    */
   card: CardName;
   /** The channel the live hook fired on — the forecast fact's `source.channel`, so the two match one-to-one. */

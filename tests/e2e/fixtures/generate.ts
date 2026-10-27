@@ -63,6 +63,7 @@ import {RegolithEaters} from '../../../src/server/cards/base/RegolithEaters';
 import {IoMiningIndustries} from '../../../src/server/cards/base/IoMiningIndustries';
 import {Pets} from '../../../src/server/cards/base/Pets';
 import {SolarPower} from '../../../src/server/cards/base/SolarPower';
+import {DeltaProjectExpansion} from '../../../src/server/delta/DeltaProjectExpansion';
 import {DeltaSurge} from '../../../src/server/cards/delta/DeltaSurge';
 import {MiningExpedition} from '../../../src/server/cards/base/MiningExpedition';
 import {ElectroCatapult} from '../../../src/server/cards/base/ElectroCatapult';
@@ -2725,6 +2726,35 @@ parliamentFixture('water-hauling', {
 //    GREENS RULE (a fresh Redux table's own starting government): every TR step pays 2 M€ — the table's answer
 //    the stage names before the press and the scene shows AFTER the rating has landed. The chairman quest is
 //    one nothing on this journey can close (a quest's gate would be a second story over the trade's own). ──
+// ── hydro-greens: «СРАБОТАЕТ» in the Hydronetwork (iteration 6 of «СРАБАТЫВАНИЕ КАРТЫ», the owner, 2026-10-27) —
+//    the ruling Greens of the first generation beside the Delta Project track: blue holds Solar Power (the Building
+//    and Power tags the first two stages' paths ask) and the energy for two steps, so the plan can reach stage 2
+//    («Pumping Stations» — +1 energy OR +1 heat production), whose heat option the Greens answer with +1 M€
+//    production — read on the option tile, on the plan's «⚡ сработает» door and in the R3 layer, then PLAYED by the
+//    reaction framework after the advance (the Greens' charter rising at the rail's edge). ──
+parliamentFixture('hydro-greens', {
+  stopAt: 'vote',
+  megacredits: [40, 30],
+  options: {deltaProjectExpansion: true},
+  arrange: ({p1}) => {
+    p1.playedCards.push(new SolarPower());
+    p1.energy = 3;
+    p1.heat = 0;
+  },
+  expect: ({game, p1, parliament}) => {
+    const progress = p1.deltaProjectData;
+    if (progress === undefined || progress.position !== 0 || p1.energy !== 3 || parliament.rulingParty() !== PartyName.GREENS ||
+        !parliament.hasPartyEffect(p1, PartyName.GREENS) || !game.gameOptions.deltaProjectExpansion) {
+      throw new Error(`the hydro-greens fixture expected blue at the track's start with 3 energy under the ruling Greens on a Delta table — got position=${progress?.position} energy=${p1.energy} ruling=${parliament.rulingParty()} greens=${parliament.hasPartyEffect(p1, PartyName.GREENS)} delta=${game.gameOptions.deltaProjectExpansion}`);
+    }
+    const preview = DeltaProjectExpansion.getPreview(p1);
+    const power = preview.destinations.find((d) => d.position === 2);
+    if (power === undefined || !power.legal || !power.affordable || power.forecastOptions?.[1] === undefined || power.forecastOptions[0] !== undefined) {
+      throw new Error(`the hydro-greens fixture expected stage 2 reachable with the Greens answering its heat option only — got ${JSON.stringify({legal: power?.legal, affordable: power?.affordable, options: power?.forecastOptions?.map((o) => o?.facts.length)})}`);
+    }
+  },
+});
+
 parliamentFixture('unmi-liner', {
   stopAt: 'vote',
   megacredits: [20, 30],

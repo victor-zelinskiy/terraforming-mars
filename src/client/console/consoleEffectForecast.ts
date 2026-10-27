@@ -29,7 +29,7 @@ import {reactive} from 'vue';
 import {translateText} from '@/client/directives/i18n';
 import {EffectsExplorerUi, createEffectsExplorerUi} from '@/client/console/consoleEffectsExplorer';
 
-export type EffectForecastHost = 'play' | 'action' | 'dock' | 'colony' | 'stdp' | 'confirm' | 'start';
+export type EffectForecastHost = 'play' | 'action' | 'dock' | 'colony' | 'stdp' | 'confirm' | 'start' | 'hydro';
 
 export const consoleEffectForecastUi = reactive({
   /** The composer whose layer is OPEN (undefined = closed everywhere). */
@@ -47,6 +47,9 @@ const explorerUis: Record<EffectForecastHost, EffectsExplorerUi> = {
   confirm: createEffectsExplorerUi(),
   // The START STAGE's first action (TR81 — the corporation's opening move: Lotus Innovations answers its own «+2 TR»).
   start: createEffectsExplorerUi(),
+  // THE HYDRONETWORK's plan (iteration 6 of «СРАБАТЫВАНИЕ КАРТЫ», the owner, 2026-10-27): the table's answer to a
+  // stage's reward — the ruling Greens' M€ production for a heat production step — behind the plan body's door.
+  hydro: createEffectsExplorerUi(),
 };
 
 export function forecastExplorerUi(host: EffectForecastHost): EffectsExplorerUi {

@@ -7330,6 +7330,30 @@ html.con-section-leaving .con-strat {
     &__travline {
         transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
     }
+    /* THE «ЭФФЕКТЫ» LAYER OPEN (R3, iteration 6): the plan's three columns PARK under the explorer — held by
+       opacity, never unmounted (the layer unfolds out of the door's rect and the columns return with the fold). */
+    &__panel--fxopen {
+        .con-hydro__ctx,
+        .con-hydro__flow,
+        .con-hydro__act {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity calc(200ms * var(--motion-scale, 1)) ease-out, visibility 0s linear calc(200ms * var(--motion-scale, 1));
+        }
+    }
+    /* «⚡ СРАБОТАЕТ» — a RESERVED line of the plan body (an answer appearing never re-flows the rows below). */
+    &__fxline {
+        min-height: 1.6rem;
+        display: flex;
+        align-items: center;
+    }
+    /* A choice tile's OWN answer (the composers' «ИЛИ» option notes) — under the tile's reading, inside its box. */
+    &__choice-fx {
+        display: block;
+        margin-top: .3rem;
+        max-width: 100%;
+    }
     &__panel--immersive {
         .con-hydro__ctx,
         .con-hydro__act,

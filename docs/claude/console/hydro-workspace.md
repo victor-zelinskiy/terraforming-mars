@@ -195,6 +195,7 @@ specs.
 | Commit pipeline / watchers / claims / submit | `ConsoleShell.vue` (the `hydro*` family) |
 | Marker glide gate + reward wave (unchanged) | `src/client/console/hydroMarker/*` |
 | The batch builder (byte-parity, unchanged) | `src/client/console/consoleHydroAdvance.ts` |
+| «⚡ сработает» — the plan body's door, the choice tiles' notes, the R3 «Эффекты» layer (iteration 6, 2026-10-27; the server's `DeltaTrackDestination.forecast` / `forecastOptions`) | `ConsoleHydroSection.vue` (`focusedForecast`, `forecastCanOpen`, `openForecastLayer`, `forecastIntent`), `hydroFlow/hydroPlanSteps.ts` (`HydroPlanOption.reaction`), `consoleForecastHost.ts` — contract `docs/claude/console/effect-forecast.md` § The surfaces, `card-reaction.md` § Iteration 6 |
 
 ## The flow contract
 

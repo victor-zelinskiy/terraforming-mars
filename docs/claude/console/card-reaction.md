@@ -275,6 +275,58 @@ rightwards, the fit from the edge); e2e `console-card-reaction` (`expectAtTheSta
 every face right of the edge and in the rail's row, on the resource line) and `console-parliament-forestry` (the law
 flush with the edge, on the line).
 
+## Iteration 6 — A PARTY IS A REACTOR, and the Hydronetwork reads «СРАБОТАЕТ» (the owner, 2026-10-27, PL-1099…1101)
+
+The owner: «карточки партий сейчас вообще никак не подключены в новый фреймворк (например поднятие производства
+тепла когда правят зелёные) — хотя премиум вид карточек партий у нас есть. И вторая итерация — интерфейс
+гидросети: показывать «сработает» и R3 чтобы embedded войти и осмотреть, какие эффекты сработают.» Decisions taken
+with the owner: a party's tempo is the CARDS' (CALM for one or two), a choice stage's answers stand ON THE OPTION
+TILES (the plan row and R3 follow the chosen option), and the Hydronetwork's answer rises AFTER THE RESULT.
+
+27. **A PARTY'S EFFECT IS A RECORD OF KIND `party`** — the party's name in the face slot (the charter face's own key,
+    `partyPremiumVm`; a PartyName never collides with a CardName), written by the same `withEffectSource` scope the
+    live hooks already open (`ParliamentHandler.forEachEffect` — the Greens' 2 M€ per TR step on `tr-increase`, their
+    M€ production on `production-gain`, Mars First's tile on `tile-placed`, now with the tile's cause). The layer draws
+    it as the party's CHARTER (`PremiumCard :vmOverride`, theme `charter` — the composer's hero, the inspector, the
+    effects explorer: ONE object); the composer's party hero is its PLACE (`data-reaction-home="<party>"`, law 1 of
+    iteration 3); the summary card names it as a party (`LogMessageDataType.PARTY`), never as a card. The rail's two
+    halves compose it like any record; the scale-step rating beat subtracts its M€ and the chain plays it AFTER the
+    rating story (law 20) — a standard asteroid under the ruling Greens: the degree's rating lands, then the charter
+    rises at the rail's edge and its 2 M€ are born on the charter's printed M€.
+28. **THE HYDRONETWORK'S PLAN READS THE TABLE'S ANSWER BEFORE THE PRESS.** The server's `DeltaTrackDestination.forecast`
+    (`DeltaProjectExpansion.destinationForecast` — the FORECAST TWIN of `resolveReward`, `stageRewardEffects`, pinned
+    against the live grant for every stage by `tests/delta/hydroStageForecast.spec.ts`; the crossed stages' fixed
+    rewards under a traversal, the movement bonuses the cards pay; through `rewardReactionForecast` — the parties,
+    the law, the card reactors, the cascade) and, for a CHOICE stage, `forecastOptions` — one per option in the stage's
+    option order. The plan body carries a RESERVED «⚡ сработает» line under the gains (`[data-hydro-fxline]`,
+    `ConsoleForecastDoor`): a fixed stage's answer there; empty for a choice stage (it answers nothing by itself).
+    The choice step CONFIRMS ITSELF (A on an option seals it and arms the commit right under it — the plan body is
+    never returned to), so each option tile prints ITS OWN note (`[data-hydro-choice-fx]`, the composers' «ИЛИ»
+    grammar) and at the step's CONFIRM stage the same line with the chosen option's door stands IN the choice layer
+    (`.con-hydro__fxline--choice`; a traversal's choice returns to the rail and carries none). R3 opens the `hydro`
+    forecast host's layer INSIDE the workspace on either level (`forecastCanOpen`: the plan's browse, or the choice at
+    its confirm stage; `ConsoleForecastLayer`, the three columns parked under it by `.con-hydro__panel--fxopen`, the
+    crumb «ГИДРОСЕТЬ › … › ЭФФЕКТЫ» via `forecastStageText('hydro', …)`); B / R3 fold it with the choice intact; a
+    cursor move to another stop folds it (its answer is another forecast); a target pick, a payment, a commit fold it
+    instantly; the section's unmount closes it.
+29. **THE HYDRONETWORK'S OWN STORY FIRST.** The chain's `waitHydroStoryQuiet` waits while the flow's commit stands
+    at `moving`, the marker is active, a traversal's legs are pending, or the terminal ceremony plays / is owed (the
+    ceremony's hold is notification-only, so the blocking wait never saw it); the reward wave is `waitRewardPayoutQuiet`'s
+    — bounded like the blocking wait: the marker glides, the stage's reward wave lands, THEN the Greens' charter rises
+    at the rail's edge past the hydro's context column (`.con-hydro__ctx` joined `STAGE_EDGE_OCCUPANTS` — the hero
+    column of this workspace) and its M€ production is born on the charter's printed row for the M€ production plate;
+    the flow's RESULT stage opens on the rail's holds letting go, i.e. after the charter's answer has landed. ⚠ The
+    result stage is deliberately NOT waited for: `hydroResolutionBusyOf` holds `resolving` while ANY rail hold stands,
+    and the chain holds the party's row — a wait for `result` was a mutual wait broken only by the 12 s bound (the
+    charter rose 13 s into `resolving` on the box).
+
+Guards: `tests/events/CardReactionRecord.spec.ts` § a PARTY's effect, `tests/delta/hydroStageForecast.spec.ts`,
+`cardReactionSummary.spec`; e2e `console-card-reaction` § PARTY (the asteroid under the Greens — the charter at the
+stage after the rating's touchdown, `reactor:Greens:*` births landing on the M€ row) and § HYDRO (the order probe: the
+charter never while `moving` / `resolving`), `console-hydro-forecast` (functional: the empty line before the choice,
+the heat tile's note, the door after the pick, R3 → the layer → B, the commit's two productions) on the `hydro-greens`
+fixture.
+
 ## What this iteration did NOT migrate (named, honest)
 
 **A STAGED play's reactor rises at a SEAT, never out of its place.** Every green card that places a tile — every

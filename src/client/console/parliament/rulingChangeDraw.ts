@@ -8,8 +8,9 @@ import {acknowledgeDraw, dismissEvent, drawnCardsState, DrawnCardEntry, markAllT
 import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {beginPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {beginPanelRewardHold, declareHeldAnswers, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {cardReactionAnswerFlight} from '@/client/console/cardReaction/cardReactionDirector';
 import {rectOf} from './parliamentFlights';
 import {allianceImpulsesSettled} from './allianceImpulse';
 import {consoleParliamentUi} from './consoleParliamentFlow';
@@ -153,6 +154,10 @@ export function seedRulingChangeAnswers(before: PlayerViewModel | undefined, aft
       continue;
     }
     beginPanelRewardHold([...specs.specs, ...specs.reactions]);
+    // THE TABLE'S ANSWER IS DECLARED (iteration 6 of «СРАБАТЫВАНИЕ КАРТЫ»): the Greens' record of it ATTACHES to this
+    // tail — the tail flies it off the party's charter (`deliverRating`); undeclared, the chain would fly a second one
+    // over this raw hold (the seeder's `standaloneOverRawHold` class).
+    declareHeldAnswers([...specs.specs, ...specs.reactions]);
     rulingChangeDrawState.ratings.push({key, card: answer.card, party: answer.party, ...specs});
   }
 }
@@ -314,6 +319,10 @@ async function deliverRating(rating: RulingRatingOwed): Promise<void> {
   const done = () => {
     rulingChangeDrawState.ratings = rulingChangeDrawState.ratings.filter((owed) => owed.key !== rating.key);
   };
+  // The CARD's own record of this rating (Eden Alliance's TR at a change of power) is attached here by the declaration:
+  // claimed and finished at once — TR63's choreography keeps the SEAL as the token's birth place (the cause on screen),
+  // and the chain must not fly a second rating over this tail's hold.
+  cardReactionAnswerFlight({rows: rating.specs.map((spec) => railRowKey(spec))})?.onDone?.();
   if (origin === undefined) {
     rating.specs.forEach((spec) => releasePanelRewardHold(spec));
     rating.reactions.forEach((spec) => releasePanelRewardHold(spec));
@@ -329,14 +338,43 @@ async function deliverRating(rating: RulingRatingOwed): Promise<void> {
   });
   // The table's answer — one beat after its reason's touchdown, never with it.
   if (rating.reactions.length > 0) {
-    await new Promise<void>((resolve) => {
-      scheduleParliamentBeat(TOUCHDOWN_TICK_GAP_MS, () => {
-        rating.reactions.forEach((spec) => releasePanelRewardHold(spec));
-        resolve();
-      });
-    });
+    await new Promise<void>((resolve) => scheduleParliamentBeat(TOUCHDOWN_TICK_GAP_MS, resolve));
+    await deliverTableAnswer(rating);
   }
   done();
+}
+
+/**
+ * THE TABLE'S ANSWER TO THE RATING (iteration 6 — a PARTY is a reactor): the record of it is ATTACHED to this tail
+ * (declared at the seed), so the Greens' CHARTER comes forward at the rail's edge, each token is born on the charter's
+ * printed icon and the row ticks on its own touchdown; nothing attached (reduced motion, a reload, no record) or no
+ * place to be born → the rows tick at once, as before.
+ */
+async function deliverTableAnswer(rating: RulingRatingOwed): Promise<void> {
+  const flight = cardReactionAnswerFlight({rows: [...new Set(rating.reactions.map((spec) => railRowKey(spec)))]});
+  if (flight === undefined) {
+    rating.reactions.forEach((spec) => releasePanelRewardHold(spec));
+    return;
+  }
+  try {
+    await flight.prepare?.();
+    const tokens = rating.reactions.flatMap((spec) => flight.tokensOf?.(spec) ?? [spec]);
+    const origins = tokens.map((spec) => flight.originOf(spec));
+    if (!origins.every((o) => o !== undefined)) {
+      rating.reactions.forEach((spec) => releasePanelRewardHold(spec));
+      return;
+    }
+    await runResourceTransfers({
+      specs: tokens,
+      source: {},
+      origins,
+      arrival: 'auto',
+      onArrive: (spec) => releasePanelRewardHold(spec),
+    });
+  } finally {
+    flight.onLeft();
+    flight.onDone?.();
+  }
 }
 
 /** Full reset (game switch, test cleanup). */

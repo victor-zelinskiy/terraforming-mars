@@ -316,7 +316,10 @@ function watchPage(page: Page): {posts: Array<string>, errors: Array<string>, ov
       out.posts.push(r.postData() ?? '');
     }
   });
-  page.on('pageerror', (e) => out.errors.push(e.message));
+  page.on('pageerror', (e) => {
+    out.errors.push(e.message);
+    console.log('[pageerror] ' + (e.stack ?? e.message)); // the stack names the thrower — a bare message named nothing (iteration 6)
+  });
   page.on('console', (m) => {
     if (m.text().includes('[console-overflow]')) {
       out.overflow.push(m.text().slice(0, 200));
@@ -700,8 +703,15 @@ for (const preset of PRESETS) {
       expect(heatProdEarly, 'the heat plate read 0 on every sample until the first touchdown').toEqual([]);
       const mcProdThree = firstReading(samples, 'mcProd', '+3');
       expect(mcProdThree, 'the M€ plate reads +3 — the Greens\' answer').toBeDefined();
-      expect(mcProdThree!.t - lastLanding, `the Greens' +3 ticks a beat AFTER the last touchdown (gap ${mcProdThree!.t - lastLanding} ms, law ${TOUCHDOWN_TICK_GAP_MS})`).toBeGreaterThanOrEqual(TOUCHDOWN_TICK_GAP_MS - 30);
-      expect(samples.some((s) => s.chips.some((c) => c.v.startsWith('prod:megacredits'))), 'the Greens\' answer is a tick in place, never a flown token of its own').toBe(false);
+      // THE GREENS' ANSWER IS THE FRAMEWORK'S (iteration 6 of «СРАБАТЫВАНИЕ КАРТЫ» — a PARTY is a reactor): the charter
+      // rises at the rail's edge and pays ONE token per unit, the plate ticking on each touchdown; the first token is
+      // born a beat AFTER the step's last touchdown, the plate reads +3 only once the last has landed.
+      const mcChips = samples.filter((s) => s.chips.some((c) => c.v.startsWith('prod:megacredits')));
+      expect(mcChips.length, 'the Greens\' answer flies as the charter\'s own tokens').toBeGreaterThan(0);
+      expect(mcChips[0].t - lastLanding, `the first M€ production token is born a beat AFTER the last touchdown (gap ${mcChips[0].t - lastLanding} ms, law ${TOUCHDOWN_TICK_GAP_MS})`).toBeGreaterThanOrEqual(TOUCHDOWN_TICK_GAP_MS - 30);
+      expect(mcProdThree!.t, `the plate reads +3 (${mcProdThree!.t}) only after the first token was born (${mcChips[0].t})`).toBeGreaterThan(mcChips[0].t);
+      const mcProdEarly = samples.filter((s) => s.t < mcChips[0].t - 60 && s.mcProd !== '' && s.mcProd !== '0' && s.mcProd !== '+0').map((s) => `${s.t}:${s.mcProd}`);
+      expect(mcProdEarly, 'the M€ plate read 0 on every sample until the first token').toEqual([]);
 
       // ── 4. THE PLATE stands AFTER the landing — never over it: its first sample has no token in the air and the plates
       //       already read their values; the Parliament was not open before the press.

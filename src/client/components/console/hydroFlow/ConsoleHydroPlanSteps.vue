@@ -70,6 +70,10 @@
           <!-- A reward with no concrete delta still renders honestly through
                the shared chip renderer. -->
           <HydroReward v-else :chips="opt.chips" />
+          <!-- The option's OWN «⚡ сработает» (iteration 6): what the table adds to THIS choice — the ruling Greens'
+               M€ production for the heat step, nothing for the energy step — read before the pick. -->
+          <ConsoleForecastReactions v-if="opt.reaction !== undefined && (opt.reaction.chips.length > 0 || opt.reaction.more > 0)"
+                                    :reaction="opt.reaction" class="con-hydro__choice-fx" data-hydro-choice-fx />
           <span class="con-hydro__choice-mark" :class="{'con-hydro__choice-mark--on': active.chosen === i}" aria-hidden="true">✓</span>
         </button>
       </template>
@@ -87,6 +91,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
+import ConsoleForecastReactions from '@/client/components/console/ConsoleForecastReactions.vue';
 import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {HydroDeltaLine} from '@/client/components/hydronetwork/hydroReward';
@@ -94,7 +99,7 @@ import {HydroPlanDecision, hydroPlanProgress, HydroPlanProgress} from '@/client/
 
 export default defineComponent({
   name: 'ConsoleHydroPlanSteps',
-  components: {HydroReward},
+  components: {HydroReward, ConsoleForecastReactions},
   props: {
     steps: {type: Array as PropType<ReadonlyArray<HydroPlanDecision>>, required: true},
     /** The focused option INSIDE the active decision. */

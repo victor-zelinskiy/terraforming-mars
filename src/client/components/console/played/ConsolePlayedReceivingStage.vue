@@ -412,7 +412,9 @@ export default defineComponent({
       settleTarget: (card) => this.settleTarget(card),
       // «СРАБАТЫВАНИЕ КАРТЫ»: a reactor this stage holds rises OUT OF ITS PLACE (the open previous top, a strip, a mini) —
       // and its tokens are born on the emerged face's effect row.
-      holdsCard: (card) => this.findTargetAnchor(card) !== undefined || (this.view.prevTop === card && !this.revealed),
+      // Only a CARD of a tableau this stage presents (iteration 6: a party's / a law's record names no card — the
+      // anchor ladder's catch-all, the destination slivers, must not claim it as this stage's).
+      holdsCard: (card) => this.tableauHolds(card) && (this.findTargetAnchor(card) !== undefined || (this.view.prevTop === card && !this.revealed)),
       emergedFaceEl: (card) => {
         if (this.emerged?.name === card) {
           return this.$refs.emergeEl as HTMLElement | undefined;
@@ -644,6 +646,10 @@ export default defineComponent({
       const dest = this.destEl();
       return dest !== undefined ? {el: dest, miniId: ''} : undefined;
     },
+    /** The name is a card of some seat's tableau (a party's / a resolution's face key never is). */
+    tableauHolds(card: CardName): boolean {
+      return this.playerView.players.some((p) => p.tableau.some((c) => c.name === card));
+    },
     findOwningMini(card: CardName): ReceivingMini | undefined {
       return this.minis.find((m) => {
         const owner = m.ownerColor !== undefined ?
@@ -682,9 +688,10 @@ export default defineComponent({
       const home = {x: measured.left, y: measured.top, w: measured.width, h: measured.height};
       this.emerged = {name: card, miniId: anchor.miniId, home};
       await this.$nextTick();
-      const el = this.$refs.emergeEl as HTMLElement | undefined;
+      // A Vue ref is `null` (not undefined) while its element is not rendered — read it as absent either way.
+      const el = this.$refs.emergeEl as HTMLElement | null | undefined;
       const root = this.$el as HTMLElement | undefined;
-      if (el === undefined || root === undefined) {
+      if (!(el instanceof HTMLElement) || root === undefined) {
         return;
       }
       const to = this.emergePresentationRect(el, home);
@@ -735,9 +742,9 @@ export default defineComponent({
         this.targetAccent = undefined;
         return;
       }
-      const el = this.$refs.emergeEl as HTMLElement | undefined;
+      const el = this.$refs.emergeEl as HTMLElement | null | undefined;
       const state = this.emerged;
-      if (el === undefined || state === undefined || state.name !== card) {
+      if (!(el instanceof HTMLElement) || state === undefined || state.name !== card) {
         this.emerged = undefined;
         return;
       }

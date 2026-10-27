@@ -30,7 +30,10 @@ import {DeltaBlockadeTargetBlockedReason} from '../../common/models/DeltaBlockad
 import {DeltaBlockade} from '../../common/models/DeltaProjectPlayerModel';
 import {DeltaEspionageBlockedReason, DeltaStageOutcomeProjection} from '../../common/models/DeltaEspionageModel';
 // Runtime-only reads (a late-bound circular import, like AddResourcesToCard's).
-import {SKIP_REASON, SKIPPED_LABEL} from '../cards/actionPreviews';
+import {SKIP_REASON, SKIPPED_LABEL, cardResourceGain, deckLookGain, productionChange, stockGain} from '../cards/actionPreviews';
+import {ActionEffect} from '../../common/models/ActionPreviewModel';
+import {EffectForecast} from '../../common/models/EffectForecastModel';
+import {rewardReactionForecast} from '../models/effectForecast';
 import {recordSkippedEffect} from '../deferredActions/skippedEffect';
 
 /**
@@ -416,6 +419,8 @@ export class DeltaProjectExpansion {
         missingTags: tagInfo.missingTags,
         ...(traversalModifier !== undefined ?
           {traversal: DeltaProjectExpansion.traversalSteps(player, currentPos, position)} : {}),
+        // «СРАБОТАЕТ» (iteration 6): the table's answer to what this move grants — per option on a choice stage.
+        ...DeltaProjectExpansion.destinationForecast(player, currentPos, position, traversalModifier !== undefined, movementBonuses),
         // The PASSIVE half of this destination's outcome (Social Heating's
         // heat), authored by the same hooks the commit pays out. Absent when
         // nothing is owed — the historical payload is untouched.
@@ -1306,6 +1311,75 @@ export class DeltaProjectExpansion {
    *  them (an auto-resolved prompt's stray) before the next stage resolves.
    *  `recordStop` is false for a REWARD-ONLY grant (the marker never stood
    *  there — nothing may be written onto the stop history). */
+  /**
+   * THE FORECAST TWIN of `resolveReward` — what landing on `position` GRANTS, as the effects the forecast engine reads
+   * («Сработает» in the Hydronetwork, iteration 6 of «СРАБАТЫВАНИЕ КАРТЫ»): the same table, the same numbers, read
+   * BEFORE the move. A choice stage answers per option (`choice` — undefined grants nothing: the option decides). What
+   * is no grant is honestly absent: a repeated action (pos 7 — its own preview), a Jovian tag (pos 8), the VP slots.
+   * Guarded against the live grant by `tests/delta/hydroStageForecast.spec.ts`.
+   */
+  public static stageRewardEffects(player: IPlayer, position: number, choice: 0 | 1 | undefined): Array<ActionEffect> {
+    switch (DELTA_TRACK_TAGS[position]) {
+    case Tag.BUILDING:
+      return choice === undefined ? [] : [stockGain(player, choice === 0 ? Resource.STEEL : Resource.PLANTS, 2)];
+    case Tag.POWER:
+      return choice === undefined ? [] : [productionChange(player, choice === 0 ? Resource.ENERGY : Resource.HEAT, 1)];
+    case Tag.EARTH:
+      return [productionChange(player, Resource.MEGACREDITS, 2)];
+    case Tag.SPACE:
+      return [productionChange(player, Resource.TITANIUM, 1)];
+    case Tag.SCIENCE:
+      return [deckLookGain(4, 2)];
+    case Tag.PLANT: {
+      const plants = player.tags.count(Tag.PLANT);
+      return plants > 0 ? [stockGain(player, Resource.PLANTS, plants)] : [];
+    }
+    case Tag.ANIMAL:
+      return [cardResourceGain(CardResource.ANIMAL, 2)];
+    default:
+      return [];
+    }
+  }
+
+  /**
+   * WHAT THE TABLE ANSWERS to a move onto `position`: the landed stage's reward (per option on a choice stage), the
+   * crossed stages' FIXED rewards under a traversal modifier (a crossed choice stage is the drafted answer's — the
+   * preview cannot know it; named here, not guessed), and the movement bonuses the cards pay. Through the forecast
+   * engine's reward pass (`rewardReactionForecast` — the parties, the enacted law, the card reactors, the cascade).
+   */
+  private static destinationForecast(
+    player: IPlayer, from: number, position: number, traversal: boolean,
+    movementBonuses: ReadonlyArray<DeltaMovementBonusProjection> | undefined,
+  ): {forecast?: EffectForecast, forecastOptions?: ReadonlyArray<EffectForecast | undefined>} {
+    const shared: Array<ActionEffect> = [];
+    if (traversal) {
+      for (const step of DeltaProjectExpansion.traversalSteps(player, from, position)) {
+        if (step.rewarded && step.position !== position && DeltaProjectExpansion.stageChoiceCount(step.position) === 1) {
+          shared.push(...DeltaProjectExpansion.stageRewardEffects(player, step.position, undefined));
+        }
+      }
+    }
+    for (const bonus of movementBonuses ?? []) {
+      shared.push(stockGain(player, bonus.resource, bonus.amount));
+    }
+    const forecastOf = (own: ReadonlyArray<ActionEffect>): EffectForecast | undefined => {
+      const effects = [...own, ...shared];
+      return effects.length === 0 ? undefined : rewardReactionForecast(player, undefined, effects);
+    };
+    if (DeltaProjectExpansion.stageChoiceCount(position) === 2) {
+      const options = [forecastOf(DeltaProjectExpansion.stageRewardEffects(player, position, 0)), forecastOf(DeltaProjectExpansion.stageRewardEffects(player, position, 1))];
+      return options.every((o) => o === undefined) ? {} : {forecastOptions: options};
+    }
+    const forecast = forecastOf(DeltaProjectExpansion.stageRewardEffects(player, position, undefined));
+    return forecast === undefined ? {} : {forecast};
+  }
+
+  /** How many reward options a stage offers: two on the choice stages (building, power), one elsewhere. */
+  public static stageChoiceCount(position: number): 1 | 2 {
+    const tag = DELTA_TRACK_TAGS[position];
+    return tag === Tag.BUILDING || tag === Tag.POWER ? 2 : 1;
+  }
+
   private static resolveReward(player: IPlayer, position: number, waiveTargetReward = false, answer?: DeltaStageAnswer, recordStop = true): boolean {
     let parkedRepeat = false;
     // Positions 10/11 (VP spots) have no additional reward beyond VP claiming.

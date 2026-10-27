@@ -457,10 +457,16 @@ for (const preset of PRESETS) {
       expect(samples.slice(0, trUp).every((s) => s.tr === String(N)), 'N on every sample before the touchdown').toBe(true);
       const lastFlown = [...samples.slice(0, trUp + 1)].reverse().find((s) => s.chips.length > 0)!.chips[0];
       expect(inside(lastFlown, ratingCell!, Math.max(lastFlown.w, lastFlown.h)), 'the tick is the touchdown on the rating cell').toBe(true);
-      // The M€ row: the fee ticks with the commit, the Greens' answer after the TR — two changes, never one «−1».
+      // The M€ row: the fee ticks with the commit, the Greens' answer after the TR — never one netted «−1». The answer is
+      // the framework's (iteration 6 — a PARTY is a reactor): the charter rises at the rail's edge and pays ONE token per
+      // unit, the row ticking on each touchdown (17 → 18 → 19).
       const mcValues = samples.map((s) => s.mc).filter((v, i, a) => i === 0 || v !== a[i - 1]);
-      expect(mcValues, `the M€ row read 20 → 17 → 19 — it read ${mcValues.join(' → ')}`).toEqual(['20', '17', '19']);
-      const mcGreens = samples.findIndex((s) => s.mc === '19');
+      expect(mcValues.slice(0, 2), `the M€ row read 20 → 17 first — it read ${mcValues.join(' → ')}`).toEqual(['20', '17']);
+      expect(mcValues[mcValues.length - 1], `…and ended at 19 — it read ${mcValues.join(' → ')}`).toBe('19');
+      expect(mcValues.slice(1).every((v, i, a) => i === 0 || Number(v) > Number(a[i - 1])), `…rising only after the fee — it read ${mcValues.join(' → ')}`).toBe(true);
+      const feeAt = samples.findIndex((s) => s.mc === '17');
+      expect(feeAt, 'the fee ticked').toBeGreaterThanOrEqual(0);
+      const mcGreens = samples.findIndex((s, i) => i > feeAt && Number(s.mc) > 17);
       expect(mcGreens, 'the Greens\' «+2» after the TR has landed').toBeGreaterThan(trUp);
       const after = await wireOf(request, playerId);
       expect(after.thisPlayer.megacredits, '−3 + 2').toBe(19);

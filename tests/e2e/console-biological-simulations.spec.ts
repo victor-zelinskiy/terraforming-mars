@@ -120,7 +120,7 @@ type Sample = {
   /** The rail's production plates. */
   plantProd: string, mcProd: string, plantProdBox?: Rect, mcProdBox?: Rect,
   /** The composer's «Сработает» chip of the M€ production step (PL-220 — the table's answer is born there). */
-  fxChip?: Rect, fxChipWs: number,
+  fxChip?: Rect, fxChipCause: boolean, fxChipWs: number, charter?: Rect, charterIcon?: Rect,
 };
 type Probe = {samples: Array<Sample>};
 
@@ -190,7 +190,12 @@ async function armProbe(page: Page): Promise<void> {
         plantProdBox: rect(document.querySelector(plantSel)),
         mcProdBox: rect(document.querySelector(mcSel)),
         fxChip: rect(document.querySelector('.con-cardactions .con-composer [data-forecast-rail="production:megacredits"]')),
+        fxChipCause: document.querySelector('.con-cardactions .con-composer [data-forecast-rail="production:megacredits"][data-reaction-cause]') !== null,
         fxChipWs: document.querySelectorAll('.con-cardactions').length,
+        // THE PARTY'S CHARTER at the reaction stage (iteration 6 — a party is a reactor), and its printed M€ production icon.
+        charter: rect(document.querySelector('.con-reaction__face[data-reaction-card="Greens"]')),
+        charterIcon: rect(Array.from(document.querySelectorAll<HTMLElement>('.con-reaction__face[data-reaction-card="Greens"] .pcard-ic'))
+          .find((el) => /megacredit/.test(el.style.backgroundImage ?? '') && el.closest('.pcard-prod') !== null)),
       };
       const last = p.samples[p.samples.length - 1];
       if (last === undefined || JSON.stringify({...last, t: 0, tick: false}) !== JSON.stringify({...s, t: 0, tick: false})) {
@@ -559,16 +564,19 @@ for (const preset of PRESETS) {
       const plantEarly = samples.filter((s) => s.t < stepLanding!.s.t - 60 && s.plantProd !== '' && s.plantProd !== '+0' && s.plantProd !== '0').map((s) => `${s.t}:${s.plantProd}`);
       expect(plantEarly, 'the plants plate read 0 until the touchdown').toEqual([]);
 
-      // ── 5. THE ANSWER (PL-220 — the owner's decision 2026-10-12): the Greens' «+1 M€ production» is BORN on the
-      //       composer's «Сработает» chip that promised it, a beat AFTER the step's touchdown, while the workspace still
-      //       stands; it flies to the M€ production plate, which ticks on ITS touchdown — never with the price, never
-      //       before the step. (Until PL-220 it ticked in place under a workspace already dissolving.)
+      // ── 5. THE ANSWER (PL-220, then iteration 6 of «СРАБАТЫВАНИЕ КАРТЫ» — a PARTY is a reactor): the Greens' «+1 M€
+      //       production» is the record's — the party's CHARTER rises at the rail's edge past the hero column while the
+      //       workspace still stands, the token is BORN on the charter's printed M€ production icon a beat AFTER the
+      //       step's touchdown, the composer's «Сработает» chip that promised it is MARKED as the cause; it flies to the
+      //       M€ production plate, which ticks on ITS touchdown — never with the price, never before the step.
       const answer = birthOf(samples, 'prod:megacredits+1');
       expect(answer, `the Greens' answer flew as its own token\n${trail(samples)}`).toBeDefined();
       expect(answer!.s.t, `the answer (${answer!.s.t}) is born AFTER the step's touchdown (${stepLanding!.s.t}) plus the beat (${TOUCHDOWN_TICK_GAP_MS})`).toBeGreaterThanOrEqual(stepLanding!.s.t + TOUCHDOWN_TICK_GAP_MS - 60);
       expect(answer!.s.fxChipWs, 'the workspace still stood at the answer\'s birth').toBeGreaterThan(0);
-      expect(answer!.s.fxChip, 'the «Сработает» chip was measurable at the birth').toBeDefined();
-      expect(inside(answer!.chip, answer!.s.fxChip!, answer!.chip.w * 0.75), `the answer is BORN on the «Сработает» chip — ${answer!.chip.x},${answer!.chip.y} vs ${JSON.stringify(answer!.s.fxChip)}`).toBe(true);
+      expect(answer!.s.charter, 'the Greens\' charter stood at the stage at the birth').toBeDefined();
+      const birthBox = answer!.s.charterIcon ?? answer!.s.charter!;
+      expect(inside(answer!.chip, birthBox, Math.max(answer!.chip.w, birthBox.r - birthBox.l) * 0.75), `the answer is BORN on the charter's printed M€ production — ${answer!.chip.x},${answer!.chip.y} vs ${JSON.stringify(birthBox)}`).toBe(true);
+      expect(samples.some((s) => s.fxChipCause), 'the «Сработает» chip that promised it is MARKED as the cause').toBe(true);
       const answerLanding = landingOf(samples, 'prod:megacredits+1');
       expect(answerLanding, 'the answer rested with its contact beat').toBeDefined();
       expect(answerLanding!.s.mcProdBox, 'the M€ plate was measurable at the landing').toBeDefined();

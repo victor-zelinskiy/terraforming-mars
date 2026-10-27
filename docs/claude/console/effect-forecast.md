@@ -528,7 +528,21 @@ a focus move to another project folds the layer (its answer is another
 forecast). All three hosts: `consoleForecastHost.ts` (owner colours, open,
 fold, intent, the door's flare on the animation clock), `ConsoleForecastDoor`,
 `ConsoleForecastLayer`; guards `consoleForecastHost.spec`, e2e
-`console-forecast-doors` (both, fhd + 4K).
+`console-forecast-doors` (both, fhd + 4K). THE HYDRONETWORK (iteration 6 of
+«СРАБАТЫВАНИЕ КАРТЫ», 2026-10-27 — `card-reaction.md` § Iteration 6) reads
+`DeltaTrackDestination.forecast` / `forecastOptions` (the server's forecast twin
+of the stage's grant, per option on a choice stage), draws the door on a
+RESERVED line of the plan body under the gains (`[data-hydro-fxline]` — a
+fixed stage's answer; empty for a choice stage), the per-option notes on the
+choice step's tiles (`[data-hydro-choice-fx]`) and, at the choice step's
+CONFIRM stage (the step commits from there — A on an option seals it), the
+chosen option's door IN the choice layer (`.con-hydro__fxline--choice`); hosts
+the layer over the whole panel with the three columns parked
+(`.con-hydro__panel--fxopen`), routes the pad in its own `handleIntent` (R3 on
+the plan's browse level and at the choice's confirm stage — `forecastCanOpen`;
+the layer's input → `forecastIntent()`), and folds on a cursor move to another
+stop, on a target pick / payment / commit and on its unmount; the crumb's tail
+rides `forecastStageText('hydro', …)`. Guard: e2e `console-hydro-forecast`.
 
 ## After the press — the table's answer FLIES off the card that PAID (К-S1 / PL-124, 2026-10-10 · CN, 2026-10-26)
 

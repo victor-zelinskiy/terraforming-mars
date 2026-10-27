@@ -2711,7 +2711,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR53 Frontier Labs and the iteration «ресурс на карту — один стандарт»: the card with four holders (one a near
   // miss); the FIELD's live pick and silent arrival (a printed microbe / an Ares animal with two holders each, a printed
   // data with one); a foreign trade on blue's Titan (red on the move) — docs/claude/prompts/project-tr53-frontier-labs.md.
-  'frontier-labs' | 'receive-board' | 'receive-colony' | 'titan-split-trade' | 'hydro-terminal' | 'hydro-terminal-surge' | 'staged-interposer' | 'staged-hazard' |
+  'frontier-labs' | 'receive-board' | 'receive-colony' | 'titan-split-trade' | 'hydro-terminal' | 'hydro-terminal-surge' | 'hydro-greens' | 'staged-interposer' | 'staged-hazard' |
   // The Redux Vesta trade: TWO holders of different kinds (asteroids, fighters) → a real pick whose card decides the kind.
   'vesta-trade' |
   // Colony polish 1 — several settlements on Pluto («draw 1, then discard 1» per settlement): blue trades with 2 / 3

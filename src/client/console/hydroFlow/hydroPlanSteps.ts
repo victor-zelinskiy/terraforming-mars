@@ -15,12 +15,15 @@
  */
 import type {HydroStage} from '@/client/components/hydronetwork/hydroStages';
 import type {HydroDeltaLine} from '@/client/components/hydronetwork/hydroReward';
+import type {VariantReaction} from '@/client/console/effectForecastModel';
 
 /** One reward alternative of a decision — the chips the track prints and the
  *  honest «сейчас → станет» line built for the viewer's own economy. */
 export type HydroPlanOption = {
   chips: HydroStage['rewardOptions'][number];
   line: HydroDeltaLine | undefined;
+  /** WHAT THE TABLE ANSWERS to THIS option (iteration 6 — the composers' «ИЛИ» option notes): the ruling Greens' M€ production for the heat option. */
+  reaction?: VariantReaction;
 };
 
 /** One decision the movement plan owes before its commit. */

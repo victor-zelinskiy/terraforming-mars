@@ -26,6 +26,7 @@ import {FORESTRY_SUPPORT_ID} from '../../src/server/parliament/resolutions/green
 import {resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
 import {SpaceType} from '../../src/common/boards/SpaceType';
 import {Board} from '../../src/server/boards/Board';
+import {PartyName} from '../../src/common/turmoil/PartyName';
 import {cast} from '../../src/common/utils/utils';
 
 /**
@@ -58,10 +59,12 @@ describe('CardReactionRecord — the recorder writes «which card reacted and wh
     player.playedCards.push(new HartlanHeating());
     player.playCard(new NuclearZone());
     runAllActions(game);
-    expect(game.cardReactions, 'born on the first impact — nothing before the cell').deep.eq([]);
+    expect(game.cardReactions.filter((r) => r.kind !== 'party'), 'born on the first impact — nothing before the cell (the ruling Greens\x27 own record of the card\x27s TR aside)').deep.eq([]);
     placeFirst(game, player);
-    expect(game.cardReactions).to.have.lengthOf(1);
-    const record = game.cardReactions[0];
+    // The ruling Greens answer the card's TR step with their own record (iteration 6) — Hartlan's stands beside it.
+    const records = game.cardReactions.filter((r) => r.card === CardName.HARTLAN_HEATING);
+    expect(records).to.have.lengthOf(1);
+    const record = records[0];
     expect(record).deep.include({owner: player.color, kind: 'corporation', card: CardName.HARTLAN_HEATING, channel: 'card-played'});
     expect(record.cause).deep.eq({card: CardName.NUCLEAR_ZONE});
     expect(record.impacts).deep.eq([
@@ -199,6 +202,22 @@ describe('CardReactionRecord — the recorder writes «which card reacted and wh
     const marker = game.events.events.find((e) => e.type === 'effect-triggered' && e.source?.kind === 'resolution');
     expect(marker, 'the law\'s own marker').is.not.undefined;
     expect(record.root.actionId, 'the record stands under the marker\'s chain').eq(marker!.correlationId);
+  });
+
+  it('a PARTY\'s effect (the ruling Greens: 2 M€ per TR step, M€ production per heat production step) is a record of kind «party»: the party\'s name in the face slot, the channel the hook fired on (iteration 6)', () => {
+    const {game, player} = table();
+    expect(game.parliament?.hasPartyEffect(player, PartyName.GREENS), 'the Greens rule the first generation').is.true;
+    player.increaseTerraformRating();
+    runAllActions(game);
+    const tr = game.cardReactions.filter((r) => r.kind === 'party');
+    expect(tr, 'ONE record of the party').to.have.lengthOf(1);
+    expect(tr[0]).deep.include({owner: player.color, kind: 'party', card: PartyName.GREENS as unknown as CardName, channel: 'tr-increase'});
+    expect(tr[0].impacts).deep.eq([{kind: 'stock', resource: Resource.MEGACREDITS, amount: 2, to: player.color}]);
+    player.production.add(Resource.HEAT, 1);
+    runAllActions(game);
+    const prod = game.cardReactions.filter((r) => r.kind === 'party' && r.channel === 'production-gain');
+    expect(prod, 'the production hook\'s own record').to.have.lengthOf(1);
+    expect(prod[0].impacts).deep.eq([{kind: 'production', resource: Resource.MEGACREDITS, amount: 1, to: player.color}]);
   });
 
   it('the published record is the stored one — later impacts of the same scope land on it', () => {
