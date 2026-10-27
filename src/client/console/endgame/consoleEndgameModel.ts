@@ -141,6 +141,9 @@ export type ConsoleEndgameVm = {
   winners: ReadonlyArray<Color>;
   /** Present ⇔ the top total was shared and M€ had to decide. */
   tieBreak: RevealTieBreak | undefined;
+  /** EVERY VP tie the ranking settled on M€, best place first (the victory's is `tieBreak` — the same object). The
+   *  ceremony announces them all in its tie-break beat and the settled podium keeps the deciding M€ on each seat. */
+  tieBreaks: ReadonlyArray<RevealTieBreak>;
   mode: EndgameMode;
   soloWin: boolean;
   /** MarsBot won ON THE CLOCK — overrides the score comparison entirely. */
@@ -385,6 +388,7 @@ export function buildConsoleEndgameVm(
     winner: reveal.winner,
     winners: reveal.winners,
     tieBreak: reveal.tieBreak,
+    tieBreaks: reveal.tieBreaks,
     mode: reveal.mode,
     soloWin: model.soloWin,
     automaClockWin: model.automaClockWin,

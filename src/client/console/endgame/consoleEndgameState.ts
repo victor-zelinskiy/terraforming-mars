@@ -94,7 +94,7 @@ export const consoleEndgameUi = reactive({
   /** T08: X hurries the count (see {@link CeremonyHurry}). */
   hurry: 'off' as CeremonyHurry,
   /**
-   * CI — the hurried PASS: the time between two chips (ms, 0 outside a pass). The plate slides after the light at this
+   * CI — the hurried PASS: the time between two chips (ms, 0 outside a pass). The head's spotlight follows the light at this
    * step — linearly, so the steps chain into ONE glide, never a stop per category.
    */
   sweepStepMs: 0,
@@ -219,7 +219,7 @@ export function finalizeCeremony(vm: ConsoleEndgameVm): void {
   s.displayTotals = totals;
   s.ranked = true;
   s.placesShown = true;
-  s.tieStage = vm.tieBreak !== undefined ? 2 : 0;
+  s.tieStage = vm.tieBreaks.length > 0 ? 2 : 0;
   s.winnerShown = true;
   // The campaign finale's terminal state exists exactly once too: the header
   // stays «Кампания завершена», the plate stays «Чемпион кампании» — for the

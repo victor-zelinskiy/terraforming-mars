@@ -881,5 +881,11 @@
     "Every degree arrived in two halves at ${0}: ${1} matched ${2} pair(s) of cubes and warmed Mars ${3} time(s).": "Каждый градус приходил двумя половинами (у ${0}): ${1} собрала пар кубов — ${2} — и столько же раз грела Марс: ${3}.",
     "Some freight never found its match — ${2} cube(s) were still waiting on ${1} when the game ended.": "Часть груза так и не дождалась пары: к концу игры на ${1} оставалось кубов — ${2}.",
     "The dead ends of the deck paid at ${0}: ${1} turned ${2} card(s) with no tags into ${3} M€.": "Тупики колоды приносили доход (у ${0}): ${1} превратила карты без меток (${2}) в ${3} М€.",
-    "The thin freight added up too — ${2} single-tag card(s) paid ${1} another ${3} M€.": "Мелкий груз тоже накопился: карты с единственной меткой (${2}) принесли ${1} ещё ${3} М€."
+    "The thin freight added up too — ${2} single-tag card(s) paid ${1} another ${3} M€.": "Мелкий груз тоже накопился: карты с единственной меткой (${2}) принесли ${1} ещё ${3} М€.",
+    "For the victory": "За победу",
+    "For place ${0}": "За ${0}-е место",
+    "Tie on VP for the victory — decided on M€": "Равенство ПО за победу — решили M€",
+    "Tie on VP for place ${0} — decided on M€": "Равенство ПО за ${0}-е место — решили M€",
+    "Tie on VP and M€ for place ${0} — the place is shared": "Равенство ПО и M€ за ${0}-е место — место делят",
+    "Equal VP — the M€ decide": "Равенство ПО — решают M€"
 }

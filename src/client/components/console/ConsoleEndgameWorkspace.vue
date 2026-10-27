@@ -57,10 +57,14 @@
            the legend reads as the scoreboard's own header, never a distant
            strip with dead space under it. -->
       <div class="con-eg__stage">
-        <!-- CATEGORY RAIL — one stable strip of MEDALLIONS (the dossier's own discs, TR69); the ACTIVE category is the
-             spotlight (bright, lifted, accent-lit) whose PLATE stands under the rail; settled ones stay readable,
-             future ones wait dim. Identity = symbol + colour + position + name (never colour alone). -->
-        <div class="con-eg__rail">
+        <!-- THE SCORE SHEET'S HEAD — the ONE voice that names a category (the owner, 2026-10-28: the sliding plate under
+             the rail re-printed the very chip above it). One glass strip of cells, each the category's symbol + name
+             + its colour KEY (the hairline under it is the hue its segment takes in every bar below — the head is the
+             bars' legend). The count walks the strip: the cell that speaks is drawn by MATERIAL (an inset kant in its
+             tone, white ink, its key at full weight); a told one stays readable, a future one waits dim. Nothing on
+             the strip resizes or moves while the count runs — the active state is paint on a fixed box. -->
+        <div class="con-eg__rail" :class="{'con-eg__rail--sweep': ui.sweepStepMs > 0}"
+             :style="{'--eg-sweep-step': ui.sweepStepMs + 'ms'}">
           <div v-for="(cat, i) in vm.categories" :key="cat.key"
                class="con-eg__lchip" :class="lchipClass(cat, i)" :style="{'--eg-ci': i}" :data-eg-rail="cat.key">
             <ConsoleScoreDisc class="con-eg__ldisc" :glyph="glyphOf(cat.key)" />
@@ -68,28 +72,23 @@
           </div>
         </div>
 
-        <!-- THE CATEGORY PLATE (T08; CI «ФИНАЛ — ПРЕМИУМ, НЕ ДИСКОТЕКА») — the active category under the rail: its disc,
-             its name, its sources (a TR row / a card family) as the quiet second voice. ONE object for the whole count
-             and a STRIP inside it: every category's face stands in one grid cell (the plate is as wide as its widest
-             face), shifted by its distance from the active one — a category change SLIDES the strip, never a crossfade
-             of two faces; under X it slides after the light at the pass's own step. The plate's frame is neutral: the
-             tone is the face's own disc, so nothing on the plate changes colour. -->
-        <div class="con-eg__caption" aria-live="polite">
-          <div class="con-eg__plate" :class="plateClass" :data-eg-plate="activeCategory?.key ?? ''"
-               :style="{'--eg-plate-i': plateIdx, '--eg-sweep-step': ui.sweepStepMs + 'ms'}">
-            <div v-for="(cat, i) in vm.categories" :key="cat.key"
-                 class="con-eg__plate-face" :class="'con-eg-cat--' + cat.accent" :style="{'--eg-pf': i}" :data-eg-plate-face="cat.key">
-              <span class="con-eg__plate-pill">
-                <ConsoleScoreDisc class="con-eg__plate-disc" :glyph="glyphOf(cat.key)" />
-                <span class="con-eg__plate-name">{{ $t(cat.label) }}</span>
-                <!-- The sources stand in one cell too (the slot is as wide as the longest): a source changes by opacity
-                     in place, the pill never re-sizes. -->
-                <span v-if="cat.subs.length > 1" class="con-eg__plate-subs" :class="'con-eg-ink--' + cat.accent">
-                  <span v-for="(sub, si) in cat.subs" :key="sub.key" class="con-eg__plate-sub"
-                        :class="{'con-eg__plate-sub--on': i === ui.catIdx && si === ui.subIdx}">{{ $t(sub.label) }}</span>
-                </span>
-              </span>
-            </div>
+        <!-- THE SOURCES — what the head CANNOT print: a two-level category's own steps (the TR's sources, the card
+             families), hung under ITS cell (`srcX`, measured): one PIP per step (told · speaking · coming — the
+             micro-reveal's progress at a glance) and the NAME of the step that speaks, in the category's ink. Never
+             a list of every step (a second row of names read as a second rail) and never the category's name again.
+             The names share one cell (as wide as the longest — the line never re-sizes) and change by opacity in
+             place. A single-beat category has nothing here and the slot stays empty (its height is reserved: the
+             podium never moves). -->
+        <div ref="captionEl" class="con-eg__caption" aria-live="polite">
+          <div v-for="cat in sourceCategories" :key="cat.key"
+               class="con-eg__sources" :class="['con-eg-cat--' + cat.accent, {'con-eg__sources--on': sourcesOn(cat.key)}]"
+               :style="{left: (srcX[cat.key] ?? 0) + 'px'}" :data-eg-sources="cat.key">
+            <span class="con-eg__src-pips" aria-hidden="true">
+              <i v-for="(sub, si) in cat.subs" :key="sub.key" class="con-eg__src-pip" :class="srcClass(cat.key, si)"></i>
+            </span>
+            <span class="con-eg__src-names">
+              <span v-for="(sub, si) in cat.subs" :key="sub.key" class="con-eg__src" :class="srcClass(cat.key, si)">{{ $t(sub.label) }}</span>
+            </span>
           </div>
         </div>
 
@@ -202,6 +201,19 @@
               <div class="con-eg__total">
                 <ConsoleVpBadge class="con-eg__shield" :label="$t('VP')" />
                 <span class="con-eg__total-num" :data-eg-total="color" :style="{minWidth: totalDigits[color] + 'ch'}">0</span>
+                <!-- THE DECIDING M€ — a tab hung on the score it explains (two equal totals ranked apart need their
+                     reason RIGHT THERE): the seat the M€ put ahead wears the gold kant, the one it put behind a quiet
+                     neutral one, an unresolved tie both neutral. It hangs off a ZERO-WIDTH anchor that stands after
+                     the number in every seat from the first frame (its gap cancelled), so the tab is absolute beside
+                     the digits: appearing evidence never re-flows the seat it explains. It stays through the settled
+                     screen (a reload must explain the ranking too). -->
+                <span class="con-eg__tieanchor" :style="{'--eg-tie-slack': (tieSlack[color] ?? 0) + 'px'}">
+                  <span v-if="tieChipVisible(color)" class="con-eg__tiechip" :class="tieChipClass(color)"
+                        :data-eg-tiechip="color">
+                    <i class="resource_icon resource_icon--megacredits con-eg__mc-icon" aria-hidden="true"></i>
+                    <b>{{ rowBy(color).megacredits }}</b>
+                  </span>
+                </span>
                 <!-- The champion KEEL — the fixation's persistent witness: a
                      thin gold bar under the final total, mounted at the FIX
                      window and kept by the settled screen (absolute — zero
@@ -225,12 +237,6 @@
                        :class="{'con-eg__reclaim--on': reclaimOn(color)}"
                        :style="{left: rowGeo[color].reclaim!.leftPct + '%', width: rowGeo[color].reclaim!.widthPct + '%'}"></div>
                 </div>
-                <!-- Tie-break M€ — absolute over the track's tail: appearing
-                     evidence may never re-flow the bar it explains. -->
-                <div v-if="tieChipVisible(color)" class="con-eg__tiechip">
-                  <i class="resource_icon resource_icon--megacredits con-eg__mc-icon" aria-hidden="true"></i>
-                  <b>{{ rowBy(color).megacredits }}</b>
-                </div>
               </div>
               <!-- THE MEDALLIONS — one per category, the dossier's discs: IGNITED in turn when the category's light
                    reaches the seat (T08), with the category's value (a zero stays a quiet «0»); before it, a dim disc
@@ -252,17 +258,22 @@
            strip fades over the column, never in place of it. -->
       <div class="con-eg__zone">
         <transition name="con-eg-fade">
-          <div v-if="ui.phase === 'tiebreak' && vm.tieBreak !== undefined" class="con-eg__tb">
-            <div class="con-eg__tb-title">{{ $t('Tie on VP — decided on M€') }}</div>
+          <!-- Every VP tie the ranking settled on M€ — the victory's AND every lower place's (a 2nd place decided on
+               M€ in silence read as a wrong ranking): one group per place, the place it is fought for named first. -->
+          <div v-if="ui.phase === 'tiebreak' && vm.tieBreaks.length > 0" class="con-eg__tb" data-eg-tiebreak>
+            <div class="con-eg__tb-title">{{ $t('Equal VP — the M€ decide') }}</div>
             <transition name="con-eg-fade">
-              <div v-if="ui.tieStage >= 1" class="con-eg__tb-chips">
-                <span v-for="c in vm.tieBreak.contenders" :key="c"
-                      class="con-eg__tb-chip" :class="{'con-eg__tb-chip--won': ui.tieStage >= 2 && vm.winners.includes(c)}">
-                  <span class="con-eg__swatch" :class="'player_bg_color_' + c" aria-hidden="true"></span>
-                  <span class="con-eg__tb-name">{{ rowBy(c).name }}</span>
-                  <i class="resource_icon resource_icon--megacredits con-eg__mc-icon" aria-hidden="true"></i>
-                  <b>{{ vm.tieBreak.values[c] }}</b>
-                </span>
+              <div v-if="ui.tieStage >= 1" class="con-eg__tb-groups">
+                <div v-for="tb in vm.tieBreaks" :key="tb.place" class="con-eg__tb-group" :data-eg-tie-place="tb.place">
+                  <span class="con-eg__tb-place">{{ tiePlaceLabel(tb.place) }}</span>
+                  <span v-for="c in tb.contenders" :key="c"
+                        class="con-eg__tb-chip" :class="{'con-eg__tb-chip--won': ui.tieStage >= 2 && tb.leaders.includes(c)}">
+                    <span class="con-eg__swatch" :class="'player_bg_color_' + c" aria-hidden="true"></span>
+                    <span class="con-eg__tb-name">{{ rowBy(c).name }}</span>
+                    <i class="resource_icon resource_icon--megacredits con-eg__mc-icon" aria-hidden="true"></i>
+                    <b>{{ tb.values[c] }}</b>
+                  </span>
+                </div>
               </div>
             </transition>
           </div>
@@ -274,11 +285,11 @@
                games keep the original markup byte for byte. -->
           <div v-if="campaignFinal" class="con-eg__wnote-slot">
             <transition name="con-eg-xfade">
-              <div v-if="zoneNote !== undefined && ui.winnerShown" :key="zoneNote" class="con-eg__wnote">{{ $t(zoneNote) }}</div>
+              <div v-if="zoneNoteText !== undefined && ui.winnerShown" :key="zoneNoteText" class="con-eg__wnote">{{ zoneNoteText }}</div>
             </transition>
           </div>
           <transition v-else name="con-eg-fade">
-            <div v-if="zoneNote !== undefined && ui.winnerShown" class="con-eg__wnote">{{ $t(zoneNote) }}</div>
+            <div v-if="zoneNoteText !== undefined && ui.winnerShown" class="con-eg__wnote">{{ zoneNoteText }}</div>
           </transition>
           <transition name="con-eg-rise">
             <div v-if="ui.actionsOn" class="con-eg__actions" role="menu">
@@ -404,7 +415,8 @@ import {currentServerEndpoint} from '@/client/utils/runtimeConfig';
 import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import {paths} from '@/common/app/paths';
 import ConsoleCampaignMap from '@/client/components/console/campaign/ConsoleCampaignMap.vue';
-import {$t} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {RevealTieBreak} from '@/client/components/endgame/finalScoringRevealModel';
 
 /**
  * The post-game actions' SIGNS (PL-576) — one stroke path per action family (24 × 24, drawn in the plate's ink), so
@@ -522,6 +534,11 @@ export default defineComponent({
       horizonY: 0,
       /** The scene's width, px — the horizon's radius is a share of it. */
       sceneW: 0,
+      /** Where each two-level category's sources line stands (px from the caption's left): under ITS head cell, clamped
+       *  inside the stage. Measured with the stage (cells never resize while the count runs). */
+      srcX: {} as Record<string, number>,
+      /** Per tied seat: the empty px of its number's reserved box (the M€ tab hangs off the digits). */
+      tieSlack: {} as Record<string, number>,
       stageObserver: undefined as ResizeObserver | undefined,
       totalEls: {} as Record<string, HTMLElement | undefined>,
       /** The campaign scene — internal, the overview pattern (park + return).
@@ -738,19 +755,9 @@ export default defineComponent({
     activeCategory(): ConsoleEndgameCategory | undefined {
       return this.ui.catIdx >= 0 ? this.vm.categories[this.ui.catIdx] : undefined;
     },
-    /** The plate stands while the count speaks (its frame neutral — the tone is each face's own disc). */
-    plateClass(): Record<string, boolean> {
-      return {
-        'con-eg__plate--on': this.activeCategory !== undefined && this.ui.phase === 'scoring',
-        'con-eg__plate--sweep': this.ui.sweepStepMs > 0,
-      };
-    },
-    /**
-     * CI — where the plate's strip stands: the active category; between two categories (and while the plate leaves)
-     * it STAYS on the last one — a strip sliding back to the first face while the plate fades would be one more motion.
-     */
-    plateIdx(): number {
-      return this.ui.catIdx >= 0 ? this.ui.catIdx : Math.max(0, this.ui.catsSettled - 1);
+    /** The two-level categories — the only ones with a sources line under the head. */
+    sourceCategories(): ReadonlyArray<ConsoleEndgameCategory> {
+      return this.vm.categories.filter((cat) => cat.subs.length > 1);
     },
     /** X still has a count to hurry — not yet hurried, a category still to tell, the ranking not reached. */
     countHurriable(): boolean {
@@ -775,6 +782,25 @@ export default defineComponent({
         return this.championPlateOn ? 'Campaign champions' : 'Shared victory';
       }
       return undefined;
+    },
+    /**
+     * The bottom zone's line, TRANSLATED — the winner's note (a shared victory, the clock) first; else the standing
+     * reason for an ordering of EQUAL totals: every VP tie the M€ settled (or could not), by place. The seat's tab says
+     * WHICH M€; this line says WHY two equal scores stand on different places.
+     */
+    zoneNoteText(): string | undefined {
+      if (this.zoneNote !== undefined) {
+        return translateText(this.zoneNote);
+      }
+      const lines = this.vm.tieBreaks.map((tb) => {
+        if (tb.leaders.length === 0) {
+          return translateTextWithParams('Tie on VP and M€ for place ${0} — the place is shared', [String(tb.place)]);
+        }
+        return tb.place === 1 ?
+          translateText('Tie on VP for the victory — decided on M€') :
+          translateTextWithParams('Tie on VP for place ${0} — decided on M€', [String(tb.place)]);
+      });
+      return lines.length > 0 ? lines.join(' · ') : undefined;
     },
     /** The post-game verbs. Only REAL flows: the console-native overview
      *  scene, the rematch machinery (rematchState — polled by RematchLayer),
@@ -980,7 +1006,24 @@ export default defineComponent({
       deep: true,
       handler(): void {
         this.writeAllTotals();
+        if (this.vm.tieBreaks.length > 0) {
+          void this.$nextTick(() => this.fitTieTabs());
+        }
       },
+    },
+    // A two-level category takes the head: its sources line is hung under its cell from a fresh read (the font that
+    // sizes the cells may have arrived after the mount's measure).
+    // The deciding M€ tab appears with the tie-break's values (or on a settled landing): hang it off the final digits.
+    'ui.tieStage': function(): void {
+      void this.$nextTick(() => this.fitTieTabs());
+    },
+    'ui.winnerShown': function(): void {
+      void this.$nextTick(() => this.fitTieTabs());
+    },
+    'ui.catIdx': function(idx: number): void {
+      if ((this.vm.categories[idx]?.subs.length ?? 0) > 1 && this.$el instanceof HTMLElement) {
+        this.measureSources(this.$el);
+      }
     },
     // Viewport change (profile flip / window resize): re-measure the podium's box and let the planner re-solve.
     vpWidth(): void {
@@ -1066,6 +1109,33 @@ export default defineComponent({
       }
     },
     /**
+     * The deciding M€ tab hangs off the number's DIGITS, not off its box: the box reserves the widest count (the
+     * count-up's stability — `totalDigits`), and the display font draws «111» far narrower than three zeros, so a tab
+     * hung on the box stood a hand's width from the score it explains. The empty part of the box is read once the
+     * totals are final (a Range over the digits, normalized by the seat's own scale) and handed to the anchor.
+     */
+    fitTieTabs(): void {
+      const next: Record<string, number> = {};
+      for (const tb of this.vm.tieBreaks) {
+        for (const color of tb.contenders) {
+          const el = this.totalEl(color);
+          const text = el?.firstChild;
+          if (el === undefined || text === null || text === undefined || el.offsetWidth <= 0) {
+            continue;
+          }
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const ink = range.getBoundingClientRect().width;
+          const box = el.getBoundingClientRect().width;
+          const scale = box / el.offsetWidth;
+          next[color] = scale > 0 ? Math.max(0, Math.round((box - ink) / scale)) : 0;
+        }
+      }
+      if (JSON.stringify(next) !== JSON.stringify(this.tieSlack)) {
+        this.tieSlack = next;
+      }
+    },
+    /**
      * The podium's box: the seats' stage measured from the layout (its height is the free space between the rail and
      * the bottom zone — never the seats' own content), the live rem, and the foot the horizon crests at. A hidden
      * scene (collapse / overview round trip) measures 0 — the last honest box is kept.
@@ -1089,6 +1159,34 @@ export default defineComponent({
       const scene = root.getBoundingClientRect();
       this.horizonY = Math.round(box.bottom - scene.top);
       this.sceneW = Math.round(scene.width);
+      this.measureSources(root);
+      this.fitTieTabs();
+    },
+    /** Hang each sources line under its head cell — centred on the cell, never past the caption's edges. */
+    measureSources(root: HTMLElement): void {
+      const caption = this.$refs.captionEl as HTMLElement | undefined;
+      const cap = caption?.getBoundingClientRect();
+      if (caption === undefined || cap === undefined || cap.width <= 0) {
+        return;
+      }
+      const next: Record<string, number> = {};
+      for (const cat of this.sourceCategories) {
+        const chip = root.querySelector<HTMLElement>(`[data-eg-rail="${cat.key}"]`);
+        const line = caption.querySelector<HTMLElement>(`[data-eg-sources="${cat.key}"]`);
+        if (chip === null || line === null) {
+          continue;
+        }
+        // The cell's centre: the head never translates a cell (its spotlight is paint), so the rect is the layout's.
+        const cell = chip.getBoundingClientRect();
+        const centre = cell.left + cell.width / 2 - cap.left;
+        // The pips are the line's box (centred under the cell); the speaking name trails them out of flow, so the
+        // right clamp keeps room for the longest name.
+        const half = line.offsetWidth / 2;
+        const names = line.querySelector<HTMLElement>('.con-eg__src-names');
+        const tail = names === null ? 0 : names.offsetWidth + this.remPx * 0.9;
+        next[cat.key] = Math.round(Math.min(cap.width - half - tail, Math.max(half, centre)));
+      }
+      this.srcX = next;
     },
     // ── the podium ───────────────────────────────────────────────────────
     glyphOf(key: ConsoleEndgameCategoryKey): DossierGlyph {
@@ -1212,6 +1310,18 @@ export default defineComponent({
       return reclaim !== undefined && this.landed(reclaim.catIdx, color);
     },
     // ── classes ───────────────────────────────────────────────────────────
+    /** A two-level category's sources line stands while ITS steps are told (never under X — the pass names no step). */
+    sourcesOn(key: ConsoleEndgameCategoryKey): boolean {
+      return this.ui.phase === 'scoring' && this.ui.sweepStepMs === 0 && this.activeCategory?.key === key;
+    },
+    srcClass(key: ConsoleEndgameCategoryKey, si: number): Record<string, boolean> {
+      const idx = this.vm.categories.findIndex((cat) => cat.key === key);
+      const told = idx < this.ui.catsSettled || (idx === this.ui.catIdx && si < this.ui.subIdx);
+      return {
+        'con-eg__src--on': idx === this.ui.catIdx && si === this.ui.subIdx,
+        'con-eg__src--done': told,
+      };
+    },
     lchipClass(cat: ConsoleEndgameCategory, i: number): Record<string, boolean> {
       return {
         ['con-eg-cat--' + cat.accent]: true,
@@ -1240,7 +1350,7 @@ export default defineComponent({
     },
     rowClass(color: Color): Record<string, boolean> {
       const winner = this.ui.winnerShown && this.vm.winners.includes(color);
-      const contender = this.ui.phase === 'tiebreak' && (this.vm.tieBreak?.contenders.includes(color) ?? false);
+      const contender = this.ui.phase === 'tiebreak' && this.tieOf(color) !== undefined;
       return {
         'con-eg__row--winner': winner,
         // The champion FRAME deepens the winner gold from the sweep window on
@@ -1305,8 +1415,24 @@ export default defineComponent({
       }
       return this.campaignRowBadges[color];
     },
+    /** The VP tie this seat stood in, if the ranking had to settle one around it. */
+    tieOf(color: Color): RevealTieBreak | undefined {
+      return this.vm.tieBreaks.find((tb) => tb.contenders.includes(color));
+    },
+    /** A tie-break group's place in the annunciation («За победу» / «За 2-е место»). */
+    tiePlaceLabel(place: number): string {
+      return place === 1 ? translateText('For the victory') : translateTextWithParams('For place ${0}', [String(place)]);
+    },
+    tieChipClass(color: Color): Record<string, boolean> {
+      const tb = this.tieOf(color);
+      const decided = tb !== undefined && tb.leaders.length > 0 && (this.ui.phase !== 'tiebreak' || this.ui.tieStage >= 2);
+      return {
+        'con-eg__tiechip--lead': decided && tb.leaders.includes(color),
+        'con-eg__tiechip--trail': decided && !tb.leaders.includes(color),
+      };
+    },
     tieChipVisible(color: Color): boolean {
-      if (this.vm.tieBreak === undefined || !(this.vm.tieBreak.contenders.includes(color))) {
+      if (this.tieOf(color) === undefined) {
         return false;
       }
       // From the values stage of the tie-break ONWARD — the deciding M€
@@ -1488,7 +1614,7 @@ export default defineComponent({
     },
     /**
      * THE ONE LIGHT (CI «ФИНАЛ — ПРЕМИУМ, НЕ ДИСКОТЕКА») — a soft wash over the podium, its hotspot under the active
-     * category's chip, its tone that category's. `rise`: the box is posed once (from the plate's line to the foot of
+     * category's chip, its tone that category's. `rise`: the box is posed once (from the sources line to the foot of
      * the medallion row, across every seat — a static box, never an animated geometry) and the wash comes on, slowly;
      * `glide`: the hotspot and the tone move to the next category in ONE motion (the canvas re-painted per frame — the
      * light never switches off); `sweep` (X): one continuous glide over the categories left; `release`: it lets go,
@@ -1549,7 +1675,7 @@ export default defineComponent({
     /** Pose the light's box over the podium (once, when it comes on) — false while there is nothing to measure. */
     poseBeam(root: HTMLElement, beam: HTMLElement): boolean {
       const origin = root.getBoundingClientRect();
-      const plate = root.querySelector<HTMLElement>('.con-eg__plate')?.getBoundingClientRect();
+      const plate = (this.$refs.captionEl as HTMLElement | undefined)?.getBoundingClientRect();
       const seats = Array.from(root.querySelectorAll<HTMLElement>('[data-eg-row]')).map((el) => el.getBoundingClientRect());
       const medals = Array.from(root.querySelectorAll<HTMLElement>('[data-eg-row] .con-eg__medals'))
         .map((el) => el.getBoundingClientRect()).filter((r) => r.height > 0);

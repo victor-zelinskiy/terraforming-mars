@@ -15,12 +15,12 @@
  *  · a seat's medallion ignites ONCE per category, a soft rise (≥ 400 ms, ease-out, no ring-flash) — the sub-steps of
  *    TR / Cards count on under the same rise, never re-igniting;
  *  · X is its OWN choreography (`hurriedBeats`): the categories left are ONE continuous pass of the light along the
- *    rail, the totals an ODOMETER (one tween per seat to its final sum), the segments one fill, the plate sliding after
+ *    rail, the totals an ODOMETER (one tween per seat to its final sum), the segments one fill, the head's cell following
  *    the light — never `timeScale` of the natural script. The ranking, the places, the winner hold, the crowning and
  *    the campaign champion are the SAME beats on both paces (`tailBeats`), always at ×1.
  *
  * Rhythm rules kept from T08 / TR69:
- *  · a MAIN category is one phrase — focus (the rail spotlights the coming category, the plate slides to it, the
+ *  · a MAIN category is one phrase — focus (the rail spotlights the coming category, the
  *    light glides to its chip) → ignite (the seats' OWN medallions ignite in turn, left to right; each seat's segment
  *    grows out of its medallion and its total ticks on ITS ignition) → settle (the value stands in the medallion) → a
  *    breath before the next category. One reveal = one readable event;
@@ -37,11 +37,11 @@ export const CEREMONY_MS = {
   enter: 640,
   /**
    * CI — THE FLOOR of every luminous event (the light's rise / glide / release, a medallion's ignition, the rail's
-   * spotlight, the plate's slide): no pace scales under it — `luminousMs` applies it after `motionMs`. 240 ms is where
+   * spotlight): no pace scales under it — `luminousMs` applies it after `motionMs`. 240 ms is where
    * a change of light stops reading as a flash and starts reading as a motion.
    */
   minEvent: 240,
-  /** The MAIN-category phrase: the rail spotlights it, the plate slides to it, the light starts its glide. */
+  /** The MAIN-category phrase: the rail spotlights it, the light starts its glide. */
   categoryFocus: 220,
   /** The light's way to the category's chip — the first seat ignites as it arrives (its glide is `lightGlide`). */
   categoryLight: 280,
@@ -52,7 +52,7 @@ export const CEREMONY_MS = {
   categoryGrow: 440,
   categorySettle: 180,
   categoryPause: 180,
-  /** The plate hands over to a multi-sub category and the light glides to it before the first sub. */
+  /** The head hands over to a multi-sub category (its sources line opens) and the light glides to it before the first sub. */
   subIntro: 360,
   /** One inner source (a TR row / a card family) — the seats count on under the SAME rise, never re-igniting. */
   sub: 340,
@@ -167,7 +167,7 @@ export function countBeats(vm: ConsoleEndgameVm): Array<CeremonyBeat> {
 export function tailBeats(vm: ConsoleEndgameVm): Array<CeremonyBeat> {
   const beats: Array<CeremonyBeat> = [];
   beats.push({kind: 'ranking', ms: CEREMONY_MS.rankFlip, placesMs: CEREMONY_MS.placesIn});
-  if (vm.tieBreak !== undefined) {
+  if (vm.tieBreaks.length > 0) {
     beats.push({kind: 'tiebreak', announceMs: CEREMONY_MS.tieAnnounce, valuesMs: CEREMONY_MS.tieValues, resolveMs: CEREMONY_MS.tieResolve});
   }
   beats.push({kind: 'winnerHold', ms: CEREMONY_MS.winnerHold});

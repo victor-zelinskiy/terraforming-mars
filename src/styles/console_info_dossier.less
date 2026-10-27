@@ -212,6 +212,12 @@
         background-repeat: no-repeat;
         background-position: center;
     }
+    /* A category's LINE sign (`BarButtonIcon` — milestones' flag, awards' cup, …): stroked in the category's own hue,
+       sized by the host like every other glyph. */
+    &__disc > &__glyph--line {
+        color: color-mix(in srgb, var(--eg-c, @con-cyan) 70%, #ffffff 30%);
+        background: none;
+    }
     &__glyph--city { background-image: url(./assets/tiles/city.png); }
     &__glyph--greenery { background-image: url(./assets/tiles/greenery.png); }
     &__disc > &__glyph--mark {

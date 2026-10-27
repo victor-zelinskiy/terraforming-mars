@@ -111,6 +111,19 @@ describe('consoleEndgameScript', () => {
     expect(beats.indexOf('winner')).to.be.greaterThan(tieAt);
   });
 
+  it('a tie for a LOWER place is announced in the same beat — a ranking never orders equal totals in silence', () => {
+    const lower = vmOf([
+      player('red', 'Bot', {terraformRating: 60}),
+      player('blue', 'victor', {terraformRating: 40}, {megacredits: 86}),
+      player('pink', 'French_Fries', {terraformRating: 40}, {megacredits: 83}),
+    ]);
+    expect(lower.tieBreak).to.eq(undefined);
+    expect(lower.tieBreaks.map((t) => t.place)).to.deep.eq([2]);
+    const beats = ceremonyBeats(lower).map((b) => b.kind);
+    expect(beats).to.include('tiebreak');
+    expect(beats.indexOf('tiebreak')).to.be.greaterThan(beats.indexOf('ranking'));
+  });
+
   it('stays a compact ceremony: big values never stretch the clock, the whole act is bounded', () => {
     // A monstrous score…
     const huge = vmOf([

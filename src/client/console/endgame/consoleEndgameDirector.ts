@@ -271,7 +271,7 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
 
     case 'category': {
       const cat = vm.categories[beat.idx];
-      // FOCUS — the rail spotlights the coming category, the plate slides to it, the light sets off towards it.
+      // FOCUS — the head's cell of the coming category speaks, the light sets off towards it.
       tl.call(() => {
         s.catIdx = beat.idx;
         s.subIdx = -1;
@@ -298,7 +298,7 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
     }
 
     case 'subIntro':
-      // The plate takes the category and the light glides to it — held through every sub-step.
+      // The head takes the category (its cell speaks, its sources line opens under it) and the light glides to it.
       tl.call(() => {
         s.catIdx = beat.idx;
         s.subIdx = -1;
@@ -311,7 +311,7 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
     case 'sub': {
       const cat = vm.categories[beat.idx];
       const sub = cat.subs[beat.sub];
-      // The plate names the source; the first source ignites the seats in turn, the later ones count on at once.
+      // The sources line lights this source; the first source ignites the seats in turn, the later ones count on at once.
       tl.call(() => {
         s.catIdx = beat.idx;
         s.subIdx = beat.sub;
@@ -334,7 +334,7 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
 
     case 'sweep': {
       // CI — X: ONE pass over the categories left. The light glides chip to chip in one motion (`sweep`), each
-      // category falls into place as the light passes it (every seat's medallion at once — one comb), the plate
+      // category falls into place as the light passes it (every seat's medallion at once — one comb), the head's cell
       // slides after the light at the pass's own step. No ignition accents: the pass IS the light.
       sweepAt = at;
       const path: Array<number> = [];

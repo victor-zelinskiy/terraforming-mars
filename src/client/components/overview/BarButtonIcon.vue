@@ -67,6 +67,22 @@
       <path d="M4.6 12h14.8" />
       <path d="M4.6 17.4h9.4" />
     </template>
+    <!-- Campaign titles: a laurel — two sprays under a star (the final's «Титулы» score category). -->
+    <template v-else-if="name === 'titles'">
+      <path d="M12 3.6l1.15 2.35 2.6.38-1.88 1.83.44 2.58L12 9.52l-2.31 1.22.44-2.58-1.88-1.83 2.6-.38z" />
+      <path d="M6.2 9.6c-1.2 3.6.2 7.6 4.3 10.2" />
+      <path d="M17.8 9.6c1.2 3.6-.2 7.6-4.3 10.2" />
+      <path d="M5.4 13.2l1.9.6M6.6 16.4l1.9-.1M16.7 13.8l1.9-.6M15.5 16.3l1.9.1" />
+    </template>
+    <!-- Penalties: the subtraction itself — a minus in a ring (the score category that takes points away). -->
+    <template v-else-if="name === 'penalty'">
+      <circle cx="12" cy="12" r="7.6" />
+      <path d="M8.4 12h7.2" />
+    </template>
+    <!-- The Moon: a crescent. -->
+    <template v-else-if="name === 'moon'">
+      <path d="M15.6 4.4a8 8 0 1 0 4 12.6 6.6 6.6 0 0 1-4-12.6z" />
+    </template>
     <!-- Skip turn: fast-forward to the bar (end your turn, hand off). -->
     <template v-else-if="name === 'skip-turn'">
       <path d="M5 6.5 12 12 5 17.5z" />

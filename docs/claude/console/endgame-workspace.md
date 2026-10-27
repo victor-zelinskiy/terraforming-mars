@@ -47,7 +47,7 @@ Conditional cards`, `cardVp → Fixed VP cards` — merged with the bot's ordina
 every non-zero contributor is a bot, else `Cards & effects`.
 
 Invariants (spec'd): Σ categories ≡ `finalTotal` ≡ `breakdown.total`;
-Σ subs ≡ category; ties → `tieBreak` (M€) → still equal = SHARED victory
+Σ subs ≡ category; ties → `tieBreak` (M€; every lower place in `tieBreaks`) → still equal = SHARED victory
 (`winners.length > 1`, never an index pick); `automaClockWin` forces the
 winner with no tie-break.
 
@@ -227,14 +227,22 @@ seat's medallion ignites ONCE per category: a soft RISE of the medallion itself
 (CSS `--on` 420 ms ease-out + the disc settling from 0.92, `igniteRise`) — no
 ring, no flash (`.con-eg__medal-glow` is deleted); a multi-sub category ignites
 on its first source (stagger 100) and its later sources count on at once under
-the same rise. ④ The PLATE is a STRIP (`.con-eg__plate` = a masked window as wide
-as the widest face, every category's face in one grid cell shifted by
-`--eg-pf − --eg-plate-i`, each face its own content-sized PILL): a category change
-SLIDES it — never a crossfade of two faces; its frame is neutral (the tone is each
-face's disc), the sources of a multi-sub category stand in one cell and change by
-opacity. ⑤ The rail's spotlight and the plate's slide are floored transitions;
-under X the plate slides LINEARLY at the pass's step (`--eg-sweep-step`) so the
-steps chain into one glide. The ignition cascade reads the script's times
+the same rise. ④ **THE HEAD NAMES A CATEGORY ONCE** (the owner, 2026-10-28 — the
+sliding PLATE under the rail re-printed the active pill's disc and name, the same
+fact twice, one of them moving; it is DELETED): the rail is ONE glass strip of
+cells (`.con-eg__rail` › `.con-eg__lchip`, hairline seams), each cell its symbol +
+name + its colour KEY (`::after` — the hue its segment takes in every bar: the head
+IS the bars' legend). The count walks it by MATERIAL — the cell that speaks wears an
+inset kant + a faint fill in its tone and its key at full length, a told cell keeps
+its key, a future one waits dim; no cell resizes, lifts or scales. Under it ONE
+quiet line only for a TWO-LEVEL category (`.con-eg__sources[data-eg-sources]` — the
+TR's sources / the card families, hung under ITS cell by `srcX`, measured in
+`measureSources` and clamped to the caption): the step that speaks in the
+category's ink, the told ones settled, the coming ones dim — what the head cannot
+print, never the category's name again. The slot (`--eg-cap-h`) is always reserved,
+so the podium never moves; under X no sources line stands. ⑤ The cells' state is a
+floored transition; under X it follows the light LINEARLY at the pass's step
+(`--eg-sweep-step` on the rail) so the steps chain into one glide. The ignition cascade reads the script's times
 (`igniteOffsets`), the seat's count starts on ITS ignition, its segment grows
 out of the medallion (`segOn` / `subOn` / `reclaimOn` read the seat's ignition).
 Every motion is under the director's clock (`attach` — paused and killed with
@@ -256,7 +264,7 @@ the category the count stands in: one `sweep` (`hurrySweepMs(remaining)` — 1.2
 the fewer left the shorter): the light glides chip to chip in ONE motion
 (`onLight` 'sweep' with the path, or 'rise' with it when X lands before the
 first category), each category falls into place as the light passes it (every
-seat's medallion at once — one comb), the plate slides after the light; the
+seat's medallion at once — one comb), the head's cells follow the light; the
 `odometer` (one `power2.out` tween per seat from its shown value to its FINAL
 sum — never a step per category); a `preRank` breath of 460 ms at ×1
 (`hurry = 'returned'`); then the SAME tail at the full pace. A second X is a no-op;
@@ -334,10 +342,30 @@ ONE-FLOW»).
 with the largest face on the horizon's crest, the gold rim + wash, the
 «ПОБЕДИТЕЛЬ» ribbon standing on the seat's top edge (on missions 1–3 it yields
 to the Governor crest), the gold place medal beside the name and the
-total with a one-shot crown pulse — never a duplicate plate. Solo defeat = a calm neutral ribbon, no burst. The tie-break strip is
-transient zone annunciation; the deciding M€ chips stay on the contender
-rows through the settled state (absolute — zero layout impact). Winner gold
-≠ focus cyan by hue, weight and placement.
+total with a one-shot crown pulse — never a duplicate plate. Solo defeat = a calm neutral ribbon, no burst.
+Winner gold ≠ focus cyan by hue, weight and placement.
+
+**EVERY VP TIE THE RANKING SETTLED ON M€ IS TOLD — not only the victory's** (the
+owner's campaign finale of 2026-10-27, `g36b0c1475dcc`: victor 111 / 86 M€ and
+French_Fries 111 / 83 M€ stood 2nd and 3rd with nothing saying why).
+`FinalScoringRevealModel.tieBreaks` lists one `RevealTieBreak` per group of equal
+totals, best `place` first (the victory's IS `tieBreak`, the same object), each
+with `leaders` (the holders of the group's top M€ — empty when the M€ could not
+part them: the place is shared). The `tiebreak` beat plays when ANY exists; its
+strip groups the ties by place («ЗА ПОБЕДУ» / «ЗА 2-Е МЕСТО»). The deciding M€ is
+a TAB on the score it explains (`.con-eg__tiechip[data-eg-tiechip]`, hung off a
+zero-width `.con-eg__tieanchor` after the number — absolute, zero layout): gold
+inset kant on the seat the M€ put ahead (`--lead`), a neutral hairline on the one
+put behind (`--trail`), both neutral on an unresolved tie; it stays on the settled
+screen, and the zone note under it says why («Ничья по ПО за 2-е место — решили
+M€» — after any winner note, which outranks it). A clock win drops only the
+victory's tie; the places under it are still ordered on M€.
+
+**A category is told by SHAPE** (`scoreCategoryGlyph` — the same frame: «5», «7» and
+«35» stood beside three identical gold dots): milestones, awards, the
+Hydronetwork, titles, penalties and the Moon wear their `BarButtonIcon` line sign
+(`{kind: 'line'}` in `ConsoleScoreDisc`, stroked in the category's hue); only the
+planetary tracks keep the accent dot. Guard: `infoDossierModel.spec` § told by SHAPE.
 
 ## THE BOUNDARY IS A TEARDOWN (`consoleEndgameSeal.ts`)
 

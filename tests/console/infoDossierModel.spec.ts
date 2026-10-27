@@ -4,9 +4,10 @@ import {CardModel} from '../../src/common/models/CardModel';
 import {Color} from '../../src/common/Color';
 import {
   dossierActionCounts, dossierActionTiles, dossierCardHistory, dossierEffectFamilies, dossierLadder, dossierMedallions,
-  dossierPlateTiles, dossierSealedFacts, MEDALLION_EMBLEMS_MAX,
+  dossierPlateTiles, dossierSealedFacts, MEDALLION_EMBLEMS_MAX, scoreCategoryGlyph,
 } from '../../src/client/console/infoDossierModel';
 import {ScoreOverviewModel, ScoreTile} from '../../src/client/console/scoreExplorerModel';
+import {SCORE_CATEGORY_TABLE} from '../../src/client/console/endgame/consoleEndgameModel';
 import {PlayedZones} from '../../src/client/components/console/consolePlayedModel';
 
 /**
@@ -32,13 +33,24 @@ describe('infoDossierModel', () => {
       expect(medallions.map((m) => m.glyph)).deep.eq([
         {kind: 'icon', icon: 'tr'},
         {kind: 'emblems', slugs: ['terraformer']},
-        {kind: 'mark'},
+        {kind: 'line', icon: 'awards'},
         {kind: 'tile', tile: 'greenery'},
         {kind: 'tile', tile: 'city'},
         {kind: 'icon', icon: 'cards'},
-        {kind: 'mark'},
+        {kind: 'line', icon: 'moon'},
       ]);
       expect(medallions.filter((m) => m.zero).map((m) => m.key), 'a zero stays IN the list (a seat switch morphs ink, never layout)').deep.eq(['awards', 'moon']);
+    });
+
+    it('every category with a sign of its own is told by SHAPE — no two categories share the accent dot', () => {
+      // The owner's finale frame (2026-10-28): milestones · awards · titles were three identical gold dots, so «5»,
+      // «7» and «35» under a seat could not be told apart.
+      const keys = SCORE_CATEGORY_TABLE.map((m) => m.key).filter((k) => k !== 'tracks');
+      for (const key of keys) {
+        expect(scoreCategoryGlyph(key).kind, key).not.eq('mark');
+      }
+      const shapes = keys.map((k) => JSON.stringify(scoreCategoryGlyph(k)));
+      expect(new Set(shapes).size, 'one sign per category').eq(shapes.length);
     });
 
     it('at most a few earned emblems stand inside one medallion', () => {

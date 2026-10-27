@@ -115,6 +115,11 @@ export type RevealTieBreak = {
   metric: 'megacredits';
   values: Record<string, number>;
   winner: Color | undefined;
+  /** The 1-based place the tie is fought for (the best place of the tied group — 1 = the victory). */
+  place: number;
+  /** Who the M€ put ahead: the holders of the group's highest M€ — EMPTY when every contender holds it (the tie
+   *  stands, the place is shared). */
+  leaders: Array<Color>;
 };
 
 export type FinalScoringRevealModel = {
@@ -124,6 +129,13 @@ export type FinalScoringRevealModel = {
   winner: Color | undefined;
   winners: Array<Color>;
   tieBreak: RevealTieBreak | undefined;
+  /**
+   * EVERY tie on VP the ranking had to settle on M€, best place first — the victory's (= `tieBreak`) and every lower
+   * place's alike: two seats level on points for the 2nd place are ranked by M€ exactly as two level for the 1st, and
+   * a ranking that orders two equal totals without saying why reads as a mistake. A MarsBot clock win drops only the
+   * victory's (the rule decided it); the places under it are still ordered on M€.
+   */
+  tieBreaks: Array<RevealTieBreak>;
   // Denominator for bar normalisation — the highest FINAL total (never shown as text).
   maxTotal: number;
   mode: EndgameMode;
@@ -311,10 +323,44 @@ export function buildFinalScoringRevealModel(model: EndgameModel, playerOrder: R
     for (const p of topByTotal) {
       values[p.color] = p.megacredits;
     }
-    tieBreak = {contenders: topByTotal.map((p) => p.color), metric: 'megacredits', values, winner};
+    const leaders = coWinners.length === topByTotal.length ? [] : coWinners;
+    tieBreak = {contenders: topByTotal.map((p) => p.color), metric: 'megacredits', values, winner, place: 1, leaders};
   } else if (model.mode === 'solo') {
     winner = model.soloWin ? model.players[0]?.color : undefined;
     winners = winner !== undefined ? [winner] : [];
+  }
+
+  // Every LOWER place a VP tie was settled on M€ — the same engine rule (`compareScores`), the same reading. The
+  // victory's is `tieBreak` itself (one object, never a second copy). A clock win's forced winner fights for nothing.
+  const tieBreaks: Array<RevealTieBreak> = tieBreak !== undefined ? [tieBreak] : [];
+  if (model.mode !== 'solo') {
+    const byTotal = new Map<number, Array<EndgameModel['players'][number]>>();
+    for (const p of model.players) {
+      if (p.breakdown.total === topTotal || (model.automaClockWin && p.color === model.winner?.color)) {
+        continue;
+      }
+      byTotal.set(p.breakdown.total, [...(byTotal.get(p.breakdown.total) ?? []), p]);
+    }
+    for (const group of byTotal.values()) {
+      if (group.length < 2) {
+        continue;
+      }
+      const maxMc = Math.max(...group.map((p) => p.megacredits));
+      const top = group.filter((p) => p.megacredits === maxMc).map((p) => p.color);
+      const values: Record<string, number> = {};
+      for (const p of group) {
+        values[p.color] = p.megacredits;
+      }
+      tieBreaks.push({
+        contenders: group.map((p) => p.color),
+        metric: 'megacredits',
+        values,
+        winner: top.length === 1 ? top[0] : undefined,
+        place: Math.min(...group.map((p) => p.place)),
+        leaders: top.length === group.length ? [] : top,
+      });
+    }
+    tieBreaks.sort((a, b) => a.place - b.place);
   }
 
   return {
@@ -324,6 +370,7 @@ export function buildFinalScoringRevealModel(model: EndgameModel, playerOrder: R
     winner,
     winners,
     tieBreak,
+    tieBreaks,
     maxTotal: Math.max(1, topTotal),
     mode: model.mode,
     generation: model.generation,

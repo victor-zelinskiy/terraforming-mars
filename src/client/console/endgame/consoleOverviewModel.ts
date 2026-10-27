@@ -561,7 +561,7 @@ function buildScore(model: EndgameModel, egVm: ConsoleEndgameVm, ranking: Readon
     }
   }
 
-  return {ranking, categories, maxCategoryValue, decisive, tieBreak: egVm.tieBreak};
+  return {ranking, categories, maxCategoryValue, decisive, tieBreak: egVm.tieBreaks[0]};
 }
 
 // ── Timeline ────────────────────────────────────────────────────────────────

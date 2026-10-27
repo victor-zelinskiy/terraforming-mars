@@ -23,15 +23,23 @@ import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 
 /**
  * The symbol a score category stands for itself with. A category with a printed symbol wears it (the TR badge, the
- * city / greenery tile, the card); milestones and awards wear the REAL earned emblems (the explorer's ledger); a
- * category with no printed symbol (the Moon, the planetary tracks, the Hydronetwork, titles, penalties) wears its
- * accent disc — the bar's own colour — never an invented picture.
+ * city / greenery tile, the card); milestones and awards wear the REAL earned emblems (the explorer's ledger) where a
+ * seat has some, else the console's own LINE sign of the category (the strategy rail's flag and cup, the
+ * Hydronetwork's waves, the title's laurel, the penalty's minus — `BarButtonIcon`, one line language): the owner's
+ * finale frame of 2026-10-28 read «5», «7» and «35» beside three identical gold dots (milestones · awards · titles),
+ * so a category is told by SHAPE, never by a dot's hue alone. Only a category with no sign of its own (the planetary
+ * tracks) keeps its accent disc.
  */
 export type DossierGlyph =
   | {kind: 'icon', icon: string}
   | {kind: 'tile', tile: 'city' | 'greenery'}
   | {kind: 'emblems', slugs: ReadonlyArray<string>}
+  /** A `BarButtonIcon` line sign, drawn in the category's own hue. */
+  | {kind: 'line', icon: ScoreLineGlyph}
   | {kind: 'mark'};
+
+/** The line signs a score category may wear (each one a `BarButtonIcon` name). */
+export type ScoreLineGlyph = 'milestones' | 'awards' | 'hydronetwork' | 'titles' | 'penalty' | 'moon';
 
 export type DossierMedallion = {
   key: ConsoleEndgameCategoryKey;
@@ -50,6 +58,12 @@ const CATEGORY_GLYPH: Partial<Record<ConsoleEndgameCategoryKey, DossierGlyph>> =
   cards: {kind: 'icon', icon: 'cards'},
   city: {kind: 'tile', tile: 'city'},
   greenery: {kind: 'tile', tile: 'greenery'},
+  milestones: {kind: 'line', icon: 'milestones'},
+  awards: {kind: 'line', icon: 'awards'},
+  delta: {kind: 'line', icon: 'hydronetwork'},
+  titles: {kind: 'line', icon: 'titles'},
+  penalty: {kind: 'line', icon: 'penalty'},
+  moon: {kind: 'line', icon: 'moon'},
 };
 
 /**

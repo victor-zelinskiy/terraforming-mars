@@ -126,7 +126,7 @@
 .con-eg__subseg,
 .con-eg__seg::after,
 .con-eg__reclaim,
-.con-eg__plate {
+.con-eg__sources {
     will-change: transform, opacity;
 }
 /* …and what CHANGES inside a seat is a layer of its own, so the seat's big layer (the face, the name, the bar's
@@ -178,11 +178,10 @@
 .con-eg {
     --eg-rail-fs: 0.95rem;
     --eg-rail-disc: 2.2rem;
-    --eg-cap-fs: 1.25rem;
-    /* T08: the slot of the CATEGORY PLATE (its disc + name + the sub-step's voice) — in flow, so the podium's box is
-     * measured under it and the planner solves the seats from what is left. */
-    --eg-cap-h: 3.1rem;
-    --eg-plate-disc: 2.3rem;
+    --eg-cap-fs: 0.95rem;
+    /* The slot of the SOURCES line (a two-level category's steps) — in flow and always reserved, so the podium's box
+     * is measured under it and the planner solves the seats from what is left. */
+    --eg-cap-h: 2.1rem;
     --eg-zone-h: 6.2rem;
     --eg-act-fs: 1.05rem;
 
@@ -246,43 +245,84 @@
     justify-content: center;
 }
 
-/* ── Category rail ───────────────────────────────────────────────── */
+/* ── THE SCORE SHEET'S HEAD (the owner, 2026-10-28) ──────────────────
+ * The ONE voice that names a category. The old head was two: a row of pills AND a plate sliding under it that
+ * re-printed the active pill's disc and name — the same fact twice, one of them moving. Now ONE glass strip of cells
+ * (a scoreboard's header, never a row of buttons): hairline seams between the cells, each cell its symbol + name +
+ * its colour KEY — the short hairline under the name is the hue its segment takes in every bar below, so the head
+ * IS the bars' legend. The count walks the strip by MATERIAL, never by light (VISUAL RESTRAINT): the cell that
+ * speaks wears an inset kant in its tone, white ink and its key at full length; a told cell stays readable with its
+ * key; a future one waits dim. Every state is paint on a fixed box — no cell resizes, lifts or scales, so the
+ * sources line hung under a cell and the light's hotspot read one stable geometry. */
 .con-eg__rail {
+    align-self: center;
     display: flex;
     flex-wrap: nowrap;
     justify-content: center;
-    gap: 0.45rem;
+    padding: 0.25rem;
+    border-radius: 0.9rem;
+    border: 0.05rem solid rgba(150, 175, 205, 0.14);
+    background: linear-gradient(180deg, rgba(18, 27, 39, 0.78) 0%, rgba(8, 13, 21, 0.82) 100%);
+    box-shadow: 0 0.5rem 1.6rem rgba(0, 0, 0, 0.4);
 }
 .con-eg__lchip {
+    position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
-    padding: 0.2rem 0.85rem 0.2rem 0.25rem;
-    border-radius: 1.6rem;
-    border: 0.05rem solid rgba(150, 175, 205, 0.16);
-    background: rgba(10, 17, 26, 0.55);
+    gap: 0.5rem;
+    padding: 0.3rem 1rem 0.42rem 0.4rem;
+    border-radius: 0.68rem;
     font-family: @con-font;
     font-size: var(--eg-rail-fs);
-    letter-spacing: 0.07em;
+    font-weight: 600;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: rgba(196, 216, 236, 0.45);
+    color: rgba(196, 216, 236, 0.42);
+    box-shadow: inset 0 0 0 0.06rem transparent;
     transition:
         color max(@eg-floor, calc(420ms * var(--motion-scale, 1))) ease-out,
-        border-color max(@eg-floor, calc(420ms * var(--motion-scale, 1))) ease-out,
         background-color max(@eg-floor, calc(420ms * var(--motion-scale, 1))) ease-out,
+        box-shadow max(@eg-floor, calc(420ms * var(--motion-scale, 1))) ease-out;
+}
+/* The seam between two cells — a hairline, inset top and bottom (the strip reads as one sheet of cells). */
+.con-eg__lchip + .con-eg__lchip::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 26%;
+    bottom: 26%;
+    width: 0.05rem;
+    background: rgba(150, 175, 205, 0.14);
+}
+/* The colour KEY — the category's bar hue, a short hairline under the name: a faint stub while the category waits,
+ * full once told (it is now in every bar), full and solid while it speaks. */
+.con-eg__lchip::after {
+    content: '';
+    position: absolute;
+    left: calc(0.4rem + var(--eg-rail-disc) + 0.5rem);
+    right: 1rem;
+    bottom: 0.2rem;
+    height: 0.1rem;
+    border-radius: 0.05rem;
+    background: var(--eg-c, #8aa4c0);
+    opacity: 0.22;
+    transform: scaleX(0.4);
+    transform-origin: left center;
+    transition:
+        opacity max(@eg-floor, calc(420ms * var(--motion-scale, 1))) ease-out,
         transform max(@eg-floor, calc(420ms * var(--motion-scale, 1))) @con-ease-standard;
 }
 .con-endgame--entering .con-eg__lchip {
     animation: con-eg-fadein calc(360ms * var(--motion-scale, 1)) ease backwards;
     animation-delay: calc(120ms + var(--eg-ci, 0) * 45ms * var(--motion-scale, 1));
 }
-/* The rail's MEDALLION — the dossier's disc (TR69): the category's own symbol ringed in its hue. Dim while the
- * category waits, full once settled, lit while it speaks (its plate stands under the rail). */
+/* The cell's MEDALLION — the dossier's disc (TR69): the category's own symbol ringed in its hue. */
 .con-eg__ldisc.con-dscore__disc {
+    flex: none;
     width: var(--eg-rail-disc);
     height: var(--eg-rail-disc);
-    opacity: 0.55;
-    box-shadow: inset 0 0 0 0.1rem var(--eg-c, @con-cyan), 0 0.15rem 0.5rem rgba(0, 0, 0, 0.5);
+    opacity: 0.5;
+    box-shadow: inset 0 0 0 0.1rem var(--eg-c, @con-cyan);
     transition: opacity max(@eg-floor, calc(420ms * var(--motion-scale, 1))) ease-out;
 }
 .con-eg__ldisc.con-dscore__disc > .con-dscore__glyph {
@@ -295,134 +335,105 @@
     box-shadow: none;
 }
 .con-eg__lchip--done {
-    color: rgba(222, 234, 246, 0.82);
+    color: rgba(222, 234, 246, 0.84);
     .con-eg__ldisc { opacity: 0.95; }
+    &::after { opacity: 0.85; transform: none; }
 }
-/* THE SPOTLIGHT — the active category is the one bright thing on the
- * rail: lifted, accent-lit, white ink. It is what "prepares" the eye
- * during the focus beat, before anything on the bars moves. */
-.con-endgame[data-eg-hurried="on"] .con-eg__lchip {
+/* THE CELL THAT SPEAKS — drawn by material: an inset kant in its tone over a faint fill of it, white ink, its key at
+ * full length. Nothing moves: the eye is prepared by the cell changing its MATERIAL, during the focus beat, before
+ * anything on the bars grows. Under X the cells follow the light linearly at the pass's own step. */
+.con-endgame[data-eg-hurried="on"] .con-eg__lchip,
+.con-eg__rail--sweep .con-eg__lchip,
+.con-eg__rail--sweep .con-eg__lchip::after {
+    transition-duration: max(@eg-floor, var(--eg-sweep-step, 300ms));
     transition-timing-function: linear;
 }
 .con-eg__lchip--active {
-    color: #f2f8ff;
-    border-color: color-mix(in srgb, var(--eg-c, #8aa4c0) 65%, transparent);
-    background: color-mix(in srgb, var(--eg-c, #8aa4c0) 17%, rgba(10, 17, 26, 0.72));
-    box-shadow: 0 0 0 0.09rem color-mix(in srgb, var(--eg-c, #8aa4c0) 28%, transparent);
-    transform: translateY(-0.12rem) scale(1.07);
+    color: #f4f9ff;
+    background-color: color-mix(in srgb, var(--eg-c, #8aa4c0) 12%, transparent);
+    box-shadow: inset 0 0 0 0.06rem color-mix(in srgb, var(--eg-c, #8aa4c0) 70%, transparent);
     .con-eg__ldisc { opacity: 1; }
+    &::after { opacity: 1; transform: none; }
 }
+/* The seams beside the cell that speaks step aside (its kant is the edge there). */
+.con-eg__lchip--active::before,
+.con-eg__lchip--active + .con-eg__lchip::before { opacity: 0; }
 
-/* ── THE CATEGORY PLATE (T08; CI — a STRIP, never a crossfade) ────────
- * The active category under the rail: ONE plate for the whole count — its disc, its name in the scene's voice, its
- * sources as a quieter second voice. Every category's FACE stands in ONE grid cell (the plate is as wide as its widest
- * face) and is shifted by its distance from the active one (`--eg-pf` − `--eg-plate-i`): a category change SLIDES the
- * strip, under X at the pass's own step and linearly, so the steps chain into one glide. The frame is NEUTRAL — the
- * tone is each face's disc, so nothing on the plate changes colour (a tone transition of a glowing frame was one more
- * change of light per category). The plate fades in with the first category and out at the preRank, once. */
+/* ── THE SOURCES — the head's second line, only for a TWO-LEVEL category ──
+ * What the head cannot print: the steps the category is told in (the TR's sources, the card families), one quiet line
+ * hung under ITS cell (`left` = the cell's centre, measured and clamped by the component), in the category's ink: the
+ * step that speaks bright, the told ones settled, the coming ones dim — the micro-reveal's progress. A single-beat
+ * category has nothing to add and the slot stays empty: its height is reserved in flow, so the podium is measured
+ * under it once and never moves. Every two-level category has its own line; a change is opacity in place, the line
+ * comes with its category and lets go with it (once each). */
 .con-eg__caption {
     position: relative;
     height: var(--eg-cap-h);
-    margin-top: 0.4rem;
-    display: flex;
-    justify-content: center;
+    margin-top: 0.45rem;
 }
-/* The plate is a WINDOW onto the strip (as wide as the widest face, its edges a soft mask — a face leaves and comes
- * in through them, never across a hard edge); the chrome is each face's own PILL, sized to its words. */
-.con-eg__plate {
-    position: relative;
-    display: grid;
-    height: 100%;
-    min-width: 18rem;
-    box-sizing: border-box;
-    overflow: hidden;
-    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 10%, #000 90%, transparent 100%);
-    mask-image: linear-gradient(90deg, transparent 0, #000 10%, #000 90%, transparent 100%);
-    opacity: 0;
-    transform: translateY(-0.4rem) scale(0.96);
-    transition:
-        opacity max(@eg-floor, calc(520ms * var(--motion-scale, 1))) ease-out,
-        transform max(@eg-floor, calc(520ms * var(--motion-scale, 1))) @con-ease-enter;
-}
-.con-eg__plate--on {
-    opacity: 1;
-    transform: none;
-}
-.con-eg__plate-face {
-    grid-area: 1 / 1;
-    display: flex;
-    align-items: stretch;
-    justify-content: center;
-    padding: 0 1.2rem;
-    white-space: nowrap;
-    transform: translateX(calc((var(--eg-pf, 0) - var(--eg-plate-i, 0)) * 100%));
-    transition: transform max(@eg-floor, calc(520ms * var(--motion-scale, 1))) cubic-bezier(0.45, 0, 0.25, 1);
-    will-change: transform;
-}
-.con-eg__plate-pill {
+.con-eg__sources {
+    position: absolute;
+    top: 0;
     display: flex;
     align-items: center;
     gap: 0.9rem;
-    padding: 0 2.2rem 0 0.5rem;
-    border-radius: calc(var(--eg-cap-h) / 2);
-    border: 0.06rem solid rgba(214, 196, 150, 0.42);
-    background: linear-gradient(180deg, rgba(22, 30, 42, 0.92) 0%, rgba(8, 14, 22, 0.94) 100%);
-    box-shadow: 0 0 0 0.1rem rgba(214, 196, 150, 0.1), 0 0.6rem 2rem rgba(0, 0, 0, 0.5);
-}
-/* X: the strip slides after the light at the pass's step, LINEARLY — the steps chain into one glide, never a stop per
- * category. */
-.con-eg__plate--sweep .con-eg__plate-face {
-    transition: transform max(@eg-floor, var(--eg-sweep-step, 300ms)) linear;
-}
-.con-eg__plate-disc.con-dscore__disc {
-    flex: none;
-    width: var(--eg-plate-disc);
-    height: var(--eg-plate-disc);
-    box-shadow: inset 0 0 0 0.12rem var(--eg-c, @con-cyan), 0 0 1rem color-mix(in srgb, var(--eg-c, @con-cyan) 45%, transparent);
-}
-.con-eg__plate-disc.con-dscore__disc > .con-dscore__glyph {
-    width: calc(var(--eg-plate-disc) * 0.66);
-    height: calc(var(--eg-plate-disc) * 0.66);
-}
-.con-eg__plate-disc.con-dscore__disc > .con-dscore__glyph--mark {
-    width: calc(var(--eg-plate-disc) * 0.3);
-    height: calc(var(--eg-plate-disc) * 0.3);
-    box-shadow: none;
-}
-.con-eg__plate-name {
+    height: 100%;
+    white-space: nowrap;
+    transform: translateX(-50%);
     font-family: @con-font;
     font-size: var(--eg-cap-fs);
-    font-weight: 700;
-    letter-spacing: 0.16em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: #f2f8ff;
-}
-/* The sources — the plate's second voice (a TR source, a card family): its accent ink, a hairline before it. Every
- * source of the category stands in ONE cell (the slot as wide as the longest — the plate never re-sizes); the one
- * that speaks is up, the rest wait at 0 — a change of source is a soft cross in place (floored), never a jump. */
-.con-eg__plate-subs {
-    position: relative;
-    display: grid;
-    padding-left: 0.9rem;
-    font-family: @con-font;
-    font-size: calc(var(--eg-cap-fs) * 0.82);
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-}
-.con-eg__plate-sub {
-    grid-area: 1 / 1;
     opacity: 0;
-    transition: opacity max(@eg-floor, calc(300ms * var(--motion-scale, 1))) ease-out;
+    transition: opacity max(@eg-floor, calc(420ms * var(--motion-scale, 1))) ease-out;
+    pointer-events: none;
 }
-.con-eg__plate-sub--on { opacity: 1; }
-.con-eg__plate-subs::before {
-    content: '';
+.con-eg__sources--on { opacity: 1; }
+/* One pip per step: a hairline ring while it waits, filled in the tone once told, filled + ringed in white while it
+ * speaks (form, not size — the row never moves). */
+.con-eg__src-pips {
+    display: flex;
+    align-items: center;
+    gap: 0.32rem;
+}
+.con-eg__src-pip {
+    display: block;
+    width: 0.46rem;
+    height: 0.46rem;
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: inset 0 0 0 0.06rem color-mix(in srgb, var(--eg-c, #8aa4c0) 55%, transparent);
+    transition:
+        background-color max(@eg-floor, calc(300ms * var(--motion-scale, 1))) ease-out,
+        box-shadow max(@eg-floor, calc(300ms * var(--motion-scale, 1))) ease-out;
+}
+.con-eg__src-pip.con-eg__src--done { background-color: color-mix(in srgb, var(--eg-c, #8aa4c0) 80%, transparent); }
+.con-eg__src-pip.con-eg__src--on {
+    background-color: var(--eg-c, #8aa4c0);
+    box-shadow: inset 0 0 0 0.09rem rgba(244, 249, 255, 0.9);
+}
+/* The speaking step's NAME — trailing the pips, out of flow (the PIPS stand centred under the cell, so the line's
+ * anchor never depends on which name speaks); every name in one cell, only the one that speaks up. */
+.con-eg__src-names {
     position: absolute;
-    left: 0;
-    top: 15%;
-    bottom: 15%;
-    width: 0.06rem;
-    background: color-mix(in srgb, var(--eg-c, #8aa4c0) 55%, transparent);
+    left: calc(100% + 0.9rem);
+    top: 0;
+    height: 100%;
+    display: grid;
+    align-items: center;
+}
+.con-eg__src {
+    grid-area: 1 / 1;
+    color: color-mix(in srgb, var(--eg-c, #8aa4c0) 55%, #ffffff 45%);
+    opacity: 0;
+    /* The name that lets go leaves first and quickly; the next one surfaces only once it is nearly gone — two names
+     * never read on top of each other in the one cell (a prompt-family handoff, never a cross-fade of two words). */
+    transition: opacity max(@eg-floor, calc(160ms * var(--motion-scale, 1))) ease-in;
+}
+.con-eg__src.con-eg__src--on {
+    opacity: 1;
+    transition: opacity max(@eg-floor, calc(280ms * var(--motion-scale, 1))) ease-out calc(140ms * var(--motion-scale, 1));
 }
 /* The TITLE HANDOFF (the title slot — «ФИНАЛЬНЫЙ ПОДСЧЁТ» → «ИТОГИ ПАРТИИ»): one line gives way to the next as ONE
  * phrase — the old line lets go ON THE SPOT, the new one arrives just before the old is gone, from a hair under its
@@ -1024,25 +1035,54 @@
 }
 .con-eg__reclaim--on { transform: scaleX(1); }
 
-/* Tie-break M€ — absolute over the track's tail (appearing evidence may
- * never re-flow the bar it explains). Stays through the settled state. */
+/* THE DECIDING M€ — a tab hung on the score it explains (two equal totals on different places need their reason
+ * RIGHT THERE, not in a strip that has gone): absolute beside the number, vertically on its centre — appearing evidence
+ * may never re-flow the seat it explains. Material, never light: the seat the M€ put AHEAD wears a gold inset kant and
+ * bright ink, the one it put behind a neutral hairline and quiet ink, an unresolved tie both neutral. Stays through the
+ * settled screen (a reload must explain the ranking too). */
+.con-eg__tieanchor {
+    position: relative;
+    flex: none;
+    align-self: stretch;
+    width: 0;
+    margin-left: -0.55rem; /* the total's own gap — the anchor takes no room */
+}
 .con-eg__tiechip {
     position: absolute;
-    right: 0;
-    bottom: calc(100% + 0.3rem);
+    left: calc(0.9rem - var(--eg-tie-slack, 0px));
+    top: 50%;
+    transform: translateY(-50%);
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.08rem 0.5rem;
-    border-radius: 0.32rem;
-    border: 0.05rem solid rgba(255, 216, 122, 0.35);
-    background: rgba(10, 16, 24, 0.92);
+    gap: 0.35rem;
+    padding: 0.2rem 0.6rem 0.2rem 0.45rem;
+    border-radius: 0.4rem;
+    background: rgba(10, 16, 24, 0.9);
+    box-shadow: inset 0 0 0 0.05rem rgba(150, 175, 205, 0.3);
     font-family: @con-font;
-    font-size: 0.95rem;
+    font-size: var(--eg-tie-fs, 1.05rem);
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
-    color: #eee6c8;
+    line-height: 1;
+    white-space: nowrap;
+    color: rgba(222, 234, 246, 0.82);
     animation: con-eg-fadein calc(280ms * var(--motion-scale, 1)) ease backwards;
+    transition:
+        color max(@eg-floor, calc(320ms * var(--motion-scale, 1))) ease-out,
+        box-shadow max(@eg-floor, calc(320ms * var(--motion-scale, 1))) ease-out;
     z-index: 4;
+}
+.con-eg__tiechip--lead {
+    color: #f6e7b8;
+    box-shadow: inset 0 0 0 0.07rem rgba(255, 216, 122, 0.72);
+}
+.con-eg__tiechip--trail {
+    color: rgba(196, 210, 226, 0.58);
+    box-shadow: inset 0 0 0 0.05rem rgba(150, 175, 205, 0.2);
+}
+.con-eg__tiechip .con-eg__mc-icon {
+    width: 1.15em;
+    height: 1.15em;
 }
 .con-eg__mc-icon {
     width: 1rem;
@@ -1203,9 +1243,24 @@
     text-transform: uppercase;
     color: @sem-warn;
 }
-.con-eg__tb-chips {
+/* One group per tie, the place it is fought for first — «ЗА 2-Е МЕСТО · [victor 86] [French_Fries 83]». */
+.con-eg__tb-groups {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.6rem 2rem;
+}
+.con-eg__tb-group {
+    display: flex;
+    align-items: center;
     gap: 0.7rem;
+}
+.con-eg__tb-place {
+    font-family: @con-font;
+    font-size: var(--con-t-caption, 0.8rem);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(222, 210, 170, 0.8);
 }
 .con-eg__tb-chip {
     display: inline-flex;
@@ -1222,8 +1277,8 @@
     transition: border-color calc(280ms * var(--motion-scale, 1)) ease, box-shadow calc(280ms * var(--motion-scale, 1)) ease;
 }
 .con-eg__tb-chip--won {
-    border-color: rgba(255, 216, 122, 0.6);
-    box-shadow: 0 0 0 0.1rem rgba(255, 216, 122, 0.25);
+    border-color: rgba(255, 216, 122, 0.7);
+    box-shadow: inset 0 0 0 0.05rem rgba(255, 216, 122, 0.5);
 }
 .con-eg__tb-name { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -1506,10 +1561,9 @@ html.con-profile-handheld {
         --eg-rail-disc: 1.7rem;
         --eg-zone-h: 5.4rem;
         --eg-act-fs: 0.9rem;
-        /* T08: the category plate on the short stage — one size down, so the podium keeps its height. */
-        --eg-cap-h: 2.5rem;
-        --eg-cap-fs: 1rem;
-        --eg-plate-disc: 1.8rem;
+        /* The sources line on the short stage — one size down, so the podium keeps its height. */
+        --eg-cap-h: 1.7rem;
+        --eg-cap-fs: 0.8rem;
     }
     .con-eg__tb-name { max-width: 7rem; }
     .con-eg__action { padding: 0.4rem 0.7rem; }

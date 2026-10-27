@@ -227,6 +227,37 @@ describe('finalScoringRevealModel', () => {
     expect(reveal.winners.sort()).to.deep.eq(['blue', 'red']);
   });
 
+  it('a VP tie for a LOWER place is a tie-break too — the place it decides, the M€ that decided it', () => {
+    // The campaign finale of 2026-10-27 (g36b0c1475dcc): the bot 202, victor 111 / 86 M€, French_Fries 111 / 83 M€ —
+    // ranked 2 and 3 by M€ with nothing on screen saying why.
+    const bot = player('red', 'Bot', {terraformRating: 60});
+    const victor = player('blue', 'victor', {terraformRating: 40}, {megacredits: 86});
+    const fries = player('pink', 'French_Fries', {terraformRating: 40}, {megacredits: 83});
+    const reveal = buildFinalScoringRevealModel(model([fries, victor, bot]), ['pink', 'blue', 'red']);
+    expect(reveal.tieBreak, 'the victory was not tied').to.eq(undefined);
+    expect(reveal.winner).to.eq('red');
+    expect(reveal.tieBreaks).to.have.length(1);
+    const [tb] = reveal.tieBreaks;
+    expect(tb.place).to.eq(2);
+    expect(tb.contenders.slice().sort()).to.deep.eq(['blue', 'pink']);
+    expect(tb.values).to.deep.eq({blue: 86, pink: 83});
+    expect(tb.winner).to.eq('blue');
+    expect(tb.leaders).to.deep.eq(['blue']);
+  });
+
+  it('the victory\'s tie-break IS the first of the list; an unresolved lower tie has no leaders', () => {
+    const a = player('red', 'A', {terraformRating: 50}, {megacredits: 5});
+    const b = player('blue', 'B', {terraformRating: 50}, {megacredits: 9});
+    const c = player('green', 'C', {terraformRating: 30}, {megacredits: 4});
+    const d = player('yellow', 'D', {terraformRating: 30}, {megacredits: 4});
+    const reveal = buildFinalScoringRevealModel(model([a, b, c, d]), ['red', 'blue', 'green', 'yellow']);
+    expect(reveal.tieBreaks.map((t) => t.place)).to.deep.eq([1, 3]);
+    expect(reveal.tieBreaks[0]).to.eq(reveal.tieBreak);
+    expect(reveal.tieBreak?.leaders).to.deep.eq(['blue']);
+    expect(reveal.tieBreaks[1].winner).to.eq(undefined);
+    expect(reveal.tieBreaks[1].leaders, 'the M€ could not part them — the place is shared').to.deep.eq([]);
+  });
+
   it('has no tie-break for a clear win', () => {
     const a = player('red', 'A', {terraformRating: 44});
     const b = player('blue', 'B', {terraformRating: 30});

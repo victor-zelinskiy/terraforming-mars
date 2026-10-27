@@ -11,6 +11,7 @@
     <span v-else-if="glyph.kind === 'emblems'" class="con-dscore__emblems" :data-emblems="glyph.slugs.length">
       <img v-for="slug in glyph.slugs" :key="slug" class="con-dscore__emblem" :src="maArt(slug)" alt="" />
     </span>
+    <BarButtonIcon v-else-if="glyph.kind === 'line'" class="con-dscore__glyph con-dscore__glyph--line" :name="glyph.icon" />
     <i v-else class="con-dscore__glyph con-dscore__glyph--mark"></i>
   </span>
 </template>
@@ -19,9 +20,11 @@
 import {defineComponent, PropType} from 'vue';
 import {DossierGlyph} from '@/client/console/infoDossierModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 
 export default defineComponent({
   name: 'ConsoleScoreDisc',
+  components: {BarButtonIcon},
   props: {
     glyph: {type: Object as PropType<DossierGlyph>, required: true},
   },
