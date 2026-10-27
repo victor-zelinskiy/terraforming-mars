@@ -399,6 +399,13 @@ itself. The deferred corporation of the start queue is a forecast DOOR like a Pr
 so the status rail reads «Сработает: +2 [leverage]» and R3 opens the same layer. The reaction itself rides the record:
 the corporation rises in its place (the shelf / the seat — `reactorPlaces`) or at the stage. e2e: `console-titan-holdings` (A).
 
+**The start is a REGISTERED place (PL-1098).** A corporation's own answer can arrive in the same response as the solo
+colony step, while its face stands nowhere yet (it is on its way from the queue to the shelf / the seat). The start scene
+registers itself (`registerReactorPlace` — every corporation the ceremony carries, never during the first action's own
+rail): `emergeTarget` waits, bounded (2.4 s on `probeTick`), for the face to stand and lifts it there. The director also
+waits for a face still under its deal hold (`waitPlaceArrival`), and a rise at the stage names every face it rejected
+(`reaction:rise` → `places`: selector · verdict · height · hold).
+
 ## Files
 
 Server: `common/models/CardReactionModel.ts`, `server/events/EventRecorder.ts` (`recordReaction`, the `cause`

@@ -659,6 +659,7 @@
                 <div class="con-start__embedsource-card"
                      :class="{'con-deal-hold': embedSourceArriving}"
                      :data-start-seat-card="embedSourceVisible"
+                     :data-reaction-home="embedSourceVisible"
                      data-embed-source-slot>
                   <!-- The LIVE capsule (TR81): a corporation answering its own first action lays its tokens HERE —
                        the count is the committed one minus what is still in the air, ticking on each touchdown. -->
@@ -1233,6 +1234,9 @@ import {
   armFirstActionRail, firstActionRailBusy, firstActionRailOf, firstActionRailState, flyFirstActionRail, releaseFirstActionRail,
 } from '@/client/console/startFirstActionRail';
 import {ReactorEmergence, cardReactionAnswerFlight, markReactionCause} from '@/client/console/cardReaction/cardReactionDirector';
+import {liftInPlace, registerReactorPlace, settleInPlace} from '@/client/console/cardReaction/reactorPlaces';
+import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
+import {probeTick} from '@/client/console/probeTick';
 import {cardReactionState} from '@/client/console/cardReaction/cardReactionStage';
 import {reactionTempo} from '@/client/console/cardReaction/cardReactionModel';
 import {heldCardCapsule} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -1383,6 +1387,11 @@ function gsapSettled(animation: gsap.core.Animation): Promise<void> {
     animation.eventCallback('onInterrupt', finish);
   });
 }
+
+/** The start's registration as a reactor's place (PL-1098) — one start scene at a time. */
+let startReactorPlaceOff: (() => void) | undefined;
+/** How long the start waits for its corporation's face to stand before the reactor rises at the stage instead. */
+const START_REACTOR_FACE_WAIT_MS = 2400;
 
 export default defineComponent({
   name: 'ConsoleStartScene',
@@ -4784,6 +4793,30 @@ export default defineComponent({
     },
   },
   mounted() {
+    // THE START IS A REACTOR'S PLACE (PL-1098 — TR84 Titan Holdings answers its OWN play): a corporation the ceremony
+    // carries (the queue → the shelf «РАЗЫГРАНО» → the seat «Источник») may be in no painted place at the very moment its
+    // reaction rises — the solo colony step arrives in the same response and the seat is still being dealt in. The start
+    // KNOWS the card is coming, so it holds the reactor: the rise waits (bounded) for the corporation's face to stand and
+    // lifts it THERE; its tokens are born on that face's effect row and land in its own capsule. Never a second instance
+    // at the stage while the card is about to stand in the start.
+    startReactorPlaceOff?.();
+    startReactorPlaceOff = registerReactorPlace({
+      id: 'start',
+      standsIn: (card) => this.startCarriesReactor(card),
+      emergeTarget: async (card) => {
+        const face = await this.startReactorFace(card, true);
+        if (face !== undefined) {
+          await liftInPlace(face);
+        }
+      },
+      settleTarget: async (card) => {
+        const face = await this.startReactorFace(card, false);
+        if (face !== undefined) {
+          await settleInPlace(face);
+        }
+      },
+      emergedFaceEl: (card) => this.startVisibleFace(card),
+    });
     // READ-ONLY e2e/diagnostics probe (the `__conColonyDiag` idiom): the
     // start flow's two conditional stages — the corporation's mandatory FIRST
     // ACTION and the bonus-action WINDOW — in one snapshot, with the ENTRY
@@ -4929,6 +4962,8 @@ export default defineComponent({
     }).stop;
   },
   beforeUnmount() {
+    startReactorPlaceOff?.();
+    startReactorPlaceOff = undefined;
     delete (window as unknown as Record<string, unknown>).__conStartDiag;
     // The «Эффекты» layer is a level of THIS surface; the first action's rail half has nobody left to fly it.
     this.forecastPulseCall?.kill();
@@ -7341,6 +7376,43 @@ export default defineComponent({
         return;
       }
       submit();
+    },
+    /**
+     * The ceremony CARRIES this card — the viewer's own corporation while the opening plays (the queue, the shelf, the
+     * seat). The first action's own rail hands its emergence in explicitly (`firstActionEmergence`) and wins over this.
+     */
+    startCarriesReactor(card: CardName): boolean {
+      if (this.mode !== 'ceremony' || this.firstActionPanelShown) {
+        return false;
+      }
+      if (this.seatHolds(card)) {
+        return true;
+      }
+      return getCard(card)?.type === CardType.CORPORATION &&
+        (this.playerView.thisPlayer?.tableau ?? []).some((c) => c.name === card);
+    },
+    /** The corporation's face as painted in the start right now — the seat first, the shelf's top slot second. */
+    startVisibleFace(card: CardName): HTMLElement | undefined {
+      const root = this.sceneRoot();
+      if (root === undefined) {
+        return undefined;
+      }
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card;
+      const candidates = [
+        root.querySelector<HTMLElement>(`.con-start__embedsource-card[data-start-seat-card="${esc}"]`),
+        root.querySelector<HTMLElement>(`.con-start__played [data-played-key="${esc}"]`),
+      ];
+      return candidates.find((el): el is HTMLElement => el !== null && el.closest('.con-deal-hold') === null && transferEndVerdict(el).visible) ?? undefined;
+    },
+    /** The face — waited for (bounded, on the probe clock) while the ceremony is still bringing it, when `wait`. */
+    async startReactorFace(card: CardName, wait: boolean): Promise<HTMLElement | undefined> {
+      const started = performance.now();
+      let face = this.startVisibleFace(card);
+      while (wait && face === undefined && performance.now() - started < START_REACTOR_FACE_WAIT_MS) {
+        await new Promise<void>((resolve) => probeTick(() => resolve()));
+        face = this.startVisibleFace(card);
+      }
+      return face;
     },
     // ── THE SEAT FUNNEL — one owner, one flight at a time ─────────────────
     /** The seat holds (or is receiving) this card. */

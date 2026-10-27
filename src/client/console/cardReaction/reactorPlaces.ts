@@ -28,7 +28,7 @@ import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
+import {firstVisibleEnd, transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 
 /** A reactor's WAY ONTO THE SCREEN: out of its own place in a host's stage, or at the stage of the reaction layer. */
 export type ReactorEmergence = {
@@ -138,6 +138,19 @@ export function domReactorPlace(card: CardName): ReactorEmergence | undefined {
   };
 }
 
+/**
+ * `card`'s face is being DEALT IN right now — mounted on one of the product's hooks but still under the deal's hold
+ * (`.con-deal-hold`: the start seat a corporation lands in while the same response opens the solo colony step —
+ * PL-1098). Its place is a beat away: the chain waits for it instead of raising a second instance at the stage.
+ */
+export function reactorPlaceArriving(card: CardName): boolean {
+  if (typeof document === 'undefined') {
+    return false;
+  }
+  return reactorHomeSelectors(card).some((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector))
+    .some((el) => el.closest('.con-reaction') === null && el.closest('.con-deal-hold') !== null));
+}
+
 /** WHERE `card` stands on screen right now — a registered host's place first, else a painted face; `undefined` = the stage. */
 export function findReactorPlace(card: CardName): ReactorEmergence | undefined {
   for (const place of places) {
@@ -146,6 +159,22 @@ export function findReactorPlace(card: CardName): ReactorEmergence | undefined {
     }
   }
   return domReactorPlace(card);
+}
+
+/** Diagnostics only: every painted face of `card` on the product's hooks and why it is no place right now. */
+export function describeReactorPlaces(card: CardName): Array<{sel: string, why: string, h: number, hold: boolean}> {
+  if (typeof document === 'undefined') {
+    return [];
+  }
+  return reactorHomeSelectors(card).flatMap((sel) => Array.from(document.querySelectorAll<HTMLElement>(sel)).map((el) => {
+    const verdict = transferEndVerdict(el);
+    return {
+      sel: sel.slice(0, 24),
+      why: verdict.visible ? 'visible' : `${verdict.why}${verdict.by === undefined ? '' : ':' + verdict.by}`,
+      h: Math.round(el.getBoundingClientRect().height),
+      hold: el.closest('.con-deal-hold') !== null,
+    };
+  }));
 }
 
 /** Test-only reset. */

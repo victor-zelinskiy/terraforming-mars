@@ -86,7 +86,7 @@ import {
   ReactorCaption, ReactorFace, cardReactionStageMounted, cardReactionStageRect, cardReactionState, dropWarmReactors, killReactorTweens, markReactionRow,
   nextPaintedFrame, paceReactorTweens, reactorEl, recedeReactor, riseReactor, seatReactor, unseatAllReactors, unseatReactor, warmReactorFaces,
 } from '@/client/console/cardReaction/cardReactionStage';
-import {ReactorEmergence, findReactorPlace} from '@/client/console/cardReaction/reactorPlaces';
+import {ReactorEmergence, describeReactorPlaces, findReactorPlace, reactorPlaceArriving} from '@/client/console/cardReaction/reactorPlaces';
 import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnds';
 import {buildCardReactionSummaryNotification} from '@/client/console/cardReaction/cardReactionSummary';
 import {pushTransient} from '@/client/components/notifications/notificationState';
@@ -157,6 +157,8 @@ let lastView: PlayerViewModel | undefined;
 const BLOCKING_QUIET_MAX_MS = 12000;
 /** …and after a DECISION standing at the centre (a drawn card to take, a deck pick) — a reactor never covers a card the player is choosing; bounded. */
 const DECISION_WAIT_MAX_MS = 6000;
+/** How long a reactor waits for its own face being dealt in before it rises at the stage instead (PL-1098). */
+const PLACE_ARRIVAL_WAIT_MS = 2400;
 const DECISION_SURFACES = '.con-reveal, .con-deckpick';
 /** A handheld's opening holds two slots; every other profile up to the model's cap. */
 const HANDHELD_MAX_SLOTS = 2;
@@ -493,7 +495,7 @@ async function rise(group: CardReactionGroup, slot: number, view: PlayerViewMode
   }
   await riseReactor(seated.el, seat, tempoFor(cardReactionState.chain?.cards.length ?? 1), consoleReducedMotionActive());
   markReactionRow(seated.el, group.record.printedEffect, specs, opts.readMs);
-  noteTransferTrail('reaction:rise', {card: group.card, via: 'stage'});
+  noteTransferTrail('reaction:rise', {card: group.card, via: 'stage', places: describeReactorPlaces(group.card)});
   return {group, key: seated.key, face: seated.el, via: 'seat', seat};
 }
 
@@ -822,6 +824,10 @@ function runStep(entry: Standalone, slot: number, t: ReactionTempo, slots: Reado
   });
   const done = (async () => {
     try {
+      await waitPlaceArrival(entry.group.card, myEpoch);
+      if (epoch !== myEpoch) {
+        return;
+      }
       const risen = await rise(entry.group, slot, undefined, undefined, {slots, readMs: t.holdMs + TRANSFER_POP_MS});
       if (epoch !== myEpoch) {
         return;
@@ -927,6 +933,28 @@ function decisionStands(): boolean {
   }
   const r = el.getBoundingClientRect();
   return r.width > 2 && r.height > 2;
+}
+
+/**
+ * A REACTOR'S OWN PLACE IS ARRIVING (PL-1098 — TR84 Titan Holdings answers its own play in the SAME response that seats
+ * it and opens the solo colony step): its face is mounted but still under the deal's hold. The chain waits for the
+ * landing — bounded; past the bound the reactor rises at the stage as before — so it lifts IN its place and its tokens
+ * find their capsule (one physical card, law 3).
+ */
+async function waitPlaceArrival(card: CardName, myEpoch: number): Promise<void> {
+  const started = typeof performance === 'undefined' ? 0 : performance.now();
+  let waited = false;
+  while (epoch === myEpoch && findReactorPlace(card) === undefined && reactorPlaceArriving(card)) {
+    if (typeof performance !== 'undefined' && performance.now() - started > PLACE_ARRIVAL_WAIT_MS) {
+      noteTransferTrail('reaction:place-late', {card});
+      return;
+    }
+    waited = true;
+    await nextPaintedFrame();
+  }
+  if (waited) {
+    noteTransferTrail('reaction:place-landed', {card});
+  }
 }
 
 /**

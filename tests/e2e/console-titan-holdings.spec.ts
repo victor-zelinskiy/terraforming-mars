@@ -190,12 +190,16 @@ test.describe(`console · TR84 Titan Holdings · ${PRESET.id}`, () => {
     const diag = await page.evaluate(() => JSON.stringify((window as unknown as {__conReady?: () => {transfer?: unknown}}).__conReady?.()?.transfer ?? null));
     writeTrail('a', transferTrail(witness) + '\n--- transfer trail ---\n' + diag);
     expect(endsOverGlass(witness), `every end visible\n${transferTrail(witness)}`).toEqual([]);
-    // PL-1098 (a NAMED gap, docs/claude/gameplay-polish-ledger.md): in a SOLO start the corporation's own answer arrives
-    // with the solo colony-removal step, while the start seat is still being dealt in — the reaction rises at the rail's
-    // stage and its leverage finds no visible capsule (`run:no-dest`; the counter ticks). Reported, not asserted: flip this
-    // to `expect(born).toBe(2)` with the fix.
-    const born = witness.births.filter((b) => b.under === `reactor:${TITAN}:leverage`).length;
-    test.info().annotations.push({type: 'gap', description: `PL-1098: ${born} of 2 leverage tokens born on Titan's effect row (solo start)`});
+    // PL-1098: in a SOLO start the corporation's own answer arrives with the solo colony-removal step, while the start
+    // seat is still being dealt in — the chain WAITS for the seat (`waitPlaceArrival`), so Titan lifts IN its seat and
+    // both leverage tokens are born on its printed effect row and land in its own capsule.
+    const born = witness.births.filter((b) => b.under === `reactor:${TITAN}:leverage`);
+    expect(born.length, `two leverage tokens born on Titan's printed effect row\n${diag.slice(0, 4000)}\n${transferTrail(witness)}`).toBe(2);
+    const landed = witness.landings.filter((l) => born.some((b) => b.id === l.id)).map((l) => l.under);
+    // Its OWN face where the start shows it — the shelf «РАЗЫГРАНО» or the seat «Источник» — never a copy at the stage.
+    expect(landed.length, `…both landed\n${transferTrail(witness)}`).toBe(2);
+    expect(landed.every((u) => u === `played:${TITAN}` || u === `start-seat:${TITAN}`),
+      `…on Titan's own face in the start (${landed.join(', ')})\n${transferTrail(witness)}`).toBe(true);
     await shoot(page, 'A-03-landed');
     expect(errors, 'no page errors').toEqual([]);
   });
