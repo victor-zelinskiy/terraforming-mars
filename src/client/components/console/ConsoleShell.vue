@@ -1989,7 +1989,7 @@ import {resetRevealHandoff} from '@/client/console/revealHandoff';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {generationSceneState, resetGenerationScene} from '@/client/console/generationScene/generationScene';
 import {openRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, AGENDA_WALK_SEAT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, partyStepStageOf} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, AGENDA_WALK_SEAT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, partyStepStageOf, firstActionPartyStep} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleBotAttack from '@/client/components/console/ConsoleBotAttack.vue';
@@ -5621,12 +5621,13 @@ export default defineComponent({
      * from being announced or opened anywhere else, DUE is what opens the hand.
      */
     /**
-     * SEPTEM TRIBUS:REDUX's BANNER STEP IS DUE — the first action's answer raised the `bannerPrompt` while the START
+     * THE FIRST ACTION'S PARTY STEP IS DUE — the first action's answer raised a Parliament question
+     * (`firstActionPartyStep`: Septem Tribus:redux's `bannerPrompt`, The Deimos Group's delegate grant) while the START
      * workspace is the live host and no Parliament stands yet. The step opens on this signal's RISING edge (the
      * foreground's falling edge never comes: the first action's own submit is not a foreground beat).
      */
-    bannerStepDue(): boolean {
-      return this.playerView.waitingFor?.bannerPrompt !== undefined && workspaceHostForStep() === 'start' &&
+    startPartyStepDue(): boolean {
+      return firstActionPartyStep(this.playerView.waitingFor) && workspaceHostForStep() === 'start' &&
         !workspaceFrameKnown('parliament') && !this.consoleState.task.deferred && this.admits('followUp');
     },
     ledgerDiscardStepDue(): boolean {
@@ -11849,13 +11850,14 @@ export default defineComponent({
         resetColonyBonusPayout();
       }
     },
-    /** The payout's discard has come DUE (the pair's card is taken, the row pays): the hand opens as the action's step. */
-    bannerStepDue(due: boolean): void {
+    /** The first action's party step has come DUE (the banner pick, the delegate grant): the Parliament opens as its scene step. */
+    startPartyStepDue(due: boolean): void {
       const task = taskFor(this.playerView);
       if (due && task?.kind === 'party') {
         this.openShellTaskSurface(task);
       }
     },
+    /** The payout's discard has come DUE (the pair's card is taken, the row pays): the hand opens as the action's step. */
     ledgerDiscardStepDue(due: boolean): void {
       if (due && !this.consoleForegroundBusy && !this.consoleState.task.deferred) {
         this.openLedgerDiscardStep();
@@ -20033,11 +20035,13 @@ export default defineComponent({
         // …and a card's SUPPORT-AREA pick met LIVE (TR12 — re-asked, a reload, a play outside the staged boundary)
         // stands the same way: the Parliament's support-area mode, inside the flow that raised it.
         // …and a card's DELEGATE pick met LIVE (TR72) — the Parliament's delegate mode, the same way.
-        // SEPTEM TRIBUS:REDUX's FIRST ACTION — «a cube on the banner of any party» — is a STEP of «ПЕРВОЕ ДЕЙСТВИЕ»
-        // (the Vitor precedent, one branch up): the Parliament frame is PUSHED on the start workspace, takes the whole
-        // scene (the start row's `frameSteps: {parliament: 'scene'}`) and the nesting is stated in the HEADER
-        // («СТАРТ ПАРТИИ › SEPTEM TRIBUS › ЗНАМЯ»), past the commit (B = «Свернуть»).
-        if (this.playerView.waitingFor?.bannerPrompt !== undefined && workspaceHostForStep() === 'start' && !workspaceFrameKnown('parliament')) {
+        // A FIRST ACTION's PARTY STEP — Septem Tribus:redux's «a cube on the banner of any party», The Deimos Group's
+        // «a delegate on any resolution» (TR83) — is a STEP of «ПЕРВОЕ ДЕЙСТВИЕ» (the Vitor precedent, one branch up):
+        // the Parliament frame is PUSHED on the start workspace, takes the whole scene (the start row's
+        // `frameSteps: {parliament: 'scene'}`) and the nesting is stated in the HEADER («СТАРТ ПАРТИИ › SEPTEM TRIBUS ›
+        // ЗНАМЯ», «… › THE DEIMOS GROUP › ГОЛОСОВАНИЕ»), past the commit (B = «Свернуть»). The section arms its own mode
+        // before the first render (`bridge.bannerPick` / `bridge.grant`).
+        if (firstActionPartyStep(this.playerView.waitingFor) && workspaceHostForStep() === 'start' && !workspaceFrameKnown('parliament')) {
           this.consoleState.task.deferred = false;
           pushWorkspaceFrame({
             kind: 'parliament',

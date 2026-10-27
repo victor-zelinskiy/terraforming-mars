@@ -107,6 +107,14 @@ up in the `party` task route): subject = the corporation, stage «ЗНАМЯ», 
 own hand; `onParliamentFlowComplete` pops the hosted frame and the stage's leave runs off the ledger as for any first
 action. Contract: `docs/TURMOIL_REDUX_SEPTEM_TRIBUS.md` §3.
 
+**…and the FIRST ACTION'S PARTY STEP is one predicate** (TR83 The Deimos Group, 2026-10-27 — «add a delegate to any
+resolution»): `firstActionPartyStep(wf)` (`consoleTaskRouter.ts` — `bannerPrompt` ∨ `votePrompt.source === 'grant'`) is read
+by the rising-edge signal `startPartyStepDue` and by the push; a delegate GRANT stands as the Parliament's VOTE mode inside
+the start («СТАРТ ПАРТИИ › THE DEIMOS GROUP › ГОЛОСОВАНИЕ», the section arming `armGrantVoteFlow` itself), the delegate
+carried from the seat's RESERVE. The briefing names the vote after the CONFIRM (`delegateGrantFollowUpRow(step, 'confirm')`).
+A new first action that asks the Parliament is one more marker in that predicate. Contract:
+`docs/TURMOIL_REDUX_THE_DEIMOS_GROUP.md` §4.
+
 **A first action the TABLE answers** (TR81 Lotus Innovations, 2026-10-26 — «+2 TR», and the corporation's own data «including
 from this»): the preview carries the forecast (`corpFirstActionPreview` → `forecast`), the briefing draws «Сработает» under
 the result (`[data-start-firstact-forecast]`, the shared `ConsoleForecastRow`) and R3 opens the «Эффекты» layer as a LEVEL

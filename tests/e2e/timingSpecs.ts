@@ -25,6 +25,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // TR82 Proteus (2026-10-27): the corporation rising in its slot on the start shelf and in its place for a hand play, the
   // data token born on its effect row, the capsule ticking on the touchdown — sampled motion (the shelf probe, the witness).
   'console-proteus.spec.ts',
+  // TR83 The Deimos Group (2026-10-27): the first action's delegate CARRIED from the reserve onto the chosen card inside the
+  // start's Parliament step — a sampled flight (the probe's first / last painted centres), never logic.
+  'console-the-deimos-group.spec.ts',
   // the four the first broad sample named (28 specs at motion ×0.5, 2026-10-21)
   'console-aerial-mappers.spec.ts', // the transfer witness: endsOverGlass at tv4k
   'console-supercomputer.spec.ts', // the transfer witness: endsOverGlass at tv4k

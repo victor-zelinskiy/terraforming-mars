@@ -394,7 +394,13 @@ export function agendaWalkNextRows(walk: AgendaWalkModel): Array<NextRowKey> {
  * count is the step's own (what the reserve covers — the server's number), never parsed from a note; the resolution
  * is not guessed — it is chosen in the Parliament, where each card reads its own forecast.
  */
-export function delegateGrantFollowUpRow(step: {count: number}): NextRowKey {
+export function delegateGrantFollowUpRow(step: {count: number}, after: 'play' | 'confirm' = 'play'): NextRowKey {
+  // A corporation's FIRST ACTION (TR83 The Deimos Group) has no play: the vote follows the confirm of «ПЕРВОЕ ДЕЙСТВИЕ».
+  if (after === 'confirm') {
+    return step.count === 1 ?
+      {key: '1 delegate to a resolution, after confirming — chosen in the Parliament'} :
+      {key: '${0} delegates to one resolution, after confirming — chosen in the Parliament', params: [String(step.count)]};
+  }
   return step.count === 1 ?
     {key: '1 delegate to a resolution, after the play — chosen in the Parliament'} :
     {key: '${0} delegates to one resolution, after the play — chosen in the Parliament', params: [String(step.count)]};

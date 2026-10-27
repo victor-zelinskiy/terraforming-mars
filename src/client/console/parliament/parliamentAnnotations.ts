@@ -319,6 +319,7 @@ export function partyAnnotations(party: ReduxParty, model: ParliamentModel | und
         enactedEmpty: model.enacted === undefined,
         enactedName,
         inArea: model.slots.some((slot) => slot.party === party),
+        waiver: me?.partyRequirementWaiver,
       })
         // The card-requirement note earns its line only where it SURPRISES —
         // a granted effect that does not count. «Met» is the ordinary case of

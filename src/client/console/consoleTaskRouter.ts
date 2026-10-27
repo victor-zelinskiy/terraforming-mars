@@ -351,6 +351,16 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
 export const DELEGATE_GRANT_STEP_STAGE = 'Voting';
 
 /**
+ * A PARTY STEP OF THE FIRST ACTION — the Parliament question a corporation's first action raises AFTER its confirm:
+ * Septem Tribus:redux's banner pick (`bannerPrompt`) and The Deimos Group's delegate grant (TR83 — «add a delegate to
+ * any resolution», `votePrompt.source === 'grant'`). Keyed on the structural markers only; the shell opens it as a
+ * scene step of the START workspace (`startPartyStepDue`), never as a Parliament standing over the start.
+ */
+export function firstActionPartyStep(prompt: PlayerInputModel | undefined): boolean {
+  return prompt?.bannerPrompt !== undefined || prompt?.votePrompt?.source === 'grant';
+}
+
+/**
  * The crumb tail of a hosted PARTY PICK — the Parliament's own word for the
  * mode that serves it: a delegate grant's VOTE («ГОЛОСОВАНИЕ») or a card's
  * SUPPORT-AREA pick (TR12 — «САНКЦИИ», by what the pick does to the area).

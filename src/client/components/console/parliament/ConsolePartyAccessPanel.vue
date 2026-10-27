@@ -101,6 +101,7 @@ export default defineComponent({
         enactedEmpty: model.enacted === undefined,
         enactedName: enacted === undefined ? undefined : translateText(enacted),
         inArea: model.slots.some((slot) => slot.party === this.party),
+        waiver: model.players.find((p) => p.color === this.viewer)?.partyRequirementWaiver,
       }).filter((row) => row.key !== 'Card requirement of this party: met');
     },
     stateText(): string {

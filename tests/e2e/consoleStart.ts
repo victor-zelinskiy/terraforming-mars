@@ -2981,7 +2981,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR80 Hartlan Heating + the card-reaction framework: blue on Hartlan alone / blue waking five reactors with one play.
   'hartlan-heating' | 'card-reaction-many' | 'card-reaction-rival' | 'card-reaction-scale' | 'card-reaction-fiber' | 'lotus-innovations' |
   // TR82 Proteus: a Building play beside two Building Preludes, then the 6-data action (a colony / an ocean); its futile twin.
-  'proteus' | 'proteus-futile' |
+  'proteus' | 'proteus-futile' | 'deimos' |
   'parliament-architecture-vote' | 'parliament-access-edge' | 'septem-tribus' | 'septem-win' | 'arwind-walker' | 'arwind-sitting-win' | 'arwind-chairman-quest' | 'arwind-pay-space' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |
   'parliament-biodome-vote' | 'parliament-biodome-enact' | 'parliament-biodome-maxed' | 'parliament-biodome-recap' |
   'parliament-biodome-nocell' | 'parliament-biodome-neutral' |

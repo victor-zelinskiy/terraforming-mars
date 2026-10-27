@@ -642,7 +642,11 @@ export type AccessReasonRow = {
  */
 export function accessReasonRows(
   access: PartyAccessModel | undefined,
-  ctx: {party: ReduxParty, enactedEmpty: boolean, enactedName: string | undefined, inArea: boolean},
+  ctx: {
+    party: ReduxParty, enactedEmpty: boolean, enactedName: string | undefined, inArea: boolean,
+    /** WHO lifts the seat's party requirements on cards (the seat's own field — TR83 standing, TR70 one play). */
+    waiver?: ParliamentPlayerModel['partyRequirementWaiver'],
+  },
 ): Array<AccessReasonRow> {
   if (access === undefined) {
     return [];
@@ -700,7 +704,16 @@ export function accessReasonRows(
     // THE PARTNER'S dossier knows the pair: this party standing by its printed road lends the other one its effect and cards.
     out.push({key: 'Alliance (${1}): your access to this party opens ${0} too', params: [partner, allianceCard], tone: 'note'});
   }
-  if (access.satisfiesRequirement) {
+  // THE REQUIREMENT LIFTED (TR83 The Deimos Group — standing; TR70 Backroom Deal — one play): the card requirement is
+  // the card's, so the Parliament's roads stay printed — the footnote names WHO lifts it instead of «not met». A one-play
+  // lift says so only where nothing else meets the requirement (it is spent by the next card anyway).
+  const waiver = ctx.waiver;
+  if (waiver !== undefined && (!waiver.oneShot || !access.satisfiesRequirement)) {
+    const name = waiverSourceName(waiver.source);
+    out.push(waiver.oneShot ?
+      {key: 'Card requirement of this party: lifted for one play — ${0}', params: [name], tone: 'note'} :
+      {key: 'Card requirement of this party: lifted — ${0}', params: [name], tone: 'note'});
+  } else if (access.satisfiesRequirement) {
     // Met only through the alliance — the requirement note names the partner; any printed road of its own is «met».
     const ownRoad = access.ruling || access.delegates >= PARTY_EFFECT_PLACES;
     out.push(!ownRoad && ally !== undefined ?
@@ -713,6 +726,11 @@ export function accessReasonRows(
       {key: 'Card requirement of this party: not met — a granted effect does not count', params: [], tone: 'note'});
   }
   return out;
+}
+
+/** The waiver's giver by NAME — a card or a corporation (the only sources of the declaration). */
+function waiverSourceName(source: NonNullable<ParliamentPlayerModel['partyRequirementWaiver']>['source']): string {
+  return source.kind === 'card' || source.kind === 'corporation' ? source.card : '';
 }
 
 // ── THE VOTE FORECAST — what ONE more delegate of the viewer changes ─────────

@@ -61,6 +61,14 @@
   «РАЗЫГРАНО» (верхний слот несёт `data-played-key` и живую капсулу держателя — `capsuleModelOf`). `compatibility` — со вторым
   модулем, без которого эффект мёртв. Действие с веткой колонии — `boardPlacement {placementType: 'colony'}` в превью.
 
+- [ ] **Корпорация со СТОЯЧИМ вейвером / бонусом влияния / шагом Парламента в первом действии** (TR83 The Deimos Group,
+  2026-10-27, `docs/TURMOIL_REDUX_THE_DEIMOS_GROUP.md`): «игнорируйте требования партий» навсегда — `partyRequirementWaiver: {}`
+  (без `nextCardOnly`; стоячий называется раньше взведённого, «ВЗВЕДЕНО» его не показывает, Парламент читает поле места
+  `partyRequirementWaiver` — плашка «снято», голос без «откроет требование»); «+N влияния» — `turmoil.influenceBonus: N` (леджер с
+  именем, никогда хук `getInfluenceBonus`); первое действие с делегатом — `firstAction: {turmoil: {sendDelegates}}`, шаг
+  Парламента над стартом даёт предикат `firstActionPartyStep` (новый маркер — одна строка). Гард `corpFirstActionPreview`
+  превьюит корпорацию Redux на столе Redux.
+
 ## 1. Пять точек касания (как у любой карты)
 
 1. Класс `src/server/cards/turmoilRedux/<Name>.ts` — `Card`, или **`ActionCard`** для синей карты с действием.

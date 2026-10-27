@@ -1172,6 +1172,7 @@ import {
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
 import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
+import {delegateGrantFollowUpRow, nextRowText} from '@/client/console/consolePlayCardComposer';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
@@ -3092,6 +3093,9 @@ export default defineComponent({
         } else if (s.kind === 'input') {
           const t = textOf(s.input.title);
           out.push(noteRow(t !== '' ? t : translateText('Choose a target')));
+        } else if (s.kind === 'delegateGrantFollowUp') {
+          // A delegate on a resolution (TR83 The Deimos Group) — the vote is the step AFTER the confirm, in the Parliament.
+          out.push(noteRow(nextRowText(delegateGrantFollowUpRow(s, 'confirm'), {text: translateText, params: translateTextWithParams})));
         }
       }
       return out;

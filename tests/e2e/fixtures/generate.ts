@@ -38,6 +38,7 @@ import {TitaniumMine} from '../../../src/server/cards/base/TitaniumMine';
 import {Mohole} from '../../../src/server/cards/prelude/Mohole';
 import {MartianIndustries} from '../../../src/server/cards/prelude/MartianIndustries';
 import {PROTEUS_ACTION_DATA, Proteus} from '../../../src/server/cards/turmoilRedux/Proteus';
+import {CouncilSeat} from '../../../src/server/cards/turmoilRedux/CouncilSeat';
 import {NoctisCity} from '../../../src/server/cards/base/NoctisCity';
 import {ImmigrantCity} from '../../../src/server/cards/base/ImmigrantCity';
 import {TharsisRepublic} from '../../../src/server/cards/corporation/TharsisRepublic';
@@ -9854,6 +9855,44 @@ for (const futile of [false, true]) {
   runAllActions(game);
   if (futile ? !(proteus as Proteus).canAct(p1) : !p1.canPlay(p1.cardsInHand.find((c) => c.name === CardName.TITANIUM_MINE)!)) {
     throw new Error(`${name}: the subject is not available`);
+  }
+  write(name, game);
+}
+
+// ── deimos: TR83 THE DEIMOS GROUP — «+2 influence; when playing cards, you can ignore all party requirements». A 2p Redux
+//    table, blue on The Deimos Group with its first action BEHIND it (the start stage's own scene is the spec's A, on a
+//    real start flow) — the +2 on the influence ledger, named. Three quiet resolutions (Scientists · Mars First · Reds), the
+//    Greens ruling by the starting rule, blue with NO delegate anywhere: Council Seat in the hand (the Reds' plate — the
+//    requirement LIFTED by the corporation: the hand's struck emblem, the composer's «Снято», the journal's «thanks to»)
+//    and Sponsors (no requirement). Red on Teractor. ──
+{
+  const name = 'deimos';
+  const pinned = [CardName.THE_DEIMOS_GROUP, REDUX_TABLE_CORPORATIONS[0]];
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  if (p1.playedCards.get(CardName.THE_DEIMOS_GROUP) === undefined) {
+    throw new Error(`${name}: blue is not on The Deimos Group (${p1.playedCards.corporations().map(toName).join(',')})`);
+  }
+  // The first action is the start stage's own scene — here it lies behind the table (the prompt is rebuilt at load).
+  p1.pendingInitialActions = [];
+  const parliament = game.parliament!;
+  ([PartyName.SCIENTISTS, PartyName.MARS, PartyName.REDS] as const).forEach((party, i) => seatResolution(parliament, i, quietResolutionOf(party)));
+  p1.cardsInHand = p1.cardsInHand.filter((c) => c.name !== CardName.COUNCIL_SEAT && c.name !== CardName.SPONSORS);
+  p1.cardsInHand.push(new CouncilSeat(), new Sponsors());
+  p1.megaCredits = 60;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  const seat = p1.cardsInHand.find((c) => c.name === CardName.COUNCIL_SEAT)!;
+  const facts = {
+    playable: p1.canPlay(seat), redsRule: parliament.access(p1, PartyName.REDS).ruling, delegates: parliament.votesOf(p1),
+    influence: parliament.influenceSourcesOf(p1).map((e) => `${e.source}+${e.amount}`).join(','),
+  };
+  if (!facts.playable || facts.redsRule || facts.delegates !== 0 || facts.influence !== `${CardName.THE_DEIMOS_GROUP}+2`) {
+    throw new Error(`${name}: the waiver / the ledger is not what the spec reads — ${JSON.stringify(facts)}`);
   }
   write(name, game);
 }
