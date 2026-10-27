@@ -47,8 +47,9 @@ import {RoverConstruction} from '../../src/server/cards/base/RoverConstruction';
  * over); a seat with no city on Mars is skipped BY NAME; the candidates are
  * exactly the seat's own cities on Mars (never another's, never a space
  * city, never an empty cell — and shown even when there is one); the answer
- * raises the cell's stack and keeps its tile; the cell pays NOTHING again
- * (printed bonus, ocean adjacency, the law's repeat); what answers a city
+ * raises the cell's stack and keeps its tile; the cell's printed bonus is
+ * not paid again, the ocean beside it is (and the law repeats that water
+ * alone); what answers a city
  * placed still answers (a card's trigger); the record names the cell and the
  * stack; the endgame scores the adjacent greeneries once per tier with one
  * breakdown row per tier; a reload inside the question rebuilds it and lands
@@ -92,10 +93,15 @@ function outcomeOf(parliament: Parliament, player: TestPlayer): SerializedEnactO
   return outcomes.find((o) => o.player === player.id && o.step === SKYSCRAPERS_STEP_KEY && o.kind !== 'reaction');
 }
 
-/** A city for `player` on a QUIET cell (no printed bonus, no ocean beside it) — placed silently, outside any effect. */
+/**
+ * A city for `player` on a QUIET cell (no printed bonus, no ocean beside it) — placed silently, outside any effect.
+ * `bonus`: a PLANT cell on the SHORE instead (an ocean reserve beside it), for the specs of what the cell pays.
+ */
 function seatCity(game: IGame, player: TestPlayer, opts?: {bonus?: boolean, card?: CardName}): Space {
   const space = game.board.spaces.find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined && s.id !== game.board.noctisCitySpaceId &&
-    (opts?.bonus === true ? s.bonus.includes(SpaceBonus.PLANT) : s.bonus.length === 0) &&
+    (opts?.bonus === true ?
+      s.bonus.includes(SpaceBonus.PLANT) && game.board.getAdjacentSpaces(s).some((a) => a.spaceType === SpaceType.OCEAN) :
+      s.bonus.length === 0) &&
     !game.board.getAdjacentSpaces(s).some((a) => a.tile !== undefined || (opts?.bonus !== true && a.spaceType === SpaceType.OCEAN)));
   if (space === undefined) {
     throw new Error('no cell for a city');
@@ -305,15 +311,13 @@ describe('Skyscrapers', () => {
       expect(game.gameLog.filter((e) => e.message === '${0} built a city tile on top of their city — a stack of ${1} · ${2}')).has.length(2);
     });
 
-    it('the cell pays NOTHING again: no printed bonus, no ocean adjacency, no Ares — and the enacted law that repeats bonuses has nothing to repeat', () => {
+    it('the cell pays no printed bonus again — but the ocean beside it pays the tier, and the enacted law that repeats bonuses repeats that water alone', () => {
       const [game, p1] = stage();
       // A city on a PLANT cell BESIDE an ocean: the first city collected both. (Plants, so the ruling Mars
       // First's own steel for a tile placed — a party answer, not the cell's — cannot be mistaken for it.)
       const city = seatCity(game, p1, {bonus: true});
-      const shore = game.board.getAdjacentSpaces(city).find((a) => a.spaceType === SpaceType.OCEAN && a.tile === undefined);
-      if (shore !== undefined) {
-        shore.tile = {tileType: TileType.OCEAN};
-      }
+      const shore = game.board.getAdjacentSpaces(city).find((a) => a.spaceType === SpaceType.OCEAN && a.tile === undefined)!;
+      shore.tile = {tileType: TileType.OCEAN};
       expect(city.bonus).includes(SpaceBonus.PLANT);
       endGeneration(game);
       // Measured AFTER the production phase and BEFORE the tier: what the tier itself pays.
@@ -324,13 +328,18 @@ describe('Skyscrapers', () => {
       runAllActions(game);
       expect(city.stackHeight).eq(2);
       expect(p1.plants, 'the printed plants were collected by the first city').eq(plants);
-      expect(p1.megaCredits, 'the ocean beside it paid the first city').eq(mc);
-      expect(p1.lastOceanBonus, 'no ocean payout to present').is.undefined;
+      // The ocean adjacency is a rule of PLACING a tile beside water (the owner, 2026-10-27): the tier pays it.
+      const water = game.board.oceanAdjacencyBonus(p1, city).megacredits;
+      expect(water, 'the shore has an ocean').greaterThan(0);
+      expect(p1.megaCredits, 'the ocean beside it pays the tier').eq(mc + water);
+      expect(p1.lastOceanBonus, 'the ocean payout to present').deep.include({spaceId: city.id, megacredits: water});
       expect(p1.lastPlacementLawPayout).is.undefined;
-      // Development Craze's repeat, told the placement is a TIER, pays nothing.
-      expect(repeatPlacementBonuses(p1, city, {coveringExistingTile: true, stacked: true})).is.undefined;
+      // Development Craze's repeat, told the placement is a TIER: the water once more — never the printed plants.
+      const echo = repeatPlacementBonuses(p1, city, {coveringExistingTile: true, stacked: true});
+      expect(echo).deep.include({spaceId: city.id, printed: false});
+      expect(echo?.ocean?.megacredits).eq(water);
       expect(p1.plants).eq(plants);
-      expect(p1.megaCredits).eq(mc);
+      expect(p1.megaCredits).eq(mc + 2 * water);
     });
 
     it('what answers a city tile placed still answers: Rover Construction pays its 2 M€ for the tier, and the ruling Mars First pays its steel and card', () => {

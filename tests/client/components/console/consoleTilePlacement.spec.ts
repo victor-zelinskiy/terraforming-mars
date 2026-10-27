@@ -588,21 +588,36 @@ describe('consoleTilePlacement (the animation transaction)', () => {
       next: [space('05', {bonus, tileType: TileType.CITY, color: 'red', stackHeight: 2})],
     });
 
-    it('an arm that declares the tier STAGES the stack — and captures no bonus, holds nothing', () => {
+    it('an arm that declares the tier STAGES the stack — and captures no printed bonus, holds nothing without water', () => {
       teardown = boardCell('05', {bonusIcons: 2});
       armTilePlacement({spaceId: '05', stacking: true});
       const {prev, next} = cityToStack([SpaceBonus.STEEL, SpaceBonus.PLANT]);
-      expect(detectTilePlacement(prev, next, {oceanBonus: {spaceId: '05', oceanSpaceIds: ['06'], perOcean: 2, megacredits: 2} as OceanAdjacencyBonusModel}))
-        .to.deep.eq({spaceId: '05'});
+      expect(detectTilePlacement(prev, next)).to.deep.eq({spaceId: '05'});
       expect(tilePlacementState.stack).to.deep.eq({from: 1, to: 2});
       expect(tilePlacementState.tileType).to.eq(TileType.CITY);
-      // The cell pays NOTHING again: not the printed icons under the first city, not the water beside it.
+      // The printed icons under the first city are not paid again.
       expect(tilePlacementState.bonusProxies).to.have.length(0);
       expect(tilePlacementRewardsSettling()).to.be.false;
       seedTilePlacementRewardHold();
       expect(heldStock('steel')).to.eq(0);
       expect(heldStock('plants')).to.eq(0);
       expect(heldStock('megacredits')).to.eq(0);
+    });
+
+    it('the WATER beside the tier pays it (the server\'s ocean record), and a law that repeats bonuses repeats the water — never the printed icons', () => {
+      teardown = boardCell('05', {bonusIcons: 2});
+      armTilePlacement({spaceId: '05', stacking: true});
+      const {prev, next} = cityToStack([SpaceBonus.STEEL, SpaceBonus.PLANT]);
+      const water = {spaceId: '05', oceanSpaceIds: ['06'], perOcean: 2, megacredits: 2} as OceanAdjacencyBonusModel;
+      const payout: PlacementLawPayoutModel = {spaceId: '05' as SpaceId, resolution: 'RDX_TEST_LAW', printed: false, ocean: water};
+      expect(detectTilePlacement(prev, next, {oceanBonus: water, lawPayout: payout})).to.deep.eq({spaceId: '05'});
+      expect(tilePlacementState.bonusProxies).to.have.length(0);
+      expect(tilePlacementRewardsSettling()).to.be.true;
+      seedTilePlacementRewardHold();
+      expect(heldStock('steel')).to.eq(0);
+      expect(heldStock('plants')).to.eq(0);
+      // 2 M€ of the water + 2 M€ of the law's echo, held as the sum.
+      expect(heldStock('megacredits')).to.eq(4);
     });
 
     it('an UNDECLARED stack growing still aborts — the prompt kind is the licence', async () => {

@@ -321,13 +321,13 @@ test.describe(`Skyscrapers · ${PRESET.id}`, () => {
     expect(last.loading || last.contact, 'the cell\'s scene states are released').toBe(false);
     expect(last.landing, 'the proxy is gone').toBe(false);
 
-    // ── SERVER TRUTH: the record names the cell and the stack; two cities for blue; the cell paid nothing.
+    // ── SERVER TRUTH: the record names the cell and the stack; two cities for blue; no printed bonus is paid again.
     await expect.poll(async () => (await wireOf(request, playerId)).game.spaces.find((s) => s.id === city)?.stackHeight, {timeout: 30_000}).toBe(2);
     const mid = await wireOf(request, playerId);
     expect(mid.game.parliament.phase?.outcomes?.find((o) => o.player === mid.thisPlayer.color) ?? mid.game.parliament.lastPhase?.outcomes?.find((o) => o.player === mid.thisPlayer.color))
       .toMatchObject({kind: 'city', step: 'city-tier', part: 'effect', space: city, stackHeight: 2});
     expect(mid.thisPlayer.citiesCount, 'a QUANTITY of cities counts the tier').toBe(2);
-    expect(mid.thisPlayer.megacredits, 'no ocean adjacency, no bonus — nothing paid').toBe(mcBefore);
+    expect(mid.thisPlayer.megacredits, 'no printed bonus again, and the fixture has no ocean beside the city (the water WOULD pay the tier) — nothing paid').toBe(mcBefore);
     // …but what answers A CITY PLACED still answers: Skyscrapers is enacted before its effect, so Mars First
     // rules — 1 steel for the tile and a CARD for the city, which the shared reveal presents; A takes it.
     expect(mid.thisPlayer.steel, 'the ruling party\'s steel for a tile placed on Mars').toBe(before.thisPlayer.steel + 1);

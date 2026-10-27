@@ -109,18 +109,16 @@ const STEEL_STEP: EnactStep = {
  */
 export function repeatPlacementBonuses(player: IPlayer, space: Space, placement: TilePlacementBonusContext): PlacementLawPayoutModel | undefined {
   const game = player.game;
-  if (placement.stacked === true) {
-    // A city TIER (Skyscrapers): the engine paid the cell nothing — its
-    // bonuses were collected by the first city — so there is nothing to
-    // pay a second time. Never invent a payout the first placement made.
-    return undefined;
-  }
+  // A city TIER (Skyscrapers) was paid the ocean adjacency alone — no printed
+  // bonus (it covers: `coveringExistingTile`), no Ares neighbour — so that is
+  // all it repeats. Never invent a payout the first placement did not make.
+  const stacked = placement.stacked === true;
   const printed = !placement.coveringExistingTile;
   const printedPaid = printed && space.bonus.length > 0;
   const oceanPaid = game.board.oceanAdjacencyBonus(player, space).megacredits > 0;
   // An Ares neighbour pays only when it carries an adjacency bonus (the same
   // predicate `earnAdjacencyBonuses` reads) — a bare neighbourhood is nothing.
-  const aresPays = game.gameOptions.aresExtension === true &&
+  const aresPays = !stacked && game.gameOptions.aresExtension === true &&
     game.board.getAdjacentSpaces(space).some((s) => s.adjacency !== undefined && s.adjacency.bonus.length > 0);
   if (!printedPaid && !oceanPaid && !aresPays) {
     return undefined;
@@ -138,7 +136,9 @@ export function repeatPlacementBonuses(player: IPlayer, space: Space, placement:
     }
   }
   const ocean = game.grantOceanAdjacencyBonus(player, space);
-  AresHandler.ifAres(game, () => AresHandler.earnAdjacencyBonuses(player, space));
+  if (!stacked) {
+    AresHandler.ifAres(game, () => AresHandler.earnAdjacencyBonuses(player, space));
+  }
   const payout: PlacementLawPayoutModel = {
     spaceId: space.id,
     resolution: DEVELOPMENT_CRAZE_ID,
@@ -184,7 +184,9 @@ export const DEVELOPMENT_CRAZE: ResolutionDefinition = {
       repeatPlacementBonuses(player, space, placement);
     },
     placementFacts(ctx) {
-      if (!ctx.onMars || !ctx.placesTile || !ctx.grantsPlacementBonus) {
+      // `firesTilePassive`, not `grantsPlacementBonus`: a city TIER pays no
+      // printed bonus but does pay the water, and the live hook repeats it.
+      if (!ctx.onMars || !ctx.firesTilePassive) {
         return [];
       }
       // The SAME facts the dossier states for the cell — its printed bonuses

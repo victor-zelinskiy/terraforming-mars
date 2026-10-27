@@ -240,11 +240,11 @@ export type TilePlacementBonusContext = {
   coveringExistingTile: boolean;
   /**
    * The tile is a CITY TIER built onto the player's own city (Skyscrapers,
-   * `Game.addCityTier`): the engine paid NO placement bonus of the cell at
-   * all — not the printed one, not the ocean adjacency, not an Ares
-   * neighbour — so a passive that REPEATS what the engine paid has nothing
-   * to repeat, while a passive that answers «a city tile was placed on
-   * Mars» answers as for any city.
+   * `Game.addCityTier`): the engine paid the ocean adjacency only — not the
+   * printed bonus (the tier covers the first city), not an Ares neighbour —
+   * so a passive that REPEATS what the engine paid repeats the water alone,
+   * while a passive that answers «a city tile was placed on Mars» answers as
+   * for any city.
    */
   stacked?: boolean;
 };

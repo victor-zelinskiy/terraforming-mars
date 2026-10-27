@@ -47,9 +47,11 @@ import {testAutomaGame} from '../automa/AutomaTestGame';
  *  · A PREDICATE reads the cell — «is this a city», the list of city cells,
  *    adjacency (a city may not sit next to a stack, a stack is ONE neighbour),
  *    the tier's own legality;
- *  · the engine's stack commit: `addCityTier` pays the cell nothing;
+ *  · the engine's stack commit: `addCityTier` pays no printed bonus again,
+ *    but the ocean adjacency (a rule of placing beside water);
  *  · the board information layer: the hover names the height and one row per
- *    tier; the tier's preview promises the stack's own scoring and no bonus,
+ *    tier; the tier's preview promises the stack's own scoring, the water and
+ *    no printed bonus,
  *    stays pure, and counts Mayor's progress.
  */
 function quietLand(game: IGame, predicate: (s: Space) => boolean = () => true): Space {
@@ -162,7 +164,7 @@ describe('CityStack', () => {
   });
 
   describe('the commit', () => {
-    it('addCityTier raises the stack and pays the cell nothing — no printed bonus, no ocean adjacency, no Arcadian marker money', () => {
+    it('addCityTier raises the stack and pays no printed bonus and no Arcadian marker money — but the ocean adjacency, at the placer\'s rate', () => {
       const shoreCity = game.board.spaces.find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined && s.bonus.includes(SpaceBonus.STEEL) &&
         game.board.getAdjacentSpaces(s).some((a) => a.spaceType === SpaceType.OCEAN && a.tile === undefined))!;
       const ocean = game.board.getAdjacentSpaces(shoreCity).find((a) => a.spaceType === SpaceType.OCEAN && a.tile === undefined)!;
@@ -173,8 +175,12 @@ describe('CityStack', () => {
       game.addCityTier(p1, shoreCity);
       expect(shoreCity.stackHeight).eq(2);
       expect(p1.steel).eq(steel);
-      expect(p1.megaCredits).eq(mc);
-      expect(p1.lastOceanBonus).is.undefined;
+      expect(p1.megaCredits).eq(mc + 2);
+      expect(p1.lastOceanBonus).deep.include({spaceId: shoreCity.id, oceanSpaceIds: [ocean.id], perOcean: 2, megacredits: 2});
+      // Lakefront Resorts' rate: the tier is paid by the same rule, at the placer's own rate.
+      p1.oceanBonus = 3;
+      game.addCityTier(p1, shoreCity);
+      expect(p1.megaCredits).eq(mc + 2 + 3);
     });
 
     it('refuses anything but the player\'s own city on Mars', () => {
@@ -370,7 +376,7 @@ describe('CityStack', () => {
       expect(plainInfo.facts.filter((f) => f.category === 'city-greenery-scoring').map((f) => f.id)).deep.eq(['score-city']);
     });
 
-    it('the tier\'s preview: legal on the own city, the stack\'s scoring promised (1 → 2 tiers, 2 → 4 VP), no bonus and no cost, Mayor\'s progress counted — and pure', () => {
+    it('the tier\'s preview: legal on the own city, the stack\'s scoring promised (1 → 2 tiers, 2 → 4 VP), no printed bonus and no cost, the ocean adjacency, Mayor\'s progress counted — and pure', () => {
       const city = seatCity(game, p1, game.board.spaces.find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined && s.bonus.includes(SpaceBonus.STEEL) &&
         game.board.getAdjacentSpaces(s).some((a) => a.spaceType === SpaceType.OCEAN && a.tile === undefined))!);
       const ocean = game.board.getAdjacentSpaces(city).find((a) => a.spaceType === SpaceType.OCEAN && a.tile === undefined)!;
@@ -387,7 +393,9 @@ describe('CityStack', () => {
       expect(scoring.params).deep.eq(['1', '2']);
       expect(scoring.spaces).deep.eq(greeneries.map((s) => s.id));
       expect(facts.some((f) => f.category === 'printed-placement-bonus'), 'no printed bonus promised').is.false;
-      expect(facts.some((f) => f.category === 'ocean-adjacency-bonus'), 'no ocean adjacency promised').is.false;
+      const water = facts.find((f) => f.category === 'ocean-adjacency-bonus');
+      expect(water?.delta, 'the ocean adjacency promised — what the commit pays').deep.eq({icon: 'megacredits', amount: 2, direction: 'gain'});
+      expect(water?.spaces).deep.eq([ocean.id]);
       expect(facts.some((f) => f.id === 'place-city'), 'not a fresh city\'s row').is.false;
       expect(facts.find((f) => f.id === 'tier-no-bonus')?.title).eq('No placement bonus');
       expect(preview.costFacts).has.length(0);

@@ -2251,11 +2251,13 @@ export class Game implements IGame, Logger {
   //
   // `options.stacking` (Turmoil Redux — Skyscrapers, RX20): the tile is a CITY
   // TIER built ONTO the player's own city on Mars. The cell keeps its tile and
-  // raises its stack (`Space.stackHeight`); no fee of the cell is charged and
-  // NO placement bonus of the cell is paid a second time — neither its printed
-  // bonus nor its ocean adjacency nor an Ares neighbour: the first city already
-  // collected everything the cell pays (the ordinary cover path would still pay
-  // the ocean adjacency, which is why the tier does not walk it). What DOES fire
+  // raises its stack (`Space.stackHeight`); no fee of the cell is charged, the
+  // printed bonus is not paid again (the tier COVERS the first city, and a cover
+  // pays no printed bonus) and no Ares neighbour pays. The OCEAN ADJACENCY IS
+  // paid (the owner, 2026-10-27): it is a rule of PLACING a tile next to an
+  // ocean, not a reward of the cell, and the Redux FAQ reads a tier as a tile
+  // placed in the space — the ordinary cover path pays it the same way, at the
+  // placer's own rate (Lakefront Resorts' 3). What ALSO fires
   // is everything that answers «a city tile was placed»: the quest tracker, the
   // party passives and the enacted law (told `stacked`), every card's
   // `onTilePlaced` (Tharsis Republic, Pets, Immigrant City, Rover Construction),
@@ -2347,9 +2349,15 @@ export class Game implements IGame, Logger {
 
     // Part 5. Collect the bonuses
     if (stacking) {
-      // The cell pays nothing again — but the parliament hears of a city
-      // placed on Mars (the party passives; the enacted law, which is told
-      // the placement is a TIER so it repeats no bonus that was not paid).
+      // No printed bonus again — but the water beside the cell pays the tier
+      // (the ordinary placement's own grant, source and presentation record),
+      // and the parliament hears of a city placed on Mars (the party passives;
+      // the enacted law, told the placement is a TIER so it repeats only what
+      // the tier was paid — the ocean adjacency).
+      const ocean = this.events.withSource({kind: 'oceanBonus'}, () => this.grantOceanAdjacencyBonus(player, space));
+      if (ocean !== undefined) {
+        player.lastOceanBonus = ocean;
+      }
       ParliamentHandler.onTilePlaced(player, space, {coveringExistingTile: true, stacked: true});
       this.publishTilePlacement(player, space, tile.tileType, {paid: [], cards: 0});
     } else if (this.phase !== Phase.SOLAR) {
@@ -2444,8 +2452,8 @@ export class Game implements IGame, Logger {
    * A CITY TIER onto the player's own city on Mars (Turmoil Redux —
    * Skyscrapers): the stack on `space` grows by one. Validated, placed and
    * fanned out by `addTile` with `stacking` — see its header for what the
-   * tier pays (nothing of the cell) and what it fires (everything that
-   * answers a city tile placed).
+   * tier pays (the ocean adjacency, never the printed bonus again) and what
+   * it fires (everything that answers a city tile placed).
    */
   public addCityTier(player: IPlayer, space: Space): void {
     this.addTile(player, space, {tileType: TileType.CITY}, {stacking: true});

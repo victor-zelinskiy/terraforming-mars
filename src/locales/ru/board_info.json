@@ -127,7 +127,7 @@
   "City stack: ${0} → ${1} tiers": "Стопка городов: ${0} → ${1} яруса",
   "The new tier scores +1 VP per adjacent greenery at game end, separately from the cities under it (and any greenery placed next to the stack later).": "Новый ярус отдельно от городов под ним приносит +1 ПО за каждое соседнее озеленение в конце игры (и за размещённые рядом позже).",
   "No adjacent greeneries yet — every tier will score each greenery placed next to the stack later.": "Соседних озеленений пока нет — каждый ярус принесёт очки за озеленения, размещённые рядом позже.",
-  "The cell's bonuses were collected by the first city. A tier pays nothing again — not the printed bonus, not the ocean adjacency.": "Бонусы клетки уже собрал первый город. Ярус ничего не платит повторно — ни печатный бонус, ни соседство с океаном.",
+  "The cell's printed bonus was collected by the first city — a tier does not pay it again. The oceans beside it still pay.": "Печатный бонус клетки уже собрал первый город — ярус не платит его повторно. Соседние океаны платят как обычно.",
   "Cancel construction": "Отменить строительство",
   "Scores +1 VP per adjacent greenery at game end (and any placed next to it later).": "+1 ПО за каждое соседнее озеленение в конце игры (и за размещённые рядом позже).",
 

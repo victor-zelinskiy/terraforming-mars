@@ -26,9 +26,12 @@
  *    build on» — a journal line and a `skipped` record), never a silent zero
  *    and never «no influence». A seat below the line is passed over by the
  *    RULE, and that skip names the rule.
- *  · THE CELL PAYS NOTHING AGAIN: the tier goes through `Game.addTile` with
- *    `stacking` — the printed bonus and the ocean adjacency were collected by
- *    the first city, no Ares neighbour pays, no placement cost is charged.
+ *  · THE CELL'S PRINTED BONUS IS NOT PAID AGAIN: the tier goes through
+ *    `Game.addTile` with `stacking` — the printed bonus was collected by the
+ *    first city (the tier covers it), no Ares neighbour pays, no placement
+ *    cost is charged. The OCEAN ADJACENCY IS paid (the owner, 2026-10-27):
+ *    it is a rule of placing a tile beside water, and the FAQ reads a tier
+ *    as a tile placed in the space — Lakefront Resorts' rate included.
  *    What DOES answer is everything that answers «a city tile was placed»:
  *    the cards (Tharsis Republic, Pets, Immigrant City), the party passives,
  *    the recorder's own event. The chairman quest never counts it (the

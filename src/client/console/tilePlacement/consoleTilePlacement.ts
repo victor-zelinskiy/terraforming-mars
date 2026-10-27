@@ -639,14 +639,15 @@ export function detectTilePlacement(
     pendingMoveReward = moveRewardFor(opts?.moveReward, landed.moves.from, spaceId);
   }
   if (landed.stacks !== undefined) {
-    // A CITY TIER pays the cell NOTHING again — no printed bonus, no water,
-    // no neighbour, no law's wave (the server's own reading: the first city
-    // collected them). Nothing is captured, nothing is held: the tier's whole
-    // statement is the stack it builds, and the dossier / the receipt say so.
+    // A CITY TIER pays no printed bonus again and no Ares neighbour (the
+    // server's own reading: the first city collected the cell) — nothing of
+    // the cell is captured. The WATER beside it does pay (`Game.addTile` with
+    // `stacking`), and an enacted law that repeats bonuses repeats that water:
+    // both are the server's own records of THIS cell, played as for any tile.
     pendingBonuses = [];
     tilePlacementState.bonusProxies = [];
-    pendingOceanBonus = undefined;
-    pendingLawWave = undefined;
+    pendingOceanBonus = oceanBonusFor(opts?.oceanBonus, spaceId);
+    pendingLawWave = lawWaveFor(opts?.lawPayout, spaceId, []);
     pendingAresFlights = [];
     // …but a CARD that answers «a city tile placed» still pays (TR30 Red Museum, Pets, Martian Census — FAQ
     // p.19: a tier is a tile placed): the tier itself is what sends its units.

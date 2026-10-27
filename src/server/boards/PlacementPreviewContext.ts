@@ -42,8 +42,9 @@ export type PlacementPreviewContext = {
    * A CITY TIER (Turmoil Redux — Skyscrapers, kind `city-tier`): the tile
    * lands ON TOP of the player's own city and raises that cell's stack. A
    * real city tile lands (`placesTile`, the triggers fire, the milestones and
-   * awards count it), but the CELL pays nothing again — no printed bonus, no
-   * ocean adjacency, no Ares neighbour, no placement cost — and the tile's
+   * awards count it), but the CELL pays no printed bonus again, no Ares
+   * neighbour pays and no placement cost is charged; the ocean adjacency IS
+   * paid (a rule of placing beside water, not a reward of the cell) — and the tile's
    * own scoring is the stack's: each tier scores the adjacent greeneries on
    * its own. `Game.addTile` with `stacking` is the commit this mirrors.
    */

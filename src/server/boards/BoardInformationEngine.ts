@@ -257,9 +257,10 @@ export function boardCellPreview(
       facts.push(...uncoverFacts(space, 'top', 'cleared'));
     }
   } else if (stacking) {
-    // NO SILENT LOSS: the cell's bonuses were collected by the first city —
-    // the tier says so out loud where an ordinary landing lists its rewards.
-    facts.push(rule('tier-no-bonus', 'placement-effect', 'No placement bonus', 'The cell\'s bonuses were collected by the first city. A tier pays nothing again — not the printed bonus, not the ocean adjacency.', 'neutral'));
+    // NO SILENT LOSS: the cell's printed bonus was collected by the first
+    // city — the tier says so out loud where an ordinary landing lists it.
+    // The water beside the cell still pays (the ocean fact below).
+    facts.push(rule('tier-no-bonus', 'placement-effect', 'No placement bonus', 'The cell\'s printed bonus was collected by the first city — a tier does not pay it again. The oceans beside it still pay.', 'neutral'));
   }
   facts.push(...placementEffectFacts(player, ctx));
   facts.push(...greeneryRevisionFacts(player, ctx));
@@ -272,7 +273,9 @@ export function boardCellPreview(
   // the Mars hex grid — an off-grid reserved slot scores 0 for adjacency
   // (`Board.onMarsGrid` — the gate that keeps `countsAs` SEPARATE from scoring).
   if (board.onMarsGrid(space)) {
-    const ocean = ctx.grantsPlacementBonus ? oceanAdjacencyFact(player, space) : undefined;
+    // A city TIER pays the water too (`Game.addTile` with `stacking` grants it): it is a rule of placing a tile
+    // beside an ocean, not a reward of the cell the first city already took.
+    const ocean = ctx.grantsPlacementBonus || ctx.stacking ? oceanAdjacencyFact(player, space) : undefined;
     if (ocean !== undefined) {
       facts.push(ocean);
     }
@@ -1358,8 +1361,9 @@ function previewContext(
     countsAsOcean: tile !== undefined && OCEAN_TILES.has(tile),
     countsAsGreenery: tile !== undefined && GREENERY_TILES.has(tile),
     placesTile,
-    // A city TIER pays the cell nothing again — `Game.addTile` with `stacking`
-    // never reaches `grantPlacementBonuses`. A REMOVAL grants nothing either:
+    // A city TIER pays no printed bonus again — `Game.addTile` with `stacking`
+    // never reaches `grantPlacementBonuses` (it grants the ocean adjacency
+    // alone, which the ocean fact reads off `stacking`). A REMOVAL grants nothing either:
     // the cell's bonuses were paid at the placement and are not returned.
     grantsPlacementBonus: placementEffect !== 'marker' && !removesTile && !stacking,
     firesTileTriggers: placementEffect !== 'marker' && !removesTile,
