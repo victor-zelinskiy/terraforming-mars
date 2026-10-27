@@ -75,6 +75,14 @@
   Парламента над стартом даёт предикат `firstActionPartyStep` (новый маркер — одна строка). Гард `corpFirstActionPreview`
   превьюит корпорацию Redux на столе Redux.
 
+- [ ] **ПРЕЛЮДИЯ С ДЕЙСТВИЕМ** (TRP8 Aerospace Company, 2026-10-27, `docs/TURMOIL_REDUX_AEROSPACE_COMPANY.md`): база — апстримный
+  `ActivePreludeCard` (`prelude2/`, `canAct`/`action` через Executor — свой `canAct` не переопределять, `cardReasonConsistency`
+  знает базу); `preludeCards` + `compatibility: 'prelude'`; ПУСТОЙ `behavior` законен (розыгрыш кладёт карту с метками, прелюдия
+  всегда разыгрываема — не «сгорает»). Плитка в «Действиях карт» приходит сама (группы читают render-данные стола). **«N ресурса
+  ОДНОГО ИЗ видов на ЛЮБУЮ карту» — `type: [A, B]` в ОДНОЙ декларации `addResourcesToAnyCard`**, никогда `or` «A или B?» перед
+  «куда»: пик — объединение держателей, вид — из выбранной карты (`cardResourceByCard`), заголовок пика называет оба вида, чип
+  превью — один с `icons` (`ActionEffect.icons`).
+
 ## 1. Пять точек касания (как у любой карты)
 
 1. Класс `src/server/cards/turmoilRedux/<Name>.ts` — `Card`, или **`ActionCard`** для синей карты с действием.

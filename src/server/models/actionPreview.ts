@@ -609,7 +609,10 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
       // A COUNTED addition («1 microbe per science tag» — Bactoviral Research,
       // Hydrogen to Venus) names what it counted, as every counted chip does.
       const basis = countableBasis(ctx, a.count);
-      out.push({direction: 'gain', icon: a.type !== undefined ? cardResourceIcon(a.type) : 'resources', amount: ctx.count(a.count), note: 'to a card', ...(basis !== undefined ? {basis} : {})});
+      // A LIST of kinds (TRP8's «mech or fighter») is ONE chip naming every kind — one unit lands, so two chips would
+      // lie about the sum; the generic `resources` icon stays the fallback for a reader that draws one icon.
+      const icons = actionPreviews.cardResourceIcons(a.type);
+      out.push({direction: 'gain', icon: icons.length === 1 ? icons[0] : 'resources', ...(icons.length > 1 ? {icons} : {}), amount: ctx.count(a.count), note: 'to a card', ...(basis !== undefined ? {basis} : {})});
     }
   }
   for (const g of GLOBAL) {
@@ -877,6 +880,8 @@ export function stepsForBehavior(
     if (count <= 0) {
       continue;
     }
+    // The ONE kind the addition spans; undefined for a LIST of kinds (TRP8's «mech or fighter») or any resource.
+    const kind = actionPreviews.soleCardResource(a.type);
     // ONE instance, asked twice: the candidate set the VP reading is computed
     // over is then the set the picker presents BY CONSTRUCTION, rather than by
     // two separate constructions that happen to agree today.
@@ -905,7 +910,8 @@ export function stepsForBehavior(
         kind: 'note',
         noteKind: 'warning',
         text: actionPreviews.NO_HOLDER_WARNING,
-        resource: a.type !== undefined ? cardResourceIcon(a.type) : undefined,
+        // A list of kinds names none here — the `skipped` effect below draws the generic icon for it.
+        resource: kind !== undefined ? cardResourceIcon(kind) : undefined,
         // NAME the skipped effect: the gain chip is suppressed above, so without
         // this the player only learns that "a resource" is lost — ambiguous on a
         // card that adds several (Imported Nitrogen: microbes AND animals). The
@@ -923,7 +929,8 @@ export function stepsForBehavior(
           kind: 'input',
           input: model,
           amount: count,
-          cardResource: a.type !== undefined ? cardResourceIcon(a.type) : undefined,
+          // A pick over SEVERAL kinds: the input's own marker carries `cardResources` + each candidate's kind.
+          cardResource: kind !== undefined ? cardResourceIcon(kind) : undefined,
           // AUTOMATIC, never opt-in — the same rule `selectCardStep` states. This
           // is the walker EVERY declarative card goes through (play, blue action
           // and corp first action alike), so a card that moves a resource onto a

@@ -39,6 +39,7 @@ import {Mohole} from '../../../src/server/cards/prelude/Mohole';
 import {MartianIndustries} from '../../../src/server/cards/prelude/MartianIndustries';
 import {PROTEUS_ACTION_DATA, Proteus} from '../../../src/server/cards/turmoilRedux/Proteus';
 import {TitanHoldings} from '../../../src/server/cards/turmoilRedux/TitanHoldings';
+import {AerospaceCompany} from '../../../src/server/cards/turmoilRedux/AerospaceCompany';
 import {CouncilSeat} from '../../../src/server/cards/turmoilRedux/CouncilSeat';
 import {NoctisCity} from '../../../src/server/cards/base/NoctisCity';
 import {ImmigrantCity} from '../../../src/server/cards/base/ImmigrantCity';
@@ -3342,6 +3343,60 @@ function veynonFixture(name: string, at: 'door' | 'family' | 'dock'): void {
 veynonFixture('veynon', 'door');
 veynonFixture('veynon-family', 'family');
 veynonFixture('veynon-dock', 'dock');
+// ── TRP8 · AEROSPACE COMPANY — a Prelude with an ACTION: «add 1 mech or fighter resource to ANY card» — ONE pick over
+//    the union of the mech and fighter holders, the kind following the chosen card. A 2p Redux table, blue with the
+//    Prelude on its table (`playedCards`, the `proteus` precedent), the Scientists ruling, red on a pinned corporation
+//    with no first action.
+//      · `aerospace`        — EVA Mechs 2 · Mars Army Ships 1 · Forestry Mechs 1 · Security Fleet 0: «КУДА» over FOUR
+//                             candidates of two kinds, each with its own icon and role;
+//      · `aerospace-none`   — no holder at all: the tile stands DISABLED with its reason, never hidden;
+//      · `aerospace-family` — four mech holders and four fighter holders: the 4K frame of the mixed «КУДА». ──
+const AEROSPACE_TABLE: ReadonlyArray<[CardName, number]> = [
+  [CardName.EVA_MECHS, 2], [CardName.MARS_ARMY_SHIPS, 1], [CardName.FORESTRY_MECHS, 1], [CardName.SECURITY_FLEET, 0],
+];
+const AEROSPACE_FAMILY: ReadonlyArray<[CardName, number]> = [
+  [CardName.EVA_MECHS, 2], [CardName.CONSTRUCTION_MECHS, 1], [CardName.FORESTRY_MECHS, 1], [CardName.EXPEDITION_MECHS, 1],
+  [CardName.SECURITY_FLEET, 0], [CardName.FORMULA_ZERO, 1], [CardName.MARS_ARMY_SHIPS, 1], [CardName.CIVILIAN_SPACEFIGHTERS, 2],
+];
+function aerospaceFixture(name: string, at: 'table' | 'none' | 'family'): void {
+  const holders = at === 'table' ? AEROSPACE_TABLE : at === 'family' ? AEROSPACE_FAMILY : [];
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [15, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({p1, parliament}) => {
+      seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+      const make: Record<string, () => IProjectCard> = {
+        [CardName.EVA_MECHS]: () => new EvaMechs(), [CardName.CONSTRUCTION_MECHS]: () => new ConstructionMechs(),
+        [CardName.FORESTRY_MECHS]: () => new ForestryMechs(), [CardName.EXPEDITION_MECHS]: () => new ExpeditionMechs(),
+        [CardName.SECURITY_FLEET]: () => new SecurityFleet(), [CardName.FORMULA_ZERO]: () => new FormulaZero(),
+        [CardName.MARS_ARMY_SHIPS]: () => new MarsArmyShips(), [CardName.CIVILIAN_SPACEFIGHTERS]: () => new CivilianSpacefighters(),
+      };
+      for (const [holder, count] of holders) {
+        const card = make[holder]();
+        card.resourceCount = count;
+        p1.playedCards.push(card);
+      }
+      p1.playedCards.push(new AerospaceCompany());
+      p1.energy = 0;
+      p1.cardsInHand = [new MartianRails()];
+    },
+    expect: ({game, p1, parliament}) => {
+      const card = p1.playedCards.get(CardName.AEROSPACE_COMPANY) as unknown as ({canAct(p: IPlayer): boolean}) | undefined;
+      const facts = {
+        card: card !== undefined, acts: card?.canAct(p1), ruling: parliament.rulingParty(),
+        holders: holders.every(([holder, count]) => p1.playedCards.get(holder)?.resourceCount === count),
+      };
+      if (!facts.card || facts.acts !== (at !== 'none') || !facts.holders || facts.ruling !== PartyName.SCIENTISTS) {
+        throw new Error(`${name}: the subject is not what the spec reads — ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+aerospaceFixture('aerospace', 'table');
+aerospaceFixture('aerospace-none', 'none');
+aerospaceFixture('aerospace-family', 'family');
 // ── TR51 · INFLUENTIAL DISCOVERY — «1 science OR 6 data to ANY card» (TR43's optional `or` as the whole card) and the
 //    stand of the choice-grammar iteration (docs/claude/prompts/project-tr51-influential-discovery.md): the comparison
 //    «1 science against 6 data» whose both ends depend on the table. Blue's action phase, the SCIENTISTS enacted (the

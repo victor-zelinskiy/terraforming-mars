@@ -161,13 +161,18 @@ export type PlayedTargetPayload = {
   amount: number;
   /** The card resource's icon key (`iconClassFor` vocabulary); '' when several kinds land (the print speaks). */
   icon: string;
+  /**
+   * ONE unit of one of SEVERAL kinds (TRP8 Aerospace Company: «1 mech OR fighter») — every kind's icon, drawn joined by
+   * «/» after the amount; the unit's kind is the chosen card's. Absent for one kind or a print.
+   */
+  icons?: ReadonlyArray<string>;
   printed?: ReadonlyArray<ItemType>;
 };
 
 /**
  * The payload of a GAIN pick, from the step the host walks (its `amount` / `cardResource`) or the server's marker on
- * the live model (`resourceGainPrompt`) — a removal, a pick with no number and a pick of several kinds without a
- * print have none (the contract keeps its generic ask).
+ * the live model (`resourceGainPrompt`) — a removal and a pick with no number have none (the contract keeps its
+ * generic ask); a pick of several kinds without a print speaks the server's own list of kinds (`cardResources`).
  */
 export function playedTargetPayloadOf(
   step: {amount?: number, cardResource?: string} | undefined,
@@ -179,10 +184,11 @@ export function playedTargetPayloadOf(
     return undefined;
   }
   const icon = step?.cardResource ?? marker?.cardResource ?? '';
-  if (icon === '' && (printed === undefined || printed.length === 0)) {
+  const kinds = icon === '' && marker?.cardResources !== undefined && marker.cardResources.length > 1 ? marker.cardResources : undefined;
+  if (icon === '' && kinds === undefined && (printed === undefined || printed.length === 0)) {
     return undefined;
   }
-  return {amount, icon, ...(printed !== undefined && printed.length > 0 ? {printed} : {})};
+  return {amount, icon, ...(kinds !== undefined ? {icons: kinds} : {}), ...(printed !== undefined && printed.length > 0 ? {printed} : {})};
 }
 
 /**

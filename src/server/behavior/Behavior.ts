@@ -208,7 +208,12 @@ export interface DrawCard {
 
 export interface AddResource {
   count: Countable,
-  type?: CardResource,
+  /**
+   * The kind added — one, or a LIST (Medical Database's form, TRP8 Aerospace Company's «1 mech or fighter»): the
+   * candidates are the holders of ANY listed kind and each unit's kind is its card's. «Mech or fighter» is never a
+   * second question; the shared step (`AddResourcesToCard`) already takes the list. Undefined = any resource.
+   */
+  type?: CardResource | ReadonlyArray<CardResource>,
   tag?: Tag,
   /**
    * If true, then there must be a card that matches this requirement to take the action.

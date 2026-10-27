@@ -187,6 +187,12 @@ export type ActionEffect = {
    * pseudo-keys `tr` and `cards` render a styled badge instead of a sprite.
    */
   icon: string;
+  /**
+   * SEVERAL icon keys for ONE unit of one of several kinds (TRP8 Aerospace Company: «1 mech OR fighter to a card»),
+   * in the declared order — drawn as one chip joined by «/», never as two chips (one unit lands; two chips would lie
+   * about the sum). `icon` then holds the generic `resources` key for a reader that draws one icon. Absent for one kind.
+   */
+  icons?: ReadonlyArray<string>;
   /** Magnitude of the change (always positive; `direction` conveys the sign). */
   amount: number;
   /** Current value of the affected pool, for a `current → resulting` preview.

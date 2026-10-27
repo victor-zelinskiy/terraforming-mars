@@ -37,7 +37,14 @@
             </span>
             <template v-else>
               <b class="con-ptsel__payload-num">{{ payload.amount }}</b>
-              <i class="con-ptsel__payload-icon" :class="iconClass(payload.icon)" aria-hidden="true"></i>
+              <!-- One unit of one of SEVERAL kinds (TRP8): every kind, joined by «/» — the chosen card decides which. -->
+              <template v-if="payload.icons !== undefined">
+                <template v-for="(kind, i) in payload.icons" :key="kind">
+                  <span v-if="i > 0" class="con-ptsel__tag-sep" aria-hidden="true">/</span>
+                  <i class="con-ptsel__payload-icon" :class="iconClass(kind)" :data-ptsel-payload-kind="kind" aria-hidden="true"></i>
+                </template>
+              </template>
+              <i v-else class="con-ptsel__payload-icon" :class="iconClass(payload.icon)" aria-hidden="true"></i>
             </template>
           </span>
         </template>

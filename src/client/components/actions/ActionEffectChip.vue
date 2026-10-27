@@ -44,6 +44,14 @@
       <img v-if="wildProduction" class="action-effect-chip__icon action-effect-chip__icon--wild" :src="wildUrl" alt="" draggable="false" />
       <span v-else class="action-effect-chip__icon" :class="iconClass"></span>
     </span>
+    <!-- ONE unit of one of SEVERAL kinds (TRP8: «1 mech OR fighter to a card» — `effect.icons`): every kind's sprite in
+         one chip, joined by «/». One unit lands, so the kinds share one amount — never two chips that read as a sum. -->
+    <span v-else-if="kindIcons.length > 1" class="action-effect-chip__kinds" data-chip-kinds aria-hidden="true">
+      <template v-for="(cls, i) in kindIcons" :key="i">
+        <span v-if="i > 0" class="action-effect-chip__kinds-sep">/</span>
+        <span class="action-effect-chip__icon" :class="cls"></span>
+      </template>
+    </span>
     <span v-else-if="iconClass !== ''" class="action-effect-chip__icon" :class="iconClass" aria-hidden="true"></span>
 
     <span class="action-effect-chip__value">
@@ -172,6 +180,10 @@ export default defineComponent({
   computed: {
     iconClass(): string {
       return iconClassFor(this.effect.icon);
+    },
+    /** The sprites of a unit of one of SEVERAL kinds (`effect.icons`), in the declared order; [] for the one-icon chip. */
+    kindIcons(): ReadonlyArray<string> {
+      return (this.effect.icons ?? []).map((icon) => iconClassFor(icon)).filter((cls) => cls !== '');
     },
     /** A production change (the server's `note: 'production'`) — drawn on the printed bronze plate. */
     productionPlate(): boolean {
@@ -382,6 +394,19 @@ export default defineComponent({
   /* Normalise the three sprite families to a single box (mirrors
      .modal-input__option-icon) so resource / param / card-resource icons align. */
   transform: scale(1);
+}
+
+// SEVERAL KINDS of one unit («[mech] / [fighter]») — the sprites side by side at the chip's own icon size, the slash
+// in the chip's muted text voice: one reading, one amount after it.
+.action-effect-chip__kinds {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.action-effect-chip__kinds-sep {
+  opacity: 0.7;
+  font-weight: 600;
 }
 
 // THE PRODUCTION PLATE — the face's own riveted bronze frame (`.pcard-prod`, the palette's hero plate), the resource

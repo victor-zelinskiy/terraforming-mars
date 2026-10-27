@@ -30,7 +30,14 @@
           </span>
           <template v-else>
             <b class="con-tgtrow__payload-num">{{ payload.amount }}</b>
-            <i class="con-tgtrow__payload-icon" :class="iconClass(payload.icon)" aria-hidden="true"></i>
+            <!-- One unit of one of SEVERAL kinds (TRP8): every kind, joined by «/» — the chosen card decides which. -->
+            <template v-if="payload.icons !== undefined">
+              <template v-for="(kind, i) in payload.icons" :key="kind">
+                <span v-if="i > 0" class="con-tgtrow__payload-sep" aria-hidden="true">/</span>
+                <i class="con-tgtrow__payload-icon" :class="iconClass(kind)" :data-tgtrow-payload-kind="kind" aria-hidden="true"></i>
+              </template>
+            </template>
+            <i v-else class="con-tgtrow__payload-icon" :class="iconClass(payload.icon)" aria-hidden="true"></i>
           </template>
         </span>
       </template>

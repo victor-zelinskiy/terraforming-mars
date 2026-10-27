@@ -26,7 +26,7 @@ import {AmountConversionModel, AmountCostModel, AmountResultModel, DiscardPrompt
 import {effectsForBehavior, copiedProductionUnits, resourceVictoryPoints, resourcesToNextVictoryPoint} from '../models/actionPreview';
 import {Units} from '../../common/Units';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
-import {AddResourcesToCard, Options as AddResourceOptions} from '../deferredActions/AddResourcesToCard';
+import {AddResourcesToCard, cardResourceKinds, Options as AddResourceOptions} from '../deferredActions/AddResourcesToCard';
 import type {SelectResourceTarget} from '../deferredActions/SelectResourceTarget';
 import {SelectPaymentDeferred, Options as SelectPaymentOptions} from '../deferredActions/SelectPaymentDeferred';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
@@ -46,6 +46,21 @@ import type {PreselectAddress} from '../../common/inputs/preselectAddress';
 /** Icon key for a card resource (lowercase, spaces→hyphens — `iconClassFor`). */
 export function cardResourceIcon(resource: CardResource): string {
   return String(resource).toLowerCase().replace(/\s+/g, '-');
+}
+
+/**
+ * The icon keys of an addition's kind(s) — one, a LIST (Medical Database, TRP8 Aerospace Company's «mech or
+ * fighter»), or none for «any resource». ONE normalisation (`cardResourceKinds`) for every reader of
+ * `AddResource.type`; a reader that needs ONE kind asks `soleCardResource`.
+ */
+export function cardResourceIcons(resource: CardResource | ReadonlyArray<CardResource> | undefined): ReadonlyArray<string> {
+  return (cardResourceKinds(resource) ?? []).map(cardResourceIcon);
+}
+
+/** The ONE kind an addition spans when it spans exactly one; undefined for a list of several or «any resource». */
+export function soleCardResource(resource: CardResource | ReadonlyArray<CardResource> | undefined): CardResource | undefined {
+  const kinds = cardResourceKinds(resource);
+  return kinds !== undefined && kinds.length === 1 ? kinds[0] : undefined;
 }
 
 function clampValue(v: number, lo: number, hi: number): number {
@@ -375,7 +390,7 @@ export function cardResourceCost(resource: CardResource, amount: number): Action
  * when there's NO eligible card. The live `action()` MUST mirror this with
  * `autoSelect: false`, else the pre-collected pick has no live prompt to consume.
  */
-export function addToCardStep(player: IPlayer, resource: CardResource | undefined, opts: AddResourceOptions = {}): ActionPreviewStep | undefined {
+export function addToCardStep(player: IPlayer, resource: CardResource | ReadonlyArray<CardResource> | undefined, opts: AddResourceOptions = {}): ActionPreviewStep | undefined {
   // ONE instance, asked twice: the candidate set the VP reading is computed over
   // is then the set the picker presents BY CONSTRUCTION.
   const target = new AddResourcesToCard(player, resource, {...opts, autoSelect: opts.autoSelect ?? false});
@@ -394,7 +409,8 @@ export function addToCardStep(player: IPlayer, resource: CardResource | undefine
     kind: 'input',
     input: model,
     amount: count,
-    cardResource: resource !== undefined ? cardResourceIcon(resource) : undefined,
+    // A pick over SEVERAL kinds names no one kind here: its input's own marker carries the kinds and each candidate's.
+    cardResource: cardResourceIcons(resource).length === 1 ? cardResourceIcons(resource)[0] : undefined,
     // AUTOMATIC, never opt-in — same rule as `selectCardStep` and the declarative
     // walker: a builder that moves a resource onto a card always knows what that
     // does to the card's points, so no caller can forget to ask.
@@ -952,7 +968,7 @@ export function skippedOrBranch(
     return {
       reason: SKIP_REASON.noHolder,
       warning: NO_HOLDER_WARNING,
-      resource: add.type,
+      resource: soleCardResource(add.type),
       skipped: {label: sub.title, effect: skippedAddToCard(add.type, count(add.count)).effect},
     };
   }

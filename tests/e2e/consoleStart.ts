@@ -2996,6 +2996,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'titan' | 'titan-two' |
   // TR85 Veynon Dynamics — the door (the standing «+1», the corporation's trade door), the family of eight, the fleet dock.
   'veynon' | 'veynon-family' | 'veynon-dock' |
+  // TRP8 Aerospace Company — the Prelude's action over four holders of two kinds, none at all, four + four.
+  'aerospace' | 'aerospace-none' | 'aerospace-family' |
   'parliament-architecture-vote' | 'parliament-access-edge' | 'septem-tribus' | 'septem-win' | 'arwind-walker' | 'arwind-sitting-win' | 'arwind-chairman-quest' | 'arwind-pay-space' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |
   'parliament-biodome-vote' | 'parliament-biodome-enact' | 'parliament-biodome-maxed' | 'parliament-biodome-recap' |
   'parliament-biodome-nocell' | 'parliament-biodome-neutral' |

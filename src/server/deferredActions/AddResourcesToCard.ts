@@ -344,9 +344,7 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
     const buttonLabel = qty === 1 ? 'Add resource' : 'Add resources';
     const title: string | Message = this.options.title ?? (single ?
       (qty === 1 ? 'Add resource to this card' : 'Add resources to this card') :
-      // The resource NAMES itself after a dash, never inside the sentence: a noun substituted into «добавить 2 …»
-      // cannot decline (RU printed «добавить 2 Данные» — the TR48 walk), a label after a dash needs no case.
-      message('Select a card — ${1}: +${0}', (b) => b.number(qty).string(this.resourceType || 'resources')));
+      this.pickTitle(qty));
     const kinds = this.resourceTypes;
     // THE NEAR MISSES (a `min` pick): every holder short of it stands beside the candidates, DISABLED with its reason —
     // never hidden; the server never accepts one (they ride `disabledCards`, outside `cards`).
@@ -387,6 +385,20 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
     return this.options.cause === undefined ?
       select :
       select.markChoiceContext({source: this.options.cause, mode: 'reward'});
+  }
+
+  /**
+   * The pick's generic title. The kind NAMES itself after a dash, never inside the sentence: a noun substituted into
+   * «добавить 2 …» cannot decline (RU printed «добавить 2 Данные» — the TR48 walk), a label after a dash needs no case.
+   * A pick over TWO kinds (TRP8 Aerospace Company's «mech or fighter») names both — the raw word «resources» named
+   * neither and was never translated; «any resource» (no kinds) and a longer list keep the generic word.
+   */
+  private pickTitle(qty: number): Message {
+    const kinds = this.resourceTypes;
+    if (kinds !== undefined && kinds.length === 2) {
+      return message('Select a card — ${1} or ${2}: +${0}', (b) => b.number(qty).string(kinds[0]).string(kinds[1]));
+    }
+    return message('Select a card — ${1}: +${0}', (b) => b.number(qty).string(this.resourceType || 'resources'));
   }
 
   /**

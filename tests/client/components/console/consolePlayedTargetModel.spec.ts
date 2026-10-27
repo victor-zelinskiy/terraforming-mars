@@ -1287,10 +1287,16 @@ describe('consolePlayedTargetModel — the payload and the protagonist (TR56)', 
     expect(playedTargetPayloadOf({amount: 3, cardResource: 'mech'}, undefined, printed)).to.deep.eq({amount: 3, icon: 'mech', printed});
   });
 
-  it('no payload for a removal, a pick with no number, or several kinds with no print to speak for them', () => {
+  it('no payload for a removal or a pick with no number', () => {
     expect(playedTargetPayloadOf({amount: -1, cardResource: 'mech'}, undefined)).to.eq(undefined);
     expect(playedTargetPayloadOf(undefined, undefined)).to.eq(undefined);
-    expect(playedTargetPayloadOf(undefined, {amount: 1, cardResources: ['data', 'microbe']})).to.eq(undefined);
+  });
+
+  it('several kinds with no print speak the server\'s own list — «КУДА: 1 [мех] / [истребитель]» (TRP8)', () => {
+    expect(playedTargetPayloadOf(undefined, {amount: 1, cardResources: ['mech', 'fighter']}))
+      .to.deep.eq({amount: 1, icon: '', icons: ['mech', 'fighter']});
+    expect(playedTargetPayloadOf({amount: 1}, {amount: 1, cardResources: ['data', 'microbe']}))
+      .to.deep.eq({amount: 1, icon: '', icons: ['data', 'microbe']});
   });
 
   it('the contract carries the payload of an ADD only — a taking step keeps the generic ask', () => {

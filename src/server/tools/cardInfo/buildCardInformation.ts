@@ -626,8 +626,9 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
     const list = Array.isArray(b.addResourcesToAnyCard) ? b.addResourcesToAnyCard : [b.addResourcesToAnyCard];
     list.forEach((entry, i) => {
       const n = numeric(entry.count);
-      const res = entry.type;
-      if (n === undefined || res === undefined) {
+      // One kind or a LIST (TRP8: «1 mech or fighter») — the kinds named in the declared order, joined by «or».
+      const kinds = entry.type === undefined ? [] : typeof entry.type === 'string' ? [entry.type] : entry.type;
+      if (n === undefined || kinds.length === 0) {
         complex = true;
         notes.push('addResourcesToAnyCard entry is complex');
         return;
@@ -635,7 +636,8 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
       const tag = entry.tag !== undefined ? ` ${entry.tag}` : '';
       // A «you may» addition (`AddResource.optional`) says so — the rule's own words.
       const verb = entry.optional === true ? 'You may add' : 'Add';
-      push(`addToAny.${i}`, `${verb} ${n} ${enCardResource(res, n)} to any${tag} card.`, [`res-${res.toLowerCase().replaceAll(' ', '-')}`]);
+      const nouns = kinds.map((res) => enCardResource(res, n)).join(' or ');
+      push(`addToAny.${i}`, `${verb} ${n} ${nouns} to any${tag} card.`, kinds.map((res) => `res-${res.toLowerCase().replaceAll(' ', '-')}`));
     });
   }
   if (b.removeAnyPlants !== undefined) {
