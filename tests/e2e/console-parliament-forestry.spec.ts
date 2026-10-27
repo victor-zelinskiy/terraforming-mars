@@ -113,6 +113,8 @@ type Sample = {
   opening: Rect,
   /** The feed's law card (`:law`) standing at this instant. */
   lawToast: boolean,
+  /** The rail's resource line — the midpoint of the M€ … heat rows' span. */
+  railMid: number,
 };
 type Probe = {samples: Array<Sample>};
 
@@ -181,6 +183,11 @@ async function armProbe(page: Page): Promise<void> {
         face: faceOf(),
         opening: {x: px('--con-stage-l'), y: px('--con-stage-t'), w: window.innerWidth - px('--con-stage-l') - px('--con-stage-r'), h: window.innerHeight - px('--con-stage-t') - px('--con-stage-b')},
         lawToast: document.querySelector('.con-notif[data-notif-id$=":law"]') !== null,
+        railMid: (() => {
+          const mc = document.querySelector('.con-res__row--megacredits')?.getBoundingClientRect();
+          const heat = document.querySelector('.con-res__row--heat')?.getBoundingClientRect();
+          return mc !== undefined && heat !== undefined ? (Math.min(mc.top, heat.top) + Math.max(mc.bottom, heat.bottom)) / 2 : window.innerHeight / 2;
+        })(),
       });
     };
     new MutationObserver(() => read('mo')).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
@@ -385,14 +392,15 @@ test.describe('Forestry Support (RX11) · the groves pay, as the water does', ()
     const firstFace = ticks.find((s) => s.face !== undefined);
     console.log('[forestry timeline]', JSON.stringify({firstToastAt: firstToast?.t ?? null, firstFaceAt: firstFace?.t ?? null, firstLawWaveAt: ticks.find((s) => s.law)?.t ?? null}));
     expect(ticks.some((s) => s.lawToast), `no law card at any instant of the scene (toast ${diag.toastId}, ring ${JSON.stringify(wireNow.game.cardReactions ?? null)})`).toBe(false);
-    // THE LAW AT THE STAGE (iteration 3's one place, iteration 4's reactor): its face painted in the middle of the
-    // central opening, at a protagonist's size, for a readable beat — never a corner, never one frame.
+    // THE LAW AT THE STAGE (iteration 5's one place — the rail's edge, iteration 4's reactor): its face painted flush
+    // with the opening's left edge, on the resource block's line, at a protagonist's size, for a readable beat.
     const faced = ticks.filter((s) => s.face !== undefined);
     expect(faced.length, 'the law\'s face stood at the stage for a readable beat').toBeGreaterThanOrEqual(3);
     for (const s of faced) {
       const f = s.face!;
-      expect(Math.abs(f.x + f.w / 2 - (s.opening.x + s.opening.w / 2)), `the law stands in the middle of the opening (x) — ${JSON.stringify(f)} vs ${JSON.stringify(s.opening)}`).toBeLessThan(s.opening.w * 0.35);
-      expect(Math.abs(f.y + f.h / 2 - (s.opening.y + s.opening.h / 2)), `the law stands in the middle of the opening (y) — ${JSON.stringify(f)} vs ${JSON.stringify(s.opening)}`).toBeLessThan(s.opening.h * 0.3);
+      expect(f.x - s.opening.x, `the law stands at the rail's edge (x) — ${JSON.stringify(f)} vs ${JSON.stringify(s.opening)}`).toBeGreaterThan(-6);
+      expect(f.x - s.opening.x, `the law stands at the rail's edge, never the middle (x) — ${JSON.stringify(f)} vs ${JSON.stringify(s.opening)}`).toBeLessThan(s.opening.w * 0.1);
+      expect(Math.abs(f.y + f.h / 2 - s.railMid), `the law stands on the resource block's line (y) — ${JSON.stringify(f)} vs railMid ${s.railMid}`).toBeLessThan(s.opening.h * 0.25);
       expect(f.h / s.opening.h, 'a protagonist\'s size').toBeGreaterThan(0.34 * 0.8);
     }
     // NOTHING CONDENSES IN THE GROVES any more: the coin proxies are never painted — the chips leave the law's face.

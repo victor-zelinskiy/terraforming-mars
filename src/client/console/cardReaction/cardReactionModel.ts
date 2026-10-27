@@ -323,6 +323,12 @@ export type ReactionStageOptions = {
   maxSlots?: number;
   /** A face scale against the stage's own (a rival's `REACTION_RIVAL_SCALE`). */
   scale?: number;
+  /**
+   * THE RAIL'S EDGE (iteration 5 — the owner, 2026-10-27): the row STARTS at `left` (the free canvas's left edge — past
+   * a hero column a workspace stands there; the director measures) and stands on the line `centreY` (the rail's
+   * resource block — the director measures the rows). Either absent: the opening's own left edge / its vertical centre.
+   */
+  anchor?: {left?: number; centreY?: number};
 };
 
 /** The card's height at the stage: a share of the opening, capped at the natural frame × the UI scale. */
@@ -332,21 +338,27 @@ export function reactionStageHeight(opening: RectLike, opts: ReactionStageOption
 }
 
 /**
- * WHERE A REACTOR RISES when its own face is not on screen (the owner, 2026-10-27 — ONE place in every state, over a
- * workspace's band too): THE CENTRE OF THE CENTRAL OPENING. `n` groups take a ROW of up to `maxSlots` card-shaped
- * slots (as many as the opening's width holds), centred horizontally and vertically; the chain plays them left to
- * right. Pure, so the geometry is a tested fact; the director measures the opening.
+ * WHERE A REACTOR RISES when its own face is not on screen — AT THE RAIL'S EDGE (the owner, 2026-10-27, iteration 5:
+ * every destination of a reaction stands on that side — the rail's rows, the score cell, the satellite, a rival's
+ * chip in the strip — so the flight is short and the cause stands beside its effect; the centre of the opening, the
+ * one place of iteration 3, put the card over the board where the tile had just landed and sent every token across
+ * the planet). ONE place in every state: `n` groups take a ROW of up to `maxSlots` card-shaped slots growing
+ * RIGHTWARDS from the free canvas's left edge (`anchor.left` — past a hero column a workspace stands at the band's
+ * edge), on the rail's resource line (`anchor.centreY`), clamped inside the opening; the chain plays them left to
+ * right. Pure, so the geometry is a tested fact; the director measures the opening, the rail and the edge.
  */
 export function reactionStageSlots(opening: RectLike, n: number, opts: ReactionStageOptions): Array<RectLike> {
   const height = reactionStageHeight(opening, opts);
   const width = Math.round(height / REACTOR_ASPECT);
   const gap = Math.max(12, Math.round(height * 0.08));
   const pad = Math.max(8, opening.width * 0.012);
-  const fit = Math.max(1, Math.floor((opening.width - 2 * pad + gap) / (width + gap)));
+  const vpad = Math.max(8, opening.height * 0.012);
+  const right = opening.left + opening.width - pad;
+  const left0 = Math.max(opening.left + pad, Math.min(opts.anchor?.left ?? (opening.left + pad), right - width));
+  const fit = Math.max(1, Math.floor((right - left0 + gap) / (width + gap)));
   const count = Math.max(1, Math.min(n, opts.maxSlots ?? REACTION_STAGE_MAX_SLOTS, fit));
-  const total = count * width + (count - 1) * gap;
-  const left0 = opening.left + (opening.width - total) / 2;
-  const top = opening.top + (opening.height - height) / 2;
+  const centreY = opts.anchor?.centreY ?? (opening.top + opening.height / 2);
+  const top = Math.max(opening.top + vpad, Math.min(centreY - height / 2, opening.top + opening.height - height - vpad));
   const out: Array<RectLike> = [];
   for (let i = 0; i < count; i++) {
     out.push({left: Math.round(left0 + i * (width + gap)), top: Math.round(top), width, height});

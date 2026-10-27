@@ -238,18 +238,34 @@ describe('cardReactionModel — the record → the group → the chain → the s
     });
   });
 
-  describe('reactionStageSlots — THE ONE STAGE: the centre of the central opening (the owner, 2026-10-27)', () => {
+  describe('reactionStageSlots — THE ONE STAGE: the rail\'s edge (the owner, 2026-10-27, iteration 5)', () => {
     const tv = {left: 360, top: 120, width: 3000, height: 1900}; // a 4K opening between the hull members
     const fhd = {left: 180, top: 60, width: 1500, height: 950};
     const deck = {left: 120, top: 44, width: 1000, height: 640};
+    const pad = Math.max(8, tv.width * 0.012);
 
-    it('one reactor stands centred in the opening, a protagonist\'s share of its height, card-shaped', () => {
+    it('one reactor stands at the opening\'s LEFT EDGE (the rail\'s), a protagonist\'s share of its height, card-shaped; the vertical centre is the opening\'s with no line given', () => {
       const [slot] = reactionStageSlots(tv, 1, {uiScale: 2});
       expect(slot.height).eq(Math.round(tv.height * REACTION_STAGE_SHARE));
       expect(slot.width).eq(Math.round(slot.height / REACTOR_ASPECT));
-      expect(slot.left + slot.width / 2).to.be.closeTo(tv.left + tv.width / 2, 1);
+      expect(slot.left).to.be.closeTo(tv.left + pad, 1);
       expect(slot.top + slot.height / 2).to.be.closeTo(tv.top + tv.height / 2, 1);
       expect(reactionStageSlots(tv, 1, {uiScale: 2})).to.have.lengthOf(1);
+    });
+
+    it('the ANCHOR the director measures: the row starts at the free canvas\'s edge (past a hero column) and stands on the rail\'s line — clamped inside the opening', () => {
+      const [slot] = reactionStageSlots(tv, 1, {uiScale: 2, anchor: {left: 900, centreY: 700}});
+      expect(slot.left).eq(900);
+      expect(slot.top + slot.height / 2).to.be.closeTo(700, 1);
+      // A line too close to the top: the slot stays inside the opening.
+      const [high] = reactionStageSlots(tv, 1, {uiScale: 2, anchor: {centreY: 0}});
+      expect(high.top).to.be.at.least(tv.top);
+      // An edge past the opening's right: the slot stays inside too.
+      const [far] = reactionStageSlots(tv, 1, {uiScale: 2, anchor: {left: 10_000}});
+      expect(far.left + far.width).to.be.at.most(tv.left + tv.width);
+      // An edge LEFT of the opening never pulls the stage over the rail.
+      const [over] = reactionStageSlots(tv, 1, {uiScale: 2, anchor: {left: 0}});
+      expect(over.left).to.be.closeTo(tv.left + pad, 1);
     });
 
     it('the height is a share of the opening on every profile, capped at the natural frame × the UI scale', () => {
@@ -261,14 +277,17 @@ describe('cardReactionModel — the record → the group → the chain → the s
       expect(reactionStageHeight(fhd, {uiScale: 1, scale: REACTION_RIVAL_SCALE})).eq(Math.round(fhd.height * REACTION_STAGE_SHARE * REACTION_RIVAL_SCALE));
     });
 
-    it('several reactors are ONE ROW centred on the opening, left to right, never overlapping, never more than the cap', () => {
+    it('several reactors are ONE ROW growing RIGHTWARDS from the edge, left to right, never overlapping, never more than the cap; the fit counts from the edge', () => {
       const three = reactionStageSlots(tv, 3, {uiScale: 2});
       expect(three).to.have.lengthOf(3);
       expect(three.every((s) => s.height === three[0].height && s.width === three[0].width)).is.true;
+      expect(three[0].left).to.be.closeTo(tv.left + pad, 1);
       expect(three[1].left).to.be.greaterThan(three[0].left + three[0].width);
       expect(three[2].left).to.be.greaterThan(three[1].left + three[1].width);
-      const rowCentre = (three[0].left + three[2].left + three[2].width) / 2;
-      expect(rowCentre).to.be.closeTo(tv.left + tv.width / 2, 1);
+      // An edge far to the right (a wide hero column) leaves room for fewer slots — the row never leaves the opening.
+      const cramped = reactionStageSlots(tv, 3, {uiScale: 2, anchor: {left: tv.left + tv.width * 0.8}});
+      expect(cramped.length).to.be.lessThan(3);
+      expect(cramped[cramped.length - 1].left + cramped[cramped.length - 1].width).to.be.at.most(tv.left + tv.width);
       expect(reactionStageSlots(tv, 7, {uiScale: 2})).to.have.lengthOf(REACTION_STAGE_MAX_SLOTS);
       expect(reactionStageSlots(tv, 2, {uiScale: 2, maxSlots: 2})).to.have.lengthOf(2);
       expect(reactionStageSlots(tv, 5, {uiScale: 2, maxSlots: 2}), 'a handheld\'s cap').to.have.lengthOf(2);

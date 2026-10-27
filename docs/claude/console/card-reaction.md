@@ -253,6 +253,28 @@ marker's correlation), `cardReactionDirector.spec` (the told marks: own / rival 
 the rail, no coin in a grove, no `:law` card at any instant) and `console-parliament-craze` (the law at the stage
 for its second wave, no card).
 
+## Iteration 5 — THE STAGE AT THE RAIL'S EDGE (the owner, 2026-10-27, PL-1091)
+
+The owner, on the iteration-2 frame of Lotus Innovations standing beside the rail: «не лучше будет вернуть
+отображение всплывающих карт ближе сюда — зона ближе к фактической точке назначения, куда летят ресурсы». It is: every
+destination of a reaction stands on that side of the screen — the rail's rows, the score cell, the «Доп. ресурсы»
+satellite, a rival's chip in the strip — so a card at the centre (iteration 3's one place) stood far from what it
+changed, sent every token across the planet and covered the board where the tile had just landed.
+
+26. **THE ONE STAGE IS THE RAIL'S EDGE.** Still ONE place in every state (law 18's protagonist size, tempi, caption,
+    warm faces — unchanged): the row of slots grows RIGHTWARDS from the free canvas's left edge, on the rail's
+    resource line. `reactionStageSlots` takes an `anchor` (`left`, `centreY`) and clamps the row inside the opening;
+    the director's `stageAnchor` MEASURES both — the opening's left edge, moved past a hero column a workspace stands
+    at the band's edge (`STAGE_EDGE_OCCUPANTS`: the action composer's hero wrap, a law / party hero, the play
+    composer's card — judged by the one visibility verdict, so a hero parked under a hosted step does not move the
+    edge; the owner's «сдвиг за героя»: one place by meaning, the free canvas's edge), and the midpoint of the
+    M€ … heat rows' span. No rail measurable (a spec): the opening's own edge and vertical centre.
+
+Guards: `cardReactionModel.spec` § the rail's edge (the edge, the measured anchor, the clamps, the row growing
+rightwards, the fit from the edge); e2e `console-card-reaction` (`expectAtTheStage`: a face flush with the edge,
+every face right of the edge and in the rail's row, on the resource line) and `console-parliament-forestry` (the law
+flush with the edge, on the line).
+
 ## What this iteration did NOT migrate (named, honest)
 
 **A STAGED play's reactor rises at a SEAT, never out of its place.** Every green card that places a tile — every

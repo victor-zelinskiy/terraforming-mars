@@ -62,6 +62,7 @@ import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProf
 import {cssLengthPx} from '@/client/console/cssUnits';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {markReactionTold, registerReactionScenePlays} from '@/client/console/cardReaction/reactionToldOnStage';
+import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {acceptSeatIntake, foldSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/statusIntake';
 import {CardResource} from '@/common/CardResource';
 import {
@@ -394,10 +395,43 @@ function openingRect(): RectLike {
   return width > 40 && height > 40 ? {left: stage.left + l, top: stage.top + t, width, height} : stage;
 }
 
-/** The slots of the stage for `n` reactors (a rival's at its own scale). */
+/**
+ * THE HERO COLUMNS a workspace stands at the band's left edge — the stage starts PAST them (the owner, 2026-10-27:
+ * «сдвиг за героя» — one place by meaning: the free canvas's edge). Judged by the one visibility verdict: a hero
+ * parked under a hosted step (faded) does not move the edge.
+ */
+const STAGE_EDGE_OCCUPANTS = ['.con-composer__actcardwrap', '.con-composer__actlaw', '.con-composer__actparty', '.con-composer__playcard'];
+
+/**
+ * THE RAIL'S EDGE AND LINE (iteration 5): the row starts at the opening's left edge past any hero column standing
+ * there, and stands on the rail's resource block (the M€ … heat rows' span) — the line every token lands on.
+ */
+function stageAnchor(opening: RectLike): {left: number, centreY?: number} {
+  const pad = Math.max(8, opening.width * 0.012);
+  let left = opening.left + pad;
+  if (typeof document === 'undefined') {
+    return {left};
+  }
+  for (const selector of STAGE_EDGE_OCCUPANTS) {
+    const r = firstVisibleEnd(selector)?.getBoundingClientRect();
+    if (r !== undefined && r.width > 4 && r.left < opening.left + opening.width * 0.45 && r.right + pad > left) {
+      left = r.right + pad;
+    }
+  }
+  const first = document.querySelector('.con-res__row--megacredits')?.getBoundingClientRect();
+  const last = document.querySelector('.con-res__row--heat')?.getBoundingClientRect();
+  if (first !== undefined && last !== undefined && first.height > 0 && last.height > 0) {
+    return {left, centreY: (Math.min(first.top, last.top) + Math.max(first.bottom, last.bottom)) / 2};
+  }
+  return {left};
+}
+
+/** The slots of the stage for `n` reactors (a rival's at its own scale) — at the rail's edge, on its line. */
 function stageSlotsFor(n: number, scale = 1): Array<RectLike> {
-  return reactionStageSlots(openingRect(), n, {
+  const opening = openingRect();
+  return reactionStageSlots(opening, n, {
     uiScale: conUiScale(), scale, maxSlots: consoleLayoutState.profile === 'handheld' ? HANDHELD_MAX_SLOTS : undefined,
+    anchor: stageAnchor(opening),
   });
 }
 

@@ -75,6 +75,10 @@ type Sample = {
   row: boolean,
   /** The central opening as the band geometry mirror publishes it. */
   opening: Box,
+  /** The free canvas's left edge: the opening's, past a visible hero column a workspace stands there. */
+  edge: number,
+  /** The rail's resource line — the midpoint of the M€ … heat rows' span. */
+  railMid: number,
 };
 
 /** The reaction layer's state + the faces' geometry + the hero's phase, sampled on a task clock (never rAF). */
@@ -85,6 +89,7 @@ async function armReactionProbe(page: Page): Promise<void> {
     type Sample = {
       t: number, phase: string, groups: string, seats: string, landed: string, summarized: string, hurried: string,
       seated: string, emerged: string, hero: string, faces: Array<FaceSample>, lifted: string, row: boolean, opening: Box,
+      edge: number, railMid: number,
     };
     const w = window as unknown as {__reaction: Array<Sample>};
     w.__reaction = [];
@@ -104,6 +109,19 @@ async function armReactionProbe(page: Page): Promise<void> {
       const b = px('--con-stage-b');
       const l = px('--con-stage-l');
       const r = px('--con-stage-r');
+      const openingW = window.innerWidth - l - r;
+      let edge = l;
+      for (const sel of ['.con-composer__actcardwrap', '.con-composer__actlaw', '.con-composer__actparty', '.con-composer__playcard']) {
+        for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
+          const rr = el.getBoundingClientRect();
+          if (rr.width > 4 && getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el).opacity) > 0.3 && rr.left < l + openingW * 0.45) {
+            edge = Math.max(edge, rr.right);
+          }
+        }
+      }
+      const mcRow = document.querySelector('.con-res__row--megacredits')?.getBoundingClientRect();
+      const heatRow = document.querySelector('.con-res__row--heat')?.getBoundingClientRect();
+      const railMid = mcRow !== undefined && heatRow !== undefined ? (Math.min(mcRow.top, heatRow.top) + Math.max(mcRow.bottom, heatRow.bottom)) / 2 : t + (window.innerHeight - t - b) / 2;
       const sample: Sample = {
         t: performance.now(),
         phase: read('data-reaction-phase') || 'none',
@@ -116,7 +134,8 @@ async function armReactionProbe(page: Page): Promise<void> {
         emerged: Array.from(document.querySelectorAll('.con-recv__emerge[data-played-key]')).map((e) => e.getAttribute('data-played-key')).join('|'),
         hero: document.querySelector('.con-played-hero')?.getAttribute('data-hero-phase') ?? 'none',
         faces, lifted, row: document.querySelector('[data-reaction-row]') !== null,
-        opening: {l, t, w: window.innerWidth - l - r, h: window.innerHeight - t - b},
+        opening: {l, t, w: openingW, h: window.innerHeight - t - b},
+        edge, railMid,
       };
       const key = JSON.stringify({...sample, t: 0, faces: sample.faces.map((f) => ({c: f.card, l: Math.round(f.l / 8), t: Math.round(f.t / 8), op: Math.round(f.op * 4)}))});
       if (key !== last) {
@@ -144,23 +163,24 @@ function chainWallMs(samples: ReadonlyArray<Sample>): number | undefined {
 const overlaps = (a: Box, b: Box): boolean => a.l < b.l + b.w && a.l + a.w > b.l && a.t < b.t + b.h && a.t + a.h > b.t;
 
 /**
- * THE ONE STAGE: every painted face stands in the MIDDLE of the central opening (its centre within the central
- * 70 % × 60 % of the opening — never a corner, never beside the rail), at a protagonist's size, and two faces never
- * overlap. Returns the cards seen at the stage.
+ * THE ONE STAGE (iteration 5 — the owner, 2026-10-27): every painted face stands AT THE RAIL'S EDGE — the row grows
+ * rightwards from the free canvas's left edge (past a hero column a workspace stands there), on the rail's resource
+ * line — never the centre of the board, never a corner; at a protagonist's size; two faces never overlap; some face
+ * stood in the FIRST slot, flush with the edge. Returns the cards seen at the stage.
  */
 function expectAtTheStage(samples: ReadonlyArray<Sample>, label: string, share = STAGE_SHARE): Set<string> {
   const seen = new Set<string>();
   const painted = samples.filter((s) => s.faces.length > 0);
   expect(painted.length, `${label}: faces were painted at the stage`).toBeGreaterThan(0);
+  const flush = painted.map((s) => Math.min(...s.faces.map((f) => f.l - s.edge)));
+  expect(Math.min(...flush), `${label}: a face stood flush with the rail's edge — ${JSON.stringify(flush)}`).toBeLessThan(painted[0].opening.w * 0.04);
   for (const s of painted) {
     for (const f of s.faces) {
       seen.add(f.card);
-      const cx = f.l + f.w / 2;
       const cy = f.t + f.h / 2;
-      const ox = s.opening.l + s.opening.w / 2;
-      const oy = s.opening.t + s.opening.h / 2;
-      expect(Math.abs(cx - ox), `${label}: ${f.card} stands in the middle of the opening (x) — ${JSON.stringify(f)} vs ${JSON.stringify(s.opening)}`).toBeLessThan(s.opening.w * 0.35);
-      expect(Math.abs(cy - oy), `${label}: ${f.card} stands in the middle of the opening (y) — ${JSON.stringify(f)} vs ${JSON.stringify(s.opening)}`).toBeLessThan(s.opening.h * 0.3);
+      expect(f.l - s.edge, `${label}: ${f.card} never stands over the rail / the hero column (x) — ${JSON.stringify(f)} vs edge ${s.edge}`).toBeGreaterThan(-6);
+      expect(f.l - s.edge, `${label}: ${f.card} stands in the rail's row, never in the middle / the right of the opening (x) — ${JSON.stringify(f)} vs edge ${s.edge}, opening ${JSON.stringify(s.opening)}`).toBeLessThan(s.opening.w * 0.55);
+      expect(Math.abs(cy - s.railMid), `${label}: ${f.card} stands on the resource block's line (y) — ${JSON.stringify(f)} vs railMid ${s.railMid}`).toBeLessThan(s.opening.h * 0.25);
       // The face's PAINTED height is the seat's (the lift of the rise is a hair); a protagonist, never a corner card.
       expect(f.h / s.opening.h, `${label}: ${f.card} stands at a protagonist's size`).toBeGreaterThan(share * 0.8);
       expect(f.h / s.opening.h, `${label}: ${f.card} never taller than the stage's share`).toBeLessThan(share * 1.12);
