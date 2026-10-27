@@ -85,6 +85,7 @@ import {Proteus} from './Proteus';
 import {TheDeimosGroup} from './TheDeimosGroup';
 import {TitanHoldings} from './TitanHoldings';
 import {VeynonDynamics} from './VeynonDynamics';
+import {LobbyingCampaign} from './LobbyingCampaign';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -424,6 +425,13 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // runs), or 1 mech from here → a free trade (the shared card door, `colonies/cardTradeDoor.ts` — TFLP's and TR66's).
     // The ▲ beside the art is the Colonies mark (TR66's precedent).
     [CardName.VEYNON_DYNAMICS]: {Factory: VeynonDynamics, compatibility: 'colonies'},
+  },
+  preludeCards: {
+    // TRP1 — the FIRST of the set's PRELUDES: +2 M€ production, 2 delegates to one resolution (the DSL's vote grant),
+    // the Agenda marker 1 step (the ONE walk, queued behind the grant — the printed order). The purple Turmoil diamond
+    // on the scan's left edge is the module itself; a Prelude is dealt only beside the Prelude expansion
+    // (`compatibility: 'prelude'` — TR82 Proteus' precedent), so Valley Trust's fallback deck never sees it.
+    [CardName.LOBBYING_CAMPAIGN]: {Factory: LobbyingCampaign, compatibility: 'prelude'},
   },
   // The classic cards a replacement above stands in for — never dealt into a Redux game (upstream's
   // `GameCards.filterReplacedCards`); a classic-Turmoil game does not load this manifest, so it keeps them.

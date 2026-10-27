@@ -26,7 +26,7 @@ import {drawnCardsState, reconcileDrawnCards} from '@/client/components/drawnCar
 import {releaseInFlight} from '@/client/console/handDock/handDeliveryState';
 import {CardModel} from '@/common/models/CardModel';
 import {parliamentCrumbCommitted, parliamentCrumbStage, parliamentFlow, resetParliamentFlow, WALK_SEAT_STAGE_KEY} from '@/client/console/parliament/consoleParliamentFlow';
-import {descendWorkspaceFrame, enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
+import {descendWorkspaceFrame, enterWorkspace, pushWorkspaceFrame, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 import {agendaWalkForYouAnnotation, agendaWalkNextRows, agendaWalkWhy, agendaWalkWhyRow, branchHostsParliamentStep, heroRewardEffectsOf, nextRowText, playCommitVerb, playDoorOf, RowTranslator} from '@/client/console/consolePlayCardComposer';
 import {AGENDA_WALK_SEAT_STEP_STAGE, AGENDA_WALK_STEP_STAGE} from '@/client/console/consoleTaskRouter';
 import {ActionPreviewBranch, AgendaWalkModel} from '@/common/models/ActionPreviewModel';
@@ -163,6 +163,26 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       seedAgendaWalkHolds(before, after);
       expect(agendaWalkFlow.owed?.host).eq('parliament');
       expect(parliamentHolds.agendaAwaits).is.not.undefined;
+    });
+
+    it('the START hosting a Parliament step (TRP1 — a Prelude\'s vote) hosts it: the walk continues in that step, never a Parliament «on its own»', () => {
+      enterWorkspace('start', {anchor: {type: 'phase', phase: 'start'}});
+      pushWorkspaceFrame({kind: 'parliament', subject: '', stage: 'Voting', phase: 'committed', serves: ['party'], anchor: {type: 'prompt', promptType: 'party'}});
+      expect(agendaWalkHostFor()).eq('start');
+      const {before, after} = pair();
+      seedAgendaWalkHolds(before, after);
+      expect(agendaWalkFlow.owed?.host).eq('start');
+      expect(agendaWalkOwedTo('start'), 'owed to the start — its frame stands for it').is.true;
+      expect(parliamentHolds.agendaAwaits).is.not.undefined;
+    });
+
+    it('the START alone (the grant asked nothing — the record rode the play\'s own answer) hosts it as a scene step of its own', () => {
+      enterWorkspace('start', {anchor: {type: 'phase', phase: 'start'}});
+      expect(agendaWalkHostFor()).eq('start');
+      const {before, after} = pair();
+      seedAgendaWalkHolds(before, after);
+      expect(agendaWalkFlow.owed?.host).eq('start');
+      expect(agendaWalkLiveIn('start')).is.false;
     });
 
     it('NOBODY there: no hold is seeded (a hold nobody would consume freezes the track), the promise is dropped, the state just updates', () => {

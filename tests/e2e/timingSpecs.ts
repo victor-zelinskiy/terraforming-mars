@@ -31,6 +31,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // TR84 Titan Holdings (2026-10-27): the corporation rising when it pays itself at the start and for a hand play, its
   // leverage born on its effect row, the vote's price and figures flown — sampled motion (the rise probe, the witness).
   'console-titan-holdings.spec.ts',
+  // TRP1 Lobbying Campaign (2026-10-27): the Prelude's vote and walk inside the start's one Parliament step — the walk's
+  // beats and the «never leaving between the two» claim are sampled from before the press, never logic.
+  'console-lobbying-campaign.spec.ts',
   // the four the first broad sample named (28 specs at motion ×0.5, 2026-10-21)
   'console-aerial-mappers.spec.ts', // the transfer witness: endsOverGlass at tv4k
   'console-supercomputer.spec.ts', // the transfer witness: endsOverGlass at tv4k

@@ -8,22 +8,33 @@
  * follow the same five steps (promise → seed → entrance → pose → end); the
  * shell's entrance, its conclusion and its diagnostics read them through
  * these functions BY KIND, never through two copies of one branch.
+ *
+ * THREE HOSTS: the hand (a card played from it), a Parliament standing on its
+ * own, and the START workspace (TRP1 Lobbying Campaign — a Prelude's walk,
+ * played in the Parliament the start hosts as a scene step). A rally has no
+ * Prelude yet, so the start hosts walks only.
  */
 import {agendaWalkFlow, agendaWalkLiveIn, agendaWalkOwedTo, dropAgendaWalkPromise} from './agendaWalk';
-import {neutralRallyFlow, neutralRallyLiveIn, neutralRallyOwedTo, dropNeutralRallyPromise} from './neutralRally';
-import {workspaceFrameDescended} from '@/client/console/consoleWorkspaceStack';
+import {neutralRallyFlow, neutralRallyLiveIn, neutralRallyOwedTo, dropNeutralRallyPromise, NeutralRallyHost} from './neutralRally';
+import {workspaceFrameDescended, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 
 export type HostedParliamentStepKind = 'walk' | 'rally';
-export type HostedParliamentStepHost = 'hand' | 'parliament';
+export type HostedParliamentStepHost = 'hand' | 'parliament' | 'start';
+
+function rallyHostOf(host: HostedParliamentStepHost): NeutralRallyHost | undefined {
+  return host === 'start' ? undefined : host;
+}
 
 /** Something a card's play owes the Parliament to show is not on screen yet (the conclusion's `owed-step`). */
 export function hostedStepOwedTo(host: HostedParliamentStepHost): boolean {
-  return agendaWalkOwedTo(host) || neutralRallyOwedTo(host);
+  const rally = rallyHostOf(host);
+  return agendaWalkOwedTo(host) || (rally !== undefined && neutralRallyOwedTo(rally));
 }
 
 /** A hosted outcome is PLAYING inside this workspace (the conclusion's `live-outcome`). */
 export function hostedStepLiveIn(host: HostedParliamentStepHost): boolean {
-  return agendaWalkLiveIn(host) || neutralRallyLiveIn(host);
+  const rally = rallyHostOf(host);
+  return agendaWalkLiveIn(host) || (rally !== undefined && neutralRallyLiveIn(rally));
 }
 
 /** The live outcome's beat, for the conclusion's diagnostics ('' when none plays). */
@@ -31,7 +42,8 @@ export function hostedStepLiveBeat(host: HostedParliamentStepHost): string {
   if (agendaWalkLiveIn(host)) {
     return `walk-live:${agendaWalkFlow.beat}`;
   }
-  if (neutralRallyLiveIn(host)) {
+  const rally = rallyHostOf(host);
+  if (rally !== undefined && neutralRallyLiveIn(rally)) {
     return `rally-live:${neutralRallyFlow.beat}`;
   }
   return '';
@@ -60,4 +72,18 @@ export function hostedStepToEnter(): HostedParliamentStepKind | undefined {
     return 'rally';
   }
   return undefined;
+}
+
+/**
+ * THE STEP THE START HAS TO ENTER NOW (TRP1): a walk owed to the start, not yet
+ * live, the opening standing and NO Parliament up — the Prelude's grant asked
+ * nothing (an empty reserve), so the record rode the play's own answer and no
+ * vote step stands to continue in. With a vote step standing, the step
+ * CONTINUES in place instead (`ConsoleShell.onParliamentFlowComplete`).
+ */
+export function startHostedStepToEnter(): HostedParliamentStepKind | undefined {
+  if (!workspaceFrameKnown('start') || workspaceFrameKnown('parliament')) {
+    return undefined;
+  }
+  return agendaWalkFlow.owed?.host === 'start' && !agendaWalkFlow.live ? 'walk' : undefined;
 }

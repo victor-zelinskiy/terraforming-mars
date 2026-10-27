@@ -1163,6 +1163,9 @@ export enum CardName {
   TITAN_HOLDINGS = 'Titan Holdings',
   VEYNON_DYNAMICS = 'Veynon Dynamics',
 
+  // Turmoil Redux PRELUDES (TRP1… — `cards/turmoilRedux/LobbyingCampaign.ts` is the first)
+  LOBBYING_CAMPAIGN = 'Lobbying Campaign',
+
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',
   COLLUSION_STANDARD_PROJECT = 'Collusion:SP',

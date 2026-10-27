@@ -51,9 +51,20 @@ function options(overrides: Partial<GameOptions> = {}): GameOptions {
 }
 
 describe('TurmoilReduxCardManifest', () => {
-  const reduxCards = cardsOf(TURMOIL_REDUX_CARD_MANIFEST);
+  const allReduxCards = cardsOf(TURMOIL_REDUX_CARD_MANIFEST);
+  /** The set's preludes (TRP#) — their own number namespace, kept apart from the TR## checks below. */
+  const preludes = allReduxCards.filter(({card}) => card.type === CardType.PRELUDE);
+  const reduxCards = allReduxCards.filter(({card}) => card.type !== CardType.PRELUDE);
 
   describe('card id namespace', () => {
+    // The set's PRELUDES are their own namespace on the scans — «TRP1», «TRP2», … (no leading zero); every other card is TR##.
+    it('every Turmoil Redux prelude carries a TRP# card number', () => {
+      expect(preludes).is.not.empty;
+      for (const {name, card} of preludes) {
+        expect(card.metadata.cardNumber, `${name} must use the TRP# namespace`).to.match(/^TRP\d+$/);
+      }
+    });
+
     it('every Turmoil Redux card carries a TR## card number (TR01…TR70, the project replacements TR71…TR76, the corporation TR77, the new corporations TR78…TR85)', () => {
       expect(reduxCards).is.not.empty;
       for (const {name, card} of reduxCards) {

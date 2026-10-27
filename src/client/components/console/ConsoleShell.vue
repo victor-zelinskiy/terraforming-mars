@@ -1713,7 +1713,7 @@ import {consoleParliamentUi} from '@/client/console/parliament/consoleParliament
 import {agendaWalkFlow, AgendaWalkRailPromise, promiseAgendaWalk} from '@/client/console/parliament/agendaWalk';
 import {neutralRallyFlow, promiseNeutralRally} from '@/client/console/parliament/neutralRally';
 import {
-  dropHostedStepPromises, HostedParliamentStepKind, hostedStepLiveBeat, hostedStepLiveIn, hostedStepOwedTo, hostedStepToEnter,
+  dropHostedStepPromises, HostedParliamentStepKind, hostedStepLiveBeat, hostedStepLiveIn, hostedStepOwedTo, hostedStepToEnter, startHostedStepToEnter,
 } from '@/client/console/parliament/hostedParliamentStep';
 import {clearSupportDiscard, promiseSupportDiscard} from '@/client/console/parliament/supportDiscard';
 import {parliamentSittingFlowBeat, parliamentSittingLive, sittingTailPlacementOf} from '@/client/console/parliament/consoleSittingFlow';
@@ -5630,6 +5630,17 @@ export default defineComponent({
       return firstActionPartyStep(this.playerView.waitingFor) && workspaceHostForStep() === 'start' &&
         !workspaceFrameKnown('parliament') && !this.consoleState.task.deferred && this.admits('followUp');
     },
+    /**
+     * THE START'S WALK STEP IS DUE (TRP1 Lobbying Campaign): the Prelude's answer carried a walk of the Agenda track
+     * owed to the START, no Parliament stands to continue in (the grant asked nothing — an empty reserve — so the
+     * record rode the play's own answer), and the opening still serves. The Parliament is pushed onto the start as
+     * its scene step to play it («СТАРТ ПАРТИИ › … › КАРЬЕРА»); with a vote step still up the walk CONTINUES in that
+     * step instead (`onParliamentFlowComplete`). Rising edge, like the party step's.
+     */
+    startWalkStepDue(): boolean {
+      return startHostedStepToEnter() === 'walk' && workspaceHostForStep() === 'start' &&
+        !this.consoleState.task.deferred && this.admits('followUp');
+    },
     ledgerDiscardStepDue(): boolean {
       return this.ledgerDiscardStepOwed &&
         payoutDiscardDue({waitingFor: this.playerView.waitingFor, untaken: payoutUntaken, inFlight: false});
@@ -7207,6 +7218,12 @@ export default defineComponent({
         return false;
       }
       if (this.startSceneServes || workspaceFrameHasNested('start')) {
+        return true;
+      }
+      // A WALK THE START OWES OR PLAYS (TRP1 — the last Prelude's walk arrives in the very answer that ends the
+      // opening's prompts): the step it is shown in is the start's, and an inner frame never outlives its host — the
+      // root stands until the walk has been read (bounded by the walk's own hold; its release re-fires this).
+      if (hostedStepOwedTo('start') || hostedStepLiveIn('start')) {
         return true;
       }
       // SERVER TRUTH, for the cases the module state cannot answer (a RELOAD
@@ -11855,6 +11872,12 @@ export default defineComponent({
       const task = taskFor(this.playerView);
       if (due && task?.kind === 'party') {
         this.openShellTaskSurface(task);
+      }
+    },
+    /** The start's walk step has come DUE (TRP1 — a Prelude's walk with no vote step to continue in): the Parliament opens as its scene step. */
+    startWalkStepDue(due: boolean): void {
+      if (due) {
+        this.enterStartWalkStep();
       }
     },
     /** The payout's discard has come DUE (the pair's card is taken, the row pays): the hand opens as the action's step. */
@@ -16514,6 +16537,12 @@ export default defineComponent({
           this.endHandWithHostedStep();
           return;
         }
+        // «КАРЬЕРА» inside the START (TRP1 — a Prelude's walk): the step LEAVES, one level, and the opening goes on
+        // with its queue (the next Prelude's prompt arrived with the walk's own answer; the start serves it).
+        if (workspaceFrameHost('parliament') === 'start') {
+          popWorkspaceFrame();
+          return;
+        }
         this.concludeWorkspaceFlowOrOwe('parliament');
         return;
       }
@@ -16522,6 +16551,14 @@ export default defineComponent({
       // conclusion re-fires the moment `nested` falls). Never the lateral
       // conclusion, which would take the host down with it.
       if (workspaceFrameHost('parliament') !== undefined && workspaceFrameAnchor('parliament')?.type === 'prompt') {
+        // THE START'S VOTE STEP, WITH A WALK BEHIND IT (TRP1 Lobbying Campaign — «add 2 delegates to a resolution,
+        // advance your Agenda marker 1 step»): the vote's answer carried the walk's record, owed to the start. The
+        // step does not leave — it CONTINUES in place, one stage deeper («ГОЛОСОВАНИЕ» → «КАРЬЕРА» on the same
+        // section, the frame past its commit), and leaves once the walk has been read (`'walk'` above).
+        if (workspaceFrameHost('parliament') === 'start' && agendaWalkFlow.owed?.host === 'start' && !agendaWalkFlow.live) {
+          this.continueStartWalkInPlace();
+          return;
+        }
         // …and a card's LIVE door hosted by the hand (a staged tail the server
         // re-asked, a reload) ends the play it was a step of: the hand frame
         // holds nothing else, so its one ending is asked with the step's.
@@ -22235,6 +22272,49 @@ export default defineComponent({
       const stage = workspaceFrameKnown('parliament') ? workspaceFrameStage('parliament') : '';
       return workspaceFrameHost('parliament') === 'hand' &&
         (stage === AGENDA_WALK_STEP_STAGE || stage === AGENDA_WALK_SEAT_STEP_STAGE || stage === NEUTRAL_RALLY_STEP_STAGE);
+    },
+    /**
+     * THE START'S WALK STEP (TRP1 Lobbying Campaign — rule 3: the grant asked nothing, the record rode the play's
+     * own answer): the Parliament is pushed onto the START as its scene step (the start row's `frameSteps:
+     * {parliament: 'scene'}` — the same handover as the first action's party step) and the section's own pose opens
+     * on the owed record (`walkOwedSeq`). A beat (`executing`): input is absorbed for the walk's length, B is not
+     * offered. The step leaves by its own hand (`onParliamentFlowComplete('walk')` → one level up).
+     */
+    enterStartWalkStep(): void {
+      const owed = agendaWalkFlow.owed;
+      if (owed === undefined || owed.host !== 'start' || agendaWalkFlow.live || workspaceFrameKnown('parliament')) {
+        return;
+      }
+      this.consoleState.task.deferred = false;
+      pushWorkspaceFrame({
+        kind: 'parliament',
+        subject: '',
+        stage: AGENDA_WALK_STEP_STAGE,
+        phase: 'executing',
+        serves: [],
+        anchor: {type: 'always'},
+        sourceCard: owed.card ?? '',
+      });
+    },
+    /**
+     * THE START'S VOTE STEP CONTINUES INTO THE WALK (TRP1 — the printed order «delegates, then the Agenda step»):
+     * the same section, one stage deeper — the frame's tail advances («ГОЛОСОВАНИЕ» → «КАРЬЕРА»), its phase is the
+     * walk's beat, and the section opens the walk pose on the record it already holds. Never a close followed by an
+     * open: the vote's cubes stay where they landed while the marker walks.
+     */
+    continueStartWalkInPlace(): void {
+      const owed = agendaWalkFlow.owed;
+      if (owed === undefined || owed.host !== 'start' || agendaWalkFlow.live) {
+        return;
+      }
+      setWorkspaceFrameStage('parliament', AGENDA_WALK_STEP_STAGE);
+      setWorkspaceFramePhase('parliament', 'executing');
+      const section = this.$refs.parliamentSection as InstanceType<typeof ConsoleParliamentSection> | undefined;
+      void this.$nextTick(() => {
+        if (agendaWalkFlow.owed?.host === 'start' && !agendaWalkFlow.live) {
+          section?.openWalkFlow();
+        }
+      });
     },
     async enterHostedParliamentStep(kind: HostedParliamentStepKind): Promise<void> {
       // ONE entrance for both hosted outcomes (TR04's walk, TR31's rally): the record owed to the hand, not yet live.

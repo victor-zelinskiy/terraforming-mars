@@ -414,6 +414,10 @@ export default defineComponent({
       careerDossierOpen: false,
       /** The seat / sitting stage is folding back — its DOM stays for the leave beat. */
       stageLeaving: false,
+      /** THE HEAD'S LEAVE LATCH (TRP1): «this surface was the start's scene step» and the stack crumb it last drew —
+       *  kept through the dissolve after the frame has left the stack, so the head leaves whole (never re-read). */
+      sceneStepLatch: false,
+      headLatch: undefined as ReturnType<typeof workspaceStackCrumb>,
       /**
        * THE LEAVE LATCH (v3 В1): the last COHERENT player view, frozen when the surface starts leaving —
        * the phase's end (the sitting's data gone in the same response that closes the frame), the flow's
@@ -1035,7 +1039,7 @@ export default defineComponent({
     },
     /** The walk the answer carried for THIS section to play (its serial; 0 = none) — the pose opens on it. */
     walkOwedSeq(): number {
-      return agendaWalkFlow.owed !== undefined && agendaWalkFlow.owed.host === 'hand' && this.embedded && !this.warm ? agendaWalkFlow.owed.seq : 0;
+      return agendaWalkFlow.owed !== undefined && (agendaWalkFlow.owed.host === 'hand' || agendaWalkFlow.owed.host === 'start') && this.embedded && !this.warm ? agendaWalkFlow.owed.seq : 0;
     },
     /** «ДЕЛЕГАТЫ» — a card's rally of neutral delegates is the section's subject (the rally pose stands, TR31). */
     rallyUp(): boolean {
@@ -1157,10 +1161,23 @@ export default defineComponent({
      * and the frame publishes only its stage — the corporation stays the subject.
      */
     sceneStepOfStart(): boolean {
+      // …and it STAYS one while the surface LEAVES (TRP1 — the start's walk step popped): the frame is gone from
+      // the stack in the very flush the dissolve starts, and a head that re-read the stack then flashed the
+      // standalone words («ПАРЛАМЕНТ › ОБЗОР › КАРЬЕРА») over a surface the player saw as the start's own step.
+      return this.sceneStepOfStartLive || (this.leaving && this.sceneStepLatch);
+    },
+    sceneStepOfStartLive(): boolean {
       return workspaceFrameHost('parliament') === 'start';
     },
+    stackCrumbLive(): ReturnType<typeof workspaceStackCrumb> {
+      return this.sceneStepOfStartLive ? workspaceStackCrumb() : undefined;
+    },
+    /** The stack's crumb while the frame stands; the LATCHED one while the surface leaves (the head leaves whole). */
     stackCrumb(): ReturnType<typeof workspaceStackCrumb> {
-      return this.sceneStepOfStart ? workspaceStackCrumb() : undefined;
+      if (!this.sceneStepOfStart) {
+        return undefined;
+      }
+      return this.stackCrumbLive ?? this.headLatch;
     },
     headRoot(): string {
       return this.stackCrumb?.root ?? 'Parliament';
@@ -1315,7 +1332,36 @@ export default defineComponent({
         this.frozenView ??= this.playerView;
       } else {
         this.frozenView = undefined;
+        // A leave that is over (or cancelled) with the frame gone: the head latch has served; a frame still standing
+        // (the leave was cancelled — a restore) keeps reading the live stack and re-latches on its next change.
+        if (!this.sceneStepOfStartLive) {
+          this.sceneStepLatch = false;
+          this.headLatch = undefined;
+        }
       }
+    },
+    /**
+     * THE HEAD'S LEAVE LATCH, taken SYNCHRONOUSLY while the frame stands (TRP1): the pop that starts the leave and
+     * the `leaving` prop land in one flush, and a latch taken by an ordinary (post-flush) watcher would read the
+     * stack AFTER the frame has left it — the standalone words, exactly what the latch exists to keep out.
+     */
+    'sceneStepOfStartLive': {
+      immediate: true,
+      flush: 'sync',
+      handler(on: boolean): void {
+        if (on) {
+          this.sceneStepLatch = true;
+        }
+      },
+    },
+    'stackCrumbLive': {
+      immediate: true,
+      flush: 'sync',
+      handler(crumb: ReturnType<typeof workspaceStackCrumb>): void {
+        if (crumb !== undefined) {
+          this.headLatch = crumb;
+        }
+      },
     },
     'commands': {
       immediate: true,

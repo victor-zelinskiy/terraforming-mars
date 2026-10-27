@@ -221,6 +221,13 @@ export class PlaceDelegatesOnResolution extends DeferredAction<undefined> {
     const offer = this.offer();
     if ('refusal' in offer) {
       game.log(offer.refusal, (b) => b.player(player));
+      // The live half of «no silent loss»: the grant the play promised (and the preview warned about) is RECORDED
+      // as skipped, word for word with `previewSkip` — the journal's own «Пропущено» row, never a log line alone
+      // (TRP1 Lobbying Campaign: the Prelude's delegates lost to an empty reserve, its walk still taken).
+      const lost = this.previewSkip();
+      if (lost !== undefined) {
+        recordSkippedEffect(player, lost.reason, lost.skipped, {log: false});
+      }
       return undefined;
     }
     const {parliament, parties, count} = offer;

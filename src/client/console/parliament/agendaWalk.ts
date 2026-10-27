@@ -42,7 +42,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentAdvanceModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {AgendaAdvanceStep} from '@/common/parliament/ParliamentTypes';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {workspaceFrameDescended, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
+import {workspaceFrameDescended, workspaceFrameHost, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {parliamentHolds} from './parliamentDisplayHolds';
@@ -64,8 +64,12 @@ export type AgendaWalkRailPromise = {
   known: Readonly<Record<string, number>>;
 };
 
-/** WHO PLAYS the walk: the hand that hosts the Parliament as a step, or a Parliament standing on its own. */
-export type AgendaWalkHost = 'hand' | 'parliament';
+/**
+ * WHO PLAYS the walk: the hand that hosts the Parliament as a step, a Parliament standing on its own — or the START
+ * workspace (TRP1 Lobbying Campaign: a Prelude's walk, played in the Parliament the start hosts as a scene step; the
+ * record rides the vote's answer, after its cubes have landed, or the play's own answer when no vote was asked).
+ */
+export type AgendaWalkHost = 'hand' | 'parliament' | 'start';
 
 /** The walk as the tier plays it — the server's record, less the wire's identity. */
 export type AgendaWalkRecord = {
@@ -171,7 +175,14 @@ export function agendaWalkHostFor(): AgendaWalkHost | undefined {
     return 'hand';
   }
   if (workspaceFrameKnown('parliament')) {
-    return 'parliament';
+    // A Parliament the START hosts as a scene step (a Prelude's vote — TRP1) plays the walk IN that step, as the
+    // hand's hosted step does: the start is the host, never a Parliament «standing on its own».
+    return workspaceFrameHost('parliament') === 'start' ? 'start' : 'parliament';
+  }
+  if (workspaceFrameKnown('start')) {
+    // The opening, with no Parliament up (the Prelude's grant asked nothing — rule 3 of TRP1): the start hosts the
+    // walk as a scene step of its own (`ConsoleShell.startWalkStepDue`).
+    return 'start';
   }
   return undefined;
 }
