@@ -363,6 +363,29 @@ describe('parliament glossary — one word per concept (static guard)', () => {
     }
   });
 
+  it('the LEVERAGE of Titan Holdings (TR84) is «рычаг» — never the Parliament\'s «влияние» (glossary § 3)', () => {
+    // «Influence» is the Parliament's own concept (the career's disc, the payouts) — a card resource that buys
+    // delegates must not borrow its word, or «4 влияния → 2 делегата» reads as spending the career. Every RU file.
+    const dir = path.join(ROOT, 'src', 'locales', 'ru');
+    const hits: Array<string> = [];
+    let keys = 0;
+    for (const name of fs.readdirSync(dir).filter((n) => n.endsWith('.json'))) {
+      const table = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8')) as Record<string, unknown>;
+      for (const [key, value] of Object.entries(table)) {
+        // (the lore of an upstream card says «a lot of leverage» in the plain sense — not the resource)
+        if (typeof value !== 'string' || !/leverage/i.test(key) || /lot of leverage/.test(key)) {
+          continue;
+        }
+        keys++;
+        if (/влияни/i.test(value)) {
+          hits.push(`${name}: ${key} → «${value}»`);
+        }
+      }
+    }
+    expect(keys, 'the leverage keys are found at all').to.be.greaterThan(0);
+    expect(hits, 'leverage is «рычаг»').to.deep.equal([]);
+  });
+
   it('the resolution\'s party column and the party inspector name the mechanics the same way', () => {
     const annotations = sources.find(({p}) => p.endsWith('parliamentAnnotations.ts'));
     expect(annotations, 'parliamentAnnotations.ts is in the tree').to.not.equal(undefined);

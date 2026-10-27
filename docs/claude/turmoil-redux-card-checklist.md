@@ -32,7 +32,13 @@
   `TurmoilReplacementsUnderRedux.spec`, пока её не классифицируют: адаптировать на месте (политика — только через
   `game.politics`) или завести строку замены. Политика — только через фасад (Executor: `placeDelegates` / `addInfluenceBonus`).
 - [ ] Новая механика? (новый ресурс карт, новая платёжная единица, новый вид требования) — сначала её
-  инфраструктура сквозным контрактом (образец меха: `docs/TURMOIL_REDUX_EVA_MECHS.md` §2–§3), потом карта.
+  инфраструктура сквозным контрактом (образец меха: `docs/TURMOIL_REDUX_EVA_MECHS.md` §2–§3), потом карта. **Новый
+  ресурс карт = таблица EVA §2 + спрайт семьи 512²** (`node scripts/import-resource-icon.mjs <png> <литерал>`; второй прошёл
+  TR84 Leverage — `docs/TURMOIL_REDUX_TITAN_HOLDINGS.md` §1).
+- [ ] **Текст карты по флагам дополнений** («…или Луны» только с Луной) — `metadata.textVariants` (+ RU обоих ключей);
+  читает ОДИН `cardTextFor` в `translateText`, никакого `if (moon)` в компоненте (TR84 §4).
+- [ ] **Действие-`or`, где ветка «N отсюда → делегат»** — отказ при пустой области и цена ВНУТРИ ответа приходят даром
+  (`delegateIsTheActionsResult` знает ветки; Executor передаёт `price` гранту) — bespoke `censusAction` не нужен (TR84 §3).
 - [ ] **Карта-реактор (хук `onCardPlayed` / `onTilePlaced` / `onAgendaStep` / …): ЗАПИСЬ приходит даром, ЗЕРКАЛО
   обязательно (CN, 2026-10-26).** Сработавший эффект консоль играет по записи сервера (`GameModel.cardReactions` —
   `EventRecorder.recordReaction` публикует её для ЛЮБОГО `withEffect`-скоупа с воздействием: карта ничего не

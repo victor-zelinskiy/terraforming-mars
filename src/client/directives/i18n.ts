@@ -9,6 +9,7 @@ import {tileTypeToString} from '@/common/TileType';
 import {Color} from '@/common/Color';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
+import {cardTextFor, setCardTextExpansions} from '@/client/cards/cardTextVariants';
 
 type Context = {
   playerView: PlayerViewModel | undefined;
@@ -41,6 +42,8 @@ const context: Context = {
 
 export function setTranslationContext(playerView: PlayerViewModel) {
   context.playerView = playerView;
+  // A card's printed text names only what this game can play (`metadata.textVariants` — TR84's «…or Moon»).
+  setCardTextExpansions(playerView.game?.gameOptions?.expansions);
   context.players.clear();
   context.playerNames.clear();
   context.marsBotColors.clear();
@@ -143,6 +146,9 @@ export type TranslateTextOptions = {
 
 let translated: Set<string> | undefined;
 export function translateText(englishText: string, options?: TranslateTextOptions): string {
+  // A printed card text with an EXPANSION VARIANT is swapped for the current game's FIRST — in every language,
+  // English included (`cardTextVariants.ts`; a key no card varies returns unchanged).
+  englishText = cardTextFor(englishText);
   const lang = getPreferences().lang;
   // A pure view-model translated under the SERVER runner (no DOM — `politicalEffects.captionsFor`, tests/console/**)
   // has no translation table: the English key is the honest answer there, exactly as for `lang === 'en'`.

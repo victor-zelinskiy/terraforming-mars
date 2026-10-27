@@ -34,4 +34,6 @@ export const cardResourceCSS = {
   // EVA Mechs (TR09): the global class is generated from `@card_resource_types`
   // (cards_v2.less); the premium face resolves `assets/resources/mech.png` by name.
   [CardResource.MECH]: 'card-resource-mech',
+  // Titan Holdings (TR84): the same road as the mech's.
+  [CardResource.LEVERAGE]: 'card-resource-leverage',
 } satisfies Record<CardResource, string>;

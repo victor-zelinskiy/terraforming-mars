@@ -263,5 +263,10 @@
     "Action: Spend 6 data from here to place a colony or ocean tile.": "Действие: потратьте 6 данных с этой карты, чтобы разместить колонию или тайл океана.",
     "You start with 50 M€. As your first action, add a delegate to any resolution.": "Вы начинаете с 50 M€. Первым действием добавьте делегата на любую резолюцию.",
     "Effect: You have +2 influence. When playing cards, you can ignore all party requirements.": "Эффект: у вас +2 влияния. При розыгрыше карт вы можете игнорировать все требования партий.",
-    "Add a delegate to any resolution": "Добавьте делегата на любую резолюцию"
+    "Add a delegate to any resolution": "Добавьте делегата на любую резолюцию",
+    "You start with 50 M€ and 2 M€ production.": "Вы начинаете с 50 M€ и 2 производства M€.",
+    "Effect: After you play a Mars, Earth, Venus, Jovian, or Moon tag (including these), add 1 leverage resource to this card.": "Эффект: после розыгрыша метки Марса, Земли, Венеры, Юпитера или Луны (включая эти) положите 1 рычаг на эту карту.",
+    "Effect: After you play a Mars, Earth, Venus, or Jovian tag (including these), add 1 leverage resource to this card.": "Эффект: после розыгрыша метки Марса, Земли, Венеры или Юпитера (включая эти) положите 1 рычаг на эту карту.",
+    "Action: Spend 2 leverage from here to add 1 delegate to a resolution.": "Действие: потратьте 2 рычага с этой карты, чтобы добавить 1 делегата на резолюцию.",
+    "Action: Spend 4 leverage from here to add 2 delegates to a resolution.": "Действие: потратьте 4 рычага с этой карты, чтобы добавить 2 делегатов на резолюцию."
 }

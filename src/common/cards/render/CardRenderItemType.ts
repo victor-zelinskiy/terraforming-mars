@@ -98,6 +98,11 @@ export enum CardRenderItemType {
   MOON_MINE = 'moon-mine',
   MOON_MINING_RATE = 'moon-mine-rate',
   PLANETARY_TRACK = 'plantary-track',
+  /**
+   * Turmoil Redux (TR84 Titan Holdings): «a Mars, Earth, Venus, Jovian or Moon TAG» — the scan's white tag disc with a
+   * ringed planet (`assets/misc/planet-tag.svg`). Not the Pathfinders `PLANETARY_TRACK` (a track, not a tag).
+   */
+  PLANET_TAG = 'planet-tag',
   GLOBAL_EVENT = 'global-event',
   FIRST_PLAYER = '1p',
   RULING_PARTY = 'ruling-party',

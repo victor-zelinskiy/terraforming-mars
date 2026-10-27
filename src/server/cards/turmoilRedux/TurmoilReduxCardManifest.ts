@@ -83,6 +83,7 @@ import {HartlanHeating} from './HartlanHeating';
 import {LotusInnovations} from './LotusInnovations';
 import {Proteus} from './Proteus';
 import {TheDeimosGroup} from './TheDeimosGroup';
+import {TitanHoldings} from './TitanHoldings';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -412,6 +413,11 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // (`turmoil.sendDelegates` — the grant's vote), +2 influence (the Parliament's NAMED ledger) and every party
     // requirement on cards lifted (`partyRequirementWaiver` WITHOUT `nextCardOnly` — TR70's waiver, standing).
     [CardName.THE_DEIMOS_GROUP]: {Factory: TheDeimosGroup},
+    // TR84 — the SEVENTH new corporation: a LEVERAGE (a new card resource) on itself for every played planet tag —
+    // Mars, Earth, Venus, Jovian, Moon — its own two included (`titanTags` — one predicate for the hook and its twin);
+    // 2 leverage → a delegate, 4 → two (declarative branches; the price rides the vote's answer). The Moon is an
+    // option of the effect's TEXT (`textVariants`), not a condition of the card — no `compatibility`.
+    [CardName.TITAN_HOLDINGS]: {Factory: TitanHoldings},
   },
   // The classic cards a replacement above stands in for — never dealt into a Redux game (upstream's
   // `GameCards.filterReplacedCards`); a classic-Turmoil game does not load this manifest, so it keeps them.

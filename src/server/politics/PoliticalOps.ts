@@ -22,6 +22,7 @@ import {normalizeReduxParty, PARTY_EFFECT_DELEGATES, ReduxParty, ResolutionId} f
 import {isReduxPartyName, Parliament} from '../parliament/Parliament';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
 import {SendDelegateToArea} from '../deferredActions/SendDelegateToArea';
+import type {ICard} from '../cards/ICard';
 
 export type PoliticalDelegate = IPlayer | 'NEUTRAL';
 
@@ -53,6 +54,13 @@ export type PlaceDelegatesOptions = {
   oneParty: boolean;
   /** The giver — the card the prompt names (Redux keeps it; classic Turmoil has nowhere to put it). */
   source: CardName;
+  /**
+   * The resources «from here» the delegates are BOUGHT with (TR84 Titan Holdings: «spend 2 leverage from here to add
+   * a delegate») — the Executor hands them over instead of spending them when the delegate is the action's whole
+   * result (`delegateIsTheActionsResult`). Redux: the grant's own `price` — paid inside the answer, right before the
+   * cubes land. Classic: paid at once, the way upstream's Executor always did.
+   */
+  price?: {card: ICard, count: number};
 };
 
 /**
@@ -272,8 +280,12 @@ export class ReduxPoliticalOps implements PoliticalOps {
   public placeDelegates(player: IPlayer, count: number, options: PlaceDelegatesOptions): void {
     const cause = {kind: 'card' as const, card: options.source};
     if (options.oneParty) {
-      this.game.defer(new PlaceDelegatesOnResolution(player, count, cause));
+      this.game.defer(new PlaceDelegatesOnResolution(player, count, cause, options.price === undefined ? {} : {price: options.price}));
       return;
+    }
+    // Delegates asked one by one have no single answer to carry a price: it is paid now (no declaration does this).
+    if (options.price !== undefined) {
+      player.removeResourceFrom(options.price.card, options.price.count);
     }
     for (let i = 0; i < count; i++) {
       this.game.defer(new PlaceDelegatesOnResolution(player, 1, cause));
@@ -345,6 +357,10 @@ export class ClassicPoliticalOps implements PoliticalOps {
     return true;
   }
   public placeDelegates(player: IPlayer, count: number, options: PlaceDelegatesOptions): void {
+    // A price «from here» is paid at once — upstream's Executor spent it before the delegates, and so does the classic table.
+    if (options.price !== undefined) {
+      player.removeResourceFrom(options.price.card, options.price.count);
+    }
     // Upstream's Executor branch, moved here unchanged (the source has nowhere to live in the classic engine).
     if (!options.oneParty) {
       for (let i = 0; i < count; i++) {

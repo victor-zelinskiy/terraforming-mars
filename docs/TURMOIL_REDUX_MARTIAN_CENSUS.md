@@ -156,6 +156,12 @@ COMMIT своей карты (`playCommitBeat(branch)` — вынесен из `
 иконку цены, строка тикает на отлёте, куб отрывается от резерва после ПОГЛОЩЕНИЯ; снимок голоса помнит `railPrice`).
 Цена-ресурс карты (TR15 / TR34) — как была: `spendDepartsElsewhere`, жетон Парламента. Стенд `console-martian-media-center`.
 
+**ЦЕНА-РЕСУРС ДЕКЛАРАТИВНОЙ ВЕТКИ (TR84 Titan Holdings, 2026-10-27).** Ветка `or` вида `{spend: {resourcesHere: N},
+turmoil: {sendDelegates}}` — тот же закон, что у bespoke `censusGrant`, без кода в карте: `delegateIsTheActionsResult`
+принимает ветку действия (пустая область — ветка отказана), Executor передаёт `resourcesHere` гранту как `price`
+(`PlaceDelegatesOptions.price` → `PlaceDelegatesOnResolution`, CHECK → PAY → PLACE), превью строит дверь с той же ценой.
+Квитанция — `{N, <ресурс>}` первой цены ветки; две фигуры за ветку `count: 2` — одна резолюция (`oneParty`).
+
 **Крошка** — `ДЕЙСТВИЯ КАРТ › МАРСИАНСКАЯ ПЕРЕПИСЬ › ГОЛОСОВАНИЕ`: хвост из кадра Парламента
 (`workspaceFrameStage('parliament')` в `focusKickerKey`), циан до A, янтарь после (`parliamentStepCommitted` в
 `:committed` шапки). Чип варианта «2/2» прячется, пока стоит шаг. Эмблема workspace и имя карты не двигаются.

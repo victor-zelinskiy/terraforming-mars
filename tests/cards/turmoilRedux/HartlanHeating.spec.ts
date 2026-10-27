@@ -12,6 +12,7 @@ import {EarlySettlement} from '../../../src/server/cards/prelude/EarlySettlement
 import {ReSettlement} from '../../../src/server/cards/turmoilRedux/ReSettlement';
 import {TharsisRepublic} from '../../../src/server/cards/corporation/TharsisRepublic';
 import {testGame} from '../../TestGame';
+import {GameCards} from '../../../src/server/GameCards';
 import {TestPlayer} from '../../TestPlayer';
 import {IGame} from '../../../src/server/IGame';
 import {CardName} from '../../../src/common/cards/CardName';
@@ -297,10 +298,12 @@ describe('HartlanHeating', () => {
 
   describe('rule 6 — the deal and the save', () => {
     it('a Redux table deals the corporation; a classic Turmoil table does not', () => {
+      // The POOL, not the shuffled draw pile: a dealt hand takes the card out of it (a new corporation in the pool
+      // reshuffles the deal — TR84 made this one dealt).
       const [redux] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
-      expect(redux.corporationDeck.drawPile.map((c) => c.name)).to.include(CardName.HARTLAN_HEATING);
+      expect(new GameCards(redux.gameOptions).getCorporationCards().map((c) => c.name)).to.include(CardName.HARTLAN_HEATING);
       const [classic] = testGame(2, {turmoilExtension: true});
-      expect(classic.corporationDeck.drawPile.map((c) => c.name)).to.not.include(CardName.HARTLAN_HEATING);
+      expect(new GameCards(classic.gameOptions).getCorporationCards().map((c) => c.name)).to.not.include(CardName.HARTLAN_HEATING);
     });
 
     it('the reaction ring is presentation only — a save holds no record, the rule survives', () => {

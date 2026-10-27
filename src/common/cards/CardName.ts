@@ -1160,6 +1160,7 @@ export enum CardName {
   LOTUS_INNOVATIONS = 'Lotus Innovations',
   PROTEUS = 'Proteus',
   THE_DEIMOS_GROUP = 'The Deimos Group',
+  TITAN_HOLDINGS = 'Titan Holdings',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

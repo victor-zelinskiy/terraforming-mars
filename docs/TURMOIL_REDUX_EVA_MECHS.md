@@ -51,6 +51,11 @@
 `RemoveResourcesFromCard` — всё generic. `addResourcesToAnyCard: {type: CardResource.MECH}`,
 `getResourceCards(CardResource.MECH)`, `player.addResourceTo(card, …)` работают для любого держателя.
 
+**Второй новый ресурс прошёл по этой таблице без единой правки общих путей** — Leverage («рычаг», TR84 Titan
+Holdings, 2026-10-27, `docs/TURMOIL_REDUX_TITAN_HOLDINGS.md` §1); строка `ICON_NEEDLES` больше не нужна
+(`CARD_RESOURCE_NEEDLES` выводит иглу из спрайта), множественное в `ConsoleExtrasExplorer` — свой ключ, если английское
+слово неисчисляемое.
+
 **Держатели мехов и смысл меха на каждом** (семь после TR50 — таблица смыслов, роли спутника и метки шага цели) — §8.
 
 ## 3. Контракт единицы `mechs` (тропа `floodgateSteel`, без её лишнего)

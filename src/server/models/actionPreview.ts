@@ -27,6 +27,7 @@ import {withVetoedRating} from './vetoedRating';
 import * as divertedGate from '../parliament/divertedTerraformingGate';
 import {actionFutility} from './actionFutility';
 import {attachStagedPlacement, stagedPlacementForBehavior} from './stagedBehaviorPlacement';
+import {delegateIsTheActionsResult} from '../politics/delegateIsTheActionsResult';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
 
 /**
@@ -1050,7 +1051,14 @@ export function stepsForBehavior(
   if (sendDelegates !== undefined && sendDelegates.manyParties !== true && player.game.parliament !== undefined) {
     const printed = ctx.count(sendDelegates.count);
     if (printed > 0) {
-      const grant = new PlaceDelegatesOnResolution(player, printed, cardSource(card));
+      // PREVIEW = EXECUTION: a price «from here» the Executor hands to the grant (the delegate is the action's whole
+      // result — TR84's branches) rides the previewed grant too, so the door asks exactly what the answer will charge.
+      const here = behavior.spend?.resourcesHere ?? 0;
+      const price = here > 0 && delegateIsTheActionsResult(card, behavior) ? {card, count: here} : undefined;
+      // …and the giver as the facade names it (`PoliticalOps.placeDelegates`: `{kind: 'card'}` for every card, a
+      // corporation included — TR84): `cardSource` would say «corporation», the staged door would not read as the
+      // card's own (no receipt) and the pre-collected answer's address would miss the live prompt's.
+      const grant = new PlaceDelegatesOnResolution(player, printed, {kind: 'card', card: card.name}, price === undefined ? {} : {price});
       const lost = grant.previewSkip();
       if (lost !== undefined) {
         steps.push(actionPreviews.warningNote(lost.reason, {skipped: lost.skipped}));

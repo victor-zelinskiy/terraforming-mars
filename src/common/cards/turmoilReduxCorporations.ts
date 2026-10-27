@@ -46,7 +46,9 @@ export const TURMOIL_REDUX_NEW_CORPORATIONS: ReadonlyArray<ReduxCorporationRow> 
   // TR83 — AUTHORED 2026-10-27 (`turmoilRedux/TheDeimosGroup.ts`): a delegate on any resolution as the first action,
   // +2 influence (the named ledger), every party requirement on cards lifted (the TR70 waiver, standing).
   {name: 'The Deimos Group', scan: 'Corporations/Corporation - The Deimos Group.png', authored: CardName.THE_DEIMOS_GROUP},
-  {name: 'Titan Holdings', scan: 'Corporations/Corporation - Titan Holdings.png'},
+  // TR84 — AUTHORED 2026-10-27 (`turmoilRedux/TitanHoldings.ts`): a leverage here for every played Mars / Earth / Venus /
+  // Jovian / Moon tag (its own two included); 2 leverage → a delegate, 4 → two.
+  {name: 'Titan Holdings', scan: 'Corporations/Corporation - Titan Holdings.png', authored: CardName.TITAN_HOLDINGS},
   {name: 'Veynon Dynamics', scan: 'Corporations/Corporation - Veynon Dynamics.png'},
 ];
 

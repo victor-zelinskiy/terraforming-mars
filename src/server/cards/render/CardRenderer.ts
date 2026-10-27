@@ -498,6 +498,15 @@ abstract class Builder<T> {
     return this._appendToRow(new CardRenderItem(CardRenderItemType.MOON_MINING_RATE, 1, options));
   }
 
+  /**
+   * Turmoil Redux (TR84 Titan Holdings): «a PLANET TAG» — Mars, Earth, Venus, Jovian or Moon, one disc for the five
+   * (the scan prints it so). The printed text names which ones the game can play (`metadata.textVariants`); the face
+   * never draws the Moon.
+   */
+  public planetTag(): this {
+    return this._appendToRow(new CardRenderItem(CardRenderItemType.PLANET_TAG, 1));
+  }
+
   public planetaryTrack(): this {
     this._appendToRow(new CardRenderItem(CardRenderItemType.PLANETARY_TRACK, 1));
     return this;

@@ -3,6 +3,7 @@ import {ICardRenderDescription} from './render/ICardRenderDescription';
 import {CardComponent} from './render/CardComponent';
 import {CardInformation, CardInfoText} from './CardInformation';
 import {CardName} from './CardName';
+import {CardTextVariant} from './CardTextVariant';
 
 export type CardMetadata = {
   /**
@@ -29,6 +30,13 @@ export type CardMetadata = {
    * exported to the client (the generated `information` below is).
    */
   infoText?: ReadonlyArray<CardInfoText>;
+  /**
+   * PRINTED TEXT BY THE GAME'S EXPANSIONS (TR84 Titan Holdings — «…or Moon» only with the Moon): shorter keys that
+   * replace a full printed key while the named expansions are off (`CardTextVariant.ts`). Exported to the client with
+   * the metadata; ONE client reader picks the variant for the current game (`client/cards/cardTextVariants.ts`),
+   * wherever the text is translated — the face itself prints icons only.
+   */
+  textVariants?: ReadonlyArray<CardTextVariant>;
   /**
    * Structured per-graphic-block card text (see CardInformation.ts).
    * GENERATED at build time (make:cards) — never hand-set in card classes;

@@ -610,5 +610,8 @@
     "Tag matching a Prelude tag: +1 data here": "Метка как на прелюдии: +1 данные сюда",
     "6 data here: a colony or an ocean": "6 данных отсюда: колония или океан",
     "As your first action, add a delegate to any resolution.": "Первым действием добавьте делегата на любую резолюцию.",
-    "+2 influence · party requirements ignored": "+2 влияния · требования партий игнорируются"
+    "+2 influence · party requirements ignored": "+2 влияния · требования партий игнорируются",
+    "A planet tag played: +1 leverage here": "Планетарная метка: +1 рычаг сюда",
+    "2 leverage here: 1 delegate": "2 рычага отсюда: 1 делегат",
+    "4 leverage here: 2 delegates": "4 рычага отсюда: 2 делегата"
 }

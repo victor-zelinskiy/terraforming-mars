@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Turmoil Redux (TR84 Titan Holdings) — THE PLANET TAG: «a Mars, Earth, Venus, Jovian or Moon tag», the scan's white
+       tag disc with a ringed planet drawn in ink. A tag medallion of the face's family (`assets/tags/empty.png` — the white
+       disc and its steel rim), never a raster tag of one planet and never a row of five (the Moon is NOT drawn on the face
+       under any flag — the effect's TEXT names the planets the game can play). One file; the colour lives in it. -->
+  <defs>
+    <radialGradient id="planet-tag-disc" cx="40%" cy="34%" r="70%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.7" stop-color="#eceef1"/>
+      <stop offset="1" stop-color="#c9ced6"/>
+    </radialGradient>
+    <linearGradient id="planet-tag-rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5b616b"/>
+      <stop offset="1" stop-color="#1b1e23"/>
+    </linearGradient>
+  </defs>
+  <circle cx="24" cy="24" r="22.3" fill="url(#planet-tag-disc)" stroke="url(#planet-tag-rim)" stroke-width="2.6"/>
+  <!-- the ring's far half, behind the sphere -->
+  <path d="M10.6 29.6C8.4 27.1 9.6 23.4 14.6 20.5C20.9 16.8 30.6 14.7 35.2 16.1" fill="none" stroke="#1d2026" stroke-width="2.1" stroke-linecap="round"/>
+  <circle cx="24" cy="24" r="8.6" fill="#ffffff" stroke="#1d2026" stroke-width="2.3"/>
+  <!-- the ring's near half, over the sphere -->
+  <path d="M35.2 16.1C39.4 17.4 38.2 21.6 32.6 25.2C26.4 29.2 16.2 31.6 11.9 30.3C11.3 30.1 10.9 29.9 10.6 29.6" fill="none" stroke="#1d2026" stroke-width="2.1" stroke-linecap="round"/>
+</svg>

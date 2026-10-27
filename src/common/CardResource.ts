@@ -39,6 +39,12 @@ export enum CardResource {
   // the graphic id (`res-mech`) and the CSS class (`.card-resource-mech`) are
   // all derived from it.
   MECH = 'Mech',
+  // Turmoil Redux (Titan Holdings, TR84): the corporation's «leverage» — a
+  // plain card resource (never a payment unit, never VP). The literal is
+  // LOAD-BEARING exactly like `MECH`'s (`assets/resources/leverage.png`,
+  // `res-leverage`, `.card-resource-leverage`). It is NOT «influence»: that
+  // word is the Parliament's (docs/claude/parliament-glossary.md §3).
+  LEVERAGE = 'Leverage',
 
   // Moon
   SYNDICATE_FLEET = 'Syndicate Fleet',

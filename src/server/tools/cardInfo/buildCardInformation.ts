@@ -951,6 +951,12 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
   const notes: Array<string> = [];
   const groups: Array<CardInfoGroup> = [];
   const graphics = deriveGraphicIds(card.metadata.renderData);
+  // A printed text's EXPANSION VARIANTS are keys the client prints instead (`metadata.textVariants`) — each is audited
+  // for its translation like the block text it stands in for.
+  for (const variant of card.metadata.textVariants ?? []) {
+    key(variant.text);
+    key(variant.variant);
+  }
   const unlinked: Array<string> = [];
 
   // Corporations take a dedicated, hand-curated path (starting resources +
@@ -1248,6 +1254,11 @@ function graphicOf(match: GraphicMatchPos): GraphicMatch {
  * browser paints beside the printed formula. Targeting is by GRAPHIC
  * (`tokens`), with the unambiguous single-action/effect card needing none;
  * anything the generator cannot place lands in the audit instead of guessing.
+ * Frames that share ONE content signature (TR84 Titan Holdings: «2 [leverage]
+ * → [delegate]» over «4 [leverage] → [delegate][delegate]» — the ids differ
+ * only by the `~N` of their repeat) cannot be told apart by a token: there the
+ * captions are authored WITHOUT tokens, ONE PER FRAME, in the printed order,
+ * and land by that order — the author's order, never a guess.
  */
 function applyShortCaptions(
   card: ICard,
@@ -1262,7 +1273,13 @@ function applyShortCaptions(
   const blocks = groups
     .filter((g) => g.kind === blockKind)
     .flatMap((g) => g.blocks.filter((b) => b.kind === blockKind));
-  for (const entry of authored) {
+  // One untokened caption per frame, in the printed order (the groups come in render order).
+  const byOrder = blocks.length > 1 && authored.length === blocks.length && authored.every((entry) => entry.tokens === undefined);
+  for (const [i, entry] of authored.entries()) {
+    if (byOrder) {
+      blocks[i].short = key(entry.text);
+      continue;
+    }
     let target: CardInfoBlock | undefined;
     if (entry.tokens !== undefined) {
       // A frame's graphic id IS its formula's content signature

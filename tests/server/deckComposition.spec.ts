@@ -77,13 +77,13 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
     // The classic CORPORATIONS adapted in place (R38 Lakefront Resorts, R14 Terralabs Research, R33 Utopia Invest, R07
     // Pristar) are dealt as Redux's corporations.
     // …plus Redux's own corporations (TR77 Septem Tribus:redux — its classic R15 is removed by `cardsToRemove`; TR78 Arwind Inc.,
-    // TR79 Ferrus Academy, TR80 Hartlan Heating, TR81 Lotus Innovations, TR82 Proteus and TR83 The Deimos Group, the first
-    // six of the eight NEW corporations — `common/cards/turmoilReduxCorporations.ts`; Proteus needs Preludes, which this
+    // TR79 Ferrus Academy, TR80 Hartlan Heating, TR81 Lotus Innovations, TR82 Proteus, TR83 The Deimos Group and TR84 Titan
+    // Holdings, the first seven of the eight NEW corporations — `common/cards/turmoilReduxCorporations.ts`; Proteus needs Preludes, which this
     // creator config has).
     const adaptedCorporations = Object.keys(TURMOIL_CARD_MANIFEST.corporationCards)
       .filter((name) => !TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(name as CardName)).length +
       Object.keys(TURMOIL_REDUX_CARD_MANIFEST.corporationCards).length;
-    expect(adaptedCorporations, '4 classic + TR77 + the new corporations authored (TR78 Arwind Inc., TR79 Ferrus Academy, TR80 Hartlan Heating, TR81 Lotus Innovations, TR82 Proteus, TR83 The Deimos Group)').eq(11);
+    expect(adaptedCorporations, '4 classic + TR77 + the new corporations authored (TR78 Arwind Inc., TR79 Ferrus Academy, TR80 Hartlan Heating, TR81 Lotus Innovations, TR82 Proteus, TR83 The Deimos Group, TR84 Titan Holdings)').eq(12);
     expect(c.contributions.turmoilRedux).deep.eq({projects: 70 + projectReplacements + adaptedClassic, corporations: adaptedCorporations, preludes: 0, colonies: additions, resolutions: c.extras.resolutions});
     expect(c.contributions.colonies?.colonies).eq(pool.length - additions);
   });

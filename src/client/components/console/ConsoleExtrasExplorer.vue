@@ -316,6 +316,8 @@ export default defineComponent({
         'Animal': 'Animals', 'Microbe': 'Microbes', 'Floater': 'Floaters',
         'Asteroid': 'Asteroids', 'Seed': 'Seeds', 'Fighter': 'Fighters',
         'Mech': 'Mechs',
+        // A mass noun in English — the plural is its own key (`ui.json`), never «Leverages».
+        'Leverage': 'Leverage resources',
       };
       const title = translateText(plural[label] ?? label);
       // A type SPLIT by role (PL-030) names the role beside the resource: «Мехи · делегаты» / «Мехи · деньги».

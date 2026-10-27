@@ -335,6 +335,8 @@ const ITEM_ICON_URL: Partial<Record<CardRenderItemType, string>> = {
   // THE CHAIR — the one mark of the chairmanship (T10; the owner: «заменить креслом везде»), never upstream's bust.
   [CardRenderItemType.CHAIRMAN]: `${MISC}/chair.svg`,
   [CardRenderItemType.INFLUENCE]: `${MISC}/influence.svg`,
+  // Turmoil Redux (TR84): «a planet tag» — the scan's white tag disc with a ringed planet, ONE file for the five planets.
+  [CardRenderItemType.PLANET_TAG]: `${MISC}/planet-tag.svg`,
   [CardRenderItemType.FIRST_PLAYER]: `${MISC}/first-player.png`,
   // Turmoil Redux: the winner-of-the-vote star beside a resolution's winner-only part.
   [CardRenderItemType.VOTE_WINNER]: `${MISC}/vote-winner.svg`,

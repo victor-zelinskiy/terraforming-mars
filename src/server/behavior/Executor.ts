@@ -338,6 +338,8 @@ export class Executor implements BehaviorExecutor {
 
   public execute(behavior: Behavior, player: IPlayer, card: ICard) {
     const ctx = new Counter(player, card);
+    // A price «from here» whose whole purchase is the delegate travels INSIDE the grant's answer (below).
+    let delegatePrice: {card: ICard, count: number} | undefined;
 
     if (behavior.or !== undefined) {
       // Warnings the card already had (unrelated to this or-block) must survive it.
@@ -448,7 +450,15 @@ export class Executor implements BehaviorExecutor {
         return;
       }
       if (spend.resourcesHere) {
-        player.removeResourceFrom(card, spend.resourcesHere);
+        // «SPEND N FROM HERE TO ADD A DELEGATE» (TR84 Titan Holdings' branches; the census family's bespoke form,
+        // `censusGrant`): when the delegate is the action's WHOLE result the resources are the grant's PRICE — they
+        // leave the card inside the answer, CHECK → PAY → PLACE in one handler (`PlaceDelegatesOnResolution`), so
+        // «paid and placed nothing» is impossible by construction. Anything else spends them here, now.
+        if (delegateIsTheActionsResult(card, behavior) && player.game.politics !== undefined) {
+          delegatePrice = {card, count: spend.resourcesHere};
+        } else {
+          player.removeResourceFrom(card, spend.resourcesHere);
+        }
       }
       if (spend.resourceFromAnyCard) {
         player.game.defer(new RemoveResourcesFromCard(player, spend.resourceFromAnyCard.type, 1, {source: 'self', blockable: false}))
@@ -758,7 +768,11 @@ export class Executor implements BehaviorExecutor {
 
       if (behavior.turmoil.sendDelegates) {
         const sendDelegates = behavior.turmoil.sendDelegates;
-        politics.placeDelegates(player, ctx.count(sendDelegates.count), {oneParty: sendDelegates.manyParties !== true, source: card.name});
+        politics.placeDelegates(player, ctx.count(sendDelegates.count), {
+          oneParty: sendDelegates.manyParties !== true,
+          source: card.name,
+          ...(delegatePrice === undefined ? {} : {price: delegatePrice}),
+        });
       }
     }
 
