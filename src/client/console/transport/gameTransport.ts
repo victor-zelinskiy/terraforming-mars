@@ -349,6 +349,8 @@ export function transportDiagFacts(): {
 /** Reactive transport facts surfaces may read (never write). */
 export const transportState = reactive({
   playersWaitingFor: [] as Array<Color>,
+  /** The REACTIVE mirror of the root's `isServerSideRequestInProgress` — written at the funnel's two edges only. */
+  requestInProgress: false,
 });
 
 /**
@@ -356,10 +358,11 @@ export const transportState = reactive({
  * gate (`isServerSideRequestInProgress` stays raised through every hold): `fetchPlayerInput` REFUSES a second submit
  * meanwhile. A surface that launches a cinematic FOR a submit asks this first — a flight for a press the funnel will
  * drop is a token into nothing (the start's «Наследие» row pressed right after the bought cards' payment: its cards
- * lifted off, the grant was never sent, and they hung in the air until the intake's budget dipped them).
+ * lifted off, the grant was never sent, and they hung in the air until the intake's budget dipped them). Reactive
+ * (the mirror), so a command bar may read it in a computed and dim the verb the funnel would refuse.
  */
 export function transportRequestInProgress(): boolean {
-  return root?.isServerSideRequestInProgress === true;
+  return transportState.requestInProgress;
 }
 
 let root: TransportRoot | undefined;
@@ -796,6 +799,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
   acknowledgeFlowHoldingCards();
 
   r.isServerSideRequestInProgress = true;
+  transportState.requestInProgress = true;
   fetch(url, options)
     .then(async (response) => {
       if (response.ok) {
@@ -1524,6 +1528,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
     })
     .finally(() => {
       r.isServerSideRequestInProgress = false;
+      transportState.requestInProgress = false;
       /*
        * ⚠️ RE-ASK THE SERVER THE MOMENT THIS SUBMIT IS FULLY PROCESSED.
        *

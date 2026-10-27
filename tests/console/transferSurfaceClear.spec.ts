@@ -58,6 +58,12 @@ describe('the law of the fold — source guard', () => {
       // The card-reaction director COMPOSES two `RailAnswerFlight`s (their `onLeft` chained) and folds no surface itself —
       // the host that takes the composed flight (the hero, the action rail) is the one that asks `surfaceClear`.
       'src/client/console/cardReaction/cardReactionDirector.ts',
+      // The Parliament's two REACTOR answers (the Agenda step's charter, the ruling change's rating — card reaction
+      // iteration 6) take a composed `RailAnswerFlight` and call its `onLeft` in a `finally` AFTER `runResourceTransfers`
+      // has fully resolved (the tokens have landed): the call hands the reactor its own «let go», it folds no surface
+      // on a departure — the host that owns the surface (the Parliament section) asks the law itself.
+      'src/client/console/parliament/parliamentRewardBeat.ts',
+      'src/client/console/parliament/rulingChangeDraw.ts',
     ]);
     const offenders: Array<string> = [];
     const walk = (dir: string) => {

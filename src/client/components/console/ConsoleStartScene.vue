@@ -2409,6 +2409,13 @@ export default defineComponent({
         this.state.firstAct.stage === 'idle' &&
         this.corpPlayPrompt === undefined &&
         this.corpPayCost === undefined &&
+        // …and never while the CAMPAIGN'S «НАСЛЕДИЕ» is still owed — the server standing on the carried cards'
+        // press, or their cascade still on its way into the dock (PL-1110). The flow stage knew this beat
+        // (`deploymentFlowStage` → 'legacy'); the settle did not, so the moment the bought cards had landed the scene
+        // released itself over a live prompt — the board, a stale bar, the row's press orphaned until a reload. Only
+        // a press made within the cascade's own window used to hide it.
+        this.legacyPrompt === undefined &&
+        !this.legacyArrivalLive &&
         this.candidatePrompt === undefined &&
         startFlowPreludePrompt(this.playerView) === undefined &&
         this.wizardInput === undefined &&
@@ -4140,8 +4147,12 @@ export default defineComponent({
         wizardReady: this.wizardReady,
         awaiting: this.awaitingOthers,
         payBeat: this.corpPayCost !== undefined,
-        ceremonyVerb: this.candidatePrompt !== undefined ? this.candidateVerb : 'Play now',
+        // The bar carries the FOCUSED item's own verb: a candidate pick's, «Получить» on the campaign's bonus plate and
+        // its carried-cards row (the rows' inline hints say the same — the bar never contradicts them with «Разыграть»).
+        ceremonyVerb: this.candidatePrompt !== undefined ? this.candidateVerb :
+          (this.focusedItem?.kind === 'legacy' || this.focusedItem?.kind === 'bonus') ? 'Receive' : 'Play now',
         hasFocusables: this.focusables.length > 0,
+        pressBlocked: this.pressBlockedNow,
         firstAction: this.firstActionBarState,
         firstActionChoice: this.firstActionChoiceLive,
         firstActionEffects: this.firstActionForecastCanOpen,
@@ -4154,6 +4165,22 @@ export default defineComponent({
         riskHold: this.riskStage !== undefined,
         legacyAvailable: this.legacyOverviewAvailable,
         legacyOverview: this.legacyView.phase === 'open',
+      });
+    },
+    /**
+     * WOULD THE PRESS ON THE FOCUSED ITEM BE REFUSED RIGHT NOW — the same gate `actByName` applies, read LIVE
+     * (the transport's reactive mirror, the delivery ledger) so the bar can dim A and name the wait instead of
+     * advertising a verb the gate would swallow. `undefined` = the press is honoured.
+     */
+    pressBlockedNow(): ReturnType<typeof startPressRefusal> {
+      return startPressRefusal(this.focusedItem?.kind ?? '', {
+        heroActive: isPlayedHeroActive(),
+        ceremony: this.mode === 'ceremony',
+        shellRevealed: this.ceremonyRevealed,
+        embedPresenting: this.embedPresenting,
+        queueArriving: this.queueArriving.size > 0,
+        requestInProgress: transportRequestInProgress(),
+        deliveryPending: this.projectDeliveryPending,
       });
     },
     /** The first-action stage as the command contract sees it (see

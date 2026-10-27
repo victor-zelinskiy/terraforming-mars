@@ -191,12 +191,13 @@ describe('infoRoute — the Information workspace route model', () => {
     // what lets it say «MarsBot takes no part in the parliament» instead of vanishing…
     expect(infoZonePresent('parliament', 'human', {parliament: true})).to.eq(true);
     expect(infoZonePresent('parliament', 'bot', {parliament: true})).to.eq(true);
-    // …but only a human has a standing to OPEN: the bot's zone is a line, never a door (a cursor on it
-    // would advertise an A that does nothing — the command bar's honesty rule).
+    // …and EVERY seat has a standing to OPEN it — the bot's included (D16, the owner 2026-10-27: MarsBot sits in
+    // the parliament like every player — it votes, is paid, walks the Career — so its standing reads as content,
+    // never a fallback line; the zone is a door for both kinds).
     expect(infoRouteApplies('parliament', 'human')).to.eq(true);
-    expect(infoRouteApplies('parliament', 'bot')).to.eq(false);
+    expect(infoRouteApplies('parliament', 'bot')).to.eq(true);
     expect(infoFocusRing('human', {parliament: true})).to.include('parliament');
-    expect(infoFocusRing('bot', {parliament: true})).to.not.include('parliament');
+    expect(infoFocusRing('bot', {parliament: true})).to.include('parliament');
     // The ring keeps the canonical order: the parliament follows the human pair and precedes the campaign.
     const ring = infoFocusRing('human', {parliament: true, campaign: true});
     expect(ring.indexOf('parliament')).to.be.greaterThan(ring.indexOf('effects'));
@@ -205,7 +206,7 @@ describe('infoRoute — the Information workspace route model', () => {
     expect(infoRouteBack('parliament')).to.eq('summary');
     expect(infoZoneForRoute('parliament')).to.eq('parliament');
     expect(infoRouteStage('parliament'), 'the crumb tail is the workspace’s own word').to.eq('Parliament');
-    expect(infoRoutePresentation('parliament', 'bot')).to.eq('fallback');
+    expect(infoRoutePresentation('parliament', 'bot')).to.eq('content');
   });
 
   it('the campaign zone exists only in campaign missions, for EVERY participant kind there', () => {

@@ -154,6 +154,11 @@ export type StartSceneCommandState = {
    * page the player descended from (never the workspace minimize).
    */
   legacyOverview?: boolean,
+  /**
+   * The press on the focused item WOULD BE REFUSED right now (`startPressRefusal` over the live signals) — the bar
+   * dims A and names the wait, so a press that does nothing is never advertised.
+   */
+  pressBlocked?: StartPressRefusal,
 };
 
 /**
@@ -236,7 +241,8 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
   // swallows B mid-flight / mid-embed (never mid-motion).
   if (s.payBeat) {
     return [
-      {control: 'confirm', label: 'Pay'},
+      // The pay press right after the corporation's landing meets a busy funnel too: the bar says so (dim, the wait).
+      s.pressBlocked === 'request' ? {control: 'confirm', label: 'Performing…', enabled: false} : {control: 'confirm', label: 'Pay'},
       {control: 'back', label: 'Minimize'},
     ];
   }
@@ -294,6 +300,19 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
       {control: 'confirm', label: s.riskCommitLabel, hold: s.riskHold === true},
       {control: 'secondary', label: 'Inspect'},
       {control: 'back', label: 'Back to selection'},
+    ];
+  }
+  // THE PRESS WOULD BE REFUSED (`startPressRefusal` — the funnel is busy, the bought cards are still arriving): the
+  // bar SAYS so instead of advertising a verb that does nothing — A is dim and reads the wait («Выполняется…» while
+  // the previous answer is still presenting, «Карты прилетают…» while the dock is receiving); the next press, once
+  // the fact has passed, is honoured and the verb comes back. The shell's own gates (`hero`, `shell`) already read
+  // through the stage they belong to, so they rename nothing here.
+  if (s.pressBlocked === 'request' || s.pressBlocked === 'delivery') {
+    return [
+      {control: 'confirm', label: s.pressBlocked === 'request' ? 'Performing…' : 'Cards arriving…', enabled: false},
+      {control: 'secondary', label: 'Inspect', enabled: s.hasFocusables},
+      ...(s.queueEffects === true ? [{control: 'stickR' as const, label: 'Effects'}] : []),
+      {control: 'back', label: 'Minimize'},
     ];
   }
   return [

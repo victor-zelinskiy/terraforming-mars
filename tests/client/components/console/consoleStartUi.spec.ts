@@ -359,4 +359,20 @@ describe('startPressRefusal — why a deployment press is refused', () => {
     expect(startPressRefusal('prelude', {...open, deliveryPending: true})).to.be.undefined;
     expect(startPressRefusal('corp', {...open, deliveryPending: true})).to.be.undefined;
   });
+
+  it('THE BAR NAMES THE WAIT: a blocked press dims A and says why — «Performing…» for the busy funnel, «Cards arriving…» for the delivery; X and B stay', () => {
+    const busy = startSceneCommands(state({mode: 'ceremony', pressBlocked: 'request'}));
+    expect(busy.find((c) => c.control === 'confirm')).to.deep.include({label: 'Performing…', enabled: false});
+    expect(busy.map((c) => c.control)).to.deep.eq(['confirm', 'secondary', 'back']);
+    const arriving = startSceneCommands(state({mode: 'ceremony', pressBlocked: 'delivery', queueEffects: true}));
+    expect(arriving.find((c) => c.control === 'confirm')).to.deep.include({label: 'Cards arriving…', enabled: false});
+    expect(arriving.map((c) => c.control)).to.deep.eq(['confirm', 'secondary', 'stickR', 'back']);
+    // The shell's own gates rename nothing — the stage they belong to already reads them.
+    expect(labelOf(startSceneCommands(state({mode: 'ceremony', pressBlocked: 'shell'})), 'confirm')).to.eq('Play now');
+    expect(labelOf(startSceneCommands(state({mode: 'ceremony', pressBlocked: 'hero'})), 'confirm')).to.eq('Play now');
+    // …and the pay beat reads the busy funnel the same way (the press right after the corporation's landing), its own
+    // bar otherwise untouched.
+    expect(startSceneCommands(state({mode: 'ceremony', pressBlocked: 'request', payBeat: true})).map((c) => [c.label, c.enabled])).to.deep.eq([['Performing…', false], ['Minimize', undefined]]);
+    expect(startSceneCommands(state({mode: 'ceremony', pressBlocked: 'delivery', payBeat: true})).map((c) => c.label)).to.deep.eq(['Pay', 'Minimize']);
+  });
 });
