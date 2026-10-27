@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  TITAN_EFFECT_TEXT, TITAN_EFFECT_TEXT_NO_MOON, TITAN_ONE_DELEGATE_TITLE, TITAN_TAGS, TITAN_TWO_DELEGATES_TITLE,
+  TITAN_EFFECT_TEXT, TITAN_EFFECT_TEXT_NO_MOON, TITAN_EFFECT_TEXT_NO_MOON_NO_VENUS, TITAN_EFFECT_TEXT_NO_VENUS, TITAN_ONE_DELEGATE_TITLE, TITAN_TAGS, TITAN_TWO_DELEGATES_TITLE,
   TitanHoldings, titanTags,
 } from '../../../src/server/cards/turmoilRedux/TitanHoldings';
 import {TharsisRepublic} from '../../../src/server/cards/corporation/TharsisRepublic';
@@ -330,12 +330,16 @@ describe('TitanHoldings', () => {
   });
 
   describe('rule 6 — the printed text names only what the game can play', () => {
-    it('one variant: «…or Moon» without the Moon in the game', () => {
+    it('three variants: the Moon and Venus named only when the game has them', () => {
       const variants = new TitanHoldings().metadata.textVariants;
       const full = 'Effect: ' + TITAN_EFFECT_TEXT;
-      expect(variants).deep.eq([{text: full, unless: ['moon'], variant: 'Effect: ' + TITAN_EFFECT_TEXT_NO_MOON}]);
-      expect(resolveCardText(full, variants, {moon: false})).eq('Effect: ' + TITAN_EFFECT_TEXT_NO_MOON);
-      expect(resolveCardText(full, variants, {moon: true})).eq(full);
+      expect(variants?.map((v) => v.unless)).deep.eq([['moon'], ['venus'], ['moon', 'venus']]);
+      expect(resolveCardText(full, variants, {moon: false, venus: true})).eq('Effect: ' + TITAN_EFFECT_TEXT_NO_MOON);
+      expect(resolveCardText(full, variants, {moon: true, venus: false})).eq('Effect: ' + TITAN_EFFECT_TEXT_NO_VENUS);
+      expect(resolveCardText(full, variants, {moon: false, venus: false}), 'the most specific variant').eq('Effect: ' + TITAN_EFFECT_TEXT_NO_MOON_NO_VENUS);
+      expect(resolveCardText(full, variants, {moon: true, venus: true})).eq(full);
+      expect(TITAN_EFFECT_TEXT_NO_VENUS).to.not.include('Venus');
+      expect(TITAN_EFFECT_TEXT_NO_MOON_NO_VENUS).to.not.match(/Moon|Venus/);
       expect(resolveCardText(full, variants, undefined), 'no game: the printed card').eq(full);
       expect(TITAN_EFFECT_TEXT_NO_MOON).to.not.include('Moon');
     });

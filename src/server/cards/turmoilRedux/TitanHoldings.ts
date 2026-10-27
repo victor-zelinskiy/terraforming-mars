@@ -18,9 +18,15 @@ export const TITAN_LEVERAGE_PER_DELEGATE = 2;
 export const TITAN_ONE_DELEGATE_TITLE = 'Spend 2 leverage from here to add 1 delegate to a resolution';
 export const TITAN_TWO_DELEGATES_TITLE = 'Spend 4 leverage from here to add 2 delegates to a resolution';
 
-/** The printed effect — FULL (the Moon in the game) and without the Moon (`metadata.textVariants`). */
+/**
+ * The printed effect — FULL (the Moon and Venus in the game) and the variants that drop what the game cannot play
+ * (`metadata.textVariants` — the owner: the text names only the tags this game can play; the Moon first, Venus by the
+ * same law).
+ */
 export const TITAN_EFFECT_TEXT = 'After you play a Mars, Earth, Venus, Jovian, or Moon tag (including these), add 1 leverage resource to this card.';
 export const TITAN_EFFECT_TEXT_NO_MOON = 'After you play a Mars, Earth, Venus, or Jovian tag (including these), add 1 leverage resource to this card.';
+export const TITAN_EFFECT_TEXT_NO_VENUS = 'After you play a Mars, Earth, Jovian, or Moon tag (including these), add 1 leverage resource to this card.';
+export const TITAN_EFFECT_TEXT_NO_MOON_NO_VENUS = 'After you play a Mars, Earth, or Jovian tag (including these), add 1 leverage resource to this card.';
 
 /** The PLANET TAGS the effect answers — the five the scan's ringed-planet disc stands for. */
 export const TITAN_TAGS: ReadonlyArray<Tag> = [Tag.MARS, Tag.EARTH, Tag.VENUS, Tag.JOVIAN, Tag.MOON];
@@ -71,7 +77,7 @@ export function titanTags(card: ICard): ReadonlyArray<Tag> {
  *     action (no prompt; the other shown disabled with its reason); 4+ — an `OrOptions` marked `effect-choice`, never
  *     auto-selected. Two delegates land on ONE resolution; a reserve of one refuses the second branch (the Executor's
  *     own reserve gate — a price for two buys two, or nothing).
- *  6. THE TEXT names the Moon only when the Moon is in the game (the owner): `metadata.textVariants` — the face prints
+ *  6. THE TEXT names the Moon only when the Moon is in the game, Venus only with Venus (the owner): `metadata.textVariants` — the face prints
  *     the planet disc alone, the client prints the variant (`cardTextVariants.ts`); the captions never list the tags.
  *  7. MarsBot never holds the card (no twin).
  */
@@ -114,6 +120,8 @@ export class TitanHoldings extends ActiveCorporationCard {
         description: 'You start with 50 M€ and 2 M€ production.',
         textVariants: [
           {text: 'Effect: ' + TITAN_EFFECT_TEXT, unless: ['moon'], variant: 'Effect: ' + TITAN_EFFECT_TEXT_NO_MOON},
+          {text: 'Effect: ' + TITAN_EFFECT_TEXT, unless: ['venus'], variant: 'Effect: ' + TITAN_EFFECT_TEXT_NO_VENUS},
+          {text: 'Effect: ' + TITAN_EFFECT_TEXT, unless: ['moon', 'venus'], variant: 'Effect: ' + TITAN_EFFECT_TEXT_NO_MOON_NO_VENUS},
         ],
         // The captions never list the planets (a caption never carries the Moon). Both action rows are over the
         // browser's caption budget — curated shorts, each on its own row (in the printed order).

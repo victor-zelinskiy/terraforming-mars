@@ -26,7 +26,7 @@ describe('cardTextVariants', () => {
   });
 
   it('Titan Holdings exports its variant with the metadata', () => {
-    expect(getCardOrThrow(CardName.TITAN_HOLDINGS).metadata.textVariants).deep.eq([{text: FULL, unless: ['moon'], variant: NO_MOON}]);
+    expect(getCardOrThrow(CardName.TITAN_HOLDINGS).metadata.textVariants?.[0]).deep.eq({text: FULL, unless: ['moon'], variant: NO_MOON});
   });
 
   it('outside a game the printed card stands; a game without the Moon prints the variant; with the Moon, the card', () => {
@@ -34,20 +34,22 @@ describe('cardTextVariants', () => {
     setCardTextExpansions({moon: false, venus: true});
     expect(cardTextFor(FULL)).eq(NO_MOON);
     expect(cardTextFor('Effect: Something nobody varies.'), 'a key no card varies is untouched').eq('Effect: Something nobody varies.');
-    setCardTextExpansions({moon: true});
+    setCardTextExpansions({moon: true, venus: true});
     expect(cardTextFor(FULL)).eq(FULL);
   });
 
   it('translateText reads the variant FIRST — in English and in Russian', () => {
-    setCardTextExpansions({moon: false});
+    setCardTextExpansions({moon: false, venus: true});
     PreferencesManager.INSTANCE.set('lang', 'en');
     expect(translateText(FULL)).eq(NO_MOON);
     PreferencesManager.INSTANCE.set('lang', 'ru');
     (window as any)._translations = ru;
     expect(translateText(FULL)).eq((ru as Record<string, string>)[NO_MOON]);
     expect(translateText(FULL)).to.not.include('Лун');
-    setCardTextExpansions({moon: true});
+    setCardTextExpansions({moon: true, venus: true});
     expect(translateText(FULL)).to.include('Луны');
+    setCardTextExpansions({moon: false, venus: false});
+    expect(translateText(FULL)).to.not.match(/Лун|Венер/);
   });
 
   it('every variant of every card has its Russian line (both keys)', () => {
