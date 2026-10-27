@@ -219,7 +219,10 @@ describe('TurmoilReduxCardManifest', () => {
         const adapted = classicCorporations.has(n) && !TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(n);
         expect(adapted || reduxCorporations.has(n), `${n} may join only as an adapted classic Turmoil corporation or the module's own`).is.true;
       }
-      expect(addedCorporations).to.include.members([...reduxCorporations]);
+      // A corporation that needs a SECOND module (TR82 Proteus — Preludes) joins only beside it (its own spec pins that).
+      const onOptions = options({turmoilReduxExpansion: true, coloniesExtension: true, venusNextExtension: true});
+      const dealtRedux = [...reduxCorporations].filter((n) => isCompatibleWith(TURMOIL_REDUX_CARD_MANIFEST.corporationCards[n]!, onOptions));
+      expect(addedCorporations).to.include.members(dealtRedux);
     });
 
     // The card is resolvable by name whatever the options — deserializing a

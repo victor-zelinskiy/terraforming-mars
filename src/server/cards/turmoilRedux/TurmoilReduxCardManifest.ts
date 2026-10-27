@@ -81,6 +81,7 @@ import {ArwindInc} from './ArwindInc';
 import {FerrusAcademy} from './FerrusAcademy';
 import {HartlanHeating} from './HartlanHeating';
 import {LotusInnovations} from './LotusInnovations';
+import {Proteus} from './Proteus';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -401,6 +402,11 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // rating (`onIncreaseTerraformRatingByAnyPlayer` + its twin on the forecast's rating pass — `ratingStepsOf`, the
     // Greens' own sum), 1 VP per 4 data.
     [CardName.LOTUS_INNOVATIONS]: {Factory: LotusInnovations},
+    // TR82 — the FIFTH new corporation: a data on itself for every played tag matching a tag on the owner's OTHER
+    // Preludes (`matchingPreludeTags` — one predicate for the hook and its twin), 6 data → a colony or an ocean. The
+    // Prelude («<») and Colonies («▲») marks on the scan's left edge: without Preludes the effect is dead, without
+    // Colonies half the action — the card is dealt only with both.
+    [CardName.PROTEUS]: {Factory: Proteus, compatibility: ['prelude', 'colonies']},
   },
   // The classic cards a replacement above stands in for — never dealt into a Redux game (upstream's
   // `GameCards.filterReplacedCards`); a classic-Turmoil game does not load this manifest, so it keeps them.

@@ -365,7 +365,9 @@ function foreignAddress(address: PreselectAddress | undefined, live: PlayerInput
 function namedCovers(step: ActionPreviewStep, live: PlayerInput): boolean {
   switch (step.kind) {
   case 'note': return step.noteKind !== 'warning';
-  case 'boardPlacement': return live.type === 'space';
+  // A colony branch (TR82 Proteus — the first ACTION that builds a colony) announces its colony pick as a
+  // `boardPlacement` of `placementType: 'colony'`: the commit routes to the colonies' own surface.
+  case 'boardPlacement': return step.placementType === 'colony' ? live.type === 'colony' : live.type === 'space';
   case 'colonyTrade': return live.type === 'colony';
   // The delta door consumes the branch itself — anything after belongs to the
   // Hydronetwork workspace the player was handed to.

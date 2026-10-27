@@ -40,7 +40,9 @@ export const TURMOIL_REDUX_NEW_CORPORATIONS: ReadonlyArray<ReduxCorporationRow> 
   // TR81 — AUTHORED 2026-10-26 (`turmoilRedux/LotusInnovations.ts`): +2 TR as the first action; a data here for every
   // step of the owner's rating (the first action's two included); 1 VP per 4 data.
   {name: 'Lotus Innovations', scan: 'Corporations/Corporation - Lotus Innovations.png', authored: CardName.LOTUS_INNOVATIONS},
-  {name: 'Proteus', scan: 'Corporations/Corporation - Proteus.png'},
+  // TR82 — AUTHORED 2026-10-27 (`turmoilRedux/Proteus.ts`): a data here for every played tag that matches a tag on the
+  // owner's other Preludes (one predicate, `matchingPreludeTags`); 6 data → a colony or an ocean.
+  {name: 'Proteus', scan: 'Corporations/Corporation - Proteus.png', authored: CardName.PROTEUS},
   {name: 'The Deimos Group', scan: 'Corporations/Corporation - The Deimos Group.png'},
   {name: 'Titan Holdings', scan: 'Corporations/Corporation - Titan Holdings.png'},
   {name: 'Veynon Dynamics', scan: 'Corporations/Corporation - Veynon Dynamics.png'},

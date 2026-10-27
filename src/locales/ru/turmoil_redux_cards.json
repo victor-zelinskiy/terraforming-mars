@@ -257,5 +257,8 @@
     "Action: Pay 12 heat to draw 2 cards.": "Действие: заплатите 12 тепла и возьмите 2 карты.",
     "You start with 46 M€. As your first action, increase your TR 2 steps. 1 VP per 4 data resources here.": "Вы начинаете с 46 M€. Первым действием повысьте свой РТ на 2. 1 ПО за каждые 4 данных на этой карте.",
     "Effect: After each time you increase your TR by 1, including from this, add 1 data resource to this card.": "Эффект: после каждого повышения вашего РТ на 1 (включая это) положите 1 данные на эту карту.",
-    "Increase your TR 2 steps": "Повысьте свой РТ на 2"
+    "Increase your TR 2 steps": "Повысьте свой РТ на 2",
+    "You start with 45 M€ and 2 data resources on this card.": "Вы начинаете с 45 M€ и 2 данными на этой карте.",
+    "Effect: After you play a non-wild tag that matches a non-wild tag on your Preludes, add 1 data resource to this card. (Your Preludes count.)": "Эффект: после розыгрыша не-универсальной метки, совпадающей с не-универсальной меткой на ваших прелюдиях, положите 1 данные на эту карту (ваши прелюдии считаются).",
+    "Action: Spend 6 data from here to place a colony or ocean tile.": "Действие: потратьте 6 данных с этой карты, чтобы разместить колонию или тайл океана."
 }

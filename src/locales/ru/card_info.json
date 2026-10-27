@@ -606,5 +606,7 @@
     "Green tile card played: +6 heat, +1 M€ prod": "Зелёная карта с тайлом: +6 тепла, +1 пр. M€",
     "Pay 12 heat to draw 2 cards": "12 тепла → 2 карты",
     "As your first action, increase your TR 2 steps.": "Первым действием повысьте свой РТ на 2.",
-    "Each TR step you gain: +1 data here": "Каждый шаг вашего РТ: +1 данные на эту карту"
+    "Each TR step you gain: +1 data here": "Каждый шаг вашего РТ: +1 данные на эту карту",
+    "Tag matching a Prelude tag: +1 data here": "Метка как на прелюдии: +1 данные сюда",
+    "6 data here: a colony or an ocean": "6 данных отсюда: колония или океан"
 }

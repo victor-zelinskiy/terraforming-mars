@@ -375,6 +375,7 @@ describe('card information model', function() {
       ['AstroDrill', '"3 asteroid resources" = "3 asteroids on this card" — same starting card-resources, only the noun differs'],
       ['Spaceship Recycling', '"2 fighter resources" = "Add 2 fighters to this card." — the play\'s card resources, only the noun differs'],
       ['Biological Simulations', '"2 data resources" = "Add 2 data to this card." — the play\'s card resources (TR38, the Spaceship Recycling class), only the noun differs'],
+      ['Proteus', '"2 data resources on this card" = "2 data on this card" — the starting card resources of a holder (TR82, the TR38 class), only the noun differs'],
       ['Lotus Innovations', '"1 VP per 4 data resources here" = "1 VP per 4 data on this card." — the printed VP noun of a holder (TR81, the TR38 class), only the noun differs'],
       ['Research Startups', '"3 data resources" = "Add 3 data to this card." — the play\'s card resources (TR46, the TR38 class), only the noun differs'],
       ['Nuclear Warhead Utilization', '"9 energy resources" = "Gain 9 energy." — the printed noun of a stock gain (TR55), only the wording differs'],

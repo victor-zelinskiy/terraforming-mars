@@ -46,6 +46,8 @@ import {MiningColony} from '../../src/server/cards/colonies/MiningColony';
 import {NuclearZone} from '../../src/server/cards/base/NuclearZone';
 import {RedMuseum} from '../../src/server/cards/turmoilRedux/RedMuseum';
 import {HartlanHeating} from '../../src/server/cards/turmoilRedux/HartlanHeating';
+import {Proteus} from '../../src/server/cards/turmoilRedux/Proteus';
+import {Biolab} from '../../src/server/cards/prelude/Biolab';
 import {SelectColony} from '../../src/server/inputs/SelectColony';
 import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
@@ -116,6 +118,16 @@ const TILE_PLAY_REACTORS: ReadonlyArray<Factory> = [HartlanHeating];
 
 function tilePlayOnly(card: ICard): boolean {
   return TILE_PLAY_REACTORS.some((F) => new F().name === card.name);
+}
+
+/**
+ * A reactor that answers ONLY «a played tag matching a tag on your OTHER Preludes» (TR82 Proteus — `matchingPreludeTags`):
+ * the sweep's table holds no Prelude, so it cannot fire — its own block below seats a Prelude and plays a matching card.
+ */
+const PRELUDE_TAG_REACTORS: ReadonlyArray<Factory> = [Proteus];
+
+function preludeTagOnly(card: ICard): boolean {
+  return PRELUDE_TAG_REACTORS.some((F) => new F().name === card.name);
 }
 
 /**
@@ -285,7 +297,7 @@ describe('effect-forecast ↔ execution parity', function() {
         }
       }
     }
-    const unreached = reactors.map((F) => new F()).filter((card) => !colonyOnly(card) && !tilePlayOnly(card)).map((card) => card.name).filter((name) => !reached.has(name));
+    const unreached = reactors.map((F) => new F()).filter((card) => !colonyOnly(card) && !tilePlayOnly(card) && !preludeTagOnly(card)).map((card) => card.name).filter((name) => !reached.has(name));
     expect(unreached, 'every forecast hook must be fired by at least one trigger of the pool (extend TRIGGERS / VARIANTS)').to.deep.eq([]);
     expect(cases, 'parity cases exercised').to.be.greaterThan(40);
   });
@@ -417,6 +429,36 @@ describe('effect-forecast ↔ execution parity', function() {
         player.playCard(trigger);
         runAllActions(game);
         expect(game.events.events.slice(before).filter((e) => e.type === 'effect-triggered' && e.source !== undefined && 'card' in e.source && e.source.card === name)).deep.eq([]);
+      });
+    }
+  });
+
+  /*
+   * THE PRELUDE-TAG PASS — «a played tag matching a tag on your Preludes» (TR82 Proteus). The table seats a Prelude
+   * (Biolab, Science) beside the reactor; Research (two Science tags) is the trigger — one exact fact PER matching tag.
+   */
+  describe('prelude-tag plays (one exact fact per matching tag)', () => {
+    it('the block covers every in-scope «prelude tag» reactor', () => {
+      const inScope = inScopeReactors().map((F) => new F()).filter((card) => preludeTagOnly(card)).map((card) => card.name);
+      expect(inScope.sort()).deep.eq(PRELUDE_TAG_REACTORS.map((F) => new F().name).sort());
+    });
+
+    for (const F of PRELUDE_TAG_REACTORS) {
+      const name = new F().name;
+      it(`${name} ← Research beside a Science Prelude: two facts, the card-played event`, () => {
+        const forecastTable = arrange(F, false, undefined, `-prelude-tag-${name}-fc`);
+        forecastTable.owner.playedCards.push(new Biolab());
+        const trigger = new Research();
+        forecastTable.player.cardsInHand.push(trigger);
+        const forecast = effectForecastForPlay(forecastTable.player, trigger, cardPlayPreview(forecastTable.player, trigger));
+        const facts = forecast.facts.filter((f) => f.source.name === name);
+        expect(facts.map((f) => f.certainty), 'one exact fact per matching Science tag').deep.eq(['exact', 'exact']);
+
+        const liveTable = arrange(F, false, undefined, `-prelude-tag-${name}-live`);
+        liveTable.owner.playedCards.push(new Biolab());
+        const liveTrigger = new Research();
+        liveTable.player.cardsInHand.push(liveTrigger);
+        assertParity(liveTable, liveTrigger, facts, `${name} ← Research (Biolab seated)`);
       });
     }
   });
