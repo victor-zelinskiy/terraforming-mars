@@ -2998,9 +2998,11 @@ export default defineComponent({
       return forecastStatsByColor(this.firstActionForecastOwners);
     },
     /**
-     * THE FOCUSED PRELUDE OF THE DEPLOYMENT QUEUE whose play the table answers (TR82 — the forecast's law 9: every
-     * surface that draws the table's answer is a door). Only the plain queue beat: a first-action briefing, an
-     * embedded step, the sponsor's hand, the colonies and the risk stage speak for themselves.
+     * THE FOCUSED CARD OF THE DEPLOYMENT QUEUE whose play the table answers (TR82 — the forecast's law 9: every
+     * surface that draws the table's answer is a door): a Prelude, or the DEFERRED CORPORATION — a corporation that
+     * answers its own tags (TR84 Titan Holdings: «including these» → «Сработает: +2 [leverage]») says so before the
+     * press. Only the plain queue beat: a first-action briefing, an embedded step, the sponsor's hand, the colonies
+     * and the risk stage speak for themselves.
      */
     queueForecastCard(): CardName | undefined {
       if (this.mode !== 'ceremony' || !this.ceremonyRevealed || this.firstActionPanelShown || this.embedPresenting ||
@@ -3008,7 +3010,7 @@ export default defineComponent({
         return undefined;
       }
       const item = this.focusedItem;
-      return item === undefined || item.kind !== 'prelude' || item.disabled ? undefined : item.name;
+      return item === undefined || (item.kind !== 'prelude' && item.kind !== 'corp') || item.disabled ? undefined : item.name;
     },
     queueForecast(): EffectForecast | undefined {
       const name = this.queueForecastCard;

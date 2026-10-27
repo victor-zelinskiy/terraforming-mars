@@ -38,6 +38,7 @@ import {TitaniumMine} from '../../../src/server/cards/base/TitaniumMine';
 import {Mohole} from '../../../src/server/cards/prelude/Mohole';
 import {MartianIndustries} from '../../../src/server/cards/prelude/MartianIndustries';
 import {PROTEUS_ACTION_DATA, Proteus} from '../../../src/server/cards/turmoilRedux/Proteus';
+import {TitanHoldings} from '../../../src/server/cards/turmoilRedux/TitanHoldings';
 import {CouncilSeat} from '../../../src/server/cards/turmoilRedux/CouncilSeat';
 import {NoctisCity} from '../../../src/server/cards/base/NoctisCity';
 import {ImmigrantCity} from '../../../src/server/cards/base/ImmigrantCity';
@@ -9893,6 +9894,45 @@ for (const futile of [false, true]) {
   };
   if (!facts.playable || facts.redsRule || facts.delegates !== 0 || facts.influence !== `${CardName.THE_DEIMOS_GROUP}+2`) {
     throw new Error(`${name}: the waiver / the ledger is not what the spec reads — ${JSON.stringify(facts)}`);
+  }
+  write(name, game);
+}
+
+// ── titan: TR84 TITAN HOLDINGS — «a leverage here for every played Mars / Earth / Venus / Jovian / Moon tag (including
+//    these); 2 leverage → a delegate on a resolution, OR 4 → two». A 2p Redux table (colonies), blue on Titan Holdings
+//    (its own Earth + Jovian paid at the start — the start stage's scene is the spec's own walk) with 3 leverage: Earth
+//    Office in the hand (Earth — the composer's «Сработает» names one leverage, Titan answers out of the receiving
+//    stage → 4) and Titanium Mine (Building — nothing). Three quiet resolutions (Scientists · Mars First · Reds), blue's
+//    reserve full. With 3 the action is ONE branch (the two-delegate tile shown disabled «3 of 4»); with 4 both.
+//    `titan-two`: 4 leverage — the two-delegate tile live, two figures onto one resolution. Red on Teractor. ──
+for (const two of [false, true]) {
+  const name = two ? 'titan-two' : 'titan';
+  const pinned = [CardName.TITAN_HOLDINGS, REDUX_TABLE_CORPORATIONS[0]];
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  const titan = p1.playedCards.get(CardName.TITAN_HOLDINGS);
+  if (titan === undefined) {
+    throw new Error(`${name}: blue is not on Titan Holdings (${p1.playedCards.corporations().map(toName).join(',')})`);
+  }
+  if (titan.resourceCount !== 2) {
+    throw new Error(`${name}: the corporation did not pay itself its own Earth + Jovian (${titan.resourceCount})`);
+  }
+  const parliament = game.parliament!;
+  ([PartyName.SCIENTISTS, PartyName.MARS, PartyName.REDS] as const).forEach((party, i) => seatResolution(parliament, i, quietResolutionOf(party)));
+  titan.resourceCount = two ? 4 : 3;
+  p1.cardsInHand = p1.cardsInHand.filter((c) => c.name !== CardName.EARTH_OFFICE && c.name !== CardName.TITANIUM_MINE);
+  p1.cardsInHand.push(new EarthOffice(), new TitaniumMine());
+  p1.megaCredits = 60;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  const office = p1.cardsInHand.find((c) => c.name === CardName.EARTH_OFFICE)!;
+  const facts = {acts: (titan as TitanHoldings).canAct(p1), office: p1.canPlay(office), reserve: parliament.reserve(p1), area: parliament.slots.length};
+  if (!facts.acts || !facts.office || facts.reserve < 2 || facts.area !== 3) {
+    throw new Error(`${name}: the subject is not what the spec reads — ${JSON.stringify(facts)}`);
   }
   write(name, game);
 }

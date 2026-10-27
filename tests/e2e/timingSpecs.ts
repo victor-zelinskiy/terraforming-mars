@@ -28,6 +28,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // TR83 The Deimos Group (2026-10-27): the first action's delegate CARRIED from the reserve onto the chosen card inside the
   // start's Parliament step — a sampled flight (the probe's first / last painted centres), never logic.
   'console-the-deimos-group.spec.ts',
+  // TR84 Titan Holdings (2026-10-27): the corporation rising when it pays itself at the start and for a hand play, its
+  // leverage born on its effect row, the vote's price and figures flown — sampled motion (the rise probe, the witness).
+  'console-titan-holdings.spec.ts',
   // the four the first broad sample named (28 specs at motion ×0.5, 2026-10-21)
   'console-aerial-mappers.spec.ts', // the transfer witness: endsOverGlass at tv4k
   'console-supercomputer.spec.ts', // the transfer witness: endsOverGlass at tv4k

@@ -338,6 +338,15 @@ Prelude's answer rose at the stage and landed on the satellite. The owner's deci
 module to host the Preludes too (`startPlayRail`); with iteration 3's ONE PLACE the framework already does it, so no
 second rail module was written — the question stands in the TR82 report. e2e: `console-proteus` (A).
 
+## TR84 Titan Holdings — a corporation that answers ITS OWN play (2026-10-27)
+
+«Including these»: the corporation's own Earth + Jovian pay it 2 leverage through the same `onCardPlayed`
+(`playCorporationCardScoped` fans out over the table the corporation already stands on) — ONE record, the cause the card
+itself. The deferred corporation of the start queue is a forecast DOOR like a Prelude (`queueForecastCard` takes
+`kind: 'corp'`): its play preview already carries its own facts (the forecast adds the played card to the reactor set),
+so the status rail reads «Сработает: +2 [leverage]» and R3 opens the same layer. The reaction itself rides the record:
+the corporation rises in its place (the shelf / the seat — `reactorPlaces`) or at the stage. e2e: `console-titan-holdings` (A).
+
 ## Files
 
 Server: `common/models/CardReactionModel.ts`, `server/events/EventRecorder.ts` (`recordReaction`, the `cause`

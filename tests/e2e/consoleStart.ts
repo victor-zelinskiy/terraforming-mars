@@ -1978,6 +1978,7 @@ type WirePrompt = {
   spaces?: Array<string>,
   players?: Array<string>,
   coloniesModel?: Array<{name: string}>,
+  parties?: Array<string>,
   include?: Array<string>,
   startGamePrompt?: {kind: string},
 };
@@ -2215,6 +2216,15 @@ function answerPrompt(prompt: WirePrompt, plan: SeedPlan): WireResponse {
   }
   case 'player':
     return {type: 'player', player: (prompt.players ?? [])[0]};
+  case 'party': {
+    // A PARTY on the road to the action menu — a corporation's first action that seats a cube (Septem Tribus:redux's
+    // banner) or adds a delegate (The Deimos Group). Which deal a seeded spec gets moves with the corporation pool (a
+    // new corporation reshuffles every seed — TR84 dealt Septem Tribus to `console-colony-venus-redux`), so the seeder
+    // answers it like any other forced step: the first party on offer.
+    const party = (prompt.parties ?? [])[0];
+    expect(party, `a party prompt with no party: ${describePrompt(prompt)}`).toBeDefined();
+    return {type: 'party', partyName: party};
+  }
   case 'resource':
     return {type: 'resource', resource: (prompt.include ?? ['megacredits'])[0]};
   case 'resources':
@@ -2982,6 +2992,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'hartlan-heating' | 'card-reaction-many' | 'card-reaction-rival' | 'card-reaction-scale' | 'card-reaction-fiber' | 'lotus-innovations' |
   // TR82 Proteus: a Building play beside two Building Preludes, then the 6-data action (a colony / an ocean); its futile twin.
   'proteus' | 'proteus-futile' | 'deimos' |
+  // TR84 Titan Holdings: an Earth play beside 3 leverage, then the action — 2 leverage → a delegate; 4 → two.
+  'titan' | 'titan-two' |
   'parliament-architecture-vote' | 'parliament-access-edge' | 'septem-tribus' | 'septem-win' | 'arwind-walker' | 'arwind-sitting-win' | 'arwind-chairman-quest' | 'arwind-pay-space' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |
   'parliament-biodome-vote' | 'parliament-biodome-enact' | 'parliament-biodome-maxed' | 'parliament-biodome-recap' |
   'parliament-biodome-nocell' | 'parliament-biodome-neutral' |
