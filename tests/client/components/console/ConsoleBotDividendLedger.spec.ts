@@ -11,6 +11,15 @@ import {BotDividendReading} from '@/client/components/marsbot/botDividendReading
  * and the word — never by colour alone. The unit runner renders the English keys.
  */
 const READING: BotDividendReading = {
+  name: 'Green Belt',
+  rule: [
+    {text: '${0} VP per greenery tile MarsBot owns', params: ['2'], muted: false},
+    {text: '+${0} VP if MarsBot reaches ${1} or more', params: ['2', '6'], muted: true},
+  ],
+  terms: [
+    {label: 'Greenery tiles', formula: {label: '${0} × ${1} VP', params: [9, 2]}, vp: 18},
+    {label: 'Threshold bonus', formula: {label: '${0} of ${1} for +${2} VP', params: [9, 6, 2]}, vp: 2},
+  ],
   operand: {label: 'Greenery tiles', count: 9},
   goals: [
     {ordinal: 1, at: 9, vp: 10, reached: true, paid: 10, remaining: 0, fill: 1},
@@ -26,6 +35,18 @@ function make(props: Record<string, unknown> = {}) {
 }
 
 describe('ConsoleBotDividendLedger', () => {
+  it('the mechanic leads: the name, the printed rule (the qualifier quieter), each live term with its VP', () => {
+    const w = make();
+    const formula = w.find('[data-dividend-formula]');
+    expect(formula.find('[data-dividend-name]').text()).eq('Green Belt');
+    const rule = formula.findAll('.con-divledger__rule-line');
+    expect(rule.map((l) => l.text())).deep.eq(['2 VP per greenery tile MarsBot owns', '+2 VP if MarsBot reaches 6 or more']);
+    expect(rule[1].classes()).contains('con-divledger__rule-line--muted');
+    const terms = formula.findAll('[data-dividend-term]');
+    expect(terms.map((t) => t.find('.con-divledger__term-calc').text())).deep.eq(['9 × 2 VP', '9 of 6 for +2 VP']);
+    expect(terms.map((t) => t.attributes('data-term-vp'))).deep.eq(['18', '2']);
+  });
+
   it('states the operand once, then both goals with their thresholds and prizes', () => {
     const w = make();
     expect(w.find('[data-dividend-count]').text()).eq('9');

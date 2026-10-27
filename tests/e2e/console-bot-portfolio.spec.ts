@@ -1,5 +1,5 @@
-import {expect, test} from './consoleTest';
-import {bootSeededGame, fetchPlayerModel, openBotScreenHub, openInfoPlayedTable, press, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {Locator, Page, expect, test} from './consoleTest';
+import {bootFixture, bootSeededGame, fetchPlayerModel, openBotScreenHub, openInfoPlayedTable, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * THE BOT'S PORTFOLIO (docs/claude/prompts/marsbot-portfolio-dividends.md) —
@@ -24,6 +24,89 @@ const PORTFOLIO_CONFIG = soloGameConfig({
   automa: {difficulty: 'hard', corporation: 'C01', portfolio: ['C02', 'C10']},
   customCorporationsList: ['Helion', 'Interplanetary Cinematics', 'Inventrix', 'Mining Guild'],
 });
+
+
+type WireTerm = {label: string, count: number, threshold?: number, each: number, vp: number};
+type WireDividend = {corporation: string, vp: number, terms: ReadonlyArray<WireTerm>};
+
+/** The bot's dividend row of one held corporation, off the server's own model (the bot's breakdown is open). */
+function dividendRowOf(model: unknown, corp: string): WireDividend {
+  const players = (model as {players: ReadonlyArray<{isMarsBot?: boolean, victoryPointsBreakdown: {automa?: {detailsDividends?: ReadonlyArray<WireDividend>}}}>}).players;
+  const row = players.find((p) => p.isMarsBot === true)?.victoryPointsBreakdown.automa?.detailsDividends?.find((d) => d.corporation === corp);
+  expect(row, `the server reports ${corp}'s dividend`).toBeDefined();
+  return row!;
+}
+
+/**
+ * THE LIVE LEDGER (the owner, 2026-10-27): the inspected holding's «ДИВИДЕНДЫ» box is ONE composition — the
+ * mechanic (its name, its printed rule, the formula's live terms), both goals (threshold, prize, reached or how
+ * many are missing) and the total WITH the goals — and every number in it is the server's row of that corporation.
+ * The box stands whole inside the rules panel. Returns the row's goal terms.
+ */
+async function expectLedgerReadsServer(page: Page, rules: Locator, model: unknown, corp: string): Promise<ReadonlyArray<WireTerm>> {
+  const row = dividendRowOf(model, corp);
+  const goalTerms = row.terms.filter((t) => t.label === 'Goal' || t.label === 'Second goal');
+  expect(goalTerms.length, 'the row carries its two goals').toBe(2);
+  const formulaTerms = row.terms.filter((t) => !goalTerms.includes(t));
+  const box = rules.locator(`[data-rules-group="botcorp:${corp}:dividend"]`);
+  await expect(box, 'the dividend LEADS — the one thing a holding does').toHaveCount(1);
+  await expect(rules.locator('section').first()).toHaveAttribute('data-rules-group', `botcorp:${corp}:dividend`);
+  await expect(box.locator('.con-zoom-rules__text'), 'the ledger draws the whole box — no printed rows beside it').toHaveCount(0);
+  const ledger = box.locator('[data-dividend-ledger]');
+  await expect(ledger).toBeVisible();
+  // The mechanic: the name, the printed rule without the goal line, one row per live term with the VP it pays.
+  const formula = ledger.locator('[data-dividend-formula]');
+  await expect(formula.locator('[data-dividend-name]')).not.toHaveText('');
+  await expect(formula, 'when it pays').toContainText(/в конце партии/i);
+  await expect(formula, 'the printed goal line yields to the goal plates').not.toContainText(/Цель: от \d+/);
+  const termVps = await formula.locator('[data-dividend-term]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-term-vp'))));
+  expect(termVps, 'one row per live term, each with the VP the server pays it').toEqual(formulaTerms.map((t) => t.vp));
+  // The goals.
+  await expect(ledger.locator('[data-dividend-count]')).toHaveText(String(goalTerms[0].count));
+  for (const [i, term] of goalTerms.entries()) {
+    const goal = ledger.locator(`[data-dividend-goal="${i + 1}"]`);
+    await expect(goal.locator('[data-goal-at]'), `goal ${i + 1}: its threshold`).toHaveText(`от ${term.threshold}`);
+    await expect(goal.locator('[data-goal-vp]'), `goal ${i + 1}: its prize`).toHaveText(`+${term.each} ПО`);
+    const reached = term.vp > 0;
+    await expect(goal, `goal ${i + 1}: reached or not`).toHaveAttribute('data-goal-reached', String(reached));
+    await expect(goal.locator('[data-goal-state]')).toHaveText(reached ? 'Взята' : `Ещё ${term.threshold! - term.count}`);
+  }
+  // The total.
+  const goalsVp = goalTerms.reduce((sum, t) => sum + t.vp, 0);
+  await expect(ledger.locator('[data-dividend-vp]'), 'the total WITH the goals').toHaveText(String(row.vp));
+  await expect(ledger.locator('[data-dividend-total]')).toContainText(`формула ${row.vp - goalsVp} + цели ${goalsVp}`);
+  // Read whole: inside the rules panel, nothing of it cut.
+  const inside = await page.evaluate((sel) => {
+    const panel = document.querySelector('.con-zoom-rules');
+    const el = document.querySelector(sel);
+    if (panel === null || el === null) {
+      return false;
+    }
+    const p = panel.getBoundingClientRect();
+    const b = el.getBoundingClientRect();
+    return b.left >= p.left - 1 && b.right <= p.right + 1 && b.bottom <= p.bottom + 1;
+  }, `[data-rules-group="botcorp:${corp}:dividend"] [data-dividend-ledger]`);
+  expect(inside, 'the ledger stands inside the rules panel').toBe(true);
+  return goalTerms;
+}
+
+/** Information → the bot seat → its «Разыграно» table → A: the inspect opens on the front holding. */
+async function inspectBotHolding(page: Page): Promise<Locator> {
+  await press(page, 'KeyY', 1200);
+  await expect(page.locator('.con-info'), `info mode must open; visible: ${(await visibleSurfaces(page)).join(', ')}`).toBeVisible();
+  const botLine = page.locator('.con-info__corp--bot');
+  for (let i = 0; i < 4 && await botLine.count() === 0; i++) {
+    await press(page, 'KeyE', 900);
+  }
+  await expect(botLine, 'the bot seat is on stage').toHaveCount(1);
+  await openInfoPlayedTable(page);
+  await expect(page.locator('.con-played__botcorp.con-played__slot--front'), 'the newest holding in front').toHaveAttribute('data-bot-corp', 'C10');
+  await press(page, 'Enter', 1600);
+  await expect(page.locator('.con-zoom .card-zoom-stage .pcard')).toBeVisible();
+  const rules = page.locator('.con-zoom-rules');
+  await expect(rules).toBeVisible();
+  return rules;
+}
 
 const PROFILES = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
@@ -94,46 +177,7 @@ for (const profile of PROFILES) {
       const rules = page.locator('.con-zoom-rules');
       await expect(rules).toBeVisible();
       await expect(rules, 'the holding\'s printed boxes are marked as not acting').toContainText('Не действует, пока это дополнительная корпорация MarsBot');
-      const dividendBox = rules.locator('section').first();
-      await expect(dividendBox, 'its dividend LEADS — the one thing a holding does').toHaveAttribute('data-rules-group', 'botcorp:C10:dividend');
-      await expect(dividendBox).toContainText('— ПО в конце партии');
-
-      // THE LIVE LEDGER (the owner, 2026-10-27): both goals' thresholds and progress, and the total WITH the goals —
-      // every number the server's own dividend row of this corporation.
-      const model = await fetchPlayerModel(request, players[0].id);
-      const bot = ((model as unknown as {players: unknown}).players as ReadonlyArray<{isMarsBot?: boolean, victoryPointsBreakdown: {automa?: {detailsDividends?: ReadonlyArray<{corporation: string, vp: number, terms: ReadonlyArray<{label: string, count: number, threshold?: number, each: number, vp: number}>}>}}}>)
-        .find((p) => p.isMarsBot === true);
-      const row = bot?.victoryPointsBreakdown.automa?.detailsDividends?.find((d) => d.corporation === 'C10');
-      expect(row, 'the server reports the holding\'s dividend').toBeDefined();
-      const goalTerms = row!.terms.filter((t) => t.label === 'Goal' || t.label === 'Second goal');
-      expect(goalTerms.length, 'the row carries its two goals').toBe(2);
-      const ledger = dividendBox.locator('[data-dividend-ledger]');
-      await expect(ledger, 'the ledger stands under the printed rule').toBeVisible();
-      await expect(dividendBox, 'the printed goal line yields to the live ledger').not.toContainText(/Цель: от \d+ — \+\d+ ПО; от/);
-      await expect(ledger.locator('[data-dividend-count]')).toHaveText(String(goalTerms[0].count));
-      for (const [i, term] of goalTerms.entries()) {
-        const goal = ledger.locator(`[data-dividend-goal="${i + 1}"]`);
-        await expect(goal.locator('[data-goal-at]'), `goal ${i + 1}: its threshold`).toHaveText(`от ${term.threshold}`);
-        await expect(goal.locator('[data-goal-vp]'), `goal ${i + 1}: its prize`).toHaveText(`+${term.each} ПО`);
-        const reached = term.vp > 0;
-        await expect(goal, `goal ${i + 1}: reached or not`).toHaveAttribute('data-goal-reached', String(reached));
-        await expect(goal.locator('[data-goal-state]')).toHaveText(reached ? 'Взята' : `Ещё ${term.threshold! - term.count}`);
-      }
-      const goalsVp = goalTerms.reduce((s, t) => s + t.vp, 0);
-      await expect(ledger.locator('[data-dividend-vp]'), 'the total WITH the goals').toHaveText(String(row!.vp));
-      await expect(ledger.locator('[data-dividend-total]')).toContainText(`формула ${row!.vp - goalsVp} + цели ${goalsVp}`);
-      // The ledger is read whole: inside the rules panel, nothing of it cut.
-      const inside = await page.evaluate(() => {
-        const panel = document.querySelector('.con-zoom-rules');
-        const box = document.querySelector('[data-dividend-ledger]');
-        if (panel === null || box === null) {
-          return false;
-        }
-        const p = panel.getBoundingClientRect();
-        const b = box.getBoundingClientRect();
-        return b.left >= p.left - 1 && b.right <= p.right + 1 && b.bottom <= p.bottom + 1;
-      });
-      expect(inside, 'the ledger stands inside the rules panel').toBe(true);
+      await expectLedgerReadsServer(page, rules, await fetchPlayerModel(request, players[0].id), 'C10');
       await page.screenshot({path: `screenshots/bot-portfolio-rules-${profile.id}.png`, fullPage: false});
 
       // ← twice → the PRIMARY: no dividend section at all (it never pays one).
@@ -147,6 +191,25 @@ for (const profile of PROFILES) {
       await expect(rules.locator('[data-rules-group="botcorp:C01:dividend"]'), 'the primary has no dividend box').toHaveCount(0);
       await expect(rules.locator('[data-dividend-ledger]')).toHaveCount(0);
       await expect(rules, 'the primary\'s boxes act').not.toContainText('Не действует');
+    });
+
+    test('the goals REACHED: the ledger reads the paid goals by material and word, the total carries them', async ({page, request}) => {
+      test.setTimeout(240_000);
+      const viewer = await bootFixture(page, request, 'bot-portfolio-dividends', {query: profile.query});
+      const rules = await inspectBotHolding(page);
+      const model = await fetchPlayerModel(request, viewer);
+
+      // Tharsis Republic — 8 cities over goals of 7 and 8: both paid.
+      const tharsis = await expectLedgerReadsServer(page, rules, model, 'C10');
+      expect(tharsis.map((t) => t.vp > 0), 'the fixture reaches both of Tharsis\'s goals').toEqual([true, true]);
+      await expect(rules.locator('[data-dividend-goal][data-goal-reached="true"] .con-divledger__seal'), 'the seal of a paid goal').toHaveText(['✓', '✓']);
+      await page.screenshot({path: `screenshots/bot-portfolio-dividends-reached-${profile.id}.png`, fullPage: false});
+
+      // ← → Ecoline — 9 greeneries over goals of 9 and 10: the first paid, the second one short.
+      await press(page, 'ArrowLeft', 900);
+      const ecoline = await expectLedgerReadsServer(page, rules, model, 'C02');
+      expect(ecoline.map((t) => t.vp > 0), 'the fixture reaches only Ecoline\'s first goal').toEqual([true, false]);
+      await page.screenshot({path: `screenshots/bot-portfolio-dividends-partial-${profile.id}.png`, fullPage: false});
     });
   });
 }

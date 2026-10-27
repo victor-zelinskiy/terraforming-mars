@@ -8,6 +8,7 @@
     "Second goal": "Вторая цель",
     "${0} — VP at the end of the game": "${0} — ПО в конце партии",
     "Does not act while MarsBot holds this corporation": "Не действует, пока это дополнительная корпорация MarsBot",
+    "Dividend pays at the end of the game": "В конце партии",
     "Dividend goals": "Цели",
     "Dividend goal ${0}": "Цель ${0}",
     "Dividend goal at ${0}": "от ${0}",

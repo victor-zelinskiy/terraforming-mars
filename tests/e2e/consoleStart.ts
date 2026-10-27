@@ -3089,7 +3089,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // at all — the named skip before the press; `-one`: a single candidate — still the multi album).
   'strategic-shift' | 'strategic-shift-none' | 'strategic-shift-one' |
   // TR65 «СТОЛ — ЭТО СТОЛ»: blue's FIFTY-card table (the shelf album's pages), red with five cards.
-  'played-table-50';
+  'played-table-50' |
+  // MarsBot's portfolio with its dividend GOALS reached: Tharsis Republic both, Ecoline the first.
+  'bot-portfolio-dividends';
 
 export async function bootFixture(
   page: Page,

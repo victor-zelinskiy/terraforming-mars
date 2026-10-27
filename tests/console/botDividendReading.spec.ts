@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
-import {MarsBotDividendDetail, bonusTerm, dividendResult, perUnitTerm, withDividendGoal} from '../../src/common/automa/MarsBotDividend';
+import {DIVIDEND_GOAL_LINE, MarsBotDividendDetail, bonusTerm, dividendResult, perUnitTerm, withDividendGoal} from '../../src/common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../src/common/automa/MarsBotDividendData';
 import {PublicPlayerModel} from '../../src/common/models/PlayerModel';
 import {botDividendDetailOf, botDividendReading} from '../../src/client/components/marsbot/botDividendReading';
@@ -34,6 +34,17 @@ describe('botDividendReading — the live ledger of a further corporation', () =
     expect(reading!.formulaVp).eq(7 * 2 + 2);
     expect(reading!.goalsVp).eq(0);
     expect(reading!.totalVp).eq(16);
+  });
+
+  it('the mechanic: the name, the printed rule WITHOUT the goal line, the formula\'s live terms', () => {
+    const reading = botDividendReading(ecoline(7))!;
+    const info = marsBotDividendInfo(MarsBotCorpId.C02_ECOLINE);
+    expect(reading.name).eq('Green Belt');
+    expect(reading.rule.map((l) => l.text)).deep.eq(info.lines.filter((l) => l.text !== DIVIDEND_GOAL_LINE).map((l) => l.text));
+    expect(reading.rule.map((l) => l.muted)).deep.eq([false, true]);
+    expect(reading.terms.map((t) => [t.label, t.vp])).deep.eq([['Greenery tiles', 14], ['Threshold bonus', 2]]);
+    expect(reading.terms[0].formula).deep.eq({label: '${0} × ${1} VP', params: [7, 2]});
+    expect(reading.terms.reduce((s, t) => s + t.vp, 0), 'the terms add up to the formula').eq(reading.formulaVp);
   });
 
   it('the first goal reached: it pays, the second still names what is missing; the total adds the goal', () => {
@@ -88,10 +99,11 @@ describe('the «ДИВИДЕНДЫ» box beside a live ledger', () => {
     expect(box.rows.length).eq(1 + printed);
   });
 
-  it('drops the printed goal line once the live ledger states the goals', () => {
-    const live = marsBotHoldingAnnotations(id, {liveGoals: true})[0];
-    const plain = marsBotHoldingAnnotations(id)[0];
+  it('carries no rows of its own once the live ledger draws the whole box', () => {
+    const live = marsBotHoldingAnnotations(id, {ledger: true})[0];
     expect(live.id).eq(marsBotDividendGroupId(id));
-    expect(live.rows.length).eq(plain.rows.length - 1);
+    expect(live.labelKey).eq('Dividends');
+    expect(live.rows).deep.eq([]);
+    expect(marsBotHoldingAnnotations(id)[0].rows.length, 'without a ledger the printed box stands').eq(1 + printed);
   });
 });

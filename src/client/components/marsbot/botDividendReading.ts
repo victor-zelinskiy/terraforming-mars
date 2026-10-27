@@ -1,11 +1,11 @@
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
-import {GOAL_TERM_LABEL, MarsBotDividendDetail, SECOND_GOAL_TERM_LABEL} from '@/common/automa/MarsBotDividend';
+import {DIVIDEND_GOAL_LINE, GOAL_TERM_LABEL, MarsBotDividendDetail, SECOND_GOAL_TERM_LABEL, dividendTermFormula} from '@/common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '@/common/automa/MarsBotDividendData';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 
 /**
  * THE LIVE READING OF ONE FURTHER CORPORATION'S DIVIDEND — what the inspected
- * card's «ДИВИДЕНДЫ» box adds under its printed rule (the owner, 2026-10-27:
+ * card's «ДИВИДЕНДЫ» box reads (the owner, 2026-10-27:
  * «порог по двум целям и текущий прогресс — взята или нет, сколько ПО дала —
  * и отдельно сколько всего ПО с учётом целей»).
  *
@@ -14,7 +14,25 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
  * formula terms followed by the two goal terms `withDividendGoal` appended
  * (threshold, the measured operand's count, the VP paid). This module only
  * finds those terms and reads them out.
+ *
+ * The reading is the WHOLE box (the owner, 2026-10-27, second pass: «первая и
+ * основная зона — механика — до того же премиального уровня, целостная
+ * композиция»): the mechanic's zone — the dividend's name, its printed rule
+ * (the goal line excluded: the goals' own plates state it) and the formula's
+ * live terms — stands on the same plate as the goals and the total.
  */
+
+/** One printed line of the rule — an i18n template, its params, quieter when `muted`. */
+export type BotDividendRuleLine = {text: string, params: ReadonlyArray<string>, muted: boolean};
+
+/** One live term of the formula: what is counted, the arithmetic now, the VP it pays. */
+export type BotDividendTermReading = {
+  /** i18n key of the operand («Greenery tiles»). */
+  label: string;
+  /** The ONE term formula reading (`dividendTermFormula` — «7 × 2 VP», «7 of 6 for +2 VP»). */
+  formula: {label: string, params: ReadonlyArray<number>};
+  vp: number;
+};
 
 export type BotDividendGoalReading = {
   ordinal: 1 | 2;
@@ -32,6 +50,12 @@ export type BotDividendGoalReading = {
 };
 
 export type BotDividendReading = {
+  /** The dividend's own name (i18n key — «Urbanization»). */
+  name: string;
+  /** The printed rule, without the goal line. */
+  rule: ReadonlyArray<BotDividendRuleLine>;
+  /** The formula's live terms (the goals excluded), in the clause's order. */
+  terms: ReadonlyArray<BotDividendTermReading>;
   /** The operand both goals measure — the term's own i18n label and its live count. */
   operand: {label: string, count: number};
   goals: readonly [BotDividendGoalReading, BotDividendGoalReading];
@@ -55,7 +79,8 @@ export function botDividendReading(detail: MarsBotDividendDetail | undefined): B
   }
   const first = detail.terms.find((t) => t.label === GOAL_TERM_LABEL);
   const second = detail.terms.find((t) => t.label === SECOND_GOAL_TERM_LABEL);
-  const measured = detail.terms[marsBotDividendInfo(detail.corporation).goal.term];
+  const info = marsBotDividendInfo(detail.corporation);
+  const measured = detail.terms[info.goal.term];
   if (first?.threshold === undefined || second?.threshold === undefined || measured === undefined) {
     return undefined;
   }
@@ -74,6 +99,13 @@ export function botDividendReading(detail: MarsBotDividendDetail | undefined): B
   const goals = [goal(1, first.threshold, first.each, first.vp), goal(2, second.threshold, second.each, second.vp)] as const;
   const goalsVp = first.vp + second.vp;
   return {
+    name: info.name,
+    rule: info.lines
+      .filter((line) => line.text !== DIVIDEND_GOAL_LINE)
+      .map((line) => ({text: line.text, params: line.params ?? [], muted: line.muted === true})),
+    terms: detail.terms
+      .filter((t) => t !== first && t !== second)
+      .map((t) => ({label: t.label, formula: dividendTermFormula(t), vp: t.vp})),
     operand: {label: measured.label, count: first.count},
     goals,
     formulaVp: detail.vp - goalsVp,

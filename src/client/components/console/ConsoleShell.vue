@@ -10599,7 +10599,7 @@ export default defineComponent({
       // The primary carries no «Дивиденды» box at all (the owner, 2026-10-27):
       // it never pays one.
       if (this.zoomBotCorpHolding) {
-        return marsBotHoldingAnnotations(card.marsBotCorp, {liveGoals: this.zoomBotDividendReading !== undefined});
+        return marsBotHoldingAnnotations(card.marsBotCorp, {ledger: this.zoomBotDividendReading !== undefined});
       }
       return marsBotCorpAnnotations(card.marsBotCorp);
     },

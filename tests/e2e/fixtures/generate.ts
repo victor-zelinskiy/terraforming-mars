@@ -303,7 +303,7 @@ import {VoteOfNoConfidenceRedux} from '../../../src/server/cards/turmoilRedux/Vo
 import {hasPartyRequirement} from '../../../src/server/cards/requirements/partyRequirementCards';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
-import {BonusCardId} from '../../../src/common/automa/AutomaTypes';
+import {BonusCardId, MarsBotCorpId} from '../../../src/common/automa/AutomaTypes';
 import {Phase} from '../../../src/common/Phase';
 import {IPlayer} from '../../../src/server/IPlayer';
 import {AutomaState} from '../../../src/server/automa/AutomaState';
@@ -598,6 +598,40 @@ for (const name of ['price-fold-bot', 'price-fold-bot-second'] as const) {
     human.actionsTakenThisRound = 1;
   }
   runAllActions(game);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected blue on the move with the action menu — got phase=${game.phase} active=${game.activePlayer.color} wf=${human.getWaitingFor()?.constructor.name}`);
+  }
+  write(name, game);
+}
+
+// ── bot-portfolio-dividends: THE LIVE DIVIDEND LEDGER with its goals REACHED (the owner, 2026-10-27). A solo game
+//    against MarsBot (Credicor) holding two further corporations, its table built so both readings of a goal stand:
+//      · Tharsis Republic (cities: goals 7 / 8) — the bot owns 8 cities: BOTH goals reached, +10 and +15;
+//      · Ecoline (greeneries: goals 9 / 10) — the bot owns 9 greeneries: the first goal reached, the second «ещё 1».
+//    The human (Helion) stands at the action menu; the inspect of either holding reads the server's own dividend row. ──
+{
+  const name = 'bot-portfolio-dividends';
+  const pinned = [CardName.HELION];
+  const [game, human, bot] = testAutomaGame({
+    startingCorporations: 1,
+    keepInitialCardSelection: true,
+    customCorporationsList: [...pinned],
+    corporation: MarsBotCorpId.C01_CREDICOR,
+    portfolio: [MarsBotCorpId.C02_ECOLINE, MarsBotCorpId.C10_THARSIS_REPUBLIC],
+  });
+  assignPinnedCorporations(name, [human], pinned);
+  answerStartFlow(game, [human]);
+  for (let i = 0; i < 8; i++) {
+    addCity(bot);
+  }
+  for (let i = 0; i < 9; i++) {
+    addGreenery(bot);
+  }
+  runAllActions(game);
+  const owned = (type: TileType) => game.board.spaces.filter((sp) => sp.player?.id === bot.id && sp.tile?.tileType === type).length;
+  if (owned(TileType.CITY) !== 8 || owned(TileType.GREENERY) !== 9) {
+    throw new Error(`${name}: expected the bot to own 8 cities and 9 greeneries, got ${owned(TileType.CITY)} / ${owned(TileType.GREENERY)}`);
+  }
   if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions)) {
     throw new Error(`${name}: expected blue on the move with the action menu — got phase=${game.phase} active=${game.activePlayer.color} wf=${human.getWaitingFor()?.constructor.name}`);
   }

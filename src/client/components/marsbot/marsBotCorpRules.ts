@@ -1,7 +1,6 @@
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {CORP_SECTION_LABEL, MarsBotCorpSection, marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 import {DIVIDEND_SECTION_LABEL, marsBotDividendInfo} from '@/common/automa/MarsBotDividendData';
-import {DIVIDEND_GOAL_LINE} from '@/common/automa/MarsBotDividend';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -51,10 +50,11 @@ export function marsBotCorpAnnotations(id: MarsBotCorpId): ReadonlyArray<CardAnn
  * like any corporation on the table, and the rules are where the difference is
  * told — its dividend FIRST (the one thing it does), then the printed boxes,
  * each marked as not acting while the bot holds it. With a LIVE reading
- * (`liveGoals` — the inspect panel draws the goals' thresholds and progress
- * under the box) the printed goal line is dropped: the ledger states it.
+ * (`ledger` — the inspect panel's dividend ledger) the box carries no rows of
+ * its own: the ledger draws the whole box (the name, the printed rule, the
+ * live formula, the goals, the total) as ONE composition.
  */
-export function marsBotHoldingAnnotations(id: MarsBotCorpId, opts: {liveGoals?: boolean} = {}): ReadonlyArray<CardAnnotation> {
+export function marsBotHoldingAnnotations(id: MarsBotCorpId, opts: {ledger?: boolean} = {}): ReadonlyArray<CardAnnotation> {
   const dividend = marsBotDividendAnnotation(id, 0, opts);
   const printed = marsBotCorpAnnotations(id).map((group, i): CardAnnotation => ({
     ...group,
@@ -80,17 +80,15 @@ export function marsBotDividendGroupId(id: MarsBotCorpId): string {
  * primary's rules carry no dividend at all — it never pays one): its name and
  * when it pays, then the printed formula.
  */
-export function marsBotDividendAnnotation(id: MarsBotCorpId, order: number, opts: {liveGoals?: boolean} = {}): CardAnnotation {
+export function marsBotDividendAnnotation(id: MarsBotCorpId, order: number, opts: {ledger?: boolean} = {}): CardAnnotation {
   const box = marsBotDividendInfo(id);
-  const lines = [
+  const lines = opts.ledger === true ? [] : [
     {text: translateTextWithParams('${0} — VP at the end of the game', [translateText(box.name)])},
-    ...box.lines
-      .filter((line) => opts.liveGoals !== true || line.text !== DIVIDEND_GOAL_LINE)
-      .map((line) => ({
-        text: line.params !== undefined && line.params.length > 0 ?
-          translateTextWithParams(line.text, [...line.params]) :
-          translateText(line.text),
-      })),
+    ...box.lines.map((line) => ({
+      text: line.params !== undefined && line.params.length > 0 ?
+        translateTextWithParams(line.text, [...line.params]) :
+        translateText(line.text),
+    })),
   ];
   return {
     id: marsBotDividendGroupId(id),
