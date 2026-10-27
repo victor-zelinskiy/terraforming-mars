@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {GameCards} from '../../../src/server/GameCards';
 import {
   LOTUS_DATA_PER_VP, LOTUS_FIRST_ACTION_TR, LOTUS_REASON, LotusInnovations,
 } from '../../../src/server/cards/turmoilRedux/LotusInnovations';
@@ -324,10 +325,11 @@ describe('LotusInnovations', () => {
     });
 
     it('a Redux table deals the corporation; a classic Turmoil table does not', () => {
+      // The POOL, not the shuffled draw pile (a dealt hand takes the card out of it — every new corporation reshuffles).
       const [redux] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
-      expect(redux.corporationDeck.drawPile.map((c) => c.name)).to.include(CardName.LOTUS_INNOVATIONS);
+      expect(new GameCards(redux.gameOptions).getCorporationCards().map((c) => c.name)).to.include(CardName.LOTUS_INNOVATIONS);
       const [classic] = testGame(2, {turmoilExtension: true});
-      expect(classic.corporationDeck.drawPile.map((c) => c.name)).to.not.include(CardName.LOTUS_INNOVATIONS);
+      expect(new GameCards(classic.gameOptions).getCorporationCards().map((c) => c.name)).to.not.include(CardName.LOTUS_INNOVATIONS);
     });
 
     it('save / load keeps the data, and the hook answers after the load', () => {

@@ -2994,6 +2994,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'proteus' | 'proteus-futile' | 'deimos' |
   // TR84 Titan Holdings: an Earth play beside 3 leverage, then the action — 2 leverage → a delegate; 4 → two.
   'titan' | 'titan-two' |
+  // TR85 Veynon Dynamics — the door (the standing «+1», the corporation's trade door), the family of eight, the fleet dock.
+  'veynon' | 'veynon-family' | 'veynon-dock' |
   'parliament-architecture-vote' | 'parliament-access-edge' | 'septem-tribus' | 'septem-win' | 'arwind-walker' | 'arwind-sitting-win' | 'arwind-chairman-quest' | 'arwind-pay-space' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |
   'parliament-biodome-vote' | 'parliament-biodome-enact' | 'parliament-biodome-maxed' | 'parliament-biodome-recap' |
   'parliament-biodome-nocell' | 'parliament-biodome-neutral' |

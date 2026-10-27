@@ -660,6 +660,21 @@ went to the composer parked underneath while the player was demonstrably driving
 the colony grid on top of it. `workspaceStackTopAxis()` is the one answer —
 the same rule presence already uses.
 
+**THREE CARDS, ONE DOOR (TR85, 2026-10-27).** Titan Floating Launch-Pad (a
+floater), Automated Convoys (TR66, a mech) and Veynon Dynamics (TR85 — the first
+CORPORATION with the door, a mech) print «spend 1 <resource> from here to trade
+for free» word for word, so the server half lives ONCE in
+`src/server/colonies/cardTradeDoor.ts`: `CardResourceTrader` (the path — every
+card's trader is an instance with its `CardTradeDoorSpec`, all three in
+`Colonies.tradeHandlers()`), `cardTradeDoorReason` (the variant's one blocker —
+the resource here, then `tradeBlockedReason()`) and `cardTradeDoorOption` (the
+action's option — `tradeDestinationPick` → `tradeThrough`). The branch preview
+stays in each card file. The client needed nothing: the door matches
+`OptionMetadata.card`, never the source's kind, so a corporation's path is
+pinned exactly like a project card's. A fourth card is a spec row, never a copy.
+The standing `tradeOffset` (Veynon's «raise the track first») reaches the
+embedded step because it is the SAME `ConsoleColoniesSection` instance.
+
 ## THE FLEET DOCK — a trade whose destination is a CARD (TR06, 2026-10-01)
 
 Turmoil Redux TR06 Water Hauling (and its sisters TR26 UNMI Liner, TR27 Aurora

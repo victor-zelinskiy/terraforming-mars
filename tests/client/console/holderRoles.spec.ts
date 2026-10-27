@@ -288,6 +288,18 @@ describe('additionalResourceRoleGroups — a chip per MEANING, never one number 
     expect(actionGoodKey({kind: 'cards', amount: 1, tag: 'space' as never})).to.eq('cards-space');
   });
 
+  it('EIGHT mech holders (TR85): Veynon Dynamics declares the TRADE role — beside TR66 it is ONE trade group carrying BOTH faces, never a ninth chip', () => {
+    expect(holderRoleOf(CardName.VEYNON_DYNAMICS)).to.deep.eq({kind: 'trade', price: 1});
+    const groups = additionalResourceRoleGroups([
+      card(CardName.EVA_MECHS, 2), card(CardName.CONSTRUCTION_MECHS, 1), card(CardName.MECH_SPORTS, 3), card(CardName.MARS_ARMY_MECHS, 1),
+      card(CardName.AUTOMATED_CONVOYS, 1), card(CardName.FORESTRY_MECHS, 2), card(CardName.EXPEDITION_MECHS, 1), card(CardName.VEYNON_DYNAMICS, 1),
+    ]);
+    const trade = groups.filter((g) => g.role.kind === 'trade');
+    expect(trade.map((g) => [g.key, g.total])).to.deep.eq([['mech:trade', 2]]);
+    expect(trade[0].cards.map((c) => c.name)).to.deep.eq([CardName.AUTOMATED_CONVOYS, CardName.VEYNON_DYNAMICS]);
+    expect(groups).has.lengthOf(7, 'eight holders, seven meanings');
+  });
+
   it('data holders split the same way: the census (delegates) apart, the museum (VP) alone on the plain chip, TR02\'s draw (an action good) apart — and an unrelated type stays whole', () => {
     const groups = additionalResourceRoleGroups([
       card(CardName.MARTIAN_CENSUS, 3), card(CardName.RED_MUSEUM, 2), card(CardName.POLITICAL_SCIENCE, 1), card(CardName.MECH_SPORTS, 1),

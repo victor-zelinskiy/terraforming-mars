@@ -84,6 +84,7 @@ import {LotusInnovations} from './LotusInnovations';
 import {Proteus} from './Proteus';
 import {TheDeimosGroup} from './TheDeimosGroup';
 import {TitanHoldings} from './TitanHoldings';
+import {VeynonDynamics} from './VeynonDynamics';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -418,6 +419,11 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // 2 leverage → a delegate, 4 → two (declarative branches; the price rides the vote's answer). The Moon is an
     // option of the effect's TEXT (`textVariants`), not a condition of the card — no `compatibility`.
     [CardName.TITAN_HOLDINGS]: {Factory: TitanHoldings},
+    // TR85 — the EIGHTH and last new corporation: Trade Envoys' «raise the track before trading» (`colonies.tradeOffset`
+    // — the one trade plan reads it), and an action of two variants: a mech to ANY card (a behavior value the Executor
+    // runs), or 1 mech from here → a free trade (the shared card door, `colonies/cardTradeDoor.ts` — TFLP's and TR66's).
+    // The ▲ beside the art is the Colonies mark (TR66's precedent).
+    [CardName.VEYNON_DYNAMICS]: {Factory: VeynonDynamics, compatibility: 'colonies'},
   },
   // The classic cards a replacement above stands in for — never dealt into a Redux game (upstream's
   // `GameCards.filterReplacedCards`); a classic-Turmoil game does not load this manifest, so it keeps them.

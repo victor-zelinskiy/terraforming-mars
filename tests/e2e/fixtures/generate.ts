@@ -3252,6 +3252,62 @@ function expeditionMechsFixture(name: string, at: 'hand' | 'action' | 'family'):
 expeditionMechsFixture('expedition-mechs', 'hand');
 expeditionMechsFixture('expedition-mechs-action', 'action');
 expeditionMechsFixture('expedition-mechs-family', 'family');
+// ── TR85 · VEYNON DYNAMICS — «when you trade with a colony track, you may first increase it 1 step» (Trade Envoys'
+//    `tradeOffset`) and «add 1 mech resource to ANY card, OR spend 1 mech from here to trade for free» (the shared card
+//    door). A 2p Redux table, blue on Veynon (its start paid: 1 titanium production, 1 mech here, the standing step),
+//    the Scientists ruling, blue's fleet free. The colonies are Luna · Europa · Callisto, every track at its start —
+//    Luna's reach pays the same kind (it advances by itself), Europa's asks («поднять 1» / «не поднимать»).
+//      · `veynon`        — the door: «Колонии» shows «+1» on every active track; «Действия карт» → Veynon → two tiles;
+//      · `veynon-family` — every mech holder of the set on blue's table (EXPEDITION_FAMILY) beside Veynon: variant A's
+//                          «КУДА» over EIGHT candidates, the satellite's two trade faces (TR66 + Veynon);
+//      · `veynon-dock`   — Water Hauling (a fleet dock, TR06) on blue's table: B's destination pick offers the dock — a
+//                          destination with no track, where the step does not apply. ──
+function veynonFixture(name: string, at: 'door' | 'family' | 'dock'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {customCorporationsList: [CardName.VEYNON_DYNAMICS, CardName.THORGATE]},
+    arrange: ({game, p1, parliament}) => {
+      seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+      game.colonies = [new Luna(), new Europa(), new Callisto()];
+      p1.cardsInHand = [new MartianRails()];
+      if (at === 'family') {
+        const holders: Record<string, IProjectCard> = {
+          [CardName.EVA_MECHS]: new EvaMechs(), [CardName.CONSTRUCTION_MECHS]: new ConstructionMechs(),
+          [CardName.MECH_SPORTS]: new MechSports(), [CardName.MARS_ARMY_MECHS]: new MarsArmyMechs(),
+          [CardName.AUTOMATED_CONVOYS]: new AutomatedConvoys(), [CardName.FORESTRY_MECHS]: new ForestryMechs(),
+          [CardName.EXPEDITION_MECHS]: new ExpeditionMechs(),
+        };
+        for (const [holder, count] of EXPEDITION_FAMILY) {
+          holders[holder].resourceCount = count;
+          p1.playedCards.push(holders[holder]);
+        }
+        p1.energy = 0;
+      }
+      if (at === 'dock') {
+        p1.playedCards.push(new WaterHauling());
+      }
+    },
+    expect: ({game, p1, parliament}) => {
+      const veynon = p1.playedCards.get(CardName.VEYNON_DYNAMICS) as unknown as ({resourceCount: number, canAct(p: IPlayer): boolean}) | undefined;
+      const facts = {
+        veynon: veynon !== undefined, mechs: veynon?.resourceCount, offset: p1.colonies.tradeOffset,
+        acts: veynon?.canAct(p1), trade: p1.colonies.tradeBlockedReason() ?? 'open', ruling: parliament.rulingParty(),
+        colonies: game.colonies.map((c) => `${c.name}@${c.trackPosition}`).join(','),
+      };
+      if (!facts.veynon || facts.mechs !== 1 || facts.offset !== 1 || facts.acts !== true || facts.trade !== 'open' || facts.ruling !== PartyName.SCIENTISTS) {
+        throw new Error(`${name}: the subject is not what the spec reads — ${JSON.stringify(facts)}`);
+      }
+      if (at === 'family' && !EXPEDITION_FAMILY.every(([holder, count]) => p1.playedCards.get(holder)?.resourceCount === count)) {
+        throw new Error(`${name}: the family is not on the table`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+veynonFixture('veynon', 'door');
+veynonFixture('veynon-family', 'family');
+veynonFixture('veynon-dock', 'dock');
 // ── TR51 · INFLUENTIAL DISCOVERY — «1 science OR 6 data to ANY card» (TR43's optional `or` as the whole card) and the
 //    stand of the choice-grammar iteration (docs/claude/prompts/project-tr51-influential-discovery.md): the comparison
 //    «1 science against 6 data» whose both ends depend on the table. Blue's action phase, the SCIENTISTS enacted (the

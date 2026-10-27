@@ -10,13 +10,10 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {IPlayer} from '../../IPlayer';
 import {PlayerInput} from '../../PlayerInput';
-import {ITradeDestination} from '../../colonies/ITradeDestination';
-import {IColonyTrader} from '../../colonies/IColonyTrader';
-import {tradeDestinationPick, tradeThrough} from '../../colonies/tradeDoor';
+import {CardResourceTrader, CardTradeDoorSpec, cardTradeDoorOption, cardTradeDoorReason} from '../../colonies/cardTradeDoor';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
 import {effectChoice} from '../../inputs/choiceContext';
-import {message} from '../../logs/MessageBuilder';
 import * as reason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 import {DeclaredHolderRole} from '../../../common/cards/holderRole';
@@ -93,10 +90,7 @@ export class AutomatedConvoys extends Card implements IProjectCard {
   /** ONE blocker for variant B, in check order: the mech on this card (the
    *  only condition the card adds), then the engine's own trade gate. */
   private tradeVariantReason(player: IPlayer): string | undefined {
-    if (this.resourceCount < MECHS_PER_TRADE) {
-      return 'No mechs on this card';
-    }
-    return player.colonies.tradeBlockedReason();
+    return cardTradeDoorReason(player, this, AUTOMATED_CONVOYS_TRADE_DOOR);
   }
 
   public canAct(player: IPlayer): boolean {
@@ -153,17 +147,9 @@ export class AutomatedConvoys extends Card implements IProjectCard {
       }));
     }
     if (this.tradeVariantReason(player) === undefined) {
-      options.push(new SelectOption('Spend 1 mech from this card to trade for free', 'Trade').andThen(() => {
-        // The trader IS the implementation; this is one of its two entry
-        // points (the colonies menu's fee picker is the other). The pick is
-        // of a DESTINATION — a colony tile or a fleet-dock card of the
-        // player's own — and the door's scope is the shared one.
-        const trader = new TradeWithAutomatedConvoys(player);
-        player.defer(
-          tradeDestinationPick(player, 'Select colony tile to trade with for free', 'trade', 0,
-            (destination) => tradeThrough(player, trader, destination)));
-        return undefined;
-      }));
+      // The trader IS the implementation — the shared card door.
+      options.push(cardTradeDoorOption(player, new TradeWithAutomatedConvoys(player),
+        'Spend 1 mech from this card to trade for free', 'Trade'));
     }
     if (options.length === 0) {
       return undefined;
@@ -175,52 +161,20 @@ export class AutomatedConvoys extends Card implements IProjectCard {
   }
 }
 
-/** Pays a colony trade fee with 1 mech from Automated Convoys (the card's action). */
-export class TradeWithAutomatedConvoys implements IColonyTrader {
-  private automatedConvoys: AutomatedConvoys | undefined;
+/** Pays a colony trade fee with 1 mech from Automated Convoys (the card's action) — the shared card door
+ *  (`colonies/cardTradeDoor.ts`; Titan Floating Launch-Pad and Veynon Dynamics are its siblings). */
+export const AUTOMATED_CONVOYS_TRADE_DOOR: CardTradeDoorSpec = {
+  card: CardName.AUTOMATED_CONVOYS,
+  icon: 'mech',
+  price: MECHS_PER_TRADE,
+  optionText: 'Pay 1 mech (use ${0} action)',
+  logText: '${0} spent 1 mech to trade with ${1}',
+  noResourceReason: 'No mechs on this card',
+  spend: 'recorded',
+};
 
-  constructor(private player: IPlayer) {
-    const card = player.tableau.get(CardName.AUTOMATED_CONVOYS);
-    this.automatedConvoys = card === undefined ? undefined : (card as AutomatedConvoys);
-  }
-
-  public canUse() {
-    return (this.automatedConvoys?.resourceCount ?? 0) > 0 &&
-      !this.player.actionsThisGeneration.has(CardName.AUTOMATED_CONVOYS);
-  }
-
-  public optionText() {
-    return message('Pay 1 mech (use ${0} action)', (b) => b.cardName(CardName.AUTOMATED_CONVOYS));
-  }
-
-  /** `card` is this path's structural IDENTITY: the card's own action enters
-   *  this very option, and the console locks the fee by it — never by the
-   *  translated label. */
-  public optionMetadata() {
-    const current = this.automatedConvoys?.resourceCount ?? 0;
-    return {kind: 'resourceRemoval' as const, icon: 'mech', amount: 1,
-      card: CardName.AUTOMATED_CONVOYS,
-      resource: {current, resulting: Math.max(0, current - 1)}};
-  }
-
-  /** Mirrors `canUse`, one named blocker each; `undefined` = the card is not
-   *  owned, so there is no option to explain. */
-  public disabledReason() {
-    if (this.automatedConvoys === undefined) {
-      return undefined;
-    }
-    if (this.automatedConvoys.resourceCount <= 0) {
-      return 'No mechs on this card';
-    }
-    return 'This card\'s action was already used this generation';
-  }
-
-  public trade(destination: ITradeDestination) {
-    if (this.automatedConvoys !== undefined) {
-      this.player.removeResourceFrom(this.automatedConvoys, MECHS_PER_TRADE, {log: false});
-    }
-    this.player.actionsThisGeneration.add(CardName.AUTOMATED_CONVOYS);
-    this.player.game.log('${0} spent 1 mech to trade with ${1}', (b) => b.player(this.player).tradeDestination(destination));
-    destination.trade(this.player);
+export class TradeWithAutomatedConvoys extends CardResourceTrader {
+  constructor(player: IPlayer) {
+    super(player, AUTOMATED_CONVOYS_TRADE_DOOR);
   }
 }

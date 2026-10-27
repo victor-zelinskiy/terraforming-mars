@@ -12,6 +12,7 @@ import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {Resource} from '../../common/Resource';
 import {TradeWithTitanFloatingLaunchPad} from '../cards/colonies/TitanFloatingLaunchPad';
 import {TradeWithAutomatedConvoys} from '../cards/turmoilRedux/AutomatedConvoys';
+import {TradeWithVeynonDynamics} from '../cards/turmoilRedux/VeynonDynamics';
 import {OrOptions} from '../inputs/OrOptions';
 import {SelectOption} from '../inputs/SelectOption';
 import {IColonyTrader} from '../colonies/IColonyTrader';
@@ -181,6 +182,7 @@ export class Colonies {
       new TradeWithDarksideSmugglersUnion(player),
       new TradeWithTitanFloatingLaunchPad(player),
       new TradeWithAutomatedConvoys(player),
+      new TradeWithVeynonDynamics(player),
       new TradeWithCollegiumCopernicus(player),
       new TradeWithHectateSpeditions(player),
       new TradeWithEnergy(player),

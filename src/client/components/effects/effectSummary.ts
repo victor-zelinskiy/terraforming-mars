@@ -280,7 +280,7 @@ const PAYMENT_VALUE_MODIFIER_CARDS: ReadonlySet<CardName> = new Set([
 /** Cards whose passive rule advances a colony track before trading (`tradeOffset`).
  *  The server records EVERY such card generically; this drives only the pre-trade note. */
 const COLONY_TRADE_OFFSET_CARDS: ReadonlySet<CardName> = new Set([
-  CardName.TRADING_COLONY, CardName.TRADE_ENVOYS,
+  CardName.TRADING_COLONY, CardName.TRADE_ENVOYS, CardName.VEYNON_DYNAMICS,
 ]);
 
 /** Cards whose passive rule makes a trade cost fewer resources (`tradeDiscount`). */

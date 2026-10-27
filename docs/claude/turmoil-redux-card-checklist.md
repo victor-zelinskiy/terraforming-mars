@@ -130,6 +130,12 @@
   лор под своим номером; регистрация в `corporationCards`; `deckComposition.spec` считает её среди корпораций модуля. Реакция на шаг
   Карьеры — хук `ICard.onAgendaStep` + `askResourceOnAgendaStep` + двойник `agendaStepForecast`: три хоста (рука · задание · заседание /
   закон) приходят даром.
+- **Корпорация-ДЕРЖАТЕЛЬ с дверью торговли** (TR85 Veynon Dynamics, `docs/TURMOIL_REDUX_VEYNON_DYNAMICS.md`): «потратьте 1
+  <ресурс> отсюда — торгуйте бесплатно» — строка `CardTradeDoorSpec` общего модуля `colonies/cardTradeDoor.ts` + экземпляр трейдера
+  в `Colonies.tradeHandlers()` (никогда третья копия); `colonies.tradeOffset` — декларация + строка в `COLONY_TRADE_OFFSET_CARDS`
+  (`effectSummary.ts`); бесподобное действие с behavior-веткой — `CorporationCard implements IActionCard`, ветка исполняется
+  Executor-ом как ЗНАЧЕНИЕ, превью — ходоки `effectsForBehavior` / `stepsForBehavior` над ним; раздачу проверять по ПУЛУ
+  (`GameCards.getCorporationCards()`), не по `drawPile`. **Реестр восьми новых корпораций закрыт 2026-10-27.**
 - **Корпорация с первым действием-ПОСАДКОЙ и куб-маркерами** (TR79 Ferrus Academy, `docs/TURMOIL_REDUX_FERRUS_ACADEMY.md`): «удвоить
   бонус размещения» = `AddTileOptions.printedBonusMultiplier` (одна нить: `grantSpaceBonuses` → `CellBonusPaid` → запись языка тайлов; превью
   — `SelectSpace.printedBonusMultiplier` → `bonus=` → контекст превью), кубы — только предикатом `MarsBoard.isNonReservedLand` (один на Land

@@ -49,7 +49,10 @@ export const TURMOIL_REDUX_NEW_CORPORATIONS: ReadonlyArray<ReduxCorporationRow> 
   // TR84 — AUTHORED 2026-10-27 (`turmoilRedux/TitanHoldings.ts`): a leverage here for every played Mars / Earth / Venus /
   // Jovian / Moon tag (its own two included); 2 leverage → a delegate, 4 → two.
   {name: 'Titan Holdings', scan: 'Corporations/Corporation - Titan Holdings.png', authored: CardName.TITAN_HOLDINGS},
-  {name: 'Veynon Dynamics', scan: 'Corporations/Corporation - Veynon Dynamics.png'},
+  // TR85 — AUTHORED 2026-10-27 (`turmoilRedux/VeynonDynamics.ts`): Trade Envoys' «raise the track before trading»
+  // (`colonies.tradeOffset`); a mech to ANY card, or 1 mech here → a free trade (the shared card door,
+  // `colonies/cardTradeDoor.ts`). THE REGISTRY IS COMPLETE — all eight authored 2026-10-27.
+  {name: 'Veynon Dynamics', scan: 'Corporations/Corporation - Veynon Dynamics.png', authored: CardName.VEYNON_DYNAMICS},
 ];
 
 /** The first card number past the replacement corporation (TR77). */

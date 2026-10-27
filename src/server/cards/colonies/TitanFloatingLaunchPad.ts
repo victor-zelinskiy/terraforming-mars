@@ -7,12 +7,9 @@ import {CardResource} from '../../../common/CardResource';
 import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
 import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
-import {ITradeDestination} from '../../colonies/ITradeDestination';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
-import {IColonyTrader} from '../../colonies/IColonyTrader';
-import {tradeDestinationPick, tradeThrough} from '../../colonies/tradeDoor';
-import {message} from '../../logs/MessageBuilder';
+import {CardResourceTrader, CardTradeDoorSpec, cardTradeDoorOption} from '../../colonies/cardTradeDoor';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 import {cardSource, effectChoice} from '../../inputs/choiceContext';
@@ -104,23 +101,16 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
 
   public action(player: IPlayer) {
     const orOptions = new OrOptions(
-      new SelectOption('Remove 1 floater on this card to trade for free', 'Remove floater').andThen(() => {
-        // ONE implementation of «spend the floater and trade». This branch used
-        // to decrement `resourceCount` and call `colony.trade` itself, so the
-        // card's own action and the trade prompt's floater payment path were two
-        // codes doing the same thing — and they had already drifted: only the
-        // payment path opened the colony EVENT SCOPE, so a trade taken from the
-        // card grouped differently in the journal, and only it carried the
-        // `'trade'` button label the console's trade orchestration keys on.
-        // The trader IS the implementation; this is one of its two entry points.
-        // The pick is of a DESTINATION — a colony tile or a fleet-dock card of
-        // the player's own — and the door's scope is the shared one.
-        const trader = new TradeWithTitanFloatingLaunchPad(player);
-        player.defer(
-          tradeDestinationPick(player, 'Select colony tile to trade with for free', 'trade', 0,
-            (destination) => tradeThrough(player, trader, destination)));
-        return undefined;
-      }),
+      // ONE implementation of «spend the floater and trade». This branch used
+      // to decrement `resourceCount` and call `colony.trade` itself, so the
+      // card's own action and the trade prompt's floater payment path were two
+      // codes doing the same thing — and they had already drifted: only the
+      // payment path opened the colony EVENT SCOPE, so a trade taken from the
+      // card grouped differently in the journal, and only it carried the
+      // `'trade'` button label the console's trade orchestration keys on.
+      // The trader IS the implementation — the shared card door.
+      cardTradeDoorOption(player, new TradeWithTitanFloatingLaunchPad(player),
+        'Remove 1 floater on this card to trade for free', 'Remove floater'),
       new SelectOption('Add 1 floater to a Jovian card', 'Add floater').andThen(() => {
         // autoSelect:false — ALWAYS ask which Jovian card (even one candidate) so the
         // player sees the target; the confirm modal pre-collects the pick.
@@ -135,55 +125,21 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
   }
 }
 
-export class TradeWithTitanFloatingLaunchPad implements IColonyTrader {
-  private titanFloatingLaunchPad: TitanFloatingLaunchPad | undefined;
+/** Pays a colony trade fee with 1 floater from Titan Floating Launch-Pad — the shared card door
+ *  (`colonies/cardTradeDoor.ts`; Automated Convoys and Veynon Dynamics are its siblings). The fee leaves the
+ *  card's field directly, as upstream's card always did. */
+export const TITAN_FLOATING_LAUNCHPAD_TRADE_DOOR: CardTradeDoorSpec = {
+  card: CardName.TITAN_FLOATING_LAUNCHPAD,
+  icon: 'floater',
+  price: 1,
+  optionText: 'Pay 1 floater (use ${0} action)',
+  logText: '${0} spent 1 floater to trade with ${1}',
+  noResourceReason: 'No floaters on this card',
+  spend: 'field',
+};
 
-  constructor(private player: IPlayer) {
-    const card = player.tableau.get(CardName.TITAN_FLOATING_LAUNCHPAD);
-    this.titanFloatingLaunchPad = card === undefined ? undefined : (card as TitanFloatingLaunchPad);
-  }
-
-  public canUse() {
-    return (this.titanFloatingLaunchPad?.resourceCount ?? 0) > 0 &&
-      !this.player.actionsThisGeneration.has(CardName.TITAN_FLOATING_LAUNCHPAD);
-  }
-
-  public optionText() {
-    return message('Pay 1 floater (use ${0} action)', (b) => b.cardName(CardName.TITAN_FLOATING_LAUNCHPAD));
-  }
-
-  /** The console's payment picker renders every trade path in ONE grammar —
-   *  icon + `current → resulting` — from this marker (the same shape
-   *  TradeWithEnergy/Titanium/Megacredits attach); without it the floater row
-   *  stood bare beside fully-dressed siblings. `card` is this path's structural
-   *  IDENTITY: the card's own action enters this option, and the console must
-   *  find it without matching the translated label. */
-  public optionMetadata() {
-    const current = this.titanFloatingLaunchPad?.resourceCount ?? 0;
-    return {kind: 'resourceRemoval' as const, icon: 'floater', amount: 1,
-      card: CardName.TITAN_FLOATING_LAUNCHPAD,
-      resource: {current, resulting: Math.max(0, current - 1)}};
-  }
-
-  /** Mirrors `canUse`, one named blocker each. `undefined` = the player doesn't
-   *  own the card, so the option stays hidden (there is nothing to explain). */
-  public disabledReason() {
-    if (this.titanFloatingLaunchPad === undefined) {
-      return undefined;
-    }
-    if ((this.titanFloatingLaunchPad.resourceCount ?? 0) <= 0) {
-      return 'No floaters on this card';
-    }
-    return 'This card\'s action was already used this generation';
-  }
-
-  public trade(destination: ITradeDestination) {
-    // grr I wish there was a simpler syntax.
-    if (this.titanFloatingLaunchPad !== undefined) {
-      this.titanFloatingLaunchPad.resourceCount--;
-    }
-    this.player.actionsThisGeneration.add(CardName.TITAN_FLOATING_LAUNCHPAD);
-    this.player.game.log('${0} spent 1 floater to trade with ${1}', (b) => b.player(this.player).tradeDestination(destination));
-    destination.trade(this.player);
+export class TradeWithTitanFloatingLaunchPad extends CardResourceTrader {
+  constructor(player: IPlayer) {
+    super(player, TITAN_FLOATING_LAUNCHPAD_TRADE_DOOR);
   }
 }
