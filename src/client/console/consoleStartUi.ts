@@ -304,6 +304,52 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
   ];
 }
 
+/**
+ * WHY A DEPLOYMENT PRESS IS REFUSED — the ONE reading of the queue's gate (`ConsoleStartScene.actByName`), pure and
+ * spec'd. The deployment honours a press only when what it would start can actually happen:
+ *  - `hero`      — a hero transaction is in flight (the press is already being honoured; never a double arm);
+ *  - `shell`     — the deployment shell is not revealed / an embedded outcome is presenting / a card is still arriving
+ *                  (the destination is not ready — mid-materialization the source card must not release);
+ *  - `request`   — the submit funnel is BUSY (`transportRequestInProgress`): the press would launch its cinematic and
+ *                  the transport would DROP its submit — a flight for nothing. The «Наследие» row pressed right after
+ *                  the bought cards' payment was this: the carried cards lifted off, the grant was never sent, they
+ *                  hung in the air until the intake's budget dipped them, and the row still stood;
+ *  - `delivery`  — the carried cards' press while the BOUGHT cards are still on their way into the dock: two
+ *                  cascades of one dock at once, the second measured against a pose the first is still changing.
+ * `undefined` = the press is honoured. The order is the order of the facts' precedence (a hero outranks a shell
+ * state, a busy funnel outranks a role's own delivery).
+ */
+export type StartPressRefusal = 'hero' | 'shell' | 'request' | 'delivery';
+export type StartPressSignals = {
+  heroActive: boolean,
+  /** The deployment is the scene (`mode === 'ceremony'`) — the shell and funnel gates apply there only. */
+  ceremony: boolean,
+  shellRevealed: boolean,
+  embedPresenting: boolean,
+  queueArriving: boolean,
+  requestInProgress: boolean,
+  /** The bought cards' delivery (or the payment itself) is still pending. */
+  deliveryPending: boolean,
+};
+export function startPressRefusal(kind: string, s: StartPressSignals): StartPressRefusal | undefined {
+  if (s.heroActive) {
+    return 'hero';
+  }
+  if (!s.ceremony) {
+    return undefined;
+  }
+  if (!s.shellRevealed || s.embedPresenting || s.queueArriving) {
+    return 'shell';
+  }
+  if (s.requestInProgress) {
+    return 'request';
+  }
+  if (kind === 'legacy' && s.deliveryPending) {
+    return 'delivery';
+  }
+  return undefined;
+}
+
 export const consoleStartUi = reactive({
   /** The scene's live footer hints, ready for the command bar. */
   commands: [] as ReadonlyArray<StartCommand>,

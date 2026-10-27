@@ -36,6 +36,7 @@
        }"
        :data-bonus-stage="state.bonusAct.stage"
        :data-first-stage="state.firstAct.stage"
+       :data-start-press-refused="pressRefusal || undefined"
        role="dialog" :aria-label="$t('Start of the game')">
     <div class="con-start__bg" aria-hidden="true"></div>
 
@@ -1250,7 +1251,8 @@ import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {fetchPreview} from '@/client/utils/previewFetch';
 import {cardsResponse} from '@/client/console/taskResponses';
-import {setConsoleStartCommands, resetConsoleStartUi, startSceneCommands, StartCommand} from '@/client/console/consoleStartUi';
+import {setConsoleStartCommands, resetConsoleStartUi, startSceneCommands, startPressRefusal, StartCommand} from '@/client/console/consoleStartUi';
+import {transportRequestInProgress} from '@/client/console/transport/gameTransport';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {applyDiscardExit, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
@@ -1429,6 +1431,8 @@ export default defineComponent({
        * walked away from.
        */
       riskArmed: undefined as CardName | undefined,
+      /** WHY the last deployment press was refused (`startPressRefusal`) — '' when it was honoured; a probe's witness. */
+      pressRefusal: '' as string,
       /**
        * The prelude the player COMMITTED knowing its effect would not happen.
        * Latched (not derived): by the time the beat is shown the card has left
@@ -7242,19 +7246,32 @@ export default defineComponent({
      *  (ConsoleZoomAction.execute), so a corp sub-action / prelude effect opens
      *  on a clean surface. */
     actByName(name: CardName): void {
-      // A hero transaction is in flight (submit awaiting the server) — the
-      // press is already being honoured; never double-arm/double-submit.
-      if (isPlayedHeroActive()) {
-        return;
-      }
-      // DESTINATION READINESS: a play press is honoured only when the
-      // deployment shell is REVEALED and standing (the receiving stage's
-      // container, the compact tableau, the rail all live in it). Before
-      // that — mid-materialization — the source card must not release.
-      if (this.mode === 'ceremony' && (!this.ceremonyRevealed || this.embedPresenting || this.queueArriving.size > 0)) {
-        return;
-      }
       const item = this.focusables.find((f) => f.name === name);
+      // THE ONE GATE OF A DEPLOYMENT PRESS (`startPressRefusal`, pure + spec'd):
+      //  · a hero transaction is in flight (the press is already being honoured; never a double arm / submit);
+      //  · DESTINATION READINESS — the deployment shell is REVEALED and standing (the receiving stage's container,
+      //    the compact tableau, the rail all live in it); before that, mid-materialization, the source card must
+      //    not release; nor while an embedded outcome presents or a card is still arriving;
+      //  · THE FUNNEL IS BUSY — the previous answer is still on the wire or presenting: the transport would DROP
+      //    this press's submit, and a cinematic launched for it (a hero lift, a delivery cascade) would be a card
+      //    flying for nothing (the «Наследие» row pressed right after the bought cards' payment hung its cards in
+      //    the air for exactly this);
+      //  · the carried cards' press while the BOUGHT cards are still on their way into the dock.
+      // The refusal is NAMED on the root (`data-start-press-refused`) for the probes; the player's next press,
+      // once the fact has passed, is honoured.
+      const refusal = startPressRefusal(item?.kind ?? '', {
+        heroActive: isPlayedHeroActive(),
+        ceremony: this.mode === 'ceremony',
+        shellRevealed: this.ceremonyRevealed,
+        embedPresenting: this.embedPresenting,
+        queueArriving: this.queueArriving.size > 0,
+        requestInProgress: transportRequestInProgress(),
+        deliveryPending: this.projectDeliveryPending,
+      });
+      this.pressRefusal = refusal ?? '';
+      if (refusal !== undefined) {
+        return;
+      }
       if (item === undefined || item.disabled) {
         return;
       }

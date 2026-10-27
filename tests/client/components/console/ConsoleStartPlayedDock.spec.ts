@@ -158,6 +158,60 @@ describe('ConsoleStartPlayedDock (the compact «РАЗЫГРАНО · owner» de
     expect(fam.find('.con-splayed__cap-count').text()).to.eq('1');
     wrapper.unmount();
   });
+  it('A STACK OF THREE RECEIVES A FOURTH: the strip count is the landed state\'s from the first frame — the finish changes nothing but the prev flag (no one-frame shrink, no remount)', async () => {
+    const lying = [CardName.ECOLOGY_EXPERTS, CardName.BIOLAB, CardName.DOME_FARMING];
+    armPlayedHero(CardName.LOAN, false, {manualTableOpen: false, host: 'workspace'});
+    playedHeroState.phase = 'preparing';
+    const wrapper = make(view([CardName.THARSIS_REPUBLIC, ...lying]));
+    await wrapper.vm.$nextTick();
+    const fam = wrapper.find('[data-splayed-fam="prelude"]');
+    // Receiving: the cap's worth of strips INCLUDING the previous top on its future strip — never one more.
+    const stripsBefore = fam.findAll('.con-splayed__strip');
+    expect(stripsBefore.map((s) => s.attributes('data-played-key'))).to.deep.eq([CardName.BIOLAB, CardName.DOME_FARMING]);
+    expect(stripsBefore[1].classes()).to.contain('con-splayed__strip--prev');
+    const prevEl = stripsBefore[1].element;
+    playedHeroState.revealed = true;
+    await wrapper.vm.$nextTick();
+    // The server's answer (the landed card in the tableau), then the transaction closes: the same two strips, the
+    // same nodes, the prev flag gone — the stack never moved.
+    await wrapper.setProps({playerView: view([CardName.THARSIS_REPUBLIC, ...lying, CardName.LOAN])});
+    abortPlayedHero();
+    await wrapper.vm.$nextTick();
+    const stripsAfter = fam.findAll('.con-splayed__strip');
+    expect(stripsAfter.map((s) => s.attributes('data-played-key'))).to.deep.eq([CardName.BIOLAB, CardName.DOME_FARMING]);
+    expect(stripsAfter[1].element, 'the previous top keeps its node across the handoff').to.eq(prevEl);
+    expect(stripsAfter[1].classes()).to.not.contain('con-splayed__strip--prev');
+    expect(stripsAfter[1].findComponent({name: 'ConsolePlayedCardLite'}).props('peek')).to.be.true;
+    expect(fam.find('.con-splayed__top').attributes('data-played-key')).to.eq(CardName.LOAN);
+    wrapper.unmount();
+  });
+
+  it('THE TOP OUT ON LOAN (awayCard): the card beneath is promoted into the slot and leaves a SPACER on its strip — the stack keeps its height away and back, the slot keeps the away card\'s key', async () => {
+    const wrapper = make(view([CardName.THARSIS_REPUBLIC, CardName.ECOLOGY_EXPERTS, CardName.BIOLAB]));
+    const fam = wrapper.find('[data-splayed-fam="prelude"]');
+    const heightOf = () => fam.findAll('.con-splayed__strip').length;
+    expect(heightOf(), 'one strip under the top').to.eq(1);
+    await wrapper.setProps({awayCard: CardName.BIOLAB});
+    // Away: the slot shows Ecology Experts (promoted, open) under Biolab's KEY; its own strip stands EMPTY.
+    const top = fam.find('.con-splayed__top');
+    expect(top.attributes('data-played-key')).to.eq(CardName.BIOLAB);
+    expect(top.find('[data-splayed-topface]').findComponent({name: 'ConsolePlayedCardLite'}).props('name')).to.eq(CardName.ECOLOGY_EXPERTS);
+    const strips = fam.findAll('.con-splayed__strip');
+    expect(strips).has.lengthOf(1);
+    expect(strips[0].classes()).to.contain('con-splayed__strip--spacer');
+    expect(strips[0].attributes('data-zoom-slot'), 'a spacer is not a card').to.be.undefined;
+    expect(strips[0].find('.con-splayed__face').exists()).to.be.false;
+    const spacerEl = strips[0].element;
+    // Back: the same strip node paints Ecology Experts again, Biolab lies open in the slot — nothing moved.
+    await wrapper.setProps({awayCard: undefined});
+    const back = fam.findAll('.con-splayed__strip');
+    expect(back).has.lengthOf(1);
+    expect(back[0].element).to.eq(spacerEl);
+    expect(back[0].attributes('data-played-key')).to.eq(CardName.ECOLOGY_EXPERTS);
+    expect(fam.find('.con-splayed__top').attributes('data-played-key')).to.eq(CardName.BIOLAB);
+    wrapper.unmount();
+  });
+
   /**
    * THE ARTS STAY. The full tableau crops a covered card to its title band
    * (`peek`) — with dozens of piled cards their arts are pure cost. The START

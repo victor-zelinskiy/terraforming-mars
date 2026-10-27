@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {startSceneCommands, StartSceneCommandState} from '@/client/console/consoleStartUi';
+import {startPressRefusal, startSceneCommands, StartPressSignals, StartSceneCommandState} from '@/client/console/consoleStartUi';
 
 /**
  * The initial-setup command contract (the 2026-07 polish pass): the bottom
@@ -318,5 +318,45 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     expect(labelOf(startSceneCommands(state({
       mode: 'ceremony', riskCommitLabel: 'Play with no effect', firstAction: 'ready',
     })), 'confirm')).to.eq('Take first action');
+  });
+});
+
+/**
+ * THE ONE GATE OF A DEPLOYMENT PRESS (`startPressRefusal`): a press is honoured only when what it would start can
+ * happen — never a hero lift or a delivery cascade for a submit the transport is going to drop.
+ */
+describe('startPressRefusal — why a deployment press is refused', () => {
+  const open: StartPressSignals = {
+    heroActive: false, ceremony: true, shellRevealed: true, embedPresenting: false, queueArriving: false,
+    requestInProgress: false, deliveryPending: false,
+  };
+
+  it('honours a press when nothing stands in its way', () => {
+    expect(startPressRefusal('prelude', open)).to.be.undefined;
+    expect(startPressRefusal('legacy', open)).to.be.undefined;
+  });
+
+  it('a hero in flight outranks everything, in the wizard too (never a double arm)', () => {
+    expect(startPressRefusal('corp', {...open, heroActive: true})).to.eq('hero');
+    expect(startPressRefusal('corp', {...open, heroActive: true, ceremony: false})).to.eq('hero');
+  });
+
+  it('the shell gates apply to the ceremony only: unrevealed / an embedded outcome presenting / a card still arriving', () => {
+    expect(startPressRefusal('prelude', {...open, shellRevealed: false})).to.eq('shell');
+    expect(startPressRefusal('prelude', {...open, embedPresenting: true})).to.eq('shell');
+    expect(startPressRefusal('prelude', {...open, queueArriving: true})).to.eq('shell');
+    expect(startPressRefusal('prelude', {...open, ceremony: false, shellRevealed: false, requestInProgress: true})).to.be.undefined;
+  });
+
+  it('a BUSY funnel refuses every ceremony press — the submit would be dropped and its cinematic would fly for nothing', () => {
+    expect(startPressRefusal('prelude', {...open, requestInProgress: true})).to.eq('request');
+    expect(startPressRefusal('pay', {...open, requestInProgress: true})).to.eq('request');
+    expect(startPressRefusal('legacy', {...open, requestInProgress: true})).to.eq('request');
+  });
+
+  it('the carried cards wait for the bought cards\' delivery; every other press does not', () => {
+    expect(startPressRefusal('legacy', {...open, deliveryPending: true})).to.eq('delivery');
+    expect(startPressRefusal('prelude', {...open, deliveryPending: true})).to.be.undefined;
+    expect(startPressRefusal('corp', {...open, deliveryPending: true})).to.be.undefined;
   });
 });

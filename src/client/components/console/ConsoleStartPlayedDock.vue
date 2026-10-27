@@ -54,27 +54,27 @@
           <b v-if="fam.count > 0" class="con-splayed__cap-count" :key="'c' + fam.count">{{ fam.count }}</b>
         </div>
         <div class="con-splayed__stack" :style="{width: plan.slotW + 'px'}">
-          <!-- Depth strips: everything under the (previous) top, oldest → newest. -->
-          <div v-for="s in fam.strips" :key="s"
+          <!-- Depth strips: everything under the top, oldest → newest — ONE
+               list, keyed by card, the same list before and after a landing.
+               While RECEIVING its last entry is the previous top waiting on
+               its FUTURE strip, open face overflowing downward (the geometric
+               handoff) until the arriving card is revealed, when it crops back
+               to a strip; the transaction's end then changes nothing but that
+               flag — the node persists (no remount, no art blink) and the stack
+               keeps its height (the strip count is solved for the landed state
+               from the first frame, so the finish never shrinks it by a strip
+               under a card that has just come to rest). -->
+          <div v-for="s in fam.strips" :key="s.name"
                class="con-splayed__strip"
-               :data-played-key="s" :data-zoom-slot="s"
+               :class="{'con-splayed__strip--prev': s.prev, 'con-splayed__strip--spacer': s.spacer === true}"
+               :data-played-key="s.spacer === true ? undefined : s.name" :data-zoom-slot="s.spacer === true ? undefined : s.name"
                :style="{height: plan.stripH + 'px'}">
-            <div class="con-splayed__face" :class="{'con-deal-hold': awayCard === s}" :style="{zoom: String(plan.zoom)}">
+            <!-- A SPACER paints nothing: the promoted card stands in the top slot, its strip keeps its room. -->
+            <div v-if="s.spacer !== true" class="con-splayed__face" :class="{'con-deal-hold': awayCard === s.name}" :style="{zoom: String(plan.zoom)}">
               <!-- keep-art: the start shelf holds a HANDFUL of cards, so the
                    tableau's peek crop buys nothing here and costs the card's
                    own picture (see ConsolePlayedCardLite.keepArt). -->
-              <ConsolePlayedCardLite :name="s" peek keep-art />
-            </div>
-          </div>
-          <!-- While RECEIVING: the previous top waits on its FUTURE strip,
-               open face overflowing downward (the geometric handoff) until
-               the arriving card is revealed, when it crops back to a strip. -->
-          <div v-if="fam.receiving && fam.prevTop !== undefined"
-               class="con-splayed__strip con-splayed__strip--prev"
-               :data-played-key="fam.prevTop" :data-zoom-slot="fam.prevTop"
-               :style="{height: plan.stripH + 'px'}">
-            <div class="con-splayed__face" :class="{'con-deal-hold': awayCard === fam.prevTop}" :style="{zoom: String(plan.zoom)}">
-              <ConsolePlayedCardLite :name="fam.prevTop" :peek="revealed" keep-art />
+              <ConsolePlayedCardLite :name="s.name" :peek="s.prev ? revealed : true" keep-art />
             </div>
           </div>
           <!-- THE TOP SLOT — one persistent element: the open top card, or
@@ -131,8 +131,9 @@ type StartPlayedFamily = {
   label: string,
   /** Honest caption count (ticks to N+1 exactly at the dock). */
   count: number,
-  /** Peek strips under the top (oldest → newest, capped). */
-  strips: ReadonlyArray<CardName>,
+  /** Peek strips under the top (oldest → newest, capped) — `prev` marks the previous top waiting on its future strip,
+   *  `spacer` the promoted card's own strip kept EMPTY while it stands in the top slot (the away-card loan). */
+  strips: ReadonlyArray<{name: CardName, prev: boolean, spacer?: boolean}>,
   /** The previous top (only meaningful while receiving — it waits on its
    *  future strip while the top slot stands as the front anchor). */
   prevTop: CardName | undefined,
@@ -254,11 +255,23 @@ export default defineComponent({
         // top slot becomes the front anchor (empty until the reveal fills it).
         const topFace = receiving ? (this.revealed ? incoming : undefined) :
           (topAway ? promoted : top);
+        // THE STRIPS ARE SOLVED FOR THE LANDED STATE. While receiving, the previous top is the LAST strip (its future
+        // place) and the older strips fill the cap under it — exactly the set the family shows once the landed card
+        // is its top, so the finish changes a flag, never the stack's height (a third strip used to stand under the
+        // arriving card and vanish in the patch after the proxy was gone — a one-frame jump at the very landing).
+        // …and so are they while THE TOP IS OUT ON LOAN: the promoted card leaves its strip as a SPACER (its own
+        // key, no face) — the stack keeps its height while the card is away and when it comes back (the return
+        // flight lands on a slot that has not moved; the spacer then simply paints the promoted card's crop again).
+        const strips = receiving && top !== undefined ?
+          [...rest.slice(Math.max(0, rest.length - (STRIP_CAP - 1))).map((name) => ({name, prev: false})), {name: top, prev: true}] :
+          topAway && promoted !== undefined ?
+            [...rest.slice(Math.max(0, rest.length - (STRIP_CAP - 1))).map((name) => ({name, prev: false})), {name: promoted, prev: false, spacer: true}] :
+            rest.slice(Math.max(0, rest.length - STRIP_CAP)).map((name) => ({name, prev: false}));
         return {
           key,
           label: PLAYED_CATEGORY_LABEL[key],
           count: lying.length + (receiving && this.revealed ? 1 : 0),
-          strips: rest.slice(Math.max(0, rest.length - STRIP_CAP)),
+          strips,
           prevTop: top,
           topFace,
           // The slot's ANCHOR — the away card, so the flight that brings it

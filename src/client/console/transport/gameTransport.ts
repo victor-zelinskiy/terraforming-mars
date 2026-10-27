@@ -351,6 +351,17 @@ export const transportState = reactive({
   playersWaitingFor: [] as Array<Color>,
 });
 
+/**
+ * THE SUBMIT FUNNEL IS BUSY — a request is on the wire, or its answer is still being presented behind a cinematic
+ * gate (`isServerSideRequestInProgress` stays raised through every hold): `fetchPlayerInput` REFUSES a second submit
+ * meanwhile. A surface that launches a cinematic FOR a submit asks this first — a flight for a press the funnel will
+ * drop is a token into nothing (the start's «Наследие» row pressed right after the bought cards' payment: its cards
+ * lifted off, the grant was never sent, and they hung in the air until the intake's budget dipped them).
+ */
+export function transportRequestInProgress(): boolean {
+  return root?.isServerSideRequestInProgress === true;
+}
+
 let root: TransportRoot | undefined;
 let ui_update_timeout_id: number | undefined;
 let documentTitleTimer: number | undefined;
