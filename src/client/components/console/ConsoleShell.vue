@@ -1065,7 +1065,15 @@
                                  :annotationsOverride="zoomBotCorpAnnotations"
                                  :keepOrder="zoomBotCorpHolding"
                                  :nonce="side.nonce"
-                                 :closing="side.closing" />
+                                 :closing="side.closing">
+            <!-- A further corporation's dividend reads LIVE under its printed rule: both goals' thresholds and progress, and the total. -->
+            <template #group-extra="{group, tier}">
+              <ConsoleBotDividendLedger v-if="zoomBotDividendReading !== undefined && group.id === zoomBotDividendGroupId"
+                                        :reading="zoomBotDividendReading"
+                                        :tier="tier"
+                                        :final="game.phase === 'end'" />
+            </template>
+          </ConsoleCardRulesPanel>
           <!-- A parliament face (Turmoil Redux): a resolution's OWN rules
                (its effect in words, then the chairman quest's condition) or a
                party's reading — in the order they are given, which is the
@@ -1969,7 +1977,9 @@ import ConsoleArmedFlightLayer from '@/client/components/console/ConsoleArmedFli
 import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom, partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
-import {marsBotCorpAnnotations, marsBotDividendAnnotation, marsBotHoldingAnnotations} from '@/client/components/marsbot/marsBotCorpRules';
+import {marsBotCorpAnnotations, marsBotDividendGroupId, marsBotHoldingAnnotations} from '@/client/components/marsbot/marsBotCorpRules';
+import {BotDividendReading, botDividendDetailOf, botDividendReading} from '@/client/components/marsbot/botDividendReading';
+import ConsoleBotDividendLedger from '@/client/components/console/ConsoleBotDividendLedger.vue';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomProvenance, ConsoleZoomVoteVerb} from '@/client/console/consoleCardZoom';
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -2460,6 +2470,7 @@ export default defineComponent({
     ConsolePartyAccessPanel,
     ConsoleInfoMode,
     ConsoleCardRulesPanel,
+    ConsoleBotDividendLedger,
     ConsoleInspectSide,
     ConsoleCardAvailabilityPanel,
     ConsoleStrandedPrompt,
@@ -10563,17 +10574,29 @@ export default defineComponent({
       if (card === undefined || !isMarsBotCorpZoom(card)) {
         return undefined;
       }
-      const printed = marsBotCorpAnnotations(card.marsBotCorp);
-      // A campaign game also shows the «Дивиденды» box — what the corporation
-      // pays while the bot HOLDS it (the portfolio); an ordinary game never can.
-      // The table shows a holding like any corporation; HERE the rules say what
-      // it does: its dividend first, the printed boxes after it marked inactive
-      // (wherever the bot holds it — the holdings are the server's fact).
+      // A FURTHER corporation (the campaign portfolio — the holdings are the
+      // server's fact): the table shows it like any corporation, HERE the rules
+      // say what it does — its dividend first (with the live ledger under it:
+      // `zoomBotDividendReading`), the printed boxes after it marked inactive.
+      // The primary carries no «Дивиденды» box at all (the owner, 2026-10-27):
+      // it never pays one.
       if (this.zoomBotCorpHolding) {
-        return marsBotHoldingAnnotations(card.marsBotCorp);
+        return marsBotHoldingAnnotations(card.marsBotCorp, {liveGoals: this.zoomBotDividendReading !== undefined});
       }
-      return this.playerView.game.gameOptions.campaign === undefined ?
-        printed : [...printed, marsBotDividendAnnotation(card.marsBotCorp, printed.length)];
+      return marsBotCorpAnnotations(card.marsBotCorp);
+    },
+    /** The live reading of the inspected further corporation's dividend — its two goals and its total (the bot's open VP breakdown). */
+    zoomBotDividendReading(): BotDividendReading | undefined {
+      const card = this.consoleCardZoom.card;
+      if (card === undefined || !isMarsBotCorpZoom(card) || !this.zoomBotCorpHolding) {
+        return undefined;
+      }
+      return botDividendReading(botDividendDetailOf(this.playerView.players, card.marsBotCorp));
+    },
+    /** The rules group the dividend ledger hangs under. */
+    zoomBotDividendGroupId(): string | undefined {
+      const card = this.consoleCardZoom.card;
+      return card !== undefined && isMarsBotCorpZoom(card) ? marsBotDividendGroupId(card.marsBotCorp) : undefined;
     },
     /**
      * The CURRENT-GAME availability view for the zoomed card — only in an

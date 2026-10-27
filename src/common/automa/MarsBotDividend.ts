@@ -93,6 +93,10 @@ type DividendLine = {text: string, params?: ReadonlyArray<number>, muted?: boole
 /** The printed goal line — under the line of the operand it measures. */
 export const DIVIDEND_GOAL_LINE = 'Goal: ${0} or more — +${1} VP; ${2} or more — +${3} VP more';
 
+/** The two goal terms `withDividendGoal` appends — the labels the live reading finds them by. */
+export const GOAL_TERM_LABEL = 'Goal';
+export const SECOND_GOAL_TERM_LABEL = 'Second goal';
+
 /** A box's goals: the two thresholds on the operand of term `term` (default the first), +10 / +15 VP by default. */
 export function dividendGoal(at: number, at2: number, opts: {term?: number, vp?: number, vp2?: number} = {}): MarsBotDividendGoal {
   return {term: opts.term ?? 0, at, at2, vp: opts.vp ?? 10, vp2: opts.vp2 ?? 15};
@@ -140,8 +144,8 @@ export function withDividendGoal(result: MarsBotDividendResult, goal: MarsBotDiv
   if (measured === undefined) {
     return result;
   }
-  const first = bonusTerm('Goal', measured.count, goal.at, goal.vp);
-  const second = bonusTerm('Second goal', measured.count, goal.at2, goal.vp2);
+  const first = bonusTerm(GOAL_TERM_LABEL, measured.count, goal.at, goal.vp);
+  const second = bonusTerm(SECOND_GOAL_TERM_LABEL, measured.count, goal.at2, goal.vp2);
   return {vp: result.vp + first.vp + second.vp, terms: [...result.terms, first, second]};
 }
 

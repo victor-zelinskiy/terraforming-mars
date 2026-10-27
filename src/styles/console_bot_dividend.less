@@ -1,0 +1,202 @@
+/* ═══ THE DIVIDEND LEDGER (ConsoleBotDividendLedger) ═════════════════════
+   A further corporation's dividend read LIVE under its printed rule, inside
+   the inspect panel's «ДИВИДЕНДЫ» box (the owner, 2026-10-27). Three reads:
+   the operand both goals measure · the two goals side by side · the total.
+   VISUAL RESTRAINT: a reached goal is MATERIAL — a gold kant, a fill, the
+   seal and the word «взята»; nothing glows, nothing loops, nothing moves.
+   Sizes ride the reading tokens, so the rules panel's tiers carry it. */
+.con-divledger {
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    margin-top: .3rem;
+    padding-top: .6rem;
+    border-top: .05rem solid fade(@sem-prestige, 22%);
+
+    &__operand {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: .6rem;
+    }
+    &__kicker,
+    &__goal-name,
+    &__state,
+    &__total-label {
+        font-family: @con-font;
+        font-size: var(--con-t-floor, .7rem);
+        font-weight: 700;
+        letter-spacing: .09rem;
+        text-transform: uppercase;
+        line-height: 1.2;
+    }
+    &__kicker {
+        flex: 0 0 auto;
+        color: @con-text-dim;
+    }
+    &__measure {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .45rem;
+        min-width: 0;
+        text-align: right;
+    }
+    &__measure-label {
+        .con-read-text(450);
+        font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
+        line-height: 1.3;
+        color: @con-text-dim;
+    }
+    &__measure-count {
+        flex: 0 0 auto;
+        font-family: @con-font;
+        font-variant-numeric: tabular-nums;
+        font-size: calc(var(--con-t-read-lg) * var(--con-read-scale, 1));
+        font-weight: 800;
+        line-height: 1;
+        color: @con-text;
+    }
+
+    /* ── the two goals: one plate each, side by side ── */
+    &__goals {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .5rem;
+    }
+    &__goal {
+        display: flex;
+        flex-direction: column;
+        gap: .32rem;
+        min-width: 0;
+        padding: .5rem .6rem .55rem;
+        border-radius: .45rem;
+        background: rgba(255, 255, 255, 0.025);
+        box-shadow: inset 0 0 0 .05rem rgba(196, 216, 236, 0.16);
+    }
+    &__goal--reached {
+        background: fade(@sem-prestige, 8%);
+        box-shadow: inset 0 0 0 .06rem fade(@sem-prestige, 60%);
+    }
+    &__goal-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .4rem;
+    }
+    &__goal-name { color: @con-text-dim; }
+    &__goal--reached &__goal-name { color: fade(@sem-prestige, 90%); }
+    /* The seal: an EMPTY ring until the goal is reached, then a solid gold disc with its tick — by form, not by colour alone. */
+    &__seal {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 1.05rem;
+        height: 1.05rem;
+        border-radius: 50%;
+        box-shadow: inset 0 0 0 .06rem rgba(196, 216, 236, 0.32);
+        font-family: @con-font;
+        font-size: .7rem;
+        font-weight: 900;
+        line-height: 1;
+        color: #1b1405;
+    }
+    &__goal--reached &__seal {
+        background: @sem-prestige;
+        box-shadow: none;
+    }
+    &__goal-terms {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: .4rem;
+        flex-wrap: wrap;
+    }
+    &__at {
+        .con-read-text(500);
+        font-size: calc(var(--con-t-read) * var(--con-read-scale, 1));
+        line-height: 1.2;
+        color: @con-text;
+    }
+    &__prize {
+        font-family: @con-font;
+        font-variant-numeric: tabular-nums;
+        font-size: calc(var(--con-t-read) * var(--con-read-scale, 1));
+        font-weight: 800;
+        line-height: 1.2;
+        color: fade(@con-text, 52%);
+        white-space: nowrap;
+    }
+    &__goal--reached &__prize { color: @sem-prestige; }
+    &__meter {
+        position: relative;
+        height: .28rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+    }
+    &__fill {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        transform-origin: left center;
+        background: fade(@con-cyan, 72%);
+    }
+    &__goal--reached &__fill { background: @sem-prestige; }
+    &__state { color: fade(@con-text, 66%); }
+    &__goal--reached &__state { color: fade(@sem-prestige, 92%); }
+
+    /* ── the total: the whole dividend, the formula and the goals named beside it ── */
+    &__total {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .7rem;
+        padding: .5rem .6rem;
+        border-radius: .45rem;
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 0 0 .05rem fade(@sem-prestige, 34%);
+    }
+    &__total-words {
+        display: flex;
+        flex-direction: column;
+        gap: .2rem;
+        min-width: 0;
+    }
+    &__total-label { color: fade(@sem-prestige, 90%); }
+    &__total-parts {
+        .con-read-text(450);
+        font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
+        line-height: 1.3;
+        color: @con-text-dim;
+    }
+    &__total-value {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        flex: 0 0 auto;
+    }
+    &__badge {
+        width: 1.5rem;
+        height: 1.65rem;
+    }
+    &__total-number {
+        font-family: @con-font;
+        font-variant-numeric: tabular-nums;
+        font-size: calc(var(--con-t-read-lg) * 1.45 * var(--con-read-scale, 1));
+        font-weight: 800;
+        line-height: 1;
+        color: @sem-prestige;
+    }
+
+    /* ── the panel's tiers: the chrome yields, never the type ── */
+    &--dense,
+    &--packed {
+        gap: .4rem;
+        padding-top: .45rem;
+    }
+    &--dense &__goal,
+    &--packed &__goal { padding: .38rem .5rem .42rem; gap: .24rem; }
+    &--dense &__total,
+    &--packed &__total { padding: .38rem .5rem; }
+}

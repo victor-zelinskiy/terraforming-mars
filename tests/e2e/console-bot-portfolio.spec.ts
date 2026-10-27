@@ -1,5 +1,5 @@
 import {expect, test} from './consoleTest';
-import {bootSeededGame, openBotScreenHub, openInfoPlayedTable, press, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootSeededGame, fetchPlayerModel, openBotScreenHub, openInfoPlayedTable, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * THE BOT'S PORTFOLIO (docs/claude/prompts/marsbot-portfolio-dividends.md) —
@@ -13,7 +13,7 @@ import {bootSeededGame, openBotScreenHub, openInfoPlayedTable, press, soloGameCo
  *    newest in front), no score category of their own (their points stand in
  *    «Карты»);
  *  · the difference is told where the rules are read: the inspected holding's
- *    rules panel says it does not act while MarsBot holds it.
+ *    rules panel says it does not act while MarsBot holds it, and its dividend reads LIVE (both goals and the total, the server's numbers); the primary has no dividend box.
  *
  * The human is dealt corporations that collide with neither the primary
  * (Credicor) nor the holdings (Ecoline, Tharsis Republic): a collision would
@@ -93,12 +93,60 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-zoom .card-zoom-stage .pcard')).toBeVisible();
       const rules = page.locator('.con-zoom-rules');
       await expect(rules).toBeVisible();
-      await expect(rules, 'the holding\'s printed boxes are marked as not acting').toContainText('Не действует, пока корпорация — холдинг MarsBot');
-      await expect(rules.locator('section').first(), 'its dividend LEADS — the one thing a holding does')
-        .toContainText('в конце партии она приносит эти дивиденды');
-      await expect(rules.locator('section').first(), 'its two GOALS are printed in the dividend box')
-        .toContainText(/Цель: от \d+ — \+\d+ ПО; от \d+ — ещё \+\d+ ПО/);
+      await expect(rules, 'the holding\'s printed boxes are marked as not acting').toContainText('Не действует, пока это дополнительная корпорация MarsBot');
+      const dividendBox = rules.locator('section').first();
+      await expect(dividendBox, 'its dividend LEADS — the one thing a holding does').toHaveAttribute('data-rules-group', 'botcorp:C10:dividend');
+      await expect(dividendBox).toContainText('— ПО в конце партии');
+
+      // THE LIVE LEDGER (the owner, 2026-10-27): both goals' thresholds and progress, and the total WITH the goals —
+      // every number the server's own dividend row of this corporation.
+      const model = await fetchPlayerModel(request, players[0].id);
+      const bot = ((model as unknown as {players: unknown}).players as ReadonlyArray<{isMarsBot?: boolean, victoryPointsBreakdown: {automa?: {detailsDividends?: ReadonlyArray<{corporation: string, vp: number, terms: ReadonlyArray<{label: string, count: number, threshold?: number, each: number, vp: number}>}>}}}>)
+        .find((p) => p.isMarsBot === true);
+      const row = bot?.victoryPointsBreakdown.automa?.detailsDividends?.find((d) => d.corporation === 'C10');
+      expect(row, 'the server reports the holding\'s dividend').toBeDefined();
+      const goalTerms = row!.terms.filter((t) => t.label === 'Goal' || t.label === 'Second goal');
+      expect(goalTerms.length, 'the row carries its two goals').toBe(2);
+      const ledger = dividendBox.locator('[data-dividend-ledger]');
+      await expect(ledger, 'the ledger stands under the printed rule').toBeVisible();
+      await expect(dividendBox, 'the printed goal line yields to the live ledger').not.toContainText(/Цель: от \d+ — \+\d+ ПО; от/);
+      await expect(ledger.locator('[data-dividend-count]')).toHaveText(String(goalTerms[0].count));
+      for (const [i, term] of goalTerms.entries()) {
+        const goal = ledger.locator(`[data-dividend-goal="${i + 1}"]`);
+        await expect(goal.locator('[data-goal-at]'), `goal ${i + 1}: its threshold`).toHaveText(`от ${term.threshold}`);
+        await expect(goal.locator('[data-goal-vp]'), `goal ${i + 1}: its prize`).toHaveText(`+${term.each} ПО`);
+        const reached = term.vp > 0;
+        await expect(goal, `goal ${i + 1}: reached or not`).toHaveAttribute('data-goal-reached', String(reached));
+        await expect(goal.locator('[data-goal-state]')).toHaveText(reached ? 'Взята' : `Ещё ${term.threshold! - term.count}`);
+      }
+      const goalsVp = goalTerms.reduce((s, t) => s + t.vp, 0);
+      await expect(ledger.locator('[data-dividend-vp]'), 'the total WITH the goals').toHaveText(String(row!.vp));
+      await expect(ledger.locator('[data-dividend-total]')).toContainText(`формула ${row!.vp - goalsVp} + цели ${goalsVp}`);
+      // The ledger is read whole: inside the rules panel, nothing of it cut.
+      const inside = await page.evaluate(() => {
+        const panel = document.querySelector('.con-zoom-rules');
+        const box = document.querySelector('[data-dividend-ledger]');
+        if (panel === null || box === null) {
+          return false;
+        }
+        const p = panel.getBoundingClientRect();
+        const b = box.getBoundingClientRect();
+        return b.left >= p.left - 1 && b.right <= p.right + 1 && b.bottom <= p.bottom + 1;
+      });
+      expect(inside, 'the ledger stands inside the rules panel').toBe(true);
       await page.screenshot({path: `screenshots/bot-portfolio-rules-${profile.id}.png`, fullPage: false});
+
+      // ← twice → the PRIMARY: no dividend section at all (it never pays one).
+      for (const id of ['C02', 'C01']) {
+        await press(page, 'ArrowLeft', 900);
+        await expect(rules.locator('section').first(), `${id} is on stage`).toHaveAttribute('data-rules-group', /^botcorp:/);
+        if (id === 'C02') {
+          await expect(rules.locator('[data-rules-group="botcorp:C02:dividend"] [data-dividend-ledger]'), 'the other holding reads its own ledger').toBeVisible();
+        }
+      }
+      await expect(rules.locator('[data-rules-group="botcorp:C01:dividend"]'), 'the primary has no dividend box').toHaveCount(0);
+      await expect(rules.locator('[data-dividend-ledger]')).toHaveCount(0);
+      await expect(rules, 'the primary\'s boxes act').not.toContainText('Не действует');
     });
   });
 }

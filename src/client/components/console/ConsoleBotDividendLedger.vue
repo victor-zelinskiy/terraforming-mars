@@ -1,0 +1,76 @@
+<template>
+  <div class="con-divledger" :class="'con-divledger--' + tier" data-dividend-ledger>
+    <!--
+      THE LIVE LEDGER of a further corporation's dividend — under its printed rule
+      in the inspect panel's «ДИВИДЕНДЫ» box (the owner, 2026-10-27). Three reads,
+      in order: WHAT both goals measure (the operand, its count now) · the TWO
+      GOALS side by side (threshold, prize, a meter, «взята» / «ещё N») · the
+      TOTAL the dividend pays with its goals, split into the formula and the goals.
+      Every number is the server's (`botDividendReading`). A reached goal is drawn
+      by MATERIAL — a gold kant, a filled meter, the seal and the word — never a glow.
+    -->
+    <div class="con-divledger__operand">
+      <span class="con-divledger__kicker">{{ $t('Dividend goals') }}</span>
+      <span class="con-divledger__measure">
+        <span class="con-divledger__measure-label">{{ $t(reading.operand.label) }}</span>
+        <span class="con-divledger__measure-count" data-dividend-count>{{ reading.operand.count }}</span>
+      </span>
+    </div>
+    <div class="con-divledger__goals">
+      <div v-for="goal in reading.goals" :key="goal.ordinal"
+           class="con-divledger__goal"
+           :class="{'con-divledger__goal--reached': goal.reached}"
+           :data-dividend-goal="goal.ordinal"
+           :data-goal-reached="goal.reached ? 'true' : 'false'">
+        <div class="con-divledger__goal-head">
+          <span class="con-divledger__goal-name">{{ say('Dividend goal ${0}', goal.ordinal) }}</span>
+          <span class="con-divledger__seal" aria-hidden="true">{{ goal.reached ? '✓' : '' }}</span>
+        </div>
+        <div class="con-divledger__goal-terms">
+          <span class="con-divledger__at" data-goal-at>{{ say('Dividend goal at ${0}', goal.at) }}</span>
+          <span class="con-divledger__prize" data-goal-vp>{{ say('Dividend goal prize: +${0} VP', goal.vp) }}</span>
+        </div>
+        <div class="con-divledger__meter" aria-hidden="true">
+          <span class="con-divledger__fill" :style="{transform: `scaleX(${goal.fill})`}"></span>
+        </div>
+        <span class="con-divledger__state" data-goal-state>{{ goal.reached ? $t('Dividend goal reached') : say('Dividend goal: ${0} to go', goal.remaining) }}</span>
+      </div>
+    </div>
+    <div class="con-divledger__total" data-dividend-total>
+      <span class="con-divledger__total-words">
+        <span class="con-divledger__total-label">{{ $t(final ? 'Dividend total' : 'Dividend total now') }}</span>
+        <span class="con-divledger__total-parts">{{ say('Dividend formula ${0} + goals ${1}', reading.formulaVp, reading.goalsVp) }}</span>
+      </span>
+      <span class="con-divledger__total-value">
+        <ConsoleVpBadge class="con-divledger__badge" :label="$t('VP')" />
+        <span class="con-divledger__total-number" data-dividend-vp>{{ reading.totalVp }}</span>
+      </span>
+    </div>
+  </div>
+</template>
+
+<script lang="ts">
+import {defineComponent, PropType} from 'vue';
+import {translateTextWithParams} from '@/client/directives/i18n';
+import {BotDividendReading} from '@/client/components/marsbot/botDividendReading';
+import {RulesLengthTier} from '@/client/components/console/consoleCardRules';
+import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
+
+export default defineComponent({
+  name: 'ConsoleBotDividendLedger',
+  components: {ConsoleVpBadge},
+  props: {
+    reading: {type: Object as PropType<BotDividendReading>, required: true},
+    /** The rules panel's reading tier — the ledger tightens with it. */
+    tier: {type: String as PropType<RulesLengthTier>, default: 'regular'},
+    /** The game is over — the total is the final one, not «now». */
+    final: {type: Boolean, default: false},
+  },
+  methods: {
+    /** A parameterised key read with its numbers. */
+    say(key: string, ...params: ReadonlyArray<number>): string {
+      return translateTextWithParams(key, params.map(String));
+    },
+  },
+});
+</script>

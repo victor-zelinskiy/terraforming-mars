@@ -1,6 +1,7 @@
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {CORP_SECTION_LABEL, MarsBotCorpSection, marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 import {DIVIDEND_SECTION_LABEL, marsBotDividendInfo} from '@/common/automa/MarsBotDividendData';
+import {DIVIDEND_GOAL_LINE} from '@/common/automa/MarsBotDividend';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -46,13 +47,15 @@ export function marsBotCorpAnnotations(id: MarsBotCorpId): ReadonlyArray<CardAnn
 }
 
 /**
- * The rules of a HOLDING (the campaign portfolio): the bot plays it like any
- * corporation on the table, and the rules are where the difference is told —
- * its dividend FIRST (the one thing it does), then the printed boxes, each
- * marked as not acting while the corporation is held.
+ * The rules of a FURTHER corporation (the campaign portfolio): the bot plays it
+ * like any corporation on the table, and the rules are where the difference is
+ * told — its dividend FIRST (the one thing it does), then the printed boxes,
+ * each marked as not acting while the bot holds it. With a LIVE reading
+ * (`liveGoals` — the inspect panel draws the goals' thresholds and progress
+ * under the box) the printed goal line is dropped: the ledger states it.
  */
-export function marsBotHoldingAnnotations(id: MarsBotCorpId): ReadonlyArray<CardAnnotation> {
-  const dividend = marsBotDividendAnnotation(id, 0, true);
+export function marsBotHoldingAnnotations(id: MarsBotCorpId, opts: {liveGoals?: boolean} = {}): ReadonlyArray<CardAnnotation> {
+  const dividend = marsBotDividendAnnotation(id, 0, opts);
   const printed = marsBotCorpAnnotations(id).map((group, i): CardAnnotation => ({
     ...group,
     order: i + 1,
@@ -64,31 +67,36 @@ export function marsBotHoldingAnnotations(id: MarsBotCorpId): ReadonlyArray<Card
   return [dividend, ...printed];
 }
 
+/** The id of a corporation's «ДИВИДЕНДЫ» group — where the inspect panel hangs the live ledger. */
+export function marsBotDividendGroupId(id: MarsBotCorpId): string {
+  return `botcorp:${id}:dividend`;
+}
+
 /**
  * The «ДИВИДЕНДЫ» box — the campaign portfolio's fork box
  * (docs/claude/prompts/marsbot-portfolio-dividends.md). Kept APART from the
  * printed boxes above (`marsBotCorpAnnotations` is the printed card and only
- * it): the viewer appends this one in a campaign game, where it can apply. It
- * works only while the corporation is a HOLDING of the bot, and its first line
- * says so — the primary's own card never reads as if it scored twice.
+ * it). It belongs to a FURTHER corporation only (the owner, 2026-10-27: the
+ * primary's rules carry no dividend at all — it never pays one): its name and
+ * when it pays, then the printed formula.
  */
-export function marsBotDividendAnnotation(id: MarsBotCorpId, order: number, holding: boolean = false): CardAnnotation {
+export function marsBotDividendAnnotation(id: MarsBotCorpId, order: number, opts: {liveGoals?: boolean} = {}): CardAnnotation {
   const box = marsBotDividendInfo(id);
   const lines = [
-    {text: holding ?
-      translateTextWithParams('${0}: MarsBot holds this corporation — it pays this dividend at the end of the game, its other boxes do not act', [translateText(box.name)]) :
-      translateTextWithParams('${0}: works only while MarsBot holds this corporation (campaign)', [translateText(box.name)])},
-    ...box.lines.map((line) => ({
-      text: line.params !== undefined && line.params.length > 0 ?
-        translateTextWithParams(line.text, [...line.params]) :
-        translateText(line.text),
-    })),
+    {text: translateTextWithParams('${0} — VP at the end of the game', [translateText(box.name)])},
+    ...box.lines
+      .filter((line) => opts.liveGoals !== true || line.text !== DIVIDEND_GOAL_LINE)
+      .map((line) => ({
+        text: line.params !== undefined && line.params.length > 0 ?
+          translateTextWithParams(line.text, [...line.params]) :
+          translateText(line.text),
+      })),
   ];
   return {
-    id: `botcorp:${id}:dividend`,
+    id: marsBotDividendGroupId(id),
     kind: 'victory-points',
     labelKey: DIVIDEND_SECTION_LABEL,
-    rows: lines.map((line, i) => ({id: `botcorp:${id}:dividend:${i}`, text: line.text, special: false, anyPlayer: false})),
+    rows: lines.map((line, i) => ({id: `${marsBotDividendGroupId(id)}:${i}`, text: line.text, special: false, anyPlayer: false})),
     special: false,
     anyPlayer: false,
     order,

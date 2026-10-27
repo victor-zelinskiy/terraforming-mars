@@ -19,6 +19,9 @@
               {{ $t(group.labelKey) }}
             </span>
             <p v-for="row in group.rows" :key="row.id" class="con-zoom-rules__text">{{ rowText(row) }}</p>
+            <!-- A host's LIVE reading of this very group (the bot's dividend ledger under its printed box) —
+                 inside the group, so it reads, scrolls and fits with the rule it explains. -->
+            <slot name="group-extra" :group="group" :tier="lengthTier" />
           </section>
         </div>
       </ConsoleScrollArea>
