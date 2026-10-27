@@ -194,6 +194,11 @@ export async function armTransferWitness(page: Page): Promise<void> {
       ['slot', '.con-cards__slot[data-zoom-slot]'],
       ['source', '.con-src'],
       ['payrow', '.con-payrow'],
+      // A COLONY's printed trade income / owner bonus — the trade's wave is born on the value it reads (the focus stage's
+      // «состав награды» row, else the overview tile's cell; PL-1104: without it every honest income birth read as the
+      // surface's own glass). `colony-income:<colony>` · `colony-bonus:<colony>`.
+      ['colony-income', '[data-colony-trade-source]'],
+      ['colony-bonus', '[data-colony-bonus-source]'],
       ['rail', '.con-res__row, .con-score__cell'],
       ['aux', '.con-res-aux__cell'],
       // A board CELL — the least specific anchor: a price drawn into the cell its tile grows out of (PL-306).
@@ -213,6 +218,8 @@ export async function armTransferWitness(page: Page): Promise<void> {
       case 'slot': return `slot:${name(el, 'data-zoom-slot')}`;
       case 'source': return 'source';
       case 'payrow': return `payrow:${name(el, 'data-pay-unit')}`;
+      case 'colony-income': return `colony-income:${name(el, 'data-colony-trade-source')}`;
+      case 'colony-bonus': return `colony-bonus:${name(el, 'data-colony-bonus-source')}`;
       case 'forecast': return `forecast:${name(el, 'data-forecast-rail') || 'bolt'}`;
       case 'rail': {
         const cls = Array.from(el.classList).find((c) => /^con-res__row--|^con-score__cell--/.test(c)) ?? 'rail';

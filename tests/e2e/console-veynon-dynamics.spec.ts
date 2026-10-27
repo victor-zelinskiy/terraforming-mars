@@ -84,17 +84,13 @@ async function focusTile(page: Page, card: string, variant: number): Promise<voi
 }
 
 /**
- * Every flight end of the trade is painted — except the ONE named defect of the shared trade layer (PL-1104): the
- * colony's income token is born under its own surface's glass, from «Колонии» and from a card door alike (older than
- * TR85; no trade stand checked the income wave's ends before). The income still lands on the rail.
+ * Every flight end of the trade is painted: the income is born ON the colony's printed value it reads (the focus stage's
+ * «состав награды» row — `colony-income:<colony>`, PL-1104: the witness had no word for it and called it glass) and lands
+ * on the M€ row.
  */
 function expectTradeEnds(witness: Awaited<ReturnType<typeof transferWitness>>): void {
-  const known = (end: string) => /^birth .* under=glass:con-(colonies|cardactions)$/.test(end);
-  const ends = endsOverGlass(witness);
-  if (ends.some(known)) {
-    test.info().annotations.push({type: 'gap', description: `PL-1104 — the trade income born under its surface: ${ends.filter(known).join(' | ')}`});
-  }
-  expect(ends.filter((end) => !known(end)), `every other flight end was visible\n${transferTrail(witness)}`).toEqual([]);
+  expect(endsOverGlass(witness), `every flight's ends were visible\n${transferTrail(witness)}`).toEqual([]);
+  expect(witness.births.some((b) => b.under.startsWith('colony-income:')), `the income was born on the colony's value\n${transferTrail(witness)}`).toBe(true);
   expect(witness.landings.some((l) => l.under === 'rail:megacredits'), `the income landed on the M€ row\n${transferTrail(witness)}`).toBe(true);
 }
 
