@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {expectLawLeadsEffects} from './parliamentDrive';
+import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
@@ -25,19 +26,22 @@ import {
  *   ① the cell's DOSSIER promises the law's +4 M€ and +2 plants BEFORE the
  *     commit, under the resolution's own name (the preview↔commit law, at the
  *     surface the player reads it on);
- *   ② the commit plays the LAW'S WAVE (`data-law-wave`) with TWO grove pulses
- *     and FOUR chips — a coin AND a plant per grove — every one of them born
- *     INSIDE its own VISIBLE grove hex, never in the middle of the screen;
+ *   ② the commit plays the LAW'S WAVE (`data-law-wave`): the two groves WAKE as
+ *     the cause (one pulse each), the LAW ITSELF rises at the stage — the centre
+ *     of the central opening («СРАБАТЫВАНИЕ КАРТЫ», iteration 4: the enacted
+ *     resolution is the reactor) — and FOUR chips, a coin AND a plant per grove,
+ *     are born on the law's OWN printed «2 M€ 1 plant», never condensed in a hex;
  *   ③ the chips travel and the RAIL counters tick: plants +2, and the M€ pass
  *     THROUGH the city's price on their way to «−25 + 4»;
- *   ④ the LAW's own card: the viewer's action is suppressed, the resolution's
- *     answer to it is not — «Сработал эффект», the resolution as the source.
+ *   ④ NO second telling: the feed builds no «Сработал эффект» card about the
+ *     chain the scene just played (the viewer's own action stays suppressed too).
  *
  * The probe is `MutationObserver` + `setInterval` — never rAF; the wire
  * (`/api/player`) is the truth the screen is checked against.
  * Screenshots under screenshots/parliament-forestry/standard-1080/.
  */
 const OUT_DIR = path.resolve('screenshots', 'parliament-forestry', 'standard-1080');
+const FORESTRY_ID = 'RDX_GREENS_FORESTRY_SUPPORT';
 
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT_DIR, {recursive: true});
@@ -103,6 +107,12 @@ type Sample = {
   flights: ReadonlyArray<ChipSample>,
   mc: number | undefined,
   plants: number | undefined,
+  /** The LAW's face painted at the reaction stage (opacity ≥ .3), if any. */
+  face: Rect | undefined,
+  /** The central opening as the band geometry mirror publishes it. */
+  opening: Rect,
+  /** The feed's law card (`:law`) standing at this instant. */
+  lawToast: boolean,
 };
 type Probe = {samples: Array<Sample>};
 
@@ -116,6 +126,15 @@ async function armProbe(page: Page): Promise<void> {
       const text = document.querySelector<HTMLElement>(`.con-res__row--${key} .con-res__digits`)?.textContent?.trim() ?? '';
       const m = text.match(/^-?\d+/);
       return m === null ? undefined : Number(m[0]);
+    };
+    const px = (name: string): number => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
+    const faceOf = (): Rect | undefined => {
+      const el = document.querySelector<HTMLElement>(`.con-reaction__face[data-reaction-card="${'RDX_GREENS_FORESTRY_SUPPORT'}"]`);
+      if (el === null) {
+        return undefined;
+      }
+      const r = el.getBoundingClientRect();
+      return r.width > 4 && Number(getComputedStyle(el).opacity) >= 0.3 ? {x: r.x, y: r.y, w: r.width, h: r.height} : undefined;
     };
     const read = (src: 'mo' | 'tick'): void => {
       const scene = document.querySelector<HTMLElement>('.con-tileplace');
@@ -159,6 +178,9 @@ async function armProbe(page: Page): Promise<void> {
         flights,
         mc: digits('megacredits'),
         plants: digits('plants'),
+        face: faceOf(),
+        opening: {x: px('--con-stage-l'), y: px('--con-stage-t'), w: window.innerWidth - px('--con-stage-l') - px('--con-stage-r'), h: window.innerHeight - px('--con-stage-t') - px('--con-stage-b')},
+        lawToast: document.querySelector('.con-notif[data-notif-id$=":law"]') !== null,
       });
     };
     new MutationObserver(() => read('mo')).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
@@ -194,9 +216,6 @@ async function visibleRect(page: Page, selector: string): Promise<Rect | undefin
   }, selector);
 }
 
-const inside = (cx: number, cy: number, r: Rect, pad: number): boolean =>
-  cx >= r.x - pad && cx <= r.x + r.w + pad && cy >= r.y - pad && cy <= r.y + r.h + pad;
-
 type WireSpaces = {game: {spaces?: Array<{id: string, bonus: Array<number>, tileType?: number}>}, waitingFor?: {spaces?: Array<string>}};
 type WireStock = {thisPlayer?: {megacredits?: number, plants?: number}};
 
@@ -220,7 +239,7 @@ async function focusCityProject(page: Page): Promise<boolean> {
 test.describe('Forestry Support (RX11) · the groves pay, as the water does', () => {
   test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1, screen: {width: 1920, height: 1080}});
 
-  test('the dossier promises the two groves\' 4 M€ and 2 plants; the commit pays them out of the groves themselves', async ({page, request}) => {
+  test('the dossier promises the two groves\' 4 M€ and 2 plants; the commit pays them off the LAW itself — risen at the stage, the groves waking as the cause — and no card tells it again', async ({page, request}) => {
     test.setTimeout(300_000);
     const {playerId} = await bootFixtureSeats(page, request, 'parliament-forestry-enacted');
 
@@ -306,6 +325,7 @@ test.describe('Forestry Support (RX11) · the groves pay, as the water does', ()
     expect(await visibleRect(page, '.con-res__row--megacredits'), 'the M€ rail row is visible (the destination)').toBeTruthy();
     expect(await visibleRect(page, '.con-res__row--plants'), 'the plants rail row is visible (the destination)').toBeTruthy();
 
+    await armTransferWitness(page);
     await armProbe(page);
     const cast = await recordFrames(page);
     expect(await commitFocusedSpace(page), 'the city commits on the cell between the two groves').toBe(true);
@@ -327,23 +347,8 @@ test.describe('Forestry Support (RX11) · the groves pay, as the water does', ()
     await expect(page.locator('.con-tileplace[data-tile-phase]'), 'the scene finished').toHaveCount(0, {timeout: 40_000});
     await cast.stop();
 
-    // ④ THE LAW's CARD — the viewer's own action is suppressed; the resolution's answer to it is not.
-    const toast = page.locator('.con-notif[data-notif-id$=":law"]');
-    await expect(toast, 'the law\'s card').toHaveCount(1, {timeout: 20_000});
-    await expect(toast.locator('.con-notif__type')).toHaveText(/Сработал эффект/i);
-    const source = toast.locator('.con-notif__source[data-effect-source="resolution"]');
-    await expect(source, 'the source is the resolution').toHaveCount(1);
-    await expect(source).toContainText(/Принятая резолюция/i);
-    await expect(toast.locator('.con-notif__lawline'), 'what the law did, in its own words')
-      .toContainText(/Поддержка лесничества/i);
-    // …and it is THIS placement's payout, not the enactment's plants: the line counts the groves and the chips
-    // carry both pools. Without this the card could be the sitting's own, replayed on boot.
-    const toastText = await toast.innerText();
-    expect(toastText, `the line counts the paying groves (${toastText})`).toMatch(/соседние озеленения\s*\(\s*2\s*\)/i);
-    expect(toastText, `the law's own 4 M€ (${toastText})`).toMatch(/\+4/);
-    expect(toastText, `the law's own 2 plants (${toastText})`).toMatch(/\+2/);
-    await cinematicBeat(page, 450, 'the toast finishes its entrance before the frame is taken');
-    await shoot(page, '03-law-toast');
+    await cinematicBeat(page, 1500, 'the window a law card would have entered the feed in');
+    await shoot(page, '03-after-the-wave');
     await settle(page, {timeoutMs: 30_000, notifications: false});
 
     // THE WIRE — the city cost 25, the two groves paid 4 M€ and 2 plants, and nothing else moved.
@@ -354,28 +359,59 @@ test.describe('Forestry Support (RX11) · the groves pay, as the water does', ()
     expect((after.thisPlayer?.megacredits ?? 0) - mcBefore, `the groves paid 4 M€ over the city's 25 (${wire})`).toBe(-21);
     expect((after.thisPlayer?.plants ?? 0) - plantsBefore, `the groves paid 2 plants (${wire})`).toBe(2);
 
-    // THE PROBE — the wave was announced, the chips were BORN IN THE GROVES, they travelled, the counters ticked.
+    // THE PROBE — the wave was announced, the groves WOKE as the cause, the LAW rose at the stage, its chips were
+    // born on ITS OWN printed icons, they travelled, the counters ticked, and no card told it a second time.
     const probe = await probeOf(page);
     const ticks = probe.samples.filter((s) => s.src === 'tick');
     expect(ticks.length, 'the sampler ran').toBeGreaterThan(10);
     expect(ticks.some((s) => s.law), 'the scene announced the LAW\'s wave on painted frames').toBe(true);
-    expect(Math.max(...ticks.map((s) => s.pulses)), 'ONE pulse per paying grove').toBeGreaterThanOrEqual(2);
-    const chipFrames = ticks.filter((s) => s.chips.length > 0);
-    expect(chipFrames.length, 'the chips were painted').toBeGreaterThan(0);
-    expect(Math.max(...chipFrames.map((s) => s.chips.length)), 'a coin AND a plant per grove — four chips')
-      .toBeGreaterThanOrEqual(4);
-    expect(chipFrames.some((s) => s.chips.some((c) => c.kind === 'plants')), 'a PLANT chip, not a recoloured coin').toBe(true);
-    // BORN IN A GROVE: the chips' first painted frame puts every one of them inside one of the two grove hexes (a
-    // generous pad — the chip condenses just inside the payer, and a hex is ~56 px across at 1080).
-    const birth = chipFrames[0];
-    const hexRects: ReadonlyArray<Rect> = groveHexes.map((h) => ({x: h.x, y: h.y, w: h.w, h: h.h}));
-    for (const chip of birth.chips) {
-      const home = hexRects.some((r) => inside(chip.cx, chip.cy, r, Math.max(r.w, r.h) * 0.75));
-      expect(home, `the ${chip.kind} chip was born in a grove (${chip.cx.toFixed(0)},${chip.cy.toFixed(0)}) — hexes ${JSON.stringify(hexRects)}`).toBe(true);
+    expect(Math.max(...ticks.map((s) => s.pulses)), 'ONE pulse per paying grove — the cause still wakes').toBeGreaterThanOrEqual(2);
+    // DIAGNOSTICS (PL-1090): the card's chain against the record's root, the director's seed trail.
+    const diag = await page.evaluate(() => {
+      const ready = (window as unknown as {__conReady?: () => {transfer?: unknown}}).__conReady?.();
+      const toastEl = document.querySelector('.con-notif[data-notif-id$=":law"]');
+      const layer = document.querySelector('.con-reaction');
+      return {
+        toastId: toastEl?.getAttribute('data-notif-id') ?? null,
+        layerMounted: layer !== null,
+        phase: layer?.getAttribute('data-reaction-phase') ?? null,
+        trail: JSON.stringify(ready?.transfer ?? null).slice(0, 6000),
+      };
+    });
+    const wireNow = await fetchPlayerModel(request, playerId) as {game: {cardReactions?: unknown}};
+    console.log('[forestry diag]', JSON.stringify({toastId: diag.toastId, layerMounted: diag.layerMounted, phase: diag.phase, ring: wireNow.game.cardReactions ?? null}));
+    console.log('[forestry trail]', diag.trail);
+    const firstToast = ticks.find((s) => s.lawToast);
+    const firstFace = ticks.find((s) => s.face !== undefined);
+    console.log('[forestry timeline]', JSON.stringify({firstToastAt: firstToast?.t ?? null, firstFaceAt: firstFace?.t ?? null, firstLawWaveAt: ticks.find((s) => s.law)?.t ?? null}));
+    expect(ticks.some((s) => s.lawToast), `no law card at any instant of the scene (toast ${diag.toastId}, ring ${JSON.stringify(wireNow.game.cardReactions ?? null)})`).toBe(false);
+    // THE LAW AT THE STAGE (iteration 3's one place, iteration 4's reactor): its face painted in the middle of the
+    // central opening, at a protagonist's size, for a readable beat — never a corner, never one frame.
+    const faced = ticks.filter((s) => s.face !== undefined);
+    expect(faced.length, 'the law\'s face stood at the stage for a readable beat').toBeGreaterThanOrEqual(3);
+    for (const s of faced) {
+      const f = s.face!;
+      expect(Math.abs(f.x + f.w / 2 - (s.opening.x + s.opening.w / 2)), `the law stands in the middle of the opening (x) — ${JSON.stringify(f)} vs ${JSON.stringify(s.opening)}`).toBeLessThan(s.opening.w * 0.35);
+      expect(Math.abs(f.y + f.h / 2 - (s.opening.y + s.opening.h / 2)), `the law stands in the middle of the opening (y) — ${JSON.stringify(f)} vs ${JSON.stringify(s.opening)}`).toBeLessThan(s.opening.h * 0.3);
+      expect(f.h / s.opening.h, 'a protagonist\'s size').toBeGreaterThan(0.34 * 0.8);
     }
-    // THE JOURNEY — from the groves to the rail, measured on the object that actually crosses the screen (the
-    // framework's chip; the coin is a pixel-twin that hands off in place). Comparing one class of chip against
-    // itself at two instants would compare grove A with grove B and call the gap «travel».
+    // NOTHING CONDENSES IN THE GROVES any more: the coin proxies are never painted — the chips leave the law's face.
+    expect(ticks.some((s) => s.chips.some((c) => c.alpha > 0.05)), 'no coin condensed in a grove').toBe(false);
+    // THE BIRTHS — on the law's own printed icons (the witness: `reactor:<law>:<sprite>`): a coin AND a plant per
+    // grove; every one of them lands on the rail; no end over glass.
+    const witness = await transferWitness(page);
+    const births = witness.births.filter((b) => b.under.startsWith(`reactor:${FORESTRY_ID}:`));
+    expect(births.length, `four tokens born on the law's printed icons\n${transferTrail(witness)}`).toBeGreaterThanOrEqual(4);
+    expect(births.filter((b) => /plant/.test(b.under)).length, `a PLANT token per grove off the printed plant\n${transferTrail(witness)}`).toBeGreaterThanOrEqual(2);
+    const landed = witness.landings.filter((l) => births.some((b) => b.id === l.id));
+    expect(landed.length, `every token born on the law landed\n${transferTrail(witness)}`).toBeGreaterThanOrEqual(4);
+    expect(landed.every((l) => /^rail:(megacredits|plants)/.test(l.under)), `…on the M€ / plants rows\n${transferTrail(witness)}`).toBe(true);
+    expect(endsOverGlass(witness), 'no end over glass').toEqual([]);
+    // ④ NO SECOND TELLING — the law's payout was PLAYED (the law rose, its tokens left its own icons, the counters
+    //    ticked on the touchdowns): the feed builds no «Сработал эффект» card about that chain (iteration 4).
+    const toastCount = await page.locator('.con-notif[data-notif-id$=":law"]').count();
+    expect(toastCount, `no law card — the scene told it (faces at the stage: ${faced.length}, births on the law: ${births.length})`).toBe(0);
+    // THE JOURNEY — to the rail, measured on the object that actually crosses the screen (the framework's chip).
     const railRows = await page.evaluate(() => ['megacredits', 'plants'].map((key) => {
       const r = document.querySelector<HTMLElement>(`.con-res__row--${key}`)?.getBoundingClientRect();
       return r === undefined ? undefined : {x: r.x, y: r.y, w: r.width, h: r.height};
@@ -383,30 +419,19 @@ test.describe('Forestry Support (RX11) · the groves pay, as the water does', ()
     const flightFrames = ticks.filter((s) => s.flights.length > 0);
     expect(flightFrames.length, 'the payout flew as the framework\'s own chips').toBeGreaterThan(0);
     const distTo = (c: ChipSample, r: Rect) => Math.hypot(c.cx - (r.x + r.w / 2), c.cy - (r.y + r.h / 2));
-    const nearestGrove = (c: ChipSample) => Math.min(...hexRects.map((r) => distTo(c, r)));
     const firstFlight = flightFrames[0];
     const lastFlight = flightFrames[flightFrames.length - 1];
-    const startedAtTheGroves = Math.min(...firstFlight.flights.map(nearestGrove));
     const endedAtTheRail = Math.min(...lastFlight.flights.flatMap((c) =>
       railRows.filter((r): r is Rect => r !== undefined).map((r) => distTo(c, r))));
-    expect(startedAtTheGroves, `the flight started at a grove (${startedAtTheGroves.toFixed(0)} px away)`).toBeLessThan(140);
-    expect(endedAtTheRail, `the flight ended at the rail (${endedAtTheRail.toFixed(0)} px away)`)
-      .toBeLessThan(Math.min(...lastFlight.flights.map(nearestGrove)));
+    expect(endedAtTheRail, `the flight ended at the rail (${endedAtTheRail.toFixed(0)} px away)`).toBeLessThan(260);
 
     // THE ARTIFACT — the frame the recorder already holds for the instant the probe called the peak of the
-    // flight, plus the crop of the corridor the chips crossed. Chosen after the fact, never raced for.
-    const peak = [...flightFrames].sort((a, b) => b.flights.length - a.flights.length ||
-      Math.min(...b.flights.map(nearestGrove)) - Math.min(...a.flights.map(nearestGrove)))[0];
-    expect(writeFrameAt(cast.frames, peak.wall, '02-grove-wave'),
+    // flight, and the frame the payout LEAVES the law's face on. Chosen after the fact, never raced for.
+    const peak = [...flightFrames].sort((a, b) => b.flights.length - a.flights.length)[0];
+    expect(writeFrameAt(cast.frames, peak.wall, '02-law-wave'),
       `a painted frame within 250 ms of the flight's peak (${cast.frames.length} frames recorded)`).toBe(true);
-    // …and the frame the payout LEAVES the groves on. Deliberately not the condensation: the coin proxies exist
-    // for the whole beat (born invisible) and their grains are ~7 px, so «the most coins mounted» and even «the
-    // most coin opacity» both land on frames with nothing to review. The handoff's first frame is the statement.
-    expect(writeFrameAt(cast.frames, firstFlight.wall, '02-grove-wave-leaving'),
-      'a painted frame of the payout leaving the groves').toBe(true);
-    // The coins ARE painted where they are born, even though they are small — the claim the frame cannot carry.
-    const alphaOf = (s: Sample) => s.chips.reduce((sum, c) => sum + c.alpha, 0);
-    expect(Math.max(...ticks.map(alphaOf)), 'the coins were painted in the groves, not merely mounted').toBeGreaterThan(0.5);
+    expect(writeFrameAt(cast.frames, firstFlight.wall, '02-law-wave-leaving'),
+      'a painted frame of the payout leaving the law').toBe(true);
     // THE COUNTERS — read CHRONOLOGICALLY: the story is «what it showed, in order», and sorting the samples
     // would hand back the largest value the rail ever held (50 — the balance BEFORE the city was paid for).
     const series = (pick: (s: Sample) => number | undefined): ReadonlyArray<number> => {

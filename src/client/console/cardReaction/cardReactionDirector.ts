@@ -61,6 +61,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {cssLengthPx} from '@/client/console/cssUnits';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
+import {markReactionTold, registerReactionScenePlays} from '@/client/console/cardReaction/reactionToldOnStage';
 import {acceptSeatIntake, foldSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/statusIntake';
 import {CardResource} from '@/common/CardResource';
 import {
@@ -206,6 +207,9 @@ registerAnimationHoldSupplier('card-reaction', () => cardReactionState.phase !==
 // a second hurry, or the registry's ceiling above.
 registerRewardHoldKeeper(() => [...running, ...standaloneQueue].flatMap((entry) => entry.held));
 
+// The feed's order-independent half (PL-1090): the server's ring tells a reaction only while THIS client can play it.
+registerReactionScenePlays(() => cardReactionStageMounted() && !consoleReducedMotionActive());
+
 /** The viewer's own LIVE model of a card (the capsule's count) — the pristine print when the tableau does not hold it. */
 function liveModelOf(view: PlayerViewModel | undefined, card: CardName): CardModel | undefined {
   return view?.thisPlayer?.tableau.find((c) => c.name === card);
@@ -246,6 +250,14 @@ export function seedCardReactionHolds(before: PlayerViewModel | undefined, after
     .filter((r) => r.specs.length > 0);
   if ((groups.length === 0 && rivals.length === 0) || consoleReducedMotionActive() || typeof document === 'undefined') {
     return;
+  }
+  // TOLD BY THE SCENE (iteration 4): every OWN reaction this block admits is marked for the feed NOW — a standalone
+  // group plays through the chain, an attached one through the host that DECLARED its rows (a declaration is the
+  // host's word that it presents that payout itself); the feed, which ingests this response after the apply block
+  // (and holds a chain the applied view still lists as open — PL-1090), builds no «Сработал эффект» card for it. A
+  // rival's reaction keeps its card: that card is about the rival's move, not the reactor. No layer, no face: not told.
+  if (cardReactionStageMounted()) {
+    groups.forEach((g) => markReactionTold(g.record));
   }
   const heldNow = snapshotRailHolds();
   // What a host holds OF THE REACTIONS in this block, per row. A rail row counts only what a host DECLARED as a
@@ -297,11 +309,15 @@ export function seedCardReactionHolds(before: PlayerViewModel | undefined, after
     attached: attached.filter((a) => !a.claimed).map((a) => a.group.card), standalone: standaloneQueue.map((s) => s.group.card),
     ...(overRaw.length > 0 ? {standaloneOverRawHold: [...new Set(overRaw)]} : {}),
   });
-  preloadPremiumCardArt([...groups.map((g) => g.card), ...rivals.map((r) => r.group.card)]);
+  // A resolution's face is built from the parliament manifest (`resolutionPremiumVm`), not the card art index.
+  preloadPremiumCardArt([...groups, ...rivals.map((r) => r.group)].filter((g) => g.record.kind !== 'resolution').map((g) => g.card));
   // THE FACES ARE WARMED NOW (iteration 3): mounted hidden in the layer at the stage's size — the layout and the
   // decode happen under the cause's own scene, never in the rise's first frame. A card that will rise in its place
   // never needs the warm face; it is dropped unused when the chain ends.
-  warmFaces([...groups.map((g) => ({name: g.card, card: liveModelOf(after, g.card)})), ...rivals.map((r) => ({name: r.group.card, card: seatModelOf(after, r.owner, r.group.card)}))]);
+  warmFaces([
+    ...groups.map((g) => ({name: g.card, kind: g.record.kind, card: liveModelOf(after, g.card)})),
+    ...rivals.map((r) => ({name: r.group.card, kind: r.group.record.kind, card: seatModelOf(after, r.owner, r.group.card)})),
+  ]);
   // Attached groups nobody claims within the response's own scene are let go (no hold of ours stands behind them).
   if (attached.length > 24) {
     attached = attached.slice(-12);
@@ -316,7 +332,7 @@ export function seedCardReactionHolds(before: PlayerViewModel | undefined, after
   }
 }
 
-function warmFaces(faces: Array<{name: CardName, card?: CardModel}>): void {
+function warmFaces(faces: Array<Pick<ReactorFace, 'name' | 'card' | 'kind'>>): void {
   if (!cardReactionStageMounted()) {
     return;
   }
@@ -433,7 +449,7 @@ async function rise(group: CardReactionGroup, slot: number, view: PlayerViewMode
     return {group, key, face: undefined, via: 'none'};
   }
   const seat = opts.slots[slot % opts.slots.length];
-  const face: ReactorFace = {key, name: group.card, card: opts.model ?? liveModelOf(view, group.card), seat, caption: opts.caption};
+  const face: ReactorFace = {key, name: group.card, kind: group.record.kind, card: opts.model ?? liveModelOf(view, group.card), seat, caption: opts.caption};
   const seated = await seatReactor(face);
   if (seated === undefined) {
     return {group, key, face: undefined, via: 'none'};
@@ -491,6 +507,11 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
     a.claimed = true;
   });
   attached = attached.filter((a) => !a.claimed);
+  // Claimed = played: the host brings the reactor forward and births on it — the feed's card about the same chain is
+  // not built (iteration 4). Not under reduced motion (nothing rises), not without the layer (nothing can).
+  if (cardReactionStageMounted() && !consoleReducedMotionActive()) {
+    mine.forEach((a) => markReactionTold(a.group.record));
+  }
   const groups = mine.map((a) => a.group);
   const risen: Array<Risen> = [];
   const tokenGroup = new WeakMap<ResourceTransferSpec, CardReactionGroup>();

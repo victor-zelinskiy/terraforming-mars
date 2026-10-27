@@ -71,6 +71,9 @@ export function ingest(
     generation: view.game.generation,
     undoCount: view.game.undoCount,
     openEventCorrelations: streams.openEventCorrelations ?? view.game.openEventCorrelations,
+    // …and the APPLIED view's own open-set, exactly as the layer hands it (iteration 4 of «СРАБАТЫВАНИЕ КАРТЫ»).
+    viewOpenCorrelations: view.game.openEventCorrelations,
+    cardReactions: view.game.cardReactions,
     viewerColor: view.thisPlayer.color,
     journalOpen,
     now,

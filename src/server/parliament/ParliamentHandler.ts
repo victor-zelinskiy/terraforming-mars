@@ -24,6 +24,7 @@ import {ICard} from '../cards/ICard';
 import {IProjectCard} from '../cards/IProjectCard';
 import {PartyActionPromptMeta, ResolutionActionPromptMeta} from '../../common/models/PlayerInputModel';
 import {TagBonusModel} from '../../common/models/PlayerModel';
+import {CardReactionCause} from '../../common/models/CardReactionModel';
 import {REDUX_PARTIES, ReduxParty, ResolutionId} from '../../common/parliament/ParliamentTypes';
 import {GREENERY_TILE_TR_SOURCE_NAME, REDUX_GREENERY_TILE_TR} from '../../common/parliament/winnerReward';
 import {Parliament, PARTY_ACTION_USES_PER_GENERATION, Slot} from './Parliament';
@@ -218,13 +219,16 @@ export class ParliamentHandler {
     parliament: Parliament,
     channel: 'tile-placed' | 'tr-increase' | 'production-gain' | 'card-played',
     run: (passive: ResolutionPassive) => void,
+    cause?: CardReactionCause,
   ): void {
     const enacted = parliament.enactedDefinition();
     const passive = enacted?.passive;
     if (enacted === undefined || passive === undefined || !parliament.participates(player, 'enactment')) {
       return;
     }
-    player.game.events.withEffectSource(player, {kind: 'resolution', id: enacted.id, owner: player.color}, channel, () => run(passive));
+    // The law's scope records a CARD REACTION like a tableau card's (iteration 4 of the framework): the console plays
+    // the law's payout off the law's own face; the cause is the trigger site's, when it states one.
+    player.game.events.withEffectSource(player, {kind: 'resolution', id: enacted.id, owner: player.color}, channel, () => run(passive), cause);
   }
 
   /**
@@ -310,7 +314,9 @@ export class ParliamentHandler {
         player.game.events.withEffectSource(player, partySource(party, player), 'tile-placed', () => effect.onTilePlaced?.(player, space));
       }
     });
-    ParliamentHandler.enactedPassive(player, parliament, 'tile-placed', (passive) => passive.onTilePlaced?.(player, space, placement));
+    ParliamentHandler.enactedPassive(player, parliament, 'tile-placed', (passive) => passive.onTilePlaced?.(player, space, placement), {
+      ...(space.tile === undefined ? {} : {tile: space.tile.tileType}), space: space.id,
+    });
   }
 
   public static onTerraformRatingGained(player: IPlayer, steps: number): void {

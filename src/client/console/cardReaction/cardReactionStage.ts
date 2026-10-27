@@ -33,6 +33,7 @@ import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
+import {CardReactionRecord} from '@/common/models/CardReactionModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {RectLike} from '@/client/console/cardIntake/intakeAssemblyPlan';
@@ -50,6 +51,8 @@ export type ReactorCaption = {color: Color; name: string};
 export type ReactorFace = {
   key: string;
   name: CardName;
+  /** WHAT the face is (iteration 4): a card / corporation face by name — or an enacted RESOLUTION's (`name` is its id). Absent = a card. */
+  kind?: CardReactionRecord['kind'];
   /** The LIVE model (the capsule's count) when the host has it — the pristine print otherwise. */
   card?: CardModel;
   seat: RectLike;
@@ -114,13 +117,13 @@ let warmSeq = 0;
  * premium face is laid out and its art decoded while the cause's own scene plays. A rise of the same card then takes
  * the warm face over (same key, same element — no remount) and starts its tween on a laid-out, painted-once face.
  */
-export function warmReactorFaces(faces: ReadonlyArray<{name: CardName, card?: CardModel}>, seat: RectLike): void {
+export function warmReactorFaces(faces: ReadonlyArray<Pick<ReactorFace, 'name' | 'card' | 'kind'>>, seat: RectLike): void {
   if (stage === undefined) {
     return;
   }
   const fresh = faces
     .filter((f) => !cardReactionState.faces.some((x) => x.warm === true && x.name === f.name))
-    .map((f): ReactorFace => ({key: `warm:${f.name}:${++warmSeq}`, name: f.name, card: f.card, seat, warm: true}));
+    .map((f): ReactorFace => ({key: `warm:${f.name}:${++warmSeq}`, name: f.name, kind: f.kind, card: f.card, seat, warm: true}));
   if (fresh.length > 0) {
     cardReactionState.faces = [...cardReactionState.faces, ...fresh];
   }

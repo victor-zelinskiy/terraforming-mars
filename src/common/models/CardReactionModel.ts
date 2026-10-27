@@ -63,9 +63,19 @@ export type CardReactionRecord = {
   /** Monotonic consumption key (derived from `gameAge`, restart-safe). */
   seq: number;
   root: CardReactionRoot;
-  /** The reacting card's owner — the seat whose printed effect fired. */
+  /** The reacting card's owner — the seat whose printed effect fired (a law's: the seat it paid). */
   owner: Color;
-  kind: 'card' | 'corporation';
+  /**
+   * WHAT reacted: a tableau card, a corporation — or an ENACTED RESOLUTION (Turmoil Redux, iteration 4 of the
+   * framework, 2026-10-27): the law's passive fired on the seat's own move (Forestry Support's groves, Development
+   * Craze's second payout) and is played by the same scene — the law's face rises, or the law standing on screen
+   * (the government's card, a composer's law hero) reacts in its place.
+   */
+  kind: 'card' | 'corporation' | 'resolution';
+  /**
+   * The face's key: the card's name — or, for a `resolution` record, the catalog `ResolutionId` in the same slot
+   * (the premium face's own convention, `resolutionPremiumVm`: a ResolutionId never collides with a CardName).
+   */
   card: CardName;
   /** The channel the live hook fired on — the forecast fact's `source.channel`, so the two match one-to-one. */
   channel: EventTrigger;

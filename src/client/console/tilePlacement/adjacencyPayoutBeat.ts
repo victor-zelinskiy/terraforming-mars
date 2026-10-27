@@ -58,7 +58,25 @@ import {
   playOceanActivation, playOceanCoinMaterialize, playOceanCoinHandoff, killOceanTweens,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {TransferPoint, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, TransferEndLike, TransferPoint, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
+
+/**
+ * THE REACTOR AS THE BIRTH PLACE («СРАБАТЫВАНИЕ КАРТЫ», iteration 4): a payout an ENACTED LAW makes (Forestry
+ * Support's groves, Development Craze's water again) is the law's reaction — the caller hands the attached reactor
+ * flight's `originOf` in, and when EVERY chip of the beat has a printed icon on the risen (or in-place) face to be
+ * born on, the chips leave THAT face: the neighbours still WAKE (the pulse is the cause), nothing condenses in them,
+ * and the token is not a board-sourced one (it leaves a face over the board, lit). One end short → the whole beat
+ * keeps its own choreography (the chips condense in the neighbours), never half of each.
+ */
+export type ReactorOrigin = (spec: ResourceTransferSpec) => TransferEndLike | undefined;
+
+function reactorEndsFor(originOf: ReactorOrigin | undefined, specs: ReadonlyArray<ResourceTransferSpec>): Array<TransferEndLike> | undefined {
+  if (originOf === undefined) {
+    return undefined;
+  }
+  const ends = specs.map((spec) => originOf(spec));
+  return ends.every((e): e is TransferEndLike => e !== undefined) ? ends : undefined;
+}
 
 /**
  * ONE paying ocean, ready to be staged: where its water wakes, where its coin
@@ -124,6 +142,8 @@ export type OceanBeatOpts = {
   /** The calm breath before the water wakes (default `OCEAN_BEAT_BREATH_MS`). A member of the landing's ONE wave
    *  (the tile language, W6) passes 0 — the wave's own stagger is its beat. */
   breathMs?: number,
+  /** The attached REACTOR's birth places (the law's face) — see `ReactorOrigin`. */
+  originOf?: ReactorOrigin,
 };
 
 /**
@@ -172,34 +192,41 @@ export async function runOceanAdjacencyBeat(opts: OceanBeatOpts): Promise<void> 
   // caller's pace rides both halves (coins + chips) so they stay one event.
   const pace = opts.pace ?? 1;
   const delays = coins.map((_, i) => Math.round(motionMs(transferWaveDelayMs(i, coins.length)) * pace));
+  const specs = oceanTransferSpecs(coins.length, opts.bonus.perOcean);
+  // THE LAW'S OWN FACE as the birth place (iteration 4): the water wakes as the cause, nothing condenses in it.
+  const reactorEnds = reactorEndsFor(opts.originOf, specs);
   playOceanActivation(els.pulses, {
     delays,
     shores: coins.map((c) => c.shore),
     drifts: coins.map((c) => c.drift),
     pulseMs: motionMs(OCEAN_PULSE_MS),
   });
-  playOceanCoinMaterialize(els.coins, {
-    delays,
-    leadMs: motionMs(OCEAN_COIN_LEAD_MS),
-    formMs: motionMs(OCEAN_COIN_FORM_MS),
-    sparks: OCEAN_COIN_SPARKS,
-  });
+  if (reactorEnds === undefined) {
+    playOceanCoinMaterialize(els.coins, {
+      delays,
+      leadMs: motionMs(OCEAN_COIN_LEAD_MS),
+      formMs: motionMs(OCEAN_COIN_FORM_MS),
+      sparks: OCEAN_COIN_SPARKS,
+    });
+  }
   await wait(motionMs(oceanWaveLeadMs()));
   if (!opts.alive()) {
     oceanBeatState.coins = [];
     release();
     return;
   }
-  playOceanCoinHandoff(els.coins, {delays, uiScale: opts.uiScale});
+  if (reactorEnds === undefined) {
+    playOceanCoinHandoff(els.coins, {delays, uiScale: opts.uiScale});
+  }
 
   let arrived = 0;
   await runResourceTransfers({
-    specs: oceanTransferSpecs(coins.length, opts.bonus.perOcean),
-    origins: coins.map((c) => c.at),
-    source: {point: {x: opts.tileRect.x + opts.tileRect.w / 2, y: opts.tileRect.y + opts.tileRect.h / 2}},
+    specs,
+    origins: reactorEnds ?? coins.map((c) => c.at),
+    source: reactorEnds !== undefined ? {} : {point: {x: opts.tileRect.x + opts.tileRect.w / 2, y: opts.tileRect.y + opts.tileRect.h / 2}},
     arrival: 'auto',
     pace,
-    fromBoard: true,
+    fromBoard: reactorEnds === undefined,
     // ONE aggregated release, only once EVERY coin of this bonus has landed.
     // (`onArrive` can legitimately fire more than once per spec — the wave's
     // safety net re-releases everything — hence the guard inside `release`.)
@@ -362,6 +389,8 @@ export type GroveBeatOpts = {
   alive: () => boolean,
   /** Release the aggregated panel hold — called EXACTLY once, however the beat ends. */
   release: () => void,
+  /** The attached REACTOR's birth places (the law's face) — see `ReactorOrigin`. */
+  originOf?: ReactorOrigin,
 };
 
 /**
@@ -414,18 +443,24 @@ export async function runGreeneryAdjacencyBeat(opts: GroveBeatOpts): Promise<voi
     const first = staged.chips.findIndex((c) => c.grove === g.id);
     return delays[first < 0 ? 0 : first] ?? 0;
   });
+  const specs = staged.chips.map((c) => ({channel: 'stock' as const, resource: c.kind, amount: c.amount}));
+  // THE LAW'S OWN FACE as the birth place (iteration 4 — Forestry Support): the groves wake as the cause, nothing
+  // condenses in them; the coin and the plant leave the law's printed «2 M€ 1 plant».
+  const reactorEnds = reactorEndsFor(opts.originOf, specs);
   playOceanActivation(els.pulses, {
     delays: pulseDelays,
     shores: staged.groves.map((g) => g.shore),
     drifts: staged.groves.map((g) => g.drift),
     pulseMs: motionMs(OCEAN_PULSE_MS),
   });
-  playOceanCoinMaterialize(els.chips, {
-    delays,
-    leadMs: motionMs(OCEAN_COIN_LEAD_MS),
-    formMs: motionMs(OCEAN_COIN_FORM_MS),
-    sparks: OCEAN_COIN_SPARKS,
-  });
+  if (reactorEnds === undefined) {
+    playOceanCoinMaterialize(els.chips, {
+      delays,
+      leadMs: motionMs(OCEAN_COIN_LEAD_MS),
+      formMs: motionMs(OCEAN_COIN_FORM_MS),
+      sparks: OCEAN_COIN_SPARKS,
+    });
+  }
   await wait(motionMs(oceanWaveLeadMs()));
   if (!opts.alive()) {
     groveBeatState.groves = [];
@@ -433,16 +468,18 @@ export async function runGreeneryAdjacencyBeat(opts: GroveBeatOpts): Promise<voi
     release();
     return;
   }
-  playOceanCoinHandoff(els.chips, {delays, uiScale: opts.uiScale});
+  if (reactorEnds === undefined) {
+    playOceanCoinHandoff(els.chips, {delays, uiScale: opts.uiScale});
+  }
 
   let arrived = 0;
   await runResourceTransfers({
-    specs: staged.chips.map((c) => ({channel: 'stock' as const, resource: c.kind, amount: c.amount})),
-    origins: staged.chips.map((c) => c.at),
-    source: {point: {x: opts.tileRect.x + opts.tileRect.w / 2, y: opts.tileRect.y + opts.tileRect.h / 2}},
+    specs,
+    origins: reactorEnds ?? staged.chips.map((c) => c.at),
+    source: reactorEnds !== undefined ? {} : {point: {x: opts.tileRect.x + opts.tileRect.w / 2, y: opts.tileRect.y + opts.tileRect.h / 2}},
     arrival: 'auto',
     pace,
-    fromBoard: true,
+    fromBoard: reactorEnds === undefined,
     // ONE aggregated release per RESOURCE family, only once every chip of this
     // bonus has landed — the two counters tick together at the last touchdown.
     onArrive: () => {

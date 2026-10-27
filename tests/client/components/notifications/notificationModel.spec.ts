@@ -24,6 +24,7 @@ import {
   buildPassNotification,
 } from '@/client/components/notifications/notificationModel';
 import {RevealLogMeta} from '@/common/logs/RevealLogMeta';
+import {markReactionTold, resetReactionTold} from '@/client/console/cardReaction/reactionToldOnStage';
 
 const RED: Color = 'red';
 const BLUE: Color = 'blue';
@@ -349,6 +350,28 @@ describe('notificationModel (pure)', () => {
       const {models} = ownPlay({paid: true});
       expect(models[0].header?.message).to.eq('Effect triggered: ${0}');
       expect(models[0].header?.data[0]).to.deep.eq({type: LogMessageDataType.RESOLUTION, value: 'RDX_TEST_LAW'});
+    });
+
+    it('TOLD BY THE SCENE («СРАБАТЫВАНИЕ КАРТЫ», iteration 4): a payout the console\'s reaction scene plays — marked by its chain root, the seat and the law — gets NO card; another chain, seat or law keeps its card', () => {
+      const LAW = 'RDX_TEST_LAW' as CardName;
+      try {
+        markReactionTold({root: {actionId: 60}, owner: BLUE, card: LAW});
+        expect(ownPlay({paid: true, ownLine: true}).models, 'the scene told it — no card').to.deep.eq([]);
+        resetReactionTold();
+        markReactionTold({root: {actionId: 61}, owner: BLUE, card: LAW});
+        expect(ownPlay({paid: true}).models.map((m) => m.id), 'another chain root — the card stands').to.deep.eq(['g60:law']);
+        resetReactionTold();
+        markReactionTold({root: {actionId: 60}, owner: RED, card: LAW});
+        expect(ownPlay({paid: true}).models.map((m) => m.id), 'another seat — the card stands').to.deep.eq(['g60:law']);
+        resetReactionTold();
+        markReactionTold({root: {actionId: 60}, owner: BLUE, card: 'RDX_OTHER_LAW' as CardName});
+        expect(ownPlay({paid: true}).models.map((m) => m.id), 'another law — the card stands').to.deep.eq(['g60:law']);
+        resetReactionTold();
+        markReactionTold({root: {}, owner: BLUE, card: LAW});
+        expect(ownPlay({paid: true}).models.map((m) => m.id), 'a record with no chain root tells nothing').to.deep.eq(['g60:law']);
+      } finally {
+        resetReactionTold();
+      }
     });
 
     it('a marker that paid nothing makes no card — the action stays suppressed as before', () => {

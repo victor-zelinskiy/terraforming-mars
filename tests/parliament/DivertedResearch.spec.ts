@@ -328,6 +328,17 @@ describe('DivertedResearch', () => {
   });
 
   describe('the passive — a unit becomes data, asked once, before the ceiling', () => {
+    it('leaves NO card-reaction record (the framework\'s iteration 4): a REPLACED unit is told by the struck icon under the law\'s seal and the pick\'s receive — a law rising for it would tell the same moment twice and fly the data again', () => {
+      const [game, p1] = enacted();
+      setOxygenLevel(game, 7);
+      p1.playCard(new Probe({global: {oxygen: 1}}));
+      runAllActions(game);
+      land(p1);
+      expect(dataOn(p1)).eq(1);
+      expect(markers(game), 'the law\'s own marker stands').has.length(1);
+      expect(game.cardReactions.filter((r) => r.kind === 'resolution'), 'no record for the replacing gate').deep.eq([]);
+    });
+
     it('a card\'s oxygen step: the scale stands, no rating, no bonus step, no planet event; the law\'s marker and journal line; the data lands on the chosen card', () => {
       const [game, p1] = enacted();
       setOxygenLevel(game, 7);

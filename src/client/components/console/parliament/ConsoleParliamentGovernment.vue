@@ -33,7 +33,8 @@
         <div class="con-parl__gov-carry" data-parl-gov-carry>
           <div class="con-parl__gov-card"
                :class="{'con-parl__gov-card--awaiting': holds.govAwaits !== undefined && holds.govAwaits === enactedShown?.instance}"
-               :data-zoom-slot="'resolution:' + enactedShown?.resolutionId">
+               :data-zoom-slot="'resolution:' + enactedShown?.resolutionId"
+               :data-reaction-home="enactedShown?.resolutionId">
             <premium-card-face :vmOverride="enactedVm" :lightweight="!enactCarried" :artTier="artTier" :inert="true" />
           </div>
         </div>

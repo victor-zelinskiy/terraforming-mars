@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
 import {
-  bootFixtureSeats, cinematicBeat, closeZoomViewer, commitFocusedSpace, fetchPlayerModel, press, pressUntil, settle,
+  bootFixtureSeats, cinematicBeat, commitFocusedSpace, fetchPlayerModel, press, pressUntil, settle,
   walkToSpace, focusInfoZone,
 } from './consoleStart';
 
@@ -25,11 +25,11 @@ import {
  *     announces its own wave (`data-law-wave`), and the steel counter passes through
  *     an intermediate value on its way from «before» to «before + 5»
  *     (2 printed + 2 echoed + the ruling Mars First's 1) — never one jump;
- *   ③ the LAW's own card: the viewer's action is suppressed, the resolution's
- *     answer to it is not — «Сработал эффект», the resolution as the source,
- *     +2 steel as its own chips;
- *   ④ hold X on that card opens the RESOLUTION's own inspector (the one
- *     viewer the Parliament's X opens), and closes back to the board.
+ *   ③ the LAW ITSELF rises at the stage for its second wave («СРАБАТЫВАНИЕ
+ *     КАРТЫ», iteration 4: the enacted resolution is the reactor) — the centre of
+ *     the central opening, a readable beat — the cell's icons answering it again;
+ *   ④ NO second telling: the feed builds no «Сработал эффект» card about the
+ *     chain the scene just played.
  *
  * The probe is `MutationObserver` + `setInterval` — never rAF; the wire
  * (`/api/player`) is the truth the screen is checked against.
@@ -37,14 +37,13 @@ import {
  */
 const OUT_DIR = path.resolve('screenshots', 'parliament-craze', 'standard-1080');
 const CRAZE_ID = 'RDX_MARS_DEVELOPMENT_CRAZE';
-const CRAZE_CLASS = /rdx-mars-development-craze/;
 
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT_DIR, {recursive: true});
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
-type Sample = {t: number, src: 'mo' | 'tick', phase: string, echo: boolean, steel: number | undefined, toast: boolean};
+type Sample = {t: number, src: 'mo' | 'tick', phase: string, echo: boolean, steel: number | undefined, toast: boolean, face: boolean};
 type Probe = {samples: Array<Sample>};
 
 /** THE PROBE — armed BEFORE the commit. `setInterval` + `MutationObserver`, never rAF. */
@@ -64,6 +63,10 @@ async function armProbe(page: Page): Promise<void> {
         echo: scene?.getAttribute('data-law-wave') === '1',
         steel: m === null ? undefined : Number(m[0]),
         toast: document.querySelector('.con-notif[data-notif-id$=":law"]') !== null,
+        face: (() => {
+          const el = document.querySelector<HTMLElement>('.con-reaction__face[data-reaction-card="RDX_MARS_DEVELOPMENT_CRAZE"]');
+          return el !== null && el.getBoundingClientRect().width > 4 && Number(getComputedStyle(el).opacity) >= 0.3;
+        })(),
       });
     };
     new MutationObserver(() => read('mo')).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
@@ -95,7 +98,7 @@ async function focusGreenery(page: Page): Promise<boolean> {
 test.describe('Development Craze (RX10) · the law pays a placement twice, visibly', () => {
   test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1, screen: {width: 1920, height: 1080}});
 
-  test('the effects list names the law; a greenery on a steel cell is paid twice in two waves; the law\'s card opens the resolution\'s inspector', async ({page, request}) => {
+  test('the effects list names the law; a greenery on a steel cell is paid twice in two waves — the law rising for the second; no card tells it again', async ({page, request}) => {
     test.setTimeout(300_000);
     const {playerId} = await bootFixtureSeats(page, request, 'parliament-craze-enacted');
 
@@ -156,34 +159,12 @@ test.describe('Development Craze (RX10) · the law pays a placement twice, visib
     }
     await expect(page.locator('.con-tileplace[data-tile-phase]'), 'the scene finished').toHaveCount(0, {timeout: 30_000});
 
-    // ③ THE LAW's CARD — the viewer's own action is suppressed; the resolution's answer to it is not.
+    // ③ + ④ NO SECOND TELLING — the law's second wave was PLAYED (the law rose at the stage; the counters ticked on
+    //    the touchdowns): the feed builds no «Сработал эффект» card about that chain (iteration 4).
     const toast = page.locator('.con-notif[data-notif-id$=":law"]');
-    await expect(toast, 'the law\'s card').toHaveCount(1, {timeout: 20_000});
-    await expect(toast.locator('.con-notif__type')).toHaveText(/Сработал эффект/i);
-    const source = toast.locator('.con-notif__source[data-effect-source="resolution"]');
-    await expect(source, 'the source is the resolution').toHaveCount(1);
-    await expect(source).toContainText(/Принятая резолюция/i);
-    // The card is named ONCE — by the resolution chip of the law's own line («получает бонусы … второй раз — …»).
-    await expect(toast.locator('.con-notif__lawline'), 'what the law did, in its own words').toContainText(/второй раз/i);
-    await expect(toast.locator('.con-notif__lawline')).toContainText(/Строительная лихорадка/i);
-    await expect(toast.locator('.con-notif__chip'), 'the law\'s own +2 steel').toContainText(/\+2/);
-    await expect(toast.locator('.con-notif__action--detail'), 'hold X → Осмотреть').toContainText(/Осмотреть/i);
-    await cinematicBeat(page, 450, 'the toast finishes its entrance before the frame is taken');
-    await shoot(page, '03-law-toast');
-
-    // ④ HOLD X — the resolution's OWN inspector.
-    await page.keyboard.down('KeyX');
-    await cinematicBeat(page, 900, 'the X-hold fills past NOTIF_HOLD_MS (500 ms)');
-    await page.keyboard.up('KeyX');
-    const zoom = page.locator('dialog.con-zoom[open]');
-    await expect(zoom, 'the inspector opens').toHaveCount(1, {timeout: 15_000});
-    await expect(zoom, 'the Parliament\'s own viewer').toHaveClass(/con-zoom--parliament/);
-    await expect(zoom.locator('.pcard').first(), 'the resolution\'s face').toHaveClass(CRAZE_CLASS);
-    await expect(toast, 'the card handed over to the inspector').toHaveCount(0, {timeout: 10_000});
-    await settle(page, {timeoutMs: 15_000, notifications: false});
-    await shoot(page, '04-inspect-resolution');
-    await closeZoomViewer(page);
-    await expect(zoom).toHaveCount(0, {timeout: 10_000});
+    await cinematicBeat(page, 1500, 'the window a law card would have entered the feed in');
+    await expect(toast, 'no law card — the scene told it').toHaveCount(0);
+    await shoot(page, '03-after-the-waves');
     await settle(page, {timeoutMs: 30_000, notifications: false});
 
     // The wire: 2 printed + 2 echoed + the ruling Mars First's 1.
@@ -195,6 +176,8 @@ test.describe('Development Craze (RX10) · the law pays a placement twice, visib
     const ticks = probe.samples.filter((s) => s.src === 'tick');
     expect(ticks.length, 'the sampler ran').toBeGreaterThan(10);
     expect(ticks.some((s) => s.echo), 'the scene announced the ECHO wave on painted frames').toBe(true);
+    expect(ticks.filter((s) => s.face).length, 'the LAW\'s face stood at the stage for a readable beat (the second wave\'s reactor)').toBeGreaterThanOrEqual(3);
+    expect(ticks.some((s) => s.toast), 'no law card at any instant').toBe(false);
     const steels = ticks.map((s) => s.steel).filter((v): v is number => v !== undefined);
     const distinct = [...new Set(steels)].sort((a, b) => a - b);
     const target = steelBefore + 5;

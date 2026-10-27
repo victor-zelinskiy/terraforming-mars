@@ -21,7 +21,11 @@ import {ImportedGHG} from '../../src/server/cards/base/ImportedGHG';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {Pristar} from '../../src/server/cards/turmoil/Pristar';
 import {Units} from '../../src/common/Units';
-import {fakeCard, runAllActions} from '../TestingUtils';
+import {addCity, fakeCard, runAllActions} from '../TestingUtils';
+import {FORESTRY_SUPPORT_ID} from '../../src/server/parliament/resolutions/greens/ForestrySupport';
+import {resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
+import {SpaceType} from '../../src/common/boards/SpaceType';
+import {Board} from '../../src/server/boards/Board';
 import {cast} from '../../src/common/utils/utils';
 
 /**
@@ -166,6 +170,35 @@ describe('CardReactionRecord — the recorder writes «which card reacted and wh
     game.gameAge += 1;
     const next = game.publishCardReaction({root: {}, owner: player.color, kind: 'card', card: CardName.RESEARCH, channel: 'card-played', impacts: []});
     expect(next.seq).to.be.greaterThan(last);
+  });
+
+  it('an ENACTED RESOLUTION\'s passive (Forestry Support on a city beside two groves) is a record of kind «resolution»: the law\'s id in the face slot, the tile and its cell as the cause, the chain root the marker\'s own correlation (iteration 4)', () => {
+    const {game, player} = table();
+    game.parliament!.enacted = resolutionInstanceId(FORESTRY_SUPPORT_ID, 0);
+    // A quiet city cell with two greenery neighbours — arranged, never played (no bonuses, no hooks).
+    const cell = game.board.getAvailableSpacesOnLand(player).find((s) =>
+      s.bonus.length === 0 &&
+      !game.board.getAdjacentSpaces(s).some((a) => Board.isOceanSpace(a)) &&
+      game.board.getAdjacentSpaces(s).filter((a) => a.spaceType === SpaceType.LAND && a.tile === undefined).length >= 2);
+    expect(cell, 'a quiet land cell with two free land neighbours').is.not.undefined;
+    const free = game.board.getAdjacentSpaces(cell!).filter((a) => a.spaceType === SpaceType.LAND && a.tile === undefined);
+    game.simpleAddTile(player, free[0], {tileType: TileType.GREENERY});
+    game.simpleAddTile(player, free[1], {tileType: TileType.GREENERY});
+    addCity(player, cell!.id);
+    runAllActions(game);
+    const records = game.cardReactions.filter((r) => r.kind === 'resolution');
+    expect(records, 'ONE record of the law').to.have.lengthOf(1);
+    const record = records[0];
+    expect(record).deep.include({owner: player.color, kind: 'resolution', card: FORESTRY_SUPPORT_ID, channel: 'tile-placed'});
+    expect(record.cause, 'the trigger site states the tile and its cell').deep.eq({tile: TileType.CITY, space: cell!.id});
+    const sum = (resource: Resource) => record.impacts.filter((i) => i.kind === 'stock' && i.resource === resource).reduce((a, i) => a + i.amount, 0);
+    expect(sum(Resource.MEGACREDITS), '2 groves × 2 M€').eq(4);
+    expect(sum(Resource.PLANTS), '2 groves × 1 plant').eq(2);
+    expect(record.impacts.every((i) => i.to === player.color)).is.true;
+    // The feed keys «told by the scene» on the chain root: the record's root IS the law's marker's correlation.
+    const marker = game.events.events.find((e) => e.type === 'effect-triggered' && e.source?.kind === 'resolution');
+    expect(marker, 'the law\'s own marker').is.not.undefined;
+    expect(record.root.actionId, 'the record stands under the marker\'s chain').eq(marker!.correlationId);
   });
 
   it('the published record is the stored one — later impacts of the same scope land on it', () => {

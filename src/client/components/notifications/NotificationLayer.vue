@@ -461,6 +461,9 @@ export default defineComponent({
         generation,
         undoCount: this.playerView.game.undoCount,
         openEventCorrelations: coherentOpen ?? this.playerView.game.openEventCorrelations,
+        // …and the APPLIED view's own open-set: a chain it still lists as open is held until the view catches up.
+        viewOpenCorrelations: this.playerView.game.openEventCorrelations,
+        cardReactions: this.playerView.game.cardReactions,
         viewerColor: this.viewerColor,
         journalOpen: this.journalOpen,
         now: Date.now(),

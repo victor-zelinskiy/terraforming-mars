@@ -193,8 +193,10 @@ export const TILE_VP_OWNER = 'tile';
 const TILE_VP_RANK = 1;
 import {
   ResourceTransferSpec, TransferEnd, TransferPoint, cardResourceKey, transferWaveDelayMs, TRANSFER_CONCURRENT_PACE,
-  RATING_RAIL_KEY, TOUCHDOWN_TICK_GAP_MS, isStandardResource,
+  RATING_RAIL_KEY, TOUCHDOWN_TICK_GAP_MS, isStandardResource, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
+import {cardReactionAnswerFlight} from '@/client/console/cardReaction/cardReactionDirector';
+import {ReactorOrigin} from '@/client/console/tilePlacement/adjacencyPayoutBeat';
 import {boardGeometryStable, boardSpaceEpoch, waitBoardGeometryStable} from '@/client/console/boardSpaceGeometry';
 import {TileMoveRewardModel} from '@/common/models/TileMoveRewardModel';
 import {isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
@@ -1368,6 +1370,9 @@ export function seedTilePlacementRewardHold(): void {
   // cell's own printed bonus and the move's rating stay the scene's own promise, never a reaction's share.
   declareHeldAnswers([
     ...repeatedSpecs(pendingBonuses, Math.max(0, pendingBonusRepeats - 1)),
+    // …and what the ENACTED LAW paid for the cell («СРАБАТЫВАНИЕ КАРТЫ», iteration 4): the law's record names the
+    // same rows — declared, the seeder ATTACHES the law to this scene, and the law's wave asks for it.
+    ...lawWaveSpecsOf(pendingLawWave),
     ...pendingAresFlights.map((f) => f.spec),
     ...pendingCityPayouts.filter((p) => p.own).flatMap((p) => cityPayoutReactionSpecs(p.payout)),
     ...(pendingMoveReward?.reactions ?? []),
@@ -1507,23 +1512,53 @@ async function runRewardWave(members: ReadonlyArray<() => Promise<void>>): Promi
  */
 async function runLawWave(wave: PlacementLawWave): Promise<void> {
   tilePlacementState.lawWave = true;
+  // THE LAW IS THE REACTOR («СРАБАТЫВАНИЕ КАРТЫ», iteration 4 — the owner, 2026-10-27): the wave's rows were DECLARED
+  // at the seed, so the law's record is ATTACHED to this scene; its flight brings the law forward — the government's
+  // card or a composer's law hero lifted IN ITS PLACE when one stands on screen, else the law's face risen at the
+  // stage — reads it for a beat, and every beat below births its chips on the law's printed icons (`originOf`); the
+  // neighbours still wake as the cause. No record attached (reduced motion, a reload) → the beats as they were.
+  const flight = cardReactionAnswerFlight({rows: [...new Set(lawWaveSpecsOf(wave).map((spec) => railRowKey(spec)))]});
+  const originOf: ReactorOrigin | undefined = flight === undefined ? undefined : (spec) => flight.originOf(spec);
   try {
     await wait(motionMs(LAW_WAVE_BREATH_MS));
     if (!tilePlacementState.active) {
       return;
     }
+    await flight?.prepare?.();
+    if (!tilePlacementState.active) {
+      return;
+    }
     if (wave.printed.length > 0) {
-      await runPrintedBonusBeat(wave.printed);
+      await runPrintedBonusBeat(wave.printed, originOf);
     }
     if (wave.ocean !== undefined && tilePlacementState.active) {
-      await runOceanBonusBeat(wave.ocean);
+      await runOceanBonusBeat(wave.ocean, undefined, originOf);
     }
     if (wave.greeneries !== undefined && tilePlacementState.active) {
-      await runGroveBonusBeat(wave.greeneries);
+      await runGroveBonusBeat(wave.greeneries, originOf);
     }
   } finally {
     tilePlacementState.lawWave = false;
+    // The law settles and recedes on its own clock (the counters' deltas land under the eye first); an aborted scene
+    // ends it at once — nothing of the layer's can hang on this transaction.
+    flight?.onDone?.();
   }
+}
+
+/** The rail rows an enacted law's wave moves, as the scene flies them — the same specs the apply block holds. */
+function lawWaveSpecsOf(wave: PlacementLawWave | undefined): Array<ResourceTransferSpec> {
+  if (wave === undefined) {
+    return [];
+  }
+  const specs: Array<ResourceTransferSpec> = wave.printed.map((b) => b.spec);
+  if (wave.ocean !== undefined) {
+    specs.push({channel: 'stock', resource: 'megacredits', amount: wave.ocean.megacredits});
+  }
+  if (wave.greeneries !== undefined) {
+    specs.push({channel: 'stock', resource: 'megacredits', amount: wave.greeneries.megacredits});
+    specs.push({channel: 'stock', resource: 'plants', amount: wave.greeneries.plants});
+  }
+  return specs;
 }
 
 /**
@@ -1631,7 +1666,7 @@ function startCityPayouts(list: ReadonlyArray<PendingCityPayout>, tileRect: Tile
  * (ONE aggregated release per resource, so each counter announces its whole
  * share once the last chip has physically arrived).
  */
-async function runGroveBonusBeat(bonus: GreeneryAdjacencyBonusModel): Promise<void> {
+async function runGroveBonusBeat(bonus: GreeneryAdjacencyBonusModel, originOf?: ReactorOrigin): Promise<void> {
   const releaseAll = () => {
     releasePanelRewardHold({channel: 'stock', resource: 'megacredits', amount: bonus.megacredits});
     releasePanelRewardHold({channel: 'stock', resource: 'plants', amount: bonus.plants});
@@ -1648,6 +1683,7 @@ async function runGroveBonusBeat(bonus: GreeneryAdjacencyBonusModel): Promise<vo
     pace: tileRewardTransferPace(),
     alive: () => tilePlacementState.active,
     release: releaseAll,
+    originOf,
   });
 }
 
@@ -1655,7 +1691,7 @@ async function runGroveBonusBeat(bonus: GreeneryAdjacencyBonusModel): Promise<vo
  * The PRINTED-BONUS beat (the cell's own icons). Unchanged behaviour, lifted
  * into its own function so the ocean beat can follow it.
  */
-async function runPrintedBonusBeat(bonuses: ReadonlyArray<PlacementBonus>): Promise<void> {
+async function runPrintedBonusBeat(bonuses: ReadonlyArray<PlacementBonus>, originOf?: ReactorOrigin): Promise<void> {
   const els = stage?.els();
   const ui = conUiScale();
   const hoverPx = Math.round(BONUS_HOVER_PX * ui);
@@ -1680,14 +1716,18 @@ async function runPrintedBonusBeat(bonuses: ReadonlyArray<PlacementBonus>): Prom
   if (els !== undefined && bonusesHovering) {
     playBonusHandoff(els.bonusIcons, {count: bonuses.length});
   }
+  // THE LAW'S OWN FACE as the birth place (iteration 4 — a law that pays the printed bonuses AGAIN): every chip off
+  // the law's printed icons, or the beat as it was (the icons' hover points over the tile).
+  const reactorEnds = originOf === undefined ? undefined : bonuses.map((b) => originOf(b.spec));
+  const fromReactor = reactorEnds !== undefined && reactorEnds.every((e) => e !== undefined);
   await runResourceTransfers({
     specs: bonuses.map((b) => b.spec),
-    origins,
-    source: {point: hexRect !== undefined ?
+    origins: fromReactor ? reactorEnds : origins,
+    source: fromReactor ? {} : {point: hexRect !== undefined ?
       {x: hexRect.x + hexRect.w / 2, y: hexRect.y + hexRect.h / 2} : undefined},
     arrival: 'auto',
     pace: tileRewardTransferPace(),
-    fromBoard: true,
+    fromBoard: !fromReactor,
     onArrive: (spec) => releasePanelRewardHold(spec),
   });
 }
@@ -1700,7 +1740,7 @@ async function runPrintedBonusBeat(bonuses: ReadonlyArray<PlacementBonus>): Prom
  * scenes must play one animation, not two dialects of it. This is the tile
  * scene's half of the contract — its rect, its liveness, its hold release.
  */
-async function runOceanBonusBeat(bonus: OceanAdjacencyBonusModel, breathMs?: number): Promise<void> {
+async function runOceanBonusBeat(bonus: OceanAdjacencyBonusModel, breathMs?: number, originOf?: ReactorOrigin): Promise<void> {
   const tileRect = hexRect ?? measureBoardHexRect(tilePlacementState.spaceId);
   if (tileRect === undefined) {
     releasePanelRewardHold({channel: 'stock', resource: 'megacredits', amount: bonus.megacredits});
@@ -1713,6 +1753,7 @@ async function runOceanBonusBeat(bonus: OceanAdjacencyBonusModel, breathMs?: num
     pace: tileRewardTransferPace(),
     alive: () => tilePlacementState.active,
     breathMs,
+    originOf,
     // ONE aggregated release: the counter moves after the money has physically
     // arrived and announces «+2/+4/+6 M€» once — the individual sources are
     // told by the coins themselves.

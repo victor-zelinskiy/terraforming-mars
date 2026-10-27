@@ -192,6 +192,67 @@ nothing summarized) and SLOW (the handheld under a 4× CPU throttle — every fa
 `console-supercomputer` (C) re-aimed from PL-220's chip birth to the framework's (the Fiber's +2 M€ — two tokens off
 ITS printed M€, the chip marked, never a birth place — red since iteration 1 and unnoticed until this run).
 
+## Iteration 4 — THE ENACTED LAW IS A REACTOR (the owner, 2026-10-27, PL-1085…1089)
+
+The owner: «срабатывание эффектов карт резолюций тоже через фреймворк — когда они и так на экране, с них просто
+летит, когда нет — всплывают (например «Поддержка лесничества» и размещение на поле); и для таких кейсов игроку не
+должна приходить обычная нотификация — чтобы не дублировать инфу». Four laws, each on the SAME primitive:
+
+22. **A RESOLUTION'S SCOPE WRITES A RECORD** (PL-1085). `EventRecorder.recordReaction` admits the enacted law's
+    scope (`ParliamentHandler.enactedPassive` → `withEffectSource({kind: 'resolution'})`) beside a card's and a
+    corporation's: `kind: 'resolution'`, the catalog id in the face-key slot `card` (the premium face's own
+    convention — `resolutionPremiumVm` keys a law's face by its id; a ResolutionId never collides with a CardName),
+    the cause the trigger site states (the tile and its cell for `tile-placed`). Nothing else changes on the server:
+    the law's marker, its log line and its model stay what they were.
+23. **THE LAW RISES — OR REACTS IN ITS PLACE — AND ITS CHIPS LEAVE ITS OWN PRINTED ICONS.** The tile scene DECLARES
+    the law wave's rows in the apply block (`lawWaveSpecsOf` → `declareHeldAnswers`), so the seeder ATTACHES the
+    record to the scene; `runLawWave` asks for the flight (`cardReactionAnswerFlight({rows})`) — `prepare` brings
+    the law forward out of its place when a face of it stands on screen (the government's card and the composer's law
+    hero carry `data-reaction-home="<id>"` — law 17's registry), else at the ONE stage (law 18's calm tempo, the
+    effect row lit); every beat of the wave then births its chips on the law's printed icons through a `ReactorOrigin`
+    (`adjacencyPayoutBeat` — the water, the groves — and `runPrintedBonusBeat`): the neighbours still WAKE as the
+    cause (the pulse), nothing condenses in them, the token is not board-sourced; `onDone` settles and recedes the
+    law after the last beat. The layer paints a law face as `PremiumCard :vmOverride` (`resolutionPremiumVmById`) —
+    the same object the government shows — under `data-reaction-kind="resolution"`.
+24. **ONE END SHORT — THE WHOLE BEAT KEEPS ITS OLD CHOREOGRAPHY** (PL-1087). A face that prints no icon of the
+    resource (Development Craze prints «bonuses ×2», no steel) cannot be a birth place: `reactorEndsFor` accepts the
+    reactor only when EVERY chip of the beat has an end on it; else the chips condense where they used to (the
+    cell's icons, the water) while the law still rises as the cause and recedes after. Never half a beat off the
+    face and half off the cell.
+25. **A REACTION THE SCENE PLAYS IS NOT TOLD AGAIN** (PL-1086). The director marks every OWN reaction it will play at
+    the seed (`reactionToldOnStage.ts` — chain root · seat · source; the record's `root.actionId` IS the law marker's
+    `correlationId`, pinned in `CardReactionRecord.spec`; only with the layer mounted and never in reduced motion),
+    and `lawAnswerNotification` builds no «Сработал эффект» card for that key. The apply block runs BEFORE the feed
+    ingests the response's events (the `accessToldOnStage` precedent), so the mark is always there when asked. A
+    RIVAL's reaction keeps its card: that card is about the rival's move, not the reactor. The summary card past the
+    ceiling names a law as a RESOLUTION token (PL-1088). **The order is not assumed** (PL-1090 — the box's first run
+    showed the card beside the risen law): the events read legitimately lands before the transport applies the
+    response, builds the card and stashes it while the chain is open; so the ingest holds a chain the APPLIED VIEW
+    still lists as open (`viewOpenCorrelations`, united with the coherent read's set — a card never presents before
+    the view the scene plays on), the SERVER's ring rides the ingest (`cardReactions` off the applied view —
+    `ringTellsReaction`: a resolution record under this chain, for this seat and law, with a share the scene flies
+    says «the scene plays it» with no clock at all), whether the scene can play is the director's registered probe
+    (`registerReactionScenePlays` — the layer mounted, motion not reduced; a spec registers its own), and the ONE
+    answer `reactionTold` (the mark ∨ the probe ∧ the ring) is asked at the build AND again at the presentation
+    (`toldByTheScene` in `presentRootModels`, against the last pass's ring). The director marks every own group at the
+    seed (an attached one too — a declared row is the host's word that it presents the payout itself) and again at
+    the claim. **And the feed WAITS for the view** (the box's third run: the record right, the law risen, four births —
+    and the card still standing): the events read lands while the transport still HOLDS the old view behind the
+    landing cinematic, a view with neither the chain open nor the record, so a viewer's own law card the applied view
+    cannot vouch for waits in PREPARING under the RING GRACE (`awaitsRing` / `graceHeld`, `RING_GRACE_MS` 4 s): the
+    view that carries the record DROPS it (the scene tells it), a view that never does RELEASES it at the grace's end
+    (Urban Development's draw — no scene — presents as before; never silence). The
+    REPLACEMENT gates (RX35 `terraforming-diverted`, RX42 `rating-vetoed`) leave no record at all — the struck icon
+    under the law's seal, the pick's receive and the named skip are their telling; a reactor would tell it twice and
+    fly the data a second time (`REPLACEMENT_TRIGGERS`, guarded in `DivertedResearch.spec`).
+
+Guards: `CardReactionRecord.spec` (Forestry Support on a city beside two groves — kind, cause, the root ≡ the
+marker's correlation), `cardReactionDirector.spec` (the told marks: own / rival / no stage / reduced motion),
+`notificationModel.spec` (the law card suppressed by chain · seat · law, kept otherwise); e2e
+`console-parliament-forestry` (the law at the stage for a readable beat, four births `reactor:<law>:*` landing on
+the rail, no coin in a grove, no `:law` card at any instant) and `console-parliament-craze` (the law at the stage
+for its second wave, no card).
+
 ## What this iteration did NOT migrate (named, honest)
 
 **A STAGED play's reactor rises at a SEAT, never out of its place.** Every green card that places a tile — every
@@ -256,4 +317,9 @@ tokensOf / onDone`), `played/consolePlayedHero.ts`, `consoleActionCommitRail.ts`
 `tests/console/cardReactionModel.spec.ts`, `tests/client/console/{cardReactionDirector,effectIconEnds,railReward}.spec.ts`,
 `tests/console/intakeAssemblyPlan.spec.ts`; e2e `console-hartlan-heating` (B · C · A), `console-card-reaction`
 (MANY · BOARD) — TIMING class, fixtures `hartlan-heating` / `card-reaction-many`; the witness anchor
-`reactor:<card>:<sprite>` (`transferWitness.ts`).
+`reactor:<card>:<sprite>` (`transferWitness.ts`). Iteration 4 (the enacted law): `server/parliament/ParliamentHandler.ts`
+(`enactedPassive`'s `cause`), `console/cardReaction/reactionToldOnStage.ts`, `components/notifications/notificationModel.ts`
+(`lawAnswerNotification`), `console/tilePlacement/consoleTilePlacement.ts` (`lawWaveSpecsOf`, `runLawWave`),
+`console/tilePlacement/adjacencyPayoutBeat.ts` (`ReactorOrigin`, `reactorEndsFor`), the law-face hosts
+`parliament/ConsoleParliamentGovernment.vue` / `ConsoleActionComposer.vue` (`data-reaction-home`); e2e
+`console-parliament-forestry`, `console-parliament-craze`.

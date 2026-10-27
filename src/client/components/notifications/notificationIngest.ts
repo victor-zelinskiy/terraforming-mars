@@ -35,6 +35,51 @@ import {
   preparingIds,
 } from './notificationState';
 import {loadDeliveryLedger, saveDeliveryLedger} from './notificationDeliveryLedger';
+import {reactionScenePlays, reactionTold} from '@/client/console/cardReaction/reactionToldOnStage';
+import {CardReactionRecord} from '@/common/models/CardReactionModel';
+
+/** The ring of the last pass — what a model released from PREPARING is judged against at its presentation. */
+let lastRing: ReadonlyArray<CardReactionRecord> | undefined;
+
+/**
+ * THE RING GRACE (PL-1090). A law's card for the VIEWER's own move is built by whichever read arrives first — and the
+ * events read routinely arrives while the transport still HOLDS the view behind the landing cinematic (the tile's
+ * flight), so the applied view carries neither the chain as open nor the record of the reaction the scene is about
+ * to play. Such a card is not presented on that pass: it waits in PREPARING until the applied view CARRIES the
+ * record (then it is dropped — the scene tells it) or the grace runs out (a law whose payout the scene does not play
+ * — a draw — presents as before). Keyed by the chain; bounded; only while this client can play a reaction.
+ */
+const RING_GRACE_MS = 4_000;
+const ringGrace = new Map<number, number>();
+
+/** A viewer's law card the applied view cannot vouch for yet. */
+function awaitsRing(m: NotificationModel, viewer: Color): boolean {
+  return m.variant === 'passive-effect' && m.effectSource?.kind === 'resolution' && m.actor === viewer &&
+    m.correlationId !== undefined && reactionScenePlays() && !reactionTold(lastRing, m.correlationId, m.actor, m.effectSource.resolution);
+}
+
+/** The chains still inside their grace (told ones are dropped on the way — never presented). */
+function graceHeld(now: number): Set<number> {
+  const held = new Set<number>();
+  for (const [corrId, since] of ringGrace) {
+    const model = notificationState.preparing.get(corrId);
+    if (model === undefined) {
+      ringGrace.delete(corrId);
+      continue;
+    }
+    if (model.effectSource?.kind === 'resolution' && model.actor !== undefined && reactionTold(lastRing, corrId, model.actor, model.effectSource.resolution)) {
+      dropPreparing(corrId);
+      ringGrace.delete(corrId);
+      continue;
+    }
+    if (now - since >= RING_GRACE_MS) {
+      ringGrace.delete(corrId);
+      continue;
+    }
+    held.add(corrId);
+  }
+  return held;
+}
 
 export type NotificationDiffInput = {
   messages: ReadonlyArray<LogMessage>;
@@ -48,6 +93,16 @@ export type NotificationDiffInput = {
    *  (the poller races the transport's view apply), which is why a stash here
    *  is never trusted past the next pass. */
   openEventCorrelations: ReadonlyArray<number> | undefined;
+  /**
+   * The APPLIED VIEW's own open-set (the transport's last `playerView`). A chain the view still lists as open is held
+   * in PREPARING too, whatever the events read says: the poller's stream fetch legitimately lands BEFORE the transport
+   * applies the response that closed the chain, and a card released then presents against a HUD — and a scene — that
+   * has not caught up («СРАБАТЫВАНИЕ КАРТЫ», iteration 4: the law's card raced the apply block's «told by the scene»
+   * mark and stood beside the law rising for the same payout). Absent on an older server / in a spec that has none.
+   */
+  viewOpenCorrelations?: ReadonlyArray<number>;
+  /** The applied view's card-reaction ring (the server's record of what the scene plays — `reactionTold`). */
+  cardReactions?: ReadonlyArray<CardReactionRecord>;
   viewerColor: Color;
   journalOpen: boolean;
   now: number;
@@ -74,6 +129,8 @@ let skewHeldIds = new Set<number>();
 export function resetNotificationIngest(): void {
   lastDiffSignature = undefined;
   skewHeldIds = new Set<number>();
+  ringGrace.clear();
+  lastRing = undefined;
 }
 
 /**
@@ -87,7 +144,8 @@ export function applyNotificationDiff(input: NotificationDiffInput): void {
   // a pending sub-prompt inside the action) — their notifications are not
   // COMPLETE yet and must not present a half-story. Absent field (older
   // payloads) degrades to "nothing is open".
-  const openCorrelations = new Set<number>(input.openEventCorrelations ?? []);
+  const openCorrelations = new Set<number>([...(input.openEventCorrelations ?? []), ...(input.viewOpenCorrelations ?? [])]);
+  lastRing = input.cardReactions;
   // Unchanged payload → the diffs would find every id already seen and push
   // nothing; skip the whole O(generation) rebuild. undoCount is part of the
   // signature because an undo can remove K entries and later plays re-add K
@@ -107,7 +165,7 @@ export function applyNotificationDiff(input: NotificationDiffInput): void {
   const signature = `${input.undoCount}:${generation}:${messages.length}:${events.length}`;
   if (notificationState.seeded && signature === lastDiffSignature) {
     // Same payload ⇒ the same skew (if any): the guard's holds stay held.
-    presentRootModels(takePreparedModels(new Set([...openCorrelations, ...skewHeldIds]), now), input.journalOpen);
+    presentRootModels(takePreparedModels(new Set([...openCorrelations, ...skewHeldIds, ...graceHeld(now)]), now), input.journalOpen);
     persistLedger(input);
     return;
   }
@@ -119,6 +177,7 @@ export function applyNotificationDiff(input: NotificationDiffInput): void {
     // Models already held in PREPARING are rebuilt from the fresh stream
     // each pass, so a released card always carries the complete chain.
     rebuildIds: preparingIds(),
+    cardReactions: input.cardReactions,
     viewerColor,
     generation,
     createdAt: now,
@@ -205,6 +264,14 @@ export function applyNotificationDiff(input: NotificationDiffInput): void {
       stashPreparing(model, now);
       continue;
     }
+    // THE RING GRACE: the viewer's own law card waits for the view that carries the reaction's record.
+    if (corrId !== undefined && awaitsRing(model, input.viewerColor)) {
+      if (!ringGrace.has(corrId)) {
+        ringGrace.set(corrId, now);
+      }
+      stashPreparing(model, now);
+      continue;
+    }
     if (firstSeed) {
       // A chain the PREVIOUS session never finished delivering — it landed
       // after the last processed event, or was released but never presented —
@@ -228,7 +295,7 @@ export function applyNotificationDiff(input: NotificationDiffInput): void {
     // chain releases at the bounded ceiling with a warn. The skew-guard's
     // holds count as open: releasing what the guard just parked would undo
     // it in the same pass.
-    ready.push(...takePreparedModels(new Set([...openCorrelations, ...skewHeldIds]), now));
+    ready.push(...takePreparedModels(new Set([...openCorrelations, ...skewHeldIds, ...graceHeld(now)]), now));
   }
   // Queued (not-yet-presented) root cards may still enrich freely — the
   // degraded-mode net for servers without `openEventCorrelations`.
@@ -334,11 +401,21 @@ export function rootPresentable(m: NotificationModel): boolean {
   return m.variant !== 'milestone' && m.variant !== 'award' && m.category !== 'automa-turn' && m.category !== 'political-phase';
 }
 
+/**
+ * A LAW'S CARD THE SCENE TELLS (iteration 4 of «СРАБАТЫВАНИЕ КАРТЫ»): asked at the PRESENTATION — a model built by an
+ * earlier pass (and stashed while its chain was open) is judged once more against the marks the director set in the
+ * apply block since. The build-time check in `lawAnswerNotification` catches the common order; this one the stash.
+ */
+function toldByTheScene(m: NotificationModel): boolean {
+  return m.variant === 'passive-effect' && m.effectSource?.kind === 'resolution' && m.actor !== undefined &&
+    reactionTold(lastRing, m.correlationId, m.actor, m.effectSource.resolution);
+}
+
 function presentRootModels(ready: ReadonlyArray<NotificationModel>, journalOpen: boolean): void {
   if (ready.length === 0) {
     return;
   }
-  const presentable = coalesceBurst(ready.filter(rootPresentable));
+  const presentable = coalesceBurst(ready.filter((m) => rootPresentable(m) && !toldByTheScene(m)));
   pushMany(journalOpen ?
     presentable.filter((m) => m.kind === 'negative' || m.sign !== 'neutral') :
     presentable);

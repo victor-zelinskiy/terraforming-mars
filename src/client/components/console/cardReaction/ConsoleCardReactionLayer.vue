@@ -32,12 +32,17 @@
          :data-reaction-card="face.warm === true ? undefined : face.name"
          :data-reaction-warm="face.warm === true ? face.name : undefined"
          :data-reaction-key="face.key"
+         :data-reaction-kind="face.kind ?? 'card'"
          :ref="(el) => setFaceRef(face.key, el as HTMLElement | null)">
       <div v-if="face.caption !== undefined" class="con-reaction__caption" :data-reaction-caption="face.caption.color">
         <span class="con-reaction__caption-dot" :class="'player_bg_color_' + face.caption.color" aria-hidden="true"></span>
         <span class="con-reaction__caption-name">{{ face.caption.name }}</span>
       </div>
-      <ConsoleCardFaceLite :name="face.name" :card="face.card" />
+      <!-- An ENACTED LAW's face (iteration 4): the resolution's own anatomy from the parliament manifest — the same
+           object the government shows and the composer's law hero; its printed effect row carries the icons the
+           tokens are born on. -->
+      <PremiumCard v-if="face.kind === 'resolution' && lawVmOf(face.name) !== undefined" :vmOverride="lawVmOf(face.name)" :inert="true" aria-hidden="true" />
+      <ConsoleCardFaceLite v-else :name="face.name" :card="face.card" />
     </div>
   </div>
 </template>
@@ -45,12 +50,18 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
+import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
+import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
+
+/** The law faces built so far — one VM per resolution, stable across renders (a fresh object per render would re-mount the face). */
+const lawVms = new Map<string, PremiumCardVM | undefined>();
 import {cardReactionState, registerCardReactionStage} from '@/client/console/cardReaction/cardReactionStage';
 import {abortCardReactions} from '@/client/console/cardReaction/cardReactionDirector';
 
 export default defineComponent({
   name: 'ConsoleCardReactionLayer',
-  components: {ConsoleCardFaceLite},
+  components: {ConsoleCardFaceLite, PremiumCard},
   data() {
     return {
       cardReactionState,
@@ -59,6 +70,12 @@ export default defineComponent({
     };
   },
   methods: {
+    lawVmOf(id: string): PremiumCardVM | undefined {
+      if (!lawVms.has(id)) {
+        lawVms.set(id, resolutionPremiumVmById(id));
+      }
+      return lawVms.get(id);
+    },
     setFaceRef(key: string, el: HTMLElement | null): void {
       if (el === null) {
         this.faceEls.delete(key);

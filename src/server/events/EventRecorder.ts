@@ -19,6 +19,26 @@ import {From, isFromPlayer} from '../logs/From';
 import {fromToEventSource} from './fromToEventSource';
 import {IPlayer} from '../IPlayer';
 import {ICard} from '../cards/ICard';
+
+/**
+ * WHAT A REACTION SCOPE'S SOURCE IS ON THE SCENE: a card or a corporation by name; an ENACTED RESOLUTION (Turmoil
+ * Redux) by its catalog id in the face-key slot (`CardReactionRecord.card` — the premium face's own convention, a
+ * ResolutionId never collides with a CardName). A party, a colony, a rule: no reactor — nothing rises for them.
+ */
+const REPLACEMENT_TRIGGERS: ReadonlySet<EventTrigger> = new Set<EventTrigger>(['terraforming-diverted', 'rating-vetoed']);
+
+function reactionSourceOf(source: EventSource | undefined): {kind: CardReactionRecord['kind'], card: CardName} | undefined {
+  if (source === undefined) {
+    return undefined;
+  }
+  if (source.kind === 'card' || source.kind === 'corporation') {
+    return {kind: source.kind, card: source.card};
+  }
+  if (source.kind === 'resolution') {
+    return {kind: 'resolution', card: source.id as CardName};
+  }
+  return undefined;
+}
 import {CardType} from '../../common/cards/CardType';
 import type {DeltaMovementCause} from '../delta/deltaMovement';
 import type {TradeDestinationSource} from '../colonies/ITradeDestination';
@@ -232,8 +252,15 @@ export class EventRecorder {
     if (ctx === undefined) {
       return;
     }
-    const source = ctx.source;
-    if (source === undefined || (source.kind !== 'card' && source.kind !== 'corporation') || ctx.trigger === undefined || ctx.playerColor === undefined) {
+    const reactor = reactionSourceOf(ctx.source);
+    if (reactor === undefined || ctx.trigger === undefined || ctx.playerColor === undefined) {
+      return;
+    }
+    // A law that REPLACES a unit (RX35 Diverted Research — the data instead of the rating) or REFUSES one (RX42 UNMI
+    // Veto — the rating the seat first by rating does not gain) is told by the replaced unit's OWN scene: the struck
+    // printed icon under the law's seal, the pick's receive, the named skip. A reactor rising for it would tell the
+    // same moment twice (and fly the data a second time) — those gates leave no record.
+    if (reactor.kind === 'resolution' && REPLACEMENT_TRIGGERS.has(ctx.trigger)) {
       return;
     }
     const to = input.player ?? ctx.playerColor;
@@ -249,8 +276,8 @@ export class EventRecorder {
           ...(ctx.root?.category === undefined ? {} : {category: ctx.root.category}),
         },
         owner: ctx.playerColor,
-        kind: source.kind,
-        card: source.card,
+        kind: reactor.kind,
+        card: reactor.card,
         channel: ctx.trigger,
         ...(ctx.cause === undefined ? {} : {cause: ctx.cause}),
         impacts: [],

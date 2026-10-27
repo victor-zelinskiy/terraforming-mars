@@ -80,7 +80,9 @@ export function buildCardReactionSummaryNotification(
     return {
       origin: g.record.kind === 'corporation' ?
         {kind: 'corporation' as const, card: g.card, owner: g.record.owner} :
-        {kind: 'card' as const, card: g.card, owner: g.record.owner},
+        g.record.kind === 'resolution' ?
+          {kind: 'resolution' as const, id: g.card, owner: g.record.owner} :
+          {kind: 'card' as const, card: g.card, owner: g.record.owner},
       own: true, trigger: g.record.channel,
       gains: own.filter((c) => !c.text.startsWith(MINUS)), losses: own.filter((c) => c.text.startsWith(MINUS)),
     };
@@ -95,9 +97,11 @@ export function buildCardReactionSummaryNotification(
     importance: 'notable',
     typeLabelKey: REACTION_SUMMARY_LABEL_KEY,
     ...(viewer === undefined ? {} : {actor: viewer}),
-    ...(chips.length > 0 ? {viewerImpact: {sign, gains, losses, causes, sourceCard: groups[0].card, ownSource: true}} : {}),
+    ...(chips.length > 0 ? {viewerImpact: {sign, gains, losses, causes, ...(groups[0].record.kind === 'resolution' ? {} : {sourceCard: groups[0].card}), ownSource: true}} : {}),
     summaryLines: groups.map((g) => ({
-      message: new LogMessage(LogMessageType.DEFAULT, REACTION_SUMMARY_LINE_KEY, [{type: LogMessageDataType.CARD, value: g.card}]),
+      message: new LogMessage(LogMessageType.DEFAULT, REACTION_SUMMARY_LINE_KEY, [
+        g.record.kind === 'resolution' ? {type: LogMessageDataType.RESOLUTION, value: g.card} : {type: LogMessageDataType.CARD, value: g.card},
+      ]),
       kind: 'log' as const,
     })),
     pills: [],

@@ -13,7 +13,8 @@ import {
   resetCardReactions, rivalReactionPending, rivalSpecsOf, seedCardReactionHolds, snapshotRailHolds,
 } from '@/client/console/cardReaction/cardReactionDirector';
 import {reactionGroupOf} from '@/client/console/cardReaction/cardReactionModel';
-import {cardReactionState} from '@/client/console/cardReaction/cardReactionStage';
+import {cardReactionState, registerCardReactionStage} from '@/client/console/cardReaction/cardReactionStage';
+import {reactionToldOnStage, resetReactionTold} from '@/client/console/cardReaction/reactionToldOnStage';
 import {reduceMotionOverrideState} from '@/client/utils/reducedMotion';
 
 /*
@@ -44,6 +45,7 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
   afterEach(() => {
     reduceMotionOverrideState.enabled = false;
     resetCardReactions();
+    resetReactionTold();
     clearPanelRewardHold();
   });
 
@@ -83,6 +85,45 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     expect(heldStock('heat'), 'released at once').eq(0);
     expect(cardReactionPending()).is.false;
     expect(cardReactionHurried(), 'the hurry is forgotten with the chain').is.false;
+  });
+
+  it('TOLD BY THE SCENE (iteration 4): an OWN record this block admits is marked for the feed by its chain root, seat and source — a rival\'s is not, no stage marks nothing, reduced motion marks nothing', () => {
+    const LAW = 'RDX_GREENS_FORESTRY_SUPPORT' as CardName;
+    const law = record(70, {kind: 'resolution', card: LAW, root: {actionId: 700, player: BLUE}, channel: 'tile-placed', impacts: [
+      {kind: 'stock', resource: Resource.MEGACREDITS, amount: 4, to: BLUE}, {kind: 'stock', resource: Resource.PLANTS, amount: 2, to: BLUE},
+    ]});
+    const rival = record(71, {owner: 'red', root: {actionId: 701, player: 'red'}, impacts: [{kind: 'stock', resource: Resource.HEAT, amount: 6, to: 'red'}]});
+    // No stage mounted: nothing can be played, so nothing is told — the feed keeps the card.
+    seedCardReactionHolds(view([]), view([law]), snapshotRailHolds());
+    expect(reactionToldOnStage(700, BLUE, LAW), 'no stage — not told').is.false;
+    cutCardReactions();
+    const unregister = registerCardReactionStage({faceEl: () => null, stageRect: () => ({left: 0, top: 0, width: 1920, height: 1080})});
+    try {
+      seedCardReactionHolds(view([]), view([record(72, {kind: 'resolution', card: LAW, root: {actionId: 702, player: BLUE}, channel: 'tile-placed', impacts: law.impacts}), rival]), snapshotRailHolds());
+      expect(reactionToldOnStage(702, BLUE, LAW), 'the law\'s payout is the scene\'s to tell').is.true;
+      expect(reactionToldOnStage(702, BLUE, 'RDX_OTHER'), 'another source under the same root is not').is.false;
+      expect(reactionToldOnStage(703, BLUE, LAW), 'another chain is not').is.false;
+      expect(reactionToldOnStage(701, 'red', CardName.HARTLAN_HEATING), 'a rival\'s reaction keeps its card').is.false;
+      // ATTACHED: a host that DECLARED the rows plays the reactor only when it ASKS for the flight — told at the claim,
+      // never at the attach (a declared row nobody asks for keeps the feed's card).
+      cutCardReactions();
+      resetReactionTold();
+      const answer: Array<ResourceTransferSpec> = [{channel: 'stock', resource: 'megacredits', amount: 4}, {channel: 'stock', resource: 'plants', amount: 2}];
+      beginPanelRewardHold(answer);
+      declareHeldAnswers(answer);
+      seedCardReactionHolds(view([]), view([record(75, {kind: 'resolution', card: LAW, root: {actionId: 705, player: BLUE}, channel: 'tile-placed', impacts: law.impacts})]), snapshotRailHolds());
+      expect(cardReactionPending(), 'nothing of ours stands — the host holds the rows').is.false;
+      expect(reactionToldOnStage(705, BLUE, LAW), 'attached — the host declared the rows: it presents the payout; told at the seed (PL-1090: timely for the feed)').is.true;
+      const flight = cardReactionAnswerFlight({rows: ['stock:megacredits', 'stock:plants']});
+      expect(flight, 'the host gets the flight').is.not.undefined;
+      flight?.onDone?.();
+      cutCardReactions();
+      reduceMotionOverrideState.enabled = true;
+      seedCardReactionHolds(view([]), view([record(74, {root: {actionId: 704, player: BLUE}})]), snapshotRailHolds());
+      expect(reactionToldOnStage(704, BLUE, CardName.HARTLAN_HEATING), 'reduced motion plays nothing — the feed tells it').is.false;
+    } finally {
+      unregister();
+    }
   });
 
   it('a hurry with nothing playing is nothing', () => {

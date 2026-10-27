@@ -64,7 +64,7 @@
                    owner's decision Р2 — `partyPremiumVm`: the project anatomy with the party's seal) — the hero slot's
                    box, the hero's place, every phase. Its printed mechanics carry the `data-graphic-node` anchors the
                    ACTION COMMIT's impulse runs over, exactly as a card face does. -->
-              <div v-else-if="politicalEntry !== undefined && politicalEntry.source.kind === 'law'" :key="sourceKey" class="con-composer__actlaw">
+              <div v-else-if="politicalEntry !== undefined && politicalEntry.source.kind === 'law'" :key="sourceKey" class="con-composer__actlaw" :data-reaction-home="politicalEntry.source.resolution">
                 <PremiumCard v-if="lawFaceVm !== undefined" :vmOverride="lawFaceVm" :inert="true" />
               </div>
               <div v-else-if="politicalEntry !== undefined" :key="sourceKey" class="con-composer__actparty" :data-party-face="politicalEntry.party">

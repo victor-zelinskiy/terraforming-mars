@@ -14,6 +14,8 @@ import {importanceForRoot, lossCausesOf, viewerImpactOfChain, ViewerImpactMeta} 
 import {NotificationKind, NotificationVariant, NotificationModel, NotificationPillGroup, NotificationSkippedLine, NotificationEasedLine, NegativeScope, NotificationEffectSource, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
 import {LogMessageType} from '@/common/logs/LogMessageType';
 import {consumeAccessToldOnStage} from '@/client/console/parliament/accessToldOnStage';
+import {reactionTold} from '@/client/console/cardReaction/reactionToldOnStage';
+import {CardReactionRecord} from '@/common/models/CardReactionModel';
 
 /**
  * PURE notification mappers — turn the structured journal stream + the client's
@@ -227,6 +229,11 @@ function lawAnswerNotification(input: RootBuildInput, actor: Color): Notificatio
   const marker = chain.find((e) => e.type === 'effect-triggered' && e.source?.kind === 'resolution' && e.player === actor);
   const source = effectSourceOfMarker(marker);
   if (marker === undefined || source?.kind !== 'resolution') {
+    return undefined;
+  }
+  // TOLD BY THE SCENE («СРАБАТЫВАНИЕ КАРТЫ», iteration 4): the law rose — or reacted in its place — and its payout
+  // left its own printed icons for the counters; a card on the board about the same chain would tell it twice.
+  if (reactionTold(input.cardReactions, input.correlationId, actor, source.resolution)) {
     return undefined;
   }
   const chips = mergeChips(chain.filter((e) => e.parentId === marker.id && e.player === actor).flatMap((e) => impactChips(e.impact)));
@@ -621,6 +628,8 @@ type RootBuildInput = {
   viewerColor: Color;
   generation: number;
   createdAt: number;
+  /** The server's card-reaction ring as the applied view carries it (iteration 4 — `reactionTold`). */
+  cardReactions?: ReadonlyArray<CardReactionRecord>;
 };
 
 /** The CARD heading a chain (its root action's card / corp / std project). */
@@ -815,6 +824,8 @@ export type DiffInput = {
    * decides hold-vs-release; this diff only rebuilds.
    */
   rebuildIds?: ReadonlySet<number>;
+  /** The server's card-reaction ring as the applied view carries it (iteration 4 — `reactionTold`). */
+  cardReactions?: ReadonlyArray<CardReactionRecord>;
   viewerColor: Color;
   generation: number;
   createdAt: number;
@@ -869,6 +880,7 @@ export function diffRootNotifications(input: DiffInput): {
       viewerColor: input.viewerColor,
       generation: input.generation,
       createdAt: input.createdAt,
+      cardReactions: input.cardReactions,
     });
     if (model !== undefined) {
       models.push(model);
