@@ -109,6 +109,8 @@ export type StartSceneCommandState = {
    * law 9: every surface that draws the answer is a door). Advertised only while the door may open.
    */
   firstActionEffects?: boolean,
+  /** The focused Prelude of the deployment queue draws the table's answer (TR82) — R3 opens the same layer. */
+  queueEffects?: boolean,
   /**
    * The BONUS-ACTION stage («Фора» — «immediately take 2 actions»):
    *  · 'off'      — no stage;
@@ -297,6 +299,7 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
   return [
     {control: 'confirm', label: s.ceremonyVerb, enabled: s.hasFocusables},
     {control: 'secondary', label: 'Inspect', enabled: s.hasFocusables},
+    ...(s.queueEffects === true ? [{control: 'stickR' as const, label: 'Effects'}] : []),
     {control: 'back', label: 'Minimize'},
   ];
 }

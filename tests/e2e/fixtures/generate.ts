@@ -34,6 +34,10 @@ import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
 import {AICentral} from '../../../src/server/cards/base/AICentral';
 import {Research} from '../../../src/server/cards/base/Research';
 import {ReleaseOfInertGases} from '../../../src/server/cards/base/ReleaseOfInertGases';
+import {TitaniumMine} from '../../../src/server/cards/base/TitaniumMine';
+import {Mohole} from '../../../src/server/cards/prelude/Mohole';
+import {MartianIndustries} from '../../../src/server/cards/prelude/MartianIndustries';
+import {PROTEUS_ACTION_DATA, Proteus} from '../../../src/server/cards/turmoilRedux/Proteus';
 import {NoctisCity} from '../../../src/server/cards/base/NoctisCity';
 import {ImmigrantCity} from '../../../src/server/cards/base/ImmigrantCity';
 import {TharsisRepublic} from '../../../src/server/cards/corporation/TharsisRepublic';
@@ -9805,6 +9809,51 @@ parliamentFixture('arwind-pay-space', {
   const release = p1.cardsInHand.find((c) => c.name === CardName.RELEASE_OF_INERT_GASES);
   if (release === undefined || !p1.canPlay(release) || game.getTemperature() >= 8) {
     throw new Error(`${name}: Release of Inert Gases is not playable or the temperature has no step left`);
+  }
+  write(name, game);
+}
+
+// ── proteus: TR82 PROTEUS — «a data here for every played tag matching a tag on your Preludes; 6 data → a colony or an
+//    ocean». A 2p Redux table (colonies), blue on Proteus with two Building Preludes on the table (Mohole, Martian
+//    Industries — seated, their own plays behind it) and 5 data on the card: Titanium Mine in the hand (Building — the
+//    composer's «Сработает» names one data, Proteus answers out of the receiving stage → 6 data) and Sponsors (Earth —
+//    nothing). With 6 data the action opens: a colony (free tiles on the table) or an ocean (room on Mars). Red on Teractor.
+//    `proteus-futile`: 6 data, every colony tile full and the oceans at their maximum — the colony tile refused with its
+//    reason, the ocean tile with the futility verdict, the action still available. ──
+for (const futile of [false, true]) {
+  const name = futile ? 'proteus-futile' : 'proteus';
+  const pinned = [CardName.PROTEUS, REDUX_TABLE_CORPORATIONS[0]];
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  const proteus = p1.playedCards.get(CardName.PROTEUS);
+  if (proteus === undefined) {
+    throw new Error(`${name}: blue is not on Proteus (${p1.playedCards.corporations().map(toName).join(',')})`);
+  }
+  // The Preludes lie on the table — the pool Proteus compares a played tag against.
+  p1.playedCards.push(new Mohole());
+  p1.playedCards.push(new MartianIndustries());
+  p1.megaCredits = 60;
+  p2.megaCredits = 30;
+  if (futile) {
+    proteus.resourceCount = PROTEUS_ACTION_DATA;
+    maxOutOceans(p2);
+    for (const colony of game.colonies) {
+      while (colony.colonies.length < 3) {
+        colony.colonies.push(p2.id);
+      }
+    }
+  } else {
+    proteus.resourceCount = PROTEUS_ACTION_DATA - 1;
+    p1.cardsInHand = p1.cardsInHand.filter((c) => c.name !== CardName.TITANIUM_MINE && c.name !== CardName.SPONSORS);
+    p1.cardsInHand.push(new TitaniumMine(), new Sponsors());
+  }
+  runAllActions(game);
+  if (futile ? !(proteus as Proteus).canAct(p1) : !p1.canPlay(p1.cardsInHand.find((c) => c.name === CardName.TITANIUM_MINE)!)) {
+    throw new Error(`${name}: the subject is not available`);
   }
   write(name, game);
 }

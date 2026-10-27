@@ -53,6 +53,14 @@
   (`firstAction: {tr: N}`), играет СТАРТОВАЯ СТАДИЯ как третий ATTACHED-хост (`startFirstActionRail.ts`); гард описаний —
   строка `ACCEPTED` в `cardInformation.spec` («data resources here» = «data on this card»).
 
+- [ ] **Корпорация, реагирующая на ПРЕЛЮДИИ** (TR82 Proteus, 2026-10-27, `docs/TURMOIL_REDUX_PROTEUS.md`): предикат совпадения
+  меток — ОДИН в файле карты (`matchingPreludeTags`: печатные не-wild метки, пул — ПРОЧИЕ прелюдии, сама разыгранная не в пуле —
+  она уже в `playedCards` при fan-out); двойник — ОДИН факт на совпавшую метку (`reasonTag`, `tagReason`), блок паритета свой
+  (`PRELUDE_TAG_REACTORS` — стол с прелюдией). Стадия прелюдий старта — ДВЕРЬ даром: строка «Сработает» сфокусированной прелюдии в
+  статус-рейле церемонии читает форкаст превью розыгрыша, R3 — тот же слой хоста `'start'`; реакция поднимает корпорацию НА ПОЛКЕ
+  «РАЗЫГРАНО» (верхний слот несёт `data-played-key` и живую капсулу держателя — `capsuleModelOf`). `compatibility` — со вторым
+  модулем, без которого эффект мёртв. Действие с веткой колонии — `boardPlacement {placementType: 'colony'}` в превью.
+
 ## 1. Пять точек касания (как у любой карты)
 
 1. Класс `src/server/cards/turmoilRedux/<Name>.ts` — `Card`, или **`ActionCard`** для синей карты с действием.

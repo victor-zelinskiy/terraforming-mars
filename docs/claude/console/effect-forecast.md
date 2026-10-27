@@ -237,11 +237,12 @@ an expired subject still answers 204.
 
 ### The scope (every card carries its hook — the allow-list is EMPTY)
 
-`onCardPlayed` (24): Decomposers, Ecological Zone, Mars University, Media
+`onCardPlayed` (26): Decomposers, Ecological Zone, Mars University, Media
 Group, Olympus Conference, Optimal Aerobraking, Viral Enhancers · CrediCor,
 Interplanetary Cinematics, Saturn Systems · Advertising, Albedo Plants, Carbon
 Nanosystems, Pharmacy Union, Recyclon, Solar Logistics, Splice · Venusian
-Animals · Aridor, Arklight, Martian Zoo, Spinoff Department · Point Luna, Vitor.
+Animals · Aridor, Arklight, Martian Zoo, Spinoff Department · Point Luna, Vitor ·
+Hartlan Heating (TR80), Proteus (TR82 — one fact per tag matching the owner's OTHER Preludes, `matchingPreludeTags`).
 `onCardPlayedByAnyPlayer` (4): Saturn Systems, Pharmacy Union, Solar
 Logistics, Splice. Second order (4): Manutech, Meat Industry, Topsoil
 Contract, Development Manager. Tile triggers (14): Survey Card (Ares), Arctic

@@ -481,6 +481,15 @@ the option's own `andThen`. The client owes only presentation
 consistency; nothing here re-submits an action on a re-render or an
 animation restart (the submit is the player's A, latched by `submitting`).
 
+## THE QUEUE'S PRELUDE IS A FORECAST DOOR TOO (TR82 Proteus, 2026-10-27)
+
+The focused Prelude of the deployment queue reads «Сработает» on the ceremony status rail (`[data-start-prelude-forecast]`)
+off the forecast `prefetchPlayRewards` already fetches (`playForecasts`); R3 opens the SAME layer of host `'start'`
+(`startForecast` — the first action's briefing while it stands, else the queue's Prelude; `startFxStage` names the tail
+after the stage the door stood on), the queue parks and the shelf steps out under it (`con-start--queuefx`), the bar
+advertises R3 (`queueEffects`). And the deployment does not settle under a table's answer still playing on the shelf
+(PL-1093 — `card-reaction.md` § TR82).
+
 ## Guards
 
 `tests/client/components/console/startFirstAction.spec.ts` (stage model + the

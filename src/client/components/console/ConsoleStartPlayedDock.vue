@@ -89,7 +89,9 @@
                  :class="{'con-deal-hold': awayCard === fam.topFace}"
                  data-splayed-topface
                  :key="fam.topFace" :style="{zoom: String(plan.zoom)}">
-              <ConsolePlayedCardLite :name="fam.topFace" keep-art />
+              <!-- The LIVE capsule (TR82): a HOLDER lying on top of its family — a corporation answering a Prelude's
+                   tag (Proteus) — rises out of this slot and lays its tokens HERE, the count ticking on each touchdown. -->
+              <ConsolePlayedCardLite :name="fam.topFace" keep-art :card="capsuleModelOf(fam.topFace)" />
             </div>
             <div v-else class="con-splayed__place" aria-hidden="true">
               <span class="con-splayed__place-ring"></span>
@@ -115,6 +117,8 @@ import {familyForCardType, zoneCards} from '@/client/console/played/receivingSta
 import {playedHeroState, providePlayedHeroTarget} from '@/client/console/played/consolePlayedHero';
 import {HeroRect} from '@/client/console/played/playedHeroModel';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
+import {CardModel} from '@/common/models/CardModel';
+import {heldCardCapsule} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 
 /** Visible depth strips under the top card (history, never a column). */
 const STRIP_CAP = 2;
@@ -283,6 +287,22 @@ export default defineComponent({
     this.unregisterTarget?.();
   },
   methods: {
+    /**
+     * THE TOP FACE'S LIVE MODEL — only a HOLDER wears it (the seat's `seatCapsuleModel` phrase, TR81): its capsule is
+     * the counter a card reaction's tokens land in (TR82 Proteus answering the second Prelude), the committed count
+     * minus what is still in the air. Every other face keeps the name-only face its flights paint.
+     */
+    capsuleModelOf(name: CardName | undefined): CardModel | undefined {
+      if (name === undefined || getCard(name)?.resourceType === undefined) {
+        return undefined;
+      }
+      const model = this.viewer.tableau.find((c) => c.name === name);
+      if (model === undefined) {
+        return undefined;
+      }
+      const held = heldCardCapsule(name);
+      return held === 0 ? model : {...model, resources: Math.max(0, (model.resources ?? 0) - held)};
+    },
     /** The ARMED top slot's REST rect, synchronously; `undefined` when there is
      *  no armed slot or the shelf is parked (receded — see the loop below). */
     peekFrontAnchor(): HeroRect | undefined {

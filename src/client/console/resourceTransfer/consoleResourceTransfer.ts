@@ -1661,6 +1661,9 @@ function targetPointFor(spec: ResourceTransferSpec, skipped?: Array<SkippedEnd>,
       // still the standing view — the capsule is the counter that ticks):
       measure(`.con-cards__slot[data-zoom-slot="${esc}"] .pcard__res`) ??
       measure(`.con-cards__slot[data-zoom-slot="${esc}"]`) ??
+      // …the START SHELF's top face of a holder (TR82 — Proteus answers a Prelude out of its slot on «РАЗЫГРАНО»): its
+      // live capsule first, the face second.
+      measure(`.con-start__played [data-played-key="${esc}"] .pcard__res`) ??
       measure(`.con-start__played [data-played-key="${esc}"]`) ??
       measure(`.con-played [data-played-key="${esc}"]`);
     if (r !== undefined) {

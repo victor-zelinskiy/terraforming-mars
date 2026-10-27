@@ -29274,6 +29274,27 @@ body.con-start-barshold .con-status {
         min-width: 0;
         margin-top: -.1rem;
     }
+    /* THE QUEUE'S DOOR (TR82): the focused Prelude's «Сработает» row on the ceremony status rail — the rail's right
+       end, one flex item (the row never parts from its R3 key). */
+    &__status-answer {
+        display: inline-flex;
+        align-items: center;
+        flex-shrink: 0;
+        min-width: 0;
+        margin-left: auto;
+    }
+    &__status-state + &__status-answer { margin-left: .8rem; }
+    /* …and while its layer stands the queue PARKS beneath (opacity only — the composers' browse column phrase). */
+    &--queuefx &__queue {
+        opacity: .16;
+        transition: opacity calc(160ms * var(--motion-scale, 1)) ease-out;
+    }
+    /* …and the SHELF steps out entirely: it stands in the layer's room (its cards painted over the dossier's text at
+       4K), and nothing of it is the door's business. Opacity only — its boxes stay the flights' anchors. */
+    &--queuefx &__played {
+        opacity: 0;
+        transition: opacity calc(160ms * var(--motion-scale, 1)) ease-out;
+    }
     &__firstact-warn {
         display: flex;
         align-items: flex-start;

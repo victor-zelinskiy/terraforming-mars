@@ -22,6 +22,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // TR81 Lotus Innovations (2026-10-26): the rating off the printed plates, the corporation rising in its start seat and
   // out of the receiving stage, its tokens born on its effect row — sampled motion (the seat probe, the transfer witness).
   'console-lotus-innovations.spec.ts',
+  // TR82 Proteus (2026-10-27): the corporation rising in its slot on the start shelf and in its place for a hand play, the
+  // data token born on its effect row, the capsule ticking on the touchdown — sampled motion (the shelf probe, the witness).
+  'console-proteus.spec.ts',
   // the four the first broad sample named (28 specs at motion ×0.5, 2026-10-21)
   'console-aerial-mappers.spec.ts', // the transfer witness: endsOverGlass at tv4k
   'console-supercomputer.spec.ts', // the transfer witness: endsOverGlass at tv4k

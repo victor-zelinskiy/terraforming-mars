@@ -201,6 +201,14 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     expect(closed.some((c) => c.control === 'stickR')).to.be.false;
   });
 
+  it('a queue Prelude the TABLE answers (TR82): R3 «Эффекты» stands beside the play verb — never otherwise', () => {
+    const open = startSceneCommands(state({mode: 'ceremony', hasFocusables: true, queueEffects: true}));
+    expect(labelOf(open, 'stickR')).to.eq('Effects');
+    expect(open[0]?.control, 'the play verb still leads the bar').to.eq('confirm');
+    const closed = startSceneCommands(state({mode: 'ceremony', hasFocusables: true}));
+    expect(closed.some((c) => c.control === 'stickR')).to.be.false;
+  });
+
   it('the first-action BUSY beat (rise / submit) goes honestly quiet', () => {
     expect(startSceneCommands(state({mode: 'ceremony', firstAction: 'busy'}))).to.deep.eq([]);
   });

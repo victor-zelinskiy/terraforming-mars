@@ -114,7 +114,7 @@ export class Proteus extends ActiveCorporationCard {
             });
             ce.vSpace();
             ce.action('Spend 6 data from here to place a colony or ocean tile.', (eb) => {
-              eb.resource(CardResource.DATA, PROTEUS_ACTION_DATA).startAction.colonies(1).or().oceans(1);
+              eb.resource(CardResource.DATA, {amount: PROTEUS_ACTION_DATA, digit: true}).startAction.colonies(1).or().oceans(1);
             });
           });
         }),

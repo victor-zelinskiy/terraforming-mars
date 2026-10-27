@@ -11,6 +11,9 @@
   <div class="con-start"
        :class="{
          'con-start--ceremony': mode === 'ceremony',
+         // The «Эффекты» layer opened from the QUEUE's door (TR82): the queue parks under it (the composers' browse
+         // column phrase) — the layer is a level of this stage, never a modal over a live queue.
+         'con-start--queuefx': firstActionFxOpen && !firstActionPanelShown,
          'con-start--yielded': yielded,
          'con-start--bounded': shellBounded,
          'con-ws': shellBounded,
@@ -57,8 +60,8 @@
                        root="Start of the game"
                        mark="◈"
                        :subject="wsSubject"
-                       :stage="firstActionFxStage ?? wsStage"
-                       :stageRaw="firstActionFxStage !== undefined"
+                       :stage="startFxStage ?? wsStage"
+                       :stageRaw="startFxStage !== undefined"
                        :committed="mode === 'ceremony'">
           <template #trailing>
             <!-- Card-step pick counter (wizard): a plain «Выбрано N из M»;
@@ -678,12 +681,12 @@
               <div class="con-start__fxhost" data-forecast-host>
               <ConsoleForecastLayer ref="forecastLayer"
                                     host="start"
-                                    operation="action"
-                                    :forecast="firstActionForecast"
+                                    :operation="firstActionPanelShown ? 'action' : 'play'"
+                                    :forecast="startForecast"
                                     :cards="playerView.thisPlayer?.tableau ?? []"
                                     :color="playerView.thisPlayer?.color ?? ''"
                                     :players="playerView.players"
-                                    :statsByColor="firstActionForecastStats" />
+                                    :statsByColor="startForecastStats" />
               <transition name="con-start-firstact">
                 <div v-if="firstActionPanelShown" class="con-start__firstact"
                      :class="{
@@ -958,6 +961,13 @@
           <div class="con-start__status-inner">
             <span class="con-start__status-name" :key="ceremonyStatusName">{{ ceremonyStatusName }}</span>
             <span v-if="ceremonyStatusText !== ''" class="con-start__status-state">{{ ceremonyStatusText }}</span>
+            <!-- WHAT THE TABLE ANSWERS to the focused Prelude's play (TR82 — the play preview carries the forecast, law
+                 8): «Сработает» with the R3 key — the DOOR of the «Эффекты» layer (law 9). Proteus answers the second
+                 Prelude whose tag matches the first here, before the press. -->
+            <span v-if="queueForecastShown" class="con-start__status-answer" data-start-prelude-forecast :key="'fx' + (queueForecastCard ?? '')">
+              <ConsoleForecastRow class="con-start__prelude-forecast" :class="{'con-forecast--descend': forecastPulse}"
+                                  :forecast="queueForecast" @open="openQueueForecast()" />
+            </span>
           </div>
         </div>
 
@@ -1461,6 +1471,9 @@ export default defineComponent({
       /** Per pressable card: its play's RAIL HALF (PL-001 for plays) — the direct TR and the table's answer,
        *  read off the same preview; flown by the same beat after the gains above. */
       playRails: new Map<CardName, RailReward>(),
+      /** Per pressable card: WHAT THE TABLE ANSWERS to its play (TR82 — the same preview's forecast, branch 0): the
+       *  focused Prelude's «Сработает» row and its «Эффекты» layer read it. */
+      playForecasts: new Map<CardName, EffectForecast>(),
       /** Per pressable card: how many cards its play DRAWS (from the same
        *  preview branch) — the embed claim's `expectedCards`. */
       drawExpected: new Map<CardName, number>(),
@@ -2362,6 +2375,10 @@ export default defineComponent({
         // blanked top slot — `awayCard` still naming a card whose settle never
         // reached the line that clears it, so only the peek strip painted.
         !this.effectReturnPending &&
+        // …and neither is a play the TABLE is still answering (TR82 Proteus — the last Prelude's matching tag): the
+        // reactor rises out of its slot on «РАЗЫГРАНО» and lays its token in its own capsule there, so the shelf must
+        // stand until the chain has receded — released first, the corporation's data fell into the bare satellite.
+        this.reactionStage.phase === 'idle' &&
         // THE FIRST-ACTION STAGE is the deployment's own conditional last
         // stage now: the workspace may not settle while the corporation still
         // OWES its mandatory first action (domain ledger / live prompt), and
@@ -2978,6 +2995,46 @@ export default defineComponent({
     },
     firstActionForecastStats(): Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>> {
       return forecastStatsByColor(this.firstActionForecastOwners);
+    },
+    /**
+     * THE FOCUSED PRELUDE OF THE DEPLOYMENT QUEUE whose play the table answers (TR82 — the forecast's law 9: every
+     * surface that draws the table's answer is a door). Only the plain queue beat: a first-action briefing, an
+     * embedded step, the sponsor's hand, the colonies and the risk stage speak for themselves.
+     */
+    queueForecastCard(): CardName | undefined {
+      if (this.mode !== 'ceremony' || !this.ceremonyRevealed || this.firstActionPanelShown || this.embedPresenting ||
+        this.sponsorStep || this.colonyStep || this.riskStage !== undefined || this.candidatePrompt !== undefined) {
+        return undefined;
+      }
+      const item = this.focusedItem;
+      return item === undefined || item.kind !== 'prelude' || item.disabled ? undefined : item.name;
+    },
+    queueForecast(): EffectForecast | undefined {
+      const name = this.queueForecastCard;
+      return name === undefined ? undefined : this.playForecasts.get(name);
+    },
+    queueForecastShown(): boolean {
+      return forecastRowPresent(this.queueForecast);
+    },
+    queueForecastCanOpen(): boolean {
+      return this.queueForecastShown && forecastLayerAvailable(this.queueForecast);
+    },
+    /** The ONE layer of the stage reads the door that opened it: the first action's briefing, else the queue's Prelude. */
+    startForecast(): EffectForecast | undefined {
+      return this.firstActionPanelShown ? this.firstActionForecast : this.queueForecast;
+    },
+    startForecastCanOpen(): boolean {
+      return this.firstActionForecastCanOpen || this.queueForecastCanOpen;
+    },
+    startForecastOwners(): ReadonlyArray<string> {
+      return forecastOwnerColors(this.startForecast, this.playerView.players);
+    },
+    startForecastStats(): Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>> {
+      return forecastStatsByColor(this.startForecastOwners);
+    },
+    /** The crumb's tail while the layer stands — «… · ЭФФЕКТЫ» after the stage the door stood on (`stageRaw`). */
+    startFxStage(): string | undefined {
+      return this.firstActionPanelShown ? this.firstActionFxStage : forecastStageText('start', this.wsStage);
     },
     /**
      * THE SEATED CARD'S LIVE CAPSULE (TR81): the committed count minus what is still in the air — a corporation that
@@ -4069,6 +4126,7 @@ export default defineComponent({
         firstAction: this.firstActionBarState,
         firstActionChoice: this.firstActionChoiceLive,
         firstActionEffects: this.firstActionForecastCanOpen,
+        queueEffects: this.queueForecastCanOpen,
         bonusAction: this.bonusActionBarState,
         stageGainFocused: this.stageGainFocused,
         bonusFirstPending: this.bonusOverviewVerb === 'firstAction',
@@ -4107,7 +4165,7 @@ export default defineComponent({
       }
     },
     /** The «Эффекты» layer lives only on the standing briefing — the press, the turn passing, the leave fold it at once. */
-    firstActionForecastCanOpen(can: boolean): void {
+    startForecastCanOpen(can: boolean): void {
       if (!can) {
         foldForecastHost('start');
       }
@@ -5568,6 +5626,10 @@ export default defineComponent({
       }
       if (intent.kind === 'press' && intent.button === 'stickR' && this.firstActionForecastCanOpen) {
         this.openFirstActionForecast();
+        return;
+      }
+      if (intent.kind === 'press' && intent.button === 'stickR' && this.queueForecastCanOpen) {
+        this.openQueueForecast();
         return;
       }
       // THE LEGACY OVERVIEW owns every intent while it exists: d-pad walks
@@ -8103,6 +8165,17 @@ export default defineComponent({
       }, this.forecastPulseCall);
       openForecastHost('start', this.$el as HTMLElement | undefined, this.firstActionForecastOwners, this.playerView);
     },
+    /** R3 / a click on the focused Prelude's «Сработает» row — the same layer, the same room, the queue's own door (TR82). */
+    openQueueForecast(): void {
+      if (!this.queueForecastCanOpen || this.firstActionFxOpen) {
+        return;
+      }
+      this.forecastPulseCall = pulseForecastDoor((on) => {
+        this.forecastPulse = on;
+      }, this.forecastPulseCall);
+      const row = (this.$el as HTMLElement | undefined)?.querySelector?.<HTMLElement>('[data-start-prelude-forecast]') ?? undefined;
+      openForecastHost('start', row, this.startForecastOwners, this.playerView);
+    },
     /** The seated card's element — the corporation standing on the stage (the reactor's own place). */
     seatCardEl(): HTMLElement | undefined {
       const root = this.$el as HTMLElement | undefined;
@@ -8531,7 +8604,15 @@ export default defineComponent({
             }
             // The rail half — the ceremony pre-collects nothing and a start play costs nothing it pays here; a rating's
             // card answer (TR81 Lotus Innovations' data) rides it after the TR, like the play composer's.
-            const facts = forecastForFixedBranch(preview?.forecast, 0)?.facts;
+            const playForecast = forecastForFixedBranch(preview?.forecast, 0);
+            if (this.rewardVersion === version) {
+              if (playForecast !== undefined) {
+                this.playForecasts.set(name, playForecast);
+              } else {
+                this.playForecasts.delete(name);
+              }
+            }
+            const facts = playForecast?.facts;
             const rail = withRailAnswerTags(playRailReward(branch, branch.effects ?? [], {}, undefined,
               [...reactionRailSpecs(facts), ...ratingAnswerSpecs(facts)]), railAnswerTags(facts));
             if (this.rewardVersion === version) {

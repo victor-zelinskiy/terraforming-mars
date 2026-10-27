@@ -326,6 +326,18 @@ is until the owner says otherwise), the hero's `holdHeroAnswers` path for a card
 `card-resource` group with NO scene holding it is held and flown by the standalone chain to the holder's satellite
 cell.
 
+## TR82 Proteus — the START SHELF is a reactor's place (2026-10-27, PL-1093…1095)
+
+A corporation answering a Prelude's tag (Proteus — `matchingPreludeTags`) lies on the start shelf «РАЗЫГРАНО» while the
+Prelude is played. No new host: the chain finds it IN ITS PLACE through `reactorPlaces` (the shelf's top slot carries
+`data-played-key`), lifts that face, births on its printed effect row. Two things the shelf owed the framework: the top
+face of a HOLDER wears its live model (`ConsoleStartPlayedDock.capsuleModelOf` — the capsule ticks on the touchdown;
+the ladder's `.con-start__played [data-played-key] .pcard__res` rung lands the token there), and the deployment may not
+settle while the chain plays (`deploymentSettled` ⇐ `reactionStage.phase === 'idle'`) — released first, the last
+Prelude's answer rose at the stage and landed on the satellite. The owner's decision 3 asked for the first action's rail
+module to host the Preludes too (`startPlayRail`); with iteration 3's ONE PLACE the framework already does it, so no
+second rail module was written — the question stands in the TR82 report. e2e: `console-proteus` (A).
+
 ## Files
 
 Server: `common/models/CardReactionModel.ts`, `server/events/EventRecorder.ts` (`recordReaction`, the `cause`

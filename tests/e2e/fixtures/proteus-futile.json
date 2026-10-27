@@ -1,0 +1,3545 @@
+{
+ "activePlayer": "p-player1-id",
+ "awards": [
+  "Landlord",
+  "Scientist",
+  "Banker",
+  "Thermalist",
+  "Miner"
+ ],
+ "beholdTheEmperor": false,
+ "board": {
+  "spaces": [
+   {
+    "id": "01",
+    "spaceType": "colony",
+    "bonus": [],
+    "x": -1,
+    "y": -1
+   },
+   {
+    "id": "02",
+    "spaceType": "colony",
+    "bonus": [],
+    "x": -1,
+    "y": -1
+   },
+   {
+    "id": "03",
+    "spaceType": "land",
+    "bonus": [
+     1,
+     1
+    ],
+    "x": 4,
+    "y": 0
+   },
+   {
+    "id": "04",
+    "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
+    "bonus": [
+     1,
+     1
+    ],
+    "x": 5,
+    "y": 0
+   },
+   {
+    "id": "05",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 0
+   },
+   {
+    "id": "06",
+    "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
+    "bonus": [
+     3
+    ],
+    "x": 7,
+    "y": 0
+   },
+   {
+    "id": "07",
+    "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
+    "bonus": [],
+    "x": 8,
+    "y": 0
+   },
+   {
+    "id": "08",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 3,
+    "y": 1
+   },
+   {
+    "id": "09",
+    "spaceType": "land",
+    "bonus": [
+     1
+    ],
+    "x": 4,
+    "y": 1,
+    "volcanic": true
+   },
+   {
+    "id": "10",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 5,
+    "y": 1
+   },
+   {
+    "id": "11",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 1
+   },
+   {
+    "id": "12",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 7,
+    "y": 1
+   },
+   {
+    "id": "13",
+    "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
+    "bonus": [
+     3,
+     3
+    ],
+    "x": 8,
+    "y": 1
+   },
+   {
+    "id": "14",
+    "spaceType": "land",
+    "bonus": [
+     3
+    ],
+    "x": 2,
+    "y": 2,
+    "volcanic": true
+   },
+   {
+    "id": "15",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 3,
+    "y": 2
+   },
+   {
+    "id": "16",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 4,
+    "y": 2
+   },
+   {
+    "id": "17",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 5,
+    "y": 2
+   },
+   {
+    "id": "18",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 2
+   },
+   {
+    "id": "19",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 7,
+    "y": 2
+   },
+   {
+    "id": "20",
+    "spaceType": "land",
+    "bonus": [
+     1
+    ],
+    "x": 8,
+    "y": 2
+   },
+   {
+    "id": "21",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     0
+    ],
+    "x": 1,
+    "y": 3,
+    "volcanic": true
+   },
+   {
+    "id": "22",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 2,
+    "y": 3
+   },
+   {
+    "id": "23",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 3,
+    "y": 3
+   },
+   {
+    "id": "24",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 4,
+    "y": 3
+   },
+   {
+    "id": "25",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 5,
+    "y": 3
+   },
+   {
+    "id": "26",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 6,
+    "y": 3
+   },
+   {
+    "id": "27",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 7,
+    "y": 3
+   },
+   {
+    "id": "28",
+    "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 8,
+    "y": 3
+   },
+   {
+    "id": "29",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 0,
+    "y": 4,
+    "volcanic": true
+   },
+   {
+    "id": "30",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 1,
+    "y": 4
+   },
+   {
+    "id": "31",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 2,
+    "y": 4
+   },
+   {
+    "id": "32",
+    "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 3,
+    "y": 4
+   },
+   {
+    "id": "33",
+    "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 4,
+    "y": 4
+   },
+   {
+    "id": "34",
+    "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 5,
+    "y": 4
+   },
+   {
+    "id": "35",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 6,
+    "y": 4
+   },
+   {
+    "id": "36",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 7,
+    "y": 4
+   },
+   {
+    "id": "37",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 8,
+    "y": 4
+   },
+   {
+    "id": "38",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 1,
+    "y": 5
+   },
+   {
+    "id": "39",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 2,
+    "y": 5
+   },
+   {
+    "id": "40",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 3,
+    "y": 5
+   },
+   {
+    "id": "41",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 4,
+    "y": 5
+   },
+   {
+    "id": "42",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 5,
+    "y": 5
+   },
+   {
+    "id": "43",
+    "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
+    "bonus": [
+     2
+    ],
+    "x": 6,
+    "y": 5
+   },
+   {
+    "id": "44",
+    "spaceType": "ocean",
+    "bonus": [
+     2
+    ],
+    "x": 7,
+    "y": 5
+   },
+   {
+    "id": "45",
+    "spaceType": "ocean",
+    "bonus": [
+     2
+    ],
+    "x": 8,
+    "y": 5
+   },
+   {
+    "id": "46",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 2,
+    "y": 6
+   },
+   {
+    "id": "47",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 3,
+    "y": 6
+   },
+   {
+    "id": "48",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 4,
+    "y": 6
+   },
+   {
+    "id": "49",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 5,
+    "y": 6
+   },
+   {
+    "id": "50",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 6
+   },
+   {
+    "id": "51",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 7,
+    "y": 6
+   },
+   {
+    "id": "52",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 8,
+    "y": 6
+   },
+   {
+    "id": "53",
+    "spaceType": "land",
+    "bonus": [
+     1,
+     1
+    ],
+    "x": 3,
+    "y": 7
+   },
+   {
+    "id": "54",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 4,
+    "y": 7
+   },
+   {
+    "id": "55",
+    "spaceType": "land",
+    "bonus": [
+     3
+    ],
+    "x": 5,
+    "y": 7
+   },
+   {
+    "id": "56",
+    "spaceType": "land",
+    "bonus": [
+     3
+    ],
+    "x": 6,
+    "y": 7
+   },
+   {
+    "id": "57",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 7,
+    "y": 7
+   },
+   {
+    "id": "58",
+    "spaceType": "land",
+    "bonus": [
+     0
+    ],
+    "x": 8,
+    "y": 7
+   },
+   {
+    "id": "59",
+    "spaceType": "land",
+    "bonus": [
+     1
+    ],
+    "x": 4,
+    "y": 8
+   },
+   {
+    "id": "60",
+    "spaceType": "land",
+    "bonus": [
+     1,
+     1
+    ],
+    "x": 5,
+    "y": 8
+   },
+   {
+    "id": "61",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 8
+   },
+   {
+    "id": "62",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 7,
+    "y": 8
+   },
+   {
+    "id": "63",
+    "spaceType": "ocean",
+    "bonus": [
+     0,
+     0
+    ],
+    "x": 8,
+    "y": 8
+   },
+   {
+    "id": "79",
+    "spaceType": "colony",
+    "bonus": [],
+    "x": -1,
+    "y": -1
+   }
+  ]
+ },
+ "claimedMilestones": [],
+ "ceoDeck": {
+  "drawPile": [],
+  "discardPile": []
+ },
+ "colonies": [
+  {
+   "name": "Europa",
+   "colonies": [
+    "p-player2-id",
+    "p-player2-id",
+    "p-player2-id"
+   ],
+   "isActive": true,
+   "trackPosition": 1
+  },
+  {
+   "name": "Ganymede",
+   "colonies": [
+    "p-player2-id",
+    "p-player2-id",
+    "p-player2-id"
+   ],
+   "isActive": true,
+   "trackPosition": 1
+  },
+  {
+   "name": "Io",
+   "colonies": [
+    "p-player2-id",
+    "p-player2-id",
+    "p-player2-id"
+   ],
+   "isActive": true,
+   "trackPosition": 1
+  },
+  {
+   "name": "Titan",
+   "colonies": [
+    "p-player2-id",
+    "p-player2-id",
+    "p-player2-id"
+   ],
+   "isActive": false,
+   "trackPosition": 1
+  },
+  {
+   "name": "Triton",
+   "colonies": [
+    "p-player2-id",
+    "p-player2-id",
+    "p-player2-id"
+   ],
+   "isActive": true,
+   "trackPosition": 1
+  }
+ ],
+ "corporationDeck": {
+  "drawPile": [
+   "Mining Guild",
+   "PhoboLog",
+   "ThorGate",
+   "Polyphemos",
+   "Saturn Systems",
+   "United Nations Mars Initiative",
+   "Ecoline",
+   "Septem Tribus:redux",
+   "Inventrix",
+   "Interplanetary Cinematics",
+   "Lotus Innovations",
+   "Pristar",
+   "Arwind Inc.",
+   "Lakefront Resorts",
+   "TerraLabs Research",
+   "Helion",
+   "CrediCor",
+   "Arklight",
+   "Ferrus Academy",
+   "Poseidon",
+   "Utopia Invest",
+   "Stormcraft Incorporated",
+   "Tharsis Republic",
+   "Aridor",
+   "Hartlan Heating"
+  ],
+  "discardPile": []
+ },
+ "createdTimeMs": 1793070790593,
+ "currentSeed": 829699313289,
+ "deferredActions": [],
+ "donePlayers": [],
+ "draftRound": 1,
+ "exploitationOfVenusInEffect": false,
+ "first": "p-player1-id",
+ "fundedAwards": [],
+ "gagarinBase": [],
+ "stJosephCathedrals": [],
+ "gameAge": 43,
+ "gameLog": [
+  {
+   "message": "First player this generation is ${0}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    }
+   ],
+   "timestamp": 1793070790593
+  },
+  {
+   "message": "Good luck ${0}!",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    }
+   ],
+   "timestamp": 1793070790593,
+   "playerId": "p-player1-id"
+  },
+  {
+   "message": "Good luck ${0}!",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    }
+   ],
+   "timestamp": 1793070790593,
+   "playerId": "p-player2-id"
+  },
+  {
+   "message": "Generation ${0}",
+   "data": [
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793070790593,
+   "type": 1
+  },
+  {
+   "message": "${0} played ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 3,
+     "value": "Proteus"
+    }
+   ],
+   "timestamp": 1793070790593,
+   "correlationId": 1,
+   "parentId": 1,
+   "role": "root-action",
+   "category": "card-play"
+  },
+  {
+   "message": "${0} kept ${1} project cards",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1793070790594,
+   "correlationId": 1,
+   "parentId": 1,
+   "role": "detail"
+  },
+  {
+   "message": "${0} added ${1} ${2} to ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "Data"
+    },
+    {
+     "type": 3,
+     "value": "Proteus"
+    }
+   ],
+   "timestamp": 1793070790594,
+   "correlationId": 1,
+   "parentId": 1,
+   "role": "detail"
+  },
+  {
+   "message": "${0} played ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 3,
+     "value": "Teractor"
+    }
+   ],
+   "timestamp": 1793070790594,
+   "correlationId": 3,
+   "parentId": 3,
+   "role": "root-action",
+   "category": "card-play"
+  },
+  {
+   "message": "${0} kept ${1} project cards",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1793070790594,
+   "correlationId": 3,
+   "parentId": 3,
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "04"
+    }
+   ],
+   "timestamp": 1793070790595
+  },
+  {
+   "message": "${0} gained ${1} ${2}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "steel"
+    }
+   ],
+   "timestamp": 1793070790595,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1793070790595,
+   "correlationId": 8,
+   "parentId": 8,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "06"
+    }
+   ],
+   "timestamp": 1793070790595
+  },
+  {
+   "message": "${0} ${1} ${2} card(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "drew"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793070790595,
+   "role": "detail"
+  },
+  {
+   "message": "${0} drew ${1}",
+   "data": [
+    {
+     "type": 0,
+     "value": "You"
+    },
+    {
+     "type": 14,
+     "value": [
+      "Magnetic Field Generators"
+     ]
+    }
+   ],
+   "timestamp": 1793070790595,
+   "playerId": "p-player2-id",
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "correlationId": 13,
+   "parentId": 13,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "07"
+    }
+   ],
+   "timestamp": 1793070790596
+  },
+  {
+   "message": "${0} gained ${1} ${2} from ${3} ocean(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "correlationId": 18,
+   "parentId": 18,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "13"
+    }
+   ],
+   "timestamp": 1793070790596
+  },
+  {
+   "message": "${0} ${1} ${2} card(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "drew"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "role": "detail"
+  },
+  {
+   "message": "${0} drew ${1}",
+   "data": [
+    {
+     "type": 0,
+     "value": "You"
+    },
+    {
+     "type": 14,
+     "value": [
+      "GMO Contract",
+      "Power Grid"
+     ]
+    }
+   ],
+   "timestamp": 1793070790596,
+   "playerId": "p-player2-id",
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} from ${3} ocean(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "correlationId": 24,
+   "parentId": 24,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "28"
+    }
+   ],
+   "timestamp": 1793070790596
+  },
+  {
+   "message": "${0} gained ${1} ${2}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "plants"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "correlationId": 29,
+   "parentId": 29,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "32"
+    }
+   ],
+   "timestamp": 1793070790596
+  },
+  {
+   "message": "${0} gained ${1} ${2}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "plants"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "correlationId": 34,
+   "parentId": 34,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "33"
+    }
+   ],
+   "timestamp": 1793070790596
+  },
+  {
+   "message": "${0} gained ${1} ${2}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "plants"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} from ${3} ocean(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "correlationId": 40,
+   "parentId": 40,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "34"
+    }
+   ],
+   "timestamp": 1793070790596
+  },
+  {
+   "message": "${0} gained ${1} ${2}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "plants"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} from ${3} ocean(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "correlationId": 46,
+   "parentId": 46,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "43"
+    }
+   ],
+   "timestamp": 1793070790596
+  },
+  {
+   "message": "${0} gained ${1} ${2}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 15,
+     "value": "plants"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} from ${3} ocean(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1793070790596,
+   "correlationId": 52,
+   "parentId": 52,
+   "role": "effect-result"
+  }
+ ],
+ "gameEvents": [
+  {
+   "id": 1,
+   "generation": 1,
+   "phase": "research",
+   "type": "action",
+   "impact": {},
+   "correlationId": 1,
+   "visibility": "journal",
+   "source": {
+    "kind": "corporation",
+    "card": "Proteus",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "corporation"
+   ],
+   "category": "card-play"
+  },
+  {
+   "id": 2,
+   "generation": 1,
+   "phase": "research",
+   "type": "card-resource-changed",
+   "impact": {
+    "cardResources": [
+     {
+      "cardResource": "Data",
+      "target": "Proteus",
+      "amount": 2
+     }
+    ]
+   },
+   "correlationId": 1,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Proteus",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "card-impact"
+   ],
+   "parentId": 1
+  },
+  {
+   "id": 3,
+   "generation": 1,
+   "phase": "research",
+   "type": "action",
+   "impact": {},
+   "correlationId": 3,
+   "visibility": "journal",
+   "source": {
+    "kind": "corporation",
+    "card": "Teractor",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "corporation"
+   ],
+   "category": "card-play"
+  },
+  {
+   "id": 4,
+   "generation": 1,
+   "phase": "research",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": -6
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 45,
+     "after": 39
+    }
+   },
+   "correlationId": 1,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Proteus",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "parentId": 1
+  },
+  {
+   "id": 5,
+   "generation": 1,
+   "phase": "research",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": -6
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 60,
+     "after": 54
+    }
+   },
+   "correlationId": 3,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Teractor",
+    "owner": "red"
+   },
+   "player": "red",
+   "parentId": 3
+  },
+  {
+   "id": 6,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 6,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "04",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 7,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "steel": 2
+    },
+    "snapshot": {
+     "resource": "steel",
+     "scope": "stock",
+     "before": 0,
+     "after": 2
+    }
+   },
+   "correlationId": 7,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 8,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 8,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ]
+  },
+  {
+   "id": 9,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 30,
+     "after": 32
+    }
+   },
+   "correlationId": 8,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 8
+  },
+  {
+   "id": 10,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 10,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 11,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 11,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "06",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 12,
+   "generation": 1,
+   "phase": "action",
+   "type": "cards-drawn",
+   "impact": {
+    "cardsDrawn": 1
+   },
+   "correlationId": 12,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 13,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 13,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ]
+  },
+  {
+   "id": 14,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 32,
+     "after": 34
+    }
+   },
+   "correlationId": 13,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 13
+  },
+  {
+   "id": 15,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 15,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 16,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 16,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "07",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 17,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 34,
+     "after": 36
+    }
+   },
+   "correlationId": 17,
+   "visibility": "analytics",
+   "source": {
+    "kind": "oceanBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 18,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 18,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ]
+  },
+  {
+   "id": 19,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 36,
+     "after": 38
+    }
+   },
+   "correlationId": 18,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 18
+  },
+  {
+   "id": 20,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 20,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 21,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 21,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "13",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 22,
+   "generation": 1,
+   "phase": "action",
+   "type": "cards-drawn",
+   "impact": {
+    "cardsDrawn": 2
+   },
+   "correlationId": 22,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 23,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 38,
+     "after": 40
+    }
+   },
+   "correlationId": 23,
+   "visibility": "analytics",
+   "source": {
+    "kind": "oceanBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 24,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 24,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ]
+  },
+  {
+   "id": 25,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 40,
+     "after": 42
+    }
+   },
+   "correlationId": 24,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 24
+  },
+  {
+   "id": 26,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 26,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 27,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 27,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "28",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 28,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "plants": 2
+    },
+    "snapshot": {
+     "resource": "plants",
+     "scope": "stock",
+     "before": 0,
+     "after": 2
+    }
+   },
+   "correlationId": 28,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 29,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 29,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ]
+  },
+  {
+   "id": 30,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 42,
+     "after": 44
+    }
+   },
+   "correlationId": 29,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 29
+  },
+  {
+   "id": 31,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 31,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 32,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 32,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "32",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 33,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "plants": 2
+    },
+    "snapshot": {
+     "resource": "plants",
+     "scope": "stock",
+     "before": 2,
+     "after": 4
+    }
+   },
+   "correlationId": 33,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 34,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 34,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ]
+  },
+  {
+   "id": 35,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 44,
+     "after": 46
+    }
+   },
+   "correlationId": 34,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 34
+  },
+  {
+   "id": 36,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 36,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 37,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 37,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "33",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 38,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "plants": 2
+    },
+    "snapshot": {
+     "resource": "plants",
+     "scope": "stock",
+     "before": 4,
+     "after": 6
+    }
+   },
+   "correlationId": 38,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 39,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 46,
+     "after": 48
+    }
+   },
+   "correlationId": 39,
+   "visibility": "analytics",
+   "source": {
+    "kind": "oceanBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 40,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 40,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ]
+  },
+  {
+   "id": 41,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 48,
+     "after": 50
+    }
+   },
+   "correlationId": 40,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 40
+  },
+  {
+   "id": 42,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 42,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 43,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 43,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "34",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 44,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "plants": 2
+    },
+    "snapshot": {
+     "resource": "plants",
+     "scope": "stock",
+     "before": 6,
+     "after": 8
+    }
+   },
+   "correlationId": 44,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 45,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 50,
+     "after": 52
+    }
+   },
+   "correlationId": 45,
+   "visibility": "analytics",
+   "source": {
+    "kind": "oceanBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 46,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 46,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ]
+  },
+  {
+   "id": 47,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 52,
+     "after": 54
+    }
+   },
+   "correlationId": 46,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 46
+  },
+  {
+   "id": 48,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 48,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 49,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 49,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "43",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 50,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "plants": 1
+    },
+    "snapshot": {
+     "resource": "plants",
+     "scope": "stock",
+     "before": 8,
+     "after": 9
+    }
+   },
+   "correlationId": 50,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 51,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 54,
+     "after": 56
+    }
+   },
+   "correlationId": 51,
+   "visibility": "analytics",
+   "source": {
+    "kind": "oceanBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 52,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 52,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ]
+  },
+  {
+   "id": 53,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 56,
+     "after": 58
+    }
+   },
+   "correlationId": 52,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 52
+  },
+  {
+   "id": 54,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 54,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  }
+ ],
+ "eventSeq": 54,
+ "gameOptions": {
+  "altVenusBoard": false,
+  "aresExtension": false,
+  "aresHazards": true,
+  "aresExtremeVariant": false,
+  "boardName": "tharsis",
+  "randomFirstPlayer": false,
+  "bannedCards": [],
+  "includedCards": [],
+  "ceoExtension": false,
+  "coloniesExtension": true,
+  "communityCardsOption": false,
+  "corporateEra": true,
+  "customCeos": [],
+  "customColoniesList": [],
+  "customCorporationsList": [
+   "Proteus",
+   "Teractor"
+  ],
+  "customPreludes": [],
+  "customProjectCards": [],
+  "customBonusCards": [],
+  "draftVariant": false,
+  "expansions": {
+   "corpera": false,
+   "venus": false,
+   "colonies": true,
+   "prelude": false,
+   "prelude2": false,
+   "turmoil": false,
+   "promo": false,
+   "community": false,
+   "ares": false,
+   "moon": false,
+   "pathfinders": false,
+   "ceo": false,
+   "starwars": false,
+   "underworld": false,
+   "deltaProject": false,
+   "turmoilRedux": true
+  },
+  "fastModeOption": false,
+  "includeFanMA": false,
+  "initialDraftVariant": false,
+  "modularMA": false,
+  "moonExpansion": false,
+  "moonStandardProjectVariant": false,
+  "moonStandardProjectVariant1": false,
+  "pathfindersExpansion": false,
+  "politicalAgendasExtension": "Standard",
+  "preludeDraftVariant": false,
+  "ceosDraftVariant": false,
+  "preludeExtension": false,
+  "prelude2Expansion": false,
+  "promoCardsOption": false,
+  "randomMA": "No randomization",
+  "requiresMoonTrackCompletion": false,
+  "removeNegativeGlobalEventsOption": false,
+  "requiresVenusTrackCompletion": false,
+  "showOtherPlayersVP": false,
+  "showTimers": true,
+  "testMode": false,
+  "shuffleMapOption": false,
+  "solarPhaseOption": false,
+  "soloTR": false,
+  "startingCeos": 3,
+  "startingCorporations": 1,
+  "startingPreludes": 4,
+  "starWarsExpansion": false,
+  "turmoilExtension": false,
+  "turmoilReduxExpansion": true,
+  "underworldExpansion": false,
+  "deltaProjectExpansion": false,
+  "undoOption": false,
+  "venusNextExtension": false,
+  "twoCorpsVariant": false,
+  "skipInitialCardSelection": false
+ },
+ "generation": 1,
+ "globalsPerGeneration": [],
+ "id": "game-id",
+ "initialDraftIteration": 1,
+ "lastSaveId": 0,
+ "milestones": [
+  "Terraformer29",
+  "Mayor",
+  "Gardener",
+  "Builder",
+  "Planner"
+ ],
+ "name": "Rarefied Hydrogen Source",
+ "oxygenLevel": 0,
+ "passedPlayers": [],
+ "phase": "action",
+ "players": [
+  {
+   "id": "p-player1-id",
+   "pickedCorporationCard": "Proteus",
+   "initialCardSelectionDone": true,
+   "terraformRating": 20,
+   "hasIncreasedTerraformRatingThisGeneration": false,
+   "terraformRatingFromCards": 0,
+   "terraformRatingSources": [],
+   "megaCredits": 60,
+   "megaCreditProduction": 0,
+   "steel": 0,
+   "steelProduction": 0,
+   "titanium": 0,
+   "titaniumProduction": 0,
+   "plants": 0,
+   "plantProduction": 0,
+   "energy": 0,
+   "energyProduction": 0,
+   "heat": 0,
+   "heatProduction": 0,
+   "titaniumValue": 3,
+   "steelValue": 2,
+   "canUseHeatAsMegaCredits": false,
+   "canUsePlantsAsMegaCredits": false,
+   "canUseTitaniumAsMegacredits": false,
+   "preservationProgram": false,
+   "trThisGeneration": 0,
+   "actionsTakenThisRound": 0,
+   "availableActionsThisRound": 2,
+   "bonusActions": 0,
+   "bonusActionsGranted": 0,
+   "pendingBonusGains": [],
+   "actionsThisGeneration": [],
+   "pendingInitialActions": [],
+   "dealtCorporationCards": [
+    "Proteus"
+   ],
+   "dealtPreludeCards": [],
+   "dealtCeoCards": [],
+   "dealtProjectCards": [
+    "Noctis City",
+    "Adaptation Technology",
+    "Lunar Beam",
+    "Giant Space Mirror",
+    "Fuel Factory",
+    "Physics Complex",
+    "Vesta Shipyard",
+    "Ecology Research",
+    "Corporate Stronghold",
+    "Satellites"
+   ],
+   "cardsInHand": [
+    "Noctis City",
+    "Adaptation Technology"
+   ],
+   "pendingCardIntakes": [],
+   "preludeCardsInHand": [],
+   "ceoCardsInHand": [],
+   "playedCards": [
+    {
+     "name": "Proteus",
+     "resourceCount": 6,
+     "isDisabled": false
+    },
+    {
+     "name": "Mohole",
+     "resourceCount": 0
+    },
+    {
+     "name": "Martian Industries",
+     "resourceCount": 0
+    }
+   ],
+   "draftedCards": [],
+   "cardCost": 3,
+   "cardDiscount": 0,
+   "fleetSize": 1,
+   "tradesThisGeneration": 0,
+   "colonyTradeOffset": 0,
+   "colonyTradeDiscount": 0,
+   "colonyVictoryPoints": 0,
+   "turmoilPolicyActionUsed": false,
+   "politicalAgendasActionUsedCount": 0,
+   "hasTurmoilScienceTagBonus": false,
+   "oceanBonus": 2,
+   "scienceTagCount": 0,
+   "plantTagCount": 0,
+   "jovianTagCount": 0,
+   "plantsNeededForGreenery": 8,
+   "removingPlayers": [],
+   "warmongerCards": 0,
+   "removedFromPlayCards": [],
+   "standardProjectsThisGeneration": [],
+   "patentSalesThisGeneration": 0,
+   "withinDeflectionZone": false,
+   "name": "player1",
+   "color": "blue",
+   "beginner": false,
+   "handicap": 0,
+   "timer": {
+    "sumElapsed": 1,
+    "startedAt": 1793070790594,
+    "running": true,
+    "afterFirstAction": true,
+    "lastStoppedAt": 1793070790594
+   },
+   "actionsTakenThisGame": 1,
+   "victoryPointsByGeneration": [],
+   "totalDelegatesPlaced": 0,
+   "underworldData": {
+    "corruption": 0,
+    "tokens": []
+   },
+   "draftHand": [],
+   "autoPass": false,
+   "globalParameterSteps": {
+    "oceans": 0,
+    "oxygen": 0,
+    "temperature": 0,
+    "venus": 0,
+    "moon-habitat": 0,
+    "moon-mining": 0,
+    "moon-logistic": 0
+   }
+  },
+  {
+   "id": "p-player2-id",
+   "pickedCorporationCard": "Teractor",
+   "initialCardSelectionDone": true,
+   "terraformRating": 29,
+   "hasIncreasedTerraformRatingThisGeneration": true,
+   "terraformRatingFromCards": 0,
+   "terraformRatingSources": [],
+   "megaCredits": 58,
+   "megaCreditProduction": 0,
+   "steel": 2,
+   "steelProduction": 0,
+   "titanium": 0,
+   "titaniumProduction": 0,
+   "plants": 9,
+   "plantProduction": 0,
+   "energy": 0,
+   "energyProduction": 0,
+   "heat": 0,
+   "heatProduction": 0,
+   "titaniumValue": 3,
+   "steelValue": 2,
+   "canUseHeatAsMegaCredits": false,
+   "canUsePlantsAsMegaCredits": false,
+   "canUseTitaniumAsMegacredits": false,
+   "preservationProgram": false,
+   "trThisGeneration": 9,
+   "actionsTakenThisRound": 0,
+   "availableActionsThisRound": 2,
+   "bonusActions": 0,
+   "bonusActionsGranted": 0,
+   "pendingBonusGains": [],
+   "actionsThisGeneration": [],
+   "pendingInitialActions": [],
+   "dealtCorporationCards": [
+    "Teractor"
+   ],
+   "dealtPreludeCards": [],
+   "dealtCeoCards": [],
+   "dealtProjectCards": [
+    "Micro-Mills",
+    "Dust Seals",
+    "Red Museum",
+    "Wave Power",
+    "Molecular Printing",
+    "Cryo-Sleep",
+    "Martian Media Center",
+    "Toll Station",
+    "Power Infrastructure",
+    "Farming"
+   ],
+   "cardsInHand": [
+    "Micro-Mills",
+    "Dust Seals",
+    "Magnetic Field Generators",
+    "GMO Contract",
+    "Power Grid"
+   ],
+   "pendingCardIntakes": [],
+   "preludeCardsInHand": [],
+   "ceoCardsInHand": [],
+   "playedCards": [
+    {
+     "name": "Teractor",
+     "resourceCount": 0,
+     "isDisabled": false
+    }
+   ],
+   "draftedCards": [],
+   "cardCost": 3,
+   "cardDiscount": 0,
+   "fleetSize": 1,
+   "tradesThisGeneration": 0,
+   "colonyTradeOffset": 0,
+   "colonyTradeDiscount": 0,
+   "colonyVictoryPoints": 0,
+   "turmoilPolicyActionUsed": false,
+   "politicalAgendasActionUsedCount": 0,
+   "hasTurmoilScienceTagBonus": false,
+   "oceanBonus": 2,
+   "scienceTagCount": 0,
+   "plantTagCount": 0,
+   "jovianTagCount": 0,
+   "plantsNeededForGreenery": 8,
+   "removingPlayers": [],
+   "warmongerCards": 0,
+   "removedFromPlayCards": [],
+   "standardProjectsThisGeneration": [],
+   "patentSalesThisGeneration": 0,
+   "withinDeflectionZone": false,
+   "name": "player2",
+   "color": "red",
+   "beginner": false,
+   "handicap": 0,
+   "timer": {
+    "sumElapsed": 1,
+    "startedAt": 1793070790594,
+    "running": false,
+    "afterFirstAction": true,
+    "lastStoppedAt": 1793070790594
+   },
+   "actionsTakenThisGame": 0,
+   "victoryPointsByGeneration": [],
+   "totalDelegatesPlaced": 0,
+   "underworldData": {
+    "corruption": 0,
+    "tokens": []
+   },
+   "draftHand": [],
+   "autoPass": false,
+   "globalParameterSteps": {
+    "oceans": 9,
+    "oxygen": 0,
+    "temperature": 0,
+    "venus": 0,
+    "moon-habitat": 0,
+    "moon-mining": 0,
+    "moon-logistic": 0
+   }
+  }
+ ],
+ "preludeDeck": {
+  "drawPile": [
+   "Aquifer Turbines",
+   "Business Empire",
+   "Self-Sufficient Settlement",
+   "Huge Asteroid",
+   "Polar Industries",
+   "Loan",
+   "Ecology Experts",
+   "Early Settlement",
+   "Donation",
+   "Acquired Space Agency",
+   "Supply Drop",
+   "Martian Industries",
+   "Supplier",
+   "Research Network",
+   "Mohole",
+   "Nitrogen Shipment",
+   "Orbital Construction Yard",
+   "Allied Bank",
+   "Power Generation",
+   "Biofuels",
+   "Biosphere Support",
+   "Biolab",
+   "Galilean Mining",
+   "Society Support",
+   "Great Aquifer",
+   "Metal-Rich Asteroid",
+   "UNMI Contractor",
+   "Eccentric Sponsor",
+   "Mining Operations",
+   "Io Research Outpost",
+   "Experimental Forest",
+   "Dome Farming",
+   "Smelting Plant",
+   "Metals Company",
+   "Mohole Excavation"
+  ],
+  "discardPile": []
+ },
+ "projectDeck": {
+  "drawPile": [
+   "Ants",
+   "Mining Area",
+   "Peroxide Power",
+   "Party Sanctions",
+   "Black Polar Dust",
+   "Canyon Carving",
+   "Arctic Algae",
+   "Cargo Mechs",
+   "Cloud Seeding",
+   "Terraforming Ganymede",
+   "Community Services",
+   "Anti-Gravity Technology",
+   "Flooding",
+   "Local Heat Trapping",
+   "Research Colony",
+   "Media Group",
+   "Titan Floating Launch-pad",
+   "Biological Simulations",
+   "Electro Catapult",
+   "Arboretum",
+   "Red Tourism Wave",
+   "Mineral Deposit",
+   "Luna Governor",
+   "Advanced Ecosystems",
+   "Banned Delegate:redux",
+   "ArchaeBacteria",
+   "Standard Technology",
+   "Investment Loan",
+   "Titan Air-scrapping",
+   "Urban Decomposers",
+   "Space Port Colony",
+   "Construction Mechs",
+   "Virus",
+   "Public Celebrations",
+   "Nitrogen from Titan",
+   "Strip Mine",
+   "Martian Roads",
+   "Council Seat",
+   "Red Lawyers",
+   "Pets",
+   "Automated Convoys",
+   "Trees",
+   "Nova City",
+   "Composting Initiative",
+   "Industrial Center",
+   "Vote Of No Confidence:redux",
+   "Miranda Resort",
+   "Aquifer Pumping",
+   "Supported Research",
+   "Solar Probe",
+   "Spaceship Recycling",
+   "Nitrite Reducing Bacteria",
+   "Security Fleet",
+   "Habitat Science",
+   "Extreme-Cold Fungus",
+   "Green Allegiance",
+   "Power Plant",
+   "Caretaker Contract",
+   "Atmo Collectors",
+   "Mining Expedition",
+   "Large Convoy",
+   "Floater Prototypes",
+   "Pioneer Settlement",
+   "Quantum Communications",
+   "Forestry Mechs",
+   "Bushes",
+   "Titan Shuttles",
+   "Promethean Alliance",
+   "Acquired Company",
+   "Mars Army Ships",
+   "Sponsored Settlement",
+   "Mohole Area",
+   "Insulation",
+   "Towing A Comet",
+   "Soil Factory",
+   "Big Asteroid",
+   "Tectonic Stress Power",
+   "Influential Discovery",
+   "Titanium Mine",
+   "Io Mining Industries",
+   "Fueled Generators",
+   "Eden Alliance",
+   "Viral Enhancers",
+   "Nuclear Warhead Utilization",
+   "Gene Repair",
+   "Ore Processor",
+   "Water Import From Europa",
+   "Market Manipulation",
+   "Asteroid",
+   "Predators",
+   "Noctis Farming",
+   "Recruitment:redux",
+   "Lake Marineris",
+   "Civilian Spacefighters",
+   "Sponsored Power Plant",
+   "Power Supply Consortium",
+   "Food Factory",
+   "GHG Factories",
+   "Natural Preserve",
+   "Wildlife Dome",
+   "Reprocessing Plant",
+   "Expedition Mechs",
+   "Release of Inert Gases",
+   "Subterranean Reservoir",
+   "Livestock",
+   "Diaspora Movement",
+   "Scientific Breakthrough",
+   "Political Donation",
+   "Urbanized Area",
+   "Symbiotic Fungus",
+   "Colony Sponsors",
+   "Business Contacts",
+   "Aerial Lenses:redux",
+   "Deimos Down",
+   "Formula Zero",
+   "Ganymede Colony",
+   "Re-settlement",
+   "Parliament Hall",
+   "Heat Trappers",
+   "Space Elevator",
+   "Mine",
+   "Robotics Factory",
+   "Grass",
+   "Cutting-Edge Design",
+   "Cartel",
+   "Martian Census",
+   "EVA Mechs",
+   "Solar Power",
+   "Lava Flows",
+   "Lagrange Observatory",
+   "Sponsors",
+   "Equatorial Magnetizer",
+   "Methane From Titan",
+   "Earth Army Contract",
+   "Lightning Harvest",
+   "Small Animals",
+   "Nationalist Movement",
+   "Energy Saving",
+   "Steelworks",
+   "Nuclear Power",
+   "Comet",
+   "Floater Technology",
+   "Political Science",
+   "Herbivores",
+   "Space Port",
+   "Corona Extractor",
+   "Moss",
+   "Open City",
+   "Red Spot Observatory",
+   "Colonizer Training Camp",
+   "Rover Construction",
+   "Ice Cap Melting",
+   "Research",
+   "Mining Mechs",
+   "Frontier Labs",
+   "Overclocked Equipment",
+   "Ironworks",
+   "Birds",
+   "Worms",
+   "Lunar Mining",
+   "Jovian Lanterns",
+   "Reds News Outlet",
+   "Domed Crater",
+   "Mining Rights",
+   "Immigration Shuttles",
+   "Cultural Metropolis",
+   "Interstellar Colony Ship",
+   "Supreme Expertise",
+   "Trading Colony",
+   "Media Archives",
+   "Lichen",
+   "Deep Well Heating",
+   "Mars Army Mechs",
+   "Permafrost Extraction",
+   "Trade Envoys",
+   "Tharsis Alliance",
+   "Administration District",
+   "Zeppelins",
+   "AI Central",
+   "Nitrogen-Rich Asteroid",
+   "Invention Contest",
+   "UNMI Liner",
+   "Ice Moon Colony",
+   "Aquatic Research Station",
+   "Sabotage",
+   "Interplanetary Colony Ship",
+   "Event Analysts",
+   "Refugee Camps",
+   "Strategic Shift",
+   "Artificial Photosynthesis",
+   "Mining Colony",
+   "Tropical Resort",
+   "Tundra Farming",
+   "Protected Valley",
+   "Inventors' Guild",
+   "Airliners",
+   "Quantum Extractor",
+   "Galilean Waystation",
+   "Geothermal Power",
+   "Conscription",
+   "Nitrophilic Moss",
+   "Political Recognition",
+   "Supercomputer",
+   "Exclusive Colony",
+   "Biomass Combustors",
+   "Insects",
+   "Ice Asteroid",
+   "Land Claim",
+   "Ichtiology Grant",
+   "Regolith Eaters",
+   "Lunar Exports",
+   "Giant Ice Asteroid",
+   "Windmills",
+   "Tardigrades",
+   "Ecological Zone",
+   "Medical Lab",
+   "Hired Raiders",
+   "Mars University",
+   "Technology Demonstration",
+   "Great Escarpment Consortium",
+   "Cupola City",
+   "Warp Drive",
+   "Asteroid Mining",
+   "Robotic Workforce",
+   "Eos Chasma National Park",
+   "Rim Freighters",
+   "Breathing Filters",
+   "Commercial District",
+   "Ecological Experiment",
+   "Aerobraked Ammonia Asteroid",
+   "Special Design",
+   "Olympus Conference",
+   "Minority Representation",
+   "Imported Hydrogen",
+   "Asteroid Mining Consortium",
+   "Red Tech Convention",
+   "PR Office",
+   "Research Outpost",
+   "Backroom Deal",
+   "Water Splitting Plant",
+   "Earth Office",
+   "Restricted Area",
+   "Fusion Power",
+   "Building Industries",
+   "Martian Zoo",
+   "Industrial Microbes",
+   "Greenhouses",
+   "Spin-off Department",
+   "Earth Catapult",
+   "Political Alliance:redux",
+   "Political Think Tank",
+   "Soletta",
+   "Hackers",
+   "Mangrove",
+   "Great Dam",
+   "Protected Habitats",
+   "CEO's Favorite Project",
+   "Beam From A Thorium Asteroid",
+   "Jupiter Floating Station",
+   "Business Network",
+   "Trans-Neptune Probe",
+   "Earth Elevator",
+   "Artificial Lake",
+   "Optimal Aerobraking",
+   "Space Mirrors",
+   "Immigrant City",
+   "Convoy From Europa",
+   "Mech Sports",
+   "Heavy Taxation",
+   "Space Station",
+   "Kelp Farming",
+   "Capital",
+   "Productive Outpost",
+   "Underground City",
+   "Solar Reflectors",
+   "Vector Computations",
+   "Imported Nitrogen",
+   "Nuclear Zone",
+   "Air Raid",
+   "Sponsored Mohole:redux",
+   "GHG Producing Bacteria",
+   "Adapted Lichen",
+   "Carbonate Processing",
+   "Advanced Alloys",
+   "Enceladean Incubator",
+   "Water Hauling",
+   "Research Startups",
+   "Algae",
+   "Rad-Suits",
+   "Imported GHG",
+   "Solar Wind Power",
+   "Shuttles",
+   "Energy Tapping",
+   "Development Center",
+   "Martian Fiber",
+   "Impactor Swarm",
+   "Floater Leasing",
+   "Bribed Committee",
+   "Underground Detonations",
+   "Sky Docks",
+   "Plantation",
+   "Heather",
+   "Martian Rails",
+   "Rad-Chem Factory",
+   "Magnetic Field Dome",
+   "Phobos Space Haven",
+   "Fish",
+   "Import of Advanced GHG",
+   "Indentured Workers",
+   "Minority Refuge",
+   "Designed Microorganisms",
+   "Search For Life",
+   "Callisto Penal Mines",
+   "Mass Converter",
+   "Fringe Colony",
+   "Sub-zero Salt Fish",
+   "Decomposers"
+  ],
+  "discardPile": [
+   "Lunar Beam",
+   "Giant Space Mirror",
+   "Fuel Factory",
+   "Physics Complex",
+   "Vesta Shipyard",
+   "Ecology Research",
+   "Corporate Stronghold",
+   "Satellites",
+   "Red Museum",
+   "Wave Power",
+   "Molecular Printing",
+   "Cryo-Sleep",
+   "Martian Media Center",
+   "Toll Station",
+   "Power Infrastructure",
+   "Farming"
+  ]
+ },
+ "researchedPlayers": [],
+ "seed": 0,
+ "someoneHasRemovedOtherPlayersPlants": false,
+ "spectatorId": "spectator-id",
+ "tags": [
+  "microbe",
+  "building",
+  "power",
+  "plant",
+  "jovian",
+  "space",
+  "science",
+  "earth",
+  "animal",
+  "mars",
+  "city",
+  "wild"
+ ],
+ "scaleBonusClaims": [],
+ "temperature": -30,
+ "tradeEmbargo": false,
+ "underworldData": {
+  "tokens": []
+ },
+ "undoCount": 0,
+ "venusScaleLevel": 0,
+ "verminInEffect": false,
+ "parliament": {
+  "version": 1,
+  "slots": [
+   {
+    "instance": "RDX_MARS_URBAN_RESEARCH#0",
+    "votes": []
+   },
+   {
+    "instance": "RDX_SCIENTISTS_SCIENTISTS_BUDGET#0",
+    "votes": []
+   },
+   {
+    "instance": "RDX_UNITY_COLONIZATION_FUNDING#0",
+    "votes": []
+   }
+  ],
+  "quest": {
+   "definition": {
+    "goal": {
+     "kind": "production",
+     "resource": "heat"
+    },
+    "count": 3
+   },
+   "source": "starter",
+   "generation": 1,
+   "progress": {}
+  },
+  "lobby": [
+   "p-player1-id",
+   "p-player2-id"
+  ],
+  "voteSeq": 0,
+  "popularSupport": {},
+  "agenda": {},
+  "influenceBonus": {},
+  "grantedEffects": {},
+  "partyActionUses": {},
+  "resolutionActionUses": {},
+  "deck": [
+   "RDX_REDS_WATER_EXPORT#0",
+   "RDX_GREENS_GREENS_BUDGET#0",
+   "RDX_GREENS_MOHOLE_CONTEST#0",
+   "RDX_MARS_DEVELOPMENT_CRAZE#0",
+   "RDX_GREENS_BIODOME_CONTEST#0",
+   "RDX_GREENS_CLIMATE_RESEARCH#0",
+   "RDX_SCIENTISTS_OPEN_IP_TRADE#0",
+   "RDX_SCIENTISTS_MEDICAL_DATABASE#0",
+   "RDX_SCIENTISTS_SPONSORED_PROJECTS#0",
+   "RDX_UNITY_UNITY_BUDGET#0",
+   "RDX_GREENS_FORESTRY_SUPPORT#0",
+   "RDX_REDS_PLANT_BAN#0",
+   "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET#0",
+   "RDX_MARSFIRST_MIGRATION_FUNDING#0",
+   "RDX_INDUSTRIALISTS_TAX_BREAKS#0",
+   "RDX_UNITY_TRADE_INDUSTRIES#0",
+   "RDX_INDUSTRIALISTS_METAL_RESEARCH#0",
+   "RDX_MARS_ARCHITECTURE_AWARD#0",
+   "RDX_REDS_REDS_BUDGET#0",
+   "RDX_UNITY_JOVIAN_TAX_RIGHTS#0",
+   "RDX_UNITY_COLONY_CONTEST#0",
+   "RDX_INDUSTRIALISTS_MINING_INCENTIVES#0",
+   "RDX_UNITY_COLONIAL_AFFAIRS#0",
+   "RDX_MARS_SKYSCRAPERS#0",
+   "RDX_SCIENTISTS_JOINT_RESEARCH#0",
+   "RDX_REDS_UNMI_VETO#0",
+   "RDX_REDS_DIVERTED_RESEARCH#0",
+   "RDX_REDS_HEAT_CAPTURE#0",
+   "RDX_SCIENTISTS_LIVE_EXPERIMENTS#0",
+   "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION#0",
+   "RDX_SCIENTISTS_RD_FUNDING#0",
+   "RDX_MARS_URBAN_DEVELOPMENT#0",
+   "RDX_GREENS_AQUIFER_CONTEST#0",
+   "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+   "RDX_MARS_MARS_FIRST_BUDGET#0",
+   "RDX_GREENS_GENEROUS_FUNDING#0",
+   "RDX_INDUSTRIALISTS_MANUFACTURING_RUN#0"
+  ],
+  "discard": [],
+  "phaseSeq": 0,
+  "botMode": "politics",
+  "partyEffectAccess": {
+   "p-player1-id": {
+    "Greens": "ruling"
+   },
+   "p-player2-id": {
+    "Greens": "ruling"
+   }
+  }
+ }
+}

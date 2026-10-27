@@ -165,8 +165,9 @@ export async function armTransferWitness(page: Page): Promise<void> {
       // reactor's, never the cause's.
       // …or IN ITS SEAT on the start stage (TR81 — a corporation answering its own first action rises where it stands).
       // …or IN ITS PLACE wherever its face stands (iteration 3 — the composer's hero, `data-reaction-home`; a target
-      // miniature; the played table): one physical card, lifted where it is.
-      ['reactor', '.con-reaction__face[data-reaction-card] .pcard-ic, .con-recv__emerge[data-played-key] .pcard-ic, .con-citypay__card[data-played-key] .pcard-ic, .con-start__embedsource [data-start-seat-card] .pcard-ic, [data-reaction-home][data-reaction-lifted] .pcard-ic, [data-composer-card][data-reaction-lifted] .pcard-ic, .con-played [data-played-key][data-reaction-lifted] .pcard-ic'],
+      // miniature; the played table): one physical card, lifted where it is — the START SHELF too (TR82: Proteus answers
+      // a Prelude out of its slot on «РАЗЫГРАНО»).
+      ['reactor', '.con-reaction__face[data-reaction-card] .pcard-ic, .con-recv__emerge[data-played-key] .pcard-ic, .con-citypay__card[data-played-key] .pcard-ic, .con-start__embedsource [data-start-seat-card] .pcard-ic, [data-reaction-home][data-reaction-lifted] .pcard-ic, [data-composer-card][data-reaction-lifted] .pcard-ic, .con-played [data-played-key][data-reaction-lifted] .pcard-ic, .con-start__played [data-played-key][data-reaction-lifted] .pcard-ic'],
       // The START STAGE's seated card — the capsule a corporation's own answer lands in (TR81). `start-seat:<card>`.
       ['start-seat', '.con-start__embedsource [data-start-seat-card]'],
       ['tag', '.con-recv [data-recv-front] .pcard-tag[data-tag], .con-played [data-played-key] .pcard-tag[data-tag]'],

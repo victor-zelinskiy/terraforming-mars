@@ -399,6 +399,11 @@ abstract class Builder<T> {
       opts = {...options};
     }
     opts.resource = resource;
+    // The item is built with amount -1 and the options' amount applied after, so the constructor's «more than 5 →
+    // a digit» default never saw it (TR82's «6 [data]» printed six icons on the action tile): decide it here.
+    if (opts.digit === undefined && opts.amount !== undefined && Math.abs(opts.amount) > 5) {
+      opts.digit = true;
+    }
     return this._appendToRow(new CardRenderItem(CardRenderItemType.RESOURCE, -1, opts));
   }
 
