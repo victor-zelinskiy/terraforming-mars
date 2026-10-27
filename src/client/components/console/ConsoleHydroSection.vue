@@ -1279,7 +1279,7 @@ import {actionPreviewMap, previewBranchByIndex} from '@/client/console/actionPre
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {DeltaTrackDestination, DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 import {EffectForecast} from '@/common/models/EffectForecastModel';
-import {EffectOverlayStat} from '@/client/components/effects/effectStats';
+import {EffectOverlayStat} from '@/common/events/aggregate';
 import ConsoleForecastDoor from '@/client/components/console/ConsoleForecastDoor.vue';
 import ConsoleForecastLayer from '@/client/components/console/ConsoleForecastLayer.vue';
 import {forecastLayerAvailable, reactionChipsOf, VariantReaction} from '@/client/console/effectForecastModel';
