@@ -751,8 +751,9 @@ export class Executor implements BehaviorExecutor {
       if (politics === undefined) {
         throw new Error(`${card.name}: a political effect in a game without a political engine`);
       }
-      if (behavior.turmoil.influenceBonus === 1) {
-        politics.addInfluenceBonus(player, 1, card.name);
+      const influenceBonus = behavior.turmoil.influenceBonus ?? 0;
+      if (influenceBonus > 0) {
+        politics.addInfluenceBonus(player, influenceBonus, card.name);
       }
 
       if (behavior.turmoil.sendDelegates) {

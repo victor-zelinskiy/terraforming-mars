@@ -10,6 +10,7 @@ import type {EffectForecast} from './EffectForecastModel';
 import {ResolutionCountByCard, ResolutionCountByResource, ResolutionCountMetricModel, ResolutionCountModel} from '../parliament/resolutionCounts';
 import type {CardResourceDestination} from '../parliament/influenceScaling';
 import {ParameterMoveId} from '../parliament/parameterMove';
+import {EventSource} from '../events/EventSource';
 import {ColonyTrackMove} from '../parliament/colonyTrackAdvance';
 import {TileType} from '../TileType';
 import {PartyName} from '../turmoil/PartyName';
@@ -193,6 +194,14 @@ export type ParliamentPlayerModel = {
    * without one is a nameless bonus (an older save).
    */
   influenceSources?: ReadonlyArray<{amount: number, source?: string}>;
+  /**
+   * WHO lifts this seat's PARTY requirements on cards right now — Backroom Deal TR70 while armed (`oneShot`), The
+   * Deimos Group TR83 while on the table (standing) — the very source the requirement reads
+   * (`IPlayer.partyRequirementWaiver`). The Parliament's own roads (`access`) never read it: a requirement is the
+   * card's. The party plaque says «requirement lifted — <source>»; a standing one silences the vote's «unlocks the
+   * requirement». Absent when nothing lifts them.
+   */
+  partyRequirementWaiver?: {source: EventSource, oneShot: boolean};
   /**
    * The seat's COUNTS for every counted term a resolution of the catalog
    * declares (`resolutionCounts.ts`) — the number and the cards, read from

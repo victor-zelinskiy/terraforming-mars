@@ -141,7 +141,8 @@ export type Behavior = {
   }
 
   turmoil?: {
-    influenceBonus?: 1,
+    /** Influence beyond the Career, given by this card (T05 +1, TR83 The Deimos Group +2) — one named ledger entry. */
+    influenceBonus?: number,
     sendDelegates?: {
       count: Countable,
       manyParties?: boolean,

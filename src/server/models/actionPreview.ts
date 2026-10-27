@@ -691,13 +691,14 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
       out.push(actionPreviews.delegateFromReserve(player, Math.min(count, game.parliament.reserve(player))));
     }
   }
-  // «You have +1 influence» on a Turmoil Redux table (T05 Event Analysts) — the seat's WHOLE influence `current →
+  // «You have +N influence» on a Turmoil Redux table (T05 Event Analysts +1, TR83 The Deimos Group +2) — the seat's WHOLE influence `current →
   // resulting`, the server's own number (the Career's level + every bonus): the composer says what the play is worth
   // to the vote before the press. A seat the Parliament does not count (MarsBot under `'none'`) has no influence
   // to raise — no chip. The classic engine keeps upstream's silence.
-  if (behavior.turmoil?.influenceBonus === 1 && game.parliament?.participates(player, 'delegates') === true) {
+  const influenceBonus = behavior.turmoil?.influenceBonus ?? 0;
+  if (influenceBonus > 0 && game.parliament?.participates(player, 'delegates') === true) {
     const current = game.parliament.influence(player);
-    out.push({direction: 'gain', icon: actionPreviews.INFLUENCE_ICON, amount: 1, current, resulting: current + 1});
+    out.push({direction: 'gain', icon: actionPreviews.INFLUENCE_ICON, amount: influenceBonus, current, resulting: current + influenceBonus});
   }
 
   return out;

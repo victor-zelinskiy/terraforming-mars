@@ -51,14 +51,17 @@ describe('corpFirstActionPreview', () => {
     // modal with nothing to say — add a co-located `firstActionPreview` hook
     // (bespoke `initialAction`) or check why the declarative walkers came up empty.
     const [/* game */, player] = testGame(2);
+    // A Turmoil Redux corporation is only ever dealt on a Redux table — its first action may read the Parliament
+    // (TR83 The Deimos Group: a delegate from the reserve), so it is previewed where it can be played.
+    const [/* reduxGame */, reduxPlayer] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
     const gaps: Array<string> = [];
-    forEachInScopeCorporation((corp) => {
+    forEachInScopeCorporation((corp, module) => {
       // Mirror the Player.ts pendingInitialActions gate: the base class always
       // defines initialAction(), so the text is the discriminator.
       if (corp.initialActionText === undefined) {
         return;
       }
-      const preview = corpFirstActionPreview(player, corp);
+      const preview = corpFirstActionPreview(module === 'turmoilRedux' ? reduxPlayer : player, corp);
       const informative = preview.branches.some((b) => b.effects.length > 0 || b.steps.length > 0);
       if (!informative) {
         gaps.push(corp.name);

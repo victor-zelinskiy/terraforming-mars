@@ -18,6 +18,7 @@ import {EcologyExperts} from '../../src/server/cards/prelude/EcologyExperts';
 import {ThinkTank} from '../../src/server/cards/pathfinders/ThinkTank';
 import {BackroomDeal} from '../../src/server/cards/turmoilRedux/BackroomDeal';
 import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
+import {TheDeimosGroup} from '../../src/server/cards/turmoilRedux/TheDeimosGroup';
 import {quietResolutionOf, seatEnacted} from '../parliament/parliamentArrange';
 import {PartyHooks} from '../../src/server/turmoil/parties/PartyHooks';
 import {Phase} from '../../src/common/Phase';
@@ -183,6 +184,19 @@ describe('requirementEasing', () => {
       expect(easing.sources).deep.eq([{source: {kind: 'card', card: CardName.BACKROOM_DEAL, owner: player.color}, kind: 'waive', oneShot: true}]);
       // …and it never names a global requirement (the other family's kind).
       expect(requirementEasingOf(player, new Fish())).deep.eq([]);
+    });
+
+    it('a STANDING party waiver (TR83 The Deimos Group) is named FIRST, before an armed one — oneShot false', () => {
+      const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      seatEnacted(game.parliament!, quietResolutionOf(PartyName.REDS));
+      const census = new MartianCensus();
+      // The armed one-play waiver lands on the table FIRST — the standing one still names the lift.
+      player.playedCards.push(new BackroomDeal());
+      player.lastCardPlayed = CardName.BACKROOM_DEAL;
+      player.playCorporationCard(new TheDeimosGroup());
+      const [easing] = requirementEasingOf(player, census);
+      expect(easing).deep.include({type: RequirementType.PARTY, party: PartyName.MARS, effective: 'waived', met: true, decisive: true});
+      expect(easing.sources).deep.eq([{source: {kind: 'corporation', card: CardName.THE_DEIMOS_GROUP, owner: player.color}, kind: 'waive', oneShot: false}]);
     });
   });
 

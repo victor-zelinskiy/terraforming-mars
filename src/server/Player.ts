@@ -890,8 +890,12 @@ export class Player implements IPlayer {
   }
 
   public partyRequirementWaiver(): EventSource | undefined {
-    // The same two places as the global waiver (Backroom Deal TR70 — the party family's waiver).
-    for (const card of [...this.tableau, ...this.removedFromPlayCards]) {
+    // The same two places as the global waiver (Backroom Deal TR70 — the party family's waiver). A STANDING waiver
+    // (TR83 The Deimos Group) is named FIRST, whatever the table's order: it lifts the requirement every play, so it IS
+    // the reason; an armed one-play waiver beside it is spent by the next card anyway (TR49 — needed or not).
+    const cards = [...this.tableau, ...this.removedFromPlayCards];
+    const standing = cards.filter((card) => card.partyRequirementWaiver !== undefined && card.partyRequirementWaiver.nextCardOnly !== true);
+    for (const card of [...standing, ...cards]) {
       if (card.waivesPartyRequirements?.(this) === true) {
         return {kind: card.type === CardType.CORPORATION ? 'corporation' : 'card', card: card.name, owner: this.color};
       }

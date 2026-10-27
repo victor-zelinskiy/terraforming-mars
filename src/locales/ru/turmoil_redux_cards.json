@@ -260,5 +260,8 @@
     "Increase your TR 2 steps": "Повысьте свой РТ на 2",
     "You start with 45 M€ and 2 data resources on this card.": "Вы начинаете с 45 M€ и 2 данными на этой карте.",
     "Effect: After you play a non-wild tag that matches a non-wild tag on your Preludes, add 1 data resource to this card. (Your Preludes count.)": "Эффект: после розыгрыша не-универсальной метки, совпадающей с не-универсальной меткой на ваших прелюдиях, положите 1 данные на эту карту (ваши прелюдии считаются).",
-    "Action: Spend 6 data from here to place a colony or ocean tile.": "Действие: потратьте 6 данных с этой карты, чтобы разместить колонию или тайл океана."
+    "Action: Spend 6 data from here to place a colony or ocean tile.": "Действие: потратьте 6 данных с этой карты, чтобы разместить колонию или тайл океана.",
+    "You start with 50 M€. As your first action, add a delegate to any resolution.": "Вы начинаете с 50 M€. Первым действием добавьте делегата на любую резолюцию.",
+    "Effect: You have +2 influence. When playing cards, you can ignore all party requirements.": "Эффект: у вас +2 влияния. При розыгрыше карт вы можете игнорировать все требования партий.",
+    "Add a delegate to any resolution": "Добавьте делегата на любую резолюцию"
 }

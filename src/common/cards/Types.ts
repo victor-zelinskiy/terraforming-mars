@@ -50,7 +50,11 @@ export type GlobalParameterRequirementBonus = {
  * Parliament's, a requirement is the card's).
  */
 export type PartyRequirementWaiver = {
-  /** Only the next card played spends it (every declaration in the set today). */
+  /**
+   * Only the next card played spends it (Backroom Deal TR70). Absent — a STANDING waiver, live while the card is on
+   * the table (TR83 The Deimos Group: «when playing cards, you can ignore all party requirements»); the readers name
+   * a standing waiver before an armed one (`IPlayer.partyRequirementWaiver`).
+   */
   nextCardOnly?: boolean,
 };
 

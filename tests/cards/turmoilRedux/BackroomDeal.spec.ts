@@ -3,6 +3,7 @@ import {BackroomDeal, DISCOUNT, VICTORY_POINTS} from '../../../src/server/cards/
 import {ICard} from '../../../src/server/cards/ICard';
 import {CuttingEdgeDesign} from '../../../src/server/cards/turmoilRedux/CuttingEdgeDesign';
 import {MartianCensus} from '../../../src/server/cards/turmoilRedux/MartianCensus';
+import {TheDeimosGroup} from '../../../src/server/cards/turmoilRedux/TheDeimosGroup';
 import {PartySanctions} from '../../../src/server/cards/turmoilRedux/PartySanctions';
 import {testGame} from '../../TestGame';
 import {TestPlayer} from '../../TestPlayer';
@@ -223,6 +224,19 @@ describe('BackroomDeal', () => {
       arm(t);
       expect(t.parliament.access(t.player, M).hasEffect).is.false;
       expect(t.parliament.satisfiesPartyRequirement(t.player, M), 'the Parliament\'s own reading stays unmet').is.false;
+    });
+  });
+
+  describe('rule 6b — beside a STANDING waiver (TR83 The Deimos Group) the standing one is named', () => {
+    it('Deimos on the table + this card armed: the lift is the corporation’s, oneShot false; the charge is spent all the same', () => {
+      t.player.playCorporationCard(new TheDeimosGroup());
+      arm(t);
+      const card = census(t);
+      expect(t.player.partyRequirementWaiver()).deep.eq({kind: 'corporation', card: CardName.THE_DEIMOS_GROUP, owner: t.player.color});
+      expect(requirementEasingOf(t.player, card)[0].sources).deep.eq([
+        {source: {kind: 'corporation', card: CardName.THE_DEIMOS_GROUP, owner: t.player.color}, kind: 'waive', oneShot: false},
+      ]);
+      expect(armedPlayEffectsOf(t.player).map((a) => a.effect.kind), 'the charge of this card is still armed — the truth about it').deep.eq(['partyWaiver', 'discount']);
     });
   });
 

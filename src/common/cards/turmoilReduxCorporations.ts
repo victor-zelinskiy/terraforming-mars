@@ -43,7 +43,9 @@ export const TURMOIL_REDUX_NEW_CORPORATIONS: ReadonlyArray<ReduxCorporationRow> 
   // TR82 — AUTHORED 2026-10-27 (`turmoilRedux/Proteus.ts`): a data here for every played tag that matches a tag on the
   // owner's other Preludes (one predicate, `matchingPreludeTags`); 6 data → a colony or an ocean.
   {name: 'Proteus', scan: 'Corporations/Corporation - Proteus.png', authored: CardName.PROTEUS},
-  {name: 'The Deimos Group', scan: 'Corporations/Corporation - The Deimos Group.png'},
+  // TR83 — AUTHORED 2026-10-27 (`turmoilRedux/TheDeimosGroup.ts`): a delegate on any resolution as the first action,
+  // +2 influence (the named ledger), every party requirement on cards lifted (the TR70 waiver, standing).
+  {name: 'The Deimos Group', scan: 'Corporations/Corporation - The Deimos Group.png', authored: CardName.THE_DEIMOS_GROUP},
   {name: 'Titan Holdings', scan: 'Corporations/Corporation - Titan Holdings.png'},
   {name: 'Veynon Dynamics', scan: 'Corporations/Corporation - Veynon Dynamics.png'},
 ];

@@ -283,7 +283,8 @@ export interface ICard {
   globalParameterRequirementBonus?: GlobalParameterRequirementBonus;
   /**
    * The PARTY requirement is IGNORED right now (Backroom Deal TR70 —
-   * `partyRequirementWaiver: {nextCardOnly: true}` while armed): the other
+   * `partyRequirementWaiver: {nextCardOnly: true}` while armed; The Deimos Group
+   * TR83 — `partyRequirementWaiver: {}`, standing): the other
    * requirement family's waiver, read by ONE function,
    * `IPlayer.partyRequirementWaiver`, and paid by `PartyRequirement.satisfies`.
    */

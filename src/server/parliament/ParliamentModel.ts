@@ -30,6 +30,7 @@ import {ratingLeaders} from './ratingVetoGate';
 import {ResolutionDefinition} from './resolutions/IResolution';
 import {ParliamentPhase} from './ParliamentPhase';
 import {agendaReactionPending} from './AgendaStepReactions';
+import {partyWaiverIsOneShot} from '../models/requirementEasing';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
@@ -347,6 +348,14 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
   if (sources.length > 0) {
     model.influenceSources = sources.map((entry) => (entry.source === undefined ? {amount: entry.amount} : {amount: entry.amount, source: entry.source}));
   }
+  // …and WHO lifts the seat's party requirements on cards right now (TR70 armed, TR83 The Deimos Group standing) — the
+  // ONE reader the requirement itself asks (`IPlayer.partyRequirementWaiver`). The Parliament's own roads stay printed
+  // (`access().satisfiesRequirement` — a requirement is the card's); the plaque says «снято» and the vote stops
+  // promising a requirement the seat does not have. On the wire only when there is one.
+  const waiver = player.partyRequirementWaiver();
+  if (waiver !== undefined) {
+    model.partyRequirementWaiver = {source: waiver, oneShot: partyWaiverIsOneShot(player, waiver)};
+  }
   // The counted terms of the catalog's effects, read from the seat's tableau
   // by the ONE shared predicate — every surface computes the seat's number
   // from these (never from a tag count of its own).
@@ -427,6 +436,12 @@ function pendingDelegateGrantCount(viewer: IPlayer): number {
   return meta?.source === 'grant' ? Math.max(1, meta.count ?? 1) : 1;
 }
 
+/** The viewer's party requirements are lifted for good (a standing waiver — TR83), not for one play. */
+function standingPartyWaiver(viewer: IPlayer): boolean {
+  const waiver = viewer.partyRequirementWaiver();
+  return waiver !== undefined && !partyWaiverIsOneShot(viewer, waiver);
+}
+
 function projectVote(game: IGame, parliament: Parliament, viewer: IPlayer, slot: Slot, count = 1): VoteProjectionModel {
   // A throwaway parliament over copied slots: the rules run on the copy, the
   // live state is untouched (`Parliament.projection` — the same copy a card's
@@ -449,9 +464,10 @@ function projectVote(game: IGame, parliament: Parliament, viewer: IPlayer, slot:
     viewerLeads: leader?.owner === viewer.id,
     becomesWinning: winner?.instance === slot.instance,
     // The EFFECT opens at the viewer's own threshold (a card may have lowered it — TR36);
-    // the REQUIREMENT at the printed two, always (FAQ p.19).
+    // the REQUIREMENT at the printed two, always (FAQ p.19) — and never for a seat whose party requirements a STANDING
+    // waiver lifts (TR83 The Deimos Group: there is no requirement to open; a one-play one is spent by the next card).
     unlocksEffect: !before.hasEffect && afterVotes >= before.effectDelegates,
-    unlocksRequirement: !before.satisfiesRequirement && afterVotes >= PARTY_EFFECT_DELEGATES,
+    unlocksRequirement: !before.satisfiesRequirement && afterVotes >= PARTY_EFFECT_DELEGATES && !standingPartyWaiver(viewer),
   };
   // THE ALLIANCE THIS DELEGATE OPENS (TR62): the cube brings the card's party to its PRINTED road (the second own cube)
   // and the viewer's table allies it with another party — whose effect and cards come with it, unless they are the

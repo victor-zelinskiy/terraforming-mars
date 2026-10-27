@@ -118,8 +118,11 @@ export function requirementEasingOf(player: IPlayer, card: IProjectCard): Array<
   return out;
 }
 
-/** The party waiver's one-shot reading — the declaration's `nextCardOnly` (every one in the set). */
-function partyWaiverIsOneShot(player: IPlayer, source: EventSource): boolean {
+/**
+ * The party waiver's one-shot reading — the declaration's `nextCardOnly` (TR70 armed: one play; TR83 The Deimos Group:
+ * standing). Read by the easing above and by the Parliament's seat model (`ParliamentPlayerModel.partyRequirementWaiver`).
+ */
+export function partyWaiverIsOneShot(player: IPlayer, source: EventSource): boolean {
   if (source.kind !== 'card' && source.kind !== 'corporation') {
     return false;
   }

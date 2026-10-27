@@ -82,6 +82,7 @@ import {FerrusAcademy} from './FerrusAcademy';
 import {HartlanHeating} from './HartlanHeating';
 import {LotusInnovations} from './LotusInnovations';
 import {Proteus} from './Proteus';
+import {TheDeimosGroup} from './TheDeimosGroup';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -407,6 +408,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Prelude («<») and Colonies («▲») marks on the scan's left edge: without Preludes the effect is dead, without
     // Colonies half the action — the card is dealt only with both.
     [CardName.PROTEUS]: {Factory: Proteus, compatibility: ['prelude', 'colonies']},
+    // TR83 — the SIXTH new corporation, three existing declarations: a delegate on any resolution as the first action
+    // (`turmoil.sendDelegates` — the grant's vote), +2 influence (the Parliament's NAMED ledger) and every party
+    // requirement on cards lifted (`partyRequirementWaiver` WITHOUT `nextCardOnly` — TR70's waiver, standing).
+    [CardName.THE_DEIMOS_GROUP]: {Factory: TheDeimosGroup},
   },
   // The classic cards a replacement above stands in for — never dealt into a Redux game (upstream's
   // `GameCards.filterReplacedCards`); a classic-Turmoil game does not load this manifest, so it keeps them.
