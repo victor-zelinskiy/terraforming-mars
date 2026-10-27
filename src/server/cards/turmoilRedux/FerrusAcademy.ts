@@ -8,6 +8,7 @@ import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import {SpaceId} from '../../../common/Types';
 import {IPlayer} from '../../IPlayer';
 import {Space} from '../../boards/Space';
+import {tiersOf} from '../../boards/cityStack';
 import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {CorporationCard} from '../corporation/CorporationCard';
@@ -54,7 +55,10 @@ export const FERRUS_DATA_PER_BUILD = 3;
  *  3. RESERVED: a rival can neither build there nor move a camp there (the engine's own reading of a cube).
  *  4. THE EFFECT — the owner places a tile on a cell their OWN cube reserved, WHOEVER laid the cube (Land Claim,
  *     Arcadian Communities, this card): `ICard.onOwnMarkerBuilt`, read once by `Game.addTile` before the tile
- *     overwrites the marker. A city tier, a rival's tile, a marker move — nothing. With Arcadian Communities on the
+ *     overwrites the marker. A city TIER (Skyscrapers) on the owner's own city ANSWERS too — the Redux FAQ: «If I
+ *     place a city over my existing tile with "Skyscrapers", does that trigger Ferrus Academy's effect? Yes. You are
+ *     placing a tile in a space that already has your player cube. So it counts.» A rival's tile, a marker move —
+ *     nothing. With Arcadian Communities on the
  *     same table both answer one tile (+3 M€ AND this choice).
  *  5. THE QUESTION — «3 data onto ANY card» or «draw a card» (`question` — ONE builder: the live hook defers it, the
  *     preview names it). The data branch asks which holder (`AddResourcesToCard`, `autoSelect: false` — never applied
@@ -181,16 +185,18 @@ export class FerrusAcademy extends CorporationCard implements ICorporationCard {
   }
 
   /** Rule 4 — a tile on a cell the owner's own cube reserved asks the question (rule 5). */
-  public onOwnMarkerBuilt(player: IPlayer, _space: Space): void {
-    player.defer(this.question(player), Priority.GAIN_RESOURCE_OR_PRODUCTION);
+  public onOwnMarkerBuilt(player: IPlayer, space: Space): void {
+    // A stack stands on the cell by now when the tile was a city TIER (the FAQ's case) — the question says so.
+    player.defer(this.question(player, {tier: tiersOf(space) > 1}), Priority.GAIN_RESOURCE_OR_PRODUCTION);
   }
 
   /**
    * Rule 4's preview twin — the cell still shows the cube before the tile lands, so the read is the engine's own
-   * (`builtOnOwnMarker`): a tile of the owner, not a tier, no real tile under it, the owner's cube on it.
+   * (`builtOnOwnMarker`): a tile of the owner, the owner's cube on the cell, and either no real tile under it or a
+   * city TIER onto the owner's own city (the FAQ).
    */
   public tilePlacedPreview(cardOwner: IPlayer, activePlayer: IPlayer, space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {
-    if (cardOwner.id !== activePlayer.id || !ctx.placesTile || ctx.stacking || ctx.covering || space.player?.id !== cardOwner.id) {
+    if (cardOwner.id !== activePlayer.id || !ctx.placesTile || (ctx.covering && !ctx.stacking) || space.player?.id !== cardOwner.id) {
       return [];
     }
     const holders = this.dataHolders(cardOwner).length;
@@ -205,7 +211,7 @@ export class FerrusAcademy extends CorporationCard implements ICorporationCard {
   }
 
   /** Rule 5 — THE question, one builder. */
-  public question(player: IPlayer): OrOptions {
+  public question(player: IPlayer, opts?: {tier?: boolean}): OrOptions {
     const draw = new SelectOption('Draw a card', 'Draw a card')
       .withMetadata(optionResult({effects: [chip('gain', 'cards', 1)]}))
       .andThen(() => {
@@ -231,7 +237,9 @@ export class FerrusAcademy extends CorporationCard implements ICorporationCard {
     options.push(draw);
     const prompt = new OrOptions(...options)
       .setTitle('Select an option for Ferrus Academy')
-      .markChoiceContext(cardEffect(this, 'You placed a tile on your marked area.', 'effect-choice'));
+      .markChoiceContext(cardEffect(this,
+        opts?.tier === true ? 'You built a city tier on your own city — a space with your cube.' : 'You placed a tile on your marked area.',
+        'effect-choice'));
     if (!hasHolder) {
       prompt.setDisabledOptions([{title: dataTitle, metadata: dataMetadata, reason: 'No card can hold data'}]);
     }

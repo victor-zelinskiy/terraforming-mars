@@ -2259,7 +2259,9 @@ export class Game implements IGame, Logger {
   // placed in the space — the ordinary cover path pays it the same way, at the
   // placer's own rate (Lakefront Resorts' 3). What ALSO fires
   // is everything that answers «a city tile was placed»: the quest tracker, the
-  // party passives and the enacted law (told `stacked`), every card's
+  // party passives and the enacted law (told `stacked`), the placer's table
+  // answering a tile in a space with their cube (Ferrus Academy — the FAQ;
+  // never Arcadian's 3 M€, a MARKED AREA's), every card's
   // `onTilePlaced` (Tharsis Republic, Pets, Immigrant City, Rover Construction),
   // the MarsBot corporation, and the recorder's own `tile-placed` event.
   //
@@ -2327,14 +2329,19 @@ export class Game implements IGame, Logger {
     // overwrites the very `space.player` that answers it. A marker is a cube
     // of the player's colour on a cell with no real tile: ONE board state
     // whoever laid it (Land Claim, Arcadian Communities, Ferrus Academy — no
-    // provenance, the cube is the cube). A tier stands on a CITY, never on a
-    // marker; a hazard under the cube is no tile of the player's.
-    const builtOnOwnMarker = !stacking && space.player === player && !Board.hasRealTile(space);
-    // Its RECEIVERS: the engine's own 3 M€ — printed by the human Arcadian
-    // Communities and by MarsBot's C18, both paid by the SAME payout in
-    // `grantPlacementBonuses` — and every card of the placer's table that
-    // answers it (`ICard.onOwnMarkerBuilt`, fanned out in Part 5).
-    const arcadianCommunityBonus = builtOnOwnMarker &&
+    // provenance, the cube is the cube); a hazard under the cube is no tile of
+    // the player's. A city TIER is a tile placed in a space that has the
+    // player's cube too — the owner's cube on their own city (the Redux FAQ,
+    // asked of Ferrus Academy: «Yes. … So it counts.»).
+    const builtOnOwnMarker = space.player === player && (stacking || !Board.hasRealTile(space));
+    // Its RECEIVERS: every card of the placer's table that answers «a tile in
+    // a space with your cube» (`ICard.onOwnMarkerBuilt`, fanned out in Part 5)
+    // — and the engine's own 3 M€, printed by the human Arcadian Communities
+    // and by MarsBot's C18, both paid by the SAME payout in
+    // `grantPlacementBonuses`. Those two print «a tile on a MARKED AREA» (a
+    // community marker on a cell with no tile), which a tier on the owner's
+    // city is not: the 3 M€ never answers a tier.
+    const arcadianCommunityBonus = builtOnOwnMarker && !stacking &&
       (player.tableau.has(CardName.ARCADIAN_COMMUNITIES) ||
        AutomaCorporations.buildOnOwnMarkerPays(this, player, space));
 
@@ -2360,19 +2367,13 @@ export class Game implements IGame, Logger {
       }
       ParliamentHandler.onTilePlaced(player, space, {coveringExistingTile: true, stacked: true});
       this.publishTilePlacement(player, space, tile.tileType, {paid: [], cards: 0});
+      this.answerOwnMarkerBuilt(player, space);
     } else if (this.phase !== Phase.SOLAR) {
       const cell = this.grantPlacementBonuses(player, space, coveringExistingTile, arcadianCommunityBonus, options?.printedBonusMultiplier);
       // THE TILE LANGUAGE'S RECORD: who placed it (an ocean's placer too) and what the cell's printed bonus paid them.
       this.publishTilePlacement(player, space, tile.tileType, cell);
       if (builtOnOwnMarker) {
-        // The placer's table answers «a tile on your own marker» (TR79 Ferrus Academy) — told explicitly, the cell
-        // no longer says it. Under the card's effect scope, like every reactive hook (the journal chip, the rivals'
-        // `none`).
-        for (const card of player.tableau) {
-          if (card.onOwnMarkerBuilt !== undefined) {
-            this.events.withEffect(player, card, 'own-marker-built', () => card.onOwnMarkerBuilt?.(player, space));
-          }
-        }
+        this.answerOwnMarkerBuilt(player, space);
       }
 
       AresHandler.ifAres(this, (aresData) => {
@@ -2457,6 +2458,18 @@ export class Game implements IGame, Logger {
    */
   public addCityTier(player: IPlayer, space: Space): void {
     this.addTile(player, space, {tileType: TileType.CITY}, {stacking: true});
+  }
+
+  /**
+   * The placer's table answers «a tile in a space that has your cube» (TR79 Ferrus Academy) — told explicitly, the cell
+   * no longer says it. Under the card's effect scope, like every reactive hook (the journal chip, the rivals' `none`).
+   */
+  private answerOwnMarkerBuilt(player: IPlayer, space: Space): void {
+    for (const card of player.tableau) {
+      if (card.onOwnMarkerBuilt !== undefined) {
+        this.events.withEffect(player, card, 'own-marker-built', () => card.onOwnMarkerBuilt?.(player, space));
+      }
+    }
   }
 
   /** The stack grows: the cell keeps its tile and its owner, its height goes up by one; logged and recorded as a city placed. */

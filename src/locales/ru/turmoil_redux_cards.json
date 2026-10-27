@@ -250,6 +250,7 @@
     "Place a city tile with its printed bonus doubled, then your cube on each adjacent non-reserved area": "Разместите город с удвоенным печатным бонусом клетки, затем свой куб на каждую соседнюю незарезервированную клетку",
     "Select an option for Ferrus Academy": "Ferrus Academy: выберите вариант",
     "You placed a tile on your marked area.": "Вы положили тайл на свой участок.",
+    "You built a city tier on your own city — a space with your cube.": "Вы поставили ярус на свой город — клетку с вашим кубиком.",
     "Add data": "Положить данные",
     "${0} placed their cube on ${1} areas around the city on ${2}": "${0} кладёт свой куб на ${1} клеток вокруг города · ${2}",
     "You start with 48 M€ and 2 heat production.": "Вы начинаете с 48 M€ и 2 производством тепла.",

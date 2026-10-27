@@ -36,6 +36,8 @@ import {runAllActions} from '../TestingUtils';
 import {cast} from '../../src/common/utils/utils';
 import {testAutomaGame} from '../automa/AutomaTestGame';
 import {RoverConstruction} from '../../src/server/cards/base/RoverConstruction';
+import {FerrusAcademy} from '../../src/server/cards/turmoilRedux/FerrusAcademy';
+import {OrOptions} from '../../src/server/inputs/OrOptions';
 
 /**
  * SKYSCRAPERS (Turmoil Redux, RX20) — the winner of the vote and every
@@ -359,6 +361,29 @@ describe('Skyscrapers', () => {
       expect(p1.steel, 'the party answers a tile placed on Mars — 1 steel').eq(steel + 1);
       expect(p1.cardsInHand.length, '…and a card for a city').eq(hand + 1);
       expect(game.events.events.some((e) => e.type === 'tile-placed' && e.tile === TileType.CITY && e.player === p1.color), 'the recorder saw a city placed').is.true;
+    });
+
+    it('Ferrus Academy answers the tier (the FAQ — «a space that already has your player cube»): its question stands IN the sitting, and the next seat waits for it', () => {
+      const [game, p1, p2, parliament] = stage();
+      const city1 = seatCity(game, p1);
+      const city2 = seatCity(game, p2);
+      p1.playedCards.push(new FerrusAcademy());
+      parliament.agenda.set(p2.id, agendaForInfluence(3));
+      endGeneration(game);
+      p1.process({type: 'space', spaceId: city1.id});
+      expect(city1.stackHeight).eq(2);
+      const question = cast(p1.getWaitingFor(), OrOptions);
+      expect(question.choiceContext?.source).deep.eq({kind: 'corporation', card: CardName.FERRUS_ACADEMY});
+      expect(questionOf(p2), 'the next seat waits for the corporation\'s question').is.undefined;
+      const hand = p1.cardsInHand.length;
+      const draw = question.options.findIndex((o) => o.title === 'Draw a card');
+      p1.process({type: 'or', index: draw, response: {type: 'option'}});
+      runAllActions(game);
+      expect(p1.cardsInHand.length).eq(hand + 1);
+      cast(p2.getWaitingFor(), SelectSpace);
+      p2.process({type: 'space', spaceId: city2.id});
+      runAllActions(game);
+      expect(city2.stackHeight).eq(2);
     });
 
     it('the recipients go IN TURN: the winner\'s question stands first, the next seat\'s only after the answer', () => {

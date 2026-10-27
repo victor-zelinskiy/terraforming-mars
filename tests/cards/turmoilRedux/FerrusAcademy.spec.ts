@@ -223,12 +223,35 @@ describe('FerrusAcademy', () => {
       expect(t.player.popWaitingFor()).instanceOf(OrOptions);
     });
 
-    it('a tile with no cube, a city tier — nothing is asked', () => {
+    it('a tile with no cube — nothing is asked', () => {
+      const t = table();
+      const cell = t.game.board.getNonReservedLandSpaces().find((s) => t.game.board.getAvailableSpacesForGreenery(t.player).includes(s))!;
+      t.game.addTile(t.player, cell, {tileType: TileType.GREENERY});
+      runAllActions(t.game);
+      expect(t.player.getWaitingFor()).is.undefined;
+    });
+
+    it("a city TIER on the owner's own city asks — the FAQ: «a space that already has your player cube. So it counts.»", () => {
       const t = table();
       const city = inlandCity(t);
       firstCity(t, city);
       t.player.popWaitingFor();
+      const hand = t.player.cardsInHand.length;
       t.game.addCityTier(t.player, city);
+      runAllActions(t.game);
+      const question = cast(t.player.popWaitingFor(), OrOptions);
+      expect(question.choiceContext?.source).deep.eq({kind: 'corporation', card: CardName.FERRUS_ACADEMY});
+      expect(question.choiceContext?.trigger, 'the question names the tier, not a «marked area»').eq('You built a city tier on your own city — a space with your cube.');
+      cast(question.options[0], SelectOption).cb(undefined);
+      runAllActions(t.game);
+      expect(t.player.cardsInHand.length).eq(hand + 1);
+    });
+
+    it("a rival's tier on the rival's city — the owner of Ferrus is not asked", () => {
+      const t = table();
+      const city = t.game.board.getAvailableSpacesForCity(t.rival)[0];
+      t.game.addTile(t.rival, city, {tileType: TileType.CITY});
+      t.game.addCityTier(t.rival, city);
       runAllActions(t.game);
       expect(t.player.getWaitingFor()).is.undefined;
     });
@@ -244,6 +267,17 @@ describe('FerrusAcademy', () => {
       expect(ring?.spaces).deep.eq(t.game.board.getAdjacentSpaces(cell).map((n) => n.id));
       expect(ring?.params).deep.eq(['6']);
       expect(all.some((f) => f.id === 'ferrus-printed-bonus')).is.true;
+    });
+
+    it("a city TIER's cell promises the question (the FAQ), the same line a marked cell reads", () => {
+      const t = table();
+      const city = inlandCity(t);
+      firstCity(t, city);
+      const preview = boardCellPreview(t.player, city, 'city-tier');
+      const all = [...preview.immediateFacts, ...preview.ruleFacts, ...preview.recipientFacts];
+      const ferrus = all.find((f) => f.id === `${t.player.color}-marked-area-ferrus`);
+      expect(ferrus, JSON.stringify(all.map((f) => f.id))).is.not.undefined;
+      expect(ferrus?.tableAnswer).is.true;
     });
 
     it('a later city (no multiplier) says nothing of a ring', () => {

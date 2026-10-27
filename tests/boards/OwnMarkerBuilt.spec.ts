@@ -53,11 +53,23 @@ describe('built on your own marker', () => {
     expect(calls).deep.eq([]);
   });
 
-  it('a city TIER is not a marker', () => {
+  it("a city TIER is a tile in a space with the owner's cube — the hook answers (the Redux FAQ, of Ferrus Academy)", () => {
     const cell = game.board.getAvailableSpacesForCity(player)[0];
     game.addTile(player, cell, {tileType: TileType.CITY});
+    expect(calls, 'a fresh city on a bare cell is no cube').deep.eq([]);
     game.addCityTier(player, cell);
-    expect(calls).deep.eq([]);
+    expect(calls).deep.eq([cell]);
+  });
+
+  it("…but Arcadian Communities' 3 M€ is a MARKED AREA's, never a tier's", () => {
+    player.playedCards.push(new ArcadianCommunities());
+    const cell = game.board.getAvailableSpacesForCity(player).find((s) => !game.board.getAdjacentSpaces(s).some((a) => a.tile !== undefined))!;
+    game.addTile(player, cell, {tileType: TileType.CITY});
+    runAllActions(game);
+    const before = player.megaCredits;
+    game.addCityTier(player, cell);
+    runAllActions(game);
+    expect(player.megaCredits).eq(before);
   });
 
   it('a rival cannot build on the cube at all', () => {
