@@ -76,6 +76,7 @@ import {Space} from '../../boards/Space';
 import {ColoniesHandler} from '../../colonies/ColoniesHandler';
 import {targetVictoryPoints} from '../../cards/actionPreviews';
 import type {ResolutionCatalog} from './ResolutionCatalog';
+import {botResolutionCount} from '../../automa/BotResolutionCounts';
 
 function inPlay(card: ICard): boolean {
   return !(card.name === CardName.PHARMACY_UNION && card.isDisabled === true);
@@ -121,6 +122,14 @@ function metricValue(player: IPlayer, metric: ResolutionCountMetric): number {
 
 /** `player`'s count for `id`, with what made it: the cards (in play order), the cells of a board count, or the breakdown of a metric. */
 export function resolutionCount(player: IPlayer, id: ResolutionCountId): ResolutionCountModel {
+  // MARSBOT'S OWN COUNTS (decision D16): its tracks for tags, its played pile for cards, its tracks for
+  // production, its stores for holders — the board, the colonies and the rating are its real state below.
+  if (player.isMarsBot === true) {
+    const own = botResolutionCount(player, id);
+    if (own !== undefined) {
+      return own;
+    }
+  }
   const kind = resolutionCountKind(id);
   if (kind.kind === 'threshold') {
     // ONE metric, THE shared division — the breakdown rides the model.

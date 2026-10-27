@@ -21,6 +21,7 @@ import {PARTY_EFFECTS} from './parties/PartyEffects';
 import {SerializedEnactOutcome, SerializedPhaseSummary} from './SerializedParliament';
 import {Resource} from '../../common/Resource';
 import {declaredCountIds, declaredSequelProductions, declaredStockReads, declaresColonyBonuses, declaresHandLevel, resolutionCount} from './resolutions/ResolutionCounts';
+import {botProductionEquivalent} from '../automa/BotResolutionCounts';
 import {botQuestReachable} from '../../common/parliament/botQuestPath';
 import {botQuestTableOf} from '../automa/BotQuestEvents';
 import {ownColonyBonuses} from '../colonies/allColonyBonuses';
@@ -44,7 +45,9 @@ function outcomeModels(game: IGame, outcomes: ReadonlyArray<SerializedEnactOutco
     return undefined;
   }
   return outcomes.map((o) => {
-    const {player, chosenBy, ...rest} = o;
+    // `megacredits` is what MarsBot's payout became UNDER THE HOOD (D16): a fact of the server, never of a
+    // surface — every reader draws the record in the player's units, so it never travels.
+    const {player, chosenBy, megacredits: _hidden, ...rest} = o;
     const model: ParliamentEnactOutcomeModel = player === undefined ? {...rest} : {...rest, player: game.getPlayerById(player).color};
     // WHO CHOSE (a world removal's executor) is a fact of the record, named by colour like every seat on the wire.
     if (chosenBy !== undefined) {
@@ -287,11 +290,11 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
 function playerModel(game: IGame, parliament: Parliament, player: IPlayer): ParliamentPlayerModel {
   // TWO ASPECTS ON THE WIRE: `participates` is the seat's DELEGATES (its row,
   // its lobby / reserve / cubes, its Agenda marker), `enactment` whether a law
-  // PAYS it — the payout readers (the ledger, the yields, the standing) gate
-  // on the latter, so a MarsBot seat under `'politics'` is a seat with cubes
-  // and never a seat with a share.
+  // PAYS it (the server's `payout` aspect — decision D16: a MarsBot seat under
+  // `'politics'` is paid like every seat, through its own counts) — the payout
+  // readers (the ledger, the yields, the standing) gate on the latter.
   const participates = parliament.participates(player, 'delegates');
-  const enactment = parliament.participates(player, 'enactment');
+  const enactment = parliament.participates(player, 'payout');
   // …and whether it performs the DEED a law grants the seats — a tile, a step of the Career (D11): a human always,
   // the bot under `'politics'`.
   const seatGrant = parliament.participates(player, 'seat-grant');
@@ -357,7 +360,7 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
   if (productions.length > 0) {
     const reads: Partial<Record<Resource, number>> = {};
     for (const resource of productions) {
-      reads[resource] = player.production.get(resource);
+      reads[resource] = player.isMarsBot === true ? botProductionEquivalent(player, resource) : player.production.get(resource);
     }
     model.production = reads;
   }
@@ -387,7 +390,14 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
   // influence in hand»): the same count the step will read — cards withheld in
   // a pending intake are not in the hand, exactly as the step sees it.
   if (enactment && declaresHandLevel(parliament.catalog)) {
-    model.hand = player.cardsInHand.length;
+    model.hand = player.isMarsBot === true ? 0 : player.cardsInHand.length;
+  }
+  // …and the bot's one difference a reading must know: it has no tableau, every card-resource unit lands (D16).
+  if (enactment && player.isMarsBot === true) {
+    model.everyUnitLands = true;
+  }
+  if (participates && !parliament.participates(player, 'party-effects')) {
+    model.noPartyEffects = true;
   }
   return model;
 }

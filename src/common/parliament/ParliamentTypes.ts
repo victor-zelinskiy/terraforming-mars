@@ -338,10 +338,18 @@ export const BOT_PARLIAMENT_MODES: ReadonlyArray<BotParliamentMode> = ['none', '
  *                    seat row of the model;
  *  - `winner-reward` may be the WINNING PLAYER of a vote: the Agenda step of
  *                    the sitting and the winner's part of the enactment;
- *  - `enactment`     is PAID by an enacted law and charged by it: the seat
- *                    loop of the effects step, the passives, the discounts,
- *                    the value/tag bonuses, the law's action, every payout
- *                    reading of the model and the forecasts;
+ *  - `enactment`     RUNS an enacted law's own plan: the seat steps (which
+ *                    may ask), the passives' hooks, the discounts, the
+ *                    value/tag bonuses, the law's action — a human's alone;
+ *  - `payout`        is PAID by an enacted law and charged by it — the seat
+ *                    loop of the effects step and every payout reading of
+ *                    the model (the counts, the vote's readings, the results'
+ *                    rows): a human through the law's own steps, MarsBot
+ *                    under `'politics'` through ITS adapter (decision D16 —
+ *                    `automa/BotResolutionPayout.ts`: its own counts — the
+ *                    tracks for tags, the played pile for cards — the
+ *                    printed formula, every unit converted to M€ by the
+ *                    Automa rulebook; the records speak the player's units);
  *  - `seat-grant`    performs the DEED an enacted law grants the seats —
  *                    the TILE (`tileGrant` — Skyscrapers' tier, Mars First
  *                    Budget's city) and the STEP OF THE CAREER (`agendaGrant`
@@ -362,7 +370,7 @@ export const BOT_PARLIAMENT_MODES: ReadonlyArray<BotParliamentMode> = ['none', '
  * too (the law restrains, it never pays — decision D3 speaks of payouts, and a bot first by rating that still gained
  * its rating would make the law dead for every human behind it).
  */
-export const PARLIAMENT_ASPECTS = ['delegates', 'winner-reward', 'enactment', 'seat-grant', 'party-effects', 'quest', 'prompts', 'restriction'] as const;
+export const PARLIAMENT_ASPECTS = ['delegates', 'winner-reward', 'enactment', 'payout', 'seat-grant', 'party-effects', 'quest', 'prompts', 'restriction'] as const;
 export type ParliamentAspect = typeof PARLIAMENT_ASPECTS[number];
 
 export const PARTY_ACTION_IDS = ['unity-trade', 'scientists-lab', 'industrialists-shift', 'reds-recycle'] as const;

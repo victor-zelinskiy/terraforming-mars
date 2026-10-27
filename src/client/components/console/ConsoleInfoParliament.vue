@@ -155,7 +155,7 @@ import {defineComponent, PropType} from 'vue';
 import {AGENDA_TRACK, AgendaStep, PARLIAMENT_AGENDA_STEPS, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
-import {SeatParliamentReadingVm, BOT_PARLIAMENT_NOTE, BOT_POLITICS_NOTE} from '@/client/console/parliament/seatParliamentReading';
+import {SeatParliamentReadingVm, BOT_PARLIAMENT_NOTE} from '@/client/console/parliament/seatParliamentReading';
 import {dossierLadder} from '@/client/console/infoDossierModel';
 import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
@@ -175,7 +175,7 @@ export default defineComponent({
   },
   computed: {
     botNote(): string {
-      return this.reading.botPolitical ? BOT_POLITICS_NOTE : BOT_PARLIAMENT_NOTE;
+      return BOT_PARLIAMENT_NOTE;
     },
     otherSource(): string {
       return OTHER_SOURCE;

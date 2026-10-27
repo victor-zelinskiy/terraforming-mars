@@ -41,7 +41,7 @@
                  human (campaign lineage) NAMES the count — a single name must
                  never read as the whole composition. -->
             <span v-if="corpName !== ''" class="con-info__corp" :class="{'con-info__corp--bot': viewedIsBot}">{{ $t(corpName) }}<template v-if="corpExtraCount > 0"> · {{ corpExtraText }}</template><template v-if="viewedIsBot"> · {{ $t(botDifficultyLabel) }}</template></span>
-            <span v-else-if="viewedIsBot" class="con-info__corp con-info__corp--bot">{{ $t('Automa opponent') }} · {{ $t(botDifficultyLabel) }}</span>
+            <span v-else-if="viewedIsBot" class="con-info__corp con-info__corp--bot">{{ $t(botDifficultyLabel) }}</span>
           </span>
         </template>
       </ConsoleWsHead>
@@ -525,7 +525,7 @@ export default defineComponent({
     },
     fallbackBody(): string {
       return this.viewedKind === 'bot' ?
-        'This section exists only for human players' :
+        'Nothing here for this player' :
         'This section exists only for the bot';
     },
     isBotRoute(): boolean {
@@ -546,7 +546,8 @@ export default defineComponent({
       // (absent on legacy corpless saves) and resolves through the ONE resolver.
       if (this.viewedIsBot) {
         const corp = this.botAutoma?.corporation;
-        return corp !== undefined ? [marsBotCorpDisplayName(corp.id)] : [];
+        // …and its campaign holdings are further corporations, counted like a player's lineage.
+        return corp !== undefined ? [marsBotCorpDisplayName(corp.id), ...(this.botAutoma?.holdings ?? []).map((h) => marsBotCorpDisplayName(h.id))] : [];
       }
       const names: Array<string> = [];
       for (const c of this.viewed.tableau) {

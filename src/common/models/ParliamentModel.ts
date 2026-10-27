@@ -235,6 +235,17 @@ export type ParliamentPlayerModel = {
    * not in it, exactly as the step sees the hand).
    */
   hand?: number;
+  /**
+   * EVERY CARD-RESOURCE UNIT LANDS for this seat — MarsBot under 'politics' (D16): it holds no tableau, and a
+   * law's animals / microbes / floaters / data become M€ under the hood, so «no card can hold …» is never its
+   * reading. Absent for every human seat (the holder law reads their tableau).
+   */
+  everyUnitLands?: true;
+  /**
+   * The seat holds NO party effect — MarsBot (RB-C p.6: it ignores the ruling party's policy): no party answers its
+   * tile, no party effect is its. Absent for every human seat (the server's `party-effects` aspect).
+   */
+  noPartyEffects?: true;
   access: ReadonlyArray<PartyAccessModel>;
   partyActionUses: Partial<Record<PartyName, number>>;
   resolutionActionUses: number;

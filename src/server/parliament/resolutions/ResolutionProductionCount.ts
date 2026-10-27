@@ -53,7 +53,7 @@ export type ProductionCountWords = {
 };
 
 /** Everything the count model explains its number with, renamed to the record's fields — present only where the count has it. */
-function countedBreakdown(counted: ResolutionCountModel): Partial<EnactOutcome> {
+export function countedBreakdown(counted: ResolutionCountModel): Partial<EnactOutcome> {
   return {
     ...(counted.units === undefined ? {} : {countedUnits: [...counted.units]}),
     ...(counted.byTag === undefined ? {} : {countedByTag: counted.byTag.map((entry) => ({...entry}))}),

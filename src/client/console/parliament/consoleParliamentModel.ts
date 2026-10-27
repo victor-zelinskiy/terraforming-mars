@@ -32,7 +32,7 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {RatingVetoModel} from '@/common/models/ParliamentModel';
 import {ICardRenderRoot} from '@/common/cards/render/Types';
 import {
-  ParliamentModel, ParliamentPlayerModel, PartyAccessModel, PartyActionModel, PartyAllianceModel, PartyAllianceRoadModel, ResolutionActionModel, seatEnacts,
+  ParliamentModel, ParliamentPlayerModel, PartyAccessModel, PartyActionModel, PartyAllianceModel, PartyAllianceRoadModel, ResolutionActionModel,
   VoteOptionModel, VoteProjectionModel,
 } from '@/common/models/ParliamentModel';
 import {IClientPartyEffect, IClientResolution} from '@/common/parliament/IClientResolution';
@@ -277,7 +277,8 @@ export function buildParliamentView(model: ParliamentModel, viewer: Color | unde
     renderData: questRenderDataOf(questModel.source),
     source: questModel.source,
     generation: questModel.generation,
-    progress: model.players.map((p) => ({color: p.color, value: questModel.progress[p.color] ?? 0, participates: p.participates, bot: p.participates && !seatEnacts(p)})),
+    // The bot's row: the seat that holds no party effect (MarsBot — paid like every seat since D16, so payout no longer tells it).
+    progress: model.players.map((p) => ({color: p.color, value: questModel.progress[p.color] ?? 0, participates: p.participates, bot: p.participates && p.noPartyEffects === true})),
     completedBy: questModel.completedBy,
     ...(questModel.botReachable === undefined ? {} : {botReachable: questModel.botReachable}),
   };

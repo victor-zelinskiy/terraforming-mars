@@ -385,9 +385,8 @@ test.describe('the played table · the bot, the early table, reduced motion', ()
     await expect(page.locator('.con-played__none'), 'the projects\' room says so in words').toBeVisible();
     await expect(page.locator('.con-played__seat-place--events'), 'the events\' prepared place').toHaveCount(1);
     expect(await bar(page), 'one page — no page verb').not.toMatch(/Листать/);
-    // RB — the bot: its flipped pile on the same chassis, the provenance line, its corporation on the first stack.
+    // RB — the bot: its flipped pile on the same chassis, its corporation on the first stack (a player's table — D16).
     await key(page, 'KeyE', 1200);
-    await expect(page.locator('.con-played__provenance')).toBeVisible();
     await expect(page.locator('.con-played__botcorp')).toHaveCount(1);
     expect(await crumb(page)).toMatch(/Бот/);
     await key(page, 'Enter', 1400);

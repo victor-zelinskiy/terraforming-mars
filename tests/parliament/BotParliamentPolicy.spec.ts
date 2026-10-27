@@ -21,13 +21,13 @@ import {testGame} from '../TestGame';
  */
 const TABLE: Record<BotParliamentMode, Record<ParliamentAspect, boolean>> = {
   // Iteration 0's observer — byte for byte what shipped: the bot is in no aspect at all.
-  none: {'delegates': false, 'winner-reward': false, 'enactment': false, 'seat-grant': false, 'party-effects': false, 'quest': false, 'prompts': false, 'restriction': false},
+  none: {'delegates': false, 'winner-reward': false, 'enactment': false, 'payout': false, 'seat-grant': false, 'party-effects': false, 'quest': false, 'prompts': false, 'restriction': false},
   // The political seat: it holds delegates, may win a vote, progresses the
   // chairman quest by its own play — and an enacted law never pays it
   // (decision D3), but the TILE a law grants the seats is its own too
   // (decision D11), a law's RESTRICTION binds it as it binds a human (decision Р3 — RX42 UNMI Veto: a bot first by
   // rating gains no rating either), it holds no party effect (RB-C p.6) and it is never asked.
-  politics: {'delegates': true, 'winner-reward': true, 'enactment': false, 'seat-grant': true, 'party-effects': false, 'quest': true, 'prompts': false, 'restriction': true},
+  politics: {'delegates': true, 'winner-reward': true, 'enactment': false, 'payout': true, 'seat-grant': true, 'party-effects': false, 'quest': true, 'prompts': false, 'restriction': true},
 };
 
 describe('BotParliamentPolicy', () => {
@@ -106,18 +106,17 @@ describe('BotParliamentPolicy', () => {
   });
 
   describe('the model states BOTH aspects on the wire', () => {
-    it("'politics': the bot's seat takes part (delegates) and is never paid (enactment)", () => {
+    it("'politics': the bot's seat takes part (delegates) and is PAID like every seat (D16 — the wire's `enactment` is the payout)", () => {
       const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'politics'});
       const model = getParliamentModel(game, human)!;
       const botSeat = model.players.find((p) => p.color === bot.color)!;
       const humanSeat = model.players.find((p) => p.color === human.color)!;
       expect(model.botMode).eq('politics');
-      expect(botSeat).deep.include({participates: true, enactment: false, lobby: true, reserve: PARLIAMENT_DELEGATES_PER_PLAYER - 1, agenda: 0, influence: 0});
+      expect(botSeat).deep.include({participates: true, enactment: true, lobby: true, reserve: PARLIAMENT_DELEGATES_PER_PLAYER - 1, agenda: 0, influence: 0});
       expect(botSeat.access.every((a) => !a.hasEffect)).is.true;
       expect(humanSeat).deep.include({participates: true, enactment: true});
-      // The payout readings of the model are a paid seat's: the bot has none.
-      expect(botSeat.counts).is.undefined;
-      expect(botSeat.stock).is.undefined;
+      // The payout readings of the model are a paid seat's — the bot's are its OWN counts (its tracks, its pile, its stores).
+      expect(botSeat.counts).is.not.undefined;
       expect(humanSeat.counts).is.not.undefined;
     });
 

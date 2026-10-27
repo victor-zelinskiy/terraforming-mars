@@ -129,6 +129,13 @@ export const URBAN_DEVELOPMENT: ResolutionDefinition = {
       if (owed === 0) {
         return;
       }
+      if (player.isMarsBot === true) {
+        // MarsBot holds no hand — under the hood its card is 1 M€ (D16, the Automa FAQ); the journal speaks the card.
+        player.stock.add(Resource.MEGACREDITS, owed, {log: false, from: {resolution: URBAN_DEVELOPMENT_ID}});
+        player.game.log('${0} played ${1} building tag(s) and draws ${2} card(s) from ${3}', (b) =>
+          b.player(player).number(owed).number(owed).resolution(URBAN_DEVELOPMENT_ID));
+        return;
+      }
       // The seat's ordinary IN-TURN draw (never the external intake — that is
       // for a draw outside your own turn). The scope is the dispatcher's, so
       // the reveal and the analytics already name the law.

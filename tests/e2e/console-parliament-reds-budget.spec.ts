@@ -21,9 +21,9 @@ import {
  *   ① the levy's «−10» leaves the rail and only then the «+4» comes back — the money before the Career;
  *   ② the law's printed insignia answers (the impulse), and only then blue's marker leaves 1 for 2 — the TR token flies
  *   off the step to the rail and the rating ticks on its touchdown;
- *   ③ then — never at the same time — the bot's marker 6 → 7, the band naming its «+1 M€» instead of a card;
- *   ④ the results: three parts for blue (levy · payout · step), ONE for the bot (its step).
- *   Server truth: blue's TR +1, M€ 15 − 10 + 4 = 9; Agenda 2 and 7; the bot's M€ +1 and nothing else.
+ *   ③ then — never at the same time — the bot's marker 6 → 7, the band naming its «+1 [card]» like a player's (D16);
+ *   ④ the results: three parts for blue (levy · payout · step) and three for the bot (D16 — paid like every seat).
+ *   Server truth: blue's TR +1, M€ 15 − 10 + 4 = 9; Agenda 2 and 7; the bot's M€ moved by its own levy, payout and card.
  *
  * The probe is `MutationObserver` + `setInterval` — never rAF; the frame claims are made on the TASK samples only.
  * Screens and the storyboard under screenshots/parliament-reds-budget/<profile>/ (the 4K storyboard is trusted on the
@@ -258,12 +258,12 @@ for (const preset of PRESETS) {
         await expect(career).toHaveAttribute('data-agenda-gift', 'tr');
         await expect(career).toHaveAttribute('data-agenda-win-steps', '2');
         await expect(career.locator('.career-step-glyph'), 'the row leads with the insignia').toHaveCount(1);
-        // THE LEDGER: blue's chip (the net, then the step) and the BOT's — the step alone.
+        // THE LEDGER: blue's chip (the net, then the step) and the BOT's — the same two parts (D16: paid like every seat).
         const ledger = page.locator('[data-parl-vote-ledger-row]');
         await expect(ledger, 'the ledger of outcomes').toHaveCount(1);
         const botChip = ledger.locator('[data-ledger-seat]:not([data-ledger-you])');
         await expect(botChip, 'the bot\'s chip stands').toHaveCount(1);
-        await expect(botChip.locator('[data-ledger-part]'), 'the step alone — never a payout').toHaveCount(1);
+        await expect(botChip.locator('[data-ledger-part]'), 'its net in M€, then its step — as every seat (D16)').toHaveCount(2);
         await expect(botChip.locator('[data-ledger-part="career"]')).toHaveCount(1);
         await expect(ledger.locator('[data-ledger-you] [data-ledger-part="career"]'), 'blue\'s chip carries the step too').toHaveCount(1);
         await expectParliamentFits(page, `${preset.id} vote`);
@@ -287,15 +287,17 @@ for (const preset of PRESETS) {
       const cast = await recordFrames(page);
       await enterSittingByPass(page, request, playerId);
 
-      // ── THE RECORDS, in the seat order: blue's levy · payout · step, then the bot's step alone.
+      // ── THE RECORDS, in the seat order: blue's levy · payout · step, then the bot's — paid like every seat (D16).
       await expect.poll(async () => outcomesOf(await wireOf(request, playerId)).filter((o) => o.kind !== 'reaction')
         .map((o) => `${o.player === blue ? 'blue' : 'bot'}:${o.step}`).join(','), {timeout: 60_000, message: 'the enactment is recorded'})
-        .toBe('blue:levy,blue:megacredits,blue:agenda,bot:agenda');
+        .toBe('blue:levy,blue:megacredits,blue:agenda,bot:levy,bot:bot:megacredits,bot:agenda');
       const records = outcomesOf(await wireOf(request, playerId)).filter((o) => o.kind !== 'reaction');
       expect(records[0]).toMatchObject({kind: 'stock', amount: -10, owed: 10, before: 15, after: 5});
       expect(records[1]).toMatchObject({kind: 'stock', amount: 4, count: 3, influence: 1, before: 5, after: 9});
       expect(records[2]).toMatchObject({kind: 'agenda', walk: {from: 1, to: 2, steps: [{to: 2, bonus: 'tr'}]}, tr: 1});
-      expect(records[3]).toMatchObject({kind: 'agenda', walk: {from: 6, to: 7, steps: [{to: 7, bonus: 'card'}]}, megacredits: 1});
+      // The bot's card step speaks the card (`drawn`) — its 1 M€ under the hood never travels on the wire.
+      expect(records[5]).toMatchObject({kind: 'agenda', walk: {from: 6, to: 7, steps: [{to: 7, bonus: 'card'}]}, drawn: 1});
+      expect(records[5].megacredits, 'the hidden M€ stays on the server').toBeUndefined();
 
       // ── THE WALK reaches the results by itself (the reward's wave, the Career beat, the renewal).
       await expect.poll(() => sittingStage(page), {timeout: 180_000, message: 'the walk reaches the results'}).toBe('results');
@@ -353,7 +355,7 @@ for (const preset of PRESETS) {
       const botOnSeven = at((s) => s.botStep === 7);
       expect(botOnSeven, 'the bot\'s marker lands on 7 after its impulse').toBeGreaterThan(botImpulse);
       expect(ticks.slice(0, botImpulse).some((s) => s.botStep === 7), 'never on 7 before its impulse').toBe(false);
-      expect(ticks.some((s) => s.careerSeat === bot.color && s.bandBonus.includes('megacredits')), 'the band names the bot\'s «+1 M€» instead of a card').toBe(true);
+      expect(ticks.some((s) => s.careerSeat === bot.color && s.bandBonus.includes('card')), 'the band names the bot\'s «+1 [card]» like a player\'s').toBe(true);
       // THE STORYBOARD: the insignia's impulse at its PEAK (half the impulse in), each marker MID-GLIDE (halfway between
       // the proxy's birth — the lead still lights its segment there — and the landing), blue on 2 with the TR token.
       const nearest = (t: number) => ticks.reduce((best, s, i) => Math.abs(s.t - t) < Math.abs(ticks[best].t - t) ? i : best, 0);
@@ -363,14 +365,14 @@ for (const preset of PRESETS) {
       const impulsePeak = ticks.reduce((best, s, i) => s.careerSeat === blue && s.careerPhase === 'impulse' && s.insW > ticks[best].insW ? i : best, blueImpulse);
       console.log(`[reds ${preset.id}] the insignia: ${Math.round(ticks[Math.max(0, blueImpulse - 1)].insW)} px at rest → ${Math.round(ticks[impulsePeak].insW)} px at the impulse's peak`);
       const frames: Array<[number, string]> = [[impulsePeak, '03a-insignia-impulse'], [blueAir, '03b-blue-marker-in-the-air'],
-        [blueOnTwo + 3, '03c-blue-on-2-tr-token'], [botAir, '04a-bot-marker-in-the-air'], [botOnSeven + 3, '04b-bot-on-7-megacredits']];
+        [blueOnTwo + 3, '03c-blue-on-2-tr-token'], [botAir, '04a-bot-marker-in-the-air'], [botOnSeven + 3, '04b-bot-on-7-card']];
       for (const [index, name] of frames) {
         if (index >= 0 && index < ticks.length && !writeFrameAt(cast.frames, ticks[index].wall, preset.id, name)) {
           console.log(`[reds ${preset.id}] no screencast frame near ${name}`);
         }
       }
 
-      // ④ THE RESULTS: three parts for blue, ONE for the bot.
+      // ④ THE RESULTS: three parts for blue and three for the bot (D16).
       await expect(page.locator('[data-sit-results-hidden]'), 'the results card revealed by its own beat').toHaveCount(0, {timeout: 30_000});
       await waitSittingAtRest(page, 20_000);
       const blueRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${blue}"]`);
@@ -378,9 +380,9 @@ for (const preset of PRESETS) {
       await expect(blueRow.locator('[data-sit-part-walk]')).toHaveAttribute('data-sit-part-walk-to', '2');
       await expect(blueRow.locator('[data-sit-part-tr]'), 'the step\'s TR').toHaveCount(1);
       const botRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${bot.color}"]`);
-      await expect(botRow.locator('[data-sit-part]'), 'the bot: its step — nothing else').toHaveCount(1);
+      await expect(botRow.locator('[data-sit-part]'), 'the bot: levy · payout · step, like every seat').toHaveCount(3);
       await expect(botRow.locator('[data-sit-part-walk]')).toHaveAttribute('data-sit-part-walk-to', '7');
-      await expect(botRow.locator('[data-sit-part-megacredits]'), 'the bot\'s card step read as 1 M€').toHaveText('+1');
+      await expect(botRow.locator('[data-sit-part-drawn]'), 'the bot\'s card step read as a card').toHaveText('+1');
       await expectParliamentFits(page, `${preset.id} results`);
       await shoot(page, preset.id, '06-results');
 
@@ -390,7 +392,11 @@ for (const preset of PRESETS) {
       expect(end.thisPlayer.megacredits, 'blue: 15 − 10 + 4').toBe(9);
       expect(agendaOf(end, blue)).toBe(2);
       expect(agendaOf(end, bot.color)).toBe(7);
-      expect(end.players.find((p) => p.color === bot.color)?.megacredits, 'the bot: never levied, never paid — the card step\'s 1 M€ alone').toBe(bot.megacredits + 1);
+      // The bot's M€ moved by its levy (the record's negative amount), its payout (a stock M€ record pays its amount) and
+      // its card step's 1 M€ under the hood (D16).
+      const levied = records[3].kind === 'stock' ? (records[3].amount ?? 0) : 0;
+      const paid = records[4].kind === 'stock' ? (records[4].amount ?? 0) : 0;
+      expect(end.players.find((p) => p.color === bot.color)?.megacredits, 'the bot: its levy, its payout, its card').toBe(bot.megacredits + levied + paid + 1);
       expect(await strandedReports(page), 'nothing stranded').toEqual([]);
       await closeSitting(page, request, playerId);
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);

@@ -86,7 +86,7 @@ export type BandChip =
    * The Agenda step's own gift: the influence level it sets (the GLYPH with the level in one disc — parliament
    * law 14, never a bare numeral), or the bonus it hands over.
    */
-  | {kind: 'agenda', to: number, level?: number, bonus?: 'tr' | 'card', megacredits?: number, vetoed?: true,
+  | {kind: 'agenda', to: number, level?: number, bonus?: 'tr' | 'card', vetoed?: true,
      /**
       * The seat's FINAL influence once its marker stands on this step, with its modifier (T05) — only for a seat
       * holding influence beyond the Career (`influenceReadingAtStep`); the level stays the cell's reward.
@@ -204,7 +204,7 @@ export type BandRewardReading = {
    * A STEP OF THE CAREER the law granted the viewer (Reds Budget), once its walk is RECORDED and played: the step it
    * reached and what it paid (never a skip: the skip chip says that). Absent while the sitting still owes the walk.
    */
-  career?: {to: number, bonus?: 'tr' | 'card', level?: number, megacredits?: number, vetoed?: true, influence?: InfluenceReading};
+  career?: {to: number, bonus?: 'tr' | 'card', level?: number, vetoed?: true, influence?: InfluenceReading};
   /** The WORLD's own part of the enactment — the planet's moves, in the server's order. */
   world?: ReadonlyArray<{parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}>;
   /** The COLONY TABLE's own part of the enactment (Unity Budget) — every track's move, in the server's order. */
@@ -293,9 +293,9 @@ export type BandSitting = {
   renewal?: BandRenewalCue;
   /**
    * КАРЬЕРА (Reds Budget): the seat whose step of the Career the law's walk is playing now, the step it reaches and
-   * what that step pays — MarsBot's card step reads as the M€ it took instead (`megacredits`). Undefined between walks.
+   * what that step pays — MarsBot's card step reads as a card like every seat's (D16). Undefined between walks.
    */
-  career?: {player: Color, to: number, bonus?: 'tr' | 'card', level?: number, megacredits?: number, vetoed?: true, influence?: InfluenceReading};
+  career?: {player: Color, to: number, bonus?: 'tr' | 'card', level?: number, vetoed?: true, influence?: InfluenceReading};
   /**
    * THE ENACTMENT'S TAIL (TR62): a card's answer to the change of power, delivered while the line still reads the
    * enactment — the card that answered, the party that came to power and how many cards leave the deck.
@@ -861,7 +861,6 @@ function careerLine(career: NonNullable<BandSitting['career']>): BandLine {
     kind: 'agenda', to: career.to,
     ...(career.level === undefined ? {} : {level: career.level}),
     ...(career.bonus === undefined ? {} : {bonus: career.bonus}),
-    ...(career.megacredits === undefined ? {} : {megacredits: career.megacredits}),
     ...(career.vetoed === true ? {vetoed: true as const} : {}),
     ...(career.influence === undefined ? {} : {influence: career.influence}),
   });

@@ -89,7 +89,8 @@ export type TileGrantAnswer = {
 
 /** The answer the resolution's own party makes to the granted tile, for a seat that holds party effects. */
 function answerFor(resolution: IClientResolution, grant: TileGrantDeclaration, seat: ParliamentPlayerModel, reading: TileGrantReading): TileGrantAnswer | undefined {
-  if (!seatEnacts(seat) || reading.context === 'reference' || reading.eligibility === 'none' || reading.skipped !== undefined) {
+  // The ruling party answers a seat that HOLDS party effects — never MarsBot (`noPartyEffects`), paid as it is (D16).
+  if (!seatEnacts(seat) || seat.noPartyEffects === true || reading.context === 'reference' || reading.eligibility === 'none' || reading.skipped !== undefined) {
     return undefined;
   }
   const declared = getPartyEffect(resolution.party)?.tileAnswer;

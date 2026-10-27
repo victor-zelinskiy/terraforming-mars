@@ -87,9 +87,11 @@ export function payAgendaGrant(
   }
   if (walk.steps.some((step) => step.bonus === 'card')) {
     if (seat.isMarsBot === true) {
+      // The bot's card is 1 M€ under the hood (`megacredits`); the record speaks the card like every seat's (D16).
       const megacredits = seat.megaCredits - cash;
       if (megacredits > 0) {
         outcome.megacredits = megacredits;
+        outcome.drawn = walk.steps.filter((step) => step.bonus === 'card').length;
       }
     } else {
       outcome.drawn = Math.max(0, seat.cardsInHand.length - hand);

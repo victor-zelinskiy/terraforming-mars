@@ -62,6 +62,7 @@ import {CardName} from '../../common/cards/CardName';
 import {ChairmanSeat} from './quests/ChairmanSeat';
 import {botWinnerRewardPlan, declaresWinnerPass, NO_BOT_EXECUTOR_REASON, payBotWinnerReward} from '../automa/BotWinnerReward';
 import {payBotTileGrant} from '../automa/BotTileGrant';
+import {botPayoutSteps} from '../automa/BotResolutionPayout';
 import {payAgendaGrant} from './resolutions/ResolutionAgendaGrant';
 import {SeatGrantDeed, seatGrantsOf} from './resolutions/SeatGrants';
 import {SittingAcks} from './SittingAcks';
@@ -584,10 +585,12 @@ export class ParliamentPhase {
     const definition = parliament.resolutionOf(instance);
     const winnerId = this.summary.winner.player;
     const winner = winnerId === undefined || winnerId === 'NEUTRAL' ? undefined : this.game.getPlayerById(winnerId);
-    // THE SEAT LOOP IS THE ENACTMENT'S: only a seat a law PAYS is walked. A
-    // MarsBot winner under `'politics'` is outside it (decision D3) — its
-    // winner's part is not a seat step at all but the bot's own primitives,
-    // paid by a separate pass after the world's (`BotWinnerReward`).
+    // THE SEAT LOOP IS THE PAYOUT'S: every seat a law PAYS is walked — the
+    // humans through the law's own steps, a MarsBot under `'politics'`
+    // through ITS adapter (decision D16, `botPayoutSteps`: the levy, then
+    // every scaled part by its own counts, converted to M€). A MarsBot WINNER's
+    // part is not a seat step at all but the bot's own primitives, paid by a
+    // separate pass after the world's (`BotWinnerReward`).
     //
     // …EXCEPT THE DEEDS A LAW GRANTS THE SEATS (decision D11 — `seatGrantsOf`:
     // the tile of `tileGrant`, the step of the Career of `agendaGrant`): a
@@ -600,7 +603,7 @@ export class ParliamentPhase {
     // loop for every deed; every other card walks exactly the seats it always
     // did.
     const deeds = seatGrantsOf(definition);
-    const players = parliament.participants(this.game, deeds.length === 0 ? 'enactment' : 'seat-grant');
+    const players = parliament.participants(this.game, deeds.length === 0 ? 'payout' : 'seat-grant');
     const winnerEnacts = winner !== undefined && parliament.participates(winner, 'enactment');
     const winnerSteps = definition.winnerSteps ?? [];
     const worldSteps = definition.worldSteps ?? [];
@@ -630,10 +633,18 @@ export class ParliamentPhase {
     for (let index = 0; index < players.length; index++) {
       cursor.playerIndex = index;
       const player = players[index];
-      if (deeds.length > 0 && !parliament.participates(player, 'enactment')) {
-        // A seat of the grants the law does not pay (MarsBot): each deed by its own primitive, in the printed
-        // order — and after each, the deferred tail it set off (a human card answering the bot's city) runs, and
-        // may wait, before the next deed or the next seat.
+      if (!parliament.participates(player, 'enactment')) {
+        // A seat that does not RUN the law's own steps (MarsBot): its payout through its adapter (D16) — the
+        // levy, then every scaled part — and then each deed by its own primitive, in the printed order; after
+        // each, the deferred tail it set off (a human card answering the bot's city) runs, and may wait, before
+        // the next deed or the next seat.
+        if (parliament.participates(player, 'payout')) {
+          for (const step of botPayoutSteps(definition)) {
+            if (this.runSeatStep(definition, instance, player, winner, step, 'effect') === 'waiting' || this.drainDeferred() === 'waiting') {
+              return 'waiting';
+            }
+          }
+        }
         for (const deed of deeds) {
           this.runBotSeatGrant(definition, instance, player, winner, deed);
           if (this.drainDeferred() === 'waiting') {
@@ -1267,5 +1278,5 @@ function rulingAnswerOf(player: IPlayer, card: CardName, party: ReduxParty, befo
 
 /** Exposed for tests: the players a resolution's immediate effect visits, in order. */
 export function effectRecipients(game: IGame, parliament: Parliament): Array<IPlayer> {
-  return parliament.participants(game, 'enactment');
+  return parliament.participants(game, 'payout');
 }

@@ -223,7 +223,12 @@ export class ParliamentHandler {
   ): void {
     const enacted = parliament.enactedDefinition();
     const passive = enacted?.passive;
-    if (enacted === undefined || passive === undefined || !parliament.participates(player, 'enactment')) {
+    // A seat that RUNS the law holds every passive; MarsBot (paid, never running the law — D16) holds the two
+    // PAYING channels, a tile it places and a card it resolves: the three laws that pay there are bot-safe
+    // (Development Craze repeats its covered-icon M€, Forestry Support and Urban Development pay M€ under the hood).
+    const paid = parliament.participates(player, 'enactment') ||
+      ((channel === 'tile-placed' || channel === 'card-played') && parliament.participates(player, 'payout'));
+    if (enacted === undefined || passive === undefined || !paid) {
       return;
     }
     // The law's scope records a CARD REACTION like a tableau card's (iteration 4 of the framework): the console plays

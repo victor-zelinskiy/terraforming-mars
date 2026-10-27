@@ -443,9 +443,9 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
       wrapper.unmount();
     });
 
-    it('the bot seat carries the honest provenance line; a human seat does not', async () => {
+    it('the bot seat reads like a player table — no provenance prose (D16: its mechanics are told on the bot screen)', async () => {
       const wrapper = makeEmbedded('green' as Color);
-      expect(wrapper.find('.con-played__provenance').exists()).to.be.true;
+      expect(wrapper.find('.con-played__provenance').exists()).to.be.false;
       await wrapper.setProps({forcedColor: 'red' as Color});
       expect(wrapper.find('.con-played__provenance').exists()).to.be.false;
       wrapper.unmount();
@@ -490,7 +490,7 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
       expect(wrapper.find('.con-played__head').exists()).to.be.true;
       expect(wrapper.vm.viewedDisplayName).to.not.eq('');
       expect(wrapper.find('.con-played__total b').text()).to.eq('3');
-      expect(wrapper.find('.con-played__provenance').exists()).to.be.true;
+      expect(wrapper.find('.con-played__provenance').exists(), 'no bot prose on the table (D16)').to.be.false;
       wrapper.unmount();
     });
   });

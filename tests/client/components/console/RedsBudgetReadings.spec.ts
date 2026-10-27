@@ -23,7 +23,6 @@ import {careerGrantState, careerWalkBonuses, detectNewCareerWalks, resetCareerGr
 import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {detectAgendaWalk} from '@/client/console/parliament/agendaWalk';
 import {resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
-import {BOT_POLITICS_NOTE} from '@/client/console/parliament/seatParliamentReading';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 
 /**
@@ -67,10 +66,12 @@ function seat(color: Color, agenda: number, influence: number, held: number): Pa
   };
 }
 
-/** MarsBot under `'politics'`: delegates, no payout (D3), the step (D11). */
+/** MarsBot under `'politics'`: delegates, PAID like every seat (D16 — its own counts), the step (D11). */
 function botSeat(agenda: number, influence: number): ParliamentPlayerModel {
   return {
-    color: BOT, participates: true, enactment: false, seatGrant: true, lobby: true, reserve: 6, onResolutions: 0, chairman: false, agenda, influence,
+    color: BOT, participates: true, enactment: true, everyUnitLands: true, noPartyEffects: true, seatGrant: true, lobby: true, reserve: 6, onResolutions: 0, chairman: false, agenda, influence,
+    stock: {[Resource.MEGACREDITS]: 20},
+    counts: [{id: 'spaceMarsTags', count: 5, cards: []}],
     access: [], partyActionUses: {}, resolutionActionUses: 0,
   };
 }
@@ -168,7 +169,7 @@ describe('Reds Budget — the readings of the last budget and of the step of the
     expect(reading.career).deep.include({context: 'conditional', position: 3});
   });
 
-  it('the graphic: the insignia, the numbered node, «+1 [TR]» — the bot\'s card step reads «+1 [M€] вместо карты»; the win\'s two nodes', () => {
+  it('the graphic: the insignia, the numbered node, «+1 [TR]» — the bot\'s card step reads «+1 [card]» like every seat\'s (D16); the win\'s two nodes', () => {
     const law = resolutionOf(BUDGET_ID);
     const human = mount(ConsoleAgendaGrant, {props: {reading: agendaGrantReadingOf(law, upForVote([seat(BLUE, 3, 2, 15)]), BLUE)!, variant: 'block'}, ...t});
     expect(human.find('.career-step-glyph').exists(), 'the career insignia — never a star').is.true;
@@ -177,11 +178,11 @@ describe('Reds Budget — the readings of the last budget and of the step of the
     expect(human.find('.con-agrant__node').text()).eq('4');
     expect(human.findAll('[data-agenda-win] [data-agenda-win-to]').map((w) => w.attributes('data-agenda-win-to'))).deep.eq(['4', '5']);
     const bot = mount(ConsoleAgendaGrant, {props: {reading: agendaGrantReadingOf(law, upForVote([botSeat(6, 3)]), BOT)!, variant: 'inline'}, ...t});
-    expect(bot.find('[data-agenda-step]').attributes('data-agenda-step-gift')).eq('megacredits');
-    expect(bot.find('.con-agrant__instead').text()).eq('instead of a card');
+    expect(bot.find('[data-agenda-step]').attributes('data-agenda-step-gift')).eq('card');
+    expect(bot.text(), 'no word about a substitute').not.contains('instead of a card');
   });
 
-  it('the LEDGER: every seat a step, the bot with the STEP alone (D11 — never a payout); «✕» at the end of the track', () => {
+  it('the LEDGER: every seat a step, the bot with its MONEY and its STEP like every seat (D11 + D16); «✕» at the end of the track', () => {
     const law = resolutionOf(BUDGET_ID);
     const table = upForVote([seat(BLUE, 3, 2, 15), seat(RED, 12, 5, 20), botSeat(6, 3)]);
     const chips = voteLedgerOf({resolution: law, model: table, viewer: BLUE, players: []});
@@ -190,34 +191,35 @@ describe('Reds Budget — the readings of the last budget and of the step of the
     expect(ledgerPartText(career(BLUE))).eq('+1');
     expect(career(RED).tone).eq('lost');
     expect(ledgerPartText(career(RED))).eq('✕');
-    expect(chips.find((c) => c.color === BOT)!.parts.map((p) => p.key), 'no levy, no payout for the bot').deep.eq(['career']);
+    expect(chips.find((c) => c.color === BOT)!.parts.map((p) => p.key), 'the bot\'s net in M€, then its step — as every seat').deep.eq(
+      chips.find((c) => c.color === BLUE)!.parts.map((p) => p.key));
   });
 
-  it('the RECORD: an applied reading and a results part «3 → 4» with what it paid; the bot\'s «+1 M€»; a skip names the end', () => {
+  it('the RECORD: an applied reading and a results part «3 → 4» with what it paid; the bot\'s card like a player\'s; a skip names the end', () => {
     const law = resolutionOf(BUDGET_ID);
     const records = [
       walkRecord(BLUE, 3, [{to: 4, bonus: 'tr'}], {tr: 1}),
-      walkRecord(BOT, 6, [{to: 7, bonus: 'card'}], {megacredits: 1}),
+      walkRecord(BOT, 6, [{to: 7, bonus: 'card'}], {drawn: 1}),
       {player: RED, step: AGENDA_GRANT_STEP_KEY, part: 'effect' as const, kind: 'skipped' as const, influence: 5, amount: 0, walk: {from: 12, to: 12, steps: []}, reason: AGENDA_GRANT_END_OF_TRACK_REASON},
     ];
     const table = model([seat(BLUE, 4, 2, 5), seat(RED, 12, 5, 10), botSeat(7, 3)], {lastPhase: lastPhase(records), enacted: ENACTED});
     expect(agendaGrantReadingOf(law, table, BLUE)).deep.include({context: 'applied', position: 3, walked: {from: 3, to: 4, steps: [{to: 4, bonus: 'tr'}]}, tr: 1, generation: 3});
     expect(agendaGrantReadingOf(law, table, RED)).deep.include({context: 'applied', skipped: AGENDA_GRANT_END_OF_TRACK_REASON});
-    expect(agendaGrantReadingOf(law, table, BOT)).deep.include({context: 'applied', noHand: true, megacredits: 1});
+    expect(agendaGrantReadingOf(law, table, BOT)).deep.include({context: 'applied', drawn: 1});
     expect(resultsPayoutPart(records[0], 0)).deep.include({kind: 'agenda', walk: {from: 3, to: 4}, tr: 1});
-    expect(resultsPayoutPart(records[1], 1)).deep.include({kind: 'agenda', walk: {from: 6, to: 7}, megacredits: 1});
+    expect(resultsPayoutPart(records[1], 1)).deep.include({kind: 'agenda', walk: {from: 6, to: 7}, drawn: 1});
     expect(resultsPayoutPart(records[2], 2).skipped).deep.eq({title: 'Resolution effect', reason: AGENDA_GRANT_END_OF_TRACK_REASON});
   });
 
   it('the SITTING plays the PHASE\'S records seat by seat — never `lastAdvance`; the card-walk detector stays silent for the law', () => {
-    const records = [walkRecord(BLUE, 3, [{to: 4, bonus: 'tr'}], {tr: 1}), walkRecord(BOT, 6, [{to: 7, bonus: 'card'}], {megacredits: 1})];
+    const records = [walkRecord(BLUE, 3, [{to: 4, bonus: 'tr'}], {tr: 1}), walkRecord(BOT, 6, [{to: 7, bonus: 'card'}], {drawn: 1})];
     const last = {seq: 9, player: BOT, from: 6, to: 7, bonus: 'card' as const, steps: [{to: 7, bonus: 'card' as const}], reason: 'resolution' as const, resolution: BUDGET_ID, generation: 3};
     const before = view(BLUE, []);
     const after = view(BLUE, records, last);
     const walks = detectNewCareerWalks(before, after);
     expect(walks.map((w) => `${w.player}:${w.from}->${w.to}`)).deep.eq([`${BLUE}:3->4`, `${BOT}:6->7`]);
     expect(walks[0].viewer).is.true;
-    expect(walks[1]).deep.include({viewer: false, megacredits: 1});
+    expect(walks[1]).deep.include({viewer: false});
     // A reload (no before), an echo (the same records) owe nothing.
     expect(detectNewCareerWalks(undefined, after)).deep.eq([]);
     expect(detectNewCareerWalks(after, after)).deep.eq([]);
@@ -235,20 +237,16 @@ describe('Reds Budget — the readings of the last budget and of the step of the
     expect(careerGrantState.owed).has.length(2);
   });
 
-  it('the BAND names whose step plays and what it pays — the bot\'s card step as the M€ it took', () => {
+  it('the BAND names whose step plays and what it pays — the bot\'s card step as a card (D16)', () => {
     const base = {
       stage: 'reward' as const, rewardStep: 'received' as const, beat: 'career' as const, supportWave: '' as const, generation: 3,
       reward: {yields: [], reactions: [], skips: []},
     };
-    const line = parliamentBandLine({sitting: {...base, career: {player: BOT, to: 7, bonus: 'card', megacredits: 1}}, standing: {votes: 0}});
+    const line = parliamentBandLine({sitting: {...base, career: {player: BOT, to: 7, bonus: 'card'}}, standing: {votes: 0}});
     expect(line.kicker).eq('Agenda track');
     expect(line.key).eq(`career:${BOT}:7`);
-    expect(line.chips).deep.eq([{kind: 'player', player: BOT}, {kind: 'agenda', to: 7, bonus: 'card', megacredits: 1}]);
+    expect(line.chips).deep.eq([{kind: 'player', player: BOT}, {kind: 'agenda', to: 7, bonus: 'card'}]);
     const settled = parliamentBandLine({sitting: {...base, beat: '', reward: {...base.reward, career: {to: 4, bonus: 'tr'}}}, standing: {votes: 0}});
     expect(settled.chips.some((c) => c.kind === 'agenda' && c.to === 4), 'the reward line keeps the viewer\'s own step').is.true;
-  });
-
-  it('the bot\'s one line in the Information zone names both deeds (a tile, a step of the Career)', () => {
-    expect(BOT_POLITICS_NOTE).includes('a tile, a step of the Career');
   });
 });

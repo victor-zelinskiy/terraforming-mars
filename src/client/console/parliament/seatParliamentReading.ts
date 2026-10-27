@@ -97,24 +97,10 @@ export type SeatEnactedVm = {
 
 /** The bot's one honest line when it takes no part (`'none'`) — the key the workspace already speaks. */
 export const BOT_PARLIAMENT_NOTE = 'MarsBot takes no part in the parliament';
-/**
- * The POLITICAL bot (Turmoil Redux, decisions D3 + D11): what it does at the table, what it never receives — and
- * what a law hands it to DO, the deed it grants every player (a tile placed by the bot itself, a step of the Career
- * walked by it — RX38, RX39). ONE line for both hosts (the Information zone and its dossier), in the cards' own
- * language; a NEW key (the RX38 line named the tile alone).
- */
-export const BOT_POLITICS_NOTE = 'MarsBot votes, completes chairman quests and takes the winner\'s reward. An enacted resolution never pays or charges it, but it carries out what a resolution grants every player: a tile, a step of the Career.';
-
 export type SeatParliamentReadingVm = {
   color: Color;
-  /** The seat is PAID by the laws (every reading below is its); false for a MarsBot seat, whose readings are empty. */
+  /** The seat is PAID by the laws (every reading below is its) — MarsBot under politics too (D16); false only for an old save's bot. */
   participates: boolean;
-  /**
-   * A MarsBot seat that HOLDS DELEGATES (`'politics'`): it votes, completes the chairman quest and takes the
-   * winner's reward, and an enacted law never pays it (it places the tile a law grants the seats — D11) — the zone
-   * says that in ONE line instead of an empty table (`BOT_POLITICS_NOTE`).
-   */
-  botPolitical: boolean;
   influence: SeatInfluenceVm;
   agenda: SeatAgendaVm;
   delegates: SeatDelegatesVm;
@@ -131,7 +117,6 @@ function seatOf(model: ParliamentModel | undefined, color: Color | undefined): P
 const EMPTY: SeatParliamentReadingVm = {
   color: 'neutral' as Color,
   participates: false,
-  botPolitical: false,
   influence: NO_INFLUENCE,
   agenda: {position: 0},
   delegates: {lobby: false, reserve: 0, onSlots: [], onResolutions: 0},
@@ -156,7 +141,7 @@ export function seatParliamentReadingOf(
     return {...EMPTY, ...(color === undefined ? {} : {color})};
   }
   if (!seatEnacts(seat)) {
-    return {...EMPTY, color, botPolitical: seat.participates};
+    return {...EMPTY, color};
   }
   // A reading of ANOTHER seat speaks in the third person — but it does NOT name the subject: the
   // surface hosting this model already says whose standing it shows (the Information crumb).
@@ -173,7 +158,6 @@ export function seatParliamentReadingOf(
   const out: SeatParliamentReadingVm = {
     color,
     participates: true,
-    botPolitical: false,
     influence: influenceReadingOf(seat),
     agenda: {
       position: seat.agenda,

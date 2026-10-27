@@ -188,9 +188,10 @@ export class ChairmanSeat {
       game.log('${0} gained ${1} ${2} from the Agenda track', (b) => b.player(player).number(1).tr());
     } else if (bonus === 'card') {
       if (player.isMarsBot) {
-        // The Automa FAQ (RB-A p.11): a card MarsBot would draw is 1 M€ — it has no hand (decision D3: the bot moves on the Agenda as a human does).
+        // The Automa FAQ (RB-A p.11): a card MarsBot would draw is 1 M€ — it has no hand. Under the hood; the journal
+        // speaks the card, as for every seat (D16 — the bot is one more player at the table).
         player.stock.add(Resource.MEGACREDITS, 1, {log: false});
-        game.log('${0} gains 1 M€ from the Agenda track instead of a card', (b) => b.player(player));
+        game.log('${0} draws ${1} card(s) from the Agenda track', (b) => b.player(player).number(1));
       } else {
         // The Agenda's own source: the console lifts the card off the track step — named by the STEP, so a walk with two
         // card steps (TR42 at TR 45: steps 7 and 10) parks and presents each batch on its own node, never one for both.

@@ -125,8 +125,13 @@ export function payGreeneryAdjacency(player: IPlayer, space: Space): GreeneryAdj
   if (greeneries === 0) {
     return undefined;
   }
-  player.stock.add(Resource.MEGACREDITS, megacredits, {log: false, from: {resolution: FORESTRY_SUPPORT_ID}});
-  player.stock.add(Resource.PLANTS, plants, {log: false, from: {resolution: FORESTRY_SUPPORT_ID}});
+  if (player.isMarsBot === true) {
+    // MarsBot keeps no plants — under the hood its plant is 1 M€ (D16, the Automa rulebook's 1 M€ per unit).
+    player.stock.add(Resource.MEGACREDITS, megacredits + plants, {log: false, from: {resolution: FORESTRY_SUPPORT_ID}});
+  } else {
+    player.stock.add(Resource.MEGACREDITS, megacredits, {log: false, from: {resolution: FORESTRY_SUPPORT_ID}});
+    player.stock.add(Resource.PLANTS, plants, {log: false, from: {resolution: FORESTRY_SUPPORT_ID}});
+  }
   game.log('${0} gained ${1} ${2} and ${3} ${4} for ${6} adjacent greenery(-ies) — ${5}', (b) =>
     b.player(player).number(megacredits).resource(Resource.MEGACREDITS).number(plants).resource(Resource.PLANTS)
       .resolution(FORESTRY_SUPPORT_ID).number(greeneries));

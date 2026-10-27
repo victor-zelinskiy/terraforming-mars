@@ -16,7 +16,6 @@ import {voteReadingOf} from '@/client/console/parliament/voteInfoModel';
 import {voteLedgerOf} from '@/client/console/parliament/voteLedgerModel';
 import {familyOf} from '@/client/console/parliament/resolutionFamily';
 import {tileGrantCaptionOf, tileGrantDetailOf, tileGrantReadingOf, tileGrantRecipientsKey, tileGrantWhereKey} from '@/client/console/parliament/tileGrantModel';
-import {BOT_POLITICS_NOTE} from '@/client/console/parliament/seatParliamentReading';
 import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
 
 /**
@@ -64,10 +63,13 @@ function seat(color: Color, agenda: number, influence: number, held: number): Pa
   };
 }
 
-/** MarsBot under `'politics'`: delegates, no payout (D3), the tile (D11). */
+/** MarsBot under `'politics'`: delegates, PAID like every seat (D16 — every unit lands), the tile (D11). */
 function botSeat(influence: number): ParliamentPlayerModel {
   return {
-    color: BOT, participates: true, enactment: false, seatGrant: true, lobby: true, reserve: 6, onResolutions: 0, chairman: false, agenda: 0, influence,
+    color: BOT, participates: true, enactment: true, everyUnitLands: true, noPartyEffects: true, seatGrant: true, lobby: true, reserve: 6, onResolutions: 0, chairman: false, agenda: 0, influence,
+    stock: {[Resource.MEGACREDITS]: 20},
+    // Its OWN counts (D16): its tracks for the tags — no card names them.
+    counts: [{id: 'buildingMarsTags', count: 4, cards: []}, {id: 'marsCities', count: 1, cards: [], units: []}],
     access: [], partyActionUses: {}, resolutionActionUses: 0,
   };
 }
@@ -157,17 +159,17 @@ describe('Mars First Budget — the readings of the sixth budget and of the gran
     expect(none.answer, 'no tile, no answer').is.undefined;
   });
 
-  it('the LEDGER: MarsBot stands with the TILE alone under a grant (D11) — never a payout — and not at all under a law that only pays', () => {
+  it('the LEDGER: MarsBot stands like every seat (D16) — its net in M€, then its tile (D11) — and in a law that only pays too', () => {
     const players = [seat(BLUE, 3, 2, 34), seat(RED, 1, 1, 20), botSeat(1)];
     const chips = voteLedgerOf({resolution: resolutionOf(BUDGET_ID), model: upForVote(BUDGET_ID, players), viewer: BLUE, players: []});
     expect(chips.map((c) => c.color)).deep.eq([BLUE, RED, BOT]);
     const bot = chips.find((c) => c.color === BOT)!;
-    expect(bot.parts).deep.eq([{key: 'tile', kind: 'tile', tone: 'gain'}]);
+    expect(bot.parts.map((p) => p.key), 'the net in M€, then the city — as every seat').deep.eq(['megacredits', 'tile']);
     const blue = chips.find((c) => c.color === BLUE)!;
     expect(blue.parts.map((p) => p.key), 'the net in M€, then the city').deep.eq(['megacredits', 'tile']);
-    // A law that pays and grants no tile: the bot is not in the row (D3).
+    // A law that pays and grants no tile: the bot is in the row like every seat (D16).
     const greens = voteLedgerOf({resolution: resolutionOf(GREENS_BUDGET_ID), model: upForVote(GREENS_BUDGET_ID, players), viewer: BLUE, players: []});
-    expect(greens.map((c) => c.color)).not.includes(BOT);
+    expect(greens.map((c) => c.color)).includes(BOT);
   });
 
   it('Skyscrapers: the bot\'s chip follows the RECIPIENTS rule (Р5) — influence 2 is a tier, influence 1 nothing', () => {
@@ -203,9 +205,5 @@ describe('Mars First Budget — the readings of the sixth budget and of the gran
     const tier = mount(ConsoleTileGrant, {props: {reading: sky, variant: 'block'}, ...t});
     expect(tier.find('.con-tgrant__star').exists()).is.true;
     expect(tier.find('.con-tgrant__tile--base').exists()).is.true;
-  });
-
-  it('the bot\'s one line in the Information zone says it carries out the deeds a law grants — a tile, a step of the Career (RX39\'s key)', () => {
-    expect(BOT_POLITICS_NOTE).eq('MarsBot votes, completes chairman quests and takes the winner\'s reward. An enacted resolution never pays or charges it, but it carries out what a resolution grants every player: a tile, a step of the Career.');
   });
 });

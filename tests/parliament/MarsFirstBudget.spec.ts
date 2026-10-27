@@ -463,11 +463,22 @@ describe('MarsFirstBudget', () => {
       return game.board.getAdjacentSpaces(space).filter((a) => a.tile?.tileType === TileType.GREENERY).length;
     }
 
+    /** The bot's DEED records (its city) — its levy and its payout (D16) are the seat's ordinary money, read apart. */
     function botRecords(t: Table): Array<SerializedEnactOutcome> {
-      return allRecords(t.parliament).filter((o) => o.player === t.bot.id);
+      return allRecords(t.parliament).filter((o) => o.player === t.bot.id && !o.step.startsWith('bot:') && o.step !== LEVY_STEP_KEY);
     }
 
-    it('never levied, never paid, never answered by the ruling party — and it places its city by ITS OWN rule, in its place after the human', () => {
+    /** The bot's money records (D16): the levy, then the payout by its own count. */
+    function botMoney(t: Table): Array<SerializedEnactOutcome> {
+      return allRecords(t.parliament).filter((o) => o.player === t.bot.id && (o.step.startsWith('bot:') || o.step === LEVY_STEP_KEY));
+    }
+
+    /** What the bot's money records moved, in M€ (the levy negative, the payout's hidden M€ positive). */
+    function botMoneyDelta(t: Table): number {
+      return botMoney(t).reduce((sum, o) => sum + (o.megacredits ?? 0) + (o.step === LEVY_STEP_KEY && o.amount !== undefined && o.amount < 0 ? o.amount : 0), 0);
+    }
+
+    it('levied and paid like every seat (D16), never answered by the ruling party — and it places its city by ITS OWN rule, in its place after the human', () => {
       let centre: Space | undefined;
       const t = seated('politics', ({game}) => (centre = greeneriesAround(game)));
       const botSteel = t.bot.steel;
@@ -485,10 +496,10 @@ describe('MarsFirstBudget', () => {
       expect(landed.player?.id).eq(t.bot.id);
       expect(landed.id, 'next to as much greenery as possible — the one cell beside all three').eq(centre!.id);
       expect(adjacentGreeneries(t.game, landed)).eq(3);
-      expect(t.bot.megaCredits, 'no levy, no payout, no Failed Action').eq(botCash);
+      // D16: the bot is levied (from its M€, bounded by what it holds) and paid by its own count — M€ under the hood.
+      expect(botMoney(t).map((o) => o.step)).deep.eq([LEVY_STEP_KEY, 'bot:megacredits']);
+      expect(t.bot.megaCredits, 'the levy and the payout, and no Failed Action').eq(botCash + botMoneyDelta(t));
       expect(t.bot.steel, 'MarsBot ignores the ruling party').eq(botSteel);
-      expect(t.game.events.events.filter((e) => e.player === t.bot.color && e.type === 'resource-changed' && e.source?.kind === 'resolution'),
-        'nothing reached the bot\'s supply under the resolution').is.empty;
       expect(t.bot.getWaitingFor()).is.undefined;
       settleParliamentGates(t.game);
       expect(t.parliament.phase).is.undefined;
@@ -505,7 +516,8 @@ describe('MarsFirstBudget', () => {
       expect(recordsOf(t.parliament, t.human).map((o) => o.step), 'the human\'s money comes after the bot\'s city').deep.eq([LEVY_STEP_KEY, 'megacredits']);
       const closed = t.game.board.getAdjacentSpaces(t.game.board.getSpaceOrThrow(record.space!)).map((s) => s.id);
       expect(cityPrompt(t.human).spaces.map((s) => s.id).filter((id) => closed.includes(id) || id === record.space)).deep.eq([]);
-      expect(allRecords(t.parliament).filter((o) => o.kind !== 'reaction').map((o) => o.player)).deep.eq([t.bot.id, t.human.id, t.human.id]);
+      // The bot's whole seat first — its levy, its payout, its city (D16) — then the human's.
+      expect(allRecords(t.parliament).filter((o) => o.kind !== 'reaction').map((o) => o.player)).deep.eq([t.bot.id, t.bot.id, t.bot.id, t.human.id, t.human.id]);
     });
 
     it('no legal cell — a named skip for the bot as for the human, and NO Failed Action', () => {
@@ -513,7 +525,7 @@ describe('MarsFirstBudget', () => {
       const botCash = intoTheSitting(t);
       expect(outcomeOf(t.parliament, t.human, CITY)).deep.include({kind: 'skipped', reason: TILE_GRANT_NO_SPACE_REASON});
       expect(botRecords(t)).deep.eq([{player: t.bot.id, step: CITY, part: 'effect', kind: 'skipped', influence: t.parliament.influence(t.bot), reason: TILE_GRANT_NO_SPACE_REASON}]);
-      expect(t.bot.megaCredits, 'a law is not a printed icon — no Failed Action compensation').eq(botCash);
+      expect(t.bot.megaCredits, 'a law is not a printed icon — no Failed Action compensation').eq(botCash + botMoneyDelta(t));
     });
 
     it('a human\'s Tharsis Republic answers the bot\'s city like any other city on Mars', () => {
@@ -544,7 +556,8 @@ describe('MarsFirstBudget', () => {
       runAllActions(live);
       settleParliamentGates(live);
       expect(botCities(), 'one city, never two').eq(1);
-      expect(allRecords(live.parliament!).filter((o) => o.player === bot.id)).has.length(1);
+      // Its levy, its payout and its city — each once, a reload paying nothing twice (D16).
+      expect(allRecords(live.parliament!).filter((o) => o.player === bot.id)).has.length(3);
     });
 
     it('mode \'none\' — the bot takes no seat of anything: no city, no record', () => {
@@ -557,11 +570,11 @@ describe('MarsFirstBudget', () => {
       expect(t.game.board.spaces.filter((s) => s.player?.id === t.bot.id && Board.isCitySpace(s))).has.length(0);
     });
 
-    it('the model: the bot\'s seat takes the tile and is paid nothing; under \'none\' it takes neither', () => {
+    it('the model: the bot\'s seat takes the tile and is PAID by its own counts (D16); under \'none\' it takes neither', () => {
       const politics = seated('politics');
       const seat = getParliamentModel(politics.game, politics.human)!.players.find((p) => p.color === politics.bot.color)!;
-      expect(seat).deep.include({participates: true, enactment: false, seatGrant: true});
-      expect(seat.counts, 'no payout count for a seat the law does not pay').is.undefined;
+      expect(seat).deep.include({participates: true, enactment: true, seatGrant: true});
+      expect(seat.counts, 'its own counts — its tracks for the tags').is.not.undefined;
       const none = seated('none');
       const quiet = getParliamentModel(none.game, none.human)!.players.find((p) => p.color === none.bot.color);
       expect(quiet === undefined || quiet.seatGrant === false).is.true;

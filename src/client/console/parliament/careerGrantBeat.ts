@@ -60,8 +60,6 @@ export type CareerWalkOwed = {
   generation: number;
   /** The walk is the viewer's own — its bonus lands on the viewer's rail / dock. */
   viewer: boolean;
-  /** What a seat with no hand took instead of a card step (MarsBot: 1 M€ each) — the band names it. */
-  megacredits?: number;
 };
 
 /** What the beat is doing — read by the band (whose step the line names) and the e2e probes. */
@@ -112,7 +110,6 @@ export function detectNewCareerWalks(before: PlayerViewModel | undefined, after:
       steps: walk.steps.map((step) => ({...step})),
       generation: phase.generation,
       viewer: outcome.player === viewer,
-      ...(outcome.megacredits === undefined ? {} : {megacredits: outcome.megacredits}),
     });
   }
   return out;

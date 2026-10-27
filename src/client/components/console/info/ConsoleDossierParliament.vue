@@ -61,7 +61,7 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PARLIAMENT_AGENDA_STEPS, ReduxParty} from '@/common/parliament/ParliamentTypes';
-import {SeatParliamentReadingVm, BOT_PARLIAMENT_NOTE, BOT_POLITICS_NOTE} from '@/client/console/parliament/seatParliamentReading';
+import {SeatParliamentReadingVm, BOT_PARLIAMENT_NOTE} from '@/client/console/parliament/seatParliamentReading';
 import {dossierLadder, DossierLadderPip} from '@/client/console/infoDossierModel';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
@@ -79,7 +79,7 @@ export default defineComponent({
   },
   computed: {
     botNote(): string {
-      return this.reading.botPolitical ? BOT_POLITICS_NOTE : BOT_PARLIAMENT_NOTE;
+      return BOT_PARLIAMENT_NOTE;
     },
     steps(): number {
       return PARLIAMENT_AGENDA_STEPS;

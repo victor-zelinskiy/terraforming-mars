@@ -411,7 +411,7 @@ describe('RedsBudget', () => {
     });
   });
 
-  describe('MarsBot — a seat of the step, never of the money (decisions D3 + D11)', () => {
+  describe('MarsBot — a seat of the step AND of the money (decisions D11 + D16)', () => {
     type Table = {game: IGame; human: TestPlayer; bot: IPlayer; parliament: Parliament};
 
     function seated(mode: 'politics' | 'none' = 'politics', arrange?: (t: Table) => void): Table {
@@ -445,22 +445,30 @@ describe('RedsBudget', () => {
       return before;
     }
 
+    /** The bot's DEED records (its step of the Career) — its levy and its payout (D16) are read apart. */
     function botRecords(t: Table): Array<SerializedEnactOutcome> {
-      return allRecords(t.parliament).filter((o) => o.player === t.bot.id);
+      return allRecords(t.parliament).filter((o) => o.player === t.bot.id && !o.step.startsWith('bot:') && o.step !== LEVY_STEP_KEY);
     }
 
-    it('never levied, never paid — and it walks its own step IN ITS PLACE after the human: a card step is 1 M€ (the Automa FAQ)', () => {
+    /** What the bot's money records moved, in M€ (the levy negative, the payout's hidden M€ positive — D16). */
+    function botMoneyDelta(t: Table): number {
+      return allRecords(t.parliament)
+        .filter((o) => o.player === t.bot.id && (o.step.startsWith('bot:') || o.step === LEVY_STEP_KEY))
+        .reduce((sum, o) => sum + (o.megacredits ?? 0) + (o.step === LEVY_STEP_KEY && o.amount !== undefined && o.amount < 0 ? o.amount : 0), 0);
+    }
+
+    it('levied and paid like every seat (D16) — and it walks its own step IN ITS PLACE after the human: a card step is 1 M€ under the hood', () => {
       const t = seated('politics', ({parliament, bot}) => parliament.agenda.set(bot.id, 6));
       const before = intoTheSitting(t);
-      expect(botRecords(t), 'the step alone — no levy, no payout').deep.eq([{
-        player: t.bot.id, step: STEP, part: 'effect', kind: 'agenda', influence: 3, amount: 1, walk: {from: 6, to: 7, steps: [{to: 7, bonus: 'card'}]}, megacredits: 1,
+      expect(botRecords(t), 'the step').deep.eq([{
+        player: t.bot.id, step: STEP, part: 'effect', kind: 'agenda', influence: 3, amount: 1, walk: {from: 6, to: 7, steps: [{to: 7, bonus: 'card'}]}, megacredits: 1, drawn: 1,
       }]);
       expect(t.parliament.agendaOf(t.bot)).eq(7);
-      expect(t.bot.megaCredits, 'no levy, no payout — the card step\'s 1 M€ alone').eq(before.cash + 1);
-      expect(t.game.gameLog.filter((e) => e.message === '${0} gains 1 M€ from the Agenda track instead of a card')).has.length(1);
-      // The human's three parts first (generation order), then the bot's step.
+      expect(t.bot.megaCredits, 'the levy, the payout and the card step\'s 1 M€').eq(before.cash + 1 + botMoneyDelta(t));
+      expect(t.game.gameLog.filter((e) => e.message === '${0} draws ${1} card(s) from the Agenda track')).has.length(1);
+      // The human's three parts first (generation order), then the bot's: its levy, its payout, its step.
       expect(allRecords(t.parliament).filter((o) => o.kind !== 'reaction').map((o) => `${o.player === t.bot.id ? 'bot' : 'human'}:${o.step}`)).deep.eq([
-        `human:${LEVY_STEP_KEY}`, 'human:megacredits', `human:${STEP}`, `bot:${STEP}`,
+        `human:${LEVY_STEP_KEY}`, 'human:megacredits', `human:${STEP}`, `bot:${LEVY_STEP_KEY}`, 'bot:bot:megacredits', `bot:${STEP}`,
       ]);
       expect(t.bot.getWaitingFor()).is.undefined;
       settleParliamentGates(t.game);
@@ -472,7 +480,7 @@ describe('RedsBudget', () => {
       const before = intoTheSitting(t);
       expect(botRecords(t)[0]).deep.include({kind: 'agenda', walk: {from: 3, to: 4, steps: [{to: 4, bonus: 'tr'}]}, tr: 1});
       expect(t.bot.terraformRating).eq(before.rating + 1);
-      expect(t.bot.megaCredits).eq(before.cash);
+      expect(t.bot.megaCredits).eq(before.cash + botMoneyDelta(t));
       expect(t.bot.terraformRatingSources.some((s) => s.sourceName === 'Agenda track')).is.true;
     });
 
@@ -482,7 +490,7 @@ describe('RedsBudget', () => {
         game.overrideFirstPlayer(bot);
       });
       intoTheSitting(t);
-      expect(allRecords(t.parliament).filter((o) => o.kind !== 'reaction').map((o) => (o.player === t.bot.id ? 'bot' : 'human'))).deep.eq(['bot', 'human', 'human', 'human']);
+      expect(allRecords(t.parliament).filter((o) => o.kind !== 'reaction').map((o) => (o.player === t.bot.id ? 'bot' : 'human'))).deep.eq(['bot', 'bot', 'bot', 'human', 'human', 'human']);
       const walks = t.game.events.events.filter((e) => e.type === 'agenda-advanced' && e.impact.agenda?.reason === 'resolution');
       expect(walks.map((e) => e.player)).deep.eq([t.bot.color, t.human.color]);
       expect(walks[0].source, 'the law is the source of the bot\'s walk too').deep.include({kind: 'resolution', id: REDS_BUDGET_ID, owner: t.bot.color});
@@ -494,7 +502,7 @@ describe('RedsBudget', () => {
       expect(botRecords(t)).deep.eq([{
         player: t.bot.id, step: STEP, part: 'effect', kind: 'skipped', influence: 5, amount: 0, walk: {from: 12, to: 12, steps: []}, reason: AGENDA_GRANT_END_OF_TRACK_REASON,
       }]);
-      expect(t.bot.megaCredits).eq(before.cash);
+      expect(t.bot.megaCredits).eq(before.cash + botMoneyDelta(t));
     });
 
     it('a bot WINNER walks TWICE — its winner\'s step (\'phase\') and the law\'s (\'resolution\'); the winner pass pays nothing more', () => {
@@ -546,11 +554,11 @@ describe('RedsBudget', () => {
       expect(t.parliament.agendaOf(t.bot)).eq(3);
     });
 
-    it('the model: the bot\'s seat performs the grant and is paid nothing; under \'none\' it performs neither', () => {
+    it('the model: the bot\'s seat performs the grant and is PAID by its own counts (D16); under \'none\' it performs neither', () => {
       const politics = seated('politics');
       const seat = getParliamentModel(politics.game, politics.human)!.players.find((p) => p.color === politics.bot.color)!;
-      expect(seat).deep.include({participates: true, enactment: false, seatGrant: true});
-      expect(seat.counts, 'no payout count for a seat the law does not pay').is.undefined;
+      expect(seat).deep.include({participates: true, enactment: true, seatGrant: true});
+      expect(seat.counts, 'its own counts — its tracks for the tags').is.not.undefined;
       const none = seated('none');
       const quiet = getParliamentModel(none.game, none.human)!.players.find((p) => p.color === none.bot.color);
       expect(quiet === undefined || quiet.seatGrant === false).is.true;

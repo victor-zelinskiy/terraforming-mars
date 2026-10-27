@@ -120,12 +120,11 @@ export type ResultsPayoutPart = {
   tr?: number;
   /**
    * A STEP OF THE CAREER a law granted the seat (Reds Budget, `agenda`): the marker's walk — the row reads
-   * «[insignia] 3 → 4» with what it paid beside it: `tr` above, the cards the card step dealt (`drawn`), or the M€ a
-   * seat with no hand took instead (`megacredits` — MarsBot).
+   * «[insignia] 3 → 4» with what it paid beside it: `tr` above, the cards the card step dealt (`drawn`) — MarsBot's
+   * included (its card is M€ under the hood, D16 — never a surface's business).
    */
   walk?: {from: number, to: number};
   drawn?: number;
-  megacredits?: number;
   /** The card a card resource landed on (one recipient). */
   card?: string;
   /**
@@ -420,9 +419,6 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
     }
     if (outcome.drawn !== undefined) {
       part.drawn = outcome.drawn;
-    }
-    if (outcome.megacredits !== undefined) {
-      part.megacredits = outcome.megacredits;
     }
   }
   if (outcome.card !== undefined) {

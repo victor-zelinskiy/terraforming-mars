@@ -53,10 +53,6 @@
           </span>
         </template>
       </ConsoleWsHead>
-      <!-- The Automa's table is EVERYTHING it flipped from its action deck —
-           an honest provenance line, one calm sentence under the head
-           (visible prose, never a hover-only hint). -->
-      <div v-if="viewedIsBot" class="con-played__provenance" v-i18n>Everything MarsBot flipped from its action deck this game</div>
 
       <div class="con-played__body" ref="body">
         <!-- THE CONTENT RENDERS ONCE, against the MEASURED body (PL-625): the body is a flex box whose size never depends

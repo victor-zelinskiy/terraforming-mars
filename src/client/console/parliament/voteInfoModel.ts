@@ -405,8 +405,9 @@ export function voteReadingOf(
     return quiet === undefined ? none : {...none, kicker: quiet.kicker, ...(uses === undefined ? {} : {uses})};
   }
   let note: string | undefined;
+  const everyUnitLands = model?.players.find((p) => p.color === subject)?.everyUnitLands === true;
   for (const effect of resolution.scaled ?? []) {
-    note = note ?? noRecipientCompactNoteOf(effect, tableau);
+    note = note ?? noRecipientCompactNoteOf(effect, tableau, everyUnitLands);
   }
   const ledger = colonyLedgerOf(resolution, model, viewer);
   // THE LEVY's warning — the seat holds less than the levy takes — is the panel's one honest note for a budget:

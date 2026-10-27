@@ -1114,8 +1114,9 @@ export function cardResourcePluralKey(resource: CardResource | undefined): strin
  * the formula still says «3 animals» while nothing would land. English key,
  * undefined when a recipient exists or the yield is not a card resource.
  */
-export function noRecipientNoteOf(effect: InfluenceScaledEffect, tableau: ReadonlyArray<{name: CardName}>): string | undefined {
-  if (effect.unit.kind !== 'cardResource') {
+export function noRecipientNoteOf(effect: InfluenceScaledEffect, tableau: ReadonlyArray<{name: CardName}>, everyUnitLands: boolean = false): string | undefined {
+  // MarsBot (`ParliamentPlayerModel.everyUnitLands`, D16): no tableau, and every unit lands — never a forfeit.
+  if (effect.unit.kind !== 'cardResource' || everyUnitLands) {
     return undefined;
   }
   // A unit of no declared kind lands on the cards it COUNTED — none counted is a zero its count names
@@ -1144,8 +1145,8 @@ export function holdsAnyOf(tableau: ReadonlyArray<{name: CardName}>, resources: 
  * reason for the case («No card can hold animals») — the sentence the game
  * would record, never a second wording. Undefined when a recipient exists.
  */
-export function noRecipientCompactNoteOf(effect: InfluenceScaledEffect, tableau: ReadonlyArray<{name: CardName}>): string | undefined {
-  if (effect.unit.kind !== 'cardResource' || noRecipientNoteOf(effect, tableau) === undefined) {
+export function noRecipientCompactNoteOf(effect: InfluenceScaledEffect, tableau: ReadonlyArray<{name: CardName}>, everyUnitLands: boolean = false): string | undefined {
+  if (effect.unit.kind !== 'cardResource' || noRecipientNoteOf(effect, tableau, everyUnitLands) === undefined) {
     return undefined;
   }
   return noRecipientReasonKey(declaredCardResourceKinds(effect.unit) ?? []);

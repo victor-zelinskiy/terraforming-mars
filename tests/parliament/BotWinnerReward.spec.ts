@@ -22,6 +22,7 @@ import {COLONY_CONTEST_ID, NO_COLONY_AVAILABLE} from '../../src/server/parliamen
 import {COLONIZATION_FUNDING_ID} from '../../src/server/parliament/resolutions/unity/ColonizationFunding';
 import {SKYSCRAPERS_ID} from '../../src/server/parliament/resolutions/marsFirst/Skyscrapers';
 import {SerializedEnactOutcome} from '../../src/server/parliament/SerializedParliament';
+import {LEVY_STEP_KEY} from '../../src/common/parliament/resolutionLevy';
 import {testAutomaGame} from '../automa/AutomaTestGame';
 import {TestPlayer} from '../TestPlayer';
 import {addCity, maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../TestingUtils';
@@ -84,8 +85,24 @@ function throughTheSitting(t: Table): void {
   expect(t.parliament.phase, 'the sitting ended').is.undefined;
 }
 
+/** A record of the bot's PAYOUT (D16 — its levy, its scaled parts), apart from the winner's part and the deeds. */
+function isBotPayout(o: SerializedEnactOutcome): boolean {
+  return o.step.startsWith('bot:') || o.step === LEVY_STEP_KEY;
+}
+
+/** The bot's WINNER part and DEEDS — what this spec is about; its ordinary payout is the seat's like everyone's. */
 function botRecords(t: Table): Array<SerializedEnactOutcome> {
-  return (t.parliament.lastPhase?.outcomes ?? []).filter((o) => o.player === t.bot.id);
+  return (t.parliament.lastPhase?.outcomes ?? []).filter((o) => o.player === t.bot.id && !isBotPayout(o));
+}
+
+/** The bot's ordinary payout records (D16). */
+function botPayouts(t: Table): Array<SerializedEnactOutcome> {
+  return (t.parliament.lastPhase?.outcomes ?? []).filter((o) => o.player === t.bot.id && isBotPayout(o));
+}
+
+/** The M€ the bot's ordinary payout moved under the hood (a levy's amount is negative). */
+function payoutMegacredits(t: Table): number {
+  return botPayouts(t).reduce((sum, o) => sum + (o.megacredits ?? 0) + (o.step === LEVY_STEP_KEY ? (o.amount ?? 0) : 0), 0);
 }
 
 describe('BotWinnerReward — the bot as the winning player', () => {
@@ -172,13 +189,14 @@ describe('BotWinnerReward — the bot as the winning player', () => {
       botWinsTheVote(t);
       throughTheSitting(t);
       expect(t.parliament.agendaOf(t.bot)).eq(7);
-      expect(t.bot.megaCredits).eq(mc + 1);
+      expect(t.bot.megaCredits).eq(mc + 1 + payoutMegacredits(t));
       expect(t.bot.cardsInHand.length).eq(hand);
-      expect(t.game.gameLog.some((m) => m.message === '${0} gains 1 M€ from the Agenda track instead of a card')).is.true;
+      // Under the hood 1 M€; the journal speaks the card, as for every seat (D16).
+      expect(t.game.gameLog.some((m) => m.message === '${0} draws ${1} card(s) from the Agenda track')).is.true;
       expect(t.parliament.lastPhase?.agenda?.bonus).eq('card');
     });
 
-    it('a law that pays every seat (Colonization Funding): the human is paid, the bot is not, the bot\'s Agenda still moved', () => {
+    it('a law that pays every seat (Colonization Funding): the human is paid, the bot TOO (D16 — M€ under the hood, the player\'s unit on the record)', () => {
       // The human's share is per influence (+ per space city): one step of the Agenda gives it influence 1.
       const t = seated(COLONIZATION_FUNDING_ID, ({parliament, human}) => parliament.agenda.set(human.id, 1));
       const humanProduction = t.human.production.megacredits;
@@ -191,6 +209,9 @@ describe('BotWinnerReward — the bot as the winning player', () => {
       const outcomes = t.parliament.lastPhase?.outcomes ?? [];
       expect(outcomes.some((o) => o.player === t.human.id && o.kind === 'production')).is.true;
       expect(botRecords(t)).deep.eq([]);
+      // The bot's influence 1 (its winner's Agenda step) pays it 1 step of M€ production — 2 M€ under the hood.
+      expect(botPayouts(t)).has.length(1);
+      expect(botPayouts(t)[0]).deep.include({kind: 'production', production: 'megacredits', amount: 1, megacredits: 2});
     });
 
     it('a NEUTRAL winner is as it always was: no Agenda, no reward, no bot pass', () => {
@@ -236,7 +257,8 @@ describe('BotWinnerReward — the bot as the winning player', () => {
       botWinsTheVote(t);
       throughTheSitting(t);
       expect(t.bot.terraformRating).eq(tr);
-      expect(t.bot.megaCredits).eq(0);
+      // The winner's part pays no M€ — only the seat's ordinary payout does (D16).
+      expect(t.bot.megaCredits).eq(payoutMegacredits(t));
       expect(botRecords(t)).deep.eq([{player: t.bot.id, step: 'ocean', part: 'winner', kind: 'skipped', reason: 'No ocean tile is left'}]);
     });
   });
@@ -283,7 +305,8 @@ describe('BotWinnerReward — the bot as the winning player', () => {
       expect(record).deep.include({step: 'colony', part: 'winner', kind: 'colony'});
       const built = t.game.colonies.find((colony) => colony.colonies.includes(t.bot.id))!;
       expect(record.colony).eq(built.name);
-      expect(t.bot.megaCredits).eq(0);
+      // The winner's part pays no M€ — only the seat's ordinary payout does (D16).
+      expect(t.bot.megaCredits).eq(payoutMegacredits(t));
     });
 
     it('no tile to build on (every tile inactive) → a named skip', () => {

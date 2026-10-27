@@ -119,8 +119,8 @@ function partsOf(
   paid: boolean,
 ): Array<LedgerPart> {
   const parts: Array<LedgerPart> = [];
-  // A seat the law does not PAY (MarsBot — D3) reads the DEEDS alone (D11 — a tile, a step of the Career): no yield,
-  // no levy is ever its.
+  // A seat the law does not PAY (an old save's observer bot) reads the DEEDS alone (D11 — a tile, a step of the Career):
+  // no yield, no levy is ever its. MarsBot under 'politics' IS paid (D16) and reads like every seat.
   if (!paid) {
     return [...tilePartsOf(resolution, model, color), ...careerPartsOf(resolution, model, color)];
   }
@@ -132,7 +132,7 @@ function partsOf(
   for (const y of yields) {
     const effect = y.effect;
     const icon = yieldIconOf(effect);
-    const nowhereToLand = noRecipientCompactNoteOf(effect, tableau) !== undefined;
+    const nowhereToLand = noRecipientCompactNoteOf(effect, tableau, model?.players.find((p) => p.color === color)?.everyUnitLands === true) !== undefined;
     if (levy !== undefined && levy.net !== undefined && levy.payout?.effectId === effect.id) {
       levyNetted = true;
       parts.push({

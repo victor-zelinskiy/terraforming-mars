@@ -58,6 +58,7 @@ import {InfluenceScaledEffect, scaledAmount} from '../../../../common/parliament
 import {PlacementLawPayoutModel} from '../../../../common/models/PlacementLawPayoutModel';
 import {BoardFact} from '../../../../common/boards/BoardInformationFacts';
 import {AresHandler} from '../../../ares/AresHandler';
+import {botCoveredIconMegacredits} from '../../../automa/AutomaPlacementBonus';
 import {IPlayer} from '../../../IPlayer';
 import {Space} from '../../../boards/Space';
 import {EnactStep, ResolutionDefinition, TilePlacementBonusContext} from '../IResolution';
@@ -126,7 +127,15 @@ export function repeatPlacementBonuses(player: IPlayer, space: Space, placement:
   }
   game.log('${0} receives the placement bonuses of the tile a second time — ${1}', (b) => b.player(player).resolution(DEVELOPMENT_CRAZE_ID));
   if (printedPaid) {
-    game.grantSpaceBonuses(player, space);
+    if (player.isMarsBot === true) {
+      // MarsBot's placement bonus IS 1 M€ per covered icon (rulebook p.9) — the law repeats that (D16).
+      const icons = botCoveredIconMegacredits(game, space);
+      if (icons > 0) {
+        player.stock.add(Resource.MEGACREDITS, icons, {log: false, from: {resolution: DEVELOPMENT_CRAZE_ID}});
+      }
+    } else {
+      game.grantSpaceBonuses(player, space);
+    }
   }
   const ocean = game.grantOceanAdjacencyBonus(player, space);
   AresHandler.ifAres(game, () => AresHandler.earnAdjacencyBonuses(player, space));

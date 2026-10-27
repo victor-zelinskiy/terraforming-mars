@@ -49,7 +49,7 @@ async function shoot(page: Page, preset: string, name: string): Promise<void> {
   await page.screenshot({path: path.join(dir, `${name}.png`)});
 }
 
-type SeatWire = {color: string, participates: boolean, enactment?: boolean, lobby: boolean, reserve: number, agenda: number, chairman: boolean};
+type SeatWire = {color: string, participates: boolean, enactment?: boolean, everyUnitLands?: boolean, lobby: boolean, reserve: number, agenda: number, chairman: boolean};
 type BotWire = {
   waitingFor?: {type: string, promptId?: number, options?: Array<{title: string | {message: string}}>},
   thisPlayer: {color: string},
@@ -67,9 +67,9 @@ type BotWire = {
 
 const wireOf = async (request: APIRequestContext, id: string): Promise<BotWire> => await fetchPlayerModel(request, id) as unknown as BotWire;
 
-/** The bot's seat: it holds delegates and is never paid by an enactment (D3). */
+/** The bot's seat: it holds delegates and is paid like every seat (D16 — every unit lands). */
 function botSeatOf(wire: BotWire): SeatWire {
-  const seat = wire.game.parliament?.players.find((p) => p.participates && p.enactment === false);
+  const seat = wire.game.parliament?.players.find((p) => p.participates && p.everyUnitLands === true);
   expect(seat, 'a MarsBot seat that holds delegates').toBeDefined();
   return seat!;
 }
@@ -355,7 +355,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       await expect(botRow, 'the bot\'s reward is a row of its own').toHaveCount(1);
       await expect(botRow.locator('.con-sit__door-tile--ocean'), 'the ocean it placed').toHaveCount(1);
       await expect(botRow.locator('[data-sit-part-parameter][data-sit-part-param="oceans"]'), 'with the count it moved').toContainText(/0\s*→\s*1/);
-      await expect(botRow.locator('[data-sit-part-amount]'), 'a tile has no amount — never a bare «0»').toHaveCount(0);
+      // The TILE part has no amount — never a bare «0» (its payout parts beside it carry theirs, D16).
+      await expect(botRow.locator('[data-sit-part]:has(.con-sit__door-tile--ocean) [data-sit-part-amount]'), 'a tile has no amount — never a bare «0»').toHaveCount(0);
       await expect(botRow.locator('[data-sit-payout-none]'), 'never «no reward» for a seat that took its part').toHaveCount(0);
       const sit = await readSit();
       expect(sit.texts.filter((t) => /Ваша награда|Your reward/i.test(t)), 'the spectator is never shown «Ваша награда»').toEqual([]);

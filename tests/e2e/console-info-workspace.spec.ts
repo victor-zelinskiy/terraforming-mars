@@ -386,7 +386,8 @@ for (const preset of PRESETS) {
       await key(page, 'Enter', 900);
       const embeddedBot = page.locator('.con-info .con-played--embedded');
       await expect(embeddedBot).toHaveCount(1);
-      await expect(embeddedBot.locator('.con-played__provenance')).toBeVisible();
+      // The bot's table reads like a player's (D16 — no provenance prose): its corporation on the first stack.
+      await expect(embeddedBot.locator('.con-played__botcorp').first()).toBeVisible();
       await shoot(page, preset, '06-bot-played');
       await key(page, 'Escape', 800);
       await expect(page.locator('.con-info .con-played--embedded')).toHaveCount(0);
@@ -397,7 +398,6 @@ for (const preset of PRESETS) {
       await cycleTo(page, 'human');
       await key(page, 'Enter', 900);
       await expect(page.locator('.con-info .con-played--embedded')).toHaveCount(1);
-      await expect(page.locator('.con-info .con-played__provenance')).toHaveCount(0);
       await shoot(page, preset, '07-played-human');
       // SMART OPEN: the корпорация zone holds ONE card → A goes straight
       // to fullscreen, carrying the PROVENANCE plate.
@@ -437,7 +437,7 @@ for (const preset of PRESETS) {
       await key(page, 'KeyE', 800);
       // The seat is the table's crumb SUBJECT (РАЗЫГРАНО › Бот) since TR65 — the one place the name is said.
       await expect(page.locator('.con-played .con-wshead__subject')).toHaveText('Бот');
-      await expect(page.locator('.con-played__provenance')).toBeVisible();
+      await expect(page.locator('.con-played__botcorp').first()).toBeVisible();
       await key(page, 'Escape', 800);
       await expect(page.locator('.con-played')).toHaveCount(0);
 

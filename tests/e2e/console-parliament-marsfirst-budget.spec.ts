@@ -288,12 +288,12 @@ for (const preset of PRESETS) {
         await expect(grantRoot.first()).toHaveAttribute('data-grant-eligibility', 'everyone');
         await expect(page.locator('[data-parl-vote-grant] .con-tgrant__tile--base'), 'no city to stack on').toHaveCount(0);
         await expect(page.locator('[data-parl-vote-grant] [data-grant-answer]'), 'Mars First\'s answer beside the city').toHaveAttribute('data-grant-answer-party', 'Mars First');
-        // THE LEDGER: blue's chip (the net, then the tile) and the BOT's — the tile alone.
+        // THE LEDGER: blue's chip (the net, then the tile) and the BOT's — the same two parts (D16: paid like every seat).
         const ledger = page.locator('[data-parl-vote-ledger-row]');
         await expect(ledger, 'the ledger of outcomes').toHaveCount(1);
         const botChip = ledger.locator('[data-ledger-seat]:not([data-ledger-you])');
         await expect(botChip, 'the bot\'s chip stands').toHaveCount(1);
-        await expect(botChip.locator('[data-ledger-part]'), 'the tile alone — never a payout').toHaveCount(1);
+        await expect(botChip.locator('[data-ledger-part]'), 'its net in M€, then its tile — as every seat').toHaveCount(2);
         await expect(botChip.locator('[data-ledger-part="tile"]')).toHaveCount(1);
         await expect(ledger.locator('[data-ledger-you] [data-ledger-part="tile"]'), 'blue\'s chip carries the city too').toHaveCount(1);
         await expectParliamentFits(page, `${preset.id} vote`);
@@ -395,9 +395,9 @@ for (const preset of PRESETS) {
       // ── ③ THE BOT'S CITY: on the cell its rule names, recorded AFTER blue's, and LANDING on the board blue sees.
       const afterBlue = await wireOf(request, playerId);
       const records = outcomesOf(afterBlue).filter((o) => o.kind !== 'reaction');
-      expect(records.map((o) => `${o.player === blue ? 'blue' : 'bot'}:${o.step}`), 'blue\'s three parts, then the bot\'s city').toEqual(
-        ['blue:levy', 'blue:megacredits', 'blue:city', 'bot:city']);
-      expect(records[3]).toMatchObject({kind: 'city', part: 'effect', space: site});
+      expect(records.map((o) => `${o.player === blue ? 'blue' : 'bot'}:${o.step}`), 'blue\'s three parts, then the bot\'s three (D16)').toEqual(
+        ['blue:levy', 'blue:megacredits', 'blue:city', 'bot:levy', 'bot:bot:megacredits', 'bot:city']);
+      expect(records[5]).toMatchObject({kind: 'city', part: 'effect', space: site});
       expect(afterBlue.game.spaces.find((s) => s.id === site)?.tileType, 'a city on the bot\'s site').toBe(CITY);
       // The bot's city PAINTS on the board blue sees (any sample since blue's commit — the sitting may already be back).
       await expect.poll(async () => (await readProbe(page)).samples.some((s, i) => i >= blueLandingAt && s.botCity), {
@@ -456,17 +456,18 @@ for (const preset of PRESETS) {
       await expect(blueRow.locator('[data-sit-part]'), 'blue: levy · payout · city · the party\'s steel').toHaveCount(4);
       await expect(blueRow.locator('[data-sit-part="city"]')).toHaveCount(1);
       const botRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${bot.color}"]`);
-      await expect(botRow.locator('[data-sit-part]'), 'the bot: its city — nothing else').toHaveCount(1);
+      await expect(botRow.locator('[data-sit-part]'), 'the bot: levy · payout · city — as every seat (D16)').toHaveCount(3);
       await expect(botRow.locator('[data-sit-part="city"]')).toHaveCount(1);
       await expectParliamentFits(page, `${preset.id} results`);
       await shoot(page, preset.id, '07-results');
 
-      // ── SERVER TRUTH: one city each; blue's money −12 + 4 (+ what its cell paid); the bot's money untouched.
+      // ── SERVER TRUTH: one city each; blue's money −12 + 4 (+ what its cell paid); the bot's by its own records.
       const end = await wireOf(request, playerId);
       expect(end.thisPlayer.citiesCount).toBe(1);
       expect(end.players.find((p) => p.color === bot.color)?.citiesCount, 'the bot\'s one city').toBe(1);
       expect(end.thisPlayer.megacredits, 'blue: 20 − 12 + 4 — the cell paid no money').toBe(12);
-      expect(end.players.find((p) => p.color === bot.color)?.megacredits, 'the bot: never levied, never paid, no Failed Action').toBe(bot.megacredits);
+      const botMoney = records.filter((o) => o.player !== blue && o.kind === 'stock').reduce((sum, o) => sum + (o.amount ?? 0), 0);
+      expect(end.players.find((p) => p.color === bot.color)?.megacredits, 'the bot: its levy and its payout, no Failed Action').toBe(bot.megacredits + botMoney);
       expect(await strandedReports(page), 'nothing stranded').toEqual([]);
       await closeSitting(page, request, playerId);
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
@@ -500,11 +501,12 @@ for (const preset of PRESETS) {
       await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.type, {timeout: 60_000, message: 'blue\'s city is asked'}).toBe('space');
       const asked = await wireOf(request, playerId);
       const order = outcomesOf(asked).filter((o) => o.kind !== 'reaction').map((o) => `${o.player === blue ? 'blue' : 'bot'}:${o.step}`);
-      // The seat loop walks the order: the bot's whole part (its city) first, then blue's money — all before blue is asked.
-      // The SCREEN reads the printed order — the money (everyone's), then the cities clockwise: blue's wave, then the
-      // bot's city, then blue's door.
-      expect(order, 'the bot\'s city, then blue\'s money — recorded before blue is asked').toEqual(['bot:city', 'blue:levy', 'blue:megacredits']);
-      expect(outcomesOf(asked).find((o) => o.player === bot.color)).toMatchObject({kind: 'city', part: 'effect', space: site});
+      // The seat loop walks the order: the bot's whole part (its money, its city — D16) first, then blue's money — all
+      // before blue is asked. The SCREEN reads the printed order — the money (everyone's), then the cities clockwise:
+      // blue's wave, then the bot's city, then blue's door.
+      expect(order, 'the bot\'s money and city, then blue\'s money — recorded before blue is asked').toEqual(
+        ['bot:levy', 'bot:bot:megacredits', 'bot:city', 'blue:levy', 'blue:megacredits']);
+      expect(outcomesOf(asked).find((o) => o.player === bot.color && o.kind === 'city')).toMatchObject({kind: 'city', part: 'effect', space: site});
 
       // ── THE WORLD BEAT: the bot's city paints on the board the sitting stepped aside for…
       await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.botCity), {
@@ -583,11 +585,12 @@ for (const preset of PRESETS) {
       const blueRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${blue}"]`);
       await expect(blueRow.locator('[data-sit-part]'), 'blue: levy · payout · city · the party\'s steel').toHaveCount(4);
       const botRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${bot.color}"]`);
-      await expect(botRow.locator('[data-sit-part]'), 'the bot: its city — nothing else').toHaveCount(1);
+      await expect(botRow.locator('[data-sit-part]'), 'the bot: levy · payout · city — as every seat (D16)').toHaveCount(3);
       await shoot(page, preset.id, '08f-botfirst-results');
       const end = await wireOf(request, playerId);
       expect(end.players.find((p) => p.color === bot.color)?.citiesCount, 'the bot\'s one city').toBe(1);
-      expect(end.players.find((p) => p.color === bot.color)?.megacredits, 'the bot: never levied, never paid').toBe(bot.megacredits);
+      const botMoney = outcomesOf(end).filter((o) => o.player === bot.color && o.kind === 'stock').reduce((sum, o) => sum + (o.amount ?? 0), 0);
+      expect(end.players.find((p) => p.color === bot.color)?.megacredits, 'the bot: its levy and its payout').toBe(bot.megacredits + botMoney);
       expect(await strandedReports(page), 'nothing stranded').toEqual([]);
       await closeSitting(page, request, playerId);
     });

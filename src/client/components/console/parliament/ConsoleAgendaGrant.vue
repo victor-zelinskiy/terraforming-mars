@@ -48,7 +48,6 @@
         <template v-else>
           <b class="con-agrant__amount">+1</b>
           <i class="con-agrant__unit" :class="giftClass(step.gift)" aria-hidden="true"></i>
-          <span v-if="step.gift.kind === 'megacredits'" class="con-agrant__instead">{{ $t('instead of a card') }}</span>
         </template>
       </span>
       <span v-if="variant === 'inline' && caption !== ''" class="con-agrant__caption con-agrant__caption--inline" data-agenda-caption>{{ caption }}</span>
@@ -100,11 +99,10 @@ export default defineComponent({
     /** The steps the body draws: the record's walk once applied, else what the law's step(s) give from here. */
     steps(): Array<ShownStep> {
       const reading = this.reading;
-      const noHand = reading.noHand === true;
       if (reading.walked !== undefined) {
-        return reading.walked.steps.map((step) => ({to: step.to, gift: agendaStepGiftOf(step, noHand)}));
+        return reading.walked.steps.map((step) => ({to: step.to, gift: agendaStepGiftOf(step)}));
       }
-      return (reading.ahead ?? []).map((step) => ({to: step.to, gift: agendaStepGiftOf(step, noHand)}));
+      return (reading.ahead ?? []).map((step) => ({to: step.to, gift: agendaStepGiftOf(step)}));
     },
     firstStep(): ShownStep | undefined {
       return this.steps[0];
@@ -117,8 +115,7 @@ export default defineComponent({
       if (!this.withWin || this.reading.ifWin === undefined) {
         return [];
       }
-      const noHand = this.reading.noHand === true;
-      return this.reading.ifWin.map((step) => ({to: step.to, gift: agendaStepGiftOf(step, noHand)}));
+      return this.reading.ifWin.map((step) => ({to: step.to, gift: agendaStepGiftOf(step)}));
     },
     winLabel(): string {
       const key = agendaGrantWinKey(this.reading, this.person);
@@ -141,7 +138,6 @@ export default defineComponent({
       switch (gift.kind) {
       case 'tr': return iconClassFor('tr');
       case 'card': return iconClassFor('cards');
-      case 'megacredits': return iconClassFor('megacredits');
       case 'influence': return '';
       }
     },

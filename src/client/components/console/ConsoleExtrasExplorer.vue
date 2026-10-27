@@ -96,12 +96,7 @@
                 <b class="con-exr__botpool-amount">{{ h.amount }}</b>
               </div>
             </div>
-            <!-- The rule notes are per SOURCE KIND (one line each): the
-                 shipping-board steal/remove law holds for the ordinary
-                 storage areas only — Pluto's science area is deliberately
-                 outside it (RB-C p.5), and the floater pool / a corp
-                 card's store spend by their own printed rules. -->
-            <div v-for="note in botNotes" :key="note" class="con-exr__botnote">{{ note }}</div>
+            <!-- How each store spends is the bot's mechanics — told on «Экран бота» only (D16: the bot reads as a player). -->
           </div>
 
           <!-- ── THE FACT STRIP: the focused card's whole story in one fixed
@@ -139,7 +134,6 @@
       <i class="con-exr__void-mark" aria-hidden="true">◇</i>
       <template v-if="viewedIsBot">
         <div class="con-exr__void-title">{{ $t('No stored resources yet') }}</div>
-        <div class="con-exr__void-body">{{ $t('The bot\'s floaters and shipping storage will appear here') }}</div>
       </template>
       <template v-else>
         <div class="con-exr__void-title">{{ $t('No cards that can hold resources') }}</div>
@@ -377,24 +371,6 @@ export default defineComponent({
       const badge = this.selected?.payment;
       return badge !== undefined ?
         translateTextWithParams('Pays: 1 = ${0} M€', [badge.text]) : '';
-    },
-    /** The bot fill's rule notes — one honest line per source kind. */
-    botNotes(): Array<string> {
-      const kinds = this.selected?.botNotes ?? [];
-      return kinds.map((kind) => {
-        switch (kind) {
-        case 'storage':
-          return translateText('Shipping storage — human effects can target it by type');
-        case 'pluto':
-          return translateText('Pluto storage area — 5 resources convert into a Science track step; human effects cannot target it');
-        case 'pool':
-          return translateText('One shared pool — 5 floaters convert into an extra action-deck card during the Research phase');
-        case 'corp':
-          return translateText('Stored on the corporation card — spent by its printed rule');
-        default:
-          return '';
-        }
-      }).filter((s) => s !== '');
     },
     detailNowText(): string {
       const s = this.focusedCard?.scoring;

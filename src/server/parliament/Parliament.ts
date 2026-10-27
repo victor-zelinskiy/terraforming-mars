@@ -14,6 +14,7 @@
  */
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
+import type {ICard} from '../cards/ICard';
 import {PlayerId} from '../../common/Types';
 import {CardName} from '../../common/cards/CardName';
 import {PartyName} from '../../common/turmoil/PartyName';
@@ -322,6 +323,20 @@ export class Parliament {
 
   public enactedDefinition(): ResolutionDefinition | undefined {
     return this.enacted === undefined ? undefined : this.resolutionOf(this.enacted);
+  }
+
+  /**
+   * MARSBOT RESOLVED A PROJECT CARD (D16) — the standing law's answer to a play, the bot's twin of the human's
+   * `ParliamentHandler.onCardPlayed` passive (the quest is reported by `BotQuestEvents` beside the call). Called
+   * through the game's instance by `AutomaResolver`, never a static import (the parliament's modules load the cards).
+   */
+  public onBotCardResolved(bot: IPlayer, card: ICard): void {
+    const enacted = this.enactedDefinition();
+    const hook = enacted?.passive?.onCardPlayed;
+    if (enacted === undefined || hook === undefined || !this.participates(bot, 'payout')) {
+      return;
+    }
+    bot.game.events.withEffectSource(bot, {kind: 'resolution', id: enacted.id, owner: bot.color}, 'card-played', () => hook(bot, card));
   }
 
   public enactedInstanceOrThrow(): ResolutionInstanceId {

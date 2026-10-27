@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {LEVY_STEP_KEY} from '../../src/common/parliament/resolutionLevy';
 import {seatGrantsOf} from '../../src/server/parliament/resolutions/SeatGrants';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -539,7 +540,7 @@ describe('ParliamentPhase', () => {
      * never a seat a law pays. What its votes do is the political specs'
      * business (`AutomaPartyPolitics`, `AutomaLobbying`, `BotVoteChooser`).
      */
-    it('plays several generations: the bot holds its delegates, is never asked, is never paid, and the ledger holds after every sitting', () => {
+    it('plays several generations: the bot holds its delegates, is never asked, is paid through its own adapter only (D16), and the ledger holds after every sitting', () => {
       const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'politics'});
       const parliament = game.parliament!;
       expect(parliament.participates(bot, 'delegates')).is.true;
@@ -607,12 +608,17 @@ describe('ParliamentPhase', () => {
         // record under each deed's step is not a payout. Nothing else of the law is ever the bot's.
         const enacted = parliament.lastPhase === undefined ? undefined : parliament.resolutionOf(parliament.lastPhase.enacted);
         const deedKeys = enacted === undefined ? [] : seatGrantsOf(enacted).map((deed) => deed.key);
+        // …and since D16 the law PAYS and LEVIES the bot like every seat — through its own adapter only: its seat
+        // records are the levy, its `bot:` payouts and the deeds, never a human step of the law.
         const botSeatRecords = (parliament.lastPhase?.outcomes ?? []).filter((o) => o.part !== 'winner' && o.player === bot.id);
-        expect(botSeatRecords.filter((o) => !deedKeys.includes(o.step)).map((o) => o.step), `the law paid the bot in generation ${generation}`).deep.eq([]);
+        const isMoney = (step: string) => step.startsWith('bot:') || step === LEVY_STEP_KEY;
+        expect(botSeatRecords.filter((o) => !deedKeys.includes(o.step) && !isMoney(o.step)).map((o) => o.step), `a human step of the law ran for the bot in generation ${generation}`).deep.eq([]);
         expect(botSeatRecords.filter((o) => o.kind === 'reaction'), 'the ruling party never answers the bot').deep.eq([]);
         const botDidADeed = botSeatRecords.some((o) => o.kind === 'city' || o.kind === 'agenda');
+        const moneyDelta = botSeatRecords.filter((o) => isMoney(o.step))
+          .reduce((sum, o) => sum + (o.megacredits ?? 0) + (o.step === LEVY_STEP_KEY && o.amount !== undefined && o.amount < 0 ? o.amount : 0), 0);
         if (!botWon && !botDidADeed) {
-          expect(bot.megaCredits, `the sitting changed the bot's M€ in generation ${generation}`).eq(botMegacredits);
+          expect(bot.megaCredits, `the sitting moved the bot's M€ by more than its payout in generation ${generation}`).eq(botMegacredits + moneyDelta);
           expect(bot.terraformRating, `the sitting changed the bot's TR in generation ${generation}`).eq(botTr);
         }
         botWins += botWon ? 1 : 0;

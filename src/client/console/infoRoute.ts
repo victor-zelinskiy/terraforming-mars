@@ -124,10 +124,11 @@ export function infoRouteApplies(route: InfoRouteId, kind: InfoParticipantKind):
   switch (route) {
   case 'actions':
   case 'effects':
-  case 'parliament':
-    // MarsBot takes no part in the parliament (`BotParliamentMode`): there is no standing to read,
-    // so the zone states that in one line and the route does not apply.
+    // The bot plays no activatable card and holds no standing effect: nothing to list.
     return kind === 'human';
+  case 'parliament':
+    // MarsBot sits in the parliament like every player (D16 — it votes, is paid, walks the Career): its standing reads.
+    return true;
   case 'botScreen':
   case 'botBoard':
   case 'botBonus':

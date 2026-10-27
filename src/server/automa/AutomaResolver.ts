@@ -54,6 +54,12 @@ export class AutomaResolver {
     // chairman quest BEFORE any tag does anything — a Failed Action never
     // cancels a card that was played.
     BotQuestEvents.cardPlayed(game, card);
+    // …and a standing law that answers a play answers the bot's too (D16 — Urban Development's Building tags):
+    // through the game's parliament instance (no static import — the parliament's modules load the cards).
+    const bot = game.players.find((p) => p.isMarsBot);
+    if (bot !== undefined) {
+      game.parliament?.onBotCardResolved(bot, card);
+    }
     if (printed.length === 0) {
       failedAction(game, 'no-tags');
       return;
