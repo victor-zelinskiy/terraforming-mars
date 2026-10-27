@@ -23,7 +23,7 @@
   - `draftPriority?`, `resource?` (`'plant' | 'science'`), `corpBonusCards`, `trackCubes?` + `cubeLegend?`;
   - `sections` — печатные боксы в печатном порядке (EN-ключи + `params`, иконки из общего словаря).
 - [ ] Новые счётчики статистики — в docstring `MarsBotCorpStats` (закрытый словарь; инсайт работает со структурой, не с текстом).
-- [ ] `src/common/automa/MarsBotDividendData.ts` → бокс «Дивиденды» (`dividendBox(name, rates, lines)` — Record по всем id, без записи не соберётся): одна форма из семи (§4 промта портфеля), считает СВОЁ, эхо идентичности; ставка — только со стенда (`scripts/marsbot-dividends-calibrate.ts`, полоса p50 14–18 на Redux · Hard · миссии 2–4).
+- [ ] `src/common/automa/MarsBotDividendData.ts` → бокс «Дивиденды» (`dividendBox(name, rates, lines)` — Record по всем id, без записи не соберётся): одна форма из семи (§4 промта портфеля), считает СВОЁ, эхо идентичности; ставка — только со стенда (`scripts/marsbot-dividends-calibrate.ts`, полоса p50 14–18 на Redux · Hard · миссии 2–4). **И две ЦЕЛИ** (`dividendGoal(at, at2[, {term}])`, четвёртый аргумент бокса — без него не соберётся): пороги на операнде СВОЕЙ формулы, первый ≈ в пятой части реальных партий, второй ≈ в каждой двадцатой, и КАЖДЫЙ должен быть взят хотя бы в нескольких живых партиях (стенд `--terms out.json` даёт счётчики; насыщающийся операнд — меняй терм). Процедура и таблица: `docs/claude/marsbot-dividends-calibration.md` § 5.
 
 ## 2. Поведение (`src/server/automa/corps/MarsBot<Name>.ts`)
 

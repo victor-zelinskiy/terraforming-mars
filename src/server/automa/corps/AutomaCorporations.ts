@@ -19,7 +19,8 @@ import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
 import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import {EffectForecastContext} from '../../cards/EffectForecastContext';
-import {MarsBotDividendDetail, MarsBotDividendResult, NO_DIVIDEND} from '../../../common/automa/MarsBotDividend';
+import {MarsBotDividendDetail, MarsBotDividendResult, NO_DIVIDEND, withDividendGoal} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
 import {MarsBotCredicor} from './MarsBotCredicor';
 import {MarsBotHelion} from './MarsBotHelion';
 import {MarsBotInterplanetaryCinematics} from './MarsBotInterplanetaryCinematics';
@@ -554,9 +555,16 @@ export class AutomaCorporations {
     return game.automa?.holdings ?? [];
   }
 
-  /** One corporation's dividend as if it were a holding (the face's live reading, the bench). */
+  /**
+   * One corporation's dividend as if it were a holding (the face's live reading, the bench):
+   * the clause's own formula, then the box's two GOALS on its measured operand — applied HERE,
+   * once, from the box's data (the clause never re-states them).
+   */
   public static dividendOf(game: IGame, id: MarsBotCorpId): MarsBotDividendResult {
-    return game.automa === undefined ? NO_DIVIDEND : AutomaCorporations.REGISTRY[id].dividend(game);
+    if (game.automa === undefined) {
+      return NO_DIVIDEND;
+    }
+    return withDividendGoal(AutomaCorporations.REGISTRY[id].dividend(game), marsBotDividendInfo(id).goal);
   }
 
   /**

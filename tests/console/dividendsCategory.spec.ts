@@ -3,6 +3,7 @@ import {Color} from '../../src/common/Color';
 import {VictoryPointsBreakdown, AutomaVictoryPoints} from '../../src/common/game/VictoryPointsBreakdown';
 import {MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
 import {marsBotCorpInfo} from '../../src/common/automa/MarsBotCorpData';
+import {marsBotDividendInfo} from '../../src/common/automa/MarsBotDividendData';
 import {MarsBotDividendDetail, dividendTermFormula, perUnitTerm, bonusTerm, dividendResult} from '../../src/common/automa/MarsBotDividend';
 import {vpAttribution} from '../../src/common/game/vpAttribution';
 import {buildEndgameModel, EndgamePlayerInput} from '../../src/client/components/endgame/endgameModel';
@@ -147,6 +148,6 @@ describe('the bot\'s holdings read as further corporations (client)', () => {
     expect(box.labelKey).eq('Dividends');
     expect(box.kind).eq('victory-points');
     expect(box.order).eq(printed.length);
-    expect(box.rows.length, 'the holding-only line, then the printed lines').eq(1 + 2);
+    expect(box.rows.length, 'the holding-only line, then the printed lines').eq(1 + marsBotDividendInfo(MarsBotCorpId.C02_ECOLINE).lines.length);
   });
 });

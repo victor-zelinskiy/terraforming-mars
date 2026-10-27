@@ -96,6 +96,8 @@ for (const profile of PROFILES) {
       await expect(rules, 'the holding\'s printed boxes are marked as not acting').toContainText('Не действует, пока корпорация — холдинг MarsBot');
       await expect(rules.locator('section').first(), 'its dividend LEADS — the one thing a holding does')
         .toContainText('в конце партии она приносит эти дивиденды');
+      await expect(rules.locator('section').first(), 'its two GOALS are printed in the dividend box')
+        .toContainText(/Цель: от \d+ — \+\d+ ПО; от \d+ — ещё \+\d+ ПО/);
       await page.screenshot({path: `screenshots/bot-portfolio-rules-${profile.id}.png`, fullPage: false});
     });
   });

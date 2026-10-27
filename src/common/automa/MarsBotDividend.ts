@@ -65,26 +65,84 @@ export type MarsBotDividendInfo = {
   name: string;
   rates: Readonly<Record<string, number>>;
   lines: ReadonlyArray<BonusCardEffectLine>;
+  /** The box's two GOALS — the rare great game of this very corporation (`withDividendGoal`). */
+  goal: MarsBotDividendGoal;
+};
+
+/**
+ * THE TWO GOALS of a dividend (the owner, 2026-10-27: «иногда реально 70+ —
+ * два бонусных порога, уникальные, достижимые, но редкие, не теоретические»).
+ * Measured on the operand of ONE term of the clause's own formula (`term` —
+ * its `count`, so the goal speaks the line it is printed under), paying `vp`
+ * once the count reaches `at` and `vp2` MORE at `at2`. Never under the box's
+ * printed cap (a cap ends the formula; a goal stands beside it). The numbers
+ * are calibrated on the owner's real games — the first reached in about a
+ * fifth of them, the second in about one in twenty, and EVERY one reached in
+ * real play (`docs/claude/marsbot-dividends-calibration.md` § ЦЕЛИ).
+ */
+export type MarsBotDividendGoal = {
+  term: number;
+  at: number;
+  at2: number;
+  vp: number;
+  vp2: number;
 };
 
 type DividendLine = {text: string, params?: ReadonlyArray<number>, muted?: boolean};
 
-/** Build a box whose printed params are taken from its own `rates`. */
+/** The printed goal line — under the line of the operand it measures. */
+export const DIVIDEND_GOAL_LINE = 'Goal: ${0} or more — +${1} VP; ${2} or more — +${3} VP more';
+
+/** A box's goals: the two thresholds on the operand of term `term` (default the first), +10 / +15 VP by default. */
+export function dividendGoal(at: number, at2: number, opts: {term?: number, vp?: number, vp2?: number} = {}): MarsBotDividendGoal {
+  return {term: opts.term ?? 0, at, at2, vp: opts.vp ?? 10, vp2: opts.vp2 ?? 15};
+}
+
+/**
+ * Build a box whose printed params are taken from its own `rates`. The goal's
+ * numbers JOIN the rates (`goalAt` · `goalAt2` · `goalVp` · `goalVp2`), so a
+ * printed number stays a rate and the paid number stays the printed one.
+ */
 export function dividendBox<R extends Record<string, number>>(
   name: string,
   rates: R,
   lines: (r: R) => ReadonlyArray<DividendLine>,
+  goal: MarsBotDividendGoal,
 ): MarsBotDividendInfo & {rates: R} {
+  const printed = [...lines(rates)];
+  const goalLine: DividendLine = {text: DIVIDEND_GOAL_LINE, params: [goal.at, goal.vp, goal.at2, goal.vp2]};
+  // Under the measured line and the quiet notes that qualify it.
+  let at = Math.min(goal.term + 1, printed.length);
+  while (at < printed.length && printed[at].muted === true) {
+    at++;
+  }
+  printed.splice(at, 0, goalLine);
   return {
     name,
-    rates,
-    lines: lines(rates).map((line) => ({
+    rates: {...rates, goalAt: goal.at, goalAt2: goal.at2, goalVp: goal.vp, goalVp2: goal.vp2},
+    goal,
+    lines: printed.map((line) => ({
       icon: 'vp',
       text: line.text,
       ...(line.params !== undefined ? {params: line.params.map(String)} : {}),
       ...(line.muted === true ? {muted: true} : {}),
     })),
   };
+}
+
+/**
+ * The clause's result with its two GOALS — two threshold terms on the
+ * measured operand, appended after the formula (outside any printed cap).
+ * Σ terms.vp === vp still holds.
+ */
+export function withDividendGoal(result: MarsBotDividendResult, goal: MarsBotDividendGoal): MarsBotDividendResult {
+  const measured = result.terms[goal.term];
+  if (measured === undefined) {
+    return result;
+  }
+  const first = bonusTerm('Goal', measured.count, goal.at, goal.vp);
+  const second = bonusTerm('Second goal', measured.count, goal.at2, goal.vp2);
+  return {vp: result.vp + first.vp + second.vp, terms: [...result.terms, first, second]};
 }
 
 /** A per-unit term: `floor(count × each / per)`. */

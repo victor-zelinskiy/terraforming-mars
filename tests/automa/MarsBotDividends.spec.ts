@@ -5,7 +5,7 @@ import {TileType} from '../../src/common/TileType';
 import {SpaceType} from '../../src/common/boards/SpaceType';
 import {MARS_BOT_CORP_IDS, MarsBotCorpId, marsBotCorpInfo} from '../../src/common/automa/MarsBotCorpData';
 import {marsBotDividendInfo} from '../../src/common/automa/MarsBotDividendData';
-import {MarsBotDividendResult} from '../../src/common/automa/MarsBotDividend';
+import {DIVIDEND_GOAL_LINE, MarsBotDividendResult} from '../../src/common/automa/MarsBotDividend';
 import {IGame} from '../../src/server/IGame';
 import {IPlayer} from '../../src/server/IPlayer';
 import {Space} from '../../src/server/boards/Space';
@@ -103,6 +103,26 @@ describe('MarsBot dividends (the campaign portfolio)', () => {
         }
       }
       expect(missing).deep.eq([]);
+    });
+
+    it('every box has its two GOALS on an operand its own formula measures, printed once under that line', () => {
+      const [game] = seated({}, '-goals');
+      const wrong: Array<string> = [];
+      for (const id of MARS_BOT_CORP_IDS) {
+        const {goal, lines} = marsBotDividendInfo(id);
+        if (!(goal.at > 0 && goal.at2 > goal.at && goal.vp > 0 && goal.vp2 > 0)) {
+          wrong.push(`${id}: goals ${goal.at}/${goal.at2} +${goal.vp}/+${goal.vp2}`);
+        }
+        // The measured operand exists in the clause's OWN formula (the server's terms, never a guess).
+        const own = AutomaCorporations.corpFor(id).dividend(game);
+        if (own.terms.length <= goal.term) {
+          wrong.push(`${id}: the goal measures term ${goal.term}, the formula has ${own.terms.length}`);
+        }
+        if (lines.filter((l) => l.text === DIVIDEND_GOAL_LINE).length !== 1) {
+          wrong.push(`${id}: the goal line is not printed exactly once`);
+        }
+      }
+      expect(wrong).deep.eq([]);
     });
 
     it('a clause in the corporation file for every id', () => {
@@ -276,8 +296,29 @@ describe('MarsBot dividends (the campaign portfolio)', () => {
       expect(AutomaCorporations.dividendOf(game, MarsBotCorpId.C36_PRISTAR).vp).eq(r.each);
       game.automa!.failedActions = 100;
       const capped = AutomaCorporations.dividendOf(game, MarsBotCorpId.C36_PRISTAR);
-      expect(capped.vp).eq(r.cap);
+      // The cap ends the formula; the two goals stand beside it (both reached at 100).
+      expect(capped.vp).eq(r.cap + r.goalVp + r.goalVp2);
       expect(capped.terms[0].cap).eq(r.cap);
+    });
+
+    it('the GOALS — +vp at the first threshold of the measured operand, +vp2 more at the second, nothing below', () => {
+      const [game] = seated({}, '-goalpay');
+      const r = marsBotDividendInfo(MarsBotCorpId.C36_PRISTAR).rates;
+      const pay = (failures: number) => {
+        game.automa!.failedActions = failures;
+        return AutomaCorporations.dividendOf(game, MarsBotCorpId.C36_PRISTAR);
+      };
+      const base = (failures: number) => Math.min(r.cap, failures * r.each);
+      expect(pay(r.goalAt - 1).vp, 'one short of the first goal').eq(base(r.goalAt - 1));
+      expect(pay(r.goalAt).vp, 'the first goal').eq(base(r.goalAt) + r.goalVp);
+      expect(pay(r.goalAt2 - 1).vp, 'one short of the second').eq(base(r.goalAt2 - 1) + r.goalVp);
+      const both = pay(r.goalAt2);
+      expect(both.vp, 'both goals').eq(base(r.goalAt2) + r.goalVp + r.goalVp2);
+      expect(both.terms.slice(-2).map((t) => [t.label, t.threshold, t.vp])).deep.eq([
+        ['Goal', r.goalAt, r.goalVp],
+        ['Second goal', r.goalAt2, r.goalVp2],
+      ]);
+      expectWellFormed(both, 'Pristar with both goals');
     });
 
     it('the board — Philares counts borders between the bot\'s tiles and another player\'s', () => {

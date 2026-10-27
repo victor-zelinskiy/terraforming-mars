@@ -35,6 +35,8 @@ type Row = {
   primary: string | undefined; bot: number; bestHuman: number; margin: number;
   botBreakdown: Record<string, number>; humanBreakdown: Record<string, number>;
   clauses: Record<string, number>; eligible: Array<MarsBotCorpId>; pile: number;
+  /** Every clause's formula as the server computed it — the operands the GOALS are set on (`--terms`). */
+  terms: Record<string, ReadonlyArray<{label: string, count: number, vp: number}>>;
 };
 
 function breakdownOf(p: IPlayer): Record<string, number> {
@@ -62,7 +64,12 @@ function evaluate(file: string): Row | undefined {
   const humans = game.players.filter((p) => !p.isMarsBot);
   const botVp = bot.getVictoryPoints();
   const clauses: Record<string, number> = {};
-  for (const id of MARS_BOT_CORP_IDS) clauses[id] = AutomaCorporations.dividendOf(game, id).vp;
+  const terms: Record<string, ReadonlyArray<{label: string, count: number, vp: number}>> = {};
+  for (const id of MARS_BOT_CORP_IDS) {
+    const result = AutomaCorporations.dividendOf(game, id);
+    clauses[id] = result.vp;
+    terms[id] = result.terms.map((t) => ({label: t.label, count: t.count, vp: t.vp}));
+  }
   const best = humans.reduce((a, b) => a.getVictoryPoints().total >= b.getVictoryPoints().total ? a : b);
   const primary = game.automa.corporation;
   // The holdings this game could have seated: eligible by module and collision, never the primary.
@@ -71,7 +78,7 @@ function evaluate(file: string): Row | undefined {
     id: d.id, slot: d.gameOptions.campaign?.missionSlot, difficulty: d.gameOptions.automa.difficulty, generation: game.generation,
     board: d.gameOptions.boardName, redux: d.gameOptions.turmoilReduxExpansion === true, primary,
     bot: botVp.total, bestHuman: best.getVictoryPoints().total, margin: botVp.total - best.getVictoryPoints().total,
-    botBreakdown: breakdownOf(bot), humanBreakdown: breakdownOf(best), clauses, eligible, pile: game.automa.playedPile.length,
+    botBreakdown: breakdownOf(bot), humanBreakdown: breakdownOf(best), clauses, eligible, pile: game.automa.playedPile.length, terms,
   };
 }
 
@@ -132,7 +139,7 @@ function distribution(set: ReadonlyArray<Row>, label: string): void {
 function main() {
   globalInitialize();
   const dir = process.argv[2];
-  if (dir === undefined) throw new Error('usage: tsx scripts/marsbot-dividends-calibrate.ts <dir> [--target=redux|hard] [--csv out.csv]');
+  if (dir === undefined) throw new Error('usage: tsx scripts/marsbot-dividends-calibrate.ts <dir> [--target=redux|hard] [--csv out.csv] [--terms out.json]');
   const rows: Array<Row> = [];
   let failed = 0;
   for (const f of fs.readdirSync(dir).filter((x) => /^g[0-9a-f]+\.json$/.test(x))) {
@@ -185,6 +192,14 @@ function main() {
     const lines = rows.map((r) => [r.id, r.slot, r.difficulty, r.generation, r.board, r.redux, r.primary, r.bot, r.bestHuman, r.margin, ...MARS_BOT_CORP_IDS.map((id) => r.clauses[id])].join(','));
     fs.writeFileSync(out, [head.join(','), ...lines].join('\n'));
     console.log(`\nwrote ${out}`);
+  }
+  const termsOut = process.argv.indexOf('--terms');
+  if (termsOut >= 0) {
+    const out = process.argv[termsOut + 1];
+    fs.writeFileSync(out, JSON.stringify(rows.map((r) => ({
+      id: r.id, slot: r.slot, difficulty: r.difficulty, redux: r.redux, primary: r.primary, eligible: r.eligible, margin: r.margin, terms: r.terms,
+    }))));
+    console.log(`wrote ${out}`);
   }
 }
 
