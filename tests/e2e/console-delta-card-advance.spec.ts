@@ -2,7 +2,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openActionFocus, openCardActions,
-  openConsole, press, seedGameOverApi, sendPlayerInput, soloGameConfig,
+  openConsole, press, pressUntilVisible, seedGameOverApi, sendPlayerInput, soloGameConfig,
   waitForBoardHome, waitForTurn,
 } from './consoleStart';
 
@@ -909,5 +909,117 @@ test.describe('console — the card-action Hydronetwork door', () => {
     // ── The same press does not commit: the position is still 6. ──
     const pos = ((await fetchPlayerModel(request, playerId)) as Wire).thisPlayer.deltaProject?.position ?? 0;
     expect(pos, 'nothing committed by the return').toBe(6);
+  });
+
+  /**
+   * ══ «СВЕРНУТЬ» OVER THE CARD'S STEP — the restored track is lit ═════════
+   *
+   *   Card Actions → Storm Surge Barrier → Hydronet 4 → 5 («Гидромоделирование»,
+   *   draw 4 keep 2) → B (collapse) → A on the board-home card → the SAME pick.
+   *
+   * The restore re-mounts the whole stack at once, so the action workspace
+   * comes back ALREADY yielded to its step. It used to take the shared dim
+   * back on its re-entry (the yield watcher gave it up at setup, the `appear`
+   * entry re-acquired it a flush later and nothing fired again): the owner's
+   * 4K frame of 2026-10-28 — «ДЕЙСТВИЯ КАРТ › ВЫБОР» bright over a track and
+   * four cards greyed out under a full shade.
+   */
+  test('collapse → restore of the card\'s Hydronet step: no stale shade', async ({page, request}) => {
+    test.setTimeout(600_000);
+    const PATH_CARDS = [
+      CARD,                  // Storm Surge Barrier (the door)
+      'Solar Power',         // power + building
+      'Development Manager', // earth
+      'Space Station',       // space
+      'Research',            // science ×2 — stage 5
+    ];
+    const PATH_CFG = soloGameConfig({
+      players: [{name: 'ShadeProbe', color: 'red', beginner: false, handicap: 0, first: true}],
+      expansions: {deltaProject: true},
+      customProjectCards: PATH_CARDS,
+      customCorporationsList: ['Thorgate'],
+      seed: 0.61,
+    });
+    const playerId = await createGameWithCards(request, PATH_CARDS, {config: PATH_CFG});
+    await seedGameOverApi(request, playerId, {cards: PATH_CARDS});
+
+    // ── Setup over the API: the card's requirement, the tag path, 0 → 4. ──
+    let oceanId = '';
+    await standardProject(request, playerId, 'Aquifer', (spaces) => {
+      oceanId = spaces[0];
+      return oceanId;
+    });
+    const board = (await fetchPlayerModel(request, playerId) as Wire).game.spaces as ReadonlyArray<Wire>;
+    const beside = new Set(neighbourIds(board, oceanId));
+    await standardProject(request, playerId, 'City', (spaces) => {
+      const next = spaces.find((s) => beside.has(s));
+      expect(next, `no legal city space beside the ocean ${oceanId}`).toBeDefined();
+      return next as string;
+    });
+    for (const card of PATH_CARDS) {
+      await playFromMenu(request, playerId, 'Play project card', card);
+    }
+    {
+      const menu = await toActionMenu(request, playerId);
+      const at = optionIndex(menu, 'Advance on the Hydronetwork track');
+      const asked = await sendPlayerInput(request, playerId, {type: 'or', index: at, response: {type: 'option'}} as never) as Wire;
+      expect((asked.waitingFor as Wire)?.type, 'the advance asks its step count').toBe('deltaProject');
+      await sendPlayerInput(request, playerId, {type: 'deltaProject', amount: 4} as never);
+      await toActionMenu(request, playerId);
+    }
+    const before = await serverState(request, playerId);
+    expect(before.position, 'the marker stands on 4').toBe(4);
+
+    await openConsole(page, playerId);
+    await waitForBoardHome(page, 25);
+    await waitForTurn(page);
+
+    // ── The door, then the one commit: the card's step lands on 5. ──
+    await openCardActions(page);
+    await focusAdvanceVariant(page);
+    await openActionFocus(page);
+    await pressUntilVisible(page, 'Enter', '.con-hydro__layer--bonus', {tries: 3, settleMs: 2200});
+    // Stage 5 has no choice — A on the step is the commit. Keyed on the
+    // SERVER's position, so a slow answer is waited for, never re-pressed.
+    let after = before;
+    for (let i = 0; i < 4 && after.position === before.position; i++) {
+      await press(page, 'Enter', 2200);
+      after = await serverState(request, playerId);
+    }
+    await expect.poll(async () => (await serverState(request, playerId)).position,
+      {timeout: 20_000}).toBe(5);
+    await page.waitForSelector('.con-deckpick[data-flow="choosing"]', {timeout: 30_000});
+
+    const shadeOpacity = () => page.evaluate(() => {
+      const el = document.querySelector('.con-shade') as HTMLElement | null;
+      return el === null ? 0 : Number(getComputedStyle(el).opacity);
+    });
+    await expect.poll(shadeOpacity, {timeout: 5_000, message: 'the step stands lit before the park'})
+      .toBeLessThan(0.05);
+    await shoot(page, '8-shade-step');
+
+    // ── B: the deck pick's own minimize parks the WHOLE stack. ──
+    await press(page, 'Escape', 1600);
+    await expect(page.locator('.con-hydro')).toHaveCount(0, {timeout: 15_000});
+    await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 15_000});
+
+    // ── A on the board-home card: the same instance at the same depth. ──
+    await expect(page.locator('.con-mandatory')).toBeVisible({timeout: 20_000});
+    await press(page, 'Enter', 2200);
+    await page.waitForSelector('.con-deckpick[data-flow="choosing"]', {timeout: 20_000});
+    await expect(page.locator('.con-cardactions--yielded'),
+      'the action workspace came back yielded to its step').toHaveCount(1, {timeout: 10_000});
+    const restored = await readout(page);
+    expect(restored.crumbRoot, 'the crumb keeps the origin').toContain('ДЕЙСТВИЯ КАРТ');
+
+    // THE CLAIM: no dim over the restored step. Polled past the shade's own
+    // 260 ms off-fade — the defect never cleared at all.
+    await expect.poll(shadeOpacity, {timeout: 5_000, message: 'no stale shade over the restored step'})
+      .toBeLessThan(0.05);
+    const yieldedAttr = await page.evaluate(() =>
+      document.querySelector('.con-cardactions')?.getAttribute('data-motion-shade-yielded') ?? '');
+    expect(yieldedAttr, 'the yielded surface declares its surrendered dim').toBe('1');
+    await shoot(page, '9-shade-restored');
+    expect((await serverState(request, playerId)).position, 'the restore commits nothing').toBe(5);
   });
 });

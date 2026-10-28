@@ -296,6 +296,16 @@ specs.
   the exact scene re-seats, zones republished), `fold` (nothing live →
   honest reset), `none` (browse; the pre-commit draft re-seats only while
   `hydroDraftFresh(cacheKey)` — the wheel entry no longer blanket-resets).
+- ⚠ **A card-door step restores UNDER ITS HOST, and the host must not take the
+  dim back** (2026-10-28, «Штормовой барьер» → stage 5 → B → A: the track and
+  the four cards greyed out under a full `.con-shade`, the crumb bright). The
+  restore re-mounts «ДЕЙСТВИЯ КАРТ» ALREADY yielded to the step; its
+  `yieldedToStep` watcher gave the dim up at setup, the director's `appear`
+  entry re-acquired it a flush later, and a true→true watcher never fires
+  again. The yield is declared ON THE ROOT (`data-motion-shade-yielded`) and
+  every acquiring director hook asks it (`mayAcquireShade`). Guards:
+  `tests/client/console/surfaceShadeYield.spec.ts`; e2e
+  `console-delta-card-advance` § collapse → restore.
 - A reload wipes the module flow → the follow-up serves STANDALONE off the
   server markers: pos 5 carries `deckPickPrompt` (source Delta Project),
   pos 1/2 carry `choiceContext`, and the rework added the missing markers —

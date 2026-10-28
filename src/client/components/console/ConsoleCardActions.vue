@@ -17,9 +17,14 @@
        suppressed for its length — `opacity` is multiplicative, so it would
        fade the one object that must never blink; the content comes back as a
        CASCADE instead (`playActionCarryReturn`). -->
+  <!-- `data-motion-shade-yielded`: the yield gives up the shared dim too, and
+       says so ON THE ELEMENT — the director's entry hook reads it, so a
+       restore that re-mounts this surface already yielded (B → A over the
+       step) can never take the dim back over the track. -->
   <div ref="rootEl" class="con-cardactions con-ws" role="dialog" :aria-label="$t('Card actions')"
        :class="{'con-cardactions--yielded': yieldedToStep, 'con-cardactions--carryback': carryingBack}"
-       :data-flow="flowState" data-motion-surface="card-actions">
+       :data-flow="flowState" data-motion-surface="card-actions"
+       :data-motion-shade-yielded="yieldedToStep ? '1' : undefined">
     <!-- The action center frame — ONE chrome for both presentation states:
          the browse grid AND the in-frame ACTION FOCUS stage. -->
     <div class="con-cardactions__frame" data-motion-panel>
@@ -1352,6 +1357,13 @@ export default defineComponent({
      * without this the track stood UNDER a dim belonging to the workspace it
      * had just been handed the screen by: correct header, greyed-out track.
      * The step's own screen is a section and owns no dim of its own.
+     *
+     * ⚠️ A watcher only sees EDGES. A restore after «свернуть» mounts this
+     * surface ALREADY yielded (the whole stack comes back at once): the
+     * immediate `true` below gives the dim up at setup and the director's
+     * `appear` entry — a flush later — would take it back with no edge left to
+     * undo it. So the yield is ALSO declared on the root
+     * (`data-motion-shade-yielded`), which every acquiring hook asks.
      */
     'yieldedToStep': {
       immediate: true,

@@ -128,6 +128,26 @@ function surfaceIdOf(el: Element): SurfaceMotionId | undefined {
   return id === undefined || id === '' ? undefined : (id as SurfaceMotionId);
 }
 
+/**
+ * MAY THIS ELEMENT ACQUIRE THE SHARED DIM through a director hook?
+ *
+ * Beyond the kinds that never own it, a surface can SURRENDER it while it
+ * stays on screen — `ConsoleCardActions` handing the scene to its own
+ * Hydronetwork step keeps its header and yields its body AND its dim. That
+ * surrender is declared ON THE ELEMENT (`data-motion-shade-yielded="1"`),
+ * because the hooks below are the other half of the bargain and they cannot
+ * see a component's watcher: a surface RE-MOUNTED already yielded (the
+ * restore after «свернуть» brings the whole stack back at once) gave its dim
+ * up in its `immediate` watcher at setup, then the `appear` entry took it
+ * back a flush later, and the watcher — true on both sides — never fired
+ * again. The track stood under a dim for the rest of the step.
+ */
+function mayAcquireShade(el: Element, id: SurfaceMotionId): boolean {
+  return (el as HTMLElement).dataset?.motionVariant !== 'headless' &&
+    !NON_SHADE_OWNERS.has(id) &&
+    (el as HTMLElement).dataset?.motionShadeYielded !== '1';
+}
+
 function panelOf(el: Element): HTMLElement | undefined {
   const panel = el.querySelector<HTMLElement>('[data-motion-panel]');
   return panel ?? (el instanceof HTMLElement ? el : undefined);
@@ -310,12 +330,11 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
   const pickReturn = (el as HTMLElement).dataset?.motionPickHidden === '1';
   if (pickReturn) {
     delete (el as HTMLElement).dataset.motionPickHidden;
-    if ((el as HTMLElement).dataset.motionShadeHeld === '1' &&
-        variant !== 'headless' && !NON_SHADE_OWNERS.has(id)) {
+    if ((el as HTMLElement).dataset.motionShadeHeld === '1' && mayAcquireShade(el, id)) {
       addShadeOwner(id);
     }
     delete (el as HTMLElement).dataset.motionShadeHeld;
-  } else if (variant !== 'headless' && !NON_SHADE_OWNERS.has(id)) {
+  } else if (mayAcquireShade(el, id)) {
     addShadeOwner(id);
   }
   if (isPickBridgeHidden() || pickReturn || variant === 'headless' || variant === 'drawn') {
@@ -1166,7 +1185,7 @@ export function surfaceLeaveCancelledHook(el: Element): void {
   // the live opening again. Harmless for every other surface: none carries
   // these inline props.
   gsap.set(el, {clearProps: 'position,left,right,top,bottom,width,height,margin,zIndex,pointerEvents'});
-  if (id !== undefined && (el as HTMLElement).dataset?.motionVariant !== 'headless' && !NON_SHADE_OWNERS.has(id)) {
+  if (id !== undefined && mayAcquireShade(el, id)) {
     addShadeOwner(id);
   }
 }
