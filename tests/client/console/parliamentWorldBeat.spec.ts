@@ -169,6 +169,26 @@ describe('parliamentWorldBeat — the sitting steps aside for the planet', () =>
       expect(worldReceiptOwed('3:1'), 'the reward page reads it on the way back').is.true;
     });
 
+    /*
+     * WATER EXPORT AT 9/9 (the owner's empty Parliament of 2026-10-28): the shared step reports a NAMED SKIP under the
+     * removal's own key with a parameter that did not move. Nothing left the board — nothing is owed a trip: the
+     * sitting never steps aside for it (the stack yielded, the section unmounted, and the page stood empty for the
+     * whole bounded wait). A removal that HAPPENED is still the board's story.
+     */
+    it('a SKIPPED removal (oceans at their maximum) is never a story — no trip, nothing owed; a removal that happened still is', () => {
+      enterWorkspace('parliament');
+      enterWorldBeatSitting('7:7');
+      const skipped = {step: 'oceanRemoval', part: 'world', kind: 'skipped', amount: 0, reason: 'Oceans are at their maximum — nothing is removed',
+        parameter: {id: 'oceans', before: 9, after: 9}} as unknown as ParliamentEnactOutcomeModel;
+      seedWorldMoveBeat(view(7, []), view(7, [skipped]));
+      expect(worldMoveOwed('7:7'), 'nothing to show on the board').is.false;
+      expect(worldReceiptOwed('7:7'), 'nothing to read on the way back').is.false;
+      const removed = {step: 'oceanRemoval', part: 'world', kind: 'tileRemoved', amount: -1, space: '21',
+        parameter: {id: 'oceans', before: 9, after: 8}} as unknown as ParliamentEnactOutcomeModel;
+      seedWorldMoveBeat(view(7, []), view(7, [removed]));
+      expect(worldMoveOwed('7:7'), 'the ocean that LEFT the board is the board story').is.true;
+    });
+
     it('RUN: a tile that has ALREADY LANDED owes no trip — no yield, no door held, nothing owed after', async () => {
       enterWorkspace('parliament');
       enterWorldBeatSitting('3:1');

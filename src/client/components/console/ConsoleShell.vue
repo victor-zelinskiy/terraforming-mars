@@ -1759,7 +1759,7 @@ import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue
 import ConsoleEndgameWorkspace from '@/client/components/console/ConsoleEndgameWorkspace.vue';
 import {consoleEndgameUi, noteConsoleEndgameLivePhase, resetConsoleEndgame} from '@/client/console/endgame/consoleEndgameState';
 import {sealLiveGameSurfaces} from '@/client/console/endgame/consoleEndgameSeal';
-import {boardSceneSettling, boardStorySettling, scaleStorySceneSettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
+import {boardSceneSettling, scaleStorySceneSettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
 import type {DrawDiscardVerdict} from '@/client/console/deckDraw/drawSearchReading';
@@ -2245,7 +2245,7 @@ import {
   setConsolePlacementHeld,
   resetPromptAdmission,
 } from '@/client/console/consolePromptAdmission';
-import {screenHandoffOwed, waitScreenHandoff} from '@/client/console/screenHandoff';
+import {PARLIAMENT_DOOR_REASONS, ScreenHandoffOptions, screenHandoffOwed, waitScreenHandoff} from '@/client/console/screenHandoff';
 import {
   guardedAdmissionSignals,
   noteAdmissionSignals,
@@ -2405,6 +2405,12 @@ let freshPickFocusGiven = false;
 let boardBeatDrainWaitArmed = false;
 /** Workspace entries deferred to the screen handoff (`enterWorkspaceAfterHandoff`) — one pending entry per kind. */
 const handoffPendingEntries = new Set<WorkspaceFrameKind>();
+/**
+ * The yielded stack's return waits for the board's handoff this long at most — above the reveal's own take (player-
+ * paced, but the park's 30 s safety presents a parked batch by then) and the remote stage's 20 s board wait; past it
+ * the frame comes back over whatever still stands (the old 8 s cap was shorter than a single reveal's take).
+ */
+const STACK_RETURN_MAX_MS = 45_000;
 
 /**
  * THE PARLIAMENT'S LEAVE NET (v3 В1): the director's section dissolve is ~170 ms and reports back when it
@@ -21142,13 +21148,17 @@ export default defineComponent({
       if (workspaceFrameKnown(kind) || handoffPendingEntries.has(kind)) {
         return;
       }
-      if (!screenHandoffOwed()) {
+      // THE SITTING OWNS THE BOARD'S STORIES (its world beat steps aside for the planet and for another seat's tile;
+      // its reward beat flies the rail holds seeded for it) — a door into it waits for the player's own owed objects
+      // only, or it waits for a landing that waits for the sitting to stand (the field lock of 2026-10-28).
+      const handoff: ScreenHandoffOptions = kind === 'parliament' ? {only: PARLIAMENT_DOOR_REASONS} : {};
+      if (!screenHandoffOwed(handoff)) {
         enterWorkspace(kind, opts);
         return;
       }
       handoffPendingEntries.add(kind);
       setConsoleTaskHandoffPending(true); // the prompt is served by the entry that is owed — never a strand
-      void waitScreenHandoff(`enter:${kind}`, {alive: () => this.playerView?.game !== undefined}).then((outcome) => {
+      void waitScreenHandoff(`enter:${kind}`, {...handoff, alive: () => this.playerView?.game !== undefined}).then((outcome) => {
         handoffPendingEntries.delete(kind);
         setConsoleTaskHandoffPending(handoffPendingEntries.size > 0);
         if (outcome !== 'dead' && !workspaceFrameKnown(kind)) {
@@ -21227,13 +21237,19 @@ export default defineComponent({
       // on its 20 s board wait and appeared with no flight. The frame stays
       // aside until it has landed (the viewer's own card first: the landing
       // waits out the reveal standing over the board).
-      const settling = () => boardStorySettling() || remoteLandingOwed();
+      // …AND EVERYTHING THE PLAYER IS STILL OWED ON THE BOARD (state delivery, 2026-10-28 — the owner's photo: the
+      // city of Mars First Budget drew a card, and the sitting came back OVER the card's reveal): the return is a
+      // screen-taking transition and asks the director — a reveal not taken, a card on its way into the dock, tokens
+      // in the air, the board's story, a foreign landing. NOT the animation holds: the sitting's own reward holds are
+      // seeded for the beat the returning section plays (a return that waited for them would wait for itself).
+      const settling = () => screenHandoffOwed({ignoreReasons: ['animation']});
       if (!settling()) {
         this.resumeStackFromBoardAndSettle();
         return;
       }
       void waitConsoleQuiet(settling, {
         alive: () => stackYieldedToBoard() && !this.placementActive,
+        maxMs: STACK_RETURN_MAX_MS,
       }).then(() => {
         if (!stackYieldedToBoard() || this.placementActive) {
           return;
@@ -24462,7 +24478,11 @@ export default defineComponent({
     registerBoardWatchableProbe(() => this.boardBeatsWatchable);
     // THE GENERATION SCENE'S RISE waits for the screen handoff (state delivery, 2026-10-28): the scene holds the
     // foreground itself through the wait, so its own label is the one the director ignores.
-    registerGenerationSceneHandoff((id) => waitScreenHandoff(id, {ignoreHolds: ['generation-scene']}));
+    registerGenerationSceneHandoff((id, into) => waitScreenHandoff(id, {
+      ignoreHolds: ['generation-scene'],
+      // A rise INTO THE SITTING waits for the player's own owed objects only (see `enterWorkspaceAfterHandoff`).
+      ...(into === 'parliament' ? {only: PARLIAMENT_DOOR_REASONS} : {}),
+    }));
     // …and «a workspace surface is still LEAVING» — the bridge counts a
     // `.con-ws` through its whole fade, so the scale story starts on a board
     // the player can actually see (never under a dissolving workspace).

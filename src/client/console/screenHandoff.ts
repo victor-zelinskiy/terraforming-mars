@@ -62,7 +62,22 @@ export const SCREEN_HANDOFF_MAX_MS = 45_000;
 export type ScreenHandoffOptions = {
   /** Animation-hold labels the CALLER itself raises while it waits (never counted — it would wait for itself). */
   ignoreHolds?: ReadonlyArray<string>,
+  /**
+   * THE REASONS THIS CALLER MAY WAIT FOR — the rest are left out. A transition into a surface that OWNS some of the
+   * owed stories must not wait for them, or it waits for itself: the Parliament's sitting owns the board's stories
+   * (its world beat steps aside for the planet and for another seat's tile — PL-764 — and its reward beat flies the
+   * rail holds seeded for it), while a foreign landing parked for the board waits for the sitting to STAND
+   * (`boardCovered` ⊃ `sittingRiseOwed`). The door into the sitting therefore waits for the player's own owed
+   * objects only (`PARLIAMENT_DOOR_REASONS`): a reveal not taken, a card on its way into the dock, tokens in the air.
+   * The field lock of 2026-10-28 (the owner's empty Parliament for ~30 s, the early close stranded) was this deadlock.
+   */
+  only?: ReadonlyArray<ScreenHandoffReason>,
+  /** The reasons this caller never waits for (the complement of `only`; both may be given). */
+  ignoreReasons?: ReadonlyArray<ScreenHandoffReason>,
 };
+
+/** What a door INTO THE SITTING waits for: the player's own owed objects, never the board's stories the sitting owns. */
+export const PARLIAMENT_DOOR_REASONS: ReadonlyArray<ScreenHandoffReason> = ['reveal', 'card-arrival', 'transfer'];
 
 /** Every reason the screen is still owed to the player, in the order a diagnostic names them. Empty = hand it over. */
 export function screenHandoffReasons(opts?: ScreenHandoffOptions): Array<ScreenHandoffReason> {
@@ -88,7 +103,9 @@ export function screenHandoffReasons(opts?: ScreenHandoffOptions): Array<ScreenH
   if (activeAnimationHoldLabels().some((label) => !ignored.has(label.replace(/\[[^\]]*\]$/, '')))) {
     reasons.push('animation');
   }
-  return reasons;
+  const only = opts?.only === undefined ? undefined : new Set(opts.only);
+  const skipped = new Set(opts?.ignoreReasons ?? []);
+  return reasons.filter((reason) => (only === undefined || only.has(reason)) && !skipped.has(reason));
 }
 
 /** Is the screen still owed to the player right now? */

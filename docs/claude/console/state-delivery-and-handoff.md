@@ -110,6 +110,26 @@ Consumers (every automatic screen-taking transition):
 
 Guards: `tests/client/console/screenHandoff.spec.ts`, `tests/console/generationScene.spec.ts` § the rise waits.
 
+**A door into a surface that OWNS some of the owed stories waits for the rest only** (the field lock of
+2026-10-28 — the owner's empty Parliament for ~30 s at Water Export 9/9, and the sitting's early close stranded
+«недоступен в консольном режиме»). The sitting OWNS the board's stories: its world beat steps aside for the planet
+and for another seat's tile (PL-764), its reward beat flies the rail holds seeded for it in the apply block. A
+foreign landing parked for the board waits for the sitting to STAND (`boardCovered` ⊃ `sittingRiseOwed`); a door
+into the sitting that waited for `remote-landing` / `board-story` / `animation` therefore waited for itself, bounded
+only by the rise's 15 s net and the remote stage's 20 s board wait. So the director takes `only` / `ignoreReasons`,
+and every door into the sitting (`enterWorkspaceAfterHandoff('parliament')`, the generation scene's rise `into:
+'parliament'`) waits for **`PARLIAMENT_DOOR_REASONS`** — a reveal not taken, a card on its way into the dock, tokens
+in the air — and nothing else. The same law in the other direction: **the yielded stack's RETURN**
+(`resumeYieldedStackOverQuietBoard`) asks the director with `ignoreReasons: ['animation']` — the board's story, a
+foreign landing, the reveal's take, the intake and the tokens finish on the board first (the owner's photo: Mars
+First Budget's city drew a card and the sitting came back OVER its reveal), never the holds the returning section
+itself will play; bounded by `STACK_RETURN_MAX_MS` (45 s — the old 8 s cap was shorter than one take).
+
+**And a record that moved nothing owes no trip**: the world beat's board story is a removal that HAPPENED
+(`isTileRemovalStory` — `kind: 'tileRemoved'`); the shared step's named skip («oceans at their maximum», the same step
+key, a `parameter` that did not move) is a line on the page, never a yield (`parliamentWorldBeat.spec` § a SKIPPED
+removal).
+
 ## What this deliberately does NOT change
 
 - The viewer's OWN cinematic holds still defer a poll-path apply (`App.update`'s `sceneBlocked` →

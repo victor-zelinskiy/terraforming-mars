@@ -158,7 +158,16 @@ export function isSeatTileRecord(outcome: ParliamentEnactOutcomeModel): boolean 
  * (`runTrackMoveBeat`).
  */
 function isBoardRecord(outcome: ParliamentEnactOutcomeModel): boolean {
-  return isPlanetRecord(outcome) || isTileRemovalRecord(outcome) || isSeatTileRecord(outcome);
+  return isPlanetRecord(outcome) || isTileRemovalStory(outcome) || isSeatTileRecord(outcome);
+}
+
+/**
+ * A REMOVAL THAT HAPPENED — the only removal record the board owes a story for. The shared step's NAMED SKIP («oceans
+ * at their maximum», Water Export at 9/9 — the owner's empty Parliament of 2026-10-28) carries the same step key and
+ * a `parameter` that did not move: nothing left the board, so nothing is owed a trip — its line is read on the page.
+ */
+function isTileRemovalStory(outcome: ParliamentEnactOutcomeModel): boolean {
+  return isTileRemovalRecord(outcome) && outcome.kind === 'tileRemoved';
 }
 
 /** A record this beat OWES a story for: the planet's move, a tile's removal, or the colony table's (Unity Budget). */
@@ -224,7 +233,7 @@ export function seedWorldMoveBeat(before: PlayerViewModel | undefined, after: Pl
   // RECEIPT (the reward page reads its line when the sitting is back); a
   // removal arriving under a covered board is owed the trip like a scale.
   // …and so does ANOTHER SEAT'S TILE (PL-764): over a board in view the remote landing plays at once.
-  const inPlace = wanted.filter((o) => (isTileRemovalRecord(o) || isSeatTileRecord(o)) && !boardCovered());
+  const inPlace = wanted.filter((o) => (isTileRemovalStory(o) || isSeatTileRecord(o)) && !boardCovered());
   if (inPlace.length > 0) {
     const receipt = parliamentWorldBeatState.receipt;
     parliamentWorldBeatState.receipt = receipt !== undefined && receipt.sitting === parliamentWorldBeatState.sitting ?

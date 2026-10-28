@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {
-  SCREEN_HANDOFF_MAX_MS, screenHandoffOwed, screenHandoffReasons, waitScreenHandoff,
+  PARLIAMENT_DOOR_REASONS, SCREEN_HANDOFF_MAX_MS, screenHandoffOwed, screenHandoffReasons, waitScreenHandoff,
 } from '@/client/console/screenHandoff';
 import {beginAnimationHold, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
@@ -54,6 +54,23 @@ describe('screenHandoff — what the player is still owed before the next screen
     expect(screenHandoffReasons(), 'every scope counts — a notification-only hold runs inside a surface the next screen would tear down')
       .to.deep.eq(['animation']);
     expect(screenHandoffReasons({ignoreHolds: ['spec-scene']}), 'a caller ignores its OWN hold').to.deep.eq([]);
+    hold.release();
+  });
+
+  /*
+   * A DOOR INTO THE SITTING NEVER WAITS FOR THE BOARD'S STORIES (the field lock of 2026-10-28): a foreign landing
+   * parked for the board waits for the sitting to STAND (`boardCovered` ⊃ `sittingRiseOwed`), the sitting's own reward
+   * holds are seeded for the beat the standing section plays — a door that waited for either waited for itself.
+   */
+  it('`only` / `ignoreReasons`: the Parliament door waits for the player own owed objects, never the board stories or the holds', () => {
+    remotePlacementState.queued = 1;
+    const hold = beginAnimationHold('parliament-reward-owed');
+    handDeliveryState.inFlight = [CardName.ALGAE];
+    expect(screenHandoffReasons()).to.deep.eq(['remote-landing', 'card-arrival', 'animation']);
+    expect(screenHandoffReasons({only: PARLIAMENT_DOOR_REASONS}), 'the door: the card on its way only').to.deep.eq(['card-arrival']);
+    expect(screenHandoffReasons({ignoreReasons: ['animation']}), 'the yielded return: never the holds').to.deep.eq(['remote-landing', 'card-arrival']);
+    handDeliveryState.inFlight = [];
+    expect(screenHandoffOwed({only: PARLIAMENT_DOOR_REASONS}), 'a parked landing + a seeded hold owe the door nothing').is.false;
     hold.release();
   });
 

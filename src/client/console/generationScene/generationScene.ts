@@ -123,9 +123,9 @@ registerAnimationHoldSupplier('generation-scene', () => generationSceneState.pha
  * Registered by the shell (the director sits above the presentation systems and would cycle through them if
  * imported here); unregistered — tests, a torn-down shell — the rise is immediate, as before.
  */
-let riseHandoff: ((id: string) => Promise<unknown>) | undefined;
+let riseHandoff: ((id: string, into: 'parliament' | 'draft' | 'none') => Promise<unknown>) | undefined;
 
-export function registerGenerationSceneHandoff(wait: ((id: string) => Promise<unknown>) | undefined): void {
+export function registerGenerationSceneHandoff(wait: ((id: string, into: 'parliament' | 'draft' | 'none') => Promise<unknown>) | undefined): void {
   riseHandoff = wait;
 }
 
@@ -418,8 +418,12 @@ async function concludeGenerationScene(viewOf: () => PlayerViewModel | undefined
   try {
     // THE SCREEN IS HANDED OVER FIRST: what this screen still owes the player (a card on its way into the dock, a
     // reveal not taken, tokens in the air) finishes under the scene's own hold; an interrupted scene rises nothing.
+    // The director is told WHERE the scene rises: a sitting owns the board's stories and must not be waited for.
     if (riseHandoff !== undefined) {
-      await riseHandoff('generation-rise');
+      const first = viewOf();
+      const into = first !== undefined && parliamentSittingFlowBeat(first) !== undefined ? 'parliament' :
+        first !== undefined && betweenGenResearchLive(first) ? 'draft' : 'none';
+      await riseHandoff('generation-rise', into);
       if (armed !== event) {
         return;
       }
