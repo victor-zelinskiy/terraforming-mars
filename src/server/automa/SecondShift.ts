@@ -1,11 +1,14 @@
 import {secondShiftCap, secondShiftRuleApplies} from '../../common/automa/SecondShift';
+import {IProjectCard} from '../cards/IProjectCard';
 import {IGame} from '../IGame';
+import {AutomaCorporations} from './corps/AutomaCorporations';
 
 /**
  * «ВТОРАЯ СМЕНА» — the server half (the rule itself: `common/automa/SecondShift.ts`).
  *
  * Asked by the controller at the ONE place the bot would pass — its action deck
- * is empty. The offer is pure; taking it draws one project card off the deck
+ * is empty. The offer is pure; taking it puts one project card — the one its
+ * corporation's Draft Priority keeps of the top two (`drawThroughPriority`) —
  * INTO the action deck, so the turn then runs the ordinary project branch
  * (the journal's «played», the corporation's hook, the human reactors, the
  * lobbying rider, the played pile) — an extra card is a card like any other,
@@ -66,12 +69,40 @@ export class SecondShift {
     if (automa === undefined || offer === undefined) {
       return false;
     }
-    const card = game.projectDeck.draw(game);
+    const card = SecondShift.drawThroughPriority(game);
     if (card === undefined) {
       return false;
     }
     automa.actionDeck.push({kind: 'project', name: card.name});
     automa.secondShift = {generation: game.generation, drawn: offer.index};
     return true;
+  }
+
+  /**
+   * THE CORPORATION'S CHOICE (the owner, 2026-10-28): the regular action deck is
+   * DRAFTED and the corporation's Draft Priority shapes it, so a blind extra card
+   * would dilute the bot's tendency. The bot looks at the top TWO cards of the
+   * project deck, its priority keeps one (`AutomaCorporations.secondShiftPick` —
+   * silent) and the other goes back ON TOP: nobody but the bot saw it, and the
+   * table sees exactly one card leave the deck, as with any draw.
+   *
+   * The second card is looked at only while it is NOT the pile's last: taking the
+   * last one would reshuffle the discard into a new deck — an event a one-card
+   * draw would not cause. Then the bot takes the top card as it lies.
+   */
+  private static drawThroughPriority(game: IGame): IProjectCard | undefined {
+    const deck = game.projectDeck;
+    const first = deck.draw(game);
+    if (first === undefined || deck.drawPile.length < 2) {
+      return first;
+    }
+    const second = deck.draw(game);
+    if (second === undefined) {
+      return first;
+    }
+    const kept = AutomaCorporations.secondShiftPick(game, [first, second]);
+    // The top of the draw pile is its END — `draw('top')` pops.
+    deck.drawPile.push(kept === first ? second : first);
+    return kept;
   }
 }

@@ -312,6 +312,23 @@ export class AutomaCorporations {
    * priority-less corporation) the pick is the official random one,
    * byte-identical in rng consumption to the pre-corporation code.
    */
+  /**
+   * «Вторая смена» (`automa/SecondShift.ts`): the corporation's Draft Priority keeps
+   * ONE of the cards the bot looked at — the very pick the draft makes
+   * (`MarsBotDraftResolver.pickCard`), but SILENT: no corp stat, no journal line
+   * (the rule is hidden balance — a counter or a line would tell the table that
+   * the bot looked at two). Corpless (no priority): a seeded random pick.
+   */
+  public static secondShiftPick(game: IGame, cards: ReadonlyArray<IProjectCard>): IProjectCard {
+    const automa = game.automa;
+    const priority = AutomaCorporations.activeCorp(game)?.info.draftPriority;
+    if (automa === undefined || priority === undefined) {
+      return cards[game.rng.nextInt(cards.length)];
+    }
+    const resolver = new MarsBotDraftResolver(automa.board, (items) => inplaceShuffle(items, game.rng));
+    return resolver.pickCard(cards, priority).card;
+  }
+
   public static draftPick(game: IGame, hand: ReadonlyArray<IProjectCard>): IProjectCard {
     const automa = game.automa;
     const priority = AutomaCorporations.activeCorp(game)?.info.draftPriority;

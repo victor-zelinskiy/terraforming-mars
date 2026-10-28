@@ -5,6 +5,7 @@ import {Game} from '../../src/server/Game';
 import {IGame} from '../../src/server/IGame';
 import {SecondShift} from '../../src/server/automa/SecondShift';
 import {Server} from '../../src/server/models/ServerModel';
+import {IProjectCard} from '../../src/server/cards/IProjectCard';
 import {TestPlayer} from '../TestPlayer';
 import {AutomaTestOptions, testAutomaGame, testAutomaMultiplayerGame} from './AutomaTestGame';
 
@@ -206,5 +207,70 @@ describe('SecondShift — «вторая смена», the bot\'s late-game pace
     const serialized = structuredClone(game.serialize()) as any;
     delete serialized.automa.secondShift;
     expect(Game.deserialize(serialized).automa!.secondShift).is.undefined;
+  });
+
+  describe('the corporation\'s choice — two cards looked at, one kept, the other back ON TOP', () => {
+    /** A cheap and a dear card off the real deck, laid as the pile's top two (`top` is the END of the pile). */
+    function cheapAndDear(game: IGame): {cheap: IProjectCard, dear: IProjectCard} {
+      const pile = game.projectDeck.drawPile;
+      const cheap = pile.find((c) => c.cost <= 6)!;
+      const dear = pile.find((c) => c.cost >= 25)!;
+      expect(cheap, 'a cheap card in the deck').is.not.undefined;
+      expect(dear, 'a dear card in the deck').is.not.undefined;
+      pile.splice(pile.indexOf(cheap), 1);
+      pile.splice(pile.indexOf(dear), 1);
+      return {cheap, dear};
+    }
+
+    for (const order of ['cheap on top', 'dear on top'] as const) {
+      it(`Credicor (most expensive) keeps the dear card — ${order}; the cheap one goes back on top; the deck shrinks by ONE`, () => {
+        const {game} = spentDeckGame(shiftOptions('normal', true), order === 'cheap on top' ? '-c' : '-d');
+        const {cheap, dear} = cheapAndDear(game);
+        const pile = game.projectDeck.drawPile;
+        if (order === 'cheap on top') {
+          pile.push(dear, cheap);
+        } else {
+          pile.push(cheap, dear);
+        }
+        const before = pile.length;
+        const discardBefore = game.projectDeck.discardPile.length;
+        const stats = JSON.stringify(game.automa!.corpStats);
+        const logLength = game.gameLog.length;
+
+        expect(SecondShift.take(game)).is.true;
+
+        expect(game.automa!.actionDeck).deep.eq([{kind: 'project', name: dear.name}]);
+        expect(pile[pile.length - 1], 'the card the bot let go lies on top again').eq(cheap);
+        expect(pile.length, 'one card left the deck, as with any draw').eq(before - 1);
+        expect(game.projectDeck.discardPile.length, 'nothing discarded').eq(discardBefore);
+        // Silent: no corp stat, no line — the table never learns the bot looked at two.
+        expect(JSON.stringify(game.automa!.corpStats)).eq(stats);
+        expect(game.gameLog.length).eq(logLength);
+      });
+    }
+
+    it('the pick happens in the real turn too: the kept card is the one played', () => {
+      const {game, human} = spentDeckGame(shiftOptions('normal', true));
+      const {cheap, dear} = cheapAndDear(game);
+      game.projectDeck.drawPile.push(dear, cheap);
+      humanEndsTurn(game, human);
+      expect(game.automa!.playedPile).deep.eq([dear.name]);
+      expect(game.automa!.playedPile).not.includes(cheap.name);
+    });
+
+    it('the second card is never the pile\'s last — then the bot takes the top card as it lies (no reshuffle a one-card draw would not cause)', () => {
+      const {game} = spentDeckGame(shiftOptions('normal', true));
+      const deck = game.projectDeck;
+      const {cheap, dear} = cheapAndDear(game);
+      deck.discardPile.push(...deck.drawPile.splice(0));
+      deck.drawPile.push(dear, cheap); // two cards: the second would be the last
+      const discardBefore = deck.discardPile.length;
+
+      expect(SecondShift.take(game)).is.true;
+
+      expect(game.automa!.actionDeck).deep.eq([{kind: 'project', name: cheap.name}]);
+      expect(deck.drawPile).deep.eq([dear]);
+      expect(deck.discardPile.length, 'the discard was not reshuffled').eq(discardBefore);
+    });
   });
 });

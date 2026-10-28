@@ -47,6 +47,10 @@ The server keeps `AutomaState.secondShift {generation, drawn}` for the cap (seri
 - **The creator defaults ON for a new game**: `PremiumCreateGameState.botSecondShift` (persisted; a blob saved before the rule restores ON), sent as `automa.secondShift` by `buildCreateGamePayload`. The console creator shows it as the «Вторая смена» stepper beside the difficulty in the bot editor (◄/► and A flip it); the crew row names «Вторая смена» only when it can fire (on AND cap > 0).
 - A campaign inherits it through its stored `NewGameConfig` — `CampaignManager` spreads `gameOptions.automa` when it sets the corporation and the portfolio, so the switch travels with the difficulty.
 
+## The corporation's choice — two looked at, one kept (the owner, 2026-10-28)
+
+The regular action deck is DRAFTED in the owner's games (all 25 measured: draft, Hard) and the corporation's Draft Priority shapes it, so a blind extra card would dilute the bot's tendency. The bot therefore looks at the top TWO cards of the project deck; its priority keeps one (`AutomaCorporations.secondShiftPick` — the draft's own `pickCard`, SILENT: no corp stat, no journal line) and the other goes back ON TOP of the deck. Nobody but the bot saw it, and the table sees exactly one card leave the deck, as with any draw. Corpless: a seeded random pick. The second card is looked at only while it is not the pile's last — taking the last would reshuffle the discard into a new deck, an event a one-card draw would not cause; then the bot takes the top card as it lies. Caps unchanged. A «least advanced track» priority (Aridor) reads the live tracks at that moment. The pace bench still measures blind extra cards — the per-card yield it reports is a floor.
+
 ## The engine's one hook
 
 `AutomaController.resolveTurn`: the ONE place the bot would pass asks `SecondShift.take(game)` first — the card goes INTO the action deck, so the turn runs the ordinary project branch (journal «played», the corporation's hook, the human reactors, the lobbying rider, the played pile). `SecondShift.offer` is pure; only `take` draws and bumps the count.
