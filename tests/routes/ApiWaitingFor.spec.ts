@@ -6,6 +6,7 @@ import {MockResponse} from './HttpMocks';
 import {RouteTestScaffolding} from './RouteTestScaffolding';
 import {GameId} from '../../src/common/Types';
 import {statusCode} from '../../src/common/http/statusCode';
+import {Server} from '../../src/server/models/ServerModel';
 
 describe('ApiWaitingFor', () => {
   let scaffolding: RouteTestScaffolding;
@@ -90,6 +91,25 @@ describe('ApiWaitingFor', () => {
     model = JSON.parse(res.content);
     expect(model.result).eq('WAIT');
     expect(model.changed).eq(false);
+  });
+
+  // AN OPTIONAL INPUT IS NOT THE SEAT'S TURN (the draft re-pick, a sitting's early close — the owner, 2026-10-28):
+  // never GO, never in the waited-on list, and the public model does not count the seat as asked.
+  it('an OPTIONAL input in the slot is WAIT / REFRESH, never GO, and the seat is not waited on', async () => {
+    const player = TestPlayer.BLACK.newPlayer();
+    const game = Game.newInstance('game-id', [player], player, 'spectatorid');
+    await scaffolding.ctx.gameLoader.add(game);
+    const input = player.getWaitingFor();
+    expect(input).is.not.undefined;
+    input!.optional = true;
+
+    scaffolding.url = `/api/waitingfor?id=${player.id}&gameAge=${game.gameAge}&undoCount=${game.undoCount}`;
+    await scaffolding.get(ApiWaitingFor.INSTANCE, res);
+    const model = JSON.parse(res.content);
+    expect(model.result).eq('WAIT');
+    expect(model.waitingFor).deep.eq([]);
+    expect(Server.getPlayerModel(player).thisPlayer.isWaitingForInput, 'the public model: not asked').is.false;
+    expect(Server.getPlayerModel(player).waitingFor?.optional, 'the offer itself still reaches the client').is.true;
   });
 
   // The spectator feature was removed: a spectator id is no longer a valid

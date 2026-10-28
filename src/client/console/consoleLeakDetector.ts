@@ -41,7 +41,7 @@ import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
 import {sittingAskResolution} from '@/client/console/promptSource';
 import {agendaReactionOf} from '@/client/console/parliament/agendaReaction';
 import {resetForegroundWatchdog, runForegroundWatchdog} from '@/client/console/consoleForegroundWatchdog';
-import {stackServes, workspaceFrameKnown, workspaceStackCollapsed, workspaceSurfacesFor} from '@/client/console/consoleWorkspaceStack';
+import {stackServes, workspaceFrameKnown, workspaceStackCollapsed, workspaceSurfacesFor, yieldedStackServes} from '@/client/console/consoleWorkspaceStack';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
 const SERVING_SURFACES: ReadonlyArray<string> = [
@@ -229,6 +229,18 @@ function clearStranded(): void {
 let consoleTaskDeferred = false;
 export function setConsoleTaskDeferred(deferred: boolean): void {
   consoleTaskDeferred = deferred;
+}
+
+/**
+ * Live mirror of the shell's `enterWorkspaceAfterHandoff` — a workspace entry the player PRESSED for (the plate's A
+ * into the sitting / the draft) that waits for the screen handoff (`screenHandoff.ts`: a reveal not taken, a foreign
+ * tile landing, a card into the dock). The beat is acknowledged (the gate no longer holds), the frame is not up yet,
+ * and some of those reasons raise no animation hold (a parked landing holds nothing) — the prompt is served by the
+ * entry that is owed, bounded by the director's ceiling. Without the mirror the amber guard reads the gap as a strand.
+ */
+let consoleTaskHandoffPending = false;
+export function setConsoleTaskHandoffPending(pending: boolean): void {
+  consoleTaskHandoffPending = pending;
 }
 
 /**
@@ -448,6 +460,14 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
     clearStranded();
     return;
   }
+  // AN OPTIONAL INPUT IS NOT A DEMAND (the draft re-pick, a sitting's early close — the owner, 2026-10-28): nothing is
+  // asked of the player, so no surface is owed. The surface that OFFERS it (the sitting's reward page) is a courtesy,
+  // and a courtesy with nowhere to stand is no strand — «В заседании от вас ничего не требуется — недоступен в
+  // консольном режиме» was this guard reading the early close as a demand.
+  if (wf.optional === true) {
+    clearStranded();
+    return;
+  }
   // The Government Support scale-focus choreography intentionally shows NO
   // surface for a beat — the panel closes (`closing`, WGT prompt still live)
   // then the board scale animates while the next modal is held (`holding`).
@@ -526,6 +546,17 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   // Deliberately only while PARKED: a frame that is supposed to be on screen
   // and is not is exactly the strand this detector exists to shout about.
   if (task !== undefined && workspaceStackCollapsed() && stackServes(task.kind)) {
+    clearStranded();
+    return;
+  }
+  // …and a stack that stepped ASIDE for the board (a sitting away for another seat's tile of the law — PL-764): its
+  // frames come back with the landing's end, and they serve this prompt the whole trip.
+  if (task !== undefined && yieldedStackServes(task.kind)) {
+    clearStranded();
+    return;
+  }
+  // …and an entry the player pressed for that waits for the screen handoff (see setConsoleTaskHandoffPending).
+  if (consoleTaskHandoffPending) {
     clearStranded();
     return;
   }

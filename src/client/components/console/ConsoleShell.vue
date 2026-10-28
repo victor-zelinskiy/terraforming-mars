@@ -2008,7 +2008,7 @@ import {ConsoleTaskSummary, consoleTaskSummary, placementKicker} from '@/client/
 import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
 import {cancelResponse, cardsResponse, colonyResponse, orOptionResponse, orWrappedResponse} from '@/client/console/taskResponses';
-import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
+import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskHandoffPending, setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
 import {armSceneDestination, clearGameExitTarget, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
 import {paths} from '@/common/app/paths';
 import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
@@ -21147,8 +21147,10 @@ export default defineComponent({
         return;
       }
       handoffPendingEntries.add(kind);
+      setConsoleTaskHandoffPending(true); // the prompt is served by the entry that is owed — never a strand
       void waitScreenHandoff(`enter:${kind}`, {alive: () => this.playerView?.game !== undefined}).then((outcome) => {
         handoffPendingEntries.delete(kind);
+        setConsoleTaskHandoffPending(handoffPendingEntries.size > 0);
         if (outcome !== 'dead' && !workspaceFrameKnown(kind)) {
           enterWorkspace(kind, opts);
         }
@@ -24797,6 +24799,7 @@ export default defineComponent({
   beforeUnmount() {
     registerGenerationSceneHandoff(undefined); // a dead shell's director must not gate the next game's rise
     handoffPendingEntries.clear();
+    setConsoleTaskHandoffPending(false);
     registerColonyTrackMoveHost(undefined);
     registerColonyRosterHost(undefined);
     this.offIntent?.();

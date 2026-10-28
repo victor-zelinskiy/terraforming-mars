@@ -144,6 +144,11 @@ export class SittingAcks {
       }
       const prompt = new SelectOption(message('Nothing is asked of you in the sitting of generation ${0}', (b) => b.number(p.generation)), 'Close the sitting')
         .markParliamentPhase({stage: 'close', generation: p.generation, final: p.final, seq: p.summary?.seq ?? 0, early: true});
+      // NOT THE SEAT'S TURN (the owner, 2026-10-28: «если ничего не требуется, то и промпта не должно быть»): the
+      // offer is a courtesy standing in the slot — never a demand. `optional` is the engine's own word for it (the
+      // draft re-pick's): `/api/waitingfor` never says GO for it, the chips never light the seat, the console never
+      // announces it or strands on it — only the sitting's reward page offers it as its A.
+      prompt.optional = true;
       game.events.runWithContext(context, () => {
         seat.setWaitingFor(prompt, () => SittingAcks.answerEarly(seat, p.generation, context));
       });

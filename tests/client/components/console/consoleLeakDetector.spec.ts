@@ -1,12 +1,12 @@
 import {expect} from 'chai';
-import {coveredPromptSurface, runLeakDetection, leakDetectorState, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskSpacePlacement, strandedTitleOf} from '@/client/console/consoleLeakDetector';
+import {coveredPromptSurface, runLeakDetection, leakDetectorState, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskHandoffPending, setConsoleTaskSpacePlacement, strandedTitleOf} from '@/client/console/consoleLeakDetector';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {Message} from '@/common/logs/Message';
 import {setMandatoryGateHeld, resetMandatoryGate} from '@/client/console/consoleMandatoryGate';
 import {expireActiveAnimationHolds, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
 import {resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
 import {resetConsoleHandPick} from '@/client/console/consoleHandPick';
-import {enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
+import {enterWorkspace, resetWorkspaceStack, yieldStackToBoard} from '@/client/console/consoleWorkspaceStack';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {sittingRiseState, sittingRiseStood} from '@/client/console/parliament/sittingRise';
 
@@ -362,5 +362,67 @@ describe('consoleLeakDetector — a prompt surface painted over by a full-bleed 
     scene.style.visibility = '';
     runLeakDetection(undefined);
     expect(leakDetectorState.covered).to.eq(undefined);
+  });
+});
+
+/*
+ * NOT EVERY PROMPT IN THE SLOT IS A DEMAND (the owner, 2026-10-28 — «В заседании от вас ничего не требуется —
+ * недоступен в консольном режиме» was this guard reading a sitting's EARLY CLOSE as one): an OPTIONAL input owes no
+ * surface; a host that stepped ASIDE for the board still serves its prompt; an entry the player pressed for that waits
+ * for the screen handoff serves it too.
+ */
+describe('consoleLeakDetector — a courtesy, a yielded host and a pending entry are never strands', () => {
+  beforeEach(idleForeground);
+  afterEach(() => {
+    setConsoleTaskHandoffPending(false);
+    clearForeground();
+  });
+
+  function sittingCloseView(early: boolean): PlayerViewModel {
+    return {
+      waitingFor: {type: 'option', title: early ? 'Nothing is asked of you in the sitting of generation 2' : 'The Mars Parliament of generation 2 adjourns',
+        buttonLabel: 'Close the sitting', ...(early ? {optional: true} : {}),
+        parliamentPhasePrompt: {stage: 'close', generation: 2, final: false, seq: 1, ...(early ? {early: true} : {})}},
+      cardsInHand: [],
+      thisPlayer: {selfReplicatingRobotsCards: []},
+    } as unknown as PlayerViewModel;
+  }
+
+  it('an OPTIONAL input (a sitting early close) never strands — nothing is asked of the player', () => {
+    const view = sittingCloseView(true);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded).to.eq(undefined);
+  });
+
+  it('the ordinary confirmation with no sitting on screen still strands (regression fence)', () => {
+    const view = sittingCloseView(false);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded).to.not.eq(undefined);
+  });
+
+  it('a sitting that stepped ASIDE for the board (PL-764) still serves its confirmation', () => {
+    enterWorkspace('parliament', {anchor: {type: 'always'}});
+    expect(yieldStackToBoard(), 'the Parliament yields to the board').is.true;
+    const view = sittingCloseView(false);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded, 'the frames come back with the landing').to.eq(undefined);
+  });
+
+  it('an entry waiting for the screen handoff serves the prompt it will open', () => {
+    setConsoleTaskHandoffPending(true);
+    const view = sittingCloseView(false);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded).to.eq(undefined);
+    setConsoleTaskHandoffPending(false);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded, 'the mirror dropped — judged as usual').to.not.eq(undefined);
   });
 });

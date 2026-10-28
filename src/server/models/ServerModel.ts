@@ -559,6 +559,12 @@ export class Server {
     // against a prompt the server has since replaced (game reload, undo, bot
     // turn) is refused as STALE_PROMPT instead of applied to the wrong prompt.
     model.promptId = player.waitingForSerial;
+    // OPTIONAL — «not the seat's turn» (the draft re-pick, a sitting's early close): serialized CENTRALLY, so every
+    // input type carries the engine's word (only `SelectCard.toModel` used to) and the client's one reader
+    // (`wf.optional !== true` in the transport, the task router, the leak detector) sees it for any shape.
+    if (waitingFor.optional === true) {
+      model.optional = true;
+    }
     // Start-of-game-flow marker (corp initial action / prelude selection) — set
     // centrally so any input type carries it without touching per-type toModel.
     if (waitingFor.startGamePrompt !== undefined) {
@@ -690,7 +696,9 @@ export class Server {
       influence: game.politics?.influence(player) ?? 0,
       isActive: player.id === game.activePlayer.id,
       isMarsBot: player.isMarsBot === true ? true : undefined,
-      isWaitingForInput: player.getWaitingFor() !== undefined,
+      // An OPTIONAL input (the draft re-pick, a sitting's early close) is a courtesy, never the seat's turn — the
+      // chips, the finale and the trade readers must not count it as «asked».
+      isWaitingForInput: player.getWaitingFor() !== undefined && player.getWaitingFor()?.optional !== true,
       waitingForKind: detectWaitingForKind(player.getWaitingFor()),
       // PUBLIC on purpose: an opponent taking Head Start's two immediate
       // actions must read as exactly that on every seat's chip, not as a

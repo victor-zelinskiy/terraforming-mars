@@ -140,6 +140,18 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     expect(taskFor(view(undefined))).to.eq(undefined);
   });
 
+  // A SITTING'S EARLY CLOSE IS NOT A DEMAND (the owner, 2026-10-28): the courtesy offer in the slot is no task — no
+  // plate, no badge, no strand; the sitting's reward page reads the marker itself.
+  it('a sitting EARLY close (the marker) → no task', () => {
+    const early = {type: 'option', title: 'Nothing is asked of you in the sitting of generation 2', buttonLabel: 'Close the sitting', optional: true,
+      parliamentPhasePrompt: {stage: 'close', generation: 2, final: false, seq: 1, early: true}} as unknown as PlayerInputModel;
+    expect(taskFor(view(early))).to.eq(undefined);
+    // …the ordinary confirmation at the sitting's end is a task as before (row 30c).
+    const close = {type: 'option', title: 'The Mars Parliament of generation 2 adjourns', buttonLabel: 'Close the sitting',
+      parliamentPhasePrompt: {stage: 'close', generation: 2, final: false, seq: 1}} as unknown as PlayerInputModel;
+    expect(taskFor(view(close))?.kind).to.eq('parliamentPhase');
+  });
+
   for (const f of FIXTURES) {
     it(`row ${f.row}`, () => {
       const task = kindOf(f.wf, f.hand ?? [], f.srr ?? []);

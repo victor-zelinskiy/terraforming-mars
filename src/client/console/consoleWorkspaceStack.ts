@@ -934,6 +934,15 @@ export function stackServes(kind: TaskKind): boolean {
     workspaceStackState.parked.some((f) => f.serves.includes(kind));
 }
 
+/**
+ * The frames that stepped ASIDE for the board (`yieldStackToBoard`) still serve their prompts: a sitting away for
+ * another seat's tile of the law (PL-764) keeps the seat's confirmation — its way back is the landing's own end. The
+ * same fact as a PARKED chain, stated for the other store (the leak detector asks both).
+ */
+export function yieldedStackServes(kind: TaskKind): boolean {
+  return boardYielded.some((f) => f.serves.includes(kind));
+}
+
 /** Which frame serves `kind`, if any (for routing a prompt to its host) —
  *  including a PARKED one, which is still that prompt's home. */
 export function frameServing(kind: TaskKind): WorkspaceFrame | undefined {

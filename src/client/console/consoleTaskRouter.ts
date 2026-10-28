@@ -645,6 +645,14 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     return undefined;
   }
 
+  // A SITTING'S EARLY CLOSE IS NOT A DEMAND (the soft gates, Р-1; the owner, 2026-10-28): the server's courtesy
+  // offer stands in the slot while the law asks another seat — the sitting's reward page offers it as its A
+  // (`sittingPositionOf(...).earlyClose`), and nothing else may announce it, badge it or strand on it. Read by the
+  // structural marker, never the title; the server marks it `optional` too (never GO, never a lit chip).
+  if (wf.parliamentPhasePrompt?.early === true) {
+    return undefined;
+  }
+
   // MARKERS outrank the raw type — the structural rule. The Venus alt-track
   // bonus takes TWO shapes (`and` for the base, `or` for the final wild step)
   // and the spend-heat prompt is an `and` that is really a payment; classifying

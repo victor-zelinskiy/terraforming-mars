@@ -381,6 +381,8 @@ describe('ParliamentPhase', () => {
       expect(ask1.choiceContext?.source).deep.eq({kind: 'resolution', resolution: TEST_CHOICE_RESOLUTION_ID});
       // p2 is NOT asked yet — the effect visits the players in order; it holds only the EARLY close of its sitting.
       expect(live.getPlayerById(p2.id).getWaitingFor()?.parliamentPhasePrompt).deep.include({stage: 'close', early: true});
+      // …which is a COURTESY, never its turn (the owner, 2026-10-28): optional — never GO, never a lit chip, never a plate.
+      expect(live.getPlayerById(p2.id).getWaitingFor()?.optional, 'the early close is optional').is.true;
       // Answer: plants.
       one.process({type: 'or', index: 0, response: {type: 'option'}});
       expect(one.plants).eq(1);
