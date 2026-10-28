@@ -72,7 +72,7 @@ export class ApiCreateGame extends Handler {
   // would be better.
   public override post(req: Request, res: Response, ctx: Context): Promise<void> {
     return new Promise((resolve) => {
-      if (this.quotaHandler.measure(ctx) === false) {
+      if (this.quotaHandler.isWithinQuota(ctx) === false) {
         responses.quotaExceeded(req, res);
         resolve();
         return;
@@ -139,6 +139,8 @@ export class ApiCreateGame extends Handler {
             game = Game.newInstance(gameId, players, players[firstPlayerIdx], spectatorId, gameOptions, seed);
           }
           ctx.gameLoader.add(game);
+          // Only a CREATED game counts against the quota (upstream c794c37438) — a refused request does not.
+          this.quotaHandler.record(ctx);
           responses.writeJson(res, ctx, Server.getSimpleGameModel(game));
         } catch (error) {
           responses.internalServerError(req, res, error);
