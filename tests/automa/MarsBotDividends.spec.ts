@@ -105,13 +105,14 @@ describe('MarsBot dividends (the campaign portfolio)', () => {
       expect(missing).deep.eq([]);
     });
 
-    it('every box has its two GOALS on an operand its own formula measures, printed once under that line', () => {
+    it('every box has its three-tier GOAL on an operand its own formula measures, printed once under that line', () => {
       const [game] = seated({}, '-goals');
       const wrong: Array<string> = [];
       for (const id of MARS_BOT_CORP_IDS) {
         const {goal, lines} = marsBotDividendInfo(id);
-        if (!(goal.at > 0 && goal.at2 > goal.at && goal.vp > 0 && goal.vp2 > 0)) {
-          wrong.push(`${id}: goals ${goal.at}/${goal.at2} +${goal.vp}/+${goal.vp2}`);
+        const [t1, t2, t3] = goal.tiers;
+        if (!(t1.at > 0 && t2.at > t1.at && t3.at > t2.at && t1.vp > 0 && t2.vp >= t1.vp && t3.vp >= t2.vp && t3.vp <= 10)) {
+          wrong.push(`${id}: tiers ${goal.tiers.map((t) => `${t.at} +${t.vp}`).join(' / ')} (rising thresholds, rising prizes, no step above +10)`);
         }
         // The measured operand exists in the clause's OWN formula (the server's terms, never a guess).
         const own = AutomaCorporations.corpFor(id).dividend(game);
@@ -296,12 +297,12 @@ describe('MarsBot dividends (the campaign portfolio)', () => {
       expect(AutomaCorporations.dividendOf(game, MarsBotCorpId.C36_PRISTAR).vp).eq(r.each);
       game.automa!.failedActions = 100;
       const capped = AutomaCorporations.dividendOf(game, MarsBotCorpId.C36_PRISTAR);
-      // The cap ends the formula; the two goals stand beside it (both reached at 100).
-      expect(capped.vp).eq(r.cap + r.goalVp + r.goalVp2);
+      // The cap ends the formula; the three goal tiers stand beside it (all reached at 100).
+      expect(capped.vp).eq(r.cap + r.goalVp + r.goalVp2 + r.goalVp3);
       expect(capped.terms[0].cap).eq(r.cap);
     });
 
-    it('the GOALS — +vp at the first threshold of the measured operand, +vp2 more at the second, nothing below', () => {
+    it('the GOAL — three tiers on the measured operand, each adding its prize on top of the ones below, nothing below the first', () => {
       const [game] = seated({}, '-goalpay');
       const r = marsBotDividendInfo(MarsBotCorpId.C36_PRISTAR).rates;
       const pay = (failures: number) => {
@@ -312,13 +313,17 @@ describe('MarsBot dividends (the campaign portfolio)', () => {
       expect(pay(r.goalAt - 1).vp, 'one short of the first goal').eq(base(r.goalAt - 1));
       expect(pay(r.goalAt).vp, 'the first goal').eq(base(r.goalAt) + r.goalVp);
       expect(pay(r.goalAt2 - 1).vp, 'one short of the second').eq(base(r.goalAt2 - 1) + r.goalVp);
-      const both = pay(r.goalAt2);
-      expect(both.vp, 'both goals').eq(base(r.goalAt2) + r.goalVp + r.goalVp2);
-      expect(both.terms.slice(-2).map((t) => [t.label, t.threshold, t.vp])).deep.eq([
+      expect(pay(r.goalAt2).vp, 'the second').eq(base(r.goalAt2) + r.goalVp + r.goalVp2);
+      expect(pay(r.goalAt3 - 1).vp, 'one short of the third').eq(base(r.goalAt3 - 1) + r.goalVp + r.goalVp2);
+      const all = pay(r.goalAt3);
+      expect(all.vp, 'all three').eq(base(r.goalAt3) + r.goalVp + r.goalVp2 + r.goalVp3);
+      expect(all.terms.slice(-3).map((t) => [t.label, t.threshold, t.vp])).deep.eq([
         ['Goal', r.goalAt, r.goalVp],
         ['Second goal', r.goalAt2, r.goalVp2],
+        ['Third goal', r.goalAt3, r.goalVp3],
       ]);
-      expectWellFormed(both, 'Pristar with both goals');
+      expect([r.goalVp, r.goalVp2, r.goalVp3], 'the default prizes: the old +10 / +15 in three steps').deep.eq([7, 8, 10]);
+      expectWellFormed(all, 'Pristar with all three goal tiers');
     });
 
     it('the board — Philares counts borders between the bot\'s tiles and another player\'s', () => {

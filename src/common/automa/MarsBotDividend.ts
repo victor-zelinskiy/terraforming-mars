@@ -65,47 +65,55 @@ export type MarsBotDividendInfo = {
   name: string;
   rates: Readonly<Record<string, number>>;
   lines: ReadonlyArray<BonusCardEffectLine>;
-  /** The box's two GOALS — the rare great game of this very corporation (`withDividendGoal`). */
+  /** The box's GOAL — three tiers, the rare great game of this very corporation (`withDividendGoal`). */
   goal: MarsBotDividendGoal;
 };
 
 /**
- * THE TWO GOALS of a dividend (the owner, 2026-10-27: «иногда реально 70+ —
- * два бонусных порога, уникальные, достижимые, но редкие, не теоретические»).
+ * THE GOAL of a dividend — THREE TIERS on one scale (the owner, 2026-10-27:
+ * «иногда реально 70+ … достижимые, но редкие, не теоретические»; 2026-10-28:
+ * «три уровня вместо двух — суммарно столько же, но без резких рывков»).
  * Measured on the operand of ONE term of the clause's own formula (`term` —
- * its `count`, so the goal speaks the line it is printed under), paying `vp`
- * once the count reaches `at` and `vp2` MORE at `at2`. Never under the box's
- * printed cap (a cap ends the formula; a goal stands beside it). The numbers
- * are calibrated on the owner's real games — the first reached in about a
- * fifth of them, the second in about one in twenty, and EVERY one reached in
- * real play (`docs/claude/marsbot-dividends-calibration.md` § ЦЕЛИ).
+ * its `count`, so the goal speaks the line it is printed under); each tier
+ * pays its `vp` once the count reaches its `at`, ON TOP of the tiers below
+ * (+7 · +8 · +10 by default — the old +10 / +15 in three steps, no jump above
+ * +10). Never under the box's printed cap (a cap ends the formula; a goal
+ * stands beside it). The numbers are calibrated on the owner's real games —
+ * the expected goal VP of the old two-threshold shape kept per corporation,
+ * the first tier reached in at most two games of five, the last as rare as the
+ * old second goal and EVERY tier reached in real play
+ * (`docs/claude/marsbot-dividends-calibration.md` § ЦЕЛИ — три ступени).
  */
+export type MarsBotDividendTier = {at: number, vp: number};
 export type MarsBotDividendGoal = {
   term: number;
-  at: number;
-  at2: number;
-  vp: number;
-  vp2: number;
+  tiers: readonly [MarsBotDividendTier, MarsBotDividendTier, MarsBotDividendTier];
 };
+
+/** The default prizes of the three tiers — rising, the last the biggest, together the old +10 / +15. */
+export const DIVIDEND_GOAL_VP: readonly [number, number, number] = [7, 8, 10];
 
 type DividendLine = {text: string, params?: ReadonlyArray<number>, muted?: boolean};
 
-/** The printed goal line — under the line of the operand it measures. */
-export const DIVIDEND_GOAL_LINE = 'Goal: ${0} or more — +${1} VP; ${2} or more — +${3} VP more';
+/** The printed goal line — under the line of the operand it measures: the three tiers, each with what it adds. */
+export const DIVIDEND_GOAL_LINE = 'Goal: ${0} — +${1} VP · ${2} — +${3} VP · ${4} — +${5} VP';
 
-/** The two goal terms `withDividendGoal` appends — the labels the live reading finds them by. */
-export const GOAL_TERM_LABEL = 'Goal';
-export const SECOND_GOAL_TERM_LABEL = 'Second goal';
+/** The three goal terms `withDividendGoal` appends — the labels the live reading finds them by, in tier order. */
+export const GOAL_TERM_LABELS: readonly [string, string, string] = ['Goal', 'Second goal', 'Third goal'];
 
-/** A box's goals: the two thresholds on the operand of term `term` (default the first), +10 / +15 VP by default. */
-export function dividendGoal(at: number, at2: number, opts: {term?: number, vp?: number, vp2?: number} = {}): MarsBotDividendGoal {
-  return {term: opts.term ?? 0, at, at2, vp: opts.vp ?? 10, vp2: opts.vp2 ?? 15};
+/** A box's goal: three rising thresholds on the operand of term `term` (default the first), +7 / +8 / +10 VP by default. */
+export function dividendGoal(at: number, at2: number, at3: number, opts: {term?: number, vp?: readonly [number, number, number]} = {}): MarsBotDividendGoal {
+  if (!(at < at2 && at2 < at3)) {
+    throw new Error(`A dividend goal's tiers must rise: ${at} / ${at2} / ${at3}`);
+  }
+  const vp = opts.vp ?? DIVIDEND_GOAL_VP;
+  return {term: opts.term ?? 0, tiers: [{at, vp: vp[0]}, {at: at2, vp: vp[1]}, {at: at3, vp: vp[2]}]};
 }
 
 /**
  * Build a box whose printed params are taken from its own `rates`. The goal's
- * numbers JOIN the rates (`goalAt` · `goalAt2` · `goalVp` · `goalVp2`), so a
- * printed number stays a rate and the paid number stays the printed one.
+ * numbers JOIN the rates (`goalAt` · `goalAt2` · `goalAt3` · `goalVp` · `goalVp2` ·
+ * `goalVp3`), so a printed number stays a rate and the paid number stays the printed one.
  */
 export function dividendBox<R extends Record<string, number>>(
   name: string,
@@ -114,7 +122,8 @@ export function dividendBox<R extends Record<string, number>>(
   goal: MarsBotDividendGoal,
 ): MarsBotDividendInfo & {rates: R} {
   const printed = [...lines(rates)];
-  const goalLine: DividendLine = {text: DIVIDEND_GOAL_LINE, params: [goal.at, goal.vp, goal.at2, goal.vp2]};
+  const [t1, t2, t3] = goal.tiers;
+  const goalLine: DividendLine = {text: DIVIDEND_GOAL_LINE, params: [t1.at, t1.vp, t2.at, t2.vp, t3.at, t3.vp]};
   // Under the measured line and the quiet notes that qualify it.
   let at = Math.min(goal.term + 1, printed.length);
   while (at < printed.length && printed[at].muted === true) {
@@ -123,7 +132,7 @@ export function dividendBox<R extends Record<string, number>>(
   printed.splice(at, 0, goalLine);
   return {
     name,
-    rates: {...rates, goalAt: goal.at, goalAt2: goal.at2, goalVp: goal.vp, goalVp2: goal.vp2},
+    rates: {...rates, goalAt: t1.at, goalAt2: t2.at, goalAt3: t3.at, goalVp: t1.vp, goalVp2: t2.vp, goalVp3: t3.vp},
     goal,
     lines: printed.map((line) => ({
       icon: 'vp',
@@ -135,8 +144,8 @@ export function dividendBox<R extends Record<string, number>>(
 }
 
 /**
- * The clause's result with its two GOALS — two threshold terms on the
- * measured operand, appended after the formula (outside any printed cap).
+ * The clause's result with its GOAL — three threshold terms on the measured
+ * operand, one per tier, appended after the formula (outside any printed cap).
  * Σ terms.vp === vp still holds.
  */
 export function withDividendGoal(result: MarsBotDividendResult, goal: MarsBotDividendGoal): MarsBotDividendResult {
@@ -144,9 +153,8 @@ export function withDividendGoal(result: MarsBotDividendResult, goal: MarsBotDiv
   if (measured === undefined) {
     return result;
   }
-  const first = bonusTerm(GOAL_TERM_LABEL, measured.count, goal.at, goal.vp);
-  const second = bonusTerm(SECOND_GOAL_TERM_LABEL, measured.count, goal.at2, goal.vp2);
-  return {vp: result.vp + first.vp + second.vp, terms: [...result.terms, first, second]};
+  const tiers = goal.tiers.map((tier, i) => bonusTerm(GOAL_TERM_LABELS[i], measured.count, tier.at, tier.vp));
+  return {vp: result.vp + tiers.reduce((sum, t) => sum + t.vp, 0), terms: [...result.terms, ...tiers]};
 }
 
 /** A per-unit term: `floor(count × each / per)`. */

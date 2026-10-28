@@ -1,11 +1,12 @@
 /* ═══ THE DIVIDEND LEDGER (ConsoleBotDividendLedger) ═════════════════════
    A further corporation's «ДИВИДЕНДЫ» box read LIVE in the inspect panel
    (the owner, 2026-10-27): ONE composition of plates on ONE chassis — the
-   MECHANIC (name · printed rule · live terms), the two GOALS side by side,
-   the TOTAL — each plate a kicker row over its body, every value on the
-   plates' one right edge, the same gap between all of them.
-   VISUAL RESTRAINT: a reached goal is MATERIAL — a gold kant, a fill, the
-   seal and the word «Взята»; nothing glows, nothing loops, nothing moves.
+   MECHANIC (name · printed rule · live terms), the GOAL as one quiet scale
+   of three tiers, the TOTAL — each plate a kicker row over its body, every
+   value on the plates' one right edge, the same gap between all of them.
+   VISUAL RESTRAINT: a reached tier is MATERIAL — a solid notch, the gold of
+   its part of the scale, its prize in gold; nothing glows, nothing loops,
+   nothing moves.
    Sizes ride the reading tokens, so the rules panel's tiers carry it. */
 .con-divledger {
     --dl-gap: .5rem;
@@ -38,7 +39,6 @@
     &__name,
     &__when,
     &__kicker,
-    &__goal-name,
     &__state,
     &__total-label {
         font-family: @con-font;
@@ -129,15 +129,10 @@
     }
     &__term--zero &__term-vp { color: fade(@con-text, 40%); }
 
-    /* ── THE GOALS — a caption naming what they measure, two plates side by side ── */
-    &__caption {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: .6rem;
-        margin-top: .1rem;
-        padding: 0 .65rem;
-    }
+    /* ── THE GOAL — ONE quiet plate (the owner, 2026-10-28): the kicker and the operand's count, ONE scale of
+       three equal segments (the last notch at its end), each tier's threshold and prize right under its notch,
+       one line for what the next tier needs. It reads AFTER the mechanic: no gold kant of its own, no seals —
+       gold is only what is PAID (the scale up to the last reached notch, a reached tier's prize). ── */
     &__kicker {
         flex: 0 0 auto;
         color: @con-text-dim;
@@ -159,68 +154,24 @@
         flex: 0 0 auto;
         font-family: @con-font;
         font-variant-numeric: tabular-nums;
-        font-size: calc(var(--con-t-read-lg) * var(--con-read-scale, 1));
+        font-size: calc(var(--con-t-read) * var(--con-read-scale, 1));
         font-weight: 800;
         line-height: 1;
         color: @con-text;
     }
-    &__goals {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: var(--dl-gap);
-    }
-    &__goal--reached {
-        background: fade(@sem-prestige, 8%);
-        box-shadow: inset 0 0 0 .06rem fade(@sem-prestige, 60%);
-    }
-    &__goal-name { color: @con-text-dim; }
-    &__goal--reached &__goal-name { color: fade(@sem-prestige, 90%); }
-    /* The seal: an EMPTY ring until the goal is reached, then a solid gold disc with its tick — by form, not by colour alone. */
-    &__seal {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex: 0 0 auto;
-        width: 1.05rem;
-        height: 1.05rem;
-        border-radius: 50%;
-        box-shadow: inset 0 0 0 .06rem rgba(196, 216, 236, 0.32);
-        font-family: @con-font;
-        font-size: .7rem;
-        font-weight: 900;
-        line-height: 1;
-        color: #1b1405;
-    }
-    &__goal--reached &__seal {
-        background: @sem-prestige;
-        box-shadow: none;
-    }
-    &__goal-terms {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: .4rem;
-        flex-wrap: wrap;
-    }
-    &__at {
-        .con-read-text(500);
-        font-size: calc(var(--con-t-read) * var(--con-read-scale, 1));
-        line-height: 1.2;
-        color: @con-text;
-    }
-    &__prize {
-        font-family: @con-font;
-        font-variant-numeric: tabular-nums;
-        font-size: calc(var(--con-t-read) * var(--con-read-scale, 1));
-        font-weight: 800;
-        line-height: 1.2;
-        color: fade(@con-text, 52%);
-        white-space: nowrap;
-    }
-    &__goal--reached &__prize { color: @sem-prestige; }
-    &__meter {
+    /* The scale: a hairline track, the notches standing ON it (absolute — zero layout). */
+    &__scale {
         position: relative;
-        height: .28rem;
+        height: .7rem;
+        margin: .15rem .35rem 0 0;
+    }
+    &__track {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 50%;
+        height: .22rem;
+        margin-top: -.11rem;
         border-radius: 999px;
         background: rgba(255, 255, 255, 0.08);
         overflow: hidden;
@@ -230,11 +181,55 @@
         inset: 0;
         border-radius: inherit;
         transform-origin: left center;
-        background: fade(@con-cyan, 72%);
     }
-    &__goal--reached &__fill { background: @sem-prestige; }
-    &__state { color: fade(@con-text, 66%); }
-    &__goal--reached &__state { color: fade(@sem-prestige, 92%); }
+    &__fill--progress { background: fade(@con-cyan, 46%); }
+    &__fill--paid { background: fade(@sem-prestige, 88%); }
+    /* A notch: an EMPTY ring on the track until its tier is paid, then a solid gold mark — by form, not colour alone. */
+    &__notch {
+        position: absolute;
+        top: 50%;
+        width: .62rem;
+        height: .62rem;
+        margin: -.31rem 0 0 -.31rem;
+        border-radius: 50%;
+        background: #0d1520;
+        box-shadow: inset 0 0 0 .06rem rgba(196, 216, 236, 0.42);
+    }
+    &__notch--reached {
+        background: @sem-prestige;
+        box-shadow: inset 0 0 0 .06rem fade(#1b1405, 40%);
+    }
+    /* The tiers' labels: three equal columns, each right-aligned under its notch. */
+    &__tiers {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .4rem;
+    }
+    &__tier {
+        display: flex;
+        align-items: baseline;
+        justify-content: flex-end;
+        gap: .35rem;
+        min-width: 0;
+        white-space: nowrap;
+    }
+    &__at {
+        .con-read-text(450);
+        font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
+        line-height: 1.2;
+        color: @con-text-dim;
+    }
+    &__prize {
+        font-family: @con-font;
+        font-variant-numeric: tabular-nums;
+        font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
+        font-weight: 800;
+        line-height: 1.2;
+        color: fade(@con-text, 58%);
+    }
+    &__tier--reached &__at { color: fade(@con-text, 82%); }
+    &__tier--reached &__prize { color: @sem-prestige; }
+    &__state { color: fade(@con-text, 62%); }
 
     /* ── THE TOTAL — the whole dividend, the formula and the goals named beside it ── */
     &__total {

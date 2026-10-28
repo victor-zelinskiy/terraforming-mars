@@ -7,14 +7,15 @@ import {botDividendDetailOf, botDividendReading} from '../../src/client/componen
 import {marsBotDividendAnnotation, marsBotDividendGroupId, marsBotHoldingAnnotations} from '../../src/client/components/marsbot/marsBotCorpRules';
 
 /**
- * THE LIVE DIVIDEND LEDGER's reading (the owner, 2026-10-27): a further
- * corporation's inspected rules state both goals' thresholds, how far the
- * operand has come, whether each goal is reached and what it pays, and the
- * total WITH the goals. Every number is the server's row (`detailsDividends`)
- * — the reading only finds the two goal terms `withDividendGoal` appended.
+ * THE LIVE DIVIDEND LEDGER's reading (the owner, 2026-10-27; three tiers on one
+ * scale, 2026-10-28): a further corporation's inspected rules state the goal's
+ * three thresholds, how far the operand has come, which tiers are paid and what
+ * each adds, what the next one still needs, and the total WITH the goal. Every
+ * number is the server's row (`detailsDividends`) — the reading only finds the
+ * three goal terms `withDividendGoal` appended.
  */
 
-/** Ecoline's dividend row exactly as the server builds it: the clause, then the box's goals (9 / 10 greeneries). */
+/** Ecoline's dividend row exactly as the server builds it: the clause, then the box's goal (8 / 10 / 11 greeneries). */
 function ecoline(greeneries: number): MarsBotDividendDetail {
   const r = marsBotDividendInfo(MarsBotCorpId.C02_ECOLINE).rates;
   const clause = dividendResult([
@@ -25,14 +26,16 @@ function ecoline(greeneries: number): MarsBotDividendDetail {
 }
 
 describe('botDividendReading — the live ledger of a further corporation', () => {
-  it('neither goal reached: the thresholds, how many are missing, the formula alone in the total', () => {
+  it('no tier reached: the three thresholds and prizes, the next one\'s distance, the scale inside its first segment', () => {
     const reading = botDividendReading(ecoline(7));
     expect(reading).not.undefined;
-    expect(reading!.operand).deep.eq({label: 'Greenery tiles', count: 7});
-    expect(reading!.goals.map((g) => [g.at, g.vp, g.reached, g.paid, g.remaining])).deep.eq([[9, 10, false, 0, 2], [10, 15, false, 0, 3]]);
-    expect(reading!.goals[0].fill).closeTo(7 / 9, 1e-9);
+    expect(reading!.goal.operand).deep.eq({label: 'Greenery tiles', count: 7});
+    expect(reading!.goal.tiers.map((t) => [t.ordinal, t.at, t.vp, t.reached, t.paid])).deep.eq([[1, 8, 7, false, 0], [2, 10, 8, false, 0], [3, 11, 10, false, 0]]);
+    expect(reading!.goal.next).deep.eq({ordinal: 1, vp: 7, remaining: 1});
+    expect(reading!.goal.progress).closeTo((7 / 8) / 3, 1e-9);
     expect(reading!.formulaVp).eq(7 * 2 + 2);
     expect(reading!.goalsVp).eq(0);
+    expect(reading!.goal.vp).eq(0);
     expect(reading!.totalVp).eq(16);
   });
 
@@ -47,17 +50,29 @@ describe('botDividendReading — the live ledger of a further corporation', () =
     expect(reading.terms.reduce((s, t) => s + t.vp, 0), 'the terms add up to the formula').eq(reading.formulaVp);
   });
 
-  it('the first goal reached: it pays, the second still names what is missing; the total adds the goal', () => {
+  it('the first tier reached: it pays +7, the next names what is missing, the scale halfway through its second segment', () => {
     const reading = botDividendReading(ecoline(9))!;
-    expect(reading.goals.map((g) => [g.reached, g.paid, g.remaining, g.fill])).deep.eq([[true, 10, 0, 1], [false, 0, 1, 0.9]]);
+    expect(reading.goal.tiers.map((t) => [t.reached, t.paid])).deep.eq([[true, 7], [false, 0], [false, 0]]);
+    expect(reading.goal.next).deep.eq({ordinal: 2, vp: 8, remaining: 1});
+    expect(reading.goal.progress).closeTo((1 + 1 / 2) / 3, 1e-9);
     expect(reading.formulaVp).eq(9 * 2 + 2);
-    expect(reading.goalsVp).eq(10);
-    expect(reading.totalVp).eq(30);
+    expect(reading.goalsVp).eq(7);
+    expect(reading.totalVp).eq(9 * 2 + 2 + 7);
   });
 
-  it('both goals reached: +10 and +15 on top of the formula, the meters full', () => {
+  it('two tiers reached: +7 +8, the last one still ahead — no step above +10 anywhere', () => {
+    const reading = botDividendReading(ecoline(10))!;
+    expect(reading.goal.tiers.map((t) => t.paid)).deep.eq([7, 8, 0]);
+    expect(reading.goal.next).deep.eq({ordinal: 3, vp: 10, remaining: 1});
+    expect(reading.goal.progress).closeTo(2 / 3, 1e-9);
+    expect(Math.max(...reading.goal.tiers.map((t) => t.vp)), 'the biggest single step').eq(10);
+  });
+
+  it('all three reached: +7 +8 +10 on top of the formula, the scale full, nothing next', () => {
     const reading = botDividendReading(ecoline(12))!;
-    expect(reading.goals.map((g) => [g.reached, g.paid, g.fill])).deep.eq([[true, 10, 1], [true, 15, 1]]);
+    expect(reading.goal.tiers.map((t) => [t.reached, t.paid])).deep.eq([[true, 7], [true, 8], [true, 10]]);
+    expect(reading.goal.next).undefined;
+    expect(reading.goal.progress).eq(1);
     expect(reading.goalsVp).eq(25);
     expect(reading.totalVp).eq(12 * 2 + 2 + 25);
     expect(reading.formulaVp + reading.goalsVp, 'the split adds up to the dividend').eq(reading.totalVp);
@@ -69,8 +84,8 @@ describe('botDividendReading — the live ledger of a further corporation', () =
     expect(goal.term).eq(1);
     const clause = dividendResult([perUnitTerm('Tracks at the first mark', 6, 3), perUnitTerm('Tracks at the second mark', 4, 2)]);
     const reading = botDividendReading({corporation: id, ...withDividendGoal(clause, goal)})!;
-    expect(reading.operand).deep.eq({label: 'Tracks at the second mark', count: 4});
-    expect(reading.goals[0].reached).eq(4 >= goal.at);
+    expect(reading.goal.operand).deep.eq({label: 'Tracks at the second mark', count: 4});
+    expect(reading.goal.tiers[0].reached).eq(4 >= goal.tiers[0].at);
   });
 
   it('nothing to read: no row, or a row without its goal terms — the printed line stands instead', () => {

@@ -38,15 +38,16 @@ function dividendRowOf(model: unknown, corp: string): WireDividend {
 }
 
 /**
- * THE LIVE LEDGER (the owner, 2026-10-27): the inspected holding's «ДИВИДЕНДЫ» box is ONE composition — the
- * mechanic (its name, its printed rule, the formula's live terms), both goals (threshold, prize, reached or how
- * many are missing) and the total WITH the goals — and every number in it is the server's row of that corporation.
- * The box stands whole inside the rules panel. Returns the row's goal terms.
+ * THE LIVE LEDGER (the owner, 2026-10-27; the goal as ONE scale of three tiers, 2026-10-28): the inspected
+ * holding's «ДИВИДЕНДЫ» box is ONE composition — the mechanic (its name, its printed rule, the formula's live
+ * terms), the goal's scale (each tier's threshold and prize, reached or not, ONE line for what the next tier
+ * needs) and the total WITH the goal — and every number in it is the server's row of that corporation. The box
+ * stands whole inside the rules panel. Returns the row's goal terms.
  */
 async function expectLedgerReadsServer(page: Page, rules: Locator, model: unknown, corp: string): Promise<ReadonlyArray<WireTerm>> {
   const row = dividendRowOf(model, corp);
-  const goalTerms = row.terms.filter((t) => t.label === 'Goal' || t.label === 'Second goal');
-  expect(goalTerms.length, 'the row carries its two goals').toBe(2);
+  const goalTerms = row.terms.filter((t) => t.label === 'Goal' || t.label === 'Second goal' || t.label === 'Third goal');
+  expect(goalTerms.length, 'the row carries its three goal tiers').toBe(3);
   const formulaTerms = row.terms.filter((t) => !goalTerms.includes(t));
   const box = rules.locator(`[data-rules-group="botcorp:${corp}:dividend"]`);
   await expect(box, 'the dividend LEADS — the one thing a holding does').toHaveCount(1);
@@ -58,19 +59,21 @@ async function expectLedgerReadsServer(page: Page, rules: Locator, model: unknow
   const formula = ledger.locator('[data-dividend-formula]');
   await expect(formula.locator('[data-dividend-name]')).not.toHaveText('');
   await expect(formula, 'when it pays').toContainText(/в конце партии/i);
-  await expect(formula, 'the printed goal line yields to the goal plates').not.toContainText(/Цель: от \d+/);
+  await expect(formula, 'the printed goal line yields to the goal scale').not.toContainText(/Цели: от \d+/);
   const termVps = await formula.locator('[data-dividend-term]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-term-vp'))));
   expect(termVps, 'one row per live term, each with the VP the server pays it').toEqual(formulaTerms.map((t) => t.vp));
-  // The goals.
+  // The goal: ONE scale, three tiers under it, ONE line for the next tier.
+  await expect(ledger.locator('[data-dividend-goal-scale]'), 'one scale, not a plate per goal').toHaveCount(1);
   await expect(ledger.locator('[data-dividend-count]')).toHaveText(String(goalTerms[0].count));
   for (const [i, term] of goalTerms.entries()) {
-    const goal = ledger.locator(`[data-dividend-goal="${i + 1}"]`);
-    await expect(goal.locator('[data-goal-at]'), `goal ${i + 1}: its threshold`).toHaveText(`от ${term.threshold}`);
-    await expect(goal.locator('[data-goal-vp]'), `goal ${i + 1}: its prize`).toHaveText(`+${term.each} ПО`);
-    const reached = term.vp > 0;
-    await expect(goal, `goal ${i + 1}: reached or not`).toHaveAttribute('data-goal-reached', String(reached));
-    await expect(goal.locator('[data-goal-state]')).toHaveText(reached ? 'Взята' : `Ещё ${term.threshold! - term.count}`);
+    const tier = ledger.locator(`[data-dividend-goal="${i + 1}"]`);
+    await expect(tier.locator('[data-goal-at]'), `tier ${i + 1}: its threshold`).toHaveText(`от ${term.threshold}`);
+    await expect(tier.locator('[data-goal-vp]'), `tier ${i + 1}: its prize`).toHaveText(`+${term.each} ПО`);
+    await expect(tier, `tier ${i + 1}: reached or not`).toHaveAttribute('data-goal-reached', String(term.vp > 0));
   }
+  const next = goalTerms.find((t) => t.vp === 0);
+  await expect(ledger.locator('[data-goal-state]'), 'one line: what the next tier needs').toHaveText(
+    next === undefined ? 'Все цели взяты' : `Ещё ${next.threshold! - next.count} до +${next.each} ПО`);
   // The total.
   const goalsVp = goalTerms.reduce((sum, t) => sum + t.vp, 0);
   await expect(ledger.locator('[data-dividend-vp]'), 'the total WITH the goals').toHaveText(String(row.vp));
@@ -193,22 +196,22 @@ for (const profile of PROFILES) {
       await expect(rules, 'the primary\'s boxes act').not.toContainText('Не действует');
     });
 
-    test('the goals REACHED: the ledger reads the paid goals by material and word, the total carries them', async ({page, request}) => {
+    test('the goal tiers REACHED: the scale reads the paid tiers by material, the line the next one, the total carries them', async ({page, request}) => {
       test.setTimeout(240_000);
       const viewer = await bootFixture(page, request, 'bot-portfolio-dividends', {query: profile.query});
       const rules = await inspectBotHolding(page);
       const model = await fetchPlayerModel(request, viewer);
 
-      // Tharsis Republic — 8 cities over goals of 7 and 8: both paid.
+      // Tharsis Republic — 8 cities over tiers of 7 / 8 / 9: two paid, the last one city short.
       const tharsis = await expectLedgerReadsServer(page, rules, model, 'C10');
-      expect(tharsis.map((t) => t.vp > 0), 'the fixture reaches both of Tharsis\'s goals').toEqual([true, true]);
-      await expect(rules.locator('[data-dividend-goal][data-goal-reached="true"] .con-divledger__seal'), 'the seal of a paid goal').toHaveText(['✓', '✓']);
+      expect(tharsis.map((t) => t.vp > 0), 'the fixture reaches two of Tharsis\'s three tiers').toEqual([true, true, false]);
+      await expect(rules.locator('.con-divledger__notch--reached'), 'a paid tier is a solid notch').toHaveCount(2);
       await page.screenshot({path: `screenshots/bot-portfolio-dividends-reached-${profile.id}.png`, fullPage: false});
 
-      // ← → Ecoline — 9 greeneries over goals of 9 and 10: the first paid, the second one short.
+      // ← → Ecoline — 9 greeneries over tiers of 8 / 10 / 11: the first paid, the second one short.
       await press(page, 'ArrowLeft', 900);
       const ecoline = await expectLedgerReadsServer(page, rules, model, 'C02');
-      expect(ecoline.map((t) => t.vp > 0), 'the fixture reaches only Ecoline\'s first goal').toEqual([true, false]);
+      expect(ecoline.map((t) => t.vp > 0), 'the fixture reaches only Ecoline\'s first tier').toEqual([true, false, false]);
       await page.screenshot({path: `screenshots/bot-portfolio-dividends-partial-${profile.id}.png`, fullPage: false});
     });
   });

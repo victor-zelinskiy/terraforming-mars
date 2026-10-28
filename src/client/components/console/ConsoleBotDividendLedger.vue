@@ -4,10 +4,12 @@
       THE WHOLE «ДИВИДЕНДЫ» BOX of a further corporation, read LIVE (the owner, 2026-10-27).
       ONE composition of plates on one chassis, each a kicker over its body: the MECHANIC
       (the dividend's name · its printed rule · the formula's live terms, each with the VP it
-      pays now) · the TWO GOALS side by side (threshold, prize, a meter, «Взята» / «Ещё N») ·
-      the TOTAL the dividend pays with its goals. Every number is the server's
-      (`botDividendReading`); every value stands on the plates' one right edge. A reached goal
-      is drawn by MATERIAL — a gold kant, a filled meter, the seal and the word — never a glow.
+      pays now) · the GOAL as ONE quiet scale of three tiers (the owner, 2026-10-28: «одна шкала
+      с тремя делениями, последнее в конце» — the goal must not outshout the mechanic): the
+      operand's count, the scale, each tier's threshold and prize under its notch, one line
+      naming what the next tier still needs · the TOTAL the dividend pays with its goal. Every
+      number is the server's (`botDividendReading`). A reached tier is drawn by MATERIAL — a
+      solid notch, the gold of its part of the scale, its prize in gold — never a glow.
     -->
     <section class="con-divledger__plate con-divledger__plate--formula" data-dividend-formula>
       <div class="con-divledger__head">
@@ -32,33 +34,38 @@
       </div>
     </section>
 
-    <div class="con-divledger__caption">
-      <span class="con-divledger__kicker">{{ $t('Dividend goals') }}</span>
-      <span class="con-divledger__measure">
-        <span class="con-divledger__measure-label">{{ $t(reading.operand.label) }}</span>
-        <span class="con-divledger__measure-count" data-dividend-count>{{ reading.operand.count }}</span>
-      </span>
-    </div>
-    <div class="con-divledger__goals">
-      <div v-for="goal in reading.goals" :key="goal.ordinal"
-           class="con-divledger__plate con-divledger__goal"
-           :class="{'con-divledger__goal--reached': goal.reached}"
-           :data-dividend-goal="goal.ordinal"
-           :data-goal-reached="goal.reached ? 'true' : 'false'">
-        <div class="con-divledger__head">
-          <span class="con-divledger__goal-name">{{ say('Dividend goal ${0}', goal.ordinal) }}</span>
-          <span class="con-divledger__seal" aria-hidden="true">{{ goal.reached ? '✓' : '' }}</span>
-        </div>
-        <div class="con-divledger__goal-terms">
-          <span class="con-divledger__at" data-goal-at>{{ say('Dividend goal at ${0}', goal.at) }}</span>
-          <span class="con-divledger__prize" data-goal-vp>{{ say('Dividend goal prize: +${0} VP', goal.vp) }}</span>
-        </div>
-        <div class="con-divledger__meter" aria-hidden="true">
-          <span class="con-divledger__fill" :style="{transform: `scaleX(${goal.fill})`}"></span>
-        </div>
-        <span class="con-divledger__state" data-goal-state>{{ goal.reached ? $t('Dividend goal reached') : say('Dividend goal: ${0} to go', goal.remaining) }}</span>
+    <section class="con-divledger__plate con-divledger__goal" data-dividend-goal-scale :data-goal-tiers-reached="reachedTiers">
+      <div class="con-divledger__head">
+        <span class="con-divledger__kicker">{{ $t('Dividend goals') }}</span>
+        <span class="con-divledger__measure">
+          <span class="con-divledger__measure-label">{{ $t(reading.goal.operand.label) }}</span>
+          <span class="con-divledger__measure-count" data-dividend-count>{{ reading.goal.operand.count }}</span>
+        </span>
       </div>
-    </div>
+      <!-- The scale: three equal segments, one per tier — the last notch stands at the end. Gold is what is
+           PAID (up to the last reached notch), the quiet cyan the progress toward the next one. -->
+      <div class="con-divledger__scale" aria-hidden="true">
+        <span class="con-divledger__track">
+          <span class="con-divledger__fill con-divledger__fill--progress" :style="{transform: `scaleX(${reading.goal.progress})`}"></span>
+          <span class="con-divledger__fill con-divledger__fill--paid" :style="{transform: `scaleX(${reachedTiers / 3})`}"></span>
+        </span>
+        <span v-for="tier in reading.goal.tiers" :key="tier.ordinal"
+              class="con-divledger__notch"
+              :class="{'con-divledger__notch--reached': tier.reached}"
+              :style="{left: `${(tier.ordinal / 3) * 100}%`}"></span>
+      </div>
+      <div class="con-divledger__tiers">
+        <div v-for="tier in reading.goal.tiers" :key="tier.ordinal"
+             class="con-divledger__tier"
+             :class="{'con-divledger__tier--reached': tier.reached}"
+             :data-dividend-goal="tier.ordinal"
+             :data-goal-reached="tier.reached ? 'true' : 'false'">
+          <span class="con-divledger__at" data-goal-at>{{ say('Dividend goal at ${0}', tier.at) }}</span>
+          <span class="con-divledger__prize" data-goal-vp>{{ say('Dividend goal prize: +${0} VP', tier.vp) }}</span>
+        </div>
+      </div>
+      <span class="con-divledger__state" data-goal-state>{{ stateText }}</span>
+    </section>
 
     <div class="con-divledger__plate con-divledger__total" data-dividend-total>
       <span class="con-divledger__total-words">
@@ -89,6 +96,19 @@ export default defineComponent({
     tier: {type: String as PropType<RulesLengthTier>, default: 'regular'},
     /** The game is over — the total is the final one, not «now». */
     final: {type: Boolean, default: false},
+  },
+  computed: {
+    /** How many of the three tiers are paid. */
+    reachedTiers(): number {
+      return this.reading.goal.tiers.filter((tier) => tier.reached).length;
+    },
+    /** ONE line for the whole goal: what the next tier still needs and what it adds — or that all three are paid. */
+    stateText(): string {
+      const next = this.reading.goal.next;
+      return next === undefined ?
+        translateText('Dividend goals: all reached') :
+        translateTextWithParams('Dividend goal: ${0} to go for +${1} VP', [String(next.remaining), String(next.vp)]);
+    },
   },
   methods: {
     /** A parameterised key read with its numbers. */
