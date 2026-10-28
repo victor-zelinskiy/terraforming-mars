@@ -9,12 +9,13 @@ import {
   setSlotName,
 } from '@/client/components/create/premium/createGameState';
 import {
-  CREATE_DECKS,
   addDisabledReason,
   addHuman,
   botSeated,
+  botSecondShiftCap,
   clampCreateCursors,
   consoleCreateUi,
+  CREATE_DECKS,
   crewRows,
   cycleCreateDeck,
   cycleSlotColor,
@@ -22,6 +23,7 @@ import {
   deckRowCount,
   devCardsAvailable,
   devCardsCount,
+  editorAdjust,
   editorFields,
   expansionRows,
   jumpToFirstIssue,
@@ -36,6 +38,7 @@ import {
   seatBot,
   seatBotNeedsConfirm,
   selectMap,
+  toggleBotSecondShift,
   toggleExpansion,
   toggleRule,
   unseatBot,
@@ -179,10 +182,28 @@ describe('consoleCreateModel', () => {
       expect(botSeated()).to.eq(false);
     });
 
-    it('exposes difficulty + remove fields for the bot editor', () => {
+    it('exposes difficulty + second shift + remove fields for the bot editor', () => {
       seatBot();
       const fields = editorFields({kind: 'bot'}).map((f) => f.id);
-      expect(fields).to.deep.eq(['difficulty', 'remove']);
+      expect(fields).to.deep.eq(['difficulty', 'secondShift', 'remove']);
+    });
+
+    it('«вторая смена» is a switch beside the difficulty: ◄/► flip it, the cap follows the difficulty, Easy has none', () => {
+      seatBot();
+      expect(createGameState.config.botSecondShift).to.eq(true);
+      expect(crewRows().find((r) => r.kind === 'bot')).to.include({secondShift: true});
+      expect(editorAdjust({kind: 'bot'}, 'secondShift', 1)).to.eq(true);
+      expect(createGameState.config.botSecondShift).to.eq(false);
+      expect(crewRows().find((r) => r.kind === 'bot')).to.include({secondShift: false});
+      toggleBotSecondShift();
+      expect(createGameState.config.botSecondShift).to.eq(true);
+      expect(botSecondShiftCap()).to.eq(1);
+      createGameState.config.botDifficulty = 'brutal';
+      expect(botSecondShiftCap()).to.eq(3);
+      // Easy has no cap: the row names the rule only when it can fire.
+      createGameState.config.botDifficulty = 'easy';
+      expect(botSecondShiftCap()).to.eq(0);
+      expect(crewRows().find((r) => r.kind === 'bot')).to.include({secondShift: false});
     });
 
     it('hides trBoost editor field until the rule is on', () => {

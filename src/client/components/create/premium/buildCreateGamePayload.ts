@@ -121,6 +121,6 @@ export function buildCreateGamePayloadFromPremiumState(state: PremiumCreateGameS
     startingPreludes: d.startingPreludes,
     // The bot seat is created by the server; the server also derives the
     // official-solo vs multiplayer mode from the seat count.
-    automa: botSeated ? {difficulty: state.botDifficulty} : undefined,
+    automa: botSeated ? {difficulty: state.botDifficulty, secondShift: state.botSecondShift} : undefined,
   };
 }

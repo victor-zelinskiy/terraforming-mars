@@ -101,6 +101,20 @@
   }
   &__gen { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: @mbr-text-dim; }
 
+  /* «Вторая смена»: the chip over an EXTRA card's review — the deck had run out
+     while the players still act; the card's ordinal of the generation's cap.
+     AMBER = the turn's own rule, like a track action; a chip of the `__diff`
+     family, never a wash on the card strip. */
+  &__shift {
+    display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+    margin: -2px 0 10px;
+    padding: 3px 10px 3px 8px;
+    border: 1px solid rgba(240, 194, 120, 0.34); border-radius: 4px;
+    background: rgba(240, 194, 120, 0.1);
+    font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: @mbr-amber;
+  }
+  &__shift-glyph { font-size: 14px; line-height: 1; }
+
   /* played-card strip */
   &__card {
     display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap;

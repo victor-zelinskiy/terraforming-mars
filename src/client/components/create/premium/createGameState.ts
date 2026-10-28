@@ -75,6 +75,8 @@ export type PremiumCreateGameState = {
   sessionMode: SessionMode;
   gameMode: GameMode;
   botDifficulty: DifficultyLevel;
+  /** «Вторая смена» of the bot (`common/automa/SecondShift.ts`) — on for a new game; the editor's switch beside the difficulty. */
+  botSecondShift: boolean;
   /**
    * Mode B (frame §12 Q14): seat MarsBot as an EXTRA participant of the
    * ordinary multiplayer party (2–4 humans + the bot). Only meaningful while
@@ -130,6 +132,7 @@ export function defaultPremiumState(): PremiumCreateGameState {
     sessionMode: 'single',
     gameMode: 'multiplayer',
     botDifficulty: 'normal',
+    botSecondShift: true,
     seatMarsBot: false,
     players,
     selectedExpansions,
@@ -303,6 +306,12 @@ export function setGameMode(mode: GameMode): void {
 export function setBotDifficulty(difficulty: DifficultyLevel): void {
   createGameState.config.botDifficulty = difficulty;
   createGameState.info = {kind: 'bot', difficulty};
+}
+
+/** «Вторая смена» on / off (`common/automa/SecondShift.ts`); the info plate stays on the bot. */
+export function setBotSecondShift(on: boolean): void {
+  createGameState.config.botSecondShift = on;
+  createGameState.info = {kind: 'bot', difficulty: createGameState.config.botDifficulty};
 }
 
 /** True when the party seats the bot — solo 'marsbot' mode OR the multiplayer bot seat. */
@@ -635,6 +644,8 @@ function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
   const botDifficulty = DIFFICULTY_LEVELS.includes(saved.botDifficulty as DifficultyLevel) ?
     saved.botDifficulty as DifficultyLevel :
     base.botDifficulty;
+  // A setup saved before the rule existed keeps the default (on).
+  const botSecondShift = typeof saved.botSecondShift === 'boolean' ? saved.botSecondShift : base.botSecondShift;
 
   const selectedExpansions = {...base.selectedExpansions};
   const savedExpansions = asRecord(saved.selectedExpansions);
@@ -670,6 +681,7 @@ function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
     sessionMode: saved.sessionMode === 'campaign' ? 'campaign' : 'single',
     gameMode,
     botDifficulty,
+    botSecondShift,
     seatMarsBot,
     players,
     selectedExpansions,

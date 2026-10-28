@@ -73,7 +73,7 @@ describe('premium create — settings persistence', () => {
 
     expect(saved).is.not.undefined;
     expect(Object.keys(saved!).sort()).deep.eq(
-      ['botDifficulty', 'gameMode', 'guaranteedCards', 'mapId', 'mapMode', 'players', 'rules', 'seatMarsBot', 'selectedExpansions', 'sessionMode'].sort());
+      ['botDifficulty', 'botSecondShift', 'gameMode', 'guaranteedCards', 'mapId', 'mapMode', 'players', 'rules', 'seatMarsBot', 'selectedExpansions', 'sessionMode'].sort());
     expect(saved).to.not.have.property('creating');
     expect(saved).to.not.have.property('error');
     expect(saved).to.not.have.property('mapPickerOpen');
@@ -115,6 +115,12 @@ describe('premium create — settings persistence', () => {
     });
   });
 
+  it('restores «вторая смена» switched off', () => {
+    storage.saveSettings({gameMode: 'marsbot', botSecondShift: false, players: [{name: 'Solo', color: 'green'}]} as any);
+    expect(restoreCreateGameState(storage)).is.true;
+    expect(createGameState.config.botSecondShift).eq(false);
+  });
+
   it('safely restores a partial / stale / invalid blob', () => {
     storage.saveSettings({
       gameMode: 'marsbot',
@@ -132,8 +138,9 @@ describe('premium create — settings persistence', () => {
     expect(createGameState.config.players).has.length(1);
     expect(createGameState.config.players[0].name).eq('Solo');
     expect(createGameState.config.players[0].color).eq('green');
-    // Invalid difficulty / map fall back to the defaults.
+    // Invalid difficulty / map fall back to the defaults; a blob saved before «вторая смена» keeps it ON.
     expect(createGameState.config.botDifficulty).eq('normal');
+    expect(createGameState.config.botSecondShift).eq(true);
     expect(createGameState.config.mapId).eq(BoardName.THARSIS);
     // A known rule is applied; an unknown one is dropped.
     expect(createGameState.config.rules.draftVariant).eq(false);

@@ -41,6 +41,12 @@ export type MarsBotModel = {
    * game and on mission 1.
    */
   holdings?: ReadonlyArray<MarsBotHoldingModel>;
+  /**
+   * «ВТОРАЯ СМЕНА» (`common/automa/SecondShift.ts`) — present only while the
+   * rule is on for this game: the generation's cap and how many extra cards
+   * the bot has drawn in it so far.
+   */
+  secondShift?: {cap: number, drawn: number};
   tracks: ReadonlyArray<MarsBotTrackModel>;
   /** Face-down action deck — count only. */
   actionDeckSize: number;

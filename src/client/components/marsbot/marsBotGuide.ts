@@ -28,7 +28,11 @@ export type GuideSection = {
  * only change the TEACHING text (the Hydronetwork section), which
  * `BonusCardContext` deliberately does not carry.
  */
-export type MarsBotGuideContext = BonusCardContext & {deltaProject: boolean};
+export type MarsBotGuideContext = BonusCardContext & {
+  deltaProject: boolean;
+  /** «Вторая смена» (`common/automa/SecondShift.ts`): the generation's cap of extra cards while the rule is on; absent / 0 = off. */
+  secondShiftCap?: number;
+};
 
 export function marsBotGuide(difficulty: DifficultyLevel, ctx: MarsBotGuideContext): ReadonlyArray<GuideSection> {
   const sections: Array<GuideSection> = [];
@@ -48,7 +52,12 @@ export function marsBotGuide(difficulty: DifficultyLevel, ctx: MarsBotGuideConte
     glyph: '▤',
     title: 'Action deck',
     body: [
-      'A face-down deck rebuilt every generation: project cards plus one bonus card. When it runs out mid-generation, MarsBot passes until the next one.',
+      // «Вторая смена» (common/automa/SecondShift.ts) replaces the deck's «passes until the next» sentence with
+      // the rule and its cap: ONE paragraph, never the rulebook's pass stated beside the rule that undoes it —
+      // and the one place the hub's decks plate has room for (a section of its own overflowed the plate at 4K).
+      ctx.secondShiftCap !== undefined && ctx.secondShiftCap > 0 ?
+        (SECOND_SHIFT_DECK_KEY[ctx.secondShiftCap] ?? SECOND_SHIFT_DECK_KEY[3]) :
+        'A face-down deck rebuilt every generation: project cards plus one bonus card. When it runs out mid-generation, MarsBot passes until the next one.',
       'MarsBot never pays for cards — the flipped card only feeds tags to its trackers, then goes to its played pile.',
     ],
   });
@@ -143,6 +152,13 @@ export function marsBotGuide(difficulty: DifficultyLevel, ctx: MarsBotGuideConte
 
   return sections;
 }
+
+/** The action deck's paragraph under «вторая смена», one key per cap so the number reads in the player's language. */
+const SECOND_SHIFT_DECK_KEY: Readonly<Record<number, string>> = {
+  1: 'A face-down deck rebuilt every generation: project cards plus one bonus card. When it runs out mid-generation MarsBot passes — unless a player is still acting: then it draws a project card instead, up to one extra per generation (the second shift).',
+  2: 'A face-down deck rebuilt every generation: project cards plus one bonus card. When it runs out mid-generation MarsBot passes — unless a player is still acting: then it draws a project card instead, up to two extra per generation (the second shift).',
+  3: 'A face-down deck rebuilt every generation: project cards plus one bonus card. When it runs out mid-generation MarsBot passes — unless a player is still acting: then it draws a project card instead, up to three extra per generation (the second shift).',
+};
 
 function difficultyBody(difficulty: DifficultyLevel): ReadonlyArray<string> {
   switch (difficulty) {

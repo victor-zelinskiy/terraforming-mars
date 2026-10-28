@@ -69,6 +69,15 @@
             </span>
           </template>
 
+          <!-- «Вторая смена» — the switch beside the difficulty; its reading stands on the note below -->
+          <template v-else-if="field.id === 'secondShift'">
+            <span class="cm-field__value cm-field__value--stepper" data-field="secondShift">
+              <span class="cm-field__arrow" aria-hidden="true">◄</span>
+              <span class="cm-field__stepval">{{ $t(secondShiftOn ? 'On' : 'Off') }}</span>
+              <span class="cm-field__arrow" aria-hidden="true">►</span>
+            </span>
+          </template>
+
           <!-- Remove -->
           <template v-else-if="field.id === 'remove'">
             <span class="cm-field__value cm-field__value--danger">
@@ -79,6 +88,7 @@
 
         <div v-if="nameIssue !== ''" class="cm-field__issue">{{ $t(nameIssue) }}</div>
         <div v-if="target.kind === 'bot'" class="cm-editor__note">{{ $t(difficultyDesc) }}</div>
+        <div v-if="target.kind === 'bot'" class="cm-editor__note" data-second-shift-note>{{ $t(secondShiftDesc) }}</div>
         <div v-if="target.kind === 'bot'" class="cm-editor__note cm-editor__note--dim">{{ $t('The cube colour is assigned automatically at game start.') }}</div>
       </div>
 
@@ -146,6 +156,7 @@ import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {menuPadState} from '@/client/console/menu/consoleMenuPad';
 import {
+  botSecondShiftCap,
   EditorField,
   EditorTarget,
   editorAdjust,
@@ -161,6 +172,14 @@ import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirt
 
 /** A row of the friend quick-pick: a saved friend, or the "type a name" escape. */
 type FriendPickRow = {kind: 'friend', name: string, seated: boolean} | {kind: 'type'};
+
+/** «Вторая смена» on the editor's note — the cap per difficulty, one key each. */
+const SECOND_SHIFT_DESC: Readonly<Record<number, string>> = {
+  0: 'Second shift: this difficulty draws no extra cards — MarsBot passes when its deck runs out.',
+  1: 'Second shift: while a player is still acting, MarsBot with an empty deck draws up to one extra project card per generation instead of passing.',
+  2: 'Second shift: while a player is still acting, MarsBot with an empty deck draws up to two extra project cards per generation instead of passing.',
+  3: 'Second shift: while a player is still acting, MarsBot with an empty deck draws up to three extra project cards per generation instead of passing.',
+};
 
 export default defineComponent({
   name: 'ConsoleParticipantEditor',
@@ -212,6 +231,16 @@ export default defineComponent({
     },
     difficultyDesc(): string {
       return botDifficultyMeta(createGameState.config.botDifficulty).descKey;
+    },
+    secondShiftOn(): boolean {
+      return createGameState.config.botSecondShift;
+    },
+    /** The rule's reading for the chosen difficulty — its cap, or that the difficulty has none. */
+    secondShiftDesc(): string {
+      if (!this.secondShiftOn) {
+        return 'Second shift off: with an empty action deck MarsBot passes for the round, as the Automa rules say.';
+      }
+      return SECOND_SHIFT_DESC[botSecondShiftCap()] ?? SECOND_SHIFT_DESC[0];
     },
     /** Saved friends offered for this seat + a final "type a new name" row.
      * A friend already used by ANOTHER seat is shown disabled (case-insensitive). */
@@ -309,6 +338,7 @@ export default defineComponent({
       case 'color':
       case 'trBoost':
       case 'difficulty':
+      case 'secondShift':
         editorAdjust(this.target, field.id, 1);
         break;
       case 'remove':

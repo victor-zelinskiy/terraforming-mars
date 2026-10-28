@@ -425,4 +425,19 @@ describe('botTurnReviewModel', () => {
     const tag = r.chains.find((c) => c.cause.kind === 'tag');
     expect(tag?.lines.some((l) => l.kind === 'note' && l.noteKey === 'Chairman quest completed — the chairmanship')).is.true;
   });
+
+  it('S1. «вторая смена»: an extra card\'s turn carries its ordinal of the cap; the card and its chains read as any other; an ordinary turn carries none', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'second-shift', index: 1, cap: 2, message: log('${0} stays in the round while the players still act — an extra card, ${1} of ${2}')},
+      {kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}},
+      {kind: 'tag', tag: Tag.SCIENCE, trackIndex: 1},
+      {kind: 'advance', trackIndex: 1, from: 2, to: 3},
+    ]));
+    expect(r.secondShift).deep.eq({index: 1, cap: 2});
+    expect(r.card).deep.include({kind: 'project', name: CardName.GENE_REPAIR});
+    expect(r.chains).lengthOf(1);
+    expect(r.verdict.key).eq('Advanced its internal tracks');
+    const plain = buildBotTurnReview(src([{kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}}]));
+    expect(plain.secondShift).is.undefined;
+  });
 });

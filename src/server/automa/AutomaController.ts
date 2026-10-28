@@ -13,6 +13,7 @@ import {AutomaMAEvaluation} from './AutomaMAEvaluation';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {AutomaResolver} from './AutomaResolver';
 import {AutomaTurnLog} from './AutomaTurnLog';
+import {SecondShift} from './SecondShift';
 import {marsBotOf} from './AutomaUtil';
 
 /**
@@ -104,7 +105,10 @@ export class AutomaController {
     AutomaTurnLog.setCause(game, undefined);
 
     // "If MarsBot has no cards in its action deck, it passes for the round." (rulebook p.5)
-    if (automa.actionDeck.length === 0) {
+    // …unless «вторая смена» offers an extra card first: the players still act and the
+    // generation's cap is not spent (`SecondShift.take` puts the card INTO the deck, so
+    // the turn below runs the ordinary project branch on it).
+    if (automa.actionDeck.length === 0 && !SecondShift.take(game)) {
       game.log('${0} passed', (b) => b.player(bot));
       AutomaTurnLog.note(game, {kind: 'pass'}, {consumeLog: true});
       return true; // takeTurn closes the script after the deferred drain

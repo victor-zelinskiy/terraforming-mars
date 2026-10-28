@@ -97,6 +97,15 @@ export type AutomaOptions = {
    * module condition. Absent ⇒ no holdings (every ordinary game).
    */
   portfolio?: ReadonlyArray<MarsBotCorpId>;
+  /**
+   * «ВТОРАЯ СМЕНА» (the owner, 2026-10-28 — docs/claude/marsbot-second-shift.md): while at least one
+   * player is still acting in the generation, MarsBot with an empty action deck does not pass — it
+   * draws an extra project card and resolves it as usual, up to a cap per generation set by the
+   * difficulty (`SECOND_SHIFT_CAP`). A fork rule beside the official Automa: the game creator's own
+   * switch beside the bot's difficulty (on by default for a new game); absent ⇒ off (every older game,
+   * every test config that does not ask for it).
+   */
+  secondShift?: boolean;
 };
 
 /**

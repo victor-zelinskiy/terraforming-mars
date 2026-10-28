@@ -84,7 +84,12 @@ export type SerializedAutomaState = {
   holdings?: Array<MarsBotCorpId>;
   /** Failed Actions taken this game. Absent = an older save (reads 0). */
   failedActions?: number;
+  /** «Вторая смена»: the extra cards drawn in `generation` so far (`SecondShift.ts`). Absent = none drawn yet. */
+  secondShift?: SecondShiftState;
 };
+
+/** «Вторая смена» — the generation's count of extra cards; a new generation starts a new count. */
+export type SecondShiftState = {generation: number, drawn: number};
 
 /**
  * The whole MarsBot (official Automa) runtime state. Lives on `game.automa`
@@ -113,6 +118,8 @@ export class AutomaState {
   public neuralInstanceSpaceId: SpaceId | undefined = undefined;
   /** Hard difficulty: the last generation the first-turn milestone-pressure check ran. */
   public hardClaimCheckedGeneration: number = 0;
+  /** «Вторая смена»: the generation's count of extra cards (`SecondShift.ts`). */
+  public secondShift: SecondShiftState | undefined = undefined;
   /** The card currently being resolved (survives a mid-turn human sub-prompt + save). */
   public revealedCard: AutomaActionCard | undefined = undefined;
   /** "If the game enters round 20 (18 with Prelude), you instantly lose" — MarsBot won on the clock. */
@@ -289,6 +296,9 @@ export class AutomaState {
     if (this.failedActions > 0) {
       result.failedActions = this.failedActions;
     }
+    if (this.secondShift !== undefined) {
+      result.secondShift = {...this.secondShift};
+    }
     return result;
   }
 
@@ -335,6 +345,7 @@ export class AutomaState {
     state.lobbyMandate = d.lobbyMandate !== undefined ? {...d.lobbyMandate} : undefined;
     state.holdings = [...(d.holdings ?? [])];
     state.failedActions = d.failedActions ?? 0;
+    state.secondShift = d.secondShift !== undefined ? {...d.secondShift} : undefined;
     return state;
   }
 }

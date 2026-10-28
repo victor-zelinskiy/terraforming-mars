@@ -11,6 +11,12 @@
       <span class="mbr__gen">{{ $t('Generation') }} {{ review.generation }}</span>
     </header>
 
+    <!-- «Вторая смена»: this card is an EXTRA one — the deck had run out while the players still act -->
+    <div v-if="review.secondShift !== undefined" class="mbr__shift" data-second-shift>
+      <span class="mbr__shift-glyph" aria-hidden="true">⟲</span>
+      <span class="mbr__shift-text">{{ secondShiftText }}</span>
+    </div>
+
     <!-- ── played card + service reveals (one horizontal strip) ── -->
     <section v-if="review.card !== undefined" class="mbr__card">
       <template v-if="review.card.kind === 'project'">
@@ -196,6 +202,11 @@ export default defineComponent({
      *  summary. */
     quietText(): string {
       return translateTextWithParams(this.review.verdict.key, [...this.review.verdict.params]);
+    },
+    /** «Вторая смена · карта N из M» — the ribbon over an extra card's review. */
+    secondShiftText(): string {
+      const shift = this.review.secondShift;
+      return shift === undefined ? '' : translateTextWithParams('Second shift — an extra card, ${0} of ${1}', [String(shift.index), String(shift.cap)]);
     },
     quietGlyph(): string {
       return this.review.verdict.key === 'MarsBot passed this turn' ? '⏸' : '◦';

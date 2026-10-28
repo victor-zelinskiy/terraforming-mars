@@ -119,7 +119,8 @@ const DIVIDENDS: Readonly<Record<MarsBotCorpId, MarsBotDividendInfo>> = {
     {text: '${0} VP per Venus step MarsBot raised', params: [r.step]},
     {text: '${0} VP per Venus tag in MarsBot\'s played pile', params: [r.tag]},
   ], dividendGoal(6, 8)),
-  [MarsBotCorpId.C29_MANUTECH]: dividendBox('Production Cycles', {low: 2, lowAt: 5, mid: 2, midAt: 10, top: 3, topAt: 15}, (r) => [
+  // The third mark stood at #15 — 0.2 of the bot's tracks reach it in a Redux game (25 games), a dead line; #13 (the owner, 2026-10-28).
+  [MarsBotCorpId.C29_MANUTECH]: dividendBox('Production Cycles', {low: 2, lowAt: 5, mid: 2, midAt: 10, top: 3, topAt: 13}, (r) => [
     {text: '${0} VP per MarsBot track that reached #${1}', params: [r.low, r.lowAt]},
     {text: '+${0} VP per track that reached #${1}, +${2} more at #${3}', params: [r.mid, r.midAt, r.top, r.topAt], muted: true},
   ], dividendGoal(4, 5, {term: 1})),

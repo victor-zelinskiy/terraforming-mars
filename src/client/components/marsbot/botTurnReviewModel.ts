@@ -99,6 +99,8 @@ export type BotTurnReview = {
   ctx: BonusCardContext;
   card?: BotReviewCard;
   verdict: BotReviewVerdict;
+  /** «Вторая смена»: this turn's card was an EXTRA one — its ordinal of the generation's cap. */
+  secondShift?: {index: number, cap: number};
   headlineChips: Array<BotReviewChip>;
   chains: Array<BotReviewChain>;
   tiles: Array<BotReviewTile>;
@@ -401,6 +403,7 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
     switch (step.kind) {
     case 'reveal':
     case 'pass':
+    case 'second-shift':
     case 'impact':
       break;
     case 'failed': {
@@ -510,6 +513,7 @@ function buildChainsByOrder(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
       current = undefined;
       break;
     case 'pass':
+    case 'second-shift':
       break;
     case 'tag': {
       const trackTag = tagOfTrack(source.trackTags, step.trackIndex);
@@ -778,6 +782,7 @@ export function buildBotTurnReview(source: BotTurnReviewSource): BotTurnReview {
   const chains = buildChains(turn.steps, source, card);
   const {cardNames, technicalReveals} = buildCardReferences(turn, card);
   const verdict = buildVerdict(turn, card, tiles, params);
+  const secondShiftStep = turn.steps.find((s): s is Extract<MarsBotTurnStep, {kind: 'second-shift'}> => s.kind === 'second-shift');
   const headlineChips = buildHeadlineChips(params, botResult, playerImpacts);
   const quiet = turn.steps.some((s) => s.kind === 'pass') ||
     (tiles.length === 0 && params.length === 0 && attacks.length === 0 && playerImpacts.length === 0);
@@ -790,6 +795,7 @@ export function buildBotTurnReview(source: BotTurnReviewSource): BotTurnReview {
     ctx: source.ctx,
     ...(card !== undefined ? {card} : {}),
     verdict,
+    ...(secondShiftStep !== undefined ? {secondShift: {index: secondShiftStep.index, cap: secondShiftStep.cap}} : {}),
     headlineChips,
     chains,
     tiles,

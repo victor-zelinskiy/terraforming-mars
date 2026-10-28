@@ -46,6 +46,12 @@
           <b class="con-botscr__count">{{ automa.bonusDeckSize }}</b>
           <span class="con-botscr__objlabel">{{ $t('Bonus deck') }}</span>
         </span>
+        <!-- «Вторая смена» (common/automa/SecondShift.ts): this generation's extra cards over the cap — the model
+             carries the counter only while the game has the rule on; the rule itself is told in the deck's paragraph. -->
+        <span v-if="automa.secondShift !== undefined" class="con-botscr__token" data-bot-second-shift>
+          <b class="con-botscr__count">{{ automa.secondShift.drawn }}<span class="con-botscr__of">/{{ automa.secondShift.cap }}</span></b>
+          <span class="con-botscr__objlabel">{{ $t('Second shift') }}</span>
+        </span>
       </div>
       <p v-for="(body, i) in bodyOf('actionDeck')" :key="i" class="con-botscr__prose" v-i18n>{{ body }}</p>
     </section>

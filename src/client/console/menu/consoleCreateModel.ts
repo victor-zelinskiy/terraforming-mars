@@ -51,6 +51,7 @@ import {
   setGameMode,
   setPlayerCount,
   setSeatMarsBot,
+  setBotSecondShift,
   setSlotColor,
   setSlotTrBoost,
   slotNameIssue,
@@ -67,6 +68,7 @@ import {
   PremiumMapMeta,
   PremiumRuleMeta,
 } from '@/client/components/create/premium/createGameMeta';
+import {secondShiftCap} from '@/common/automa/SecondShift';
 
 // ── Decks (LB/RB ring) ──────────────────────────────────────────────────────
 
@@ -206,7 +208,7 @@ export type CrewRow =
       removable: boolean,
       nameIssue: SlotNameIssue | undefined,
     }
-  | {kind: 'bot', difficulty: DifficultyLevel}
+  | {kind: 'bot', difficulty: DifficultyLevel, secondShift: boolean}
   | {kind: 'add', enabled: boolean, reasonKey: string | undefined};
 
 export function botSeated(): boolean {
@@ -239,7 +241,7 @@ export function crewRows(): ReadonlyArray<CrewRow> {
     nameIssue: slotNameIssue(index),
   }));
   if (botSeated()) {
-    rows.push({kind: 'bot', difficulty: config.botDifficulty});
+    rows.push({kind: 'bot', difficulty: config.botDifficulty, secondShift: config.botSecondShift && secondShiftCap(config.botDifficulty) > 0});
   }
   const reason = addDisabledReason();
   rows.push({kind: 'add', enabled: reason === undefined, reasonKey: reason});
@@ -332,7 +334,7 @@ export function participantTypeOptions(): ReadonlyArray<ParticipantTypeOption> {
 
 export type EditorTarget = {kind: 'human', index: number} | {kind: 'bot'};
 
-export type EditorFieldId = 'name' | 'color' | 'trBoost' | 'difficulty' | 'remove';
+export type EditorFieldId = 'name' | 'color' | 'trBoost' | 'difficulty' | 'secondShift' | 'remove';
 
 export type EditorField = {
   id: EditorFieldId,
@@ -344,6 +346,7 @@ export function editorFields(target: EditorTarget): ReadonlyArray<EditorField> {
   if (target.kind === 'bot') {
     return [
       {id: 'difficulty', labelKey: 'Difficulty'},
+      {id: 'secondShift', labelKey: 'Second shift'},
       {id: 'remove', labelKey: 'Remove MarsBot', danger: true},
     ];
   }
@@ -377,6 +380,16 @@ export function cycleBotDifficulty(step: 1 | -1): void {
   config.botDifficulty = next.id;
 }
 
+/** «Вторая смена» — the switch beside the difficulty (◄/► and A flip it). */
+export function toggleBotSecondShift(): void {
+  setBotSecondShift(!createGameState.config.botSecondShift);
+}
+
+/** The creator's reading of the rule for the CURRENT difficulty: its cap, or 0 when the difficulty has none (Easy). */
+export function botSecondShiftCap(): number {
+  return secondShiftCap(createGameState.config.botDifficulty);
+}
+
 export function adjustTrBoost(index: number, step: 1 | -1): void {
   const slot = createGameState.config.players[index];
   if (slot === undefined) {
@@ -390,6 +403,10 @@ export function editorAdjust(target: EditorTarget, field: EditorFieldId, step: 1
   if (target.kind === 'bot') {
     if (field === 'difficulty') {
       cycleBotDifficulty(step);
+      return true;
+    }
+    if (field === 'secondShift') {
+      toggleBotSecondShift();
       return true;
     }
     return false;
