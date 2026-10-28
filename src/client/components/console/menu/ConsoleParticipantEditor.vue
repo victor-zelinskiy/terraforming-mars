@@ -173,13 +173,9 @@ import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirt
 /** A row of the friend quick-pick: a saved friend, or the "type a name" escape. */
 type FriendPickRow = {kind: 'friend', name: string, seated: boolean} | {kind: 'type'};
 
-/** «Вторая смена» on the editor's note — the cap per difficulty, one key each. */
-const SECOND_SHIFT_DESC: Readonly<Record<number, string>> = {
-  0: 'Second shift: this difficulty draws no extra cards — MarsBot passes when its deck runs out.',
-  1: 'Second shift: while a player is still acting, MarsBot with an empty deck draws up to one extra project card per generation instead of passing.',
-  2: 'Second shift: while a player is still acting, MarsBot with an empty deck draws up to two extra project cards per generation instead of passing.',
-  3: 'Second shift: while a player is still acting, MarsBot with an empty deck draws up to three extra project cards per generation instead of passing.',
-};
+/** «Вторая смена» on the editor's note — HIDDEN balance: the rule is named, its cap never is (the owner, 2026-10-28). */
+const SECOND_SHIFT_DESC_NONE = 'Second shift: this difficulty draws no extra cards — MarsBot passes when its deck runs out.';
+const SECOND_SHIFT_DESC_ON = 'Second shift: while a player is still acting, MarsBot with an empty action deck may draw extra project cards instead of passing — how many depends on the difficulty.';
 
 export default defineComponent({
   name: 'ConsoleParticipantEditor',
@@ -240,7 +236,7 @@ export default defineComponent({
       if (!this.secondShiftOn) {
         return 'Second shift off: with an empty action deck MarsBot passes for the round, as the Automa rules say.';
       }
-      return SECOND_SHIFT_DESC[botSecondShiftCap()] ?? SECOND_SHIFT_DESC[0];
+      return botSecondShiftCap() > 0 ? SECOND_SHIFT_DESC_ON : SECOND_SHIFT_DESC_NONE;
     },
     /** Saved friends offered for this seat + a final "type a new name" row.
      * A friend already used by ANOTHER seat is shown disabled (case-insensitive). */

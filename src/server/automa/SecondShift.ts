@@ -1,7 +1,5 @@
-import {SECOND_SHIFT_LOG, secondShiftCap} from '../../common/automa/SecondShift';
+import {secondShiftCap} from '../../common/automa/SecondShift';
 import {IGame} from '../IGame';
-import {AutomaTurnLog} from './AutomaTurnLog';
-import {marsBotOf} from './AutomaUtil';
 
 /**
  * «ВТОРАЯ СМЕНА» — the server half (the rule itself: `common/automa/SecondShift.ts`).
@@ -11,8 +9,10 @@ import {marsBotOf} from './AutomaUtil';
  * INTO the action deck, so the turn then runs the ordinary project branch
  * (the journal's «played», the corporation's hook, the human reactors, the
  * lobbying rider, the played pile) — an extra card is a card like any other,
- * only its origin is told: the journal line and the turn step `second-shift`
- * (the turn review's headline, the bot screen's counter).
+ * and its origin is NOT told: no journal line, no turn step, no counter
+ * (HIDDEN BALANCE, the owner 2026-10-28 — a player who knew the moment and the
+ * cap could pass «at the right time» to deny it; the journal reads the ordinary
+ * «played» line, the deck count stays the rulebook's).
  */
 export class SecondShift {
   /** The rule is on for this game and this difficulty has a cap above zero. */
@@ -57,7 +57,7 @@ export class SecondShift {
 
   /**
    * Take the offer: one project card off the deck into the action deck, the
-   * count bumped, the line journaled, the step noted. Returns false when
+   * count bumped — nothing announced. Returns false when
    * there is no offer or the project deck has nothing left to draw.
    */
   public static take(game: IGame): boolean {
@@ -72,8 +72,6 @@ export class SecondShift {
     }
     automa.actionDeck.push({kind: 'project', name: card.name});
     automa.secondShift = {generation: game.generation, drawn: offer.index};
-    game.log(SECOND_SHIFT_LOG, (b) => b.player(marsBotOf(game)).number(offer.index).number(offer.cap));
-    AutomaTurnLog.note(game, {kind: 'second-shift', index: offer.index, cap: offer.cap}, {consumeLog: true});
     return true;
   }
 }

@@ -20,7 +20,6 @@ import {ClaimedMilestoneModel, MilestoneScore} from '../../common/models/Claimed
 import {AutomaDeltaProject} from '../automa/AutomaDeltaProject';
 import {AutomaState} from '../automa/AutomaState';
 import {AutomaCorporations} from '../automa/corps/AutomaCorporations';
-import {SecondShift} from '../automa/SecondShift';
 import {MarsBotCorpModel, marsBotCorpInfo} from '../../common/automa/MarsBotCorpData';
 import {AutomaMAEvaluation} from '../automa/AutomaMAEvaluation';
 import {milestoneThreshold} from '../milestones/IMilestone';
@@ -426,7 +425,6 @@ export class Server {
       ...(automa.holdings.length > 0 ? {
         holdings: AutomaCorporations.dividends(game).map((d) => ({id: d.corporation, dividend: {vp: d.vp, terms: d.terms}})),
       } : {}),
-      ...(SecondShift.enabled(game) ? {secondShift: {cap: SecondShift.cap(game), drawn: SecondShift.drawn(game)}} : {}),
       tracks: automa.board.tracks.map((t) => ({
         tags: t.definition.tags,
         position: t.position,

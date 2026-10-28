@@ -1,7 +1,6 @@
 import {expect} from 'chai';
 import {DifficultyLevel, MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
-import {MarsBotTurnStep} from '../../src/common/automa/MarsBotTurn';
-import {SECOND_SHIFT_CAP, SECOND_SHIFT_LOG, secondShiftCap} from '../../src/common/automa/SecondShift';
+import {SECOND_SHIFT_CAP, secondShiftCap} from '../../src/common/automa/SecondShift';
 import {Game} from '../../src/server/Game';
 import {IGame} from '../../src/server/IGame';
 import {SecondShift} from '../../src/server/automa/SecondShift';
@@ -14,7 +13,9 @@ import {AutomaTestOptions, testAutomaGame, testAutomaMultiplayerGame} from './Au
  * docs/claude/marsbot-second-shift.md): while at least one player is still
  * acting in the generation, a bot whose action deck ran out draws an extra
  * project card instead of passing — up to the difficulty's cap per generation.
- * The option is OFF when absent (every pre-rule save and spec unchanged).
+ * The option is OFF when absent (every pre-rule save and spec unchanged), and
+ * the rule is HIDDEN balance (the owner, 2026-10-28): the extra card is never
+ * announced — no journal line of its own, no turn step, no counter in the model.
  */
 
 /** The automa options with the rule set as asked (absent = the engine's default, off). */
@@ -43,59 +44,55 @@ function lastTurnKinds(game: IGame): Array<string> {
   return game.automa!.lastTurn!.steps.map((s) => s.kind);
 }
 
-function shiftStep(game: IGame): Extract<MarsBotTurnStep, {kind: 'second-shift'}> | undefined {
-  return game.automa!.lastTurn!.steps.find((s): s is Extract<MarsBotTurnStep, {kind: 'second-shift'}> => s.kind === 'second-shift');
+/** The journal never names the extra card — the ONLY line about it is the ordinary «played». */
+function expectNothingAnnounced(game: IGame): void {
+  expect(lastTurnKinds(game)).not.includes('second-shift');
+  expect(game.gameLog.some((m) => /extra card|stays in the round|second shift/i.test(m.message))).is.false;
+  expect(Server.getGameModel(game).automa).to.not.have.property('secondShift');
 }
 
-describe('SecondShift — «вторая смена», the bot\'s late-game pace rule', () => {
+describe('SecondShift — «вторая смена», the bot\'s late-game pace rule (hidden balance)', () => {
   it('the cap is the difficulty\'s: Easy none, Normal 1, Hard 2, Brutal 3', () => {
     expect(SECOND_SHIFT_CAP).deep.eq({easy: 0, normal: 1, hard: 2, brutal: 3});
     expect(secondShiftCap('easy')).eq(0);
     expect(secondShiftCap('brutal')).eq(3);
   });
 
-  it('OFF when the option is absent: an empty deck is a pass, as the rulebook says — and the model carries no counter', () => {
+  it('OFF when the option is absent: an empty deck is a pass, as the rulebook says', () => {
     const {game, human} = spentDeckGame(shiftOptions('normal'));
     expect(SecondShift.enabled(game)).is.false;
     expect(SecondShift.offer(game)).is.undefined;
     humanEndsTurn(game, human);
     expect(lastTurnKinds(game)).includes('pass');
-    expect(lastTurnKinds(game)).not.includes('second-shift');
     expect(game.automa!.secondShift).is.undefined;
     expect(game.automa!.playedPile).is.empty;
-    expect(Server.getGameModel(game).automa?.secondShift).is.undefined;
+    expectNothingAnnounced(game);
   });
 
-  it('ON, a player still acting, the deck spent: the bot draws an extra card and resolves it as any other — the step, the journal line and the counter say so', () => {
+  it('ON, a player still acting, the deck spent: the bot draws an extra card and resolves it as any other — and tells nobody', () => {
     const {game, human} = spentDeckGame(shiftOptions('normal', true));
     expect(SecondShift.offer(game)).deep.eq({index: 1, cap: 1});
-    expect(Server.getGameModel(game).automa?.secondShift).deep.eq({cap: 1, drawn: 0});
 
     humanEndsTurn(game, human);
 
     const kinds = lastTurnKinds(game);
-    expect(kinds[0]).eq('second-shift');
-    expect(kinds).includes('reveal');
+    expect(kinds[0]).eq('reveal'); // the ordinary project turn, from its first step
     expect(kinds).not.includes('pass');
     expect(game.automa!.playedPile).has.length(1); // the extra card went the ordinary way
-    expect(game.automa!.secondShift).deep.eq({generation: 1, drawn: 1});
-    const step = shiftStep(game);
-    expect(step).deep.include({index: 1, cap: 1});
-    expect(step?.message?.message).eq(SECOND_SHIFT_LOG);
-    expect(game.gameLog.some((m) => m.message === SECOND_SHIFT_LOG)).is.true;
-    expect(Server.getGameModel(game).automa?.secondShift).deep.eq({cap: 1, drawn: 1});
+    expect(game.automa!.secondShift).deep.eq({generation: 1, drawn: 1}); // the server's own count — never modelled
+    expect(game.gameLog.some((m) => m.message === '${0} played ${1}')).is.true; // the ordinary line is the only one
+    expectNothingAnnounced(game);
   });
 
   it('the cap is PER GENERATION: Normal\'s one card spent, the next empty deck is a pass', () => {
     const {game, human} = spentDeckGame(shiftOptions('normal', true));
     humanEndsTurn(game, human);
-    expect(lastTurnKinds(game)[0]).eq('second-shift');
+    expect(game.automa!.playedPile).has.length(1);
     expect(game.automa!.actionDeck).is.empty;
     expect(SecondShift.offer(game)).is.undefined;
 
     humanEndsTurn(game, human);
     expect(lastTurnKinds(game)).includes('pass');
-    expect(lastTurnKinds(game)).not.includes('second-shift');
     expect(game.automa!.playedPile).has.length(1);
     expect(game.automa!.secondShift).deep.eq({generation: 1, drawn: 1});
   });
@@ -103,13 +100,14 @@ describe('SecondShift — «вторая смена», the bot\'s late-game pace
   it('Hard draws two extra cards, then passes', () => {
     const {game, human} = spentDeckGame(shiftOptions('hard', true));
     humanEndsTurn(game, human);
-    expect(shiftStep(game)).deep.include({index: 1, cap: 2});
+    expect(game.automa!.secondShift).deep.eq({generation: 1, drawn: 1});
     humanEndsTurn(game, human);
-    expect(shiftStep(game)).deep.include({index: 2, cap: 2});
+    expect(game.automa!.secondShift).deep.eq({generation: 1, drawn: 2});
     expect(game.automa!.playedPile).has.length(2);
     humanEndsTurn(game, human);
     expect(lastTurnKinds(game)).includes('pass');
     expect(game.automa!.playedPile).has.length(2);
+    expectNothingAnnounced(game);
   });
 
   it('Brutal caps at three', () => {
@@ -118,11 +116,10 @@ describe('SecondShift — «вторая смена», the bot\'s late-game pace
     expect(SecondShift.offer(game)).deep.eq({index: 1, cap: 3});
   });
 
-  it('Easy has no cap: the switch ON changes nothing — not enabled, no model counter, a pass', () => {
+  it('Easy has no cap: the switch ON changes nothing — not enabled, a pass', () => {
     const {game, human} = spentDeckGame(shiftOptions('easy', true));
     expect(SecondShift.enabled(game)).is.false;
     expect(SecondShift.cap(game)).eq(0);
-    expect(Server.getGameModel(game).automa?.secondShift).is.undefined;
     humanEndsTurn(game, human);
     expect(lastTurnKinds(game)).includes('pass');
     expect(game.automa!.playedPile).is.empty;

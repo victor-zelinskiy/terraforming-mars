@@ -346,7 +346,7 @@ export class AutomaTurnLog {
     const fresh = AutomaTurnLog.takeFreshLogs(game);
     if (opts?.consumeLog === true && fresh.length > 0) {
       const own = fresh.pop();
-      if (own !== undefined && (step.kind === 'reveal' || step.kind === 'failed' || step.kind === 'pass' || step.kind === 'second-shift' || step.kind === 'attack' || step.kind === 'hazard' ||
+      if (own !== undefined && (step.kind === 'reveal' || step.kind === 'failed' || step.kind === 'pass' || step.kind === 'attack' || step.kind === 'hazard' ||
           step.kind === 'vote' || step.kind === 'vote-refused' || step.kind === 'chairman')) {
         step.message = own;
       }

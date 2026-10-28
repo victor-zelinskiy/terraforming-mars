@@ -225,12 +225,6 @@ export type MarsBotTurnStep =
   /** Empty action deck — MarsBot passes for the round. */
   | {kind: 'pass', message?: LogMessage}
   /**
-   * «ВТОРАЯ СМЕНА» (`common/automa/SecondShift.ts`): the deck ran out while the
-   * players still act, so this turn's card is an EXTRA one — `index` of `cap`
-   * this generation. Noted before the reveal; `message` is the journal line.
-   */
-  | {kind: 'second-shift', index: number, cap: number, message?: LogMessage}
-  /**
    * The action-deck card flipped this turn (open from this moment on).
    * `resolution` (Phase B, bonus cards only) carries the card's resolved fate.
    */

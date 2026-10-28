@@ -416,11 +416,7 @@ export default defineComponent({
     /** The expansion context — resolves bonus-card faces + guide sections for THIS game. */
     botCardContext(): MarsBotGuideContext {
       const expansions = this.playerView.game.gameOptions.expansions;
-      const automa = this.playerView.game.automa;
-      return {
-        venus: expansions.venus === true, colonies: expansions.colonies === true, deltaProject: expansions.deltaProject === true,
-        ...(automa?.secondShift !== undefined ? {secondShiftCap: automa.secondShift.cap} : {}),
-      };
+      return {venus: expansions.venus === true, colonies: expansions.colonies === true, deltaProject: expansions.deltaProject === true};
     },
     /** What the current route presents for the current participant —
      *  'summary' | 'content' | 'fallback' (the capability contract). */

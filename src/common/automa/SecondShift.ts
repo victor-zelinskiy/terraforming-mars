@@ -12,8 +12,12 @@ import {DifficultyLevel} from './AutomaTypes';
  * draws an extra project card and resolves it as usual — up to this CAP per
  * generation, set by the difficulty. Nothing changes in a generation the bot
  * outlasts (the first four, every short game); a long generation is where
- * the rule works. Shared by the server (the rule) and the client (the bot
- * screen's guide, the creator's plate).
+ * the rule works. HIDDEN BALANCE (the owner, 2026-10-28): the extra card is
+ * never announced — no journal line, no turn step, no counter on any screen
+ * (the deck count stays the rulebook's); a player who knew the moment and the
+ * cap could pass «at the right time» to deny it. Shared by the server (the
+ * rule) and the creator (the switch beside the difficulty; its note names no
+ * number).
  */
 export const SECOND_SHIFT_CAP: Readonly<Record<DifficultyLevel, number>> = {
   easy: 0,
@@ -25,6 +29,3 @@ export const SECOND_SHIFT_CAP: Readonly<Record<DifficultyLevel, number>> = {
 export function secondShiftCap(difficulty: DifficultyLevel): number {
   return SECOND_SHIFT_CAP[difficulty];
 }
-
-/** The journal line of an extra card — ${0} the bot, ${1} this card's ordinal, ${2} the cap. */
-export const SECOND_SHIFT_LOG = '${0} stays in the round while the players still act — an extra card, ${1} of ${2}';
