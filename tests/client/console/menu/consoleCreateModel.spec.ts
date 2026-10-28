@@ -188,7 +188,7 @@ describe('consoleCreateModel', () => {
       expect(fields).to.deep.eq(['difficulty', 'secondShift', 'remove']);
     });
 
-    it('«вторая смена» is a switch beside the difficulty: ◄/► flip it, the cap follows the difficulty, Easy has none', () => {
+    it('«вторая смена» is a switch beside the difficulty: ◄/► flip it, the cap follows the difficulty, Easy has it too', () => {
       seatBot();
       expect(createGameState.config.botSecondShift).to.eq(true);
       expect(crewRows().find((r) => r.kind === 'bot')).to.include({secondShift: true});
@@ -197,13 +197,13 @@ describe('consoleCreateModel', () => {
       expect(crewRows().find((r) => r.kind === 'bot')).to.include({secondShift: false});
       toggleBotSecondShift();
       expect(createGameState.config.botSecondShift).to.eq(true);
-      expect(botSecondShiftCap()).to.eq(1);
+      expect(botSecondShiftCap()).to.eq(2); // the ladder's top rung — Normal reaches 2 in a long game
       createGameState.config.botDifficulty = 'brutal';
-      expect(botSecondShiftCap()).to.eq(3);
-      // Easy has no cap: the row names the rule only when it can fire.
+      expect(botSecondShiftCap()).to.eq(4);
+      // Easy has the rule too (one card from the 7th generation): the row names it.
       createGameState.config.botDifficulty = 'easy';
-      expect(botSecondShiftCap()).to.eq(0);
-      expect(crewRows().find((r) => r.kind === 'bot')).to.include({secondShift: false});
+      expect(botSecondShiftCap()).to.eq(1);
+      expect(crewRows().find((r) => r.kind === 'bot')).to.include({secondShift: true});
     });
 
     it('hides trBoost editor field until the rule is on', () => {

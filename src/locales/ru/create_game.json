@@ -76,7 +76,6 @@
     "Remove participant?": "Убрать участника?",
     "Remove MarsBot?": "Убрать бота?",
     "Second shift": "Вторая смена",
-    "Second shift: this difficulty draws no extra cards — MarsBot passes when its deck runs out.": "Вторая смена: на этой сложности дополнительных карт нет — бот пасует, когда его колода кончается.",
     "Second shift: while a player is still acting, MarsBot with an empty action deck may draw extra project cards instead of passing — how many depends on the difficulty.": "Вторая смена: пока игроки ещё ходят, бот с пустой колодой действий может брать дополнительные карты проектов вместо паса. Сколько — зависит от сложности.",
     "Second shift off: with an empty action deck MarsBot passes for the round, as the Automa rules say.": "Вторая смена выключена: с пустой колодой действий бот пасует до конца поколения, как велят правила Автомы.",
     "Add MarsBot?": "Добавить бота?",

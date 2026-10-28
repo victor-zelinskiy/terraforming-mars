@@ -20,12 +20,12 @@ The cap is a LADDER by difficulty and generation (the owner, 2026-10-28 — `SEC
 
 | Difficulty | generations 1–6 | 7–9 | 10+ |
 | --- | --- | --- | --- |
-| Easy | 0 (the rule is off) | 0 | 0 |
+| Easy | 0 | 1 | 1 |
 | Normal | 1 | 1 | 2 |
 | Hard | 2 | 3 | 4 |
 | Brutal | 3 | 4 | 4 |
 
-Why these rungs: on the same 23 finished games the bot passes first from the 7th generation on, 15 of 23 games end in the 8th–9th and only 4 reach the 10th; a late extra card still yields ~1.8 track steps but fails more often (the tracks near their ends) and pays M€ instead. Brutal stays at 4 because its +1 VP per played card compounds with every extra card.
+Why these rungs: on the same 23 finished games the bot passes first from the 7th generation on, 15 of 23 games end in the 8th–9th and only 4 reach the 10th; a late extra card still yields ~1.8 track steps but fails more often (the tracks near their ends) and pays M€ instead. Brutal stays at 4 because its +1 VP per played card compounds with every extra card; Easy draws nothing before the 7th generation and one card from there on (the owner, 2026-10-28: the switch must mean something on Easy too).
 
 Nothing changes in a generation the bot outlasts (the first four, every short game, every generation where the humans pass first): the trigger is the bot's EMPTY deck while a human is still in the round. A player who passed is not «acting»; the bot itself never counts. When no project card is left to draw, the bot passes.
 
@@ -37,7 +37,7 @@ Nothing changes in a generation the bot outlasts (the first four, every short ga
 - **No turn step, no review chip.** `MarsBotTurn` has no `second-shift` kind; the turn review reads an extra card's turn as any other.
 - **No model field, no counter.** `MarsBotModel` carries nothing of it; the bot screen's decks plate keeps the rulebook's paragraph («passes until the next generation») and shows no count or cap. The hub is the same screen with the rule on or off — e2e `console-bot-second-shift` guards exactly that.
 - **The deck count stays honest.** «Колода действий N» is the rulebook's own visible fact; an attentive player can see the bot act off an empty deck. Hiding or inflating the count would be lying, and the exploit is weak anyway: denying the bot one card costs the player their own remaining actions.
-- **The only place the rule is named is the creator's switch** beside the bot's difficulty, and its note names NO number («сколько — зависит от сложности»); Easy's note says the difficulty draws none.
+- **The only place the rule is named is the creator's switch** beside the bot's difficulty, and its note names NO number («сколько — зависит от сложности»).
 
 The server keeps `AutomaState.secondShift {generation, drawn}` for the cap (serialized, optional on old saves) — state, never a surface.
 

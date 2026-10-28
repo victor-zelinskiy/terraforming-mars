@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {DifficultyLevel, MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
-import {SECOND_SHIFT_CAP, SECOND_SHIFT_CAP_LADDER, secondShiftCap, secondShiftRuleApplies} from '../../src/common/automa/SecondShift';
+import {SECOND_SHIFT_CAP, SECOND_SHIFT_CAP_LADDER, secondShiftCap, secondShiftMaxCap, secondShiftRuleApplies} from '../../src/common/automa/SecondShift';
 import {Game} from '../../src/server/Game';
 import {IGame} from '../../src/server/IGame';
 import {SecondShift} from '../../src/server/automa/SecondShift';
@@ -52,20 +52,21 @@ function expectNothingAnnounced(game: IGame): void {
 }
 
 describe('SecondShift — «вторая смена», the bot\'s late-game pace rule (hidden balance)', () => {
-  it('the cap is a LADDER by difficulty and generation: a base, a step from the 7th, another from the 10th; Brutal stays at 4', () => {
-    expect(SECOND_SHIFT_CAP_LADDER).deep.eq({easy: [0, 0, 0], normal: [1, 1, 2], hard: [2, 3, 4], brutal: [3, 4, 4]});
+  it('the cap is a LADDER by difficulty and generation: a base, a step from the 7th, another from the 10th; Brutal stays at 4, Easy starts at the 7th', () => {
+    expect(SECOND_SHIFT_CAP_LADDER).deep.eq({easy: [0, 1, 1], normal: [1, 1, 2], hard: [2, 3, 4], brutal: [3, 4, 4]});
     expect(SECOND_SHIFT_CAP).deep.eq({easy: 0, normal: 1, hard: 2, brutal: 3});
     for (const gen of [1, 4, 6]) {
       expect([secondShiftCap('easy', gen), secondShiftCap('normal', gen), secondShiftCap('hard', gen), secondShiftCap('brutal', gen)], `gen ${gen}`).deep.eq([0, 1, 2, 3]);
     }
     for (const gen of [7, 8, 9]) {
-      expect([secondShiftCap('easy', gen), secondShiftCap('normal', gen), secondShiftCap('hard', gen), secondShiftCap('brutal', gen)], `gen ${gen}`).deep.eq([0, 1, 3, 4]);
+      expect([secondShiftCap('easy', gen), secondShiftCap('normal', gen), secondShiftCap('hard', gen), secondShiftCap('brutal', gen)], `gen ${gen}`).deep.eq([1, 1, 3, 4]);
     }
     for (const gen of [10, 11, 14]) {
-      expect([secondShiftCap('easy', gen), secondShiftCap('normal', gen), secondShiftCap('hard', gen), secondShiftCap('brutal', gen)], `gen ${gen}`).deep.eq([0, 2, 4, 4]);
+      expect([secondShiftCap('easy', gen), secondShiftCap('normal', gen), secondShiftCap('hard', gen), secondShiftCap('brutal', gen)], `gen ${gen}`).deep.eq([1, 2, 4, 4]);
     }
-    expect(secondShiftRuleApplies('easy')).is.false;
+    expect(secondShiftRuleApplies('easy')).is.true; // its one card from the 7th generation — the switch means something on Easy too
     expect(secondShiftRuleApplies('normal')).is.true;
+    expect([secondShiftMaxCap('easy'), secondShiftMaxCap('normal'), secondShiftMaxCap('hard'), secondShiftMaxCap('brutal')]).deep.eq([1, 2, 4, 4]);
   });
 
   it('the ladder is read LIVE from the game\'s generation — a game already under way takes it up without any migration', () => {
@@ -145,13 +146,17 @@ describe('SecondShift — «вторая смена», the bot\'s late-game pace
     expect(SecondShift.offer(game)).deep.eq({index: 1, cap: 3});
   });
 
-  it('Easy has no cap: the switch ON changes nothing — not enabled, a pass', () => {
+  it('Easy: nothing before the 7th generation (a pass), one extra card from the 7th on', () => {
     const {game, human} = spentDeckGame(shiftOptions('easy', true));
-    expect(SecondShift.enabled(game)).is.false;
+    expect(SecondShift.enabled(game)).is.true;
     expect(SecondShift.cap(game)).eq(0);
+    expect(SecondShift.offer(game)).is.undefined;
     humanEndsTurn(game, human);
     expect(lastTurnKinds(game)).includes('pass');
     expect(game.automa!.playedPile).is.empty;
+    game.generation = 7;
+    expect(SecondShift.cap(game)).eq(1);
+    expect(SecondShift.offer(game)).deep.eq({index: 1, cap: 1});
   });
 
   it('nobody still acting: the player passed first, so the bot passes too (the rule is for a generation the players outlast)', () => {

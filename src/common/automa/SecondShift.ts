@@ -26,12 +26,14 @@ import {DifficultyLevel} from './AutomaTypes';
  * the bot passes first from the 7th generation on, 15 of 23 games end in the
  * 8th–9th, 4 reach the 10th; a late card still yields ~1.8 track steps but
  * fails more often (the tracks near their ends), paying M€ instead. Brutal
- * stays at 4 — its +1 VP per played card compounds with every extra card.
+ * stays at 4 — its +1 VP per played card compounds with every extra card;
+ * Easy draws nothing before the 7th generation and one card from there on, so
+ * the switch means something on every difficulty.
  * READ LIVE at every bot turn from the game's generation: a game already under
  * way with the switch on takes a new ladder up the moment the server does.
  */
 export const SECOND_SHIFT_CAP_LADDER: Readonly<Record<DifficultyLevel, readonly [number, number, number]>> = {
-  easy: [0, 0, 0],
+  easy: [0, 1, 1],
   normal: [1, 1, 2],
   hard: [2, 3, 4],
   brutal: [3, 4, 4],
@@ -41,7 +43,7 @@ export const SECOND_SHIFT_LATE_GENERATION = 7;
 /** The generation the ladder's second step starts at (a long game). */
 export const SECOND_SHIFT_LONG_GENERATION = 10;
 
-/** The base cap by difficulty — the ladder's first rung; 0 = the difficulty never draws. */
+/** The base cap by difficulty — the ladder's first rung (Easy's is 0: its one card comes from the 7th generation). */
 export const SECOND_SHIFT_CAP: Readonly<Record<DifficultyLevel, number>> = {
   easy: SECOND_SHIFT_CAP_LADDER.easy[0],
   normal: SECOND_SHIFT_CAP_LADDER.normal[0],
@@ -49,9 +51,14 @@ export const SECOND_SHIFT_CAP: Readonly<Record<DifficultyLevel, number>> = {
   brutal: SECOND_SHIFT_CAP_LADDER.brutal[0],
 };
 
-/** Whether the difficulty has the rule at all (Easy never) — the creator's reading, generation-free. */
+/** Whether the difficulty has the rule at all — any rung above zero (every difficulty today); the creator's generation-free reading. */
 export function secondShiftRuleApplies(difficulty: DifficultyLevel): boolean {
-  return SECOND_SHIFT_CAP[difficulty] > 0;
+  return SECOND_SHIFT_CAP_LADDER[difficulty].some((cap) => cap > 0);
+}
+
+/** The most the difficulty can ever draw in one generation — the ladder's top rung. */
+export function secondShiftMaxCap(difficulty: DifficultyLevel): number {
+  return Math.max(...SECOND_SHIFT_CAP_LADDER[difficulty]);
 }
 
 /** The cap of THIS generation on this difficulty. */

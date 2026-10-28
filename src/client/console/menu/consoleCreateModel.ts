@@ -68,7 +68,7 @@ import {
   PremiumMapMeta,
   PremiumRuleMeta,
 } from '@/client/components/create/premium/createGameMeta';
-import {SECOND_SHIFT_CAP, secondShiftRuleApplies} from '@/common/automa/SecondShift';
+import {secondShiftMaxCap, secondShiftRuleApplies} from '@/common/automa/SecondShift';
 
 // ── Decks (LB/RB ring) ──────────────────────────────────────────────────────
 
@@ -385,9 +385,9 @@ export function toggleBotSecondShift(): void {
   setBotSecondShift(!createGameState.config.botSecondShift);
 }
 
-/** The creator's reading of the rule for the CURRENT difficulty: its BASE cap, or 0 when the difficulty has none (Easy). */
+/** The creator's reading of the rule for the CURRENT difficulty: the most it can ever draw in one generation (the ladder's top rung). */
 export function botSecondShiftCap(): number {
-  return SECOND_SHIFT_CAP[createGameState.config.botDifficulty];
+  return secondShiftMaxCap(createGameState.config.botDifficulty);
 }
 
 export function adjustTrBoost(index: number, step: 1 | -1): void {
