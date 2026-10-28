@@ -1859,7 +1859,7 @@ export default defineComponent({
         return undefined;
       }
       if (dest.forecastOptions !== undefined) {
-        return this.rewardChoice === undefined ? undefined : dest.forecastOptions[this.rewardChoice];
+        return this.rewardChoice === undefined ? undefined : dest.forecastOptions[this.rewardChoice] ?? undefined;
       }
       return dest.forecast;
     },

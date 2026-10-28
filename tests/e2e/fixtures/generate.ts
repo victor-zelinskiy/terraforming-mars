@@ -68,6 +68,7 @@ import {DeltaProjectExpansion} from '../../../src/server/delta/DeltaProjectExpan
 import {DeltaSurge} from '../../../src/server/cards/delta/DeltaSurge';
 import {MiningExpedition} from '../../../src/server/cards/base/MiningExpedition';
 import {ElectroCatapult} from '../../../src/server/cards/base/ElectroCatapult';
+import {ModularFloodgates} from '../../../src/server/cards/delta/ModularFloodgates';
 import {WaterSplittingPlant} from '../../../src/server/cards/base/WaterSplittingPlant';
 import {AquiferPumping} from '../../../src/server/cards/base/AquiferPumping';
 import {RestrictedArea} from '../../../src/server/cards/base/RestrictedArea';
@@ -601,6 +602,31 @@ for (const name of ['price-fold-bot', 'price-fold-bot-second'] as const) {
   runAllActions(game);
   if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions)) {
     throw new Error(`${name}: expected blue on the move with the action menu — got phase=${game.phase} active=${game.activePlayer.color} wf=${human.getWaitingFor()?.constructor.name}`);
+  }
+  write(name, game);
+}
+
+// ── floodgates-blockade-then-action: THE FIELD LOG OF 2026-10-28 — after a Modular Floodgates BLOCKADE (variant B, the
+//    Hydronetwork execution surface, «Готово»), every later card action of the session stood on «Выполняется…» until
+//    the rail half's 6 s ceiling (`action-commit-rail-owed` force-released). A 2p Delta table: blue on the move with
+//    Modular Floodgates (1 steel stored — the blockade is legal) and Electro Catapult (8 plants — its price leaves the
+//    rail, so the commit seeds a rail half), red at the track's start (the cell in front of it is no VP step) and already
+//    passed — blue keeps the move after the blockade. ──
+{
+  const name = 'floodgates-blockade-then-action';
+  const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false, deltaProjectExpansion: true});
+  answerStartFlow(game, [p1, p2]);
+  const floodgates = new ModularFloodgates();
+  floodgates.resourceCount = 1;
+  p1.playedCards.push(floodgates, new ElectroCatapult());
+  p1.plants = 8;
+  p1.megaCredits = 30;
+  p2.deltaProjectData!.position = 0;
+  // Red has passed: blue keeps the move after the blockade, so the catapult is the SAME session's next commit.
+  game.playerHasPassed(p2);
+  runAllActions(game);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== p1.id || !(p1.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected blue on the move with the action menu — got phase=${game.phase} active=${game.activePlayer.color} wf=${p1.getWaitingFor()?.constructor.name}`);
   }
   write(name, game);
 }
@@ -2784,7 +2810,7 @@ parliamentFixture('hydro-greens', {
     }
     const preview = DeltaProjectExpansion.getPreview(p1);
     const power = preview.destinations.find((d) => d.position === 2);
-    if (power === undefined || !power.legal || !power.affordable || power.forecastOptions?.[1] === undefined || power.forecastOptions[0] !== undefined) {
+    if (power === undefined || !power.legal || !power.affordable || power.forecastOptions?.[1] === undefined || power.forecastOptions[1] === null || power.forecastOptions[0] !== null) {
       throw new Error(`the hydro-greens fixture expected stage 2 reachable with the Greens answering its heat option only — got ${JSON.stringify({legal: power?.legal, affordable: power?.affordable, options: power?.forecastOptions?.map((o) => o?.facts.length)})}`);
     }
   },

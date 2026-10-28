@@ -13316,6 +13316,11 @@ export default defineComponent({
                 // submit — every other commit takes the ordinary dismissal.
                 const deploy = consumeBlockadeExecution();
                 if (deploy !== undefined) {
+                  // The commit is handed to the execution surface — its fold is no longer owed (what `fold()` says
+                  // for every other ending). Left raised, every LATER commit of the session skipped its resolution
+                  // above: the rail half stood seeded until its 6 s ceiling, «Выполняется…» with it (the field log
+                  // of 2026-10-28 — Atmo Collectors / Jupiter Floating Station after a blockade).
+                  this.commitFoldOwed = false;
                   clearAwaitingHandoff();
                   releaseActionCommit();
                   beginBlockadeExecution(deploy.target, deploy.source);
@@ -17323,6 +17328,10 @@ export default defineComponent({
       // playerView watcher resolves: a reveal continues the scene as a PHASE
       // handoff (the source card FLIPs across), anything else dismisses; a
       // lost response expires via AWAITING_SAFETY_MS.
+      // A NEW commit owes no earlier one's fold: a fold genuinely owed keeps the awaiting handoff standing and the pad
+      // inert, so no press can reach here under it — a flag still raised now is a leftover, and it would make the
+      // resolution above skip THIS commit (the rail half seeded, never flown, «Выполняется…» to its 6 s ceiling).
+      this.commitFoldOwed = false;
       beginAwaitingHandoff('action-composer', {
         gameAge: this.playerView.game.gameAge,
         undoCount: this.playerView.game.undoCount,

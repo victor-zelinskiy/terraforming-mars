@@ -97,7 +97,7 @@ describe('hydroStageForecast — the forecast twin promises what the stage grant
     expect(power, 'the power stage is a destination').is.not.undefined;
     expect(power!.forecast, 'a choice stage carries no single forecast').is.undefined;
     expect(power!.forecastOptions, 'one slot per option').to.have.lengthOf(2);
-    expect(power!.forecastOptions![0], 'energy production wakes nobody').is.undefined;
+    expect(power!.forecastOptions![0], 'energy production wakes nobody — null, as the wire spells an empty array slot').is.null;
     const heat = power!.forecastOptions![1];
     expect(heat, 'the heat option wakes the Greens').is.not.undefined;
     const greens = heat!.facts.find((f) => f.source.kind === 'party' && f.source.name === PartyName.GREENS);

@@ -1350,7 +1350,7 @@ export class DeltaProjectExpansion {
   private static destinationForecast(
     player: IPlayer, from: number, position: number, traversal: boolean,
     movementBonuses: ReadonlyArray<DeltaMovementBonusProjection> | undefined,
-  ): {forecast?: EffectForecast, forecastOptions?: ReadonlyArray<EffectForecast | undefined>} {
+  ): {forecast?: EffectForecast, forecastOptions?: ReadonlyArray<EffectForecast | null>} {
     const shared: Array<ActionEffect> = [];
     if (traversal) {
       for (const step of DeltaProjectExpansion.traversalSteps(player, from, position)) {
@@ -1368,7 +1368,7 @@ export class DeltaProjectExpansion {
     };
     if (DeltaProjectExpansion.stageChoiceCount(position) === 2) {
       const options = [forecastOf(DeltaProjectExpansion.stageRewardEffects(player, position, 0)), forecastOf(DeltaProjectExpansion.stageRewardEffects(player, position, 1))];
-      return options.every((o) => o === undefined) ? {} : {forecastOptions: options};
+      return options.every((o) => o === undefined) ? {} : {forecastOptions: options.map((o) => o ?? null)};
     }
     const forecast = forecastOf(DeltaProjectExpansion.stageRewardEffects(player, position, undefined));
     return forecast === undefined ? {} : {forecast};

@@ -2784,7 +2784,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'rail-reward-action' |
   // T09 flights, iteration 2 — the OWNER'S table: solo against MarsBot (Meteor Shower first), Electro Catapult · Space
   // Mirrors · Caretaker Contract; `-second`: the catapult ENDS the turn, the bot's turn lands inside the commit's flight.
-  'price-fold-bot' | 'price-fold-bot-second' |
+  'price-fold-bot' | 'price-fold-bot-second' | 'floodgates-blockade-then-action' |
   // ACTIONS THAT CHANGE NOTHING (2026-10-15): a finished planet, three card actions the server proves futile and a
   // futile heat conversion (`-only`), plus a useful pair and a blocked card beside them (`-mixed`).
   'futile-only' | 'futile-mixed' |

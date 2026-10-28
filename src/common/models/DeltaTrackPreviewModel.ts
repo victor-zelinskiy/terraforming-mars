@@ -87,10 +87,12 @@ export type DeltaTrackDestination = {
   forecast?: EffectForecast;
   /**
    * A CHOICE stage's answers, ONE PER OPTION in the stage's option order (positions 1 and 2 — steel / plants, energy /
-   * heat production): the option tiles print their own «⚡ сработает», the plan reads the chosen one. `undefined` in a
-   * slot whose option wakes nothing. Absent on a fixed-reward stage.
+   * heat production): the option tiles print their own «⚡ сработает», the plan reads the chosen one. `null` in a
+   * slot whose option wakes nothing — an ARRAY slot, so the wire cannot carry `undefined` there (JSON writes it as
+   * `null`; typed `undefined`, the plan's `=== undefined` passed a `null` and read `.facts` off it — the field
+   * log of 2026-10-28). Absent on a fixed-reward stage.
    */
-  forecastOptions?: ReadonlyArray<EffectForecast | undefined>;
+  forecastOptions?: ReadonlyArray<EffectForecast | null>;
 };
 
 /**
