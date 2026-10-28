@@ -1,8 +1,9 @@
 import {DifficultyLevel} from './AutomaTypes';
 
 /**
- * «ВТОРАЯ СМЕНА» — the late-game pace rule of MarsBot (the owner, 2026-10-28;
- * docs/claude/marsbot-second-shift.md).
+ * «ВТОРАЯ СМЕНА» — the LATE half of MarsBot's «ДИНАМИЧЕСКИЙ БАЛАНС» (the owner,
+ * 2026-10-28; the early half — a base deck that fills gradually — is
+ * `common/automa/DynamicBalance.ts`; docs/claude/marsbot-second-shift.md).
  *
  * Measured on the owner's 25 finished Turmoil Redux games: from the 7th
  * generation on the bot takes a third of the best human's actions and passes
@@ -21,35 +22,26 @@ import {DifficultyLevel} from './AutomaTypes';
  * number).
  */
 /**
- * THE CAP LADDER (the owner, 2026-10-28): a base by difficulty, one step up from
- * the 7th generation and another from the 10th. Measured on the same 23 games:
- * the bot passes first from the 7th generation on, 15 of 23 games end in the
- * 8th–9th, 4 reach the 10th; a late card still yields ~1.8 track steps but
- * fails more often (the tracks near their ends), paying M€ instead. Brutal
- * stays at 4 — its +1 VP per played card compounds with every extra card;
- * Easy draws nothing before the 7th generation and one card from there on, so
- * the switch means something on every difficulty.
+ * THE CAP LADDER (the owner, 2026-10-29, after the «Cold Carbon Mass» campaign
+ * played with the rule on: «бот хорошо скейлится в лейт, но откалибровать
+ * сильнее — в 1–4 поколении доп. карта не нужна, Hard: 5–6 — одна, 7–8 — две,
+ * 9 — три, 10+ — четыре»). Five generation BANDS, a cap per difficulty in each;
+ * Hard is the owner's own row, the others one step around it. Measured: before
+ * the rule the bot passed first in 32–44 % of the 5th–6th generations, 75–90 %
+ * of the 7th–8th, 91 % of the 9th; through the 1st–4th it never did (it passed
+ * LAST in 100 / 100 / 96 / 68 %), so a card there only widened its lead. Brutal
+ * stays at 4 — its +1 VP per played card compounds with every extra card.
  * READ LIVE at every bot turn from the game's generation: a game already under
  * way with the switch on takes a new ladder up the moment the server does.
  */
-export const SECOND_SHIFT_CAP_LADDER: Readonly<Record<DifficultyLevel, readonly [number, number, number]>> = {
-  easy: [0, 1, 1],
-  normal: [1, 1, 2],
-  hard: [2, 3, 4],
-  brutal: [3, 4, 4],
+export const SECOND_SHIFT_CAP_LADDER: Readonly<Record<DifficultyLevel, readonly [number, number, number, number, number]>> = {
+  easy: [0, 0, 1, 1, 2],
+  normal: [0, 1, 1, 2, 3],
+  hard: [0, 1, 2, 3, 4],
+  brutal: [0, 2, 3, 4, 4],
 };
-/** The generation the ladder's first step starts at (the bot passes first from here on). */
-export const SECOND_SHIFT_LATE_GENERATION = 7;
-/** The generation the ladder's second step starts at (a long game). */
-export const SECOND_SHIFT_LONG_GENERATION = 10;
-
-/** The base cap by difficulty — the ladder's first rung (Easy's is 0: its one card comes from the 7th generation). */
-export const SECOND_SHIFT_CAP: Readonly<Record<DifficultyLevel, number>> = {
-  easy: SECOND_SHIFT_CAP_LADDER.easy[0],
-  normal: SECOND_SHIFT_CAP_LADDER.normal[0],
-  hard: SECOND_SHIFT_CAP_LADDER.hard[0],
-  brutal: SECOND_SHIFT_CAP_LADDER.brutal[0],
-};
+/** The first generation of each band after the first: 1–4 · 5–6 · 7–8 · 9 · 10+. */
+export const SECOND_SHIFT_BAND_STARTS: readonly [number, number, number, number] = [5, 7, 9, 10];
 
 /** Whether the difficulty has the rule at all — any rung above zero (every difficulty today); the creator's generation-free reading. */
 export function secondShiftRuleApplies(difficulty: DifficultyLevel): boolean {
@@ -63,6 +55,6 @@ export function secondShiftMaxCap(difficulty: DifficultyLevel): number {
 
 /** The cap of THIS generation on this difficulty. */
 export function secondShiftCap(difficulty: DifficultyLevel, generation: number): number {
-  const tier = generation >= SECOND_SHIFT_LONG_GENERATION ? 2 : generation >= SECOND_SHIFT_LATE_GENERATION ? 1 : 0;
-  return SECOND_SHIFT_CAP_LADDER[difficulty][tier];
+  const band = SECOND_SHIFT_BAND_STARTS.filter((start) => generation >= start).length;
+  return SECOND_SHIFT_CAP_LADDER[difficulty][band];
 }

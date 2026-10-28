@@ -43,7 +43,7 @@ for (const profile of PROFILES) {
       await expect(decks).toBeVisible();
       await expect(decks.locator('[data-bot-pile="action"]'), 'the deck count stays the rulebook\'s').toBeVisible();
       await expect(decks, 'the rulebook\'s pass, unchanged').toContainText('пасует до следующего');
-      await expect(decks, 'the rule is never named here').not.toContainText('Вторая смена');
+      await expect(decks, 'the rule is never named here').not.toContainText('Динамический баланс');
       const hubText = await page.locator('.con-botscr').innerText();
       expect(hubText, 'no «n/cap» count anywhere on the hub').not.toMatch(/\b\d\/[123]\b/);
     });

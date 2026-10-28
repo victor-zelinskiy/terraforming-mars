@@ -1,6 +1,6 @@
-# «ВТОРАЯ СМЕНА» — the bot's late-game pace rule
+# «ДИНАМИЧЕСКИЙ БАЛАНС» — MarsBot's pace across the game (early: a deck that fills gradually · late: «ВТОРАЯ СМЕНА»)
 
-**Status: SHIPPED 2026-10-28, HIDDEN by the owner's decision the same day.** Contract + data + surfaces. The rule itself: `src/common/automa/SecondShift.ts`; the server half: `src/server/automa/SecondShift.ts`; guard: `tests/automa/SecondShift.spec.ts`.
+**Status: SHIPPED 2026-10-28, HIDDEN by the owner's decision the same day; re-calibrated and given its EARLY half 2026-10-29** after the «Cold Carbon Mass» campaign (§ Calibration 2). ONE switch beside the bot's difficulty — «Динамический баланс» (the option key stays `AutomaOptions.secondShift`, so saves and campaigns created with it keep it). The late half: `src/common/automa/SecondShift.ts` + `src/server/automa/SecondShift.ts`, guard `tests/automa/SecondShift.spec.ts`; the early half: `src/common/automa/DynamicBalance.ts` (+ the deck builders `AutomaSetup` / `AutomaResearch` / `AutomaCorporations.dynamicBalanceTrim`), guard `tests/automa/DynamicBalance.spec.ts`.
 
 ## The problem (measured, not felt)
 
@@ -16,16 +16,28 @@ A dividend recalibration alone would only lower the bar; the owner's point was t
 
 > While at least one player is still acting in the generation, MarsBot does not pass when its action deck runs out: it draws an extra project card off the project deck and resolves it exactly as any other action card — up to the difficulty's cap per generation.
 
-The cap is a LADDER by difficulty and generation (the owner, 2026-10-28 — `SECOND_SHIFT_CAP_LADDER`), read LIVE at every bot turn from the game's generation, so a game already under way with the switch on takes a new ladder up the moment the server does (no migration, no stored cap):
+The cap is a LADDER of five generation bands (the owner, 2026-10-29 — `SECOND_SHIFT_CAP_LADDER` + `SECOND_SHIFT_BAND_STARTS`; Hard is the owner's own row, the others one step around it), read LIVE at every bot turn from the game's generation, so a game already under way with the switch on takes a new ladder up the moment the server does (no migration, no stored cap):
 
-| Difficulty | generations 1–6 | 7–9 | 10+ |
-| --- | --- | --- | --- |
-| Easy | 0 | 1 | 1 |
-| Normal | 1 | 1 | 2 |
-| Hard | 2 | 3 | 4 |
-| Brutal | 3 | 4 | 4 |
+| Difficulty | 1–4 | 5–6 | 7–8 | 9 | 10+ |
+| --- | --- | --- | --- | --- | --- |
+| Easy | 0 | 0 | 1 | 1 | 2 |
+| Normal | 0 | 1 | 1 | 2 | 3 |
+| Hard | 0 | 1 | 2 | 3 | 4 |
+| Brutal | 0 | 2 | 3 | 4 | 4 |
 
-Why these rungs: on the same 23 finished games the bot passes first from the 7th generation on, 15 of 23 games end in the 8th–9th and only 4 reach the 10th; a late extra card still yields ~1.8 track steps but fails more often (the tracks near their ends) and pays M€ instead. Brutal stays at 4 because its +1 VP per played card compounds with every extra card; Easy draws nothing before the 7th generation and one card from there on (the owner, 2026-10-28: the switch must mean something on Easy too).
+Why: before the rule the bot passed LAST in 100 / 100 / 96 / 68 % of the 1st–4th generations and FIRST in 32–44 % of the 5th–6th, 75–90 % of the 7th–8th, 91 % of the 9th — an extra card early only widened a lead it already had. Brutal stays at 4 because its +1 VP per played card compounds with every extra card. (The first ladder, 2026-10-28: Easy 0/1/1 · Normal 1/1/2 · Hard 2/3/4 · Brutal 3/4/4 over 1–6 / 7–9 / 10+.)
+
+## The early half — the base deck fills gradually (2026-10-29)
+
+> With the switch on, the bot's base deck holds 2 project cards fewer in the 1st generation and 1 fewer in the 2nd and the 3rd; from the 4th it is the rulebook's.
+
+`DYNAMIC_BALANCE_WITHHELD = [2, 1, 1]`. Only the BASE project cards are withheld — the 3 cards the bot takes instead of preludes, the floater spend's extra card, the bonus card and the recurring cards stay. Hard on a prelude game: 6 → 4 project cards in the 1st generation, 3 → 2 in the 2nd and the 3rd; Brutal 4 → 2 / 3 / 3 base. Where: `AutomaSetup` (the 1st generation's deck), `AutomaResearch.buildActionDeck` (no draft — the withheld cards are simply not drawn), `AutomaResearch.finishDraftedActionDeck` (draft — after the rulebook's discard, `AutomaCorporations.dynamicBalanceTrim` keeps the best by the corporation's Draft Priority, silently; the rest join the discard pile). A deck is built when its generation starts, so a game already under way meets the early half only in generations it has yet to begin.
+
+Measured (25 Redux Hard games before the rule): the bot made 9.3 / 7.3 / 7.4 turns in the 1st–3rd generations (projects 6.1 / 3.2 / 3.3 + the bonus and recurring cards) and passed LAST in 100 / 100 / 96 % of them.
+
+## Calibration 2 — «Cold Carbon Mass» (2026-10-29)
+
+The owner's campaign with the switch on (Hard, Turmoil Redux, 4 missions; `C:\Projects\Mods\tm-real-games\cold-carbon`): the bot won all four — 130 : 122, 142 : 112, 164 : 115, 207 : 137. Its lead came first from the rating (TR 74–83 against 50–60), then from the dividends in missions 3–4 (30 and 47 VP). Extra cards actually drawn per generation (projects beyond 3): 0.3 / 0.5 / 1.3 / 2.3 / 2.5 / 3.5 in the 2nd–7th — the old ladder fed the bot in the 4th–6th generations, where it already outlasted the players. The re-calibration moves those cards out: none before the 5th, then 1 / 2 / 3 / 4 on Hard, and a thinner start.
 
 Nothing changes in a generation the bot outlasts (the first four, every short game, every generation where the humans pass first): the trigger is the bot's EMPTY deck while a human is still in the round. A player who passed is not «acting»; the bot itself never counts. When no project card is left to draw, the bot passes.
 

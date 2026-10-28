@@ -1,4 +1,5 @@
 import {PLAYER_COLORS} from '../../common/Color';
+import {dynamicBalanceOn, withheldProjectCards} from '../../common/automa/DynamicBalance';
 import {BonusCardId} from '../../common/automa/AutomaTypes';
 import {AutomaCompatibilityInput, automaConflicts} from '../../common/automa/automaCompatibility';
 import {RandomMAOptionType} from '../../common/ma/RandomMAOptionType';
@@ -154,11 +155,15 @@ export class AutomaSetup {
     }
 
     let projectCount = 3;
-    if (options.preludeExtension) {
-      projectCount += 3; // Instead of prelude cards.
-    }
     if (options.automa.difficulty === 'brutal') {
       projectCount += 1;
+    }
+    // «Динамический баланс»: the first generation's base deck starts thin (`common/automa/DynamicBalance.ts`).
+    if (dynamicBalanceOn(options.automa)) {
+      projectCount = Math.max(0, projectCount - withheldProjectCards(1));
+    }
+    if (options.preludeExtension) {
+      projectCount += 3; // Instead of prelude cards.
     }
     const actionDeck: Array<AutomaActionCard> =
       game.projectDeck.drawN(game, projectCount).map((card) => ({kind: 'project' as const, name: card.name}));

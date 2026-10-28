@@ -69,7 +69,7 @@
             </span>
           </template>
 
-          <!-- «Вторая смена» — the switch beside the difficulty; its reading stands on the note below -->
+          <!-- «Динамический баланс» (option key `secondShift`) — the switch beside the difficulty; its reading stands on the note below -->
           <template v-else-if="field.id === 'secondShift'">
             <span class="cm-field__value cm-field__value--stepper" data-field="secondShift">
               <span class="cm-field__arrow" aria-hidden="true">◄</span>
@@ -172,8 +172,8 @@ import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirt
 /** A row of the friend quick-pick: a saved friend, or the "type a name" escape. */
 type FriendPickRow = {kind: 'friend', name: string, seated: boolean} | {kind: 'type'};
 
-/** «Вторая смена» on the editor's note — HIDDEN balance: the rule is named, its cap never is (the owner, 2026-10-28); every difficulty has it. */
-const SECOND_SHIFT_DESC_ON = 'Second shift: while a player is still acting, MarsBot with an empty action deck may draw extra project cards instead of passing — how many depends on the difficulty.';
+/** «Динамический баланс» on the editor's note — HIDDEN balance: the rule is named, its numbers never are (the owner, 2026-10-28/29); every difficulty has it. */
+const SECOND_SHIFT_DESC_ON = 'Dynamic balance: MarsBot starts slower — its first generations hold fewer project cards — and stays in the round longer when a long game drags on. How much depends on the difficulty.';
 
 export default defineComponent({
   name: 'ConsoleParticipantEditor',
@@ -232,7 +232,7 @@ export default defineComponent({
     /** The rule's reading — on or off; the cap is hidden balance and never named. */
     secondShiftDesc(): string {
       if (!this.secondShiftOn) {
-        return 'Second shift off: with an empty action deck MarsBot passes for the round, as the Automa rules say.';
+        return 'Dynamic balance off: MarsBot keeps the same pace all game, as the Automa rules say.';
       }
       return SECOND_SHIFT_DESC_ON;
     },

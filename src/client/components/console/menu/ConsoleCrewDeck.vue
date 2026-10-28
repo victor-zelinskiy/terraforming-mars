@@ -36,7 +36,7 @@
             <span>{{ $t(difficultyLabel(row.difficulty)) }}</span>
             <template v-if="row.secondShift">
               <span class="cm-row__dot" aria-hidden="true">·</span>
-              <span>{{ $t('Second shift') }}</span>
+              <span>{{ $t('Dynamic balance') }}</span>
             </template>
             <span class="cm-row__dot" aria-hidden="true">·</span>
             <span>{{ $t('Takes its turns automatically') }}</span>

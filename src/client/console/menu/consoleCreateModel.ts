@@ -346,7 +346,7 @@ export function editorFields(target: EditorTarget): ReadonlyArray<EditorField> {
   if (target.kind === 'bot') {
     return [
       {id: 'difficulty', labelKey: 'Difficulty'},
-      {id: 'secondShift', labelKey: 'Second shift'},
+      {id: 'secondShift', labelKey: 'Dynamic balance'},
       {id: 'remove', labelKey: 'Remove MarsBot', danger: true},
     ];
   }
@@ -380,7 +380,7 @@ export function cycleBotDifficulty(step: 1 | -1): void {
   config.botDifficulty = next.id;
 }
 
-/** «Вторая смена» — the switch beside the difficulty (◄/► and A flip it). */
+/** «Динамический баланс» (the option key stays `secondShift`) — the switch beside the difficulty (◄/► and A flip it). */
 export function toggleBotSecondShift(): void {
   setBotSecondShift(!createGameState.config.botSecondShift);
 }

@@ -197,12 +197,12 @@ describe('consoleCreateModel', () => {
       expect(crewRows().find((r) => r.kind === 'bot')).to.include({secondShift: false});
       toggleBotSecondShift();
       expect(createGameState.config.botSecondShift).to.eq(true);
-      expect(botSecondShiftCap()).to.eq(2); // the ladder's top rung — Normal reaches 2 in a long game
+      expect(botSecondShiftCap()).to.eq(3); // the ladder's top rung — Normal reaches 3 in a long game
       createGameState.config.botDifficulty = 'brutal';
       expect(botSecondShiftCap()).to.eq(4);
       // Easy has the rule too (one card from the 7th generation): the row names it.
       createGameState.config.botDifficulty = 'easy';
-      expect(botSecondShiftCap()).to.eq(1);
+      expect(botSecondShiftCap()).to.eq(2);
       expect(crewRows().find((r) => r.kind === 'bot')).to.include({secondShift: true});
     });
 

@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {DifficultyLevel, MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
-import {SECOND_SHIFT_CAP, SECOND_SHIFT_CAP_LADDER, secondShiftCap, secondShiftMaxCap, secondShiftRuleApplies} from '../../src/common/automa/SecondShift';
+import {SECOND_SHIFT_CAP_LADDER, secondShiftCap, secondShiftMaxCap, secondShiftRuleApplies} from '../../src/common/automa/SecondShift';
 import {Game} from '../../src/server/Game';
 import {IGame} from '../../src/server/IGame';
 import {SecondShift} from '../../src/server/automa/SecondShift';
@@ -27,10 +27,14 @@ function shiftOptions(difficulty: DifficultyLevel, secondShift?: boolean): Autom
   };
 }
 
-/** A game in its action phase with the bot's deck already SPENT (the human's turn is up). */
+/** The generation the scenario runs in — the ladder's 7–8 band (Easy 1 · Normal 1 · Hard 2 · Brutal 3). */
+const GEN = 7;
+
+/** A game in its action phase with the bot's deck already SPENT (the human's turn is up), in generation `GEN`. */
 function spentDeckGame(options: AutomaTestOptions, idSuffix = '') {
   const [game, human, bot] = testAutomaGame(options, idSuffix);
   game.playerIsFinishedWithResearchPhase(human);
+  game.generation = GEN;
   game.automa!.actionDeck = [];
   return {game, human, bot};
 }
@@ -53,40 +57,39 @@ function expectNothingAnnounced(game: IGame): void {
 }
 
 describe('SecondShift — «вторая смена», the bot\'s late-game pace rule (hidden balance)', () => {
-  it('the cap is a LADDER by difficulty and generation: a base, a step from the 7th, another from the 10th; Brutal stays at 4, Easy starts at the 7th', () => {
-    expect(SECOND_SHIFT_CAP_LADDER).deep.eq({easy: [0, 1, 1], normal: [1, 1, 2], hard: [2, 3, 4], brutal: [3, 4, 4]});
-    expect(SECOND_SHIFT_CAP).deep.eq({easy: 0, normal: 1, hard: 2, brutal: 3});
-    for (const gen of [1, 4, 6]) {
-      expect([secondShiftCap('easy', gen), secondShiftCap('normal', gen), secondShiftCap('hard', gen), secondShiftCap('brutal', gen)], `gen ${gen}`).deep.eq([0, 1, 2, 3]);
+  it('the cap is a LADDER of five generation bands (1–4 · 5–6 · 7–8 · 9 · 10+): nothing early, Hard 1 / 2 / 3 / 4 after', () => {
+    expect(SECOND_SHIFT_CAP_LADDER).deep.eq({easy: [0, 0, 1, 1, 2], normal: [0, 1, 1, 2, 3], hard: [0, 1, 2, 3, 4], brutal: [0, 2, 3, 4, 4]});
+    const row = (gen: number) => [secondShiftCap('easy', gen), secondShiftCap('normal', gen), secondShiftCap('hard', gen), secondShiftCap('brutal', gen)];
+    for (const gen of [1, 2, 3, 4]) {
+      expect(row(gen), `gen ${gen} — the bot outlasts these anyway`).deep.eq([0, 0, 0, 0]);
     }
-    for (const gen of [7, 8, 9]) {
-      expect([secondShiftCap('easy', gen), secondShiftCap('normal', gen), secondShiftCap('hard', gen), secondShiftCap('brutal', gen)], `gen ${gen}`).deep.eq([1, 1, 3, 4]);
+    for (const gen of [5, 6]) {
+      expect(row(gen), `gen ${gen}`).deep.eq([0, 1, 1, 2]);
     }
+    for (const gen of [7, 8]) {
+      expect(row(gen), `gen ${gen}`).deep.eq([1, 1, 2, 3]);
+    }
+    expect(row(9), 'gen 9').deep.eq([1, 2, 3, 4]);
     for (const gen of [10, 11, 14]) {
-      expect([secondShiftCap('easy', gen), secondShiftCap('normal', gen), secondShiftCap('hard', gen), secondShiftCap('brutal', gen)], `gen ${gen}`).deep.eq([1, 2, 4, 4]);
+      expect(row(gen), `gen ${gen}`).deep.eq([2, 3, 4, 4]);
     }
-    expect(secondShiftRuleApplies('easy')).is.true; // its one card from the 7th generation — the switch means something on Easy too
-    expect(secondShiftRuleApplies('normal')).is.true;
-    expect([secondShiftMaxCap('easy'), secondShiftMaxCap('normal'), secondShiftMaxCap('hard'), secondShiftMaxCap('brutal')]).deep.eq([1, 2, 4, 4]);
+    expect(secondShiftRuleApplies('easy')).is.true;
+    expect([secondShiftMaxCap('easy'), secondShiftMaxCap('normal'), secondShiftMaxCap('hard'), secondShiftMaxCap('brutal')]).deep.eq([2, 3, 4, 4]);
   });
 
   it('the ladder is read LIVE from the game\'s generation — a game already under way takes it up without any migration', () => {
     const {game} = spentDeckGame(shiftOptions('hard', true));
-    expect(SecondShift.cap(game)).eq(2);
-    game.generation = 7;
-    expect(SecondShift.cap(game)).eq(3);
-    expect(SecondShift.offer(game)).deep.eq({index: 1, cap: 3});
-    // Two already drawn this generation under the old cap of 2: the new rung offers the third.
-    game.automa!.secondShift = {generation: 7, drawn: 2};
+    game.generation = 4;
+    expect(SecondShift.cap(game)).eq(0);
+    expect(SecondShift.offer(game), 'no extra card in the first four generations').is.undefined;
+    game.generation = 5;
+    expect(SecondShift.offer(game)).deep.eq({index: 1, cap: 1});
+    game.generation = 9;
+    // Two already drawn this generation: the 9th's rung of 3 offers the third.
+    game.automa!.secondShift = {generation: 9, drawn: 2};
     expect(SecondShift.offer(game)).deep.eq({index: 3, cap: 3});
     game.generation = 10;
     expect(SecondShift.cap(game)).eq(4);
-    const normal = spentDeckGame(shiftOptions('normal', true), '-n').game;
-    normal.generation = 10;
-    expect(SecondShift.cap(normal)).eq(2);
-    const brutal = spentDeckGame(shiftOptions('brutal', true), '-b').game;
-    brutal.generation = 12;
-    expect(SecondShift.cap(brutal)).eq(4);
   });
 
   it('OFF when the option is absent: an empty deck is a pass, as the rulebook says', () => {
@@ -110,7 +113,7 @@ describe('SecondShift — «вторая смена», the bot\'s late-game pace
     expect(kinds[0]).eq('reveal'); // the ordinary project turn, from its first step
     expect(kinds).not.includes('pass');
     expect(game.automa!.playedPile).has.length(1); // the extra card went the ordinary way
-    expect(game.automa!.secondShift).deep.eq({generation: 1, drawn: 1}); // the server's own count — never modelled
+    expect(game.automa!.secondShift).deep.eq({generation: GEN, drawn: 1}); // the server's own count — never modelled
     expect(game.gameLog.some((m) => m.message === '${0} played ${1}')).is.true; // the ordinary line is the only one
     expectNothingAnnounced(game);
   });
@@ -125,15 +128,15 @@ describe('SecondShift — «вторая смена», the bot\'s late-game pace
     humanEndsTurn(game, human);
     expect(lastTurnKinds(game)).includes('pass');
     expect(game.automa!.playedPile).has.length(1);
-    expect(game.automa!.secondShift).deep.eq({generation: 1, drawn: 1});
+    expect(game.automa!.secondShift).deep.eq({generation: GEN, drawn: 1});
   });
 
   it('Hard draws two extra cards, then passes', () => {
     const {game, human} = spentDeckGame(shiftOptions('hard', true));
     humanEndsTurn(game, human);
-    expect(game.automa!.secondShift).deep.eq({generation: 1, drawn: 1});
+    expect(game.automa!.secondShift).deep.eq({generation: GEN, drawn: 1});
     humanEndsTurn(game, human);
-    expect(game.automa!.secondShift).deep.eq({generation: 1, drawn: 2});
+    expect(game.automa!.secondShift).deep.eq({generation: GEN, drawn: 2});
     expect(game.automa!.playedPile).has.length(2);
     humanEndsTurn(game, human);
     expect(lastTurnKinds(game)).includes('pass');
@@ -149,6 +152,7 @@ describe('SecondShift — «вторая смена», the bot\'s late-game pace
 
   it('Easy: nothing before the 7th generation (a pass), one extra card from the 7th on', () => {
     const {game, human} = spentDeckGame(shiftOptions('easy', true));
+    game.generation = 6;
     expect(SecondShift.enabled(game)).is.true;
     expect(SecondShift.cap(game)).eq(0);
     expect(SecondShift.offer(game)).is.undefined;
@@ -187,6 +191,7 @@ describe('SecondShift — «вторая смена», the bot\'s late-game pace
 
   it('multiplayer: ONE player still acting is enough; every player passed is none', () => {
     const [game, humans] = testAutomaMultiplayerGame(2, shiftOptions('normal', true));
+    game.generation = GEN;
     game.automa!.actionDeck = [];
     expect(SecondShift.playersStillActing(game)).eq(2);
     game.playerHasPassed(humans[0]);
