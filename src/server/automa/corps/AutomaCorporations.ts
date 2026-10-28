@@ -329,31 +329,6 @@ export class AutomaCorporations {
     return resolver.pickCard(cards, priority).card;
   }
 
-  /**
-   * «Динамический баланс» (`common/automa/DynamicBalance.ts`): an early generation's
-   * deck keeps only `keep` of the drafted cards — the corporation's Draft Priority
-   * picks them one by one (the draft's own `pickCard`), the rest are returned to
-   * be discarded. SILENT: no corp stat, no journal line (hidden balance).
-   * Corpless: a seeded shuffle, the first `keep` kept.
-   */
-  public static dynamicBalanceTrim(game: IGame, cards: ReadonlyArray<IProjectCard>, keep: number): {kept: Array<IProjectCard>, discarded: Array<IProjectCard>} {
-    const pool = [...cards];
-    const kept: Array<IProjectCard> = [];
-    const automa = game.automa;
-    const priority = AutomaCorporations.activeCorp(game)?.info.draftPriority;
-    if (automa === undefined || priority === undefined) {
-      inplaceShuffle(pool, game.rng);
-      return {kept: pool.slice(0, keep), discarded: pool.slice(keep)};
-    }
-    const resolver = new MarsBotDraftResolver(automa.board, (items) => inplaceShuffle(items, game.rng));
-    while (kept.length < keep && pool.length > 0) {
-      const {card} = resolver.pickCard(pool, priority);
-      kept.push(card);
-      pool.splice(pool.indexOf(card), 1);
-    }
-    return {kept, discarded: pool};
-  }
-
   public static draftPick(game: IGame, hand: ReadonlyArray<IProjectCard>): IProjectCard {
     const automa = game.automa;
     const priority = AutomaCorporations.activeCorp(game)?.info.draftPriority;

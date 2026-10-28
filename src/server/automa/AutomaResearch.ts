@@ -1,5 +1,4 @@
 import {BonusCardId} from '../../common/automa/AutomaTypes';
-import {dynamicBalanceOn, withheldProjectCards} from '../../common/automa/DynamicBalance';
 import {CardResource} from '../../common/CardResource';
 import {inplaceShuffle} from '../utils/shuffle';
 import {IGame} from '../IGame';
@@ -7,6 +6,7 @@ import {IProjectCard} from '../cards/IProjectCard';
 import {AutomaCorporations} from './corps/AutomaCorporations';
 import {AutomaActionCard, AutomaState} from './AutomaState';
 import {marsBotOf} from './AutomaUtil';
+import {composeBonusSide} from './DynamicBalance';
 
 /**
  * MarsBot's Research Phase (generation 2+).
@@ -96,12 +96,8 @@ export class AutomaResearch {
     const actionDeck = [...projectEntries];
     AutomaResearch.reshuffleBonusDeckIfEmpty(game, automa);
     const topBonus = automa.bonusDeck.shift();
-    if (topBonus !== undefined) {
-      actionDeck.push(topBonus);
-    }
-    for (const recurring of automa.recurringBonusCards) {
-      actionDeck.push({kind: 'bonus', id: recurring});
-    }
+    // The bonus side — under «Динамический баланс» an early generation takes only part of it (`DynamicBalance.ts`).
+    actionDeck.push(...composeBonusSide(game, automa, topBonus, game.generation));
     inplaceShuffle(actionDeck, game.rng);
     automa.actionDeck = actionDeck;
   }
@@ -120,7 +116,7 @@ export class AutomaResearch {
     if (automa === undefined) {
       throw new Error('Not an automa game');
     }
-    let projectCount = (automa.difficulty === 'brutal' ? 4 : 3) - AutomaResearch.withheld(game);
+    let projectCount = automa.difficulty === 'brutal' ? 4 : 3;
     if (AutomaResearch.trySpendFloaters(game)) {
       projectCount++; // Normal: a 4th card; Brutal: a 5th.
     }
@@ -164,21 +160,6 @@ export class AutomaResearch {
         game.projectDeck.discard(discarded);
       }
     }
-    // «Динамический баланс»: an early generation's deck keeps fewer of the drafted cards — the corporation's
-    // priority keeps the best, the rest join the rulebook's discard (`common/automa/DynamicBalance.ts`).
-    const withheld = AutomaResearch.withheld(game);
-    if (withheld > 0) {
-      const trimmed = AutomaCorporations.dynamicBalanceTrim(game, drafted, Math.max(0, drafted.length - withheld));
-      drafted = trimmed.kept;
-      for (const discarded of trimmed.discarded) {
-        game.projectDeck.discard(discarded);
-      }
-    }
     AutomaResearch.finishActionDeck(game, drafted.map((card) => ({kind: 'project' as const, name: card.name})));
-  }
-
-  /** The project cards «Динамический баланс» leaves out of THIS generation's deck (0 with the switch off). */
-  private static withheld(game: IGame): number {
-    return dynamicBalanceOn(game.gameOptions.automa) ? withheldProjectCards(game.generation) : 0;
   }
 }

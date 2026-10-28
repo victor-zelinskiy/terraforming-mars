@@ -76,7 +76,7 @@
     "Remove participant?": "Убрать участника?",
     "Remove MarsBot?": "Убрать бота?",
     "Dynamic balance": "Динамический баланс",
-    "Dynamic balance: MarsBot starts slower — its first generations hold fewer project cards — and stays in the round longer when a long game drags on. How much depends on the difficulty.": "Динамический баланс: бот стартует медленнее — в первых поколениях у него меньше карт проектов — и дольше остаётся в игре, когда партия затягивается. Насколько — зависит от сложности.",
+    "Dynamic balance: MarsBot starts slower and stays in the round longer when a long game drags on. How much depends on the difficulty.": "Динамический баланс: бот стартует медленнее и дольше остаётся в игре, когда партия затягивается. Насколько — зависит от сложности.",
     "Dynamic balance off: MarsBot keeps the same pace all game, as the Automa rules say.": "Динамический баланс выключен: бот держит один темп всю партию, как в правилах Автомы.",
     "Add MarsBot?": "Добавить бота?",
     "Reset settings?": "Сбросить настройки?",

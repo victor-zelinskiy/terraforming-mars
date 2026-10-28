@@ -27,13 +27,17 @@ The cap is a LADDER of five generation bands (the owner, 2026-10-29 — `SECOND_
 
 Why: before the rule the bot passed LAST in 100 / 100 / 96 / 68 % of the 1st–4th generations and FIRST in 32–44 % of the 5th–6th, 75–90 % of the 7th–8th, 91 % of the 9th — an extra card early only widened a lead it already had. Brutal stays at 4 because its +1 VP per played card compounds with every extra card. (The first ladder, 2026-10-28: Easy 0/1/1 · Normal 1/1/2 · Hard 2/3/4 · Brutal 3/4/4 over 1–6 / 7–9 / 10+.)
 
-## The early half — the base deck fills gradually (2026-10-29)
+## The early half — the BONUS side of the deck fills gradually (2026-10-29)
 
-> With the switch on, the bot's base deck holds 2 project cards fewer in the 1st generation and 1 fewer in the 2nd and the 3rd; from the 4th it is the rulebook's.
+> With the switch on, the 1st / 2nd / 3rd generation's action deck takes at most 1 / 2 / 3 cards of its BONUS side — the top card of the bonus deck plus the recurring cards — chosen by a shuffle; from the 4th the whole side. The PROJECT cards are never cut.
 
-`DYNAMIC_BALANCE_WITHHELD = [2, 1, 1]`. Only the BASE project cards are withheld — the 3 cards the bot takes instead of preludes, the floater spend's extra card, the bonus card and the recurring cards stay. Hard on a prelude game: 6 → 4 project cards in the 1st generation, 3 → 2 in the 2nd and the 3rd; Brutal 4 → 2 / 3 / 3 base. Where: `AutomaSetup` (the 1st generation's deck), `AutomaResearch.buildActionDeck` (no draft — the withheld cards are simply not drawn), `AutomaResearch.finishDraftedActionDeck` (draft — after the rulebook's discard, `AutomaCorporations.dynamicBalanceTrim` keeps the best by the corporation's Draft Priority, silently; the rest join the discard pile). A deck is built when its generation starts, so a game already under way meets the early half only in generations it has yet to begin.
+The action deck is two parts. The PROJECT cards (3 on Hard, +3 for the preludes in the 1st generation) carry the random tags that make one game's bot unlike another's. The BONUS side — the top card of the bonus deck (8–9 cards: Meteor Shower, Invasive Species, R&D, Overachievement, Expedited Construction, Lobbyists, Local Neural Instance, the map's Corporate Competition, Outer System Foothold with colonies) plus the RECURRING cards (Party Politics in Redux, Government Intervention with Venus, Shipping Lines with colonies from the 2nd generation) — is largely the same every game. So the early cut takes from the bonus side, and a shuffle picks what comes in: one game's bot opens with Party Politics, another's with Meteor Shower.
 
-Measured (25 Redux Hard games before the rule): the bot made 9.3 / 7.3 / 7.4 turns in the 1st–3rd generations (projects 6.1 / 3.2 / 3.3 + the bonus and recurring cards) and passed LAST in 100 / 100 / 96 % of them.
+`DYNAMIC_BALANCE_BONUS_SIDE = [1, 2, 3]` (`common/automa/DynamicBalance.ts`), composed by `composeBonusSide` (`server/automa/DynamicBalance.ts`) in BOTH deck builders (`AutomaSetup` — the 1st generation; `AutomaResearch.finishActionDeck` — every rebuild, drafted or not). A deferred TOP card goes back on top of the bonus deck (it comes in with the next deck — never discarded); a deferred RECURRING card sits the generation out; a card the bot's corporation OWNS (Ecoline's B23) is its mechanic, always in and outside the count. Silent (hidden balance). A Redux + Venus + colonies game: the bonus side 3 / 4 / 4 / 4 → 1 / 2 / 3 / 4 — 2 / 2 / 1 turns fewer in the 1st–3rd generations. A game with no recurring card (no Redux, no Venus) has a bonus side of one card: nothing to cut there.
+
+Measured (25 Redux Hard games before the rule): the bot made 9.3 / 7.3 / 7.4 turns in the 1st–3rd generations, 3.2 / 4.2 / 4.2 of them from the bonus side, and passed LAST in 100 / 100 / 96 % of them.
+
+**The first cut (rolled back the same day).** It withheld 2 / 1 / 1 PROJECT cards. The owner: «без проектных карт в начале бот будет в каждой партии играть одинаково по своим бонусным картам — тут разнообразие важнее». A cut that answers what the PLAYERS do (e.g. «the bot passes once everyone has passed») was rejected outright: a pace that follows the table's moves is a hidden lever the players would learn to pull.
 
 ## Calibration 2 — «Cold Carbon Mass» (2026-10-29)
 

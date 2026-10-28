@@ -1,5 +1,4 @@
 import {PLAYER_COLORS} from '../../common/Color';
-import {dynamicBalanceOn, withheldProjectCards} from '../../common/automa/DynamicBalance';
 import {BonusCardId} from '../../common/automa/AutomaTypes';
 import {AutomaCompatibilityInput, automaConflicts} from '../../common/automa/automaCompatibility';
 import {RandomMAOptionType} from '../../common/ma/RandomMAOptionType';
@@ -10,6 +9,7 @@ import {GameOptions} from '../game/GameOptions';
 import {IGame} from '../IGame';
 import {Player} from '../Player';
 import {AutomaColonies} from './AutomaColonies';
+import {composeBonusSide} from './DynamicBalance';
 import {AutomaState, AutomaActionCard} from './AutomaState';
 import {marsBotMapProfile} from './boards/MarsBotMapProfile';
 
@@ -155,15 +155,11 @@ export class AutomaSetup {
     }
 
     let projectCount = 3;
-    if (options.automa.difficulty === 'brutal') {
-      projectCount += 1;
-    }
-    // «Динамический баланс»: the first generation's base deck starts thin (`common/automa/DynamicBalance.ts`).
-    if (dynamicBalanceOn(options.automa)) {
-      projectCount = Math.max(0, projectCount - withheldProjectCards(1));
-    }
     if (options.preludeExtension) {
       projectCount += 3; // Instead of prelude cards.
+    }
+    if (options.automa.difficulty === 'brutal') {
+      projectCount += 1;
     }
     const actionDeck: Array<AutomaActionCard> =
       game.projectDeck.drawN(game, projectCount).map((card) => ({kind: 'project' as const, name: card.name}));
@@ -171,10 +167,8 @@ export class AutomaSetup {
     if (topBonus === undefined) {
       throw new Error('Empty MarsBot bonus deck during setup');
     }
-    actionDeck.push(topBonus);
-    for (const recurring of state.recurringBonusCards) {
-      actionDeck.push({kind: 'bonus', id: recurring});
-    }
+    // The bonus side — under «Динамический баланс» the 1st generation takes only part of it (`DynamicBalance.ts`).
+    actionDeck.push(...composeBonusSide(game, state, topBonus, 1));
     inplaceShuffle(actionDeck, game.rng);
     state.actionDeck = actionDeck;
     return state;
