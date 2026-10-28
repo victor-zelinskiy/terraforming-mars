@@ -88,6 +88,7 @@ import {VeynonDynamics} from './VeynonDynamics';
 import {LobbyingCampaign} from './LobbyingCampaign';
 import {UnityCampaign} from './UnityCampaign';
 import {MarsFirstCampaign} from './MarsFirstCampaign';
+import {RedsCampaign} from './RedsCampaign';
 import {AerospaceCompany} from './AerospaceCompany';
 
 /**
@@ -443,6 +444,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // TRP3 — the second campaign: a city (the declaration's ordinary placement) and +1 steel production, then 3 neutral
     // delegates into Mars First's Popular Support Area, behind the city. Mars + City + Building; no Colonies mark.
     [CardName.MARS_FIRST_CAMPAIGN]: {Factory: MarsFirstCampaign, compatibility: 'prelude'},
+    // TRP4 — the third campaign: 18 M€ and a card drawn, then 3 neutral delegates into the Reds' Popular Support Area —
+    // nothing asked, the support last in the play's own answer. The Mars tag; no Colonies mark.
+    [CardName.REDS_CAMPAIGN]: {Factory: RedsCampaign, compatibility: 'prelude'},
     // TRP8 — the first prelude with an ACTION (upstream's `ActivePreludeCard`) and the first with tags (Space + Building):
     // no play effect; «1 mech OR fighter to ANY card» is ONE declaration over a LIST of kinds — one pick, the kind
     // follows the chosen card. Dealt only beside the Prelude expansion, as TRP1.

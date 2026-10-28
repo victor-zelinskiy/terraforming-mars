@@ -99,3 +99,16 @@ to want the same thing at once." — Polish saying» (кредит арта «Sh
   едет в ответе на клетку с хостом `start`, шаг «ДЕЛЕГАТЫ» встаёт, когда старт снова вершина стека (`workspaceHostForStep`), допуск
   `followUp` открыт и реакция отыграла. Стенд — тот же, что у TRP2, с размещением на поле вместо шага колоний (свидетель «ни одного
   кадра Парламента, пока стоит размещение»).
+
+## 6. TRP4 · Reds Campaign («Кампания «Красных»») — третья кампания, первая без вопроса (2026-10-28)
+
+Скан `Prelude_-_TRP4.png`: метка МАРС; ряд «18 M€ · [карта] · 3 [нейтрал] + эмблема Красных» — «(Gain 18 M€. Draw a card. Add 3 neutral
+delegates to the Reds' Popular Support Area.)». На кромке только ромб Turmoil → `compatibility: 'prelude'`. Лор: «The third constant of
+humankind: There will always be resistance to change.» (кредит арта «Thibault Girard»). Файлы: `turmoilRedux/RedsCampaign.ts`, спек
+`tests/cards/turmoilRedux/RedsCampaign.spec.ts`, e2e `tests/e2e/console-reds-campaign.spec.ts` (TIMING).
+
+- Сервер — даром: `stock: {megacredits: 18}` (заодно стартовая ценность прелюдии) + `drawCard: 1` + митинг за добором. **Ничего не
+  спрашивается**: M€, карта и поддержка едут в ОДНОМ ответе на розыгрыш; поддержка последняя (спек сверяет порядок строк журнала).
+- Консоль — даром: запись митинга с хостом `start` приходит вместе с добором; шаг «ДЕЛЕГАТЫ» ждёт допуск `followUp` (для добора
+  «обработан» = карта взята), так что сначала сцена колоды и карта в руку, потом Парламент. Стенд свидетельствует «ни одного кадра
+  Парламента, пока стоит сцена колоды или вскрытие».

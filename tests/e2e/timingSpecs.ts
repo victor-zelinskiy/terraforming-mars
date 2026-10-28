@@ -39,6 +39,8 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-unity-campaign.spec.ts',
   // TRP3 Mars First Campaign (2026-10-28): the same rally after the board's city placement — the same sampled claims.
   'console-mars-first-campaign.spec.ts',
+  // TRP4 Reds Campaign (2026-10-28): the rally after the start's draw (one answer, the printed order) — sampled claims.
+  'console-reds-campaign.spec.ts',
   // the four the first broad sample named (28 specs at motion ×0.5, 2026-10-21)
   'console-aerial-mappers.spec.ts', // the transfer witness: endsOverGlass at tv4k
   'console-supercomputer.spec.ts', // the transfer witness: endsOverGlass at tv4k
