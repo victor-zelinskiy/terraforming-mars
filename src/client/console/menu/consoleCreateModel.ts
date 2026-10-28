@@ -68,7 +68,7 @@ import {
   PremiumMapMeta,
   PremiumRuleMeta,
 } from '@/client/components/create/premium/createGameMeta';
-import {secondShiftCap} from '@/common/automa/SecondShift';
+import {SECOND_SHIFT_CAP, secondShiftRuleApplies} from '@/common/automa/SecondShift';
 
 // ── Decks (LB/RB ring) ──────────────────────────────────────────────────────
 
@@ -241,7 +241,7 @@ export function crewRows(): ReadonlyArray<CrewRow> {
     nameIssue: slotNameIssue(index),
   }));
   if (botSeated()) {
-    rows.push({kind: 'bot', difficulty: config.botDifficulty, secondShift: config.botSecondShift && secondShiftCap(config.botDifficulty) > 0});
+    rows.push({kind: 'bot', difficulty: config.botDifficulty, secondShift: config.botSecondShift && secondShiftRuleApplies(config.botDifficulty)});
   }
   const reason = addDisabledReason();
   rows.push({kind: 'add', enabled: reason === undefined, reasonKey: reason});
@@ -385,9 +385,9 @@ export function toggleBotSecondShift(): void {
   setBotSecondShift(!createGameState.config.botSecondShift);
 }
 
-/** The creator's reading of the rule for the CURRENT difficulty: its cap, or 0 when the difficulty has none (Easy). */
+/** The creator's reading of the rule for the CURRENT difficulty: its BASE cap, or 0 when the difficulty has none (Easy). */
 export function botSecondShiftCap(): number {
-  return secondShiftCap(createGameState.config.botDifficulty);
+  return SECOND_SHIFT_CAP[createGameState.config.botDifficulty];
 }
 
 export function adjustTrBoost(index: number, step: 1 | -1): void {

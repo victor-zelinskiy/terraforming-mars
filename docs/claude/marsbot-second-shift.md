@@ -16,12 +16,16 @@ A dividend recalibration alone would only lower the bar; the owner's point was t
 
 > While at least one player is still acting in the generation, MarsBot does not pass when its action deck runs out: it draws an extra project card off the project deck and resolves it exactly as any other action card — up to the difficulty's cap per generation.
 
-| Difficulty | Cap per generation |
-| --- | --- |
-| Easy | 0 (the rule is off) |
-| Normal | 1 |
-| Hard | 2 |
-| Brutal | 3 |
+The cap is a LADDER by difficulty and generation (the owner, 2026-10-28 — `SECOND_SHIFT_CAP_LADDER`), read LIVE at every bot turn from the game's generation, so a game already under way with the switch on takes a new ladder up the moment the server does (no migration, no stored cap):
+
+| Difficulty | generations 1–6 | 7–9 | 10+ |
+| --- | --- | --- | --- |
+| Easy | 0 (the rule is off) | 0 | 0 |
+| Normal | 1 | 1 | 2 |
+| Hard | 2 | 3 | 4 |
+| Brutal | 3 | 4 | 4 |
+
+Why these rungs: on the same 23 finished games the bot passes first from the 7th generation on, 15 of 23 games end in the 8th–9th and only 4 reach the 10th; a late extra card still yields ~1.8 track steps but fails more often (the tracks near their ends) and pays M€ instead. Brutal stays at 4 because its +1 VP per played card compounds with every extra card.
 
 Nothing changes in a generation the bot outlasts (the first four, every short game, every generation where the humans pass first): the trigger is the bot's EMPTY deck while a human is still in the round. A player who passed is not «acting»; the bot itself never counts. When no project card is left to draw, the bot passes.
 

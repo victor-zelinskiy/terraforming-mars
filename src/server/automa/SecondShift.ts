@@ -1,4 +1,4 @@
-import {secondShiftCap} from '../../common/automa/SecondShift';
+import {secondShiftCap, secondShiftRuleApplies} from '../../common/automa/SecondShift';
 import {IGame} from '../IGame';
 
 /**
@@ -15,15 +15,15 @@ import {IGame} from '../IGame';
  * «played» line, the deck count stays the rulebook's).
  */
 export class SecondShift {
-  /** The rule is on for this game and this difficulty has a cap above zero. */
+  /** The rule is on for this game and this difficulty has it at all (Easy never). */
   public static enabled(game: IGame): boolean {
     const automa = game.automa;
-    return automa !== undefined && game.gameOptions.automa?.secondShift === true && secondShiftCap(automa.difficulty) > 0;
+    return automa !== undefined && game.gameOptions.automa?.secondShift === true && secondShiftRuleApplies(automa.difficulty);
   }
 
-  /** The cap on this game's difficulty (0 when the rule is off). */
+  /** The cap of the CURRENT generation on this game's difficulty (0 when the rule is off) — read live, never stored. */
   public static cap(game: IGame): number {
-    return SecondShift.enabled(game) && game.automa !== undefined ? secondShiftCap(game.automa.difficulty) : 0;
+    return SecondShift.enabled(game) && game.automa !== undefined ? secondShiftCap(game.automa.difficulty, game.generation) : 0;
   }
 
   /** The extra cards already drawn THIS generation. */

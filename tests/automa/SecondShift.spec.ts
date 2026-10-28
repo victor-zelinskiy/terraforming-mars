@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {DifficultyLevel, MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
-import {SECOND_SHIFT_CAP, secondShiftCap} from '../../src/common/automa/SecondShift';
+import {SECOND_SHIFT_CAP, SECOND_SHIFT_CAP_LADDER, secondShiftCap, secondShiftRuleApplies} from '../../src/common/automa/SecondShift';
 import {Game} from '../../src/server/Game';
 import {IGame} from '../../src/server/IGame';
 import {SecondShift} from '../../src/server/automa/SecondShift';
@@ -52,10 +52,39 @@ function expectNothingAnnounced(game: IGame): void {
 }
 
 describe('SecondShift — «вторая смена», the bot\'s late-game pace rule (hidden balance)', () => {
-  it('the cap is the difficulty\'s: Easy none, Normal 1, Hard 2, Brutal 3', () => {
+  it('the cap is a LADDER by difficulty and generation: a base, a step from the 7th, another from the 10th; Brutal stays at 4', () => {
+    expect(SECOND_SHIFT_CAP_LADDER).deep.eq({easy: [0, 0, 0], normal: [1, 1, 2], hard: [2, 3, 4], brutal: [3, 4, 4]});
     expect(SECOND_SHIFT_CAP).deep.eq({easy: 0, normal: 1, hard: 2, brutal: 3});
-    expect(secondShiftCap('easy')).eq(0);
-    expect(secondShiftCap('brutal')).eq(3);
+    for (const gen of [1, 4, 6]) {
+      expect([secondShiftCap('easy', gen), secondShiftCap('normal', gen), secondShiftCap('hard', gen), secondShiftCap('brutal', gen)], `gen ${gen}`).deep.eq([0, 1, 2, 3]);
+    }
+    for (const gen of [7, 8, 9]) {
+      expect([secondShiftCap('easy', gen), secondShiftCap('normal', gen), secondShiftCap('hard', gen), secondShiftCap('brutal', gen)], `gen ${gen}`).deep.eq([0, 1, 3, 4]);
+    }
+    for (const gen of [10, 11, 14]) {
+      expect([secondShiftCap('easy', gen), secondShiftCap('normal', gen), secondShiftCap('hard', gen), secondShiftCap('brutal', gen)], `gen ${gen}`).deep.eq([0, 2, 4, 4]);
+    }
+    expect(secondShiftRuleApplies('easy')).is.false;
+    expect(secondShiftRuleApplies('normal')).is.true;
+  });
+
+  it('the ladder is read LIVE from the game\'s generation — a game already under way takes it up without any migration', () => {
+    const {game} = spentDeckGame(shiftOptions('hard', true));
+    expect(SecondShift.cap(game)).eq(2);
+    game.generation = 7;
+    expect(SecondShift.cap(game)).eq(3);
+    expect(SecondShift.offer(game)).deep.eq({index: 1, cap: 3});
+    // Two already drawn this generation under the old cap of 2: the new rung offers the third.
+    game.automa!.secondShift = {generation: 7, drawn: 2};
+    expect(SecondShift.offer(game)).deep.eq({index: 3, cap: 3});
+    game.generation = 10;
+    expect(SecondShift.cap(game)).eq(4);
+    const normal = spentDeckGame(shiftOptions('normal', true), '-n').game;
+    normal.generation = 10;
+    expect(SecondShift.cap(normal)).eq(2);
+    const brutal = spentDeckGame(shiftOptions('brutal', true), '-b').game;
+    brutal.generation = 12;
+    expect(SecondShift.cap(brutal)).eq(4);
   });
 
   it('OFF when the option is absent: an empty deck is a pass, as the rulebook says', () => {
