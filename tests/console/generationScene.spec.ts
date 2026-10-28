@@ -5,6 +5,7 @@ import {ProductionIncomeModel} from '@/common/models/ProductionIncomeModel';
 import {
   detectGenerationScene, generationIncomeReward, generationSceneState, noteGenerationFlipEnd, resetGenerationScene, runGenerationFlip,
   endGenerationScene, armedGenerationScene, seedGenerationIncomeHold, GENERATION_INCOME_KEY, incomeHookOf,
+  registerGenerationSceneHandoff, runGenerationIncomeFlights,
 } from '@/client/console/generationScene/generationScene';
 import {reactive} from 'vue';
 import {railRewardPending, resetRailRewards, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
@@ -191,5 +192,66 @@ describe('the generation scene — the pure half (TR61)', () => {
     expect(railRewardPending(GENERATION_INCOME_KEY)).is.false;
     expect(generationSceneState.phase).eq('income');
     endGenerationScene('test');
+  });
+
+  /*
+   * STATE DELIVERY (2026-10-28): beat 4 — the RISE into the sitting / the draft — waits for the SCREEN HANDOFF the
+   * shell injects (a card still flying into the dock, a reveal not taken): the scene keeps its hold through the wait,
+   * an interrupted scene rises nothing, and with no director registered (tests, a dead shell) the rise is immediate.
+   */
+  describe('the rise waits for the screen handoff (injected)', () => {
+    afterEach(() => registerGenerationSceneHandoff(undefined));
+
+    it('holds the foreground in «rise» until the director hands the screen over, then concludes', async () => {
+      let release: (() => void) | undefined;
+      const asked: Array<string> = [];
+      registerGenerationSceneHandoff((id) => new Promise<void>((resolve) => {
+        asked.push(id);
+        release = resolve;
+      }));
+      const before = view({generation: 1, phase: Phase.ACTION});
+      const after = view({generation: 2, phase: Phase.ACTION, income: record()});
+      expect(detectGenerationScene(before, after)).is.not.undefined;
+      let concluded = false;
+      const run = runGenerationIncomeFlights(() => after).then(() => {
+        concluded = true;
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(asked).deep.eq(['generation-rise']);
+      expect(generationSceneState.phase, 'the scene stands in «rise» while the screen is owed').eq('rise');
+      expect(isAnimationHoldActive(), 'and keeps its own hold through the wait').is.true;
+      expect(concluded).is.false;
+      release!();
+      await run;
+      expect(concluded).is.true;
+      expect(generationSceneState.phase).eq('idle');
+      expect(isAnimationHoldActive()).is.false;
+    });
+
+    it('a scene interrupted during the wait rises nothing', async () => {
+      let release: (() => void) | undefined;
+      registerGenerationSceneHandoff(() => new Promise<void>((resolve) => {
+        release = resolve;
+      }));
+      const after = view({generation: 2, phase: Phase.ACTION, income: record()});
+      expect(detectGenerationScene(view({generation: 1, phase: Phase.ACTION}), after)).is.not.undefined;
+      const run = runGenerationIncomeFlights(() => after);
+      await Promise.resolve();
+      await Promise.resolve();
+      endGenerationScene('interrupted');
+      release!();
+      await run;
+      expect(generationSceneState.lastEnd, 'the interrupt is the scene end, never the conclusion').eq('interrupted');
+      expect(generationSceneState.rose).eq('');
+    });
+
+    it('with no director registered the rise is immediate', async () => {
+      const after = view({generation: 2, phase: Phase.ACTION, income: record()});
+      expect(detectGenerationScene(view({generation: 1, phase: Phase.ACTION}), after)).is.not.undefined;
+      await runGenerationIncomeFlights(() => after);
+      expect(generationSceneState.phase).eq('idle');
+      expect(generationSceneState.lastEnd).eq('concluded');
+    });
   });
 });

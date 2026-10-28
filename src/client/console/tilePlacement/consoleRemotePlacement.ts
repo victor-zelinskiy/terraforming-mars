@@ -194,6 +194,12 @@ export const remotePlacementState = reactive({
    * 35 s ceiling ended. A waiting queue holds NOTHING, whatever was on stage a moment ago.
    */
   waitingForBoard: false,
+  /**
+   * The queue's length, mirrored REACTIVELY (the queue itself is a plain array): the placement admission's
+   * `remote-landing` signal and every computed asking `remoteLandingOwed()` must re-evaluate when a landing is
+   * queued or done — a plain `queue.length` read never re-fires a computed.
+   */
+  queued: 0,
   /** The CURRENT flight's tile art (one remote flight at a time — the
    *  queue is sequential, so one proxy set suffices). */
   tileType: undefined as TileType | undefined,
@@ -542,6 +548,7 @@ export function stageRemoteTileEvents(
         // A move IS a placement on its new cell (the engine fans it out so): the cards that answer it pay there.
         cityPayouts: claimCityPayoutsOf(e.spaceId, opts),
       });
+      remotePlacementState.queued = queue.length;
       queued = true;
       continue;
     }
@@ -561,6 +568,7 @@ export function stageRemoteTileEvents(
         holdCubeForHeroPlacement(e.spaceId);
       }
       queue.push({...e, aresExtension: opts?.aresExtension === true, own: false, income: []});
+      remotePlacementState.queued = queue.length;
       queued = true;
       continue;
     }
@@ -591,6 +599,7 @@ export function stageRemoteTileEvents(
         plantPrice: provenPlantPrice(record, events, opts),
       } : {}),
     });
+    remotePlacementState.queued = queue.length;
     queued = true;
   }
   if (queued) {
@@ -750,6 +759,7 @@ export function abortRemotePlacements(): void {
     releaseCityPayoutHolds(ev);
   }
   queue.length = 0;
+  remotePlacementState.queued = 0;
   // The viewer's shares of this story tick now, named (the tiles were revealed at once, with no flight).
   releaseVpShares(REMOTE_TILE_VP_OWNER, {why: 'the remote stage aborted'});
   dropVpClaim(REMOTE_TILE_VP_OWNER);
@@ -852,6 +862,7 @@ async function drainEvents(myEpoch: number): Promise<void> {
         releaseRemoteReveal(ev.spaceId);
         releaseMoveSource(ev);
         queue.shift();
+        remotePlacementState.queued = queue.length;
         remoteVpCells.push(ev.spaceId);
       }
     }
@@ -1499,7 +1510,10 @@ function wait(ms: number): Promise<void> {
  * nothing (see `waitingForBoard`).
  */
 export function remoteLandingOwed(): boolean {
-  return remotePlacementState.active || remotePlacementState.waitingForBoard || queue.length > 0 || draining;
+  // The reactive mirror FIRST — a computed subscribing here re-fires on every queue change (`queued`), not only on
+  // the stage's own flags.
+  return remotePlacementState.queued > 0 || remotePlacementState.active || remotePlacementState.waitingForBoard ||
+    queue.length > 0 || draining;
 }
 
 export function boardCovered(): boolean {

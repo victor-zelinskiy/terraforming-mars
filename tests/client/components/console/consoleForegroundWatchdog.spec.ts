@@ -41,6 +41,7 @@ function signals(partial: Partial<AdmissionSignals> = {}): AdmissionSignals {
     stageGated: false,
     anyAnimation: false,
     boardStory: false,
+    remoteLanding: false,
     ...partial,
   };
 }

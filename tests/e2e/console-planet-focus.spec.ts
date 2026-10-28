@@ -14,8 +14,9 @@ import {bootIntoGame, focusCard, placeTile, press, soloGameConfig} from './conso
  *      the board root, the arc band + off-Mars flanks recede, the planet's
  *      `--board-scale` GROWS beyond the overview fit;
  *   2. the placement panel («РАЗМЕЩЕНИЕ ТАЙЛА») still serves normally;
- *   3. mid-scene the top-HUD oxygen readout stays FROZEN at its pre-commit
- *      value (the display hold) even though the server already committed;
+ *   3. mid-scene the top-HUD ocean readout reads the COMMITTED value at once
+ *      (state delivery, 2026-10-28: the instrument reads true; only the BOARD's
+ *      story — the glide, the accent — waits for the readable stage);
  *   4. the exit restores the overview scale and the arc band;
  *   5. ONLY AFTER the exit does the scale story play: the released values
  *      glide and `con-scale-focus-oxygen` pulses — never while the board
@@ -278,9 +279,9 @@ test.describe('console planet focus · main-grid placement stage', () => {
     // spec used to press once, land on «Нельзя разместить здесь», and then
     // blame the FOCUS EXIT for never detaching.
     expect(await placeTile(page), 'the ocean never committed').toBeTruthy();
-    // The commit lands mid-scene, but the DISPLAYED ocean count must not
-    // move while the board still owns the story (the display hold).
-    expect(await hudOceans(page)).toBe(oceansBefore);
+    // The commit lands mid-scene and the HUD tells it AT ONCE (state delivery, 2026-10-28) — the board's own story
+    // (the glide, the accent) still waits for the readable stage below.
+    await expect.poll(() => hudOceans(page), {timeout: 8_000}).not.toBe(oceansBefore);
     await shoot(page, '03-mid-scene');
 
     // ── the exit restores the overview… ───────────────────────────────
@@ -403,7 +404,7 @@ test.describe('console planet focus · main-grid placement stage', () => {
     expect(accentSeen).toBeTruthy();
     await shoot(page, '04-scale-beat');
 
-    // The beat released the held values: the HUD now tells the raise.
+    // The HUD has told the raise since the commit; the board's story has now caught up with it.
     await page.waitForFunction((before: string) => {
       const strip = document.querySelector('.con-status');
       const m = strip === null ? null : (strip as HTMLElement).innerText.match(/(\d+)\/9/);

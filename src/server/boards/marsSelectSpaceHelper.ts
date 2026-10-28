@@ -115,14 +115,26 @@ export function createMarsSelectSpace(
      * caller's `addTile` passes the same number (TR79 Ferrus Academy).
      */
     printedBonusMultiplier?: number,
+    /**
+     * THE LEGAL SET, RE-DERIVED (`SelectSpace.liveSpaces`): the producer's own derivation of `legalSpaces`, called
+     * again whenever the prompt is read — at every model serialization and at the answer — so a cell another seat
+     * took while this prompt stood leaves the offer, with its per-cell reason re-derived beside it. The `Place*Tile`
+     * actions pass the exact call their `execute` made; a producer that passes nothing gets the generic occupancy
+     * rule (a cell offered empty that carries a tile now is gone).
+     */
+    liveSpaces?: () => ReadonlyArray<Space>,
   },
 ): SelectSpace {
-  const illegalSpaces = player.game.board.computeIllegalReasons(
+  const reasonsOf = (legal: ReadonlyArray<Space>) => player.game.board.computeIllegalReasons(
     player,
     options?.placementType,
-    legalSpaces,
+    legal,
     {customReasoner: options?.customReasoner, canAffordOptions: options?.canAffordOptions});
-  const selectSpace = new SelectSpace(title, legalSpaces, illegalSpaces);
+  const selectSpace = new SelectSpace(title, legalSpaces, reasonsOf(legalSpaces));
+  if (options?.liveSpaces !== undefined) {
+    selectSpace.liveSpaces = options.liveSpaces;
+    selectSpace.liveIllegalSpaces = reasonsOf;
+  }
   selectSpace.placementType = options?.placementType;
   selectSpace.tileType = options?.tileType;
   selectSpace.sourceCard = options?.sourceCard;

@@ -29,14 +29,17 @@ export class PlaceTile extends DeferredAction<Space> {
   public execute() {
     const game = this.player.game;
     const on = this.options.on;
-    const availableSpaces =
-      typeof on === 'string' ?
-        game.board.getAvailableSpacesForType(this.player, on) :
-        on();
+    // ONE derivation, called at the prompt's creation and again on every read of the standing prompt
+    // (`SelectSpace.liveSpaces`) — a card's own `on()` is a derivation too, and is asked again the same way.
+    const derive = () => typeof on === 'string' ?
+      game.board.getAvailableSpacesForType(this.player, on) :
+      on();
+    const availableSpaces = derive();
     const title = this.options?.title;
 
     return createMarsSelectSpace(this.player, title, availableSpaces, {
       placementType: typeof on === 'string' ? on : this.options.placementType,
+      liveSpaces: derive,
       // The concrete tile lets the preview show a composite over-ocean tile's
       // city VP (Ocean City / New Holland) — the placement type alone can't.
       tileType: this.options.tile.tileType,

@@ -515,8 +515,11 @@ for (const preset of PRESETS) {
       //       move until it was gone; no fullscreen surface stood over it.
       const wsGone = samples.find((s) => s.ws === 0 && s.t > price!.s.t);
       expect(wsGone, 'the workspace LEFT for the board').toBeDefined();
-      const stripUnderWs = samples.filter((s) => s.ws > 0 && s.strip !== '' && !s.strip.startsWith('6')).map((s) => `${s.t}:${s.strip}`);
-      expect(stripUnderWs, 'the HUD held «6%» for as long as the workspace stood').toEqual([]);
+      // STATE DELIVERY (2026-10-28): the HUD reads the applied «8%» the moment the view lands — under the workspace —
+      // while the MARKER (the board's story) still waits for the workspace to leave. The instrument reads true, the
+      // stage tells the story (the old law held the HUD at «6%» for as long as the workspace stood).
+      const stripTold8UnderWs = samples.find((s) => s.ws > 0 && s.strip.startsWith('8'));
+      expect(stripTold8UnderWs, 'the HUD read the applied «8%» while the workspace still stood').toBeDefined();
       const fullscreenUnderWs = samples.filter((s) => s.ws > 0 && s.fullscreen).map((s) => s.t);
       expect(fullscreenUnderWs, 'no fullscreen surface over the open workspace').toEqual([]);
       const markerMoved = samples.find((s) => s.marker !== '' && s.marker !== '6');

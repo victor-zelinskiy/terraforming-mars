@@ -115,6 +115,20 @@ registerAnimationHoldSupplier('generation-scene', () => generationSceneState.pha
   expire: () => endGenerationScene('expired'),
 });
 
+/**
+ * THE SCREEN HANDOFF, INJECTED (state delivery, 2026-10-28 — `console/screenHandoff.ts`): before the scene stands the
+ * sitting or the draft up (beat 4), it waits for what the player is still OWED on the screen it leaves — a card
+ * still flying into the dock, a reveal not taken, a token in the air, a foreign tile landing. The scene keeps its
+ * own hold through the wait (its label is ignored by the director), so nothing else can take the screen meanwhile.
+ * Registered by the shell (the director sits above the presentation systems and would cycle through them if
+ * imported here); unregistered — tests, a torn-down shell — the rise is immediate, as before.
+ */
+let riseHandoff: ((id: string) => Promise<unknown>) | undefined;
+
+export function registerGenerationSceneHandoff(wait: ((id: string) => Promise<unknown>) | undefined): void {
+  riseHandoff = wait;
+}
+
 function viewerRecord(view: PlayerViewModel | undefined): {color: Color, record: ProductionIncomeModel} | undefined {
   const record = view?.productionIncome;
   const color = view?.thisPlayer?.color;
@@ -384,7 +398,7 @@ export async function runGenerationIncomeFlights(view: () => PlayerViewModel | u
       await surfaceClear(typeof document === 'undefined' ? null : document.querySelector('.con-res-host'));
     }
   } finally {
-    concludeGenerationScene(view());
+    await concludeGenerationScene(view);
   }
 }
 
@@ -395,12 +409,23 @@ export async function runGenerationIncomeFlights(view: () => PlayerViewModel | u
  * hold, so the plate never appears in the gap; a flow already standing (a
  * restore) is left alone. Then the hold falls. Idempotent.
  */
-function concludeGenerationScene(view: PlayerViewModel | undefined): void {
-  if (armed === undefined) {
+async function concludeGenerationScene(viewOf: () => PlayerViewModel | undefined): Promise<void> {
+  const event = armed;
+  if (event === undefined) {
     return;
   }
   generationSceneState.phase = 'rise';
   try {
+    // THE SCREEN IS HANDED OVER FIRST: what this screen still owes the player (a card on its way into the dock, a
+    // reveal not taken, tokens in the air) finishes under the scene's own hold; an interrupted scene rises nothing.
+    if (riseHandoff !== undefined) {
+      await riseHandoff('generation-rise');
+      if (armed !== event) {
+        return;
+      }
+    }
+    // The view as it stands NOW (the wait may have spanned a refresh).
+    const view = viewOf();
     // THE SITTING FIRST (the rules' order — production → the parliament → the next generation's research): its
     // whole chain arrived with this response, and the seat reads it before the draft can rise for it.
     const sitting = view === undefined ? undefined : parliamentSittingFlowBeat(view);

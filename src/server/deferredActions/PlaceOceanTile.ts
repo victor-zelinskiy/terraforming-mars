@@ -68,15 +68,19 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
     let title = this.options.title ?? this.getTitle('ocean');
     let availableSpaces: ReadonlyArray<Space> = [];
     let placementType: PlacementType | undefined;
+    // The engine's derivation, re-asked on every read of the standing prompt (`SelectSpace.liveSpaces`); a card's
+    // own pre-derived list keeps the generic occupancy rule.
+    let derive: (() => ReadonlyArray<Space>) | undefined;
     if (this.options.spaces !== undefined) {
       availableSpaces = this.options.spaces;
       placementType = this.options.on;
     } else {
       const on = this.options?.on || 'ocean';
       // Oceans aren't subject to Ares hazard adjacency costs (upstream 2815fd6882).
-      availableSpaces = on === 'land' ?
+      derive = () => on === 'land' ?
         this.player.game.board.getAvailableSpacesOnLand(this.player, undefined, false) :
         this.player.game.board.getAvailableSpacesForType(this.player, on);
+      availableSpaces = derive();
       title = this.options?.title ?? this.getTitle(on);
       placementType = on;
     }
@@ -100,6 +104,7 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
 
     return createMarsSelectSpace(this.player, title, availableSpaces, {
       placementType,
+      liveSpaces: derive,
       // An ocean can be placed `on: 'land'` (not just an ocean-reserved cell) —
       // `placementType` carries the eligibility kind, `tileType` the tile, so
       // the preview always reads the ocean parameter + TR bump.

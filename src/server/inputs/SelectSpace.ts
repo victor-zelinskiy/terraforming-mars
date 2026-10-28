@@ -126,6 +126,31 @@ export class SelectSpace extends BasePlayerInput<Space> {
    */
   public onCancel?: () => void;
 
+  /**
+   * THE LEGAL SET IS LIVE (state delivery, 2026-10-28 — `docs/claude/console/state-delivery-and-handoff.md`).
+   *
+   * A placement prompt STANDS while the table moves: the start-of-game deployments run concurrently (every seat
+   * plays its corporation and preludes the moment it presses, in no fixed order), a bot turn resolves on a timer,
+   * another seat answers a law's question. The set of legal cells was computed ONCE, at the prompt's creation, so
+   * a cell another seat built on meanwhile stayed in `spaces`: the client lit it, the player chose it, and
+   * `addTile` threw «occupied» as an opaque 400 — the owner's «игра предложит эту клетку … серверная ошибка».
+   *
+   * So the set is RE-DERIVED against the live board whenever it is read — at every model serialization (the mid-prompt
+   * refresh then carries the shrunken set under the SAME `promptId`, and the board binder re-hangs its highlights on
+   * it) and at the answer (a cell no longer legal is refused by name, never applied). Two sources, in order:
+   *  · `liveSpaces` — the producer's own derivation (`createMarsSelectSpace({liveSpaces})`: the `Place*Tile` actions
+   *    hand over the exact call `execute` made), with the per-cell reasons re-derived beside it (`liveIllegalSpaces`);
+   *  · the GENERIC occupancy rule — a cell offered EMPTY that carries a tile now is gone. Exact for every prompt
+   *    shape: a cover over an ocean (TR44, an Ares Ocean City), a move's destinations and a marker all target cells
+   *    that were offered as they stand, and the rule only ever removes a cell whose emptiness was part of the offer.
+   * `spaces` keeps naming the CURRENT set (every server reader sees what the client sees).
+   */
+  public liveSpaces?: () => ReadonlyArray<Space>;
+  /** The per-cell reasons re-derived beside `liveSpaces` (the generic rule marks a taken cell `occupied` itself). */
+  public liveIllegalSpaces?: (legal: ReadonlyArray<Space>) => ReadonlyArray<PlacementIllegalSpace>;
+  /** The cells offered EMPTY at creation — the generic occupancy rule's witness. */
+  private readonly offeredEmpty: ReadonlySet<SpaceId>;
+
   constructor(
     title: string | Message,
     public spaces: ReadonlyArray<Space>,
@@ -135,6 +160,38 @@ export class SelectSpace extends BasePlayerInput<Space> {
       throw new InputError('No available spaces');
     }
     this.illegalSpaces = illegalSpaces;
+    this.offeredEmpty = new Set(spaces.filter((space) => space.tile === undefined).map(toID));
+  }
+
+  /**
+   * The legal set AS THE BOARD STANDS NOW (see `liveSpaces`). Re-derives, records the result on `spaces` /
+   * `illegalSpaces`, and returns it. A producer's derivation that comes back EMPTY (every cell taken) is honoured:
+   * the model then offers nothing, and the answer is refused — the chain's own «no cell» path is the engine's to
+   * run on the next input, never a silent pick.
+   */
+  public currentSpaces(): ReadonlyArray<Space> {
+    let legal: ReadonlyArray<Space>;
+    if (this.liveSpaces !== undefined) {
+      legal = this.liveSpaces();
+      if (this.liveIllegalSpaces !== undefined) {
+        this.illegalSpaces = this.liveIllegalSpaces(legal);
+      }
+    } else {
+      legal = this.spaces.filter((space) => !(this.offeredEmpty.has(space.id) && space.tile !== undefined));
+    }
+    if (legal.length !== this.spaces.length || legal.some((space, i) => space !== this.spaces[i])) {
+      const taken = this.spaces.filter((space) => !legal.includes(space));
+      this.spaces = legal;
+      if (this.liveIllegalSpaces === undefined && taken.length > 0) {
+        // The generic rule names its own reason: the cell is occupied now.
+        const known = new Set((this.illegalSpaces ?? []).map((entry) => entry.spaceId));
+        this.illegalSpaces = [
+          ...(this.illegalSpaces ?? []),
+          ...taken.filter((space) => !known.has(space.id)).map((space) => ({spaceId: space.id, reason: 'occupied' as const})),
+        ];
+      }
+    }
+    return this.spaces;
   }
 
   public override toModel(): SelectSpaceModel {
@@ -142,7 +199,8 @@ export class SelectSpace extends BasePlayerInput<Space> {
       title: this.title,
       buttonLabel: this.buttonLabel,
       type: 'space',
-      spaces: this.spaces.map(toID),
+      // LIVE — the set as the board stands at THIS serialization (see `currentSpaces`).
+      spaces: this.currentSpaces().map(toID),
       illegalSpaces: this.illegalSpaces,
       hiddenTiles: this.hiddenTiles,
       placementType: this.placementType,
@@ -204,9 +262,13 @@ export class SelectSpace extends BasePlayerInput<Space> {
     if (input.movedFrom !== undefined) {
       throw new InputError('This placement does not move a tile');
     }
-    const space = this.spaces.find((space) => space.id === input.spaceId);
+    // Validated against the board AS IT STANDS — a cell another seat took while this prompt stood is refused by
+    // name (the client's refresh has already dimmed it; a race past that refresh lands here, never in `addTile`).
+    const live = this.currentSpaces();
+    const space = live.find((space) => space.id === input.spaceId);
     if (space === undefined) {
-      throw new InputError('Space not available');
+      const offered = this.offeredEmpty.has(input.spaceId as SpaceId);
+      throw new InputError(offered ? 'This space is no longer available — the board changed' : 'Space not available');
     }
     return this.cb(space);
   }

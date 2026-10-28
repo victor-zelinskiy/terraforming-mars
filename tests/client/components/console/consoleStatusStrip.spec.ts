@@ -4,6 +4,7 @@ import {expect} from 'chai';
 import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {Phase} from '@/common/Phase';
+import {boardBeatParkState, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -343,5 +344,28 @@ describe('ConsoleStatusStrip pending-events signal (.con-status__evq)', () => {
     expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['q1']);
     expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['q2']);
     expect(w.find('.con-status__evq--on').exists()).to.be.false;
+  });
+});
+
+/*
+ * STATE DELIVERY (2026-10-28 — the owner: «состояния в top bar должны меняться сразу же, как только на сервере
+ * поменялось»): the strip's parameters read the APPLIED view even while the board-beat park holds the board's
+ * presented values for its story — the HUD is an instrument and reads true; the board is a stage and tells the
+ * story when it is uncovered. (Until 2026-10-28 the strip merged the park's held snapshot and read stale for up to
+ * 30 s.) The ONE merge kept is a parameter SWING's peak (TR47 — the applied view's net change is zero).
+ */
+describe('ConsoleStatusStrip reads the TRUTH while the board-beat park holds the board story', () => {
+  afterEach(() => resetBoardBeatPark());
+
+  it('a parked oxygen change shows on the strip at once', () => {
+    boardBeatParkState.heldParams = {oxygenLevel: 1};
+    const w = mountStrip(5);
+    expect((w.vm as unknown as {game: {oxygenLevel: number}}).game.oxygenLevel, 'the applied 3 %, never the held 1 %').to.eq(3);
+  });
+
+  it('a parameter swing peak is still presented until its leg (the applied net change is zero)', () => {
+    boardBeatParkState.swingParams = {temperature: -18};
+    const w = mountStrip(5);
+    expect((w.vm as unknown as {game: {temperature: number}}).game.temperature).to.eq(-18);
   });
 });

@@ -32,7 +32,12 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
 
   public execute() {
     const type = this.options?.on || 'city';
-    const spaces = this.options?.spaces || this.player.game.board.getAvailableSpacesForType(this.player, type);
+    // The engine's set is re-derived on every read of the standing prompt (`SelectSpace.liveSpaces`); a card's own
+    // pre-derived list keeps the generic occupancy rule.
+    const custom = this.options?.spaces;
+    const derive = custom === undefined ?
+      () => this.player.game.board.getAvailableSpacesForType(this.player, type) : undefined;
+    const spaces = custom ?? this.player.game.board.getAvailableSpacesForType(this.player, type);
     const title = this.options?.title ?? this.getTitle(type);
 
     if (spaces.length === 0) {
@@ -41,6 +46,7 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
     }
     return createMarsSelectSpace(this.player, title, spaces, {
       placementType: type,
+      liveSpaces: derive,
       // `type` is the eligibility kind (a city can go `on: 'isolated'` —
       // Research Outpost / Early Expedition); `tileType` names the tile, so the
       // preview shows the city's own scoring instead of nothing.

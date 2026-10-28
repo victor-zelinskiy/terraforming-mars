@@ -40,7 +40,8 @@ export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
       this.cb(undefined);
       return undefined;
     }
-    const filtered = greeneryTargets(this.player, this.on);
+    const derive = () => greeneryTargets(this.player, this.on);
+    const filtered = derive();
     if (filtered.length === 0) {
       this.cb(undefined);
       return undefined;
@@ -48,6 +49,8 @@ export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
 
     return createMarsSelectSpace(this.player, this.getTitle(), filtered, {
       placementType: this.on,
+      // Re-derived on every read of the standing prompt (`SelectSpace.liveSpaces`).
+      liveSpaces: derive,
       // The eligibility set (`on`) and the TILE can diverge: Protected Valley /
       // Mangrove place a GREENERY on an ocean-reserved cell. `placementType`
       // stays the eligibility kind (what makes those cells legal); `tileType`

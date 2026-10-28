@@ -239,8 +239,7 @@ import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 import ConsoleProjectDeck from '@/client/components/console/ConsoleProjectDeck.vue';
-import {captureGlobalParams} from '@/client/console/planetFocus';
-import {boardBeatParkState, boardBeatDisplayParams} from '@/client/console/boardBeatPark';
+import {boardBeatParkState} from '@/client/console/boardBeatPark';
 import {createChipConveyor} from '@/client/console/statusChipConveyor';
 import {noteGenerationFlipEnd} from '@/client/console/generationScene/generationScene';
 import {SeatIntake, SeatIntakeItem, intakeItemText, statusIntakeState} from '@/client/console/statusIntake';
@@ -349,28 +348,29 @@ export default defineComponent({
       return statusIntakeState.intakes;
     },
     /**
-     * The game the strip DISPLAYS. While a scale change is parked (a covered
-     * board — a workspace, or an engaged Planet Focus) the four global
-     * parameters come from the park's held snapshot — the SAME read the
-     * board's arcs use (boardBeatDisplayParams), so the top HUD and the
-     * scales can never disagree. The drain flips the values
-     * (ConsoleFlipValue) and fires the globals delta chips exactly when
-     * the arc markers glide — one synchronized beat.
+     * The game the strip DISPLAYS — THE TRUTH, AT ONCE (state delivery, 2026-10-28; the owner: «состояния в top bar
+     * должны меняться сразу же, как только на сервере поменялось»).
+     *
+     * The four global parameters read the APPLIED view: a scale another seat moved while this player stood inside a
+     * workspace flips on the strip the moment the view lands (ConsoleFlipValue + the globals delta chip), whatever
+     * the board behind the workspace can show. The board-beat park keeps holding the BOARD's presented values — the
+     * marker's glide, the capture flash and the parked bonus card still play when the board is uncovered, as the
+     * board's own story of a change the HUD has already told. Until 2026-10-28 the strip merged the park's held
+     * snapshot too («the HUD and the arcs can never disagree»), which held the HUD at a value the server had left
+     * up to 30 s earlier — a lie the player made decisions on. The HUD is an instrument, the board is a stage: the
+     * instrument reads true, the stage tells the story.
+     *
+     * The ONE merge kept: a PARAMETER SWING (TR47 «ОБРАТНЫЙ ХОД» — up and back in one response, the applied view's
+     * net change ZERO): its peak is presented until each leg's turn, so the fall is seen as a fall — the view's
+     * value is the scene's END, which the strip reaches with the last leg.
      */
     game(): GameModel {
-      // THE BOARD-BEAT PARK holds a parameter that moved while the board was
-      // covered (`boardBeatPark.ts` — the one presenter of the law since the
-      // one-owner merge; an engaged Planet Focus counts as covered through
-      // the shell's watchable probe). The strip's readout keeps the
-      // pre-change value the player last saw until the drain releases it in
-      // one synchronized beat with the arc markers.
-      // …and a PARAMETER SWING (TR47 «ОБРАТНЫЙ ХОД») presents its peak until each leg's turn — the same merge.
-      if (boardBeatParkState.heldParams === undefined && boardBeatParkState.swingParams === undefined) {
+      if (boardBeatParkState.swingParams === undefined) {
         return this.playerView.game;
       }
       return {
         ...this.playerView.game,
-        ...boardBeatDisplayParams(captureGlobalParams(this.playerView.game)),
+        ...boardBeatParkState.swingParams,
       };
     },
     /** Four seats and more: the ribbon is crowded — the names outrank the waiting seats' words (R-20). */

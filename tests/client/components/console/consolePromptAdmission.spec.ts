@@ -25,6 +25,7 @@ function idle(): AdmissionSignals {
     stageGated: false,
     anyAnimation: false,
     boardStory: false,
+    remoteLanding: false,
   };
 }
 
@@ -153,6 +154,20 @@ describe('consolePromptAdmission (the one prompt-surface admission gate)', () =>
       for (const surface of ['host', 'section', 'scene', 'followUp', 'standaloneModal'] as const) {
         expect(isPromptAdmitted(surface, s), surface).to.be.true;
       }
+    });
+
+    /*
+     * STATE DELIVERY (2026-10-28): another seat's tile owed to the board lands BEFORE the placement grid lights —
+     * only a NEW placement waits for it, and the board's TRUTH (the tile) outranks the board's STORY (the scales).
+     */
+    it('a foreign tile owed to the board holds ONLY the placement, and before the board story', () => {
+      const s = {...idle(), remoteLanding: true};
+      expect(promptAdmissionBlock('placement', s)).to.equal('remote-landing');
+      for (const surface of ['host', 'section', 'scene', 'followUp', 'standaloneModal'] as const) {
+        expect(isPromptAdmitted(surface, s), surface).to.be.true;
+      }
+      expect(promptAdmissionBlock('placement', {...s, boardStory: true}), 'the tile lands, then the scales tell').to.equal('remote-landing');
+      expect(promptAdmissionBlock('placement', {...s, revealOpen: true}), 'a reveal standing still outranks it').to.equal('reveal');
     });
 
     /*

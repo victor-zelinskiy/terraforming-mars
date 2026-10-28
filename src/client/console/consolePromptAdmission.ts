@@ -131,7 +131,18 @@ export type AdmissionBlock =
    * effects — the raise is told, THEN the next board demand comes alive. Raised only while the board is otherwise
    * watchable, so a covered board (a workspace still up) never waits on a drain that cannot run.
    */
-  | 'board-story';
+  | 'board-story'
+  /**
+   * ANOTHER SEAT'S TILE IS OWED TO THIS BOARD (state delivery, 2026-10-28 — `docs/claude/console/state-delivery-and-
+   * handoff.md`): the remote stage has a landing queued, parked for the board or in the air. A NEW placement waits for
+   * it — the board's TRUTH lands first, the demand on the player comes alive after: a player who was handed the grid
+   * and the foreign tile in the same frame («the grid appearing had priority over the tile») read a cell as free that
+   * the landing was about to cover. Raised only while no placement is LIVE already (the shell's latch): a tile that
+   * arrives mid-aim lands on the visible board beside the aim, never by tearing the aim down. The shell's
+   * `placementTakesBoardForLanding` watcher makes the board visible for the landing (the stack yields exactly as the
+   * placement's own rising edge would), so the block can never wait on a board a workspace covers.
+   */
+  | 'remote-landing';
 
 /**
  * The live signals, all owned + computed by ConsoleShell. Grouped as ONE object
@@ -170,6 +181,8 @@ export type AdmissionSignals = {
   anyAnimation: boolean;
   /** The park owes / plays a scale story over a board that is watchable but for the placement itself (PL-336). */
   boardStory: boolean;
+  /** Another seat's tile is owed to this board and no placement is live yet (see the block). */
+  remoteLanding: boolean;
   /**
    * The prompt is owned by a traversal step whose cell the marker has not
    * settled on (`hydroStepQueuedFor`). Ownership, not timing — see the block.
@@ -189,7 +202,8 @@ const BLOCK_ORDER: ReadonlyArray<AdmissionBlock> = [
   // not been reached» rather than «a card is still flying».
   'stage-gate',
   'reveal', 'played-hero', 'tile-hero', 'card-arrival', 'board-bonus',
-  'card-discard', 'presentation', 'announce-gate', 'board-story', 'animation',
+  // The board's TRUTH before the board's STORY: a foreign tile lands, then the scales tell what it did.
+  'card-discard', 'presentation', 'announce-gate', 'remote-landing', 'board-story', 'animation',
 ];
 
 /** Is this block RAISED by the current signals? */
@@ -206,6 +220,7 @@ function raised(block: AdmissionBlock, s: AdmissionSignals): boolean {
   case 'stage-gate': return s.stageGated;
   case 'animation': return s.anyAnimation;
   case 'board-story': return s.boardStory;
+  case 'remote-landing': return s.remoteLanding;
   }
 }
 
@@ -253,7 +268,7 @@ const POLICY: Record<PromptSurface, ReadonlySet<AdmissionBlock>> = {
   placement: new Set<AdmissionBlock>([
     'stage-gate',
     'reveal', 'played-hero', 'tile-hero', 'card-arrival',
-    'card-discard', 'presentation', 'announce-gate', 'board-story',
+    'card-discard', 'presentation', 'announce-gate', 'remote-landing', 'board-story',
   ]),
   followUp: new Set<AdmissionBlock>([
     'stage-gate',

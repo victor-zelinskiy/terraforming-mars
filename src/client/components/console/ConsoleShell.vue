@@ -1759,7 +1759,7 @@ import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue
 import ConsoleEndgameWorkspace from '@/client/components/console/ConsoleEndgameWorkspace.vue';
 import {consoleEndgameUi, noteConsoleEndgameLivePhase, resetConsoleEndgame} from '@/client/console/endgame/consoleEndgameState';
 import {sealLiveGameSurfaces} from '@/client/console/endgame/consoleEndgameSeal';
-import {boardSceneSettling, boardStorySettling, scaleStorySceneSettling, waitBoardStoryQuiet, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
+import {boardSceneSettling, boardStorySettling, scaleStorySceneSettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
 import type {DrawDiscardVerdict} from '@/client/console/deckDraw/drawSearchReading';
@@ -1987,7 +1987,7 @@ import {currentRevealEvent, drawnCardsState, markRevealPresented, registerReveal
 import {revealKeptCardHeld} from '@/client/console/revealReading';
 import {resetRevealHandoff} from '@/client/console/revealHandoff';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
-import {generationSceneState, resetGenerationScene} from '@/client/console/generationScene/generationScene';
+import {generationSceneState, registerGenerationSceneHandoff, resetGenerationScene} from '@/client/console/generationScene/generationScene';
 import {openRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, AGENDA_WALK_SEAT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, partyStepStageOf, firstActionPartyStep} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
@@ -2241,9 +2241,11 @@ import {
   AdmissionSignals,
   PromptSurface,
   isPromptAdmitted,
+  promptAdmissionBlock,
   setConsolePlacementHeld,
   resetPromptAdmission,
 } from '@/client/console/consolePromptAdmission';
+import {screenHandoffOwed, waitScreenHandoff} from '@/client/console/screenHandoff';
 import {
   guardedAdmissionSignals,
   noteAdmissionSignals,
@@ -2401,6 +2403,8 @@ let freshPickFocusGiven = false;
  * reader and writer.
  */
 let boardBeatDrainWaitArmed = false;
+/** Workspace entries deferred to the screen handoff (`enterWorkspaceAfterHandoff`) — one pending entry per kind. */
+const handoffPendingEntries = new Set<WorkspaceFrameKind>();
 
 /**
  * THE PARLIAMENT'S LEAVE NET (v3 В1): the director's section dissolve is ~170 ms and reports back when it
@@ -2572,6 +2576,12 @@ export default defineComponent({
       handDeliveryState,
       /** The Parliament section's leave is in flight: the frame is out of the stack, the section still mounted (v3 В1). */
       parliamentLeaving: false,
+      /**
+       * A PLACEMENT IS LIVE — the `placementActive` watcher's own record (a data field, so the admission computed may
+       * read it without a cycle through `placementHeld`): the `remote-landing` block holds a placement that is NOT yet
+       * live for a foreign tile owed to the board, and never tears a live aim down for one (the tile lands beside it).
+       */
+      placementLiveLatch: false,
       /**
        * THE WARM MOUNT IS ARMED FROM THE COMPOSER'S READING PAUSE (PL-127): the composer declared a hosted step and
        * its own unfold has settled — the Parliament's surface is mounted invisible NOW, while nothing moves, not in
@@ -4050,7 +4060,28 @@ export default defineComponent({
         anyAnimation: isAnimationHoldActive(),
         // The board owes a scale story over a board in plain view (PL-336): a new placement waits for it.
         boardStory: this.boardStoryBeforePlacement,
+        // Another seat's tile is owed to this board (state delivery, 2026-10-28): the board's truth lands first.
+        remoteLanding: this.remoteLandingBeforePlacement,
       };
+    },
+    /**
+     * ANOTHER SEAT'S TILE LANDS BEFORE THE GRID LIGHTS (state delivery, 2026-10-28). Read by the `remote-landing`
+     * admission block: a landing queued / parked / in the air while no placement is live yet. The latch (not the
+     * `placementActive` computed) keeps this acyclic; `remoteLandingOwed` is reactive through the stage's `queued`.
+     */
+    remoteLandingBeforePlacement(): boolean {
+      return !this.placementLiveLatch && remoteLandingOwed();
+    },
+    /**
+     * A SERVER PLACEMENT HELD ONLY BY A FOREIGN LANDING must still TAKE THE BOARD — the landing waits for a board the
+     * player can see, and the board is covered by the very workspace the placement's own rising edge would have
+     * stepped aside; held, that edge never comes. So the hold's rising edge does what the placement's would (the
+     * watcher below): the stack yields (or the screen goes board-home), the tile lands on the uncovered board, the
+     * block falls, the placement comes alive — the owner's order: the field's truth, THEN the demand.
+     */
+    placementTakesBoardForLanding(): boolean {
+      return this.playerView.waitingFor?.type === 'space' &&
+        promptAdmissionBlock('placement', this.admissionSignals) === 'remote-landing';
     },
     /**
      * PL-336 (TR47 «ВВЕРХ И ОБРАТНО»): the park holds scale values (or drains them) while the board is in plain view
@@ -12417,7 +12448,18 @@ export default defineComponent({
     },
     // Server-driven placement pulls the player to the board (§10: a
     // board-target step changes the active section, the frame persists).
+    /** See `placementTakesBoardForLanding` — the board is uncovered for the landing the placement waits for. */
+    placementTakesBoardForLanding(now: boolean) {
+      if (!now) {
+        return;
+      }
+      if (!yieldStackToBoard()) {
+        goBoardHome();
+      }
+      closeConsoleLayers();
+    },
     placementActive(now: boolean) {
+      this.placementLiveLatch = now;
       if (now) {
         // THE BOARD NEEDS THE SCREEN — but that is not «this flow is over».
         // A root that declares `yieldsToBoard` steps ASIDE and comes back at
@@ -20175,8 +20217,8 @@ export default defineComponent({
         // board's story is quiet — a fresh frame stood up here would cover
         // the board in the very frame the removed ocean (Water Export) lifts
         // off it, and the scene would degrade under it.
-        if (!stackYieldedToBoard() && !this.restoreParkedWorkspace('parliament') && !workspaceFrameKnown('parliament')) {
-          enterWorkspace('parliament', {anchor: {type: 'phase', phase: Phase.PARLIAMENT}});
+        if (!stackYieldedToBoard() && !this.restoreParkedWorkspace('parliament')) {
+          this.enterWorkspaceAfterHandoff('parliament', {anchor: {type: 'phase', phase: Phase.PARLIAMENT}});
         }
         return;
       }
@@ -20187,8 +20229,8 @@ export default defineComponent({
         // guard (a raced double press finds the frame known).
         if (externalDrawResolutionOf(externalDrawTakeOf(this.playerView.waitingFor)) !== undefined) {
           // (A yielded sitting comes back by itself — same reason as the gate above.)
-          if (!stackYieldedToBoard() && !this.restoreParkedWorkspace('parliament') && !workspaceFrameKnown('parliament')) {
-            enterWorkspace('parliament', {anchor: {type: 'phase', phase: Phase.PARLIAMENT}});
+          if (!stackYieldedToBoard() && !this.restoreParkedWorkspace('parliament')) {
+            this.enterWorkspaceAfterHandoff('parliament', {anchor: {type: 'phase', phase: Phase.PARLIAMENT}});
           }
           return;
         }
@@ -20442,9 +20484,7 @@ export default defineComponent({
       // no plate and no branch; the frame guard makes even a raced double
       // press idempotent (one frame, one entrance cinematic, one transition).
       if (beat.flow === 'draft') {
-        if (!workspaceFrameKnown('draft')) {
-          enterWorkspace('draft', {anchor: {type: 'phase', phase: 'draft'}});
-        }
+        this.enterWorkspaceAfterHandoff('draft', {anchor: {type: 'phase', phase: 'draft'}});
         return;
       }
       // THE PARLIAMENT'S SITTING (Turmoil Redux): the press walks the player
@@ -20469,8 +20509,8 @@ export default defineComponent({
         if (!ownTile && (this.placementActive || wf?.type === 'space')) {
           return;
         }
-        if (!this.restoreParkedWorkspace('parliament') && !workspaceFrameKnown('parliament')) {
-          enterWorkspace('parliament', {anchor: {type: 'phase', phase: Phase.PARLIAMENT}});
+        if (!this.restoreParkedWorkspace('parliament')) {
+          this.enterWorkspaceAfterHandoff('parliament', {anchor: {type: 'phase', phase: Phase.PARLIAMENT}});
         }
         return;
       }
@@ -21076,14 +21116,43 @@ export default defineComponent({
         resetHandReveal();
         enterWorkspace('endgame', {anchor: {type: 'phase', phase: 'end'}});
       };
-      // Story-quiet, not merely scene-quiet: the game's LAST move routinely
-      // raises a parameter, and the finale must not bury that story's glide
-      // under the scoring scene (same law as the yielded-stack return).
-      if (!boardStorySettling()) {
+      // THE SCREEN IS HANDED OVER, not merely the board's story (state delivery, 2026-10-28 — `screenHandoff.ts`):
+      // the game's LAST move routinely raises a parameter AND draws a card — the final greenery's cell pays a card
+      // whose reveal, take and flight into the dock the finale used to open OVER. Everything the player is still
+      // owed on the live screen finishes first (the board's story, a foreign landing, the reveal's take, the
+      // intake, the tokens); bounded and named by the director.
+      if (!screenHandoffOwed()) {
         open();
         return;
       }
-      void waitBoardStoryQuiet({alive: () => this.endgameFrameLive}).then(open);
+      void waitScreenHandoff('endgame-open', {alive: () => this.endgameFrameLive}).then((outcome) => {
+        if (outcome !== 'dead') {
+          open();
+        }
+      });
+    },
+    /**
+     * ENTER A WORKSPACE ONCE THE SCREEN IS HANDED OVER (state delivery, 2026-10-28): the doors a mandatory plate
+     * opens into a PHASE-ROOT flow (the draft, the Parliament's sitting) take the whole screen — a card still
+     * flying into the dock, a reveal not taken, a foreign tile landing finish first. The press is honoured (the
+     * beat is acknowledged by the caller), the entry is deferred to the director's quiet; a second press meanwhile
+     * finds the entry pending and adds nothing. Immediate when nothing is owed — the ordinary case.
+     */
+    enterWorkspaceAfterHandoff(kind: WorkspaceFrameKind, opts: {anchor: FrameAnchor}): void {
+      if (workspaceFrameKnown(kind) || handoffPendingEntries.has(kind)) {
+        return;
+      }
+      if (!screenHandoffOwed()) {
+        enterWorkspace(kind, opts);
+        return;
+      }
+      handoffPendingEntries.add(kind);
+      void waitScreenHandoff(`enter:${kind}`, {alive: () => this.playerView?.game !== undefined}).then((outcome) => {
+        handoffPendingEntries.delete(kind);
+        if (outcome !== 'dead' && !workspaceFrameKnown(kind)) {
+          enterWorkspace(kind, opts);
+        }
+      });
     },
     /**
      * A YIELDED STACK RETURNS ONLY OVER A QUIET BOARD. `placementActive`
@@ -24389,6 +24458,9 @@ export default defineComponent({
     // drains against the real screen; the mount-edge drain below covers the
     // watcher's blind spot (a watcher never fires on its initial truth).
     registerBoardWatchableProbe(() => this.boardBeatsWatchable);
+    // THE GENERATION SCENE'S RISE waits for the screen handoff (state delivery, 2026-10-28): the scene holds the
+    // foreground itself through the wait, so its own label is the one the director ignores.
+    registerGenerationSceneHandoff((id) => waitScreenHandoff(id, {ignoreHolds: ['generation-scene']}));
     // …and «a workspace surface is still LEAVING» — the bridge counts a
     // `.con-ws` through its whole fade, so the scale story starts on a board
     // the player can actually see (never under a dissolving workspace).
@@ -24723,6 +24795,8 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    registerGenerationSceneHandoff(undefined); // a dead shell's director must not gate the next game's rise
+    handoffPendingEntries.clear();
     registerColonyTrackMoveHost(undefined);
     registerColonyRosterHost(undefined);
     this.offIntent?.();

@@ -100,8 +100,9 @@ test.describe('the Venus 8% bonus waits for the workspace to leave', () => {
       /** A fullscreen surface (reveal band / zoom viewer) over the OPEN hand
        *  workspace — the reported bug's first half. Must be 0. */
       fullscreenUnderHand: 0,
-      /** The HUD told the 8% story while the workspace still owned the screen
-       *  — the held-value contract's violation. Must be 0. */
+      /** The HUD read the TRUTH («8%») while the workspace still owned the screen — state delivery, 2026-10-28:
+       *  the instrument flips at once, the board tells the story later. Must be > 0 (it used to be the held-value
+       *  contract's violation; the owner reversed that law: «состояния в top bar — сразу же»). */
       strip8UnderHand: 0,
       /** The stranded-prompt guard fired — the «workspace завис» detector. */
       strandedFrames: 0,
@@ -159,7 +160,7 @@ test.describe('the Venus 8% bonus waits for the workspace to leave', () => {
     expect(log.fullscreenUnderHand,
       'no fullscreen reveal/viewer may open over the open workspace').toBe(0);
     expect(log.strip8UnderHand,
-      'the HUD must hold the pre-change Venus value while the workspace owns the screen').toBe(0);
+      'the HUD reads the applied 8 % AT ONCE, while the workspace still owns the screen (state delivery, 2026-10-28)').toBeGreaterThan(0);
     expect(log.handGone,
       'the workspace CONCLUDES — the flow may never hang committed-and-empty').toBeTruthy();
     expect(log.sawFullscreenOverBoard,
