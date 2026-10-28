@@ -160,6 +160,28 @@ describe('ParliamentPhase', () => {
     expect(summary.lobbyRefilled).has.members([p1.id, p2.id]);
   });
 
+  it('THE WINNER\'S STEP CARRIES THE TABLE\'S ANSWER: a TR step under the ruling Greens — the summary\'s `agenda.answer` is their 2 M€, measured by the walk, and the client model carries it', () => {
+    const [game, p1, , parliament] = reduxGame();
+    const winnerIndex = quietWinnerIndex(parliament);
+    const slot = parliament.slots[winnerIndex];
+    quiet(parliament, winnerIndex);
+    parliament.placeVote(p1, slot, 'lobby');
+    parliament.placeVote(p1, slot, 'reserve');
+    // The winner's marker one short of the TR step (② of the track); the Greens rule DURING the step — the enactment
+    // that may change the government comes after it.
+    parliament.agenda.set(p1.id, 1);
+    expect(parliament.rulingParty()).eq(PartyName.GREENS);
+
+    endGenerationThroughParliament(game);
+
+    const summary = parliament.lastPhase!;
+    expect(summary.agenda).deep.eq({player: p1.id, from: 1, to: 2, bonus: 'tr', answer: {stock: {megacredits: 2}}});
+    expect(getParliamentModel(game, p1)?.lastPhase?.agenda).deep.eq({player: p1.color, from: 1, to: 2, bonus: 'tr', answer: {stock: {megacredits: 2}}});
+    // …and it survives a save: the sitting's record is read back whole.
+    const restored = Game.deserialize(structuredClone(game.serialize())).parliament!;
+    expect(restored.lastPhase?.agenda?.answer).deep.eq({stock: {megacredits: 2}});
+  });
+
   /*
    * ПРАВИТЕЛЬ БЕЗ ПОДДЕРЖКИ — THE SITTING NEVER PAYS THE RULER, the rule the ruler's plaque stands on: its
    * EMPTY support places are void (nothing can ever fill them while it rules). The rule is not written

@@ -244,10 +244,12 @@ type Case = {
   /** The rail rows the wave lands on (`production` / `stock` keys), the ruling party's answer last. */
   waves: Array<{channel: 'production' | 'stock', res: 'heat' | 'plants' | 'megacredits', reaction?: boolean}>;
   follow: 'take' | 'pick' | 'tile' | 'none';
+  /** The winner's step is the VIEWER's TR step under the ruling Greens: the table's answer (M€) the summary must carry — pinned, so the ПОВЕСТКА witness can never go vacuous. */
+  agendaAnswer?: number;
 };
 
 const CASES: ReadonlyArray<Case> = [
-  {rx: 'RX05', fixture: 'parliament-climate-assembly', waves: [{channel: 'production', res: 'heat'}, {channel: 'production', res: 'megacredits', reaction: true}], follow: 'take'},
+  {rx: 'RX05', fixture: 'parliament-climate-assembly', waves: [{channel: 'production', res: 'heat'}, {channel: 'production', res: 'megacredits', reaction: true}], follow: 'take', agendaAnswer: 2},
   {rx: 'RX03', fixture: 'parliament-biodome-assembly', waves: [{channel: 'stock', res: 'plants'}], follow: 'tile'},
   {rx: 'RX02', fixture: 'parliament-architecture-assembly', waves: [{channel: 'production', res: 'megacredits'}], follow: 'none'},
   {rx: 'RX04', fixture: 'parliament-powergrid-assembly', waves: [{channel: 'production', res: 'megacredits'}], follow: 'none'},
@@ -328,6 +330,23 @@ for (const preset of PARLIAMENT_PRESETS) {
             expect(tickRidesTheToken(tickLag, tickAt, last.i), `the tick rides the touchdown — within ${TICK_WINDOW_AFTER_MS} ms of the rest or while the chip still stands on the counter (tick @${tickAt}, landing @${landedAt}, chip last seen @${last.i}: ${Math.round(tickLag)} ms after the rest)`).toBe(true);
             expect(tickAt, 'the counter never moved BEFORE its chip left the card').toBeGreaterThanOrEqual(first.i);
             expect(probe.samples.some((s) => s.deltas[wv.res] > 0), `a delta chip fired on the ${wv.res} row`).toBe(true);
+          }
+          // THE WINNER'S STEP'S ANSWER (the ruling Greens' M€ for its rating — the server's `summary.agenda.answer`) is
+          // told in ПОВЕСТКА, on the ENACTMENT page, after the step's own rating chip — attached to the step, never the
+          // reaction chain's story after the sitting (it rose at the end of the reward page before 2026-10-28).
+          const agendaAnswer = (await parliamentWire(request, playerId)).game.parliament?.phase?.summary?.agenda?.answer?.stock?.megacredits ?? 0;
+          console.log(`[${preset.id} ${c.rx}] the winner's step: ${iWin ? 'the viewer' : 'another seat'} · the table's answer ${agendaAnswer} M€`);
+          if (c.agendaAnswer !== undefined) {
+            expect(agendaAnswer, 'the fixture\'s winner step is the viewer\'s TR step, answered by the ruling Greens').toBe(c.agendaAnswer);
+          }
+          if (iWin && agendaAnswer > 0) {
+            const ratingTrack = Array.from(tracks.values()).find((tr) => tr[0].c.res === 'rating');
+            const answerTracks = Array.from(tracks.values()).filter((tr) => tr[0].c.res === 'megacredits' && tr[0].s.stage === 'enact');
+            expect(ratingTrack, 'the step\'s rating chip flew').toBeDefined();
+            expect(answerTracks.length, `the Greens' answer to the step (${agendaAnswer} M€) flew on the enactment page — ПОВЕСТКА`).toBeGreaterThan(0);
+            const ratingLanded = landingIndex(ratingTrack!, REST_SLACK_PX);
+            expect(Math.min(...answerTracks.map((tr) => tr[0].i)), `the answer is born AFTER the rating's own chip landed (@${ratingLanded})`).toBeGreaterThanOrEqual(ratingLanded - 2);
+            console.log(`[${preset.id} ${c.rx}] ПОВЕСТКА: ${answerTracks.length} answer chip(s) on the enactment page after the rating (@${ratingLanded})`);
           }
           const reactionIds = new Set<string>();
           for (const wv of reactions) {

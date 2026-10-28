@@ -140,12 +140,17 @@ export const PARLIAMENT_AGENDA_STEPS = 12;
  * (`ParliamentAdvanceModel.steps`), because a card walks the marker several
  * steps at once and «collects bonuses from each step» (TR04).
  */
+/** The standard stock and production a call moved on a seat's counters, by resource — signed, non-zero moves only. */
+export type StandardMoves = {stock?: Partial<Record<string, number>>; production?: Partial<Record<string, number>>};
+
 /**
  * One step of a walk: the step reached and the bonus it paid. `vetoed` (RX42 UNMI Veto): the step's rating was
  * NOT gained — the seat was first by rating under the standing law; the marker moved all the same, and the
- * presentation strikes the «+1 TR» instead of flying it.
+ * presentation strikes the «+1 TR» instead of flying it. `answer`: what the TABLE paid back on the step, MEASURED
+ * around its bonus (the ruling Greens' 2 M€ for its rating — a step itself pays nothing in stock); absent when nothing
+ * answered, and for MarsBot (no table of its own — its card step's 1 M€ is the step's own payment).
  */
-export type AgendaAdvanceStep = {to: number; bonus?: 'tr' | 'card'; vetoed?: true};
+export type AgendaAdvanceStep = {to: number; bonus?: 'tr' | 'card'; vetoed?: true; answer?: StandardMoves};
 
 /**
  * The ENGINES of the track — the sitting's winner step, the chairman quest, a

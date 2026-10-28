@@ -36,7 +36,7 @@ import {AgendaWalkHooks, AgendaWalkRecordLike} from './agendaWalkDirector';
 import {parliamentFlow, pulseParliamentChair, pulseParliamentQuest} from './consoleParliamentFlow';
 import {parliamentHolds} from './parliamentDisplayHolds';
 import {chairmanQuestFlow} from './consoleChairmanQuest';
-import {flushAgendaBonus, markAgendaBonusLanded, takeAgendaBonus} from './parliamentRewardBeat';
+import {agendaAnswerSettled, flushAgendaBonus, markAgendaBonusLanded, takeAgendaBonus} from './parliamentRewardBeat';
 import {CUBE_FLIGHT_MS, finishParliamentFlights, flyDelegate, placeFigureRect, rectOf} from './parliamentFlights';
 import {CHAIR_FIGURE, delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
@@ -349,12 +349,14 @@ function launchAgendaBonus(): void {
     done();
     return;
   }
+  // …and the TABLE'S ANSWER to the step's rating (the ruling Greens' M€ — the walk's record) lands before the flow's
+  // next beat: the receipt / the question never open under the charter's tokens.
   void runResourceTransfers({
     specs: [bonus.spec],
     source: {point: {x: r.left + r.width / 2, y: r.top + r.height / 2}},
     arrival: 'auto',
     onArrive: () => markAgendaBonusLanded(),
-  }).then(done, done);
+  }).then(() => agendaAnswerSettled(bonus.step)).then(done, done);
 }
 
 /**

@@ -19,6 +19,9 @@ import {runAllActions} from '../../TestingUtils';
 import {buildEventChildren} from '../../../src/client/components/journal/journalEventChild';
 import {recomputeRootImpact} from '../../../src/client/components/notifications/notificationModel';
 
+/** The ruling Greens' answer to a walked step's rating, MEASURED by the walk (`AgendaAdvanceStep.answer` — 2 M€ per TR). */
+const GREENS_ANSWER = {answer: {stock: {megacredits: 2}}};
+
 /**
  * TR04 — MINORITY REPRESENTATION: the third engine of the Agenda track and the
  * first card to walk the marker MORE than one step — one call of the ONE walk
@@ -114,7 +117,7 @@ describe('MinorityRepresentation', () => {
       expect(parliament.lastAdvance).deep.include({
         player: p1.id, from: 1, to: 3, reason: 'card', card: CardName.MINORITY_REPRESENTATION, generation: game.generation,
       });
-      expect(parliament.lastAdvance?.steps).deep.eq([{to: 2, bonus: 'tr'}, {to: 3}]);
+      expect(parliament.lastAdvance?.steps).deep.eq([{to: 2, bonus: 'tr', ...GREENS_ANSWER}, {to: 3}]);
       expect(parliament.lastAdvance?.seq, 'the serial moved ONCE for the whole walk').eq(1);
       expect(walkLines(game, at)).deep.eq([ADVANCE, TR_LINE, ADVANCE]);
     });
@@ -128,7 +131,7 @@ describe('MinorityRepresentation', () => {
       expect(parliament.agendaOf(p1)).eq(2);
       expect(parliament.influence(p1)).eq(1);
       expect(p1.terraformRating).eq(tr + 1);
-      expect(parliament.lastAdvance?.steps).deep.eq([{to: 1}, {to: 2, bonus: 'tr'}]);
+      expect(parliament.lastAdvance?.steps).deep.eq([{to: 1}, {to: 2, bonus: 'tr', ...GREENS_ANSWER}]);
       expect(walkLines(game, at)).deep.eq([ADVANCE, ADVANCE, TR_LINE]);
     });
 
@@ -138,7 +141,7 @@ describe('MinorityRepresentation', () => {
       runAllActions(game);
       expect(parliament.agendaOf(p1)).eq(4);
       expect(parliament.influence(p1)).eq(2);
-      expect(parliament.lastAdvance?.steps).deep.eq([{to: 3}, {to: 4, bonus: 'tr'}]);
+      expect(parliament.lastAdvance?.steps).deep.eq([{to: 3}, {to: 4, bonus: 'tr', ...GREENS_ANSWER}]);
     });
   });
 
@@ -149,7 +152,7 @@ describe('MinorityRepresentation', () => {
       runAllActions(game);
       const advanced = game.events.events.filter((e) => e.type === 'agenda-advanced');
       expect(advanced).has.lengthOf(1);
-      expect(advanced[0].impact.agenda).deep.eq({from: 1, to: 3, steps: [{to: 2, bonus: 'tr'}, {to: 3}], reason: 'card', influence: 2});
+      expect(advanced[0].impact.agenda).deep.eq({from: 1, to: 3, steps: [{to: 2, bonus: 'tr', ...GREENS_ANSWER}, {to: 3}], reason: 'card', influence: 2});
       expect(advanced[0].source).deep.include({kind: 'card', card: CardName.MINORITY_REPRESENTATION});
       const trChanged = game.events.events.filter((e) => e.type === 'tr-changed' && e.player === p1.color);
       expect(trChanged).has.lengthOf(1);

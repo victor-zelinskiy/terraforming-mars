@@ -302,11 +302,22 @@ TILES (the plan row and R3 follow the chosen option), and the Hydronetwork's ans
     **…and the chain waits for the SITTING'S BEATS** (`waitSittingQuiet` — the `parliament-sitting:<stage>[/<beat>]`
     holds, bounded 40 s on top of each beat's own ceiling): a record of the sitting's response nobody's wave declares
     rises at the rail's edge only once the beats have played, never into the reward wave — the generic 12 s blocking
-    wait is shorter than a sitting, and the charter rose BESIDE the plaque's chip. NAMED GAP: the ruling Greens' M€ for
-    the WINNER'S TR step is such a record — the summary's `agenda` carries no answer (a card's walk gets it from the
-    preview's verified `reactions`, the enactment's rating from `rulingAnswers`), so ПОВЕСТКА cannot fly it attached
-    a beat after the step's chip; a `summary.agenda.answer` from the server would let `detectAgendaBonus` queue it
-    like a card walk's and retire the chain's telling there.
+    wait is shorter than a sitting, and the charter rose BESIDE the plaque's chip.
+    **…and A STEP OF THE CAREER CARRIES ITS OWN ANSWER** (2026-10-28, the gap the waits above left): `ChairmanSeat.walkAgenda`
+    MEASURES what the seat's stock / production gained around each step's bonus (`server/parliament/standardMoves.ts` —
+    the ONE measure `rulingAnswers` is read by too; a step pays a rating or a card and nothing in stock, so the gain IS
+    the table's answer — the ruling Greens' 2 M€ first of all; MarsBot measures nothing, its card is 1 M€ under the hood)
+    and records it on the step (`AgendaAdvanceStep.answer` → `lastAdvance.steps`, a law walk's outcome, the sitting's
+    `summary.agenda.answer`). The sitting's ПОВЕСТКА (`detectAgendaBonus`) and the quest (`detectChairmanQuestAdvance`
+    → `seedQuestAgendaBonus`) ride it on the TR step's entry — held with the rating, DECLARED at the queue, so the
+    party's record attaches and `flyAgendaAnswer` tells it a beat after the step's chip (the charter at the rail's edge,
+    the enactment tail's and a card walk's own grammar) — and both hosts wait for it to LAND (`agendaAnswerSettled`)
+    before their next beat: ПОДДЕРЖКА, the quest's receipt never start under the charter's tokens. A card's walk keeps
+    its preview's verified promise (`agendaWalkReactions` — the play's rail half hands the M€ over by the same preview,
+    `withoutAgendaWalkAnswers`; a server fallback there would double-hold a play that carries its own rating). A law
+    walk's answer stays the reward wave's `reaction` record (the phase's scan). Guards: `AgendaWalk.spec` § THE TABLE'S
+    ANSWER, `ParliamentPhase.spec` § THE WINNER'S STEP, `parliamentRewardBeat.spec` § THE WINNER'S STEP / § LANDS BEFORE,
+    `chairmanQuestFlow.spec` § THE QUEST'S STEP.
 28. **THE HYDRONETWORK'S PLAN READS THE TABLE'S ANSWER BEFORE THE PRESS.** The server's `DeltaTrackDestination.forecast`
     (`DeltaProjectExpansion.destinationForecast` — the FORECAST TWIN of `resolveReward`, `stageRewardEffects`, pinned
     against the live grant for every stage by `tests/delta/hydroStageForecast.spec.ts`; the crossed stages' fixed

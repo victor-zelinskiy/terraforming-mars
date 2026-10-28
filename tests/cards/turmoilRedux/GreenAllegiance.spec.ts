@@ -30,6 +30,9 @@ import {recomputeRootImpact} from '../../../src/client/components/notifications/
 import {cardsToModel} from '../../../src/server/models/ModelUtils';
 import {RedLawyers} from '../../../src/server/cards/turmoilRedux/RedLawyers';
 
+/** The ruling Greens' answer to a walked step's rating, MEASURED by the walk (`AgendaAdvanceStep.answer` — 2 M€ per TR). */
+const GREENS_ANSWER = {answer: {stock: {megacredits: 2}}};
+
 /**
  * TR42 — GREEN ALLEGIANCE: the walk of TR04 / TR37 with its length COUNTED —
  * «1 step for every complete set of 5 TR over 20», the threshold count of RX13
@@ -194,7 +197,7 @@ describe('GreenAllegiance', () => {
       expect(t.p1.terraformRating).eq(34);
       expect(t.p1.megaCredits, '20 − 2 for the card + 2 from the Greens for the walked TR').eq(20);
       expect(t.parliament.lastAdvance).deep.include({player: t.p1.id, from: 1, to: 3, reason: 'card', card: CardName.GREEN_ALLEGIANCE});
-      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 2, bonus: 'tr'}, {to: 3}]);
+      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 2, bonus: 'tr', ...GREENS_ANSWER}, {to: 3}]);
       expect(linesOf(t.game, at), 'why → step 2 · its TR → step 3').deep.eq([SETS_LINE, ADVANCE, TR_LINE, ADVANCE]);
       const why = t.game.gameLog.find((entry) => entry.message === SETS_LINE)!;
       expect(why.data.slice(1).map((d) => d.value), 'sets · TR · steps').deep.eq(['2', '33', '2']);
@@ -205,7 +208,7 @@ describe('GreenAllegiance', () => {
       play(t);
       expect(t.p1.terraformRating, 'the rating crossed 30 on the walk').eq(30);
       expect(t.parliament.agendaOf(t.p1), 'N was 1, read before the walk').eq(2);
-      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 2, bonus: 'tr'}]);
+      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 2, bonus: 'tr', ...GREENS_ANSWER}]);
     });
 
     it('the longest walk of the set — TR 45 from 0: five steps, ① influence 1 · ② TR · ③ influence 2 · ④ TR · ⑤ influence 3; two Greens answers; ONE event', () => {
@@ -215,7 +218,7 @@ describe('GreenAllegiance', () => {
       expect(t.parliament.influence(t.p1)).eq(3);
       expect(t.p1.terraformRating).eq(47);
       expect(t.p1.megaCredits, '20 − 2 + 2 × 2 from the Greens').eq(22);
-      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 1}, {to: 2, bonus: 'tr'}, {to: 3}, {to: 4, bonus: 'tr'}, {to: 5}]);
+      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 1}, {to: 2, bonus: 'tr', ...GREENS_ANSWER}, {to: 3}, {to: 4, bonus: 'tr', ...GREENS_ANSWER}, {to: 5}]);
       expect(t.parliament.lastAdvance?.seq, 'the serial moved ONCE').eq(1);
       expect(t.game.events.events.filter((e) => e.type === 'agenda-advanced')).has.lengthOf(1);
     });
@@ -225,7 +228,7 @@ describe('GreenAllegiance', () => {
       const at = t.game.gameLog.length;
       play(t);
       expect(t.parliament.agendaOf(t.p1)).eq(12);
-      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 11, bonus: 'tr'}, {to: 12}]);
+      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 11, bonus: 'tr', ...GREENS_ANSWER}, {to: 12}]);
       expect(linesOf(t.game, at)).deep.eq([SETS_LINE, ADVANCE, TR_LINE, ADVANCE, END_LINE]);
     });
   });

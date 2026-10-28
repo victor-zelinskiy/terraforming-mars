@@ -14,8 +14,9 @@ import {
 import {parliamentBandLine} from '@/client/console/parliament/parliamentBand';
 import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {
-  parliamentParksReveal, parliamentRewardState, resetParliamentRewards,
+  parliamentParksReveal, parliamentRewardState, RATING_RAIL_KEY, resetParliamentRewards,
 } from '@/client/console/parliament/parliamentRewardBeat';
+import {clearPanelRewardHold, heldStock, takeDeclaredAnswers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {parliamentCrumbStage, parliamentCrumbSubject, parliamentFlow, resetParliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 
 /*
@@ -50,11 +51,14 @@ function view(parliament: ParliamentModel, generation = 3): PlayerViewModel {
 }
 
 /** The two views around the gate's answer: the office moves RED → BLUE and the marker 1 → 2 (a TR step). */
-function answerPair(bonus?: 'tr' | 'card') {
+function answerPair(bonus?: 'tr' | 'card', answer?: {stock: Record<string, number>}) {
   const before = view(model({chairman: RED, lastAdvance: {seq: 4, player: RED, from: 0, to: 1, reason: 'quest', generation: 2}} as never));
   const after = view(model({
     chairman: BLUE,
-    lastAdvance: {seq: 5, player: BLUE, from: 1, to: 2, bonus, reason: 'quest', generation: 3},
+    lastAdvance: {
+      seq: 5, player: BLUE, from: 1, to: 2, bonus, reason: 'quest', generation: 3,
+      ...(answer === undefined ? {} : {steps: [{to: 2, bonus, answer}]}),
+    },
   } as never));
   return {before, after};
 }
@@ -65,6 +69,8 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — the chairman-quest flow', () 
     resetParliamentHolds();
     resetParliamentRewards();
     resetParliamentFlow();
+    clearPanelRewardHold();
+    takeDeclaredAnswers();
   });
   after(() => {
     resetChairmanQuestFlow();
@@ -98,6 +104,17 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — the chairman-quest flow', () 
     expect(detectChairmanQuestAdvance(before, phase), 'the political phase plays its own step').is.undefined;
     expect(detectChairmanChange(before, after)).deep.eq({from: RED, to: BLUE});
     expect(detectChairmanChange(after, after), 'the sitting chairman kept the office').is.undefined;
+  });
+
+  it('THE QUEST\'S STEP CARRIES ITS ANSWER (the walk\'s record — the ruling Greens\' 2 M€): DETECT reads it off the step, the seed holds it with the rating and DECLARES it', () => {
+    const {before, after} = answerPair('tr', {stock: {megacredits: 2}});
+    expect(detectChairmanQuestAdvance(before, after)).deep.eq({move: {player: BLUE, from: 1, to: 2}, bonus: 'tr', answer: {stock: {megacredits: 2}}});
+    takeDeclaredAnswers();
+    armChairmanQuestFlow(before.game.parliament, BLUE);
+    seedChairmanQuestHolds(before, after);
+    expect(heldStock(RATING_RAIL_KEY)).eq(1);
+    expect(heldStock('megacredits'), 'the answer held with its reason').eq(2);
+    expect(takeDeclaredAnswers().map((spec) => `${spec.channel}:${spec.resource}+${spec.amount}`)).deep.eq(['stock:megacredits+2']);
   });
 
   it('PROBE 6 — the marker never stands on its new step before its beat: the seed holds it on the old one', () => {

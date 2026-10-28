@@ -7,7 +7,7 @@ import {Tag} from '../../common/cards/Tag';
 import {CardResource} from '../../common/CardResource';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {Resource} from '../../common/Resource';
-import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionId, ResolutionInstanceId, AgendaAdvanceReason, AgendaAdvanceStep} from '../../common/parliament/ParliamentTypes';
+import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionId, ResolutionInstanceId, AgendaAdvanceReason, AgendaAdvanceStep, StandardMoves} from '../../common/parliament/ParliamentTypes';
 import {ParameterMoveId} from '../../common/parliament/parameterMove';
 import {ColonyTrackMove} from '../../common/parliament/colonyTrackAdvance';
 import {TileType} from '../../common/TileType';
@@ -373,7 +373,11 @@ export type SerializedPhaseSummary = {
   correlationId?: number;
   /** `slot` — the voting slot (0 = closest to ENACTED) the winner stood in; absent on older saves. */
   winner: {instance: ResolutionInstanceId; votes: number; player?: SerializedDelegateOwner; tieBreak?: 'slot-priority' | 'earlier-delegate'; slot?: number};
-  agenda?: {player: PlayerId; from: number; to: number; bonus?: 'tr' | 'card'};
+  /**
+   * The winner's step of the Career. `answer` — what the TABLE paid back on it, measured by the walk (the ruling Greens'
+   * 2 M€ for its rating; `AgendaAdvanceStep.answer`); absent when nothing answered and on a save from before this field.
+   */
+  agenda?: {player: PlayerId; from: number; to: number; bonus?: 'tr' | 'card'; answer?: StandardMoves};
   /** The enacted resolution's effect, step by step, as it was ACTUALLY applied (absent on older saves and on a resolution with no effect). */
   outcomes?: Array<SerializedEnactOutcome>;
   support: Array<{party: PartyName; gained: number; total: number; reason: 'absent' | 'lost' | 'lost-with-player-vote'}>;

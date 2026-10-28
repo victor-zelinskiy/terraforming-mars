@@ -15,8 +15,9 @@ import {
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {activeAnimationHoldLabels, isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
+import {StandardMoves} from '@/common/parliament/ParliamentTypes';
 import {
-  agendaCardOwed, detectAgendaBonus, detectNewViewerRewards, detectNewViewerTile, flushAgendaBonus, flushParliamentRewards, markAgendaBonusLanded, markAgendaCardLifted,
+  agendaAnswerSettled, agendaCardOwed, agendaStepAnswerSpecs, detectAgendaBonus, detectNewViewerRewards, detectNewViewerTile, flushAgendaBonus, flushParliamentRewards, markAgendaBonusLanded, markAgendaCardLifted,
   markRewardLanded, parliamentAgendaBonusHeld, parliamentParksReveal,
   parliamentRewardDiag, parliamentRewardPending, parliamentRewardState, RATING_RAIL_KEY, releaseParliamentRewards, resetParliamentRewards,
   rewardBeatKey, rewardLanded, seedParliamentRewardHold, sittingKeyOf, takeAgendaBonus, queueAgendaBonuses, takeOwedRewards, waveSpecOf,
@@ -38,7 +39,7 @@ function outcome(over: Partial<ParliamentEnactOutcomeModel> & {kind: ParliamentE
 }
 
 /** A view; `undefined` is the action phase of generation `generation` with NO sitting yet (the soft gates' baseline). */
-function view(phase: {generation: number, seq?: number, outcomes?: Array<ParliamentEnactOutcomeModel>, agenda?: {player: string, from: number, to: number, bonus?: 'tr' | 'card'}} | undefined, viewer = BLUE, generation = phase?.generation ?? 3): PlayerViewModel {
+function view(phase: {generation: number, seq?: number, outcomes?: Array<ParliamentEnactOutcomeModel>, agenda?: {player: string, from: number, to: number, bonus?: 'tr' | 'card', answer?: StandardMoves}} | undefined, viewer = BLUE, generation = phase?.generation ?? 3): PlayerViewModel {
   return {
     thisPlayer: {color: viewer},
     game: {
@@ -352,6 +353,54 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(parliamentRewardState.agendaBonuses).deep.eq([]);
     markAgendaBonusLanded(9);
     expect(parliamentRewardState.agendaBonuses, 'a second landing of the same step is a no-op').deep.eq([]);
+  });
+
+  it('THE WINNER\'S STEP CARRIES ITS ANSWER (the server\'s measure — `summary.agenda.answer`): DETECT rides it on the TR entry; the SEED holds and DECLARES it, so the party\'s record attaches to ПОВЕСТКА; a card step and an answerless step carry none', () => {
+    expect(agendaStepAnswerSpecs({stock: {megacredits: 2, heat: -1}, production: {plants: 1}}), 'gains only, stock first').deep.eq([
+      {channel: 'stock', resource: 'megacredits', amount: 2}, {channel: 'production', resource: 'plants', amount: 1},
+    ]);
+    expect(agendaStepAnswerSpecs(undefined)).deep.eq([]);
+    const before = view(undefined, BLUE, 4);
+    const answered = view({generation: 4, seq: 8, agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr', answer: {stock: {megacredits: 2}}}});
+    expect(detectAgendaBonus(before, answered)).deep.eq({
+      generation: 4, player: BLUE, step: 2, kind: 'tr', spec: {channel: 'stock', resource: RATING_RAIL_KEY, amount: 1},
+      reactions: [{channel: 'stock', resource: 'megacredits', amount: 2}],
+    });
+    expect(detectAgendaBonus(before, view({generation: 4, seq: 8, agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}}))?.reactions, 'nobody answered').is.undefined;
+    expect(detectAgendaBonus(before, view({generation: 4, seq: 8, agenda: {player: BLUE, from: 6, to: 7, bonus: 'card', answer: {stock: {megacredits: 2}}}}))?.reactions,
+      'a card step\'s answer is no rating\'s — the chain keeps it').is.undefined;
+    consoleParliamentUi.stageStanding = true;
+    takeDeclaredAnswers();
+    seedParliamentRewardHold(before, answered);
+    expect(heldStock(RATING_RAIL_KEY)).eq(1);
+    expect(heldStock('megacredits'), 'the answer held with its reason').eq(2);
+    expect(takeDeclaredAnswers().map((spec) => `${spec.channel}:${spec.resource}+${spec.amount}`), 'DECLARED — the Greens\' record attaches to this walk').deep.eq(['stock:megacredits+2']);
+  });
+
+  it('THE STEP\'S ANSWER LANDS BEFORE THE NEXT BEAT: `agendaAnswerSettled` resolves only once the answer has flown (a beat after the chip), at once when nothing is owed, and on a flush', async () => {
+    consoleParliamentUi.stageStanding = true;
+    const spec = {channel: 'stock' as const, resource: RATING_RAIL_KEY, amount: 1};
+    const answer = {channel: 'stock' as const, resource: 'megacredits', amount: 2};
+    let settled = false;
+    await agendaAnswerSettled(5);
+    queueAgendaBonuses([{generation: 3, player: BLUE, step: 5, kind: 'tr', spec, reactions: [answer]}]);
+    markAgendaBonusLanded(5);
+    void agendaAnswerSettled(5).then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled, 'owed: the answer\'s beat has not fired yet').is.false;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(settled, 'the answer flew (nothing attached here — its rows ticked) and the landing resolved').is.true;
+    expect(heldStock('megacredits')).eq(0);
+    expect(parliamentAgendaBonusHeld()).is.false;
+    // A flush DURING the answer's beat lets the landing go with the holds.
+    queueAgendaBonuses([{generation: 3, player: BLUE, step: 8, kind: 'tr', spec, reactions: [answer]}]);
+    markAgendaBonusLanded(8);
+    const flushed = agendaAnswerSettled(8);
+    flushAgendaBonus('unmount');
+    await flushed;
+    expect(heldStock('megacredits')).eq(0);
   });
 
   it('THE TABLE\'S ANSWER TO A TR STEP (PL-002): held with the rating from the seed, released one beat AFTER the step\'s chip has landed — never with it, never before; a flush lets both go at once', async () => {

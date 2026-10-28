@@ -31,7 +31,7 @@ export type ParliamentWire = {
       sitting?: {generation: number; seq: number; final: boolean; pending: Array<string>};
       phase?: {step: string; generation?: number; pending?: {player: string}; outcomes?: Array<Record<string, unknown>>; closed?: Array<string>;
       summary?: {
-        agenda?: {player: string; from: number; to: number; bonus?: string}; winner: {player?: string; instance?: string}; refreshed: Array<unknown>;
+        agenda?: {player: string; from: number; to: number; bonus?: string; answer?: {stock?: Record<string, number>}}; winner: {player?: string; instance?: string}; refreshed: Array<unknown>;
         support?: Array<{party: string; gained: number; total: number}>;
       }}};
   };

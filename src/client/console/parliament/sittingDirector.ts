@@ -87,7 +87,7 @@ import {enactedCardEl} from './consoleResolutionPayout';
 import {SupportMark, SupportSource, supportSceneOf, SupportWaveEntry} from './supportScene';
 import {parliamentHolds, releaseEnactmentHolds, releaseRenewalHolds, renewalHeld} from './parliamentDisplayHolds';
 import {
-  flushAgendaBonus, flushParliamentRewards, markAgendaBonusLanded, markRewardLanded, OwedReward, parliamentRewardState, takeAgendaBonus,
+  agendaAnswerSettled, flushAgendaBonus, flushParliamentRewards, markAgendaBonusLanded, markRewardLanded, OwedReward, parliamentRewardState, takeAgendaBonus,
   takeOwedRewards,
 } from './parliamentRewardBeat';
 import {
@@ -455,12 +455,15 @@ function launchAgendaBonus(runState: StageRun, ctx: SittingDirectorContext): voi
     flushAgendaBonus('stage-finished', 'phase');
     return;
   }
+  // The beat is AT REST only once the step's own chip AND THE TABLE'S ANSWER to it have landed (the ruling Greens' M€
+  // — `summary.agenda.answer`, released a beat after the chip's touchdown): ПОДДЕРЖКА never starts under the charter's
+  // tokens — the surfaces go in turn.
   trackWave(runState, runResourceTransfers({
     specs: [spec],
     source: {point: {x: r.left + r.width / 2, y: r.top + r.height / 2}},
     arrival: 'auto',
     onArrive: () => markAgendaBonusLanded(),
-  }));
+  }).then(() => agendaAnswerSettled(bonus.step)));
 }
 
 /**

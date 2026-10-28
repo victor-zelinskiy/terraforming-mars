@@ -16,6 +16,7 @@ import {
 import {PartyName} from '../../common/turmoil/PartyName';
 import {VotePromptMeta} from '../../common/models/PlayerInputModel';
 import {PARTY_EFFECT_DELEGATES, REDUX_PARTIES, ReduxParty, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
+import {copyStandardMoves} from './standardMoves';
 import {Delegate, Parliament, PARTY_ACTION_USES_PER_GENERATION, Slot} from './Parliament';
 import {PARTY_EFFECTS} from './parties/PartyEffects';
 import {SerializedEnactOutcome, SerializedPhaseSummary} from './SerializedParliament';
@@ -654,7 +655,10 @@ function summaryModel(game: IGame, parliament: Parliament, summary: SerializedPh
     lobbyRefilled: summary.lobbyRefilled.map((id: PlayerId) => game.getPlayerById(id).color),
   };
   if (summary.agenda !== undefined) {
-    model.agenda = {player: game.getPlayerById(summary.agenda.player).color, from: summary.agenda.from, to: summary.agenda.to, bonus: summary.agenda.bonus};
+    model.agenda = {
+      player: game.getPlayerById(summary.agenda.player).color, from: summary.agenda.from, to: summary.agenda.to, bonus: summary.agenda.bonus,
+      ...(summary.agenda.answer === undefined ? {} : {answer: copyStandardMoves(summary.agenda.answer)}),
+    };
   }
   if (summary.rulingAnswers !== undefined) {
     model.rulingAnswers = summary.rulingAnswers.map((answer) => ({

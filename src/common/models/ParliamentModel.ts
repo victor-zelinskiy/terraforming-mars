@@ -20,7 +20,7 @@ import type {EventTrigger} from '../events/GameEvent';
 import {ActionEffect} from './ActionPreviewModel';
 import type {ActionFutilityVerdict} from './ActionFutilityModel';
 import type {SelectProjectCardToPlayModel} from './PlayerInputModel';
-import {BotParliamentMode, ParliamentPhaseStep, PartyActionId, QuestDefinition, ReduxParty, ResolutionId, ResolutionInstanceId, AgendaAdvanceReason, AgendaAdvanceStep, DelegateOwner, DelegatePlace} from '../parliament/ParliamentTypes';
+import {BotParliamentMode, ParliamentPhaseStep, PartyActionId, QuestDefinition, ReduxParty, ResolutionId, ResolutionInstanceId, AgendaAdvanceReason, AgendaAdvanceStep, DelegateOwner, DelegatePlace, StandardMoves} from '../parliament/ParliamentTypes';
 
 /** One delegate on a resolution, in placement order (`seq` is global and monotonic). */
 export type ParliamentVoteModel = {
@@ -646,7 +646,11 @@ export type ParliamentPhaseSummaryModel = {
   correlationId?: number;
   /** `slot` — the voting slot the winner stood in (0 = closest to ENACTED); absent on older saves. */
   winner: {instance: ResolutionInstanceId; resolution: ResolutionId; party: ReduxParty; votes: number; player?: Color | 'neutral'; tieBreak?: 'slot-priority' | 'earlier-delegate'; slot?: number};
-  agenda?: {player: Color; from: number; to: number; bonus?: 'tr' | 'card'};
+  /**
+   * The winner's step of the Career. `answer` — what the TABLE paid back on it (the ruling Greens' 2 M€ for its rating),
+   * measured by the walk: ПОВЕСТКА tells it a beat after the step's chip, the record attached to the step.
+   */
+  agenda?: {player: Color; from: number; to: number; bonus?: 'tr' | 'card'; answer?: StandardMoves};
   /** The enacted resolution's effect as it was ACTUALLY applied, step by step (absent on older saves / no effect). */
   outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>;
   support: ReadonlyArray<{party: ReduxParty; gained: number; total: number; reason: 'absent' | 'lost' | 'lost-with-player-vote'}>;

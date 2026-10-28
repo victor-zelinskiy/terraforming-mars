@@ -9,6 +9,13 @@ import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {Phase} from '../../src/common/Phase';
 import {CardName} from '../../src/common/cards/CardName';
 import {PARLIAMENT_AGENDA_STEPS} from '../../src/common/parliament/ParliamentTypes';
+import {CENTRAL_POWER_GRID_ID} from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
+import {PartyName} from '../../src/common/turmoil/PartyName';
+import {seatEnacted} from './parliamentArrange';
+import {testAutomaGame} from '../automa/AutomaTestGame';
+
+/** The ruling Greens' answer to a walked step's rating, MEASURED by the walk (`AgendaAdvanceStep.answer` — 2 M€ per TR). */
+const GREENS_ANSWER = {answer: {stock: {megacredits: 2}}};
 
 /*
  * THE ONE WALK OF THE AGENDA TRACK (TR04 Minority Representation): the three
@@ -46,16 +53,16 @@ describe('ChairmanSeat.walkAgenda — one walk for the three engines of the trac
       const tr = p1.terraformRating;
       const at = game.gameLog.length;
       const walk = ChairmanSeat.walkAgenda(p1, parliament, 1, {reason: 'quest'});
-      expect(walk).deep.eq({from: 1, to: 2, steps: [{to: 2, bonus: 'tr'}]});
+      expect(walk).deep.eq({from: 1, to: 2, steps: [{to: 2, bonus: 'tr', ...GREENS_ANSWER}]});
       expect(parliament.agendaOf(p1)).eq(2);
       expect(p1.terraformRating).eq(tr + 1);
       expect(parliament.lastAdvance).deep.eq({
-        seq: 1, player: p1.id, from: 1, to: 2, bonus: 'tr', steps: [{to: 2, bonus: 'tr'}], reason: 'quest', generation: game.generation,
+        seq: 1, player: p1.id, from: 1, to: 2, bonus: 'tr', steps: [{to: 2, bonus: 'tr', ...GREENS_ANSWER}], reason: 'quest', generation: game.generation,
       });
       expect(linesOf(game, at)).deep.eq([ADVANCE, TR_LINE]);
       const events = game.events.events.filter((e) => e.type === 'agenda-advanced');
       expect(events).has.lengthOf(1);
-      expect(events[0].impact.agenda).deep.eq({from: 1, to: 2, steps: [{to: 2, bonus: 'tr'}], reason: 'quest', influence: 1});
+      expect(events[0].impact.agenda).deep.eq({from: 1, to: 2, steps: [{to: 2, bonus: 'tr', ...GREENS_ANSWER}], reason: 'quest', influence: 1});
       expect(events[0].source, 'the quest is the PARLIAMENT\'s deed').deep.eq({kind: 'parliament'});
     });
 
@@ -89,18 +96,18 @@ describe('ChairmanSeat.walkAgenda — one walk for the three engines of the trac
       const tr = p1.terraformRating;
       const at = game.gameLog.length;
       const walk = ChairmanSeat.walkAgenda(p1, parliament, 2, {reason: 'card', card: CardName.MINORITY_REPRESENTATION});
-      expect(walk).deep.eq({from: 1, to: 3, steps: [{to: 2, bonus: 'tr'}, {to: 3}]});
+      expect(walk).deep.eq({from: 1, to: 3, steps: [{to: 2, bonus: 'tr', ...GREENS_ANSWER}, {to: 3}]});
       expect(parliament.agendaOf(p1)).eq(3);
       expect(parliament.influence(p1), 'step 3 raises the level to 2').eq(2);
       expect(p1.terraformRating).eq(tr + 1);
       expect(parliament.lastAdvance).deep.eq({
-        seq: 5, player: p1.id, from: 1, to: 3, bonus: undefined, steps: [{to: 2, bonus: 'tr'}, {to: 3}],
+        seq: 5, player: p1.id, from: 1, to: 3, bonus: undefined, steps: [{to: 2, bonus: 'tr', ...GREENS_ANSWER}, {to: 3}],
         reason: 'card', card: CardName.MINORITY_REPRESENTATION, generation: game.generation,
       });
       expect(linesOf(game, at), 'step 2 · its TR · step 3 — the bonus before the next step').deep.eq([ADVANCE, TR_LINE, ADVANCE]);
       const events = game.events.events.filter((e) => e.type === 'agenda-advanced');
       expect(events).has.lengthOf(1);
-      expect(events[0].impact.agenda).deep.eq({from: 1, to: 3, steps: [{to: 2, bonus: 'tr'}, {to: 3}], reason: 'card', influence: 2});
+      expect(events[0].impact.agenda).deep.eq({from: 1, to: 3, steps: [{to: 2, bonus: 'tr', ...GREENS_ANSWER}, {to: 3}], reason: 'card', influence: 2});
       expect(events[0].source, 'a card\'s walk is NOT wrapped in the parliament\'s source — it keeps the live scope (the card\'s play)').not.deep.eq({kind: 'parliament'});
     });
 
@@ -109,7 +116,7 @@ describe('ChairmanSeat.walkAgenda — one walk for the three engines of the trac
       const tr = p1.terraformRating;
       const at = game.gameLog.length;
       const walk = ChairmanSeat.walkAgenda(p1, parliament, 2, {reason: 'card', card: CardName.MINORITY_REPRESENTATION});
-      expect(walk).deep.eq({from: 0, to: 2, steps: [{to: 1}, {to: 2, bonus: 'tr'}]});
+      expect(walk).deep.eq({from: 0, to: 2, steps: [{to: 1}, {to: 2, bonus: 'tr', ...GREENS_ANSWER}]});
       expect(parliament.influence(p1)).eq(1);
       expect(p1.terraformRating).eq(tr + 1);
       expect(linesOf(game, at)).deep.eq([ADVANCE, ADVANCE, TR_LINE]);
@@ -120,7 +127,7 @@ describe('ChairmanSeat.walkAgenda — one walk for the three engines of the trac
       const tr = p1.terraformRating;
       const hand = p1.cardsInHand.length;
       const walk = ChairmanSeat.walkAgenda(p1, parliament, 2, {reason: 'card', card: CardName.MINORITY_REPRESENTATION});
-      expect(walk).deep.eq({from: 5, to: 7, steps: [{to: 6, bonus: 'tr'}, {to: 7, bonus: 'card'}]});
+      expect(walk).deep.eq({from: 5, to: 7, steps: [{to: 6, bonus: 'tr', ...GREENS_ANSWER}, {to: 7, bonus: 'card'}]});
       expect(p1.terraformRating).eq(tr + 1);
       expect(p1.cardsInHand.length).eq(hand + 1);
     });
@@ -139,7 +146,7 @@ describe('ChairmanSeat.walkAgenda — one walk for the three engines of the trac
       const tr = p1.terraformRating;
       const at = game.gameLog.length;
       const walk = ChairmanSeat.walkAgenda(p1, parliament, 5, {reason: 'card', card: CardName.GREEN_ALLEGIANCE});
-      const steps = [{to: 1}, {to: 2, bonus: 'tr'}, {to: 3}, {to: 4, bonus: 'tr'}, {to: 5}];
+      const steps = [{to: 1}, {to: 2, bonus: 'tr', ...GREENS_ANSWER}, {to: 3}, {to: 4, bonus: 'tr', ...GREENS_ANSWER}, {to: 5}];
       expect(walk).deep.eq({from: 0, to: 5, steps});
       expect(parliament.agendaOf(p1)).eq(5);
       expect(parliament.influence(p1)).eq(3);
@@ -175,13 +182,43 @@ describe('ChairmanSeat.walkAgenda — one walk for the three engines of the trac
     });
   });
 
+  describe('THE TABLE\'S ANSWER TO A STEP — measured by the walk (`AgendaAdvanceStep.answer`)', () => {
+    it('a TR step under the ruling Greens carries their 2 M€ (paid in the same call); a CARD step carries nothing', () => {
+      const {p1, parliament} = table(5);
+      expect(parliament.rulingParty()).eq(PartyName.GREENS);
+      const mc = p1.megaCredits;
+      const walk = ChairmanSeat.walkAgenda(p1, parliament, 2, {reason: 'card', card: CardName.MINORITY_REPRESENTATION});
+      expect(walk?.steps).deep.eq([{to: 6, bonus: 'tr', answer: {stock: {megacredits: 2}}}, {to: 7, bonus: 'card'}]);
+      expect(p1.megaCredits, 'the answer IS what the counter moved').eq(mc + 2);
+    });
+
+    it('another party rules: the TR step is answered by nobody — no answer on the record', () => {
+      const {p1, parliament} = table(1);
+      seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+      expect(parliament.rulingParty()).eq(PartyName.INDUSTRIALISTS);
+      const walk = ChairmanSeat.walkAgenda(p1, parliament, 1, {reason: 'quest'});
+      expect(walk?.steps).deep.eq([{to: 2, bonus: 'tr'}]);
+      expect(parliament.lastAdvance?.steps).deep.eq([{to: 2, bonus: 'tr'}]);
+    });
+
+    it('MarsBot measures nothing: its card step\'s 1 M€ is the step\'s own payment, never an answer', () => {
+      const [game, , bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const parliament = game.parliament!;
+      parliament.agenda.set(bot.id, 6);
+      const mc = bot.megaCredits;
+      const walk = ChairmanSeat.walkAgenda(bot, parliament, 1, {reason: 'quest'});
+      expect(walk?.steps).deep.eq([{to: 7, bonus: 'card'}]);
+      expect(bot.megaCredits, 'the bot\'s card is 1 M€ under the hood').eq(mc + 1);
+    });
+  });
+
   describe('the record on the wire and on disk', () => {
     it('the client model carries the steps and the card', () => {
       const {game, p1, parliament} = table(1);
       ChairmanSeat.walkAgenda(p1, parliament, 2, {reason: 'card', card: CardName.MINORITY_REPRESENTATION});
       const model = getParliamentModel(game, p1)!;
       expect(model.lastAdvance).deep.eq({
-        seq: 1, player: p1.color, from: 1, to: 3, bonus: undefined, steps: [{to: 2, bonus: 'tr'}, {to: 3}],
+        seq: 1, player: p1.color, from: 1, to: 3, bonus: undefined, steps: [{to: 2, bonus: 'tr', ...GREENS_ANSWER}, {to: 3}],
         reason: 'card', card: CardName.MINORITY_REPRESENTATION, generation: game.generation,
       });
     });
@@ -191,7 +228,7 @@ describe('ChairmanSeat.walkAgenda — one walk for the three engines of the trac
       ChairmanSeat.walkAgenda(p1, parliament, 2, {reason: 'card', card: CardName.MINORITY_REPRESENTATION});
       const restored = Game.deserialize(structuredClone(game.serialize())).parliament!;
       expect(restored.lastAdvance).deep.include({from: 1, to: 3, reason: 'card', card: CardName.MINORITY_REPRESENTATION});
-      expect(restored.lastAdvance?.steps).deep.eq([{to: 2, bonus: 'tr'}, {to: 3}]);
+      expect(restored.lastAdvance?.steps).deep.eq([{to: 2, bonus: 'tr', ...GREENS_ANSWER}, {to: 3}]);
     });
 
     it('a save from before TR04 (one step, no `steps`) loads as a walk of that one step', () => {

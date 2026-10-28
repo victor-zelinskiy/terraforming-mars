@@ -33,7 +33,9 @@ import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {parliamentHolds} from './parliamentDisplayHolds';
 import {AgendaMove} from './consoleParliamentModel';
-import {flushAgendaBonus, queueAgendaBonuses, RATING_RAIL_KEY} from './parliamentRewardBeat';
+import {agendaStepAnswerSpecs, flushAgendaBonus, queueAgendaBonuses, RATING_RAIL_KEY} from './parliamentRewardBeat';
+import {StandardMoves} from '@/common/parliament/ParliamentTypes';
+import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 /**
  * THE FLOW'S STAGES — the crumb's tail, one word each
@@ -144,7 +146,7 @@ function parliamentOf(view: PlayerViewModel | undefined): ParliamentModel | unde
 export function detectChairmanQuestAdvance(
   before: PlayerViewModel | undefined,
   after: PlayerViewModel,
-): {move: AgendaMove, bonus?: 'tr' | 'card'} | undefined {
+): {move: AgendaMove, bonus?: 'tr' | 'card', answer?: StandardMoves} | undefined {
   const advance = parliamentOf(after)?.lastAdvance;
   if (advance === undefined || advance.reason !== 'quest' || advance.to === advance.from) {
     return undefined;
@@ -153,9 +155,14 @@ export function detectChairmanQuestAdvance(
   if (before === undefined || (was !== undefined && was.seq >= advance.seq)) {
     return undefined;
   }
+  // The quest walks ONE step: its answer is that step's (the server's measure — the ruling Greens' 2 M€ for its rating).
+  // (`steps` is the model's own since TR04 — an older payload without it simply has no answer.)
+  const steps = advance.steps ?? [];
+  const answer = steps[steps.length - 1]?.answer;
   return {
     move: {player: advance.player, from: advance.from, to: advance.to},
     ...(advance.bonus === undefined ? {} : {bonus: advance.bonus}),
+    ...(answer === undefined ? {} : {answer}),
   };
 }
 
@@ -200,7 +207,7 @@ export function seedChairmanQuestHolds(before: PlayerViewModel | undefined, afte
   // The marker stands on its OLD step until the ПОВЕСТКА beat glides it — the
   // very hold `ConsoleParliamentAgenda` already knows how to read and release.
   parliamentHolds.agendaAwaits = advance.move;
-  seedQuestAgendaBonus(after, advance.move.to, advance.bonus);
+  seedQuestAgendaBonus(after, advance.move.to, advance.bonus, agendaStepAnswerSpecs(advance.answer));
 }
 
 /**
@@ -210,15 +217,17 @@ export function seedChairmanQuestHolds(before: PlayerViewModel | undefined, afte
  * the step the marker reached. Same records, same release — the quest's
  * advance simply is not part of a political phase, so it seeds them itself.
  */
-function seedQuestAgendaBonus(after: PlayerViewModel, step: number, bonus: 'tr' | 'card' | undefined): void {
+function seedQuestAgendaBonus(after: PlayerViewModel, step: number, bonus: 'tr' | 'card' | undefined, reactions: ReadonlyArray<ResourceTransferSpec>): void {
   const viewer = after.thisPlayer?.color;
   if (viewer === undefined || chairmanQuestFlow.move?.player !== viewer || bonus === undefined) {
     return;
   }
   flushAgendaBonus('re-seed');
   const generation = after.game.generation;
+  // THE TABLE'S ANSWER TO THE RATING rides the step's entry (held with it, DECLARED at the queue): the party's record
+  // attaches to the quest's walk and ПОВЕСТКА tells it a beat after the chip — never the chain's second story.
   queueAgendaBonuses([bonus === 'tr' ?
-    {generation, player: viewer, step, kind: 'tr', spec: {channel: 'stock' as const, resource: RATING_RAIL_KEY, amount: 1}} :
+    {generation, player: viewer, step, kind: 'tr', spec: {channel: 'stock' as const, resource: RATING_RAIL_KEY, amount: 1}, ...(reactions.length === 0 ? {} : {reactions})} :
     {generation, player: viewer, step, kind: 'card'}]);
 }
 

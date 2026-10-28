@@ -53,6 +53,7 @@ import {CardName} from '../../../common/cards/CardName';
 import type {Parliament} from '../Parliament';
 import {chooseSeatSlot} from '../BotVoteChooser';
 import {ratingVetoed} from '../ratingVetoGate';
+import {probeStandardMoves, standardMovesSince} from '../standardMoves';
 import {AutomaTurnLog} from '../../automa/AutomaTurnLog';
 
 /** What `seat()` did: the office changed hands here and now, or the player still has to pick the delegate. */
@@ -117,13 +118,21 @@ export class ChairmanSeat {
           break;
         }
         game.log('${0} advances on the Agenda track to step ${1}', (b) => b.player(player).number(advance.to));
+        // WHAT THE TABLE PAID BACK ON THE STEP is MEASURED around the step's own bonus — a step pays a rating or a
+        // card and nothing in stock, so the ruling Greens' 2 M€ for its rating (a card's or a law's answer the same) is
+        // the step's ANSWER: the console tells it a beat after the step's chip (the sitting's winner step, the quest),
+        // never as a second story at the rail's edge. The bot answers nothing — its card is 1 M€ under the hood, the
+        // step's own payment.
+        const probe = player.isMarsBot === true ? undefined : probeStandardMoves(player);
         const vetoed = ChairmanSeat.payStep(player, advance.bonus, advance.to);
+        const answer = probe === undefined ? undefined : standardMovesSince(player, probe);
         taken.push({
           to: advance.to,
           ...(advance.bonus === undefined ? {} : {bonus: advance.bonus}),
           // The step's rating was REFUSED by the standing law (RX42 UNMI Veto — the seat is first by rating): the
           // marker moved, the record says the «+1 TR» did not come, and the presentation strikes it instead of flying it.
           ...(vetoed ? {vetoed: true as const} : {}),
+          ...(answer === undefined ? {} : {answer}),
         });
       }
       if (taken.length === 0) {

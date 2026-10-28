@@ -29,6 +29,9 @@ import {runAllActions, testGame} from '../../TestingUtils';
 import {testAutomaGame} from '../../automa/AutomaTestGame';
 import {quietResolutionOf, seatEnacted, seatResolution} from '../../parliament/parliamentArrange';
 
+/** The ruling Greens' answer to a walked step's rating, MEASURED by the walk (`AgendaAdvanceStep.answer` — 2 M€ per TR). */
+const GREENS_ANSWER = {answer: {stock: {megacredits: 2}}};
+
 /**
  * TR73 — POLITICAL ALLIANCE (Redux replacement of the classic X09). The card
  * file declares everything; every rule reading of its header is pinned here on
@@ -223,7 +226,7 @@ describe('PoliticalAllianceRedux', () => {
       runAllActions(t.game);
       expect(t.p1.terraformRating).eq(tr + 1);
       expect(t.parliament.lastAdvance).deep.include({player: t.p1.id, from: 1, to: 2, reason: 'card', card: CardName.POLITICAL_ALLIANCE_REDUX});
-      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 2, bonus: 'tr'}]);
+      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 2, bonus: 'tr', ...GREENS_ANSWER}]);
       expect(walk.steps.map((s) => s.to), 'the preview promised exactly the walk the play made').deep.eq(t.parliament.lastAdvance?.steps?.map((s) => s.to));
       expect([...t.p1.tableau].map((c) => c.name)).includes(CardName.POLITICAL_ALLIANCE_REDUX);
     });

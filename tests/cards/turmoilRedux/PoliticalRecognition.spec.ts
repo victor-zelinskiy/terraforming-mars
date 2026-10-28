@@ -32,6 +32,9 @@ import {Forecaster} from '../../../src/server/awards/Forecaster';
 import {Scientist} from '../../../src/server/awards/Scientist';
 import {IProjectCard} from '../../../src/server/cards/IProjectCard';
 
+/** The ruling Greens' answer to a walked step's rating, MEASURED by the walk (`AgendaAdvanceStep.answer` — 2 M€ per TR). */
+const GREENS_ANSWER = {answer: {stock: {megacredits: 2}}};
+
 /**
  * TR68 — POLITICAL RECOGNITION: the set's first card on the requirement kind
  * «cards with requirements PLAYED» and the fourth card on the ONE walk of the
@@ -144,7 +147,7 @@ describe('PoliticalRecognition', () => {
       expect(t.parliament.lastAdvance).deep.include({
         player: t.p1.id, from: 6, to: 9, reason: 'card', card: CardName.POLITICAL_RECOGNITION, generation: t.game.generation,
       });
-      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 7, bonus: 'card'}, {to: 8}, {to: 9, bonus: 'tr'}]);
+      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 7, bonus: 'card'}, {to: 8}, {to: 9, bonus: 'tr', ...GREENS_ANSWER}]);
       expect(t.parliament.lastAdvance?.seq, 'the serial moved ONCE for the whole walk').eq(1);
       expect(t.game.gameLog.slice(at).filter((e) => e.message === ADVANCE)).has.lengthOf(3);
       expect([...t.p1.tableau].map((c) => c.name)).includes(CardName.POLITICAL_RECOGNITION);
@@ -155,7 +158,7 @@ describe('PoliticalRecognition', () => {
       play(t);
       expect(t.parliament.agendaOf(t.p1)).eq(3);
       expect(t.parliament.influence(t.p1)).eq(2);
-      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 1}, {to: 2, bonus: 'tr'}, {to: 3}]);
+      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 1}, {to: 2, bonus: 'tr', ...GREENS_ANSWER}, {to: 3}]);
     });
 
     it('ONE agenda-advanced event sourced by the CARD', () => {
@@ -163,7 +166,7 @@ describe('PoliticalRecognition', () => {
       play(t);
       const advanced = t.game.events.events.filter((e) => e.type === 'agenda-advanced');
       expect(advanced).has.lengthOf(1);
-      expect(advanced[0].impact.agenda).deep.eq({from: 1, to: 4, steps: [{to: 2, bonus: 'tr'}, {to: 3}, {to: 4, bonus: 'tr'}], reason: 'card', influence: 2});
+      expect(advanced[0].impact.agenda).deep.eq({from: 1, to: 4, steps: [{to: 2, bonus: 'tr', ...GREENS_ANSWER}, {to: 3}, {to: 4, bonus: 'tr', ...GREENS_ANSWER}], reason: 'card', influence: 2});
       expect(advanced[0].source).deep.include({kind: 'card', card: CardName.POLITICAL_RECOGNITION});
     });
   });
@@ -173,7 +176,7 @@ describe('PoliticalRecognition', () => {
       const ten = table(10);
       play(ten);
       expect(ten.parliament.agendaOf(ten.p1)).eq(12);
-      expect(ten.parliament.lastAdvance?.steps).deep.eq([{to: 11, bonus: 'tr'}, {to: 12}]);
+      expect(ten.parliament.lastAdvance?.steps).deep.eq([{to: 11, bonus: 'tr', ...GREENS_ANSWER}, {to: 12}]);
 
       const eleven = table(11);
       play(eleven);

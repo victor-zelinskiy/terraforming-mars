@@ -26,6 +26,9 @@ import {runAllActions} from '../../TestingUtils';
 import {buildEventChildren} from '../../../src/client/components/journal/journalEventChild';
 import {recomputeRootImpact} from '../../../src/client/components/notifications/notificationModel';
 
+/** The ruling Greens' answer to a walked step's rating, MEASURED by the walk (`AgendaAdvanceStep.answer` — 2 M€ per TR). */
+const GREENS_ANSWER = {answer: {stock: {megacredits: 2}}};
+
 /**
  * TR12 — PARTY SANCTIONS: the chairman strips ONE Popular Support area (the
  * shared step `DiscardPopularSupport`, pinned on its own by
@@ -184,7 +187,7 @@ describe('PartySanctions', () => {
       expect(t.parliament.agendaOf(t.p1)).eq(4);
       expect(t.p1.terraformRating).eq(tr + 1);
       expect(t.parliament.lastAdvance).deep.include({player: t.p1.id, from: 3, to: 4, reason: 'card', card: CardName.PARTY_SANCTIONS});
-      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 4, bonus: 'tr'}]);
+      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 4, bonus: 'tr', ...GREENS_ANSWER}]);
       const lines = t.game.gameLog.slice(at).map((e) => e.message).filter((m) => m === DISCARD_LINE || m === ADVANCE_LINE);
       expect(lines, 'the printed order: discard, then the step').deep.eq([DISCARD_LINE, ADVANCE_LINE]);
       expect([...t.p1.tableau].map((c) => c.name)).includes(CardName.PARTY_SANCTIONS);

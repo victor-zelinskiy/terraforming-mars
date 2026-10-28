@@ -28,6 +28,9 @@ import {runAllActions} from '../../TestingUtils';
 import {buildEventChildren} from '../../../src/client/components/journal/journalEventChild';
 import {recomputeRootImpact} from '../../../src/client/components/notifications/notificationModel';
 
+/** The ruling Greens' answer to a walked step's rating, MEASURED by the walk (`AgendaAdvanceStep.answer` — 2 M€ per TR). */
+const GREENS_ANSWER = {answer: {stock: {megacredits: 2}}};
+
 /**
  * TR37 — RED LAWYERS: TR04's printed walk WITHOUT the influence ceiling — the
  * card for which a CARD step in the MIDDLE of a walk became reachable. The
@@ -194,7 +197,7 @@ describe('RedLawyers', () => {
       expect(t.p1.cardsInHand.length).eq(hand);
       expect(t.p1.cardDrawReveals.at(-1)?.source).deep.eq({type: 'agenda', step: 7});
       expect(t.p1.megaCredits, '20 − 5 for the card + 2 from the Greens for the TR').eq(17);
-      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 6, bonus: 'tr'}, {to: 7, bonus: 'card'}]);
+      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 6, bonus: 'tr', ...GREENS_ANSWER}, {to: 7, bonus: 'card'}]);
       expect(walkLines(t.game, at)).deep.eq([ADVANCE, TR_LINE, ADVANCE, DRAW_LINE]);
     });
 
@@ -205,7 +208,7 @@ describe('RedLawyers', () => {
       play(t);
       expect(t.parliament.agendaOf(t.p1)).eq(11);
       expect(t.p1.terraformRating).eq(tr + 1);
-      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 10, bonus: 'card'}, {to: 11, bonus: 'tr'}]);
+      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 10, bonus: 'card'}, {to: 11, bonus: 'tr', ...GREENS_ANSWER}]);
       expect(walkLines(t.game, at)).deep.eq([ADVANCE, DRAW_LINE, ADVANCE, TR_LINE]);
     });
 
@@ -216,7 +219,7 @@ describe('RedLawyers', () => {
       expect(t.parliament.agendaOf(t.p1)).eq(5);
       expect(t.parliament.influence(t.p1)).eq(3);
       expect(t.p1.terraformRating).eq(tr + 1);
-      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 4, bonus: 'tr'}, {to: 5}]);
+      expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 4, bonus: 'tr', ...GREENS_ANSWER}, {to: 5}]);
     });
   });
 

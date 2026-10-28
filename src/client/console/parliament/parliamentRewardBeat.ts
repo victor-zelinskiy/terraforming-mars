@@ -56,6 +56,7 @@ import {pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsStat
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseModel} from '@/common/models/ParliamentModel';
+import {StandardMoves} from '@/common/parliament/ParliamentTypes';
 import {RewardDelivery, rewardAddressOf} from '@/common/parliament/rewardAddress';
 import {RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {beginPanelRewardHold, declareHeldAnswers, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -102,8 +103,10 @@ export type AgendaBonusOwed = {
    * rating): held on its rows WITH the rating from the seed, never flown, and
    * released one beat of the animation clock after the step's chip has
    * touched the rail — a reaction never ticks before its reason (the rail
-   * reward's own law, `railReward.ts`). Verified against the two views by the
-   * seeder before it is queued.
+   * reward's own law, `railReward.ts`). A card's walk verifies its preview's
+   * promise against the two views (`agendaWalkReactions`); the sitting's winner
+   * step and the quest read the SERVER's measure of the step
+   * (`AgendaAdvanceStep.answer` → `agendaStepAnswerSpecs`).
    */
   reactions?: ReadonlyArray<ResourceTransferSpec>;
   /**
@@ -203,7 +206,7 @@ registerAnimationHoldSupplier('parliament-reward-owed', () => parliamentRewardPe
  */
 export function parliamentAgendaBonusHeld(): boolean {
   return parliamentRewardState.agendaBonuses.some((bonus) => bonus.kind !== 'card' || bonus.lifted !== true || !agendaCardBeforeThePlayer(bonus.step)) ||
-    answering.size > 0;
+    answering.size > 0 || answersFlying.size > 0;
 }
 
 /**
@@ -223,15 +226,62 @@ function agendaCardBeforeThePlayer(step: number): boolean {
  * A flush releases them at once and kills the beat.
  */
 const answering = new Map<number, {beat: ParliamentBeat, specs: ReadonlyArray<ResourceTransferSpec>}>();
+/**
+ * The answers IN THE AIR, by step. A flush never releases their holds: the flight owns them from the beat on (every
+ * touchdown releases its own, every way out of `flyAgendaAnswer` the rest).
+ */
+const answersFlying = new Set<number>();
+/**
+ * THE LANDING OF A STEP'S ANSWER, owed from `answerAgendaStep` to the flight's end — or to the flush that lets it go:
+ * what `agendaAnswerSettled` hands the host that plays ПОВЕСТКА.
+ */
+const answerLandings = new Map<number, {landed: Promise<void>, settle: () => void}>();
+
+function answerLandingOf(step: number): {landed: Promise<void>, settle: () => void} {
+  const known = answerLandings.get(step);
+  if (known !== undefined) {
+    return known;
+  }
+  let resolve: () => void = () => undefined;
+  const landed = new Promise<void>((r) => {
+    resolve = r;
+  });
+  const entry = {
+    landed,
+    settle: (): void => {
+      if (answerLandings.get(step) === entry) {
+        answerLandings.delete(step);
+      }
+      resolve();
+    },
+  };
+  answerLandings.set(step, entry);
+  return entry;
+}
 
 function answerAgendaStep(step: number, specs: ReadonlyArray<ResourceTransferSpec>): void {
   answering.get(step)?.beat.kill();
+  const landing = answerLandingOf(step);
   const beat = scheduleParliamentBeat(TOUCHDOWN_TICK_GAP_MS, () => {
     answering.delete(step);
     trail('answer-agenda', {step, specs: specs.map((spec) => `${spec.channel}:${spec.resource}+${spec.amount}`)});
-    void flyAgendaAnswer(specs);
+    answersFlying.add(step);
+    void flyAgendaAnswer(specs).finally(() => {
+      answersFlying.delete(step);
+      landing.settle();
+    });
   });
   answering.set(step, {beat, specs});
+}
+
+/**
+ * THE STEP'S ANSWER HAS LANDED (or there is none): the host that plays ПОВЕСТКА waits for it before its next beat —
+ * the surfaces go IN TURN (the sitting's support, the quest's receipt never start under the charter's tokens). Resolves
+ * at once when nothing is owed for `step` (any step when omitted). Never rejects.
+ */
+export function agendaAnswerSettled(step?: number): Promise<void> {
+  const owed = step === undefined ? [...answerLandings.values()] : [answerLandings.get(step)].filter((entry) => entry !== undefined);
+  return owed.length === 0 ? Promise.resolve() : Promise.all(owed.map((entry) => entry?.landed)).then(() => undefined);
 }
 
 /**
@@ -271,6 +321,7 @@ function flushAgendaAnswers(why: RewardReleaseReason | string): void {
   for (const [step, pending] of answering) {
     pending.beat.kill();
     pending.specs.forEach((spec) => releasePanelRewardHold(spec));
+    answerLandings.get(step)?.settle();
     trail('flush-answer', {why, step});
   }
   answering.clear();
@@ -412,9 +463,37 @@ export function detectAgendaBonus(before: PlayerViewModel | undefined, after: Pl
   if (was === undefined || was.summary?.agenda !== undefined) {
     return undefined;
   }
-  return agenda.bonus === 'tr' ?
-    {generation: phase.generation, player: viewer, step: agenda.to, kind: 'tr', spec: {channel: 'stock', resource: RATING_RAIL_KEY, amount: 1}} :
-    {generation: phase.generation, player: viewer, step: agenda.to, kind: 'card'};
+  if (agenda.bonus === 'card') {
+    return {generation: phase.generation, player: viewer, step: agenda.to, kind: 'card'};
+  }
+  // THE TABLE'S ANSWER TO THE STEP'S RATING rides the step's own entry (the server measured it around the step — the
+  // ruling Greens' 2 M€): held with the rating, DECLARED at the queue, so the party's record attaches to this walk and
+  // ПОВЕСТКА tells it a beat after the step's chip — never the reaction chain's second story at the rail's edge.
+  const reactions = agendaStepAnswerSpecs(agenda.answer);
+  return {
+    generation: phase.generation, player: viewer, step: agenda.to, kind: 'tr', spec: {channel: 'stock', resource: RATING_RAIL_KEY, amount: 1},
+    ...(reactions.length === 0 ? {} : {reactions}),
+  };
+}
+
+/**
+ * THE TABLE'S ANSWER TO ONE STEP OF THE CAREER as rail chips (pure): the server's measure of the step
+ * (`AgendaAdvanceStep.answer` — what the seat's stock / production gained around the step's own bonus), the GAINS only,
+ * in the rail's row order of the measure (stock first). A loss is never an answer the rail flies.
+ */
+export function agendaStepAnswerSpecs(answer: StandardMoves | undefined): Array<ResourceTransferSpec> {
+  const out: Array<ResourceTransferSpec> = [];
+  for (const [resource, amount] of Object.entries(answer?.stock ?? {})) {
+    if ((amount ?? 0) > 0) {
+      out.push({channel: 'stock', resource, amount: amount ?? 0});
+    }
+  }
+  for (const [resource, amount] of Object.entries(answer?.production ?? {})) {
+    if ((amount ?? 0) > 0) {
+      out.push({channel: 'production', resource, amount: amount ?? 0});
+    }
+  }
+  return out;
 }
 
 // ── the ledger ─────────────────────────────────────────────────────────────
@@ -730,6 +809,9 @@ export function rewardLanded(outcome: ParliamentEnactOutcomeModel): boolean {
 export function resetParliamentRewards(): void {
   flushParliamentRewards('reset');
   flushAgendaBonus('reset');
+  // …and a flight a test left in the air: its landing is let go (nothing waits on a reset).
+  [...answerLandings.values()].forEach((entry) => entry.settle());
+  answersFlying.clear();
   resetCareerGrantBeat();
   resetTableReceiptBeat();
   parliamentRewardState.sitting = '';

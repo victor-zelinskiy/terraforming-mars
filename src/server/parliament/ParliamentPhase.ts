@@ -46,6 +46,7 @@ import {IPlayer} from '../IPlayer';
 import {PlayerId} from '../../common/Types';
 import {Phase} from '../../common/Phase';
 import {Resource} from '../../common/Resource';
+import {copyStandardMoves, probeStandardMoves, StandardMovesProbe, standardMovesSince} from './standardMoves';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {EventTrigger} from '../../common/events/GameEvent';
 import {
@@ -419,7 +420,14 @@ export class ParliamentPhase {
       // The winner's ONE step — the same walk a card takes for N (TR04); the summary keeps its one-step shape.
       const walk = ChairmanSeat.walkAgenda(player, this.parliament, 1, {reason: 'phase'});
       if (walk !== undefined) {
-        this.summary.agenda = {player: player.id, from: walk.from, to: walk.to, bonus: walk.steps[walk.steps.length - 1].bonus};
+        const last = walk.steps[walk.steps.length - 1];
+        // …with THE TABLE'S ANSWER to the step (the ruling Greens' 2 M€ for its rating — measured by the walk): the
+        // console's ПОВЕСТКА tells it a beat after the step's chip, the record attached to the step (never the reaction
+        // chain's second story at the rail's edge).
+        this.summary.agenda = {
+          player: player.id, from: walk.from, to: walk.to, bonus: last.bonus,
+          ...(last.answer === undefined ? {} : {answer: copyStandardMoves(last.answer)}),
+        };
       }
     } finally {
       events.endScope();
@@ -1235,44 +1243,26 @@ const STEPS_BEFORE_THE_EFFECTS_END: ReadonlySet<string> = new Set(['winner', 'as
 export type PhaseWinnerOwner = PartyName | 'NEUTRAL';
 
 /** What a seat stands at before a card answers a change of power — the rating, the hand, the standard stock, the production. */
-type RulingAnswerProbe = {tr: number, hand: number, stock: Map<Resource, number>, production: Map<Resource, number>};
-
-const RULING_ANSWER_STOCK: ReadonlyArray<Resource> = [Resource.MEGACREDITS, Resource.STEEL, Resource.TITANIUM, Resource.PLANTS, Resource.ENERGY, Resource.HEAT];
+type RulingAnswerProbe = {tr: number, hand: number, moves: StandardMovesProbe};
 
 function rulingAnswerProbe(player: IPlayer): RulingAnswerProbe {
-  return {
-    tr: player.terraformRating,
-    hand: player.cardsInHand.length,
-    stock: new Map(RULING_ANSWER_STOCK.map((r) => [r, player.stock.get(r)])),
-    production: new Map(RULING_ANSWER_STOCK.map((r) => [r, player.production.get(r)])),
-  };
+  return {tr: player.terraformRating, hand: player.cardsInHand.length, moves: probeStandardMoves(player)};
 }
 
 /** The card's answer as MEASURED around its hook — undefined when it changed nothing the record carries. */
 function rulingAnswerOf(player: IPlayer, card: CardName, party: ReduxParty, before: RulingAnswerProbe): SerializedRulingAnswer | undefined {
   const tr = player.terraformRating - before.tr;
   const cards = player.cardsInHand.length - before.hand;
-  const stock: Partial<Record<string, number>> = {};
-  const production: Partial<Record<string, number>> = {};
-  for (const resource of RULING_ANSWER_STOCK) {
-    const delta = player.stock.get(resource) - (before.stock.get(resource) ?? 0);
-    if (delta !== 0) {
-      stock[resource] = delta;
-    }
-    const step = player.production.get(resource) - (before.production.get(resource) ?? 0);
-    if (step !== 0) {
-      production[resource] = step;
-    }
-  }
-  if (tr === 0 && cards === 0 && Object.keys(stock).length === 0 && Object.keys(production).length === 0) {
+  // The standard stock and production — the ONE measure the Career's step answers are read by too (`standardMoves.ts`).
+  const moves = standardMovesSince(player, before.moves);
+  if (tr === 0 && cards === 0 && moves === undefined) {
     return undefined;
   }
   return {
     player: player.id, card, party,
     ...(tr === 0 ? {} : {tr}),
     ...(cards === 0 ? {} : {cards}),
-    ...(Object.keys(stock).length === 0 ? {} : {stock}),
-    ...(Object.keys(production).length === 0 ? {} : {production}),
+    ...moves,
   };
 }
 
