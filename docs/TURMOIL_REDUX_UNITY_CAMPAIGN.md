@@ -142,3 +142,21 @@ about WHY. It's about WHY NOT.» (кредит арта «Pablo Palomeque»). Ф
   без болезни задаёт свой вопрос ДВАЖДЫ — и поддержка встаёт только после обоих ответов (`BACK_OF_THE_LINE` за `SUPERPOWER`; спек
   закрепляет: пока стоит вопрос, область пуста). Из корпораций в скоупе на метку Науки отвечает только она (Ferrus Academy / Lotus
   Innovations сами несут метку Науки, но на сыгранные метки не отвечают).
+
+## 9. TRP7 · Industrialists Campaign («Кампания «Индустриалистов»») — шестая и последняя кампания (2026-10-28)
+
+Скан `Prelude_-_TRP7.png`: метка ЭНЕРГИЯ; ряд «[пр. энергии ×3] · 3 [нейтрал] + эмблема Индустриалистов» — «(Increase your energy
+production 3 steps. Add 3 neutral delegates to the Industrialists' Popular Support Area.)». На кромке только ромб Turmoil →
+`compatibility: 'prelude'`. Лор: «The American Dream got replaced with the Martian Dream.» (в `lore_texts.json` её не было — добавлена;
+кредит арта «Sabina Lach»). Файлы: `turmoilRedux/IndustrialistsCampaign.ts`, спек `tests/cards/turmoilRedux/IndustrialistsCampaign.spec.ts`,
+e2e `tests/e2e/console-industrialists-campaign.spec.ts` (TIMING).
+
+- Сервер — даром: `production: {energy: 3}` + митинг. Ничего не спрашивается.
+- **СТОЛ ОТВЕЧАЕТ ПРОИЗВОДСТВУ, А НЕ ЭНЕРГИИ.** Правящие на старте Зелёные отвечают только на производство растений / тепла
+  (`PartyEffects` GREENS) — на энергию нет: ни M€, ни пр. M€, сцены реакции нет (стенд: свидетель `reactionSeen` = 0). Корпорация,
+  отвечающая на ЛЮБОЙ прирост производства (Manutech — 3 энергии сразу), отвечает; поддержка всё равно последняя (спек).
+- Плашка Индустриалистов — в ОППОЗИЦИИ (свидетель `plaqueInRulerSlot` = 0).
+
+**Итог серии.** Шесть кампаний TRP2…TRP7 — одна декларация каждая над `PopularSupportCampaign`: ни одна не потребовала нового движка
+после TRP2 (хост старта митинга, `RallyPrint.recount`, гейт сцены реакции). Различались только шаги ДО митинга: колония (TRP2), город
+(TRP3), добор (TRP4, TRP6), ответ стола (TRP5), ничего (TRP7).
