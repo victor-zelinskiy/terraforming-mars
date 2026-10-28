@@ -1166,6 +1166,7 @@ export enum CardName {
   // Turmoil Redux PRELUDES (TRP1… — `cards/turmoilRedux/LobbyingCampaign.ts` is the first)
   LOBBYING_CAMPAIGN = 'Lobbying Campaign',
   UNITY_CAMPAIGN = 'Unity Campaign',
+  MARS_FIRST_CAMPAIGN = 'Mars First Campaign',
   AEROSPACE_COMPANY = 'Aerospace Company',
 
   // Underworld Standard Projects

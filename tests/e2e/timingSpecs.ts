@@ -37,6 +37,8 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // TRP2 Unity Campaign (2026-10-28): the campaign's rally inside the start — the plaque drawn cube by cube, the beats
   // with no count / coin, «no Parliament while the colonies step stands» are sampled from before the press, never logic.
   'console-unity-campaign.spec.ts',
+  // TRP3 Mars First Campaign (2026-10-28): the same rally after the board's city placement — the same sampled claims.
+  'console-mars-first-campaign.spec.ts',
   // the four the first broad sample named (28 specs at motion ×0.5, 2026-10-21)
   'console-aerial-mappers.spec.ts', // the transfer witness: endsOverGlass at tv4k
   'console-supercomputer.spec.ts', // the transfer witness: endsOverGlass at tv4k

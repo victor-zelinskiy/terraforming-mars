@@ -84,3 +84,18 @@ to want the same thing at once." — Polish saying» (кредит арта «Sh
 | Даром | Требует руки |
 | --- | --- |
 | класс `PopularSupportCampaign` (`campaignParty` + `behavior`), запись, хост старта, фраза без пересчёта, прогноз | TRP3 «Place a city tile» — шаг размещения на старте перед митингом (проверить уход доски в старт); TRP4 «Draw a card» — добор старта + митинг; TRP5 «Gain 2 TR» — РТ-чипы старта |
+
+## 5. TRP3 · Mars First Campaign («Кампания «Марс вперёд»») — вторая кампания (2026-10-28)
+
+Скан `Prelude_-_TRP3.png`: метки МАРС + ГОРОД + ЗДАНИЕ; ряд «[город] · [пр. стали] · 3 [нейтрал] + эмблема «Марс вперёд»» —
+«(Place a city tile. Increase your steel production 1 step. Add 3 neutral delegates to Mars First's Popular Support Area.)». На кромке
+только ромб Turmoil (▲ нет) → `compatibility: 'prelude'`. Лор: «In the face of squalor all ideologies are equal.» (кредит арта
+«marssociety.org»). Файлы: `turmoilRedux/MarsFirstCampaign.ts` (одна декларация над классом), спек
+`tests/cards/turmoilRedux/MarsFirstCampaign.spec.ts`, e2e `tests/e2e/console-mars-first-campaign.spec.ts` (TIMING).
+
+- Сервер — даром: `city: {}` (обычные правила города; нет легальной клетки → прелюдия неразыгрываема) + `production: {steel: 1}` +
+  митинг кампании за городом (BACK_OF_THE_LINE — клетка и её бонус раньше кубов).
+- Консоль — даром: старт уступает поле размещению города (кадр старта остаётся в стеке, сцена прячется «по краске»), запись митинга
+  едет в ответе на клетку с хостом `start`, шаг «ДЕЛЕГАТЫ» встаёт, когда старт снова вершина стека (`workspaceHostForStep`), допуск
+  `followUp` открыт и реакция отыграла. Стенд — тот же, что у TRP2, с размещением на поле вместо шага колоний (свидетель «ни одного
+  кадра Парламента, пока стоит размещение»).

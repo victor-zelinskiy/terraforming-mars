@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  createGameWithCards, crumbText, fetchPlayerModel, openConsole, pickCards, playQueueCard, press, queueCards, sendPlayerInput, settle,
+  createGameWithCards, crumbText, fetchPlayerModel, openConsole, pickCards, placeTile, playQueueCard, press, queueCards, sendPlayerInput, settle,
   soloGameConfig, submitSummary, waitForBoardHome, waitQueueIdle, walkToSummary,
 } from './consoleStart';
 
@@ -36,7 +36,7 @@ type Wire = {
 };
 type Probe = {
   samples: number, ticks: number, parlMax: number, crumbs: Array<string>, beats: Array<string>,
-  unitySupport: Array<number>, countChip: number, degraded: Array<string>, parlWhileColonies: number,
+  unitySupport: Array<number>, countChip: number, degraded: Array<string>, parlWhileColonies: number, parlWhilePlacing: number,
   /** Samples of the SUPPORT beat with Unity's plaque painted on top (its centre hit-tests inside Unity's own tile) / covered. */
   unitySeen: number, unityCovered: number,
   /** Samples of the SUPPORT beat with a card reaction's face painted on screen. */
@@ -57,7 +57,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 async function armProbe(page: Page): Promise<void> {
   await page.evaluate(() => {
     const w = window as unknown as {__trp2: Probe};
-    const p: Probe = {samples: 0, ticks: 0, parlMax: 0, crumbs: [], beats: [], unitySupport: [], countChip: 0, degraded: [], parlWhileColonies: 0, unitySeen: 0, unityCovered: 0, reactionOverRally: 0};
+    const p: Probe = {samples: 0, ticks: 0, parlMax: 0, crumbs: [], beats: [], unitySupport: [], countChip: 0, degraded: [], parlWhileColonies: 0, parlWhilePlacing: 0, unitySeen: 0, unityCovered: 0, reactionOverRally: 0};
     w.__trp2 = p;
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const sample = (tick: boolean) => {
@@ -121,6 +121,10 @@ async function armProbe(page: Page): Promise<void> {
       // The Parliament may not stand while the colonies step is still the start's step (the rally waits its turn).
       if (parls.length > 0 && document.querySelector('.con-start__colonystep .con-colonies') !== null) {
         p.parlWhileColonies++;
+      }
+      // …nor while a board placement the colony's bonus asked for stands (Europa's ocean).
+      if (parls.length > 0 && document.querySelector('.con-context__task-kicker') !== null) {
+        p.parlWhilePlacing++;
       }
       document.querySelectorAll('.con-wshead').forEach((el) => {
         const crumb = text(el);
@@ -206,6 +210,23 @@ test.describe('TRP2 — Unity Campaign: a Prelude\'s colony and its support, ins
     await page.keyboard.press('Enter');
     await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.coloniesCount, {timeout: 30_000, message: 'the server: a colony built'})
       .toBe(before.thisPlayer.coloniesCount + 1);
+    // THE COLONY'S OWN BONUS MAY ASK (the deal is the seed's and the pool's: Europa places an ocean) — the support stands
+    // BEHIND it (the printed order, BACK_OF_THE_LINE), and the bonus's placement is answered on the board.
+    let bonusPlacements = 0;
+    for (let i = 0; i < 60; i++) {
+      const wire = await wireOf(request, playerId);
+      if ((wire.game.parliament.popularSupport[UNITY] ?? 0) > 0) {
+        break;
+      }
+      if (wire.waitingFor?.type === 'space' && await page.locator('.con-context__task-kicker').count() > 0) {
+        expect(wire.game.parliament.popularSupport[UNITY] ?? 0, 'the support waits for the colony\'s bonus placement').toBe(0);
+        expect(await placeTile(page), 'the colony\'s bonus tile was placed').toBe(true);
+        bonusPlacements++;
+        continue;
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    test.info().annotations.push({type: 'colony-bonus', description: `bonus placements answered: ${bonusPlacements}`});
     const after = await wireOf(request, playerId);
     expect(after.game.parliament.popularSupport[UNITY], 'three neutrals in Unity\'s AREA').toBe(3);
     expect(unityVotes(after), 'Unity\'s resolution (if it is up for a vote) took none of them').toBe(unityVotesBefore);
@@ -235,10 +256,11 @@ test.describe('TRP2 — Unity Campaign: a Prelude\'s colony and its support, ins
     await shoot(page, '04-queue-goes-on');
     const probe = await readProbe(page);
     const dump = JSON.stringify({crumbs: probe.crumbs, beats: probe.beats, parlMax: probe.parlMax, unitySupport: probe.unitySupport,
-      countChip: probe.countChip, degraded: probe.degraded, parlWhileColonies: probe.parlWhileColonies, unitySeen: probe.unitySeen, unityCovered: probe.unityCovered, reactionOverRally: probe.reactionOverRally});
+      countChip: probe.countChip, degraded: probe.degraded, parlWhileColonies: probe.parlWhileColonies, parlWhilePlacing: probe.parlWhilePlacing, unitySeen: probe.unitySeen, unityCovered: probe.unityCovered, reactionOverRally: probe.reactionOverRally});
     expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(5);
     expect(probe.parlMax, `ONE Parliament instance (${dump})`).toBe(1);
     expect(probe.parlWhileColonies, `the Parliament waited for the colonies step to leave (${dump})`).toBe(0);
+    expect(probe.parlWhilePlacing, `…and for the colony bonus's placement (${dump})`).toBe(0);
     expect(probe.beats, `the rally's beats: the cubes, the read — no count, no coin (${dump})`).toEqual(expect.arrayContaining(['support', 'read']));
     expect(probe.beats.filter((b) => b === 'count' || b === 'coin'), `no recount, no coin (${dump})`).toEqual([]);
     expect(probe.countChip, `no «в игре» count on the band (${dump})`).toBe(0);
