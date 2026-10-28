@@ -89,6 +89,7 @@ import {LobbyingCampaign} from './LobbyingCampaign';
 import {UnityCampaign} from './UnityCampaign';
 import {MarsFirstCampaign} from './MarsFirstCampaign';
 import {RedsCampaign} from './RedsCampaign';
+import {GreensCampaign} from './GreensCampaign';
 import {AerospaceCompany} from './AerospaceCompany';
 
 /**
@@ -447,6 +448,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // TRP4 — the third campaign: 18 M€ and a card drawn, then 3 neutral delegates into the Reds' Popular Support Area —
     // nothing asked, the support last in the play's own answer. The Mars tag; no Colonies mark.
     [CardName.REDS_CAMPAIGN]: {Factory: RedsCampaign, compatibility: 'prelude'},
+    // TRP5 — the fourth campaign: 2 TR and +1 plant production, then 3 neutral delegates into the Greens' Popular
+    // Support Area — the RULER's own area at the start (they wait until the Greens no longer rule). Plant + Microbe.
+    [CardName.GREENS_CAMPAIGN]: {Factory: GreensCampaign, compatibility: 'prelude'},
     // TRP8 — the first prelude with an ACTION (upstream's `ActivePreludeCard`) and the first with tags (Space + Building):
     // no play effect; «1 mech OR fighter to ANY card» is ONE declaration over a LIST of kinds — one pick, the kind
     // follows the chosen card. Dealt only beside the Prelude expansion, as TRP1.

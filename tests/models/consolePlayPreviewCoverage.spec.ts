@@ -129,7 +129,11 @@ function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch, hand
   return 'gap';
 }
 
-describe('console play-preview coverage', () => {
+describe('console play-preview coverage', function() {
+  // The corpus sweep previews every in-scope card: 1.9–2.1 s alone on the laptop (measured 2026-10-28, the Prelude
+  // campaigns added) — at mocha's 2 s default it failed standalone; the ceiling follows `effectForecastParity.spec`.
+  // eslint-disable-next-line no-invalid-this
+  this.timeout(15_000);
   it('every in-scope cardPlayPreview hook produces only console-hostable steps', () => {
     const gaps: Array<string> = [];
     for (const manifest of ALL_MODULE_MANIFESTS) {
