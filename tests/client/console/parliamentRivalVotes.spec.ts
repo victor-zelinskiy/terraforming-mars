@@ -118,7 +118,7 @@ describe('parliamentRivalVotes — the seed of a rival delegate\'s arrival', () 
       missing: [], votesCut: [],
       support: [{party: PartyName.REDS, current: 1, gained: 1, resulting: 2, printed: 1}, {party: PartyName.MARS, current: 3, gained: 0, resulting: 3, printed: 1, limit: 'area' as const}],
       counted: {votes: [{instance: 'A', seqs: [21]}], support: [{party: PartyName.MARS, count: 3}, {party: PartyName.REDS, count: 2}]},
-      inUse: {before: 4, after: 6}, megacredits: 6, generation: 2,
+      inUse: {before: 4, after: 6}, recount: true, megacredits: 6, generation: 2,
     });
 
     it('its neutral vote flies from the POOL to the ribbon, its support cube from the pool to the plaque\'s next socket — the pool and the plaque held until each has moved', () => {

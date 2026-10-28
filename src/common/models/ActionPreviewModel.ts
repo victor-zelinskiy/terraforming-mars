@@ -995,7 +995,9 @@ export type NeutralRallyModel = {
   supply: {before: number, after: number};
   /** Neutral delegates IN USE (not in the reserve) before → after. */
   inUse: {before: number, after: number};
-  /** `inUse.after` — the M€ gained. */
+  /** The card pays a recount of the neutral delegates in use (TR31); a Prelude campaign (TRP2…) does not. */
+  recount: boolean;
+  /** `inUse.after` — the M€ gained; 0 without a recount. */
   megacredits: number;
 };
 

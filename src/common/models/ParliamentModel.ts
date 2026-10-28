@@ -786,7 +786,13 @@ export type ParliamentRallyModel = {
   };
   /** Neutral delegates IN USE (not in the reserve) before → after the rally. */
   inUse: {before: number, after: number};
-  /** The M€ the recount paid — `inUse.after`. */
+  /**
+   * The card PAYS a recount of the neutral delegates in use (TR31 — «gain M€ equal to the total…»). A rally that pays
+   * nothing (the Prelude campaigns TRP2… — «add 3 neutral delegates to <party>'s Popular Support Area») has no count
+   * and no coin: its phrase ends on the read after the last cube.
+   */
+  recount: boolean;
+  /** The M€ the recount paid — `inUse.after`; 0 when the card pays no recount. */
   megacredits: number;
   generation: number;
 };

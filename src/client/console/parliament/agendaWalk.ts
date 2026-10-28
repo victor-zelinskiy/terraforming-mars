@@ -182,7 +182,7 @@ export function agendaWalkHostFor(): AgendaWalkHost | undefined {
   }
   if (workspaceFrameKnown('start')) {
     // The opening, with no Parliament up (the Prelude's grant asked nothing — rule 3 of TRP1): the start hosts the
-    // walk as a scene step of its own (`ConsoleShell.startWalkStepDue`).
+    // walk as a scene step of its own (`ConsoleShell.startHostedStepDue`).
     return 'start';
   }
   return undefined;

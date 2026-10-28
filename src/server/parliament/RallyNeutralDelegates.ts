@@ -54,8 +54,12 @@ import {payPopularSupport} from './PlaceDelegatesOnResolution';
  * carries the number, the record carries the FULL list the recount marks.
  */
 
-/** What the card prints per resolution and per area. */
-export type RallyPrint = {perResolution: number, perArea: number};
+/**
+ * What the card prints per resolution and per area — and whether it PAYS the recount of the neutral delegates in
+ * use (TR31's «then gain M€ equal to the total…»). A Prelude campaign (TRP2 Unity Campaign and its five sisters —
+ * `{perResolution: 0, perArea: 3, recount: false}`) only fills one party's area: no vote, no count, no coin.
+ */
+export type RallyPrint = {perResolution: number, perArea: number, recount: boolean};
 
 /** Whose deed the rally is — only a card rallies today; the record names it. */
 export type RallyCause = {kind: 'card', card: CardName};
@@ -73,13 +77,15 @@ export function skippedNeutralVote(): {reason: string, skipped: SkippedEffect} {
  * step by step, the winner read on a copy. Nothing is mutated, logged or
  * recorded — the play preview calls this as freely as the play does.
  */
-export function rallyPlan(parliament: Parliament, parties: ReadonlyArray<ReduxParty>, print: RallyPrint = {perResolution: 1, perArea: 1}): NeutralRallyModel {
+export function rallyPlan(parliament: Parliament, parties: ReadonlyArray<ReduxParty>, print: RallyPrint = {perResolution: 1, perArea: 1, recount: true}): NeutralRallyModel {
   const supplyBefore = Math.max(0, parliament.neutralSupply());
   let supply = supplyBefore;
   const copy = parliament.projection();
   const votes: Array<NeutralRallyVoteModel> = [];
   const missing: Array<ReduxParty> = [];
-  for (const party of parties) {
+  // A print with no vote per resolution (the Prelude campaigns) asks nothing of the voting area: no party of it is
+  // «missing» — a named zero about a vote the card never prints would be a lie on the composer's row.
+  for (const party of print.perResolution > 0 ? parties : []) {
     const slot = parliament.slotOf(party);
     if (slot === undefined) {
       missing.push(party);
@@ -121,7 +127,10 @@ export function rallyPlan(parliament: Parliament, parties: ReadonlyArray<ReduxPa
     support.push({party, ...room});
   }
   const inUse = {before: PARLIAMENT_NEUTRAL_DELEGATES - supplyBefore, after: PARLIAMENT_NEUTRAL_DELEGATES - supply};
-  return {parties: [...parties], votes, missing, support, supply: {before: supplyBefore, after: supply}, inUse, megacredits: inUse.after};
+  return {
+    parties: [...parties], votes, missing, support, supply: {before: supplyBefore, after: supply}, inUse,
+    recount: print.recount, megacredits: print.recount ? inUse.after : 0,
+  };
 }
 
 /**
@@ -200,7 +209,8 @@ export function applyRally(player: IPlayer, parliament: Parliament, plan: Neutra
       support: REDUX_PARTIES.map((party) => ({party, count: parliament.popularSupportOf(party)})).filter((entry) => entry.count > 0),
     },
     inUse: {before: plan.inUse.before, after: inUseAfter},
-    megacredits: inUseAfter,
+    recount: plan.recount,
+    megacredits: plan.recount ? inUseAfter : 0,
     generation: game.generation,
   };
   parliament.lastRally = record;

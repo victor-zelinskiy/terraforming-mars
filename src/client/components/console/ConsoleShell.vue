@@ -2074,6 +2074,7 @@ import ConsoleCityPayoutLayer from '@/client/components/console/tilePlacement/Co
 import ConsoleScaleStepRewardLayer from '@/client/components/console/scaleStepReward/ConsoleScaleStepRewardLayer.vue';
 import ConsoleCardReactionLayer from '@/client/components/console/cardReaction/ConsoleCardReactionLayer.vue';
 import {cardReactionPending, hurryCardReactions} from '@/client/console/cardReaction/cardReactionDirector';
+import {cardReactionState} from '@/client/console/cardReaction/cardReactionStage';
 import ConsoleScaleSwingLayer from '@/client/components/console/scaleSwing/ConsoleScaleSwingLayer.vue';
 import {setPlacementPeek} from '@/client/components/board/placementRenderState';
 import {PlacementPeek, peekTargetOf} from '@/client/console/tilePlacement/placementPeek';
@@ -5635,15 +5636,23 @@ export default defineComponent({
         !workspaceFrameKnown('parliament') && !this.consoleState.task.deferred && this.admits('followUp');
     },
     /**
-     * THE START'S WALK STEP IS DUE (TRP1 Lobbying Campaign): the Prelude's answer carried a walk of the Agenda track
-     * owed to the START, no Parliament stands to continue in (the grant asked nothing — an empty reserve — so the
-     * record rode the play's own answer), and the opening still serves. The Parliament is pushed onto the start as
-     * its scene step to play it («СТАРТ ПАРТИИ › … › КАРЬЕРА»); with a vote step still up the walk CONTINUES in that
-     * step instead (`onParliamentFlowComplete`). Rising edge, like the party step's.
+     * THE START'S HOSTED PARLIAMENT STEP IS DUE — the kind it is (`''` when none): a Prelude's answer carried a record
+     * owed to the START with no Parliament standing to play it in, and the opening still serves — a walk of the Agenda
+     * track (TRP1 Lobbying Campaign: the grant asked nothing — an empty reserve — so the record rode the play's own
+     * answer) or a campaign's rally into a party's Popular Support (TRP2 Unity Campaign and its sisters: the record
+     * rode the answer to the play's own colony / city). The Parliament is pushed onto the start as its scene step to
+     * play it («СТАРТ ПАРТИИ › … › КАРЬЕРА» / «› ДЕЛЕГАТЫ»); with a vote step still up a walk CONTINUES in that step
+     * instead (`onParliamentFlowComplete`). `workspaceHostForStep() === 'start'` waits out the play's own steps (the
+     * colonies frame of the campaign's colony pops first), and the step waits out a CARD REACTION still playing — the
+     * table's answer to those steps (the ruling Greens paying for the Io colony's heat production) is the server's
+     * EARLIER effect, and its charter card rising over the column would stand over the very plaques the rally's
+     * cubes land on (the reaction's hold is notification-only, so `admits` does not see it). Rising edge, like the
+     * party step's.
      */
-    startWalkStepDue(): boolean {
-      return startHostedStepToEnter() === 'walk' && workspaceHostForStep() === 'start' &&
-        !this.consoleState.task.deferred && this.admits('followUp');
+    startHostedStepDue(): HostedParliamentStepKind | '' {
+      const kind = startHostedStepToEnter();
+      return kind !== undefined && workspaceHostForStep() === 'start' && !this.consoleState.task.deferred && this.admits('followUp') &&
+        cardReactionState.phase === 'idle' ? kind : '';
     },
     ledgerDiscardStepDue(): boolean {
       return this.ledgerDiscardStepOwed &&
@@ -11878,10 +11887,10 @@ export default defineComponent({
         this.openShellTaskSurface(task);
       }
     },
-    /** The start's walk step has come DUE (TRP1 — a Prelude's walk with no vote step to continue in): the Parliament opens as its scene step. */
-    startWalkStepDue(due: boolean): void {
-      if (due) {
-        this.enterStartWalkStep();
+    /** The start's hosted step has come DUE (a Prelude's walk with no vote step to continue in, a campaign's rally): the Parliament opens as its scene step. */
+    startHostedStepDue(kind: HostedParliamentStepKind | ''): void {
+      if (kind !== '') {
+        this.enterStartHostedStep(kind);
       }
     },
     /** The payout's discard has come DUE (the pair's card is taken, the row pays): the hand opens as the action's step. */
@@ -22287,22 +22296,25 @@ export default defineComponent({
         (stage === AGENDA_WALK_STEP_STAGE || stage === AGENDA_WALK_SEAT_STEP_STAGE || stage === NEUTRAL_RALLY_STEP_STAGE);
     },
     /**
-     * THE START'S WALK STEP (TRP1 Lobbying Campaign — rule 3: the grant asked nothing, the record rode the play's
-     * own answer): the Parliament is pushed onto the START as its scene step (the start row's `frameSteps:
-     * {parliament: 'scene'}` — the same handover as the first action's party step) and the section's own pose opens
-     * on the owed record (`walkOwedSeq`). A beat (`executing`): input is absorbed for the walk's length, B is not
-     * offered. The step leaves by its own hand (`onParliamentFlowComplete('walk')` → one level up).
+     * THE START'S HOSTED STEP — a walk (TRP1 Lobbying Campaign — rule 3: the grant asked nothing, the record rode
+     * the play's own answer) or a rally (TRP2 Unity Campaign — the support behind the colony): the Parliament is
+     * pushed onto the START as its scene step (the start row's `frameSteps: {parliament: 'scene'}` — the same
+     * handover as the first action's party step) AT THE RECORD'S OWN STAGE, and the section's own pose opens on the
+     * owed record (`walkOwedSeq` / `rallyOwedSeq` — the immediate watchers read that stage). A beat (`executing`):
+     * input is absorbed for the step's length, B is not offered. The step leaves by its own hand
+     * (`onParliamentFlowComplete('walk' | 'rally')` → one level up).
      */
-    enterStartWalkStep(): void {
-      const owed = agendaWalkFlow.owed;
-      if (owed === undefined || owed.host !== 'start' || agendaWalkFlow.live || workspaceFrameKnown('parliament')) {
+    enterStartHostedStep(kind: HostedParliamentStepKind): void {
+      const flow = kind === 'walk' ? agendaWalkFlow : neutralRallyFlow;
+      const owed = flow.owed;
+      if (owed === undefined || owed.host !== 'start' || flow.live || workspaceFrameKnown('parliament')) {
         return;
       }
       this.consoleState.task.deferred = false;
       pushWorkspaceFrame({
         kind: 'parliament',
         subject: '',
-        stage: AGENDA_WALK_STEP_STAGE,
+        stage: kind === 'walk' ? AGENDA_WALK_STEP_STAGE : NEUTRAL_RALLY_STEP_STAGE,
         phase: 'executing',
         serves: [],
         anchor: {type: 'always'},

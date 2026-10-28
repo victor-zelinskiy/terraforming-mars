@@ -15,7 +15,7 @@ import * as actionPreviews from '../actionPreviews';
 /** The two parties the card names, in the PRINTED order (the Reds' emblem above Mars First's). */
 export const NATIONALIST_MOVEMENT_PARTIES: ReadonlyArray<ReduxParty> = [PartyName.REDS, PartyName.MARS];
 /** «1 neutral delegate to each … resolution … and to each of their Popular Support Areas». */
-export const NATIONALIST_MOVEMENT_PRINT: RallyPrint = {perResolution: 1, perArea: 1};
+export const NATIONALIST_MOVEMENT_PRINT: RallyPrint = {perResolution: 1, perArea: 1, recount: true};
 
 /**
  * TR31 — NATIONALIST MOVEMENT («Националистическое движение»), a Turmoil

@@ -43,8 +43,12 @@ import {workspaceFrameDescended, workspaceFrameKnown} from '@/client/console/con
 import {releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
 import {parliamentHolds} from './parliamentDisplayHolds';
 
-/** WHO PLAYS the rally: the hand that hosts the Parliament as a step, or a Parliament standing on its own. */
-export type NeutralRallyHost = 'hand' | 'parliament';
+/**
+ * WHO PLAYS the rally: the hand that hosts the Parliament as a step, a Parliament standing on its own — or the START
+ * workspace (TRP2 Unity Campaign and the other Prelude campaigns: a Prelude's support, played in a Parliament the start
+ * pushes as a scene step once the play's own steps — its colony, its city — are answered; the walk's third host, TRP1).
+ */
+export type NeutralRallyHost = 'hand' | 'parliament' | 'start';
 
 /** The rally the answer carried for the viewer's own card, and who is to play it. */
 export type OwedNeutralRally = ParliamentRallyModel & {host: NeutralRallyHost};
@@ -140,11 +144,19 @@ export function detectNeutralRally(before: PlayerViewModel | undefined, after: P
 /**
  * WHO WOULD PLAY a rally that arrives now — read off the stack: the hand the
  * card was played from, with its descent standing; else a Parliament already
- * open on its own; else nobody. The same reading as the walk's.
+ * open on its own; else the start's opening; else nobody. The same reading as the walk's (`agendaWalkHostFor`).
  */
 export function neutralRallyHostFor(): NeutralRallyHost | undefined {
   if (workspaceFrameDescended('hand')) {
     return 'hand';
+  }
+  if (workspaceFrameKnown('start')) {
+    // The OPENING — a Prelude campaign's support arrives with the answer to its colony / its city (or with the play
+    // itself). The start is the host whatever stands over it: a Parliament it hosts as a scene step, or one NESTED in
+    // the play's own steps (the Redux Venus colony's «2 delegates to a resolution», a vote inside the colonies frame
+    // — a Parliament «standing on its own» has no rally player and would only hide the cubes). The start pushes the
+    // rally step of its own once those steps are done (`ConsoleShell.startHostedStepDue`).
+    return 'start';
   }
   if (workspaceFrameKnown('parliament')) {
     return 'parliament';
@@ -189,7 +201,7 @@ export function seedNeutralRallyHolds(before: PlayerViewModel | undefined, after
   flow.supportIncoming = incoming;
   flow.poolHeld = rally.votes.length + landing;
   flow.winnerShown = {instance: rally.winnerBefore};
-  if (rally.megacredits > 0) {
+  if (rally.recount && rally.megacredits > 0) {
     // The M€ of the recount, held on the rail until the coin lands; the play's own price is the known move
     // of the same response (PL-001 for plays — the price is charged with the landing, the gain with its cause).
     seedRailReward(NEUTRAL_RALLY_RAIL_KEY, {

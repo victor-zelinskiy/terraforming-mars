@@ -102,7 +102,7 @@ describe('NationalistMovement', () => {
     expect(requiredPartyOf(card), 'the MIN plate holds the Reds\' emblem — a requirement, not a tag').eq(R);
     expect(card.requirements).has.length(1);
     expect(NATIONALIST_MOVEMENT_PARTIES).deep.eq([R, M]);
-    expect(NATIONALIST_MOVEMENT_PRINT).deep.eq({perResolution: 1, perArea: 1});
+    expect(NATIONALIST_MOVEMENT_PRINT).deep.eq({perResolution: 1, perArea: 1, recount: true});
     const rows = (card.metadata.renderData as unknown as {rows: Array<Array<ItemType>>}).rows;
     expect(rows).has.lengthOf(1);
     const items = rows[0].filter((node: ItemType) => isICardRenderItem(node)) as Array<ICardRenderItem>;

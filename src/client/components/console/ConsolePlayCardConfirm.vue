@@ -5478,7 +5478,10 @@ export default defineComponent({
           rows.push(noteRow(`${name} · +0 · ${translateText(area.limit === 'supply' ? 'no neutral delegates left' : 'area is full')}`));
         }
       }
-      rows.push(noteRow(translateTextWithParams('In use ${0} → ${1}', [String(rally.inUse.before), String(rally.inUse.after)])));
+      // The count of neutral delegates in use is TR31's basis for its M€ — a rally that pays no recount does not print it.
+      if (rally.recount) {
+        rows.push(noteRow(translateTextWithParams('In use ${0} → ${1}', [String(rally.inUse.before), String(rally.inUse.after)])));
+      }
       return rows;
     },
     /** The staged payload of the CHOSEN branch — first Mars boardPlacement

@@ -343,8 +343,9 @@ import {
 import {BenchSource, benchSourceOf, benchWarnOf} from '@/client/console/parliament/parliamentVoteView';
 import {
   setWorkspaceFramePhase, setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameAnchor,
-  workspaceFrameHasNested, workspaceFrameHost, workspaceFrameRenders, workspaceHostYieldsScene, workspaceStackCrumb,
+  workspaceFrameHasNested, workspaceFrameHost, workspaceFrameRenders, workspaceFrameStage, workspaceHostYieldsScene, workspaceStackCrumb,
 } from '@/client/console/consoleWorkspaceStack';
+import {AGENDA_WALK_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE} from '@/client/console/consoleTaskRouter';
 import {translateText} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
 import {useResizeObserver} from '@vueuse/core';
@@ -1067,7 +1068,8 @@ export default defineComponent({
     },
     /** The walk the answer carried for THIS section to play (its serial; 0 = none) — the pose opens on it. */
     walkOwedSeq(): number {
-      return agendaWalkFlow.owed !== undefined && (agendaWalkFlow.owed.host === 'hand' || agendaWalkFlow.owed.host === 'start') && this.embedded && !this.warm ? agendaWalkFlow.owed.seq : 0;
+      const owed = agendaWalkFlow.owed;
+      return owed !== undefined && this.playsHostedStepOf(owed.host, AGENDA_WALK_STEP_STAGE) ? owed.seq : 0;
     },
     /** «ДЕЛЕГАТЫ» — a card's rally of neutral delegates is the section's subject (the rally pose stands, TR31). */
     rallyUp(): boolean {
@@ -1083,7 +1085,8 @@ export default defineComponent({
     },
     /** The rally the answer carried for THIS section to play (its serial; 0 = none) — the pose opens on it. */
     rallyOwedSeq(): number {
-      return neutralRallyFlow.owed !== undefined && neutralRallyFlow.owed.host === 'hand' && this.embedded && !this.warm ? neutralRallyFlow.owed.seq : 0;
+      const owed = neutralRallyFlow.owed;
+      return owed !== undefined && this.playsHostedStepOf(owed.host, NEUTRAL_RALLY_STEP_STAGE) ? owed.seq : 0;
     },
     /** «ДЕЛЕГАТЫ»'s band line: the votes landed, the areas read, the recount's number once it has begun. */
     rallyBand(): BandRally | undefined {
@@ -1091,7 +1094,8 @@ export default defineComponent({
       if (!flow.live || flow.owed === undefined) {
         return undefined;
       }
-      const counting = flow.beat === 'count' || flow.beat === 'coin' || flow.beat === 'read' || flow.beat === 'done';
+      // A rally that pays no recount (the Prelude campaigns) shows no «в игре» count at all — not even a 0 at its read.
+      const counting = flow.owed.recount && (flow.beat === 'count' || flow.beat === 'coin' || flow.beat === 'read' || flow.beat === 'done');
       return {
         votes: flow.landedVotes.map((v) => ({resolution: v.resolution, party: v.party})),
         support: flow.readSupport.map((s) => ({party: s.party, gained: s.gained, ...(s.limit === undefined ? {} : {limit: s.limit})})),
@@ -1937,6 +1941,23 @@ export default defineComponent({
     resetParliamentFlow();
   },
   methods: {
+    /**
+     * Does THIS section play a record owed to `host` as the step `stage`? The hand's step is the EMBEDDED section
+     * (the hand's own zone); the start's is the scene step the start PUSHED for that record — an OVERLAY frame, never
+     * embedded (`workspaceFrameTarget` has no zone for it), read off the stack: hosted by the start AND standing at
+     * the record's own stage (`ConsoleShell.enterStartHostedStep`). A vote step of the start (TRP1's grant) is not
+     * one: its walk CONTINUES in place by the shell's hand (`continueStartWalkInPlace`), after the cubes land.
+     * Never the warm mount.
+     */
+    playsHostedStepOf(host: string, stage: string): boolean {
+      if (this.warm) {
+        return false;
+      }
+      if (host === 'hand') {
+        return this.embedded;
+      }
+      return host === 'start' && this.sceneStepOfStartLive && workspaceFrameStage('parliament') === stage;
+    },
     /** The answer's stage handling (see the `answerKey` watcher). */
     onAnswerKey(key: string): void {
       const f = parliamentFlow;
@@ -2634,6 +2655,8 @@ export default defineComponent({
     openRallyFlow(): void {
       neutralRallyFlow.live = true;
       neutralRallyFlow.beat = 'votes';
+      // The voting area even for a support-only rally (a Prelude campaign): a cursor on the PARTIES zone opens the
+      // focused party's dossier over the column — over the very plaques the cubes land on.
       parliamentFlow.zone = 'voting';
       this.openStage('rally');
       void this.$nextTick(() => probeTick(() => this.playOwedRally()));

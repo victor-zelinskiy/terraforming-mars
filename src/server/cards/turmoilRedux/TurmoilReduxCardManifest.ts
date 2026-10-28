@@ -86,6 +86,7 @@ import {TheDeimosGroup} from './TheDeimosGroup';
 import {TitanHoldings} from './TitanHoldings';
 import {VeynonDynamics} from './VeynonDynamics';
 import {LobbyingCampaign} from './LobbyingCampaign';
+import {UnityCampaign} from './UnityCampaign';
 import {AerospaceCompany} from './AerospaceCompany';
 
 /**
@@ -433,6 +434,11 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // on the scan's left edge is the module itself; a Prelude is dealt only beside the Prelude expansion
     // (`compatibility: 'prelude'` — TR82 Proteus' precedent), so Valley Trust's fallback deck never sees it.
     [CardName.LOBBYING_CAMPAIGN]: {Factory: LobbyingCampaign, compatibility: 'prelude'},
+    // TRP2 — the FIRST of the six CAMPAIGNS (`PopularSupportCampaign`, TRP2…TRP7): 3 titanium, a colony (the DSL's
+    // build), then 3 neutral delegates into Unity's Popular Support Area — the AREA, never Unity's resolution up for a
+    // vote (they wait for the party's next card, the refresh's move). The ▲ on the scan's left edge is the Colonies
+    // mark (Proteus' pair).
+    [CardName.UNITY_CAMPAIGN]: {Factory: UnityCampaign, compatibility: ['prelude', 'colonies']},
     // TRP8 — the first prelude with an ACTION (upstream's `ActivePreludeCard`) and the first with tags (Space + Building):
     // no play effect; «1 mech OR fighter to ANY card» is ONE declaration over a LIST of kinds — one pick, the kind
     // follows the chosen card. Dealt only beside the Prelude expansion, as TRP1.

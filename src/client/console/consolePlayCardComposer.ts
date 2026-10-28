@@ -334,7 +334,8 @@ export function heroRewardEffectsOf(branch: ActionPreviewBranch | undefined): Re
     if (step.kind === 'agendaWalk') {
       ['tr', 'cards', 'agenda', 'influence'].forEach((icon) => stepIcons.add(icon));
     } else if (step.kind === 'neutralRally') {
-      ['megacredits', 'neutral-delegate'].forEach((icon) => stepIcons.add(icon));
+      // The coin is the RECOUNT's (TR31); a rally that pays none (a Prelude campaign) leaves the card's own M€ alone.
+      (step.rally.recount ? ['megacredits', 'neutral-delegate'] : ['neutral-delegate']).forEach((icon) => stepIcons.add(icon));
     }
   }
   if (stepIcons.size === 0) {

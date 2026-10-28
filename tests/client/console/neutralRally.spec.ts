@@ -14,7 +14,7 @@ import {
   RALLY_COUNT_LEAD_MS, RALLY_COUNT_TICK_MS, RALLY_CUBE_GAP_MS, RALLY_READ_MS, RallyBeatScheduler, neutralRallyBudgetMs, neutralRallyHoldMs, rallyCountOrder,
   runNeutralRally,
 } from '@/client/console/parliament/neutralRallyDirector';
-import {dropHostedStepPromises, hostedStepLiveBeat, hostedStepLiveIn, hostedStepOwedTo, hostedStepToEnter} from '@/client/console/parliament/hostedParliamentStep';
+import {dropHostedStepPromises, hostedStepLiveBeat, hostedStepLiveIn, hostedStepOwedTo, hostedStepToEnter, startHostedStepToEnter} from '@/client/console/parliament/hostedParliamentStep';
 import {agendaWalkFlow, resetAgendaWalkFlow} from '@/client/console/parliament/agendaWalk';
 import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {railRewardPending, railRewardState, releaseRailReward} from '@/client/console/resourceTransfer/railReward';
@@ -22,7 +22,7 @@ import {NEUTRAL_RALLY_STAGE_KEY, parliamentCrumbCommitted, parliamentCrumbStage,
 import {winningShownOf} from '@/client/console/parliament/parliamentVoteView';
 import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
 import {parliamentBandLine, RALLY_COUNT_CHIP_ID} from '@/client/console/parliament/parliamentBand';
-import {descendWorkspaceFrame, enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
+import {descendWorkspaceFrame, enterWorkspace, pushWorkspaceFrame, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 import {heroRewardEffectsOf, playCommitVerb, playDoorOf} from '@/client/console/consolePlayCardComposer';
 import {NEUTRAL_RALLY_STEP_STAGE} from '@/client/console/consoleTaskRouter';
 import {ActionPreviewBranch, NeutralRallyModel} from '@/common/models/ActionPreviewModel';
@@ -85,7 +85,16 @@ const RALLY: ParliamentRallyModel = {
   missing: [], votesCut: [],
   support: [{party: R, current: 1, gained: 1, resulting: 2, printed: 1}, {party: M, current: 3, gained: 0, resulting: 3, printed: 1, limit: 'area'}],
   counted: {votes: [{instance: HC, seqs: [3, 11]}, {instance: AA, seqs: [5, 6, 12]}, {instance: AC, seqs: [9, 10]}], support: [{party: M, count: 3}, {party: R, count: 2}, {party: U, count: 2}]},
-  inUse: {before: 11, after: 14}, megacredits: 14, generation: 3,
+  inUse: {before: 11, after: 14}, recount: true, megacredits: 14, generation: 3,
+};
+
+/** A Prelude CAMPAIGN's record (TRP2 Unity Campaign): no vote, three cubes into ONE area, no recount, no M€. */
+const CAMPAIGN: ParliamentRallyModel = {
+  seq: 43, player: BLUE, card: CardName.UNITY_CAMPAIGN, winnerBefore: AC,
+  votes: [], missing: [], votesCut: [],
+  support: [{party: U, current: 0, gained: 3, resulting: 3, printed: 3}],
+  counted: {votes: [], support: [{party: U, count: 3}]},
+  inUse: {before: 0, after: 3}, recount: false, megacredits: 0, generation: 1,
 };
 
 /** The two views of the play's answer: the price (2) paid and the recount (14) gained in ONE response. */
@@ -158,6 +167,34 @@ describe('«ДЕЛЕГАТЫ» — a card\'s rally of neutral delegates (the pur
       seedNeutralRallyHolds(before, after);
       expect(neutralRallyFlow.owed?.host).eq('parliament');
       expect(rallyPoolHeld()).eq(3);
+    });
+
+    it('the START hosts a Prelude campaign\'s rally — alone, and with a Parliament NESTED in the play\'s steps (the Redux Venus colony\'s vote)', () => {
+      enterWorkspace('start', {anchor: {type: 'phase', phase: 'start'}});
+      expect(neutralRallyHostFor()).eq('start');
+      pushWorkspaceFrame({kind: 'colonies', subject: '', stage: '', phase: 'committed', serves: ['colony'], anchor: {type: 'prompt', promptType: 'colony'}});
+      pushWorkspaceFrame({kind: 'parliament', subject: '', stage: 'Voting', phase: 'committed', serves: ['party'], anchor: {type: 'prompt', promptType: 'party'}});
+      expect(neutralRallyHostFor(), 'never a Parliament «on its own» inside the opening — it has no rally player').eq('start');
+      const {before, after} = pair();
+      seedNeutralRallyHolds(before, after);
+      expect(neutralRallyFlow.owed?.host).eq('start');
+      expect(neutralRallyOwedTo('start'), 'owed to the start — its frame stands for it').is.true;
+      expect(hostedStepOwedTo('start')).is.true;
+      expect(startHostedStepToEnter(), 'a Parliament still stands: the step waits for it to leave').is.undefined;
+    });
+
+    it('the START\'s step to enter is the RALLY once no Parliament stands; a campaign holds no M€ row', () => {
+      enterWorkspace('start', {anchor: {type: 'phase', phase: 'start'}});
+      const before = view(model(), 12);
+      const after = view(model({lastRally: CAMPAIGN} as never), 12);
+      seedNeutralRallyHolds(before, after);
+      expect(neutralRallyFlow.owed?.host).eq('start');
+      expect(startHostedStepToEnter()).eq('rally');
+      expect(railRewardPending(NEUTRAL_RALLY_RAIL_KEY), 'no recount: no M€ row is held').is.false;
+      expect(rallySupportIncoming(U)).eq(3);
+      neutralRallyFlow.live = true;
+      expect(startHostedStepToEnter(), 'live: nothing left to enter').is.undefined;
+      expect(hostedStepLiveIn('start')).is.true;
     });
 
     it('NOBODY there: no hold is seeded (a hold nobody would consume freezes the table), the promise is dropped, the state just updates', () => {
@@ -408,6 +445,47 @@ describe('«ДЕЛЕГАТЫ» — a card\'s rally of neutral delegates (the pur
       expect(trail).includes(`vote:${HC}`);
     });
 
+    it('a rally that pays NO recount (a Prelude campaign): the area\'s cubes, then the READ — no count, no coin, no mark', () => {
+      expect(rallyCountOrder(CAMPAIGN)).deep.eq([]);
+      const beats: Array<string> = [];
+      const trail: Array<string> = [];
+      let coins = 0;
+      let marks = 0;
+      const handle = runNeutralRally(CAMPAIGN, {
+        beat: (_ms, fire) => {
+          fire();
+          return {kill: () => undefined};
+        },
+        pool: () => ({left: 0, top: 0, width: 1, height: 1}),
+        votePlace: () => undefined,
+        supportPlace: (_party, place) => ({left: place, top: 0, width: 1, height: 1}),
+        fly: (_from, _to, onLanded, onLifted) => {
+          onLifted();
+          onLanded();
+          return undefined;
+        },
+        coinOrigin: () => undefined,
+        coin: () => {
+          coins++;
+          return Promise.resolve();
+        },
+        onBeat: (b) => beats.push(b),
+        onLifted: () => undefined,
+        onVoteLanded: () => trail.push('vote'),
+        onSupportLanded: (entry) => trail.push(`support:${entry.party}`),
+        onSupportRead: () => trail.push('read-zero'),
+        onCounted: () => marks++,
+        onDegraded: (why) => trail.push(`degraded:${why}`),
+        onDone: () => trail.push('done'),
+      });
+      expect(beats).deep.eq(['votes', 'support', 'read']);
+      expect(trail).deep.eq([`support:${U}`, `support:${U}`, `support:${U}`, 'done']);
+      expect(coins, 'no coin').eq(0);
+      expect(marks, 'no mark').eq(0);
+      expect(handle.active()).is.false;
+      expect(neutralRallyBudgetMs(CAMPAIGN, 400)).eq(3 * (400 + RALLY_CUBE_GAP_MS));
+    });
+
     it('SKIP tears the pending beats down: nothing fires after it', () => {
       const trail: Array<string> = [];
       let fire: (() => void) | undefined;
@@ -479,14 +557,24 @@ describe('«ДЕЛЕГАТЫ» — a card\'s rally of neutral delegates (the pur
     });
 
     it('the SHOW step is not a door: the CTA stays «Play card», the play submits as any other', () => {
-      const rally = {parties: [R, M], votes: [], missing: [R, M], support: [], supply: {before: 3, after: 1}, inUse: {before: 11, after: 13}, megacredits: 13} as NeutralRallyModel;
+      const rally = {parties: [R, M], votes: [], missing: [R, M], support: [], supply: {before: 3, after: 1}, inUse: {before: 11, after: 13}, recount: true, megacredits: 13} as NeutralRallyModel;
       const branch = {index: -1, title: '', available: true, renderKeys: [], effects: [], steps: [{kind: 'neutralRally', rally}]} as unknown as ActionPreviewBranch;
       expect(playDoorOf(branch)).is.undefined;
       expect(playCommitVerb(playDoorOf(branch))).eq('Play card');
     });
 
+    it('a campaign\'s SHOW step takes only the neutral cubes — the card\'s OWN M€ (no recount) stays the landing scene\'s', () => {
+      const rally = {parties: [U], votes: [], missing: [], support: [], supply: {before: 14, after: 11}, inUse: {before: 0, after: 3}, recount: false, megacredits: 0} as NeutralRallyModel;
+      const effects = [
+        {direction: 'gain', icon: 'neutral-delegate', amount: 3, note: 'to Popular Support'},
+        {direction: 'gain', icon: 'megacredits', amount: 18, current: 10, resulting: 28},
+      ];
+      const branch = {index: -1, title: '', available: true, renderKeys: [], effects, steps: [{kind: 'neutralRally', rally}]} as unknown as ActionPreviewBranch;
+      expect(heroRewardEffectsOf(branch).map((e) => e.icon)).deep.eq(['megacredits']);
+    });
+
     it('the landing scene delivers NONE of the rally\'s chips — the neutral delegates are the Parliament\'s cubes, the M€ the recount\'s coin; the walk keeps its own law', () => {
-      const rally = {parties: [R, M], votes: [], missing: [], support: [], supply: {before: 3, after: 0}, inUse: {before: 11, after: 14}, megacredits: 14} as NeutralRallyModel;
+      const rally = {parties: [R, M], votes: [], missing: [], support: [], supply: {before: 3, after: 0}, inUse: {before: 11, after: 14}, recount: true, megacredits: 14} as NeutralRallyModel;
       const effects = [
         {direction: 'gain', icon: 'neutral-delegate', amount: 2, note: 'on resolutions'},
         {direction: 'gain', icon: 'neutral-delegate', amount: 1, note: 'to Popular Support'},

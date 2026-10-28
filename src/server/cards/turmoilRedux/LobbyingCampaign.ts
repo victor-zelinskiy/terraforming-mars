@@ -1,5 +1,6 @@
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
+import {Tag} from '../../../common/cards/Tag';
 import {ActionPreview, AgendaWalkModel} from '../../../common/models/ActionPreviewModel';
 import {Priority} from '../../deferredActions/Priority';
 import {stepsForBehavior} from '../../models/actionPreview';
@@ -20,8 +21,9 @@ export const LOBBYING_CAMPAIGN_STEPS = 1;
  * of the type, in the manifest's `preludeCards` beside its projects and corporations. Its own art and its own printed
  * lore, both keyed TRP1 («Lobbying has an interesting role on a planet ruled by companies.»).
  *
- * SCAN READING — the magenta PRELUDE plate; no tags in the corner (the red planet at the top right is the Mars art
- * disc of every Prelude, not a tag); no cost, no requirement, no VP. The effect row, in print order: a brown
+ * SCAN READING — the magenta PRELUDE plate; ONE tag in the corner: the red planet, the MARS tag (the preludes sheet
+ * settles that the corner discs are tags — TRP2 prints Jupiter, TRP5 a plant and a microbe, TRP6 two Science tags; read
+ * as a bare art disc until TRP2, 2026-10-28); no cost, no requirement, no VP. The effect row, in print order: a brown
  * production plate with «2» on gold (M€ production +2) · two white delegate silhouettes (2 of the player's own
  * delegates) · ONE starred square (one step of the Agenda track, TR04's unit — `agendaStep(1)`). The parenthesised text
  * is the rule: «Increase your M€ production 2 steps. Add 2 delegates to a resolution. Advance your Agenda marker 1
@@ -63,6 +65,7 @@ export class LobbyingCampaign extends PreludeCard {
   constructor() {
     super({
       name: CardName.LOBBYING_CAMPAIGN,
+      tags: [Tag.MARS],
 
       behavior: {
         production: {megacredits: LOBBYING_CAMPAIGN_PRODUCTION},

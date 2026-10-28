@@ -26,7 +26,9 @@
  *   COIN    — ONE «+N M€» born at the kicker's counter, flying to the rail's
  *             M€ row (`flyRailReward` — the row held since the answer, ticking
  *             on the touchdown with its delta chip);
- * then the READ (`RALLY_READ_MS`) and `onDone`. Beats ride the motion clock
+ * then the READ (`RALLY_READ_MS`) and `onDone`. A rally whose card pays no recount
+ * (`recount: false` — the Prelude campaigns, TRP2…: one party's area filled) has
+ * no COUNT and no COIN: the READ follows the last area. Beats ride the motion clock
  * (`parliamentBeat.ts`), never a wall clock; `skip()` is idempotent and tears
  * the pending beats down — the holds go with the caller's teardown.
  *
@@ -60,9 +62,15 @@ export type RallyCountItem =
   | {kind: 'vote', key: string, instance: ResolutionInstanceId, seq: number}
   | {kind: 'place', key: string, party: ReduxParty, place: number};
 
-/** THE RECOUNT'S ORDER (pure): the record's `counted` flattened — every neutral vote by slot in the table's order, then every area's places. */
-export function rallyCountOrder(record: Pick<ParliamentRallyModel, 'counted'>): Array<RallyCountItem> {
+/**
+ * THE RECOUNT'S ORDER (pure): the record's `counted` flattened — every neutral vote by slot in the table's order, then
+ * every area's places. Empty for a rally that pays no recount (`recount: false`): nothing is marked.
+ */
+export function rallyCountOrder(record: Pick<ParliamentRallyModel, 'counted'> & {recount?: boolean}): Array<RallyCountItem> {
   const out: Array<RallyCountItem> = [];
+  if (record.recount === false) {
+    return out;
+  }
   for (const slot of record.counted.votes) {
     for (const seq of slot.seqs) {
       out.push({kind: 'vote', key: rallyVoteKey(slot.instance, seq), instance: slot.instance, seq});
@@ -77,7 +85,7 @@ export function rallyCountOrder(record: Pick<ParliamentRallyModel, 'counted'>): 
 }
 
 /** The rally's hold ceiling: the base, plus one per cube and per mark. */
-export function neutralRallyHoldMs(record: Pick<ParliamentRallyModel, 'votes' | 'support' | 'counted'>): number {
+export function neutralRallyHoldMs(record: Pick<ParliamentRallyModel, 'votes' | 'support' | 'counted'> & {recount?: boolean}): number {
   const cubes = record.votes.length + record.support.reduce((n, s) => n + s.gained, 0);
   return RALLY_HOLD_BASE_MS + RALLY_HOLD_ITEM_MS * (cubes + rallyCountOrder(record).length);
 }
@@ -87,12 +95,14 @@ export function neutralRallyHoldMs(record: Pick<ParliamentRallyModel, 'votes' | 
  * cube flights (`cubeMs` each, the caller's constant), the gaps, the areas'
  * reads, the recount's ticks. What the storyboards and the specs reason about.
  */
-export function neutralRallyBudgetMs(record: Pick<ParliamentRallyModel, 'votes' | 'support' | 'counted'>, cubeMs: number): number {
+export function neutralRallyBudgetMs(record: Pick<ParliamentRallyModel, 'votes' | 'support' | 'counted'> & {recount?: boolean}, cubeMs: number): number {
   let total = record.votes.length * (cubeMs + RALLY_CUBE_GAP_MS);
   for (const entry of record.support) {
     total += entry.gained > 0 ? entry.gained * (cubeMs + RALLY_CUBE_GAP_MS) : SUPPORT_CUBE_STAGGER_MS;
   }
-  total += RALLY_COUNT_LEAD_MS + rallyCountOrder(record).length * RALLY_COUNT_TICK_MS;
+  if (record.recount !== false) {
+    total += RALLY_COUNT_LEAD_MS + rallyCountOrder(record).length * RALLY_COUNT_TICK_MS;
+  }
   return total;
 }
 
@@ -172,6 +182,15 @@ export function runNeutralRally(record: ParliamentRallyModel, stage: NeutralRall
     }
   };
 
+  // ── the read, the phrase's last beat ──
+  const read = (): void => {
+    stage.onBeat('read');
+    wait(RALLY_READ_MS, () => {
+      active = false;
+      stage.onDone();
+    });
+  };
+
   // ── beat 4: the coin, then the read ──
   const coin = (): void => {
     stage.onBeat('coin');
@@ -179,11 +198,7 @@ export function runNeutralRally(record: ParliamentRallyModel, stage: NeutralRall
       if (!active) {
         return;
       }
-      stage.onBeat('read');
-      wait(RALLY_READ_MS, () => {
-        active = false;
-        stage.onDone();
-      });
+      read();
     }, () => {
       if (active) {
         active = false;
@@ -212,7 +227,12 @@ export function runNeutralRally(record: ParliamentRallyModel, stage: NeutralRall
       stage.onBeat('support');
     }
     if (index >= record.support.length) {
-      wait(RALLY_COUNT_LEAD_MS, () => count(0));
+      if (record.recount === false) {
+        // No recount printed: no count, no coin — the read follows the last area (its gap already breathed).
+        read();
+      } else {
+        wait(RALLY_COUNT_LEAD_MS, () => count(0));
+      }
       return;
     }
     const entry = record.support[index];

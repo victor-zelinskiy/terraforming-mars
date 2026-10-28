@@ -13,6 +13,7 @@ import {cast} from '../../../src/common/utils/utils';
 import {AGENDA_TRACK_ICON} from '../../../src/server/cards/actionPreviews';
 import {CardName} from '../../../src/common/cards/CardName';
 import {CardType} from '../../../src/common/cards/CardType';
+import {Tag} from '../../../src/common/cards/Tag';
 import {Phase} from '../../../src/common/Phase';
 import {CardRenderItemType} from '../../../src/common/cards/render/CardRenderItemType';
 import {ICardRenderItem, ItemType, isICardRenderItem, isICardRenderProductionBox} from '../../../src/common/cards/render/Types';
@@ -77,10 +78,10 @@ function walkOf(t: Table): AgendaWalkModel {
 
 describe('LobbyingCampaign', () => {
   describe('the card as printed', () => {
-    it('is a PRELUDE with no tags, no VP, TRP1 — printing «+2 M€ production · 2 delegates · 1 Agenda step» in that order', () => {
+    it('is a PRELUDE with the Mars tag, no VP, TRP1 — printing «+2 M€ production · 2 delegates · 1 Agenda step» in that order', () => {
       const card = new LobbyingCampaign();
       expect(card.type).eq(CardType.PRELUDE);
-      expect(card.tags).deep.eq([]);
+      expect(card.tags).deep.eq([Tag.MARS]);
       expect(card.cost).eq(0);
       expect(card.victoryPoints).is.undefined;
       expect(card.requirements).deep.eq([]);

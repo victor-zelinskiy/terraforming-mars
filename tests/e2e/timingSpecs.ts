@@ -34,6 +34,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // TRP1 Lobbying Campaign (2026-10-27): the Prelude's vote and walk inside the start's one Parliament step — the walk's
   // beats and the «never leaving between the two» claim are sampled from before the press, never logic.
   'console-lobbying-campaign.spec.ts',
+  // TRP2 Unity Campaign (2026-10-28): the campaign's rally inside the start — the plaque drawn cube by cube, the beats
+  // with no count / coin, «no Parliament while the colonies step stands» are sampled from before the press, never logic.
+  'console-unity-campaign.spec.ts',
   // the four the first broad sample named (28 specs at motion ×0.5, 2026-10-21)
   'console-aerial-mappers.spec.ts', // the transfer witness: endsOverGlass at tv4k
   'console-supercomputer.spec.ts', // the transfer witness: endsOverGlass at tv4k
