@@ -90,6 +90,7 @@ import {UnityCampaign} from './UnityCampaign';
 import {MarsFirstCampaign} from './MarsFirstCampaign';
 import {RedsCampaign} from './RedsCampaign';
 import {GreensCampaign} from './GreensCampaign';
+import {ScientistsCampaign} from './ScientistsCampaign';
 import {AerospaceCompany} from './AerospaceCompany';
 
 /**
@@ -451,6 +452,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // TRP5 — the fourth campaign: 2 TR and +1 plant production, then 3 neutral delegates into the Greens' Popular
     // Support Area — the RULER's own area at the start (they wait until the Greens no longer rule). Plant + Microbe.
     [CardName.GREENS_CAMPAIGN]: {Factory: GreensCampaign, compatibility: 'prelude'},
+    // TRP6 — the fifth campaign: 3 cards drawn (one batch), then 3 neutral delegates into the Scientists' Popular
+    // Support Area — nothing of its own asked; its two Science tags are played tags (Pharmacy Union answers both).
+    [CardName.SCIENTISTS_CAMPAIGN]: {Factory: ScientistsCampaign, compatibility: 'prelude'},
     // TRP8 — the first prelude with an ACTION (upstream's `ActivePreludeCard`) and the first with tags (Space + Building):
     // no play effect; «1 mech OR fighter to ANY card» is ONE declaration over a LIST of kinds — one pick, the kind
     // follows the chosen card. Dealt only beside the Prelude expansion, as TRP1.

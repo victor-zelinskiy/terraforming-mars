@@ -43,6 +43,8 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-reds-campaign.spec.ts',
   // TRP5 Greens Campaign (2026-10-28): the rally onto the RULER's plaque after the table's answer — sampled claims.
   'console-greens-campaign.spec.ts',
+  // TRP6 Scientists Campaign (2026-10-28): the rally after the start's draw of THREE (one batch) — sampled claims.
+  'console-scientists-campaign.spec.ts',
   // the four the first broad sample named (28 specs at motion ×0.5, 2026-10-21)
   'console-aerial-mappers.spec.ts', // the transfer witness: endsOverGlass at tv4k
   'console-supercomputer.spec.ts', // the transfer witness: endsOverGlass at tv4k

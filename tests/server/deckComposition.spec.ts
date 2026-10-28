@@ -84,11 +84,11 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
       .filter((name) => !TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(name as CardName)).length +
       Object.keys(TURMOIL_REDUX_CARD_MANIFEST.corporationCards).length;
     expect(adaptedCorporations, '4 classic + TR77 + the new corporations authored (TR78 Arwind Inc., TR79 Ferrus Academy, TR80 Hartlan Heating, TR81 Lotus Innovations, TR82 Proteus, TR83 The Deimos Group, TR84 Titan Holdings, TR85 Veynon Dynamics)').eq(13);
-    // …and the set's own PRELUDES (TRP1 Lobbying Campaign — the first; TRP2 Unity Campaign — the first campaign; TRP3 Mars First Campaign; TRP4 Reds Campaign; TRP5 Greens Campaign; TRP8 Aerospace
+    // …and the set's own PRELUDES (TRP1 Lobbying Campaign — the first; TRP2 Unity Campaign — the first campaign; TRP3 Mars First Campaign; TRP4 Reds Campaign; TRP5 Greens Campaign; TRP6 Scientists Campaign; TRP8 Aerospace
     // Company — the first with an action;
     // dealt only beside Preludes, which this creator config has).
     const reduxPreludes = Object.keys(TURMOIL_REDUX_CARD_MANIFEST.preludeCards).length;
-    expect(reduxPreludes, 'TRP1 Lobbying Campaign + TRP2 Unity Campaign + TRP3 Mars First Campaign + TRP4 Reds Campaign + TRP5 Greens Campaign + TRP8 Aerospace Company').eq(6);
+    expect(reduxPreludes, 'TRP1 Lobbying Campaign + TRP2 Unity Campaign + TRP3 Mars First Campaign + TRP4 Reds Campaign + TRP5 Greens Campaign + TRP6 Scientists Campaign + TRP8 Aerospace Company').eq(7);
     expect(c.contributions.turmoilRedux).deep.eq({projects: 70 + projectReplacements + adaptedClassic, corporations: adaptedCorporations, preludes: reduxPreludes, colonies: additions, resolutions: c.extras.resolutions});
     expect(c.contributions.colonies?.colonies).eq(pool.length - additions);
   });

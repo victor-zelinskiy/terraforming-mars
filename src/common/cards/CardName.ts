@@ -1169,6 +1169,7 @@ export enum CardName {
   MARS_FIRST_CAMPAIGN = 'Mars First Campaign',
   REDS_CAMPAIGN = 'Reds Campaign',
   GREENS_CAMPAIGN = 'Greens Campaign',
+  SCIENTISTS_CAMPAIGN = 'Scientists Campaign',
   AEROSPACE_COMPANY = 'Aerospace Company',
 
   // Underworld Standard Projects

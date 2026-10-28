@@ -128,3 +128,17 @@ your plant production 1 step. Add 3 neutral delegates to the Greens' Popular Sup
   у стартовых Зелёных сохранены — `rulesByCard` false), и кубы садятся туда (свидетель стенда `plaqueInRulerSlot`).
 - **ОТВЕТ СТОЛА.** Правящие Зелёные отвечают на розыгрыш: 2 M€ за шаг РТ (+4 M€) и +1 к производству M€ за производство растений (спек
   закрепляет). Консоль играет это сценой реакции ДО шага «ДЕЛЕГАТЫ» (шаг ждёт `cardReactionState.phase === 'idle'`).
+
+## 8. TRP6 · Scientists Campaign («Кампания «Учёных»») — пятая кампания: добор 3 (2026-10-28)
+
+Скан `Prelude_-_TRP6.png`: метки НАУКА + НАУКА; ряд «три рубашки карт · 3 [нейтрал] + эмблема Учёных» — «(Draw 3 cards. Add 3 neutral
+Delegates to the Scientists' Popular Support Area.)». На кромке только ромб Turmoil → `compatibility: 'prelude'`. Лор: «Science isn't
+about WHY. It's about WHY NOT.» (кредит арта «Pablo Palomeque»). Файлы: `turmoilRedux/ScientistsCampaign.ts`, спек
+`tests/cards/turmoilRedux/ScientistsCampaign.spec.ts`, e2e `tests/e2e/console-scientists-campaign.spec.ts` (TIMING).
+
+- Сервер — даром: `drawCard: 3` (обычный добор, все три остаются — ОДНА партия «одно действие — один забор», спек закрепляет) + митинг.
+  Ничего своего не спрашивается. Консоль — как TRP4: «ДОБОР КАРТ» (три карты) → «ДЕЛЕГАТЫ».
+- **ДВЕ МЕТКИ НАУКИ — сыгранные метки.** Всё, что отвечает на метку Науки, отвечает на обе: Pharmacy Union с болезнью снимает две (+2 РТ),
+  без болезни задаёт свой вопрос ДВАЖДЫ — и поддержка встаёт только после обоих ответов (`BACK_OF_THE_LINE` за `SUPERPOWER`; спек
+  закрепляет: пока стоит вопрос, область пуста). Из корпораций в скоупе на метку Науки отвечает только она (Ferrus Academy / Lotus
+  Innovations сами несут метку Науки, но на сыгранные метки не отвечают).
