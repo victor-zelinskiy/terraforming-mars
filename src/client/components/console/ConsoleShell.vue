@@ -2240,6 +2240,11 @@ import {
   setMandatoryGateHeld, isResolutionAsk, isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {START_STRAND_CONFIRM_MS, START_STRAND_YIELD_MS, startStranded, startYieldsForHeldPlacement} from '@/client/console/startServing';
 import {
+  ActualStartOwner, START_SHADOW_CONFIRM_MS, START_SHADOW_HELD_MS, StartOwner, StartShadowFinding, actualStartOwner,
+  expectedStartOwner, recordStartShadowFinding, startShadowInScope, startShadowLog, startShadowVerdict,
+} from '@/client/console/startDirector';
+import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
+import {
   AdmissionSignals,
   PromptSurface,
   isPromptAdmitted,
@@ -2589,6 +2594,8 @@ export default defineComponent({
       startStrandYield: false,
       startStrandTimer: undefined as number | undefined,
       startStrandPrompt: undefined as number | undefined,
+      /** THE START SHADOW (`startDirector.ts`, phase 0): the confirm timer of a disagreement / a long hold. */
+      startShadowTimer: undefined as number | undefined,
       /**
        * A PLACEMENT IS LIVE — the `placementActive` watcher's own record (a data field, so the admission computed may
        * read it without a cycle through `placementHeld`): the `remote-landing` block holds a placement that is NOT yet
@@ -4818,6 +4825,46 @@ export default defineComponent({
           isConsoleHandPickActive() || this.consoleState.task.deferred || isAnimationHoldActive() ||
           isMandatoryGateHeld(),
       });
+    },
+    /**
+     * THE START SHADOW (`startDirector.ts`, phase 0 of «правда сервера → одно состояние → один владелец экрана»): who
+     * MUST serve the screen by the server's one question, beside who the latch machinery actually put there. Read only
+     * — nothing here changes the screen; a sustained disagreement is logged (`[start-shadow]`).
+     */
+    startShadowNow(): {expected: StartOwner, actual: ActualStartOwner, held: string | undefined, prompt: string} {
+      const wf = this.playerView.waitingFor;
+      const task = taskFor(this.playerView);
+      const title = wf?.title;
+      const expected = expectedStartOwner({
+        prompt: wf === undefined ? undefined : {
+          type: wf.type,
+          startKind: wf.startGamePrompt?.kind,
+          bonusAction: wf.bonusActionPrompt !== undefined,
+          actionMenu: wf.type === 'or' && isActionMenuTitle(typeof title === 'string' ? title : title?.message),
+          task: task?.kind,
+        },
+        generation: this.playerView.game.generation,
+      });
+      const actual = actualStartOwner({
+        mounted: this.startSceneMounted,
+        visible: this.startSceneVisible,
+        serves: consoleStartState.serves,
+        firstActStage: consoleStartState.firstAct.stage !== 'idle',
+        placementLive: this.placementActive,
+        promptSurface: this.startPromptSurfaceStands || this.standalonePromptSurfaceStands,
+        strandYield: this.startStrandYield,
+        parked: this.consoleState.task.deferred,
+      });
+      const held = wf === undefined ? undefined :
+        (wf.type === 'space' ? promptAdmissionBlock('placement', this.admissionSignals) : promptAdmissionBlock('host', this.admissionSignals));
+      const prompt = wf === undefined ? '—' :
+        `${wf.type}:${wf.startGamePrompt?.kind ?? task?.kind ?? ''}#${wf.promptId ?? ''}`;
+      return {expected, actual, held: held ?? undefined, prompt};
+    },
+    /** One string per judged state — the watcher fires on a CHANGE, never on a recompute that changed nothing. */
+    startShadowSig(): string {
+      const s = this.startShadowNow;
+      return `${s.expected}|${s.actual}|${s.held ?? ''}|${s.prompt}`;
     },
     /** MOUNTED ≠ VISIBLE. The scene owns the start's lifetime (its hold, its
      *  claims, its release beat), so it stays mounted through a yield and
@@ -12017,6 +12064,47 @@ export default defineComponent({
           this.startStrandYield = true;
         }, START_STRAND_YIELD_MS);
       }, START_STRAND_CONFIRM_MS);
+    },
+    /**
+     * THE START SHADOW's judge (phase 0): a disagreement between the server's one question and the latch machinery is
+     * a FINDING once it has stood `START_SHADOW_CONFIRM_MS` unchanged with the prompt admitted; a prompt held behind an
+     * admission block for `START_SHADOW_HELD_MS` is one too. Logged once per (kind, owners, prompt) — never acted on.
+     */
+    startShadowSig(sig: string): void {
+      window.clearTimeout(this.startShadowTimer);
+      this.startShadowTimer = undefined;
+      const s = this.startShadowNow;
+      if (!startShadowInScope(s.expected, s.actual)) {
+        return;
+      }
+      startShadowLog.judged++;
+      const verdict = startShadowVerdict(s.expected, s.actual, s.held);
+      if (verdict === 'agree') {
+        return;
+      }
+      const held = verdict === 'held';
+      this.startShadowTimer = window.setTimeout(() => {
+        this.startShadowTimer = undefined;
+        if (this.startShadowSig !== sig) {
+          return;
+        }
+        const finding: StartShadowFinding = {
+          kind: held ? 'held-long' : 'disagree', expected: s.expected, actual: s.actual, block: s.held,
+          prompt: s.prompt, at: Math.round(performance.now()),
+        };
+        if (!recordStartShadowFinding(finding)) {
+          return;
+        }
+        const diag = (window as unknown as {__conStartDiag?: () => unknown}).__conStartDiag?.();
+        console.warn(`[start-shadow] ${finding.kind} — expected «${s.expected}», on screen «${s.actual}»` +
+          `${held ? ` (held by «${s.held}»)` : ''} for «${s.prompt}»`, JSON.stringify({
+          ...finding,
+          serves: consoleStartState.serves ?? null,
+          firstAct: consoleStartState.firstAct.stage,
+          frames: workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`),
+          diag: diag ?? null,
+        }));
+      }, held ? START_SHADOW_HELD_MS : START_SHADOW_CONFIRM_MS);
     },
     /** The question the strand was yielded for is answered (or replaced): the start takes its screen back. */
     'playerView.waitingFor.promptId'(id: number | undefined): void {
@@ -24484,6 +24572,10 @@ export default defineComponent({
     // THE START YIELDS ITS SCENE, NOT ITS FRAME (the reliability iteration): while it does, the board is on screen.
     registerBoardShownDespiteStack(() => this.startSceneMounted && !this.startSceneVisible &&
       workspaceStackState.frames.length === 1 && workspaceStackState.frames[0].kind === 'start');
+    // THE START SHADOW's reader (phase 0) — the findings so far and the judged state right now.
+    (window as unknown as {__conStartShadow?: () => unknown}).__conStartShadow = () => ({
+      findings: [...startShadowLog.findings], judged: startShadowLog.judged, now: this.startShadowNow,
+    });
     // A decision that IS its pick standing at boot (a reload mid-prompt) opens its album — the watcher is not
     // `immediate`, so the mount edge is asked here.
     this.openEffectDecisionPick(this.effectDecisionDirectPick);
@@ -24918,6 +25010,8 @@ export default defineComponent({
     registerGenerationSceneHandoff(undefined); // a dead shell's director must not gate the next game's rise
     handoffPendingEntries.clear();
     window.clearTimeout(this.startStrandTimer); // the start watchdog dies with its shell
+    window.clearTimeout(this.startShadowTimer); // …and its shadow
+    delete (window as unknown as {__conStartShadow?: unknown}).__conStartShadow;
     registerBoardShownDespiteStack(undefined);
     setConsoleTaskHandoffPending(false);
     registerColonyTrackMoveHost(undefined);

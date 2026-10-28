@@ -20,8 +20,9 @@ import {
  * Asserted along that road:
  *  · while the city is asked and its grid is not lit, the scene is never painted serving something else
  *    (`data-start-serves` ∈ yielded · beat), and the grid lights within a beat of the question;
- *  · the scene never stood «serving nothing» for longer than the watchdog's confirm (sampled every 150 ms) — and the
- *    harness's `startStrandGuard` fails the test on any confirmed `[start-stranded]` besides;
+ *  · the START DIRECTOR's shadow (`startDirector.ts`) found nothing: the server's one question and what stood on
+ *    screen never disagreed past its confirm, and no question was held over an empty screen — and the harness's
+ *    `startStrandGuard` fails the test on any confirmed `[start-stranded]` besides;
  *  · the first-action stage stands at the end.
  */
 const PRESET = {viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
@@ -33,24 +34,15 @@ const OUT = path.resolve('screenshots', 'start-held-placement', 'tv');
 type WireOption = {type: string, title?: unknown};
 type Wire = {waitingFor?: {type: string, startGamePrompt?: {kind: string}, options?: Array<WireOption>}, thisPlayer: {coloniesCount: number}};
 const wireOf = async (r: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(r, id) as unknown as Wire;
-type Probe = {samples: Array<string>};
 
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT, {recursive: true});
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
 
-/** From now on: the scene's own verdict, every 150 ms (a task clock — never rAF). */
-async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__heldProbe: {samples: Array<string>}};
-    w.__heldProbe = {samples: []};
-    window.setInterval(() => {
-      w.__heldProbe.samples.push(document.querySelector('.con-start')?.getAttribute('data-start-serves') ?? 'absent');
-    }, 150);
-  });
-}
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__heldProbe: Probe}).__heldProbe);
+/** The START DIRECTOR's shadow findings of this page (`window.__conStartShadow`, phase 0). */
+const shadowFindings = (page: Page): Promise<Array<unknown>> =>
+  page.evaluate(() => (window as unknown as {__conStartShadow?: () => {findings: Array<unknown>}}).__conStartShadow?.().findings ?? []);
 
 test.use({viewport: PRESET.viewport, deviceScaleFactor: 1, screen: PRESET.viewport});
 
@@ -86,7 +78,6 @@ test('the owner\'s start: Strategic Base Planning → Triton → the city lands 
   try {
     await openConsole(page, me, PRESET.query);
     await page.locator('.con-start--ceremony').waitFor({timeout: 90_000});
-    await armProbe(page);
     await settle(page, {timeoutMs: 30_000});
     await shoot(page, '01-deployment');
 
@@ -184,16 +175,7 @@ test('the owner\'s start: Strategic Base Planning → Triton → the city lands 
     }
     await page.locator('.con-start__firstact').waitFor({timeout: 10_000});
     await shoot(page, '04-first-action');
-    const probe = await readProbe(page);
-    // An empty sample is legitimate between two answers; a RUN of them longer than the watchdog's confirm is not.
-    let run = 0;
-    let longest = 0;
-    for (const s of probe.samples) {
-      run = s === 'none' ? run + 150 : 0;
-      longest = Math.max(longest, run);
-    }
-    expect(longest, `the scene never stood empty for long (${probe.samples.filter((s) => s === 'none').length}/${probe.samples.length} empty samples)`)
-      .toBeLessThan(2500);
+    expect(await shadowFindings(page), 'the start director shadow found no disagreement and no question held over an empty screen').toEqual([]);
     expect(errors, 'no page errors').toEqual([]);
   } finally {
     stop = true;

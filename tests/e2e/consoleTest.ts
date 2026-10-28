@@ -252,6 +252,13 @@ const COVERED_PROMPT = 'COVERED PROMPT';
  */
 const START_STRANDED = '[start-stranded]';
 /**
+ * The START SHADOW's marker (`src/client/console/startDirector.ts`, phase 0 of «правда сервера → одно состояние → один
+ * владелец экрана», 2026-10-29): who the server's one question says must serve the screen disagreed, for a while, with
+ * what the start's latches put there. DATA, never red — the harness files every finding under
+ * `test-results/start-shadow/` and annotates the test; the migration reads the whole suite's findings.
+ */
+const START_SHADOW = '[start-shadow]';
+/**
  * The «flight end» sentinel's marker (`src/client/console/resourceTransfer/consoleResourceTransfer.ts` — T06 «ОБА КОНЦА
  * ПОЛЁТА — ЖИВЫЕ»): a resource token was born on, or touched down over, a point where NOTHING was painted (the page, the
  * console's bare root) — a token out of nothing / into nothing. An object end can never print it (it is measured through
@@ -349,7 +356,7 @@ function sleepSiteOf(stack: string): string {
   return '<unknown>';
 }
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, transferEndsGuard: void, stallHarvest: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, startShadowHarvest: void, transferEndsGuard: void, stallHarvest: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
   /**
    * CI's STARVED RENDERER ON DEMAND (`TM_E2E_CPU_THROTTLE=<rate>`, e.g. 4): every page of the test's context runs under
    * CDP CPU throttling. CI's 4K software raster on a shared runner starves the main thread for hundreds of ms — the
@@ -598,6 +605,33 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     if (strands.length > 0) {
       throw new Error(`START STRANDED — the game-start scene stood serving nothing while the server asked:\n  ${strands.join('\n  ')}`);
     }
+  }, {auto: true}],
+
+  /**
+   * EVERY TEST: the START SHADOW's findings (`[start-shadow]`) are FILED, never failed — one JSON per test under
+   * `<outputDir>/start-shadow/` (pulled back from the box with `test-results/`) and a `start-shadow` annotation.
+   */
+  startShadowHarvest: [async ({context}, use, testInfo) => {
+    const lines: Array<string> = [];
+    const watch = (page: Page) => {
+      page.on('console', (message) => {
+        const text = message.text();
+        if (text.includes(START_SHADOW)) {
+          lines.push(text.slice(0, 4000));
+        }
+      });
+    };
+    context.pages().forEach(watch);
+    context.on('page', watch);
+    await use();
+    if (lines.length === 0) {
+      return;
+    }
+    testInfo.annotations.push({type: 'start-shadow', description: `${lines.length} finding(s): ${lines.map((l) => l.split(' — ')[1]?.split(' {')[0] ?? l).join(' · ').slice(0, 600)}`});
+    const dir = path.join(testInfo.project.outputDir, 'start-shadow');
+    fs.mkdirSync(dir, {recursive: true});
+    const slug = `${path.basename(testInfo.file, '.spec.ts')}--${testInfo.title}`.replace(/[^w.-]+/g, '-').slice(0, 150);
+    fs.writeFileSync(path.join(dir, `${slug}-r${testInfo.retry}.json`), JSON.stringify({file: path.basename(testInfo.file), title: testInfo.title, retry: testInfo.retry, findings: lines}, null, 1));
   }, {auto: true}],
 
   /**
