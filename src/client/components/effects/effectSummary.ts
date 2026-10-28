@@ -426,6 +426,7 @@ const EFFECT_SUMMARY_NOTES: Partial<Record<CardName, string>> = {
   [CardName.STANDARD_TECHNOLOGY]: 'Refunds 3 M€ each time you pay for a standard project.',
   [CardName.MEDIA_GROUP]: 'Earns 3 M€ each time you play an event card.',
   [CardName.OLYMPUS_CONFERENCE]: 'Adds science to itself — or draws a card — whenever you play a science-tag card.',
+  [CardName.MEDICAL_INSTITUTE]: 'Adds a microbe or a data resource to one of your cards for every science tag you play.',
   [CardName.SUPERCAPACITORS]: 'Lets you convert all your energy into heat — a conversion you choose to use.',
   [CardName.NEPTUNIAN_POWER_CONSULTANTS]: 'Rewards M€ whenever an ocean is placed — its gains are listed above when they fire.',
   [CardName.INVENTRIX]: 'Eases your temperature, oxygen, ocean and Venus requirements by ±2 — a rule bonus, not a tally.',

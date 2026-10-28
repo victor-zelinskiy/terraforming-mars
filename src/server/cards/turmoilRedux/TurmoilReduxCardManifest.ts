@@ -93,6 +93,7 @@ import {GreensCampaign} from './GreensCampaign';
 import {ScientistsCampaign} from './ScientistsCampaign';
 import {IndustrialistsCampaign} from './IndustrialistsCampaign';
 import {AerospaceCompany} from './AerospaceCompany';
+import {MedicalInstitute} from './MedicalInstitute';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -463,6 +464,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // no play effect; «1 mech OR fighter to ANY card» is ONE declaration over a LIST of kinds — one pick, the kind
     // follows the chosen card. Dealt only beside the Prelude expansion, as TRP1.
     [CardName.AEROSPACE_COMPANY]: {Factory: AerospaceCompany, compatibility: 'prelude'},
+    // TRP9 — the first PRELUDE-REACTOR: a card drawn, then per Science tag its owner plays (its own included) 1 microbe
+    // OR data to ANY card — Olympus Conference's tag hook over TRP8's pick of a LIST of kinds. Dealt only beside Preludes.
+    [CardName.MEDICAL_INSTITUTE]: {Factory: MedicalInstitute, compatibility: 'prelude'},
   },
   // The classic cards a replacement above stands in for — never dealt into a Redux game (upstream's
   // `GameCards.filterReplacedCards`); a classic-Turmoil game does not load this manifest, so it keeps them.

@@ -1172,6 +1172,7 @@ export enum CardName {
   SCIENTISTS_CAMPAIGN = 'Scientists Campaign',
   INDUSTRIALISTS_CAMPAIGN = 'Industrialists Campaign',
   AEROSPACE_COMPANY = 'Aerospace Company',
+  MEDICAL_INSTITUTE = 'Medical Institute',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',
