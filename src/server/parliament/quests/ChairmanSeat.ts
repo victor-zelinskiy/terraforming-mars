@@ -46,8 +46,9 @@ import {Priority} from '../../deferredActions/Priority';
 import {Color} from '../../../common/Color';
 import {Resource} from '../../../common/Resource';
 import {PartyName} from '../../../common/turmoil/PartyName';
-import {AgendaAdvanceStep, PARLIAMENT_AGENDA_STEPS, ResolutionId} from '../../../common/parliament/ParliamentTypes';
-import type {AgendaStepContext} from '../../cards/ICard';
+import {AgendaAdvanceStep, ResolutionId} from '../../../common/parliament/ParliamentTypes';
+import type {AgendaWalkContext} from '../../cards/ICard';
+import {CardReactionCause} from '../../../common/models/CardReactionModel';
 import {CardName} from '../../../common/cards/CardName';
 import type {Parliament} from '../Parliament';
 import {chooseSeatSlot} from '../BotVoteChooser';
@@ -109,8 +110,6 @@ export class ChairmanSeat {
     const walk = (): AgendaWalk | undefined => {
       const from = parliament.agendaOf(player);
       const taken: Array<AgendaAdvanceStep> = [];
-      // The steps this walk WILL take — the end of the track counted in — so the table's hook reads «step 1 of 2».
-      const of = Math.max(0, Math.min(steps, PARLIAMENT_AGENDA_STEPS - from));
       for (let i = 0; i < steps; i++) {
         const advance = parliament.advanceAgenda(player);
         if (advance === undefined) {
@@ -126,8 +125,6 @@ export class ChairmanSeat {
           // marker moved, the record says the «+1 TR» did not come, and the presentation strikes it instead of flying it.
           ...(vetoed ? {vetoed: true as const} : {}),
         });
-        // THE TABLE ANSWERS THE STEP — after its own bonus, before the next step is taken (`ICard.onAgendaStep`).
-        ChairmanSeat.answerStep(player, {to: advance.to, ...(advance.bonus === undefined ? {} : {bonus: advance.bonus}), index: taken.length, of, cause});
       }
       if (taken.length === 0) {
         return undefined;
@@ -149,6 +146,8 @@ export class ChairmanSeat {
         generation: game.generation,
       };
       game.events.recordAgendaAdvanced(player, {from, to: last.to, steps: taken, influence: parliament.influence(player)}, cause.reason);
+      // THE TABLE ANSWERS THE WALK — once, after the last step's bonus and the walk's own record (`ICard.onAgendaWalked`).
+      ChairmanSeat.answerWalk(player, {from, to: last.to, steps: taken, cause});
       return {from, to: last.to, steps: taken};
     };
     // A card's and a law's walk keep the scope they run in (the card's play, the law's seat step); the sitting's
@@ -157,18 +156,25 @@ export class ChairmanSeat {
   }
 
   /**
-   * THE ONE CALL of `ICard.onAgendaStep` — every card of the walker's tableau carrying it, the corporation included,
-   * each inside its own effect scope. MarsBot answers nothing: it has no table of its own to answer with.
+   * THE ONE CALL of `ICard.onAgendaWalked` — every card of the walker's tableau carrying it, the corporation included,
+   * each inside its own effect scope (the record the console's reaction scene plays; a card's walk names the card as
+   * the cause). MarsBot answers nothing: it has no table of its own to answer with.
    */
-  private static answerStep(player: IPlayer, step: AgendaStepContext): void {
+  private static answerWalk(player: IPlayer, walk: AgendaWalkContext): void {
     if (player.isMarsBot === true) {
       return;
     }
+    // WHAT WOKE THE EFFECT — the walk itself (and the card that made it, when a card did): the console's answer
+    // stage is chosen off the record's cause, never off `lastAdvance` (one record per game, several walks a response).
+    const cause: CardReactionCause = {
+      ...(walk.cause.reason === 'card' ? {card: walk.cause.card} : {}),
+      walk: {reason: walk.cause.reason, from: walk.from, to: walk.to},
+    };
     for (const card of player.tableau) {
-      if (card.onAgendaStep === undefined) {
+      if (card.onAgendaWalked === undefined) {
         continue;
       }
-      player.game.events.withEffect(player, card, 'agenda-step', () => card.onAgendaStep?.(player, step));
+      player.game.events.withEffect(player, card, 'agenda-step', () => card.onAgendaWalked?.(player, walk), cause);
     }
   }
 

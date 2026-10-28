@@ -3,7 +3,7 @@ import {SelectCard} from '../inputs/SelectCard';
 import {SelectOption} from '../inputs/SelectOption';
 import {OrOptions} from '../inputs/OrOptions';
 import {skip} from '../inputs/optionMetadata';
-import {AgendaStepPromptMeta, ChoiceContextSource, OrOptionsModel, SelectCardModel} from '../../common/models/PlayerInputModel';
+import {AgendaWalkPromptMeta, ChoiceContextSource, OrOptionsModel, SelectCardModel} from '../../common/models/PlayerInputModel';
 import {CardResource} from '../../common/CardResource';
 import {CardName} from '../../common/cards/CardName';
 import {ICard} from '../cards/ICard';
@@ -161,13 +161,13 @@ export type Options = {
    */
   diverted?: {resolution: string};
   /**
-   * THE STEP OF THE CAREER THAT ASKS (TR78 Arwind Inc. — «whenever you advance
+   * THE WALK OF THE CAREER THAT ASKS (TR78 Arwind Inc. — «whenever you advance
    * your Agenda marker 1 step, add 1 fighter to ANY card»): stamped on the
-   * pick (`markAgendaStepPrompt`) so the console hosts it by structure — the
-   * hand for a card's walk, the Parliament's stage for the sitting, the quest
-   * and a law (`parliament/AgendaStepReactions.ts`).
+   * pick (`markAgendaWalkPrompt`) so the console hosts it by structure — the
+   * hand for a card's walk, the Parliament's answer stage for the sitting, the
+   * quest and a law (`parliament/AgendaWalkReactions.ts`).
    */
-  agendaStep?: AgendaStepPromptMeta;
+  agendaWalk?: AgendaWalkPromptMeta;
 }
 
 /** The near-miss reason of a holder SHORT of `min` («a card that already has a resource» — TR53). */
@@ -379,8 +379,8 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
         // A law's replacement of the seat's own terraforming (RX35) — structural, so no host reads it as a sitting's ask.
         ...(this.options.diverted !== undefined ? {diverted: this.options.diverted} : {}),
       });
-    if (this.options.agendaStep !== undefined) {
-      select.markAgendaStepPrompt(this.options.agendaStep);
+    if (this.options.agendaWalk !== undefined) {
+      select.markAgendaWalkPrompt(this.options.agendaWalk);
     }
     return this.options.cause === undefined ?
       select :
@@ -408,6 +408,15 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
    * card-target picker INSIDE the confirmation modal — no mutation.
    */
   public previewSelectCard(): SelectCardModel | undefined {
+    return this.previewPick()?.toModel(this.player);
+  }
+
+  /**
+   * READ-ONLY: the `SelectCard` INPUT the live path WOULD present (no `andThen` — answering it applies nothing), or
+   * `undefined` when the resource auto-applies / nobody can hold it. A pre-collected table question is built from it
+   * (`effectForecastPreviews.tableQuestion` wants the input, for its `for` address and its model alike).
+   */
+  public previewPick(): SelectCard<ICard> | undefined {
     const cards = this.getCards();
     if (cards.length === 0) {
       return undefined;
@@ -415,7 +424,7 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
     if (cards.length === 1 && this.options.autoSelect !== false) {
       return undefined;
     }
-    return this.buildSelectCard(cards).toModel(this.player);
+    return this.buildSelectCard(cards);
   }
 
   /** The per-candidate tail of the pick (`Options.extraByCard`), only the candidates it names; undefined when none. */

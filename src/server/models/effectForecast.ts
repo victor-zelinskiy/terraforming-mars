@@ -152,15 +152,15 @@ function cardPlayedFacts(player: IPlayer, card: ICard, ctx: EffectForecastContex
   }
 
   // 0. THE PLAY'S OWN WALK OF THE AGENDA TRACK (Turmoil Redux — TR04 Minority Representation …): the walk runs inside
-  //    the card's own play, and every card of the acting player's table answering a step of the Career
-  //    (`onAgendaStep` — TR78 Arwind Inc.) reads the walk the play makes (`agendaWalkForecast`, its ONE reading).
+  //    the card's own play, and every card of the acting player's table answering a walk of the Career
+  //    (`onAgendaWalked` — TR78 Arwind Inc.) reads the walk the play makes (`agendaWalkForecast`, its ONE reading).
   const walk = game.parliament === undefined ? undefined : card.agendaWalkForecast?.(player);
   if (walk !== undefined && walk.steps.length > 0) {
     for (const effectCard of reactorsOf(player, player, card)) {
-      if (effectCard.onAgendaStep === undefined) {
+      if (effectCard.onAgendaWalked === undefined) {
         continue;
       }
-      const own = effectCard.agendaStepForecast?.(player, card, walk, ctx);
+      const own = effectCard.agendaWalkedForecast?.(player, card, walk, ctx);
       facts.push(...(own ?? [unknownFor(effectCard, player, player, 'agenda-step', 'This card reacts to the play, but its result is not described')]));
     }
   }
@@ -1492,8 +1492,8 @@ export const FORECAST_HOOK_PAIRS: ReadonlyArray<{live: keyof ICard, forecast: ke
   {live: 'onColonyAddedByAnyPlayer', forecast: 'grantForecast'},
   // The patent sale (TR46): the seller's «when you sell patents» — the sale prompt's `patentSale` model.
   {live: 'onPatentsSold', forecast: 'patentsSoldForecast'},
-  // A step of the Career (Turmoil Redux): the walk a PLAY makes — the table's answer per step (TR78 Arwind Inc.).
-  {live: 'onAgendaStep', forecast: 'agendaStepForecast'},
+  // A walk of the Career (Turmoil Redux): the walk a PLAY makes — the table's ONE answer to it (TR78 Arwind Inc.).
+  {live: 'onAgendaWalked', forecast: 'agendaWalkedForecast'},
   // A rating gain is a `tr` grant — the operation's rating (`ratingStepsOf`, the Greens' own sum), every seat's
   // «whenever a player gains TR» (TR81 Lotus Innovations).
   {live: 'onIncreaseTerraformRatingByAnyPlayer', forecast: 'grantForecast'},

@@ -32,8 +32,8 @@
          the printed bonus of the tile that pays it), so the body stands BEFORE the wave. The zone is a
          LAYER STACK: the ledger and the hosted step's slot share one rect; the ledger yields (folds down)
          while a step stands and comes back when it has left — never a `v-if` cut. ── -->
-    <section class="con-sit__panel con-sit__panel--reward" :class="{'con-sit__panel--on': stage === 'reward' || careerStep}" data-sit-panel="reward"
-             :data-sit-career="careerStep ? '' : undefined">
+    <section class="con-sit__panel con-sit__panel--reward" :class="{'con-sit__panel--on': stage === 'reward' || answerUp}" data-sit-panel="reward"
+             :data-sit-answer="answerUp ? '' : undefined">
       <div class="con-sit__reward" :class="{'con-sit__reward--field': field}">
         <div class="con-sit__hero" :class="{'con-sit__hero--field': field}">
           <!-- The carried enacted card lands here (one DOM instance, teleported by the government) while the step holds the field. -->
@@ -55,6 +55,16 @@
             </div>
           </transition>
         </div>
+        <!-- «ОТВЕТ СТОЛА» (TR78 Arwind Inc.): a card of the table answers the step of the Career the sitting walked — the
+             winner's own on the enactment page (after its ПОВЕСТКА), a law's on the reward page (after the Career's
+             walks). A LAYER over the reward chassis: the asker on its hero, the receipt / the picker in its zone; it
+             enters by the zone's own layer phrase and folds down when its work is over (never a `v-if` cut of the
+             chassis under it). -->
+        <transition :css="false" @enter="onAnswerEnter" @leave="onAnswerLeave" @enter-cancelled="onLedgerCancelled" @leave-cancelled="onLedgerCancelled">
+          <div v-if="answerUp" class="con-sit__answer" data-sit-answer-layer>
+            <ConsoleParliamentTableAnswer :answer="answer" :asking="asking" :askerModel="askerModel" embedded />
+          </div>
+        </transition>
       </div>
     </section>
 
@@ -270,6 +280,9 @@ import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/clien
 import {quietRewardPoseOf, SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
 import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
 import ConsoleTableReceipt from '@/client/components/console/parliament/ConsoleTableReceipt.vue';
+import {CardModel} from '@/common/models/CardModel';
+import ConsoleParliamentTableAnswer from '@/client/components/console/parliament/ConsoleParliamentTableAnswer.vue';
+import {noteTableAnswerPaneIn, TableAnswer, TableAnswerAsk} from '@/client/console/parliament/tableAnswerBeat';
 import {TableReceipt, TableReceiptPhase, tableReceiptState} from '@/client/console/parliament/tableReceiptBeat';
 import {ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
 import {parliamentRewardState, rewardLanded} from '@/client/console/parliament/parliamentRewardBeat';
@@ -284,7 +297,7 @@ import {ParameterMoveId} from '@/common/parliament/parameterMove';
 
 export default defineComponent({
   name: 'ConsoleParliamentSitting',
-  components: {PlayerDelegate, ConsoleColonyLedger, ConsoleTableReceipt, ConsoleSitPayoutPart, ConsoleSittingPayoutDetails},
+  components: {PlayerDelegate, ConsoleColonyLedger, ConsoleTableReceipt, ConsoleSitPayoutPart, ConsoleSittingPayoutDetails, ConsoleParliamentTableAnswer},
   props: {
     /** Where the sitting stands on the server (`consoleSittingFlow.sittingPositionOf`). */
     position: {type: Object as PropType<SittingPosition>, required: true},
@@ -306,11 +319,14 @@ export default defineComponent({
     receipt: {type: Object as PropType<TableReceipt | undefined>, default: undefined},
     /** The results panel waits for the renewal's beats (the director reveals it). */
     resultsHidden: {type: Boolean, default: false},
-    /**
-     * «ИСТРЕБИТЕЛЬ» (TR78 Arwind Inc.): the ENACTMENT page holds the field for a table's answer to the winner's step of
-     * the Career — the reward panel's zone stands on it (the hero stays empty: nothing is enacted yet).
-     */
-    careerStep: {type: Boolean, default: false},
+    /** «ОТВЕТ СТОЛА» (TR78 Arwind Inc.): the receipt on the answer stage (the units landed) — undefined while a question stands. */
+    answer: {type: Object as PropType<TableAnswer | undefined>, default: undefined},
+    /** …the QUESTION standing on it (the pick / the layout teleported into its zone). */
+    asking: {type: Object as PropType<TableAnswerAsk | undefined>, default: undefined},
+    /** …the asker's live model (its face, its count). */
+    askerModel: {type: Object as PropType<CardModel | undefined>, default: undefined},
+    /** …and whether the stage STANDS as a layer of this chassis right now (the section decides by page and beat). */
+    answerUp: {type: Boolean, default: false},
     /** Hosted inside another surface's zone (nothing of the chassis to strip — the sitting never titles itself). */
     embedded: {type: Boolean, default: false},
     /** `live` — the phase in progress; `review` — a finished sitting re-read (the protocol, later). */
@@ -436,6 +452,18 @@ export default defineComponent({
     },
     /** …and yields to a step that is opening: pushed shut downward while the step's surface paints beside it. */
     onLedgerLeave(el: Element, done: () => void): void {
+      playBodyFold(el as HTMLElement, undefined, done);
+    },
+    /** The answer stage enters as a layer over the chassis — the zone's phrase; its end lets the flight measure its faces
+     *  and the shell teleport the picker in (`noteTableAnswerPaneIn`). */
+    onAnswerEnter(el: Element, done: () => void): void {
+      playZoneLayerEnter(el as HTMLElement, () => {
+        noteTableAnswerPaneIn();
+        done();
+      });
+    },
+    /** …and folds down when its work is over. */
+    onAnswerLeave(el: Element, done: () => void): void {
       playBodyFold(el as HTMLElement, undefined, done);
     },
     /** The receipt unfolds in the zone — the same layer phrase; its end lets the wave measure the capsules. */

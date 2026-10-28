@@ -1998,7 +1998,8 @@ import {buildBotAttackView, BotAttackViewModel} from '@/client/console/botAttack
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
 
 import {promptSourceResolution, promptSourceView, PromptSourceView, sittingAskResolution} from '@/client/console/promptSource';
-import {agendaReactionOf, questReactionOf, sittingReactionOf} from '@/client/console/parliament/agendaReaction';
+import {agendaReactionOf, sittingReactionOf} from '@/client/console/parliament/agendaReaction';
+import {tableAnswerAskOf} from '@/client/console/parliament/tableAnswerBeat';
 import {chairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQuest';
 import {PlacementConversion, PlacementShape, StagedPlayPlate, stagedPlayPlate} from '@/client/console/placementDossier';
 import {cardGrantOwedTo} from '@/client/console/cardGrantHost';
@@ -5227,16 +5228,17 @@ export default defineComponent({
       if (this.parliamentBillStanding && !consoleParliamentUi.voteStanding && !this.consoleState.task.deferred) {
         return true;
       }
+      // …and a table's answer to a walk of the Career (TR78 Arwind Inc. — «ОТВЕТ СТОЛА»: the quest's step, the
+      // sitting's winner step, a law's) belongs on the Parliament's ANSWER STAGE: held until the flow that walked the
+      // marker has played the step and the stage has entered with the asker on its hero (the surfaces go in turn).
+      if (this.parliamentAnswerTask && !consoleParliamentUi.answerZone && !this.consoleState.task.deferred) {
+        return true;
+      }
       // …and an enacted resolution's ask belongs inside the Parliament's
       // SITTING (its reward stage's FIELD) on the same terms — held until the
       // field has opened, i.e. until the payout that arrived with the ask has
       // played its wave (the surfaces go in turn).
       if (this.parliamentStageTask && !consoleParliamentUi.fieldStanding && !this.consoleState.task.deferred) {
-        return true;
-      }
-      // …and a table's answer to the chairman QUEST's step of the Career (TR78 Arwind Inc.) belongs inside the quest's
-      // own stage: held until the flow has played the step's bonus and opened its zone (the surfaces go in turn).
-      if (this.parliamentQuestReactionTask && !consoleParliamentUi.reactionZone && !this.consoleState.task.deferred) {
         return true;
       }
       return this.taskBelongsToWorkspace &&
@@ -5263,14 +5265,16 @@ export default defineComponent({
       return this.hostTask !== undefined && this.parliamentStagePrompt;
     },
     /**
-     * A TABLE'S ANSWER TO THE CHAIRMAN QUEST'S STEP OF THE CAREER (TR78 Arwind Inc. — `agendaStepPrompt.reason ===
-     * 'quest'`) while the quest's flow stands in the Parliament: a step of «ПРЕДСЕДАТЕЛЬСТВО», hosted in its own
-     * stage zone (`[data-embed-slot="parliament-reaction"]`), never a band over it. A reload has no quest flow to
-     * stand in — the pick is then served where any live pick is.
+     * A TABLE'S ANSWER TO A WALK OF THE CAREER (TR78 Arwind Inc. — `agendaWalkPrompt`: the quest's step, the sitting's
+     * winner step, a law's step) while the Parliament stands: a step of the flow that walked the marker, hosted on the
+     * ANSWER STAGE's zone (`[data-embed-slot="parliament-answer"]` — the asker on the hero, the pick / the layout
+     * beside it), never a band over it. A reload has no quest flow to stand in — the quest's question is then served
+     * where any live pick is; the sitting's stands again in its layer.
      */
-    parliamentQuestReactionTask(): boolean {
-      return this.hostTask !== undefined && questReactionOf(this.playerView.waitingFor) !== undefined &&
-        workspaceFrameMounted('parliament') && chairmanQuestFlow.live;
+    parliamentAnswerTask(): boolean {
+      const ask = tableAnswerAskOf(this.playerView.waitingFor);
+      return this.hostTask !== undefined && ask !== undefined && workspaceFrameMounted('parliament') &&
+        (ask.cause !== 'quest' || chairmanQuestFlow.live);
     },
     /**
      * THE SITTING'S OWN ASK WAITS FOR ITS SITTING (the soft gates): the pass that ran the law carries the law's first
@@ -5351,13 +5355,13 @@ export default defineComponent({
       // picker stands in the Parliament's SITTING — its reward stage's zone: the
       // resolution is on stage above it, the stage names the amount, the picker
       // asks where.
+      // A WALK OF THE CAREER ANSWERED BY THE TABLE (TR78 — «ОТВЕТ СТОЛА»): the answer stage's own zone, published by
+      // the stage once it has entered — before the sitting's generic zone, which the same prompt would also match.
+      if (this.parliamentAnswerTask && consoleParliamentUi.answerZone) {
+        return '.con-parl [data-embed-slot="parliament-answer"]';
+      }
       if (this.parliamentStageTask && workspaceFrameMounted('parliament') && consoleParliamentUi.fieldStanding && consoleParliamentUi.stageZone) {
         return '.con-parl [data-embed-slot="parliament-stage"]';
-      }
-      // THE QUEST'S STEP OF THE CAREER ANSWERED BY THE TABLE (TR78): the quest's own reaction zone, published post-flush
-      // by the section once the flow holds for it.
-      if (this.parliamentQuestReactionTask && consoleParliamentUi.reactionZone) {
-        return '.con-parl [data-embed-slot="parliament-reaction"]';
       }
       if (!workspaceClaimsPick()) {
         return undefined;
@@ -9174,7 +9178,7 @@ export default defineComponent({
       if (this.finalGreeneryActive || this.finaleSessionEngaged) {
         return FINALE_KICKER;
       }
-      if (this.hostTask !== undefined && (this.parliamentStageTask || this.parliamentQuestReactionTask) && workspaceFrameMounted('parliament') &&
+      if (this.hostTask !== undefined && (this.parliamentStageTask || this.parliamentAnswerTask) && workspaceFrameMounted('parliament') &&
           !this.consoleState.task.deferred) {
         // EMBEDDED in the Parliament's sitting (the recipient picker in the reward stage's zone): the
         // bar names the STAGE the crumb already names («ВЫБОР»), one voice in two places — never the

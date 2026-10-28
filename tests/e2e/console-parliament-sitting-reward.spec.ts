@@ -361,13 +361,26 @@ for (const preset of PARLIAMENT_PRESETS) {
               expect(pages[0], `the reward page stood while chip ${id} flew (landing @${landedAt})`).toBe('reward');
             }
           }
-          // …and nothing of the parliament or the wave is held at rest — read LIVE (a sample can lag a release by one tick).
-          // The walk turns to the RESULTS page on its own once the reward page has rested, and that page's own beat
-          // (`parliament-sitting:results`) is its hold, not a leak of this one: by the time the probe above has been
-          // read, a law with no follow-up (RX02, RX04) is already there — 6 of 12 «leaks» at one worker were that.
-          const restHolds = await page.evaluate(() => ((window as unknown as {__conReady: () => {holds: Array<string>}}).__conReady().holds)
-            .filter((h) => (h.startsWith('parliament-sitting') && !h.startsWith('parliament-sitting:results')) || h.startsWith('resource-transfer')));
-          expect(restHolds, 'every hold released at rest').toEqual([]);
+          // …and nothing of the parliament or the wave is held once the page has rested — read LIVE until it RELEASES
+          // (a sample can lag a release by one tick). The walk turns to the RESULTS page on its own once the reward
+          // page has rested, and that page's own beat (`parliament-sitting:results`) is its hold, not a leak of this
+          // one: by the time the probe above has been read, a law with no follow-up (RX02, RX04) is already there —
+          // 6 of 12 «leaks» at one worker were that. THE REACTION CHAIN IS WAITED OUT TOO (iteration 6 — a party is a
+          // reactor): the Greens' M€ for the winner's TR step is a record no wave of the sitting declares, so the
+          // framework's own chain rises the charter at the rail's edge a beat AFTER the plaque's chip has landed —
+          // `waitSittingAtRest` reads «rest» inside that gap; its hold (`card-reaction`) and the tokens it flies release
+          // on their own within the chain's budget. A red names what stands: the holds, the rail's held rewards, the
+          // reward beat and the flights' own trail.
+          type Ready = {holds: Array<string>, transfer: unknown, railReward: unknown, parliamentReward: unknown, scaleStory: unknown};
+          const readyNow = () => page.evaluate(() => (window as unknown as {__conReady: () => Ready}).__conReady());
+          const restHoldsOf = (ready: Ready) => ready.holds
+            .filter((h) => (h.startsWith('parliament-sitting') && !h.startsWith('parliament-sitting:results')) || h.startsWith('resource-transfer') || h.startsWith('card-reaction'));
+          try {
+            await expect.poll(async () => restHoldsOf(await readyNow()), {timeout: 20_000}).toEqual([]);
+          } catch (e) {
+            const ready = await readyNow();
+            throw new Error(`every hold released at rest — still standing: ${restHoldsOf(ready).join(', ')}\n${JSON.stringify({holds: ready.holds, railReward: ready.railReward, parliamentReward: ready.parliamentReward, scaleStory: ready.scaleStory}, null, 1)}\n${JSON.stringify(ready.transfer, null, 1)}\n${String(e)}`);
+          }
         }
         await shoot(page, preset.id, `${c.rx}-02-after-wave`);
 

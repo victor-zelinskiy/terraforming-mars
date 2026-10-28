@@ -292,7 +292,21 @@ TILES (the plan row and R3 follow the chosen option), and the Hydronetwork's ans
     iteration 3); the summary card names it as a party (`LogMessageDataType.PARTY`), never as a card. The rail's two
     halves compose it like any record; the scale-step rating beat subtracts its M€ and the chain plays it AFTER the
     rating story (law 20) — a standard asteroid under the ruling Greens: the degree's rating lands, then the charter
-    rises at the rail's edge and its 2 M€ are born on the charter's printed M€.
+    rises at the rail's edge and its 2 M€ are born on the charter's printed M€. **Every host that flies the party's
+    answer ITSELF declares it** (`declareHeldAnswers` — the Career walk's `queueAgendaBonuses`, the enactment tail's
+    `rulingChangeDraw`, and since 2026-10-28 the sitting's REWARD WAVE: `seedParliamentRewardHold` declares a law
+    payout's `reaction` entries and `beatReward.flyReactions` claims and finishes the attached record — the answer
+    leaves the ruler's plaque as before, and the charter no longer rises a second time at the rail's edge after it,
+    its tokens standing in the air until the wave budget's safety: a blocking `resource-transfer` hold at «rest»,
+    `console-parliament-sitting-reward` RX05 / RX03). The seeder's trail names the class: `standaloneOverRawHold`.
+    **…and the chain waits for the SITTING'S BEATS** (`waitSittingQuiet` — the `parliament-sitting:<stage>[/<beat>]`
+    holds, bounded 40 s on top of each beat's own ceiling): a record of the sitting's response nobody's wave declares
+    rises at the rail's edge only once the beats have played, never into the reward wave — the generic 12 s blocking
+    wait is shorter than a sitting, and the charter rose BESIDE the plaque's chip. NAMED GAP: the ruling Greens' M€ for
+    the WINNER'S TR step is such a record — the summary's `agenda` carries no answer (a card's walk gets it from the
+    preview's verified `reactions`, the enactment's rating from `rulingAnswers`), so ПОВЕСТКА cannot fly it attached
+    a beat after the step's chip; a `summary.agenda.answer` from the server would let `detectAgendaBonus` queue it
+    like a card walk's and retire the chain's telling there.
 28. **THE HYDRONETWORK'S PLAN READS THE TABLE'S ANSWER BEFORE THE PRESS.** The server's `DeltaTrackDestination.forecast`
     (`DeltaProjectExpansion.destinationForecast` — the FORECAST TWIN of `resolveReward`, `stageRewardEffects`, pinned
     against the live grant for every stage by `tests/delta/hydroStageForecast.spec.ts`; the crossed stages' fixed
@@ -405,6 +419,47 @@ registers itself (`registerReactorPlace` — every corporation the ceremony carr
 rail): `emergeTarget` waits, bounded (2.4 s on `probeTick`), for the face to stand and lifts it there. The director also
 waits for a face still under its deal hold (`waitPlaceArrival`), and a rise at the stage names every face it rejected
 (`reaction:rise` → `places`: selector · verdict · height · hold).
+
+## TR78 Arwind Inc. — A REACTOR THAT ASKS: the ANSWER STAGE (2026-10-28, the owner's field report)
+
+A corporation whose effect answers a WALK of the Career («add 1 fighter to ANY card» per step) owes the table a question — or,
+with no other holder, a landing. The first cut asked per step, made the player press the one card they could choose, played
+the framework's standalone chain a second time after the player's own pick (the record attached to nobody — a pick's receive
+scene holds nothing the seeder reads), and hosted the question in three ad-hoc ways. Four laws now (`docs/TURMOIL_REDUX_ARWIND_INC.md`):
+
+30. **THE RECORD'S CAUSE NAMES THE WALK** — `CardReactionCause.walk {reason, from, to}`, stated by `ChairmanSeat.answerWalk`
+    (ONE `withEffect` per walk, after the last step's bonus). The console chooses the stage's host off it — the quest's flow,
+    the sitting (the winner's step on the enactment page, a law's on the reward page), a card's walk — never off `lastAdvance`.
+31. **A REACTION THE PLAYER DIRECTS IS TOLD BY ITS OWN SCENE** — the pick's receive (`promptReceive`, born on the asker's face
+    on the stage: `asker:<sprite>`) or the layout's (`tableAnswerBeat.runTableAnswerPayout`) notes the answer BEFORE the apply
+    block (`noteTableAnswerTold`); the seed then only DECLARES the record's rows (`declareHeldAnswers`), so the reaction
+    seeder attaches it to the stage and the standalone chain never rises for it. The feed builds no card (the attached mark).
+    Two mechanics carry it (the first box run, 2026-10-28): the seeder's raw-hold attribution of a card-resource row never
+    UNDERCUTS a declaration (`Math.max` — a told scene holds nothing, and the raw loop once zeroed its row into a second
+    chain at the rail's edge), and the beat RESERVES the record (`reserveCardReaction(seq, 'table-answer:told')`) so no
+    host's flight takes it either.
+32. **A REACTION NOBODY ASKED FOR IS A RECEIPT ON THE SAME STAGE** — the asker alone: the server lands the units; the
+    answer stage (`ConsoleParliamentTableAnswer`, `.con-tans` — the asker's face on the hero wearing `data-reaction-home`,
+    the recipients' row beside it) is the fourth ATTACHED host: the seed holds the capsules and declares the rows, the host's
+    beat (the quest's `afterAgenda`, the sitting's `beatTableAnswer`, the hand walk's `playWalkAnswer`) asks
+    `cardReactionAnswerFlight({rows, reserved: TABLE_ANSWER_RESERVATION})` — the seed RESERVED the record for the stage
+    (`reserveCardReaction`; `Attached.reserved`), so the play scene's UNFILTERED claim («every attached group» —
+    `heroAnswerFlight` / `answerHeroAfterWave`) skips it instead of rising the asker at the rail's edge for nothing and
+    leaving the stage with no flight; a reserved group is a flight's only under the same name. `prepare` lifts the asker IN
+    ITS PLACE (law 17), `originOf` births each token on its
+    effect row, the token lands in the recipient's capsule on the stage (the transfer ladder's `.con-tans [data-tans-card]
+    .pcard__res` / `[data-receipt-card]` rungs), `onDone` settles. Nobody standing to host it → the record stays the chain's
+    (the reactor at the rail's edge, the holder's satellite cell).
+33. **THE QUESTION IS ONE** — N steps → N units in ONE prompt (the family's layout over ≥ 2 holders, else its pick), stamped
+    `agendaWalkPrompt` on both shapes; the composer pre-collects it as ONE row (a layout with LB/RB lanes); the Parliament hosts
+    it on the same stage (`[data-embed-slot="parliament-answer"]`, published by the stage once it has ENTERED — the picker never
+    paints inside an unfolding surface).
+
+Guards: `tests/client/console/tableAnswerBeat.spec.ts` (detect · host · seed · told · the layout gate), `tests/console/agendaReaction.spec.ts`,
+`tests/parliament/AgendaWalkHook.spec.ts`; e2e `console-arwind-inc` (A · A2 · B · B2 · C · C2 — the probe counts the ASKER's face at the
+reaction layer: ZERO beside the stage's own telling; another reactor of the same response — the ruling party's charter answering
+the Career's M€ — rises there legitimately, so a probe asking «told once» names the asker, never «any face»; a red prints every
+face's name and the director's `reaction:*` trail).
 
 ## Files
 

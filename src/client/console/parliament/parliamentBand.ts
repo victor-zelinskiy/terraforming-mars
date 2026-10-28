@@ -56,7 +56,7 @@ import {SupportStatus} from './supportScene';
 import {partyNameKey} from './partyNames';
 
 /** The beat of the enactment the director is playing ('' at rest) — `sittingMotion.beat`; `career` the reward stage's walks of the Career. */
-export type BandBeat = '' | 'agenda' | 'support' | 'enact' | 'banner' | 'career' | 'receipt';
+export type BandBeat = '' | 'agenda' | 'support' | 'enact' | 'banner' | 'career' | 'receipt' | 'answer';
 
 /** ONE member of the line. Everything is data: the component binds it, the model orders it. */
 export type BandChip =
@@ -800,7 +800,8 @@ function enactLine(sitting: BandSitting): BandLine {
   if (summary === undefined) {
     return {kicker: 'Enactment', key: 'enact:none', chips, committed: true};
   }
-  if (sitting.beat === 'agenda' && summary.agenda !== undefined) {
+  // …and while the table ANSWERS the step on the answer stage (TR78 — the `answer` beat), the line keeps reading the step.
+  if ((sitting.beat === 'agenda' || sitting.beat === 'answer') && summary.agenda !== undefined) {
     const move = summary.agenda;
     chips.push({kind: 'player', player: move.player});
     chips.push({kind: 'agenda', to: move.to, bonus: move.bonus});

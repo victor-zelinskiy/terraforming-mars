@@ -31,6 +31,7 @@
 
 import {CardName} from '@/common/cards/CardName';
 import {PreselectAddress, addressed} from '@/common/inputs/preselectAddress';
+import {CardModel} from '@/common/models/CardModel';
 import {Message} from '@/common/logs/Message';
 import {ActionEffect,
   ActionPreview,
@@ -61,7 +62,7 @@ export type ComposerChoice = {
   scope: ComposerScope;
   /** Index within its source list (preSteps / steps); -1 for the optionInput. */
   index: number;
-  kind: 'spendHeat' | 'amount' | 'card' | 'player' | 'or' | 'payment' | 'lawPlay' | 'other';
+  kind: 'spendHeat' | 'amount' | 'card' | 'player' | 'or' | 'payment' | 'lawPlay' | 'distribute' | 'other';
   input: PlayerInputModel;
   /** Signed per-target delta for a card-target step ("2 → 4 on the card"). */
   amount?: number;
@@ -93,8 +94,43 @@ function choiceKind(input: PlayerInputModel): ComposerChoice['kind'] {
   case 'player': return 'player';
   case 'or': return 'or';
   case 'payment': return 'payment';
+  // The shared distribution step's `and` (TR78 — a walk's units laid out over the holders): ONE row of lanes.
+  case 'and': return distributionLanesOf(input) !== undefined ? 'distribute' : 'other';
   default: return 'other';
   }
+}
+
+// ── a LAYOUT pre-collected in the composer (TR78 Arwind Inc. — N steps, N units, ONE question) ─────────────────────
+
+/** The lanes of a pre-collected LAYOUT: the holders as the server lists them, the sum, the unit's kind per holder. */
+export type DistributionLanes = {
+  amount: number;
+  cards: ReadonlyArray<CardModel>;
+  /** The ONE kind (icon key), when the layout spreads one; else `resources`. */
+  resource: string;
+  /** The kind EACH holder takes (several kinds), as icon keys. */
+  resourceByCard?: Partial<Record<CardName, string>>;
+};
+
+/**
+ * THE LAYOUT a composer row lays out (pure): the shared `AddResourcesToCards` step's `and`, read off its structural
+ * marker (`cardResourceDistributionPrompt` — the faces, the sum, the kinds) — never the options' titles. Undefined
+ * for every other `and` (Stormcraft's spend-heat keeps its own dial, a two-part pick its parts).
+ */
+export function distributionLanesOf(input: PlayerInputModel): DistributionLanes | undefined {
+  if (input.type !== 'and') {
+    return undefined;
+  }
+  const meta = (input as AndOptionsModel).cardResourceDistributionPrompt;
+  if (meta === undefined || meta.amount <= 0 || meta.cards.length === 0) {
+    return undefined;
+  }
+  return {
+    amount: meta.amount,
+    cards: meta.cards,
+    resource: meta.cardResource ?? 'resources',
+    ...(meta.cardResourceByCard !== undefined ? {resourceByCard: meta.cardResourceByCard} : {}),
+  };
 }
 
 /**
@@ -160,8 +196,8 @@ export type SoleSeed =
 
 export function soleCandidateOf(choice: ComposerChoice): SoleSeed | undefined {
   // A TABLE'S question is never seeded (it is routinely optional — a decline beside it) — EXCEPT a step of the Career
-  // answered by the table (TR78 Arwind Inc. — `agendaStepPrompt`): a MANDATORY target pick, seeded like the card's own.
-  const careerAnswer = choice.kind === 'card' && (choice.input as SelectCardModel).agendaStepPrompt !== undefined;
+  // answered by the table (TR78 Arwind Inc. — `agendaWalkPrompt`): a MANDATORY target pick, seeded like the card's own.
+  const careerAnswer = choice.kind === 'card' && (choice.input as SelectCardModel).agendaWalkPrompt !== undefined;
   if ((choice.reaction !== undefined && !careerAnswer) || choice.repeatAction === true || choice.multiSelect !== undefined || choice.deltaLanding !== undefined) {
     return undefined;
   }

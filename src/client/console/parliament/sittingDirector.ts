@@ -78,7 +78,8 @@ import {probeTick} from '@/client/console/probeTick';
 import {descendCascade} from '@/client/console/surfaceMotion/workspaceDescend';
 import {resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, TransferPoint, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {cardReactionAnswerFlight} from '@/client/console/cardReaction/cardReactionDirector';
 import {flyLedgerRows, LEDGER_READ_MS, LEDGER_ROW_GAP_MS, LedgerWaveRow} from '@/client/console/colonyLedger/colonyLedgerWave';
 import {AgendaMove, ParliamentViewVm} from './consoleParliamentModel';
 import {SittingStage} from './consoleSittingFlow';
@@ -104,6 +105,7 @@ import {ParliamentRenewalEventModel} from '@/common/models/ParliamentModel';
 import {AGENDA_BEAT_GAP_MS, AgendaWalkHooks, AgendaWalkRecordLike, deliverAgendaStepReward} from './agendaWalkDirector';
 import {careerGrantState, careerWalksOwed, releaseCareerGrantWalks, takeCareerWalk} from './careerGrantBeat';
 import {endTableReceipt, markReceiptSpecLanded, releaseTableReceipts, TableReceipt, tableReceiptState, tableReceiptsOwed, takeTableReceipt} from './tableReceiptBeat';
+import {ANSWER_HOLD_CEILING_MS, endTableAnswer, playTableAnswer, TABLE_ANSWER_BUDGET_MS, tableAnswerOwedTo, takeTableAnswer} from './tableAnswerBeat';
 import {runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
 import {externalDrawState, isExternalDrawBusy} from '@/client/console/externalDraw/consoleExternalDraw';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
@@ -213,7 +215,7 @@ export const sittingMotion = reactive({
    * The beat of the stage that is playing ('' at rest / a one-beat stage) — `career`: the reward stage's walks of the Career;
    * `receipt`: the receipt of the table (Sponsored Projects — a card payout that asked nobody).
    */
-  beat: '' as '' | 'agenda' | 'support' | 'enact' | 'banner' | 'career' | 'receipt',
+  beat: '' as '' | 'agenda' | 'support' | 'enact' | 'banner' | 'career' | 'receipt' | 'answer',
   /**
    * …and WHICH WAVE of the support beat is in the air ('' between waves). The two waves obey two different
    * rules — the parties nobody spoke for take from the supply, the unenacted resolutions send their own —
@@ -1057,6 +1059,10 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
     if (reactions.length === 0) {
       return;
     }
+    // THE PARTY'S RECORD IS CLAIMED AND FINISHED (the enactment tail's own idiom — `rulingChangeDraw`): the answer
+    // was declared at the seed, so the framework attached it to these rows; the wave tells it off the ruler's plaque
+    // (the government's standing object) and the chain never rises the charter a second time at the rail's edge.
+    cardReactionAnswerFlight({rows: [...new Set(reactions.map((r) => railRowKey(r.spec)))]})?.onDone?.();
     const plaque = rulerPlaqueEl(root);
     if (plaque === undefined || runState.finished) {
       release(reactions);
@@ -1295,6 +1301,38 @@ function beatCareer(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
   };
   tl.call(next, undefined, 0);
   return s(count * (CAREER_IMPULSE_MS + CAREER_SEAT_BUDGET_MS + AGENDA_BEAT_GAP_MS)) * k;
+}
+
+// ── ОТВЕТ СТОЛА (TR78) ──────────────────────────────────────────────────────
+
+/**
+ * THE TABLE ANSWERS THE STEP OF THE CAREER (TR78 Arwind Inc.): the receipt owed to the sitting for `cause` plays on
+ * the answer stage — a LAYER of the reward chassis the section opens for it (`sittingAnswerUp`): the asker lifted in
+ * its place, the units born on its printed icon landing on their capsules in turn, the read, the stage folding. The
+ * beat's whole work is the module's (`tableAnswerBeat.playTableAnswer`); the run waits for it to end.
+ */
+function beatTableAnswer(tl: gsap.core.Timeline, runState: StageRun, cause: 'phase' | 'resolution'): number {
+  const answer = takeTableAnswer('sitting', cause);
+  if (answer === undefined) {
+    return 0;
+  }
+  runState.pending++;
+  let over = false;
+  const finish = (): void => {
+    if (over) {
+      return;
+    }
+    over = true;
+    runState.pending = Math.max(0, runState.pending - 1);
+  };
+  runState.kills.push(() => {
+    endTableAnswer();
+    finish();
+  });
+  tl.call(() => {
+    void playTableAnswer(answer, {alive: () => !runState.finished, hurried: () => hurry}).then(finish, finish);
+  }, undefined, 0.01);
+  return s(TABLE_ANSWER_BUDGET_MS);
 }
 
 // ── НАГРАДА · КВИТАНЦИЯ СТОЛА ──────────────────────────────────────────────
@@ -2070,7 +2108,7 @@ function settleStagePoses(stage: SittingStage): void {
  * (naturally, by «дожать», or by the ceiling). `build` adds the beat's calls
  * and returns the storyboard's arithmetic (seconds).
  */
-function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact' | 'banner' | 'career' | 'receipt', compact: boolean,
+function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact' | 'banner' | 'career' | 'receipt' | 'answer', compact: boolean,
   build: (tl: gsap.core.Timeline, runState: StageRun) => number, bounds: {ceilingMs?: number} = {}): Promise<void> {
   const master = gsap.timeline({paused: true});
   const runState: StageRun = {stage, master, hold: {release: () => undefined}, flights: new Set(), pending: 0, kills: [], finished: false};
@@ -2190,8 +2228,14 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
       if (ctx.agendaTold !== true) {
         await runBeat(stage, 'agenda', opts.compact, (tl, r) => beatAgenda(tl, ctx, k, r));
       }
-      // THE CHAIN WAITS ON THE TABLE'S ANSWER TO THE STEP (TR78): the page holds here — its field opens for the pick
-      // (the asked seat) or names the asked seat (every other one); the support and the enactment come with the answer.
+      // «ОТВЕТ СТОЛА» (TR78): the winner's table answered the step with units that LANDED (the asker alone) — the
+      // answer stage plays the receipt on this page before the chain goes on.
+      if (stagePlaying === stage && tableAnswerOwedTo('sitting', 'phase')) {
+        await runBeat(stage, 'answer', opts.compact, (tl, r) => beatTableAnswer(tl, r, 'phase'), {ceilingMs: ANSWER_HOLD_CEILING_MS});
+      }
+      // THE CHAIN WAITS ON THE TABLE'S ANSWER TO THE STEP (TR78): the page holds here — its field opens for the pick /
+      // the layout on the answer stage (the asked seat) or names the asked seat (every other one); the support and the
+      // enactment come with the answer.
       if (stagePlaying === stage && ctx.careerPaused?.() === true) {
         ctx.onCareerTold?.();
         break;
@@ -2221,6 +2265,10 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
         if (stagePlaying === stage) {
           await runBeat(stage, 'career', opts.compact, (tl, r) => beatCareer(tl, ctx, k, r), {ceilingMs: CAREER_HOLD_CEILING_MS});
         }
+      }
+      // …THEN «ОТВЕТ СТОЛА» (TR78): a law's step of the Career the viewer's table answered with units that LANDED.
+      if (stagePlaying === stage && tableAnswerOwedTo('sitting', 'resolution')) {
+        await runBeat(stage, 'answer', opts.compact, (tl, r) => beatTableAnswer(tl, r, 'resolution'), {ceilingMs: ANSWER_HOLD_CEILING_MS});
       }
       // …THEN THE RECEIPT OF THE TABLE (Sponsored Projects): a payout that asked nobody, shown on the seat's own cards.
       if (stagePlaying === stage && tableReceiptsOwed()) {

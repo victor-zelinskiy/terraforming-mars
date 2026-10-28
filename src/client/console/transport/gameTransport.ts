@@ -119,6 +119,7 @@ import {seedBannerCubeHolds} from '@/client/console/parliament/bannerCubeScene';
 import {noteSittingRise} from '@/client/console/parliament/sittingRise';
 import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
 import {seedCardReactionHolds, snapshotRailHolds} from '@/client/console/cardReaction/cardReactionDirector';
+import {detectTableAnswerPayout, endTableAnswerPayout, runTableAnswerPayout, seedTableAnswers} from '@/client/console/parliament/tableAnswerBeat';
 import {seedScaleStepRatingHold} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {seedParameterSwings} from '@/client/console/scaleSwing/scaleSwingDirector';
 import {heldStock as heldRailStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -302,6 +303,8 @@ export const transportHolds = reactive({
   resolutionPayout: false,
   /** The answer of a live «on which card» pick is played as a scene (TR53 iteration — `cardReceive/promptReceive.ts`). */
   promptReceive: false,
+  /** A walk's LAYOUT answered on the answer stage (TR78 — `parliament/tableAnswerBeat.ts`): the commit is held to the touchdowns. */
+  tableAnswer: false,
   /** THE GENERATION SCENE's pre-commit beat — the counter's flip (TR61 — `generationScene/generationScene.ts`). */
   generationScene: false,
 });
@@ -315,7 +318,7 @@ export function transportHolding(): boolean {
   return h.marker || h.tilePlacement || h.conversion || h.hazardCleanup || h.generationScene ||
     h.tradeFleet || h.hydroMarker || h.playedHero || h.patentSale ||
     h.stdProject || h.cardDiscard || h.tilePlacementHero || h.colonyBuild || h.colonyRoster || h.colonyCity ||
-    h.nomadMove || h.resolutionPayout || h.promptReceive;
+    h.nomadMove || h.resolutionPayout || h.promptReceive || h.tableAnswer;
 }
 
 /**
@@ -780,6 +783,10 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // …and WHICH CARD REACTED («СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК», TR80 Hartlan Heating): the server's record of every
   // card effect that fired in this response (`cardReactions`). A row a host above holds is the host's answer — its
   // flight asks this module for the reactor; a row nobody holds is held HERE and flown by the reactor's own chain.
+  // …and «ОТВЕТ СТОЛА» (TR78 Arwind Inc.): a card of the table answered a walk of the Career with units that LANDED —
+  // held on the capsules and DECLARED here, so the reaction seeder below attaches the record to the answer stage the
+  // flow that walked the marker opens (the quest's, the sitting's, a card's walk); nobody standing → the chain's own.
+  seedTableAnswers(currentView(), newView);
   seedCardReactionHolds(currentView(), newView, railHeldBefore);
   // …and THE SCORE CELL (TR55 — «every point comes from its own cause»), the very LAST: the server's two breakdowns are
   // attributed, what every writer above holds in this block is netted out, a share a host claimed is held for its own
@@ -875,6 +882,21 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             await runPromptReceive(promptReceiveEvent);
           } finally {
             transportHolds.promptReceive = false;
+          }
+        }
+        /*
+         * Console TABLE-ANSWER LAYOUT gate (TR78 — «ОТВЕТ СТОЛА»): the viewer laid a walk's units out over its holders
+         * (the family's distribution, asked by a card of the table) and the server RECORDED the landing: HOLD the commit
+         * while the tokens leave the asker's face on the answer stage onto the chosen capsules (the layout is the
+         * standing view). Detected from the authoritative reaction record only.
+         */
+        const tableAnswerEvent = detectTableAnswerPayout(currentView(), newView);
+        if (tableAnswerEvent !== undefined) {
+          transportHolds.tableAnswer = true;
+          try {
+            await runTableAnswerPayout(tableAnswerEvent);
+          } finally {
+            transportHolds.tableAnswer = false;
           }
         }
         const patentSaleEvent = detectPatentSale(newView);
@@ -1091,6 +1113,9 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           }
           if (promptReceiveEvent !== undefined) {
             void nextTick(() => endPromptReceive());
+          }
+          if (tableAnswerEvent !== undefined) {
+            void nextTick(() => endTableAnswerPayout());
           }
           if (discardEvent !== undefined) {
             void nextTick(() => {
@@ -1384,6 +1409,9 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           // taken the picker away) — the landing tick's scope may close now.
           void nextTick(() => endResolutionPayout());
         }
+        if (tableAnswerEvent !== undefined) {
+          void nextTick(() => endTableAnswerPayout());
+        }
         if (promptReceiveEvent !== undefined) {
           // Post-commit: the pick is gone and the card is home — its seal, its recede and its ticks let go.
           void nextTick(() => endPromptReceive());
@@ -1571,6 +1599,9 @@ function abortAllConsoleTransactions(): void {
   // …and the resolution payout: nothing was recorded, nothing flies.
   transportHolds.resolutionPayout = false;
   endResolutionPayout();
+  // …and a walk's layout answered on the answer stage (TR78): the same.
+  transportHolds.tableAnswer = false;
+  endTableAnswerPayout();
   // …and a live pick's answer: the server refused it — the candidates stand as they were (no seal, no recede).
   transportHolds.promptReceive = false;
   disarmPromptReceive();

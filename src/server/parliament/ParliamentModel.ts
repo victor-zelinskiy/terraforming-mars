@@ -29,7 +29,7 @@ import {worldMoveForecast} from '../models/effectForecast';
 import {ratingLeaders} from './ratingVetoGate';
 import {ResolutionDefinition} from './resolutions/IResolution';
 import {ParliamentPhase} from './ParliamentPhase';
-import {agendaReactionPending} from './AgendaStepReactions';
+import {agendaReactionPending} from './AgendaWalkReactions';
 import {partyWaiverIsOneShot} from '../models/requirementEasing';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {

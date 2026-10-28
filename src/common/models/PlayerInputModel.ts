@@ -749,27 +749,27 @@ export type ChairmanQuestPromptMeta = {
 }
 
 /**
- * THE QUESTION A STEP OF THE CAREER ASKS (Turmoil Redux — TR78 Arwind Inc.:
+ * THE QUESTION A WALK OF THE CAREER ASKS (Turmoil Redux — TR78 Arwind Inc.:
  * «whenever you advance your Agenda marker 1 step, add 1 fighter to ANY
- * card»). A card of the player's table answered ONE step of the Agenda walk
- * (`ICard.onAgendaStep`) with a question, and this marker says which step of
+ * card»). A card of the player's table answered ONE walk of the Agenda track
+ * (`ICard.onAgendaWalked` — the steps of one walk are ONE answer: N steps →
+ * N units, laid out in ONE question) with a question, and this marker says
  * which walk asked it — so the console decides the HOST by structure, never by
  * the title (invariant 1): a walk of a card played from the hand asks in the
  * hand (`reason: 'card'` — normally pre-selected in the composer), every other
  * walk asks INSIDE the Parliament (`phase` the sitting, `quest` the chairman's
- * quest, `resolution` a law's seat step). Serialized on the input's own
- * `toModel` (nesting-safe).
+ * quest, `resolution` a law's seat step). Carried by the family's pick
+ * (`SelectCard`) and by its distribution (`AndOptions`) alike; serialized on
+ * the input's own `toModel` (nesting-safe).
  */
-export type AgendaStepPromptMeta = {
+export type AgendaWalkPromptMeta = {
   /** The card whose effect asks (the reactor — Arwind Inc.). */
   source: CardName;
   /** Why the marker walked — `AgendaWalkCause`'s reason. */
   reason: 'quest' | 'phase' | 'card' | 'resolution';
-  /** The track step the marker reached (1…12). */
-  step: number;
-  /** This step's place in the walk, 1-based, and the walk's length — «1/2» of a two-step walk. */
-  index: number;
-  of: number;
+  /** The walk: the step the marker left and the step it reached (`to − from` steps were taken). */
+  from: number;
+  to: number;
   /** The card that walked (`reason: 'card'`) / the law that walked it (`reason: 'resolution'`). */
   card?: CardName;
   resolution?: string;
@@ -876,10 +876,10 @@ export type BaseInputModel = {
    *  marker (see {@link CardResourceDistributionMeta}). Serialized on
    *  `AndOptions.toModel` (nesting-safe), not centrally. */
   cardResourceDistributionPrompt?: CardResourceDistributionMeta;
-  /** Explicit "a STEP OF THE CAREER asks this" marker (see
-   *  {@link AgendaStepPromptMeta}). Serialized on the input's own `toModel`
-   *  (nesting-safe). */
-  agendaStepPrompt?: AgendaStepPromptMeta;
+  /** Explicit "a WALK OF THE CAREER asks this" marker (see
+   *  {@link AgendaWalkPromptMeta}). Serialized on the input's own `toModel`
+   *  (nesting-safe) — on the pick and on the distribution. */
+  agendaWalkPrompt?: AgendaWalkPromptMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {

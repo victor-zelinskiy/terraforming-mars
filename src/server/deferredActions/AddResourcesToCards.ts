@@ -57,7 +57,7 @@ import {SelectAmount} from '../inputs/SelectAmount';
 import {AndOptions} from '../inputs/AndOptions';
 import {InputError} from '../inputs/InputError';
 import {PlayerInput} from '../PlayerInput';
-import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
+import {AgendaWalkPromptMeta, ChoiceContextSource} from '../../common/models/PlayerInputModel';
 import {message} from '../logs/MessageBuilder';
 import {From} from '../logs/From';
 import {cardsToModel} from '../models/ModelUtils';
@@ -84,6 +84,18 @@ export type Options = {
   distributeTitle?: string | Message;
   /** Default true: each landing logs its own line through `addResourceTo`. */
   log?: boolean;
+  /**
+   * PREVIEW-ONLY: a card ABOUT to enter play that is a holder too (the family's
+   * pick has the same option) — a forecast of a walk the play makes counts it
+   * among the holders; the live path never sets it.
+   */
+  cardBeingPlayed?: ICard;
+  /**
+   * THE WALK OF THE CAREER THAT ASKS (TR78 Arwind Inc.): stamped on BOTH shapes
+   * — the pick and the distribution's `and` — so the console hosts the layout
+   * exactly where it hosts the pick (`parliament/AgendaWalkReactions.ts`).
+   */
+  agendaWalk?: AgendaWalkPromptMeta;
 };
 
 /**
@@ -121,7 +133,24 @@ export class AddResourcesToCards extends DeferredAction<ReadonlyArray<ResourcePl
    * WARE wildcard included), in tableau order, each once.
    */
   public getCards(): Array<ICard> {
-    return this.player.getResourceCards().filter((card) => holdsOneOf(card, this.resourceTypes));
+    const cards = this.player.getResourceCards().filter((card) => holdsOneOf(card, this.resourceTypes));
+    // The card about to enter play (preview only — `Options.cardBeingPlayed`): a holder once played, first in the row.
+    const beingPlayed = this.options.cardBeingPlayed;
+    return beingPlayed !== undefined && holdsOneOf(beingPlayed, this.resourceTypes) && !cards.includes(beingPlayed) ? [beingPlayed, ...cards] : cards;
+  }
+
+  /** The family's ordinary PICK over these very holders (N = 1, or ONE holder takes all N) — the shape, built once. */
+  private pick(): AddResourcesToCard {
+    return new AddResourcesToCard(this.player, this.resourceTypes, {
+      count: this.count,
+      autoSelect: this.options.autoSelect,
+      cause: this.options.cause,
+      from: this.options.from,
+      title: this.options.pickTitle,
+      log: this.options.log,
+      ...(this.options.cardBeingPlayed !== undefined ? {cardBeingPlayed: this.options.cardBeingPlayed} : {}),
+      ...(this.options.agendaWalk !== undefined ? {agendaWalk: this.options.agendaWalk} : {}),
+    });
   }
 
   /** Is there something to DISTRIBUTE at all — N ≥ 2 over ≥ 2 holders? Else the family's ordinary pick. */
@@ -144,14 +173,7 @@ export class AddResourcesToCards extends DeferredAction<ReadonlyArray<ResourcePl
       // goes to the chosen holder — the same `resourceGainPrompt` reading,
       // the same `autoSelect` law, the same source dock. The pick spans the
       // SAME list of kinds, so its candidates are these very holders.
-      return new AddResourcesToCard(this.player, this.resourceTypes, {
-        count: this.count,
-        autoSelect: this.options.autoSelect,
-        cause: this.options.cause,
-        from: this.options.from,
-        title: this.options.pickTitle,
-        log: this.options.log,
-      }).andThen((card) => {
+      return this.pick().andThen((card) => {
         this.cb([placementOf(card, this.count)]);
         return undefined;
       }).execute();
@@ -169,6 +191,19 @@ export class AddResourcesToCards extends DeferredAction<ReadonlyArray<ResourcePl
       return undefined;
     }
     return this.buildDistribution(this.getCards());
+  }
+
+  /**
+   * READ-ONLY: the PROMPT the live path WOULD present — the distribution over
+   * several holders, else the family's pick (the same `autoSelect` law: a lone
+   * holder under `autoSelect: false` is still a pick of one); `undefined` when
+   * nothing would be asked (no holder, an instant apply). Never a mutation.
+   */
+  public previewPrompt(): PlayerInput | undefined {
+    if (this.count <= 0) {
+      return undefined;
+    }
+    return this.distributes() ? this.buildDistribution(this.getCards()) : this.pick().previewPick();
   }
 
   private buildDistribution(cards: ReadonlyArray<ICard>): AndOptions {
@@ -200,6 +235,9 @@ export class AddResourcesToCards extends DeferredAction<ReadonlyArray<ResourcePl
     });
     if (this.options.cause !== undefined) {
       and.markChoiceContext({source: this.options.cause, mode: 'reward'});
+    }
+    if (this.options.agendaWalk !== undefined) {
+      and.markAgendaWalkPrompt(this.options.agendaWalk);
     }
     return and.andThen(() => {
       // VALIDATE FIRST, apply after: a wrong sum refuses the answer and the

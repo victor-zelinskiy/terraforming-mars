@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, CardResourceDistributionMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, SupportPromptMeta, DelegatePromptMeta, BannerPromptMeta, VotePaymentMeta, PartyActionPromptMeta, ResolutionActionPromptMeta, ParliamentPhaseMarker, ChairmanQuestPromptMeta, AgendaStepPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, CardResourceDistributionMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, SupportPromptMeta, DelegatePromptMeta, BannerPromptMeta, VotePaymentMeta, PartyActionPromptMeta, ResolutionActionPromptMeta, ParliamentPhaseMarker, ChairmanQuestPromptMeta, AgendaWalkPromptMeta} from '../common/models/PlayerInputModel';
 import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
 import {ExternalDrawTakeMeta} from '../common/models/ExternalDrawPromptModel';
 import {DeltaBonusPromptMeta} from '../common/models/DeltaBonusPromptModel';
@@ -85,10 +85,10 @@ export interface PlayerInput {
     // faces, the sum, the VP reading of every amount. Serialized on
     // AndOptions.toModel (nesting-safe), not centrally.
     cardResourceDistributionPrompt?: CardResourceDistributionMeta;
-    // Explicit "a STEP OF THE CAREER asks this" marker (see
-    // AgendaStepPromptMeta) — which reactor, which walk, which step. Serialized
-    // on the input's own toModel (nesting-safe), not centrally.
-    agendaStepPrompt?: AgendaStepPromptMeta;
+    // Explicit "a WALK OF THE CAREER asks this" marker (see
+    // AgendaWalkPromptMeta) — which reactor, which walk. Serialized on the
+    // input's own toModel (nesting-safe), not centrally.
+    agendaWalkPrompt?: AgendaWalkPromptMeta;
 
     // Contextual annotation identifying this PlayerInput.
     annotation: string | undefined;
@@ -176,7 +176,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public parliamentPhasePrompt: ParliamentPhaseMarker | undefined;
   public chairmanQuestPrompt: ChairmanQuestPromptMeta | undefined;
   public cardResourceDistributionPrompt: CardResourceDistributionMeta | undefined;
-  public agendaStepPrompt: AgendaStepPromptMeta | undefined;
+  public agendaWalkPrompt: AgendaWalkPromptMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
   public abstract process(response: InputResponse, player: IPlayer): PlayerInput | undefined;
@@ -452,12 +452,12 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
     return this;
   }
 
-  /** Mark this input as the QUESTION a step of the Career asks a card of the
-   *  player's table (chainable) — TR78 Arwind Inc.'s fighter. Stamped by the
-   *  shared step the reactor defers (`AddResourcesToCard`'s `agendaStep`).
-   *  See {@link AgendaStepPromptMeta}. */
-  public markAgendaStepPrompt(meta: AgendaStepPromptMeta): this {
-    this.agendaStepPrompt = meta;
+  /** Mark this input as the QUESTION a walk of the Career asks a card of the
+   *  player's table (chainable) — TR78 Arwind Inc.'s fighters. Stamped by the
+   *  shared steps the reactor defers (`AddResourcesToCard(s)`' `agendaWalk`):
+   *  the pick and the distribution alike. See {@link AgendaWalkPromptMeta}. */
+  public markAgendaWalkPrompt(meta: AgendaWalkPromptMeta): this {
+    this.agendaWalkPrompt = meta;
     return this;
   }
 }

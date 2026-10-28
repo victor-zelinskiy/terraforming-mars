@@ -393,7 +393,7 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     [CardName.SEPTEM_TRIBUS_REDUX]: {Factory: SeptemTribusRedux},
     // TR78 — the FIRST of the set's eight NEW corporations (`common/cards/turmoilReduxCorporations.ts`, TR78…TR85 by the
     // order of the scan folder): its own art and lore, no `reimplements`. A fighter per step of the Career
-    // (`ICard.onAgendaStep`), and the fighters on it pay 4 M€ for a Space tag (`arwindFighters`).
+    // (`ICard.onAgendaWalked` — one answer per walk), and the fighters on it pay 4 M€ for a Space tag (`arwindFighters`).
     [CardName.ARWIND_INC]: {Factory: ArwindInc},
     // TR79 — the SECOND new corporation: the first city's printed bonus doubled (`AddTileOptions
     // .printedBonusMultiplier`), a ring of the player's cubes around it, and a tile on an own cube asks «3 data or a

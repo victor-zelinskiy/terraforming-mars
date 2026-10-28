@@ -135,9 +135,10 @@
   (`flyExchangedDelegate`, холды `delegateExchangeArrival` / `delegateExchangeReserveStanding`).
 - **НОВАЯ корпорация набора (не замена)** (TR78 Arwind Inc., `docs/TURMOIL_REDUX_ARWIND_INC.md`): номер — строка реестра
   `common/cards/turmoilReduxCorporations.ts` (TR78…TR85 в порядке папки сканов; `authored` у строки), без `reimplements` — свой арт и
-  лор под своим номером; регистрация в `corporationCards`; `deckComposition.spec` считает её среди корпораций модуля. Реакция на шаг
-  Карьеры — хук `ICard.onAgendaStep` + `askResourceOnAgendaStep` + двойник `agendaStepForecast`: три хоста (рука · задание · заседание /
-  закон) приходят даром.
+  лор под своим номером; регистрация в `corporationCards`; `deckComposition.spec` считает её среди корпораций модуля. Реакция на
+  ходьбу по Карьере — хук `ICard.onAgendaWalked` (ОДИН вызов на ходьбу) + `answerResourceOnAgendaWalk` (аскер один — кладёт сразу;
+  второй держатель — выбор или раскладка, ОДИН вопрос) + двойник `agendaWalkedForecast`: сцена «ОТВЕТ СТОЛА» с её хостами (рука ·
+  задание · заседание / закон) приходит даром (`docs/TURMOIL_REDUX_ARWIND_INC.md` §6).
 - **Корпорация-ДЕРЖАТЕЛЬ с дверью торговли** (TR85 Veynon Dynamics, `docs/TURMOIL_REDUX_VEYNON_DYNAMICS.md`): «потратьте 1
   <ресурс> отсюда — торгуйте бесплатно» — строка `CardTradeDoorSpec` общего модуля `colonies/cardTradeDoor.ts` + экземпляр трейдера
   в `Colonies.tradeHandlers()` (никогда третья копия); `colonies.tradeOffset` — декларация + строка в `COLONY_TRADE_OFFSET_CARDS`

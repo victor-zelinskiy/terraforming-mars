@@ -32,6 +32,11 @@ export class AndOptions extends OptionsInput<undefined> {
     if (this.cardResourceDistributionPrompt !== undefined) {
       model.cardResourceDistributionPrompt = this.cardResourceDistributionPrompt;
     }
+    // …and the WALK OF THE CAREER that asked a distribution (TR78 Arwind Inc. — N steps, N fighters laid out over
+    // the holders): the console hosts the layout by this marker, exactly as it hosts the family's pick.
+    if (this.agendaWalkPrompt !== undefined) {
+      model.agendaWalkPrompt = this.agendaWalkPrompt;
+    }
     return model;
   }
 

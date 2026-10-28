@@ -1656,6 +1656,10 @@ function targetPointFor(spec: ResourceTransferSpec, skipped?: Array<SkippedEnd>,
       measure(`.con-fleetdock [data-played-key="${esc}"]`) ??
       measure(`.con-hydro [data-played-key="${esc}"] .pcard__res`) ??
       measure(`.con-hydro [data-played-key="${esc}"]`) ??
+      // …THE ANSWER STAGE's faces (TR78 — «ОТВЕТ СТОЛА»: the asker's own capsule on the hero while it RECEIVES, a
+      // recipient's face in the receipt row): the capsule is the counter that ticks on the touchdown.
+      measure(`.con-tans [data-tans-card="${esc}"] .pcard__res`) ??
+      measure(`.con-tans [data-receipt-card="${esc}"] .pcard__res`) ??
       // …the SHARED recipient picker's candidate (an enacted resolution's
       // payout lands on the card the player just chose, while the pick is
       // still the standing view — the capsule is the counter that ticks):

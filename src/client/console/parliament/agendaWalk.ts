@@ -99,7 +99,8 @@ export type OwedAgendaWalk = AgendaWalkRecord & {
 };
 
 /** `seat` — the office changes hands (the beat before the walk, only when the play took the chair). */
-export type AgendaWalkBeat = '' | 'seat' | 'walk' | 'read' | 'done';
+/** `answer` — the table's answer to the walk plays on the answer stage (TR78) before the flow reads «done». */
+export type AgendaWalkBeat = '' | 'seat' | 'walk' | 'read' | 'answer' | 'done';
 
 export const agendaWalkFlow = reactive({
   /**

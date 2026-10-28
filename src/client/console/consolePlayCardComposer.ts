@@ -247,6 +247,11 @@ export function playChoiceMode(
   if (c.kind === 'amount' || c.kind === 'player' || c.kind === 'or' || c.kind === 'spendHeat') {
     return 'inline';
   }
+  // A LAYOUT (TR78 — a walk's units over the holders): an INLINE row of lanes, dialed in place (LB/RB per holder,
+  // ←→ between the holders, RT pours the rest) — never a follow-up, never a list.
+  if (c.kind === 'distribute') {
+    return 'inline';
+  }
   // The espionage ask (Corporate Espionage): an INLINE pre-select whose
   // picker is the Hydronetwork workspace's target-selection bridge — never a
   // follow-up (the target is mandatory before the CTA, and the projection is
@@ -872,7 +877,7 @@ export function samePreviewShape(
 export type FootHint = {control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean, spread?: boolean, badge?: number, highlight?: boolean, priority?: number};
 
 /** The focused review row's KIND — drives which local verb the footer offers. */
-export type PlayFocusKind = 'variant' | 'amount' | 'spendHeat' | 'pick' | 'none';
+export type PlayFocusKind = 'variant' | 'amount' | 'spendHeat' | 'distribute' | 'pick' | 'none';
 
 export type PlayFootContext = {
   /** The active sub-state (a list pick / the payment lanes), or none = review. */
@@ -1021,6 +1026,10 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
     hints.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'}, {control: 'triggerR', label: 'MAX'});
   } else if (ctx.focusedKind === 'spendHeat') {
     hints.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'});
+  } else if (ctx.focusedKind === 'distribute') {
+    // The LAYOUT's lanes: ←→ walk the holders, LB/RB move one unit on the focused one, RT pours what is left there.
+    hints.push({control: 'dpadH', label: 'Card'});
+    hints.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'}, {control: 'triggerR', label: 'MAX'});
   } else if (ctx.quickAdjust !== undefined) {
     // Inline payment quick-adjust — split so each side reflects its own limit.
     hints.push({control: 'bumperL', label: '−1', enabled: ctx.quickAdjust.canDecrease});

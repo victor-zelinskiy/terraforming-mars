@@ -170,6 +170,13 @@ export async function armTransferWitness(page: Page): Promise<void> {
       ['reactor', '.con-reaction__face[data-reaction-card] .pcard-ic, .con-recv__emerge[data-played-key] .pcard-ic, .con-citypay__card[data-played-key] .pcard-ic, .con-start__embedsource [data-start-seat-card] .pcard-ic, [data-reaction-home][data-reaction-lifted] .pcard-ic, [data-composer-card][data-reaction-lifted] .pcard-ic, .con-played [data-played-key][data-reaction-lifted] .pcard-ic, .con-start__played [data-played-key][data-reaction-lifted] .pcard-ic'],
       // The START STAGE's seated card — the capsule a corporation's own answer lands in (TR81). `start-seat:<card>`.
       ['start-seat', '.con-start__embedsource [data-start-seat-card]'],
+      // The ASKER's printed icon on the answer stage's hero (TR78) when the face is NOT lifted — a live pick's / layout's
+      // answer is born there (the receive scene, not the framework's rise). `asker:<sprite>`.
+      ['asker', '.con-tans [data-tans-asker-face] .pcard-ic'],
+      // A face on the ANSWER STAGE (TR78 — «ОТВЕТ СТОЛА»): the asker's own capsule on the hero while it receives, a
+      // recipient's face in the stage's row — a walk's unit lands on it. `answer:<card>`. After the printed-icon anchors
+      // above: a token born on the lifted asker's effect row is the REACTOR's, never the stage's.
+      ['answer', '.con-tans [data-tans-card], .con-tans [data-receipt-card]'],
       ['tag', '.con-recv [data-recv-front] .pcard-tag[data-tag], .con-played [data-played-key] .pcard-tag[data-tag]'],
       ['printed', '.con-recv [data-recv-front] .pcard-ic'],
       // A party's SEAL in the chamber — a card's rating answer to a change of power is born on the seal of the party that
@@ -247,6 +254,11 @@ export async function armTransferWitness(page: Page): Promise<void> {
       case 'lawseal': return 'lawseal';
       case 'agenda-step': return `agenda-step:${name(el, 'data-step')}`;
       case 'receipt': return `receipt:${name(el, 'data-receipt-card')}`;
+      case 'answer': return `answer:${name(el, 'data-tans-card') || name(el, 'data-receipt-card')}`;
+      case 'asker': {
+        const sprite = /([\w-]+)\.(?:png|webp|svg)/.exec((el as HTMLElement).style.backgroundImage ?? '')?.[1] ?? 'icon';
+        return `asker:${sprite}`;
+      }
       case 'printed': {
         const sprite = /([\w-]+)\.(?:png|webp|svg)/.exec((el as HTMLElement).style.backgroundImage ?? '')?.[1] ?? 'icon';
         return `printed:${sprite}`;

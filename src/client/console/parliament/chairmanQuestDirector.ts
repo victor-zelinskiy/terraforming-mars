@@ -40,6 +40,8 @@ import {flushAgendaBonus, markAgendaBonusLanded, takeAgendaBonus} from './parlia
 import {CUBE_FLIGHT_MS, finishParliamentFlights, flyDelegate, placeFigureRect, rectOf} from './parliamentFlights';
 import {CHAIR_FIGURE, delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
+import {TableAnswer, takeTableAnswer} from './tableAnswerBeat';
+import {agendaReactionResourceKey} from './agendaReaction';
 import {Rect} from './consoleParliamentVoteMotion';
 
 // ── the storyboard's budget (base ms — the motion scale is applied by the beat) ──
@@ -77,6 +79,11 @@ export type ChairmanQuestDirectorContext = {
    * once the answer has landed (`noteChairmanQuestReactionAnswered`).
    */
   owesReaction?: () => string | undefined;
+  /**
+   * «ОТВЕТ СТОЛА» (TR78): the step's units LANDED on the asker (no question) — the section plays the receipt on the
+   * quest's answer stage (`tableAnswerBeat.playTableAnswer`) and calls `done` when the stage has folded.
+   */
+  playTableAnswer?: (answer: TableAnswer, done: () => void) => void;
   /** Every beat has landed: A closes the flow. */
   onDone: () => void;
 };
@@ -356,6 +363,27 @@ function launchAgendaBonus(): void {
  * without one it ends as it always did.
  */
 function afterAgenda(): void {
+  const state = run;
+  if (state === undefined) {
+    return;
+  }
+  // «ОТВЕТ СТОЛА» (TR78): the step's units LANDED with the step (the asker alone) — the receipt plays on the quest's
+  // answer stage first; a question (a second holder) holds the flow below, on the same stage.
+  const play = state.ctx.playTableAnswer;
+  const receipt = play === undefined ? undefined : takeTableAnswer('quest');
+  if (receipt !== undefined && play !== undefined) {
+    chairmanQuestFlow.reactionKey = agendaReactionResourceKey(receipt.resource);
+    chairmanQuestFlow.beat = 'reaction';
+    chairmanQuestFlow.stage = 'reaction';
+    state.ctx.onStage('reaction');
+    play(receipt, () => schedule(BEAT_GAP_MS, () => afterAnswer()));
+    return;
+  }
+  afterAnswer();
+}
+
+/** The receipt (if any) has played: with the table's QUESTION standing the flow holds for it; without one it ends. */
+function afterAnswer(): void {
   const state = run;
   if (state === undefined) {
     return;

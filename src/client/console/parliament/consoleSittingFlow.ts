@@ -109,11 +109,11 @@ export const SITTING_HOSTED_STEPS: ReadonlySet<SittingRewardStep> = new Set<Sitt
  * own: the wave still comes first (measured: the grid stood 2.4 s before the titanium touched the rail).
  */
 export function sittingFieldOf(stage: SittingStage, rewardStep: SittingRewardStep, rewardPending: boolean, ledger: boolean, hosting = false, receipt = false,
-  career = false): {pose: boolean, stepOpen: boolean} {
-  // «ИСТРЕБИТЕЛЬ» (TR78 Arwind Inc.): the chain WAITS on the table's answer to the winner's step of the Career — the
-  // enactment page holds after its ПОВЕСТКА (`career` = the viewer is asked AND that beat has played) and its field
-  // opens for the pick; the support and the enactment play on the same page once the answer has landed.
-  if (stage === 'enact' && career) {
+  answer = false): {pose: boolean, stepOpen: boolean} {
+  // «ОТВЕТ СТОЛА» (TR78 Arwind Inc.): the winner's table answers its step of the Career ON THE ENACTMENT PAGE, after
+  // its ПОВЕСТКА — a receipt playing, or a question the chain waits on (`answer` = the answer stage stands as a layer
+  // of the reward chassis): the field opens for it; the support and the enactment play on the same page after it.
+  if (stage === 'enact' && answer) {
     return {pose: true, stepOpen: !rewardPending};
   }
   if (stage !== 'reward') {
@@ -122,8 +122,8 @@ export function sittingFieldOf(stage: SittingStage, rewardStep: SittingRewardSte
   const stepOpen = (SITTING_HOSTED_STEPS.has(rewardStep) || hosting) && !rewardPending;
   // A RECEIPT OF THE TABLE (Sponsored Projects — a card payout that asked nobody) holds the field from the record's
   // arrival to the receipt's departure: the take leaves the zone and the receipt stands in it — one field, never a
-  // fold between the two.
-  return {pose: stepOpen || ledger || receipt, stepOpen};
+  // fold between the two. The answer stage (a law's step of the Career answered by the table) holds it the same way.
+  return {pose: stepOpen || ledger || receipt || answer, stepOpen};
 }
 
 /**
@@ -173,9 +173,10 @@ export type SittingPosition = {
 
 /** The viewer's own resolution-sourced ask, by its structural markers — never a title. */
 export function sittingAskOf(wf: PlayerInputModel | undefined): 'choice' | 'distribution' | 'intake' | 'discard' | 'colony' | 'placement' | undefined {
-  // A table's answer to the winner's step of the Career (TR78) is a PICK of the sitting's own (the chain waits on it).
+  // A table's answer to the winner's step of the Career (TR78) is a step of the sitting's own (the chain waits on
+  // it): the family's pick, or its LAYOUT when the walk owed several units over several holders.
   if (sittingReactionOf(wf) !== undefined) {
-    return 'choice';
+    return wf?.type === 'and' ? 'distribution' : 'choice';
   }
   if (wf === undefined || sittingAskResolution(wf) === undefined) {
     return undefined;

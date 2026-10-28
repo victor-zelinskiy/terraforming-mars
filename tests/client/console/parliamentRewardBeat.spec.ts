@@ -11,7 +11,7 @@ import {reconcileDrawnCards} from '@/client/components/drawnCards/drawnCardsStat
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {consoleParliamentUi, resetConsoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {
-  clearPanelRewardHold, heldProduction, heldStock, panelRewardHold,
+  clearPanelRewardHold, heldProduction, heldStock, panelRewardHold, takeDeclaredAnswers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {activeAnimationHoldLabels, isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
@@ -57,6 +57,7 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
   beforeEach(() => {
     resetParliamentRewards();
     clearPanelRewardHold();
+    takeDeclaredAnswers();
     resetConsoleParliamentUi();
     resetWorkspaceStack();
   });
@@ -244,6 +245,28 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     markRewardLanded(taken[1]);
     expect(parliamentRewardPending()).is.false;
     expect(panelRewardHold.active).is.false;
+  });
+
+  it('SEED ON SCREEN DECLARES THE RULING PARTY\'S ANSWER (iteration 6 — a party is a reactor): the wave flies it itself off the plaque, so the reaction record attaches to the wave\'s row — a plain payout is held but not declared; off screen nothing is declared', () => {
+    consoleParliamentUi.stageStanding = true;
+    const before = view({generation: 3, seq: 7});
+    const after = view({generation: 3, seq: 7, outcomes: [
+      outcome({kind: 'production', production: Resource.HEAT, amount: 2, step: 'a'}),
+      outcome({kind: 'reaction', party: PartyName.GREENS, production: Resource.MEGACREDITS, amount: 2, step: 'a', part: undefined}),
+    ]});
+    seedParliamentRewardHold(before, after);
+    expect(takeDeclaredAnswers().map((spec) => `${spec.channel}:${spec.resource}+${spec.amount}`), 'the party\'s answer alone is declared').deep.eq(['production:megacredits+2']);
+    expect(heldProduction('heat'), 'the payout itself is held as before').eq(2);
+    expect(heldProduction('megacredits')).eq(2);
+    // OFF SCREEN (no stage, the frame parked): the counters tick with the commit — nothing held, nothing declared;
+    // the framework's own chain tells the party's answer at the rail's edge.
+    resetParliamentRewards();
+    clearPanelRewardHold();
+    consoleParliamentUi.stageStanding = false;
+    enterWorkspace('parliament', {anchor: {type: 'always'}});
+    seedParliamentRewardHold(before, after);
+    expect(takeDeclaredAnswers()).deep.eq([]);
+    expect(heldProduction('megacredits')).eq(0);
   });
 
   it('SEED with the sitting OFF SCREEN (its frame up but not standing — parked, collapsed): no hold, nothing owed — the counter ticks with the commit and the record reads «landed»; the Agenda bonus too', () => {

@@ -53,6 +53,7 @@ import {runCardHome} from '@/client/console/cardDeal/cardExitDirector';
 import {auxCellRect, runCityPayoutBeat} from '@/client/console/tilePlacement/cityDataPayoutBeat';
 import {claimCityPayout} from '@/client/console/tilePlacement/cityDataPayoutModel';
 import {CardReceiveOutcome, runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
+import {noteTableAnswerTold} from '@/client/console/parliament/tableAnswerBeat';
 
 /** Where the units of a live pick come from — the scene's family. */
 export type PromptReceiveFamily = 'field' | 'colony' | 'plate';
@@ -79,7 +80,7 @@ type Armed = {
   client?: true;
   /**
    * THE CARD THAT ASKS, when it stands among the candidates (TR78 Arwind Inc. — a table's answer to a step of the
-   * Career, `agendaStepPrompt.source`): the embedded pick has no dock, and the asker IS one of the faces on screen —
+   * Career, `agendaWalkPrompt.source`): the embedded pick has no dock, and the asker IS one of the faces on screen —
    * the token is born on that face's PRINTED icon of the resource.
    */
   asker?: CardName;
@@ -162,7 +163,7 @@ export function armPromptReceive(wf: PlayerInputModel | undefined, card: CardNam
     model,
     ...(opts.client === true ? {client: true as const} : {}),
     ...(pick.resourceGainPrompt?.diverted !== undefined ? {diverted: true as const} : {}),
-    ...(pick.agendaStepPrompt !== undefined ? {asker: pick.agendaStepPrompt.source} : {}),
+    ...(pick.agendaWalkPrompt !== undefined ? {asker: pick.agendaWalkPrompt.source} : {}),
   };
   // The scene's faces are LITE (the field's receiving card, the carried home): warm the THUMB the field paints and
   // the full the plate already shows — at the PRESS, where the round trip pays for the decode (the field card rose
@@ -236,6 +237,14 @@ function escapeName(name: string): string {
   return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name.replace(/"/g, '\\"');
 }
 
+/** The ASKER's face on the answer stage's hero (TR78 — `ConsoleParliamentTableAnswer`), when one stands. */
+function askerFaceEl(): HTMLElement | undefined {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+  return firstVisibleEnd('.con-tans [data-tans-asker-face]') as HTMLElement | undefined;
+}
+
 /** The answered candidate's slot in the standing pick (the plate's strip or the colony stage's zone). */
 function slotEl(card: CardName): HTMLElement | undefined {
   if (typeof document === 'undefined') {
@@ -293,10 +302,10 @@ function originsFor(a: Armed, specs: ReadonlyArray<ResourceTransferSpec>): Array
       measureEl('.con-task-host .con-src');
     return specs.map(() => planet === undefined ? undefined : centre(planet));
   }
-  // A TABLE'S ANSWER TO A STEP OF THE CAREER (TR78 Arwind Inc.): the embedded pick has no dock — the ASKER stands among
-  // the candidates, and the token is born on its face's PRINTED icon of the resource (the corporation's fighter), never
-  // on the picker's own bar.
-  const asker = a.asker === undefined ? undefined : slotEl(a.asker);
+  // A TABLE'S ANSWER TO A WALK OF THE CAREER (TR78 Arwind Inc. — «ОТВЕТ СТОЛА»): the embedded pick has no dock — the
+  // ASKER stands on the answer stage's hero (else among the candidates), and the token is born on that face's PRINTED
+  // icon of the resource (the corporation's fighter), never on the picker's own bar.
+  const asker = a.asker === undefined ? undefined : (askerFaceEl() ?? slotEl(a.asker));
   if (asker !== undefined) {
     return resolveGainIconOrigins(resolveActionCommitAnchors(asker, undefined), specs);
   }
@@ -399,6 +408,11 @@ export async function runPromptReceive(event: PromptReceiveEvent): Promise<void>
     promptReceiveState.outcome = event.record !== undefined ? await runField(a, event.record) : await runInSurface(a);
   } catch {
     promptReceiveState.outcome = 'degraded';
+  }
+  // A WALK'S ANSWER THE PLAYER GAVE ON STAGE (TR78): the scene has told it — the record that follows in the commit is
+  // attributed to it, never flown a second time by the answer stage or the reaction chain.
+  if (a.asker !== undefined) {
+    noteTableAnswerTold(a.asker, [{channel: 'card-resource', resource: a.resource, amount: a.amount, targetCard: a.card}]);
   }
 }
 

@@ -253,7 +253,7 @@ export function promptSourceResolution(wf: PlayerInputModel | undefined): string
 /**
  * THE LAW WHOSE SITTING HOSTS THIS QUESTION — the law's own ask (`promptSourceResolution`), or a card's answer to the
  * step of the Career that law walked (TR78 Arwind Inc. under RX39 Reds Budget: the corporation asks, the law's seat
- * step is why — `agendaStepPrompt.reason === 'resolution'`). The ONE reading every surface of the sitting asks
+ * step is why — `agendaWalkPrompt.reason === 'resolution'`). The ONE reading every surface of the sitting asks
  * («is this a question of the law's sitting?» — its stage gate, its zone, its announce, its stage word); the SOURCE
  * a plate names stays `promptSourceView` (the corporation that asks).
  */
@@ -262,6 +262,6 @@ export function sittingAskResolution(wf: PlayerInputModel | undefined): string |
   if (own !== undefined) {
     return own;
   }
-  const step = wf?.agendaStepPrompt;
+  const step = wf?.agendaWalkPrompt;
   return step?.reason === 'resolution' ? step.resolution : undefined;
 }

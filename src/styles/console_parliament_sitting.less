@@ -751,25 +751,100 @@ html.con-profile-tv .con-sit__veto { font-size: .92rem; }
    the chips' borders (`console-parliament-sitting-reward` RX01, CI and the box alike). */
 html.con-profile-tv .con-parl--sitting-field .con-parl__mid-band > .con-band .con-band__line { zoom: 1.12; }
 
-/* ══ «ИСТРЕБИТЕЛЬ» (TR78 Arwind Inc.) — the chairman QUEST's stage zone for the table's answer to its step of the Career:
-   the same rect and the same FIELD paint as the sitting's step (the room cleared — flat, opaque, no ring), unfolded over
-   the TABLE by the body swap's grammar (`playBodyUnfold`). It titles nothing: the crumb's tail names the stage, the
-   pick (the task host's target step) is the zone's whole content. ══ */
-.con-parl__reaction {
+/* ══ «ОТВЕТ СТОЛА» (TR78 Arwind Inc.) — ONE stage for a card of the table answering a walk of the Career: the ASKER's
+   face on the hero (the WHY — the framework lifts it in place, its effect row lit) and the ZONE beside it (a question's
+   picker / layout, or a receipt's row of recipients). Two hosts, one chassis: the section's own stage kind (the quest,
+   a card's walk — unfolded over the TABLE by the body swap's grammar) and a LAYER of the sitting's reward chassis (the
+   enactment page's pause, the reward page after the Career). The sitting's field paint (the room cleared — flat,
+   opaque, no ring); it titles nothing (the crumb's tail names the stage). Invariant 15: no halo anywhere here. ══ */
+.con-tans {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 1rem;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    padding: .2rem .4rem .3rem;
+    /* The asker alone (no recipient but itself): the hero stands centred, the zone takes no room. */
+    &--solo { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+    &__hero {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        min-width: 0;
+        min-height: 0;
+        padding: .2rem .4rem;
+    }
+    &__face {
+        display: flex;
+        justify-content: center;
+        min-height: 0;
+        .pcard { zoom: var(--con-parl-enact-zoom, var(--con-parl-gov-zoom)); }
+    }
+    /* The WHY under the face — a kicker, the walk's steps, the units: one quiet line (the band above reads the rest). */
+    &__why {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        font-size: .72rem;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        color: fade(@con-text, 82%);
+        white-space: nowrap;
+    }
+    &__why-kicker { font-weight: 700; color: fade(@con-parl-gold, 92%); }
+    &__why-walk { display: inline-flex; align-items: center; gap: .15rem; font-variant-numeric: tabular-nums; }
+    &__arrow { opacity: .7; }
+    &__why-gain { display: inline-flex; align-items: center; gap: .2rem; font-weight: 700; color: @con-parl-mint; }
+    &__unit { width: 1.05em; height: 1.05em; }
+    &__zone {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        &:not(&--on) { display: none; }
+        > * { grid-area: 1 / 1; }
+    }
+    &__embed {
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        align-items: stretch;
+        > .con-task-host, > .con-task { flex: 1 1 auto; min-width: 0; min-height: 0; max-height: 100%; width: 100%; max-width: none; }
+    }
+    &__row {
+        display: flex;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        > .con-receipt { flex: 1 1 auto; }
+    }
+}
+html.con-profile-tv .con-tans__why { font-size: .9rem; }
+html.con-profile-handheld .con-tans__why { font-size: .62rem; }
+/* The section's own stage kind (the quest, a card's walk): the sitting's field paint on the stage plate. */
+.con-parl .con-parl__stage.con-parl__stage--answer {
+    border-radius: 0;
+    background: linear-gradient(180deg, rgb(9, 15, 23), rgb(7, 12, 19) 46%, rgb(5, 9, 15));
+    box-shadow: none;
+    padding: .2rem 0 .3rem;
+    display: flex;
+    > .con-tans { flex: 1 1 auto; }
+}
+/* The sitting's LAYER: over the reward chassis (the hero + the zone it covers keep their boxes under it). */
+.con-sit__reward { position: relative; }
+.con-sit__answer {
     position: absolute;
     inset: 0;
     z-index: 3;
     display: flex;
-    flex-direction: column;
-    min-height: 100%;
-    max-height: calc(100% + var(--con-parl-agenda-h, 0px) + .4rem);
-    padding: .2rem 0 .3rem;
-    background: linear-gradient(180deg, rgb(9, 15, 23), rgb(7, 12, 19) 46%, rgb(5, 9, 15));
-    overflow: hidden;
-}
-.con-parl__reaction-zone {
-    display: flex;
-    flex: 1 1 auto;
+    min-width: 0;
     min-height: 0;
-    > * { flex: 1 1 auto; min-width: 0; }
+    background: linear-gradient(180deg, rgb(9, 15, 23), rgb(7, 12, 19) 46%, rgb(5, 9, 15));
+    > .con-tans { flex: 1 1 auto; }
 }

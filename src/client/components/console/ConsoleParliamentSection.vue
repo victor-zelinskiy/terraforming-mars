@@ -160,17 +160,8 @@
             <!-- THE CORPORATION RISES (Septem Tribus:redux): the card whose effect puts a cube on a banner stands up in the
                  table's own cell — the first action's answer and the sitting's «куб на знамя» alike — and the cube leaves it. -->
             <ConsoleBannerCubeStage />
-            <!-- «ИСТРЕБИТЕЛЬ» (TR78 Arwind Inc.): the table's answer to the chairman QUEST's step of the Career — the quest's
-                 own stage zone, unfolded over the TABLE from the rect the bills stood in (the body swap's one grammar: the
-                 drawer shuts, the zone opens from under the band); the shell teleports the pick into it, and nothing here
-                 titles itself (the crumb's tail names the stage). -->
-            <transition :css="false" @enter="onReactionEnter" @leave="onReactionLeave">
-              <div v-if="questReactionShown" class="con-parl__reaction" data-parl-reaction>
-                <div class="con-parl__reaction-zone" data-embed-slot="parliament-reaction"></div>
-              </div>
-            </transition>
             <transition :css="false" @enter="onStageEnter" @leave="onStageLeave" @enter-cancelled="onStageEnterCancelled" @leave-cancelled="onStageLeaveCancelled">
-              <div v-if="stageKind === 'seat' || stageKind === 'sitting'" v-show="stagePanelUp" class="con-parl__stage" :class="['con-parl__stage--' + stageKind, {'con-parl__stage--field': flow.sittingField}]" :data-parl-stage="stageKind" data-parl-reading>
+              <div v-if="stageKind === 'seat' || stageKind === 'sitting' || answerStageUp" v-show="stagePanelUp" class="con-parl__stage" :class="['con-parl__stage--' + stagePanelKind, {'con-parl__stage--field': flow.sittingField}]" :data-parl-stage="stagePanelKind" data-parl-reading>
                 <ConsoleParliamentSeatPick v-if="stageKind === 'seat' && focusedSlot !== undefined" ref="seatPick"
                                            :view="view" :slot="focusedSlot" :viewerColor="viewerColor" :seatCandidates="seatCandidates"
                                            @submit="submitSeat($event)" @inspect="$emit('inspect', $event)" />
@@ -178,7 +169,14 @@
                                           :position="sitting" :stage="sittingStage" :summary="model?.phase?.summary"
                                           :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
                                           :field="flow.sittingField" :stepOpen="sittingStepOpen" :ledger="sittingLedger"
-                                          :receipt="tableReceiptShown" :resultsHidden="resultsHidden" :careerStep="sittingCareerStep" mode="live" />
+                                          :receipt="tableReceiptShown" :resultsHidden="resultsHidden" mode="live"
+                                          :answer="tableAnswerShowing" :asking="tableAnswerAsking" :askerModel="answerAskerModel" :answerUp="sittingAnswerUp" />
+                <!-- «ОТВЕТ СТОЛА» (TR78 Arwind Inc.): a card of the table answers a walk of the Career the QUEST or a CARD made —
+                     the section's own stage kind, unfolded over the TABLE from the rect the bills stood in (the body swap's
+                     one grammar); the asker on its hero, the receipt / the picker in its zone. Inside a sitting the same
+                     stage is a LAYER of the sitting's reward chassis instead (above). -->
+                <ConsoleParliamentTableAnswer v-else-if="answerStageUp" ref="answerStage"
+                                              :answer="tableAnswerShowing" :asking="tableAnswerAsking" :askerModel="answerAskerModel" />
                 <div class="con-parl__embed" data-embed-slot="parliament"></div>
               </div>
             </transition>
@@ -253,6 +251,7 @@ import {PoliticalEffectEntry} from '@/client/components/effects/effectExtraction
 import {politicalSources} from '@/client/console/parliament/politicalSources';
 import ConsoleParliamentSeatPick from '@/client/components/console/parliament/ConsoleParliamentSeatPick.vue';
 import ConsoleParliamentSitting from '@/client/components/console/parliament/ConsoleParliamentSitting.vue';
+import ConsoleParliamentTableAnswer from '@/client/components/console/parliament/ConsoleParliamentTableAnswer.vue';
 import ConsoleParliamentSupportMode from '@/client/components/console/parliament/ConsoleParliamentSupportMode.vue';
 import ConsoleParliamentBannerMode from '@/client/components/console/parliament/ConsoleParliamentBannerMode.vue';
 import ConsoleBannerCubeStage from '@/client/components/console/parliament/ConsoleBannerCubeStage.vue';
@@ -295,8 +294,13 @@ import {
 } from '@/client/console/parliament/consoleSittingFlow';
 import {colonyLedgerOf, ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
 import {
-  agendaReactionStageKey, careerAgendaTold, careerPausedAt, careerResumeOwed, noteCareerAgendaTold, noteCareerResumed, questReactionOf, sittingReactionOf,
+  agendaReactionResourceKey, agendaReactionStageKey, careerAgendaTold, careerPausedAt, careerResumeOwed, noteCareerAgendaTold, noteCareerResumed, questReactionOf,
 } from '@/client/console/parliament/agendaReaction';
+import {
+  askTableAnswer, endTableAnswerAsk, noteTableAnswerPaneIn, playTableAnswer, releaseTableAnswers, TABLE_ANSWER_BUDGET_MS, tableAnswerAskOf, tableAnswerOwedTo,
+  tableAnswerState, takeTableAnswer, TableAnswer, TableAnswerAsk,
+} from '@/client/console/parliament/tableAnswerBeat';
+import {CardModel} from '@/common/models/CardModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {
@@ -367,7 +371,7 @@ export default defineComponent({
   name: 'ConsoleParliamentSection',
   components: {
     ConsoleWsHead, ConsoleParliamentSeats, ConsoleParliamentGovernment, ConsoleParliamentVotingArea, ConsoleParliamentBand,
-    ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting, ConsoleParliamentEffects, ConsoleParliamentEffectsStep, ConsoleParliamentQuestDossier, ConsoleParliamentCareerDossier,
+    ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting, ConsoleParliamentTableAnswer, ConsoleParliamentEffects, ConsoleParliamentEffectsStep, ConsoleParliamentQuestDossier, ConsoleParliamentCareerDossier,
     ConsoleParliamentSupportMode,
     ConsoleParliamentBannerMode,
     ConsoleBannerCubeStage,
@@ -541,7 +545,7 @@ export default defineComponent({
     /** The body is NOT the row: the chairman seat pick (a decision), or the sitting in a step / the results. */
     stagePanelUp(): boolean {
       const kind = parliamentStageKind();
-      return kind === 'seat' || (kind === 'sitting' && this.sittingReading);
+      return kind === 'seat' || (kind === 'sitting' && this.sittingReading) || this.answerStageUp;
     },
     /**
      * THE HALL'S VOTE (Парламент v8 § 5) — on EVERY door (the owner, 2026-10-19: «голосование должно быть идентично
@@ -612,18 +616,53 @@ export default defineComponent({
         return {pose: false, stepOpen: false};
       }
       return sittingFieldOf(this.sittingStage, p.rewardStep, this.rewardPending, this.sittingLedger !== undefined, this.stepFrameNested, this.tableReceiptOwed,
-        this.sittingCareerAsk);
+        this.sittingAnswerUp);
+    },
+    /** «ОТВЕТ СТОЛА» (TR78): the receipt on the answer stage / the question standing on it — the ONE stage's state (`tableAnswerBeat`). */
+    tableAnswerShowing(): TableAnswer | undefined {
+      return tableAnswerState.showing;
+    },
+    tableAnswerAsking(): TableAnswerAsk | undefined {
+      return tableAnswerState.asking;
+    },
+    /** The asker's LIVE model — the viewer's own tableau entry (its face, its count). */
+    answerAskerModel(): CardModel | undefined {
+      const asker = this.tableAnswerShowing?.asker ?? this.tableAnswerAsking?.asker;
+      return asker === undefined ? undefined : this.pv.thisPlayer?.tableau?.find((c) => c.name === asker);
+    },
+    /** The section's OWN answer stage kind (the quest's step, a card's walk): no sitting stands to host it as a layer. */
+    answerStageUp(): boolean {
+      return (this.tableAnswerShowing !== undefined || this.tableAnswerAsking !== undefined) && !this.sittingUp;
     },
     /**
-     * «ИСТРЕБИТЕЛЬ» (TR78 Arwind Inc.): the chain waits on THIS seat's table answering the winner's step of the Career,
-     * and the enactment page has played its ПОВЕСТКА — the page's field opens for the pick.
+     * THE SITTING HOSTS THE ANSWER AS A LAYER of its reward chassis: a receipt the director stands (whichever page), a
+     * question on the reward page (a law's step — the hosted step's own door), or on the enactment page once its
+     * ПОВЕСТКА has played (the winner's step — the chain's pause).
      */
-    sittingCareerAsk(): boolean {
-      return sittingReactionOf(this.pv.waitingFor) !== undefined && careerAgendaTold(this.sittingKey);
+    sittingAnswerUp(): boolean {
+      if (!this.sittingUp) {
+        return false;
+      }
+      if (this.tableAnswerShowing !== undefined) {
+        return true;
+      }
+      if (this.tableAnswerAsking === undefined) {
+        return false;
+      }
+      return this.sittingStage === 'reward' || (this.sittingStage === 'enact' && careerAgendaTold(this.sittingKey));
     },
-    /** The enactment page holds the FIELD for the table's answer (the reward panel carries the zone, the hero stays empty). */
-    sittingCareerStep(): boolean {
-      return this.sittingStage === 'enact' && this.sittingField;
+    /** The stage panel's KIND class — the section's own answer stage wears its own paint. */
+    stagePanelKind(): string {
+      return this.answerStageUp ? 'answer' : this.stageKind;
+    },
+    /**
+     * THE QUESTION THE TABLE ASKS, with its host, as a stable KEY (a watcher's edge, never an object's identity): the
+     * quest's once its flow holds for it (`beat === 'reaction'`), the sitting's winner step once its ПОВЕСТКА has
+     * played, a law's step while the sitting stands. '' = nothing to stand on the stage.
+     */
+    hostedAnswerAskKey(): string {
+      const ask = this.hostedAnswerAsk();
+      return ask === undefined ? '' : `${ask.host}|${ask.cause}|${ask.asker}|${ask.resource}|${ask.amount}`;
     },
     /**
      * A RECEIPT OF THE TABLE is owed or standing (Sponsored Projects — a card payout that asked nobody): the reward
@@ -698,10 +737,11 @@ export default defineComponent({
       if (this.payoutDetailsDoor && sittingPayoutDetails.open) {
         return 'Results · payouts';
       }
-      // «ИСТРЕБИТЕЛЬ» (TR78): the enactment page's field hosts a table's answer to the winner's step — the tail names WHAT
-      // is put down, one step past «ПРИНЯТИЕ» (and goes back to it once the answer has let the chain through).
-      if (this.sittingCareerStep && this.sittingStepOpen) {
-        return agendaReactionStageKey(this.pv.waitingFor);
+      // «ОТВЕТ СТОЛА» (TR78): the answer stage stands as a layer of the sitting — the tail names WHAT is put down
+      // («ИСТРЕБИТЕЛЬ»), one step past the page's own word, and goes back to it once the stage has folded.
+      if (this.sittingAnswerUp) {
+        const showing = this.tableAnswerShowing;
+        return showing !== undefined ? agendaReactionResourceKey(showing.resource) : agendaReactionStageKey(this.pv.waitingFor);
       }
       const step = SITTING_HOSTED_STEPS.has(p.rewardStep) && !this.sittingStepOpen ? 'received' : p.rewardStep;
       const wf = this.pv.waitingFor;
@@ -877,18 +917,6 @@ export default defineComponent({
       return chairmanQuestGateOf(this.pv.waitingFor);
     },
     /** The chairmanship flow's crumb tail — one word per stage («ЗАДАНИЕ» → «ПОВЕСТКА»). */
-    /**
-     * THE QUEST'S REACTION ZONE STANDS (TR78): the flow holds for the table's answer to the step («ИСТРЕБИТЕЛЬ») — and
-     * keeps the zone through the read that follows the answer, so the pick's own leave paints in place.
-     */
-    questReactionShown(): boolean {
-      return chairmanQuestFlow.live && chairmanQuestFlow.reactionKey !== '' &&
-        (chairmanQuestFlow.beat === 'reaction' || chairmanQuestFlow.beat === 'done');
-    },
-    /** The table's question to the quest's step stands (the server's marker — the pick is still the player's). */
-    questReactionAsked(): boolean {
-      return questReactionOf(this.pv.waitingFor) !== undefined;
-    },
     questTail(): string {
       return chairmanQuestStageKey(chairmanQuestFlow.stage);
     },
@@ -1193,7 +1221,11 @@ export default defineComponent({
     },
     crumbStage(): string {
       // A card walk that took the chair first (TR76) names that beat «КРЕСЛО» before «КАРЬЕРА» — the quest's own words.
-      return parliamentCrumbStage(this.sittingTail, this.questTail, agendaWalkFlow.live && agendaWalkFlow.beat === 'seat' ? WALK_SEAT_STAGE_KEY : '');
+      // A card's walk: «КРЕСЛО» while the chair changes hands (TR76), the unit's word while the table answers (TR78).
+      const walkTail = !agendaWalkFlow.live ? '' :
+        agendaWalkFlow.beat === 'seat' ? WALK_SEAT_STAGE_KEY :
+          agendaWalkFlow.beat === 'answer' && this.tableAnswerShowing !== undefined ? agendaReactionResourceKey(this.tableAnswerShowing.resource) : '';
+      return parliamentCrumbStage(this.sittingTail, this.questTail, walkTail);
     },
     /**
      * WHAT THIS FRAME PUBLISHES TO THE STACK'S CRUMB. Standalone, the mode is
@@ -1628,12 +1660,24 @@ export default defineComponent({
       },
     },
     /**
-     * THE TABLE'S ANSWER TO THE QUEST'S STEP HAS LANDED (TR78): the pick left with its answer (the receive scene played
-     * with the commit held, so the prompt goes only once the fighter is on its card) — the flow goes on.
+     * «ОТВЕТ СТОЛА» (TR78): the table's QUESTION stands with its host ready → the answer stage asks it (the shell
+     * teleports the pick / the layout in once the stage has entered); the prompt falls (the receive scene played with
+     * the commit held, so it falls only once the units are on their cards) → the stage folds, and the quest's flow —
+     * which held for it — goes on.
      */
-    'questReactionAsked'(asked: boolean, was: boolean): void {
-      if (!asked && was && chairmanQuestAwaitsReaction()) {
-        noteChairmanQuestReactionAnswered();
+    'hostedAnswerAskKey'(key: string, was: string): void {
+      if (key !== '') {
+        const ask = this.hostedAnswerAsk();
+        if (ask !== undefined) {
+          askTableAnswer(ask);
+        }
+        return;
+      }
+      if (was !== '') {
+        endTableAnswerAsk();
+        if (was.startsWith('quest|') && chairmanQuestAwaitsReaction()) {
+          noteChairmanQuestReactionAnswered();
+        }
       }
     },
     /**
@@ -1873,7 +1917,10 @@ export default defineComponent({
     consoleParliamentUi.voteStanding = false;
     consoleParliamentUi.stageStanding = false;
     consoleParliamentUi.fieldStanding = false;
-    consoleParliamentUi.reactionZone = false;
+    consoleParliamentUi.answerZone = false;
+    // «ОТВЕТ СТОЛА» (TR78): a receipt no stage will play ticks now, honestly late; a question's stage is gone with the section.
+    releaseTableAnswers();
+    endTableAnswerAsk();
     // …and a rating owed to the enactment's tail (TR63), under the same law as the rewards above: never held for a
     // stage that is gone (a delivery in flight finishes its own touchdowns).
     releaseOrphanRulingRatings('unmount');
@@ -2367,6 +2414,8 @@ export default defineComponent({
             const wf = this.pv.waitingFor;
             return questReactionOf(wf) !== undefined ? agendaReactionStageKey(wf) : undefined;
           },
+          // …and its RECEIPT (the units landed on the asker — no question): played on the section's own answer stage.
+          playTableAnswer: (answer: TableAnswer, done: () => void) => this.playHostedAnswer(answer, () => chairmanQuestFlow.live, done),
           onStage: () => {
             setWorkspaceFrameStage('parliament', this.crumbStage);
           },
@@ -2477,7 +2526,8 @@ export default defineComponent({
         return;
       }
       this.walkHold?.release();
-      this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(owed)});
+      // …the table's answer to the walk (TR78 — «ОТВЕТ СТОЛА») adds its own budget to the walk's hold.
+      this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(owed) + (tableAnswerOwedTo('walk') ? TABLE_ANSWER_BUDGET_MS : 0)});
       const generation = owed.generation;
       // «ДОЖАТЬ» (К-W1, the owner's decision 2026-10-10): the walk's own WAITS — the lead before each leg, the gap
       // after each landed reward, the read — ride the sitting's hurriable clock, so A during the walk pose moves the
@@ -2503,12 +2553,45 @@ export default defineComponent({
             this.walkReadBeat = scheduleHurriedParliamentBeat(AGENDA_WALK_READ_MS, () => {
               this.walkReadBeat = undefined;
               if (agendaWalkFlow.live) {
-                onDone();
+                // «ОТВЕТ СТОЛА» (TR78): the table's receipt of the walk plays on the section's own stage before the end.
+                this.playWalkAnswer(onDone);
               }
             });
           });
         },
       });
+    },
+    /** «ОТВЕТ СТОЛА» (TR78): a receipt owed to the flow on screen plays on the answer stage; `done` once the stage has folded. */
+    playHostedAnswer(answer: TableAnswer, alive: () => boolean, done: () => void): void {
+      void playTableAnswer(answer, {alive}).then(done, done);
+    },
+    /** …after a card's walk: the table's receipt plays on the section's own stage before the walk reads «done». */
+    playWalkAnswer(onDone: () => void): void {
+      const answer = tableAnswerOwedTo('walk') ? takeTableAnswer('walk') : undefined;
+      if (answer === undefined || !agendaWalkFlow.live) {
+        onDone();
+        return;
+      }
+      agendaWalkFlow.beat = 'answer';
+      this.playHostedAnswer(answer, () => agendaWalkFlow.live, () => {
+        if (agendaWalkFlow.live) {
+          onDone();
+        }
+      });
+    },
+    /** THE QUESTION THE TABLE ASKS right now, with its host — undefined until that host stands ready for it. */
+    hostedAnswerAsk(): TableAnswerAsk | undefined {
+      const ask = tableAnswerAskOf(this.pv.waitingFor);
+      if (ask === undefined) {
+        return undefined;
+      }
+      if (ask.cause === 'quest') {
+        return chairmanQuestFlow.live && chairmanQuestFlow.beat === 'reaction' ? {...ask, host: 'quest'} : undefined;
+      }
+      if (!this.sittingUp || (ask.cause === 'phase' && !careerAgendaTold(this.sittingKey))) {
+        return undefined;
+      }
+      return {...ask, host: 'sitting'};
     },
     /**
      * «ДОЖАТЬ» the card's walk (К-W1): every wait still ahead — the next lead, the gaps, the read — fires at once,
@@ -3132,6 +3215,10 @@ export default defineComponent({
         if (parliamentFlow.stage === 'sitting') {
           this.queueWalk();
         }
+        // «ОТВЕТ СТОЛА» on the section's own stage (TR78): it has entered — the flight may measure, the picker may come.
+        if (this.answerStageUp) {
+          noteTableAnswerPaneIn();
+        }
       });
     },
     onStageLeave(el: Element, done: () => void): void {
@@ -3144,27 +3231,6 @@ export default defineComponent({
           this.queueWalk();
         }
       });
-    },
-    /**
-     * «ИСТРЕБИТЕЛЬ» UNFOLDS (TR78): the zone opens from the rect the bills stood in while the row is pushed shut under it
-     * (`playBodyUnfold` — the body swap's one grammar), and only once it stands does the shell teleport the pick into it
-     * (`reactionZone`, published here: the pick's own entrance then paints inside a surface that has arrived).
-     */
-    onReactionEnter(el: Element, done: () => void): void {
-      const row = this.$refs.tableTierEl as HTMLElement | undefined;
-      const r = row?.getBoundingClientRect();
-      const from = r !== undefined && r.width > 0 ? {left: r.left, top: r.top, width: r.width, height: r.height} : undefined;
-      playBodyUnfold(el as HTMLElement, row, from, () => {
-        done();
-        if (this.questReactionShown) {
-          consoleParliamentUi.reactionZone = true;
-        }
-      });
-    },
-    /** …and folds back down; the row comes back under it. */
-    onReactionLeave(el: Element, done: () => void): void {
-      consoleParliamentUi.reactionZone = false;
-      playBodyFold(el as HTMLElement, this.$refs.tableTierEl as HTMLElement | undefined, done);
     },
     onStageEnterCancelled(el: Element): void {
       (el as HTMLElement).style.clipPath = '';

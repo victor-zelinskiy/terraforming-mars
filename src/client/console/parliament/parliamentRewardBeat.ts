@@ -575,6 +575,12 @@ export function seedParliamentRewardHold(before: PlayerViewModel | undefined, af
       fresh.forEach((r) => noteLanded(r.key));
     } else {
       beginPanelRewardHold(fresh.map((r) => r.spec));
+      // THE RULING PARTY'S ANSWER TO THE PAYOUT IS DECLARED (iteration 6 of «СРАБАТЫВАНИЕ КАРТЫ» — a party is a
+      // reactor): the reward wave flies it ITSELF, off the ruler's plaque, so the party's record of it attaches to
+      // this wave — never the chain's second telling at the rail's edge over a raw hold (the seeder's
+      // `standaloneOverRawHold` class: RX05's charter rose a second time after the plaque's own chip had landed,
+      // and its tokens stood in the air until the wave budget's safety — a blocking hold at «rest»).
+      declareHeldAnswers(fresh.filter((r) => r.outcome.kind === 'reaction').map((r) => r.spec));
       parliamentRewardState.owed.push(...fresh);
     }
   }

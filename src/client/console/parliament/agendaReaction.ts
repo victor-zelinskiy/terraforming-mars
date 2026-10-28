@@ -1,12 +1,14 @@
 /*
  * @console-shared LIVE — console native stands on this file.
  *
- * «ИСТРЕБИТЕЛЬ» — THE TABLE ANSWERS A STEP OF THE CAREER (Turmoil Redux — TR78 Arwind Inc.: «whenever you advance your
+ * «ИСТРЕБИТЕЛЬ» — THE TABLE ANSWERS A WALK OF THE CAREER (Turmoil Redux — TR78 Arwind Inc.: «whenever you advance your
  * Agenda marker 1 step, add 1 fighter to ANY card»; docs/TURMOIL_REDUX_ARWIND_INC.md). The PURE half: which prompt is
  * such an answer, which surface HOSTS it, the word its stage publishes, and — for the sitting — whether the server's
- * chain is PAUSED on it between the winner's step of the Career and the support.
+ * chain is PAUSED on it between the winner's step of the Career and the support. The stage itself — the asker's face
+ * on the hero, the picker / the receipt in its zone — is `tableAnswerBeat.ts` + `ConsoleParliamentTableAnswer`.
  *
- * ONE QUESTION, THREE HOSTS — read off the server's structural marker `agendaStepPrompt` (never a title):
+ * ONE QUESTION (the family's pick, or its LAYOUT when a walk of several steps meets several holders), THREE HOSTS —
+ * read off the server's structural marker `agendaWalkPrompt` (never a title):
  *  · `card`       — a card's own walk (TR04 …): the play's composer pre-collects it (a table question, addressed to the
  *                   corporation); a live one is the HAND's — the play's own workspace;
  *  · `quest`      — the chairman's quest: a step of the «ПРЕДСЕДАТЕЛЬСТВО» flow, hosted in the quest's own stage zone
@@ -22,41 +24,48 @@
  * fighter leaves the corporation's PRINTED icon for the chosen card's capsule. Pure: no DOM, no timers.
  */
 import {reactive} from 'vue';
-import {AgendaStepPromptMeta, PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {AgendaWalkPromptMeta, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {AGENDA_REACTION_PENDING_KEY, ParliamentPhaseModel} from '@/common/models/ParliamentModel';
 
 export type AgendaReactionHost = 'hand' | 'parliament';
 
 /** The step of the Career this prompt answers, by the server's own marker — undefined for every other prompt. */
-export function agendaReactionOf(wf: PlayerInputModel | undefined): AgendaStepPromptMeta | undefined {
-  return wf?.agendaStepPrompt;
+export function agendaReactionOf(wf: PlayerInputModel | undefined): AgendaWalkPromptMeta | undefined {
+  return wf?.agendaWalkPrompt;
 }
 
 /** WHO hosts the answer: a card's walk is its play's (the hand); every walk the Parliament runs is the Parliament's. */
-export function agendaReactionHost(meta: AgendaStepPromptMeta): AgendaReactionHost {
+export function agendaReactionHost(meta: AgendaWalkPromptMeta): AgendaReactionHost {
   return meta.reason === 'card' ? 'hand' : 'parliament';
 }
 
 /** The answer of the CHAIRMAN'S QUEST's step — a step of the quest's flow. */
-export function questReactionOf(wf: PlayerInputModel | undefined): AgendaStepPromptMeta | undefined {
+export function questReactionOf(wf: PlayerInputModel | undefined): AgendaWalkPromptMeta | undefined {
   const meta = agendaReactionOf(wf);
   return meta?.reason === 'quest' ? meta : undefined;
 }
 
 /** The answer of the SITTING's winner step — the chain waits on it. */
-export function sittingReactionOf(wf: PlayerInputModel | undefined): AgendaStepPromptMeta | undefined {
+export function sittingReactionOf(wf: PlayerInputModel | undefined): AgendaWalkPromptMeta | undefined {
   const meta = agendaReactionOf(wf);
   return meta?.reason === 'phase' ? meta : undefined;
 }
 
 /**
- * THE STAGE'S WORD — the unit the answer puts on a card («ИСТРЕБИТЕЛЬ»), read off the pick's own reading
- * (`resourceGainPrompt.cardResource` — the icon key, whose capitalised form is the resource's i18n key: `fighter` →
- * «Fighter»). Never «ВЫБОР»: the stage says WHAT is being put down.
+ * THE STAGE'S WORD — the unit the answer puts on a card («ИСТРЕБИТЕЛЬ»), read off the question's own reading: the
+ * pick's `resourceGainPrompt.cardResource` or the layout's `cardResourceDistributionPrompt.cardResource` — the icon
+ * key, whose capitalised form is the resource's i18n key (`fighter` → «Fighter»). Never «ВЫБОР» / «РАСКЛАДКА»: the
+ * stage says WHAT is being put down.
  */
 export function agendaReactionStageKey(wf: PlayerInputModel | undefined): string {
-  const icon = (wf as {resourceGainPrompt?: {cardResource?: string}} | undefined)?.resourceGainPrompt?.cardResource;
+  const w = wf as {resourceGainPrompt?: {cardResource?: string}, cardResourceDistributionPrompt?: {cardResource?: string}} | undefined;
+  const icon = w?.resourceGainPrompt?.cardResource ?? w?.cardResourceDistributionPrompt?.cardResource;
   return icon === undefined || icon === '' ? 'Choice' : icon[0].toUpperCase() + icon.slice(1);
+}
+
+/** The unit's word for a RECEIPT on the stage (no prompt — the record's own kind): `fighter` → «Fighter». */
+export function agendaReactionResourceKey(resource: string): string {
+  return resource === '' ? 'Choice' : resource[0].toUpperCase() + resource.slice(1);
 }
 
 /** Is the server's chain PAUSED on a table's answer to the winner's step of the Career (any seat)? */

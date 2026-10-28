@@ -161,10 +161,10 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
     if (this.resourceGainPrompt !== undefined) {
       model.resourceGainPrompt = this.resourceGainPrompt;
     }
-    // …and the STEP OF THE CAREER that asked it (TR78 Arwind Inc.): the console hosts the pick by this marker — in the
+    // …and the WALK OF THE CAREER that asked it (TR78 Arwind Inc.): the console hosts the pick by this marker — in the
     // hand for a card's walk, inside the Parliament for every other — and a composer may meet it nested.
-    if (this.agendaStepPrompt !== undefined) {
-      model.agendaStepPrompt = this.agendaStepPrompt;
+    if (this.agendaWalkPrompt !== undefined) {
+      model.agendaWalkPrompt = this.agendaWalkPrompt;
     }
     // Same for a Turmoil Redux PARTY ACTION beat (the Scientists' target pick,
     // the Reds' mandatory discard) — nested in the menu or deferred, the

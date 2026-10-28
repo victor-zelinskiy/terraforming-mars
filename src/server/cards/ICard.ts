@@ -38,6 +38,7 @@ import {EffectForecastFact} from '../../common/models/EffectForecastModel';
 import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from './EffectForecastContext';
 import type {FleetDock} from '../colonies/FleetDock';
 import type {AgendaWalkCause} from '../parliament/quests/ChairmanSeat';
+import {AgendaAdvanceStep} from '../../common/parliament/ParliamentTypes';
 import type {DeclaredHolderRole, HolderActionGood} from '../../common/cards/holderRole';
 import type {GlobalParameterRaise} from './GlobalParameterRaise';
 
@@ -61,15 +62,14 @@ export function isIHasCheckLoops(object: any): object is IHasCheckLoops {
 export type GetVictoryPointsContext = 'default' | 'projectWorkshop';
 
 /**
- * ONE STEP OF THE AGENDA WALK, as the table's hook reads it (`ICard.onAgendaStep`): the step reached, the bonus it
- * paid, its place in the walk (1-based `index` of `of` — the steps the walk WILL take, the end of the track counted
- * in) and why the marker walks.
+ * ONE WALK OF THE AGENDA TRACK, as the table's hook reads it (`ICard.onAgendaWalked`): where the marker left from,
+ * where it stopped, EVERY step it took in order with the bonus that step paid (the end of the track cuts the list
+ * honestly — a step not taken is not in it), and why the marker walked.
  */
-export type AgendaStepContext = {
+export type AgendaWalkContext = {
+  from: number;
   to: number;
-  bonus?: 'tr' | 'card';
-  index: number;
-  of: number;
+  steps: ReadonlyArray<AgendaAdvanceStep>;
   cause: AgendaWalkCause;
 };
 
@@ -379,30 +379,33 @@ export interface ICard {
    */
   onResolutionWon?(player: IPlayer, context: {instance: ResolutionInstanceId, resolution: ResolutionId, party: ReduxParty}): void;
   /**
-   * Turmoil Redux — a hook THE WALK OF THE AGENDA TRACK calls for EVERY STEP
-   * it takes («whenever you advance your Agenda marker 1 step» — TR78 Arwind
-   * Inc.). ONE door for the four engines of the track: a card's walk (TR04 …
-   * inside its own play), the chairman's quest, the sitting's winner step and
-   * a law's seat step (RX39) all walk through `ChairmanSeat.walkAgenda`, and
-   * it calls this right AFTER the step's own bonus is paid (the printed order:
-   * the step pays, the table answers), once per card of the walker's tableau
-   * carrying the hook (the corporation included), inside
-   * `events.withEffect(player, card, 'agenda-step')`. A step the end of the
-   * track refuses is not taken and calls nothing; a step whose rating a law
-   * vetoed (RX42) WAS taken and calls it. Never called for MarsBot (the bot has
-   * no tableau of its own to answer with). A hook that ASKS goes through
-   * `parliament/AgendaStepReactions.ts` — the question is recorded for a
-   * reload of a walk the Parliament runs.
+   * Turmoil Redux — a hook THE WALK OF THE AGENDA TRACK calls ONCE PER WALK,
+   * after its last step's bonus («whenever you advance your Agenda marker 1
+   * step» — TR78 Arwind Inc.: a walk of N steps is ONE answer of N units, laid
+   * out in ONE question, never N questions in a row — the owner, 2026-10-28).
+   * ONE door for the four engines of the track: a card's walk (TR04 … inside
+   * its own play), the chairman's quest, the sitting's winner step and a law's
+   * seat step (RX39) all walk through `ChairmanSeat.walkAgenda`, which calls
+   * this once the walk is recorded (the printed order: the steps pay, the
+   * table answers), once per card of the walker's tableau carrying the hook
+   * (the corporation included), inside `events.withEffect(player, card,
+   * 'agenda-step')`. A walk the end of the track cut short reads only the
+   * steps taken; a walk that took no step calls nothing; a step whose rating a
+   * law vetoed (RX42) WAS taken and is in the list. Never called for MarsBot
+   * (the bot has no tableau of its own to answer with). A hook that ASKS goes
+   * through `parliament/AgendaWalkReactions.ts` — the question is recorded
+   * for a reload of a walk the Parliament runs.
    */
-  onAgendaStep?(player: IPlayer, step: AgendaStepContext): void;
+  onAgendaWalked?(player: IPlayer, walk: AgendaWalkContext): void;
   /**
-   * Optional READ-ONLY mirror of {@link onAgendaStep} for a walk the player's own PLAY makes (TR04 Minority
+   * Optional READ-ONLY mirror of {@link onAgendaWalked} for a walk the player's own PLAY makes (TR04 Minority
    * Representation …): `walk` is the played card's `agendaWalkForecast` — the ONE reading of the walk — and the card
-   * answers per step what its live hook will do. A hook that ASKS hands the composer the SAME prompt its live hook
-   * defers as a pre-collected table question (`effectForecastPreviews.tableQuestion`). Asked by the forecast engine
-   * (`models/effectForecast.ts` — `FORECAST_HOOK_PAIRS`, the coverage guard's worklist). MUST NOT mutate game state.
+   * answers what its live hook will do. A hook that ASKS hands the composer the SAME prompt its live hook defers as
+   * ONE pre-collected table question (`effectForecastPreviews.tableQuestion` — the pick or the distribution). Asked by
+   * the forecast engine (`models/effectForecast.ts` — `FORECAST_HOOK_PAIRS`, the coverage guard's worklist). MUST
+   * NOT mutate game state.
    */
-  agendaStepForecast?(player: IPlayer, playedCard: ICard, walk: AgendaWalkModel, ctx: EffectForecastContext): ReadonlyArray<EffectForecastFact>;
+  agendaWalkedForecast?(player: IPlayer, playedCard: ICard, walk: AgendaWalkModel, ctx: EffectForecastContext): ReadonlyArray<EffectForecastFact>;
   /**
    * THIS CARD IS A FLEET DOCK (Turmoil Redux — TR06 Water Hauling, TR26 UNMI
    * Liner, TR27 Aurora Station: «once per generation, when you trade, you can

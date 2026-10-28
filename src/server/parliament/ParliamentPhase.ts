@@ -67,7 +67,7 @@ import {payAgendaGrant} from './resolutions/ResolutionAgendaGrant';
 import {SeatGrantDeed, seatGrantsOf} from './resolutions/SeatGrants';
 import {SittingAcks} from './SittingAcks';
 import {isBannerCubeSource} from '../../common/parliament/bannerCubes';
-import {agendaReactionPending} from './AgendaStepReactions';
+import {agendaReactionPending} from './AgendaWalkReactions';
 
 /**
  * THE HANDLE OF A WORLD STEP — the seat the engine's parameter API is handed

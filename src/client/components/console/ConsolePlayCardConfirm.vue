@@ -433,6 +433,39 @@
                   </div>
                   <div class="con-composer__row-note">{{ $t('Heat') }}: {{ heatStockFor(row.choice) }}</div>
                 </template>
+                <!-- THE LAYOUT ROW (TR78 Arwind Inc. — «РАСКЛАДКА»): ONE question for the whole walk — N units over the
+                     holders, laid out IN PLACE: a lane per holder (its miniature — a flight end, `data-composer-card` —
+                     its name, its count «current → resulting», the units placed on it), the focused lane marked by a
+                     kant, ←→ between the lanes, LB/RB one unit on the focused one, RT the rest; what is still to place
+                     on the row's edge. The row holds the commit until the sum is exact (the layout opens EMPTY — a
+                     filled default would be an auto-select); a complete layout is captured as the ONE `and` answer. -->
+                <template v-else-if="row.choice.kind === 'distribute'">
+                  <div class="con-composer__row-label">{{ choiceTitle(row.choice) }}</div>
+                  <div class="con-composer__lanes" data-composer-lanes :data-lanes-amount="laneAmountOf(row.choice)" :data-lanes-left="laneRemaining(row.choice)">
+                    <div v-for="(card, li) in laneCards(row.choice)" :key="card.name" class="con-composer__lane"
+                         :class="{'con-composer__lane--focused': focusIdx === row.i && laneIndexFor(row.choice.id) === li,
+                                  'con-composer__lane--filled': laneAmount(row.choice, card.name) > 0}"
+                         :data-lane-card="card.name" :data-lane-amount="laneAmount(row.choice, card.name)">
+                      <span class="con-composer__lane-mini" :data-composer-card="card.name" aria-hidden="true">
+                        <ConsoleCardFaceLite :name="card.name" :card="card" lightweight />
+                      </span>
+                      <span class="con-composer__lane-body">
+                        <span class="con-composer__lane-name">{{ $t(card.name) }}</span>
+                        <span class="con-composer__lane-count">
+                          <i class="con-composer__lane-icon" :class="iconClass(laneIcon(row.choice, card.name))" aria-hidden="true"></i>
+                          <span>{{ card.resources ?? 0 }}</span>
+                          <span class="con-composer__lane-arrow" aria-hidden="true">→</span>
+                          <b>{{ (card.resources ?? 0) + laneAmount(row.choice, card.name) }}</b>
+                        </span>
+                      </span>
+                      <span class="con-composer__lane-amount" :class="{'con-composer__lane-amount--zero': laneAmount(row.choice, card.name) === 0}">+{{ laneAmount(row.choice, card.name) }}</span>
+                    </div>
+                    <span class="con-composer__lane-left" :class="{'con-composer__lane-left--done': laneRemaining(row.choice) === 0}" data-lanes-status>
+                      <template v-if="laneRemaining(row.choice) > 0">{{ $t('Left') }}: <b>{{ laneRemaining(row.choice) }}</b></template>
+                      <template v-else>{{ $t('Laid out') }}: <b>{{ laneAmountOf(row.choice) }}</b></template>
+                    </span>
+                  </div>
+                </template>
                 <!-- THE TARGET ROW (TR56 «КУДА ЛЯЖЕТ», П2) — ONE row with the action composer (`ConsoleComposerTargetRow`):
                      the question «КУДА: [печать]» never changes; unanswered, the server's candidates as a strip of live
                      faces; answered, a LINK to the card still lying in its owner's tableau — its miniature, origin and
@@ -785,6 +818,9 @@ import {
   orderedPreResponses, orderedStepResponses, tabbedStepsOf, cardPickAskKey, cardPickRoleKey, keepPlayAnswers,
   soleCandidateOf, soleMarkKeys,
 } from '@/client/console/consoleActionComposer';
+import {distributionLanesOf, DistributionLanes} from '@/client/console/consoleActionComposer';
+import {pourRemaining, spreadOn, spreadRemaining, SpreadState, spreadTotal, stepSpread} from '@/client/console/cardResourceDistribution';
+import {cardResourceDistributionResponse} from '@/client/console/taskResponses';
 import {buildOrItems, orItemResponse, buildTabbedTargets, nestedPickHostable, ConsoleOrItem, ConsoleTabbedTarget, TabbedCardOwner} from '@/client/console/consoleOrChoice';
 import {
   enterDeltaEspionagePick, deltaEspionageStepResponse, deltaEspionageResponseOf,
@@ -1054,6 +1090,9 @@ export default defineComponent({
       captured: {} as Record<number, unknown>,
       amounts: {} as Record<string, number>,
       floaters: {} as Record<string, number>,
+      /** THE LAYOUTS (TR78): per layout row, the units placed on each holder; and the lane the cursor stands on. */
+      spreads: {} as Record<string, SpreadState>,
+      laneFocus: {} as Record<string, number>,
       picks: {} as Record<string, string>,
       /** The RICH result of each answered played-target choice — owner, category,
        *  physical slot key and preview snapshot. The batch still submits the
@@ -2309,6 +2348,9 @@ export default defineComponent({
       if (row.choice.kind === 'spendHeat') {
         return 'spendHeat';
       }
+      if (row.choice.kind === 'distribute') {
+        return 'distribute';
+      }
       return 'pick';
     },
     /**
@@ -2365,7 +2407,7 @@ export default defineComponent({
       }
       // A focused amount/spend-heat stepper OWNS LB/RB; otherwise the inline
       // payment quick-adjust does (when eligible).
-      const focusedStepper = this.focusedKind === 'amount' || this.focusedKind === 'spendHeat';
+      const focusedStepper = this.focusedKind === 'amount' || this.focusedKind === 'spendHeat' || this.focusedKind === 'distribute';
       const row = this.quickAdjustChip;
       const quickAdjust = (!focusedStepper && row !== undefined) ?
         {canDecrease: row.canDecrease, canIncrease: row.canIncrease} : undefined;
@@ -3452,6 +3494,66 @@ export default defineComponent({
     rowFocusable(row: PlayRow | undefined): boolean {
       return row !== undefined && (row.kind !== 'step' || row.choice.reaction === undefined || tableQuestionRowFocusable(this.tableRowState(row.choice)));
     },
+    // ── the LAYOUT row (TR78) ───────────────────────────────────────────
+    lanesOf(c: ComposerChoice): DistributionLanes | undefined {
+      return distributionLanesOf(c.input);
+    },
+    laneCards(c: ComposerChoice): ReadonlyArray<CardModel> {
+      return this.lanesOf(c)?.cards ?? [];
+    },
+    laneAmount(c: ComposerChoice, card: string): number {
+      return spreadOn(this.spreads[c.id] ?? {}, card);
+    },
+    laneAmountOf(c: ComposerChoice): number {
+      return spreadTotal(this.spreads[c.id] ?? {});
+    },
+    laneRemaining(c: ComposerChoice): number {
+      const lanes = this.lanesOf(c);
+      return lanes === undefined ? 0 : spreadRemaining(lanes.amount, this.spreads[c.id] ?? {});
+    },
+    /** The kind THIS holder takes (its own over several kinds), as an icon key. */
+    laneIcon(c: ComposerChoice, card: string): string {
+      const lanes = this.lanesOf(c);
+      return lanes?.resourceByCard?.[card as CardName] ?? lanes?.resource ?? 'resources';
+    },
+    laneIndexFor(id: string): number {
+      return this.laneFocus[id] ?? 0;
+    },
+    /** ←→: the cursor walks the lanes (clamped — the row is a line, not a ring). */
+    moveLane(c: ComposerChoice, dir: -1 | 1): void {
+      const n = this.laneCards(c).length;
+      if (n === 0) {
+        return;
+      }
+      this.laneFocus[c.id] = Math.max(0, Math.min(n - 1, this.laneIndexFor(c.id) + dir));
+    },
+    /** LB/RB: one unit off / onto the focused lane — bounded by zero and by what is left to place. */
+    adjustLane(c: ComposerChoice, delta: number): void {
+      const lanes = this.lanesOf(c);
+      const card = lanes?.cards[this.laneIndexFor(c.id)]?.name;
+      if (lanes === undefined || card === undefined) {
+        return;
+      }
+      this.setSpread(c, stepSpread(this.spreads[c.id] ?? {}, card, delta, lanes.amount));
+    },
+    /** RT: everything still unplaced onto the focused lane. */
+    pourLane(c: ComposerChoice): void {
+      const lanes = this.lanesOf(c);
+      const card = lanes?.cards[this.laneIndexFor(c.id)]?.name;
+      if (lanes === undefined || card === undefined) {
+        return;
+      }
+      this.setSpread(c, pourRemaining(this.spreads[c.id] ?? {}, card, lanes.amount));
+    },
+    /** The layout's capture: the ONE `and` answer once the sum is exact — nothing before (the row holds the commit). */
+    setSpread(c: ComposerChoice, next: SpreadState): void {
+      const lanes = this.lanesOf(c);
+      if (lanes === undefined) {
+        return;
+      }
+      this.spreads[c.id] = next;
+      this.captureFor(c, cardResourceDistributionResponse(lanes.cards.map((card) => card.name), next, lanes.amount));
+    },
     // ── amount / spendHeat helpers ──────────────────────────────────────
     amountModel(c: ComposerChoice): SelectAmountModel {
       return c.input as SelectAmountModel;
@@ -3836,12 +3938,14 @@ export default defineComponent({
         this.scrollFocused();
         return;
       }
-      // Left/right adjust a focused inline stepper.
+      // Left/right adjust a focused inline stepper — or walk a LAYOUT's lanes (the bumpers move the units).
       const row = this.focusedRow;
       if (row?.kind === 'step' && row.choice.kind === 'amount') {
         this.setAmount(row.choice, this.amountFor(row.choice.id) + (dir === 'left' ? -1 : 1));
       } else if (row?.kind === 'step' && row.choice.kind === 'spendHeat') {
         this.adjustFloaters(row.choice, dir === 'left' ? -1 : 1);
+      } else if (row?.kind === 'step' && row.choice.kind === 'distribute') {
+        this.moveLane(row.choice, dir === 'left' ? -1 : 1);
       }
     },
     // REVIEW state: A(primary) play/lead-to-choice, LT(prevTab) enter payment
@@ -3896,6 +4000,8 @@ export default defineComponent({
           this.setAmount(row.choice, this.amountFor(row.choice.id) + step);
         } else if (row?.kind === 'step' && row.choice.kind === 'spendHeat') {
           this.adjustFloaters(row.choice, step);
+        } else if (row?.kind === 'step' && row.choice.kind === 'distribute') {
+          this.adjustLane(row.choice, step);
         } else {
           this.adjustQuickPayment(step);
         }
@@ -3910,6 +4016,9 @@ export default defineComponent({
         // RT move something the command bar does not advertise.
         if (row?.kind === 'step' && row.choice.kind === 'amount') {
           this.setAmount(row.choice, this.amountModel(row.choice).max);
+        } else if (row?.kind === 'step' && row.choice.kind === 'distribute') {
+          // RT on a LAYOUT's lane: everything still unplaced goes here.
+          this.pourLane(row.choice);
         } else if (!(row?.kind === 'step' && row.choice.kind === 'spendHeat')) {
           this.adjustQuickPayment(1, true);
         }

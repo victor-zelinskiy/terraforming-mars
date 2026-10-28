@@ -140,9 +140,17 @@ on the mark · `[data-composer-armed]` on the commit row during its breath · `_
   not a composer row — out of this iteration's scope.
 * **A repeat slot with one repeatable card** stays a slot: its answer is the repeated card's composed action.
 
-## 7 · A TABLE'S ANSWER TO A STEP OF THE CAREER is seeded too (TR78 Arwind Inc., 2026-10-26)
+## 7 · A TABLE'S ANSWER TO A WALK OF THE CAREER is ONE row — seeded, laid out, or not asked at all (TR78 Arwind Inc., 2026-10-28)
 
-A table question is never seeded (it is routinely optional — a decline beside it) — EXCEPT a corporation's answer to a step of the Career
-walked by the card being played (`agendaStepPrompt` on the step's `SelectCard`): a MANDATORY target pick, one row per step of the walk,
-seeded with its sole holder exactly like the card's own target (`soleCandidateOf` reads the marker). The batch carries one addressed answer
-per step; the server lands them in order. e2e: `console-arwind-inc` (A).
+A table question is never seeded (it is routinely optional — a decline beside it) — EXCEPT a corporation's answer to the walk of the
+Career the card being played makes (`agendaWalkPrompt` on the prompt — the pick's `SelectCard` or the layout's `and`): a MANDATORY
+target, ONE row for the WHOLE walk (the owner, 2026-10-28 — never one row per step):
+- the corporation ALONE holds the kind → no row at all: the forecast is `exact` («+N [fighter] on this card»), the server lands the units
+  with the play, the walk's answer stage plays the receipt;
+- a second holder and ONE unit → the pick's row, seeded with its sole holder exactly like the card's own target (`soleCandidateOf` reads
+  the marker) — a real choice of two opens unanswered;
+- a second holder and SEVERAL units → the LAYOUT row (`ComposerChoice.kind === 'distribute'`, `distributionLanesOf`): a lane per holder
+  (its miniature, its count «current → resulting», the units placed), ←→ between lanes, LB/RB one unit, RT the rest — the row holds the
+  commit until the sum is exact (the layout opens EMPTY: a filled default is an auto-select) and captures ONE `and` answer
+  (`cardResourceDistributionResponse`), addressed to the corporation.
+The batch carries the one addressed answer; the server lands it on its own prompt. e2e: `console-arwind-inc` (A · A2).

@@ -35,7 +35,7 @@ import {ParliamentPhase} from './ParliamentPhase';
 import {RatingGain, ResolutionPassive, TerraformingOrigin, TerraformingUnit, TilePlacementBonusContext} from './resolutions/IResolution';
 import {divertsTerraforming, divertTerraforming} from './divertedTerraformingGate';
 import {ratingVetoed, vetoRating} from './ratingVetoGate';
-import {rebuildAgendaReactions} from './AgendaStepReactions';
+import {rebuildAgendaReactions} from './AgendaWalkReactions';
 
 export class ParliamentHandler {
   // ───────────────────────── the action menu ─────────────────────────

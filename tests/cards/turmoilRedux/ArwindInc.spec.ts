@@ -18,7 +18,7 @@ import {DEFAULT_PAYMENT_VALUES, Payment} from '../../../src/common/inputs/Paymen
 import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES} from '../../../src/common/inputs/Spendable';
 import {InputResponse} from '../../../src/common/inputs/InputResponse';
 import {ActionPreview, ActionPreviewStep} from '../../../src/common/models/ActionPreviewModel';
-import {SelectCardModel} from '../../../src/common/models/PlayerInputModel';
+import {AndOptionsModel, SelectCardModel} from '../../../src/common/models/PlayerInputModel';
 import {TURMOIL_REDUX_NEW_CORPORATIONS, newCorporationCardNumber} from '../../../src/common/cards/turmoilReduxCorporations';
 import {TURMOIL_REDUX_CARD_MANIFEST} from '../../../src/server/cards/turmoilRedux/TurmoilReduxCardManifest';
 import {actionPreview} from '../../../src/server/models/actionPreview';
@@ -36,8 +36,8 @@ import {fakeCard, runAllActions} from '../../TestingUtils';
 
 /**
  * TR78 — ARWIND INC.: 38 M€ + 1 titanium production, the Space tag, a fighter holder; the action «add a fighter to ANY
- * card»; a fighter per STEP of the Career (`ICard.onAgendaStep` — the four engines are pinned in
- * tests/parliament/AgendaStepHook.spec.ts); the fighters HERE pay 4 M€ for a Space tag (`arwindFighters`). Every rule
+ * card»; a fighter per STEP of the Career, answered per WALK (`ICard.onAgendaWalked` — the four engines are pinned in
+ * tests/parliament/AgendaWalkHook.spec.ts); the fighters HERE pay 4 M€ for a Space tag (`arwindFighters`). Every rule
  * reading of the card file's header is pinned here.
  */
 type Table = {game: IGame, player: TestPlayer, opponent: TestPlayer, parliament: Parliament, card: ArwindInc};
@@ -114,7 +114,7 @@ describe('ArwindInc', () => {
     });
   });
 
-  describe('rules 2 · 3 · 5 — a step of the Career asks; a walk played from the hand is PRE-SELECTED in the composer', () => {
+  describe('rules 2 · 3 · 5 — a walk of the Career owes a fighter per step: the asker alone lands them; a second holder makes ONE question the composer pre-selects', () => {
     function walker(t: Table): MinorityRepresentation {
       t.parliament.agenda.set(t.player.id, 0);
       const card = new MinorityRepresentation();
@@ -123,52 +123,70 @@ describe('ArwindInc', () => {
       return card;
     }
 
-    it('the composer carries ONE question per step, addressed to the corporation, each the live prompt', () => {
+    it('the corporation alone: the forecast is EXACT — «+2 [fighter] on this card» — no question, and the play lands them', () => {
       const t = table();
       const card = walker(t);
-      const steps = tableSteps(playPreviewWithTableQuestions(t.player, card));
-      expect(steps.map((s) => s.reaction?.card)).deep.eq([CardName.ARWIND_INC, CardName.ARWIND_INC]);
-      for (const [i, step] of steps.entries()) {
-        expect(step.for).deep.eq({role: 'card', source: {kind: 'corporation', card: CardName.ARWIND_INC}});
-        const input = step.input as SelectCardModel;
-        expect(input.agendaStepPrompt).deep.include({source: CardName.ARWIND_INC, reason: 'card', index: i + 1, of: 2, card: CardName.MINORITY_REPRESENTATION});
-        expect(input.cards.map((c) => c.name)).deep.eq([CardName.ARWIND_INC]);
-      }
+      const preview = playPreviewWithTableQuestions(t.player, card);
+      expect(tableSteps(preview), 'no question to pre-select').deep.eq([]);
+      const fact = preview.forecast?.facts.find((f) => f.source.name === CardName.ARWIND_INC);
+      expect(fact?.certainty).eq('exact');
+      expect(fact?.effects[0]).deep.include({direction: 'gain', icon: 'fighter', amount: 2, host: CardName.ARWIND_INC});
+      t.player.playCard(card, Payment.EMPTY);
+      runAllActions(t.game);
+      expect(t.player.getWaitingFor()?.agendaWalkPrompt, 'nothing is asked').is.undefined;
+      expect(t.card.resourceCount, 'two steps, two fighters, landed with the play').eq(2);
     });
 
-    it('the ONE POST lands both answers on their own prompts in order — nothing is asked after the press', () => {
+    it('a second holder: the composer carries ONE question for the whole walk — the LAYOUT of 2 fighters, addressed to the corporation', () => {
+      const t = table();
+      t.player.playedCards.push(new MarsArmyShips());
+      const card = walker(t);
+      const steps = tableSteps(playPreviewWithTableQuestions(t.player, card));
+      expect(steps.map((s) => s.reaction?.card), 'ONE question — never one per step').deep.eq([CardName.ARWIND_INC]);
+      const [step] = steps;
+      expect(step.for).deep.eq({role: 'and', source: {kind: 'corporation', card: CardName.ARWIND_INC}});
+      const input = step.input as AndOptionsModel;
+      expect(input.type).eq('and');
+      expect(input.agendaWalkPrompt).deep.eq({source: CardName.ARWIND_INC, reason: 'card', from: 0, to: 2, card: CardName.MINORITY_REPRESENTATION});
+      expect(input.cardResourceDistributionPrompt?.amount).eq(2);
+      expect(input.cardResourceDistributionPrompt?.cards.map((c) => c.name)).deep.eq([CardName.ARWIND_INC, CardName.MARS_ARMY_SHIPS]);
+    });
+
+    it('the ONE POST lands the layout on its own prompt — nothing is asked after the press', () => {
       const t = table();
       const ships = new MarsArmyShips();
       t.player.playedCards.push(ships);
       const card = walker(t);
       const steps = tableSteps(playPreviewWithTableQuestions(t.player, card));
-      expect(steps).has.length(2);
+      expect(steps).has.length(1);
       t.player.takeAction();
       const menu = cast(t.player.getWaitingFor(), OrOptions);
       const index = menu.options.findIndex((o) => o.title === 'Play project card');
       replayBatch(t.player, [
         {type: 'or', index, response: {type: 'projectCard', card: card.name, payment: Payment.of({megacredits: t.player.getCardCost(card)})}},
-        {type: 'card', cards: [CardName.MARS_ARMY_SHIPS], for: steps[0].for} as unknown as InputResponse,
-        {type: 'card', cards: [CardName.ARWIND_INC], for: steps[1].for} as unknown as InputResponse,
+        {type: 'and', responses: [{type: 'amount', amount: 1}, {type: 'amount', amount: 1}], for: steps[0].for} as unknown as InputResponse,
       ]);
       runAllActions(t.game);
       const wf = cast(t.player.getWaitingFor(), OrOptions);
       expect(isActionMenuTitle(typeof wf.title === 'string' ? wf.title : wf.title.message), 'no question left').is.true;
       expect(parkedBatchTailLength(t.player)).eq(0);
-      expect(ships.resourceCount, 'step 1 → Mars Army Ships').eq(1);
-      expect(t.card.resourceCount, 'step 2 → Arwind').eq(1);
+      expect(t.card.resourceCount, 'one fighter here').eq(1);
+      expect(ships.resourceCount, 'one on Mars Army Ships').eq(1);
       expect(t.parliament.agendaOf(t.player)).eq(2);
     });
 
-    it('no answer in the batch: the question stands LIVE (the fallback the console hosts in the hand)', () => {
+    it('no answer in the batch: the question stands LIVE (the layout the console hosts in the hand)', () => {
       const t = table();
+      t.player.playedCards.push(new MarsArmyShips());
       const card = walker(t);
       t.player.playCard(card, Payment.EMPTY);
       runAllActions(t.game);
-      expect(t.player.getWaitingFor()?.agendaStepPrompt).deep.include({reason: 'card', index: 1, of: 2});
+      const wf = t.player.getWaitingFor();
+      expect(wf?.type).eq('and');
+      expect(wf?.agendaWalkPrompt).deep.include({reason: 'card', from: 0, to: 2});
     });
 
-    it('a rival\'s walk asks this table nothing — the engine asks only the walking seat\'s own table', () => {
+    it("a rival's walk asks this table nothing — the engine asks only the walking seat's own table", () => {
       const t = table();
       const card = new MinorityRepresentation();
       t.opponent.cardsInHand.push(card);

@@ -1,16 +1,17 @@
 import {expect} from 'chai';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
+import {CardResource} from '@/common/CardResource';
 import {Resource} from '@/common/Resource';
 import {CardReactionRecord} from '@/common/models/CardReactionModel';
 import {RailAnswerFlight} from '@/client/console/resourceTransfer/railReward';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
-  beginPanelRewardHold, clearPanelRewardHold, declareHeldAnswers, heldProduction, heldStock, releasePanelRewardHold,
+  beginPanelRewardHold, clearPanelRewardHold, declareHeldAnswers, heldCardResource, heldProduction, heldStock, releasePanelRewardHold,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   cardReactionAnswerFlight, cardReactionHurried, cardReactionPending, composeAnswerFlights, cutCardReactions, hurryCardReactions, markReactionCause,
-  resetCardReactions, rivalReactionPending, rivalSpecsOf, seedCardReactionHolds, snapshotRailHolds,
+  reserveCardReaction, resetCardReactions, rivalReactionPending, rivalSpecsOf, seedCardReactionHolds, snapshotRailHolds,
 } from '@/client/console/cardReaction/cardReactionDirector';
 import {reactionGroupOf} from '@/client/console/cardReaction/cardReactionModel';
 import {cardReactionState, registerCardReactionStage} from '@/client/console/cardReaction/cardReactionStage';
@@ -290,6 +291,37 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
       expect(composeAnswerFlights(undefined, only)).eq(only);
       expect(composeAnswerFlights(undefined, undefined)).is.undefined;
     });
+  });
+
+  it('RESERVED (TR78 — «ОТВЕТ СТОЛА»): a host that plays a record ITSELF reserves it before the seed — an unfiltered claim (the play scene\'s) skips it, a row claim without the name skips it, only a flight asking under the same name takes it, once', () => {
+    const before = snapshotRailHolds();
+    const answer: Array<ResourceTransferSpec> = [{channel: 'stock', resource: 'heat', amount: 6}, {channel: 'production', resource: 'megacredits', amount: 1}];
+    beginPanelRewardHold(answer);
+    declareHeldAnswers(answer);
+    reserveCardReaction(9, 'stage');
+    seedCardReactionHolds(view([]), view([record(9)]), before);
+    expect(cardReactionPending(), 'attached — nothing of ours standalone').is.false;
+    expect(cardReactionAnswerFlight(), 'the unfiltered claim skips the reserved group').is.undefined;
+    expect(cardReactionAnswerFlight({rows: ['stock:heat']}), 'a row claim without the name skips it too').is.undefined;
+    expect(cardReactionAnswerFlight({rows: ['stock:heat'], reserved: 'other'}), 'another name is not this reservation').is.undefined;
+    const flight = cardReactionAnswerFlight({rows: ['stock:heat'], reserved: 'stage'});
+    expect(flight, 'the reserving host\'s flight takes it').is.not.undefined;
+    flight?.onDone?.();
+    expect(cardReactionAnswerFlight({rows: ['stock:heat'], reserved: 'stage'}), 'claimed once').is.undefined;
+  });
+
+  it('A DECLARED CARD-RESOURCE ROW IS ATTRIBUTED WITH NOTHING HELD (TR78 — the live pick\'s receive told the answer with the commit held): the record attaches, the chain holds nothing, no second scene; reserved as TOLD, no flight ever takes it', () => {
+    const before = snapshotRailHolds();
+    declareHeldAnswers([{channel: 'card-resource', resource: 'fighter', amount: 1, targetCard: CardName.MARS_ARMY_SHIPS}]);
+    reserveCardReaction(10, 'told');
+    seedCardReactionHolds(view([]), view([record(10, {
+      card: CardName.ARWIND_INC, channel: 'agenda-step',
+      impacts: [{kind: 'card-resource', resource: CardResource.FIGHTER, amount: 1, target: CardName.MARS_ARMY_SHIPS, to: BLUE}],
+    })]), before);
+    expect(heldCardResource('fighter'), 'nothing held here — the scene flew it').eq(0);
+    expect(cardReactionPending(), 'no standalone chain for an answer already told').is.false;
+    expect(cardReactionAnswerFlight(), 'and no host\'s flight takes it').is.undefined;
+    expect(cardReactionAnswerFlight({rows: ['card-resource:fighter']})).is.undefined;
   });
 
   it('markReactionCause — a one-shot attribute on the cause, never on nothing', () => {

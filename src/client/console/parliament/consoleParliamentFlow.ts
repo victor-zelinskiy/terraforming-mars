@@ -57,11 +57,12 @@ export const consoleParliamentUi = reactive({
    */
   fieldStanding: false,
   /**
-   * THE QUEST'S REACTION ZONE STANDS (TR78 Arwind Inc.): the chairmanship flow holds after the step's bonus for the
-   * table's answer to it, and `[data-embed-slot="parliament-reaction"]` is in the DOM, unfolded — published post-flush
-   * by the section, retracted with the zone. The shell teleports the pick into it.
+   * THE ANSWER STAGE'S ZONE STANDS (TR78 Arwind Inc. — «ОТВЕТ СТОЛА»): a card of the table asks where a walk's units go,
+   * the stage with the asker on its hero has ENTERED, and `[data-embed-slot="parliament-answer"]` is in the DOM —
+   * published by the stage itself (`ConsoleParliamentTableAnswer`), retracted with it. The shell teleports the pick /
+   * the layout into it; before that the picker renders NOWHERE (the surfaces go in turn).
    */
-  reactionZone: false,
+  answerZone: false,
   /** The Agenda marker is gliding along the track — an Agenda card reward's cover waits for it to settle. */
   agendaSettling: false,
   /**
@@ -102,7 +103,7 @@ export function resetConsoleParliamentUi(): void {
   consoleParliamentUi.stageStanding = false;
   consoleParliamentUi.stageZone = false;
   consoleParliamentUi.fieldStanding = false;
-  consoleParliamentUi.reactionZone = false;
+  consoleParliamentUi.answerZone = false;
   consoleParliamentUi.agendaSettling = false;
   consoleParliamentUi.boardDoorOpen = false;
   consoleParliamentUi.worldTripHoldsDoor = false;

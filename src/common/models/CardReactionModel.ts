@@ -43,6 +43,12 @@ export type CardReactionCause = {
   tile?: TileType;
   space?: SpaceId;
   parameter?: GlobalParameter;
+  /**
+   * A WALK OF THE CAREER (Turmoil Redux — `ChairmanSeat.walkAgenda`, TR78 Arwind Inc.): why the marker walked and
+   * from where to where. The console plays the table's answer INSIDE the flow that walked it (the quest, the sitting,
+   * a card's walk) — the stage is chosen off this, never off the last walk the model happens to carry.
+   */
+  walk?: {reason: 'quest' | 'phase' | 'card' | 'resolution', from: number, to: number};
 };
 
 /** THE ROOT the reaction stands under: the chain's correlationId (the SAME id a draw batch's `actionId` carries), the acting seat, the action's category. */

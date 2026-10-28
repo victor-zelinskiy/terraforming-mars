@@ -55,7 +55,7 @@ import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {blockingAnimationHoldCount, registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {activeAnimationHoldLabels, blockingAnimationHoldCount, registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
@@ -119,7 +119,30 @@ type Attached = {
   /** The rows of the group a host holds (its answer) — the join key for the host's flight. */
   rows: Set<string>;
   claimed: boolean;
+  /**
+   * RESERVED for ONE host (TR78 — «ОТВЕТ СТОЛА»): a group the answer stage will play itself, or one the player's own
+   * scene has already told. An unfiltered claim (the play scene's — «every attached group») skips it; only a flight
+   * asking with the same reservation takes it. Set at the seed from `reserveCardReaction`.
+   */
+  reserved?: string;
 };
+
+/** The reservations the hosts stated BEFORE the seed, by the record's `seq` (bounded like the claimed set). */
+const reservations = new Map<number, string>();
+
+/**
+ * A host that will play a record's reaction ITSELF — or whose scene has already told it — reserves the record by `seq`
+ * before the seeder runs (its own seed is earlier in the apply block): the attached group is then skipped by every
+ * unfiltered claim and taken only by a flight asking with the same `reserved` name.
+ */
+export function reserveCardReaction(seq: number, host: string): void {
+  reservations.set(seq, host);
+  if (reservations.size > 64) {
+    const keep = [...reservations.entries()].slice(-32);
+    reservations.clear();
+    keep.forEach(([k, v]) => reservations.set(k, v));
+  }
+}
 
 type Standalone = {
   group: CardReactionGroup;
@@ -155,6 +178,8 @@ const rivalQueue: Array<Rival> = [];
 let lastView: PlayerViewModel | undefined;
 /** The standalone chain plays after every BLOCKING scene (a sitting's beats, a landing) — bounded; then it plays anyway. */
 const BLOCKING_QUIET_MAX_MS = 12000;
+/** The sitting's beats are each bounded by their own ceiling — a longer wait on them than the generic one is safe. */
+const SITTING_QUIET_MAX_MS = 40000;
 /** …and after a DECISION standing at the centre (a drawn card to take, a deck pick) — a reactor never covers a card the player is choosing; bounded. */
 const DECISION_WAIT_MAX_MS = 6000;
 /** How long a reactor waits for its own face being dealt in before it rises at the stage instead (PL-1098). */
@@ -278,7 +303,9 @@ export function seedCardReactionHolds(before: PlayerViewModel | undefined, after
   }
   for (const row of Object.keys(heldNow)) {
     if (row.startsWith('card-resource:')) {
-      hostHeld[row] = Math.max(0, heldNow[row] - (heldBefore[row] ?? 0));
+      // …never LESS than a host's declaration on the same row: a scene that told the answer with the commit held (the
+      // live pick's receive — TR78) declares the row and holds nothing, and used to be zeroed here into a second chain.
+      hostHeld[row] = Math.max(hostHeld[row] ?? 0, heldNow[row] - (heldBefore[row] ?? 0));
     }
   }
   let queued = false;
@@ -298,7 +325,8 @@ export function seedCardReactionHolds(before: PlayerViewModel | undefined, after
       // A LOSS a reaction took is the counter's own departure — not flown from here (it ticked with the commit).
     }
     if (rows.size > 0) {
-      attached.push({group, rows, claimed: false});
+      const reserved = reservations.get(group.record.seq);
+      attached.push({group, rows, claimed: false, ...(reserved === undefined ? {} : {reserved})});
     }
     if (own.length > 0) {
       beginPanelRewardHold(own);
@@ -523,6 +551,8 @@ function birthEnds(risen: Risen, specs: ReadonlyArray<ResourceTransferSpec>): Ar
 export type ReactionAnswerOptions = {
   /** The rail rows the host holds as its answer — the attached groups on these rows are this flight's; omitted: every attached group. */
   rows?: ReadonlyArray<string>;
+  /** The host's RESERVATION (`reserveCardReaction`): a reserved group is this flight's only under the same name. */
+  reserved?: string;
   /** The host's stage, when it can bring a reactor forward out of its own place (the play scene's receiving stage). */
   emergence?: ReactorEmergence;
   /** The viewer's view at the flight (the faces' live models). */
@@ -538,7 +568,7 @@ export type ReactionAnswerOptions = {
  */
 export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): RailAnswerFlight | undefined {
   const rows = opts.rows === undefined ? undefined : new Set(opts.rows);
-  const mine = attached.filter((a) => !a.claimed && (rows === undefined || [...a.rows].some((r) => rows.has(r))));
+  const mine = attached.filter((a) => !a.claimed && a.reserved === opts.reserved && (rows === undefined || [...a.rows].some((r) => rows.has(r))));
   if (mine.length === 0) {
     return undefined;
   }
@@ -557,11 +587,19 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
   const myEpoch = epoch;
   const started = typeof performance === 'undefined' ? 0 : performance.now();
   let done = false;
+  let prepared = false;
   const finish = (): void => {
     if (done) {
       return;
     }
     done = true;
+    if (!prepared) {
+      // CLAIMED AND FINISHED without a rise (the enactment tail's `rulingChangeDraw`, the reward wave's plaque — the
+      // host tells the answer its own way): the record is told, the phase was never touched — nothing to settle, nothing
+      // to recede. The settle's own wait used to flip the phase 'receding' → 'idle' a beat later: a `card-reaction` hold
+      // rising out of nothing after the host had moved on (and after a spec had ended).
+      return;
+    }
     const faces = [...risen];
     risen.length = 0;
     void (async () => {
@@ -595,6 +633,7 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
       }
       const t = tempoFor(groups.length);
       const slots = stageSlotsFor(groups.length);
+      prepared = true;
       cardReactionState.phase = 'rising';
       cardReactionState.chain = {cards: groups.map((g) => g.card), landed: 0, summarized: [], seats: slots.length, pace: 1};
       // Every claimed reactor comes forward together, a beat apart — the answer's own stagger then orders the births.
@@ -729,6 +768,7 @@ async function runStandalone(): Promise<void> {
     // and every BLOCKING scene (a sitting's beats, a landing) plays out before the chain — bounded, never a session.
     await waitRewardPayoutQuiet({alive: () => epoch === myEpoch && (standaloneQueue.length > 0 || rivalQueue.length > 0)});
     await waitBlockingQuiet(myEpoch);
+    await waitSittingQuiet(myEpoch);
     await waitRatingStoryQuiet(myEpoch);
     await waitHydroStoryQuiet(myEpoch);
     await waitDecisionClear(myEpoch);
@@ -882,6 +922,26 @@ async function waitBlockingQuiet(myEpoch: number): Promise<void> {
   const started = typeof performance === 'undefined' ? 0 : performance.now();
   while (epoch === myEpoch && blockingAnimationHoldCount() > 0) {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
+      return;
+    }
+    await nextPaintedFrame();
+  }
+}
+
+/**
+ * THE SITTING'S OWN BEATS FIRST (TR78's regression run, 2026-10-28): a record of the sitting's response nobody's wave
+ * declared — the ruling Greens' M€ for the winner's TR step (the summary's `agenda` carries no answer, so ПОВЕСТКА cannot
+ * fly it attached the way a card's walk does) — rises at the rail's edge only once the sitting's own beats have played,
+ * never INTO them: the generic blocking wait above is capped at 12 s and a sitting (the verdict's read, ПОВЕСТКА,
+ * ПОДДЕРЖКА, ПРИНЯТИЕ, НАГРАДА) runs longer, so the charter rose BESIDE the plaque's own chip of the reward wave
+ * (`console-parliament-sitting-reward` RX05). Read off the sitting's hold labels (`sittingHoldLabel`), every one of
+ * which is bounded by its own ceiling; bounded here too.
+ */
+async function waitSittingQuiet(myEpoch: number): Promise<void> {
+  const started = typeof performance === 'undefined' ? 0 : performance.now();
+  const sittingPlays = (): boolean => activeAnimationHoldLabels().some((label) => label.startsWith('parliament-sitting:'));
+  while (epoch === myEpoch && sittingPlays()) {
+    if (typeof performance !== 'undefined' && performance.now() - started > SITTING_QUIET_MAX_MS) {
       return;
     }
     await nextPaintedFrame();
@@ -1081,6 +1141,7 @@ export function cutCardReactions(reason = 'cut'): void {
 export function abortCardReactions(): void {
   cutCardReactions('abort');
   attached = [];
+  reservations.clear();
 }
 
 /** Test-only reset. */
