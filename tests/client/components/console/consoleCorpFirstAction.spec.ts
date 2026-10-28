@@ -110,11 +110,19 @@ describe('corporation first action (console routing)', () => {
 
     // The start workspace on screen IS the surface — the registry row
     // (`WORKSPACE_KINDS.start.serves` includes 'corpFirstAction') derives it;
-    // no modal is required anywhere in the start flow.
+    // no modal is required anywhere in the start flow. But a MOUNTED scene is
+    // not a serving one (PL-1112): it counts only while it answers a surface —
+    // here its first-action stage. An EMPTY scene over the question stays
+    // stranded (the owner's field hang of 2026-10-28).
     const scene = document.createElement('div');
     scene.className = 'con-start';
+    scene.setAttribute('data-start-serves', 'none');
     scene.getClientRects = () => ([{}] as unknown as DOMRectList);
     document.body.appendChild(scene);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded?.taskKind, 'an empty start scene serves nothing').to.eq('corpFirstAction');
+    scene.setAttribute('data-start-serves', 'stage');
     runLeakDetection(view);
     expect(leakDetectorState.stranded).to.eq(undefined);
     document.body.innerHTML = '';

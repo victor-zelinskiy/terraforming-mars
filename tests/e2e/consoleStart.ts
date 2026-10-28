@@ -2146,7 +2146,7 @@ function pickInitialCards(step: WirePrompt, plan: SeedPlan): Array<string> {
  * REAL client answers with the same shape — this is a keyboard replaced by a
  * request, never a rule replaced by a shortcut.
  */
-function answerPrompt(prompt: WirePrompt, plan: SeedPlan): WireResponse {
+export function answerPrompt(prompt: WirePrompt, plan: SeedPlan): WireResponse {
   switch (prompt.type) {
   case 'initialCards':
     return {

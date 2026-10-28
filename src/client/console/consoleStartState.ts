@@ -32,6 +32,7 @@ import {PlayerInputModel, SelectCardModel, SelectInitialCardsModel} from '@/comm
 import {CardModel} from '@/common/models/CardModel';
 import {buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import {getCard} from '@/client/cards/ClientCardManifest';
+import type {StartServes} from '@/client/console/startServing';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {InputResponse, SelectInitialCardsResponse} from '@/common/inputs/InputResponse';
 import * as titles from '@/common/inputs/SelectInitialCards';
@@ -183,6 +184,11 @@ export const consoleStartState = reactive({
    *  the journey when it becomes known and must never leave it (the rail may
    *  not shrink a chapter the player walked). */
   legacySeen: false,
+  /**
+   * WHAT THE MOUNTED SCENE SERVES RIGHT NOW (`startServesOf`, the reliability iteration of 2026-10-28) — written by the
+   * scene, read by the shell's start watchdog. `undefined` while no scene is mounted.
+   */
+  serves: undefined as StartServes | undefined,
 });
 
 /** Reset picks when the prompt identity (player / deal) changes. */

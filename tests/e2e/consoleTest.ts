@@ -245,6 +245,13 @@ const POST_COMMIT_CHOICE = 'POST-COMMIT CHOICE';
  */
 const COVERED_PROMPT = 'COVERED PROMPT';
 /**
+ * The START WATCHDOG's marker (`src/client/console/startServing.ts` + `ConsoleShell.startStrandedNow`, the reliability
+ * iteration of 2026-10-28): the game-start scene stood serving NOTHING — no press, no panel, no hosted step, nothing
+ * moving — while the server asked the player something, past the watchdog's confirm. The field's «зависший экран
+ * старта, лечится перезаходом»; every spec that walks the start is its tripwire.
+ */
+const START_STRANDED = '[start-stranded]';
+/**
  * The «flight end» sentinel's marker (`src/client/console/resourceTransfer/consoleResourceTransfer.ts` — T06 «ОБА КОНЦА
  * ПОЛЁТА — ЖИВЫЕ»): a resource token was born on, or touched down over, a point where NOTHING was painted (the page, the
  * console's bare root) — a token out of nothing / into nothing. An object end can never print it (it is measured through
@@ -342,7 +349,7 @@ function sleepSiteOf(stack: string): string {
   return '<unknown>';
 }
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, transferEndsGuard: void, stallHarvest: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, transferEndsGuard: void, stallHarvest: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
   /**
    * CI's STARVED RENDERER ON DEMAND (`TM_E2E_CPU_THROTTLE=<rate>`, e.g. 4): every page of the test's context runs under
    * CDP CPU throttling. CI's 4K software raster on a shared runner starves the main thread for hundreds of ms — the
@@ -566,6 +573,30 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     await use();
     if (covered.length > 0) {
       throw new Error(`COVERED PROMPT — a live question's surface was mounted under a full-bleed scene (pickable, invisible):\n  ${covered.join('\n  ')}`);
+    }
+  }, {auto: true}],
+
+  /**
+   * EVERY TEST, EVERY PAGE OF ITS CONTEXT: the game-start scene never stood EMPTY over a live question. The console's
+   * start watchdog names such a strand (`[start-stranded]` — with the prompt, the admission block and the scene's own
+   * stage machine) and heals it; the harness turns the report red, because a heal that had to run is a defect upstream
+   * of it.
+   */
+  startStrandGuard: [async ({context}, use) => {
+    const strands: Array<string> = [];
+    const watch = (page: Page) => {
+      page.on('console', (message) => {
+        const text = message.text();
+        if (text.includes(START_STRANDED)) {
+          strands.push(text.slice(0, 1200));
+        }
+      });
+    };
+    context.pages().forEach(watch);
+    context.on('page', watch);
+    await use();
+    if (strands.length > 0) {
+      throw new Error(`START STRANDED — the game-start scene stood serving nothing while the server asked:\n  ${strands.join('\n  ')}`);
     }
   }, {auto: true}],
 

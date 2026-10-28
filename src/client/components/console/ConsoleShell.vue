@@ -1822,6 +1822,7 @@ import {
   workspaceStackCollapsed,
   workspaceStackCrumb,
   workspaceStackState,
+  stackServes,
   workspaceStackTopAxis,
   workspaceStepsEmbeddedIn,
   FrameAnchor,
@@ -2108,7 +2109,7 @@ import {
   PlacementMoveLevel,
 } from '@/client/console/tilePlacement/placementMove';
 import {placementCommands, PlacementStagedState, STAGED_BACK_OWED} from '@/client/console/tilePlacement/placementCommands';
-import {abortRemotePlacements, remoteLandingOwed} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {abortRemotePlacements, registerBoardShownDespiteStack, remoteLandingOwed} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {abortOceanBeat} from '@/client/console/tilePlacement/adjacencyPayoutBeat';
 import {abortNomadMove, nomadMoveState, nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import ConsoleColonyBuildLayer from '@/client/components/console/colonyBuild/ConsoleColonyBuildLayer.vue';
@@ -2148,7 +2149,7 @@ import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {probeTick} from '@/client/console/probeTick';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook, pinQuickWheelBox} from '@/client/console/surfaceMotion/surfaceMotionDirector';
-import {consoleHandPickState, cancelConsoleHandPick, declineConsoleHandPick, deferConsoleHandPick, enterConsoleHandPick, handPickArmsDiscardTray, handPickStageKey, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
+import {consoleHandPickState, isConsoleHandPickActive, cancelConsoleHandPick, declineConsoleHandPick, deferConsoleHandPick, enterConsoleHandPick, handPickArmsDiscardTray, handPickStageKey, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
 import {deferredDiscardKey, freshCardsForDeferredDiscard} from '@/client/console/deferredDiscardFresh';
 import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {
@@ -2236,7 +2237,8 @@ import {
   markMandatoryBeatPresented,
   noteMandatoryBeatIdentity,
   resetMandatoryGate,
-  setMandatoryGateHeld, isResolutionAsk} from '@/client/console/consoleMandatoryGate';
+  setMandatoryGateHeld, isResolutionAsk, isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
+import {START_STRAND_CONFIRM_MS, START_STRAND_YIELD_MS, startStranded, startYieldsForHeldPlacement} from '@/client/console/startServing';
 import {
   AdmissionSignals,
   PromptSurface,
@@ -2582,6 +2584,11 @@ export default defineComponent({
       handDeliveryState,
       /** The Parliament section's leave is in flight: the frame is out of the stack, the section still mounted (v3 В1). */
       parliamentLeaving: false,
+      /** THE START WATCHDOG (`startServing.ts`): a strand the heal could not end hands its question to the shell's own
+       *  surfaces (the scene yields) until the prompt changes; the two timers are the confirm and the heal's grace. */
+      startStrandYield: false,
+      startStrandTimer: undefined as number | undefined,
+      startStrandPrompt: undefined as number | undefined,
       /**
        * A PLACEMENT IS LIVE — the `placementActive` watcher's own record (a data field, so the admission computed may
        * read it without a cycle through `placementHeld`): the `remote-landing` block holds a placement that is NOT yet
@@ -4771,10 +4778,46 @@ export default defineComponent({
       // later in the shell, so it would paint over the very question the server
       // is asking. A yield, never an unmount: the scene comes back untouched
       // when the band has been answered.
+      // …and a SERVER PLACEMENT the start cannot host, held by a block that is the BOARD's (a foreign tile owed to it,
+      // its scale story, the announcement — `startYieldsForHeldPlacement`): the scene used to stand over that wait
+      // serving nothing (the field report of 2026-10-28 — Strategic Base Planning's city behind its colony), and the
+      // foreign tile it waited for waited in turn for a board the scene covered.
+      // …and a STRAND the watchdog could not heal (`startStrandYield`): the question goes to the shell's own surfaces.
       return this.startSceneMounted && !this.placementActive &&
         !this.startExcursionHolds && !workspaceHostYieldsScene('start') &&
         !govScaleFocusState.holding && !this.consoleState.task.deferred &&
-        !this.standalonePromptSurfaceStands;
+        !this.standalonePromptSurfaceStands && !this.startYieldsForHeldPlacement && !this.startStrandYield;
+    },
+    /** See `startSceneVisible` — the board's own wait never stands behind the start scene (`startServing.ts`). */
+    startYieldsForHeldPlacement(): boolean {
+      return startYieldsForHeldPlacement({
+        placementAsked: this.playerView.waitingFor?.type === 'space',
+        placementLive: this.placementActive,
+        nestedStep: workspaceFrameHasNested('start'),
+        block: this.playerView.waitingFor?.type === 'space' ? promptAdmissionBlock('placement', this.admissionSignals) : undefined,
+      });
+    },
+    /**
+     * THE START WATCHDOG'S INPUT (the reliability iteration of 2026-10-28): the scene is on screen, the server asks the
+     * viewer something real, the scene serves NOTHING (`consoleStartState.serves === 'none'`) and nothing else stands
+     * for the question — no task host, no live placement, no hand pick, no park, no moving beat (a hold is a bounded
+     * beat; a stuck one outlives its ceiling and the strand surfaces then).
+     */
+    startStrandedNow(): boolean {
+      const wf = this.playerView.waitingFor;
+      const task = taskFor(this.playerView);
+      // A HOSTED STEP serves only the question a frame of it answers: a step left standing past its own prompt (a
+      // colony grid after its build, the server already asking the prelude's city) serves nothing — it is a strand
+      // dressed as a step.
+      const serves = consoleStartState.serves === 'step' && task !== undefined && !stackServes(task.kind) ?
+        'none' : consoleStartState.serves;
+      return this.startSceneMounted && !this.startStrandYield && startStranded({
+        serves,
+        promptLive: wf !== undefined && wf.optional !== true,
+        servedElsewhere: !this.startSceneVisible || this.startPromptSurfaceStands || this.placementActive ||
+          isConsoleHandPickActive() || this.consoleState.task.deferred || isAnimationHoldActive() ||
+          isMandatoryGateHeld(),
+      });
     },
     /** MOUNTED ≠ VISIBLE. The scene owns the start's lifetime (its hold, its
      *  claims, its release beat), so it stays mounted through a yield and
@@ -11928,6 +11971,58 @@ export default defineComponent({
     startHostedStepDue(kind: HostedParliamentStepKind | ''): void {
       if (kind !== '') {
         this.enterStartHostedStep(kind);
+      }
+    },
+    /**
+     * THE START WATCHDOG (the reliability iteration of 2026-10-28, `startServing.ts`): a scene serving NOTHING while
+     * the server asks is confirmed after `START_STRAND_CONFIRM_MS`, NAMED (`[start-stranded]` — the live prompt, the
+     * placement's admission block, the scene's own stage machine and blockers: the one line a field export needs) and
+     * HEALED by the scene's own phrases (`healStrand`); a strand that outlives the heal's grace hands the question to
+     * the shell's surfaces (`startStrandYield`) — the player is never left in front of an empty start.
+     */
+    startStrandedNow(now: boolean): void {
+      window.clearTimeout(this.startStrandTimer);
+      this.startStrandTimer = undefined;
+      if (!now) {
+        return;
+      }
+      const report = (stage: string, extra: Record<string, unknown> = {}): void => {
+        const wf = this.playerView.waitingFor;
+        const diag = (window as unknown as {__conStartDiag?: () => unknown}).__conStartDiag?.();
+        console.warn(`[start-stranded] ${stage} — the start serves nothing while the server asks «${wf?.type ?? ''}` +
+          `${wf?.startGamePrompt !== undefined ? ':' + wf.startGamePrompt.kind : ''}»`, JSON.stringify({
+          ...extra,
+          task: taskFor(this.playerView)?.kind ?? null,
+          placementBlock: wf?.type === 'space' ? promptAdmissionBlock('placement', this.admissionSignals) ?? null : null,
+          hostBlock: promptAdmissionBlock('host', this.admissionSignals) ?? null,
+          frames: workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`),
+          diag: diag ?? null,
+        }));
+      };
+      this.startStrandTimer = window.setTimeout(() => {
+        this.startStrandTimer = undefined;
+        if (!this.startStrandedNow) {
+          return;
+        }
+        const scene = this.$refs.startScene as {healStrand?: () => string} | undefined;
+        const healed = scene?.healStrand?.() ?? 'no-scene';
+        report('confirmed', {heal: healed});
+        this.startStrandTimer = window.setTimeout(() => {
+          this.startStrandTimer = undefined;
+          if (!this.startStrandedNow) {
+            return;
+          }
+          report('yielded to the shell (the heal did not end it)', {heal: healed});
+          this.startStrandPrompt = this.playerView.waitingFor?.promptId;
+          this.startStrandYield = true;
+        }, START_STRAND_YIELD_MS);
+      }, START_STRAND_CONFIRM_MS);
+    },
+    /** The question the strand was yielded for is answered (or replaced): the start takes its screen back. */
+    'playerView.waitingFor.promptId'(id: number | undefined): void {
+      if (this.startStrandYield && id !== this.startStrandPrompt) {
+        this.startStrandYield = false;
+        this.startStrandPrompt = undefined;
       }
     },
     /** The payout's discard has come DUE (the pair's card is taken, the row pays): the hand opens as the action's step. */
@@ -24386,6 +24481,9 @@ export default defineComponent({
   mounted() {
     // THE CURSOR ARRIVES (TR58): a step or a press during an arrival releases it — input never waits for a ring.
     installCursorArrivalInput();
+    // THE START YIELDS ITS SCENE, NOT ITS FRAME (the reliability iteration): while it does, the board is on screen.
+    registerBoardShownDespiteStack(() => this.startSceneMounted && !this.startSceneVisible &&
+      workspaceStackState.frames.length === 1 && workspaceStackState.frames[0].kind === 'start');
     // A decision that IS its pick standing at boot (a reload mid-prompt) opens its album — the watcher is not
     // `immediate`, so the mount edge is asked here.
     this.openEffectDecisionPick(this.effectDecisionDirectPick);
@@ -24819,6 +24917,8 @@ export default defineComponent({
   beforeUnmount() {
     registerGenerationSceneHandoff(undefined); // a dead shell's director must not gate the next game's rise
     handoffPendingEntries.clear();
+    window.clearTimeout(this.startStrandTimer); // the start watchdog dies with its shell
+    registerBoardShownDespiteStack(undefined);
     setConsoleTaskHandoffPending(false);
     registerColonyTrackMoveHost(undefined);
     registerColonyRosterHost(undefined);

@@ -42,6 +42,7 @@ import {sittingAskResolution} from '@/client/console/promptSource';
 import {agendaReactionOf} from '@/client/console/parliament/agendaReaction';
 import {resetForegroundWatchdog, runForegroundWatchdog} from '@/client/console/consoleForegroundWatchdog';
 import {stackServes, workspaceFrameKnown, workspaceStackCollapsed, workspaceSurfacesFor, yieldedStackServes} from '@/client/console/consoleWorkspaceStack';
+import {StartServes, startServesSomething} from '@/client/console/startServing';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
 const SERVING_SURFACES: ReadonlyArray<string> = [
@@ -287,6 +288,17 @@ const SERVING_SURFACES_JOINED = SERVING_SURFACES.join(',');
  * per selector — is deliberate and strictly more correct: a hidden twin
  * earlier in the DOM must not mask a rendered serving surface.
  */
+/**
+ * THE START SCENE COUNTS ONLY FOR WHAT IT SERVES (the reliability iteration of 2026-10-28, `startServing.ts`). The
+ * scene is mounted for the whole opening, so «`.con-start` is rendered» said nothing about whether it answers the live
+ * question — and a scene standing EMPTY over one (Strategic Base Planning's city held behind its colony) was «served»
+ * for the whole hang. Its own verdict (`data-start-serves`) decides: a press, a panel, a hosted step, a beat do; `none`
+ * and `yielded` (it handed the screen to someone else — who must serve) do not. Every other surface is unaffected.
+ */
+function startSceneServes(el: Element): boolean {
+  return !el.classList.contains('con-start') || startServesSomething(el.getAttribute('data-start-serves') as StartServes | null ?? undefined);
+}
+
 function anyServingSurfaceRendered(task: ConsoleTask | undefined): boolean {
   const joined = task === undefined ? SERVING_SURFACES_JOINED : [
     SERVING_SURFACES_JOINED,
@@ -296,7 +308,8 @@ function anyServingSurfaceRendered(task: ConsoleTask | undefined): boolean {
   for (const el of document.querySelectorAll(joined)) {
     // A WARMED surface — mounted invisible AHEAD of its frame (the hosted Parliament, PL-127) — has layout but
     // serves nothing yet; counting it would let a stranded prompt hide behind a surface the player cannot see.
-    if ((el as HTMLElement).getClientRects().length > 0 && !(el as HTMLElement).hasAttribute('data-surface-warm')) {
+    if ((el as HTMLElement).getClientRects().length > 0 && !(el as HTMLElement).hasAttribute('data-surface-warm') &&
+        startSceneServes(el)) {
       return true;
     }
   }

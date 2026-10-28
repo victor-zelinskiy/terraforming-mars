@@ -159,6 +159,20 @@ export function registerRemoteBoardWaitKeeper(keeper: (() => boolean) | undefine
   boardWaitKeeper = keeper;
 }
 
+let boardShownDespiteStack: (() => boolean) | undefined;
+
+/**
+ * THE BOARD IS ON SCREEN THOUGH A FRAME STANDS (the start reliability iteration, 2026-10-28): the game-start workspace
+ * yields its SCENE to a board placement (paint only — its frame stays in the stack, its state and claims must survive),
+ * so «a frame stands» stopped meaning «the board is covered» there. The shell answers it (`ConsoleShell` registers the
+ * start's yield); without it a foreign tile owed to the board waited its whole `BOARD_WAIT_MAX_MS` for a board the
+ * player was LOOKING at, then popped in without its flight — and a placement held for that landing kept the start
+ * standing over it.
+ */
+export function registerBoardShownDespiteStack(probe: (() => boolean) | undefined): void {
+  boardShownDespiteStack = probe;
+}
+
 /** …and once it IS back, the flight lets the screen settle first: the
  *  workspace's own leave is still dissolving over the board it just vacated,
  *  and a tile landing under it is the same invisible flight one beat later. */
@@ -1517,7 +1531,7 @@ export function remoteLandingOwed(): boolean {
 }
 
 export function boardCovered(): boolean {
-  return workspaceStackActive() || playedHeroHolding() || isDeckDrawActive() ||
+  return (workspaceStackActive() && boardShownDespiteStack?.() !== true) || playedHeroHolding() || isDeckDrawActive() ||
     currentRevealEvent() !== undefined ||
     // …or a sitting on its way up (the soft gates): the law's tile waits for the sitting's own world beat.
     sittingRiseOwed();

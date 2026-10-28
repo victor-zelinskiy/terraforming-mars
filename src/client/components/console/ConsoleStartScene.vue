@@ -37,6 +37,7 @@
        :data-bonus-stage="state.bonusAct.stage"
        :data-first-stage="state.firstAct.stage"
        :data-start-press-refused="pressRefusal || undefined"
+       :data-start-serves="servesNow"
        role="dialog" :aria-label="$t('Start of the game')">
     <div class="con-start__bg" aria-hidden="true"></div>
 
@@ -1252,6 +1253,7 @@ import {apiUrl} from '@/client/utils/runtimeConfig';
 import {fetchPreview} from '@/client/utils/previewFetch';
 import {cardsResponse} from '@/client/console/taskResponses';
 import {setConsoleStartCommands, resetConsoleStartUi, startSceneCommands, startPressRefusal, StartCommand} from '@/client/console/consoleStartUi';
+import {startServesOf, StartServes} from '@/client/console/startServing';
 import {transportRequestInProgress} from '@/client/console/transport/gameTransport';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {applyDiscardExit, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
@@ -4168,6 +4170,27 @@ export default defineComponent({
       });
     },
     /**
+     * WHAT THIS SCENE SERVES RIGHT NOW (`startServesOf` — the reliability iteration of 2026-10-28). Read off the
+     * scene's own facts only; a latch that merely REMEMBERS a past beat (`effectReturnPending`'s released room, a seat
+     * owner) is deliberately NOT motion — a scene stuck on one serves nothing, and that is what the watchdog must see.
+     */
+    servesNow(): StartServes {
+      return startServesOf({
+        mode: this.mode,
+        yielded: this.yielded,
+        nestedStep: workspaceFrameHasNested('start'),
+        flowBeat: this.state.flow !== 'idle' && this.state.flow !== 'deploying',
+        motion: this.heroState.active || this.queueArriving.size > 0 || this.deal.state.active ||
+          this.embedSourceArriving || this.embedSourceDeparting ||
+          deckDrawHolds() || isHandDeliveryActive() || currentRevealEvent() !== undefined,
+        outcomePresenting: this.embedPresenting,
+        stagePanel: this.firstActionPanelShown || this.bonusActionPanelShown,
+        stageTransit: this.state.firstAct.submitting,
+        risk: this.riskStage !== undefined,
+        focusables: this.focusables.filter((f) => !f.disabled).length,
+      });
+    },
+    /**
      * WOULD THE PRESS ON THE FOCUSED ITEM BE REFUSED RIGHT NOW — the same gate `actByName` applies, read LIVE
      * (the transport's reactive mirror, the delivery ledger) so the bar can dim A and name the wait instead of
      * advertising a verb the gate would swallow. `undefined` = the press is honoured.
@@ -4198,6 +4221,13 @@ export default defineComponent({
     },
   },
   watch: {
+    /** The verdict's MIRROR for the shell's start watchdog (module state — the shell cannot read a child's computed). */
+    'servesNow': {
+      immediate: true,
+      handler(serves: StartServes): void {
+        consoleStartState.serves = serves;
+      },
+    },
     /**
      * THE FIRST ACTION'S RAIL HALF IS HELD (seeded in the transport's apply block, TR81): the stage plays it — each
      * printed TR plate of the corporation births its token into the score cell, then the table's answer comes out of
@@ -4912,6 +4942,10 @@ export default defineComponent({
         queueArriving: this.queueArriving.size,
         payProjects: this.payProjects.length,
       },
+      // What the scene SERVES and the latches a stuck beat would leave behind (the start watchdog prints all of it).
+      serves: this.servesNow,
+      flowStage: this.deploymentFlowStage,
+      latches: {queueReleased: this.queueReleased, playedDockReleased: this.playedDockReleased, seatOwner: this.seatOwner ?? null},
     });
     // Campaign mode: the corporation stage relabels — «Штаб» for the final
     // mission's no-pick deployment of the accumulated trio. Missions 2–3 keep
@@ -4996,6 +5030,7 @@ export default defineComponent({
     startReactorPlaceOff?.();
     startReactorPlaceOff = undefined;
     delete (window as unknown as Record<string, unknown>).__conStartDiag;
+    consoleStartState.serves = undefined;
     // The «Эффекты» layer is a level of THIS surface; the first action's rail half has nobody left to fly it.
     this.forecastPulseCall?.kill();
     closeEffectForecastLayer('start');
@@ -7852,6 +7887,50 @@ export default defineComponent({
      * briefing then materializes around the settled card (CSS enter — the
      * panel is mounted by `firstActionPanelShown`).
      */
+    /**
+     * THE START WATCHDOG'S HEAL (the reliability iteration, 2026-10-28) — the shell calls it when the scene has served
+     * NOTHING for a confirmed while with the server asking (`startStranded`). Every step re-runs one of the scene's
+     * OWN phrases, never a shortcut around it, and names what it did (the watchdog prints it):
+     *  ① a room a past beat RELEASED and nothing gave back (`queueReleased` / `playedDockReleased` with no step, no
+     *    outcome, no stage holding it) — returned;
+     *  ② a stage ENTRY that never fired (an edge-triggered watcher missed its edge: the entry turned true while another
+     *    beat ran and the `true → true` never re-fired) — entered now;
+     *  ③ a stage stuck in `staging` (its seat flight never settled — `seatTake` awaits a chain that a torn-down flight
+     *    left unresolved) — the corporation is seated in place and the stage stands.
+     */
+    healStrand(): string {
+      const did: Array<string> = [];
+      const hosting = workspaceFrameHasNested('start') || this.embedPresenting || this.firstActionPanelShown || this.bonusActionPanelShown;
+      if (!hosting && this.queueReleased) {
+        void this.runQueueReturn();
+        did.push('queue-returned');
+      }
+      if (!hosting && this.playedDockReleased) {
+        void this.runPlayedDockReturn();
+        did.push('shelf-returned');
+      }
+      if (this.state.firstAct.stage === 'staging' && this.state.firstAct.corp !== undefined && !this.heroState.active) {
+        const corp = this.state.firstAct.corp;
+        this.seatFlight++;
+        this.seatChain = Promise.resolve();
+        this.seatOwner = 'firstAction';
+        this.embedSourceShown = corp;
+        this.embedSourceIncoming = undefined;
+        this.embedSourceArriving = false;
+        this.embedSourceDeparting = false;
+        this.embedSourceLanded = true;
+        this.state.firstAct.stage = 'standing';
+        did.push('first-action-seated');
+      } else if (this.state.firstAct.stage === 'idle' && this.firstActionOwedNow && this.firstActionCorpNow !== undefined &&
+          !this.firstActionNested && !startFlowOtherPromptStands(this.playerView) && this.mode === 'ceremony') {
+        void this.enterFirstActionStage();
+        did.push('first-action-entered');
+      } else if (this.bonusActionEntryDue) {
+        void this.enterBonusActionStage();
+        did.push('bonus-action-entered');
+      }
+      return did.length === 0 ? 'nothing-to-heal' : did.join(',');
+    },
     async enterFirstActionStage(): Promise<void> {
       const corp = this.firstActionCorpNow;
       if (corp === undefined || this.state.firstAct.stage !== 'idle') {
