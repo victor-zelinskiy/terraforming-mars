@@ -14,13 +14,19 @@ import {AutomaOptions} from './AutomaTypes';
  *    makes one game's bot unlike another's, and which are NEVER cut — and the
  *    BONUS side: the top card of the bonus deck plus the recurring cards (Party
  *    Politics in Redux, Government Intervention with Venus, Shipping Lines with
- *    colonies), the same in every game. With the switch on, the 1st / 2nd / 3rd
- *    generation's deck takes at most 1 / 2 / 3 cards of the bonus side, chosen
- *    by a shuffle, the whole side from the 4th. Measured on 25 Redux Hard games
- *    before the rule: the bot passed LAST in 100 / 100 / 96 % of the 1st–3rd
- *    generations with 3.2 / 4.2 / 4.2 bonus-side turns in each. (A first cut
- *    withheld PROJECT cards instead — 2 / 1 / 1 — and was rolled back the same
- *    day: the start lost its variety, «тут разнообразие важнее».)
+ *    colonies), the same in every game. With the switch on, the 1st / 2nd /
+ *    3rd / 4th generation's deck takes at most 0 / 1 / 2 / 3 cards of the bonus
+ *    side, chosen by a shuffle, the whole side from the 5th. Measured on 25
+ *    Redux Hard games before the rule: the bot passed LAST in 100 / 100 / 96 %
+ *    of the 1st–3rd generations with 3.2 / 4.2 / 4.2 bonus-side turns in each,
+ *    and its lead over the best player grew +2.4 / +5.9 / +4.5 / +4.3 VP in the
+ *    1st–4th — the 1st generation barely moves it (the project cards and the
+ *    rating do), the 2nd–4th build it, ≈ +1.5–3 VP of lead per bonus-side turn
+ *    there. So the ladder starts at ZERO and shifts the 2nd–4th by one card each
+ *    (the owner, 2026-10-29 evening; the first ladder was 1 / 2 / 3, full from
+ *    the 4th). A first cut withheld PROJECT cards instead — 2 / 1 / 1 — and was
+ *    rolled back the same day: the start lost its variety, «тут разнообразие
+ *    важнее».
  *  · LATE — «ВТОРАЯ СМЕНА» (`common/automa/SecondShift.ts`): in a generation
  *    the players outlast, an empty deck draws an extra card instead of passing,
  *    up to the ladder's cap.
@@ -28,7 +34,7 @@ import {AutomaOptions} from './AutomaTypes';
  * A deck is built when its generation starts — a game already under way with
  * the switch on meets the early half only in generations it has yet to begin.
  */
-export const DYNAMIC_BALANCE_BONUS_SIDE: readonly number[] = [1, 2, 3];
+export const DYNAMIC_BALANCE_BONUS_SIDE: readonly number[] = [0, 1, 2, 3];
 
 /** The switch — the one option both halves read. */
 export function dynamicBalanceOn(options: AutomaOptions | undefined): boolean {

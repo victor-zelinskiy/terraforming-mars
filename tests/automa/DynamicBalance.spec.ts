@@ -16,9 +16,11 @@ import {AutomaTestOptions, testAutomaGame} from './AutomaTestGame';
 /**
  * «ДИНАМИЧЕСКИЙ БАЛАНС», the EARLY half (`common/automa/DynamicBalance.ts`, the owner
  * 2026-10-29): with the switch on, the BONUS side of the bot's deck — the top card
- * of the bonus deck plus the recurring cards — fills gradually: at most 1 / 2 / 3
- * of its cards in the 1st / 2nd / 3rd generation, chosen by a shuffle, the whole
- * side from the 4th. The PROJECT cards — the random tags that make one start unlike
+ * of the bonus deck plus the recurring cards — fills gradually: NONE of it in the
+ * 1st generation, at most 1 / 2 / 3 of its cards in the 2nd / 3rd / 4th, chosen by
+ * a shuffle, the whole side from the 5th (the owner, 2026-10-29 evening: the bot's
+ * early lead is built in the 2nd–4th generations, ≈ +1.5–3 VP per bonus-side turn;
+ * the first ladder was 1 / 2 / 3). The PROJECT cards — the random tags that make one start unlike
  * another — are never cut. A deferred top card goes back on top of the bonus deck;
  * a deferred recurring card sits the generation out; the corporation's own card is
  * always in. Off (the option absent): the rulebook's deck, unchanged.
@@ -46,25 +48,27 @@ function rebuildGame(on: boolean, generation: number, recurring: ReadonlyArray<B
 }
 
 describe('DynamicBalance — the bonus side of the deck fills gradually (early half)', () => {
-  it('the schedule: 1 / 2 / 3 cards of the bonus side in the 1st / 2nd / 3rd generation, all of it from the 4th', () => {
-    expect(DYNAMIC_BALANCE_BONUS_SIDE).deep.eq([1, 2, 3]);
-    expect([1, 2, 3, 4, 9].map(bonusSideCap)).deep.eq([1, 2, 3, undefined, undefined]);
+  it('the schedule: NO card of the bonus side in the 1st generation, 1 / 2 / 3 in the 2nd / 3rd / 4th, all of it from the 5th', () => {
+    expect(DYNAMIC_BALANCE_BONUS_SIDE).deep.eq([0, 1, 2, 3]);
+    expect([1, 2, 3, 4, 5, 9].map(bonusSideCap)).deep.eq([0, 1, 2, 3, undefined, undefined]);
     expect(dynamicBalanceOn({difficulty: 'hard', secondShift: true})).is.true;
     expect(dynamicBalanceOn({difficulty: 'hard'})).is.false;
   });
 
-  it('the 1st generation: every project card stays (variety), the bonus side is cut to ONE card', () => {
+  it('the 1st generation: every project card stays (variety), the bonus side is cut to NOTHING — the top card waits on the bonus deck', () => {
     const [off] = testAutomaGame(options('hard', undefined, {preludeExtension: true, venusNextExtension: true}), '-off');
     const [on] = testAutomaGame(options('hard', true, {preludeExtension: true, venusNextExtension: true}), '-on');
     expect(projects(on), 'the projects are never cut').eq(projects(off));
     expect(projects(on)).eq(6);
     expect(bonusIds(off), 'off: the top card + Government Intervention').has.length(2);
-    expect(bonusIds(on), 'on: one of them').has.length(1);
+    expect(bonusIds(on), 'on: neither').has.length(0);
+    expect(on.automa!.bonusDeck.length, 'the top card was not taken').eq(off.automa!.bonusDeck.length + 1);
+    expect(on.automa!.recurringBonusCards, 'the recurring card sits the generation out, still recurring').deep.eq(off.automa!.recurringBonusCards);
   });
 
-  it('a rebuild: 2 of 3 in the 2nd generation, 3 of 3 in the 3rd, the whole side from the 4th; off takes it all', () => {
+  it('a rebuild: 1 of 3 in the 2nd generation, 2 of 3 in the 3rd, 3 of 3 in the 4th, the whole side from the 5th; off takes it all', () => {
     const recurring = [BonusCardId.B16_GOVERNMENT_INTERVENTION, BonusCardId.B19_SHIPPING_LINES];
-    for (const [generation, expected] of [[2, 2], [3, 3], [4, 3], [7, 3]] as const) {
+    for (const [generation, expected] of [[2, 1], [3, 2], [4, 3], [5, 3], [7, 3]] as const) {
       const game = rebuildGame(true, generation, recurring);
       AutomaResearch.buildActionDeck(game);
       expect(bonusIds(game), `gen ${generation}`).has.length(expected);
@@ -75,13 +79,13 @@ describe('DynamicBalance — the bonus side of the deck fills gradually (early h
     expect(bonusIds(off)).has.length(3);
   });
 
-  it('a deferred top card goes back ON TOP of the bonus deck — never discarded; the shuffle varies which card comes in', () => {
+  it('a deferred top card goes back ON TOP of the bonus deck — never discarded; the shuffle varies which card comes in (the 2nd generation, one of three)', () => {
     const recurring = [BonusCardId.B16_GOVERNMENT_INTERVENTION, BonusCardId.B19_SHIPPING_LINES];
     let deferredOnce = false;
     let keptOnce = false;
     const firstIn = new Set<BonusCardId>();
     for (let seed = 0; seed < 12; seed++) {
-      const game = rebuildGame(true, 1, recurring, seed / 12);
+      const game = rebuildGame(true, 2, recurring, seed / 12);
       const top = idOf(game.automa!.bonusDeck[0]);
       const size = game.automa!.bonusDeck.length;
       AutomaResearch.buildActionDeck(game);
@@ -103,12 +107,15 @@ describe('DynamicBalance — the bonus side of the deck fills gradually (early h
     expect(firstIn.size, 'different starts in different games').greaterThan(1);
   });
 
-  it('the corporation\'s own card is always in and outside the count', () => {
-    const game = rebuildGame(true, 1, [BonusCardId.B16_GOVERNMENT_INTERVENTION, BonusCardId.B23_RAPID_SPROUTING]);
+  it('the corporation\'s own card is always in and outside the count — even at a cap of ZERO', () => {
+    const first = rebuildGame(true, 1, [BonusCardId.B16_GOVERNMENT_INTERVENTION, BonusCardId.B23_RAPID_SPROUTING]);
+    AutomaResearch.buildActionDeck(first);
+    expect(bonusIds(first), 'the 1st generation: the corporation\'s card alone').deep.eq([BonusCardId.B23_RAPID_SPROUTING]);
+    const game = rebuildGame(true, 2, [BonusCardId.B16_GOVERNMENT_INTERVENTION, BonusCardId.B23_RAPID_SPROUTING]);
     AutomaResearch.buildActionDeck(game);
     const ids = bonusIds(game);
     expect(ids).includes(BonusCardId.B23_RAPID_SPROUTING);
-    expect(ids.filter((id) => id !== BonusCardId.B23_RAPID_SPROUTING)).has.length(1);
+    expect(ids.filter((id) => id !== BonusCardId.B23_RAPID_SPROUTING), 'the 2nd generation: one beside it').has.length(1);
   });
 
   it('a drafted deck keeps the rulebook\'s project cards under the switch', () => {
@@ -121,17 +128,22 @@ describe('DynamicBalance — the bonus side of the deck fills gradually (early h
 
 describe('DynamicBalance — Party Politics left out: its vote rides the mandate, the lobby is spent', () => {
   it('the deck builder marks the generation whose deck left Party Politics out — and only that one', () => {
+    // The 1st generation takes nothing of the bonus side: Party Politics is always out, the generation always marked.
+    const first = rebuildGame(true, 1, [BonusCardId.B21_PARTY_POLITICS, BonusCardId.B16_GOVERNMENT_INTERVENTION], 0.3);
+    AutomaResearch.buildActionDeck(first);
+    expect(bonusIds(first)).not.includes(BonusCardId.B21_PARTY_POLITICS);
+    expect(first.automa!.partyPoliticsDeferred).eq(1);
     let deferred = 0;
     let kept = 0;
     for (let seed = 0; seed < 12; seed++) {
-      const game = rebuildGame(true, 1, [BonusCardId.B21_PARTY_POLITICS, BonusCardId.B16_GOVERNMENT_INTERVENTION], seed / 12);
+      const game = rebuildGame(true, 2, [BonusCardId.B21_PARTY_POLITICS, BonusCardId.B16_GOVERNMENT_INTERVENTION], seed / 12);
       AutomaResearch.buildActionDeck(game);
       if (bonusIds(game).includes(BonusCardId.B21_PARTY_POLITICS)) {
         kept++;
         expect(game.automa!.partyPoliticsDeferred).is.undefined;
       } else {
         deferred++;
-        expect(game.automa!.partyPoliticsDeferred).eq(1);
+        expect(game.automa!.partyPoliticsDeferred).eq(2);
       }
     }
     expect(deferred > 0 && kept > 0, 'both outcomes occur across seeds').is.true;
