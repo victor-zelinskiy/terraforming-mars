@@ -1069,12 +1069,6 @@ export type PlayedTargetSizing = {
   perRow: number;
   /** Nothing fits even at the floor — the zone must scroll for real. */
   overflows: boolean;
-  /**
-   * `board` only — HOW the groups stand in the one zone: `bands` one under another (a tall host) or `row` side by
-   * side in ONE row (a wide, short host — the action composer at 4K). The solver takes whichever draws the larger
-   * readable card; a scroll only when neither fits.
-   */
-  boardFlow?: 'bands' | 'row';
 };
 
 export type PlayedTargetSizingInput = {
@@ -1225,20 +1219,12 @@ export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTarget
   if (o.mode !== 'board') {
     return solve(groups, ownerW, o.availH - bandChrome, sectionGap);
   }
-  // `board` — EVERY group on screen, in whichever of two arrangements draws the larger readable card: BANDS one under
-  // another (the height shared, each band its own bar and headroom), or ONE ROW of groups side by side (the width
-  // shared, one bar's height) — the action composer at 4K is wide and short, a step in a tall host the other way.
+  // `board` — EVERY group on screen as BANDS one under another (the owner's decision B2, 2026-10-29: always bands —
+  // a wide, short host reads the bands at a smaller card or scrolls honestly, never a row of groups): the height is
+  // shared, each band carries its own bar and headroom.
   const n = Math.max(1, o.owners.length);
-  const bandsFit = {...solve(groups, o.availW, (o.availH - n * bandChrome) / n, sectionGap), boardFlow: 'bands' as const};
-  const rowFit = {...solve([groups.flat()], o.availW - n * BOARD_ROW_OWNER_CHROME_W * o.ui, o.availH - bandChrome, ownerGap), boardFlow: 'row' as const};
-  if (bandsFit.overflows !== rowFit.overflows) {
-    return bandsFit.overflows ? rowFit : bandsFit;
-  }
-  return rowFit.cardZoom > bandsFit.cardZoom ? rowFit : bandsFit;
+  return solve(groups, o.availW, (o.availH - n * bandChrome) / n, sectionGap);
 }
-
-/** One group's side padding + accent in the `board` row (`.con-ptsel__owner`: `.55rem` left + `.1rem` right + the kant). */
-const BOARD_ROW_OWNER_CHROME_W = 16;
 
 /** The best readable shape of the solved candidates — or the floor and an honest scroll. */
 function solveSizing(

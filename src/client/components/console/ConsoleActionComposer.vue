@@ -1007,7 +1007,7 @@ import {
   cardPickAskKey,
   cardPickRoleKey, keepPlayAnswers,
   // THE SOLE CANDIDATE (T14 · CC) — a target with ONE enabled candidate is seeded, shown and marked.
-  soleCandidateOf, soleMarkKeys,
+  soleCandidateOf, soleMarkKeys, soleSeedPick, soleSeedResponse,
   // The price every variant shares — printed once, on the price side.
   commonVariantCost,
   // The good every variant buys — printed once, after the price tiles (TR58).
@@ -4223,14 +4223,18 @@ export default defineComponent({
      * album's answer), plus the `seeded` mark. Never over an answer already given.
      */
     seedSole(c: ComposerChoice): void {
-      if (!this.choiceMissing(c) || (c.input.type !== 'card' && c.input.type !== 'player')) {
+      if (!this.choiceMissing(c) || (c.input.type !== 'card' && c.input.type !== 'player' && c.input.type !== 'or')) {
         return;
       }
       const seed = soleCandidateOf(c);
       if (seed === undefined) {
         return;
       }
-      if (seed.kind === 'player') {
+      if (seed.kind === 'tableBot') {
+        // The bot alone in the table's one zone — its branch answered, the row marked «единственная цель».
+        this.picks = {...this.picks, [c.id]: soleSeedPick(seed)};
+        this.captureFor(c, soleSeedResponse(seed));
+      } else if (seed.kind === 'player') {
         this.picks = {...this.picks, [c.id]: seed.color};
         this.captureFor(c, {type: 'player', player: seed.color});
       } else {
@@ -4269,7 +4273,7 @@ export default defineComponent({
           continue;
         }
         const seed = soleCandidateOf(c);
-        if (seed !== undefined && (seed.kind === 'player' ? seed.color : seed.name) === this.picks[c.id]) {
+        if (seed !== undefined && soleSeedPick(seed) === this.picks[c.id]) {
           continue;
         }
         this.captureFor(c, undefined);

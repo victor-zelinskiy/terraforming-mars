@@ -2041,7 +2041,7 @@ import {
 import {cardExitBusy} from '@/client/console/cardDeal/cardExitDirector';
 import type {WorkspaceOutcomeKind, WorkspaceOutcomeScope} from '@/client/console/consoleWorkspaceOutcome';
 import {ResultRevealPresentation, resultRevealPresentation} from '@/client/console/consoleRevealPresentation';
-import {claimPlayOutcome, isPlayOutcomeHost, playLandingShowing} from '@/client/console/played/consolePlayOutcomeClaim';
+import {claimPlayOutcome, isPlayOutcomeHost, playLandingShowing, playOwesTargetPick} from '@/client/console/played/consolePlayOutcomeClaim';
 import {playComposerOutlived} from '@/client/console/played/playComposerLifetime';
 import {noteBonusGainRows, resetBonusGainReward} from '@/client/console/startBonusGain';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
@@ -13405,6 +13405,12 @@ export default defineComponent({
             this.playerView.cardDrawReveals.length > 0) {
           return;
         }
+        // …nor while the play still owes its «where?» after its draw (TRP9, PL-1117): between the reveal leaving and
+        // the pick's admission (the task host is gated by the take's own holds) nothing is embedded for a beat, and that
+        // beat is not «fell».
+        if (isPlayOutcomeHost(workspaceOutcomeState.host) && playOwesTargetPick(this.playerView.waitingFor)) {
+          return;
+        }
         if (!this.workspaceOutcomeEmbedded && workspaceOutcomeState.stage === 'presenting') {
           releaseWorkspaceOutcome('embed-fell');
         }
@@ -20765,6 +20771,15 @@ export default defineComponent({
         this.handEffectStageOn();
         return;
       }
+      // …AND THE PLAY'S OWN «WHERE?» FOLLOWS ITS DRAW (TRP9 Medical Institute, PL-1117): the prelude draws a card, then
+      // asks which card takes its microbe / data — a TARGET pick the claim admits (`pick`, `taskEmbedTarget`), standing
+      // in `waitingFor` since the play's response. Released here, it rose as the task host's own band over the start.
+      // The claim is KEPT AS IT IS — never re-posed to `awaiting` (the rehome law: `embedPresenting` would stay false
+      // and the zone would stand empty); the reconciler releases it once the pick is answered. Structural on the raw
+      // prompt (`playOwesTargetPick`), the same test the start scene's own release asks.
+      if (isPlayOutcomeHost(host) && playOwesTargetPick(this.playerView.waitingFor)) {
+        return;
+      }
       // …AND A QUEUED SIBLING BATCH KEEPS THE LEASE. One press's chain can
       // produce SEVERAL reveal batches (a traversal's stage draw + its
       // repeat's own; a chained follow-up draw landing in the take's
@@ -21260,6 +21275,12 @@ export default defineComponent({
           e.source?.type === 'card' && own.has(e.source.cardName));
         if (chained !== undefined) {
           retainWorkspaceOutcomeForNextBatch(chained.cards.length);
+          return;
+        }
+        // …and the play's own «where?» after its draw (TRP9 Medical Institute, PL-1117 — this seam fires FIRST, before
+        // `drawn-complete`, so both ends of the take must hold): the claim stays AS IT IS for the target pick standing in
+        // `waitingFor`, which then stands in this host's zone; the reconciler releases it once the pick is answered.
+        if (playOwesTargetPick(this.playerView.waitingFor)) {
           return;
         }
       }

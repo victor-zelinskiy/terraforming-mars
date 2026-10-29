@@ -350,7 +350,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-hand')).toHaveCount(0, {timeout: 30_000});
     });
 
-    test(`bot: the card option of [cards, MarsBot] opens the SAME grouped target step — never a flat list (${preset.id})`, async ({page, request}) => {
+    test(`bot: [cards, MarsBot] is ONE zone — the players' card and the bot's tile on one screen, never a list before them (${preset.id})`, async ({page, request}) => {
       test.setTimeout(300_000);
       const posts: Array<string> = [];
       page.on('request', (r) => {
@@ -361,29 +361,35 @@ for (const preset of PRESETS) {
       const {playerId} = await bootFixtureSeats(page, request, 'scientific-breakthrough-bot', {query: preset.query});
       await settle(page);
       await openComposer(page);
-      // The removal row is an `or`: A opens its option list — the card pick (a door) beside the bot.
+      // «ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА» (the owner, 2026-10-28): the removal row is the server's marked `or` — A opens ONE
+      // zone straight away: the player's card in its owner's group and the bot's stand-in tile beside it, no list.
       const list = page.locator(`${COMPOSER} .con-composer__sublist`);
-      for (let i = 0; i < 6 && await list.count() === 0; i++) {
+      const step = page.locator('.con-ptsel');
+      for (let i = 0; i < 6 && await step.count() === 0; i++) {
         if (await page.locator(`${COMPOSER} .con-composer__cta--focused`).count() > 0) {
           await press(page, 'ArrowUp', 600);
         }
         await press(page, 'Enter', 1200);
       }
-      await expect(list, 'the option list opened').toHaveCount(1, {timeout: 10_000});
-      await expect(list.locator('.con-vchoice__door'), 'the card option is a door').toHaveCount(1);
-      // A on the card option: the embedded step — the Predators pattern — never the list of names one level deeper.
-      const step = page.locator('.con-ptsel');
-      await press(page, 'Enter', 1200);
-      await expect(step, 'the card option opened the grouped target step').toHaveCount(1, {timeout: 10_000});
-      await expect(list, 'no flat list stands beside it').toHaveCount(0);
-      await expect(step.locator('.con-ptsel__slot[data-zoom-slot="Research Startups"]'), 'the candidate stands in its owner\'s group').toHaveCount(1);
+      await expect(step, 'A opened the one zone').toHaveCount(1, {timeout: 10_000});
+      await expect(list, 'no «cards / bot» list before it').toHaveCount(0);
+      const startupsSlot = step.locator('.con-ptsel__slot[data-zoom-slot="Research Startups"]');
+      await expect(startupsSlot, 'the candidate stands in its owner\'s group').toHaveCount(1);
+      await expect(step.locator('[data-ptsel-bot]'), 'the bot stands beside it as a tile').toHaveCount(1);
       await shoot(page, preset.id, '05-bot-step');
-      // B is ONE level: back to the option list, nothing captured.
+      // B is ONE level: back to the composer (there is no list above the zone), nothing captured.
       await press(page, 'Escape', 1200);
-      await expect(step, 'B closed the step').toHaveCount(0, {timeout: 8000});
-      await expect(list, 'B returned to the option list').toHaveCount(1, {timeout: 8000});
+      await expect(step, 'B closed the zone').toHaveCount(0, {timeout: 8000});
+      await expect(list, 'and no list stands in its place').toHaveCount(0);
       await press(page, 'Enter', 1200);
-      await expect(step, 'the step re-opened').toHaveCount(1, {timeout: 10_000});
+      await expect(step, 'the zone re-opened').toHaveCount(1, {timeout: 10_000});
+      const onStartups = () => startupsSlot.evaluate((el) => el.classList.contains('con-ptsel__slot--focused')).catch(() => false);
+      for (const key of ['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown']) {
+        for (let i = 0; i < 3 && !(await onStartups()); i++) {
+          await press(page, key, 300);
+        }
+      }
+      expect(await onStartups(), 'the cursor reached Research Startups').toBe(true);
       for (let i = 0; i < 4 && await step.count() > 0; i++) {
         await press(page, 'Enter', 1100);
       }

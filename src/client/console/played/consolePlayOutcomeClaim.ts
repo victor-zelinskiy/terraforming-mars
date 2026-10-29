@@ -42,6 +42,7 @@ import {
   claimWorkspaceOutcome,
   rehomeWorkspaceOutcome,
   setWorkspaceOutcomeSlot,
+  workspaceClaimsPick,
 } from '@/client/console/consoleWorkspaceOutcome';
 import {
   workspaceFrameDescended,
@@ -49,6 +50,7 @@ import {
 } from '@/client/console/consoleWorkspaceStack';
 import {playedHeroLandingPrewarm, playedHeroLandingUp} from '@/client/console/played/consolePlayedHero';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import type {PlayerInputModel, SelectCardModel} from '@/common/models/PlayerInputModel';
 import {deckDrawDealing} from '@/client/console/deckDraw/consoleDeckDraw';
 import {nextTick, reactive} from 'vue';
 
@@ -275,6 +277,17 @@ export function markPlayLandingReleased(): void {
  * (`reconcileWorkspaceOutcome`) instead of expiring on the 20 s backstop with
  * its workspace unable to conclude.
  */
+/**
+ * THE PLAY STILL OWES A «WHERE?» (TRP9 Medical Institute, PL-1117): a play claim admitting `pick` and the RAW prompt
+ * a TARGET pick (`card` with the server's `resourceGainPrompt`) — the play's own follow-up after its draw. Both release
+ * sites of a play host's claim at the take (the start scene's reveal edge, the shell's `onEmbeddedDrawnComplete`)
+ * keep the claim for it, so the pick stands in the host's zone; the reconciler lets go once it is answered.
+ */
+export function playOwesTargetPick(waitingFor: PlayerInputModel | undefined): boolean {
+  return workspaceClaimsPick() && waitingFor?.type === 'card' &&
+    (waitingFor as SelectCardModel).resourceGainPrompt !== undefined;
+}
+
 export function isPlayOutcomeHost(host: WorkspaceOutcomeHost | undefined): boolean {
   return host !== undefined && PLAY_OUTCOME_HOSTS.some((spec) => spec.host === host);
 }

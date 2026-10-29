@@ -894,6 +894,8 @@ export type PlayFootContext = {
   /** When `sub === 'playedTarget'`: the cursor stands on a SHOWN near miss (`PlayedTargetCandidate.blocked`) — A is
    *  refused there, so its verb dims (the rail reads why). */
   targetBlocked?: boolean;
+  /** When `sub === 'playedTarget'`: the cursor stands on the BOT's stand-in tile — no card, X is not offered. */
+  targetNoInspect?: boolean;
   /** There are navigable pre-select rows (show the Navigate hint). */
   hasRows: boolean;
   /** The focused review row's kind (only meaningful when `sub === 'none'`). */
@@ -998,7 +1000,9 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
         hints.push({control: 'triggerR', label: ctx.decline, priority: 1});
       }
     }
-    hints.push({control: 'secondary', label: 'Inspect'});
+    if (ctx.targetNoInspect !== true) {
+      hints.push({control: 'secondary', label: 'Inspect'});
+    }
     hints.push({control: 'back', label: 'Back'});
     return hints;
   }

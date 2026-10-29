@@ -5,7 +5,6 @@
        and the source card stays visible to its left throughout. -->
   <div class="con-ptsel"
        :data-mode="layout.mode"
-       :data-board-flow="layout.mode === 'board' ? sizing.boardFlow : undefined"
        :data-owners="visibleOwners.length"
        :data-tag-lines="tagLines"
        :data-flow="sizing.sectionFlow"

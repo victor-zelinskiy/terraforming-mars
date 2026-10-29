@@ -1191,7 +1191,7 @@ import {
   claimWorkspaceOutcome, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting,
   releaseWorkspaceOutcome, retractWorkspaceOutcomeSlot, setWorkspaceOutcomeSlot, workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
-import {claimPlayOutcome, playOutcomeZone} from '@/client/console/played/consolePlayOutcomeClaim';
+import {claimPlayOutcome, playOutcomeZone, playOwesTargetPick} from '@/client/console/played/consolePlayOutcomeClaim';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
@@ -4526,6 +4526,11 @@ export default defineComponent({
         return;
       }
       if (now === '' && was !== '') {
+        // …unless the play still owes its «where?» after this draw (TRP9, PL-1117): the claim keeps the pick in our
+        // zone; the reconciler releases it once answered.
+        if (playOwesTargetPick(this.playerView.waitingFor)) {
+          return;
+        }
         releaseWorkspaceOutcome();
         // Back to the queue context: focus the next unresolved card.
         this.focusIdx = 0;

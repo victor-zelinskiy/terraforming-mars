@@ -477,8 +477,9 @@ face's name and the director's `reaction:*` trail).
 The start's reactor place (`ConsoleStartScene.startCarriesReactor`) held CORPORATIONS only; a PRELUDE whose effect
 answers its OWN Science tag is still in flight from the queue to the shelf «РАЗЫГРАНО» when its reaction rises, so the
 director raised a second instance at the reaction stage. The place now holds a carried prelude too (the face is the
-shelf's `data-played-key`, waited for as PL-1098 waits for the seat). Its «where?» pick after the draw still rises as
-the task host's own band over the start (PL-1117, open). Contract: `docs/TURMOIL_REDUX_MEDICAL_INSTITUTE.md`.
+shelf's `data-played-key`, or the seat «Источник» while its pick stands — waited for as PL-1098 waits for the seat).
+Its «where?» pick after the draw stands INSIDE the start: `playOwesTargetPick` keeps the play claim through every seam
+of the take (PL-1117). Contract: `docs/TURMOIL_REDUX_MEDICAL_INSTITUTE.md`.
 
 ## Files
 

@@ -816,12 +816,13 @@ import {
   ComposerChoice, preChoices, branchChoices,
   spendHeatPlan, spendHeatStock, spendHeatResponse, spendHeatValid,
   orderedPreResponses, orderedStepResponses, tabbedStepsOf, cardPickAskKey, cardPickRoleKey, keepPlayAnswers,
-  soleCandidateOf, soleMarkKeys,
+  soleCandidateOf, soleMarkKeys, soleSeedPick, soleSeedResponse,
 } from '@/client/console/consoleActionComposer';
 import {distributionLanesOf, DistributionLanes} from '@/client/console/consoleActionComposer';
 import {pourRemaining, spreadOn, spreadRemaining, SpreadState, spreadTotal, stepSpread} from '@/client/console/cardResourceDistribution';
 import {cardResourceDistributionResponse} from '@/client/console/taskResponses';
 import {buildOrItems, orItemResponse, buildTabbedTargets, nestedPickHostable, ConsoleOrItem, ConsoleTabbedTarget, TabbedCardOwner} from '@/client/console/consoleOrChoice';
+import {TABLE_TARGET_BOT_KEY, TableTargetBotStand, isTableTargetBot, tableTargetBotStand, tableTargetCardPick, tableTargetOf} from '@/client/console/played/tableTargetZone';
 import {
   enterDeltaEspionagePick, deltaEspionageStepResponse, deltaEspionageResponseOf,
 } from '@/client/console/hydroFlow/deltaEspionageEntry';
@@ -2420,6 +2421,8 @@ export default defineComponent({
         targetOwnerTabs: (this.playedTargetLayout.mode === 'tabs' || this.playedTargetLayout.mode === 'board') && (this.playedTargetModel?.owners.length ?? 0) > 1,
         targetBlocked: this.sub?.kind === 'playedTarget' &&
           playedTargetAt(this.sub.focus, this.playedTargetModel?.owners ?? [])?.blocked !== undefined,
+        targetNoInspect: this.sub?.kind === 'playedTarget' &&
+          playedTargetAt(this.sub.focus, this.playedTargetModel?.owners ?? [])?.bot !== undefined,
         targetMulti: this.playedTargetSelection.mode === 'multi' ? {
           count: this.playedTargetSelection.picked.length,
           valid: playedTargetPicksValid(this.playedTargetSelection),
@@ -3003,7 +3006,7 @@ export default defineComponent({
           continue;
         }
         const seed = soleCandidateOf(c);
-        if (seed !== undefined && (seed.kind === 'player' ? seed.color : seed.name) === this.picks[c.id]) {
+        if (seed !== undefined && soleSeedPick(seed) === this.picks[c.id]) {
           continue;
         }
         this.captureFor(c, undefined);
@@ -3378,6 +3381,14 @@ export default defineComponent({
      * keeping the play's own `pre#` answers).
      */
     seedSole(c: ComposerChoice): void {
+      // The bot alone in the table's one zone — its branch answered, the row marked «единственная цель».
+      const tableSeed = this.stepUnanswered(c) ? soleCandidateOf(c) : undefined;
+      if (tableSeed?.kind === 'tableBot') {
+        this.picks = {...this.picks, [c.id]: soleSeedPick(tableSeed)};
+        this.captureFor(c, soleSeedResponse(tableSeed));
+        this.seeded = {...this.seeded, [c.id]: 'sole'};
+        return;
+      }
       const mode = this.choiceMode(c);
       // The espionage's synthetic owner rows (`esp-owner-*`) answer on the Hydronetwork's own stage and are folded into
       // ONE wire entry at the commit — never a capture of their own, so never a seed.
@@ -3386,7 +3397,7 @@ export default defineComponent({
         return;
       }
       const seed = soleCandidateOf(c);
-      if (seed === undefined) {
+      if (seed === undefined || seed.kind === 'tableBot') {
         return;
       }
       if (seed.kind === 'player') {
@@ -4260,6 +4271,8 @@ export default defineComponent({
         this.openHandPick(row.choice);
       } else if (row.kind === 'step' && this.choiceMode(row.choice) === 'playedTarget') {
         this.openPlayedTargetStep(row.choice);
+      } else if (row.kind === 'step' && row.choice.kind === 'or' && tableTargetOf(row.choice.input) !== undefined && this.openTableTargetZone(row.choice)) {
+        // «ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА»: the players' cards and the bot on ONE screen, no list «карты / бот» before them.
       } else if (row.kind === 'step' && row.choice.kind === 'or' && this.openOptionalPick(row.choice)) {
         // An optional choice whose one answer is a pick: no list — the pick itself, the decline inside it.
       } else if (row.kind === 'step' && (row.choice.kind === 'card' || row.choice.kind === 'player' || row.choice.kind === 'or')) {
@@ -4421,7 +4434,7 @@ export default defineComponent({
       // An OR-OPTION's step reads the option's own `SelectCard` (`playedTargetInputFor`), which is a function of the
       // sub-state itself — so the step is opened FIRST and its owners read after (the action composer's order).
       const before = this.sub;
-      if (orItem !== undefined) {
+      if (orItem !== undefined || tableTargetOf(c.input) !== undefined) {
         this.sub = {kind: 'playedTarget', choiceId: c.id, focus: {ownerId: '', index: 0}, picked: [], orItem};
       }
       const owners = this.playedTargetModel?.owners ?? [];
@@ -4437,7 +4450,10 @@ export default defineComponent({
         prunePlayedTargetPicks((this.multiPicks[c.id] ?? []) as ReadonlyArray<string>, owners) :
         [];
       const chosen = this.playedTargetResults[c.id];
-      const focus = findPlayedTargetFocus(chosen?.cardName ?? picked[0], owners) ??
+      // A bot answered in the table's one zone re-enters ON the bot's tile.
+      const table = orItem === undefined ? tableTargetOf(c.input) : undefined;
+      const botChosen = table !== undefined && this.picks[c.id] === String(table.botBranch) ? TABLE_TARGET_BOT_KEY : undefined;
+      const focus = findPlayedTargetFocus(chosen?.cardName ?? botChosen ?? picked[0], owners) ??
         reseatPlayedTargetFocus(undefined, owners);
       if (focus === undefined) {
         this.sub = before;
@@ -4453,6 +4469,10 @@ export default defineComponent({
      */
     playedTargetInputFor(c: ComposerChoice): SelectCardModel | undefined {
       const open = this.sub?.kind === 'playedTarget' && this.sub.choiceId === c.id ? this.sub.orItem : undefined;
+      // The table's one zone serves the players' card pick of the `or` (absent with a lone bot).
+      if (open === undefined && tableTargetOf(c.input) !== undefined) {
+        return tableTargetCardPick(c.input);
+      }
       const input = (open ?? this.orTableAnswerItem(c))?.nested ?? c.input;
       return input.type === 'card' ? (input as SelectCardModel) : undefined;
     },
@@ -4619,13 +4639,34 @@ export default defineComponent({
       if (candidate === undefined || choice === undefined || candidate.blocked !== undefined) {
         return;
       }
+      // THE TABLE'S ONE ZONE: the bot's tile answers the bot branch (the bare option, as the list sent it); a card answers
+      // the players' card branch below, nested as every or-option's card pick is.
+      const table = this.sub.orItem === undefined ? tableTargetOf(choice.input) : undefined;
+      if (table !== undefined && isTableTargetBot(candidate.cardName)) {
+        const botItem = buildOrItems(choice.input as OrOptionsModel).find((it) => it.optionIndex === table.botBranch);
+        if (botItem === undefined) {
+          return;
+        }
+        const results = {...this.playedTargetResults};
+        delete results[choice.id];
+        this.playedTargetResults = results;
+        const picks = {...this.picks, [choice.id]: String(table.botBranch)};
+        delete picks[nestedPickKey(choice.id)];
+        this.picks = picks;
+        this.captureFor(choice, orItemResponse(botItem));
+        this.sub = undefined;
+        this.landCursor();
+        this.scrollFocused();
+        return;
+      }
       const result = playedTargetResultOf(candidate, owners, this.playedTargetVersion);
       this.playedTargetResults = {...this.playedTargetResults, [choice.id]: result};
       // The capture the batch submits is the same shape every card pick uses —
       // the rich result is presentation + future-animation context, never a
       // second source of truth for what was answered… and when the step is
       // answering an OR-OPTION, that same shape nests into the option.
-      const orItem = this.sub.orItem;
+      const orItem = this.sub.orItem ?? (table !== undefined ?
+        buildOrItems(choice.input as OrOptionsModel).find((it) => it.optionIndex === table.cardBranch) : undefined);
       if (orItem !== undefined) {
         this.picks = {...this.picks, [choice.id]: String(orItem.optionIndex), [nestedPickKey(choice.id)]: candidate.cardName};
         this.captureFor(choice, orItemResponse(orItem, {type: 'card', cards: [candidate.cardName]}));
@@ -4644,8 +4685,13 @@ export default defineComponent({
      */
     playedTargetModelFor(choice: ComposerChoice): PlayedTargetModel | undefined {
       const model = this.playedTargetInputFor(choice);
+      const bot = this.tableTargetBotFor(choice);
       if (model === undefined) {
-        return undefined;
+        // A lone bot in the table's one zone: its group alone.
+        return bot === undefined ? undefined : buildPlayedTargetModel({
+          candidates: [], bot, players: this.playerView.players, viewerColor: this.thisPlayer.color, ask: '',
+          typeOf: (name) => getCard(name)?.type, takesFromTarget: true, preview: () => [],
+        });
       }
       // DEDUPE (Cyberia Systems' sequential copy steps): a card an EARLIER
       // step already holds is not a candidate here. The rule lived only in the
@@ -4662,6 +4708,7 @@ export default defineComponent({
       }
       return buildPlayedTargetModel({
         candidates: taken.size === 0 ? model.cards : model.cards.filter((c) => !taken.has(c.name)),
+        ...(bot !== undefined ? {bot} : {}),
         players: this.playerView.players,
         viewerColor: this.thisPlayer.color,
         // The composer printed the rule and the gain chip: the step's own generic ask would be the third telling.
@@ -4685,6 +4732,23 @@ export default defineComponent({
         // «КУДА: 3 [мех]» (TR56, П3) — what lands, carried from the tile it was chosen on.
         payload: this.payloadFor(choice),
       });
+    },
+    /** MarsBot beside the players in the table's one zone — its stand-in, read off its option's metadata. */
+    tableTargetBotFor(choice: ComposerChoice): {stand: TableTargetBotStand, name: string} | undefined {
+      if (this.sub?.kind === 'playedTarget' && this.sub.choiceId === choice.id && this.sub.orItem !== undefined) {
+        return undefined;
+      }
+      const stand = tableTargetBotStand(choice.input);
+      if (stand === undefined) {
+        return undefined;
+      }
+      const bot = this.playerView.players.find((p) => p.color === stand.color);
+      return {stand, name: bot === undefined ? '' : participantDisplayName(bot)};
+    },
+    /** A — open the table's one zone for a marked `or` (false: nothing to point at, the list stays the door). */
+    openTableTargetZone(c: ComposerChoice): boolean {
+      this.openPlayedTargetStep(c);
+      return this.sub?.kind === 'playedTarget';
     },
     /** The summary of an answered played-target choice (undefined = unanswered
      *  or gone stale — a target whose card left the table is never shown as
@@ -5222,10 +5286,11 @@ export default defineComponent({
       }
       const owners = this.playedTargetModel?.owners ?? [];
       const candidate = playedTargetAt(this.sub.focus, owners);
-      if (candidate === undefined) {
+      // The bot's stand-in is no card — X has nothing to lift there.
+      if (candidate === undefined || candidate.bot !== undefined) {
         return;
       }
-      const cards = owners.flatMap((o) => o.candidates.map((c) => c.model));
+      const cards = owners.flatMap((o) => o.candidates.filter((c) => c.bot === undefined).map((c) => c.model));
       const at = Math.max(0, cards.findIndex((c) => c.name === candidate.cardName));
       openConsoleCardZoom(cards, at, undefined, undefined, {
         origin: playedTargetZoomOrigin(

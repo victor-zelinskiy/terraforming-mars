@@ -386,13 +386,11 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
       expect(board.overflows, 'four cards a band fit three bands of 900').to.eq(false);
     });
 
-    it('a WIDE, SHORT host stands the groups in ONE ROW; a tall one in bands — whichever draws the larger card', () => {
+    it('ALWAYS bands (the owner, B2): a wide, short host shrinks the cards or scrolls honestly — never a row of groups', () => {
       const three = [...owners(2, 2), {id: 'green', name: 'Bot', color: 'green', self: false, selfHarm: false, totalPlayed: 0, candidates: owners(1, 0)[0].candidates}];
-      const wide = planPlayedTargetSizing({owners: three, mode: 'board', availW: 2100, availH: 520, ui: 1, handheld: false});
-      expect(wide.boardFlow).to.eq('row');
-      expect(wide.overflows).to.eq(false);
-      const tall = planPlayedTargetSizing({owners: three, mode: 'board', availW: 700, availH: 1800, ui: 1, handheld: false});
-      expect(tall.boardFlow).to.eq('bands');
+      const short = planPlayedTargetSizing({owners: three, mode: 'board', availW: 2100, availH: 520, ui: 1, handheld: false});
+      const tall = planPlayedTargetSizing({owners: three, mode: 'board', availW: 2100, availH: 1800, ui: 1, handheld: false});
+      expect(short.cardZoom, 'the short host draws the bands smaller (or at the floor)').to.be.at.most(tall.cardZoom);
     });
 
     it('is deterministic for a given model + viewport', () => {

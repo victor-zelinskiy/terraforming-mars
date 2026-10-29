@@ -35205,10 +35205,6 @@ html.con-profile-tv {
        another, each a grid of its cards (the solver shares the height between them, `planPlayedTargetSizing`). */
     &[data-mode='board'] &__zone { flex-direction: column; align-items: stretch; gap: .9rem; }
     &[data-mode='board'] &__owner { flex: 0 0 auto; width: 100%; }
-    /* …or ONE ROW of groups side by side when the host is wide and short (the solver's `boardFlow`): each group as
-       wide as its solved sections, every group still on screen. */
-    &[data-mode='board'][data-board-flow='row'] &__zone { flex-direction: row; align-items: flex-start; gap: 1.4rem; }
-    &[data-mode='board'][data-board-flow='row'] &__owner { width: auto; }
     /* A LONE GROUP STANDS IN THE MIDDLE OF ITS ROOM (PL-170). Inside a composer the
        step is the decision column beside the hero card, and one owner's few
        candidates hugged its left edge with ⅔ of the zone dark beside them (the 4K

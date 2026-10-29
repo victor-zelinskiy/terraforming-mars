@@ -21,9 +21,10 @@ in ONE zone, grouped by owner; the bot is a group of its own with a stand-in til
    (`TABLE_TARGET_BOT_KEY`, `candidate.bot`), an opponent like any other (sorts before the viewer's own group); its
    section is one rail-less block. Owners without candidates are still never emitted.
 5. **The layout `board`** (`planPlayedTargetLayout`): off the Deck, two or more owners stand as BANDS one under another,
-   every group on screen; `split` stays the narrow two-group case, `tabs` is the handheld fallback only. The solver
-   shares the height between bands (`planPlayedTargetSizing`, mode `board`); the viewport scrolls only on a real
-   overflow, and the focused card is scrolled into frame.
+   every group on screen — ALWAYS bands (the owner's decision B2, 2026-10-29: a wide, short host — the action
+   composer at 4K — draws the bands smaller or scrolls honestly; a one-row variant was tried and dropped); `split`
+   stays the narrow two-group case, `tabs` is the handheld fallback only. The solver shares the height between bands
+   (`planPlayedTargetSizing`, mode `board`); the viewport scrolls only on a real overflow, the focused card in frame.
 6. **The bot's tile** (`ConsolePlayedTargetStep`, `[data-ptsel-bot]`): the slot's chassis (same zoomed box, cursor,
    lock), a neutral glass plate — never a `.pcard` face. «ЦЕЛЬ БЕЗ КАРТЫ», the seat's dot and name, the unit's icon,
    `current → resulting` (`[data-ptsel-bot-delta]`), where the first unit comes from (`[data-ptsel-bot-storage]`).
@@ -34,10 +35,15 @@ in ONE zone, grouped by owner; the bot is a group of its own with a stand-in til
 
 ## Scope today
 
-- The ACTION composer (Ants, Predators — the owner's examples) opens the zone from the row. The PLAY composer and the
-  trade target step speak `board` (bands, LB/RB) but the play composer's door into a marked `or` (Scientific
-  Breakthrough-class plays) is still the old list → next step.
-- Virus (`TabbedTargetsStep`) keeps its tabbed bot row → next step.
+- BOTH composers open the zone from the row: the ACTION composer (Ants, Predators — the owner's examples) and the
+  PLAY composer (a marked `or` of an on-play removal — `openTableTargetZone`; its answer rides `picks` +
+  `nestedPickKey` like every or-option's card pick, the bot's branch the bare option). The trade target step speaks
+  `board` too (bands, LB/RB).
+- **A lone bot is the only target** (T14 · `soleCandidateOf` → `{kind: 'tableBot'}`): a MANDATORY removal with no
+  player's card holding the resource seeds the bot branch on the row and marks it «единственная цель»; the server still
+  asks, the batch answers.
+- Virus (`TabbedTargetsStep`) already answers on ONE screen — the cards and the bot's row stand in the same animal
+  tab, no door — but as a LIST, not this zone; moving that tab onto the zone surface is the next step.
 - The reverse direction (the bot attacking the player — `ConsoleBotAttack`, `botAttackPrompt`) is untouched.
 
 Guards: `tests/client/components/console/tableTargetZone.spec.ts`, `consolePlayedTargetModel.spec.ts` (BANDS),

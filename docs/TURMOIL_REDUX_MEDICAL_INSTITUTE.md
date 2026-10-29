@@ -32,17 +32,22 @@ already on the table — must match the preview's.
   rises, so the director lifted a second instance at the reaction stage. The predicate now holds a carried prelude too;
   the face is the shelf's (`data-played-key`, already in `startVisibleFace`), waited for (bounded) as PL-1098 waits for
   the seat.
-- **«КУДА» inside the start — OPEN (PL-1117, the owner's decision A3).** The start's play claim (`draw`/`pick`/`effect`,
-  scope `chain`) is force-released when the drawn card is taken (`onEmbeddedDrawnComplete` → `drawn-complete`), so the
-  target pick that follows rises as the task host's OWN «ЦЕЛЬ НА КАРТЕ» band over the start (the start's crumb gone —
-  the stand's frame). Keeping the claim for a `cardSelect`/`target` prompt was tried and made it worse (the start left
-  for the board, the pick parked as a deferred task) — reverted. The pick is visible and answerable; the embedding
-  belongs to the start director (PL-1116). The stand records it as a `known-gap` annotation.
+- **«КУДА» inside the start (PL-1117).** The start's play claim (`draw`/`pick`/`effect`, scope `chain`) was released
+  by the FIRST seam of the take — `onWorkspaceResultDetached` (`result-detached`, forced, 14 ms before
+  `drawn-complete`) — so the target pick that follows rose as the task host's own «ЦЕЛЬ НА КАРТЕ» band over the start.
+  ONE structural predicate, `consolePlayOutcomeClaim.playOwesTargetPick(waitingFor)` (the claim admits `pick` ∧ the RAW
+  prompt is a `card` with `resourceGainPrompt`), keeps the claim AS IT IS at all four release sites of the take
+  (`onWorkspaceResultDetached`, `onEmbeddedDrawnComplete`, `embed-fell`, the start scene's reveal edge) — never re-posed
+  to `awaiting` (the first attempt did, the zone stood empty and the start left for the board). The pick then stands in
+  the start's zone — «СТАРТ ПАРТИИ › МЕДИЦИНСКИЙ ИНСТИТУТ › ЦЕЛЬ НА КАРТЕ», the Institute in the seat «Источник» (where
+  it also rises) — and the reconciler releases the claim once it is answered. The token of the answer is born on a
+  PAINTED source (`promptReceive.originsFor`): the plate's dock when it is painted, else the asking card's own face
+  (`choiceContext` source → the seat «Источник» / a shelf slot) — an embedded pick's dock stands under its host's glass.
 - **«Сработает» in the hand composer** is the reactor framework for free (TR51/TR80): one row per Science tag, each
   seeded with a sole candidate (T14), the answers riding the play's one batch.
 
 ## 3. What the next prelude-reactor inherits
 
 A prelude whose effect answers its OWN play needs nothing new: the hook + its twin from one builder, `printedEffect`
-on the source, the start's reactor place (a carried prelude is held now). A target pick it asks after a draw shares
-PL-1117 until the start director embeds it.
+on the source, the start's reactor place (a carried prelude is held now), and a target pick it asks after a draw stands
+inside the start (`playOwesTargetPick`).

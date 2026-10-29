@@ -137,10 +137,12 @@ describe('ConsoleActionComposer — the table\'s targets are ONE zone', () => {
     w.unmount();
   });
 
-  it('a lone bot: the zone holds ONE group — the bot\'s tile', async () => {
+  it('a lone bot: the row is SEEDED with it and marked «the only target» (T14); the zone holds ONE group', async () => {
     const w = factory(false);
     await w.vm.$nextTick();
     const vm = w.vm as any;
+    expect(vm.captured[0], 'seeded before any press — the bot branch, as a press would send it').to.deep.eq({type: 'or', index: 0, response: {type: 'option'}});
+    expect(vm.soleMark(vm.allChoices[0])?.mark).to.eq('The only target');
     vm.openChoice(vm.allChoices[0]);
     await w.vm.$nextTick();
     expect(vm.sub.kind).to.eq('playedTarget');

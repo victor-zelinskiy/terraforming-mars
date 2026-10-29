@@ -52,7 +52,8 @@
   cardBeingPlayed?)`), двойник — факт на каждую метку с `preselect` = `tableQuestion` над `previewPick()` шага, где
   **`cardBeingPlayed` обязателен** (разыгрываемая карта-держатель — кандидат, живой набор = превью); `printedEffect` на
   источнике. Место подъёма на старте даром: `startCarriesReactor` держит несомую прелюдию; пик «куда» после добора
-  пока встаёт лентой хоста задач поверх старта (PL-1117, открыт). Образец — `docs/TURMOIL_REDUX_MEDICAL_INSTITUTE.md`.
+  стоит ВНУТРИ старта (`playOwesTargetPick` держит заявку на всех швах взятия, PL-1117). Образец —
+  `docs/TURMOIL_REDUX_MEDICAL_INSTITUTE.md`.
 - [ ] **Реактор РТ (`onIncreaseTerraformRatingByAnyPlayer`) — двойник `grantForecast` на гранте `{kind: 'tr'}`** (TR81
   Lotus Innovations, 2026-10-26): ПАСС РЕЙТИНГА прогноза (`ratingStepsOf` — ОДНА сумма с Зелёными: явный РТ + шаги шкал +
   бонусы треков − вето; тайлы посадкой — отдельно, `deferred`) предлагает её всем столам; свой/чужой — по

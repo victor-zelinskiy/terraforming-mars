@@ -30,6 +30,7 @@
  */
 
 import {CardName} from '@/common/cards/CardName';
+import {tableTargetOf} from '@/client/console/played/tableTargetZone';
 import {PreselectAddress, addressed} from '@/common/inputs/preselectAddress';
 import {CardModel} from '@/common/models/CardModel';
 import {Message} from '@/common/logs/Message';
@@ -192,7 +193,27 @@ export function keepPlayAnswers<T>(record: Readonly<Record<string, T>>): Record<
  */
 export type SoleSeed =
   | {kind: 'card', name: CardName}
-  | {kind: 'player', color: string};
+  | {kind: 'player', color: string}
+  /** «ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА»: a MANDATORY removal whose one target is the bot (no player's card holds the resource). */
+  | {kind: 'tableBot', branch: number};
+
+/** The pick value a seed writes (and a reseat compares). */
+export function soleSeedPick(seed: SoleSeed): string {
+  switch (seed.kind) {
+  case 'player': return seed.color;
+  case 'card': return seed.name;
+  case 'tableBot': return String(seed.branch);
+  }
+}
+
+/** The capture a seed writes — the same response a press would send (`tableBot`: the bot branch's bare option). */
+export function soleSeedResponse(seed: SoleSeed): unknown {
+  switch (seed.kind) {
+  case 'player': return {type: 'player', player: seed.color};
+  case 'card': return {type: 'card', cards: [seed.name]};
+  case 'tableBot': return {type: 'or', index: seed.branch, response: {type: 'option'}};
+  }
+}
 
 export function soleCandidateOf(choice: ComposerChoice): SoleSeed | undefined {
   // A TABLE'S question is never seeded (it is routinely optional — a decline beside it) — EXCEPT a step of the Career
@@ -213,6 +234,11 @@ export function soleCandidateOf(choice: ComposerChoice): SoleSeed | undefined {
     const model = choice.input as SelectPlayerModel;
     return model.players.length === 1 ? {kind: 'player', color: model.players[0]} : undefined;
   }
+  // The table's one zone with the BOT alone, and no decline beside it: the only target — seeded, shown, marked.
+  const table = tableTargetOf(choice.input);
+  if (choice.kind === 'or' && table !== undefined && table.cardBranch === undefined && table.skipBranch === undefined) {
+    return {kind: 'tableBot', branch: table.botBranch};
+  }
   return undefined;
 }
 
@@ -220,6 +246,9 @@ export function soleCandidateOf(choice: ComposerChoice): SoleSeed | undefined {
 export function soleMarkKeys(seed: SoleSeed, fromHand: boolean): {mark: string, hint: string} {
   if (seed.kind === 'player') {
     return {mark: 'The only player', hint: 'No other players'};
+  }
+  if (seed.kind === 'tableBot') {
+    return {mark: 'The only target', hint: 'No other targets'};
   }
   return fromHand ? {mark: 'The only card', hint: 'No other cards'} : {mark: 'The only target', hint: 'No other targets'};
 }

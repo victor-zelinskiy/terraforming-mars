@@ -85,6 +85,12 @@ type Armed = {
    */
   asker?: CardName;
   /**
+   * THE CARD WHOSE EFFECT ASKS (the pick's `choiceContext` source — TRP9 Medical Institute's «where?»): when the plate's
+   * dock is not painted (the pick stands EMBEDDED in a host's zone — the start), the token is born on that card's own
+   * face where the host shows it (the start's seat «Источник», a shelf), its printed icon of the resource.
+   */
+  sourceCard?: CardName;
+  /**
    * The pick is a LAW's replacement of the seat's own terraforming (`resourceGainPrompt.diverted`): the token is born
    * on the STRUCK printed icon the player can see (else the plate's law seal), under the law's seal.
    */
@@ -164,6 +170,8 @@ export function armPromptReceive(wf: PlayerInputModel | undefined, card: CardNam
     ...(opts.client === true ? {client: true as const} : {}),
     ...(pick.resourceGainPrompt?.diverted !== undefined ? {diverted: true as const} : {}),
     ...(pick.agendaWalkPrompt !== undefined ? {asker: pick.agendaWalkPrompt.source} : {}),
+    ...(pick.choiceContext?.source?.kind === 'card' && pick.choiceContext.source.card !== undefined ?
+      {sourceCard: pick.choiceContext.source.card} : {}),
   };
   // The scene's faces are LITE (the field's receiving card, the carried home): warm the THUMB the field paints and
   // the full the plate already shows — at the PRESS, where the round trip pays for the decode (the field card rose
@@ -245,6 +253,15 @@ function askerFaceEl(): HTMLElement | undefined {
   return firstVisibleEnd('.con-tans [data-tans-asker-face]') as HTMLElement | undefined;
 }
 
+/** The asking card's PAINTED face outside the pick: the start's seat «Источник», else a shelf / table slot. */
+function sourceFaceEl(card: CardName): HTMLElement | undefined {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+  const name = escapeName(card);
+  return (firstVisibleEnd(`[data-start-seat-card="${name}"]`) ?? firstVisibleEnd(`[data-played-key="${name}"]`)) as HTMLElement | undefined;
+}
+
 /** The answered candidate's slot in the standing pick (the plate's strip or the colony stage's zone). */
 function slotEl(card: CardName): HTMLElement | undefined {
   if (typeof document === 'undefined') {
@@ -308,6 +325,16 @@ function originsFor(a: Armed, specs: ReadonlyArray<ResourceTransferSpec>): Array
   const asker = a.asker === undefined ? undefined : (askerFaceEl() ?? slotEl(a.asker));
   if (asker !== undefined) {
     return resolveGainIconOrigins(resolveActionCommitAnchors(asker, undefined), specs);
+  }
+  // The plate's dock, as PAINTED (an embedded pick's dock stands under its host's glass — never a birth there).
+  const paintedDock = firstVisibleEnd('.con-task-host .con-src') as HTMLElement | undefined;
+  if (paintedDock !== undefined) {
+    return resolveGainIconOrigins(resolveActionCommitAnchors(paintedDock, undefined), specs);
+  }
+  // …else the ASKING card's own face where its host shows it (TRP9 in the start's seat «Источник», a shelf's slot).
+  const face = a.sourceCard === undefined ? undefined : sourceFaceEl(a.sourceCard);
+  if (face !== undefined) {
+    return resolveGainIconOrigins(resolveActionCommitAnchors(face, undefined), specs);
   }
   const dock = typeof document === 'undefined' ? null : document.querySelector<HTMLElement>('.con-task-host .con-src');
   if (dock !== null) {
