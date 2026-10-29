@@ -294,6 +294,7 @@ import {Enceladus} from '../../../src/server/colonies/Enceladus';
 import {JupiterFloatingStation} from '../../../src/server/cards/colonies/JupiterFloatingStation';
 import {GanymedeColony} from '../../../src/server/cards/base/GanymedeColony';
 import {Game} from '../../../src/server/Game';
+import {unplayableReasons} from '../../../src/server/models/unplayableReasons';
 import {adjacentCityTiers} from '../../../src/server/boards/cityStack';
 import {cityMoveOffer} from '../../../src/server/boards/cityMove';
 import {SpaceBonus} from '../../../src/common/boards/SpaceBonus';
@@ -9157,6 +9158,65 @@ function ishtarExpeditionFixture(name: string, venus: 8 | 10): void {
 }
 ishtarExpeditionFixture('ishtar-expedition', 10);
 ishtarExpeditionFixture('ishtar-expedition-locked', 8);
+
+// ── P85 · SUMMIT LOGISTICS — the SECOND Prelude 2 card and the FIRST POLITICAL one (docs/claude/prompts/prelude2-p85-
+//    summit-logistics.md): «requires the Scientists ruling or 2 of your delegates there; 1 M€ per planet tag and per
+//    colony you have; draw 2». A 2p Redux + Prelude 2 table (Teractor · ThorGate), blue on the move with P85 MOVED out
+//    of the dealt pool into the hand, the planet tags of the count MOVED onto blue's table (Asteroid Mining
+//    Consortium's Jovian, Martian Census's Mars — a Redux card — beside Teractor's Earth), ONE colony of blue's, 20 M€,
+//    2 steel and 1 titanium (the card's Building + Space tags — the panel's two alternative sources):
+//      · `summit-logistics`        — the Scientists rule (their quiet law enacted): playable; the count is 3 planet tags +
+//        the Scientists' wild tag (+1 under Redux) + 1 colony = 5 M€; a DRY RUN on a copy pays 3 M€ + 2 steel + 1 titanium;
+//      · `summit-logistics-locked` — the Scientists' resolution up for the vote, blue with no delegate on it: «0 of 2». ──
+function summitLogisticsFixture(name: string, ruling: boolean): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {prelude2Expansion: true, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, parliament}) => {
+      if (ruling) {
+        seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+      } else {
+        seatResolution(parliament, 0, quietResolutionOf(PartyName.SCIENTISTS));
+      }
+      for (const planet of [CardName.ASTEROID_MINING_CONSORTIUM, CardName.MARTIAN_CENSUS]) {
+        moveToDeckTop(game, planet);
+        p1.playedCards.push(game.projectDeck.drawOrThrow(game));
+      }
+      game.colonies[0].addColony(p1);
+      moveToDeckTop(game, CardName.SUMMIT_LOGISTICS);
+      p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+      p1.steel = 2;
+      p1.titanium = 1;
+    },
+    expect: ({game, p1, parliament}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.SUMMIT_LOGISTICS);
+      const playable = card !== undefined && p1.canPlay(card) !== false;
+      const scientistsRule = parliament.rulingParty() === PartyName.SCIENTISTS;
+      // Locked: the server's own reason — the party road OPEN (their resolution on the vote) at «0 of 2».
+      const reason = card === undefined ? undefined : unplayableReasons(p1, card)[0];
+      const zeroOfTwo = reason?.type === 'party' && reason.current === 0 && reason.partyOffVote !== true;
+      if (card === undefined || playable !== ruling || scientistsRule !== ruling || (!ruling && !zeroOfTwo) || game.activePlayer.id !== p1.id) {
+        throw new Error(`the ${name} fixture expected P85 in blue's hand (playable=${ruling}) with the Scientists ${ruling ? 'ruling' : 'on the vote at «0 of 2»'} and blue on the move — got card=${card !== undefined} playable=${playable} ruling=${parliament.rulingParty()} reason=${JSON.stringify(reason)}`);
+      }
+      parliament.assertLedger(game);
+      if (ruling) {
+        // THE DRY RUN — the real play on a copy, the mixed payment the stand pays.
+        const copy = Game.deserialize(structuredClone(game.serialize()));
+        const blue = copy.getPlayerById(p1.id);
+        const hand = blue.cardsInHand.length;
+        blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.SUMMIT_LOGISTICS)!, Payment.of({megacredits: 3, steel: 2, titanium: 1}));
+        runAllActions(copy);
+        const facts = {mc: blue.megaCredits, steel: blue.steel, titanium: blue.titanium, hand: blue.cardsInHand.length - hand, batches: blue.cardDrawReveals.length};
+        if (facts.mc !== 20 - 3 + 5 || facts.steel !== 0 || facts.titanium !== 0 || facts.hand !== 1 || facts.batches !== 1) {
+          throw new Error(`the ${name} fixture expected 22 M€, no steel / titanium, the hand +2 −1 and ONE batch after the play — got ${JSON.stringify(facts)}`);
+        }
+      }
+    },
+  });
+}
+summitLogisticsFixture('summit-logistics', true);
+summitLogisticsFixture('summit-logistics-locked', false);
 
 // ── preselect-sole: THE PRE-SELECT STAND (T14 · ledger CC — «ОДИН КУРСОР ПОСЛЕ ОТВЕТА · ПРИБЫТИЕ НА КОММИТ ·
 //    ЕДИНСТВЕННАЯ ЦЕЛЬ»). One base table, every cell of the matrix in blue's hand / tableau:
