@@ -168,7 +168,7 @@
                 <ConsoleParliamentSitting v-else-if="stageKind === 'sitting' && sitting !== undefined" ref="sitting"
                                           :position="sitting" :stage="sittingStage" :summary="model?.phase?.summary"
                                           :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
-                                          :field="flow.sittingField" :stepOpen="sittingStepOpen" :ledger="sittingLedger"
+                                          :field="flow.sittingField" :fullStep="flow.sittingFullStep" :stepOpen="sittingStepOpen" :ledger="sittingLedger"
                                           :receipt="tableReceiptShown" :resultsHidden="resultsHidden" mode="live"
                                           :answer="tableAnswerShowing" :asking="tableAnswerAsking" :askerModel="answerAskerModel" :answerUp="sittingAnswerUp" />
                 <!-- «ОТВЕТ СТОЛА» (TR78 Arwind Inc.): a card of the table answers a walk of the Career the QUEST or a CARD made —
@@ -266,7 +266,7 @@ import {payoutDetailsAvailable, sittingPayoutDetailsOf} from '@/client/console/p
 import {resetSittingPayoutDetails, sittingPayoutDetails} from '@/client/console/parliament/sittingPayoutDetailsState';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
-import {backLabelForVerb, backVerbFor} from '@/client/console/consoleWorkspaceFlow';
+import {backLabelForVerb, backVerbFor, WorkspacePhase} from '@/client/console/consoleWorkspaceFlow';
 import {
   agendaViewOf, AgendaVm, buildParliamentView, emptyParliamentView, grantSupportOf, ParliamentPartyVm, ParliamentPromptBridge, ParliamentSlotVm, ParliamentTileVm,
   ParliamentViewVm, parliamentPromptBridge, PARTY_EFFECT_PLACES, partyActionStateOf, PartyActionStateVm, partyStateOf, PartyStateVm, resolutionActionStateOf, seatResponse,
@@ -289,7 +289,7 @@ import {
 } from '@/client/console/parliament/parliamentWorldBeat';
 import {
   sittingPageAuto, sittingPositionOf, SittingPosition, sittingPrimaryKey, sittingRewardSettled, SittingStage, sittingStageAt, sittingStageKey,
-  sittingBodyOf, SittingBody, sittingStartPage, sittingWorkspacePhase, verdictStandsAt,
+  sittingBodyOf, SittingBody, sittingStartPage, sittingWorkspacePhase, verdictStandsAt, sittingStepTakesStage,
   parliamentSittingLive, SITTING_HOSTED_STEPS, sittingFieldOf,
 } from '@/client/console/parliament/consoleSittingFlow';
 import {colonyLedgerOf, ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
@@ -308,8 +308,9 @@ import {
 } from '@/client/console/parliament/consoleChairmanQuest';
 import {
   chairmanQuestBeatActive, finishChairmanQuestBeats, killChairmanQuestBeats, noteChairmanQuestAnswer, playChairHandover, startChairmanQuestBeats, CHAIRMAN_QUEST_BUDGET,
-  chairmanQuestAwaitsReaction, noteChairmanQuestReactionAnswered,
+  chairmanQuestAwaitsReaction, noteChairmanQuestReactionAnswered, chairmanQuestStalled, settleChairmanQuestBeats,
 } from '@/client/console/parliament/chairmanQuestDirector';
+import {transportRequestInProgress} from '@/client/console/transport/gameTransport';
 import {SittingBeat, sittingBeats} from '@/client/console/parliament/sittingBeats';
 import {
   finishSittingMotion, killSittingMotion, playSittingStage, resetSittingDirector, sittingMotion, sittingMotionActive, SittingDirectorContext,
@@ -433,6 +434,17 @@ export default defineComponent({
       submitTimer: undefined as number | undefined,
       /** The server's answer key at the submit — the answer is whatever changes it. */
       submittedKey: '',
+      /**
+       * A SUBMIT PARKED BEHIND A BUSY FUNNEL: the transport REFUSES a second submit while the previous one is still
+       * being presented (`isServerSideRequestInProgress` stands through every cinematic gate) — and refuses it
+       * SILENTLY. A Parliament door that opens in the very flush that applied the previous answer (the chairmanship
+       * gate raised by the card that completed the quest) used to lose its answer there: the stage stood
+       * «submitting» with nothing on the wire, and the flow froze until a reload. The response waits here instead and
+       * goes out the moment the funnel is free (`transportBusy` watcher).
+       */
+      parkedSubmit: undefined as InputResponse | undefined,
+      /** The answer key a prompt-reconcile last ran for — one pass per server position, never a loop. */
+      reconciledKey: '',
       stopFitObs: undefined as (() => void) | undefined,
       /** The chairman-seat pick: the cube's rect on the card at the submit (the flight's source). */
       seatFrom: undefined as Rect | undefined,
@@ -690,6 +702,10 @@ export default defineComponent({
     /** The stage's FIELD pose stands (the overview receded, the card on the hero slot, the zone open). */
     sittingField(): boolean {
       return this.sittingFieldState.pose;
+    },
+    /** …and its step is a whole workspace (the colonies): the zone takes the stage, the card stays home. */
+    sittingFullStep(): boolean {
+      return sittingStepTakesStage(this.sittingField, this.sitting?.rewardStep ?? 'reading', workspaceFrameHost('colonies') === 'parliament');
     },
     /** A hosted step may teleport INTO the zone right now (the ledger, if any, yields to it). */
     sittingStepOpen(): boolean {
@@ -1107,8 +1123,14 @@ export default defineComponent({
       return chairmanQuestFlow.live && chairmanQuestFlow.beat === 'seat' && this.bridge.seat !== undefined;
     },
     /** Its A verb: nothing while a beat is in flight (A «дожать» is unadvertised), «Закрыть» once everything has landed. */
-    questCommands(): {done: boolean} | undefined {
-      return chairmanQuestFlow.live ? {done: chairmanQuestFlow.beat === 'done'} : undefined;
+    questCommands(): {done: boolean, resend?: boolean} | undefined {
+      if (!chairmanQuestFlow.live) {
+        return undefined;
+      }
+      // A stalled flow reads as finished: A (and B) close it — the honest end, never a dead stage.
+      const done = chairmanQuestFlow.beat === 'done' || chairmanQuestStalled();
+      const resend = !done && !chairmanQuestFlow.answered && !chairmanQuestFlow.sent && this.questGate !== undefined && parliamentFlow.stage === 'quest';
+      return {done, ...(resend ? {resend: true} : {})};
     },
     /**
      * THE TABLE'S HEAD SHOWS THE READING LINE (v8) — every pose but the overview's browse: the sitting, a vote, a card's
@@ -1316,14 +1338,26 @@ export default defineComponent({
     answerKey(): string {
       return `${this.pv.game.gameAge}|${promptIdentityKey(this.pv.waitingFor)}`;
     },
+    /** The submit funnel is busy (reactive) — a parked answer goes out on its falling edge. */
+    transportBusy(): boolean {
+      return transportRequestInProgress();
+    },
   },
   watch: {
-    /** A read-only dossier never outlives the browse layer it was opened from (a sitting, a vote, a step take the hall). */
+    /**
+     * A read-only dossier never outlives the browse layer it was opened from (a sitting, a vote, a step take the hall).
+     * …and BACK ON THE BROWSE LAYER WITH A MANDATORY PROMPT STANDING: the doors below open their stage only from
+     * browse, and a value that did not change never fires again — so a gate that arrived DURING another stage (the vote
+     * that completed the chairman quest — the gate rides the vote's own answer; a grant raised by a party action taken
+     * from «ВАШИ ЭФФЕКТЫ») stood unanswered over an overview nothing on screen served. One pass per server position.
+     */
     'flow.stage'(stage: ParliamentStage): void {
       if (stage !== 'browse') {
         this.questDossierOpen = false;
         this.careerDossierOpen = false;
+        return;
       }
+      void this.$nextTick(() => this.reconcileStandingPrompts());
     },
     /**
      * ANOTHER SEAT'S DELEGATE ARRIVED (a rival's vote, MarsBot's Party Politics / Lobbying): the seed hid its
@@ -1519,6 +1553,13 @@ export default defineComponent({
      * mirrors it synchronously for the tiers (the carry) and the stylesheet
      * (the pose); the motion follows on the next tick, after the layout.
      */
+    /** Mirrored SYNCHRONOUSLY beside the field (pre-flush): the government reads it to keep the card home, in the same render. */
+    'sittingFullStep': {
+      immediate: true,
+      handler(on: boolean): void {
+        parliamentFlow.sittingFullStep = on;
+      },
+    },
     'sittingField'(on: boolean): void {
       parliamentFlow.sittingField = on;
       const root = this.$refs.rootEl as HTMLElement | undefined;
@@ -1600,6 +1641,16 @@ export default defineComponent({
         this.onAnswerKey(key);
       },
     },
+    /** The funnel is free: an answer parked behind it goes out now (post — after the applied view's own flush). */
+    'transportBusy': {
+      flush: 'post',
+      handler(busy: boolean): void {
+        const parked = this.parkedSubmit;
+        if (!busy && parked !== undefined && parliamentFlow.stage === 'submitting') {
+          this.emitSubmit(parked);
+        }
+      },
+    },
     /**
      * THE CHAIRMAN-QUEST GATE takes the stage the moment it stands. The
      * player has ALREADY pressed A — on the mandatory announce plate, which is
@@ -1669,20 +1720,26 @@ export default defineComponent({
      * the commit held, so it falls only once the units are on their cards) → the stage folds, and the quest's flow —
      * which held for it — goes on.
      */
-    'hostedAnswerAskKey'(key: string, was: string): void {
-      if (key !== '') {
-        const ask = this.hostedAnswerAsk();
-        if (ask !== undefined) {
-          askTableAnswer(ask);
+    'hostedAnswerAskKey': {
+      // IMMEDIATE: the section's unmount ends the ask (`endTableAnswerAsk`) while the question still stands, and a
+      // remount that found the key already set never asked it again — the pick then rendered nowhere (the shell
+      // holds a prompt a workspace stage owns) and the sitting stood on its Career with no way to answer.
+      immediate: true,
+      handler(key: string, was: string | undefined): void {
+        if (key !== '') {
+          const ask = this.hostedAnswerAsk();
+          if (ask !== undefined) {
+            askTableAnswer(ask);
+          }
+          return;
         }
-        return;
-      }
-      if (was !== '') {
-        endTableAnswerAsk();
-        if (was.startsWith('quest|') && chairmanQuestAwaitsReaction()) {
-          noteChairmanQuestReactionAnswered();
+        if (was !== undefined && was !== '') {
+          endTableAnswerAsk();
+          if (was.startsWith('quest|') && chairmanQuestAwaitsReaction()) {
+            noteChairmanQuestReactionAnswered();
+          }
         }
-      }
+      },
     },
     /**
      * THE CHAIRMANSHIP FLOW HOLDS FOR THE DELEGATE PICK (the corner case: every
@@ -1871,6 +1928,7 @@ export default defineComponent({
   beforeUnmount() {
     this.stopFitObs?.();
     this.clearSubmitTimer();
+    this.parkedSubmit = undefined;
     resetSittingDirector();
     // «ПРЕДСЕДАТЕЛЬСТВО» ends with its section: a beat has nowhere to play and
     // a hold nobody would consume would freeze the track for the rest of the
@@ -1958,15 +2016,57 @@ export default defineComponent({
       }
       return host === 'start' && this.sceneStepOfStartLive && workspaceFrameStage('parliament') === stage;
     },
+    /**
+     * THE OVERVIEW IS BACK — does a MANDATORY prompt stand that nothing opened? Each door opens its stage from browse,
+     * on its own watcher; a prompt that arrived while another stage stood (the gate riding the vote's answer, a grant
+     * a party action raised) did not change again when the stage returned here, so it stood unserved. The SAME
+     * handlers are asked once more — live doors only (a staged door the player just walked back out of is theirs to
+     * reopen), once per server position.
+     */
+    reconcileStandingPrompts(): void {
+      if (parliamentFlow.stage !== 'browse' || this.warm || this.leaving || this.reconciledKey === this.answerKey) {
+        return;
+      }
+      this.reconciledKey = this.answerKey;
+      const watch = this.$options.watch as unknown as Record<string, {handler: (this: unknown, value: unknown) => void}>;
+      const ask = (name: string, value: unknown): void => {
+        if (parliamentFlow.stage === 'browse' && value !== undefined) {
+          watch[name].handler.call(this, value);
+        }
+      };
+      ask('questGate', this.questGate);
+      ask('bridge.seat', this.bridge.seat);
+      ask('bridge.grant', this.bridge.grant?.staged === true ? undefined : this.bridge.grant);
+      ask('bridge.supportPick', this.bridge.supportPick?.staged === true ? undefined : this.bridge.supportPick);
+      ask('bridge.bannerPick', this.bridge.bannerPick);
+      ask('bridge.delegatePick', this.bridge.delegatePick?.staged === true ? undefined : this.bridge.delegatePick);
+    },
     /** The answer's stage handling (see the `answerKey` watcher). */
     onAnswerKey(key: string): void {
       const f = parliamentFlow;
+      // THE CHAIRMANSHIP'S ANSWER, WHENEVER IT COMES: its gate is gone from the view while the flow still waits for it
+      // (a slow answer whose stage the safety already handed back, a submit parked through a busy funnel). The gate's
+      // ABSENCE is the server's word — the office and the step are applied — and the beats may run.
+      if (chairmanQuestFlow.live && !chairmanQuestFlow.answered && f.stage !== 'submitting' && this.questGate === undefined &&
+        (chairmanQuestFlow.sent || f.stage === 'quest')) {
+        f.stage = 'quest';
+        setWorkspaceFramePhase('parliament', 'committed');
+        noteChairmanQuestAnswer();
+        return;
+      }
       if (f.stage === 'paying') {
         this.voteMode()?.answerWhilePaying();
         return;
       }
       if (f.stage === 'submitting' && key !== this.submittedKey) {
         this.clearSubmitTimer();
+        // A mode that decides «this key is not my answer — keep waiting» returns with the stage still submitting: the
+        // safety must stand again, or nothing but the shell's refusal watcher could ever hand the stage back.
+        void this.$nextTick(() => {
+          if (parliamentFlow.stage === 'submitting' && this.submitTimer === undefined && this.parkedSubmit === undefined) {
+            this.armSubmitSafety();
+          }
+        });
         if (f.stageBeforeSubmit === 'vote') {
           this.voteMode()?.answerAfterSubmit();
           return;
@@ -2385,7 +2485,21 @@ export default defineComponent({
      * in flight absorbs input by construction (the phase is `executing`).
      */
     handleQuestIntent(intent: GamepadIntent): void {
-      if (consoleActionOf(intent) !== 'primary') {
+      const action = consoleActionOf(intent);
+      // B CLOSES A FINISHED (or stalled) FLOW — the one logical level there is past the commit; during a beat it says
+      // nothing (the beat absorbs it), and the bar never advertises a B it would not honour.
+      if (action === 'back' && (chairmanQuestFlow.beat === 'done' || chairmanQuestStalled())) {
+        this.endQuestFlow();
+        return;
+      }
+      if (action !== 'primary') {
+        return;
+      }
+      if (chairmanQuestStalled()) {
+        // Nothing will ever play the office and the step (the beats never started, or were cut): the flow ends
+        // honestly — the holds let go, the counters tick now — instead of a stage A and B both ignore.
+        settleChairmanQuestBeats('no run of the beats');
+        this.endQuestFlow();
         return;
       }
       if (!chairmanQuestFlow.answered && !chairmanQuestFlow.sent && this.questGate !== undefined) {
@@ -2412,9 +2526,29 @@ export default defineComponent({
       armChairmanQuestFlow(this.model, this.viewerColor);
       parliamentFlow.zone = 'government';
       this.openStage('quest');
+      this.startQuestBeatsWhenMounted(8);
+      if (this.questGate !== undefined) {
+        chairmanQuestFlow.sent = true;
+        this.send({type: 'option'}, 'quest');
+      }
+    },
+    /**
+     * The beats start on the MOUNTED DOM — a tick and a probe tick after the open. A root that is not there yet (the
+     * section opened at setup, its transition still entering) is asked again; one that never comes leaves the flow
+     * STALLED, never silent: the bar offers A «Закрыть» and the flow ends honestly (`chairmanQuestStalled`).
+     */
+    startQuestBeatsWhenMounted(tries: number): void {
       void this.$nextTick(() => probeTick(() => {
+        if (!chairmanQuestFlow.live) {
+          return;
+        }
         const root = this.$refs.rootEl as HTMLElement | undefined;
-        if (root === undefined || !chairmanQuestFlow.live) {
+        if (root === undefined) {
+          if (tries > 1) {
+            this.startQuestBeatsWhenMounted(tries - 1);
+          } else {
+            console.warn('[parliament] chairmanship: no mounted root to play the beats on');
+          }
           return;
         }
         startChairmanQuestBeats({
@@ -2443,10 +2577,6 @@ export default defineComponent({
           onDone: () => undefined,
         });
       }));
-      if (this.questGate !== undefined) {
-        chairmanQuestFlow.sent = true;
-        this.send({type: 'option'}, 'quest');
-      }
     },
     /**
      * «КАРЬЕРА» — OPEN the walk pose on the record the answer carried: the
@@ -3287,13 +3417,45 @@ export default defineComponent({
       this.submittedKey = this.answerKey;
       parliamentFlow.stage = 'submitting';
       setWorkspaceFramePhase('parliament', from === 'sitting' ? 'executing' : 'committed');
+      if (transportRequestInProgress()) {
+        // The funnel would DROP it: park it, it goes out the moment the funnel is free (the stage already reads its
+        // commit — the press is not lost, it is late by one presentation).
+        this.parkedSubmit = response;
+        return;
+      }
+      this.emitSubmit(response);
+    },
+    /** The ONE place a Parliament answer leaves for the wire — the key and the safety are taken HERE, at the real send. */
+    emitSubmit(response: InputResponse): void {
+      this.parkedSubmit = undefined;
+      // The key the answer is told apart from is the one standing NOW: a previous answer applied while this one was
+      // parked must never read as this one's.
+      this.submittedKey = this.answerKey;
       this.$emit('submit', response);
+      this.armSubmitSafety();
+    },
+    /**
+     * THE SAFETY gives the stage back only to a submit nothing is answering. While the funnel still carries a
+     * request the answer IS coming (or its refusal, which the shell's refusal watcher hands back) — a reset then
+     * left a slow answer to land on a stage that no longer waited for it (a vote re-opened under its own landed
+     * cube; the chairmanship's office never played), so the safety re-arms instead.
+     */
+    armSubmitSafety(): void {
       this.clearSubmitTimer();
-      this.submitTimer = window.setTimeout(() => this.resetSubmitting(), SUBMIT_SAFETY_MS);
+      this.submitTimer = window.setTimeout(() => this.onSubmitSafety(), SUBMIT_SAFETY_MS);
+    },
+    onSubmitSafety(): void {
+      this.submitTimer = undefined;
+      if (parliamentFlow.stage === 'submitting' && (transportRequestInProgress() || this.parkedSubmit !== undefined)) {
+        this.armSubmitSafety();
+        return;
+      }
+      this.resetSubmitting();
     },
     /** A REFUSED submit gives the stage back (the shell calls it on a transport error too). */
     resetSubmitting(): void {
       this.clearSubmitTimer();
+      this.parkedSubmit = undefined;
       const f = parliamentFlow;
       if (f.stage === 'submitting') {
         f.stage = f.stageBeforeSubmit === 'seat' ? 'seat' : f.stageBeforeSubmit;
@@ -3304,9 +3466,37 @@ export default defineComponent({
         if (f.stage !== 'landed' && f.stage !== 'paying') {
           freezeParliamentFit(false);
         }
-        setWorkspaceFramePhase('parliament',
-          f.stage === 'browse' ? 'browse' :
-            f.stage === 'sitting' ? sittingWorkspacePhase(this.sittingStage, false) : 'configure');
+        if (f.stage === 'quest' || (f.stage === 'seat' && chairmanQuestFlow.live)) {
+          // The chairmanship's answer never left (or was refused): A means what it meant — send it again. Kept
+          // `sent`, the re-send branch could never run and the flow stood on its reading for good.
+          chairmanQuestFlow.sent = false;
+        }
+        setWorkspaceFramePhase('parliament', this.phaseAfterRefusal(f.stage));
+      }
+    },
+    /**
+     * The phase a stage stands in once its submit is handed back — the one it had BEFORE the press. A LIVE door (a
+     * mandatory pick, the chairmanship) is past its commit and parks the stack on B; only a staged door or a
+     * voluntary vote is reversible again (`configure`).
+     */
+    phaseAfterRefusal(stage: ParliamentStage): WorkspacePhase {
+      switch (stage) {
+      case 'browse':
+        return 'browse';
+      case 'sitting':
+        return sittingWorkspacePhase(this.sittingStage, false);
+      case 'quest':
+      case 'seat':
+      case 'banner':
+        return 'committed';
+      case 'support':
+        return this.bridge.supportPick?.staged === true ? 'configure' : 'committed';
+      case 'delegate':
+        return this.bridge.delegatePick?.staged === true ? 'configure' : 'committed';
+      case 'vote':
+        return this.bridge.grant !== undefined && this.bridge.grant.staged !== true ? 'committed' : 'configure';
+      default:
+        return 'configure';
       }
     },
     clearSubmitTimer(): void {

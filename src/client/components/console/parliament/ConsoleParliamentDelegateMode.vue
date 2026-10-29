@@ -363,7 +363,9 @@ export default defineComponent({
         return;
       }
       const card = this.latchedCard;
-      const committed = card === undefined || this.playerView.thisPlayer.tableau.some((c) => c.name === card);
+      // …the vote mode's rule: an ACTION's door commits when the action is recorded as used (its card never leaves the table).
+      const me = this.playerView.thisPlayer;
+      const committed = card === undefined || (this.stagedFlow === 'action' ? me.actionsThisGeneration.includes(card) : me.tableau.some((c) => c.name === card));
       if (this.staged && !committed) {
         // A key that moved for somebody else's reason while the staged commit is still on the wire: keep waiting.
         return;

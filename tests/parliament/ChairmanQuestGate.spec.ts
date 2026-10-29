@@ -182,6 +182,26 @@ describe('the chairman-quest gate', () => {
     });
   });
 
+  describe('probe 3b — the gate on the LAST action of the turn', () => {
+    it('the answer applies the reward and hands the turn on: the viewer is left with no prompt', () => {
+      const [game, p1, p2, parliament] = reduxGame();
+      game.generation = 2;
+      parliament.agenda.set(p1.id, 1);
+      completeStarterQuest(game, p1);
+      // Both actions of the turn spent: the resumed turn drains the gate first, and its answer finds the turn over
+      // (the e2e fixture `parliament-chairman-quest-last-action` is this state — the field freeze of 2026-10-29).
+      p1.actionsTakenThisRound = 2;
+      const restored = Game.deserialize(structuredClone(game.serialize()));
+      const one = restored.getPlayerById(p1.id);
+      expect(questGateOf(one), 'the gate stands first').is.not.undefined;
+      one.process({type: 'option'});
+      expect(restored.parliament!.chairman, 'the office changed hands').eq(p1.id);
+      expect(restored.parliament!.agendaOf(one), 'the marker took its step').eq(2);
+      expect(one.getWaitingFor(), 'the viewer holds NO prompt after the answer').is.undefined;
+      expect(restored.getPlayerById(p2.id).getWaitingFor(), 'the turn is the other seat\'s').is.not.undefined;
+    });
+  });
+
   describe('probe 4 — the generation may not end over an unanswered gate', () => {
     it('the political phase waits: the gate is re-raised instead', () => {
       const [game, p1, , parliament] = reduxGame();

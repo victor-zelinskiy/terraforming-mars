@@ -6,7 +6,7 @@ import {PlayerViewModel} from '../../src/common/models/PlayerModel';
 import {
   parliamentSittingFlowBeat, parliamentSittingLive, presentedGeneration, quietRewardPoseOf, SITTING_HOSTED_STEPS, SITTING_SUBJECT_KEY, sittingAskOf, sittingAtLastPage,
   sittingBodyOf, sittingFieldOf, sittingPageAuto, sittingPagesOf, sittingPositionOf, sittingPrimaryKey, sittingRewardSettled, sittingStageAt,
-  sittingStageKey, sittingStartPage, sittingTailPlacementOf, sittingWorkspacePhase, verdictStandsAt,
+  sittingStageKey, sittingStartPage, sittingStepTakesStage, sittingTailPlacementOf, sittingWorkspacePhase, verdictStandsAt,
 } from '../../src/client/console/parliament/consoleSittingFlow';
 import {backVerbFor} from '../../src/client/console/consoleWorkspaceFlow';
 import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
@@ -395,5 +395,19 @@ describe('the quiet reward (final polish D) — a passive / an action resolution
     it('the RESULTS panel is the sitting\'s last reading — the body from the page\'s first frame (nothing flies under it any more)', () => {
       expect(sittingBodyOf('results', false)).eq('results');
     });
+  });
+});
+
+describe('sittingStepTakesStage — a WHOLE workspace step takes the stage whole (the owner, 2026-10-29)', () => {
+  it('the colonies — by the server\'s step or by the frame standing on the Parliament — are never squeezed beside the card', () => {
+    expect(sittingStepTakesStage(true, 'colony', false), 'the winner\'s free colony (Colony Contest)').is.true;
+    expect(sittingStepTakesStage(true, 'received', true), 'the colonies frame after the answer (its build scene, its bonus pick)').is.true;
+    expect(sittingStepTakesStage(true, 'reading', true), 'a SHOW step of the colony table (Unity Budget)').is.true;
+  });
+  it('the picker, the take and the hand\'s discard keep their hero column; no field, no whole stage', () => {
+    for (const step of ['choice', 'distribution', 'intake', 'discard'] as const) {
+      expect(sittingStepTakesStage(true, step, false), step).is.false;
+    }
+    expect(sittingStepTakesStage(false, 'colony', true), 'no field pose: nothing to take').is.false;
   });
 });

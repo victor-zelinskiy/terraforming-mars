@@ -126,7 +126,10 @@ export default defineComponent({
     enactCarried(): boolean {
       // …never under a table's answer to the winner's step of the Career (TR78): the enactment has not happened yet —
       // the card still governing is not the one the step is about.
-      return parliamentFlow.stage === 'sitting' && parliamentFlow.sittingField && this.enactedShown !== undefined && this.sittingStage !== 'enact';
+      // …nor under a step that takes the stage WHOLE (the colonies of Colony Contest): the card stays home under the field
+      // (it is never squeezed beside a whole workspace), and L3 «Источник» lifts it over the step.
+      return parliamentFlow.stage === 'sitting' && parliamentFlow.sittingField && !parliamentFlow.sittingFullStep &&
+        this.enactedShown !== undefined && this.sittingStage !== 'enact';
     },
     /**
      * THE NEW SET HAS ARRIVED (v4 §2.3): the gold seam is the mark of the government IN POWER. At the verdict the

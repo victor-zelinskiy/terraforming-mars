@@ -6760,6 +6760,71 @@ parliamentFixture('parliament-devaction-assembly', familyTable(DEV_ACTION_RESOLU
   write('parliament-chairman-quest', game);
 }
 
+// ── parliament-chairman-quest-last-action: the SAME table, but the quest was closed by the seat's SECOND action —
+//    the gate's answer ENDS THE TURN, so the response that carries the office and the Agenda step hands the turn to
+//    the other seat and carries NO prompt for the viewer (`waitingFor === undefined`). The field report of
+//    2026-10-29: the Parliament froze on it — no beat played, A and B did nothing, only a reload helped. ──
+{
+  const pinned = NO_FIRST_ACTION_CORPORATIONS.slice(0, 2);
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations('parliament-chairman-quest-last-action', [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the parliament-chairman-quest-last-action fixture has no voting area');
+  }
+  parliament.chairman = p2.id;
+  parliament.agenda.set(p1.id, 1);
+  const quest = parliament.quest;
+  if (quest === undefined || parliament.addQuestProgress(p1, quest.definition.count) !== 'completed') {
+    throw new Error('parliament-chairman-quest-last-action: the quest did not complete');
+  }
+  ChairmanSeat.onQuestCompleted(p1);
+  p1.megaCredits = 40;
+  runAllActions(game);
+  if (p1.getWaitingFor()?.chairmanQuestPrompt === undefined) {
+    throw new Error('parliament-chairman-quest-last-action: the gate did not stand');
+  }
+  // The seat has spent both of its actions: on resume the gate is drained first (`takeAction`), and its answer
+  // finds the turn over — the next prompt is the OTHER seat's.
+  p1.actionsTakenThisRound = 2;
+  write('parliament-chairman-quest-last-action', game);
+}
+
+// ── parliament-chairman-quest-by-play: the field case WHOLE — the quest is «play 2 building tags» at 1/2, the seat has
+//    ONE action left and Power Plant (a building tag) in hand: the PLAY from the hand closes the quest, the gate rides
+//    the play's own answer behind its landing cinematic, and the gate's answer ends the turn. ──
+{
+  const pinned = NO_FIRST_ACTION_CORPORATIONS.slice(0, 2);
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations('parliament-chairman-quest-by-play', [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the parliament-chairman-quest-by-play fixture has no voting area');
+  }
+  parliament.chairman = p2.id;
+  parliament.agenda.set(p1.id, 1);
+  parliament.quest = {
+    definition: {goal: {kind: 'tag', tag: Tag.BUILDING}, count: 2},
+    source: ARCHITECTURE_AWARD_ID, generation: game.generation, progress: new Map([[p1.id, 1]]),
+  };
+  p1.cardsInHand = [new PowerPlant()];
+  p1.megaCredits = 40;
+  p1.actionsTakenThisRound = 1;
+  runAllActions(game);
+  if (game.activePlayer !== p1 || !(p1.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`parliament-chairman-quest-by-play: expected blue's action menu, got ${p1.getWaitingFor()?.constructor.name}`);
+  }
+  write('parliament-chairman-quest-by-play', game);
+}
+
 // ── MARSBOT AT THE TABLE (docs/TURMOIL_REDUX_MARSBOT.md §8 — `console-parliament-bot.spec.ts`).
 //    Four tables with the bot as a SEAT: it votes (D2), takes the winner's reward by declaration
 //    (D4) and completes the chairman quest by its ordinary play (D5). The bot's turn IS its action
@@ -6950,6 +7015,31 @@ function botDeckOf(first: AutomaState['actionDeck'][number]): AutomaState['actio
   }
   redOnTheMove(t, name);
   runAllActions(t.game);
+  write(name, t.game);
+}
+
+// ── parliament-chairman-quest-bot: the human closed the chairman quest with the SECOND action of the turn, against
+//    MarsBot — the gate's answer hands the turn to the bot, whose turn (B21 Party Politics: a delegate onto the table)
+//    rides the same response and flies its cube over the open Parliament while the chairmanship plays. The field
+//    freeze of 2026-10-29 in its most crowded form. ──
+{
+  const name = 'parliament-chairman-quest-bot';
+  const t = botTable(name, 1);
+  const [blue] = t.humans;
+  seatResolution(t.parliament, 0, AQUIFER_CONTEST_ID);
+  t.parliament.chairman = t.bot.id;
+  t.parliament.agenda.set(blue.id, 1);
+  t.automa.actionDeck = botDeckOf({kind: 'bonus', id: BonusCardId.B21_PARTY_POLITICS});
+  const quest = t.parliament.quest;
+  if (quest === undefined || t.parliament.addQuestProgress(blue, quest.definition.count) !== 'completed') {
+    throw new Error(`${name}: the quest did not complete`);
+  }
+  ChairmanSeat.onQuestCompleted(blue);
+  runAllActions(t.game);
+  if (blue.getWaitingFor()?.chairmanQuestPrompt === undefined) {
+    throw new Error(`${name}: the gate did not stand`);
+  }
+  blue.actionsTakenThisRound = 2;
   write(name, t.game);
 }
 

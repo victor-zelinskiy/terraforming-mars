@@ -329,6 +329,14 @@ function freshFlow() {
      */
     sittingField: false,
     /**
+     * …AND THE STEP STANDING IN IT IS A WHOLE WORKSPACE (the colonies of the winner's free colony — Colony Contest):
+     * a screen that size is never squeezed beside the carrier card (the owner, 2026-10-29: «колоний слишком
+     * массивный workspace и его нельзя показывать сжатым с source картой слева»). The step takes the stage WHOLE, the
+     * enacted card stays home in the government under the field, and L3 «Источник» opens the law over the step —
+     * law 22's «a full-size step takes the whole stage», on the sitting's own zone.
+     */
+    sittingFullStep: false,
+    /**
      * THE SUPPORT-AREA MODE (TR12): its stage name (the crumb's tail and the band's kicker — `SUPPORT_STEP_STAGES`
      * by what the pick does), the press is in and its answer plays on this very stage (`supportCommitted`), the
      * door is the server's LIVE prompt rather than a staged one (re-asked, a reload — B «Свернуть», the crumb

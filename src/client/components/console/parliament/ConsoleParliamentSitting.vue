@@ -34,7 +34,7 @@
          while a step stands and comes back when it has left — never a `v-if` cut. ── -->
     <section class="con-sit__panel con-sit__panel--reward" :class="{'con-sit__panel--on': stage === 'reward' || answerUp}" data-sit-panel="reward"
              :data-sit-answer="answerUp ? '' : undefined">
-      <div class="con-sit__reward" :class="{'con-sit__reward--field': field}">
+      <div class="con-sit__reward" :class="{'con-sit__reward--field': field, 'con-sit__reward--fullstep': field && fullStep}" :data-sit-fullstep="field && fullStep ? '' : undefined">
         <div class="con-sit__hero" :class="{'con-sit__hero--field': field}">
           <!-- The carried enacted card lands here (one DOM instance, teleported by the government) while the step holds the field. -->
           <div class="con-sit__card" data-parl-sit-hero></div>
@@ -311,6 +311,8 @@ export default defineComponent({
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
     /** The step holds the FIELD (a hosted step stands in its zone, or the colony ledger reads there). */
     field: {type: Boolean, default: false},
+    /** The field's step is a WHOLE workspace (the colonies): it takes the stage, no hero column beside it. */
+    fullStep: {type: Boolean, default: false},
     /** A hosted step may teleport INTO the zone right now (`consoleSittingFlow.sittingFieldOf`): the ledger layer yields to it. */
     stepOpen: {type: Boolean, default: false},
     /** THE COLONY LEDGER the enacted resolution pays (Colonial Affairs) — undefined for every other resolution. */

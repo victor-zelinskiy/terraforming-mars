@@ -18,6 +18,8 @@ import {
 } from '@/client/console/parliament/parliamentRewardBeat';
 import {clearPanelRewardHold, heldStock, takeDeclaredAnswers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {parliamentCrumbStage, parliamentCrumbSubject, parliamentFlow, resetParliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
+import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
+import {chairmanQuestRunLive, chairmanQuestStalled, killChairmanQuestBeats, settleChairmanQuestBeats} from '@/client/console/parliament/chairmanQuestDirector';
 
 /*
  * «ПРЕДСЕДАТЕЛЬСТВО» — the flow's PURE half (probes 6 and 7 of
@@ -220,5 +222,38 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — the chairman-quest flow', () 
     const end = parliamentBandLine({standing, quest: {beat: 'agenda', player: BLUE}});
     expect(end.chips, 'at the end of the track there is no step to show, and none is invented')
       .deep.eq([{kind: 'label', key: 'end of the track', tone: 'quiet'}]);
+  });
+
+  /*
+   * THE FIELD FREEZE OF 2026-10-29 — the quest closed by the seat's LAST action: the plate's A brought the player into the
+   * Parliament, no beat played, A did nothing and the bar's «B На поле» did nothing. Whatever stalled the beats, the flow
+   * is never a dead end: the bar is a status while it plays and a verb the moment it can no longer end by itself.
+   */
+  it('THE BAR NEVER STANDS EMPTY over the flow: a status while it plays and while its answer is on the wire, the verbs at its end', () => {
+    parliamentFlow.stage = 'quest';
+    expect(parliamentCommandsOf({quest: {done: false}} as never)).deep.eq([{control: 'confirm', label: 'Performing…', enabled: false}]);
+    expect(parliamentCommandsOf({quest: {done: true}} as never)).deep.eq([
+      {control: 'confirm', label: 'Close', highlight: true}, {control: 'back', label: 'Close'},
+    ]);
+    expect(parliamentCommandsOf({quest: {done: false, resend: true}} as never), 'a refused or silenced answer: A sends it again')
+      .deep.eq([{control: 'confirm', label: 'Continue', highlight: true}]);
+    parliamentFlow.stage = 'submitting';
+    parliamentFlow.stageBeforeSubmit = 'quest';
+    expect(parliamentCommandsOf({} as never), 'the submit is a status too — never the bare «На поле» fallback')
+      .deep.eq([{control: 'confirm', label: 'Performing…', enabled: false}]);
+    resetParliamentFlow();
+  });
+
+  it('A STALLED FLOW is told apart: answered with no run of the beats — and it settles honestly to «done»', () => {
+    armChairmanQuestFlow(model(), BLUE);
+    expect(chairmanQuestStalled(), 'not answered yet: the answer is what it waits for').is.false;
+    chairmanQuestFlow.answered = true;
+    expect(chairmanQuestRunLive()).is.false;
+    expect(chairmanQuestStalled(), 'answered and nothing will ever play the office').is.true;
+    settleChairmanQuestBeats('spec');
+    expect(chairmanQuestFlow.beat).eq('done');
+    expect(chairmanQuestStalled(), 'a finished flow is not stalled — A closes it').is.false;
+    killChairmanQuestBeats();
+    resetChairmanQuestFlow();
   });
 });

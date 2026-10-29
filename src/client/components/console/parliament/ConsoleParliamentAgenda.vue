@@ -406,7 +406,14 @@ export default defineComponent({
         opts?.onLanded?.();
         return;
       }
+      // A WALK DISPLACED BY THIS ONE STILL LANDS FOR ITS OWNER: `stopAgendaGlide` kills its director, whose `skip`
+      // calls no hook — and the flow waiting on it (the chairmanship's ПОВЕСТКА, a card's walk) stood on its beat for
+      // good while a rival's advance, arriving over the socket in the window after its hold let go, glided another
+      // marker. Its marker now reads the model (the hold is gone); its owner continues from the landing.
+      const displaced = this.onGlideLanded;
+      this.onGlideLanded = undefined;
       this.stopAgendaGlide();
+      displaced?.();
       let landedFired = false;
       const landed = () => {
         if (!landedFired) {

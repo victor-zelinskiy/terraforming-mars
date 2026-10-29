@@ -1709,7 +1709,7 @@ import ConsoleParliamentSection from '@/client/components/console/ConsoleParliam
 import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentInspect';
 import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTier';
 import {parliamentVoteSubject} from '@/client/console/parliament/consoleParliamentFlow';
-import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
+import {consoleParliamentUi, parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {agendaWalkFlow, AgendaWalkRailPromise, promiseAgendaWalk} from '@/client/console/parliament/agendaWalk';
 import {neutralRallyFlow, promiseNeutralRally} from '@/client/console/parliament/neutralRally';
 import {
@@ -7715,6 +7715,14 @@ export default defineComponent({
     /** The CARD that sent the player to this pick, when there is one — the
      *  source of a contextual selection flow (a decision screen's hand pick, a
      *  composer's target pick). Drives the L3 verb and its command hint. */
+    /** A LAW is the source of the contextual step (the colonies the sitting hosts whole) — beside `contextualSourceCard`. */
+    contextualSourceResolution(): string | undefined {
+      return workspaceFrameHost('colonies') !== undefined && !this.handPickCoversSteps ? this.colonyEmbedSourceResolution : undefined;
+    },
+    /** L3 «Источник» has something to open. */
+    contextualSourceKnown(): boolean {
+      return this.contextualSourceCard !== undefined || this.contextualSourceResolution !== undefined;
+    },
     contextualSourceCard(): CardName | undefined {
       // A colony step OWED BY A CARD (played card / activation / prelude):
       // the pick and its follow-up present inside that card's workspace, so
@@ -8581,6 +8589,21 @@ export default defineComponent({
      * composer owns the activation, not the browse frame). '' → no verb, never
      * a broken zoom — a standalone entry has no source by definition.
      */
+    /**
+     * THE LAW THAT ASKED, when the colonies stand on the Parliament as a WHOLE step (Colony Contest's free colony): the
+     * carrier card no longer stands beside the grid (`sittingFullStep` — the step takes the stage), so L3 «Источник»
+     * is how the player reads it — the console-wide grammar (X the current object, L3 its source).
+     */
+    colonyEmbedSourceResolution(): string | undefined {
+      if (workspaceFrameHost('colonies') !== 'parliament' || !parliamentFlow.sittingFullStep) {
+        return undefined;
+      }
+      return sittingAskResolution(this.playerView.waitingFor) ?? this.playerView.game.parliament?.phase?.summary?.enacted?.resolution;
+    },
+    /** The embedded colonies step has a source L3 can open — a card, or the law that asked. */
+    colonyEmbedHasSource(): boolean {
+      return this.colonyEmbedSourceCard !== undefined || this.colonyEmbedSourceResolution !== undefined;
+    },
     colonyEmbedSourceCard(): CardName | undefined {
       const host = workspaceFrameHost('colonies');
       if (host === undefined) {
@@ -9801,7 +9824,7 @@ export default defineComponent({
         cmds.push({control: 'secondary', label: 'Inspect', priority: 3});
         // X inspects the card under the cursor, so the EFFECT that sent the
         // player here needs its own verb — never make them guess the context.
-        if (this.contextualSourceCard !== undefined) {
+        if (this.contextualSourceKnown) {
           // The SHORT form of the source verb («L3 Источник» — the console-wide inspection grammar's own word): the long
           // «Осмотреть источник» was the widest verb of a bar that overflows by a few rem with the multi pick's R3, the
           // refusal's words and the filter's LT beside it — and the fit drops the widest of a priority first (TR65, PL-618).
@@ -9875,7 +9898,7 @@ export default defineComponent({
         return [
           {control: 'confirm', label: fleetDockUi.primaryLabel, enabled: fleetDockUi.primaryEnabled},
           {control: 'secondary', label: fleetDockUi.confirmLabel, enabled: fleetDockUi.confirmEnabled, highlight: fleetDockUi.confirmEnabled},
-          this.contextualSourceCard !== undefined ?
+          this.contextualSourceKnown ?
             {control: 'stickL' as const, label: 'Source'} :
             {control: 'stickL' as const, label: 'Inspect card'},
           // R3 — the «Эффекты» layer (the table's answer to the reward), only when the forecast has something to show.
@@ -9953,7 +9976,7 @@ export default defineComponent({
           return [
             {control: 'confirm', label: staged ? 'Play card' : (this.colonyPick?.labelKey ?? 'Select'),
               enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
-            ...(this.colonyEmbedSourceCard !== undefined ? [{control: 'stickL' as GlyphControl, label: 'Source'}] : []),
+            ...(this.colonyEmbedHasSource ? [{control: 'stickL' as GlyphControl, label: 'Source'}] : []),
             {control: 'back', label: 'Back'},
           ];
         }
@@ -9965,7 +9988,7 @@ export default defineComponent({
           // speaks the play's verb, and L3 reads the source card.
           const stagedBuild = this.colonyPick?.staged === true;
           const verb = stagedBuild ? 'Play card' : 'Build';
-          const source = stagedBuild && this.colonyEmbedSourceCard !== undefined ?
+          const source = stagedBuild && this.colonyEmbedHasSource ?
             [{control: 'stickL' as GlyphControl, label: 'Source'}] : [];
           // R3 — the «Эффекты» layer (the table's answer to the build), only when the forecast has something to show.
           const effects = consoleColoniesUi.forecastAvailable ? [{control: 'stickR' as GlyphControl, label: 'Effects'}] : [];
@@ -10001,7 +10024,7 @@ export default defineComponent({
             {control: 'confirm', label: staged ? 'Play card' : (this.colonyPick?.labelKey ?? 'Select'),
               enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
             {control: 'secondary', label: 'Inspect'},
-            ...(this.colonyEmbedSourceCard !== undefined ? [{control: 'stickL' as GlyphControl, label: 'Source'}] : []),
+            ...(this.colonyEmbedHasSource ? [{control: 'stickL' as GlyphControl, label: 'Source'}] : []),
             {control: 'back', label: 'Back'},
           ];
         }
@@ -10013,7 +10036,7 @@ export default defineComponent({
             {control: 'confirm', label: staged ? 'Play card' : (this.colonyPick?.labelKey ?? 'Select'),
               enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
             {control: 'secondary', label: 'Inspect'},
-            ...(this.colonyEmbedSourceCard !== undefined ? [{control: 'stickL' as GlyphControl, label: 'Source'}] : []),
+            ...(this.colonyEmbedHasSource ? [{control: 'stickL' as GlyphControl, label: 'Source'}] : []),
             {control: 'back', label: 'Back'},
           ];
         }
@@ -10311,7 +10334,7 @@ export default defineComponent({
         // the pick's own verbs (A · R3 · RT · the filter's LT) have no other home, and at 4K with four picks the fit
         // was dropping the filter's hint while «Осмотреть» stood (TR65, PL-618).
         cmds.push({control: 'secondary', label: 'Inspect', priority: 3});
-        if (this.contextualSourceCard !== undefined) {
+        if (this.contextualSourceKnown) {
           // The SHORT form of the source verb («L3 Источник» — the console-wide inspection grammar's own word): the long
           // «Осмотреть источник» was the widest verb of a bar that overflows by a few rem with the multi pick's R3, the
           // refusal's words and the filter's LT beside it — and the fit drops the widest of a priority first (TR65, PL-618).
@@ -10379,7 +10402,7 @@ export default defineComponent({
             // It is not a second name for A: A enters the act, X reads.
             {control: 'secondary', label: 'Inspect'},
             // The pick is OWED BY A CARD → the console-wide source verb.
-            ...(this.colonyEmbedSourceCard !== undefined ?
+            ...(this.colonyEmbedHasSource ?
               [{control: 'stickL' as GlyphControl, label: 'Inspect the source'}] : []),
             // A STAGED door (TR07) is one reversible level: B walks back to the composer, nothing to minimize.
             // …and so is a replacement's RESERVE level: B walks back to «which tile leaves».
@@ -10394,7 +10417,7 @@ export default defineComponent({
           // X = «Осмотреть» — the dossier, read-only, for any colony (a
           // blocked trade is a reason on the dossier, never a hidden verb).
           {control: 'secondary', label: 'Inspect'},
-          ...(this.colonyEmbedSourceCard !== undefined ?
+          ...(this.colonyEmbedHasSource ?
             [{control: 'stickL' as GlyphControl, label: 'Inspect the source'}] : []),
           // B: «свернуть» is right for a step a COMMITTED host owns — the
           // decision stays live and the player is only going to look at the
@@ -15197,7 +15220,7 @@ export default defineComponent({
       if (this.colonyFocusOpen) {
         // L3 = the source card, on the stage exactly as on the overview (the
         // viewer opens OVER it — selection and focus survive underneath).
-        if (intent.kind === 'press' && intent.button === 'stickL' && this.contextualSourceCard !== undefined) {
+        if (intent.kind === 'press' && intent.button === 'stickL' && this.contextualSourceKnown) {
           this.inspectContextualSource();
           return true;
         }
@@ -16272,7 +16295,7 @@ export default defineComponent({
         // P27: on the board home L3 toggles BOARD INSPECTION MODE. (The hand's
         // «select all» lives on R3 since 2026-10-14 — it shared L3 with the
         // source, and the source, checked first, always won.)
-        if (this.contextualSourceCard !== undefined) {
+        if (this.contextualSourceKnown) {
           this.inspectContextualSource();
         } else if (this.placementActive && this.padSection === 'board') {
           this.inspectPlacementSource();
@@ -24399,6 +24422,10 @@ export default defineComponent({
     inspectContextualSource(): void {
       const name = this.contextualSourceCard;
       if (name === undefined) {
+        const law = this.contextualSourceResolution;
+        if (law !== undefined) {
+          openConsoleCardZoom([resolutionZoomEntry(law)], 0, undefined, undefined, {statusLabel: 'Source'});
+        }
         return;
       }
       // The viewer NAMES its role — console-wide inspection grammar: X reads

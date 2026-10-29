@@ -319,7 +319,11 @@ export default defineComponent({
         return;
       }
       const card = this.latchedCard;
-      const committed = card !== undefined && this.playerView.thisPlayer.tableau.some((c) => c.name === card);
+      // The COMMIT is real only once the play is on the table — or, for an ACTION's door, once the action is recorded
+      // as used: an action's card is on the table the whole time, so tableau membership could never witness its commit
+      // (the vote mode's own rule — a key moved by somebody else's update concluded the step under the commit in flight).
+      const me = this.playerView.thisPlayer;
+      const committed = card !== undefined && (this.stagedFlow === 'action' ? me.actionsThisGeneration.includes(card) : me.tableau.some((c) => c.name === card));
       if (this.staged && !committed) {
         // A key that moved for somebody else's reason while the staged commit is still on the wire: keep waiting.
         return;

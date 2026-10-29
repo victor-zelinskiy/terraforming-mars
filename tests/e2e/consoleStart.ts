@@ -3086,6 +3086,12 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // «ПРЕДСЕДАТЕЛЬСТВО»: the quest is completed and the GATE stands — nothing of
   // its reward is applied, and opening it is the whole flow.
   'parliament-chairman-quest' |
+  // …the same gate on the seat's LAST action: its answer hands the turn on and leaves the viewer no prompt.
+  'parliament-chairman-quest-last-action' |
+  // …and against MarsBot: the bot's turn (a delegate onto the table) rides the very response.
+  'parliament-chairman-quest-bot' |
+  // …and the field case whole: the PLAY from the hand closes the quest, and the gate ends the turn.
+  'parliament-chairman-quest-by-play' |
   // TR59 — the SOURCE of a payout on the viewer's own Ares tile: blue's Restricted Area (Ares) on 47, the free city cell
   // 48 beside it; red (Thorgate, 40 M€, Domed Crater in hand) on the move (`-ares`), or a solo table vs MarsBot whose
   // deck is [B05 Expedited Construction] alone and whose city lands on 48 once blue passes (`-ares-bot`).

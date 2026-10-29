@@ -439,6 +439,41 @@ function finishRun(): void {
   state.ctx.onDone();
 }
 
+/**
+ * Is a run of the beats ALIVE (started and not killed)? The flow record can stand without one — the director never
+ * started (the section's root was not measurable), or it was cut — and such a flow has no beat that will ever end it:
+ * the section then ends it honestly on the player's A (`chairmanQuestStalled`), never a dead end.
+ */
+export function chairmanQuestRunLive(): boolean {
+  return run !== undefined && !run.killed;
+}
+
+/**
+ * THE FLOW CAN NO LONGER END BY ITSELF (the field freeze of 2026-10-29): the record is live and answered, yet no run
+ * stands to play the office and the step — or the run waits on the server's answer that this flow already has. Pure
+ * over the two records; the section reads it for its bar and its A.
+ */
+export function chairmanQuestStalled(): boolean {
+  if (!chairmanQuestFlow.live || chairmanQuestFlow.beat === 'done') {
+    return false;
+  }
+  return chairmanQuestFlow.answered && !chairmanQuestRunLive();
+}
+
+/**
+ * END THE FLOW HONESTLY, with nothing left to play: every pending beat is cut, every flight lands where it is going,
+ * and the beat reads `done` — the counters the holds kept tick now (the caller releases them), A closes.
+ */
+export function settleChairmanQuestBeats(why: string): void {
+  if (!chairmanQuestFlow.live) {
+    return;
+  }
+  console.warn(`[parliament] chairmanship: ${why} — settled without its beats`);
+  killChairmanQuestBeats();
+  finishParliamentFlights();
+  chairmanQuestFlow.beat = 'done';
+}
+
 /** Is a beat in flight (A absorbs input, B says nothing)? */
 export function chairmanQuestBeatActive(): boolean {
   return run !== undefined && !run.killed && !run.awaitingSeatPick && !run.awaitingReaction &&

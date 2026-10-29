@@ -68,7 +68,7 @@ describe('a city on a colony tile — the wiring', () => {
       const branch = commands.slice(at, commands.indexOf('intent !== \'trade\'', at));
       expect(branch).to.include('staged ? \'Play card\' : (this.colonyPick?.labelKey ?? \'Select\')');
       expect(branch).to.match(/control: 'secondary', label: 'Inspect'/);
-      expect(branch).to.match(/colonyEmbedSourceCard !== undefined \? \[\{control: 'stickL' as GlyphControl, label: 'Source'\}\]/);
+      expect(branch).to.match(/colonyEmbedHasSource \? \[\{control: 'stickL' as GlyphControl, label: 'Source'\}\]/);
       expect(branch).to.match(/control: 'back', label: 'Back'/);
     });
 

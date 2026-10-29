@@ -88,7 +88,7 @@ type Sample = {
   crumb: string;
   page: string;
   tracksChip: boolean;
-  /** The class list of the hero card on the left (the sitting's enacted resolution) — read while the grid stood, never live. */
+  /** The class list of a carrier card on the hero slot — none while the colonies take the stage whole; read while the grid stood. */
   hero: string;
 };
 type Probe = {samples: Array<Sample>};
@@ -249,9 +249,10 @@ test.describe(`Unity Budget · ${PRESET.id}`, () => {
     const hosted = await hostedSamples();
     expect(Math.max(...hosted.map((s) => s.tiles)), `the hosted grid holds the four tiles (crumbs ${JSON.stringify([...new Set(hosted.map((s) => s.crumb))])})`).toBe(4);
     // …and the hero off the SAME samples: a live read here found the step already gone twice on a shared slot of the box
-    // (the sitting walks on by itself once the wave has played) — the sample says what stood beside the grid.
-    expect(hosted.some((s) => /rdx-unity-unity-budget/.test(s.hero)),
-      `the resolution is the hero on the left while the grid stood (heroes ${JSON.stringify([...new Set(hosted.map((s) => s.hero))])})`).toBe(true);
+    // (the sitting walks on by itself once the wave has played) — the sample says what stood beside the grid. The
+    // colonies are a WHOLE workspace and take the stage whole (the owner, 2026-10-29): nothing stands beside the grid.
+    expect(hosted.every((s) => s.hero === ''),
+      `no carrier card beside the whole-stage grid (heroes ${JSON.stringify([...new Set(hosted.map((s) => s.hero))])})`).toBe(true);
     await expectParliamentFits(page, `${PRESET.id} colonies hosted`);
 
     // ── ③ THE WAVE: one tile after another, two countable steps, a track at its end named and unmoved.

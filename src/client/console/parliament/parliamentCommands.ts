@@ -36,7 +36,11 @@ export type ParliamentCommandsInput = {
    * player to skip the thing the flow exists to show. B is silent for the
    * whole flow: it is past the commit and there is no level to go back to.
    */
-  quest?: {done: boolean};
+  /**
+   * «ПРЕДСЕДАТЕЛЬСТВО»: `done` — every beat has landed (or the flow can no longer play them — the section ends it
+   * honestly); `resend` — the gate's answer never left (a refused or silenced submit): A sends it again.
+   */
+  quest?: {done: boolean, resend?: boolean};
   /**
    * THE VOTE MODE'S ROW OF SEATS has somebody else on it — LB/RB then move the
    * SUBJECT of the reading along it («ИГРОКИ», the console's own word for that
@@ -236,7 +240,16 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
     return cmds;
   }
   case 'quest':
-    return input.quest?.done === true ? [{control: 'confirm', label: 'Close', highlight: true}] : [];
+    // THE FLOW NEVER STANDS ON AN EMPTY BAR (the field freeze of 2026-10-29): an empty list fell back to the shell's
+    // «B На поле» — a verb the absorbed beat does not honour, the one the player pressed in vain. A status while the
+    // beats play (A «дожать» stays unadvertised, the sitting's law), the verb when there is one.
+    if (input.quest?.done === true) {
+      return [{control: 'confirm', label: 'Close', highlight: true}, {control: 'back', label: 'Close'}];
+    }
+    if (input.quest?.resend === true) {
+      return [{control: 'confirm', label: 'Continue', highlight: true}];
+    }
+    return [{control: 'confirm', label: 'Performing…', enabled: false}];
   // THE INNER STEP «ВАШИ ЭФФЕКТЫ»: A takes the action under the cursor (the bench's own door), X reads its source, B is
   // one level back to the overview (the cursor on the block).
   case 'effects': {
@@ -329,9 +342,8 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
     // A SUBMIT INSIDE THE CHAIRMANSHIP FLOW is not a wait the player watches —
     // the reading beat plays over it, so the bar stays as quiet as it is
     // during every other beat of the flow.
-    if (parliamentFlow.stageBeforeSubmit === 'quest') {
-      return [];
-    }
+    // A SUBMIT is a status like any other beat — the chairmanship's included: an empty list fell back to «B На поле»,
+    // a verb the absorbed stage does not honour.
     return [{control: 'confirm', label: 'Performing…', enabled: false}];
   case 'paying':
     // The bill's own panel owns the bar while it stands in the mode's zone.

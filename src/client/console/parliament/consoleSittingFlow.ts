@@ -127,6 +127,17 @@ export function sittingFieldOf(stage: SittingStage, rewardStep: SittingRewardSte
 }
 
 /**
+ * A STEP THAT IS A WHOLE WORKSPACE TAKES THE STAGE WHOLE (the owner, 2026-10-29 — law 22's «a full-size step takes the
+ * whole stage», on the sitting's own zone): the colonies grid of the winner's free colony (Colony Contest) — the step
+ * the server names `colony`, or the colonies FRAME standing on the Parliament (its build scene, its bonus's own pick,
+ * after the server's position already reads «received») — is never squeezed into the column beside the carrier card.
+ * The picker, the take and the hand's discard keep the hero column (their ledger / their card row reads beside it).
+ */
+export function sittingStepTakesStage(field: boolean, rewardStep: SittingRewardStep, coloniesHostedHere: boolean): boolean {
+  return field && (rewardStep === 'colony' || coloniesHostedHere);
+}
+
+/**
  * WHERE THE SITTING STANDS, read off the server. `undefined` outside a live
  * political phase the viewer takes part in.
  */

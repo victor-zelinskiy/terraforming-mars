@@ -18,7 +18,10 @@ import {
  *     (the door is admission-gated: «one press, several effects — in turn»);
  *   ② the COLONIES GRID stands INSIDE the Parliament's stage zone — the frame's
  *     own slot, not a band of its own: host-agnostic (no head, no motion id),
- *     the hero card stays, the crumb reads «ПАРЛАМЕНТ › ЗАСЕДАНИЕ › КОЛОНИИ»;
+ *     and it takes the stage WHOLE — never the column beside the carrier card
+ *     (the owner, 2026-10-29: «колоний слишком массивный workspace»): the law
+ *     stays home in the government and L3 «Источник» lifts it over the step;
+ *     the crumb reads «ПАРЛАМЕНТ › ЗАСЕДАНИЕ › КОЛОНИИ»;
  *   ③ TITAN: the build stage inside the same zone, its build-bonus TARGET step
  *     (3 floaters onto one of two holders) — the recipient pick opens ONE level
  *     deeper, still inside the sitting; X commits the build;
@@ -236,7 +239,17 @@ test.describe(`Colony Contest · ${PRESET.id}`, () => {
     await expect(page.locator(GRID)).toHaveClass(/con-colonies--embedded/);
     await expect(page.locator(`${GRID} .con-wshead`), 'host-agnostic: no head of its own').toHaveCount(0);
     expect(await page.locator(GRID).getAttribute('data-motion-surface'), 'no motion id inside a host zone (the shade guard)').toBeNull();
-    await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card .pcard'), 'the resolution is the hero on the left').toHaveClass(/rdx-unity-colony-contest/);
+    // THE STEP TAKES THE STAGE WHOLE: no carrier card beside the grid, the grid as wide as the zone's stage.
+    await expect(page.locator('[data-sit-fullstep]'), 'the colonies take the whole stage').toHaveCount(1);
+    await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card'), 'the law is not squeezed beside the grid').toHaveCount(0);
+    const widths = await page.evaluate(({grid}) => {
+      const zone = document.querySelector('.con-sit__reward')?.getBoundingClientRect();
+      const g = document.querySelector(grid)?.getBoundingClientRect();
+      return {zone: zone?.width ?? 0, grid: g?.width ?? 0};
+    }, {grid: GRID});
+    expect(widths.grid, `the grid spans the stage (${JSON.stringify(widths)})`).toBeGreaterThan(widths.zone * 0.9);
+    const sourceHint = (await page.locator('.con-cmdbar__label').allTextContents()).map((t) => t.trim()).join(' | ');
+    expect(sourceHint, `L3 names the law that asked (${sourceHint})`).toMatch(/источник|source/i);
     await expect(page.locator('.con-sit')).toHaveAttribute('data-sit-step', 'colony');
     await expect(page.locator(`${GRID} .con-coltile`)).toHaveCount(4);
     const crumb = await crumbText(page);
@@ -313,7 +326,7 @@ test.describe(`Colony Contest · ${PRESET.id}`, () => {
     expect(gridSamples.length, 'the probe saw the colonies inside the zone').toBeGreaterThan(3);
     expect(gridSamples.every((s) => /парламент|parliament/i.test(s.crumb) && /заседание|sitting/i.test(s.crumb)), 'the crumb kept its root and its subject through the whole step').toBe(true);
     expect(gridSamples.every((s) => s.gridMotionId === null && !s.gridHead), 'the embedded grid never carried a motion id or a head').toBe(true);
-    expect(gridSamples.every((s) => s.hero), 'the hero stood through the step').toBe(true);
+    expect(gridSamples.some((s) => s.hero), 'no carrier card beside the whole-stage step').toBe(false);
     const bandHeights = Array.from(new Set(probe.samples.map((s) => s.bandH).filter((h) => h > 0)));
     expect(Math.max(...bandHeights) - Math.min(...bandHeights), `the band kept its height (${bandHeights.join(', ')})`).toBeLessThanOrEqual(1);
     // From the moment the body FIRST stands: the probe is armed before the pass now (the soft gates), so it also sees the

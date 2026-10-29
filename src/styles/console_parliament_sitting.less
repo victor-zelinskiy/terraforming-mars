@@ -132,6 +132,14 @@
             grid-template-columns: auto minmax(0, 1fr);
             gap: 1rem;
         }
+        /* A STEP THAT IS A WHOLE WORKSPACE (the colonies of Colony Contest) takes the stage WHOLE — never the column
+           beside the carrier card (the owner, 2026-10-29). The hero cell stays in the DOM (a teleport target must
+           always exist) but takes no room; the card stays home in the government, L3 lifts it over the step. */
+        &--field&--fullstep {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 0;
+            > .con-sit__hero { display: none; }
+        }
     }
     &__hero {
         display: flex;
