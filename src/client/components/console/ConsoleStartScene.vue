@@ -7457,8 +7457,11 @@ export default defineComponent({
       submit();
     },
     /**
-     * The ceremony CARRIES this card — the viewer's own corporation while the opening plays (the queue, the shelf, the
-     * seat). The first action's own rail hands its emergence in explicitly (`firstActionEmergence`) and wins over this.
+     * The ceremony CARRIES this card — the viewer's own corporation or PRELUDE while the opening plays (the queue, the
+     * shelf, the seat). The first action's own rail hands its emergence in explicitly (`firstActionEmergence`) and wins
+     * over this. A prelude is the TRP9 case (Medical Institute answers its OWN Science tag): at the rise it is still in
+     * flight from the queue to the shelf «РАЗЫГРАНО», so the start holds it and lifts it ON the shelf once it stands
+     * there — never a second instance at the reaction stage.
      */
     startCarriesReactor(card: CardName): boolean {
       if (this.mode !== 'ceremony' || this.firstActionPanelShown) {
@@ -7467,10 +7470,11 @@ export default defineComponent({
       if (this.seatHolds(card)) {
         return true;
       }
-      return getCard(card)?.type === CardType.CORPORATION &&
+      const type = getCard(card)?.type;
+      return (type === CardType.CORPORATION || type === CardType.PRELUDE) &&
         (this.playerView.thisPlayer?.tableau ?? []).some((c) => c.name === card);
     },
-    /** The corporation's face as painted in the start right now — the seat first, the shelf's top slot second. */
+    /** The carried card's face as painted in the start right now — the seat first, the shelf's top slot second. */
     startVisibleFace(card: CardName): HTMLElement | undefined {
       const root = this.sceneRoot();
       if (root === undefined) {

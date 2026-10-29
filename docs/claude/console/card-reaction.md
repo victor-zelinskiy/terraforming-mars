@@ -472,6 +472,14 @@ reaction layer: ZERO beside the stage's own telling; another reactor of the same
 the Career's M€ — rises there legitimately, so a probe asking «told once» names the asker, never «any face»; a red prints every
 face's name and the director's `reaction:*` trail).
 
+## TRP9 Medical Institute — a PRELUDE answers its own play (2026-10-29, PL-1117 · PL-1118)
+
+The start's reactor place (`ConsoleStartScene.startCarriesReactor`) held CORPORATIONS only; a PRELUDE whose effect
+answers its OWN Science tag is still in flight from the queue to the shelf «РАЗЫГРАНО» when its reaction rises, so the
+director raised a second instance at the reaction stage. The place now holds a carried prelude too (the face is the
+shelf's `data-played-key`, waited for as PL-1098 waits for the seat). Its «where?» pick after the draw still rises as
+the task host's own band over the start (PL-1117, open). Contract: `docs/TURMOIL_REDUX_MEDICAL_INSTITUTE.md`.
+
 ## Files
 
 Server: `common/models/CardReactionModel.ts`, `server/events/EventRecorder.ts` (`recordReaction`, the `cause`

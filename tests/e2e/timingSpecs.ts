@@ -77,6 +77,7 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-parliament-urban.spec.ts', // «the arriving card names …» — read while the card is in flight; red 2 / 2 at ×0.5, green at ×1
   'console-planet-focus.spec.ts', // the camera's phases waited for by `waitForFunction` windows; red 2 / 2 at ×0.5, green at ×1
   'console-aerospace-company.spec.ts', // the transfer witness on the fighter's flight onto Mars Army Ships (B) and the 4K frames of «КУДА»
+  'console-medical-institute.spec.ts', // TRP9: the Institute's rise sampled on its shelf vs at the stage, the token's ends witnessed
   'console-robotics-factory.spec.ts', // the transfer witness: a token born on the composer's pay row as it leaves (A) — flaky at ×0.5, 5 / 5 at ×1
   'console-x87-shipment-to-earth.spec.ts', // «the card lifted only after the shipment was absorbed» — an order in time; flaky at ×0.5, green at ×1
   'wheel-rework.spec.ts', // the quick wheel's press → hold → release grammar sampled after fixed holds — red 2 / 2 at ×0.5, green at ×1
