@@ -209,7 +209,10 @@ export const AUTOMA_SEGMENT_FAMILY: Readonly<Record<string, string>> = {
   'automa-corp': 'cards-fixed', // the bot corporation's own endgame clause
   // The campaign HOLDINGS: in a campaign the bot reads as one more player, and
   // a player's extra corporation scores among its cards — beside the primary.
-  'dividends': 'cards-fixed',
+  // Its FORMULA («3 VP per city») is a conditional card; its GOAL tiers, once
+  // reached, are a locked prize — a fixed one (the owner, 2026-10-29).
+  'dividends-formula': 'cards-conditional',
+  'dividends-goals': 'cards-fixed',
 };
 
 /** Reveal groups whose segments are REMAPPED onto a card family (never shown as their own). */

@@ -102,6 +102,7 @@
     "Does not act while MarsBot holds this corporation": "Не действует, пока это дополнительная корпорация MarsBot",
     "Dividend pays at the end of the game": "В конце партии",
     "Dividend goals": "Цели",
+    "Dividend formula": "Формула дивиденда",
     "Dividend goal «${0}»": "Цель «${0}»",
     "Dividend goal at ${0}": "от ${0}",
     "Dividend goal prize: +${0} VP": "+${0} ПО",

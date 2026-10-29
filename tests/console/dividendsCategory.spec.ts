@@ -4,7 +4,7 @@ import {VictoryPointsBreakdown, AutomaVictoryPoints} from '../../src/common/game
 import {MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
 import {marsBotCorpInfo} from '../../src/common/automa/MarsBotCorpData';
 import {marsBotDividendInfo} from '../../src/common/automa/MarsBotDividendData';
-import {MarsBotDividendDetail, dividendTermFormula, perUnitTerm, bonusTerm, dividendResult} from '../../src/common/automa/MarsBotDividend';
+import {MarsBotDividendDetail, dividendTermFormula, perUnitTerm, bonusTerm, dividendResult, withDividendGoal} from '../../src/common/automa/MarsBotDividend';
 import {vpAttribution} from '../../src/common/game/vpAttribution';
 import {buildEndgameModel, EndgamePlayerInput} from '../../src/client/components/endgame/endgameModel';
 import {buildConsoleEndgameVm} from '../../src/client/console/endgame/consoleEndgameModel';
@@ -20,18 +20,24 @@ import {marsBotCorpAnnotations, marsBotDividendAnnotation, marsBotHoldingAnnotat
  * differently is told by its rules on inspection. The segment-sum ≡ total
  * invariant holds on every surface. The fixtures carry a NON-ZERO dividend:
  * a zero cannot be lost, so a guard over one proves nothing.
+ *
+ * The split (the owner, 2026-10-29): a holding's FORMULA scores as a
+ * conditional card, its reached GOAL tiers as a fixed one — Ecoline here has
+ * its first tier (+7), Tharsis none.
  */
 
 const DETAILS: ReadonlyArray<MarsBotDividendDetail> = [
-  {corporation: MarsBotCorpId.C02_ECOLINE, ...dividendResult([perUnitTerm('Greenery tiles', 7, 2), bonusTerm('Threshold bonus', 7, 6, 2)])},
-  {corporation: MarsBotCorpId.C10_THARSIS_REPUBLIC, ...dividendResult([perUnitTerm('City tiles', 4, 3)])},
+  {corporation: MarsBotCorpId.C02_ECOLINE, ...withDividendGoal(dividendResult([perUnitTerm('Greenery tiles', 7, 2), bonusTerm('Threshold bonus', 7, 6, 2)]), marsBotDividendInfo(MarsBotCorpId.C02_ECOLINE).goal, 4)},
+  {corporation: MarsBotCorpId.C10_THARSIS_REPUBLIC, ...withDividendGoal(dividendResult([perUnitTerm('City tiles', 4, 3)]), marsBotDividendInfo(MarsBotCorpId.C10_THARSIS_REPUBLIC).goal, 0)},
 ];
-const DIVIDEND_VP = 16 + 12;
+const FORMULA_VP = 16 + 12;
+const GOAL_VP = 7;
+const DIVIDEND_VP = FORMULA_VP + GOAL_VP;
 
 function automa(withDividends: boolean): AutomaVictoryPoints {
   return {
     mcToVp: 3, mcPerVp: 8, neuralInstance: 1, cardVp: 6, corpVp: 0,
-    ...(withDividends ? {dividendVp: DIVIDEND_VP, detailsDividends: DETAILS} : {}),
+    ...(withDividends ? {dividendVp: DIVIDEND_VP, dividendGoalVp: GOAL_VP, detailsDividends: DETAILS} : {}),
   };
 }
 
@@ -74,7 +80,9 @@ describe('the bot\'s holdings read as further corporations (client)', () => {
     const cards = vm.categories.find((c) => c.key === 'cards')!;
     expect(cards.values['neutral']).eq(3 + 1 + 6 + DIVIDEND_VP);
     const fixed = cards.subs.find((s) => s.key === 'cards-fixed')!;
-    expect(fixed.values['neutral'], 'beside the bot\'s own corporation').eq(6 + DIVIDEND_VP);
+    expect(fixed.values['neutral'], 'the reached goal tiers stand FIXED beside the bot\'s own corporation').eq(6 + GOAL_VP);
+    const conditional = cards.subs.find((s) => s.key === 'cards-conditional')!;
+    expect(conditional.values['neutral'], 'the formulas stand CONDITIONAL beside Neural Instance').eq(1 + FORMULA_VP);
     const sum = vm.categories.reduce((acc, c) => acc + (c.values['neutral'] ?? 0), 0);
     expect(sum).eq(vm.rows.find((r) => r.isBot)!.finalTotal);
   });
@@ -96,15 +104,21 @@ describe('the bot\'s holdings read as further corporations (client)', () => {
     expect(full.categories.reduce((acc, c) => acc + c.value, 0)).eq(botBreakdown(true).total);
   });
 
-  it('the score explorer: each holding is a row of the fixed family, named by its corporation', () => {
+  it('the score explorer: a holding\'s formula is a row of the conditional family, its reached goals a row of the fixed one', () => {
     const b = botBreakdown(true);
-    const facts = buildBotGroupFacts(b, 'cards-fixed', 24);
-    expect(facts.rows.map((r) => [r.cardName, r.vp])).deep.eq([
-      ['icons', 6],
-      [marsBotCorpInfo(MarsBotCorpId.C02_ECOLINE).original, 16],
-      [marsBotCorpInfo(MarsBotCorpId.C10_THARSIS_REPUBLIC).original, 12],
+    const conditional = buildBotGroupFacts(b, 'cards-conditional', 24);
+    expect(conditional.rows.map((r) => [r.cardName, r.vp, r.formula.kind === 'fact' ? r.formula.label : ''])).deep.eq([
+      ['neural', 1, 'Neural Instance'],
+      [marsBotCorpInfo(MarsBotCorpId.C02_ECOLINE).original, 16, 'Dividend formula'],
+      [marsBotCorpInfo(MarsBotCorpId.C10_THARSIS_REPUBLIC).original, 12, 'Dividend formula'],
     ]);
-    expect(facts.subtotal).eq(6 + DIVIDEND_VP);
+    expect(conditional.subtotal).eq(1 + FORMULA_VP);
+    const facts = buildBotGroupFacts(b, 'cards-fixed', 24);
+    expect(facts.rows.map((r) => [r.cardName, r.vp, r.formula.kind === 'fact' ? r.formula.label : ''])).deep.eq([
+      ['icons', 6, 'Played card icons'],
+      [marsBotCorpInfo(MarsBotCorpId.C02_ECOLINE).original, 7, 'Dividend goals'],
+    ]);
+    expect(facts.subtotal).eq(6 + GOAL_VP);
     const live = buildLiveScoreModel(b, {isBot: true, hasMoon: false, hasPathfinders: false, hasDelta: false});
     expect(buildScoreOverview(live, b, {isBot: true}).tiles.some((t) => (t.key as string) === 'dividends')).is.false;
     const hub = buildCardsHub(live, b, true);

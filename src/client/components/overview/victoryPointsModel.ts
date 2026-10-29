@@ -147,7 +147,8 @@ function automaScale(b: VictoryPointsBreakdown): VPScale | undefined {
     {key: 'automa.neural', accent: 'automa-neural', label: 'Neural Instance', value: a.neuralInstance},
     {key: 'automa.cards', accent: 'automa-cards', label: 'Played card icons', value: a.cardVp},
     {key: 'automa.corp', accent: 'automa-cards', label: 'Bot corporation', value: a.corpVp},
-    {key: 'automa.dividends', accent: 'automa-cards', label: 'Corporation dividends', value: a.dividendVp ?? 0},
+    {key: 'automa.dividends', accent: 'automa-cards', label: 'Corporation dividends', value: (a.dividendVp ?? 0) - (a.dividendGoalVp ?? 0)},
+    {key: 'automa.dividend-goals', accent: 'automa-cards', label: 'Dividend goals', value: a.dividendGoalVp ?? 0},
   ]));
   return scale.segments.length > 0 ? scale : undefined;
 }

@@ -24,6 +24,7 @@
  * play composer's VP projection — and a formula must be phrased once.
  */
 import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
+import {GOAL_TERM_LABELS} from '@/common/automa/MarsBotDividend';
 import {Tag} from '@/common/cards/Tag';
 import {maArtSlug, maShortName} from '@/client/console/maArt';
 import {tagCountKey} from '@/common/cards/tagNames';
@@ -455,8 +456,9 @@ export function buildCardsHub(live: LiveScoreModel, b: VictoryPointsBreakdown, i
     }
     if (b.automa !== undefined) {
       familyValue.set('cards-resource', (familyValue.get('cards-resource') ?? 0) + b.automa.mcToVp);
-      familyValue.set('cards-conditional', (familyValue.get('cards-conditional') ?? 0) + b.automa.neuralInstance);
-      familyValue.set('cards-fixed', (familyValue.get('cards-fixed') ?? 0) + b.automa.cardVp + b.automa.corpVp + (b.automa.dividendVp ?? 0));
+      const goals = b.automa.dividendGoalVp ?? 0;
+      familyValue.set('cards-conditional', (familyValue.get('cards-conditional') ?? 0) + b.automa.neuralInstance + (b.automa.dividendVp ?? 0) - goals);
+      familyValue.set('cards-fixed', (familyValue.get('cards-fixed') ?? 0) + b.automa.cardVp + b.automa.corpVp + goals);
     }
   }
   const tiles = CARD_FAMILY_ORDER.map((fam): CardGroupTile => {
@@ -789,13 +791,27 @@ export function buildBotGroupFacts(b: VictoryPointsBreakdown, group: ScoreCardGr
         previewable: false,
       });
     }
-    if (group === 'cards-conditional' && a.neuralInstance > 0) {
-      rows.push({
-        cardName: 'neural',
-        vp: a.neuralInstance,
-        formula: {kind: 'fact', vp: a.neuralInstance, label: 'Neural Instance'},
-        previewable: false,
-      });
+    // The campaign HOLDINGS — one more corporation each, read like a player's extra corporation (its own name and
+    // points; the rule is the card's). Each splits in two (the owner, 2026-10-29): its FORMULA is a conditional
+    // row, its reached GOAL tiers a fixed one.
+    const holdings = (a.detailsDividends ?? []).map((d) => {
+      const goals = d.terms.filter((t) => (GOAL_TERM_LABELS as ReadonlyArray<string>).includes(t.label)).reduce((s, t) => s + t.vp, 0);
+      return {name: marsBotCorpInfo(d.corporation).original, formula: d.vp - goals, goals};
+    });
+    if (group === 'cards-conditional') {
+      if (a.neuralInstance > 0) {
+        rows.push({
+          cardName: 'neural',
+          vp: a.neuralInstance,
+          formula: {kind: 'fact', vp: a.neuralInstance, label: 'Neural Instance'},
+          previewable: false,
+        });
+      }
+      for (const h of holdings) {
+        if (h.formula > 0) {
+          rows.push({cardName: h.name, vp: h.formula, formula: {kind: 'fact', vp: h.formula, label: 'Dividend formula'}, previewable: false});
+        }
+      }
     }
     if (group === 'cards-fixed') {
       if (a.cardVp > 0) {
@@ -804,12 +820,9 @@ export function buildBotGroupFacts(b: VictoryPointsBreakdown, group: ScoreCardGr
       if (a.corpVp > 0) {
         rows.push({cardName: 'corp', vp: a.corpVp, formula: {kind: 'fact', vp: a.corpVp, label: 'Bot corporation'}, previewable: false});
       }
-      // The campaign HOLDINGS — one more corporation each, read like a player's
-      // extra corporation (its own name and points; the rule is the card's).
-      for (const d of a.detailsDividends ?? []) {
-        if (d.vp > 0) {
-          const name = marsBotCorpInfo(d.corporation).original;
-          rows.push({cardName: name, vp: d.vp, formula: {kind: 'fact', vp: d.vp, label: name}, previewable: false});
+      for (const h of holdings) {
+        if (h.goals > 0) {
+          rows.push({cardName: h.name, vp: h.goals, formula: {kind: 'fact', vp: h.goals, label: 'Dividend goals'}, previewable: false});
         }
       }
     }

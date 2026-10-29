@@ -248,8 +248,18 @@ describe('MarsBot dividends (the campaign portfolio)', () => {
         [MarsBotCorpId.C10_THARSIS_REPUBLIC, 3],
       ]);
       expect(parts.dividendVp).eq(7);
+      expect(parts.dividendGoalVp, 'no goal tier reached on this table — the goals\' share is zero, and stated').eq(0);
       const withDividend = bot.getVictoryPoints();
       expect(withDividend.automa!.dividendVp).eq(7);
+      // A reached goal is the FIXED share: Recyclon's goal counts the bonus discard — fill it past its first tier.
+      game.automa!.holdings = [MarsBotCorpId.C23_RECYCLON];
+      const r = marsBotDividendInfo(MarsBotCorpId.C23_RECYCLON).rates;
+      game.automa!.bonusDiscard = new Array(r.goalAt).fill(BonusCardId.B16_GOVERNMENT_INTERVENTION);
+      const reached = AutomaScoring.automaVictoryPoints(game);
+      expect(reached.dividendGoalVp, 'the goals\' share is the reached tiers\' prizes').eq(r.goalVp);
+      expect(reached.dividendVp! - reached.dividendGoalVp!, 'the rest is the formula').eq(AutomaCorporations.corpFor(MarsBotCorpId.C23_RECYCLON).dividend(game).vp);
+      game.automa!.bonusDiscard = [];
+      game.automa!.holdings = [MarsBotCorpId.C02_ECOLINE, MarsBotCorpId.C10_THARSIS_REPUBLIC];
       game.automa!.holdings = [];
       const without = bot.getVictoryPoints();
       expect(withDividend.total - without.total, 'the total carries the dividend').eq(7);

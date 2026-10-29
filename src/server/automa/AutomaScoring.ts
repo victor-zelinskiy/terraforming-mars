@@ -1,6 +1,7 @@
 import {hasNonNegativeVictoryPointsIcon} from '../../common/cards/victoryPointsIcon';
 import {getAutomaMaxGeneration} from '../../common/automa/AutomaTypes';
 import {AutomaVictoryPoints} from '../../common/game/VictoryPointsBreakdown';
+import {GOAL_TERM_LABELS} from '../../common/automa/MarsBotDividend';
 import {AutomaCorporations} from './corps/AutomaCorporations';
 import {IGame} from '../IGame';
 import {newProjectCard} from '../createCard';
@@ -85,6 +86,9 @@ export class AutomaScoring {
     if (automa.holdings.length > 0) {
       const details = AutomaCorporations.dividends(game);
       result.dividendVp = details.reduce((sum, d) => sum + d.vp, 0);
+      // The goals' share — the three tier terms of every holding (the score files them as FIXED card VP).
+      const goalLabels: ReadonlyArray<string> = GOAL_TERM_LABELS;
+      result.dividendGoalVp = details.reduce((sum, d) => sum + d.terms.filter((t) => goalLabels.includes(t.label)).reduce((s, t) => s + t.vp, 0), 0);
       result.detailsDividends = details;
     }
     return result;

@@ -197,9 +197,12 @@ export const FINAL_SCORING_SEGMENTS: ReadonlyArray<SegMeta> = [
   // campaign mission (the optional field stays absent everywhere else, so the
   // segment drops out of ordinary games and missions 1–3 by construction).
   // Campaign «ДИВИДЕНДЫ КОРПОРАЦИЙ» — what the bot's HOLDINGS pay (the
-  // optional field is absent without a portfolio, so the segment drops out of
-  // every ordinary game and mission 1 by construction).
-  {key: 'dividends', group: 'dividends', label: 'Corporation dividends', penalty: false, value: (b) => b.automa?.dividendVp ?? 0},
+  // optional field is absent without a portfolio, so the segments drop out of
+  // every ordinary game and mission 1 by construction). TWO segments (the
+  // owner, 2026-10-29): the FORMULAS score like conditional cards, the GOAL
+  // tiers like fixed ones — the ceremony folds each onto that family.
+  {key: 'dividends-formula', group: 'dividends', label: 'Corporation dividends', penalty: false, value: (b) => (b.automa?.dividendVp ?? 0) - (b.automa?.dividendGoalVp ?? 0)},
+  {key: 'dividends-goals', group: 'dividends', label: 'Dividend goals', penalty: false, value: (b) => b.automa?.dividendGoalVp ?? 0},
   {key: 'titles', group: 'titles', label: 'Titles', penalty: false, value: (b) => b.titles ?? 0},
   // Penalties (all negative) — a dedicated subtractive group, revealed last.
   {key: 'penalty-cards', group: 'penalty', label: 'Card penalties', penalty: true, value: (b) => cardKindTotal(b, 'penalty')},

@@ -177,6 +177,13 @@ export type AutomaVictoryPoints = {
    * mission 1, so those breakdowns keep their exact wire shape.
    */
   dividendVp?: number;
+  /**
+   * The part of `dividendVp` the holdings' GOAL tiers paid (the owner,
+   * 2026-10-29: in the score the goals are FIXED card VP — a reached tier is
+   * a locked prize, like a printed number — and the formulas are CONDITIONAL
+   * card VP, like «1 VP per tag»). Present with `dividendVp`; ≤ it.
+   */
+  dividendGoalVp?: number;
   /** Provenance of `dividendVp` — one row per holding, its formula as terms. */
   detailsDividends?: ReadonlyArray<MarsBotDividendDetail>;
 };
