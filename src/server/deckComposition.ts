@@ -19,7 +19,7 @@ import {
 /**
  * THE PARTY'S DECKS, COUNTED BEFORE THE PARTY EXISTS (T04 «the deck is visible before
  * launch»). Read-only and pure over `GameOptions`: it builds the decks the way
- * `Game.newInstance` builds them — `GameCards` (banned, replaced,
+ * `Game.newInstance` builds them — `GameCards` (banned, replaced, the Prelude 2 cards still held back,
  * Automa-banned, the two-corporation variant's Merger, the guaranteed cards), the prelude
  * deck only with the Prelude expansion (the deal's own condition), the colony pool of
  * `ColonyDealer` and the Parliament's resolution deck — and counts them. No game, no

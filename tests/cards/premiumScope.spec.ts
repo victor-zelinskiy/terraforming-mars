@@ -3,22 +3,39 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {CardName} from '../../src/common/cards/CardName';
 import {PREMIUM_FACE_SCOPE_MODULES, PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
+import {PRELUDE2_CARDS_HELD_BACK} from '../../src/common/cards/prelude2Adaptation';
 import {TURMOIL_REDUX_REPLACED_CLASSIC_NAMES} from '../../src/common/cards/turmoilReduxReplacements';
+import {PRELUDE2_CARD_MANIFEST} from '../../src/server/cards/prelude2/Prelude2CardManifest';
 import {TURMOIL_CARD_MANIFEST} from '../../src/server/cards/turmoil/TurmoilCardManifest';
 
 /**
  * THE PREMIUM SCOPE IS ONE DEFINITION (T04 Diaspora Movement — the first classic
- * Turmoil card adapted in place). The scope is a module list with one card-level
- * exception: the classic Turmoil module is PART of Turmoil Redux (all 22 adapted by
+ * Turmoil card adapted in place). The scope is a module list with two card-level
+ * exceptions: the classic Turmoil module is PART of Turmoil Redux (all 22 adapted by
  * 2026-10-25) and is in scope whole, minus the classic cards the Redux set REPLACES
- * (the replacement registry). A hand-written module list anywhere in `src/` or
- * `tests/` would let a guard drift from the rule; this spec refuses one.
+ * (the replacement registry); Prelude 2 joins CARD BY CARD (since 2026-10-29) — the
+ * module is in scope minus the hold-back list, temporary scaffolding that goes when
+ * it empties. A hand-written module list anywhere in `src/` or `tests/` would let a
+ * guard drift from the rule; this spec refuses one.
  */
 describe('premium scope', () => {
-  it('the modules: the premium nine plus the classic Turmoil module; the face adds the CEOs', () => {
+  it('the modules: the premium nine, the classic Turmoil module and Prelude 2; the face adds the CEOs', () => {
     expect([...PREMIUM_SCOPE_MODULES].sort()).deep.eq(
-      ['ares', 'base', 'colonies', 'corpera', 'deltaProject', 'prelude', 'promo', 'turmoil', 'turmoilRedux', 'venus']);
+      ['ares', 'base', 'colonies', 'corpera', 'deltaProject', 'prelude', 'prelude2', 'promo', 'turmoil', 'turmoilRedux', 'venus']);
     expect(PREMIUM_FACE_SCOPE_MODULES).deep.eq([...PREMIUM_SCOPE_MODULES, 'ceo']);
+  });
+
+  it('Prelude 2 is in scope MINUS the hold-back list — «the manifest minus the list»', () => {
+    const manifest = Object.keys(PRELUDE2_CARD_MANIFEST.projectCards)
+      .concat(Object.keys(PRELUDE2_CARD_MANIFEST.preludeCards), Object.keys(PRELUDE2_CARD_MANIFEST.corporationCards));
+    const inScope = manifest.filter((name) => inPremiumScope({module: 'prelude2', name}));
+    expect(inScope).deep.eq(manifest.filter((name) => !PRELUDE2_CARDS_HELD_BACK.has(name as CardName)));
+    expect(inPremiumScope({module: 'prelude2', name: 'A Prelude 2 card that crossed'})).is.true;
+    // The list is read for the Prelude 2 module ONLY.
+    for (const name of PRELUDE2_CARDS_HELD_BACK) {
+      expect(inPremiumScope({module: 'prelude2', name}), name).is.false;
+      expect(inPremiumScope({module: 'prelude', name}), `prelude · ${name}`).is.true;
+    }
   });
 
   it('the classic Turmoil module is in scope WHOLE, minus the replaced classic cards — «the manifest minus the replaced»', () => {
@@ -54,6 +71,7 @@ describe('premium scope', () => {
     expect(inPremiumScope({module: 'ares', name: CardName.CAPITAL_ARES}, narrowed)).is.false;
     expect(inPremiumScope({module: 'turmoil', name: CardName.VOTE_OF_NO_CONFIDENCE}, narrowed)).is.false;
     expect(inPremiumScope({module: 'turmoil', name: CardName.DIASPORA_MOVEMENT}, narrowed)).is.true;
+    expect(inPremiumScope({module: 'prelude2', name: CardName.SPIRE}, narrowed)).is.false;
   });
 
   describe('no hand-written premium module list outside `premiumScope.ts`', function() {
