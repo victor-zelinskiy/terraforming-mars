@@ -52,6 +52,8 @@ export type BotVoteHold = MarsBotVoteHold;
 export type LobbyMandate = {
   generation: number;
   card: LobbyMandateCard;
+  /** «Динамический баланс»: delegates the mandate carries beyond its card — Party Politics' vote when its card was left out. */
+  carries?: number;
   sent: number;
   tempo?: number;
   lapsed?: boolean;
@@ -110,6 +112,11 @@ export const LOBBYING_DIVISOR = 3;
 /** How many further delegates a card means: ALL = every delegate but Party Politics' one. */
 export function mandateSize(card: LobbyMandateCard): number {
   return card === 'all' ? PARLIAMENT_DELEGATES_PER_PLAYER - 1 : card;
+}
+
+/** The delegates the generation's mandate sends in all — its card, plus what it carries (never past ALL). */
+export function mandateTotal(mandate: Pick<LobbyMandate, 'card' | 'carries'>): number {
+  return Math.min(mandateSize('all'), mandateSize(mandate.card) + (mandate.carries ?? 0));
 }
 
 /** Does a played project card of `cost` send one delegate of the mandate on its own? */

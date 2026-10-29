@@ -47,7 +47,7 @@ import {botDelegateSupply} from '../parliament/BotVoteChooser';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
 import {
-  BotVoteHold, drawLobbyMandate, LOBBYING_DIVISOR, LobbyMandate, lobbyingThisTurn, lobbyingTrigger, mandateSize, turnCapacity,
+  BotVoteHold, drawLobbyMandate, LOBBYING_DIVISOR, LobbyMandate, lobbyingThisTurn, lobbyingTrigger, mandateTotal, turnCapacity,
 } from './LobbyMandate';
 
 export class AutomaLobbying {
@@ -59,7 +59,9 @@ export class AutomaLobbying {
     }
     if (automa.lobbyMandate === undefined || automa.lobbyMandate.generation !== game.generation) {
       const {card, tempo} = drawLobbyMandate(game);
-      automa.lobbyMandate = {generation: game.generation, card, sent: 0, tempo: Math.round(tempo * 100) / 100};
+      // «Динамический баланс» left Party Politics out of this generation's deck: the mandate carries its vote.
+      const carries = automa.partyPoliticsDeferred === game.generation ? 1 : 0;
+      automa.lobbyMandate = {generation: game.generation, card, ...(carries > 0 ? {carries} : {}), sent: 0, tempo: Math.round(tempo * 100) / 100};
     }
     return automa.lobbyMandate;
   }
@@ -75,7 +77,7 @@ export class AutomaLobbying {
       return 0;
     }
     const mandate = AutomaLobbying.mandateOf(game);
-    const left = mandate.lapsed === true ? 0 : Math.max(0, mandateSize(mandate.card) - mandate.sent);
+    const left = mandate.lapsed === true ? 0 : Math.max(0, mandateTotal(mandate) - mandate.sent);
     const partyPoliticsAhead = (game.automa?.actionDeck ?? []).some((card) => card.kind === 'bonus' && card.id === BonusCardId.B21_PARTY_POLITICS);
     return Math.min(botDelegateSupply(parliament, bot), left + (partyPoliticsNow || partyPoliticsAhead ? 1 : 0));
   }
@@ -130,7 +132,7 @@ export class AutomaLobbying {
     if (mandate.lapsed === true) {
       return;
     }
-    const left = mandateSize(mandate.card) - mandate.sent;
+    const left = mandateTotal(mandate) - mandate.sent;
     const trigger = card !== undefined && lobbyingTrigger(card.cost);
     const {count, byTrigger, byMandate} = lobbyingThisTurn({
       left,
@@ -177,7 +179,7 @@ export class AutomaLobbying {
 
   /** The generation's last card: the hidden mandate is told, so the review explains the generation. */
   private static tellMandate(game: IGame, bot: IPlayer, mandate: LobbyMandate): void {
-    const kept = mandate.sent < mandateSize(mandate.card) ? mandate.held : undefined;
+    const kept = mandate.sent < mandateTotal(mandate) ? mandate.held : undefined;
     if (kept !== undefined) {
       AutomaLobbying.tellHeldMandate(game, bot, mandate, kept);
       return;
@@ -186,7 +188,7 @@ export class AutomaLobbying {
       game.log('${0} reveals its lobbying mandate for this generation: all its delegates, ${1} sent', (b) => b.player(bot).number(mandate.sent));
     } else {
       game.log('${0} reveals its lobbying mandate for this generation: ${1} delegate(s), ${2} sent', (b) =>
-        b.player(bot).number(mandate.card as number).number(mandate.sent));
+        b.player(bot).number(mandateTotal(mandate)).number(mandate.sent));
     }
   }
 
@@ -202,7 +204,7 @@ export class AutomaLobbying {
       }
       return;
     }
-    const card = mandate.card;
+    const card = mandateTotal(mandate);
     if (kept === 'vote-decided') {
       game.log('${0} reveals its lobbying mandate for this generation: ${1} delegate(s), ${2} sent — it kept the rest, the vote being decided', (b) =>
         b.player(bot).number(card).number(mandate.sent));

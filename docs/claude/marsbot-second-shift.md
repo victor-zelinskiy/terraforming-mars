@@ -37,6 +37,8 @@ The action deck is two parts. The PROJECT cards (3 on Hard, +3 for the preludes 
 
 Measured (25 Redux Hard games before the rule): the bot made 9.3 / 7.3 / 7.4 turns in the 1st–3rd generations, 3.2 / 4.2 / 4.2 of them from the bonus side, and passed LAST in 100 / 100 / 96 % of them.
 
+**Party Politics left out keeps its vote** (the owner, 2026-10-29: «важно, чтобы бесплатный делегат из лобби тратился»). The lobbying mandate's tables are drawn with Party Politics' one vote a generation counted in (an empty mandate — 42 % early — means the card's vote alone), so a deck without the card would leave the lobby's free delegate unspent in roughly a fifth of the early generations. `composeBonusSide` marks the generation (`AutomaState.partyPoliticsDeferred`, serialized) and `AutomaLobbying.mandateOf` gives that generation's mandate `carries: 1` (`LobbyMandate.mandateTotal` — the card plus what it carries, never past ALL): the same number of votes, the lobby's delegate first (never held), sent by the lobbying's catch-up before the deck runs out — only the card's own TURN is gone. Guard: `tests/automa/DynamicBalance.spec.ts` § Party Politics left out.
+
 **The first cut (rolled back the same day).** It withheld 2 / 1 / 1 PROJECT cards. The owner: «без проектных карт в начале бот будет в каждой партии играть одинаково по своим бонусным картам — тут разнообразие важнее». A cut that answers what the PLAYERS do (e.g. «the bot passes once everyone has passed») was rejected outright: a pace that follows the table's moves is a hidden lever the players would learn to pull.
 
 ## Calibration 2 — «Cold Carbon Mass» (2026-10-29)

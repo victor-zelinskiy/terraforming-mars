@@ -1,3 +1,4 @@
+import {BonusCardId} from '../../common/automa/AutomaTypes';
 import {corpOwningBonusCard} from '../../common/automa/MarsBotCorpData';
 import {bonusSideCap, dynamicBalanceOn} from '../../common/automa/DynamicBalance';
 import {IGame} from '../IGame';
@@ -14,6 +15,11 @@ import {AutomaActionCard, AutomaState} from './AutomaState';
  *  · a recurring card simply sits this generation out (it stays recurring);
  *  · a card the bot's CORPORATION owns (Ecoline's B23) is the corporation's own
  *    mechanic, never part of the chance — always in, outside the count.
+ * PARTY POLITICS left out does not take the bot's vote with it (the owner,
+ * 2026-10-29: the lobby's free delegate must be spent every generation): the
+ * generation is marked (`AutomaState.partyPoliticsDeferred`) and its lobbying
+ * mandate carries the card's one vote (`AutomaLobbying.mandateOf`) — the same
+ * number of votes, the lobby first, only the card's own TURN is gone.
  * Silent: no journal line, no stat (hidden balance). Off, or from the 4th
  * generation on: the whole side, exactly as the rulebook builds it.
  */
@@ -33,6 +39,10 @@ export function composeBonusSide(game: IGame, state: AutomaState, top: AutomaAct
   const kept = chance.slice(0, cap);
   if (top !== undefined && !kept.includes(top)) {
     state.bonusDeck.unshift(top);
+  }
+  if (chance.some((e) => e.kind === 'bonus' && e.id === BonusCardId.B21_PARTY_POLITICS) &&
+      !kept.some((e) => e.kind === 'bonus' && e.id === BonusCardId.B21_PARTY_POLITICS)) {
+    state.partyPoliticsDeferred = generation;
   }
   return [...kept, ...owned];
 }

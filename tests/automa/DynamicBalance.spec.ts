@@ -4,6 +4,13 @@ import {DYNAMIC_BALANCE_BONUS_SIDE, bonusSideCap, dynamicBalanceOn} from '../../
 import {IGame} from '../../src/server/IGame';
 import {AutomaResearch} from '../../src/server/automa/AutomaResearch';
 import {AutomaActionCard} from '../../src/server/automa/AutomaState';
+import {CardName} from '../../src/common/cards/CardName';
+import {AutomaLobbying} from '../../src/server/automa/AutomaLobbying';
+import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
+import {CENTRAL_POWER_GRID_ID} from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
+import {COLONIZATION_FUNDING_ID} from '../../src/server/parliament/resolutions/unity/ColonizationFunding';
+import {seatResolution} from '../parliament/parliamentArrange';
+import {runAllActions} from '../TestingUtils';
 import {AutomaTestOptions, testAutomaGame} from './AutomaTestGame';
 
 /**
@@ -109,5 +116,66 @@ describe('DynamicBalance — the bonus side of the deck fills gradually (early h
     game.generation = 2;
     AutomaResearch.finishDraftedActionDeck(game, game.projectDeck.drawN(game, 4));
     expect(projects(game)).eq(3);
+  });
+});
+
+describe('DynamicBalance — Party Politics left out: its vote rides the mandate, the lobby is spent', () => {
+  it('the deck builder marks the generation whose deck left Party Politics out — and only that one', () => {
+    let deferred = 0;
+    let kept = 0;
+    for (let seed = 0; seed < 12; seed++) {
+      const game = rebuildGame(true, 1, [BonusCardId.B21_PARTY_POLITICS, BonusCardId.B16_GOVERNMENT_INTERVENTION], seed / 12);
+      AutomaResearch.buildActionDeck(game);
+      if (bonusIds(game).includes(BonusCardId.B21_PARTY_POLITICS)) {
+        kept++;
+        expect(game.automa!.partyPoliticsDeferred).is.undefined;
+      } else {
+        deferred++;
+        expect(game.automa!.partyPoliticsDeferred).eq(1);
+      }
+    }
+    expect(deferred > 0 && kept > 0, 'both outcomes occur across seeds').is.true;
+  });
+
+  /** A Redux table with the bot seated in politics: three resolutions up, no delegate on them. */
+  function reduxTable(seed = 0) {
+    const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'politics', seed});
+    const parliament = game.parliament!;
+    game.playerIsFinishedWithResearchPhase(human);
+    seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 1, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 2, COLONIZATION_FUNDING_ID);
+    parliament.slots.forEach((slot) => (slot.votes = []));
+    return {game, human, bot, parliament};
+  }
+
+  it('the mandate drawn in that generation carries ONE more delegate — the card\'s vote, not lost', () => {
+    const {game} = reduxTable();
+    game.automa!.partyPoliticsDeferred = game.generation;
+    game.automa!.lobbyMandate = undefined;
+    expect(AutomaLobbying.mandateOf(game).carries).eq(1);
+    const other = reduxTable(0.5).game;
+    other.automa!.partyPoliticsDeferred = other.generation - 1;
+    other.automa!.lobbyMandate = undefined;
+    expect(AutomaLobbying.mandateOf(other).carries, 'a mark of another generation carries nothing').is.undefined;
+  });
+
+  it('an EMPTY mandate that carries the vote still spends the lobby\'s free delegate — without the carry the lobby stays', () => {
+    for (const carries of [1, 0]) {
+      const {game, human, bot, parliament} = reduxTable(carries === 1 ? 0.1 : 0.2);
+      game.automa!.lobbyMandate = {generation: game.generation, card: 0, ...(carries > 0 ? {carries} : {}), sent: 0};
+      expect(parliament.lobby.has(bot.id), 'the lobby holds the bot\'s free delegate').is.true;
+      // The bot's last card this generation, its cost not divisible by 3 — only the mandate can send a delegate.
+      game.automa!.actionDeck = [{kind: 'project', name: CardName.POWER_PLANT}];
+      human.popWaitingFor();
+      game.playerIsFinishedTakingActions();
+      runAllActions(game);
+      if (carries === 1) {
+        expect(parliament.lobby.has(bot.id), 'the carried vote spends the lobby').is.false;
+        expect(game.automa!.lobbyMandate!.sent).eq(1);
+      } else {
+        expect(parliament.lobby.has(bot.id), 'no vote at all — the very gap the carry closes').is.true;
+      }
+    }
   });
 });
