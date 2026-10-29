@@ -21,10 +21,17 @@ import {TileType} from '../../src/common/TileType';
  *      the composer with the target intact.
  *   3. The confirm is the play's ONE POST: […, {card}, {space, stagedFor}].
  *   4. THE SCENE: the tile lands and the oxygen ticks BEFORE the first city
- *      wakes; the chosen card rises out of the satellite's data cell; FOUR
- *      tokens, each born at its own city (the stack sends two); every token
- *      flies into the card's capsule, which counts 3 → 4 → 5 → 6 on the
- *      touchdowns, never ahead; the card goes home; then Martian Fiber's M€.
+ *      wakes; the chosen card rises out of the satellite's data cell; each
+ *      paying city WAKES at its own cell (the stack's city twice) — the cause,
+ *      marked — and FOUR tokens are born ON the receiving card's printed data
+ *      icon, standing on its plate (the card-reaction framework's cell scene,
+ *      2026-10-27: a holder paid by a city is born on the HOLDER's icon,
+ *      `docs/claude/console/card-reaction.md`); every token flies into the
+ *      card's capsule, which counts 3 → 4 → 5 → 6 on the touchdowns, never
+ *      ahead; the card goes home. Martian Fiber's +4 M€ is
+ *      the RAIL's — an instrument, so it reads the applied view at once (state
+ *      delivery, 2026-10-28: the stage tells the story, the HUD reads true) —
+ *      it rose, and no later than the scene's end.
  *   5. The server agrees; the flow ends on the board; nothing degraded,
  *      stranded or overflowing.
  *   6. THE OPPONENT (red, on the board) sees the cities wake and the tokens fly
@@ -86,7 +93,10 @@ type PayoutProbe = {
   tileAt?: number;
   firstWakeAt?: number;
   /** Each token's birth point (its first painted sample), by city. */
-  tokens: Array<{city: string, at: Pt, t: number}>;
+  /** Each token once, where it was born — and where the receiving card stood at that moment. */
+  tokens: Array<{city: string, at: Pt, t: number, card?: Pt}>;
+  /** Each paying city's WAKE, once, where it pulsed (the city's index in the record's neighbours). */
+  wakes: Array<{city: string, at: Pt, t: number}>;
   tokenMax: number;
   /** The receiving card: its first and last painted centre, and when it was seen. */
   cardFirst?: {t: number, at: Pt};
@@ -123,7 +133,7 @@ async function armProbe(page: Page): Promise<void> {
     const p: PayoutProbe = {
       samples: 0, ticks: 0, cities, home: boxOf(document.querySelector(`.board-space[data_space_id="${g}"]`))!,
       aux: boxOf(document.querySelector('.con-res-aux__cell[data-aux-resource="data"]')),
-      oxygen: [], tokens: [], tokenMax: 0, cardSeen: 0, counts: [], chips: [], modes: [], phases: [], mc: [],
+      oxygen: [], tokens: [], wakes: [], tokenMax: 0, cardSeen: 0, counts: [], chips: [], modes: [], phases: [], mc: [],
       degraded: false, stranded: false,
     };
     w.__tr21 = p;
@@ -147,6 +157,7 @@ async function armProbe(page: Page): Promise<void> {
       const r = el.getBoundingClientRect();
       return {x: r.left + r.width / 2, y: r.top + r.height / 2};
     };
+    const seenWakes = new Set<Element>();
     const seenTokens = new Set<Element>();
     const sample = (tick: boolean) => {
       p.samples++;
@@ -185,6 +196,10 @@ async function armProbe(page: Page): Promise<void> {
       document.querySelectorAll('.con-tileplace__oceanpulse--city').forEach((el) => {
         if (shown(el.querySelector('.con-tileplace__oceanpulse-wash') ?? el)) {
           p.firstWakeAt ??= now;
+          if (!seenWakes.has(el)) {
+            seenWakes.add(el);
+            p.wakes.push({city: String(Number(el.getAttribute('data-city-wake'))), at: centre(el), t: now});
+          }
         }
       });
       const tokens = Array.from(document.querySelectorAll('.con-tileplace__oceancoin--data'));
@@ -193,7 +208,8 @@ async function armProbe(page: Page): Promise<void> {
         if (!seenTokens.has(el) && shown(el.querySelector('.con-tileplace__coin-body') ?? el)) {
           seenTokens.add(el);
           const cityIndex = Number(el.getAttribute('data-city-token'));
-          p.tokens.push({city: String(cityIndex), at: centre(el), t: now});
+          const cardNow = document.querySelector('.con-citypay__card');
+          p.tokens.push({city: String(cityIndex), at: centre(el), t: now, ...(cardNow !== null && shown(cardNow) ? {card: centre(cardNow)} : {})});
         }
       }
       const card = document.querySelector('.con-citypay__card');
@@ -469,10 +485,12 @@ for (const preset of PRESETS) {
       const stand = own.cardLast!;
       expect(dist(own.cardFirst!.at, own.aux!), `the card is born at the satellite cell (first ${JSON.stringify(own.cardFirst)}, cell ${JSON.stringify(own.aux)})`)
         .toBeLessThan(dist(own.cardFirst!.at, own.home));
-      // Four tokens, each born AT its own city (the stack's city sends two).
+      // Four tokens, born ON the receiving card standing on its plate (the framework's cell scene); the paying cities
+      // WAKE — each at its own cell, the stack's city twice.
       expect(own.tokenMax, 'four tokens were staged').toBe(4);
       expect(own.tokens.length, `every token was seen: ${JSON.stringify(own.tokens)}`).toBe(4);
-      // (the token's city is the record's own neighbour order — read below from the server, never guessed)
+      expect(own.wakes.length, `every city woke, the stack's twice: ${JSON.stringify(own.wakes)}`).toBe(4);
+      // (a token's / a wake's city is the record's own neighbour order — read below from the server, never guessed)
       // Each flight: the source seen, the destination seen, movement between them — and the capsule counts on the touchdowns.
       const dataChips = own.chips.filter((c) => dist(c.first, own.home) < own.home.w * 3);
       expect(dataChips.length, `the tokens flew (chips ${JSON.stringify(own.chips)})`).toBeGreaterThanOrEqual(4);
@@ -481,12 +499,14 @@ for (const preset of PRESETS) {
       }
       expect(own.counts.map((c) => c[1]), `the capsule counts on the touchdowns, never ahead: ${JSON.stringify(own.counts)}`).toEqual(['2', '3', '4', '5', '6']);
       expect(stand, 'the card was seen standing').toBeDefined();
-      // Martian Fiber's M€ after the card went home.
+      // Martian Fiber's +4 M€ on the rail. STATE DELIVERY (2026-10-28): the rail is an INSTRUMENT and reads the
+      // applied view the moment it lands — the board's stage tells the story of the tokens, the HUD never waits for
+      // it (the old law made the M€ land AFTER the last token; the owner reversed it: «состояния в top bar — сразу
+      // же»). So: the rail's M€ ROSE, and no later than the scene ended.
       const mcTicks = own.mc.map(([t, v]) => [t, Number(v.replace(/\D/g, ''))] as [number, number]);
       const rose = mcTicks.findIndex(([, v], i) => i > 0 && v > mcTicks[i - 1][1]);
       expect(rose, `the rail's M€ rose after the payout: ${JSON.stringify(own.mc)}`).toBeGreaterThan(0);
-      const returning = own.counts.length > 0 ? own.counts[own.counts.length - 1][0] : 0;
-      expect(mcTicks[rose][0], 'Martian Fiber\'s M€ lands after the last token').toBeGreaterThan(returning);
+      expect(mcTicks[rose][0], 'the rail read the payout no later than the scene\'s end (an instrument, not a story)').toBeLessThanOrEqual(own.idleAt!);
       test.info().annotations.push({type: 'tr21-scene', description: `${preset.id}: tile ${own.tileAt}ms · first wake ${own.firstWakeAt}ms · counts ${JSON.stringify(own.counts)} · idle ${own.idleAt}ms · M€ ${JSON.stringify(own.mc)}`});
 
       // ── 5. THE SERVER agrees; the flow ends on the board ──
@@ -498,10 +518,21 @@ for (const preset of PRESETS) {
       const record = (after.game.cardAdjacencyPayouts ?? []).find((r) => r.spaceId === G);
       expect(record, 'the payout record').toMatchObject({target: TARGET, amount: 4, before: 2, reactions: {megacredits: 4}});
       expect(record!.neighbours.map((n) => `${n.spaceId}×${n.units}`).sort(), 'the paying cities: the stack counted per tier').toEqual(['11×1', '16×1', '24×2']);
-      for (const token of own.tokens) {
-        const id = record!.neighbours[Number(token.city)].spaceId;
+      for (const wake of own.wakes) {
+        const id = record!.neighbours[Number(wake.city)].spaceId;
         const city = own.cities[id];
-        expect(dist(token.at, city), `a token of ${id} is born at ITS city (at ${JSON.stringify(token.at)}, city ${JSON.stringify(city)})`).toBeLessThan(city.w * 0.75);
+        expect(dist(wake.at, city), `the wake of ${id} pulses at ITS city (at ${JSON.stringify(wake.at)}, city ${JSON.stringify(city)})`).toBeLessThan(city.w);
+      }
+      expect(own.wakes.filter((w) => record!.neighbours[Number(w.city)].spaceId === STACK).length, 'the stack\'s city wakes twice').toBe(2);
+      // The tokens are born on the HOLDER — the card standing on its plate beside the field at that moment (never at a
+      // city, never at the satellite cell it rose from): the card-reaction framework's one grammar, 2026-10-27.
+      for (const token of own.tokens) {
+        expect(token.card, `the card stood when the token was born: ${JSON.stringify(token)}`).toBeDefined();
+        expect(dist(token.at, token.card!), `a token is born on the receiving card's plate (at ${JSON.stringify(token.at)}, card ${JSON.stringify(token.card)})`).toBeLessThan(own.home.w * 2);
+        expect(dist(token.card!, own.aux!), 'the card stood on the field, not in its satellite cell').toBeGreaterThan(own.home.w);
+        for (const city of Object.values(own.cities)) {
+          expect(dist(token.at, city), 'a token is not born at a city').toBeGreaterThan(city.w * 0.75);
+        }
       }
       expect(own.tokens.filter((t) => record!.neighbours[Number(t.city)].spaceId === STACK).length, 'the stack sends two tokens').toBe(2);
       // The ruling Greens pay 2 M€ per TR step (the dossier's «Зелёные +4»: the oxygen step + the Redux greenery tile).

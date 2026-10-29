@@ -276,7 +276,9 @@ export function botOceanSpaces(game: IGame): ReadonlyArray<Space> {
   const bot = marsBotOf(game);
   const ids = new Set<string>();
   for (const e of game.events.events) {
-    if (e.type === 'tile-placed' && e.player === bot.color && e.tile !== undefined && e.space !== undefined && OCEAN_TILES.has(e.tile)) {
+    // The PLACED TILE TYPE the event recorded (never a cell's top tile — that question goes through the pieces).
+    const placed = e.type === 'tile-placed' && e.player === bot.color ? e.tile : undefined;
+    if (placed !== undefined && OCEAN_TILES.has(placed) && e.space !== undefined) {
       ids.add(e.space);
     }
   }
