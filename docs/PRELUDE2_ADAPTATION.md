@@ -1,6 +1,6 @@
 # Prelude 2 — включение в премиум-скоуп, hold-back-список, замена
 
-**Статус 2026-10-29: ЛЕСА ПОСТАВЛЕНЫ · 1 / 54 · СДАНА P76 Ishtar Expedition, остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
+**Статус 2026-10-29: ЛЕСА ПОСТАВЛЕНЫ · 2 / 54 · СДАНЫ P76 Ishtar Expedition и P85 Summit Logistics (первая политическая), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
 `PREMIUM_SCOPE_MODULES` (`src/common/cards/premiumScope.ts`) по образцу классического Turmoil
 (`docs/TURMOIL_REDUX_CLASSIC_CARDS.md`, 2026-10-21 → 2026-10-25): скоуп = «модуль минус список», список — ворклист.
 Адаптация идёт по одной карте, отдельными задачами, по ворклисту §4; список — временный костыль и удаляется, когда
@@ -114,6 +114,8 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
    `placeDelegates` (Redux — `PlaceDelegatesOnResolution`), требование партии = «правит ИЛИ ≥2 своих делегатов»,
    Кельвинисты = Зелёные (`normalizeParty`), требование председательства — `ChairmanRequirement`; маркер
    `politics: 'redux'` в манифесте; спек карты — таблица Redux через `tests/parliament/parliamentArrange.ts`.
+   ⚠ Партия, которая правит / открыта делегатами, даёт и свой ЭФФЕКТ: «Учёные» — «+1 любая метка», и он входит в
+   каждый подсчёт меток играбельной карты Учёных (P85 — на 1 M€ больше видимых меток; база называет долю `wild`).
 6. **Корпорация** — MarsBot уже играет собственных двойников (Spire — `tests/automa/MarsBotSpire.spec.ts`); человеческая
    карта — отдельная адаптация, бот не трогается.
 7. **Удалить строку** из `PRELUDE2_CARDS_TO_ADAPT_IN_PLACE`; прогнать ворклист гардов + `make:cards` (0 / 0 / 0) +
@@ -139,7 +141,7 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 
 ---
 
-## 4. Ворклист — 54 карты (состояние 2026-10-29: 53 в списке, P76 сдана)
+## 4. Ворклист — 54 карты (состояние 2026-10-29: 52 в списке, P76 и P85 сданы)
 
 | № | Карта | Вид · гейт | Форма | Статус |
 | --- | --- | --- | --- | --- |
@@ -160,7 +162,7 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 | P82 | Special Permit | EVENT · ПОЛИТ (Greens) | bespokePlay, кража 4 растений (цель ПОКАЗАНА) | в списке |
 | P83 | Sponsoring Nation | AUTOMATED · ПОЛИТ | декларативная, 3 РТ + 2 делегата | в списке |
 | P84 | Stratospheric Expedition | EVENT · Venus | декларативная | в списке |
-| P85 | Summit Logistics | AUTOMATED · ПОЛИТ | декларативная | в списке |
+| P85 | Summit Logistics | AUTOMATED · ПОЛИТ | декларативная | СДАНА 2026-10-29 |
 | P86 | Unexpected Application | EVENT · Venus | декларативная | в списке |
 | P87 | Venus Allies | AUTOMATED · Venus + Colonies | декларативная | в списке |
 | P88 | Venus Orbital Survey | ACTIVE · Venus | bespoke action (`actionCaption` SAFE-строка) | в списке |
