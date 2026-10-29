@@ -9105,6 +9105,59 @@ parliamentFixture('supported-research', {
   },
 });
 
+// ── P76 · ISHTAR EXPEDITION — the FIRST Prelude 2 card in the premium scope (docs/claude/prompts/prelude2-p76-ishtar-
+//    expedition.md): a Venus EVENT «3 titanium + search the deck for 2 Venus cards». A solo action phase on a Venus +
+//    Prelude 2 table, Teractor, 20 M€, no titanium; P76 MOVED out of the dealt pool into the hand (never copied); the
+//    deck's top seeded Ants ✗ → Venusian Insects ✓ → Birds ✗ → Aerial Mappers ✓ so the tape and the pile are SEEN:
+//      · `ishtar-expedition`        — Venus 10 %: playable; a DRY RUN on a copy proves the one batch, its tape and the pile;
+//      · `ishtar-expedition-locked` — Venus 8 %: the card in the hand, unplayable for its Venus requirement. ──
+const ISHTAR_TAPE = [CardName.ANTS, CardName.VENUSIAN_INSECTS, CardName.BIRDS, CardName.AERIAL_MAPPERS] as const;
+function ishtarExpeditionFixture(name: string, venus: 8 | 10): void {
+  const {game, player} = soloActionPhase({
+    venusNextExtension: true, prelude2Expansion: true, customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
+  });
+  setVenusScaleLevel(game, venus);
+  moveToDeckTop(game, CardName.ISHTAR_EXPEDITION);
+  player.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  stackDeckTop(game, ISHTAR_TAPE);
+  player.megaCredits = 20;
+  player.titanium = 0;
+  runAllActions(game);
+  const card = player.cardsInHand.find((c) => c.name === CardName.ISHTAR_EXPEDITION);
+  const top = game.projectDeck.drawPile.slice(-ISHTAR_TAPE.length).map((c) => c.name).reverse().join(',');
+  const playable = card !== undefined && player.canPlay(card) !== false;
+  if (card === undefined || top !== ISHTAR_TAPE.join(',') || playable !== (venus === 10) || game.getVenusScaleLevel() !== venus) {
+    throw new Error(`the ${name} fixture expected P76 in the hand (playable=${venus === 10}) at Venus ${venus} % with the tape on top — got card=${card !== undefined} playable=${playable} venus=${game.getVenusScaleLevel()} top=${top}`);
+  }
+  if (venus === 10) {
+    // THE DRY RUN — the real play on a copy.
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const blue = copy.getPlayerById(player.id);
+    const discardBefore = copy.projectDeck.discardPile.length;
+    blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.ISHTAR_EXPEDITION)!, Payment.of({megacredits: 6}));
+    runAllActions(copy);
+    const batch = blue.cardDrawReveals[0];
+    const facts = {
+      batches: blue.cardDrawReveals.length,
+      cards: batch?.cards.map((c) => c.name).join(','),
+      rejects: batch?.sequence?.filter((s) => !s.matched).length,
+      search: JSON.stringify(batch?.search),
+      discarded: copy.projectDeck.discardPile.slice(discardBefore).map((c) => c.name).join(','),
+      titanium: blue.titanium,
+      mc: blue.megaCredits,
+      waiting: blue.getWaitingFor()?.constructor.name,
+    };
+    if (facts.batches !== 1 || facts.cards !== [CardName.VENUSIAN_INSECTS, CardName.AERIAL_MAPPERS].join(',') || facts.rejects !== 2 ||
+        facts.search !== JSON.stringify({count: 2, tag: 'venus'}) || facts.discarded !== [CardName.ANTS, CardName.BIRDS].join(',') ||
+        facts.titanium !== 3 || facts.mc !== 14) {
+      throw new Error(`the ${name} fixture expected ONE batch of two Venus cards with two rejects (Ants, Birds), +3 titanium, 14 M€ — got ${JSON.stringify(facts)}`);
+    }
+  }
+  write(name, game);
+}
+ishtarExpeditionFixture('ishtar-expedition', 10);
+ishtarExpeditionFixture('ishtar-expedition-locked', 8);
+
 // ── preselect-sole: THE PRE-SELECT STAND (T14 · ledger CC — «ОДИН КУРСОР ПОСЛЕ ОТВЕТА · ПРИБЫТИЕ НА КОММИТ ·
 //    ЕДИНСТВЕННАЯ ЦЕЛЬ»). One base table, every cell of the matrix in blue's hand / tableau:
 //      · Aerial Mappers (ONE floater) is the ONLY floater holder on the table — Floater Prototypes («2 floaters to ANY

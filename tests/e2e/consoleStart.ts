@@ -2955,6 +2955,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // The owner's photo of 2026-10-14 22:21: Mars University in hand under Olympus Conference holding a science — Olympus'
   // question first, the university's after it: answerable now, or LEFT FOR AFTER THE DRAW (2026-10-15).
   'mu-olympus' | 'mu-natural-preserve' | 'habitat-science-pluto2' | 'sb-olympus' |
+  // P76 Ishtar Expedition — the first Prelude 2 card: a play from the hand with a search by tag (the tape seeded) · locked at Venus 8 %.
+  'ishtar-expedition' | 'ishtar-expedition-locked' |
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
   'census-pets-rival' |
