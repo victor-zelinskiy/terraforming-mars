@@ -360,10 +360,12 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
       expect(planPlayedTargetLayout({owners: owners(2, 2), availW: 1400, ui: 1, handheld: true}).mode).to.eq('tabs');
     });
 
-    it('never splits for one owner or for more than two', () => {
+    it('never splits for one owner or for more than two — three owners stand as BANDS of one zone', () => {
       expect(planPlayedTargetLayout({owners: owners(3, 0).slice(0, 1), availW: 1600, ui: 1, handheld: false}).mode).to.eq('tabs');
       const three = [...owners(2, 2), {id: 'green', name: 'Bot', color: 'green', self: false, selfHarm: false, totalPlayed: 3, candidates: owners(1, 0)[0].candidates}];
-      expect(planPlayedTargetLayout({owners: three, availW: 1600, ui: 1, handheld: false}).mode).to.eq('tabs');
+      // «ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА» (the owner, 2026-10-28): every group on screen, never one tab at a time on the TV.
+      expect(planPlayedTargetLayout({owners: three, availW: 1600, ui: 1, handheld: false}).mode).to.eq('board');
+      expect(planPlayedTargetLayout({owners: three, availW: 1600, ui: 1, handheld: true}).mode, 'the Deck keeps its tabs').to.eq('tabs');
     });
 
     /**
@@ -371,9 +373,26 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
      * narrow band, or two owners with too many candidates each, produce two
      * cramped grids — worse than one comfortable group.
      */
-    it('falls back to tabs when splitting would shrink the cards', () => {
-      expect(planPlayedTargetLayout({owners: owners(2, 2), availW: 420, ui: 1, handheld: false}).mode).to.eq('tabs');
-      expect(planPlayedTargetLayout({owners: owners(8, 8), availW: 1600, ui: 1, handheld: false}).mode).to.eq('tabs');
+    it('falls back to BANDS (every group still on screen) when splitting would shrink the cards', () => {
+      expect(planPlayedTargetLayout({owners: owners(2, 2), availW: 420, ui: 1, handheld: false}).mode).to.eq('board');
+      expect(planPlayedTargetLayout({owners: owners(8, 8), availW: 1600, ui: 1, handheld: false}).mode).to.eq('board');
+    });
+
+    it('BANDS share the height: each band is sized for its own cards, never one band for all', () => {
+      const three = [...owners(4, 4), {id: 'green', name: 'Bot', color: 'green', self: false, selfHarm: false, totalPlayed: 3, candidates: owners(4, 0)[0].candidates}];
+      const board = planPlayedTargetSizing({owners: three, mode: 'board', availW: 1600, availH: 900, ui: 1, handheld: false});
+      const tab = planPlayedTargetSizing({owners: three, mode: 'tabs', availW: 1600, availH: 900, ui: 1, handheld: false});
+      expect(board.cardZoom, 'three bands in one height draw smaller cards than one tab').to.be.lessThan(tab.cardZoom);
+      expect(board.overflows, 'four cards a band fit three bands of 900').to.eq(false);
+    });
+
+    it('a WIDE, SHORT host stands the groups in ONE ROW; a tall one in bands — whichever draws the larger card', () => {
+      const three = [...owners(2, 2), {id: 'green', name: 'Bot', color: 'green', self: false, selfHarm: false, totalPlayed: 0, candidates: owners(1, 0)[0].candidates}];
+      const wide = planPlayedTargetSizing({owners: three, mode: 'board', availW: 2100, availH: 520, ui: 1, handheld: false});
+      expect(wide.boardFlow).to.eq('row');
+      expect(wide.overflows).to.eq(false);
+      const tall = planPlayedTargetSizing({owners: three, mode: 'board', availW: 700, availH: 1800, ui: 1, handheld: false});
+      expect(tall.boardFlow).to.eq('bands');
     });
 
     it('is deterministic for a given model + viewport', () => {

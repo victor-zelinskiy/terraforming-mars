@@ -163,6 +163,8 @@ export type FocusCommandCtx =
       decline?: string,
       /** The cursor stands on a SHOWN near miss (`PlayedTargetCandidate.blocked`) — A is refused, its verb dims. */
       blocked?: boolean,
+      /** The cursor stands on the BOT's stand-in tile (`tableTargetZone.ts`) — no card to inspect, X is not offered. */
+      noInspect?: boolean,
     }
   /** The payment lanes sub-state. */
   | {state: 'sub-payment', covers: boolean}
@@ -257,7 +259,9 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
         run.push({control: 'triggerR', label: ctx.decline, priority: 1});
       }
     }
-    run.push({control: 'secondary', label: 'Inspect'});
+    if (ctx.noInspect !== true) {
+      run.push({control: 'secondary', label: 'Inspect'});
+    }
     run.push({control: 'back', label: 'Back'});
     return run;
   }

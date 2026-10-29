@@ -899,7 +899,33 @@ export type OrOptionsModel = BaseInputModel & {
   // pick it right now (no plants / protected / …)" instead of silently
   // dropping it. Never submitted — purely for clarity. See `DisabledOptionModel`.
   disabledOptions?: ReadonlyArray<DisabledOptionModel>;
+  /** «TAKE FROM A CARD ON THE TABLE — the bot standing BESIDE the players» ({@link TableTargetPromptMeta}). Serialized
+   *  on the input's own `toModel` (nesting-safe). */
+  tableTargetPrompt?: TableTargetPromptMeta;
 }
+
+/**
+ * THE TABLE'S TARGETS ARE ONE ZONE (the owner, 2026-10-28): a «remove N <card resource> from ANY card» against a table
+ * with MarsBot is an `OrOptions` of up to three branches — the card pick over the players' cards, the bot (a player
+ * target: it holds no card), the decline — and the console answers it on ONE screen, the bot a group beside the
+ * players. This marker names which branch is which, so the client never reads the shape (nor a title). The wire answer
+ * is unchanged: `{type: 'or', index: cardBranch, response: {type: 'card', …}}` / `{… index: botBranch, response:
+ * {type: 'option'}}`. Set by `RemoveResourcesFromCard` (live and preview alike).
+ */
+export type TableTargetPromptMeta = {
+  /** The `SelectCard` branch over the players' cards — absent when no card holds the resource. */
+  cardBranch?: number;
+  /** The bot's `SelectOption` (its metadata carries the `current → resulting` reading). */
+  botBranch: number;
+  /** The `skip`-marked decline of an optional removal. */
+  skipBranch?: number;
+  bot: {
+    color: Color;
+    /** Where the FIRST unit comes from: a colony storage area (Enceladus / Miranda), the floater counter, or the M€ proxy. */
+    storage: 'colony' | 'floaters' | 'megacredits';
+    colony?: ColonyName;
+  };
+};
 
 /** An informational, non-selectable option shown in a premium OrOptions modal. */
 export type DisabledOptionModel = {

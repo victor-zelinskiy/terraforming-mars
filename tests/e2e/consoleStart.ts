@@ -2657,6 +2657,8 @@ export type BootOptions = {
 export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 'venus-trade-delegates' | 'venus-trade-unity' |
   // TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ»: saturated pre-endgame tables (every base score category, the winner not the viewer).
   'finale-rich-5p' | 'finale-rich-2p' | 'finale-rich-bot' |
+  // «ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА»: Ants against two players' microbe cards and MarsBot's Enceladus storage.
+  'table-target-ants-bot' |
   // «Информация» polish: two humans + MarsBot, the Hydronetwork, card penalties, generation 10, blue with 40 played cards
   // over every zone, scores public — the worst honest case of every summary zone at once.
   'info-dossier-rich' |

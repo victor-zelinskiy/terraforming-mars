@@ -153,15 +153,7 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     // With a bot target, ALWAYS present an OrOptions so the bot is a conscious,
     // visible choice alongside the card(s) — never auto-applied behind the picker.
     if (botOption !== undefined) {
-      const orOptions = this.withCause(new OrOptions().setTitle(this.title));
-      if (cards.length > 0) {
-        orOptions.options.push(this.buildSelectCard(cards, disabledCards));
-      }
-      orOptions.options.push(botOption);
-      if (!this.mandatory) {
-        orOptions.options.push(new SelectOption('Do not remove').withMetadata(skip()));
-      }
-      return orOptions;
+      return this.tableTargets(cards, disabledCards, botOption);
     }
 
     // No bot involved — the original card-only behaviour, byte-identical.
@@ -176,6 +168,38 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     return this.withCause(new OrOptions(
       this.buildSelectCard(cards, disabledCards),
       new SelectOption('Do not remove').withMetadata(skip())));
+  }
+
+  /**
+   * THE TABLE'S TARGETS WITH THE BOT — ONE builder for the live prompt and the preview (the pre-collected answer
+   * replays byte for byte): `[card pick?, the bot, «Do not remove»?]`, in that order, MARKED with which branch is
+   * which (`tableTargetPrompt`) so the console stands every target in ONE zone — the bot a group beside the players —
+   * without reading the shape. The order and the wire answer are the historical ones.
+   */
+  private tableTargets(cards: Array<ICard>, disabledCards: Array<{card: ICard, reason: string}>, botOption: SelectOption): OrOptions {
+    const orOptions = this.withCause(new OrOptions().setTitle(this.title));
+    let cardBranch: number | undefined;
+    if (cards.length > 0) {
+      cardBranch = orOptions.options.length;
+      orOptions.options.push(this.buildSelectCard(cards, disabledCards));
+    }
+    const botBranch = orOptions.options.length;
+    orOptions.options.push(botOption);
+    let skipBranch: number | undefined;
+    if (!this.mandatory) {
+      skipBranch = orOptions.options.length;
+      orOptions.options.push(new SelectOption('Do not remove').withMetadata(skip()));
+    }
+    const bot = this.player.opponents.find((p) => p.isMarsBot);
+    if (bot !== undefined && this.cardResource !== undefined) {
+      orOptions.markTableTargetPrompt({
+        ...(cardBranch !== undefined ? {cardBranch} : {}),
+        botBranch,
+        ...(skipBranch !== undefined ? {skipBranch} : {}),
+        bot: {color: bot.color, ...AutomaTargeting.cardResourceSourceOf(bot, this.cardResource)},
+      });
+    }
+    return orOptions;
   }
 
   /** The picker's verb: a cost from your own card is SPENT, an attack REMOVES. */
@@ -286,15 +310,7 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     }
     const disabledCards = RemoveResourcesFromCard.getUnavailableTargetCards(this.player, this.cardResource, this.source, cards, this.minimum);
     if (botOption !== undefined) {
-      const orOptions = this.withCause(new OrOptions().setTitle(this.title));
-      if (cards.length > 0) {
-        orOptions.options.push(this.buildSelectCard(cards, disabledCards));
-      }
-      orOptions.options.push(botOption);
-      if (!this.mandatory) {
-        orOptions.options.push(new SelectOption('Do not remove').withMetadata(skip()));
-      }
-      return orOptions.toModel(this.player);
+      return this.tableTargets(cards, disabledCards, botOption).toModel(this.player);
     }
     if (this.mandatory && cards.length === 1 && this.autoselect === true) {
       return undefined;

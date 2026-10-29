@@ -1869,7 +1869,9 @@ function redLawyersFixture(name: string, from: number, steps: ReadonlyArray<{to:
         parties: parties.join(','),
         redsCubes: parliament.slots[0].votes.filter((v) => v.owner === p1.id).length,
         requirement: parliament.satisfiesPartyRequirement(p1, PartyName.REDS),
-        steps: JSON.stringify(walked?.steps ?? []),
+        // The WALK only (cells and bonuses) — a step's `answer` (the ruling party's reply, AgendaAdvanceStep.answer since
+        // 67cbb017ee) is the record's own field, not the walk this fixture pins.
+        steps: JSON.stringify((walked?.steps ?? []).map(({to, bonus}) => (bonus !== undefined ? {to, bonus} : {to}))),
         reason: walked?.reason ?? 'none',
         hand: blue.cardsInHand.length - (p1.cardsInHand.length - 1),
       };
@@ -1938,7 +1940,7 @@ function politicalRecognitionFixture(name: string, from: number, played: number,
         const blue = copy.getPlayerById(p1.id);
         blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.POLITICAL_RECOGNITION) as IProjectCard);
         runAllActions(copy);
-        facts.steps = JSON.stringify(copy.parliament!.lastAdvance?.steps ?? []);
+        facts.steps = JSON.stringify((copy.parliament!.lastAdvance?.steps ?? []).map(({to, bonus}) => (bonus !== undefined ? {to, bonus} : {to})));
         expected.steps = JSON.stringify(steps);
       }
       if (JSON.stringify(facts) !== JSON.stringify(expected)) {
@@ -2093,7 +2095,9 @@ function greenAllegianceFixture(name: string, rating: number, from: number, step
         ruling: parliament.rulingParty(),
         greens: parliament.hasPartyEffect(p1, PartyName.GREENS),
         red: p2.playedCards.corporations()[0]?.name,
-        steps: JSON.stringify(walked?.steps ?? []),
+        // The WALK only (cells and bonuses) — a step's `answer` (the ruling party's reply, AgendaAdvanceStep.answer since
+        // 67cbb017ee) is the record's own field, not the walk this fixture pins.
+        steps: JSON.stringify((walked?.steps ?? []).map(({to, bonus}) => (bonus !== undefined ? {to, bonus} : {to}))),
         reason: walked?.reason ?? 'none',
         actionsTaken: p1.actionsTakenThisRound,
       };
@@ -10151,6 +10155,37 @@ for (const two of [false, true]) {
   const facts = {acts: (titan as TitanHoldings).canAct(p1), office: p1.canPlay(office), reserve: parliament.reserve(p1), area: parliament.slots.length};
   if (!facts.acts || !facts.office || facts.reserve < 2 || facts.area !== 3) {
     throw new Error(`${name}: the subject is not what the spec reads — ${JSON.stringify(facts)}`);
+  }
+  write(name, game);
+}
+
+// ── table-target-ants-bot: «ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА» (the owner, 2026-10-28). Two humans and MarsBot with Colonies:
+//    blue (Teractor) holds Ants (0) and Tardigrades (2); red (Thorgate) holds GHG Producing Bacteria (3) and
+//    Decomposers (1); the bot holds 2 microbes in its Enceladus storage. Blue stands at the action menu: «Действия
+//    карт» → Ants opens ONE zone — red's two cards, the bot's tile «2 → 1», blue's own Tardigrades last. ──
+{
+  const name = 'table-target-ants-bot';
+  const pinned = BOT_TABLE_CORPORATIONS;
+  const [game, seats, bot] = testAutomaMultiplayerGame(2, {
+    startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned], coloniesExtension: true,
+  });
+  assignPinnedCorporations(name, seats, pinned);
+  answerStartFlow(game, seats);
+  const [blue, red] = seats;
+  const ants = new Ants();
+  const tardigrades = new Tardigrades();
+  tardigrades.resourceCount = 2;
+  blue.playedCards.push(ants, tardigrades);
+  const ghg = new GHGProducingBacteria();
+  ghg.resourceCount = 3;
+  const decomposers = new Decomposers();
+  decomposers.resourceCount = 1;
+  red.playedCards.push(ghg, decomposers);
+  game.automa!.shippingStorage[ColonyName.ENCELADUS] = 2;
+  bot.megaCredits = Math.max(bot.megaCredits, 5);
+  runAllActions(game);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== blue.id || !(blue.getWaitingFor() instanceof OrOptions) || !ants.canAct(blue)) {
+    throw new Error(`${name}: expected blue on the move with Ants available — phase=${game.phase} active=${game.activePlayer.color}`);
   }
   write(name, game);
 }

@@ -57,6 +57,7 @@ const MARKER_EVIDENCE: ReadonlyArray<string> = [
   'markExternalDrawPrompt(',
   'markPlacementContext(',
   'markResourceGainPrompt(',
+  'markTableTargetPrompt(',
   '.placementContext =',
   // A BUILD of a colony declares itself on every prompt (`SelectColony.buildSites`
   // — the pick's act, the berth of each candidate; `BuildColony.prompt()`).

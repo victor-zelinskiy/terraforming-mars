@@ -38,6 +38,7 @@ import {CardType} from '@/common/cards/CardType';
 import {Tag} from '@/common/cards/Tag';
 import {NavRect, pickDirectional, pickStrictGrid} from '@/client/gamepad/spatialNav';
 import {ItemType} from '@/common/cards/render/Types';
+import {TABLE_TARGET_BOT_KEY, TableTargetBotStand} from '@/client/console/played/tableTargetZone';
 
 /** The tableau sections a candidate can belong to — the same vocabulary the
  *  «Разыграно» surfaces use, so the origin reads the same everywhere. */
@@ -409,6 +410,12 @@ export type PlayedTargetCandidate = {
    * refused, the rail reads the reason, its tag reads «have / need ✕». Undefined — an ordinary candidate.
    */
   blocked?: {reason: string, have: number, need: number};
+  /**
+   * THE BOT'S STAND-IN («ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА», `tableTargetZone.ts`): MarsBot holds no card, so its candidate is a
+   * TILE on a slot's chassis — never a card face (a face would lie that the bot has a card). Its `cardName` is
+   * `TABLE_TARGET_BOT_KEY`; its reading is the server's own metadata. Undefined — a real card.
+   */
+  bot?: TableTargetBotStand;
 };
 
 export type PlayedTargetOwner = {
@@ -437,6 +444,8 @@ export type PlayedTargetOwner = {
    */
   totalPlayed: number;
   candidates: ReadonlyArray<PlayedTargetCandidate>;
+  /** MarsBot's group — ONE stand-in tile, beside the players' groups in the same zone. */
+  bot?: true;
 };
 
 /**
@@ -579,6 +588,11 @@ export type BuildPlayedTargetInput = {
   resourceContext?: (name: CardName, model: CardModel) => PlayedTargetResourceContext | undefined;
   /** What lands on the chosen card (`playedTargetPayloadOf`) — a GAIN pick only; the contract line names it. */
   payload?: PlayedTargetPayload;
+  /**
+   * MarsBot as a target BESIDE the players (`tableTargetZone.ts` — the server's `tableTargetPrompt`): its group stands
+   * in the same zone as one stand-in tile. Absent — no bot branch in the prompt.
+   */
+  bot?: {stand: TableTargetBotStand, name: string};
 };
 
 /**
@@ -652,7 +666,29 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
       ...(shortfall === undefined ? {} : {blocked: {reason: shortfall.reason, have: shortfall.have, need: shortfall.need}}),
     });
   }
-  const grouped = [...byColor.values()];
+  const grouped: Array<Grouping & {bot?: true}> = [...byColor.values()];
+  // THE BOT BESIDE THE PLAYERS — one group, one stand-in tile; an opponent like any other (it sorts with them).
+  if (input.bot !== undefined) {
+    const stand = input.bot.stand;
+    grouped.push({
+      id: stand.color,
+      name: input.bot.name,
+      color: stand.color,
+      self: false,
+      bot: true,
+      totalPlayed: 0,
+      candidates: [{
+        cardName: TABLE_TARGET_BOT_KEY,
+        category: 'corporation',
+        relation: 'external-card',
+        ownerId: stand.color,
+        slotKey: TABLE_TARGET_BOT_KEY,
+        preview: [],
+        model: {name: TABLE_TARGET_BOT_KEY, ...(stand.current !== undefined ? {resources: stand.current} : {})},
+        bot: stand,
+      }],
+    });
+  }
   const opponentsInvolved = grouped.some((g) => !g.self);
   const direction: PlayedTargetDirection =
     input.direction ?? (input.takesFromTarget === true ? 'remove' : 'add');
@@ -718,6 +754,8 @@ export type PlayedTargetSection = {
    *  navigation handle, not a member of a card-type family, so it draws no
    *  category rail and does not count toward the rails' earn rule. */
   self?: boolean;
+  /** The bot's ONE stand-in block — no card family, no rail (it holds no card). */
+  bot?: boolean;
   candidates: ReadonlyArray<PlayedTargetCandidate>;
 };
 
@@ -735,6 +773,9 @@ export type PlayedTargetSection = {
  * order, untouched.
  */
 export function playedTargetSections(owner: PlayedTargetOwner): ReadonlyArray<PlayedTargetSection> {
+  if (owner.bot === true) {
+    return [{key: 'bot', category: 'corporation', label: '', bot: true, candidates: owner.candidates}];
+  }
   const out: Array<PlayedTargetSection> = [];
   const self = owner.candidates.find((c) => c.relation === 'source-card');
   if (self !== undefined) {
@@ -780,7 +821,12 @@ export function playedTargetShowsOwnerTargetCount(owners: ReadonlyArray<PlayedTa
 
 // ── owner presentation: SPLIT vs TABS ───────────────────────────────────────
 
-export type PlayedTargetLayoutMode = 'split' | 'tabs';
+/**
+ * `split` — two narrow groups side by side; `tabs` — ONE group on screen, LB/RB between them (the handheld fallback
+ * only); `board` — «ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА» (the owner, 2026-10-28): EVERY group on screen at once, as BANDS one
+ * under another, a grid of cards inside each; LB/RB jump between the bands.
+ */
+export type PlayedTargetLayoutMode = 'split' | 'tabs' | 'board';
 
 export type PlayedTargetLayout = {
   mode: PlayedTargetLayoutMode;
@@ -822,19 +868,24 @@ export function planPlayedTargetLayout(o: PlayedTargetLayoutInput): PlayedTarget
   const singleColumnPerRow = Math.max(1, Math.floor((o.availW - OWNER_CHROME_W * o.ui) / cardW));
   const tabs: PlayedTargetLayout = {mode: 'tabs', perRow: singleColumnPerRow};
 
-  if (o.handheld || o.owners.length !== 2) {
+  if (o.handheld || o.owners.length < 2) {
     return tabs;
+  }
+  // EVERY group on screen (the owner's «одна зона»): `split` stays the narrow two-group case, everything else bands.
+  const board: PlayedTargetLayout = {mode: 'board', perRow: singleColumnPerRow};
+  if (o.owners.length !== 2) {
+    return board;
   }
   const busiest = Math.max(...o.owners.map((owner) => owner.candidates.length));
   if (busiest > SPLIT_MAX_CANDIDATES) {
-    return tabs;
+    return board;
   }
   // Both columns must still hold their busiest owner's widest row at a
   // readable size — otherwise the split is bought with the cards' legibility.
   const columnW = (o.availW - SPLIT_GAP * o.ui) / 2 - OWNER_CHROME_W * o.ui;
   const perRow = Math.floor(columnW / cardW);
   if (perRow < 1 || perRow < Math.min(busiest, 2)) {
-    return tabs;
+    return board;
   }
   return {mode: 'split', perRow};
 }
@@ -1018,6 +1069,12 @@ export type PlayedTargetSizing = {
   perRow: number;
   /** Nothing fits even at the floor — the zone must scroll for real. */
   overflows: boolean;
+  /**
+   * `board` only — HOW the groups stand in the one zone: `bands` one under another (a tall host) or `row` side by
+   * side in ONE row (a wide, short host — the action composer at 4K). The solver takes whichever draws the larger
+   * readable card; a scroll only when neither fits.
+   */
+  boardFlow?: 'bands' | 'row';
 };
 
 export type PlayedTargetSizingInput = {
@@ -1160,10 +1217,38 @@ export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTarget
   const ownerW = (o.availW - (ownerCols - 1) * ownerGap) / ownerCols;
   // The chrome counts the stylesheet's `.3rem` top; the headroom beyond it is
   // room the cards do not get.
-  const ownerH = o.availH - PLAYED_TARGET_VIEWPORT_CHROME_H * o.ui - (headroom - CARDS_PAD_TOP * o.ui);
+  const bandChrome = PLAYED_TARGET_VIEWPORT_CHROME_H * o.ui + (headroom - CARDS_PAD_TOP * o.ui);
   const railH = groups.some((secs) => playedTargetShowsCategoryRails(secs)) ? SECTION_RAIL_H * o.ui : 0;
+  const tagRow = o.tags === true ? (o.tagLines === 2 ? PLAYED_TARGET_TAG_ROW_H2 : PLAYED_TARGET_TAG_ROW_H) * o.ui : 0;
+  const solve = (g: ReadonlyArray<ReadonlyArray<PlayedTargetSection>>, w: number, h: number, secGap: number): PlayedTargetSizing =>
+    solveSizing(g, solveGrid(g, w, h, gap, secGap, railH, tagRow), gap, headroom, minCardW, maxCardW);
+  if (o.mode !== 'board') {
+    return solve(groups, ownerW, o.availH - bandChrome, sectionGap);
+  }
+  // `board` — EVERY group on screen, in whichever of two arrangements draws the larger readable card: BANDS one under
+  // another (the height shared, each band its own bar and headroom), or ONE ROW of groups side by side (the width
+  // shared, one bar's height) — the action composer at 4K is wide and short, a step in a tall host the other way.
+  const n = Math.max(1, o.owners.length);
+  const bandsFit = {...solve(groups, o.availW, (o.availH - n * bandChrome) / n, sectionGap), boardFlow: 'bands' as const};
+  const rowFit = {...solve([groups.flat()], o.availW - n * BOARD_ROW_OWNER_CHROME_W * o.ui, o.availH - bandChrome, ownerGap), boardFlow: 'row' as const};
+  if (bandsFit.overflows !== rowFit.overflows) {
+    return bandsFit.overflows ? rowFit : bandsFit;
+  }
+  return rowFit.cardZoom > bandsFit.cardZoom ? rowFit : bandsFit;
+}
 
-  const shapes = solveGrid(groups, ownerW, ownerH, gap, sectionGap, railH, o.tags === true ? (o.tagLines === 2 ? PLAYED_TARGET_TAG_ROW_H2 : PLAYED_TARGET_TAG_ROW_H) * o.ui : 0);
+/** One group's side padding + accent in the `board` row (`.con-ptsel__owner`: `.55rem` left + `.1rem` right + the kant). */
+const BOARD_ROW_OWNER_CHROME_W = 16;
+
+/** The best readable shape of the solved candidates — or the floor and an honest scroll. */
+function solveSizing(
+  groups: ReadonlyArray<ReadonlyArray<PlayedTargetSection>>,
+  shapes: ReadonlyArray<GridShape>,
+  gap: number,
+  headroom: number,
+  minCardW: number,
+  maxCardW: number,
+): PlayedTargetSizing {
   const sections = Math.max(...groups.map((g) => g.length));
   const perRowOf = (rows: number): number =>
     Math.max(...groups.map((g) => Math.max(...sectionColumnsAt(g, rows))));

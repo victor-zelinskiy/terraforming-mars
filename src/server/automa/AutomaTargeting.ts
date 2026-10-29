@@ -227,6 +227,22 @@ export class AutomaTargeting {
    * wherever a "remove X <card-resource> from any card" effect builds its MarsBot
    * target option.
    */
+  /**
+   * WHERE a removal of `cardResource` from MarsBot takes its FIRST unit — the same order `removeCardResourceFromBot`
+   * drains (the dedicated pool, then the M€ proxy): the console names the bot's «card» by it (the table's target zone,
+   * `TableTargetPromptMeta.bot`) and never claims a storage the bot does not draw from.
+   */
+  public static cardResourceSourceOf(bot: IPlayer, cardResource: CardResource): {storage: 'colony' | 'floaters' | 'megacredits', colony?: ColonyName} {
+    if (AutomaTargeting.botCardResourcePool(bot.game, cardResource) <= 0) {
+      return {storage: 'megacredits'};
+    }
+    if (cardResource === CardResource.FLOATER) {
+      return {storage: 'floaters'};
+    }
+    const colony = AutomaTargeting.CARD_RESOURCE_STORAGE[cardResource];
+    return colony === undefined ? {storage: 'megacredits'} : {storage: 'colony', colony};
+  }
+
   public static attackableCardResourceStock(bot: IPlayer, cardResource: CardResource): number {
     return AutomaTargeting.botCardResourcePool(bot.game, cardResource) + bot.megaCredits;
   }

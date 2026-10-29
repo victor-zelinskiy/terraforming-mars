@@ -127,7 +127,7 @@ export default defineComponent({
     cycleOwner(delta: number): void {
       const owners = this.model.owners;
       const focus = this.focus;
-      if (focus === undefined || this.layout.mode !== 'tabs' || owners.length < 2) {
+      if (focus === undefined || (this.layout.mode !== 'tabs' && this.layout.mode !== 'board') || owners.length < 2) {
         return;
       }
       const ownerId = stepPlayedTargetOwner(focus.ownerId, delta, owners);

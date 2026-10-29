@@ -2417,7 +2417,7 @@ export default defineComponent({
         sub: this.sub === undefined ?
           'none' :
           (this.sub.kind === 'payment' ? 'payment' : (this.sub.kind === 'playedTarget' ? 'playedTarget' : 'list')),
-        targetOwnerTabs: this.playedTargetLayout.mode === 'tabs' && (this.playedTargetModel?.owners.length ?? 0) > 1,
+        targetOwnerTabs: (this.playedTargetLayout.mode === 'tabs' || this.playedTargetLayout.mode === 'board') && (this.playedTargetModel?.owners.length ?? 0) > 1,
         targetBlocked: this.sub?.kind === 'playedTarget' &&
           playedTargetAt(this.sub.focus, this.playedTargetModel?.owners ?? [])?.blocked !== undefined,
         targetMulti: this.playedTargetSelection.mode === 'multi' ? {
@@ -4587,12 +4587,18 @@ export default defineComponent({
     /** LB/RB — the owner axis, tabbed mode only (in split the groups are both
      *  on screen and the d-pad crosses between them spatially). */
     cyclePlayedTargetOwner(delta: number): void {
-      if (this.sub?.kind !== 'playedTarget' || this.playedTargetLayout.mode !== 'tabs') {
+      if (this.sub?.kind !== 'playedTarget' || (this.playedTargetLayout.mode !== 'tabs' && this.playedTargetLayout.mode !== 'board')) {
         return;
       }
       const owners = this.playedTargetModel?.owners ?? [];
       const ownerId = stepPlayedTargetOwner(this.sub.focus.ownerId, delta, owners);
       if (ownerId === this.sub.focus.ownerId) {
+        return;
+      }
+      // `board` («ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА»): every band is on screen — LB/RB JUMP to the next band's first card.
+      if (this.playedTargetLayout.mode === 'board') {
+        this.sub = {...this.sub, focus: reseatPlayedTargetFocus({ownerId, index: 0}, owners) ?? this.sub.focus};
+        (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
         return;
       }
       // Restore this owner's last cursor — a tab the player returns to should

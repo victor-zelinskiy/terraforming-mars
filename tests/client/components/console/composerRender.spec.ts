@@ -780,11 +780,12 @@ describe('ConsoleActionComposer — premium render', () => {
     (w.vm as any).openChoice((w.vm as any).allChoices[0]);
     await w.vm.$nextTick();
 
-    // Focus opens on the OPPONENT (groups sort opponents-first, deliberately),
-    // and in tabbed mode only the focused group is on screen — so nothing warns
-    // yet, which is correct: there is nothing to warn about.
-    expect(w.findAll('.con-ptsel__ownerwarn').length, 'the opponent block is never marked').to.eq(0);
-    expect(w.find('.con-ptsel__railwarn').exists(), 'nor does the rail').to.eq(false);
+    // Focus opens on the OPPONENT (groups sort opponents-first, deliberately). Every group stands in ONE zone
+    // («ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА»), so the viewer's block wears its mark from the start — once, on its own group,
+    // never on the opponent's — while the rail, reading the opponent's card, says nothing.
+    expect(w.findAll('.con-ptsel__ownerwarn').length, 'only the viewer block is marked').to.eq(1);
+    expect(w.find('.con-ptsel__owner--self .con-ptsel__ownerwarn').exists(), '…on the viewer\'s own group').to.eq(true);
+    expect(w.find('.con-ptsel__railwarn').exists(), 'the rail reads the opponent\'s card — no warning').to.eq(false);
 
     // Move to the viewer's own block — the case the whole marker exists for.
     (w.vm as any).sub.focus = {ownerId: 'blue', index: 0};

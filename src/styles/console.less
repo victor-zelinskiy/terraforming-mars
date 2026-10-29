@@ -35201,6 +35201,14 @@ html.con-profile-tv {
     }
     &[data-mode='split'] &__owner { flex: 1 1 0; min-width: 0; }
     &[data-mode='tabs'] &__owner { flex: 1 1 auto; min-width: 0; }
+    /* «ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА» (the owner, 2026-10-28): EVERY owner on screen — the groups are BANDS one under
+       another, each a grid of its cards (the solver shares the height between them, `planPlayedTargetSizing`). */
+    &[data-mode='board'] &__zone { flex-direction: column; align-items: stretch; gap: .9rem; }
+    &[data-mode='board'] &__owner { flex: 0 0 auto; width: 100%; }
+    /* …or ONE ROW of groups side by side when the host is wide and short (the solver's `boardFlow`): each group as
+       wide as its solved sections, every group still on screen. */
+    &[data-mode='board'][data-board-flow='row'] &__zone { flex-direction: row; align-items: flex-start; gap: 1.4rem; }
+    &[data-mode='board'][data-board-flow='row'] &__owner { width: auto; }
     /* A LONE GROUP STANDS IN THE MIDDLE OF ITS ROOM (PL-170). Inside a composer the
        step is the decision column beside the hero card, and one owner's few
        candidates hugged its left edge with ⅔ of the zone dark beside them (the 4K
@@ -35393,6 +35401,42 @@ html.con-profile-tv {
         &--locked {
             .con-cursor-paint(0 0 0 calc(.18rem / var(--con-ptsel-zoom, .58)) fade(@con-mint, 96%), 0 0 calc(1.3rem / var(--con-ptsel-zoom, .58)) fade(@con-mint, 44%); before);
         }
+    }
+    /* THE BOT'S STAND-IN (`tableTargetZone.ts`) — the slot's chassis (same zoomed box, same cursor, same lock), a
+       NEUTRAL glass plate instead of a card face: the bot holds no card. Whose it is reads by the seat's dot and name,
+       a hairline kant in the plate — never a halo (invariant 15). Natural px (the slot's `zoom` scales it like a face). */
+    &__bot {
+        box-sizing: border-box;
+        width: 320px;
+        height: 460px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        padding: 28px 22px;
+        border-radius: .4rem;
+        background: linear-gradient(180deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .015)), #0d141d;
+        box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .14);
+        text-align: center;
+    }
+    &__bot-kicker {
+        font-size: 19px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__bot-name {
+        display: inline-flex; align-items: center; gap: 10px; max-width: 100%;
+        font-size: 30px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        .con-ptsel__ownerdot { width: 14px; height: 14px; flex: 0 0 auto; }
+    }
+    &__bot-icon { width: 120px; height: 120px; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+    &__bot-delta { font-size: 46px; font-weight: 900; font-variant-numeric: tabular-nums; color: @con-text; }
+    &__bot-storage {
+        font-size: 20px; font-weight: 700; letter-spacing: .5px;
+        color: @con-text-dim;
+        padding-top: 14px;
+        border-top: 1px solid rgba(255, 255, 255, .12);
     }
     /* A SHOWN NEAR MISS (TR52 — a holder short of what the step takes): the face recedes under an OPAQUE scrim
        (never a see-through opacity, never a filter) and its refusal stands on it, de-zoomed to HUD size like the lock. */

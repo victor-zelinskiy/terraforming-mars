@@ -5,6 +5,7 @@
        and the source card stays visible to its left throughout. -->
   <div class="con-ptsel"
        :data-mode="layout.mode"
+       :data-board-flow="layout.mode === 'board' ? sizing.boardFlow : undefined"
        :data-owners="visibleOwners.length"
        :data-tag-lines="tagLines"
        :data-flow="sizing.sectionFlow"
@@ -198,6 +199,36 @@
                   </span>
                   <span v-if="isChosen(cand.cardName)" class="con-ptsel__self-check" aria-hidden="true">{{ pickOrdinal(cand.cardName) }}</span>
                 </div>
+                <!-- THE BOT'S STAND-IN («ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА», `tableTargetZone.ts`). MarsBot holds no card, so
+                     its candidate is a TILE on the slot's own chassis (the same box, the same cursor, the same lock) —
+                     never a card face, which would lie that the bot has a card. It reads WHOSE (the seat's dot and
+                     name), WHAT (the unit's icon, `current → resulting` — the server's metadata, verbatim) and,
+                     only when it is honest, WHERE the first unit comes from (a colony storage area by name, the
+                     floater counter, the M€ proxy). State is a kant and a fill (invariant 15), the focus the cursor. -->
+                <div v-else-if="cand.bot !== undefined"
+                     class="con-ptsel__slot con-ptsel__slot--bot"
+                     data-ptsel-bot
+                     :class="{
+                       'con-ptsel__slot--focused': isFocused(owner.id, cand.cardName),
+                       'con-ptsel__slot--locked': isChosen(cand.cardName),
+                     }">
+                  <div class="con-ptsel__bot" :class="'con-ptsel__bot--' + owner.color">
+                    <span class="con-ptsel__bot-kicker">{{ $t('Target without a card') }}</span>
+                    <span class="con-ptsel__bot-name">
+                      <span class="con-ptsel__ownerdot" :class="'player_bg_color_' + owner.color" aria-hidden="true"></span>
+                      <span :class="'player_color_' + owner.color">{{ owner.name }}</span>
+                    </span>
+                    <!-- The pool the FIRST unit leaves (the storage row of the server's reading — «2 → 1» microbes on
+                         Enceladus; the M€ row when the storage is empty), its icon with it — never the sum of the pool
+                         and the M€ proxy the metadata's own `current` carries. -->
+                    <template v-for="(change, i) in botChanges(cand.bot).slice(0, 1)" :key="'d' + i">
+                      <i class="con-ptsel__bot-icon" :class="iconClass(change.icon)" :data-ptsel-bot-icon="change.icon" aria-hidden="true"></i>
+                      <b class="con-ptsel__bot-delta" data-ptsel-bot-delta>{{ change.from }}<span aria-hidden="true"> → </span>{{ change.to }}</b>
+                    </template>
+                    <span class="con-ptsel__bot-storage" :data-ptsel-bot-storage="cand.bot.storage">{{ botStorageText(cand.bot) }}</span>
+                  </div>
+                  <span v-if="isChosen(cand.cardName)" class="con-ptsel__lock" aria-hidden="true">{{ pickOrdinal(cand.cardName) }}</span>
+                </div>
                 <div v-else
                      class="con-ptsel__slot"
                      :class="{
@@ -256,10 +287,23 @@
              Ресурсы на этой карте 1 → 0» is the card's own name, an arrow and a
              qualifier for a card that is the only thing on screen — it reads as
              debug output rather than a result. -->
-        <span v-if="showsRailCard" class="con-ptsel__railcard">{{ $t(focused.cardName) }}</span>
+        <span v-if="showsRailCard" class="con-ptsel__railcard">{{ focused.bot !== undefined ? focusedOwnerName : $t(focused.cardName) }}</span>
+        <!-- The bot's stand-in reads its own loss — the server's per-pool rows when it gives them, else the one delta. -->
+        <template v-if="focused.bot !== undefined">
+          <span class="con-ptsel__railarrow" aria-hidden="true">→</span>
+          <span class="con-ptsel__railimpacts" data-ptsel-rail-bot>
+            <span v-for="(change, i) in botChanges(focused.bot)" :key="'b' + i" class="con-ptsel__imp con-ptsel__imp--down">
+              <i class="con-ptsel__imp-icon" :class="iconClass(change.icon)" aria-hidden="true"></i>
+              <b class="con-ptsel__imp-delta">{{ change.from }}<span aria-hidden="true"> → </span>{{ change.to }}</b>
+            </span>
+            <span class="con-ptsel__imp con-ptsel__imp--static">
+              <span class="con-ptsel__imp-label">{{ botStorageText(focused.bot) }}</span>
+            </span>
+          </span>
+        </template>
         <!-- The owner marker is dropped when there is only one group: it would
              repeat the header two lines above it. -->
-        <template v-if="showsOwnerTargets">
+        <template v-if="showsOwnerTargets && focused.bot === undefined">
           <span class="con-ptsel__railsep" aria-hidden="true">·</span>
           <span class="con-ptsel__railowner" :class="'player_color_' + focusedOwnerColor">{{ focusedOwnerName }}</span>
         </template>
@@ -356,10 +400,11 @@ import ConsolePlayedTargetTag from '@/client/components/console/played/ConsolePl
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {readingTailText, readingText} from '@/client/console/readingText';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {setPlayedTargetSelfLink, bumpPlayedTargetSelfGeometry, resetPlayedTargetSelf} from '@/client/console/played/consolePlayedTargetSelf';
+import {TableTargetBotStand, tableTargetBotStorageKey} from '@/client/console/played/tableTargetZone';
 import {
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetOwner,
   PlayedTargetCandidate, PlayedTargetSection, PlayedTargetSelection,
@@ -431,7 +476,8 @@ export default defineComponent({
   computed: {
     /** SPLIT shows every owner side by side; TABS shows the active one. */
     visibleOwners(): ReadonlyArray<PlayedTargetOwner> {
-      return this.layout.mode === 'split' ?
+      // `board` (the owner's «одна зона») and `split` stand EVERY group on screen; only `tabs` shows one at a time.
+      return this.layout.mode === 'split' || this.layout.mode === 'board' ?
         this.model.owners :
         this.model.owners.filter((o) => o.id === this.activeOwnerId);
     },
@@ -916,6 +962,19 @@ export default defineComponent({
     },
     isFocused(ownerId: string, cardName: string): boolean {
       return this.focus.ownerId === ownerId && this.focused?.cardName === cardName;
+    },
+    /** WHERE the bot's first unit comes from — a colony area by its name, the floater counter, the M€ proxy. */
+    botStorageText(bot: TableTargetBotStand): string {
+      const key = tableTargetBotStorageKey(bot);
+      return bot.colony !== undefined ? translateTextWithParams(key, [translateText(bot.colony)]) : translateTextWithParams(key, []);
+    },
+    /** The bot's loss as the server reads it, pool by pool — else the one delta of the unit. */
+    botChanges(bot: TableTargetBotStand): ReadonlyArray<{icon: string, from: number, to: number}> {
+      const moving = bot.changes.filter((c) => c.from !== c.to);
+      if (moving.length > 0) {
+        return moving;
+      }
+      return bot.current !== undefined && bot.resulting !== undefined ? [{icon: bot.icon, from: bot.current, to: bot.resulting}] : [];
     },
   },
 });

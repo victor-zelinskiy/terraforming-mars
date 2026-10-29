@@ -1,7 +1,7 @@
 import {PlayerInput} from '../PlayerInput';
 import {InputResponse, isOrOptionsResponse} from '../../common/inputs/InputResponse';
 import {IPlayer} from '../IPlayer';
-import {DisabledOptionModel, OrOptionsModel} from '../../common/models/PlayerInputModel';
+import {DisabledOptionModel, OrOptionsModel, TableTargetPromptMeta} from '../../common/models/PlayerInputModel';
 import {OptionsInput} from './OptionsPlayerInput';
 import {InputError} from './InputError';
 
@@ -10,6 +10,8 @@ export class OrOptions extends OptionsInput<undefined> {
   // alongside the real options (e.g. an opponent with no plants to remove).
   // Never processed — purely for clarity. See OrOptionsModel.disabledOptions.
   public disabledOptions: ReadonlyArray<DisabledOptionModel> = [];
+  /** The table's targets with the bot beside the players (`TableTargetPromptMeta`) — `RemoveResourcesFromCard` sets it. */
+  public tableTargetPrompt: TableTargetPromptMeta | undefined;
 
   constructor(...options: Array<PlayerInput>) {
     super('or', 'Select one option', options);
@@ -18,6 +20,12 @@ export class OrOptions extends OptionsInput<undefined> {
   /** Attach informational disabled entries (chainable). */
   public setDisabledOptions(disabled: ReadonlyArray<DisabledOptionModel>): this {
     this.disabledOptions = disabled;
+    return this;
+  }
+
+  /** Mark this choice as the table's ONE target zone (chainable) — see {@link TableTargetPromptMeta}. */
+  public markTableTargetPrompt(meta: TableTargetPromptMeta): this {
+    this.tableTargetPrompt = meta;
     return this;
   }
 
@@ -42,6 +50,9 @@ export class OrOptions extends OptionsInput<undefined> {
     }
     if (this.resolutionActionPrompt !== undefined) {
       model.resolutionActionPrompt = this.resolutionActionPrompt;
+    }
+    if (this.tableTargetPrompt !== undefined) {
+      model.tableTargetPrompt = this.tableTargetPrompt;
     }
     return model;
   }

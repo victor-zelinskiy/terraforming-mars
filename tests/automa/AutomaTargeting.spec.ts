@@ -26,7 +26,9 @@ import {fakeCard} from '../TestingUtils';
 import {testAutomaGame, testAutomaMultiplayerGame} from './AutomaTestGame';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {Birds} from '../../src/server/cards/base/Birds';
+import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
 import {runAllActions} from '../TestingUtils';
+import {testGame} from '../TestGame';
 
 function optionTitles(input: OrOptions): Array<string> {
   return input.options.map((o) => typeof o.title === 'string' ? o.title : o.title.message);
@@ -315,5 +317,68 @@ describe('Automa targeting — CARD-resource removal from MarsBot (microbes/anim
     const step = preview.branches[0].steps.find((s) => s.kind === 'tabbedTargets') as TabbedTargetsStep;
     expect(step, 'tabbedTargets step').is.not.undefined;
     expect(step.animal?.targets?.some((t) => t.color === bot.color), 'bot in the animal tab').is.true;
+  });
+});
+
+/**
+ * «ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА» (the owner, 2026-10-28): the removal's `OrOptions` against a table with MarsBot names
+ * which branch is which (`tableTargetPrompt`), so the console stands the bot beside the players without reading the
+ * shape. The options, their order and the wire answer are the historical ones; the preview carries the same marker.
+ */
+describe('Automa targeting — the table target marker (one zone)', () => {
+  it('cards + bot, mandatory: [card 0, bot 1] — no skip; the bot\'s first unit comes from Enceladus', () => {
+    const [game, humans, bot] = testAutomaMultiplayerGame(2, {coloniesExtension: true});
+    const [human, opponent] = humans;
+    bot.megaCredits = 3;
+    game.automa!.shippingStorage[ColonyName.ENCELADUS] = 2;
+    const tardigrades = new Tardigrades();
+    opponent.playedCards.push(tardigrades);
+    opponent.addResourceTo(tardigrades, 2);
+    const live = cast(new RemoveResourcesFromCard(human, CardResource.MICROBE, 1, {autoselect: false}).execute(), OrOptions);
+    expect(live.options.map((o) => o.type)).deep.eq(['card', 'option']);
+    const model = live.toModel(human);
+    expect(model.tableTargetPrompt).deep.eq({cardBranch: 0, botBranch: 1, bot: {color: bot.color, storage: 'colony', colony: ColonyName.ENCELADUS}});
+  });
+
+  it('a lone bot, optional: [bot 0, skip 1] — the storage is the M€ proxy when the pool is empty', () => {
+    const [/* game */, human, bot] = testAutomaGame();
+    bot.megaCredits = 3;
+    const live = cast(new RemoveResourcesFromCard(human, CardResource.ANIMAL, 1, {mandatory: false}).execute(), OrOptions);
+    expect(live.toModel(human).tableTargetPrompt).deep.eq({botBranch: 0, skipBranch: 1, bot: {color: bot.color, storage: 'megacredits'}});
+  });
+
+  it('floaters name the bot\'s floater counter', () => {
+    const [game, human, bot] = testAutomaGame();
+    bot.megaCredits = 0;
+    game.automa!.floaters = 2;
+    const model = new RemoveResourcesFromCard(human, CardResource.FLOATER, 1, {autoselect: false}).previewRemovalModel() as OrOptionsModel;
+    expect(model.tableTargetPrompt?.bot.storage).eq('floaters');
+  });
+
+  it('the preview carries the SAME marker as the live prompt (the pre-collected answer replays)', () => {
+    const [game, humans, bot] = testAutomaMultiplayerGame(2);
+    const [human, opponent] = humans;
+    bot.megaCredits = 3;
+    const card = new Predators();
+    human.playedCards.push(card);
+    const birds = new Birds();
+    opponent.playedCards.push(birds);
+    opponent.addResourceTo(birds, 4);
+    const step = card.actionPreview(human).branches[0].steps[0] as {input: OrOptionsModel};
+    card.action(human);
+    const live = cast(game.deferredActions.pop()!.execute(), OrOptions);
+    expect(step.input.tableTargetPrompt).deep.eq(live.toModel(human).tableTargetPrompt);
+    expect(step.input.tableTargetPrompt?.cardBranch).eq(0);
+    expect(step.input.tableTargetPrompt?.botBranch).eq(1);
+  });
+
+  it('no bot: no marker (the bare pick and its decline stay as they were)', () => {
+    const [, human, opponent] = testGame(2);
+    const birds = new Birds();
+    opponent.playedCards.push(birds);
+    opponent.addResourceTo(birds, 2);
+    const input = new RemoveResourcesFromCard(human, CardResource.ANIMAL, 1, {mandatory: false}).execute();
+    expect(input).instanceOf(OrOptions);
+    expect(cast(input, OrOptions).toModel(human).tableTargetPrompt).is.undefined;
   });
 });
