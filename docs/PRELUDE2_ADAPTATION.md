@@ -1,6 +1,6 @@
 # Prelude 2 — включение в премиум-скоуп, hold-back-список, замена
 
-**Статус 2026-10-29: ЛЕСА ПОСТАВЛЕНЫ · 0 / 54 · ВСЕ КАРТЫ В HOLD-BACK-СПИСКЕ.** Модуль `prelude2` добавлен в
+**Статус 2026-10-29: ЛЕСА ПОСТАВЛЕНЫ · 1 / 54 · СДАНА P76 Ishtar Expedition, остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
 `PREMIUM_SCOPE_MODULES` (`src/common/cards/premiumScope.ts`) по образцу классического Turmoil
 (`docs/TURMOIL_REDUX_CLASSIC_CARDS.md`, 2026-10-21 → 2026-10-25): скоуп = «модуль минус список», список — ворклист.
 Адаптация идёт по одной карте, отдельными задачами, по ворклисту §4; список — временный костыль и удаляется, когда
@@ -96,7 +96,10 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 формы, и какой гард это требует). Коротко, по форме карты (пометки в списке):
 1. **Декларативная** (`behavior` без bespoke) — превью / информация / причины / лицо автоматически; работа —
    лор (`assets/text/lore_texts.json` по `cardNumber`, EN + RU), RU `card_info.json` по аудиту `make:cards`, арт
-   (`assets/card-images/<P##>.webp`, при отсутствии — процедурный фолбэк, не гэп), спек карты.
+   (`assets/card-images/<P##>.webp`, при отсутствии — процедурный фолбэк, не гэп), спек карты. Карта с ПОИСКОМ ПО
+   МЕТКЕ («draw N X cards» — P76): блок поиска засевается из одного дескриптора, описание со словом «draw» берёт строку
+   `ACCEPTED` гарда `cardInformation` (прецедент Aqueduct Systems), а стенд ставится фикстурой с ПОСЕЯННОЙ лентой
+   (`stackDeckTop`) — иначе лента и стопка «СБРОШЕННЫЕ» не видны. Журнал серии: `docs/claude/prelude2-cards-progress.md`.
 2. **bespokePlay / `play()`** — ко-локированный `cardPlayPreview` (результат показан даже без выбора; каждая цель
    ПОКАЗАНА — Special Permit «украсть 4 растения», Recession «каждый соперник»), `metadata.infoText` по блоку на бонус,
    `skipped`-запись при пустой цели.
@@ -136,7 +139,7 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 
 ---
 
-## 4. Ворклист — 54 карты (состояние 2026-10-29: все в списке)
+## 4. Ворклист — 54 карты (состояние 2026-10-29: 53 в списке, P76 сдана)
 
 | № | Карта | Вид · гейт | Форма | Статус |
 | --- | --- | --- | --- | --- |
@@ -148,7 +151,7 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 | P73 | Floating Refinery | ACTIVE · Venus | behavior + bespoke action | в списке |
 | P74 | Frontier Town | AUTOMATED · ПОЛИТ (Mars First) | bespokePlay, город | в списке |
 | P75 | GHG Shipment | EVENT · ПОЛИТ (Кельвинисты = Зелёные) | декларативная | в списке |
-| P76 | Ishtar Expedition | EVENT · Venus | декларативная | в списке |
+| P76 | Ishtar Expedition | EVENT · Venus | декларативная, поиск по метке | СДАНА 2026-10-29 75d6ce23e4 |
 | P77 | Jovian Envoys | EVENT · ПОЛИТ | декларативная, 2 делегата | в списке |
 | P78 | L1 Trade Terminal | ACTIVE · Colonies | behavior + bespokePlay | в списке |
 | P79 | Microgravity Nutrition | AUTOMATED · Colonies | bespokePlay | в списке |
