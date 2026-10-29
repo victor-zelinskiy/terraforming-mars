@@ -385,6 +385,7 @@ describe('card information model', function() {
       ['Cultural Metropolis', '"place 2 delegates in 1 party" = "Add 2 delegates to one resolution." — the Turmoil Redux reading (T03): a party is reached through its resolution in the voting area; only the noun differs'],
       ['PolderTECH Dutch', '"next to each other" = "an adjacent greenery tile", shown; only the wording differs'],
       ['Aqueduct Systems', 'the printed "draw 3 cards with a building tag" IS a search (the engine reveals until 3 match — `DrawCards`), and the generated text says so from the ONE search descriptor: "Reveal … until you reveal 3 cards with a building tag. Take them into your hand"; only the verb differs'],
+      ['Ishtar Expedition', 'the printed "draw 2 Venus cards" IS a search (P76 — `drawCard: {count: 2, tag: VENUS}`, the Aqueduct Systems class): the generated text says so from the ONE search descriptor, "Reveal … until you reveal 2 cards with a venus tag. Take them into your hand"; only the verb differs'],
     ]);
 
     const offenders: Array<string> = [];
