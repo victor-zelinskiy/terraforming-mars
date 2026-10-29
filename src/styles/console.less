@@ -36001,6 +36001,10 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         line-height: 1;
     }
     &__glyph--part { --pcard-mech-icon: 1.45em; }
+    /* An OR of tags (P85 — «per planet tag»): the row of the tags it counts, one tight group read as ONE term. */
+    &__glyph--row { gap: .12em; --pcard-mech-icon: 1.45em; }
+    /* The WILD share of a tag count — an annotation of the number, quieter than it (weight and the dim tone). */
+    &__wild { display: inline-flex; align-items: center; gap: .2em; color: @con-text-dim; font-size: .86em; font-weight: 700; }
     &__op { color: @con-text-dim; font-weight: 700; }
     &__arrow { color: @con-text-dim; }
     &__part {

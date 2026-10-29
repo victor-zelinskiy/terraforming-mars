@@ -3,6 +3,7 @@ import {ICard, IActionCard} from '../cards/ICard';
 import {Behavior, TitledBehavior, AddResource} from '../behavior/Behavior';
 import {Counter} from '../behavior/Counter';
 import {CardType} from '../../common/cards/CardType';
+import {Tag} from '../../common/cards/Tag';
 import {CardResource} from '../../common/CardResource';
 import {Resource} from '../../common/Resource';
 import {Units} from '../../common/Units';
@@ -401,6 +402,9 @@ function isVariableAmount(raw: unknown): boolean {
  *    `{colonies, all}` counts everyone's; labelling both «Colonies» makes the
  *    two indistinguishable, and for tags the scope IS the card's rule
  *    (Toll Station counts opponents' space tags and nothing of yours).
+ *  - A TERM WITHOUT ITS ENTITY IS NOT A TERM (P85 Summit Logistics). A colony
+ *    term on a table without the Colonies expansion is dropped — the count is 0
+ *    there by construction, and naming it would read as a reproach.
  */
 function countableBasis(ctx: Counter, raw: unknown): ReadonlyArray<ActionEffectBasis> | undefined {
   if (!isVariableAmount(raw)) {
@@ -422,11 +426,20 @@ function countableBasis(ctx: Counter, raw: unknown): ReadonlyArray<ActionEffectB
   if (r.tag !== undefined) {
     // Scope-keyed label + the tag ICON, so a rule that counts one of thirteen
     // tags needs three keys rather than thirty-nine. An ARRAY of tags («Venus
-    // OR Earth tags») has no single icon — it keeps the label alone.
+    // OR Earth tags», P85's planet tags) has no single icon — it names its
+    // tags as a ROW (`tags`), so the client draws them instead of guessing.
     const label = r.others === true ? 'Opponent tags' : r.all === true ? 'Tags in play' : 'Your tags';
     const term: ActionEffectBasis = {count: count({tag: r.tag}), label};
-    if (!Array.isArray(r.tag)) {
+    if (Array.isArray(r.tag)) {
+      term.tags = [...r.tag];
+    } else {
       term.tag = r.tag;
+    }
+    // The player's own count includes their WILD tags — named as a share, so the number adds up against the tags
+    // the player sees (the Scientists' «+1 wild tag» under Redux is in every count a Scientists card makes).
+    const wild = r.others === true || r.all === true || [r.tag].flat().includes(Tag.WILD) ? 0 : ctx.ownWildTags();
+    if (wild > 0 && term.count > 0) {
+      term.wild = wild;
     }
     terms.push(term);
   }
@@ -459,7 +472,7 @@ function countableBasis(ctx: Counter, raw: unknown): ReadonlyArray<ActionEffectB
       });
     }
   }
-  if (r.colonies !== undefined) {
+  if (r.colonies !== undefined && ctx.coloniesInPlay) {
     // Colonies invert the tile convention: WITHOUT `all` only the player's own
     // colonies count (Counter's `colonies` branch), with it everyone's.
     terms.push({count: count({colonies: r.colonies}), label: r.all === true ? 'Colonies in play' : 'Your colonies'});

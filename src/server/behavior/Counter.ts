@@ -12,6 +12,7 @@ import {MarsTileCensus, marsTileCensus} from '../../common/boards/marsTileCensus
 import {AutomaTargeting} from '../automa/AutomaTargeting';
 import {ColoniesHandler} from '../colonies/ColoniesHandler';
 import {once} from './Lazy';
+import {Tag} from '../../common/cards/Tag';
 
 /**
  * Counts things in game state.
@@ -50,6 +51,24 @@ export class Counter implements ICounter {
 
   public constructor(private player: IPlayer, private card: ICard) {
     this.cardIsUnplayed = !player.tableau.has(card.name);
+  }
+
+  /**
+   * Does the table HAVE colonies at all? A count's basis names a colony term only where colonies exist (P85 — a
+   * political Prelude 2 card is dealt without the Colonies expansion; «colonies: 0» there reads as a reproach for
+   * something the table cannot hold). The count itself is unchanged — it is 0 there anyway.
+   */
+  public get coloniesInPlay(): boolean {
+    return this.player.game.gameOptions.coloniesExtension;
+  }
+
+  /**
+   * The WILD tags a count of the player's OWN tags includes — the printed ones and the Scientists' extra one under
+   * Turmoil Redux (`Tags.count` → `ParliamentHandler.wildTags`): the share of the number the player cannot see
+   * among the tags the card names (P85 — «[J][E][V][M] 5» on a table showing four).
+   */
+  public ownWildTags(): number {
+    return this.player.tags.count(Tag.WILD, 'default');
   }
 
   private getAdjacentSpaces(countable: Exclude<Countable, number>): ReadonlyArray<Space> {

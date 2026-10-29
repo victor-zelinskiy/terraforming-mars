@@ -298,6 +298,18 @@ export type ActionEffectBasis = {
   label: string,
   tag?: Tag,
   /**
+   * The counted TAGS of an OR of tags («1 M€ per planet tag» — Jovian, Earth,
+   * Venus or Mars; P85), in the card's order: the client draws them as a ROW of
+   * icons. Exclusive with `tag` (one counted tag rides `tag`).
+   */
+  tags?: ReadonlyArray<Tag>,
+  /**
+   * How many of a count of the player's OWN tags are WILD tags (a printed wild tag, the Scientists' «+1 wild tag»
+   * under Turmoil Redux) — the share the player does not see among the tags the term names. Included in `count`;
+   * absent when zero.
+   */
+  wild?: number,
+  /**
    * THE COMPOSITION of the count, when the counted entity has kinds the player
    * checks against the board (TR45 — «Tiles on Mars: 14» = 4 cities + 5
    * greeneries + 4 oceans + 1 special tile): every share with its cells, in the

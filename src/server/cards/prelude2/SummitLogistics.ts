@@ -27,15 +27,20 @@ export class SummitLogistics extends Card {
 
       metadata: {
         cardNumber: 'P85',
+        // The print draws Jovian, Earth and Venus; Mars is a LIVE tag in this fork (eight Turmoil Redux cards carry it)
+        // and the rule counts it (upstream's «fan expansion note»), so the face shows it too — the face says what is
+        // counted (`docs/claude/prelude2-cards-progress.md` § P85, the owner's decision 2).
+        infoText: [
+          {text: 'Gain 1 M€ for each planet tag (Jovian, Earth, Venus or Mars) you have and for each colony you have.', tokens: ['megacredits']},
+          {text: 'Draw 2 cards.', tokens: ['cards']},
+        ],
         renderData: CardRenderer.builder((b) => {
-          b.megacredits(1).slash().tag(Tag.JOVIAN).tag(Tag.EARTH).tag(Tag.VENUS).colonies(1);
+          b.megacredits(1).slash().tag(Tag.JOVIAN).tag(Tag.EARTH).tag(Tag.VENUS).tag(Tag.MARS).colonies(1);
           b.br;
-          b.cards(2).br;
-          b.plainText('(Requires that Scientists are ruling or that you have 2 delegates there. ' +
-            'Gain 1 M€ per planet tag and colony you have. Draw 2 cards.)');
-          b.br;
-          b.plainText('(FAN EXPANSION NOTE: This includes Mars but not The Moon.)');
+          b.cards(2);
         }),
+        description: 'Requires that Scientists are ruling or that you have 2 delegates there. ' +
+          'Gain 1 M€ for each planet tag (Jovian, Earth, Venus or Mars) you have and for each colony you have. Draw 2 cards.',
       },
     });
   }

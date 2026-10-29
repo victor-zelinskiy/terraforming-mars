@@ -19,6 +19,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {AltSecondaryTag} from '@/common/cards/render/AltSecondaryTag';
 import {Tag} from '@/common/cards/Tag';
+import {tagNameKey} from '@/common/cards/tagNames';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import type {ICardRenderItem} from '@/common/cards/render/Types';
 import type {SpaceId} from '@/common/Types';
@@ -157,7 +158,8 @@ export const PART_LABEL: Readonly<Record<ActionEffectBasisPartKind, string>> = {
  * play», framed: every player's), the ocean (TR43), the city, the greenery,
  * the tag the rule counts. The label is the server's `countableBasis` key — a
  * plain string, never a translated `Message`. A term with no printed item
- * (floaters, «resources on this card», an OR of tags) reads as words.
+ * (floaters, «resources on this card») reads as words; an OR of tags is a ROW
+ * of glyphs (`countGlyphsOf`), never one.
  */
 export function countGlyphOf(term: ActionEffectBasis): CountedGlyph | undefined {
   switch (term.label) {
@@ -200,6 +202,25 @@ export function countGlyphOf(term: ActionEffectBasis): CountedGlyph | undefined 
   return undefined;
 }
 
+/**
+ * The term's glyphs as the strip draws them — the ONE glyph of `countGlyphOf`, or, for an OR of tags (P85 — «per
+ * planet tag»: the server's `tags`), the ROW of the tags it counts, in the card's order. Empty → the term reads as words.
+ */
+export function countGlyphsOf(term: ActionEffectBasis): ReadonlyArray<CountedGlyph> {
+  if (term.tags !== undefined && term.tags.length > 0) {
+    const anyPlayer = term.label !== 'Your tags';
+    return term.tags.map((tag) => glyph(CardRenderItemType.TAG, {tag, anyPlayer}));
+  }
+  const one = countGlyphOf(term);
+  return one === undefined ? [] : [one];
+}
+
+/** The WILD tag a count of the player's own tags includes (`ActionEffectBasis.wild`) — drawn as the face draws it. */
+export const WILD_GLYPH: CountedGlyph = glyph(CardRenderItemType.TAG, {tag: Tag.WILD});
+
+/** One term of a SUMMED reading (P85 — «3 planet tags + 2 colonies»): the server's term and its glyphs. */
+export type CountedTerm = {term: ActionEffectBasis, glyphs: ReadonlyArray<CountedGlyph>};
+
 /** The composer's «ПОЧЕМУ» of a counted play: the gain, the term it counts, its composition and what it names. */
 export type CountedWhy = {
   /** The play's chip — its icon, its amount (the result side of the reading). */
@@ -207,6 +228,14 @@ export type CountedWhy = {
   /** The counted term — its count and label (and, for the census, its glyph). */
   term: ActionEffectBasis,
   glyph: CountedGlyph | undefined,
+  /** The term's glyphs as drawn (`countGlyphsOf` — the row of an OR of tags); empty → the label in words. */
+  glyphs: ReadonlyArray<CountedGlyph>,
+  /**
+   * THE TERMS OF A SUMMED BASIS (P85 Summit Logistics — «1 M€ per planet tag AND per colony»): two or more plain
+   * terms, each counted on its own by the server, read as «[J][E][V][M] 3 + [colony] 2 → +5». Empty for a single term
+   * and for the census; when present, `term` is the FIRST of them and the reading never prints `term` alone.
+   */
+  terms: ReadonlyArray<CountedTerm>,
   parts: ReadonlyArray<{kind: ActionEffectBasisPartKind, count: number, spaces: ReadonlyArray<SpaceId>, glyph: CountedGlyph | undefined}>,
   excluded: ReadonlyArray<{kind: ActionEffectBasisPartKind, count: number, spaces: ReadonlyArray<SpaceId>}>,
   /**
@@ -229,7 +258,7 @@ export type CountedWhy = {
 /**
  * The term a chip's «why» reads: the one carrying a COMPOSITION (the census),
  * else the basis's ONLY term (PL-196 — «Colonies in play: 5»). A basis of two
- * or more plain terms has no one reason to name — its chip keeps its pill.
+ * or more plain terms is a SUMMED reading (`summedTermsOf`), not one term.
  */
 function whyTermOf(chip: ActionEffect): ActionEffectBasis | undefined {
   const basis = chip.basis;
@@ -240,13 +269,31 @@ function whyTermOf(chip: ActionEffect): ActionEffectBasis | undefined {
 }
 
 /**
+ * A basis of two or more PLAIN terms (P85 — planet tags + colonies; Molecular
+ * Printing — cities + colonies): every term, in the server's order. Empty when
+ * the basis is one term or carries a composition.
+ */
+function summedTermsOf(chip: ActionEffect): ReadonlyArray<CountedTerm> {
+  const basis = chip.basis ?? [];
+  if (basis.length < 2 || basis.some((b) => b.parts !== undefined)) {
+    return [];
+  }
+  return basis.map((term) => ({term, glyphs: countGlyphsOf(term)}));
+}
+
+/**
  * The «why» of a counted play, read off the play's own chips: the first gain
- * whose basis names ONE reason — a COMPOSITION (the census — TR45) or a
- * single counted term (PL-196). `undefined` for a play with no counted gain.
+ * whose basis names its reason — a COMPOSITION (the census — TR45), a single
+ * counted term (PL-196) or the SUM of its terms (P85). `undefined` for a play
+ * with no counted gain.
  */
 export function countedWhyOf(effects: ReadonlyArray<ActionEffect> | undefined): CountedWhy | undefined {
   for (const chip of effects ?? []) {
-    const term = chip.direction === 'gain' ? whyTermOf(chip) : undefined;
+    if (chip.direction !== 'gain') {
+      continue;
+    }
+    const terms = summedTermsOf(chip);
+    const term = terms.length > 0 ? terms[0].term : whyTermOf(chip);
     if (term === undefined) {
       continue;
     }
@@ -254,12 +301,14 @@ export function countedWhyOf(effects: ReadonlyArray<ActionEffect> | undefined): 
       chip,
       term,
       glyph: countGlyphOf(term),
+      glyphs: countGlyphsOf(term),
+      terms,
       parts: (term.parts ?? []).map((p) => ({kind: p.kind, count: p.count, spaces: p.spaces, glyph: PART_GLYPH[p.kind]})),
       excluded: (term.excluded ?? []).map((p) => ({kind: p.kind, count: p.count, spaces: p.spaces})),
-      spaces: term.parts === undefined ? (term.spaces ?? []) : [],
-      zeroLabel: term.zero,
+      spaces: term.parts === undefined && terms.length === 0 ? (term.spaces ?? []) : [],
+      zeroLabel: terms.length === 0 ? term.zero : undefined,
       composed: term.parts !== undefined,
-      zero: term.count === 0,
+      zero: terms.length > 0 ? terms.every((t) => t.term.count === 0) : term.count === 0,
     };
   }
   return undefined;
@@ -286,13 +335,18 @@ export function excludedTail(why: CountedWhy, t: CountedTranslator): string | un
 export function countedWhyRow(why: CountedWhy, t: CountedTranslator): string {
   // The result as the chip states it: the signed number and where it lands («на эту карту», «производство»).
   const result = why.chip.note === undefined ? signedAmount(why.chip.amount) : `${signedAmount(why.chip.amount)} ${t.text(why.chip.note)}`;
+  if (why.terms.length > 0) {
+    // A SUMMED basis (P85): «Ваши метки (Юпитер, Земля, Венера, Марс) 3 + Ваши колонии 2 → +5» — every term with its
+    // own number, a zero included (each entity named with its 0: the reading says what WOULD have counted).
+    return `${why.terms.map((c) => termReading(c.term, t)).join(' + ')} → ${result}`;
+  }
   if (!why.composed) {
     // A single term (PL-196): «Колонии в игре 5 → +5 на эту карту» — a zero reads as its own «0 → 0», or in the words
     // the server named it with (T12 — «Рядом с вашими тайлами нет пустых клеток → 0»).
     if (why.zero && why.zeroLabel !== undefined) {
       return `${t.text(why.zeroLabel)} → ${result}`;
     }
-    return `${t.text(why.term.label)} ${why.term.count} → ${result}`;
+    return `${termReading(why.term, t)} → ${result}`;
   }
   if (why.zero) {
     return `${t.text('No tiles on Mars yet')} → ${result}`;
@@ -301,4 +355,16 @@ export function countedWhyRow(why: CountedWhy, t: CountedTranslator): string {
   const head = `${t.text(why.term.label)} ${why.term.count} = ${parts} → ${result}`;
   const tail = excludedTail(why, t);
   return tail === undefined ? head : `${head} · ${tail}`;
+}
+
+/** A term in words — its label, and for an OR of tags the tags it counts: «Ваши метки (Юпитер, Земля, Венера, Марс)». */
+function termWords(term: ActionEffectBasis, t: CountedTranslator): string {
+  const names = (term.tags ?? []).map((tag) => tagNameKey(tag)).filter((k): k is string => k !== undefined).map((k) => t.text(k));
+  return names.length === 0 ? t.text(term.label) : `${t.text(term.label)} (${names.join(', ')})`;
+}
+
+/** A term with its number — and the WILD share it includes, named: «… 5 (в т.ч. любых: 1)». */
+function termReading(term: ActionEffectBasis, t: CountedTranslator): string {
+  const head = `${termWords(term, t)} ${term.count}`;
+  return term.wild === undefined ? head : `${head} (${t.params('incl. ${0} wild', [String(term.wild)])})`;
 }

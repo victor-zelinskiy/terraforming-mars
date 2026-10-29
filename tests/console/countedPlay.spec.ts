@@ -33,6 +33,11 @@ const noAreas: ActionEffect = {
   direction: 'gain', icon: 'megacredits', amount: 0, current: 20, resulting: 20,
   basis: [{count: 0, label: 'Empty areas next to your tiles', spaces: [], zero: 'No empty areas next to your tiles'}],
 };
+/** P85 Summit Logistics — «1 M€ per planet tag AND per colony»: two plain terms, the tags an OR (`tags`). */
+const planetsAndColonies: ActionEffect = {
+  direction: 'gain', icon: 'megacredits', amount: 5, current: 10, resulting: 15,
+  basis: [{count: 3, label: 'Your tags', tags: [Tag.JOVIAN, Tag.EARTH, Tag.VENUS, Tag.MARS]}, {count: 2, label: 'Your colonies'}],
+};
 
 function card(extra: Partial<CardModel>): CardModel {
   return {name: CardName.COMPOSTING_INITIATIVE, resources: undefined, calculatedCost: 8, isSelfReplicatingRobotsCard: false, ...extra} as CardModel;
@@ -133,8 +138,29 @@ describe('countedPlay', () => {
       expect(glyphOf('Cards in hand')).deep.include({type: CardRenderItemType.CARDS});
     });
 
-    it('PL-196 — a basis of TWO plain terms names no one reason (the chip keeps its pill); a cost is never a «why»', () => {
-      expect(countedWhyOf([{direction: 'gain', icon: 'megacredits', amount: 4, basis: [{count: 2, label: 'Oceans'}, {count: 2, label: 'Your cities'}]}])).is.undefined;
+    it('P85 — a basis of TWO plain terms is a SUMMED reading: every term, its glyphs, its number (an OR of tags is a ROW of icons)', () => {
+      const why = countedWhyOf([planetsAndColonies])!;
+      expect(why).deep.include({composed: false, zero: false, zeroLabel: undefined});
+      expect(why.spaces, 'a summed reading has no cells of its own').deep.eq([]);
+      expect(why.terms.map((c) => [c.term.label, c.term.count])).deep.eq([['Your tags', 3], ['Your colonies', 2]]);
+      expect(why.terms[0].glyphs.map((g) => [g.type, g.tag, g.anyPlayer])).deep.eq([
+        [CardRenderItemType.TAG, Tag.JOVIAN, false], [CardRenderItemType.TAG, Tag.EARTH, false],
+        [CardRenderItemType.TAG, Tag.VENUS, false], [CardRenderItemType.TAG, Tag.MARS, false],
+      ]);
+      expect(why.terms[1].glyphs.map((g) => g.type)).deep.eq([CardRenderItemType.COLONIES]);
+      const cities = countedWhyOf([{direction: 'gain', icon: 'megacredits', amount: 4, basis: [{count: 2, label: 'Oceans'}, {count: 2, label: 'Your cities'}]}])!;
+      expect(cities.terms.map((c) => c.glyphs[0]?.type)).deep.eq([CardRenderItemType.OCEANS, CardRenderItemType.CITY]);
+    });
+
+    it('P85 — a summed zero is zero only when EVERY term is; a single OR-of-tags term draws its row too; a cost is never a «why»', () => {
+      const none = countedWhyOf([{...planetsAndColonies, amount: 0, basis: [{...planetsAndColonies.basis![0], count: 0}, {count: 0, label: 'Your colonies'}]}])!;
+      expect(none.zero).is.true;
+      const half = countedWhyOf([{...planetsAndColonies, amount: 2, basis: [{...planetsAndColonies.basis![0], count: 0}, {count: 2, label: 'Your colonies'}]}])!;
+      expect(half.zero).is.false;
+      const orTags = countedWhyOf([{direction: 'gain', icon: 'megacredits', amount: 2, basis: [{count: 2, label: 'Your tags', tags: [Tag.VENUS, Tag.EARTH]}]}])!;
+      expect(orTags.terms, 'one term is not a sum').deep.eq([]);
+      expect(orTags.glyph, 'no ONE glyph for an OR of tags').is.undefined;
+      expect(orTags.glyphs.map((g) => g.tag)).deep.eq([Tag.VENUS, Tag.EARTH]);
       expect(countedWhyOf([{direction: 'cost', icon: 'megacredits', amount: 3, basis: [{count: 3, label: 'Oceans'}]}])).is.undefined;
     });
   });
@@ -156,6 +182,20 @@ describe('countedPlay', () => {
       expect(countedWhyRow(countedWhyOf([oceansProduction])!, t)).eq('Oceans 3 → +3 production');
       const none: ActionEffect = {direction: 'gain', icon: 'data', amount: 0, note: 'on this card', basis: [{count: 0, label: 'Colonies in play'}]};
       expect(countedWhyRow(countedWhyOf([none])!, t)).eq('Colonies in play 0 → 0 on this card');
+    });
+
+    it('P85 — a summed basis: «Your tags (Jovian, Earth, Venus, Mars) 3 + Your colonies 2 → +5»; its zero names each term', () => {
+      expect(countedWhyRow(countedWhyOf([planetsAndColonies])!, t)).eq('Your tags (Jovian, Earth, Venus, Mars) 3 + Your colonies 2 → +5');
+      const none = countedWhyOf([{...planetsAndColonies, amount: 0, basis: [{...planetsAndColonies.basis![0], count: 0}, {count: 0, label: 'Your colonies'}]}])!;
+      expect(countedWhyRow(none, t)).eq('Your tags (Jovian, Earth, Venus, Mars) 0 + Your colonies 0 → 0');
+    });
+
+    it('P85 — the WILD share a count of your own tags includes is NAMED (the Scientists\' «+1 wild tag» under Redux)', () => {
+      const withWild: ActionEffect = {...planetsAndColonies, amount: 6, basis: [{...planetsAndColonies.basis![0], count: 4, wild: 1}, {count: 2, label: 'Your colonies'}]};
+      expect(countedWhyOf([withWild])!.terms[0].term.wild).eq(1);
+      expect(countedWhyRow(countedWhyOf([withWild])!, t)).eq('Your tags (Jovian, Earth, Venus, Mars) 4 (incl. 1 wild) + Your colonies 2 → +6');
+      const single: ActionEffect = {direction: 'gain', icon: 'megacredits', amount: 3, basis: [{count: 3, label: 'Your tags', tag: Tag.EARTH, wild: 1}]};
+      expect(countedWhyRow(countedWhyOf([single])!, t)).eq('Your tags 3 (incl. 1 wild) → +3');
     });
 
     it('T12 — a single term with cells reads as a single term; its zero reads in the words the server sent', () => {
