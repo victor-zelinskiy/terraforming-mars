@@ -10,6 +10,8 @@ import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {botCitySpaces, bonusUnits} from './MarsBotDividendReads';
+import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C20_FACTORUM);
 /** The track whose every advance stocks the card, named by TAG (never an index). */
@@ -70,6 +72,11 @@ export const MarsBotFactorum: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('M€ held', marsBotOf(game).megaCredits, r.each, r.per),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botCitySpaces(game).filter((s) => bonusUnits(s, SpaceBonus.STEEL) > 0).length;
   },
 
   onTrackAdvance(game: IGame, trackIndex: number, _position: number): void {

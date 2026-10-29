@@ -86,7 +86,7 @@ export function marsBotDividendAnnotation(id: MarsBotCorpId, order: number, opts
     {text: translateTextWithParams('${0} — VP at the end of the game', [translateText(box.name)])},
     ...box.lines.map((line) => ({
       text: line.params !== undefined && line.params.length > 0 ?
-        translateTextWithParams(line.text, [...line.params]) :
+        translateTextWithParams(line.text, line.keyParams === true ? line.params.map((p) => translateText(p)) : [...line.params]) :
         translateText(line.text),
     })),
   ];

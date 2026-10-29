@@ -12,7 +12,7 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {botCityCount} from './MarsBotDividendReads';
+import {botCityCount, botGreenerySpaces, isMapEdge} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C10_THARSIS_REPUBLIC);
 /** What a human city pays the bot, and which track its own city pushes. */
@@ -59,6 +59,11 @@ export const MarsBotTharsisRepublic: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('City tiles', botCityCount(game), r.each),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botGreenerySpaces(game).filter((s) => isMapEdge(game, s)).length;
   },
 
   setup(game: IGame): void {

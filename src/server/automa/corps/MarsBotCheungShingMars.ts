@@ -5,7 +5,7 @@ import {takeSilverCube} from './MarsBotSilverCubePayout';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {trackPosition} from './MarsBotDividendReads';
+import {trackPosition, botOceanSpaces, botNeighbours} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C13_CHEUNG_SHING_MARS);
 
@@ -37,6 +37,11 @@ export const MarsBotCheungShingMars: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Building track spaces beyond the mark', trackPosition(game, 'building') - r.from, r.each),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botOceanSpaces(game).filter((s) => botNeighbours(game, s) > 0).length;
   },
 
   onTrackCubeTrigger(game: IGame, cube: MarsBotTrackCube, _printedAction: TrackAction | undefined): 'replaces-action' | void {

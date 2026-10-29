@@ -7,7 +7,7 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm, bonusTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {pileCount} from './MarsBotDividendReads';
+import {pileCount, botTileSpaces} from './MarsBotDividendReads';
 import {Tag} from '../../../common/cards/Tag';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C16_VALLEY_TRUST);
@@ -60,6 +60,11 @@ export const MarsBotValleyTrust: MarsBotCorp = {
       perUnitTerm('Cards with a science tag', cards, r.each),
       bonusTerm('Threshold bonus', cards, r.at, r.bonus),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).filter((s) => s.bonus.length > 0).length;
   },
 
   setup(game: IGame): void {

@@ -16,7 +16,7 @@ import * as actionPreviews from '../../cards/actionPreviews';
 import * as forecast from '../../cards/effectForecastPreviews';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {pileTagCount, regressedSpaces} from './MarsBotDividendReads';
+import {pileTagCount, regressedSpaces, botTileSpaces} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C21_PHARMACY_UNION);
 /** The printed seeding: reveal until ONE card carries a science tag. */
@@ -79,6 +79,11 @@ export const MarsBotPharmacyUnion: MarsBotCorp = {
       perUnitTerm('Microbe tags', pileTagCount(game, [Tag.MICROBE]), r.microbe),
       perUnitTerm('Track spaces pushed back', regressedSpaces(game), r.regressed),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).filter((s) => s.y <= 1 || s.y >= 7).length;
   },
 
   setup(game: IGame): void {

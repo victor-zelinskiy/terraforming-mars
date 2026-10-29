@@ -7,7 +7,7 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {failedActionCount} from './MarsBotDividendReads';
+import {failedActionCount, botCitySpaces} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C36_PRISTAR);
 /** The card's printed name, for the journal templates. */
@@ -78,6 +78,11 @@ export const MarsBotPristar: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Failed Actions', failedActionCount(game), r.each),
     ], r.cap);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botCitySpaces(game).filter((s) => s.bonus.length === 0).length;
   },
 
   beforeActionPhase(game: IGame): void {

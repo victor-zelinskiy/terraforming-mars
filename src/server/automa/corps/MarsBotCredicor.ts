@@ -7,7 +7,7 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {pileCards} from './MarsBotDividendReads';
+import {pileCards, pileCount} from './MarsBotDividendReads';
 
 /** The M€ threshold and reward of the printed effect (card C01). */
 const COST_THRESHOLD = 20;
@@ -40,6 +40,11 @@ export const MarsBotCredicor: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Printed cost of played cards, M€', pileCards(game).reduce((sum, card) => sum + card.cost, 0), r.each, r.per),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return pileCount(game, (card) => card.cost <= 5);
   },
 
   onProjectCardResolving(game: IGame, card: IProjectCard): void {

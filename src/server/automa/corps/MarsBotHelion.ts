@@ -8,7 +8,7 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {botParameterSteps} from './MarsBotDividendReads';
+import {botParameterSteps, botTileSpaces} from './MarsBotDividendReads';
 import {GlobalParameter} from '../../../common/GlobalParameter';
 
 /**
@@ -49,6 +49,11 @@ export const MarsBotHelion: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Temperature steps raised', botParameterSteps(game, GlobalParameter.TEMPERATURE), r.each),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).filter((s) => s.y >= 3 && s.y <= 5).length;
   },
 
   onTrackCubeTrigger(game: IGame, cube: MarsBotTrackCube, printedAction: TrackAction | undefined): 'replaces-action' | void {

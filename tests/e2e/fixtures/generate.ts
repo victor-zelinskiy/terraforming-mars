@@ -306,6 +306,7 @@ import {hasPartyRequirement} from '../../../src/server/cards/requirements/partyR
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
 import {BonusCardId, MarsBotCorpId} from '../../../src/common/automa/AutomaTypes';
+import {AutomaCorporations} from '../../../src/server/automa/corps/AutomaCorporations';
 import {Phase} from '../../../src/common/Phase';
 import {IPlayer} from '../../../src/server/IPlayer';
 import {AutomaState} from '../../../src/server/automa/AutomaState';
@@ -631,11 +632,15 @@ for (const name of ['price-fold-bot', 'price-fold-bot-second'] as const) {
   write(name, game);
 }
 
-// ── bot-portfolio-dividends: THE LIVE DIVIDEND LEDGER with its goals REACHED (the owner, 2026-10-27). A solo game
-//    against MarsBot (Credicor) holding two further corporations, its table built so both readings of a goal stand:
-//      · Tharsis Republic (cities: goals 7 / 8) — the bot owns 8 cities: BOTH goals reached, +10 and +15;
-//      · Ecoline (greeneries: goals 9 / 10) — the bot owns 9 greeneries: the first goal reached, the second «ещё 1».
-//    The human (Helion) stands at the action menu; the inspect of either holding reads the server's own dividend row. ──
+// ── bot-portfolio-dividends: THE LIVE DIVIDEND LEDGER with its goals REACHED (the owner, 2026-10-27; a goal on an
+//    operand of its OWN, apart from the formula, 2026-10-29). A solo game against MarsBot (Credicor) holding two further
+//    corporations, its table built so both readings of a goal stand:
+//      · Tharsis Republic — goal «Outskirt parks» (its greeneries on the map's rim, tiers 3 / 5 / 6): five of its nine
+//        greeneries stand on the rim → TWO tiers reached, the third one greenery short;
+//      · Ecoline — goal «Wetlands» (its oceans touching two or more oceans, tiers 4 / 5 / 6): the oceans it placed form
+//        one cluster in which exactly four touch two → the first tier reached, the second «ещё 1».
+//    The bot also owns 8 cities (Tharsis's formula). The human (Helion) stands at the action menu; the inspect of either
+//    holding reads the server's own dividend row. ──
 {
   const name = 'bot-portfolio-dividends';
   const pinned = [CardName.HELION];
@@ -651,13 +656,70 @@ for (const name of ['price-fold-bot', 'price-fold-bot-second'] as const) {
   for (let i = 0; i < 8; i++) {
     addCity(bot);
   }
-  for (let i = 0; i < 9; i++) {
-    addGreenery(bot);
+  const onRim = (sp: Space) => game.board.getAdjacentSpaces(sp).length < 6;
+  for (let i = 0; i < 5; i++) {
+    const rim = game.board.getAvailableSpacesOnLand(bot).find(onRim);
+    if (rim === undefined) {
+      throw new Error(`${name}: no free rim space for greenery ${i + 1}`);
+    }
+    addGreenery(bot, rim.id);
+  }
+  for (let i = 0; i < 4; i++) {
+    const inland = game.board.getAvailableSpacesOnLand(bot).find((sp) => !onRim(sp));
+    if (inland === undefined) {
+      throw new Error(`${name}: no free inland space for greenery ${i + 1}`);
+    }
+    addGreenery(bot, inland.id);
+  }
+  // Oceans in ONE cluster — the map's largest connected group of free ocean spaces, filled from the inside out (each
+  // next ocean where it touches the most oceans already placed) until exactly four of the bot's oceans touch two or
+  // more: Ecoline's first tier, the second one short. (Tharsis prints its oceans in short chains; a greedy pick over the
+  // whole map strings them out and never closes a wetland.)
+  const wetlands = () => AutomaCorporations.corpFor(MarsBotCorpId.C02_ECOLINE).goal(game);
+  const adjacent = (sp: Space) => game.board.getAdjacentSpaces(sp);
+  const oceansAround = (sp: Space) => adjacent(sp).filter((n) => Board.isOceanSpace(n)).length;
+  const freeOceans = game.board.getAvailableSpacesForOcean(bot);
+  const freeIds = new Set(freeOceans.map((sp) => sp.id));
+  const visited = new Set<string>();
+  let cluster: ReadonlyArray<Space> = [];
+  for (const start of freeOceans) {
+    if (visited.has(start.id)) {
+      continue;
+    }
+    const group: Array<Space> = [];
+    const stack = [start];
+    visited.add(start.id);
+    for (let cur = stack.pop(); cur !== undefined; cur = stack.pop()) {
+      group.push(cur);
+      for (const n of adjacent(cur)) {
+        if (freeIds.has(n.id) && !visited.has(n.id)) {
+          visited.add(n.id);
+          stack.push(n);
+        }
+      }
+    }
+    if (group.length > cluster.length) {
+      cluster = group;
+    }
+  }
+  const clusterIds = new Set(cluster.map((sp) => sp.id));
+  const potential = (sp: Space) => adjacent(sp).filter((n) => clusterIds.has(n.id)).length;
+  for (let placed = 0; wetlands() < 4 && placed < 9; placed++) {
+    const avail = game.board.getAvailableSpacesForOcean(bot).filter((sp) => clusterIds.has(sp.id));
+    if (avail.length === 0) {
+      break;
+    }
+    const best = avail.reduce((a, b) => (oceansAround(b) > oceansAround(a) || (oceansAround(b) === oceansAround(a) && potential(b) > potential(a)) ? b : a));
+    addOcean(bot, best.id);
   }
   runAllActions(game);
   const owned = (type: TileType) => game.board.spaces.filter((sp) => sp.player?.id === bot.id && sp.tile?.tileType === type).length;
   if (owned(TileType.CITY) !== 8 || owned(TileType.GREENERY) !== 9) {
     throw new Error(`${name}: expected the bot to own 8 cities and 9 greeneries, got ${owned(TileType.CITY)} / ${owned(TileType.GREENERY)}`);
+  }
+  const parks = AutomaCorporations.corpFor(MarsBotCorpId.C10_THARSIS_REPUBLIC).goal(game);
+  if (parks !== 5 || wetlands() !== 4) {
+    throw new Error(`${name}: expected Tharsis's «Outskirt parks» = 5 and Ecoline's «Wetlands» = 4, got ${parks} / ${wetlands()}`);
   }
   if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions)) {
     throw new Error(`${name}: expected blue on the move with the action menu — got phase=${game.phase} active=${game.activePlayer.color} wf=${human.getWaitingFor()?.constructor.name}`);

@@ -8,8 +8,9 @@ import {seedBonusDeckFromProjectDeck} from './MarsBotBonusDeckOps';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {pileCount} from './MarsBotDividendReads';
+import {pileCount, botTilesOnOrBeside} from './MarsBotDividendReads';
 import {Tag} from '../../../common/cards/Tag';
+import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C07_PHOBOLOG);
 /** The printed seeding: reveal until 2 cards carry a space tag. */
@@ -50,6 +51,11 @@ export const MarsBotPhobolog: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Cards with a space tag', pileCount(game, (card) => card.tags.includes(Tag.SPACE)), r.each, r.per),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTilesOnOrBeside(game, SpaceBonus.TITANIUM);
   },
 
   setup(game: IGame): void {

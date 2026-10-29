@@ -58,6 +58,11 @@ export const MarsBotMiningGuild: MarsBotCorp = {
     ]);
   },
 
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).filter((s) => s.bonus.length === 0).length;
+  },
+
   setup(game: IGame): void {
     const automa = game.automa;
     if (automa === undefined) {

@@ -7,7 +7,7 @@ import {MarsBotCorp} from './MarsBotCorp';
 import {TrackPayout, payForTrackAdvance} from './MarsBotTrackPayout';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {pileTagCount} from './MarsBotDividendReads';
+import {pileTagCount, largestBotCluster} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C09_TERACTOR);
 /** The printed setup gift. */
@@ -52,6 +52,11 @@ export const MarsBotTeractor: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Earth tags of MarsBot', pileTagCount(game, [Tag.EARTH]), r.each),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return largestBotCluster(game);
   },
 
   setup(game: IGame): void {

@@ -8,7 +8,7 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {colonyCounts} from './MarsBotDividendReads';
+import {colonyCounts, botTileSpaces, oceanNeighbours} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C33_POSEIDON);
 
@@ -67,6 +67,11 @@ export const MarsBotPoseidon: MarsBotCorp = {
       perUnitTerm('Colonies in play', colonies.all, r.any),
       perUnitTerm('Colonies of MarsBot', colonies.bot, r.own),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).filter((s) => oceanNeighbours(game, s) >= 2).length;
   },
 
   setup(game: IGame): void {

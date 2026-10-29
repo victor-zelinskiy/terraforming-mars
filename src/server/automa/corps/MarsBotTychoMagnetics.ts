@@ -12,7 +12,8 @@ import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {trackPosition} from './MarsBotDividendReads';
+import {trackPosition, botTilesOnOrBeside} from './MarsBotDividendReads';
+import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C46_TYCHO_MAGNETICS);
 /** The corporation's own bonus card. */
@@ -54,6 +55,11 @@ export const MarsBotTychoMagnetics: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Spaces of the lower track', Math.min(trackPosition(game, 'power'), trackPosition(game, 'science')), r.each),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTilesOnOrBeside(game, SpaceBonus.STEEL);
   },
 
   setup(game: IGame): void {

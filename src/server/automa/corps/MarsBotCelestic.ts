@@ -75,6 +75,11 @@ export const MarsBotCelestic: MarsBotCorp = {
     ]);
   },
 
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return pileTagCount(game, [Tag.SCIENCE]);
+  },
+
   setup(game: IGame): void {
     gainFloaters(game, SETUP_FLOATERS, payout('celesticSetup'));
   },

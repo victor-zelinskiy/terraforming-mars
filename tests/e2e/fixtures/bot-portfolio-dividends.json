@@ -182,10 +182,6 @@
    {
     "id": "17",
     "spaceType": "land",
-    "tile": {
-     "tileType": 0
-    },
-    "player": "p-game-id-marsbot",
     "bonus": [],
     "x": 5,
     "y": 2
@@ -193,10 +189,6 @@
    {
     "id": "18",
     "spaceType": "land",
-    "tile": {
-     "tileType": 0
-    },
-    "player": "p-game-id-marsbot",
     "bonus": [],
     "x": 6,
     "y": 2
@@ -204,10 +196,6 @@
    {
     "id": "19",
     "spaceType": "land",
-    "tile": {
-     "tileType": 0
-    },
-    "player": "p-game-id-marsbot",
     "bonus": [],
     "x": 7,
     "y": 2
@@ -347,6 +335,9 @@
    {
     "id": "32",
     "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
     "bonus": [
      2,
      2
@@ -357,6 +348,9 @@
    {
     "id": "33",
     "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
     "bonus": [
      2,
      2
@@ -367,6 +361,9 @@
    {
     "id": "34",
     "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
     "bonus": [
      2,
      2
@@ -397,6 +394,10 @@
    {
     "id": "37",
     "spaceType": "land",
+    "tile": {
+     "tileType": 0
+    },
+    "player": "p-game-id-marsbot",
     "bonus": [
      2,
      2
@@ -407,6 +408,10 @@
    {
     "id": "38",
     "spaceType": "land",
+    "tile": {
+     "tileType": 0
+    },
+    "player": "p-game-id-marsbot",
     "bonus": [
      2
     ],
@@ -453,6 +458,9 @@
    {
     "id": "43",
     "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
     "bonus": [
      2
     ],
@@ -462,6 +470,9 @@
    {
     "id": "44",
     "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
     "bonus": [
      2
     ],
@@ -471,6 +482,9 @@
    {
     "id": "45",
     "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
     "bonus": [
      2
     ],
@@ -480,6 +494,10 @@
    {
     "id": "46",
     "spaceType": "land",
+    "tile": {
+     "tileType": 0
+    },
+    "player": "p-game-id-marsbot",
     "bonus": [],
     "x": 2,
     "y": 6
@@ -646,7 +664,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1793133395434,
+ "createdTimeMs": 1793267024648,
  "currentSeed": 489028072071,
  "deferredActions": [],
  "donePlayers": [],
@@ -656,7 +674,7 @@
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
- "gameAge": 35,
+ "gameAge": 54,
  "gameLog": [
   {
    "message": "First player this generation is ${0}",
@@ -666,7 +684,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1793133395434
+   "timestamp": 1793267024648
   },
   {
    "message": "Good luck ${0}!",
@@ -676,7 +694,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1793133395434,
+   "timestamp": 1793267024648,
    "playerId": "p-player1-id"
   },
   {
@@ -687,7 +705,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1793133395434,
+   "timestamp": 1793267024648,
    "type": 1
   },
   {
@@ -702,7 +720,7 @@
      "value": "Helion"
     }
    ],
-   "timestamp": 1793133395435,
+   "timestamp": 1793267024649,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -724,7 +742,7 @@
      "value": "heat"
     }
    ],
-   "timestamp": 1793133395435,
+   "timestamp": 1793267024649,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -741,7 +759,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1793133395435,
+   "timestamp": 1793267024649,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -758,7 +776,7 @@
      "value": "CrediCor"
     }
    ],
-   "timestamp": 1793133395435,
+   "timestamp": 1793267024649,
    "correlationId": 4,
    "parentId": 4,
    "role": "root-action",
@@ -776,7 +794,7 @@
      "value": "Ecoline"
     }
    ],
-   "timestamp": 1793133395436,
+   "timestamp": 1793267024650,
    "correlationId": 4,
    "parentId": 4,
    "role": "detail"
@@ -793,7 +811,7 @@
      "value": "Tharsis Republic"
     }
    ],
-   "timestamp": 1793133395436,
+   "timestamp": 1793267024650,
    "correlationId": 4,
    "parentId": 4,
    "role": "detail"
@@ -818,7 +836,7 @@
      "value": "03"
     }
    ],
-   "timestamp": 1793133395438
+   "timestamp": 1793267024655
   },
   {
    "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
@@ -840,7 +858,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1793133395438,
+   "timestamp": 1793267024657,
    "role": "detail"
   },
   {
@@ -863,7 +881,7 @@
      "value": "05"
     }
    ],
-   "timestamp": 1793133395439
+   "timestamp": 1793267024659
   },
   {
    "message": "${0} ${1} ${2} · ${3}",
@@ -885,7 +903,7 @@
      "value": "12"
     }
    ],
-   "timestamp": 1793133395439
+   "timestamp": 1793267024659
   },
   {
    "message": "${0} ${1} ${2} · ${3}",
@@ -907,7 +925,7 @@
      "value": "14"
     }
    ],
-   "timestamp": 1793133395440
+   "timestamp": 1793267024659
   },
   {
    "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
@@ -929,7 +947,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1793133395440,
+   "timestamp": 1793267024661,
    "role": "detail"
   },
   {
@@ -952,7 +970,7 @@
      "value": "16"
     }
    ],
-   "timestamp": 1793133395440
+   "timestamp": 1793267024661
   },
   {
    "message": "${0} ${1} ${2} · ${3}",
@@ -974,7 +992,7 @@
      "value": "20"
     }
    ],
-   "timestamp": 1793133395440
+   "timestamp": 1793267024661
   },
   {
    "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
@@ -996,7 +1014,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1793133395440,
+   "timestamp": 1793267024661,
    "role": "detail"
   },
   {
@@ -1019,7 +1037,7 @@
      "value": "25"
     }
    ],
-   "timestamp": 1793133395440
+   "timestamp": 1793267024662
   },
   {
    "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
@@ -1041,7 +1059,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1793133395440,
+   "timestamp": 1793267024662,
    "role": "detail"
   },
   {
@@ -1064,7 +1082,7 @@
      "value": "29"
     }
    ],
-   "timestamp": 1793133395441
+   "timestamp": 1793267024662
   },
   {
    "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
@@ -1086,7 +1104,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1793133395441,
+   "timestamp": 1793267024662,
    "role": "detail"
   },
   {
@@ -1109,7 +1127,7 @@
      "value": "08"
     }
    ],
-   "timestamp": 1793133395441
+   "timestamp": 1793267024664
   },
   {
    "message": "${0} ${1} ${2} · ${3}",
@@ -1128,10 +1146,100 @@
     },
     {
      "type": 13,
-     "value": "09"
+     "value": "21"
     }
    ],
-   "timestamp": 1793133395443
+   "timestamp": 1793267024668
+  },
+  {
+   "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1793267024668,
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "greenery tile"
+    },
+    {
+     "type": 13,
+     "value": "37"
+    }
+   ],
+   "timestamp": 1793267024668
+  },
+  {
+   "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1793267024668,
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "greenery tile"
+    },
+    {
+     "type": 13,
+     "value": "38"
+    }
+   ],
+   "timestamp": 1793267024669
   },
   {
    "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
@@ -1153,7 +1261,74 @@
      "value": "1"
     }
    ],
-   "timestamp": 1793133395443,
+   "timestamp": 1793267024669,
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "greenery tile"
+    },
+    {
+     "type": 13,
+     "value": "46"
+    }
+   ],
+   "timestamp": 1793267024669
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "greenery tile"
+    },
+    {
+     "type": 13,
+     "value": "09"
+    }
+   ],
+   "timestamp": 1793267024672
+  },
+  {
+   "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793267024672,
    "role": "detail"
   },
   {
@@ -1176,7 +1351,7 @@
      "value": "10"
     }
    ],
-   "timestamp": 1793133395443
+   "timestamp": 1793267024673
   },
   {
    "message": "${0} ${1} ${2} · ${3}",
@@ -1198,7 +1373,21 @@
      "value": "11"
     }
    ],
-   "timestamp": 1793133395443
+   "timestamp": 1793267024673
+  },
+  {
+   "message": "${0} claimed the ${1} scale bonus",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 15,
+     "value": "oxygen"
+    }
+   ],
+   "timestamp": 1793267024676
   },
   {
    "message": "${0} ${1} ${2} · ${3}",
@@ -1220,7 +1409,7 @@
      "value": "15"
     }
    ],
-   "timestamp": 1793133395444
+   "timestamp": 1793267024677
   },
   {
    "message": "${0} ${1} ${2} · ${3}",
@@ -1235,94 +1424,14 @@
     },
     {
      "type": 0,
-     "value": "greenery tile"
+     "value": "ocean tile"
     },
     {
      "type": 13,
-     "value": "17"
+     "value": "33"
     }
    ],
-   "timestamp": 1793133395444
-  },
-  {
-   "message": "${0} ${1} ${2} · ${3}",
-   "data": [
-    {
-     "type": 2,
-     "value": "red"
-    },
-    {
-     "type": 0,
-     "value": "placed"
-    },
-    {
-     "type": 0,
-     "value": "greenery tile"
-    },
-    {
-     "type": 13,
-     "value": "18"
-    }
-   ],
-   "timestamp": 1793133395444
-  },
-  {
-   "message": "${0} ${1} ${2} · ${3}",
-   "data": [
-    {
-     "type": 2,
-     "value": "red"
-    },
-    {
-     "type": 0,
-     "value": "placed"
-    },
-    {
-     "type": 0,
-     "value": "greenery tile"
-    },
-    {
-     "type": 13,
-     "value": "19"
-    }
-   ],
-   "timestamp": 1793133395444
-  },
-  {
-   "message": "${0} claimed the ${1} scale bonus",
-   "data": [
-    {
-     "type": 2,
-     "value": "red"
-    },
-    {
-     "type": 15,
-     "value": "oxygen"
-    }
-   ],
-   "timestamp": 1793133395445
-  },
-  {
-   "message": "${0} ${1} ${2} · ${3}",
-   "data": [
-    {
-     "type": 2,
-     "value": "red"
-    },
-    {
-     "type": 0,
-     "value": "placed"
-    },
-    {
-     "type": 0,
-     "value": "greenery tile"
-    },
-    {
-     "type": 13,
-     "value": "21"
-    }
-   ],
-   "timestamp": 1793133395445
+   "timestamp": 1793267024679
   },
   {
    "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
@@ -1344,7 +1453,347 @@
      "value": "2"
     }
    ],
-   "timestamp": 1793133395445,
+   "timestamp": 1793267024679,
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "34"
+    }
+   ],
+   "timestamp": 1793267024681
+  },
+  {
+   "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1793267024681,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} from ${3} ocean(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793267024681,
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "43"
+    }
+   ],
+   "timestamp": 1793267024681
+  },
+  {
+   "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793267024681,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} from ${3} ocean(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793267024681,
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "44"
+    }
+   ],
+   "timestamp": 1793267024682
+  },
+  {
+   "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793267024682,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} from ${3} ocean(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793267024682,
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "32"
+    }
+   ],
+   "timestamp": 1793267024683
+  },
+  {
+   "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1793267024683,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} from ${3} ocean(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793267024683,
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "45"
+    }
+   ],
+   "timestamp": 1793267024683
+  },
+  {
+   "message": "${0} gained ${1} ${2} for ${3} covered bonus icon(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793267024683,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} from ${3} ocean(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793267024683,
    "role": "detail"
   }
  ],
@@ -1739,7 +2188,7 @@
    "correlationId": 20,
    "visibility": "analytics",
    "player": "red",
-   "space": "09",
+   "space": "21",
    "tile": 0,
    "tags": [
     "terraforming"
@@ -1752,13 +2201,13 @@
    "type": "resource-changed",
    "impact": {
     "stock": {
-     "megacredits": 1
+     "megacredits": 2
     },
     "snapshot": {
      "resource": "megacredits",
      "scope": "stock",
      "before": 8,
-     "after": 9
+     "after": 10
     }
    },
    "correlationId": 21,
@@ -1797,7 +2246,7 @@
    "correlationId": 23,
    "visibility": "analytics",
    "player": "red",
-   "space": "10",
+   "space": "37",
    "tile": 0,
    "tags": [
     "terraforming"
@@ -1807,6 +2256,29 @@
    "id": 24,
    "generation": 1,
    "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 10,
+     "after": 12
+    }
+   },
+   "correlationId": 24,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 25,
+   "generation": 1,
+   "phase": "action",
    "type": "global-parameter-changed",
    "impact": {
     "globalParameter": {
@@ -1814,64 +2286,52 @@
      "steps": 1
     }
    },
-   "correlationId": 24,
+   "correlationId": 25,
    "visibility": "analytics",
    "player": "red",
    "tags": [
     "global-parameter"
-   ]
-  },
-  {
-   "id": 25,
-   "generation": 1,
-   "phase": "action",
-   "type": "tile-placed",
-   "impact": {
-    "tilesPlaced": 1
-   },
-   "correlationId": 25,
-   "visibility": "analytics",
-   "player": "red",
-   "space": "11",
-   "tile": 0,
-   "tags": [
-    "terraforming"
    ]
   },
   {
    "id": 26,
    "generation": 1,
    "phase": "action",
-   "type": "global-parameter-changed",
+   "type": "tile-placed",
    "impact": {
-    "globalParameter": {
-     "parameter": "oxygen",
-     "steps": 1
-    }
+    "tilesPlaced": 1
    },
    "correlationId": 26,
    "visibility": "analytics",
    "player": "red",
+   "space": "38",
+   "tile": 0,
    "tags": [
-    "global-parameter"
+    "terraforming"
    ]
   },
   {
    "id": 27,
    "generation": 1,
    "phase": "action",
-   "type": "tile-placed",
+   "type": "resource-changed",
    "impact": {
-    "tilesPlaced": 1
+    "stock": {
+     "megacredits": 1
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 12,
+     "after": 13
+    }
    },
    "correlationId": 27,
    "visibility": "analytics",
-   "player": "red",
-   "space": "15",
-   "tile": 0,
-   "tags": [
-    "terraforming"
-   ]
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
   },
   {
    "id": 28,
@@ -1902,7 +2362,7 @@
    "correlationId": 29,
    "visibility": "analytics",
    "player": "red",
-   "space": "17",
+   "space": "46",
    "tile": 0,
    "tags": [
     "terraforming"
@@ -1937,7 +2397,7 @@
    "correlationId": 31,
    "visibility": "analytics",
    "player": "red",
-   "space": "18",
+   "space": "09",
    "tile": 0,
    "tags": [
     "terraforming"
@@ -1947,6 +2407,29 @@
    "id": 32,
    "generation": 1,
    "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 1
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 13,
+     "after": 14
+    }
+   },
+   "correlationId": 32,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 33,
+   "generation": 1,
+   "phase": "action",
    "type": "global-parameter-changed",
    "impact": {
     "globalParameter": {
@@ -1954,46 +2437,28 @@
      "steps": 1
     }
    },
-   "correlationId": 32,
+   "correlationId": 33,
    "visibility": "analytics",
    "player": "red",
    "tags": [
     "global-parameter"
-   ]
-  },
-  {
-   "id": 33,
-   "generation": 1,
-   "phase": "action",
-   "type": "tile-placed",
-   "impact": {
-    "tilesPlaced": 1
-   },
-   "correlationId": 33,
-   "visibility": "analytics",
-   "player": "red",
-   "space": "19",
-   "tile": 0,
-   "tags": [
-    "terraforming"
    ]
   },
   {
    "id": 34,
    "generation": 1,
    "phase": "action",
-   "type": "global-parameter-changed",
+   "type": "tile-placed",
    "impact": {
-    "globalParameter": {
-     "parameter": "oxygen",
-     "steps": 1
-    }
+    "tilesPlaced": 1
    },
    "correlationId": 34,
    "visibility": "analytics",
    "player": "red",
+   "space": "10",
+   "tile": 0,
    "tags": [
-    "global-parameter"
+    "terraforming"
    ]
   },
   {
@@ -2003,7 +2468,7 @@
    "type": "global-parameter-changed",
    "impact": {
     "globalParameter": {
-     "parameter": "temperature",
+     "parameter": "oxygen",
      "steps": 1
     }
    },
@@ -2025,7 +2490,7 @@
    "correlationId": 36,
    "visibility": "analytics",
    "player": "red",
-   "space": "21",
+   "space": "11",
    "tile": 0,
    "tags": [
     "terraforming"
@@ -2033,6 +2498,94 @@
   },
   {
    "id": 37,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oxygen",
+     "steps": 1
+    }
+   },
+   "correlationId": 37,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 38,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "temperature",
+     "steps": 1
+    }
+   },
+   "correlationId": 38,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 39,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 39,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "15",
+   "tile": 0,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 40,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oxygen",
+     "steps": 1
+    }
+   },
+   "correlationId": 40,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 41,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 41,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "33",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 42,
    "generation": 1,
    "phase": "action",
    "type": "resource-changed",
@@ -2043,11 +2596,11 @@
     "snapshot": {
      "resource": "megacredits",
      "scope": "stock",
-     "before": 9,
-     "after": 11
+     "before": 14,
+     "after": 16
     }
    },
-   "correlationId": 37,
+   "correlationId": 42,
    "visibility": "analytics",
    "source": {
     "kind": "spaceBonus"
@@ -2055,17 +2608,422 @@
    "player": "red"
   },
   {
-   "id": 38,
+   "id": 43,
    "generation": 1,
    "phase": "action",
    "type": "global-parameter-changed",
    "impact": {
     "globalParameter": {
-     "parameter": "oxygen",
+     "parameter": "oceans",
      "steps": 1
     }
    },
-   "correlationId": 38,
+   "correlationId": 43,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 44,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 44,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "34",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 45,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 16,
+     "after": 18
+    }
+   },
+   "correlationId": 45,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 46,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 18,
+     "after": 20
+    }
+   },
+   "correlationId": 46,
+   "visibility": "analytics",
+   "source": {
+    "kind": "oceanBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 47,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 47,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 48,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 48,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "43",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 49,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 1
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 20,
+     "after": 21
+    }
+   },
+   "correlationId": 49,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 50,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 21,
+     "after": 23
+    }
+   },
+   "correlationId": 50,
+   "visibility": "analytics",
+   "source": {
+    "kind": "oceanBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 51,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 51,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 52,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 52,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "44",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 53,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 1
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 23,
+     "after": 24
+    }
+   },
+   "correlationId": 53,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 54,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 24,
+     "after": 26
+    }
+   },
+   "correlationId": 54,
+   "visibility": "analytics",
+   "source": {
+    "kind": "oceanBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 55,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 55,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 56,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 56,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "32",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 57,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 26,
+     "after": 28
+    }
+   },
+   "correlationId": 57,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 58,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 28,
+     "after": 30
+    }
+   },
+   "correlationId": 58,
+   "visibility": "analytics",
+   "source": {
+    "kind": "oceanBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 59,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 59,
+   "visibility": "analytics",
+   "player": "red",
+   "tags": [
+    "global-parameter"
+   ]
+  },
+  {
+   "id": 60,
+   "generation": 1,
+   "phase": "action",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 60,
+   "visibility": "analytics",
+   "player": "red",
+   "space": "45",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ]
+  },
+  {
+   "id": 61,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 1
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 30,
+     "after": 31
+    }
+   },
+   "correlationId": 61,
+   "visibility": "analytics",
+   "source": {
+    "kind": "spaceBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 62,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 31,
+     "after": 33
+    }
+   },
+   "correlationId": 62,
+   "visibility": "analytics",
+   "source": {
+    "kind": "oceanBonus"
+   },
+   "player": "red"
+  },
+  {
+   "id": 63,
+   "generation": 1,
+   "phase": "action",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 63,
    "visibility": "analytics",
    "player": "red",
    "tags": [
@@ -2073,7 +3031,7 @@
    ]
   }
  ],
- "eventSeq": 38,
+ "eventSeq": 63,
  "gameOptions": {
   "altVenusBoard": false,
   "aresExtension": false,
@@ -2171,7 +3129,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Synthetic Signal Signal",
+ "name": "Volatile Particle Signal",
  "oxygenLevel": 9,
  "passedPlayers": [],
  "phase": "action",
@@ -2268,11 +3226,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 0,
-    "startedAt": 1793133395435,
+    "sumElapsed": 1,
+    "startedAt": 1793267024649,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1793133395435
+    "lastStoppedAt": 1793267024649
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -2295,11 +3253,11 @@
   },
   {
    "id": "p-game-id-marsbot",
-   "terraformRating": 30,
+   "terraformRating": 36,
    "hasIncreasedTerraformRatingThisGeneration": true,
    "terraformRatingFromCards": 0,
    "terraformRatingSources": [],
-   "megaCredits": 11,
+   "megaCredits": 33,
    "megaCreditProduction": 0,
    "steel": 0,
    "steelProduction": 0,
@@ -2317,7 +3275,7 @@
    "canUsePlantsAsMegaCredits": false,
    "canUseTitaniumAsMegacredits": false,
    "preservationProgram": false,
-   "trThisGeneration": 10,
+   "trThisGeneration": 16,
    "actionsTakenThisRound": 0,
    "availableActionsThisRound": 2,
    "bonusActions": 0,
@@ -2365,7 +3323,7 @@
     "startedAt": 0,
     "running": false,
     "afterFirstAction": false,
-    "lastStoppedAt": 1793133395435
+    "lastStoppedAt": 1793267024649
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],
@@ -2377,7 +3335,7 @@
    "draftHand": [],
    "autoPass": false,
    "globalParameterSteps": {
-    "oceans": 0,
+    "oceans": 6,
     "oxygen": 9,
     "temperature": 1,
     "venus": 0,

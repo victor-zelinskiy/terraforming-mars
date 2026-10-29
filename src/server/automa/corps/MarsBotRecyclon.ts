@@ -6,7 +6,7 @@ import {pushCubeTrack} from './MarsBotCubeTrackPush';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {trackPosition} from './MarsBotDividendReads';
+import {trackPosition, bonusDiscardCount} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C23_RECYCLON);
 /** The track a white cube pushes, named by TAG (never an index). */
@@ -56,6 +56,11 @@ export const MarsBotRecyclon: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Spaces of the lower track', Math.min(trackPosition(game, 'building'), trackPosition(game, 'bio')), r.each, r.per),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return bonusDiscardCount(game);
   },
 
   onTrackCubeTrigger(game: IGame, cube: MarsBotTrackCube, _printedAction: TrackAction | undefined): 'replaces-action' | void {

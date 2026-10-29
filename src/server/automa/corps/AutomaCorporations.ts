@@ -574,14 +574,15 @@ export class AutomaCorporations {
 
   /**
    * One corporation's dividend as if it were a holding (the face's live reading, the bench):
-   * the clause's own formula, then the box's two GOALS on its measured operand — applied HERE,
-   * once, from the box's data (the clause never re-states them).
+   * the clause's own formula, then the box's GOAL — three tiers on the corporation's OWN goal count
+   * (`goal(game)`, an operand the formula does not measure) — applied HERE, once, from the box's data.
    */
   public static dividendOf(game: IGame, id: MarsBotCorpId): MarsBotDividendResult {
     if (game.automa === undefined) {
       return NO_DIVIDEND;
     }
-    return withDividendGoal(AutomaCorporations.REGISTRY[id].dividend(game), marsBotDividendInfo(id).goal);
+    const corp = AutomaCorporations.REGISTRY[id];
+    return withDividendGoal(corp.dividend(game), marsBotDividendInfo(id).goal, corp.goal(game));
   }
 
   /**

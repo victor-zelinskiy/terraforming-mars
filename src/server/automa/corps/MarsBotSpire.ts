@@ -9,7 +9,8 @@ import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {pileCount} from './MarsBotDividendReads';
+import {pileCount, botTilesOnOrBeside} from './MarsBotDividendReads';
+import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 
 /** The printed thresholds of card C45. */
 const TAGS_FOR_SCIENCE = 2;
@@ -54,6 +55,11 @@ export const MarsBotSpire: MarsBotCorp = {
       perUnitTerm('Cards with 2 or more tags', pileCount(game, (card) => card.tags.length >= 2), r.two),
       perUnitTerm('Cards with 3 or more tags', pileCount(game, (card) => card.tags.length >= 3), r.three),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTilesOnOrBeside(game, SpaceBonus.DRAW_CARD);
   },
 
   onProjectCardResolving(game: IGame, card: IProjectCard): void {

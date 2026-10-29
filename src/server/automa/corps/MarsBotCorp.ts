@@ -105,6 +105,16 @@ export type MarsBotCorp = {
   dividend(game: IGame): MarsBotDividendResult;
 
   /**
+   * The count the box's GOAL measures — the corporation's OWN operand, never
+   * one the formula above counts and never where the players build (the
+   * owner, 2026-10-29; the catalog with the measured independence of every
+   * pairing: docs/claude/marsbot-dividend-goals-catalog.md). REQUIRED, like the
+   * clause, and PURE for the same reason: read from state, write nothing. The
+   * three tiers are applied once, in `AutomaCorporations.dividendOf`.
+   */
+  goal(game: IGame): number;
+
+  /**
    * MarsBot just took a FAILED ACTION — dispatched from `failedAction`, the one
    * place every one of them goes through, AFTER the usual M€ so a corporation
    * that adds to it («in addition to the usual MC») reads a finished event.

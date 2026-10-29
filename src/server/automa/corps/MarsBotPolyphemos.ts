@@ -8,6 +8,7 @@ import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {botGreenerySpaces} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C32_POLYPHEMOS);
 /** The printed opening gift. */
@@ -60,6 +61,11 @@ export const MarsBotPolyphemos: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Played cards beyond the mark', (game.automa?.playedPile.length ?? 0) - r.from, r.each),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botGreenerySpaces(game).filter((s) => s.bonus.length > 0).length;
   },
 
   setup(game: IGame): void {

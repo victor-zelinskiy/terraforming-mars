@@ -8,7 +8,8 @@ import {destroyBonusCard} from './MarsBotBonusDeckOps';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {awardStandings} from './MarsBotDividendReads';
+import {awardStandings, botCitySpaces, bonusUnits} from './MarsBotDividendReads';
+import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C42_NIRGAL_ENTERPRISES);
 /** The card's printed name, for the journal templates. */
@@ -89,6 +90,11 @@ export const MarsBotNirgalEnterprises: MarsBotCorp = {
       perUnitTerm('Awards MarsBot leads', standings.first, r.first),
       perUnitTerm('Awards where MarsBot is second', standings.second, r.second),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botCitySpaces(game).filter((s) => bonusUnits(s, SpaceBonus.PLANT) > 0).length;
   },
 
   setup(game: IGame): void {

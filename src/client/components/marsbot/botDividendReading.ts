@@ -1,5 +1,5 @@
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
-import {DIVIDEND_GOAL_LINE, GOAL_TERM_LABELS, MarsBotDividendDetail, MarsBotDividendTerm, dividendTermFormula} from '@/common/automa/MarsBotDividend';
+import {GOAL_TERM_LABELS, MarsBotDividendDetail, MarsBotDividendTerm, dividendTermFormula, isDividendGoalLine} from '@/common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '@/common/automa/MarsBotDividendData';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 
@@ -12,8 +12,9 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
  * Pure, and it counts nothing: every number is the SERVER's — the bot's open
  * VP breakdown carries one `detailsDividends` row per held corporation, its
  * formula terms followed by the three goal tiers `withDividendGoal` appended
- * (threshold, the measured operand's count, the VP paid). This module only
- * finds those terms and reads them out.
+ * (threshold, the goal's OWN count — an operand the formula does not measure,
+ * the owner 2026-10-29 — and the VP paid). This module only finds those terms
+ * and reads them out; the goal's name and measure are the box's printed data.
  *
  * The goal is ONE SCALE of three tiers (the owner, 2026-10-28: «одна шкала с
  * тремя делениями, последнее в конце — бонусы не должны забирать внимание у
@@ -52,7 +53,9 @@ export type BotDividendTierReading = {
 };
 
 export type BotDividendGoalReading = {
-  /** The operand the tiers measure — the term's own i18n label and its live count. */
+  /** The goal's own name (i18n key — «Titanium mines»). */
+  name: string;
+  /** The operand the tiers measure — the goal's measure (i18n key) and its live count. */
   operand: {label: string, count: number};
   tiers: readonly [BotDividendTierReading, BotDividendTierReading, BotDividendTierReading];
   /** The scale's fill, 0…1 — three equal segments, one per tier, each crossed by the progress toward it. */
@@ -104,8 +107,7 @@ export function botDividendReading(detail: MarsBotDividendDetail | undefined): B
   }
   const goalTerms = GOAL_TERM_LABELS.map((label) => detail.terms.find((t) => t.label === label));
   const info = marsBotDividendInfo(detail.corporation);
-  const measured = detail.terms[info.goal.term];
-  if (measured === undefined || goalTerms.some((t) => t?.threshold === undefined)) {
+  if (goalTerms.some((t) => t?.threshold === undefined)) {
     return undefined;
   }
   const [a, b, c] = goalTerms as ReadonlyArray<MarsBotDividendTerm>;
@@ -120,13 +122,14 @@ export function botDividendReading(detail: MarsBotDividendDetail | undefined): B
   return {
     name: info.name,
     rule: info.lines
-      .filter((line) => line.text !== DIVIDEND_GOAL_LINE)
+      .filter((line) => !isDividendGoalLine(line.text))
       .map((line) => ({text: line.text, params: line.params ?? [], muted: line.muted === true})),
     terms: detail.terms
       .filter((t) => !goalTerms.includes(t))
       .map((t) => ({label: t.label, formula: dividendTermFormula(t), vp: t.vp})),
     goal: {
-      operand: {label: measured.label, count},
+      name: info.goal.name,
+      operand: {label: info.goal.measure, count},
       tiers,
       progress: scaleProgress(count, tiers.map((t) => t.at)),
       ...(nextTier !== undefined ? {next: {ordinal: nextTier.ordinal, vp: nextTier.vp, remaining: nextTier.at - count}} : {}),

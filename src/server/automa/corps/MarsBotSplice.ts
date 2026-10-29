@@ -88,6 +88,11 @@ export const MarsBotSplice: MarsBotCorp = {
     ]);
   },
 
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return pileTagCount(game, [Tag.ANIMAL]);
+  },
+
   setup(game: IGame): void {
     const automa = game.automa;
     if (automa === undefined) {

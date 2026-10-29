@@ -9,7 +9,7 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {pileCount, printedVictoryPoints} from './MarsBotDividendReads';
+import {pileCount, printedVictoryPoints, botCitySpaces} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C17_VITOR);
 /** The card Vitor takes out of the rotation and hands back every generation. */
@@ -65,6 +65,11 @@ export const MarsBotVitor: MarsBotCorp = {
       perUnitTerm('Cards printing 2 VP or more', pileCount(game, (card) => printedVictoryPoints(card) >= r.at), r.big),
       perUnitTerm('Cards printing 1 VP', pileCount(game, (card) => printedVictoryPoints(card) === 1), r.small),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botCitySpaces(game).filter((s) => s.bonus.length >= 2).length;
   },
 
   setup(game: IGame): void {

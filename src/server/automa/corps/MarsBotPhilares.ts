@@ -21,7 +21,7 @@ import {destroyBonusCard} from './MarsBotBonusDeckOps';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {borders, isBotTile, isOtherPlayersTile} from './MarsBotDividendReads';
+import {borders, isBotTile, isOtherPlayersTile, botCitySpaces, botNeighbours, isBotGreenery} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C22_PHILARES);
 /** The corporation card starts with this much science on it. */
@@ -105,6 +105,11 @@ export const MarsBotPhilares: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Borders with other players\' tiles', borders(game, isBotTile(game), isOtherPlayersTile(game)), r.each),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botCitySpaces(game).filter((s) => botNeighbours(game, s, isBotGreenery(game)) >= 2).length;
   },
 
   setup(game: IGame): void {

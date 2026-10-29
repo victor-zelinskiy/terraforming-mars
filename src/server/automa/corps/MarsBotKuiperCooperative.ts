@@ -8,7 +8,7 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {trackPosition, botOceansPlaced} from './MarsBotDividendReads';
+import {trackPosition, botOceansPlaced, botTileSpaces} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C41_KUIPER_COOPERATIVE);
 /** The card's printed name, for the journal templates. */
@@ -62,6 +62,11 @@ export const MarsBotKuiperCooperative: MarsBotCorp = {
       perUnitTerm('Space track spaces', trackPosition(game, 'space'), r.track),
       perUnitTerm('Oceans placed', botOceansPlaced(game), r.ocean),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).reduce((n, s) => n + s.bonus.length, 0);
   },
 
   onTrackCubeTrigger(game: IGame, cube: MarsBotTrackCube, _printedAction: TrackAction | undefined): 'replaces-action' | void {

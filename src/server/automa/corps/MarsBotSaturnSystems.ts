@@ -11,7 +11,7 @@ import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import * as forecast from '../../cards/effectForecastPreviews';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {pileTagCount, otherPlayersCardsWithTag} from './MarsBotDividendReads';
+import {pileTagCount, otherPlayersCardsWithTag, botTileSpaces, isMapEdge} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C08_SATURN_SYSTEMS);
 /** The tag the effect watches, and the track it pays into. */
@@ -51,6 +51,11 @@ export const MarsBotSaturnSystems: MarsBotCorp = {
       perUnitTerm('Jovian tags of MarsBot', pileTagCount(game, [Tag.JOVIAN]), r.own),
       perUnitTerm('Jovian cards of the other players', otherPlayersCardsWithTag(game, Tag.JOVIAN), r.theirs),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).filter((s) => isMapEdge(game, s)).length;
   },
 
   onTagResolved(game: IGame, tag: Tag): void {

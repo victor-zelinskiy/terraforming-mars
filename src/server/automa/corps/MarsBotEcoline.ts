@@ -10,7 +10,7 @@ import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm, bonusTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {botGreenerySpaces} from './MarsBotDividendReads';
+import {botGreenerySpaces, botOceanSpaces, oceanNeighbours} from './MarsBotDividendReads';
 
 /**
  * MarsBot Ecoline — official card C02:
@@ -53,6 +53,11 @@ export const MarsBotEcoline: MarsBotCorp = {
       perUnitTerm('Greenery tiles', greeneries, r.each),
       bonusTerm('Threshold bonus', greeneries, r.at, r.bonus),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botOceanSpaces(game).filter((s) => oceanNeighbours(game, s) >= 2).length;
   },
 
   beforeActionPhase(game: IGame): void {

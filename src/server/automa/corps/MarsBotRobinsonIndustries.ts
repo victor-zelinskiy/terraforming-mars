@@ -9,7 +9,8 @@ import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {matTracks} from './MarsBotDividendReads';
+import {matTracks, pileTagCount} from './MarsBotDividendReads';
+import {Tag} from '../../../common/cards/Tag';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C15_ROBINSON_INDUSTRIES);
 /** The printed setup gift — the war chest B28 spends. */
@@ -71,6 +72,11 @@ export const MarsBotRobinsonIndustries: MarsBotCorp = {
       perUnitTerm('Tracks at the first mark', tracks.filter((t) => t.position >= r.at).length, r.each),
       perUnitTerm('Tracks at the second mark', tracks.filter((t) => t.position >= r.high).length, r.extra),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return pileTagCount(game, [Tag.PLANT]);
   },
 
   setup(game: IGame): void {

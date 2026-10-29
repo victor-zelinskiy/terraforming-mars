@@ -5,7 +5,8 @@ import {TileType} from '../../src/common/TileType';
 import {SpaceType} from '../../src/common/boards/SpaceType';
 import {MARS_BOT_CORP_IDS, MarsBotCorpId, marsBotCorpInfo} from '../../src/common/automa/MarsBotCorpData';
 import {marsBotDividendInfo} from '../../src/common/automa/MarsBotDividendData';
-import {DIVIDEND_GOAL_LINE, MarsBotDividendResult} from '../../src/common/automa/MarsBotDividend';
+import {DIVIDEND_GOAL_LINE, DIVIDEND_GOAL_NAME_LINE, MarsBotDividendResult} from '../../src/common/automa/MarsBotDividend';
+import {BonusCardId} from '../../src/common/automa/AutomaTypes';
 import {IGame} from '../../src/server/IGame';
 import {IPlayer} from '../../src/server/IPlayer';
 import {Space} from '../../src/server/boards/Space';
@@ -95,6 +96,9 @@ describe('MarsBot dividends (the campaign portfolio)', () => {
         // Every printed number IS one of the box's rates — the clause reads the same value.
         const rates = new Set(Object.values(box.rates).map(String));
         for (const line of box.lines) {
+          if (line.keyParams === true) {
+            continue; // the goal's name and measure — i18n keys, not numbers
+          }
           for (const param of line.params ?? []) {
             if (!rates.has(param)) {
               missing.push(`${id}: printed «${param}» is not a rate`);
@@ -105,22 +109,47 @@ describe('MarsBot dividends (the campaign portfolio)', () => {
       expect(missing).deep.eq([]);
     });
 
-    it('every box has its three-tier GOAL on an operand its own formula measures, printed once under that line', () => {
+    it('every box has its three-tier GOAL on an operand of its OWN — named, measured, unique, printed as its own paragraph', () => {
       const [game] = seated({}, '-goals');
       const wrong: Array<string> = [];
+      const names = new Map<string, string>();
+      const measures = new Map<string, string>();
       for (const id of MARS_BOT_CORP_IDS) {
         const {goal, lines} = marsBotDividendInfo(id);
         const [t1, t2, t3] = goal.tiers;
         if (!(t1.at > 0 && t2.at > t1.at && t3.at > t2.at && t1.vp > 0 && t2.vp >= t1.vp && t3.vp >= t2.vp && t3.vp <= 10)) {
           wrong.push(`${id}: tiers ${goal.tiers.map((t) => `${t.at} +${t.vp}`).join(' / ')} (rising thresholds, rising prizes, no step above +10)`);
         }
-        // The measured operand exists in the clause's OWN formula (the server's terms, never a guess).
-        const own = AutomaCorporations.corpFor(id).dividend(game);
-        if (own.terms.length <= goal.term) {
-          wrong.push(`${id}: the goal measures term ${goal.term}, the formula has ${own.terms.length}`);
+        if (goal.name === '' || goal.measure === '') {
+          wrong.push(`${id}: the goal has no name or no measure`);
         }
-        if (lines.filter((l) => l.text === DIVIDEND_GOAL_LINE).length !== 1) {
-          wrong.push(`${id}: the goal line is not printed exactly once`);
+        // UNIQUE per corporation (the owner, 2026-10-29) — no two boxes share a goal or count the same thing.
+        if (names.has(goal.name)) {
+          wrong.push(`${id}: goal «${goal.name}» is also ${names.get(goal.name)}'s`);
+        }
+        if (measures.has(goal.measure)) {
+          wrong.push(`${id}: measure «${goal.measure}» is also ${measures.get(goal.measure)}'s`);
+        }
+        names.set(goal.name, id);
+        measures.set(goal.measure, id);
+        // NOT the formula's operand: the goal's measure is none of the clause's own term labels.
+        const corp = AutomaCorporations.corpFor(id);
+        const own = corp.dividend(game);
+        if (own.terms.some((t) => t.label === goal.measure)) {
+          wrong.push(`${id}: the goal measures a term of its own formula («${goal.measure}»)`);
+        }
+        const count = corp.goal(game);
+        if (!Number.isInteger(count) || count < 0) {
+          wrong.push(`${id}: goal(game) = ${count} — a count from zero`);
+        }
+        // Printed ONCE as its own paragraph: the name line (keys for params), then the tiers line.
+        const nameAt = lines.findIndex((l) => l.text === DIVIDEND_GOAL_NAME_LINE);
+        const tiersAt = lines.findIndex((l) => l.text === DIVIDEND_GOAL_LINE);
+        if (nameAt < 0 || tiersAt !== nameAt + 1 || lines.filter((l) => l.text === DIVIDEND_GOAL_LINE || l.text === DIVIDEND_GOAL_NAME_LINE).length !== 2) {
+          wrong.push(`${id}: the goal is not printed as one paragraph of two lines`);
+        }
+        if (lines[nameAt]?.keyParams !== true || JSON.stringify(lines[nameAt]?.params) !== JSON.stringify([goal.name, goal.measure])) {
+          wrong.push(`${id}: the goal line does not carry its name and measure as keys`);
         }
       }
       expect(wrong).deep.eq([]);
@@ -297,33 +326,38 @@ describe('MarsBot dividends (the campaign portfolio)', () => {
       expect(AutomaCorporations.dividendOf(game, MarsBotCorpId.C36_PRISTAR).vp).eq(r.each);
       game.automa!.failedActions = 100;
       const capped = AutomaCorporations.dividendOf(game, MarsBotCorpId.C36_PRISTAR);
-      // The cap ends the formula; the three goal tiers stand beside it (all reached at 100).
-      expect(capped.vp).eq(r.cap + r.goalVp + r.goalVp2 + r.goalVp3);
+      // The cap ends the formula; the goal stands beside it on its OWN count (cities on bare spaces — none here).
+      expect(capped.vp).eq(r.cap);
       expect(capped.terms[0].cap).eq(r.cap);
+      expect(capped.terms.slice(-3).map((t) => t.vp)).deep.eq([0, 0, 0]);
     });
 
-    it('the GOAL — three tiers on the measured operand, each adding its prize on top of the ones below, nothing below the first', () => {
+    it('the GOAL — three tiers on the goal\'s OWN count, each adding its prize on top of the ones below, nothing below the first', () => {
       const [game] = seated({}, '-goalpay');
-      const r = marsBotDividendInfo(MarsBotCorpId.C36_PRISTAR).rates;
-      const pay = (failures: number) => {
-        game.automa!.failedActions = failures;
-        return AutomaCorporations.dividendOf(game, MarsBotCorpId.C36_PRISTAR);
+      // Recyclon's goal counts the bonus discard — a count the formula (its tracks) never reads.
+      const id = MarsBotCorpId.C23_RECYCLON;
+      const r = marsBotDividendInfo(id).rates;
+      const formula = AutomaCorporations.corpFor(id).dividend(game).vp;
+      const pay = (discarded: number) => {
+        game.automa!.bonusDiscard = new Array(discarded).fill(BonusCardId.B16_GOVERNMENT_INTERVENTION);
+        const result = AutomaCorporations.dividendOf(game, id);
+        expect(result.vp - formula, `${discarded} discarded: the formula stays the formula`).eq(result.terms.slice(-3).reduce((sum, t) => sum + t.vp, 0));
+        return result;
       };
-      const base = (failures: number) => Math.min(r.cap, failures * r.each);
-      expect(pay(r.goalAt - 1).vp, 'one short of the first goal').eq(base(r.goalAt - 1));
-      expect(pay(r.goalAt).vp, 'the first goal').eq(base(r.goalAt) + r.goalVp);
-      expect(pay(r.goalAt2 - 1).vp, 'one short of the second').eq(base(r.goalAt2 - 1) + r.goalVp);
-      expect(pay(r.goalAt2).vp, 'the second').eq(base(r.goalAt2) + r.goalVp + r.goalVp2);
-      expect(pay(r.goalAt3 - 1).vp, 'one short of the third').eq(base(r.goalAt3 - 1) + r.goalVp + r.goalVp2);
+      expect(pay(r.goalAt - 1).vp, 'one short of the first goal').eq(formula);
+      expect(pay(r.goalAt).vp, 'the first goal').eq(formula + r.goalVp);
+      expect(pay(r.goalAt2 - 1).vp, 'one short of the second').eq(formula + r.goalVp);
+      expect(pay(r.goalAt2).vp, 'the second').eq(formula + r.goalVp + r.goalVp2);
+      expect(pay(r.goalAt3 - 1).vp, 'one short of the third').eq(formula + r.goalVp + r.goalVp2);
       const all = pay(r.goalAt3);
-      expect(all.vp, 'all three').eq(base(r.goalAt3) + r.goalVp + r.goalVp2 + r.goalVp3);
-      expect(all.terms.slice(-3).map((t) => [t.label, t.threshold, t.vp])).deep.eq([
-        ['Goal', r.goalAt, r.goalVp],
-        ['Second goal', r.goalAt2, r.goalVp2],
-        ['Third goal', r.goalAt3, r.goalVp3],
+      expect(all.vp, 'all three').eq(formula + r.goalVp + r.goalVp2 + r.goalVp3);
+      expect(all.terms.slice(-3).map((t) => [t.label, t.threshold, t.count, t.vp])).deep.eq([
+        ['Goal', r.goalAt, r.goalAt3, r.goalVp],
+        ['Second goal', r.goalAt2, r.goalAt3, r.goalVp2],
+        ['Third goal', r.goalAt3, r.goalAt3, r.goalVp3],
       ]);
       expect([r.goalVp, r.goalVp2, r.goalVp3], 'the default prizes: the old +10 / +15 in three steps').deep.eq([7, 8, 10]);
-      expectWellFormed(all, 'Pristar with all three goal tiers');
+      expectWellFormed(all, 'Recyclon with all three goal tiers');
     });
 
     it('the board — Philares counts borders between the bot\'s tiles and another player\'s', () => {

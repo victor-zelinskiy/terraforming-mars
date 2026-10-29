@@ -7,7 +7,7 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {pileTagCount} from './MarsBotDividendReads';
+import {pileTagCount, botOceanSpaces, oceanNeighbours} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C31_ARKLIGHT);
 /** The tags that pay. The exclamation mark on the card is about the third one. */
@@ -65,6 +65,11 @@ export const MarsBotArklight: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Plant and animal tags', pileTagCount(game, [Tag.PLANT, Tag.ANIMAL]), r.each),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botOceanSpaces(game).filter((s) => oceanNeighbours(game, s) >= 1).length;
   },
 
   onTagResolved(game: IGame, tag: Tag): void {

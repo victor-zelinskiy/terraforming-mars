@@ -10,7 +10,7 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {pileCount} from './MarsBotDividendReads';
+import {pileCount, botCitySpaces, isMapEdge} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C44_SAGITTA_FRONTIER_SERVICES);
 /** The card's printed name, for the journal templates. */
@@ -76,6 +76,11 @@ export const MarsBotSagittaFrontierServices: MarsBotCorp = {
       perUnitTerm('Cards with no tags', pileCount(game, (card) => card.tags.length === 0), r.none),
       perUnitTerm('Cards with exactly one tag', pileCount(game, (card) => card.tags.length === 1), r.one, r.onePer),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botCitySpaces(game).filter((s) => isMapEdge(game, s)).length;
   },
 
   setup(game: IGame): void {

@@ -5,7 +5,8 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {pileCount} from './MarsBotDividendReads';
+import {pileCount, botGreenerySpaces, bonusUnits} from './MarsBotDividendReads';
+import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C38_TERRALABS);
 /** The card's printed name, for the journal templates. */
@@ -60,6 +61,11 @@ export const MarsBotTerraLabs: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Cheap cards', pileCount(game, (card) => card.cost <= r.max), r.each),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botGreenerySpaces(game).filter((s) => bonusUnits(s, SpaceBonus.PLANT) > 0).length;
   },
 
   setup(game: IGame): void {

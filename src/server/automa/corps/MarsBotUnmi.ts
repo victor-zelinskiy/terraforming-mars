@@ -9,6 +9,7 @@ import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {botTileSpaces} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C12_UNMI);
 const SUBSIDY = BonusCardId.B31_GOVERNMENT_SUBSIDY;
@@ -48,6 +49,11 @@ export const MarsBotUnmi: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('TR above the mark', marsBotOf(game).terraformRating - r.above, r.each, r.per),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).filter((s) => s.y === 4).length;
   },
 
   setup(game: IGame): void {

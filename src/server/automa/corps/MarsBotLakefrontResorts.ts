@@ -82,6 +82,11 @@ export const MarsBotLakefrontResorts: MarsBotCorp = {
     ]);
   },
 
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).filter((s) => s.y >= 5).length;
+  },
+
   setup(game: IGame): void {
     const automa = game.automa;
     if (automa === undefined) {

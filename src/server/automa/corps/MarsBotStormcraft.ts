@@ -7,7 +7,7 @@ import {FloaterPayoutConfig, gainFloaters} from './MarsBotFloaterPayout';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {pileTagCount, botParameterSteps} from './MarsBotDividendReads';
+import {pileTagCount, botParameterSteps, botTileSpaces} from './MarsBotDividendReads';
 import {Tag} from '../../../common/cards/Tag';
 import {GlobalParameter} from '../../../common/GlobalParameter';
 
@@ -72,6 +72,11 @@ export const MarsBotStormcraft: MarsBotCorp = {
       perUnitTerm('Temperature steps raised', botParameterSteps(game, GlobalParameter.TEMPERATURE), r.step),
       perUnitTerm('Floaters held', game.automa?.floaters ?? 0, r.floater),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).filter((s) => s.y <= 3).length;
   },
 
   setup(game: IGame): void {

@@ -8,7 +8,7 @@ import {pushCubeTrack} from './MarsBotCubeTrackPush';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {colonyCounts} from './MarsBotDividendReads';
+import {colonyCounts, pileTagKinds} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C30_ARIDOR);
 /** The track every cube pays into, named by TAG (never an index). */
@@ -73,6 +73,11 @@ export const MarsBotAridor: MarsBotCorp = {
       perUnitTerm('Colonies of MarsBot', colonyCounts(game).bot, r.colony),
       perUnitTerm('Resources in shipping storage', cargo, r.cargo),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return pileTagKinds(game, 3);
   },
 
   setup(game: IGame): void {

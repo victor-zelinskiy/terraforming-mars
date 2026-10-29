@@ -202,13 +202,16 @@ for (const profile of PROFILES) {
       const rules = await inspectBotHolding(page);
       const model = await fetchPlayerModel(request, viewer);
 
-      // Tharsis Republic — 8 cities over tiers of 7 / 8 / 9: two paid, the last one city short.
+      // Tharsis Republic — goal «Окраинные парки» (its greeneries on the rim), 5 over tiers of 3 / 5 / 6: two paid,
+      // the last one greenery short. The goal is the box's OWN operand, apart from the cities its formula counts.
       const tharsis = await expectLedgerReadsServer(page, rules, model, 'C10');
       expect(tharsis.map((t) => t.vp > 0), 'the fixture reaches two of Tharsis\'s three tiers').toEqual([true, true, false]);
+      await expect(rules.locator('[data-dividend-goal-name]'), 'the goal plate names the goal').toHaveText('Цель «Окраинные парки»');
       await expect(rules.locator('.con-divledger__notch--reached'), 'a paid tier is a solid notch').toHaveCount(2);
       await page.screenshot({path: `screenshots/bot-portfolio-dividends-reached-${profile.id}.png`, fullPage: false});
 
-      // ← → Ecoline — 9 greeneries over tiers of 8 / 10 / 11: the first paid, the second one short.
+      // ← → Ecoline — goal «Заболоченные земли» (its oceans touching two or more oceans), 4 over tiers of 4 / 5 / 6:
+      // the first paid, the second one short.
       await press(page, 'ArrowLeft', 900);
       const ecoline = await expectLedgerReadsServer(page, rules, model, 'C02');
       expect(ecoline.map((t) => t.vp > 0), 'the fixture reaches only Ecoline\'s first tier').toEqual([true, false, false]);

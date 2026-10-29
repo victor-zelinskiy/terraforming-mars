@@ -62,6 +62,11 @@ export const MarsBotInventrix: MarsBotCorp = {
     ]);
   },
 
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return pileCount(game, (card) => card.tags.length >= 3);
+  },
+
   setup(game: IGame): void {
     for (const id of LOBBYISTS) {
       // The three-place cleanup (bonus deck / discard / the generation-1

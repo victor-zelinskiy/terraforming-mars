@@ -36,7 +36,7 @@
 
     <section class="con-divledger__plate con-divledger__goal" data-dividend-goal-scale :data-goal-tiers-reached="reachedTiers">
       <div class="con-divledger__head">
-        <span class="con-divledger__kicker">{{ $t('Dividend goals') }}</span>
+        <span class="con-divledger__kicker" data-dividend-goal-name>{{ goalName }}</span>
         <span class="con-divledger__measure">
           <span class="con-divledger__measure-label">{{ $t(reading.goal.operand.label) }}</span>
           <span class="con-divledger__measure-count" data-dividend-count>{{ reading.goal.operand.count }}</span>
@@ -98,6 +98,10 @@ export default defineComponent({
     final: {type: Boolean, default: false},
   },
   computed: {
+    /** The goal's own name — «Цель «Титановые рудники»». */
+    goalName(): string {
+      return translateTextWithParams('Dividend goal «${0}»', [translateText(this.reading.goal.name)]);
+    },
     /** How many of the three tiers are paid. */
     reachedTiers(): number {
       return this.reading.goal.tiers.filter((tier) => tier.reached).length;

@@ -22,13 +22,14 @@ const READING: BotDividendReading = {
     {label: 'Threshold bonus', formula: {label: '${0} of ${1} for +${2} VP', params: [9, 6, 2]}, vp: 2},
   ],
   goal: {
-    operand: {label: 'Greenery tiles', count: 9},
+    name: 'Wetlands',
+    operand: {label: 'MarsBot oceans touching two or more oceans', count: 4},
     tiers: [
-      {ordinal: 1, at: 8, vp: 7, reached: true, paid: 7},
-      {ordinal: 2, at: 10, vp: 8, reached: false, paid: 0},
-      {ordinal: 3, at: 11, vp: 10, reached: false, paid: 0},
+      {ordinal: 1, at: 4, vp: 7, reached: true, paid: 7},
+      {ordinal: 2, at: 5, vp: 8, reached: false, paid: 0},
+      {ordinal: 3, at: 6, vp: 10, reached: false, paid: 0},
     ],
-    progress: 0.5,
+    progress: 1 / 3,
     next: {ordinal: 2, vp: 8, remaining: 1},
     vp: 7,
   },
@@ -57,10 +58,11 @@ describe('ConsoleBotDividendLedger', () => {
   it('states the operand once, then ONE scale of three tiers with their thresholds and prizes — the last notch at the end', () => {
     const w = make();
     expect(w.findAll('[data-dividend-goal-scale]')).lengthOf(1);
-    expect(w.find('[data-dividend-count]').text()).eq('9');
     const tiers = w.findAll('[data-dividend-goal]');
     expect(tiers.map((t) => t.attributes('data-dividend-goal'))).deep.eq(['1', '2', '3']);
-    expect(tiers.map((t) => t.find('[data-goal-at]').text())).deep.eq(['Dividend goal at 8', 'Dividend goal at 10', 'Dividend goal at 11']);
+    expect(w.find('[data-dividend-goal-name]').text(), 'the plate names the goal').eq('Dividend goal «Wetlands»');
+    expect(w.find('[data-dividend-count]').text()).eq('4');
+    expect(tiers.map((t) => t.find('[data-goal-at]').text())).deep.eq(['Dividend goal at 4', 'Dividend goal at 5', 'Dividend goal at 6']);
     expect(tiers.map((t) => t.find('[data-goal-vp]').text())).deep.eq(['Dividend goal prize: +7 VP', 'Dividend goal prize: +8 VP', 'Dividend goal prize: +10 VP']);
     const notches = w.findAll('.con-divledger__notch');
     expect(notches.map((n) => n.attributes('style'))).deep.eq(['left: 33.33333333333333%;', 'left: 66.66666666666666%;', 'left: 100%;']);
@@ -74,7 +76,7 @@ describe('ConsoleBotDividendLedger', () => {
     expect(w.findAll('.con-divledger__notch').map((n) => n.classes().includes('con-divledger__notch--reached'))).deep.eq([true, false, false]);
     expect(w.find('[data-dividend-goal-scale]').attributes('data-goal-tiers-reached')).eq('1');
     expect(w.find('.con-divledger__fill--paid').attributes('style')).contains(`scaleX(${1 / 3})`);
-    expect(w.find('.con-divledger__fill--progress').attributes('style')).contains('scaleX(0.5)');
+    expect(w.find('.con-divledger__fill--progress').attributes('style')).contains(`scaleX(${1 / 3})`);
     expect(w.findAll('[data-goal-state]')).lengthOf(1);
     expect(w.find('[data-goal-state]').text()).eq('Dividend goal: 1 to go for +8 VP');
   });

@@ -6,7 +6,7 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {matTracks} from './MarsBotDividendReads';
+import {matTracks, botTileSpaces} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C29_MANUTECH);
 
@@ -76,6 +76,11 @@ export const MarsBotManutech: MarsBotCorp = {
       perUnitTerm('Tracks at the second mark', tracks.filter((t) => t.position >= r.midAt).length, r.mid),
       perUnitTerm('Tracks at the third mark', tracks.filter((t) => t.position >= r.topAt).length, r.top),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).filter((s) => s.bonus.length >= 2).length;
   },
 
   onTrackSpaceResolved(game: IGame, trackIndex: number, position: number, depth: number): void {

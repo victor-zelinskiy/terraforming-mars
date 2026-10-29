@@ -6,7 +6,7 @@ import {SPACE_CUBE_LOG, WILD_CUBE_LOG, pushCubeTrack} from './MarsBotCubeTrackPu
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {matTracks} from './MarsBotDividendReads';
+import {matTracks, botTileSpaces, mapColumn} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C14_POINT_LUNA);
 
@@ -43,6 +43,11 @@ export const MarsBotPointLuna: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Spaces of the least advanced track', least, r.each),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).filter((s) => mapColumn(s) <= 3.5).length;
   },
 
   onTrackCubeTrigger(game: IGame, cube: MarsBotTrackCube, _printedAction: TrackAction | undefined): 'replaces-action' | void {

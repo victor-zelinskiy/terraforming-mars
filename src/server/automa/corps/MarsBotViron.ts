@@ -70,6 +70,11 @@ export const MarsBotViron: MarsBotCorp = {
     ]);
   },
 
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return pileCount(game, (card) => card.type === CardType.ACTIVE && !isIActionCard(card));
+  },
+
   onProjectCardResolving(game: IGame, card: IProjectCard): void {
     const automa = game.automa;
     if (automa === undefined || !isBlueActionCard(card)) {

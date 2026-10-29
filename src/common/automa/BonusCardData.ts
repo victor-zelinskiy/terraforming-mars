@@ -151,6 +151,8 @@ export type BonusCardEffectLine = {
   /** English i18n template; params substituted after translation. */
   text: string;
   params?: ReadonlyArray<string>;
+  /** The params are English i18n KEYS to translate before substitution (a dividend goal's name and measure). */
+  keyParams?: boolean;
   /** A secondary, quieter clarification line. */
   muted?: boolean;
 };

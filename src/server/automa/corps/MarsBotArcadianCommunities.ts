@@ -10,7 +10,7 @@ import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {borders, isBotTile} from './MarsBotDividendReads';
+import {borders, isBotTile, botOceanSpaces} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES);
 /**
@@ -66,6 +66,11 @@ export const MarsBotArcadianCommunities: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Pairs of adjacent MarsBot tiles', borders(game, own, own, true), r.each),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botOceanSpaces(game).filter((s) => s.bonus.length > 0).length;
   },
 
   setup(game: IGame): void {

@@ -7,7 +7,7 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm, bonusTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {botGreenerySpaces} from './MarsBotDividendReads';
+import {botGreenerySpaces, pileTagCount} from './MarsBotDividendReads';
 import {Board} from '../../boards/Board';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C40_ECOTEC);
@@ -81,6 +81,11 @@ export const MarsBotEcotec: MarsBotCorp = {
       perUnitTerm('Greeneries next to a MarsBot city', greeneries, r.each),
       bonusTerm('Threshold bonus', greeneries, r.at, r.bonus),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return pileTagCount(game, [Tag.POWER]);
   },
 
   setup(game: IGame): void {

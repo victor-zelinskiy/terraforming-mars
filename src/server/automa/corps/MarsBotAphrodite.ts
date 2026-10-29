@@ -6,7 +6,7 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {pileTagCount, botParameterSteps} from './MarsBotDividendReads';
+import {pileTagCount, botParameterSteps, botTileSpaces, mapColumn} from './MarsBotDividendReads';
 import {Tag} from '../../../common/cards/Tag';
 import {GlobalParameter} from '../../../common/GlobalParameter';
 
@@ -58,6 +58,11 @@ export const MarsBotAphrodite: MarsBotCorp = {
       perUnitTerm('Venus steps raised', botParameterSteps(game, GlobalParameter.VENUS), r.step),
       perUnitTerm('Venus tags of MarsBot', pileTagCount(game, [Tag.VENUS]), r.tag),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).filter((s) => Math.abs(mapColumn(s) - 4) <= 1.5).length;
   },
 
   onVenusIncreased(game: IGame, steps: number): void {

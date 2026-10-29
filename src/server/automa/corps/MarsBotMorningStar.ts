@@ -13,7 +13,7 @@ import {takeSilverCube} from './MarsBotSilverCubePayout';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm, bonusTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {trackPosition} from './MarsBotDividendReads';
+import {trackPosition, botTileSpaces, mapColumn} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C27_MORNING_STAR);
 /** The corporation's own bonus card, shuffled into the bonus deck at setup. */
@@ -69,6 +69,11 @@ export const MarsBotMorningStar: MarsBotCorp = {
       perUnitTerm('Venus track spaces', reached, r.each),
       bonusTerm('Threshold bonus', reached, r.at, r.bonus),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).filter((s) => mapColumn(s) >= 4.5).length;
   },
 
   setup(game: IGame): void {

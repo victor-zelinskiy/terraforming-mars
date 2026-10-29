@@ -9,7 +9,7 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {trackPosition, pileTagCount} from './MarsBotDividendReads';
+import {trackPosition, pileTagCount, pileCount} from './MarsBotDividendReads';
 import {Tag} from '../../../common/cards/Tag';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C11_THORGATE);
@@ -51,6 +51,11 @@ export const MarsBotThorgate: MarsBotCorp = {
       perUnitTerm('Power track spaces', trackPosition(game, 'power'), r.track),
       perUnitTerm('Power tags', pileTagCount(game, [Tag.POWER]), r.tag),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return pileCount(game, (card) => card.tags.includes(Tag.CITY));
   },
 
   setup(game: IGame): void {

@@ -10,7 +10,7 @@ import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {matTracks} from './MarsBotDividendReads';
+import {matTracks, pileCount, printedVictoryPoints} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C39_UTOPIA_INVEST);
 /** The card's printed name, for the journal templates. */
@@ -77,6 +77,11 @@ export const MarsBotUtopiaInvest: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Spaces of the most advanced track beyond the mark', most - r.from, r.each),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return pileCount(game, (card) => printedVictoryPoints(card) < 0);
   },
 
   beforeActionPhase(game: IGame): void {

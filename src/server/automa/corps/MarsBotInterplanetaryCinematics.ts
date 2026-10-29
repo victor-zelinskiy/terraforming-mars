@@ -5,7 +5,7 @@ import {MarsBotCorp} from './MarsBotCorp';
 import {TrackPayout, payForTrackAdvance} from './MarsBotTrackPayout';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {trackPosition} from './MarsBotDividendReads';
+import {trackPosition, botTileSpaces, mapColumn} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS);
 
@@ -56,6 +56,11 @@ export const MarsBotInterplanetaryCinematics: MarsBotCorp = {
     return dividendResult([
       perUnitTerm('Event track spaces beyond the mark', trackPosition(game, 'event') - r.from, r.each),
     ]);
+  },
+
+  /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
+  goal(game: IGame): number {
+    return botTileSpaces(game).filter((s) => Math.abs(mapColumn(s) - 4) <= 0.5).length;
   },
 
   onTrackAdvance(game: IGame, trackIndex: number): void {

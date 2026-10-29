@@ -1,5 +1,6 @@
 import {Tag} from '../../../common/cards/Tag';
 import {GlobalParameter} from '../../../common/GlobalParameter';
+import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 import {OCEAN_TILES} from '../../../common/TileType';
 import {MarsBotTrackRole} from '../../../common/automa/AutomaTypes';
 import {IGame} from '../../IGame';
@@ -211,4 +212,116 @@ export function awardStandings(game: IGame): {first: number, second: number} {
     }
   }
   return {first, second};
+}
+
+// ── THE GOALS' READS (docs/claude/marsbot-dividend-goals-catalog.md): a goal counts something the bot itself
+//    did or owns that its formula does not — never where the PLAYERS build (the owner, 2026-10-29).
+
+/** Spaces where the bot owns a city. */
+export function botCitySpaces(game: IGame): ReadonlyArray<Space> {
+  return botTileSpaces(game).filter((s) => Board.isCitySpace(s));
+}
+
+/** A greenery the bot owns. */
+export function isBotGreenery(game: IGame): (s: Space) => boolean {
+  const bot = marsBotOf(game);
+  return (s) => Board.isGreenerySpace(s) && s.player?.id === bot.id;
+}
+
+/** Adjacent spaces of `space` on this board. */
+export function adjacentSpaces(game: IGame, space: Space): ReadonlyArray<Space> {
+  return game.board.getAdjacentSpaces(space);
+}
+
+/** How many ocean tiles (anyone's — an ocean belongs to nobody) touch `space`. */
+export function oceanNeighbours(game: IGame, space: Space): number {
+  return adjacentSpaces(game, space).filter((s) => Board.isOceanSpace(s)).length;
+}
+
+/** How many of `space`'s neighbours carry a bot tile (any, or the ones `predicate` picks). */
+export function botNeighbours(game: IGame, space: Space, predicate: (s: Space) => boolean = isBotTile(game)): number {
+  return adjacentSpaces(game, space).filter(predicate).length;
+}
+
+/** The printed bonus ICONS of `bonus` on a space (a double-steel space prints two). */
+export function bonusUnits(space: Space, bonus: SpaceBonus): number {
+  return space.bonus.filter((b) => b === bonus).length;
+}
+
+/**
+ * Bot tiles ON a space printing `bonus` or BESIDE one. «On» alone cannot carry
+ * three tiers on every map — Tharsis prints two titanium land spaces where
+ * the other maps print four or five — so the goal counts the neighbourhood.
+ */
+export function botTilesOnOrBeside(game: IGame, bonus: SpaceBonus): number {
+  return botTileSpaces(game).filter((s) => bonusUnits(s, bonus) > 0 || adjacentSpaces(game, s).some((n) => bonusUnits(n, bonus) > 0)).length;
+}
+
+/** A space on the map's rim — fewer than six neighbours. */
+export function isMapEdge(game: IGame, space: Space): boolean {
+  return adjacentSpaces(game, space).length < 6;
+}
+
+/**
+ * The GEOMETRIC column of a space, 0…8 with the map's centre at 4. The
+ * server's `x` carries the row offset (row y starts at |4 − y|), so a raw
+ * `x <= 3` is a skewed wedge, not a hemisphere; half-columns are the odd rows.
+ */
+export function mapColumn(space: Space): number {
+  return space.x - Math.abs(4 - space.y) / 2;
+}
+
+/** Ocean tiles the BOT placed, as spaces — from the event stream (an ocean belongs to nobody on the cell). */
+export function botOceanSpaces(game: IGame): ReadonlyArray<Space> {
+  const bot = marsBotOf(game);
+  const ids = new Set<string>();
+  for (const e of game.events.events) {
+    if (e.type === 'tile-placed' && e.player === bot.color && e.tile !== undefined && e.space !== undefined && OCEAN_TILES.has(e.tile)) {
+      ids.add(e.space);
+    }
+  }
+  return game.board.spaces.filter((s) => ids.has(s.id) && Board.isOceanSpace(s));
+}
+
+/** The bot's largest group of mutually adjacent tiles. */
+export function largestBotCluster(game: IGame): number {
+  const tiles = botTileSpaces(game);
+  const ids = new Set(tiles.map((s) => s.id));
+  const seen = new Set<string>();
+  let largest = 0;
+  for (const start of tiles) {
+    if (seen.has(start.id)) {
+      continue;
+    }
+    seen.add(start.id);
+    const stack = [start];
+    let size = 0;
+    for (let cur = stack.pop(); cur !== undefined; cur = stack.pop()) {
+      size++;
+      for (const n of adjacentSpaces(game, cur)) {
+        if (ids.has(n.id) && !seen.has(n.id)) {
+          seen.add(n.id);
+          stack.push(n);
+        }
+      }
+    }
+    largest = Math.max(largest, size);
+  }
+  return largest;
+}
+
+/** How many KINDS of tag the played pile holds at least `atLeast` cards of (a card with two of a kind counts once). */
+export function pileTagKinds(game: IGame, atLeast: number): number {
+  const counts = new Map<Tag, number>();
+  for (const card of pileCards(game)) {
+    for (const tag of new Set(card.tags)) {
+      counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+  }
+  return [...counts.values()].filter((n) => n >= atLeast).length;
+}
+
+/** Bonus cards in the bonus deck's discard. */
+export function bonusDiscardCount(game: IGame): number {
+  return game.automa?.bonusDiscard.length ?? 0;
 }
