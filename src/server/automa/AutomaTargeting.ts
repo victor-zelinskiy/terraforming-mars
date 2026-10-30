@@ -105,20 +105,23 @@ export class AutomaTargeting {
     if (automa === undefined) {
       throw new Error('Not an automa game');
     }
+    // ONE LOSS, AS A PLAYER AT THE TABLE READS IT (the owner, 2026-10-30): the storage areas and the M€ supply standing
+    // in are how the bot's ENGINE pays — the log and the event name the resource attacked, its total, never the areas
+    // and never an M€ row (`recordBotStandInLoss`). M€ attacked reads as M€ — its Luna area inside the one total.
+    const before = AutomaTargeting.attackableStock(bot, resource);
+    const from = {player: perpetrator};
     const takeFromStorage = (colony: ColonyName | undefined, upTo: number): number => {
       const available = AutomaTargeting.storageOf(game, colony);
       const taken = Math.min(available, upTo);
       if (taken > 0 && colony !== undefined) {
         automa.shippingStorage[colony] = available - taken;
-        game.log('${0} lost ${1} resource(s) from its ${2} storage area', (b) =>
-          b.player(bot).number(taken).string(colony));
       }
       return taken;
     };
     const takeFromSupply = (upTo: number): number => {
       const taken = Math.min(bot.megaCredits, upTo);
       if (taken > 0) {
-        bot.stock.deduct(Resource.MEGACREDITS, taken, {log: options?.log ?? true, from: {player: perpetrator}});
+        bot.stock.deduct(Resource.MEGACREDITS, taken, {log: false, from, record: false});
       }
       return taken;
     };
@@ -143,9 +146,22 @@ export class AutomaTargeting {
       bot.resolveInsurance();
     }
 
-    if (options?.stealing && removed > 0) {
-      perpetrator.stock.add(resource, removed, {log: options?.log ?? true});
+    if (removed > 0) {
+      if (options?.log ?? true) {
+        AutomaTargeting.logStandInLoss(bot, resource, removed, perpetrator, options?.stealing === true);
+      }
+      game.events?.recordBotStandInLoss(bot, resource, removed, before, from, options?.stealing);
     }
+    if (options?.stealing && removed > 0) {
+      // The bot's side already said «stole» — the thief's gain is the same move, never a second line.
+      perpetrator.stock.add(resource, removed, {log: false});
+    }
+  }
+
+  /** «${0} lost N [unit] because of ${3}» / «${3} stole N [unit] from ${0}» — the line a player's own loss prints. */
+  private static logStandInLoss(bot: IPlayer, resource: Resource, amount: number, perpetrator: IPlayer, stealing: boolean): void {
+    const message = stealing ? '${3} stole ${1} ${2} from ${0}' : '${0} lost ${1} ${2} because of ${3}';
+    bot.game.log(message, (b) => b.player(bot).number(amount).resource(resource).player(perpetrator));
   }
 
   /**
@@ -227,22 +243,6 @@ export class AutomaTargeting {
    * wherever a "remove X <card-resource> from any card" effect builds its MarsBot
    * target option.
    */
-  /**
-   * WHERE a removal of `cardResource` from MarsBot takes its FIRST unit — the same order `removeCardResourceFromBot`
-   * drains (the dedicated pool, then the M€ proxy): the console names the bot's «card» by it (the table's target zone,
-   * `TableTargetPromptMeta.bot`) and never claims a storage the bot does not draw from.
-   */
-  public static cardResourceSourceOf(bot: IPlayer, cardResource: CardResource): {storage: 'colony' | 'floaters' | 'megacredits', colony?: ColonyName} {
-    if (AutomaTargeting.botCardResourcePool(bot.game, cardResource) <= 0) {
-      return {storage: 'megacredits'};
-    }
-    if (cardResource === CardResource.FLOATER) {
-      return {storage: 'floaters'};
-    }
-    const colony = AutomaTargeting.CARD_RESOURCE_STORAGE[cardResource];
-    return colony === undefined ? {storage: 'megacredits'} : {storage: 'colony', colony};
-  }
-
   public static attackableCardResourceStock(bot: IPlayer, cardResource: CardResource): number {
     return AutomaTargeting.botCardResourcePool(bot.game, cardResource) + bot.megaCredits;
   }
@@ -270,13 +270,18 @@ export class AutomaTargeting {
           automa.shippingStorage[colony] = (automa.shippingStorage[colony] ?? 0) - fromPool;
         }
       }
-      game.log('${0} lost ${1} ${2}', (b) => b.player(bot).number(fromPool).cardResource(cardResource));
       removed += fromPool;
     }
     const fromSupply = Math.min(bot.megaCredits, count - removed);
     if (fromSupply > 0) {
-      bot.stock.deduct(Resource.MEGACREDITS, fromSupply, {log: true});
+      // The M€ supply STANDS IN — the engine's convention, never shown: no M€ line, no M€ event.
+      bot.stock.deduct(Resource.MEGACREDITS, fromSupply, {log: false, record: false});
       removed += fromSupply;
+    }
+    if (removed > 0) {
+      // ONE loss of the unit attacked, its total — as a player at the table loses it (the owner, 2026-10-30).
+      game.log('${0} lost ${1} ${2}', (b) => b.player(bot).number(removed).cardResource(cardResource));
+      game.events?.recordBotStandInLoss(bot, cardResource, removed, available + fromSupply + bot.megaCredits);
     }
     return removed;
   }

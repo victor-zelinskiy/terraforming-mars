@@ -38,7 +38,7 @@ import {CardType} from '@/common/cards/CardType';
 import {Tag} from '@/common/cards/Tag';
 import {NavRect, pickDirectional, pickStrictGrid} from '@/client/gamepad/spatialNav';
 import {ItemType} from '@/common/cards/render/Types';
-import {TABLE_TARGET_BOT_KEY, TableTargetBotStand} from '@/client/console/played/tableTargetZone';
+import {TableTargetStand} from '@/client/console/played/tableTargetZone';
 
 /** The tableau sections a candidate can belong to — the same vocabulary the
  *  «Разыграно» surfaces use, so the origin reads the same everywhere. */
@@ -411,11 +411,11 @@ export type PlayedTargetCandidate = {
    */
   blocked?: {reason: string, have: number, need: number};
   /**
-   * THE BOT'S STAND-IN («ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА», `tableTargetZone.ts`): MarsBot holds no card, so its candidate is a
-   * TILE on a slot's chassis — never a card face (a face would lie that the bot has a card). Its `cardName` is
-   * `TABLE_TARGET_BOT_KEY`; its reading is the server's own metadata. Undefined — a real card.
+   * A PLAYER'S STAND-IN («ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА», `tableTargetZone.ts`): a target that is a player's unit, not a card
+   * (the bot's animals, a player's plants — Virus) is a TILE on a slot's chassis — never a card face (a face would lie
+   * that there is a card). Its `cardName` is its stand key; its reading is the server's own. Undefined — a real card.
    */
-  bot?: TableTargetBotStand;
+  stand?: TableTargetStand;
 };
 
 export type PlayedTargetOwner = {
@@ -444,8 +444,6 @@ export type PlayedTargetOwner = {
    */
   totalPlayed: number;
   candidates: ReadonlyArray<PlayedTargetCandidate>;
-  /** MarsBot's group — ONE stand-in tile, beside the players' groups in the same zone. */
-  bot?: true;
 };
 
 /**
@@ -589,10 +587,10 @@ export type BuildPlayedTargetInput = {
   /** What lands on the chosen card (`playedTargetPayloadOf`) — a GAIN pick only; the contract line names it. */
   payload?: PlayedTargetPayload;
   /**
-   * MarsBot as a target BESIDE the players (`tableTargetZone.ts` — the server's `tableTargetPrompt`): its group stands
-   * in the same zone as one stand-in tile. Absent — no bot branch in the prompt.
+   * PLAYERS AS TARGETS beside the cards (`tableTargetZone.ts`): the bot's unit of a marked removal, every player's plants
+   * of Virus — each a stand-in tile in its OWNER'S group (a group of its own when the player has no card here).
    */
-  bot?: {stand: TableTargetBotStand, name: string};
+  stands?: ReadonlyArray<{stand: TableTargetStand, ownerName: string}>;
 };
 
 /**
@@ -666,29 +664,32 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
       ...(shortfall === undefined ? {} : {blocked: {reason: shortfall.reason, have: shortfall.have, need: shortfall.need}}),
     });
   }
-  const grouped: Array<Grouping & {bot?: true}> = [...byColor.values()];
-  // THE BOT BESIDE THE PLAYERS — one group, one stand-in tile; an opponent like any other (it sorts with them).
-  if (input.bot !== undefined) {
-    const stand = input.bot.stand;
-    grouped.push({
-      id: stand.color,
-      name: input.bot.name,
-      color: stand.color,
-      self: false,
-      bot: true,
-      totalPlayed: 0,
-      candidates: [{
-        cardName: TABLE_TARGET_BOT_KEY,
-        category: 'corporation',
-        relation: 'external-card',
-        ownerId: stand.color,
-        slotKey: TABLE_TARGET_BOT_KEY,
-        preview: [],
-        model: {name: TABLE_TARGET_BOT_KEY, ...(stand.current !== undefined ? {resources: stand.current} : {})},
-        bot: stand,
-      }],
+  // PLAYERS AS TARGETS — each stand-in tile in its owner's group (a group of its own for a player with no card here:
+  // the bot); an opponent like any other (it sorts with them). A refused stand is SHOWN, never chosen.
+  for (const {stand, ownerName} of input.stands ?? []) {
+    let group = byColor.get(stand.color);
+    if (group === undefined) {
+      const player = input.players.find((p) => p.color === stand.color);
+      group = {
+        id: stand.color, name: ownerName, color: stand.color, self: stand.color === input.viewerColor,
+        totalPlayed: player?.tableau.length ?? 0, candidates: [],
+      };
+      byColor.set(stand.color, group);
+    }
+    group.candidates.push({
+      cardName: stand.key,
+      category: 'corporation',
+      relation: 'external-card',
+      ownerId: stand.color,
+      slotKey: stand.key,
+      preview: [],
+      model: {name: stand.key, ...(stand.current !== undefined ? {resources: stand.current} : {})},
+      stand,
+      // A refused stand is a near miss: shown, never counted, never chosen — its reason is the stand's own (translated by the step).
+      ...(stand.refused !== undefined ? {blocked: {reason: '', have: stand.current ?? 0, need: stand.amount}} : {}),
     });
   }
+  const grouped = [...byColor.values()];
   const opponentsInvolved = grouped.some((g) => !g.self);
   const direction: PlayedTargetDirection =
     input.direction ?? (input.takesFromTarget === true ? 'remove' : 'add');
@@ -738,6 +739,11 @@ function sortByCategory(candidates: ReadonlyArray<PlayedTargetCandidate>): Array
     if (self !== 0) {
       return self;
     }
+    // A player's stand-in tiles close the group (their section is the last one — `playedTargetSections`).
+    const stand = Number(a.stand !== undefined) - Number(b.stand !== undefined);
+    if (stand !== 0) {
+      return stand;
+    }
     const category = PLAYED_TARGET_CATEGORY_ORDER.indexOf(a.category) - PLAYED_TARGET_CATEGORY_ORDER.indexOf(b.category);
     // A shown near miss closes its category block — the takeable cards lead it.
     return category !== 0 ? category : Number(a.blocked !== undefined) - Number(b.blocked !== undefined);
@@ -754,8 +760,8 @@ export type PlayedTargetSection = {
    *  navigation handle, not a member of a card-type family, so it draws no
    *  category rail and does not count toward the rails' earn rule. */
   self?: boolean;
-  /** The bot's ONE stand-in block — no card family, no rail (it holds no card). */
-  bot?: boolean;
+  /** The owner's STAND-IN tiles (a player's units — no card family, no rail): the group's trailing block. */
+  stand?: boolean;
   candidates: ReadonlyArray<PlayedTargetCandidate>;
 };
 
@@ -773,19 +779,21 @@ export type PlayedTargetSection = {
  * order, untouched.
  */
 export function playedTargetSections(owner: PlayedTargetOwner): ReadonlyArray<PlayedTargetSection> {
-  if (owner.bot === true) {
-    return [{key: 'bot', category: 'corporation', label: '', bot: true, candidates: owner.candidates}];
-  }
   const out: Array<PlayedTargetSection> = [];
   const self = owner.candidates.find((c) => c.relation === 'source-card');
   if (self !== undefined) {
     out.push({key: 'self', category: self.category, label: '', self: true, candidates: [self]});
   }
   for (const category of PLAYED_TARGET_CATEGORY_ORDER) {
-    const candidates = owner.candidates.filter((c) => c.category === category && c.relation !== 'source-card');
+    const candidates = owner.candidates.filter((c) => c.category === category && c.relation !== 'source-card' && c.stand === undefined);
     if (candidates.length > 0) {
       out.push({key: category, category, label: playedTargetCategoryLabel(category), candidates});
     }
+  }
+  // The player's own units — the stand-in tiles — close the group, one rail-less block.
+  const stands = owner.candidates.filter((c) => c.stand !== undefined);
+  if (stands.length > 0) {
+    out.push({key: 'stand', category: 'corporation', label: '', stand: true, candidates: stands});
   }
   return out;
 }
@@ -799,7 +807,7 @@ export function playedTargetSections(owner: PlayedTargetOwner): ReadonlyArray<Pl
  * must not conjure rails over an otherwise single-family row.
  */
 export function playedTargetShowsCategoryRails(sections: ReadonlyArray<PlayedTargetSection>): boolean {
-  return sections.filter((s) => s.self !== true).length > 1;
+  return sections.filter((s) => s.self !== true && s.stand !== true).length > 1;
 }
 
 /**

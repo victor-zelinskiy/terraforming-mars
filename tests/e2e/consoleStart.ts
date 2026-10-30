@@ -2659,6 +2659,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'finale-rich-5p' | 'finale-rich-2p' | 'finale-rich-bot' |
   // «ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА»: Ants against two players' microbe cards and MarsBot's Enceladus storage.
   'table-target-ants-bot' |
+  'table-target-virus-bot' |
   // «Информация» polish: two humans + MarsBot, the Hydronetwork, card penalties, generation 10, blue with 40 played cards
   // over every zone, scores public — the worst honest case of every summary zone at once.
   'info-dossier-rich' |

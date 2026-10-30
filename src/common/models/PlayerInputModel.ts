@@ -919,11 +919,10 @@ export type TableTargetPromptMeta = {
   botBranch: number;
   /** The `skip`-marked decline of an optional removal. */
   skipBranch?: number;
+  /** WHO the bot is — never HOW its engine pays (storage areas, the M€ supply standing in): at the table the bot is one more
+   *  player losing the resource it is attacked for (the owner, 2026-10-30). */
   bot: {
     color: Color;
-    /** Where the FIRST unit comes from: a colony storage area (Enceladus / Miranda), the floater counter, or the M€ proxy. */
-    storage: 'colony' | 'floaters' | 'megacredits';
-    colony?: ColonyName;
   };
 };
 

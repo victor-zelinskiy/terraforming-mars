@@ -71,7 +71,7 @@ const focusedCell = (page: Page) => page.evaluate((sel) => {
 test.describe(`console · the table's targets are ONE zone · ${PRESET.id}`, () => {
   test.use({viewport: PRESET.viewport, deviceScaleFactor: 1, screen: PRESET.viewport});
 
-  test('(a) Ants: three groups in ONE zone, the bot a tile «2 → 1»; LB/RB jump bands; A on the bot → one POST', async ({page, request}) => {
+  test('(a) Ants: three groups in ONE zone, the bot a tile of microbes «N → N−1»; LB/RB jump bands; A on the bot → one POST', async ({page, request}) => {
     test.setTimeout(240_000);
     const playerId = await bootFixture(page, request, 'table-target-ants-bot', {query: PRESET.query});
     const before = await wireOf(request, playerId);
@@ -85,8 +85,12 @@ test.describe(`console · the table's targets are ONE zone · ${PRESET.id}`, () 
     expect(owners, 'red, the bot, and blue\'s own').toBe(3);
     const tile = page.locator(`${STEP} [data-ptsel-bot]`);
     await expect(tile, 'the bot stands as a tile beside the players').toHaveCount(1);
-    await expect(tile.locator('[data-ptsel-bot-delta]')).toHaveText(/2\s*→\s*1/);
-    await expect(tile.locator('[data-ptsel-bot-storage]')).toHaveAttribute('data-ptsel-bot-storage', 'colony');
+    // The bot loses MICROBES, one of them: what it can lose of them → one fewer. How its engine pays (Enceladus first, its
+    // M€ standing in) is never on the tile — the owner, 2026-10-30: the bot is one more player at the table.
+    const delta = ((await tile.locator('[data-ptsel-bot-delta]').textContent()) ?? '').match(/(\d+)\s*→\s*(\d+)/);
+    expect(delta, 'the tile reads «from → to»').not.toBeNull();
+    expect(Number(delta![1]) - Number(delta![2]), 'one microbe').toBe(1);
+    await expect(tile.locator('[data-ptsel-bot-icon]')).toHaveAttribute('data-ptsel-bot-icon', 'Microbe');
     await shoot(page, 'a1-one-zone');
 
     // LB/RB — band to band; the cursor lands on the bot's tile in its own band.

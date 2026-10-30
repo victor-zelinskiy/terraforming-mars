@@ -66,6 +66,57 @@ describe('Automa targeting — the human turn vs MarsBot', () => {
     });
   });
 
+  /*
+   * THE BOT IS ONE MORE PLAYER AT THE TABLE (the owner, 2026-10-30): its storage areas and the M€ supply standing in are
+   * how its ENGINE pays — the journal, the log and every reader of the event stream see ONE loss of the unit attacked,
+   * its total, never an M€ row and never a storage area.
+   */
+  describe('the loss reads as the unit attacked — never the engine\'s currency', () => {
+    const botEvents = (game: ReturnType<typeof testAutomaGame>[0], color: string) =>
+      game.events.events.filter((e) => e.player === color && (e.type === 'resource-changed' || e.type === 'card-resource-changed'));
+    const lines = (game: ReturnType<typeof testAutomaGame>[0]) => game.gameLog.map((l) => l.message);
+
+    it('plants off storage + M€: ONE plants event (attackable 9 → 4), ONE plants line, no M€', () => {
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true});
+      bot.megaCredits = 7;
+      game.automa!.shippingStorage[ColonyName.GANYMEDE] = 2;
+      const logBefore = game.gameLog.length;
+      game.events.beginAction(human, undefined);
+      cast(new RemoveAnyPlants(human, 5).execute(), OrOptions).options[0].cb(undefined);
+      game.events.endScope();
+      expect(bot.megaCredits, 'the engine still pays').eq(4);
+      const events = botEvents(game, bot.color);
+      expect(events.map((e) => e.impact?.stock)).deep.eq([{plants: -5}]);
+      expect(events[0].impact?.snapshot).deep.eq({resource: Resource.PLANTS, scope: 'stock', before: 9, after: 4});
+      const added = lines(game).slice(logBefore);
+      expect(added.filter((m) => m.includes('storage area')), 'no storage area').deep.eq([]);
+      expect(added).to.include('${0} lost ${1} ${2} because of ${3}');
+      expect(game.gameLog.slice(logBefore).some((l) => l.data.some((d) => d.value === Resource.MEGACREDITS)), 'no M€ token').eq(false);
+    });
+
+    it('a steal: the bot\'s ONE «stole» line, the thief gains the stolen type silently', () => {
+      const [game, human, bot] = testAutomaGame();
+      bot.megaCredits = 3;
+      const logBefore = game.gameLog.length;
+      cast(new StealResources(human, Resource.STEEL, 2).execute(), OrOptions).options[0].cb(undefined);
+      expect(human.steel).eq(2);
+      expect(lines(game).slice(logBefore)).deep.eq(['${3} stole ${1} ${2} from ${0}']);
+    });
+
+    it('a card resource: ONE animal event on no card, ONE animal line — the Miranda area and the M€ never named', () => {
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true});
+      bot.megaCredits = 4;
+      game.automa!.shippingStorage[ColonyName.MIRANDA] = 1;
+      const logBefore = game.gameLog.length;
+      game.events.beginAction(human, undefined);
+      AutomaTargeting.removeCardResourceFromBot(game, CardResource.ANIMAL, 2);
+      game.events.endScope();
+      expect(bot.megaCredits).eq(3);
+      expect(botEvents(game, bot.color).map((e) => e.impact?.cardResources)).deep.eq([[{cardResource: CardResource.ANIMAL, amount: -2}]]);
+      expect(lines(game).slice(logBefore)).deep.eq(['${0} lost ${1} ${2}']);
+    });
+  });
+
   describe('steal: the thief receives the STOLEN TYPE, MarsBot pays in M€', () => {
     it('stealing steel gives the human steel; the bot loses M€', () => {
       const [/* game */, human, bot] = testAutomaGame();
@@ -326,7 +377,7 @@ describe('Automa targeting — CARD-resource removal from MarsBot (microbes/anim
  * shape. The options, their order and the wire answer are the historical ones; the preview carries the same marker.
  */
 describe('Automa targeting — the table target marker (one zone)', () => {
-  it('cards + bot, mandatory: [card 0, bot 1] — no skip; the bot\'s first unit comes from Enceladus', () => {
+  it('cards + bot, mandatory: [card 0, bot 1] — no skip; the marker names WHO the bot is, never how its engine pays', () => {
     const [game, humans, bot] = testAutomaMultiplayerGame(2, {coloniesExtension: true});
     const [human, opponent] = humans;
     bot.megaCredits = 3;
@@ -337,22 +388,24 @@ describe('Automa targeting — the table target marker (one zone)', () => {
     const live = cast(new RemoveResourcesFromCard(human, CardResource.MICROBE, 1, {autoselect: false}).execute(), OrOptions);
     expect(live.options.map((o) => o.type)).deep.eq(['card', 'option']);
     const model = live.toModel(human);
-    expect(model.tableTargetPrompt).deep.eq({cardBranch: 0, botBranch: 1, bot: {color: bot.color, storage: 'colony', colony: ColonyName.ENCELADUS}});
+    expect(model.tableTargetPrompt).deep.eq({cardBranch: 0, botBranch: 1, bot: {color: bot.color}});
   });
 
-  it('a lone bot, optional: [bot 0, skip 1] — the storage is the M€ proxy when the pool is empty', () => {
+  it('a lone bot, optional: [bot 0, skip 1]', () => {
     const [/* game */, human, bot] = testAutomaGame();
     bot.megaCredits = 3;
     const live = cast(new RemoveResourcesFromCard(human, CardResource.ANIMAL, 1, {mandatory: false}).execute(), OrOptions);
-    expect(live.toModel(human).tableTargetPrompt).deep.eq({botBranch: 0, skipBranch: 1, bot: {color: bot.color, storage: 'megacredits'}});
+    expect(live.toModel(human).tableTargetPrompt).deep.eq({botBranch: 0, skipBranch: 1, bot: {color: bot.color}});
   });
 
-  it('floaters name the bot\'s floater counter', () => {
+  it('the bot\'s option reads the unit attacked — a FLOATER, its counter and its M€ summed, never an M€ row', () => {
     const [game, human, bot] = testAutomaGame();
-    bot.megaCredits = 0;
+    bot.megaCredits = 3;
     game.automa!.floaters = 2;
     const model = new RemoveResourcesFromCard(human, CardResource.FLOATER, 1, {autoselect: false}).previewRemovalModel() as OrOptionsModel;
-    expect(model.tableTargetPrompt?.bot.storage).eq('floaters');
+    const botOption = model.options[model.tableTargetPrompt!.botBranch] as {metadata?: {player?: {changes?: ReadonlyArray<{icon: string}>}}};
+    expect(botOption.metadata?.player?.changes?.map((c) => c.icon)).deep.eq([CardResource.FLOATER]);
+    expect(bot.color).is.not.undefined;
   });
 
   it('the preview carries the SAME marker as the live prompt (the pre-collected answer replays)', () => {

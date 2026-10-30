@@ -98,6 +98,7 @@ import {IndenturedWorkers} from '../../../src/server/cards/base/IndenturedWorker
 import {Resource} from '../../../src/common/Resource';
 import {ChairmanSeat} from '../../../src/server/parliament/quests/ChairmanSeat';
 import {Birds} from '../../../src/server/cards/base/Birds';
+import {Virus} from '../../../src/server/cards/base/Virus';
 import {Predators} from '../../../src/server/cards/base/Predators';
 import {SmallAnimals} from '../../../src/server/cards/base/SmallAnimals';
 import {AQUIFER_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/AquiferContest';
@@ -10564,6 +10565,34 @@ for (const two of [false, true]) {
   runAllActions(game);
   if (game.phase !== Phase.ACTION || game.activePlayer.id !== blue.id || !(blue.getWaitingFor() instanceof OrOptions) || !ants.canAct(blue)) {
     throw new Error(`${name}: expected blue on the move with Ants available — phase=${game.phase} active=${game.activePlayer.color}`);
+  }
+  write(name, game);
+}
+// ── table-target-virus-bot: VIRUS AS ONE ZONE (the owner, 2026-10-30 — «в едином премиум-языке»). Two humans and
+//    MarsBot with Colonies: blue (Teractor) holds Virus in hand with 20 M€ and 3 plants; red (Thorgate) holds Birds (2
+//    animals) and 6 plants; the bot 2 animals in its Miranda storage. Blue stands at the action menu: the hand → Virus →
+//    its target row opens ONE zone — red's Birds and red's plants, the bot's ANIMALS (never M€) and its plants (Virus takes from the OTHER players). ──
+{
+  const name = 'table-target-virus-bot';
+  const pinned = BOT_TABLE_CORPORATIONS;
+  const [game, seats, bot] = testAutomaMultiplayerGame(2, {
+    startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned], coloniesExtension: true,
+  });
+  assignPinnedCorporations(name, seats, pinned);
+  answerStartFlow(game, seats);
+  const [blue, red] = seats;
+  blue.cardsInHand.push(new Virus());
+  blue.megaCredits = 20;
+  blue.plants = 3;
+  const birds = new Birds();
+  birds.resourceCount = 2;
+  red.playedCards.push(birds);
+  red.plants = 6;
+  game.automa!.shippingStorage[ColonyName.MIRANDA] = 2;
+  bot.megaCredits = Math.max(bot.megaCredits, 5);
+  runAllActions(game);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== blue.id || !(blue.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected blue on the move — phase=${game.phase} active=${game.activePlayer.color}`);
   }
   write(name, game);
 }

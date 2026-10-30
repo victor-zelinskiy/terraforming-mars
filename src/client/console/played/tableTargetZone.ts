@@ -6,33 +6,53 @@
  * behind the door the cards themselves. The server's answer is the same `OrOptions` it always was (`[card pick?, the
  * bot, «Do not remove»?]`), now MARKED with which branch is which (`OrOptionsModel.tableTargetPrompt`); this module
  * reads that marker — never the shape, never a title — and gives the target step ONE zone: the players' groups and
- * the bot's group side by side, the bot a STAND-IN tile (it holds no card — a card face would lie).
+ * the bot's group side by side.
+ *
+ * A target that is a PLAYER, not a card (the bot's animals, a player's plants — Virus) stands in the zone as a STAND-IN
+ * TILE on a slot's chassis (it holds no card — a card face would lie), keyed `__stand__:<colour>:<unit>` so a player
+ * may have one per unit. It reads WHO and the unit attacked, `current → resulting` OF THAT UNIT — never how the bot's
+ * engine pays (its storage areas, its M€ supply standing in): at the table the bot is one more player (the owner,
+ * 2026-10-30; the server speaks so already — `targetImpact.ts`).
  *
  * Pure: the composers ask it what the zone holds and what an answer sends; the wire answer is the historical one,
- * byte for byte (`{type: 'or', index: cardBranch, response: {type: 'card', cards}}` / `{… index: botBranch, response:
- * {type: 'option'}}`).
+ * byte for byte.
  */
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
-import {ColonyName} from '@/common/colonies/ColonyName';
+import {CardModel} from '@/common/models/CardModel';
+import {Message} from '@/common/logs/Message';
+import {TabbedPlantTarget, TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {OptionMetadata, OrOptionsModel, PlayerInputModel, SelectCardModel, SelectOptionModel, TableTargetPromptMeta} from '@/common/models/PlayerInputModel';
 import {TargetImpactChange} from '@/common/models/TargetImpactModel';
 
-/** The bot's stand-in candidate key — no card is ever named so (the name space of `CardName` is the cards'). */
-export const TABLE_TARGET_BOT_KEY = '__table-target-bot__' as CardName;
+const STAND_PREFIX = '__stand__:';
 
-/** What the bot's tile reads: whose, the unit, `current → resulting`, where the first unit comes from. */
-export type TableTargetBotStand = {
+/** The stand-in candidate key of a player's unit — no card is ever named so (`CardName` is the cards' name space). */
+export function tableTargetStandKey(color: string, icon: string): CardName {
+  return `${STAND_PREFIX}${color}:${icon}` as CardName;
+}
+
+/** Is this candidate a player's stand-in tile (never a card)? */
+export function isTableTargetStand(cardName: string | undefined): boolean {
+  return cardName !== undefined && cardName.startsWith(STAND_PREFIX);
+}
+
+/**
+ * What a stand-in tile reads: whose (`color`), the unit attacked, `current → resulting` OF THAT UNIT (the server's one
+ * row). A stand the rules SHOW but never let be chosen (a player whose plants are protected) carries its `refused`
+ * reason — shown, never hidden, never chosen.
+ */
+export type TableTargetStand = {
+  key: CardName;
   color: Color;
-  /** The unit's icon key (`microbe`, `animal`, `floater`…). */
+  /** The unit's icon key (`Microbe`, `Animal`, `plants`…). */
   icon: string;
   amount: number;
   current?: number;
   resulting?: number;
-  /** The server's per-pool reading (the storage row, the M€ proxy row) — verbatim. */
+  /** The server's reading — ONE row of the unit attacked. */
   changes: ReadonlyArray<TargetImpactChange>;
-  storage: 'colony' | 'floaters' | 'megacredits';
-  colony?: ColonyName;
+  refused?: string | Message;
 };
 
 /** The marker of an `or` that IS the table's one target zone — undefined for any other input. */
@@ -51,38 +71,28 @@ export function tableTargetCardPick(input: PlayerInputModel | undefined): Select
 }
 
 /** The bot's stand-in, read off its option's own metadata (the server's numbers, never recounted). */
-export function tableTargetBotStand(input: PlayerInputModel | undefined): TableTargetBotStand | undefined {
+export function tableTargetBotStand(input: PlayerInputModel | undefined): TableTargetStand | undefined {
   const meta = tableTargetOf(input);
   if (meta === undefined) {
     return undefined;
   }
   const option = (input as OrOptionsModel).options[meta.botBranch] as SelectOptionModel | undefined;
   const md: OptionMetadata | undefined = option?.metadata;
+  const icon = md?.icon ?? '';
   return {
+    key: tableTargetStandKey(meta.bot.color, icon),
     color: meta.bot.color,
-    icon: md?.icon ?? '',
+    icon,
     amount: md?.amount ?? 0,
     ...(md?.player?.current !== undefined ? {current: md.player.current} : {}),
     ...(md?.player?.resulting !== undefined ? {resulting: md.player.resulting} : {}),
     changes: md?.player?.changes ?? [],
-    storage: meta.bot.storage,
-    ...(meta.bot.colony !== undefined ? {colony: meta.bot.colony} : {}),
   };
-}
-
-/** Is this candidate the bot's stand-in? */
-export function isTableTargetBot(cardName: string | undefined): boolean {
-  return cardName === TABLE_TARGET_BOT_KEY;
-}
-
-/** The branch an answer goes into: the bot's option, or the players' card pick. */
-export function tableTargetBranch(meta: TableTargetPromptMeta, cardName: string): number | undefined {
-  return isTableTargetBot(cardName) ? meta.botBranch : meta.cardBranch;
 }
 
 /** THE WIRE ANSWER of a pick in the zone — the historical `or` response, byte for byte. */
 export function tableTargetResponse(meta: TableTargetPromptMeta, cardName: string): {type: 'or', index: number, response: unknown} | undefined {
-  if (isTableTargetBot(cardName)) {
+  if (isTableTargetStand(cardName)) {
     return {type: 'or', index: meta.botBranch, response: {type: 'option'}};
   }
   if (meta.cardBranch === undefined) {
@@ -91,14 +101,53 @@ export function tableTargetResponse(meta: TableTargetPromptMeta, cardName: strin
   return {type: 'or', index: meta.cardBranch, response: {type: 'card', cards: [cardName]}};
 }
 
-/** The i18n key naming where the bot's first unit comes from — honest only: a colony area by name, the floaters, M€. */
-export function tableTargetBotStorageKey(stand: TableTargetBotStand): string {
-  switch (stand.storage) {
-  case 'colony':
-    return 'Storage on ${0}';
-  case 'floaters':
-    return 'The bot\'s floaters';
-  case 'megacredits':
-    return 'From the bot\'s M€';
+/**
+ * VIRUS («remove up to 2 animals from ANY card OR up to 5 plants from ANY player», `TabbedTargetsStep`) AS ONE ZONE:
+ * the animal cards stand in their owners' groups, every player-target is a STAND-IN tile in its player's group — the
+ * bot's animals, each player's plants. A protected player's plants stand REFUSED with the server's reason (shown, never
+ * chosen); a refused animal CARD stays out, like every protected holder of a taking step (`playedTargetShortfalls`).
+ *
+ * The answer is the step's own: `pickKeys` maps a zone candidate to the step's target key (`buildTabbedTargets` —
+ * `a<card>` · `ap<colour>` · `p<colour>`), whose response is the top-level `or` answer, verbatim.
+ */
+export type TabbedTargetZone = {
+  cards: ReadonlyArray<CardModel>;
+  stands: ReadonlyArray<TableTargetStand>;
+  /** zone key (a card's name / a stand key) → the step's target key. A refused stand has none. */
+  pickKeys: ReadonlyMap<string, string>;
+};
+
+export function tabbedTargetZone(step: TabbedTargetsStep): TabbedTargetZone {
+  const cards: Array<CardModel> = [];
+  const stands: Array<TableTargetStand> = [];
+  const pickKeys = new Map<string, string>();
+  const standOf = (t: TabbedPlantTarget, icon: string, amount: number, pickKey: string): void => {
+    const key = tableTargetStandKey(t.color, icon);
+    stands.push({
+      key, color: t.color, icon, amount, current: t.current, resulting: t.resulting,
+      changes: [{icon, from: t.current, to: t.resulting, scope: 'stock'}],
+      ...(t.disabled === true ? {refused: t.reason ?? ''} : {}),
+    });
+    if (t.disabled !== true) {
+      pickKeys.set(key, pickKey);
+    }
+  };
+  const animal = step.animal;
+  if (animal !== undefined) {
+    if (animal.input !== undefined && animal.branchIndex !== undefined) {
+      for (const card of animal.input.cards) {
+        if (card.isDisabled !== true) {
+          cards.push(card);
+          pickKeys.set(card.name, 'a' + card.name);
+        }
+      }
+    }
+    for (const t of animal.targets ?? []) {
+      standOf(t, animal.icon, animal.amount, 'ap' + t.color);
+    }
   }
+  for (const t of step.plant?.targets ?? []) {
+    standOf(t, step.plant?.icon ?? 'plants', step.plant?.amount ?? 0, 'p' + t.color);
+  }
+  return {cards, stands, pickKeys};
 }

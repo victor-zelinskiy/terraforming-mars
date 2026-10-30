@@ -114,7 +114,7 @@
                                      :focus="sub.focus"
                                      :selection="playedTargetSelection"
                                      :bandHeight="playedTargetHeight"
-                                     :lockedCard="playedTargetResults[sub.choiceId]?.cardName ?? ''"
+                                     :lockedCard="playedTargetLockedCard"
                                      :decline="subDecline" />
 
             <!-- ── SUB-STATE: a PREMIUM pick list (card / player / or w/ metadata
@@ -829,7 +829,7 @@ import {distributionLanesOf, DistributionLanes} from '@/client/console/consoleAc
 import {pourRemaining, spreadOn, spreadRemaining, SpreadState, spreadTotal, stepSpread} from '@/client/console/cardResourceDistribution';
 import {cardResourceDistributionResponse} from '@/client/console/taskResponses';
 import {buildOrItems, orItemResponse, buildTabbedTargets, nestedPickHostable, ConsoleOrItem, ConsoleTabbedTarget, TabbedCardOwner} from '@/client/console/consoleOrChoice';
-import {TABLE_TARGET_BOT_KEY, TableTargetBotStand, isTableTargetBot, tableTargetBotStand, tableTargetCardPick, tableTargetOf} from '@/client/console/played/tableTargetZone';
+import {TableTargetStand, isTableTargetStand, tableTargetBotStand, tableTargetCardPick, tableTargetOf, tabbedTargetZone} from '@/client/console/played/tableTargetZone';
 import {
   enterDeltaEspionagePick, deltaEspionageStepResponse, deltaEspionageResponseOf,
 } from '@/client/console/hydroFlow/deltaEspionageEntry';
@@ -840,7 +840,8 @@ import type {DeltaEspionageResponse, DeltaStageAnswer, InputResponse} from '@/co
 import {espionageOutcomeView} from '@/client/console/hydroFlow/espionageOutcomeView';
 import {repeatComposedResponses} from '@/client/console/consoleHydroAdvance';
 import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
-import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
+import {ActionPreviewStep, TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
+import {CardResource} from '@/common/CardResource';
 import {isGeneralBranch, sharedLeadingEffects,
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, initialVariantSelection,
@@ -954,7 +955,10 @@ type SubState =
   | {kind: 'playedTarget', choiceId: string, focus: PlayedTargetFocus, picked: ReadonlyArray<string>,
      /** The step is answering an OR-OPTION (`orItem`), not the choice itself — a removal that also offers MarsBot
       *  (TR52 «Научный прорыв»: [cards…, the bot]) points at the cards in this same step, the action composer's door. */
-     orItem?: ConsoleOrItem}
+     orItem?: ConsoleOrItem,
+     /** The step is a TABBED removal's one zone (Virus — `tabbedTargetZone`): the step index it answers. `choiceId` is then
+      *  the row's `tabbed#N`, which no `ComposerChoice` carries. */
+     tabbed?: number}
   | {kind: 'list', choiceId: string, index: number}
   | {kind: 'orNested', choiceId: string, item: ConsoleOrItem, index: number}
   | {kind: 'tabbed', stepIndex: number, index: number}
@@ -1748,6 +1752,9 @@ export default defineComponent({
       const k = this.variantRows.findIndex((row) => row.pos === pos);
       const gainPicks = (this.branches[pos]?.steps ?? []).filter((st) => st.kind === 'input' && st.input.type === 'card' && (st.amount ?? 0) > 0);
       return k >= 0 && gainPicks.length === 1 ? this.variantPrinted?.[k] : undefined;
+      if (this.sub?.kind === 'playedTarget' && this.sub.tabbed !== undefined) {
+        return this.tabbedZoneModelFor(this.sub.tabbed);
+      }
     },
     /** The embedded selector holds the surface right now. */
     /** The embedded step's self-handle is focused — the played card answers. */
@@ -1792,6 +1799,17 @@ export default defineComponent({
     },
     /** The choice the open (or pending) played-target step serves. */
     playedTargetChoice(): ComposerChoice | undefined {
+    /** The open step's ANSWERED target (a card's name / a stand key) — it lies locked in its owner's group. */
+    playedTargetLockedCard(): string {
+      const sub = this.sub;
+      if (sub?.kind !== 'playedTarget') {
+        return '';
+      }
+      if (sub.tabbed !== undefined) {
+        return this.tabbedZoneKeyOf(sub.tabbed, this.picks['tabbed#' + sub.tabbed]) ?? '';
+      }
+      return this.playedTargetResults[sub.choiceId]?.cardName ?? '';
+    },
       const id = this.sub?.kind === 'playedTarget' ? this.sub.choiceId : this.playedTargetRowId;
       return id === undefined ? undefined : this.allChoices.find((c: ComposerChoice) => c.id === id);
     },
@@ -2441,7 +2459,7 @@ export default defineComponent({
         targetBlocked: this.sub?.kind === 'playedTarget' &&
           playedTargetAt(this.sub.focus, this.playedTargetModel?.owners ?? [])?.blocked !== undefined,
         targetNoInspect: this.sub?.kind === 'playedTarget' &&
-          playedTargetAt(this.sub.focus, this.playedTargetModel?.owners ?? [])?.bot !== undefined,
+          playedTargetAt(this.sub.focus, this.playedTargetModel?.owners ?? [])?.stand !== undefined,
         targetMulti: this.playedTargetSelection.mode === 'multi' ? {
           count: this.playedTargetSelection.picked.length,
           valid: playedTargetPicksValid(this.playedTargetSelection),
@@ -2586,6 +2604,11 @@ export default defineComponent({
     settleSuspended(now: boolean) {
       this.settled?.suspend(now);
     },
+      if (sub?.kind === 'playedTarget' && sub.tabbed !== undefined) {
+        // Virus's one zone: the step declares its own refusal.
+        const decline = this.tabbedSteps.find((t) => t.index === sub.tabbed)?.step.decline;
+        return decline !== undefined ? {index: decline.optionIndex, label: decline.label, forgone: []} : undefined;
+      }
     /**
      * THE PAYLOAD IS CARRIED, both ways (TR56 «КУДА ЛЯЖЕТ», П3) — a `pre` watcher, so the level that is LEAVING is still
      * in the DOM: in, the selected tile's print is measured before the review unmounts and the step's header print flies
@@ -4301,7 +4324,8 @@ export default defineComponent({
         // An optional choice whose one answer is a pick: no list — the pick itself, the decline inside it.
       } else if (row.kind === 'step' && (row.choice.kind === 'card' || row.choice.kind === 'player' || row.choice.kind === 'or')) {
         this.sub = {kind: 'list', choiceId: row.choice.id, index: 0};
-      } else if (row.kind === 'tabbed') {
+      } else if (row.kind === 'tabbed' && !this.openTabbedZone(row.stepIndex)) {
+        // Virus's targets are ONE zone (`tabbedTargetZone`); the flat list only when the zone has nothing to point at.
         this.sub = {kind: 'tabbed', stepIndex: row.stepIndex, index: 0};
       }
     },
@@ -4440,12 +4464,14 @@ export default defineComponent({
      * groups. Re-entering restores the previously chosen target: its owner,
      * its group and the cursor on the card itself, already target-locked.
      */
-    openPlayedTargetStep(c: ComposerChoice, orItem?: ConsoleOrItem): void {
-      // Measure the band ONCE, before the step is visible, and measure it where
-      // the layout is STRETCHED rather than content-sized — see
-      // `playedTargetHeight`. The width comes from the work column (`flex: 1`
-      // with a max cap, so it is stretched too); the height comes from the row
-      // above it, which is the only box here whose size the cards cannot move.
+    /**
+     * Measure the band ONCE, before the step is visible, and measure it where
+     * the layout is STRETCHED rather than content-sized — see
+     * `playedTargetHeight`. The width comes from the work column (`flex: 1`
+     * with a max cap, so it is stretched too); the height comes from the row
+     * above it, which is the only box here whose size the cards cannot move.
+     */
+    measurePlayedTargetBand(): void {
       const root = this.$refs.rootEl as HTMLElement | undefined;
       const zone = root?.querySelector<HTMLElement>('.con-composer__playright');
       if (zone !== null && zone !== undefined) {
@@ -4476,7 +4502,7 @@ export default defineComponent({
       const chosen = this.playedTargetResults[c.id];
       // A bot answered in the table's one zone re-enters ON the bot's tile.
       const table = orItem === undefined ? tableTargetOf(c.input) : undefined;
-      const botChosen = table !== undefined && this.picks[c.id] === String(table.botBranch) ? TABLE_TARGET_BOT_KEY : undefined;
+      const botChosen = table !== undefined && this.picks[c.id] === String(table.botBranch) ? tableTargetBotStand(c.input)?.key : undefined;
       const focus = findPlayedTargetFocus(chosen?.cardName ?? botChosen ?? picked[0], owners) ??
         reseatPlayedTargetFocus(undefined, owners);
       if (focus === undefined) {
@@ -4553,6 +4579,71 @@ export default defineComponent({
     /** A in a MULTI ask toggles instead of choosing — the cap is stated, never
      *  silently enforced (the contract line says «снимите выбор с другой»). */
     togglePlayedTarget(): void {
+    },
+    /**
+     * VIRUS AS ONE ZONE («ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА», `tableTargetZone.tabbedTargetZone`): A on the tabbed row opens the
+     * embedded target step — the animal cards in their owners' groups, every player-target a stand-in tile (the bot's
+     * animals, each player's plants; a protected one shown refused), LB/RB between the groups, RT the decline. The
+     * answer is the step's own target key and response (`buildTabbedTargets`), so the draft and the batch are the
+     * historical ones. False: nothing to point at — the caller keeps the flat list.
+     */
+    openTabbedZone(stepIndex: number): boolean {
+      this.measurePlayedTargetBand();
+      const owners = this.tabbedZoneModelFor(stepIndex)?.owners ?? [];
+      if (owners.length === 0) {
+        return false;
+      }
+      const chosen = this.tabbedZoneKeyOf(stepIndex, this.picks['tabbed#' + stepIndex]);
+      const focus = findPlayedTargetFocus(chosen, owners) ?? reseatPlayedTargetFocus(undefined, owners);
+      if (focus === undefined) {
+        return false;
+      }
+      this.sub = {kind: 'playedTarget', choiceId: 'tabbed#' + stepIndex, focus, picked: [], tabbed: stepIndex};
+      return true;
+    },
+    /** The zone candidate (a card's name / a stand key) the step's answered target key stands for. */
+    tabbedZoneKeyOf(stepIndex: number, pickKey: string | undefined): string | undefined {
+      const step = this.tabbedSteps.find((t) => t.index === stepIndex)?.step;
+      if (step === undefined || pickKey === undefined) {
+        return undefined;
+      }
+      for (const [zoneKey, key] of tabbedTargetZone(step).pickKeys) {
+        if (key === pickKey) {
+          return zoneKey;
+        }
+      }
+      return undefined;
+    },
+    /** The one zone of a tabbed removal — the cards by owner, the players' stand-ins in their groups. */
+    tabbedZoneModelFor(stepIndex: number): PlayedTargetModel | undefined {
+      const step = this.tabbedSteps.find((t) => t.index === stepIndex)?.step;
+      if (step === undefined) {
+        return undefined;
+      }
+      const zone = tabbedTargetZone(step);
+      if (zone.cards.length === 0 && zone.stands.length === 0) {
+        return undefined;
+      }
+      const animal = step.animal;
+      const input = animal?.input;
+      // A card's reading is the removal's own «current → resulting» of its animals (the reader every target step uses).
+      const removal: ActionPreviewStep | undefined = input === undefined || animal === undefined ? undefined :
+        {kind: 'input', input, amount: -animal.amount, cardResource: CardResource.ANIMAL};
+      return buildPlayedTargetModel({
+        candidates: zone.cards,
+        stands: zone.stands.map((stand) => ({stand, ownerName: this.playerName(stand.color)})),
+        players: this.playerView.players,
+        viewerColor: this.thisPlayer.color,
+        // The step's own contract line already asks for a target at the table — an ask under it would say it twice.
+        ask: '',
+        sourceCardName: this.cardName,
+        typeOf: (name) => getCard(name)?.type,
+        direction: 'remove',
+        preview: (name) => input === undefined ? [] : playedTargetPreviewFor(removal, input, name),
+      });
+    },
+    openPlayedTargetStep(c: ComposerChoice, orItem?: ConsoleOrItem): void {
+      this.measurePlayedTargetBand();
       if (this.sub?.kind !== 'playedTarget') {
         return;
       }
@@ -4666,7 +4757,7 @@ export default defineComponent({
       // THE TABLE'S ONE ZONE: the bot's tile answers the bot branch (the bare option, as the list sent it); a card answers
       // the players' card branch below, nested as every or-option's card pick is.
       const table = this.sub.orItem === undefined ? tableTargetOf(choice.input) : undefined;
-      if (table !== undefined && isTableTargetBot(candidate.cardName)) {
+      if (table !== undefined && isTableTargetStand(candidate.cardName)) {
         const botItem = buildOrItems(choice.input as OrOptionsModel).find((it) => it.optionIndex === table.botBranch);
         if (botItem === undefined) {
           return;
@@ -4713,7 +4804,7 @@ export default defineComponent({
       if (model === undefined) {
         // A lone bot in the table's one zone: its group alone.
         return bot === undefined ? undefined : buildPlayedTargetModel({
-          candidates: [], bot, players: this.playerView.players, viewerColor: this.thisPlayer.color, ask: '',
+          candidates: [], stands: bot, players: this.playerView.players, viewerColor: this.thisPlayer.color, ask: '',
           typeOf: (name) => getCard(name)?.type, takesFromTarget: true, preview: () => [],
         });
       }
@@ -4732,7 +4823,7 @@ export default defineComponent({
       }
       return buildPlayedTargetModel({
         candidates: taken.size === 0 ? model.cards : model.cards.filter((c) => !taken.has(c.name)),
-        ...(bot !== undefined ? {bot} : {}),
+        ...(bot !== undefined ? {stands: bot} : {}),
         players: this.playerView.players,
         viewerColor: this.thisPlayer.color,
         // The composer printed the rule and the gain chip: the step's own generic ask would be the third telling.
@@ -4758,16 +4849,33 @@ export default defineComponent({
       });
     },
     /** MarsBot beside the players in the table's one zone — its stand-in, read off its option's metadata. */
-    tableTargetBotFor(choice: ComposerChoice): {stand: TableTargetBotStand, name: string} | undefined {
+    tableTargetBotFor(choice: ComposerChoice): ReadonlyArray<{stand: TableTargetStand, ownerName: string}> | undefined {
       if (this.sub?.kind === 'playedTarget' && this.sub.choiceId === choice.id && this.sub.orItem !== undefined) {
         return undefined;
+      // VIRUS'S ONE ZONE: the candidate answers through the step's own target key — its response verbatim.
+      const tabbed = this.sub.tabbed;
+      if (tabbed !== undefined) {
+        const step = this.tabbedSteps.find((t) => t.index === tabbed)?.step;
+        const pickKey = candidate === undefined || candidate.blocked !== undefined || step === undefined ?
+          undefined : tabbedTargetZone(step).pickKeys.get(candidate.cardName);
+        const target = pickKey === undefined || step === undefined ? undefined : this.tabbedTargets(step).find((t) => t.key === pickKey);
+        if (target === undefined) {
+          return;
+        }
+        this.picks['tabbed#' + tabbed] = target.key;
+        this.captured[tabbed] = target.response;
+        this.sub = undefined;
+        this.landCursor();
+        this.scrollFocused();
+        return;
+      }
       }
       const stand = tableTargetBotStand(choice.input);
       if (stand === undefined) {
         return undefined;
       }
       const bot = this.playerView.players.find((p) => p.color === stand.color);
-      return {stand, name: bot === undefined ? '' : participantDisplayName(bot)};
+      return [{stand, ownerName: bot === undefined ? '' : participantDisplayName(bot)}];
     },
     /** A — open the table's one zone for a marked `or` (false: nothing to point at, the list stays the door). */
     openTableTargetZone(c: ComposerChoice): boolean {
@@ -5108,7 +5216,11 @@ export default defineComponent({
         // multi pick and the patent sale confirm with); on a single pick that
         // answers an OPTIONAL choice it is the DECLINE.
         if (sub.kind === 'playedTarget') {
-          if (this.playedTargetSelection.mode === 'multi') {
+          if (sub.tabbed !== undefined) {
+            if (this.subDecline !== undefined) {
+              this.answerTabbedDecline(sub.tabbed, this.subDecline);
+            }
+          } else if (this.playedTargetSelection.mode === 'multi') {
             this.confirmPlayedTargetPicks();
           } else if (this.subDecline !== undefined && this.playedTargetChoice !== undefined) {
             this.answerDecline(this.playedTargetChoice);
@@ -5311,10 +5423,10 @@ export default defineComponent({
       const owners = this.playedTargetModel?.owners ?? [];
       const candidate = playedTargetAt(this.sub.focus, owners);
       // The bot's stand-in is no card — X has nothing to lift there.
-      if (candidate === undefined || candidate.bot !== undefined) {
+      if (candidate === undefined || candidate.stand !== undefined) {
         return;
       }
-      const cards = owners.flatMap((o) => o.candidates.filter((c) => c.bot === undefined).map((c) => c.model));
+      const cards = owners.flatMap((o) => o.candidates.filter((c) => c.stand === undefined).map((c) => c.model));
       const at = Math.max(0, cards.findIndex((c) => c.name === candidate.cardName));
       openConsoleCardZoom(cards, at, undefined, undefined, {
         origin: playedTargetZoomOrigin(

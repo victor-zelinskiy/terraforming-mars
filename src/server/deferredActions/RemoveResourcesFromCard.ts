@@ -196,7 +196,7 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
         ...(cardBranch !== undefined ? {cardBranch} : {}),
         botBranch,
         ...(skipBranch !== undefined ? {skipBranch} : {}),
-        bot: {color: bot.color, ...AutomaTargeting.cardResourceSourceOf(bot, this.cardResource)},
+        bot: {color: bot.color},
       });
     }
     return orOptions;

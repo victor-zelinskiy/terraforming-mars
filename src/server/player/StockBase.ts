@@ -67,15 +67,20 @@ export abstract class BaseStock {
     options? : {
       log?: boolean,
       from? : From,
-      stealing?: boolean
+      stealing?: boolean,
+      record?: boolean,
     }) {
     this.add(resource, -amount, options);
   }
 
+  /**
+   * `record: false` — the move is an ENGINE convention whose presented twin the caller records itself (MarsBot's M€
+   * supply standing in for the unit attacked — `AutomaTargeting`): the event stream never shows the proxy.
+   */
   public abstract add(
     resource: Resource | StandardResource,
     amount : number,
-    options? : {log?: boolean, from? : From, stealing?: boolean},
+    options? : {log?: boolean, from? : From, stealing?: boolean, record?: boolean},
   ): void;
 
   public adjust(units: Units, options?: {log?: boolean, from?: From}) {

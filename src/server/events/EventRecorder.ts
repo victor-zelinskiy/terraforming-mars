@@ -11,6 +11,10 @@ import {ColonyRosterChange} from '../../common/colonies/ColonyRoster';
 import {AdjacencyVpChange, TileMoveFact} from '../../common/boards/TileMove';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Resource, StandardResource} from '../../common/Resource';
+import {CardResource} from '../../common/CardResource';
+
+const STANDARD_UNITS: ReadonlyArray<string> = Object.values(Resource);
+const isStandardUnit = (unit: Resource | CardResource): unit is Resource => STANDARD_UNITS.includes(unit);
 import {GameEvent, GameEventType, EventTrigger, EventVisibility, EventTag, JournalEntryRole, JournalActionCategory} from '../../common/events/GameEvent';
 import {EventSource} from '../../common/events/EventSource';
 import {CardReactionCause, CardReactionImpact, CardReactionRecord} from '../../common/models/CardReactionModel';
@@ -949,6 +953,33 @@ export class EventRecorder {
       impact: {reveal},
       tags: ['reveal'],
     }, this.current);
+  }
+
+  /**
+   * A loss MarsBot pays in its ENGINE'S currency — its storage areas, its M€ supply standing in — recorded as what a
+   * player at the table loses: the UNIT ATTACKED (the owner, 2026-10-30: the bot is one more player; how its engine pays
+   * is never shown). A standard resource reads as that resource's stock (`resource-changed`, the attackable stock as its
+   * before / after); a card resource as a card-resource loss on no card (the bot holds none). `lost` > 0.
+   */
+  public recordBotStandInLoss(bot: IPlayer, unit: Resource | CardResource, lost: number, before: number, from?: From, stealing?: boolean): void {
+    if (lost <= 0) {
+      return;
+    }
+    if (isStandardUnit(unit)) {
+      this.recordResourceDelta(bot, unit, -lost, false, from, stealing, before - lost);
+      return;
+    }
+    const source = fromToEventSource(from, bot.color);
+    const crossPlayerTouch = isFromPlayer(from) && from.player.color !== bot.color;
+    if (source === undefined && !this.hasContext() && !crossPlayerTouch) {
+      return;
+    }
+    this.record({
+      type: 'card-resource-changed',
+      source, player: bot.color,
+      impact: {cardResources: [{cardResource: unit as CardResource, amount: -lost}]},
+      tags: ['card-impact'],
+    });
   }
 
   public recordCardResourceDelta(player: IPlayer, card: ICard, amount: number, from?: From, basis?: CardResourceBasis): void {

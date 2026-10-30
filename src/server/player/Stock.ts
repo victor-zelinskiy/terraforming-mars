@@ -13,7 +13,8 @@ export class Stock extends BaseStock {
     options? : {
       log?: boolean,
       from? : From,
-      stealing?: boolean
+      stealing?: boolean,
+      record?: boolean,
     }) {
     if (amount === 0) {
       return;
@@ -48,7 +49,9 @@ export class Stock extends BaseStock {
       this.logUnitDelta(resource, delta, /* production*/ false, options.from, options.stealing);
     }
 
-    this.player.game?.events?.recordResourceDelta(this.player, resource, delta, /* production*/ false, options?.from, options?.stealing, this[resource]);
+    if (options?.record !== false) {
+      this.player.game?.events?.recordResourceDelta(this.player, resource, delta, /* production*/ false, options?.from, options?.stealing, this[resource]);
+    }
 
     // MarsBot CORPORATION hook: a corporation may redirect where the bot's M€
     // come from (Mining Guild's bank pays them and turns each full stack into

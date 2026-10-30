@@ -48,7 +48,9 @@
             </template>
           </span>
         </template>
-        <span v-else class="con-ptsel__contract-title">{{ $t('Choose a card on the table') }}</span>
+        <!-- A zone where a PLAYER is a target too (a stand-in tile — the bot's unit, a player's plants) asks for a TARGET,
+             never «a card»: the line must not lie about what the cursor may land on. -->
+        <span v-else class="con-ptsel__contract-title">{{ hasStands ? $t('Choose a target at the table') : $t('Choose a card on the table') }}</span>
         <span class="con-ptsel__contract-sep" aria-hidden="true">·</span>
         <span class="con-ptsel__scope-count">{{ scopeLine }}</span>
         <!-- MULTI: the live accumulation, so «сколько ещё можно» is never a
@@ -198,18 +200,22 @@
                   </span>
                   <span v-if="isChosen(cand.cardName)" class="con-ptsel__self-check" aria-hidden="true">{{ pickOrdinal(cand.cardName) }}</span>
                 </div>
-                <!-- THE BOT'S STAND-IN («ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА», `tableTargetZone.ts`). MarsBot holds no card, so
-                     its candidate is a TILE on the slot's own chassis (the same box, the same cursor, the same lock) —
-                     never a card face, which would lie that the bot has a card. It reads WHOSE (the seat's dot and
-                     name), WHAT (the unit's icon, `current → resulting` — the server's metadata, verbatim) and,
-                     only when it is honest, WHERE the first unit comes from (a colony storage area by name, the
-                     floater counter, the M€ proxy). State is a kant and a fill (invariant 15), the focus the cursor. -->
-                <div v-else-if="cand.bot !== undefined"
+                <!-- A PLAYER'S STAND-IN («ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА», `tableTargetZone.ts`): a target that is a player's
+                     unit, not a card — the bot's animals, a player's plants (Virus). A TILE on the slot's own chassis
+                     (the same box, the same cursor, the same lock) — never a card face, which would lie that there is a
+                     card. It reads WHOSE (the seat's dot and name) and WHAT is lost — the unit attacked, `current →
+                     resulting` of THAT unit (the server's one row; how the bot's engine pays is never shown). A refused
+                     one (protected plants) stands under the near miss's scrim, its reason on the rail. State is a kant
+                     and a fill (invariant 15), the focus the cursor. -->
+                <div v-else-if="cand.stand !== undefined"
                      class="con-ptsel__slot con-ptsel__slot--bot"
                      data-ptsel-bot
+                     :data-ptsel-stand="cand.stand.icon"
+                     :data-ptsel-blocked="cand.blocked !== undefined ? '1' : undefined"
                      :class="{
                        'con-ptsel__slot--focused': isFocused(owner.id, cand.cardName),
                        'con-ptsel__slot--locked': isChosen(cand.cardName),
+                       'con-ptsel__slot--blocked': cand.blocked !== undefined,
                      }">
                   <div class="con-ptsel__bot" :class="'con-ptsel__bot--' + owner.color">
                     <span class="con-ptsel__bot-kicker">{{ $t('Target without a card') }}</span>
@@ -217,15 +223,16 @@
                       <span class="con-ptsel__ownerdot" :class="'player_bg_color_' + owner.color" aria-hidden="true"></span>
                       <span :class="'player_color_' + owner.color">{{ owner.name }}</span>
                     </span>
-                    <!-- The pool the FIRST unit leaves (the storage row of the server's reading — «2 → 1» microbes on
-                         Enceladus; the M€ row when the storage is empty), its icon with it — never the sum of the pool
-                         and the M€ proxy the metadata's own `current` carries. -->
-                    <template v-for="(change, i) in botChanges(cand.bot).slice(0, 1)" :key="'d' + i">
+                    <template v-for="(change, i) in standChanges(cand.stand).slice(0, 1)" :key="'d' + i">
                       <i class="con-ptsel__bot-icon" :class="iconClass(change.icon)" :data-ptsel-bot-icon="change.icon" aria-hidden="true"></i>
-                      <b class="con-ptsel__bot-delta" data-ptsel-bot-delta>{{ change.from }}<span aria-hidden="true"> → </span>{{ change.to }}</b>
+                      <b v-if="cand.blocked === undefined" class="con-ptsel__bot-delta" data-ptsel-bot-delta>{{ change.from }}<span aria-hidden="true"> → </span>{{ change.to }}</b>
+                      <b v-else class="con-ptsel__bot-delta">{{ change.from }}</b>
                     </template>
-                    <span class="con-ptsel__bot-storage" :data-ptsel-bot-storage="cand.bot.storage">{{ botStorageText(cand.bot) }}</span>
                   </div>
+                  <span v-if="cand.blocked !== undefined" class="con-ptsel__blocked" aria-hidden="true">
+                    <span class="con-ptsel__blocked-x">✕</span>
+                    <b class="con-ptsel__blocked-num">{{ standRefusal(cand.stand) }}</b>
+                  </span>
                   <span v-if="isChosen(cand.cardName)" class="con-ptsel__lock" aria-hidden="true">{{ pickOrdinal(cand.cardName) }}</span>
                 </div>
                 <div v-else
@@ -286,23 +293,20 @@
              Ресурсы на этой карте 1 → 0» is the card's own name, an arrow and a
              qualifier for a card that is the only thing on screen — it reads as
              debug output rather than a result. -->
-        <span v-if="showsRailCard" class="con-ptsel__railcard">{{ focused.bot !== undefined ? focusedOwnerName : $t(focused.cardName) }}</span>
-        <!-- The bot's stand-in reads its own loss — the server's per-pool rows when it gives them, else the one delta. -->
-        <template v-if="focused.bot !== undefined">
+        <span v-if="showsRailCard" class="con-ptsel__railcard">{{ focused.stand !== undefined ? focusedOwnerName : $t(focused.cardName) }}</span>
+        <!-- A stand-in reads its own loss — the unit attacked, `current → resulting` (a refused one: its reason, below). -->
+        <template v-if="focused.stand !== undefined && focused.blocked === undefined">
           <span class="con-ptsel__railarrow" aria-hidden="true">→</span>
           <span class="con-ptsel__railimpacts" data-ptsel-rail-bot>
-            <span v-for="(change, i) in botChanges(focused.bot)" :key="'b' + i" class="con-ptsel__imp con-ptsel__imp--down">
+            <span v-for="(change, i) in standChanges(focused.stand)" :key="'b' + i" class="con-ptsel__imp con-ptsel__imp--down">
               <i class="con-ptsel__imp-icon" :class="iconClass(change.icon)" aria-hidden="true"></i>
               <b class="con-ptsel__imp-delta">{{ change.from }}<span aria-hidden="true"> → </span>{{ change.to }}</b>
-            </span>
-            <span class="con-ptsel__imp con-ptsel__imp--static">
-              <span class="con-ptsel__imp-label">{{ botStorageText(focused.bot) }}</span>
             </span>
           </span>
         </template>
         <!-- The owner marker is dropped when there is only one group: it would
              repeat the header two lines above it. -->
-        <template v-if="showsOwnerTargets && focused.bot === undefined">
+        <template v-if="showsOwnerTargets && focused.stand === undefined">
           <span class="con-ptsel__railsep" aria-hidden="true">·</span>
           <span class="con-ptsel__railowner" :class="'player_color_' + focusedOwnerColor">{{ focusedOwnerName }}</span>
         </template>
@@ -311,7 +315,7 @@
              adds the judgement, not the fact. -->
         <span v-if="focusedSelfHarm" class="con-ptsel__railwarn">⚠ {{ $t('This is your own card') }}</span>
         <!-- …and a near miss reads WHY it cannot be taken (the server's own reason) — the whole payload of the line. -->
-        <span v-if="focused.blocked !== undefined" class="con-ptsel__railblock" data-ptsel-rail-blocked>✕ {{ focused.blocked.reason }}</span>
+        <span v-if="focused.blocked !== undefined" class="con-ptsel__railblock" data-ptsel-rail-blocked>✕ {{ focused.stand !== undefined ? standRefusal(focused.stand) : focused.blocked.reason }}</span>
         <template v-if="railImpacts.length > 0">
           <!-- The arrow SEPARATES the identity from its consequences; with the
                identity suppressed (see `showsRailCard`) it would open the line
@@ -399,11 +403,11 @@ import ConsolePlayedTargetTag from '@/client/components/console/played/ConsolePl
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {readingTailText, readingText} from '@/client/console/readingText';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {setPlayedTargetSelfLink, bumpPlayedTargetSelfGeometry, resetPlayedTargetSelf} from '@/client/console/played/consolePlayedTargetSelf';
-import {TableTargetBotStand, tableTargetBotStorageKey} from '@/client/console/played/tableTargetZone';
+import {TableTargetStand} from '@/client/console/played/tableTargetZone';
 import {
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetOwner,
   PlayedTargetCandidate, PlayedTargetSection, PlayedTargetSelection,
@@ -518,6 +522,10 @@ export default defineComponent({
       return this.model.contract.payload;
     },
     /** «3 доступные цели у 2 игроков» — the scope, in one honest line. */
+    /** Some candidate is a player's stand-in, not a card. */
+    hasStands(): boolean {
+      return this.model.owners.some((o) => o.candidates.some((c) => c.stand !== undefined));
+    },
     scopeLine(): string {
       const {targetCount, ownerCount} = this.model.contract;
       // A pick that takes FROM the viewer's own cards is a SOURCE of a price they chose (TR29: «spend 1 fighter from
@@ -962,18 +970,18 @@ export default defineComponent({
     isFocused(ownerId: string, cardName: string): boolean {
       return this.focus.ownerId === ownerId && this.focused?.cardName === cardName;
     },
-    /** WHERE the bot's first unit comes from — a colony area by its name, the floater counter, the M€ proxy. */
-    botStorageText(bot: TableTargetBotStand): string {
-      const key = tableTargetBotStorageKey(bot);
-      return bot.colony !== undefined ? translateTextWithParams(key, [translateText(bot.colony)]) : translateTextWithParams(key, []);
+    /** A refused stand-in's reason — the server's own words (a key or a message), translated here. */
+    standRefusal(stand: TableTargetStand): string {
+      const why = stand.refused;
+      return why === undefined ? '' : (typeof why === 'string' ? translateText(why) : translateMessage(why));
     },
-    /** The bot's loss as the server reads it, pool by pool — else the one delta of the unit. */
-    botChanges(bot: TableTargetBotStand): ReadonlyArray<{icon: string, from: number, to: number}> {
-      const moving = bot.changes.filter((c) => c.from !== c.to);
+    /** A stand-in's loss as the server reads it — ONE row of the unit attacked (else the metadata's own delta). */
+    standChanges(stand: TableTargetStand): ReadonlyArray<{icon: string, from: number, to: number}> {
+      const moving = stand.changes.filter((c) => c.from !== c.to);
       if (moving.length > 0) {
         return moving;
       }
-      return bot.current !== undefined && bot.resulting !== undefined ? [{icon: bot.icon, from: bot.current, to: bot.resulting}] : [];
+      return stand.current !== undefined && stand.resulting !== undefined ? [{icon: stand.icon, from: stand.current, to: stand.resulting}] : [];
     },
   },
 });

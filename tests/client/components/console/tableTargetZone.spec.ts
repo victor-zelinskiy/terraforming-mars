@@ -2,7 +2,7 @@ import {mount} from '@vue/test-utils';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
-import {TABLE_TARGET_BOT_KEY} from '@/client/console/played/tableTargetZone';
+import {tableTargetStandKey} from '@/client/console/played/tableTargetZone';
 
 /*
  * «ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА» (the owner, 2026-10-28). «Хищники» with MarsBot at the table: the server's removal
@@ -47,7 +47,7 @@ function removal(withCards: boolean) {
   });
   return {
     type: 'or', title: 'Select card to remove 1 animal', buttonLabel: 'Save', options,
-    tableTargetPrompt: {...(withCards ? {cardBranch: 0} : {}), botBranch: withCards ? 1 : 0, bot: {color: 'green', storage: 'colony', colony: 'Miranda'}},
+    tableTargetPrompt: {...(withCards ? {cardBranch: 0} : {}), botBranch: withCards ? 1 : 0, bot: {color: 'green'}},
   };
 }
 
@@ -80,13 +80,13 @@ describe('ConsoleActionComposer — the table\'s targets are ONE zone', () => {
     expect(w.find('.con-composer__sublist').exists()).to.eq(false);
     const owners = vm.playedTargetModel.owners;
     expect(owners.map((o: any) => o.id)).to.deep.eq(['red', 'green']);
-    expect(owners[1].bot, 'the bot is a group of the zone').to.eq(true);
-    expect(owners[1].candidates[0].cardName).to.eq(TABLE_TARGET_BOT_KEY);
+    expect(owners[1].candidates[0].stand?.color, 'the bot is a group of the zone — a stand-in, never a card').to.eq('green');
+    expect(owners[1].candidates[0].cardName).to.eq(tableTargetStandKey('green', 'animal'));
     expect(w.findAll('.con-ptsel__owner')).to.have.length(2);
     const tile = w.find('[data-ptsel-bot]');
     expect(tile.exists(), 'the bot stands as a TILE, never a card face').to.eq(true);
     expect(tile.find('[data-ptsel-bot-delta]').text().replace(/\s+/g, ' ')).to.eq('2 → 1');
-    expect(tile.find('[data-ptsel-bot-storage]').attributes('data-ptsel-bot-storage')).to.eq('colony');
+    expect(tile.find('[data-ptsel-bot-icon]').attributes('data-ptsel-bot-icon'), 'the unit attacked, never M€').to.eq('animal');
     w.unmount();
   });
 

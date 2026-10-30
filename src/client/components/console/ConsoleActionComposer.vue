@@ -1016,7 +1016,7 @@ import {
 } from '@/client/console/consoleActionComposer';
 import {variablePartsForBranch, ConsoleVariableChip, takeStagedActionComposerDraft, railFocusKeysOf, consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {buildOrItems, orItemResponse, nestedPickHostable, ConsoleOrItem} from '@/client/console/consoleOrChoice';
-import {TABLE_TARGET_BOT_KEY, TableTargetBotStand, isTableTargetBot, tableTargetBotStand, tableTargetCardPick, tableTargetOf} from '@/client/console/played/tableTargetZone';
+import {TableTargetStand, isTableTargetStand, tableTargetBotStand, tableTargetCardPick, tableTargetOf} from '@/client/console/played/tableTargetZone';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {DeclineModel, declineIsButton, declineResponse, optionalChoiceOf, optionalPickInputOf} from '@/client/console/optionalChoice';
 import {paymentLanes, megacreditsAvailable, paymentCovers, paymentFromCounts, initialCounts, dialLaneCount, buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow} from '@/client/console/paymentPlan';
@@ -2304,7 +2304,7 @@ export default defineComponent({
             } : undefined,
             decline: this.subDecline !== undefined ? textOf(this.subDecline.label) : undefined,
             blocked: playedTargetAt(this.sub.focus, this.playedTargetModel?.owners ?? [])?.blocked !== undefined,
-            noInspect: playedTargetAt(this.sub.focus, this.playedTargetModel?.owners ?? [])?.bot !== undefined,
+            noInspect: playedTargetAt(this.sub.focus, this.playedTargetModel?.owners ?? [])?.stand !== undefined,
           });
         }
         // A palette is a row — «◄► Ресурс» while the cursor stands in it (the variant group's «◄► Вариант»).
@@ -5287,7 +5287,7 @@ export default defineComponent({
       const chosen = this.playedTargetResults[c.id];
       // A bot answered in the table's one zone re-enters ON the bot's tile.
       const table = orItem === undefined ? tableTargetOf(c.input) : undefined;
-      const botChosen = table !== undefined && this.picks[c.id] === String(table.botBranch) ? TABLE_TARGET_BOT_KEY : undefined;
+      const botChosen = table !== undefined && this.picks[c.id] === String(table.botBranch) ? tableTargetBotStand(c.input)?.key : undefined;
       const focus = owners.length === 0 ? undefined :
         (findPlayedTargetFocus(chosen?.cardName ?? botChosen ?? picked[0], owners) ?? reseatPlayedTargetFocus(undefined, owners));
       if (focus === undefined) {
@@ -5341,7 +5341,7 @@ export default defineComponent({
       }
       return buildPlayedTargetModel({
         candidates: model?.cards ?? [],
-        ...(bot !== undefined ? {bot} : {}),
+        ...(bot !== undefined ? {stands: bot} : {}),
         players: this.playerView.players,
         viewerColor: this.thisPlayer.color,
         // ONE selection instruction. The step's own contract line already says
@@ -5369,7 +5369,7 @@ export default defineComponent({
       });
     },
     /** MarsBot beside the players in the table's one zone — its stand-in, read off its option's metadata. */
-    tableTargetBotFor(choice: ComposerChoice): {stand: TableTargetBotStand, name: string} | undefined {
+    tableTargetBotFor(choice: ComposerChoice): ReadonlyArray<{stand: TableTargetStand, ownerName: string}> | undefined {
       if (this.sub?.kind === 'playedTarget' && this.sub.choiceId === choice.id && this.sub.orItem !== undefined) {
         return undefined;
       }
@@ -5378,7 +5378,7 @@ export default defineComponent({
         return undefined;
       }
       const bot = this.playerView.players.find((p) => p.color === stand.color);
-      return {stand, name: bot === undefined ? '' : participantDisplayName(bot)};
+      return [{stand, ownerName: bot === undefined ? '' : participantDisplayName(bot)}];
     },
     playedTargetInputFor(c: ComposerChoice): SelectCardModel | undefined {
       const open = this.sub?.kind === 'playedTarget' && this.sub.choiceId === c.id ? this.sub.orItem : undefined;
@@ -5500,7 +5500,7 @@ export default defineComponent({
       // THE TABLE'S ONE ZONE: the answer goes into its branch — the bot's option, or the players' card pick — byte for
       // byte the response the old list sent.
       const table = this.sub.orItem === undefined ? tableTargetOf(choice.input) : undefined;
-      if (table !== undefined && isTableTargetBot(candidate.cardName)) {
+      if (table !== undefined && isTableTargetStand(candidate.cardName)) {
         const botItem = buildOrItems(choice.input as OrOptionsModel).find((it) => it.optionIndex === table.botBranch);
         if (botItem === undefined) {
           return;
@@ -5545,10 +5545,10 @@ export default defineComponent({
       const owners = this.playedTargetModel?.owners ?? [];
       const candidate = playedTargetAt(this.sub.focus, owners);
       // The bot's stand-in is no card — X has nothing to lift there.
-      if (candidate === undefined || candidate.bot !== undefined) {
+      if (candidate === undefined || candidate.stand !== undefined) {
         return;
       }
-      const cards = owners.flatMap((o) => o.candidates.filter((c) => c.bot === undefined).map((c) => c.model));
+      const cards = owners.flatMap((o) => o.candidates.filter((c) => c.stand === undefined).map((c) => c.model));
       const at = Math.max(0, cards.findIndex((c) => c.name === candidate.cardName));
       openConsoleCardZoom(cards, at, undefined, undefined, {
         // The SELF-TARGET resolves to the hero card this action is composed on,
