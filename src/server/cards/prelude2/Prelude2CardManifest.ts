@@ -61,7 +61,7 @@ export const PRELUDE2_CARD_MANIFEST = new ModuleManifest({
     [CardName.ISHTAR_EXPEDITION]: {Factory: IshtarExpedition, compatibility: 'venus'},
     [CardName.SUMMIT_LOGISTICS]: {Factory: SummitLogistics, compatibility: 'turmoil', politics: 'redux'},
     [CardName.CERES_TECH_MARKET]: {Factory: CeresTechMarket, compatibility: 'colonies'},
-    [CardName.RED_APPEASEMENT]: {Factory: RedAppeasement, compatibility: 'turmoil'},
+    [CardName.RED_APPEASEMENT]: {Factory: RedAppeasement, compatibility: 'turmoil', politics: 'redux'},
     [CardName.L1_TRADE_TERMINAL]: {Factory: L1TradeTerminal, compatibility: 'colonies'},
     [CardName.CLOUD_TOURISM]: {Factory: CloudTourism, compatibility: 'venus'},
     [CardName.GHG_SHIPMENT]: {Factory: GhgShipment, compatibility: 'turmoil'},

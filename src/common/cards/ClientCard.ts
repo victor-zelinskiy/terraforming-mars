@@ -58,6 +58,8 @@ export type ClientCard = Readonly<{
    * so its tile can stand in the colony workspace outside the trade window.
    */
   fleetDock?: true;
+  /** Playing this card counts as a PASS (`ICard.playCountsAsPass` — P80): the hand names it before the composer opens. */
+  playCountsAsPass?: true;
   /** The card's declared holder role (`holderRole.ts`): its stored resource buys a DELEGATE or a TRADE. */
   resourceRole?: DeclaredHolderRole;
   /**

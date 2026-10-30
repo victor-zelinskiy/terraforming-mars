@@ -21,6 +21,12 @@ export type CardMetadata = {
    */
   reimplements?: CardName;
   description?: string | ICardRenderDescription;
+  /**
+   * The print's «*» beside the requirement plate (Prelude 2 P80 Red Appeasement): the requirement has a BESPOKE half
+   * the plate cannot draw («and that no other player has passed»). The premium face prints the footnote mark beside
+   * the plate; the sentence itself lives in `description`, the hand's reason and the information panel.
+   */
+  requirementFootnote?: boolean;
   renderData?: CardComponent;
   victoryPoints?: number | CardRenderDynamicVictoryPoints;
   /**

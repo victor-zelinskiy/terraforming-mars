@@ -147,6 +147,10 @@ class CardProcessor {
     if (card.fleetDock !== undefined) {
       clientCard.fleetDock = true;
     }
+    // Playing the card counts as a pass (P80) — the hand's verdict says so before the composer opens (class CT).
+    if (card.playCountsAsPass === true) {
+      clientCard.playCountsAsPass = true;
+    }
     // The card's DECLARED holder role (`common/cards/holderRole.ts` — what its stored resource is for when no
     // structure tells it): the ДОП. РЕСУРСЫ satellite splits its chips by it, the target step names it.
     if (card.resourceRole !== undefined) {

@@ -115,6 +115,13 @@ export type ActionPreview = {
    * behavior used to read as an empty result. Card plays only.
    */
   arms?: ReadonlyArray<ArmedPlayEffectKind>;
+  /**
+   * THIS PLAY IS A PASS (Prelude 2 P80 Red Appeasement — «this counts as passing»): the play ends the player's
+   * generation, so the next press gives the turn away. A STRUCTURAL mark set by the card's own hook (never read off
+   * a text), read by the play composer as the pass confirm's own reading — what the player leaves behind, the verb
+   * «play and pass» (class CT). Card plays only.
+   */
+  passes?: true;
 };
 
 /**

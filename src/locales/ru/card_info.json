@@ -627,5 +627,7 @@
     "Add 3 neutral delegates to the Greens' Popular Support Area.": "Добавьте 3 нейтральных делегатов в область Народной поддержки «Зелёных».",
     "Add 3 neutral delegates to the Scientists' Popular Support Area.": "Добавьте 3 нейтральных делегатов в область Народной поддержки «Учёных».",
     "Add 3 neutral delegates to the Industrialists' Popular Support Area.": "Добавьте 3 нейтральных делегатов в область Народной поддержки «Индустриалистов».",
-    "Discard any cards: 2 M€ each": "Сбросьте карты: по 2 M€ за каждую"
+    "Discard any cards: 2 M€ each": "Сбросьте карты: по 2 M€ за каждую",
+    "Playable only while no other player has passed this generation.": "Можно разыграть, только пока никто другой не спасовал в этом поколении.",
+    "This counts as passing: you get no more turns this generation.": "Это считается пасом: ходов в этом поколении у вас больше нет."
 }

@@ -68,8 +68,9 @@
     "Требует чтобы правящей партией партией были Ученые или у этой партии долхно быть 2 ваших делегата. Получите 2 M€ за каждый тайл дороги на Луне. Получите 2 M€ за каждый тайл поселения на Луне",
     "Teslaract": "Тесларакт",
     "Action: Spend 1 energy production to gain 1 plant production.": "Действие: Потратьте 1 уровень производства энергии, чтобы получить 1 дополнительное производство растений",
-    "Red Appeasement": "Красное миротворчество",
+    "Red Appeasement": "Умиротворение Красных",
     "Requires that Reds are ruling or that you have 2 delegates there, AND THAT NO OTHER PLAYER HAS PASSED.": "Требует чтобы правящей партией партией были Красные или у этой партии долхно быть 2 ваших делегата. Никто из игроков на момент розыгрыша еще не должен сделать пас.",
     "Increase M€ production 2 steps. This counts as passing. You get no other turns this generation.": "Увеличьте ваше производство M€ на 2. Это считается пасом. Вы больше не делаете ходов в этом поколении.",
-    "PASS": "ПАС"
+    "PASS": "ПАС",
+    "Requires that Reds are ruling or that you have 2 delegates there, and that no other player has passed. Increase your M€ production 2 steps. This counts as passing: you get no more turns this generation.": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции, и чтобы никто другой ещё не спасовал. Увеличьте производство M€ на 2. Это считается пасом: ходов в этом поколении у вас больше нет."
 }

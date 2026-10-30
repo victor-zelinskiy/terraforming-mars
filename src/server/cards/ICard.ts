@@ -418,6 +418,12 @@ export interface ICard {
    */
   fleetDock?: FleetDock;
   /**
+   * PLAYING THIS CARD COUNTS AS A PASS (Prelude 2 P80 Red Appeasement — «this counts as passing»): its `bespokePlay`
+   * passes the player. Declared beside the play (invariant 8); read by the play preview (`ActionPreview.passes`) and
+   * exported to the client (`ClientCard.playCountsAsPass`) so the hand names it before the composer opens (class CT).
+   */
+  playCountsAsPass?: boolean;
+  /**
    * WHAT THE RESOURCE STORED HERE IS FOR, when no structure tells it
    * (`common/cards/holderRole.ts` — PL-030 / PL-075): a resource spent for
    * a DELEGATE (the census family) or for a TRADE (TR66). A payment unit

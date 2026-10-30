@@ -1416,7 +1416,7 @@ export function playPreview(
   player: IPlayer,
   extraEffects: ReadonlyArray<ActionEffect> = [],
   steps: ReadonlyArray<ActionPreviewStep | undefined> = [],
-  opts: {mergeCardSteps?: {min: number, title?: string | Message, emptyWarning?: string | Message}, colonyBonuses?: AllColonyBonusesModel, extrasFirst?: boolean} = {},
+  opts: {mergeCardSteps?: {min: number, title?: string | Message, emptyWarning?: string | Message}, colonyBonuses?: AllColonyBonusesModel, extrasFirst?: boolean, passes?: boolean} = {},
 ): ActionPreview {
   const behaviorEffects = card.behavior !== undefined ? effectsForBehavior(player, card, card.behavior) : [];
   const branch: ActionPreviewBranch = {
@@ -1429,7 +1429,7 @@ export function playPreview(
     mergeCardSteps: opts.mergeCardSteps,
     ...(opts.colonyBonuses !== undefined ? {colonyBonuses: opts.colonyBonuses} : {}),
   };
-  return {...base(card), kind: 'bespoke', branches: [branch]};
+  return {...base(card), kind: 'bespoke', branches: [branch], ...(opts.passes === true ? {passes: true} : {})};
 }
 
 /**
