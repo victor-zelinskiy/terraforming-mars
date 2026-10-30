@@ -72,17 +72,17 @@
                  class="con-recv__strip"
                  :data-recv-strip="s"
                  :style="{height: plan.stripH + 'px'}">
-              <div class="con-recv__face" :style="{zoom: String(plan.zoom)}" :class="{'con-recv__face--away': emergedName === s}">
+              <div class="con-recv__face" :style="{zoom: String(plan.zoom)}" :class="{'con-recv__face--away': isEmerged(s)}">
                 <ConsolePlayedCardLite :name="s" peek />
               </div>
             </div>
             <div v-if="view.prevTop !== undefined"
                  class="con-recv__strip con-recv__strip--prev"
                  :data-recv-strip="view.prevTop"
-                 :data-played-key="emergedName === view.prevTop ? undefined : view.prevTop"
+                 :data-played-key="isEmerged(view.prevTop) ? undefined : view.prevTop"
                  :class="{'con-recv__strip--accent': targetAccent === view.prevTop}"
                  :style="{height: plan.stripH + 'px'}">
-              <div class="con-recv__face" :style="{zoom: String(plan.zoom)}" :class="{'con-recv__face--away': emergedName === view.prevTop}">
+              <div class="con-recv__face" :style="{zoom: String(plan.zoom)}" :class="{'con-recv__face--away': isEmerged(view.prevTop)}">
                 <ConsolePlayedCardLite :name="view.prevTop" :peek="revealed" :card="capsuleModelFor(view.prevTop)" />
               </div>
             </div>
@@ -107,7 +107,7 @@
         <div v-else
              class="con-recv__mini"
              :data-recv-mini="entry.mini.id"
-             :class="{'con-recv__mini--emerging': emergedMiniId === entry.mini.id, 'con-recv__mini--foreign': entry.mini.ownerColor !== undefined}">
+             :class="{'con-recv__mini--emerging': emergedMiniIds.includes(entry.mini.id), 'con-recv__mini--foreign': entry.mini.ownerColor !== undefined}">
           <div v-if="entry.mini.ownerColor !== undefined" class="con-recv__mini-owner">
             <span class="con-status__dot" :class="'player_bg_color_' + entry.mini.ownerColor" aria-hidden="true"></span>
             <span>{{ entry.mini.ownerName }}</span>
@@ -123,7 +123,7 @@
                  :data-recv-ministrip="miniStripKey(entry.mini, entry.mini.topName)"
                  :style="{height: plan.miniBandH + 'px'}">
               <div class="con-recv__face" :style="{zoom: String(plan.miniZoom)}"
-                   :class="{'con-recv__face--away': emergedName === entry.mini.topName && emergedMiniId === entry.mini.id}">
+                   :class="{'con-recv__face--away': emerged.some((e) => e.name === entry.mini.topName && e.miniId === entry.mini.id)}">
                 <ConsolePlayedCardLite :name="entry.mini.topName" peek />
               </div>
             </div>
@@ -141,13 +141,15 @@
       </template>
     </div>
 
-    <!-- ── THE EMERGENCE LAYER — the effect target physically forward ── -->
-    <div v-if="emerged !== undefined"
-         ref="emergeEl"
+    <!-- ── THE EMERGENCE LAYER — the effect targets physically forward. SEVERAL at once when one play feeds several
+         cards (PL-1146): they rise together and stand side by side over the shelf, each its own token's end. ── -->
+    <div v-for="e in emerged"
+         :key="e.name"
          class="con-recv__emerge"
-         :data-played-key="emerged.name">
+         :data-emerge-name="e.name"
+         :data-played-key="e.name">
       <div class="con-recv__face" :style="{zoom: String(plan.zoom)}">
-        <ConsolePlayedCardLite :name="emerged.name" :card="capsuleModelFor(emerged.name)" />
+        <ConsolePlayedCardLite :name="e.name" :card="capsuleModelFor(e.name)" />
       </div>
     </div>
   </div>
@@ -188,6 +190,10 @@ const EMERGE_MS = 260;
 const RETURN_MS = 220;
 /** The target's confirmation response after its gain arrives. */
 const TARGET_SETTLE_MS = 150;
+/** A WAVE of several targets (PL-1146): each rises / returns this much after its left neighbour — one gesture, read in order. */
+const WAVE_STAGGER_MS = 50;
+/** The smallest a presented card may be scaled so a wave fits the stage (below it the row overlaps — still every card shown). */
+const WAVE_MIN_SCALE = 0.6;
 /** The stage emergence (the shelf rises; the destination leads). */
 const STAGE_IN_MS = 230;
 /** Fallback stage box before the first measure (logical px). */
@@ -216,8 +222,8 @@ export default defineComponent({
     return {
       heroState: playedHeroState,
       box: {w: 0, h: 0},
-      /** The target currently OUT of its stack (the emergence layer). */
-      emerged: undefined as EmergedTarget | undefined,
+      /** The targets currently OUT of their stacks (the emergence layer) — one, or a WAVE of several (PL-1146). */
+      emerged: [] as Array<EmergedTarget>,
       /** The prev-top accent for a target that needs no emergence. */
       targetAccent: undefined as CardName | undefined,
       unregisterTarget: undefined as (() => void) | undefined,
@@ -360,11 +366,8 @@ export default defineComponent({
       }
       return out;
     },
-    emergedName(): CardName | undefined {
-      return this.emerged?.name;
-    },
-    emergedMiniId(): string | undefined {
-      return this.emerged?.miniId;
+    emergedMiniIds(): ReadonlyArray<string> {
+      return this.emerged.map((e) => e.miniId).filter((id) => id !== '');
     },
   },
   watch: {
@@ -379,7 +382,7 @@ export default defineComponent({
     },
     'heroState.nonce'() {
       this.emergenceRan = false;
-      this.emerged = undefined;
+      this.emerged = [];
       this.targetAccent = undefined;
       this.latchedIncoming = undefined;
       this.latchedRevealed = false;
@@ -410,14 +413,17 @@ export default defineComponent({
     this.unregisterHooks = provideReceivingEffectHooks({
       emergeTarget: (card) => this.emergeTarget(card),
       settleTarget: (card) => this.settleTarget(card),
+      emergeTargets: (cards) => this.emergeTargets(cards),
+      settleTargets: (cards) => this.settleTargets(cards),
       // «СРАБАТЫВАНИЕ КАРТЫ»: a reactor this stage holds rises OUT OF ITS PLACE (the open previous top, a strip, a mini) —
       // and its tokens are born on the emerged face's effect row.
       // Only a CARD of a tableau this stage presents (iteration 6: a party's / a law's record names no card — the
       // anchor ladder's catch-all, the destination slivers, must not claim it as this stage's).
       holdsCard: (card) => this.tableauHolds(card) && (this.findTargetAnchor(card) !== undefined || (this.view.prevTop === card && !this.revealed)),
       emergedFaceEl: (card) => {
-        if (this.emerged?.name === card) {
-          return this.$refs.emergeEl as HTMLElement | undefined;
+        const out = this.emergedEl(card);
+        if (out !== undefined) {
+          return out;
         }
         // The open previous top lies under the played card — its own face on the stage is the birth place.
         if (this.targetAccent !== card) {
@@ -662,112 +668,164 @@ export default defineComponent({
           zoneCards(zones, m.family).some((c) => c.name === card);
       });
     },
+    /** ONE target forward — a wave of one (the reactor's and the single gain's door). */
+    emergeTarget(card: CardName): Promise<void> {
+      return this.emergeTargets([card]);
+    },
+    /** ONE target home. */
+    settleTarget(card: CardName): Promise<void> {
+      return this.settleTargets([card]);
+    },
+    /** The card is out of its stack right now (one of the emerged). */
+    isEmerged(card: CardName | undefined): boolean {
+      return card !== undefined && this.emerged.some((e) => e.name === card);
+    },
+    /** The emerged face of `card` on the emergence layer (undefined while it is not out). */
+    emergedEl(card: CardName): HTMLElement | undefined {
+      const root = this.$el as HTMLElement | undefined;
+      if (root === undefined || typeof root.querySelector !== 'function') {
+        return undefined;
+      }
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
+      return root.querySelector<HTMLElement>(`[data-emerge-name="${esc}"]`) ?? undefined;
+    },
     /**
-     * TARGET EMERGENCE — the effect target comes physically forward:
+     * TARGET EMERGENCE — the effect targets come physically forward:
      *  - the OPEN previous top needs no emergence (an accent marks it);
      *  - a strip / mini-band target rises out of its band (clip opens
      *    band → card) and PRESENTS above the shelf, over its own pile;
      *  - a depth/mini target rises out of its family block the same way.
-     * Resolves when the card stands at its presentation anchor.
+     * SEVERAL targets of ONE play (PL-1146 — P78's three holders) rise TOGETHER, a short stagger apart, and stand SIDE
+     * BY SIDE over the shelf in the order of their homes (no two paths cross), the row scaled down only as much as the
+     * stage needs — one gesture for the whole wave, never one card after another.
+     * Resolves when every card stands at its presentation anchor.
      */
-    async emergeTarget(card: CardName): Promise<void> {
+    async emergeTargets(cards: ReadonlyArray<CardName>): Promise<void> {
       this.targetAccent = undefined;
-      if (this.view.prevTop === card && this.emerged === undefined && !this.revealed) {
-        // Already lying open right under the played card — no emergence. Once the landed card COVERS it (the
-        // reveal turned its face into a strip), it emerges like any strip: its capsule is the counter that ticks
-        // (К-S1 — a holder under the card that woke it).
-        this.targetAccent = card;
-        await this.wait(motionMs(120));
+      const rising: Array<EmergedTarget> = [];
+      for (const card of cards) {
+        if (this.view.prevTop === card && !this.isEmerged(card) && !this.revealed) {
+          // Already lying open right under the played card — no emergence. Once the landed card COVERS it (the
+          // reveal turned its face into a strip), it emerges like any strip: its capsule is the counter that ticks
+          // (К-S1 — a holder under the card that woke it).
+          this.targetAccent = card;
+          continue;
+        }
+        const anchor = this.findTargetAnchor(card);
+        if (anchor === undefined) {
+          continue; // degraded: the chips still fly (the aux satellite fallback)
+        }
+        const measured = anchor.el.getBoundingClientRect();
+        rising.push({name: card, miniId: anchor.miniId, home: {x: measured.left, y: measured.top, w: measured.width, h: measured.height}});
+      }
+      if (rising.length === 0) {
+        if (this.targetAccent !== undefined) {
+          await this.wait(motionMs(120));
+        }
         return;
       }
-      const anchor = this.findTargetAnchor(card);
-      if (anchor === undefined) {
-        return; // degraded: the chips still fly (the aux satellite fallback)
-      }
-      const measured = anchor.el.getBoundingClientRect();
-      const home = {x: measured.left, y: measured.top, w: measured.width, h: measured.height};
-      this.emerged = {name: card, miniId: anchor.miniId, home};
+      this.emerged = [...this.emerged.filter((e) => !rising.some((r) => r.name === e.name)), ...rising];
       await this.$nextTick();
-      // A Vue ref is `null` (not undefined) while its element is not rendered — read it as absent either way.
-      const el = this.$refs.emergeEl as HTMLElement | null | undefined;
-      const root = this.$el as HTMLElement | undefined;
-      if (!(el instanceof HTMLElement) || root === undefined) {
+      // Left to right by where each comes from — the wave never crosses its own paths.
+      const ordered = [...rising].sort((a, b) => a.home.x - b.home.x);
+      const els = ordered.map((t) => this.emergedEl(t.name));
+      if (els.some((el) => el === undefined) || this.$el === undefined) {
         return;
       }
-      const to = this.emergePresentationRect(el, home);
-      // Reduced motion / unmeasurable geometry: the card still PRESENTS at
-      // its anchor (one controlled step, no flight) — the story survives.
-      if (consoleReducedMotionActive() || home.w < 4 || home.h < 4) {
-        gsap.set(el, {x: to.x, y: to.y, autoAlpha: 1});
-        return;
-      }
-      // Band → card: the proxy starts ON the band (clipped to it,
-      // width-matched via scale), rises forward and opens to the full face.
-      const startScale = home.w > 4 ? home.w / el.offsetWidth : 1;
-      const clipFrom = `inset(0 0 ${Math.max(0, 100 - (home.h / Math.max(1, el.offsetHeight * startScale)) * 100)}% 0)`;
-      await new Promise<void>((resolve) => {
-        gsap.timeline({onComplete: resolve})
-          .set(el, {x: home.x, y: home.y, scale: startScale, transformOrigin: '0 0', clipPath: clipFrom, autoAlpha: 1})
-          .to(el, {
-            x: to.x, y: to.y, scale: 1, clipPath: 'inset(0 0 0% 0)',
-            duration: motionMs(EMERGE_MS) / 1000, ease: 'power3.out', clearProps: 'clipPath',
-          });
-      });
+      const slots = this.emergePresentationRow(els as Array<HTMLElement>, ordered.map((t) => t.home));
+      await Promise.all(ordered.map((target, i) => {
+        const el = els[i] as HTMLElement;
+        const to = slots[i];
+        const home = target.home;
+        // Reduced motion / unmeasurable geometry: the card still PRESENTS at
+        // its anchor (one controlled step, no flight) — the story survives.
+        if (consoleReducedMotionActive() || home.w < 4 || home.h < 4) {
+          gsap.set(el, {x: to.x, y: to.y, scale: to.scale, transformOrigin: '0 0', autoAlpha: 1});
+          return Promise.resolve();
+        }
+        // Band → card: the proxy starts ON the band (clipped to it,
+        // width-matched via scale), rises forward and opens to the full face.
+        const startScale = home.w > 4 ? home.w / el.offsetWidth : 1;
+        const clipFrom = `inset(0 0 ${Math.max(0, 100 - (home.h / Math.max(1, el.offsetHeight * startScale)) * 100)}% 0)`;
+        return new Promise<void>((resolve) => {
+          gsap.timeline({onComplete: resolve, delay: motionMs(WAVE_STAGGER_MS * i) / 1000})
+            .set(el, {x: home.x, y: home.y, scale: startScale, transformOrigin: '0 0', clipPath: clipFrom, autoAlpha: 1})
+            .to(el, {
+              x: to.x, y: to.y, scale: to.scale, clipPath: 'inset(0 0 0% 0)',
+              duration: motionMs(EMERGE_MS) / 1000, ease: 'power3.out', clearProps: 'clipPath',
+            });
+        });
+      }));
     },
     /**
-     * Where the emerged target PRESENTS (viewport px, top-left of the layer):
-     * ABOVE THE SHELF, over the pile it came out of — the card physically
-     * rises out of its stack into the free air, x clamped to the stage.
+     * Where the emerged targets PRESENT (viewport px, top-left of each, and the scale they stand at): ABOVE THE SHELF,
+     * over the piles they came out of — ONE card centred over its home (the single-target reading, unchanged); a WAVE
+     * as one row centred over its homes' middle, clamped to the stage, scaled down only if the row would not fit
+     * (never below `WAVE_MIN_SCALE`).
      */
-    emergePresentationRect(el: HTMLElement, home: {x: number, y: number, w: number, h: number}): {x: number, y: number} {
+    emergePresentationRow(els: ReadonlyArray<HTMLElement>, homes: ReadonlyArray<{x: number, y: number, w: number, h: number}>): Array<{x: number, y: number, scale: number}> {
       const root = (this.$el as HTMLElement).getBoundingClientRect();
       const row = (this.$refs.row as HTMLElement | undefined)?.getBoundingClientRect();
-      const w = el.offsetWidth;
-      const h = el.offsetHeight;
+      const w = els[0].offsetWidth;
+      const h = els[0].offsetHeight;
       const gap = 22 * conUiScale();
-      const x = Math.max(root.left + 8, Math.min(home.x + home.w / 2 - w / 2, root.right - w - 8));
-      const shelfTop = row !== undefined ? row.top : root.bottom - h - gap;
-      const y = Math.max(root.top + 8, shelfTop - h - gap);
-      return {x, y};
+      const room = Math.max(1, root.width - 16);
+      const natural = els.length * w + (els.length - 1) * gap;
+      const scale = els.length > 1 ? Math.max(WAVE_MIN_SCALE, Math.min(1, room / natural)) : 1;
+      const cw = w * scale;
+      const ch = h * scale;
+      const span = els.length * cw + (els.length - 1) * gap;
+      const centre = homes.reduce((sum, home) => sum + home.x + home.w / 2, 0) / homes.length;
+      const left = Math.max(root.left + 8, Math.min(centre - span / 2, root.right - span - 8));
+      const shelfTop = row !== undefined ? row.top : root.bottom - ch - gap;
+      const y = Math.max(root.top + 8, shelfTop - ch - gap);
+      return els.map((_, i) => ({x: left + i * (cw + gap), y, scale}));
     },
     /**
      * TARGET SETTLE — the gain has arrived: a short confirmation press, then
      * the card returns along the same physical path into its band; the
-     * placeholder becomes its real band again in the handoff frame.
+     * placeholder becomes its real band again in the handoff frame. A WAVE settles together (the same stagger as its
+     * rise) — one read for the whole row, never one card after another.
      */
-    async settleTarget(card: CardName): Promise<void> {
-      if (this.targetAccent === card) {
+    async settleTargets(cards: ReadonlyArray<CardName>): Promise<void> {
+      if (this.targetAccent !== undefined && cards.includes(this.targetAccent)) {
         // The open previous top: the accent releases after a beat.
+        const accent = this.targetAccent;
         await this.wait(motionMs(TARGET_SETTLE_MS));
-        this.targetAccent = undefined;
+        if (this.targetAccent === accent) {
+          this.targetAccent = undefined;
+        }
+      }
+      const leaving = this.emerged.filter((e) => cards.includes(e.name)).sort((a, b) => a.home.x - b.home.x);
+      if (leaving.length === 0) {
         return;
       }
-      const el = this.$refs.emergeEl as HTMLElement | null | undefined;
-      const state = this.emerged;
-      if (!(el instanceof HTMLElement) || state === undefined || state.name !== card) {
-        this.emerged = undefined;
-        return;
-      }
-      if (consoleReducedMotionActive() || state.home.w < 4 || state.home.h < 4) {
-        gsap.set(el, {autoAlpha: 0});
-        this.emerged = undefined;
-        return;
-      }
-      const startScale = state.home.w > 4 ? state.home.w / el.offsetWidth : 1;
-      const clipTo = `inset(0 0 ${Math.max(0, 100 - (state.home.h / Math.max(1, el.offsetHeight * startScale)) * 100)}% 0)`;
-      await new Promise<void>((resolve) => {
-        gsap.timeline({onComplete: resolve})
-          // The confirmation press — the card takes its gain.
-          .to(el, {scale: 1.03, duration: motionMs(TARGET_SETTLE_MS) / 2000, ease: 'power1.out'})
-          .to(el, {scale: 1, duration: motionMs(TARGET_SETTLE_MS) / 2000, ease: 'power2.out'})
-          // The return leg — back into the very band it came out of.
-          .to(el, {
-            x: state.home.x, y: state.home.y, scale: startScale, clipPath: clipTo,
-            duration: motionMs(RETURN_MS) / 1000, ease: 'power3.inOut',
-          })
-          .to(el, {autoAlpha: 0, duration: 0.08});
-      });
-      this.emerged = undefined;
+      await Promise.all(leaving.map((state, i) => {
+        const el = this.emergedEl(state.name);
+        if (el === undefined) {
+          return Promise.resolve();
+        }
+        if (consoleReducedMotionActive() || state.home.w < 4 || state.home.h < 4) {
+          gsap.set(el, {autoAlpha: 0});
+          return Promise.resolve();
+        }
+        const startScale = state.home.w > 4 ? state.home.w / el.offsetWidth : 1;
+        const clipTo = `inset(0 0 ${Math.max(0, 100 - (state.home.h / Math.max(1, el.offsetHeight * startScale)) * 100)}% 0)`;
+        const presented = Number(gsap.getProperty(el, 'scale')) || 1;
+        return new Promise<void>((resolve) => {
+          gsap.timeline({onComplete: resolve, delay: motionMs(WAVE_STAGGER_MS * i) / 1000})
+            // The confirmation press — the card takes its gain.
+            .to(el, {scale: presented * 1.03, duration: motionMs(TARGET_SETTLE_MS) / 2000, ease: 'power1.out'})
+            .to(el, {scale: presented, duration: motionMs(TARGET_SETTLE_MS) / 2000, ease: 'power2.out'})
+            // The return leg — back into the very band it came out of.
+            .to(el, {
+              x: state.home.x, y: state.home.y, scale: startScale, clipPath: clipTo,
+              duration: motionMs(RETURN_MS) / 1000, ease: 'power3.inOut',
+            })
+            .to(el, {autoAlpha: 0, duration: 0.08});
+        });
+      }));
+      this.emerged = this.emerged.filter((e) => !cards.includes(e.name));
     },
     wait(ms: number): Promise<void> {
       return new Promise((resolve) => setTimeout(resolve, ms));

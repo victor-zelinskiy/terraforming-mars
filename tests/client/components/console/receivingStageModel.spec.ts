@@ -10,7 +10,7 @@ import {buildPlayedZones, PLAYED_CARD_NATURAL_H, PLAYED_PEEK_NATURAL} from '@/cl
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   familyForCardType, receivingStackView, planReceivingStage, receivingMinis,
-  foreignTargetMinis, splitPlayRewards, cardTargetGroups, playCardReactions, ratingAnswerSpecs, RECEIVING_MAX_STRIPS,
+  foreignTargetMinis, splitPlayRewards, cardTargetGroups, playCardReactions, ratingAnswerSpecs, RECEIVING_MAX_STRIPS, receiveSteps,
 } from '@/client/console/played/receivingStageModel';
 
 function cards(...names: Array<CardName>): Array<CardModel> {
@@ -204,6 +204,25 @@ describe('receivingStageModel (the workspace receiving scene, pure)', () => {
       expect(groups[0].self).to.be.true;
       expect(groups[0].specs).to.have.length(2);
       expect(groups[1].self).to.be.false;
+    });
+  });
+
+  describe('the receiving SEQUENCE (PL-1146): one play feeding several cards is ONE wave, never one phrase per card', () => {
+    const gain = (card: CardName): ResourceTransferSpec => ({channel: 'card-resource', resource: 'animal', amount: 1, targetCard: card});
+    const waveHooks = {emergeTargets: () => undefined, settleTargets: () => undefined};
+    it('three OTHER cards → ONE wave step carrying all three groups', () => {
+      const steps = receiveSteps(cardTargetGroups([gain(CardName.ANTS), gain(CardName.BIRDS), gain(CardName.DIRIGIBLES)], CardName.L1_TRADE_TERMINAL), waveHooks);
+      expect(steps.map((s) => s.kind)).to.deep.eq(['wave']);
+      expect(steps[0].kind === 'wave' ? steps[0].groups.map((g) => g.target) : []).to.deep.eq([CardName.ANTS, CardName.BIRDS, CardName.DIRIGIBLES]);
+    });
+    it('the played card itself stays its OWN step, first (it is the front — nothing emerges)', () => {
+      const steps = receiveSteps(cardTargetGroups([gain(CardName.BIRDS), gain(CardName.TARDIGRADES), gain(CardName.ANTS)], CardName.TARDIGRADES), waveHooks);
+      expect(steps.map((s) => s.kind)).to.deep.eq(['one', 'wave']);
+      expect(steps[0].kind === 'one' ? steps[0].group.target : undefined).to.eq(CardName.TARDIGRADES);
+    });
+    it('a single other card is the old single step; a host without the wave hooks keeps one step per card', () => {
+      expect(receiveSteps(cardTargetGroups([gain(CardName.BIRDS)], CardName.L1_TRADE_TERMINAL), waveHooks).map((s) => s.kind)).to.deep.eq(['one']);
+      expect(receiveSteps(cardTargetGroups([gain(CardName.ANTS), gain(CardName.BIRDS)], CardName.L1_TRADE_TERMINAL), {}).map((s) => s.kind)).to.deep.eq(['one', 'one']);
     });
   });
 

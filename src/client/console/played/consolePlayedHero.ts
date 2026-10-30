@@ -69,7 +69,7 @@ import {
 import {
   abortPlayedCardReturns, capturePlayedCardReturnSource, hasPendingPlayedReturns, runPlayedCardReturns,
 } from '@/client/console/played/playedCardReturn';
-import {PlayReaction, splitPlayRewards, cardTargetGroups} from '@/client/console/played/receivingStageModel';
+import {PlayReaction, splitPlayRewards, cardTargetGroups, receiveSteps, ReceiveStep} from '@/client/console/played/receivingStageModel';
 import {runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
 import {RailAnswerCause, RailAnswerFlight, RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {ReactorEmergence, cardReactionAnswerFlight, composeAnswerFlights, markReactionCause} from '@/client/console/cardReaction/cardReactionDirector';
@@ -590,6 +590,10 @@ export function providePlayedHeroTarget(fn: HeroTargetMeasure, peek?: HeroTarget
 export type ReceivingEffectHooks = {
   emergeTarget: (card: CardName) => Promise<void>,
   settleTarget: (card: CardName) => Promise<void>,
+  /** A WAVE (PL-1146): several targets of one play rise TOGETHER and stand side by side — one gesture, one read. */
+  emergeTargets?: (cards: ReadonlyArray<CardName>) => Promise<void>,
+  /** …and settle together. */
+  settleTargets?: (cards: ReadonlyArray<CardName>) => Promise<void>,
   /** «СРАБАТЫВАНИЕ КАРТЫ»: the stage holds this card — a reactor rises OUT OF ITS PLACE here, never at a seat elsewhere. */
   holdsCard?: (card: CardName) => boolean,
   /** The emerged (or open) face of `card` on the stage — the reactor's tokens are born on its printed effect row. */
@@ -1595,18 +1599,20 @@ export async function endPlayedHero(): Promise<void> {
       // SETTLES back with its gain; the rail wave then closes the beat. The
       // newly played card needs no emergence — it IS the front.
       const {railSpecs, cardSpecs} = splitPlayRewards(rewards);
-      for (const group of cardTargetGroups(cardSpecs, playedHeroState.card as CardName)) {
+      // The play's «+N» is born on the PRINTED icon of that resource in its on-play row — the icon the player read the
+      // rule on: the card's OWN «+14 microbes» (TR45, PL-190) and a payload put on ANOTHER card alike (TR56 «КУДА
+      // ЛЯЖЕТ», П6: «3 [мех] ИЛИ 3 [истребитель] ИЛИ 6 [аэростат]» — the chosen branch's own icon, never the row's
+      // first); a card that prints none keeps the shared spawn point.
+      const payGains = (specs: ReadonlyArray<ResourceTransferSpec>) => {
+        const printedOrigins = specs.map((spec) => heroGainOrigin(playedHeroState.card ?? '', spec));
+        const origins = printedOrigins.some((o) => o !== undefined) ? printedOrigins : undefined;
+        return runResourceTransfers({specs, source, ...(origins !== undefined ? {origins} : {}), arrival: 'auto', onArrive: release, onAbsorbed: stageAbsorb()});
+      };
+      for (const step of receiveSteps(cardTargetGroups(cardSpecs, playedHeroState.card as CardName), hooks)) {
         if (!playedHeroState.active) {
           return;
         }
-        // The play's «+N» is born on the PRINTED icon of that resource in its on-play row — the icon the player read the
-        // rule on: the card's OWN «+14 microbes» (TR45, PL-190) and a payload put on ANOTHER card alike (TR56 «КУДА
-        // ЛЯЖЕТ», П6: «3 [мех] ИЛИ 3 [истребитель] ИЛИ 6 [аэростат]» — the chosen branch's own icon, never the row's
-        // first); a card that prints none keeps the shared spawn point.
-        const printedOrigins = group.specs.map((spec) => heroGainOrigin(playedHeroState.card ?? '', spec));
-        const origins = printedOrigins.some((o) => o !== undefined) ? printedOrigins : undefined;
-        await receiveOnStage(group, hooks, () =>
-          runResourceTransfers({specs: group.specs, source, ...(origins !== undefined ? {origins} : {}), arrival: 'auto', onArrive: release, onAbsorbed: stageAbsorb()}));
+        await receiveStepOnStage(step, hooks, payGains);
         if (!playedHeroState.active) {
           return;
         }
@@ -2061,6 +2067,53 @@ async function receiveOnStage(
   });
 }
 
+/** Play one step of the sequence — a single card through `receiveOnStage`, a wave as ONE scene of the director. */
+async function receiveStepOnStage(
+  step: ReceiveStep,
+  hooks: ReceivingEffectHooks,
+  pay: (specs: ReadonlyArray<ResourceTransferSpec>) => Promise<void>,
+): Promise<void> {
+  // A CARD NEVER GOES HOME UNDER ITS OWN TOKEN (the surface-clear law): the return waits until every token that lands on
+  // an emerged face has been ABSORBED there — the pay resolves at the touchdowns, and a return started then left the
+  // last token absorbing in the air where the card had stood (the stand's witness, PL-1146). Bounded by the law's own
+  // ceiling.
+  const absorbedOn = async (cards: ReadonlyArray<CardName>) => {
+    for (const card of cards) {
+      await surfaceClear(hooks.emergedFaceEl?.(card));
+    }
+  };
+  if (step.kind === 'one') {
+    await receiveOnStage(step.group, hooks, async () => {
+      await pay(step.group.specs);
+      await absorbedOn([step.group.target]);
+    });
+    return;
+  }
+  const cards = step.groups.map((g) => g.target);
+  const emerge = hooks.emergeTargets;
+  const settle = hooks.settleTargets;
+  if (emerge === undefined || settle === undefined) {
+    return;
+  }
+  await runCardReceive({
+    host: 'played',
+    card: cards.join(' · '),
+    alive: () => playedHeroState.active,
+    present: async () => {
+      await emerge(cards);
+      return true;
+    },
+    pay: async () => {
+      await pay(step.groups.flatMap((g) => g.specs));
+      await absorbedOn(cards);
+      return true;
+    },
+    ret: async () => {
+      await settle(cards);
+    },
+  });
+}
+
 async function flyHeroReactions(
   source: {selectors: Array<string>},
   release: (spec: ResourceTransferSpec) => void,
@@ -2100,12 +2153,17 @@ async function flyHeroReactions(
   };
   const specs = reactions.map((r) => r.spec);
   if (playedHeroState.host === 'workspace' && hooks !== undefined) {
-    for (const group of cardTargetGroups(specs, playedHeroState.card as CardName)) {
+    const payAnswers = (waveSpecs: ReadonlyArray<ResourceTransferSpec>) => runResourceTransfers({
+      specs: waveSpecs,
+      source,
+      origins: waveSpecs.map((spec) => originsOnHolder(spec.targetCard as CardName, [spec])[0]),
+      arrival: 'auto', onArrive: release, onAbsorbed: stageAbsorb(),
+    });
+    for (const step of receiveSteps(cardTargetGroups(specs, playedHeroState.card as CardName), hooks)) {
       if (!playedHeroState.active) {
         return;
       }
-      await receiveOnStage(group, hooks, () =>
-        runResourceTransfers({specs: group.specs, source, origins: originsOnHolder(group.target, group.specs), arrival: 'auto', onArrive: release, onAbsorbed: stageAbsorb()}));
+      await receiveStepOnStage(step, hooks, payAnswers);
       if (!playedHeroState.active) {
         return;
       }

@@ -274,6 +274,28 @@ describe('resourceTransferModel (pure math of the shared resource-transfer langu
       ]);
     });
 
+    it('a MULTI pick feeds EVERY picked card — one spec per card, each in its own kind (P78 · PL-1146)', () => {
+      // L1 Trade Terminal: «a resource on 3 different cards» — ONE merged answer naming three cards. Read as the first
+      // card alone, the other two landed with no flight at all.
+      const steps: Array<ActionPreviewStep> = [{
+        kind: 'input',
+        amount: 1,
+        input: {cards: [{name: CardName.ANTS}, {name: CardName.BIRDS}, {name: CardName.DIRIGIBLES}],
+          resourceGainPrompt: {amount: 1, cardResourceByCard: {[CardName.ANTS]: 'microbe', [CardName.BIRDS]: 'animal', [CardName.DIRIGIBLES]: 'floater'}}} as never,
+      }];
+      const specs = extractPlayRewards({
+        cardName: CardName.L1_TRADE_TERMINAL,
+        effects: [],
+        steps,
+        stepResponses: {0: {type: 'card', cards: [CardName.ANTS, CardName.BIRDS, CardName.DIRIGIBLES]}},
+      });
+      expect(specs).to.deep.eq([
+        {channel: 'card-resource', resource: 'microbe', amount: 1, targetCard: CardName.ANTS},
+        {channel: 'card-resource', resource: 'animal', amount: 1, targetCard: CardName.BIRDS},
+        {channel: 'card-resource', resource: 'floater', amount: 1, targetCard: CardName.DIRIGIBLES},
+      ]);
+    });
+
     it('a BESPOKE card-target step flies even with NO gain chip behind it', () => {
       // Freyja Biodomes: the server states the move as the STEP (`selectCardStep`
       // with an amount) and emits no `'to a card'` chip, so the chip loop found

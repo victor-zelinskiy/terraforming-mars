@@ -75,6 +75,28 @@ function watchPosts(page: Page): Array<string> {
   return posts;
 }
 
+type WaveProbe = {names: Array<string>, together: number};
+/** THE WAVE (PL-1146): which cards emerged out of the stack, and the most standing out AT ONCE — sampled by a timer
+ *  (never rAF: headless drives rAF off the compositor). */
+async function armWaveProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const p: WaveProbe = {names: [], together: 0};
+    (window as unknown as {__p78wave: WaveProbe}).__p78wave = p;
+    window.setInterval(() => {
+      const out = Array.from(document.querySelectorAll<HTMLElement>('.con-recv__emerge[data-emerge-name]'))
+        .filter((el) => getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el).opacity) > 0.5);
+      for (const el of out) {
+        const name = el.getAttribute('data-emerge-name') ?? '';
+        if (!p.names.includes(name)) {
+          p.names.push(name);
+        }
+      }
+      p.together = Math.max(p.together, out.length);
+    }, 30);
+  });
+}
+const readWaveProbe = (page: Page): Promise<WaveProbe> => page.evaluate(() => (window as unknown as {__p78wave: WaveProbe}).__p78wave);
+
 /** RT → the wheel's centre (the hand) → the card focused. */
 async function focusInHand(page: Page): Promise<void> {
   for (let i = 0; i < 4 && await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).count() === 0; i++) {
@@ -143,6 +165,7 @@ test.describe(`P78 L1 Trade Terminal · all targets seeded, the standing +2 on t
       await press(page, 'ArrowDown', 300);
     }
     await armTransferWitness(page);
+    await armWaveProbe(page);
     const stopPlay = await storyboard(page, 'play');
     for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
       await press(page, 'Enter', 300);
@@ -165,6 +188,15 @@ test.describe(`P78 L1 Trade Terminal · all targets seeded, the standing +2 on t
     fs.writeFileSync(path.join(OUT, PRESET.id, 'play-trail.txt'), transferTrail(playWitness) + '\n');
     console.log(`[p78] play trail\n${transferTrail(playWitness)}`);
     expect(endsOverGlass(playWitness), `no end over glass or nothing\n${transferTrail(playWitness)}`).toEqual([]);
+    // PL-1146: EVERY fed card is SEEN receiving — the three rise together out of the stack and each takes its own token
+    // (`recv:<card>` — the emerged face), one wave, never the stack's front alone.
+    const fed = new Set(playWitness.landings.map((l) => l.under).filter((u) => u.startsWith('recv:') && u !== 'recv:front'));
+    expect([...fed].sort(), `a token landed on each fed card\n${transferTrail(playWitness)}`).toEqual(HOLDERS.map((h) => `recv:${h}`).sort());
+    // …and ONE wave: the three stood out of the stack AT ONCE (never one card after another).
+    const wave = await readWaveProbe(page);
+    test.info().annotations.push({type: 'wave', description: JSON.stringify(wave)});
+    expect(wave.names.slice().sort(), 'every fed card emerged').toEqual([...HOLDERS].sort());
+    expect(wave.together, 'the three stood out together — one wave').toBe(3);
     await shoot(page, 'c-played');
 
     // ── (2) THE TRADE — the same turn's second action ──

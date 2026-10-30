@@ -430,6 +430,31 @@ export function cardTargetGroups(
   }));
 }
 
+/**
+ * THE STEPS OF A RECEIVING SEQUENCE (PL-1146 — P78 «a resource on 3 different cards»). One play can feed SEVERAL cards
+ * of the table; played one card after another (emerge · pay · read · settle, ×N) the scene grew by a whole phrase per
+ * card, and before this the extractor handed the stage the FIRST card only — the other two landed unseen. The law:
+ *   · the played card ITSELF is its own step (it IS the front — nothing emerges);
+ *   · every OTHER card of the same wave is ONE step — they rise TOGETHER and stand side by side, the tokens fly as ONE
+ *     wave (each onto its own card's capsule, the transfer framework's own stagger), ONE read, they settle together —
+ *     so three cards cost one phrase plus a stagger, never three phrases;
+ *   · a host without the wave hooks keeps the old one-by-one sequence (honest, only longer).
+ * Pure over the groups — the order of `cardTargetGroups` (the played card first) is kept.
+ */
+export type ReceiveStep = {kind: 'one', group: CardTargetGroup} | {kind: 'wave', groups: ReadonlyArray<CardTargetGroup>};
+
+export function receiveSteps(groups: ReadonlyArray<CardTargetGroup>, hooks: {emergeTargets?: unknown, settleTargets?: unknown}): Array<ReceiveStep> {
+  const self = groups.filter((g) => g.self);
+  const others = groups.filter((g) => !g.self);
+  const out: Array<ReceiveStep> = self.map((group) => ({kind: 'one', group}));
+  if (others.length > 1 && hooks.emergeTargets !== undefined && hooks.settleTargets !== undefined) {
+    out.push({kind: 'wave', groups: others});
+  } else {
+    out.push(...others.map((group): ReceiveStep => ({kind: 'one', group})));
+  }
+  return out;
+}
+
 // ── THE TABLE'S ANSWER TO A PLAY (К-S1 — PL-124) ────────────────────────────
 
 /**

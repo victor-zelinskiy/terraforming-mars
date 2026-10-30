@@ -194,6 +194,10 @@ export async function armTransferWitness(page: Page): Promise<void> {
       ['hero', '.con-composer__actcardwrap'],
       ['play-card', '.con-composer__playcard'],
       ['composer-card', '[data-composer-card]'],
+      // A card EMERGED out of the receiving stack (the effect target forward — one, or a WAVE of several, PL-1146) is
+      // painted over the stack, so it is the anchor wherever it stands — before the stack's front, whose box it
+      // overlaps when the wave's middle card stands right over the destination column.
+      ['recv', '.con-recv__emerge[data-played-key]'],
       ['recv', '.con-recv [data-recv-front], .con-recv [data-played-key], .con-sale-hero [data-played-key], .con-citypay [data-played-key], .con-colfocus [data-played-key], .con-fleetdock [data-played-key], .con-hydro [data-played-key]'],
       ['played', '.con-played [data-played-key], .con-start__played [data-played-key]'],
       // A LIVE PICK's own objects (TR53 iteration): the candidate a plate's answer lands on, and the source dock the

@@ -676,6 +676,22 @@ export function pickedCardOf(response: unknown): CardName | undefined {
   return undefined;
 }
 
+/**
+ * EVERY card a step's answer picked, in the answer's order — a MULTI pick (P78's «a resource on 3 different cards»,
+ * the merged `{type: 'card', cards: [A, B, C]}`) names several, and each of them receives the step's amount. The same
+ * unwrapping as `pickedCardOf` (an optional choice's pick one level down); a decline names none.
+ */
+export function pickedCardsOf(response: unknown): ReadonlyArray<CardName> {
+  const r = response as {type?: string, cards?: ReadonlyArray<string>, response?: unknown} | undefined;
+  if (r === undefined) {
+    return [];
+  }
+  if (r.type === 'or') {
+    return pickedCardsOf(r.response);
+  }
+  return r.type === 'card' && Array.isArray(r.cards) ? r.cards as ReadonlyArray<CardName> : [];
+}
+
 /** An optional choice answered with its DECLINE: the effect it offered is not made — nothing to fly. */
 export function declinedOptionalChoice(response: unknown): boolean {
   const r = response as {type?: string, response?: {type?: string}} | undefined;
@@ -765,19 +781,23 @@ export function extractPlayRewards(args: ExtractPlayRewardsArgs): Array<Resource
     if (amount <= 0) {
       return; // a REMOVE pick is never a reward
     }
-    const picked = pickedCardOf(args.stepResponses[i]);
-    if (picked === undefined) {
+    // EVERY picked card receives the step's amount — a MULTI pick (P78: one resource on each of 3 different cards, its
+    // own kind on each) is one spec per card, never the first card alone (PL-1146: the other two landed unseen).
+    const picked = pickedCardsOf(args.stepResponses[i]);
+    if (picked.length === 0) {
       return;
     }
-    const resource = stepCardResource(step, picked);
-    if (resource === undefined || resource === 'resources') {
-      return;
-    }
-    claimedSteps.add(i);
     // A LAW'S «where» (RX35 — the step's marker `resourceGainPrompt.diverted`): the data's token is born on the
     // struck printed unit it replaced — the branch's first struck chip — never on a data icon the face has none of.
     const bornOn = divertedStep(step) ? args.effects.find((e) => e.diverted !== undefined)?.icon : undefined;
-    out.push({channel: 'card-resource', resource, amount, targetCard: picked, ...(bornOn !== undefined ? {bornOn} : {})});
+    for (const card of picked) {
+      const resource = stepCardResource(step, card);
+      if (resource === undefined || resource === 'resources') {
+        continue;
+      }
+      claimedSteps.add(i);
+      out.push({channel: 'card-resource', resource, amount, targetCard: card, ...(bornOn !== undefined ? {bornOn} : {})});
+    }
   });
 
   /*
