@@ -261,6 +261,7 @@ import {PoliticalAllianceRedux} from '../../../src/server/cards/turmoilRedux/Pol
 import {NATIONALIST_MOVEMENT_PARTIES, NATIONALIST_MOVEMENT_PRINT, NationalistMovement} from '../../../src/server/cards/turmoilRedux/NationalistMovement';
 import {RedTechConvention} from '../../../src/server/cards/turmoilRedux/RedTechConvention';
 import {Payment} from '../../../src/common/inputs/Payment';
+import {ResearchCoordination} from '../../../src/server/cards/prelude/ResearchCoordination';
 import {rallyPlan} from '../../../src/server/parliament/RallyNeutralDelegates';
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
 import {UnmiLiner} from '../../../src/server/cards/turmoilRedux/UnmiLiner';
@@ -9485,6 +9486,72 @@ function l1TradeTerminalFixture(name: string, withVermin: boolean): void {
 }
 l1TradeTerminalFixture('l1-trade-terminal', false);
 l1TradeTerminalFixture('l1-trade-terminal-vermin', true);
+
+// ── P69 · CLOUD TOURISM — the SIXTH Prelude 2 card: the first PAIR count («1 M€ production per pair of Earth and Venus
+//    tags, this card included» — a SET term with two sides, the wild tag DEALT to the smaller one) and the first VP
+//    threshold on the card's own resource with a declarative «add a floater here» action. A 2p Venus + Prelude 2 table
+//    (Teractor — an Earth tag — · ThorGate), blue on the move:
+//      · `cloud-tourism`      — Cartel (Earth) + Sulphur-Eating Bacteria (Venus) on the table, P69 in the hand, 15 M€:
+//                               Earth 2 · Venus 1 + this card = 2 → 2 pairs;
+//      · `cloud-tourism-wild` — Cartel + Research Coordination (a printed wild tag), NO Venus card: Earth 2 · Venus
+//                               this card + the wild tag = 2 → 2 pairs, the wild tag NAMED on the Venus side;
+//      · `cloud-tourism-vp`   — P69 ALREADY on the table with 2 floaters, its action unused: the third floater scores.
+//    A DRY RUN on a copy proves the play's +2 and the third floater's VP. ──
+function cloudTourismFixture(name: string, variant: 'play' | 'wild' | 'vp'): void {
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, venusNextExtension: true, prelude2Expansion: true,
+    customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
+  });
+  answerStartFlow(game, [p1, p2]);
+  game.projectDeck.discardPile.push(...p1.cardsInHand.splice(0));
+  moveToDeckTop(game, CardName.CARTEL);
+  p1.playedCards.push(game.projectDeck.drawOrThrow(game));
+  if (variant === 'wild') {
+    p1.playedCards.push(new ResearchCoordination());
+  } else {
+    moveToDeckTop(game, CardName.SULPHUR_EATING_BACTERIA);
+    p1.playedCards.push(game.projectDeck.drawOrThrow(game));
+  }
+  moveToDeckTop(game, CardName.CLOUD_TOURISM);
+  const tourism = game.projectDeck.drawOrThrow(game);
+  if (variant === 'vp') {
+    tourism.resourceCount = 2;
+    p1.playedCards.push(tourism);
+  } else {
+    p1.cardsInHand.push(tourism);
+  }
+  p1.megaCredits = 15;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  if (game.activePlayer.id !== p1.id || (variant !== 'vp' && p1.canPlay(tourism) === false)) {
+    throw new Error(`the ${name} fixture expected blue on the move with P69 playable — got active=${game.activePlayer.id === p1.id} playable=${variant !== 'vp' && p1.canPlay(tourism)}`);
+  }
+  // THE DRY RUN — on a copy: the play pays +2 M€ production; the action's third floater scores 1 VP.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(p1.id);
+  if (variant === 'vp') {
+    const card = blue.playedCards.get(CardName.CLOUD_TOURISM)!;
+    if (blue.getPlayableActionCards().every((c) => c.name !== CardName.CLOUD_TOURISM) || card.getVictoryPoints(blue) !== 0) {
+      throw new Error(`the ${name} fixture expected P69's action available and 0 VP on 2 floaters`);
+    }
+    (card as IActionCard & ICard).action(blue);
+    runAllActions(copy);
+    if (card.resourceCount !== 3 || card.getVictoryPoints(blue) !== 1) {
+      throw new Error(`the ${name} fixture expected 3 floaters and 1 VP after the action — got ${card.resourceCount} / ${card.getVictoryPoints(blue)}`);
+    }
+  } else {
+    const production = blue.production.megacredits;
+    blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.CLOUD_TOURISM)!, Payment.of({megacredits: 11}));
+    runAllActions(copy);
+    if (blue.production.megacredits - production !== 2 || blue.megaCredits !== 4) {
+      throw new Error(`the ${name} fixture expected +2 M€ production for 11 M€ — got +${blue.production.megacredits - production}, ${blue.megaCredits} M€ left`);
+    }
+  }
+  write(name, game);
+}
+cloudTourismFixture('cloud-tourism', 'play');
+cloudTourismFixture('cloud-tourism-wild', 'wild');
+cloudTourismFixture('cloud-tourism-vp', 'vp');
 
 // ── preselect-sole: THE PRE-SELECT STAND (T14 · ledger CC — «ОДИН КУРСОР ПОСЛЕ ОТВЕТА · ПРИБЫТИЕ НА КОММИТ ·
 //    ЕДИНСТВЕННАЯ ЦЕЛЬ»). One base table, every cell of the matrix in blue's hand / tableau:

@@ -2966,6 +2966,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'red-appeasement' | 'red-appeasement-locked' |
   // Prelude 2 P78 L1 Trade Terminal — a multi-pick of played cards seeded with ALL three (CU) · four with Vermin (open) · the standing +2 on every trade.
   'l1-trade-terminal' | 'l1-trade-terminal-vermin' |
+  // Prelude 2 P69 Cloud Tourism — a PAIR count (a SET term, CV): 2 pairs · 2 pairs with a printed wild tag on Venus · the third floater's VP.
+  'cloud-tourism' | 'cloud-tourism-wild' | 'cloud-tourism-vp' |
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
   'census-pets-rival' |
