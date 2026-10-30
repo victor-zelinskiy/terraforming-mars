@@ -137,6 +137,11 @@ itself will play; bounded by `STACK_RETURN_MAX_MS` (45 s — the old 8 s cap was
 key, a `parameter` that did not move) is a line on the page, never a yield (`parliamentWorldBeat.spec` § a SKIPPED
 removal).
 
+**A turn GIVEN AWAY by a play** (P80 Red Appeasement — the play passes, ledger CT): nothing new — the play's own chip
+lands, the workspace leaves as a finished flow, and whatever takes the screen when the generation ends (the sitting's
+plate, the draft) goes through this director like any automatic transition; the seat reads «СПАСОВАЛ» and «Вы
+спасовали» off `passedPlayers`, never «не ваш ход».
+
 ## What this deliberately does NOT change
 
 - The viewer's OWN cinematic holds still defer a poll-path apply (`App.update`'s `sceneBlocked` →

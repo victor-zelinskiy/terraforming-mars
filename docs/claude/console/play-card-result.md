@@ -174,6 +174,23 @@ selection ring and must not read as a third option.
 
 ---
 
+## 2a · A PLAY THAT IS A PASS (P80 Red Appeasement — ledger CT, 2026-10-30)
+
+A card whose play ENDS the player's generation («this counts as passing») declares it beside its `bespokePlay`
+(`ICard.playCountsAsPass`); its hook marks the preview STRUCTURALLY (`ActionPreview.passes` — never a text), and the
+composer reads the mark three ways, each from ONE source:
+- **the cluster leads with «Этот розыгрыш — пас»** (`consolePlayCardResult` section `pass`) — the pass confirm's OWN
+  reading (`passWarnings` over the shell's one set of facts, `ConsoleShell.passFacts` → `passLeftBehind` → the
+  composer's `passReading` prop; the quiet «only actions with no effect» line stays quiet), with the note «Ходов в этом
+  поколении у вас больше не будет»; drawn by an amber kant (invariant 15), never red — a pass is not a danger;
+- **the verb is «Разыграть и спасовать»** on the rail AND the bar (`playCommitVerb(door, passes)`; a door — the board,
+  the Parliament, the colonies — outranks it, the press then opens a step and plays nothing yet);
+- **the hand's verdict says it before the composer opens** («Розыгрыш считается пасом», `ClientCard.playCountsAsPass`).
+After the press the truth is the server's: `GameModel.passedPlayers` → the seat chip «СПАСОВАЛ» and every off-turn
+reason «Вы спасовали в этом поколении» (`offTurnReason(awaitingInput, passed)`). Stand: e2e `console-red-appeasement`.
+
+---
+
 ## 2b · The «Сработает» unit and the «⚡ сработает» notes (the effect forecast)
 
 Level 2 gained one more UNIT: **⚡ Сработает:** — what the TABLE answers to

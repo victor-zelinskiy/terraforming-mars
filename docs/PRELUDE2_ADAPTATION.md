@@ -1,6 +1,6 @@
 # Prelude 2 — включение в премиум-скоуп, hold-back-список, замена
 
-**Статус 2026-10-30: ЛЕСА ПОСТАВЛЕНЫ · 3 / 54 · СДАНЫ P76 Ishtar Expedition, P85 Summit Logistics (первая политическая) и P68 Ceres Tech Market (первая с действием), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
+**Статус 2026-10-30: ЛЕСА ПОСТАВЛЕНЫ · 4 / 54 · СДАНЫ P76 Ishtar Expedition, P85 Summit Logistics (первая политическая), P68 Ceres Tech Market (первая с действием) и P80 Red Appeasement (первый розыгрыш-пас), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
 `PREMIUM_SCOPE_MODULES` (`src/common/cards/premiumScope.ts`) по образцу классического Turmoil
 (`docs/TURMOIL_REDUX_CLASSIC_CARDS.md`, 2026-10-21 → 2026-10-25): скоуп = «модуль минус список», список — ворклист.
 Адаптация идёт по одной карте, отдельными задачами, по ворклисту §4; список — временный костыль и удаляется, когда
@@ -102,7 +102,10 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
    (`stackDeckTop`) — иначе лента и стопка «СБРОШЕННЫЕ» не видны. Журнал серии: `docs/claude/prelude2-cards-progress.md`.
 2. **bespokePlay / `play()`** — ко-локированный `cardPlayPreview` (результат показан даже без выбора; каждая цель
    ПОКАЗАНА — Special Permit «украсть 4 растения», Recession «каждый соперник»), `metadata.infoText` по блоку на бонус,
-   `skipped`-запись при пустой цели.
+   `skipped`-запись при пустой цели. Розыгрыш, который ЗАКАНЧИВАЕТ ход (P80 — «это считается пасом»): карта объявляет
+   `playCountsAsPass`, превью несёт `passes`, композер читает пас тем же чтением, что кнопка «Пас» (реестр CT), а закон
+   общий: любое действие, после которого сервер отдаёт ход, уводит экран только через `screenHandoff`.
+   Bespoke-половина требования («никто не спасовал») — именованный `unplayableReason` + `requirementFootnote` на лице.
 3. **Действие** (`ActivePreludeCard` — Board of Directors, Floating Trade Hub, World Government Advisor; активные
    проекты) — `actionPreview` + `actionUnavailableReason`; у Venus Orbital Survey снять строку
    `SAFE_WITHOUT_INFORMATION` в `tests/cards/actionCaption.spec.ts`; правило длиннее бюджета подписи браузера действий —
@@ -159,7 +162,7 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 | P77 | Jovian Envoys | EVENT · ПОЛИТ | декларативная, 2 делегата | в списке |
 | P78 | L1 Trade Terminal | ACTIVE · Colonies | behavior + bespokePlay | в списке |
 | P79 | Microgravity Nutrition | AUTOMATED · Colonies | bespokePlay | в списке |
-| P80 | Red Appeasement | EVENT · ПОЛИТ (Reds) | behavior + bespokePlay | в списке |
+| P80 | Red Appeasement | EVENT · ПОЛИТ (Reds) | behavior + bespokePlay | СДАНА 2026-10-30 |
 | P81 | Soil Studies | EVENT · Venus + Colonies | декларативная | в списке |
 | P82 | Special Permit | EVENT · ПОЛИТ (Greens) | bespokePlay, кража 4 растений (цель ПОКАЗАНА) | в списке |
 | P83 | Sponsoring Nation | AUTOMATED · ПОЛИТ | декларативная, 3 РТ + 2 делегата | в списке |
