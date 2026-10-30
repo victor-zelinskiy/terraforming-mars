@@ -75,5 +75,6 @@
     "Requires that Reds are ruling or that you have 2 delegates there, and that no other player has passed. Increase your M€ production 2 steps. This counts as passing: you get no more turns this generation.": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции, и чтобы никто другой ещё не спасовал. Увеличьте производство M€ на 2. Это считается пасом: ходов в этом поколении у вас больше нет.",
     "Requires that Greens are ruling or that you have 2 delegates there. Increase your heat production 1 step. Gain 1 heat for each floater you have.": "Требуется: у власти «Зелёные» или 2 ваших делегата на их резолюции. Увеличьте производство тепла на 1 ступень. Получите 1 тепло за каждый ваш аэростат.",
     "Gain 1 heat for each floater you have.": "Получите 1 тепло за каждый ваш аэростат.",
-    "Requires 4 Earth tags. Gain 3 TR. Add 2 delegates to one resolution.": "Требуется 4 метки Земли. Получите 3 РТ. Добавьте 2 делегата на одну резолюцию."
+    "Requires 4 Earth tags. Gain 3 TR. Add 2 delegates to one resolution.": "Требуется 4 метки Земли. Получите 3 РТ. Добавьте 2 делегата на одну резолюцию.",
+    "Requires 3 Venus tags. Add 2 delegates to one resolution.": "Требуется 3 метки Венеры. Добавьте 2 делегата на одну резолюцию."
 }

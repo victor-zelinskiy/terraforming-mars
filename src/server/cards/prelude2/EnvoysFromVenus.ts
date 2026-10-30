@@ -20,10 +20,13 @@ export class EnvoysFromVenus extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'P72',
-        renderData: CardRenderer.builder((b) => b.delegates(2).asterix),
-        description: 'Requires 3 Venus tags. Place 2 delegates in 1 party.',
+        // Redux voice: «in 1 party» is «on ONE resolution of the voting area» — the political FACADE places both
+        // cubes from the reserve through the shared grant step (`PlaceDelegatesOnResolution`, which never offers the
+        // enacted law). The scan prints no asterisk: the classic footnote it pointed at does not exist under Redux.
+        // The line is the generator's own `mech:turmoil.delegates` sentence (P83's shape).
+        renderData: CardRenderer.builder((b) => b.delegates(2)),
+        description: 'Requires 3 Venus tags. Add 2 delegates to one resolution.',
       },
     });
   }
 }
-
