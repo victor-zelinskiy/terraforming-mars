@@ -35981,17 +35981,29 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
 }
 
 /* ── Play-card composer: a two-column card · pre-select layout ───────────── */
-/* THE «ПОЧЕМУ» STRIP — one look for every reading of a counted result: the walk's (PL-156, `.con-composer__why`)
+/* THE «РАСЧЁТ» STRIP — one look for every reading of a counted result: the walk's (PL-156, `.con-composer__why`)
    and the counted play's (TR45, `.con-cwhy`). A strip of the RESULT, one notch LOUDER than the compact chips above
-   it (the why is the card's subject), the cyan kant of a reading, numbers by weight. */
+   it (the reading is the card's subject), numbers by weight. Its MATERIAL is the restrained one (the owner,
+   2026-10-30 — «более премиальная подача»): neutral glass and a hairline frame, the reading's cyan as a KANT on the
+   leading edge (never a tinted wash over the plate), the box as wide as its formula — a ledger line, not a banner. */
 .con-why-strip() {
-    display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .5rem;
-    padding: .4rem .75rem; border-radius: .55rem;
-    background: rgba(20, 40, 60, 0.55);
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
+    display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .55rem;
+    width: fit-content; max-width: 100%;
+    padding: .42rem .85rem .42rem .8rem; border-radius: .5rem;
+    background: rgba(255, 255, 255, 0.025);
+    box-shadow: inset .16rem 0 0 0 fade(@con-cyan, 72%), inset 0 0 0 .05rem rgba(255, 255, 255, 0.1);
     font-size: ~"calc(var(--con-chip-c-fs, .82rem) + .16rem)";
     font-weight: 600;
     color: #e8f6ff;
+}
+/* The strip's NAME — «РАСЧЁТ», a word and never a number (the result stands once, at the end): quiet tracked caps,
+   ruled off from the formula by a hairline — a label of the line, not its first term. */
+.con-why-kicker() {
+    display: inline-flex; align-items: center; align-self: stretch;
+    padding-right: .7em; margin-right: .05em;
+    box-shadow: inset -.05rem 0 0 0 rgba(255, 255, 255, 0.16);
+    font-size: .72em; font-weight: 800; letter-spacing: .16em; text-transform: uppercase;
+    color: @con-text-dim;
 }
 /* «ПОЧЕМУ» OF A COUNTED PLAY (TR45 — `ConsoleCountedWhy`, two hosts: the play composer's RESULT and the board peek's
    HUD). The card's printed «per X» glyph — a FACE item (`PremiumMechNode`) at the strip's scale, so the reading starts
@@ -36001,7 +36013,7 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
    card. A share the peek reads right now is LIT (weight + the strip's cyan), the others recede by opacity only. */
 .con-cwhy {
     .con-why-strip();
-    &__kicker { font-size: .78em; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-cyan, 92%); }
+    &__kicker { .con-why-kicker(); }
     &__label { font-weight: 700; }
     &__num { font-size: 1.2em; font-weight: 800; }
     &__glyph {
@@ -36117,7 +36129,7 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     pointer-events: none;
     .con-cwhy {
         background: rgba(8, 14, 22, 0.92);
-        box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 50%), 0 .4rem 1.2rem rgba(0, 0, 0, 0.55);
+        box-shadow: inset .16rem 0 0 0 fade(@con-cyan, 72%), inset 0 0 0 .06rem rgba(255, 255, 255, 0.12), 0 .4rem 1.2rem rgba(0, 0, 0, 0.55);
         font-size: 1.1rem;
         padding: .5rem 1rem;
     }
@@ -36245,7 +36257,7 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
        chips above it (the why is the card's subject), the cyan kant of a reading, numbers by weight. A zero leads
        with a muted «[★] маркер стоит» — the result a chip would have stated, quiet by weight and colour. */
     &__why { .con-why-strip(); }
-    &__why-kicker { font-size: .78em; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-cyan, 92%); }
+    &__why-kicker { .con-why-kicker(); }
     &__why-ico { display: inline-block; width: 1.2em; height: 1.2em; flex: none; }
     &__why-num { font-size: 1.2em; font-weight: 800; }
     &__why-text--sets { font-weight: 800; }

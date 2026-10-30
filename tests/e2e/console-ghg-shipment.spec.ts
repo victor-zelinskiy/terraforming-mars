@@ -159,6 +159,7 @@ test.describe(`P75 GHG Shipment · the classic Kelvinists read as the Greens, th
     const why = page.locator(`${COMPOSER} [data-count-why]`);
     await expect(why, 'the «why» strip stands').toHaveCount(1);
     await expect(why, 'the count: 5 floaters').toHaveAttribute('data-count-why-total', '5');
+    await expect(why.locator('.con-cwhy__kicker'), 'the strip is named «Расчёт» — a word, never the result again').toHaveText('Расчёт');
     await expect(why.locator('[data-count-glyph]'), 'the term wears a glyph, never the words').toHaveCount(1);
     expect(await why.locator('[data-count-glyph]').innerHTML(), 'the glyph is the printed floater').toMatch(/floater/);
     await expect(why.locator('[data-count-result]'), 'the result').toContainText('+5');

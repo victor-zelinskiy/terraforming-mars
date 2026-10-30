@@ -473,7 +473,7 @@ for (const preset of PRESETS) {
       const stage = page.locator(composer).getByText('Карьера — маркер пройдёт 2 шага в Парламенте');
       await expect(why, 'the WHY reading stands in the result').toHaveCount(1);
       await expect(why).toHaveAttribute('data-walk-why-sets', '2');
-      await expect(why).toContainText('Почему 2 шага');
+      await expect(why).toContainText('Расчёт');
       await expect(why).toContainText('33');
       await expect(why).toContainText('сверх 20');
       await expect(why).toContainText('2 полных набора по 5');
@@ -568,7 +568,7 @@ for (const preset of PRESETS) {
       const zeroWhy = page.locator(`${composer} [data-walk-why]`);
       await expect(zeroWhy, 'the zero is NAMED in the result, with the distance to the first set (PL-156)').toHaveAttribute('data-walk-why-sets', '0');
       await expect(zeroWhy).toContainText('маркер стоит');
-      await expect(zeroWhy).toContainText('Почему 0 шагов');
+      await expect(zeroWhy).toContainText('Расчёт');
       await expect(zeroWhy).toContainText('ни одного полного набора по 5');
       await expect(zeroWhy).toContainText('до первого ещё 2 РТ');
       await expect(page.locator(`${composer} .con-composer__next`), 'nothing «next» for a zero — no stage, no cut').toHaveCount(0);
@@ -628,7 +628,7 @@ for (const preset of PRESETS) {
         await expect(trackChip.locator('.action-effect-chip__res')).toHaveText('5');
         await expect(trackChip.locator('.action-effect-chip__note')).toHaveText('5 наборов по 5 РТ сверх 20');
         const why45 = page.locator(`${composer} [data-walk-why]`);
-        await expect(why45).toContainText('Почему 5 шагов');
+        await expect(why45).toContainText('Расчёт');
         await expect(why45).toContainText('5 полных наборов по 5');
         await expect(why45).toContainText('до следующего ещё 5 РТ');
         await expect(page.locator(composer).getByText('Карьера — маркер пройдёт 5 шагов в Парламенте'), 'the plural is right for five').toHaveCount(1);

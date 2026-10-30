@@ -420,7 +420,7 @@ for (const preset of PRESETS) {
       // chip's own pill any more.
       expect(reading, `the M€ ${mc0} → ${mc0 + 4} for two Earth tags`).toMatch(new RegExp(`${mc0}\\s*→\\s*${mc0 + 4}`));
       await expect(page.locator(`${composer} .con-composer__countwhy`), 'the basis stands as the «ПОЧЕМУ» strip').toHaveCount(1);
-      expect(reading, 'the basis counts the two Earth tags').toMatch(/Почему[^#]*2\s*→\s*\+4/);
+      expect(reading, 'the basis counts the two Earth tags').toMatch(/Расчёт[^#]*2\s*→\s*\+4/);
       expect(reading.search(/5\s*→\s*2/), 'the shipment reads BEFORE the rating').toBeLessThan(reading.search(new RegExp(`${N}\\s*→\\s*${N + 3}`)));
       expect(reading, 'nothing at the table answers this play (a calm corporation)').not.toMatch(/Сработает/);
       expect(seen.posts, 'nothing sent before A').toEqual([]);

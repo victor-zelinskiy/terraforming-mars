@@ -101,9 +101,11 @@ describe('revealReading', () => {
       expect(r.fate.destination).eq('discard');
     });
 
-    it('a classic party keeps its upstream key (the verdict prints what the card prints)', () => {
+    it('the classic Kelvinists read as the GREENS (rulebook p.13 — `normalizeReduxParty`; this fork has no Kelvinists)', () => {
       const r = revealVerdictReading(verdict({check: {icon: 'party-requirement', label: 'Party requirement', party: PartyName.KELVINISTS}}));
-      expect(r.check?.found.key).eq('Kelvinists');
+      expect(r.check?.found.key).eq('party name: Greens');
+      const greens = revealVerdictReading(verdict({check: {icon: 'party-requirement', label: 'Party requirement', party: PartyName.GREENS}}));
+      expect(greens.check?.found.key, 'the very name the Greens read').eq(r.check?.found.key);
     });
   });
 

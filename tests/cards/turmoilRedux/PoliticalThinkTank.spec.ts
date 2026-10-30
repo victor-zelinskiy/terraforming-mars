@@ -156,6 +156,13 @@ describe('PoliticalThinkTank', () => {
       expect(player.cardsInHand.map((c) => c.name)).deep.eq([CardName.RED_TOURISM_WAVE]);
     });
 
+    it('a classic KELVINISTS requirement names the GREENS in the verdict (P75 GHG Shipment — rulebook p.13, the one translation point)', () => {
+      topCard(game, CardName.GHG_SHIPMENT);
+      card.action(player);
+      expect(player.lastReveal?.conditionMet).is.true;
+      expect(player.lastReveal?.check?.party, 'this fork has no Kelvinists').eq(PartyName.GREENS);
+    });
+
     it('rule 4 — a requirement the player CANNOT meet is still a match (the card has one)', () => {
       // Generation 1 is ruled by the starting Greens — the Reds rule nothing and hold no delegate of ours.
       const wave = topCard(game, CardName.RED_TOURISM_WAVE);

@@ -12,6 +12,7 @@ import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 import * as actionReveals from '../actionReveals';
 import {hasPartyRequirement, partyRequirementCardsInGame, requiredPartyOf} from '../requirements/partyRequirementCards';
+import {normalizeReduxParty} from '../../../common/parliament/ParliamentTypes';
 
 /** The M€ a kept reveal pays (printed: «gain 5 M€»). */
 export const POLITICAL_THINK_TANK_REWARD = 5;
@@ -124,8 +125,11 @@ export class PoliticalThinkTank extends Card implements IActionCard, IProjectCar
       player.cardsInHand.push(card);
       game.events?.recordCardsDrawn(player, 1);
       player.stock.add(Resource.MEGACREDITS, POLITICAL_THINK_TANK_REWARD, {log: true, from: {card: this}});
+      // The verdict names the TABLE's party (a Redux card): a classic card's Kelvinists are the Greens (rulebook p.13,
+      // the one translation point) — P75 GHG Shipment kept by this action reads «Зелёные».
+      const party = requiredPartyOf(card);
       actionReveals.recordReveal(player, this.name, card, true, reward, undefined,
-        {...this.check(), party: requiredPartyOf(card)}, 'hand');
+        {...this.check(), party: party === undefined ? undefined : normalizeReduxParty(party)}, 'hand');
     } else {
       game.log('${0} revealed and discarded ${1}', (b) => b.player(player).card(card, {tags: true}),
         {reveal: {origin: 'deck', result: 'discarded', source: this.name}});

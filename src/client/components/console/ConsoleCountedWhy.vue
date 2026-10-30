@@ -1,5 +1,6 @@
 <template>
-  <!-- «ПОЧЕМУ» OF A COUNTED PLAY (TR45, the owner's accent 2026-10-12: «how many microbes, and why, before the play»)
+  <!-- «РАСЧЁТ» OF A COUNTED PLAY (TR45, the owner's accent 2026-10-12: «how many microbes, and why, before the play»;
+       named «Почему N» until 2026-10-30 — the owner: the number repeated the result, the word read oddly)
        — ONE strip, two hosts: the play composer's RESULT (under the chips — PL-156's block, its second reader) and the
        board peek's HUD (L3 «Показать на поле» — the same reading standing over the counted tiles). It begins with the
        card's own printed «per X» glyph (the SAME face item, `PremiumMechNode`), the count, «=», the census's shares by
@@ -102,8 +103,12 @@ export default defineComponent({
     return {wildGlyph: WILD_GLYPH};
   },
   computed: {
+    /**
+     * «РАСЧЁТ» — the strip's NAME, never a number (the owner, 2026-10-30: «ПОЧЕМУ 5 · [аэростат] 5 → +5» printed the
+     * result twice, and «почему» read oddly in Russian). The result stands at the strip's end, and once.
+     */
     kicker(): string {
-      return translateTextWithParams('Why ${0}', [String(this.why.chip.amount)]);
+      return translateText('Calculation');
     },
     result(): string {
       return signedAmount(this.why.chip.amount);

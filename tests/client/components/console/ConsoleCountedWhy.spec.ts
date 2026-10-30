@@ -60,6 +60,12 @@ describe('ConsoleCountedWhy — the floater term wears the printed floater (P75)
     expect(countGlyphOf({count: 2, label: 'Resources on this card'}), 'no single printed item — words').is.undefined;
   });
 
+  it('the strip is NAMED «Расчёт» — a word, never the result a second time (the owner, 2026-10-30)', () => {
+    const wrapper = mount(ConsoleCountedWhy, {props: {why: countedWhyOf([heat])!}, global: {mocks: {$t: (key: string) => key}}});
+    expect(wrapper.find('.con-cwhy__kicker').text()).eq('Calculation');
+    expect(wrapper.text().match(/\+5/g), 'the result stands once, at the end').has.length(1);
+  });
+
   it('the strip draws the floater, then «5 → +5»', () => {
     const why = countedWhyOf([heat])!;
     expect(why.glyphs).has.length(1);

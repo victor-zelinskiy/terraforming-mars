@@ -226,10 +226,10 @@
                    breakdown (`AgendaWalkModel.basis`), read, never divided here. -->
               <div v-if="walkWhy !== undefined" class="con-composer__why" :class="{'con-composer__why--zero': walkWhy.zero}"
                    data-walk-why :data-walk-why-sets="walkWhy.sets">
+                <span class="con-composer__why-kicker">{{ whyKicker }}</span>
                 <span v-if="walkWhy.zero" class="con-composer__why-stays">
                   <span class="resource_icon resource_icon--agenda-step con-composer__why-ico" aria-hidden="true"></span>{{ $t('The marker stays') }}
                 </span>
-                <span class="con-composer__why-kicker">{{ whyKicker }}</span>
                 <span class="resource_icon resource_icon--rating con-composer__why-ico" aria-hidden="true"></span>
                 <b class="con-composer__why-num">{{ walkWhy.value }}</b>
                 <span class="con-composer__why-text">{{ whyOver }}</span>
@@ -1491,8 +1491,9 @@ export default defineComponent({
       }
       return countedWhyOf(this.hasVariants ? this.sharedVariantEffects : this.selectedBranch?.effects);
     },
+    /** «РАСЧЁТ» — the strip's name, the counted play's word (`ConsoleCountedWhy`); the steps stand once, at its end. */
     whyKicker(): string {
-      return this.walkWhy === undefined ? '' : translateTextWithParams('Why ${0} step(s)', [String(this.walkWhy.sets)]);
+      return this.walkWhy === undefined ? '' : translateText('Calculation');
     },
     whyOver(): string {
       return this.walkWhy === undefined ? '' : translateTextWithParams('over ${0}', [String(this.walkWhy.over)]);
