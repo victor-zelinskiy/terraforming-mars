@@ -214,6 +214,18 @@ export const remotePlacementState = reactive({
    * queued or done — a plain `queue.length` read never re-fires a computed.
    */
   queued: 0,
+  /**
+   * The drain loop is RUNNING — mirrored REACTIVELY beside the module's own `draining` (`setDraining` writes both).
+   *
+   * ⚠️ A PLAIN `let` READ BY A CACHED COMPUTED IS A LATCH (the owner's field hang of 2026-10-30: a standard project's
+   * greenery / city — and every later placement — stood with NO grid until a reload). `remoteLandingOwed()` read the
+   * plain flag; the shell's `remoteLandingBeforePlacement` computed was re-evaluated in the flush that `queued → 0`
+   * scheduled, while the drain was still finishing (`draining` true), and cached `true`. The drain then ended — on a
+   * DEGRADED landing (the board covered past `BOARD_WAIT_MAX_MS`, an unmeasurable hex) `active` was already false,
+   * so its `clearRemoteStage()` wrote nothing that changed — and no reactive dep of the computed ever moved again: the
+   * `remote-landing` block held every placement of the game. Every term of an «is it owed» predicate is reactive.
+   */
+  draining: false,
   /** The CURRENT flight's tile art (one remote flight at a time — the
    *  queue is sequential, so one proxy set suffices). */
   tileType: undefined as TileType | undefined,
@@ -307,6 +319,12 @@ export type RemoteEvent = FreshPlacement & {
 
 const queue: Array<RemoteEvent> = [];
 let draining = false;
+
+/** The drain flag and its reactive mirror move TOGETHER (see `remotePlacementState.draining`). */
+function setDraining(value: boolean): void {
+  draining = value;
+  remotePlacementState.draining = value;
+}
 
 // ── THE SCORE CELL'S SHARE OF A FOREIGN TILE (TR55, the owner's decision 5) ─────────────────────────────────────
 // A rival's greenery beside the viewer's city, an ocean beside their Capital, a city under their Vermin: the
@@ -779,7 +797,7 @@ export function abortRemotePlacements(): void {
   dropVpClaim(REMOTE_TILE_VP_OWNER);
   remoteVpCells = [];
   clearRemoteRevealHolds(); // belt-and-braces: nothing may stay hidden
-  draining = false;
+  setDraining(false);
   remotePlacementState.waitingForBoard = false;
   clearRemoteStage();
   clearStageSafety();
@@ -835,7 +853,7 @@ async function drainQueue(): Promise<void> {
   if (draining) {
     return;
   }
-  draining = true;
+  setDraining(true);
   const myEpoch = epoch;
   try {
     // A tile queued WHILE the score's tokens fly is drained after them — the outer loop re-reads the queue.
@@ -851,7 +869,7 @@ async function drainQueue(): Promise<void> {
     }
   } finally {
     if (epoch === myEpoch) {
-      draining = false;
+      setDraining(false);
       clearRemoteStage();
       clearStageSafety();
     }
@@ -1524,10 +1542,11 @@ function wait(ms: number): Promise<void> {
  * nothing (see `waitingForBoard`).
  */
 export function remoteLandingOwed(): boolean {
-  // The reactive mirror FIRST — a computed subscribing here re-fires on every queue change (`queued`), not only on
-  // the stage's own flags.
+  // REACTIVE TERMS ONLY — a cached computed asks this (the shell's `remote-landing` admission block), and a plain
+  // module flag read here latched that block TRUE for the rest of the game (see `remotePlacementState.draining`). The
+  // queue's length is its reactive mirror (`queued`), never `queue.length`.
   return remotePlacementState.queued > 0 || remotePlacementState.active || remotePlacementState.waitingForBoard ||
-    queue.length > 0 || draining;
+    remotePlacementState.draining;
 }
 
 export function boardCovered(): boolean {

@@ -74,8 +74,15 @@ remoteLandingOwed()`:
 
 - `placementLiveLatch` is a DATA field written by the `placementActive` watcher — the admission computed reads it
   without a cycle through `placementHeld`; a tile arriving mid-aim therefore raises nothing (it lands beside the aim);
-- `remoteLandingOwed()` is REACTIVE through `remotePlacementState.queued` (the plain queue's length, mirrored at
-  every push / shift / clear) — a computed that read `queue.length` never re-fired;
+- `remoteLandingOwed()` reads **REACTIVE TERMS ONLY** — `remotePlacementState.queued` (the plain queue's length,
+  mirrored at every push / shift / clear) and `remotePlacementState.draining` (mirrored by `setDraining`). ⚠ The field
+  hang of 2026-10-30 (a standard project's greenery / city — and every later placement — with NO grid until a reload):
+  the predicate read the plain `let draining`; the computed was re-read in the flush `queued → 0` scheduled, while the
+  drain was still finishing, and cached `true`; on a DEGRADED landing (board covered past `BOARD_WAIT_MAX_MS`, an
+  unmeasurable hex) `active` was already false, so the drain's end wrote nothing reactive and the block held every
+  placement of the game. Guard: `remoteBoardQueueHold.spec` § «OWED» IS REACTIVE TO THE END. The net behind it: the
+  ledger witness **`placement-admission-stale`** (ConsoleShell) compares the cached `remote-landing` / `board-story`
+  terms with a fresh read, re-evaluates them past 1 s (`placementAdmissionEpoch`) and NAMES the latch in the log;
 - **`placementTakesBoardForLanding`** (computed + watcher): a server placement held ONLY by this block still takes the
   board — the stack yields (`yieldStackToBoard`) or the screen goes board-home, exactly as the placement's own
   rising edge would — because the landing waits for a board the player can SEE and the covering workspace would only

@@ -1,11 +1,11 @@
 import {expect} from 'chai';
-import {watch, WatchStopHandle} from 'vue';
+import {computed, watch, WatchStopHandle} from 'vue';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {SpaceId} from '@/common/Types';
 import {TileType} from '@/common/TileType';
 import {TileMoveRecordModel} from '@/common/boards/TileMove';
 import {
-  abortRemotePlacements, isRemotePlacementActive, remotePlacementState, stageRemotePlacements,
+  abortRemotePlacements, isRemotePlacementActive, remoteLandingOwed, remotePlacementState, stageRemotePlacements,
 } from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {resetTileMoveClaims} from '@/client/console/tilePlacement/tileMoveRecords';
 import {clearRemoteRevealHolds, isRemoteRevealHeld} from '@/client/console/tilePlacement/remoteRevealHold';
@@ -122,6 +122,30 @@ describe('a remote board queue — the hold is for the scene, never for the wait
     await until(() => !isRemoteRevealHeld('12'), 'event 2 landed (degraded: no stage)');
     expect(recorded.edges.slice(0, 3), 'held on stage → released by the park → re-raised by the board\'s return').deep.eq([true, false, true]);
     expect(isRemotePlacementActive(), 'the queue is done').is.false;
+  });
+
+  it('«OWED» IS REACTIVE TO THE END: a cached computed falls with the drain, even after a DEGRADED landing', async () => {
+    // The owner's field hang of 2026-10-30: a standard project's greenery / city — and every placement after it — stood
+    // with NO grid until a reload. The shell's `remote-landing` admission block is a CACHED computed over
+    // `remoteLandingOwed()`; it was re-read in the flush `queued → 0` scheduled, while the drain was still finishing,
+    // and the drain's own end moved nothing reactive on a degraded landing (no stage ever stood up: `active` false
+    // already). Here the landing degrades the same way (JSDOM: no measurable cell), and a PRE-flush watcher reads the
+    // computed exactly as the shell's watchers do.
+    const owed = computed(() => remoteLandingOwed());
+    const seen: Array<boolean> = [];
+    stopEdges = watch(owed, (value) => {
+      seen.push(value);
+    }, {immediate: true});
+
+    stageRemotePlacements([space('31')], [space('31', {tileType: TileType.GREENERY, color: 'blue'})], {gamePhase: 'action'});
+    expect(owed.value, 'a foreign tile is owed to the board').is.true;
+
+    await until(() => !isRemoteRevealHeld('31'), 'the landing resolved (degraded: no stage)');
+    // The drain's tail (the viewer's score shares, its `finally`) — the RAW predicate is the witness, never a sleep.
+    await until(() => !remotePlacementState.draining && !remotePlacementState.active, 'the drain ended');
+    expect(remotePlacementState.active, 'a degraded landing never stood a stage up').is.false;
+    expect(owed.value, 'the cached «owed» fell with the drain — no placement is held for a landing that is over').is.false;
+    expect(seen[seen.length - 1], 'and its watchers were told').eq(false);
   });
 
   it('NOMADS: the second hop parks for a covered board holding NOTHING — the first hop\'s proxy is off the stage', async () => {
