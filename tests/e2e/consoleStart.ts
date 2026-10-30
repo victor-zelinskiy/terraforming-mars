@@ -2987,6 +2987,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // Prelude 2 P72 Envoys from Venus — the first EVENT whose whole play is a delegate grant (CZ): 3 Venus tags (Venus Governor ·
   // Dirigibles), a government outside the voting area, reserve 6 · red already on the first resolution (the pair turns the lead) · locked at 2.
   'envoys-from-venus' | 'envoys-from-venus-overtake' | 'envoys-from-venus-locked' |
+  // Prelude 2 P70 Colonial Envoys — a SERIES of grants (DA): Unity ruling, three colonies (N = 3), reserve 6 · locked «1 of 2».
+  'colonial-envoys' | 'colonial-envoys-locked' |
   // P68 Ceres Tech Market — the first Prelude 2 card WITH AN ACTION: the counted play (two colonies, titanium) · the discard action for 2 M€ a card.
   'ceres-tech-market' |
   // Prelude 2 P80 Red Appeasement — the first play that IS a pass (the Reds rule; nobody / red passed)

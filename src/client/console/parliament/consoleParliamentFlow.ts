@@ -1,5 +1,6 @@
 import {reactive} from 'vue';
 import type {StagedReceipt} from '@/client/console/stagedPlay';
+import type {GrantSeriesKey} from '@/client/console/parliament/grantSeries';
 import {Color} from '@/common/Color';
 import {DelegatePromptMeta, DelegateTargetProjection, SupportPromptMeta, BannerPromptMeta, VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
@@ -227,6 +228,12 @@ export type VoteSnapshot = {
    * confirm stays «Разыграть карту» through the landing). Absent = the vote / an effect's grant.
    */
   door?: 'card',
+  /**
+   * THE DECISION OF A SERIES this press answered (P70 Colonial Envoys — `votePrompt.series` + the giver), remembered
+   * past the prompt: after the landing the mode returns to its selection IN PLACE when the next decision of the same
+   * series stands (`grantContinuesSeries`), and the crumb keeps counting THIS one while its cube is on the way.
+   */
+  series?: GrantSeriesKey,
   /** A STAGED card door's receipt (what the commit charged for the card — M€ or the action's own cost chip) — read through the landing. */
   receipt?: StagedReceipt,
   /**

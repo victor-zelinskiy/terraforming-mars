@@ -9500,6 +9500,86 @@ envoysFromVenusFixture('envoys-from-venus', 'open');
 envoysFromVenusFixture('envoys-from-venus-overtake', 'overtake');
 envoysFromVenusFixture('envoys-from-venus-locked', 'locked');
 
+// ── P70 · COLONIAL ENVOYS — the ELEVENTH Prelude 2 card, the first whose delegates are a SERIES of separate decisions
+//    (the stand `console-colonial-envoys`): «requires Unity ruling or 2 of your delegates there; add 1 delegate per
+//    colony you have — you may add them to different resolutions». A 2p Redux + Colonies + Prelude 2 table (Teractor ·
+//    ThorGate), the voting area seated QUIET (Mars First · Greens · Scientists), blue's lobby cube standing (reserve 6),
+//    blue on the move with P70 MOVED into the hand and 10 M€:
+//      · `colonial-envoys`        — Unity's law ENACTED (Unity rules), blue's cubes on the first three colony tiles
+//        (N = 3): playable; the DRY RUN on a copy: three grant prompts of 1, marked 1/3 · 2/3 · 3/3, the enacted law never
+//        offered; answers X, Y, X → reserve 6 → 3, two on X, one on Y;
+//      · `colonial-envoys-locked` — the fresh table's Greens rule, Unity's resolution UP FOR THE VOTE (slot 0) with ONE of
+//        blue's delegates on it (reserve 5): «1 of 2». ──
+function colonialEnvoysFixture(name: string, variant: 'open' | 'locked'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [10, 30],
+    options: {prelude2Expansion: true, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, parliament}) => {
+      const area = variant === 'open' ?
+        [PartyName.MARS, PartyName.GREENS, PartyName.SCIENTISTS] as const :
+        [PartyName.UNITY, PartyName.MARS, PartyName.SCIENTISTS] as const;
+      area.forEach((party, i) => seatResolution(parliament, i, quietResolutionOf(party)));
+      if (variant === 'open') {
+        seatEnacted(parliament, quietResolutionOf(PartyName.UNITY));
+        for (let i = 0; i < 3; i++) {
+          // The cube itself (`coloniesOf` reads it) — never `addColony`, whose build bonus would ask its own questions.
+          game.colonies[i].colonies.push(p1.id);
+        }
+      } else {
+        game.colonies[0].colonies.push(p1.id);
+        parliament.placeVote(p1, parliament.slots[0], 'reserve');
+      }
+      moveToDeckTop(game, CardName.COLONIAL_ENVOYS);
+      p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+    },
+    expect: ({game, p1, p2, parliament}) => {
+      const playable = variant === 'open';
+      const card = p1.cardsInHand.find((c) => c.name === CardName.COLONIAL_ENVOYS);
+      const canPlay = card !== undefined && p1.canPlay(card) !== false;
+      const reason = card === undefined ? undefined : unplayableReasons(p1, card)[0];
+      const counted = reason?.type === 'party' && reason.party === PartyName.UNITY && reason.current === 1;
+      const ruling = parliament.rulingParty();
+      if (card === undefined || canPlay !== playable || (!playable && !counted) || (playable && ruling !== PartyName.UNITY) ||
+        parliament.reserve(p1) !== (playable ? 6 : 5) || parliament.slots.length !== 3 || game.activePlayer.id !== p1.id) {
+        throw new Error(`the ${name} fixture expected P70 in blue's hand (playable=${playable}), Unity ruling on the open table, three resolutions on the vote and blue on the move — got card=${card !== undefined} playable=${canPlay} reason=${JSON.stringify(reason)} ruling=${ruling} reserve=${parliament.reserve(p1)} slots=${parliament.slots.length}`);
+      }
+      parliament.assertLedger(game);
+      if (playable) {
+        // THE DRY RUN — the real play on a copy, paid with 4 M€; the series answered X, Y, X.
+        const copy = Game.deserialize(structuredClone(game.serialize()));
+        const blue = copy.getPlayerById(p1.id);
+        const hero = blue.cardsInHand.find((c) => c.name === CardName.COLONIAL_ENVOYS)!;
+        const cost = blue.getCardCost(hero);
+        blue.playCard(hero, Payment.of({megacredits: cost}));
+        runAllActions(copy);
+        const table = copy.parliament!;
+        const x = table.resolutionOf(table.slots[0].instance).party;
+        const y = table.resolutionOf(table.slots[1].instance).party;
+        const seen: Array<string> = [];
+        for (const target of [x, y, x]) {
+          const select = blue.getWaitingFor();
+          if (!(select instanceof SelectParty) || select.votePrompt?.source !== 'grant' || select.votePrompt.count !== 1 ||
+            select.parties.length !== 3 || select.parties.includes(PartyName.UNITY)) {
+            throw new Error(`the ${name} fixture expected a grant of 1 over the voting area only — got ${select?.type} ${JSON.stringify((select as SelectParty | undefined)?.votePrompt)}`);
+          }
+          seen.push(`${select.votePrompt.series?.index}/${select.votePrompt.series?.of}`);
+          blue.process({type: 'party', partyName: target});
+        }
+        const red = copy.getPlayerById(p2.id);
+        if (cost !== 4 || blue.megaCredits !== 6 || seen.join(' ') !== '1/3 2/3 3/3' || blue.getWaitingFor() !== undefined ||
+          table.reserve(blue) !== 3 || table.votesOf(blue, table.slots[0]) !== 2 || table.votesOf(blue, table.slots[1]) !== 1 ||
+          table.votesOf(red, table.slots[0]) !== 0) {
+          throw new Error(`the ${name} fixture expected a 4 M€ play and the series 1/3 2/3 3/3 seating 2 + 1 from the reserve (6 → 3) — got cost=${cost} mc=${blue.megaCredits} series=${seen.join(' ')} reserve=${table.reserve(blue)} x=${table.votesOf(blue, table.slots[0])} y=${table.votesOf(blue, table.slots[1])}`);
+        }
+        table.assertLedger(copy);
+      }
+    },
+  });
+}
+colonialEnvoysFixture('colonial-envoys', 'open');
+colonialEnvoysFixture('colonial-envoys-locked', 'locked');
+
 // ── P68 · CERES TECH MARKET — the THIRD Prelude 2 card and the FIRST WITH AN ACTION (docs/claude/prompts/prelude2-p68-
 //    ceres-tech-market.md): «play: 2 M€ per colony you own · action: discard any number of cards for 2 M€ each». A 2p
 //    Colonies + Prelude 2 table (Teractor · ThorGate), blue on the move with P68 MOVED out of the dealt pool into the hand

@@ -345,6 +345,7 @@ import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSi
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {GRANT_CUBE_STAGGER_MS, GRANT_TOUCH_GAP_MS, grantCubeSchedule} from '@/client/console/parliament/grantCubeSchedule';
+import {grantContinuesSeries, grantSeriesKeyOf} from '@/client/console/parliament/grantSeries';
 import {descendWorkspaceFrame, foldWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameHasNested} from '@/client/console/consoleWorkspaceStack';
 import {armAccessToldOnStage, disarmAccessToldOnStage} from '@/client/console/parliament/accessToldOnStage';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -1237,6 +1238,8 @@ export default defineComponent({
       const support = this.supportRow;
       const receipt = this.receiptChip;
       const byCard = this.cardDoor;
+      // A decision of a SERIES (P70): which one, and whose — the mode stands through the rest of it.
+      const series = grant !== undefined && grant.staged !== true ? grantSeriesKeyOf(grant.model) : undefined;
       // An ACTION's price on the RAIL (T07's 3 M€) is the commit's own token, flown before the cube; a card's resource
       // (TR15's data) is this mode's price token; a play's M€ is the payment's business.
       const railPrice = byCard && this.stagedDoor && this.stagedFlow === 'action' && receipt !== undefined && isStandardResource(receipt.icon);
@@ -1250,6 +1253,7 @@ export default defineComponent({
         ...(receipt === undefined ? {} : {receipt}),
         ...(railPrice ? {railPrice: true as const} : {}),
         ...(support === undefined ? {} : {support}),
+        ...(series === undefined ? {} : {series}),
       };
       // THE PARTY'S EFFECT THIS PRESS WILL WIN (the access scene): the viewer does not hold it and the press reaches the
       // viewer's own threshold. Armed BEFORE the response — the feed builds its card when the response is ingested,
@@ -1735,7 +1739,43 @@ export default defineComponent({
       }
       this.landingHold?.release();
       this.landingHold = undefined;
+      if (this.continueSeriesInPlace()) {
+        return;
+      }
       this.$emit('flow-complete', 'vote');
+    },
+    /**
+     * A SERIES OF GRANTS IS ONE VISIT (P70 Colonial Envoys — `grantSeries.ts`): the landed cube was decision k, and the
+     * prompt standing NOW is decision k + 1 of the same giver. The flow does not end — nothing folds, nothing unfolds:
+     * the mode returns to its selection ON THE SPOT (the cursor stays on the resolution the cube just landed on, the
+     * forecast and the reserve read the new model), past the commit (B «Свернуть» parks the whole series; A from the
+     * board brings back the same decision). Each decision keeps its own A — nothing is glued to the next.
+     */
+    continueSeriesInPlace(): boolean {
+      const f = parliamentFlow;
+      const next = this.bridge.grant;
+      if (next === undefined || next.staged === true || !grantContinuesSeries(f.voteSnapshot?.series, next.model)) {
+        return false;
+      }
+      this.clearLanding();
+      f.voteSnapshot = undefined;
+      f.accessExpected = undefined;
+      f.accessParty = undefined;
+      f.accessBeat = '';
+      this.resetSubject();
+      freezeParliamentFit(false);
+      setWorkspaceFramePhase('parliament', 'committed');
+      if (f.stage === 'access') {
+        // The access scene let the vote layer go: the next decision is OPENED again in the same chamber (one phrase).
+        f.stage = 'browse';
+        void this.$nextTick(() => {
+          this.openVote({index: f.slotIndex});
+          setWorkspaceFramePhase('parliament', 'committed');
+        });
+        return true;
+      }
+      f.stage = 'vote';
+      return true;
     },
     /**
      * THE ACCESS SCENE (the owner, 2026-10-25: «момент, когда игрок располагает второго делегата в партию и получает её
@@ -1839,6 +1879,9 @@ export default defineComponent({
       this.accessHold?.release();
       this.accessHold = undefined;
       disarmAccessToldOnStage();
+      if (this.continueSeriesInPlace()) {
+        return;
+      }
       this.$emit('flow-complete', 'vote');
     },
     clearLanding(): void {

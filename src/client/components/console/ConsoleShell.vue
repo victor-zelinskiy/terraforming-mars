@@ -1712,6 +1712,7 @@ import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentIn
 import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTier';
 import {parliamentVoteSubject} from '@/client/console/parliament/consoleParliamentFlow';
 import {consoleParliamentUi, parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
+import {grantSeriesCountText, grantSeriesShown} from '@/client/console/parliament/grantSeries';
 import {agendaWalkFlow, AgendaWalkRailPromise, promiseAgendaWalk} from '@/client/console/parliament/agendaWalk';
 import {neutralRallyFlow, promiseNeutralRally} from '@/client/console/parliament/neutralRally';
 import {
@@ -7329,11 +7330,19 @@ export default defineComponent({
       const colonyTail = pickStage === '' && workspaceFrameHost('colonies') === 'hand' && workspaceFrameSubject('colonies') !== '' ?
         colonyStepCrumbParts(workspaceFrameSubject('colonies'), workspaceFrameStage('colonies')).map((part) => translateText(part)).join(' · ') :
         undefined;
+      // A SERIES OF GRANTS (P70 Colonial Envoys — `grantSeries.ts`): the vote step's tail COUNTS its decision —
+      // «ГОЛОСОВАНИЕ · 2 / 3» — the decision on its way while its cube flies, the standing one once the mode is back in
+      // its selection (only the count changes: one segment's crossfade, like any stage).
+      // Keyed on the STAGE being the vote (whichever path named it — the owed step before the frame, the frame after):
+      // a later stage of the same step («ЭФФЕКТ ПАРТИИ») is not a decision and counts nothing.
+      const series = pickStage === '' && name === DELEGATE_GRANT_STEP_STAGE ?
+        grantSeriesShown(parliamentFlow.voteSnapshot?.series, this.playerView.waitingFor) : undefined;
+      const seriesTail = series === undefined ? undefined : `${translateText(name)} · ${grantSeriesCountText(series)}`;
       return {
         subject: workspaceFrameSubject('hand'),
-        name: colonyTail ?? forecastTail ?? name,
+        name: colonyTail ?? seriesTail ?? forecastTail ?? name,
         committed: isCommitted(phase),
-        raw: colonyTail !== undefined || forecastTail !== undefined,
+        raw: colonyTail !== undefined || seriesTail !== undefined || forecastTail !== undefined,
       };
     },
     /**
