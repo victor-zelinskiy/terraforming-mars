@@ -1115,6 +1115,15 @@
   border-bottom: 2.2px solid #f4fff9;
   transform: rotate(40deg);
 }
+/* THE PLATE'S FOOTNOTE «*» (P80 — `CardMetadata.requirementFootnote`): the face's own reference spark, docked to the
+   plate's last mark (over the segment's gap — two classes, so the spark's own rule further down cannot win), inked DARK — the gold spark
+   of the mechanics panel vanishes on the copper plate. */
+.pcard-req > .pcard-req__footnote.pcard-sym--asterix {
+  margin-left: -3px;
+  align-self: flex-start;
+  background: linear-gradient(180deg, #4a2412, #1f0d05);
+  filter: none;
+}
 /* the plate itself says «under a modifier» with a mint inner kant (structure, not a repaint) — an alliance (TR62) too */
 .pcard__reqs--eased:not(.pcard__reqs--all) .pcard__reqs-field,
 .pcard__reqs--allied:not(.pcard__reqs--all) .pcard__reqs-field {

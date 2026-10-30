@@ -172,6 +172,11 @@ export type PremiumCardVM = {
   tags: ReadonlyArray<Tag>;
   tagCluster: TagClusterPlan;
   requirements: ReadonlyArray<NormalizedRequirement>;
+  /**
+   * The print's «*» beside the requirement plate (`CardMetadata.requirementFootnote` — P80 Red Appeasement): the
+   * requirement has a bespoke half the plate cannot draw; the sentence lives in the card's text and the hand's reason.
+   */
+  requirementFootnote?: true;
   /** Undefined only for a corporation with NO real art (its identity zone hosts the wordmark instead). */
   art?: PremiumCardArt;
   mechanics: MechanicsVM;
@@ -509,6 +514,7 @@ export function buildPremiumCardViewModel(clientCard: ClientCard, model?: CardMo
     tags,
     tagCluster: tagClusterPlan(tags.length),
     requirements: withEasing((clientCard.requirements ?? []).map(normalizeRequirement), model),
+    ...(clientCard.metadata.requirementFootnote === true ? {requirementFootnote: true as const} : {}),
     // Projects/preludes always get an art viewport (fallback baked in);
     // corporations and CEOs show real art if they have it, else their own
     // identity zone (resolveArt returns undefined then — corp wordmark /

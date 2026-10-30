@@ -447,6 +447,8 @@
         <span class="con-cards__verdict con-cards__verdict--ok"><span aria-hidden="true">✓</span> {{ $t('Playable now') }}</span>
         <!-- …and WHY, when it is playable only thanks to a requirement modifier (TR49 class): «благодаря: Особая разработка». -->
         <span v-if="selectedEasedThanks !== ''" class="con-hand__reason con-hand__reason--bar con-hand__reason--eased" data-hand-eased>{{ selectedEasedThanks }}</span>
+        <!-- …and that the play IS A PASS (class CT — `ClientCard.playCountsAsPass`): said before the composer opens. -->
+        <span v-if="selectedPasses" class="con-hand__reason con-hand__reason--bar con-hand__reason--pass" data-hand-passes>{{ $t('Playing it counts as passing') }}</span>
       </template>
       <!-- A card with NO server rules-reason but not playable is rules-OK, just
            not your window (opponent's turn / mid-action). That is an EXECUTION
@@ -619,6 +621,7 @@ import ConsoleArmedEffectsStrip from '@/client/components/console/ConsoleArmedEf
 import PremiumModifierMarks from '@/client/components/premiumCard/PremiumModifierMarks.vue';
 import {paymentUnitIcon} from '@/client/console/paymentPlan';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import {getCard} from '@/client/cards/ClientCardManifest';
 
 export type ConsoleHandEntry = {
   card: CardModel,
@@ -996,6 +999,10 @@ export default defineComponent({
      * A PLAYABLE card met ONLY thanks to a requirement modifier names it (TR49 class) — the eased voice's compact form
      * of the SAME shared model the fullscreen panel renders; '' when the card needs no help.
      */
+    /** The focused card's play counts as a pass (`ClientCard.playCountsAsPass`, P80) — the verdict bar names it. */
+    selectedPasses(): boolean {
+      return this.selected !== undefined && getCard(this.selected.name)?.playCountsAsPass === true;
+    },
     selectedEasedThanks(): string {
       if (this.selected === undefined || !this.selectedPlayable || this.saleActive || this.selectActive) {
         return '';

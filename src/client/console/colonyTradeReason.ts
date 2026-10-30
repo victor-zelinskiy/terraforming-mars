@@ -1,5 +1,6 @@
 import {Color} from '@/common/Color';
 import {AvailabilityBlocker, AVAILABILITY_BLOCKERS, turnGateBlocker} from '@/common/availability/AvailabilityBlocker';
+import {offTurnReason} from '@/client/console/offTurnReason';
 
 /**
  * The SINGLE smart source of truth for «why can't I trade at THIS colony right
@@ -51,6 +52,8 @@ export type ColonyTradeReasonInput = {
   /** The server is waiting on the viewer at all — their turn even when the free
    *  action menu is withheld by a mandatory sub-decision. */
   awaitingInput: boolean,
+  /** The viewer has passed this generation — the off-turn key says so (`offTurnReason`, class CT). */
+  passed?: boolean,
   /** Resolve a colour to its display label (for another player's docked fleet). */
   resolveName: (color: Color) => string,
 };
@@ -119,7 +122,7 @@ export function colonyTradeReason(input: ColonyTradeReasonInput): ColonyTradeRea
   //    potentially available.
   const gate = turnGateBlocker(input.awaitingInput);
   return {
-    key: input.awaitingInput ? 'Finish your current action first' : 'Not your turn to take any actions',
+    key: offTurnReason(input.awaitingInput, input.passed === true),
     intrinsic: false,
     blocker: gate,
   };

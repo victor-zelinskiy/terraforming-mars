@@ -109,6 +109,7 @@ import {resolutionCount} from '../../../src/server/parliament/resolutions/Resolu
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
 import {SelectColony} from '../../../src/server/inputs/SelectColony';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
+import {SelectProjectCardToPlay} from '../../../src/server/inputs/SelectProjectCardToPlay';
 import {CLIMATE_RESEARCH_ID} from '../../../src/server/parliament/resolutions/greens/ClimateResearch';
 import {BIODOME_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {DEV_ACTION_RESOLUTION_ID, DEV_PASSIVE_RESOLUTION_ID} from '../../../src/server/parliament/resolutions/ResolutionCatalog';
@@ -9359,6 +9360,66 @@ summitLogisticsFixture('summit-logistics-locked', false);
   }
   write('ceres-tech-market', game);
 }
+
+// ── P80 · RED APPEASEMENT — the FOURTH Prelude 2 card, the second POLITICAL one (the Reds) and the FIRST whose PLAY IS A
+//    PASS (docs/claude/prompts/prelude2-p80-red-appeasement.md): «requires the Reds ruling or 2 of your delegates there
+//    AND that no other player has passed; +2 M€ production; this counts as passing». A 2p Redux + Prelude 2 table
+//    (Teractor · ThorGate), blue on the move with P80 MOVED out of the dealt pool into the hand, the Reds ruling (their
+//    quiet law enacted), and two things a pass would leave unused — Restricted Area on blue's table (its action: 2 M€ →
+//    a card) and 8 plants (a greenery) — so the pass reading the composer prints is not empty:
+//      · `red-appeasement`        — nobody passed: playable; a DRY RUN on a copy plays it: +2 M€ production, blue passed,
+//        red on the move;
+//      · `red-appeasement-locked` — the same, red PASSED: refused, the reason names red. ──
+function redAppeasementFixture(name: string, othersPassed: boolean): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {prelude2Expansion: true, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, p2, parliament}) => {
+      seatEnacted(parliament, quietResolutionOf(PartyName.REDS));
+      moveToDeckTop(game, CardName.RESTRICTED_AREA);
+      p1.playedCards.push(game.projectDeck.drawOrThrow(game));
+      moveToDeckTop(game, CardName.RED_APPEASEMENT);
+      p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+      p1.plants = 8;
+      if (othersPassed) {
+        if (p2.getWaitingFor() !== undefined) {
+          p2.clearWaitingFor();
+        }
+        game.playerHasPassed(p2);
+      }
+    },
+    expect: ({game, p1, p2, parliament}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.RED_APPEASEMENT);
+      const playable = card !== undefined && p1.canPlay(card) !== false;
+      const reasons = card === undefined ? [] : unplayableReasons(p1, card);
+      const named = reasons.some((r) => r.type === 'rule' && r.params?.[0] === p2.name);
+      if (card === undefined || playable === othersPassed || parliament.rulingParty() !== PartyName.REDS ||
+          (othersPassed && !named) || game.activePlayer.id !== p1.id) {
+        throw new Error(`the ${name} fixture expected P80 in blue's hand (playable=${!othersPassed}) with the Reds ruling and blue on the move — got card=${card !== undefined} playable=${playable} ruling=${parliament.rulingParty()} reasons=${JSON.stringify(reasons)}`);
+      }
+      parliament.assertLedger(game);
+      if (!othersPassed) {
+        // THE DRY RUN — the real play through the action menu, on a copy.
+        const copy = Game.deserialize(structuredClone(game.serialize()));
+        const blue = copy.getPlayerById(p1.id);
+        const menu = blue.getWaitingFor();
+        if (!(menu instanceof OrOptions)) {
+          throw new Error(`the ${name} fixture expected blue's action menu, got ${menu?.type}`);
+        }
+        const index = menu.options.findIndex((o) => o instanceof SelectProjectCardToPlay);
+        blue.process({type: 'or', index, response: {type: 'projectCard', card: CardName.RED_APPEASEMENT, payment: Payment.EMPTY}});
+        runAllActions(copy);
+        const facts = {production: blue.production.megacredits, passed: copy.getPassedPlayers(), active: copy.activePlayer.id === p2.id};
+        if (facts.production !== p1.production.megacredits + 2 || facts.passed.join() !== p1.color || !facts.active) {
+          throw new Error(`the ${name} fixture expected +2 M€ production, blue passed and red on the move after the play — got ${JSON.stringify(facts)}`);
+        }
+      }
+    },
+  });
+}
+redAppeasementFixture('red-appeasement', false);
+redAppeasementFixture('red-appeasement-locked', true);
 
 // ── preselect-sole: THE PRE-SELECT STAND (T14 · ledger CC — «ОДИН КУРСОР ПОСЛЕ ОТВЕТА · ПРИБЫТИЕ НА КОММИТ ·
 //    ЕДИНСТВЕННАЯ ЦЕЛЬ»). One base table, every cell of the matrix in blue's hand / tableau:

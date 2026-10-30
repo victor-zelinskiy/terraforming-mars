@@ -136,4 +136,22 @@ describe('consolePlayCardResult.derivePlayResultSections', () => {
     const sections = derivePlayResultSections(meta(), {hasImmediate: false, hasFollowUp: true});
     expect(sections).to.have.length(0);
   });
+
+  describe('a play that counts as a PASS (class CT — P80 Red Appeasement)', () => {
+    it('leads the block with «this play passes» and the pass confirm\'s own lines, untouched', () => {
+      const lines = [{key: 'You still have unused available actions', count: '2'}, {key: 'You can still convert plants into greenery'}];
+      const sections = derivePlayResultSections(meta({isEvent: true, passes: {lines}}), {hasImmediate: true, hasFollowUp: false});
+      expect(sections[0]).to.deep.equal({kind: 'pass', text: 'This play passes', note: 'You get no more turns this generation', passLines: lines});
+    });
+
+    it('nothing left but actions with no effect: the ONE quiet line, no warning lines', () => {
+      const quiet = {key: 'Only actions with no effect remain', count: '1'};
+      const [pass] = derivePlayResultSections(meta({passes: {lines: [], quiet}}), {hasImmediate: true, hasFollowUp: false});
+      expect(pass).to.deep.include({kind: 'pass', passLines: [], passQuiet: quiet});
+    });
+
+    it('a play that does not pass has no such section', () => {
+      expect(derivePlayResultSections(meta({tags: [Tag.SPACE]}), {hasImmediate: true, hasFollowUp: false}).some((x) => x.kind === 'pass')).to.be.false;
+    });
+  });
 });

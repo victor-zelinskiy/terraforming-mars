@@ -31,8 +31,9 @@ import {CountableVictoryPoints} from '@/common/cards/CountableVictoryPoints';
 import {CardVictoryPointsDetail} from '@/common/game/VictoryPointsBreakdown';
 import {formulaFor, ScoreFormula} from '@/client/console/scoreExplorerModel';
 import {ArmedPlayEffectKind} from '@/common/models/ArmedPlayEffectModel';
+import {PassLine, PassWarnings} from '@/client/console/passWarnings';
 
-export type PlayResultCategory = 'action' | 'effect' | 'armed' | 'vp' | 'tags' | 'fallback';
+export type PlayResultCategory = 'pass' | 'action' | 'effect' | 'armed' | 'vp' | 'tags' | 'fallback';
 
 export type PlayResultSection = {
   kind: PlayResultCategory;
@@ -59,6 +60,10 @@ export type PlayResultSection = {
   note?: string;
   /** What the play ARMS for the next card (TR49 class — the `armed` section): the server's one-play declarations. */
   arms?: ReadonlyArray<ArmedPlayEffectKind>;
+  /** THIS PLAY IS A PASS (the `pass` section, class CT): what the pass leaves unused — the pass confirm's own lines. */
+  passLines?: ReadonlyArray<PassLine>;
+  /** …or, when nothing but actions with no effect is left, the pass confirm's ONE quiet line. */
+  passQuiet?: PassLine;
 };
 
 export type PlayCardResultMeta = {
@@ -85,6 +90,12 @@ export type PlayCardResultMeta = {
    * result read «Метки события» alone — the card's whole point unnamed (К-E5).
    */
   arms?: ReadonlyArray<ArmedPlayEffectKind>;
+  /**
+   * THIS PLAY COUNTS AS A PASS (`ActionPreview.passes` — Prelude 2 P80 Red Appeasement, class CT): the reading of the
+   * pass confirm (`passWarnings` over the shell's ONE set of facts), handed in whole. The next press gives the turn
+   * away, so the composer says so — FIRST, before anything the card delivers — and lists what the player leaves.
+   */
+  passes?: PassWarnings;
 };
 
 export type PlayResultContext = {
@@ -102,6 +113,18 @@ export type PlayResultContext = {
  */
 export function derivePlayResultSections(meta: PlayCardResultMeta, ctx: PlayResultContext): Array<PlayResultSection> {
   const out: Array<PlayResultSection> = [];
+
+  // A play that IS a pass leads: it decides what the press means. Its lines are the pass confirm's own — never a
+  // second list — and the quiet line stays quiet.
+  if (meta.passes !== undefined) {
+    out.push({
+      kind: 'pass',
+      text: 'This play passes',
+      note: 'You get no more turns this generation',
+      passLines: meta.passes.lines,
+      ...(meta.passes.quiet !== undefined ? {passQuiet: meta.passes.quiet} : {}),
+    });
+  }
 
   // The wording is DELIBERATELY nominal, not a sentence: the block is already
   // titled «РЕЗУЛЬТАТ», so «Даёт новое действие» spends its first word

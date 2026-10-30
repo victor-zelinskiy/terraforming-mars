@@ -19,7 +19,7 @@ import {FleetDockOfferModel, PlayerInputModel, OrOptionsModel, SelectOptionModel
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {PatentSaleModel} from '@/common/models/PatentSaleModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
-import {awaitingViewerInput, offTurnReason} from '@/client/console/offTurnReason';
+import {awaitingViewerInput, offTurnReason, viewerHasPassed} from '@/client/console/offTurnReason';
 import {translateText} from '@/client/directives/i18n';
 
 /** Plain English text of a `string | Message` prompt title. */
@@ -480,7 +480,7 @@ export function turnVerbs(view: PlayerViewModel): Array<TurnVerb> {
   const wf = view.waitingFor;
   // A withheld verb is «Сначала завершите текущее действие» when the server is
   // mid a mandatory decision with the viewer (still their turn), else «не ваш ход».
-  const notYourTurn = offTurnReason(awaitingViewerInput(view));
+  const notYourTurn = offTurnReason(awaitingViewerInput(view), viewerHasPassed(view));
   const off = (id: TurnVerbId, label: string, reason: string): TurnVerb => ({id, label, available: false, reason});
   const on = (id: TurnVerbId, label: string, count?: number): TurnVerb => ({id, label, available: true, reason: '', count});
 

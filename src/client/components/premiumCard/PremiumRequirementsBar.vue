@@ -62,6 +62,9 @@
           </template>
           <!-- MET ONLY THANKS TO the modifier — the state is a FORM (a check), never colour alone -->
           <span v-if="req.easing?.decisive === true" class="pcard-req__verdict" data-req-decisive aria-hidden="true"></span>
+          <!-- THE PRINT'S FOOTNOTE «*» (P80): the requirement has a bespoke half the plate cannot draw — the face's own
+               reference spark, docked to the plate's LAST mark; the sentence is in the card's text and the hand's reason. -->
+          <span v-if="footnote && i === requirements.length - 1" class="pcard-sym--asterix pcard-req__footnote" data-req-footnote aria-hidden="true">*</span>
         </span>
       </template>
     </div>
@@ -109,6 +112,8 @@ export default defineComponent({
       type: Array as () => ReadonlyArray<NormalizedRequirement>,
       required: true,
     },
+    /** The print's footnote mark «*» after the plate (`PremiumCardVM.requirementFootnote`). */
+    footnote: {type: Boolean, default: false},
   },
   computed: {
     hasAll(): boolean {

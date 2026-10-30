@@ -259,6 +259,10 @@ describe('consolePlayCardComposer — the DOOR (a step the composer leads to, ne
     const door = playDoorOf(branch([{kind: 'delegateGrant', staged: STAGED}]));
     expect(door, 'the vote mode of the ONE parliament door (TR12 added the support mode beside it)').to.deep.eq({kind: 'parliament', staged: STAGED, mode: 'vote'});
     expect(playCommitVerb(door)).to.eq('Choose the resolution');
+    // A door outranks a play that passes: the press opens the next step, it does not play (class CT).
+    expect(playCommitVerb(door, true)).to.eq('Choose the resolution');
+    expect(playCommitVerb(undefined, true), 'a plain play that counts as a pass names both').to.eq('Play and pass');
+    expect(playCommitVerb(undefined)).to.eq('Play card');
     expect(playDoorNextStepKey(door)).to.eq('Resolution — chosen in the Parliament');
     expect(playPrimaryVerb({focused: 'cta', primary: {kind: 'ready'}, doorVerb: playCommitVerb(door)})).to.deep.eq({label: 'Choose the resolution', enabled: true});
   });

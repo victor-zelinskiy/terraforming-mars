@@ -1538,6 +1538,7 @@
                                 :playerView="playerView"
                                 :cardName="pendingPlayCard.cardName"
                                 :input="pendingPlayCard.input"
+                                :passReading="passLeftBehind"
                                 :embedded="playEmbedTarget !== undefined"
                                 @confirm="onPlayCardConfirmNative($event)"
                                 @cancel="onPlayCardCancel" />
@@ -1690,7 +1691,7 @@ import {shareViewSnapshot} from '@/client/utils/viewSnapshotShare';
  */
 const maHudZoneShare: {milestones?: MaHudZone, awards?: MaHudZone} = {};
 import {countTone, wheelPotentialCounts, WheelCounts} from '@/client/console/potentialAvailability';
-import {PassWarnings, passWarnings} from '@/client/console/passWarnings';
+import {PassFacts, PassWarnings, passWarnings} from '@/client/console/passWarnings';
 import {blockersForReasons, potentiallyAvailable} from '@/common/availability/AvailabilityBlocker';
 import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel.vue';
 import ConsoleStrategyRail from '@/client/components/console/ConsoleStrategyRail.vue';
@@ -2184,7 +2185,7 @@ import {albumLayoutState, setAlbumLayoutRecomposer} from '@/client/console/conso
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {StageHost, useWorkspaceBandGeometry} from '@/client/console/composables/useWorkspaceBandGeometry';
 import {ConsoleAction, consoleActionOf} from '@/client/console/composables/consoleActionModel';
-import {awaitingViewerInput, handPlayWindowClosed, offTurnReason} from '@/client/console/offTurnReason';
+import {awaitingViewerInput, handPlayWindowClosed, offTurnReason, viewerHasPassed} from '@/client/console/offTurnReason';
 // Only as the DEGRADE default for a player model that predates `maCosts` (an
 // old save, a test fixture) — the live price always comes from the server.
 import {AWARD_COSTS, MILESTONE_COST} from '@/common/constants';
@@ -2927,6 +2928,10 @@ export default defineComponent({
      *  «Сначала завершите текущее действие», not «Сейчас не ваш ход». */
     awaitingInput(): boolean {
       return awaitingViewerInput(this.playerView);
+    },
+    /** The viewer has passed this generation — every off-turn reason says so, never «not your turn» (class CT). */
+    viewerPassed(): boolean {
+      return viewerHasPassed(this.playerView);
     },
     /** The server offers convert-plants RIGHT NOW — drives BOTH the resource-
      *  cell highlight and the LT quick menu. Server-authoritative (mirrors the
@@ -7881,8 +7886,8 @@ export default defineComponent({
       // pending decision (a mandatory corp/forced prompt, a placement, a mid-sub
       // action) — «Сначала завершите текущее действие», NOT «Сейчас не ваш ход»
       // (which is only true when it is genuinely an opponent's turn).
-      return this.actionBlockedReason !== '' || this.awaitingInput ?
-        'Finish your current action first' : 'Not your turn to take any actions';
+      // A seat that PASSED is told so (class CT) — the shared ladder, never a copy of its strings.
+      return this.actionBlockedReason !== '' ? 'Finish your current action first' : offTurnReason(this.awaitingInput, this.viewerPassed);
     },
     /** The play WINDOW is closed — a decision is already owed, or no play
      *  is offered away from the action menu (`handPlayWindowClosed`). THE
@@ -7991,7 +7996,18 @@ export default defineComponent({
       if (this.consoleState.confirm !== 'pass') {
         return {lines: []};
       }
-      return passWarnings({
+      return this.passLeftBehind;
+    },
+    /**
+     * WHAT A PASS WOULD LEAVE UNUSED, whichever door it comes through — the pass confirm above AND a card play that
+     * counts as a pass (`ActionPreview.passes`, P80 — the play composer's «ЭТО ПАС» row): ONE reading of ONE set of facts
+     * (class CT), never a second count beside this one.
+     */
+    passLeftBehind(): PassWarnings {
+      return passWarnings(this.passFacts);
+    },
+    passFacts(): PassFacts {
+      return {
         cardActions: this.actionsAvailableCount,
         futileCardActions: this.wheelCounts.futileCardActions,
         trade: this.tradeColonyContext !== undefined,
@@ -7999,7 +8015,7 @@ export default defineComponent({
         heat: !this.convertHeatReady ? 'none' : this.convertHeatFutile !== undefined ? 'futile' : 'useful',
         hydro: this.hydroActionAvailable,
         freeVote: this.game.parliament?.viewer?.vote.available === true && this.game.parliament.viewer.vote.source === 'lobby',
-      });
+      };
     },
     confirmWarnings(): Array<string> {
       return this.passReading.lines.map((l) => l.count !== undefined ? `${translateText(l.key)}: ${l.count}` : translateText(l.key));
@@ -8048,7 +8064,7 @@ export default defineComponent({
     colonyTradeBlockReason(): string {
       const selected = this.game.colonies[this.consoleState.colonyIndex];
       if (selected === undefined) {
-        return translateText(this.awaitingInput ? 'Finish your current action first' : 'Not your turn to take any actions');
+        return translateText(offTurnReason(this.awaitingInput, this.viewerPassed));
       }
       const reason = colonyTradeReason({
         colony: selected,
@@ -8058,6 +8074,7 @@ export default defineComponent({
         availableFleets: this.viewerFreeFleets,
         myTurn: this.myTurn,
         awaitingInput: this.awaitingInput,
+        passed: this.viewerPassed,
         resolveName: (color) => displayNameForColor(this.playerView.players, color),
       });
       if (reason === undefined) {
@@ -8916,6 +8933,7 @@ export default defineComponent({
           blockedReason: this.actionBlockedReason,
           myTurn: this.myTurn,
           awaitingInput: this.awaitingInput,
+          passed: this.viewerPassed,
           stdAvailable: this.standardProjectsAction !== undefined,
           endTurnAvailable: findEndTurnPath(wf) !== undefined,
           passAvailable: findPassPath(wf) !== undefined,
@@ -8962,6 +8980,7 @@ export default defineComponent({
         blockedReason: this.actionBlockedReason,
         myTurn: this.myTurn,
         awaitingInput: this.awaitingInput,
+        passed: this.viewerPassed,
         myMegacredits: this.thisPlayer.megacredits,
         sellAvailable: this.salePatentModel !== undefined,
         sellModel: this.salePatentModel,
@@ -9119,6 +9138,7 @@ export default defineComponent({
         blockedReason: this.awardFundingActive ? '' : this.actionBlockedReason,
         myTurn: this.myTurn,
         awaitingInput: this.awaitingInput,
+        passed: this.viewerPassed,
         myMegacredits: this.thisPlayer.megacredits,
         availableNow: this.claimableTitles(found?.options),
         describe,
@@ -9241,7 +9261,7 @@ export default defineComponent({
       // menu is actually withheld. The old tail returned it unconditionally, so
       // a player whose menu WAS live got told to finish an action they weren't in.
       if (!this.myTurn) {
-        return offTurnReason(this.awaitingInput);
+        return offTurnReason(this.awaitingInput, this.viewerPassed);
       }
       if (v !== undefined && !v.free && this.thisPlayer.megacredits < v.cost) {
         return 'Not enough M€';
@@ -19373,7 +19393,7 @@ export default defineComponent({
       if (card === '' || perform === undefined) {
         // The action is no longer on the table (the view moved under the draft).
         // Say so and leave the entry standing — the player's own B is the exit.
-        this.showNotice(offTurnReason(this.awaitingInput));
+        this.showNotice(offTurnReason(this.awaitingInput, this.viewerPassed));
         return;
       }
       const responses = hydroAdvanceBatch(
@@ -20072,7 +20092,7 @@ export default defineComponent({
       }
       const action = findSellPatentsAction(this.playerView.waitingFor);
       if (action === undefined) {
-        this.showNotice(offTurnReason(this.awaitingInput));
+        this.showNotice(offTurnReason(this.awaitingInput, this.viewerPassed));
         return;
       }
       const cards = [...picked] as Array<CardName>;

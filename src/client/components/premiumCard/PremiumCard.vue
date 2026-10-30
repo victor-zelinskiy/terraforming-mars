@@ -49,7 +49,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
 
         <!-- requirements rail (secondary to the plate); collapses to a thin
              decorative divider when the card has no requirements -->
-        <PremiumRequirementsBar v-if="vm.requirements.length > 0" :requirements="vm.requirements" />
+        <PremiumRequirementsBar v-if="vm.requirements.length > 0" :requirements="vm.requirements" :footnote="vm.requirementFootnote === true" />
         <span v-else class="pcard__divider" aria-hidden="true"></span>
 
         <!-- art viewport; a corporation / CEO shows real art if it has any,

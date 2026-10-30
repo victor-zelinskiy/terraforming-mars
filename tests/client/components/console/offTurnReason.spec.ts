@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {awaitingViewerInput, handPlayWindowClosed, offTurnReason, NOT_YOUR_TURN, FINISH_CURRENT_ACTION} from '@/client/console/offTurnReason';
+import {awaitingViewerInput, handPlayWindowClosed, offTurnReason, viewerHasPassed, NOT_YOUR_TURN, FINISH_CURRENT_ACTION, PASSED_THIS_GENERATION} from '@/client/console/offTurnReason';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
 // The ONE shared off-turn reason contract every console surface funnels through
@@ -19,6 +19,21 @@ describe('offTurnReason (console off-turn reason contract)', () => {
   it('genuine opponent turn (not awaiting) → «not your turn»', () => {
     expect(offTurnReason(false)).to.eq(NOT_YOUR_TURN);
     expect(NOT_YOUR_TURN).to.eq('Not your turn to take any actions');
+  });
+
+  it('a seat that PASSED this generation (the pass, or a play that counts as one — P80) is told so, never «not your turn»', () => {
+    expect(offTurnReason(false, true)).to.eq(PASSED_THIS_GENERATION);
+    expect(PASSED_THIS_GENERATION).to.eq('You have passed this generation');
+    expect(offTurnReason(false, false)).to.eq(NOT_YOUR_TURN);
+    // A prompt owed to the viewer outranks the pass (a later phase's question): finish it first.
+    expect(offTurnReason(true, true)).to.eq(FINISH_CURRENT_ACTION);
+  });
+
+  it('viewerHasPassed reads the server\'s own list of passed seats', () => {
+    const view = (passed: ReadonlyArray<string>) => ({thisPlayer: {color: 'red'}, game: {passedPlayers: passed}}) as unknown as PlayerViewModel;
+    expect(viewerHasPassed(view(['red']))).to.be.true;
+    expect(viewerHasPassed(view(['blue']))).to.be.false;
+    expect(viewerHasPassed(view([]))).to.be.false;
   });
 
   describe('handPlayWindowClosed — when the turn note joins a hand card\'s own reasons', () => {

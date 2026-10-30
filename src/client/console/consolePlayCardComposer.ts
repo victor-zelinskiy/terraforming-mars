@@ -345,7 +345,12 @@ export function heroRewardEffectsOf(branch: ActionPreviewBranch | undefined): Re
 }
 
 /** «Разыграть карту» — or the door's own navigational verb: the press leads somewhere, it does not finish the play. */
-export function playCommitVerb(door: PlayDoor | undefined): string {
+export function playCommitVerb(door: PlayDoor | undefined, passes: boolean = false): string {
+  // A play that counts as a pass (`ActionPreview.passes`, class CT) says so in its verb: the press gives the turn away.
+  // A door outranks it — the press then opens the next step, it does not play yet.
+  if (passes && door === undefined) {
+    return 'Play and pass';
+  }
   switch (door?.kind) {
   case 'board': return 'Play on the board';
   case 'parliament': return door.mode === 'support' ? 'Choose the party' : door.mode === 'delegate' ? 'Choose the delegate' : 'Choose the resolution';

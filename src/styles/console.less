@@ -10762,6 +10762,9 @@ html.console-mode {
         &--phase { border-left-color: fade(@con-amber, 70%); color: #ffe6b0; }
         &--rule,
         &--generic { border-left-color: rgba(150, 175, 205, 0.6); }
+        /* A playable card whose play IS A PASS (class CT): the consequence, said in the pass's own amber kant — never
+           red (the pass is not a danger), never a glow. */
+        &--pass { border-left-color: fade(@con-amber, 70%); color: #ffe6b0; }
     }
 
     /* ── HEADER: title + playable count + tag-filter chips ─────────────────
@@ -35005,6 +35008,8 @@ html.con-profile-tv {
        and never shrinks in place (a caption on one line and its chips on the
        next is the wrong reading). */
     .con-composer__rescat--forecast { flex: 0 0 auto; max-width: 100%; }
+    /* «ЭТО ПАС» names what the pass leaves — a sentence list, so it takes the cluster's width before it wraps. */
+    .con-composer__rescat--pass { flex: 1 1 100%; max-width: 100%; }
     /* (The tag icons stay ONE object without help: `__rescat-tags` is an
        `inline-flex`, i.e. `nowrap` by construction. What it must NOT be is a
        band of its own — hence no `--tags` rule here any more.) */
@@ -36291,7 +36296,17 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
             .con-composer__rescat-text b { color: #ffb0a6; }
         }
         &--fallback { color: @con-text-dim; }
+        /* THIS PLAY PASSES (class CT): drawn by MATERIAL — an amber hairline and the word, never a glow (invariant 15).
+           The pass is not a danger (the owner, 2026-10-15: «пас» is never red) — it is the consequence of the press. */
+        &--pass {
+            box-shadow: inset 0 0 0 .06rem fade(@con-amber, 46%);
+            .con-composer__rescat-glyph { color: fade(@con-amber, 92%); }
+            .con-composer__rescat-text { color: @con-text; }
+        }
     }
+    &__rescat-passlist { display: inline; color: @con-text; font-weight: 500; }
+    &__rescat-passline + &__rescat-passline::before { content: ' · '; color: @con-text-dim; }
+    &__rescat-passquiet { color: @con-text-dim; font-weight: 500; }
     &__rescat-glyph {
         width: 1rem; text-align: center; font-size: .8rem; color: fade(@con-cyan, 90%);
         flex-shrink: 0; background-size: contain !important; background-repeat: no-repeat; background-position: center;

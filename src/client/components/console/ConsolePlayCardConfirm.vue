@@ -298,7 +298,7 @@
 
                 <!-- Derived result categories — the block is NEVER empty. A tag
                      row is "label: [inline chips]"; a VP row is "label: +N". -->
-                <div v-for="(sec, i) in resultSections" :key="'r' + i" class="con-composer__rescat"
+                <div v-for="(sec, i) in resultSections" :key="'r' + i" class="con-composer__rescat" :data-rescat="sec.kind"
                      :class="[sec.penalty ? 'con-composer__rescat--penalty' : 'con-composer__rescat--' + sec.kind,
                               {'con-composer__rescat--event-tags': sec.eventTags,
                                'con-composer__rescat--vpformula': sec.formula !== undefined}]">
@@ -329,6 +329,13 @@
                       <span class="con-composer__rescat-armtext" :data-armed-kind="arm.kind">{{ armedEffectFormula(arm) }}</span>
                     </template>
                   </span>
+                  <!-- THIS PLAY PASSES (class CT): what the pass leaves unused — the pass confirm's own lines, one reading. -->
+                  <span v-if="sec.kind === 'pass' && (sec.passLines?.length ?? 0) > 0" class="con-composer__rescat-passlist" data-composer-pass-left>
+                    <span v-for="(line, li) in sec.passLines" :key="'pl' + li" class="con-composer__rescat-passline" data-pass-line
+                    >{{ passLineText(line) }}</span>
+                  </span>
+                  <span v-if="sec.kind === 'pass' && sec.passQuiet !== undefined" class="con-composer__rescat-passquiet" data-pass-quiet
+                  >{{ passLineText(sec.passQuiet) }}</span>
                   <span v-if="sec.kind === 'tags' && sec.tags !== undefined" class="con-composer__rescat-tags">
                     <span v-for="(tag, t) in sec.tags" :key="t" class="resource-tag con-composer__rescat-tag" :class="'tag-' + tag" aria-hidden="true"></span>
                   </span>
@@ -893,6 +900,7 @@ import ConsolePlayedReceivingStage from '@/client/components/console/played/Cons
 //  builder written twice explains the same mechanic two ways the first time a
 //  step shape changes.)
 import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from '@/client/console/consolePlayCardResult';
+import {PassLine, PassWarnings} from '@/client/console/passWarnings';
 import {ScoreFormula, formulaGlyph, formulaOperandsText, formulaTagIcon, shortfallText} from '@/client/console/scoreExplorerModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import ConsoleCountedWhy from '@/client/components/console/ConsoleCountedWhy.vue';
@@ -1057,6 +1065,11 @@ export default defineComponent({
      * → оплата» is one phase of one surface.
      */
     embedded: {type: Boolean, default: false},
+    /**
+     * WHAT A PASS WOULD LEAVE UNUSED — the shell's ONE reading (`passLeftBehind`, the pass confirm's own `passWarnings`
+     * over the same facts). Read only when this play counts as a pass (`ActionPreview.passes`, class CT).
+     */
+    passReading: {type: Object as PropType<PassWarnings>, default: undefined},
   },
   emits: ['confirm', 'cancel'],
   data() {
@@ -2074,6 +2087,8 @@ export default defineComponent({
           eventTagsCounted: this.thisPlayer.tableau.some((c) => c.name === CardName.ODYSSEY),
           // What the play arms for the next card (TR49 class) — the server's reading, named before the press.
           arms: this.preview?.arms,
+          // A play that IS a pass (class CT): the pass confirm's own reading, named before the press.
+          passes: this.playPasses ? (this.passReading ?? {lines: []}) : undefined,
         },
         // The repeat slot IS the meaningful result for ProjectInspection — count
         // it so the block is never the misleading "applied after confirming".
@@ -2279,11 +2294,15 @@ export default defineComponent({
     playDoor(): PlayDoor | undefined {
       return playDoorOf(this.selectedBranch);
     },
+    /** This play counts as a pass (the server's structural mark — class CT): the verb and the «ЭТО ПАС» row read it. */
+    playPasses(): boolean {
+      return this.preview?.passes === true;
+    },
     /** The big CTA strip label — the primary action in words. */
     ctaLabel(): string {
       const st = this.primaryActionState;
       switch (st.kind) {
-      case 'ready': return playCommitVerb(this.playDoor);
+      case 'ready': return playCommitVerb(this.playDoor, this.playPasses);
       // Calm INSTRUCTION, not a refusal: the rail says what the screen is
       // waiting for instead of dangling a live «Разыграть карту» over a result
       // the player has not chosen.
@@ -2376,7 +2395,7 @@ export default defineComponent({
         primary: this.primaryActionState,
         // ONE verb for the rail and the bar (T14 · CC): the press names itself in the bar exactly as on the rail —
         // «Разыграть карту», «Разыграть на поле», «Выбрать резолюцию» — never a shorter second promise beside it.
-        doorVerb: playCommitVerb(this.playDoor),
+        doorVerb: playCommitVerb(this.playDoor, this.playPasses),
       });
     },
     /** The focused row opens a sub-picker on A (card/player/or step or tabbed) —
@@ -2939,11 +2958,16 @@ export default defineComponent({
     armedEffectBadge,
     armedEffectFormula,
     requirementStateText,
+    /** One line of the pass reading, exactly as the pass confirm prints it («key: N»). */
+    passLineText(line: PassLine): string {
+      return line.count !== undefined ? `${translateText(line.key)}: ${line.count}` : translateText(line.key);
+    },
     rescatGlyph(kind: string): string {
       switch (kind) {
       case 'action': return '⟳';
       case 'effect': return '✦';
       case 'armed': return '⚡';
+      case 'pass': return '⏸';
       case 'vp': return '★';
       case 'tags': return '#';
       default: return '›';

@@ -189,6 +189,8 @@ export type LtQuickContext = {
    *  mandatory sub-decision mid-flight). Distinguishes «завершите действие» from
    *  «не ваш ход» when `myTurn` is false. */
   awaitingInput: boolean,
+  /** The viewer has passed this generation — the off-turn reason says so (`offTurnReason`). */
+  passed?: boolean,
   /** The action menu offers the Standard-projects submenu right now. */
   stdAvailable: boolean,
   /** «End Turn» is offered right now (after the 1st action of the round). */
@@ -242,7 +244,7 @@ export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
     // Menu live → the verb's own reason; else the shared off-turn reason
     // («завершите действие» while a mandatory decision is pending, «не ваш ход»
     // only on a genuine opponent turn).
-    return {available: false, reason: ctx.myTurn ? reason : offTurnReason(ctx.awaitingInput), soft: true};
+    return {available: false, reason: ctx.myTurn ? reason : offTurnReason(ctx.awaitingInput, ctx.passed === true), soft: true};
   };
   /**
    * The TURN-CONTROL verbs («Пропустить ход» / «Пас») answer to their own
@@ -369,6 +371,8 @@ export type StdProjectScreenContext = {
   myTurn: boolean,
   /** The server is waiting on the viewer at all (see {@link LtQuickContext}). */
   awaitingInput: boolean,
+  /** The viewer has passed this generation (see {@link LtQuickContext}). */
+  passed?: boolean,
   /** A MINIMIZED decision is still owed — outranks every per-row reason
    *  (see {@link LtQuickContext.blockedReason}). */
   blockedReason?: string,
@@ -429,7 +433,7 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
         reason = served.message;
         reasonParams = served.params;
       } else if (!ctx.myTurn) {
-        reason = offTurnReason(ctx.awaitingInput);
+        reason = offTurnReason(ctx.awaitingInput, ctx.passed === true);
       } else if (cost > ctx.myMegacredits) {
         reason = 'Need ${0} more M€';
         reasonParams = [String(cost - ctx.myMegacredits)];
@@ -476,7 +480,7 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
     reason: sellAvailable ? '' :
       blocked ? (ctx.blockedReason as string) :
         sellExhausted ? SELL_PATENTS_EXHAUSTED_REASON :
-          (!ctx.sellAvailable ? offTurnReason(ctx.awaitingInput) : 'No cards in hand'),
+          (!ctx.sellAvailable ? offTurnReason(ctx.awaitingInput, ctx.passed === true) : 'No cards in hand'),
   };
   return [sellRow, ...projectRows];
 }

@@ -109,6 +109,8 @@ export type ConsoleMaBuildOptions = {
    *  action menu is withheld by a mandatory sub-decision. Splits «завершите
    *  действие» from «не ваш ход». */
   awaitingInput: boolean,
+  /** The viewer has passed this generation — the off-turn reason says so (`offTurnReason`). */
+  passed?: boolean,
   myMegacredits: number,
   /** Names offered by the live claim/fund OrOptions (server-filtered). */
   availableNow: ReadonlySet<string>,
@@ -182,7 +184,7 @@ export function buildConsoleMaItems(
       } else if (itemKind === 'milestone' && !myReady) {
         blocker = ''; // the progress metric / gap context explains it
       } else if (!opts.myTurn) {
-        blocker = offTurnReason(opts.awaitingInput);
+        blocker = offTurnReason(opts.awaitingInput, opts.passed === true);
       } else if (opts.myMegacredits < opts.nextCost) {
         blocker = 'Not enough M€';
       } else {

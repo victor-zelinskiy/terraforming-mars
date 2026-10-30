@@ -26,6 +26,16 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 /** English i18n keys (the text IS the key). */
 export const NOT_YOUR_TURN = 'Not your turn to take any actions';
 export const FINISH_CURRENT_ACTION = 'Finish your current action first';
+/**
+ * The viewer has PASSED this generation (the pass button, or a play that counts as a pass — Prelude 2 P80 Red
+ * Appeasement): «not your turn» is a half-truth then — no turn is coming back until the next generation.
+ */
+export const PASSED_THIS_GENERATION = 'You have passed this generation';
+
+/** The viewer is among the seats that passed this generation — the server's own list (`GameModel.passedPlayers`). */
+export function viewerHasPassed(view: PlayerViewModel): boolean {
+  return view.game.passedPlayers.includes(view.thisPlayer.color);
+}
 
 /**
  * The server is waiting on the VIEWER for input — it is their turn, whether the
@@ -43,10 +53,14 @@ export function awaitingViewerInput(view: PlayerViewModel): boolean {
  * the viewer must finish first (still their turn) vs a genuine opponent turn.
  * Callers that only hold the boolean (a PURE model built from a context object)
  * pass it directly; callers holding the view use
- * `offTurnReason(awaitingViewerInput(view))`.
+ * `offTurnReason(awaitingViewerInput(view), viewerHasPassed(view))`. A seat that PASSED is told so, never «not your
+ * turn» (class CT, P80).
  */
-export function offTurnReason(awaitingInput: boolean): string {
-  return awaitingInput ? FINISH_CURRENT_ACTION : NOT_YOUR_TURN;
+export function offTurnReason(awaitingInput: boolean, passed: boolean = false): string {
+  if (awaitingInput) {
+    return FINISH_CURRENT_ACTION;
+  }
+  return passed ? PASSED_THIS_GENERATION : NOT_YOUR_TURN;
 }
 
 /**
