@@ -1,6 +1,6 @@
 # Prelude 2 — включение в премиум-скоуп, hold-back-список, замена
 
-**Статус 2026-10-30: ЛЕСА ПОСТАВЛЕНЫ · 6 / 54 · СДАНЫ P76 Ishtar Expedition, P85 Summit Logistics (первая политическая), P68 Ceres Tech Market (первая с действием), P80 Red Appeasement (первый розыгрыш-пас) и P78 L1 Trade Terminal (первый пассивный эффект торговли и первый мультивыбор разыгранных карт) и P69 Cloud Tourism (первый счёт ПАРАМИ меток и первый ПО-порог на собственном ресурсе), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
+**Статус 2026-10-30: ЛЕСА ПОСТАВЛЕНЫ · 7 / 54 · СДАНЫ P76 Ishtar Expedition, P85 Summit Logistics (первая политическая), P68 Ceres Tech Market (первая с действием), P80 Red Appeasement (первый розыгрыш-пас) и P78 L1 Trade Terminal (первый пассивный эффект торговли и первый мультивыбор разыгранных карт) и P69 Cloud Tourism (первый счёт ПАРАМИ меток и первый ПО-порог на собственном ресурсе) и P75 GHG Shipment (первое требование Кельвинистов — читается Зелёными везде), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
 `PREMIUM_SCOPE_MODULES` (`src/common/cards/premiumScope.ts`) по образцу классического Turmoil
 (`docs/TURMOIL_REDUX_CLASSIC_CARDS.md`, 2026-10-21 → 2026-10-25): скоуп = «модуль минус список», список — ворклист.
 Адаптация идёт по одной карте, отдельными задачами, по ворклисту §4; список — временный костыль и удаляется, когда
@@ -124,6 +124,10 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
    `placeDelegates` (Redux — `PlaceDelegatesOnResolution`), требование партии = «правит ИЛИ ≥2 своих делегатов»,
    Кельвинисты = Зелёные (`normalizeParty`), требование председательства — `ChairmanRequirement`; маркер
    `politics: 'redux'` в манифесте; спек карты — таблица Redux через `tests/parliament/parliamentArrange.ts`.
+   Классическая партия в требовании (P75 — Кельвинисты): сервер держит `KELVINISTS`, как апстрим (апстримный спек на
+   классике — байт в байт), а премиум-читатели — плашка лица, генератор «Информации», описание — идут через
+   `normalizeReduxParty` (реестр CW). ⚠ Свежий стол Redux открывается с Зелёными у власти — «запертый» стол
+   Зелёных в спеке / фикстуре сажает закон другой партии.
    ⚠ Партия, которая правит / открыта делегатами, даёт и свой ЭФФЕКТ: «Учёные» — «+1 любая метка», и он входит в
    каждый подсчёт меток играбельной карты Учёных (P85 — на 1 M€ больше видимых меток; база называет долю `wild`).
 6. **Корпорация** — MarsBot уже играет собственных двойников (Spire — `tests/automa/MarsBotSpire.spec.ts`); человеческая
@@ -162,7 +166,7 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 | P72 | Envoys from Venus | EVENT · Venus + ПОЛИТ | декларативная, 2 делегата | в списке |
 | P73 | Floating Refinery | ACTIVE · Venus | behavior + bespoke action | в списке |
 | P74 | Frontier Town | AUTOMATED · ПОЛИТ (Mars First) | bespokePlay, город | в списке |
-| P75 | GHG Shipment | EVENT · ПОЛИТ (Кельвинисты = Зелёные) | декларативная | в списке |
+| P75 | GHG Shipment | EVENT · ПОЛИТ (Кельвинисты = Зелёные) | декларативная | СДАНА 2026-10-30 |
 | P76 | Ishtar Expedition | EVENT · Venus | декларативная, поиск по метке | СДАНА 2026-10-29 75d6ce23e4 |
 | P77 | Jovian Envoys | EVENT · ПОЛИТ | декларативная, 2 делегата | в списке |
 | P78 | L1 Trade Terminal | ACTIVE · Colonies | behavior + bespokePlay | СДАНА 2026-10-30 |

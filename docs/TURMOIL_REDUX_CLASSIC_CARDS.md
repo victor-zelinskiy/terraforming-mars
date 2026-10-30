@@ -170,7 +170,8 @@ is off» допускает в разнице только адаптирова�
    сетап парламента — только через `tests/parliament/parliamentArrange.ts` (`seatResolution` / `seatEnacted`),
    никогда голой записью в слот (правило tests.md «TURMOIL REDUX: A SPEC OR A FIXTURE NEVER ASSUMES THE DEAL»).
    Требование партии в Redux — «правит ИЛИ ≥2 своих делегатов на её резолюции»; Кельвинисты = Зелёные
-   (`normalizeParty`).
+   (`normalizeParty`) — и для фасада, и для премиум-читателей: плашка лица (`requirementPartyEmblem`), блок
+   требования генератора и текст карты называют Зелёных через ту же `normalizeReduxParty` (P75, реестр CW).
 5. **MarsBot.** Четыре корпорации без политики уже играются ботом как его собственные
    (`console-bot-corp-*.spec.ts`); человеческая версия — отдельная карта, бот не трогается.
 6. **Карта с ЭФФЕКТОМ (живой хук `onCardPlayed` / `onCardPlayedByAnyPlayer` / …) — двойник прогноза ОБЯЗАТЕЛЕН** (T06): `cardPlayedForecast` в файле карты читает те же предикаты, что хук (гарды `effectForecastCoverage` /
