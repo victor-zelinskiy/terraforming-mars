@@ -39,6 +39,16 @@ const planetsAndColonies: ActionEffect = {
   basis: [{count: 3, label: 'Your tags', tags: [Tag.JOVIAN, Tag.EARTH, Tag.VENUS, Tag.MARS]}, {count: 2, label: 'Your colonies'}],
 };
 
+/** P69 Cloud Tourism — «1 M€ production per PAIR of Earth and Venus tags»: ONE set term, each side its own number. */
+const pairs: ActionEffect = {
+  direction: 'gain', icon: 'megacredits', amount: 2, current: 1, resulting: 3, note: 'production',
+  basis: [{count: 2, label: 'Your tag sets', set: [{tag: Tag.EARTH, count: 2}, {tag: Tag.VENUS, count: 2, wild: 1, self: 1}]}],
+};
+const noPairs: ActionEffect = {
+  direction: 'gain', icon: 'megacredits', amount: 0, current: 1, resulting: 1, note: 'production',
+  basis: [{count: 0, label: 'Your tag sets', set: [{tag: Tag.EARTH, count: 0}, {tag: Tag.VENUS, count: 3, self: 1}], zero: 'No Earth tags'}],
+};
+
 function card(extra: Partial<CardModel>): CardModel {
   return {name: CardName.COMPOSTING_INITIATIVE, resources: undefined, calculatedCost: 8, isSelfReplicatingRobotsCard: false, ...extra} as CardModel;
 }
@@ -163,6 +173,29 @@ describe('countedPlay', () => {
       expect(orTags.glyphs.map((g) => g.tag)).deep.eq([Tag.VENUS, Tag.EARTH]);
       expect(countedWhyOf([{direction: 'cost', icon: 'megacredits', amount: 3, basis: [{count: 3, label: 'Oceans'}]}])).is.undefined;
     });
+
+    it('P69 — a SET count is ONE term with its SIDES: each its printed tag, its own number, the wild tags dealt to it and the card\'s own tag; never a sum', () => {
+      const why = countedWhyOf([pairs])!;
+      expect(why).deep.include({composed: false, zero: false, zeroLabel: undefined});
+      expect(why.terms, 'a set is not a sum of terms').deep.eq([]);
+      expect(why.term.count, 'the number of sets is the server\'s').eq(2);
+      expect(why.sides.map((s) => [s.tag, s.count, s.wild, s.self])).deep.eq([[Tag.EARTH, 2, undefined, undefined], [Tag.VENUS, 2, 1, 1]]);
+      expect(why.sides.map((s) => [s.glyph.type, s.glyph.tag])).deep.eq([[CardRenderItemType.TAG, Tag.EARTH], [CardRenderItemType.TAG, Tag.VENUS]]);
+      expect(why.glyphs.map((g) => g.tag), 'the set as printed: «/ [E][V]»').deep.eq([Tag.EARTH, Tag.VENUS]);
+      expect(countedWhyOf([oceansProduction])!.sides, 'any other basis has no sides').deep.eq([]);
+    });
+
+    it('P69 — no set: a zero, named by the server\'s words for the empty side; the sides still stand', () => {
+      const why = countedWhyOf([noPairs])!;
+      expect(why).deep.include({zero: true, zeroLabel: 'No Earth tags'});
+      expect(why.sides.map((s) => s.count)).deep.eq([0, 3]);
+    });
+
+    it('P69 — the plate of a counted pair reads the production chip «+2»', () => {
+      const plate = handForecastPlate(card({countedPlay: [pairs]}))!;
+      expect(plate).deep.include({kind: 'count', value: 2, zero: false});
+      expect(plate.items[0]).deep.include({production: true, amount: 2});
+    });
   });
 
   describe('the inspector\'s «ДЛЯ ВАС» — the same reading as one row', () => {
@@ -196,6 +229,13 @@ describe('countedPlay', () => {
       expect(countedWhyRow(countedWhyOf([withWild])!, t)).eq('Your tags (Jovian, Earth, Venus, Mars) 4 (incl. 1 wild) + Your colonies 2 → +6');
       const single: ActionEffect = {direction: 'gain', icon: 'megacredits', amount: 3, basis: [{count: 3, label: 'Your tags', tag: Tag.EARTH, wild: 1}]};
       expect(countedWhyRow(countedWhyOf([single])!, t)).eq('Your tags 3 (incl. 1 wild) → +3');
+    });
+
+    it('P69 — a SET count: «Earth 2 · Venus 2 (incl. 1 wild · this card 1) → 2 pairs → +2 production»; its zero names the empty side', () => {
+      expect(countedWhyRow(countedWhyOf([pairs])!, t)).eq('Earth 2 · Venus 2 (incl. 1 wild · this card 1) → 2 pairs → +2 production');
+      const one: ActionEffect = {...pairs, amount: 1, basis: [{count: 1, label: 'Your tag sets', set: [{tag: Tag.EARTH, count: 1}, {tag: Tag.VENUS, count: 1, self: 1}]}]};
+      expect(countedWhyRow(countedWhyOf([one])!, t)).eq('Earth 1 · Venus 1 (this card 1) → 1 pair → +1 production');
+      expect(countedWhyRow(countedWhyOf([noPairs])!, t)).eq('Earth 0 · Venus 3 (this card 1) · No Earth tags → 0 production');
     });
 
     it('T12 — a single term with cells reads as a single term; its zero reads in the words the server sent', () => {

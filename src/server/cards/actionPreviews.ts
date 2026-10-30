@@ -19,7 +19,7 @@ import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS, TEMPERATURE_FOR_OCEAN_BONUS} from '../../common/constants';
 import {parameterRoom} from '../../common/parliament/parameterMove';
 import {tileRemovalRoom} from '../../common/parliament/tileRemoval';
-import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel, NeutralRallyModel} from '../../common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis, ActionEffectBasisSetSide, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel, NeutralRallyModel} from '../../common/models/ActionPreviewModel';
 import {AllColonyBonusesModel} from '../../common/models/ColonyBonusLedgerModel';
 import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
 import {AmountConversionModel, AmountCostModel, AmountResultModel, DiscardPromptMeta, PlacementEffect, PlayerInputModel, SelectColonyModel} from '../../common/models/PlayerInputModel';
@@ -140,6 +140,21 @@ export function productionChange(player: IPlayer, resource: Resource, amount: nu
  */
 export function counted(effect: ActionEffect, ...basis: ReadonlyArray<ActionEffectBasis>): ActionEffect {
   return {...effect, basis};
+}
+/**
+ * The basis of a count of FULL SETS of tags (P69 — «per pair of Earth and Venus
+ * tags», `ActionEffectBasis.set`): the card's own sides as it counted and dealt
+ * them, the number of sets it counted, and its zero in words. Shares are kept
+ * only when they are there.
+ */
+export function tagSetBasis(sides: ReadonlyArray<ActionEffectBasisSetSide>, sets: number, zero?: string): ActionEffectBasis {
+  const set = sides.map((s) => ({
+    tag: s.tag,
+    count: s.count,
+    ...(s.wild !== undefined && s.wild > 0 ? {wild: s.wild} : {}),
+    ...(s.self !== undefined && s.self > 0 ? {self: s.self} : {}),
+  }));
+  return {count: sets, label: 'Your tag sets', set, ...(sets === 0 && zero !== undefined ? {zero} : {})};
 }
 /** Raise terraform rating by N. */
 export function trGain(player: IPlayer, amount: number): ActionEffect {

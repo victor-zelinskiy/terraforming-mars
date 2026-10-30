@@ -12,7 +12,28 @@
   <div class="con-cwhy" :class="{'con-cwhy--zero': why.zero}"
        data-count-why :data-count-why-total="why.terms.length > 0 ? undefined : why.term.count">
     <span class="con-cwhy__kicker">{{ kicker }}</span>
-    <template v-if="why.terms.length > 0">
+    <!-- A SET count (P69 — «per pair of Earth and Venus tags»): every side its printed tag and its OWN number, what it
+         includes named on it (the wild tags the card dealt there, the card's own tag), then «→ N пар» — the number of
+         complete sets, the server's. Never a sum, never one number for a row of tags. -->
+    <template v-if="why.sides.length > 0">
+      <template v-for="(s, si) in why.sides" :key="s.tag">
+        <span v-if="si > 0" class="con-cwhy__op" aria-hidden="true">·</span>
+        <span class="con-cwhy__part" :data-count-set-side="s.tag" :data-count-set-side-n="s.count">
+          <span class="con-cwhy__glyph" data-count-glyph><PremiumMechNode :node="s.glyph" /></span>
+          <b class="con-cwhy__num">{{ s.count }}</b>
+          <span v-if="s.wild !== undefined || s.self !== undefined" class="con-cwhy__wild">
+            {{ $t('incl.') }}<template v-if="s.wild !== undefined"><span class="con-cwhy__glyph con-cwhy__glyph--part" :data-count-wild="s.wild"><PremiumMechNode :node="wildGlyph" /></span><b>{{ s.wild }}</b></template>
+            <span v-if="s.wild !== undefined && s.self !== undefined" class="con-cwhy__op" aria-hidden="true">·</span>
+            <span v-if="s.self !== undefined" :data-count-self="s.self">{{ $t('this card') }} <b>{{ s.self }}</b></span>
+          </span>
+        </span>
+      </template>
+      <template v-if="!why.zero">
+        <span class="con-cwhy__arrow" aria-hidden="true">→</span>
+        <span class="con-cwhy__label" data-count-sets :data-count-sets-n="why.term.count">{{ sets }}</span>
+      </template>
+    </template>
+    <template v-else-if="why.terms.length > 0">
       <template v-for="(t, ti) in why.terms" :key="ti">
         <span v-if="ti > 0" class="con-cwhy__op" aria-hidden="true">+</span>
         <span class="con-cwhy__part" :data-count-term="t.term.label" :data-count-term-n="t.term.count">
@@ -63,7 +84,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
-import {CountedWhy, excludedTail, PART_LABEL, signedAmount, WILD_GLYPH} from '@/client/console/countedPlay';
+import {CountedWhy, excludedTail, PART_LABEL, setsReading, signedAmount, WILD_GLYPH} from '@/client/console/countedPlay';
 import {ActionEffectBasisPartKind} from '@/common/models/ActionPreviewModel';
 import {BoardPeekBeat} from '@/client/console/boardPeek';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -89,6 +110,10 @@ export default defineComponent({
     },
     resultIcon(): string {
       return iconClassFor(this.why.chip.icon);
+    },
+    /** «2 пары» — the number of complete sets of a SET count (P69), the server's. */
+    sets(): string {
+      return setsReading(this.why.term.count, {text: translateText, params: translateTextWithParams});
     },
     excluded(): string | undefined {
       return excludedTail(this.why, {text: translateText, params: translateTextWithParams});

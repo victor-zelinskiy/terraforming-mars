@@ -338,7 +338,22 @@ export type ActionEffectBasis = {
   spaces?: ReadonlyArray<SpaceId>,
   /** The term's honest ZERO in words (an i18n key — «No empty areas next to your tiles»), read where the count is 0. */
   zero?: string,
+  /**
+   * A count of FULL SETS of tags (P69 Cloud Tourism — «1 M€ production per PAIR of Earth and Venus tags»): `count` is
+   * the number of complete sets — the smallest side — and every side is one tag with its OWN count, the wild tags the
+   * card DEALT to that side and the card's own printed tag on it. Neither an OR of tags (`tags` reads «per tag») nor a
+   * sum of terms («2 + 2 → +2» is false arithmetic) can say it. The SERVER counts and deals everything (the card's one
+   * counting function); the client reads the sides, it never takes a minimum. Exclusive with `tag` / `tags` / `parts`.
+   */
+  set?: ReadonlyArray<ActionEffectBasisSetSide>,
 };
+
+/**
+ * One side of a SET count (`ActionEffectBasis.set`): the tag, its count with everything that counts for it, the WILD
+ * tags dealt to it and the counting card's OWN tag on it (both included in `count`, absent when zero) — so a side the
+ * player checks against the table («Venus 2» with no Venus card in play) says where its number came from.
+ */
+export type ActionEffectBasisSetSide = {tag: Tag, count: number, wild?: number, self?: number};
 
 /** The kinds a counted share can be — its pictogram and its word are the client's, by this key. */
 export type ActionEffectBasisPartKind = MarsTileKind | MarsTileExclusion;

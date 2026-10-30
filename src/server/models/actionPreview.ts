@@ -297,9 +297,24 @@ function deriveDeclarativeBranches(player: IPlayer, card: ICard & IActionCard, b
     unavailableReason: reason?.message,
     unavailableReasonParams: reason?.params,
     renderKeys: [],
-    effects: effectsForBehavior(player, card, behavior),
+    effects: withOwnResourceVictoryPoints(player, card, behavior, effectsForBehavior(player, card, behavior)),
     steps: available ? declaredActionSteps(player, card, behavior) : [],
   }];
+}
+
+/**
+ * …AND WHAT A RESOURCE ADDED HERE IS WORTH HERE (P69 Cloud Tourism, ledger CV): a declared action that puts a FIXED
+ * number of resources on its own card whose points read them (Birds, Tardigrades, Security Fleet, Cloud Tourism — «1 VP
+ * per 3 floaters») states the points beside the gain — `from → to`, or the neutral «no new VP yet · N more» — in the
+ * SAME reading the predator path carries (`victoryPointsReading`): the press either crosses a threshold or it does not,
+ * and that is what the player cannot read off the card. A card whose points do not read its resources adds nothing.
+ */
+function withOwnResourceVictoryPoints(player: IPlayer, card: ICard, behavior: Behavior, effects: ReadonlyArray<ActionEffect>): ReadonlyArray<ActionEffect> {
+  if (typeof behavior.addResources !== 'number' || behavior.addResources <= 0 || card.resourceType === undefined) {
+    return effects;
+  }
+  const vp = actionPreviews.victoryPointsReading(player, card, behavior.addResources);
+  return vp === undefined ? effects : [...effects, vp];
 }
 
 /**

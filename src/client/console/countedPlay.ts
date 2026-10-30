@@ -207,6 +207,11 @@ export function countGlyphOf(term: ActionEffectBasis): CountedGlyph | undefined 
  * planet tag»: the server's `tags`), the ROW of the tags it counts, in the card's order. Empty → the term reads as words.
  */
 export function countGlyphsOf(term: ActionEffectBasis): ReadonlyArray<CountedGlyph> {
+  if (term.set !== undefined && term.set.length > 0) {
+    // A SET count (P69): the sides' tags in the card's order — the face's own «/ [E][V]». The strip draws each with its
+    // OWN number (`CountedWhy.sides`); this row is the set as printed.
+    return term.set.map((side) => glyph(CardRenderItemType.TAG, {tag: side.tag}));
+  }
   if (term.tags !== undefined && term.tags.length > 0) {
     const anyPlayer = term.label !== 'Your tags';
     return term.tags.map((tag) => glyph(CardRenderItemType.TAG, {tag, anyPlayer}));
@@ -217,6 +222,12 @@ export function countGlyphsOf(term: ActionEffectBasis): ReadonlyArray<CountedGly
 
 /** The WILD tag a count of the player's own tags includes (`ActionEffectBasis.wild`) — drawn as the face draws it. */
 export const WILD_GLYPH: CountedGlyph = glyph(CardRenderItemType.TAG, {tag: Tag.WILD});
+
+/**
+ * One SIDE of a SET count (P69 — «per pair of Earth and Venus tags»): its tag drawn as the face draws it, its own
+ * number, the wild tags the card DEALT to it and the card's own tag on it — all the server's (`ActionEffectBasis.set`).
+ */
+export type CountedSetSide = {tag: Tag, count: number, wild: number | undefined, self: number | undefined, glyph: CountedGlyph};
 
 /** One term of a SUMMED reading (P85 — «3 planet tags + 2 colonies»): the server's term and its glyphs. */
 export type CountedTerm = {term: ActionEffectBasis, glyphs: ReadonlyArray<CountedGlyph>};
@@ -236,6 +247,12 @@ export type CountedWhy = {
    * and for the census; when present, `term` is the FIRST of them and the reading never prints `term` alone.
    */
   terms: ReadonlyArray<CountedTerm>,
+  /**
+   * THE SIDES OF A SET COUNT (P69 Cloud Tourism — «1 M€ production per pair of Earth and Venus tags»): each side its
+   * tag, its own number and what it includes, read «[E] 2 · [V] 2 (incl. [wild] 1 · this card 1) → 2 pairs → +2».
+   * The number of sets is `term.count` — the server's; the client never takes a minimum. Empty for any other basis.
+   */
+  sides: ReadonlyArray<CountedSetSide>,
   parts: ReadonlyArray<{kind: ActionEffectBasisPartKind, count: number, spaces: ReadonlyArray<SpaceId>, glyph: CountedGlyph | undefined}>,
   excluded: ReadonlyArray<{kind: ActionEffectBasisPartKind, count: number, spaces: ReadonlyArray<SpaceId>}>,
   /**
@@ -303,6 +320,7 @@ export function countedWhyOf(effects: ReadonlyArray<ActionEffect> | undefined): 
       glyph: countGlyphOf(term),
       glyphs: countGlyphsOf(term),
       terms,
+      sides: (term.set ?? []).map((s) => ({tag: s.tag, count: s.count, wild: s.wild, self: s.self, glyph: glyph(CardRenderItemType.TAG, {tag: s.tag})})),
       parts: (term.parts ?? []).map((p) => ({kind: p.kind, count: p.count, spaces: p.spaces, glyph: PART_GLYPH[p.kind]})),
       excluded: (term.excluded ?? []).map((p) => ({kind: p.kind, count: p.count, spaces: p.spaces})),
       spaces: term.parts === undefined && terms.length === 0 ? (term.spaces ?? []) : [],
@@ -340,6 +358,15 @@ export function countedWhyRow(why: CountedWhy, t: CountedTranslator): string {
     // own number, a zero included (each entity named with its 0: the reading says what WOULD have counted).
     return `${why.terms.map((c) => termReading(c.term, t)).join(' + ')} → ${result}`;
   }
+  if (why.sides.length > 0) {
+    // A SET count (P69): «Земля 2 · Венера 2 (в т.ч. любых: 1 · эта карта 1) → 2 пары → +2 производство» — every side
+    // with its own number; a zero names the empty side in the server's words («Нет меток Земли»).
+    const sides = why.sides.map((side) => setSideReading(side, t)).join(' · ');
+    if (why.zero && why.zeroLabel !== undefined) {
+      return `${sides} · ${t.text(why.zeroLabel)} → ${result}`;
+    }
+    return `${sides} → ${setsReading(why.term.count, t)} → ${result}`;
+  }
   if (!why.composed) {
     // A single term (PL-196): «Колонии в игре 5 → +5 на эту карту» — a zero reads as its own «0 → 0», or in the words
     // the server named it with (T12 — «Рядом с вашими тайлами нет пустых клеток → 0»).
@@ -367,4 +394,20 @@ function termWords(term: ActionEffectBasis, t: CountedTranslator): string {
 function termReading(term: ActionEffectBasis, t: CountedTranslator): string {
   const head = `${termWords(term, t)} ${term.count}`;
   return term.wild === undefined ? head : `${head} (${t.params('incl. ${0} wild', [String(term.wild)])})`;
+}
+
+/** «2 пары» — the number of complete sets, the server's. */
+export function setsReading(sets: number, t: CountedTranslator): string {
+  return t.params('${0} {pair|pairs}', [String(sets)]);
+}
+
+/** A set's side in words: «Венера 2 (в т.ч. любых: 1 · эта карта 1)» — what it includes named, never hidden. */
+function setSideReading(side: CountedSetSide, t: CountedTranslator): string {
+  const key = tagNameKey(side.tag);
+  const head = `${key === undefined ? side.tag : t.text(key)} ${side.count}`;
+  const shares = [
+    ...(side.wild !== undefined ? [t.params('incl. ${0} wild', [String(side.wild)])] : []),
+    ...(side.self !== undefined ? [`${t.text('this card')} ${side.self}`] : []),
+  ];
+  return shares.length === 0 ? head : `${head} (${shares.join(' · ')})`;
 }
