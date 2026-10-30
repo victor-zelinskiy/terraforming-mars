@@ -289,7 +289,7 @@ import {
 } from '@/client/console/parliament/parliamentWorldBeat';
 import {
   sittingPageAuto, sittingPositionOf, SittingPosition, sittingPrimaryKey, sittingRewardSettled, SittingStage, sittingStageAt, sittingStageKey,
-  sittingBodyOf, SittingBody, sittingStartPage, sittingWorkspacePhase, verdictStandsAt, sittingStepTakesStage,
+  sittingBodyOf, SittingBody, sittingStartPage, sittingWorkspacePhase, verdictStandsAt, sittingStepTakesStage, sittingCloseKey, sittingCloseLeadsTo,
   parliamentSittingLive, SITTING_HOSTED_STEPS, sittingFieldOf,
 } from '@/client/console/parliament/consoleSittingFlow';
 import {colonyLedgerOf, ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
@@ -793,7 +793,15 @@ export default defineComponent({
       if (key === 'Onto the board' && (this.rewardPending || this.walking)) {
         return undefined;
       }
+      // The close names WHERE it leads when the next workspace is known («К драфту» — one press, the screen goes there).
+      if (key === 'Close the sitting' && this.sittingStage === 'results') {
+        return sittingCloseKey(this.sittingCloseLeadsTo);
+      }
       return key;
+    },
+    /** Where the results page's close leads (the draft / the research buy), or undefined for the plain close. */
+    sittingCloseLeadsTo(): 'draft' | 'research' | undefined {
+      return sittingCloseLeadsTo(this.pv, this.sitting);
     },
     /** The sitting's B verb label — from the workspace phase, so B can never say one thing and do another. */
     sittingBack(): string | undefined {
@@ -2416,6 +2424,8 @@ export default defineComponent({
           return;
         }
         if (stage === 'results' && position.gateStanding) {
+          // «К ДРАФТУ»: the shell takes the press's answer as the door into the next workspace (its falling edge).
+          consoleParliamentUi.closeInto = this.sittingCloseLeadsTo;
           this.send({type: 'option'}, 'sitting');
           return;
         }
@@ -3456,6 +3466,8 @@ export default defineComponent({
     resetSubmitting(): void {
       this.clearSubmitTimer();
       this.parkedSubmit = undefined;
+      // A refused close leads nowhere: the next press asks again.
+      consoleParliamentUi.closeInto = undefined;
       const f = parliamentFlow;
       if (f.stage === 'submitting') {
         f.stage = f.stageBeforeSubmit === 'seat' ? 'seat' : f.stageBeforeSubmit;

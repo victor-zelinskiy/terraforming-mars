@@ -42,6 +42,7 @@
  * its final poses (nothing replays). Nothing is persisted on the device.
  */
 import {Color} from '@/common/Color';
+import {Phase} from '@/common/Phase';
 import {PlayerInputType} from '@/common/input/PlayerInputType';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -503,6 +504,35 @@ export function sittingPrimaryKey(position: SittingPosition, page: number): stri
   default:
     return undefined;
   }
+}
+
+/**
+ * WHERE «ЗАКРЫТЬ ЗАСЕДАНИЕ» LEADS (the owner, 2026-10-30): the soft gates hold this seat's first prompt of the next
+ * generation behind its confirmation — so when the game around the seat already stands in its DRAFT (or its research
+ * buy), the close IS the door into that workspace. One press: the bar says where it goes («К драфту» / «К исследованию»),
+ * and the shell hands the screen over laterally (Parliament → the draft workspace — no board home in between, no plate).
+ * Undefined for the FINAL sitting (the finale follows), the World Government's step (SOLAR — another prompt comes
+ * first), an early close (the chain still runs — the draft comes later), or a gate that does not stand.
+ */
+export type SittingCloseLeadsTo = 'draft' | 'research';
+
+export function sittingCloseLeadsTo(view: PlayerViewModel, position: SittingPosition | undefined): SittingCloseLeadsTo | undefined {
+  if (position === undefined || position.final || position.gate !== 'close' || !position.gateStanding) {
+    return undefined;
+  }
+  switch (view.game.phase) {
+  case Phase.DRAFTING:
+    return 'draft';
+  case Phase.RESEARCH:
+    return 'research';
+  default:
+    return undefined;
+  }
+}
+
+/** The close's A verb by where it leads — the sitting's own words when it leads nowhere it can name. */
+export function sittingCloseKey(leadsTo: SittingCloseLeadsTo | undefined): string {
+  return leadsTo === 'draft' ? 'To the draft' : leadsTo === 'research' ? 'To the research' : 'Close the sitting';
 }
 
 /**

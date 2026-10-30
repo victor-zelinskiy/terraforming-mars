@@ -133,9 +133,20 @@ test.describe(`the soft gates · ${TV.id}`, () => {
     expect(walk.some((s) => s.draft), 'no draft surface over the open sitting').toBe(false);
     expect(walk.some((s) => s.awaitChip), 'no «Ожидание» in a sitting whose law asks nobody').toBe(false);
 
-    // ── «ЗАКРЫТЬ ЗАСЕДАНИЕ»: blue alone is admitted — the counter flips, the research is blue's.
+    // ── «К ИССЛЕДОВАНИЮ» (the owner, 2026-10-30): the game around blue already buys its research, so the close IS the
+    // door — the bar names where it leads, ONE press hands the screen from the Parliament straight to the research
+    // workspace: no board home between the two surfaces, no plate, no second A.
+    await expect(page.locator('.con-cmdbar'), 'A names the next workspace').toContainText(/К исследованию|To the research/i);
+    const pressedAt = await page.evaluate(() => Math.round(performance.now()));
     await closeSitting(page, request, blue);
+    await expect(page.locator('.con-draftws'), 'the research workspace takes the screen by itself').toHaveCount(1, {timeout: 30_000});
     await expect(parliament(page), 'the sitting leaves with its close').toHaveCount(0, {timeout: 30_000});
+    const handover = (await samplesOf(page)).filter((s) => s.t >= pressedAt);
+    const firstDraft = handover.findIndex((s) => s.draft);
+    expect(firstDraft, 'the sampler saw the research arrive').toBeGreaterThan(-1);
+    const bare = handover.slice(0, firstDraft).filter((s) => !s.parl);
+    expect(bare.length, `no frame of the board home between the sitting and the research (first at ${bare[0]?.t})`).toBe(0);
+    await expect(page.locator('.con-mandatory'), 'no plate: the press already opened it').toHaveCount(0);
     await expect.poll(async () => (await samplesOf(page)).slice(-1)[0]?.gen, {timeout: 20_000, message: 'the counter flips at the close'}).toBe('2');
     const admitted = await parliamentWire(request, blue);
     expect(admitted.waitingFor?.type, 'blue holds its research buy').toBe('card');

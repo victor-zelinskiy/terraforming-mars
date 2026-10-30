@@ -362,7 +362,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       expect(sit.texts.filter((t) => /Ваша награда|Your reward/i.test(t)), 'the spectator is never shown «Ваша награда»').toEqual([]);
       expect(sit.texts.some((t) => /Награда победителю голосования|Reward for the winner of the vote/i.test(t)), `the reward line is the WINNER's: ${sit.texts.slice(-6).join(' || ')}`).toBe(true);
       expect(sit.texts.some((t) => t.includes('MarsBot')), 'no raw «MarsBot» on the band or the panel (RU: «Бот»)').toBe(false);
-      expect(await hotVerb(page)).toMatch(/Закрыть заседание|Close the sitting/i);
+      // The close names where it leads when the next workspace is known (the owner, 2026-10-30).
+      expect(await hotVerb(page)).toMatch(/Закрыть заседание|Close the sitting|К исследованию|To the research|К драфту|To the draft/i);
       await expectParliamentFits(page, `${preset.id} results`);
       await shoot(page, preset.id, '06-sitting-results');
 

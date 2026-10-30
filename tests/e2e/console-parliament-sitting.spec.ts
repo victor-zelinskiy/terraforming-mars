@@ -255,7 +255,8 @@ for (const preset of PRESETS) {
       expect(await sitting(page).locator('[data-sit-section]').evaluateAll((els) => els.map((el) => el.getAttribute('data-sit-section'))),
         'three sections, and nothing beside them').toEqual(['enacted', 'payouts', 'table']);
       await expect(sitting(page).locator('[data-sit-row="results-nodelegate"]'), 'nobody is voteless, so no row').toHaveCount(0);
-      expect(await hotVerb(page)).toMatch(/Закрыть заседание|Close the sitting/i);
+      // The close names where it leads (the owner, 2026-10-30): the game around the seat already buys its research.
+      expect(await hotVerb(page)).toMatch(/К исследованию|To the research|К драфту|To the draft/i);
       expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'the seat\'s confirmation stands until A').toBe('close');
       await expectFits(page, `${preset.id} results`);
       await shoot(page, preset.id, '06-results');

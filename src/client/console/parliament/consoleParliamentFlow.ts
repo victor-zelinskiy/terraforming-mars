@@ -95,6 +95,13 @@ export const consoleParliamentUi = reactive({
    * them and the panel unfolds on the chamber's rect. Published by the section (false while it warms or is gone).
    */
   hall: false,
+  /**
+   * «К ДРАФТУ» WAS PRESSED (the owner, 2026-10-30): the sitting's close leads straight into the between-generations
+   * workspace (`sittingCloseLeadsTo`). Armed by the section at the press, consumed by the shell on the sitting frame's
+   * falling edge — the Parliament hands the screen to the draft LATERALLY (no board home, no plate, no second A);
+   * disarmed by a refusal. Undefined = the ordinary end (the root closes, the draft's plate announces).
+   */
+  closeInto: undefined as 'draft' | 'research' | undefined,
 });
 
 export function resetConsoleParliamentUi(): void {
@@ -107,6 +114,7 @@ export function resetConsoleParliamentUi(): void {
   consoleParliamentUi.agendaSettling = false;
   consoleParliamentUi.boardDoorOpen = false;
   consoleParliamentUi.worldTripHoldsDoor = false;
+  consoleParliamentUi.closeInto = undefined;
 }
 
 // ── the session's memory of PLAYED stages ──────────────────────────────────

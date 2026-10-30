@@ -12210,6 +12210,9 @@ export default defineComponent({
       immediate: true,
       handler(live: boolean): void {
         if (!live && workspaceFrameKnown('parliament') && workspaceFrameAnchor('parliament')?.type === 'phase') {
+          if (this.handSittingToDraft()) {
+            return;
+          }
           closeWorkspaceRoot('parliament');
           // …and the layers the sitting stood over close with it. This used to ride the section's own
           // `flow-complete`, which the v3 leave latch no longer emits (the surface keeps its last coherent
@@ -16772,6 +16775,72 @@ export default defineComponent({
         return;
       }
       consoleParliamentUi.boardDoorOpen = true;
+    },
+    /**
+     * «К ДРАФТУ» — THE SITTING HANDS THE SCREEN TO THE NEXT WORKSPACE (the owner, 2026-10-30: «нажатие A в конце заседания
+     * сразу переводит туда, бесшовно, без мигания и промежуточных состояний»). The results page's A was pressed as the
+     * door (`consoleParliamentUi.closeInto`) and the answer that ended the seat's sitting carries the draft's beat: the
+     * beat is ACKNOWLEDGED here — in the same flush, so its plate never renders — and the draft enters LATERALLY over the
+     * Parliament, which keeps its frozen results pose (the section's leave latch) until that very swap: one surface
+     * dissolves as the other arrives, never the board home between them. The handover asks the screen director first
+     * (`enterWorkspaceAfterHandoff` — a card still flying, the generation counter's flip). Returns false when there is no
+     * such door (a plain close, the WGT step first, the final sitting): the root closes as it always did.
+     */
+    handSittingToDraft(): boolean {
+      const into = consoleParliamentUi.closeInto;
+      consoleParliamentUi.closeInto = undefined;
+      if (into === undefined || workspaceFrameKnown('draft')) {
+        return false;
+      }
+      const beat = draftMandatoryFlowBeat(this.playerView);
+      if (beat === undefined) {
+        return false;
+      }
+      acknowledgeMandatoryBeat(beat.key);
+      // ONE SWAP, ONE FLUSH: `enterWorkspace` keeps a surviving PHASE root (the sitting's), so the Parliament's root is
+      // closed explicitly in the same synchronous block — its leave and the draft's entrance play together, and no
+      // render ever stands between them.
+      const swap = (): void => {
+        if (workspaceFrameKnown('parliament') && workspaceFrameAnchor('parliament')?.type === 'phase') {
+          closeWorkspaceRoot('parliament');
+        }
+        closeConsoleLayers();
+        if (!workspaceFrameKnown('draft')) {
+          enterWorkspace('draft', {anchor: {type: 'phase', phase: 'draft'}});
+        }
+      };
+      if (!screenHandoffOwed()) {
+        swap();
+        return true;
+      }
+      // THE BOARD IS OWED ITS STORY FIRST (a bot's / a seat's tile of the law landing after the sitting, a scale story):
+      // the story plays only on a board the player can see, so the Parliament steps aside to the board — the one honest
+      // intermediate state, it has something to show — and the draft follows by itself once the board is quiet (no
+      // plate, no second press: the beat is already acknowledged).
+      if (screenHandoffOwed({only: ['board-story', 'remote-landing']})) {
+        if (workspaceFrameKnown('parliament') && workspaceFrameAnchor('parliament')?.type === 'phase') {
+          closeWorkspaceRoot('parliament');
+        }
+        closeConsoleLayers();
+        this.enterWorkspaceAfterHandoff('draft', {anchor: {type: 'phase', phase: 'draft'}});
+        return true;
+      }
+      // Something else is still owed on THIS screen (a card flying into the dock, the counter's flip): the Parliament
+      // stays in its frozen results pose until it has landed — bounded and named by the director — then the swap.
+      handoffPendingEntries.add('draft');
+      setConsoleTaskHandoffPending(true);
+      void waitScreenHandoff('sitting-into-draft', {alive: () => this.playerView?.game !== undefined}).then((outcome) => {
+        handoffPendingEntries.delete('draft');
+        setConsoleTaskHandoffPending(handoffPendingEntries.size > 0);
+        if (outcome === 'dead') {
+          if (workspaceFrameKnown('parliament') && workspaceFrameAnchor('parliament')?.type === 'phase') {
+            closeWorkspaceRoot('parliament');
+          }
+          return;
+        }
+        swap();
+      });
+      return true;
     },
     /** The Parliament's leave has played (v3 В1): the section may unmount now — nothing of it is on screen. */
     onParliamentAfterLeave(): void {

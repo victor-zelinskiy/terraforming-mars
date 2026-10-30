@@ -3,10 +3,11 @@ import {Color} from '../../src/common/Color';
 import {ParliamentModel, ParliamentPhaseModel} from '../../src/common/models/ParliamentModel';
 import {PlayerInputModel} from '../../src/common/models/PlayerInputModel';
 import {PlayerViewModel} from '../../src/common/models/PlayerModel';
+import {Phase} from '../../src/common/Phase';
 import {
   parliamentSittingFlowBeat, parliamentSittingLive, presentedGeneration, quietRewardPoseOf, SITTING_HOSTED_STEPS, SITTING_SUBJECT_KEY, sittingAskOf, sittingAtLastPage,
   sittingBodyOf, sittingFieldOf, sittingPageAuto, sittingPagesOf, sittingPositionOf, sittingPrimaryKey, sittingRewardSettled, sittingStageAt,
-  sittingStageKey, sittingStartPage, sittingStepTakesStage, sittingTailPlacementOf, sittingWorkspacePhase, verdictStandsAt,
+  sittingStageKey, sittingStartPage, sittingStepTakesStage, sittingCloseKey, sittingCloseLeadsTo, SittingPosition, sittingTailPlacementOf, sittingWorkspacePhase, verdictStandsAt,
 } from '../../src/client/console/parliament/consoleSittingFlow';
 import {backVerbFor} from '../../src/client/console/consoleWorkspaceFlow';
 import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
@@ -409,5 +410,23 @@ describe('sittingStepTakesStage — a WHOLE workspace step takes the stage whole
       expect(sittingStepTakesStage(true, step, false), step).is.false;
     }
     expect(sittingStepTakesStage(false, 'colony', true), 'no field pose: nothing to take').is.false;
+  });
+});
+
+describe('sittingCloseLeadsTo — «Закрыть заседание» names the workspace it opens (the owner, 2026-10-30)', () => {
+  const view = (phase: Phase) => ({game: {phase}}) as unknown as PlayerViewModel;
+  const at = (over: Partial<SittingPosition> = {}) => ({final: false, gate: 'close', gateStanding: true, ...over}) as SittingPosition;
+  it('the game already drafts (or buys its research) around the seat: the close IS the door — «К драфту» / «К исследованию»', () => {
+    expect(sittingCloseLeadsTo(view(Phase.DRAFTING), at())).eq('draft');
+    expect(sittingCloseLeadsTo(view(Phase.RESEARCH), at())).eq('research');
+    expect(sittingCloseKey('draft')).eq('To the draft');
+    expect(sittingCloseKey('research')).eq('To the research');
+  });
+  it('the final sitting, the World Government\'s step first, a gate that does not stand: the plain close', () => {
+    expect(sittingCloseLeadsTo(view(Phase.DRAFTING), at({final: true})), 'the finale follows').is.undefined;
+    expect(sittingCloseLeadsTo(view(Phase.SOLAR), at()), 'another prompt comes first').is.undefined;
+    expect(sittingCloseLeadsTo(view(Phase.DRAFTING), at({gateStanding: false})), 'nothing to answer yet').is.undefined;
+    expect(sittingCloseLeadsTo(view(Phase.DRAFTING), undefined)).is.undefined;
+    expect(sittingCloseKey(undefined)).eq('Close the sitting');
   });
 });

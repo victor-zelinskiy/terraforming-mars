@@ -211,7 +211,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       const revealed = probeNow.samples.filter((st) => st.stage === 'results');
       expect(revealed[0]?.resultsHidden, 'the card was HIDDEN when its page opened, revealed by its own beat').toBe(true);
       expect((await crumbText(page)).toUpperCase()).toMatch(/ИТОГИ|RESULTS/);
-      expect(await hotVerb(page)).toMatch(/Закрыть заседание|Close the sitting/i);
+      // The close names where it leads when the next workspace is known (the owner, 2026-10-30).
+      expect(await hotVerb(page)).toMatch(/Закрыть заседание|Close the sitting|К исследованию|To the research|К драфту|To the draft/i);
       await expect(page.locator('[data-sit-results] [data-sit-fresh]'), 'the new resolutions with their parties').not.toHaveCount(0);
       await expectParliamentFits(page, `${preset.id} results`);
       // The card never covers the Agenda track PARTIALLY (reviewed on the first run's frames: the track's label row
