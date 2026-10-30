@@ -390,7 +390,9 @@ for (const preset of PARLIAMENT_PRESETS) {
       await openParliament(page);
       const questRow = page.locator(`[data-parl-quest-progress] [data-parl-quest-row="${bot.color}"]`);
       await expect(questRow, 'the bot\'s row in the race').toHaveCount(1);
-      await expect(questRow, 'reads 1/2 — a reachable quest, never «недостижимо»').toContainText('1/2');
+      // P70 · K4: the race is ONE encoding — the pips (no «1/2» beside them); the row states its count as data.
+      await expect(questRow, 'reads 1 of 2 — a reachable quest, never «недостижимо»').toHaveAttribute('data-parl-quest-value', '1');
+      await expect(questRow.locator('.con-parl__engine-pip--on'), 'one pip taken').toHaveCount(1);
       await expect(questRow.locator('.con-parl__quest-unreachable')).toHaveCount(0);
       await expect(page.locator(`[data-parl-seat-chair="${before.thisPlayer.color}"]`), 'the chair carries the viewer\'s cube').toHaveCount(1);
       await expectParliamentFits(page, `${preset.id} overview before the quest`);
@@ -407,7 +409,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       await settle(page, {timeoutMs: 30_000});
 
       await expect(page.locator('[data-parl-quest].con-parl__quest--done'), 'the quest reads completed').toHaveCount(1, {timeout: 30_000});
-      await expect(questRow, 'the bot\'s row reads 2/2').toContainText('2/2');
+      await expect(questRow, 'the bot\'s row reads 2 of 2').toHaveAttribute('data-parl-quest-value', '2');
+      await expect(questRow.locator('.con-parl__engine-pip--on'), 'both pips taken').toHaveCount(2);
       // «Зал» v7 / Парламент v8: the quest plate states no winner in WORDS — the winner TAKES THE CHAIR (its cube in the
       // seat, the chair's won ring); the name stays localized everywhere.
       expect(await page.locator('.con-parl').evaluate((el) => (el.textContent ?? '').includes('MarsBot')), 'no raw «MarsBot» anywhere in the parliament (RU: «Бот»)').toBe(false);

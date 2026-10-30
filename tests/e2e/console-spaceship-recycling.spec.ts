@@ -122,7 +122,10 @@ async function rectOf(page: Page, selector: string): Promise<Rect | undefined> {
 
 type Chip = {x: number, y: number, w: number, h: number, v: string};
 type Sample = {
-  t: number, tick: boolean, ws: number, cap: string, fz: string, ms: string, ti: string, vp: string, tr: string, link: string,
+  t: number, tick: boolean, ws: number,
+  /** Workspaces already LEAVING (the surface motion director's own `data-motion-leaving` mark, set at the leave's start). */
+  wsLeaving: number,
+  cap: string, fz: string, ms: string, ti: string, vp: string, tr: string, link: string,
   chips: Array<Chip>, heroOp: number, stranded: boolean,
   /** The crumb's tail (the ARRIVING word of a crossfade) and whether it wears the past-commit amber (PL-062). */
   stage: string, amber: boolean,
@@ -131,15 +134,28 @@ type Sample = {
   /** The VP cell's delta chips as painted: text and opacity (PL-069 — the old sign never stands over the new number). */
   vpChips: string,
 };
-type Probe = {samples: Array<Sample>, ticks: number};
+type Probe = {
+  samples: Array<Sample>, ticks: number,
+  /** Main-thread long tasks [start, duration] on the probe's clock — a starved renderer's time, never the product's. */
+  longtasks: Array<[number, number]>,
+};
 
 /** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
 async function armProbe(page: Page): Promise<void> {
   await page.evaluate(([heroSel, composerSel, fz, ms]) => {
     const w = window as unknown as {__tr29: Probe};
-    const p: Probe = {samples: [], ticks: 0};
+    const p: Probe = {samples: [], ticks: 0, longtasks: []};
     w.__tr29 = p;
     const t0 = performance.now();
+    try {
+      new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) {
+          p.longtasks.push([Math.round(e.startTime - t0), Math.round(e.duration)]);
+        }
+      }).observe({type: 'longtask', buffered: false});
+    } catch {
+      // no long-task timing in this browser — nothing is subtracted
+    }
     const read = (sel: string) => (document.querySelector(sel)?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const shown = (el: HTMLElement) => {
       const r = el.getBoundingClientRect();
@@ -158,6 +174,7 @@ async function armProbe(page: Page): Promise<void> {
         t: Math.round(performance.now() - t0),
         tick,
         ws: document.querySelectorAll('.con-ws').length,
+        wsLeaving: document.querySelectorAll('.con-ws[data-motion-leaving]').length,
         cap: read(`${heroSel} .pcard__res-count`),
         fz: read(`${composerSel} [data-composer-card="${fz}"] .pcard__res-count`),
         ms: read(`${composerSel} [data-composer-card="${ms}"] .pcard__res-count`),
@@ -194,7 +211,7 @@ async function armProbe(page: Page): Promise<void> {
     };
     sample(true);
     new MutationObserver(() => sample(false)).observe(document.body, {
-      subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'data-commit-link'],
+      subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'data-commit-link', 'data-motion-leaving'],
     });
     window.setInterval(() => sample(true), 30);
   }, [hero, composer, FZ, MS] as const);
@@ -257,7 +274,7 @@ function arrival(samples: ReadonlyArray<Sample>, value: string, from: number): {
 
 function trail(samples: ReadonlyArray<Sample>): string {
   return samples.slice(0, 140).map((s) =>
-    `${s.t}${s.tick ? 't' : 'm'} ws=${s.ws} cap=${s.cap} fz=${s.fz} ms=${s.ms} ti=${s.ti} vp=${s.vp} [${s.vpChips}] tr=${s.tr} link=${s.link} st=${s.stage}${s.amber ? '!' : ''} bar=${s.barCtx} chips=${s.chips.map((c) => `${c.v}@${c.x},${c.y}`).join(' ')}`).join('\n');
+    `${s.t}${s.tick ? 't' : 'm'} ws=${s.ws}${s.wsLeaving > 0 ? '↓' : ''} cap=${s.cap} fz=${s.fz} ms=${s.ms} ti=${s.ti} vp=${s.vp} [${s.vpChips}] tr=${s.tr} link=${s.link} st=${s.stage}${s.amber ? '!' : ''} bar=${s.barCtx} chips=${s.chips.map((c) => `${c.v}@${c.x},${c.y}`).join(' ')}`).join('\n');
 }
 
 /** The focused tile is the card's (and, with `row`, the printed row whose text matches it — a card prints one tile per row). */
@@ -560,8 +577,9 @@ for (const preset of PRESETS) {
       await expect.poll(() => page.locator('.con-ws').count(), {timeout: 45_000, message: 'the workspace left'}).toBe(0);
       await settle(page, {timeoutMs: 30_000});
       await stop();
-      const samples = (await readProbe(page)).samples;
-      console.log(`[${preset.id}] B source=${JSON.stringify(source)} target=${JSON.stringify(target)} mech=${JSON.stringify(mechIcon)}\n${trail(samples)}`);
+      const probeB = await readProbe(page);
+      const samples = probeB.samples;
+      console.log(`[${preset.id}] B source=${JSON.stringify(source)} target=${JSON.stringify(target)} mech=${JSON.stringify(mechIcon)}\n${trail(samples)}\nlongtasks ${JSON.stringify(probeB.longtasks)}`);
       expect(seen.posts.length, 'one POST').toBe(1);
       const batchB = answersOf(seen.posts[0]).slice(1);
       expect(batchB.map((r) => r.cards?.[0] ?? `or:${r.index}`), 'source Formula Zero, variant B, target Mech Sports').toEqual([FZ, 'or:1', MS]);
@@ -597,7 +615,22 @@ for (const preset of PRESETS) {
       // and the workspace leaves; a surface standing ≈ 0.5 s past its own last tick («Выполняется…» over a card that
       // had already answered) was the pause the A scene of every mech paid. Budget: the quick absorb (180) + the
       // surface's leave (≈ 150) + the renderer's commit of the board's return (≈ 200 at 4K), with room for a loaded runner.
-      expect(samples[wsGone].t - samples[msOne].t, `the workspace left within one quick beat of the capsule's tick (tick ${samples[msOne].t}, gone ${samples[wsGone].t})`).toBeLessThanOrEqual(550);
+      // ⚠ WHAT IS MEASURED IS THE PRODUCT'S DECISION — the leave's START, the surface motion director's own
+      // `data-motion-leaving` — never the removal (CI 2026-10-30: «tick 1679, gone 2424» = 745 ms). The removal adds the
+      // leave's own frames, and on a software rasterizer every frame-quantized step of absorb → fold → leave → removal
+      // costs up to a whole 4K frame: on the box's GPU the leave starts 315–334 ms after the tick and the node is gone
+      // 343–445 ms after it; under SwiftShader (CI-like) the same build read 714 ms gone with the leave itself ≈ 210 ms
+      // long. The bound is the LAST sample on which the workspace still stood with no leave begun: the product had not
+      // decided by then. 450 = the GPU's 330 + one software frame — a surface held «≈ 0.5 s past its own last tick»
+      // (the pause PL-138 removed) is still red.
+      const tick = samples[msOne].t;
+      const leaveAt = samples.findIndex((s, i) => i > msOne && (s.ws === 0 || s.wsLeaving > 0));
+      expect(leaveAt, 'the workspace began to leave').toBeGreaterThan(msOne);
+      const stoodUntil = samples[leaveAt - 1].t;
+      expect(stoodUntil - tick, `the workspace began to leave within one quick beat of the capsule's tick (tick ${tick}, ` +
+        `still standing at ${stoodUntil}, leaving at ${samples[leaveAt].t}, gone ${samples[wsGone].t}; ` +
+        `long tasks ${JSON.stringify(probeB.longtasks.filter(([s, d]) => s + d > tick && s < samples[wsGone].t))})`)
+        .toBeLessThanOrEqual(450);
       const highest = Math.min(...samples.flatMap((s) => s.chips).map((c) => c.y - c.h / 2));
       expect(highest, `no token above the screen — y = ${highest}`).toBeGreaterThanOrEqual(0);
       const ready = await readyOf(page);

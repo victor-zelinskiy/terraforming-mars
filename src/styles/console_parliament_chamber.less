@@ -548,6 +548,9 @@
     &__tally-num { font-size: 1.3rem; font-weight: 400; color: #fff; }
     &__slot--winning &__tally-total { background: radial-gradient(circle at 35% 30%, @con-parl-gold-hi, #b9862a); box-shadow: none; }
     &__slot--winning &__tally-num { color: #22170a; }
+    /* No vote yet (P70 · K6): the medallion is an EMPTY socket — a dashed rim, no fill, no digit (the box holds). */
+    &__slot &__tally-total--empty { background: none; box-shadow: none; outline: .06rem dashed rgba(170, 195, 220, 0.3); outline-offset: -.12rem; }
+    &__tally-total--empty &__tally-num { visibility: hidden; }
     &__tally-row--leader {
         position: relative;
         padding: .22rem .24rem .16rem;
@@ -672,7 +675,9 @@
         height: var(--con-parl-career-h);
         box-sizing: border-box;
         display: grid;
-        grid-template-columns: var(--con-parl-quest-w) minmax(0, 1fr);
+        /* THE QUEST PLATE IS SIZED BY ITS CONTENT (P70 · K4): its formula and its race, never a fixed third of the tier —
+           capped at the profile's width; the Career takes the rest (13 places breathe). */
+        grid-template-columns: fit-content(var(--con-parl-quest-w)) minmax(0, 1fr);
         column-gap: 1rem;
         padding: 0;
         border-radius: 0;
@@ -688,9 +693,12 @@
     &__engine {
         position: relative;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto auto auto minmax(0, 1fr);
+        /* P70 · K4: the plate is sized by its formula, so the formula needs no spacer columns (their gaps were width with no
+           content) — four columns centred in whatever room a wider race leaves. */
+        grid-template-columns: auto auto auto auto;
+        justify-content: center;
         grid-template-rows: auto minmax(0, 1fr) auto;
-        grid-template-areas: "kick kick kick kick kick kick" ". chair cond arrow step ." "race race race race race race";
+        grid-template-areas: "kick kick kick kick" "chair cond arrow step" "race race race race";
         column-gap: .6rem;
         row-gap: .3rem;
         align-items: center;
@@ -841,10 +849,13 @@
         display: inline-flex; align-items: center; gap: .4rem; padding: 0; font-size: .6rem; color: #e3eaf3; background: none; box-shadow: none;
         transition: opacity calc(260ms * var(--motion-scale, 1)) ease-out;
         &--behind { opacity: .45; }
-        &--won .con-parl__quest-frac { color: @con-parl-mint; opacity: 1; font-weight: 700; }
         &--won .con-parl__engine-pip--on { background: @con-parl-mint; box-shadow: inset 0 0 0 .06rem @con-parl-mint; }
+        /* THE RACE'S LEADER (P70 · K4) — weight, never light: its taken pips gain a white kant, its dot a ring; the mark
+           arrives with a one-shot of its own (the class lands only when the lead changes hands). */
+        &--lead .con-parl__engine-pip--on { box-shadow: inset 0 0 0 .07rem #fff6d8; }
+        &--lead .con-parl__engine-pips { animation: con-parl-quest-lead calc(360ms * var(--motion-scale, 1)) @con-ease-standard; }
     }
-    &__quest-frac { font-weight: 400; font-variant-numeric: tabular-nums; opacity: .85; }
+    @keyframes con-parl-quest-lead { 0% { transform: scale(1.18); } 100% { transform: scale(1); } }
     &__engine-pips { display: inline-flex; gap: .2rem; }
     &__engine-pip { width: .62rem; height: .62rem; border-radius: 50%; box-shadow: inset 0 0 0 .06rem fade(@con-parl-gold, 70%); &--on { background: @con-parl-gold; } }
     &__quest-unreachable { font-size: .58rem; opacity: .5; }
@@ -887,6 +898,8 @@
         grid-row: 1 / 3;
         display: grid;
         grid-template-rows: var(--con-parl-markers-h) minmax(0, 1fr);
+        /* ONE column of the track's width: the marker row may reach into the gap beside its place, never widen the tile. */
+        grid-template-columns: minmax(0, 1fr);
         row-gap: .28rem;
         align-items: stretch;
         justify-items: stretch;
@@ -920,15 +933,18 @@
         &:last-of-type::after { display: none; }
     }
     &__step--passed::after, &__step--here::after { border-color: fade(@con-parl-mint, 70%); }
-    /* The markers — THE TRACK MARKER's discs, side by side at the row's middle (a ring apart, never touching). */
+    /* The markers — THE TRACK MARKER's discs in their SEATS' NESTS, side by side at the row's middle (P70 · K1). The gap
+       is the two rings' reach and a hair: the viewer's outer kant (.19rem) + the neighbour's rim (.1rem) — never touching. */
     &__step-cubes {
         grid-row: 1;
         display: flex;
         justify-content: center;
         align-items: center;
-        gap: .22rem;
+        gap: .36rem;
         height: 100%;
         padding: 0;
+        justify-self: center;
+        width: max-content;
     }
     &__step-node {
         grid-row: 2;
@@ -965,14 +981,20 @@
     /* The viewer's reached tiles read mint; the tile they stand on is lit; the NEXT tile wears the invitation ring. */
     &__step--passed &__step-node { box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 40%), inset 0 .06rem 0 rgba(220, 238, 255, 0.1), 0 .4rem 1rem rgba(0, 0, 0, 0.4); }
     &__step--here &__step-node { background: linear-gradient(180deg, rgba(28, 66, 56, 0.98), rgba(12, 30, 26, 0.98)); box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 80%), inset 0 .06rem 0 rgba(220, 238, 255, 0.1); }
-    &__step--next &__step-node { box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 75%), inset 0 .06rem 0 rgba(220, 238, 255, 0.1); }
-    &__step--next &__step-node::after { inset: -.2rem; border-radius: .7rem; border: .06rem dashed fade(@con-parl-mint, 55%); }
+    /* THE VIEWER'S NEXT STEP (P70 · K2): a DASHED inset kant inside the tile — form, so it survives desaturation; never a
+       ring hung outside the tile (it read as a halo between two neighbours) and never a word on the tile. */
+    &__step--next &__step-node { box-shadow: inset 0 0 0 .05rem rgba(150, 180, 210, 0.22), inset 0 .06rem 0 rgba(220, 238, 255, 0.1); }
+    &__step--next &__step-node::after { inset: .14rem; border-radius: .42rem; border: .07rem dashed fade(@con-parl-mint, 80%); }
     &__step--lit &__step-node, &__step--segment &__step-node { box-shadow: inset 0 0 0 .08rem fade(@con-parl-gold, 85%), inset 0 .06rem 0 rgba(255, 236, 180, 0.2); }
     /* The rewards at the tile's scale: the TR plate, the card, and the influence MEDALLION with its level inside. */
     &__step-res {
-        &--tr { width: 2rem; height: 1.5rem; }
-        &--card { width: 1.35rem; height: 1.9rem; box-shadow: none; }
+        &--tr { width: 2.2rem; height: 1.65rem; }
+        &--card { width: 1.45rem; height: 2.05rem; box-shadow: none; }
     }
+    /* «+1» beside the reward (P70 · K2) — the rail's gain language, at the icon's weight; the pair is ONE object. */
+    &__step-gain { display: inline-flex; align-items: center; gap: .16rem; }
+    &__step-plus { font-size: .95rem; font-weight: 600; line-height: 1; color: #eef3f8; font-variant-numeric: tabular-nums; }
+    &__step--passed &__step-plus { color: rgba(238, 243, 248, 0.7); }
     /* THE INFLUENCE COIN — the influence glyph struck in its upper half, the LEVEL in its lower half, both INSIDE the
        rim (the owner's point 3: no digit hangs off the circle). */
     &__step-medal {
@@ -1019,9 +1041,12 @@
         min-width: 0;
         font-size: .6rem;
         color: #f2d98a;
-        --inf-line: fade(@con-parl-gold, 38%);
-        --inf-tick: fade(@con-parl-gold, 50%);
-        --inf-ring: fade(@con-parl-gold, 45%);
+        /* P70 · K3: the spans that are not the viewer's are a QUIET dimension line — a hairline, short ticks and the bare
+           level (no plate ring around it): the coins already say the levels; the ruler only binds them to the tiles. */
+        --inf-line: fade(@con-parl-gold, 24%);
+        --inf-tick: fade(@con-parl-gold, 30%);
+        --inf-ring: transparent;
+        color: fade(#f2d98a, 72%);
         &::before {
             content: '';
             position: absolute;
@@ -1037,8 +1062,8 @@
             position: absolute;
             left: .2rem;
             right: .2rem;
-            top: 28%;
-            bottom: 28%;
+            top: 34%;
+            bottom: 34%;
             border-left: .08rem solid var(--inf-tick);
             border-right: .08rem solid var(--inf-tick);
         }
@@ -1266,18 +1291,27 @@ html.con-profile-handheld .con-parl {
     &__step::before { display: none; }
     &__step-label { font-size: .46rem; }
     &__step--influence .con-parl__step-level { font-size: .56rem; }
-    &__step-res { &--tr { width: 1.7rem; height: 1.28rem; } &--card { width: 1.15rem; height: 1.62rem; } }
+    /* The Deck's places are ~2.4rem wide: the reward pair (icon + «+1») is sized to stand inside one (P70 · K2). */
+    &__step-res { &--tr { width: 1.2rem; height: .9rem; } &--card { width: .82rem; height: 1.15rem; } }
+    &__step-gain { gap: .06rem; }
+    &__step-plus { font-size: .62rem; }
     &__step--next .con-parl__step-node::after { inset: -.16rem; }
     &__chair { width: 2.5rem; height: 2.5rem; }
     /* The Deck's race stands on ONE line (two seats of four pips wrapped onto a second and rose under the holder's name). */
-    &__quest-progress { column-gap: .6rem; }
+    /* P70 · K4: four seats of the race stand on ONE line inside the content-sized plate (a wrap pinned the plate at its cap). */
+    &__quest-progress { column-gap: .42rem; }
+    &__quest-row { gap: .22rem; }
     &__engine-pips { gap: .14rem; }
     &__engine-pip { width: .5rem; height: .5rem; }
     &__chair-glyph { top: .18rem; width: 1.65rem; height: 1.65rem; margin-left: -.825rem; }
     &__chair-cube { --pd-host: 1.35rem; }
     &__engine-arrow { width: 1rem; height: .54rem; }
-    &__agenda-dot { width: .66rem; height: .66rem; }
-    &__step-cubes { gap: .16rem; }
+    /* The Deck's places are ~2.5rem: four nests fit with a smaller disc and THINNER rings (the rim .07, the viewer's kant
+       .14) — the row reaching no further into the gap than half of it (P70 · K1). */
+    &__agenda-dot, &__agenda-nest { width: .5rem; height: .5rem; }
+    &__agenda-dot { box-shadow: 0 0 0 .07rem @con-track-ring, @con-track-shade; }
+    &__agenda-dot--viewer { box-shadow: 0 0 0 .07rem @con-track-ring, @con-track-shade, 0 0 0 .14rem rgba(var(--con-track-accent), .85); }
+    &__step-cubes { gap: .25rem; }
     &__chair-name { font-size: .5rem; max-width: 4.6rem; }
     &__kicker { font-size: .6rem; }
     &__slot-win { font-size: 11px; } /* keep-px: card px inside the face's zoom */

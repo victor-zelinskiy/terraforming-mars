@@ -74,7 +74,7 @@
          score at the same size (the block's geometry never moves under the government's beats). -->
     <div v-if="questRows.length > 0" class="con-parl__quest-progress" data-parl-quest-progress>
       <span v-for="row in questRows" :key="row.color" class="con-parl__quest-row"
-            :class="{'con-parl__quest-row--me': row.color === viewerColor, 'con-parl__quest-row--close': row.value > 0 && row.value >= questCount - 1, 'con-parl__quest-row--unreachable': rowUnreachable(row), 'con-parl__quest-row--won': row.color === questDoneBy, 'con-parl__quest-row--behind': questDoneBy !== undefined && row.color !== questDoneBy}"
+            :class="{'con-parl__quest-row--me': row.color === viewerColor, 'con-parl__quest-row--close': row.value > 0 && row.value >= questCount - 1, 'con-parl__quest-row--unreachable': rowUnreachable(row), 'con-parl__quest-row--won': row.color === questDoneBy, 'con-parl__quest-row--lead': row.color === questLeader, 'con-parl__quest-row--behind': questDoneBy !== undefined && row.color !== questDoneBy}"
             :data-parl-quest-row="row.color"
             :data-parl-quest-unreachable="rowUnreachable(row) ? '' : undefined"
             :data-parl-quest-value="row.value">
@@ -86,7 +86,7 @@
           <span class="con-parl__engine-pips" aria-hidden="true">
             <span v-for="n in questCount" :key="n" class="con-parl__engine-pip" :class="{'con-parl__engine-pip--on': n <= row.value}"></span>
           </span>
-          <b class="con-parl__quest-frac" aria-hidden="true">{{ row.value }}/{{ questCount }}</b>
+          <!-- ONE ENCODING (P70 · K4): the pips ARE the count — «0/3» beside them said it twice. The number is the dossier's (X). -->
         </template>
         <template v-else>
           <b :key="row.value" class="con-parl__tick">{{ row.value }}</b><span class="con-parl__quest-of">/{{ questCount }}</span>
@@ -199,6 +199,19 @@ export default defineComponent({
     },
     questRows(): ReadonlyArray<{color: Color, value: number, bot: boolean}> {
       return (this.questShown?.progress ?? []).filter((row) => row.participates);
+    },
+    /**
+     * WHO IS CLOSEST TO THE CHAIR (P70 · K4): the ONE seat strictly ahead of every other in the race, while the quest is
+     * open — its pips wear the kant. A tie, nobody started, a quest taken or closed: no leader (nothing is told).
+     */
+    questLeader(): Color | undefined {
+      if (this.questDoneBy !== undefined || this.questClosed) {
+        return undefined;
+      }
+      const rows = this.questRows.filter((row) => !this.rowUnreachable(row));
+      const top = Math.max(0, ...rows.map((row) => row.value));
+      const leaders = rows.filter((row) => row.value === top);
+      return top > 0 && leaders.length === 1 ? leaders[0].color : undefined;
     },
     questCompletedBy(): Color | undefined {
       return this.view.quest?.completedBy;

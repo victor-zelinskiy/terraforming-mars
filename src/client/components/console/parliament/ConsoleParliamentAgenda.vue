@@ -44,12 +44,18 @@
           <span class="con-parl__step-node con-parl__step-node--start">
             <span class="con-parl__step-label">{{ $t('Career start') }}</span>
           </span>
+          <!-- THE MARKERS STAND IN THEIR SEATS' NESTS (P70 · K1): one reserved nest per seat on the track, in the seats'
+               order, on EVERY place — two seats on one place stand side by side, never on each other, and a seat always
+               reads at the same x inside its place. An empty nest holds the room and paints nothing. -->
           <span class="con-parl__step-cubes" data-agenda-markers="0">
-            <span v-for="color in shown.start" :key="color" class="con-parl__agenda-cube"
-                  :class="{'con-parl__agenda-cube--hidden': cubeHidden(color, 0)}"
-                  :data-agenda-cube="color">
-              <i class="con-parl__agenda-dot" :class="dotClass(color, 0)" aria-hidden="true" @animationend="onDotSettleEnd($event, color, 0)"></i>
-            </span>
+            <template v-for="color in seatOrder" :key="color">
+              <span v-if="shown.start.includes(color)" class="con-parl__agenda-cube"
+                    :class="{'con-parl__agenda-cube--hidden': cubeHidden(color, 0)}"
+                    :data-agenda-cube="color">
+                <i class="con-parl__agenda-dot" :class="dotClass(color, 0)" aria-hidden="true" @animationend="onDotSettleEnd($event, color, 0)"></i>
+              </span>
+              <span v-else class="con-parl__agenda-nest" aria-hidden="true"></span>
+            </template>
           </span>
         </div>
         <div v-for="step in shown.steps" :key="step.index" class="con-parl__step"
@@ -68,15 +74,23 @@
                  (Event Analysts …) — the FINAL number, soft green while a bonus lifts it (the owner, 2026-10-24: never «2+1» on
                  the scale; the head alone reads the composition). -->
             <template v-if="step.step.kind === 'influence'"><span class="con-parl__step-medal"><i class="con-parl__step-res con-parl__step-res--inf" aria-hidden="true"></i><span class="con-parl__step-level" :class="{'con-parl__step-level--buffed': influenceBuff > 0}" :data-parl-step-influence="step.step.influence + influenceBuff">{{ step.step.influence + influenceBuff }}</span></span></template>
-            <template v-else-if="step.step.kind === 'tr'"><i class="con-parl__step-res con-parl__step-res--tr resource_icon resource_icon--rating" aria-hidden="true"></i></template>
-            <template v-else><i class="con-parl__step-res con-parl__step-res--card resource_icon resource_icon--cards" aria-hidden="true"></i></template>
+            <!-- THE REWARD IN THE RAIL'S WORDS (P70 · K2): the icon with its «+1», the way the coin prints its level — the
+                 TR and the card read as a gain at a glance, never as a bare symbol. -->
+            <span v-else class="con-parl__step-gain" :data-parl-step-gain="step.step.kind">
+              <i v-if="step.step.kind === 'tr'" class="con-parl__step-res con-parl__step-res--tr resource_icon resource_icon--rating" aria-hidden="true"></i>
+              <i v-else class="con-parl__step-res con-parl__step-res--card resource_icon resource_icon--cards" aria-hidden="true"></i>
+              <b class="con-parl__step-plus">+1</b>
+            </span>
           </span>
           <span class="con-parl__step-cubes" :data-agenda-markers="step.index">
-            <span v-for="color in step.cubes" :key="color" class="con-parl__agenda-cube"
-                  :class="{'con-parl__agenda-cube--hidden': cubeHidden(color, step.index)}"
-                  :data-agenda-cube="color">
-              <i class="con-parl__agenda-dot" :class="dotClass(color, step.index)" aria-hidden="true" @animationend="onDotSettleEnd($event, color, step.index)"></i>
-            </span>
+            <template v-for="color in seatOrder" :key="color">
+              <span v-if="step.cubes.includes(color)" class="con-parl__agenda-cube"
+                    :class="{'con-parl__agenda-cube--hidden': cubeHidden(color, step.index)}"
+                    :data-agenda-cube="color">
+                <i class="con-parl__agenda-dot" :class="dotClass(color, step.index)" aria-hidden="true" @animationend="onDotSettleEnd($event, color, step.index)"></i>
+              </span>
+              <span v-else class="con-parl__agenda-nest" aria-hidden="true"></span>
+            </template>
           </span>
         </div>
         <span v-for="band in influenceBands" :key="band.level" class="con-parl__inf-band"
@@ -190,6 +204,16 @@ export default defineComponent({
      * or the law's walk the sitting is playing now): the winner's law step starts
      * where its winner's step ends, so the cube is carried back over both.
      */
+    /**
+     * THE SEATS' NESTS (P70 · K1): every seat that stands on the track, in the table's seat order — a constant list, so a
+     * seat's marker always takes the same nest inside a place (the support areas' slots are the same idea). A colour
+     * the seat list does not name (never expected) is appended, so no marker is ever dropped.
+     */
+    seatOrder(): ReadonlyArray<Color> {
+      const on = new Set<Color>([...this.shown.start, ...this.shown.steps.flatMap((step) => step.cubes)]);
+      const ordered = this.players.map((p) => p.color).filter((color) => on.has(color));
+      return [...ordered, ...[...on].filter((color) => !ordered.includes(color))];
+    },
     shown(): AgendaVm {
       const holds = [...parliamentHolds.agendaGrantAwaits.values()];
       if (parliamentHolds.agendaAwaits !== undefined) {

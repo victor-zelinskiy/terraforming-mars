@@ -963,7 +963,8 @@
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.07);
         &--me { background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.22); .con-parl__seat-name { color: #f3f0e8; } }
         &--neutral { opacity: .92; }
-        &--deck { opacity: .72; background: none; box-shadow: none; padding-left: 0; }
+        /* THE PILES (P70 · K5) — set apart from the seats by a hairline, at full ink (a dimmed pile read as a muted seat). */
+        &--deck { background: none; box-shadow: none; padding-left: .5rem; border-radius: 0; border-left: .05rem solid rgba(170, 195, 220, 0.22); }
     }
     /* THE DECK — a physical pile in the HUD deck's own language: the card back
        on top, slim dark edges beneath (tiered by the count), a ghost when
@@ -989,6 +990,9 @@
        lands (the old law, a loser, a revealed card that does not fit) and what turns over INTO the deck when the
        deck is empty. */
     &__deck--discard { opacity: .62; }
+    /* A pile's count is a NUMBER of resolutions in the pile's own tone; an empty pile keeps the count's box and paints nothing. */
+    &__seat-place--pile { .premium-tooltip(14rem); .con-parl__seat-count { color: rgba(214, 226, 238, 0.82); } }
+    &__seat-count--none { visibility: hidden; }
     &__seat-place--discard { margin-left: .1rem; }
     &__seat-ident { display: inline-flex; align-items: center; gap: .3rem; min-width: 0; font-size: .7rem; font-weight: 600; }
     /* WHOSE row — the player's dot (the status strip's own mark), never a figure: the ledger's figures are all PHYSICAL. */
@@ -1280,6 +1284,8 @@
     }
     &__step-cubes { display: flex; align-items: flex-start; justify-content: center; gap: .08rem; width: 100%; height: 100%; padding-top: .06rem; box-sizing: border-box; }
     &__agenda-cube { display: inline-flex; &--hidden { visibility: hidden; } }
+    /* A SEAT'S EMPTY NEST on a place (P70 · K1): the disc's own box, painting nothing — the seats keep their x. */
+    &__agenda-nest { flex: none; width: .8rem; height: .8rem; }
     /* THE CAREER MARKER — THE TRACK MARKER's disc (console_track_marker.less, the Hydronetwork's own language) in the
        career's gold; the gliding proxy is the same disc wearing the director's phases. */
     &__agenda-dot {

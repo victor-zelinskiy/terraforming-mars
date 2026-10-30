@@ -58,6 +58,7 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-parliament-sitting-reward.spec.ts', // «the tick rides the touchdown» — a touchdown/tick window
   'console-plasma-fans.spec.ts', // «the Greens' +2 ticks a beat AFTER the rating» — the gap is `motionMs(90)`, 45 ms at ×0.5 (T09 regression, 2026-10-22: 43 ms vs the spec's 60)
   'console-flight-paint.spec.ts', // T12 / CA stand: the paint of every token sampled on its whole path (birth · approach · touchdown) against the rail, the strip and the plaques — motion itself
+  'console-tile-language.spec.ts', // W1–W7 stand: the city's dust is a 230 ms transient at ×0.5 that a starved 4K SwiftShader frame paints NEVER (CI 2026-10-30, 3 / 3 red: no sample above 0.1), the marker's let-go measured against it in ms, «several tokens in the air at once», the glide inside the camera's exit — motion itself
   'console-composer-preselect.spec.ts', // T14 / CC stand: the commit's ARRIVAL sampled (focus witness) and presses INSIDE the arrival window — motion itself
   'console-staged-board-clarity.spec.ts', // T15 / CD stand: B pressed INSIDE the staged ritual's windows (0 · 400 · 1200 · 2100 ms) and the bar's «Возвращаемся…» sampled while a hold owes it — motion itself
   'console-vote-of-no-confidence.spec.ts', // TR76 stand: the chair EMPTY between the two figures, red's reserve ticking on its touchdown before blue sits, the marker's step only after — the order of motion itself

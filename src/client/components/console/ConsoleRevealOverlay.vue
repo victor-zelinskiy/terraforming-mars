@@ -8,6 +8,7 @@
        the «Источник» column below. -->
   <div ref="rootEl" class="con-reveal"
        :data-cursor-pending="revealPoseHeld ? 'reveal' : undefined"
+       :data-take="takeState"
        :class="{
          'con-reveal--headless': headless,
          'con-reveal--embedded': embedded,
@@ -778,6 +779,16 @@ export default defineComponent({
       takingIdx: undefined as number | undefined,
       collecting: false,
       /**
+       * A FLIGHT TAKE IS STAGING — the per-card intake's half of `takingIdx` (the dock-reachable grammar). From the
+       * press to the intake's commit (`commitAt: 'staged'` — the proxy standing over the card) the card is still
+       * UNTAKEN and still under the cursor, so a second A in that window took the SAME card again: two intakes, and
+       * the second commit — reading one card left — ran the LAST-card branch and closed the whole batch with the
+       * other card never flown (measured: two presses 60 ms apart took a two-card reveal 2 → gone, never 1; the CI
+       * flake of `console-standalone-reveal` A, 2026-10-30). Every verb is swallowed while it stands, exactly as
+       * during a take-in-place turn.
+       */
+      stagingTake: false,
+      /**
        * IS THE HAND DOCK REACHABLE for this batch (sampled once per batch —
        * see `refreshDockReachable`)? It picks the take grammar (per-card
        * intake flights vs take-in-place), and it is sampled ONCE because it
@@ -1038,6 +1049,25 @@ export default defineComponent({
     cellSource(): SpaceId | undefined {
       const s = this.drawnSource;
       return this.scene && s?.type === 'tile' && s.spaceId !== undefined ? s.spaceId : undefined;
+    },
+    /**
+     * WHAT A TAKE PRESS WOULD DO RIGHT NOW (drawn mode) — `ready` (A takes the focused card), `busy` (a take or the
+     * final collection is in flight: A is swallowed), `held` (the batch is still arriving, the source peek stands, a
+     * place turn plays, the stage is parked: A is swallowed). The same guards `onPress` reads, published as ONE
+     * attribute so a driver can act → verify: «the press landed» is the edge to `busy`, never «the count changed
+     * somewhere in the next N ms» — a retry timed on that clock took the NEXT card the moment the first one committed.
+     */
+    takeState(): 'ready' | 'busy' | 'held' | undefined {
+      if (this.mode !== 'drawn') {
+        return undefined;
+      }
+      if (this.takingIdx !== undefined || this.stagingTake || this.collecting) {
+        return 'busy';
+      }
+      if (this.arrivalPending || this.placeTurnBusy || this.parked || this.peeking || this.singleCardMode) {
+        return 'held';
+      }
+      return 'ready';
     },
     /** The scene stands receded over the board, showing its source cell. */
     peeking(): boolean {
@@ -2659,7 +2689,7 @@ export default defineComponent({
       // flight proxies have handed over, the slots under this surface are
       // still empty, and a press there would act on a card that is not there.
       if (this.mode === 'drawn' &&
-          (this.arrivalPending || this.takingIdx !== undefined || this.collecting || this.placeTurnBusy || this.parked)) {
+          (this.arrivalPending || this.takingIdx !== undefined || this.stagingTake || this.collecting || this.placeTurnBusy || this.parked)) {
         return;
       }
       // L3 = inspect the SOURCE card fullscreen (screen-specific stick). Drawn
@@ -2697,7 +2727,7 @@ export default defineComponent({
       // Navigation is between AVAILABLE cards only; while the batch is still
       // arriving, a take turn plays or the final collection runs, the frame
       // stays where it is (there is nothing under it to move between yet).
-      if (this.arrivalPending || this.takingIdx !== undefined || this.collecting || this.placeTurnBusy) {
+      if (this.arrivalPending || this.takingIdx !== undefined || this.stagingTake || this.collecting || this.placeTurnBusy) {
         return;
       }
       const count = this.focusCount;
@@ -2732,7 +2762,7 @@ export default defineComponent({
         // through the beat). Same swallow for the take-in-place turn and the
         // final collection: `taking`/`collecting` absorb EVERY verb, so a
         // near-simultaneous A+B is exactly one transaction by construction.
-        if (this.arrivalPending || this.takingIdx !== undefined || this.collecting || this.placeTurnBusy || this.parked) {
+        if (this.arrivalPending || this.takingIdx !== undefined || this.stagingTake || this.collecting || this.placeTurnBusy || this.parked) {
           return;
         }
         if (action === 'primary') {
@@ -3095,14 +3125,25 @@ export default defineComponent({
       }
       const e = this.drawnEvent;
       const entry = this.drawnUntaken[this.focusIdx];
-      if (e === undefined || entry === undefined) {
+      if (e === undefined || entry === undefined || this.stagingTake) {
         return;
       }
       // EMBEDDED, several cards, dock reachable: this take is one of MANY —
       // the stage may only detach on the LAST one, or the workspace would
       // fold while the player still owes takes.
       const lastOfBatch = this.drawnUntaken.length === 1;
+      this.stagingTake = true;
+      // This take's own stage: released ONCE, by its commit or (no commit ever) by its intake's end — never a later
+      // take's (the intake promise settles at the LANDING, long after the next take may have started staging).
+      let staging = true;
+      const release = () => {
+        if (staging) {
+          staging = false;
+          this.stagingTake = false;
+        }
+      };
       const commit = () => {
+        release();
         if (this.drawnUntaken.length > 1) {
           markCardTaken(e.id, entry.index);
           return;
@@ -3135,7 +3176,7 @@ export default defineComponent({
       // A card the RULES already discarded (К-5) never flies into the hand: it leaves its slot the discard's way
       // (the shared subdued exit), and the batch commits exactly as a take would.
       if (e.autoDiscarded?.includes(entry.card.name) === true) {
-        void applyDiscardExit(slot === null ? [] : [slot]).then(commit);
+        void applyDiscardExit(slot === null ? [] : [slot]).then(commit).finally(release);
         return;
       }
       void runHandIntake([{name: entry.card.name, el: slot ?? undefined}], {
@@ -3154,7 +3195,7 @@ export default defineComponent({
         // Only on the LAST take: with a reachable dock every card flies as it
         // is taken, and the stage has to stand until the batch is finished.
         onStaged: this.embedded && lastOfBatch ? () => this.$emit('result-detached') : undefined,
-      });
+      }).finally(release);
     },
     /** Sample the destination (see `handDockReachable`) — the ONE input that
      *  picks this batch's take grammar. */

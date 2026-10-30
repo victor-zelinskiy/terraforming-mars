@@ -245,7 +245,9 @@ test.describe('Utopia Invest · the activation · tv', () => {
     const seen = await steelSamples(page);
     const w = await transferWitness(page);
     await shoot(page, TV.id, 'C-01-after');
-    const trail = transferTrail(w);
+    const productTrail = await page.evaluate(() =>
+      (window as unknown as {__conReady?: () => {transfer?: {trail?: ReadonlyArray<unknown>}}}).__conReady?.().transfer?.trail ?? []);
+    const trail = `${transferTrail(w)}\nproduct trail: ${JSON.stringify(productTrail)}`;
     fs.mkdirSync(path.join(OUT, TV.id), {recursive: true});
     fs.writeFileSync(path.join(OUT, TV.id, 'C-witness.json'), JSON.stringify({seen, witness: w}, null, 1));
 

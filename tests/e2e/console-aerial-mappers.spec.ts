@@ -184,6 +184,12 @@ async function openPlayComposer(page: Page, card: string): Promise<void> {
 for (const preset of PRESETS) {
   test.describe(`polish remediation 1 · Aerial Mappers · ${preset.id}`, () => {
     test.use({viewport: preset.viewport, deviceScaleFactor: 1});
+    // A BUDGET, NOT A CLAIM: this is a TIMING spec (the real boot, motion ×1) and it ran on Playwright's 30 s default —
+    // one of the last ten specs without a budget of its own. (A) at 4K measured 24.2 / 28.2 / 28.6 / 29.2 s on the Steam
+    // Machine and 33.6 s on CI's SwiftShader runner (run 41095494908: timed out on all three attempts, nothing slower in
+    // the product — `780756dfc6..ac6cef8729` touched none of its path). Its own waits already allow far more (the scene's
+    // end alone up to 40 + 20 + 30 s), so the default cut the spec off mid-scene and named a fetch as the failure.
+    test.describe.configure({timeout: 180_000});
 
     test(`(A) the target step and the composer's answered row print the value line with its params — never a raw template; +1 floater onto Dirigibles lands on its miniature (${preset.id})`, async ({page, request}) => {
       const {playerId} = await bootFixtureSeats(page, request, 'aerial-mappers', {query: preset.query});

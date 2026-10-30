@@ -102,7 +102,8 @@ export type TransferWitness = {births: Array<TransferEnd>, landings: Array<Trans
 
 /**
  * ARM the transfer witness: from now on every `.con-transfer__chip` is followed
- * (a 16 ms sampler + a MutationObserver on the body — never rAF) and the
+ * (a 16 ms sampler + a MutationObserver on the body + one on every chip's and
+ * beat's own `style` — every pose the director writes — never rAF) and the
  * witness records its BIRTH (the first painted sample), its TOUCHDOWN (the
  * first sample its contact beat is painted beside it) and its LANDING (the
  * last painted sample before it left), each with what was painted under it.
@@ -351,13 +352,36 @@ export async function armTransferWitness(page: Page): Promise<void> {
         }
       }
     };
-    const timer = window.setInterval(sample, 16);
-    const mo = new MutationObserver(sample);
+    // EVERY POSE THE PRODUCT WRITES, not only the ones a timer happens to catch (CI 2026-10-30, `console-utopia-invest`
+    // C: the steel «+4» was recorded LANDING over the M€ row — its last sample was the arc at q ≈ 0.92, with no contact
+    // beat seen at all, because a 4K SwiftShader runner starved the 16 ms sampler through the rest of the descent, the
+    // settle and the beat; the box never reproduced it, at ×4 CPU throttle either). The director moves a chip and paints
+    // its beat by writing their `style` (GSAP, one write per tick), so a MutationObserver on THOSE attributes samples in
+    // the very task each pose is written — a starved renderer can slow the flight, it can no longer hide its end. The
+    // chip and the beat are followed from the first sample that sees them (a Teleport handover keeps the node, and the
+    // observation with it).
+    const followed = new WeakSet<Element>();
+    const poseMo = new MutationObserver(() => sample());
+    const follow = (): void => {
+      for (const el of Array.from(document.querySelectorAll('.con-transfer__chip, .con-transfer__beat'))) {
+        if (!followed.has(el)) {
+          followed.add(el);
+          poseMo.observe(el, {attributes: true, attributeFilter: ['style', 'class']});
+        }
+      }
+    };
+    const sampleAndFollow = (): void => {
+      follow();
+      sample();
+    };
+    const timer = window.setInterval(sampleAndFollow, 16);
+    const mo = new MutationObserver(sampleAndFollow);
     mo.observe(document.body, {subtree: true, childList: true});
     // `t0` — the witness's own clock origin (`performance.now()`), so a spec can line a touchdown up with its own samples.
     w.__transferWitness = {births, landings, t0, stop: () => {
       window.clearInterval(timer);
       mo.disconnect();
+      poseMo.disconnect();
     }};
   });
 }

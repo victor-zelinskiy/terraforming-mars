@@ -107,7 +107,9 @@
                  numbers wait for the touchdown. -->
             <div class="con-parl__tally" data-parl-tally>
               <span class="con-parl__tally-line">
-                <span class="con-parl__tally-total">
+                <!-- NOTHING TO SAY, NOTHING SAID (P70 · K6): a resolution no one voted on prints no «0» and no «—» — the
+                     medallion is an EMPTY socket and the leader's place a reserved blank (the boxes hold: law 13). -->
+                <span class="con-parl__tally-total" :class="{'con-parl__tally-total--empty': tallyOf(slot, i).votes === 0}">
                   <!-- «Зал» v7: the number alone — the ribbon above IS the delegates; the leader is its first cube, said
                        once more here as the cube beside the count (a11y: the sentence). -->
                   <b :key="'t' + tallyOf(slot, i).votes" class="con-parl__tally-num con-parl__tick" :aria-label="tallyOf(slot, i).votes + ' ' + delegatesWord(tallyOf(slot, i).votes)">{{ tallyOf(slot, i).votes }}</b>
@@ -118,8 +120,8 @@
                   <PlayerDelegate v-if="tallyOf(slot, i).leader !== 'neutral'" :color="tallyOf(slot, i).leader" :size="figurePx(18)" :glow="false" />
                   <PlayerDelegate v-else color="neutral" steel :size="figurePx(18)" :glow="false" />
                 </span>
-                <!-- No leader: the fact row's own dash (P-02: «0 делегатов · Лидера пока нет · Делегатов пока нет» said it three times). -->
-                <span v-else class="con-parl__tally-row con-parl__tally-row--none" aria-hidden="true">—</span>
+                <!-- No leader: the place stands reserved and EMPTY (P-02 said it three times; P70 · K6: not even a dash). -->
+                <span v-else class="con-parl__tally-row con-parl__tally-row--none" aria-hidden="true"></span>
               </span>
               <span class="con-parl__tally-line con-parl__tally-line--mine">
                 <!-- THE PLACES are the PRINTED two, always in the flow; a place past the viewer's OWN threshold for this

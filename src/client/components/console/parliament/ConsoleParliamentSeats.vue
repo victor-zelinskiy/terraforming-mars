@@ -74,25 +74,29 @@
     <!-- The piles' captions are ONE WORD each (PL-148): everything on this line is resolutions, and «КОЛОДА РЕЗОЛЮЦИЙ ·
          СБРОС РЕЗОЛЮЦИЙ» was the 280 px (4K) that kept a two-seat table from standing beside the widest crumb
          («ПРЕДСЕДАТЕЛЬСТВО › КАРЬЕРА») — the zone folded under it and the tiers below lost a line. -->
+    <!-- THE PILES READ AS RESOLUTIONS, NOT AS SEATS (P70 · K5): set apart from the seats by a hairline, each pile a bill's
+         back with its BARE count (the seats' «×N» is a delegate count — «×28 · ×10» read as two more players), an EMPTY
+         discard an empty nest with no «×0» (the count keeps its box, hidden). The words are the hint's. -->
     <div class="con-parl__seat con-parl__seat--deck" data-parl-deck>
-      <span class="con-parl__seat-place" :aria-label="$t('Deck')">
+      <span class="con-parl__seat-place con-parl__seat-place--pile" :aria-label="$t('Deck')" :data-hint="$t('Resolution deck') + ' · ' + deckShown">
         <span class="con-parl__seat-obj">
           <span class="con-parl__deck" :class="{'con-parl__deck--empty': deckShown === 0}" :data-count="deckShown" data-parl-deck-pile aria-hidden="true">
             <span v-if="deckLayers >= 2" class="con-parl__deck-layer con-parl__deck-layer--2"></span>
             <span v-if="deckLayers >= 1" class="con-parl__deck-layer con-parl__deck-layer--1"></span>
             <span class="con-parl__deck-top" data-parl-deck-top></span>
           </span>
-          <b :key="'d' + deckShown" class="con-parl__seat-count con-parl__tick">×{{ deckShown }}</b>
+          <b :key="'d' + deckShown" class="con-parl__seat-count con-parl__tick" data-parl-pile-count>{{ deckShown }}</b>
         </span>
       </span>
-      <span class="con-parl__seat-place con-parl__seat-place--discard" data-parl-discard :aria-label="$t('Discard pile')">
+      <span class="con-parl__seat-place con-parl__seat-place--pile con-parl__seat-place--discard" data-parl-discard :aria-label="$t('Discard pile')"
+            :data-hint="discardShown > 0 ? $t('Resolution discard') + ' · ' + discardShown : $t('Resolution discard')">
         <span class="con-parl__seat-obj">
           <span class="con-parl__deck con-parl__deck--discard" :class="{'con-parl__deck--empty': discardShown === 0}" :data-count="discardShown" data-parl-discard-pile aria-hidden="true">
             <span v-if="discardLayers >= 2" class="con-parl__deck-layer con-parl__deck-layer--2"></span>
             <span v-if="discardLayers >= 1" class="con-parl__deck-layer con-parl__deck-layer--1"></span>
             <span class="con-parl__deck-top" data-parl-discard-top></span>
           </span>
-          <b :key="'x' + discardShown" class="con-parl__seat-count con-parl__tick">×{{ discardShown }}</b>
+          <b :key="'x' + discardShown" class="con-parl__seat-count con-parl__tick" :class="{'con-parl__seat-count--none': discardShown === 0}" data-parl-pile-count>{{ discardShown }}</b>
         </span>
       </span>
     </div>

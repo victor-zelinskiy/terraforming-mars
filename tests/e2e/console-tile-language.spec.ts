@@ -55,6 +55,10 @@ type Sample = {
   beacon: {o: number, color: string} | null,
   /** The strongest dust mote / splash ring (effective opacity) — the contact by kind. */
   dust: number, splash: number,
+  /** The contact's STAGE by kind — the dust / splash box the director WAKES in the frame of contact (`playStackDust` /
+   *  `playCoverSplash` set it visible synchronously). The motes and the ring are a 230–460 ms transient a starved 4K
+   *  SwiftShader frame can skip whole (CI 2026-10-30: no mote ever above 0.1); the wake is the product's decision. */
+  dustBox: number, splashBox: number,
   chips: Array<{x: number, y: number}>,
   board: string,
   /** The oxygen cursor's resting value (`~` while it travels). */
@@ -97,12 +101,17 @@ async function armProbe(page: Page, watch: {cell: string, seat?: string}): Promi
       const beacon = document.querySelector<HTMLElement>('.con-tileplace__beacon');
       samples.push({
         t: Math.round(performance.now() - t0),
-        marker: document.querySelector('.con-bcur[data-landing-marker]')?.getAttribute('data-landing-marker') ?? null,
+        // HELD = standing and NOT leaving: a `<transition>` keeps the leaving element's last attributes until its
+        // `transitionend`, which a starved renderer delivers hundreds of ms after the 70–140 ms fade (CI: «held 294 ms»,
+        // box: 312 / 396) — the let-go is the leave's START, the product's own edge.
+        marker: document.querySelector('.con-bcur[data-landing-marker]:not(.con-bcur-out-leave-active)')?.getAttribute('data-landing-marker') ?? null,
         own: box(document.querySelector('.con-tileplace__tile:not(.con-tileplace__tile--remote):not(.con-tileplace__tile--depart):not(.con-tileplace__tile--cover)')),
         remote: box(document.querySelector('.con-tileplace__tile--remote')),
         beacon: beacon === null ? null : {o: op(beacon), color: beacon.dataset.beaconColor ?? ''},
         dust: strongest('.con-tileplace__dust-mote'),
         splash: strongest('.con-tileplace__splash-ring'),
+        dustBox: strongest('.con-tileplace__dust'),
+        splashBox: strongest('.con-tileplace__splash'),
         chips: [...document.querySelectorAll<HTMLElement>('.con-transfer__chip')].filter((el) => el.style.transform !== '' && op(el) > 0.05)
           .map((el) => {
             const r = el.getBoundingClientRect();
@@ -193,8 +202,8 @@ for (const preset of PRESETS) {
         const flying = s.filter((x) => x.own !== null && x.own.o > 0.05);
         expect(flying.length, 'the city flew in').toBeGreaterThan(0);
         expect(flying.some((x) => x.marker === cell), 'W1: the marker holds the cell WHILE the tile is in the air').toBe(true);
-        const contact = s.findIndex((x) => x.dust > 0.1);
-        expect(contact, 'W7: the city lands with its dust').toBeGreaterThanOrEqual(0);
+        const contact = s.findIndex((x) => x.dustBox > 0.5 || x.dust > 0.1);
+        expect(contact, `W7: the city lands with its dust (the strongest mote painted: ${Math.max(0, ...s.map((x) => x.dust))})`).toBeGreaterThanOrEqual(0);
         const lastMarker = s.map((x) => x.marker !== null).lastIndexOf(true);
         expect(s[lastMarker].t - s[contact].t, `W1: the marker lets go AT the contact (its leave fade only) — held ${s[lastMarker].t - s[contact].t} ms past it`)
           .toBeLessThanOrEqual(260);
@@ -294,7 +303,8 @@ for (const preset of PRESETS) {
         const s = await readProbe(page);
         await stopProbe(page);
         expect(s.some((x) => x.remote !== null && x.remote.o > 0.05), 'the remote ocean flew').toBe(true);
-        expect(s.some((x) => x.splash > 0.1), 'W7: the ocean lands with its splash').toBe(true);
+        expect(s.some((x) => x.splashBox > 0.5 || x.splash > 0.1),
+          `W7: the ocean lands with its splash (the strongest ring painted: ${Math.max(0, ...s.map((x) => x.splash))})`).toBe(true);
         await shoot(page, preset.id, 'D-remote-ocean');
       }
     });

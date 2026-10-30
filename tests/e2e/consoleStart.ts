@@ -1335,6 +1335,63 @@ export async function pressUntilGone(
 }
 
 /**
+ * TAKE ONE CARD OF THE STANDING DRAWN REVEAL — act → verify on the reveal's own `data-take` («ready» · «busy» · «held»).
+ * Returns once that take has COMMITTED (busy again → not busy, or the reveal gone), so the caller reads the next
+ * state, never a transient one; `false` if no take landed within `maxMs`.
+ *
+ * ⚠ NEVER `pressUntil(Enter, «N cards left»)` (CI 2026-10-30, `console-standalone-reveal` A): a take is a flight —
+ * the card is still under the cursor until the intake STAGES — and `press` waits for quiet BEFORE its key, so the
+ * retry's key went out the moment the first take committed and took the SECOND card: «1 card left» stood for less than
+ * one poll, the reveal closed, the witness never held. Here a press goes only to a `ready` reveal and is verified by
+ * the edge to `busy` (set synchronously by the take itself); a retry needs the SAME reveal still `ready` with nothing
+ * taken — a swallowed key, never a second take.
+ */
+export async function takeRevealCard(page: Page, maxMs = 30_000): Promise<boolean> {
+  const read = () => page.evaluate(() => {
+    const r = document.querySelector('.con-reveal');
+    return r === null ? undefined : {
+      take: r.getAttribute('data-take') ?? '',
+      sig: `${r.querySelectorAll('[data-zoom-slot]').length}|${r.querySelectorAll('.con-reveal__takenmark').length}`,
+    };
+  });
+  const deadline = Date.now() + maxMs;
+  for (let presses = 0; Date.now() < deadline && presses < 6;) {
+    const before = await read();
+    if (before === undefined) {
+      return false;
+    }
+    if (before.take !== 'ready') {
+      await pollPause(page, 100); // arriving / a take in flight / the peek — STATE, it changes by itself
+      continue;
+    }
+    presses++;
+    await page.keyboard.press('Enter');
+    let landed = false;
+    for (const t = Date.now(); !landed && Date.now() - t < 3_000;) {
+      const now = await read();
+      landed = now === undefined || now.take === 'busy' || now.sig !== before.sig;
+      if (!landed) {
+        await pollPause(page, 50);
+      }
+    }
+    if (!landed) {
+      continue; // swallowed: the same reveal, still ready, nothing taken
+    }
+    for (;;) {
+      const now = await read();
+      if (now === undefined || now.take !== 'busy') {
+        return true;
+      }
+      if (Date.now() >= deadline) {
+        return false;
+      }
+      await pollPause(page, 50);
+    }
+  }
+  return false;
+}
+
+/**
  * THE SPACE THE BOARD CURSOR STANDS ON, or `''` when no placement is live.
  *
  * STRUCTURAL: the cursor cell carries `.con-cell-sel` (`SELECT_CLASS` in
@@ -2989,6 +3046,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'envoys-from-venus' | 'envoys-from-venus-overtake' | 'envoys-from-venus-locked' |
   // Prelude 2 P70 Colonial Envoys — a SERIES of grants (DA): Unity ruling, three colonies (N = 3), reserve 6 · locked «1 of 2».
   'colonial-envoys' | 'colonial-envoys-locked' |
+  // P70 · the Parliament's chrome guard: 4 seats, two on one Career place, a quest with one leader, an empty discard, no votes.
+  'parliament-chrome' |
   // P68 Ceres Tech Market — the first Prelude 2 card WITH AN ACTION: the counted play (two colonies, titanium) · the discard action for 2 M€ a card.
   'ceres-tech-market' |
   // Prelude 2 P80 Red Appeasement — the first play that IS a pass (the Reds rule; nobody / red passed)

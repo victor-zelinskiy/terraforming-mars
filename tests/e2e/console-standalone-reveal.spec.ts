@@ -20,7 +20,7 @@
  *       opening; X opens the viewer, B returns to the scene, A takes the card.
  */
 import {expect, test, Page} from './consoleTest';
-import {bootSeededGame, closeZoomViewer, fetchPlayerModel, forceSwiftPlacement, openZoomViewer, press, pressUntil} from './consoleStart';
+import {bootSeededGame, closeZoomViewer, fetchPlayerModel, forceSwiftPlacement, openZoomViewer, press, pressUntil, takeRevealCard} from './consoleStart';
 import {STEEL_CARD_CELL, TWO_CARDS_CELL, createCleanTcnGame, openConvertPlants, walkBoardCursorTo} from './boardCellBonus';
 
 const PRESETS = [
@@ -233,8 +233,12 @@ for (const preset of PRESETS) {
       await expect(page.locator('.board-log-highlight.con-peek-cell--source')).toHaveCount(0);
 
       // A — one card per press into the hand; the second take closes the scene.
-      expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-reveal [data-zoom-slot]').count() === 1, {settleMs: 600})).toBeTruthy();
-      expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-reveal').count() === 0, {settleMs: 600})).toBeTruthy();
+      // A take is a FLIGHT: act → verify on the reveal's own take state (`takeRevealCard`), never a press timed on a count
+      // that the NEXT take erases (a retry took the second card the moment the first one committed — CI 2026-10-30).
+      expect(await takeRevealCard(page), 'the first A took a card').toBe(true);
+      await expect(page.locator('.con-reveal [data-zoom-slot]'), 'one card per press — one card left').toHaveCount(1);
+      expect(await takeRevealCard(page), 'the second A took the last card').toBe(true);
+      await expect(page.locator('.con-reveal'), 'the second take closes the scene').toHaveCount(0);
       await expect.poll(async () => ((await fetchPlayerModel(request, playerId)) as unknown as {cardsInHand: Array<unknown>}).cardsInHand.length,
         {timeout: 10_000}).toBe(handBefore + 2);
     });

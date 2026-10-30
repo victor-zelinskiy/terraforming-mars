@@ -9580,6 +9580,30 @@ function colonialEnvoysFixture(name: string, variant: 'open' | 'locked'): void {
 colonialEnvoysFixture('colonial-envoys', 'open');
 colonialEnvoysFixture('colonial-envoys-locked', 'locked');
 
+// ── P70 · THE PARLIAMENT'S CHROME (the guard `console-parliament-chrome`): a 4-seat Redux table posed for the tier that
+//    stands on every stage — blue and red on the SAME Career place (step 2), green and yellow at the start; the chairman
+//    quest open (3 TR) with ONE leader (red 2 · blue 1 · the others 0); the resolution discard EMPTY; no vote on any
+//    resolution yet (the lobby cubes standing); blue on the move. ──
+parliamentFixture('parliament-chrome', {
+  stopAt: 'vote',
+  players: 4,
+  agenda: [2, 2, undefined, undefined],
+  arrange: ({game, seats, parliament}) => {
+    parliament.discard = [];
+    parliament.quest = {definition: {goal: {kind: 'tr'}, count: 3}, source: 'starter', generation: game.generation, progress: new Map([[seats[0].id, 1], [seats[1].id, 2]])};
+  },
+  expect: ({game, seats, parliament}) => {
+    const [blue, red, green, yellow] = seats;
+    const votes = parliament.slots.reduce((sum, slot) => sum + seats.reduce((n, seat) => n + parliament.votesOf(seat, slot), 0), 0);
+    if (seats.length !== 4 || parliament.agendaOf(blue) !== 2 || parliament.agendaOf(red) !== 2 || parliament.agendaOf(green) !== 0 ||
+      parliament.agendaOf(yellow) !== 0 || parliament.discard.length !== 0 || votes !== 0 || parliament.questProgressOf(red) !== 2 ||
+      parliament.questProgressOf(blue) !== 1 || parliament.quest?.completedBy !== undefined || game.activePlayer.id !== blue.id) {
+      throw new Error(`the parliament-chrome fixture expected 4 seats, blue + red on Career step 2, an empty discard, no vote, red leading the quest 2 / blue 1 and blue on the move — got seats=${seats.length} agenda=${seats.map((s) => parliament.agendaOf(s)).join(',')} discard=${parliament.discard.length} votes=${votes} quest=${seats.map((s) => parliament.questProgressOf(s)).join(',')}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
 // ── P68 · CERES TECH MARKET — the THIRD Prelude 2 card and the FIRST WITH AN ACTION (docs/claude/prompts/prelude2-p68-
 //    ceres-tech-market.md): «play: 2 M€ per colony you own · action: discard any number of cards for 2 M€ each». A 2p
 //    Colonies + Prelude 2 table (Teractor · ThorGate), blue on the move with P68 MOVED out of the dealt pool into the hand
