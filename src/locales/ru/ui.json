@@ -803,6 +803,7 @@
     "Animals": "Животные",
     "Play anyway": "Разыграть всё равно",
     "No events are selected. The card will be played, but no events will return to your hand.": "Ни одно событие не выбрано. Карта будет разыграна, но ни одно событие не вернётся в руку.",
+    "No cards are selected. The card will be played, but no resources will be added.": "Ни одна карта не выбрана. Карта будет разыграна, но ресурсы не будут добавлены.",
     "Choose an action to repeat": "Выберите действие для повтора",
     "This action cannot be repeated": "Это действие нельзя выполнить повторно",
     "Choose": "Выбрать",

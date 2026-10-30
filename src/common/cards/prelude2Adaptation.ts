@@ -41,7 +41,6 @@ import {CardName} from './CardName';
 /** ADAPT IN PLACE — 24 project cards, 24 preludes, 5 corporations (ordered as the manifest prints them). */
 export const PRELUDE2_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
   // ── Project cards (P68…P91) ──
-  CardName.L1_TRADE_TERMINAL, // P78 · Colonies · behavior + bespokePlay
   CardName.CLOUD_TOURISM, // P69 · Venus · bespokePlay (production per Earth+Venus pair), VP per 3 floaters
   CardName.GHG_SHIPMENT, // P75 · POLITICAL (Kelvinists = Greens under Redux, `normalizeParty`) · declarative
   CardName.SPONSORING_NATION, // P83 · POLITICAL · declarative — 3 TR + 2 delegates

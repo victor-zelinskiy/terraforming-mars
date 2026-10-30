@@ -29,6 +29,7 @@ import {EcologyResearch} from '../../src/server/cards/colonies/EcologyResearch';
 import {CometForVenus} from '../../src/server/cards/venusNext/CometForVenus';
 import {VenusianPlants} from '../../src/server/cards/venusNext/VenusianPlants';
 import {FreyjaBiodomes} from '../../src/server/cards/venusNext/FreyjaBiodomes';
+import {L1TradeTerminal} from '../../src/server/cards/prelude2/L1TradeTerminal';
 import {AirScrappingExpedition} from '../../src/server/cards/venusNext/AirScrappingExpedition';
 import {PlaceDelegatesOnResolution} from '../../src/server/parliament/PlaceDelegatesOnResolution';
 import {NEUTRAL_DELEGATE_ICON, POPULAR_SUPPORT_LABEL, SUPPORT_LIMIT_REASON} from '../../src/common/parliament/ParliamentTypes';
@@ -126,6 +127,12 @@ const SCENARIOS: ReadonlyArray<Scenario> = [
     name: 'Freyja Biodomes (bespoke) — microbes OR animals, so the label alone',
     card: () => new FreyjaBiodomes(),
     expected: [{label: SKIPPED_LABEL.addToCard, reason: SKIP_REASON.noHolder}],
+  },
+  {
+    // P78 — upstream returned silently on an empty table; the fork names the three resources it could not place.
+    name: 'L1 Trade Terminal (bespoke) — no card on the table holds a resource',
+    card: () => new L1TradeTerminal(),
+    expected: [{label: SKIPPED_LABEL.addToCard, reason: SKIP_REASON.noHolder, effect: {direction: 'gain', icon: 'resources', amount: 3, note: 'to a card'}}],
   },
   {
     name: 'Asteroid (declarative plant removal) — nobody has plants',
