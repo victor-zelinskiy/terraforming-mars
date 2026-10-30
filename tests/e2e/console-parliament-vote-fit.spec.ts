@@ -376,7 +376,8 @@ for (const preset of PRESETS) {
         expect(badges.words, 'one form of the winning badge on every profile — the glyph').toBe(0);
         expect(badges.glyphsHinted, 'every glyph badge carries its hint').toBe(badges.glyphs);
         expect(badges.ribbonEmpty, 'the empty ribbon says nothing').toBe(0);
-        expect(badges.noLeader.every((t) => t === '—'), `no leader is a dash: ${badges.noLeader.join('|')}`).toBe(true);
+        // P70 · K6: a resolution with no leader prints NOTHING — its place is reserved and empty (no «—», no «0»).
+        expect(badges.noLeader.every((t) => t === ''), `no leader is an empty reserved place: ${badges.noLeader.join('|')}`).toBe(true);
         expect(budget.suffixes, `the win's difference (${fixture.why})`).toEqual(fixture.suffix);
         expect(budget.kickers, 'two kickers').toBe(2);
         expect(budget.facts.slice(0, 2), 'the leader and the winning state').toEqual(['lead', 'win']);

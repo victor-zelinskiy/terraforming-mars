@@ -13,7 +13,7 @@ import {focusParliamentZone, openParliament} from './parliamentDrive';
  * «3 [heat production]» is the widest; space cities, cards of a type, tags, delegates, trades, colonies), each seated
  * into the same generated table by ONE declared difference (`arrange`), on the three profiles whose tokens size the
  * plate. For every one: no element of the condition reaches the chair, the arrow or the reward; the formula stays
- * inside the plate; the chair is a MEMBER of the formula (a fifth of the plate at most), never its hero. Every plate
+ * inside the plate; the chair is a MEMBER of the formula (a fifth of the quest's room at most — the plate is content-sized since P70 · K4), never its hero. Every plate
  * is shot for the eye (`screenshots/parliament-quest-plate/<profile>/`).
  *
  * The three profiles are kept on purpose (tests.md § TV only): the plate's width, the chair and the formula's scale are
@@ -22,6 +22,8 @@ import {focusParliamentZone, openParliament} from './parliamentDrive';
 type Box = {l: number, t: number, r: number, b: number};
 type PlateRead = {
   plate: Box,
+  /** The room the tier gives the quest (`--con-parl-quest-w`, px) — the plate is content-sized since P70 · K4. */
+  room: number,
   throne: Box,
   chair: Box,
   cond: Box | undefined,
@@ -89,6 +91,8 @@ async function readPlate(page: Page): Promise<PlateRead> {
     }
     return {
       plate: box(plate)!,
+      room: parseFloat(getComputedStyle(plate.closest('.con-parl') ?? document.documentElement).getPropertyValue('--con-parl-quest-w')) *
+        parseFloat(getComputedStyle(document.documentElement).fontSize),
       throne: box(plate.querySelector('.con-parl__throne'))!,
       chair: box(plate.querySelector('[data-parl-chair]'))!,
       cond: union,
@@ -166,8 +170,10 @@ for (const preset of PROFILES) {
           expect(read.name.b, `the holder's name stands above the race — ${tag}`).toBeLessThanOrEqual(read.race.t + 0.5);
         }
         // THE CHAIR IS A MEMBER, NOT THE HERO.
-        const plateW = read.plate.r - read.plate.l;
-        expect(read.chair.r - read.chair.l, `the chair is at most a fifth of the plate — ${tag}`).toBeLessThanOrEqual(plateW * 0.21);
+        // P70 · K4: the plate is sized by its CONTENT, so «a fifth» is measured against the ROOM the tier gives the quest
+        // (the plate's profile cap) — the law's subject (a chair that is a member, never the hero) is unchanged.
+        const plateW = Math.max(read.plate.r - read.plate.l, read.room);
+        expect(read.chair.r - read.chair.l, `the chair is at most a fifth of the quest's room — ${tag}`).toBeLessThanOrEqual(plateW * 0.21);
         // A fit, when the plate solved one, never under its floor.
         if (read.fit !== '') {
           expect(Number(read.fit), `the condition's fit stays readable — ${tag}`).toBeGreaterThanOrEqual(0.55);

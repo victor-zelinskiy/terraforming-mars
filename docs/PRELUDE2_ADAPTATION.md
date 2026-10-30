@@ -173,7 +173,7 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 | --- | --- | --- | --- | --- |
 | P68 | Ceres Tech Market | ACTIVE · Colonies | behavior + bespoke action | СДАНА 2026-10-30 |
 | P69 | Cloud Tourism | ACTIVE · Venus | bespokePlay, ПО за 3 флотера | СДАНА 2026-10-30 |
-| P70 | Colonial Envoys | EVENT · Colonies + ПОЛИТ (Unity) | декларативная, делегат за колонию (серия грантов) | СДАНА 2026-10-30 5a0d419495 · класс 036c2b9f9c (реестр DA) |
+| P70 | Colonial Envoys | EVENT · Colonies + ПОЛИТ (Unity) | декларативная, делегат за колонию (серия грантов) | СДАНА 2026-10-30 5a0d419495 · класс 036c2b9f9c · каркас 0f877b71e3 (реестр DA) |
 | P71 | Colonial Representation | ACTIVE · Colonies + ПОЛИТ | декларативная, +1 влияния + 3 M€ за колонию | СДАНА 2026-10-30 |
 | P72 | Envoys from Venus | EVENT · Venus + ПОЛИТ | декларативная, 2 делегата на одну резолюцию | СДАНА 2026-10-30 b122784fbc · класс 4948c7c198 (реестр CZ) |
 | P73 | Floating Refinery | ACTIVE · Venus | behavior + bespoke action | в списке |
