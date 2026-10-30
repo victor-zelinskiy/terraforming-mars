@@ -51,7 +51,7 @@ export class MarsFirstCampaign extends PopularSupportCampaign {
       metadata: {
         cardNumber: 'TRP3',
         infoText: [
-          {text: 'Add 3 neutral delegates to Mars First\'s Popular Support Area.', tokens: ['neutral-delegate']},
+          {kind: 'remainder', text: 'Add 3 neutral delegates to Mars First\'s Popular Support Area.', tokens: ['neutral-delegate']},
         ],
         renderData: CardRenderer.builder((b) => {
           b.city().nbsp.production((pb) => pb.steel(MARS_FIRST_CAMPAIGN_STEEL_PRODUCTION)).nbsp

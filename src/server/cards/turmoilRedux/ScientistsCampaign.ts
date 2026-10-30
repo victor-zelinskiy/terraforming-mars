@@ -49,7 +49,7 @@ export class ScientistsCampaign extends PopularSupportCampaign {
       metadata: {
         cardNumber: 'TRP6',
         infoText: [
-          {text: 'Add 3 neutral delegates to the Scientists\' Popular Support Area.', tokens: ['neutral-delegate']},
+          {kind: 'remainder', text: 'Add 3 neutral delegates to the Scientists\' Popular Support Area.', tokens: ['neutral-delegate']},
         ],
         renderData: CardRenderer.builder((b) => {
           b.cards(SCIENTISTS_CAMPAIGN_CARDS).nbsp.neutralDelegate(CAMPAIGN_SUPPORT, {digit}).partySeal(PartyName.SCIENTISTS);

@@ -848,8 +848,9 @@ function buildCorporationInformation(card: ICard, graphics: ReadonlyArray<Graphi
         }
         return;
       }
-      // immediate / note — join the on-play zone, ordered by render position.
-      pending.push({block: {id: `mech:authored.${i}`, kind, text: key(entry.text)}, tokens: entry.tokens ?? []});
+      // immediate / remainder / note — join the on-play zone (a corporation's
+      // authored text always augments), ordered by render position.
+      pending.push({block: {id: `mech:authored.${i}`, kind: kind === 'remainder' ? 'immediate' : kind, text: key(entry.text)}, tokens: entry.tokens ?? []});
     });
   }
   const immediate = orderBehaviorBlocks(pending, graphics, renderData);
@@ -1052,21 +1053,31 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
   // the effect's other half) — it keeps owning the zone.
   // Guards: `no mechanic DRAWN on the card face is left undescribed` +
   // `an augmenting infoText entry never switches the on-play derivation off`.
+  // A `remainder` entry AUGMENTS too: it describes only the bespoke part and
+  // joins the blocks the declarative part still derives (the Redux campaigns
+  // shipped «add 3 neutral delegates» ALONE — authored as `immediate`, it had
+  // switched off «gain 3 titanium · place a colony»).
   const authorsOnPlayZone = authored !== undefined &&
     (authored.length === 0 ||
-      authored.some((entry) => entry.kind !== 'action-short' && entry.kind !== 'effect-short' && entry.kind !== 'victory-points'));
+      authored.some((entry) => entry.kind !== 'action-short' && entry.kind !== 'effect-short' && entry.kind !== 'victory-points' && entry.kind !== 'remainder'));
+  const remainders: Array<Pending> = [];
   const takenRows = new Set<string>();
   if (authored !== undefined) {
     status = 'authored';
     authored.forEach((entry, i) => {
-      const kind = entry.kind ?? 'immediate';
-      if (kind === 'victory-points') {
+      const declared = entry.kind ?? 'immediate';
+      if (declared === 'victory-points') {
         vpTextOverride = entry.text;
         return;
       }
-      if (kind === 'action-short' || kind === 'effect-short') {
+      if (declared === 'action-short' || declared === 'effect-short') {
         return; // not a block — `apply*Shorts` rides it on the frame's own
       }
+      if (declared === 'remainder' && !authorsOnPlayZone) {
+        remainders.push({block: {id: `mech:authored.${i}`, kind: 'immediate', text: key(entry.text)}, tokens: entry.tokens ?? []});
+        return;
+      }
+      const kind = declared === 'remainder' ? 'immediate' : declared;
       let match: GraphicMatch = {};
       if (entry.tokens !== undefined) {
         const hit = matchGraphic(graphics, entry.tokens, card.metadata.renderData, takenRows);
@@ -1090,7 +1101,16 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
     });
   }
   let onPlay: AuditEntry['onPlay'] = authorsOnPlayZone && immediate.length > 0 ? 'authored' : 'none';
-  if (!authorsOnPlayZone) {
+  if (!authorsOnPlayZone && remainders.length > 0) {
+    // The bespoke remainder is described by the card itself — the declarative
+    // part derives as ever; one list, sorted by render position.
+    const derived = behaviorBlocks(card, notes) ?? [];
+    immediate = orderBehaviorBlocks([...derived, ...remainders], graphics, card.metadata.renderData);
+    onPlay = 'derived';
+    if (notes.includes('behavior-partial')) {
+      status = 'needs-curation';
+    }
+  } else if (!authorsOnPlayZone) {
     const pending = behaviorBlocks(card, notes);
     const hasBespoke = hasBespokePlay(card);
     if (pending !== undefined && pending.length > 0 && !hasBespoke && !notes.includes('behavior-partial')) {

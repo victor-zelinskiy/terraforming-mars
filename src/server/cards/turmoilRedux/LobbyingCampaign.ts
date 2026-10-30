@@ -74,7 +74,9 @@ export class LobbyingCampaign extends PreludeCard {
 
       metadata: {
         cardNumber: 'TRP1',
+        // Authored whole (not `remainder`): the delegate line REFINES the derived «Add 2 delegates to one resolution».
         infoText: [
+          {text: 'Increase your M€ production 2 steps.', tokens: ['production(megacredits)']},
           {text: 'Add 2 delegates from your reserve to one resolution in the Voting Area.', tokens: ['delegates']},
           {text: 'Advance your Agenda marker 1 step and collect its bonus.', tokens: ['agenda-step']},
         ],

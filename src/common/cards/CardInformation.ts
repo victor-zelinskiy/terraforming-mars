@@ -112,8 +112,16 @@ export type CardInfoText = {
    * cannot read as a calm one/two-line caption in the console browser — a
    * short rule is its own best caption. With several actions/effects on one
    * card, `tokens` says which.
+   *
+   * `remainder` is an on-play block that AUGMENTS the derived zone instead of
+   * replacing it: the text of the card's BESPOKE remainder only, beside the
+   * blocks its declarative `behavior` still derives (the Redux campaigns —
+   * «gain 3 titanium · place a colony» derived, «add 3 neutral delegates to
+   * Unity's area» authored). It sorts among the derived blocks by its
+   * `tokens`' render position. An `immediate` entry would switch the
+   * derivation off and silently drop every declared bonus.
    */
-  kind?: 'immediate' | 'effect' | 'action' | 'action-short' | 'effect-short' | 'note' | 'victory-points';
+  kind?: 'immediate' | 'remainder' | 'effect' | 'action' | 'action-short' | 'effect-short' | 'note' | 'victory-points';
   /** English text — the i18n key. */
   text: string;
   /** Graphic-row tokens this block describes (see cardGraphicIds.ts). */

@@ -49,7 +49,7 @@ export class IndustrialistsCampaign extends PopularSupportCampaign {
       metadata: {
         cardNumber: 'TRP7',
         infoText: [
-          {text: 'Add 3 neutral delegates to the Industrialists\' Popular Support Area.', tokens: ['neutral-delegate']},
+          {kind: 'remainder', text: 'Add 3 neutral delegates to the Industrialists\' Popular Support Area.', tokens: ['neutral-delegate']},
         ],
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => pb.energy(INDUSTRIALISTS_CAMPAIGN_ENERGY_PRODUCTION)).nbsp

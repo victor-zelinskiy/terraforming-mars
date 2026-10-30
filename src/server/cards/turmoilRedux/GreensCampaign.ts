@@ -56,7 +56,7 @@ export class GreensCampaign extends PopularSupportCampaign {
       metadata: {
         cardNumber: 'TRP5',
         infoText: [
-          {text: 'Add 3 neutral delegates to the Greens\' Popular Support Area.', tokens: ['neutral-delegate']},
+          {kind: 'remainder', text: 'Add 3 neutral delegates to the Greens\' Popular Support Area.', tokens: ['neutral-delegate']},
         ],
         renderData: CardRenderer.builder((b) => {
           b.tr(GREENS_CAMPAIGN_TR).nbsp.production((pb) => pb.plants(GREENS_CAMPAIGN_PLANT_PRODUCTION)).nbsp

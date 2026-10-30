@@ -50,7 +50,7 @@ export class RedsCampaign extends PopularSupportCampaign {
       metadata: {
         cardNumber: 'TRP4',
         infoText: [
-          {text: 'Add 3 neutral delegates to the Reds\' Popular Support Area.', tokens: ['neutral-delegate']},
+          {kind: 'remainder', text: 'Add 3 neutral delegates to the Reds\' Popular Support Area.', tokens: ['neutral-delegate']},
         ],
         renderData: CardRenderer.builder((b) => {
           b.megacredits(REDS_CAMPAIGN_MEGACREDITS).nbsp.cards(REDS_CAMPAIGN_CARDS).nbsp

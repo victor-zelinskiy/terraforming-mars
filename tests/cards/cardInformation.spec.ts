@@ -231,6 +231,30 @@ describe('card information model', function() {
     }
   });
 
+  it('a `remainder` entry ADDS the bespoke line to the derived bonuses — never replaces them', () => {
+    // The Redux campaigns shipped their rules as the delegate line ALONE: it
+    // was authored as `immediate`, which switched the behavior derivation off
+    // and dropped every declared bonus («gain 3 titanium · place a colony»).
+    // The whole on-play zone, in the printed (render) order, per card. Lobbying
+    // Campaign authors its zone whole (its delegate line refines the derived
+    // one) and lost its production the same way.
+    const expected: ReadonlyArray<[string, ReadonlyArray<string>]> = [
+      ['Lobbying Campaign', ['Increase your M€ production 2 steps.', 'Add 2 delegates from your reserve to one resolution in the Voting Area.', 'Advance your Agenda marker 1 step and collect its bonus.']],
+      ['Unity Campaign', ['Gain 3 titanium.', 'Place a colony.', 'Add 3 neutral delegates to Unity\'s Popular Support Area.']],
+      ['Mars First Campaign', ['Place a city tile.', 'Increase your steel production 1 step.', 'Add 3 neutral delegates to Mars First\'s Popular Support Area.']],
+      ['Reds Campaign', ['Gain 18 M€.', 'Draw 1 card.', 'Add 3 neutral delegates to the Reds\' Popular Support Area.']],
+      ['Greens Campaign', ['Gain 2 TR.', 'Increase your plants production 1 step.', 'Add 3 neutral delegates to the Greens\' Popular Support Area.']],
+      ['Scientists Campaign', ['Draw 3 cards.', 'Add 3 neutral delegates to the Scientists\' Popular Support Area.']],
+      ['Industrialists Campaign', ['Increase your energy production 3 steps.', 'Add 3 neutral delegates to the Industrialists\' Popular Support Area.']],
+    ];
+    for (const [name, texts] of expected) {
+      const card = loadCards().find((c) => c.name === name);
+      expect(card, name).to.not.eq(undefined);
+      const onPlay = (info(card!)?.groups ?? []).find((g) => g.kind === 'immediate');
+      expect(onPlay?.blocks.map((b) => b.text), `${name}: on-play zone`).to.deep.eq(texts);
+    }
+  });
+
   it('the Asteroid card carries its three separate mechanic blocks, each linked', () => {
     const asteroid = cards.find((c) => c.name === 'Asteroid')!;
     const immediate = info(asteroid)!.groups.find((g) => g.kind === 'immediate')!;

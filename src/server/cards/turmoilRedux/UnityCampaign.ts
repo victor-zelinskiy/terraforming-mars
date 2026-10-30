@@ -51,7 +51,7 @@ export class UnityCampaign extends PopularSupportCampaign {
       metadata: {
         cardNumber: 'TRP2',
         infoText: [
-          {text: 'Add 3 neutral delegates to Unity\'s Popular Support Area.', tokens: ['neutral-delegate']},
+          {kind: 'remainder', text: 'Add 3 neutral delegates to Unity\'s Popular Support Area.', tokens: ['neutral-delegate']},
         ],
         renderData: CardRenderer.builder((b) => {
           b.titanium(UNITY_CAMPAIGN_TITANIUM, {digit}).nbsp.colonies(1).nbsp.neutralDelegate(CAMPAIGN_SUPPORT, {digit}).partySeal(PartyName.UNITY);
