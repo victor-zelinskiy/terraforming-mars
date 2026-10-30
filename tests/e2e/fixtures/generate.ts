@@ -9418,6 +9418,88 @@ function summitLogisticsFixture(name: string, ruling: boolean): void {
 summitLogisticsFixture('summit-logistics', true);
 summitLogisticsFixture('summit-logistics-locked', false);
 
+// ── P72 · ENVOYS FROM VENUS — the TENTH Prelude 2 card, the first EVENT whose whole play is a delegate grant (the stand
+//    `console-envoys-from-venus`): «requires 3 Venus tags; add 2 delegates to one resolution». A 2p Redux + Colonies +
+//    Venus + Prelude 2 table (Teractor · ThorGate), the ENACTED slot holding a quiet law of a party OUTSIDE the voting
+//    area (the government is on screen and must never read as a target), three resolutions up for the vote, blue's lobby
+//    cube placed (reserve 6), blue on the move with P72 MOVED into the hand and 10 M€:
+//      · `envoys-from-venus`          — Venus Governor (2) + Dirigibles (1) on the table → 3 Venus tags: playable; the DRY
+//        RUN on a copy: 10 − 1 = 9 M€, ONE grant prompt for 2 named by the card offering only the voting area, its answer
+//        seats both cubes from the reserve (6 → 4) on one resolution, blue the leader there;
+//      · `envoys-from-venus-overtake` — the same, red ALREADY holding 1 delegate on the FIRST resolution: blue's pair there
+//        turns its leadership (red 1 → blue 2);
+//      · `envoys-from-venus-locked`   — no Dirigibles → 2 Venus tags: «Requires 3 tag(s)», current 2. ──
+function envoysFromVenusFixture(name: string, variant: 'open' | 'overtake' | 'locked'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [10, 30],
+    options: {prelude2Expansion: true, venusNextExtension: true, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, p2, parliament}) => {
+      const area = new Set(parliament.slots.map((s) => parliament.resolutionOf(s.instance).party));
+      const government = ([PartyName.MARS, PartyName.INDUSTRIALISTS, PartyName.REDS, PartyName.UNITY] as const).find((party) => !area.has(party));
+      if (government === undefined) {
+        throw new Error(`${name}: no party outside the voting area to seat as the government`);
+      }
+      seatEnacted(parliament, quietResolutionOf(government));
+      const venus = variant === 'locked' ? [CardName.VENUS_GOVERNOR] : [CardName.VENUS_GOVERNOR, CardName.DIRIGIBLES];
+      for (const cardName of venus) {
+        moveToDeckTop(game, cardName);
+        p1.playedCards.push(game.projectDeck.drawOrThrow(game));
+      }
+      moveToDeckTop(game, CardName.ENVOYS_FROM_VENUS);
+      p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+      if (variant === 'overtake') {
+        parliament.placeVote(p2, parliament.slots[0], 'reserve');
+      }
+    },
+    expect: ({game, p1, p2, parliament}) => {
+      const playable = variant !== 'locked';
+      const card = p1.cardsInHand.find((c) => c.name === CardName.ENVOYS_FROM_VENUS);
+      const canPlay = card !== undefined && p1.canPlay(card) !== false;
+      const reason = card === undefined ? undefined : unplayableReasons(p1, card)[0];
+      const counted = reason?.type === 'tag' && reason.current === 2;
+      const enacted = parliament.enacted === undefined ? undefined : parliament.resolutionOf(parliament.enacted).party;
+      if (card === undefined || canPlay !== playable || (!playable && !counted) || enacted === undefined ||
+        parliament.partiesInVotingArea().includes(enacted) || parliament.reserve(p1) !== 6 || parliament.slots.length !== 3 ||
+        game.activePlayer.id !== p1.id) {
+        throw new Error(`the ${name} fixture expected P72 in blue's hand (playable=${playable}) with a government outside the voting area, three resolutions on the vote, a reserve of 6 and blue on the move — got card=${card !== undefined} playable=${canPlay} reason=${JSON.stringify(reason)} enacted=${enacted} reserve=${parliament.reserve(p1)} slots=${parliament.slots.length}`);
+      }
+      const first = parliament.slots[0];
+      if (variant === 'overtake' && (parliament.votesOf(p2, first) !== 1 || parliament.votesOf(p1, first) !== 0)) {
+        throw new Error(`the ${name} fixture expected red's one delegate on the first resolution — got red=${parliament.votesOf(p2, first)} blue=${parliament.votesOf(p1, first)}`);
+      }
+      parliament.assertLedger(game);
+      if (playable) {
+        // THE DRY RUN — the real play on a copy, paid with 1 M€, its grant answered on the FIRST resolution.
+        const copy = Game.deserialize(structuredClone(game.serialize()));
+        const blue = copy.getPlayerById(p1.id);
+        const hero = blue.cardsInHand.find((c) => c.name === CardName.ENVOYS_FROM_VENUS)!;
+        const cost = blue.getCardCost(hero);
+        blue.playCard(hero, Payment.of({megacredits: cost}));
+        runAllActions(copy);
+        const select = blue.getWaitingFor();
+        const table = copy.parliament!;
+        if (cost !== 1 || blue.megaCredits !== 9 || !(select instanceof SelectParty) || select.votePrompt?.source !== 'grant' ||
+          select.votePrompt?.count !== 2 || select.parties.length !== 3 || select.parties.includes(enacted)) {
+          throw new Error(`the ${name} fixture expected a 1 M€ play and ONE grant prompt for 2 over the voting area only — got cost=${cost} mc=${blue.megaCredits} prompt=${select?.type} ${JSON.stringify((select as SelectParty | undefined)?.votePrompt)}`);
+        }
+        const target = table.resolutionOf(table.slots[0].instance).party;
+        blue.process({type: 'party', partyName: target});
+        runAllActions(copy);
+        const slot = table.slots[0];
+        const red = copy.getPlayerById(p2.id);
+        if (table.reserve(blue) !== 4 || table.votesOf(blue, slot) !== 2 || table.votesOf(red, slot) !== (variant === 'overtake' ? 1 : 0)) {
+          throw new Error(`the ${name} fixture expected both cubes from the reserve (6 → 4) on the first resolution — got reserve=${table.reserve(blue)} blue=${table.votesOf(blue, slot)} red=${table.votesOf(red, slot)}`);
+        }
+        table.assertLedger(copy);
+      }
+    },
+  });
+}
+envoysFromVenusFixture('envoys-from-venus', 'open');
+envoysFromVenusFixture('envoys-from-venus-overtake', 'overtake');
+envoysFromVenusFixture('envoys-from-venus-locked', 'locked');
+
 // ── P68 · CERES TECH MARKET — the THIRD Prelude 2 card and the FIRST WITH AN ACTION (docs/claude/prompts/prelude2-p68-
 //    ceres-tech-market.md): «play: 2 M€ per colony you own · action: discard any number of cards for 2 M€ each». A 2p
 //    Colonies + Prelude 2 table (Teractor · ThorGate), blue on the move with P68 MOVED out of the dealt pool into the hand

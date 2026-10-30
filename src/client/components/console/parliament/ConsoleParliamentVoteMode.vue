@@ -344,6 +344,7 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
+import {GRANT_CUBE_STAGGER_MS, GRANT_TOUCH_GAP_MS, grantCubeSchedule} from '@/client/console/parliament/grantCubeSchedule';
 import {descendWorkspaceFrame, foldWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameHasNested} from '@/client/console/consoleWorkspaceStack';
 import {armAccessToldOnStage, disarmAccessToldOnStage} from '@/client/console/parliament/accessToldOnStage';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -455,6 +456,10 @@ export default defineComponent({
       landingBeat: undefined as ParliamentBeat | undefined,
       landingHold: undefined as AnimationHold | undefined,
       flightHold: undefined as AnimationHold | undefined,
+      /** The grant's later cubes' launches (P72 · CZ — ONE phrase): killed with the landing. */
+      grantBeats: [] as Array<ParliamentBeat>,
+      /** The viewer's own cubes in the air right now — the flight hold stands while any is. */
+      cubesInAir: 0,
       /** THE ACCESS SCENE's own hold and its running beat (the count, the read). */
       accessHold: undefined as AnimationHold | undefined,
       accessBeatHandle: undefined as ParliamentBeat | undefined,
@@ -886,6 +891,12 @@ export default defineComponent({
       readings.dataset.readingFit = String(fit);
     },
     /** The FRESH entrance of a mode armed before the mount (see `mounted`). */
+    /** An ARMED vote met by a mode already mounted (a warm section unveiled — P72 · CZ): the fresh entrance, as `mounted` plays it. */
+    enterArmedVote(): void {
+      if (parliamentFlow.stage === 'vote' && parliamentFlow.voteEntering) {
+        this.playFreshEntrance();
+      }
+    },
     playFreshEntrance(): void {
       const f = parliamentFlow;
       void this.$nextTick(() => {
@@ -1352,7 +1363,10 @@ export default defineComponent({
       // The ceiling budgets the price token's flight too (PL-100) when the door has a price to fly — a card resource's
       // (this mode's token) or an action's rail price (the commit's token, PL-104).
       const priced = snap.door === 'card' && snap.receipt !== undefined && (snap.receipt.icon !== 'megacredits' || snap.railPrice === true);
-      this.landingHold = beginAnimationHold('parliament-vote-landing', {maxHoldMs: 4000 + 1200 * (seqs.length - 1) + 900 * supportLanded + (priced ? 900 : 0)});
+      // The ceiling: ONE flight + the read (the 4 s base) + the phrase's staggers (P72 · CZ — the cubes overlap, never
+      // a whole flight per cube) + the support + the price token.
+      const stagger = (GRANT_CUBE_STAGGER_MS + GRANT_TOUCH_GAP_MS) * Math.max(0, seqs.length - 1);
+      this.landingHold = beginAnimationHold('parliament-vote-landing', {maxHoldMs: 4000 + stagger + 900 * supportLanded + (priced ? 900 : 0)});
       f.landedSeqs = [];
       f.flightSeq = seqs[0];
       f.pendingSeqs = seqs.slice(1);
@@ -1382,7 +1396,7 @@ export default defineComponent({
       const f = parliamentFlow;
       const snap = f.voteSnapshot;
       const receipt = snap?.receipt;
-      const launch = () => this.flyDelegates(seqs, 0, me);
+      const launch = () => this.flyDelegates(seqs, me);
       const stillLanding = () => parliamentFlow.stage === 'landed' && parliamentFlow.voteSnapshot !== undefined;
       if (snap?.railPrice === true) {
         // THE ACTION'S PRICE OFF THE RAIL (T07 — PL-104, then TR15 §6): after the impulse has landed (PL-103) the
@@ -1448,27 +1462,18 @@ export default defineComponent({
         launch();
       }
     },
-    /** Fly the cube at `index` of `seqs`; the landing of each starts the next, the last one begins the landed READ. */
-    flyDelegates(seqs: ReadonlyArray<number>, index: number, color: Color): void {
+    /**
+     * THE GRANT'S CUBES — ONE PHRASE (P72 · ledger CZ; the class: every grant N > 1). They used to fly strictly in turn
+     * (the touchdown of one launched the next — a grant of 2 was two whole flights of waiting); now they leave the
+     * reserve as ONE gesture on `grantCubeSchedule`: each starts a beat after the one before it (law 12's rhythm), flies
+     * its OWN arc into its OWN place on the ribbon, the reserve ticks on each DEPARTURE, the ribbon and the counter on
+     * each TOUCHDOWN — and the read (the lead, «принимается») turns ONCE, after the last. One flight keeps its own
+     * length (the cube's law, §8). The later launches ride the motion clock (`scheduleParliamentBeat`), killed with
+     * the landing; nothing measurable / reduced motion — the cubes are simply there.
+     */
+    flyDelegates(seqs: ReadonlyArray<number>, color: Color): void {
       const f = parliamentFlow;
-      const seq = seqs[index];
-      const last = index === seqs.length - 1;
-      if (seq === undefined) {
-        this.beginLanding(seqs[seqs.length - 1] ?? 0);
-        return;
-      }
-      f.flightSeq = seq;
-      f.pendingSeqs = seqs.slice(index + 1);
-      const next = () => {
-        f.landedSeqs = [...f.landedSeqs, seq];
-        if (last) {
-          this.flySupport(seq);
-        } else {
-          this.flyDelegates(seqs, index + 1, color);
-        }
-      };
-      if (!this.flyOwnDelegate(seq, color, next)) {
-        // No flight (reduced motion, nothing measurable): the cubes are simply there.
+      const settleAll = () => {
         f.sourceHold = undefined;
         f.sourceLeaving = undefined;
         f.sourceHoldCount = 0;
@@ -1476,8 +1481,81 @@ export default defineComponent({
         f.flightSeq = undefined;
         f.pendingSeqs = [];
         f.landedSeqs = [...seqs];
-        this.flySupport(seqs[seqs.length - 1]);
+        this.flySupport(seqs[seqs.length - 1] ?? 0);
+      };
+      if (seqs.length === 0) {
+        this.beginLanding(0);
+        return;
       }
+      const root = parliamentRootEl();
+      const reduced = root === undefined || typeof window === 'undefined' || consoleReducedMotionActive();
+      const schedule = reduced || root === undefined ? [] : grantCubeSchedule(seqs.map((seq, i) => this.cubeDistance(root, seq, i, color)));
+      if (schedule.length === 0) {
+        settleAll();
+        return;
+      }
+      // Every cube of the phrase is hidden on its place until ITS touchdown.
+      f.flightSeq = undefined;
+      f.pendingSeqs = [...seqs];
+      let left = seqs.length;
+      const touched = (seq: number) => {
+        f.pendingSeqs = f.pendingSeqs.filter((s) => s !== seq);
+        if (!f.landedSeqs.includes(seq)) {
+          f.landedSeqs = [...f.landedSeqs, seq];
+        }
+        left--;
+        if (left === 0) {
+          this.flySupport(seqs[seqs.length - 1]);
+        }
+      };
+      seqs.forEach((seq, i) => {
+        const launch = () => {
+          if (parliamentFlow.stage !== 'landed') {
+            return;
+          }
+          if (!this.flyOwnDelegate(seq, color, () => touched(seq))) {
+            // This cube cannot fly (nothing measurable): it is simply there — its source lets go of exactly one.
+            this.releaseOneSource();
+            touched(seq);
+          }
+        };
+        if (i === 0) {
+          launch();
+        } else {
+          this.grantBeats.push(scheduleParliamentBeat(schedule[i].startMs, launch));
+        }
+      });
+    },
+    /** One cube's source figure lets go (a phrase's other cubes may still be standing on the same stack). */
+    releaseOneSource(): void {
+      const f = parliamentFlow;
+      f.sourceHoldCount = Math.max(0, f.sourceHoldCount - 1);
+      f.sourceLeavingCount = Math.max(0, f.sourceLeavingCount - 1);
+      if (f.sourceHoldCount === 0) {
+        f.sourceHold = undefined;
+      }
+      if (f.sourceLeavingCount === 0) {
+        f.sourceLeaving = undefined;
+      }
+    },
+    /**
+     * The base-to-base distance of cube `index`'s flight (screen px) — for the phrase's schedule only (each flight
+     * re-measures its own ends at its launch): the reserve stack's `index`-th figure from the top (the ones above it
+     * will have lifted by then), or the lobby's; into its own place on the ribbon. 0 when unmeasurable.
+     */
+    cubeDistance(root: HTMLElement, seq: number, index: number, color: Color): number {
+      const stack = Array.from(root.querySelectorAll<HTMLElement>(`[data-parl-seat-reserve="${color}"] .con-parl__stack-cube .player-delegate`));
+      const source = this.voteSource === 'lobby' ?
+        root.querySelector<HTMLElement>(`[data-parl-seat-lobby="${color}"] .player-delegate`) :
+        stack[stack.length - 1 - index] ?? stack[0] ?? null;
+      const place = root.querySelector<HTMLElement>(`.con-parl__slot[data-instance] [data-seq="${seq}"]`);
+      const target = place?.querySelector<HTMLElement>('.player-delegate') ?? place;
+      if (source === null || target === null || target === undefined) {
+        return 0;
+      }
+      const a = source.getBoundingClientRect();
+      const b = target.getBoundingClientRect();
+      return Math.hypot((b.left + b.width / 2) - (a.left + a.width / 2), (b.top + b.height) - (a.top + a.height));
     },
     /**
      * THE NEUTRAL DELEGATES OF THE PARTY'S SUPPORT — second source, second addressee, AFTER the player's own
@@ -1570,10 +1648,8 @@ export default defineComponent({
         const proxy = flightEl(id);
         if (proxy === null || proxy === undefined) {
           dropFlight(id);
-          f.sourceHold = undefined;
-          f.sourceLeaving = undefined;
-          f.sourceHoldCount = 0;
-          f.sourceLeavingCount = 0;
+          // This cube's source lets go of exactly ONE figure (a phrase's other cubes may still be standing on it).
+          this.releaseOneSource();
           f.flightSeq = undefined;
           onLanded();
           return;
@@ -1601,18 +1677,33 @@ export default defineComponent({
           },
           onLanded: () => {
             f.flightSeq = undefined;
-            this.flightHold?.release();
-            this.flightHold = undefined;
+            // ONE hold over the phrase: it lets go with the last cube in the air.
+            this.cubesInAir = Math.max(0, this.cubesInAir - 1);
+            if (this.cubesInAir === 0) {
+              this.flightHold?.release();
+              this.flightHold = undefined;
+            }
             onLanded();
             probeTick(() => dropFlight(id));
           },
         });
         registerFlightHandle(id, handle);
-        this.flightHold = beginAnimationHold('parliament-vote-flight', {maxHoldMs: 4000});
+        this.cubesInAir++;
+        if (this.flightHold === undefined) {
+          this.flightHold = beginAnimationHold('parliament-vote-flight', {maxHoldMs: 4000});
+        }
       });
       return true;
     },
     beginLanding(seq: number): void {
+      // THE READ TURNS ONCE (P72 · CZ): the lead / «принимается» held their pre-vote reading through every touchdown
+      // (`tallyShownOf` / `winningShownOf` read the snapshot while in flight) and turn HERE, after the last cube —
+      // marked once when the lead became the viewer's.
+      const snap = parliamentFlow.voteSnapshot;
+      const slot = this.voteSlot;
+      const me = this.viewerColor;
+      parliamentFlow.leadTurned = snap !== undefined && slot !== undefined && me !== undefined && snap.leader !== me && slot.leader === me ?
+        slot.instance : undefined;
       parliamentFlow.landedSeq = seq;
       if (!parliamentFlow.landedSeqs.includes(seq)) {
         parliamentFlow.landedSeqs = [...parliamentFlow.landedSeqs, seq];
@@ -1753,6 +1844,9 @@ export default defineComponent({
     clearLanding(): void {
       this.landingBeat?.kill();
       this.landingBeat = undefined;
+      this.grantBeats.forEach((beat) => beat.kill());
+      this.grantBeats = [];
+      this.cubesInAir = 0;
       dropFlightsWithPrefix('vote');
       this.supportFlights.forEach((id) => dropFlight(id));
       this.supportFlights = [];
@@ -1765,6 +1859,7 @@ export default defineComponent({
       f.supportLanded = 0;
       f.landedSeq = undefined;
       f.landedSeqs = [];
+      f.leadTurned = undefined;
       f.flightSeq = undefined;
       f.pendingSeqs = [];
       f.sourceHold = undefined;

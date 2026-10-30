@@ -5037,6 +5037,10 @@ export default defineComponent({
         workspaceFrameDescended('hand') && workspaceFrameSlot('hand') !== '' &&
         (hostedStepOwedTo('hand') || this.parliamentWarmArmed);
     },
+    /** The landing in the hand has told its whole story — only its reading pause is left (P72 · CZ). */
+    playedHeroTold(): boolean {
+      return playedHeroState.told && playedHeroState.host === 'workspace';
+    },
     /** The composer's declaration (PL-127): the card in the composer whose play will host a Parliament step. */
     hostedStepDeclaredCard(): string {
       return this.pendingPlayCard !== undefined ? consolePlayCardUi.hostedStepDeclared : '';
@@ -9409,6 +9413,12 @@ export default defineComponent({
         // (The host is the FLOW's: the hand for a play, «Действия карт» for an action — TR15.)
         return workspaceFrameRoot(stagedHost ?? 'hand');
       }
+      // THE PLAY'S LIVE GRANT (P72 · CZ — PL-1167): the vote risen inside the hand from the commit speaks ONE voice with
+      // the crumb's tail from the frame it is pushed — never the landing's «Разыграно» under a crumb that already says
+      // «ГОЛОСОВАНИЕ», never the host's root a beat later.
+      if (this.liveGrantStepEntered()) {
+        return workspaceFrameStage('parliament') || DELEGATE_GRANT_STEP_STAGE;
+      }
       // …and once the composer has LET GO (a hosted step rising out of its rect — TR04's walk, TR31's rally; PL-084)
       // the bar reads as the step's host does below (the hand's root), from the frame the step is pushed — never
       // the stage name for the fade's length and the host's root after it.
@@ -11860,7 +11870,7 @@ export default defineComponent({
           void this.enterHostedParliamentStep(hosted);
           return;
         }
-        if (hostedStepLiveIn('hand') || this.hostedStepEntered()) {
+        if (hostedStepLiveIn('hand') || this.hostedStepEntered() || this.liveGrantStepEntered()) {
           // The step is on screen and playing: its own completion ends the flow (`onParliamentFlowComplete`).
           return;
         }
@@ -12271,6 +12281,18 @@ export default defineComponent({
      * unfold (≈ 300 ms) must be over, so the mount's own layout lands in the reading pause and never in a motion.
      * A scheduling deferral, not a hold: nothing waits on it, and a declaration that ends clears it.
      */
+    /**
+     * THE PLAY'S LIVE GRANT RISES WHEN THE LANDING HAS TOLD ITS STORY (P72 · CZ — P83, P72, P77): the vote is the play's
+     * next step, already asked by the answer — it rises from the landed card the moment the result's last token has
+     * touched down (P83's order: the TR, the Greens' M€, THEN the vote), skipping only the reading pause: never after
+     * that read over an emptied stage (PL-1167).
+     */
+    playedHeroTold(told: boolean): void {
+      if (told && this.liveGrantStepDue()) {
+        skipPlayedHeroResult();
+        void this.enterLiveGrantStep();
+      }
+    },
     hostedStepDeclaredCard(card: string): void {
       window.clearTimeout(this.parliamentWarmTimer);
       this.parliamentWarmTimer = undefined;
@@ -22715,6 +22737,57 @@ export default defineComponent({
      * ONE surface. An outcome, never a door: nothing here is submitted.
      */
     /** The hosted step's frame already stands on the hand (entered from the commit, or the late road) — never twice. */
+    /**
+     * THE PLAY'S LIVE GRANT IS DUE IN THE HAND (P72 · CZ): the answer to THIS play asks the vote (a grant given by the
+     * card the hand is playing), the hand's descent stands, no Parliament is up yet and the flow is not aside for the
+     * board (T03 comes back to it over the quiet board — `resumeStackFromBoardAndSettle`).
+     */
+    liveGrantStepDue(): boolean {
+      const card = this.pendingPlayCard?.cardName;
+      return card !== undefined && cardGrantOwedTo(this.playerView.waitingFor, [card]) && workspaceFrameDescended('hand') &&
+        !workspaceFrameKnown('parliament') && !stackYieldedToBoard();
+    },
+    /** The vote step a play's live grant pushed into the hand stands (P72 · CZ) — its own completion ends the play. */
+    liveGrantStepEntered(): boolean {
+      return workspaceFrameHost('parliament') === 'hand' && workspaceFrameAnchor('parliament')?.type === 'prompt' &&
+        this.playerView.waitingFor?.votePrompt?.source === 'grant';
+    },
+    /**
+     * THE PLAY'S LIVE GRANT RISES FROM THE COMMIT (P72 · CZ — the PL-120 entrance, generalized): the frame the task
+     * router would push once the landing's read were over is pushed NOW, as the card docks — the same frame (stage,
+     * phase, serves, prompt anchor: the router then finds it standing and does nothing), the composer and the proxy
+     * letting go in place under it. Warmed by the composer's declaration (PL-127), the section is UNVEILED, not mounted.
+     */
+    async enterLiveGrantStep(): Promise<void> {
+      if (!this.liveGrantStepDue()) {
+        return;
+      }
+      const wf = this.playerView.waitingFor;
+      this.consoleState.task.deferred = false;
+      setWorkspaceFramePhase('hand', 'committed');
+      pushWorkspaceFrame({
+        kind: 'parliament', subject: '', stage: followUpStepStage('party', wf) ?? DELEGATE_GRANT_STEP_STAGE, phase: 'committed',
+        serves: ['party'], anchor: {type: 'prompt', promptType: 'party'},
+      });
+      await this.releasePlayComposerUnderStep();
+    },
+    /** The composer and the landing proxy let go IN PLACE under a step risen from the commit (PL-084 / PL-120). */
+    async releasePlayComposerUnderStep(): Promise<void> {
+      // The composer lets go of the BAR at the start of its fade (PL-084): from this frame the bar reads the
+      // step's own contract («Выполняется…»), never «A РАЗЫГРАТЬ · B ОТМЕНА» over a frame past the commit. Only a
+      // STANDING composer lets go (its unmount clears the flag — a release with no composer would latch).
+      if (this.pendingPlayCard !== undefined) {
+        releaseConsolePlayCardCommands();
+      }
+      const composer = (this.$refs.playConfirm as {$refs?: {rootEl?: unknown}} | undefined)?.$refs?.rootEl;
+      const proxy = typeof document === 'undefined' ? null : document.querySelector('.con-played-hero__proxy');
+      const fades = [composer, proxy].flatMap((el) =>
+        el instanceof HTMLElement && !consoleReducedMotionActive() && typeof el.animate === 'function' ?
+          [el.animate([{opacity: 1}, {opacity: 0}], {duration: motionMs(STAGED_VOTE_RELEASE_MS), easing: 'ease-out', fill: 'forwards'})] : []);
+      await Promise.all(fades.map((fade) => fade.finished.catch(() => undefined)));
+      // The composer goes once its scene has let go — the play is made, there is nothing to roll back.
+      this.pendingPlayCard = undefined;
+    },
     hostedStepEntered(): boolean {
       const stage = workspaceFrameKnown('parliament') ? workspaceFrameStage('parliament') : '';
       return workspaceFrameHost('parliament') === 'hand' &&
@@ -22785,20 +22858,7 @@ export default defineComponent({
         nest: workspaceFrameKnown('parliament'),
         sourceCard: owed.card ?? '',
       });
-      // The composer lets go of the BAR at the start of its fade (PL-084): from this frame the bar reads the
-      // step's own contract («Выполняется…»), never «A РАЗЫГРАТЬ · B ОТМЕНА» over a frame past the commit. Only a
-      // STANDING composer lets go (its unmount clears the flag — a release with no composer would latch).
-      if (this.pendingPlayCard !== undefined) {
-        releaseConsolePlayCardCommands();
-      }
-      const composer = (this.$refs.playConfirm as {$refs?: {rootEl?: unknown}} | undefined)?.$refs?.rootEl;
-      const proxy = typeof document === 'undefined' ? null : document.querySelector('.con-played-hero__proxy');
-      const fades = [composer, proxy].flatMap((el) =>
-        el instanceof HTMLElement && !consoleReducedMotionActive() && typeof el.animate === 'function' ?
-          [el.animate([{opacity: 1}, {opacity: 0}], {duration: motionMs(STAGED_VOTE_RELEASE_MS), easing: 'ease-out', fill: 'forwards'})] : []);
-      await Promise.all(fades.map((fade) => fade.finished.catch(() => undefined)));
-      // The composer goes once its scene has let go — the play is made, there is nothing to roll back.
-      this.pendingPlayCard = undefined;
+      await this.releasePlayComposerUnderStep();
     },
     /**
      * THE STAGED VOTE'S COMMIT — A in the vote mode. The one POST of the whole

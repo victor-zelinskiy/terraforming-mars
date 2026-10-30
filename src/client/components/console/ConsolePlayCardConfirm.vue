@@ -793,6 +793,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
+import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTier';
 import {CardType} from '@/common/cards/CardType';
 import {Message} from '@/common/logs/Message';
 import {SelectProjectCardToPlayModel, SelectAmountModel, SelectCardModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
@@ -855,7 +856,7 @@ import {CardResource} from '@/common/CardResource';
 import {isGeneralBranch, sharedLeadingEffects,
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, initialVariantSelection,
-  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey, heroRewardEffectsOf, agendaWalkNextRows, delegateGrantFollowUpRow, nextRowText, RowTranslator, branchHostsParliamentStep, agendaWalkWhy, AgendaWalkWhy,
+  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey, heroRewardEffectsOf, agendaWalkNextRows, delegateGrantFollowUpRow, nextRowText, playWarmsParliamentArt, RowTranslator, branchHostsParliamentStep, agendaWalkWhy, AgendaWalkWhy,
   playChoiceMode, PlayChoiceMode, foldCopiedProductionEffects, samePreviewShape,
   variantGroupNav, VariantAxis,
 } from '@/client/console/consolePlayCardComposer';
@@ -1816,6 +1817,16 @@ export default defineComponent({
      * art tier (the row's strip draws thumbs), and decoding them in the press's own frames was the «empty glass» —
      * ≈ 180 ms of a 4K step painted without its cards. The names of the row's candidates while the cursor is on it.
      */
+    /**
+     * THE LIVE GRANT'S FACES, warmed while the composer stands (PL-1168): the voting area's resolutions this play's
+     * vote will open on — '' when the preview carries no live grant. A key, so the watcher fires once per table.
+     */
+    grantWarmIds(): string {
+      if (!playWarmsParliamentArt(this.branches)) {
+        return '';
+      }
+      return (this.playerView.game.parliament?.slots ?? []).map((slot) => slot.resolution).join('|');
+    },
     targetWarmNames(): string {
       const row = this.focusedRow;
       const choice = row?.kind === 'step' ? row.choice : undefined;
@@ -2631,6 +2642,14 @@ export default defineComponent({
      * in from it; back (A answered, B), the header's print is measured before the step unmounts and the tile's print flies
      * home from it while the review surfaces from inside. The carried object is the one thing that moves between levels.
      */
+    grantWarmIds: {
+      immediate: true,
+      handler(ids: string): void {
+        if (ids !== '') {
+          preloadResolutionArt((this.playerView.game.parliament?.slots ?? []).map((slot) => slot.resolution));
+        }
+      },
+    },
     targetWarmNames(names: string): void {
       if (names !== '') {
         preloadPremiumCardArt(names.split('|') as Array<CardName>);

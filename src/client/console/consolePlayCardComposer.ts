@@ -405,6 +405,17 @@ export function agendaWalkNextRows(walk: AgendaWalkModel): Array<NextRowKey> {
  * count is the step's own (what the reserve covers — the server's number), never parsed from a note; the resolution
  * is not guessed — it is chosen in the Parliament, where each card reads its own forecast.
  */
+/**
+ * THE GRANT'S DOOR OPENS WITH ITS FACES PAINTED (PL-1168 · P72, ledger CZ): a play whose preview carries a LIVE grant
+ * (`delegateGrantFollowUp` — T03, P83, P72, P77…) opens the Parliament as its next step, and on a fresh profile the
+ * voting area's art was still loading in the door's first frames (black faces). The staged doors warm it at their own
+ * press; the live grant has no door of its own before the POST, so the play's composer warms it while it stands — ONE
+ * point for every card, read off the preview, never a card list.
+ */
+export function playWarmsParliamentArt(branches: ReadonlyArray<{steps: ReadonlyArray<{kind: string}>}>): boolean {
+  return branches.some((branch) => branch.steps.some((step) => step.kind === 'delegateGrantFollowUp'));
+}
+
 export function delegateGrantFollowUpRow(step: {count: number}, after: 'play' | 'confirm' = 'play'): NextRowKey {
   // A corporation's FIRST ACTION (TR83 The Deimos Group) has no play: the vote follows the confirm of «ПЕРВОЕ ДЕЙСТВИЕ».
   if (after === 'confirm') {
@@ -466,7 +477,20 @@ export function agendaWalkWhy(walk: AgendaWalkModel | undefined): AgendaWalkWhy 
  * a whole surface that never rises (PL-157).
  */
 export function branchHostsParliamentStep(branch: ActionPreviewBranch | undefined): boolean {
-  return branch !== undefined && branch.steps.some((s) => (s.kind === 'agendaWalk' && s.walk.walked > 0) || s.kind === 'neutralRally');
+  return branch !== undefined && (branch.steps.some((s) => (s.kind === 'agendaWalk' && s.walk.walked > 0) || s.kind === 'neutralRally') ||
+    branchHostsLiveGrant(branch));
+}
+
+/**
+ * …AND A LIVE DELEGATE GRANT THE HAND HOSTS (P72 · ledger CZ): a play whose only follow-up is the vote (P83, P72, P77 —
+ * `delegateGrantFollowUp` with no board door before it) opens the Parliament inside the hand the moment its card has
+ * docked, so the surface is WARMED while the composer stands (laid out, fitted, its art decoded) — mounted in the
+ * seam, it froze the stage empty for ~0.4 s at 4K (PL-1167). A grant behind a staged CELL (T03) is met only after the
+ * board's commit: nothing to warm in the composer's pause.
+ */
+export function branchHostsLiveGrant(branch: ActionPreviewBranch | undefined): boolean {
+  return branch !== undefined && branch.steps.some((s) => s.kind === 'delegateGrantFollowUp') &&
+    !branch.steps.some((s) => s.kind === 'boardPlacement');
 }
 
 /** The translator a host hands the pure row helpers (`translateText` / `translateTextWithParams`). */

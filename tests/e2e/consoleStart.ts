@@ -2984,6 +2984,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'ishtar-expedition' | 'ishtar-expedition-locked' |
   // P85 Summit Logistics — the first POLITICAL Prelude 2 card: the Scientists rule, a two-term count, steel + titanium · locked «0 of 2».
   'summit-logistics' | 'summit-logistics-locked' |
+  // Prelude 2 P72 Envoys from Venus — the first EVENT whose whole play is a delegate grant (CZ): 3 Venus tags (Venus Governor ·
+  // Dirigibles), a government outside the voting area, reserve 6 · red already on the first resolution (the pair turns the lead) · locked at 2.
+  'envoys-from-venus' | 'envoys-from-venus-overtake' | 'envoys-from-venus-locked' |
   // P68 Ceres Tech Market — the first Prelude 2 card WITH AN ACTION: the counted play (two colonies, titanium) · the discard action for 2 M€ a card.
   'ceres-tech-market' |
   // Prelude 2 P80 Red Appeasement — the first play that IS a pass (the Reds rule; nobody / red passed)

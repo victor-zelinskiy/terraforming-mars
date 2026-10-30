@@ -39,6 +39,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-unity-campaign.spec.ts',
   // TRP3 Mars First Campaign (2026-10-28): the same rally after the board's city placement — the same sampled claims.
   'console-mars-first-campaign.spec.ts',
+  // P72 Envoys from Venus (2026-10-30): a grant's cubes as ONE phrase — the starts' rhythm and the press → last touchdown
+  // → flow-leave budget, A/B against HEAD (ledger CZ) — a sampled flight at motion ×1, never logic.
+  'console-delegate-grant-pace.spec.ts',
   // TRP4 Reds Campaign (2026-10-28): the rally after the start's draw (one answer, the printed order) — sampled claims.
   'console-reds-campaign.spec.ts',
   // TRP5 Greens Campaign (2026-10-28): the rally onto the RULER's plaque after the table's answer — sampled claims.

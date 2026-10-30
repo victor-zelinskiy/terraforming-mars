@@ -295,6 +295,11 @@ function freshFlow() {
     landedSeq: undefined as number | undefined,
     /** …and every cube landed by the current flow (a grant lands several; the ribbon marks each). */
     landedSeqs: [] as Array<number>,
+    /**
+     * THE LEAD TURNED TO THE VIEWER with this flow's LAST touchdown (P72 · CZ): the bill whose leader mark plays its
+     * ONE-SHOT kant (never a halo, ends on its own); undefined when the lead stayed or went to somebody else.
+     */
+    leadTurned: undefined as string | undefined,
     /** The vote whose cube is IN FLIGHT (hidden on the ribbon until the handoff). */
     flightSeq: undefined as number | undefined,
     /** The cubes of the current flow that have NOT flown yet (hidden on the ribbon — they still stand on the bench). */

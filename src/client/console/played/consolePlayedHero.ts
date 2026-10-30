@@ -163,6 +163,13 @@ export const playedHeroState = reactive({
   host: 'overlay' as PlayedHeroHost,
   /** The overlay's reserved slot turns visible ONLY here (post-landing). */
   revealed: false,
+  /**
+   * THE LANDING'S STORY IS TOLD (P72 · CZ): the card is revealed on its place and every beat of its result has played
+   * — the gains, the table's answer, the TR and ITS answer — only the reading pause is left. A follow-up the answer
+   * already asks (the play's live grant) rises HERE, skipping that pause: never over a token still in the air (P83's
+   * order: the TR token, the Greens' M€, THEN the vote), never after a read over an emptied stage (PL-1167).
+   */
+  told: false,
   /** The SYSTEM-opened table overlay is mounted (play-animation mode).
    *  NEVER true for the 'workspace' host — that is the whole point of it. */
   tableOpen: false,
@@ -803,6 +810,7 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   playedHeroState.isEvent = isEvent;
   playedHeroState.host = opts.host ?? 'overlay';
   playedHeroState.revealed = false;
+  playedHeroState.told = false;
   playedHeroState.awaitingTarget = false;
   playedHeroState.tableOpen = false;
   playedHeroState.autoClose = !opts.manualTableOpen;
@@ -1653,6 +1661,7 @@ export async function endPlayedHero(): Promise<void> {
         return;
       }
     }
+    playedHeroState.told = true;
     await skippablePause(motionMs(TRANSFER_RESIDUAL_PAUSE_MS));
   } else {
     // The RESOLVED-TABLEAU beat: the workspace stage reads shorter than the
@@ -1661,6 +1670,7 @@ export async function endPlayedHero(): Promise<void> {
     const idlePause = playedHeroState.host === 'workspace' ? HERO_RESOLVED_BEAT_MS : HERO_RESULT_PAUSE_MS;
     const pauseMs = consoleReducedMotionActive() ? HERO_REDUCED_PAUSE_MS :
       (followUpPending ? HERO_RESULT_PAUSE_FOLLOWUP_MS : idlePause);
+    playedHeroState.told = true;
     await skippablePause(motionMs(pauseMs));
   }
   if (!playedHeroState.active) {
@@ -1818,6 +1828,7 @@ export function abortPlayedHero(): void {
   landingView = undefined;
   playedHeroState.proxy = undefined;
   playedHeroState.revealed = false;
+  playedHeroState.told = false;
   playedHeroState.awaitingTarget = false;
   playedHeroState.tableOpen = false;
   playedHeroState.active = false;
@@ -1864,6 +1875,7 @@ function finish(): void {
   playedHeroState.isEvent = false;
   playedHeroState.host = 'overlay';
   playedHeroState.revealed = false;
+  playedHeroState.told = false;
   playedHeroState.awaitingTarget = false;
   playedHeroState.tableOpen = false;
   playedHeroState.proxy = undefined;

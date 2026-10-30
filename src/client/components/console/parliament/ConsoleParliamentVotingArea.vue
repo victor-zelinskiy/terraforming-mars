@@ -112,7 +112,9 @@
                        once more here as the cube beside the count (a11y: the sentence). -->
                   <b :key="'t' + tallyOf(slot, i).votes" class="con-parl__tally-num con-parl__tick" :aria-label="tallyOf(slot, i).votes + ' ' + delegatesWord(tallyOf(slot, i).votes)">{{ tallyOf(slot, i).votes }}</b>
                 </span>
-                <span v-if="tallyOf(slot, i).leader !== undefined" class="con-parl__tally-row con-parl__tally-row--leader" data-parl-leader :aria-label="$t('Leader')">
+                <span v-if="tallyOf(slot, i).leader !== undefined" class="con-parl__tally-row con-parl__tally-row--leader"
+                      :class="{'con-parl__tally-row--turned': flow.leadTurned === slot.instance}" data-parl-leader
+                      :data-parl-lead-turned="flow.leadTurned === slot.instance ? '' : undefined" :aria-label="$t('Leader')">
                   <PlayerDelegate v-if="tallyOf(slot, i).leader !== 'neutral'" :color="tallyOf(slot, i).leader" :size="figurePx(18)" :glow="false" />
                   <PlayerDelegate v-else color="neutral" steel :size="figurePx(18)" :glow="false" />
                 </span>

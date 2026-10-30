@@ -1793,20 +1793,23 @@ export default defineComponent({
     'bridge.grant': {
       immediate: true,
       handler(grant: ParliamentPromptBridge['grant']): void {
-        if (grant === undefined || parliamentFlow.stage !== 'browse') {
+        // A WARMING mount (PL-127 — the play's live grant, P72 · CZ) is inert: it opens the vote on its UNVEIL (`warm`).
+        if (grant === undefined || parliamentFlow.stage !== 'browse' || this.warm) {
           return;
         }
-        const parties = grant.model.parties;
-        const candidates = this.view.slots.map((slot, i) => ({slot, i})).filter(({slot}) => parties.includes(slot.party));
-        const own = candidates.filter(({slot}) => slot.viewerVotes > 0).sort((a, b) => b.slot.viewerVotes - a.slot.viewerVotes)[0];
-        const idx = own?.i ?? candidates[0]?.i ?? 0;
-        const mode = this.voteMode();
-        if (mode === undefined) {
-          armGrantVoteFlow(idx);
-        } else {
-          mode.openVote({index: idx});
-        }
+        this.openGrant(grant, false);
       },
+    },
+    /**
+     * THE WARM MOUNT UNVEILED (P72 · CZ): the play's live grant was asked while this surface was still warming under the
+     * landing (invisible, inert) — the step rises NOW, born in its vote pose like a section mounted for the grant, the
+     * mode playing its fresh entrance (never the overview's cards flipping into the row: the overview was never seen).
+     */
+    warm(now: boolean, was: boolean): void {
+      const grant = this.bridge.grant;
+      if (was && !now && grant !== undefined && grant.staged !== true && parliamentFlow.stage === 'browse') {
+        this.openGrant(grant, true);
+      }
     },
     /**
      * A SUPPORT-AREA PICK (TR12 Party Sanctions) — staged (the card's door, hosted in the hand) or live (re-asked,
@@ -2048,6 +2051,26 @@ export default defineComponent({
       ask('bridge.supportPick', this.bridge.supportPick?.staged === true ? undefined : this.bridge.supportPick);
       ask('bridge.bannerPick', this.bridge.bannerPick);
       ask('bridge.delegatePick', this.bridge.delegatePick?.staged === true ? undefined : this.bridge.delegatePick);
+    },
+    /**
+     * OPEN THE GRANT'S VOTE on the card the viewer's own delegates already stand on (the likeliest address), else the
+     * first. At SETUP — or on a warm mount's UNVEIL (`fresh`) — the mode is ARMED and born in its pose; over a
+     * standing overview it opens with the ordinary phrase.
+     */
+    openGrant(grant: NonNullable<ParliamentPromptBridge['grant']>, fresh: boolean): void {
+      const parties = grant.model.parties;
+      const candidates = this.view.slots.map((slot, i) => ({slot, i})).filter(({slot}) => parties.includes(slot.party));
+      const own = candidates.filter(({slot}) => slot.viewerVotes > 0).sort((a, b) => b.slot.viewerVotes - a.slot.viewerVotes)[0];
+      const idx = own?.i ?? candidates[0]?.i ?? 0;
+      const mode = this.voteMode();
+      if (mode === undefined || fresh) {
+        armGrantVoteFlow(idx);
+        if (mode !== undefined) {
+          void this.$nextTick(() => mode.enterArmedVote());
+        }
+      } else {
+        mode.openVote({index: idx});
+      }
     },
     /** The answer's stage handling (see the `answerKey` watcher). */
     onAnswerKey(key: string): void {

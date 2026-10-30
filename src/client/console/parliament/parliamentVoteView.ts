@@ -69,7 +69,10 @@ export function voteSourceOf(view: ParliamentViewVm, snapshot: VoteSnapshot | un
 export function tallyShownOf(slot: ParliamentSlotVm, index: number): {votes: number, mine: number, leader: Color | 'neutral' | undefined} {
   const snap = parliamentFlow.voteSnapshot;
   if (snap !== undefined && index === parliamentFlow.slotIndex && parliamentVoteInFlight()) {
-    return {votes: snap.votes, mine: snap.mine, leader: snap.leader};
+    // The numbers tick on EACH touchdown (P72 · CZ — a grant's cubes land one by one); the LEAD keeps the pre-vote
+    // reading until the last one (`beginLanding` — it turns once).
+    const landed = parliamentFlow.stage === 'landed' ? parliamentFlow.landedSeqs.length : 0;
+    return {votes: snap.votes + landed, mine: snap.mine + landed, leader: snap.leader};
   }
   // A cube the sitting still holds in the air (a support cube on its way from the plaque, a delegate on its
   // way home off a loser) is not on the card: the counter ticks on the touchdown, and a card whose every
