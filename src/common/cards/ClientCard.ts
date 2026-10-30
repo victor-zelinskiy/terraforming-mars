@@ -60,6 +60,12 @@ export type ClientCard = Readonly<{
   fleetDock?: true;
   /** Playing this card counts as a PASS (`ICard.playCountsAsPass` — P80): the hand names it before the composer opens. */
   playCountsAsPass?: true;
+  /**
+   * The card's standing TRADE OFFSET — «when you trade, you may first increase that colony track N steps» — read off
+   * its declarative `behavior.colonies.tradeOffset` at export time (P78, ledger CU). The server's one trade plan reads
+   * the behavior; this lets the effects layer name a carrier without a hand-kept list of card names.
+   */
+  tradeOffset?: number;
   /** The card's declared holder role (`holderRole.ts`): its stored resource buys a DELEGATE or a TRADE. */
   resourceRole?: DeclaredHolderRole;
   /**

@@ -9422,6 +9422,70 @@ function redAppeasementFixture(name: string, othersPassed: boolean): void {
 redAppeasementFixture('red-appeasement', false);
 redAppeasementFixture('red-appeasement-locked', true);
 
+// ── P78 · L1 TRADE TERMINAL — the FIFTH Prelude 2 card: the first with a PASSIVE TRADE EFFECT («when you trade, you may
+//    first increase that colony track 2 steps» — `tradeOffset: 2`) and the first MULTI-PICK of PLAYED cards («add a
+//    resource to 3 different cards that already have resources» — upstream applied ≤ 3 silently; the fork always asks
+//    and the composer SEEDS every candidate when there are no more of them than seats, ledger CU). A 2p Colonies +
+//    Prelude 2 table (Teractor · ThorGate), blue on the move with P78 MOVED out of the dealt pool into the hand, the
+//    colonies Luna (track 3) · Europa · Callisto, blue's fleet free, 30 M€ + 3 titanium (the play and a trade both
+//    affordable whichever way the play is paid):
+//      · `l1-trade-terminal`        — THREE holders with one resource each, all a gain (Ants · microbe, Birds · animal,
+//                                     Dirigibles · floater): the row seeded with all three, «ВСЕ ЦЕЛИ»;
+//      · `l1-trade-terminal-vermin` — the same + Vermin (1 animal, a PENALTY face): four candidates for three seats —
+//                                     the row stays open. A DRY RUN on a copy proves the play (+1 on three) and the
+//                                     standing +2 on Luna's plan. ──
+function l1TradeTerminalFixture(name: string, withVermin: boolean): void {
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, prelude2Expansion: true,
+    customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
+  });
+  answerStartFlow(game, [p1, p2]);
+  const luna = new Luna();
+  game.colonies = [luna, new Europa(), new Callisto()];
+  luna.trackPosition = 3;
+  const holders: Array<IProjectCard> = [new Ants(), new Birds(), new Dirigibles()];
+  if (withVermin) {
+    holders.push(newProjectCard(CardName.VERMIN)!);
+  }
+  for (const holder of holders) {
+    holder.resourceCount = 1;
+    p1.playedCards.push(holder);
+  }
+  game.projectDeck.discardPile.push(...p1.cardsInHand.splice(0));
+  moveToDeckTop(game, CardName.L1_TRADE_TERMINAL);
+  p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  p1.megaCredits = 30;
+  p1.titanium = 3;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  const card = p1.cardsInHand.find((c) => c.name === CardName.L1_TRADE_TERMINAL);
+  if (card === undefined || p1.canPlay(card) === false || game.activePlayer.id !== p1.id || p1.colonies.tradeBlockedReason() !== undefined) {
+    throw new Error(`the ${name} fixture expected P78 playable in blue's hand, blue on the move and a free fleet — got card=${card !== undefined} active=${game.activePlayer.id === p1.id} trade=${p1.colonies.tradeBlockedReason()}`);
+  }
+  // THE DRY RUN — the play on a copy (16 M€ + 3 titanium), every holder answered, then Luna's plan reads +2.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(p1.id);
+  blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.L1_TRADE_TERMINAL)!, Payment.of({megacredits: 16, titanium: 3}));
+  runAllActions(copy);
+  const ask = blue.getWaitingFor();
+  if (!(ask instanceof SelectCard) || ask.cards.length !== holders.length) {
+    throw new Error(`the ${name} fixture expected the play to ASK a SelectCard over ${holders.length} holders — got ${ask?.constructor.name} ${ask instanceof SelectCard ? ask.cards.length : ''}`);
+  }
+  blue.process({type: 'card', cards: [CardName.ANTS, CardName.BIRDS, CardName.DIRIGIBLES]});
+  runAllActions(copy);
+  const facts = {
+    counts: [CardName.ANTS, CardName.BIRDS, CardName.DIRIGIBLES].map((n) => blue.playedCards.get(n)?.resourceCount),
+    offset: blue.colonies.tradeOffset,
+    luna: copy.colonies.find((c) => c.name === luna.name)?.tradeTrackPlan(blue).steps,
+  };
+  if (facts.counts.join() !== '2,2,2' || facts.offset !== 2 || facts.luna !== 2) {
+    throw new Error(`the ${name} fixture expected +1 on three holders, a standing offset of 2 and Luna's reach 3 → 5 — got ${JSON.stringify(facts)}`);
+  }
+  write(name, game);
+}
+l1TradeTerminalFixture('l1-trade-terminal', false);
+l1TradeTerminalFixture('l1-trade-terminal-vermin', true);
+
 // ── preselect-sole: THE PRE-SELECT STAND (T14 · ledger CC — «ОДИН КУРСОР ПОСЛЕ ОТВЕТА · ПРИБЫТИЕ НА КОММИТ ·
 //    ЕДИНСТВЕННАЯ ЦЕЛЬ»). One base table, every cell of the matrix in blue's hand / tableau:
 //      · Aerial Mappers (ONE floater) is the ONLY floater holder on the table — Floater Prototypes («2 floaters to ANY

@@ -34554,6 +34554,9 @@ html.con-profile-tv {
     &__row-impact { font-size: .8rem; font-weight: 600; color: #8ff0c4; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: .25rem; }
     &__row-impact-icon { width: .95rem; height: .95rem; display: inline-block; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
     &__row-note { font-size: .75rem; color: @con-text-dim; }
+    /* A merged GAIN pick's targets (P78, ledger CU): one inline item per card — its resource, its name, N → N+1. */
+    &__gain-targets { display: flex; flex-wrap: wrap; gap: .25rem .9rem; margin-top: .2rem; }
+    &__gain-target { display: inline-flex; align-items: center; gap: .3rem; color: @con-text; font-weight: 600; }
     /* ── ESPIONAGE (DP10) — the setup summary's two halves in the step row:
        the attack line (target · from → to · their reward / named skip) and
        the owner's own line beneath it («You: … », the waiver, the extras). */

@@ -8,7 +8,8 @@ import {Pets} from '@/server/cards/base/Pets';
 import {CarbonNanosystems} from '@/server/cards/promo/CarbonNanosystems';
 import {Resource} from '@/common/Resource';
 import {effectOverlayStats, EffectOverlayStat} from '@/common/events/aggregate';
-import {getEffectSummary, classifyEffect, classifyEffectSignature, EffectSignature, emptyEffectOverlayStat} from '@/client/components/effects/effectSummary';
+import {getEffectSummary, classifyEffect, classifyEffectSignature, curatedCategoryFor, EffectSignature, emptyEffectOverlayStat} from '@/client/components/effects/effectSummary';
+import {ALL_MODULE_MANIFESTS} from '@/server/cards/AllManifests';
 import {cardChannelPlan, perEffectStat} from '@/client/components/effects/effectChannels';
 
 function stat(overrides: Partial<EffectOverlayStat>): EffectOverlayStat {
@@ -291,6 +292,18 @@ describe('effect summary view-model', () => {
       expect(vm.note, card).to.not.eq(PASSIVE_RULE_NOTE);
       expect(vm.confidence, card).to.eq('partial');
     }
+  });
+
+  it('a trade-offset carrier is READ off its declaration — every card that declares `tradeOffset` is «colonyTrade», no other is (P78, ledger CU)', () => {
+    const declared = ALL_MODULE_MANIFESTS.flatMap((m) => [...Object.values(m.projectCards ?? {}), ...Object.values(m.corporationCards ?? {})])
+      .map((entry) => new entry.Factory())
+      .filter((card) => (card.behavior?.colonies?.tradeOffset ?? 0) > 0)
+      .map((card) => card.name);
+    expect(declared).to.include.members([CardName.TRADING_COLONY, CardName.TRADE_ENVOYS, CardName.VEYNON_DYNAMICS, CardName.L1_TRADE_TERMINAL]);
+    for (const card of declared) {
+      expect(curatedCategoryFor(card), card).to.eq('colonyTrade');
+    }
+    expect(curatedCategoryFor(CardName.BIRDS)).is.undefined;
   });
 
   it('shows the recorded colony-track advances + per-colony breakdown', () => {

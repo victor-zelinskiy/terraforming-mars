@@ -32,6 +32,8 @@ import {
   commonVariantCost,
   soleCandidateOf,
   soleMarkKeys,
+  allCandidatesSeed,
+  ALL_SEED_MARK,
   ComposerChoice,
 } from '@/client/console/consoleActionComposer';
 import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
@@ -613,6 +615,41 @@ describe('consoleActionComposer', () => {
       expect(soleMarkKeys({kind: 'card', name: 'A' as CardName}, false)).to.deep.eq({mark: 'The only target', hint: 'No other targets'});
       expect(soleMarkKeys({kind: 'card', name: 'A' as CardName}, true)).to.deep.eq({mark: 'The only card', hint: 'No other cards'});
       expect(soleMarkKeys({kind: 'player', color: 'red'}, false)).to.deep.eq({mark: 'The only player', hint: 'No other players'});
+    });
+  });
+  describe('allCandidatesSeed — no more candidates than seats, each a gain: ALL seeded (P78, ledger CU)', () => {
+    const A = 'Ants' as CardName;
+    const B = 'Birds' as CardName;
+    const D = 'Dirigibles' as CardName;
+    const V = 'Vermin' as CardName;
+    const base = {candidates: [{name: A}, {name: B}, {name: D}], max: 3, amount: 1};
+    it('three gains in three seats → all three, in the order the server sent', () => {
+      expect(allCandidatesSeed(base)).to.deep.eq([A, B, D]);
+    });
+    it('fewer candidates than seats → still all of them', () => {
+      expect(allCandidatesSeed({...base, candidates: [{name: A}], max: 1})).to.deep.eq([A]);
+      expect(allCandidatesSeed({...base, candidates: [{name: A}, {name: B}], max: 2})).to.deep.eq([A, B]);
+    });
+    it('more candidates than seats → which ones is a choice: not seeded', () => {
+      expect(allCandidatesSeed({...base, candidates: [...base.candidates, {name: V}]})).to.eq(undefined);
+    });
+    it('a disabled candidate among them → the row stays open', () => {
+      expect(allCandidatesSeed({...base, candidates: [{name: A}, {name: B, isDisabled: true}]})).to.eq(undefined);
+    });
+    it('a candidate the gain HURTS — a falling VP reading or a penalty face — is a decision', () => {
+      expect(allCandidatesSeed({...base, vpBox: {[B]: {from: -1, to: -2}}})).to.eq(undefined);
+      expect(allCandidatesSeed({...base, candidates: [{name: A}, {name: V}], penalty: (n) => n === V})).to.eq(undefined);
+      // A reading that rises or stands still is no harm.
+      expect(allCandidatesSeed({...base, vpBox: {[B]: {from: 1, to: 2}, [D]: {from: 0, to: 0}}})).to.deep.eq([A, B, D]);
+    });
+    it('not a gain (a removal), an optional pick with a skip, an empty set → never seeded', () => {
+      expect(allCandidatesSeed({...base, amount: -1})).to.eq(undefined);
+      expect(allCandidatesSeed({...base, amount: undefined})).to.eq(undefined);
+      expect(allCandidatesSeed({...base, declinable: true})).to.eq(undefined);
+      expect(allCandidatesSeed({...base, candidates: []})).to.eq(undefined);
+    });
+    it('the mark: «All targets», the hint the sole target one', () => {
+      expect(ALL_SEED_MARK).to.deep.eq({mark: 'All targets', hint: 'No other targets'});
     });
   });
 });

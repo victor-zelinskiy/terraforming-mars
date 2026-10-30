@@ -4,6 +4,7 @@
  * Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDIT.md.
  */
 import {CardName} from '@/common/cards/CardName';
+import {getCard} from '@/client/cards/ClientCardManifest';
 import {CardResource} from '@/common/CardResource';
 import {Units} from '@/common/Units';
 import {EffectOverlayStat} from '@/common/events/aggregate';
@@ -277,11 +278,16 @@ const PAYMENT_VALUE_MODIFIER_CARDS: ReadonlySet<CardName> = new Set([
   CardName.ADVANCED_ALLOYS, CardName.REGO_PLASTICS, CardName.MERCURIAN_ALLOYS, CardName.PHOBOLOG,
 ]);
 
-/** Cards whose passive rule advances a colony track before trading (`tradeOffset`).
- *  The server records EVERY such card generically; this drives only the pre-trade note. */
-const COLONY_TRADE_OFFSET_CARDS: ReadonlySet<CardName> = new Set([
-  CardName.TRADING_COLONY, CardName.TRADE_ENVOYS, CardName.VEYNON_DYNAMICS,
-]);
+/**
+ * Does the card's passive rule advance a colony track before trading (`tradeOffset`)? READ off the card's own
+ * declaration (`ClientCard.tradeOffset`, exported from `behavior.colonies.tradeOffset`) — never a list of names: the
+ * hand-kept set this replaced needed a row per carrier (TR85 added itself; P78 would have been the fourth), and a
+ * carrier left out lost its pre-trade note silently (P78, ledger CU). The server records EVERY such card generically;
+ * this drives only the pre-trade note.
+ */
+function carriesTradeOffset(cardName: CardName): boolean {
+  return (getCard(cardName)?.tradeOffset ?? 0) > 0;
+}
 
 /** Cards whose passive rule makes a trade cost fewer resources (`tradeDiscount`). */
 const TRADE_DISCOUNT_CARDS: ReadonlySet<CardName> = new Set([
@@ -335,7 +341,7 @@ export function curatedCategoryFor(cardName: CardName): EffectCategory | undefin
   if (PAYMENT_VALUE_MODIFIER_CARDS.has(cardName)) {
     return 'paymentValueBonus';
   }
-  if (COLONY_TRADE_OFFSET_CARDS.has(cardName)) {
+  if (carriesTradeOffset(cardName)) {
     return 'colonyTrade';
   }
   if (TRADE_DISCOUNT_CARDS.has(cardName)) {

@@ -184,7 +184,8 @@ export function keepPlayAnswers<T>(record: Readonly<Record<string, T>>): Record<
  *
  * WHAT IS NEVER SEEDED — every case is a decision or not a target:
  *  · an OPTIONAL choice (the server's `skip` marker / a card pick of `min 0`) — declining is the second real answer;
- *  · a MULTI pick (a range — «up to N», `max > 1`, a multi-select's count) — how many is a decision;
+ *  · a MULTI pick (a range — «up to N», `max > 1`, a multi-select's count) — how many is a decision (unless there is
+ *    none: no more candidates than seats, each a gain — `allCandidatesSeed`, ledger CU);
  *  · a lone candidate that is DISABLED (its reason holds the commit; the row says why);
  *  · a table question (`reaction` — another card asks, and its row has its own deferral states), a repeat slot (its
  *    answer is ANOTHER card's composed action), a Hydronetwork landing pick — not a target of this card;
@@ -241,6 +242,48 @@ export function soleCandidateOf(choice: ComposerChoice): SoleSeed | undefined {
   }
   return undefined;
 }
+
+/**
+ * NO MORE CANDIDATES THAN SEATS — SEEDED ALL, SHOWN, MARKED (P78 L1 Trade Terminal, ledger CU — T14 widened to N ≤ max).
+ *
+ * A MULTI gain pick («add a resource to up to 3 different cards») whose every candidate fits in its seats and is a
+ * plain GAIN has nothing to decide: which cards — all of them; how many — all of them. T14 left a range unseeded
+ * («how many is a decision»), and that is still true wherever there IS a decision — so this seeds only when there is
+ * none, and every row below opens unanswered:
+ *  · more candidates than seats (`N > max`) — which ones is a choice;
+ *  · a DISABLED candidate among them — its reason stands, the row stays open;
+ *  · a candidate the gain HURTS — its VP falls (`vpBox` to < from: Ancient Shipyards) or its face carries a PENALTY
+ *    (`penalty` — the manifest's `victoryPointsSign: 'negative'`: Vermin, whose rule is a threshold with no per-count
+ *    reading) — putting a resource there is a decision the player makes, never the composer;
+ *  · not a gain at all (a removal, `amount ≤ 0`), or an optional pick the server marks with a `skip` — declining is
+ *    the second real answer.
+ * Returns the candidates in the server's order (the answer the batch posts, addressed — the server still asks), or
+ * `undefined` for «ask». Pure.
+ */
+export function allCandidatesSeed(step: {
+  candidates: ReadonlyArray<{name: CardName, isDisabled?: boolean}>,
+  max: number,
+  amount: number | undefined,
+  vpBox?: Partial<Record<CardName, {from: number, to: number}>>,
+  penalty?: (name: CardName) => boolean,
+  declinable?: boolean,
+}): ReadonlyArray<CardName> | undefined {
+  const {candidates, max} = step;
+  if ((step.amount ?? 0) <= 0 || step.declinable === true || candidates.length === 0 || candidates.length > max) {
+    return undefined;
+  }
+  if (candidates.some((c) => c.isDisabled === true)) {
+    return undefined;
+  }
+  const hurts = (name: CardName): boolean => {
+    const vp = step.vpBox?.[name];
+    return (vp !== undefined && vp.to < vp.from) || step.penalty?.(name) === true;
+  };
+  return candidates.some((c) => hurts(c.name)) ? undefined : candidates.map((c) => c.name);
+}
+
+/** The mark's words for a row seeded with ALL its candidates (i18n keys). */
+export const ALL_SEED_MARK = {mark: 'All targets', hint: 'No other targets'} as const;
 
 /** The mark's words for a seeded row (i18n keys): a player, a card from the hand, a card on the table. */
 export function soleMarkKeys(seed: SoleSeed, fromHand: boolean): {mark: string, hint: string} {

@@ -151,6 +151,12 @@ class CardProcessor {
     if (card.playCountsAsPass === true) {
       clientCard.playCountsAsPass = true;
     }
+    // A standing trade offset (`behavior.colonies.tradeOffset`) — the effects layer's pre-trade note reads it, never a
+    // list of names (P78, ledger CU).
+    const tradeOffset = card.behavior?.colonies?.tradeOffset ?? 0;
+    if (tradeOffset > 0) {
+      clientCard.tradeOffset = tradeOffset;
+    }
     // The card's DECLARED holder role (`common/cards/holderRole.ts` — what its stored resource is for when no
     // structure tells it): the ДОП. РЕСУРСЫ satellite splits its chips by it, the target step names it.
     if (card.resourceRole !== undefined) {

@@ -388,7 +388,7 @@
                             'con-composer__row--deferred': row.kind === 'step' && tableRowView(row.choice)?.state.kind === 'deferred'}"
                    :data-reaction-card="row.kind === 'step' ? row.choice.reaction?.card : undefined"
                    :data-tq-state="row.kind === 'step' ? tableRowView(row.choice)?.state.kind : undefined"
-                   :data-seeded="row.kind === 'step' && soleMark(row.choice) !== undefined ? 'sole' : undefined"
+                   :data-seeded="row.kind === 'step' && soleMark(row.choice) !== undefined ? (seeded[row.choice.id] ?? 'sole') : undefined"
                    :ref="focusIdx === row.i ? 'focusedEl' : undefined">
                 <!-- A tabbedTargets row (Virus) — the chosen target or a prompt. -->
                 <template v-if="row.kind === 'tabbed'">
@@ -596,6 +596,16 @@
                     <!-- The SECOND payout of a multi pick, in cards (Strategic Shift) — its own icon, the same arithmetic. -->
                     <span v-if="chosenImpactDraw(row.choice) !== ''" class="con-composer__row-impact" data-impact-draw>
                       <i class="con-composer__row-impact-icon" :class="iconClass('cards')" aria-hidden="true"></i>{{ chosenImpactDraw(row.choice) }}
+                    </span>
+                  </div>
+                  <!-- A MERGED GAIN pick answered (P78 «3 different cards», ledger CU): EVERY target named with what lands
+                       on it — its own resource, `N → N+1` — and the points that move; never «+3» over three kinds. -->
+                  <div v-if="mergedGainTargets(row.choice).length > 0" class="con-composer__row-note con-composer__gain-targets" data-gain-targets>
+                    <span v-for="t in mergedGainTargets(row.choice)" :key="t.name" class="con-composer__gain-target" :data-gain-target="t.name">
+                      <i class="con-composer__row-impact-icon" :class="iconClass(t.icon)" aria-hidden="true"></i>
+                      <span class="con-composer__gain-target-name">{{ t.label }}</span>
+                      <span class="con-composer__row-impact">{{ t.from }} → {{ t.to }}</span>
+                      <span v-if="t.vp !== undefined" class="con-composer__row-impact">· {{ $t('VP') }} {{ t.vp.from }} → {{ t.vp.to }}</span>
                     </span>
                   </div>
                 </template>
@@ -823,7 +833,7 @@ import {
   ComposerChoice, preChoices, branchChoices,
   spendHeatPlan, spendHeatStock, spendHeatResponse, spendHeatValid,
   orderedPreResponses, orderedStepResponses, tabbedStepsOf, cardPickAskKey, cardPickRoleKey, keepPlayAnswers,
-  soleCandidateOf, soleMarkKeys, soleSeedPick, soleSeedResponse,
+  soleCandidateOf, soleMarkKeys, soleSeedPick, soleSeedResponse, allCandidatesSeed, ALL_SEED_MARK,
 } from '@/client/console/consoleActionComposer';
 import {distributionLanesOf, DistributionLanes} from '@/client/console/consoleActionComposer';
 import {pourRemaining, spreadOn, spreadRemaining, SpreadState, spreadTotal, stepSpread} from '@/client/console/cardResourceDistribution';
@@ -1012,6 +1022,11 @@ function textOf(v: string | Message | undefined): string {
 /** The composer's translator for the pure row helpers (`nextRowText`). */
 const ROW_TRANSLATOR: RowTranslator = {text: translateText, params: translateTextWithParams};
 
+/** The same card names as a set (an «all of them» seed against the held answer — ledger CU). */
+function sameCardNames(a: ReadonlyArray<string>, b: ReadonlyArray<string>): boolean {
+  return a.length === b.length && a.every((n) => b.includes(n));
+}
+
 // Pre-collect classification lives in the PURE `playChoiceMode` (inline sub /
 // hand-section pick / «Разыграно» tableau pick / honest follow-up) — see
 // consolePlayCardComposer.ts.
@@ -1098,7 +1113,7 @@ export default defineComponent({
        */
       commitArrival: createCommitArrival('play composer'),
       /** The rows the composer SEEDED with their sole candidate (`soleCandidateOf`) — answered, shown, marked. */
-      seeded: {} as Record<string, 'sole'>,
+      seeded: {} as Record<string, 'sole' | 'all'>,
       /** This mount is the RETURN from a staged step (its draft is waiting to be applied): the card was on
        *  screen a moment ago, so its face skips the first-load fade. A peek — `applyPreview` consumes the draft. */
       restored: consolePlayCardUi.stagedDraft?.cardName === this.cardName,
@@ -1737,6 +1752,9 @@ export default defineComponent({
      * preview is built from the server's own step data below.
      */
     playedTargetModel(): PlayedTargetModel | undefined {
+      if (this.sub?.kind === 'playedTarget' && this.sub.tabbed !== undefined) {
+        return this.tabbedZoneModelFor(this.sub.tabbed);
+      }
       const choice = this.playedTargetChoice;
       return choice === undefined ? undefined : this.playedTargetModelFor(choice);
     },
@@ -1752,9 +1770,6 @@ export default defineComponent({
       const k = this.variantRows.findIndex((row) => row.pos === pos);
       const gainPicks = (this.branches[pos]?.steps ?? []).filter((st) => st.kind === 'input' && st.input.type === 'card' && (st.amount ?? 0) > 0);
       return k >= 0 && gainPicks.length === 1 ? this.variantPrinted?.[k] : undefined;
-      if (this.sub?.kind === 'playedTarget' && this.sub.tabbed !== undefined) {
-        return this.tabbedZoneModelFor(this.sub.tabbed);
-      }
     },
     /** The embedded selector holds the surface right now. */
     /** The embedded step's self-handle is focused — the played card answers. */
@@ -1784,6 +1799,17 @@ export default defineComponent({
     playedTargetStepOpen(): boolean {
       return this.sub?.kind === 'playedTarget' && this.playedTargetModel !== undefined;
     },
+    /** The open step's ANSWERED target (a card's name / a stand key) — it lies locked in its owner's group. */
+    playedTargetLockedCard(): string {
+      const sub = this.sub;
+      if (sub?.kind !== 'playedTarget') {
+        return '';
+      }
+      if (sub.tabbed !== undefined) {
+        return this.tabbedZoneKeyOf(sub.tabbed, this.picks['tabbed#' + sub.tabbed]) ?? '';
+      }
+      return this.playedTargetResults[sub.choiceId]?.cardName ?? '';
+    },
     /**
      * THE STEP'S CARDS, WARMED WHILE THE CURSOR STANDS ON ITS ROW (PL-473): the step draws its candidates at the FULL
      * art tier (the row's strip draws thumbs), and decoding them in the press's own frames was the «empty glass» —
@@ -1799,17 +1825,6 @@ export default defineComponent({
     },
     /** The choice the open (or pending) played-target step serves. */
     playedTargetChoice(): ComposerChoice | undefined {
-    /** The open step's ANSWERED target (a card's name / a stand key) — it lies locked in its owner's group. */
-    playedTargetLockedCard(): string {
-      const sub = this.sub;
-      if (sub?.kind !== 'playedTarget') {
-        return '';
-      }
-      if (sub.tabbed !== undefined) {
-        return this.tabbedZoneKeyOf(sub.tabbed, this.picks['tabbed#' + sub.tabbed]) ?? '';
-      }
-      return this.playedTargetResults[sub.choiceId]?.cardName ?? '';
-    },
       const id = this.sub?.kind === 'playedTarget' ? this.sub.choiceId : this.playedTargetRowId;
       return id === undefined ? undefined : this.allChoices.find((c: ComposerChoice) => c.id === id);
     },
@@ -2589,6 +2604,11 @@ export default defineComponent({
       }
       // A played-target step carries it only on a SINGLE pick answering an or-option (a merged up-to-N ask spends RT
       // on its own submit) — the action composer's rule, one grammar for both.
+      if (sub?.kind === 'playedTarget' && sub.tabbed !== undefined) {
+        // Virus's one zone: the step declares its own refusal.
+        const decline = this.tabbedSteps.find((t) => t.index === sub.tabbed)?.step.decline;
+        return decline !== undefined ? {index: decline.optionIndex, label: decline.label, forgone: []} : undefined;
+      }
       if (sub?.kind === 'playedTarget') {
         const pc = this.playedTargetChoice;
         return pc !== undefined && sub.orItem !== undefined && this.playedTargetSelection.mode !== 'multi' ? this.choiceDecline(pc) : undefined;
@@ -2604,11 +2624,6 @@ export default defineComponent({
     settleSuspended(now: boolean) {
       this.settled?.suspend(now);
     },
-      if (sub?.kind === 'playedTarget' && sub.tabbed !== undefined) {
-        // Virus's one zone: the step declares its own refusal.
-        const decline = this.tabbedSteps.find((t) => t.index === sub.tabbed)?.step.decline;
-        return decline !== undefined ? {index: decline.optionIndex, label: decline.label, forgone: []} : undefined;
-      }
     /**
      * THE PAYLOAD IS CARRIED, both ways (TR56 «КУДА ЛЯЖЕТ», П3) — a `pre` watcher, so the level that is LEAVING is still
      * in the DOM: in, the selected tile's print is measured before the review unmounts and the step's header print flies
@@ -3049,6 +3064,22 @@ export default defineComponent({
     reseatSeeds(): void {
       let changed = false;
       for (const c of this.stepChoices) {
+        // A row seeded with ALL its candidates (ledger CU) holds while the same set is still the whole answer.
+        if (this.seeded[c.id] === 'all') {
+          const all = this.allSeedOf(c);
+          if (all !== undefined && sameCardNames(all, this.multiPicks[c.id] ?? [])) {
+            continue;
+          }
+          this.captureFor(c, undefined);
+          const {[c.id]: _pick, ...picks} = this.picks;
+          const {[c.id]: _multi, ...multiPicks} = this.multiPicks;
+          const {[c.id]: _seed, ...seeded} = this.seeded;
+          this.picks = picks;
+          this.multiPicks = multiPicks;
+          this.seeded = seeded;
+          changed = true;
+          continue;
+        }
         if (this.seeded[c.id] !== 'sole') {
           continue;
         }
@@ -3436,6 +3467,18 @@ export default defineComponent({
         this.seeded = {...this.seeded, [c.id]: 'sole'};
         return;
       }
+      // A MERGED gain pick with no more candidates than seats, each a gain (P78, ledger CU): ALL of them — the same
+      // capture «3 из 3» + RT would write — shown, marked «все цели»; A on the row opens the zone with them ticked.
+      if (this.isMergedPickChoice(c)) {
+        const all = this.stepUnanswered(c) ? this.allSeedOf(c) : undefined;
+        if (all !== undefined) {
+          this.multiPicks = {...this.multiPicks, [c.id]: all};
+          this.picks = {...this.picks, [c.id]: String(all.length)};
+          this.captureFor(c, {type: 'card', cards: [...all]});
+          this.seeded = {...this.seeded, [c.id]: 'all'};
+        }
+        return;
+      }
       const mode = this.choiceMode(c);
       // The espionage's synthetic owner rows (`esp-owner-*`) answer on the Hydronetwork's own stage and are folded into
       // ONE wire entry at the commit — never a capture of their own, so never a seed.
@@ -3472,8 +3515,59 @@ export default defineComponent({
       }
       this.seeded = {...this.seeded, [c.id]: 'sole'};
     },
+    /**
+     * ALL the candidates of a MERGED gain pick, when there is nothing to decide (`allCandidatesSeed` — P78, ledger CU):
+     * no more of them than seats, none disabled, none the gain hurts (a falling VP reading, a PENALTY face). `undefined`
+     * for «ask».
+     */
+    allSeedOf(c: ComposerChoice): ReadonlyArray<CardName> | undefined {
+      if (!this.isMergedPickChoice(c)) {
+        return undefined;
+      }
+      const model = c.input as SelectCardModel;
+      const step = this.selectedBranch?.steps[c.index];
+      return allCandidatesSeed({
+        candidates: model.cards,
+        max: this.mergeCardStepCount,
+        amount: c.amount,
+        vpBox: (step !== undefined && step.kind === 'input' ? step.vpBox : undefined) ?? model.resourceGainPrompt?.vpBox,
+        penalty: (name) => getCard(name)?.victoryPointsSign === 'negative',
+        declinable: this.choiceDecline(c) !== undefined,
+      });
+    },
+    /**
+     * The answered targets of a MERGED GAIN pick, each with what lands on it (P78, ledger CU): its own resource (the
+     * server's per-candidate kind), `N → N+amount`, and the VP reading when the points move. Empty for any other row.
+     */
+    mergedGainTargets(c: ComposerChoice): ReadonlyArray<{name: string, label: string, icon: string, from: number, to: number, vp?: {from: number, to: number}}> {
+      const picked = this.multiPicks[c.id];
+      const amount = c.amount ?? 0;
+      if (picked === undefined || picked.length === 0 || amount <= 0 || !this.isMergedPickChoice(c)) {
+        return [];
+      }
+      const model = c.input as SelectCardModel;
+      const step = this.selectedBranch?.steps[c.index];
+      const vpBox = (step !== undefined && step.kind === 'input' ? step.vpBox : undefined) ?? model.resourceGainPrompt?.vpBox;
+      return picked.map((name) => {
+        const card = model.cards.find((cd) => cd.name === name);
+        const from = card?.resources ?? 0;
+        const vp = vpBox?.[name as CardName];
+        return {
+          name,
+          label: translateCardName(name as CardName),
+          icon: c.cardResource ?? model.resourceGainPrompt?.cardResourceByCard?.[name as CardName] ?? 'resource',
+          from,
+          to: from + amount,
+          ...(vp !== undefined && vp.from !== vp.to ? {vp: {from: vp.from, to: vp.to}} : {}),
+        };
+      });
+    },
     /** The mark of a seeded row (i18n keys) — `undefined` when the row was not seeded or no longer holds its seed. */
     soleMark(c: ComposerChoice): {mark: string, hint: string} | undefined {
+      if (this.seeded[c.id] === 'all') {
+        const all = this.stepUnanswered(c) ? undefined : this.allSeedOf(c);
+        return all !== undefined && sameCardNames(all, this.multiPicks[c.id] ?? []) ? ALL_SEED_MARK : undefined;
+      }
       if (this.seeded[c.id] !== 'sole' || this.stepUnanswered(c)) {
         return undefined;
       }
@@ -3743,6 +3837,10 @@ export default defineComponent({
       // reads honestly as «Выбрано: 0».
       const multi = this.multiPicks[c.id];
       if (multi !== undefined && c.input.type === 'card') {
+        // A merged GAIN pick names its targets on its own line, each with its reading (`mergedGainTargets`).
+        if (multi.length > 0 && this.mergedGainTargets(c).length > 0) {
+          return `${translateText('Selected')}: ${multi.length}`;
+        }
         if (multi.length === 0) {
           return `${translateText('Selected')}: 0`;
         }
@@ -3788,8 +3886,8 @@ export default defineComponent({
       if (multi !== undefined && gain !== undefined && this.isMultiCardChoice(c)) {
         return `+${multi.length * gain.amount}`;
       }
-      // The merged tableau pick (Astra): +N cards return to hand.
-      if (multi !== undefined && this.isMergedPickChoice(c) && multi.length > 0) {
+      // The merged tableau pick (Astra): +N cards return to hand. A merged GAIN (P78) reads per target instead.
+      if (multi !== undefined && this.isMergedPickChoice(c) && multi.length > 0 && (c.amount ?? 0) <= 0) {
         return `+${multi.length}`;
       }
       // An ANSWERED PLAYER target keeps the reading the list showed — who loses what, `current → resulting` (PL-899:
@@ -4481,6 +4579,71 @@ export default defineComponent({
       if (band !== null && band !== undefined) {
         this.playedTargetHeight = band.clientHeight;
       }
+    },
+    /**
+     * VIRUS AS ONE ZONE («ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА», `tableTargetZone.tabbedTargetZone`): A on the tabbed row opens the
+     * embedded target step — the animal cards in their owners' groups, every player-target a stand-in tile (the bot's
+     * animals, each player's plants; a protected one shown refused), LB/RB between the groups, RT the decline. The
+     * answer is the step's own target key and response (`buildTabbedTargets`), so the draft and the batch are the
+     * historical ones. False: nothing to point at — the caller keeps the flat list.
+     */
+    openTabbedZone(stepIndex: number): boolean {
+      this.measurePlayedTargetBand();
+      const owners = this.tabbedZoneModelFor(stepIndex)?.owners ?? [];
+      if (owners.length === 0) {
+        return false;
+      }
+      const chosen = this.tabbedZoneKeyOf(stepIndex, this.picks['tabbed#' + stepIndex]);
+      const focus = findPlayedTargetFocus(chosen, owners) ?? reseatPlayedTargetFocus(undefined, owners);
+      if (focus === undefined) {
+        return false;
+      }
+      this.sub = {kind: 'playedTarget', choiceId: 'tabbed#' + stepIndex, focus, picked: [], tabbed: stepIndex};
+      return true;
+    },
+    /** The zone candidate (a card's name / a stand key) the step's answered target key stands for. */
+    tabbedZoneKeyOf(stepIndex: number, pickKey: string | undefined): string | undefined {
+      const step = this.tabbedSteps.find((t) => t.index === stepIndex)?.step;
+      if (step === undefined || pickKey === undefined) {
+        return undefined;
+      }
+      for (const [zoneKey, key] of tabbedTargetZone(step).pickKeys) {
+        if (key === pickKey) {
+          return zoneKey;
+        }
+      }
+      return undefined;
+    },
+    /** The one zone of a tabbed removal — the cards by owner, the players' stand-ins in their groups. */
+    tabbedZoneModelFor(stepIndex: number): PlayedTargetModel | undefined {
+      const step = this.tabbedSteps.find((t) => t.index === stepIndex)?.step;
+      if (step === undefined) {
+        return undefined;
+      }
+      const zone = tabbedTargetZone(step);
+      if (zone.cards.length === 0 && zone.stands.length === 0) {
+        return undefined;
+      }
+      const animal = step.animal;
+      const input = animal?.input;
+      // A card's reading is the removal's own «current → resulting» of its animals (the reader every target step uses).
+      const removal: ActionPreviewStep | undefined = input === undefined || animal === undefined ? undefined :
+        {kind: 'input', input, amount: -animal.amount, cardResource: CardResource.ANIMAL};
+      return buildPlayedTargetModel({
+        candidates: zone.cards,
+        stands: zone.stands.map((stand) => ({stand, ownerName: this.playerName(stand.color)})),
+        players: this.playerView.players,
+        viewerColor: this.thisPlayer.color,
+        // The step's own contract line already asks for a target at the table — an ask under it would say it twice.
+        ask: '',
+        sourceCardName: this.cardName,
+        typeOf: (name) => getCard(name)?.type,
+        direction: 'remove',
+        preview: (name) => input === undefined ? [] : playedTargetPreviewFor(removal, input, name),
+      });
+    },
+    openPlayedTargetStep(c: ComposerChoice, orItem?: ConsoleOrItem): void {
+      this.measurePlayedTargetBand();
       // An OR-OPTION's step reads the option's own `SelectCard` (`playedTargetInputFor`), which is a function of the
       // sub-state itself — so the step is opened FIRST and its owners read after (the action composer's order).
       const before = this.sub;
@@ -4579,71 +4742,6 @@ export default defineComponent({
     /** A in a MULTI ask toggles instead of choosing — the cap is stated, never
      *  silently enforced (the contract line says «снимите выбор с другой»). */
     togglePlayedTarget(): void {
-    },
-    /**
-     * VIRUS AS ONE ZONE («ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА», `tableTargetZone.tabbedTargetZone`): A on the tabbed row opens the
-     * embedded target step — the animal cards in their owners' groups, every player-target a stand-in tile (the bot's
-     * animals, each player's plants; a protected one shown refused), LB/RB between the groups, RT the decline. The
-     * answer is the step's own target key and response (`buildTabbedTargets`), so the draft and the batch are the
-     * historical ones. False: nothing to point at — the caller keeps the flat list.
-     */
-    openTabbedZone(stepIndex: number): boolean {
-      this.measurePlayedTargetBand();
-      const owners = this.tabbedZoneModelFor(stepIndex)?.owners ?? [];
-      if (owners.length === 0) {
-        return false;
-      }
-      const chosen = this.tabbedZoneKeyOf(stepIndex, this.picks['tabbed#' + stepIndex]);
-      const focus = findPlayedTargetFocus(chosen, owners) ?? reseatPlayedTargetFocus(undefined, owners);
-      if (focus === undefined) {
-        return false;
-      }
-      this.sub = {kind: 'playedTarget', choiceId: 'tabbed#' + stepIndex, focus, picked: [], tabbed: stepIndex};
-      return true;
-    },
-    /** The zone candidate (a card's name / a stand key) the step's answered target key stands for. */
-    tabbedZoneKeyOf(stepIndex: number, pickKey: string | undefined): string | undefined {
-      const step = this.tabbedSteps.find((t) => t.index === stepIndex)?.step;
-      if (step === undefined || pickKey === undefined) {
-        return undefined;
-      }
-      for (const [zoneKey, key] of tabbedTargetZone(step).pickKeys) {
-        if (key === pickKey) {
-          return zoneKey;
-        }
-      }
-      return undefined;
-    },
-    /** The one zone of a tabbed removal — the cards by owner, the players' stand-ins in their groups. */
-    tabbedZoneModelFor(stepIndex: number): PlayedTargetModel | undefined {
-      const step = this.tabbedSteps.find((t) => t.index === stepIndex)?.step;
-      if (step === undefined) {
-        return undefined;
-      }
-      const zone = tabbedTargetZone(step);
-      if (zone.cards.length === 0 && zone.stands.length === 0) {
-        return undefined;
-      }
-      const animal = step.animal;
-      const input = animal?.input;
-      // A card's reading is the removal's own «current → resulting» of its animals (the reader every target step uses).
-      const removal: ActionPreviewStep | undefined = input === undefined || animal === undefined ? undefined :
-        {kind: 'input', input, amount: -animal.amount, cardResource: CardResource.ANIMAL};
-      return buildPlayedTargetModel({
-        candidates: zone.cards,
-        stands: zone.stands.map((stand) => ({stand, ownerName: this.playerName(stand.color)})),
-        players: this.playerView.players,
-        viewerColor: this.thisPlayer.color,
-        // The step's own contract line already asks for a target at the table — an ask under it would say it twice.
-        ask: '',
-        sourceCardName: this.cardName,
-        typeOf: (name) => getCard(name)?.type,
-        direction: 'remove',
-        preview: (name) => input === undefined ? [] : playedTargetPreviewFor(removal, input, name),
-      });
-    },
-    openPlayedTargetStep(c: ComposerChoice, orItem?: ConsoleOrItem): void {
-      this.measurePlayedTargetBand();
       if (this.sub?.kind !== 'playedTarget') {
         return;
       }
@@ -4672,6 +4770,11 @@ export default defineComponent({
         return;
       }
       const cards = [...this.sub.picked] as Array<CardName>;
+      // The player's own answer is never a seed: a set that is no longer «all of them» drops the mark (ledger CU).
+      if (this.seeded[choice.id] === 'all' && !sameCardNames(this.allSeedOf(choice) ?? [], cards)) {
+        const {[choice.id]: _seed, ...seeded} = this.seeded;
+        this.seeded = seeded;
+      }
       this.multiPicks = {...this.multiPicks, [choice.id]: cards};
       this.picks = {...this.picks, [choice.id]: String(cards.length)};
       this.captureFor(choice, {type: 'card', cards});
@@ -4749,6 +4852,23 @@ export default defineComponent({
       }
       const owners = this.playedTargetModel?.owners ?? [];
       const candidate = playedTargetAt(this.sub.focus, owners);
+      // VIRUS'S ONE ZONE: the candidate answers through the step's own target key — its response verbatim.
+      const tabbed = this.sub.tabbed;
+      if (tabbed !== undefined) {
+        const step = this.tabbedSteps.find((t) => t.index === tabbed)?.step;
+        const pickKey = candidate === undefined || candidate.blocked !== undefined || step === undefined ?
+          undefined : tabbedTargetZone(step).pickKeys.get(candidate.cardName);
+        const target = pickKey === undefined || step === undefined ? undefined : this.tabbedTargets(step).find((t) => t.key === pickKey);
+        if (target === undefined) {
+          return;
+        }
+        this.picks['tabbed#' + tabbed] = target.key;
+        this.captured[tabbed] = target.response;
+        this.sub = undefined;
+        this.landCursor();
+        this.scrollFocused();
+        return;
+      }
       const choice = this.playedTargetChoice;
       // A shown near miss is never chosen — the rail reads why, the bar's A is dim.
       if (candidate === undefined || choice === undefined || candidate.blocked !== undefined) {
@@ -4852,23 +4972,6 @@ export default defineComponent({
     tableTargetBotFor(choice: ComposerChoice): ReadonlyArray<{stand: TableTargetStand, ownerName: string}> | undefined {
       if (this.sub?.kind === 'playedTarget' && this.sub.choiceId === choice.id && this.sub.orItem !== undefined) {
         return undefined;
-      // VIRUS'S ONE ZONE: the candidate answers through the step's own target key — its response verbatim.
-      const tabbed = this.sub.tabbed;
-      if (tabbed !== undefined) {
-        const step = this.tabbedSteps.find((t) => t.index === tabbed)?.step;
-        const pickKey = candidate === undefined || candidate.blocked !== undefined || step === undefined ?
-          undefined : tabbedTargetZone(step).pickKeys.get(candidate.cardName);
-        const target = pickKey === undefined || step === undefined ? undefined : this.tabbedTargets(step).find((t) => t.key === pickKey);
-        if (target === undefined) {
-          return;
-        }
-        this.picks['tabbed#' + tabbed] = target.key;
-        this.captured[tabbed] = target.response;
-        this.sub = undefined;
-        this.landCursor();
-        this.scrollFocused();
-        return;
-      }
       }
       const stand = tableTargetBotStand(choice.input);
       if (stand === undefined) {
