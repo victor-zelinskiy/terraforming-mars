@@ -1,5 +1,5 @@
 <template>
-  <div class="con-divledger" :class="'con-divledger--' + tier" data-dividend-ledger>
+  <div class="con-divledger" :class="['con-divledger--' + tier, {'con-divledger--concise': concise}]" data-dividend-ledger>
     <!--
       THE WHOLE «ДИВИДЕНДЫ» BOX of a further corporation, read LIVE (the owner, 2026-10-27).
       ONE composition of plates on one chassis, each a kicker over its body: the MECHANIC
@@ -14,9 +14,9 @@
     <section class="con-divledger__plate con-divledger__plate--formula" data-dividend-formula>
       <div class="con-divledger__head">
         <span class="con-divledger__name" data-dividend-name>{{ $t(reading.name) }}</span>
-        <span class="con-divledger__when">{{ $t('Dividend pays at the end of the game') }}</span>
+        <span v-if="!concise" class="con-divledger__when">{{ $t('Dividend pays at the end of the game') }}</span>
       </div>
-      <div class="con-divledger__rule">
+      <div v-if="!concise" class="con-divledger__rule">
         <p v-for="(line, i) in reading.rule" :key="i"
            class="con-divledger__rule-line"
            :class="{'con-divledger__rule-line--muted': line.muted}">{{ ruleText(line) }}</p>
@@ -64,7 +64,7 @@
           <span class="con-divledger__prize" data-goal-vp>{{ say('Dividend goal prize: +${0} VP', tier.vp) }}</span>
         </div>
       </div>
-      <span class="con-divledger__state" data-goal-state>{{ stateText }}</span>
+      <span v-if="!concise" class="con-divledger__state" data-goal-state>{{ stateText }}</span>
     </section>
 
     <div class="con-divledger__plate con-divledger__total" data-dividend-total>
@@ -96,6 +96,12 @@ export default defineComponent({
     tier: {type: String as PropType<RulesLengthTier>, default: 'regular'},
     /** The game is over — the total is the final one, not «now». */
     final: {type: Boolean, default: false},
+    /**
+     * The CONCISE reading (the game overview's context column, the owner 2026-10-30: «лаконично и премиально, не
+     * перегружено»): the printed rule's prose, «pays at the end» and the goal's «still needed» line stay with the
+     * inspection; the live terms, the goal's scale and the total — formula + goals — stand.
+     */
+    concise: {type: Boolean, default: false},
   },
   computed: {
     /** The goal's own name — «Цель «Титановые рудники»». */

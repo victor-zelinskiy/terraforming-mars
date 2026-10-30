@@ -34,7 +34,10 @@
              :style="{'--ov-pc': hex(row.owner)}">
           <span class="con-ovc__rank">{{ rankOf(row) }}</span>
           <span class="con-egov-legend__dot" :class="'player_bg_color_' + row.owner" aria-hidden="true"></span>
-          <span class="con-ovc__kind" :class="'con-eg-cat--' + kindAccent(row.kind)" aria-hidden="true"></span>
+          <span v-if="row.parts !== undefined" class="con-ovc__kind con-ovc__kind--split" aria-hidden="true">
+            <i v-for="part in row.parts" :key="part.kind" :class="'con-eg-cat--' + kindAccent(part.kind)"></i>
+          </span>
+          <span v-else class="con-ovc__kind" :class="'con-eg-cat--' + kindAccent(row.kind)" aria-hidden="true"></span>
           <span class="con-ovc__name">{{ $t(row.cardName) }}</span>
           <b class="con-ovc__vp" :class="{'con-ovc__vp--neg': row.vp < 0}">{{ row.vp > 0 ? '+' + row.vp : '−' + Math.abs(row.vp) }}</b>
         </div>
@@ -43,7 +46,11 @@
       <!-- The context column: a physical card shows its premium face; a bot
            source shows its MECHANIC honestly (never a fake card). -->
       <div class="con-ovc__context">
-        <div v-if="focusedRow !== undefined && focusedRow.bot !== undefined"
+        <div v-if="focusedHolding !== undefined" class="con-ovc__holding" :key="'h' + focusedRow?.id" data-ov-holding>
+          <div class="con-ovc__botsrc-name">{{ $t(focusedHolding.corporation) }}</div>
+          <ConsoleBotDividendLedger v-if="focusedHoldingReading !== undefined" :reading="focusedHoldingReading" concise final />
+        </div>
+        <div v-else-if="focusedRow !== undefined && focusedRow.bot !== undefined"
              class="con-ovc__botsrc" :key="'b' + focusedRow.id">
           <div class="con-ovc__botsrc-name">{{ $t(focusedRow.cardName) }}</div>
           <div class="con-ovc__botsrc-kind">{{ $t(kindLabel(focusedRow.kind)) }}</div>
@@ -63,7 +70,14 @@
             <span class="con-egov-legend__dot" :class="'player_bg_color_' + focusedRow.owner" aria-hidden="true"></span>
             {{ focusedRow.ownerName }}
           </span>
-          <span class="con-ovc__impact-kind">{{ $t(kindLabel(focusedRow.kind)) }}</span>
+          <span v-if="focusedRow.parts !== undefined" class="con-ovc__impact-parts" data-ov-parts>
+            <span v-for="part in focusedRow.parts" :key="part.kind" class="con-ovc__impact-part" :data-ov-part="part.kind">
+              <span class="con-ovc__kind" :class="'con-eg-cat--' + kindAccent(part.kind)" aria-hidden="true"></span>
+              <span class="con-ovc__impact-kind">{{ $t(kindLabel(part.kind)) }}</span>
+              <b class="con-ovc__impact-part-vp">+{{ part.vp }}</b>
+            </span>
+          </span>
+          <span v-else class="con-ovc__impact-kind">{{ $t(kindLabel(focusedRow.kind)) }}</span>
           <b class="con-ovc__impact-vp" :class="{'con-ovc__vp--neg': focusedRow.vp < 0}">
             {{ focusedRow.vp > 0 ? '+' + focusedRow.vp : '−' + Math.abs(focusedRow.vp) }} {{ $t('VP') }}
           </b>
@@ -79,7 +93,10 @@
 
     <!-- NESTED DETAIL — the enlarged card, or the bot source's full mechanic. -->
     <div v-if="detailRow !== undefined" class="con-egov-detail con-ovc__detail">
-      <div v-if="detailRow.bot !== undefined" class="con-ovc__botsrc con-ovc__botsrc--big">
+      <div v-if="detailHoldingReading !== undefined" class="con-ovc__holding con-ovc__holding--big" data-ov-holding-detail>
+        <ConsoleBotDividendLedger :reading="detailHoldingReading" final />
+      </div>
+      <div v-else-if="detailRow.bot !== undefined" class="con-ovc__botsrc con-ovc__botsrc--big">
         <div class="con-ovc__botsrc-name">{{ $t(detailRow.cardName) }}</div>
         <div class="con-ovc__botsrc-kind">{{ $t(kindLabel(detailRow.kind)) }}</div>
         <div class="con-ovc__botsrc-rows">
@@ -99,7 +116,14 @@
           <span class="con-egov-legend__dot" :class="'player_bg_color_' + detailRow.owner" aria-hidden="true"></span>
           {{ detailRow.ownerName }}
         </div>
-        <div class="con-ovc__impact-kind">{{ $t(kindLabel(detailRow.kind)) }}</div>
+        <div v-if="detailRow.parts !== undefined" class="con-ovc__impact-parts">
+          <span v-for="part in detailRow.parts" :key="part.kind" class="con-ovc__impact-part">
+            <span class="con-ovc__kind" :class="'con-eg-cat--' + kindAccent(part.kind)" aria-hidden="true"></span>
+            <span class="con-ovc__impact-kind">{{ $t(kindLabel(part.kind)) }}</span>
+            <b class="con-ovc__impact-part-vp">+{{ part.vp }}</b>
+          </span>
+        </div>
+        <div v-else class="con-ovc__impact-kind">{{ $t(kindLabel(detailRow.kind)) }}</div>
         <b class="con-ovc__impact-vp con-ovc__impact-vp--big" :class="{'con-ovc__vp--neg': detailRow.vp < 0}">
           {{ detailRow.vp > 0 ? '+' + detailRow.vp : '−' + Math.abs(detailRow.vp) }} {{ $t('VP') }}
         </b>
@@ -119,6 +143,8 @@ import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import {$t} from '@/client/directives/i18n';
 import type {ConsoleOverviewVm, OvCardRow, OvBotCardSource} from '@/client/console/endgame/consoleOverviewModel';
+import {BotDividendReading, botDividendReading} from '@/client/components/marsbot/botDividendReading';
+import ConsoleBotDividendLedger from '@/client/components/console/ConsoleBotDividendLedger.vue';
 import {consoleOverviewUi} from '@/client/console/endgame/consoleOverviewState';
 import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
 import Card from '@/client/components/card/CardFace.vue';
@@ -138,7 +164,7 @@ const KIND_LABEL: Record<CardVictoryPointsKind, string> = {
 
 export default defineComponent({
   name: 'ConsoleOvTabCards',
-  components: {Card},
+  components: {Card, ConsoleBotDividendLedger},
   props: {
     vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
     playerView: {type: Object as PropType<ViewModel>, required: true},
@@ -180,6 +206,19 @@ export default defineComponent({
     focusedCardModel(): CardModel | undefined {
       const row = this.focusedRow;
       return row !== undefined && row.bot === undefined ? this.modelFor(row) : undefined;
+    },
+    /** The focused row's HOLDING source — a further corporation of the bot, read through the dividend ledger. */
+    focusedHolding(): Extract<OvBotCardSource, {kind: 'holding'}> | undefined {
+      const bot = this.focusedRow?.bot;
+      return bot?.kind === 'holding' ? bot : undefined;
+    },
+    /** The server's own dividend row read out (undefined on a save whose row carries no goal terms — the parts line stands). */
+    focusedHoldingReading(): BotDividendReading | undefined {
+      return botDividendReading(this.focusedHolding?.detail);
+    },
+    detailHoldingReading(): BotDividendReading | undefined {
+      const bot = this.detailRow?.bot;
+      return bot?.kind === 'holding' ? botDividendReading(bot.detail) : undefined;
     },
     cardKey(): string {
       return this.focusedRow !== undefined ? this.focusedRow.id : 'none';
@@ -234,6 +273,12 @@ export default defineComponent({
         return [
           {label: 'Scored by the bot\'s own corporation', value: src.corporation},
           {label: 'Result', value: `${src.count} ${$t('VP')}`},
+        ];
+      case 'holding':
+        // A save whose dividend row carries no goal terms: the two parts, as numbers.
+        return [
+          {label: 'Dividend formula', value: `${src.formulaVp} ${$t('VP')}`},
+          {label: 'Dividend goals', value: `${src.goalsVp} ${$t('VP')}`},
         ];
       }
     },

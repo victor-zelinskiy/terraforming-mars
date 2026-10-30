@@ -119,6 +119,51 @@ describe('consoleOverview — MarsBot endgame profile', () => {
     expect(row?.bot).to.deep.eq({kind: 'icons', count: 24, difficulty: 'Brutal'});
   });
 
+  // ── a campaign HOLDING: ONE row, its two families named (the owner, 2026-10-30) ──
+  const HOLDING_DETAIL = {
+    corporation: MarsBotCorpId.C12_UNMI,
+    vp: 22,
+    terms: [
+      {label: 'Greenery tiles', count: 7, vp: 7, each: 1},
+      {label: 'Goal', count: 5, vp: 7, each: 7, threshold: 4},
+      {label: 'Second goal', count: 5, vp: 8, each: 8, threshold: 5},
+      {label: 'Third goal', count: 5, vp: 0, each: 10, threshold: 6},
+    ],
+  };
+  const withHolding = (detail: typeof HOLDING_DETAIL) => bot(
+    {mcToVp: 0, mcPerVp: 8, neuralInstance: 0, cardVp: 0, corpVp: 0, dividendVp: detail.vp, dividendGoalVp: 15, detailsDividends: [detail]},
+    {}, 'hard', 0,
+    {botCorporation: {id: MarsBotCorpId.C11_THORGATE, name: 'Thorgate', holdings: [{id: MarsBotCorpId.C12_UNMI, name: 'UNMI'}]}},
+  );
+
+  it('a holding is ONE row whose parts name its families — the formula conditional, the reached goals fixed', () => {
+    const {vm} = build([human('red', 'A', {}), withHolding(HOLDING_DETAIL)]);
+    const rows = vm.cards.rows.filter((r) => r.owner === 'green');
+    expect(rows.map((r) => r.id), 'one row for the holding, never two').to.deep.eq(['green:bot:holding:C12']);
+    const row = rows[0];
+    expect(row.cardName).to.eq('UNMI');
+    expect(row.vp).to.eq(22);
+    expect(row.parts).to.deep.eq([{kind: 'conditional', vp: 7}, {kind: 'fixed', vp: 15}]);
+    expect(row.kind, 'the larger part ranks the row').to.eq('fixed');
+    expect(row.bot?.kind).to.eq('holding');
+    if (row.bot?.kind === 'holding') {
+      expect([row.bot.formulaVp, row.bot.goalsVp]).to.deep.eq([7, 15]);
+      expect(row.bot.detail, 'the server\'s own dividend row rides along for the ledger').to.eq(HOLDING_DETAIL);
+    }
+    const summary = vm.cards.byPlayer.find((p) => p.color === 'green');
+    expect(summary?.kinds.conditional).to.eq(7);
+    expect(summary?.kinds.fixed).to.eq(15);
+    expect(summary?.cardsVp, 'the chip is still the ceremony\'s one number').to.eq(22);
+  });
+
+  it('a holding whose goals paid nothing is ONE family — no parts, conditional', () => {
+    const noGoals = {...HOLDING_DETAIL, vp: 7, terms: HOLDING_DETAIL.terms.map((t) => t.threshold !== undefined ? {...t, count: 2, vp: 0} : t)};
+    const {vm} = build([human('red', 'A', {}), withHolding(noGoals)]);
+    const row = vm.cards.rows.find((r) => r.id === 'green:bot:holding:C12');
+    expect(row?.parts).to.eq(undefined);
+    expect(row?.kind).to.eq('conditional');
+  });
+
   it('a zero source produces NO row (a bot without card VP shows an empty list)', () => {
     const {vm} = build([human('red', 'A', {}), bot({mcToVp: 0, mcPerVp: 8, neuralInstance: 0, cardVp: 0, corpVp: 0})]);
     expect(vm.cards.rows.filter((r) => r.owner === 'green')).to.deep.eq([]);

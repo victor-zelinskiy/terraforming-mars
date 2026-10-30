@@ -25,6 +25,7 @@ import {Color} from '@/common/Color';
 import {GlobalParameter} from '@/common/GlobalParameter';
 import {Tag} from '@/common/cards/Tag';
 import type {MADetail, CardVictoryPointsKind} from '@/common/game/VictoryPointsBreakdown';
+import {GOAL_TERM_LABELS, MarsBotDividendDetail} from '@/common/automa/MarsBotDividend';
 import type {ViewModel} from '@/common/models/PlayerModel';
 import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import type {EndgameModel, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
@@ -221,7 +222,16 @@ export type OvBotCardSource =
   /** Hard/Brutal: +1 VP per played card with a non-negative VP icon. */
   | {kind: 'icons'; count: number; difficulty: string /* label key */}
   /** The bot's own CORPORATION scored at the end (C25 Viron). */
-  | {kind: 'corp'; count: number; corporation: string};
+  | {kind: 'corp'; count: number; corporation: string}
+  /**
+   * A campaign HOLDING — one more corporation of the bot, its points in TWO parts (the owner, 2026-10-29/30):
+   * the dividend's FORMULA scores as a conditional card, its reached GOAL tiers as a fixed one. The server's own
+   * dividend row rides along, so the context column reads it through the same ledger the card's inspection does.
+   */
+  | {kind: 'holding'; corporation: string; formulaVp: number; goalsVp: number; detail: MarsBotDividendDetail};
+
+/** One family's share of a row that scores in more than one (a holding: its formula and its goals). */
+export type OvCardRowPart = {kind: CardVictoryPointsKind; vp: number};
 
 export type OvCardRow = {
   id: string;
@@ -233,6 +243,11 @@ export type OvCardRow = {
   kind: CardVictoryPointsKind;
   /** Present ⇔ this row is an aggregated MarsBot source, not a physical card. */
   bot?: OvBotCardSource;
+  /**
+   * Present ⇔ the row's points come from MORE THAN ONE family — ONE row still (one source, one rank), the families
+   * named beside it. `kind` is then the larger part (its rank and its single-family fallbacks).
+   */
+  parts?: ReadonlyArray<OvCardRowPart>;
 };
 
 export type OvCardsPlayerSummary = {
@@ -674,14 +689,23 @@ function botCardRows(p: EndgamePlayerScore): Array<OvCardRow> {
     });
   }
   // The campaign HOLDINGS stand as the bot's further corporations — the same
-  // row a player's extra corporation is: its name and its points.
+  // row a player's extra corporation is: its name and its points. ONE row, its
+  // two families named (the score's split, 5777e6906f): the formula a
+  // conditional card, the reached goal tiers a fixed one — the server's terms.
   for (const d of a.detailsDividends ?? []) {
     if (d.vp > 0) {
       const name = p.botCorporation?.holdings?.find((h) => h.id === d.corporation)?.name ?? d.corporation;
+      const goalsVp = d.terms.filter((t) => (GOAL_TERM_LABELS as ReadonlyArray<string>).includes(t.label)).reduce((s, t) => s + t.vp, 0);
+      const formulaVp = d.vp - goalsVp;
+      const parts: Array<OvCardRowPart> = [
+        ...(formulaVp > 0 ? [{kind: 'conditional' as const, vp: formulaVp}] : []),
+        ...(goalsVp > 0 ? [{kind: 'fixed' as const, vp: goalsVp}] : []),
+      ];
       out.push({
         id: `${p.color}:bot:holding:${d.corporation}`, owner: p.color, ownerName: p.name,
-        cardName: name, vp: d.vp, kind: 'fixed',
-        bot: {kind: 'corp', count: d.vp, corporation: name},
+        cardName: name, vp: d.vp, kind: goalsVp > formulaVp ? 'fixed' : 'conditional',
+        bot: {kind: 'holding', corporation: name, formulaVp, goalsVp, detail: d},
+        ...(parts.length > 1 ? {parts} : {}),
       });
     }
   }
@@ -702,7 +726,9 @@ function buildCards(model: EndgameModel, egVm: ConsoleEndgameVm): OvCards {
     const kinds: Record<CardVictoryPointsKind, number> = {resource: 0, conditional: 0, fixed: 0, penalty: 0};
     const push = (row: OvCardRow) => {
       (row.vp < 0 ? penalties : positives).push(row);
-      kinds[row.kind] += row.vp;
+      for (const part of row.parts ?? [{kind: row.kind, vp: row.vp}]) {
+        kinds[part.kind] += part.vp;
+      }
     };
     p.topCards.forEach((c, i) => push({
       id: `${p.color}:${c.cardName}:${i}`, owner: p.color, ownerName: p.name,

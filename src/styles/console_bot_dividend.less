@@ -271,6 +271,29 @@
         color: @sem-prestige;
     }
 
+    /* ── a NARROW host (the game overview's column, its detail): the goal's head keeps its name and its count on
+       ONE line only while both fit — else the count takes its own line, still on the plates' one right edge (the
+       name never pushes it off the plate). In the inspection panel both fit: nothing changes there. ── */
+    &__goal &__head {
+        flex-wrap: wrap;
+        row-gap: .2rem;
+    }
+    &__goal &__measure { margin-left: auto; }
+
+    /* ── the concise reading (the game overview's context column): no rule prose, so the mechanic's terms
+       stand right under the name — the hairline that separated them from the prose goes too; each tier stands as
+       its prize over its threshold, right under its notch (a third of a narrow scale holds no «от 3 +7 ПО» line) ── */
+    &--concise &__terms {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: 0;
+    }
+    &--concise &__tier {
+        flex-direction: column-reverse;
+        align-items: flex-end;
+        gap: 0;
+    }
+
     /* ── the panel's tiers: the chrome yields, never the type ── */
     &--dense,
     &--packed {
