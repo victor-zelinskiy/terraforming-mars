@@ -65,7 +65,7 @@ export const PRELUDE2_CARD_MANIFEST = new ModuleManifest({
     [CardName.L1_TRADE_TERMINAL]: {Factory: L1TradeTerminal, compatibility: 'colonies'},
     [CardName.CLOUD_TOURISM]: {Factory: CloudTourism, compatibility: 'venus'},
     [CardName.GHG_SHIPMENT]: {Factory: GhgShipment, compatibility: 'turmoil', politics: 'redux'},
-    [CardName.SPONSORING_NATION]: {Factory: SponsoringNation, compatibility: 'turmoil'},
+    [CardName.SPONSORING_NATION]: {Factory: SponsoringNation, compatibility: 'turmoil', politics: 'redux'},
     [CardName.COLONIAL_REPRESENTATION]: {Factory: ColonialRepresentation, compatibility: ['colonies', 'turmoil']},
     [CardName.ENVOYS_FROM_VENUS]: {Factory: EnvoysFromVenus, compatibility: ['turmoil', 'venus']},
     [CardName.COLONIAL_ENVOYS]: {Factory: ColonialEnvoys, compatibility: ['colonies', 'turmoil']},

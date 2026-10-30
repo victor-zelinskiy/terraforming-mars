@@ -21,7 +21,10 @@ export class SponsoringNation extends Card {
 
       metadata: {
         cardNumber: 'P83',
-        description: 'Requires 4 Earth tags. Gain 3 TR. Place 2 delegates.',
+        // Redux voice: the two delegates go through the political FACADE (`politics.placeDelegates`) — both from
+        // the reserve onto ONE resolution of the voting area (T03's grant step); the classic table keeps upstream's
+        // `SendDelegateToArea {count: 2}`. The line is the generator's own `mech:turmoil.delegates` sentence.
+        description: 'Requires 4 Earth tags. Gain 3 TR. Add 2 delegates to one resolution.',
         renderData: CardRenderer.builder((b) => {
           b.tr(3).br.delegates(2);
         }),

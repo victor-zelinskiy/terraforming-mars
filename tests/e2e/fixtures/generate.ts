@@ -29,6 +29,7 @@ import {testGame, TestGameOptions} from '../../TestGame';
 import {TestPlayer} from '../../TestPlayer';
 import {addCity, addGreenery, addOcean, maxOutOceans, runAllActions, setOxygenLevel, setTemperature, setVenusScaleLevel} from '../../TestingUtils';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {SelectParty} from '../../../src/server/inputs/SelectParty';
 import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
 import {AICentral} from '../../../src/server/cards/base/AICentral';
@@ -9613,6 +9614,69 @@ function ghgShipmentFixture(name: string, ruling: boolean): void {
 }
 ghgShipmentFixture('ghg-shipment', true);
 ghgShipmentFixture('ghg-shipment-locked', false);
+
+// ── P83 · SPONSORING NATION — the EIGHTH Prelude 2 card and the FIRST declarative PLAY whose delegate grant is a LIVE
+//    follow-up with no board door (docs/claude/prompts/prelude2-p83-sponsoring-nation.md): «requires 4 Earth tags;
+//    gain 3 TR; add 2 delegates to one resolution». A 2p Redux + Colonies + Prelude 2 table (Teractor · ThorGate) as a
+//    fresh table stands — the GREENS rule (their effect answers the 3 rating steps with +6 M€), three resolutions up
+//    for the vote, blue's lobby cube placed (reserve 6) — blue on the move with P83 MOVED into the hand, 25 M€ and
+//    Cartel on the table; Teractor is an Earth tag too and takes 3 M€ off an Earth card (P83 costs 18):
+//      · `sponsoring-nation`        — Luna Governor on the table as well → 4 Earth tags: playable; a DRY RUN on a copy:
+//        TR +3, 25 − 18 + 6 = 13 M€, ONE grant prompt for 2 named by the card, its answer seats both cubes from the
+//        reserve (6 → 4) on one resolution;
+//      · `sponsoring-nation-locked` — no Luna Governor → 2 Earth tags: «Requires 4 tag(s)», current 2. ──
+function sponsoringNationFixture(name: string, earthTags: 2 | 4): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [25, 30],
+    options: {prelude2Expansion: true, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1}) => {
+      const earth = earthTags === 4 ? [CardName.CARTEL, CardName.LUNA_GOVERNOR] : [CardName.CARTEL];
+      for (const cardName of earth) {
+        moveToDeckTop(game, cardName);
+        p1.playedCards.push(game.projectDeck.drawOrThrow(game));
+      }
+      moveToDeckTop(game, CardName.SPONSORING_NATION);
+      p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+    },
+    expect: ({game, p1, parliament}) => {
+      const playable = earthTags === 4;
+      const card = p1.cardsInHand.find((c) => c.name === CardName.SPONSORING_NATION);
+      const canPlay = card !== undefined && p1.canPlay(card) !== false;
+      const reason = card === undefined ? undefined : unplayableReasons(p1, card)[0];
+      const counted = reason?.type === 'tag' && reason.current === earthTags;
+      if (card === undefined || canPlay !== playable || (!playable && !counted) || parliament.rulingParty() !== PartyName.GREENS ||
+        parliament.reserve(p1) !== 6 || parliament.slots.length !== 3 || game.activePlayer.id !== p1.id) {
+        throw new Error(`the ${name} fixture expected P83 in blue's hand (playable=${playable}) with the Greens ruling, three resolutions on the vote, a reserve of 6 and blue on the move — got card=${card !== undefined} playable=${canPlay} reason=${JSON.stringify(reason)} ruling=${parliament.rulingParty()} reserve=${parliament.reserve(p1)} slots=${parliament.slots.length}`);
+      }
+      parliament.assertLedger(game);
+      if (playable) {
+        // THE DRY RUN — the real play on a copy, paid with 18 M€ (Teractor's −3).
+        const copy = Game.deserialize(structuredClone(game.serialize()));
+        const blue = copy.getPlayerById(p1.id);
+        const hero = blue.cardsInHand.find((c) => c.name === CardName.SPONSORING_NATION)!;
+        const cost = blue.getCardCost(hero);
+        const tr = blue.terraformRating;
+        blue.playCard(hero, Payment.of({megacredits: cost}));
+        runAllActions(copy);
+        const select = blue.getWaitingFor();
+        if (cost !== 18 || blue.terraformRating !== tr + 3 || blue.megaCredits !== 25 - 18 + 6 || !(select instanceof SelectParty) ||
+          select.votePrompt?.source !== 'grant' || select.votePrompt?.count !== 2) {
+          throw new Error(`the ${name} fixture expected an 18 M€ play, TR +3, 13 M€ and ONE grant prompt for 2 — got cost=${cost} tr=+${blue.terraformRating - tr} mc=${blue.megaCredits} prompt=${select?.type} ${JSON.stringify((select as SelectParty | undefined)?.votePrompt)}`);
+        }
+        blue.process({type: 'party', partyName: select.parties[0]});
+        runAllActions(copy);
+        const area = copy.parliament!;
+        if (area.reserve(blue) !== 4 || area.votesOf(blue) !== 2) {
+          throw new Error(`the ${name} fixture expected both cubes from the reserve (6 → 4) on one resolution — got reserve=${area.reserve(blue)}`);
+        }
+        area.assertLedger(copy);
+      }
+    },
+  });
+}
+sponsoringNationFixture('sponsoring-nation', 4);
+sponsoringNationFixture('sponsoring-nation-locked', 2);
 
 // ── preselect-sole: THE PRE-SELECT STAND (T14 · ledger CC — «ОДИН КУРСОР ПОСЛЕ ОТВЕТА · ПРИБЫТИЕ НА КОММИТ ·
 //    ЕДИНСТВЕННАЯ ЦЕЛЬ»). One base table, every cell of the matrix in blue's hand / tableau:
