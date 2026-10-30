@@ -591,6 +591,10 @@ function declaredCountedPlayEffects(player: IPlayer, card: ICard): ReadonlyArray
   if (typeof b.drawCard === 'object' && isVariableAmount(b.drawCard.count)) {
     counted.drawCard = b.drawCard;
   }
+  // «Add 1 delegate per colony» (P70) — the reserve chip moves with the table.
+  if (b.turmoil?.sendDelegates !== undefined && isVariableAmount(b.turmoil.sendDelegates.count)) {
+    counted.turmoil = {sendDelegates: b.turmoil.sendDelegates};
+  }
   if (Object.keys(counted).length === 0) {
     return [];
   }
@@ -720,7 +724,10 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
   if (sendDelegates !== undefined && game.parliament !== undefined) {
     const count = ctx.count(sendDelegates.count);
     if (count > 0) {
-      out.push(actionPreviews.delegateFromReserve(player, Math.min(count, game.parliament.reserve(player))));
+      // A COUNTED grant (P70 Colonial Envoys — one per colony) names its basis, so the composer says WHY and the hand
+      // plate carries the same chip (`countedPlayEffects`).
+      const basis = countableBasis(ctx, sendDelegates.count);
+      out.push({...actionPreviews.delegateFromReserve(player, Math.min(count, game.parliament.reserve(player))), ...(basis === undefined ? {} : {basis})});
     }
   }
   // «You have +N influence» on a Turmoil Redux table (T05 Event Analysts +1, TR83 The Deimos Group +2) — the seat's WHOLE influence `current →
