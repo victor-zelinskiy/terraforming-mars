@@ -1,6 +1,6 @@
 # Prelude 2 — включение в премиум-скоуп, hold-back-список, замена
 
-**Статус 2026-10-30: ЛЕСА ПОСТАВЛЕНЫ · 5 / 54 · СДАНЫ P76 Ishtar Expedition, P85 Summit Logistics (первая политическая), P68 Ceres Tech Market (первая с действием), P80 Red Appeasement (первый розыгрыш-пас) и P78 L1 Trade Terminal (первый пассивный эффект торговли и первый мультивыбор разыгранных карт), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
+**Статус 2026-10-30: ЛЕСА ПОСТАВЛЕНЫ · 6 / 54 · СДАНЫ P76 Ishtar Expedition, P85 Summit Logistics (первая политическая), P68 Ceres Tech Market (первая с действием), P80 Red Appeasement (первый розыгрыш-пас) и P78 L1 Trade Terminal (первый пассивный эффект торговли и первый мультивыбор разыгранных карт) и P69 Cloud Tourism (первый счёт ПАРАМИ меток и первый ПО-порог на собственном ресурсе), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
 `PREMIUM_SCOPE_MODULES` (`src/common/cards/premiumScope.ts`) по образцу классического Turmoil
 (`docs/TURMOIL_REDUX_CLASSIC_CARDS.md`, 2026-10-21 → 2026-10-25): скоуп = «модуль минус список», список — ворклист.
 Адаптация идёт по одной карте, отдельными задачами, по ворклисту §4; список — временный костыль и удаляется, когда
@@ -108,6 +108,9 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
    Bespoke-половина требования («никто не спасовал») — именованный `unplayableReason` + `requirementFootnote` на лице.
    Bespoke с ПОРОГОМ АВТО-ПРИМЕНЕНИЯ (P78: «≤ 3 кандидатов — кладём молча») — всегда промпт, превью по форме Astra
    (`mergeCardSteps`), а в композере кандидатов не больше мест и каждый — выигрыш → ПОСЕЯНЫ ВСЕ (реестр CU).
+   Bespoke-СЧЁТ без вопроса (P69): ОДНА приватная функция счёта карты читается `bespokePlay`, `countedPlayForecast` и
+   `cardPlayPreview` (форма Interplanetary Trade); счёт НАБОРАМИ меток («за каждую пару Земли и Венеры») — термин `set`
+   базиса (`actionPreviews.tagSetBasis`): стороны со своими числами, джокер на стороне, своя метка карты (`self`) — реестр CV.
 3. **Действие** (`ActivePreludeCard` — Board of Directors, Floating Trade Hub, World Government Advisor; активные
    проекты) — `actionPreview` + `actionUnavailableReason`; у Venus Orbital Survey снять строку
    `SAFE_WITHOUT_INFORMATION` в `tests/cards/actionCaption.spec.ts`; правило длиннее бюджета подписи браузера действий —
@@ -148,12 +151,12 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 
 ---
 
-## 4. Ворклист — 54 карты (состояние 2026-10-30: 49 в списке, P76, P85, P68, P80 и P78 сданы)
+## 4. Ворклист — 54 карты (состояние 2026-10-30: 48 в списке, P76, P85, P68, P80, P78 и P69 сданы)
 
 | № | Карта | Вид · гейт | Форма | Статус |
 | --- | --- | --- | --- | --- |
 | P68 | Ceres Tech Market | ACTIVE · Colonies | behavior + bespoke action | СДАНА 2026-10-30 |
-| P69 | Cloud Tourism | ACTIVE · Venus | bespokePlay, ПО за 3 флотера | в списке |
+| P69 | Cloud Tourism | ACTIVE · Venus | bespokePlay, ПО за 3 флотера | СДАНА 2026-10-30 |
 | P70 | Colonial Envoys | EVENT · Colonies + ПОЛИТ (Unity) | декларативная, делегат за колонию | в списке |
 | P71 | Colonial Representation | ACTIVE · Colonies + ПОЛИТ | декларативная | в списке |
 | P72 | Envoys from Venus | EVENT · Venus + ПОЛИТ | декларативная, 2 делегата | в списке |
