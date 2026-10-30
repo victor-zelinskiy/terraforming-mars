@@ -29,6 +29,7 @@
  * `it()`. Mount in `beforeEach`, never in `before`.
  */
 import {disableAutoUnmount, enableAutoUnmount} from '@vue/test-utils';
+import {auditReactivity} from '@/client/components/presentation/reactivityWitness';
 
 /**
  * Teardown failures collected during the run, so ONE of them cannot take the
@@ -84,7 +85,36 @@ afterEach(function(this: HookContext) {
   }
 });
 
+/**
+ * ── EVERY TEST IS A REACTIVITY SCAN ─────────────────────────────────────────
+ *
+ * A module predicate that a cache reads (every animation-hold supplier, the shell's admission terms — declared
+ * through `reactivePredicate`, `src/client/components/presentation/reactivityWitness.ts`) must change ONLY through
+ * reactive state, or every cache of it latches (the dead board of 2026-10-30: a placement grid that never lit). The
+ * witness keeps a cache of its own per predicate; after every test it is compared with a fresh read, and a
+ * difference — a predicate that moved without a reactive edge during THIS test — is recorded with the test's name
+ * and fails the run at the end (a failing root hook would be fatal — see the teardown net above).
+ */
+const reactivityFailures: Array<string> = [];
+
+afterEach(function(this: HookContext) {
+  const latches = auditReactivity();
+  if (latches.length > 0) {
+    const title = this.currentTest?.fullTitle() ?? '(unknown test)';
+    for (const latch of latches) {
+      const line = `${title} — «${latch.label}» changed without a reactive edge (cached ${String(latch.cached)} → now ${String(latch.now)})`;
+      reactivityFailures.push(line);
+      console.error(`\n  ⚠ REACTIVITY LATCH after «${title}»: «${latch.label}» ${String(latch.cached)} → ${String(latch.now)}\n`);
+    }
+  }
+});
+
 after(function() {
+  if (reactivityFailures.length > 0) {
+    throw new Error(
+      `${reactivityFailures.length} reactivity latch(es) — a predicate that caches read changed without a reactive ` +
+      'edge (a plain let / array / Map term); make the term reactive at its source:\n  ' + reactivityFailures.join('\n  '));
+  }
   if (teardownFailures.length > 0) {
     throw new Error(
       `${teardownFailures.length} component(s) threw while unmounting — a teardown ` +

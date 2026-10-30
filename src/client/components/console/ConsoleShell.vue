@@ -2110,7 +2110,7 @@ import {
   PlacementMoveLevel,
 } from '@/client/console/tilePlacement/placementMove';
 import {placementCommands, PlacementStagedState, STAGED_BACK_OWED} from '@/client/console/tilePlacement/placementCommands';
-import {abortRemotePlacements, registerBoardShownDespiteStack, remoteLandingOwed, remotePlacementState} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {abortRemotePlacements, registerBoardShownDespiteStack, remoteLandingOwed} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {abortOceanBeat} from '@/client/console/tilePlacement/adjacencyPayoutBeat';
 import {abortNomadMove, nomadMoveState, nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import ConsoleColonyBuildLayer from '@/client/components/console/colonyBuild/ConsoleColonyBuildLayer.vue';
@@ -2667,13 +2667,6 @@ export default defineComponent({
       offHydroWitnesses: undefined as (() => void) | undefined,
       /** The workspace-conclusion time-net witness' uninstaller (presentationLedger). */
       offConclusionWitness: undefined as (() => void) | undefined,
-      /** The placement-admission truth witness' uninstaller (presentationLedger — `placement-admission-stale`). */
-      offPlacementAdmissionWitness: undefined as (() => void) | undefined,
-      /**
-       * Bumped by that witness's heal: the BOARD-owned placement blocks (`remote-landing` · `board-story`) read it, so a
-       * cached verdict a module term failed to invalidate is re-evaluated (the field hang of 2026-10-30).
-       */
-      placementAdmissionEpoch: 0,
       /** Fullscreen open/close choreography: chrome held hidden mid-flight. */
       zoomFlight: false,
       /**
@@ -4102,8 +4095,7 @@ export default defineComponent({
      * `placementActive` computed) keeps this acyclic; `remoteLandingOwed` reads REACTIVE terms only (`queued`, `draining`, …).
      */
     remoteLandingBeforePlacement(): boolean {
-      void this.placementAdmissionEpoch;
-      return this.remoteLandingBeforePlacementNow();
+      return !this.placementLiveLatch && remoteLandingOwed();
     },
     /**
      * A SERVER PLACEMENT HELD ONLY BY A FOREIGN LANDING must still TAKE THE BOARD — the landing waits for a board the
@@ -4125,8 +4117,11 @@ export default defineComponent({
      * covered board (a workspace, a sheet) raises nothing: no placement may wait on a drain that cannot run.
      */
     boardStoryBeforePlacement(): boolean {
-      void this.placementAdmissionEpoch;
-      return this.boardStoryBeforePlacementNow();
+      void boardBeatParkState.heldParams;
+      const plainView = this.consoleState.section === 'board' &&
+        this.consoleState.sheet === undefined &&
+        !this.workspaceScreenUp;
+      return plainView && (boardBeatParkPending() || boardBeatParkState.draining);
     },
     /**
      * The server's placement is held WHILE the board owes its scale story (PL-336) — the one state that releases the
@@ -13945,21 +13940,6 @@ export default defineComponent({
     },
   },
   methods: {
-    /**
-     * The `remote-landing` block's term, read FRESH (no computed cache) — the computed above and the
-     * `placement-admission-stale` witness both ask it, so the witness compares the cached verdict with the live one.
-     */
-    remoteLandingBeforePlacementNow(): boolean {
-      return !this.placementLiveLatch && remoteLandingOwed();
-    },
-    /** The `board-story` block's term, read FRESH (see `boardStoryBeforePlacement`). */
-    boardStoryBeforePlacementNow(): boolean {
-      void boardBeatParkState.heldParams;
-      const plainView = this.consoleState.section === 'board' &&
-        this.consoleState.sheet === undefined &&
-        !this.workspaceScreenUp;
-      return plainView && (boardBeatParkPending() || boardBeatParkState.draining);
-    },
     /** The discard verdict's tag medallion (TR32) — the card face's own art. */
     zoomVerdictTagStyle(tag: Tag): Record<string, string> {
       return tagIconStyle(tag);
@@ -24836,31 +24816,6 @@ export default defineComponent({
         signal: this.owedConclusionSignal,
       }),
     });
-    // A HELD PLACEMENT MUST BE HELD BY SOMETHING THAT IS STILL TRUE (the owner's field hang of 2026-10-30: a standard
-    // project's greenery / city — and every placement after it — stood with NO grid until a reload, and the field log
-    // said nothing). The board-owned blocks read MODULE state through cached computeds; a module term that changes
-    // without a reactive write (the remote stage's `draining` was one) latches the cached verdict for good. This net
-    // compares the cached terms with a fresh read and, past a short grace, re-evaluates them — and NAMES the latch, so
-    // the next such hole is one log line away, never a silent dead board.
-    this.offPlacementAdmissionWitness = registerTruthWitness({
-      id: 'placement-admission-stale',
-      lying: () => this.playerView.waitingFor?.type === 'space' &&
-        ((this.remoteLandingBeforePlacement && !this.remoteLandingBeforePlacementNow()) ||
-          (this.boardStoryBeforePlacement && !this.boardStoryBeforePlacementNow())),
-      graceMs: 1000,
-      heal: () => {
-        this.placementAdmissionEpoch++;
-      },
-      diagnose: () => ({
-        block: promptAdmissionBlock('placement', this.admissionSignals),
-        remoteLanding: {cached: this.remoteLandingBeforePlacement, now: this.remoteLandingBeforePlacementNow()},
-        boardStory: {cached: this.boardStoryBeforePlacement, now: this.boardStoryBeforePlacementNow()},
-        remoteStage: {
-          active: remotePlacementState.active, waitingForBoard: remotePlacementState.waitingForBoard,
-          queued: remotePlacementState.queued, draining: remotePlacementState.draining,
-        },
-      }),
-    });
     // THE BOARD-BEAT PARK'S «watchable» verdict (boardBeatPark) — coverage
     // facts only, shell-owned. Registered at mount, so a reload that lands
     // with a parked batch (server reveals survive the trip) re-parks or
@@ -25225,8 +25180,6 @@ export default defineComponent({
     this.offHydroWitnesses = undefined;
     this.offConclusionWitness?.();
     this.offConclusionWitness = undefined;
-    this.offPlacementAdmissionWitness?.();
-    this.offPlacementAdmissionWitness = undefined;
     registerHydroFlowProbe(undefined); // a dead shell's closures must not drive the next game
     this.offPlanetFocusParams?.();
     clearGameExitTarget(); // the exit funnel must not outlive the game it points from

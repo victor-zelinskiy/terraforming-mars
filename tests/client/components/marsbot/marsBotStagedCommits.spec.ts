@@ -23,6 +23,8 @@ import {notificationState, resetNotifications, setNotificationViewer, dismiss} f
 import {setNotificationFeedMode} from '@/client/components/notifications/notificationFeedMode';
 import {setBotAckViewer, resetBotTurnAckForTesting} from '@/client/components/marsbot/botTurnAck';
 import {resetPresentationLeases} from '@/client/components/presentation/presentationFlow';
+import {whenAnimationsSettled} from '@/client/components/presentation/animationHold';
+import {abortRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 
@@ -106,6 +108,18 @@ function botMcOf(view: PlayerViewModel): number {
 
 const PREV = makeView();
 
+/**
+ * The card's TILE lands before the next card is delivered. A delivered turn stages its tile on the REMOTE stage, and a
+ * queued landing holds the feed by its supplier's contract (`isRemotePlacementActive` — «a proxy on stage or a queued
+ * landing holds»), so turn N+1's card waits for turn N's touchdown — causal order. Here the touchdown is the honest
+ * JSDOM degrade (no measurable cell). These tests once passed on a bare `nextTick` only because the supplier read the
+ * plain queue array: the hold reached the registry late (the 1 s sweep / the flight's start), never at the staging.
+ */
+async function afterTheLanding(): Promise<void> {
+  await whenAnimationsSettled();
+  await nextTick();
+}
+
 describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
   let committed: number;
   const commitLatest = () => committed++;
@@ -117,6 +131,9 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
     resetBotTurnReview();
     resetNotifications();
     resetPresentationLeases();
+    // The staged board walk lands the bot's tiles on the REMOTE stage (a module queue + its blocking hold): a landing
+    // a previous test left in flight would hold this test's presentation — and the next file's.
+    abortRemotePlacements();
     closeRevealViewer();
     drawnCardsState.events = [];
     setMarsBotPresentationMode('notification');
@@ -133,6 +150,7 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
     // exactly this whenever no intermediate spec happened to reset the store).
     resetNotifications();
     resetPresentationLeases();
+    abortRemotePlacements();
   });
 
   it('a batch of bot turns is NOT committed on arrival — no tiles/params/prompt from the future', async () => {
@@ -178,7 +196,7 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
     await nextTick(); // card 1 delivered → turn 1 applied
 
     dismiss('bot:red:1:1'); // B / auto-timeout — advance the queue
-    await nextTick(); // card 2 delivered → the LAST pending turn → full commit
+    await afterTheLanding(); // turn 1's tile touches down → card 2 delivered → the LAST pending turn → full commit
     expect(committed).eq(1);
     expect(isBotStagingActive()).eq(false);
   });
@@ -225,7 +243,7 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
     expect(pollCommitted).eq(0);
 
     dismiss('bot:red:1:1');
-    await nextTick();
+    await afterTheLanding();
     // The drain commits through the FRESHEST closure (the re-poll's).
     expect(pollCommitted).eq(1);
     expect(committed).eq(0);
@@ -256,7 +274,7 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
     expect(spaceOf(presented, '03').tileType).eq(TileType.CITY);
     expect(spaceOf(presented, '05').tileType).is.undefined;
     dismiss('bot:red:1:1');
-    await nextTick();
+    await afterTheLanding();
     expect(committed).eq(1);
   });
 

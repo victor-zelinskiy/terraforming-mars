@@ -277,6 +277,13 @@ const TRANSFER_SURFACE_FOLDED = '[transfer] surface folded under its token';
  * (the owner's «ресурс летит ПОД панель»). A token under the shade by plan (born on a covered cell) is never asked.
  */
 const TRANSFER_TOKEN_UNDER = '[transfer] token painted under';
+/**
+ * The REACTIVITY WITNESS's marker (`src/client/components/presentation/reactivityWitness.ts`, the class behind the dead
+ * board of 2026-10-30): a declared predicate that caches read — every animation-hold supplier, the prompt admission's
+ * module terms — changed without a reactive edge, so every cache of it had latched until the console's tick healed it.
+ * A heal that had to run is a defect at the predicate's source.
+ */
+const REACTIVITY_LATCH = 'changed without a reactive edge';
 
 /**
  * THE STALL HARVEST — every product warning a test's pages print, kept (2026-10-14, the field «залипания»).
@@ -289,7 +296,7 @@ const TRANSFER_TOKEN_UNDER = '[transfer] token painted under';
  */
 const STALL_MARKERS: ReadonlyArray<string> = [
   '[presentation-ledger]', '[workspace-stall]', '[console-foreground-watchdog]', '[bot-turn]', '[notifications]',
-  '[animation-hold]', '[console-leak-detector]', '[deferred-refresh]',
+  '[animation-hold]', '[console-leak-detector]', '[deferred-refresh]', '[reactivity]',
 ];
 
 /**
@@ -356,7 +363,7 @@ function sleepSiteOf(stack: string): string {
   return '<unknown>';
 }
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, startShadowHarvest: void, transferEndsGuard: void, stallHarvest: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, startShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, stallHarvest: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
   /**
    * CI's STARVED RENDERER ON DEMAND (`TM_E2E_CPU_THROTTLE=<rate>`, e.g. 4): every page of the test's context runs under
    * CDP CPU throttling. CI's 4K software raster on a shared runner starves the main thread for hundreds of ms — the
@@ -481,6 +488,30 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     await use();
     if (unpainted.length > 0) {
       throw new Error(`${TRANSFER_END_NOT_PAINTED} / ${TRANSFER_SURFACE_FOLDED} / ${TRANSFER_TOKEN_UNDER} — a resource token was born on / landed over nothing, its surface folded under it, or it was painted under a surface (the laws of live flight ends, of the fold and of the paint):\n  ${unpainted.join('\n  ')}`);
+    }
+  }, {auto: true}],
+
+  /**
+   * EVERY TEST, EVERY PAGE: no declared predicate latched (`[reactivity] «label» changed without a reactive edge`). The
+   * console heals the latch within a tick and names it; the harness turns the name red, because the heal hid a plain
+   * `let` / array / Map term that left a placement grid, a prompt or a hold cached for up to a second — or, outside
+   * the witness, for good.
+   */
+  reactivityLatchGuard: [async ({context}, use) => {
+    const latches: Array<string> = [];
+    const watch = (page: Page) => {
+      page.on('console', (message) => {
+        const text = message.text();
+        if (text.includes(REACTIVITY_LATCH)) {
+          latches.push(text.slice(0, 400));
+        }
+      });
+    };
+    context.pages().forEach(watch);
+    context.on('page', watch);
+    await use();
+    if (latches.length > 0) {
+      throw new Error(`REACTIVITY LATCH — a predicate that caches read changed without a reactive edge (make its term reactive at the source):\n  ${latches.join('\n  ')}`);
     }
   }, {auto: true}],
 

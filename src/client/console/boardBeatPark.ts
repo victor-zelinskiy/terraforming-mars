@@ -52,7 +52,8 @@
  * behaviour (desktop, tests, a torn-down shell).
  */
 
-import {reactive} from 'vue';
+import {reactive, shallowRef} from 'vue';
+import {reactivePredicate} from '@/client/components/presentation/reactivityWitness';
 import {Color} from '@/common/Color';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {GameModel} from '@/common/models/GameModel';
@@ -191,19 +192,24 @@ export function registerBoardBeatRedrive(hook: (() => void) | undefined): void {
 
 /** The injected «board watchable» verdict (shell-owned). Undefined → always
  *  watchable → this module is inert (desktop / tests / a dead shell). */
-let watchableProbe: (() => boolean) | undefined;
+/**
+ * A SHALLOW REF, never a plain `let`: the probe is registered at the shell's mount — after its first render — and
+ * `boardBeatParkPending` (read by the shell's cached `board-story` admission term) short-circuits on it; a plain `let`
+ * left that term cached at «no story» for a reload that landed with a parked batch (the `reactivityWitness.ts` class).
+ */
+const watchableProbeRef = shallowRef<(() => boolean) | undefined>(undefined);
 
 export function registerBoardWatchableProbe(probe: (() => boolean) | undefined): void {
-  watchableProbe = probe;
+  watchableProbeRef.value = probe;
 }
 
 function boardWatchable(): boolean {
-  return watchableProbe === undefined || watchableProbe();
+  return watchableProbeRef.value === undefined || watchableProbeRef.value();
 }
 
 /** Is the park LIVE — a shell registered its watchable verdict? Without one the module is inert (desktop / tests). */
 export function boardBeatParkLive(): boolean {
-  return watchableProbe !== undefined;
+  return watchableProbeRef.value !== undefined;
 }
 
 /** The «board watchable» verdict, for a board scene that must wait for the player's view (TR24's scale-step tokens). */
@@ -327,7 +333,7 @@ function claimsChanged(oldClaims: Record<string, Color>, newClaims: Record<strin
  * it is covered, the OLD value is held for the drain to release.
  */
 export function noteBoardScaleAdvance(oldGame: GameModel, newGame: GameModel): void {
-  if (watchableProbe === undefined || boardWatchable()) {
+  if (watchableProbeRef.value === undefined || boardWatchable()) {
     return;
   }
   let seeded = false;
@@ -455,7 +461,7 @@ export function boardBeatParksReveal(source: CardDrawRevealSource | undefined): 
   if (source?.type !== 'globalParameter') {
     return false;
   }
-  if (watchableProbe === undefined) {
+  if (watchableProbeRef.value === undefined) {
     return false;
   }
   // A CLAIMED SIBLING no longer outranks the park. It used to («raise Venus +
@@ -479,11 +485,11 @@ function parkedBatchPending(): boolean {
 }
 
 /** Anything owed at all — the drain trigger's cheap pre-check. */
-export function boardBeatParkPending(): boolean {
+export const boardBeatParkPending = reactivePredicate('board-beat-park-pending', (): boolean => {
   return boardBeatParkState.heldParams !== undefined ||
     boardBeatParkState.heldClaims !== undefined ||
-    (watchableProbe !== undefined && parkedBatchPending());
-}
+    (watchableProbeRef.value !== undefined && parkedBatchPending());
+});
 
 function schedule(run: () => void, ms: number): void {
   if (typeof setTimeout !== 'function') {
@@ -648,7 +654,7 @@ export function boardBeatStoryPending(): boolean {
 export function resetBoardBeatPark(): void {
   releaseBoardBeatPark();
   setBoardSwingDisplay(undefined);
-  watchableProbe = undefined;
+  watchableProbeRef.value = undefined;
   surfaceLeavingProbe = undefined;
   redriveHook = undefined;
   liveParamsSource = undefined;

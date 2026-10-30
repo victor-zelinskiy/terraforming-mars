@@ -50,7 +50,7 @@
  *
  * Pure + a reactive record; no DOM, no Vue components, no i18n.
  */
-import {reactive} from 'vue';
+import {reactive, shallowReactive} from 'vue';
 import {sittingBaselineOf} from './sittingBaseline';
 import {pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsState';
 import {Color} from '@/common/Color';
@@ -224,13 +224,17 @@ function agendaCardBeforeThePlayer(step: number): boolean {
  * THE ANSWER BEATS in flight: a TR step's chip has landed and the table's
  * reactions wait one beat of the animation clock before they tick (by step).
  * A flush releases them at once and kills the beat.
+ *
+ * ⚠️ SHALLOW-REACTIVE, like `answersFlying`: both are read by the `parliament-agenda-bonus-owed` hold supplier, a cache's
+ * predicate — a plain Map/Set emptying while the ledger's own record stood still latched the hold (the
+ * `reactivityWitness.ts` class). The values stay raw (a beat, the specs — never proxied).
  */
-const answering = new Map<number, {beat: ParliamentBeat, specs: ReadonlyArray<ResourceTransferSpec>}>();
+const answering = shallowReactive(new Map<number, {beat: ParliamentBeat, specs: ReadonlyArray<ResourceTransferSpec>}>());
 /**
  * The answers IN THE AIR, by step. A flush never releases their holds: the flight owns them from the beat on (every
  * touchdown releases its own, every way out of `flyAgendaAnswer` the rest).
  */
-const answersFlying = new Set<number>();
+const answersFlying = shallowReactive(new Set<number>());
 /**
  * THE LANDING OF A STEP'S ANSWER, owed from `answerAgendaStep` to the flight's end — or to the flush that lets it go:
  * what `agendaAnswerSettled` hands the host that plays ПОВЕСТКА.

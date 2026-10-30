@@ -46,8 +46,14 @@ describe('screenHandoff — what the player is still owed before the next screen
     expect(screenHandoffReasons()).to.deep.eq(['reveal']);
     drawnCardsState.events = [];
 
+    // A foreign tile PARKED for a board the player cannot see: owed to the board, holding nothing (the wait is no scene).
     remotePlacementState.queued = 1;
+    remotePlacementState.waitingForBoard = true;
     expect(screenHandoffReasons()).to.deep.eq(['remote-landing']);
+    // …the same tile ON STAGE: it is also the board's scene and holds the presentation (its supplier, reactive since
+    // 2026-10-30 — the plain-array read named this only on the 1 s sweep), so each reader names it in its own term.
+    remotePlacementState.waitingForBoard = false;
+    expect(screenHandoffReasons()).to.deep.eq(['board-story', 'remote-landing', 'animation']);
     remotePlacementState.queued = 0;
 
     const hold = beginAnimationHold('spec-scene', {scope: 'notification-only'});
@@ -63,7 +69,9 @@ describe('screenHandoff — what the player is still owed before the next screen
    * holds are seeded for the beat the standing section plays — a door that waited for either waited for itself.
    */
   it('`only` / `ignoreReasons`: the Parliament door waits for the player own owed objects, never the board stories or the holds', () => {
+    // A landing PARKED for the board (the door's deadlock shape: it waits for the sitting to stand).
     remotePlacementState.queued = 1;
+    remotePlacementState.waitingForBoard = true;
     const hold = beginAnimationHold('parliament-reward-owed');
     handDeliveryState.inFlight = [CardName.ALGAE];
     expect(screenHandoffReasons()).to.deep.eq(['remote-landing', 'card-arrival', 'animation']);

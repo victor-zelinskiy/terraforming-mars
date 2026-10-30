@@ -55,6 +55,7 @@ import {
   oldestAnimationHoldAgeMs,
   refreshAnimationHolds,
 } from '@/client/components/presentation/animationHold';
+import {auditReactivity} from '@/client/components/presentation/reactivityWitness';
 import {
   currentBlockReason,
   expireForegroundHolds,
@@ -386,6 +387,10 @@ export function runForegroundWatchdog(pass: WatchdogPass): boolean {
   // non-reactive state can leave the count cached at a value nothing can ever
   // invalidate — a permanent 'animation' block with no hold behind it, immune
   // to every expiry because the predicates themselves read false.
+  // …and BEFORE that, the reactivity witness: every declared predicate (every hold supplier, the admission terms)
+  // whose own cache disagrees with a fresh read is NAMED and HEALED — its caches re-evaluate through its epoch, so a
+  // latch costs ≤ one tick wherever it is cached (the shell's admission computeds included, which no sweep reached).
+  auditReactivity();
   refreshAnimationHolds();
   // UNCONDITIONAL, every pass and in every scope: the queue's own starvation
   // deadline needs a clock, and a backlog starving behind a leaked animation

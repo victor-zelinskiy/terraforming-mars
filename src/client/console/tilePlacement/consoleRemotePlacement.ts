@@ -53,6 +53,7 @@
  */
 
 import {reactive, nextTick} from 'vue';
+import {reactivePredicate} from '@/client/components/presentation/reactivityWitness';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
 import {TileType} from '@/common/TileType';
@@ -413,7 +414,7 @@ let stageSafety: number | undefined;
  */
 export function isRemotePlacementActive(): boolean {
   return !remotePlacementState.waitingForBoard &&
-    (remotePlacementState.active || queue.length > 0);
+    (remotePlacementState.active || remotePlacementState.queued > 0);
 }
 
 // Queued/flying remote landings hold the presentation exactly like the own
@@ -1541,13 +1542,13 @@ function wait(ms: number): Promise<void> {
  * the same response, RX38) still has to land on it. Not an animation hold: a queue parked for a covered board holds
  * nothing (see `waitingForBoard`).
  */
-export function remoteLandingOwed(): boolean {
+export const remoteLandingOwed = reactivePredicate('remote-landing-owed', (): boolean => {
   // REACTIVE TERMS ONLY — a cached computed asks this (the shell's `remote-landing` admission block), and a plain
   // module flag read here latched that block TRUE for the rest of the game (see `remotePlacementState.draining`). The
   // queue's length is its reactive mirror (`queued`), never `queue.length`.
   return remotePlacementState.queued > 0 || remotePlacementState.active || remotePlacementState.waitingForBoard ||
     remotePlacementState.draining;
-}
+});
 
 export function boardCovered(): boolean {
   return (workspaceStackActive() && boardShownDespiteStack?.() !== true) || playedHeroHolding() || isDeckDrawActive() ||

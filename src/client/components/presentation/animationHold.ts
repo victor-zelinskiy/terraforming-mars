@@ -63,6 +63,7 @@
  * hold releases — the UI continues immediately, never a fixed delay.
  */
 import {computed, reactive, watch} from 'vue';
+import {ReactivePredicate, reactivePredicate} from '@/client/components/presentation/reactivityWitness';
 
 export type AnimationHoldScope = 'blocking' | 'notification-only';
 
@@ -103,7 +104,8 @@ export const DEFAULT_MAX_HOLD_MS = 35_000;
 type SupplierEntry = {
   scope: AnimationHoldScope,
   maxHoldMs: number,
-  supplier: () => boolean,
+  /** The flow's predicate, DECLARED through the reactivity witness (see `registerAnimationHoldSupplier`). */
+  supplier: ReactivePredicate<boolean>,
   diagnose: (() => unknown) | undefined,
   expire: (() => void) | undefined,
   stop: () => void,
@@ -232,7 +234,10 @@ export function registerAnimationHoldSupplier(label: string, supplier: () => boo
   const entry: SupplierEntry = {
     scope: options?.scope ?? 'blocking',
     maxHoldMs: options?.maxHoldMs ?? DEFAULT_MAX_HOLD_MS,
-    supplier,
+    // EVERY SUPPLIER IS WITNESSED (`reactivityWitness.ts`): the counts and the ceiling's watch below are caches over
+    // a predicate the registry does not own, so a non-reactive term in it is a latch — the witness names it and
+    // heals both caches through the predicate's own epoch. The sweep (`refreshAnimationHolds`) stays the net.
+    supplier: reactivePredicate(`hold:${label}`, supplier),
     diagnose: options?.diagnose,
     expire: options?.expire,
     stop: () => {},
@@ -286,6 +291,7 @@ export function unregisterAnimationHoldSupplier(label: string): void {
     return;
   }
   entry.stop();
+  entry.supplier.dispose();
   if (entry.ceilingTimer !== undefined) {
     clearTimeout(entry.ceilingTimer);
   }

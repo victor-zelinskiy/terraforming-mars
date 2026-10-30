@@ -107,6 +107,13 @@ export const nomadMoveState = reactive({
   /** TRUE while the remote queue merely waits for a watchable board —
    *  a parked queue is NOT an animation (the remote-tile lesson). */
   remoteWaiting: false,
+  /**
+   * The remote queue's length, mirrored REACTIVELY (the queue is a plain array): the hold supplier is a cache's
+   * predicate (the registry's counts + ceiling watch), and a queue that empties on a hop that never stood a stage up
+   * (`remoteActive` false already) wrote nothing reactive — every cache kept «holding» until the next sweep (the latch
+   * class behind the 2026-10-30 dead board — `reactivityWitness.ts`). Every push / shift / clear writes it.
+   */
+  remoteQueued: 0,
 });
 
 /** Destination cells whose committed token is HELD hidden until its remote
@@ -200,7 +207,7 @@ export function nomadMoveHolding(): boolean {
  *  hold supplier predicate polled through a Vue watch (a non-reactive first term orphans the watcher's dependency). */
 export function isRemoteNomadMoveActive(): boolean {
   return !nomadMoveState.remoteWaiting &&
-    (nomadMoveState.remoteActive || remoteQueue.length > 0);
+    (nomadMoveState.remoteActive || nomadMoveState.remoteQueued > 0);
 }
 
 // ── the OWN lifecycle ───────────────────────────────────────────────────────
@@ -675,6 +682,7 @@ export function stageRemoteNomadMove(
   ghostCells.add(diff.fromId);
   hiddenCells.add(diff.toId);
   remoteQueue.push(diff);
+  nomadMoveState.remoteQueued = remoteQueue.length;
   armRemoteSafety();
   void drainRemoteQueue();
 }
@@ -690,6 +698,7 @@ export function abortRemoteNomadMoves(): void {
     killNomadTweens(els);
   }
   remoteQueue.length = 0;
+  nomadMoveState.remoteQueued = 0;
   hiddenCells.clear();
   ghostCells.clear();
   remoteDraining = false;
@@ -715,6 +724,7 @@ async function drainRemoteQueue(): Promise<void> {
           hiddenCells.delete(ev.toId);
           ghostCells.delete(ev.fromId);
           remoteQueue.shift();
+          nomadMoveState.remoteQueued = remoteQueue.length;
         }
       }
     }
@@ -998,7 +1008,7 @@ registerAnimationHoldSupplier('nomad-move-remote', isRemoteNomadMoveActive, {
   diagnose: () => ({
     remoteActive: nomadMoveState.remoteActive,
     remoteWaiting: nomadMoveState.remoteWaiting,
-    queued: remoteQueue.length,
+    queued: nomadMoveState.remoteQueued,
     draining: remoteDraining,
   }),
   expire: () => abortRemoteNomadMoves(),

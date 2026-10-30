@@ -62,7 +62,7 @@
  * half begins and ends is written into the flights' trail (`rail:seed` by the
  * rail module, `rail:end {why}` here).
  */
-import {reactive, toRaw} from 'vue';
+import {reactive, shallowRef, toRaw} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
@@ -123,7 +123,12 @@ export function armedRailLandsOnRow(): boolean {
 
 /** The armed plan the half was seeded from — a plan is seeded ONCE (a later frame re-seeding would release the rows early). */
 let seededPlan: ActionCommitPlan | undefined;
-let seededRail: ActionCommitRail | undefined;
+/**
+ * The seeded half's rail — a SHALLOW REF, never a plain `let`: the `action-commit-rail-owed` hold supplier reads it, and
+ * a half ended while the phase stood still must reach every cache (`reactivityWitness.ts`). Shallow: the rail stays
+ * raw (identity compares against `toRaw(plan.rail)`).
+ */
+const seededRailRef = shallowRef<ActionCommitRail | undefined>(undefined);
 /** An armed plan a view has been applied for that had paid NOTHING of it yet — still waiting for the view that pays it. */
 let owedPlan: ActionCommitPlan | undefined;
 
@@ -152,12 +157,12 @@ function resetHalf(why: string): void {
   actionCommitRailState.capsule = false;
   actionCommitRailState.capsules = [];
   actionCommitRailState.lastEnd = why;
-  seededRail = undefined;
+  seededRailRef.value = undefined;
 }
 
 /** End the half early: every row it still holds ticks now (honestly late, never lost). */
 function endHalf(why: string): void {
-  const rail = seededRail;
+  const rail = seededRailRef.value;
   resetHalf(why);
   if (rail !== undefined) {
     releaseRailReward(rail.key, why);
@@ -196,7 +201,7 @@ export function seedActionCommitRail(before: PlayerViewModel | undefined, after:
     actionCommitRailState.ended++;
     return;
   }
-  seededRail = rail;
+  seededRailRef.value = rail;
   // THE SCORE CELL (TR55, К-V2): a card a link LANDS a resource on scores with that touchdown — its share (the server's
   // attribution, whatever the preview printed — Security Fleet's fighter has no `vpBox`) is held by the ledger, seeded
   // last in this very block, and released by the contact beat of the first token onto that card.
@@ -326,7 +331,7 @@ function commitSurface(): Element | null {
 export function flyActionCommitRail(armed: ActionCommitPlan | undefined, surface?: Element | null): ActionCommitRailFlight {
   const plan = armed === undefined ? undefined : toRaw(armed);
   const rail = plan === undefined ? undefined : toRaw(plan.rail);
-  if (plan === undefined || rail === undefined || seededRail !== rail || actionCommitRailState.phase !== 'seeded') {
+  if (plan === undefined || rail === undefined || seededRailRef.value !== rail || actionCommitRailState.phase !== 'seeded') {
     return {holdsSurface: false, foldable: Promise.resolve(), done: Promise.resolve()};
   }
   actionCommitRailState.phase = 'flying';
@@ -410,7 +415,7 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined, surface
   };
   const run = async (): Promise<void> => {
     for (let k = 0; k <= last; k++) {
-      if (actionCommitRailState.phase !== 'flying' || seededRail !== rail) {
+      if (actionCommitRailState.phase !== 'flying' || seededRailRef.value !== rail) {
         break; // ended from outside (the ceiling, a reset) — whatever was held has ticked
       }
       actionCommitRailState.link = k;
@@ -498,7 +503,7 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined, surface
   const done = run().finally(() => {
     // Every way the chain ends asks the surface too: what it started may still be absorbing on it.
     foldWhenClear();
-    if (seededRail === rail) {
+    if (seededRailRef.value === rail) {
       resetHalf('');
     }
   });
@@ -521,7 +526,7 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined, surface
  */
 export function flyStagedVotePrice(): Promise<void> | undefined {
   const plan = actionCommitState.plan;
-  if (plan === undefined || plan.rail === undefined || actionCommitRailState.phase !== 'seeded' || seededRail !== toRaw(plan.rail)) {
+  if (plan === undefined || plan.rail === undefined || actionCommitRailState.phase !== 'seeded' || seededRailRef.value !== toRaw(plan.rail)) {
     return undefined;
   }
   return flyActionCommitRail(plan, commitSurface()).foldable;
@@ -556,7 +561,7 @@ registerAnimationHoldSupplier('action-commit-rail', () => actionCommitRailState.
 // next prompt is the commit's own business), and the registry's ceiling on the WALL clock is its net (T09, decision 6 —
 // the old net was a delayed call on the animation clock). Past it the dismissal never came: the rows tick, named. It
 // stands only while the half's rows are really HELD — a half whose rows were released elsewhere holds nothing.
-registerAnimationHoldSupplier('action-commit-rail-owed', () => actionCommitRailState.phase === 'seeded' && seededRail !== undefined && railRewardPending(seededRail.key), {
+registerAnimationHoldSupplier('action-commit-rail-owed', () => actionCommitRailState.phase === 'seeded' && seededRailRef.value !== undefined && railRewardPending(seededRailRef.value.key), {
   scope: 'notification-only',
   maxHoldMs: OWED_FLY_MS,
   diagnose: () => ({card: actionCommitRailState.card}),

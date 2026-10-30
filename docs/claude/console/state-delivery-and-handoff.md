@@ -80,9 +80,12 @@ remoteLandingOwed()`:
   the predicate read the plain `let draining`; the computed was re-read in the flush `queued → 0` scheduled, while the
   drain was still finishing, and cached `true`; on a DEGRADED landing (board covered past `BOARD_WAIT_MAX_MS`, an
   unmeasurable hex) `active` was already false, so the drain's end wrote nothing reactive and the block held every
-  placement of the game. Guard: `remoteBoardQueueHold.spec` § «OWED» IS REACTIVE TO THE END. The net behind it: the
-  ledger witness **`placement-admission-stale`** (ConsoleShell) compares the cached `remote-landing` / `board-story`
-  terms with a fresh read, re-evaluates them past 1 s (`placementAdmissionEpoch`) and NAMES the latch in the log;
+  placement of the game. Guard: `remoteBoardQueueHold.spec` § «OWED» IS REACTIVE TO THE END. The class behind it is
+  closed for every predicate a cache reads: `remoteLandingOwed` (and every animation-hold supplier, the park's
+  `boardBeatParkPending`, `cardExitBusy`) is declared through the REACTIVITY WITNESS (`reactivePredicate`,
+  `src/client/components/presentation/reactivityWitness.ts`) — a value that moves with no reactive edge is NAMED
+  (`[reactivity] «label» changed without a reactive edge`), HEALED for every cache through the predicate's own epoch
+  on the console's 1 s tick, and RED in the client unit suite (after every test) and in every e2e spec;
 - **`placementTakesBoardForLanding`** (computed + watcher): a server placement held ONLY by this block still takes the
   board — the stack yields (`yieldStackToBoard`) or the screen goes board-home, exactly as the placement's own
   rising edge would — because the landing waits for a board the player can SEE and the covering workspace would only

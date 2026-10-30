@@ -56,7 +56,7 @@
  * surfaces fade in 120 ms, the scales snap, the title reads, the surfaces
  * return. A reload into a terraformed game seeds silently and plays nothing.
  */
-import {reactive} from 'vue';
+import {reactive, shallowRef} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -129,10 +129,14 @@ export type TerraformedSceneProbes = {
   playerOwned?: () => boolean;
 };
 
-let probes: TerraformedSceneProbes | undefined;
+/**
+ * The shell's probes — a SHALLOW REF, never a plain `let`: `terraformedSceneUp` (a hold supplier — a cache's predicate)
+ * reads them, and a registration that lands while the scene is `armed` must reach every cache (`reactivityWitness.ts`).
+ */
+const probesRef = shallowRef<TerraformedSceneProbes | undefined>(undefined);
 
 export function registerTerraformedSceneProbes(next: TerraformedSceneProbes | undefined): void {
-  probes = next;
+  probesRef.value = next;
 }
 
 // The scene owns the foreground from its ARM to the camera's landing — the next prompt, the feed, the finale's
@@ -189,7 +193,7 @@ export function terraformedSceneUp(): boolean {
   if (phase === 'idle') {
     return false;
   }
-  return phase !== 'armed' || !(probes?.playerOwned?.() ?? false);
+  return phase !== 'armed' || !(probesRef.value?.playerOwned?.() ?? false);
 }
 
 /** A press on the scene: after the camera has come in it SKIPS — one atomic finish. Before that it is absorbed. */
@@ -211,7 +215,7 @@ function scheduleStart(nonce: number): void {
     if (terraformedSceneState.phase !== 'armed' || terraformedSceneState.nonce !== nonce) {
       return;
     }
-    const quiet = probes?.quiet() ?? true;
+    const quiet = probesRef.value?.quiet() ?? true;
     if (quiet || Date.now() - started > TERRAFORMED_ARMED_WAIT_MAX_MS) {
       void play(nonce);
       return;
@@ -259,7 +263,7 @@ function frame(): Promise<void> {
 async function play(nonce: number): Promise<void> {
   const alive = () => terraformedSceneState.nonce === nonce && terraformedSceneState.phase !== 'idle';
   const reduced = consoleReducedMotionActive();
-  const sectioned = probes?.sectionCovered() ?? false;
+  const sectioned = probesRef.value?.sectionCovered() ?? false;
   try {
     // 1 · RECEDE — the interface steps aside; the status strip stays.
     terraformedSceneState.phase = 'recede';

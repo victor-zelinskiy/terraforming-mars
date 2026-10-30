@@ -47,13 +47,14 @@
  * is clipped — off-screen dives can never create scrollable overflow.
  */
 
-import {nextTick} from 'vue';
+import {nextTick, ref} from 'vue';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {reactivePredicate} from '@/client/components/presentation/reactivityWitness';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {addCardCarry} from '@/client/console/cardDeal/cardCarry';
 import {cardExitState, flightEl, nextFlightId, removeFlights} from '@/client/console/cardDeal/cardExitState';
@@ -544,12 +545,14 @@ export function runDraftPickToTray(args: DraftPickToTrayArgs): DraftPickHandle {
  * the same bounded rAF-stall net every director beat carries — a stuck
  * count would hold the scene lease forever, which is worse than a beat cut
  * a frame early.
+ *
+ * ⚠️ A REF, never a plain `let`: the shell's reveal exit barrier is a CACHED computed over `cardExitBusy`, and a run
+ * ending with every other term of the barrier already idle wrote nothing reactive — the barrier stayed true, the drawn
+ * batch never mounted and its `reveal` block held the grid dark until a 4 s net (`reactivityWitness.ts`).
  */
-let discardExitRuns = 0;
+const discardExitRuns = ref(0);
 
-export function cardExitBusy(): boolean {
-  return discardExitRuns > 0;
-}
+export const cardExitBusy = reactivePredicate('card-exit-busy', () => discardExitRuns.value > 0);
 
 /**
  * The subdued DISCARD of non-chosen cards — a cheap CSS animation on the
@@ -570,7 +573,7 @@ export function applyDiscardExit(els: ReadonlyArray<HTMLElement>, opts?: {stepMs
   // `delayMs` sequences the read: the HERO beat lands first, THEN the
   // rejected cards start tumbling — the eye follows one thing at a time.
   const base = opts?.delayMs ?? 0;
-  discardExitRuns++;
+  discardExitRuns.value++;
   const waits = els.map((el, i) => new Promise<void>((resolve) => {
     let settled = false;
     const finish = () => {
@@ -593,7 +596,7 @@ export function applyDiscardExit(els: ReadonlyArray<HTMLElement>, opts?: {stepMs
     el.classList.add('con-exit-reject');
   }));
   return Promise.all(waits).then(() => {
-    discardExitRuns = Math.max(0, discardExitRuns - 1);
+    discardExitRuns.value = Math.max(0, discardExitRuns.value - 1);
   });
 }
 
