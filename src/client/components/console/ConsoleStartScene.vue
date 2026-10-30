@@ -1236,7 +1236,7 @@ import {
   armFirstActionRail, firstActionRailBusy, firstActionRailOf, firstActionRailState, flyFirstActionRail, releaseFirstActionRail,
 } from '@/client/console/startFirstActionRail';
 import {ReactorEmergence, cardReactionAnswerFlight, markReactionCause} from '@/client/console/cardReaction/cardReactionDirector';
-import {liftInPlace, registerReactorPlace, settleInPlace} from '@/client/console/cardReaction/reactorPlaces';
+import {buriedUnderAnotherCard, liftInPlace, placeShowsCard, registerReactorPlace, settleInPlace} from '@/client/console/cardReaction/reactorPlaces';
 import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 import {probeTick} from '@/client/console/probeTick';
 import {cardReactionState} from '@/client/console/cardReaction/cardReactionStage';
@@ -4868,7 +4868,8 @@ export default defineComponent({
     startReactorPlaceOff?.();
     startReactorPlaceOff = registerReactorPlace({
       id: 'start',
-      standsIn: (card) => this.startCarriesReactor(card),
+      // …unless its face lies BURIED on the shelf under another card: no honest place — the reactor rises at the stage.
+      standsIn: (card) => this.startCarriesReactor(card) && !this.startReactorBuried(card),
       emergeTarget: async (card) => {
         const face = await this.startReactorFace(card, true);
         if (face !== undefined) {
@@ -7479,6 +7480,37 @@ export default defineComponent({
       return (type === CardType.CORPORATION || type === CardType.PRELUDE) &&
         (this.playerView.thisPlayer?.tableau ?? []).some((c) => c.name === card);
     },
+    /**
+     * `card`'s face on the shelf — the slot that SHOWS it (`data-played-face`), else a slot keyed by it that shows no
+     * other card. The top slot of a family whose card is on loan to the seat keeps the away card's KEY while it shows
+     * the card underneath: lifting it for the away card raised another played card.
+     */
+    startShelfFace(card: CardName): HTMLElement | undefined {
+      const root = this.sceneRoot();
+      if (root === undefined) {
+        return undefined;
+      }
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card;
+      const shown = root.querySelector<HTMLElement>(`.con-start__played [data-played-face="${esc}"]`);
+      if (shown !== null) {
+        return shown;
+      }
+      const keyed = root.querySelector<HTMLElement>(`.con-start__played [data-played-key="${esc}"]`);
+      return keyed !== null && placeShowsCard(keyed, card) ? keyed : undefined;
+    },
+    /** The carried card stands on the shelf only as a strip with another card on top (no seat face of its own). */
+    startReactorBuried(card: CardName): boolean {
+      const root = this.sceneRoot();
+      if (root === undefined) {
+        return false;
+      }
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card;
+      if (root.querySelector(`.con-start__embedsource-card[data-start-seat-card="${esc}"]`) !== null) {
+        return false;
+      }
+      const slot = this.startShelfFace(card);
+      return slot !== undefined && slot.closest('.con-deal-hold') === null && transferEndVerdict(slot).visible && buriedUnderAnotherCard(slot);
+    },
     /** The carried card's face as painted in the start right now — the seat first, the shelf's top slot second. */
     startVisibleFace(card: CardName): HTMLElement | undefined {
       const root = this.sceneRoot();
@@ -7488,9 +7520,12 @@ export default defineComponent({
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card;
       const candidates = [
         root.querySelector<HTMLElement>(`.con-start__embedsource-card[data-start-seat-card="${esc}"]`),
-        root.querySelector<HTMLElement>(`.con-start__played [data-played-key="${esc}"]`),
+        this.startShelfFace(card) ?? null,
       ];
-      return candidates.find((el): el is HTMLElement => el !== null && el.closest('.con-deal-hold') === null && transferEndVerdict(el).visible) ?? undefined;
+      // A strip of the shelf with another card on top is no face (the reactor would rise UNDER it — the card on top read as
+      // the one that reacted).
+      return candidates.find((el): el is HTMLElement => el !== null && el.closest('.con-deal-hold') === null && transferEndVerdict(el).visible &&
+        !buriedUnderAnotherCard(el)) ?? undefined;
     },
     /** The face — waited for (bounded, on the probe clock) while the ceremony is still bringing it, when `wait`. */
     async startReactorFace(card: CardName, wait: boolean): Promise<HTMLElement | undefined> {

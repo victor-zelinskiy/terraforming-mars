@@ -403,6 +403,18 @@ is until the owner says otherwise), the hero's `holdHeroAnswers` path for a card
 `card-resource` group with NO scene holding it is held and flown by the standalone chain to the holder's satellite
 cell.
 
+**17a. A PLACE IS THE FACE THE PLAYER SEES — never a key, never a buried card** (PL-1155, the owner's field report of
+2026-10-30: «поднимается НЕ ТА КАРТА, а другая из разыгранных»). Two hooks named what was not painted: the start
+shelf's top slot keeps the KEY of a card on loan to an embedded step's seat while it SHOWS the card promoted from under
+it (the away card's flight home needs the destination), and a COVERED card of a cascade keeps a full-height slot under
+its neighbours (the visibility verdict judges FOREIGN surfaces only — a neighbour of one stack is not «cover»). Either
+way a reaction lifted the wrong card or rose under the right one, its tokens born on a hidden effect row. Now: a slot
+whose key is not its face declares the face it shows (`data-played-face` — the shelf's top slot), the registry finds a
+card by it and refuses a slot that shows another (`placeShowsCard`); a face whose CENTRE is painted by another card is
+no place (`buriedUnderAnotherCard`, read off the hit test — no hit-test evidence is no evidence of cover): the reactor
+rises at the stage. The start's registered place reads the same (`startShelfFace`, and `standsIn` declines a buried card
+instead of waiting for a face that will not come). Guard: `reactorPlaces.spec` § buried · § keys one card, shows another.
+
 ## TR82 Proteus — the START SHELF is a reactor's place (2026-10-27, PL-1093…1095)
 
 A corporation answering a Prelude's tag (Proteus — `matchingPreludeTags`) lies on the start shelf «РАЗЫГРАНО» while the

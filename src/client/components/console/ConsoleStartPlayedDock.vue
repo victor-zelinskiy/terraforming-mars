@@ -78,11 +78,14 @@
             </div>
           </div>
           <!-- THE TOP SLOT — one persistent element: the open top card, or
-               the prepared card place a landing is measured against. -->
+               the prepared card place a landing is measured against. Its KEY is the slot's identity (the away card on
+               loan keeps it — its flight home needs a destination); `data-played-face` names the face it SHOWS (the
+               promoted card meanwhile) — a reaction lifts a card only where its own face is painted. -->
           <div class="con-splayed__top"
                :class="{'con-splayed__top--empty': fam.topFace === undefined, 'con-splayed__top--armed': fam.receiving && !revealed}"
                :data-start-front="fam.receiving && !revealed ? '' : undefined"
                :data-played-key="fam.topKey"
+               :data-played-face="fam.topFace"
                :data-zoom-slot="fam.topKey"
                :style="{height: plan.cardH + 'px'}">
             <div v-if="fam.topFace !== undefined" class="con-splayed__face"

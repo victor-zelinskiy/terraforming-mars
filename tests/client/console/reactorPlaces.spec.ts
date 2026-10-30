@@ -1,7 +1,8 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {
-  domReactorPlace, findReactorPlace, reactorHomeSelectors, registerReactorPlace, resetReactorPlaces, visibleReactorHome,
+  buriedUnderAnotherCard, domReactorPlace, findReactorPlace, placeShowsCard, reactorHomeSelectors, registerReactorPlace, resetReactorPlaces,
+  visibleReactorHome,
 } from '@/client/console/cardReaction/reactorPlaces';
 
 /**
@@ -35,7 +36,7 @@ describe('reactorPlaces — where a reacting card already stands', () => {
 
   it('the selectors name the product\'s own hooks, most specific first — the composer\'s hero, a target miniature, a played slot', () => {
     expect(reactorHomeSelectors(CardName.MARTIAN_FIBER)).deep.eq([
-      '[data-reaction-home="Martian Fiber"]', '[data-composer-card="Martian Fiber"]', '[data-played-key="Martian Fiber"]',
+      '[data-reaction-home="Martian Fiber"]', '[data-composer-card="Martian Fiber"]', '[data-played-face="Martian Fiber"]', '[data-played-key="Martian Fiber"]',
     ]);
   });
 
@@ -99,6 +100,52 @@ describe('reactorPlaces — where a reacting card already stands', () => {
     root.appendChild(hidden);
     expect(visibleReactorHome(CardName.ROVER_CONSTRUCTION)).is.undefined;
     expect(findReactorPlace(CardName.ROVER_CONSTRUCTION)).is.undefined;
+  });
+
+  it('a face BURIED in a cascade (another card lies on top of its centre) is NO place — the card on top would read as the reactor', () => {
+    // The played table's stack: Pets is covered (its title band shows), Birds lies on top of it, both full-height slots.
+    const covered = document.createElement('div');
+    covered.setAttribute('data-played-key', CardName.PETS);
+    box(covered, {left: 100, top: 100, width: 320, height: 460});
+    const coveredFace = document.createElement('div');
+    covered.appendChild(coveredFace);
+    const onTop = document.createElement('div');
+    onTop.setAttribute('data-played-key', CardName.BIRDS);
+    box(onTop, {left: 100, top: 140, width: 320, height: 460});
+    const onTopFace = document.createElement('div');
+    onTop.appendChild(onTopFace);
+    root.appendChild(covered);
+    root.appendChild(onTop);
+    // Pets' centre (260, 330) is painted by Birds' face; Birds' own centre (260, 370) by itself.
+    document.elementsFromPoint = (_x: number, y: number) => (y === 330 ? [onTopFace, onTop, coveredFace, covered] : [onTopFace, onTop]);
+    expect(buriedUnderAnotherCard(covered)).is.true;
+    expect(buriedUnderAnotherCard(onTop)).is.false;
+    expect(visibleReactorHome(CardName.PETS), 'the buried card rises at the stage, never under Birds').is.undefined;
+    expect(findReactorPlace(CardName.PETS)).is.undefined;
+    expect(visibleReactorHome(CardName.BIRDS), 'the card on top is its own place').eq(onTop);
+  });
+
+  it('a slot that KEYS one card and SHOWS another (the start shelf while its top card is on loan) is a place only for the face it shows', () => {
+    // The away card (Titan Holdings) keeps the top slot's key for its flight home; the card underneath is promoted into it.
+    const slot = document.createElement('div');
+    slot.setAttribute('data-played-key', CardName.TITAN_HOLDINGS);
+    slot.setAttribute('data-played-face', CardName.PROTEUS);
+    box(slot, {left: 100, top: 100, width: 320, height: 460});
+    root.appendChild(slot);
+    expect(placeShowsCard(slot, CardName.TITAN_HOLDINGS)).is.false;
+    expect(placeShowsCard(slot, CardName.PROTEUS)).is.true;
+    expect(visibleReactorHome(CardName.TITAN_HOLDINGS), 'the away card never lifts the promoted card').is.undefined;
+    expect(visibleReactorHome(CardName.PROTEUS), 'the promoted card IS painted there — its own place').eq(slot);
+  });
+
+  it('no hit-test evidence (a pointer-events: none face, a host with no hit test) is no evidence of cover', () => {
+    const face = document.createElement('div');
+    face.setAttribute('data-composer-card', CardName.PETS);
+    box(face, {left: 100, top: 100, width: 320, height: 460});
+    root.appendChild(face);
+    document.elementsFromPoint = () => [];
+    expect(buriedUnderAnotherCard(face)).is.false;
+    expect(visibleReactorHome(CardName.PETS)).eq(face);
   });
 
   it('the lift marks the face while it stands forward and clears the mark on the settle', async () => {

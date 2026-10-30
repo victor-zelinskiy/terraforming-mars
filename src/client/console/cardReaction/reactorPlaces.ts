@@ -28,7 +28,7 @@ import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {firstVisibleEnd, transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
+import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 
 /** A reactor's WAY ONTO THE SCREEN: out of its own place in a host's stage, or at the stage of the reaction layer. */
 export type ReactorEmergence = {
@@ -58,7 +58,19 @@ export function registerReactorPlace(place: ReactorPlace): () => void {
 /** The selectors a painted face of `card` answers to, most specific first. */
 export function reactorHomeSelectors(card: CardName): Array<string> {
   const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
-  return [`[data-reaction-home="${esc}"]`, `[data-composer-card="${esc}"]`, `[data-played-key="${esc}"]`];
+  return [`[data-reaction-home="${esc}"]`, `[data-composer-card="${esc}"]`, `[data-played-face="${esc}"]`, `[data-played-key="${esc}"]`];
+}
+
+/**
+ * The element SHOWS `card` — a slot whose KEY is not the face it paints (the start shelf's top slot while its card is
+ * on loan to an embedded step's seat: the card underneath is promoted into the slot, the away card keeps the key so
+ * its flight home has a destination) declares the face it shows (`data-played-face`). Lifting that slot for the away
+ * card raised ANOTHER played card (the owner's field report, 2026-10-30: «поднимается НЕ ТА КАРТА») — a place is
+ * the face the player SEES, never a key.
+ */
+export function placeShowsCard(el: Element, card: CardName): boolean {
+  const shown = el.getAttribute('data-played-face');
+  return shown === null || shown === card;
 }
 
 /** A face shorter than this (natural px × the UI scale) is a sliver, not a place — a cascade's title band. */
@@ -106,20 +118,55 @@ export function settleInPlace(el: HTMLElement): Promise<void> {
   });
 }
 
-/** The VISIBLE painted face of `card` on the product's own hooks — never the reaction layer's, never a sliver. */
+/** Every product hook a card face stands on (any card) — what «another card lies on top» is read against. */
+const CARD_FACE_HOOKS = '[data-reaction-home], [data-composer-card], [data-played-key]';
+
+/**
+ * ANOTHER CARD LIES ON TOP of `el` — the face is BURIED in a cascade (the played table's stacks, the start dock's
+ * strips: every covered card keeps a full-height slot with only its title band showing, the next cards painted over
+ * it). The one visibility verdict judges FOREIGN surfaces only, so a buried face passed it, was «lifted in place»
+ * under its neighbours and had its tokens born on an effect row the player could not see — the card lying on top
+ * appeared to be the one that reacted (the owner's field report, 2026-10-30: «поднимается НЕ ТА КАРТА»). Read off
+ * the hit test at the face's centre: the first card face there must be this one. A face the hit test cannot name
+ * (`pointer-events: none`, no hit-test API) gives no evidence of cover.
+ */
+export function buriedUnderAnotherCard(el: HTMLElement): boolean {
+  if (typeof document === 'undefined' || typeof document.elementsFromPoint !== 'function') {
+    return false;
+  }
+  const r = el.getBoundingClientRect();
+  const hits = document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  for (const hit of hits) {
+    if (hit.closest('.con-reaction, .con-transfer') !== null) {
+      continue;
+    }
+    const face = hit.closest(CARD_FACE_HOOKS);
+    if (face === null) {
+      continue;
+    }
+    return face !== el && !el.contains(face) && !face.contains(el);
+  }
+  return false;
+}
+
+/**
+ * The VISIBLE painted face of `card` on the product's own hooks — never the reaction layer's, never a sliver, never a
+ * face buried under another card (`buriedUnderAnotherCard`): with no honest place the reactor rises at the stage.
+ */
 export function visibleReactorHome(card: CardName): HTMLElement | undefined {
   if (typeof document === 'undefined') {
     return undefined;
   }
   for (const selector of reactorHomeSelectors(card)) {
-    const el = firstVisibleEnd(selector);
-    if (!(el instanceof HTMLElement) || el.closest('.con-reaction') !== null) {
-      continue;
+    for (const el of Array.from(document.querySelectorAll(selector))) {
+      if (!(el instanceof HTMLElement) || el.closest('.con-reaction') !== null || !placeShowsCard(el, card) || !transferEndVerdict(el).visible) {
+        continue;
+      }
+      if (el.getBoundingClientRect().height < MIN_PLACE_H * conUiScale() || buriedUnderAnotherCard(el)) {
+        continue;
+      }
+      return el;
     }
-    if (el.getBoundingClientRect().height < MIN_PLACE_H * conUiScale()) {
-      continue;
-    }
-    return el;
   }
   return undefined;
 }
