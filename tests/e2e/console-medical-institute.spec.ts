@@ -49,7 +49,8 @@ function watchPosts(page: Page): Array<string> {
   const posts: Array<string> = [];
   page.on('request', (r) => {
     if (r.method() === 'POST' && /\/player\/input/.test(r.url())) {
-      posts.push(new URL(r.url()).pathname);
+      // The BODY, not just the path: a stray answer must name WHAT it answered (CI 2026-10-30 printed a bare path).
+      posts.push(`${new URL(r.url()).pathname} ${r.postData() ?? ''}`);
     }
   });
   return posts;
@@ -160,8 +161,18 @@ test.describe(`console · TRP9 Medical Institute · ${PRESET.id}`, () => {
     const candidate = page.locator(`.con-task-host .con-cards__slot[data-zoom-slot="${HOLDER}"]`);
     const posts = watchPosts(page);
     await settle(page, {timeoutMs: 30_000});
-    expect(await pressUntil(page, 'Enter', async () => !/ДОБОР/i.test(await crumbText(page)), {tries: 3, settleMs: 2500}),
-      'A took the drawn card').toBe(true);
+    // ACT → VERIFY on the TAKE ITSELF, never on its consequence alone. The crumb leaves «ДОБОР» only once the card has
+    // flown into the dock and «КУДА» stands; on a loaded 4K SwiftShader runner that is past the retry window, and the
+    // retry's A then landed ON «КУДА» — its sole candidate answered, the stray POST below (CI 2026-10-30, attempt 0).
+    // The take is witnessed the moment it starts: the drawn card's slot held by its intake proxy (`con-deal-hold`),
+    // the delivery's own hold, or anything later (the crumb moved on, the candidate stands).
+    const tookDrawn = async (): Promise<boolean> => !/ДОБОР/i.test(await crumbText(page)) || await candidate.isVisible() ||
+      await page.evaluate(() => {
+        const holds = (window as unknown as {__conReady?: () => {holds?: Array<string>}}).__conReady?.().holds ?? [];
+        return holds.some((h) => h.includes('hand-delivery')) ||
+          document.querySelector('.con-reveal .con-cards__slot.con-deal-hold, .con-reveal .con-cards__slot--taken') !== null;
+      });
+    expect(await pressUntil(page, 'Enter', tookDrawn, {tries: 3, settleMs: 2500}), 'A took the drawn card').toBe(true);
     await expect(candidate, '«КУДА» stood after the card was taken').toBeVisible({timeout: 30_000});
     expect(posts, 'taking the drawn card answered nothing on the server').toEqual([]);
     await settle(page, {timeoutMs: 30_000});

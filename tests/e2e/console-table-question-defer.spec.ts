@@ -22,7 +22,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixture, cinematicBeat, crumbText, focusCard, press, pressUntil, settle} from './consoleStart';
+import {bootFixture, crumbText, focusCard, press, pressUntil, readiness, settle} from './consoleStart';
 
 const OUT = path.resolve('screenshots', 'table-question-defer');
 const OLYMPUS = 'Olympus Conference';
@@ -120,26 +120,84 @@ async function commit(page: Page): Promise<void> {
   await page.keyboard.press('Enter');
 }
 
-/** Take every drawn card the flow presents until `done()` holds (a swallowed take is retried — the press count is bounded,
- *  not the batch count); returns the crumb under each DISTINCT card taken. */
+/**
+ * The standing reveal as the PAD sees it: the overlay is mounted, not leaving, and the ONE command bar's A is its
+ * «Взять» — i.e. the reveal is the surface a press reaches. `undefined` otherwise. The signature changes when a take
+ * lands (a «Взято» mark, the next card, another batch), which is how a press is VERIFIED.
+ */
+async function takeableReveal(page: Page): Promise<string | undefined> {
+  return await page.evaluate(() => {
+    const r = document.querySelector('.con-reveal');
+    if (r === null || r.classList.contains('con-task-swap-leave-active')) {
+      return undefined;
+    }
+    const bar = (document.querySelector('.con-cmdbar')?.textContent ?? '').replace(/\s+/g, ' ');
+    if (!/Взять(?! всё)/.test(bar)) {
+      return undefined;
+    }
+    return `${(r.textContent ?? '').replace(/\s+/g, ' ').slice(0, 80)}|taken=${r.querySelectorAll('.con-reveal__takenmark').length}`;
+  }) ?? undefined;
+}
+
+/**
+ * Take every drawn card the flow presents until `done()` holds; returns the crumb under each DISTINCT card taken.
+ *
+ * ⚠ ACT → VERIFY, never a press budget spent blind (the CI flake of 2026-10-30 — 1/10 on the box, 3/12 under
+ * `TM_E2E_CPU_THROTTLE=4`): the old loop spent a fixed THREE presses, each a fixed 900 ms after the reveal node
+ * appeared — and the embedded reveal ABSORBS A until its batch has landed (`ConsoleRevealOverlay.handleIntent`: the
+ * arrival gate), while the console already reads quiet and the bar already says «A Взять». On a starved renderer all
+ * three fell inside that window: Olympus' card stood untaken («ДОБОР КАРТ», taken 0, no holds, the server asking the
+ * university), the album could never rise, and the spec waited 60 s. So a press goes only to a reveal the PAD
+ * reaches (`takeableReveal`), after the console is quiet, and is VERIFIED by the reveal changing; a swallowed one
+ * is retried while the SAME reveal provably still stands (bounded) — never a second press on whatever the first
+ * one opened (the album rises in the same hand right after the take).
+ */
 async function takeRevealsUntil(page: Page, done: () => Promise<boolean>, limit = 4): Promise<Array<string>> {
   const crumbs: Array<string> = [];
   const seen = new Set<string>();
   let presses = 0;
-  for (let i = 0; i < 120 && !await done(); i++) {
-    if (presses < limit * 3 && await page.locator('.con-reveal').count() > 0) {
-      await cinematicBeat(page, 900, 'the drawn card settles before its take');
-      const card = (await page.locator('.con-reveal').first().textContent().catch(() => null) ?? `#${presses}`).replace(/\s+/g, ' ').slice(0, 80);
-      if (!seen.has(card)) {
-        seen.add(card);
-        crumbs.push(await crumbText(page));
-      }
-      presses++;
-      await press(page, 'Enter', 900);
-    } else {
+  let retries = 0;
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline && !await done()) {
+    if (seen.size > limit || retries > 4 || await takeableReveal(page) === undefined) {
       // STATE, not a sleep: the next batch (or the question) — whichever stands first.
       await page.locator('.con-reveal').first().waitFor({timeout: 500}).catch(() => undefined);
+      continue;
     }
+    await settle(page, {timeoutMs: 10_000}).catch(() => undefined); // the deal lands before its take
+    const before = await takeableReveal(page);
+    if (before === undefined || await done()) {
+      continue;
+    }
+    const card = before.replace(/\|taken=\d+$/, '');
+    if (!seen.has(card)) {
+      seen.add(card);
+      crumbs.push(await crumbText(page));
+    }
+    presses++;
+    await press(page, 'Enter', 900);
+    // VERIFY: the take changed the reveal (a mark, the next card, the overlay leaving) — else it was swallowed.
+    const t = Date.now();
+    let changed = false;
+    while (!changed && Date.now() - t < 10_000) {
+      changed = await done() || await takeableReveal(page) !== before;
+      if (!changed) {
+        await page.locator('.con-reveal').first().waitFor({state: 'detached', timeout: 250}).catch(() => undefined);
+      }
+    }
+    retries = changed ? 0 : retries + 1;
+  }
+  if (!await done()) {
+    const state = await page.evaluate(() => {
+      const r = document.querySelector('.con-reveal');
+      return {
+        reveal: r === null ? null : {cls: r.className, cursorPending: r.getAttribute('data-cursor-pending'),
+          taken: r.querySelectorAll('.con-reveal__takenmark').length, slots: r.querySelectorAll('[data-zoom-slot]').length},
+        hand: document.querySelector('.con-hand')?.getAttribute('data-flow') ?? null,
+        surfaces: [...document.querySelectorAll('.con-ws, .con-task, .con-hand, .con-composer, .con-deckdraw')].map((e) => e.className.split(' ')[0]),
+      };
+    });
+    console.log(`[takeRevealsUntil] not done after ${presses} takes — ${JSON.stringify(state)} ready=${JSON.stringify(await readiness(page))}`);
   }
   return crumbs;
 }

@@ -452,7 +452,21 @@ export async function waitPressable(page: Page, maxMs = 20_000): Promise<void> {
     // for the nudge to land inside it. Callers that WANT the summary sent have
     // `submitSummary`; nothing here may send it on their behalf.
     if (i % 4 === 3 && !(await summaryVisible(page))) {
+      // …AND ON A PICK STEP «A» IS A TOGGLE: a nudge that lands once the deal has let go picks the focused card
+      // (CI 2026-10-30: «picked at start [Loan]» filled a prelude slot nobody asked for). A pick the nudge made is
+      // taken back at once — the caller then sees the step exactly as it was dealt.
+      const before = await pickedCards(page);
       await page.keyboard.press('Enter'); // skip the cinematic
+      let added: Array<string> = [];
+      for (const pollStarted = Date.now(); added.length === 0 && Date.now() - pollStarted < 600;) {
+        await pollPause(page, 150);
+        added = (await pickedCards(page)).filter((c) => !before.includes(c));
+      }
+      if (added.length > 0 && await focusedCard(page) === added[0]) {
+        await page.keyboard.press('Enter');
+        await pickCleared(page, added[0]);
+      }
+      continue;
     }
     await page.waitForTimeout(400);
   }
@@ -561,6 +575,13 @@ export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMov
   let arrow: 'ArrowRight' | 'ArrowLeft' = 'ArrowRight';
   let prevFocused = '';
   let stuck = 0;
+  // A STEP AT ITS LIMIT REFUSES THE SUBJECT, and a non-exclusive caller then had no way out (CI 2026-10-30,
+  // `console-start-placement`: «picked at start [Loan]» — `waitPressable`'s cinematic nudge is an A, and on a pick
+  // step it lands on the focused card — so Great Aquifer filled the second prelude slot and A on Donation was
+  // refused three times a lap until the budget ran out). A subject that refuses every retry while a card the caller
+  // did NOT ask for holds a place is that case: from then on the walk takes strays back as `exclusive` does. Never
+  // before — a caller that keeps an extra card on purpose keeps it whenever its subjects fit beside it.
+  let takeBackStrays = opts.exclusive === true;
   const trail: Array<string> = [];
   for (let i = 0; i < maxMoves && !(await done()); i++) {
     const focused = await focusedCard(page);
@@ -583,7 +604,7 @@ export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMov
       stuck = 0;
     }
     prevFocused = focused;
-    if (opts.exclusive === true && focused !== '' && !cards.includes(focused) && (await pickedCards(page)).includes(focused)) {
+    if (takeBackStrays && focused !== '' && !cards.includes(focused) && (await pickedCards(page)).includes(focused)) {
       // A STRAY holds a place: take it back (verified, the same retry-in-place as a pick).
       strays.add(focused);
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -625,6 +646,9 @@ export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMov
         }
         if (hit.has(focused)) {
           stuck = 0;
+        } else if (!takeBackStrays && (await pickedCards(page)).some((c) => !cards.includes(c))) {
+          takeBackStrays = true;
+          trail.push(`[refused ${focused} — taking strays back]`);
         }
       }
     }
