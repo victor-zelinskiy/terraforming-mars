@@ -93,6 +93,8 @@ A landing of kind `commit` is an ARRIVAL: `arriveAtCommit(record, root, {opening
 | an OPTIONAL choice (the `skip` marker, a card pick of `min 0`) | no | declining is the second real answer (RT) |
 | a lone candidate that is DISABLED | no | its reason holds the commit |
 | a RANGE / multi pick (`max > 1`, a multi-select's count) | no | how many is a decision |
+| a MERGED gain pick (`mergeCardSteps`) with NO MORE candidates than seats, none disabled, none hurt by the gain | **yes — ALL** (`seeded[id] = 'all'`, «ВСЕ ЦЕЛИ») | which and how many — all of them: no decision (P78, ledger CU) |
+| …the same with MORE candidates than seats, a disabled one, a falling VP reading or a PENALTY face (Vermin), a `skip` marker | no | which ones is a decision |
 | a table question (`reaction`) | no | another card asks; its row has its own deferral states |
 | a repeat slot (Viron, Project Inspection, R&D Funding) | no | its answer is ANOTHER card's composed action |
 | a Hydronetwork landing / stage reward / blockade / espionage | no | not a target of this card |
@@ -114,9 +116,23 @@ tail (`.con-tgtrow__sole` / `.con-composer__sole` — tracked caps a step under 
 ring of its own; `data-hint` «Других целей нет» through `.premium-tooltip()`). **A on the row still opens the choice**
 (the step / album / list of one); B keeps the seed. The cursor goes past it — a seeded row holds nothing up.
 
+## 3b · NO MORE CANDIDATES THAN SEATS — SEEDED ALL (P78 L1 Trade Terminal, ledger CU, 2026-10-30)
+
+«A range is a decision» holds wherever there IS one. A merged gain pick («add a resource to up to 3 different cards»)
+whose every candidate fits a seat and is a plain gain asks nothing: upstream answered it by applying the resources
+SILENTLY (≤ 3 candidates), the fork answers it here — the composer seeds ALL of them (`allCandidatesSeed`, pure, beside
+`soleCandidateOf`), shows each target on the row with its own resource `N → N+1` and its moving VP (`[data-gain-targets]`),
+marks the row «ВСЕ ЦЕЛИ» (`ALL_SEED_MARK`, the sole mark's style, the hint «Других целей нет»), and posts the set
+ADDRESSED like any pre-select — the server still asks its `SelectCard`. A on the row opens the table's one zone with the
+seeds ticked («3 из 3»), B keeps the seed; the player's own different set drops the mark. A refetch re-reads it
+(`reseatSeeds`: a set that is no longer «all of them» lets go). Never seeded: `N > max`, a disabled candidate, a
+candidate the gain HURTS (`vpBox` falling, or `victoryPointsSign: 'negative'` on its face — Vermin, whose penalty has
+no per-count reading), a removal (`amount ≤ 0`), a `skip`-marked pick. Today only the PLAY composer hosts merged picks;
+the action composer has none.
+
 ## 4 · Hooks (e2e contract)
 
-`[data-seeded="sole"]` on the seeded row (target row root, generic row, the party's target row) · `[data-seeded-mark]`
+`[data-seeded="sole"]` (or `"all"` — §3b) on the seeded row (target row root, generic row, the party's target row) · `[data-seeded-mark]`
 on the mark · `[data-composer-armed]` on the commit row during its breath · `__conCommitArrival()` on the window.
 
 ## 5 · Guards

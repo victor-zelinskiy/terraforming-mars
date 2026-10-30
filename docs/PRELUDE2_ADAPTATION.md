@@ -1,6 +1,6 @@
 # Prelude 2 — включение в премиум-скоуп, hold-back-список, замена
 
-**Статус 2026-10-30: ЛЕСА ПОСТАВЛЕНЫ · 4 / 54 · СДАНЫ P76 Ishtar Expedition, P85 Summit Logistics (первая политическая), P68 Ceres Tech Market (первая с действием) и P80 Red Appeasement (первый розыгрыш-пас), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
+**Статус 2026-10-30: ЛЕСА ПОСТАВЛЕНЫ · 5 / 54 · СДАНЫ P76 Ishtar Expedition, P85 Summit Logistics (первая политическая), P68 Ceres Tech Market (первая с действием), P80 Red Appeasement (первый розыгрыш-пас) и P78 L1 Trade Terminal (первый пассивный эффект торговли и первый мультивыбор разыгранных карт), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
 `PREMIUM_SCOPE_MODULES` (`src/common/cards/premiumScope.ts`) по образцу классического Turmoil
 (`docs/TURMOIL_REDUX_CLASSIC_CARDS.md`, 2026-10-21 → 2026-10-25): скоуп = «модуль минус список», список — ворклист.
 Адаптация идёт по одной карте, отдельными задачами, по ворклисту §4; список — временный костыль и удаляется, когда
@@ -106,6 +106,8 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
    `playCountsAsPass`, превью несёт `passes`, композер читает пас тем же чтением, что кнопка «Пас» (реестр CT), а закон
    общий: любое действие, после которого сервер отдаёт ход, уводит экран только через `screenHandoff`.
    Bespoke-половина требования («никто не спасовал») — именованный `unplayableReason` + `requirementFootnote` на лице.
+   Bespoke с ПОРОГОМ АВТО-ПРИМЕНЕНИЯ (P78: «≤ 3 кандидатов — кладём молча») — всегда промпт, превью по форме Astra
+   (`mergeCardSteps`), а в композере кандидатов не больше мест и каждый — выигрыш → ПОСЕЯНЫ ВСЕ (реестр CU).
 3. **Действие** (`ActivePreludeCard` — Board of Directors, Floating Trade Hub, World Government Advisor; активные
    проекты) — `actionPreview` + `actionUnavailableReason`; у Venus Orbital Survey снять строку
    `SAFE_WITHOUT_INFORMATION` в `tests/cards/actionCaption.spec.ts`; правило длиннее бюджета подписи браузера действий —
@@ -146,7 +148,7 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 
 ---
 
-## 4. Ворклист — 54 карты (состояние 2026-10-30: 51 в списке, P76, P85 и P68 сданы)
+## 4. Ворклист — 54 карты (состояние 2026-10-30: 49 в списке, P76, P85, P68, P80 и P78 сданы)
 
 | № | Карта | Вид · гейт | Форма | Статус |
 | --- | --- | --- | --- | --- |
@@ -160,7 +162,7 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 | P75 | GHG Shipment | EVENT · ПОЛИТ (Кельвинисты = Зелёные) | декларативная | в списке |
 | P76 | Ishtar Expedition | EVENT · Venus | декларативная, поиск по метке | СДАНА 2026-10-29 75d6ce23e4 |
 | P77 | Jovian Envoys | EVENT · ПОЛИТ | декларативная, 2 делегата | в списке |
-| P78 | L1 Trade Terminal | ACTIVE · Colonies | behavior + bespokePlay | в списке |
+| P78 | L1 Trade Terminal | ACTIVE · Colonies | behavior + bespokePlay | СДАНА 2026-10-30 |
 | P79 | Microgravity Nutrition | AUTOMATED · Colonies | bespokePlay | в списке |
 | P80 | Red Appeasement | EVENT · ПОЛИТ (Reds) | behavior + bespokePlay | СДАНА 2026-10-30 |
 | P81 | Soil Studies | EVENT · Venus + Colonies | декларативная | в списке |

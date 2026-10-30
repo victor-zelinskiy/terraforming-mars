@@ -70,6 +70,14 @@ will flag both, and the fix is the always-shown `SelectCard` + pre-collect (the 
 of upstream's skip), NOT upstream's auto-apply. Our render-DSL rework of these two files
 (structured `action()` nodes for the Actions overlay) is unrelated and stays.
 
+**prelude2 triage (2026-10-30) — P78 L1 Trade Terminal:** upstream's `cards.length <= 3 → addResources` (three HIDDEN
+targets at once, Vermin / Ancient Shipyards excepted by name) is KILLED — the play always builds the `SelectCard`
+(`min 0`, `max min(3, N)`), the Self-Replicating Robots cards included and shown; an empty table is a NAMED loss
+(`recordSkippedEffect`). The «fewer clicks» upstream bought with the silent apply is bought in the console instead by
+the composer's SEED (ledger CU — `allCandidatesSeed`: no more candidates than seats, each a gain → all pre-selected,
+shown, marked «ВСЕ ЦЕЛИ»; the server still asks). The upstream `it` blocks encoding the silent apply were rewritten
+with a comment pointing here.
+
 **Upstream sync (2026-08-12) — DELIBERATELY DECLINED, `c8096edbcb` "Skip single-card
 resource target prompts (#8311)":** the THIRD occurrence of this family, and the most
 subtle — it is not a silent auto-apply. It adds `SelectCard.maybeConvertToSelectOption(title)`,
