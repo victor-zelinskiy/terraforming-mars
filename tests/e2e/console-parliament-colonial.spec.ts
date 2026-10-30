@@ -359,9 +359,11 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     const readSamples = probe.samples.filter((s) => s.stage === 'reward' && s.ledgerShown && Object.values(s.rows).every((r) => r.state === 'received'));
     expect(readSamples.length, 'the finished ledger stood long enough to read').toBeGreaterThan(3);
     expect(readSamples[readSamples.length - 1].t - readSamples[0].t, 'the read beat lasted').toBeGreaterThanOrEqual(900);
-    const blueTiles = await page.locator(`.con-sit [data-sit-payout-seat="${before.thisPlayer.color}"] [data-sit-part-tile]`).allTextContents();
-    expect(blueTiles.map((t) => t.trim()).join(' | '), 'the results panel groups blue\'s payouts by tile').toMatch(/Лун|Luna/);
-    expect(blueTiles.length, 'four tiles lead their groups').toBe(4);
+    // The ledger prints blue's TOTALS and, under them, WHERE they came from — a planet mark per tile with its ×k (P71 · CY).
+    const blueTiles = await page.locator(`.con-sit [data-sit-payout-seat="${before.thisPlayer.color}"] [data-sit-total-source][data-sit-total-source-kind="colony"]`)
+      .evaluateAll((els) => els.map((el) => el.getAttribute('data-sit-total-source-of') ?? ''));
+    expect(blueTiles.join(' | '), 'the results mark blue\'s payouts by tile').toMatch(/Luna/);
+    expect(blueTiles.length, 'four tiles, one mark each').toBe(4);
     const bandHeights = Array.from(new Set(probe.samples.map((s) => s.bandH).filter((h) => h > 0)));
     expect(Math.max(...bandHeights) - Math.min(...bandHeights), `the band kept its height (${bandHeights.join(', ')})`).toBeLessThanOrEqual(1);
     expect(probe.samples.filter((s) => s.bodyEmpty).length, 'the body zone never stood empty').toBe(0);

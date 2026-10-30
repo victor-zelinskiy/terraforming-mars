@@ -1,4 +1,4 @@
-import {expect, Page, APIRequestContext} from './consoleTest';
+import {expect, Locator, Page, APIRequestContext} from './consoleTest';
 import {fetchPlayerModel, openMandatoryAnnounce, openQuickWheel, openZoomViewer, press, sendPlayerInput, settle, waitForBoardHome} from './consoleStart';
 
 /*
@@ -251,7 +251,10 @@ export async function expectParliamentFits(page: Page, label: string, rootSelect
       if (r.width === 0 || r.height === 0 || getComputedStyle(el).visibility === 'hidden') {
         continue;
       }
-      if (r.right > vw + 1 || r.bottom > vh + 1 || r.left < -1 || r.top < -1) {
+      // Content past the fold of the ONE sanctioned scroll instrument (a breakdown that scrolls by contract) is not
+      // off-screen — the scroll area itself is measured; everything else that leaves the viewport is.
+      const scrolled = el.closest('.con-scroll-area__viewport') !== null;
+      if (!scrolled && (r.right > vw + 1 || r.bottom > vh + 1 || r.left < -1 || r.top < -1)) {
         out.push(`off-screen ${name(el)} ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.right)},${Math.round(r.bottom)}`);
       }
       const cs = getComputedStyle(el);
@@ -285,6 +288,144 @@ export async function expectParliamentFits(page: Page, label: string, rootSelect
     return out;
   }, rootSelector);
   expect(problems, `${label}: layout problems`).toEqual([]);
+}
+
+/**
+ * HOW MANY RECORDS a seat's ledger row stands for (P71 · ledger CY): the card prints TOTALS — one token per unit, an
+ * object per fact, a skip per record — and each token says how many of the server's records it sums
+ * (`data-sit-total-records`). A spec that used to count chips («levy · payout · city · the party's steel» = 4) counts
+ * the records the totals carry, independent of how the units merged.
+ */
+export async function ledgerRecords(row: Locator): Promise<number> {
+  return row.locator('[data-sit-total]').evaluateAll((els) => els.reduce((n, el) => n + Number(el.getAttribute('data-sit-total-records') ?? 0), 0));
+}
+
+/**
+ * THE RESULTS CARD HOLDS ITS CONTENT (P71 · ledger CY — the owner's two frames: plates overlapping each other and the
+ * card's edge, the crown lying over a name). `expectParliamentFits` reads the PANEL's own box and cannot see a row
+ * whose chips paint over the next row with `overflow: visible`; this reads every box that matters:
+ *  · nothing of the card leaves the card, and the card does not scroll;
+ *  · every ledger row stands inside «ВЫПЛАТЫ», every piece of a row inside its row, no two rows intersect;
+ *  · the crown's line never intersects the name;
+ *  · a name and a total are never cut (`scrollWidth ≤ clientWidth`);
+ *  · a fresh resolution's face is no smaller than the solver's floor (its caption reads);
+ *  · in «ПОДРОБНОСТИ ВЫПЛАТ» nothing leaves its seat's column sideways (down is the scroll's).
+ */
+export async function expectResultsContained(page: Page, label: string): Promise<void> {
+  const problems = await page.evaluate(() => {
+    const out: Array<string> = [];
+    const card = document.querySelector<HTMLElement>('.con-sit__panel--on [data-sit-results]');
+    if (card === null) {
+      return ['no results card on screen'];
+    }
+    const rectOf = (el: Element) => el.getBoundingClientRect();
+    const shown = (el: Element): boolean => {
+      const r = rectOf(el);
+      if (r.width === 0 || r.height === 0) {
+        return false;
+      }
+      for (let n: Element | null = el; n !== null && n !== card.parentElement; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) < .05) {
+          return false;
+        }
+      }
+      return true;
+    };
+    const inside = (a: DOMRect, b: DOMRect, tol = 1.5) => a.left >= b.left - tol && a.right <= b.right + tol && a.top >= b.top - tol && a.bottom <= b.bottom + tol;
+    const fmt = (r: DOMRect) => `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.right)},${Math.round(r.bottom)}`;
+    const name = (el: Element) => `${el.tagName.toLowerCase()}.${el.className.toString().split(' ')[0]}`;
+    const cardRect = rectOf(card);
+    if (card.scrollHeight > card.clientHeight + 2 || card.scrollWidth > card.clientWidth + 2) {
+      out.push(`the card spills ${card.scrollWidth}x${card.scrollHeight} > ${card.clientWidth}x${card.clientHeight}`);
+    }
+    const details = card.querySelector('.con-sit__details');
+    for (const el of Array.from(card.querySelectorAll<HTMLElement>('*'))) {
+      if ((details !== null && details.contains(el)) || !shown(el)) {
+        continue;
+      }
+      if (!inside(rectOf(el), cardRect)) {
+        out.push(`out of the card: ${name(el)} ${fmt(rectOf(el))} ⊄ ${fmt(cardRect)}`);
+      }
+    }
+    const section = card.querySelector('[data-sit-section="payouts"]');
+    const rows = Array.from(card.querySelectorAll<HTMLElement>('[data-sit-payout]')).filter(shown);
+    rows.forEach((row, i) => {
+      const r = rectOf(row);
+      const seat = row.getAttribute('data-sit-payout-seat');
+      if (section !== null && !inside(r, rectOf(section))) {
+        out.push(`row ${seat} leaves ВЫПЛАТЫ: ${fmt(r)} ⊄ ${fmt(rectOf(section))}`);
+      }
+      for (const el of Array.from(row.querySelectorAll('*')).filter(shown)) {
+        if (!inside(rectOf(el), r)) {
+          out.push(`row ${seat}: ${name(el)} leaves its row ${fmt(rectOf(el))} ⊄ ${fmt(r)}`);
+        }
+      }
+      for (const other of rows.slice(i + 1)) {
+        const o = rectOf(other);
+        if (r.left < o.right - 1 && o.left < r.right - 1 && r.top < o.bottom - 1 && o.top < r.bottom - 1) {
+          out.push(`rows ${seat} and ${other.getAttribute('data-sit-payout-seat')} intersect`);
+        }
+      }
+      const crown = row.querySelector('[data-sit-payout-winner]');
+      const nameEl = row.querySelector('.con-sit__payout-name');
+      if (crown !== null && nameEl !== null) {
+        const c = rectOf(crown);
+        const n = rectOf(nameEl);
+        if (c.left < n.right - 1 && n.left < c.right - 1 && c.top < n.bottom - 1 && n.top < c.bottom - 1) {
+          out.push(`row ${seat}: the crown lies over the name`);
+        }
+      }
+      for (const el of Array.from(row.querySelectorAll<HTMLElement>('.con-sit__payout-name, [data-sit-total], .con-sit__total-card')).filter(shown)) {
+        if (el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0) {
+          out.push(`row ${seat}: ${name(el)} is cut (${el.scrollWidth} > ${el.clientWidth})`);
+        }
+      }
+      // Every token is PAINTED: none collapsed, none lying over another token or over the marks row (a row whose
+      // content outgrew its cell stays inside the row's rect and paints over itself — the rect checks above miss it).
+      const pieces = Array.from(row.querySelectorAll<HTMLElement>('[data-sit-total], .con-sit__marks, .con-sit__payout-who'));
+      for (const el of pieces) {
+        const r = rectOf(el);
+        if (el.matches('[data-sit-total]') && (r.width < 2 || r.height < 2)) {
+          out.push(`row ${seat}: a token is collapsed (${name(el)} ${Math.round(r.width)}×${Math.round(r.height)})`);
+        }
+      }
+      pieces.forEach((a, i) => {
+        for (const b of pieces.slice(i + 1)) {
+          if (a.contains(b) || b.contains(a)) {
+            continue;
+          }
+          const p = rectOf(a);
+          const q = rectOf(b);
+          if (p.left < q.right - 1 && q.left < p.right - 1 && p.top < q.bottom - 1 && q.top < p.bottom - 1) {
+            out.push(`row ${seat}: ${name(a)} ${a.getAttribute('data-sit-total-unit') ?? ''} overlaps ${name(b)} ${b.getAttribute('data-sit-total-unit') ?? ''}`);
+          }
+        }
+      });
+    });
+    // A fresh face's floor in px: the solver's zoom floor × a 460 px face × the profile's ui scale.
+    const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--con-ui-scale')) || 1;
+    const floor = document.documentElement.classList.contains('con-profile-handheld') ? .3 : .44;
+    for (const face of Array.from(card.querySelectorAll('.con-sit__fresh-card')).filter(shown)) {
+      const h = rectOf(face).height;
+      if (h < 460 * scale * floor * .95) {
+        out.push(`a fresh face below its floor: ${Math.round(h)}px < ${Math.round(460 * scale * floor)}px`);
+      }
+    }
+    if (details !== null) {
+      for (const seat of Array.from(details.querySelectorAll<HTMLElement>('[data-sitpd-seat]'))) {
+        const s = rectOf(seat);
+        for (const el of Array.from(seat.querySelectorAll('*')).filter((e) => rectOf(e).width > 0)) {
+          const r = rectOf(el);
+          if (r.left < s.left - 1.5 || r.right > s.right + 1.5) {
+            out.push(`breakdown ${seat.getAttribute('data-sitpd-seat')}: ${name(el)} leaves its column sideways`);
+          }
+        }
+      }
+    }
+    return out;
+  });
+  expect(problems, `${label}: the results card does not hold its content`).toEqual([]);
 }
 
 /**

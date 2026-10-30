@@ -76,7 +76,7 @@
          ① ВЫПЛАТЫ (a row per seat — a player saw its OWN chips fly and has never been shown anybody
          else's) · ② СТОЛ (what changed and is already out of sight). ── -->
     <section class="con-sit__panel con-sit__panel--results" :class="{'con-sit__panel--on': stage === 'results'}" data-sit-panel="results">
-      <div v-if="results !== undefined" class="con-sit__results" :class="{'con-sit__results--hidden': resultsHidden, 'con-sit__results--details': detailsOpen}" data-sit-results :data-sit-results-hidden="resultsHidden ? '' : undefined">
+      <div v-if="results !== undefined" ref="results" class="con-sit__results" :class="{'con-sit__results--hidden': resultsHidden, 'con-sit__results--details': detailsOpen, 'con-sit__results--nonext': !hasNextVote}" :style="resultsStyle" data-sit-results :data-sit-results-hidden="resultsHidden ? '' : undefined" :data-sit-tier="layout?.tier">
         <!-- ⓪ ПРИНЯТА (Парламент v8, the mock `e1`): the card stands over the CHAMBER ROW, so the government under it is out
              of sight — the enacted resolution's face and the party that rules by it lead the card (the law «never what is
              visible elsewhere» holds: the zone that shows them is the one this card covers). -->
@@ -98,99 +98,101 @@
             <span class="con-sit__enacted-rule">{{ $t('rules · everyone\'s') }}</span>
           </span>
         </div>
-        <!-- ① ВЫПЛАТЫ — the panel's main content. A skip names itself with its reason, as on the reward beat. X inspects it:
-             «ПОДРОБНОСТИ ВЫПЛАТ», one level deeper on this card. -->
-        <div class="con-sit__payouts" data-sit-section="payouts">
-          <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('Payouts') }}</span>
-          <span v-if="results.quiet !== undefined" class="con-sit__payout-quiet" data-sit-payout-quiet>{{ $t(results.quiet.kicker) }}</span>
-          <!-- A RATING-VETOING law (RX42): who it binds as the sitting closes — the server's live leaders. -->
-          <span v-if="results.veto !== undefined" class="con-sit__veto" data-sit-veto>
-            <span class="con-sit__veto-kicker">{{ $t('Under the veto') }}</span>
-            <span v-for="l in results.veto" :key="l.color" class="con-sit__veto-seat" :data-sit-veto-seat="l.color">
-              <i class="con-parl__seat-dot" :class="'player_bg_color_' + l.color" aria-hidden="true"></i>
-              <b>{{ nameOfColor(l.color) }}</b>
-              <span class="con-sit__veto-tr">{{ l.tr }}</span>
-            </span>
-          </span>
-          <div v-for="row in results.payouts" v-else :key="row.player" class="con-sit__payout"
-               :class="{'con-sit__payout--winner': shownSummary !== undefined && shownSummary.winner.player === row.player}"
-               data-sit-payout :data-sit-payout-seat="row.player">
-            <span class="con-sit__payout-who">
-              <i class="con-parl__seat-dot" :class="'player_bg_color_' + row.player" aria-hidden="true"></i>
-              <b class="con-sit__payout-name">{{ nameOfColor(row.player) }}</b>
-              <!-- The seat that WON the vote wears the crown (the one fact of the row the chips cannot say). -->
-              <span v-if="shownSummary !== undefined && shownSummary.winner.player === row.player" class="con-sit__payout-winner" data-sit-payout-winner>
-                <svg class="con-sit__payout-crown" viewBox="0 0 24 16" aria-hidden="true"><path d="M2 13 3.5 4l5 4.5L12 1.5l3.5 7L20.5 4 22 13z" /><rect x="2" y="13.6" width="20" height="2" rx="1" /></svg>{{ $t('Winner of the vote') }}
+        <!-- ① ВЫПЛАТЫ — THE LEDGER (P71 · ledger CY): ONE ROW PER SEAT, rows of equal height, what each seat GOT in
+             TOTALS (`resultsTotalsOf` — one token per unit, a levy netted into its unit, the party's answer flowing
+             into it), never a chip per record — the records are the breakdown's, one level deeper (X). The card is
+             SOLVED (`resultsLayout.ts`: the zones' widths, the faces' sizes, the tokens' tier) and never lets a row's
+             content out of its row. The world's lines (ПЛАНЕТА, КОЛОНИИ) stand under the ledger in its column. -->
+        <div class="con-sit__paycol">
+          <div class="con-sit__payouts" data-sit-section="payouts">
+            <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('Payouts') }}</span>
+            <span v-if="results.quiet !== undefined" class="con-sit__payout-quiet" data-sit-payout-quiet>{{ $t(results.quiet.kicker) }}</span>
+            <!-- A RATING-VETOING law (RX42): who it binds as the sitting closes — the server's live leaders. -->
+            <span v-if="results.veto !== undefined" class="con-sit__veto" data-sit-veto>
+              <span class="con-sit__veto-kicker">{{ $t('Under the veto') }}</span>
+              <span v-for="l in results.veto" :key="l.color" class="con-sit__veto-seat" :data-sit-veto-seat="l.color">
+                <i class="con-parl__seat-dot" :class="'player_bg_color_' + l.color" aria-hidden="true"></i>
+                <b>{{ nameOfColor(l.color) }}</b>
+                <span class="con-sit__veto-tr">{{ l.tr }}</span>
               </span>
             </span>
-            <span class="con-sit__payout-parts">
-              <span v-if="row.parts.length === 0" class="con-parl__chip-dim" data-sit-payout-none>{{ $t('No reward') }}</span>
-              <!-- ONE PART — the one renderer of a payout chip, shared with «ПОДРОБНОСТИ ВЫПЛАТ» (`ConsoleSitPayoutPart`). -->
-              <ConsoleSitPayoutPart v-for="part in row.parts" :key="part.id" :part="part" :leadsColony="part.colony !== undefined && colonyLeads(row.parts, part)" />
-              <!-- THE NET of a budget's supply parts («= −3 M€»): the day's balance the chips could not state. -->
-              <span v-if="row.net !== undefined" class="con-sit__net" :class="{'con-sit__net--minus': row.net.amount < 0}" data-sit-net :data-sit-net-amount="row.net.amount">
-                <span class="con-sit__net-eq" aria-hidden="true">=</span>
-                <b>{{ signedAmount(row.net.amount) }}</b>
-                <i class="con-sit__part-unit" :class="netUnitClass(row.net.unit)" aria-hidden="true"></i>
+            <div v-else class="con-sit__ledger" :style="{'--sit-seats': results.payouts.length}">
+              <div v-for="(row, index) in results.payouts" :key="row.player" class="con-sit__payout"
+                   :class="{'con-sit__payout--winner': isWinner(row.player), 'con-sit__payout--me': row.player === viewerColor}"
+                   data-sit-payout :data-sit-payout-seat="row.player">
+                <span class="con-sit__payout-who">
+                  <span class="con-sit__payout-nameline">
+                    <i class="con-parl__seat-dot" :class="'player_bg_color_' + row.player" aria-hidden="true"></i>
+                    <b class="con-sit__payout-name">{{ nameOfColor(row.player) }}</b>
+                  </span>
+                  <!-- The seat that WON the vote: its role in a word, with the crown, on a line of its own under the name. -->
+                  <span v-if="isWinner(row.player)" class="con-sit__payout-winner" data-sit-payout-winner>
+                    <svg class="con-sit__payout-crown" viewBox="0 0 24 16" aria-hidden="true"><path d="M2 13 3.5 4l5 4.5L12 1.5l3.5 7L20.5 4 22 13z" /><rect x="2" y="13.6" width="20" height="2" rx="1" /></svg>{{ $t('Winner of the vote') }}
+                  </span>
+                </span>
+                <span v-if="row.parts.length === 0" class="con-parl__chip-dim con-sit__payout-none" data-sit-payout-none>{{ $t('No reward') }}</span>
+                <ConsoleSitTotals v-else class="con-sit__payout-totals" :totals="row.totals" :marks="row.marks" :fold="layout?.fold[index]" />
+              </div>
+            </div>
+          </div>
+
+          <!-- ПЛАНЕТА — what the enactment did to the WORLD (Gas Export): one line, and only what is not
+               visible anywhere else. The scales themselves have already moved on the board (the sitting
+               stepped aside and came back for exactly that), so the line does not celebrate them: it states
+               the step and the fact nobody was credited for it. A move that could not happen carries its
+               own reason — the panel's law, and no silent loss. -->
+          <div v-if="results.planet !== undefined" class="con-sit__row con-sit__planet" data-sit-section="planet" data-sit-row="results-planet">
+            <span class="con-parl__chip-dim">{{ $t('The planet') }}</span>
+            <span class="con-sit__chips">
+              <span v-for="move in results.planet" :key="move.id" class="con-sit__chip con-sit__world"
+                    :class="{'con-sit__world--down': move.steps < 0, 'con-sit__world--blocked': move.skipped !== undefined}"
+                    data-sit-planet :data-sit-planet-param="move.parameter" :data-sit-planet-steps="move.steps">
+                <i class="con-sit__world-icon" :class="worldUnitClass(move.parameter)" aria-hidden="true"></i>
+                <span v-if="move.skipped !== undefined" class="con-parl__chip-dim">{{ $t(move.skipped) }}</span>
+                <template v-else>
+                  <b>{{ move.before }}{{ worldSuffix(move.parameter) }}</b>
+                  <span class="con-parl__chip-dim">→</span>
+                  <b>{{ move.after }}{{ worldSuffix(move.parameter) }}</b>
+                </template>
+              </span>
+              <span v-if="planetUnrewarded" class="con-parl__chip-dim" data-sit-planet-notr>{{ $t('nobody gets the TR') }}</span>
+            </span>
+          </div>
+
+          <!-- КОЛОНИИ — what the enactment did to the COLONY TABLE (Unity Budget): one line, each tile's marker
+               before → after. The markers themselves have already glided on the colonies screen (the sitting
+               hosted it for exactly that), so the line does not replay them: it states the step, and names the
+               one thing the screen cannot keep saying — a track at its end did not move. No silent loss. -->
+          <div v-if="results.tracks !== undefined" class="con-sit__row con-sit__tracks" data-sit-section="tracks" data-sit-row="results-tracks" :data-sit-tracks-steps="results.tracks.steps">
+            <span class="con-parl__chip-dim">{{ $t('Colony tracks') }}</span>
+            <span class="con-sit__chips">
+              <span v-if="results.tracks.skipped !== undefined" class="con-parl__chip-dim" data-sit-tracks-skipped>{{ $t(results.tracks.skipped) }}</span>
+              <span v-for="tile in results.tracks.tiles" v-else :key="tile.id" class="con-sit__chip con-sit__track"
+                    :class="{'con-sit__track--max': tile.atMax}"
+                    data-sit-track :data-sit-track-colony="tile.colony" :data-sit-track-steps="tile.steps">
+                <span class="con-sit__part-planet" :class="planetClass(tile.colony)" aria-hidden="true"></span>
+                <b class="con-sit__part-colony-name">{{ $t(tile.colony) }}</b>
+                <span v-if="tile.atMax" class="con-parl__chip-dim">{{ $t('track at its maximum') }}</span>
+                <template v-else>
+                  <b>{{ tile.before }}</b>
+                  <span class="con-parl__chip-dim">→</span>
+                  <b>{{ tile.after }}</b>
+                </template>
               </span>
             </span>
           </div>
         </div>
 
-        <!-- ПЛАНЕТА — what the enactment did to the WORLD (Gas Export): one line, and only what is not
-             visible anywhere else. The scales themselves have already moved on the board (the sitting
-             stepped aside and came back for exactly that), so the line does not celebrate them: it states
-             the step and the fact nobody was credited for it. A move that could not happen carries its
-             own reason — the panel's law, and no silent loss. -->
-        <div v-if="results.planet !== undefined" class="con-sit__row con-sit__planet" data-sit-section="planet" data-sit-row="results-planet">
-          <span class="con-parl__chip-dim">{{ $t('The planet') }}</span>
-          <span class="con-sit__chips">
-            <span v-for="move in results.planet" :key="move.id" class="con-sit__chip con-sit__world"
-                  :class="{'con-sit__world--down': move.steps < 0, 'con-sit__world--blocked': move.skipped !== undefined}"
-                  data-sit-planet :data-sit-planet-param="move.parameter" :data-sit-planet-steps="move.steps">
-              <i class="con-sit__world-icon" :class="worldUnitClass(move.parameter)" aria-hidden="true"></i>
-              <span v-if="move.skipped !== undefined" class="con-parl__chip-dim">{{ $t(move.skipped) }}</span>
-              <template v-else>
-                <b>{{ move.before }}{{ worldSuffix(move.parameter) }}</b>
-                <span class="con-parl__chip-dim">→</span>
-                <b>{{ move.after }}{{ worldSuffix(move.parameter) }}</b>
-              </template>
-            </span>
-            <span v-if="planetUnrewarded" class="con-parl__chip-dim" data-sit-planet-notr>{{ $t('nobody gets the TR') }}</span>
-          </span>
-        </div>
-
-        <!-- КОЛОНИИ — what the enactment did to the COLONY TABLE (Unity Budget): one line, each tile's marker
-             before → after. The markers themselves have already glided on the colonies screen (the sitting
-             hosted it for exactly that), so the line does not replay them: it states the step, and names the
-             one thing the screen cannot keep saying — a track at its end did not move. No silent loss. -->
-        <div v-if="results.tracks !== undefined" class="con-sit__row con-sit__tracks" data-sit-section="tracks" data-sit-row="results-tracks" :data-sit-tracks-steps="results.tracks.steps">
-          <span class="con-parl__chip-dim">{{ $t('Colony tracks') }}</span>
-          <span class="con-sit__chips">
-            <span v-if="results.tracks.skipped !== undefined" class="con-parl__chip-dim" data-sit-tracks-skipped>{{ $t(results.tracks.skipped) }}</span>
-            <span v-for="tile in results.tracks.tiles" v-else :key="tile.id" class="con-sit__chip con-sit__track"
-                  :class="{'con-sit__track--max': tile.atMax}"
-                  data-sit-track :data-sit-track-colony="tile.colony" :data-sit-track-steps="tile.steps">
-              <span class="con-sit__part-planet" :class="planetClass(tile.colony)" aria-hidden="true"></span>
-              <b class="con-sit__part-colony-name">{{ $t(tile.colony) }}</b>
-              <span v-if="tile.atMax" class="con-parl__chip-dim">{{ $t('track at its maximum') }}</span>
-              <template v-else>
-                <b>{{ tile.before }}</b>
-                <span class="con-parl__chip-dim">→</span>
-                <b>{{ tile.after }}</b>
-              </template>
-            </span>
-          </span>
-        </div>
-
         <!-- ② СЛЕДУЮЩЕЕ ГОЛОСОВАНИЕ (Парламент v8 Р2 «объект вместо подписи») — the table the next generation votes on, by
-             its OBJECTS: the fresh resolutions as small faces (the card covers the table, so they are nowhere else on
-             screen), the support STOCK as cube silhouettes at the seals, the one lobby exception. -->
-        <div class="con-sit__table" data-sit-section="table">
+             its OBJECTS: the fresh resolutions as FACES of the size the solver decided (their captions read; three that do
+             not fit go 2 + 1), the support STOCK as cube silhouettes at the seals, the one lobby exception. A state with
+             nothing to say renders nothing: no fresh resolutions — no row (the «Новые резолюции —» placeholder held a
+             third of the card for a dash). -->
+        <div v-if="hasNextVote" class="con-sit__table" data-sit-section="table">
           <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('The next vote') }}</span>
-          <div class="con-sit__row con-sit__fresh-row" data-sit-row="results-fresh">
-            <span v-if="results.table.fresh.length === 0" class="con-parl__chip-dim">{{ $t('New resolutions') }} —</span>
-            <div v-for="fresh in results.table.fresh" v-else :key="fresh.instance" class="con-sit__fresh"
+          <div v-if="results.table.fresh.length > 0" class="con-sit__row con-sit__fresh-row" data-sit-row="results-fresh"
+               :style="{'--sit-fresh-per-row': layout?.freshPerRow ?? 3}">
+            <div v-for="fresh in results.table.fresh" :key="fresh.instance" class="con-sit__fresh"
                  data-sit-fresh :data-sit-fresh-party="fresh.party" :aria-label="$t(resolutionTitle(fresh.resolution))">
               <div class="con-sit__fresh-card"><premium-card-face v-if="freshVm(fresh.resolution) !== undefined" :vmOverride="freshVm(fresh.resolution)" :lightweight="true" :inert="true" /></div>
             </div>
@@ -236,18 +238,18 @@
               </span>
             </span>
           </div>
-          <!-- ЕЩЁ В ЗАСЕДАНИИ (the soft gates, decision Р2) — a quiet FACT, never a wait: the seats that have not
-               closed this sitting yet (the server's record, `ParliamentModel.sitting`). Nobody waits for them here —
-               the confirmation admits the viewer to the next generation on its own; they meet again only at the
-               barriers they share (the draft round, the research). No verb, no motion, no timer. -->
-          <div v-if="othersInSitting.length > 0" class="con-sit__row con-sit__in-sitting" data-sit-row="results-in-sitting">
-            <span class="con-parl__chip-dim">{{ $t('Still in the sitting') }}</span>
-            <span class="con-sit__chips">
-              <span v-for="color in othersInSitting" :key="color" class="con-sit__chip" data-sit-in-sitting :data-sit-in-sitting-seat="color">
-                <i class="con-parl__seat-dot" :class="'player_bg_color_' + color" aria-hidden="true"></i><b class="con-sit__seat-name">{{ nameOfColor(color) }}</b>
-              </span>
+        </div>
+        <!-- ЕЩЁ В ЗАСЕДАНИИ (the soft gates, decision Р2) — a quiet FACT, never a wait: the seats that have not
+             closed this sitting yet (the server's record, `ParliamentModel.sitting`). Nobody waits for them here —
+             the confirmation admits the viewer to the next generation on its own; they meet again only at the
+             barriers they share (the draft round, the research). No verb, no motion, no timer. -->
+        <div v-if="othersInSitting.length > 0" class="con-sit__row con-sit__in-sitting con-sit__foot" data-sit-row="results-in-sitting">
+          <span class="con-parl__chip-dim">{{ $t('Still in the sitting') }}</span>
+          <span class="con-sit__chips">
+            <span v-for="color in othersInSitting" :key="color" class="con-sit__chip" data-sit-in-sitting :data-sit-in-sitting-seat="color">
+              <i class="con-parl__seat-dot" :class="'player_bg_color_' + color" aria-hidden="true"></i><b class="con-sit__seat-name">{{ nameOfColor(color) }}</b>
             </span>
-          </div>
+          </span>
         </div>
         <!-- «ПОДРОБНОСТИ ВЫПЛАТ» — ONE LEVEL DEEPER on the same card: the enacted law (the carried object) keeps its column,
              the payouts / world / next-vote columns RELEASE in place (`--details`), and the table UNFOLDS out of the rect
@@ -269,8 +271,6 @@ import {PARLIAMENT_MAX_POPULAR_SUPPORT, ReduxParty} from '@/common/parliament/Pa
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
-import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import ConsoleSitPayoutPart from '@/client/components/console/parliament/ConsoleSitPayoutPart.vue';
 import ConsoleSittingPayoutDetails from '@/client/components/console/parliament/ConsoleSittingPayoutDetails.vue';
 import {PayoutDetails, sittingPayoutDetailsOf} from '@/client/console/parliament/payoutDetailsModel';
 import {sittingPayoutDetails} from '@/client/console/parliament/sittingPayoutDetailsState';
@@ -288,7 +288,13 @@ import {ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel
 import {parliamentRewardState, rewardLanded} from '@/client/console/parliament/parliamentRewardBeat';
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {playBodyFold, playZoneLayerEnter} from '@/client/console/parliament/parliamentStageMotion';
-import {ResultsPayoutPart, ResultsReading, resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
+import {ResultsReading, resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
+import {FACE_PX, ResultsBox, ResultsLayout, resultsLayoutOf, ResultsProfile} from '@/client/console/parliament/resultsLayout';
+import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import ConsoleSitTotals from '@/client/components/console/parliament/ConsoleSitTotals.vue';
+
+/** The card's observer per instance — never reactive state (a measuring device, not a fact the view reads). */
+const resultsObservers = new WeakMap<object, {el: HTMLElement, observer: ResizeObserver}>();
 import {worldParameterUnit} from '@/client/console/parliament/worldMoveModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
@@ -297,7 +303,7 @@ import {ParameterMoveId} from '@/common/parliament/parameterMove';
 
 export default defineComponent({
   name: 'ConsoleParliamentSitting',
-  components: {PlayerDelegate, ConsoleColonyLedger, ConsoleTableReceipt, ConsoleSitPayoutPart, ConsoleSittingPayoutDetails, ConsoleParliamentTableAnswer},
+  components: {PlayerDelegate, ConsoleColonyLedger, ConsoleTableReceipt, ConsoleSitTotals, ConsoleSittingPayoutDetails, ConsoleParliamentTableAnswer},
   props: {
     /** Where the sitting stands on the server (`consoleSittingFlow.sittingPositionOf`). */
     position: {type: Object as PropType<SittingPosition>, required: true},
@@ -334,19 +340,80 @@ export default defineComponent({
     /** `live` — the phase in progress; `review` — a finished sitting re-read (the protocol, later). */
     mode: {type: String as PropType<'live' | 'review'>, default: 'live'},
   },
+  data() {
+    return {
+      /** THE RESULTS CARD'S BOX in rem, measured once per pose (a ResizeObserver on the card — the stage, never the viewport). */
+      resultsBox: undefined as ResultsBox | undefined,
+      resultsProfile: 'fhd' as ResultsProfile,
+    };
+  },
   mounted() {
     // THE ZONE IS PUBLISHED BY ITS OWN HOST (v4) — see `consoleParliamentUi.stageZone`. The live surface only:
     // a review / gallery copy owns no teleport target.
     if (this.mode === 'live') {
       consoleParliamentUi.stageZone = true;
     }
+    this.observeResults();
+  },
+  updated() {
+    this.observeResults();
   },
   beforeUnmount() {
     if (this.mode === 'live') {
       consoleParliamentUi.stageZone = false;
     }
+    resultsObservers.get(this)?.observer.disconnect();
+    resultsObservers.delete(this);
   },
   computed: {
+    /** «СЛЕДУЮЩЕЕ ГОЛОСОВАНИЕ» has something to say: fresh faces, the support stock, the no-delegate exception. */
+    hasNextVote(): boolean {
+      const table = this.results?.table;
+      return table !== undefined && (table.fresh.length > 0 || table.support.length > 0 || table.noDelegate.length > 0);
+    },
+    /**
+     * THE CARD, SOLVED (`resultsLayout.ts`): the zones' widths, the faces' sizes and the ledger's tier, from what the
+     * card has to say and the box it has — never a constant zoom, never a squeeze in the browser.
+     */
+    layout(): ResultsLayout | undefined {
+      const results = this.results;
+      const box = this.resultsBox;
+      if (results === undefined || box === undefined) {
+        return undefined;
+      }
+      const winner = this.shownSummary?.winner.player;
+      return resultsLayoutOf({
+        seats: results.payouts.map((row) => ({
+          numbers: row.totals.filter((t) => t.kind === 'unit' || t.kind === 'discard').map((t) => t.amount ?? 0),
+          objects: row.totals.filter((t) => t.kind === 'object').length,
+          skips: row.totals.filter((t) => t.kind === 'skipped').length + (row.parts.length === 0 ? 1 : 0),
+          marks: row.marks.length > 0,
+          name: this.nameOfColor(row.player),
+          winner: winner === row.player,
+        })),
+        fresh: results.table.fresh.length,
+        support: results.table.support.length > 0,
+        noDelegate: results.table.noDelegate.length > 0,
+        worldLines: (results.planet !== undefined ? 1 : 0) + (results.tracks !== undefined ? 1 : 0) + (results.veto !== undefined ? 1 : 0) +
+          (results.quiet !== undefined ? 1 : 0),
+        inSitting: this.othersInSitting.length > 0,
+      }, box, this.resultsProfile);
+    },
+    /** The solver's numbers as the card's CSS variables — one source for the type, the faces and the columns. */
+    resultsStyle(): Record<string, string> {
+      const layout = this.layout;
+      if (layout === undefined) {
+        return {};
+      }
+      return {
+        '--sit-total-size': `${layout.totalSize}rem`,
+        '--sit-row-pad': `${layout.rowPad}rem`,
+        '--sit-enacted-zoom': String(layout.enactedZoom),
+        '--sit-fresh-zoom': String(layout.freshZoom),
+        '--sit-enacted-w': `${layout.enactedWidth}rem`,
+        '--sit-next-w': `${layout.nextWidth}rem`,
+      };
+    },
     /** The OTHER seats that have not closed this sitting yet — the record's fact for the quiet line (never the viewer). */
     othersInSitting(): ReadonlyArray<Color> {
       if (this.mode !== 'live') {
@@ -496,10 +563,47 @@ export default defineComponent({
     freshVm(id: string): PremiumCardVM | undefined {
       return resolutionPremiumVmById(id);
     },
-    /** The first part of its tile among a seat's parts — the one that carries the tile's name (the panel groups by tile). */
-    colonyLeads(parts: ReadonlyArray<ResultsPayoutPart>, part: ResultsPayoutPart): boolean {
-      const index = parts.indexOf(part);
-      return index <= 0 || parts[index - 1].colony !== part.colony;
+    /** The seat won the vote (the crown on its own line under the name). */
+    isWinner(color: Color): boolean {
+      return this.shownSummary !== undefined && this.shownSummary.winner.player === color;
+    },
+    /**
+     * Measure the card once per pose: a ResizeObserver on the card itself (it exists only while a summary stands —
+     * re-attached when the node changes). The box is read in REM, so one budget holds on every profile.
+     */
+    observeResults(): void {
+      const el = this.$refs.results as HTMLElement | undefined;
+      const current = resultsObservers.get(this);
+      if (current?.el === el) {
+        return;
+      }
+      current?.observer.disconnect();
+      resultsObservers.delete(this);
+      if (el === undefined || typeof ResizeObserver === 'undefined') {
+        return;
+      }
+      const measure = () => {
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        const width = el.clientWidth / rem;
+        const height = el.clientHeight / rem;
+        if (width <= 0 || height <= 0) {
+          return;
+        }
+        const classes = document.documentElement.classList;
+        this.resultsProfile = classes.contains('con-profile-handheld') ? 'deck' : classes.contains('con-profile-tv') ? 'tv' : 'fhd';
+        const before = this.resultsBox;
+        // A sub-pixel jitter is not a new pose (the solver must not flip a tier on a rounding).
+        const scale = consoleLayoutState.uiScale > 0 ? consoleLayoutState.uiScale : 1;
+        const face = {width: FACE_PX.width * scale / rem, height: FACE_PX.height * scale / rem};
+        if (before === undefined || Math.abs(before.width - width) > .25 || Math.abs(before.height - height) > .25 ||
+          Math.abs((before.face?.height ?? 0) - face.height) > .1) {
+          this.resultsBox = {width, height, face};
+        }
+      };
+      const observer = new ResizeObserver(measure);
+      observer.observe(el);
+      resultsObservers.set(this, {el, observer});
+      measure();
     },
     /** The parameter's own icon — the game's vocabulary, the same sprite the status strip prints. */
     worldUnitClass(parameter: ParameterMoveId): string {
@@ -515,14 +619,6 @@ export default defineComponent({
     },
     planetClass(colony: string): string {
       return colony.replace(' ', '-') + '-background';
-    },
-    signedAmount(amount: number | undefined): string {
-      const n = amount ?? 0;
-      return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0';
-    },
-    /** The net's unit — a standard resource's stock sprite (a budget nets M€). */
-    netUnitClass(unit: string): string {
-      return iconClassFor(unit);
     },
   },
 });

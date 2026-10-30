@@ -308,7 +308,7 @@ test.describe(`Colony Contest · ${PRESET.id}`, () => {
     await expect(colonyPart, 'the results read the colony').toHaveCount(1);
     await expect(colonyPart).toContainText(/Титан|Titan/);
     await expect(colonyPart.locator('.con-sit__door-tile--colony'), 'the colony tile glyph').toHaveCount(1);
-    await expect(page.locator(`.con-sit [data-sit-payout-seat="${seat}"] [data-sit-part="stock"]`), 'the titanium').toHaveCount(1);
+    await expect(page.locator(`.con-sit [data-sit-payout-seat="${seat}"] [data-sit-total][data-sit-total-unit="titanium"]`), 'the titanium').toHaveCount(1);
     await expectParliamentFits(page, `${PRESET.id} results`);
     await shoot(page, '04-results');
     // The server's truth: the record names the tile, the floaters landed on a holder, the titanium is in.

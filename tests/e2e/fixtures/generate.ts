@@ -5336,15 +5336,23 @@ parliamentFixture('parliament-greens-assembly', greensBudgetTable('pass'));
 //    the temperature SET at −4 °C so the winner's two steps reach 0 °C and the engine's ocean follows — the one
 //    e2e walks the heat wave, the marker's glide with the TR chip, and the ocean placed without leaving the
 //    sitting's flow. Oceans left: the fixture's default (none placed).
-parliamentFixture('parliament-mohole-assembly', {
+const moholeTable = (stopAt: 'pass' | 'close'): ParliamentFixtureSpec => ({
   resolution: MOHOLE_CONTEST_ID,
   votes: [0],
   agenda: [2, 1],
-  stopAt: 'pass',
+  stopAt,
   arrange: ({game}) => {
     setTemperature(game, -4);
   },
-  expect: ({game, parliament}) => {
+  expect: ({game, parliament, p1}) => {
+    if (stopAt === 'close') {
+      // P71 · CY — the owner's FIRST frame: the winner's parameter step, its heat, the Greens' M€ answer; the sitting over.
+      const mine = (parliament.lastPhase?.outcomes ?? []).filter((o) => o.player === p1.id);
+      if (!mine.some((o) => o.kind === 'globalParameter') || !mine.some((o) => o.kind === 'reaction') || game.getTemperature() !== 0) {
+        throw new Error(`the parliament-mohole-adjourn fixture expected blue's step to 0 °C with the Greens' answer, got ${JSON.stringify(mine)} at ${game.getTemperature()} °C`);
+      }
+      return;
+    }
     if (game.getTemperature() !== -4) {
       throw new Error(`the parliament-mohole fixture expected the temperature at −4 °C, got ${game.getTemperature()}`);
     }
@@ -5356,6 +5364,9 @@ parliamentFixture('parliament-mohole-assembly', {
     }
   },
 });
+parliamentFixture('parliament-mohole-assembly', moholeTable('pass'));
+// P71 · CY: the sitting OVER — the results card of the owner's first frame (a parameter step + a party's answer) for the fit guard.
+parliamentFixture('parliament-mohole-adjourn', moholeTable('close'));
 
 parliamentFixture('parliament-heat-assembly', {
   resolution: HEAT_CAPTURE_ID,
@@ -5851,7 +5862,7 @@ parliamentFixture('parliament-rdfunding-enacted', {
 //    · the ASSEMBLY — RED's delegate wins (blue keeps influence 2, so the sitting pays blue exactly the vote's
 //      numbers: −10, then +7, then +4 production — net −3), every seat passed, the assembly gate standing for
 //      both. The production phase has paid the income before the sitting: blue holds 40 + 20 = 60 M€ at the levy.
-function budgetTable(stopAt: 'vote' | 'pass'): ParliamentFixtureSpec {
+function budgetTable(stopAt: 'vote' | 'pass' | 'close'): ParliamentFixtureSpec {
   return {
     resolution: INDUSTRIALIST_BUDGET_ID,
     votes: [stopAt === 'vote' ? 0 : 1],
@@ -5870,6 +5881,14 @@ function budgetTable(stopAt: 'vote' | 'pass'): ParliamentFixtureSpec {
       if (resolutionCount(p2, 'steelTitaniumEnergyProduction').count !== 0) {
         throw new Error('the parliament-budget fixture expected red without production steps');
       }
+      if (stopAt === 'close') {
+        // The sitting is OVER: the budget is the enacted card and blue's levy is a record of the phase.
+        const levy = (parliament.lastPhase?.outcomes ?? []).find((o) => o.player === p1.id && o.step === 'levy');
+        if (parliament.enacted?.startsWith(INDUSTRIALIST_BUDGET_ID) !== true || levy?.amount !== -10) {
+          throw new Error(`the parliament-budget-adjourn fixture expected the budget enacted and blue's −10 levy, got ${parliament.enacted} / ${JSON.stringify(levy)}`);
+        }
+        return;
+      }
       if (p1.megaCredits < 10) {
         throw new Error(`the parliament-budget fixture expected blue to afford the whole levy, has ${p1.megaCredits} M€`);
       }
@@ -5881,6 +5900,8 @@ function budgetTable(stopAt: 'vote' | 'pass'): ParliamentFixtureSpec {
 }
 parliamentFixture('parliament-budget-vote', budgetTable('vote'));
 parliamentFixture('parliament-budget-assembly', budgetTable('pass'));
+// P71 · CY: the sitting OVER (the confirmations stand) — the results card with a LEVY netted into the M€ token (the fit guard).
+parliamentFixture('parliament-budget-adjourn', budgetTable('close'));
 // …and the SAME vote at a FULL table — SIX seats, the worst case of the LEDGER OF OUTCOMES (the row of
 // chips under the reading: six seats × two parts each, the levy netted into the first). Every seat is
 // genuinely different, so the row has something to compare: Agenda steps 4 · 1 · 6 · 2 · 8 · 3 and
@@ -7105,6 +7126,90 @@ function botDeckOf(first: AutomaState['actionDeck'][number]): AutomaState['actio
   passTheViewer(copy);
   if (copy.parliament?.lastPhase?.winner.player !== t.bot.id) {
     throw new Error(`${name}: the bot is not the winning player (${copy.parliament?.lastPhase?.winner.player})`);
+  }
+  write(name, t.game);
+}
+
+// ── P71 · THE RESULTS LEDGER (ledger CY — «ИТОГИ ЗАСЕДАНИЯ — ВЕДОМОСТЬ ИТОГОВ, НЕ ЧИП НА ЗАПИСЬ»). Colonial Affairs on
+//    THREE seats, the sitting OVER (every seat holds its confirmation — the console lands on the results card):
+//    · blue (the viewer) has «Colonial Representation» on its table, PLAYED for real (the Executor — its giver is in
+//      the facade's ledger by name), at Career step 1 → influence 1 + 1 = 2 → k = 3 (without the card k = 2): Luna
+//      (+6 M€), Titan (3 floaters over TWO holders — the builder lays them on the first), Miranda (an intake of 3),
+//      Pluto (three PAIRS — six records; the ledger reads «+6 [card] · ⌫3» with Miranda's), a hand for the discards;
+//    · red WINS the vote (its free delegate alone on the card) — the crown on its own line; Luna only;
+//    · yellow has NO colony — the one named skip «no colonies».
+//    The breakdown reads blue's influence «2 = Карьера 1 + Колониальное представительство +1» off the snapshot. ──
+parliamentFixture('parliament-results-colonial-three', {
+  resolution: COLONIAL_AFFAIRS_ID,
+  votes: [1],
+  agenda: [1, 1, 0],
+  stopAt: 'close',
+  players: 3,
+  options: {prelude2Expansion: true},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 2, CENTRAL_POWER_GRID_ID);
+    const owned = (colony: IColony, owners: ReadonlyArray<TestPlayer>): IColony => {
+      colony.isActive = true;
+      colony.colonies = owners.map((p) => p.id);
+      return colony;
+    };
+    game.colonies = [owned(new Luna(), [p1, p2]), owned(new Titan(), [p1]), owned(new Miranda(), [p1]), owned(new Pluto(), [p1])];
+    p1.playedCards.push(new AtmoCollectors(), new JovianLanterns());
+    p1.cardsInHand.push(new Insulation(), new SecurityFleet());
+    // THE CARD, PLAYED: the Executor writes its +1 influence through the facade, the giver named.
+    moveToDeckTop(game, CardName.COLONIAL_REPRESENTATION);
+    const card = game.projectDeck.drawOrThrow(game);
+    p1.cardsInHand.push(card);
+    p1.playCard(card, Payment.of({megacredits: 10}));
+    runAllActions(game);
+  },
+  expect: ({game, p1, p2, seats}) => {
+    const p3 = seats[2];
+    const summary = game.parliament?.lastPhase;
+    const outcomes = summary?.outcomes ?? [];
+    const luna = outcomes.find((o) => o.player === p1.id && o.step === 'colony:Luna');
+    const pairs = outcomes.filter((o) => o.player === p1.id && o.colony === ColonyName.PLUTO);
+    const skip = outcomes.find((o) => o.player === p3.id);
+    const read = summary?.influenceRead?.find((e) => e.player === p1.id);
+    if (summary?.winner.player !== p2.id || luna?.amount !== 6 || luna.multiplier !== 3 || luna.influence !== 2 || pairs.length !== 6 ||
+      skip?.kind !== 'skipped' || read?.total !== 2 || read.sources.length !== 1 || read.sources[0].source !== CardName.COLONIAL_REPRESENTATION) {
+      throw new Error(`the parliament-results-colonial-three fixture expected red the winner, blue's Luna ×3 = 6 M€ at influence 2, three Pluto pairs, yellow's named skip and the snapshot naming the card — got winner=${summary?.winner.player} luna=${JSON.stringify(luna)} pairs=${pairs.length} skip=${skip?.kind} read=${JSON.stringify(read)}`);
+    }
+  },
+});
+
+// ── P71 · THE RESULTS LEDGER, the owner's SECOND frame (MarsBot the winner): Colonial Affairs on two humans and the bot
+//    under `'politics'`, the BOT's free delegate alone on the card (it wins — the crown on the bot's row); the bot's
+//    cubes on Pluto and Ceres are paid in M€ (D16) — the ledger reads «+N M€» with the two planets as its marks, never
+//    the tile's printed «Draw 1 card, then…» (R4). Blue: Ceres + Pluto (pairs); red: Europa + Pluto. The sitting OVER. ──
+{
+  const name = 'parliament-results-bot-colonial';
+  const t = botTable(name, 2);
+  const [blue, red] = t.humans;
+  seatResolution(t.parliament, 0, resolutionInstanceId(COLONIAL_AFFAIRS_ID, 0));
+  t.parliament.placeVote(t.bot, t.parliament.slots[0], 'lobby');
+  t.automa.actionDeck = [];
+  const owned = (colony: IColony, owners: ReadonlyArray<IPlayer>): IColony => {
+    colony.isActive = true;
+    colony.colonies = owners.map((p) => p.id);
+    return colony;
+  };
+  t.game.colonies = [owned(new Ceres(), [blue, t.bot]), owned(new Pluto(), [blue, red, t.bot]), owned(new Europa(), [red])];
+  blue.cardsInHand.push(new Insulation(), new SecurityFleet());
+  red.cardsInHand.push(new Insulation(), new SecurityFleet());
+  for (const seat of [red, blue]) {
+    seat.clearWaitingFor();
+    t.game.playerHasPassed(seat);
+    t.game.playerIsFinishedTakingActions();
+  }
+  runAllActions(t.game);
+  answerEffects(t.game, name);
+  const summary = t.parliament.lastPhase;
+  const botRecords = (summary?.outcomes ?? []).filter((o) => o.player === t.bot.id && o.kind !== 'reaction');
+  if (t.parliament.phase !== undefined || t.parliament.sittingAcks === undefined || summary?.winner.player !== t.bot.id ||
+    botRecords.length === 0 || botRecords.some((o) => o.kind === 'colonyBonus' && o.megacredits === undefined)) {
+    throw new Error(`${name}: expected the sitting over with the bot the winner and its colony bonuses paid in M€ — got phase=${t.parliament.phase?.step} winner=${summary?.winner.player} bot=${JSON.stringify(botRecords)}`);
   }
   write(name, t.game);
 }
@@ -9677,6 +9782,46 @@ function sponsoringNationFixture(name: string, earthTags: 2 | 4): void {
 }
 sponsoringNationFixture('sponsoring-nation', 4);
 sponsoringNationFixture('sponsoring-nation-locked', 2);
+
+// ── P71 · COLONIAL REPRESENTATION — the NINTH Prelude 2 card (the stand `console-colonial-representation`): a Redux table
+//    with Colonies and Prelude 2, CALM corporations (Teractor · Thorgate — no first action); blue's Career at step 1
+//    (influence 1), blue's cubes on Luna and Pluto (2 colonies → +6 M€; red's on Luna and Titan count nothing for blue),
+//    12 M€, P71 in hand. The dry run proves the play on a copy: ONE play, 12 − 10 + 6 = 8 M€, influence 1 → 2 with the
+//    card's name as its giver. ──
+parliamentFixture('colonial-representation', {
+  stopAt: 'vote',
+  agenda: [1, undefined],
+  megacredits: [12, 30],
+  options: {prelude2Expansion: true, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2}) => {
+    const owned = (colony: IColony, owners: ReadonlyArray<TestPlayer>): IColony => {
+      colony.isActive = true;
+      colony.colonies = owners.map((p) => p.id);
+      return colony;
+    };
+    game.colonies = [owned(new Luna(), [p1, p2]), owned(new Pluto(), [p1]), owned(new Titan(), [p2]), owned(new Ceres(), []), owned(new Europa(), [])];
+    moveToDeckTop(game, CardName.COLONIAL_REPRESENTATION);
+    p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.COLONIAL_REPRESENTATION);
+    if (card === undefined || p1.canPlay(card) === false || p1.getCardCost(card) !== 10 || p1.megaCredits !== 12 || parliament.influence(p1) !== 1 ||
+      game.activePlayer.id !== p1.id || p1.getColoniesCount() !== 2) {
+      throw new Error(`the colonial-representation fixture expected P71 playable for 10 of blue's 12 M€, influence 1, two colonies and blue on the move — got card=${card !== undefined} cost=${card === undefined ? '-' : p1.getCardCost(card)} mc=${p1.megaCredits} influence=${parliament.influence(p1)} colonies=${p1.getColoniesCount()}`);
+    }
+    // THE DRY RUN — the real play on a copy.
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const blue = copy.getPlayerById(p1.id);
+    const hero = blue.cardsInHand.find((c) => c.name === CardName.COLONIAL_REPRESENTATION)!;
+    blue.playCard(hero, Payment.of({megacredits: 10}));
+    runAllActions(copy);
+    const area = copy.parliament!;
+    if (blue.megaCredits !== 8 || area.influence(blue) !== 2 || area.influenceSourcesOf(blue)[0]?.source !== CardName.COLONIAL_REPRESENTATION ||
+      blue.getWaitingFor() !== undefined && !(blue.getWaitingFor() instanceof OrOptions)) {
+      throw new Error(`the colonial-representation fixture expected 8 M€ and influence 2 named by the card after the play — got mc=${blue.megaCredits} influence=${area.influence(blue)} sources=${JSON.stringify(area.influenceSourcesOf(blue))} prompt=${blue.getWaitingFor()?.type}`);
+    }
+  },
+});
 
 // ── preselect-sole: THE PRE-SELECT STAND (T14 · ledger CC — «ОДИН КУРСОР ПОСЛЕ ОТВЕТА · ПРИБЫТИЕ НА КОММИТ ·
 //    ЕДИНСТВЕННАЯ ЦЕЛЬ»). One base table, every cell of the matrix in blue's hand / tableau:

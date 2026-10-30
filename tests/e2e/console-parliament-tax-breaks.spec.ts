@@ -287,7 +287,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-sit-results-hidden]'), 'the results card revealed by its own beat').toHaveCount(0, {timeout: 30_000});
       await waitSittingAtRest(page, 20_000);
       const blueRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${before.thisPlayer.color}"]`);
-      await expect(blueRow.locator('[data-sit-part="production"] [data-sit-part-amount]'), 'blue: +5 production').toHaveAttribute('data-sit-part-amount', '5');
+      await expect(blueRow.locator('[data-sit-total][data-sit-total-production]'), 'blue: +5 production').toHaveAttribute('data-sit-total-amount', '5');
       await shoot(page, preset.id, '04-results');
       // RED's NAMED SKIP (Tardigrades at 0, influence 0): the reason is printed WHOLE — never «Ни на одной…» (PL-796).
       const redRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${redBefore.thisPlayer.color}"]`);

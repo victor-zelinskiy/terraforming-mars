@@ -4,7 +4,7 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {Resource} from '@/common/Resource';
 import {ParliamentEnactedModel, ParliamentEnactOutcomeModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
-import {ResultsSeat, resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
+import {ResultsPayoutPart, resultsPayoutPart, ResultsSeat, resultsReadingOf, ResultsTotal, resultsTotalsOf, seatSourceMarksOf, totalSourceKey} from '@/client/console/parliament/parliamentResultsModel';
 
 /*
  * ПАНЕЛЬ ИТОГОВ («Заседание v5» §4, «Итоги: честность») — TWO sections and nothing beside them, because
@@ -361,20 +361,153 @@ describe('parliamentResultsModel — the sitting\'s last reading, in two section
     expect(blue.parts.map((p) => [p.kind, p.amount, p.skipped === undefined])).to.deep.eq([['stock', -10, true], ['stock', 7, true], ['production', 4, true]]);
     expect(blue.parts[0]).to.deep.include({unit: 'megacredits', production: false, owed: 10});
     expect(blue.parts[0].note, 'a whole take has nothing to explain').is.undefined;
-    expect(blue.net, 'the day\'s balance: −10 + 7').to.deep.eq({unit: 'megacredits', amount: -3});
+    expect(blue.totals.map((t) => [t.kind, t.unit, t.production, t.amount, t.records]), 'the day\'s balance: −10 + 7 — ONE M€ token')
+      .to.deep.eq([['unit', 'megacredits', false, -3, 2], ['unit', 'megacredits', true, 4, 1]]);
     // Red: 4 of 10 taken with the shortfall's reason on the PAYING part, the payout a named skip.
     expect(red.parts[0]).to.deep.include({kind: 'stock', amount: -4, owed: 10, note: 'Not enough M€: the rest of the levy is not taken'});
     expect(red.parts[0].skipped, 'a loss is never a skip').is.undefined;
     expect(red.parts[1].skipped).to.deep.eq({title: 'Resolution effect', reason: 'No steel, titanium or energy production and no influence'});
-    // RX25: a net that would only restate its single supply part («−4 · = −4») is a second voice saying nothing
-    // new — with the payout in that unit a named skip, the levy stands alone and no net line is printed.
-    expect(red.net).is.undefined;
-    // A seat that never lost anything has no net line: its parts read as they are.
+    // Red: the levy is its M€ token (−4), the production its own, the named skip last.
+    expect(red.totals.map((t) => [t.kind, t.unit, t.amount])).to.deep.eq([['unit', 'megacredits', -4], ['unit', 'megacredits', 4], ['skipped', '', undefined]]);
     const plain = resultsReadingOf(summary({outcomes: [outcome({amount: 2})]}), [seat(BLUE)], SUPPORT);
-    expect(plain.payouts[0].net).is.undefined;
+    expect(plain.payouts[0].totals.map((t) => [t.unit, t.amount])).deep.eq([['plants', 2]]);
     // …and a levy skipped for an empty supply stays a skip with its own reason (the owed sum rides the part).
     const empty = resultsReadingOf(summary({outcomes: [outcome({step: 'levy', kind: 'skipped', stock: Resource.MEGACREDITS, amount: 0, owed: 10, reason: 'No M€ to pay the levy'})]}), [seat(BLUE)], SUPPORT);
     expect(empty.payouts[0].parts[0]).to.deep.include({kind: 'skipped', owed: 10, skipped: {title: 'Resolution effect', reason: 'No M€ to pay the levy'}});
-    expect(empty.payouts[0].net).is.undefined;
+    expect(empty.payouts[0].totals.map((t) => t.kind)).deep.eq(['skipped']);
+  });
+});
+
+/*
+ * THE SEAT'S TOTALS (P71 · ledger CY) — the card's ledger prints what a seat GOT, one token per unit, never a chip per
+ * record (the owner's frames: Pluto's three pairs were six chips, the plates spilled over each other). The breakdown
+ * renders its «ИТОГО» with the same function. THE INVARIANT (law 4 — no silent loss): per unit the sum of the totals is
+ * the sum of the records, and every record — a skip included — is counted in exactly one total.
+ */
+describe('parliamentResultsModel — the seat\'s TOTALS (resultsTotalsOf)', () => {
+  const COLONIAL = 'RDX_UNITY_COLONIAL_AFFAIRS';
+  const MOHOLE = 'RDX_REDS_MOHOLE_CONTEST';
+  const BOT = 'yellow' as Color;
+
+  function parts(outcomes: Array<ParliamentEnactOutcomeModel>, player: Color = BLUE): Array<ResultsPayoutPart> {
+    return outcomes.filter((o) => o.player === player).map((o, i) => resultsPayoutPart(o, i));
+  }
+
+  /** The invariant over any corpus: Σ by unit, every record counted once. */
+  function expectInvariant(input: ReadonlyArray<ResultsPayoutPart>, totals: ReadonlyArray<ResultsTotal>): void {
+    expect(totals.reduce((n, t) => n + t.records, 0), 'every record counted exactly once').eq(input.length);
+    const key = (p: {kind: string, unit: string, production: boolean}) => `${p.kind === 'discard' ? 'discard' : p.kind === 'cards' ? 'cards' : p.unit}:${p.production}`;
+    const byUnit = new Map<string, number>();
+    for (const p of input) {
+      if (p.skipped === undefined && p.amount !== undefined && p.tile === undefined && p.parameter === undefined && p.walk === undefined && p.eachCard === undefined && p.unit !== '') {
+        byUnit.set(key(p), (byUnit.get(key(p)) ?? 0) + p.amount);
+      }
+    }
+    const totalByUnit = new Map<string, number>();
+    for (const t of totals) {
+      if (t.kind === 'unit' || t.kind === 'discard') {
+        const k = `${t.kind === 'discard' ? 'discard' : t.family === 'cards' ? 'cards' : t.unit}:${t.production}`;
+        totalByUnit.set(k, (totalByUnit.get(k) ?? 0) + (t.amount ?? 0));
+      }
+    }
+    expect(totalByUnit).deep.eq(byUnit);
+  }
+
+  it('Colonial Affairs at k = 3 — Luna, Titan onto ONE card, Miranda, Pluto\'s three PAIRS: «+6 M€ · +3 [floater] Dirigibles · +6 [card] · ⌫3», the marks a planet ×3 each', () => {
+    const k = {multiplier: 3, influence: 2};
+    const corpus = [
+      outcome({step: 'colony:Luna', kind: 'stock', stock: Resource.MEGACREDITS, amount: 6, colony: 'Luna' as never, ...k}),
+      outcome({step: 'colony:Titan', kind: 'cardResource', stock: undefined, resource: 'Floater' as never, amount: 3, card: 'Dirigibles' as never, colony: 'Titan' as never, ...k}),
+      outcome({step: 'colony:Miranda', kind: 'cards', stock: undefined, amount: 3, colony: 'Miranda' as never, ...k}),
+      ...[1, 2, 3].flatMap((n) => [
+        outcome({step: `colony:Pluto:${n}:draw`, kind: 'cards', stock: undefined, amount: 1, colony: 'Pluto' as never, ...k}),
+        outcome({step: `colony:Pluto:${n}:discard`, kind: 'discard', stock: undefined, amount: 1, colony: 'Pluto' as never, ...k}),
+      ]),
+    ];
+    const input = parts(corpus);
+    const totals = resultsTotalsOf(input);
+    expect(totals.map((t) => [t.kind, t.unit, t.amount, t.card])).deep.eq([
+      ['unit', 'megacredits', 6, undefined],
+      ['unit', 'Floater', 3, 'Dirigibles'],
+      ['unit', 'cards', 6, undefined],
+      ['discard', 'cards', 3, undefined],
+    ]);
+    expect(totals[2].sources.map((s) => totalSourceKey(s)), 'the cards came from Miranda and Pluto').deep.eq(['colony:Miranda', 'colony:Pluto']);
+    expect(seatSourceMarksOf(totals)).deep.eq(['Luna', 'Titan', 'Miranda', 'Pluto'].map((colony) => ({kind: 'colony', colony, times: 3})));
+    expectInvariant(input, totals);
+  });
+
+  it('Mohole Contest with the Greens\' answer (frame 1): the winner\'s parameter step is ONE object, the heat a token, the party\'s M€ a token marked by its seal', () => {
+    const corpus = [
+      outcome({step: 'heat', effect: 'heat', kind: 'stock', stock: Resource.HEAT, amount: 6, influence: 2}),
+      outcome({step: 'temperature', part: 'winner', kind: 'globalParameter', stock: undefined, amount: 2, parameter: {id: 'temperature', before: -26, after: -22}, tr: 2}),
+      outcome({step: 'temperature', kind: 'reaction', party: PartyName.GREENS, stock: Resource.MEGACREDITS, amount: 1}),
+      outcome({step: 'temperature', kind: 'reaction', party: PartyName.GREENS, stock: Resource.MEGACREDITS, amount: 4}),
+    ];
+    const input = parts(corpus);
+    const totals = resultsTotalsOf(input);
+    expect(totals.map((t) => [t.kind, t.unit, t.amount])).deep.eq([['unit', 'heat', 6], ['object', '', undefined], ['unit', 'megacredits', 5]]);
+    expect(totals[1].part?.parameter).deep.eq({id: 'temperature', before: -26, after: -22});
+    expect(totals[1].sources.map(totalSourceKey)).deep.eq(['winner']);
+    expect(totals[2].sources.map(totalSourceKey), 'the seal names whose M€ these are').deep.eq([`party:${PartyName.GREENS}`]);
+    expect(seatSourceMarksOf(totals).map(totalSourceKey), 'the bare law is no mark').deep.eq(['winner', `party:${PartyName.GREENS}`]);
+    expectInvariant(input, totals);
+    void MOHOLE;
+  });
+
+  it('a budget with its levy and a short seat: the levy NETS into its unit; the shortfall\'s note stays a record (the breakdown prints it)', () => {
+    const corpus = [
+      outcome({step: 'levy', stock: Resource.MEGACREDITS, amount: -4, owed: 10, reason: 'Not enough M€: the rest of the levy is not taken'}),
+      outcome({step: 'megacredits', effect: 'megacredits', stock: Resource.MEGACREDITS, amount: 7}),
+      outcome({step: 'megacredits', kind: 'reaction', party: PartyName.UNITY, stock: Resource.MEGACREDITS, amount: 2}),
+    ];
+    const input = parts(corpus);
+    const totals = resultsTotalsOf(input);
+    expect(totals.map((t) => [t.unit, t.amount, t.records])).deep.eq([['megacredits', 5, 3]]);
+    expect(totals[0].sources.map(totalSourceKey)).deep.eq(['law', `party:${PartyName.UNITY}`]);
+    expectInvariant(input, totals);
+  });
+
+  it('MarsBot the winner (frame 2): its colony bonus is the M€ it TOOK — a token, never the tile\'s printed «Draw 1 card, then…»', () => {
+    // The server's record of the bot's colony bonus (BotResolutionPayout): its unit is M€, no printed description.
+    const corpus = [
+      outcome({player: BOT, step: 'colonyBonuses', kind: 'colonyBonus', stock: Resource.MEGACREDITS, amount: 2, colony: 'Pluto' as never, multiplier: 2}),
+      outcome({player: BOT, step: 'colonyBonuses', kind: 'colonyBonus', stock: Resource.MEGACREDITS, amount: 2, colony: 'Vesta' as never, multiplier: 2}),
+    ];
+    const input = parts(corpus, BOT);
+    expect(input.every((p) => p.description === undefined), 'no printed text on a bot\'s part').is.true;
+    const totals = resultsTotalsOf(input);
+    expect(totals.map((t) => [t.kind, t.unit, t.amount])).deep.eq([['unit', 'megacredits', 4]]);
+    expect(totals[0].sources.map(totalSourceKey)).deep.eq(['colony:Pluto', 'colony:Vesta']);
+    expectInvariant(input, totals);
+  });
+
+  it('a resource SPREAD over cards sums PER CARD across records; a skip stands last, one per record', () => {
+    const corpus = [
+      outcome({step: 'a', kind: 'cardResource', stock: undefined, resource: 'Microbe' as never, amount: 3, cards: [{card: 'Ants' as never, amount: 2}, {card: 'Tardigrades' as never, amount: 1}]}),
+      outcome({step: 'b', kind: 'skipped', stock: undefined, amount: 0, reason: 'No influence'}),
+      outcome({step: 'c', kind: 'cardResource', stock: undefined, resource: 'Microbe' as never, amount: 1, card: 'Ants' as never}),
+    ];
+    const input = parts(corpus);
+    const totals = resultsTotalsOf(input);
+    expect(totals.map((t) => t.kind)).deep.eq(['unit', 'skipped']);
+    expect(totals[0]).deep.include({amount: 4, cards: [{card: 'Ants', amount: 3}, {card: 'Tardigrades', amount: 1}]});
+    expectInvariant(input, totals);
+  });
+
+  it('a law that pays nobody: no totals at all (the row says «No reward»)', () => {
+    expect(resultsTotalsOf([])).deep.eq([]);
+  });
+
+  it('the reading carries each seat\'s totals and marks — the card and the breakdown read the same function', () => {
+    const COL = {instance: `${COLONIAL}#0`, resolution: COLONIAL, party: PartyName.UNITY} as ParliamentEnactedModel;
+    const reading = resultsReadingOf(summary({
+      enacted: COL,
+      winner: {...COL, votes: 1, player: RED, slot: 0},
+      outcomes: [outcome({step: 'colony:Luna', kind: 'stock', stock: Resource.MEGACREDITS, amount: 6, colony: 'Luna' as never, multiplier: 3})],
+    }), [seat(BLUE), seat(RED)], SUPPORT);
+    expect(reading.payouts[0].totals).deep.eq(resultsTotalsOf(reading.payouts[0].parts));
+    expect(reading.payouts[0].marks).deep.eq([{kind: 'colony', colony: 'Luna', times: 3}]);
+    expect(reading.payouts[1].totals).deep.eq([]);
   });
 });

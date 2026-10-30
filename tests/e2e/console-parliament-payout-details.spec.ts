@@ -59,7 +59,7 @@ for (const preset of PARLIAMENT_PRESETS) {
   test.describe(`«Подробности выплат» (${preset.id})`, () => {
     test.use({viewport: preset.viewport});
 
-    test('X opens the table per rule on the results card, L3 reads the law, X / B fold it back', async ({page, request}) => {
+    test('X opens the breakdown per seat on the results card, L3 reads the law, X / B fold it back', async ({page, request}) => {
       test.setTimeout(300_000);
       const {playerId} = await bootFixtureSeats(page, request, 'parliament-budget-assembly', {query: preset.query});
       await armLeakWitness(page);
@@ -91,31 +91,33 @@ for (const preset of PARLIAMENT_PRESETS) {
           const el = document.querySelector<HTMLElement>(sel);
           return el === null ? -1 : Number(getComputedStyle(el).opacity);
         };
-        const rule = document.querySelector('[data-sitpd-kind="rule"]');
-        const mine = rule?.querySelector(`[data-sitpd-seat="${viewer}"]`) ?? null;
+        // P71 · CY: a BREAKDOWN PER SEAT — the law's strip on top, a column per seat (head · influence · from what · ИТОГО).
+        const mine = document.querySelector(`[data-sitpd-seat="${viewer}"]`);
+        const totalsOf = (scope: Element | null) => scope === null ? [] : Array.from(scope.querySelectorAll('[data-sit-total]'))
+          .map((el) => `${el.getAttribute('data-sit-total-kind')}:${el.getAttribute('data-sit-total-unit')}:${el.getAttribute('data-sit-total-amount')}`);
         return {
           enacted: opacity('[data-sit-enacted]'),
           payouts: opacity('[data-sit-section="payouts"]'),
           table: opacity('[data-sit-section="table"]'),
-          sections: Array.from(document.querySelectorAll('[data-sitpd-section]')).map((s) => s.getAttribute('data-sitpd-section')),
-          ruleHead: rule?.querySelector('[data-sitpd-rule]') !== null && rule !== null,
-          rows: rule === null ? 0 : rule.querySelectorAll('[data-sitpd-seat]').length,
-          mineReading: mine?.querySelector('[data-sitpd-reading] [data-yield-context]')?.getAttribute('data-yield-context') ?? '',
-          mineLevy: mine?.querySelector('[data-yield-levy]') !== null && mine !== null,
-          mineNet: mine?.querySelector('[data-yield-net-line]')?.getAttribute('data-yield-net-amount') ?? '',
-          mineGot: mine === null ? 0 : mine.querySelectorAll('.con-sitpd__got [data-sit-part]').length,
+          seats: document.querySelectorAll('[data-sitpd-seat]').length,
+          ruleHead: document.querySelector('[data-sitpd-law] [data-sitpd-rule]') !== null,
+          mineReading: mine?.querySelector('[data-sitpd-meaning] [data-yield-context], [data-sitpd-reading] [data-yield-context]')?.getAttribute('data-yield-context') ?? '',
+          mineLevy: mine !== null && mine.querySelector('[data-sitpd-line-kind="levy"] [data-yield-levy]') !== null,
+          mineLines: mine === null ? 0 : mine.querySelectorAll('[data-sitpd-line]').length,
+          mineTotals: totalsOf(mine?.querySelector('[data-sitpd-total]') ?? null),
+          cardTotals: totalsOf(document.querySelector(`[data-sit-payout][data-sit-payout-seat="${viewer}"]`)),
         };
       }, viewer);
       expect(read.enacted, 'the enacted law keeps its column — the carried object').toBe(1);
-      expect(read.payouts, 'the payouts column released in place').toBe(0);
+      expect(read.payouts, 'the ledger released in place').toBe(0);
       expect(read.table, 'the next-vote column released in place').toBe(0);
-      expect(read.sections.length, 'a section per rule').toBeGreaterThan(0);
-      expect(read.ruleHead, 'a rule section prints the card\'s own formula').toBe(true);
-      expect(read.rows, 'a row per paid seat').toBeGreaterThan(0);
-      expect(read.mineReading, 'the row reads the RECORDED payout').toBe('applied');
-      expect(read.mineLevy, 'the levy rides at the head of its payout\'s row').toBe(true);
-      expect(read.mineNet, 'the day\'s net closes the row').not.toBe('');
-      expect(read.mineGot, 'what reached the seat — the results card\'s own chips').toBeGreaterThan(0);
+      expect(read.ruleHead, 'the law\'s strip prints the card\'s own formula').toBe(true);
+      expect(read.seats, 'a column per paid seat').toBeGreaterThan(0);
+      expect(read.mineReading, 'the column reads the RECORDED payout').toBe('applied');
+      expect(read.mineLevy, 'the levy is its own line — what the law takes').toBe(true);
+      expect(read.mineLines, 'a line per source').toBeGreaterThan(1);
+      expect(read.mineTotals.some((t) => t.startsWith('unit:megacredits:')), 'ИТОГО carries the day\'s M€ net').toBe(true);
+      expect(read.mineTotals, 'ИТОГО is the card\'s own ledger row, token for token').toEqual(read.cardTotals);
       await expectParliamentFits(page, `${preset.id} payout details`);
       await shoot(page, preset.id, '02-details');
 

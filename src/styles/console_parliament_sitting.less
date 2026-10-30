@@ -385,40 +385,45 @@
         max-height: none;
     }
 }
-/* THE CARD: ПРИНЯТА · ВЫПЛАТЫ · СТОЛ — three columns read left to right (what was decided, what it paid, what the table
-   is now); the payouts are the card's main body. Written after the base `&__results` rules (the sheet's own order). */
+/* THE CARD: ПРИНЯТА · ВЫПЛАТЫ · СЛЕДУЮЩЕЕ ГОЛОСОВАНИЕ — three zones by ROLE (what was decided, what each seat got, what
+   the table is now) over a quiet FOOT («ЕЩЁ В ЗАСЕДАНИИ»). The widths, the faces' sizes and the ledger's type tier are
+   SOLVED (`console/parliament/resultsLayout.ts`) from what the card has to say and its measured box, and arrive as
+   variables (`--sit-enacted-w` / `--sit-next-w` / `--sit-enacted-zoom` / `--sit-fresh-zoom` / `--sit-total-size` /
+   `--sit-row-pad`); the fallbacks below are the pose before the first measurement. Nothing in the card scrolls and
+   nothing leaves its row (P71 · ledger CY — the owner's two frames: plates spilling over each other and the card's
+   edge, the crown over a name). Written after the base `&__results` rules (the sheet's own order). */
 .con-parl[data-sitting-stage="results"] .con-sit {
     &__results {
         height: 100%;
         box-sizing: border-box;
-        grid-template-columns: minmax(10rem, .62fr) minmax(0, 1.55fr) minmax(0, 1fr);
-        /* The payouts take the flexible row; the world's lines (ПЛАНЕТА, КОЛОНИИ) follow them in their column. */
-        grid-template-rows: minmax(0, 1fr) auto auto;
+        grid-template-columns: var(--sit-enacted-w, minmax(10rem, .62fr)) minmax(0, 1fr) var(--sit-next-w, minmax(0, .8fr));
+        grid-template-rows: minmax(0, 1fr) auto;
         align-content: stretch;
-        gap: .8rem 1.4rem;
+        gap: .7rem 1.4rem;
         padding: .9rem 1.2rem 1rem;
     }
+    &__results--nonext { grid-template-columns: var(--sit-enacted-w, minmax(10rem, .62fr)) minmax(0, 1fr); }
     &__enacted {
         grid-column: 1;
-        grid-row: 1 / -1;
+        grid-row: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         gap: .6rem;
         min-width: 0;
+        min-height: 0;
         padding-right: 1.2rem;
         border-right: .05rem solid rgba(201, 198, 214, 0.14);
     }
-    /* Each column's KICKER rides its top edge; the column's content stands in the middle of what is left. */
+    /* Each zone's KICKER rides its top edge — quiet tracked caps; the zone's content stands under it. */
     &__enacted, &__payouts, &__table { position: relative; padding-top: 1.9rem; }
     &__enacted > .con-sit__section-kicker, &__payouts > .con-sit__section-kicker, &__table > .con-sit__section-kicker {
         position: absolute; top: 0; left: 0; margin: 0;
     }
     &__table > .con-sit__section-kicker { left: 1.2rem; }
-    /* The law that was enacted is the column's HERO: the face at the size the column can carry, never a thumbnail
-       floating in a tall column. */
-    &__enacted-card { zoom: calc(.8 * var(--con-ui-scale, 1)); filter: none; }
+    /* The law that was enacted is the carried object: its face at the size the column's HEIGHT carries (solved). */
+    &__enacted-card { zoom: calc(var(--sit-enacted-zoom, .8) * var(--con-ui-scale, 1)); filter: none; }
     /* THE HANDOVER: [old seal] › [new seal] NAME, and the rule on its own line under it. */
     &__enacted-ruler {
         display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; justify-content: center;
@@ -429,113 +434,193 @@
     &__emblem--lost { opacity: .42; }
     &__handover { width: .5rem; height: .7rem; fill: none; stroke: fade(@con-parl-silver, 70%); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
     &__enacted-rule { flex-basis: 100%; font-size: .66rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: fade(@con-parl-gold, 88%); }
-    /* The columns carry their content in their MIDDLE — two payout rows at the top of a tall card read as a card
-       half-built. */
-    /* THE SEATS' PLATES stand side by side (a row of equals; the winner's wears the rim) and wrap past three. */
-    &__payouts {
-        grid-column: 2; grid-row: 1; min-height: 0;
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-        align-content: center;
-        gap: .9rem;
-    }
-    &__payout-quiet { grid-column: 1 / -1; }
-    &__planet, &__tracks { grid-column: 2; }
-    &__table { grid-column: 3; grid-row: 1 / -1; gap: .45rem; padding-left: 1.2rem; border-left: .05rem solid rgba(201, 198, 214, 0.14); justify-content: center; }
-    /* A SEAT'S PAYOUT is a plate of its own: who (and the winner's crown), the chips at the card's scale, the net. */
-    &__payout {
+
+    /* ── ВЫПЛАТЫ — the card's body: the ledger, then the world's lines under it, in ONE column. ── */
+    &__paycol {
+        grid-column: 2;
+        grid-row: 1;
+        display: flex;
         flex-direction: column;
-        align-items: stretch;
-        gap: .8rem;
-        min-height: 8.5rem;
-        padding: .75rem .9rem .9rem;
+        gap: .45rem;
+        min-width: 0;
+        min-height: 0;
+    }
+    &__payouts {
+        flex: 1 1 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+    }
+    &__planet, &__tracks { flex: none; }
+    /* THE LEDGER: ONE ROW PER SEAT, rows of EQUAL height that share the who column's width (subgrid — the longest name
+       sets it, never cut), the totals taking the rest. */
+    &__ledger {
+        flex: 1 1 0;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: max-content minmax(0, 1fr);
+        grid-template-rows: repeat(var(--sit-seats, 1), minmax(0, 1fr));
+        row-gap: .6rem;
+    }
+    &__payout {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: subgrid;
+        align-items: center;
+        column-gap: 1.4rem;
+        min-width: 0;
+        min-height: 0;
+        padding: var(--sit-row-pad, .55rem) 1.1rem;
         border-radius: .7rem;
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(0, 0, 0, 0.3) 45%);
+        background: rgba(255, 255, 255, 0.025);
         box-shadow: inset 0 0 0 .05rem rgba(201, 198, 214, 0.16);
     }
-    /* The NAME never yields (a cut «play…» on the TV): the winner's line wraps under it when the plate is narrow. */
-    &__payout-who { max-width: none; gap: .15rem .45rem; flex-wrap: wrap; }
-    &__payout-name { font-size: .95rem; flex-shrink: 0; max-width: 100%; }
-    .con-sit__payout-winner { white-space: nowrap; }
-    /* The chips own the plate's body, centred: what the seat GOT is the plate's subject. */
-    &__payout-parts { flex: 1 1 auto; gap: .5rem .6rem; justify-content: center; align-content: center; }
-    /* «СЛЕДУЮЩЕЕ ГОЛОСОВАНИЕ»: the fresh resolutions as small FACES in a row, then the support stock at the seals. The
-       rows here are plain groups — no chip plate (the column is the plate). */
-    &__table { gap: 1.1rem; }
+    /* WHO — the dot and the name on one line (never cut, never shrunk), the role in a word under it. */
+    &__payout-who { display: flex; flex-direction: column; align-items: flex-start; gap: .2rem; min-width: 0; max-width: none; }
+    &__payout-nameline { display: inline-flex; align-items: center; gap: .45rem; white-space: nowrap; }
+    &__payout-name { font-size: 1.05rem; font-weight: 700; overflow: visible; text-overflow: clip; white-space: nowrap; max-width: none; }
+    &__payout-none { font-size: .82rem; }
+    /* WHAT IT GOT — the tokens, then the quiet marks row; the number is the card's loudest voice (size and weight). */
+    &__payout-totals { min-width: 0; }
+    &__payout-quiet { flex: none; }
+    /* «СЛЕДУЮЩЕЕ ГОЛОСОВАНИЕ»: the fresh resolutions as FACES (sized by the solver, 2 + 1 when three do not fit), then the
+       support stock at the seals. The rows here are plain groups — no chip plate (the column is the plate). */
+    &__table {
+        grid-column: 3;
+        grid-row: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 1.1rem;
+        min-width: 0;
+        min-height: 0;
+        padding-left: 1.2rem;
+        border-left: .05rem solid rgba(201, 198, 214, 0.14);
+    }
     &__table > .con-sit__row { background: none; padding: 0; }
-    &__fresh-row { justify-content: center; gap: .7rem; flex-wrap: nowrap; }
-    &__fresh { display: flex; min-width: 0; }
-    &__fresh-card { zoom: calc(.4 * var(--con-ui-scale, 1)); }
-    /* `nowrap`: the base row WRAPS, and a column-direction wrapping flexbox sizes itself by the space it is offered
-       (the stock grew to 391px and pushed the faces over the kicker). */
+    &__fresh-row {
+        display: grid;
+        grid-template-columns: repeat(var(--sit-fresh-per-row, 3), auto);
+        justify-content: center;
+        gap: .7rem;
+    }
+    &__fresh { display: flex; min-width: 0; justify-content: center; }
+    &__fresh-card { zoom: calc(var(--sit-fresh-zoom, .44) * var(--con-ui-scale, 1)); }
+    /* `nowrap`: the base row WRAPS, and a column-direction wrapping flexbox sizes itself by the space it is offered. */
     &__support-row { flex-direction: column; flex-wrap: nowrap; justify-content: flex-start; align-items: stretch; gap: .55rem; }
     &__support-row > .con-parl__chip-dim { text-align: center; font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; }
-    /* ONE ROW of seals, always (the five parties out of power): a fifth seal wrapping alone under four read as a remainder. */
+    /* ONE ROW of seals, always (the five parties out of power). */
     &__support-row .con-sit__chips { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: .5rem; }
     &__support { flex-direction: column; justify-content: center; gap: .35rem; }
     &__support .con-sit__emblem { width: 1.9rem; height: 1.9rem; }
-    /* The support places speak the bench's own language — the delegate's FOOTPRINT, never a square box; a place this
-       sitting filled keeps the gold trace. */
     &__support-place { width: .8rem; height: .95rem; --pd-host: .95rem; }
-    /* A PART is a chip at the card's scale: the number large beside its unit, on its own small plate. */
-    &__part {
-        font-size: 1.5rem;
-        gap: .35rem;
-        padding: .3rem .6rem .3rem .5rem;
-        border-radius: .5rem;
-        background: rgba(255, 255, 255, 0.04);
-        box-shadow: inset 0 0 0 .05rem rgba(201, 198, 214, 0.18);
+    /* THE FOOT — «ЕЩЁ В ЗАСЕДАНИИ»: a quiet fact across the card, never inside a column. */
+    &__foot {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        justify-content: flex-start;
+        gap: .6rem;
+        background: none;
+        padding: .1rem 0 0;
+        opacity: .86;
     }
-    /* A SKIP is a TWO-LINE plate — what was skipped, then WHY. The reason is the skip's whole statement (law 4: a skip
-       names itself), so it takes its own line under the label and WRAPS there; it is never ellipsized beside a label
-       that already took the plate's width (PL-796 — «Влиян…» in a 4K plate with room to spare). */
-    &__part--skipped {
-        font-size: .8rem;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: .12rem;
-        max-width: 100%;
-        .con-sit__part-reason { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.15; max-width: 100%; opacity: .92; }
-    }
-    &__part-unit { width: 1.9rem; height: 1.9rem; }
-    &__part-cards--kinds .con-sit__part-unit { width: 1.4rem; height: 1.4rem; }
-    &__net { font-size: 1.1rem; }
 }
+
+/* ══ THE TOTALS — one seat's tokens (`ConsoleSitTotals`), on the card's ledger and as the breakdown's «ИТОГО». The
+   number is the voice (weight + size, never light), the unit its icon in the rail's own language (the production
+   frame, a card resource's cube with the card's mini name), an object / a skip ONE record drawn by the record
+   renderer. `--sit-total-size` is the solver's tier; everything inside scales from it in em. ══ */
+.con-sit__totals {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: .3rem;
+    min-width: 0;
+}
+.con-sit__totals-tokens {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .3em 1.05em;
+    min-width: 0;
+    font-size: var(--sit-total-size, 1.5rem);
+    line-height: 1.15;
+}
+.con-sit__total {
+    display: inline-flex;
+    align-items: center;
+    gap: .22em;
+    min-width: 0;
+    white-space: nowrap;
+}
+.con-sit__total-amount { font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.con-sit__total--loss .con-sit__total-amount { color: fade(@con-amber, 96%); }
+.con-sit__total-unit { display: inline-block; width: 1.15em; height: 1.15em; background-size: contain; background-repeat: no-repeat; background-position: center; flex-shrink: 0; }
+.con-sit__total-unit.con-iyield__unit--prod { background-size: 70% 70%; }
+.con-sit__total-discard { font-size: .62em; font-weight: 700; color: fade(@con-amber, 92%); }
+/* A resource onto a card: the card's mini name — quiet, beside the icon, never cut (it is the target the seat chose). */
+.con-sit__total-card { display: inline-flex; gap: .5em; font-family: @con-font-read; font-size: .42em; font-weight: 600; opacity: .8; }
+/* An OBJECT is one record (the record renderer's chip without its plate), at the tier's scale. */
+.con-sit__total--object {
+    font-size: .6em;
+    .con-sit__part { font-size: 1em; padding: 0; background: none; box-shadow: none; gap: .3em; }
+    .con-sit__part-unit, .con-sit__world-icon, .con-sit__door-tile { width: 1.5em; height: 1.5em; }
+    .con-sit__part-stack { font-size: .9em; }
+}
+/* THE FOLD reads as «⋯ +N» — «N more, X shows them», never a bare number a player could take for an amount. */
+.con-sit__total--fold { font-size: .7em; font-weight: 700; opacity: .8; gap: .15em; }
+.con-sit__total-fold-mark { letter-spacing: .05em; }
+/* A SKIP is one line: what was skipped and why — the amber seam of every named skip. */
+.con-sit__total--skipped {
+    /* A skip WRAPS inside its row — its label and its reason are the whole statement (law 4), never cut (the Deck). */
+    white-space: normal;
+    max-width: 100%;
+    .con-sit__part--skipped { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: .1rem .45rem; font-size: .82rem; min-width: 0; max-width: 100%; }
+    .con-parl__chip-dim, .con-sit__part-reason { white-space: normal; overflow: visible; text-overflow: clip; min-width: 0; }
+}
+/* THE MARKS — where the totals came from: a planet with its «×k», a party's seal, the crown. Icons only, quiet. */
+.con-sit__marks { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .8rem; opacity: .8; }
+.con-sit__mark { display: inline-flex; align-items: center; gap: .22rem; }
+.con-sit__mark .con-sit__part-planet { width: 1.1rem; height: 1.1rem; }
+.con-sit__mark .con-sit__emblem { width: 1.15rem; height: 1.15rem; }
+.con-sit__mark-times { font-size: .76rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
 .con-sit__payout-winner {
-    display: inline-flex; align-items: center; gap: .3rem; margin-left: auto;
-    font-size: .56rem; letter-spacing: .14em; text-transform: uppercase; color: @con-parl-gold;
+    display: inline-flex; align-items: center; gap: .3rem; margin-left: 0; white-space: nowrap;
+    font-size: .62rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: @con-parl-gold;
 }
 .con-sit__payout-crown { width: .9rem; height: .6rem; fill: @con-parl-gold; flex-shrink: 0; }
-/* A winner's row carries the gold rim (the crown says why). */
+/* A winner's row carries the gold kant (the crown says why); the viewer's own row the cyan one at its leading edge. */
 .con-parl[data-sitting-stage="results"] .con-sit__payout--winner { box-shadow: inset 0 0 0 .07rem fade(@con-parl-gold, 60%); }
+.con-parl[data-sitting-stage="results"] .con-sit__payout--me { box-shadow: inset .18rem 0 0 fade(@con-cyan, 85%), inset 0 0 0 .05rem rgba(201, 198, 214, 0.16); }
+.con-parl[data-sitting-stage="results"] .con-sit__payout--me.con-sit__payout--winner { box-shadow: inset .18rem 0 0 fade(@con-cyan, 85%), inset 0 0 0 .07rem fade(@con-parl-gold, 60%); }
 html.con-profile-tv .con-parl[data-sitting-stage="results"] .con-sit {
-    &__payout-name { font-size: 1.05rem; }
+    &__payout-name { font-size: 1.15rem; }
     &__enacted-ruler { font-size: .85rem; b { font-size: 1rem; } }
     &__enacted-rule { font-size: .8rem; }
     &__support-row > .con-parl__chip-dim { font-size: .8rem; }
+    &__mark-times { font-size: .82rem; }
 }
 html.con-profile-tv .con-sit__payout-winner { font-size: .8rem; letter-spacing: .08em; }
+html.con-profile-tv .con-sit__total-card, html.con-profile-tv .con-sit__mark-times { font-size: .82rem; }
+html.con-profile-tv .con-sit__total--skipped .con-sit__part--skipped { font-size: .9rem; }
 html.con-profile-handheld .con-parl[data-sitting-stage="results"] .con-sit {
-    &__results { grid-template-columns: minmax(6.5rem, .5fr) minmax(0, 1.5fr) minmax(0, 1fr); gap: .4rem .7rem; padding: .5rem .6rem .5rem; }
+    &__results { gap: .35rem .7rem; padding: .5rem .6rem .45rem; }
     &__enacted { padding-right: .6rem; gap: .3rem; }
-    &__enacted-card { zoom: calc(.5 * var(--con-ui-scale, 1)); }
     &__enacted-ruler { font-size: .62rem; gap: .25rem; b { font-size: .66rem; } .con-sit__emblem { width: 1.1rem; height: 1.1rem; } }
     &__enacted-rule { font-size: .56rem; }
     &__table { padding-left: .6rem; gap: .5rem; }
-    &__payouts { grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: .5rem; }
-    &__payout { padding: .4rem .5rem; gap: .3rem; min-height: 0; }
-    /* The Deck's plate is too narrow for the name AND the winner's words on one line: the crown's line goes under the
-       name (a cut name was the defect — «play…»). */
-    .con-sit__payout-winner { flex-basis: 100%; margin-left: 0; font-size: .56rem; }
+    &__ledger { row-gap: .35rem; }
+    &__payout { padding: var(--sit-row-pad, .3rem) .55rem; column-gap: .7rem; }
+    &__payout-name { font-size: .72rem; }
     &__fresh-row { gap: .35rem; }
-    &__fresh-card { zoom: calc(.24 * var(--con-ui-scale, 1)); }
     &__support .con-sit__emblem { width: 1.2rem; height: 1.2rem; }
     &__support-place { width: .74rem; height: .9rem; --pd-host: .9rem; }
     &__support-row > .con-parl__chip-dim { font-size: .56rem; }
-    &__payout-name { font-size: .72rem; }
-    &__part { font-size: .8rem; }
-    &__part-unit { width: 1.05rem; height: 1.05rem; }
 }
+html.con-profile-handheld .con-sit__payout-winner { font-size: .56rem; }
+html.con-profile-handheld .con-sit__marks { gap: .2rem .5rem; }
 html.con-profile-handheld .con-sit {
     /* THE RESULTS PANEL PAYS ITS OWN WAY ON THE DECK. The stage already takes the Agenda track whole here
        (above); the rest of the room is bought from the PLATE's own chrome (padding, the row gap), never from

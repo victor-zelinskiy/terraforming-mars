@@ -163,17 +163,25 @@ export type ResultsPayoutPart = {
   note?: string;
   /** The part paid nothing: WHAT it was and WHY (both English i18n keys). */
   skipped?: {title: string, reason: string};
+  /** The WINNER's own part of the law (`part: 'winner'`) — the crown is its source mark. */
+  winner?: boolean;
+  /** A colony-paid part: how many times its bonus was paid (the law's k) — the source mark's «×k». */
+  multiplier?: number;
+  /** …and the seat's cubes on that tile when more than one (each pays in full). */
+  cubes?: number;
 };
 
 export type ResultsPayout = {
   player: Color;
+  /** Every record of the seat, in the server's order — the breakdown's lines read them. */
   parts: ReadonlyArray<ResultsPayoutPart>;
   /**
-   * THE NET of the seat's own SUPPLY parts in one unit — a budget's «−10 → +7 = −3»: read only where the
-   * law both TOOK and PAID the same resource (the resolution's own parts, never the ruling party's answer),
-   * so the row says the day's balance the chips could not.
+   * What the seat GOT — the card's ledger row (`resultsTotalsOf`): one token per unit, a levy netted into its own
+   * unit (the budget's «−10 → +7 = −3» is the M€ total itself), an object per fact, the skips last.
    */
-  net?: {unit: string, amount: number};
+  totals: ReadonlyArray<ResultsTotal>;
+  /** …and the quiet marks row under it: where the totals came from (planets ×k, a party's seal, the crown). */
+  marks: ReadonlyArray<ResultsTotalSource>;
 };
 
 /**
@@ -423,6 +431,9 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
   }
   if (outcome.card !== undefined) {
     part.card = outcome.card;
+  } else if (delivery.payload.cards?.length === 1 && outcome.onto !== 'each-counted') {
+    // A distribution that landed on ONE card names it like a single recipient (the ledger's mini name reads it).
+    part.card = delivery.payload.cards[0].card;
   }
   if (delivery.payload.cards !== undefined && delivery.payload.cards.length > 1) {
     // Each recipient keeps the kind ITS card took — printed beside its share where the kinds differ.
@@ -441,6 +452,15 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
   }
   if (outcome.colony !== undefined) {
     part.colony = outcome.colony;
+    if (outcome.multiplier !== undefined) {
+      part.multiplier = outcome.multiplier;
+    }
+    if (outcome.cubes !== undefined) {
+      part.cubes = outcome.cubes;
+    }
+  }
+  if (outcome.part === 'winner') {
+    part.winner = true;
   }
   if (outcome.description !== undefined) {
     part.description = outcome.description;
@@ -466,27 +486,6 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
     }
   }
   return part;
-}
-
-/**
- * THE NET of a seat's own SUPPLY parts in ONE unit — present only where the law both TOOK (a levy: a negative
- * `stock` part) and PAID that unit into the supply (a positive `stock` part of the resolution's own, never a
- * reaction, never a skip): the balance the row states beside the parts. A seat that was levied and paid
- * nothing in that unit (a named skip) has NO net line — it would only restate the levy (RX25, Plant Ban).
- */
-export function netOfParts(parts: ReadonlyArray<ResultsPayoutPart>): {unit: string, amount: number} | undefined {
-  const supply = parts.filter((part) => part.kind === 'stock' && !part.production && part.skipped === undefined && part.amount !== undefined);
-  const loss = supply.find((part) => (part.amount ?? 0) < 0);
-  if (loss === undefined) {
-    return undefined;
-  }
-  const same = supply.filter((part) => part.unit === loss.unit);
-  // …and only where the law also PAID that unit: a net that restates the single part it is made of
-  // («−3 · = −3» — Plant Ban, whose whole payout is the cut) is a second voice saying nothing new.
-  if (!same.some((part) => (part.amount ?? 0) > 0)) {
-    return undefined;
-  }
-  return {unit: loss.unit, amount: same.reduce((sum, part) => sum + (part.amount ?? 0), 0)};
 }
 
 /**
@@ -533,12 +532,8 @@ export function resultsReadingOf(
   const paid = seats.filter((seat) => seat.enacts !== false || (byPlayer.get(seat.player)?.length ?? 0) > 0);
   const payouts = paid.map((seat): ResultsPayout => {
     const parts = byPlayer.get(seat.player) ?? [];
-    const payout: ResultsPayout = {player: seat.player, parts};
-    const net = netOfParts(parts);
-    if (net !== undefined) {
-      payout.net = net;
-    }
-    return payout;
+    const totals = resultsTotalsOf(parts);
+    return {player: seat.player, parts, totals, marks: seatSourceMarksOf(totals)};
   });
   // What the SUPPORT STEP granted, per party — the freshness mark of the row below. Summed, never
   // assigned: one party gets at most one record today, and a reading may not depend on that.
@@ -581,4 +576,222 @@ export function resultsReadingOf(
     reading.veto = extras.veto;
   }
   return reading;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+// THE SEAT'S TOTALS (P71 · ledger CY) — what the card says about a seat: what it GOT, per unit, never a chip per
+// record. Colonial Affairs writes k pairs of Pluto as 2k records; a budget writes the levy, the payout and the party's
+// answer as three: the card printed one chip each («Плутон +1 · ⌫1 · +1 · ⌫1 · +1 · ⌫1»), the plates outgrew their
+// row and spilled over each other (the owner's two frames, 2026-10-28). The record-by-record story belongs to the
+// breakdown one level deeper («ПОДРОБНОСТИ ВЫПЛАТ»), which renders its total with the SAME function — the two
+// surfaces cannot disagree on what a seat got.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** WHERE a total came from — its marks under the seat's tokens (icons only: a planet ×k, a party's seal, the crown). */
+export type ResultsTotalSource =
+  | {kind: 'colony', colony: string, times?: number}
+  | {kind: 'party', party: ReduxParty}
+  | {kind: 'winner'}
+  | {kind: 'law'};
+
+/**
+ * ONE TOTAL of one seat:
+ *  · `unit`    — a number of one unit (a supply resource, a production step, cards drawn, a resource onto a card),
+ *                every record of that unit summed: a levy NETS into its own unit (the M€ total is the day's NET),
+ *                the ruling party's answer FLOWS into its unit (the seat received M€ — one number) and marks its source;
+ *  · `discard` — cards thrown away (Pluto's second half) — never netted against the draw;
+ *  · `object`  — a fact that is not a number of a unit (a tile, a step of a parameter, a walk of the Career, a tile's
+ *                printed benefit, a payout that asked nobody): ONE record, drawn by the one record renderer
+ *                (`ConsoleSitPayoutPart`);
+ *  · `skipped` — a part that paid nothing, with the server's reason (invariant 4 — a skip names itself).
+ */
+export type ResultsTotal = {
+  id: string;
+  kind: 'unit' | 'discard' | 'object' | 'skipped';
+  /** The unit (a resource / card-resource name, `cards`); '' for an object / a skip. */
+  unit: string;
+  /** A card-resource unit of several kinds — the declared kinds, drawn as one unit joined by «or». */
+  units?: ReadonlyArray<string>;
+  /** The family of the unit's icon: a supply resource, a card resource (the cube on a card), cards. */
+  family: 'stock' | 'cardResource' | 'cards' | 'none';
+  production: boolean;
+  /** `unit` / `discard`: the sum. */
+  amount?: number;
+  /** A card-resource total that landed on ONE card: its name (the mini name beside the icon). */
+  card?: string;
+  /** …or the recipients card by card when it was spread (summed per card across the records). */
+  cards?: ReadonlyArray<{card: string, amount: number}>;
+  /** `object` / `skipped`: the record itself — the one renderer draws it. */
+  part?: ResultsPayoutPart;
+  /** Where it came from, each source once, in the order the records named them. */
+  sources: ReadonlyArray<ResultsTotalSource>;
+  /** How many records this total stands for (the breakdown's «из чего», and the invariant's count). */
+  records: number;
+};
+
+/** The merge key of a NUMBER part (undefined = the part is an object or a skip and stands alone). */
+function totalKeyOf(part: ResultsPayoutPart): {key: string, kind: 'unit' | 'discard', family: ResultsTotal['family']} | undefined {
+  if (part.skipped !== undefined || part.amount === undefined) {
+    return undefined;
+  }
+  // Objects: a tile, a parameter's step, a walk, a payout that asked nobody (it names its count of cards).
+  if (part.tile !== undefined || part.parameter !== undefined || part.walk !== undefined || part.eachCard !== undefined) {
+    return undefined;
+  }
+  if (part.kind === 'discard') {
+    return {key: 'discard', kind: 'discard', family: 'cards'};
+  }
+  if (part.kind === 'cards') {
+    return {key: 'cards', kind: 'unit', family: 'cards'};
+  }
+  if (part.kind === 'cardResource') {
+    const unit = part.units !== undefined ? part.units.join('|') : part.unit;
+    return {key: `cres:${unit}`, kind: 'unit', family: 'cardResource'};
+  }
+  // A HUD-side colony bonus with no unit (a discount, a science tag) is the tile's printed benefit — an object.
+  if (part.unit === '') {
+    return undefined;
+  }
+  return {key: `${part.production ? 'prod' : 'stock'}:${part.unit}`, kind: 'unit', family: 'stock'};
+}
+
+/** The sources a part names — a colony (×k), the ruling party, the winner's crown, else the law itself. */
+function sourcesOfPart(part: ResultsPayoutPart): Array<ResultsTotalSource> {
+  const out: Array<ResultsTotalSource> = [];
+  // A colony BUILT names its tile on the record itself (the object leads with it) — no second planet in the marks.
+  if (part.colony !== undefined && part.kind !== 'colony') {
+    out.push(part.multiplier === undefined ? {kind: 'colony', colony: part.colony} : {kind: 'colony', colony: part.colony, times: part.multiplier});
+  }
+  if (part.party !== undefined) {
+    out.push({kind: 'party', party: part.party});
+  }
+  if (part.winner === true) {
+    out.push({kind: 'winner'});
+  }
+  if (out.length === 0) {
+    out.push({kind: 'law'});
+  }
+  return out;
+}
+
+/** One source's identity — a source is listed once per total (and once per seat in the marks row). */
+export function totalSourceKey(source: ResultsTotalSource): string {
+  switch (source.kind) {
+  case 'colony': return `colony:${source.colony}`;
+  case 'party': return `party:${source.party}`;
+  case 'winner': return 'winner';
+  case 'law': return 'law';
+  }
+}
+
+function addSources(into: Array<ResultsTotalSource>, add: ReadonlyArray<ResultsTotalSource>): void {
+  for (const source of add) {
+    if (!into.some((s) => totalSourceKey(s) === totalSourceKey(source))) {
+      into.push(source);
+    }
+  }
+}
+
+type TotalDraft = ResultsTotal & {sourcesDraft: Array<ResultsTotalSource>, cardsMap?: Map<string, number>, unaddressed?: boolean};
+
+/**
+ * THE TOTALS of one seat's parts — a unit stands where it first appeared, the cards thrown away right after the
+ * cards drawn, the skips last. Pure. The invariant (spec'd): per unit, the sum of the totals equals the sum of the
+ * parts, and every part — a skip included — is counted in exactly one total (`records`).
+ */
+export function resultsTotalsOf(parts: ReadonlyArray<ResultsPayoutPart>): Array<ResultsTotal> {
+  const byKey = new Map<string, TotalDraft>();
+  const out: Array<TotalDraft> = [];
+  const skips: Array<TotalDraft> = [];
+  parts.forEach((part, index) => {
+    const merge = totalKeyOf(part);
+    if (merge === undefined) {
+      const lone: TotalDraft = {
+        id: `${part.skipped !== undefined ? 'skip' : 'obj'}:${part.id}`,
+        kind: part.skipped !== undefined ? 'skipped' : 'object',
+        unit: '',
+        family: 'none',
+        production: part.production,
+        part,
+        sources: [],
+        sourcesDraft: sourcesOfPart(part),
+        records: 1,
+      };
+      (part.skipped !== undefined ? skips : out).push(lone);
+      return;
+    }
+    let total = byKey.get(merge.key);
+    if (total === undefined) {
+      total = {
+        id: `total:${merge.key}:${index}`,
+        kind: merge.kind,
+        unit: merge.family === 'cards' ? 'cards' : part.unit,
+        ...(part.units === undefined ? {} : {units: part.units}),
+        family: merge.family,
+        production: part.production,
+        amount: 0,
+        sources: [],
+        sourcesDraft: [],
+        records: 0,
+      };
+      byKey.set(merge.key, total);
+      out.push(total);
+    }
+    total.amount = (total.amount ?? 0) + (part.amount ?? 0);
+    total.records += 1;
+    addSources(total.sourcesDraft, sourcesOfPart(part));
+    if (merge.family === 'cardResource') {
+      const map = total.cardsMap ?? (total.cardsMap = new Map());
+      const recipients = part.cards ?? (part.card === undefined ? [] : [{card: part.card, amount: part.amount ?? 0}]);
+      for (const entry of recipients) {
+        map.set(entry.card, (map.get(entry.card) ?? 0) + entry.amount);
+      }
+      if (recipients.length === 0) {
+        total.unaddressed = true;
+      }
+    }
+  });
+  // The cards thrown away stand right after the cards drawn (Pluto's pairs read «+3 [card] · ⌫3»).
+  const thrownAt = out.findIndex((t) => t.kind === 'discard');
+  if (thrownAt >= 0) {
+    const [thrown] = out.splice(thrownAt, 1);
+    const drawnAt = out.findIndex((t) => t.kind === 'unit' && t.family === 'cards');
+    out.splice(drawnAt >= 0 ? drawnAt + 1 : thrownAt, 0, thrown);
+  }
+  return [...out, ...skips].map((draft) => {
+    const total: ResultsTotal = {
+      id: draft.id, kind: draft.kind, unit: draft.unit, family: draft.family, production: draft.production,
+      sources: draft.sourcesDraft, records: draft.records,
+    };
+    if (draft.units !== undefined) {
+      total.units = draft.units;
+    }
+    if (draft.amount !== undefined) {
+      total.amount = draft.amount;
+    }
+    if (draft.part !== undefined) {
+      total.part = draft.part;
+    }
+    const map = draft.cardsMap;
+    if (map !== undefined && map.size > 0) {
+      if (map.size === 1 && draft.unaddressed !== true) {
+        total.card = [...map.keys()][0];
+      } else {
+        total.cards = [...map.entries()].map(([card, amount]) => ({card, amount}));
+      }
+    }
+    return total;
+  });
+}
+
+/** The marks row of a seat: every total's sources, each once, minus the bare «law» (the whole card is the law's). */
+export function seatSourceMarksOf(totals: ReadonlyArray<ResultsTotal>): Array<ResultsTotalSource> {
+  const out: Array<ResultsTotalSource> = [];
+  for (const total of totals) {
+    if (total.kind === 'skipped') {
+      continue;
+    }
+    addSources(out, total.sources.filter((s) => s.kind !== 'law'));
+  }
+  return out;
 }

@@ -1429,5 +1429,9 @@
   "in its place": "на его место",
   "There is no chairman to remove": "Снимать некого: председателя нет",
   "You are already the chairman": "Вы уже председатель",
-  "unseats ${0}": "снимает: ${0}"
+  "unseats ${0}": "снимает: ${0}",
+  "Seat total": "Итого",
+  "Where it came from": "Из чего",
+  "Other influence": "Прочее",
+  "cubes: ${0}": "кубиков: ${0}"
 }

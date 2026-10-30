@@ -539,6 +539,28 @@ describe('ColonialAffairs', () => {
       expect(again.colonyBonuses?.map((e) => [e.colony, e.cubes])).deep.eq([[ColonyName.LUNA, 2]]);
     });
 
+    it('MarsBot under «politics» (D16): ONE record per TILE it holds — every tile kept in the sitting\'s record, each in its real unit (M€), never the tile\'s printed text', () => {
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'politics'});
+      const parliament = game.parliament!;
+      game.playerIsFinishedWithResearchPhase(human);
+      seatResolution(parliament, 0, COLONIAL);
+      parliament.placeVote(human, parliament.slots[0], 'lobby');
+      arrangeColonies(game, [[new Ceres(), [human, bot]], [new Pluto(), [bot]], [new Luna(), [bot]]]);
+      game.automa!.actionDeck = []; // its one turn is a pass — it never votes against the card
+      human.popWaitingFor();
+      game.playerHasPassed(human);
+      game.playerIsFinishedTakingActions();
+      runAllActions(game);
+      const outcomes = (parliament.phase?.summary?.outcomes ?? parliament.lastPhase?.outcomes ?? []).filter((o) => o.player === bot.id && o.kind !== 'reaction');
+      expect(outcomes.map((o) => o.colony), `every tile of the bot's — the second and the third are no longer dropped: ${JSON.stringify(outcomes)}`)
+        .deep.eq([ColonyName.CERES, ColonyName.PLUTO, ColonyName.LUNA]);
+      for (const record of outcomes) {
+        expect(record, JSON.stringify(record)).deep.include({kind: 'colonyBonus', stock: Resource.MEGACREDITS, multiplier: 2});
+        expect(record.amount, 'the M€ it took — one per bonus paid').eq(record.megacredits);
+        expect(record.description, 'no printed text of a bonus the bot never took').is.undefined;
+      }
+    });
+
     it('MarsBot (mode none) is never asked, never paid, never a winner — its cubes receive nothing', () => {
       const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;

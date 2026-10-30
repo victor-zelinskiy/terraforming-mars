@@ -161,7 +161,10 @@ function payColonyBonuses(ctx: EnactContext, definition: ResolutionDefinition, t
     const amount = times * cubes;
     const megacredits = amount * BOT_UNIT_MEGACREDITS;
     bot.stock.add(Resource.MEGACREDITS, megacredits, {log: false, from: {resolution: definition.id}});
-    ctx.report({kind: 'colonyBonus', ...recorded, colony: colony.name, description: colony.metadata.colony.description, cubes, multiplier: times, amount, megacredits});
+    // What the bot REALLY received is M€ (one per bonus paid, `BOT_UNIT_MEGACREDITS`) — the record says so in its unit
+    // (`stock`), never with the tile's printed description: «Draw 1 card, then discard 1 card» over the bot's results
+    // row described a draw the bot never made (P71 · CY, R4).
+    ctx.report({kind: 'colonyBonus', ...recorded, colony: colony.name, stock: Resource.MEGACREDITS, cubes, multiplier: times, amount: megacredits, megacredits});
   }
   ctx.game.log('${0} gains all colony bonuses ${1} time(s) from ${2}', (b) => b.player(bot).number(times).resolution(definition.id));
   return undefined;

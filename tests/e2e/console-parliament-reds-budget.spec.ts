@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, fetchPlayerModel, pressUntil, settle} from './consoleStart';
 import {
-  armLeakWitness, closeSitting, enterSittingByPass, expectParliamentFits, openParliament, sittingStage, strandedReports, waitSittingAtRest,
+  armLeakWitness, closeSitting, enterSittingByPass, expectParliamentFits, ledgerRecords, openParliament, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -376,11 +376,11 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-sit-results-hidden]'), 'the results card revealed by its own beat').toHaveCount(0, {timeout: 30_000});
       await waitSittingAtRest(page, 20_000);
       const blueRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${blue}"]`);
-      await expect(blueRow.locator('[data-sit-part]'), 'blue: levy · payout · step').toHaveCount(3);
+      await expect.poll(() => ledgerRecords(blueRow), 'blue: levy · payout · step — three records in its totals').toBe(3);
       await expect(blueRow.locator('[data-sit-part-walk]')).toHaveAttribute('data-sit-part-walk-to', '2');
       await expect(blueRow.locator('[data-sit-part-tr]'), 'the step\'s TR').toHaveCount(1);
       const botRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${bot.color}"]`);
-      await expect(botRow.locator('[data-sit-part]'), 'the bot: levy · payout · step, like every seat').toHaveCount(3);
+      await expect.poll(() => ledgerRecords(botRow), 'the bot: levy · payout · step, like every seat').toBe(3);
       await expect(botRow.locator('[data-sit-part-walk]')).toHaveAttribute('data-sit-part-walk-to', '7');
       await expect(botRow.locator('[data-sit-part-drawn]'), 'the bot\'s card step read as a card').toHaveText('+1');
       await expectParliamentFits(page, `${preset.id} results`);

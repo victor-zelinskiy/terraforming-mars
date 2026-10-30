@@ -57,7 +57,7 @@
       <template v-else-if="part.kind === 'colonyBonus'">
         <b v-if="part.unit !== ''">{{ signedAmount(part.amount) }}</b>
         <i v-if="part.unit !== ''" class="con-sit__part-unit" :class="partUnitClass(part)" aria-hidden="true"></i>
-        <span class="con-sit__part-reason" data-sit-part-description>{{ $t(part.description ?? '') }}</span>
+        <span v-if="part.description !== undefined" class="con-sit__part-reason" data-sit-part-description>{{ $t(part.description ?? '') }}</span>
       </template>
       <!-- A card thrown away (Pluto's second half): the discard mark, the card. -->
       <template v-else-if="part.kind === 'discard'">

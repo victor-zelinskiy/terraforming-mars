@@ -236,7 +236,7 @@ test.describe('Joint Research · standard-1080', () => {
       await waitSittingAtRest(page, 30_000);
       const myRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${wire.thisPlayer.color}"]`);
       await expect(myRow).toHaveCount(1);
-      await expect(myRow.locator('[data-sit-part-amount]').first()).toHaveText('+3');
+      await expect(myRow.locator('[data-sit-total][data-sit-total-kind="unit"] .con-sit__total-amount').first()).toHaveText('+3');
       const redRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${theirs?.player}"]`);
       await expect(redRow, 'the seat that needed none has a row of its own').toHaveCount(1);
       await expect(redRow.locator('[data-sit-part="skipped"]'), '…and its part is the named zero').toHaveCount(1);

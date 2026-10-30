@@ -5,7 +5,7 @@ import {
   bootFixtureSeats, commitFocusedSpace, crumbText, fetchPlayerModel, openConsole, placementState, press, pressUntil, settle, walkToSpace,
 } from './consoleStart';
 import {
-  armLeakWitness, closeSitting, enterSittingByPass, expectParliamentFits, hotVerb, openParliament, parliament, parliamentWire, sittingStage,
+  armLeakWitness, closeSitting, enterSittingByPass, expectParliamentFits, ledgerRecords, hotVerb, openParliament, parliament, parliamentWire, sittingStage,
   sittingStep, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
@@ -453,10 +453,10 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-sit-results-hidden]'), 'the results card revealed by its own beat').toHaveCount(0, {timeout: 30_000});
       await waitSittingAtRest(page, 20_000);
       const blueRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${blue}"]`);
-      await expect(blueRow.locator('[data-sit-part]'), 'blue: levy · payout · city · the party\'s steel').toHaveCount(4);
+      await expect.poll(() => ledgerRecords(blueRow), 'blue: levy · payout · city · the party\'s steel — four records in its totals').toBe(4);
       await expect(blueRow.locator('[data-sit-part="city"]')).toHaveCount(1);
       const botRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${bot.color}"]`);
-      await expect(botRow.locator('[data-sit-part]'), 'the bot: levy · payout · city — as every seat (D16)').toHaveCount(3);
+      await expect.poll(() => ledgerRecords(botRow), 'the bot: levy · payout · city — as every seat (D16)').toBe(3);
       await expect(botRow.locator('[data-sit-part="city"]')).toHaveCount(1);
       await expectParliamentFits(page, `${preset.id} results`);
       await shoot(page, preset.id, '07-results');
@@ -583,9 +583,9 @@ for (const preset of PRESETS) {
       await waitSittingAtRest(page, 40_000);
       await expect(page.locator('[data-sit-results-hidden]'), 'the results card revealed by its own beat').toHaveCount(0, {timeout: 30_000});
       const blueRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${blue}"]`);
-      await expect(blueRow.locator('[data-sit-part]'), 'blue: levy · payout · city · the party\'s steel').toHaveCount(4);
+      await expect.poll(() => ledgerRecords(blueRow), 'blue: levy · payout · city · the party\'s steel — four records in its totals').toBe(4);
       const botRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${bot.color}"]`);
-      await expect(botRow.locator('[data-sit-part]'), 'the bot: levy · payout · city — as every seat (D16)').toHaveCount(3);
+      await expect.poll(() => ledgerRecords(botRow), 'the bot: levy · payout · city — as every seat (D16)').toBe(3);
       await shoot(page, preset.id, '08f-botfirst-results');
       const end = await wireOf(request, playerId);
       expect(end.players.find((p) => p.color === bot.color)?.citiesCount, 'the bot\'s one city').toBe(1);

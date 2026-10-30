@@ -309,11 +309,12 @@ test.describe('Plant Ban · standard-1080', () => {
     await waitSittingAtRest(page, 30_000);
     const row = page.locator(`[data-sit-payout][data-sit-payout-seat="${wire.thisPlayer.color}"]`);
     await expect(row).toHaveCount(1);
-    await expect(row.locator('[data-sit-part-amount]')).toHaveCount(1);
-    await expect(row.locator('[data-sit-part-amount]').first()).toHaveAttribute('data-sit-part-amount', '-3');
-    await expect(row.locator('[data-sit-part-amount]').first()).toHaveText('−3');
-    await expect(row.locator('[data-sit-part="skipped"]'), 'a loss is never a skip').toHaveCount(0);
-    await expect(row.locator('[data-sit-net]'), 'nothing was paid in this unit — a net would restate the one part').toHaveCount(0);
+    // The ledger prints the seat's TOTALS (P71 · CY): the cut is ONE plants token, signed.
+    const tokens = row.locator('[data-sit-total][data-sit-total-kind="unit"]');
+    await expect(tokens).toHaveCount(1);
+    await expect(tokens.first()).toHaveAttribute('data-sit-total-amount', '-3');
+    await expect(tokens.first().locator('.con-sit__total-amount')).toHaveText('−3');
+    await expect(row.locator('[data-sit-total-kind="skipped"]'), 'a loss is never a skip').toHaveCount(0);
     await settle(page, {timeoutMs: 30_000});
     await expectParliamentFits(page, 'results');
     await shoot(page, '05-results');

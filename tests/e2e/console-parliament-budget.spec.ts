@@ -361,20 +361,20 @@ test.describe('Industrialist Budget · standard-1080', () => {
     const income = (before.thisPlayer.megacreditProduction ?? 0) + before.thisPlayer.terraformRating;
     expect(wire.thisPlayer.megacredits - before.thisPlayer.megacredits - income, 'the day\'s balance').toBe(-3);
 
-    // ── THE RESULTS read the parts signed and the NET: «−10 · +7 · +4 = −3».
+    // ── THE RESULTS read the seat's TOTALS (P71 · CY): the levy NETS into ONE M€ token — the day's «−10 + 7 = −3» —
+    // and the production is its own token «+4»; the record-by-record story is the breakdown's (X).
     await expect.poll(() => sittingStage(page), {timeout: 90_000}).toBe('results');
     await waitSittingAtRest(page, 30_000);
     const row = page.locator(`[data-sit-payout][data-sit-payout-seat="${wire.thisPlayer.color}"]`);
     await expect(row).toHaveCount(1);
-    await expect(row.locator('[data-sit-part-amount]').nth(0)).toHaveAttribute('data-sit-part-amount', '-10');
-    await expect(row.locator('[data-sit-part-amount]').nth(0)).toHaveText('−10');
-    await expect(row.locator('[data-sit-part-amount]').nth(1)).toHaveText('+7');
-    await expect(row.locator('[data-sit-part-amount]').nth(2)).toHaveText('+4');
-    await expect(row.locator('[data-sit-part="skipped"]'), 'a loss is never a skip').toHaveCount(0);
-    const netLine = row.locator('[data-sit-net]');
-    await expect(netLine, 'the net stands beside the parts').toHaveCount(1);
-    await expect(netLine).toHaveAttribute('data-sit-net-amount', '-3');
-    await expect(netLine).toContainText('−3');
+    const tokens = row.locator('[data-sit-total][data-sit-total-kind="unit"]');
+    await expect(tokens, 'the M€ net and the production — two tokens').toHaveCount(2);
+    await expect(tokens.nth(0)).toHaveAttribute('data-sit-total-unit', 'megacredits');
+    await expect(tokens.nth(0)).toHaveAttribute('data-sit-total-amount', '-3');
+    await expect(tokens.nth(0).locator('.con-sit__total-amount')).toHaveText('−3');
+    await expect(tokens.nth(1)).toHaveAttribute('data-sit-total-production', '');
+    await expect(tokens.nth(1).locator('.con-sit__total-amount')).toHaveText('+4');
+    await expect(row.locator('[data-sit-total-kind="skipped"]'), 'a loss is never a skip').toHaveCount(0);
     await settle(page, {timeoutMs: 30_000});
     await expectParliamentFits(page, 'results');
     await shoot(page, '07-results-net');

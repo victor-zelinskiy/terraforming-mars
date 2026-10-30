@@ -1,0 +1,4546 @@
+{
+ "activePlayer": "p-player3-id",
+ "awards": [
+  "Landlord",
+  "Scientist",
+  "Banker",
+  "Thermalist",
+  "Miner"
+ ],
+ "beholdTheEmperor": false,
+ "board": {
+  "spaces": [
+   {
+    "id": "01",
+    "spaceType": "colony",
+    "bonus": [],
+    "x": -1,
+    "y": -1
+   },
+   {
+    "id": "02",
+    "spaceType": "colony",
+    "bonus": [],
+    "x": -1,
+    "y": -1
+   },
+   {
+    "id": "03",
+    "spaceType": "land",
+    "bonus": [
+     1,
+     1
+    ],
+    "x": 4,
+    "y": 0
+   },
+   {
+    "id": "04",
+    "spaceType": "ocean",
+    "bonus": [
+     1,
+     1
+    ],
+    "x": 5,
+    "y": 0
+   },
+   {
+    "id": "05",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 0
+   },
+   {
+    "id": "06",
+    "spaceType": "ocean",
+    "bonus": [
+     3
+    ],
+    "x": 7,
+    "y": 0
+   },
+   {
+    "id": "07",
+    "spaceType": "ocean",
+    "bonus": [],
+    "x": 8,
+    "y": 0
+   },
+   {
+    "id": "08",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 3,
+    "y": 1
+   },
+   {
+    "id": "09",
+    "spaceType": "land",
+    "bonus": [
+     1
+    ],
+    "x": 4,
+    "y": 1,
+    "volcanic": true
+   },
+   {
+    "id": "10",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 5,
+    "y": 1
+   },
+   {
+    "id": "11",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 1
+   },
+   {
+    "id": "12",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 7,
+    "y": 1
+   },
+   {
+    "id": "13",
+    "spaceType": "ocean",
+    "bonus": [
+     3,
+     3
+    ],
+    "x": 8,
+    "y": 1
+   },
+   {
+    "id": "14",
+    "spaceType": "land",
+    "bonus": [
+     3
+    ],
+    "x": 2,
+    "y": 2,
+    "volcanic": true
+   },
+   {
+    "id": "15",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 3,
+    "y": 2
+   },
+   {
+    "id": "16",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 4,
+    "y": 2
+   },
+   {
+    "id": "17",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 5,
+    "y": 2
+   },
+   {
+    "id": "18",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 2
+   },
+   {
+    "id": "19",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 7,
+    "y": 2
+   },
+   {
+    "id": "20",
+    "spaceType": "land",
+    "bonus": [
+     1
+    ],
+    "x": 8,
+    "y": 2
+   },
+   {
+    "id": "21",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     0
+    ],
+    "x": 1,
+    "y": 3,
+    "volcanic": true
+   },
+   {
+    "id": "22",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 2,
+    "y": 3
+   },
+   {
+    "id": "23",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 3,
+    "y": 3
+   },
+   {
+    "id": "24",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 4,
+    "y": 3
+   },
+   {
+    "id": "25",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 5,
+    "y": 3
+   },
+   {
+    "id": "26",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 6,
+    "y": 3
+   },
+   {
+    "id": "27",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 7,
+    "y": 3
+   },
+   {
+    "id": "28",
+    "spaceType": "ocean",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 8,
+    "y": 3
+   },
+   {
+    "id": "29",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 0,
+    "y": 4,
+    "volcanic": true
+   },
+   {
+    "id": "30",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 1,
+    "y": 4
+   },
+   {
+    "id": "31",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 2,
+    "y": 4
+   },
+   {
+    "id": "32",
+    "spaceType": "ocean",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 3,
+    "y": 4
+   },
+   {
+    "id": "33",
+    "spaceType": "ocean",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 4,
+    "y": 4
+   },
+   {
+    "id": "34",
+    "spaceType": "ocean",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 5,
+    "y": 4
+   },
+   {
+    "id": "35",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 6,
+    "y": 4
+   },
+   {
+    "id": "36",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 7,
+    "y": 4
+   },
+   {
+    "id": "37",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 8,
+    "y": 4
+   },
+   {
+    "id": "38",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 1,
+    "y": 5
+   },
+   {
+    "id": "39",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 2,
+    "y": 5
+   },
+   {
+    "id": "40",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 3,
+    "y": 5
+   },
+   {
+    "id": "41",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 4,
+    "y": 5
+   },
+   {
+    "id": "42",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 5,
+    "y": 5
+   },
+   {
+    "id": "43",
+    "spaceType": "ocean",
+    "bonus": [
+     2
+    ],
+    "x": 6,
+    "y": 5
+   },
+   {
+    "id": "44",
+    "spaceType": "ocean",
+    "bonus": [
+     2
+    ],
+    "x": 7,
+    "y": 5
+   },
+   {
+    "id": "45",
+    "spaceType": "ocean",
+    "bonus": [
+     2
+    ],
+    "x": 8,
+    "y": 5
+   },
+   {
+    "id": "46",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 2,
+    "y": 6
+   },
+   {
+    "id": "47",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 3,
+    "y": 6
+   },
+   {
+    "id": "48",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 4,
+    "y": 6
+   },
+   {
+    "id": "49",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 5,
+    "y": 6
+   },
+   {
+    "id": "50",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 6
+   },
+   {
+    "id": "51",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 7,
+    "y": 6
+   },
+   {
+    "id": "52",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 8,
+    "y": 6
+   },
+   {
+    "id": "53",
+    "spaceType": "land",
+    "bonus": [
+     1,
+     1
+    ],
+    "x": 3,
+    "y": 7
+   },
+   {
+    "id": "54",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 4,
+    "y": 7
+   },
+   {
+    "id": "55",
+    "spaceType": "land",
+    "bonus": [
+     3
+    ],
+    "x": 5,
+    "y": 7
+   },
+   {
+    "id": "56",
+    "spaceType": "land",
+    "bonus": [
+     3
+    ],
+    "x": 6,
+    "y": 7
+   },
+   {
+    "id": "57",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 7,
+    "y": 7
+   },
+   {
+    "id": "58",
+    "spaceType": "land",
+    "bonus": [
+     0
+    ],
+    "x": 8,
+    "y": 7
+   },
+   {
+    "id": "59",
+    "spaceType": "land",
+    "bonus": [
+     1
+    ],
+    "x": 4,
+    "y": 8
+   },
+   {
+    "id": "60",
+    "spaceType": "land",
+    "bonus": [
+     1,
+     1
+    ],
+    "x": 5,
+    "y": 8
+   },
+   {
+    "id": "61",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 8
+   },
+   {
+    "id": "62",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 7,
+    "y": 8
+   },
+   {
+    "id": "63",
+    "spaceType": "ocean",
+    "bonus": [
+     0,
+     0
+    ],
+    "x": 8,
+    "y": 8
+   },
+   {
+    "id": "79",
+    "spaceType": "colony",
+    "bonus": [],
+    "x": -1,
+    "y": -1
+   }
+  ]
+ },
+ "claimedMilestones": [],
+ "ceoDeck": {
+  "drawPile": [],
+  "discardPile": []
+ },
+ "colonies": [
+  {
+   "name": "Luna",
+   "colonies": [
+    "p-player1-id",
+    "p-player2-id"
+   ],
+   "isActive": true,
+   "trackPosition": 2
+  },
+  {
+   "name": "Titan",
+   "colonies": [
+    "p-player1-id"
+   ],
+   "isActive": true,
+   "trackPosition": 2
+  },
+  {
+   "name": "Miranda",
+   "colonies": [
+    "p-player1-id"
+   ],
+   "isActive": true,
+   "trackPosition": 2
+  },
+  {
+   "name": "Pluto",
+   "colonies": [
+    "p-player1-id"
+   ],
+   "isActive": true,
+   "trackPosition": 2
+  }
+ ],
+ "corporationDeck": {
+  "drawPile": [
+   "Septem Tribus:redux",
+   "Stormcraft Incorporated",
+   "Ferrus Academy",
+   "Lakefront Resorts",
+   "Utopia Invest",
+   "Poseidon",
+   "Arwind Inc.",
+   "Mining Guild",
+   "Veynon Dynamics",
+   "TerraLabs Research",
+   "The Deimos Group",
+   "Arklight",
+   "Lotus Innovations",
+   "Tharsis Republic",
+   "Saturn Systems",
+   "Helion",
+   "Pristar",
+   "United Nations Mars Initiative",
+   "PhoboLog",
+   "Hartlan Heating",
+   "Titan Holdings",
+   "Interplanetary Cinematics",
+   "Ecoline",
+   "Polyphemos",
+   "Inventrix",
+   "CrediCor"
+  ],
+  "discardPile": []
+ },
+ "createdTimeMs": 1793380171716,
+ "currentSeed": 846183405606,
+ "deferredActions": [],
+ "donePlayers": [],
+ "draftRound": 1,
+ "exploitationOfVenusInEffect": false,
+ "first": "p-player2-id",
+ "fundedAwards": [],
+ "gagarinBase": [],
+ "stJosephCathedrals": [],
+ "gameAge": 69,
+ "gameLog": [
+  {
+   "message": "First player this generation is ${0}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    }
+   ],
+   "timestamp": 1793380171716
+  },
+  {
+   "message": "Good luck ${0}!",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    }
+   ],
+   "timestamp": 1793380171716,
+   "playerId": "p-player1-id"
+  },
+  {
+   "message": "Good luck ${0}!",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    }
+   ],
+   "timestamp": 1793380171716,
+   "playerId": "p-player2-id"
+  },
+  {
+   "message": "Good luck ${0}!",
+   "data": [
+    {
+     "type": 2,
+     "value": "yellow"
+    }
+   ],
+   "timestamp": 1793380171716,
+   "playerId": "p-player3-id"
+  },
+  {
+   "message": "Generation ${0}",
+   "data": [
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793380171716,
+   "type": 1
+  },
+  {
+   "message": "${0} played ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 3,
+     "value": "Teractor"
+    }
+   ],
+   "timestamp": 1793380171716,
+   "correlationId": 1,
+   "parentId": 1,
+   "role": "root-action",
+   "category": "card-play"
+  },
+  {
+   "message": "${0} kept ${1} project cards",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1793380171716,
+   "correlationId": 1,
+   "parentId": 1,
+   "role": "detail"
+  },
+  {
+   "message": "${0} played ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 3,
+     "value": "Aridor"
+    }
+   ],
+   "timestamp": 1793380171716,
+   "correlationId": 2,
+   "parentId": 2,
+   "role": "root-action",
+   "category": "card-play"
+  },
+  {
+   "message": "${0} kept ${1} project cards",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1793380171716,
+   "correlationId": 2,
+   "parentId": 2,
+   "role": "detail"
+  },
+  {
+   "message": "${0} played ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "yellow"
+    },
+    {
+     "type": 3,
+     "value": "ThorGate"
+    }
+   ],
+   "timestamp": 1793380171717,
+   "correlationId": 3,
+   "parentId": 3,
+   "role": "root-action",
+   "category": "card-play"
+  },
+  {
+   "message": "${0} gained ${1} ${2} production",
+   "data": [
+    {
+     "type": 2,
+     "value": "yellow"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 15,
+     "value": "energy"
+    }
+   ],
+   "timestamp": 1793380171717,
+   "correlationId": 3,
+   "parentId": 3,
+   "role": "detail"
+  },
+  {
+   "message": "${0} kept ${1} project cards",
+   "data": [
+    {
+     "type": 2,
+     "value": "yellow"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1793380171717,
+   "correlationId": 3,
+   "parentId": 3,
+   "role": "detail"
+  },
+  {
+   "message": "${0} played ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 3,
+     "value": "Colonial Representation"
+    }
+   ],
+   "timestamp": 1793380171719,
+   "correlationId": 8,
+   "parentId": 8,
+   "role": "root-action",
+   "category": "card-play"
+  },
+  {
+   "message": "${0} gained ${1} ${2}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "12"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    }
+   ],
+   "timestamp": 1793380171719,
+   "correlationId": 8,
+   "parentId": 8,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained +${1} influence from ${2} (${3} → ${4})",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 3,
+     "value": "Colonial Representation"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1793380171719,
+   "correlationId": 8,
+   "parentId": 8,
+   "role": "detail"
+  },
+  {
+   "message": "${0} received the production income of generation ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793380171721,
+   "correlationId": 13,
+   "parentId": 13,
+   "role": "root-action",
+   "category": "production"
+  },
+  {
+   "message": "${0} received the production income of generation ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793380171721,
+   "correlationId": 15,
+   "parentId": 15,
+   "role": "root-action",
+   "category": "production"
+  },
+  {
+   "message": "${0} received the production income of generation ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "yellow"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793380171721,
+   "correlationId": 17,
+   "parentId": 17,
+   "role": "root-action",
+   "category": "production"
+  },
+  {
+   "message": "The Mars Parliament of generation ${0} convenes",
+   "data": [
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793380171721,
+   "type": 2,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "root-action",
+   "category": "political-phase"
+  },
+  {
+   "message": "Resolution ${0} wins the vote with ${1} delegate(s)",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793380171721,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "${0} is the winning player of ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1793380171721,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "${0} advances on the Agenda track to step ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1793380171721,
+   "correlationId": 20,
+   "parentId": 21,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1793380171721,
+   "correlationId": 20,
+   "parentId": 23,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} gained ${1} ${2} from the Agenda track",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 15,
+     "value": "tr"
+    }
+   ],
+   "timestamp": 1793380171721,
+   "correlationId": 20,
+   "parentId": 21,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Greens"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1793380171722,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Scientists"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1793380171722,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Reds"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1793380171722,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Mars First"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1793380171722,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Industrialists"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1793380171722,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "Resolution ${0} is enacted",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1793380171722,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "${0} is now the ruling party — every player has its effect",
+   "data": [
+    {
+     "type": 8,
+     "value": "Unity"
+    }
+   ],
+   "timestamp": 1793380171722,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "Chairman quest for generation ${0}: ${1}",
+   "data": [
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 0,
+     "value": "Play 2 space tags"
+    }
+   ],
+   "timestamp": 1793380171722,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gains all colony bonuses ${1} time(s) from ${2}: 2 + 1 per 2 points of influence, influence ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1793380171723,
+   "correlationId": 20,
+   "parentId": 26,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2}: the ${3} colony bonus ×${4} from ${5}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "6"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 6,
+     "value": "Luna"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1793380171724,
+   "correlationId": 20,
+   "parentId": 26,
+   "role": "detail"
+  },
+  {
+   "message": "${0} added ${1} ${2} to ${3} from ${4}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 15,
+     "value": "Floater"
+    },
+    {
+     "type": 3,
+     "value": "Atmo Collectors"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1793380171726,
+   "correlationId": 20,
+   "parentId": 28,
+   "role": "detail"
+  },
+  {
+   "message": "${0} placed ${1} resource(s): the ${2} colony bonus ×${3} from ${4}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 6,
+     "value": "Titan"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1793380171726,
+   "correlationId": 20,
+   "parentId": 28,
+   "role": "detail"
+  },
+  {
+   "message": "${0} drew ${1} card(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1793380171727,
+   "correlationId": 20,
+   "parentId": 30,
+   "role": "detail"
+  },
+  {
+   "message": "${0} drew ${1}",
+   "data": [
+    {
+     "type": 0,
+     "value": "You"
+    },
+    {
+     "type": 14,
+     "value": [
+      "Market Manipulation",
+      "Inventors' Guild",
+      "Industrial Microbes"
+     ]
+    }
+   ],
+   "timestamp": 1793380171727,
+   "playerId": "p-player1-id",
+   "correlationId": 20,
+   "parentId": 30,
+   "role": "detail"
+  },
+  {
+   "message": "${0} draws ${1} card(s): the ${2} colony bonus ×${3} from ${4}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 6,
+     "value": "Miranda"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1793380171727,
+   "correlationId": 20,
+   "parentId": 30,
+   "role": "detail"
+  },
+  {
+   "message": "${0} drew ${1} card(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793380171728,
+   "correlationId": 20,
+   "parentId": 32,
+   "role": "detail"
+  },
+  {
+   "message": "${0} drew ${1}",
+   "data": [
+    {
+     "type": 0,
+     "value": "You"
+    },
+    {
+     "type": 14,
+     "value": [
+      "Flooding"
+     ]
+    }
+   ],
+   "timestamp": 1793380171728,
+   "playerId": "p-player1-id",
+   "correlationId": 20,
+   "parentId": 32,
+   "role": "detail"
+  },
+  {
+   "message": "${0} draws 1 card: the ${1} colony bonus, ${2} of ${3}, from ${4}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 6,
+     "value": "Pluto"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1793380171728,
+   "correlationId": 20,
+   "parentId": 32,
+   "role": "detail"
+  },
+  {
+   "message": "${0} discarded 1 card: the ${1} colony bonus, ${2} of ${3}, from ${4}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 6,
+     "value": "Pluto"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1793380171730,
+   "correlationId": 20,
+   "parentId": 34,
+   "role": "detail"
+  },
+  {
+   "message": "${0} drew ${1} card(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793380171730,
+   "correlationId": 20,
+   "parentId": 35,
+   "role": "detail"
+  },
+  {
+   "message": "${0} drew ${1}",
+   "data": [
+    {
+     "type": 0,
+     "value": "You"
+    },
+    {
+     "type": 14,
+     "value": [
+      "Power Grid"
+     ]
+    }
+   ],
+   "timestamp": 1793380171730,
+   "playerId": "p-player1-id",
+   "correlationId": 20,
+   "parentId": 35,
+   "role": "detail"
+  },
+  {
+   "message": "${0} draws 1 card: the ${1} colony bonus, ${2} of ${3}, from ${4}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 6,
+     "value": "Pluto"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1793380171730,
+   "correlationId": 20,
+   "parentId": 35,
+   "role": "detail"
+  },
+  {
+   "message": "${0} discarded 1 card: the ${1} colony bonus, ${2} of ${3}, from ${4}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 6,
+     "value": "Pluto"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1793380171730,
+   "correlationId": 20,
+   "parentId": 37,
+   "role": "detail"
+  },
+  {
+   "message": "${0} drew ${1} card(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793380171730,
+   "correlationId": 20,
+   "parentId": 38,
+   "role": "detail"
+  },
+  {
+   "message": "${0} drew ${1}",
+   "data": [
+    {
+     "type": 0,
+     "value": "You"
+    },
+    {
+     "type": 14,
+     "value": [
+      "Mangrove"
+     ]
+    }
+   ],
+   "timestamp": 1793380171730,
+   "playerId": "p-player1-id",
+   "correlationId": 20,
+   "parentId": 38,
+   "role": "detail"
+  },
+  {
+   "message": "${0} draws 1 card: the ${1} colony bonus, ${2} of ${3}, from ${4}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 6,
+     "value": "Pluto"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1793380171730,
+   "correlationId": 20,
+   "parentId": 38,
+   "role": "detail"
+  },
+  {
+   "message": "${0} discarded 1 card: the ${1} colony bonus, ${2} of ${3}, from ${4}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 6,
+     "value": "Pluto"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1793380171730,
+   "correlationId": 20,
+   "parentId": 40,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gains all colony bonuses ${1} time(s) from ${2}: 2 + 1 per 2 points of influence, influence ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1793380171730,
+   "correlationId": 20,
+   "parentId": 41,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2}: the ${3} colony bonus ×${4} from ${5}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "4"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 6,
+     "value": "Luna"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1793380171730,
+   "correlationId": 20,
+   "parentId": 41,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gains all colony bonuses ${1} time(s) from ${2}: 2 + 1 per 2 points of influence, influence ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "yellow"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    },
+    {
+     "type": 1,
+     "value": "0"
+    }
+   ],
+   "timestamp": 1793380171731,
+   "correlationId": 20,
+   "parentId": 43,
+   "role": "detail"
+  },
+  {
+   "message": "${0} has no colonies — nothing from ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "yellow"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1793380171731,
+   "correlationId": 20,
+   "parentId": 43,
+   "role": "detail"
+  },
+  {
+   "message": "Resolution ${0} leaves the voting area",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_MARS_ARCHITECTURE_AWARD"
+    }
+   ],
+   "timestamp": 1793380171731,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "Resolution ${0} leaves the voting area",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
+    }
+   ],
+   "timestamp": 1793380171731,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "Resolution ${0} enters the voting area",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET"
+    }
+   ],
+   "timestamp": 1793380171731,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "${0} neutral delegate(s) from ${1} Popular Support vote for ${2}",
+   "data": [
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 8,
+     "value": "Industrialists"
+    },
+    {
+     "type": 16,
+     "value": "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET"
+    }
+   ],
+   "timestamp": 1793380171731,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "Resolution ${0} enters the voting area",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_REDS_DIVERTED_RESEARCH"
+    }
+   ],
+   "timestamp": 1793380171731,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "${0} neutral delegate(s) from ${1} Popular Support vote for ${2}",
+   "data": [
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 8,
+     "value": "Reds"
+    },
+    {
+     "type": 16,
+     "value": "RDX_REDS_DIVERTED_RESEARCH"
+    }
+   ],
+   "timestamp": 1793380171731,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "Resolution ${0} enters the voting area",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_MARS_URBAN_DEVELOPMENT"
+    }
+   ],
+   "timestamp": 1793380171731,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "${0} neutral delegate(s) from ${1} Popular Support vote for ${2}",
+   "data": [
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 8,
+     "value": "Mars First"
+    },
+    {
+     "type": 16,
+     "value": "RDX_MARS_URBAN_DEVELOPMENT"
+    }
+   ],
+   "timestamp": 1793380171731,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "Every player's free delegate returns to the lobby",
+   "data": [],
+   "timestamp": 1793380171731,
+   "correlationId": 20,
+   "parentId": 20,
+   "role": "detail"
+  },
+  {
+   "message": "Generation ${0}",
+   "data": [
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1793380171731,
+   "type": 1
+  },
+  {
+   "message": "First player this generation is ${0}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    }
+   ],
+   "timestamp": 1793380171731
+  }
+ ],
+ "gameEvents": [
+  {
+   "id": 1,
+   "generation": 1,
+   "phase": "research",
+   "type": "action",
+   "impact": {},
+   "correlationId": 1,
+   "visibility": "journal",
+   "source": {
+    "kind": "corporation",
+    "card": "Teractor",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "corporation"
+   ],
+   "category": "card-play"
+  },
+  {
+   "id": 2,
+   "generation": 1,
+   "phase": "research",
+   "type": "action",
+   "impact": {},
+   "correlationId": 2,
+   "visibility": "journal",
+   "source": {
+    "kind": "corporation",
+    "card": "Aridor",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "corporation"
+   ],
+   "category": "card-play"
+  },
+  {
+   "id": 3,
+   "generation": 1,
+   "phase": "research",
+   "type": "action",
+   "impact": {},
+   "correlationId": 3,
+   "visibility": "journal",
+   "source": {
+    "kind": "corporation",
+    "card": "ThorGate",
+    "owner": "yellow"
+   },
+   "player": "yellow",
+   "tags": [
+    "corporation"
+   ],
+   "category": "card-play"
+  },
+  {
+   "id": 4,
+   "generation": 1,
+   "phase": "research",
+   "type": "production-changed",
+   "impact": {
+    "production": {
+     "energy": 1
+    },
+    "snapshot": {
+     "resource": "energy",
+     "scope": "production",
+     "before": 0,
+     "after": 1
+    }
+   },
+   "correlationId": 3,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "ThorGate",
+    "owner": "yellow"
+   },
+   "player": "yellow",
+   "tags": [
+    "production"
+   ],
+   "parentId": 3
+  },
+  {
+   "id": 5,
+   "generation": 1,
+   "phase": "research",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": -6
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 60,
+     "after": 54
+    }
+   },
+   "correlationId": 1,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Teractor",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "parentId": 1
+  },
+  {
+   "id": 6,
+   "generation": 1,
+   "phase": "research",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": -6
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 40,
+     "after": 34
+    }
+   },
+   "correlationId": 2,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Aridor",
+    "owner": "red"
+   },
+   "player": "red",
+   "parentId": 2
+  },
+  {
+   "id": 7,
+   "generation": 1,
+   "phase": "research",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": -6
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 48,
+     "after": 42
+    }
+   },
+   "correlationId": 3,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "ThorGate",
+    "owner": "yellow"
+   },
+   "player": "yellow",
+   "parentId": 3
+  },
+  {
+   "id": 8,
+   "generation": 1,
+   "phase": "action",
+   "type": "action",
+   "impact": {},
+   "correlationId": 8,
+   "visibility": "journal",
+   "source": {
+    "kind": "card",
+    "card": "Colonial Representation",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "category": "card-play"
+  },
+  {
+   "id": 9,
+   "generation": 1,
+   "phase": "action",
+   "type": "payment",
+   "impact": {
+    "megacreditsPaid": 10
+   },
+   "correlationId": 8,
+   "visibility": "analytics",
+   "source": {
+    "kind": "card",
+    "card": "Colonial Representation",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "target": {
+    "card": "Colonial Representation"
+   },
+   "parentId": 8
+  },
+  {
+   "id": 10,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": -10
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 40,
+     "after": 30
+    }
+   },
+   "correlationId": 8,
+   "visibility": "analytics",
+   "source": {
+    "kind": "payment"
+   },
+   "player": "blue",
+   "parentId": 8
+  },
+  {
+   "id": 11,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 12
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 30,
+     "after": 42
+    }
+   },
+   "correlationId": 8,
+   "visibility": "analytics",
+   "source": {
+    "kind": "card",
+    "card": "Colonial Representation",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "parentId": 8
+  },
+  {
+   "id": 12,
+   "generation": 1,
+   "phase": "action",
+   "type": "influence-changed",
+   "impact": {
+    "influence": {
+     "before": 1,
+     "after": 2,
+     "amount": 1
+    }
+   },
+   "correlationId": 8,
+   "visibility": "journal",
+   "source": {
+    "kind": "card",
+    "card": "Colonial Representation",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "parentId": 8
+  },
+  {
+   "id": 13,
+   "generation": 1,
+   "phase": "production",
+   "type": "production-phase-income",
+   "impact": {},
+   "correlationId": 13,
+   "visibility": "journal",
+   "source": {
+    "kind": "production"
+   },
+   "player": "blue",
+   "category": "production"
+  },
+  {
+   "id": 14,
+   "generation": 1,
+   "phase": "production",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 20
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 42,
+     "after": 62
+    }
+   },
+   "correlationId": 13,
+   "visibility": "analytics",
+   "source": {
+    "kind": "production",
+    "part": "rating"
+   },
+   "player": "blue",
+   "parentId": 13
+  },
+  {
+   "id": 15,
+   "generation": 1,
+   "phase": "production",
+   "type": "production-phase-income",
+   "impact": {},
+   "correlationId": 15,
+   "visibility": "journal",
+   "source": {
+    "kind": "production"
+   },
+   "player": "red",
+   "category": "production"
+  },
+  {
+   "id": 16,
+   "generation": 1,
+   "phase": "production",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 20
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 30,
+     "after": 50
+    }
+   },
+   "correlationId": 15,
+   "visibility": "analytics",
+   "source": {
+    "kind": "production",
+    "part": "rating"
+   },
+   "player": "red",
+   "parentId": 15
+  },
+  {
+   "id": 17,
+   "generation": 1,
+   "phase": "production",
+   "type": "production-phase-income",
+   "impact": {},
+   "correlationId": 17,
+   "visibility": "journal",
+   "source": {
+    "kind": "production"
+   },
+   "player": "yellow",
+   "category": "production"
+  },
+  {
+   "id": 18,
+   "generation": 1,
+   "phase": "production",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 20
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 30,
+     "after": 50
+    }
+   },
+   "correlationId": 17,
+   "visibility": "analytics",
+   "source": {
+    "kind": "production",
+    "part": "rating"
+   },
+   "player": "yellow",
+   "parentId": 17
+  },
+  {
+   "id": 19,
+   "generation": 1,
+   "phase": "production",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "energy": 1
+    },
+    "snapshot": {
+     "resource": "energy",
+     "scope": "stock",
+     "before": 0,
+     "after": 1
+    }
+   },
+   "correlationId": 17,
+   "visibility": "analytics",
+   "source": {
+    "kind": "production"
+   },
+   "player": "yellow",
+   "parentId": 17
+  },
+  {
+   "id": 20,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 20,
+   "visibility": "journal",
+   "source": {
+    "kind": "parliament"
+   },
+   "category": "political-phase"
+  },
+  {
+   "id": 21,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 20,
+   "visibility": "journal",
+   "source": {
+    "kind": "parliament"
+   },
+   "player": "red",
+   "category": "political-phase",
+   "parentId": 20
+  },
+  {
+   "id": 22,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "tr-changed",
+   "impact": {
+    "tr": 1
+   },
+   "correlationId": 20,
+   "visibility": "analytics",
+   "source": {
+    "kind": "parliament"
+   },
+   "player": "red",
+   "tags": [
+    "terraforming"
+   ],
+   "parentId": 21
+  },
+  {
+   "id": 23,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 20,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 21
+  },
+  {
+   "id": 24,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 50,
+     "after": 52
+    }
+   },
+   "correlationId": 20,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 23
+  },
+  {
+   "id": 25,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "agenda-advanced",
+   "impact": {
+    "agenda": {
+     "from": 1,
+     "to": 2,
+     "steps": [
+      {
+       "to": 2,
+       "bonus": "tr",
+       "answer": {
+        "stock": {
+         "megacredits": 2
+        }
+       }
+      }
+     ],
+     "reason": "phase",
+     "influence": 1
+    }
+   },
+   "correlationId": 20,
+   "visibility": "journal",
+   "source": {
+    "kind": "parliament"
+   },
+   "player": "red",
+   "parentId": 21
+  },
+  {
+   "id": 26,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 20,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "category": "political-phase",
+   "parentId": 20
+  },
+  {
+   "id": 27,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 6
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 62,
+     "after": 68
+    }
+   },
+   "correlationId": 20,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "parentId": 26
+  },
+  {
+   "id": 28,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 20,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "category": "political-phase",
+   "parentId": 20
+  },
+  {
+   "id": 29,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "card-resource-changed",
+   "impact": {
+    "cardResources": [
+     {
+      "cardResource": "Floater",
+      "target": "Atmo Collectors",
+      "amount": 3
+     }
+    ]
+   },
+   "correlationId": 20,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "card-impact"
+   ],
+   "parentId": 28
+  },
+  {
+   "id": 30,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 20,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "category": "political-phase",
+   "parentId": 20
+  },
+  {
+   "id": 31,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "cards-drawn",
+   "impact": {
+    "cardsDrawn": 3
+   },
+   "correlationId": 20,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "external-intake"
+   ],
+   "parentId": 30
+  },
+  {
+   "id": 32,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 20,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "category": "political-phase",
+   "parentId": 20
+  },
+  {
+   "id": 33,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "cards-drawn",
+   "impact": {
+    "cardsDrawn": 1
+   },
+   "correlationId": 20,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "external-intake"
+   ],
+   "parentId": 32
+  },
+  {
+   "id": 34,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 20,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "category": "political-phase",
+   "parentId": 20
+  },
+  {
+   "id": 35,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 20,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "category": "political-phase",
+   "parentId": 20
+  },
+  {
+   "id": 36,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "cards-drawn",
+   "impact": {
+    "cardsDrawn": 1
+   },
+   "correlationId": 20,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "external-intake"
+   ],
+   "parentId": 35
+  },
+  {
+   "id": 37,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 20,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "category": "political-phase",
+   "parentId": 20
+  },
+  {
+   "id": 38,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 20,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "category": "political-phase",
+   "parentId": 20
+  },
+  {
+   "id": 39,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "cards-drawn",
+   "impact": {
+    "cardsDrawn": 1
+   },
+   "correlationId": 20,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "external-intake"
+   ],
+   "parentId": 38
+  },
+  {
+   "id": 40,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 20,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "category": "political-phase",
+   "parentId": 20
+  },
+  {
+   "id": 41,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 20,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "red"
+   },
+   "player": "red",
+   "category": "political-phase",
+   "parentId": 20
+  },
+  {
+   "id": 42,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 4
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 52,
+     "after": 56
+    }
+   },
+   "correlationId": 20,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "red"
+   },
+   "player": "red",
+   "parentId": 41
+  },
+  {
+   "id": 43,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 20,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_UNITY_COLONIAL_AFFAIRS",
+    "owner": "yellow"
+   },
+   "player": "yellow",
+   "category": "political-phase",
+   "parentId": 20
+  }
+ ],
+ "eventSeq": 43,
+ "gameOptions": {
+  "altVenusBoard": false,
+  "aresExtension": false,
+  "aresHazards": true,
+  "aresExtremeVariant": false,
+  "boardName": "tharsis",
+  "randomFirstPlayer": false,
+  "bannedCards": [],
+  "includedCards": [],
+  "ceoExtension": false,
+  "coloniesExtension": true,
+  "communityCardsOption": false,
+  "corporateEra": true,
+  "customCeos": [],
+  "customColoniesList": [],
+  "customCorporationsList": [
+   "Teractor",
+   "Aridor",
+   "ThorGate"
+  ],
+  "customPreludes": [],
+  "customProjectCards": [],
+  "customBonusCards": [],
+  "draftVariant": false,
+  "expansions": {
+   "corpera": false,
+   "venus": false,
+   "colonies": true,
+   "prelude": false,
+   "prelude2": true,
+   "turmoil": false,
+   "promo": false,
+   "community": false,
+   "ares": false,
+   "moon": false,
+   "pathfinders": false,
+   "ceo": false,
+   "starwars": false,
+   "underworld": false,
+   "deltaProject": false,
+   "turmoilRedux": true
+  },
+  "fastModeOption": false,
+  "includeFanMA": false,
+  "initialDraftVariant": false,
+  "modularMA": false,
+  "moonExpansion": false,
+  "moonStandardProjectVariant": false,
+  "moonStandardProjectVariant1": false,
+  "pathfindersExpansion": false,
+  "politicalAgendasExtension": "Standard",
+  "preludeDraftVariant": false,
+  "ceosDraftVariant": false,
+  "preludeExtension": false,
+  "prelude2Expansion": true,
+  "promoCardsOption": false,
+  "randomMA": "No randomization",
+  "requiresMoonTrackCompletion": false,
+  "removeNegativeGlobalEventsOption": false,
+  "requiresVenusTrackCompletion": false,
+  "showOtherPlayersVP": false,
+  "showTimers": true,
+  "testMode": false,
+  "shuffleMapOption": false,
+  "solarPhaseOption": false,
+  "soloTR": false,
+  "startingCeos": 3,
+  "startingCorporations": 1,
+  "startingPreludes": 4,
+  "starWarsExpansion": false,
+  "turmoilExtension": false,
+  "turmoilReduxExpansion": true,
+  "underworldExpansion": false,
+  "deltaProjectExpansion": false,
+  "undoOption": false,
+  "venusNextExtension": false,
+  "twoCorpsVariant": false,
+  "skipInitialCardSelection": false
+ },
+ "generation": 2,
+ "globalsPerGeneration": [
+  {
+   "temperature": -30,
+   "oxygen": 0,
+   "oceans": 0
+  }
+ ],
+ "id": "game-id",
+ "initialDraftIteration": 1,
+ "lastSaveId": 0,
+ "milestones": [
+  "Terraformer29",
+  "Mayor",
+  "Gardener",
+  "Builder",
+  "Planner"
+ ],
+ "name": "Massive Mineral Surge",
+ "oxygenLevel": 0,
+ "passedPlayers": [],
+ "phase": "research",
+ "players": [
+  {
+   "id": "p-player1-id",
+   "pickedCorporationCard": "Teractor",
+   "initialCardSelectionDone": true,
+   "terraformRating": 20,
+   "hasIncreasedTerraformRatingThisGeneration": false,
+   "terraformRatingFromCards": 0,
+   "terraformRatingSources": [],
+   "megaCredits": 68,
+   "megaCreditProduction": 0,
+   "steel": 0,
+   "steelProduction": 0,
+   "titanium": 0,
+   "titaniumProduction": 0,
+   "plants": 0,
+   "plantProduction": 0,
+   "energy": 0,
+   "energyProduction": 0,
+   "heat": 0,
+   "heatProduction": 0,
+   "titaniumValue": 3,
+   "steelValue": 2,
+   "canUseHeatAsMegaCredits": false,
+   "canUsePlantsAsMegaCredits": false,
+   "canUseTitaniumAsMegacredits": false,
+   "preservationProgram": false,
+   "trThisGeneration": 0,
+   "actionsTakenThisRound": 0,
+   "availableActionsThisRound": 2,
+   "bonusActions": 0,
+   "bonusActionsGranted": 0,
+   "pendingBonusGains": [],
+   "actionsThisGeneration": [],
+   "pendingInitialActions": [],
+   "dealtCorporationCards": [
+    "Teractor"
+   ],
+   "dealtPreludeCards": [],
+   "dealtCeoCards": [],
+   "dealtProjectCards": [
+    "Nuclear Power",
+    "Adaptation Technology",
+    "Magnetic Field Generators",
+    "Grass",
+    "Hackers",
+    "Quantum Extractor",
+    "Ceres Tech Market",
+    "Corona Extractor",
+    "Earth Office",
+    "Sponsors"
+   ],
+   "cardsInHand": [
+    "Security Fleet",
+    "Market Manipulation",
+    "Inventors' Guild",
+    "Industrial Microbes",
+    "Flooding",
+    "Power Grid",
+    "Mangrove"
+   ],
+   "pendingCardIntakes": [],
+   "preludeCardsInHand": [],
+   "ceoCardsInHand": [],
+   "playedCards": [
+    {
+     "name": "Teractor",
+     "resourceCount": 0,
+     "isDisabled": false
+    },
+    {
+     "name": "Atmo Collectors",
+     "resourceCount": 3
+    },
+    {
+     "name": "Jovian Lanterns",
+     "resourceCount": 0
+    },
+    {
+     "name": "Colonial Representation",
+     "resourceCount": 0
+    }
+   ],
+   "draftedCards": [],
+   "researchHand": [
+    "UNMI Liner",
+    "Eden Alliance",
+    "Red Appeasement",
+    "Livestock"
+   ],
+   "cardCost": 3,
+   "cardDiscount": 0,
+   "fleetSize": 1,
+   "tradesThisGeneration": 0,
+   "colonyTradeOffset": 0,
+   "colonyTradeDiscount": 0,
+   "colonyVictoryPoints": 0,
+   "turmoilPolicyActionUsed": false,
+   "politicalAgendasActionUsedCount": 0,
+   "hasTurmoilScienceTagBonus": false,
+   "oceanBonus": 2,
+   "scienceTagCount": 0,
+   "plantTagCount": 0,
+   "jovianTagCount": 0,
+   "plantsNeededForGreenery": 8,
+   "removingPlayers": [],
+   "warmongerCards": 0,
+   "removedFromPlayCards": [],
+   "standardProjectsThisGeneration": [],
+   "patentSalesThisGeneration": 0,
+   "withinDeflectionZone": false,
+   "name": "player1",
+   "color": "blue",
+   "beginner": false,
+   "handicap": 0,
+   "timer": {
+    "sumElapsed": 13,
+    "startedAt": 1793380171730,
+    "running": true,
+    "afterFirstAction": true,
+    "lastStoppedAt": 1793380171730
+   },
+   "actionsTakenThisGame": 1,
+   "victoryPointsByGeneration": [
+    20
+   ],
+   "totalDelegatesPlaced": 0,
+   "underworldData": {
+    "corruption": 0,
+    "tokens": []
+   },
+   "draftHand": [],
+   "autoPass": false,
+   "globalParameterSteps": {
+    "oceans": 0,
+    "oxygen": 0,
+    "temperature": 0,
+    "venus": 0,
+    "moon-habitat": 0,
+    "moon-mining": 0,
+    "moon-logistic": 0
+   },
+   "lastCardPlayed": "Colonial Representation"
+  },
+  {
+   "id": "p-player2-id",
+   "pickedCorporationCard": "Aridor",
+   "initialCardSelectionDone": true,
+   "terraformRating": 21,
+   "hasIncreasedTerraformRatingThisGeneration": false,
+   "terraformRatingFromCards": 1,
+   "terraformRatingSources": [
+    {
+     "sourceType": "other",
+     "sourceName": "Agenda track",
+     "amount": 1,
+     "generation": 1
+    }
+   ],
+   "megaCredits": 56,
+   "megaCreditProduction": 0,
+   "steel": 0,
+   "steelProduction": 0,
+   "titanium": 0,
+   "titaniumProduction": 0,
+   "plants": 0,
+   "plantProduction": 0,
+   "energy": 0,
+   "energyProduction": 0,
+   "heat": 0,
+   "heatProduction": 0,
+   "titaniumValue": 3,
+   "steelValue": 2,
+   "canUseHeatAsMegaCredits": false,
+   "canUsePlantsAsMegaCredits": false,
+   "canUseTitaniumAsMegacredits": false,
+   "preservationProgram": false,
+   "trThisGeneration": 0,
+   "actionsTakenThisRound": 0,
+   "availableActionsThisRound": 2,
+   "bonusActions": 0,
+   "bonusActionsGranted": 0,
+   "pendingBonusGains": [],
+   "actionsThisGeneration": [],
+   "pendingInitialActions": [
+    "Aridor"
+   ],
+   "dealtCorporationCards": [
+    "Aridor"
+   ],
+   "dealtPreludeCards": [],
+   "dealtCeoCards": [],
+   "dealtProjectCards": [
+    "Mining Expedition",
+    "Dust Seals",
+    "Spaceship Recycling",
+    "Zeppelins",
+    "Mining Colony",
+    "Conscription",
+    "Event Analysts",
+    "Viral Enhancers",
+    "Rad-Suits",
+    "Fish"
+   ],
+   "cardsInHand": [
+    "Mining Expedition",
+    "Dust Seals"
+   ],
+   "pendingCardIntakes": [],
+   "preludeCardsInHand": [],
+   "ceoCardsInHand": [],
+   "playedCards": [
+    {
+     "name": "Aridor",
+     "resourceCount": 0,
+     "isDisabled": false,
+     "allTags": []
+    }
+   ],
+   "draftedCards": [],
+   "researchHand": [
+    "Strip Mine",
+    "Rover Construction",
+    "Expedition Mechs",
+    "Arctic Algae"
+   ],
+   "cardCost": 3,
+   "cardDiscount": 0,
+   "fleetSize": 1,
+   "tradesThisGeneration": 0,
+   "colonyTradeOffset": 0,
+   "colonyTradeDiscount": 0,
+   "colonyVictoryPoints": 0,
+   "turmoilPolicyActionUsed": false,
+   "politicalAgendasActionUsedCount": 0,
+   "hasTurmoilScienceTagBonus": false,
+   "oceanBonus": 2,
+   "scienceTagCount": 0,
+   "plantTagCount": 0,
+   "jovianTagCount": 0,
+   "plantsNeededForGreenery": 8,
+   "removingPlayers": [],
+   "warmongerCards": 0,
+   "removedFromPlayCards": [],
+   "standardProjectsThisGeneration": [],
+   "patentSalesThisGeneration": 0,
+   "withinDeflectionZone": false,
+   "name": "player2",
+   "color": "red",
+   "beginner": false,
+   "handicap": 0,
+   "timer": {
+    "sumElapsed": 1,
+    "startedAt": 1793380171730,
+    "running": true,
+    "afterFirstAction": true,
+    "lastStoppedAt": 1793380171730
+   },
+   "actionsTakenThisGame": 1,
+   "victoryPointsByGeneration": [
+    21
+   ],
+   "totalDelegatesPlaced": 1,
+   "underworldData": {
+    "corruption": 0,
+    "tokens": []
+   },
+   "draftHand": [],
+   "autoPass": false,
+   "globalParameterSteps": {
+    "oceans": 0,
+    "oxygen": 0,
+    "temperature": 0,
+    "venus": 0,
+    "moon-habitat": 0,
+    "moon-mining": 0,
+    "moon-logistic": 0
+   }
+  },
+  {
+   "id": "p-player3-id",
+   "pickedCorporationCard": "ThorGate",
+   "initialCardSelectionDone": true,
+   "terraformRating": 20,
+   "hasIncreasedTerraformRatingThisGeneration": false,
+   "terraformRatingFromCards": 0,
+   "terraformRatingSources": [],
+   "megaCredits": 50,
+   "megaCreditProduction": 0,
+   "steel": 0,
+   "steelProduction": 0,
+   "titanium": 0,
+   "titaniumProduction": 0,
+   "plants": 0,
+   "plantProduction": 0,
+   "energy": 1,
+   "energyProduction": 1,
+   "heat": 0,
+   "heatProduction": 0,
+   "titaniumValue": 3,
+   "steelValue": 2,
+   "canUseHeatAsMegaCredits": false,
+   "canUsePlantsAsMegaCredits": false,
+   "canUseTitaniumAsMegacredits": false,
+   "preservationProgram": false,
+   "trThisGeneration": 0,
+   "actionsTakenThisRound": 0,
+   "availableActionsThisRound": 2,
+   "bonusActions": 0,
+   "bonusActionsGranted": 0,
+   "pendingBonusGains": [],
+   "actionsThisGeneration": [],
+   "pendingInitialActions": [],
+   "dealtCorporationCards": [
+    "ThorGate"
+   ],
+   "dealtPreludeCards": [],
+   "dealtCeoCards": [],
+   "dealtProjectCards": [
+    "Martian Rails",
+    "Diaspora Movement",
+    "Protected Valley",
+    "Deep Well Heating",
+    "Spin-off Department",
+    "Sponsored Settlement",
+    "Mine",
+    "Commercial District",
+    "Small Animals",
+    "Designed Microorganisms"
+   ],
+   "cardsInHand": [
+    "Martian Rails",
+    "Diaspora Movement"
+   ],
+   "pendingCardIntakes": [],
+   "preludeCardsInHand": [],
+   "ceoCardsInHand": [],
+   "playedCards": [
+    {
+     "name": "ThorGate",
+     "resourceCount": 0,
+     "isDisabled": false
+    }
+   ],
+   "draftedCards": [],
+   "researchHand": [
+    "Mass Converter",
+    "Tectonic Stress Power",
+    "Fringe Colony",
+    "Productive Outpost"
+   ],
+   "cardCost": 3,
+   "cardDiscount": 0,
+   "fleetSize": 1,
+   "tradesThisGeneration": 0,
+   "colonyTradeOffset": 0,
+   "colonyTradeDiscount": 0,
+   "colonyVictoryPoints": 0,
+   "turmoilPolicyActionUsed": false,
+   "politicalAgendasActionUsedCount": 0,
+   "hasTurmoilScienceTagBonus": false,
+   "oceanBonus": 2,
+   "scienceTagCount": 0,
+   "plantTagCount": 0,
+   "jovianTagCount": 0,
+   "plantsNeededForGreenery": 8,
+   "removingPlayers": [],
+   "warmongerCards": 0,
+   "removedFromPlayCards": [],
+   "standardProjectsThisGeneration": [],
+   "patentSalesThisGeneration": 0,
+   "withinDeflectionZone": false,
+   "name": "player3",
+   "color": "yellow",
+   "beginner": false,
+   "handicap": 0,
+   "timer": {
+    "sumElapsed": 2,
+    "startedAt": 1793380171730,
+    "running": true,
+    "afterFirstAction": true,
+    "lastStoppedAt": 1793380171730
+   },
+   "actionsTakenThisGame": 1,
+   "victoryPointsByGeneration": [
+    20
+   ],
+   "totalDelegatesPlaced": 0,
+   "underworldData": {
+    "corruption": 0,
+    "tokens": []
+   },
+   "draftHand": [],
+   "autoPass": false,
+   "globalParameterSteps": {
+    "oceans": 0,
+    "oxygen": 0,
+    "temperature": 0,
+    "venus": 0,
+    "moon-habitat": 0,
+    "moon-mining": 0,
+    "moon-logistic": 0
+   }
+  }
+ ],
+ "preludeDeck": {
+  "drawPile": [
+   "Nitrogen Shipment",
+   "Supplier",
+   "Loan",
+   "Polar Industries",
+   "Supply Drop",
+   "Smelting Plant",
+   "Metal-Rich Asteroid",
+   "Power Generation",
+   "Business Empire",
+   "Donation",
+   "Eccentric Sponsor",
+   "Self-Sufficient Settlement",
+   "Allied Bank",
+   "Galilean Mining",
+   "Ecology Experts",
+   "Early Settlement",
+   "Experimental Forest",
+   "Martian Industries",
+   "Biofuels",
+   "Mohole Excavation",
+   "Mohole",
+   "Biolab",
+   "Great Aquifer",
+   "Society Support",
+   "Io Research Outpost",
+   "Orbital Construction Yard",
+   "Biosphere Support",
+   "UNMI Contractor",
+   "Mining Operations",
+   "Aquifer Turbines",
+   "Metals Company",
+   "Research Network",
+   "Acquired Space Agency",
+   "Huge Asteroid",
+   "Dome Farming"
+  ],
+  "discardPile": []
+ },
+ "projectDeck": {
+  "drawPile": [
+   "Titan Shuttles",
+   "Sky Docks",
+   "Noctis City",
+   "Aquifer Pumping",
+   "Towing A Comet",
+   "Optimal Aerobraking",
+   "Heavy Taxation",
+   "Underground Detonations",
+   "Solar Wind Power",
+   "Construction Mechs",
+   "Callisto Penal Mines",
+   "Mining Rights",
+   "Breathing Filters",
+   "Recruitment:redux",
+   "Soletta",
+   "Food Factory",
+   "Rad-Chem Factory",
+   "Ants",
+   "Miranda Resort",
+   "Research",
+   "Parliament Hall",
+   "Air Raid",
+   "Colonizer Training Camp",
+   "Titan Air-scrapping",
+   "Underground City",
+   "Media Archives",
+   "Advanced Ecosystems",
+   "Power Supply Consortium",
+   "Toll Station",
+   "Electro Catapult",
+   "Open City",
+   "ArchaeBacteria",
+   "Great Dam",
+   "Regolith Eaters",
+   "Mars Army Mechs",
+   "Nuclear Zone",
+   "Magnetic Field Dome",
+   "Land Claim",
+   "Plantation",
+   "Luna Governor",
+   "Exclusive Colony",
+   "Backroom Deal",
+   "Martian Roads",
+   "Red Lawyers",
+   "Geothermal Power",
+   "Standard Technology",
+   "Protected Habitats",
+   "Capital",
+   "Titanium Mine",
+   "Fusion Power",
+   "Nitrogen-Rich Asteroid",
+   "Ice Asteroid",
+   "Floater Leasing",
+   "Vesta Shipyard",
+   "Arboretum",
+   "Lake Marineris",
+   "Aerial Lenses:redux",
+   "Formula Zero",
+   "Refugee Camps",
+   "Promethean Alliance",
+   "Tundra Farming",
+   "Mech Sports",
+   "Colony Sponsors",
+   "Extreme-Cold Fungus",
+   "Lunar Exports",
+   "GHG Shipment",
+   "Lagrange Observatory",
+   "Lichen",
+   "Hired Raiders",
+   "Supported Research",
+   "Re-settlement",
+   "Nitrite Reducing Bacteria",
+   "Giant Space Mirror",
+   "EVA Mechs",
+   "Moss",
+   "Red Museum",
+   "Industrial Center",
+   "Red Tourism Wave",
+   "Cutting-Edge Design",
+   "Titan Floating Launch-pad",
+   "Power Plant",
+   "Overclocked Equipment",
+   "Research Colony",
+   "Restricted Area",
+   "Nuclear Warhead Utilization",
+   "Media Group",
+   "Trading Colony",
+   "Worms",
+   "Cartel",
+   "Eos Chasma National Park",
+   "Birds",
+   "Symbiotic Fungus",
+   "GMO Contract",
+   "Virus",
+   "Urban Decomposers",
+   "Party Sanctions",
+   "Mineral Deposit",
+   "Martian Census",
+   "Red Spot Observatory",
+   "Biological Simulations",
+   "Jupiter Floating Station",
+   "Lava Flows",
+   "Molecular Printing",
+   "Windmills",
+   "Urbanized Area",
+   "Pets",
+   "Security Fleet",
+   "Cultural Metropolis",
+   "Domed Crater",
+   "Political Donation",
+   "Acquired Company",
+   "Rim Freighters",
+   "Impactor Swarm",
+   "Sponsoring Nation",
+   "Minority Refuge",
+   "Power Infrastructure",
+   "Insects",
+   "Wildlife Dome",
+   "Space Mirrors",
+   "Floater Prototypes",
+   "Community Services",
+   "Scientific Breakthrough",
+   "Solar Reflectors",
+   "Local Heat Trapping",
+   "Mars Army Ships",
+   "Development Center",
+   "Farming",
+   "Quantum Communications",
+   "Anti-Gravity Technology",
+   "Composting Initiative",
+   "Nova City",
+   "Reprocessing Plant",
+   "Trans-Neptune Probe",
+   "Trees",
+   "Supreme Expertise",
+   "Convoy From Europa",
+   "Ecology Research",
+   "Political Science",
+   "Immigrant City",
+   "Herbivores",
+   "GHG Producing Bacteria",
+   "Nitrophilic Moss",
+   "PR Office",
+   "Advanced Alloys",
+   "Comet",
+   "Habitat Science",
+   "Immigration Shuttles",
+   "Martian Media Center",
+   "Canyon Carving",
+   "Trade Envoys",
+   "Forestry Mechs",
+   "Automated Convoys",
+   "Black Polar Dust",
+   "Asteroid Mining Consortium",
+   "Lunar Mining",
+   "Asteroid",
+   "Ironworks",
+   "Strategic Shift",
+   "Natural Preserve",
+   "Imported Hydrogen",
+   "Big Asteroid",
+   "Aquatic Research Station",
+   "Research Startups",
+   "Micro-Mills",
+   "Olympus Conference",
+   "Lunar Beam",
+   "Deimos Down",
+   "Influential Discovery",
+   "Phobos Space Haven",
+   "Space Port",
+   "Space Port Colony",
+   "Building Industries",
+   "Administration District",
+   "Business Contacts",
+   "Noctis Farming",
+   "Lightning Harvest",
+   "Frontier Labs",
+   "Cargo Mechs",
+   "Water Hauling",
+   "Tardigrades",
+   "Interplanetary Colony Ship",
+   "Atmo Collectors",
+   "Ganymede Colony",
+   "Ecological Zone",
+   "Artificial Photosynthesis",
+   "Nitrogen from Titan",
+   "L1 Trade Terminal",
+   "Civilian Spacefighters",
+   "Research Outpost",
+   "Mars University",
+   "Io Mining Industries",
+   "Satellites",
+   "Galilean Waystation",
+   "GHG Factories",
+   "Sponsored Power Plant",
+   "Vote Of No Confidence:redux",
+   "Technology Demonstration",
+   "Mining Area",
+   "Indentured Workers",
+   "Biomass Combustors",
+   "Kelp Farming",
+   "Ice Cap Melting",
+   "Medical Lab",
+   "Investment Loan",
+   "Search For Life",
+   "Corporate Stronghold",
+   "Sub-zero Salt Fish",
+   "AI Central",
+   "Tropical Resort",
+   "Energy Saving",
+   "Physics Complex",
+   "Ichtiology Grant",
+   "Supercomputer",
+   "Mining Mechs",
+   "Interstellar Colony Ship",
+   "Decomposers",
+   "Warp Drive",
+   "Asteroid Mining",
+   "Political Recognition",
+   "Equatorial Magnetizer",
+   "Space Station",
+   "Bushes",
+   "Tharsis Alliance",
+   "Ecological Experiment",
+   "Aerobraked Ammonia Asteroid",
+   "Public Celebrations",
+   "Robotics Factory",
+   "Red Tech Convention",
+   "Import of Advanced GHG",
+   "Nationalist Movement",
+   "Wave Power",
+   "Permafrost Extraction",
+   "Shuttles",
+   "Mohole Area",
+   "Earth Army Contract",
+   "Great Escarpment Consortium",
+   "Space Elevator",
+   "Fueled Generators",
+   "Caretaker Contract",
+   "Martian Zoo",
+   "Insulation",
+   "Heather",
+   "Fuel Factory",
+   "Gene Repair",
+   "Political Alliance:redux",
+   "Political Think Tank",
+   "Steelworks",
+   "Invention Contest",
+   "Council Seat",
+   "Greenhouses",
+   "Robotic Workforce",
+   "Earth Catapult",
+   "Beam From A Thorium Asteroid",
+   "Jovian Lanterns",
+   "CEO's Favorite Project",
+   "Summit Logistics",
+   "Cryo-Sleep",
+   "Artificial Lake",
+   "Peroxide Power",
+   "Subterranean Reservoir",
+   "Imported GHG",
+   "Cupola City",
+   "Floater Technology",
+   "Terraforming Ganymede",
+   "Large Convoy",
+   "Carbonate Processing",
+   "Pioneer Settlement",
+   "Water Import From Europa",
+   "Reds News Outlet",
+   "Vector Computations",
+   "Green Allegiance",
+   "Ore Processor",
+   "Airliners",
+   "Sponsored Mohole:redux",
+   "Giant Ice Asteroid",
+   "Adapted Lichen",
+   "Cloud Seeding",
+   "Bribed Committee",
+   "Enceladean Incubator",
+   "Minority Representation",
+   "Soil Factory",
+   "Algae",
+   "Sabotage",
+   "Imported Nitrogen",
+   "Special Design",
+   "Solar Power",
+   "Banned Delegate:redux",
+   "Energy Tapping",
+   "Martian Fiber",
+   "Ice Moon Colony",
+   "Earth Elevator",
+   "Business Network",
+   "Water Splitting Plant",
+   "Solar Probe",
+   "Predators",
+   "Heat Trappers",
+   "Methane From Titan",
+   "Release of Inert Gases"
+  ],
+  "discardPile": [
+   "Magnetic Field Generators",
+   "Grass",
+   "Hackers",
+   "Quantum Extractor",
+   "Ceres Tech Market",
+   "Corona Extractor",
+   "Earth Office",
+   "Sponsors",
+   "Spaceship Recycling",
+   "Zeppelins",
+   "Mining Colony",
+   "Conscription",
+   "Event Analysts",
+   "Viral Enhancers",
+   "Rad-Suits",
+   "Fish",
+   "Protected Valley",
+   "Deep Well Heating",
+   "Spin-off Department",
+   "Sponsored Settlement",
+   "Mine",
+   "Commercial District",
+   "Small Animals",
+   "Designed Microorganisms",
+   "Nuclear Power",
+   "Adaptation Technology",
+   "Insulation"
+  ]
+ },
+ "researchedPlayers": [],
+ "seed": 0,
+ "someoneHasRemovedOtherPlayersPlants": false,
+ "spectatorId": "spectator-id",
+ "tags": [
+  "earth",
+  "space",
+  "plant",
+  "animal",
+  "building",
+  "science",
+  "power",
+  "jovian",
+  "city",
+  "microbe",
+  "mars",
+  "wild",
+  "venus"
+ ],
+ "scaleBonusClaims": [],
+ "temperature": -30,
+ "tradeEmbargo": false,
+ "underworldData": {
+  "tokens": []
+ },
+ "undoCount": 0,
+ "venusScaleLevel": 0,
+ "verminInEffect": false,
+ "parliament": {
+  "version": 1,
+  "slots": [
+   {
+    "instance": "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET#0",
+    "votes": [
+     {
+      "owner": "NEUTRAL",
+      "seq": 2
+     }
+    ]
+   },
+   {
+    "instance": "RDX_REDS_DIVERTED_RESEARCH#0",
+    "votes": [
+     {
+      "owner": "NEUTRAL",
+      "seq": 3
+     }
+    ]
+   },
+   {
+    "instance": "RDX_MARS_URBAN_DEVELOPMENT#0",
+    "votes": [
+     {
+      "owner": "NEUTRAL",
+      "seq": 4
+     }
+    ]
+   }
+  ],
+  "enacted": "RDX_UNITY_COLONIAL_AFFAIRS#0",
+  "quest": {
+   "definition": {
+    "goal": {
+     "kind": "tag",
+     "tag": "space"
+    },
+    "count": 2
+   },
+   "source": "RDX_UNITY_COLONIAL_AFFAIRS",
+   "generation": 2,
+   "progress": {}
+  },
+  "lobby": [
+   "p-player1-id",
+   "p-player3-id",
+   "p-player2-id"
+  ],
+  "voteSeq": 4,
+  "popularSupport": {
+   "Greens": 1,
+   "Scientists": 1,
+   "Reds": 0,
+   "Mars First": 0,
+   "Industrialists": 0
+  },
+  "agenda": {
+   "p-player1-id": 1,
+   "p-player2-id": 2,
+   "p-player3-id": 0
+  },
+  "influenceBonus": {
+   "p-player1-id": [
+    {
+     "amount": 1,
+     "source": "Colonial Representation"
+    }
+   ]
+  },
+  "grantedEffects": {},
+  "partyActionUses": {},
+  "resolutionActionUses": {},
+  "deck": [
+   "RDX_MARS_SKYSCRAPERS#0",
+   "RDX_REDS_HEAT_CAPTURE#0",
+   "RDX_MARSFIRST_MIGRATION_FUNDING#0",
+   "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION#0",
+   "RDX_UNITY_UNITY_BUDGET#0",
+   "RDX_GREENS_GREENS_BUDGET#0",
+   "RDX_REDS_WATER_EXPORT#0",
+   "RDX_SCIENTISTS_JOINT_RESEARCH#0",
+   "RDX_SCIENTISTS_RD_FUNDING#0",
+   "RDX_REDS_UNMI_VETO#0",
+   "RDX_GREENS_CLIMATE_RESEARCH#0",
+   "RDX_MARS_DEVELOPMENT_CRAZE#0",
+   "RDX_INDUSTRIALISTS_TAX_BREAKS#0",
+   "RDX_SCIENTISTS_SCIENTISTS_BUDGET#0",
+   "RDX_MARS_MARS_FIRST_BUDGET#0",
+   "RDX_UNITY_COLONIZATION_FUNDING#0",
+   "RDX_REDS_PLANT_BAN#0",
+   "RDX_GREENS_MOHOLE_CONTEST#0",
+   "RDX_INDUSTRIALISTS_METAL_RESEARCH#0",
+   "RDX_SCIENTISTS_OPEN_IP_TRADE#0",
+   "RDX_SCIENTISTS_LIVE_EXPERIMENTS#0",
+   "RDX_UNITY_TRADE_INDUSTRIES#0",
+   "RDX_MARS_URBAN_RESEARCH#0",
+   "RDX_GREENS_BIODOME_CONTEST#0",
+   "RDX_INDUSTRIALISTS_MINING_INCENTIVES#0",
+   "RDX_GREENS_FORESTRY_SUPPORT#0",
+   "RDX_SCIENTISTS_SPONSORED_PROJECTS#0",
+   "RDX_UNITY_COLONY_CONTEST#0",
+   "RDX_INDUSTRIALISTS_MANUFACTURING_RUN#0",
+   "RDX_SCIENTISTS_MEDICAL_DATABASE#0",
+   "RDX_GREENS_AQUIFER_CONTEST#0",
+   "RDX_GREENS_GENEROUS_FUNDING#0",
+   "RDX_UNITY_JOVIAN_TAX_RIGHTS#0",
+   "RDX_REDS_REDS_BUDGET#0"
+  ],
+  "discard": [
+   "RDX_MARS_ARCHITECTURE_AWARD#0",
+   "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0"
+  ],
+  "lastPhase": {
+   "generation": 1,
+   "final": false,
+   "winner": {
+    "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
+    "votes": 1,
+    "player": "p-player2-id",
+    "slot": 0
+   },
+   "support": [
+    {
+     "party": "Greens",
+     "gained": 1,
+     "total": 1,
+     "reason": "absent"
+    },
+    {
+     "party": "Scientists",
+     "gained": 1,
+     "total": 1,
+     "reason": "absent"
+    },
+    {
+     "party": "Reds",
+     "gained": 1,
+     "total": 1,
+     "reason": "absent"
+    },
+    {
+     "party": "Mars First",
+     "gained": 1,
+     "total": 1,
+     "reason": "lost"
+    },
+    {
+     "party": "Industrialists",
+     "gained": 1,
+     "total": 1,
+     "reason": "lost"
+    }
+   ],
+   "enacted": "RDX_UNITY_COLONIAL_AFFAIRS#0",
+   "refreshed": [
+    {
+     "instance": "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET#0",
+     "neutralVotes": 1
+    },
+    {
+     "instance": "RDX_REDS_DIVERTED_RESEARCH#0",
+     "neutralVotes": 1
+    },
+    {
+     "instance": "RDX_MARS_URBAN_DEVELOPMENT#0",
+     "neutralVotes": 1
+    }
+   ],
+   "lobbyRefilled": [
+    "p-player2-id"
+   ],
+   "seq": 1,
+   "correlationId": 20,
+   "agenda": {
+    "player": "p-player2-id",
+    "from": 1,
+    "to": 2,
+    "bonus": "tr",
+    "answer": {
+     "stock": {
+      "megacredits": 2
+     }
+    }
+   },
+   "returned": [
+    {
+     "owner": "p-player2-id",
+     "count": 1
+    }
+   ],
+   "influenceRead": [
+    {
+     "player": "p-player1-id",
+     "total": 2,
+     "agendaStep": 1,
+     "track": 1,
+     "sources": [
+      {
+       "amount": 1,
+       "source": "Colonial Representation"
+      }
+     ]
+    },
+    {
+     "player": "p-player2-id",
+     "total": 1,
+     "agendaStep": 2,
+     "track": 1,
+     "sources": []
+    },
+    {
+     "player": "p-player3-id",
+     "total": 0,
+     "agendaStep": 0,
+     "track": 0,
+     "sources": []
+    }
+   ],
+   "outcomes": [
+    {
+     "player": "p-player1-id",
+     "step": "colony:Luna",
+     "part": "effect",
+     "kind": "stock",
+     "effect": "colonyBonuses",
+     "influence": 2,
+     "multiplier": 3,
+     "colony": "Luna",
+     "stock": "megacredits",
+     "amount": 6,
+     "before": 62,
+     "after": 68
+    },
+    {
+     "player": "p-player1-id",
+     "step": "colony:Titan",
+     "part": "effect",
+     "kind": "cardResource",
+     "effect": "colonyBonuses",
+     "influence": 2,
+     "multiplier": 3,
+     "colony": "Titan",
+     "resource": "Floater",
+     "amount": 3,
+     "card": "Atmo Collectors",
+     "cards": [
+      {
+       "card": "Atmo Collectors",
+       "amount": 3,
+       "resource": "Floater"
+      }
+     ]
+    },
+    {
+     "player": "p-player1-id",
+     "step": "colony:Miranda",
+     "part": "effect",
+     "kind": "cards",
+     "effect": "colonyBonuses",
+     "influence": 2,
+     "multiplier": 3,
+     "colony": "Miranda",
+     "amount": 3,
+     "drawn": 3,
+     "intake": 1
+    },
+    {
+     "player": "p-player1-id",
+     "step": "colony:Pluto:1:draw",
+     "part": "effect",
+     "kind": "cards",
+     "effect": "colonyBonuses",
+     "influence": 2,
+     "multiplier": 3,
+     "colony": "Pluto",
+     "amount": 1,
+     "drawn": 1,
+     "intake": 1
+    },
+    {
+     "player": "p-player1-id",
+     "step": "colony:Pluto:1:discard",
+     "part": "effect",
+     "kind": "discard",
+     "effect": "colonyBonuses",
+     "influence": 2,
+     "multiplier": 3,
+     "colony": "Pluto",
+     "amount": 1,
+     "card": "Nuclear Power"
+    },
+    {
+     "player": "p-player1-id",
+     "step": "colony:Pluto:2:draw",
+     "part": "effect",
+     "kind": "cards",
+     "effect": "colonyBonuses",
+     "influence": 2,
+     "multiplier": 3,
+     "colony": "Pluto",
+     "amount": 1,
+     "drawn": 1,
+     "intake": 1
+    },
+    {
+     "player": "p-player1-id",
+     "step": "colony:Pluto:2:discard",
+     "part": "effect",
+     "kind": "discard",
+     "effect": "colonyBonuses",
+     "influence": 2,
+     "multiplier": 3,
+     "colony": "Pluto",
+     "amount": 1,
+     "card": "Adaptation Technology"
+    },
+    {
+     "player": "p-player1-id",
+     "step": "colony:Pluto:3:draw",
+     "part": "effect",
+     "kind": "cards",
+     "effect": "colonyBonuses",
+     "influence": 2,
+     "multiplier": 3,
+     "colony": "Pluto",
+     "amount": 1,
+     "drawn": 1,
+     "intake": 1
+    },
+    {
+     "player": "p-player1-id",
+     "step": "colony:Pluto:3:discard",
+     "part": "effect",
+     "kind": "discard",
+     "effect": "colonyBonuses",
+     "influence": 2,
+     "multiplier": 3,
+     "colony": "Pluto",
+     "amount": 1,
+     "card": "Insulation"
+    },
+    {
+     "player": "p-player2-id",
+     "step": "colony:Luna",
+     "part": "effect",
+     "kind": "stock",
+     "effect": "colonyBonuses",
+     "influence": 1,
+     "multiplier": 2,
+     "colony": "Luna",
+     "stock": "megacredits",
+     "amount": 4,
+     "before": 52,
+     "after": 56
+    },
+    {
+     "player": "p-player3-id",
+     "step": "colonies",
+     "part": "effect",
+     "kind": "skipped",
+     "effect": "colonyBonuses",
+     "influence": 0,
+     "multiplier": 2,
+     "amount": 2,
+     "reason": "You have no colonies"
+    }
+   ],
+   "renewal": [
+    {
+     "kind": "leave",
+     "instance": "RDX_MARS_ARCHITECTURE_AWARD#0",
+     "slot": 1,
+     "returned": []
+    },
+    {
+     "kind": "leave",
+     "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+     "slot": 2,
+     "returned": []
+    },
+    {
+     "kind": "deal",
+     "instance": "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET#0",
+     "slot": 0,
+     "source": "deck"
+    },
+    {
+     "kind": "support",
+     "party": "Industrialists",
+     "instance": "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET#0",
+     "count": 1
+    },
+    {
+     "kind": "deal",
+     "instance": "RDX_REDS_DIVERTED_RESEARCH#0",
+     "slot": 1,
+     "source": "deck"
+    },
+    {
+     "kind": "support",
+     "party": "Reds",
+     "instance": "RDX_REDS_DIVERTED_RESEARCH#0",
+     "count": 1
+    },
+    {
+     "kind": "deal",
+     "instance": "RDX_MARS_URBAN_DEVELOPMENT#0",
+     "slot": 2,
+     "source": "deck"
+    },
+    {
+     "kind": "support",
+     "party": "Mars First",
+     "instance": "RDX_MARS_URBAN_DEVELOPMENT#0",
+     "count": 1
+    },
+    {
+     "kind": "lobby",
+     "player": "p-player2-id"
+    }
+   ],
+   "discarded": [
+    "RDX_MARS_ARCHITECTURE_AWARD#0",
+    "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0"
+   ]
+  },
+  "phaseSeq": 1,
+  "phaseHistory": [
+   {
+    "generation": 1,
+    "final": false,
+    "winner": {
+     "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
+     "votes": 1,
+     "player": "p-player2-id",
+     "slot": 0
+    },
+    "support": [
+     {
+      "party": "Greens",
+      "gained": 1,
+      "total": 1,
+      "reason": "absent"
+     },
+     {
+      "party": "Scientists",
+      "gained": 1,
+      "total": 1,
+      "reason": "absent"
+     },
+     {
+      "party": "Reds",
+      "gained": 1,
+      "total": 1,
+      "reason": "absent"
+     },
+     {
+      "party": "Mars First",
+      "gained": 1,
+      "total": 1,
+      "reason": "lost"
+     },
+     {
+      "party": "Industrialists",
+      "gained": 1,
+      "total": 1,
+      "reason": "lost"
+     }
+    ],
+    "enacted": "RDX_UNITY_COLONIAL_AFFAIRS#0",
+    "refreshed": [
+     {
+      "instance": "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET#0",
+      "neutralVotes": 1
+     },
+     {
+      "instance": "RDX_REDS_DIVERTED_RESEARCH#0",
+      "neutralVotes": 1
+     },
+     {
+      "instance": "RDX_MARS_URBAN_DEVELOPMENT#0",
+      "neutralVotes": 1
+     }
+    ],
+    "lobbyRefilled": [
+     "p-player2-id"
+    ],
+    "seq": 1,
+    "correlationId": 20,
+    "agenda": {
+     "player": "p-player2-id",
+     "from": 1,
+     "to": 2,
+     "bonus": "tr",
+     "answer": {
+      "stock": {
+       "megacredits": 2
+      }
+     }
+    },
+    "returned": [
+     {
+      "owner": "p-player2-id",
+      "count": 1
+     }
+    ],
+    "influenceRead": [
+     {
+      "player": "p-player1-id",
+      "total": 2,
+      "agendaStep": 1,
+      "track": 1,
+      "sources": [
+       {
+        "amount": 1,
+        "source": "Colonial Representation"
+       }
+      ]
+     },
+     {
+      "player": "p-player2-id",
+      "total": 1,
+      "agendaStep": 2,
+      "track": 1,
+      "sources": []
+     },
+     {
+      "player": "p-player3-id",
+      "total": 0,
+      "agendaStep": 0,
+      "track": 0,
+      "sources": []
+     }
+    ],
+    "outcomes": [
+     {
+      "player": "p-player1-id",
+      "step": "colony:Luna",
+      "part": "effect",
+      "kind": "stock",
+      "effect": "colonyBonuses",
+      "influence": 2,
+      "multiplier": 3,
+      "colony": "Luna",
+      "stock": "megacredits",
+      "amount": 6,
+      "before": 62,
+      "after": 68
+     },
+     {
+      "player": "p-player1-id",
+      "step": "colony:Titan",
+      "part": "effect",
+      "kind": "cardResource",
+      "effect": "colonyBonuses",
+      "influence": 2,
+      "multiplier": 3,
+      "colony": "Titan",
+      "resource": "Floater",
+      "amount": 3,
+      "card": "Atmo Collectors",
+      "cards": [
+       {
+        "card": "Atmo Collectors",
+        "amount": 3,
+        "resource": "Floater"
+       }
+      ]
+     },
+     {
+      "player": "p-player1-id",
+      "step": "colony:Miranda",
+      "part": "effect",
+      "kind": "cards",
+      "effect": "colonyBonuses",
+      "influence": 2,
+      "multiplier": 3,
+      "colony": "Miranda",
+      "amount": 3,
+      "drawn": 3,
+      "intake": 1
+     },
+     {
+      "player": "p-player1-id",
+      "step": "colony:Pluto:1:draw",
+      "part": "effect",
+      "kind": "cards",
+      "effect": "colonyBonuses",
+      "influence": 2,
+      "multiplier": 3,
+      "colony": "Pluto",
+      "amount": 1,
+      "drawn": 1,
+      "intake": 1
+     },
+     {
+      "player": "p-player1-id",
+      "step": "colony:Pluto:1:discard",
+      "part": "effect",
+      "kind": "discard",
+      "effect": "colonyBonuses",
+      "influence": 2,
+      "multiplier": 3,
+      "colony": "Pluto",
+      "amount": 1,
+      "card": "Nuclear Power"
+     },
+     {
+      "player": "p-player1-id",
+      "step": "colony:Pluto:2:draw",
+      "part": "effect",
+      "kind": "cards",
+      "effect": "colonyBonuses",
+      "influence": 2,
+      "multiplier": 3,
+      "colony": "Pluto",
+      "amount": 1,
+      "drawn": 1,
+      "intake": 1
+     },
+     {
+      "player": "p-player1-id",
+      "step": "colony:Pluto:2:discard",
+      "part": "effect",
+      "kind": "discard",
+      "effect": "colonyBonuses",
+      "influence": 2,
+      "multiplier": 3,
+      "colony": "Pluto",
+      "amount": 1,
+      "card": "Adaptation Technology"
+     },
+     {
+      "player": "p-player1-id",
+      "step": "colony:Pluto:3:draw",
+      "part": "effect",
+      "kind": "cards",
+      "effect": "colonyBonuses",
+      "influence": 2,
+      "multiplier": 3,
+      "colony": "Pluto",
+      "amount": 1,
+      "drawn": 1,
+      "intake": 1
+     },
+     {
+      "player": "p-player1-id",
+      "step": "colony:Pluto:3:discard",
+      "part": "effect",
+      "kind": "discard",
+      "effect": "colonyBonuses",
+      "influence": 2,
+      "multiplier": 3,
+      "colony": "Pluto",
+      "amount": 1,
+      "card": "Insulation"
+     },
+     {
+      "player": "p-player2-id",
+      "step": "colony:Luna",
+      "part": "effect",
+      "kind": "stock",
+      "effect": "colonyBonuses",
+      "influence": 1,
+      "multiplier": 2,
+      "colony": "Luna",
+      "stock": "megacredits",
+      "amount": 4,
+      "before": 52,
+      "after": 56
+     },
+     {
+      "player": "p-player3-id",
+      "step": "colonies",
+      "part": "effect",
+      "kind": "skipped",
+      "effect": "colonyBonuses",
+      "influence": 0,
+      "multiplier": 2,
+      "amount": 2,
+      "reason": "You have no colonies"
+     }
+    ],
+    "renewal": [
+     {
+      "kind": "leave",
+      "instance": "RDX_MARS_ARCHITECTURE_AWARD#0",
+      "slot": 1,
+      "returned": []
+     },
+     {
+      "kind": "leave",
+      "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+      "slot": 2,
+      "returned": []
+     },
+     {
+      "kind": "deal",
+      "instance": "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET#0",
+      "slot": 0,
+      "source": "deck"
+     },
+     {
+      "kind": "support",
+      "party": "Industrialists",
+      "instance": "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET#0",
+      "count": 1
+     },
+     {
+      "kind": "deal",
+      "instance": "RDX_REDS_DIVERTED_RESEARCH#0",
+      "slot": 1,
+      "source": "deck"
+     },
+     {
+      "kind": "support",
+      "party": "Reds",
+      "instance": "RDX_REDS_DIVERTED_RESEARCH#0",
+      "count": 1
+     },
+     {
+      "kind": "deal",
+      "instance": "RDX_MARS_URBAN_DEVELOPMENT#0",
+      "slot": 2,
+      "source": "deck"
+     },
+     {
+      "kind": "support",
+      "party": "Mars First",
+      "instance": "RDX_MARS_URBAN_DEVELOPMENT#0",
+      "count": 1
+     },
+     {
+      "kind": "lobby",
+      "player": "p-player2-id"
+     }
+    ],
+    "discarded": [
+     "RDX_MARS_ARCHITECTURE_AWARD#0",
+     "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0"
+    ]
+   }
+  ],
+  "sittingAcks": {
+   "generation": 1,
+   "seq": 1,
+   "final": false,
+   "correlationId": 20,
+   "pending": [
+    "p-player1-id",
+    "p-player2-id",
+    "p-player3-id"
+   ]
+  },
+  "lastAdvance": {
+   "seq": 1,
+   "player": "p-player2-id",
+   "from": 1,
+   "to": 2,
+   "bonus": "tr",
+   "steps": [
+    {
+     "to": 2,
+     "bonus": "tr",
+     "answer": {
+      "stock": {
+       "megacredits": 2
+      }
+     }
+    }
+   ],
+   "reason": "phase",
+   "generation": 1
+  },
+  "botMode": "politics",
+  "partyEffectAccess": {
+   "p-player1-id": {
+    "Unity": "ruling"
+   },
+   "p-player2-id": {
+    "Unity": "ruling"
+   },
+   "p-player3-id": {
+    "Unity": "ruling"
+   }
+  }
+ }
+}

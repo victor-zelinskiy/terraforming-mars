@@ -1,27 +1,25 @@
-/* ══ «ПОДРОБНОСТИ ВЫПЛАТ» (the owner, 2026-10-24) — the step one level below the results card's «ВЫПЛАТЫ»
-   (`ConsoleSittingPayoutDetails.vue`, `payoutDetailsModel.ts`). ONE LEVEL DEEPER ON THE SAME CARD: the enacted law
-   keeps its column (the carried object), the payouts / world / next-vote columns RELEASE in place, and the table
-   UNFOLDS out of the rect the payouts held — its sections surfacing in reading order. A table per rule: the rule in
-   the card's own formula over a row per seat (who · the recorded reading · what reached it). ══ */
-
-@con-sitpd-cols: 9rem minmax(0, 1.5fr) minmax(0, 1fr);
+/* ══ «ПОДРОБНОСТИ ВЫПЛАТ» (the owner, 2026-10-24; P71 · ledger CY) — the step one level below the results card's ledger
+   (`ConsoleSittingPayoutDetails.vue`, `payoutDetailsModel.ts`). ONE LEVEL DEEPER ON THE SAME CARD: the enacted law keeps
+   its column (the carried object), the ledger / world / next-vote columns RELEASE in place, and the step UNFOLDS out of
+   the rect the ledger held — its seats' columns surfacing in turn. Over them ONE strip of the LAW (it does not scroll);
+   under it a COLUMN PER SEAT, its blocks (head · influence · from what · ИТОГО) aligned with the other seats' by a
+   subgrid of rows, so the seats compare across. ══ */
 
 .con-parl[data-sitting-stage="results"] .con-sit {
     /* RELEASE in place: the columns the step takes the place of fade where they stand (no travel, no layout). */
-    &__payouts, &__planet, &__tracks, &__table {
+    &__paycol, &__payouts, &__planet, &__tracks, &__table, &__foot {
         transition: opacity calc(150ms * var(--motion-scale, 1)) ease-out;
     }
+    &__results--details .con-sit__paycol,
     &__results--details .con-sit__payouts,
-    &__results--details .con-sit__planet,
-    &__results--details .con-sit__tracks,
-    &__results--details .con-sit__table {
+    &__results--details .con-sit__table,
+    &__results--details .con-sit__foot {
         opacity: 0;
         pointer-events: none;
     }
     /* The step stands in the columns it replaces — the enacted law's column never moves. It takes the AREA the card
-       already has and never sizes it: the stage grows by its content (law 9), so a table taller than the payouts it
-       replaced grew the panel and moved the centred law up and down on the way in (the owner, 2026-10-24) —
-       `contain: size` makes the step contribute nothing, it stretches over the area and scrolls inside it. */
+       already has and never sizes it (`contain: size` — a breakdown taller than the ledger would grow the panel and
+       move the centred law; it scrolls inside the area instead). */
     &__details {
         grid-column: 2 / -1;
         grid-row: 1 / -1;
@@ -33,21 +31,25 @@
     }
 }
 
-/* UNFOLD out of the payouts' rect (their column is the step's left part), then REVEAL the sections in turn. */
+/* UNFOLD out of the ledger's rect (its column is the step's left part), then REVEAL the seats' columns in turn. */
 .con-sitpd-enter-active {
     transform-origin: 28% 45%;
     animation: con-sitpd-in calc(300ms * var(--motion-scale, 1)) cubic-bezier(.2, .8, .2, 1) calc(110ms * var(--motion-scale, 1)) both;
 }
-.con-sitpd-enter-active .con-sitpd__section {
+.con-sitpd-enter-active .con-sitpd__law,
+.con-sitpd-enter-active .con-sitpd__seat {
     animation: con-sitpd-section calc(260ms * var(--motion-scale, 1)) cubic-bezier(.2, .8, .2, 1) both;
     animation-delay: calc(240ms * var(--motion-scale, 1));
 }
-.con-sitpd-enter-active .con-sitpd__section:nth-child(2) { animation-delay: calc(300ms * var(--motion-scale, 1)); }
-.con-sitpd-enter-active .con-sitpd__section:nth-child(3) { animation-delay: calc(360ms * var(--motion-scale, 1)); }
-.con-sitpd-enter-active .con-sitpd__section:nth-child(n + 4) { animation-delay: calc(420ms * var(--motion-scale, 1)); }
+.con-sitpd-enter-active .con-sitpd__seat:nth-child(1) { animation-delay: calc(290ms * var(--motion-scale, 1)); }
+.con-sitpd-enter-active .con-sitpd__seat:nth-child(2) { animation-delay: calc(340ms * var(--motion-scale, 1)); }
+.con-sitpd-enter-active .con-sitpd__seat:nth-child(n + 3) { animation-delay: calc(390ms * var(--motion-scale, 1)); }
 .con-sitpd-leave-active {
     transform-origin: 28% 45%;
     animation: con-sitpd-out calc(150ms * var(--motion-scale, 1)) ease-in both;
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-sitpd-enter-active, .con-sitpd-enter-active .con-sitpd__law, .con-sitpd-enter-active .con-sitpd__seat, .con-sitpd-leave-active { animation: none; }
 }
 @keyframes con-sitpd-in {
     from { opacity: 0; transform: scale(.96); }
@@ -64,89 +66,107 @@
 .con-sitpd {
     display: flex;
     flex-direction: column;
+    gap: .7rem;
     height: 100%;
     min-height: 0;
-    &__scroll { flex: 1 1 auto; min-height: 0; }
-    &__body { display: flex; flex-direction: column; gap: 1rem; padding: 0 .5rem .4rem 0; }
-    /* A RULE is a plate of its own: its formula, then the table read against it. */
-    &__section {
+    /* THE LAW'S STRIP — the formula once, the rule of WHO, the not-owed line; it never scrolls. */
+    &__law {
+        flex: none;
         display: flex;
-        flex-direction: column;
-        gap: .55rem;
-        padding: .7rem .95rem .8rem;
-        border-radius: .7rem;
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(0, 0, 0, 0.28) 45%);
-        box-shadow: inset 0 0 0 .05rem rgba(201, 198, 214, 0.16);
-        /* A part for the WINNER alone wears the crown's gold — the one part the other seats were never owed. */
-        &--winner {
-            background: linear-gradient(180deg, fade(@con-parl-gold, 8%), rgba(0, 0, 0, 0.28) 50%);
-            box-shadow: inset 0 0 0 .06rem fade(@con-parl-gold, 45%);
-        }
-    }
-    &__head { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem 1.1rem; }
-    &__kicker {
-        display: inline-flex;
+        flex-wrap: wrap;
         align-items: center;
-        gap: .4rem;
-        font-size: .66rem;
-        font-weight: 800;
-        letter-spacing: .14em;
-        line-height: 1.1;
-        text-transform: uppercase;
-        color: fade(@con-parl-gold, 92%);
+        gap: .4rem 1.4rem;
+        padding: .55rem .9rem;
+        border-radius: .6rem;
+        background: rgba(255, 255, 255, 0.025);
+        box-shadow: inset 0 0 0 .05rem rgba(201, 198, 214, 0.14);
     }
-    &__crown { flex: none; width: 1.1rem; height: .75rem; fill: @con-parl-gold; &--seat { width: .9rem; height: .6rem; } }
-    &__emblem { flex: none; width: 1.3rem; height: 1.3rem; }
-    &__rule-text { font-size: .72rem; line-height: 1.2; color: #dfe6ef; }
-    /* THE TABLE — every row the same three columns (who · why · what), so the seats compare down a column. */
-    &__table { display: flex; flex-direction: column; }
-    &__row {
+    &__rule-text { font-size: .76rem; line-height: 1.2; color: #dfe6ef; }
+    &__notowed { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .9rem; margin: 0; font-size: .72rem; color: rgba(205, 218, 232, 0.72); }
+    &__notowed-seat { display: inline-flex; align-items: center; gap: .3rem; color: #e3eaf3; }
+    &__scroll { flex: 1 1 auto; min-height: 0; }
+    &__body { padding: 0 .5rem .4rem 0; }
+    /* THE SEATS — a column each, their four blocks on SHARED rows (subgrid), so a block reads across the seats. */
+    &__seats {
         display: grid;
-        grid-template-columns: @con-sitpd-cols;
-        column-gap: 1.2rem;
-        align-items: center;
-        min-height: 2.1rem;
-        padding: .35rem .4rem;
-        border-top: .05rem solid rgba(201, 198, 214, 0.1);
-        &--head {
-            min-height: 0;
-            padding-top: 0;
-            border-top: none;
-            font-size: .56rem;
-            font-weight: 700;
-            letter-spacing: .14em;
-            text-transform: uppercase;
-            color: rgba(205, 218, 232, 0.55);
-        }
-        /* The viewer's own row is found at once — a quiet cyan wash, never a frame. */
-        &--me { background: fade(@con-cyan, 7%); border-radius: .4rem; }
+        grid-template-columns: repeat(var(--sitpd-seats, 1), minmax(0, 1fr));
+        grid-template-rows: auto auto auto auto;
+        column-gap: .9rem;
     }
-    &__who { display: inline-flex; align-items: center; gap: .4rem; min-width: 0; }
-    &__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8rem; letter-spacing: .03em; color: #eef2f7; }
-    &__why { min-width: 0; display: flex; align-items: center; }
-    &__why .con-iyield { min-width: 0; }
-    &__got { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; }
+    &__seat {
+        grid-row: 1 / span 4;
+        display: grid;
+        grid-template-rows: subgrid;
+        row-gap: .55rem;
+        min-width: 0;
+        padding: .7rem .85rem .8rem;
+        border-radius: .7rem;
+        background: rgba(255, 255, 255, 0.025);
+        box-shadow: inset 0 0 0 .05rem rgba(201, 198, 214, 0.16);
+        &--winner { box-shadow: inset 0 0 0 .07rem fade(@con-parl-gold, 55%); }
+        &--me { box-shadow: inset .18rem 0 0 fade(@con-cyan, 85%), inset 0 0 0 .05rem rgba(201, 198, 214, 0.16); }
+        &--me&--winner { box-shadow: inset .18rem 0 0 fade(@con-cyan, 85%), inset 0 0 0 .07rem fade(@con-parl-gold, 55%); }
+    }
+    &__head { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+    &__who { display: inline-flex; align-items: center; gap: .45rem; white-space: nowrap; }
+    &__name { font-size: 1rem; font-weight: 700; letter-spacing: .03em; color: #eef2f7; white-space: nowrap; }
+    &__winner { display: inline-flex; align-items: center; gap: .3rem; font-size: .62rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: @con-parl-gold; }
+    &__crown { flex: none; width: .9rem; height: .6rem; fill: @con-parl-gold; }
+    &__emblem { flex: none; width: 1.2rem; height: 1.2rem; }
+    &__block { display: flex; flex-direction: column; gap: .4rem; min-width: 0; padding-top: .5rem; border-top: .05rem solid rgba(201, 198, 214, 0.1); }
+    &__kicker { font-size: .6rem; font-weight: 800; letter-spacing: .14em; line-height: 1.1; text-transform: uppercase; color: rgba(205, 218, 232, 0.62); }
+    /* INFLUENCE — the number big, its composition as quiet terms, then what it meant. */
+    &__influence-total { display: inline-flex; align-items: center; gap: .35rem; font-size: 1.6rem; line-height: 1; b { font-weight: 800; font-variant-numeric: tabular-nums; } }
+    &__influence-glyph { display: inline-block; width: 1.1em; height: 1.1em; background: url(./assets/misc/influence.svg) center / contain no-repeat; }
+    &__composition { display: flex; flex-wrap: wrap; gap: .25rem .8rem; font-size: .76rem; color: #dfe6ef; }
+    &__term { white-space: nowrap; b { font-weight: 800; font-variant-numeric: tabular-nums; } }
+    &__term--giver b { color: @con-parl-mint; }
+    &__term-step { opacity: .7; }
+    &__meaning { min-width: 0; }
     &__grant {
-        font-size: .72rem;
+        font-size: .76rem;
         line-height: 1.2;
         color: #dfe6ef;
         &--winner, &--influence, &--everyone { color: @con-parl-mint; }
         &--none { color: rgba(205, 218, 232, 0.6); }
     }
-    /* The seats never owed a winner's part — named ONCE under the table, never a «0» row each. */
-    &__notowed { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .9rem; margin: 0; padding: .2rem .4rem 0; font-size: .7rem; color: rgba(205, 218, 232, 0.72); }
-    &__notowed-seat { display: inline-flex; align-items: center; gap: .3rem; color: #e3eaf3; }
+    /* FROM WHAT — a line per source: its label, its reading (where it has one), its records. */
+    &__line { display: flex; flex-direction: column; gap: .25rem; min-width: 0; padding: .3rem 0; }
+    &__line + &__line { border-top: .05rem dashed rgba(201, 198, 214, 0.1); }
+    &__line-label { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .3rem .45rem; font-size: .76rem; font-weight: 600; color: #e3eaf3; }
+    &__line-label .con-sit__part-planet { width: 1.1rem; height: 1.1rem; }
+    &__times { font-weight: 800; font-variant-numeric: tabular-nums; color: @con-parl-mint; }
+    &__cubes { font-weight: 600; opacity: .72; }
+    &__reading { min-width: 0; }
+    &__got { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; --sit-total-size: 1.15rem; }
+    &__got .con-sit__part { font-size: .9rem; }
+    /* A skip in a line is its statement whole — the label, then the reason WRAPPING under it (never «Колоний…»). */
+    &__got .con-sit__part--skipped { flex-direction: column; align-items: flex-start; gap: .12rem; max-width: 100%; }
+    &__got .con-sit__part--skipped .con-sit__part-reason, &__got .con-sit__part--skipped .con-parl__chip-dim { white-space: normal; overflow: visible; text-overflow: clip; }
+    /* The totals of a line and of ИТОГО read from the column's leading edge, like the lines above them. */
+    &__got.con-sit__totals, &__total .con-sit__totals { align-items: flex-start; }
+    /* ИТОГО — the card's own renderer, one size up from the lines. */
+    &__total { --sit-total-size: 1.45rem; }
 }
 
-/* ── the HANDHELD ladder (Steam Deck): a narrower name column. ── */
+/* ── the HANDHELD ladder (Steam Deck): the seats stand one under the other. ── */
 html.con-profile-handheld .con-sitpd {
-    &__row { grid-template-columns: 6.4rem minmax(0, 1.5fr) minmax(0, 1fr); column-gap: .7rem; }
-    &__section { padding: .5rem .6rem .6rem; }
+    &__seats { display: flex; flex-direction: column; gap: .5rem; }
+    &__seat { display: flex; flex-direction: column; gap: .4rem; padding: .5rem .6rem .6rem; }
+    &__law { padding: .4rem .55rem; gap: .3rem .8rem; }
+    &__name { font-size: .76rem; }
+    &__influence-total { font-size: 1.2rem; }
+    &__composition, &__line-label, &__grant, &__rule-text, &__notowed { font-size: .66rem; }
+    &__winner, &__kicker { font-size: .54rem; }
+    &__got { --sit-total-size: .95rem; }
+    &__total { --sit-total-size: 1.1rem; }
 }
 
 /* ── the TV ladder (10-foot): every word at or above the couch floor (.8rem). ── */
 html.con-profile-tv .con-sitpd {
-    &__kicker, &__rule-text, &__grant, &__notowed, &__row--head { font-size: .8rem; }
-    &__name { font-size: .9rem; }
-    &__row { grid-template-columns: 11rem minmax(0, 1.5fr) minmax(0, 1fr); min-height: 2.4rem; }
+    &__kicker, &__winner, &__rule-text, &__grant, &__notowed, &__composition, &__line-label { font-size: .82rem; }
+    &__name { font-size: 1.1rem; }
+    &__influence-total { font-size: 1.9rem; }
+    &__got { --sit-total-size: 1.3rem; }
+    &__total { --sit-total-size: 1.6rem; }
 }

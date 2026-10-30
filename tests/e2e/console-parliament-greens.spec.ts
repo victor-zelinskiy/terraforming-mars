@@ -359,20 +359,18 @@ test.describe('Greens Budget · standard-1080', () => {
 
     const row = page.locator(`[data-sit-payout][data-sit-payout-seat="${blue}"]`);
     await expect(row).toHaveCount(1);
-    await expect(row.locator('[data-sit-part]'), 'four parts, one per record').toHaveCount(4);
-    await expect(row.locator('[data-sit-part-amount]').nth(0)).toHaveAttribute('data-sit-part-amount', '-10');
-    await expect(row.locator('[data-sit-part-amount]').nth(1)).toHaveText(`+${paid}`);
-    await expect(row.locator('[data-sit-part-amount]').nth(2)).toHaveText('+2');
-    await expect(row.locator('[data-sit-part-amount]').nth(3)).toHaveText('+3');
-    // The two portions read as payouts ONTO A CARD (the unit's own square beside the number — the results row of a
-    // single recipient prints the kind, the card itself is on the tableau, checked above through the server).
-    await expect(row.locator('[data-sit-part="cardResource"]'), 'two portions onto a card, each its own part').toHaveCount(2);
-    await expect(row.locator('[data-sit-part="skipped"]'), 'nothing of blue\'s is a skip').toHaveCount(0);
-    const netLine = row.locator('[data-sit-net]');
-    await expect(netLine, 'the net stands beside the parts — the portions are not in it').toHaveCount(1);
-    await expect(netLine).toHaveAttribute('data-sit-net-amount', String(paid - 10));
+    // The ledger prints the seat's TOTALS (P71 · CY): the levy NETS into the M€ token (the portions are not in it),
+    // each portion is a token of its own unit with the card it landed on beside it.
+    const tokens = row.locator('[data-sit-total][data-sit-total-kind="unit"]');
+    await expect(tokens, 'three tokens: the M€ net, the animals, the microbes').toHaveCount(3);
+    await expect(tokens.nth(0)).toHaveAttribute('data-sit-total-unit', 'megacredits');
+    await expect(tokens.nth(0)).toHaveAttribute('data-sit-total-amount', String(paid - 10));
+    await expect(tokens.nth(1).locator('.con-sit__total-amount')).toHaveText('+2');
+    await expect(tokens.nth(2).locator('.con-sit__total-amount')).toHaveText('+3');
+    await expect(row.locator('[data-sit-total-card]'), 'each portion names the card it landed on').toHaveCount(2);
+    await expect(row.locator('[data-sit-total-kind="skipped"]'), 'nothing of blue\'s is a skip').toHaveCount(0);
     const redRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${others[0].player}"]`);
-    await expect(redRow.locator('[data-sit-part="skipped"]'), 'red\'s two portions are named skips').toHaveCount(2);
+    await expect(redRow.locator('[data-sit-total-kind="skipped"]'), 'red\'s two portions are named skips').toHaveCount(2);
     await settle(page, {timeoutMs: 30_000});
     await expectParliamentFits(page, 'results');
     await shoot(page, '07-results-four-parts');

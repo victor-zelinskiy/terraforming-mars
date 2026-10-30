@@ -950,7 +950,11 @@ export class ParliamentPhase {
       return;
     }
     const outcomes = (summary.outcomes ??= []);
-    if (outcomes.some((o) => o.kind !== 'reaction' && o.player === player.id && o.step === stepKey)) {
+    // One record per seat, step — and TILE: a step that pays several colony tiles at once (MarsBot's colony bonuses,
+    // one step for its whole ledger — D16) reports a record per tile, and keeping only the first dropped every tile
+    // after it from the sitting's record (the bot was paid, the results never said so — P71 · CY). A re-run of the
+    // same step still writes nothing twice.
+    if (outcomes.some((o) => o.kind !== 'reaction' && o.player === player.id && o.step === stepKey && o.colony === outcome.colony)) {
       return;
     }
     outcomes.push({player: player.id, step: stepKey, part, ...outcome});

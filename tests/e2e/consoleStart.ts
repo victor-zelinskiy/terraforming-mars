@@ -2997,6 +2997,12 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // Prelude 2 P83 Sponsoring Nation — the play's live delegate grant with no board door (CX): 4 Earth tags (Teractor ·
   // Cartel · Luna Governor), the Greens ruling, reserve 6 · locked at 2 Earth tags.
   'sponsoring-nation' | 'sponsoring-nation-locked' |
+  // Prelude 2 P71 Colonial Representation (CY): Career step 1, cubes on Luna and Pluto, 12 M€, the card in hand.
+  'colonial-representation' |
+  // The sitting's RESULTS LEDGER (P71 · CY), the sitting over on the results card: Colonial Affairs on three seats with
+  // P71 played (k 2 → 3) · the bot the winner, its colony bonuses in M€ · the owner's first frame (Mohole + the Greens'
+  // answer) · a budget's levy netted into the M€ token.
+  'parliament-results-colonial-three' | 'parliament-results-bot-colonial' | 'parliament-mohole-adjourn' | 'parliament-budget-adjourn' |
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
   'census-pets-rival' |

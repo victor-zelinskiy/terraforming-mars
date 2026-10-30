@@ -2048,7 +2048,14 @@ function beatResults(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
   tl.call(() => {
     sittingMotion.resultsRevealed = true;
     void nextTick().then(() => probeTick(() => {
-      const rows = itemsOf(root, '.con-sit__panel--on .con-sit__results > *');
+      // The card's zones in reading order, and inside ВЫПЛАТЫ each LEDGER ROW in turn (P71 · CY) — document order,
+      // so the cascade reads: the law, the kicker, seat by seat, the world's lines, the next vote, the foot.
+      const rows = itemsOf(root, [
+        '.con-sit__panel--on .con-sit__results > :not(.con-sit__paycol)',
+        '.con-sit__panel--on .con-sit__paycol > :not(.con-sit__payouts)',
+        '.con-sit__panel--on .con-sit__payouts > :not(.con-sit__ledger)',
+        '.con-sit__panel--on .con-sit__ledger > .con-sit__payout',
+      ].join(', '));
       if (rows.length === 0 || runState.finished) {
         return;
       }
