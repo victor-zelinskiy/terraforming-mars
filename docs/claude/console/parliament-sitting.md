@@ -240,6 +240,17 @@ motion: the plain half-speed glide (`runProxyFlight`). The dealt CARDS keep
 first→last rect must TRAVEL); the sitting probes (v2–v5) keep their source→socket
 visibility claims.
 
+**A GRANT OF N > 1 IS ONE PHRASE** (P72 Envoys from Venus, 2026-10-30 — ledger CZ). The cubes of one answer never
+wait for each other's touchdown: `grantCubeSchedule` (`console/parliament/grantCubeSchedule.ts`, pure) starts them
+`GRANT_CUBE_STAGGER_MS` (120) apart — the support scene's rhythm of law 12 — and keeps the touchdowns in start order,
+never closer than `GRANT_TOUCH_GAP_MS` (90); ONE flight's length is the cube's own (`delegateFlightMs`), never
+shortened. Each cube flies its own arc into its OWN place on the ribbon; the reserve ticks on each DEPARTURE, the
+ribbon and the tally on each TOUCHDOWN (`tallyShownOf` — snapshot + landed), the lead and «принимается» turn ONCE
+after the last (`beginLanding`; a lead that became the viewer's plays the one-shot kant `con-parl__tally-row--turned`).
+One flight hold over the phrase; the landing hold budgets the staggers, never a whole flight per cube. A grant of
+ONE is exactly the old phrase. Probes: `console-envoys-from-venus` (order), `console-delegate-grant-pace` (TIMING — the
+rhythm read on the stack's departures, the A/B budget).
+
 ## «ОТВЕТ СТОЛА» на шаге `agenda` — приземление и пауза на Карьере (TR78 Arwind Inc., переделка 2026-10-28)
 
 Карта стола победителя отвечает на его шаг Карьеры (ходьба — ОДИН ответ): **аскер один** → истребитель ЛОЖИТСЯ на сервере
