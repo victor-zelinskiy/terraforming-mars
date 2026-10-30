@@ -18,7 +18,8 @@ import {armLeakWitness, strandedReports} from './parliamentDrive';
  *      printed TR — on the face-down pile for an EVENT, where that card now
  *      lies — the rating reads N on every sample until the token's touchdown
  *      on the rating cell, the VP cell no earlier, the Greens' M€ after it: the
- *      M€ row reads three values, never the price and the answer as one. The
+ *      M€ row reads the price first, then only rises to the answer (one token
+ *      per unit off the Greens' charter — never the price and the answer as one). The
  *      workspace stands until the token is born; no degradation is named.
  *   4. The board: no workspace, nothing stranded, no `[console-overflow]`, no
  *      page error; the server: N + k, the price paid, 2k M€ back.
@@ -338,13 +339,23 @@ for (const preset of PRESETS) {
         }
         const early = samples.slice(vpSettled, trUp).filter((s) => s.vp !== '' && Number(s.vp) !== vpEnd - c.tr).map((s) => `${s.t}:${s.vp}`);
         expect(early, `the VP cell read ${vpEnd - c.tr} until the TR's touchdown (the TR's points no earlier)`).toEqual([]);
-        // The M€ row: the price ticks with the landing, the Greens' answer after the TR — two changes, never one.
+        // The M€ row: the price ticks with the landing, the Greens' answer after the TR. Since the card-reaction framework
+        // (iteration 6, 64b95a9b2e) the Greens are a REACTOR and their answer is ONE TOKEN PER UNIT off the charter
+        // (`reactionTokensOf`) — the row ticks per touchdown, and two touchdowns inside one frame read as one step. So
+        // the row is judged by STATE, never by how many intermediate values a sampler happened to catch (that count
+        // moved with the box's frame length — green at 2 workers, red at 4): the price first, then only rises, ending
+        // on the answer; the first rise after the landing comes after the TR's touchdown; the tokens sum to the answer.
         const mcValues = samples.map((s) => s.mc).filter((v, i, a) => v !== '' && (i === 0 || v !== a[i - 1]));
         const priced = String(mc0 - cost);
         const answered = String(mc0 - cost + 2 * c.tr);
-        expect(mcValues, `the M€ row read ${mc0} → ${priced} → ${answered} — it read ${mcValues.join(' → ')}`).toEqual([String(mc0), priced, answered]);
+        const readRow = `it read ${mcValues.join(' → ')}`;
+        expect(mcValues.slice(0, 2), `the M€ row read ${mc0} → ${priced} first (the price with the landing) — ${readRow}`).toEqual([String(mc0), priced]);
+        expect(mcValues.at(-1), `the M€ row ends on the answer ${answered} — ${readRow}`).toBe(answered);
+        expect(mcValues.slice(1).every((v, i, a) => i === 0 || Number(v) > Number(a[i - 1])), `after the price the M€ row only rises — ${readRow}`).toBe(true);
         // (Bribed Committee's answer brings the row back to where it started — the search starts at the landing.)
-        expect(samples.findIndex((s, i) => i > landed && s.mc === answered), 'the Greens\' answer AFTER the TR has landed').toBeGreaterThan(trUp);
+        expect(samples.findIndex((s, i) => i > landed && Number(s.mc) > mc0 - cost), 'the Greens\' answer AFTER the TR has landed').toBeGreaterThan(trUp);
+        const answerTokens = born.filter((b) => b.chip.v.startsWith('mc+'));
+        expect(answerTokens.reduce((n, b) => n + Number(b.chip.v.slice(3)), 0), `the answer's tokens carry ${2 * c.tr} M€ — births: ${born.map((b) => b.chip.v).join(', ')}`).toBe(2 * c.tr);
         const wsGone = samples.findIndex((s) => s.ws === 0);
         expect(wsGone, 'the workspace stood until the TR token was born').toBeGreaterThanOrEqual(token!.at);
         const highest = Math.min(...samples.flatMap((s) => s.chips).map((ch) => ch.y - ch.h / 2));

@@ -10,7 +10,7 @@ import {bootIntoGame, fetchPlayerModel, openQuickWheel, press, settle, soloGameC
  * ruling, the starter quest), MarsBot sits at the table as a POLITICAL seat
  * (`BotParliamentMode = 'politics'`, the default of every new game since
  * 2026-09-29 — docs/TURMOIL_REDUX_MARSBOT.md D9: it holds delegates and its
- * free lobby delegate, and an enacted resolution never pays it), and the
+ * free lobby delegate, and — since D16, 2026-10-27 — every enacted resolution pays it in M€), and the
  * console's wheel carries the «Парламент» slot from the first action phase on.
  */
 
@@ -59,7 +59,8 @@ test.describe('parliament · creation with MarsBot', () => {
     expect(p!.botMode, 'a new game seats the political bot').toBe('politics');
     expect(bot?.participates, 'MarsBot holds delegates').toBe(true);
     expect(bot?.lobby, 'with its free lobby delegate').toBe(true);
-    expect(bot?.enactment, 'and an enacted resolution never pays it').toBe(false);
+    // D16 (abedc32009, 2026-10-27 — replaced D3): every enacted resolution PAYS the bot (in M€ — docs/TURMOIL_REDUX_MARSBOT.md).
+    expect(bot?.enactment, 'and every enacted resolution pays it (D16)').toBe(true);
 
     // THE CONSOLE: the wheel's slot opens the workspace on a real table.
     await openParliament(page);

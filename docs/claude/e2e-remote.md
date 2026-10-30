@@ -135,6 +135,7 @@ headless) can go through the GPU; the headless shell cannot open `chrome://gpu` 
   a red without pulling: `ssh steam-machine 'sed -n "/# Error details/,/# Page snapshot/p"
   ~/tm-e2e/builds/<task>/test-results/<test-dir>/error-context.md'` — the error is there while the run is still
   going.
+- **Every run is TWO PASSES since 2026-10-30** (`playwright.config.ts` § THE TWO CLASSES ARE TWO PROJECTS): the wrapper runs the `chromium` project (functional) at the run's workers, then the `chromium-timing` project (`TIMING_SPECS`, capped at one worker by the config) ALONE — results in `test-results/` and `test-results/timing/`, reports in `playwright-report/` and `playwright-report/timing/`, `.last-exit` = the first non-zero pass. `--project=…` or `--list` = one pass, as asked.
 - **Whole-suite runs: `--workers=4`** for the functional list (4 tokens — one default run of two still fits
   beside it; 4 workers measured clean, 8 = load 23 / 12 threads, CPU 98 %), the timing list as its own run
   (`--exclusive --workers=2`, reds re-judged at 1). The budget of 6 sits between those two measurements and

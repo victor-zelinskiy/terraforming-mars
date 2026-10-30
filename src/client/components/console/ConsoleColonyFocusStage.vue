@@ -879,7 +879,7 @@ import {cardResourceLandings, resourceTransferState} from '@/client/console/reso
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {readingText} from '@/client/console/readingText';
 import {settlementTable} from '@/client/console/colonyTrade/settlementTable';
-import {colonyBonusEntry, colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
+import {colonyBonusEntry, colonyResolutionUi, colonyRevealSourceOf, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
 import {cardColonyTradeCard, lockedTradePaymentIndex, partyColonyTradeParty} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
@@ -1285,7 +1285,7 @@ export default defineComponent({
       // the air. While a presented target of the INCOME stands, the chip in
       // flight is the trade reward; the bonus takes the name once it has left.
       const incomeLanding = this.presentedTargets.some((t) => t.role !== 'colonyBonus');
-      const bonusWave = !incomeLanding && (revealIsOwnerBonus(currentRevealEvent()?.source) ||
+      const bonusWave = !incomeLanding && (revealIsOwnerBonus(colonyRevealSourceOf(currentRevealEvent())) ||
         cardDiscardColonyBonus() !== undefined);
       if (bonusWave) {
         return {roleKey: 'Owner bonus', bonus: true, traderColor: '', traderLine: ''};

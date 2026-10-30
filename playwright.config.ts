@@ -1,4 +1,5 @@
 import {defineConfig, devices} from '@playwright/test';
+import {TIMING_SPECS} from './tests/e2e/timingSpecs';
 
 /**
  * Playwright configuration for local E2E / visual regression testing of the
@@ -19,6 +20,21 @@ import {defineConfig, devices} from '@playwright/test';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:8080';
 const isCI = Boolean(process.env.CI);
+
+/**
+ * THE TWO CLASSES ARE TWO PROJECTS (2026-10-30 — «one count of workers green, another red» must not exist).
+ *
+ * A TIMING spec (`tests/e2e/timingSpecs.ts`) samples MOTION — a storyboard, a flight's ends, a frame budget, a dwell —
+ * so its verdict depends on how loaded the box is. Run beside three functional workers it went red where it was green
+ * alone (the whole-suite run of 2026-10-30: `console-cursor` red at 4 workers, 8 / 8 at 1), and every author then
+ * re-proved the same thing by hand. The class was a CONVENTION («run it --exclusive --workers=1»); it is now the
+ * CONFIG: the `chromium-timing` project owns exactly those specs and never runs more than ONE of them at a time
+ * (`workers: 1`, Playwright ≥ 1.52), and `chromium` owns everything else. The box wrapper (`scripts/e2e-remote.mjs`)
+ * runs the two as two PASSES — functional first, timing after it, alone — so a timing spec is never measured beside
+ * the functional workers either. (A teardown project cannot express «after»: a project reached only as a teardown is
+ * a DEPENDENCY, and dependencies run UNFILTERED — one functional spec would have dragged every timing spec in.)
+ */
+const TIMING_SPEC_GLOBS = [...TIMING_SPECS].map((name) => `**/${name}`);
 
 /*
  * THE E2E RUNS ON THE STEAM MACHINE — the owner's decision 2026-10-21, enforced here, not only in a rule.
@@ -124,11 +140,13 @@ export default defineConfig({
     video: !isCI && process.env.TM_E2E_VIDEO === '1' ? 'retain-on-failure' : 'off',
   },
 
-  projects: [
-    {
-      name: 'chromium',
-      use: {
-        ...devices['Desktop Chrome'],
+  // FUNCTIONAL (`chromium`: every spec that asserts LOGIC, as many workers as the run asks for) and TIMING
+  // (`chromium-timing`: the specs that sample motion, ONE AT A TIME whatever `--workers` says) — see TIMING_SPEC_GLOBS.
+  projects: ['chromium', 'chromium-timing'].map((name) => ({
+    name,
+    ...(name === 'chromium-timing' ? {testMatch: TIMING_SPEC_GLOBS, workers: 1} : {testIgnore: TIMING_SPEC_GLOBS}),
+    use: {
+      ...devices['Desktop Chrome'],
         /*
          * Playwright ≥ 1.64 forwards the descriptor's `screen` (1920×1080 for Desktop Chrome) into the emulation, so
          * `window.screen` would read 1080p under every 4K viewport — and the console's layout profile READS the screen
@@ -155,9 +173,8 @@ export default defineConfig({
           channel: 'chromium',
           launchOptions: {args: GPU_ARGS},
         } : isCI || process.env.TM_E2E_CHANNEL === 'chromium' ? {channel: 'chromium'} : {}),
-      },
     },
-  ],
+  })),
 
   // NO webServer: every WORKER boots its own server + throwaway DB via the
   // worker fixture in tests/e2e/consoleTest.ts (phase 3 of

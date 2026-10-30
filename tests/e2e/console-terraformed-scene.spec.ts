@@ -8,8 +8,8 @@
  * ARMED wait: that tact paints nothing by design):
  *  (A) from the board home (fhd + tv4k): the rails / the bar / the dock RECEDE by opacity (through intermediate
  *      values — a transition, never a cut; never `display: none`), the camera enters in its `ceremony` mode and
- *      settles, the ARCS stay visible on the focused stage, the HUD keeps the player's last numbers until the SHOW and
- *      reads 100 % after, the title stands as a CAPTION in the zone the player rail vacated (left of the disc — nothing overlapped), whole inside the viewport, every line ≥ the TV floor,
+ *      settles, the ARCS keep the last step on the focused stage until the SHOW, the HUD reads the finished planet AT
+ *      ONCE (STATE DELIVERY, d63862e78c — only the board's stage may hold a value, never the HUD) and 100 % after, the title stands as a CAPTION in the zone the player rail vacated (left of the disc — nothing overlapped), whole inside the viewport, every line ≥ the TV floor,
  *      the burst detonates on the real disc, the surfaces return, the stage's box is ONE box in every state, and the
  *      whole phrase (recede → the surfaces back) is ≤ 4.5 s;
  *  (B) over the Information dossier (fhd): the dossier recedes and returns in the SAME snapshot — the crumb and the
@@ -281,7 +281,10 @@ function expectScenePlayed(summary: Summary, preset: Preset, rootFontPx: number)
   expect(summary.barMin, 'the command bar receded').toBeLessThanOrEqual(0.05);
   expect(summary.railIntermediate, 'the recede is a TRANSITION (an intermediate opacity was painted), never a cut').toBe(true);
   expect(summary.anyNone, 'no parked surface is `display: none` while the scene is up').toEqual([]);
-  expect(summary.hudWhileHeld.every((h) => !/9\/9/.test(h) || /8\/9/.test(h)), 'the HUD keeps the player\'s last numbers while the step is held').toBe(true);
+  // STATE DELIVERY (d63862e78c, CLAUDE.md invariant 16): the HUD reads the APPLIED view at once — only the board's arcs
+  // and markers hold the last step until the SHOW. The held-HUD law this line used to pin was retired on 2026-10-28.
+  expect(summary.hudWhileHeld.every((h) => /9\/9/.test(h)),
+    `the HUD reads the TRUTH while the board holds its last step (${summary.hudWhileHeld.join(' | ')})`).toBe(true);
   expect(summary.hudAfter, 'the HUD reads the finished planet after').toMatch(/9\/9/);
   expect(summary.hudAfter, 'the HUD reads 100 % after').toMatch(/100%/);
   expect(summary.arcsWhileSettled.length, 'the arcs were sampled on the settled stage').toBeGreaterThan(0);

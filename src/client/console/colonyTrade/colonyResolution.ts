@@ -45,7 +45,7 @@ import {reactive} from 'vue';
 import type {TaskKind} from '@/client/console/consoleTaskRouter';
 import {Color} from '@/common/Color';
 import {ColonyName} from '@/common/colonies/ColonyName';
-import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import {CardDrawRevealSource, CardIntakeBatchRef, intakeBatchSources} from '@/common/models/CardDrawRevealModel';
 import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {colonyTradeState} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
@@ -428,6 +428,21 @@ export function colonyBonusCardPickOf(wf: PlayerInputModel | undefined): {colony
  */
 export function revealColonyOf(source: CardDrawRevealSource | undefined): string {
   return source?.type === 'colony' && source.via === undefined ? source.colonyName : '';
+}
+
+/**
+ * THE COLONY'S OWN CAUSE IN A BATCH — never the batch's root alone («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР», 7a3762e3c7: one action's
+ * draws are ONE batch whose `source` is its FIRST segment). The Redux Venus pays its Venus step FIRST, so a Venus trade's
+ * batch is rooted on the 8 % card (`globalParameter`) and its owner bonus rides the SECOND segment: read off the root,
+ * the resolution never recognised its own bonus — the mandatory discard never opened and the workspace stood empty on
+ * «ДОБОР КАРТ» (`console-colony-venus-trade`, 2026-10-30). Returns the first segment a colony paid (not a card's `via`),
+ * else the root.
+ */
+export function colonyRevealSourceOf(batch: CardIntakeBatchRef | undefined): CardDrawRevealSource | undefined {
+  if (batch === undefined) {
+    return undefined;
+  }
+  return intakeBatchSources(batch).find((source) => revealColonyOf(source) !== '') ?? batch.source;
 }
 
 /** Is this colony-sourced batch an OWNER-BONUS wave (vs trade income)? */

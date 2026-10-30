@@ -249,10 +249,12 @@ for (const preset of PRESETS) {
       const witness = await transferWitness(page);
       console.log(`[tax-breaks ${preset.id}] ${transferTrail(witness)}`);
       expect(endsOverGlass(witness), 'no end of a flight over glass').toEqual([]);
-      const railLandings = witness.landings.filter((end) => end.under === 'rail:megacredits');
-      expect(railLandings.length, 'a token landed on the M€ row of the rail').toBeGreaterThanOrEqual(1);
-      const births = witness.births.filter((b) => railLandings.some((l) => l.id === b.id));
-      expect(births.every((b) => b.under === 'law'), `the token is born on the law's own face (births: ${births.map((b) => b.under).join(', ')})`).toBe(true);
+      // THE LAW'S OWN TOKENS, told by their BIRTH (born on the law's face) — never «every token on the M€ row»: that row also
+      // receives the ruling Greens' answers as a REACTOR (`reactor:Greens:megacredit`, the card-reaction framework), and
+      // whether the witness caught those depended on how late it was armed after the pass (red at 4 workers, green at 2).
+      const lawBirths = witness.births.filter((b) => b.under === 'law');
+      const railLandings = witness.landings.filter((end) => end.under === 'rail:megacredits' && lawBirths.some((b) => b.id === end.id));
+      expect(railLandings.length, `a token born on the law's own face landed on the M€ row of the rail (births: ${witness.births.map((b) => b.under).join(', ')})`).toBeGreaterThanOrEqual(1);
       // THE CELL TICKS ON THE TOUCHDOWN: «2» until the token's contact, then «7» — never before.
       const witnessT0 = await page.evaluate(() => (window as unknown as {__transferWitness?: {t0: number}}).__transferWitness?.t0 ?? 0);
       const touchedAt = witnessT0 + Math.min(...railLandings.map((end) => end.touched ?? end.t));

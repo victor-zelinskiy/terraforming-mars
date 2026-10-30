@@ -1000,6 +1000,11 @@ export function surfaceLeaveHook(el: Element, done: () => void): void {
     done();
     return;
   }
+  // A LEAVING SURFACE ANSWERS NO POINTER for its whole leave (console.less § `data-motion-leaving`): the node is gone
+  // with the leave, so the mark never needs clearing — the pick-bridge re-show above returns BEFORE it is set.
+  if (el instanceof HTMLElement) {
+    el.dataset.motionLeaving = '1';
+  }
   const panels = panelsOf(el);
   const panel = panels[0];
   if (panel === undefined) {

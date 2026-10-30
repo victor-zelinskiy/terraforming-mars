@@ -387,6 +387,15 @@ html.console-native {
    table-beat (the draft tray owns the screen — a light veil only).
    Sits UNDER every band surface (11480+) and above the played table
    (11400). Flat paint, pointer-events none, no blur (Steam Deck rule). */
+/* A LEAVING SURFACE IS POINTER-INERT FOR ITS WHOLE LEAVE (2026-10-30). The director's leave hook marks every departing band
+   surface (`data-motion-leaving`) — its subtree included, `!important` past any child's own `pointer-events: auto`. A
+   quick-wheel confirm fading out over the sitting that rose beneath it kept its full-band `__stage` (z11520) answering the
+   hit test for its whole fade: the incoming Parliament's tiles read «covered by con-confirm__stage» on ~42 frames, and a
+   press in that window would have landed on a surface that was already gone. Only the `section` leave had been inert. */
+[data-motion-leaving],
+[data-motion-leaving] * {
+    pointer-events: none !important;
+}
 .con-shade {
     position: fixed;
     /* THE DIM IS THE OPENING'S, NOT THE VIEWPORT'S. The four hull members are

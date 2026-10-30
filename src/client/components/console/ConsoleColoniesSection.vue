@@ -503,7 +503,7 @@ import {
   workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameIsOverlay,
   workspaceFrameParked, workspaceFrameStage, workspaceStackCrumb, workspaceStackRootKind,
 } from '@/client/console/consoleWorkspaceStack';
-import {colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
+import {colonyResolutionUi, colonyRevealSourceOf, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
 import {settlementStageText, settlementTable} from '@/client/console/colonyTrade/settlementTable';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {openDiscardPile, releaseDiscardPile} from '@/client/console/discardPile/discardPile';
@@ -1009,7 +1009,7 @@ export default defineComponent({
       if (this.revealEmbedPresenting) {
         return this.settlementStage !== '' ? this.settlementStage :
           (this.outcomeState.phaseKey !== '' ? this.outcomeState.phaseKey :
-            (revealIsOwnerBonus(currentRevealEvent()?.source) ? 'Owner bonus' : 'Card draw'));
+            (revealIsOwnerBonus(colonyRevealSourceOf(currentRevealEvent())) ? 'Owner bonus' : 'Card draw'));
       }
       return this.settlementStage;
     },
@@ -1041,7 +1041,7 @@ export default defineComponent({
         if (this.outcomeState.phaseKey !== '') {
           return this.outcomeState.phaseKey;
         }
-        return revealIsOwnerBonus(currentRevealEvent()?.source) ? 'Owner bonus' : 'Card draw';
+        return revealIsOwnerBonus(colonyRevealSourceOf(currentRevealEvent())) ? 'Owner bonus' : 'Card draw';
       }
       // …AND IT NEVER WALKS BACK. Between the payout's stages (the table parked under the returning stage, the
       // closing track reset) the focus stage would name its own act again («ТОРГОВЛЯ», and — the act spent —

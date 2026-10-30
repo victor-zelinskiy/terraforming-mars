@@ -84,6 +84,7 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'hand-album-continuity.spec.ts', // the album's continuity witness (dock jumps between frames) — flaky at ×0.5, 8 / 8 at ×1
   'console-social-heating.spec.ts', // the Hydronetwork's RESULT layer stands a motion-scaled beat; at ×0.5 it comes and goes inside the commit's press
   'console-ma-states.spec.ts', // a storyboard of the milestone ceremony: at ×0.5 it has ENDED by the time the 4K «42-committing» frame is taken — green with only TM_E2E_MOTION=1
+  'console-prompt-family.spec.ts', // Philares: «the answered plate is seen LETTING GO» — a 130 ms fade (65 ms at ×0.5) caught by a 12 ms sampler, and a press INSIDE the settle window; red at 4 workers, green at 2 (2026-10-30)
   // the motion-grammar guards
   'console-smoothness.spec.ts',
   'console-scene-transition.spec.ts',

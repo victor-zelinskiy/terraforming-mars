@@ -217,7 +217,11 @@ export function parliamentAgendaBonusHeld(): boolean {
  * card step was the one entry with no net at all).
  */
 function agendaCardBeforeThePlayer(step: number): boolean {
-  return pendingRevealEvents().some((e) => e.source?.type === 'agenda' && (e.source.step === undefined || e.source.step === step));
+  // EVERY SEGMENT, never the root alone («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»: a walk is ONE play POST, so its card steps — ⑦
+  // and ⑩ — are ONE batch whose `source` is the FIRST segment's). Read off the root, step ⑩'s card stood before the
+  // player while this answered «nobody's hands», and the ledger held it again until the registry's ceiling.
+  return pendingRevealEvents().some((e) => e.segments.some(({source}) =>
+    source?.type === 'agenda' && (source.step === undefined || source.step === step)));
 }
 
 /**

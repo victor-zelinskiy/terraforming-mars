@@ -641,7 +641,7 @@ import {ColonyName} from '@/common/colonies/ColonyName';
 import {readingText} from '@/client/console/readingText';
 import {probeTick} from '@/client/console/probeTick';
 import {addCard3DTurn} from '@/client/console/cardFlight/card3dInner';
-import {colonyResolutionUi, noteColonyBonusFresh} from '@/client/console/colonyTrade/colonyResolution';
+import {colonyResolutionUi, colonyRevealSourceOf, noteColonyBonusFresh} from '@/client/console/colonyTrade/colonyResolution';
 import {cardArrivalTimings, reducedCardArrivalTimings, sealedRevealPlan} from '@/client/console/consoleCardArrival';
 import {
   breakSettlementSeal, noteSettlementDealt, noteSettlementFocusSealed, noteSettlementIncome, noteSettlementPresented,
@@ -1323,7 +1323,8 @@ export default defineComponent({
       // freeze the unscoped read caused on the take path.
       // A trade's pair or a CARD's (Ф4 — the ledger's Pluto pairs, `colonyRepeat` with the card as the source).
       const meta = settlementPairOf(this.playerView.waitingFor)?.meta;
-      return bonusDiscardOwnsBatch(meta, this.drawnEvent?.source) ? meta : undefined;
+      // The colony's OWN segment of the batch, never its root (a Venus trade's batch is rooted on the 8 % card).
+      return bonusDiscardOwnsBatch(meta, colonyRevealSourceOf(this.drawnEvent)) ? meta : undefined;
     },
     /**
      * THE PAIR IS A CARD'S (Ф4 — the ledger's Pluto pairs, `via`): the table's grammar (the places, the seals, the

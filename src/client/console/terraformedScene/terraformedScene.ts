@@ -19,8 +19,8 @@
  *                  the transport's apply block for every road a view arrives by;
  *                  never the three parameters, never the announcement's text),
  *                  and the scales' LAST STEP is held in the board-beat park
- *                  (`holdBoardScaleForScene`): the arcs and the HUD keep the
- *                  numbers the player last saw. It then WAITS for a quiet world
+ *                  (`holdBoardScaleForScene`): the arcs keep the numbers the
+ *                  player last saw (the HUD reads the truth — STATE DELIVERY). It then WAITS for a quiet world
  *                  (the shell's probe: the field's story over, no reveal standing,
  *                  no cards in flight, no camera in motion) — a board beat waits
  *                  for a board the player can see.
@@ -175,7 +175,7 @@ export function seedTerraformedScene(prev: PlayerViewModel | undefined, next: Pl
   if (!fresh || terraformedSceneState.phase !== 'idle') {
     return false;
   }
-  // The scales' last step is HELD until the stage stands (the arcs, the HUD and the chips keep the player's numbers).
+  // The scales' last step is HELD until the stage stands (the board's arcs keep the player's numbers; the HUD reads the truth — STATE DELIVERY).
   holdBoardScaleForScene(prev.game, next.game);
   terraformedSceneState.final = finalGenerationActive(next);
   terraformedSceneState.generation = next.game.generation;
@@ -255,6 +255,31 @@ function clearTimers(): void {
   wake = undefined;
 }
 
+/** The fade's grace past its own duration before the flip goes ahead anyway (a bound, never a beat). */
+const SECTION_FADE_GRACE_MS = 600;
+
+/**
+ * THE FLIP HAPPENS UNDER A SECTION THE PLAYER NO LONGER SEES — read off the section's PAINTED opacity, never a clock alone.
+ * The recede fades the section by a CSS transition while the scene waited a wall-clock `TERRAFORMED_RECEDE_MS`: under load
+ * the transition starts frames late, the timer fired first and the slot flipped while the album still painted (the
+ * 2026-10-30 whole-suite run: the flip 211 ms after the recede, the fade 250 ms — «faded OUT before it left the row» red at
+ * 4 workers). Bounded: a section that never reaches 0 (a stuck style) flips at the ceiling rather than holding the scene.
+ */
+async function sectionFadedOut(alive: () => boolean): Promise<void> {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  const deadline = Date.now() + consoleMotionMs(TERRAFORMED_RECEDE_MS) + SECTION_FADE_GRACE_MS;
+  while (alive() && Date.now() < deadline) {
+    const section = document.querySelector('.con-main > .con-hand, .con-main > .con-colonies, .con-main > .con-hydro');
+    if (section === null || Number(getComputedStyle(section).opacity) <= 0.02) {
+      return;
+    }
+    await frame();
+  }
+}
+
+
 /** One painted frame (or the fallback) — the flip's frame between «displayed, dark» and «lit». */
 function frame(): Promise<void> {
   return new Promise<void>((resolve) => probeTick(() => resolve()));
@@ -273,6 +298,11 @@ async function play(nonce: number): Promise<void> {
       return;
     }
     if (sectioned) {
+      // …and the section IS fully transparent: its own painted opacity is the signal, the wait above only its floor.
+      await sectionFadedOut(alive);
+      if (!alive()) {
+        return;
+      }
       // The flip under a fully transparent section: the board displayed dark, then lit on the next frame.
       terraformedSceneState.stage = 'dark';
       await frame();

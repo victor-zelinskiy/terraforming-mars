@@ -33,6 +33,7 @@ import {
   resetColonyResolutionUi,
   revealColonyOf,
   revealIsOwnerBonus,
+  colonyRevealSourceOf,
 } from '@/client/console/colonyTrade/colonyResolution';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {ColonyName} from '@/common/colonies/ColonyName';
@@ -195,6 +196,22 @@ describe('colonyResolution', () => {
     expect(revealColonyOf({type: 'card', cardName: 'AI Central'} as CardDrawRevealSource)).to.eq('');
     expect(revealIsOwnerBonus(bonusSource)).to.eq(true);
     expect(revealIsOwnerBonus(incomeSource)).to.eq(false);
+  });
+
+  /*
+   * ONE ACTION — ONE BATCH (7a3762e3c7): a Redux Venus trade pays its Venus step FIRST, so the batch is rooted on the 8 %
+   * card and the owner bonus rides the second segment. Read off the root, the resolution never recognised its own bonus
+   * (`console-colony-venus-trade`, 2026-10-30: the discard never opened, the workspace stood empty on «ДОБОР КАРТ»).
+   */
+  it('reads the COLONY\'S OWN SEGMENT of a merged batch, never its root alone', () => {
+    const venus = {type: 'globalParameter', parameter: 'venus'} as unknown as CardDrawRevealSource;
+    const merged = {source: venus, segments: [{source: venus}, {source: bonusSource}]};
+    expect(colonyRevealSourceOf(merged), 'the colony segment, not the 8 % root').to.eq(bonusSource);
+    expect(revealIsOwnerBonus(colonyRevealSourceOf(merged)), 'the owner bonus is recognised').to.eq(true);
+    expect(revealColonyOf(colonyRevealSourceOf(merged))).to.eq('Pluto');
+    // A batch no colony paid keeps its root; a card's `via` batch is never the colony's.
+    expect(colonyRevealSourceOf({source: venus, segments: [{source: venus}]})).to.eq(venus);
+    expect(colonyRevealSourceOf(undefined)).to.eq(undefined);
   });
 
   describe('remote owner bonus (a foreign trade)', () => {

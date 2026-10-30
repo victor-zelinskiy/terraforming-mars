@@ -8,8 +8,9 @@
  *   B · `gmo-contract-hand` — the composer of GMO Contract forecasts its own answer («Сработает» — «including this»);
  *       A plays it: the server pays −3 + 2.
  *   C · `gmo-contract` (the contract on the table) — Lichen: the composer's «Сработает» names GMO Contract; A → the
- *       witness: the «+2» answer is BORN on the landed card's printed PLANT tag and lands on the M€ row's ink, its contact
- *       beat played; both ends painted; the server pays −7 + 2.
+ *       witness: GMO Contract RISES as the reactor (the card-reaction framework — the plant tag is the MARKED cause), its
+ *       «+2» is born on its own printed M€ as one token per unit, each landing on the M€ row's ink with its contact beat;
+ *       both ends painted; the server pays −7 + 2.
  *   D · `gmo-contract` — Ecology Research (plant + animal + microbe): «+6» in the composer and on the server.
  *
  * Frames: `screenshots/t06/{fhd,tv4k}/card-*.png`. 4K timing claims: `TM_E2E_GPU=1`, `--workers=1`.
@@ -137,12 +138,17 @@ for (const preset of PROFILES) {
       const w = await transferWitness(page);
       fs.mkdirSync(path.join(OUT, preset.id), {recursive: true});
       fs.writeFileSync(path.join(OUT, preset.id, 'card-C-trail.txt'), transferTrail(w) + '\n');
-      const answer = w.births.find((e) => e.value === '+2');
-      expect(answer, `the «+2» answer flew (trail:\n${transferTrail(w)})`).toBeTruthy();
-      expect(answer!.under, 'born on the landed card\'s printed PLANT tag').toBe('tag:plant');
-      const landed = w.landings.find((e) => e.id === answer!.id);
-      expect(landed?.under, 'landed on the M€ row').toBe('rail:megacredits');
-      expect(landed?.touched, 'its contact beat played').toBeDefined();
+      // «СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК» (iteration 1, e188dc76c9 — the owner's decision 2): the cause (the plant
+      // tag) is MARKED, never a birth place — GMO Contract RISES as the reactor and its +2 is born on its own printed M€,
+      // ONE TOKEN PER UNIT (`reactionTokensOf`), each landing on the M€ ink with its contact beat.
+      const trail = `trail:\n${transferTrail(w)}`;
+      const gmo = w.births.filter((e) => e.under.startsWith('reactor:GMO Contract:'));
+      expect(gmo.reduce((n, e) => n + Number(e.value), 0), `GMO Contract's answer — +2 in tokens born on the risen reactor (${trail})`).toBe(2);
+      for (const birth of gmo) {
+        const landed = w.landings.find((e) => e.id === birth.id);
+        expect(landed?.under, `landed on the M€ row (${trail})`).toBe('rail:megacredits');
+        expect(landed?.touched, `its contact beat played (${trail})`).toBeDefined();
+      }
       expect(endsOverGlass(w), 'no end over glass or nothing').toEqual([]);
       expect(after.thisPlayer.megacredits, 'the server: − 7 + 2').toBe(before.thisPlayer.megacredits - 7 + 2);
       await shot(page, preset.id, 'C-played');

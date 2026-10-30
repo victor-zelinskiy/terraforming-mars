@@ -32,6 +32,12 @@ import {openParliament} from './parliamentDrive';
  * rule, blue at Thorgate (pays the printed 2), red at Teractor, red on step 3.
  */
 
+/**
+ * THE TABLE'S ANSWER CARRIED ON A STEP (67cbb017ee, 2026-10-28 — `AgendaAdvanceStep.answer`): under the ruling Greens a
+ * walked TR step carries their 2 M€, measured by the server around the step's own payment. Honest server truth — the
+ * walk's record asserts it, never drops it.
+ */
+const GREENS_ANSWER = {answer: {stock: {megacredits: 2}}};
 const CARD = 'Green Allegiance';
 const CARD_RU = 'Верность Зелёным';
 const ROOT_RU = 'Карты в руке';
@@ -650,7 +656,7 @@ for (const preset of PRESETS) {
         expect(me(after).influence, 'influence 3').toBe(3);
         expect(after.thisPlayer.terraformRating, 'two walked TR').toBe(47);
         expect(after.thisPlayer.megacredits, '−2 for the card, +2 × 2 from the Greens').toBe(before.thisPlayer.megacredits - 2 + 4);
-        expect(after.game.parliament.lastAdvance?.steps).toEqual([{to: 1}, {to: 2, bonus: 'tr'}, {to: 3}, {to: 4, bonus: 'tr'}, {to: 5}]);
+        expect(after.game.parliament.lastAdvance?.steps).toEqual([{to: 1}, {to: 2, bonus: 'tr', ...GREENS_ANSWER}, {to: 3}, {to: 4, bonus: 'tr', ...GREENS_ANSWER}, {to: 5}]);
 
         const probe = await readProbe(page);
         const dump = JSON.stringify({steps: probe.steps, cube: probe.cube, tr: probe.tr, mc: probe.mc, inf: probe.inf, band: probe.band, beat: probe.beat, chip: probe.chip.length, proxy: probe.proxy.length, homeMs: probe.homeMs});
@@ -674,9 +680,11 @@ for (const preset of PRESETS) {
     /* THE FIELD WALK (2026-10-25): TR 45 from ⑤ — ⑥ TR · ⑦ CARD · ⑧ · ⑨ TR · ⑩ CARD — played as the turn's LAST action,
      * so the turn is red's the moment the play lands and blue has no prompt for the whole walk. Two card steps in one
      * walk: the park was read over «any card step not lifted», so ⑩'s entry held ⑦'s batch parked while ⑦'s cover was
-     * lifting — no «Взять» was ever offered and the Parliament froze inside the hand. Each card is now taken in its own
-     * scene, the walk goes on to ⑩, and the board comes back with both cards in the hand and no hold force-released. */
-    test(`TR 45 from ⑤ as the LAST action — two card steps, each card taken in its own scene, the walk finishes while the turn is red's (${preset.id})`, async ({page, request}) => {
+     * lifting — no «Взять» was ever offered and the Parliament froze inside the hand. Since «ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»
+     * (7a3762e3c7, 2026-10-26) the whole walk runs inside ONE play POST, so the two step draws are ONE batch with two
+     * segments (agenda ⑦ · agenda ⑩) — ONE scene, both cards taken together; the walk finishes, and the board comes back
+     * with both cards in the hand and no hold force-released. */
+    test(`TR 45 from ⑤ as the LAST action — two card steps, ONE intake scene for both, the walk finishes while the turn is red's (${preset.id})`, async ({page, request}) => {
       test.setTimeout(480_000);
       const run = witness(page);
       const {playerId} = await bootFixtureSeats(page, request, 'green-allegiance-field', {query: preset.query});
@@ -692,20 +700,19 @@ for (const preset of PRESETS) {
       const mid = await fetchPlayerModel(request, playerId) as unknown as {waitingFor?: unknown};
       expect(mid.waitingFor, 'the play was the last action of the turn — blue has no prompt during the walk').toBeUndefined();
 
-      for (const step of [7, 10]) {
-        await expect(page.locator('.con-reveal--scene:not(.con-reveal--bonus-held):not(.con-reveal--bonus-veiled) [data-zoom-slot]'),
-          `the card of step ${step} stands in its own scene, ready to be taken`).toHaveCount(1, {timeout: 45_000});
-        await shoot(page, preset.id, `30-field-take-${step}`);
-        expect(await pressUntil(page, 'Enter', async () => await page.locator('dialog.con-zoom[open], .con-reveal').count() === 0, {tries: 6, settleMs: 1500}),
-          `A takes the card of step ${step}`).toBe(true);
-      }
+      // ONE action — ONE intake: both step cards (⑦ and ⑩) stand in ONE scene, ready to be taken.
+      await expect(page.locator('.con-reveal--scene:not(.con-reveal--bonus-held):not(.con-reveal--bonus-veiled) [data-zoom-slot]'),
+        'both card steps (⑦ and ⑩) stand in ONE scene, ready to be taken').toHaveCount(2, {timeout: 45_000});
+      await shoot(page, preset.id, '30-field-take');
+      expect(await pressUntil(page, 'Enter', async () => await page.locator('dialog.con-zoom[open], .con-reveal').count() === 0, {tries: 6, settleMs: 1500}),
+        'A takes both cards').toBe(true);
       await waitFlowLeft(page);
 
       const after = await wireOf(request, playerId);
       expect(me(after).agenda, 'five steps: ⑤ → ⑩').toBe(10);
       expect(after.thisPlayer.terraformRating, 'two walked TR').toBe(47);
       expect(after.thisPlayer.cardsInHandNbr, 'the played card left, the two step cards arrived').toBe(before.thisPlayer.cardsInHandNbr - 1 + 2);
-      expect(after.game.parliament.lastAdvance?.steps).toEqual([{to: 6, bonus: 'tr'}, {to: 7, bonus: 'card'}, {to: 8}, {to: 9, bonus: 'tr'}, {to: 10, bonus: 'card'}]);
+      expect(after.game.parliament.lastAdvance?.steps).toEqual([{to: 6, bonus: 'tr', ...GREENS_ANSWER}, {to: 7, bonus: 'card'}, {to: 8}, {to: 9, bonus: 'tr', ...GREENS_ANSWER}, {to: 10, bonus: 'card'}]);
       expect(run.posts.length, 'the play was ONE POST — the takes acknowledge, they submit no input').toBe(1);
       expect(run.holdWarnings, 'no animation hold was force-released by its ceiling').toEqual([]);
       expect(run.pageErrors).toEqual([]);

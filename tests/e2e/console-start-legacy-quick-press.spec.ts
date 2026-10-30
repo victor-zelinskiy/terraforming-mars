@@ -1,6 +1,6 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  fetchPlayerModel, fillPicks, handCount, openConsole, pickCalmCorporation, playQueueCard, press, queueCards, sendPlayerInput, settle,
+  answerPrompt, fetchPlayerModel, fillPicks, handCount, openConsole, pickCalmCorporation, playQueueCard, press, queueCards, sendPlayerInput, settle,
   submitSummary, waitForBoardHome, waitQueueIdle, walkToSummary,
 } from './consoleStart';
 import {campaignModelAs, createCampaign, devCommit, launchMission} from './campaignFixtures';
@@ -54,6 +54,23 @@ async function answerSecondSeat(request: APIRequestContext, playerId: string): P
       cards: (step.cards ?? []).map((c) => c.name).slice(0, step.min ?? 0),
     })),
   });
+}
+
+/**
+ * THE SECOND SEAT OWES THE TABLE ITS OWN OPENING — and, when the random seating gives it the FIRST turn, that turn: played
+ * out over the API (`answerPrompt`, the seeder's own answers), passing at the action menu. Whether Bruno sits first is the
+ * deal's, never the spec's subject — left to the deal, «board home» never came for the viewer half the time
+ * («Ожидаем ход игрока Bruno», the 2026-10-30 whole-suite run). Bounded: a seat with nothing to answer owes nothing now.
+ */
+async function drainSecondSeat(request: APIRequestContext, playerId: string): Promise<void> {
+  for (let round = 0; round < 24; round++) {
+    const prompt = (await fetchPlayerModel(request, playerId)).waitingFor;
+    if (prompt === undefined) {
+      return;
+    }
+    const pass = (prompt.options ?? []).findIndex((o) => String(o.title).startsWith('Pass for this generation'));
+    await sendPlayerInput(request, playerId, pass >= 0 ? {type: 'or', index: pass, response: {type: 'option'}} : answerPrompt(prompt, {}));
+  }
 }
 
 test.describe('the start · «Наследие» pressed while the bought cards are still arriving', () => {
@@ -146,6 +163,7 @@ test.describe('the start · «Наследие» pressed while the bought cards 
     await expect.poll(() => handCount(page), {timeout: 20_000, message: 'the dock holds the bought and the carried cards'}).toBe(dockBefore + bought.length + CARRIED.length);
     await expect.poll(() => legacyRowUp(page), {timeout: 20_000, message: 'the row has left'}).toBe(false);
 
+    await drainSecondSeat(request, bruno!);
     await waitForBoardHome(page);
     expect(errors, 'no page errors').toEqual([]);
   });

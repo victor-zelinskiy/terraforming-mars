@@ -43,7 +43,7 @@ import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDi
 import {Color} from '@/common/Color';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import {CardDrawRevealSource, intakeBatchSources} from '@/common/models/CardDrawRevealModel';
 import {ColonyTradeManifestModel} from '@/common/models/ColonyTradeManifestModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
@@ -548,8 +548,12 @@ function tradeCardsOutstanding(): boolean {
   if (tradeId === '') {
     return false;
   }
-  const mine = drawnCardsState.events.filter((e) =>
-    e.source?.type === 'colony' && e.source.trade?.tradeId === tradeId);
+  // ANY SEGMENT, never the root alone — a CLAIM answers for the batch when any of its segments is its own (the batch's
+  // contract; a PARK holds by the root). The Redux Venus pays its step FIRST, so the trade's batch is rooted on the 8 %
+  // card: read off the root, the trade never saw its own cards arrive, stood `awaiting` forever and the owner bonus's
+  // discard never opened (`console-colony-venus-trade`, 2026-10-30).
+  const mine = drawnCardsState.events.filter((e) => intakeBatchSources(e).some((source) =>
+    source?.type === 'colony' && source.trade?.tradeId === tradeId));
   if (mine.length > 0) {
     ctx.revealSeen = true;
   }

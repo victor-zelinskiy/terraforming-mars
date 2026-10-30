@@ -155,8 +155,13 @@ test.describe('Septem Tribus:redux · the cubes on the parties\' banners', () =>
     await expect.poll(() => page.evaluate(() => (window as unknown as {__cubeProbe: {samples: Array<{stage: string}>}}).__cubeProbe.samples.some((s) => s.stage === 'carry')),
       {timeout: 20_000, message: 'the corporation\'s stage reached its carry'}).toBe(true);
     await shoot(page, '02c-corporation-rises');
-    await expect(page.locator(`.con-pseal[data-party="${party}"] [data-banner-cube="${before.color}"]`).first(),
-      'the cube is seated in the plaque\'s socket').toHaveCount(1, {timeout: 20_000});
+    // The SEATED pose is transient too — the banner step closes and the board comes home, taking the plaque with it — so
+    // a polling locator can miss its whole window on a loaded box (red 1 / 12 on both builds, 2026-10-30). The probe's
+    // MutationObserver saw every frame: ask it, and print its trail when it never saw the cube seated.
+    await expect.poll(async () => (await readCubeProbe(page)).some((s) => s.seated), {
+      timeout: 20_000,
+      message: 'the cube was seated in the plaque\'s socket',
+    }).toBe(true);
     await shoot(page, '03-cube-seated');
     const samples = await readCubeProbe(page);
     const tFlight = samples.find((s) => s.flight)?.t;

@@ -1602,6 +1602,7 @@ import {defineComponent, nextTick as vueNextTick, PropType, ref, watch as vueWat
 import {promptReceiveArmed, promptReceiveState} from '@/client/console/cardReceive/promptReceive';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import type {CardDrawRevealSource, CardIntakeBatchRef} from '@/common/models/CardDrawRevealModel';
+import {intakeBatchSources} from '@/common/models/CardDrawRevealModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {Color} from '@/common/Color';
 import {GameModel} from '@/common/models/GameModel';
@@ -1863,7 +1864,7 @@ import {
   colonyBonusDiscardOf,
   colonyBonusCardPickOf,
   COLONY_BONUS_CYCLE_WAIT_MS,
-  colonyBonusEntry, colonyBonusSequence, clearColonyBonusSequence, colonyResolutionColony,
+  colonyBonusEntry, colonyBonusSequence, clearColonyBonusSequence, colonyResolutionColony, colonyRevealSourceOf,
   colonyResolutionEvidenceFor, colonyResolutionFocusIntent, colonyResolutionLiveFor,
   colonyResolutionUi, discardStageStrandedFor, noteColonyBonusCycleWaitOver, noteColonyBonusEntryWaitOver,
   noticeColonyBonusSequence,
@@ -2253,7 +2254,8 @@ import {
   setConsolePlacementHeld,
   resetPromptAdmission,
 } from '@/client/console/consolePromptAdmission';
-import {PARLIAMENT_DOOR_REASONS, ScreenHandoffOptions, screenHandoffOwed, waitScreenHandoff} from '@/client/console/screenHandoff';
+import {ScreenHandoffOptions, screenHandoffOwed, waitScreenHandoff} from '@/client/console/screenHandoff';
+import {PARLIAMENT_DOOR} from '@/client/console/parliament/parliamentDoorHandoff';
 import {
   guardedAdmissionSignals,
   noteAdmissionSignals,
@@ -4359,7 +4361,7 @@ export default defineComponent({
       // (`hydroTraversalResumeReady`), so an unscoped term froze a parked
       // walk for as long as the foreign batch stood.
       const pendingBatch = currentRevealEvent();
-      if (pendingBatch !== undefined && this.hydroOwnsRevealBatch(pendingBatch.source)) {
+      if (pendingBatch !== undefined && intakeBatchSources(pendingBatch).some((source) => this.hydroOwnsRevealBatch(source))) {
         return true;
       }
       // A hosted step (a repeated trade's colony frame) still standing.
@@ -5274,7 +5276,9 @@ export default defineComponent({
       // surface it describes does not have.
       const meta = this.playerView.waitingFor?.discardPrompt?.colonyBonus;
       return bonusDiscardStep(
-        bonusDiscardOwnsBatch(meta, ev?.source) ? meta : undefined, untaken);
+        // The colony's OWN segment, never the root (a Venus trade's batch is rooted on the 8 % card — read off the root
+        // the bar lost its discard verb and the overlay its closing step: the discard never opened, 2026-10-30).
+        bonusDiscardOwnsBatch(meta, colonyRevealSourceOf(ev)) ? meta : undefined, untaken);
     },
     /** The T6 REVEAL overlay mode (drawn > result > viewer), undefined = none. */
     /**
@@ -8133,7 +8137,9 @@ export default defineComponent({
      */
     tradePayoutIncoming(): boolean {
       return this.colonyTradeState.active &&
-        colonyTradeClaimsReveal(currentRevealEvent()?.source);
+        // ANY segment — a claim answers for the batch when any of its causes is its own (a Venus trade's batch is rooted
+        // on the 8 % card, the trade's own runs ride after it).
+        intakeBatchSources(currentRevealEvent() ?? {}).some((source) => colonyTradeClaimsReveal(source));
     },
     /**
      * A COLONY payout of ANY origin is arriving for a claim we hold. The
@@ -8195,7 +8201,8 @@ export default defineComponent({
       return {
         discardMeta: colonyBonusDiscardOf(this.playerView.waitingFor),
         collectMeta: colonyBonusCollectOf(this.playerView.waitingFor),
-        revealSource: currentRevealEvent()?.source,
+        // The colony's OWN segment of the batch, never its root (a Venus trade's batch is rooted on the 8 % card).
+        revealSource: colonyRevealSourceOf(currentRevealEvent()),
         tradeActive: this.colonyTradeState.active,
         tradeColony: this.colonyTradeState.colonyName,
         cardPickColony: this.colonyBonusCardPick?.colonyName ?? '',
@@ -21384,7 +21391,7 @@ export default defineComponent({
         const own = new Set(this.playerView.thisPlayer.tableau.map((c) => c.name as string));
         const chained = drawnCardsState.events.find((e) =>
           e.id !== taken && !e.dismissed && e.cards.length - e.takenIndices.size > 0 &&
-          e.source?.type === 'card' && own.has(e.source.cardName));
+          intakeBatchSources(e).some((source) => source?.type === 'card' && own.has(source.cardName)));
         if (chained !== undefined) {
           retainWorkspaceOutcomeForNextBatch(chained.cards.length);
           return;
@@ -21467,7 +21474,8 @@ export default defineComponent({
       // THE SITTING OWNS THE BOARD'S STORIES (its world beat steps aside for the planet and for another seat's tile;
       // its reward beat flies the rail holds seeded for it) — a door into it waits for the player's own owed objects
       // only, or it waits for a landing that waits for the sitting to stand (the field lock of 2026-10-28).
-      const handoff: ScreenHandoffOptions = kind === 'parliament' ? {only: PARLIAMENT_DOOR_REASONS} : {};
+      // …and never for a reveal the sitting PARKED for its own beat (`PARLIAMENT_DOOR` — the 2026-10-30 deadlocks).
+      const handoff: ScreenHandoffOptions = kind === 'parliament' ? PARLIAMENT_DOOR : {};
       if (!screenHandoffOwed(handoff)) {
         enterWorkspace(kind, opts);
         return;
@@ -24827,7 +24835,7 @@ export default defineComponent({
     registerGenerationSceneHandoff((id, into) => waitScreenHandoff(id, {
       ignoreHolds: ['generation-scene'],
       // A rise INTO THE SITTING waits for the player's own owed objects only (see `enterWorkspaceAfterHandoff`).
-      ...(into === 'parliament' ? {only: PARLIAMENT_DOOR_REASONS} : {}),
+      ...(into === 'parliament' ? PARLIAMENT_DOOR : {}),
     }));
     // …and «a workspace surface is still LEAVING» — the bridge counts a
     // `.con-ws` through its whole fade, so the scale story starts on a board

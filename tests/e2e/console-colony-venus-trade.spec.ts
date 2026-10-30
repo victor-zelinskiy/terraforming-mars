@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixture, cinematicBeat, press, pressUntil, settle} from './consoleStart';
+import {bootFixture, cinematicBeat, fetchPlayerModel, press, pressUntil, settle} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 
 /**
@@ -17,11 +17,15 @@ import {armLeakWitness, strandedReports} from './parliamentDrive';
  *     (the covers flying into the reveal) rise only AFTER that card scene has
  *     left (`ConsoleColonyTradeLayer.waitForCause` + the `colony-card-scene`
  *     hold);
- *   · the FIXED Venus step crosses 8 % — the board's bonus draw is a
- *     `globalParameter` batch queued IN FRONT of the colony's own. It presents
- *     NOWHERE while the workspace stands (the queue skips a parked batch —
- *     `registerRevealQueuePark`), the HUD holds 6 %, and after the flow leaves
- *     the scales tell the 8 % story and the card lifts off the marker.
+ *   · the FIXED Venus step crosses 8 % — the board's bonus draw is the FIRST
+ *     segment of the trade's ONE batch («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»,
+ *     7a3762e3c7: the Redux Venus pays its step first, so the batch is rooted
+ *     on the 8 % card and the owner bonus rides the second segment). The
+ *     colony resolution reads its OWN segment (`colonyRevealSourceOf` — read
+ *     off the root it never recognised its bonus and the workspace stood empty,
+ *     2026-10-30); the 8 % card is taken WITH the bonus inside the workspace,
+ *     never as a fullscreen reveal over it; the strip reads 8 % at once
+ *     (STATE DELIVERY, d63862e78c — the HUD never holds a value).
  *
  * Evidence → screenshots/venus-trade/.
  */
@@ -148,11 +152,11 @@ const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as
 
 test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1});
 
-test('Venus trade: the pre-selected target lands on a standing card, the owner bonus waits its turn, the 8 % card waits for the board', async ({page, request}) => {
+test('Venus trade: the pre-selected target lands on a standing card, the owner bonus waits its turn, the 8 % card rides the one batch', async ({page, request}) => {
   test.setTimeout(540_000);
   const t0 = Date.now();
   const lap = (label: string) => console.log(`[t+${Math.round((Date.now() - t0) / 1000)}s] ${label}`);
-  await bootFixture(page, request, 'venus-trade', {keepColony: VENUS});
+  const playerId = await bootFixture(page, request, 'venus-trade', {keepColony: VENUS});
   await settle(page);
   await armLeakWitness(page);
   expect(await venusStrip(page), 'the fixture stands at 6 %').toBe('6%');
@@ -192,23 +196,30 @@ test('Venus trade: the pre-selected target lands on a standing card, the owner b
   for (let i = 0; i < 14 && await embeddedHand.count() === 0; i++) {
     await press(page, 'Enter', 2400);
   }
+  // A red here NAMES the state it timed out in (the server's question, the console's holds / transport / workspace, the
+  // colony diag) — the 2026-10-30 reds stood on an empty «ДОБОР КАРТ» stage with two cards drawn and none presented.
+  if (await embeddedHand.count() === 0) {
+    const wf = (await fetchPlayerModel(request, playerId)).waitingFor;
+    const state = await page.evaluate(() => {
+      const w = window as unknown as {__conReady?: () => unknown, __conColonyDiag?: () => unknown};
+      return {ready: w.__conReady?.(), colony: w.__conColonyDiag?.()};
+    });
+    console.log('── venus trade · no embedded discard ──', JSON.stringify({wf: wf === undefined ? null : {type: wf.type, title: wf.title, discard: (wf as {discardPrompt?: unknown}).discardPrompt}, ...state}).slice(0, 6000));
+  }
   await expect(embeddedHand, 'the mandatory discard opens EMBEDDED inside the colony workspace').toBeVisible({timeout: 12_000});
   await shoot(page, '03-discard');
   lap('discard step up');
   await press(page, 'Enter', 3200); // discard the focused card
   await cinematicBeat(page, 2400, 'the discard flight paces the mandatory chain');
 
-  // ── The flow LEAVES; then the board's story: the scales, then the 8 % card off the marker. ──
+  // ── The flow LEAVES; whatever the batch still stands for is taken on the board (state waits, never a duration). ──
   await expect.poll(async () => page.locator('.con-colonies').count(), {timeout: 60_000, message: 'the finished trade leaves for the board'}).toBe(0);
   lap('workspace gone');
   await shoot(page, '04-after-workspace');
-  // STATE WAITS, never a duration: the 8 % card RISES over the board (the reveal or the fullscreen
-  // viewer), A takes it, and the scales' story settles at 8 %.
   const cardOverBoard = () => page.evaluate(() => document.querySelector('.con-reveal, .card-zoom-dialog') !== null);
-  await expect.poll(cardOverBoard, {timeout: 30_000, message: 'the 8 % card rises over the board'}).toBe(true);
-  await shoot(page, '05-venus-card-over-board');
-  const took = await pressUntil(page, 'Enter', async () => !(await cardOverBoard()), {tries: 6, settleMs: 600});
-  await expect.poll(() => venusStrip(page), {timeout: 20_000, message: 'the scale story settles at 8 %'}).toBe('8%');
+  const took = !(await cardOverBoard()) ||
+    await pressUntil(page, 'Enter', async () => !(await cardOverBoard()), {tries: 6, settleMs: 600});
+  await expect.poll(() => venusStrip(page), {timeout: 20_000, message: 'the strip reads 8 %'}).toBe('8%');
   await shoot(page, '06-settled');
   lap('story told');
 
@@ -225,6 +236,11 @@ test('Venus trade: the pre-selected target lands on a standing card, the owner b
     pickerWhileColonies: whileColonies.filter((s) => s.picker).length,
     foreignRevealWhileColonies: whileColonies.filter((s) => s.revealForeign || s.zoom).length,
     strip8WhileColonies: whileColonies.filter((s) => s.strip.includes('8')).length,
+    // EXACT values: mid-roll the flip drum's text holds BOTH faces («6%8%»), which is the roll itself, not a lie.
+    strip6AfterTheTruth: (() => {
+      const first8 = samples.findIndex((s) => s.strip === '8%');
+      return first8 < 0 ? 0 : samples.slice(first8).filter((s) => s.strip === '6%').length;
+    })(),
     stranded: samples.filter((s) => s.stranded).length,
     handStep: samples.some((s) => s.handStep),
     took,
@@ -249,10 +265,13 @@ test('Venus trade: the pre-selected target lands on a standing card, the owner b
     expect(firstCovers, 'the owner bonus’s covers rose only after the card scene had left').toBeGreaterThan(lastStanding);
   }
   expect(summary.handStep, 'the mandatory discard ran as the embedded hand step').toBe(true);
-  // ③ the Venus 8 % story waits for the board
+  // ③ the Venus 8 %: TRUTH FIRST (d63862e78c — the strip reads the applied view at once, never held while a workspace
+  // stands) and ONE ACTION — ONE INTAKE (7a3762e3c7 — the 8 % card rides the trade's batch and is taken WITH the owner
+  // bonus inside the workspace): never a fullscreen reveal / viewer over the open workspace, nothing left untaken.
   expect(summary.foreignRevealWhileColonies, 'no fullscreen reveal/viewer over the open workspace').toBe(0);
-  expect(summary.strip8WhileColonies, 'the HUD holds 6 % while the workspace owns the screen').toBe(0);
-  expect(summary.took, 'the 8 % card was presented over the board and taken').toBe(true);
+  expect(summary.strip8WhileColonies, 'the strip read 8 % while the workspace stood — the truth, at once').toBeGreaterThan(0);
+  expect(summary.strip6AfterTheTruth, 'once it read 8 %, the strip never went back to 6 %').toBe(0);
+  expect(summary.took, 'nothing of the batch was left standing over the board').toBe(true);
   expect(summary.stripEnd).toBe('8%');
   expect(summary.stranded, 'the stranded-prompt guard never fired').toBe(0);
   expect(await strandedReports(page), 'no prompt was stranded on the way').toEqual([]);

@@ -8,6 +8,9 @@ import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {remotePlacementState} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {presentationLedgerSnapshot, resetPresentationLedger} from '@/client/console/presentationLedger';
+import {PARLIAMENT_DOOR} from '@/client/console/parliament/parliamentDoorHandoff';
+import {openRulingChangePark, resetRulingChangeDraw} from '@/client/console/parliament/rulingChangeDraw';
+import {AgendaBonusOwed, parliamentRewardState, resetParliamentRewards} from '@/client/console/parliament/parliamentRewardBeat';
 
 /*
  * THE SCREEN HANDOFF (state delivery, 2026-10-28): ONE question every automatic screen-taking transition asks — what
@@ -95,6 +98,35 @@ describe('screenHandoff — what the player is still owed before the next screen
     await wait;
     expect(outcome).eq('quiet');
     expect(presentationLedgerSnapshot().stories.some((s) => s.id === 'screen-handoff:spec-wait'), 'settled').is.false;
+  });
+
+  /*
+   * A REVEAL THE SITTING PARKED FOR ITS OWN BEAT IS NEVER OWED AT ITS DOOR (the 2026-10-30 deadlocks): Tharsis Alliance's
+   * enactment card (a `ruling-change` batch, parked until the enactment tact) held the door 30 s and then fell out as a
+   * standalone reveal; a walked Agenda card step held it to the 45 s ceiling. Every other handoff still waits for them.
+   */
+  it('PARLIAMENT_DOOR: a batch the sitting PARKED for its own beat does not hold the door — every other handoff still waits for it', () => {
+    const batch = (id: string, source: object) => ({
+      id, actionId: 1, source, segments: [{source, count: 1}], sealed: false,
+      cards: [{name: CardName.ALGAE}], takenIndices: new Set(), dismissed: false,
+    } as unknown as typeof drawnCardsState.events[number]);
+
+    drawnCardsState.events = [batch('rc', {type: 'ruling-change'})];
+    openRulingChangePark('sitting-1');
+    expect(screenHandoffReasons(PARLIAMENT_DOOR), 'the enactment card is the sitting\'s to tell').to.deep.eq([]);
+    expect(screenHandoffReasons(), 'the finale / the draft still wait for it').to.deep.eq(['reveal']);
+    resetRulingChangeDraw();
+    expect(screenHandoffReasons(PARLIAMENT_DOOR), 'once the park is closed it is an ordinary batch the player owes').to.deep.eq(['reveal']);
+
+    drawnCardsState.events = [batch('ag', {type: 'agenda', step: 7})];
+    parliamentRewardState.agendaBonuses = [{generation: 1, player: 'blue', step: 7, kind: 'card'} as AgendaBonusOwed];
+    expect(screenHandoffReasons(PARLIAMENT_DOOR), 'the walked card step is the sitting\'s to lift').to.deep.eq([]);
+    // (…and for the owed bonus's own hold, `parliament-agenda-bonus-owed` — the door leaves holds to the sitting.)
+    expect(screenHandoffReasons(), 'the finale still waits for it').to.include('reveal');
+    resetParliamentRewards();
+
+    drawnCardsState.events = [batch('own', {type: 'card', cardName: CardName.ALGAE})];
+    expect(screenHandoffReasons(PARLIAMENT_DOOR), 'a card the player has not taken still holds the door').to.deep.eq(['reveal']);
   });
 
   it('a superseded transition resolves DEAD and never opens; the ceiling resolves DEGRADED, named', async () => {

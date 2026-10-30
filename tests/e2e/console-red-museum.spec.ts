@@ -16,8 +16,9 @@ import {TileType} from '../../src/common/TileType';
  *      Martian Fiber's +2 read UNDER it (the reply names the grant it answers).
  *      Nothing is sent while the player points.
  *   2. The confirm is ONE POST. THE SCENE: the tile lands first; the museum
- *      rises out of the satellite's data cell; TWO tokens are born ON the tile
- *      that just landed (inside its hex) and fly into the museum's capsule,
+ *      rises out of the satellite's data cell; TWO tokens are born on the risen
+ *      museum's printed icon (the card-reaction framework — the tile that just
+ *      landed is the cause) and fly into the museum's capsule,
  *      which reads 0 on every sample before the first touchdown, then 1, then 2;
  *      the rail's VP cell (+1 for 2 data — a derived cell) not before the second
  *      touchdown; the satellite's data cell on the card's return; Martian
@@ -86,7 +87,7 @@ type MuseumProbe = {
   aux?: Box;
   tileAt?: number;
   /** Each token's first painted centre and time — and the placed hex measured in that SAME sample (the camera moves). */
-  tokens: Array<{at: Pt, t: number, hex?: Box, kind: string}>;
+  tokens: Array<{at: Pt, t: number, hex?: Box, card?: Box, kind: string}>;
   tokenMax: number;
   cardFirst?: {t: number, at: Pt};
   cardSeen: number;
@@ -195,6 +196,8 @@ async function armProbe(page: Page, cell: string, dataKey = 'data'): Promise<voi
         if (!seenTokens.has(el) && shown(el.querySelector('.con-tileplace__coin-body') ?? el)) {
           seenTokens.add(el);
           p.tokens.push({at: centre(el), t: now, hex: boxOf(document.querySelector(`.board-space[data_space_id="${cellId}"]`)),
+            // The risen holder's plate, measured in the SAME sample — its printed icon is the birth place (CN).
+            card: boxOf(document.querySelector('.con-citypay__card')),
             kind: el.classList.contains('con-tileplace__oceancoin--animal') ? 'animal' : 'data'});
         }
       }
@@ -311,6 +314,9 @@ async function openComposer(page: Page, card: string): Promise<void> {
 
 const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
 const inside = (p: Pt, b: Box, slack: number) => p.x >= b.x - slack && p.x <= b.x + b.w + slack && p.y >= b.y - slack && p.y <= b.y + b.h + slack;
+/** A token's honest source in the OWN scene: the risen holder's plate (its printed icon), else the tile that landed. */
+const bornOnHolderOrTile = (token: {at: Pt, hex?: Box, card?: Box}, armHex: Box): boolean =>
+  (token.card !== undefined && inside(token.at, token.card, 2)) || inside(token.at, token.hex ?? armHex, 2);
 const firstAt = (list: Array<[number, string]>, value: string) => list.find(([, v]) => v === value)?.[0];
 
 /**
@@ -355,10 +361,12 @@ function expectOwnScene(probe: MuseumProbe, from: number, label: string, cardVp 
   const hexCentre = {x: probe.hex.x + probe.hex.w / 2, y: probe.hex.y + probe.hex.h / 2};
   expect(dist(probe.cardFirst!.at, auxCentre), `${label}: the card is born at the satellite cell (${JSON.stringify(probe.cardFirst)}, cell ${JSON.stringify(probe.aux)})`)
     .toBeLessThan(dist(probe.cardFirst!.at, hexCentre));
-  // TWO tokens, both born ON the tile that just landed — never on a neighbour, never from a synthetic point.
+  // TWO tokens, each born on the RISEN HOLDER's printed icon (card reaction, iteration 2 — 3c6d335c55: the holder card is
+  // the reactor, its plate rising by the field) or, for a face that prints no such icon, on the tile that just landed —
+  // never on a neighbour, never from a synthetic point.
   expect(probe.tokens.length, `${label}: two tokens: ${JSON.stringify(probe.tokens)}`).toBe(2);
   for (const token of probe.tokens) {
-    expect(inside(token.at, token.hex ?? probe.hex, 2), `${label}: a token is born inside the placed hex (${JSON.stringify(token.at)} in ${JSON.stringify(token.hex)})`).toBe(true);
+    expect(bornOnHolderOrTile(token, probe.hex), `${label}: a token is born on the risen holder's icon or inside the placed hex (${JSON.stringify(token.at)} · card ${JSON.stringify(token.card)} · hex ${JSON.stringify(token.hex)})`).toBe(true);
     expect(token.t, `${label}: born after the tile sat`).toBeGreaterThan(probe.tileAt!);
   }
   expect(probe.chipMinY, `${label}: no token above the screen`).toBeGreaterThanOrEqual(0);
@@ -387,12 +395,18 @@ function expectOwnScene(probe: MuseumProbe, from: number, label: string, cardVp 
   const auxUp = probe.aux_.find(([, v]) => Number(v) >= to);
   expect(auxUp, `${label}: the satellite cell reached ${to}: ${JSON.stringify(probe.aux_)}`).toBeDefined();
   expect(auxUp![0], `${label}: the satellite ticks after the last touchdown`).toBeGreaterThanOrEqual(second);
-  // Martian Fiber's +2 M€: a beat after the card went home.
+  // Martian Fiber's +2 M€: a beat after the card went home — i.e. AFTER the satellite's tick. Judged by STATE: what the row
+  // gains from the satellite tick on is +2 in all, only rising (a reactor's answer may land as one token per unit). The
+  // rises BEFORE it are other causes and are not Fiber's: a staged tile's TR (Nuclear Zone's two temperature steps) is
+  // answered by the ruling Greens' 2 M€ per rating, four +1 tokens off their charter (the 2026-10-30 run read «17 → 10 →
+  // 11 → 12 → 13 → 14 → 16» — the old «first rise = +2» took the Greens' first token for Fiber's).
   const mcTicks = probe.mc.map(([t, v]) => [t, Number(v.replace(/\D/g, ''))] as [number, number]);
-  const rose = mcTicks.findIndex(([, v], i) => i > 0 && v > mcTicks[i - 1][1]);
-  expect(rose, `${label}: Martian Fiber's M€ landed: ${JSON.stringify(probe.mc)}`).toBeGreaterThan(0);
-  expect(mcTicks[rose][1] - mcTicks[rose - 1][1], `${label}: +2 M€`).toBe(2);
-  expect(mcTicks[rose][0], `${label}: Martian Fiber after the satellite tick`).toBeGreaterThanOrEqual(auxUp![0]);
+  const beforeFiber = [...mcTicks].reverse().find(([t]) => t < auxUp![0]);
+  expect(beforeFiber, `${label}: the M€ row was read before the satellite tick: ${JSON.stringify(probe.mc)}`).toBeDefined();
+  const fiber = mcTicks.filter(([t]) => t >= auxUp![0]).map(([, v]) => v);
+  expect(fiber.length, `${label}: Martian Fiber's M€ landed after the satellite tick: ${JSON.stringify(probe.mc)}`).toBeGreaterThan(0);
+  expect(fiber.every((v, i) => v > (i === 0 ? beforeFiber![1] : fiber[i - 1])), `${label}: the M€ row only rises with Fiber's answer: ${JSON.stringify(probe.mc)}`).toBe(true);
+  expect(fiber[fiber.length - 1] - beforeFiber![1], `${label}: +2 M€ (Martian Fiber): ${JSON.stringify(probe.mc)}`).toBe(2);
 }
 
 for (const preset of PRESETS) {
@@ -615,7 +629,7 @@ for (const preset of PRESETS) {
       expect(blue.degraded, 'nothing degraded').toBe(false);
       expect(blue.tokens.map((t) => t.kind).sort(), `one data and one animal token: ${JSON.stringify(blue.tokens)}`).toEqual(['animal', 'data']);
       for (const token of blue.tokens) {
-        expect(inside(token.at, token.hex ?? blue.hex, 2), `a token is born inside red's city (${JSON.stringify(token.at)} in ${JSON.stringify(token.hex)})`).toBe(true);
+        expect(bornOnHolderOrTile(token, blue.hex), `a token is born on blue's risen holder or inside red's city (${JSON.stringify(token.at)} · card ${JSON.stringify(token.card)} · hex ${JSON.stringify(token.hex)})`).toBe(true);
         expect(token.t, 'born after the city landed').toBeGreaterThan(blue.tileAt!);
       }
       const dataUp = blue.aux_.find(([, v]) => Number(v) >= 3);

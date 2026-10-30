@@ -110,6 +110,12 @@ if (!pwArgs.some((a) => a.startsWith('--workers'))) {
   pwArgs.push('--workers=2');
 }
 /**
+ * TWO PASSES, ONE PER CLASS (`playwright.config.ts` § THE TWO CLASSES ARE TWO PROJECTS): the functional specs at the
+ * run's workers, then the timing specs alone. A caller who names a `--project` (or only `--list`s) gets exactly what
+ * was asked, in one pass.
+ */
+const twoPasses = !pwArgs.some((a) => a === '--project' || a.startsWith('--project=') || a === '--list');
+/**
  * THE BOX'S WORKER BUDGET: a run holds as many TOKENS as it runs workers (`--workers=N` / `-j N`), so three
  * default runs of two go side by side and a one-worker storyboard costs one. 6 of 12 threads: 4 workers
  * measured load 3–12 (2026-10-22), 8 measured load 23 — past the knee. A worker count the wrapper cannot
@@ -415,8 +421,22 @@ echo "[e2e:remote] $(node --version) · playwright $(npx playwright --version | 
 # The run's cwd is the TASK dir: its own src / tests / config / build, assets + node_modules linked beside them
 # — so the harness's REPO_ROOT (= the config's dir) IS the task dir and TM_E2E_ROOT stays '.'.
 cd ${TASK_DIR}
-env ${envLine} TM_E2E_SLOT="$1" TM_E2E_OUTPUT_DIR=${TASK_DIR}/test-results TM_E2E_REPORT_DIR=${TASK_DIR}/playwright-report TM_E2E_TIMINGS=${TASK_DIR}/test-results/timings.jsonl npx playwright test ${pwArgs.map(shq).join(' ')}
+SLOT="$1"
+# ONE PASS PER CLASS (playwright.config.ts § THE TWO CLASSES ARE TWO PROJECTS): the FUNCTIONAL project first, at the
+# run's workers; then the TIMING project ALONE (its own config caps it at one worker), so a spec that samples motion is
+# never measured beside the functional workers. Each pass has its own output / report dir (Playwright clears an output
+# dir at its start — one dir would have wiped the first pass's failures); the timings ledger is shared (appended).
+pw_pass() {
+  env ${envLine} TM_E2E_SLOT="$SLOT" TM_E2E_OUTPUT_DIR=${TASK_DIR}/test-results$2 TM_E2E_REPORT_DIR=${TASK_DIR}/playwright-report$2 TM_E2E_TIMINGS=${TASK_DIR}/test-results/timings.jsonl npx playwright test $1 ${pwArgs.map(shq).join(' ')}
+}
+${twoPasses ? `echo "[e2e:remote] pass 1/2 — FUNCTIONAL (project chromium)"
+pw_pass "--project=chromium --pass-with-no-tests" ""
 code=$?
+echo "[e2e:remote] pass 2/2 — TIMING (project chromium-timing, one spec at a time, after the functional pass)"
+pw_pass "--project=chromium-timing --pass-with-no-tests" "/timing"
+timing=$?
+[ "$code" -eq 0 ] && code=$timing` : `pw_pass "" ""
+code=$?`}
 echo $code > ${TASK_DIR}/.last-exit
 exit $code
 `;
@@ -550,7 +570,7 @@ rm -f ${TASK_DIR}/results.tar
 ( cd ${TASK_DIR} && find screenshots -type f -newer .run-start 2>/dev/null | tar -rf results.tar -T - 2>/dev/null )
 exit $code
 `;
-log(`running${exclusive ? ' EXCLUSIVE' : ''}: playwright test ${pwArgs.join(' ')}  (${envLine})`);
+log(`running${exclusive ? ' EXCLUSIVE' : ''}: playwright test ${pwArgs.join(' ')}${twoPasses ? ' — in two passes: functional, then timing alone' : ''}  (${envLine})`);
 const run = ssh(`mkdir -p ${REMOTE_HOME}/runs && cat > ${outerPath} && bash ${outerPath}`, {input: outer, inherit: true});
 if (res255(run)) {
   unreachable(run, 'run');

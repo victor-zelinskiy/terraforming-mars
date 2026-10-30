@@ -136,7 +136,9 @@ for (const profile of PROFILES) {
           if (kind === 'corporation') {
             await press(p, 'Enter', 600);
           } else if (kind === 'prelude') {
-            await pickCards(p, ['Early Settlement', 'Donation']);
+            // EXACTLY these two — a prelude the step already holds (the 2026-10-30 run: «picked at start [Loan]») takes one
+            // of the two places, and a non-exclusive walk left Early Settlement with nowhere to go.
+            await pickCards(p, ['Early Settlement', 'Donation'], 34, {exclusive: true});
           }
         },
       });

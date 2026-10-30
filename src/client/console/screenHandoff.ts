@@ -34,7 +34,8 @@
  * a system that must consult it takes it by INJECTION (the generation scene — `registerGenerationSceneHandoff`).
  */
 import {activeAnimationHoldLabels} from '@/client/components/presentation/animationHold';
-import {currentRevealEvent, pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsState';
+import {currentRevealEvent, DrawnCardEntry, pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsState';
+import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
@@ -74,6 +75,16 @@ export type ScreenHandoffOptions = {
   only?: ReadonlyArray<ScreenHandoffReason>,
   /** The reasons this caller never waits for (the complement of `only`; both may be given). */
   ignoreReasons?: ReadonlyArray<ScreenHandoffReason>,
+  /**
+   * A REVEAL THE DESTINATION ITSELF DELIVERS is not owed on the way in. The sitting PARKS two kinds of batch for its own
+   * beats — a card's answer to a change of power (`rulingChangeParksReveal`, told in the enactment tact) and an Agenda
+   * card step (`parliamentParksReveal`, the cover lifting off the node the marker locked on) — and a door that counted
+   * them as `reveal` waited for a batch only the sitting it was opening could deliver: Tharsis Alliance's enactment card
+   * stood 30 s behind a closed door and then fell out as a standalone «Получена карта» over the board; a walked card
+   * step held the door to the 45 s ceiling (the 2026-10-30 whole-suite run). Same deadlock class as the foreign landing
+   * of 2026-10-28 (`PARLIAMENT_DOOR_REASONS`), the reveal half of it.
+   */
+  ownedReveal?: (source: CardDrawRevealSource | undefined) => boolean,
 };
 
 /** What a door INTO THE SITTING waits for: the player's own owed objects, never the board's stories the sitting owns. */
@@ -88,7 +99,10 @@ export function screenHandoffReasons(opts?: ScreenHandoffOptions): Array<ScreenH
   if (remoteLandingOwed()) {
     reasons.push('remote-landing');
   }
-  if (currentRevealEvent() !== undefined || pendingRevealEvents().length > 0) {
+  const owned = opts?.ownedReveal;
+  const owed = (entry: DrawnCardEntry): boolean => owned === undefined || !owned(entry.source);
+  const standing = currentRevealEvent();
+  if ((standing !== undefined && owed(standing)) || pendingRevealEvents().some(owed)) {
     reasons.push('reveal');
   }
   if (deckDrawHolds() || isHandDeliveryActive() ||
