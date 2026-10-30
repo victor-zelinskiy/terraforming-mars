@@ -17,10 +17,11 @@ import {AutomaTestOptions, testAutomaGame} from './AutomaTestGame';
  * «ДИНАМИЧЕСКИЙ БАЛАНС», the EARLY half (`common/automa/DynamicBalance.ts`, the owner
  * 2026-10-29): with the switch on, the BONUS side of the bot's deck — the top card
  * of the bonus deck plus the recurring cards — fills gradually: NONE of it in the
- * 1st generation, at most 1 / 2 / 3 of its cards in the 2nd / 3rd / 4th, chosen by
- * a shuffle, the whole side from the 5th (the owner, 2026-10-29 evening: the bot's
- * early lead is built in the 2nd–4th generations, ≈ +1.5–3 VP per bonus-side turn;
- * the first ladder was 1 / 2 / 3). The PROJECT cards — the random tags that make one start unlike
+ * 1st generation, at most 1 / 1 / 2 / 3 of its cards in the 2nd / 3rd / 4th / 5th,
+ * chosen by a shuffle, the whole side from the 6th (the owner, 2026-10-29/30: the
+ * bot's early lead is built in the 2nd–5th generations, ≈ +1.5–3 VP per bonus-side
+ * turn; the first ladder was 1 / 2 / 3, then 0 / 1 / 2 / 3 — stretched by one
+ * generation after the first campaign under it). The PROJECT cards — the random tags that make one start unlike
  * another — are never cut. A deferred top card goes back on top of the bonus deck;
  * a deferred recurring card sits the generation out; the corporation's own card is
  * always in. Off (the option absent): the rulebook's deck, unchanged.
@@ -48,9 +49,9 @@ function rebuildGame(on: boolean, generation: number, recurring: ReadonlyArray<B
 }
 
 describe('DynamicBalance — the bonus side of the deck fills gradually (early half)', () => {
-  it('the schedule: NO card of the bonus side in the 1st generation, 1 / 2 / 3 in the 2nd / 3rd / 4th, all of it from the 5th', () => {
-    expect(DYNAMIC_BALANCE_BONUS_SIDE).deep.eq([0, 1, 2, 3]);
-    expect([1, 2, 3, 4, 5, 9].map(bonusSideCap)).deep.eq([0, 1, 2, 3, undefined, undefined]);
+  it('the schedule: NO card of the bonus side in the 1st generation, 1 / 1 / 2 / 3 in the 2nd–5th, all of it from the 6th', () => {
+    expect(DYNAMIC_BALANCE_BONUS_SIDE).deep.eq([0, 1, 1, 2, 3]);
+    expect([1, 2, 3, 4, 5, 6, 9].map(bonusSideCap)).deep.eq([0, 1, 1, 2, 3, undefined, undefined]);
     expect(dynamicBalanceOn({difficulty: 'hard', secondShift: true})).is.true;
     expect(dynamicBalanceOn({difficulty: 'hard'})).is.false;
   });
@@ -66,9 +67,9 @@ describe('DynamicBalance — the bonus side of the deck fills gradually (early h
     expect(on.automa!.recurringBonusCards, 'the recurring card sits the generation out, still recurring').deep.eq(off.automa!.recurringBonusCards);
   });
 
-  it('a rebuild: 1 of 3 in the 2nd generation, 2 of 3 in the 3rd, 3 of 3 in the 4th, the whole side from the 5th; off takes it all', () => {
+  it('a rebuild: 1 of 3 in the 2nd and the 3rd generation, 2 of 3 in the 4th, 3 of 3 in the 5th, the whole side from the 6th; off takes it all', () => {
     const recurring = [BonusCardId.B16_GOVERNMENT_INTERVENTION, BonusCardId.B19_SHIPPING_LINES];
-    for (const [generation, expected] of [[2, 1], [3, 2], [4, 3], [5, 3], [7, 3]] as const) {
+    for (const [generation, expected] of [[2, 1], [3, 1], [4, 2], [5, 3], [6, 3], [9, 3]] as const) {
       const game = rebuildGame(true, generation, recurring);
       AutomaResearch.buildActionDeck(game);
       expect(bonusIds(game), `gen ${generation}`).has.length(expected);
