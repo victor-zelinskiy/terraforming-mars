@@ -1,6 +1,6 @@
 # Prelude 2 — включение в премиум-скоуп, hold-back-список, замена
 
-**Статус 2026-10-29: ЛЕСА ПОСТАВЛЕНЫ · 2 / 54 · СДАНЫ P76 Ishtar Expedition и P85 Summit Logistics (первая политическая), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
+**Статус 2026-10-30: ЛЕСА ПОСТАВЛЕНЫ · 3 / 54 · СДАНЫ P76 Ishtar Expedition, P85 Summit Logistics (первая политическая) и P68 Ceres Tech Market (первая с действием), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
 `PREMIUM_SCOPE_MODULES` (`src/common/cards/premiumScope.ts`) по образцу классического Turmoil
 (`docs/TURMOIL_REDUX_CLASSIC_CARDS.md`, 2026-10-21 → 2026-10-25): скоуп = «модуль минус список», список — ворклист.
 Адаптация идёт по одной карте, отдельными задачами, по ворклисту §4; список — временный костыль и удаляется, когда
@@ -105,7 +105,9 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
    `skipped`-запись при пустой цели.
 3. **Действие** (`ActivePreludeCard` — Board of Directors, Floating Trade Hub, World Government Advisor; активные
    проекты) — `actionPreview` + `actionUnavailableReason`; у Venus Orbital Survey снять строку
-   `SAFE_WITHOUT_INFORMATION` в `tests/cards/actionCaption.spec.ts`.
+   `SAFE_WITHOUT_INFORMATION` в `tests/cards/actionCaption.spec.ts`; правило длиннее бюджета подписи браузера действий —
+   курированный `action-short` (P68). Bespoke-действие со СБРОСОМ (P68): `discardOptions()` один на живой промпт и
+   шаг превью, `min` — одно число; выплата склада — волной семейства сброса, сцена ухода — даром (реестр CS).
 4. **Живой хук** (`onCardPlayed` — Soil Bacteria, Ecotec, Spire, Palladin Shipping, Sagitta; `onColonyAdded` — Colony
    Trade Hub; `onProductionGain` — Suitable Infrastructure; `onResourceAdded` — Main Belt Asteroids;
    `onIncreaseTerraformRating` — Terraforming Deal; `onGlobalParameterIncrease` — Venus Contract) — ДВОЙНИК ПРОГНОЗА
@@ -141,11 +143,11 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 
 ---
 
-## 4. Ворклист — 54 карты (состояние 2026-10-29: 52 в списке, P76 и P85 сданы)
+## 4. Ворклист — 54 карты (состояние 2026-10-30: 51 в списке, P76, P85 и P68 сданы)
 
 | № | Карта | Вид · гейт | Форма | Статус |
 | --- | --- | --- | --- | --- |
-| P68 | Ceres Tech Market | ACTIVE · Colonies | behavior + bespoke action | в списке |
+| P68 | Ceres Tech Market | ACTIVE · Colonies | behavior + bespoke action | СДАНА 2026-10-30 |
 | P69 | Cloud Tourism | ACTIVE · Venus | bespokePlay, ПО за 3 флотера | в списке |
 | P70 | Colonial Envoys | EVENT · Colonies + ПОЛИТ (Unity) | декларативная, делегат за колонию | в списке |
 | P71 | Colonial Representation | ACTIVE · Colonies + ПОЛИТ | декларативная | в списке |
