@@ -521,7 +521,19 @@ export type VotePromptMeta = {
    * derives «3 − current» itself. Absent = the grant pays no support.
    */
   support?: ReadonlyArray<VoteSupportProjection>;
+  /**
+   * A grant that is ONE DECISION OF A SERIES (P70 Colonial Envoys: «1 delegate per colony — you may add them to
+   * different resolutions»): the political facade asks each delegate as its own grant of 1, and this marker says
+   * which one — `index` of `of` (1-based). The console's Parliament reads it (never the title) to STAND through the
+   * series: the next grant of the same giver continues the visit instead of entering it anew, and the crumb counts
+   * «k / N». Absent on a lone grant (a single delegate, or N on one resolution) — an old save without the field
+   * reads as one.
+   */
+  series?: GrantSeries;
 }
+
+/** `VotePromptMeta.series` — the decision `index` (1-based) of a series of `of` grants. */
+export type GrantSeries = {index: number, of: number};
 
 /** One party's row of `VotePromptMeta.support`. */
 export type VoteSupportProjection = {party: PartyName} & SupportRoom;

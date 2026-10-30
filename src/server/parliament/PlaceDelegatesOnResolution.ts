@@ -6,7 +6,7 @@ import {recordSkippedEffect} from '../deferredActions/skippedEffect';
 import {SelectParty} from '../inputs/SelectParty';
 import {InputError} from '../inputs/InputError';
 import {message} from '../logs/MessageBuilder';
-import {ChoiceContextSource, SelectPartyModel, VoteSupportProjection} from '../../common/models/PlayerInputModel';
+import {ChoiceContextSource, GrantSeries, SelectPartyModel, VoteSupportProjection} from '../../common/models/PlayerInputModel';
 import {
   DELEGATE_ICON, NEUTRAL_DELEGATE_ICON, PARLIAMENT_MAX_POPULAR_SUPPORT, POPULAR_SUPPORT_LABEL, ReduxParty, SUPPORT_LIMIT_REASON, SupportRoom,
 } from '../../common/parliament/ParliamentTypes';
@@ -37,6 +37,12 @@ export type PlaceDelegatesOptions = {
    * placement fails charges nothing.
    */
   price?: {card: ICard, count: number};
+  /**
+   * ONE DECISION OF A SERIES (`PoliticalOps.placeDelegates` without `oneParty` — P70 Colonial Envoys): which grant
+   * of how many this is. It rides the prompt as `votePrompt.series`, so the console's Parliament stands through the
+   * whole series and counts it; the step itself places exactly as a lone grant does.
+   */
+  series?: GrantSeries;
 };
 
 /**
@@ -168,7 +174,11 @@ export class PlaceDelegatesOnResolution extends DeferredAction<undefined> {
     const projection: ReadonlyArray<VoteSupportProjection> | undefined = support === undefined ? undefined :
       parties.map((party) => ({party: party as PartyName, ...parliament.popularSupportRoom(party, support)}));
     return new SelectParty(title, 'Add', parties)
-      .markVotePrompt({source: 'grant', cost: 0, count, printed: this.quantity, ...(projection === undefined ? {} : {support: projection})})
+      .markVotePrompt({
+        source: 'grant', cost: 0, count, printed: this.quantity,
+        ...(projection === undefined ? {} : {support: projection}),
+        ...(this.options.series === undefined ? {} : {series: this.options.series}),
+      })
       .markChoiceContext({source: this.cause, mode: 'reward'});
   }
 

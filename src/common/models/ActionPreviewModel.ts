@@ -775,7 +775,12 @@ export type ActionPreviewStep =
    * what the card prints. Absent when the grant would ask nothing — the branch
    * then carries the NAMED skip instead (`PlaceDelegatesOnResolution.previewSkip`).
    */
-  | {kind: 'delegateGrantFollowUp', count: number, printed: number}
+  /**
+   * `separate`: a SERIES (`sendDelegates.manyParties` — P70 Colonial Envoys): the delegates are asked ONE BY ONE, each
+   * its own grant of 1 that may go to a different resolution («then: 3 delegates one by one — you may add them to
+   * different resolutions»); the prompts carry `votePrompt.series`. Absent on a grant of N to one resolution.
+   */
+  | {kind: 'delegateGrantFollowUp', count: number, printed: number, separate?: true}
   | {
     kind: 'boardPlacement',
     placementType: string,

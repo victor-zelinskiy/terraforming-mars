@@ -68,7 +68,7 @@ export const PRELUDE2_CARD_MANIFEST = new ModuleManifest({
     [CardName.SPONSORING_NATION]: {Factory: SponsoringNation, compatibility: 'turmoil', politics: 'redux'},
     [CardName.COLONIAL_REPRESENTATION]: {Factory: ColonialRepresentation, compatibility: ['colonies', 'turmoil'], politics: 'redux'},
     [CardName.ENVOYS_FROM_VENUS]: {Factory: EnvoysFromVenus, compatibility: ['turmoil', 'venus'], politics: 'redux'},
-    [CardName.COLONIAL_ENVOYS]: {Factory: ColonialEnvoys, compatibility: ['colonies', 'turmoil']},
+    [CardName.COLONIAL_ENVOYS]: {Factory: ColonialEnvoys, compatibility: ['colonies', 'turmoil'], politics: 'redux'},
     [CardName.SPECIAL_PERMIT]: {Factory: SpecialPermit, compatibility: 'turmoil'},
     [CardName.FLOATING_REFINERY]: {Factory: FloatingRefinery, compatibility: 'venus'},
     [CardName.FRONTIER_TOWN]: {Factory: FrontierTown, compatibility: 'turmoil'},

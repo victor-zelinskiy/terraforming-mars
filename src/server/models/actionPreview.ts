@@ -1082,9 +1082,13 @@ export function stepsForBehavior(
   // THEN the delegates (Executor defers them after every tile): a LIVE grant step of the same flow on a Turmoil Redux
   // table — an action's STAGED door (`delegateDoor`) — or, where the grant would ask nothing, its NAMED skip. Built
   // from the very step the Executor defers (`politics.placeDelegates` → `PlaceDelegatesOnResolution`), asked read-only.
+  // A SERIES (`manyParties` — P70: «you may add them to different resolutions») is the same grant asked one delegate
+  // at a time: its skip reads the same branches (an empty area, an empty reserve), its follow-up says «one by one»
+  // and it has no staged door (each decision is its own live grant).
   const sendDelegates = behavior.turmoil?.sendDelegates;
-  if (sendDelegates !== undefined && sendDelegates.manyParties !== true && player.game.parliament !== undefined) {
+  if (sendDelegates !== undefined && player.game.parliament !== undefined) {
     const printed = ctx.count(sendDelegates.count);
+    const series = sendDelegates.manyParties === true && printed > 1;
     if (printed > 0) {
       // PREVIEW = EXECUTION: a price «from here» the Executor hands to the grant (the delegate is the action's whole
       // result — TR84's branches) rides the previewed grant too, so the door asks exactly what the answer will charge.
@@ -1097,7 +1101,7 @@ export function stepsForBehavior(
       const lost = grant.previewSkip();
       if (lost !== undefined) {
         steps.push(actionPreviews.warningNote(lost.reason, {skipped: lost.skipped}));
-      } else if (opts.delegateDoor === true) {
+      } else if (opts.delegateDoor === true && sendDelegates.manyParties !== true) {
         const door = actionPreviews.delegateGrantStep(card, grant);
         if (door !== undefined) {
           steps.push(door);
@@ -1105,7 +1109,7 @@ export function stepsForBehavior(
       } else {
         const prompt = grant.previewSelectParty();
         if (prompt !== undefined) {
-          steps.push({kind: 'delegateGrantFollowUp', count: prompt.votePrompt?.count ?? printed, printed});
+          steps.push({kind: 'delegateGrantFollowUp', count: prompt.votePrompt?.count ?? printed, printed, ...(series ? {separate: true as const} : {})});
         }
       }
     }

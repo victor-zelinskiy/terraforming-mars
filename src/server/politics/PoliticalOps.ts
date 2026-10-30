@@ -287,8 +287,11 @@ export class ReduxPoliticalOps implements PoliticalOps {
     if (options.price !== undefined) {
       player.removeResourceFrom(options.price.card, options.price.count);
     }
+    // A SERIES: each delegate is its own decision («you may add them to different resolutions»), and each grant
+    // says which one it is (`votePrompt.series`) — the console keeps ONE Parliament visit through all of them. A
+    // series of one is a lone grant.
     for (let i = 0; i < count; i++) {
-      this.game.defer(new PlaceDelegatesOnResolution(player, 1, cause));
+      this.game.defer(new PlaceDelegatesOnResolution(player, 1, cause, count > 1 ? {series: {index: i + 1, of: count}} : {}));
     }
   }
 }

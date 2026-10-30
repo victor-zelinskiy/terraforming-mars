@@ -670,12 +670,23 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
   // «Place N delegates in 1 party» read the Turmoil Redux way (T03 Cultural Metropolis): the cubes leave the
   // reserve for ONE resolution of the voting area. Only the plain one-party grant — an influence bonus or a
   // per-party spread stays curated.
+  // A SERIES (`manyParties` — «you may place them in separate parties»): the facade asks each delegate as its own
+  // grant, so the sentence says «you may add them to different resolutions» (P70 Colonial Envoys: one per colony).
   const sendDelegates = b.turmoil?.sendDelegates;
-  const grantCount = sendDelegates === undefined || sendDelegates.manyParties === true ? undefined : numeric(sendDelegates.count);
-  const plainGrant = b.turmoil !== undefined && b.turmoil.influenceBonus === undefined && grantCount !== undefined;
+  const series = sendDelegates?.manyParties === true;
+  const grantCount = sendDelegates === undefined || series ? undefined : numeric(sendDelegates.count);
+  const seriesCount = sendDelegates !== undefined && series ? sendDelegates.count : undefined;
+  const perColony = typeof seriesCount === 'object' && Object.keys(seriesCount).length === 1 && 'colonies' in seriesCount;
+  const seriesSentence = typeof seriesCount === 'number' ?
+    `Add ${seriesCount} delegates — you may add them to different resolutions.` :
+    perColony ? 'Add 1 delegate per colony you have — you may add them to different resolutions.' : undefined;
+  const plainGrant = b.turmoil !== undefined && b.turmoil.influenceBonus === undefined && (grantCount !== undefined || seriesSentence !== undefined);
   if (grantCount !== undefined && plainGrant) {
     const n = grantCount;
     push('turmoil.delegates', n === 1 ? 'Add 1 delegate to a resolution.' : `Add ${n} delegates to one resolution.`, ['delegates']);
+  }
+  if (seriesSentence !== undefined && plainGrant) {
+    push('turmoil.delegates.each', seriesSentence, perColony ? ['delegates', 'colonies'] : ['delegates']);
   }
   if ((b.turmoil !== undefined && !plainGrant) || b.moon !== undefined || b.underworld !== undefined) {
     complex = true;

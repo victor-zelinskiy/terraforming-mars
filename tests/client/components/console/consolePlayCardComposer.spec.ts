@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {
   buildPlayCardBatch, playComposerFootHints, FootHint, PlayFootContext,
   computePrimaryAction, buildPaymentView, playChoiceMode, foldCopiedProductionEffects,
-  playPrimaryVerb, initialVariantSelection, samePreviewShape, variantGroupNav, keepPlayAnswers,
+  playPrimaryVerb, initialVariantSelection, samePreviewShape, variantGroupNav, keepPlayAnswers, delegateGrantFollowUpRow,
 } from '@/client/console/consolePlayCardComposer';
 import {
   computeCommitGate, commitAllowed, commitAcceptsCursor, commitRedirectTarget,
@@ -949,5 +949,18 @@ describe('playPrimaryVerb — one button, one promise', () => {
     } as PlayFootContext);
     const a = hints.find((h) => h.control === 'confirm');
     expect(a?.label).to.eq('Change');
+  });
+});
+
+describe('delegateGrantFollowUpRow § separate — a SERIES of grants (P70 Colonial Envoys)', () => {
+  it('N > 1 one by one: «N delegates one by one … you may add them to different resolutions»', () => {
+    expect(delegateGrantFollowUpRow({count: 3, separate: true})).deep.eq({
+      key: '${0} delegates one by one, after the play — you may add them to different resolutions', params: ['3'],
+    });
+  });
+
+  it('a grant of N to ONE resolution keeps its words; a series of one is a lone grant', () => {
+    expect(delegateGrantFollowUpRow({count: 3})).deep.eq({key: '${0} delegates to one resolution, after the play — chosen in the Parliament', params: ['3']});
+    expect(delegateGrantFollowUpRow({count: 1, separate: true})).deep.eq({key: '1 delegate to a resolution, after the play — chosen in the Parliament'});
   });
 });

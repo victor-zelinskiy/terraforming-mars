@@ -416,7 +416,11 @@ export function playWarmsParliamentArt(branches: ReadonlyArray<{steps: ReadonlyA
   return branches.some((branch) => branch.steps.some((step) => step.kind === 'delegateGrantFollowUp'));
 }
 
-export function delegateGrantFollowUpRow(step: {count: number}, after: 'play' | 'confirm' = 'play'): NextRowKey {
+export function delegateGrantFollowUpRow(step: {count: number, separate?: true}, after: 'play' | 'confirm' = 'play'): NextRowKey {
+  // A SERIES (P70 Colonial Envoys — `separate`): N decisions of one delegate each, each free to pick its own resolution.
+  if (step.separate === true && step.count > 1 && after === 'play') {
+    return {key: '${0} delegates one by one, after the play — you may add them to different resolutions', params: [String(step.count)]};
+  }
   // A corporation's FIRST ACTION (TR83 The Deimos Group) has no play: the vote follows the confirm of «ПЕРВОЕ ДЕЙСТВИЕ».
   if (after === 'confirm') {
     return step.count === 1 ?
