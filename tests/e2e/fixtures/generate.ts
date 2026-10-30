@@ -9553,6 +9553,67 @@ cloudTourismFixture('cloud-tourism', 'play');
 cloudTourismFixture('cloud-tourism-wild', 'wild');
 cloudTourismFixture('cloud-tourism-vp', 'vp');
 
+// ── P75 · GHG SHIPMENT — the SEVENTH Prelude 2 card and the FIRST in scope with a KELVINISTS requirement (docs/claude/
+//    prompts/prelude2-p75-ghg-shipment.md): «requires the Kelvinists — the GREENS under Redux (rulebook p.13,
+//    `normalizeReduxParty`) — ruling or 2 of your delegates there; +1 heat production; 1 heat per floater you have».
+//    A 2p Redux + Venus + Prelude 2 table (Manutech · ThorGate), blue on the move with P75 MOVED into the hand,
+//    Dirigibles (3 floaters) and Floating Habs (2) on blue's table — 5 floaters — and 1 titanium (the whole price):
+//      · `ghg-shipment`        — the Greens rule (their quiet law enacted): playable; the card pays +5 heat and +1 heat
+//        production; the GREENS' effect answers that step with +1 M€ production, Manutech answers both steps (+1 heat,
+//        +1 M€); a DRY RUN on a copy pays 1 titanium;
+//      · `ghg-shipment-locked` — the Greens' resolution up for the vote, UNITY in power (⚠ a fresh Redux table opens
+//        with the Greens ruling — the locked table seats another party's law), blue with no delegate: «0 of 2». ──
+function ghgShipmentFixture(name: string, ruling: boolean): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {prelude2Expansion: true, venusNextExtension: true, customCorporationsList: [CardName.MANUTECH, CardName.THORGATE]},
+    arrange: ({game, p1, parliament}) => {
+      if (ruling) {
+        seatEnacted(parliament, quietResolutionOf(PartyName.GREENS));
+      } else {
+        seatResolution(parliament, 0, quietResolutionOf(PartyName.GREENS));
+        seatEnacted(parliament, quietResolutionOf(PartyName.UNITY));
+      }
+      const dirigibles = new Dirigibles();
+      const habs = new FloatingHabs();
+      dirigibles.resourceCount = 3;
+      habs.resourceCount = 2;
+      p1.playedCards.push(dirigibles, habs);
+      moveToDeckTop(game, CardName.GHG_SHIPMENT);
+      p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+      p1.titanium = 1;
+    },
+    expect: ({game, p1, parliament}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.GHG_SHIPMENT);
+      const playable = card !== undefined && p1.canPlay(card) !== false;
+      const greensRule = parliament.rulingParty() === PartyName.GREENS;
+      // Locked: the server's own reason — the GREENS named (never «Kelvinists»), their road OPEN at «0 of 2».
+      const reason = card === undefined ? undefined : unplayableReasons(p1, card)[0];
+      const zeroOfTwo = reason?.type === 'party' && reason.party === PartyName.GREENS && reason.current === 0 && reason.partyOffVote !== true;
+      if (card === undefined || playable !== ruling || greensRule !== ruling || (!ruling && !zeroOfTwo) || game.activePlayer.id !== p1.id) {
+        throw new Error(`the ${name} fixture expected P75 in blue's hand (playable=${ruling}) with the Greens ${ruling ? 'ruling' : 'on the vote at «0 of 2»'} and blue on the move — got card=${card !== undefined} playable=${playable} ruling=${parliament.rulingParty()} reason=${JSON.stringify(reason)}`);
+      }
+      parliament.assertLedger(game);
+      if (ruling) {
+        // THE DRY RUN — the real play on a copy, paid with the one titanium: 5 heat from the card, 1 from Manutech.
+        const copy = Game.deserialize(structuredClone(game.serialize()));
+        const blue = copy.getPlayerById(p1.id);
+        const before = {heat: blue.heat, production: blue.production.heat, mcProduction: blue.production.megacredits, mc: blue.megaCredits};
+        blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.GHG_SHIPMENT)!, Payment.of({titanium: 1}));
+        runAllActions(copy);
+        const facts = {heat: blue.heat - before.heat, production: blue.production.heat - before.production, mcProduction: blue.production.megacredits - before.mcProduction, titanium: blue.titanium, mc: blue.megaCredits - before.mc};
+        // The Greens' effect answers the heat production step (+1 M€ production), and Manutech answers THAT step too (+1 M€).
+        if (facts.heat !== 5 + 1 || facts.production !== 1 || facts.mcProduction !== 1 || facts.titanium !== 0 || facts.mc !== 1) {
+          throw new Error(`the ${name} fixture expected +6 heat (5 card + 1 Manutech), +1 heat production, +1 M€ production (the Greens) and +1 M€ (Manutech), no titanium — got ${JSON.stringify(facts)}`);
+        }
+      }
+    },
+  });
+}
+ghgShipmentFixture('ghg-shipment', true);
+ghgShipmentFixture('ghg-shipment-locked', false);
+
 // ── preselect-sole: THE PRE-SELECT STAND (T14 · ledger CC — «ОДИН КУРСОР ПОСЛЕ ОТВЕТА · ПРИБЫТИЕ НА КОММИТ ·
 //    ЕДИНСТВЕННАЯ ЦЕЛЬ»). One base table, every cell of the matrix in blue's hand / tableau:
 //      · Aerial Mappers (ONE floater) is the ONLY floater holder on the table — Floater Prototypes («2 floaters to ANY

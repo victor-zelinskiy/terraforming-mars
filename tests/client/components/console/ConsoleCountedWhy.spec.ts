@@ -1,7 +1,9 @@
 import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
 import ConsoleCountedWhy from '@/client/components/console/ConsoleCountedWhy.vue';
-import {countedWhyOf} from '@/client/console/countedPlay';
+import {countGlyphOf, countedWhyOf} from '@/client/console/countedPlay';
+import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
+import {CardResource} from '@/common/CardResource';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {Tag} from '@/common/cards/Tag';
 
@@ -39,5 +41,33 @@ describe('ConsoleCountedWhy — a SET count (P69)', () => {
     expect(wrapper.find('[data-count-sets]').exists()).is.false;
     expect(wrapper.find('[data-count-zero]').text()).eq('No Earth tags');
     expect(wrapper.find('.con-cwhy').classes()).contains('con-cwhy--zero');
+  });
+});
+
+/**
+ * P75 GHG Shipment — «1 heat for each floater you have»: the face prints «[heat] / [floater]», so the «ПОЧЕМУ» begins
+ * with the SAME floater item (`resource(FLOATER)`), never the words «Your floaters». Floater Leasing (per 3) reads the
+ * same term and wears the same glyph.
+ */
+describe('ConsoleCountedWhy — the floater term wears the printed floater (P75)', () => {
+  const heat: ActionEffect = {
+    direction: 'gain', icon: 'heat', amount: 5, current: 2, resulting: 7,
+    basis: [{count: 5, label: 'Your floaters'}],
+  };
+
+  it('the term\'s glyph is the face\'s `resource(FLOATER)` item', () => {
+    expect(countGlyphOf({count: 5, label: 'Your floaters'})).deep.eq({is: 'item', type: CardRenderItemType.RESOURCE, amount: 1, resource: CardResource.FLOATER});
+    expect(countGlyphOf({count: 2, label: 'Resources on this card'}), 'no single printed item — words').is.undefined;
+  });
+
+  it('the strip draws the floater, then «5 → +5»', () => {
+    const why = countedWhyOf([heat])!;
+    expect(why.glyphs).has.length(1);
+    const wrapper = mount(ConsoleCountedWhy, {props: {why}, global: {mocks: {$t: (key: string) => key}}});
+    const g = wrapper.find('[data-count-glyph]');
+    expect(g.exists(), wrapper.html()).is.true;
+    expect(g.html()).contains('floater');
+    expect(wrapper.find('[data-count-why]').attributes('data-count-why-total')).eq('5');
+    expect(wrapper.find('[data-count-result]').text()).contains('+5');
   });
 });

@@ -219,6 +219,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
       ['seat', '.con-status__player[data-color]'],
       ['cell', '.board-space[data_space_id]'],
     ];
+    const REACTOR_ANCHOR = ANCHORS.find(([kind]) => kind === 'reactor')![1];
     const anchorName = (kind: string, el: Element): string => {
       switch (kind) {
       case 'hero': return 'hero';
@@ -281,7 +282,10 @@ export async function armTransferWitness(page: Page): Promise<void> {
         if (el === undefined) {
           continue;
         }
-        const label = anchorName(kind, el);
+        // A REACTOR whose printed effect IS the «?» (Manutech — «gain the resource of the production you raised», P75's
+        // stand) answers from that icon: the reactor's, never TR54's chosen resource — the generic «?» stands earlier in
+        // the ladder for TR54, so the reactor's own face is told apart here.
+        const label = anchorName(kind === 'wild' && el.matches(REACTOR_ANCHOR) ? 'reactor' : kind, el);
         // THE CARD-REACTION LAYER paints over every band surface (z 11650) and is `pointer-events: none`, so the hit
         // test under a reactor's face names the band it stands over — that band is never glass for it (the product's
         // own verdict says the same, `transferEndVerdict`; iteration 3: a reactor rises at the stage over a standing

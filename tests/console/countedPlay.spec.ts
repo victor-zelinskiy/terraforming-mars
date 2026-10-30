@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {CardResource} from '@/common/CardResource';
 import {CardName} from '../../src/common/cards/CardName';
 import {CardModel} from '../../src/common/models/CardModel';
 import {ActionEffect} from '../../src/common/models/ActionPreviewModel';
@@ -136,7 +137,10 @@ describe('countedPlay', () => {
       expect(colonies.glyph).deep.include({type: CardRenderItemType.COLONIES, anyPlayer: true});
       const tags = countedWhyOf([{direction: 'gain', icon: 'megacredits', amount: 3, basis: [{count: 3, label: 'Your tags', tag: Tag.SPACE}]}])!;
       expect(tags.glyph).deep.include({type: CardRenderItemType.TAG, tag: Tag.SPACE, anyPlayer: false});
-      expect(countedWhyOf([{direction: 'gain', icon: 'megacredits', amount: 2, basis: [{count: 2, label: 'Your floaters'}]}])!.glyph, 'no printed item → words').is.undefined;
+      // P75 GHG Shipment / Floater Leasing: the floater term wears the face's `resource(FLOATER)` — never the words.
+      expect(countedWhyOf([{direction: 'gain', icon: 'megacredits', amount: 2, basis: [{count: 2, label: 'Your floaters'}]}])!.glyph, 'the printed floater')
+        .deep.eq({is: 'item', type: CardRenderItemType.RESOURCE, amount: 1, resource: CardResource.FLOATER});
+      expect(countedWhyOf([{direction: 'gain', icon: 'megacredits', amount: 2, basis: [{count: 2, label: 'Resources on this card'}]}])!.glyph, 'no single printed item → words').is.undefined;
     });
 
     it('a bespoke counted play reads with the glyph its card prints after the «/» (`countedPlayForecast`)', () => {

@@ -27,6 +27,7 @@ import {buildMechanics, collectDroppedProse, MechanicsVM} from './mechanicsModel
 import {tagClusterPlan, TagClusterPlan} from './tagLayout';
 import {standardResourceIconUrl, tagIconUrl} from './premiumCardIcons';
 import {requirementPartyEmblem} from './partyEmblems';
+import {normalizeReduxParty} from '@/common/parliament/ParliamentTypes';
 import {ModifierSourceVM, easingIsQuiet, modifierSourcesOf} from './premiumModifierSources';
 
 export type PremiumCostVM = {
@@ -305,7 +306,8 @@ const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = 
   [RequirementType.PRODUCTION]: {value: (d) => d.count ?? 1},
   [RequirementType.REMOVED_PLANTS]: {value: () => 0, iconUrl: `${RES}/plant.png`, binary: true},
   // A PARTY is drawn by its EMBLEM (Turmoil Redux, TR15+ — the scan prints the party's emblem in the MIN plate);
-  // the icon is per party, resolved in `normalizeRequirement`. A party with no emblem keeps the text label.
+  // the icon is per party, resolved in `normalizeRequirement` — a classic Kelvinists requirement reads as the
+  // Greens (`normalizeReduxParty`, the one translation point), emblem and `party` alike.
   [RequirementType.PARTY]: {value: () => 0, binary: true},
   // THE CHAIR — the ONE mark of the chairmanship (`PremiumChairGlyph`'s drawing as a file, `chair.svg`): the scan's
   // silhouette in the MIN plate reads as the chair every Parliament surface already draws (glossary §4), never upstream's bust.
@@ -361,7 +363,7 @@ export function normalizeRequirement(descriptor: CardRequirementDescriptor): Nor
     suffix: plain && descriptor.max !== true ? '+' : render?.suffix ?? '',
     iconUrl,
     tag: descriptor.tag,
-    party: descriptor.party,
+    party: descriptor.party === undefined ? undefined : normalizeReduxParty(descriptor.party),
     isBinary: render?.binary === true,
     negation: type === RequirementType.REMOVED_PLANTS,
     all: descriptor.all === true,

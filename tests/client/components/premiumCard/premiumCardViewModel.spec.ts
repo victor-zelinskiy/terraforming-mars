@@ -622,10 +622,22 @@ describe('normalizeRequirement', () => {
     for (const party of REDUX_PARTIES) {
       expect(normalizeRequirement({party}).iconUrl, party).to.eq(partyEmblemUrl(party));
     }
-    // A party with no emblem (the classic engine's Kelvinists) keeps its text label on the plate.
+  });
+
+  it('the classic Kelvinists wear the GREENS\' emblem (rulebook p.13 — `normalizeReduxParty`, the one translation point): P75 GHG Shipment\'s plate names the table\'s party', () => {
     const kelvinists = normalizeRequirement({party: PartyName.KELVINISTS});
-    expect(kelvinists.iconUrl).to.eq(undefined);
+    expect(kelvinists.type).to.eq(RequirementType.PARTY);
+    expect(kelvinists.iconUrl, 'the emblem, never the text label «Kelvinists»').to.eq(partyEmblemUrl(PartyName.GREENS));
+    expect(kelvinists.party, 'the plate\'s party (aria, `data-req-party`) is the Greens').to.eq(PartyName.GREENS);
     expect(kelvinists.isBinary).to.eq(true);
+  });
+
+  it('the translation point moves NO Redux party: each of the six keeps its own emblem and its own name', () => {
+    for (const party of REDUX_PARTIES) {
+      const req = normalizeRequirement({party});
+      expect(req.party, party).to.eq(party);
+      expect(req.iconUrl, party).to.eq(partyEmblemUrl(party));
+    }
   });
 
   it('the CHAIRMAN (T10 Public Celebrations, TR12 Party Sanctions) draws THE CHAIR — the ONE mark of the chairmanship, never upstream\'s bust', () => {

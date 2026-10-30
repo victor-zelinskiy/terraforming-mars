@@ -19,6 +19,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {AltSecondaryTag} from '@/common/cards/render/AltSecondaryTag';
 import {Tag} from '@/common/cards/Tag';
+import {CardResource} from '@/common/CardResource';
 import {tagNameKey} from '@/common/cards/tagNames';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import type {ICardRenderItem} from '@/common/cards/render/Types';
@@ -156,10 +157,11 @@ export const PART_LABEL: Readonly<Record<ActionEffectBasisPartKind, string>> = {
  * the player's own tiles drop the frame. A single-term count (PL-196) wears
  * the face's own item for its entity — the colony (TR23 «per colony in
  * play», framed: every player's), the ocean (TR43), the city, the greenery,
- * the tag the rule counts. The label is the server's `countableBasis` key — a
- * plain string, never a translated `Message`. A term with no printed item
- * (floaters, «resources on this card») reads as words; an OR of tags is a ROW
- * of glyphs (`countGlyphsOf`), never one.
+ * the tag the rule counts, the floater (P75 GHG Shipment «[heat] / [floater]»,
+ * Floater Leasing — the face's `resource(FLOATER)`). The label is the
+ * server's `countableBasis` key — a plain string, never a translated
+ * `Message`. A term with no single printed item («resources on this card»)
+ * reads as words; an OR of tags is a ROW of glyphs (`countGlyphsOf`), never one.
  */
 export function countGlyphOf(term: ActionEffectBasis): CountedGlyph | undefined {
   switch (term.label) {
@@ -198,6 +200,8 @@ export function countGlyphOf(term: ActionEffectBasis): CountedGlyph | undefined 
     return glyph(CardRenderItemType.EMPTY_TILE);
   case 'Cards in hand':
     return glyph(CardRenderItemType.CARDS);
+  case 'Your floaters':
+    return glyph(CardRenderItemType.RESOURCE, {resource: CardResource.FLOATER});
   }
   return undefined;
 }

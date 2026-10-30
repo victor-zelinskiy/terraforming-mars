@@ -54,6 +54,7 @@ import {PlacementType} from '../../boards/PlacementType';
 import {CardInformation, CardInfoBlock, CardInfoGroup} from '../../../common/cards/CardInformation';
 import {CardRequirementDescriptor, requirementType} from '../../../common/cards/CardRequirementDescriptor';
 import {RequirementType} from '../../../common/cards/RequirementType';
+import {normalizeReduxParty} from '../../../common/parliament/ParliamentTypes';
 import {deriveGraphicIds, nodeGraphicToken, corpBoxFrameNodes, GraphicBlockRef} from '../../../common/cards/render/cardGraphicIds';
 import {ICardRenderEffect, isICardRenderEffect, isICardRenderItem, isICardRenderRoot, ItemType} from '../../../common/cards/render/Types';
 import {CardRenderItemType} from '../../../common/cards/render/CardRenderItemType';
@@ -301,8 +302,11 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
     // own sentence, its «there» named — the delegates stand on the PARTY'S RESOLUTION in the
     // Voting Area (rulebook p.13). A card-granted party effect is not a road (FAQ p.19), so the
     // line names exactly two. The hand's reason (`unplayableReasons` → `PARTY_REQUIREMENT_REASON`)
-    // restates it with the «now» of each road.
-    en = `Requires ${descriptor.party} to be ruling or that you have 2 delegates on its resolution.`;
+    // restates it with the «now» of each road. The party is the TABLE'S party: a classic Kelvinists
+    // requirement (P75 GHG Shipment) reads as the Greens through the ONE translation point
+    // (`normalizeReduxParty`, rulebook p.13) — the same party the hand's reason and the face name.
+    const party = descriptor.party === undefined ? descriptor.party : normalizeReduxParty(descriptor.party);
+    en = `Requires ${party} to be ruling or that you have 2 delegates on its resolution.`;
     break;
   }
   case RequirementType.PARTY_LEADERS: {

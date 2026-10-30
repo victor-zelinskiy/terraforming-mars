@@ -1291,9 +1291,15 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   // (the live funnel's order: the party first, then the tableaus — TR81).
   // A lone branch the rules refuse places nothing (the tile pass's own rule).
   const liveTiles = single && branches[0]?.available === false ? [] : sharedTiles;
-  facts.push(
+  // A party's / a law's answer is a GRANT too, and the table answers it in turn (the live funnel: the Greens raise
+  // the M€ production → Manutech pays 1 M€ for that step — P75 GHG Shipment, ledger CW): its cascade, like the cards'.
+  const answers = [
     ...partyFacts(player, ownGrants, liveTiles, single ? ownEffects : []),
     ...resolutionFacts(player, ownGrants, liveTiles, single ? ownEffects : []),
+  ];
+  facts.push(
+    ...answers,
+    ...cascadeFacts(player, card, answers, ctx),
     ...ratingFacts(player, card, ownGrants, single ? ownEffects : [], liveTiles, ctx));
   if (!single) {
     for (let pos = 0; pos < branches.length; pos++) {
@@ -1302,9 +1308,13 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
         continue;
       }
       const branchTiles = ownTilesOf(perBranchTiles[pos], sharedTiles);
-      const own = [
+      const branchAnswers = [
         ...partyFacts(player, branchGrants[pos] ?? [], branchTiles, branch.effects),
         ...resolutionFacts(player, branchGrants[pos] ?? [], branchTiles, branch.effects),
+      ];
+      const own = [
+        ...branchAnswers,
+        ...cascadeFacts(player, card, branchAnswers, {...baseCtx, tiles: perBranchTiles[pos], branchPos: pos}),
         ...ratingFacts(player, card, branchGrants[pos] ?? [], branch.effects, branchTiles, {...baseCtx, tiles: perBranchTiles[pos], branchPos: pos}),
       ];
       if (own.length > 0) {

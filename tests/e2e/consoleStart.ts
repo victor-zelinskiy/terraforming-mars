@@ -2968,6 +2968,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'l1-trade-terminal' | 'l1-trade-terminal-vermin' |
   // Prelude 2 P69 Cloud Tourism — a PAIR count (a SET term, CV): 2 pairs · 2 pairs with a printed wild tag on Venus · the third floater's VP.
   'cloud-tourism' | 'cloud-tourism-wild' | 'cloud-tourism-vp' |
+  // Prelude 2 P75 GHG Shipment — the classic Kelvinists read as the Greens (CW): the Greens rule (5 floaters, Manutech) · locked «0 of 2».
+  'ghg-shipment' | 'ghg-shipment-locked' |
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
   'census-pets-rival' |
