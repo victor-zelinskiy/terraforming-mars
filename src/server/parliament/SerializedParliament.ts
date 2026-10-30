@@ -415,6 +415,24 @@ export type SerializedPhaseSummary = {
    * no cube was placed and on a save from before this field.
    */
   bannerCubes?: Array<SerializedBannerCube>;
+  /**
+   * THE INFLUENCE THE LAW READ, per seat paid by it, and WHAT IT WAS MADE OF at that moment
+   * (`ParliamentPhase.noteInfluenceRead`): the Career's level (`track`, at `agendaStep`) and every giver
+   * beyond it — the terms sum to `total`, the number every record of the seat carries as `influence`. A
+   * SNAPSHOT: the breakdown of a past sitting never reads the live sources. Absent on a save from before this
+   * field (the breakdown then prints the number alone) and for a law with no seat step.
+   */
+  influenceRead?: Array<SerializedInfluenceRead>;
+};
+
+/** ONE seat's influence as a law read it (see `SerializedPhaseSummary.influenceRead`). */
+export type SerializedInfluenceRead = {
+  player: PlayerId;
+  total: number;
+  agendaStep: number;
+  track: number;
+  /** The givers beyond the Career, in the order the facade received them, then the tableau's own hooks — `source` a card's (or a colony's) name. */
+  sources: Array<{amount: number; source?: string}>;
 };
 
 /** ONE cube a sitting put on a party's banner (see `SerializedPhaseSummary.bannerCubes`). */

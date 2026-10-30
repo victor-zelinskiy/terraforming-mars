@@ -681,6 +681,25 @@ export type ParliamentPhaseSummaryModel = {
    * cube that already stood is not here. Absent when none was placed.
    */
   bannerCubes?: ReadonlyArray<ParliamentBannerCubeModel>;
+  /**
+   * THE INFLUENCE THE LAW READ, per seat it paid, and what it was made of at that moment — a SNAPSHOT of the
+   * server (`ParliamentPhase.noteInfluenceRead`): the Career's level at its step, then every giver beyond it
+   * (a card's name, the facade's order). The terms sum to `total`. The results' breakdown («ПОДРОБНОСТИ
+   * ВЫПЛАТ») prints it; it never reads the live `influenceSources` for a past sitting. Absent on older saves
+   * (the breakdown prints the number alone) and for a law that paid no seat.
+   */
+  influenceRead?: ReadonlyArray<ParliamentInfluenceReadModel>;
+};
+
+/** ONE seat's influence as the law read it (see `ParliamentPhaseSummaryModel.influenceRead`). */
+export type ParliamentInfluenceReadModel = {
+  player: Color;
+  total: number;
+  /** The Career step the marker stood on, and the influence level that step reads (`influenceAtAgenda`). */
+  agendaStep: number;
+  track: number;
+  /** The givers beyond the Career — `source` a card's (or a colony's) English name, absent for an anonymous one. */
+  sources: ReadonlyArray<{amount: number; source?: string}>;
 };
 
 /** ONE cube a sitting put on a party's banner. */

@@ -678,6 +678,15 @@ function summaryModel(game: IGame, parliament: Parliament, summary: SerializedPh
       card: cube.card,
     }));
   }
+  if (summary.influenceRead !== undefined) {
+    model.influenceRead = summary.influenceRead.map((entry) => ({
+      player: game.getPlayerById(entry.player).color,
+      total: entry.total,
+      agendaStep: entry.agendaStep,
+      track: entry.track,
+      sources: entry.sources.map((s) => (s.source === undefined ? {amount: s.amount} : {amount: s.amount, source: s.source})),
+    }));
+  }
   if (summary.discarded !== undefined) {
     model.discarded = summary.discarded.map((instance) => {
       const definition = parliament.resolutionOf(instance);

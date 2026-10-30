@@ -791,6 +791,22 @@ export class ParliamentPhase {
   }
 
   /**
+   * THE INFLUENCE A LAW READ, AND WHAT IT WAS MADE OF — snapshotted ONCE per seat per sitting, at the seat's first
+   * step (every step of one enactment reads the same number: the winner's Career step has already moved, nothing
+   * of the influence changes inside the phase). The results' breakdown prints it («влияние 2 = Карьера 1 +
+   * Колониальное представительство +1») and must never read the LIVE sources: a card played after the sitting
+   * would rewrite what the law read. Read-only — the composition is the same function `influence` adds up.
+   */
+  private noteInfluenceRead(player: IPlayer): void {
+    const summary = this.progress.summary;
+    if (summary === undefined || summary.influenceRead?.some((entry) => entry.player === player.id)) {
+      return;
+    }
+    const composition = this.parliament.influenceComposition(player);
+    (summary.influenceRead ??= []).push({player: player.id, ...composition});
+  }
+
+  /**
    * ONE STEP OF ONE SEAT (the seat's own part, or the winner's). Returns
    * `waiting` when the step ASKED — the caller stops the walk there.
    */
@@ -809,12 +825,14 @@ export class ParliamentPhase {
       return 'done';
     }
     const state = (p.effectState ??= {})[player.id] ??= {};
+    const influence = this.parliament.influence(player);
+    this.noteInfluenceRead(player);
     const ctx: EnactContext = {
       game: this.game,
       parliament: this.parliament,
       player,
       winner,
-      influence: this.parliament.influence(player),
+      influence,
       source: {kind: 'resolution', id: definition.id, owner: player.color},
       state,
       report: (outcome) => this.recordOutcome(player, step.key, part, outcome),

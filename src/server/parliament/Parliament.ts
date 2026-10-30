@@ -855,6 +855,29 @@ export class Parliament {
     return influence;
   }
 
+  /**
+   * WHAT THE INFLUENCE IS MADE OF, read the same way `influence` adds it up: the Career's level (and the step it
+   * stands on), then every giver beyond it — the facade's entries in the order they were given, then a tableau
+   * card's own `getInfluenceBonus` hook under the card's name. The terms sum to `influence(player)` exactly (a
+   * seat the Parliament does not count reads 0 with no terms). The sitting SNAPSHOTS it where a law reads the
+   * influence (`ParliamentPhase.noteInfluenceRead`) — a later card must never rewrite what a past law read.
+   */
+  public influenceComposition(player: IPlayer): {total: number, agendaStep: number, track: number, sources: Array<{amount: number, source?: string}>} {
+    if (!this.participates(player, 'delegates')) {
+      return {total: 0, agendaStep: this.agendaOf(player), track: 0, sources: []};
+    }
+    const agendaStep = this.agendaOf(player);
+    const track = influenceAtAgenda(agendaStep);
+    const sources: Array<{amount: number, source?: string}> = this.influenceSourcesOf(player).map((entry) => ({...entry}));
+    for (const card of player.tableau) {
+      const amount = card.getInfluenceBonus?.(player) ?? 0;
+      if (amount !== 0) {
+        sources.push({amount, source: card.name});
+      }
+    }
+    return {total: track + sources.reduce((sum, entry) => sum + entry.amount, 0), agendaStep, track, sources};
+  }
+
   /** The SUM of a player's influence beyond the track (what the rule adds up). */
   public influenceBonusOf(player: IPlayer | PlayerId): number {
     const id = typeof player === 'string' ? player : player.id;
