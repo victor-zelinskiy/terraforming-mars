@@ -2,7 +2,8 @@ import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {Tag} from '@/common/cards/Tag';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {discardExchangeOwed, discardExchangeRailKey, discardExchangeSpecs, releaseDiscardExchange} from '@/client/console/parliament/discardExchangeBeat';
+import {discardExchangeCommitSpecs, discardExchangeOwed, discardExchangeRailKey, discardExchangeSpecs, releaseDiscardExchange} from '@/client/console/cardDiscard/discardExchangeBeat';
+import {ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {railRewardPending, resetRailRewards, seedRailReward} from '@/client/console/resourceTransfer/railReward';
 import {clearPanelRewardHold, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {activeAnimationHoldLabels} from '@/client/components/presentation/animationHold';
@@ -34,6 +35,43 @@ describe('discardExchangeBeat', () => {
   it('no paying tag, no token (the server names the skip); no per-tag rate, nothing to read', () => {
     expect(discardExchangeSpecs(['Space Elevator'] as Array<CardName>, REDS, tagsOf)).to.deep.eq([]);
     expect(discardExchangeSpecs(['Trees'] as Array<CardName>, {icon: 'megacredits', amount: 3}, tagsOf)).to.deep.eq([]);
+  });
+
+  /* CS · «ВЫПЛАТА СБРОСА — ОДНА ВОЛНА ДЛЯ ЛЮБОГО ИСТОЧНИКА» (P68 Ceres Tech Market): the same rate reader for a card's
+   * per-CARD exchange — one token per thrown card, each the rate's amount; an exchange in cards (or with a second payout
+   * in cards — the deck's own scene) is not a stock wave. */
+  const CERES = {icon: 'megacredits', amount: 2, perCard: true};
+
+  it('perCard: one token per thrown card, each the rate\'s amount — the tags do not matter', () => {
+    expect(discardExchangeSpecs(['Space Elevator', 'Trees'] as Array<CardName>, CERES, tagsOf)).to.deep.eq([
+      {channel: 'stock', resource: 'megacredits', amount: 2},
+      {channel: 'stock', resource: 'megacredits', amount: 2},
+    ]);
+    expect(discardExchangeSpecs([], CERES, tagsOf)).to.deep.eq([]);
+  });
+
+  it('not a stock wave: an exchange in cards (Mars University), a second payout in cards (Open IP Trade), a zero rate', () => {
+    expect(discardExchangeSpecs(['Trees'] as Array<CardName>, {icon: 'cards', amount: 1, perCard: false}, tagsOf)).to.deep.eq([]);
+    expect(discardExchangeSpecs(['Trees'] as Array<CardName>, {icon: 'megacredits', amount: 3, perCard: true, draw: 1}, tagsOf)).to.deep.eq([]);
+    expect(discardExchangeSpecs(['Trees'] as Array<CardName>, {...CERES, amount: 0}, tagsOf)).to.deep.eq([]);
+  });
+
+  it('the pre-collected door: the answered discard step of the pressed branch, read off its SERVER marker', () => {
+    const marker = {min: 1, max: 3, source: {kind: 'card', card: 'Ceres Tech Market'}, exchange: CERES};
+    const branch = {
+      index: -1, title: '', available: true, effects: [],
+      steps: [
+        {kind: 'input', input: {type: 'card', title: 'Discard cards for 2 M€ each', buttonLabel: 'Discard', cards: [], min: 1, max: 3, discardPrompt: marker}},
+      ],
+    } as unknown as ActionPreviewBranch;
+    expect(discardExchangeCommitSpecs(branch, {0: {type: 'card', cards: ['Research', 'Tardigrades']}}, tagsOf)).to.deep.eq([
+      {channel: 'stock', resource: 'megacredits', amount: 2},
+      {channel: 'stock', resource: 'megacredits', amount: 2},
+    ]);
+    expect(discardExchangeCommitSpecs(branch, {}, tagsOf), 'an unanswered step pays nothing').to.deep.eq([]);
+    const plain = {...branch, steps: [{kind: 'input', input: {type: 'card', title: '', buttonLabel: 'Select', cards: [], min: 1, max: 1}}]} as unknown as ActionPreviewBranch;
+    expect(discardExchangeCommitSpecs(plain, {0: {type: 'card', cards: ['Research']}}, tagsOf), 'a pick that is not a discard').to.deep.eq([]);
+    expect(discardExchangeCommitSpecs(undefined, {}, tagsOf)).to.deep.eq([]);
   });
 
   it('the rail key is the source\'s', () => {

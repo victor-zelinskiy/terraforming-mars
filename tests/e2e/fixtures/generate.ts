@@ -294,6 +294,7 @@ import {Enceladus} from '../../../src/server/colonies/Enceladus';
 import {JupiterFloatingStation} from '../../../src/server/cards/colonies/JupiterFloatingStation';
 import {GanymedeColony} from '../../../src/server/cards/base/GanymedeColony';
 import {Game} from '../../../src/server/Game';
+import {CeresTechMarket} from '../../../src/server/cards/prelude2/CeresTechMarket';
 import {unplayableReasons} from '../../../src/server/models/unplayableReasons';
 import {adjacentCityTiers} from '../../../src/server/boards/cityStack';
 import {cityMoveOffer} from '../../../src/server/boards/cityMove';
@@ -9307,6 +9308,57 @@ function summitLogisticsFixture(name: string, ruling: boolean): void {
 }
 summitLogisticsFixture('summit-logistics', true);
 summitLogisticsFixture('summit-logistics-locked', false);
+
+// ── P68 · CERES TECH MARKET — the THIRD Prelude 2 card and the FIRST WITH AN ACTION (docs/claude/prompts/prelude2-p68-
+//    ceres-tech-market.md): «play: 2 M€ per colony you own · action: discard any number of cards for 2 M€ each». A 2p
+//    Colonies + Prelude 2 table (Teractor · ThorGate), blue on the move with P68 MOVED out of the dealt pool into the hand
+//    beside three others (Research, Tardigrades, Ants — moved too), TWO colonies of blue's (Luna-free tiles 0 and 1),
+//    20 M€ and 2 titanium (the Space tag), Olympus Conference on blue's table with no science (the Science tag's answer —
+//    a resource onto the card, no question). The stand plays the card (6 M€ + 2 titanium; +4 M€ by the colonies) and,
+//    on blue's second action of the same turn, its action: two cards → +4 M€. A DRY RUN on a copy proves both. ──
+{
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, prelude2Expansion: true,
+    customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
+  });
+  answerStartFlow(game, [p1, p2]);
+  game.colonies[0].addColony(p1);
+  game.colonies[1].addColony(p1);
+  p1.playedCards.push(new OlympusConference());
+  // The hand is the stand's own four: what the start flow bought goes to the discard pile.
+  game.projectDeck.discardPile.push(...p1.cardsInHand.splice(0));
+  for (const name of [CardName.CERES_TECH_MARKET, CardName.RESEARCH, CardName.TARDIGRADES, CardName.ANTS]) {
+    moveToDeckTop(game, name);
+    p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  }
+  p1.megaCredits = 20;
+  p1.titanium = 2;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  const card = p1.cardsInHand.find((c) => c.name === CardName.CERES_TECH_MARKET);
+  const ownColonies = game.colonies.reduce((n, c) => n + c.colonies.filter((id) => id === p1.id).length, 0);
+  if (card === undefined || p1.canPlay(card) === false || ownColonies !== 2 || game.activePlayer.id !== p1.id) {
+    throw new Error(`the ceres-tech-market fixture expected P68 playable in blue's hand, two own colonies and blue on the move — got card=${card !== undefined} playable=${card !== undefined && p1.canPlay(card)} colonies=${ownColonies} active=${game.activePlayer.id === p1.id}`);
+  }
+  // THE DRY RUN — the play on a copy (6 M€ + 2 titanium), then the action on two cards.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(p1.id);
+  blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.CERES_TECH_MARKET)!, Payment.of({megacredits: 6, titanium: 2}));
+  runAllActions(copy);
+  const afterPlay = {mc: blue.megaCredits, titanium: blue.titanium, olympus: blue.playedCards.get(CardName.OLYMPUS_CONFERENCE)?.resourceCount};
+  const market = blue.playedCards.get(CardName.CERES_TECH_MARKET) as CeresTechMarket | undefined;
+  const ask = market?.action(blue);
+  if (!(ask instanceof SelectCard)) {
+    throw new Error(`the ceres-tech-market fixture expected the action to ask a SelectCard — got ${ask?.constructor.name}`);
+  }
+  ask.process({type: 'card', cards: [CardName.RESEARCH, CardName.TARDIGRADES]});
+  runAllActions(copy);
+  const facts = {...afterPlay, mcAfterAction: blue.megaCredits, hand: blue.cardsInHand.map((c) => c.name).join(',')};
+  if (facts.mc !== 20 - 6 + 4 || facts.titanium !== 0 || facts.olympus !== 1 || facts.mcAfterAction !== 18 + 4 || facts.hand !== CardName.ANTS) {
+    throw new Error(`the ceres-tech-market fixture expected 18 M€ / 0 titanium / 1 science on Olympus Conference after the play, 22 M€ and only Ants after the action — got ${JSON.stringify(facts)}`);
+  }
+  write('ceres-tech-market', game);
+}
 
 // ── preselect-sole: THE PRE-SELECT STAND (T14 · ledger CC — «ОДИН КУРСОР ПОСЛЕ ОТВЕТА · ПРИБЫТИЕ НА КОММИТ ·
 //    ЕДИНСТВЕННАЯ ЦЕЛЬ»). One base table, every cell of the matrix in blue's hand / tableau:

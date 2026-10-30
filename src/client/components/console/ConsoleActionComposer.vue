@@ -973,7 +973,8 @@ import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewMode
 import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {PartyName} from '@/common/turmoil/PartyName';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
-import {discardExchangeRailKey} from '@/client/console/parliament/discardExchangeBeat';
+import {discardExchangeCommitSpecs, discardExchangeRailKey} from '@/client/console/cardDiscard/discardExchangeBeat';
+import {armPreselectedDiscard} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {flyRailReward, railRewardPending} from '@/client/console/resourceTransfer/railReward';
 import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
 import {BranchView as PrintedBranchView, branchPositionsForNode, branchSetAvailability, branchTitleText, buildBranchViews, stripNodeOr} from '@/client/components/actions/actionBranchView';
@@ -1248,6 +1249,11 @@ type BranchView = {
 const CHOICE_KIND_LABEL: Record<string, string> = {
   card: 'Choose a card', player: 'Choose a player', or: 'Choose an option', payment: 'Payment',
 };
+
+/** A card pick the server marks a DISCARD (`discardPrompt` — structural, never the title). */
+function isDiscardPick(input: PlayerInputModel | undefined): boolean {
+  return input?.type === 'card' && (input as SelectCardModel).discardPrompt !== undefined;
+}
 
 function textOf(v: string | Message | undefined, params?: ReadonlyArray<string>): string {
   if (v === undefined) {
@@ -2082,7 +2088,7 @@ export default defineComponent({
         return '';
       }
       switch (missing.kind) {
-      case 'card': return translateText(cardPickAskKey(missing.amount));
+      case 'card': return translateText(cardPickAskKey(missing.amount, isDiscardPick(missing.input)));
       case 'player': return translateText('Choose a player');
       // An optional choice whose one answer is a pick IS that pick — its kind's verb, never «Choose an option».
       case 'or': return translateText(this.optionalPickVerb(missing));
@@ -3901,7 +3907,7 @@ export default defineComponent({
           needs = translateText('Next: reveal a card');
         } else if (b.optionInput?.type === 'card' || b.steps.some((s) => s.kind === 'input' && s.input.type === 'card')) {
           const pick = b.steps.find((s) => s.kind === 'input' && s.input.type === 'card');
-          needs = translateText(cardPickAskKey(pick?.kind === 'input' ? pick.amount : undefined));
+          needs = translateText(cardPickAskKey(pick?.kind === 'input' ? pick.amount : undefined, pick?.kind === 'input' && isDiscardPick(pick.input)));
         } else if (b.optionInput?.type === 'player' || b.steps.some((s) => s.kind === 'input' && s.input.type === 'player')) {
           needs = translateText('Choose a player');
         }
@@ -3961,7 +3967,7 @@ export default defineComponent({
     optionalPickVerb(c: ComposerChoice): string {
       const pick = optionalPickInputOf(c.input);
       if (pick?.type === 'card') {
-        return cardPickAskKey(c.amount);
+        return cardPickAskKey(c.amount, isDiscardPick(pick));
       }
       if (pick?.type === 'player') {
         return 'Choose a player';
@@ -3975,7 +3981,7 @@ export default defineComponent({
       if (c.kind === 'card' && ((c.input as SelectCardModel).max ?? 1) > 1) {
         return translateText('Pick cards from hand');
       }
-      return translateText(c.kind === 'card' ? cardPickAskKey(c.amount) : c.kind === 'player' ? 'Choose a player' : this.optionalPickVerb(c));
+      return translateText(c.kind === 'card' ? cardPickAskKey(c.amount, isDiscardPick(c.input)) : c.kind === 'player' ? 'Choose a player' : this.optionalPickVerb(c));
     },
     choiceMissing(c: ComposerChoice): boolean {
       if (c.repeatAction === true) {
@@ -5193,7 +5199,7 @@ export default defineComponent({
      *  are the ones the held line already uses — ONE vocabulary, not two. */
     requirementVerb(c: ComposerChoice): string {
       switch (c.kind) {
-      case 'card': return cardPickAskKey(c.amount);
+      case 'card': return cardPickAskKey(c.amount, isDiscardPick(c.input));
       case 'player': return 'Choose a player';
       case 'or': return this.optionalPickVerb(c);
       case 'payment': return 'Configure payment';
@@ -6260,8 +6266,13 @@ export default defineComponent({
       // on the result's own text, and the ledger's first row takes the weight.
       const ledgerBranch = branch.colonyBonuses !== undefined;
       const baseKind = ledgerBranch ? 'generic' : commitKindForBranch(branch, stepAnswers);
+      // A DISCARD that BUYS a stock resource, answered in this composer's own step (P68 — «−X [card] → 2x [M€]»): ONE
+      // token per paying unit at the marker's own rate, born on the printed icon, the row ticking on each touchdown —
+      // the class «a discard's payout is ONE wave for any source» (`discardExchangeBeat.ts`, ledger CS). Never merged
+      // into one «+4»: each card thrown is its own cause.
+      const discardSpecs = ledgerBranch ? [] : discardExchangeCommitSpecs(branch, stepAnswers);
       const kind = ledgerBranch ? 'generic' : stageFollowUp === 'draw' || stageFollowUp === 'reuse-action' ? 'draw' :
-        (baseKind === 'generic' && stageSpecs.length > 0 ? 'resources' : baseKind);
+        (baseKind === 'generic' && (stageSpecs.length > 0 || discardSpecs.length > 0) ? 'resources' : baseKind);
       // THE RAIL HALF (PL-001 for actions): a direct TR, a capsule timeline's two movements, the table's answer —
       // held through `railReward` against the views, never by the shell's own wave (`consoleActionCommitRail.ts`).
       // A draw / a stage's own follow-up hosts its result in the workspace: no rail half there.
@@ -6283,6 +6294,7 @@ export default defineComponent({
       const specs = ledgerBranch ? [] : [
         ...(railPlan !== undefined ? commitWaveSpecs(this.commitSource, branch, stepAnswers, railPlan) : commitRewardSpecs(this.commitSource, branch, stepAnswers)),
         ...stageSpecs,
+        ...(kind === 'draw' ? [] : discardSpecs),
       ];
       const root = this.$refs.rootEl as HTMLElement | undefined;
       const wrap = opts.heroParked !== undefined ? undefined : root?.querySelector<HTMLElement>('.con-composer__actcardwrap') ?? undefined;
@@ -6366,6 +6378,22 @@ export default defineComponent({
       const at = cards.findIndex((cd) => cd.name === item.card?.name);
       // Target options are TEXT rows, not card tiles → TEXTUAL inspector.
       openConsoleCardZoom(cards, Math.max(0, at), undefined, undefined, {contextLabel: 'Card actions', origin: {kind: 'textual'}});
+    },
+    /**
+     * THE CARDS LEAVE AT THE COMMIT (P68): a discard this composer answered in its own step was a PRE-SELECT (nothing
+     * left the hand at the pick), so the shared discard scene is armed HERE, synchronously at the press — the cards
+     * leave from the dock, the transport holds the view until they have landed on the pile, and the commit's payout
+     * wave (`discardExchangeCommitSpecs`) flies after it: the cause before the effect. Read off the step's SERVER
+     * marker, never a title; an empty answer arms nothing.
+     */
+    armPreselectedDiscards(branch: ActionPreviewBranch): void {
+      branch.steps.forEach((step, i) => {
+        const meta = step.kind === 'input' && step.input.type === 'card' ? (step.input as SelectCardModel).discardPrompt : undefined;
+        const answer = this.captured[i] as {type?: string, cards?: ReadonlyArray<CardName>} | undefined;
+        if (meta !== undefined && answer?.type === 'card' && answer.cards !== undefined) {
+          armPreselectedDiscard(answer.cards, meta);
+        }
+      });
     },
     submit(): void {
       const branch = this.selectedBranch;
@@ -6490,6 +6518,7 @@ export default defineComponent({
       //    choice — no server activation, no commit beat there.
       if (this.publishCommands) {
         this.playCommitBeat(branch);
+        this.armPreselectedDiscards(branch);
         this.commitSent = true;
         // «STRICTLY PRE-SELECT» (TR51): no choice of this card after the press that this composer did not collect or
         // hand on. A DOOR (a trade, the Hydronetwork, a vote) and a repeat run other prompts by design — not watched.

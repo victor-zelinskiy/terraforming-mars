@@ -168,6 +168,27 @@ export function armCardDiscard(arm: CardDiscardArm): void {
 }
 
 /**
+ * THE PRE-SELECTED DISCARD — a card ACTION whose discard is a step the composer answered BEFORE the press (P68 Ceres
+ * Tech Market: «discard any number of cards for 2 M€ each»): the album was a pre-select (nothing left the hand then —
+ * `leaving: 'none'`), so the cards leave at the COMMIT, from where they stand now — the dock. The composer asks the shell
+ * (the one that can measure the dock) to arm the ONE scene through this door, synchronously at the press, before the
+ * batch goes; the transport's gate then plays it exactly as for a live discard (the server says which cards left).
+ */
+export type PreselectedDiscardArm = (names: ReadonlyArray<CardName>, meta: DiscardPromptMeta) => void;
+
+let preselectedArm: PreselectedDiscardArm | undefined;
+
+export function registerPreselectedDiscardArm(fn: PreselectedDiscardArm | undefined): void {
+  preselectedArm = fn;
+}
+
+export function armPreselectedDiscard(names: ReadonlyArray<CardName>, meta: DiscardPromptMeta): void {
+  if (names.length > 0) {
+    preselectedArm?.(names, meta);
+  }
+}
+
+/**
  * DETECT — the server is the truth. Returns the cards it ACTUALLY removed from
  * the hand in this response; `undefined` when nothing was armed or the server
  * kept the cards (a rejected answer must never animate a disposal).

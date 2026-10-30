@@ -1853,7 +1853,7 @@ import ConsoleDiscardPile from '@/client/components/console/discardPile/ConsoleD
 import {resetDiscardPile} from '@/client/console/discardPile/discardPile';
 import {
   armCardDiscard, cardDiscardColonyBonus, cardDiscardTransaction, isCardDiscardActive,
-  registerDiscardOverlayHandoff, resetCardDiscard,
+  registerDiscardOverlayHandoff, registerPreselectedDiscardArm, resetCardDiscard,
 } from '@/client/console/cardDiscard/consoleCardDiscard';
 import {
   COLONY_RESOLUTION_SERVES,
@@ -2060,10 +2060,10 @@ import {abortPatentSale, armPatentSale, isPatentSaleActive, patentSaleState} fro
 import {patentSaleAnswers} from '@/client/console/patentSale/patentSaleAnswers';
 import {PatentSaleModel} from '@/common/models/PatentSaleModel';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
-import {ResourceTransferSpec, mergeTransferSpecs, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, mergeTransferSpecs, railRowKey, touchdownTickAt} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {PlayReaction} from '@/client/console/played/receivingStageModel';
 import {railRewardPending, type RailReward} from '@/client/console/resourceTransfer/railReward';
-import {discardExchangeRailKey, releaseDiscardExchange} from '@/client/console/parliament/discardExchangeBeat';
+import {discardExchangeRailKey, releaseDiscardExchange} from '@/client/console/cardDiscard/discardExchangeBeat';
 import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
 import {movementBonusTransfers, withMovementBonusOnLastLeg} from '@/client/console/hydroFlow/hydroMovementBonus';
 import {abortResourceTransfers, runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, panelRewardHold, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -21522,6 +21522,20 @@ export default defineComponent({
       // the app-level layer while the workspace folds UNDER it, and lands once the destination is painted — its row
       // is released by its OWN touchdown, never by this run's net (the run resolves at its pop).
       const detached = new Set<ResourceTransferSpec>();
+      // THE TICK CADENCE (the shared touchdown rule — `TOUCHDOWN_TICK_GAP_MS`): two tokens of one wave landing in one
+      // frame (P68's «2x [M€]» — a token per card thrown, born on one icon) never read as one jump «18 → 22»; each tick
+      // stands its gap, in a TASK of its own (two releases in one task are one render).
+      const tickGap = consoleReducedMotionActive() ? 0 : motionMs(TOUCHDOWN_TICK_GAP_MS);
+      let lastTick = -Infinity;
+      const tickAt = (apply: () => void) => {
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        lastTick = touchdownTickAt(now, lastTick, tickGap);
+        if (lastTick <= now) {
+          apply();
+        } else {
+          window.setTimeout(apply, lastTick - now);
+        }
+      };
       void runResourceTransfers({
         specs: plan.specs,
         origins: plan.origins,
@@ -21532,7 +21546,7 @@ export default defineComponent({
         onDetach: (spec) => detached.add(spec),
         onArrive: (spec) => {
           if (pending.delete(spec)) {
-            releasePanelRewardHold(spec);
+            tickAt(() => releasePanelRewardHold(spec));
           }
         },
       }).finally(() => {
@@ -24369,14 +24383,18 @@ export default defineComponent({
      * SYNCHRONOUSLY before delivering, so the launch rects are captured while
      * the pick surface is still on screen — a commit can unmount it three
      * frames later. A non-discard pick, or a legal empty pick, arms nothing.
+     * `preselected` — a card action's discard answered in its composer BEFORE the press (P68): the marker is the
+     * step's own, no pick surface stands (the cards leave from the dock), so there is nothing to freeze.
      */
-    armDiscardScene(names: ReadonlyArray<CardName>): void {
-      const meta = this.discardMeta;
+    armDiscardScene(names: ReadonlyArray<CardName>, preselected?: DiscardPromptMeta): void {
+      const meta = preselected ?? this.discardMeta;
       if (meta === undefined || names.length === 0) {
         return;
       }
       // The surface as it looks RIGHT NOW — replayed while the scene seizes.
-      this.discardFreeze = this.handSelectProps;
+      if (preselected === undefined) {
+        this.discardFreeze = this.handSelectProps;
+      }
       armCardDiscard({
         names,
         meta,
@@ -24387,25 +24405,27 @@ export default defineComponent({
         // the snapshot the card would silently skip its flight.
         sources: names.map((name) => {
           const el = this.discardSourceElement(name);
-          return {name, el, rect: this.discardSourceRect(name, el)};
+          return {name, el, rect: this.discardSourceRect(el)};
         }),
       });
     },
     /** The live element the card takes off from: its slot in the open hand
      *  grid, else the fullscreen inspector holding it (A can be pressed from
-     *  the zoom), else nothing (the dock rect is the fallback). */
+     *  the zoom), else its BODY in the hand dock (`data-hand-dock-card` — the berth
+     *  anchor every intake director targets): a card action's PRE-SELECTED discard
+     *  (P68) leaves at the commit, with no album standing. */
     discardSourceElement(name: CardName): HTMLElement | undefined {
       const slot = document.querySelector<HTMLElement>(`.con-hand__slot[data-zoom-slot="${name}"]`);
       if (slot !== null) {
         return slot;
       }
       const zoomed = document.querySelector<HTMLElement>(`.con-zoom [data-zoom-slot="${name}"]`);
-      return zoomed ?? undefined;
+      return zoomed ?? document.querySelector<HTMLElement>(`.con-handbody[data-hand-dock-card="${name}"]`) ?? undefined;
     },
-    /** The launch rect captured NOW: the live slot's own box when there is one,
-     *  else the card's home in the dock — so a flight always starts from where
-     *  the player last saw the card, never from the viewport origin. */
-    discardSourceRect(name: CardName, el: HTMLElement | undefined): {left: number, top: number, width: number, height: number} | undefined {
+    /** The launch rect captured NOW: the live element's own box (a slot, the
+     *  zoom, the dock body) — so a flight always starts from where the player
+     *  last saw the card, never from the viewport origin; none → no flight. */
+    discardSourceRect(el: HTMLElement | undefined): {left: number, top: number, width: number, height: number} | undefined {
       if (el !== undefined) {
         const card = el.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? el;
         const r = card.getBoundingClientRect();
@@ -24413,8 +24433,7 @@ export default defineComponent({
           return {left: r.left, top: r.top, width: r.width, height: r.height};
         }
       }
-      const dock = this.$refs.handDock as {sourceRects?: (names: ReadonlyArray<CardName>) => Map<CardName, {left: number, top: number, width: number, height: number}>} | undefined;
-      return dock?.sourceRects?.([name])?.get(name);
+      return undefined;
     },
     /** L3 — open the effect's SOURCE in the ordinary fullscreen viewer. The
      *  overlay, its scroll, the focused card and the pick all stay exactly as
@@ -24927,6 +24946,8 @@ export default defineComponent({
     // Phase D of the discard cinematic reuses the ORDINARY hand-close episode;
     // the transaction awaits this instead of the shell watching a phase.
     registerDiscardOverlayHandoff((discarded) => this.handOffHandForDiscard(discarded));
+    // …and a card action's PRE-SELECTED discard (P68): armed at the composer's press, the cards leaving from the dock.
+    registerPreselectedDiscardArm((names, meta) => this.armDiscardScene(names, meta));
     // An «Компоновка альбома» flip while the hand album is OPEN rides the
     // same measured FLIP episode a filter change uses: cards glide and scale
     // into the new composition, the out-of-capacity ones exit to the page
@@ -25124,6 +25145,7 @@ export default defineComponent({
     // …and the ONE discard pile (its leases, its count): a game switch starts with the pile under the strip.
     resetDiscardPile();
     registerDiscardOverlayHandoff(undefined);
+    registerPreselectedDiscardArm(undefined);
     setAlbumLayoutRecomposer(undefined);
     // The colony-bonus entry is module state as well: a live wait (and its net)
     // must never carry a stale «a payout is owed here» into the next game.

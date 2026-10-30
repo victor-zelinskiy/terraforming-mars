@@ -153,7 +153,7 @@ import {
   runPatentSale,
   seedPatentSaleRewardHold,
 } from '@/client/console/patentSale/consolePatentSale';
-import {seedPoliticalDiscardExchange} from '@/client/console/parliament/discardExchangeBeat';
+import {seedPoliticalDiscardExchange} from '@/client/console/cardDiscard/discardExchangeBeat';
 import {
   detectResolutionPayout,
   endResolutionPayout,

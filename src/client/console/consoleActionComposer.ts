@@ -312,8 +312,13 @@ export function cardPickRoleKey(amount: number | undefined): string {
  * «Choose a card» reads «Выберите себе карту» — right for TAKING a card, a lie
  * for a card the action takes FROM (a spend's source) or puts a resource ON (a
  * reward's target). The sign of the step's own delta is the structural fact.
+ * …and a pick the server marks a DISCARD (`discardPrompt`) asks for a card to THROW — «Выберите себе карту» over Ceres
+ * Tech Market's discard row promised the player a card they were about to lose (P68; the play composer already knew).
  */
-export function cardPickAskKey(amount: number | undefined): string {
+export function cardPickAskKey(amount: number | undefined, discard = false): string {
+  if (discard) {
+    return 'Select a card to discard';
+  }
   if (amount !== undefined && amount < 0) {
     return 'Choose the source card';
   }

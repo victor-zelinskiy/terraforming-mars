@@ -74,6 +74,8 @@ export class CeresTechMarket extends Card implements IActionCard {
         cardNumber: 'P68',
         infoText: [
           {text: 'Gain 2 M€ per colony you own.', tokens: ['megacredits']},
+          // The action browser's one-liner: the full rule is over the caption budget (tests/cards/actionCaption.spec.ts).
+          {kind: 'action-short', text: 'Discard any cards: 2 M€ each'},
         ],
         renderData: CardRenderer.builder((b) => {
           b.action('Discard any number of cards from your hand to gain 2 M€ for each discarded card.', (ab) =>

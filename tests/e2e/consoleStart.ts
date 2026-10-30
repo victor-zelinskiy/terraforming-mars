@@ -2959,6 +2959,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'ishtar-expedition' | 'ishtar-expedition-locked' |
   // P85 Summit Logistics — the first POLITICAL Prelude 2 card: the Scientists rule, a two-term count, steel + titanium · locked «0 of 2».
   'summit-logistics' | 'summit-logistics-locked' |
+  // P68 Ceres Tech Market — the first Prelude 2 card WITH AN ACTION: the counted play (two colonies, titanium) · the discard action for 2 M€ a card.
+  'ceres-tech-market' |
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
   'census-pets-rival' |

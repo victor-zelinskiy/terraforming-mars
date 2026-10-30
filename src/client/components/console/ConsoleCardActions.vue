@@ -407,7 +407,7 @@ import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import {actionPreviewFingerprint, actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, ledgerDraws, politicalActionPreviewOf, previewBranchByIndex} from '@/client/console/actionPreviewStore';
 import {actionCommitRailState, armedRailLandsOnRow} from '@/client/console/consoleActionCommitRail';
 import {railRewardPending} from '@/client/console/resourceTransfer/railReward';
-import {discardExchangeRailKey, releaseDiscardExchange} from '@/client/console/parliament/discardExchangeBeat';
+import {discardExchangeRailKey, releaseDiscardExchange} from '@/client/console/cardDiscard/discardExchangeBeat';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {paths} from '@/common/app/paths';
