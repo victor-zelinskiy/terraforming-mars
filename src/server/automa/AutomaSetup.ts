@@ -10,6 +10,7 @@ import {IGame} from '../IGame';
 import {Player} from '../Player';
 import {AutomaColonies} from './AutomaColonies';
 import {composeBonusSide} from './DynamicBalance';
+import {dynamicBalanceOn, preludeProjectCards} from '../../common/automa/DynamicBalance';
 import {AutomaState, AutomaActionCard} from './AutomaState';
 import {marsBotMapProfile} from './boards/MarsBotMapProfile';
 
@@ -155,9 +156,9 @@ export class AutomaSetup {
     }
 
     let projectCount = 3;
-    if (options.preludeExtension) {
-      projectCount += 3; // Instead of prelude cards.
-    }
+    // Instead of prelude cards: the rulebook's three now — or, under «Динамический баланс», the first of three
+    // spread one per generation (`common/automa/DynamicBalance.ts`).
+    projectCount += preludeProjectCards(1, options.preludeExtension, dynamicBalanceOn(options.automa));
     if (options.automa.difficulty === 'brutal') {
       projectCount += 1;
     }
