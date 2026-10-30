@@ -36,6 +36,10 @@ const plugins = [
           // PRODUCT build with four errors in files nobody ships (2026-10-21). The product's gate is `lint:client`.
           'screenshots/**/*.ts',
           'tmp/**/*.ts',
+          // THE E2E HARNESS'S CONFIG IS TEST INFRASTRUCTURE, NOT PRODUCT — it imports the e2e tree (`TIMING_SPECS`), and
+          // the Docker build context has no `tests/` (`.dockerignore`), so checking it here broke the image build
+          // (2026-10-30, TS2307 `./tests/e2e/timingSpecs`). Its own gate is `tests/e2e/tsconfig.json` (`build:test`).
+          'playwright.config.ts',
         ],
       },
     },

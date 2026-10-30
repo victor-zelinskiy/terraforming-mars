@@ -15,6 +15,9 @@
         "types": ["node"]
     },
     "include": [
-        "./**/*.ts"
+        "./**/*.ts",
+        // The harness's config lives at the repo root but belongs to this tree (it imports `TIMING_SPECS` from it):
+        // the product checker excludes it (webpack.config.js), so THIS gate is where it is type-checked.
+        "../../playwright.config.ts"
     ]
 }
