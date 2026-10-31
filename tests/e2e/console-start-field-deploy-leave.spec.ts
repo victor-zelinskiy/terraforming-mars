@@ -2,19 +2,24 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, fetchPlayerModel, openConsole, press, settle} from './consoleStart';
+import type {FixtureName} from './consoleStart';
 
 /**
- * THE FIRST FIELD CURE OF THE START DIRECTOR — 2026-10-31 21:48, the owner's export `game-pab1793c` (game
- * g2cb6cfc844aa, a solo table against MarsBot, the TV): pink played the LAST of two preludes, the server asked the
- * action menu and the start scene stood over it serving NOTHING for three seconds (`flow: deploying`, `flowStage:
- * ready`, no queue card, no blocker but the menu itself; the strand watchdog silent — masked by a hold the shadow does
- * not read) until the shadow's `cure «yield»` handed the screen to the shell. The table AS SAVED one step before
- * (`field-start-deploy-leave`: pink on the prelude pick, both preludes in hand).
+ * THE START THAT STANDS EMPTY OVER THE MENU — two field tables of 2026-10-31, both cured by the start director's
+ * `yield` three seconds after the menu was asked:
+ *   · 21:48, export `game-pab1793c` (game g2cb6cfc844aa): Orbital Construction Yard · Established Methods — its
+ *     standard project (Air Scrapping) raised Venus;
+ *   · 22:15, export `game-pbfed567` (game gbd2cf6a99a8b): Power Generation · Metal-Rich Asteroid — the LAST prelude
+ *     raises the temperature, the ruling Greens answer +2 M€.
+ * Both times the scene stood serving NOTHING (`flow: deploying`, `flowStage: ready`, no queue, every named blocker
+ * free), the strand watchdog silent, and the board-beat park plus the scale-step rating degraded at 30 s — a global
+ * parameter moved by the last prelude while the start covered the board. Each table AS SAVED one step before (pink on
+ * the prelude pick, both preludes in hand).
  *
- * The contract: the two preludes play on the real UI (A on each, their steps answered the player's way), and once the
- * menu is asked the start LEAVES ON ITS OWN — within the strand watchdog's own grace — without the director having to
- * cure it: a `[start-shadow] cure` line here is the field defect reproduced (the stand is RED on it), and so is a
- * scene still painting with nothing served once the menu stands.
+ * The contract: the two preludes play on the real UI (A on each; a prelude's own step answered with A), and once the
+ * menu is asked the start LEAVES ON ITS OWN — never because the director cured it: a `[start-shadow] cure` /
+ * `[start-stranded]` line is the field defect reproduced, and so is a scene still painting with nothing served. The
+ * start's diagnosis (`__conStartDiag`, its `settle` terms) is taken 1.5 s after the menu, before any cure could hide it.
  */
 const OUT = path.resolve('screenshots', 'console-start-field-deploy-leave');
 
@@ -40,62 +45,71 @@ const startState = (page: Page) => page.evaluate(() => {
     mounted: el !== null,
     painted: el !== null && el.checkVisibility({opacityProperty: true, visibilityProperty: true}),
     serves: el?.getAttribute('data-start-serves') ?? '',
-    bar: (document.querySelector('.con-cmdbar, .con-bar, [data-command-bar]')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 80),
   };
 });
 
+const TABLES: ReadonlyArray<FixtureName> = ['field-start-deploy-leave', 'field-start-deploy-param'];
+
 test.use({viewport: {width: 3840, height: 2160}, deviceScaleFactor: 1});
 
-test('the deployment\'s last prelude played → the menu asked → the start LEAVES by itself (no cure, no empty scene)', async ({page, request}) => {
-  test.setTimeout(300_000);
-  const cures: Array<string> = [];
-  page.on('console', (m) => {
-    const t = m.text();
-    if (t.includes('[start-shadow] cure') || t.includes('[start-stranded]')) {
-      cures.push(t.slice(0, 300));
+for (const fixture of TABLES) {
+  test(`${fixture}: the last prelude played → the menu asked → the start LEAVES by itself (no cure, no empty scene)`, async ({page, request}) => {
+    test.setTimeout(300_000);
+    const cures: Array<string> = [];
+    page.on('console', (m) => {
+      const t = m.text();
+      if (t.includes('[start-shadow] cure') || t.includes('[start-stranded]')) {
+        cures.push(t.slice(0, 300));
+      }
+    });
+    const booted = await bootFixtureSeats(page, request, fixture, {query: '&consoleProfile=tv', landing: 'prompt'});
+    let playerId = booted.playerId;
+    for (const id of booted.seats) {
+      const m = await fetchPlayerModel(request, id) as unknown as {thisPlayer?: {color?: string}};
+      if (m.thisPlayer?.color === 'pink') {
+        playerId = id;
+      }
     }
+    expect(await promptKind(request, playerId), 'pink opens on the prelude pick').toMatch(/^card:preludeSelection/);
+    await openConsole(page, playerId, '&consoleProfile=tv');
+    await settle(page, {timeoutMs: 30_000});
+    await shoot(page, `${fixture}-01-preludes`);
+
+    // ── The two preludes, the player's way: A plays the focused one; a prelude's own step is answered with A too (up to
+    //    three presses per server prompt, each judged by the prompt MOVING). ──
+    for (let step = 0; step < 8; step++) {
+      const before = await promptKind(request, playerId);
+      if (before === '-' || before.includes(':menu')) {
+        break;
+      }
+      let moved = false;
+      for (let tap = 0; tap < 3 && !moved; tap++) {
+        await settle(page, {timeoutMs: 20_000});
+        await press(page, 'Enter', 900);
+        // STATE, never a sleep: the server's prompt polled until it moves (or the beat's budget is spent).
+        moved = await expect.poll(async () => (await promptKind(request, playerId)) !== before, {timeout: 12_000, intervals: [400]}).toBe(true)
+          .then(() => true, () => false);
+      }
+      expect(moved, `A answers «${before}» within three presses`).toBe(true);
+    }
+    const menuAt = Date.now();
+    expect(await promptKind(request, playerId), 'the game proper has begun — the action menu is asked').toContain(':menu');
+
+    // ── THE DIAGNOSIS while the scene stands (1.5 s after the menu — before the director's 3 s cure could hide it). ──
+    await expect.poll(async () => Date.now() - menuAt, {timeout: 5_000, intervals: [250]}).toBeGreaterThan(1500);
+    const standing = await startState(page);
+    const diag = await page.evaluate(() => JSON.stringify((window as unknown as {__conStartDiag?: () => unknown}).__conStartDiag?.() ?? null));
+    const diagLine = `at 1.5 s: ${JSON.stringify(standing)} ${diag.slice(0, 1800)}`;
+    await shoot(page, `${fixture}-02-at-the-menu`);
+
+    // ── THE LEAVE: the scene stops serving the opening on its own (or has already). ──
+    await expect.poll(async () => {
+      const s = await startState(page);
+      return !s.painted || s.serves === 'yielded' || s.serves === '';
+    }, {timeout: 9_000, message: `the start scene lets go of the screen once the menu is asked — ${diagLine}`}).toBe(true);
+    const leftAfterMs = Date.now() - menuAt;
+    await settle(page, {timeoutMs: 40_000}).catch(() => undefined);
+    await shoot(page, `${fixture}-03-after`);
+    expect(cures, `the start left on its own — no cure, no strand (took ${leftAfterMs} ms; ${diagLine})`).toEqual([]);
   });
-  const booted = await bootFixtureSeats(page, request, 'field-start-deploy-leave', {query: '&consoleProfile=tv', landing: 'prompt'});
-  let playerId = booted.playerId;
-  for (const id of booted.seats) {
-    const m = await fetchPlayerModel(request, id) as unknown as {thisPlayer?: {color?: string}};
-    if (m.thisPlayer?.color === 'pink') {
-      playerId = id;
-    }
-  }
-  expect(await promptKind(request, playerId), 'pink opens on the prelude pick').toMatch(/^card:preludeSelection/);
-  await openConsole(page, playerId, '&consoleProfile=tv');
-  await settle(page, {timeoutMs: 30_000});
-  await shoot(page, '01-preludes');
-
-  // ── The two preludes, the player's way: A plays the focused one; a prelude's own step is answered with A too (up to
-  //    three presses per server prompt, each judged by the prompt MOVING). ──
-  for (let step = 0; step < 8; step++) {
-    const before = await promptKind(request, playerId);
-    if (before === '-' || before.includes(':menu')) {
-      break;
-    }
-    let moved = false;
-    for (let tap = 0; tap < 3 && !moved; tap++) {
-      await settle(page, {timeoutMs: 20_000});
-      await press(page, 'Enter', 900);
-      // STATE, never a sleep: the server's prompt polled until it moves (or the beat's budget is spent).
-      moved = await expect.poll(async () => (await promptKind(request, playerId)) !== before, {timeout: 12_000, intervals: [400]}).toBe(true)
-        .then(() => true, () => false);
-    }
-    expect(moved, `A answers «${before}» within three presses`).toBe(true);
-  }
-  const menuAt = Date.now();
-  expect(await promptKind(request, playerId), 'the game proper has begun — the action menu is asked').toContain(':menu');
-
-  // ── THE LEAVE: the scene stops serving the opening on its own, within the strand watchdog's grace (2.5 s to its
-  //    first heal, 5 s to its yield) plus the deployment's own closing beat — and NOT because the director cured it. ──
-  await expect.poll(async () => {
-    const s = await startState(page);
-    return !s.painted || s.serves === 'yielded' || s.serves === '';
-  }, {timeout: 9_000, message: 'the start scene lets go of the screen once the menu is asked'}).toBe(true);
-  const leftAfterMs = Date.now() - menuAt;
-  await settle(page, {timeoutMs: 20_000});
-  await shoot(page, '02-after-the-last-prelude');
-  expect(cures, `the start left on its own — no cure, no strand (took ${leftAfterMs} ms)`).toEqual([]);
-});
+}

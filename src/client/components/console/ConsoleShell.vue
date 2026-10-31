@@ -1950,7 +1950,7 @@ import {releaseFleetDockHoldWhenGone, endFleetDockScene, fleetDockSceneState} fr
 import type {FleetDockConfirmPayload} from '@/client/components/console/ConsoleFleetDockStage.vue';
 import {consolePlayCardUi, releaseConsolePlayCardCommands, restoreConsolePlayCardCommands, setPlayComposerStagedDraft} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
-import {consoleStartState, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
+import {consoleStartState, releaseStartScene, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
 import {boardExcursionActive, boardExcursionQuiet, engageBoardExcursion, releaseBoardExcursion} from '@/client/console/boardExcursion';
 import {hydroBonusAdvancePlan, hydroBonusDoorAction, hydroBonusOffer} from '@/client/console/hydroFlow/hydroBonusOffer';
 import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
@@ -2018,7 +2018,7 @@ import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/st
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
 import {cancelResponse, cardsResponse, colonyResponse, orOptionResponse, orWrappedResponse} from '@/client/console/taskResponses';
 import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskHandoffPending, setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
-import {armSceneDestination, clearGameExitTarget, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
+import {armSceneDestination, clearGameExitTarget, deferSceneReveal, loadingScreenState, registerGameExitTarget, sceneTransitionInputLocked} from '@/client/console/loadingScreenState';
 import {paths} from '@/common/app/paths';
 import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
@@ -4841,8 +4841,11 @@ export default defineComponent({
       return this.startSceneMounted && !this.startStrandYield && startStranded({
         serves,
         promptLive: wf !== undefined && wf.optional !== true,
+        // A STORY never stands for a question (the liveness law): only a BLOCKING hold is a beat in flight — a
+        // notification-only one (the scale-step rating waiting for a board the start covers) masked the field's
+        // empty start of 2026-10-31.
         servedElsewhere: !this.startSceneVisible || this.startPromptSurfaceStands || this.placementActive ||
-          isConsoleHandPickActive() || this.consoleState.task.deferred || isAnimationHoldActive() ||
+          isConsoleHandPickActive() || this.consoleState.task.deferred || blockingAnimationHoldCount() > 0 ||
           isMandatoryGateHeld(),
       });
     },
@@ -12167,7 +12170,9 @@ export default defineComponent({
       window.clearTimeout(this.startShadowTimer);
       this.startShadowTimer = undefined;
       const s = this.startShadowNow;
-      if (!startShadowInScope(s.expected, s.actual)) {
+      // The boot curtain is not the start: nothing is mounted under it yet (the field's «wizard → game» 5.5 s after
+      // the page loaded, 2026-10-31 22:14).
+      if (!startShadowInScope(s.expected, s.actual) || sceneTransitionInputLocked()) {
         return;
       }
       startShadowLog.judged++;
@@ -21412,7 +21417,18 @@ export default defineComponent({
         return 'yielded';
       };
       let did = '';
-      if (cure === 'heal') {
+      if (cure === 'release') {
+        const scene = this.$refs.startScene as {releaseByDirector?: () => string} | undefined;
+        did = scene?.releaseByDirector?.() ?? '';
+        if (did === '') {
+          // No scene instance to ask (unmounted under a park) — the lifetime hold itself lets go.
+          releaseStartScene();
+          did = 'hold-released';
+        }
+        // A yield left by an earlier cure goes with it: the start is over, nothing is to be handed back.
+        this.startStrandYield = false;
+        this.startStrandPrompt = undefined;
+      } else if (cure === 'heal') {
         const scene = this.$refs.startScene as {healStrand?: () => string} | undefined;
         const healed = scene?.healStrand?.() ?? 'no-scene';
         did = healed === 'nothing-to-heal' || healed === 'no-scene' ? [healed, yieldNow()].filter((x) => x !== '').join(' → ') : healed;

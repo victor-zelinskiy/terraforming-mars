@@ -5001,6 +5001,19 @@ export default defineComponent({
       // What the scene SERVES and the latches a stuck beat would leave behind (the start watchdog prints all of it).
       serves: this.servesNow,
       flowStage: this.deploymentFlowStage,
+      // EVERY term of `deploymentSettled` the blockers above do not already name — a deployment that will not settle
+      // names its own holder (the field's «game → none» of 2026-10-31 showed every blocker free and the scene still up).
+      settle: {
+        settled: this.deploymentSettled,
+        hold: this.state.hold,
+        flow: this.state.flow,
+        reaction: this.reactionStage.phase,
+        embed: this.embedActive ? `${this.outcome.stage}:${this.outcome.sourceCard}` : '',
+        firstOwed: this.firstActionOwedNow,
+        bonusOwed: this.bonusActionsOwedNow,
+        legacy: this.legacyPrompt !== undefined || this.legacyArrivalLive,
+        deliveryHeld: handDeliveryState.held.length,
+      },
       latches: {queueReleased: this.queueReleased, playedDockReleased: this.playedDockReleased, seatOwner: this.seatOwner ?? null},
     });
     // Campaign mode: the corporation stage relabels — «Штаб» for the final
@@ -5181,7 +5194,11 @@ export default defineComponent({
      * slot must not change under a card that is leaving it.
      */
     observeQueueBox(): void {
-      const el = this.$refs.queueEl as HTMLElement | undefined;
+      // An UNMOUNTED ref reads `null`, never `undefined` (Vue clears it so): read as «no queue» — `observe(null)` threw
+      // inside the watcher's flush on every queue change past the deployment (the owner's export of 2026-10-31 22:16,
+      // the fourth inside `openHandWithReveal`).
+      const ref = this.$refs.queueEl as HTMLElement | null | undefined;
+      const el = ref instanceof Element ? ref : undefined;
       if (el === queueBoxObserved) {
         return;
       }
@@ -6773,6 +6790,23 @@ export default defineComponent({
      * ONE calm surface and the board takes input on a settled frame. This is
      * the ONLY place the lifetime hold lets go.
      */
+    /**
+     * THE DIRECTOR'S DOOR INTO THE RELEASE (`startDirectorCure` → `release`): the game proper has begun and the
+     * deployment never settled — the scene ends through its OWN release beat (the resolved frame, the dissolve, the
+     * lifetime hold let go), never a cut. A scene already releasing says so; a scene not in the ceremony (nothing to
+     * dissolve) lets the hold go at once.
+     */
+    releaseByDirector(): string {
+      if (this.state.flow === 'completing' || this.state.flow === 'releasing') {
+        return 'already-releasing';
+      }
+      if (this.mode !== 'ceremony') {
+        releaseStartScene();
+        return 'hold-released';
+      }
+      void this.runSceneRelease();
+      return 'released';
+    },
     async runSceneRelease(): Promise<void> {
       if (this.state.flow === 'completing' || this.state.flow === 'releasing') {
         return;

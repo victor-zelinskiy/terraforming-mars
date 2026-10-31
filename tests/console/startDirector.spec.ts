@@ -64,7 +64,7 @@ describe('startDirector — agreement and scope', () => {
   it('the corp mandatory move inside the bonus window is the bonus stage own sub-stage — agreed', () => {
     expect(startOwnersAgree('firstAction', 'bonusAction')).is.true;
     expect(startOwnersAgree('bonusAction', 'firstAction'), 'the other way round is a real disagreement').is.false;
-    expect(startOwnersAgree('game', 'shell'), 'the game proper served by the shell past a yield — the state the cure leaves').is.true;
+    expect(startOwnersAgree('game', 'shell'), 'the start frame still standing (yielded) while the game proper asks — NOT agreement').is.false;
     expect(startOwnersAgree('game', 'none'), 'the start standing empty while the game asks is the finding the field showed').is.false;
   });
 
@@ -125,12 +125,18 @@ describe('startDirector — phase 1, the cure of a confirmed finding', () => {
     expect(cure('wizard', 'none')).to.eq('heal');
   });
 
-  it('the SHELL\'s surface must serve (a step, the board) or the game has begun, and the start stands in the way → YIELD', () => {
+  it('the SHELL\'s surface must serve (a step, the board) and the start stands in the way → YIELD', () => {
     expect(cure('step', 'none')).to.eq('yield');
     expect(cure('step', 'queue')).to.eq('yield');
     expect(cure('board', 'firstAction')).to.eq('yield');
-    expect(cure('game', 'queue')).to.eq('yield');
-    expect(cure('game', 'none')).to.eq('yield');
+  });
+
+  it('the GAME PROPER has begun and the start still stands, in any pose → RELEASE (the field of 2026-10-31 22:15)', () => {
+    expect(cure('game', 'none')).to.eq('release');
+    expect(cure('game', 'queue')).to.eq('release');
+    expect(cure('game', 'shell'), 'a yield already happened — the frame still covers the board').to.eq('release');
+    expect(cure('game', 'game'), 'the start is gone').to.eq('none');
+    expect(cure('game', 'board'), 'a live placement').to.eq('none');
   });
 
   it('a HELD prompt is an admission block\'s own ledgered debt — never cured here', () => {
@@ -141,7 +147,6 @@ describe('startDirector — phase 1, the cure of a confirmed finding', () => {
   it('a disagreement the player can ACT on is logged only — the shell already serving a start question, the board under a placement', () => {
     expect(cure('queue', 'shell'), 'the strand\'s yield already happened — not undone').to.eq('none');
     expect(cure('firstAction', 'board')).to.eq('none');
-    expect(cure('game', 'board')).to.eq('none');
     expect(cure('step', 'shell')).to.eq('none');
   });
 });

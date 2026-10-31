@@ -100,6 +100,7 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-play-landing-geometry.spec.ts',
   'console-start-motion.spec.ts',
   'console-start-field-deploy-leave.spec.ts', // the first FIELD cure of the start director (2026-10-31 21:48): the empty start over the menu was timing-shaped — the real boot and motion ×1 are the stand's point
+  'console-start-hold-param-leave.spec.ts', // the same field shape through the WHOLE opening (the wizard's summary arms the lifetime hold) — the real boot and motion ×1
   'console-hand-open-parity.spec.ts',
   // the probes (perf, landing, pose, entry, lifecycle)
   'console-colony-entry-probe.spec.ts',

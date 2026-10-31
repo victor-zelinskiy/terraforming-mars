@@ -151,9 +151,10 @@ export function startOwnersAgree(expected: StartOwner, actual: ActualStartOwner)
   // The corporation's mandatory move INSIDE the bonus window is the bonus stage's own sub-stage («Фора»: bonus action 1
   // — `console-bonus-nested-first-action`): the bonus stage serving it is the same owner one level down.
   case 'firstAction': return actual === 'firstAction' || actual === 'bonusAction';
-  // The game proper served by the SHELL while the start frame (a phase root) still stands — the state a yield leaves
-  // (the field, 2026-10-31 21:48: «game → none» cured by yield, then «game → shell» logged as a second finding).
-  case 'game': return actual === 'game' || actual === 'shell';
+  // ⚠ NOT `game ↔ shell`: the shell serving the menu while the start FRAME still stands is the state a mere yield
+  // leaves — the frame covers the board for every board story (the park held the temperature with `watchable: false`
+  // for 30 s after the field's yield of 2026-10-31 22:15, and the mandatory lease hung until the watchdog). The game
+  // proper has begun: the start has to END (`release`).
   default: return actual === expected;
   }
 }
@@ -186,9 +187,13 @@ export function startShadowVerdict(expected: StartOwner, actual: ActualStartOwne
  *
  *   · `heal`  — the START must serve (`startOwnsOwner`) and nothing does: the scene's own doors (`healStrand` — the
  *               queue / shelf return, the first-action seat, the bonus stage); a door that opens nothing YIELDS;
- *   · `yield` — the SHELL's own surface must serve (a step, a placement) or the game proper has begun, and the start
- *               scene stands in its way: the strand's yield — the scene stops painting, the question goes to the
- *               shell's surfaces (`startStrandYield`, released on the next prompt);
+ *   · `yield` — the SHELL's own surface must serve (a step, a placement) and the start scene stands in its way: the
+ *               strand's yield — the scene stops painting, the question goes to the shell's surfaces
+ *               (`startStrandYield`, released on the next prompt — the start may still be owed after the step);
+ *   · `release` — the GAME PROPER has begun (the plain action menu) and the start still stands, in any pose: the
+ *               start ENDS through its own release beat (`releaseByDirector` → `runSceneRelease`, bounded by its
+ *               own safety; the lifetime hold let go) — a yield there left the frame covering the board (2026-10-31
+ *               22:15: the park's 30 s degrade, the hung lease);
  *   · `none`  — a HELD prompt is an admission block's ledgered debt (its own degrade); a disagreement the player can
  *               act on (a shell surface standing for a start question) is logged only.
  *
@@ -196,7 +201,7 @@ export function startShadowVerdict(expected: StartOwner, actual: ActualStartOwne
  * `start-director` (rank 15 — before the flows are released with force) whenever the screen stalls with a standing
  * disagreement. Idempotent: a cure that changes nothing reports nothing.
  */
-export type StartCure = 'heal' | 'yield' | 'none';
+export type StartCure = 'heal' | 'yield' | 'release' | 'none';
 
 export function startDirectorCure(f: Pick<StartShadowFinding, 'kind' | 'expected' | 'actual'>): StartCure {
   if (f.kind === 'held-long') {
@@ -209,7 +214,11 @@ export function startDirectorCure(f: Pick<StartShadowFinding, 'kind' | 'expected
     // deliberate fallback (the strand's yield already happened), never undone here.
     return f.actual === 'none' ? 'heal' : 'none';
   }
-  if (f.expected === 'step' || f.expected === 'board' || f.expected === 'game') {
+  if (f.expected === 'game') {
+    // The start frame in ANY pose (painting, yielded to the shell) while the game proper asks — it ends.
+    return f.actual === 'game' || f.actual === 'board' ? 'none' : 'release';
+  }
+  if (f.expected === 'step' || f.expected === 'board') {
     return startStands ? 'yield' : 'none';
   }
   return 'none';

@@ -115,6 +115,36 @@ reliability iteration), `"rail-reward" held for over 35000ms` × 3 (the Reds' di
 `board-beat-park degraded after 30s` × 4 (the honest multiplayer wait). `scripts/field-log-report.mjs` reads the
 recorder's drop box the same way for the days to come.
 
+### The second field export of the shape — the cure was too weak (2026-10-31 22:15, export `game-pbfed567`)
+
+A fresh table on the box (game gbd2cf6a99a8b — solo against MarsBot, Turmoil Redux, Robinson Industries, Power
+Generation then Metal-Rich Asteroid: the LAST prelude raises the temperature): the same «game → none» → `yield` at
+3 s — and then what the yield LEFT: the start frame still in the stack, so the park held the temperature with
+`watchable: false` until its 30 s degrade (the scales' story lost), and the scene's LIFETIME HOLD still armed, so
+`startSceneServes` kept the `mandatory-choice` foreground lease with nothing rendered until the foreground watchdog
+expired it two minutes later. Three changes:
+
+- **`release` — the game proper has begun, the start ENDS.** `startDirectorCure`: expected `game` and the start
+  frame in ANY pose (painting, or already yielded to the shell) → `release` → the scene's own door
+  `releaseByDirector` → `runSceneRelease` (the resolved frame, the dissolve, the hold let go — bounded by its own
+  safety; a scene not in the ceremony lets the hold go at once; no instance → `releaseStartScene()` directly), and an
+  earlier yield goes with it. `game ↔ shell` is no longer agreement: a yielded start frame under the menu is the
+  defect. `yield` stays for a step / a placement (the start may still be owed after them).
+- **The strand watchdog waits on BLOCKING holds only** (`startStrandedNow` — the liveness law «a decision never waits
+  on a story»): the notification-only scale-step rating waiting for a board the start covered masked the strand.
+- **The shadow skips the boot curtain** (`sceneTransitionInputLocked`): «wizard → game» 5.5 s after the page loaded
+  was the curtain, not the start.
+
+Why the deployment did not settle is NOT yet named: `__conStartDiag` now carries every `deploymentSettled` term the
+blockers did not (`settle`: hold · flow · reaction · embed · first/bonus owed · legacy · the delivery hold), and the
+next field export or recorder entry will name it. Two stands walk the shape on the current code and are GREEN in both
+classes (`console-start-field-deploy-leave` × two field tables from the prelude pick; `console-start-hold-param-leave`
+— the WHOLE opening on the real UI, the wizard's summary arming the lifetime hold that a prelude-pick boot never has):
+the defect is field-timing-shaped, and the cure no longer leaves a frame behind when it fires.
+
+Also fixed from the same export: `observeQueueBox` threw `ResizeObserver.observe(null)` ×4 (an unmounted ref reads
+`null`, the guard tested `undefined`; the fourth inside `openHandWithReveal`'s flush).
+
 ### The field flight recorder (2026-10-31)
 
 What the saves cannot carry, the CLIENT now keeps: `client/console/fieldRecorder.ts` (installed by the console key

@@ -565,18 +565,23 @@ for (const [suffix, file, color] of [
 //    SAVED one step before: pink on the prelude pick with both preludes in hand — the stand plays them on the real UI
 //    and watches the deployment LEAVE on its own. ──
 {
-  const name = 'field-start-deploy-leave';
-  const source = JSON.parse(fs.readFileSync(path.join(__dirname, 'field', 'g2cb6cfc844aa-00002.json'), 'utf8')) as SerializedGame;
-  const game = Game.deserialize(source);
-  const pink = game.players.find((p) => p.color === 'pink');
-  const wf = pink?.getWaitingFor();
-  if (pink === undefined || game.activePlayer.id !== pink.id || wf?.startGamePrompt?.kind !== 'preludeSelection' || pink.preludeCardsInHand.length !== 2) {
-    throw new Error(`${name}: expected pink on the prelude pick with two preludes in hand (wf=${wf?.type}/${wf?.startGamePrompt?.kind}, preludes=${pink?.preludeCardsInHand.map((c) => c.name).join('/')})`);
+  // The SECOND field table of the same shape (2026-10-31 22:15, export game-pbfed567 — game gbd2cf6a99a8b, history 00001):
+  // Power Generation · Metal-Rich Asteroid — the LAST prelude raises the TEMPERATURE (the Greens answer +2 M€), with no
+  // choice inside the preludes, so the stand plays it deterministically (the first table's Established Methods asks a
+  // standard project, which a driver's A answered without touching a parameter — the park, and the cycle, never came).
+  for (const [name, file] of [['field-start-deploy-leave', 'g2cb6cfc844aa-00002.json'], ['field-start-deploy-param', 'gbd2cf6a99a8b-00001.json']] as const) {
+    const source = JSON.parse(fs.readFileSync(path.join(__dirname, 'field', file), 'utf8')) as SerializedGame;
+    const game = Game.deserialize(source);
+    const pink = game.players.find((p) => p.color === 'pink');
+    const wf = pink?.getWaitingFor();
+    if (pink === undefined || game.activePlayer.id !== pink.id || wf?.startGamePrompt?.kind !== 'preludeSelection' || pink.preludeCardsInHand.length !== 2) {
+      throw new Error(`${name}: expected pink on the prelude pick with two preludes in hand (wf=${wf?.type}/${wf?.startGamePrompt?.kind}, preludes=${pink?.preludeCardsInHand.map((c) => c.name).join('/')})`);
+    }
+    for (const [i, p] of game.players.entries()) {
+      p.name = p.isMarsBot ? p.name : `seat${i + 1}`;
+    }
+    write(name, game);
   }
-  for (const [i, p] of game.players.entries()) {
-    p.name = p.isMarsBot ? p.name : `seat${i + 1}`;
-  }
-  write(name, game);
 }
 
 // ── venus-trade-unity-bonus-2p: the SAME trade as the field's second action of the turn — a two-seat game, the

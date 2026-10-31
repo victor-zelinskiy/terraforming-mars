@@ -1378,10 +1378,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 5697,
-    "startedAt": 1793477981194,
+    "startedAt": 1793479380631,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1793477981194
+    "lastStoppedAt": 1793479380631
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1481,7 +1481,7 @@
     "startedAt": 0,
     "running": false,
     "afterFirstAction": false,
-    "lastStoppedAt": 1793477981194
+    "lastStoppedAt": 1793479380631
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],
