@@ -69,6 +69,7 @@ import {
   pushWarning,
 } from '@/client/components/notifications/notificationState';
 import {translateText} from '@/client/directives/i18n';
+import {registerLivenessRelease} from '@/client/console/consoleLiveness';
 
 /** The admission signals the watchdog may expire (never `announceGate`). */
 export type GuardableAdmissionSignal = Exclude<keyof AdmissionSignals, 'announceGate'>;
@@ -424,6 +425,21 @@ export function runForegroundWatchdog(pass: WatchdogPass): boolean {
   recoverStalledForeground();
   return true;
 }
+
+// THE LIVENESS ARBITER'S RUNG (rank 10): the same cure, SCOPE-FREE — the board-home restriction above exists because
+// «nothing rendered» is ambiguous over an open screen; the arbiter has already established that the player cannot
+// act (nothing accepts, or presses change nothing) and nothing is in flight, so the claims may go wherever they stand.
+registerLivenessRelease({
+  rank: 10,
+  name: 'foreground',
+  release: () => {
+    const claims = claimLabels();
+    if (claims.length === 0) {
+      return '';
+    }
+    return `expired ${recoverStalledForeground().join(', ') || '(nothing)'}`;
+  },
+});
 
 /** Full reset (game switch / shell teardown / test cleanup). */
 export function resetForegroundWatchdog(): void {

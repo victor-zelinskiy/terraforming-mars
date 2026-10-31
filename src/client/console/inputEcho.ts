@@ -29,6 +29,8 @@ export type InputEchoOutcome = 'consumed' | 'system' | 'unconsumed' | 'update-ga
 export type InputEchoSnapshot = {
   /** Every recognized console key event — the driver's «did my key arrive at all». */
   seq: number;
+  /** PRESS edges alone (the liveness arbiter counts presses, never releases). */
+  presses: number;
   consumed: number;
   system: number;
   unconsumed: number;
@@ -38,6 +40,7 @@ export type InputEchoSnapshot = {
 
 const state: InputEchoSnapshot = {
   seq: 0,
+  presses: 0,
   consumed: 0,
   system: 0,
   unconsumed: 0,
@@ -46,6 +49,9 @@ const state: InputEchoSnapshot = {
 
 export function recordInputEcho(code: string, kind: string, outcome: InputEchoOutcome): void {
   state.seq++;
+  if (kind === 'press') {
+    state.presses++;
+  }
   switch (outcome) {
   case 'consumed': state.consumed++; break;
   case 'system': state.system++; break;
@@ -70,6 +76,7 @@ export function installInputEchoProbe(): void {
 
 export function resetInputEchoForTest(): void {
   state.seq = 0;
+  state.presses = 0;
   state.consumed = 0;
   state.system = 0;
   state.unconsumed = 0;

@@ -22,6 +22,7 @@ import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ColonyBonusDiscardMeta, DiscardPromptMeta} from '@/common/models/PlayerInputModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {registerLivenessRelease} from '@/client/console/consoleLiveness';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {
@@ -343,6 +344,21 @@ export async function endCardDiscard(): Promise<void> {
 }
 
 /** ABORT — every error path. Kills the visuals, releases the hold, fires nothing. */
+// THE LIVENESS ARBITER'S RUNG (rank 20): a disposal whose flight never landed holds the pad (`card-discard` blocking)
+// and the colony resolution's closing beat — abort it; the cards are already gone from the hand (the server's truth).
+registerLivenessRelease({
+  rank: 20,
+  name: 'card-discard',
+  release: () => {
+    if (!cardDiscardTransaction.active) {
+      return '';
+    }
+    const what = `${cardDiscardTransaction.phase} [${cardDiscardTransaction.names.join(',')}]`;
+    abortCardDiscard();
+    return `aborted ${what}`;
+  },
+});
+
 export function abortCardDiscard(): void {
   if (armed === undefined && !cardDiscardTransaction.active) {
     return;

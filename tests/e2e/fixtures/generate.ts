@@ -302,6 +302,7 @@ import {Enceladus} from '../../../src/server/colonies/Enceladus';
 import {JupiterFloatingStation} from '../../../src/server/cards/colonies/JupiterFloatingStation';
 import {GanymedeColony} from '../../../src/server/cards/base/GanymedeColony';
 import {Game} from '../../../src/server/Game';
+import {SerializedGame} from '../../../src/server/SerializedGame';
 import {CeresTechMarket} from '../../../src/server/cards/prelude2/CeresTechMarket';
 import {unplayableReasons} from '../../../src/server/models/unplayableReasons';
 import {adjacentCityTiers} from '../../../src/server/boards/cityStack';
@@ -448,6 +449,109 @@ function write(name: string, game: IGame): void {
   player.megaCredits = 80;
   runAllActions(game);
   write('venus-trade-unity', game);
+}
+
+// ── venus-trade-unity-bonus: the owner's field freeze of 2026-10-31 (game gce2206994265, history 00130 → 00131):
+//    the UNITY free trade with a Venus the seat OWNS a colony on — the trade's one answer carries the fixed Venus
+//    step (12 → 14 — the park holds the value, the step-rating beat its rating), the marker's floaters into a
+//    holder, the owner bonus's drawn card AND its mandatory discard. The colonies stand INSIDE «ДЕЙСТВИЯ КАРТ ›
+//    СОЮЗ»; the field log read `board-beat-park` and `scale-step-rating` degraded at 30 s with `watchable: false`,
+//    the screen frozen until a reload. Solo (the discard is the seat's own prompt either way). ──
+{
+  const [game, player] = testGame(1, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true, venusNextExtension: true,
+  });
+  answerStartFlow(game, [player]);
+  const venus = new VenusRedux();
+  game.colonies = [venus, new Luna(), new Europa(), new Callisto()];
+  venus.colonies.push(player.id); // the owner bonus: «draw a card, then discard a card»
+  venus.trackPosition = 3; // Unity's +1 lands on the 5th cell: 2 floaters
+  player.playedCards.push(new Dirigibles(), new AtmoCollectors()); // two holders — a real pick, as in the field
+  setVenusScaleLevel(game, 12); // 12 → 14: no threshold card, the step alone
+  const parliament = game.parliament;
+  if (parliament === undefined) {
+    throw new Error('the venus-trade-unity-bonus fixture has no parliament');
+  }
+  parliament.grantPartyEffect(player, PartyName.UNITY, 'Fixture');
+  player.megaCredits = 80;
+  runAllActions(game);
+  write('venus-trade-unity-bonus', game);
+}
+
+// ── field-venus-unity-trade: THE FIELD TABLE ITSELF (the owner's freeze of 2026-10-31, game gce2206994265, history
+//    00130 — the save BEFORE pink's two actions: three seats, a human rival, MarsBot, a campaign mission, Water Export
+//    enacted). The generator replays the FIRST action through the engine (Fringe Colony: Europa replaced by Venus
+//    Redux, a colony built on it, the two-delegate grant sent to Unity — the Unity effect gained); the e2e drives the
+//    SECOND (the Unity free trade with that Venus) on the real UI. Names anonymized; the source save rides along in
+//    `fixtures/field/` so the table can be regenerated. ──
+{
+  const name = 'field-venus-unity-trade';
+  const sourceFile = path.join(__dirname, 'field', 'gce2206994265-00130.json');
+  const source = JSON.parse(fs.readFileSync(sourceFile, 'utf8')) as SerializedGame;
+  const game = Game.deserialize(source);
+  const pink = game.players.find((p) => p.color === 'pink');
+  if (pink === undefined || game.activePlayer.id !== pink.id) {
+    throw new Error(`${name}: expected pink on the move`);
+  }
+  const fringe = pink.cardsInHand.find((c) => c.name === CardName.FRINGE_COLONY);
+  const menu = pink.getWaitingFor();
+  if (fringe === undefined || !(menu instanceof OrOptions)) {
+    throw new Error(`${name}: pink holds no Fringe Colony, or is not on the action menu (${menu?.constructor.name})`);
+  }
+  // Through the ACTION MENU (the real road — the play counts as the turn's first action and the engine re-primes the next prompt).
+  const playIndex = menu.options.findIndex((o) => o instanceof SelectProjectCardToPlay);
+  pink.process({type: 'or', index: playIndex, response: {type: 'projectCard', card: CardName.FRINGE_COLONY, payment: Payment.of({megacredits: pink.getCardCost(fringe)})}});
+  for (let guard = 0; guard < 8; guard++) {
+    runAllActions(game);
+    const wf = pink.getWaitingFor();
+    if (wf instanceof SelectColony && wf.rosterChange?.kind === 'replace') {
+      pink.process({type: 'colony', colonyName: ColonyName.VENUS_REDUX, replaces: ColonyName.EUROPA});
+    } else if (wf instanceof SelectColony) {
+      pink.process({type: 'colony', colonyName: ColonyName.VENUS_REDUX});
+    } else if (wf instanceof SelectParty) {
+      pink.process({type: 'party', partyName: PartyName.UNITY});
+    } else {
+      break;
+    }
+  }
+  runAllActions(game);
+  const venus = game.colonies.find((c) => c.name === ColonyName.VENUS_REDUX);
+  if (venus === undefined || !venus.colonies.includes(pink.id) || pink.actionsTakenThisRound !== 1 || !(pink.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: the replay did not land on pink's second action (venus=${venus?.name} cubes=${venus?.colonies.length} actions=${pink.actionsTakenThisRound} wf=${pink.getWaitingFor()?.constructor.name})`);
+  }
+  for (const [i, p] of game.players.entries()) {
+    p.name = p.isMarsBot ? p.name : `seat${i + 1}`;
+  }
+  write(name, game);
+}
+
+// ── venus-trade-unity-bonus-2p: the SAME trade as the field's second action of the turn — a two-seat game, the
+//    viewer (blue) has taken one action, so the trade's answer (after its discard) PASSES THE TURN to red: the
+//    viewer's `waitingFor` goes empty while another seat holds the move (the field: pink → blue). ──
+{
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true, venusNextExtension: true,
+  });
+  answerStartFlow(game, [p1, p2]);
+  const venus = new VenusRedux();
+  game.colonies = [venus, new Luna(), new Europa(), new Callisto()];
+  venus.colonies.push(p1.id);
+  venus.trackPosition = 3;
+  p1.playedCards.push(new Dirigibles(), new AtmoCollectors());
+  setVenusScaleLevel(game, 12);
+  const parliament = game.parliament;
+  if (parliament === undefined) {
+    throw new Error('the venus-trade-unity-bonus-2p fixture has no parliament');
+  }
+  parliament.grantPartyEffect(p1, PartyName.UNITY, 'Fixture');
+  p1.megaCredits = 80;
+  // The corporation's FIRST ACTION (the loader's seed answers it over the API) is the turn's first action — the
+  // trade is the SECOND, and its answer passes the move to red.
+  runAllActions(game);
+  if (game.activePlayer.id !== p1.id) {
+    throw new Error(`venus-trade-unity-bonus-2p: expected blue on the move, got ${game.activePlayer.color}`);
+  }
+  write('venus-trade-unity-bonus-2p', game);
 }
 
 // ── vesta-trade: the REDUX VESTA trade — «add N mechs, asteroids OR fighters

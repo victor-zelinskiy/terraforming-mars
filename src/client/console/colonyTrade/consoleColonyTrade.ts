@@ -58,6 +58,7 @@ import {TRANSFER_RESIDUAL_PAUSE_MS} from '@/client/console/resourceTransfer/reso
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {TradeReceiptBase} from '@/client/console/colonyTrade/colonyTradeReceipt';
 import {settlementClaimsBatch} from '@/client/console/colonyTrade/settlementTable';
+import {registerLivenessRelease} from '@/client/console/consoleLiveness';
 import {
   ColonyTradeTargets, benefitCardCount, bonusHandsOverCard, colonyTradeHeldSpecs, incomeTransferSpecs,
   ownBonusTransferSpecs, viewerBonusCubes,
@@ -1134,6 +1135,23 @@ function finishTrade(): void {
   receiptBase = undefined;
   tradeLog('transaction finished');
 }
+
+// THE LIVENESS ARBITER'S RUNG (rank 20): a transaction standing while the player cannot act (a cover scene whose
+// flight never landed — `cardScene` locks the pad; a reset the server never committed) concludes to committed truth
+// — the 60 s ceiling's own cure, run the moment the arbiter proves the stall instead of a minute later.
+registerLivenessRelease({
+  rank: 20,
+  name: 'colony-trade',
+  release: () => {
+    if (!colonyTradeState.active) {
+      return '';
+    }
+    const what = `${colonyTradeState.colonyName} ${colonyTradeState.phase}/${colonyTradeState.cardScene}`;
+    tradeLog('liveness — concluding to committed state');
+    concludeToCommitted();
+    return `concluded ${what}`;
+  },
+});
 
 /** Ceiling / degraded conclusion: snap every presented value to committed. */
 function concludeToCommitted(): void {

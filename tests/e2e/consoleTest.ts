@@ -260,6 +260,14 @@ const START_STRANDED = '[start-stranded]';
  */
 const BEAT_STALL = '[workspace-stall] beat';
 /**
+ * The LIVENESS ARBITER's marker (`src/client/console/consoleLiveness.ts`, the owner's Venus-trade freeze of
+ * 2026-10-31): the player could not act — no surface accepting for the grace, or presses changing NOTHING — with
+ * nothing in flight, and a rung of the cure ladder ran (stories degraded, holds expired, a flow concluded, the stack
+ * sent home). The field's «экран завис, помог только перезаход», now with a name; a cure that had to run is a defect
+ * upstream of it.
+ */
+const LIVENESS_STALL = '[liveness] stall';
+/**
  * The START SHADOW's marker (`src/client/console/startDirector.ts`, phase 0 of «правда сервера → одно состояние → один
  * владелец экрана», 2026-10-29): who the server's one question says must serve the screen disagreed, for a while, with
  * what the start's latches put there. DATA, never red — the harness files every finding under
@@ -428,7 +436,7 @@ function sleepSiteOf(stack: string): string {
   return '<unknown>';
 }
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, startShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, stallHarvest: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, livenessGuard: void, startShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, stallHarvest: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
   /**
    * CI's STARVED RENDERER ON DEMAND (`TM_E2E_CPU_THROTTLE=<rate>`, e.g. 4): every page of the test's context runs under
    * CDP CPU throttling. CI's 4K software raster on a shared runner starves the main thread for hundreds of ms — the
@@ -728,6 +736,29 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     await use();
     if (stalls.length > 0) {
       throw new Error(`BEAT STALL — a workspace stood in a machine beat with nothing in flight:\n  ${stalls.join('\n  ')}`);
+    }
+  }, {auto: true}],
+
+  /**
+   * EVERY TEST, EVERY PAGE OF ITS CONTEXT: the player could always act. The liveness arbiter names a stall
+   * (`[liveness] stall` — what was asked, what stood, what was last in flight, which rung of the cure ran) and cures
+   * it; the harness turns the report red, because the cure is the player's frozen screen with a way out.
+   */
+  livenessGuard: [async ({context}, use) => {
+    const stalls: Array<string> = [];
+    const watch = (page: Page) => {
+      page.on('console', (message) => {
+        const text = message.text();
+        if (text.includes(LIVENESS_STALL)) {
+          stalls.push(text.slice(0, 1400));
+        }
+      });
+    };
+    context.pages().forEach(watch);
+    context.on('page', watch);
+    await use();
+    if (stalls.length > 0) {
+      throw new Error(`LIVENESS STALL — the player could not act and nothing was in flight:\n  ${stalls.join('\n  ')}`);
     }
   }, {auto: true}],
 

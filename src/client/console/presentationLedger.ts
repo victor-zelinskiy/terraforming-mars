@@ -28,6 +28,8 @@
  * book is empty.
  */
 
+import {registerLivenessRelease} from '@/client/console/consoleLiveness';
+
 /** The heartbeat cadence. A missed release edge costs at most one beat. */
 export const LEDGER_TICK_MS = 250;
 
@@ -240,6 +242,33 @@ export function settlePresentationDue(): void {
   presentationLedgerStats.oldestOwedMs = oldest;
   stopHeartbeatIfIdle();
 }
+
+/**
+ * THE LIVENESS ARBITER'S RUNG (rank 0 — truth before story): every owed story degrades NOW, named, instead of at its
+ * own due. A story's degrade is its owner's HONEST release (the park snaps its values, the step-rating ticks its
+ * cell) — nothing a player is waiting on can be lost by it, and a debt that stood on a condition the player's own
+ * surface held is exactly what the arbiter is cutting. Returns what it degraded ('' = nothing owed).
+ */
+export function degradePresentationStories(reason: string): string {
+  const degraded: Array<string> = [];
+  const t = now();
+  for (const story of [...stories.values()]) {
+    stories.delete(story.id);
+    presentationLedgerStats.degrades++;
+    degraded.push(`${story.id}@${Math.round((t - story.since) / 1000)}s`);
+    console.warn(`[presentation-ledger] story «${story.id}» degraded by ${reason} after ${Math.round((t - story.since) / 1000)}s${storyDiagnose(story)}`);
+    try {
+      story.degrade?.();
+    } catch (err) {
+      console.error(`[presentation-ledger] degrade of «${story.id}» failed`, err);
+    }
+  }
+  presentationLedgerStats.owedNow = stories.size;
+  stopHeartbeatIfIdle();
+  return degraded.join(', ');
+}
+
+registerLivenessRelease({rank: 0, name: 'presentation-ledger', release: () => degradePresentationStories('the liveness arbiter')});
 
 /**
  * Snapshot for diagnostics surfaces / e2e. Every owed story carries WHY it is still waiting — its own `diagnose`

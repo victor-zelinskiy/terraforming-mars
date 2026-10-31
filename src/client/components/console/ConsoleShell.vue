@@ -1622,9 +1622,9 @@ import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 import {SpaceId} from '@/common/Types';
 
 import ConsoleBoardBinder from '@/client/components/console/ConsoleBoardBinder.vue';
-import {submitInput, submitBatch as transportSubmitBatch, cancelPlacement, waitForUpdate, transportRequestInProgress} from '@/client/console/transport/gameTransport';
+import {submitInput, submitBatch as transportSubmitBatch, cancelPlacement, waitForUpdate, transportDiagFacts, transportState} from '@/client/console/transport/gameTransport';
 import {serverAheadOfView} from '@/client/components/realtime/viewFreshness';
-import {registerTruthWitness, resetPresentationLedger, settlePresentationDue} from '@/client/console/presentationLedger';
+import {presentationLedgerSnapshot, registerTruthWitness, resetPresentationLedger, settlePresentationDue} from '@/client/console/presentationLedger';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import ConsoleBoardInput from '@/client/components/console/ConsoleBoardInput.vue';
 import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeResources, standardProjectPaymentTitle} from '@/client/components/payment/paymentModelUtils';
@@ -1636,8 +1636,11 @@ import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnRevi
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
 import {openBotTurnReviewByKey, skipBotTurnPresentation, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
 import {acquireForegroundLease, isMandatoryPromptsHeld, isMandatoryPromptsHeldByScreen, registerRevealParkSupplier} from '@/client/components/presentation/presentationFlow';
-import {activeAnimationHoldLabels, blockingAnimationHoldCount, isAnimationHoldActive} from '@/client/components/presentation/animationHold';
-import {BeatStallVerdict, isTransientBeat, resetBeatStall, tickBeatStall, transientSurfaceBeats} from '@/client/console/workspaceBeatStall';
+import {activeAnimationHoldLabels, blockingAnimationHoldCount, isAnimationHoldActive, oldestAnimationHoldAgeMs} from '@/client/components/presentation/animationHold';
+import {isTransientBeat, resetBeatStall, transientSurfaceBeats} from '@/client/console/workspaceBeatStall';
+import {LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
+import {inputEchoSnapshot} from '@/client/console/inputEcho';
+import {ANIMATION_STALL_GRACE_MS} from '@/client/console/consoleForegroundWatchdog';
 import {notificationState, notificationFeedReadForDecision, acknowledgeFlowHoldingCards, dismiss as dismissNotification, pushWarning} from '@/client/components/notifications/notificationState';
 import {beginNotifHold, cancelNotifHold, consumeNotifHoldRelease, resetNotifHold} from '@/client/console/consoleNotifHold';
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
@@ -2598,8 +2601,10 @@ export default defineComponent({
        *  surfaces (the scene yields) until the prompt changes; the two timers are the confirm and the heal's grace. */
       startStrandYield: false,
       startStrandTimer: undefined as number | undefined,
-      /** The BEAT STALL GUARD's 1 Hz sampler (`workspaceBeatStall.ts`). */
+      /** The LIVENESS ARBITER's 1 Hz sampler (`consoleLiveness.ts`; the beat stall guard is one of its witnesses). */
       beatStallTimer: undefined as number | undefined,
+      /** The shell's own rungs of the liveness ladder — unregistered with the shell. */
+      livenessRungStops: [] as Array<() => void>,
       startStrandPrompt: undefined as number | undefined,
       /** THE START SHADOW (`startDirector.ts`, phase 0): the confirm timer of a disagreement / a long hold. */
       startShadowTimer: undefined as number | undefined,
@@ -6155,7 +6160,11 @@ export default defineComponent({
         !isMandatoryBeatPresented(this.mandatoryBeat) &&
         notificationFeedReadForDecision() &&
         !isMandatoryPromptsHeldByScreen() &&
-        !isAnimationHoldActive() &&
+        // BLOCKING holds only — a notification-only hold is a STORY (a step's rating waiting for the board, a card's
+        // reaction, the score's shares), and a decision never waits on a story: the step-rating's hold stands for as
+        // long as the board is COVERED, and the surface covering it was the one waiting for this very decision to be
+        // announced (the Venus trade's discard, 2026-10-31 — the cycle the liveness audit named).
+        blockingAnimationHoldCount() === 0 &&
         this.consoleRevealMode === undefined &&
         !this.rawDrawnRevealPending &&
         !this.playedHeroHolds &&
@@ -21272,37 +21281,74 @@ export default defineComponent({
       void this.$nextTick(() => this.drainBoardBeats());
     },
     /**
-     * THE BEAT STALL GUARD's sample (`workspaceBeatStall.ts`, 1 Hz). Judges the DEEPEST live frame only — a step
-     * nested inside a workspace, a parked or board-yielded stack, a live placement are places where the player is
-     * acting, never a beat to accuse — and names everything that legitimately keeps a beat standing.
+     * THE LIVENESS ARBITER's sample (`consoleLiveness.ts`, 1 Hz) — the one invariant: the player can act, or something
+     * is provably in flight. Every term is the console's own fact; the beat stall guard's verdict is one of the «not
+     * accepting» witnesses, the leak detector's stranded verdict another.
      */
-    checkBeatStall(): void {
+    checkLiveness(): void {
+      const wf = this.playerView.waitingFor;
       const beat = this.judgedTransientBeat();
       const inFlight: Array<string> = [];
-      if (beat !== undefined) {
-        if (transportRequestInProgress()) {
-          inFlight.push('transport');
-        }
-        if (surfaceMotionState.awaiting !== undefined) {
-          inFlight.push(`awaiting:${surfaceMotionState.awaiting.from}`);
-        }
-        if (this.commitFoldOwed) {
-          inFlight.push('commit-fold-owed');
-        }
-        if (blockingAnimationHoldCount() > 0) {
-          const blocking = activeAnimationHoldLabels().filter((l) => l.endsWith('[blocking]'));
-          inFlight.push(...(blocking.length > 0 ? blocking : ['animation-hold[blocking]']));
+      const transport = transportDiagFacts();
+      if (transport?.requestInProgress === true) {
+        // A request on the wire, or an answer whose gates still play — young; an old one is the transport rung's.
+        const age = Date.now() - transportState.requestSince;
+        if (!transportState.responseArrived || age < LIVENESS_TRANSPORT_GRACE_MS) {
+          inFlight.push(`transport@${Math.round(age / 1000)}s`);
         }
       }
-      const wf = this.playerView.waitingFor;
-      const promptKey = wf === undefined ? '' : `${promptIdentityKey(wf)}#${wf.promptId ?? ''}`;
-      const verdict = tickBeatStall({now: Date.now(), beat, inFlight, promptKey});
-      if (verdict.stalled) {
-        this.recoverStalledBeat(verdict);
+      if (surfaceMotionState.awaiting !== undefined && Date.now() - surfaceMotionState.awaiting.startedAt < AWAITING_SAFETY_MS + 500) {
+        inFlight.push(`awaiting:${surfaceMotionState.awaiting.from}`);
+      }
+      if (this.commitFoldOwed) {
+        inFlight.push('commit-fold-owed');
+      }
+      if (blockingAnimationHoldCount() > 0 && oldestAnimationHoldAgeMs() < ANIMATION_STALL_GRACE_MS) {
+        inFlight.push(...activeAnimationHoldLabels().filter((l) => l.endsWith('[blocking]')));
+      }
+      if (isResourceTransferActive()) {
+        inFlight.push('resource-transfer');
+      }
+      for (const story of presentationLedgerSnapshot().stories) {
+        if (story.ageMs < LIVENESS_STORY_GRACE_MS) {
+          inFlight.push(`story:${story.id}`);
+        }
+      }
+      const dom = (s: string) => document.querySelectorAll(s).length;
+      const focused = document.querySelector('[class*="--focused"]');
+      const signature = [
+        wf === undefined ? 'none' : `${promptIdentityKey(wf)}#${wf.promptId ?? ''}`,
+        workspaceStackState.frames.map((f) => f.kind + ':' + f.phase).join(';'),
+        `${this.consoleState.section}/${this.consoleState.sheet ?? ''}`,
+        [dom('.con-ws'), dom('.con-hand'), dom('.con-reveal'), dom('.con-task'), dom('.con-mandatory'), dom('.con-deckdraw'), dom('.con-zoom'), dom('.con-journal'), dom('.con-sys')].join(','),
+        (document.querySelector('.con-cmdbar, .con-bar, [data-command-bar]')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120),
+        focused === null ? '' : `${focused.className.toString().slice(0, 40)}:${(focused.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)}`,
+        String(transport?.requestInProgress ?? false),
+      ].join('|');
+      const verdict = tickLiveness({
+        now: Date.now(),
+        promptLive: wf !== undefined && wf.optional !== true,
+        accepting: beat === undefined && leakDetectorState.stranded === undefined && !isSurfaceAwaitingHandoff(),
+        inFlight,
+        presses: inputEchoSnapshot().presses,
+        signature,
+      });
+      if (!verdict.stalled || verdict.rung === undefined) {
+        return;
+      }
+      const did = runLivenessRung(verdict.rung);
+      const claim = workspaceOutcomeState.sourceCard === '' ? 'none' :
+        `${workspaceOutcomeState.host}/${workspaceOutcomeState.sourceCard} [${workspaceOutcomeState.kinds.join(',')}] ${workspaceOutcomeState.stage}`;
+      console.warn(`[liveness] stall (${verdict.reason}): ${Math.round(verdict.quietMs / 1000)}s without progress, ${verdict.presses} presses; ` +
+        `asked: ${wf?.type ?? 'none'}; beat: ${beat ?? 'none'}; stranded: ${leakDetectorState.stranded?.inputType ?? 'no'}; ` +
+        `last in flight: ${verdict.lastInFlight.join(', ') || 'nothing'}; claim: ${claim}; holds: ${activeAnimationHoldLabels().join(', ') || 'none'} — ` +
+        (did === undefined ? 'the ladder is spent' : `rung ${verdict.rung}: ${did}`));
+      if (verdict.first) {
+        pushWarning(translateText('The screen was stuck and has been released'));
       }
     },
-    /** The transient beat the guard judges: the stack's TOP frame's (`<kind>:<phase>`), or the surface report of the
-     *  kind that IS the top frame (card-actions derives its phase inside the component). */
+    /** The transient beat the arbiter judges (`workspaceBeatStall.ts`): the stack's TOP frame's (`<kind>:<phase>`), or
+     *  the surface report of the kind that IS the top frame (card-actions derives its phase inside the component). */
     judgedTransientBeat(): string | undefined {
       if (workspaceStackCollapsed() || stackYieldedToBoard() || this.placementActive) {
         return undefined;
@@ -21318,20 +21364,41 @@ export default defineComponent({
       return reported === undefined ? undefined : `${reported[0]}:${reported[1]}`;
     },
     /**
-     * A beat stood with nothing in flight — NAME it (what it was, how long, what the claim held, what served), tear
-     * the workspace down through the one force path, and tell the player. The claim is released with force, so a
-     * verdict it was holding falls to the standalone presenter: the result is still SEEN, and the game goes on.
+     * THE SHELL'S OWN RUNGS of the liveness ladder: a stalled transient beat is torn down through the one force path
+     * (rank 25 — the beat stall guard's cure, now a rung), and the stack goes HOME as the last resort (rank 30 — the
+     * mandatory plate re-announces whatever the server still asks; nothing of the game is lost, only the screen).
      */
-    recoverStalledBeat(verdict: Extract<BeatStallVerdict, {stalled: true}>): void {
-      const kind = verdict.beat.split(':')[0] as WorkspaceFrameKind;
-      const claim = workspaceOutcomeState.sourceCard === '' ? 'none' :
-        `${workspaceOutcomeState.host}/${workspaceOutcomeState.sourceCard} [${workspaceOutcomeState.kinds.join(',')}] ` +
-        `stage=${workspaceOutcomeState.stage} scope=${workspaceOutcomeState.scope}`;
-      const why = `[workspace-stall] beat «${verdict.beat}» stood ${Math.round(verdict.stoodMs / 1000)}s ` +
-        `(${Math.round(verdict.quietMs / 1000)}s with nothing in flight; last in flight: ${verdict.lastInFlight.join(', ') || 'nothing'}) — ` +
-        `claim: ${claim}; serving: ${this.workspaceOutcomeServingNow}; prompt: ${this.playerView.waitingFor?.type ?? 'none'} — forcing teardown`;
-      this.forceRecoverStuckWorkspace(kind, why);
-      pushWarning(translateText('The screen was stuck and has been released'));
+    registerLivenessRungs(): void {
+      this.livenessRungStops = [
+        registerLivenessRelease({
+          rank: 25,
+          name: 'workspace-beat',
+          release: () => {
+            const beat = this.judgedTransientBeat();
+            if (beat === undefined) {
+              return '';
+            }
+            const kind = beat.split(':')[0] as WorkspaceFrameKind;
+            this.forceRecoverStuckWorkspace(kind, `[workspace-stall] beat «${beat}» torn down by the liveness arbiter`);
+            return `tore down ${beat}`;
+          },
+        }),
+        registerLivenessRelease({
+          rank: 30,
+          name: 'stack-home',
+          release: () => {
+            const away = workspaceStackState.frames.length > 0 || this.consoleState.section !== 'board' || this.consoleState.sheet !== undefined;
+            if (!away) {
+              return '';
+            }
+            const where = `${this.consoleState.section}/${this.consoleState.sheet ?? ''} [${workspaceStackState.frames.map((f) => f.kind).join(';')}]`;
+            resetConsoleActionComposerUi();
+            goBoardHome();
+            closeConsoleLayers();
+            return `home from ${where}`;
+          },
+        }),
+      ];
     },
     /**
      * THE CARD PLAY'S ONE ENDING — every way a play can finish routes here.
@@ -25251,7 +25318,8 @@ export default defineComponent({
     this.syncHydroBonusDoor();
     startConsoleLeakDetector(() => this.playerView);
     // THE BEAT STALL GUARD: a machine beat with nothing in flight is a stall, whatever its cause (the R&D Funding freeze).
-    this.beatStallTimer = window.setInterval(() => this.checkBeatStall(), 1000);
+    this.registerLivenessRungs();
+    this.beatStallTimer = window.setInterval(() => this.checkLiveness(), 1000);
     // THE PARK MUST NOT SILENCE THE FEED (the «Экран завис» deadlock). A
     // foreign colony bonus's batch is deliberately presented NOWHERE until the
     // player opens its announcement — and the announcement's own FIRST
@@ -25316,8 +25384,13 @@ export default defineComponent({
     registerGenerationSceneHandoff(undefined); // a dead shell's director must not gate the next game's rise
     handoffPendingEntries.clear();
     window.clearTimeout(this.startStrandTimer); // the start watchdog dies with its shell
-    window.clearInterval(this.beatStallTimer); // …and so does the beat stall guard
+    window.clearInterval(this.beatStallTimer); // …and so does the liveness arbiter
+    for (const stop of this.livenessRungStops) {
+      stop();
+    }
+    this.livenessRungStops = [];
     resetBeatStall();
+    resetLiveness();
     window.clearTimeout(this.startShadowTimer); // …and its shadow
     delete (window as unknown as {__conStartShadow?: unknown}).__conStartShadow;
     registerBoardShownDespiteStack(undefined);

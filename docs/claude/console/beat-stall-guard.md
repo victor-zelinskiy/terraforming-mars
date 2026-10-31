@@ -44,6 +44,10 @@ stage 7 to copy Search For Life / Asteroid Deflection used to merge the stage's 
 now takes the reveal door as well. Client unit guards are in `consoleRepeatPickFrame.spec.ts` § one claim for every
 repeat door.
 
+> Since 2026-10-31 (the Venus-trade freeze) the guard is ONE WITNESS of the **liveness arbiter** (`liveness-arbiter.md`):
+> its verdict feeds the arbiter's «not accepting» term and its teardown is the ladder's rank-25 rung. The rule below
+> stands; the sampler is the arbiter's.
+
 ## 2. The rule (the class, not the case)
 
 A TRANSIENT beat (`executing` / `completing`) is honest only while something is IN FLIGHT behind it:

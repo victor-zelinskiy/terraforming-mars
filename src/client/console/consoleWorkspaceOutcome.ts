@@ -38,6 +38,7 @@ import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {partyTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
 import {embedZoneMounted} from '@/client/console/embedZoneRegistry';
+import {registerLivenessRelease} from '@/client/console/consoleLiveness';
 
 /**
  * Which workspace holds the claim. A closed union on purpose: every host needs
@@ -686,6 +687,22 @@ export let lastOutcomeReleaseRefusal = '';
  * reserved for the ANSWERING paths — the take of the last card and the full
  * reset — where the artifact being consumed is itself the licence.
  */
+// THE LIVENESS ARBITER'S RUNG (rank 20): a claim standing while the player cannot act is released WITH FORCE — the
+// serving probe's refusal is exactly the lock the arbiter is cutting; the artifact it held falls to the standalone
+// presenter (still SEEN), and the host's conclusion runs on the claim's falling edge.
+registerLivenessRelease({
+  rank: 20,
+  name: 'workspace-outcome',
+  release: () => {
+    if (workspaceOutcomeState.sourceCard === '') {
+      return '';
+    }
+    const what = `${workspaceOutcomeState.host}/${workspaceOutcomeState.sourceCard} [${workspaceOutcomeState.kinds.join(',')}] ${workspaceOutcomeState.stage}`;
+    releaseWorkspaceOutcome('liveness', {force: true});
+    return `released ${what}`;
+  },
+});
+
 export function releaseWorkspaceOutcome(reason = 'unspecified', opts?: {force?: boolean}): boolean {
   if (opts?.force !== true && workspaceOutcomeServing() &&
       workspaceOutcomeState.host !== undefined && workspaceFrameKnown(workspaceOutcomeState.host)) {

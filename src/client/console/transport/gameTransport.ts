@@ -218,6 +218,7 @@ import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentat
 // bot's setup turns present normally with the first post-start response.
 import {startSceneHeld} from '@/client/console/consoleStartState';
 import {acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
+import {registerLivenessRelease} from '@/client/console/consoleLiveness';
 import {
   applyHazardTileSwap,
   detectHazardCleanup,
@@ -354,7 +355,34 @@ export const transportState = reactive({
   playersWaitingFor: [] as Array<Color>,
   /** The REACTIVE mirror of the root's `isServerSideRequestInProgress` — written at the funnel's two edges only. */
   requestInProgress: false,
+  /** When the funnel closed (epoch ms) — the liveness arbiter reads the request's age. */
+  requestSince: 0,
+  /** The server ANSWERED this request (its gates are what still holds the funnel) — the arbiter may release it. */
+  responseArrived: false,
 });
+
+/**
+ * THE LIVENESS ARBITER'S RUNG (rank 22): a funnel that stands with the server's answer already in hand is held by
+ * its own presentation gates — the awaited scenes. The holds they wait on were expired a rung earlier; a funnel that
+ * still stands is let go, and the truth is re-fetched so the applied view cannot lag the answer. A request still ON
+ * THE WIRE is never cut here — the network decides that one (the fetch's own timeout).
+ */
+export function releaseTransportFunnel(): string {
+  const r = root;
+  if (r === undefined || !r.isServerSideRequestInProgress) {
+    return '';
+  }
+  const ageS = Math.round((Date.now() - transportState.requestSince) / 1000);
+  if (!transportState.responseArrived) {
+    return `request on the wire for ${ageS}s — left to the network`;
+  }
+  r.isServerSideRequestInProgress = false;
+  transportState.requestInProgress = false;
+  r.updatePlayer();
+  return `funnel released after ${ageS}s (the answer arrived; its gates never let go) — the view re-fetched`;
+}
+
+registerLivenessRelease({rank: 22, name: 'transport', release: releaseTransportFunnel});
 
 /**
  * THE SUBMIT FUNNEL IS BUSY — a request is on the wire, or its answer is still being presented behind a cinematic
@@ -809,8 +837,11 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
 
   r.isServerSideRequestInProgress = true;
   transportState.requestInProgress = true;
+  transportState.requestSince = Date.now();
+  transportState.responseArrived = false;
   fetch(url, options)
     .then(async (response) => {
+      transportState.responseArrived = true;
       if (response.ok) {
         const newView = await response.json() as PlayerViewModel;
         /*

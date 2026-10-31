@@ -2735,7 +2735,7 @@ export type BootOptions = {
  * resumed prompt. Costs one request + one page load — a spec whose subject
  * lives in the late game stops replaying the game to reach it.
  */
-export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 'venus-trade-delegates' | 'venus-trade-unity' |
+export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 'venus-trade-delegates' | 'venus-trade-unity' | 'venus-trade-unity-bonus' | 'venus-trade-unity-bonus-2p' | 'field-venus-unity-trade' |
   // TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ»: saturated pre-endgame tables (every base score category, the winner not the viewer).
   'finale-rich-5p' | 'finale-rich-2p' | 'finale-rich-bot' |
   // «ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА»: Ants against two players' microbe cards and MarsBot's Enceladus storage.
