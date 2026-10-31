@@ -493,6 +493,51 @@ shelf's `data-played-key`, or the seat «Источник» while its pick stand
 Its «where?» pick after the draw stands INSIDE the start: `playOwesTargetPick` keeps the play claim through every seam
 of the take (PL-1117). Contract: `docs/TURMOIL_REDUX_MEDICAL_INSTITUTE.md`.
 
+## P82 Special Permit — THE IDENTITY OF A RISE (the owner's field report of 2026-10-31, ledger DB)
+
+«Иногда вместе с фактической картой сработавшего эффекта рядом поднимаются ещё ЛЕВЫЕ карты, а иногда карта поднимается
+с левой картой ПОД ней.» The law of the identity of a rise:
+
+34. **ONLY THIS ANSWER'S GROUPS RISE, ONE INSTANCE EACH, AND A LIFT MOVES ONE FACE.** Five pieces, one per cause:
+    - **A group lives ONE answer** (H1 — reproduced on the box before the fix: a standard-project city first, Pets
+      answered it on the city's payout plate — a host that DECLARES its rows and tells the answer itself, never asking
+      for a flight — then P82: the play's scene raised Pets beside Arklight / Decomposers / Media Group). Every attached
+      group carries the apply BLOCK that attached it (`openReactionSeedBlock` at the top of `seedRewardHolds`); a host
+      captures its block beside its declaration (`reactionDeclarationBlock()`) and asks `cardReactionAnswerFlight({block})`
+      — the play's scene (`consolePlayedHero`) and the action commit (`consoleActionCommitRail`), the two that used to
+      ask with no filter. ONE pure question, `reactionAnswerGroups` (`cardReactionModel.ts`): unclaimed, of the host's
+      reservation, of its block, on its rows; with neither a block nor rows — the NEWEST answer only, never every group
+      on record. A group of an earlier block nobody claimed and whose rows nobody holds any more is let go at the next
+      answer, by name (`reaction:expired`, the identity readout's `letGo`) — never silently, never risen later.
+    - **A warm face belongs to ONE group** (H2): warmed under the record's `seq`, taken over by that group's rise only
+      (`seatReactor` by group, never by the card's name), and dropped THE MOMENT the group is decided not to rise at the
+      stage (`dropWarmFacesOf` — lifted in its place, summarized, let go, told by its host). The warming itself stays
+      (iteration 3's decision — no layout in the rise's first frame).
+    - **A lift moves exactly one face** (H3): a hook whose lift target carries ANOTHER card's face hook is no place
+      (`visibleReactorHome` → `otherCardsInside(liftTargetOf(el), card)`); a host whose hook stands on a wrapper marks
+      its face's body `[data-reaction-lift]`. The audit found no such wrapper on today's hosts — the rule makes one
+      impossible tomorrow.
+    - **The place is decided ONCE, and a face is never left raised** (H6/H7): a host flight plans its risers before any
+      rise (`reactionRisers` — a group standing on screen lifts in its place and takes no slot; the others take their
+      OWN slots in order, never `i % slots`; past the last slot a group rises nowhere, its tokens tick, its name stands on
+      `data-reaction-summarized`). The chain and a rival wait for a host flight's faces (`waitAttachedQuiet`), so two
+      sources never share a slot. A cut settles every face lifted in its place; a place whose settle missed its own face
+      (the start shelf looked the face up AGAIN after the card had moved shelf → seat — Medical Institute stayed raised,
+      the only red of the audit's «before») is settled by the director and SAID (`stranded-lift`); the start now settles
+      the face it lifted.
+    - **THE SENTINEL** (`reactionIdentity.ts`): the director DECLARES every reactor before its face moves
+      (`noteReactorRising`) and lets it go after its settle; after every rise and every settle the live DOM is read
+      against the declaration — `foreign-face` · `stacked-faces` (> 20 % of the smaller) · `lift-carries-another` ·
+      `two-instances` · `warm-painted` — and every verdict is said: `[reaction] foreign face — <kind>: <card> at <step>`,
+      every build. The e2e harness turns it red on every spec (`consoleTest.ts`, `armReactionFaceGuard` inside
+      `transferEndsGuard`); `TM_E2E_REACTION_WITNESS=1` arms the page-side WITNESS (`tests/e2e/reactionWitness.ts` —
+      `MutationObserver` + a 16 ms sampler, the same five rules against `__conReady().reaction.declared`) on every page
+      and files `reaction-witness.json` per test — the audit's «before / after».
+    The stand: `console-special-permit.spec.ts` judges the rise against the SERVER — the reactors the director declared
+    for a press are exactly the viewer's records of that response (`B` — three reactors, `C` — against MarsBot, `D` —
+    STALE). What did not reproduce in any scenario (H2 painted, H3, H5, H7) is guarded by the sentinel, not claimed fixed
+    by words.
+
 ## Files
 
 Server: `common/models/CardReactionModel.ts`, `server/events/EventRecorder.ts` (`recordReaction`, the `cause`
