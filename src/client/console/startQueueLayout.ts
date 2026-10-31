@@ -12,7 +12,10 @@
  *     nothing the row carries is ever clipped.
  *  2. THE READING UNDER EACH CARD (S2). Under every corporation / prelude of the queue ONE quiet line: the VERDICT word
  *     (`Можно разыграть` · what a waiting prelude lacks · «Сначала: <пролог>») — never a fact of the face (cost, tags,
- *     effect: the card above prints those). The table's answer rides beside it (the forecast row, drawn by the host).
+ *     effect: the card above prints those) and never the table's answer: that stands ONCE, on the status rail, for the
+ *     focused card (P79 · DI — the line under the card was a second place of one fact, with a second R3 key).
+ *  3. THE LANE OF THE «ЭФФЕКТЫ» LAYER (P79 · DI). R3 on the queue's door opens the layer IN THE QUEUE'S SPACE beside
+ *     the focused card — the hero stands, the panel takes the wider side of the zone (`startQueueFxLane`).
  *
  * Pure: no Vue, no DOM — `tests/console/startQueueLayout.spec.ts` (server runner).
  */
@@ -114,4 +117,44 @@ export function startQueueReading(input: StartQueueReadingInput, translateCard: 
     return {verdict: 'waiting', text: 'First: ${0}', params: [translateCard(risk.enablers[0])], tone: 'wait'};
   }
   return {verdict: 'waiting', text: risk.title, params: [], tone: 'wait'};
+}
+
+/** A viewport rect (`getBoundingClientRect`). */
+export type QueueFxRect = {left: number, top: number, width: number, height: number};
+
+/** The air between the hero and the panel, and between the panel and the zone's edge, in root rem. */
+export const QUEUE_FX_GAP_REM = 1.6;
+export const QUEUE_FX_EDGE_REM = 1;
+/** Below this width (root rem) the explorer takes its narrow composition (the dossier a plate over the list — the
+ *  Deck's forecast form): a dossier column of 21.5 rem beside the list left the list a few words wide. */
+export const QUEUE_FX_NARROW_REM = 50;
+
+export type StartQueueFxLane = {
+  /** The panel's insets inside the zone, in the zone's LOCAL px (CSS `left` / `right`). */
+  left: number;
+  right: number;
+  side: 'left' | 'right';
+  narrow: boolean;
+};
+
+/**
+ * THE LANE beside the HERO (P79 · DI). The layer is a level of the same scene: the focused card — the cause the table
+ * answers — stands where it stands, and the panel opens in the queue's space on the WIDER side of it (a hero at the
+ * row's end leaves the room on the other side). `localScale` converts viewport px into the zone's own px (a `zoom`
+ * ancestor: `offsetWidth / rect.width`). `undefined` when the zone has no width.
+ */
+export function startQueueFxLane(zone: QueueFxRect, hero: QueueFxRect, remPx: number, localScale = 1): StartQueueFxLane | undefined {
+  if (zone.width <= 0) {
+    return undefined;
+  }
+  const k = localScale > 0 ? localScale : 1;
+  const gap = QUEUE_FX_GAP_REM * remPx;
+  const edge = QUEUE_FX_EDGE_REM * remPx;
+  const roomRight = zone.left + zone.width - (hero.left + hero.width);
+  const roomLeft = hero.left - zone.left;
+  const side = roomRight >= roomLeft ? 'right' : 'left';
+  const left = side === 'right' ? (hero.left + hero.width - zone.left) * k + gap : edge;
+  const right = side === 'right' ? edge : (zone.left + zone.width - hero.left) * k + gap;
+  const width = zone.width * k - left - right;
+  return {left: Math.round(left), right: Math.round(right), side, narrow: width < QUEUE_FX_NARROW_REM * remPx};
 }

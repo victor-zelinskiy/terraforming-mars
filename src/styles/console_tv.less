@@ -1350,6 +1350,13 @@ html.con-profile-tv {
         &__statusrail { padding: 0 1.2rem; }
         &__status-name { font-size: 1.15rem; }
         &__status-state { font-size: var(--con-t-secondary); padding: .22rem .85rem; }
+        /* The rail's ONE answer (P79 · DI): the kicker at the couch floor, the chips 1.45 × it. */
+        &__prelude-forecast {
+            --con-chip-c-fs: 1.16rem;
+            --con-chip-c-icon: 1.5rem;
+            .con-forecast__label { font-size: var(--con-t-floor); }
+            .con-forecast__glyph { font-size: var(--con-t-secondary); }
+        }
     }
     /* The REVEAL is a centre-stage reward scene on TV: the received cards
        are the hero object. Every size lives in the profile knobs below —

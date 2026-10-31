@@ -494,9 +494,25 @@ animation restart (the submit is the player's A, latched by `submitting`).
 The focused Prelude of the deployment queue reads «Сработает» on the ceremony status rail (`[data-start-prelude-forecast]`)
 off the forecast `prefetchPlayRewards` already fetches (`playForecasts`); R3 opens the SAME layer of host `'start'`
 (`startForecast` — the first action's briefing while it stands, else the queue's Prelude; `startFxStage` names the tail
-after the stage the door stood on), the queue parks and the shelf steps out under it (`con-start--queuefx`), the bar
-advertises R3 (`queueEffects`). And the deployment does not settle under a table's answer still playing on the shelf
-(PL-1093 — `card-reaction.md` § TR82).
+after the stage the door stood on), the bar advertises R3 (`queueEffects`). And the deployment does not settle under a
+table's answer still playing on the shelf (PL-1093 — `card-reaction.md` § TR82).
+
+**ONE PLACE, ONE PHRASE ONE LEVEL DEEPER (P79 · DI, the owner's frame of 2026-10-31).** The answer stands ONCE on the
+scene — on the rail, for the focused card: the reading line under a queue card carries the verdict only (it had grown a
+second `ConsoleForecastRow`, two R3 keys for one fact). The rail is one line of three zones: the name (the one that
+ellipsizes) · the state pill (gives way next, its own ellipsis) · the answer (never shrinks): the kicker «⚡ СРАБОТАЕТ» in
+quiet tracked caps (TV — the couch floor), the chips ≥ 1.4 × it (`.con-start__prelude-forecast` re-tunes the compact
+chip tokens), the ONE R3 key last. R3 opens the SAME layer instance in the QUEUE's space: the room (`.con-start__fxhost`)
+takes the lane beside the focused prelude (`--queue` + the two insets of `startQueueFxLane`, measured at the press — the
+WIDER side of the hero, the deployment's whole height, so the panel's foot is the rail's top); a lane narrower than 50 rem
+takes the explorer's narrow composition (`--narrow` → `.con-efx-forecast-plate()`, the Deck's dossier-as-a-plate — the
+composition only, the type stays the profile's). The phrase is the composers' (`consoleForecastFocusMotion`), its outside
+parts ARMED by the host (`openForecastHost(…, browse)` → `armForecastDoor`): the rail row's content RELEASES, the queue's
+other blocks and the shelf RECEDE on the timeline (never a CSS class with a transition — `con-start--queuefx` is a state
+marker only), the panel UNFOLDS from the row's own span seeded on its foot right over the rail (`seedInside` — the clip
+never paints outside the panel), the zones cascade; B / R3 — the same timeline back, the row's content returning where the
+panel went in. The hero (`[data-forecast-hero]`), the rail, the crumb's root and the bar's frame never move. The first
+action keeps its own room and door. Witness: e2e `console-start-forecast-door` (fhd · tv4k · deck).
 
 ## THE DEPLOYMENT AT ONE GLANCE (TRP0 · DE, 2026-10-31)
 
@@ -511,9 +527,9 @@ flights, the directors, the latches) is untouched:
    `.con-start__queue` and publishes `--con-start-qzoom` (+ `.con-start__queue--solved`); never during a hero flight.
 2. **A reading line under every corporation / prelude** (`startQueueReading` → `[data-qcard-reading]`,
    `data-qcard-verdict` = playable · waiting · lost · none): the verdict WORD (`Можно разыграть` · what a waiting prelude
-   lacks · «Сначала: <пролог>» with exactly one enabler) and the table's answer (`ConsoleForecastRow` from the same preview
-   forecast the focused rail reads). Never a fact of the face. Absolute under the card's foot, counter-zoomed to root rem,
-   the same in every focus state; the pinned rail keeps the focused card's full formula.
+   lacks · «Сначала: <пролог>» with exactly one enabler). Never a fact of the face and never the table's answer (P79 · DI
+   — it stands once, on the rail; the section above). Absolute under the card's foot, counter-zoomed to root rem, the same
+   in every focus state.
 3. **The shelf's empty place is a SOCKET** — one hairline in the shelf's tone, no dashed box, no light pool; the same
    geometry (it is the landing a flight measures). The family cap prints no «0».
 4. **The hero by size** — the focused card `scale(1.06)` from its foot (the cursor clock), never on a departing card; its

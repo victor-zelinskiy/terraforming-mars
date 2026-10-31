@@ -507,6 +507,14 @@ offers «R3 Эффекты» only while `fleetDockUi.forecastAvailable`. A sub-s
 (the lanes, the mix, the target step) and the commit boundary fold it
 instantly; the stage's unmount closes it. The motion hooks find their host by
 `[data-forecast-host]` (the stage declares itself) before `.con-composer`.
+A host whose DOOR and whose layers to park live OUTSIDE its own box arms them at the press — `openForecastHost(host,
+root, colors, view, browse)` → `armForecastDoor({row, browse})` (one-shot, 1 s): the phrase releases that row, recedes
+every armed layer on its own timeline and, since the unfold's clip never paints outside the panel, seeds the opening on
+the panel's nearest edge right over the row (`seedInside`); the leave restores exactly what the enter parked and returns
+an in-view row's content where the panel went in. Host `start` has TWO ROOMS, ONE PANEL (P79 · DI): the first action's
+door opens beside the seated corporation, the queue's door (`[data-start-prelude-forecast]` on the status rail) in the
+lane beside the focused prelude (`startQueueFxLane`), its neighbours and the shelf parked —
+`docs/claude/console/start-first-action.md` § THE QUEUE'S PRELUDE IS A FORECAST DOOR TOO.
 `operation="action"` — an immediate reaction reads «сразу после выполнения».
 Guards: `ConsoleFleetDockStage.spec` § the R3 «Эффекты» layer, the e2e
 `console-unmi-liner` (R3 → the layer inside the stage → B → the stage intact).

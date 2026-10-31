@@ -3045,6 +3045,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'ishtar-expedition' | 'ishtar-expedition-locked' |
   // P85 Summit Logistics — the first POLITICAL Prelude 2 card: the Scientists rule, a two-term count, steel + titanium · locked «0 of 2».
   'summit-logistics' | 'summit-logistics-locked' |
+  // P79 Microgravity Nutrition — a counted production declaration: 2 colonies → the hand plate «+2», M€ production 0 → 2.
+  'microgravity-nutrition' |
   // Prelude 2 P72 Envoys from Venus — the first EVENT whose whole play is a delegate grant (CZ): 3 Venus tags (Venus Governor ·
   // Dirigibles), a government outside the voting area, reserve 6 · red already on the first resolution (the pair turns the lead) · locked at 2.
   'envoys-from-venus' | 'envoys-from-venus-overtake' | 'envoys-from-venus-locked' |

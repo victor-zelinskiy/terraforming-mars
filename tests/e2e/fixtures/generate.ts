@@ -9695,6 +9695,46 @@ function ishtarExpeditionFixture(name: string, venus: 8 | 10): void {
 ishtarExpeditionFixture('ishtar-expedition', 10);
 ishtarExpeditionFixture('ishtar-expedition-locked', 8);
 
+// ── P79 · MICROGRAVITY NUTRITION — the SEVENTEENTH Prelude 2 card (the stand `console-microgravity-nutrition`): «+1 M€
+//    production per colony you have» — a counted production DECLARATION. A 2p Redux (Colonies mandatory) + Prelude 2
+//    table (Teractor · ThorGate), blue on the move with P79 MOVED out of the dealt pool into the hand, blue's cubes on the
+//    first TWO colony tiles (seated directly — no build bonus), red's on the third, 20 M€: the hand plate «+2», «РАСЧЁТ»
+//    «Ваши колонии: 2»; a DRY RUN on a copy proves the play: M€ production +2. ──
+function microgravityNutritionFixture(name: string): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {prelude2Expansion: true, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, p2}) => {
+      const [a, b, c] = game.colonies;
+      for (const [tile, owner] of [[a, p1], [b, p1], [c, p2]] as const) {
+        tile.isActive = true;
+        tile.colonies.push(owner.id);
+      }
+      moveToDeckTop(game, CardName.MICROGRAVITY_NUTRITION);
+      p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+    },
+    expect: ({game, p1, parliament}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.MICROGRAVITY_NUTRITION);
+      const playable = card !== undefined && p1.canPlay(card) !== false;
+      if (card === undefined || !playable || p1.getColoniesCount() !== 2 || game.activePlayer.id !== p1.id) {
+        throw new Error(`the ${name} fixture expected P79 playable in blue's hand with 2 colonies and blue on the move — got card=${card !== undefined} playable=${playable} colonies=${p1.getColoniesCount()}`);
+      }
+      parliament.assertLedger(game);
+      // THE DRY RUN — the real play on a copy.
+      const copy = Game.deserialize(structuredClone(game.serialize()));
+      const blue = copy.getPlayerById(p1.id);
+      const production = blue.production.megacredits;
+      blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.MICROGRAVITY_NUTRITION)!, Payment.of({megacredits: 11}));
+      runAllActions(copy);
+      if (blue.production.megacredits !== production + 2 || blue.megaCredits !== 9) {
+        throw new Error(`the ${name} fixture expected M€ production +2 and 9 M€ after the play — got ${production} → ${blue.production.megacredits} / ${blue.megaCredits}`);
+      }
+    },
+  });
+}
+microgravityNutritionFixture('microgravity-nutrition');
+
 // ── P85 · SUMMIT LOGISTICS — the SECOND Prelude 2 card and the FIRST POLITICAL one (docs/claude/prompts/prelude2-p85-
 //    summit-logistics.md): «requires the Scientists ruling or 2 of your delegates there; 1 M€ per planet tag and per
 //    colony you have; draw 2». A 2p Redux + Prelude 2 table (Teractor · ThorGate), blue on the move with P85 MOVED out

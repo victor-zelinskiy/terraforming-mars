@@ -28911,7 +28911,6 @@ body.con-start-barshold .con-status {
         &--wait { color: fade(@con-amber, 92%); }
         &--loss { color: #ffb4a8; }
     }
-    &__qread-answer { font-size: .78rem; }
     /* THE A PILL BY THE PROFILE'S TOKENS (S4): once the size is solved the pill is counter-zoomed to root rem — one
        legible size on every profile, never the card's zoom squared. Its role and anchor (the risk stage's face) stay. */
     .con-start__queue--solved .con-start__qcard .con-start__slot-a {
@@ -29233,6 +29232,15 @@ body.con-start-barshold .con-status {
 
         > * { pointer-events: auto; }
     }
+    /* THE QUEUE'S DOOR (P79 · DI): the same room in the QUEUE'S space — the lane beside the focused prelude (the hero
+       stands), measured at the press (`startQueueFxLane` → the two insets), the whole height of the deployment: the
+       panel's foot is the status rail's top, its head the queue's. A lane too narrow for the dossier beside the list
+       takes the explorer's narrow composition (the Deck's forecast plate — `.con-efx-forecast-plate()`). */
+    &__fxhost--queue {
+        left: var(--con-start-qfx-l, 1rem);
+        right: var(--con-start-qfx-r, 1rem);
+    }
+    &__fxhost--narrow .con-efx.con-efx--forecast { .con-efx-forecast-plate(); }
     &__firstact {
         position: absolute;
         left: 0;
@@ -29387,17 +29395,25 @@ body.con-start-barshold .con-status {
         margin-left: auto;
     }
     &__status-state + &__status-answer { margin-left: .8rem; }
-    /* …and while its layer stands the queue PARKS beneath (opacity only — the composers' browse column phrase). */
-    &--queuefx &__queue {
-        opacity: .16;
-        transition: opacity calc(160ms * var(--motion-scale, 1)) ease-out;
+    /* THE ONE PLACE OF THE ANSWER (P79 · DI): the kicker «⚡ СРАБОТАЕТ» quiet tracked caps, the chips the loudest thing
+       on the right (≥ 1.4 × the kicker), the ONE R3 key last. The state pill gives way before it (an ellipsis in its
+       own box); the answer itself never shrinks. While its layer stands the queue's other blocks and the shelf park on
+       the phrase's own timeline (`consoleForecastFocusMotion` — never a CSS class with a transition). */
+    &__prelude-forecast {
+        flex-wrap: nowrap;
+        gap: .4rem;
+        --con-chip-c-fs: .95rem;
+        --con-chip-c-icon: 1.2rem;
+        .con-forecast__label {
+            font-size: .66rem;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: @con-text-dim;
+        }
+        .con-forecast__chips { flex-wrap: nowrap; }
     }
-    /* …and the SHELF steps out entirely: it stands in the layer's room (its cards painted over the dossier's text at
-       4K), and nothing of it is the door's business. Opacity only — its boxes stay the flights' anchors. */
-    &--queuefx &__played {
-        opacity: 0;
-        transition: opacity calc(160ms * var(--motion-scale, 1)) ease-out;
-    }
+    &__status-state:has(+ .con-start__status-answer) { flex-shrink: 1; min-width: 0; }
     &__firstact-warn {
         display: flex;
         align-items: flex-start;
@@ -37602,24 +37618,31 @@ html.con-profile-handheld .con-efx {
        (name + group + the five questions, no card face) so the tile grid
        keeps the room; the panel itself never scrolls past the band. */
     &.con-efx--forecast {
-        .con-efx__body { flex-direction: column; gap: .4rem; }
-        /* Natural height for the five questions (the list below scrolls);
-           a cap here cut «КОГДА» off the plate at the Deck's smaller rem. */
-        .con-efx__detail { flex: 0 0 auto; max-height: none; padding: .4rem .5rem; gap: .25rem; }
-        .con-efx__detail-cardwrap { display: none; }
-        .con-efx__detail-rule, .con-efx__detail-count { display: none; }
-        /* Three lines on the plate — ЧТО · ПОЧЕМУ · КОГДА; the condition and
-           the recipient wait for the detail stage (five lines pushed the
-           groups under the scroll on the Deck). The plate's height is
-           content-sized, so the browse grid gets the room back. */
-        .con-efx__detail .con-efx__fq-row--condition,
-        .con-efx__detail .con-efx__fq-row--whom { display: none; }
-        .con-efx__fq { padding: .3rem .4rem; gap: .2rem; }
+        .con-efx-forecast-plate();
         .con-efx__fq-row { grid-template-columns: 3.6rem minmax(0, 1fr); }
         .con-efx__fq-value { font-size: .68rem; }
         .con-efx__order-step { font-size: .66rem; }
         .con-efx__tile-src { font-size: .68rem; }
     }
+}
+
+/* THE NARROW FORECAST COMPOSITION — the Deck's, and any host whose lane is too narrow for the dossier BESIDE the list
+   (the start queue's door, P79 · DI). The COMPOSITION only — one definition, so the two can never drift; the type
+   sizes stay each profile's own (the Deck shrinks them above, a TV lane keeps the couch floor). */
+.con-efx-forecast-plate() {
+    .con-efx__body { flex-direction: column; gap: .4rem; }
+    /* Natural height for the five questions (the list below scrolls);
+       a cap here cut «КОГДА» off the plate at the Deck's smaller rem. */
+    .con-efx__detail { flex: 0 0 auto; max-height: none; padding: .4rem .5rem; gap: .25rem; }
+    .con-efx__detail-cardwrap { display: none; }
+    .con-efx__detail-rule, .con-efx__detail-count { display: none; }
+    /* Three lines on the plate — ЧТО · ПОЧЕМУ · КОГДА; the condition and
+       the recipient wait for the detail stage (five lines pushed the
+       groups under the scroll on the Deck). The plate's height is
+       content-sized, so the browse grid gets the room back. */
+    .con-efx__detail .con-efx__fq-row--condition,
+    .con-efx__detail .con-efx__fq-row--whom { display: none; }
+    .con-efx__fq { padding: .3rem .4rem; gap: .2rem; }
 }
 
 /* Large / 4K — a gentle readability boost only. The workspace HEADER's own

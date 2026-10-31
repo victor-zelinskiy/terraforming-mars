@@ -17,6 +17,13 @@
  * command bar stand still; the column is parked (`autoAlpha`), never
  * unmounted, so the payment, the chosen branch and the cursor survive the
  * trip by construction.
+ *
+ * A host whose door and whose parked layers live OUTSIDE its own box (the
+ * start's deployment — P79 · DI: the door on the status rail below, the queue
+ * cards beside the hero and the shelf to park) ARMS them with the rect
+ * (`armForecastDoor`): the phrase then releases that row, recedes those
+ * layers and — the panel's clip never paints outside its own box — seeds the
+ * unfold on the panel's edge right over the row, so the panel grows OUT of it.
  */
 
 import {gsap} from 'gsap';
@@ -67,6 +74,25 @@ export function armForecastRow(rect: {left: number, top: number, width: number, 
   }
 }
 
+/** A door armed by its host (P79 · DI): the pressed row's element and the layers to park, one-shot — consumed by the
+ *  NEXT enter, expired after 1 s like the armed rects, so a stale arm never reaches a composer's phrase. */
+let armedDoor: {row: HTMLElement | undefined, browse: ReadonlyArray<HTMLElement>, at: number} | undefined;
+const DOOR_ARM_TTL_MS = 1000;
+
+export function armForecastDoor(door: {row: HTMLElement | undefined, browse: ReadonlyArray<HTMLElement>}): void {
+  armedDoor = {...door, at: Date.now()};
+}
+
+function takeArmedDoor(): {row: HTMLElement | undefined, browse: ReadonlyArray<HTMLElement>} | undefined {
+  const door = armedDoor;
+  armedDoor = undefined;
+  return door !== undefined && Date.now() - door.at <= DOOR_ARM_TTL_MS ? door : undefined;
+}
+
+/** What the last enter released and parked — the leave restores exactly those (an armed host's layers are not
+ *  re-findable from the layer: they live outside its host). */
+let entered: {row: HTMLElement | null, browse: ReadonlyArray<HTMLElement>} | undefined;
+
 /** The rect the layer's panel unfolded FROM — the fold's destination. */
 let unfoldedFrom: {rect: {left: number, top: number, width: number, height: number}, radius: number | undefined} | undefined;
 
@@ -80,6 +106,8 @@ export function armForecastInstantFold(): void {
 export function resetForecastFocusMotion(): void {
   unfoldedFrom = undefined;
   instantFold = false;
+  armedDoor = undefined;
+  entered = undefined;
 }
 
 // ── element resolution ──────────────────────────────────────────────────────
@@ -100,9 +128,46 @@ function rowOf(el: Element): HTMLElement | null {
   return composerOf(el)?.querySelector<HTMLElement>('[data-forecast-row]') ?? null;
 }
 
-function rowContentOf(el: Element): Array<HTMLElement> {
-  const row = rowOf(el);
+function rowContentOf(row: HTMLElement | null): Array<HTMLElement> {
   return row === null ? [] : Array.from(row.children) as Array<HTMLElement>;
+}
+
+/** The parked layers of this layer's episode: what the enter remembered, else the host's own work column. */
+function parkedOf(el: Element): ReadonlyArray<HTMLElement> {
+  if (entered !== undefined) {
+    return entered.browse;
+  }
+  const browse = browseOf(el);
+  return browse === null ? [] : [browse];
+}
+
+function releasedRowOf(el: Element): HTMLElement | null {
+  return entered !== undefined ? entered.row : rowOf(el);
+}
+
+type Rect = {left: number, top: number, width: number, height: number};
+
+/**
+ * The unfold's seed INSIDE the panel's box. The clip never paints outside the panel, so a door standing OUTSIDE it
+ * (the start's status rail, under the deployment) would open from nothing: the seed is the row's own size, slid onto
+ * the panel's nearest edge right over the row — the panel visibly grows OUT of it. A row that meets the box (every
+ * composer's) is returned untouched.
+ */
+export function seedInside(row: Rect, box: Rect): Rect {
+  const meets = row.left < box.left + box.width && row.left + row.width > box.left &&
+    row.top < box.top + box.height && row.top + row.height > box.top;
+  if (meets || box.width <= 0 || box.height <= 0) {
+    return row;
+  }
+  const width = Math.min(row.width, box.width);
+  const height = Math.min(row.height, box.height);
+  const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+  return {
+    left: clamp(row.left, box.left, box.left + box.width - width),
+    top: clamp(row.top, box.top, box.top + box.height - height),
+    width,
+    height,
+  };
 }
 
 /** The layer's panel — the unfold surface. */
@@ -127,11 +192,10 @@ function s(ms: number): number {
 
 /** Restore the parked column + the released row content to rest. */
 function restoreBrowse(el: Element): void {
-  const browse = browseOf(el);
-  if (browse !== null) {
+  for (const browse of parkedOf(el)) {
     gsap.set(browse, {autoAlpha: 1, clearProps: 'transform,opacity,visibility'});
   }
-  const content = rowContentOf(el);
+  const content = rowContentOf(releasedRowOf(el));
   if (content.length > 0) {
     gsap.set(content, {clearProps: 'transform,opacity,visibility'});
   }
@@ -145,19 +209,23 @@ export function forecastFocusEnterHook(el: Element, done: () => void): void {
     done();
     return;
   }
-  const browse = browseOf(el);
+  const door = takeArmedDoor();
+  const row = door?.row ?? rowOf(el);
+  const parked: ReadonlyArray<HTMLElement> = door !== undefined ? door.browse : [browseOf(el)].filter((b): b is HTMLElement => b !== null);
+  entered = {row, browse: parked};
   const surface = surfaceOf(el);
   const items = cascadeItemsOf(el);
-  const content = rowContentOf(el);
-  const row = rowOf(el);
-  const rowRect = takeDescendRect(ROW_KEY) ?? descendRectOf(row);
+  const content = rowContentOf(row);
+  const armedRect = takeDescendRect(ROW_KEY) ?? descendRectOf(row);
+  const surfaceRect = surface === null ? undefined : descendRectOf(surface);
+  const rowRect = armedRect === undefined || surfaceRect === undefined ? armedRect : seedInside(armedRect, surfaceRect);
   const rowRadius = descendRadiusOf(row);
   unfoldedFrom = rowRect === undefined ? undefined : {rect: rowRect, radius: rowRadius};
 
   if (consoleReducedMotionActive()) {
     guardedDescend(el, 160, done, (finish) => {
-      if (browse !== null) {
-        gsap.set(browse, {autoAlpha: 0});
+      if (parked.length > 0) {
+        gsap.set(parked, {autoAlpha: 0});
       }
       return gsap.fromTo(el, {autoAlpha: 0}, {autoAlpha: 1, duration: 0.1, ease: 'power1.out', clearProps: 'opacity,visibility', onComplete: finish});
     });
@@ -170,8 +238,8 @@ export function forecastFocusEnterHook(el: Element, done: () => void): void {
     // 1. RELEASE — the row's own content dissolves where it stands (the
     //    commit pulse plays under it through the CSS `--descend` class).
     descendRelease(tl, content, s(RELEASE_MS), 0);
-    // 2. The work column RECEDES into the press point.
-    if (browse !== null) {
+    // 2. The work column RECEDES into the press point (every layer an armed host parks — the same beat).
+    for (const browse of parked) {
       descendRecede(tl, browse, pressPoint, s(BROWSE_OUT_MS), s(40));
     }
     // 3. UNFOLD — the layer's panel opens FROM the row's rect.
@@ -197,31 +265,44 @@ export function forecastFocusLeaveHook(el: Element, done: () => void): void {
     killDescendEpisode(el);
     unfoldedFrom = undefined;
     restoreBrowse(el);
+    entered = undefined;
     done();
     return;
   }
-  const browse = browseOf(el);
+  const parked = parkedOf(el);
   const surface = surfaceOf(el);
   const items = cascadeItemsOf(el);
-  const content = rowContentOf(el);
+  const row = releasedRowOf(el);
+  const content = rowContentOf(row);
   const home = unfoldedFrom;
   unfoldedFrom = undefined;
-
-  // The row's content comes back with the column (it was released, not
-  // moved) — restoring it now is invisible: the column is still receded.
-  if (content.length > 0) {
+  // The episode's memory lives to the leave's END: a cancelled leave re-parks exactly these layers.
+  const finishLeave = () => {
+    entered = undefined;
+    done();
+  };
+  // A door OUTSIDE the host (the start's status rail) stays in plain view while the panel folds into it: its content
+  // comes back AT the fold's end — the panel went back into the row. A composer's row sits under its receded column,
+  // where restoring it now is invisible.
+  const rowInView = row !== null && composerOf(el)?.contains(row) !== true;
+  if (content.length > 0 && !rowInView) {
     gsap.set(content, {clearProps: 'transform,opacity,visibility'});
   }
 
   if (consoleReducedMotionActive()) {
-    guardedDescend(el, 140, done, (finish) => {
-      restoreBrowse(el);
+    guardedDescend(el, 140, finishLeave, (finish) => {
+      for (const browse of parked) {
+        gsap.set(browse, {autoAlpha: 1, clearProps: 'transform,opacity,visibility'});
+      }
+      if (content.length > 0) {
+        gsap.set(content, {clearProps: 'transform,opacity,visibility'});
+      }
       return gsap.to(el, {autoAlpha: 0, duration: 0.1, ease: 'power1.in', onComplete: finish});
     });
     return;
   }
 
-  guardedDescend(el, FOLD_MS + BROWSE_IN_MS + 140, done, (finish) => {
+  guardedDescend(el, FOLD_MS + BROWSE_IN_MS + 140, finishLeave, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
     // 1. The zones let go in place.
     descendCascadeOut(tl, items, s(CASCADE_OUT_MS), 0);
@@ -230,8 +311,12 @@ export function forecastFocusLeaveHook(el: Element, done: () => void): void {
       descendFold(tl, surface, home?.rect, s(FOLD_MS), s(50), home?.radius);
     tl.to(el, {autoAlpha: 0, duration: s(folded ? 90 : 110), ease: 'power2.in'}, s(folded ? FOLD_MS - 20 : 0));
     // 3. The work column BREATHES BACK from the press point.
-    if (browse !== null) {
+    for (const browse of parked) {
       descendReturn(tl, browse, s(BROWSE_IN_MS), s(40));
+    }
+    // 4. …and an in-view door takes its content back where the panel went in.
+    if (content.length > 0 && rowInView) {
+      tl.fromTo(content, {autoAlpha: 0}, {autoAlpha: 1, duration: s(RELEASE_MS), ease: 'power1.out', clearProps: 'transform,opacity,visibility'}, s(FOLD_MS));
     }
     return tl;
   });
@@ -247,11 +332,10 @@ export function forecastFocusLeaveCancelledHook(el: Element): void {
   killDescendEpisode(el);
   // A cancelled leave means the layer STAYS — re-park the column and the
   // released row content (the enter hook's end state).
-  const browse = browseOf(el);
-  if (browse !== null) {
+  for (const browse of parkedOf(el)) {
     descendParkLayer(browse);
   }
-  const content = rowContentOf(el);
+  const content = rowContentOf(releasedRowOf(el));
   if (content.length > 0) {
     gsap.set(content, {autoAlpha: 0});
   }

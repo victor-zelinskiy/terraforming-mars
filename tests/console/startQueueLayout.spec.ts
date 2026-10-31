@@ -1,8 +1,9 @@
 import {expect} from 'chai';
 import {CardName} from '../../src/common/cards/CardName';
 import {
-  QUEUE_MAX_ZOOM, QUEUE_MIN_ZOOM, startQueueLayout, startQueueReading,
+  QUEUE_FX_EDGE_REM, QUEUE_FX_GAP_REM, QUEUE_MAX_ZOOM, QUEUE_MIN_ZOOM, startQueueFxLane, startQueueLayout, startQueueReading,
 } from '../../src/client/console/startQueueLayout';
+import {seedInside} from '../../src/client/console/consoleForecastFocusMotion';
 import {preludeRisk} from '../../src/client/console/startPreludeRisk';
 
 /**
@@ -70,5 +71,67 @@ describe('startQueueReading — the line under every queue card', () => {
     const reading = startQueueReading({kind: 'prelude', playable: true, risk: final}, name);
     expect(reading).deep.include({verdict: 'lost', tone: 'loss', text: final?.title});
     expect(reading.text).not.eq(final?.badge);
+  });
+});
+
+/**
+ * P79 · DI — «СРАБОТАЕТ» ON THE PRELUDES' DEPLOYMENT: the layer opens in the QUEUE's space beside the hero (the focused
+ * card stands; the panel takes the wider side), and its unfold is seeded on the panel's edge right over the rail's row.
+ */
+describe('startQueueFxLane — the «Эффекты» lane beside the hero (P79 · DI)', () => {
+  const REM = 40;
+  const zone = {left: 500, top: 300, width: 3200, height: 1500};
+
+  it("a centred hero: the panel opens on its right, the hero's box never covered", () => {
+    const hero = {left: 1800, top: 400, width: 600, height: 900};
+    const lane = startQueueFxLane(zone, hero, REM)!;
+    expect(lane.side).eq('right');
+    expect(lane.left).eq(hero.left + hero.width - zone.left + QUEUE_FX_GAP_REM * REM);
+    expect(lane.right).eq(QUEUE_FX_EDGE_REM * REM);
+    expect(zone.left + lane.left, 'the panel starts past the hero').greaterThan(hero.left + hero.width);
+  });
+
+  it("a hero at the row's right end: the panel takes the LEFT side (the wider room)", () => {
+    const hero = {left: 3000, top: 400, width: 600, height: 900};
+    const lane = startQueueFxLane(zone, hero, REM)!;
+    expect(lane.side).eq('left');
+    expect(lane.left).eq(QUEUE_FX_EDGE_REM * REM);
+    expect(zone.left + zone.width - lane.right, 'the panel ends before the hero').lessThan(hero.left);
+  });
+
+  it('narrow when the lane cannot hold the dossier beside the list (< 50 rem); wide otherwise', () => {
+    expect(startQueueFxLane(zone, {left: 1800, top: 0, width: 600, height: 900}, REM)!.narrow, '≈ 31 rem').is.true;
+    expect(startQueueFxLane(zone, {left: 560, top: 0, width: 400, height: 900}, REM)!.narrow, '≈ 74 rem').is.false;
+  });
+
+  it("a zoomed zone: the insets are in the zone's own px", () => {
+    const hero = {left: 1800, top: 400, width: 600, height: 900};
+    const plain = startQueueFxLane(zone, hero, REM)!;
+    const zoomed = startQueueFxLane(zone, hero, REM, 0.5)!;
+    expect(zoomed.left).eq(Math.round((hero.left + hero.width - zone.left) * 0.5 + QUEUE_FX_GAP_REM * REM));
+    expect(zoomed.left).lessThan(plain.left);
+  });
+
+  it('a zone with no width has no lane', () => {
+    expect(startQueueFxLane({...zone, width: 0}, {left: 0, top: 0, width: 10, height: 10}, REM)).is.undefined;
+  });
+});
+
+describe('seedInside — the unfold grows OUT of a row standing outside the panel (P79 · DI)', () => {
+  const panel = {left: 1000, top: 200, width: 1200, height: 1400};
+
+  it("a row on the rail BELOW the panel: its own size, on the panel's foot, at its own x", () => {
+    const row = {left: 1800, top: 1640, width: 300, height: 60};
+    expect(seedInside(row, panel)).deep.eq({left: 1800, top: 1540, width: 300, height: 60});
+  });
+
+  it("a row reaching past the panel's side: slid inside, never wider than the panel", () => {
+    expect(seedInside({left: 2100, top: 1700, width: 400, height: 60}, panel)).deep.eq({left: 1800, top: 1540, width: 400, height: 60});
+    expect(seedInside({left: 0, top: 1700, width: 5000, height: 60}, panel).width).eq(1200);
+  });
+
+  it('a row that meets the panel (every composer\'s): untouched', () => {
+    const row = {left: 1100, top: 900, width: 300, height: 60};
+    expect(seedInside(row, panel)).eq(row);
   });
 });

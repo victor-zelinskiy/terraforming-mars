@@ -473,7 +473,8 @@
                          'con-deal-hold': queueArriving.has(entry.name) || heroDepartedName === entry.name || deal.isHeld(entry.name + '#' + entry.dealIdx),
                        }"
                        :data-zoom-slot="entry.name"
-                       :data-queue-slot="entry.name">
+                       :data-queue-slot="entry.name"
+                       :data-forecast-hero="queueForecastCard === entry.name ? '' : undefined">
                     <Card :card="{name: entry.name}" :key="entry.name" lightweight />
                     <span v-if="entry.badge !== undefined" class="con-cards__pickband" :class="entry.badgeClass">{{ $t(entry.badge) }}</span>
                     <div v-if="entry.reason !== undefined" class="con-cards__reason">{{ $t(entry.reason) }}</div>
@@ -492,16 +493,15 @@
                       <span>{{ riskStage !== undefined && riskArmed === entry.name ? $t(riskStage.commitLabel) : $t(entry.verb) }}</span>
                     </div>
                     <!-- THE READING LINE (TRP0 · DE — S2): under EVERY corporation / prelude of the queue, one quiet line —
-                         the verdict word and what the table answers to the play — so two preludes compare at a glance
-                         without walking the focus. Never a fact of the face (the card above prints those); absolute
-                         under the card (its room is the solver's reserve), the same in every focus state: a d-pad walk
-                         changes the kant and the hero's scale, never a line. -->
+                         the VERDICT word, so two preludes compare at a glance without walking the focus. Never a fact
+                         of the face (the card above prints those) and never the table's answer (P79 · DI — it stands
+                         ONCE, on the status rail, for the focused card: two places for one fact were two R3 keys);
+                         absolute under the card (its room is the solver's reserve), the same in every focus state: a
+                         d-pad walk changes the kant and the hero's scale, never a line. -->
                     <div v-if="entry.reading !== undefined" class="con-start__qread"
                          data-qcard-reading :data-qcard-verdict="entry.reading.verdict">
                       <span v-if="entry.reading.text !== undefined" class="con-start__qread-verdict"
                             :class="'con-start__qread-verdict--' + entry.reading.tone">{{ queueReadingText(entry.reading) }}</span>
-                      <ConsoleForecastRow v-if="queueAnswerShown(entry.name)" class="con-start__qread-answer"
-                                          :forecast="playForecasts.get(entry.name)" :caption="false" />
                     </div>
                   </div>
 
@@ -694,8 +694,17 @@
               <!-- THE «ЭФФЕКТЫ» ROOM (R3 — TR81): the briefing's «Сработает» row is the DOOR of the effects layer,
                    a LEVEL inside this stage (the forecast's law 9 — the stages' own phrase, `consoleForecastHost.ts`):
                    the briefing parks in place (`data-forecast-browse`), the explorer unfolds out of the row into the
-                   room beside the seat, B / R3 fold it back; the seat stays — the corporation is what it is about. -->
-              <div class="con-start__fxhost" data-forecast-host>
+                   room beside the seat, B / R3 fold it back; the seat stays — the corporation is what it is about.
+                   THE QUEUE'S DOOR (P79 · DI) opens the SAME layer in the queue's own space: the room becomes the lane
+                   beside the focused prelude (`queueFxLane`, measured at the press), the prelude stands as the hero,
+                   its neighbours and the shelf park on the phrase's own timeline, and the panel grows up OUT of the
+                   status rail's row. -->
+              <div class="con-start__fxhost" data-forecast-host
+                   :class="{
+                     'con-start__fxhost--queue': queueFxLane !== undefined && !firstActionPanelShown,
+                     'con-start__fxhost--narrow': queueFxLane !== undefined && !firstActionPanelShown && queueFxLane.narrow,
+                   }"
+                   :style="queueFxLane !== undefined && !firstActionPanelShown ? {'--con-start-qfx-l': queueFxLane.left + 'px', '--con-start-qfx-r': queueFxLane.right + 'px'} : undefined">
               <ConsoleForecastLayer ref="forecastLayer"
                                     host="start"
                                     :operation="firstActionPanelShown ? 'action' : 'play'"
@@ -980,7 +989,9 @@
             <span v-if="ceremonyStatusText !== ''" class="con-start__status-state">{{ ceremonyStatusText }}</span>
             <!-- WHAT THE TABLE ANSWERS to the focused Prelude's play (TR82 — the play preview carries the forecast, law
                  8): «Сработает» with the R3 key — the DOOR of the «Эффекты» layer (law 9). Proteus answers the second
-                 Prelude whose tag matches the first here, before the press. -->
+                 Prelude whose tag matches the first here, before the press. The ONE place of the answer on the scene
+                 (P79 · DI): the rail's right end — a quiet tracked-caps kicker, the chips louder than it, the ONE R3
+                 key last; it never shrinks (the name and the state give way first). -->
             <span v-if="queueForecastShown" class="con-start__status-answer" data-start-prelude-forecast :key="'fx' + (queueForecastCard ?? '')">
               <ConsoleForecastRow class="con-start__prelude-forecast" :class="{'con-forecast--descend': forecastPulse}"
                                   :forecast="queueForecast" @open="openQueueForecast()" />
@@ -1273,7 +1284,7 @@ import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZ
 import {applyDiscardExit, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {StartQueueReading, startQueueLayout, startQueueReading} from '@/client/console/startQueueLayout';
+import {StartQueueFxLane, StartQueueReading, startQueueFxLane, startQueueLayout, startQueueReading} from '@/client/console/startQueueLayout';
 import {readingText} from '@/client/console/readingText';
 import {nearestInDirection, rowFitZoom, gridFitPlan} from '@/client/console/consoleStartNav';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -1646,6 +1657,9 @@ export default defineComponent({
       /** The «Сработает» door's one-shot COMMIT flare (`pulseForecastDoor`) and its plain handle. */
       forecastPulse: false,
       forecastPulseCall: undefined as {kill: () => void} | undefined,
+      /** The «Эффекты» room's lane when the QUEUE's door opened it (P79 · DI — measured at the press, beside the hero);
+       *  it outlives the layer so the fold plays in the same room. */
+      queueFxLane: undefined as StartQueueFxLane | undefined,
       /** Fetched first-action previews by corp (`has(name)` = fetch settled) —
        *  the briefing's result chips / warnings / follow-up notes. (The stage
        *  MACHINE lives in `consoleStartState.firstAct` — it must survive the
@@ -5183,10 +5197,6 @@ export default defineComponent({
     queueReadingText(reading: StartQueueReading): string {
       return reading.text === undefined ? '' : readingText({label: reading.text, params: reading.params});
     },
-    /** What the table answers to this card's play stands under it (the same preview's forecast the focused rail reads). */
-    queueAnswerShown(name: CardName): boolean {
-      return forecastRowPresent(this.playForecasts.get(name));
-    },
     /**
      * THE QUEUE'S BOX → THE CARD'S ZOOM (TRP0 · DE — S1). Observes `.con-start__queue` (re-attached when the ceremony
      * mounts a new one) and solves `startQueueLayout` from its box, the row's other blocks (measured) and the number of
@@ -8543,7 +8553,11 @@ export default defineComponent({
       }, this.forecastPulseCall);
       openForecastHost('start', this.$el as HTMLElement | undefined, this.firstActionForecastOwners, this.playerView);
     },
-    /** R3 / a click on the focused Prelude's «Сработает» row — the same layer, the same room, the queue's own door (TR82). */
+    /**
+     * R3 / a click on the focused Prelude's «Сработает» row (TR82) — the same layer, a level of the SAME scene (P79 · DI):
+     * the room becomes the lane beside the hero (`startQueueFxLane`, measured now, before the layer mounts), the queue's
+     * other blocks and the shelf are named as the layers to park, and the panel grows up out of the rail's row.
+     */
     openQueueForecast(): void {
       if (!this.queueForecastCanOpen || this.firstActionFxOpen) {
         return;
@@ -8551,8 +8565,19 @@ export default defineComponent({
       this.forecastPulseCall = pulseForecastDoor((on) => {
         this.forecastPulse = on;
       }, this.forecastPulseCall);
-      const row = (this.$el as HTMLElement | undefined)?.querySelector?.<HTMLElement>('[data-start-prelude-forecast]') ?? undefined;
-      openForecastHost('start', row, this.startForecastOwners, this.playerView);
+      const root = this.$el as HTMLElement | undefined;
+      const door = root?.querySelector?.<HTMLElement>('[data-start-prelude-forecast]') ?? undefined;
+      const hero = root?.querySelector?.<HTMLElement>('[data-forecast-hero]') ?? undefined;
+      const zone = root?.querySelector?.<HTMLElement>('.con-start__fxhost')?.parentElement ?? undefined;
+      if (hero !== undefined && zone !== undefined) {
+        const zr = zone.getBoundingClientRect();
+        const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        this.queueFxLane = startQueueFxLane(zr, hero.getBoundingClientRect(), remPx, zr.width > 0 ? zone.offsetWidth / zr.width : 1);
+      }
+      // What PARKS: every block of the queue's row but the hero, and the shelf — the phrase's own timeline, never a class.
+      const browse = Array.from(root?.querySelectorAll?.<HTMLElement>('.con-start__queue-row > *, .con-start__played') ?? [])
+        .filter((el) => el !== hero && el.getClientRects().length > 0);
+      openForecastHost('start', door, this.startForecastOwners, this.playerView, browse);
     },
     /** The seated card's element — the corporation standing on the stage (the reactor's own place). */
     seatCardEl(): HTMLElement | undefined {

@@ -20,7 +20,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {
   EffectForecastHost, closeEffectForecastLayer, effectForecastOpen, openEffectForecastLayer,
 } from '@/client/console/consoleEffectForecast';
-import {armForecastInstantFold, armForecastRow} from '@/client/console/consoleForecastFocusMotion';
+import {armForecastDoor, armForecastInstantFold, armForecastRow} from '@/client/console/consoleForecastFocusMotion';
 import {effectStatsFor, ensureEffectStats} from '@/client/console/effectStatsStore';
 import {descendRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
 import {VersionedView} from '@/client/console/gameStateVersion';
@@ -66,15 +66,23 @@ export function forecastStatsByColor(colors: ReadonlyArray<string>): Partial<Rec
  * R3 / a click on the door — the WORKSPACE DESCEND into the layer: the door's
  * rect is armed SYNCHRONOUSLY (the unfold's origin), the reacting seats' stats
  * are asked, the layer opens for `host`. The caller decides whether the door
- * may open (its own `forecastCanOpen`).
+ * may open (its own `forecastCanOpen`). A host whose door and parked layers
+ * stand OUTSIDE the layer's own host box names the layers to park (`browse` —
+ * the start's queue beside its hero and the shelf, P79 · DI); the row is then
+ * armed by element too.
  */
 export function openForecastHost(
   host: EffectForecastHost,
   root: HTMLElement | undefined,
   colors: ReadonlyArray<string>,
   statsView: VersionedView | undefined,
+  browse?: ReadonlyArray<HTMLElement>,
 ): void {
-  armForecastRow(descendRectOf(root?.querySelector<HTMLElement>('[data-forecast-row]')));
+  const row = root?.querySelector<HTMLElement>('[data-forecast-row]') ?? undefined;
+  armForecastRow(descendRectOf(row));
+  if (browse !== undefined) {
+    armForecastDoor({row, browse});
+  }
   if (statsView !== undefined) {
     for (const color of colors) {
       ensureEffectStats(statsView, color as Color);
