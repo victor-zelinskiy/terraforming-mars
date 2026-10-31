@@ -57,8 +57,17 @@ export type LivenessSample = {
   accepting: boolean;
   /** What is provably moving — named (empty = nothing). */
   inFlight: ReadonlyArray<string>;
-  /** The input echo's press count (every delivered press). */
+  /**
+   * A / B presses from any device (`inputEcho.verbPresses`) — the two verbs every live surface must answer. Counted
+   * toward «presses with no effect» only while the screen is NOT accepting (the absorbed pad: a beat, a stranded
+   * guard, an awaiting handoff); while it accepts, only `dropped` counts.
+   */
   presses: number;
+  /**
+   * …of those, the ones NO handler took (`inputEcho.verbDropped`) — the deaf screen that claims to accept. A press a
+   * surface took and answered with nothing visible (A on a disabled tile while the player thinks) is no evidence.
+   */
+  dropped?: number;
   /** An OBSERVABLE-STATE signature: the prompt's identity, the stack, the surfaces, the bar, the focus. A press that
    *  changes nothing leaves it equal; anything the player would SEE change moves it. */
   signature: string;
@@ -71,6 +80,7 @@ export type LivenessState = {
   /** Presses delivered since the last progress. */
   pressesSinceProgress: number;
   lastPresses: number;
+  lastDropped: number;
   lastInFlight: ReadonlyArray<string>;
   /** The ladder: the next rung to run (0 = none run yet for this stall) and when the last one ran. */
   rung: number;
@@ -80,7 +90,7 @@ export type LivenessState = {
 };
 
 export function initialLivenessState(now = 0): LivenessState {
-  return {signature: '', progressAt: now, pressesSinceProgress: 0, lastPresses: 0, lastInFlight: [], rung: 0, rungAt: 0, reported: false};
+  return {signature: '', progressAt: now, pressesSinceProgress: 0, lastPresses: 0, lastDropped: 0, lastInFlight: [], rung: 0, rungAt: 0, reported: false};
 }
 
 export type LivenessVerdict =
@@ -104,8 +114,13 @@ export type LivenessVerdict =
  */
 export function observeLiveness(state: LivenessState, sample: LivenessSample): {state: LivenessState, verdict: LivenessVerdict} {
   const next: LivenessState = {...state, lastInFlight: sample.inFlight.length > 0 ? [...sample.inFlight] : state.lastInFlight};
-  const newPresses = Math.max(0, sample.presses - state.lastPresses);
+  const dropped = sample.dropped ?? 0;
+  // An ACCEPTING screen is judged by the presses nobody took; an absorbed one by every A / B (see `LivenessSample`).
+  const newPresses = sample.accepting ?
+    Math.max(0, dropped - state.lastDropped) :
+    Math.max(0, sample.presses - state.lastPresses);
   next.lastPresses = sample.presses;
+  next.lastDropped = dropped;
   const moved = sample.signature !== state.signature;
   next.signature = sample.signature;
   next.pressesSinceProgress = state.pressesSinceProgress + newPresses;

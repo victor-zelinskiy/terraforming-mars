@@ -73,14 +73,28 @@ describe('consoleLiveness', () => {
     expect(walk(seconds(40, (t) => ({signature: `s${Math.floor(t / 4000)}`}))).some((x) => x.stalled)).is.false;
   });
 
-  it('presses that change NOTHING are a stall sooner — even with the surface claiming to accept, even with no question', () => {
+  it('A / B presses that change NOTHING are a stall sooner — an absorbed pad by every press, even with no question', () => {
     // Three presses over the first 3 s (the first tick always 'moves' — the signature is born), the picture never moves.
-    const v = walk(seconds(LIVENESS_PRESSED_GRACE_MS / 1000, (t) => ({promptLive: false, accepting: true, presses: Math.min(3, Math.floor(t / 1000))})));
+    const v = walk(seconds(LIVENESS_PRESSED_GRACE_MS / 1000, (t) => ({promptLive: false, accepting: false, presses: Math.min(3, Math.floor(t / 1000))})));
     const last = v[v.length - 1];
     expect(last.stalled && last.reason).to.equal('presses-no-effect');
     expect(last.stalled && last.presses).to.be.at.least(LIVENESS_PRESSES_NO_EFFECT);
     // …but fewer presses than the threshold never do.
-    expect(walk(seconds(30, () => ({promptLive: false, accepting: true, presses: LIVENESS_PRESSES_NO_EFFECT - 1}))).some((x) => x.stalled)).is.false;
+    expect(walk(seconds(30, () => ({promptLive: false, accepting: false, presses: LIVENESS_PRESSES_NO_EFFECT - 1}))).some((x) => x.stalled)).is.false;
+  });
+
+  it('a screen that ACCEPTS is judged only by the A / B nobody took — the deaf screen, never a surface that answered quietly', () => {
+    // The pass-confirm panel (console-workspace-band, 2026-10-31): presses a surface TOOK and answered with nothing
+    // visible (A on a disabled tile while the player thinks) are no evidence.
+    const taken = walk(seconds(30, (t) => ({promptLive: true, accepting: true, presses: Math.min(6, Math.floor(t / 1000)), dropped: 0})));
+    expect(taken.some((x) => x.stalled), 'presses a surface took').is.false;
+    // …while three A / B NO handler took are the deaf screen that claims to accept.
+    const deaf = walk(seconds(LIVENESS_PRESSED_GRACE_MS / 1000, (t) => {
+      const n = Math.min(3, Math.floor(t / 1000));
+      return {promptLive: false, accepting: true, presses: n, dropped: n};
+    }));
+    const last = deaf[deaf.length - 1];
+    expect(last.stalled && last.reason).to.equal('presses-no-effect');
   });
 
   it('an idle accepting screen with no question and no presses is not judged at all', () => {

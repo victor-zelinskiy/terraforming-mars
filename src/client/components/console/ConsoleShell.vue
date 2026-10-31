@@ -21333,7 +21333,10 @@ export default defineComponent({
         promptLive: wf !== undefined && wf.optional !== true,
         accepting: beat === undefined && leakDetectorState.stranded === undefined && !isSurfaceAwaitingHandoff(),
         inFlight,
-        presses: inputEchoSnapshot().presses,
+        // A / B on any device — an optional verb with nothing to do is an honest no-op, never a wedge; an accepting
+        // screen is judged only by the A / B nobody took.
+        presses: inputEchoSnapshot().verbPresses,
+        dropped: inputEchoSnapshot().verbDropped,
         signature,
       });
       if (!verdict.stalled || verdict.rung === undefined) {

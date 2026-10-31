@@ -19,6 +19,7 @@ import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {HandTagFilter} from '@/client/components/console/consoleHandFilter';
 import {loadingScreenState, sceneTransitionInputLocked} from '@/client/console/loadingScreenState';
+import {recordVerbPress} from '@/client/console/inputEcho';
 import {
   closeWorkspaceSheet, workspaceStackSection, workspaceStackSheet,
 } from '@/client/console/consoleWorkspaceStack';
@@ -246,6 +247,9 @@ export function observeConsoleIntents(fn: (intent: GamepadIntent) => void): () =
 
 /** Returns true when the console shell consumed the intent. */
 export function dispatchConsoleIntent(intent: GamepadIntent): boolean {
+  // The liveness arbiter's witness of «the player is trying»: A / B from any device (`inputEcho.verbPresses`), and
+  // whether anybody TOOK it (`verbDropped`).
+  const verb = intent.kind === 'press' && (intent.button === 'confirm' || intent.button === 'back');
   // SCENE TRANSITION input gate: while the curtain owns the frame, no
   // gameplay intent may drive the scene underneath (a buffered press could
   // otherwise start the next transition, confirm an invisible prompt, or
@@ -260,10 +264,17 @@ export function dispatchConsoleIntent(intent: GamepadIntent): boolean {
     for (const observe of observers) {
       observe(intent);
     }
+    if (verb) {
+      recordVerbPress(true);
+    }
     return true;
   }
   for (const observe of observers) {
     observe(intent);
   }
-  return handler !== undefined ? handler(intent) : false;
+  const taken = handler !== undefined ? handler(intent) : false;
+  if (verb) {
+    recordVerbPress(taken);
+  }
+  return taken;
 }

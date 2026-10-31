@@ -45,7 +45,12 @@ Sampled once a second by the shell (`checkLiveness`), judged by the pure `observ
   `LIVENESS_TRANSPORT_GRACE_MS`; a blocking animation hold younger than `ANIMATION_STALL_GRACE_MS`; the awaiting
   handoff within its safety; an owed commit fold; a resource flight; a ledger story younger than
   `LIVENESS_STORY_GRACE_MS`.
-- **presses** — the input echo's press count.
+- **presses** — A / B presses from ANY device (`inputEcho.verbPresses`, counted in `dispatchConsoleIntent`, which the key
+  bridge and the gamepad layer both go through). Only the two verbs every live surface must answer: X on a panel with
+  nothing to inspect, or an arrow against a ring's wall, is an honest no-op — counting every key read the pass-confirm
+  panel's three X presses in `console-workspace-band` as a stall (2026-10-31), and the keyboard-only echo never saw a pad. While the screen ACCEPTS, only the A / B NO handler took count (`verbDropped` —
+  the deaf screen that claims to accept); a press a surface took and answered quietly (A on a disabled tile) is no
+  evidence. While it does not accept (an absorbed pad), every A / B counts.
 - **signature** — the observable state: the prompt's identity, the stack, the section/sheet, the surfaces' counts, the
   command bar's text, the focused element, the funnel's state. A press that changes nothing leaves it equal.
 

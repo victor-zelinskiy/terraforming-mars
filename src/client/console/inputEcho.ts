@@ -29,8 +29,17 @@ export type InputEchoOutcome = 'consumed' | 'system' | 'unconsumed' | 'update-ga
 export type InputEchoSnapshot = {
   /** Every recognized console key event — the driver's «did my key arrive at all». */
   seq: number;
-  /** PRESS edges alone (the liveness arbiter counts presses, never releases). */
+  /** PRESS edges alone (keyboard only — the driver's echo). */
   presses: number;
+  /**
+   * The two VERBS every live surface must answer — A (confirm) and B (back) — pressed on ANY device (counted at the
+   * router, `dispatchConsoleIntent`, which both the key bridge and the gamepad layer go through). The liveness
+   * arbiter counts THESE: an optional verb with nothing to do (X on a panel with nothing to inspect, an arrow against a
+   * ring's wall) is an honest no-op, never a wedge (the false «presses-no-effect» on the pass-confirm panel, 2026-10-31).
+   */
+  verbPresses: number;
+  /** …of those, the ones NO handler took (`dispatchConsoleIntent` answered false) — the deaf screen's signature. */
+  verbDropped: number;
   consumed: number;
   system: number;
   unconsumed: number;
@@ -41,6 +50,8 @@ export type InputEchoSnapshot = {
 const state: InputEchoSnapshot = {
   seq: 0,
   presses: 0,
+  verbPresses: 0,
+  verbDropped: 0,
   consumed: 0,
   system: 0,
   unconsumed: 0,
@@ -61,6 +72,14 @@ export function recordInputEcho(code: string, kind: string, outcome: InputEchoOu
   state.last = {code, kind, outcome, at: Date.now()};
 }
 
+/** A/B reached the console router (any device) — see `verbPresses`; `taken` = a handler consumed it. */
+export function recordVerbPress(taken: boolean): void {
+  state.verbPresses++;
+  if (!taken) {
+    state.verbDropped++;
+  }
+}
+
 export function inputEchoSnapshot(): InputEchoSnapshot {
   return {...state, last: state.last === undefined ? undefined : {...state.last}};
 }
@@ -77,6 +96,8 @@ export function installInputEchoProbe(): void {
 export function resetInputEchoForTest(): void {
   state.seq = 0;
   state.presses = 0;
+  state.verbPresses = 0;
+  state.verbDropped = 0;
   state.consumed = 0;
   state.system = 0;
   state.unconsumed = 0;
