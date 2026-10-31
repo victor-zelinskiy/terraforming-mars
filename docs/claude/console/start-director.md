@@ -58,6 +58,44 @@ down a live placement, touch a held prompt (the block's ledger degrades it), or 
 papered over on a spec path; it becomes the next stand (phase 2) before the latch is touched. The start suite's first
 run after this phase: see the ledger row PL-1265.
 
+## Phase 2 — THE FIELD'S OPENINGS, read off the box (2026-10-31)
+
+No renderer log reaches the box (the Electron console is not written anywhere; the embedded server logs twenty
+lines), so the field's evidence is the SAVES: `~/.config/terraforming-mars/embedded/db/files/history/<game>-NNNNN.json`
+— one full serialized game per move, its mtime the move's time. Two scripts turn them into phase-2 data without a save
+leaving the box:
+
+- `scripts/field-opening-index.cjs <build> <db-files> <out>` — runs ON THE BOX (`~/tm-e2e/node/bin/node`, the
+  repo's node_modules, a snapshot's compiled server): every generation-1 save of every game is deserialized through the
+  real `Game.deserialize` and each seat's `getWaitingFor()` is written as one token (`type[:startKind][:bonus][:menu]
+  [:choice:<source>]`, an unmarked prompt by its title KEY) with the save's mtime — a few KB per game (227 games,
+  66 326 saves walked in ~2 min).
+- `scripts/field-opening-report.mjs <index-dir> [--gap s] [--detail] [--game id]` — the SHAPES each human seat walks
+  from the wizard to the menu, the LONG WAITS on a human prompt past the lobby (the next save's prompt beside it) and
+  the openings that never reached the menu.
+
+**The first reading (227 games · 419 human seats · 28 shapes):** ELEVEN of the twelve long waits past the lobby stood
+on ONE prompt — `corporationInitialAction`, the start's own «ПЕРВОЕ ДЕЙСТВИЕ» stage — across games, both human seats
+(the owner's TV and the LAN Deck), different corporations (Inventrix 11 932 s + 1 602 s · Vitor 35 148 s · Celestic
+668 s · Inventrix on the owner's seat 540 s …), with the game age ticking between IDENTICAL saves (a reload re-priming
+the prompt — a player who left and came back, or one who reloaded a dead screen; the save cannot tell them apart).
+
+**The stand:** four of those tables AS SAVED (`field-first-action-inventrix` · `-vitor` · `-celestic` · `-inventrix-owner`,
+the source saves under `fixtures/field/`), walked on BOTH profiles the field plays (tv4k · deck) by
+`console-start-field-first-action.spec.ts`: the stage serves (`data-start-serves="stage"`), A takes it, what the action
+sets off is answered the player's way (Vitor's award is a pick → its confirm; Celestic's reveal; Inventrix's draw), the
+table reaches the game — the harness red on a strand / a stall / a beat, the shadow's findings and cures filed.
+**Result: 8 / 8 green, no finding, no cure** — the dominant field shape does NOT freeze on the box from the saves alone.
+What the saves cannot carry is the CLIENT's side of those minutes (a hold that never released, a surface deaf to the
+pad, a device-specific render) — the next phase needs the client's own record (a field flight recorder: the
+`[start-shadow]` / `[liveness]` / `[start-stranded]` / `[workspace-stall]` lines + `__conStartDiag`, kept across a
+reload and posted to the embedded server beside the save).
+
+Two driver traps the stand paid for, both general: `bootFixtureSeats` SEEDS every start prompt of seats[0] over the
+API unless `landing: 'prompt'` (a one-human table had its first action answered before the console opened); and a
+surface may take TWO presses by design (an award's pick → its confirm) — a «did A move the server's prompt» witness
+judges up to three presses, never one.
+
 ## Next phases
 
 1. **Field data**: the owner's games log `[start-shadow]`; every new shape becomes a stand (a field save → a fixture,

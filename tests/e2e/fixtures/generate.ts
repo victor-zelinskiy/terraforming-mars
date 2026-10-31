@@ -527,6 +527,36 @@ function write(name: string, game: IGame): void {
   write(name, game);
 }
 
+// ── field-first-action-*: THE FIELD'S FIRST-ACTION STAGE (phase 2 of the start director, 2026-10-31). The box's
+//    per-step saves of 227 real tables (`scripts/field-opening-index.cjs` → `field-opening-report.mjs`) put ELEVEN of the
+//    twelve long waits past the lobby on ONE prompt — `corporationInitialAction`, the start's own first-action stage —
+//    across games, seats and corporations, the game age ticking between IDENTICAL saves (a reload re-priming the prompt).
+//    Each table is taken AS SAVED (the prompt is live at the save; the loader's resume block re-primes it), names
+//    anonymized, the source save beside it under `fixtures/field/`:
+//      · inventrix        — gb7090465500b-00005: pink (the LAN seat) first, Inventrix's draw owed; blue deployed; MarsBot; campaign + Turmoil Redux (11 932 s + 1 602 s);
+//      · vitor            — g8d050d634432-00005: pink, Vitor's award; campaign (35 148 s);
+//      · celestic         — gb070b8e8a220-00002: red alone with MarsBot, Celestic's unsourced reveal, phase `preludes` (668 s);
+//      · inventrix-owner  — gf4cad9a966b3-00006: BLUE (the owner's seat) on Inventrix's draw, pink deployed (540 s). ──
+for (const [suffix, file, color] of [
+  ['inventrix', 'gb7090465500b-00005.json', 'pink'],
+  ['vitor', 'g8d050d634432-00005.json', 'pink'],
+  ['celestic', 'gb070b8e8a220-00002.json', 'red'],
+  ['inventrix-owner', 'gf4cad9a966b3-00006.json', 'blue'],
+] as const) {
+  const name = `field-first-action-${suffix}`;
+  const source = JSON.parse(fs.readFileSync(path.join(__dirname, 'field', file), 'utf8')) as SerializedGame;
+  const game = Game.deserialize(source);
+  const seat = game.players.find((p) => p.color === color);
+  const wf = seat?.getWaitingFor();
+  if (seat === undefined || game.activePlayer.id !== seat.id || wf === undefined || wf.startGamePrompt?.kind !== 'corporationInitialAction' || seat.pendingInitialActions.length !== 1) {
+    throw new Error(`${name}: expected ${color} on the move with the corporation's first action owed (wf=${wf?.type}/${wf?.startGamePrompt?.kind}, pending=${seat?.pendingInitialActions.map((c) => c.name).join('/')})`);
+  }
+  for (const [i, p] of game.players.entries()) {
+    p.name = p.isMarsBot ? p.name : `seat${i + 1}`;
+  }
+  write(name, game);
+}
+
 // ── venus-trade-unity-bonus-2p: the SAME trade as the field's second action of the turn — a two-seat game, the
 //    viewer (blue) has taken one action, so the trade's answer (after its discard) PASSES THE TURN to red: the
 //    viewer's `waitingFor` goes empty while another seat holds the move (the field: pink → blue). ──
