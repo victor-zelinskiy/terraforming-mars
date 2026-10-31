@@ -95,7 +95,8 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 Маршрут — `docs/claude/expansion-adaptation-checklist.md` целиком (таблица подсистем — что нужно карте каждой
 формы, и какой гард это требует). Коротко, по форме карты (пометки в списке):
 1. **Декларативная** (`behavior` без bespoke) — превью / информация / причины / лицо автоматически; работа —
-   лор (`assets/text/lore_texts.json` по `cardNumber`, EN + RU), RU `card_info.json` по аудиту `make:cards`, арт
+   лор (`assets/text/lore_texts.json` по `cardNumber`, EN + RU; RU-тексты — по планке
+   `docs/claude/ru-translation-standard.md`), RU `card_info.json` по аудиту `make:cards`, арт
    (`assets/card-images/<P##>.webp`, при отсутствии — процедурный фолбэк, не гэп), спек карты. Карта с ПОИСКОМ ПО
    МЕТКЕ («draw N X cards» — P76): блок поиска засевается из одного дескриптора, описание со словом «draw» берёт строку
    `ACCEPTED` гарда `cardInformation` (прецедент Aqueduct Systems), а стенд ставится фикстурой с ПОСЕЯННОЙ лентой

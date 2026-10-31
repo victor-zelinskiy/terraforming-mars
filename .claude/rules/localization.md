@@ -6,6 +6,9 @@ paths:
 
 # Localization rules
 
+## ⭐ THE BAR — read `docs/claude/ru-translation-standard.md` before writing ANY RU card text
+The owner (2026-11-01): RU reads like the printed localization — ADAPTIVE, never a calque (`leverage` = «сделка», never «рычаг»), established terms (one word per concept), literary, SHORTER than the English, and EXACT (numbers checked against the card's `description`). The doc holds the glossary, the phrase templates (the ONE party-requirement phrase), the banned forms with real examples, the card-naming rule (a rename moves its e2e `CARD_RU` in the same diff) and the pre-commit checks.
+
 ## The model
 Custom i18n (`src/client/directives/i18n.ts`, `v-i18n`): **the English string IS the key** — there is no `en/` locale. Translations live in `src/locales/<lang>/*.json`; `make_static_json` unions every file in a language directory.
 

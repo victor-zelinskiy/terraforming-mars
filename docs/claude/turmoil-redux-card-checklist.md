@@ -120,7 +120,8 @@
   взять оттуда, отметить статус, в шапке карты сказать, что запись придумана. Исключений из гардов лора нет.
 - **RU-имя и тексты графики** — `src/locales/ru/turmoil_redux_cards.json`: имя карты, ключи с префиксом
   `Action: …` / `Effect: …` (клиент срезает префикс). Голос — как у соседей в `cards.json`
-  («потратьте 1 энергию, чтобы…»).
+  («потратьте 1 энергию, чтобы…»). ⭐ **Планка перевода — `docs/claude/ru-translation-standard.md`**: адаптивно, не
+  калькой; глоссарий; одна фраза требования партии; числа сверить с `description`.
 - **`card_info.json`** — все `missingTranslations` из аудита `src/genfiles/cardInfoAudit.json` + курируемые
   `effect-short` / `action-short` (капшен > 52 символов → `infoText` в карте + RU ключ). ⚠️ Бюджет мерить и по
   RU-переводу из `turmoil_redux_cards.json` РУКАМИ: гарды `effectCaption` / `actionCaption` читают RU только из
