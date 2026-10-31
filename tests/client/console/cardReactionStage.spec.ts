@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {
-  cardReactionState, dropWarmReactors, registerCardReactionStage, seatReactor, unseatAllReactors, warmReactorFaces,
+  cardReactionState, dropWarmFacesOf, dropWarmReactors, registerCardReactionStage, seatReactor, unseatAllReactors, warmReactorFaces,
 } from '@/client/console/cardReaction/cardReactionStage';
 
 /**
@@ -58,5 +58,30 @@ describe('cardReactionStage — warm faces and their take-over', () => {
     const seated = await seatReactor({key: 'live:2', name: CardName.ROVER_CONSTRUCTION, seat});
     expect(seated?.key).eq('live:2');
     expect(cardReactionState.faces.map((f) => f.key)).deep.eq(['live:2']);
+  });
+  // ── P82 · «ПОДНИМАЕТСЯ ТОЛЬКО ТА КАРТА, ЧТО СРАБОТАЛА» — § WARM (H2) ──
+
+  it('WARM · a warm face belongs to ONE group: two groups of one card get two warm faces, and each rise takes its OWN (never the other\'s by name)', async () => {
+    warmReactorFaces([{name: CardName.PETS, seq: 7}, {name: CardName.PETS, seq: 9}], seat);
+    const warm = cardReactionState.faces.filter((f) => f.warm === true);
+    expect(warm.map((f) => f.seq), 'one warm face per group').deep.eq([7, 9]);
+    const seated = await seatReactor({key: 'live:9', name: CardName.PETS, seq: 9, seat});
+    expect(seated?.key, 'group 9 takes group 9\'s face').eq(warm[1].key);
+    expect(cardReactionState.faces.find((f) => f.key === warm[0].key)?.warm, 'group 7\'s face stays warm, untouched').is.true;
+  });
+
+  it('WARM · the moment a group is decided NOT to rise at the stage (lifted in its place, summarized, let go), its warm face leaves — the layer never keeps a face of a card that is not still to rise', () => {
+    warmReactorFaces([{name: CardName.PETS, seq: 7}, {name: CardName.DECOMPOSERS, seq: 8}], seat);
+    dropWarmFacesOf([7]);
+    expect(cardReactionState.faces.map((f) => f.name), 'only the dropped group\'s face left').deep.eq([CardName.DECOMPOSERS]);
+    dropWarmFacesOf([]);
+    expect(cardReactionState.faces).to.have.lengthOf(1);
+  });
+
+  it('WARM · a warm face is never painted: the layer\'s CSS hides it and the take-over is the only door to paint', () => {
+    warmReactorFaces([{name: CardName.PETS, seq: 3}], seat);
+    const face = cardReactionState.faces[0];
+    expect(face.warm, 'warm').is.true;
+    expect(face.key).to.match(/^warm:3:/);
   });
 });

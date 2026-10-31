@@ -79,17 +79,20 @@ import {hydroCeremonyOwed, hydroFlowState} from '@/client/console/hydroFlow/cons
 import {hydroTraversalPending, isHydroMarkerActive} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {RectLike} from '@/client/console/cardIntake/intakeAssemblyPlan';
 import {
-  CardReactionGroup, REACTION_HURRY_PACE, REACTION_RIVAL_SCALE, ReactionTempo, freshCardReactions, groupCardReactions, planReactionChain,
+  CardReactionGroup, REACTION_HURRY_PACE, REACTION_RIVAL_SCALE, ReactionTempo, freshCardReactions, groupCardReactions, planReactionChain, reactionAnswerGroups, reactionRisers,
   reactionImpactSpec, reactionStageSlots, reactionTempo, reactionTokensOf, reducedReactionTempo,
 } from '@/client/console/cardReaction/cardReactionModel';
 import {
-  ReactorCaption, ReactorFace, cardReactionStageMounted, cardReactionStageRect, cardReactionState, dropWarmReactors, killReactorTweens, markReactionRow,
+  ReactorCaption, ReactorFace, cardReactionStageMounted, cardReactionStageRect, cardReactionState, dropWarmFacesOf, dropWarmReactors, killReactorTweens, markReactionRow,
   nextPaintedFrame, paceReactorTweens, reactorEl, recedeReactor, riseReactor, seatReactor, unseatAllReactors, unseatReactor, warmReactorFaces,
 } from '@/client/console/cardReaction/cardReactionStage';
-import {ReactorEmergence, describeReactorPlaces, findReactorPlace, reactorPlaceArriving} from '@/client/console/cardReaction/reactorPlaces';
+import {ReactorEmergence, describeReactorPlaces, findReactorPlace, reactorPlaceArriving, settleInPlace} from '@/client/console/cardReaction/reactorPlaces';
 import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnds';
 import {buildCardReactionSummaryNotification} from '@/client/console/cardReaction/cardReactionSummary';
 import {pushTransient} from '@/client/components/notifications/notificationState';
+import {
+  CARD_FACE_HOOKS, checkReactionIdentity, clearDeclaredReactors, declaredReactors, hookCardOf, noteReactionLetGo, noteReactorRising, noteReactorSettled,
+} from '@/client/console/cardReaction/reactionIdentity';
 
 export type {ReactorEmergence} from '@/client/console/cardReaction/reactorPlaces';
 
@@ -116,6 +119,13 @@ export function snapshotRailHolds(): Record<string, number> {
 
 type Attached = {
   group: CardReactionGroup;
+  /**
+   * THE ANSWER it belongs to — the apply block that attached it (`openReactionSeedBlock`). A group lives ONE answer: a
+   * host's flight takes only its own block's groups (`ReactionAnswerOptions.block`), and a group nobody claimed whose
+   * rows nobody holds any more is let go, by name, at the next answer (`reaction:expired`) — never risen beside a
+   * later press's reactor (P82 · H1, the owner's «рядом поднимаются ЛЕВЫЕ карты»).
+   */
+  block: number;
   /** The rows of the group a host holds (its answer) — the join key for the host's flight. */
   rows: Set<string>;
   claimed: boolean;
@@ -162,6 +172,31 @@ type Risen = {
 
 const claimedSeqs = new Set<number>();
 let attached: Array<Attached> = [];
+/** Every reactor brought forward and not yet let go — a cut settles the ones lifted IN THEIR PLACE (never left raised). */
+const liveRisen = new Map<string, Risen>();
+/** Host flights (ATTACHED) whose faces stand right now — the stage is theirs; the chain and the rivals wait (P82 · H5/H7). */
+let attachedLive = 0;
+
+/** The apply block's number — opened by the transport at the top of `seedRewardHolds`, before any host seeds. */
+let seedBlock = 0;
+/** A block is OPEN from `openReactionSeedBlock` to the seeder's own run — a host declaring inside it belongs to it. */
+let seedBlockOpen = false;
+
+/** The transport opens an apply block (before any host seeds its rewards). Returns its number. */
+export function openReactionSeedBlock(): number {
+  seedBlock++;
+  seedBlockOpen = true;
+  return seedBlock;
+}
+
+/**
+ * THE BLOCK A HOST'S DECLARATION BELONGS TO — asked by a host beside its `declareHeldAnswers` and handed back to
+ * `cardReactionAnswerFlight({block})`: inside an open apply block it is that block; a declaration made outside one
+ * (`App.update`'s seed) is taken by the NEXT block's seeder, so it is that one.
+ */
+export function reactionDeclarationBlock(): number {
+  return seedBlockOpen ? seedBlock : seedBlock + 1;
+}
 const standaloneQueue: Array<Standalone> = [];
 /** The batch the chain is playing right now — its `held` rows are exactly what has not touched down yet. */
 let running: Array<Standalone> = [];
@@ -257,6 +292,8 @@ function liveModelOf(view: PlayerViewModel | undefined, card: CardName): CardMod
 export function seedCardReactionHolds(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined, heldBefore: Record<string, number>): void {
   // The answers the hosts PROMISED in this block — taken every block, so a declaration never outlives its response.
   const declared = takeDeclaredAnswers();
+  const block = seedBlockOpen ? seedBlock : ++seedBlock;
+  seedBlockOpen = false;
   if (after === undefined) {
     return;
   }
@@ -266,6 +303,8 @@ export function seedCardReactionHolds(before: PlayerViewModel | undefined, after
   if (fresh.length === 0) {
     return;
   }
+  // A NEW ANSWER: what an earlier answer attached and nobody claimed — and nobody holds any more — is let go now.
+  expireAttached(block, heldBefore);
   fresh.forEach((r) => claimedSeqs.add(r.seq));
   if (claimedSeqs.size > 128) {
     const keep = [...claimedSeqs].slice(-64);
@@ -326,7 +365,7 @@ export function seedCardReactionHolds(before: PlayerViewModel | undefined, after
     }
     if (rows.size > 0) {
       const reserved = reservations.get(group.record.seq);
-      attached.push({group, rows, claimed: false, ...(reserved === undefined ? {} : {reserved})});
+      attached.push({group, rows, claimed: false, block, ...(reserved === undefined ? {} : {reserved})});
     }
     if (own.length > 0) {
       beginPanelRewardHold(own);
@@ -349,8 +388,8 @@ export function seedCardReactionHolds(before: PlayerViewModel | undefined, after
   // decode happen under the cause's own scene, never in the rise's first frame. A card that will rise in its place
   // never needs the warm face; it is dropped unused when the chain ends.
   warmFaces([
-    ...groups.map((g) => ({name: g.card, kind: g.record.kind, card: liveModelOf(after, g.card)})),
-    ...rivals.map((r) => ({name: r.group.card, kind: r.group.record.kind, card: seatModelOf(after, r.owner, r.group.card)})),
+    ...groups.map((g) => ({name: g.card, kind: g.record.kind, card: liveModelOf(after, g.card), seq: g.record.seq})),
+    ...rivals.map((r) => ({name: r.group.card, kind: r.group.record.kind, card: seatModelOf(after, r.owner, r.group.card), seq: r.group.record.seq})),
   ]);
   // Attached groups nobody claims within the response's own scene are let go (no hold of ours stands behind them).
   if (attached.length > 24) {
@@ -366,7 +405,24 @@ export function seedCardReactionHolds(before: PlayerViewModel | undefined, after
   }
 }
 
-function warmFaces(faces: Array<Pick<ReactorFace, 'name' | 'card' | 'kind'>>): void {
+/**
+ * ONE ANSWER'S GROUPS (P82 · H1): an attached group of an EARLIER block that nobody claimed is let go at the next answer
+ * — unless a host still holds one of its rows (its scene may still ask: the hold behind the group is what makes it
+ * claimable) or it is reserved for one named host (only that host can ever take it). Named in the trail
+ * (`reaction:expired`) and on the identity readout — the host that held the rows told (or ticked) them itself.
+ */
+function expireAttached(block: number, heldBefore: Record<string, number>): void {
+  const expired = attached.filter((a) => !a.claimed && a.reserved === undefined && a.block < block && ![...a.rows].some((row) => (heldBefore[row] ?? 0) > 0));
+  if (expired.length === 0) {
+    return;
+  }
+  attached = attached.filter((a) => !expired.includes(a));
+  expired.forEach((a) => noteReactionLetGo(a.group.card, a.group.record.seq, 'expired'));
+  dropWarmFacesOf(expired.map((a) => a.group.record.seq));
+  noteTransferTrail('reaction:expired', {cards: expired.map((a) => a.group.card), blocks: expired.map((a) => a.block)});
+}
+
+function warmFaces(faces: Array<Pick<ReactorFace, 'name' | 'card' | 'kind' | 'seq'>>): void {
   if (!cardReactionStageMounted()) {
     return;
   }
@@ -494,6 +550,11 @@ type RiseOpts = {
   caption?: ReactorCaption;
   /** The read beat the effect row is lit for. */
   readMs: number;
+  /**
+   * THE PLACE, DECIDED ONCE (P82 · H6): a flight that planned its stage slots decides each group's place before it rises
+   * and hands it here — `null` = the stage. Omitted: decided here, at the rise.
+   */
+  place?: ReactorEmergence | null;
 };
 
 /**
@@ -504,32 +565,76 @@ type RiseOpts = {
 async function rise(group: CardReactionGroup, slot: number, view: PlayerViewModel | undefined, emergence: ReactorEmergence | undefined, opts: RiseOpts): Promise<Risen> {
   const key = `${group.record.seq}:${++faceSeq}`;
   const specs = [...group.rail, ...group.cards];
-  const place = emergence !== undefined && emergence.standsIn(group.card) ? emergence : findReactorPlace(group.card);
+  const place = opts.place !== undefined ? opts.place ?? undefined : placeOf(group, emergence);
   if (place !== undefined) {
+    // DECLARED before the face moves — the identity sentinel (and the e2e witness) read every lift against this.
+    noteReactorRising({key, seq: group.record.seq, card: group.card, via: 'place'});
+    // ONE INSTANCE (H2/H6): the group rises IN ITS PLACE — its warm face at the stage is let go in this very moment.
+    dropWarmFacesOf([group.record.seq]);
+    const risen: Risen = {group, key, face: undefined, via: 'place', emergence: place};
+    liveRisen.set(key, risen);
     await place.emergeTarget(group.card);
-    const face = place.emergedFaceEl(group.card);
-    markReactionRow(face, group.record.printedEffect, specs, opts.readMs);
+    risen.face = place.emergedFaceEl(group.card);
+    markReactionRow(risen.face, group.record.printedEffect, specs, opts.readMs);
     noteTransferTrail('reaction:rise', {card: group.card, via: 'place'});
-    return {group, key, face, via: 'place', emergence: place};
+    checkReactionIdentity(`rise:${group.card}`);
+    return risen;
   }
-  if (!cardReactionStageMounted() || opts.slots.length === 0) {
+  if (!cardReactionStageMounted() || opts.slots.length === 0 || slot < 0) {
+    dropWarmFacesOf([group.record.seq]);
     return {group, key, face: undefined, via: 'none'};
   }
   const seat = opts.slots[slot % opts.slots.length];
-  const face: ReactorFace = {key, name: group.card, kind: group.record.kind, card: opts.model ?? liveModelOf(view, group.card), seat, caption: opts.caption};
+  const face: ReactorFace = {key, name: group.card, seq: group.record.seq, kind: group.record.kind, card: opts.model ?? liveModelOf(view, group.card), seat, caption: opts.caption};
   const seated = await seatReactor(face);
   if (seated === undefined) {
+    dropWarmFacesOf([group.record.seq]);
     return {group, key, face: undefined, via: 'none'};
   }
+  noteReactorRising({key: seated.key, seq: group.record.seq, card: group.card, via: 'seat'});
   await riseReactor(seated.el, seat, tempoFor(cardReactionState.chain?.cards.length ?? 1), consoleReducedMotionActive());
   markReactionRow(seated.el, group.record.printedEffect, specs, opts.readMs);
   noteTransferTrail('reaction:rise', {card: group.card, via: 'stage', places: describeReactorPlaces(group.card)});
-  return {group, key: seated.key, face: seated.el, via: 'seat', seat};
+  checkReactionIdentity(`rise:${group.card}`);
+  const risen: Risen = {group, key: seated.key, face: seated.el, via: 'seat', seat};
+  liveRisen.set(seated.key, risen);
+  return risen;
+}
+
+/**
+ * NO FACE IS LEFT RAISED (P82 · DB — the start shelf's settle looked its face up again, found another, and the face that
+ * rose stayed lifted for good): once the last group of `card` lifted in its place has settled, a face of that card
+ * still wearing the lift settles too — and is SAID (the identity sentinel's marker, red on every e2e spec), because a
+ * place whose settle missed its own face is a defect at that place.
+ */
+async function settleStrandedLifts(card: CardName): Promise<void> {
+  if (typeof document === 'undefined' || declaredReactors().some((d) => d.card === card && d.via === 'place')) {
+    return;
+  }
+  const stranded = Array.from(document.querySelectorAll<HTMLElement>('[data-reaction-lifted]')).filter((el) => {
+    const hook = el.matches(CARD_FACE_HOOKS) ? el : el.closest(CARD_FACE_HOOKS);
+    return hook !== null && hookCardOf(hook) === card;
+  });
+  if (stranded.length === 0) {
+    return;
+  }
+  console.warn(`[reaction] foreign face — stranded-lift: ${card} (its place settled another face; the lifted one is settled now)`);
+  noteTransferTrail('reaction:stranded-lift', {card, n: stranded.length});
+  await Promise.all(stranded.map((el) => settleInPlace(el)));
+}
+
+/** Where the group stands on screen — the host's own stage first, else a painted face; `undefined` = the stage. */
+function placeOf(group: CardReactionGroup, emergence: ReactorEmergence | undefined): ReactorEmergence | undefined {
+  return emergence !== undefined && emergence.standsIn(group.card) ? emergence : findReactorPlace(group.card);
 }
 
 async function recede(risen: Risen): Promise<void> {
+  liveRisen.delete(risen.key);
   if (risen.via === 'place' && risen.emergence !== undefined) {
     await risen.emergence.settleTarget(risen.group.card);
+    noteReactorSettled(risen.key);
+    await settleStrandedLifts(risen.group.card);
+    checkReactionIdentity(`settle:${risen.group.card}`);
     return;
   }
   const el = reactorEl(risen.key);
@@ -537,6 +642,8 @@ async function recede(risen: Risen): Promise<void> {
     await recedeReactor(el, risen.seat, tempoFor(cardReactionState.chain?.cards.length ?? 1), consoleReducedMotionActive());
   }
   unseatReactor(risen.key);
+  noteReactorSettled(risen.key);
+  checkReactionIdentity(`settle:${risen.group.card}`);
 }
 
 function birthEnds(risen: Risen, specs: ReadonlyArray<ResourceTransferSpec>): Array<TransferEndLike | undefined> {
@@ -549,8 +656,13 @@ function birthEnds(risen: Risen, specs: ReadonlyArray<ResourceTransferSpec>): Ar
 // ── ATTACHED: the host's answer flight ─────────────────────────────────────
 
 export type ReactionAnswerOptions = {
-  /** The rail rows the host holds as its answer — the attached groups on these rows are this flight's; omitted: every attached group. */
+  /** The rail rows the host holds as its answer — the attached groups on these rows are this flight's. */
   rows?: ReadonlyArray<string>;
+  /**
+   * THE ANSWER the host seeded in (`reactionDeclarationBlock()` beside its declaration): only that block's groups are
+   * this flight's. Omitted with `rows` omitted too: only the NEWEST answer's groups — never every group on record.
+   */
+  block?: number;
   /** The host's RESERVATION (`reserveCardReaction`): a reserved group is this flight's only under the same name. */
   reserved?: string;
   /** The host's stage, when it can bring a reactor forward out of its own place (the play scene's receiving stage). */
@@ -567,8 +679,12 @@ export type ReactionAnswerOptions = {
  * old flight.
  */
 export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): RailAnswerFlight | undefined {
-  const rows = opts.rows === undefined ? undefined : new Set(opts.rows);
-  const mine = attached.filter((a) => !a.claimed && a.reserved === opts.reserved && (rows === undefined || [...a.rows].some((r) => rows.has(r))));
+  // ONE ANSWER (P82 · H1): a host's flight takes the groups of ITS block — an unfiltered ask once took every group on
+  // record, and a group an earlier press left unclaimed rose beside this press's reactor. The one question is pure.
+  const byCandidate = new Map(attached.map((a) => [a.group.record.seq, a]));
+  const mine = reactionAnswerGroups(attached.map((a) => ({seq: a.group.record.seq, block: a.block, rows: [...a.rows], claimed: a.claimed, reserved: a.reserved})), opts)
+    .map((c) => byCandidate.get(c.seq))
+    .filter((a): a is Attached => a !== undefined);
   if (mine.length === 0) {
     return undefined;
   }
@@ -594,6 +710,7 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
     }
     done = true;
     if (!prepared) {
+      dropWarmFacesOf(groups.map((g) => g.record.seq));
       // CLAIMED AND FINISHED without a rise (the enactment tail's `rulingChangeDraw`, the reward wave's plaque — the
       // host tells the answer its own way): the record is told, the phase was never touched — nothing to settle, nothing
       // to recede. The settle's own wait used to flip the phase 'receding' → 'idle' a beat later: a `card-reaction` hold
@@ -608,6 +725,7 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
       // continuation that wrote `receding` after it left the `card-reaction` hold standing for good.
       await pacedWait(tempoFor(groups.length).settleMs);
       if (epoch !== myEpoch) {
+        attachedLive = Math.max(0, attachedLive - 1);
         return;
       }
       cardReactionState.phase = 'receding';
@@ -616,6 +734,7 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
           void recede(r).then(resolve);
         });
       })));
+      attachedLive = Math.max(0, attachedLive - 1);
       if (epoch === myEpoch && cardReactionState.phase === 'receding' && !standaloneRunning) {
         cardReactionState.phase = 'idle';
         hurried = false;
@@ -632,14 +751,23 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
         return;
       }
       const t = tempoFor(groups.length);
-      const slots = stageSlotsFor(groups.length);
+      // THE PLACES ARE DECIDED ONCE, BEFORE ANY RISE (P82 · H6/H7): a group standing on screen lifts there; every other
+      // takes its OWN stage slot — never `i % slots`: with more groups than slots two faces shared a box («a card with
+      // another UNDER it»). A group past the last slot rises nowhere: its tokens tick, its name stands on the state.
+      const plan = reactionRisers(groups.map((g) => ({placed: placeOf(g, opts.emergence) !== undefined})), stageSlotsFor(Math.max(1, groups.length)).length);
+      const places = groups.map((g, i) => (plan[i].via === 'place' ? placeOf(g, opts.emergence) ?? null : null));
+      const slots = stageSlotsFor(Math.max(1, plan.filter((p) => p.via === 'stage').length));
+      const overflow = groups.filter((_, i) => plan[i].via === 'none');
       prepared = true;
+      attachedLive++;
       cardReactionState.phase = 'rising';
-      cardReactionState.chain = {cards: groups.map((g) => g.card), landed: 0, summarized: [], seats: slots.length, pace: 1};
+      cardReactionState.chain = {cards: groups.map((g) => g.card), landed: 0, summarized: overflow.map((g) => g.card), seats: slots.length, pace: 1};
+      overflow.forEach((g) => noteReactionLetGo(g.card, g.record.seq, 'no-slot'));
       // Every claimed reactor comes forward together, a beat apart — the answer's own stagger then orders the births.
       const rises = groups.map((group, i) => new Promise<Risen>((resolve) => {
         gsap.delayedCall(motionMs(80 * i) / paceNow() / 1000, () => {
-          void rise(group, i, opts.view, opts.emergence, {slots, readMs: t.holdMs + TRANSFER_POP_MS}).then(resolve);
+          const p = plan[i];
+          void rise(group, p.via === 'stage' ? p.slot : -1, opts.view, opts.emergence, {slots, readMs: t.holdMs + TRANSFER_POP_MS, place: p.via === 'place' ? places[i] : null}).then(resolve);
         });
       }));
       const out = await Promise.all(rises);
@@ -772,6 +900,7 @@ async function runStandalone(): Promise<void> {
     await waitRatingStoryQuiet(myEpoch);
     await waitHydroStoryQuiet(myEpoch);
     await waitDecisionClear(myEpoch);
+    await waitAttachedQuiet(myEpoch);
     if (epoch !== myEpoch) {
       return;
     }
@@ -797,7 +926,9 @@ async function runStandalone(): Promise<void> {
     for (const i of plan.summarized) {
       batch[i].held.splice(0).forEach((spec) => releasePanelRewardHold(spec));
       noteTransferTrail('reaction:summarized', {card: batch[i].group.card});
+      noteReactionLetGo(batch[i].group.card, batch[i].group.record.seq, 'summarized');
     }
+    dropWarmFacesOf(plan.summarized.map((i) => batch[i].group.record.seq));
     if (plan.summarized.length > 0) {
       const summarized = plan.summarized.map((i) => batch[i].group);
       const card = buildCardReactionSummaryNotification(summarized, summarized[0]?.record.owner, Date.now(), lastView?.game.generation ?? 0);
@@ -985,6 +1116,20 @@ async function waitRatingStoryQuiet(myEpoch: number): Promise<void> {
   }
 }
 
+/**
+ * THE STAGE IS A HOST'S WHILE ITS FLIGHT STANDS (P82 · H5/H7): the chain's slots and a host flight's slots are the same
+ * boxes, so the chain (and a rival after it) waits for the host's faces to let go — bounded like the blocking wait.
+ */
+async function waitAttachedQuiet(myEpoch: number): Promise<void> {
+  const started = typeof performance === 'undefined' ? 0 : performance.now();
+  while (epoch === myEpoch && attachedLive > 0) {
+    if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
+      return;
+    }
+    await nextPaintedFrame();
+  }
+}
+
 /** A decision surface stands at the centre (a drawn card to take, a deck pick). */
 function decisionStands(): boolean {
   const el = document.querySelector<HTMLElement>(DECISION_SURFACES);
@@ -1043,6 +1188,10 @@ async function playRivals(myEpoch: number): Promise<void> {
     const entry = rivalQueue.shift();
     if (entry === undefined) {
       break;
+    }
+    await waitAttachedQuiet(myEpoch);
+    if (epoch !== myEpoch) {
+      return;
     }
     const t = tempoFor(1);
     cardReactionState.phase = 'rising';
@@ -1130,8 +1279,17 @@ export function cutCardReactions(reason = 'cut'): void {
     entry.held.splice(0).forEach((spec) => releasePanelRewardHold(spec));
   }
   rivalQueue.splice(0);
+  // A face lifted IN ITS PLACE is never left raised by a cut: it settles (the card is the player's own object on screen).
+  for (const r of liveRisen.values()) {
+    if (r.via === 'place' && r.emergence !== undefined) {
+      void r.emergence.settleTarget(r.group.card);
+    }
+  }
+  liveRisen.clear();
+  attachedLive = 0;
   killReactorTweens();
   unseatAllReactors();
+  clearDeclaredReactors();
   hurried = false;
   cardReactionState.hurried = false;
   cardReactionState.phase = 'idle';
@@ -1148,6 +1306,7 @@ export function abortCardReactions(): void {
 export function resetCardReactions(): void {
   abortCardReactions();
   claimedSeqs.clear();
+  seedBlockOpen = false;
   takeDeclaredAnswers();
   unseatAllReactors();
   cardReactionState.chain = undefined;

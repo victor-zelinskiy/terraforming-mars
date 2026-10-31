@@ -70,7 +70,7 @@ import {ActionCommitPlan, ActionCommitRail, actionCommitState, onActionCommitRel
 import {centreEndOf, pulseCommitRing} from '@/client/console/consoleActionCommitMotion';
 import {ResourceTransferSpec, TransferEnd, TransferEndLike} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {RailAnswerFlight, flyRailReward, flyRailRewardLink, railRewardHoldsAnswer, railRewardOwed, railRewardPending, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
-import {cardReactionAnswerFlight, composeAnswerFlights, markReactionCause} from '@/client/console/cardReaction/cardReactionDirector';
+import {cardReactionAnswerFlight, composeAnswerFlights, markReactionCause, reactionDeclarationBlock} from '@/client/console/cardReaction/cardReactionDirector';
 import {noteTransferTrail, surfaceClear, surfaceHoldsTokens} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -131,6 +131,8 @@ let seededPlan: ActionCommitPlan | undefined;
 const seededRailRef = shallowRef<ActionCommitRail | undefined>(undefined);
 /** An armed plan a view has been applied for that had paid NOTHING of it yet — still waiting for the view that pays it. */
 let owedPlan: ActionCommitPlan | undefined;
+/** The apply block the seeded half's answer was declared in (`reactionDeclarationBlock`) — its reactor flight asks for that block only. */
+let seededReactionBlock: number | undefined;
 
 /**
  * The longest a seeded half waits for its flight — the CEILING of its own named hold (`action-commit-rail-owed`), on
@@ -202,6 +204,8 @@ export function seedActionCommitRail(before: PlayerViewModel | undefined, after:
     return;
   }
   seededRailRef.value = rail;
+  // ONE ANSWER (P82 · H1): the reactors this commit's answer raises are THIS block's.
+  seededReactionBlock = reactionDeclarationBlock();
   // THE SCORE CELL (TR55, К-V2): a card a link LANDS a resource on scores with that touchdown — its share (the server's
   // attribution, whatever the preview printed — Security Fleet's fighter has no `vpBox`) is held by the ledger, seeded
   // last in this very block, and released by the contact beat of the first token onto that card.
@@ -375,7 +379,7 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined, surface
   const chipStands = answerChipStands();
   // «СРАБАТЫВАНИЕ КАРТЫ» (the owner's decision 2): a reaction the server RECORDED is born on the REACTOR (risen at a
   // seat beside the rail); the chip that promised it is MARKED. A reaction with no record keeps PL-220's chip birth.
-  const reaction = railRewardHoldsAnswer(rail.key) ? cardReactionAnswerFlight() : undefined;
+  const reaction = railRewardHoldsAnswer(rail.key) ? cardReactionAnswerFlight({block: seededReactionBlock}) : undefined;
   const answerFlies = railRewardHoldsAnswer(rail.key) && (chipStands || reaction !== undefined);
   const chipFlight: RailAnswerFlight | undefined = chipStands ? {originOf: answerChipPoint, onLeft: foldWhenClear} : undefined;
   const reactorFlight: RailAnswerFlight | undefined = reaction === undefined ? undefined : {

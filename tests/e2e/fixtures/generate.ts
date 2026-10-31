@@ -87,6 +87,8 @@ import {OlympusConference} from '../../../src/server/cards/base/OlympusConferenc
 import {RoverConstruction} from '../../../src/server/cards/base/RoverConstruction';
 import {EarthCatapult} from '../../../src/server/cards/base/EarthCatapult';
 import {Decomposers} from '../../../src/server/cards/base/Decomposers';
+import {MediaGroup} from '../../../src/server/cards/base/MediaGroup';
+import {SpecialPermit} from '../../../src/server/cards/prelude2/SpecialPermit';
 import {ViralEnhancers} from '../../../src/server/cards/base/ViralEnhancers';
 import {MeatIndustry} from '../../../src/server/cards/promo/MeatIndustry';
 import {Livestock} from '../../../src/server/cards/base/Livestock';
@@ -10005,6 +10007,99 @@ function sponsoringNationFixture(name: string, earthTags: 2 | 4): void {
 }
 sponsoringNationFixture('sponsoring-nation', 4);
 sponsoringNationFixture('sponsoring-nation-locked', 2);
+
+// ── P82 · SPECIAL PERMIT — the TWELFTH Prelude 2 card and the series' FIRST ATTACK, the stand of «ПОДНИМАЕТСЯ ТОЛЬКО ТА
+//    КАРТА, ЧТО СРАБОТАЛА» (docs/claude/prompts/prelude2-p82-special-permit.md, ledger DB): «requires the Greens ruling or
+//    2 of your delegates on their resolution; steal 4 plants from another player». Blue holds P82 with 10 M€ and stands
+//    as ARKLIGHT with Decomposers and Media Group on the table — THREE reactors on one press (the plant tag wakes
+//    Arklight's animal and Decomposers' microbe, the event Media Group's 3 M€):
+//      · `special-permit`        — a 3p Redux + Colonies + Prelude 2 table, a FRESH table: the Greens rule; red 6 plants (the
+//        one target), green 3 (the NEAR MISS «Not enough to steal»); a DRY RUN on a copy: ONE attack prompt naming P82,
+//        one option (red); its answer: blue +4 plants, red −4, a microbe, an animal, +3 M€ — and the reactions the server
+//        records for that response (the stand judges its rises against exactly those);
+//      · `special-permit-locked` — the REDS' law enacted (the Reds rule), blue's ONE delegate on the Greens' resolution: «1/2»;
+//      · `special-permit-bot`    — solo against MarsBot (Teractor), the bot's plant storage (Ganymede) 5: the bot is the
+//        target seat; Decomposers + Media Group on blue's table;
+//      · `special-permit-stale`  — `special-permit` + PETS on blue's table and 35 M€: the stand's STALE scenario — a
+//        standard-project city first (Pets answers it on the city's payout plate — a host that tells its own answer and
+//        never asks for a flight), THEN P82 (the play's scene asks for its reactors) — only P82's own may rise. ──
+function specialPermitDryRun(name: string, game: IGame, blueId: IPlayer['id'], targetColor: string): void {
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(blueId);
+  const card = blue.cardsInHand.find((c) => c.name === CardName.SPECIAL_PERMIT)!;
+  const plants = blue.plants;
+  const mc = blue.megaCredits;
+  const seq = copy.cardReactions.length === 0 ? -1 : Math.max(...copy.cardReactions.map((r) => r.seq));
+  blue.playCard(card, Payment.of({megacredits: 5}));
+  runAllActions(copy);
+  const ask = blue.getWaitingFor();
+  if (!(ask instanceof OrOptions) || ask.choiceContext?.source.card !== CardName.SPECIAL_PERMIT || ask.choiceContext?.mode !== 'attack' || ask.options.length !== 1) {
+    throw new Error(`the ${name} fixture expected ONE attack prompt naming P82 with one target — got ${ask?.type} ${JSON.stringify(ask?.choiceContext)} options=${(ask as OrOptions | undefined)?.options.length}`);
+  }
+  blue.process({type: 'or', index: 0, response: {type: 'option'}});
+  runAllActions(copy);
+  const reactors = copy.cardReactions.filter((r) => r.seq > seq && r.owner === blue.color).map((r) => r.card);
+  if (blue.plants - plants !== 4 || blue.megaCredits !== mc - 5 + 3 || !reactors.includes(CardName.DECOMPOSERS) || !reactors.includes(CardName.MEDIA_GROUP)) {
+    throw new Error(`the ${name} fixture expected +4 plants from ${targetColor}, 10 − 5 + 3 M€ and Decomposers + Media Group answering — got plants +${blue.plants - plants}, mc=${blue.megaCredits}, reactors=${reactors.join(', ')}`);
+  }
+}
+
+function specialPermitFixture(name: string, locked: boolean, stale = false): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    players: 3,
+    megacredits: [stale ? 35 : 10, 30, 30],
+    options: {prelude2Expansion: true, customCorporationsList: [CardName.ARKLIGHT, CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, seats, parliament}) => {
+      const [p1, p2, p3] = seats;
+      if (locked) {
+        seatResolution(parliament, 0, quietResolutionOf(PartyName.GREENS));
+        seatEnacted(parliament, quietResolutionOf(PartyName.REDS));
+        parliament.placeVote(p1, parliament.slots[0], 'lobby');
+      }
+      p1.playedCards.push(new Decomposers(), new MediaGroup(), ...(stale ? [new Pets()] : []));
+      moveToDeckTop(game, CardName.SPECIAL_PERMIT);
+      p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+      p2.plants = 6;
+      p3.plants = 3;
+    },
+    expect: ({game, seats, parliament}) => {
+      const [p1, p2] = seats;
+      const card = p1.cardsInHand.find((c) => c.name === CardName.SPECIAL_PERMIT);
+      const playable = card !== undefined && p1.canPlay(card) !== false;
+      const reason = card === undefined ? undefined : unplayableReasons(p1, card)[0];
+      const oneOfTwo = reason?.type === 'party' && reason.party === PartyName.GREENS && reason.current === 1;
+      const ruling = parliament.rulingParty();
+      if (card === undefined || playable === locked || (locked ? (!oneOfTwo || ruling !== PartyName.REDS) : ruling !== PartyName.GREENS) ||
+        game.activePlayer.id !== p1.id || !p1.tableau.has(CardName.ARKLIGHT)) {
+        throw new Error(`the ${name} fixture expected P82 in blue's (Arklight's) hand, playable=${!locked}, ${locked ? 'the Reds ruling, «1 of 2»' : 'the Greens ruling'} and blue on the move — got card=${card !== undefined} playable=${playable} ruling=${ruling} reason=${JSON.stringify(reason)} active=${game.activePlayer.color}`);
+      }
+      if (!locked) {
+        specialPermitDryRun(name, game, p1.id, p2.color);
+      }
+    },
+  });
+}
+specialPermitFixture('special-permit', false);
+specialPermitFixture('special-permit-locked', true);
+specialPermitFixture('special-permit-stale', false, true);
+
+{
+  const name = 'special-permit-bot';
+  const {game, humans, bot, automa} = botTable(name, 1);
+  const blue = humans[0];
+  blue.megaCredits = 10;
+  blue.playedCards.push(new Decomposers(), new MediaGroup());
+  blue.cardsInHand.push(new SpecialPermit());
+  automa.shippingStorage[ColonyName.GANYMEDE] = 5;
+  runAllActions(game);
+  const card = blue.cardsInHand.find((c) => c.name === CardName.SPECIAL_PERMIT)!;
+  if (!blue.canPlay(card) || game.activePlayer.id !== blue.id || game.parliament?.rulingParty() !== PartyName.GREENS) {
+    throw new Error(`the ${name} fixture expected P82 playable for blue on the move, the Greens ruling — got playable=${blue.canPlay(card)} active=${game.activePlayer.color} ruling=${game.parliament?.rulingParty()}`);
+  }
+  specialPermitDryRun(name, game, blue.id, bot.color);
+  write(name, game);
+}
 
 // ── P71 · COLONIAL REPRESENTATION — the NINTH Prelude 2 card (the stand `console-colonial-representation`): a Redux table
 //    with Colonies and Prelude 2, CALM corporations (Teractor · Thorgate — no first action); blue's Career at step 1

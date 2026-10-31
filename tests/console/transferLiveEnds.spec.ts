@@ -110,6 +110,6 @@ describe('a flight end is an object — the director and the run (source guard)'
     expect(sentinel, 'never gated on a dev build (the e2e serves a production bundle)').to.not.include('NODE_ENV');
     const harness = fs.readFileSync(path.resolve(__dirname, '..', 'e2e', 'consoleTest.ts'), 'utf8');
     expect(harness).to.include(`const TRANSFER_END_NOT_PAINTED = '[transfer] end not painted';`);
-    expect(harness).to.include('transferEndsGuard: [async ({context}, use) => {');
+    expect(harness).to.include('transferEndsGuard: [async ({context}, use, testInfo) => {');
   });
 });

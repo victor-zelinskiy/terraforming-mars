@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {
-  buriedUnderAnotherCard, domReactorPlace, findReactorPlace, placeShowsCard, reactorHomeSelectors, registerReactorPlace, resetReactorPlaces,
+  buriedUnderAnotherCard, domReactorPlace, findReactorPlace, liftTargetOf, placeShowsCard, reactorHomeSelectors, registerReactorPlace, resetReactorPlaces,
   visibleReactorHome,
 } from '@/client/console/cardReaction/reactorPlaces';
 
@@ -159,5 +159,49 @@ describe('reactorPlaces — where a reacting card already stands', () => {
     await emerge;
     await place!.settleTarget(CardName.MARTIAN_FIBER);
     expect(hero.hasAttribute('data-reaction-lifted'), 'the mark leaves with the settle').is.false;
+  });
+  // ── P82 · «ПОДНИМАЕТСЯ ТОЛЬКО ТА КАРТА, ЧТО СРАБОТАЛА» — § ONE FACE (H3) ──
+
+  it('ONE FACE · a hook on a WRAPPER that holds another card\'s face is no place — a lift would raise both («карта с левой картой под ней»); the reactor rises at the stage', () => {
+    const wrap = document.createElement('div');
+    wrap.setAttribute('data-played-key', CardName.PETS);
+    box(wrap, {left: 400, top: 300, width: 320, height: 460});
+    const other = document.createElement('div');
+    other.setAttribute('data-played-key', CardName.DECOMPOSERS);
+    box(other, {left: 400, top: 300, width: 320, height: 460});
+    wrap.appendChild(other);
+    root.appendChild(wrap);
+    expect(visibleReactorHome(CardName.PETS), 'the wrapper carries Decomposers too — not a place').is.undefined;
+  });
+
+  it('ONE FACE · a wrapper whose LIFT BODY (`data-reaction-lift`) carries only its own face is a place — and the lift moves that body, never the wrapper', () => {
+    const wrap = document.createElement('div');
+    wrap.setAttribute('data-reaction-home', CardName.PETS);
+    box(wrap, {left: 400, top: 300, width: 320, height: 460});
+    const body = document.createElement('div');
+    body.setAttribute('data-reaction-lift', '');
+    wrap.appendChild(body);
+    root.appendChild(wrap);
+    expect(visibleReactorHome(CardName.PETS)).eq(wrap);
+    expect(liftTargetOf(wrap), 'the lift moves the face\'s body').eq(body);
+  });
+
+  it('ONE FACE · the fixes of 2026-10-30 stand: a face buried under another card is no place; a slot showing another face is no place for the away card', () => {
+    const slot = document.createElement('div');
+    slot.setAttribute('data-played-key', CardName.PETS);
+    slot.setAttribute('data-played-face', CardName.DECOMPOSERS);
+    box(slot, {left: 400, top: 300, width: 320, height: 460});
+    root.appendChild(slot);
+    expect(placeShowsCard(slot, CardName.PETS)).is.false;
+    expect(visibleReactorHome(CardName.PETS), 'the slot shows Decomposers').is.undefined;
+    const buried = document.createElement('div');
+    buried.setAttribute('data-played-key', CardName.THARSIS_REPUBLIC);
+    box(buried, {left: 900, top: 300, width: 320, height: 460});
+    const top = document.createElement('div');
+    top.setAttribute('data-played-key', CardName.ROVER_CONSTRUCTION);
+    root.append(buried, top);
+    document.elementsFromPoint = () => [top];
+    expect(buriedUnderAnotherCard(buried)).is.true;
+    expect(visibleReactorHome(CardName.THARSIS_REPUBLIC)).is.undefined;
   });
 });

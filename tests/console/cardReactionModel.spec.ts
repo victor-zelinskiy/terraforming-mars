@@ -5,7 +5,7 @@ import {CardReactionRecord} from '../../src/common/models/CardReactionModel';
 import {
   CALM_REACTION_TEMPO, REACTION_CHAIN_CEILING_MANY_MS, REACTION_CHAIN_CEILING_MS, REACTION_HURRY_PACE, REACTION_MANY_GROUPS, REACTION_MANY_PACE,
   REACTION_RIVAL_SCALE, REACTION_STAGE_MAX_SLOTS, REACTION_STAGE_SHARE, REACTOR_ASPECT, chainCeilingFor, freshCardReactions, groupCardReactions,
-  planReactionChain, reactionGroupOf, reactionImpactSpec, reactionRowsOf, reactionStageHeight, reactionStageSlots, reactionTempo, reactionTokensOf,
+  planReactionChain, reactionAnswerGroups, reactionGroupOf, reactionRisers, reactionImpactSpec, reactionRowsOf, reactionStageHeight, reactionStageSlots, reactionTempo, reactionTokensOf,
   reducedReactionTempo,
 } from '../../src/client/console/cardReaction/cardReactionModel';
 import {intakeAssemblyTimings, reducedIntakeAssemblyTimings} from '../../src/client/console/cardIntake/intakeAssemblyPlan';
@@ -301,6 +301,39 @@ describe('cardReactionModel — the record → the group → the chain → the s
         expect(s.left).to.be.at.least(narrow.left);
         expect(s.left + s.width).to.be.at.most(narrow.left + narrow.width);
       }
+    });
+  });
+  // ── P82 · «ПОДНИМАЕТСЯ ТОЛЬКО ТА КАРТА, ЧТО СРАБОТАЛА» — § risers: ONE question «who rises now, and how» ──
+  describe('reactionAnswerGroups / reactionRisers — who rises in THIS answer, and how', () => {
+    const c = (seq: number, block: number, rows: Array<string>, over: {claimed?: boolean, reserved?: string} = {}) =>
+      ({seq, block, rows, claimed: over.claimed ?? false, reserved: over.reserved});
+
+    it('H1 · two groups on ONE row from TWO answers: a host asking with its block takes its own; with neither block nor rows, the newest answer only', () => {
+      const stale = c(4, 1, ['stock:megacredits']);
+      const fresh = c(5, 2, ['stock:megacredits']);
+      expect(reactionAnswerGroups([stale, fresh], {block: 2}).map((g) => g.seq)).deep.eq([5]);
+      expect(reactionAnswerGroups([stale, fresh], {}).map((g) => g.seq), 'never every group on record').deep.eq([5]);
+      expect(reactionAnswerGroups([stale, fresh], {block: 1}).map((g) => g.seq), 'the earlier host still gets ITS own').deep.eq([4]);
+    });
+
+    it('a row ask stays a row ask; a claimed group is nobody\'s; a RESERVED group is only its host\'s (H4 — a host that tells it itself)', () => {
+      const groups = [c(1, 3, ['stock:heat']), c(2, 3, ['stock:megacredits'], {claimed: true}), c(3, 3, ['stock:heat'], {reserved: 'stage'})];
+      expect(reactionAnswerGroups(groups, {rows: ['stock:heat']}).map((g) => g.seq)).deep.eq([1]);
+      expect(reactionAnswerGroups(groups, {rows: ['stock:megacredits']})).deep.eq([]);
+      expect(reactionAnswerGroups(groups, {reserved: 'stage'}).map((g) => g.seq)).deep.eq([3]);
+    });
+
+    it('an empty answer raises nothing', () => {
+      expect(reactionAnswerGroups([], {block: 1})).deep.eq([]);
+      expect(reactionRisers([], 3)).deep.eq([]);
+    });
+
+    it('H6/H7 · a group standing on screen lifts IN ITS PLACE and takes no slot; the others take their OWN slots in order; past the last slot a group rises nowhere — never two faces in one box', () => {
+      expect(reactionRisers([{placed: true}, {placed: false}, {placed: false}], 3)).deep.eq([{via: 'place'}, {via: 'stage', slot: 0}, {via: 'stage', slot: 1}]);
+      expect(reactionRisers([{placed: false}, {placed: false}, {placed: false}, {placed: false}], 3).map((r) => r.via === 'stage' ? r.slot : r.via))
+        .deep.eq([0, 1, 2, 'none']);
+      expect(reactionRisers([{placed: false}, {placed: false}, {placed: false}], 2).map((r) => r.via === 'stage' ? r.slot : r.via), 'the handheld\'s two')
+        .deep.eq([0, 1, 'none']);
     });
   });
 });

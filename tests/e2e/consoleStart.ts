@@ -3061,6 +3061,10 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // Prelude 2 P83 Sponsoring Nation — the play's live delegate grant with no board door (CX): 4 Earth tags (Teractor ·
   // Cartel · Luna Governor), the Greens ruling, reserve 6 · locked at 2 Earth tags.
   'sponsoring-nation' | 'sponsoring-nation-locked' |
+  // Prelude 2 P82 Special Permit — the series' first ATTACK and the stand of «only the card that fired rises» (DB): Arklight +
+  // Decomposers + Media Group (three reactors), red 6 plants (the target), green 3 (the near miss) · the Reds ruling, «1/2» ·
+  // against MarsBot (its plant storage the target).
+  'special-permit' | 'special-permit-locked' | 'special-permit-bot' | 'special-permit-stale' |
   // Prelude 2 P71 Colonial Representation (CY): Career step 1, cubes on Luna and Pluto, 12 M€, the card in hand.
   'colonial-representation' |
   // The sitting's RESULTS LEDGER (P71 · CY), the sitting over on the results card: Colonial Affairs on three seats with

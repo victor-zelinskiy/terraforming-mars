@@ -4866,6 +4866,9 @@ export default defineComponent({
     // lifts it THERE; its tokens are born on that face's effect row and land in its own capsule. Never a second instance
     // at the stage while the card is about to stand in the start.
     startReactorPlaceOff?.();
+    // THE FACE THAT ROSE IS THE FACE THAT SETTLES (P82 · DB): the settle used to look the face up AGAIN — the card had
+    // moved shelf → seat meanwhile, so another element (or none) settled and the lifted one stayed raised for good.
+    const liftedFaces = new Map<CardName, HTMLElement>();
     startReactorPlaceOff = registerReactorPlace({
       id: 'start',
       // …unless its face lies BURIED on the shelf under another card: no honest place — the reactor rises at the stage.
@@ -4873,11 +4876,14 @@ export default defineComponent({
       emergeTarget: async (card) => {
         const face = await this.startReactorFace(card, true);
         if (face !== undefined) {
+          liftedFaces.set(card, face);
           await liftInPlace(face);
         }
       },
       settleTarget: async (card) => {
-        const face = await this.startReactorFace(card, false);
+        const lifted = liftedFaces.get(card);
+        liftedFaces.delete(card);
+        const face = lifted?.isConnected === true ? lifted : await this.startReactorFace(card, false);
         if (face !== undefined) {
           await settleInPlace(face);
         }

@@ -29,6 +29,7 @@ import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
+import {otherCardsInside} from '@/client/console/cardReaction/reactionIdentity';
 
 /** A reactor's WAY ONTO THE SCREEN: out of its own place in a host's stage, or at the stage of the reaction layer. */
 export type ReactorEmergence = {
@@ -82,7 +83,7 @@ export const PLACE_SETTLE_MS = 200;
 const PLACE_LIFT_SCALE = 1.05;
 const PLACE_LIFT_SHARE = 0.03;
 
-function liftTargetOf(el: HTMLElement): HTMLElement {
+export function liftTargetOf(el: HTMLElement): HTMLElement {
   // The face's body when the hook stands on a wrapper (the composer's hero slot) — a wrapper may be a layout anchor.
   return el.querySelector<HTMLElement>('[data-reaction-lift]') ?? el;
 }
@@ -163,6 +164,11 @@ export function visibleReactorHome(card: CardName): HTMLElement | undefined {
         continue;
       }
       if (el.getBoundingClientRect().height < MIN_PLACE_H * conUiScale() || buriedUnderAnotherCard(el)) {
+        continue;
+      }
+      // ONE FACE PER LIFT (P82 · H3): the element a lift moves carries exactly ONE card face — its own. A wrapper holding
+      // another card's face would raise both («карта поднимается с левой картой под ней»): it is no place.
+      if (otherCardsInside(liftTargetOf(el), card).length > 0) {
         continue;
       }
       return el;

@@ -72,7 +72,7 @@ import {
 import {PlayReaction, splitPlayRewards, cardTargetGroups, receiveSteps, ReceiveStep} from '@/client/console/played/receivingStageModel';
 import {runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
 import {RailAnswerCause, RailAnswerFlight, RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
-import {ReactorEmergence, cardReactionAnswerFlight, composeAnswerFlights, markReactionCause} from '@/client/console/cardReaction/cardReactionDirector';
+import {ReactorEmergence, cardReactionAnswerFlight, composeAnswerFlights, markReactionCause, reactionDeclarationBlock} from '@/client/console/cardReaction/cardReactionDirector';
 import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnds';
 import {TOUCHDOWN_TICK_GAP_MS, TransferEnd, TransferEndLike, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {bareWildIcons, centreEndOf, iconNeedlesFor, resolveActionCommitAnchors, resolveSpendIconEnds, wildChosen} from '@/client/console/consoleActionCommitMotion';
@@ -262,6 +262,8 @@ let heldRewards: Array<ResourceTransferSpec> = [];
 let pendingRail: RailReward | undefined;
 /** The rail reward this transaction SEEDED (its owner key) — undefined: nothing of it is held. */
 let heldRailKey: string | undefined;
+/** The apply block this scene's answers were declared in (`reactionDeclarationBlock`) — its reactor flights ask for that block only (P82 · H1). */
+let heroReactionBlock: number | undefined;
 /** …and the printed tags its answers were woken by (T06) — the answer flies from them after the rating. */
 let heldRailAnswerTags: Readonly<Partial<Record<string, ReadonlyArray<RailAnswerCause>>>> | undefined;
 
@@ -464,7 +466,7 @@ async function answerHeroAfterWave(): Promise<void> {
   // «СРАБАТЫВАНИЕ КАРТЫ»: the REACTOR that paid rises first (out of its place on the receiving stage, or at a seat beside
   // the rail) and its share is born on its effect row; the printed tag that woke it is marked. What no reactor records
   // (a party's share) keeps the T06 birth on the tag; what no visible cause covers ticks at the beat.
-  const reaction = cardReactionAnswerFlight({emergence: playedHeroState.host === 'workspace' ? heroEmergence(effectHooks) : undefined});
+  const reaction = cardReactionAnswerFlight({block: heroReactionBlock, emergence: playedHeroState.host === 'workspace' ? heroEmergence(effectHooks) : undefined});
   if (reaction !== undefined && playedHeroState.active) {
     await reaction.prepare?.();
   }
@@ -528,7 +530,7 @@ function heroAnswerFlight(card: string, tags: Readonly<Partial<Record<string, Re
   };
   // «СРАБАТЫВАНИЕ КАРТЫ» (the owner's decision 2): the token is born on the REACTOR that paid — risen out of its place
   // on the receiving stage, or at a seat beside the rail — and the printed tag that woke it is MARKED, not a birth place.
-  const reaction = cardReactionAnswerFlight({emergence: playedHeroState.host === 'workspace' ? heroEmergence(effectHooks) : undefined});
+  const reaction = cardReactionAnswerFlight({block: heroReactionBlock, emergence: playedHeroState.host === 'workspace' ? heroEmergence(effectHooks) : undefined});
   if (reaction === undefined) {
     return tagFlight;
   }
@@ -981,6 +983,8 @@ export function seedPlayedHeroRewardHold(before?: PlayerViewModel, after?: Playe
     return;
   }
   rewardHoldSeeded = true;
+  // ONE ANSWER (P82 · H1): the reactors this play's scene raises are THIS block's — never a group an earlier press left.
+  heroReactionBlock = reactionDeclarationBlock();
   if (pendingRewards.length > 0) {
     heldRewards = [...pendingRewards];
     beginPanelRewardHold(pendingRewards);

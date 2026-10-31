@@ -365,3 +365,44 @@ export function reactionStageSlots(opening: RectLike, n: number, opts: ReactionS
   }
   return out;
 }
+
+// ── «ПОДНИМАЕТСЯ ТОЛЬКО ТА КАРТА, ЧТО СРАБОТАЛА» (P82 Special Permit's polish, the owner's report of 2026-10-31) ──
+
+/** An attached group as the one question reads it: its answer (the apply block), its rows, its reservation. */
+export type ReactionAnswerCandidate = {seq: number; block: number; rows: ReadonlyArray<string>; claimed: boolean; reserved?: string};
+
+/** What a host's flight asks for: its own answer (`block`), its rows, its reservation. */
+export type ReactionAnswerAsk = {block?: number; rows?: ReadonlyArray<string>; reserved?: string};
+
+/**
+ * WHO BELONGS TO THIS ANSWER — the groups a host's flight may raise: unclaimed, of the host's reservation (or none), of
+ * the host's OWN apply block, on the host's rows when it names them. With neither a block nor rows the ask reads the
+ * NEWEST answer only — never every group on record (H1: an unfiltered ask once raised a group an earlier press left
+ * unclaimed beside this press's reactor). Pure.
+ */
+export function reactionAnswerGroups<C extends ReactionAnswerCandidate>(candidates: ReadonlyArray<C>, ask: ReactionAnswerAsk): Array<C> {
+  const open = candidates.filter((c) => !c.claimed && c.reserved === ask.reserved);
+  const rows = ask.rows === undefined ? undefined : new Set(ask.rows);
+  const block = ask.block ?? (rows === undefined ? Math.max(-1, ...open.map((c) => c.block)) : undefined);
+  return open.filter((c) => (block === undefined || c.block === block) && (rows === undefined || c.rows.some((r) => rows.has(r))));
+}
+
+/** HOW one group of an answer comes forward. */
+export type ReactionRiser = {via: 'place'} | {via: 'stage', slot: number} | {via: 'none'};
+
+/**
+ * HOW EACH GROUP RISES — decided ONCE, before any rise (H6/H7): a group whose face stands on screen lifts IN ITS PLACE
+ * (and takes no stage slot); every other takes its OWN slot in order — never `i % slots` (two faces in one box were «a
+ * card with another card under it»); a group past the last slot rises nowhere (its tokens tick, its name is stated).
+ * Pure.
+ */
+export function reactionRisers(groups: ReadonlyArray<{placed: boolean}>, slots: number): Array<ReactionRiser> {
+  let next = 0;
+  return groups.map((g): ReactionRiser => {
+    if (g.placed) {
+      return {via: 'place'};
+    }
+    const slot = next++;
+    return slot < slots ? {via: 'stage', slot} : {via: 'none'};
+  });
+}

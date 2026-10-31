@@ -11,12 +11,13 @@ import {
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   cardReactionAnswerFlight, cardReactionHurried, cardReactionPending, composeAnswerFlights, cutCardReactions, hurryCardReactions, markReactionCause,
-  reserveCardReaction, resetCardReactions, rivalReactionPending, rivalSpecsOf, seedCardReactionHolds, snapshotRailHolds,
+  openReactionSeedBlock, reactionDeclarationBlock, reserveCardReaction, resetCardReactions, rivalReactionPending, rivalSpecsOf, seedCardReactionHolds, snapshotRailHolds,
 } from '@/client/console/cardReaction/cardReactionDirector';
 import {reactionGroupOf} from '@/client/console/cardReaction/cardReactionModel';
 import {cardReactionState, registerCardReactionStage} from '@/client/console/cardReaction/cardReactionStage';
 import {reactionToldOnStage, resetReactionTold} from '@/client/console/cardReaction/reactionToldOnStage';
 import {reduceMotionOverrideState} from '@/client/utils/reducedMotion';
+import {reactionIdentitySnapshot, resetReactionIdentity} from '@/client/console/cardReaction/reactionIdentity';
 
 /*
  * «СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК» — the director's two shapes without a stage: a record whose rows a host
@@ -47,6 +48,7 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     reduceMotionOverrideState.enabled = false;
     resetCardReactions();
     resetReactionTold();
+    resetReactionIdentity();
     clearPanelRewardHold();
   });
 
@@ -330,5 +332,73 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     expect(el.getAttribute('data-reaction-cause')).eq('1');
     markReactionCause(undefined);
     markReactionCause(null);
+  });
+  // ── P82 · «ПОДНИМАЕТСЯ ТОЛЬКО ТА КАРТА, ЧТО СРАБОТАЛА» — § STALE (H1) ──
+
+  it('STALE · a group an EARLIER answer attached and nobody claimed is never risen by a later press\'s flight — the host takes its OWN answer; the stale one is let go, by name, once its rows are no longer held', () => {
+    const mediaGroup = (seq: number) => record(seq, {kind: 'card', card: CardName.MEDIA_GROUP, impacts: [{kind: 'stock', resource: Resource.MEGACREDITS, amount: 3, to: BLUE}]});
+    // ANSWER 1: a host that flies the answer ITSELF (the scale step's beat, a remote landing's income, the patent sale —
+    // «never the chain's second flight») declares it; nobody ever asks for a flight.
+    openReactionSeedBlock();
+    const told: Array<ResourceTransferSpec> = [{channel: 'stock', resource: 'megacredits', amount: 3}];
+    beginPanelRewardHold(told);
+    declareHeldAnswers(told);
+    seedCardReactionHolds(view([]), view([mediaGroup(4)]), snapshotRailHolds());
+    // …and it touches down on its own.
+    releasePanelRewardHold(told[0]);
+    // ANSWER 2: the next press — a play whose hero declares ITS answer (Hartlan) and asks with its block.
+    const heldBefore = snapshotRailHolds();
+    openReactionSeedBlock();
+    const block = reactionDeclarationBlock();
+    const answer: Array<ResourceTransferSpec> = [{channel: 'stock', resource: 'heat', amount: 6}, {channel: 'production', resource: 'megacredits', amount: 1}];
+    beginPanelRewardHold(answer);
+    declareHeldAnswers(answer);
+    seedCardReactionHolds(view([mediaGroup(4)]), view([mediaGroup(4), record(5)]), heldBefore);
+    expect(reactionIdentitySnapshot().letGo.map((l) => `${l.card}:${l.why}`), 'the stale group is let go, by name').deep.eq([`${CardName.MEDIA_GROUP}:expired`]);
+    const flight = cardReactionAnswerFlight({block});
+    expect(flight, 'the hero gets its flight').is.not.undefined;
+    const tokens = flight?.tokensOf?.({channel: 'stock', resource: 'megacredits', amount: 3}) ?? [];
+    expect(tokens.map((t) => t.amount), 'nothing of Media Group\'s rides this flight — the 3 M€ keep their own tick').deep.eq([3]);
+    flight?.onDone?.();
+  });
+
+  it('STALE · a group whose rows a host STILL holds is not let go (its scene may still ask) — but a flight of ANOTHER answer never takes it', () => {
+    const before = snapshotRailHolds();
+    openReactionSeedBlock();
+    const first = reactionDeclarationBlock();
+    const answer: Array<ResourceTransferSpec> = [{channel: 'stock', resource: 'heat', amount: 6}, {channel: 'production', resource: 'megacredits', amount: 1}];
+    beginPanelRewardHold(answer);
+    declareHeldAnswers(answer);
+    seedCardReactionHolds(view([]), view([record(2)]), before);
+    // A second answer arrives while the first host's scene still plays (its rows held).
+    const heldBefore = snapshotRailHolds();
+    openReactionSeedBlock();
+    const second = reactionDeclarationBlock();
+    const other: Array<ResourceTransferSpec> = [{channel: 'stock', resource: 'megacredits', amount: 3}];
+    beginPanelRewardHold(other);
+    declareHeldAnswers(other);
+    seedCardReactionHolds(view([record(2)]), view([record(2), record(3, {kind: 'card', card: CardName.MEDIA_GROUP, impacts: [{kind: 'stock', resource: Resource.MEGACREDITS, amount: 3, to: BLUE}]})]), heldBefore);
+    expect(reactionIdentitySnapshot().letGo, 'nothing let go — the first host still holds its rows').deep.eq([]);
+    expect(cardReactionAnswerFlight({block: second, rows: ['stock:heat']}), 'the second answer\'s flight never takes the first answer\'s group').is.undefined;
+    const own = cardReactionAnswerFlight({block: first});
+    expect(own, 'the first host still gets its own').is.not.undefined;
+    own?.onDone?.();
+  });
+
+  it('STALE · an ask with neither a block nor rows reads the NEWEST answer only — never every group on record', () => {
+    const before = snapshotRailHolds();
+    const answer: Array<ResourceTransferSpec> = [{channel: 'stock', resource: 'heat', amount: 6}, {channel: 'production', resource: 'megacredits', amount: 1}];
+    beginPanelRewardHold(answer);
+    declareHeldAnswers(answer);
+    seedCardReactionHolds(view([]), view([record(2)]), before);
+    beginPanelRewardHold(answer);
+    declareHeldAnswers(answer);
+    seedCardReactionHolds(view([record(2)]), view([record(2), record(3, {card: CardName.THARSIS_REPUBLIC})]), snapshotRailHolds());
+    const flight = cardReactionAnswerFlight();
+    expect(flight).is.not.undefined;
+    const tokens = flight?.tokensOf?.({channel: 'stock', resource: 'heat', amount: 12}) ?? [];
+    expect(tokens.reduce((n, t) => n + (t.amount ?? 0), 0), 'one answer\'s 6 as the reactor\'s wave, the rest one ticking token').eq(12);
+    expect(tokens.filter((t) => t.amount === 1).length, 'six tokens of ONE group — not twelve of two').eq(6);
+    flight?.onDone?.();
   });
 });

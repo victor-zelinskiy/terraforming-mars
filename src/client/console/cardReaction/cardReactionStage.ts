@@ -51,6 +51,11 @@ export type ReactorCaption = {color: Color; name: string};
 export type ReactorFace = {
   key: string;
   name: CardName;
+  /**
+   * THE GROUP the face belongs to (the record's `seq`, P82 · H2): a warm face is warmed FOR one group and taken over by
+   * that group's rise only — two groups of one card (two instances, a rival's copy) never share a face.
+   */
+  seq?: number;
   /** WHAT the face is (iteration 4): a card / corporation face by name — or an enacted RESOLUTION's (`name` is its id). Absent = a card. */
   kind?: CardReactionRecord['kind'];
   /** The LIVE model (the capsule's count) when the host has it — the pristine print otherwise. */
@@ -117,21 +122,42 @@ let warmSeq = 0;
  * premium face is laid out and its art decoded while the cause's own scene plays. A rise of the same card then takes
  * the warm face over (same key, same element — no remount) and starts its tween on a laid-out, painted-once face.
  */
-export function warmReactorFaces(faces: ReadonlyArray<Pick<ReactorFace, 'name' | 'card' | 'kind'>>, seat: RectLike): void {
+export function warmReactorFaces(faces: ReadonlyArray<Pick<ReactorFace, 'name' | 'card' | 'kind' | 'seq'>>, seat: RectLike): void {
   if (stage === undefined) {
     return;
   }
   const fresh = faces
-    .filter((f) => !cardReactionState.faces.some((x) => x.warm === true && x.name === f.name))
-    .map((f): ReactorFace => ({key: `warm:${f.name}:${++warmSeq}`, name: f.name, kind: f.kind, card: f.card, seat, warm: true}));
+    .filter((f) => !cardReactionState.faces.some((x) => x.warm === true && warmFor(x, f)))
+    .map((f): ReactorFace => ({key: `warm:${f.seq ?? f.name}:${++warmSeq}`, name: f.name, seq: f.seq, kind: f.kind, card: f.card, seat, warm: true}));
   if (fresh.length > 0) {
     cardReactionState.faces = [...cardReactionState.faces, ...fresh];
   }
 }
 
+/** The warm face `x` was warmed for the group of `f` — by the group's `seq` when both know it, else by the card's name. */
+function warmFor(x: Pick<ReactorFace, 'name' | 'seq'>, f: Pick<ReactorFace, 'name' | 'seq'>): boolean {
+  return x.seq !== undefined && f.seq !== undefined ? x.seq === f.seq : x.name === f.name;
+}
+
 /** Drop every warm face (a chain that never rose them — an abort, a hurry's cut). */
 export function dropWarmReactors(): void {
   cardReactionState.faces = cardReactionState.faces.filter((f) => f.warm !== true);
+}
+
+/**
+ * Drop the warm faces of these groups NOW (P82 · H2) — in the moment it is decided they will not rise at the stage: a
+ * group lifted in its place, summarized past the ceiling, let go unclaimed, told by its host without a rise. The layer
+ * never keeps a warm face of a card that is not still to rise.
+ */
+export function dropWarmFacesOf(seqs: ReadonlyArray<number>): void {
+  if (seqs.length === 0) {
+    return;
+  }
+  const drop = new Set(seqs);
+  const next = cardReactionState.faces.filter((f) => f.warm !== true || f.seq === undefined || !drop.has(f.seq));
+  if (next.length !== cardReactionState.faces.length) {
+    cardReactionState.faces = next;
+  }
 }
 
 /**
@@ -142,7 +168,7 @@ export async function seatReactor(face: ReactorFace): Promise<{el: HTMLElement, 
   if (stage === undefined) {
     return undefined;
   }
-  const warm = cardReactionState.faces.find((f) => f.warm === true && f.name === face.name);
+  const warm = cardReactionState.faces.find((f) => f.warm === true && warmFor(f, face));
   const key = warm?.key ?? face.key;
   if (warm !== undefined) {
     cardReactionState.faces = cardReactionState.faces.map((f) => (f === warm ? {...face, key, warm: false} : f));

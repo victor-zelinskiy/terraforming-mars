@@ -46,6 +46,7 @@ import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import {currentTimingBucket, formatTiming, noteTiming, resetTiming, snapshotTiming} from './timing';
+import {describeReactionStory, installReactionWitness, reactionStory} from './reactionWitness';
 
 export * from '@playwright/test';
 
@@ -278,6 +279,63 @@ const TRANSFER_SURFACE_FOLDED = '[transfer] surface folded under its token';
  */
 const TRANSFER_TOKEN_UNDER = '[transfer] token painted under';
 /**
+ * …and the REACTION IDENTITY sentinel's (P82 — «ПОДНИМАЕТСЯ ТОЛЬКО ТА КАРТА, ЧТО СРАБОТАЛА», `cardReaction/reactionIdentity.ts`):
+ * after a rise or a settle of the card-reaction chain, a face the player can see moving that no rise declared (a foreign
+ * group, a warm face painted, two faces stacked in one slot, a lift that carries another card, one card in two places).
+ */
+const REACTION_FOREIGN_FACE = '[reaction] foreign face';
+
+/**
+ * THE REACTION FACE GUARD — every test, every page of its context: the sentinel's line above is red. With
+ * `TM_E2E_REACTION_WITNESS=1` (the audit's «до / после» runs) the identity WITNESS (`reactionWitness.ts`) is armed on
+ * every page too — its story is annotated and filed under `<outputDir>/reaction-witness.json`, and a verdict is red.
+ * Returns the teardown check.
+ */
+function armReactionFaceGuard(context: import('@playwright/test').BrowserContext, testInfo: import('@playwright/test').TestInfo): () => Promise<string | undefined> {
+  const foreign: Array<string> = [];
+  const watch = (page: Page) => {
+    page.on('console', (message) => {
+      const text = message.text();
+      if (text.includes(REACTION_FOREIGN_FACE)) {
+        foreign.push(text.slice(0, 300));
+      }
+    });
+  };
+  context.pages().forEach(watch);
+  context.on('page', watch);
+  const witnessed = process.env.TM_E2E_REACTION_WITNESS === '1';
+  const armed = witnessed ? context.addInitScript(installReactionWitness, 16).catch(() => undefined) : Promise.resolve();
+  return async () => {
+    await armed;
+    const lines: Array<string> = [];
+    if (witnessed) {
+      const stories: Array<{url: string, story: Awaited<ReturnType<typeof reactionStory>>}> = [];
+      for (const page of context.pages()) {
+        try {
+          stories.push({url: page.url(), story: await reactionStory(page)});
+        } catch {
+          // a page closed before the read — nothing to file
+        }
+      }
+      const seen = stories.filter((s) => s.story.samples > 0);
+      testInfo.annotations.push({type: 'reaction-witness', description: seen.length === 0 ? 'no reaction face on screen' : seen.map((s) => describeReactionStory(s.story)).join(' || ')});
+      try {
+        fs.writeFileSync(testInfo.outputPath('reaction-witness.json'), JSON.stringify({title: testInfo.titlePath, stories}, null, 1));
+      } catch {
+        // the output dir is the runner's — a write refused is not the product's red
+      }
+      for (const s of seen) {
+        if (s.story.verdicts.length > 0) {
+          lines.push(`witness: ${describeReactionStory(s.story)}`);
+        }
+      }
+    }
+    lines.push(...foreign);
+    return lines.length === 0 ? undefined : `${REACTION_FOREIGN_FACE} — a card-reaction face the chain did not declare moved on screen (the identity of a rise):\n  ${lines.join('\n  ')}`;
+  };
+}
+
+/**
  * The REACTIVITY WITNESS's marker (`src/client/components/presentation/reactivityWitness.ts`, the class behind the dead
  * board of 2026-10-30): a declared predicate that caches read — every animation-hold supplier, the prompt admission's
  * module terms — changed without a reactive edge, so every cache of it had latched until the console's tick healed it.
@@ -473,7 +531,8 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
    * born on / touched down over nothing, or painted under a surface; the harness turns it red, so every spec that flies
    * a token is a witness of the law.
    */
-  transferEndsGuard: [async ({context}, use) => {
+  transferEndsGuard: [async ({context}, use, testInfo) => {
+    const reactionFaces = armReactionFaceGuard(context, testInfo);
     const unpainted: Array<string> = [];
     const watch = (page: Page) => {
       page.on('console', (message) => {
@@ -486,6 +545,10 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     context.pages().forEach(watch);
     context.on('page', watch);
     await use();
+    const foreignFaces = await reactionFaces();
+    if (foreignFaces !== undefined) {
+      throw new Error(foreignFaces);
+    }
     if (unpainted.length > 0) {
       throw new Error(`${TRANSFER_END_NOT_PAINTED} / ${TRANSFER_SURFACE_FOLDED} / ${TRANSFER_TOKEN_UNDER} — a resource token was born on / landed over nothing, its surface folded under it, or it was painted under a surface (the laws of live flight ends, of the fold and of the paint):\n  ${unpainted.join('\n  ')}`);
     }
