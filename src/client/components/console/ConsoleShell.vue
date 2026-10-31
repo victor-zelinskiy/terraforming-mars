@@ -2248,7 +2248,7 @@ import {
 import {START_STRAND_CONFIRM_MS, START_STRAND_YIELD_MS, startStranded, startYieldsForHeldPlacement} from '@/client/console/startServing';
 import {
   ActualStartOwner, START_SHADOW_CONFIRM_MS, START_SHADOW_HELD_MS, StartOwner, StartShadowFinding, actualStartOwner,
-  expectedStartOwner, recordStartShadowFinding, startShadowInScope, startShadowLog, startShadowVerdict,
+  expectedStartOwner, recordStartShadowFinding, startDirectorCure, startShadowInScope, startShadowLog, startShadowVerdict,
 } from '@/client/console/startDirector';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {
@@ -12196,6 +12196,8 @@ export default defineComponent({
           frames: workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`),
           diag: diag ?? null,
         }));
+        // PHASE 1 — THE SHADOW ACTS: a confirmed finding is cured through the existing doors (`startDirectorCure`).
+        this.runStartDirectorCure(finding, 'shadow');
       }, held ? START_SHADOW_HELD_MS : START_SHADOW_CONFIRM_MS);
     },
     /** The question the strand was yielded for is answered (or replaced): the start takes its screen back. */
@@ -21378,8 +21380,53 @@ export default defineComponent({
      * (rank 25 — the beat stall guard's cure, now a rung), and the stack goes HOME as the last resort (rank 30 — the
      * mandatory plate re-announces whatever the server still asks; nothing of the game is lost, only the screen).
      */
+    /**
+     * THE START DIRECTOR'S CURE (phase 1 — `startDirectorCure`): `heal` runs the scene's own doors (the strand's
+     * `healStrand`), and a door that opens nothing yields; `yield` hands the question to the shell's surfaces (the
+     * strand's own yield, released on the next prompt). Named in the log under the shadow's prefix (the e2e harness
+     * files it with the findings); idempotent — a cure that changes nothing reports nothing.
+     */
+    runStartDirectorCure(finding: Pick<StartShadowFinding, 'kind' | 'expected' | 'actual'>, by: 'shadow' | 'liveness'): string {
+      const cure = startDirectorCure(finding);
+      if (cure === 'none' || !this.startSceneMounted) {
+        return '';
+      }
+      const yieldNow = (): string => {
+        if (this.startStrandYield) {
+          return '';
+        }
+        this.startStrandPrompt = this.playerView.waitingFor?.promptId;
+        this.startStrandYield = true;
+        return 'yielded';
+      };
+      let did = '';
+      if (cure === 'heal') {
+        const scene = this.$refs.startScene as {healStrand?: () => string} | undefined;
+        const healed = scene?.healStrand?.() ?? 'no-scene';
+        did = healed === 'nothing-to-heal' || healed === 'no-scene' ? [healed, yieldNow()].filter((x) => x !== '').join(' → ') : healed;
+      } else {
+        did = yieldNow();
+      }
+      if (did === '') {
+        return '';
+      }
+      console.warn(`[start-shadow] cure «${cure}» by ${by} — expected «${finding.expected}», on screen «${finding.actual}»: ${did}`);
+      return `${cure}: ${did}`;
+    },
     registerLivenessRungs(): void {
       this.livenessRungStops = [
+        registerLivenessRelease({
+          rank: 15,
+          name: 'start-director',
+          release: () => {
+            // A standing DISAGREEMENT of the start shadow on a stalled screen — cured through the existing doors.
+            const s = this.startShadowNow;
+            if (!startShadowInScope(s.expected, s.actual) || startShadowVerdict(s.expected, s.actual, s.held) !== 'disagree') {
+              return '';
+            }
+            return this.runStartDirectorCure({kind: 'disagree', expected: s.expected, actual: s.actual}, 'liveness');
+          },
+        }),
         registerLivenessRelease({
           rank: 25,
           name: 'workspace-beat',

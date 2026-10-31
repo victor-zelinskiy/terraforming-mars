@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {
   ActualStartSignals, StartTruth, actualStartOwner, expectedStartOwner, recordStartShadowFinding, resetStartShadowLog,
-  startOwnersAgree, startShadowInScope, startShadowLog, startShadowVerdict,
+  startDirectorCure, startOwnersAgree, startShadowInScope, startShadowLog, startShadowVerdict,
 } from '../../src/client/console/startDirector';
 
 /**
@@ -60,6 +60,11 @@ describe('startDirector — what the latches put on screen', () => {
 });
 
 describe('startDirector — agreement and scope', () => {
+  it('the corp mandatory move inside the bonus window is the bonus stage own sub-stage — agreed', () => {
+    expect(startOwnersAgree('firstAction', 'bonusAction')).is.true;
+    expect(startOwnersAgree('bonusAction', 'firstAction'), 'the other way round is a real disagreement').is.false;
+  });
+
   it('a beat and a park are never judged; waiting accepts any calm pose; a step may be the start\'s or the shell\'s', () => {
     expect(startOwnersAgree('queue', 'beat')).is.true;
     expect(startOwnersAgree('board', 'parked')).is.true;
@@ -98,5 +103,42 @@ describe('startDirector — agreement and scope', () => {
     expect(recordStartShadowFinding({...f, prompt: 'space:#8'})).is.true;
     expect(startShadowLog.findings).length(2);
     resetStartShadowLog();
+  });
+});
+
+/**
+ * PHASE 1 — THE SHADOW ACTS (the owner, 2026-10-31): a confirmed finding is cured through the doors that already
+ * exist, by name. The cure is PURE here; the shell runs it (the scene's `healStrand`, the strand's yield) from the
+ * shadow's confirmation and from the liveness ladder's rung `start-director` (rank 15).
+ */
+describe('startDirector — phase 1, the cure of a confirmed finding', () => {
+  const cure = (expected: Parameters<typeof startDirectorCure>[0]['expected'], actual: Parameters<typeof startDirectorCure>[0]['actual'], kind: 'disagree' | 'held-long' = 'disagree') =>
+    startDirectorCure({kind, expected, actual});
+
+  it('the START must serve and nobody does → HEAL through the scene\'s doors', () => {
+    expect(cure('queue', 'none')).to.eq('heal');
+    expect(cure('firstAction', 'none')).to.eq('heal');
+    expect(cure('bonusAction', 'none')).to.eq('heal');
+    expect(cure('wizard', 'none')).to.eq('heal');
+  });
+
+  it('the SHELL\'s surface must serve (a step, the board) or the game has begun, and the start stands in the way → YIELD', () => {
+    expect(cure('step', 'none')).to.eq('yield');
+    expect(cure('step', 'queue')).to.eq('yield');
+    expect(cure('board', 'firstAction')).to.eq('yield');
+    expect(cure('game', 'queue')).to.eq('yield');
+    expect(cure('game', 'none')).to.eq('yield');
+  });
+
+  it('a HELD prompt is an admission block\'s own ledgered debt — never cured here', () => {
+    expect(cure('board', 'none', 'held-long')).to.eq('none');
+    expect(cure('queue', 'none', 'held-long')).to.eq('none');
+  });
+
+  it('a disagreement the player can ACT on is logged only — the shell already serving a start question, the board under a placement', () => {
+    expect(cure('queue', 'shell'), 'the strand\'s yield already happened — not undone').to.eq('none');
+    expect(cure('firstAction', 'board')).to.eq('none');
+    expect(cure('game', 'board')).to.eq('none');
+    expect(cure('step', 'shell')).to.eq('none');
   });
 });

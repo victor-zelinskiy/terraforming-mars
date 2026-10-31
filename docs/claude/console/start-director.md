@@ -35,6 +35,29 @@ reveal standing for the player's take (the rule was narrowed for them). The latc
 path the suite walks; the field's failures live on paths it does not. The shadow ships in the product so the next
 field exports name them.
 
+## Phase 1 — THE SHADOW ACTS (shipped 2026-10-31)
+
+The owner (2026-10-31): «не стоит ли тот подход расширить и сделать не только диагностическим, а фактическим, чтобы
+убрать другие зависания и неправильные переходы между состояниями?» — yes, in the narrow form that costs the motion
+nothing: a CONFIRMED finding is CURED through the doors that already exist, by name, and only when the player is
+provably stuck. No latch is replaced (that stays phase 3, under storyboards).
+
+| Piece | What it does |
+| --- | --- |
+| `startDirectorCure(finding)` (pure) | `heal` — the START must serve (`startOwnsOwner`) and nobody does (`actual: none`): the scene's own doors, `healStrand` (queue / shelf return, the first-action seat, the bonus stage); a door that opens nothing YIELDS. `yield` — the SHELL's surface must serve (`step` / `board`) or the game has begun (`game`) and the start scene still stands: the strand's yield (`startStrandYield`, released on the next prompt). `none` — a `held-long` finding (an admission block's own ledgered debt), and any disagreement the player can act on (a shell surface standing for a start question, a live placement). |
+| `ConsoleShell.runStartDirectorCure(finding, by)` | runs it; logs `[start-shadow] cure «heal|yield» by shadow|liveness — …: <did>` (the SAME prefix, so the e2e harvest files it with the findings); idempotent — a cure that changes nothing reports nothing. |
+| the shadow's confirmation | the `startShadowSig` watcher cures right after it logs a finding (3 s unchanged, once per finding). |
+| the ladder's rung `start-director` (rank 15) | the liveness arbiter re-asks the cure on a STALL with a standing disagreement — before the flows are released with force (20) and long before the stack is sent home (30). |
+
+The first run of the start suite with the director in (2026-10-31, 19 files): ONE finding, no cure — «firstAction → bonusAction» on `console-bonus-nested-first-action` (the corporation's mandatory move INSIDE the bonus window is the bonus stage's own sub-stage); the agreement table now knows it (`startOwnersAgree`). Beware the snapshot trap of that run: a neighbour's `make:css` mid-compress left a 0-byte `styles.css.br` in the snapshot — 22 reds with no CSS at all, none the director's.
+
+What it deliberately does NOT do: undo a yield the strand already made (`actual: shell` — the shell is serving), tear
+down a live placement, touch a held prompt (the block's ledger degrades it), or move anything while the shadow agrees.
+
+**Reading a cure in a run**: a `cure` line in `test-results/start-shadow/` is DATA in phase 1 — a latch bug the director
+papered over on a spec path; it becomes the next stand (phase 2) before the latch is touched. The start suite's first
+run after this phase: see the ledger row PL-1265.
+
 ## Next phases
 
 1. **Field data**: the owner's games log `[start-shadow]`; every new shape becomes a stand (a field save → a fixture,

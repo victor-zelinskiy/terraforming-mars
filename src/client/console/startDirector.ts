@@ -146,6 +146,9 @@ export function startOwnersAgree(expected: StartOwner, actual: ActualStartOwner)
   switch (expected) {
   case 'waiting': return true;
   case 'step': return actual === 'step' || actual === 'shell';
+  // The corporation's mandatory move INSIDE the bonus window is the bonus stage's own sub-stage («Фора»: bonus action 1
+  // — `console-bonus-nested-first-action`): the bonus stage serving it is the same owner one level down.
+  case 'firstAction': return actual === 'firstAction' || actual === 'bonusAction';
   default: return actual === expected;
   }
 }
@@ -169,6 +172,42 @@ export function startShadowVerdict(expected: StartOwner, actual: ActualStartOwne
     return actual === 'none' || actual === 'beat' ? 'held' : 'agree';
   }
   return startOwnersAgree(expected, actual) ? 'agree' : 'disagree';
+}
+
+/**
+ * PHASE 1 — THE SHADOW ACTS (the owner, 2026-10-31: «расширить подход тени — не только диагностика, а фактическое
+ * устранение зависаний и неправильных переходов»). A CONFIRMED finding is CURED, through the doors that already exist
+ * and by name — never a latch replaced (that is phase 3, one owner class at a time, under storyboards):
+ *
+ *   · `heal`  — the START must serve (`startOwnsOwner`) and nothing does: the scene's own doors (`healStrand` — the
+ *               queue / shelf return, the first-action seat, the bonus stage); a door that opens nothing YIELDS;
+ *   · `yield` — the SHELL's own surface must serve (a step, a placement) or the game proper has begun, and the start
+ *               scene stands in its way: the strand's yield — the scene stops painting, the question goes to the
+ *               shell's surfaces (`startStrandYield`, released on the next prompt);
+ *   · `none`  — a HELD prompt is an admission block's ledgered debt (its own degrade); a disagreement the player can
+ *               act on (a shell surface standing for a start question) is logged only.
+ *
+ * Applied twice: by the shadow's own confirmation (3 s, once per finding) and by the liveness arbiter's rung
+ * `start-director` (rank 15 — before the flows are released with force) whenever the screen stalls with a standing
+ * disagreement. Idempotent: a cure that changes nothing reports nothing.
+ */
+export type StartCure = 'heal' | 'yield' | 'none';
+
+export function startDirectorCure(f: Pick<StartShadowFinding, 'kind' | 'expected' | 'actual'>): StartCure {
+  if (f.kind === 'held-long') {
+    return 'none';
+  }
+  const startStands = f.actual === 'none' || f.actual === 'wizard' || f.actual === 'queue' ||
+    f.actual === 'firstAction' || f.actual === 'bonusAction';
+  if (startOwnsOwner(f.expected)) {
+    // The start's own question, nobody serving it — a door of the scene; the SHELL serving it (actual `shell`) is a
+    // deliberate fallback (the strand's yield already happened), never undone here.
+    return f.actual === 'none' ? 'heal' : 'none';
+  }
+  if (f.expected === 'step' || f.expected === 'board' || f.expected === 'game') {
+    return startStands ? 'yield' : 'none';
+  }
+  return 'none';
 }
 
 /** A disagreement is a finding only once it has stood this long, unchanged, with the prompt admitted. */
