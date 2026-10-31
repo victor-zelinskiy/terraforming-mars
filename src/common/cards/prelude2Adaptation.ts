@@ -41,7 +41,6 @@ import {CardName} from './CardName';
 /** ADAPT IN PLACE — 24 project cards, 24 preludes, 5 corporations (ordered as the manifest prints them). */
 export const PRELUDE2_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
   // ── Project cards (P68…P91) ──
-  CardName.SPECIAL_PERMIT, // P82 · POLITICAL (Greens) · bespokePlay — steal 4 plants (a SHOWN target, invariant 3)
   CardName.FLOATING_REFINERY, // P73 · Venus · behavior + bespoke action
   CardName.FRONTIER_TOWN, // P74 · POLITICAL (Mars First) · bespokePlay — a city with its own placement rule
   CardName.JOVIAN_ENVOYS, // P77 · POLITICAL · declarative — 2 delegates in 1 party
