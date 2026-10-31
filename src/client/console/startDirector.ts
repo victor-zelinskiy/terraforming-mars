@@ -108,11 +108,13 @@ export type ActualStartSignals = {
 };
 
 export function actualStartOwner(s: ActualStartSignals): ActualStartOwner {
-  if (s.placementLive) {
-    return 'board';
-  }
+  // The start frame is gone: whatever stands — a staged card's cell on the board, the finale's greenery, a card's
+  // placement — is the GAME's, never the start's business (the shadow filed «game → board» on three ordinary tables).
   if (!s.mounted) {
     return 'game';
+  }
+  if (s.placementLive) {
+    return 'board';
   }
   if (s.parked) {
     return 'parked';

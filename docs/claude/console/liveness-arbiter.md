@@ -68,6 +68,7 @@ module registers its own release (`registerLivenessRelease({rank, name, release}
 | --- | --- | --- |
 | 0 | `presentation-ledger` | every owed story degrades NOW through its owner's own release (the park snaps its values, the step-rating ticks its cell) — truth before story |
 | 10 | `foreground` | the foreground watchdog's cure, scope-free: animation holds expire (with their owners' `expire`), foreground holds and admission claims lift |
+| 15 | `start-director` (shell) | a standing START SHADOW disagreement is cured through the scene's own doors (`startDirectorCure`: heal / yield — `docs/claude/console/start-director.md` § Phase 1) |
 | 20 | `workspace-outcome` · `colony-trade` · `card-discard` | a claim released with force (its artifact falls to the standalone presenter — still seen), a trade concluded to committed truth, a disposal aborted |
 | 22 | `transport` | a funnel whose answer ARRIVED but whose gates never let go is released and the view re-fetched; a request still on the wire is left to the network |
 | 25 | `workspace-beat` (shell) | a stalled transient beat torn down through `forceRecoverStuckWorkspace` |

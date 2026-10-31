@@ -782,7 +782,12 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     if (lines.length === 0) {
       return;
     }
-    testInfo.annotations.push({type: 'start-shadow', description: `${lines.length} finding(s): ${lines.map((l) => l.split(' — ')[1]?.split(' {')[0] ?? l).join(' · ').slice(0, 600)}`});
+    // A `cure` line (the director acted — phase 1) is named as such: a cure on a spec path is a latch bug to stand up.
+    const brief = (l: string): string => {
+      const kind = l.startsWith(`${START_SHADOW} cure`) ? 'CURE ' : '';
+      return kind + (l.split(' — ')[1]?.split(' {')[0] ?? l);
+    };
+    testInfo.annotations.push({type: 'start-shadow', description: `${lines.length} finding(s): ${lines.map(brief).join(' · ').slice(0, 600)}`});
     const dir = path.join(testInfo.project.outputDir, 'start-shadow');
     fs.mkdirSync(dir, {recursive: true});
     const slug = `${path.basename(testInfo.file, '.spec.ts')}--${testInfo.title}`.replace(/[^w.-]+/g, '-').slice(0, 150);
