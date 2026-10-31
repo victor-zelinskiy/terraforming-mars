@@ -115,6 +115,7 @@ export function repeatPlacementBonuses(player: IPlayer, space: Space, placement:
   const stacked = placement.stacked === true;
   const printed = !placement.coveringExistingTile;
   const printedPaid = printed && space.bonus.length > 0;
+  const printedMultiplier = Math.max(1, Math.floor(placement.printedBonusMultiplier ?? 1));
   const oceanPaid = game.board.oceanAdjacencyBonus(player, space).megacredits > 0;
   // An Ares neighbour pays only when it carries an adjacency bonus (the same
   // predicate `earnAdjacencyBonuses` reads) — a bare neighbourhood is nothing.
@@ -132,7 +133,10 @@ export function repeatPlacementBonuses(player: IPlayer, space: Space, placement:
         player.stock.add(Resource.MEGACREDITS, icons, {log: false, from: {resolution: DEVELOPMENT_CRAZE_ID}});
       }
     } else {
-      game.grantSpaceBonuses(player, space);
+      // THE PAYOUT REPEATED WHOLE (the Redux FAQ: «Frontier Town under Development Craze — the placement bonus six
+      // times: you get the doubled bonus 3 times»): a multiplied printed bonus is repeated with its multiple, through
+      // the same ONE grant. The ocean adjacency below is never multiplied — the engine paid it × 1.
+      game.grantSpaceBonuses(player, space, printedMultiplier);
     }
   }
   const ocean = game.grantOceanAdjacencyBonus(player, space);
@@ -143,6 +147,7 @@ export function repeatPlacementBonuses(player: IPlayer, space: Space, placement:
     spaceId: space.id,
     resolution: DEVELOPMENT_CRAZE_ID,
     printed,
+    ...(printedPaid && printedMultiplier > 1 && player.isMarsBot !== true ? {printedMultiplier} : {}),
     ...(ocean !== undefined ? {ocean} : {}),
   };
   player.lastPlacementLawPayout = payout;

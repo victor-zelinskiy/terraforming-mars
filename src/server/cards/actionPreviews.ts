@@ -1514,6 +1514,8 @@ export function placementPreview(
        * `placementEffect: 'move'`, exactly as the live prompt does.
        */
       move?: (canAffordOptions: CanAffordOptions | undefined) => TileMoveOffer,
+      /** The live prompt's `printedBonusMultiplier` (P74 Frontier Town: 3) — the SAME number `bespokePlay` passes. */
+      printedBonusMultiplier?: number,
     },
   } = {},
 ): ActionPreview {
@@ -1543,6 +1545,7 @@ export function placementPreview(
       hideExistingTile: opts.staged.hideExistingTile,
       fixed: opts.staged.fixed,
       canAffordOptions,
+      printedBonusMultiplier: opts.staged.printedBonusMultiplier,
       ...(opts.staged.move !== undefined ? {tileMove: opts.staged.move(canAffordOptions), placementEffect: 'move' as const} : {}),
     });
     if (staged !== undefined) {

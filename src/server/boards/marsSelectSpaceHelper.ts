@@ -213,6 +213,9 @@ export function stagedMarsSelectSpace(
     /** Mirror of the live prompt's `tileMove` (TR14 / TR39) — the SAME offer, built
      *  with the SAME `canAffordOptions`; `spaces` is its destinations. */
     tileMove?: TileMoveOffer,
+    /** Mirror of the live prompt's `printedBonusMultiplier` (P74 Frontier Town: 3) — the staged dossier's numbers
+     *  and the board's «×N» marks are the commit's. */
+    printedBonusMultiplier?: number,
   },
 ): StagedPlacementModel | undefined {
   const board = player.game.board;
@@ -248,6 +251,9 @@ export function stagedMarsSelectSpace(
   }
   if (options.tileMove !== undefined) {
     model.tileMove = tileMovePromptModel(options.tileMove);
+  }
+  if (options.printedBonusMultiplier !== undefined && options.printedBonusMultiplier !== 1) {
+    model.printedBonusMultiplier = options.printedBonusMultiplier;
   }
   return model;
 }

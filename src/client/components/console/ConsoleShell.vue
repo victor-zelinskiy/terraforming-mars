@@ -6672,6 +6672,9 @@ export default defineComponent({
         followUpPlacements: p.followUpPlacements,
         // A staged MOVE (TR14): which city reaches which cell — the same marker the live prompt carries.
         tileMove: p.tileMove,
+        // A multiplied printed bonus (P74 Frontier Town): the staged dossier asks with the live prompt's `bonus`, and the
+        // board marks every candidate «×N» from the same number.
+        printedBonusMultiplier: p.printedBonusMultiplier,
       };
     },
     /**

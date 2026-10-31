@@ -2537,7 +2537,7 @@ export class Game implements IGame, Logger {
       // card) and the enacted resolution's passive — told what this placement
       // paid, so a passive that pays it AGAIN never invents a printed bonus
       // an ocean cover skipped.
-      ParliamentHandler.onTilePlaced(player, space, {coveringExistingTile});
+      ParliamentHandler.onTilePlaced(player, space, {coveringExistingTile, ...(printedBonusMultiplier !== 1 ? {printedBonusMultiplier} : {})});
 
       if (arcadianCommunityBonus) {
         this.defer(new GainResourcesDeferred(player, Resource.MEGACREDITS, {count: 3}));

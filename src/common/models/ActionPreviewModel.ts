@@ -906,6 +906,12 @@ export type StagedPlacementModel = {
    * raises, with the unpaid card's price folded in.
    */
   tileMove?: import('../boards/TileMove').TileMovePromptModel;
+  /**
+   * Mirror of `SelectSpaceModel.printedBonusMultiplier` (P74 Frontier Town: 3): the cell's printed bonus pays this
+   * many times on the commit. The client's synthetic prompt carries it, so the staged dossier asks the preview with
+   * the same `bonus` parameter as the live prompt and the board marks every candidate «×N». Absent → 1.
+   */
+  printedBonusMultiplier?: number;
 };
 
 /**

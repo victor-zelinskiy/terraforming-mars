@@ -26,6 +26,10 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
       onCancel?: () => void,
       // The card that asks (so the preview can include its own space-dependent effect).
       sourceCard?: CardName,
+      // The cell's PRINTED bonus pays this many times (P74 Frontier Town: 3) — announced on the prompt
+      // (`SelectSpace.printedBonusMultiplier` — the dossier's numbers) and to `addTile` (the ONE grant, the tile
+      // language's record, the enacted law's repeat). Absent → 1.
+      printedBonusMultiplier?: number,
     }) {
     super(player, Priority.DEFAULT);
   }
@@ -55,9 +59,15 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
       customReasoner: this.options?.customReasoner,
       placementContext: this.options?.placementContext,
       onCancel: this.options?.onCancel,
+      printedBonusMultiplier: this.options?.printedBonusMultiplier,
     })
       .andThen((space) => {
-        this.player.game.addCity(this.player, space);
+        const multiplier = this.options?.printedBonusMultiplier;
+        if (multiplier !== undefined && multiplier !== 1) {
+          this.player.game.addTile(this.player, space, {tileType: TileType.CITY}, {printedBonusMultiplier: multiplier});
+        } else {
+          this.player.game.addCity(this.player, space);
+        }
         this.cb(space);
         return undefined;
       });

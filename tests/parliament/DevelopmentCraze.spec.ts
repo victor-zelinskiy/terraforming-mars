@@ -32,6 +32,7 @@ import {Space} from '../../src/server/boards/Space';
 import {GameEvent} from '../../src/common/events/GameEvent';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
+import {boardCellPreview} from '../../src/server/boards/BoardInformationEngine';
 import {effectForecastForPlay} from '../../src/server/models/effectForecast';
 import {allForecastFacts} from '../../src/common/models/EffectForecastModel';
 import {ImmigrantCity} from '../../src/server/cards/base/ImmigrantCity';
@@ -375,6 +376,58 @@ describe('DevelopmentCraze', () => {
       expect(fact.effects, 'no number: the cell is chosen after the forecast').deep.eq([]);
       expect(fact.reason).eq('Development Craze pays the placement and adjacency bonuses of a tile you place on Mars a second time');
       expect(resolutionFactsOf(p1, new SecurityFleet())).deep.eq([]);
+    });
+  });
+
+  // THE REDUX FAQ: «Frontier Town under Development Craze — the placement bonus SIX times: you get the doubled bonus 3
+  // times». The law repeats the placement's payout WHOLE, its multiple included (`TilePlacementBonusContext
+  // .printedBonusMultiplier`); the ocean adjacency was paid × 1, so it is repeated × 1.
+  describe('a MULTIPLIED placement — the law repeats the payout with its multiple (the FAQ)', () => {
+    const plantsCell = (game: IGame, p: IPlayer) => landWith(game, p, [SpaceBonus.PLANT, SpaceBonus.PLANT]);
+
+    for (const run of [
+      {name: 'an ordinary city (× 1) — 2 + 2', multiplier: 1, plants: 4},
+      {name: 'Ferrus Academy\'s first city (× 2) — 4 + 4', multiplier: 2, plants: 8},
+      {name: 'Frontier Town (× 3) — 6 + 6, the FAQ\'s «six times»', multiplier: 3, plants: 12},
+    ]) {
+      it(run.name, () => {
+        const [game, p1] = enacted();
+        const cell = plantsCell(game, p1);
+        game.addTile(p1, cell, {tileType: TileType.CITY}, run.multiplier === 1 ? undefined : {printedBonusMultiplier: run.multiplier});
+        runAllActions(game);
+        expect(p1.plants).eq(run.plants);
+        expect(crazeGains(game, Resource.PLANTS), 'the law\'s share, under its marker').eq(run.plants / 2);
+        expect(p1.lastPlacementLawPayout).deep.eq({
+          spaceId: cell.id, resolution: DEVELOPMENT_CRAZE_ID, printed: true,
+          ...(run.multiplier > 1 ? {printedMultiplier: run.multiplier} : {}),
+        });
+      });
+    }
+
+    it('the ocean adjacency is NOT multiplied — paid × 1, repeated × 1', () => {
+      const [game, p1] = enacted();
+      const ocean = addOcean(p1);
+      runAllActions(game);
+      const shore = game.board.getAdjacentSpaces(ocean).find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined &&
+        s.bonus.length > 0 && game.board.getAdjacentSpaces(s).filter((a) => Board.isOceanSpace(a)).length === 1);
+      expect(shore, 'a printed shore beside exactly one ocean').is.not.undefined;
+      p1.megaCredits = 0;
+      game.addTile(p1, shore!, {tileType: TileType.CITY}, {printedBonusMultiplier: 3});
+      runAllActions(game);
+      expect(p1.megaCredits, '2 M€ for the ocean, twice — never × 3').eq(4);
+      expect(p1.lastPlacementLawPayout?.ocean?.megacredits).eq(2);
+    });
+
+    it('the dossier promises the same: the law\'s echo of the printed bonus carries the multiple', () => {
+      const [game, p1] = enacted();
+      const cell = plantsCell(game, p1);
+      const facts = (multiplier: number) => {
+        const preview = boardCellPreview(p1, cell, 'city', multiplier === 1 ? {} : {printedBonusMultiplier: multiplier});
+        return [...preview.costFacts, ...preview.immediateFacts, ...preview.recipientFacts, ...preview.warningFacts,
+          ...preview.futureScoringFacts, ...preview.ruleFacts].filter((f) => f.id.includes('echo-printed-'));
+      };
+      expect(facts(1).map((f) => f.delta?.amount)).deep.eq([2]);
+      expect(facts(3).map((f) => f.delta?.amount), 'the echo of × 3 is 6 — the commit\'s second payout').deep.eq([6]);
     });
   });
 

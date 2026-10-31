@@ -329,6 +329,8 @@ function assertParity(name: string, staged: StagedPlacementModel, ss: SelectSpac
   }
   expect([...(ss.hiddenTiles ?? [])].sort(), `${name}: hiddenTiles parity`)
     .to.deep.equal([...(staged.hiddenTiles ?? [])].sort());
+  // A multiplied printed bonus (P74 Frontier Town) — the staged dossier asks with the live prompt's multiple.
+  expect(staged.printedBonusMultiplier ?? 1, `${name}: printedBonusMultiplier parity`).to.eq(ss.printedBonusMultiplier ?? 1);
 }
 
 type Outcome = 'no-staged' | 'live' | 'fixed';

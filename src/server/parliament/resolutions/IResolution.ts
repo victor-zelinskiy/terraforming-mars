@@ -247,6 +247,13 @@ export type TilePlacementBonusContext = {
    * for any city.
    */
   stacked?: boolean;
+  /**
+   * How many times the engine paid the cell's PRINTED bonus (`AddTileOptions.printedBonusMultiplier` — TR79 Ferrus
+   * Academy's first city 2, P74 Frontier Town 3). A passive that pays the printed bonus AGAIN repeats THAT payout,
+   * multiple included (the Redux FAQ: «Frontier Town under Development Craze — the placement bonus six times»).
+   * Absent → 1.
+   */
+  printedBonusMultiplier?: number;
 };
 
 /**

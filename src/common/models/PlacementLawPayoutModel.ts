@@ -39,6 +39,11 @@ export type PlacementLawPayoutModel = {
    * Absent for a law that repeats nothing.
    */
   readonly printed?: boolean;
+  /**
+   * How many times the law paid the printed bonus again — the placement's own multiple (P74 Frontier Town 3, TR79
+   * Ferrus 2): the law repeats THAT payout whole, so the law's wave plays the printed beat this many times. Absent → 1.
+   */
+  readonly printedMultiplier?: number;
   /** The ocean adjacency paid AGAIN — the same breakdown shape the first wave rides. */
   readonly ocean?: OceanAdjacencyBonusModel;
   /** A NEW adjacency the law introduced: every neighbouring greenery paid. */
