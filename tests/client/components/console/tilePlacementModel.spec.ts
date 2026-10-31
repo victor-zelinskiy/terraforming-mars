@@ -5,9 +5,10 @@ import {TileType} from '@/common/TileType';
 import {SpaceName} from '@/common/boards/SpaceName';
 import {SpaceId} from '@/common/Types';
 import {TilePlacementPaidResource, TilePlacementRecordModel} from '@/common/models/TilePlacementRecordModel';
+import {PlacementLawPayoutModel} from '@/common/models/PlacementLawPayoutModel';
 import {applyTilePlacementPreview, shouldHoldForTilePlacement} from '@/client/components/board/tilePlacementAnimation';
 import {
-  placementBonuses, printedBonusRepeats, verifyPlacement, applySpacePreview, detectFreshPlacements, detectFreshRemovals,
+  placementBonuses, printedBonusRepeats, lawWaveFor, verifyPlacement, applySpacePreview, detectFreshPlacements, detectFreshRemovals,
   tileFlightPlan, tileFlightPoint, tileScaleAt, tileTiltAt, tileShadowAt,
   TILE_START_SCALE, TILE_FLIGHT_MS, TILE_SETTLE_MS,
   OWN_FLIGHT_PROFILE, REMOTE_FLIGHT_PROFILE,
@@ -610,5 +611,25 @@ describe('printedBonusRepeats — a multiplied printed bonus is read off the ser
     expect(printedBonusRepeats([record([{resource: 'steel', amount: 4}], '21')], '20', printed)).eq(1);
     expect(printedBonusRepeats([record([{resource: 'steel', amount: 3}])], '20', printed)).eq(1);
     expect(printedBonusRepeats([record([{resource: 'steel', amount: 4}])], '20', [])).eq(1);
+  });
+});
+
+describe('lawWaveFor — the law repeats the payout WITH its multiple (P74 · the Redux FAQ «six times»)', () => {
+  const printed = placementBonuses([SpaceBonus.PLANT, SpaceBonus.PLANT]);
+  const payout = (extra: Partial<PlacementLawPayoutModel> = {}): PlacementLawPayoutModel =>
+    ({spaceId: '20' as SpaceId, resolution: 'RDX_MARS_DEVELOPMENT_CRAZE', printed: true, ...extra});
+
+  it('a plain repeat plays the printed beat once', () => {
+    expect(lawWaveFor(payout(), '20', printed)?.repeats).eq(1);
+  });
+
+  it('a multiplied placement\'s repeat plays it once per multiple (Frontier Town 3, Ferrus 2)', () => {
+    expect(lawWaveFor(payout({printedMultiplier: 3}), '20', printed)?.repeats).eq(3);
+    expect(lawWaveFor(payout({printedMultiplier: 2}), '20', printed)?.repeats).eq(2);
+  });
+
+  it('no printed repeat → no multiple, whatever the record says (an ocean-only wave)', () => {
+    const ocean = {spaceId: '20' as SpaceId, oceanSpaceIds: ['21' as SpaceId], perOcean: 2, megacredits: 2};
+    expect(lawWaveFor(payout({printed: false, printedMultiplier: 3, ocean}), '20', printed)?.repeats).eq(1);
   });
 });

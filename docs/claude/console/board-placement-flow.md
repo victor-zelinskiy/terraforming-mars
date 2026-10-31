@@ -205,6 +205,17 @@ MarsBot's M€ per icon, bounded + seq), `Game.spec` (the ring is not serialized
 air together, the oxygen glide starting inside `pfocus-exit` · C red's city whole below its chip, never above the
 screen's top, the red beacon before the touchdown, the bonus at red's chip · D the remote splash).
 
+**THE MULTIPLE ON THE CELL AND IN THE WAVE (P74 Frontier Town, 2026-10-31 — ledger DD).** A placement whose printed bonus pays
+N times (`printedBonusMultiplier`: TR79 Ferrus 2, P74 3) carries the SERVER's whole count `printedBonusTimes` on the prompt
+and on the staged model — the multiple × (1 + the enacted law's `printedPlacementBonusRepeats`; Development Craze → P74 marks
+6). The binder writes it with the legal grid (`placementRenderState.setPlacementBonusTimes` — the same bit, cleared with it);
+`BoardSpace` renders it as the ATTRIBUTE `data-bonus-times` + an absolute «×N» plate upper-right (the stack counter's grammar,
+a warm kant, no light) on every legal candidate that prints a bonus — nothing on a bare cell, nothing for an ordinary
+placement, the client never multiplies. The landing's wave plays the printed beat once per multiple (`printedBonusRepeats`,
+off the record), and the law's wave does the same off its echo (`PlacementLawWave.repeats` ← `printedMultiplier`). Not done
+yet: a per-portion press of the icon, a «+N» token past the wave's ceiling, the plate staying on the landed cell to its last
+portion and its «×N → ×2N» crossfade at the law's wave (PL-1237 / PL-1238). Stand: `console-frontier-town`.
+
 ## Field grammar around it
 
 - `.con-board--placing` / `.con-board--locked` on the board root (never

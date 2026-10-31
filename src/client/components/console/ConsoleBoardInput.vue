@@ -61,7 +61,7 @@ import {PlacementIllegalSpace} from '@/common/inputs/PlacementIllegalReason';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import PlacementReasonPopover from '@/client/components/board/PlacementReasonPopover.vue';
 import {placementReasonToUnplayable} from '@/client/components/board/placementReason';
-import {setPlacementHighlightActive} from '@/client/components/board/placementRenderState';
+import {bonusTimesMarks, setPlacementBonusTimes, setPlacementHighlightActive} from '@/client/components/board/placementRenderState';
 import BoardPlacementPreviewPopover from '@/client/components/board/BoardPlacementPreviewPopover.vue';
 import BoardPlacementPreviewContent from '@/client/components/board/BoardPlacementPreviewContent.vue';
 import {fetchBoardCellPreview} from '@/client/components/board/boardInfoState';
@@ -228,6 +228,10 @@ export default defineComponent({
       // BRD-3: mirror "`.board-space--available` now exists" into the reactive
       // store so hover handlers don't DOM-query on every mouseover.
       setPlacementHighlightActive(highlighted > 0);
+      // THE CELL'S REWARD ON THE CELL (P74): a multiplied placement marks «×N» (the server's whole count) on every legal
+      // candidate that prints a bonus — the same bit as the grid: it comes with it and goes with it.
+      setPlacementBonusTimes(highlighted > 0 ? bonusTimesMarks(this.playerinput.printedBonusTimes, [...this.spaces],
+        (id) => this.playerView.game.spaces.find((space) => space.id === id)?.bonus) : undefined);
       this.playAvailabilityWave(lit);
     },
     /**
@@ -427,6 +431,7 @@ export default defineComponent({
       // BRD-3: the `.board-space--available` set is gone (pre-mount clear, a tile
       // was picked, or unmount) → clear the reactive placement-mode flag.
       setPlacementHighlightActive(false);
+      setPlacementBonusTimes(undefined);
     },
     getSelectableSpaces(): Array<HTMLElement> {
       const spaces: Array<HTMLElement> = [];

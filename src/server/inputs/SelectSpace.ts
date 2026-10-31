@@ -92,6 +92,8 @@ export class SelectSpace extends BasePlayerInput<Space> {
 
   /** See `SelectSpaceModel.printedBonusMultiplier` — the commit's own multiple, announced to the preview. */
   public printedBonusMultiplier?: number;
+  /** See `SelectSpaceModel.printedBonusTimes` — the whole count the board marks on its candidates. */
+  public printedBonusTimes?: number;
 
   /**
    * LATER placements the SAME action will ask for after this one commits (the
@@ -211,6 +213,9 @@ export class SelectSpace extends BasePlayerInput<Space> {
     };
     if (this.printedBonusMultiplier !== undefined && this.printedBonusMultiplier !== 1) {
       model.printedBonusMultiplier = this.printedBonusMultiplier;
+      if (this.printedBonusTimes !== undefined) {
+        model.printedBonusTimes = this.printedBonusTimes;
+      }
     }
     // The PLACEMENT marker is serialized HERE, not only in
     // `ServerModel.getWaitingFor`. That function decorates the TOP-LEVEL prompt

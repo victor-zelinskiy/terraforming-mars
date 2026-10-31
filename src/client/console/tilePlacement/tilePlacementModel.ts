@@ -848,6 +848,12 @@ export function printedBonusRepeats(
  */
 export type PlacementLawWave = {
   printed: ReadonlyArray<PlacementBonus>;
+  /**
+   * How many times the law paid the printed icons again — the placement's own multiple (`PlacementLawPayoutModel
+   * .printedMultiplier`: P74 Frontier Town 3, TR79 Ferrus 2; the Redux FAQ «six times»). The law's wave plays the
+   * printed beat this many times, exactly as the landing's wave does (`printedBonusRepeats`). 1 otherwise.
+   */
+  repeats: number;
   ocean: OceanAdjacencyBonusModel | undefined;
   greeneries: GreeneryAdjacencyBonusModel | undefined;
 };
@@ -868,7 +874,8 @@ export function lawWaveFor(
   if (again.length === 0 && ocean === undefined && greeneries === undefined) {
     return undefined;
   }
-  return {printed: again, ocean, greeneries};
+  const repeats = again.length > 0 ? Math.max(1, Math.floor(payout.printedMultiplier ?? 1)) : 1;
+  return {printed: again, repeats, ocean, greeneries};
 }
 
 // ── placement verification + the targeted silent preview ───────────────────

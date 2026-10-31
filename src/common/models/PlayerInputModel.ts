@@ -1430,6 +1430,13 @@ export type SelectSpaceModel = BaseInputModel & {
    */
   printedBonusMultiplier?: number;
   /**
+   * How many times in ALL the cell's printed bonus will pay for THIS player on the commit — the placement's own
+   * multiple × the enacted law's repeat (P74 Frontier Town 3; under Development Craze 6 — the Redux FAQ). The SERVER's
+   * number (`printedPlacementBonusTimes`); the board marks every legal candidate that prints a bonus «×N» from it and
+   * never multiplies on its own. Present only when the placement itself multiplies (`printedBonusMultiplier` > 1).
+   */
+  printedBonusTimes?: number;
+  /**
    * LATER placements the SAME action will ask for after this one commits (a
    * multi-tile card — «place 2 oceans»: the FIRST prompt announces the second).
    * The placement dossier renders it as a constant plan line, so the player can

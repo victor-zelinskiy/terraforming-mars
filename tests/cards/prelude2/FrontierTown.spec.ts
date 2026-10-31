@@ -237,6 +237,14 @@ describe('FrontierTown — on a Turmoil Redux table', () => {
       expect(ss.sourceCard).eq(CardName.FRONTIER_TOWN);
       expect(ss.printedBonusMultiplier).eq(3);
       expect(ss.toModel().printedBonusMultiplier).eq(3);
+      expect(ss.toModel().printedBonusTimes, 'the board\'s «×N» — the server\'s whole count').eq(3);
+      expect(stagedOf(t)?.printedBonusTimes, 'the staged pick marks the same').eq(3);
+    });
+
+    it('under Development Craze the board\'s count is the FAQ\'s six — on the live prompt and the staged one', () => {
+      const t = table({craze: true});
+      expect(stagedOf(t)?.printedBonusTimes).eq(6);
+      expect(play(t).toModel().printedBonusTimes).eq(6);
     });
 
     it('a two-plant cell pays 6 plants ONCE — one grant, one record, one stock event; the energy step after the city', () => {

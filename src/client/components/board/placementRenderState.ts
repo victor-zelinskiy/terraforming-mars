@@ -33,6 +33,7 @@
 
 import {reactive} from 'vue';
 import {SpaceId} from '@/common/Types';
+import {SpaceBonus} from '@/common/boards/SpaceBonus';
 
 /** Which piece of the peeked cell the pick would lift — the one drawn translucent (`placementPeek.ts`). */
 export type PlacementPeekPiece = 'top' | 'under';
@@ -57,13 +58,55 @@ type PlacementRenderState = {
   // BoardCellInfoPopover read it INSTEAD of a `document.querySelector` on every
   // mouseover (a full-DOM scan on the hot hover path).
   highlightActive: boolean;
+  /**
+   * THE CELL'S REWARD, ON THE CELL (P74 Frontier Town — the owner's «награда клетки — на самой клетке»): while a
+   * MULTIPLIED placement stands (the prompt's `printedBonusTimes` — the SERVER's whole count, the law's repeat
+   * included), every legal candidate that prints a bonus wears «×N» at its bonus cluster. ONE writer: the board
+   * binder (`ConsoleBoardInput`), set with the legal grid and cleared with it. Read by `BoardSpace` as an ATTRIBUTE
+   * (`data-bonus-times`) + an absolutely placed mark — never a class (the focus ring and the availability are
+   * written imperatively on the same element).
+   */
+  bonusTimes: {times: number, spaces: ReadonlySet<SpaceId>} | undefined;
 };
 
 export const placementRenderState: PlacementRenderState = reactive({
   hiddenTiles: new Set<SpaceId>(),
   peek: undefined,
   highlightActive: false,
+  bonusTimes: undefined,
 });
+
+/**
+ * The cells a multiplied placement marks «×N»: the legal ones that print a bonus (a restricted cell's marker is no
+ * bonus). Pure — the server's `times` is taken as it is; undefined when there is nothing to mark.
+ */
+export function bonusTimesMarks(
+  times: number | undefined,
+  legal: ReadonlyArray<SpaceId>,
+  bonusOf: (spaceId: SpaceId) => ReadonlyArray<SpaceBonus> | undefined,
+): {times: number, spaces: ReadonlySet<SpaceId>} | undefined {
+  if (times === undefined || times <= 1) {
+    return undefined;
+  }
+  const spaces = new Set(legal.filter((id) => (bonusOf(id) ?? []).some((b) => b !== SpaceBonus._RESTRICTED)));
+  return spaces.size > 0 ? {times, spaces} : undefined;
+}
+
+/** The binder's one write of the «×N» marks (undefined clears them). */
+export function setPlacementBonusTimes(marks: {times: number, spaces: ReadonlySet<SpaceId>} | undefined): void {
+  const current = placementRenderState.bonusTimes;
+  if (current === marks || (current !== undefined && marks !== undefined && current.times === marks.times &&
+      current.spaces.size === marks.spaces.size && [...marks.spaces].every((id) => current.spaces.has(id)))) {
+    return;
+  }
+  placementRenderState.bonusTimes = marks;
+}
+
+/** The cell's «×N» (undefined = no mark). */
+export function bonusTimesAt(spaceId: SpaceId): number | undefined {
+  const marks = placementRenderState.bonusTimes;
+  return marks !== undefined && marks.spaces.has(spaceId) ? marks.times : undefined;
+}
 
 /** The shell's one write of the see-through target (undefined clears it). */
 export function setPlacementPeek(peek: {spaceId: SpaceId, piece: PlacementPeekPiece} | undefined): void {

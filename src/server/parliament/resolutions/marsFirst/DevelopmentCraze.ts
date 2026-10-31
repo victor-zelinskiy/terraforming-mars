@@ -181,6 +181,8 @@ export const DEVELOPMENT_CRAZE: ResolutionDefinition = {
   scaled: [DEVELOPMENT_CRAZE_STEEL],
   immediateSteps: [STEEL_STEP],
   passive: {
+    // The board's «×N» reads this (the FAQ: Frontier Town ×3 under the law marks ×6).
+    printedPlacementBonusRepeats: 1,
     onTilePlaced(player, space, placement) {
       // «…on Mars»: a reserved area off Mars doubles nothing.
       if (space.spaceType === SpaceType.COLONY) {

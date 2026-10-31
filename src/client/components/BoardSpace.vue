@@ -1,6 +1,6 @@
 <template>
   <div v-if="space !== undefined" :class="mainClass" :style="stackStyle" :data_space_id="space.id" :data-stack-height="stackHeight > 1 ? stackHeight : undefined"
-       :data-peek="peekPiece">
+       :data-peek="peekPiece" :data-bonus-times="bonusTimes">
     <!-- THE CITY STACK (Turmoil Redux — Skyscrapers): the LOWER TIERS paint under
          the top tile, each one stepped down, so the stack reads by its silhouette
          (a pile of tokens); the counter below names the height outright. Drawn
@@ -26,6 +26,10 @@
     ></board-space-tile>
     <div class="board-space-text" v-if="text" v-i18n>{{ text }}</div>
     <bonus :bonus="space.bonus" v-if="showBonus"></bonus>
+    <!-- THE CELL'S REWARD, ON THE CELL (P74): while a MULTIPLIED placement stands, a legal candidate that prints a bonus
+         says how many times it will pay — the server's whole count (the law's repeat included), never a client product.
+         Absolute (the cluster never moves), material not light, an ATTRIBUTE on the cell beside it (never a class). -->
+    <span v-if="bonusTimes !== undefined && showBonus" class="board-space-bonus-times" data-bonus-times-mark>×{{ bonusTimes }}</span>
     <template v-if="tileView === 'coords'">
       <div class="board-space-coords">{{ getSpaceName(space.id) }}</div>
     </template>
@@ -94,7 +98,7 @@ import {Color} from '@/common/Color';
 import {ClaimedToken} from '@/common/underworld/UnderworldPlayerData';
 import {getSpaceName} from '@/common/boards/spaces';
 import {SpaceType} from '@/common/boards/SpaceType';
-import {placementRenderState, peekPieceAt, PlacementPeekPiece} from '@/client/components/board/placementRenderState';
+import {placementRenderState, peekPieceAt, bonusTimesAt, PlacementPeekPiece} from '@/client/components/board/placementRenderState';
 import {isRemoteRevealHeld, heldPrevTileOf, heldPrevColorOf, heldPrevUnderOf, heldStackHeightOf} from '@/client/console/tilePlacement/remoteRevealHold';
 import {nomadCellHidden, nomadGhostAt} from '@/client/console/nomads/consoleNomadMove';
 import {observeCube, cubePhase as cubePhaseForSpace, CubePhase} from '@/client/components/board/cubeDropState';
@@ -407,6 +411,13 @@ export default defineComponent({
       return this.peekPiece === 'top' && this.pile.length === 1;
     },
     /** Which piece of this cell a lifting pick sees through right now (undefined = none — `placementPeek.ts`). */
+    /** The «×N» of a multiplied placement on this candidate (`placementRenderState.bonusTimes`) — undefined = none. */
+    bonusTimes(): number | undefined {
+      if (this.tileView !== 'show') {
+        return undefined;
+      }
+      return bonusTimesAt(this.space.id);
+    },
     peekPiece(): PlacementPeekPiece | undefined {
       if (this.tileView !== 'show' || this.placementCleared) {
         return undefined;

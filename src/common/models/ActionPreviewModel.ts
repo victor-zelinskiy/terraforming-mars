@@ -912,6 +912,8 @@ export type StagedPlacementModel = {
    * the same `bonus` parameter as the live prompt and the board marks every candidate «×N». Absent → 1.
    */
   printedBonusMultiplier?: number;
+  /** Mirror of `SelectSpaceModel.printedBonusTimes` — the board's «×N» on every candidate of the staged pick. */
+  printedBonusTimes?: number;
 };
 
 /**

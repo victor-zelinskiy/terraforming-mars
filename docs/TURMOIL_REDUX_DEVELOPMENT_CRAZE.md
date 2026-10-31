@@ -64,6 +64,14 @@ bonuses you get for placing tiles on Mars.*
 ${игрок} не может заплатить ${N} M€». Тот же шов защищает Frontier Town и Jansson (они тоже выдают бонусы клетки
 повторно через `grantSpaceBonuses`). Первую выдачу это не меняет: её сделку уже проверил валидатор размещения.
 
+**Умноженная выплата — повторяется с её множителем (P74, 2026-10-31; реестр DD).** FAQ Redux: «Frontier Town при
+действующем Development Craze — бонус размещения ШЕСТЬ раз: удвоенный бонус получаете 3 раза». Закон повторяет ВЫПЛАТУ
+размещения целиком: `addTile` передаёт хуку `TilePlacementBonusContext.printedBonusMultiplier`, `repeatPlacementBonuses` зовёт
+`grantSpaceBonuses(…, N)` (P74 ×3 → ещё ×3 = 6; Ferrus ×2 → 4; обычный город ×1 → 2). Соседство океанов движок платит ×1 —
+закон повторяет ×1 (не ×N). Эхо `PlacementLawPayoutModel.printedMultiplier` — волна закона играет печатный бит N раз;
+`passive.printedPlacementBonusRepeats: 1` — данные рядом с хуком: по ним поле заранее пишет на кандидатах «×2N»
+(`SelectSpaceModel.printedBonusTimes`).
+
 **Температура у максимума.** Проверка `getTemperature() < MAX` идёт в момент выдачи (оба предложения ставятся
 при одной температуре); второй оплаченный шаг при достигнутом максимуме — no-op движка (`increaseTemperature`).
 Крайний угол Vastitas; не трогал — описываю.

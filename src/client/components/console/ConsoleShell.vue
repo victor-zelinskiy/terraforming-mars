@@ -6675,6 +6675,7 @@ export default defineComponent({
         // A multiplied printed bonus (P74 Frontier Town): the staged dossier asks with the live prompt's `bonus`, and the
         // board marks every candidate «×N» from the same number.
         printedBonusMultiplier: p.printedBonusMultiplier,
+        printedBonusTimes: p.printedBonusTimes,
       };
     },
     /**

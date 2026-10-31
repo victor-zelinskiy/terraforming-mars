@@ -309,6 +309,12 @@ export type ResolutionPlacementContext = {
 export type ResolutionPassive = {
   onTilePlaced?(player: IPlayer, space: Space, placement: TilePlacementBonusContext): void;
   /**
+   * How many times `onTilePlaced` pays a placement's PRINTED bonus AGAIN (Development Craze: 1) — DATA beside the
+   * hook, read by the ONE query `printedPlacementBonusTimes` (`boards/marsSelectSpaceHelper.ts`) so the board's «×N» marks
+   * (`SelectSpaceModel.printedBonusTimes`) state the whole count before the press. Absent → 0.
+   */
+  printedPlacementBonusRepeats?: number;
+  /**
    * The DOSSIER twin of `onTilePlaced` — what the passive will pay for the
    * cell under the cursor, stated in the placement panel BEFORE the commit
    * (the board's own honesty law: a tile hook without it lets the dossier

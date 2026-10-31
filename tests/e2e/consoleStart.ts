@@ -3068,6 +3068,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // Decomposers + Media Group (three reactors), red 6 plants (the target), green 3 (the near miss) · the Reds ruling, «1/2» ·
   // against MarsBot (its plant storage the target).
   'special-permit' | 'special-permit-locked' | 'special-permit-bot' | 'special-permit-stale' |
+  // Prelude 2 P74 Frontier Town — the first MULTIPLIED printed bonus (DD): Mars First rules by a quiet law, ×3 · Development
+  // Craze enacted, ×6 · the Greens rule, «1/2».
+  'frontier-town' | 'frontier-town-craze' | 'frontier-town-locked' |
   // Prelude 2 P71 Colonial Representation (CY): Career step 1, cubes on Luna and Pluto, 12 M€, the card in hand.
   'colonial-representation' |
   // The sitting's RESULTS LEDGER (P71 · CY), the sitting over on the results card: Colonial Affairs on three seats with

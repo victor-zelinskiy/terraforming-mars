@@ -10183,6 +10183,72 @@ specialPermitFixture('special-permit-stale', false, true);
   write(name, game);
 }
 
+// ── P74 · FRONTIER TOWN — the FOURTEENTH Prelude 2 card, the series' first city with a MULTIPLIED printed bonus
+//    (docs/claude/prompts/prelude2-p74-frontier-town.md): «−1 energy production; a city, its printed bonus 2 more times».
+//    A 2p Redux + Colonies + Prelude 2 table (Teractor · Thorgate — calm corporations), blue on the move, 1 energy
+//    production, 30 M€ (a standard-project city too — the ordinary city marks nothing), P74 in the hand:
+//      · `frontier-town`        — Mars First rules by a QUIET law (Architecture Award, never RX10): a two-plant cell
+//                                 pays 6 plants (the board marks every candidate «×3»);
+//      · `frontier-town-craze`  — Development Craze (RX10) enacted: the same cell pays 6 + 6 = 12 (the FAQ, «×6»);
+//      · `frontier-town-locked` — a fresh table (the Greens rule), blue's ONE delegate on Mars First's resolution: «1/2».
+//    A DRY RUN on a copy proves the play's payout on the first two-plant candidate. ──
+function frontierTownFixture(name: string, variant: 'play' | 'craze' | 'locked'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [30, 30],
+    options: {prelude2Expansion: true, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, parliament}) => {
+      if (variant === 'locked') {
+        seatResolution(parliament, 0, quietResolutionOf(PartyName.MARS));
+        parliament.placeVote(p1, parliament.slots[0], 'lobby');
+      } else {
+        seatEnacted(parliament, variant === 'craze' ? DEVELOPMENT_CRAZE_ID : quietResolutionOf(PartyName.MARS));
+      }
+      p1.production.override({energy: 1});
+      moveToDeckTop(game, CardName.FRONTIER_TOWN);
+      p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+    },
+    expect: ({game, p1, parliament}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.FRONTIER_TOWN);
+      const locked = variant === 'locked';
+      const playable = card !== undefined && p1.canPlay(card) !== false;
+      const reason = card === undefined ? undefined : unplayableReasons(p1, card)[0];
+      const ruling = parliament.rulingParty();
+      if (card === undefined || playable === locked || game.activePlayer.id !== p1.id || p1.production.energy !== 1 ||
+        (locked ? !(reason?.type === 'party' && reason.party === PartyName.MARS && reason.current === 1) || ruling !== PartyName.GREENS : ruling !== PartyName.MARS)) {
+        throw new Error(`the ${name} fixture expected P74 in blue's hand, playable=${!locked}, ${locked ? 'the Greens ruling, «1 of 2»' : 'Mars First ruling'} and blue on the move — got card=${card !== undefined} playable=${playable} ruling=${ruling} reason=${JSON.stringify(reason)} active=${game.activePlayer.color} energy=${p1.production.energy}`);
+      }
+      if (locked) {
+        return;
+      }
+      // THE DRY RUN — the real play on a copy, on the first two-plant candidate away from the water.
+      const copy = Game.deserialize(structuredClone(game.serialize()));
+      const blue = copy.getPlayerById(p1.id);
+      blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.FRONTIER_TOWN)!, Payment.of({megacredits: 11}));
+      runAllActions(copy);
+      const ask = blue.getWaitingFor();
+      if (!(ask instanceof SelectSpace) || ask.printedBonusMultiplier !== 3 || ask.printedBonusTimes !== (variant === 'craze' ? 6 : 3)) {
+        throw new Error(`the ${name} fixture expected ONE city prompt ×3 (board count ${variant === 'craze' ? 6 : 3}) — got ${ask?.type} ×${(ask as SelectSpace | undefined)?.printedBonusMultiplier} / ${(ask as SelectSpace | undefined)?.printedBonusTimes}`);
+      }
+      const cell = ask.spaces.find((sp) => sp.bonus.length === 2 && sp.bonus.every((b) => b === SpaceBonus.PLANT) &&
+        !copy.board.getAdjacentSpaces(sp).some((a) => Board.isOceanSpace(a)));
+      if (cell === undefined) {
+        throw new Error(`the ${name} fixture expected a two-plant candidate away from the water`);
+      }
+      const plants = blue.plants;
+      blue.process({type: 'space', spaceId: cell.id});
+      runAllActions(copy);
+      const expected = variant === 'craze' ? 12 : 6;
+      if (blue.plants - plants !== expected || blue.production.energy !== 0) {
+        throw new Error(`the ${name} fixture expected +${expected} plants and energy production 0 — got +${blue.plants - plants}, energy ${blue.production.energy}`);
+      }
+    },
+  });
+}
+frontierTownFixture('frontier-town', 'play');
+frontierTownFixture('frontier-town-craze', 'craze');
+frontierTownFixture('frontier-town-locked', 'locked');
+
 // ── P71 · COLONIAL REPRESENTATION — the NINTH Prelude 2 card (the stand `console-colonial-representation`): a Redux table
 //    with Colonies and Prelude 2, CALM corporations (Teractor · Thorgate — no first action); blue's Career at step 1
 //    (influence 1), blue's cubes on Luna and Pluto (2 colonies → +6 M€; red's on Luna and Titan count nothing for blue),

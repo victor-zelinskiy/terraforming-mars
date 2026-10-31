@@ -13,6 +13,22 @@ import {toID} from '../../common/utils/utils';
 import {TileMoveOffer, tileMovePromptModel} from './tileMove';
 
 /**
+ * How many times in ALL a multiplied placement's printed bonus pays `player` (`SelectSpaceModel.printedBonusTimes`):
+ * the placement's multiple × (1 + what the ENACTED law repeats — `ResolutionPassive.printedPlacementBonusRepeats`,
+ * for a seat that runs the law). A pure query (the live repeat is the law's `onTilePlaced`); undefined for an ordinary
+ * placement — no mark on the board. Reads `game.parliament` (no handler import: this module sits under the cards).
+ */
+export function printedPlacementBonusTimes(player: IPlayer, multiplier: number | undefined): number | undefined {
+  if (multiplier === undefined || multiplier <= 1) {
+    return undefined;
+  }
+  const parliament = player.game.parliament;
+  const repeats = parliament?.enactedDefinition()?.passive?.printedPlacementBonusRepeats ?? 0;
+  const runsLaw = parliament !== undefined && repeats > 0 && parliament.participates(player, 'enactment');
+  return multiplier * (runsLaw ? 1 + repeats : 1);
+}
+
+/**
  * Construct a SelectSpace for a Mars-board placement with `illegalSpaces`
  * auto-computed via `MarsBoard.computeIllegalReasons(...)`. The resulting
  * model lets the client render native browser tooltips ("why is this
@@ -156,6 +172,7 @@ export function createMarsSelectSpace(
   }
   if (options?.printedBonusMultiplier !== undefined) {
     selectSpace.printedBonusMultiplier = options.printedBonusMultiplier;
+    selectSpace.printedBonusTimes = printedPlacementBonusTimes(player, options.printedBonusMultiplier);
   }
   return selectSpace;
 }
@@ -254,6 +271,10 @@ export function stagedMarsSelectSpace(
   }
   if (options.printedBonusMultiplier !== undefined && options.printedBonusMultiplier !== 1) {
     model.printedBonusMultiplier = options.printedBonusMultiplier;
+    const times = printedPlacementBonusTimes(player, options.printedBonusMultiplier);
+    if (times !== undefined) {
+      model.printedBonusTimes = times;
+    }
   }
   return model;
 }

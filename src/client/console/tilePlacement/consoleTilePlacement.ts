@@ -724,7 +724,7 @@ function pendingStockGains(resource: string): number {
     specs.push({channel: 'stock', resource: 'megacredits', amount: pendingOceanBonus.megacredits});
   }
   if (pendingLawWave !== undefined) {
-    specs.push(...pendingLawWave.printed.map((b) => b.spec));
+    specs.push(...repeatedSpecs(pendingLawWave.printed, pendingLawWave.repeats));
     if (pendingLawWave.ocean !== undefined) {
       specs.push({channel: 'stock', resource: 'megacredits', amount: pendingLawWave.ocean.megacredits});
     }
@@ -1342,7 +1342,7 @@ export function seedTilePlacementRewardHold(): void {
   // so its chips release their half at THEIR OWN touchdowns: every counter
   // ticks a second time at the second contact, never once by a summed number.
   if (pendingLawWave !== undefined) {
-    specs.push(...pendingLawWave.printed.map((b) => b.spec));
+    specs.push(...repeatedSpecs(pendingLawWave.printed, pendingLawWave.repeats));
     if (pendingLawWave.ocean !== undefined) {
       specs.push({channel: 'stock', resource: 'megacredits', amount: pendingLawWave.ocean.megacredits});
     }
@@ -1529,7 +1529,9 @@ async function runLawWave(wave: PlacementLawWave): Promise<void> {
     if (!tilePlacementState.active) {
       return;
     }
-    if (wave.printed.length > 0) {
+    // The law repeats the payout WHOLE — a multiplied printed bonus (P74 / TR79) is its beat once per multiple, the
+    // counter ticking on every touchdown, as the landing's own wave plays it.
+    for (let pass = 0; pass < wave.repeats && wave.printed.length > 0 && tilePlacementState.active; pass++) {
       await runPrintedBonusBeat(wave.printed, originOf);
     }
     if (wave.ocean !== undefined && tilePlacementState.active) {
@@ -1551,7 +1553,7 @@ function lawWaveSpecsOf(wave: PlacementLawWave | undefined): Array<ResourceTrans
   if (wave === undefined) {
     return [];
   }
-  const specs: Array<ResourceTransferSpec> = wave.printed.map((b) => b.spec);
+  const specs: Array<ResourceTransferSpec> = repeatedSpecs(wave.printed, wave.repeats);
   if (wave.ocean !== undefined) {
     specs.push({channel: 'stock', resource: 'megacredits', amount: wave.ocean.megacredits});
   }
