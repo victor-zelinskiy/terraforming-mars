@@ -41,7 +41,6 @@ import {CardName} from './CardName';
 /** ADAPT IN PLACE — 24 project cards, 24 preludes, 5 corporations (ordered as the manifest prints them). */
 export const PRELUDE2_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
   // ── Project cards (P68…P91) ──
-  CardName.MICROGRAVITY_NUTRITION, // P79 · Colonies · bespokePlay — M€ production per colony
   CardName.SOIL_STUDIES, // P81 · Venus + Colonies · declarative — plants per Venus tag / plant tag / colony
   CardName.STRATOSPHERIC_EXPEDITION, // P84 · Venus · declarative — 2 floaters to ANY card + 2 Venus cards
   CardName.UNEXPECTED_APPLICATION, // P86 · Venus · declarative — discard 1 to raise Venus
