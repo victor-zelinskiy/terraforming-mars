@@ -26,10 +26,16 @@ export class SoilStudies extends Card {
 
       metadata: {
         cardNumber: 'P81',
+        // The generator writes no block for a COUNTED stock gain (P75, PL-1158), so the one bonus is authored — with the
+        // print's «including this one»: the hand's count already holds the card's own plant tag (`Counter`), and the
+        // «РАСЧЁТ» strip names that share («в т.ч. эта карта 1»).
+        infoText: [
+          {text: 'Gain 1 plant for each Venus tag, plant tag (including this one) and colony you have.', tokens: ['plants']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.plants(1).slash().tag(Tag.VENUS).tag(Tag.PLANT).colonies(1).br;
         }),
-        description: 'Requires that temperature is -4 C or lower. Gain 1 plant per Venus tag, plant tag, and colony you have.',
+        description: 'Requires that temperature is -4 °C or colder. Gain 1 plant for each Venus tag, plant tag (including this one) and colony you have.',
       },
     });
   }

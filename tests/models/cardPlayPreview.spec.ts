@@ -1567,7 +1567,8 @@ describe('cardPlayPreview', () => {
       const production = cardPlayPreview(player, new Satellites()).branches[0].effects
         .find((e) => e.note === 'production');
       expect(production?.amount).eq(1);
-      expect(production?.basis).deep.eq([{count: 1, label: 'Your tags', tag: Tag.SPACE}]);
+      // …and the share that is the card's own tag is NAMED (P81 — `self`), so «1» adds up against an empty table.
+      expect(production?.basis).deep.eq([{count: 1, label: 'Your tags', tag: Tag.SPACE, self: 1}]);
     });
 
     /**

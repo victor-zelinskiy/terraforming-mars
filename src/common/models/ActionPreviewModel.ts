@@ -317,6 +317,13 @@ export type ActionEffectBasis = {
    */
   wild?: number,
   /**
+   * How many of a count of the player's OWN tags are the PLAYED CARD's own printed tags (P81 Soil Studies — «per plant
+   * tag, INCLUDING THIS ONE»): the card is still in the hand, so the table does not show the tag the number holds.
+   * Included in `count` — the server's `Counter` adds it, the preview and the play read one number; absent when zero
+   * and once the card is on the table (an action, a replay). The same word as a set side's `self` (P69).
+   */
+  self?: number,
+  /**
    * THE COMPOSITION of the count, when the counted entity has kinds the player
    * checks against the board (TR45 — «Tiles on Mars: 14» = 4 cities + 5
    * greeneries + 4 oceans + 1 special tile): every share with its cells, in the

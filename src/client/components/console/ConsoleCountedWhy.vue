@@ -7,7 +7,8 @@
        kind with their board pictograms and numbers, «→» the result; what stands on the board uncounted is NAMED at
        the strip's right edge; a zero is named. A single-term count (PL-196 — TR23's colonies, TR43's oceans) is the
        glyph and its number alone, no «=». A count of the player's own tags names its WILD share («в т.ч. [wild] 1» —
-       the Scientists' extra wild tag under Redux), so the number adds up against the tags on the table. A SUMMED basis (P85 — «per planet tag AND per colony») is its terms in
+       the Scientists' extra wild tag under Redux) and the played card's OWN tag («в т.ч. эта карта 1» — P81, the word a set side
+       already speaks), so the number adds up against the tags on the table. A SUMMED basis (P85 — «per planet tag AND per colony») is its terms in
        turn, each its glyphs (an OR of tags is a row of its tag icons) and its number, joined by «+». Every number is the server's basis (`countedPlay.countedWhyOf`). A
        share the peek is reading right now is `lit` (its cells pulse on the board in the same beat). -->
   <div class="con-cwhy" :class="{'con-cwhy--zero': why.zero}"
@@ -57,8 +58,10 @@
           </span>
           <span v-else class="con-cwhy__label">{{ $t(t.term.label) }}</span>
           <b class="con-cwhy__num">{{ t.term.count }}</b>
-          <span v-if="t.term.wild !== undefined" class="con-cwhy__wild" :data-count-wild="t.term.wild">
-            {{ $t('incl.') }}<span class="con-cwhy__glyph con-cwhy__glyph--part"><PremiumMechNode :node="wildGlyph" /></span><b>{{ t.term.wild }}</b>
+          <span v-if="t.term.wild !== undefined || t.term.self !== undefined" class="con-cwhy__wild">
+            {{ $t('incl.') }}<template v-if="t.term.wild !== undefined"><span class="con-cwhy__glyph con-cwhy__glyph--part" :data-count-wild="t.term.wild"><PremiumMechNode :node="wildGlyph" /></span><b>{{ t.term.wild }}</b></template>
+            <span v-if="t.term.wild !== undefined && t.term.self !== undefined" class="con-cwhy__op" aria-hidden="true">·</span>
+            <span v-if="t.term.self !== undefined" :data-count-self="t.term.self">{{ $t('this card') }} <b>{{ t.term.self }}</b></span>
           </span>
         </span>
       </template>
@@ -69,8 +72,10 @@
       </span>
       <span v-else class="con-cwhy__label">{{ $t(why.term.label) }}</span>
       <b class="con-cwhy__num">{{ why.term.count }}</b>
-      <span v-if="why.term.wild !== undefined" class="con-cwhy__wild" :data-count-wild="why.term.wild">
-        {{ $t('incl.') }}<span class="con-cwhy__glyph con-cwhy__glyph--part"><PremiumMechNode :node="wildGlyph" /></span><b>{{ why.term.wild }}</b>
+      <span v-if="why.term.wild !== undefined || why.term.self !== undefined" class="con-cwhy__wild">
+        {{ $t('incl.') }}<template v-if="why.term.wild !== undefined"><span class="con-cwhy__glyph con-cwhy__glyph--part" :data-count-wild="why.term.wild"><PremiumMechNode :node="wildGlyph" /></span><b>{{ why.term.wild }}</b></template>
+        <span v-if="why.term.wild !== undefined && why.term.self !== undefined" class="con-cwhy__op" aria-hidden="true">·</span>
+        <span v-if="why.term.self !== undefined" :data-count-self="why.term.self">{{ $t('this card') }} <b>{{ why.term.self }}</b></span>
       </span>
     </template>
     <template v-if="why.composed && !why.zero">

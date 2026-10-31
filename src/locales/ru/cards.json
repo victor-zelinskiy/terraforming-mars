@@ -715,5 +715,6 @@
     "Raise Venus 2 steps. Gain 4 M€ per colony you have.": "Повысьте шкалу Венеры на 2 шага. Получите 4 M€ за каждую свою колонию.",
 
     "Soil Studies": "Исследование почвы",
-    "Requires that temperature is -4 C or lower. Gain 1 plant per Venus tag, plant tag, and colony you have.": "Требование: температура должна быть –4 °C или ниже. Получите 1 растение за каждую вашу метку Венеры, метку растений и за каждую вашу колонию."
+    "Requires that temperature is -4 C or lower. Gain 1 plant per Venus tag, plant tag, and colony you have.": "Требование: температура должна быть –4 °C или ниже. Получите 1 растение за каждую вашу метку Венеры, метку растений и за каждую вашу колонию.",
+    "Requires that temperature is -4 °C or colder. Gain 1 plant for each Venus tag, plant tag (including this one) and colony you have.": "Требуется температура не выше −4 °C. Получите 1 растение за каждую вашу метку Венеры, метку растений (включая эту карту) и колонию."
 }

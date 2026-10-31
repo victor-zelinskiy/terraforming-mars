@@ -457,6 +457,12 @@ function countableBasis(ctx: Counter, raw: unknown): ReadonlyArray<ActionEffectB
     if (wild > 0 && term.count > 0) {
       term.wild = wild;
     }
+    // …and the card's OWN printed tag while it is still in the hand (P81 Soil Studies — «per plant tag, including
+    // this one»): `count` adds it, so the term names it, or «[V][plant] 4» stands over a table showing three.
+    const self = r.others === true ? 0 : ctx.ownCardTagShare(r.tag);
+    if (self > 0) {
+      term.self = self;
+    }
     terms.push(term);
   }
   if (r.cities !== undefined) {

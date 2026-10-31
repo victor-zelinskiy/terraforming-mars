@@ -73,6 +73,22 @@ export class Counter implements ICounter {
   }
 
   /**
+   * The card's OWN printed tags a tag count includes — the share `count` adds while the card is still in the hand
+   * (P81 Soil Studies — «per plant tag, INCLUDING THIS ONE»): read by the very branches of `count` that add it, so the
+   * basis names exactly what the number holds. 0 once the card is on the table (an action, a Robotic Workforce
+   * replay — it is counted among the table's tags then) and for a count of the opponents' tags.
+   */
+  public ownCardTagShare(tag: Tag | ReadonlyArray<Tag>): number {
+    if (!this.cardIsUnplayed) {
+      return 0;
+    }
+    if (Array.isArray(tag)) {
+      return this.player.tags.cardTagCount(this.card, [...tag]);
+    }
+    return this.card.tags.filter((t) => t === tag).length;
+  }
+
+  /**
    * The voting area read for the player's DELEGATES, slot by slot — the reading the Parliament's counted term
    * (`delegates`) counts (`PoliticalOps.resolutionDelegates`); `undefined` without a Redux Parliament.
    */

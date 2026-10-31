@@ -45,6 +45,40 @@ describe('ConsoleCountedWhy — a SET count (P69)', () => {
 });
 
 /**
+ * P81 Soil Studies — «1 plant per Venus tag, plant tag (INCLUDING THIS ONE) and colony»: the tag term of a SUMMED basis
+ * names the played card's own share with the SAME word a set side speaks («в т.ч. эта карта 1»), beside the wild share,
+ * so «[V][plant] 4» adds up against the three tags on the table; the colony term follows after «+».
+ */
+describe('ConsoleCountedWhy — «this card» on a flat tag term (P81)', () => {
+  const soil: ActionEffect = {
+    direction: 'gain', icon: 'plants', amount: 5, current: 0, resulting: 5,
+    basis: [{count: 4, label: 'Your tags', tags: [Tag.VENUS, Tag.PLANT], self: 1}, {count: 1, label: 'Your colonies'}],
+  };
+  const wild: ActionEffect = {
+    direction: 'gain', icon: 'plants', amount: 2, current: 0, resulting: 2,
+    basis: [{count: 2, label: 'Your tags', tags: [Tag.VENUS, Tag.PLANT], wild: 1, self: 1}],
+  };
+
+  it('two terms joined by «+»: the tag row with «incl. this card 1», then the colonies; the result once', () => {
+    const wrapper = mount(ConsoleCountedWhy, {props: {why: countedWhyOf([soil])!}, global: {mocks: {$t: (key: string) => key}}});
+    const terms = wrapper.findAll('[data-count-term]');
+    expect(terms.map((t) => t.attributes('data-count-term-n'))).deep.eq(['4', '1']);
+    expect(terms[0].find('[data-count-self]').attributes('data-count-self')).eq('1');
+    expect(terms[0].find('[data-count-self]').text()).contains('this card');
+    expect(terms[0].find('[data-count-wild]').exists(), 'no wild tag on this table').is.false;
+    expect(terms[1].find('[data-count-self]').exists(), 'a colony has no «this card»').is.false;
+    expect(wrapper.find('[data-count-result]').text()).contains('+5');
+  });
+
+  it('a single term with both shares: «incl. [wild] 1 · this card 1»', () => {
+    const wrapper = mount(ConsoleCountedWhy, {props: {why: countedWhyOf([wild])!}, global: {mocks: {$t: (key: string) => key}}});
+    expect(wrapper.find('[data-count-wild]').attributes('data-count-wild')).eq('1');
+    expect(wrapper.find('[data-count-self]').attributes('data-count-self')).eq('1');
+    expect(wrapper.find('.con-cwhy__wild').text().indexOf('incl.'), 'one «incl.» for both').eq(wrapper.find('.con-cwhy__wild').text().lastIndexOf('incl.'));
+  });
+});
+
+/**
  * P75 GHG Shipment — «1 heat for each floater you have»: the face prints «[heat] / [floater]», so the «ПОЧЕМУ» begins
  * with the SAME floater item (`resource(FLOATER)`), never the words «Your floaters». Floater Leasing (per 3) reads the
  * same term and wears the same glyph.
