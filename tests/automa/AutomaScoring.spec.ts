@@ -4,7 +4,7 @@ import {TileType} from '../../src/common/TileType';
 import {SpaceType} from '../../src/common/boards/SpaceType';
 import {AutomaScoring} from '../../src/server/automa/AutomaScoring';
 import {fakeCard} from '../TestingUtils';
-import {testAutomaGame} from './AutomaTestGame';
+import {testAutomaGame, testAutomaMultiplayerGame} from './AutomaTestGame';
 
 describe('AutomaScoring', () => {
   it('the base M€ → VP ladder: ≤12→8 … 19→1', () => {
@@ -24,6 +24,29 @@ describe('AutomaScoring', () => {
     expect(AutomaScoring.mcPerVp(11, true)).eq(7);
     expect(AutomaScoring.mcPerVp(13, true)).eq(5);
     expect(AutomaScoring.mcPerVp(17, true)).eq(1);
+  });
+
+  it('a table of several humans shifts the ladder +2 generations per human beyond the first (fork rule, the owner 2026-10-31)', () => {
+    expect(AutomaScoring.mcPerVp(9, true, 1), 'solo: the rulebook').eq(8);
+    expect(AutomaScoring.mcPerVp(9, true, 2), 'two humans, gen 9 with Prelude: 9 + 2 + 2 = 13').eq(7);
+    expect(AutomaScoring.mcPerVp(10, true, 2)).eq(6);
+    expect(AutomaScoring.mcPerVp(9, true, 3), 'three humans: 9 + 2 + 4 = 15').eq(5);
+    expect(AutomaScoring.mcPerVp(12, false, 2), 'no Prelude, two humans: 12 + 2 = 14').eq(6);
+    expect(AutomaScoring.mcPerVp(19, true, 4), 'never below 1').eq(1);
+    expect(AutomaScoring.mcPerVp(12, false), 'the default is the solo game').eq(8);
+  });
+
+  it('the scoring reads the table: two humans at the 10th generation with Prelude convert at 6 M€', () => {
+    const [game, , bot] = testAutomaMultiplayerGame(2, {preludeExtension: true});
+    bot.megaCredits = 25;
+    game.generation = 10;
+    const parts = AutomaScoring.automaVictoryPoints(game);
+    expect(parts.mcPerVp).eq(6);
+    expect(parts.mcToVp).eq(4);
+    const [solo, , soloBot] = testAutomaGame({preludeExtension: true});
+    soloBot.megaCredits = 25;
+    solo.generation = 10;
+    expect(AutomaScoring.automaVictoryPoints(solo).mcPerVp, 'solo: the rulebook\'s 8').eq(8);
   });
 
   it('non-negative VP icon classification', () => {

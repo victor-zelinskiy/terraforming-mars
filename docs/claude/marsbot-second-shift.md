@@ -12,6 +12,10 @@ The bot's action deck is rebuilt every generation by the rulebook (`AutomaResear
 
 A dividend recalibration alone would only lower the bar; the owner's point was that the bot should **stay in a long generation**, not be paid more for leaving it.
 
+## A separate fork rule — the M€ → VP ladder follows the TABLE SIZE (the owner, 2026-10-31)
+
+Not part of the switch: every game with the bot. The final-scoring reference card is written for the SOLO game (≤12 → 8 M€/VP, then 7…1 for 13–19; Prelude two generations earlier), and a table of more players terraforms faster — the owner's 180 two-player games ended in the 9th generation (median) against the 13th solo, and the bot met the 8 M€ rung in 156 of them. `AutomaScoring.mcPerVp(generation, prelude, humanCount)` shifts the ladder **+2 generations per human beyond the first** (`MC_LADDER_SHIFT_PER_EXTRA_HUMAN`; the owner: «давай +2») — two humans with Prelude: ≤8 → 8, 9 → 7, 10 → 6 …; three humans: +4. Measured on those 180 games: +2.5 VP a game for the bot, the bot ahead of the best human 53 % → 59 % (alternatives costed: +1 → +0.9, +3 → +5.2, +4 → +9.6). The instant win reads the generation, untouched. Guard: `tests/automa/AutomaScoring.spec.ts` § a table of several humans. Scripts: `mcrate.js`, `mcshift.js` in `%TEMP%divledger`.
+
 ## The rule
 
 > While at least one player is still acting in the generation, MarsBot does not pass when its action deck runs out: it draws an extra project card off the project deck and resolves it exactly as any other action card — up to the difficulty's cap per generation.

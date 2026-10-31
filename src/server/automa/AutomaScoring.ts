@@ -18,6 +18,9 @@ import {marsBotOf} from './AutomaUtil';
  * TR / milestones / awards / greenery / city VP ride the standard engine paths
  * (the bot is a real player; AwardScorer evaluates it via the reference card).
  */
+/** Generations the M€ → VP ladder moves earlier per human seat beyond the first (the owner, 2026-10-31: «давай +2»). */
+export const MC_LADDER_SHIFT_PER_EXTRA_HUMAN = 2;
+
 export class AutomaScoring {
   /**
    * The M€ → VP conversion rate by final generation (final scoring reference
@@ -25,9 +28,18 @@ export class AutomaScoring {
    * shifts the same ladder two generations earlier (≤10 → 8 … 17 → 1).
    * Generation 20 (18 with Prelude) never reaches scoring — entering it is an
    * instant MarsBot win.
+   *
+   * A TABLE OF SEVERAL HUMANS (fork rule, the owner 2026-10-31): the reference
+   * card is written for the solo game, and a table of more players terraforms
+   * faster — the owner's 180 two-player games ended in the 9th generation (median)
+   * against the 13th solo, so the bot met the 8 M€ rung in 156 of them. The
+   * ladder shifts {@link MC_LADDER_SHIFT_PER_EXTRA_HUMAN} generations earlier per
+   * human beyond the first (a solo game is the rulebook's); every game with the
+   * bot, whatever the switches. Measured on those games: +2.5 VP a game for the
+   * bot on average. The instant win is untouched (it reads the generation).
    */
-  public static mcPerVp(generation: number, preludeExtension: boolean): number {
-    const normalized = generation + (preludeExtension ? 2 : 0);
+  public static mcPerVp(generation: number, preludeExtension: boolean, humanCount: number = 1): number {
+    const normalized = generation + (preludeExtension ? 2 : 0) + MC_LADDER_SHIFT_PER_EXTRA_HUMAN * Math.max(0, humanCount - 1);
     if (normalized <= 12) {
       return 8;
     }
@@ -51,7 +63,8 @@ export class AutomaScoring {
     }
     const bot = marsBotOf(game);
 
-    const mcPerVp = AutomaScoring.mcPerVp(game.generation, game.gameOptions.preludeExtension);
+    const humanCount = game.players.filter((p) => p !== bot).length;
+    const mcPerVp = AutomaScoring.mcPerVp(game.generation, game.gameOptions.preludeExtension, humanCount);
     const mcToVp = Math.floor(bot.megaCredits / mcPerVp);
 
     // Neural Instance: +1 VP per adjacent space that is empty or holds a
