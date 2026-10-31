@@ -91,6 +91,49 @@ pad, a device-specific render) — the next phase needs the client's own record 
 `[start-shadow]` / `[liveness]` / `[start-stranded]` / `[workspace-stall]` lines + `__conStartDiag`, kept across a
 reload and posted to the embedded server beside the save).
 
+### The first FIELD CURE (2026-10-31 21:48 — one hour after phase 1 shipped)
+
+The owner's export `game-pab1793c_console_export_2026-10-31_21-49-31.txt` (the box's `~/Applications/` keeps every F12
+export — 27 of them since August, the field's own archive): a solo table against MarsBot on the TV; pink played the
+last of two preludes (Orbital Construction Yard · Established Methods), the server asked the action menu at 21:48:53,
+and the start scene stood over it SERVING NOTHING — `flow: deploying`, `flowStage: ready`, no queue card, every
+blocker false but `otherPromptStands` (the menu itself); the strand watchdog SILENT (masked by a term the shadow does
+not read — a hold / a gate); at 21:48:56 the shadow confirmed «game → none» and `cure «yield»` handed the screen to
+the shell; the player opened the card actions three seconds later. The second finding it logged («game → shell») was
+the cure's own after-state — the agreement table now reads it as agreement.
+
+The stand `console-start-field-deploy-leave` (fixture `field-start-deploy-leave` — the table AS SAVED one step before,
+pink on the prelude pick with both preludes in hand): the two preludes play on the real UI, and once the menu is asked
+the start must LEAVE ON ITS OWN — RED on a `[start-shadow] cure` / `[start-stranded]` line, red on a scene still
+painting with nothing served. First run on the box: GREEN in the functional class (fast boot, motion ×0.5) — the field
+defect is timing-shaped (the real boot, motion ×1, the TV's GPU), so the stand runs in the TIMING class too.
+
+The export archive also names the OTHER field stalls of the month — every one a class this iteration touched:
+`[workspace-stall] «card-actions» … payout` × 6 (10-24 / 10-25 — the party discard's payout, fixed in the Parliament
+reliability iteration), `"rail-reward" held for over 35000ms` × 3 (the Reds' discard exchange, same), `[workspace-stall]
+«parliament» … chairmanQuest` × 2 (10-30), `[console-foreground-watchdog] … ruling-change-rating-owed` × 3,
+`board-beat-park degraded after 30s` × 4 (the honest multiplayer wait). `scripts/field-log-report.mjs` reads the
+recorder's drop box the same way for the days to come.
+
+### The field flight recorder (2026-10-31)
+
+What the saves cannot carry, the CLIENT now keeps: `client/console/fieldRecorder.ts` (installed by the console key
+bridge — the console's own entry) copies every TAGGED `console.warn` / `console.error` line (`[start-shadow]`,
+`[start-stranded]`, `[liveness]`, `[workspace-stall]`, `[transport]`, …; the originals still print) and the liveness
+arbiter's HEARTBEAT once a second (the prompt, whether a surface accepts, what is in flight, the stack, the quiet
+seconds, the presses — written where `checkLiveness` judges) into a bounded record PERSISTED in `localStorage` per
+player — so a reload does not erase it: the next boot of the same page posts the previous session's record as
+`previous-session` with how the player came back (`reload` / `navigate`), live lines go out in batches, a beacon on
+`pagehide`. `POST /api/field-log` (`routes/ApiFieldLog.ts`, CORS-eligible for the desktop renderer, bounded, never
+read by the game) appends each post as one JSON line under the server's `db/field-log/<day>.jsonl` — on the box beside
+the saves, for the LAN seat too (its renderer's console never reaches the box otherwise; the Electron F12 export is a
+manual button and the owner's screen only). `scripts/field-log-report.mjs <dir>` lays it out: every screen RELOADED
+AWAY FROM A LIVE PROMPT WITH NOTHING ACCEPTING (the freeze's own signature — the last heartbeats + the last lines),
+the tagged lines by tag and shape. Guards: `tests/console/fieldRecorder.spec.ts` (the ring, the batch, the persist, the
+hand-over, the beacon), `tests/routes/ApiFieldLog.spec.ts`, `cors.spec`. A freeze report from now on starts with this
+file: the game and seat → the previous-session record → the save of that step (`field-opening-report --game`) → the
+stand.
+
 Two driver traps the stand paid for, both general: `bootFixtureSeats` SEEDS every start prompt of seats[0] over the
 API unless `landing: 'prompt'` (a one-human table had its first action answered before the console opened); and a
 surface may take TWO presses by design (an award's pick → its confirm) — a «did A move the server's prompt» witness

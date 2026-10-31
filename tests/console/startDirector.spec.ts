@@ -64,6 +64,8 @@ describe('startDirector — agreement and scope', () => {
   it('the corp mandatory move inside the bonus window is the bonus stage own sub-stage — agreed', () => {
     expect(startOwnersAgree('firstAction', 'bonusAction')).is.true;
     expect(startOwnersAgree('bonusAction', 'firstAction'), 'the other way round is a real disagreement').is.false;
+    expect(startOwnersAgree('game', 'shell'), 'the game proper served by the shell past a yield — the state the cure leaves').is.true;
+    expect(startOwnersAgree('game', 'none'), 'the start standing empty while the game asks is the finding the field showed').is.false;
   });
 
   it('a beat and a park are never judged; waiting accepts any calm pose; a step may be the start\'s or the shell\'s', () => {

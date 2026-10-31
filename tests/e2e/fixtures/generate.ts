@@ -557,6 +557,28 @@ for (const [suffix, file, color] of [
   write(name, game);
 }
 
+// ── field-start-deploy-leave: THE FIRST FIELD CURE OF THE START DIRECTOR (2026-10-31 21:48, the owner's export
+//    game-pab1793c — game g2cb6cfc844aa, history 00002 → 00003): a solo table against MarsBot; pink played the last of
+//    two preludes (Orbital Construction Yard · Established Methods), the server asked the ACTION MENU at 21:48:53 and
+//    the start scene stood over it serving NOTHING (`flow: deploying`, `flowStage: ready`, no queue card, no blocker but
+//    the menu itself) — the strand watchdog silent, the shadow confirmed «game → none» at 3 s and YIELDED. The table AS
+//    SAVED one step before: pink on the prelude pick with both preludes in hand — the stand plays them on the real UI
+//    and watches the deployment LEAVE on its own. ──
+{
+  const name = 'field-start-deploy-leave';
+  const source = JSON.parse(fs.readFileSync(path.join(__dirname, 'field', 'g2cb6cfc844aa-00002.json'), 'utf8')) as SerializedGame;
+  const game = Game.deserialize(source);
+  const pink = game.players.find((p) => p.color === 'pink');
+  const wf = pink?.getWaitingFor();
+  if (pink === undefined || game.activePlayer.id !== pink.id || wf?.startGamePrompt?.kind !== 'preludeSelection' || pink.preludeCardsInHand.length !== 2) {
+    throw new Error(`${name}: expected pink on the prelude pick with two preludes in hand (wf=${wf?.type}/${wf?.startGamePrompt?.kind}, preludes=${pink?.preludeCardsInHand.map((c) => c.name).join('/')})`);
+  }
+  for (const [i, p] of game.players.entries()) {
+    p.name = p.isMarsBot ? p.name : `seat${i + 1}`;
+  }
+  write(name, game);
+}
+
 // ── venus-trade-unity-bonus-2p: the SAME trade as the field's second action of the turn — a two-seat game, the
 //    viewer (blue) has taken one action, so the trade's answer (after its discard) PASSES THE TURN to red: the
 //    viewer's `waitingFor` goes empty while another seat holds the move (the field: pink → blue). ──

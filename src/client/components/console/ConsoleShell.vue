@@ -1638,7 +1638,8 @@ import {openBotTurnReviewByKey, skipBotTurnPresentation, stepBotTurnReview} from
 import {acquireForegroundLease, isMandatoryPromptsHeld, isMandatoryPromptsHeldByScreen, registerRevealParkSupplier} from '@/client/components/presentation/presentationFlow';
 import {activeAnimationHoldLabels, blockingAnimationHoldCount, isAnimationHoldActive, oldestAnimationHoldAgeMs} from '@/client/components/presentation/animationHold';
 import {isTransientBeat, resetBeatStall, transientSurfaceBeats} from '@/client/console/workspaceBeatStall';
-import {LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
+import {LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
+import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
 import {ANIMATION_STALL_GRACE_MS} from '@/client/console/consoleForegroundWatchdog';
 import {notificationState, notificationFeedReadForDecision, acknowledgeFlowHoldingCards, dismiss as dismissNotification, pushWarning} from '@/client/components/notifications/notificationState';
@@ -21334,10 +21335,21 @@ export default defineComponent({
         focused === null ? '' : `${focused.className.toString().slice(0, 40)}:${(focused.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)}`,
         String(transport?.requestInProgress ?? false),
       ].join('|');
+      const accepting = beat === undefined && leakDetectorState.stranded === undefined && !isSurfaceAwaitingHandoff();
+      // THE FIELD FLIGHT RECORDER's heartbeat (phase 2): what the arbiter sees, once a second, kept across a reload.
+      recordFieldHeartbeat({
+        game: this.playerView.game.id,
+        prompt: wf === undefined ? '' : `${promptIdentityKey(wf)}#${wf.promptId ?? ''}`,
+        accepting, inFlight,
+        frames: workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`),
+        section: `${this.consoleState.section}/${this.consoleState.sheet ?? ''}`,
+        quietS: Math.round((Date.now() - livenessStateSnapshot().progressAt) / 1000),
+        presses: livenessStateSnapshot().pressesSinceProgress,
+      });
       const verdict = tickLiveness({
         now: Date.now(),
         promptLive: wf !== undefined && wf.optional !== true,
-        accepting: beat === undefined && leakDetectorState.stranded === undefined && !isSurfaceAwaitingHandoff(),
+        accepting,
         inFlight,
         // A / B on any device — an optional verb with nothing to do is an honest no-op, never a wedge; an accepting
         // screen is judged only by the A / B nobody took.

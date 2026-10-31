@@ -76,6 +76,8 @@ const CORS_PATHS: ReadonlySet<string> = new Set<string>([
   // route itself additionally rejects every non-loopback CONNECTION, so being
   // in this list opens nothing to the LAN.
   paths.API_LOCAL_GAME_DELETE,
+  // The field flight recorder's drop box (write-only, bounded; the desktop renderer posts its own screen's record).
+  paths.API_FIELD_LOG,
   paths.LOAD_GAME,
   // Dev-only game-rollback tool. Named "admin" but IN SCOPE deliberately: it
   // lives in the console main menu, which runs in the desktop (app://bundle)

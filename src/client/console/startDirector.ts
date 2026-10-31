@@ -151,6 +151,9 @@ export function startOwnersAgree(expected: StartOwner, actual: ActualStartOwner)
   // The corporation's mandatory move INSIDE the bonus window is the bonus stage's own sub-stage («Фора»: bonus action 1
   // — `console-bonus-nested-first-action`): the bonus stage serving it is the same owner one level down.
   case 'firstAction': return actual === 'firstAction' || actual === 'bonusAction';
+  // The game proper served by the SHELL while the start frame (a phase root) still stands — the state a yield leaves
+  // (the field, 2026-10-31 21:48: «game → none» cured by yield, then «game → shell» logged as a second finding).
+  case 'game': return actual === 'game' || actual === 'shell';
   default: return actual === expected;
   }
 }

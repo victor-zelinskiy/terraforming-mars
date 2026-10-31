@@ -28,6 +28,7 @@
 
 import {useEventListener} from '@vueuse/core';
 import {installInputEchoProbe, recordInputEcho} from '@/client/console/inputEcho';
+import {installFieldRecorder} from '@/client/console/fieldRecorder';
 import {CONSOLE_KEY_BUTTON, CONSOLE_KEY_NAV, keyboardConsoleIntent} from '@/client/console/composables/consoleActionModel';
 import {GamepadIntent, SemanticButton} from '@/client/gamepad/gamepadPollModel';
 import {dispatchConsoleIntent} from '@/client/console/consoleRouter';
@@ -136,6 +137,9 @@ export function installConsoleKeyBridge(): void {
     return;
   }
   installInputEchoProbe();
+  // THE FIELD FLIGHT RECORDER (phase 2 of the start director): the console's tagged warnings and the arbiter's
+  // heartbeats, kept across a reload and posted to the embedded server beside the saves.
+  installFieldRecorder();
   const stopDown = useEventListener(window, 'keydown', onKeydown);
   const stopUp = useEventListener(window, 'keyup', onKeyup);
   stop = () => {

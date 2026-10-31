@@ -62,6 +62,8 @@ export const paths = {
   API_LOCAL_GAME_DELETE: 'api/local-game-delete',
   API_HEAP_SNAPSHOT: 'api/heapsnapshot',
   API_IPS: 'api/ips',
+  /** The field flight recorder's drop box (`client/console/fieldRecorder.ts` → `routes/ApiFieldLog.ts`). */
+  API_FIELD_LOG: 'api/field-log',
   API_METRICS: 'api/metrics',
   API_LOGOUT: 'api/logout',
   API_PLAYER: 'api/player',

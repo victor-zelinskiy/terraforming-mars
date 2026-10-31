@@ -41,6 +41,7 @@ import {ApiGamePlayerColor} from '../routes/ApiGamePlayerColor';
 import {ApiLocalGameDelete} from '../routes/ApiLocalGameDelete';
 import {ApiHeapSnapshot} from '../routes/ApiHeapSnapshot';
 import {ApiIPs} from '../routes/ApiIPs';
+import {ApiFieldLog} from '../routes/ApiFieldLog';
 import {ApiLogout} from '../routes/ApiLogout';
 import {ApiMetrics} from '../routes/ApiMetrics';
 import {ApiPlayer} from '../routes/ApiPlayer';
@@ -135,6 +136,7 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_LOCAL_GAME_DELETE, ApiLocalGameDelete.INSTANCE],
     [paths.API_HEAP_SNAPSHOT, ApiHeapSnapshot.INSTANCE],
     [paths.API_IPS, ApiIPs.INSTANCE],
+    [paths.API_FIELD_LOG, ApiFieldLog.INSTANCE],
     [paths.API_METRICS, ApiMetrics.INSTANCE],
     [paths.API_PLAYER, ApiPlayer.INSTANCE],
     [paths.API_STATS, ApiStats.INSTANCE],

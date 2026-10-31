@@ -100,13 +100,9 @@ for (const profile of PROFILES) {
           for (let tap = 0; tap < 3 && !moved; tap++) {
             await settle(page, {timeoutMs: 20_000});
             await press(page, 'Enter', 900);
-            const deadline = Date.now() + 12_000;
-            while (Date.now() < deadline && !moved) {
-              moved = (await promptKind(request, playerId)) !== before;
-              if (!moved) {
-                await page.waitForTimeout(400);
-              }
-            }
+            // STATE, never a sleep: the server's prompt polled until it moves (or the beat's budget is spent).
+            moved = await expect.poll(async () => (await promptKind(request, playerId)) !== before, {timeout: 12_000, intervals: [400]}).toBe(true)
+              .then(() => true, () => false);
           }
           expect(moved, `A answers «${before}» within three presses — the prompt moves on`).toBe(true);
         }

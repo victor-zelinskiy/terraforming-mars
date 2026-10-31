@@ -146,7 +146,7 @@ describe('server/cors', () => {
       paths.LOAD_GAME, paths.API_LOCAL_GAME_DELETE, paths.API_ADMIN_ROLLBACK_GAMES, paths.API_ADMIN_ROLLBACK_HISTORY, paths.API_ADMIN_ROLLBACK,
       paths.API_DEV_PLAYGROUND_SCENARIO,
       paths.API_CAMPAIGN, paths.API_CAMPAIGN_CREATE, paths.API_CAMPAIGN_LAUNCH, paths.API_CAMPAIGN_CARRYOVER, paths.API_CAMPAIGN_DEV,
-      paths.API_CAMPAIGNS, paths.API_CAMPAIGN_DELETE]) {
+      paths.API_CAMPAIGNS, paths.API_CAMPAIGN_DELETE, paths.API_FIELD_LOG]) {
       expect(isCorsEligiblePath(p), p).to.be.true;
     }
     for (const p of [paths.API_GAMES, paths.API_GAME_DELETE, paths.API_PROFILE, paths.LOGIN, paths.API_METRICS, 'admin', paths.CAMPAIGN]) {
