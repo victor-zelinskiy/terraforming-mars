@@ -121,7 +121,10 @@ export function venusWildTargets(meta: VenusBonusPromptMeta): ReadonlyArray<Card
  * `standard` → the bare `GainResources` (an `and` of six amounts, in
  * `STANDARD_UNITS` order — the order `GainResources.makeOptions` builds).
  * `final` → the same `and`, wrapped as the chosen OR branch; branch 0 also
- * carries the card pick as its first child.
+ * carries the card pick as its first child. A `final` bonus with NO card able
+ * to host the wild has no OR at all: the server asks the bare
+ * `GainResources(base + 1)` (`wildCardTargets: []`), so the answer is the bare
+ * `and` too — wrapping it threw «Not a valid AndOptionsResponse» (2026-10-31).
  *
  * Byte-identical to what the desktop VenusBonusContent POSTs — the two are
  * guarded against each other by `compositePrompts.spec.ts`.
@@ -133,7 +136,7 @@ export function venusBonusResponse(
   wildCard: CardName | undefined,
 ): unknown {
   const amounts = andResponse(STANDARD_UNITS.map((unit) => amountResponse(laneValue(state, unit))));
-  if (meta.kind === 'standard') {
+  if (meta.kind === 'standard' || venusWildTargets(meta).length === 0) {
     return amounts;
   }
   if (wild === 'onCard') {

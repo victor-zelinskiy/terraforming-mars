@@ -277,6 +277,16 @@ describe('the Venus alt-track bonus', () => {
       },
     });
   });
+
+  it('…and a FINAL step with no card to host the wild answers the bare `and` — the server asked no OR', () => {
+    // No resource card ⇒ the server sends `GainResources(base + 1)` itself; an
+    // OR-wrapped answer threw «Not a valid AndOptionsResponse» (2026-10-31).
+    const meta = {kind: 'final', baseCount: 1, wildCardTargets: []} as const;
+    expect(venusBaseCount(meta, 'asStandard')).to.eq(2);
+    expect(venusBonusResponse(meta, {titanium: 2}, 'asStandard', undefined)).to.deep.eq({
+      type: 'and', responses: [0, 0, 2, 0, 0, 0].map((amount) => ({type: 'amount', amount})),
+    });
+  });
 });
 
 describe('the planetary-event thresholds', () => {
