@@ -498,6 +498,29 @@ after the stage the door stood on), the queue parks and the shelf steps out unde
 advertises R3 (`queueEffects`). And the deployment does not settle under a table's answer still playing on the shelf
 (PL-1093 — `card-reaction.md` § TR82).
 
+## THE DEPLOYMENT AT ONE GLANCE (TRP0 · DE, 2026-10-31)
+
+The queue of «СТАРТ ПАРТИИ › ПРОЛОГИ › РОЗЫГРЫШ» is the first screen of every game, and it read as two small cards in a
+column of empty glass, with the only reading of «can I play it / will it burn / what does the table answer» living in the
+pinned rail for the ONE focused card. Four rules, all static composition — the stage motion (RELEASE → UNFOLD, the hero
+flights, the directors, the latches) is untouched:
+1. **The size is solved from the box** — `console/startQueueLayout.ts` `startQueueLayout` (pure, spec'd): the queue's box,
+   the row's other blocks measured (the bought projects, the campaign rows), a ROW CAPACITY of four (one to four cards share
+   ONE geometry — a card that leaves never makes the rest grow; five and more take a second row), the room under every
+   card reserved (the A pill, the reading line), the ceiling the natural frame × uiScale. The scene observes
+   `.con-start__queue` and publishes `--con-start-qzoom` (+ `.con-start__queue--solved`); never during a hero flight.
+2. **A reading line under every corporation / prelude** (`startQueueReading` → `[data-qcard-reading]`,
+   `data-qcard-verdict` = playable · waiting · lost · none): the verdict WORD (`Можно разыграть` · what a waiting prelude
+   lacks · «Сначала: <пролог>» with exactly one enabler) and the table's answer (`ConsoleForecastRow` from the same preview
+   forecast the focused rail reads). Never a fact of the face. Absolute under the card's foot, counter-zoomed to root rem,
+   the same in every focus state; the pinned rail keeps the focused card's full formula.
+3. **The shelf's empty place is a SOCKET** — one hairline in the shelf's tone, no dashed box, no light pool; the same
+   geometry (it is the landing a flight measures). The family cap prints no «0».
+4. **The hero by size** — the focused card `scale(1.06)` from its foot (the cursor clock), never on a departing card; its
+   reading line counter-scales, so no line moves while the cursor walks. The A pill is counter-zoomed to the profile's root
+   rem (`.78rem`) once the size is solved — one A, the risk stage's face as before.
+Witness: e2e `console-start-queue-scene` (fhd · tv4k · deck).
+
 ## Guards
 
 `tests/client/components/console/startFirstAction.spec.ts` (stage model + the

@@ -1,6 +1,6 @@
 # Prelude 2 — включение в премиум-скоуп, hold-back-список, замена
 
-**Статус 2026-10-31: ЛЕСА ПОСТАВЛЕНЫ · 14 / 54 · СДАНЫ P76 Ishtar Expedition, P85 Summit Logistics (первая политическая), P68 Ceres Tech Market (первая с действием), P80 Red Appeasement (первый розыгрыш-пас) и P78 L1 Trade Terminal (первый пассивный эффект торговли и первый мультивыбор разыгранных карт) и P69 Cloud Tourism (первый счёт ПАРАМИ меток и первый ПО-порог на собственном ресурсе) и P75 GHG Shipment (первое требование Кельвинистов — читается Зелёными везде) и P83 Sponsoring Nation (первый живой грант делегатов розыгрыша без двери поля — шаг того же флоу) и P71 Colonial Representation (первое влияние сверх Карьеры в Prelude 2 — его отдача читается в итогах заседания) и P72 Envoys from Venus (первое событие, чей розыгрыш — только грант делегатов; грант — одна фраза от нажатия до посадки) и P70 Colonial Envoys (первая серия отдельных решений делегатов — один визит Парламента; каркас Парламента одним взглядом) и P82 Special Permit (первая АТАКА серии — цель показана всегда, бот — место стола; с ней — «поднимается только та карта, что сработала») и P73 Floating Refinery (первое венерианское действие-ВЫБОР — bespoke на языке форка; с ним — сцена настройки действия «лист высотой с карту») и P74 Frontier Town (первый город с УМНОЖЕННЫМ печатным бонусом — один механизм множителя; с ним — «награда клетки на самой клетке», пометка «×N»), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
+**Статус 2026-10-31: ЛЕСА ПОСТАВЛЕНЫ · 15 / 54 · СДАНЫ P76 Ishtar Expedition, P85 Summit Logistics (первая политическая), P68 Ceres Tech Market (первая с действием), P80 Red Appeasement (первый розыгрыш-пас) и P78 L1 Trade Terminal (первый пассивный эффект торговли и первый мультивыбор разыгранных карт) и P69 Cloud Tourism (первый счёт ПАРАМИ меток и первый ПО-порог на собственном ресурсе) и P75 GHG Shipment (первое требование Кельвинистов — читается Зелёными везде) и P83 Sponsoring Nation (первый живой грант делегатов розыгрыша без двери поля — шаг того же флоу) и P71 Colonial Representation (первое влияние сверх Карьеры в Prelude 2 — его отдача читается в итогах заседания) и P72 Envoys from Venus (первое событие, чей розыгрыш — только грант делегатов; грант — одна фраза от нажатия до посадки) и P70 Colonial Envoys (первая серия отдельных решений делегатов — один визит Парламента; каркас Парламента одним взглядом) и P82 Special Permit (первая АТАКА серии — цель показана всегда, бот — место стола; с ней — «поднимается только та карта, что сработала») и P73 Floating Refinery (первое венерианское действие-ВЫБОР — bespoke на языке форка; с ним — сцена настройки действия «лист высотой с карту») и P74 Frontier Town (первый город с УМНОЖЕННЫМ печатным бонусом — один механизм множителя; с ним — «награда клетки на самой клетке», пометка «×N») и P47 Corridors of Power — ЗАМЕНА СДАНА как TRP0 (первая замена-прелюдия реестра; термин счёта Парламента; с ней — «развёртывание прологов одним взглядом»), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
 `PREMIUM_SCOPE_MODULES` (`src/common/cards/premiumScope.ts`) по образцу классического Turmoil
 (`docs/TURMOIL_REDUX_CLASSIC_CARDS.md`, 2026-10-21 → 2026-10-25): скоуп = «модуль минус список», список — ворклист.
 Адаптация идёт по одной карте, отдельными задачами, по ворклисту §4; список — временный костыль и удаляется, когда
@@ -160,18 +160,19 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 розыгрыше прелюдии; WG Project — «возьми 3 прелюдии, сыграй 1» (reveal-пик прелюдий внутри розыгрыша); Recession —
 кросс-игроковая потеря (`crossPlayerCoverageGuard`, уведомления).
 
-### 3.2 Карта-замена (1 карта — Corridors of Power)
+### 3.2 Карта-замена (1 карта — Corridors of Power) — **СДЕЛАНО 2026-10-31 (TRP0)**
 Контракт — `docs/TURMOIL_REDUX_CLASSIC_CARDS.md` §3.2, с поправками на прелюдию:
 1. Класс `src/server/cards/turmoilRedux/CorridorsOfPowerRedux.ts`, имя `CardName.CORRIDORS_OF_POWER_REDUX =
    'Corridors of Power:redux'`; регистрация в `preludeCards` Redux-манифеста с `compatibility: 'prelude'` (как TRP1) +
    **`cardsToRemove: [CardName.CORRIDORS_OF_POWER]`**.
 2. Реестр замен `src/common/cards/turmoilReduxReplacements.ts` получает `kind: 'prelude'` и строку
-   (скан `Preludes/Replacement - Corridors of Power.png`, что меняет); номер — по `replacementCardNumber`
-   (следующий после TR77 корпорации; решить при авторстве — порядок номеров ≠ порядок сдачи).
+   (скан `Preludes/Replacement - Corridors of Power.png`, что меняет); номер — по `replacementCardNumber`:
+   **TRP0** — напечатан на скане, семья прелюдий (решено при авторстве: номер — семья своего вида, не TR7x).
 3. Арт и лор — классической карты через `metadata.reimplements: CardName.CORRIDORS_OF_POWER` (ключ `P47`).
 4. **Тем же диффом** — строка долой из `PRELUDE2_CARDS_AWAITING_REDUX_REPLACEMENT`; гард «a replacement that crossed
-   stands in cardsToRemove» требует всё вместе. Classic Corridors of Power вне скоупа НАВСЕГДА: после удаления списка
-   ветка `case 'prelude2'` в `inPremiumScope` сменяется чтением реестра замен (как у `turmoil`).
+   stands in cardsToRemove» требует всё вместе. Classic Corridors of Power вне скоупа НАВСЕГДА: ветка `case 'prelude2'`
+   в `inPremiumScope` читает реестр замен **УЖЕ СЕЙЧАС** (снятая строка иначе вернула бы классику в скоуп ≈ 30 гардов);
+   список `PRELUDE2_CARDS_AWAITING_REDUX_REPLACEMENT` пуст и уходит вместе со списком (§2.4).
 
 ---
 
@@ -207,7 +208,7 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 | P44 | Atmospheric Enhancers | PRELUDE · Venus | behavior + bespokePlay | в списке |
 | P45 | Board of Directors | PRELUDE | behavior + действие | в списке |
 | P46 | Colony Trade Hub | PRELUDE · Colonies | behavior + `onColonyAdded` | в списке |
-| P47 | Corridors of Power | PRELUDE · ПОЛИТ | **ЗАМЕНА** (§3.2) | в списке |
+| P47 | Corridors of Power | PRELUDE · ПОЛИТ | **ЗАМЕНА** (§3.2) | **ЗАМЕНА СДАНА (TRP0)** 2026-10-31 |
 | P48 | Early Colonization | PRELUDE · Colonies | behavior + bespokePlay | в списке |
 | P49 | Floating Trade Hub | PRELUDE | действие | в списке |
 | P50 | Focused Organization | PRELUDE | behavior + действие (AndOptions-гэп) | в списке |
