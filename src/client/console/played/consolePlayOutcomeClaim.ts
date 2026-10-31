@@ -40,6 +40,7 @@ import {
   WorkspaceOutcomeHost,
   WorkspaceOutcomeKind,
   claimWorkspaceOutcome,
+  markWorkspaceOutcomeArrivalByScene,
   rehomeWorkspaceOutcome,
   setWorkspaceOutcomeSlot,
   workspaceClaimsPick,
@@ -186,6 +187,15 @@ function outcomeTookTheStage(): boolean {
 }
 
 /**
+ * A PLAY'S CLAIM STANDS WHERE ITS LANDING SCENE IS THE STAGE'S CONTENT — the hand composer's tableau, or a law's
+ * receiving stage in «ДЕЙСТВИЯ КАРТ» (RX36 — `claimLawPlayOutcome`). One reading for both, so the law's tableau holds
+ * and dissolves on exactly the hand's terms.
+ */
+function playLandingClaimLive(): boolean {
+  return workspaceOutcomeState.sourceCard !== '' && (workspaceOutcomeState.host === 'hand' || lawPlayOutcomeLive());
+}
+
+/**
  * IS THE LANDING SCENE STILL THE WORKSPACE'S CONTENT?
  *
  * The played-hero transaction ends when the card has landed and its rewards
@@ -208,8 +218,7 @@ export function playLandingHolding(): boolean {
   if (playedHeroLandingUp()) {
     return true; // the hero's own scene — it owns the stage outright
   }
-  return workspaceOutcomeState.host === 'hand' && workspaceOutcomeState.sourceCard !== '' &&
-    !playedHeroLandingPrewarm() && !outcomeTookTheStage();
+  return playLandingClaimLive() && !playedHeroLandingPrewarm() && !outcomeTookTheStage();
 }
 
 /**
@@ -222,8 +231,7 @@ export function playLandingHolding(): boolean {
  * first one, so neither has to be inferred from the absence of the other.
  */
 export function playLandingYieldedToOutcome(): boolean {
-  return workspaceOutcomeState.host === 'hand' && workspaceOutcomeState.sourceCard !== '' &&
-    outcomeTookTheStage();
+  return playLandingClaimLive() && outcomeTookTheStage();
 }
 
 /**
@@ -289,7 +297,51 @@ export function playOwesTargetPick(waitingFor: PlayerInputModel | undefined): bo
 }
 
 export function isPlayOutcomeHost(host: WorkspaceOutcomeHost | undefined): boolean {
-  return host !== undefined && PLAY_OUTCOME_HOSTS.some((spec) => spec.host === host);
+  return host !== undefined && (PLAY_OUTCOME_HOSTS.some((spec) => spec.host === host) ||
+    (host === 'card-actions' && lawPlayOutcomeLive()));
+}
+
+/**
+ * A CARD PLAYED THROUGH A LAW (RX36 Live Experiments — the owner, 2026-10-31: «результат карты, разыгранной через закон,
+ * открывается отдельным окном — доработать до реально премиум бесшовной подачи»).
+ *
+ * The law's play is made INSIDE «ДЕЙСТВИЯ КАРТ › <закон>» and its card lands in that stage (PL-726) — so what the card
+ * SETS OFF (its draw, its keep-some pick, a woken card's question, a repeated action's verdict) is that stage's next
+ * beat too, never a band over the board after the workspace has left. It is a PLAY, so it claims as every play does —
+ * OPTIMISTICALLY, the whole causal chain (`chain`), reconciled against the answer (a play that set off nothing
+ * embeddable releases its claim a tick later) — under the card-actions host, keyed on the played card. The zone is the
+ * law stage's own outcome layer (`LAW_PLAY_OUTCOME_ZONE` — a layer of the decision column over the landing tableau, the
+ * ledger's own place); the shell's play-host readers (`isPlayOutcomeHost`) know this claim as a play's for exactly its
+ * life — never a card ACTION's claim, whose stage draws its own outcomes.
+ */
+export const LAW_PLAY_OUTCOME_ZONE = '[data-embed-slot="law-outcome"]';
+
+const lawPlayOutcome = reactive({card: ''});
+
+/** The law's play claimed its outcome and the claim still stands — the card-actions host is a PLAY host right now. */
+export function lawPlayOutcomeLive(): boolean {
+  return lawPlayOutcome.card !== '' && workspaceOutcomeState.host === 'card-actions' &&
+    workspaceOutcomeState.sourceCard === lawPlayOutcome.card;
+}
+
+/** Claim what a card played THROUGH A LAW sets off — in the same press as the submit, before the answer can land. */
+export function claimLawPlayOutcome(card: string, expectedCards = 0, opts: {deckCheck?: boolean} = {}): void {
+  markPlayLandingReleased();
+  setWorkspaceOutcomeSlot(LAW_PLAY_OUTCOME_ZONE);
+  const kinds: Array<WorkspaceOutcomeKind> = ['draw', 'pick', 'effect'];
+  if (opts.deckCheck === true) {
+    kinds.push('deck-check');
+  }
+  claimWorkspaceOutcome('card-actions', card, kinds, 0, expectedCards, 'chain');
+  // The law's stage prepared no arrival beat of its own (that is the card ACTION's `beatstage`): the deck-draw scene
+  // flies the batch into the embedded reveal's slots, exactly as it serves the hand's and the start's claims.
+  markWorkspaceOutcomeArrivalByScene();
+  lawPlayOutcome.card = card;
+}
+
+/** The law's play is over (its claim released, the stage gone) — forget it, so a later card ACTION is never a play. */
+export function resetLawPlayOutcome(): void {
+  lawPlayOutcome.card = '';
 }
 
 /**

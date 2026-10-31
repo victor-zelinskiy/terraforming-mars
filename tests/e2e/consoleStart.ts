@@ -3141,7 +3141,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'parliament-diverted-enacted' |
   // RX36 Live Experiments ENACTED: red (20 M€) at −30 °C holding Grass (the law opens it), Adapted Lichen (playable
   // anyway) and Martian Media Center (a party requirement the law never waives).
-  'parliament-live-enacted' | 'parliament-live-helion' | 'parliament-live-staged' | 'parliament-live-helion-staged' |
+  'parliament-live-enacted' | 'parliament-live-outcome' | 'parliament-live-helion' | 'parliament-live-staged' | 'parliament-live-helion-staged' |
   // RX37 Manufacturing Run ENACTED: red at influence 1 (two uses) holding Security Fleet, Construction Mechs and Titan Shuttles.
   'parliament-manufacturing-enacted' |
   // RX39 Reds Budget with MarsBot: blue's vote, and the solo assembly gate with a NEUTRAL winner — blue's levy, payout and step of the Career, then the bot's step (D11).

@@ -20,6 +20,8 @@ import {
 } from '@/client/console/consolePlayPick';
 import {consoleRepeatPickState, resetConsoleRepeatPick} from '@/client/console/consoleRepeatPick';
 import {playedHeroState} from '@/client/console/played/consolePlayedHero';
+import {claimLawPlayOutcome, resetLawPlayOutcome} from '@/client/console/played/consolePlayOutcomeClaim';
+import {markWorkspaceOutcomePresenting, releaseWorkspaceOutcome} from '@/client/console/consoleWorkspaceOutcome';
 import {resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 
 /*
@@ -209,6 +211,30 @@ describe('ConsoleActionComposer — a LAW\'s action (С4)', () => {
     endLawPlayLanding();
     await w.vm.$nextTick();
     expect(w.find('[data-law-landing]').classes(), 'latched once it rose').to.include('con-composer__playstage--up');
+  });
+
+  /**
+   * WHAT THE CARD SETS OFF STAYS IN THE STAGE (RX36, the owner 2026-10-31: «результат карты, разыгранной через закон,
+   * открывается отдельным окном — доработать до премиум бесшовной подачи»): the outcome `law-play` renders the stage's
+   * own outcome zone — a layer over the landed tableau — from the press, so the shell's one presenter has a home the
+   * moment the answer lands; the zone takes input only once the outcome PRESENTS, and the tableau dissolves under it.
+   */
+  it('a LAW\'s PLAY committed here renders the outcome zone over the tableau — inert until the outcome presents', async () => {
+    const w = factory(lawEntry(LIVE), livePreview(PLAY));
+    expect(w.find('[data-embed-slot="law-outcome"]').exists(), 'no zone before the commit').to.be.false;
+    await w.setProps({outcome: {kind: 'law-play'}});
+    const zone = w.find('[data-embed-slot="law-outcome"]');
+    expect(zone.exists(), 'the zone stands from the press').to.be.true;
+    expect(zone.attributes('data-law-outcome')).not.to.eq(undefined);
+    expect(w.find('[data-colony-ledger-zone]').classes(), 'inert — nothing presents yet').not.to.include('con-composer__ledgerzone--on');
+    expect(w.find('.con-composer__surface').exists(), 'the decision column is NOT swapped for an outcome stage').to.be.true;
+    // The law's claim presents: the layer takes the pad's surface.
+    claimLawPlayOutcome(CardName.GRASS, 1);
+    markWorkspaceOutcomePresenting();
+    await w.vm.$nextTick();
+    expect(w.find('[data-colony-ledger-zone]').classes(), 'the outcome has the column').to.include('con-composer__ledgerzone--on');
+    releaseWorkspaceOutcome();
+    resetLawPlayOutcome();
   });
 
   it('the slot COMES BACK with its stage — a remount re-seats it from the kept play', async () => {

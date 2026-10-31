@@ -2048,7 +2048,7 @@ import {
 import {cardExitBusy} from '@/client/console/cardDeal/cardExitDirector';
 import type {WorkspaceOutcomeKind, WorkspaceOutcomeScope} from '@/client/console/consoleWorkspaceOutcome';
 import {ResultRevealPresentation, resultRevealPresentation} from '@/client/console/consoleRevealPresentation';
-import {claimPlayOutcome, isPlayOutcomeHost, playLandingShowing, playOwesTargetPick} from '@/client/console/played/consolePlayOutcomeClaim';
+import {claimPlayOutcome, isPlayOutcomeHost, lawPlayOutcomeLive, playLandingShowing, playOwesTargetPick} from '@/client/console/played/consolePlayOutcomeClaim';
 import {playComposerOutlived} from '@/client/console/played/playComposerLifetime';
 import {noteBonusGainRows, resetBonusGainReward} from '@/client/console/startBonusGain';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
@@ -5899,7 +5899,8 @@ export default defineComponent({
         workspaceOwns: workspaceClaimsDeckCheck(lr?.action),
         // «ДЕЙСТВИЯ КАРТ» owns a verdict stage of its own (hero column + deck
         // flight + source FLIP); every other host takes the re-homed overlay.
-        hostDrawsItself: workspaceOutcomeState.host === 'card-actions',
+        // (…except a card played THROUGH A LAW, RX36: its verdict is a play's outcome — the re-homed overlay.)
+        hostDrawsItself: workspaceOutcomeState.host === 'card-actions' && !lawPlayOutcomeLive(),
         stageMounted: lr !== undefined && lr.action === consoleActionComposerUi.revealClaim,
       });
     },
@@ -8533,7 +8534,10 @@ export default defineComponent({
      * and the server's marker, never a title. (A party's discard is `politicalDiscardOwed` — an `owed-step`.)
      */
     lawStepOwed(): boolean {
-      return (lawPlayLandingOf() !== undefined && workspaceFrameMounted('card-actions')) || this.lawLivePlayStepOwed;
+      // …until the scene's CLOSING: with the card's outcome CLAIMED (`claimLawPlayOutcome`) the workspace concludes on that beat
+      // itself (the card-actions `lawPlayHeroPhase` watcher) — the landing record outlives it only to `idle`.
+      return (lawPlayLandingOf() !== undefined && workspaceFrameMounted('card-actions') && playedHeroState.phase !== 'closing') ||
+        this.lawLivePlayStepOwed;
     },
     /**
      * THE REDS' DISCARD IS OWED TO THIS LIVE ACTION WORKSPACE (Turmoil Redux): the party's discard is owed to the card
@@ -23829,7 +23833,7 @@ export default defineComponent({
         this.dismissedRevealKey = `${lr.action}|${lr.revealed.name}`;
       }
       const host = workspaceOutcomeState.host;
-      if (host !== undefined && host !== 'card-actions' && workspaceClaimsDeckCheck(lr?.action)) {
+      if (host !== undefined && (host !== 'card-actions' || lawPlayOutcomeLive()) && workspaceClaimsDeckCheck(lr?.action)) {
         // The dismissal marker above is set FIRST, so an acked verdict has
         // already stopped serving — the funnel refuses only when the SAME
         // claim still owes something else (a `chain` claim's follow-up pick

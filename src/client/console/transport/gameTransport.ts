@@ -219,6 +219,7 @@ import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentat
 import {startSceneHeld} from '@/client/console/consoleStartState';
 import {acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
+import {armSubmitCeiling} from '@/client/console/transport/submitCeiling';
 import {
   applyHazardTileSwap,
   detectHazardCleanup,
@@ -241,6 +242,10 @@ const WGT_TITLE = 'Select action for World Government Terraforming';
 const WGT_MARKER_HOLD_MS = 1100;
 
 const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting or down for maintenance.';
+
+/** The words of the submit ceiling (`submitCeiling.ts`) — the server's silence, named. */
+const SERVER_NOT_RESPONDING_TITLE = 'The server is not responding';
+const SERVER_NOT_RESPONDING = 'The server has not answered your move for a minute. It may still be processing it — the game will reload its current state.';
 
 /**
  * The poll request's own give-up horizon. `/api/waitingfor` answers
@@ -839,8 +844,11 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
   transportState.requestInProgress = true;
   transportState.requestSince = Date.now();
   transportState.responseArrived = false;
-  fetch(url, options)
+  // THE CEILING (`submitCeiling.ts`): only the silence before the server's answer; cleared the moment it speaks.
+  const ceiling = armSubmitCeiling((ms) => console.warn(`[transport] the server did not answer the submit for ${Math.round(ms / 1000)}s — the request is cancelled, the state re-fetched`));
+  fetch(url, ceiling.signal === undefined ? options : {...options, signal: ceiling.signal})
     .then(async (response) => {
+      ceiling.clear();
       transportState.responseArrived = true;
       if (response.ok) {
         const newView = await response.json() as PlayerViewModel;
@@ -1581,9 +1589,16 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
       }
     })
     .catch((e) => {
+      ceiling.clear();
       // Network failure — same full unwind as a refusal: no ghost card, no
       // ghost cube, no gold, no credit; every composer CTA re-arms.
       abortAllConsoleTransactions();
+      if (ceiling.silent()) {
+        // THE SERVER NEVER ANSWERED: say exactly that, and let the next view tell whether the move landed.
+        r.showAlert(SERVER_NOT_RESPONDING_TITLE, SERVER_NOT_RESPONDING, () => waitForUpdate(true));
+        r.updatePlayer();
+        return;
+      }
       r.showAlert('Error sending input,', CANNOT_CONTACT_SERVER);
       console.error(e);
     })

@@ -199,6 +199,13 @@ export const workspaceOutcomeState = reactive({
    */
   answerIn: false,
   /**
+   * WHO FLIES the claimed batch's arrival: the HOST's own prepared beat (the card-actions composer's `beatstage` +
+   * `runBatchArrival`) or the deck-draw SCENE, into the embedded reveal's slots. Derived from the host by default;
+   * a card-actions claim raised by a PLAY (RX36 — the law's card drew) names the scene, since no beat stage was
+   * prepared for it and a batch nobody flies never arrives.
+   */
+  arrivalBy: 'host' as 'host' | 'scene',
+  /**
    * The EXECUTION BEAT has played out — the card has physically come off the
    * deck, turned over, and settled. Until then the real surface is withheld.
    *
@@ -505,6 +512,7 @@ export function claimWorkspaceOutcome(
   workspaceOutcomeState.stage = 'awaiting';
   workspaceOutcomeState.expectedCards = Math.max(0, Math.floor(expectedCards));
   workspaceOutcomeState.arrivalFlown = false;
+  workspaceOutcomeState.arrivalBy = 'host';
   clearArrival();
   // Only a CARD outcome arrives by flying; a deck-check presents in the
   // composer's own slot and must not leave the input gate closed behind it.
@@ -722,6 +730,7 @@ export function releaseWorkspaceOutcome(reason = 'unspecified', opts?: {force?: 
   workspaceOutcomeState.expectedCards = 0;
   workspaceOutcomeState.arrivalDone = true;
   workspaceOutcomeState.arrivalFlown = false;
+  workspaceOutcomeState.arrivalBy = 'host';
   workspaceOutcomeState.host = undefined;
   workspaceOutcomeState.sourceCard = '';
   workspaceOutcomeState.nodeIndex = 0;
@@ -757,7 +766,15 @@ export function workspaceOutcomeAdmits(kind: WorkspaceOutcomeKind): boolean {
  * embedded reveal's own slots.
  */
 export function workspaceClaimOwnsArrival(batch: CardIntakeBatchRef | undefined): boolean {
-  return workspaceClaimsDrawRevealBatch(batch) && workspaceOutcomeState.host === 'card-actions';
+  return workspaceClaimsDrawRevealBatch(batch) && workspaceOutcomeState.host === 'card-actions' &&
+    workspaceOutcomeState.arrivalBy !== 'scene';
+}
+
+/** The live claim's batch is flown by the deck-draw SCENE, whatever its host (a play's claim under card-actions). */
+export function markWorkspaceOutcomeArrivalByScene(): void {
+  if (workspaceOutcomeState.sourceCard !== '') {
+    workspaceOutcomeState.arrivalBy = 'scene';
+  }
 }
 
 export function workspaceClaimsDrawReveal(source: CardDrawRevealSource | undefined): boolean {

@@ -17,6 +17,8 @@
     "Error sending input": "Ошибка отправки данных",
     "Error sending input,": "Ошибка отправки данных,",
     "Error fetching state": "Ошибка получения состояния",
+    "The server is not responding": "Сервер не отвечает",
+    "The server has not answered your move for a minute. It may still be processing it — the game will reload its current state.": "Сервер не отвечает на ваш ход уже минуту. Возможно, он ещё обрабатывает его — игра перезагрузит текущее состояние.",
     "Suspend": "Приостановить",
     "Delete": "Удалить",
     "Delete game «${0}» from the database? This action cannot be undone.": "Удалить игру «${0}» из базы данных? Это действие необратимо.",

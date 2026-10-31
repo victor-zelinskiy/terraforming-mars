@@ -1,11 +1,11 @@
 import {expect} from 'chai';
 import {
-  beginPlayLandingRelease, claimPlayOutcome, isPlayOutcomeHost, markPlayLandingReleased,
-  playLandingHolding, playLandingReleasing, playLandingShowing, playLandingYieldedToOutcome,
-  playOutcomeHost, rehomePlayOutcome,
+  LAW_PLAY_OUTCOME_ZONE, beginPlayLandingRelease, claimLawPlayOutcome, claimPlayOutcome, isPlayOutcomeHost,
+  lawPlayOutcomeLive, markPlayLandingReleased, playLandingHolding, playLandingReleasing, playLandingShowing,
+  playLandingYieldedToOutcome, playOutcomeHost, rehomePlayOutcome, resetLawPlayOutcome,
 } from '@/client/console/played/consolePlayOutcomeClaim';
 import {
-  markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome,
+  claimWorkspaceOutcome, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome,
   workspaceClaimsDrawReveal, workspaceClaimsEffect, workspaceClaimsPick, workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
 import {armDeckDraw, markDeckDrawDealing, resetDeckDraw} from '@/client/console/deckDraw/consoleDeckDraw';
@@ -291,5 +291,93 @@ describe('consolePlayOutcomeClaim — WHERE a card play\'s follow-up presents', 
     expect(isPlayOutcomeHost('colonies')).to.eq(false);
     expect(isPlayOutcomeHost('hydro')).to.eq(false);
     expect(isPlayOutcomeHost(undefined)).to.eq(false);
+  });
+
+  /**
+   * A CARD PLAYED THROUGH A LAW (RX36 Live Experiments — the owner, 2026-10-31): the card lands in the law's stage
+   * of «ДЕЙСТВИЯ КАРТ», so what it sets off is that stage's next beat — claimed as a PLAY (optimistic, the whole chain),
+   * under the card-actions host, into the stage's own outcome layer; never a band over the board after the workspace
+   * has left. For exactly the claim's life the card-actions host IS a play host.
+   */
+  describe('a card played THROUGH A LAW (RX36) — the law\'s stage owns what the card sets off', () => {
+    const LAW_STAGE = 'RDX_SCIENTISTS_LIVE_EXPERIMENTS';
+
+    function standLawStage(): void {
+      pushWorkspaceFrame({
+        kind: 'card-actions', subject: '', stage: '', phase: 'browse',
+        serves: [], anchor: {type: 'always'},
+      });
+      descendWorkspaceFrame('card-actions', LAW_STAGE, 'Setup', {type: 'always'});
+    }
+
+    afterEach(() => {
+      resetLawPlayOutcome();
+      markPlayLandingReleased();
+      resetDeckDraw();
+    });
+
+    it('claims the play\'s whole chain under the card-actions host, into the law stage\'s own zone', () => {
+      standLawStage();
+      claimLawPlayOutcome(CardName.RESEARCH, 2);
+      expect(workspaceOutcomeState.host).to.eq('card-actions');
+      expect(workspaceOutcomeState.sourceCard).to.eq(CardName.RESEARCH);
+      expect(workspaceOutcomeState.scope).to.eq('chain');
+      expect(workspaceOutcomeState.embedSlot).to.eq(LAW_PLAY_OUTCOME_ZONE);
+      expect(workspaceOutcomeState.expectedCards).to.eq(2);
+      expect(workspaceOutcomeState.arrivalBy, 'the deck-draw SCENE flies the batch — the law stage has no beat of its own').to.eq('scene');
+      expect(workspaceClaimsDrawReveal(cardSource(CardName.RESEARCH)), 'the card\'s draw is ours').to.eq(true);
+      expect(workspaceClaimsPick(), 'its keep-some pick is ours').to.eq(true);
+      expect(workspaceClaimsEffect(), 'a woken card\'s question is ours').to.eq(true);
+    });
+
+    it('a repeated action\'s VERDICT is claimed only when the composed play says so', () => {
+      standLawStage();
+      claimLawPlayOutcome(CardName.PROJECT_INSPECTION, 0, {deckCheck: true});
+      expect(workspaceOutcomeState.kinds).to.include('deck-check');
+      releaseWorkspaceOutcome();
+      resetLawPlayOutcome();
+      claimLawPlayOutcome(CardName.RESEARCH, 2);
+      expect(workspaceOutcomeState.kinds).not.to.include('deck-check');
+    });
+
+    it('the card-actions host is a PLAY host for exactly the claim\'s life', () => {
+      standLawStage();
+      expect(lawPlayOutcomeLive()).to.eq(false);
+      claimLawPlayOutcome(CardName.RESEARCH, 2);
+      expect(lawPlayOutcomeLive()).to.eq(true);
+      expect(isPlayOutcomeHost('card-actions'), 'reads as a play while the law\'s claim stands').to.eq(true);
+      releaseWorkspaceOutcome();
+      expect(lawPlayOutcomeLive(), 'the claim fell — a later card ACTION is never a play').to.eq(false);
+      expect(isPlayOutcomeHost('card-actions')).to.eq(false);
+    });
+
+    it('a card ACTION\'s own claim under the same host is never mistaken for the law\'s play', () => {
+      standLawStage();
+      claimLawPlayOutcome(CardName.RESEARCH, 2);
+      releaseWorkspaceOutcome();
+      // The next activation in the same workspace raises an ordinary action claim — the remembered card differs.
+      claimWorkspaceOutcome('card-actions', LAGRANGE, ['draw'], 0, 1, 'card');
+      expect(lawPlayOutcomeLive()).to.eq(false);
+      expect(isPlayOutcomeHost('card-actions')).to.eq(false);
+    });
+
+    it('the landed tableau holds the stage on the HAND\'s own terms — and yields when the deal starts or the outcome presents', () => {
+      standLawStage();
+      claimLawPlayOutcome(CardName.RESEARCH, 2);
+      expect(playLandingHolding(), 'claimed, nothing moving — the tableau stays').to.eq(true);
+      expect(playLandingYieldedToOutcome()).to.eq(false);
+      armDeckDraw(2, {hasDiscards: false, preDrawSize: 40, reducedMotion: false});
+      markDeckDrawDealing();
+      expect(playLandingHolding(), 'the deck deals — the tableau lets go').to.eq(false);
+      expect(playLandingYieldedToOutcome(), 'an EXIT, never a rollback').to.eq(true);
+    });
+
+    it('…and when NOTHING is set off the claim\'s fall is a rollback of the hold, not an exit', () => {
+      standLawStage();
+      claimLawPlayOutcome(CardName.GRASS, 0);
+      releaseWorkspaceOutcome();
+      expect(playLandingHolding()).to.eq(false);
+      expect(playLandingYieldedToOutcome(), 'the tableau stays for the scene\'s own closing').to.eq(false);
+    });
   });
 });

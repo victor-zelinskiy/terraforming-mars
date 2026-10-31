@@ -517,6 +517,8 @@ import {consoleRepeatPickUi, setConsoleRepeatPickCommands} from '@/client/consol
 import {translateText} from '@/client/directives/i18n';
 import {ConsolePlayPickResult, LawPlayDetail, consolePlayPickState, lawPlayLandingOf} from '@/client/console/consolePlayPick';
 import {buildPoliticalBatch} from '@/client/console/politicalBatch';
+import {claimLawPlayOutcome, lawPlayOutcomeLive, resetLawPlayOutcome} from '@/client/console/played/consolePlayOutcomeClaim';
+import {isPlayedHeroActive, playedHeroState} from '@/client/console/played/consolePlayedHero';
 import type {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 
@@ -614,6 +616,11 @@ export default defineComponent({
        * time from the branch preview and released when the outcome is done.
        */
       outcomeFlow: undefined as ComposerOutcome | undefined,
+      /**
+       * A LAW'S PLAY (RX36) whose claim fell while its card was still LANDING in this stage: the flow's conclusion is
+       * owed to the scene's `closing` — the workspace never leaves under its own landing tableau.
+       */
+      lawConclusionOwed: false,
       /**
        * A PENDING OUTCOME THAT WAITS FOR THE RAIL (TR53 iteration): the draw the CHOICE decided opens its stage only
        * once the unit has landed on the chosen row's card — the stage replaces the decision column, and the row is
@@ -957,9 +964,16 @@ export default defineComponent({
         }
         return stage !== '' ? stage : 'Card discard';
       }
+      // …and what that card SET OFF (its draw, its pick, a woken card's question, a verdict) names itself as it takes
+      // the stage — «… › ДОБОР КАРТ», the tail only moving forward (RX36, the seamless outcome).
+      if (this.outcomeFlow?.kind === 'law-play' && lawPlayOutcomeLive() && workspaceOutcomeState.stage === 'presenting') {
+        const named = workspaceOutcomeState.phaseKey;
+        return named !== '' ? named : focusKicker('draw');
+      }
       // THE LAW'S CARD LANDS IN THIS STAGE (RX36, PL-726): past the commit the stage is the receiving tableau — the hand
       // composer's own word, «› РАЗЫГРАНО» — from the press to the workspace's leave.
-      if (lawPlayLandingOf(this.composer?.resolution) !== undefined && this.composer?.resolution !== undefined) {
+      if ((lawPlayLandingOf(this.composer?.resolution) !== undefined && this.composer?.resolution !== undefined) ||
+          this.outcomeFlow?.kind === 'law-play') {
         return 'Played';
       }
       // A colony step HOSTED here: the crumb's tail is the STEP'S OWN, handed
@@ -1220,6 +1234,10 @@ export default defineComponent({
       }
       const ev = currentRevealEvent();
       return ev !== undefined && workspaceClaimsDrawRevealBatch(ev) ? ev.id : 0;
+    },
+    /** The played-hero scene's phase while a LAW'S PLAY is this flow's outcome (RX36) — '' otherwise. */
+    lawPlayHeroPhase(): string {
+      return this.outcomeFlow?.kind === 'law-play' ? playedHeroState.phase : '';
     },
     /** The claim this workspace raised is still alive (drives the fold-back). */
     outcomeClaimLive(): boolean {
@@ -1561,9 +1579,39 @@ export default defineComponent({
     'outcomeClaimLive': {
       handler(live: boolean, was: boolean) {
         if (was && !live && this.outcomeFlow !== undefined) {
+          // A LAW'S PLAY whose card is still landing here: the scene's closing concludes it (`lawPlayHeroPhase`).
+          if (this.outcomeFlow.kind === 'law-play') {
+            resetLawPlayOutcome();
+            if (isPlayedHeroActive() && playedHeroState.phase !== 'closing') {
+              this.lawConclusionOwed = true;
+              return;
+            }
+          }
           void this.$nextTick(() => this.concludeFlow());
         }
       },
+    },
+    /**
+     * A LAW'S PLAY (RX36) — its two endings. REFUSED (`failed`): nothing was played, so the outcome flow is dropped
+     * BEFORE its claim is released (the claim's fall must not read as a finished flow) and the stage stands as it was.
+     * LANDED (`closing` / `done` / `idle`) with the claim already gone: the conclusion owed to the scene runs now — the
+     * workspace dissolving with the landed tableau inside it, as the plain play always did. A claim still standing
+     * holds the stage: what the card set off takes it next.
+     */
+    lawPlayHeroPhase(phase: string): void {
+      if (phase === 'failed') {
+        this.lawConclusionOwed = false;
+        this.outcomeFlow = undefined;
+        resetLawPlayOutcome();
+        if (workspaceOutcomeState.host === 'card-actions') {
+          releaseWorkspaceOutcome('law-play refused');
+        }
+        return;
+      }
+      if (this.lawConclusionOwed && (phase === 'closing' || phase === 'done' || phase === 'idle')) {
+        this.lawConclusionOwed = false;
+        this.concludeFlow();
+      }
     },
     'drawSignal': {
       immediate: true,
@@ -2172,7 +2220,11 @@ export default defineComponent({
         setWorkspaceFrameSubject('card-actions', '');
       }
       this.pendingAfterRail = undefined;
+      this.lawConclusionOwed = false;
       if (this.outcomeFlow !== undefined) {
+        if (this.outcomeFlow.kind === 'law-play') {
+          resetLawPlayOutcome();
+        }
         this.outcomeFlow = undefined;
         resetConsoleActionRevealClaim();
         // Release ONLY a claim this workspace raised. A foreign host's claim
@@ -2730,6 +2782,14 @@ export default defineComponent({
           claimWorkspaceOutcome('card-actions', comp.cardName, [...plan.kinds], comp.nodeIndex, plan.expectedCards, 'card');
           this.outcomeFlow = {kind: 'pending'};
         }
+      } else {
+        // A LAW'S PLAY (RX36): what the CARD sets off — its draw, its keep-some pick, a woken card's question, a repeated
+        // action's verdict — is THIS stage's next beat, over the landing tableau, never a band over the board after the
+        // workspace left (the owner, 2026-10-31). Claimed as every play claims (`claimLawPlayOutcome`); the stage keeps
+        // its decision column (the landing stands there) and the outcome rises as a layer above it.
+        const play = payload.lawPlay;
+        claimLawPlayOutcome(play.cardName, play.scene.draws ?? 0, {deckCheck: play.composed?.repeat?.reveal === true});
+        this.outcomeFlow = {kind: 'law-play'};
       }
       // A LAW THAT PLAYS A CARD (RX36): the host arms the card's landing in this stage off the slot it stands in.
       this.$emit('submit-batch', batch, this.lawPlayDetailOf(comp, payload));

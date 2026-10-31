@@ -122,7 +122,7 @@
       <!-- (A LEDGER outcome — «all your colony bonuses», TR23 — is NOT a swap of this column: the configuration
            surface below STAYS and its ledger pays row by row; the flow's steps stand as LAYERS above it, in the
            ledger zone at the foot of this column.) -->
-      <template v-else-if="outcome !== undefined && outcome.kind !== 'ledger'">
+      <template v-else-if="outcome !== undefined && outcome.kind !== 'ledger' && outcome.kind !== 'law-play'">
 
       <!-- ── DRAW — the action pulled cards off the deck. This zone is the
            TELEPORT TARGET the shell's ONE ConsoleRevealOverlay re-homes into
@@ -861,12 +861,17 @@
       <!-- ── A LAW'S CARD LANDS IN THIS STAGE (RX36, PL-726): past the commit the decision column IS the receiving
            tableau — the hand composer's own stage (`ConsolePlayedReceivingStage`) as a LAYER over the column, mounted
            in the hidden prewarm window and shown from the card's lift to the workspace's leave. ── -->
-      <div v-if="lawLandingMounted" class="con-composer__playstage" :class="{'con-composer__playstage--up': lawLandingUp}" data-law-landing>
+      <div v-if="lawLandingMounted" ref="lawPlaystage" class="con-composer__playstage" :class="{'con-composer__playstage--up': lawLandingUp}" data-law-landing>
         <ConsolePlayedReceivingStage :playerView="playerView" />
       </div>
-      <div class="con-composer__ledgerzone" :class="{'con-composer__ledgerzone--on': ledgerStepOn}" data-colony-ledger-zone>
+      <div class="con-composer__ledgerzone" :class="{'con-composer__ledgerzone--on': ledgerStepOn || lawOutcomeIn}" data-colony-ledger-zone>
         <div v-if="ledgerPaying" v-embed-zone class="con-composer__ledgerlayer con-composer__revealzone con-composer__revealzone--draw"
              data-outcome-zone data-embed-slot="workspace-reveal"></div>
+        <!-- ── WHAT A LAW'S CARD SETS OFF (RX36): its draw, its keep-some pick, a woken card's question, a repeated
+             action's verdict — the shell's ONE presenter teleported HERE, a layer over the landed tableau (which
+             dissolves as it rises), never a band over the board after the workspace left. Rendered from the press. -->
+        <div v-if="lawOutcomeZoneOn" v-embed-zone class="con-composer__ledgerlayer con-composer__revealzone con-composer__revealzone--draw"
+             data-outcome-zone data-embed-slot="law-outcome" data-law-outcome></div>
       </div>
 
       </div><!-- /__actright -->
@@ -1156,6 +1161,7 @@ import {orOptionDoor} from '@/client/console/handPickRouting';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {ConsolePlayPickResult, enterConsolePlayPick, lawPlayDraftOf, lawPlayLandingOf, lawPlayStagedDoor, rememberLawPlay} from '@/client/console/consolePlayPick';
 import {playedHeroLandingPrewarm, playedHeroLandingUp, playedHeroState} from '@/client/console/played/consolePlayedHero';
+import {LAW_PLAY_OUTCOME_ZONE, beginPlayLandingRelease, lawPlayOutcomeLive, markPlayLandingReleased, playLandingYieldedToOutcome} from '@/client/console/played/consolePlayOutcomeClaim';
 import ConsolePlayedReceivingStage from '@/client/components/console/played/ConsolePlayedReceivingStage.vue';
 import {EASING_KEYS} from '@/client/console/requirementEasingText';
 import type {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
@@ -1337,7 +1343,18 @@ export type ComposerOutcome =
    * stays (its ledger is the very DOM the player read before the press) and
    * the steps of the payout stand as layers above it.
    */
-  | {kind: 'ledger'};
+  | {kind: 'ledger'}
+  /**
+   * A CARD PLAYED THROUGH A LAW (RX36 Live Experiments): the card has landed in this stage (the receiving tableau,
+   * PL-726) and what it SETS OFF — its draw, its keep-some pick, a woken card's question, a repeated action's
+   * verdict — is the stage's next beat. Like the ledger it does not swap the decision column: the outcome stands as a
+   * LAYER over the tableau (`[data-embed-slot="law-outcome"]`), which dissolves the moment the outcome takes the
+   * stage — the hand composer's own handoff, read through the same play-landing facts.
+   */
+  | {kind: 'law-play'};
+
+/** The law's landed tableau dissolving under its card's outcome (RX36) — the hand composer's release beat. */
+const LAW_PLAYSTAGE_RELEASE_MS = 220;
 
 /** Where the action composer's ledger stands — the scope the shared wave looks its rows up under. */
 const CARD_LEDGER_SCOPE = '[data-colony-ledger-scope="card"]';
@@ -2094,6 +2111,18 @@ export default defineComponent({
     lawLandingUp(): boolean {
       return this.lawLandingLatched || (this.lawLanding && playedHeroLandingUp());
     },
+    /** A LAW'S PLAY was committed here (RX36): its outcome zone stands from the press (the teleport finds it ready). */
+    lawOutcomeZoneOn(): boolean {
+      return this.outcome?.kind === 'law-play';
+    },
+    /** …and what the card set off has TAKEN the stage — the layer takes the pad's surface, the tableau dissolves. */
+    lawOutcomeIn(): boolean {
+      return this.lawOutcomeZoneOn && lawPlayOutcomeLive() && workspaceOutcomeState.stage === 'presenting';
+    },
+    /** The tableau let go because the OUTCOME arrived (the deal began, or a surface stands in the zone) — never a refusal. */
+    lawLandingYielded(): boolean {
+      return this.lawOutcomeZoneOn && this.lawLandingLatched && playLandingYieldedToOutcome();
+    },
     /** A STAGED door of THIS law's play stands as a step INSIDE this stage — the Parliament (a delegate) or the colonies. */
     lawStepHosted(): boolean {
       return this.lawNameKey !== undefined && this.publishCommands &&
@@ -2266,7 +2295,8 @@ export default defineComponent({
     /** The outcome stage owns the column (any flavour) — drives the phrase. */
     outcomeStageOn(): boolean {
       // (A LEDGER outcome keeps the configuration surface — its ledger IS the stage; nothing is released.)
-      return this.outcome !== undefined && this.outcome.kind !== 'ledger';
+      // (…nor a LAW'S PLAY: the receiving stage already released it — the outcome rises as a layer over the tableau.)
+      return this.outcome !== undefined && this.outcome.kind !== 'ledger' && this.outcome.kind !== 'law-play';
     },
     /** A re-homed surface has landed in the zone (drives the REVEAL half). */
     outcomeContentIn(): boolean {
@@ -3269,6 +3299,34 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * THE LAW'S CARD SET SOMETHING OFF (RX36): the tableau that told the CAUSE makes room for the CONSEQUENCE — a
+     * dissolve that sinks a hair (the hand composer's `runPlaystageRelease`, the same release flag), never a cut. The
+     * layer stays mounted, faded, until the workspace leaves.
+     */
+    lawLandingYielded(now: boolean): void {
+      if (!now) {
+        return;
+      }
+      beginPlayLandingRelease();
+      const el = this.$refs.lawPlaystage as HTMLElement | undefined;
+      if (el === undefined || el === null || consoleReducedMotionActive()) {
+        if (el !== undefined && el !== null) {
+          gsap.set(el, {autoAlpha: 0});
+        }
+        markPlayLandingReleased();
+        return;
+      }
+      gsap.killTweensOf(el);
+      gsap.to(el, {
+        autoAlpha: 0,
+        scale: 0.985,
+        transformOrigin: '50% 45%',
+        duration: motionMs(LAW_PLAYSTAGE_RELEASE_MS) / 1000,
+        ease: 'power2.in',
+        onComplete: () => markPlayLandingReleased(),
+      });
+    },
     /** THE LAW'S CARD ROSE (RX36): the decision column lets go in place under the receiving stage — the stage stands. */
     lawLandingUp(now: boolean): void {
       if (!now || this.lawLandingLatched) {
@@ -3842,6 +3900,7 @@ export default defineComponent({
     // leaving must not retract somebody else's live zone.
     if (this.publishCommands) {
       retractWorkspaceOutcomeSlot(WORKSPACE_REVEAL_ZONE);
+      retractWorkspaceOutcomeSlot(LAW_PLAY_OUTCOME_ZONE);
     }
     // Same for the colonies-step zone (embed rule 4, the retract half) — and the Parliament step's.
     if (this.colonyStepOn || this.parliamentStepOn) {
@@ -3962,6 +4021,12 @@ export default defineComponent({
       return ACTION_RULE_LABEL[kind];
     },
     ruleText(key: string): string {
+      // The branch TITLE standing in as the rule (a political source has no card information — RX36's «Pay ${0} M€ to
+      // play a card…»): a Message carries its params, so it is printed WITH them (PL-160), never as its bare key.
+      const title = this.selectedBranch?.title;
+      if (title !== undefined && typeof title !== 'string' && title.message === key) {
+        return translateMessage(title);
+      }
       return actionRuleText(key);
     },
     branchAt(pos: number): ActionPreviewBranch {

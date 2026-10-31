@@ -204,6 +204,8 @@ import {ExpeditionMechs} from '../../../src/server/cards/turmoilRedux/Expedition
 import {InfluentialDiscovery} from '../../../src/server/cards/turmoilRedux/InfluentialDiscovery';
 import {ScientificBreakthrough} from '../../../src/server/cards/turmoilRedux/ScientificBreakthrough';
 import {SearchForLife} from '../../../src/server/cards/base/SearchForLife';
+import {InventionContest} from '../../../src/server/cards/base/InventionContest';
+import {ProjectInspection} from '../../../src/server/cards/promo/ProjectInspection';
 import {AsteroidDeflectionSystem} from '../../../src/server/cards/promo/AsteroidDeflectionSystem';
 import {MarsUniversity} from '../../../src/server/cards/base/MarsUniversity';
 import {ConstructionMechs} from '../../../src/server/cards/turmoilRedux/ConstructionMechs';
@@ -5700,6 +5702,46 @@ parliamentFixture('parliament-live-enacted', {
       throw new Error(`the parliament-live-enacted fixture expected red with 20 M€, has ${p2.megaCredits}`);
     }
     expectViewerOpensGeneration(table, p2, 'parliament-live-enacted');
+  },
+});
+
+// ── …and WHAT THE PLAYED CARD SETS OFF (the owner, 2026-10-31: «результат карты, разыгранной через закон, открывается
+//    отдельным окном — доработать до реально премиум бесшовной подачи»): the same law, red holding the three shapes of a
+//    play's outcome — Research (a DRAW: two cards off the deck), Invention Contest (a PICK: look at three, keep one) and
+//    Project Inspection repeating Search For Life's action (a DECK-CHECK verdict). Search For Life's action is spent this
+//    generation, so Project Inspection has its one honest candidate. 30 M€ — every bill affordable. ──
+parliamentFixture('parliament-live-outcome', {
+  resolution: LIVE_EXPERIMENTS_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({p2}) => {
+    p2.cardsInHand.push(new Research(), new InventionContest(), new ProjectInspection());
+    p2.pendingInitialActions = [];
+  },
+  after: ({game, p2}) => {
+    const search = new SearchForLife();
+    p2.playedCards.push(search);
+    p2.megaCredits = 31;
+    search.action(p2);
+    runAllActions(game);
+    p2.actionsThisGeneration.add(search.name);
+    p2.megaCredits = 30;
+  },
+  expect: (table) => {
+    const {p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(LIVE_EXPERIMENTS_ID, 0)) {
+      throw new Error(`the parliament-live-outcome fixture expected Live Experiments enacted, got ${parliament.enacted}`);
+    }
+    for (const name of [CardName.RESEARCH, CardName.INVENTION_CONTEST, CardName.PROJECT_INSPECTION]) {
+      if (!p2.cardsInHand.some((c) => c.name === name)) {
+        throw new Error(`the parliament-live-outcome fixture expected red to hold ${name}`);
+      }
+    }
+    if (!p2.actionsThisGeneration.has(CardName.SEARCH_FOR_LIFE)) {
+      throw new Error('the parliament-live-outcome fixture expected Search For Life\'s action spent this generation');
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-live-outcome');
   },
 });
 

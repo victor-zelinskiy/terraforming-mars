@@ -119,6 +119,16 @@ Guards: `consoleHydroMarker.spec` § the reward hold the flow owns; e2e `console
 table + a two-human table — the ceremony plays, the workspace leaves by itself within 14 s, the harness red on any
 stall marker).
 
+## 5b. The transport ceiling (2026-10-31, the owner: «only when the server REALLY does not answer»)
+
+The funnel (`isServerSideRequestInProgress`) had no ceiling: a request the network lost — no headers, no error —
+held it for the rest of the session, every later press silently dropped, the arbiter reading «in flight» forever.
+`console/transport/submitCeiling.ts` arms an `AbortController` per submit for `SUBMIT_NO_RESPONSE_MS` (60 s) and
+fires ONLY when not a single response header has arrived in that time (`transportState.responseArrived` stands it
+down — a slow server that HAS answered is never cut). On a fire the transactions roll back
+(`abortAllConsoleTransactions`), the player sees the explicit «Сервер не отвечает» alert, and the view is re-fetched
+(`waitForUpdate(true)`). A plain network error keeps the old alert. Guard: `tests/console/submitCeiling.spec.ts`.
+
 ## 5. The audit of 2026-10-31 (the Venus trade)
 
 The field table was replayed exactly (fixture `field-venus-unity-trade` — the owner's save with Fringe Colony
