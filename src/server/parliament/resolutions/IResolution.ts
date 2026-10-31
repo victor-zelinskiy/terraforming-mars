@@ -34,6 +34,7 @@ import type {BoardFact, BoardFactDelta} from '../../../common/boards/BoardInform
 import type {SpaceId} from '../../../common/Types';
 import type {GlobalParameter} from '../../../common/GlobalParameter';
 import type {ChoiceContextSource} from '../../../common/models/PlayerInputModel';
+import type {PassiveTerm} from '../../../common/parliament/passiveTerm';
 
 /**
  * The context an enacted resolution's effect step runs in. `influence` is
@@ -655,6 +656,14 @@ export interface ResolutionDefinition {
    * client never writes «1» or «2/3» for a law. Absent for a law taken once a generation (the family's rule).
    */
   actionUses?: ResolutionActionUses;
+  /**
+   * THE PASSIVE'S TERM as data (`passiveTerm.ts`) — Heat Capture's «3 M€ off a Building card», Metal Research's «+1 M€ a
+   * unit», R&D Funding's «a science tag per influence». Declared BESIDE `passive`, never instead of it: the passive's
+   * hook answers FROM it through the one function of its kind, and the manifest exports it so the vote panel states the
+   * seat's own number before the vote (`passiveTermGuard.spec` — a numeric hook without its term fails). Absent for a
+   * passive whose effect is not a number for a seat.
+   */
+  passiveTerm?: PassiveTerm;
 }
 
 /**

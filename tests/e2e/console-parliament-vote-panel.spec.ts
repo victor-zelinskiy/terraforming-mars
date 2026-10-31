@@ -42,6 +42,38 @@ const HALL = [
   {name: 'parliament-budget-vote-six', why: 'six seats on the row of tabs'},
 ] as const;
 
+/**
+ * «WHILE ENACTED» (the owner's frame of 2026-10-31 — Trade Industries over an EMPTY plate): a law that ACTS or STANDS in
+ * the first slot. `voice` — it pays nothing at the enactment, so the standing IS the plate's voice; `below` — under the
+ * payout, with its own kicker. `marks` — the hooks its number must stand on; `world` — the table's moves stand too.
+ */
+const STANDING = [
+  {name: 'parliament-standing-trade-vote', why: 'Trade Industries — the bill at your influence → the fleet', pose: 'voice', marks: ['[data-standing-price]', '[data-standing-uses]'], world: false},
+  {name: 'parliament-standing-manufacturing-vote', why: 'Manufacturing Run — the count a generation and its rule', pose: 'voice', marks: ['[data-standing-uses]', '.con-lawst__rule'], world: false},
+  {name: 'parliament-standing-rd-vote', why: 'R&D Funding — the science tags at your influence + the repeat action', pose: 'voice', marks: ['[data-standing-tags]', '[data-standing-uses]'], world: false},
+  {name: 'parliament-standing-heat-vote', why: 'Heat Capture — the payout, then −3 M€ on Building cards in hand; the temperature down', pose: 'below', marks: ['[data-standing-discount]', '[data-standing-in-hand]'], world: true},
+  {name: 'parliament-standing-metal-vote', why: 'Metal Research — the payout, then the metals\' new values and your stock', pose: 'below', marks: ['[data-standing-value="steel"]', '[data-standing-stock]'], world: false},
+  {name: 'parliament-standing-gas-vote', why: 'Gas Export — the payout and the table\'s moves', pose: 'none', marks: [], world: true},
+] as const;
+
+/** (и) THE PLATE IS NEVER EMPTY — the law's standing stands where it must, with its numbers; the table's moves stand. */
+const readStanding = (page: Page) => page.evaluate(() => {
+  const panel = document.querySelector<HTMLElement>('.con-parl__vote--up .con-parl__info');
+  const standing = panel?.querySelector<HTMLElement>('[data-parl-vote-standing]') ?? null;
+  const shown = (el: Element | null) => el !== null && el.getBoundingClientRect().height > 1 && getComputedStyle(el).visibility !== 'hidden';
+  return {
+    standing: shown(standing),
+    hero: standing?.classList.contains('con-lawst--hero') === true,
+    kicker: shown(standing?.querySelector('[data-parl-standing-kicker]') ?? null),
+    yields: panel?.querySelectorAll('[data-parl-vote-yield]').length ?? 0,
+    text: (standing?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+    marks: Array.from(standing?.querySelectorAll<HTMLElement>('*') ?? []).filter(shown).flatMap((el) => Array.from(el.attributes).map((a) => a.name)),
+    classes: Array.from(standing?.querySelectorAll<HTMLElement>('*') ?? []).filter(shown).flatMap((el) => Array.from(el.classList)),
+    moves: Array.from(panel?.querySelectorAll<HTMLElement>('[data-parl-world-move]') ?? []).filter(shown).map((m) => `${m.getAttribute('data-parl-world-move')} ${m.getAttribute('data-parl-world-steps')}`),
+    own: (panel?.querySelector('.con-parl__info-own')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+  };
+});
+
 const PHASE = process.env.TM_E2E_PANEL_PHASE === 'before' ? 'before' : 'after';
 const OUT = path.resolve('screenshots', 'p77');
 
@@ -398,6 +430,31 @@ for (const preset of PRESETS) {
         await openHallVote(page);
         await shoot(page, preset.id, fixture.name);
         await judge(page, `${fixture.name} @ ${preset.id}`, {walk: true});
+      });
+    }
+
+    for (const fixture of STANDING) {
+      test(`${fixture.name} — ${fixture.why} (${preset.id})`, async ({page, request}) => {
+        test.setTimeout(240_000);
+        await bootFixture(page, request, fixture.name, {query: preset.query});
+        await openHallVote(page);
+        await shoot(page, preset.id, fixture.name);
+        await judge(page, `${fixture.name} @ ${preset.id}`, {walk: false});
+        const st = await readStanding(page);
+        test.info().annotations.push({type: 'standing', description: `${fixture.name} @ ${preset.id} ${JSON.stringify(st).slice(0, 1200)}`});
+        if (fixture.pose === 'voice') {
+          expect(st.standing && st.hero && !st.kicker && st.yields === 0, `(и) the law pays nothing at the enactment — the standing is the plate's VOICE (${st.own})`).toBe(true);
+        } else if (fixture.pose === 'below') {
+          expect(st.standing && !st.hero && st.kicker && st.yields > 0, `(и) under the payout, the standing names itself (${st.own})`).toBe(true);
+        }
+        for (const mark of fixture.marks) {
+          const hit = mark.startsWith('.') ? st.classes.includes(mark.slice(1)) : st.marks.includes(mark.replace(/^\[|(=.*)?\]$/g, ''));
+          expect(hit, `(и) ${mark} stands in the standing («${st.text}»)`).toBe(true);
+        }
+        if (fixture.world) {
+          expect(st.moves.length, `(и) the table's moves stand (${st.moves.join(', ')})`).toBeGreaterThan(0);
+        }
+        expect(st.own.length, '(и) the plate is never a kicker over nothing').toBeGreaterThan(30);
       });
     }
 

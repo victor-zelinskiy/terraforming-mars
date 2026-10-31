@@ -349,12 +349,6 @@
         display: inline-flex; align-items: center; gap: .3rem; max-width: 100%; min-width: 0;
         font-family: @con-font-read; font-size: .74rem; letter-spacing: .02em; opacity: .9; white-space: nowrap;
     }
-    /* HOW MANY TIMES (RX37): the rule quiet, the seat's own count the line's voice, the win a step brighter —
-       one wrapping run of tracked words, never a table. */
-    &__info-uses {
-        display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .55rem; max-width: 100%; min-width: 0;
-        font-family: @con-font-read; font-size: .74rem; letter-spacing: .02em;
-    }
     /* THE CARDS IT WOULD FEED (RX40): one wrapping run — each holder its kind, its name quiet, «2 → 3» the voice; the
        points at the tail in the score cell's gold. */
     &__info-holders {
@@ -374,9 +368,6 @@
     }
     &__info-kind { display: inline-flex; align-items: center; gap: .26rem; white-space: nowrap; }
     &__info-kinds-total { color: #e9f6ff; font-weight: 700; white-space: nowrap; }
-    &__info-uses-rule { opacity: .78; }
-    &__info-uses-seat { font-weight: 700; color: #e9f6ff; }
-    &__info-uses-win { color: #8ff0c6; font-weight: 600; }
     &__info-tracks-icon {
         display: inline-block; width: 1.05rem; height: .78rem; flex-shrink: 0; border-radius: .16rem;
         background: linear-gradient(90deg, rgba(120, 200, 255, 0.85) 0 34%, rgba(20, 32, 48, 0.9) 34% 100%);
@@ -916,3 +907,93 @@ html.con-profile-tv .con-parl .con-parl__info-foot > .con-parl__cta { width: 18.
 html .con-parl .con-parl__info-foot > .con-parl__cta { min-height: 2.2rem; }
 html.con-profile-tv .con-parl .con-parl__info-foot > .con-parl__cta { min-height: 2.65rem; }
 html.con-profile-handheld .con-parl .con-parl__info-foot > .con-parl__cta { min-height: 2rem; }
+
+/* ══ WHILE ENACTED (P77 · DH, `ConsoleLawStanding`): what the law gives the seat for as long as it stands, in the
+   reading's number grammar — the number heavy, the units its icons, the words quiet; the win's change ONE suffix line
+   under it. Under a payout it is a quieter second block with its own kicker; a law that pays nothing at the enactment
+   speaks through it alone at the plate's voice size (`--hero`). Nothing glows: a struck price is form, a gain is ink. ══ */
+.con-lawst {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .32rem;
+    min-width: 0;
+    max-width: 100%;
+    text-align: center;
+    &__kicker {
+        font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-text, 72%);
+        padding-top: .3rem; border-top: .05rem solid rgba(255, 255, 255, 0.12); align-self: stretch;
+    }
+    &__row { display: flex; flex-direction: column; align-items: center; gap: .2rem; min-width: 0; max-width: 100%; }
+    &__label { font-size: .5rem; letter-spacing: .14em; text-transform: uppercase; color: fade(@con-text, 60%); }
+    &__line { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .26rem .4rem; min-width: 0; max-width: 100%; }
+    &__num { font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; color: @con-text; line-height: 1; }
+    &__from { font-size: .9rem; font-weight: 600; color: fade(@con-text, 72%); font-variant-numeric: tabular-nums; }
+    &__struck { font-size: .86rem; color: fade(@con-text, 52%); text-decoration-thickness: .07rem; font-variant-numeric: tabular-nums; }
+    &__unit { display: inline-block; width: 1.05rem; height: 1.05rem; flex-shrink: 0; background-size: contain; background-repeat: no-repeat; background-position: center; }
+    &__tag { --pvpcard-size: 1.05rem; }
+    &__arrow, &__slash { color: fade(@con-text, 46%); font-weight: 700; }
+    &__gain { display: inline-flex; align-items: center; gap: .14rem; }
+    &__words { font-family: @con-font-read; font-size: .72rem; color: fade(@con-text, 74%); white-space: nowrap; }
+    &__uses {
+        font-size: .62rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: fade(@con-text, 70%);
+        white-space: nowrap;
+        &--lead { font-size: .9rem; color: @con-text; letter-spacing: .06em; }
+    }
+    /* The law's rule where no number says what it does — the reading's own font, the panel's calm ink, whole (never clamped). */
+    &__rule { font-family: @con-font-read; font-size: .74rem; line-height: 1.3; color: fade(@con-text, 84%); max-width: 30rem; }
+    &__suffix { display: inline-flex; align-items: center; gap: .2rem; white-space: nowrap; }
+    &__suffix-num { font-size: .74rem; font-weight: 800; color: fade(@con-parl-gold, 92%); font-variant-numeric: tabular-nums; }
+    &__suffix-unit { display: inline-block; width: .78rem; height: .78rem; background-size: contain; background-repeat: no-repeat; background-position: center; }
+    &__suffix-words { font-size: .5rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: fade(@con-text, 64%); }
+    /* THE PLATE'S WHOLE VOICE — a law that pays nothing at the enactment: the number at the reading's own size. */
+    &--hero {
+        gap: .45rem;
+        .con-lawst__num { font-size: 1.9rem; }
+        .con-lawst__from { font-size: 1.2rem; }
+        .con-lawst__struck { font-size: 1.1rem; }
+        .con-lawst__unit { width: 1.6rem; height: 1.6rem; }
+        .con-lawst__tag { --pvpcard-size: 1.6rem; }
+        .con-lawst__arrow, .con-lawst__slash { font-size: 1.1rem; }
+        .con-lawst__words { font-size: .86rem; }
+        .con-lawst__uses--lead { font-size: 1.2rem; }
+        .con-lawst__rule { font-size: .86rem; }
+    }
+}
+html.con-profile-tv .con-lawst {
+    &__kicker, &__label, &__suffix-words, &__uses { font-size: .8rem; letter-spacing: .06em; }
+    &__words, &__rule { font-size: .86rem; }
+    &__suffix-num { font-size: .9rem; }
+    &__suffix-unit { width: .95rem; height: .95rem; }
+}
+html.con-profile-tv .con-lawst--hero {
+    .con-lawst__words, .con-lawst__rule { font-size: .95rem; }
+}
+html.con-profile-handheld .con-lawst {
+    gap: .2rem;
+    &__kicker, &__label, &__suffix-words { font-size: .46rem; }
+    &__num { font-size: .9rem; }
+    &__words, &__rule { font-size: .6rem; }
+    &__uses { font-size: .5rem; }
+    &--hero .con-lawst__num { font-size: 1.25rem; }
+    &--hero .con-lawst__unit { width: 1.1rem; height: 1.1rem; }
+    &--hero .con-lawst__tag { --pvpcard-size: 1.1rem; }
+}
+/* THE TABLE's world moves (Gas Export, Heat Capture): each parameter's HUD glyph and its signed steps. */
+.con-parl__info-law-moves { gap: .7rem; flex-wrap: wrap; }
+.con-parl__info-law-move { display: inline-flex; align-items: center; gap: .22rem; }
+.con-parl__info-law-steps { font-size: .95rem; font-weight: 800; font-variant-numeric: tabular-nums; color: @con-parl-mint; &--down { color: fade(@con-amber, 96%); } }
+html.con-profile-tv .con-parl__info-law-steps { font-size: 1.05rem; }
+/* In the HALL the table's box is a ROW under the reading (the main column stacks): its own height, its rows side by side. */
+.con-parl.con-parl--hall .con-parl__vote .con-parl__info-main > .con-parl__info-law {
+    flex: 0 0 auto;
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 1.2rem;
+    padding: .45rem .9rem .5rem;
+    .con-parl__info-law-row { flex-direction: row; align-items: center; gap: .7rem; }
+}
+/* Under a payout the standing is its own line under the number — a row of the reading, never a column beside it. */
+.con-parl__info-standing { flex: 1 0 100%; }

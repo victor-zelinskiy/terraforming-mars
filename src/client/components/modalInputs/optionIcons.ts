@@ -39,6 +39,9 @@ const RESOURCE_ICON_ALIASES: Readonly<Record<string, string>> = {
   // A free TRADE (TR66 Automated Convoys' role, its target-step tag — PL-219): the printed trade fleet, the card faces' own art.
   // Without it 'trade' fell through to a card-resource sprite that does not exist and the chip drew an empty box.
   'trade': 'trade',
+  // An EXTRA trade fleet (RX28 Trade Industries' action preview, `trade-fleet`): the same printed fleet — the card-resource
+  // sprite of that name is a `.card` face's (inverted by a `filter` the console strips), and the chip drew nothing.
+  'trade-fleet': 'trade',
   // The printed «?» (TR54) — «any one standard resource», the face's own `wild.png` (the hand plate's ceiling).
   'wild': 'wild',
 };

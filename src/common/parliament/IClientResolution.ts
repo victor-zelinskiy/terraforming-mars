@@ -12,6 +12,7 @@ import {ColonyTrackAdvance} from './colonyTrackAdvance';
 import {TileRemovalDeclaration} from './tileRemoval';
 import {ResolutionActionBill} from './actionBill';
 import {ResolutionActionUses} from './actionUses';
+import {PassiveTerm} from './passiveTerm';
 import {ActionEffect} from '../models/ActionPreviewModel';
 
 /**
@@ -130,6 +131,8 @@ export type IClientResolution = {
    * for a law taken once a generation.
    */
   actionUses?: ResolutionActionUses;
+  /** THE PASSIVE'S TERM (`passiveTerm.ts`) — the number the vote panel reads for a seat while the law would stand. */
+  passiveTerm?: PassiveTerm;
 };
 
 /** The printed PARTY EFFECT (the board's six banners), same pipeline. */

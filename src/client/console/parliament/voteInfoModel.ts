@@ -56,6 +56,9 @@ import {quietRewardPoseOf} from './quietRewardPose';
 import {ActionUsesReading, actionUsesReadingOf} from './actionUsesReading';
 import {TileGrantReading, tileGrantCaptionOf, tileGrantDetailOf, tileGrantLabelKey, tileGrantReadingOf} from './tileGrantModel';
 import {AgendaGrantReading, agendaGrantReadingOf} from './agendaGrantModel';
+import {LawStanding, lawStandingOf, lawStandingWords, StandingStock} from './lawStandingModel';
+import {WorldParameterMove} from '@/common/parliament/parameterMove';
+import {Tag} from '@/common/cards/Tag';
 
 /**
  * English i18n keys of the reading's kicker (the panel's ONLY heading over the reading): the seated
@@ -183,6 +186,15 @@ export type VoteReadingVm = {
    * (the count's own zero names it).
    */
   kinds?: KindsReading;
+  /**
+   * WHILE ENACTED (P77 · DH, `lawStandingModel.ts`): what the law gives the seat for as long as it stands — an action's
+   * price and count at the seat's influence, a passive's number by its term (or its rule). The enactment's payout above
+   * is the plate's voice; a law that pays nothing at the enactment speaks through this alone. Undefined for a law that
+   * neither acts nor stands.
+   */
+  standing?: LawStanding;
+  /** THE WORLD'S MOVES (Gas Export, Heat Capture): the planet's parameters the law moves for everybody — the table's row. */
+  worldMoves?: ReadonlyArray<WorldParameterMove>;
 };
 
 /** One kind of a count by kind: «[animal] Fish · Birds» — the kind and the cards holding it, in play order. */
@@ -605,7 +617,30 @@ export type VoteInfoInput = {
   };
   /** The grant also pays the selected card's PARTY: the server's row and how many of its cubes have landed. */
   support?: {row: VoteSupportProjection, landed: number};
+  /** The SUBJECT's public stock — the value term of a passive reads it («сталь 2 → 3 · ваш запас +5 M€»). */
+  stock?: StandingStock;
+  /** The VIEWER's hand as each card's printed tags — a card discount counts the cards it would cheapen (own reading only). */
+  hand?: ReadonlyArray<ReadonlyArray<Tag>>;
 };
+
+/** The reading with its «while enacted» part — beside the enactment's payout, or as the plate's whole voice. */
+function withStanding(reading: VoteReadingVm, input: VoteInfoInput): VoteReadingVm {
+  const standing = lawStandingOf({
+    resolution: input.resolution,
+    model: input.model,
+    subject: input.subject,
+    rival: input.rival !== undefined,
+    belowPayout: reading.yields.length > 0 || reading.grant !== undefined || reading.career !== undefined,
+    ...(input.stock === undefined ? {} : {stock: input.stock}),
+    ...(input.hand === undefined || input.rival !== undefined ? {} : {hand: input.hand}),
+  });
+  const moves = input.resolution?.worldMoves;
+  return {
+    ...reading,
+    ...(standing === undefined ? {} : {standing}),
+    ...(moves === undefined || moves.length === 0 ? {} : {worldMoves: moves}),
+  };
+}
 
 export function voteInfoOf(input: VoteInfoInput): VoteInfoVm {
   const card = input.grant?.card === true;
@@ -621,7 +656,7 @@ export function voteInfoOf(input: VoteInfoInput): VoteInfoVm {
     name: input.name,
     party: input.slot.party,
     winning: input.winning,
-    reading: voteReadingOf(input.resolution, input.model, input.subject, input.tableau, input.rival),
+    reading: withStanding(voteReadingOf(input.resolution, input.model, input.subject, input.tableau, input.rival), input),
     ...(veto === undefined ? {} : {veto}),
     vote: {
       kicker: input.grant !== undefined ? GRANT_KICKER : VOTE_KICKER,
@@ -666,6 +701,12 @@ export type VoteInfoBudget = {
    * its words are a caption of that place — 0 for every door that pays no support.
    */
   support: number;
+  /**
+   * Words of the «while enacted» part (`lawStandingModel`): the action's count and rule, the passive's rule or its
+   * number's caption. Counted apart: it is the LAW's own sentence, the same one its dossier prints, and a law that pays
+   * nothing at the enactment has no other voice on the panel.
+   */
+  standing: number;
 };
 
 /** The ceilings `voteInfoBudget.spec.ts` holds every resolution of the catalog to. */
@@ -676,7 +717,7 @@ export type VoteInfoBudget = {
 // `supportWords` 7: «Народная поддержка» + the longest tail, «+2 из 3 · нейтральных в запасе: 2» (five words).
 // `factsOnAllyEdge` 4 since TR62 (Tharsis Alliance): the PRINTED edge of a party allied with another opens BOTH — the
 // party's own effect and the ally's effect and cards — and the panel names each before the press (invariant 3).
-export const VOTE_INFO_LIMITS = {kickers: 3, readings: 1, facts: 2, factsOnEdge: 3, factsOnAllyEdge: 4, words: 30, momentWords: 5, supportWords: 7} as const;
+export const VOTE_INFO_LIMITS = {kickers: 3, readings: 1, facts: 2, factsOnEdge: 3, factsOnAllyEdge: 4, words: 30, momentWords: 5, supportWords: 7, standingWords: 32} as const;
 
 const IDENTITY: TextFn = (key, params) => (params ?? []).reduce<string>((acc, p, i) => acc.split('${' + i + '}').join(p), key);
 
@@ -814,6 +855,7 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
     // government's / the dossier's), so the moment's budget is spent nowhere.
     moment: 0,
     support: vm.support === undefined ? 0 : countWords(`${text(SUPPORT_KICKER)} ${supportTailText(vm.support, text)}`),
+    standing: countWords(lawStandingWords(vm.reading.standing, text).join(' ')),
   };
 }
 

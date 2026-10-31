@@ -11840,3 +11840,48 @@ for (const two of [false, true]) {
   }
   write(name, game);
 }
+
+// ── P77 · DH · «WHILE ENACTED» ON THE VOTE (the owner's frame of 2026-10-31: Trade Industries' vote panel read an
+//    EMPTY plate): one hall table per family of a law that ACTS or STANDS, the law in the FIRST slot of the voting area,
+//    blue on the move at Agenda 2 — the panel must state what the law gives the seat while it stands:
+//      · trade — Trade Industries (RX28): the bill at blue's influence → the fleet, the win's lower price;
+//      · manufacturing — Manufacturing Run (RX37): the count a generation and its rule;
+//      · rd — R&D Funding (RX26): the science tags lent at blue's influence + the repeat action;
+//      · heat — Heat Capture (RX14): the payout, then «пока принята» −3 M€ on Building cards (two in blue's hand) and the
+//        table's move (temperature −2);
+//      · metal — Metal Research (RX19): the payout, then steel 2 → 3 · titanium 3 → 4 and blue's stock (4 steel, 1 ti);
+//      · gas — Gas Export (RX12): the table's moves (oxygen −1, Venus +2). ──
+for (const [name, resolution, extra] of [
+  ['parliament-standing-trade-vote', TRADE_INDUSTRIES_ID, {}],
+  ['parliament-standing-manufacturing-vote', MANUFACTURING_RUN_ID, {}],
+  ['parliament-standing-rd-vote', RD_FUNDING_ID, {}],
+  ['parliament-standing-heat-vote', HEAT_CAPTURE_ID, {hand: [CardName.MINE, CardName.IRONWORKS]}],
+  ['parliament-standing-metal-vote', METAL_RESEARCH_ID, {steel: 4, titanium: 1}],
+  ['parliament-standing-gas-vote', GAS_EXPORT_ID, {venus: true}],
+] as const) {
+  const spec = extra as {hand?: ReadonlyArray<CardName>, steel?: number, titanium?: number, venus?: boolean};
+  parliamentFixture(name, {
+    resolution,
+    votes: [0],
+    agenda: [2, 1],
+    stopAt: 'vote',
+    ...(spec.venus === true ? {options: {venusNextExtension: true}} : {}),
+    arrange: ({game, p1}) => {
+      for (const card of spec.hand ?? []) {
+        moveToDeckTop(game, card);
+        p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+      }
+      if (spec.steel !== undefined) {
+        p1.steel = spec.steel;
+      }
+      if (spec.titanium !== undefined) {
+        p1.titanium = spec.titanium;
+      }
+    },
+    expect: ({parliament}) => {
+      if (!parliament.slots[0]?.instance.startsWith(resolution)) {
+        throw new Error(`${name}: expected ${resolution} in the first slot, got ${parliament.slots.map((s) => s.instance).join(', ')}`);
+      }
+    },
+  });
+}

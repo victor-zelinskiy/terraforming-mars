@@ -87,7 +87,7 @@
                 <div class="con-parl__info-own-body">
                   <!-- («Зал» v7, Ф4: the card's PRINTED graphic is on the bill itself, a size up right above this
                        plate — the reading no longer repeats it; the formula → number plate alone is the reading.) -->
-                  <div v-if="voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined || voteInfo.reading.uses !== undefined || voteInfo.veto !== undefined || ledgerShown" class="con-parl__info-readings" data-parl-vote-late>
+                  <div v-if="voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined || voteInfo.reading.standing !== undefined || voteInfo.veto !== undefined || ledgerShown" class="con-parl__info-readings" data-parl-vote-late>
                     <ConsoleInfluenceYield v-if="voteInfo.reading.yields.length > 0"
                                            class="con-parl__info-yield"
                                            :yields="voteInfo.reading.yields"
@@ -139,20 +139,11 @@
                         <span class="con-parl__info-holder-name">{{ kindCardsText(row.cards) }}</span>
                       </span>
                     </span>
-                    <!-- HOW MANY TIMES THE ACTION IS TAKEN (Manufacturing Run RX37): the printed count with its
-                         threshold, then the seat's own count — on the line or how far below it — and the win's
-                         forecast where the Agenda step lifts it over the line. One reading of the declaration. -->
                     <!-- WHO THE VETO BINDS (RX42 UNMI Veto) — «as if enacted now», the server's live leaders, the subject
                          named «you» where it is one of them: the warning stands BEFORE the vote, in the law's register. -->
                     <span v-if="voteInfo.veto !== undefined" class="con-parl__info-veto" data-parl-vote-veto :data-parl-vote-veto-kind="voteInfo.veto.kind">
                       <i class="con-parl__info-veto-icon resource_icon resource_icon--rating" aria-hidden="true"></i>
                       <span class="con-parl__info-veto-text">{{ vetoText(voteInfo.veto) }}</span>
-                    </span>
-                    <span v-if="voteInfo.reading.uses !== undefined" class="con-parl__info-uses" data-parl-vote-uses
-                          :data-parl-vote-uses-now="voteInfo.reading.uses.uses" :data-parl-vote-uses-win="voteInfo.reading.uses.usesIfWin">
-                      <span class="con-parl__info-uses-rule" data-parl-vote-uses-rule>{{ line(voteInfo.reading.uses.rule) }}</span>
-                      <b v-if="voteInfo.reading.uses.seat !== undefined" class="con-parl__info-uses-seat" data-parl-vote-uses-seat>{{ line(voteInfo.reading.uses.seat) }}</b>
-                      <span v-if="voteInfo.reading.uses.ifWin !== undefined" class="con-parl__info-uses-win" data-parl-vote-uses-ifwin>{{ line(voteInfo.reading.uses.ifWin) }}</span>
                     </span>
                     <!-- THE COLONY LEDGER (Colonial Affairs): the tiles the «×k» above multiplies — the
                          SERVER's registry, one row per tile, the sums; «no colonies» in words. -->
@@ -180,26 +171,38 @@
                                         :size="readingSize"
                                         variant="inline"
                                         data-parl-vote-career />
+                    <!-- WHILE ENACTED (P77 · DH): what the law gives the seat for as long as it stands — an action's price
+                         and count at the seat's influence, a passive's number by its term, or the law's rule. Under a
+                         payout it names itself («ПОКА ПРИНЯТА»); a law that pays nothing at the enactment speaks through
+                         it alone, at the plate's voice size (the owner's frame: Trade Industries over an empty plate). -->
+                    <ConsoleLawStanding v-if="voteInfo.reading.standing !== undefined"
+                                        class="con-parl__info-standing"
+                                        :standing="voteInfo.reading.standing"
+                                        :person="voteInfo.reading.person" />
                   </div>
                 </div>
               </div>
-              <!-- THE LAW'S OWN COLUMN — what the card does to the TABLE and what it does WHILE ENACTED, in two
-                   quiet rows OUTSIDE «для вас»: the world part has no recipient (the first player removes an
-                   ocean for everybody; it never enters the seat's net, and it may cost a Capital a point), and
-                   the standing effect is everybody's law. Data-driven: the column stands for a declaration that
-                   takes a tile off the board (`reading.removal`); the passive row rides it when the card has one. -->
-              <div v-if="voteInfo.reading.removal !== undefined" class="con-parl__info-law" data-parl-vote-item data-parl-info="law" data-parl-vote-late>
+              <!-- THE TABLE — what the card does to the WORLD, OUTSIDE «для вас»: it has no recipient (the first player
+                   removes an ocean for everybody; the planet's parameters move for everybody) and never enters the
+                   seat's net. Data-driven: a declaration that takes a tile off the board (`reading.removal`) or moves a
+                   parameter (`reading.worldMoves` — Gas Export, Heat Capture). The law's standing effect is the seat's
+                   «пока принята» inside the reading (P77 · DH), never a second row here. -->
+              <div v-if="voteInfo.reading.removal !== undefined || voteInfo.reading.worldMoves !== undefined" class="con-parl__info-law" data-parl-vote-item data-parl-info="law" data-parl-vote-late>
                 <div class="con-parl__info-law-row con-parl__info-law-row--world" data-parl-vote-world>
                   <span class="con-parl__info-kicker con-parl__info-law-kicker">{{ $t('The table') }}</span>
-                  <span class="con-parl__info-law-line">
-                    <i class="wgt-icon wgt-icon--ocean con-parl__info-law-icon" aria-hidden="true"></i>
-                    <span class="con-parl__info-law-text">{{ $t(removalSummaryKey) }}</span>
+                  <template v-if="voteInfo.reading.removal !== undefined">
+                    <span class="con-parl__info-law-line">
+                      <i class="wgt-icon wgt-icon--ocean con-parl__info-law-icon" aria-hidden="true"></i>
+                      <span class="con-parl__info-law-text">{{ $t(removalSummaryKey) }}</span>
+                    </span>
+                    <span class="con-parl__info-law-note" data-parl-vote-world-note>{{ $t(removalNoteKey) }}</span>
+                  </template>
+                  <span v-if="voteInfo.reading.worldMoves !== undefined" class="con-parl__info-law-line con-parl__info-law-moves">
+                    <span v-for="move in voteInfo.reading.worldMoves" :key="move.parameter" class="con-parl__info-law-move" :data-parl-world-move="move.parameter" :data-parl-world-steps="move.steps">
+                      <i class="wgt-icon con-parl__info-law-icon" :class="'wgt-icon--' + worldIcon(move.parameter)" aria-hidden="true"></i>
+                      <b class="con-parl__info-law-steps" :class="{'con-parl__info-law-steps--down': move.steps < 0}">{{ signed(move.steps) }}</b>
+                    </span>
                   </span>
-                  <span class="con-parl__info-law-note" data-parl-vote-world-note>{{ $t(removalNoteKey) }}</span>
-                </div>
-                <div v-if="lawPassiveText !== undefined" class="con-parl__info-law-row con-parl__info-law-row--passive" data-parl-vote-passive>
-                  <span class="con-parl__info-kicker con-parl__info-law-kicker">{{ $t('Effect while enacted') }}</span>
-                  <span class="con-parl__info-law-text">{{ $t(lawPassiveText) }}</span>
                 </div>
               </div>
               <!-- THE PARTY BOX stands ONLY under a door that pays the party («Зал» v7, Ф4 — the plan's § 3.2): the
@@ -330,6 +333,7 @@ import {PARLIAMENT_VOTE_COST, ReduxParty} from '@/common/parliament/ParliamentTy
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
 import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
+import ConsoleLawStanding from '@/client/components/console/parliament/ConsoleLawStanding.vue';
 import ConsoleAgendaGrant from '@/client/components/console/parliament/ConsoleAgendaGrant.vue';
 import ConsoleVoteLedger from '@/client/components/console/parliament/ConsoleVoteLedger.vue';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
@@ -353,7 +357,7 @@ import {translateMessage, translateText, translateTextWithParams} from '@/client
 import {COLONY_TRACK_SUMMARY_KEY} from '@/client/console/parliament/colonyTrackModel';
 import {TILE_REMOVAL_COST_NOTE_KEY, TILE_REMOVAL_SUMMARY_KEY} from '@/client/console/parliament/tileRemovalModel';
 import {offTurnReason} from '@/client/console/offTurnReason';
-import {Reading, readingText} from '@/client/console/readingText';
+import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {cardResourceKey, isStandardResource} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {StagedReceipt} from '@/client/console/stagedPlay';
@@ -361,6 +365,7 @@ import {afterCommitImpulse} from '@/client/console/consoleActionCommit';
 import {flyStagedVotePrice} from '@/client/console/consoleActionCommitRail';
 import {stagedDoorVerb} from '@/client/console/parliament/parliamentCommands';
 import {probeTick} from '@/client/console/probeTick';
+import {StandingStock} from '@/client/console/parliament/lawStandingModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {
   consoleParliamentUi, parliamentFlow, parliamentRootEl, parliamentSupportInFlight, parliamentVoteInFlight, parliamentVoteSubject, parliamentVoteUp,
@@ -419,7 +424,7 @@ const READING_FIT_STEPS: ReadonlyArray<number> = [1.8, 1.65, 1.5, 1.35, 1.2, 1.1
 export default defineComponent({
   name: 'ConsoleParliamentVoteMode',
   components: {
-    ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleTileGrant, ConsoleAgendaGrant, ConsoleVoteLedger, ConsolePartyFormula, ConsolePartyReaction, ConsoleVoteFactRow,
+    ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleTileGrant, ConsoleLawStanding, ConsoleAgendaGrant, ConsoleVoteLedger, ConsolePartyFormula, ConsolePartyReaction, ConsoleVoteFactRow,
     ConsoleSupportPlaces, PlayerDelegate, GamepadGlyph,
   },
   props: {
@@ -588,6 +593,10 @@ export default defineComponent({
         nameOf: (color: Color) => this.nameOf(color),
         subjectRating: this.playerView.players.find((p) => p.color === this.voteSubject)?.terraformRating,
         tableau: this.subjectTableau,
+        // «While enacted» (P77 · DH): the subject's public stock (a value term), the viewer's hand by its printed tags (a discount).
+        stock: this.subjectStock,
+        hand: this.subjectIsRival ? undefined : this.playerView.thisPlayer !== undefined ?
+          (this.playerView.cardsInHand ?? []).map((card) => getCard(card.name)?.tags ?? []) : undefined,
         name: resolutionTitleOf(this.view, slot.resolutionId),
         winning: winningShownOf(slot),
         source: this.benchSource,
@@ -620,6 +629,12 @@ export default defineComponent({
     subjectIsRival(): boolean {
       const subject = this.voteSubject;
       return subject !== undefined && subject !== this.viewerColor;
+    },
+    /** The SUBJECT's public stock of the two metals and their per-unit values (a value term's reading — Metal Research). */
+    subjectStock(): StandingStock | undefined {
+      const color = this.voteSubject ?? this.viewerColor;
+      const p = color === undefined ? undefined : this.playerView.players.find((player) => player.color === color);
+      return p === undefined ? undefined : {steel: p.steel, titanium: p.titanium, steelValue: p.steelValue, titaniumValue: p.titaniumValue};
     },
     /** The SUBJECT's public tableau — the holder law is read for the seat the reading is about. */
     subjectTableau(): ReadonlyArray<{name: CardName}> {
@@ -671,12 +686,6 @@ export default defineComponent({
         return {before: rendered, after: ''};
       }
       return {before: rendered.slice(0, at), after: rendered.slice(at + 4)};
-    },
-    /** The selected card's STANDING effect (its `text.passive`) — the law column's second row (undefined without one). */
-    lawPassiveText(): string | undefined {
-      const slot = this.voteSlot;
-      const resolution = slot === undefined ? undefined : (slot.resolution ?? getResolution(slot.resolutionId));
-      return resolution?.text.passive;
     },
     /** The world part's one sentence and its honest footnote (the removal family's own keys). */
     removalSummaryKey(): string {
@@ -940,10 +949,6 @@ export default defineComponent({
       });
     },
     /** «Все треки колоний +2» — the colony table's one line (Unity Budget). */
-    /** A reading line with its params — the ONE renderer (PL-160). */
-    line(reading: Reading): string {
-      return readingText(reading);
-    },
     /** The veto's sentence (RX42) — its key with its params through the one i18n helper. */
     vetoText(veto: {key: string, params: ReadonlyArray<string>}): string {
       return translateTextWithParams(veto.key, [...veto.params]);
@@ -953,7 +958,11 @@ export default defineComponent({
       return iconClassFor(cardResourceKey(resource));
     },
     signed(n: number): string {
-      return n > 0 ? `+${n}` : String(n);
+      return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0';
+    },
+    /** A world move's parameter as the HUD draws it (the ocean count is the ocean glyph). */
+    worldIcon(parameter: string): string {
+      return parameter === 'oceans' ? 'ocean' : parameter;
     },
     /** The cards of ONE kind, translated, in play order — «Рыба · Птицы». */
     kindCardsText(cards: ReadonlyArray<CardName>): string {

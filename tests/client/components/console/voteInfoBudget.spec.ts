@@ -196,6 +196,19 @@ function offencesOf(resolution: IClientResolution, opts: {dealt: boolean}): Arra
           if (b.words > VOTE_INFO_LIMITS.words) {
             out.push(`${where}: words ${b.words} (≤ ${VOTE_INFO_LIMITS.words})`);
           }
+          // WHILE ENACTED (P77 · DH — the owner's frame of Trade Industries over an EMPTY plate): a law that ACTS or STANDS
+          // says what it gives the seat — beside the enactment's payout, or as the plate's whole voice — and a dealt card
+          // that pays nothing at the enactment is never a kicker over nothing.
+          const stands = resolution.hasAction || (resolution.hasPassive && resolution.vetoesRating !== true);
+          if (stands && vm.reading.standing === undefined) {
+            out.push(`${where}: the law acts or stands, and the panel says nothing of it («while enacted» is missing)`);
+          }
+          if (opts.dealt && owed === 0 && vm.reading.standing === undefined && vm.veto === undefined && vm.reading.uses === undefined) {
+            out.push(`${where}: a card that pays nothing at the enactment reads an EMPTY plate`);
+          }
+          if (b.standing > VOTE_INFO_LIMITS.standingWords) {
+            out.push(`${where}: the «while enacted» part ${b.standing} words (≤ ${VOTE_INFO_LIMITS.standingWords})`);
+          }
           if (b.moment > VOTE_INFO_LIMITS.momentWords) {
             out.push(`${where}: the party box's line of moment ${b.moment} words (≤ ${VOTE_INFO_LIMITS.momentWords})`);
           }

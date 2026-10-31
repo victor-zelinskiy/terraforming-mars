@@ -60,6 +60,7 @@ import {CardRenderer} from '../../../cards/render/CardRenderer';
 import {PartyName} from '../../../../common/turmoil/PartyName';
 import {Resource} from '../../../../common/Resource';
 import {Tag} from '../../../../common/cards/Tag';
+import {PassiveTerm, passiveCardDiscount} from '../../../../common/parliament/passiveTerm';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
 import {InfluenceScaledEffect, scaledAmount} from '../../../../common/parliament/influenceScaling';
 import {TileRemovalDeclaration} from '../../../../common/parliament/tileRemoval';
@@ -95,8 +96,11 @@ export const WATER_EXPORT_TAGS: ReadonlyArray<Tag> = [Tag.EARTH, Tag.VENUS, Tag.
  * qualifying tags on it.
  */
 export function waterExportDiscount(_player: IPlayer, card: IProjectCard): number {
-  return card.tags.some((tag) => WATER_EXPORT_TAGS.includes(tag)) ? WATER_EXPORT_DISCOUNT : 0;
+  return passiveCardDiscount(WATER_EXPORT_TERM, card.tags);
 }
+
+/** THE PASSIVE AS DATA (`passiveTerm.ts`): the hook above answers from it, the vote panel reads the seat's cards by it. */
+export const WATER_EXPORT_TERM: PassiveTerm = {kind: 'cardDiscount', amount: WATER_EXPORT_DISCOUNT, tags: WATER_EXPORT_TAGS};
 
 const MEGACREDITS_STEP: EnactStep = {
   key: 'megacredits',
@@ -149,6 +153,7 @@ export const WATER_EXPORT: ResolutionDefinition = {
   tileRemoval: WATER_EXPORT_REMOVAL,
   immediateSteps: [MEGACREDITS_STEP],
   worldSteps: [tileRemovalStep(WATER_EXPORT_ID, WATER_EXPORT_REMOVAL)],
+  passiveTerm: WATER_EXPORT_TERM,
   passive: {
     cardDiscount: waterExportDiscount,
     // The discount's forecast twin is the price breakdown (see the header):

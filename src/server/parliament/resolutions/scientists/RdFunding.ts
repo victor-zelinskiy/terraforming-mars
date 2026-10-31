@@ -59,6 +59,7 @@
 import {CardRenderer} from '../../../cards/render/CardRenderer';
 import {PartyName} from '../../../../common/turmoil/PartyName';
 import {Tag} from '../../../../common/cards/Tag';
+import {PassiveTerm, passiveTagBonus} from '../../../../common/parliament/passiveTerm';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
 import {ChoiceContextSource} from '../../../../common/models/PlayerInputModel';
 import {SelectCard} from '../../../inputs/SelectCard';
@@ -88,8 +89,11 @@ const SOURCE: ChoiceContextSource = {kind: 'resolution', resolution: RD_FUNDING_
  * participant» and «what is their influence right now».
  */
 export function rdFundingTagBonus(_player: IPlayer, tag: Tag, influence: number): number {
-  return tag === Tag.SCIENCE ? RD_FUNDING_TAGS_PER_INFLUENCE * Math.max(0, influence) : 0;
+  return passiveTagBonus(RD_FUNDING_TERM, tag, influence);
 }
+
+/** THE PASSIVE AS DATA (`passiveTerm.ts`): the hook above answers from it, the vote panel reads the seat's tags by it. */
+export const RD_FUNDING_TERM: PassiveTerm = {kind: 'tagsPerInfluence', tag: Tag.SCIENCE, perInfluence: RD_FUNDING_TAGS_PER_INFLUENCE};
 
 /**
  * THE COMMIT of the action: `card`'s action runs a SECOND time, inside the
@@ -171,6 +175,7 @@ export const RD_FUNDING: ResolutionDefinition = {
   },
   // BY TYPE: a blue card is an ACTIVE card — never a tag, never a colour of the face.
   quest: {goal: {kind: 'cardsPlayed', cardType: 'active'}, count: 2},
+  passiveTerm: RD_FUNDING_TERM,
   passive: {
     tagBonus: rdFundingTagBonus,
     // The tag bonus's forecast twin is the МЕТКИ zone's own addition badge

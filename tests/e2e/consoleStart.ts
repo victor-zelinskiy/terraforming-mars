@@ -3051,6 +3051,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // Prelude 2 P77 Jovian Envoys — P72's twin (DH): 2 Jovian tags (Saturn Systems · Jovian Lanterns), no tag of its own, 2 M€ ·
   // red already on the first resolution · locked at 1.
   'jovian-envoys' | 'jovian-envoys-overtake' | 'jovian-envoys-locked' |
+  // «While enacted» on the vote (DH): a law that ACTS or STANDS in the first slot — bill · count · tags · discount · value · world moves.
+  'parliament-standing-trade-vote' | 'parliament-standing-manufacturing-vote' | 'parliament-standing-rd-vote' |
+  'parliament-standing-heat-vote' | 'parliament-standing-metal-vote' | 'parliament-standing-gas-vote' |
   // Prelude 2 P70 Colonial Envoys — a SERIES of grants (DA): Unity ruling, three colonies (N = 3), reserve 6 · locked «1 of 2».
   'colonial-envoys' | 'colonial-envoys-locked' |
   // P70 · the Parliament's chrome guard: 4 seats, two on one Career place, a quest with one leader, an empty discard, no votes.

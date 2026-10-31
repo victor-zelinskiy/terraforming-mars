@@ -54,6 +54,7 @@ import {CardRenderer} from '../../../cards/render/CardRenderer';
 import {PartyName} from '../../../../common/turmoil/PartyName';
 import {Resource} from '../../../../common/Resource';
 import {Tag} from '../../../../common/cards/Tag';
+import {PassiveTerm, passiveCardDiscount} from '../../../../common/parliament/passiveTerm';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
 import {InfluenceScaledEffect, scaledAmount} from '../../../../common/parliament/influenceScaling';
 import {WorldParameterMove, parameterRoom} from '../../../../common/parliament/parameterMove';
@@ -85,8 +86,11 @@ export const HEAT_CAPTURE_BUILDING_DISCOUNT = 3;
  * policy reads a Space tag.
  */
 export function heatCaptureDiscount(_player: IPlayer, card: IProjectCard): number {
-  return card.tags.includes(Tag.BUILDING) ? HEAT_CAPTURE_BUILDING_DISCOUNT : 0;
+  return passiveCardDiscount(HEAT_CAPTURE_TERM, card.tags);
 }
+
+/** THE PASSIVE AS DATA (`passiveTerm.ts`): the hook above answers from it, the vote panel reads the seat's cards by it. */
+export const HEAT_CAPTURE_TERM: PassiveTerm = {kind: 'cardDiscount', amount: HEAT_CAPTURE_BUILDING_DISCOUNT, tags: [Tag.BUILDING]};
 
 /** The table as the engine has it right now — the ONE reader for the world step below. */
 function tableOf(ctx: EnactContext) {
@@ -189,6 +193,7 @@ export const HEAT_CAPTURE: ResolutionDefinition = {
   worldMoves: [HEAT_CAPTURE_TEMPERATURE],
   immediateSteps: [MEGACREDITS_STEP],
   worldSteps: [TEMPERATURE_STEP],
+  passiveTerm: HEAT_CAPTURE_TERM,
   passive: {
     cardDiscount: heatCaptureDiscount,
     // The discount's forecast twin is the price breakdown (see the header):

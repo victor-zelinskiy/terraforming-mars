@@ -57,6 +57,7 @@ import {CardRenderer} from '../../../cards/render/CardRenderer';
 import {Size} from '../../../../common/cards/render/Size';
 import {PartyName} from '../../../../common/turmoil/PartyName';
 import {Resource} from '../../../../common/Resource';
+import {PassiveTerm, passiveValueBonus} from '../../../../common/parliament/passiveTerm';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
 import {InfluenceScaledEffect, scaledAmount} from '../../../../common/parliament/influenceScaling';
 import {IPlayer} from '../../../IPlayer';
@@ -91,8 +92,11 @@ export const METAL_RESEARCH_VALUE_BONUS = 1;
  * nothing but the resource, never mutates, never logs.
  */
 export function metalResearchValueBonus(_player: IPlayer, resource: Resource): number {
-  return resource === Resource.STEEL || resource === Resource.TITANIUM ? METAL_RESEARCH_VALUE_BONUS : 0;
+  return passiveValueBonus(METAL_RESEARCH_TERM, resource);
 }
+
+/** THE PASSIVE AS DATA (`passiveTerm.ts`): the hook above answers from it, the vote panel reads the seat's stock by it. */
+export const METAL_RESEARCH_TERM: PassiveTerm = {kind: 'resourceValue', amount: METAL_RESEARCH_VALUE_BONUS, resources: [Resource.STEEL, Resource.TITANIUM]};
 
 const STEEL_STEP: EnactStep = {
   key: 'steel',
@@ -166,6 +170,7 @@ export const METAL_RESEARCH: ResolutionDefinition = {
   scaled: [METAL_RESEARCH_STEEL, METAL_RESEARCH_TITANIUM],
   // THE PRINTED ORDER: the steel first, the titanium second.
   immediateSteps: [STEEL_STEP, TITANIUM_STEP],
+  passiveTerm: METAL_RESEARCH_TERM,
   passive: {
     resourceValueBonus: metalResearchValueBonus,
     // The value's forecast twin is the RATE where the decision is made (the
