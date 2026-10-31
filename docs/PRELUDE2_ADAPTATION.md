@@ -1,6 +1,6 @@
 # Prelude 2 — включение в премиум-скоуп, hold-back-список, замена
 
-**Статус 2026-10-31: ЛЕСА ПОСТАВЛЕНЫ · 12 / 54 · СДАНЫ P76 Ishtar Expedition, P85 Summit Logistics (первая политическая), P68 Ceres Tech Market (первая с действием), P80 Red Appeasement (первый розыгрыш-пас) и P78 L1 Trade Terminal (первый пассивный эффект торговли и первый мультивыбор разыгранных карт) и P69 Cloud Tourism (первый счёт ПАРАМИ меток и первый ПО-порог на собственном ресурсе) и P75 GHG Shipment (первое требование Кельвинистов — читается Зелёными везде) и P83 Sponsoring Nation (первый живой грант делегатов розыгрыша без двери поля — шаг того же флоу) и P71 Colonial Representation (первое влияние сверх Карьеры в Prelude 2 — его отдача читается в итогах заседания) и P72 Envoys from Venus (первое событие, чей розыгрыш — только грант делегатов; грант — одна фраза от нажатия до посадки) и P70 Colonial Envoys (первая серия отдельных решений делегатов — один визит Парламента; каркас Парламента одним взглядом) и P82 Special Permit (первая АТАКА серии — цель показана всегда, бот — место стола; с ней — «поднимается только та карта, что сработала»), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
+**Статус 2026-10-31: ЛЕСА ПОСТАВЛЕНЫ · 13 / 54 · СДАНЫ P76 Ishtar Expedition, P85 Summit Logistics (первая политическая), P68 Ceres Tech Market (первая с действием), P80 Red Appeasement (первый розыгрыш-пас) и P78 L1 Trade Terminal (первый пассивный эффект торговли и первый мультивыбор разыгранных карт) и P69 Cloud Tourism (первый счёт ПАРАМИ меток и первый ПО-порог на собственном ресурсе) и P75 GHG Shipment (первое требование Кельвинистов — читается Зелёными везде) и P83 Sponsoring Nation (первый живой грант делегатов розыгрыша без двери поля — шаг того же флоу) и P71 Colonial Representation (первое влияние сверх Карьеры в Prelude 2 — его отдача читается в итогах заседания) и P72 Envoys from Venus (первое событие, чей розыгрыш — только грант делегатов; грант — одна фраза от нажатия до посадки) и P70 Colonial Envoys (первая серия отдельных решений делегатов — один визит Парламента; каркас Парламента одним взглядом) и P82 Special Permit (первая АТАКА серии — цель показана всегда, бот — место стола; с ней — «поднимается только та карта, что сработала») и P73 Floating Refinery (первое венерианское действие-ВЫБОР — bespoke на языке форка; с ним — сцена настройки действия «лист высотой с карту»), остальные — в hold-back-списке.** Модуль `prelude2` добавлен в
 `PREMIUM_SCOPE_MODULES` (`src/common/cards/premiumScope.ts`) по образцу классического Turmoil
 (`docs/TURMOIL_REDUX_CLASSIC_CARDS.md`, 2026-10-21 → 2026-10-25): скоуп = «модуль минус список», список — ворклист.
 Адаптация идёт по одной карте, отдельными задачами, по ворклисту §4; список — временный костыль и удаляется, когда
@@ -117,7 +117,10 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
    проекты) — `actionPreview` + `actionUnavailableReason`; у Venus Orbital Survey снять строку
    `SAFE_WITHOUT_INFORMATION` в `tests/cards/actionCaption.spec.ts`; правило длиннее бюджета подписи браузера действий —
    курированный `action-short` (P68). Bespoke-действие со СБРОСОМ (P68): `discardOptions()` один на живой промпт и
-   шаг превью, `min` — одно число; выплата склада — волной семейства сброса, сцена ухода — даром (реестр CS).
+   шаг превью, `min` — одно число; выплата склада — волной семейства сброса, сцена ухода — даром (реестр CS). Bespoke-действие-ВЫБОР (P73): превью в
+   порядке ЖИВОГО `OrOptions` (ветка называет свою печатную строку `renderKey`), источник — общий шаг с `cause`
+   (`RemoveResourcesFromCard` `source: 'self'`), недоступный вариант показан с причиной, роль держателя объявлена рядом с
+   действием (`holderActionGood`) — реестр DC.
 4. **Живой хук** (`onCardPlayed` — Soil Bacteria, Ecotec, Spire, Palladin Shipping, Sagitta; `onColonyAdded` — Colony
    Trade Hub; `onProductionGain` — Suitable Infrastructure; `onResourceAdded` — Main Belt Asteroids;
    `onIncreaseTerraformRating` — Terraforming Deal; `onGlobalParameterIncrease` — Venus Contract) — ДВОЙНИК ПРОГНОЗА
@@ -178,7 +181,7 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 | P70 | Colonial Envoys | EVENT · Colonies + ПОЛИТ (Unity) | декларативная, делегат за колонию (серия грантов) | СДАНА 2026-10-30 5a0d419495 · класс 036c2b9f9c · каркас 0f877b71e3 (реестр DA) |
 | P71 | Colonial Representation | ACTIVE · Colonies + ПОЛИТ | декларативная, +1 влияния + 3 M€ за колонию | СДАНА 2026-10-30 |
 | P72 | Envoys from Venus | EVENT · Venus + ПОЛИТ | декларативная, 2 делегата на одну резолюцию | СДАНА 2026-10-30 b122784fbc · класс 4948c7c198 (реестр CZ) |
-| P73 | Floating Refinery | ACTIVE · Venus | behavior + bespoke action | в списке |
+| P73 | Floating Refinery | ACTIVE · Venus | behavior + bespoke action | СДАНА 2026-10-31 26b5b1cce1 · сцена настройки (реестр DC) |
 | P74 | Frontier Town | AUTOMATED · ПОЛИТ (Mars First) | bespokePlay, город | в списке |
 | P75 | GHG Shipment | EVENT · ПОЛИТ (Кельвинисты = Зелёные) | декларативная | СДАНА 2026-10-30 |
 | P76 | Ishtar Expedition | EVENT · Venus | декларативная, поиск по метке | СДАНА 2026-10-29 75d6ce23e4 |

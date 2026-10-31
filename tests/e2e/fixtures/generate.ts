@@ -9884,6 +9884,88 @@ cloudTourismFixture('cloud-tourism', 'play');
 cloudTourismFixture('cloud-tourism-wild', 'wild');
 cloudTourismFixture('cloud-tourism-vp', 'vp');
 
+// ── P73 · FLOATING REFINERY — the THIRTEENTH Prelude 2 card, the series' first Venus card with an action CHOICE
+//    (docs/claude/prompts/prelude2-p73-floating-refinery.md): «+1 floater here OR 2 floaters off ANY card of yours →
+//    +1 titanium and +2 M€»; the play «+1 floater here per Venus tag, this one included». A 2p Venus + Prelude 2 table
+//    (Teractor · ThorGate), blue on the move:
+//      · `floating-refinery`        — Venus Governor (2 Venus) + Dirigibles (1 Venus, 3 floaters) on the table, P73 in
+//                                     the hand, 12 M€: the play pays 2 + 1 + this card = 4 floaters;
+//      · `floating-refinery-action` — P73 on the table with 1 floater, Dirigibles 3, Floating Habs 2: B with TWO
+//                                     sources (P73 itself is no source — 1 floater);
+//      · `floating-refinery-sole`   — P73 with 1 floater, no other holder with 2: B unavailable with its reason, A the
+//                                     sole live variant.
+//    A DRY RUN on a copy proves the play's +4 and B's −2 / +1 titanium / +2 M€. ──
+function floatingRefineryFixture(name: string, variant: 'play' | 'action' | 'sole'): void {
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, venusNextExtension: true, prelude2Expansion: true,
+    customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
+  });
+  answerStartFlow(game, [p1, p2]);
+  game.projectDeck.discardPile.push(...p1.cardsInHand.splice(0));
+  const take = (n: CardName) => {
+    moveToDeckTop(game, n);
+    return game.projectDeck.drawOrThrow(game);
+  };
+  const refinery = take(CardName.FLOATING_REFINERY);
+  if (variant === 'play') {
+    p1.playedCards.push(take(CardName.VENUS_GOVERNOR));
+    const dirigibles = take(CardName.DIRIGIBLES);
+    dirigibles.resourceCount = 3;
+    p1.playedCards.push(dirigibles);
+    p1.cardsInHand.push(refinery);
+  } else {
+    refinery.resourceCount = 1;
+    p1.playedCards.push(refinery);
+    if (variant === 'action') {
+      const dirigibles = take(CardName.DIRIGIBLES);
+      dirigibles.resourceCount = 3;
+      const habs = take(CardName.FLOATING_HABS);
+      habs.resourceCount = 2;
+      p1.playedCards.push(dirigibles, habs);
+    }
+  }
+  p1.megaCredits = 12;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  if (game.activePlayer.id !== p1.id || (variant === 'play' && p1.canPlay(refinery) === false)) {
+    throw new Error(`the ${name} fixture expected blue on the move with P73 playable — got active=${game.activePlayer.id === p1.id}`);
+  }
+  // THE DRY RUN — on a copy.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(p1.id);
+  if (variant === 'play') {
+    blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.FLOATING_REFINERY)!, Payment.of({megacredits: 7}));
+    runAllActions(copy);
+    if (blue.playedCards.get(CardName.FLOATING_REFINERY)?.resourceCount !== 4) {
+      throw new Error(`the ${name} fixture expected +4 floaters on P73 — got ${blue.playedCards.get(CardName.FLOATING_REFINERY)?.resourceCount}`);
+    }
+  } else {
+    const card = blue.playedCards.get(CardName.FLOATING_REFINERY) as IActionCard & ICard;
+    const asked = card.action(blue);
+    if (variant === 'sole') {
+      if (asked !== undefined || card.resourceCount !== 2) {
+        throw new Error(`the ${name} fixture expected A to run without a question — got ${asked?.constructor.name} / ${card.resourceCount}`);
+      }
+    } else {
+      const pick = asked instanceof OrOptions ? asked.options[0].cb(undefined) : undefined;
+      if (!(pick instanceof SelectCard) || pick.cards.map((c) => c.name).join() !== [CardName.DIRIGIBLES, CardName.FLOATING_HABS].join()) {
+        throw new Error(`the ${name} fixture expected B's source pick over Dirigibles and Floating Habs`);
+      }
+      const titanium = blue.titanium;
+      const habs = blue.playedCards.get(CardName.FLOATING_HABS)!;
+      pick.cb([habs]);
+      runAllActions(copy);
+      if (habs.resourceCount !== 0 || blue.titanium - titanium !== 1 || blue.megaCredits !== 14) {
+        throw new Error(`the ${name} fixture expected Floating Habs 2 → 0, +1 titanium, 12 → 14 M€ — got ${habs.resourceCount}, +${blue.titanium - titanium}, ${blue.megaCredits}`);
+      }
+    }
+  }
+  write(name, game);
+}
+floatingRefineryFixture('floating-refinery', 'play');
+floatingRefineryFixture('floating-refinery-action', 'action');
+floatingRefineryFixture('floating-refinery-sole', 'sole');
+
 // ── P75 · GHG SHIPMENT — the SEVENTH Prelude 2 card and the FIRST in scope with a KELVINISTS requirement (docs/claude/
 //    prompts/prelude2-p75-ghg-shipment.md): «requires the Kelvinists — the GREENS under Redux (rulebook p.13,
 //    `normalizeReduxParty`) — ruling or 2 of your delegates there; +1 heat production; 1 heat per floater you have».

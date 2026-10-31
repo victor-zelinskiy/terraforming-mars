@@ -1816,6 +1816,12 @@ html.con-profile-tv {
         .con-composer__actcard { zoom: calc(1.6 * var(--con-ui-scale, 1)); }
         .con-composer__hero { zoom: 1.5; }
         .con-composer__cta { zoom: 1.22; }
+        /* THE VALUE IS LOUDER THAN ITS LABEL on the couch too (P73 · DC): the kicker drops to the type floor (hierarchy by
+           weight and tracking — never below the floor), the value's chip steps up; both ride the formula's zoom. */
+        .con-composer__surface .con-composer__hero-label { font-size: var(--con-t-floor); }
+        .con-composer__surface .con-composer__hero { --con-chip-c-fs: 1.3rem; --con-chip-c-icon: 1.65rem; }
+        /* The plate's cap is the SHEET's 60 % in rendered pixels: a percentage is resolved before the zoom scales it. */
+        .con-composer__surface .con-composer__cta { max-width: calc(60% / 1.22); }
         .con-composer__rules { opacity: .62; }
         .con-composer__rule-text { font-size: var(--con-t-secondary); }
         .con-composer__cta-hint { font-size: var(--con-t-secondary); }

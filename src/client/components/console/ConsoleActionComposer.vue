@@ -244,7 +244,9 @@
       <div v-if="rules !== undefined" class="con-composer__rules" data-unfold-item>
         <div v-for="(line, k) in rules.lines" :key="k" class="con-composer__rule"
              :class="'con-composer__rule--' + line.kind">
-          <span class="con-composer__rule-label">{{ $t(ruleLabel(line.kind)) }}</span>
+          <!-- The sheet never titles itself (P73 · DC — «… › НАСТРОЙКА» is the crumb's): the plain RULE line wears no
+               «ДЕЙСТВИЕ» chip; only a NOTE keeps its tag, the one that tells it apart from the rule beside it. -->
+          <span v-if="line.kind !== 'rule'" class="con-composer__rule-label">{{ $t(ruleLabel(line.kind)) }}</span>
           <p class="con-composer__rule-text">{{ ruleText(line.text) }}</p>
         </div>
       </div>
@@ -1402,6 +1404,9 @@ export default defineComponent({
       /** The variant tile the cursor last stood on — ↑ from the row below re-enters the group there. */
       branchReturnIdx: -1,
       stopBranchObs: undefined as (() => void) | undefined,
+      /** The hero face's layout height (px) — the setup sheet's floor (P73 · DC); 0 until measured. */
+      heroFaceHeight: 0,
+      stopHeroFaceObs: undefined as (() => void) | undefined,
       /** The «Сработает» row's one-shot COMMIT pulse (the descend's first beat). */
       forecastPulse: false,
       /** The forecast explorer's own cursors (never the Information workspace's). */
@@ -2930,7 +2935,10 @@ export default defineComponent({
      * its floor for the flow's life; the room the receipt gave back stays as air above the dock.
      */
     ledgerSurfaceStyle(): Record<string, string> | undefined {
-      return this.ledgerPaying && this.ledgerSurfaceHeight !== '' ? {minHeight: this.ledgerSurfaceHeight} : undefined;
+      // THE SHEET IS AS TALL AS THE CARD (P73 · DC): the hero face's MEASURED height is published for the sheet's
+      // floor (`console.less` § the configuration surface) — a number from the layout, never one written in CSS.
+      const face: Record<string, string> = this.heroFaceHeight > 0 ? {'--con-setup-face-h': `${this.heroFaceHeight}px`} : {};
+      return this.ledgerPaying && this.ledgerSurfaceHeight !== '' ? {...face, minHeight: this.ledgerSurfaceHeight} : face;
     },
     /** Every row has paid (the read beat and after) — the dock reads «Выполнено». */
     ledgerSettled(): boolean {
@@ -3669,6 +3677,19 @@ export default defineComponent({
     }
     // The variant group's axis is read off its rendered geometry from the first frame on.
     void this.$nextTick(() => this.armBranchObserver());
+    // THE SHEET IS AS TALL AS THE CARD (P73 · DC): the hero wrap's LAYOUT height (offsetHeight — a FLIP / zoom transform
+    // never changes it) is the sheet's floor; an empty frame of the face's keyed swap (0) keeps the last height.
+    const heroWrap = (this.$el as HTMLElement | undefined)?.querySelector?.<HTMLElement>('.con-composer__actcardwrap');
+    if (heroWrap !== null && heroWrap !== undefined) {
+      const measure = () => {
+        const h = heroWrap.offsetHeight;
+        if (h > 0) {
+          this.heroFaceHeight = h;
+        }
+      };
+      this.stopHeroFaceObs = useResizeObserver(heroWrap, measure).stop;
+      measure();
+    }
     // A RESTORED stage mounts with the colonies step ALREADY hosted (the
     // parked second-door chain coming back): `colonyStepOn` was true before
     // this component existed, so its change-watcher never fires — republish
@@ -3718,6 +3739,8 @@ export default defineComponent({
     }
     this.stopBranchObs?.();
     this.stopBranchObs = undefined;
+    this.stopHeroFaceObs?.();
+    this.stopHeroFaceObs = undefined;
     this.killLedgerClocks();
     // THE LEDGER LEAVES THE SCREEN with this stage (a collapse, the flow's end): a row whose chips could only be
     // born on it is released honestly — the counter ticks now, late, never lost. The rows the SERVER still owes

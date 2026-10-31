@@ -3056,6 +3056,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'l1-trade-terminal' | 'l1-trade-terminal-vermin' |
   // Prelude 2 P69 Cloud Tourism — a PAIR count (a SET term, CV): 2 pairs · 2 pairs with a printed wild tag on Venus · the third floater's VP.
   'cloud-tourism' | 'cloud-tourism-wild' | 'cloud-tourism-vp' |
+  // Prelude 2 P73 Floating Refinery — the first Venus action CHOICE (DC): the play +4 (Venus Governor · Dirigibles · this) ·
+  // B with two sources (Dirigibles 3, Floating Habs 2) · B unavailable with its reason, A the sole live variant.
+  'floating-refinery' | 'floating-refinery-action' | 'floating-refinery-sole' |
   // Prelude 2 P75 GHG Shipment — the classic Kelvinists read as the Greens (CW): the Greens rule (5 floaters, Manutech) · locked «0 of 2».
   'ghg-shipment' | 'ghg-shipment-locked' |
   // Prelude 2 P83 Sponsoring Nation — the play's live delegate grant with no board door (CX): 4 Earth tags (Teractor ·
