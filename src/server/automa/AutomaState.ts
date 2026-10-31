@@ -80,8 +80,6 @@ export type SerializedAutomaState = {
   corpCubesTriggered?: Array<string>;
   /** Turmoil Redux: the generation's lobbying mandate (D14). Absent = not drawn yet — drawn at the bot's first lobbying check. */
   lobbyMandate?: LobbyMandate;
-  /** «Динамический баланс»: the generation whose deck left Party Politics out — its vote rides the mandate (`DynamicBalance.ts`). */
-  partyPoliticsDeferred?: number;
   /** Campaign HOLDINGS of the bot's portfolio (dividend only). Absent = none (an ordinary game, mission 1, an older save). */
   holdings?: Array<MarsBotCorpId>;
   /** Failed Actions taken this game. Absent = an older save (reads 0). */
@@ -183,12 +181,6 @@ export class AutomaState {
    * A mandate of an earlier generation is stale and is redrawn.
    */
   public lobbyMandate: LobbyMandate | undefined = undefined;
-  /**
-   * «Динамический баланс» (`server/automa/DynamicBalance.ts`): the generation whose action deck left Party
-   * Politics out. Its vote is not lost — the mandate of that generation carries it (`AutomaLobbying.mandateOf`),
-   * so the lobby's free delegate is spent every generation as before.
-   */
-  public partyPoliticsDeferred: number | undefined = undefined;
   /**
    * The HOLDINGS of the bot's campaign portfolio (docs/claude/prompts/
    * marsbot-portfolio-dividends.md): corporations the bot acquired with the
@@ -298,9 +290,6 @@ export class AutomaState {
     if (this.lobbyMandate !== undefined) {
       result.lobbyMandate = {...this.lobbyMandate};
     }
-    if (this.partyPoliticsDeferred !== undefined) {
-      result.partyPoliticsDeferred = this.partyPoliticsDeferred;
-    }
     if (this.holdings.length > 0) {
       result.holdings = [...this.holdings];
     }
@@ -354,7 +343,6 @@ export class AutomaState {
     state.corpRoundStartGeneration = d.corpRoundStartGeneration ?? 0;
     state.corpCubesTriggered = new Set(d.corpCubesTriggered ?? []);
     state.lobbyMandate = d.lobbyMandate !== undefined ? {...d.lobbyMandate} : undefined;
-    state.partyPoliticsDeferred = d.partyPoliticsDeferred;
     state.holdings = [...(d.holdings ?? [])];
     state.failedActions = d.failedActions ?? 0;
     state.secondShift = d.secondShift !== undefined ? {...d.secondShift} : undefined;

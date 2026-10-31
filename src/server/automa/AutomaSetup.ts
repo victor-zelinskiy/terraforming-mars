@@ -9,8 +9,6 @@ import {GameOptions} from '../game/GameOptions';
 import {IGame} from '../IGame';
 import {Player} from '../Player';
 import {AutomaColonies} from './AutomaColonies';
-import {composeBonusSide} from './DynamicBalance';
-import {dynamicBalanceOn, preludeProjectCards} from '../../common/automa/DynamicBalance';
 import {AutomaState, AutomaActionCard} from './AutomaState';
 import {marsBotMapProfile} from './boards/MarsBotMapProfile';
 
@@ -156,9 +154,9 @@ export class AutomaSetup {
     }
 
     let projectCount = 3;
-    // Instead of prelude cards: the rulebook's three now — or, under «Динамический баланс», the first of three
-    // spread one per generation (`common/automa/DynamicBalance.ts`).
-    projectCount += preludeProjectCards(1, options.preludeExtension, dynamicBalanceOn(options.automa));
+    if (options.preludeExtension) {
+      projectCount += 3; // Instead of prelude cards.
+    }
     if (options.automa.difficulty === 'brutal') {
       projectCount += 1;
     }
@@ -168,8 +166,10 @@ export class AutomaSetup {
     if (topBonus === undefined) {
       throw new Error('Empty MarsBot bonus deck during setup');
     }
-    // The bonus side — under «Динамический баланс» the 1st generation takes only part of it (`DynamicBalance.ts`).
-    actionDeck.push(...composeBonusSide(game, state, topBonus, 1));
+    actionDeck.push(topBonus);
+    for (const recurring of state.recurringBonusCards) {
+      actionDeck.push({kind: 'bonus', id: recurring});
+    }
     inplaceShuffle(actionDeck, game.rng);
     state.actionDeck = actionDeck;
     return state;

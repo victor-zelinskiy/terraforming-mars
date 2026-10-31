@@ -27,7 +27,24 @@ The cap is a LADDER of five generation bands (the owner, 2026-10-29 — `SECOND_
 
 Why: before the rule the bot passed LAST in 100 / 100 / 96 / 68 % of the 1st–4th generations and FIRST in 32–44 % of the 5th–6th, 75–90 % of the 7th–8th, 91 % of the 9th — an extra card early only widened a lead it already had. Brutal stays at 4 because its +1 VP per played card compounds with every extra card. (The first ladder, 2026-10-28: Easy 0/1/1 · Normal 1/1/2 · Hard 2/3/4 · Brutal 3/4/4 over 1–6 / 7–9 / 10+.)
 
-## The early half — the BONUS side of the deck fills gradually (2026-10-29)
+## ⛔ THE EARLY HALF IS REMOVED (the owner, 2026-10-31)
+
+> «Давай полностью уберём замедления бота в начале игры — бонусные карты и проектные как было раньше по правилам Automa: из-за того, что бот замедляется в начале, он перестал выхватывать достижения, и это сломало баланс. Ускорения в лейте оставляем.»
+
+The switch is the LATE half alone again — «ВТОРАЯ СМЕНА» above; the bot's deck is the rulebook's from the 1st generation on (3 projects + 3 «instead of preludes» in the 1st, the whole bonus side every generation). Removed: `common/automa/DynamicBalance.ts` and `server/automa/DynamicBalance.ts` (the bonus-side ladder, the prelude spread), Party Politics' deferral mark (`AutomaState.partyPoliticsDeferred`) and the lobbying mandate's `carries` — the five shared files (`AutomaSetup`, `AutomaResearch`, `AutomaLobbying`, `LobbyMandate`, `AutomaState`) are byte-identical to before 639fb609ec. An old save carrying either field deserializes clean (the readers ignore it). The creator's note no longer says «starts slower».
+
+Why — the milestones (`%TEMP%\divledger\milestones.js` over the saves, a milestone counted only by the «claimed … milestone» line; a bot landing on a milestone icon with three taken is a Failed Action and was counted apart):
+
+| Games | Early half | Bot milestones / game | Bot's failed milestone attempts | When the bot claimed |
+| --- | --- | --- | --- | --- |
+| 25 Redux Hard, before the switch | none | 0.84 | 49 | gen 3–6 |
+| «Cold Carbon Mass», 4 missions | bonus side 1 / 2 / 3 | 0.75 | 9 | gen 4–5 |
+| «Binary Oxygen Surge», 4 missions | bonus side 0 / 1 / 2 / 3 | 0.50 | 10 | gen 5–6 |
+| «Volatile Pressure Stream», 4 missions (`tm-real-games/spread`) | bonus 0 / 1 / 2 / 3 + projects 4 / 4 / 4 | 0.50 | 11 | gen 3, 6 |
+
+The milestone race is decided in the 2nd–4th generations (the players took 10 of 12 there in each slowed campaign); a bot that reaches its milestone icons a generation later lands on them with three already claimed. The sections below are the history of the early half, kept for the reasoning; none of it is in the code.
+
+## (removed 2026-10-31) The early half — the BONUS side of the deck fills gradually (2026-10-29)
 
 > With the switch on, the 1st generation's action deck takes NOTHING of its BONUS side — the top card of the bonus deck plus the recurring cards — and the 2nd / 3rd / 4th at most 1 / 2 / 3 of its cards, chosen by a shuffle; from the 5th the whole side. And with the Prelude expansion the three project cards the rulebook deals «instead of prelude cards» in the 1st generation come ONE PER GENERATION over the 1st–3rd — 4 / 4 / 4 instead of 6 / 3 / 3. No other project card is cut.
 
@@ -41,7 +58,7 @@ Measured (25 Redux Hard games before the rule): the bot made 9.3 / 7.3 / 7.4 tur
 
 **A stretch to 0 / 1 / 1 / 2 / 3 — shipped and ROLLED BACK the same day (2026-10-30).** What follows is the reading it was built on; its conclusion was wrong. The owner asked for the PROJECT side (cut the 1st generation by 2 and the 2nd by 1); the stretch was the agent's substitution, argued from a corpus correlation («a project turn ≈ 0–1 VP, a bonus-side turn +1.5–3»). The mechanism says otherwise: the bot's project count is FIXED per generation (the «6 vs 7» spread was noise), the bonus side gives the bot almost no points of its own (Government Intervention raises a scale with NO TR; Party Politics keeps its vote; Meteor Shower / Invasive Species act on the PLAYER), and the bot's early points come from its project cards' TAGS landing on the tracks' printed «+3 TR» cells. The owner's direction replaced it — see § The prelude cards come one per generation. The original reading: The first campaign under 0 / 1 / 2 / 3: «Binary Oxygen Surge» (`C:\Projects\Mods\tm-real-games\ladder0`, 4 missions, TWO players + bot, Hard, Redux + Venus + colonies + prelude; the bot played 6 project / 0 bonus turns in every 1st generation). The bot's lead over the best player on the TABLE — the campaign's title points subtracted, they are 15 a mission for the bot's «governor» against 10 / 5 for the players and open the 2nd–4th missions at +5 / +15 / +20 before a card is played — by generation: Tharsis 0 / +14 / +19 / +23 / +21 / +36 / +52 → a three-way tie at 164; Hellas −6 / +6 / +1 / +2 / +11 / +31 / +22 → +23; Elysium −11 / −6 / −2 / +13 / +9 / +14 / 0 → +15; Utopia +8 / +2 / +7 / +14 / +12 / +13 / +12 → −18 on the table (the titles made the final +7). Mean after the 1st–4th: −2 / +4 / +6 / +13 against the old corpus's +2 / +8 / +13 / +17 — the 1st generation no longer moves the lead (the bot is behind after it in two missions of four), the 4th (+7 a generation, +15 on Elysium) and the 5th–6th do. The owner's first idea was to withhold PROJECT cards in the 1st–2nd (2 / 1); the corpus puts a project turn's marginal value in those generations at ≈ 0–1 VP (6 vs 7 project turns in the 1st: +4.4 vs +4.7; 3 vs 4 in the 2nd: +5.2 vs +4.3) against a bonus-side turn's +1.5–3, and the cut would have cost the bot a third of its 1st-generation presence for ≈ −1 VP — so the bonus ladder is stretched instead: the 3rd generation keeps one card, the 4th two, the 5th three, the 6th all (expected ≈ −2 VP of lead in each of the 3rd–5th). The campaign's title points: the owner, 2026-10-30 — «титулы не трогай». Scripts: `pergame.js` (turns and lead by generation per game), `projval.js` (lead growth by project / bonus turns), `final.js` (win rate and margins) in `%TEMP%\divledger`.
 
-## The prelude cards come one per generation (2026-10-30)
+## (removed 2026-10-31) The prelude cards come one per generation (2026-10-30)
 
 > With the switch on and the Prelude expansion, the three project cards the rulebook deals the bot «instead of prelude cards» in the 1st generation come ONE PER GENERATION over the 1st–3rd: the deck takes 4 / 4 / 4 projects instead of 6 / 3 / 3 — the same twelve by the end of the 3rd, the variety of the random tags kept, only the timing moves.
 

@@ -173,7 +173,7 @@ import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirt
 type FriendPickRow = {kind: 'friend', name: string, seated: boolean} | {kind: 'type'};
 
 /** «Динамический баланс» on the editor's note — HIDDEN balance: the rule is named, its numbers never are (the owner, 2026-10-28/29); every difficulty has it. */
-const SECOND_SHIFT_DESC_ON = 'Dynamic balance: MarsBot starts slower and stays in the round longer when a long game drags on. How much depends on the difficulty.';
+const SECOND_SHIFT_DESC_ON = 'Dynamic balance: MarsBot stays in the round longer when a long game drags on. How much depends on the difficulty.';
 
 export default defineComponent({
   name: 'ConsoleParticipantEditor',

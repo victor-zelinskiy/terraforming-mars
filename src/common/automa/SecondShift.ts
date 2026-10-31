@@ -1,9 +1,12 @@
 import {DifficultyLevel} from './AutomaTypes';
 
 /**
- * «ВТОРАЯ СМЕНА» — the LATE half of MarsBot's «ДИНАМИЧЕСКИЙ БАЛАНС» (the owner,
- * 2026-10-28; the early half — a base deck that fills gradually — is
- * `common/automa/DynamicBalance.ts`; docs/claude/marsbot-second-shift.md).
+ * «ВТОРАЯ СМЕНА» — MarsBot's «ДИНАМИЧЕСКИЙ БАЛАНС» (the owner, 2026-10-28;
+ * docs/claude/marsbot-second-shift.md). The switch once had an EARLY half too —
+ * a deck that filled gradually in the first generations — and the owner removed
+ * it on 2026-10-31: a slower start cost the bot its milestones (0.5 a game
+ * against 0.84 before it) and broke the balance; the early deck is the
+ * rulebook's again, only this late pace stays.
  *
  * Measured on the owner's 25 finished Turmoil Redux games: from the 7th
  * generation on the bot takes a third of the best human's actions and passes

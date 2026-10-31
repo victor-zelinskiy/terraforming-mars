@@ -6,8 +6,6 @@ import {IProjectCard} from '../cards/IProjectCard';
 import {AutomaCorporations} from './corps/AutomaCorporations';
 import {AutomaActionCard, AutomaState} from './AutomaState';
 import {marsBotOf} from './AutomaUtil';
-import {composeBonusSide} from './DynamicBalance';
-import {dynamicBalanceOn, preludeProjectCards} from '../../common/automa/DynamicBalance';
 
 /**
  * MarsBot's Research Phase (generation 2+).
@@ -97,8 +95,12 @@ export class AutomaResearch {
     const actionDeck = [...projectEntries];
     AutomaResearch.reshuffleBonusDeckIfEmpty(game, automa);
     const topBonus = automa.bonusDeck.shift();
-    // The bonus side — under «Динамический баланс» an early generation takes only part of it (`DynamicBalance.ts`).
-    actionDeck.push(...composeBonusSide(game, automa, topBonus, game.generation));
+    if (topBonus !== undefined) {
+      actionDeck.push(topBonus);
+    }
+    for (const recurring of automa.recurringBonusCards) {
+      actionDeck.push({kind: 'bonus', id: recurring});
+    }
     inplaceShuffle(actionDeck, game.rng);
     automa.actionDeck = actionDeck;
   }
@@ -121,7 +123,6 @@ export class AutomaResearch {
     if (AutomaResearch.trySpendFloaters(game)) {
       projectCount++; // Normal: a 4th card; Brutal: a 5th.
     }
-    projectCount += AutomaResearch.preludeShare(game);
     const projectEntries: Array<AutomaActionCard> =
       game.projectDeck.drawN(game, projectCount).map((card) => ({kind: 'project' as const, name: card.name}));
     AutomaResearch.finishActionDeck(game, projectEntries);
@@ -162,24 +163,6 @@ export class AutomaResearch {
         game.projectDeck.discard(discarded);
       }
     }
-    // A spread prelude card is never drafted — the rulebook deals the bot's prelude cards off the deck.
-    for (let i = 0; i < AutomaResearch.preludeShare(game); i++) {
-      const extra = game.projectDeck.draw(game);
-      if (extra !== undefined) {
-        drafted.push(extra);
-      }
-    }
     AutomaResearch.finishActionDeck(game, drafted.map((card) => ({kind: 'project' as const, name: card.name})));
-  }
-
-  /**
-   * «Динамический баланс»: the share of the three «instead of preludes» project cards THIS generation's deck takes
-   * (one per generation over the 1st–3rd; the 1st generation's is dealt by `AutomaSetup`). Off: none after the 1st.
-   */
-  private static preludeShare(game: IGame): number {
-    if (game.generation <= 1) {
-      return 0;
-    }
-    return preludeProjectCards(game.generation, game.gameOptions.preludeExtension, dynamicBalanceOn(game.gameOptions.automa));
   }
 }
