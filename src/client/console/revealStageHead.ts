@@ -100,6 +100,8 @@ const BONUS_ICON: Partial<Record<SpaceBonus, string>> = {
   [SpaceBonus.SCIENCE]: 'science',
   [SpaceBonus.DELEGATE]: 'delegate',
   [SpaceBonus.COLONY]: 'colony-tile',
+  // Vastitas Borealis' North Pole — the board's own premium plate (thermometer · −4), never a bare thermometer.
+  [SpaceBonus.TEMPERATURE_4MC]: 'bonus-temperature-4mc',
 };
 
 export function cellBonusIcons(bonuses: ReadonlyArray<SpaceBonus>): Array<string> {

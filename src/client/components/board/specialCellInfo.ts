@@ -220,6 +220,68 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
     description: 'Alba Mons is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
     placement: 'left',
   },
+  // ── Vastitas Borealis Nova — named locations ───────────────────────
+  // The six legacy SVG text labels (Board.vue) replaced by hover markers, plus
+  // the two cells whose printed bonus the table decides: the North Pole and the
+  // Viking landing sites. Space IDs from the BoardBuilder row layout
+  // [5,6,7,8,9,8,7,6,5], idOffset=3: y=0 → 03–07 | y=1 → 08–13 | y=3 → 21–28 |
+  //   y=4 → 29–37 | y=6 → 46–52 | y=8 → 59–63.
+  {
+    id: 'vastitas_nova_hecates_tholus',
+    boardName: BoardName.VASTITAS_BOREALIS_NOVA,
+    spaceId: '05', // y=0, volcanic(STEEL)
+    title: 'Hecates Tholus',
+    description: 'Hecates Tholus is a volcano in the Elysium region. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'bottom',
+  },
+  {
+    id: 'vastitas_nova_elysium_mons',
+    boardName: BoardName.VASTITAS_BOREALIS_NOVA,
+    spaceId: '13', // y=1, volcanic(DRAW_CARD)
+    title: 'Elysium Mons',
+    description: 'Elysium Mons is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'left',
+  },
+  {
+    id: 'vastitas_nova_alba_mons',
+    boardName: BoardName.VASTITAS_BOREALIS_NOVA,
+    spaceId: '21', // y=3, volcanic(STEEL,STEEL)
+    title: 'Alba Mons',
+    description: 'Alba Mons is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'right',
+  },
+  {
+    id: 'vastitas_nova_viking_2',
+    boardName: BoardName.VASTITAS_BOREALIS_NOVA,
+    spaceId: '28', // y=3, land(DELEGATE) — last space in row
+    title: 'Viking 2 landing site',
+    description: 'Landing site of the Viking 2 lander in Utopia Planitia. Placing a tile here lets you add a delegate from your reserve for free (ignored without Turmoil).',
+    placement: 'left',
+  },
+  {
+    id: 'vastitas_nova_north_pole',
+    boardName: BoardName.VASTITAS_BOREALIS_NOVA,
+    spaceId: '33', // y=4, land(TEMPERATURE_4MC) — fixed, not shuffled
+    title: 'North Pole',
+    description: 'Water ice under a layer of frozen carbon dioxide. Placing a tile here costs 4 M€ and raises the temperature 1 step.',
+    placement: 'top',
+  },
+  {
+    id: 'vastitas_nova_uranius_tholus',
+    boardName: BoardName.VASTITAS_BOREALIS_NOVA,
+    spaceId: '46', // y=6, volcanic(TITANIUM)
+    title: 'Uranius Tholus',
+    description: 'Uranius Tholus is a volcano in the Tharsis region. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'right',
+  },
+  {
+    id: 'vastitas_nova_viking_1',
+    boardName: BoardName.VASTITAS_BOREALIS_NOVA,
+    spaceId: '59', // y=8, land(DELEGATE) — first space in row
+    title: 'Viking 1 landing site',
+    description: 'Landing site of the Viking 1 lander in Chryse Planitia. Placing a tile here lets you add a delegate from your reserve for free (ignored without Turmoil).',
+    placement: 'top',
+  },
   // ── Terra Cimmeria — named locations (same volcanoes as the Nova map) ─
   {
     id: 'terra_cimmeria_albor_tholus',

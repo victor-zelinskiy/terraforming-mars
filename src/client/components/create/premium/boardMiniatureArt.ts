@@ -1,4 +1,5 @@
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
+import {DELEGATE_PATH} from '@/client/components/playerToken/delegateGlyph';
 
 /**
  * Shared art vocabulary of the REAL board miniature (PremiumMapFingerprint):
@@ -52,7 +53,8 @@ export const SPACE_BONUS_GLYPHS: Record<SpaceBonus, string> = {
   [SpaceBonus._TEMPERATURE_3MC]: '', // retired (merged into TEMPERATURE_4MC)
   [SpaceBonus._RESTRICTED]: stroke('M5 5 L19 19 M19 5 L5 19'),
   [SpaceBonus.ASTEROID]: stroke('M8 4 L16 5 L20 11 L17 19 L9 20 L4 13 Z'),
-  [SpaceBonus.DELEGATE]: '<circle cx="12" cy="8" r="3.4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5.5 20 C6.5 15.5 9 13.5 12 13.5 C15 13.5 17.5 15.5 18.5 20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
+  // The Parliament's ONE delegate silhouette (`delegateGlyph.ts`), fitted into the 24-unit glyph box.
+  [SpaceBonus.DELEGATE]: `<path transform="translate(5.5 3.5) scale(0.325)" d="${DELEGATE_PATH}" fill="currentColor"/>`,
   [SpaceBonus.COLONY]: '<circle cx="12" cy="12" r="7.5" stroke="currentColor" stroke-width="2.2" fill="none"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none"/>',
   [SpaceBonus.TEMPERATURE_4MC]: stroke('M12 4 V15 M12 4 A2.2 2.2 0 0 1 14.2 6.2 V14 A4 4 0 1 1 9.8 14 V6.2 A2.2 2.2 0 0 1 12 4 Z', 1.8),
 };

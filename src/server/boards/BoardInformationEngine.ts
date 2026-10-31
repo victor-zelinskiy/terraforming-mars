@@ -27,6 +27,8 @@ import * as constants from '../../common/constants';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {GREENERY_TILE_TR_SOURCE_NAME, REDUX_GREENERY_TILE_TR} from '../../common/parliament/winnerReward';
 import {GREENS_MEGACREDITS_PER_TR} from '../parliament/parties/PartyEffects';
+import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
+import {divertsTerraforming} from '../parliament/divertedTerraformingGate';
 import {
   BoardCellInfo,
   BoardCellStatus,
@@ -110,7 +112,7 @@ export function boardCellInfo(player: IPlayer, space: Space): BoardCellInfo {
   } else if (isPlaceable(space)) {
     // An empty placeable cell: what placing ANY tile here would grant (PASSIVE —
     // the popover frames these as "При размещении здесь", not "Вы получите").
-    facts.push(...printedBonusFacts(space, false));
+    facts.push(...printedBonusFacts(player, space, false));
     const ocean = oceanAdjacencyFact(player, space);
     if (ocean !== undefined) {
       facts.push(ocean);
@@ -250,7 +252,7 @@ export function boardCellPreview(
     facts.push(...placementCostFacts(player, space, ctx, options?.canAffordOptions));
   }
   if (ctx.grantsPlacementBonus) {
-    facts.push(...printedBonusFacts(space, ctx.bonusesCovered, ctx.printedBonusMultiplier));
+    facts.push(...printedBonusFacts(player, space, ctx.bonusesCovered, ctx.printedBonusMultiplier));
     // A REMOVE-AND-REPLACE (Kaguya Tech): what the doomed tile uncovers is collected at once — said in one line
     // (the gain itself is the printed bonus above) so the see-through and the dossier agree (the «ПРОСВЕТ» law, TR47).
     if (cleared) {
@@ -553,7 +555,7 @@ function specialZoneFacts(
 // Printed placement bonuses
 // ---------------------------------------------------------------------------
 
-function printedBonusFacts(space: Space, covering: boolean, multiplier = 1): Array<BoardFact> {
+function printedBonusFacts(player: IPlayer, space: Space, covering: boolean, multiplier = 1): Array<BoardFact> {
   if (covering) {
     // Only worth a line when the cell actually prints a bonus the cover
     // suppresses — «no bonus» on a bonus-less cell is a non-event. A cover
@@ -568,6 +570,13 @@ function printedBonusFacts(space: Space, covering: boolean, multiplier = 1): Arr
   }
   const out: Array<BoardFact> = [];
   for (const [bonus, printed] of countBonuses(space.bonus)) {
+    // A bonus whose payout depends on the TABLE (Vastitas Borealis' North Pole and Viking hexes) says what it
+    // will really do for this player now — never a promise the commit refuses (the «no silent loss» law).
+    const contextual = contextualBonusFacts(player, bonus, printed * multiplier);
+    if (contextual !== undefined) {
+      out.push(...contextual);
+      continue;
+    }
     // A MULTIPLIED printed bonus (`AddTileOptions.printedBonusMultiplier` — the commit's own count) states the
     // honest sum AND says why: the source that doubles it rides its own fact (the card's `placementPreview`).
     const d = describeSpaceBonus(bonus, printed * multiplier);
@@ -586,6 +595,70 @@ function printedBonusFacts(space: Space, covering: boolean, multiplier = 1): Arr
     });
   }
   return out;
+}
+
+/**
+ * The two printed bonuses whose outcome the TABLE decides — read off the same rules the commit runs
+ * (`Game.grantSpaceBonus`), never re-implemented:
+ *  · TEMPERATURE_4MC (Vastitas Borealis' North Pole): pays 4 M€ (the cost line) for one temperature step — the
+ *    step's own chain (°C, TR, the heat / ocean bonus steps) is the shared `temperatureRaiseFacts`; with the
+ *    scale already full (and no law taking the step) the bonus does nothing, and says so;
+ *  · DELEGATE (Viking 1 / 2): under Turmoil Redux the delegate goes onto a resolution of the voting area — the
+ *    Parliament's own grant, whose refusal reasons (`PlaceDelegatesOnResolution.previewSkip`) name the loss;
+ *    classic Turmoil sends it to a party; with neither, the printed rule says «ignore».
+ * `undefined` = the bonus has no table-dependent reading — the generic description applies.
+ */
+function contextualBonusFacts(player: IPlayer, bonus: SpaceBonus, count: number): Array<BoardFact> | undefined {
+  const game = player.game;
+  const source = {type: 'board-cell' as const, label: 'Cell bonus'};
+  if (bonus === SpaceBonus.TEMPERATURE_4MC) {
+    if (divertsTerraforming(player)) {
+      return undefined; // A standing law takes the step — its own fact family speaks for it.
+    }
+    if (game.getTemperature() >= constants.MAX_TEMPERATURE) {
+      return [{
+        ...rule('printed-temperature-maxed', 'printed-placement-bonus', 'Raise temperature',
+          'The temperature is already at its maximum — this cell bonus does nothing.', 'neutral'),
+        source,
+      }];
+    }
+    return [{
+      id: 'printed-temperature',
+      category: 'printed-placement-bonus',
+      timing: 'immediate',
+      severity: 'info',
+      recipient: {kind: 'current-player'},
+      title: 'Raise temperature',
+      description: 'Pay M€ to raise temperature one step (+1 TR)',
+      source,
+    }, ...temperatureRaiseFacts(player, 'printed-temperature', 1)];
+  }
+  if (bonus === SpaceBonus.DELEGATE) {
+    if (game.parliament !== undefined) {
+      const grant = new PlaceDelegatesOnResolution(player, count, {kind: 'system'});
+      const skip = grant.previewSkip();
+      if (skip !== undefined) {
+        return [{...rule('printed-delegate-skipped', 'printed-placement-bonus', 'Add a delegate to a resolution', skip.reason, 'neutral'), source}];
+      }
+      return [{
+        id: 'printed-delegate',
+        category: 'printed-placement-bonus',
+        timing: 'immediate',
+        severity: 'info',
+        recipient: {kind: 'current-player'},
+        title: 'Add a delegate to a resolution',
+        description: 'Free, from your reserve — you choose the resolution',
+        delta: {icon: 'delegate', amount: count, direction: 'gain'},
+        source,
+      }];
+    }
+    if (game.turmoil === undefined) {
+      return [{...rule('printed-delegate-ignored', 'printed-placement-bonus', 'Send a delegate',
+        'Without Turmoil this cell bonus is ignored.', 'neutral'), source}];
+    }
+    return undefined;
+  }
+  return undefined;
 }
 
 type BonusDescription = {title: string, delta?: BoardFactDelta, deferred: boolean, description?: string};
@@ -2003,7 +2076,7 @@ function moveDestinationPreview(
     const ctx = previewContext(kind, arrives, false, covering, to.tile !== undefined, 'tile');
     const out: Array<BoardFact> = [];
     out.push(...placementCostFacts(player, to, ctx, options?.canAffordOptions));
-    out.push(...printedBonusFacts(to, ctx.bonusesCovered));
+    out.push(...printedBonusFacts(player, to, ctx.bonusesCovered));
     if (board.onMarsGrid(to)) {
       // With the source lifted, only the OTHER oceans pay — a destination beside the source never counts it.
       const ocean = oceanAdjacencyFact(player, to);

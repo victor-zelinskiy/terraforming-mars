@@ -1,5 +1,6 @@
 import {Space} from './Space';
 import {CanAffordOptions, IPlayer} from '../IPlayer';
+import type {IGame} from '../IGame';
 import {PlayerId, SpaceId} from '../../common/Types';
 import {SpaceType} from '../../common/boards/SpaceType';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
@@ -162,9 +163,14 @@ export abstract class Board {
   /**
    * Update `costs` with any costs for this `space`.
    *
+   * `game` — the table the cost is asked against, when the caller has it: a printed bonus that CANNOT happen now
+   * (Vastitas Borealis' temperature step with the scale full, Hellas' ocean with all nine down) charges nothing —
+   * `Game.grantSpaceBonus` skips it — so it may not make the cell unaffordable either. Without a game the cost is
+   * the printed one (the conservative reading).
+   *
    * @returns `true` when costs has changed, `false` when it has not.
    */
-  protected spaceCosts(_space: Space): SpaceCosts {
+  protected spaceCosts(_space: Space, _game?: IGame): SpaceCosts {
     return {megacredits: 0, production: 0, tr: {}};
   }
 
@@ -179,8 +185,8 @@ export abstract class Board {
     space: Space,
     aresExtension: boolean,
     multiplier: number | undefined,
-    options?: {subjectToHazardAdjacency?: boolean}): SpaceCosts {
-    const costs: SpaceCosts = this.spaceCosts(space);
+    options?: {subjectToHazardAdjacency?: boolean, game?: IGame}): SpaceCosts {
+    const costs: SpaceCosts = this.spaceCosts(space, options?.game);
     if (multiplier !== undefined) {
       costs.megacredits *= multiplier;
       for (const key of TR_SOURCES) {
@@ -254,6 +260,7 @@ export abstract class Board {
   public canAfford(player: IPlayer, space: Space, canAffordOptions?: CanAffordOptions, subjectToHazardAdjacency: boolean = true) {
     const additionalCosts = this.computeAdditionalCosts(space, player.game.gameOptions.aresExtension, canAffordOptions?.bonusMultiplier, {
       subjectToHazardAdjacency: subjectToHazardAdjacency && AresHandler.subjectToHazardAdjacency(player, undefined),
+      game: player.game,
     });
     if (additionalCosts.megacredits > 0) {
       const plan: CanAffordOptions = canAffordOptions !== undefined ? {...canAffordOptions} : {cost: 0, tr: {}};

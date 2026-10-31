@@ -360,6 +360,7 @@ export class MarsBoard extends Board {
       player.game.gameOptions.aresExtension && !AresHandler.placementCostsWaived(player.game);
     const costs = this.computeAdditionalCosts(space, aresCostsApply, canAffordOptions?.bonusMultiplier, {
       subjectToHazardAdjacency: AresHandler.subjectToHazardAdjacency(player, options?.tileType),
+      game: player.game,
     });
     const affordable = placesTile ?
       this.canAfford(player, space, canAffordOptions) :
@@ -585,7 +586,7 @@ export class MarsBoard extends Board {
     const gap = (cost: number) => player.affordabilityDeficitFor(
       {...(canAffordOptions ?? {}), cost: cost + (canAffordOptions?.cost ?? 0), tr: {}});
     if (reason === 'cannot-afford') {
-      const costs = this.computeAdditionalCosts(space, player.game.gameOptions.aresExtension, canAffordOptions?.bonusMultiplier);
+      const costs = this.computeAdditionalCosts(space, player.game.gameOptions.aresExtension, canAffordOptions?.bonusMultiplier, {game: player.game});
       let cost = costs.megacredits;
       if (space.undergroundResources === 'place6mc') {
         cost -= 6;

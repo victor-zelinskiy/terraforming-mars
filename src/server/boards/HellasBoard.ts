@@ -7,6 +7,7 @@ import {BoardBuilder} from './BoardBuilder';
 import {Random} from '../../common/utils/Random';
 import {GameOptions} from '../game/GameOptions';
 import {MarsBoard} from './MarsBoard';
+import type {IGame} from '../IGame';
 
 export class HellasBoard extends MarsBoard {
   public static newInstance(gameOptions: GameOptions, rng: Random): HellasBoard {
@@ -42,9 +43,10 @@ export class HellasBoard extends MarsBoard {
     return new HellasBoard(spaces);
   }
 
-  public override spaceCosts(space: Space): SpaceCosts {
-    const costs = super.spaceCosts(space);
-    if (space.id === SpaceName.HELLAS_OCEAN_TILE) {
+  public override spaceCosts(space: Space, game?: IGame): SpaceCosts {
+    const costs = super.spaceCosts(space, game);
+    // With every ocean down the bonus places nothing and charges nothing (`Game.grantSpaceBonus`).
+    if (space.id === SpaceName.HELLAS_OCEAN_TILE && game?.canAddOcean() !== false) {
       costs.megacredits = HELLAS_BONUS_OCEAN_COST;
       costs.tr.oceans = 1;
     }

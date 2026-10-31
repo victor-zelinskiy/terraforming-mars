@@ -832,9 +832,18 @@
 	background-size: 16px;
 }
 
+// The Parliament's DELEGATE figure (Vastitas Borealis' Viking hexes) — the same
+// `delegate.svg` the card faces and the Redux Venus colony print. It is a
+// PORTRAIT figure (40 × 52): in the square 16 px slot its feet were cut off, so
+// the slot takes the figure's own height and rises by half the difference to
+// stay centred on the hex.
 .board-space-bonus--delegate {
 	background: url(./assets/misc/delegate.svg) no-repeat;
-	background-size: 16px;
+	background-size: 16px 21px;
+	height: 21px;
+	&.board-space-bonus-pos--only {
+		margin-top: 18px;
+	}
 }
 
 /*
