@@ -3152,6 +3152,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // RX24 Open IP Trade: the law ENACTED, blue opening generation 2 with four cards in hand and the action unspent.
   'parliament-openip-enacted' |
   'parliament-rdfunding-enacted' |
+  'parliament-rdfunding-reveal' |
   // RX28 Trade Industries: the law ENACTED, red opening generation 2 at influence 2 (the fleet costs 8) with titanium to pay.
   'parliament-tradeind-enacted' |
   'parliament-budget-vote' | 'parliament-budget-assembly' |

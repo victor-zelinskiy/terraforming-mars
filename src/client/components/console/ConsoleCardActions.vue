@@ -469,6 +469,7 @@ import {beginCardDeltaAdvance} from '@/client/console/hydroFlow/deltaAdvanceEntr
 import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
 import {setColonyFleetBerth} from '@/client/console/consoleColoniesModel';
 import {backVerbFor, isCommitted, WorkspacePhase, workspacePhaseOf} from '@/client/console/consoleWorkspaceFlow';
+import {reportSurfaceBeat} from '@/client/console/workspaceBeatStall';
 import {
   claimWorkspaceOutcome,
   markWorkspaceOutcomeBeatDone,
@@ -1310,6 +1311,16 @@ export default defineComponent({
     },
   },
   watch: {
+    /** THE BEAT STALL GUARD's report (`workspaceBeatStall.ts`): this workspace's phase is derived HERE and never written
+     *  to its stack frame, so the shell's 1 Hz guard reads it from the report. The repeat instance is not a workspace. */
+    'workspacePhase': {
+      immediate: true,
+      handler(phase: WorkspacePhase): void {
+        if (!this.repeat) {
+          reportSurfaceBeat('card-actions', phase);
+        }
+      },
+    },
     /** The rail half ended (every way out): a pending outcome that waited for the row's landing opens now. */
     railHalvesEnded(n: number): void {
       if (this.pendingAfterRail !== undefined && n > this.pendingAfterRail) {
@@ -1806,6 +1817,9 @@ export default defineComponent({
     this.scheduleDetailFit();
   },
   beforeUnmount() {
+    if (!this.repeat) {
+      reportSurfaceBeat('card-actions', undefined);
+    }
     // ⚠️ NOTHING here may write to this surface's OWN DOM. The hook fires
     // SYNCHRONOUSLY at the B press, while the leave transition keeps the
     // surface fully painted for the whole dismissal (Vue defers the node
@@ -2363,6 +2377,50 @@ export default defineComponent({
       claimWorkspaceOutcome('card-actions', chosenCard, ['deck-check'], nodeIndex);
     },
     /**
+     * THE OUTCOME OF A REPEATED ACTION — ONE function for every door that copies an action in this workspace (a
+     * card's: Viron; a law's: R&D Funding). The outcome belongs to the CHOSEN action, and only ITS branch preview
+     * knows what arrives (the source promises nothing card-shaped). Two flavours, and the CLAIM and the STAGE are
+     * decided TOGETHER so they can never disagree:
+     *  · a deck-check (SearchForLife / AsteroidDeflection) → THIS Action Center's in-frame reveal phase, the composer
+     *    re-pointed at the chosen action (`beginRepeatReveal`) — exactly like a direct activation;
+     *  · cards (a drawing action, a claimed Hydronetwork stage reward) → the PENDING stage, which holds the geometry
+     *    and puts the teleport target in the DOM before the batch can land, scope 'chain' because the server
+     *    attributes the copied effects to the card that RAN.
+     * The two doors once each wrote their own half: the law's claimed a deck-check while standing in the draw-only
+     * pending beat, so its verdict was claimed (the standalone presenter stayed away) and drawn nowhere — the
+     * workspace stood «executing», the pad absorbed, until a reload (the owner's field freeze, 2026-10-31). The
+     * adoption net deliberately excludes this host («card-actions» zones render only for their own outcomeFlow), so
+     * a claim/stage mismatch here is never a graceful degrade.
+     */
+    claimRepeatOutcome(repeat: ConsoleRepeatPickResult): void {
+      if (repeat.reveal === true) {
+        this.beginRepeatReveal(repeat.chosenCard, repeat.nodeIndex);
+        return;
+      }
+      const plan = branchOutcomeClaimPlan(this.previewMap.get(repeat.chosenCard), repeat.composed.branchIndex);
+      // A deck-check is the reveal door's alone — the pending stage can only present cards.
+      const kinds: Array<WorkspaceOutcomeKind> = plan.kinds.filter((k) => k !== 'deck-check');
+      let expectedCards = plan.expectedCards;
+      // …AND THE COPY'S OWN STAGE-REWARD CLAIM (Dutch Mountains composed INSIDE the repeat): what the claimed stage's
+      // resolution sends back must land in this stage exactly like on the direct path. The draft rides the bridge
+      // result, because the branch preview knows nothing about which stage was picked at runtime.
+      if (repeat.stageReward !== undefined) {
+        const sr = deltaRewardClaimPlan(repeat.stageReward);
+        if (sr !== undefined) {
+          for (const k of sr.kinds) {
+            if (k !== 'deck-check' && !kinds.includes(k)) {
+              kinds.push(k);
+            }
+          }
+          expectedCards += sr.expectedCards;
+        }
+      }
+      if (kinds.length > 0) {
+        claimWorkspaceOutcome('card-actions', repeat.chosenCard, kinds, repeat.nodeIndex, expectedCards, 'chain');
+        this.outcomeFlow = {kind: 'pending'};
+      }
+    },
+    /**
      * «ВЫБРАТЬ КОЛОНИЮ» — the second door into the ONE trade.
      *
      * Nothing is submitted: the colony workspace stands INSIDE this one as a
@@ -2586,6 +2644,16 @@ export default defineComponent({
             stageScope = plan.scope;
           }
         }
+        // A CLAIMED STAGE 7 THAT COPIES A DECK-CHECK (Dutch Mountains → Search For Life / Asteroid Deflection): the
+        // verdict is the COPY's (`lastReveal.action` names the card that RAN), and the pending stage can only present
+        // cards — so it takes the reveal door every repeat takes, never a deck-check claimed into the pending beat
+        // (the R&D Funding freeze of 2026-10-31, the same mismatch one door over).
+        const stageRepeat = payload.stageReward?.repeat;
+        if (branch?.reveal === undefined && kinds.includes('deck-check') && stageRepeat !== undefined) {
+          this.beginRepeatReveal(stageRepeat.chosenCard, stageRepeat.nodeIndex);
+          this.$emit('submit-batch', batch);
+          return;
+        }
         if (kinds.length > 0) {
           claimWorkspaceOutcome('card-actions', comp.cardName, kinds, comp.nodeIndex, expectedCards,
             stageScope ?? 'card');
@@ -2608,56 +2676,9 @@ export default defineComponent({
           // needs its slot to already exist when it mounts.
           this.outcomeFlow = {kind: 'pending'};
         }
-      } else if (payload.repeat.reveal !== true) {
-        // Viron repeating a DRAWING action («Центр ИИ», «Гильдия
-        // изобретателей»): the outcome belongs to the CHOSEN action, and only
-        // ITS branch preview knows what arrives — the source's own preview
-        // promises nothing card-shaped, which is why the direct-path claim
-        // above deliberately skips the repeat case. Same structural derivation
-        // (`branchOutcomeClaimPlan` off the chosen card's cached preview — the
-        // hydro stage-7 copy's exact precedent), scope 'chain' because the
-        // server attributes the copied effects to the card that RAN. The
-        // adoption net deliberately excludes this host («card-actions» zones
-        // render only for their own outcomeFlow), so a missing claim here is
-        // not a graceful degrade — it is the standalone modal over an open
-        // workspace, the very break the claim system exists to remove.
-        const plan = branchOutcomeClaimPlan(
-          this.previewMap.get(payload.repeat.chosenCard), payload.repeat.composed.branchIndex);
-        const kinds: Array<WorkspaceOutcomeKind> = [...plan.kinds];
-        let expectedCards = plan.expectedCards;
-        // …AND THE COPY'S OWN STAGE-REWARD CLAIM (Dutch Mountains composed
-        // INSIDE the repeat): what the claimed stage's resolution sends back —
-        // the stage-5 keep-pick batch, a nested repeat's draws — must land in
-        // this stage exactly like on the direct path (which unions
-        // `payload.stageReward` above). The draft rides the bridge result,
-        // because the branch preview knows nothing about which stage was
-        // picked at runtime.
-        if (payload.repeat.stageReward !== undefined) {
-          const sr = deltaRewardClaimPlan(payload.repeat.stageReward);
-          if (sr !== undefined) {
-            for (const k of sr.kinds) {
-              if (!kinds.includes(k)) {
-                kinds.push(k);
-              }
-            }
-            expectedCards += sr.expectedCards;
-          }
-        }
-        if (kinds.length > 0) {
-          claimWorkspaceOutcome('card-actions', payload.repeat.chosenCard, kinds,
-            payload.repeat.nodeIndex, expectedCards, 'chain');
-          // The PENDING stage opens now, exactly like the direct path: it
-          // holds the stage geometry and puts the teleport target in the DOM
-          // before the batch can land.
-          this.outcomeFlow = {kind: 'pending'};
-        }
-      }
-      // Viron repeating a REVEAL action (SearchForLife / AsteroidDeflection):
-      // reuse THIS Action Center's in-frame reveal phase — re-point the composer
-      // at the CHOSEN action + claim its reveal, so the outcome opens here after
-      // the submit (not the standalone overlay), exactly like a direct activation.
-      if (payload.repeat?.reveal === true) {
-        this.beginRepeatReveal(payload.repeat.chosenCard, payload.repeat.nodeIndex);
+      } else {
+        // Viron's repeat: the COPY's outcome, through the one function every repeat door shares.
+        this.claimRepeatOutcome(payload.repeat);
       }
       // AWAITING HANDOFF (surface motion): the batch is COMMITTED — the
       // composer deliberately HOLDS the stage (its CTA shows the in-flight
@@ -2696,11 +2717,10 @@ export default defineComponent({
       const branch = previewBranchByIndex(preview, payload.branchIndex);
       const exchange = branch?.optionInput?.type === 'card' ? (branch.optionInput as SelectCardModel).discardPrompt?.exchange : undefined;
       if (payload.repeat !== undefined) {
-        const plan = branchOutcomeClaimPlan(this.previewMap.get(payload.repeat.chosenCard), payload.repeat.composed.branchIndex);
-        if (plan.kinds.length > 0) {
-          claimWorkspaceOutcome('card-actions', payload.repeat.chosenCard, [...plan.kinds], payload.repeat.nodeIndex, plan.expectedCards, 'chain');
-          this.outcomeFlow = {kind: 'pending'};
-        }
+        // R&D Funding's repeat: the SAME function as Viron's door — a copied deck-check opens the verdict stage, a
+        // copied draw the pending one (the owner's field freeze of 2026-10-31: this door claimed a deck-check while
+        // standing in the draw-only pending beat — no verdict, the pad absorbed until a reload).
+        this.claimRepeatOutcome(payload.repeat);
       } else if (exchange?.draw !== undefined && exchange.draw > 0 && answeredCards.length > 0) {
         claimWorkspaceOutcome('card-actions', comp.cardName, ['draw'], comp.nodeIndex, exchange.draw * answeredCards.length, 'card');
         this.outcomeFlow = {kind: 'pending'};

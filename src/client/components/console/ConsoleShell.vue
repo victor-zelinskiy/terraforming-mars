@@ -1622,7 +1622,7 @@ import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 import {SpaceId} from '@/common/Types';
 
 import ConsoleBoardBinder from '@/client/components/console/ConsoleBoardBinder.vue';
-import {submitInput, submitBatch as transportSubmitBatch, cancelPlacement, waitForUpdate} from '@/client/console/transport/gameTransport';
+import {submitInput, submitBatch as transportSubmitBatch, cancelPlacement, waitForUpdate, transportRequestInProgress} from '@/client/console/transport/gameTransport';
 import {serverAheadOfView} from '@/client/components/realtime/viewFreshness';
 import {registerTruthWitness, resetPresentationLedger, settlePresentationDue} from '@/client/console/presentationLedger';
 import {InputResponse} from '@/common/inputs/InputResponse';
@@ -1636,8 +1636,9 @@ import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnRevi
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
 import {openBotTurnReviewByKey, skipBotTurnPresentation, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
 import {acquireForegroundLease, isMandatoryPromptsHeld, isMandatoryPromptsHeldByScreen, registerRevealParkSupplier} from '@/client/components/presentation/presentationFlow';
-import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
-import {notificationState, notificationFeedReadForDecision, acknowledgeFlowHoldingCards, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
+import {activeAnimationHoldLabels, blockingAnimationHoldCount, isAnimationHoldActive} from '@/client/components/presentation/animationHold';
+import {BeatStallVerdict, isTransientBeat, resetBeatStall, tickBeatStall, transientSurfaceBeats} from '@/client/console/workspaceBeatStall';
+import {notificationState, notificationFeedReadForDecision, acknowledgeFlowHoldingCards, dismiss as dismissNotification, pushWarning} from '@/client/components/notifications/notificationState';
 import {beginNotifHold, cancelNotifHold, consumeNotifHoldRelease, resetNotifHold} from '@/client/console/consoleNotifHold';
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -2597,6 +2598,8 @@ export default defineComponent({
        *  surfaces (the scene yields) until the prompt changes; the two timers are the confirm and the heal's grace. */
       startStrandYield: false,
       startStrandTimer: undefined as number | undefined,
+      /** The BEAT STALL GUARD's 1 Hz sampler (`workspaceBeatStall.ts`). */
+      beatStallTimer: undefined as number | undefined,
       startStrandPrompt: undefined as number | undefined,
       /** THE START SHADOW (`startDirector.ts`, phase 0): the confirm timer of a disagreement / a long hold. */
       startShadowTimer: undefined as number | undefined,
@@ -21237,12 +21240,12 @@ export default defineComponent({
      * not a mechanism — every ordinary ending still routes through
      * `concludeWorkspaceFlow`; this only ever runs after the escalation grace.
      */
-    forceRecoverStuckWorkspace(kind: WorkspaceFrameKind): void {
+    forceRecoverStuckWorkspace(kind: WorkspaceFrameKind, why?: string): void {
       const diag = this.owedConclusionSignal;
-      console.warn(
+      console.warn(why ?? (
         `[workspace-stall] «${kind}» reported finished but could not dismiss for ` +
         `${Math.round((Date.now() - this.owedConclusionSince) / 1000)}s with nothing served — ` +
-        `forcing teardown (signal: ${diag})`);
+        `forcing teardown (signal: ${diag})`));
       if (workspaceOutcomeState.host === kind) {
         releaseWorkspaceOutcome('workspace-stall-recovery', {force: true});
       }
@@ -21263,6 +21266,68 @@ export default defineComponent({
       // The board is watchable again → drain any board-beat park that was
       // waiting behind this very workspace.
       void this.$nextTick(() => this.drainBoardBeats());
+    },
+    /**
+     * THE BEAT STALL GUARD's sample (`workspaceBeatStall.ts`, 1 Hz). Judges the DEEPEST live frame only — a step
+     * nested inside a workspace, a parked or board-yielded stack, a live placement are places where the player is
+     * acting, never a beat to accuse — and names everything that legitimately keeps a beat standing.
+     */
+    checkBeatStall(): void {
+      const beat = this.judgedTransientBeat();
+      const inFlight: Array<string> = [];
+      if (beat !== undefined) {
+        if (transportRequestInProgress()) {
+          inFlight.push('transport');
+        }
+        if (surfaceMotionState.awaiting !== undefined) {
+          inFlight.push(`awaiting:${surfaceMotionState.awaiting.from}`);
+        }
+        if (this.commitFoldOwed) {
+          inFlight.push('commit-fold-owed');
+        }
+        if (blockingAnimationHoldCount() > 0) {
+          const blocking = activeAnimationHoldLabels().filter((l) => l.endsWith('[blocking]'));
+          inFlight.push(...(blocking.length > 0 ? blocking : ['animation-hold[blocking]']));
+        }
+      }
+      const wf = this.playerView.waitingFor;
+      const promptKey = wf === undefined ? '' : `${promptIdentityKey(wf)}#${wf.promptId ?? ''}`;
+      const verdict = tickBeatStall({now: Date.now(), beat, inFlight, promptKey});
+      if (verdict.stalled) {
+        this.recoverStalledBeat(verdict);
+      }
+    },
+    /** The transient beat the guard judges: the stack's TOP frame's (`<kind>:<phase>`), or the surface report of the
+     *  kind that IS the top frame (card-actions derives its phase inside the component). */
+    judgedTransientBeat(): string | undefined {
+      if (workspaceStackCollapsed() || stackYieldedToBoard() || this.placementActive) {
+        return undefined;
+      }
+      const top = workspaceStackTop();
+      if (top === undefined) {
+        return undefined;
+      }
+      if (isTransientBeat(top.phase)) {
+        return `${top.kind}:${top.phase}`;
+      }
+      const reported = transientSurfaceBeats().find(([kind]) => kind === top.kind);
+      return reported === undefined ? undefined : `${reported[0]}:${reported[1]}`;
+    },
+    /**
+     * A beat stood with nothing in flight — NAME it (what it was, how long, what the claim held, what served), tear
+     * the workspace down through the one force path, and tell the player. The claim is released with force, so a
+     * verdict it was holding falls to the standalone presenter: the result is still SEEN, and the game goes on.
+     */
+    recoverStalledBeat(verdict: Extract<BeatStallVerdict, {stalled: true}>): void {
+      const kind = verdict.beat.split(':')[0] as WorkspaceFrameKind;
+      const claim = workspaceOutcomeState.sourceCard === '' ? 'none' :
+        `${workspaceOutcomeState.host}/${workspaceOutcomeState.sourceCard} [${workspaceOutcomeState.kinds.join(',')}] ` +
+        `stage=${workspaceOutcomeState.stage} scope=${workspaceOutcomeState.scope}`;
+      const why = `[workspace-stall] beat «${verdict.beat}» stood ${Math.round(verdict.stoodMs / 1000)}s ` +
+        `(${Math.round(verdict.quietMs / 1000)}s with nothing in flight; last in flight: ${verdict.lastInFlight.join(', ') || 'nothing'}) — ` +
+        `claim: ${claim}; serving: ${this.workspaceOutcomeServingNow}; prompt: ${this.playerView.waitingFor?.type ?? 'none'} — forcing teardown`;
+      this.forceRecoverStuckWorkspace(kind, why);
+      pushWarning(translateText('The screen was stuck and has been released'));
     },
     /**
      * THE CARD PLAY'S ONE ENDING — every way a play can finish routes here.
@@ -25181,6 +25246,8 @@ export default defineComponent({
     // workspace from.
     this.syncHydroBonusDoor();
     startConsoleLeakDetector(() => this.playerView);
+    // THE BEAT STALL GUARD: a machine beat with nothing in flight is a stall, whatever its cause (the R&D Funding freeze).
+    this.beatStallTimer = window.setInterval(() => this.checkBeatStall(), 1000);
     // THE PARK MUST NOT SILENCE THE FEED (the «Экран завис» deadlock). A
     // foreign colony bonus's batch is deliberately presented NOWHERE until the
     // player opens its announcement — and the announcement's own FIRST
@@ -25245,6 +25312,8 @@ export default defineComponent({
     registerGenerationSceneHandoff(undefined); // a dead shell's director must not gate the next game's rise
     handoffPendingEntries.clear();
     window.clearTimeout(this.startStrandTimer); // the start watchdog dies with its shell
+    window.clearInterval(this.beatStallTimer); // …and so does the beat stall guard
+    resetBeatStall();
     window.clearTimeout(this.startShadowTimer); // …and its shadow
     delete (window as unknown as {__conStartShadow?: unknown}).__conStartShadow;
     registerBoardShownDespiteStack(undefined);

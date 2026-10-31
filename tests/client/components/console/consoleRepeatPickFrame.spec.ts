@@ -407,4 +407,77 @@ describe('the repeat-action pick is a nested workspace FRAME', () => {
       w.unmount();
     });
   });
+
+  /**
+   * EVERY DOOR THAT COPIES AN ACTION CLAIMS ITS OUTCOME THROUGH ONE FUNCTION (`claimRepeatOutcome`), and a DECK-CHECK
+   * is never claimed into the draw-only PENDING stage — the owner's field freeze of 2026-10-31: R&D Funding repeating
+   * Asteroid Deflection's action claimed the verdict while standing «Добор карт», the pad absorbed until a reload.
+   */
+  describe('one claim for every repeat door — a deck-check never into the pending beat', () => {
+    function seedRevealPreview(card: CardName): void {
+      actionPreviewStore.previews[card] = {
+        card, isCorporation: false, kind: 'declarative',
+        branches: [{
+          index: -1, title: 'Reveal', available: true, renderKeys: [], effects: [],
+          reveal: {deck: 'project', check: {tag: 'space', label: 'Space tag'}},
+        }],
+      } as any;
+    }
+    const repeatOf = (card: CardName, reveal: boolean) => ({
+      chosenCard: card, nodeIndex: 0, reveal,
+      composed: {branchIndex: -1, preResponses: [], optionResponse: undefined, stepResponses: []},
+    });
+
+    it('a LAW\'s copy of a reveal action opens the in-frame verdict stage, keyed on the card that RAN', async () => {
+      const w = factory(false);
+      await settle(w);
+      seedRevealPreview(CARD);
+      const vm = w.vm as any;
+      vm.composer = {cardName: SECOND, nodeIndex: 0, resolution: 'RDX_SCIENTISTS_RD_FUNDING'};
+
+      vm.claimRepeatOutcome(repeatOf(CARD, true));
+
+      expect(vm.outcomeFlow?.kind, 'the stage that can SHOW a verdict').to.eq('deck-check');
+      expect(vm.composer?.cardName, 'the stage reads the copy — `lastReveal.action` names it').to.eq(CARD);
+      expect(workspaceOutcomeState.sourceCard).to.eq(CARD);
+      expect([...workspaceOutcomeState.kinds]).to.deep.eq(['deck-check']);
+      w.unmount();
+    });
+
+    it('a copy whose bridge result says NO reveal never claims a deck-check into the pending stage', async () => {
+      const w = factory(false);
+      await settle(w);
+      seedRevealPreview(CARD);
+      const vm = w.vm as any;
+      vm.composer = {cardName: SECOND, nodeIndex: 0};
+
+      vm.claimRepeatOutcome(repeatOf(CARD, false));
+
+      expect(workspaceOutcomeState.kinds, 'the pending stage cannot present a verdict').not.to.include('deck-check');
+      expect(vm.outcomeFlow?.kind === 'pending' && workspaceOutcomeState.kinds.includes('deck-check')).is.false;
+      w.unmount();
+    });
+
+    it('Dutch Mountains claiming stage 7 to copy a reveal action takes the reveal door, never the pending beat', async () => {
+      const w = factory(false);
+      await settle(w);
+      seedRevealPreview(CARD);
+      actionPreviewStore.previews[SECOND] = {
+        card: SECOND, isCorporation: false, kind: 'declarative',
+        branches: [{index: -1, title: 'Claim', available: true, renderKeys: [], effects: []}],
+      } as any;
+      const vm = w.vm as any;
+      vm.composer = {cardName: SECOND, nodeIndex: 0}; // the claiming card's own composer
+
+      vm.onComposerConfirm({
+        branchIndex: -1, preResponses: [], optionResponse: undefined, stepResponses: [],
+        stageReward: {position: 7, selectedCard: CARD, repeat: repeatOf(CARD, true)},
+      });
+
+      expect(vm.outcomeFlow?.kind).to.eq('deck-check');
+      expect(vm.composer?.cardName, 'the verdict is the copy\'s').to.eq(CARD);
+      expect(workspaceOutcomeState.sourceCard).to.eq(CARD);
+      w.unmount();
+    });
+  });
 });

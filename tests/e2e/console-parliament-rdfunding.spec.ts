@@ -180,4 +180,53 @@ test.describe(`R&D Funding · ${PRESET.id}`, () => {
     await settle(page, {timeoutMs: 10_000});
     await shoot(page, '06-tile-spent');
   });
+
+  // THE OWNER'S FIELD FREEZE (2026-10-31): the law repeating a DECK-CHECK action (Asteroid Deflection System —
+  // «reveal the top card; a space tag adds an asteroid»). The commit claimed a deck-check verdict while the stage
+  // stood in the draw-only pending beat: no verdict, the pad absorbed, only a reload helped. The verdict must stand
+  // IN the law's stage, and its «ОК» must give the player the board back.
+  test('a repeated DECK-CHECK action presents its verdict in the law\'s stage and lets the player go', async ({page, request}) => {
+    test.setTimeout(300_000);
+    const REVEALER = 'Asteroid Deflection System';
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-rdfunding-reveal', {query: PRESET.query});
+    await waitForBoardHome(page, 40);
+    await settle(page, {timeoutMs: 20_000});
+
+    await openCardActions(page);
+    await focusLawTile(page);
+    await settle(page, {timeoutMs: 10_000});
+    const STAGE = `.con-cardactions .con-composer[data-composer-source="law:${LAW}"]`;
+    expect(await pressUntil(page, 'Enter', async () => await page.locator(STAGE).count() > 0, {tries: 3, settleMs: 1100}),
+      'A opens the law\'s stage').toBeTruthy();
+    await expect(page.locator(`${STAGE} [data-composer-repeat-slot]`), 'the repeat stands as a SLOT').toHaveCount(1, {timeout: 20_000});
+    await settle(page, {timeoutMs: 15_000});
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions').count() === 2, {tries: 4, settleMs: 900}),
+      'A opens the shared repeat pick').toBeTruthy();
+    await expect(page.locator('.con-cardactions').nth(1).locator(`[data-action-card="${REVEALER}"]`),
+      'the deck-check action is the candidate').toHaveCount(1, {timeout: 20_000});
+    await settle(page, {timeoutMs: 15_000});
+    expect(await pressUntil(page, 'Enter',
+      async () => await page.locator('.con-cardactions').count() === 1 && await page.locator('[data-composer-repeat-name]').count() === 1,
+      {tries: 6, settleMs: 900}), 'the pick resolves back into the law\'s slot').toBeTruthy();
+    await settle(page, {timeoutMs: 15_000});
+
+    // ── THE COMMIT: the use is spent on the server…
+    expect(await pressUntil(page, 'Enter',
+      async () => (await wireOf(request, playerId)).game.parliament?.viewer?.resolutionAction?.usesLeft === 0,
+      {tries: 4, settleMs: 900}), 'the law\'s own CTA commits and spends the use').toBeTruthy();
+    await shoot(page, '11-reveal-committed');
+
+    // …and the VERDICT stands inside the workspace the press was made in (never the pending beat forever).
+    await expect(page.locator('.con-cardactions .con-verdict'), 'the deck-check verdict is presented in the stage')
+      .toBeVisible({timeout: 30_000});
+    await settle(page, {timeoutMs: 20_000});
+    await shoot(page, '12-reveal-verdict');
+
+    // ── «ОК» ENDS THE OPERATION: the workspace leaves and the board is the player's again.
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions').count() === 0,
+      {tries: 3, settleMs: 1500}), 'A on the verdict concludes the workspace').toBeTruthy();
+    await expect(page.locator('.con-reveal'), 'no standalone reveal rises over the board after the take').toHaveCount(0, {timeout: 10_000});
+    await waitForBoardHome(page, 20);
+    await shoot(page, '13-reveal-done');
+  });
 });

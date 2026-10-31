@@ -201,6 +201,7 @@ import {ExpeditionMechs} from '../../../src/server/cards/turmoilRedux/Expedition
 import {InfluentialDiscovery} from '../../../src/server/cards/turmoilRedux/InfluentialDiscovery';
 import {ScientificBreakthrough} from '../../../src/server/cards/turmoilRedux/ScientificBreakthrough';
 import {SearchForLife} from '../../../src/server/cards/base/SearchForLife';
+import {AsteroidDeflectionSystem} from '../../../src/server/cards/promo/AsteroidDeflectionSystem';
 import {MarsUniversity} from '../../../src/server/cards/base/MarsUniversity';
 import {ConstructionMechs} from '../../../src/server/cards/turmoilRedux/ConstructionMechs';
 import {MarsArmyMechs} from '../../../src/server/cards/turmoilRedux/MarsArmyMechs';
@@ -5848,6 +5849,42 @@ parliamentFixture('parliament-rdfunding-enacted', {
       throw new Error('the parliament-rdfunding-enacted fixture expected the law action unspent');
     }
     expectViewerOpensGeneration(table, p2, 'parliament-rdfunding-enacted');
+  },
+});
+
+// ── RX26 · R&D FUNDING repeating a DECK-CHECK action (the owner's field freeze, 2026-10-31): the same table, but
+//    the action spent this generation is Asteroid Deflection System's «reveal the top card; a space tag adds an
+//    asteroid». The law's repeat of it must present its verdict INSIDE the law's stage and let the player go —
+//    the commit used to claim a deck-check while standing in the draw-only pending beat: the pad absorbed, no
+//    verdict, only a reload helped. ──
+parliamentFixture('parliament-rdfunding-reveal', {
+  resolution: RD_FUNDING_ID,
+  votes: [1],
+  agenda: [1, 3],
+  stopAt: 'done',
+  arrange: ({p2}) => {
+    p2.playedCards.push(new Research());
+  },
+  after: ({game, p2}) => {
+    const deflection = new AsteroidDeflectionSystem();
+    p2.playedCards.push(deflection);
+    deflection.action(p2);
+    runAllActions(game);
+    p2.actionsThisGeneration.add(deflection.name);
+  },
+  expect: (table) => {
+    const {p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(RD_FUNDING_ID, 0)) {
+      throw new Error(`the parliament-rdfunding-reveal fixture expected R&D Funding enacted, got ${parliament.enacted}`);
+    }
+    const candidates = repeatableActionCards(p2).map((c) => c.name);
+    if (candidates.length !== 1 || candidates[0] !== CardName.ASTEROID_DEFLECTION_SYSTEM) {
+      throw new Error(`the parliament-rdfunding-reveal fixture expected Asteroid Deflection System as the one repeat, got ${candidates.join(', ')}`);
+    }
+    if (parliament.resolutionActionUsesLeft(p2) !== 1) {
+      throw new Error('the parliament-rdfunding-reveal fixture expected the law action unspent');
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-rdfunding-reveal');
   },
 });
 
