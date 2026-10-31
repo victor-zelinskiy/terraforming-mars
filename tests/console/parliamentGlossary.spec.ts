@@ -363,9 +363,10 @@ describe('parliament glossary — one word per concept (static guard)', () => {
     }
   });
 
-  it('the LEVERAGE of Titan Holdings (TR84) is «рычаг» — never the Parliament\'s «влияние» (glossary § 3)', () => {
+  it('the LEVERAGE of Titan Holdings (TR84) is «сделка» — never the Parliament\'s «влияние» (glossary § 3)', () => {
     // «Influence» is the Parliament's own concept (the career's disc, the payouts) — a card resource that buys
-    // delegates must not borrow its word, or «4 влияния → 2 делегата» reads as spending the career. Every RU file.
+    // delegates must not borrow its word, or «4 влияния → 2 делегата» reads as spending the career. Nor the calque
+    // «рычаг» (the owner, 2026-11-01: an English «leverage» read literally is not a resource in Russian). Every RU file.
     const dir = path.join(ROOT, 'src', 'locales', 'ru');
     const hits: Array<string> = [];
     let keys = 0;
@@ -377,13 +378,13 @@ describe('parliament glossary — one word per concept (static guard)', () => {
           continue;
         }
         keys++;
-        if (/влияни/i.test(value)) {
+        if (/влияни|рычаг/i.test(value)) {
           hits.push(`${name}: ${key} → «${value}»`);
         }
       }
     }
     expect(keys, 'the leverage keys are found at all').to.be.greaterThan(0);
-    expect(hits, 'leverage is «рычаг»').to.deep.equal([]);
+    expect(hits, 'leverage is «сделка»').to.deep.equal([]);
   });
 
   it('the resolution\'s party column and the party inspector name the mechanics the same way', () => {

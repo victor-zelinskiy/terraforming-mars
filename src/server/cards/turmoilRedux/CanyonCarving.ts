@@ -17,7 +17,7 @@ import * as reason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 
 /**
- * TR39 — CANYON CARVING («Прорезание каньона»), a Turmoil Redux PROJECT card
+ * TR39 — CANYON CARVING («Прокладка каньона»), a Turmoil Redux PROJECT card
  * — the project's SECOND tile move (after TR14's city) and the first move of a
  * tile NOBODY owns: any plain ocean on the board is lifted and landed on an
  * adjacent cell, the player gains TR for it and the new cell's bonuses. The

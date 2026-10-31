@@ -46,7 +46,7 @@ import {effectiveVisibility} from './transferWitness';
  */
 
 const CARD = 'Habitat Science';
-const CARD_RU = 'Наука обитаемости';
+const CARD_RU = 'Наука о поселениях';
 const ROOT_RU = 'Действия карт';
 const TARGET = 'Dirigibles';
 const ORDER = ['Luna', 'Miranda', 'Pluto', 'Titan'] as const;
@@ -485,7 +485,7 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 20_000}).catch(() => undefined); // the open episode; the discard's own hold may stand
       const crumb = await crumbText(page);
       expect(crumb, 'ONE continuous crumb: the workspace, the card, then the step').toMatch(/действия карт/i);
-      expect(crumb).toMatch(/наука обитаемости/i);
+      expect(crumb).toMatch(/наука о поселениях/i);
       expect(crumb).toMatch(/сброс/i);
       const bar = (await page.locator('.con-cmdbar__label').allTextContents()).map((t) => t.trim()).join(' | ');
       expect(bar, `B is «Свернуть» past the commit, never a close (${bar})`).toMatch(/свернуть/i);

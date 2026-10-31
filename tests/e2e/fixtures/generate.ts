@@ -2717,7 +2717,7 @@ incubatorFixture('enceladean-incubator', 'cells');
 incubatorFixture('enceladean-incubator-bare', 'bare');
 incubatorFixture('enceladean-incubator-max', 'max');
 // ── TR39 · CANYON CARVING — AN OCEAN MOVES (docs/TURMOIL_REDUX_RE_SETTLEMENT.md §2.6: the contract of a move on a tile
-//    NOBODY owns): blue's action phase with «Прорезание каньона» in hand, 20 M€, the Greens ruling by the STARTING RULE
+//    NOBODY owns): blue's action phase with «Прокладка каньона» in hand, 20 M€, the Greens ruling by the STARTING RULE
 //    (nothing enacted — generation 1). The board is ARRANGED on Tharsis, never dealt:
 //      · the ocean O₁ on 33 — an ocean RESERVE with two plants printed; it may move;
 //      · beside it the empty reserve B₁ (34, two plants printed) and the plant land B₂ (42), which touches ANOTHER

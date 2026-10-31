@@ -12,7 +12,7 @@ import {buildEventChildren} from '@/client/components/journal/journalEventChild'
 /**
  * A CAPITAL OF THE VIEWER'S RECOUNTED BY SOMEBODY ELSE'S MOVE (PL-041, the
  * TR39 walk — the owner's decision 2026-10-10). The ocean beside red's Capital
- * is carried away by blue's «Прорезание каньона»: the move's event is blue's,
+ * is carried away by blue's «Прокладка каньона»: the move's event is blue's,
  * red has no event of their own — the fact rides `tileMove.adjacencyVp`,
  * addressed by owner. Red's notification must read the loss («ПО −1», blue
  * the attacker, the card the cause), the journal must print it as red's row,

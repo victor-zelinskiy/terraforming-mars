@@ -63,7 +63,7 @@ import {TileType} from '../../src/common/TileType';
  */
 
 const CARD = 'Canyon Carving';
-const CARD_RU = 'Прорезание каньона';
+const CARD_RU = 'Прокладка каньона';
 /** The ocean that moves (an ocean reserve with two plants printed). */
 const X = '33';
 /** The destination: plant land beside the OTHER ocean. */

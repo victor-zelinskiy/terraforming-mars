@@ -17,7 +17,7 @@ import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from 
  *   B · `summit-logistics` (the Scientists rule; blue's Earth (Teractor) + Jovian + Mars tags, the Scientists' wild tag,
  *       one colony; 20 M€, 2 steel, 1 titanium): the hand plate reads «+5»; the composer's «ПОЧЕМУ» reads the two terms
  *       (tags 4 · of them wild 1 · + colonies 1) and the chip no longer prints its own basis; the payment takes 2 steel +
- *       1 titanium + 3 M€; ONE POST; the crumb keeps «Карты в руке › Логистика саммита» while the tail grows to «ДОБОР
+ *       1 titanium + 3 M€; ONE POST; the crumb keeps «Карты в руке › Саммит-логистика» while the tail grows to «ДОБОР
  *       КАРТ»; the M€ lands on its row; the two cards stand INSIDE the hand; B takes them, the flow LEAVES; the server:
  *       22 M€, 0 steel, 0 titanium, two more cards, the card in the tableau.
  *
@@ -26,7 +26,7 @@ import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from 
  */
 
 const CARD = 'Summit Logistics';
-const CARD_RU = 'Логистика саммита';
+const CARD_RU = 'Саммит-логистика';
 const ROOT_RU = 'Карты в руке';
 const OUT = path.resolve('screenshots', 'p85');
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;

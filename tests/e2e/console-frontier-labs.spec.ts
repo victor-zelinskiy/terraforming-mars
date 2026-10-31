@@ -1,5 +1,5 @@
 /*
- * TR53 FRONTIER LABS («Лаборатории фронтира») + THE ITERATION «ПРИЁМ РЕСУРСА КАРТОЙ — ОДИН ПРЕМИУМ-СТАНДАРТ»
+ * TR53 FRONTIER LABS («Передовые лаборатории») + THE ITERATION «ПРИЁМ РЕСУРСА КАРТОЙ — ОДИН ПРЕМИУМ-СТАНДАРТ»
  * (`docs/TURMOIL_REDUX_FRONTIER_LABS.md`) — the ONE spec of the iteration (the prompt's §4), three fixtures, fhd + tv4k:
  *
  *   A · `frontier-labs` — the ACTION. The target step reads every candidate's own tail BEFORE the press (the server's

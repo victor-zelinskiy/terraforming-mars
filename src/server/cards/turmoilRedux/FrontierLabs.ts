@@ -31,7 +31,7 @@ export const FRONTIER_LABS_NO_HOLDER_REASON = 'No card of yours holds a resource
 export const FRONTIER_LABS_NO_DRAW_NOTE = 'No draw: science';
 
 /**
- * TR53 — FRONTIER LABS («Лаборатории фронтира»), a Turmoil Redux PROJECT card:
+ * TR53 — FRONTIER LABS («Передовые лаборатории»), a Turmoil Redux PROJECT card:
  * an action that PAYS to grow a card that ALREADY holds a resource, and draws
  * a card unless the resource is science — the first «what else» that depends
  * on WHICH candidate the player picks (`AddResourcesToCard.extraByCard`).

@@ -6,46 +6,46 @@
     "Requires that you are Chairman. Remove any NON-LEADER delegate.": "Требование: ваш делегат председатель. Уберите любого делегата (не лидера)",
 
     "Cultural Metropolis": "Культурный метрополис",
-    "Requires that Unity is ruling or that you have 2 delegates there. Decrease your energy production 1 step and increase your M€ production 3 steps. Place a city tile. Place 2 delegates in 1 party.": "Требует, чтобы «Союз» был у власти или у вас было 2 делегата на его резолюции. Уменьшите производство энергии на 1 шаг и увеличьте производство M€ на 3 шага. Разместите тайл города. Добавьте 2 делегата на одну резолюцию.",
+    "Requires that Unity is ruling or that you have 2 delegates there. Decrease your energy production 1 step and increase your M€ production 3 steps. Place a city tile. Place 2 delegates in 1 party.": "Требуется: у власти «Союз» или 2 ваших делегата на резолюции этой партии. Уменьшите производство энергии на 1 шаг и увеличьте производство M€ на 3 шага. Разместите тайл города. Добавьте 2 делегата на одну резолюцию.",
 
     "Diaspora Movement": "Космическая диаспора",
-    "Requires that Reds are ruling or that you have 2 delegates there. Gain 1M€ for each Jovian tag in play, including this.": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции. Получите 1 M€ за каждую метку Юпитера в игре, включая эту.",
+    "Requires that Reds are ruling or that you have 2 delegates there. Gain 1M€ for each Jovian tag in play, including this.": "Требуется: у власти «Красные» или 2 ваших делегата на резолюции этой партии. Получите 1 M€ за каждую метку Юпитера в игре, включая эту.",
 
     "Event Analysts": "Анализ событий",
     "Effect: You have +1 influence.": "Эффект: у вас +1 влияния.",
-    "Requires that Scientists are ruling or that you have 2 delegates there.": "Требует, чтобы «Учёные» были у власти или у вас было 2 делегата на их резолюции.",
+    "Requires that Scientists are ruling or that you have 2 delegates there.": "Требуется: у власти «Учёные» или 2 ваших делегата на резолюции этой партии.",
 
     "GMO Contract": "Контракты на ГМО",
     "Effect: Each time you play a plant, animal or microbe tag, including this, gain 2 M€.": "Эффект: за каждую разыгранную вами метку растений, животных или микробов, включая эту, получайте 2 M€.",
-    "Requires that Greens are ruling or that you have 2 delegates there.": "Требует, чтобы «Зелёные» были у власти или у вас было 2 делегата на их резолюции.",
+    "Requires that Greens are ruling or that you have 2 delegates there.": "Требуется: у власти «Зелёные» или 2 ваших делегата на резолюции этой партии.",
 
     "Martian Media Center": "Медиа-центр на Марсе",
     "Action: Pay 3 M€ to add a delegate to any party.": "Действие: заплатите 3 M€, чтобы добавить делегата на резолюцию.",
-    "Requires that Mars First is ruling or that you have 2 delegates there. Increase your M€ production 2 steps.": "Требует, чтобы «Марс вперёд» был у власти или у вас было 2 делегата на его резолюции. Увеличьте производство M€ на 2 шага.",
+    "Requires that Mars First is ruling or that you have 2 delegates there. Increase your M€ production 2 steps.": "Требуется: у власти «Марс вперёд» или 2 ваших делегата на резолюции этой партии. Увеличьте производство M€ на 2 шага.",
 
     "Parliament Hall": "Зал парламента",
-    "Requires that Mars First are ruling or that you have 2 delegates there. Increase your M€ production 1 step for every 3 building tags you have, including this.": "Требует, чтобы «Марс вперёд» правила или у вас было 2 делегата на её резолюции. Увеличьте производство M€ на 1 за каждые 3 ваши метки Зданий, включая эту.",
+    "Requires that Mars First are ruling or that you have 2 delegates there. Increase your M€ production 1 step for every 3 building tags you have, including this.": "Требуется: у власти «Марс вперёд» или 2 ваших делегата на резолюции этой партии. Увеличьте производство M€ на 1 за каждые 3 ваши метки Зданий, включая эту.",
 
     "PR Office": "Пресс-служба",
-    "Requires that Unity are ruling or that you have 2 delegates there. Gain 1 TR. Gain 1 M€ for each Earth tag you have, including this.": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Получите 1 РТ. Получите 1 M€ за каждую вашу метку Земли, включая эту.",
+    "Requires that Unity are ruling or that you have 2 delegates there. Gain 1 TR. Gain 1 M€ for each Earth tag you have, including this.": "Требуется: у власти «Союз» или 2 ваших делегата на резолюции этой партии. Получите 1 РТ. Получите 1 M€ за каждую вашу метку Земли, включая эту.",
 
     "Public Celebrations": "Народное празднование",
-    "Requires that you are Chairman.": "Требует, чтобы вы были председателем.",
+    "Requires that you are Chairman.": "Требуется быть председателем.",
 
     "Recruitment": "Вербовка",
     "Exchange one NEUTRAL NON-LEADER delegate with one of your own from the reserve.": "Замените 1 нейтрального делегата (не лидера) на своего из запаса",
 
     "Red Tourism Wave": "Наплыв туристов",
-    "Requires that Reds are ruling or that you have 2 delegates there. Gain 1 M€ from each EMPTY AREA ADJACENT TO YOUR TILES": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции. Получите 1 M€ за каждую ПУСТУЮ КЛЕТКУ РЯДОМ С ВАШИМИ ТАЙЛАМИ.",
+    "Requires that Reds are ruling or that you have 2 delegates there. Gain 1 M€ from each EMPTY AREA ADJACENT TO YOUR TILES": "Требуется: у власти «Красные» или 2 ваших делегата на резолюции этой партии. Получите 1 M€ за каждую ПУСТУЮ КЛЕТКУ РЯДОМ С ВАШИМИ ТАЙЛАМИ.",
 
     "Sponsored Mohole": "Грант на скважину",
     "Requires that Kelvinists are ruling or that you have 2 delegates there. Increase your heat production 2 steps.": "Кельвинисты в правящий партии или 2 делегата в ней. Увеличьте своё производство тепла на 2",
 
     "Supported Research": "Поддержка исследований",
-    "Requires that Scientists are ruling or that you have 2 delegates there. Draw 2 cards.": "Требует, чтобы «Учёные» были у власти или у вас было 2 делегата на их резолюции. Доберите 2 карты.",
+    "Requires that Scientists are ruling or that you have 2 delegates there. Draw 2 cards.": "Требуется: у власти «Учёные» или 2 ваших делегата на резолюции этой партии. Доберите 2 карты.",
 
     "Wildlife Dome": "Заповедник под куполом",
-    "Requires that Greens are ruling or that you have 2 delegates there. Place a greenery tile and raise oxygen 1 step.": "Требует, чтобы «Зелёные» были у власти или у вас было 2 делегата на их резолюции. Разместите тайл озеленения и поднимите кислород на 1 шаг.",
+    "Requires that Greens are ruling or that you have 2 delegates there. Place a greenery tile and raise oxygen 1 step.": "Требуется: у власти «Зелёные» или 2 ваших делегата на резолюции этой партии. Разместите тайл озеленения и поднимите кислород на 1 шаг.",
 
     "Vote Of No Confidence": "Вотум недоверия",
     "Requires that you have a Party Leader in any party and that the sitting Chairman is neutral. Remove the NEUTRAL Chairman and move your own delegate (from the reserve) there instead. Gain 1 TR.": "Требование: ваш делегат - лидер. Уберите НЕЙТРАЛЬНОГО председателя и назначьте туда своего делегата из запаса. Получите 1 РТ",

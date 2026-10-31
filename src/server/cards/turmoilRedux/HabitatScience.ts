@@ -28,7 +28,7 @@ export const HABITAT_SCIENCE_SHORT_DATA_REASON = '${0} of 2 data on this card';
 export const HABITAT_SCIENCE_NO_COLONIES_REASON = 'You have no colonies';
 
 /**
- * TR23 — HABITAT SCIENCE («Наука обитаемости»), a Turmoil Redux PROJECT card —
+ * TR23 — HABITAT SCIENCE («Наука о поселениях»), a Turmoil Redux PROJECT card —
  * the set's first CARD ACTION that pays «all your colony bonuses»: every colony
  * of the player's pays its tile's printed bonus, one after another, and the
  * workspace the action was pressed in owns the whole payout (the card names

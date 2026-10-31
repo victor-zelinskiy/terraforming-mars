@@ -660,7 +660,7 @@ for (const preset of PRESETS) {
       await openComposer(page, CARD);
       const refused = page.locator(`${composer} .con-composer__branches .con-vchoice__reason`);
       await expect(refused, 'one variant refused').toHaveCount(1);
-      expect(await refused.textContent(), 'with its reason').toContain('Нет вашей карты, которая примет мех');
+      expect(await refused.textContent(), 'with its reason').toContain('Нет вашей карты для мехов');
       await pickCard(page, /Выберите карту-источник/, 'self');
       await expect(page.locator(`${composer} .con-composer__row`), 'no target row — the source alone').toHaveCount(1);
       await toCommitRow(page);
