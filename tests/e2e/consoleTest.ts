@@ -253,6 +253,13 @@ const COVERED_PROMPT = 'COVERED PROMPT';
  */
 const START_STRANDED = '[start-stranded]';
 /**
+ * The BEAT STALL GUARD's marker (`src/client/console/workspaceBeatStall.ts`, the owner's R&D Funding freeze of
+ * 2026-10-31): a workspace stood in a TRANSIENT beat (`executing` / `completing` — the pad absorbed) with NOTHING in
+ * flight — no request, no blocking hold, no awaiting handoff — and the same prompt for the guard's whole window, and
+ * was torn down. The field's «экран завис, помог только перезаход»; a heal that had to run is a defect upstream of it.
+ */
+const BEAT_STALL = '[workspace-stall] beat';
+/**
  * The START SHADOW's marker (`src/client/console/startDirector.ts`, phase 0 of «правда сервера → одно состояние → один
  * владелец экрана», 2026-10-29): who the server's one question says must serve the screen disagreed, for a while, with
  * what the start's latches put there. DATA, never red — the harness files every finding under
@@ -421,7 +428,7 @@ function sleepSiteOf(stack: string): string {
   return '<unknown>';
 }
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, startShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, stallHarvest: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, startShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, stallHarvest: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
   /**
    * CI's STARVED RENDERER ON DEMAND (`TM_E2E_CPU_THROTTLE=<rate>`, e.g. 4): every page of the test's context runs under
    * CDP CPU throttling. CI's 4K software raster on a shared runner starves the main thread for hundreds of ms — the
@@ -698,6 +705,29 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     await use();
     if (strands.length > 0) {
       throw new Error(`START STRANDED — the game-start scene stood serving nothing while the server asked:\n  ${strands.join('\n  ')}`);
+    }
+  }, {auto: true}],
+
+  /**
+   * EVERY TEST, EVERY PAGE OF ITS CONTEXT: no workspace stood in a machine beat with nothing in flight. The beat stall
+   * guard names such a stall (`[workspace-stall] beat` — the beat, how long, the claim, what served) and heals it; the
+   * harness turns the report red, because the heal is the player's frozen screen with a way out.
+   */
+  beatStallGuard: [async ({context}, use) => {
+    const stalls: Array<string> = [];
+    const watch = (page: Page) => {
+      page.on('console', (message) => {
+        const text = message.text();
+        if (text.includes(BEAT_STALL)) {
+          stalls.push(text.slice(0, 1200));
+        }
+      });
+    };
+    context.pages().forEach(watch);
+    context.on('page', watch);
+    await use();
+    if (stalls.length > 0) {
+      throw new Error(`BEAT STALL — a workspace stood in a machine beat with nothing in flight:\n  ${stalls.join('\n  ')}`);
     }
   }, {auto: true}],
 
