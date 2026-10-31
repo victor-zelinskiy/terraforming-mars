@@ -256,6 +256,7 @@ function resolveBonusCardEffect(game: IGame, id: BonusCardId): BonusCardOutcome 
   case BonusCardId.B10_CORPORATE_COMPETITION_ELYSIUM:
   case BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA:
   case BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA:
+  case BonusCardId.B13_CORPORATE_COMPETITION_BOREALIS:
     // One card, one resolver: the map only swaps the helper-action list.
     return corporateCompetition(game);
   case BonusCardId.B16_GOVERNMENT_INTERVENTION: return governmentIntervention(game);
@@ -416,7 +417,7 @@ function tryCitySurroundedByTwo(game: IGame): boolean {
   const most = Math.max(...candidates.map(surrounded));
   const space = AutomaTilePlacer.breakTie(game,
     AutomaAres.preferAwayFromHazards(game, candidates.filter((s) => surrounded(s) === most)));
-  game.addCity(bot, space);
+  AutomaTilePlacer.placeAndSettle(game, bot, space, () => game.addCity(bot, space));
   return true;
 }
 
@@ -538,7 +539,7 @@ function localNeuralInstance(game: IGame): BonusCardOutcome {
   return 'destroy';
 }
 
-/** The Corporate Competition card THIS map plays with — B08…B12, one per map. */
+/** The Corporate Competition card THIS map plays with — B08…B13, one per map. */
 function mapCorporateCompetition(game: IGame): BonusCardId {
   return marsBotMapProfile(game.gameOptions.boardName).corporateCompetition;
 }
@@ -572,7 +573,8 @@ function revealUntilAndResolve(game: IGame, matches: (card: IProjectCard) => boo
 
 /**
  * Corporate Competition — B08 (Tharsis), B09 (Hellas), B10 (Elysium), B11
- * (Utopia Planitia) and B12 (Terra Cimmeria) are the SAME card with a different
+ * (Utopia Planitia), B12 (Terra Cimmeria) and B13 (Vastitas Borealis) are the
+ * SAME card with a different
  * helper-action list, so they are the same resolver: with 5+ M€,
  * help its position on the CLOSEST already-funded award (the one the human
  * leads by the smallest margin or is tied; MarsBot leading everywhere → its own
@@ -673,7 +675,7 @@ function helperIsFree(awardName: string): boolean {
 /**
  * The Corporate Competition helper actions — Tharsis (rulebook p.7), Hellas
  * (Adding Expansions p.12), Elysium (B10), Utopia Planitia (B11), Terra
- * Cimmeria (B12) and the Venuphile line every version of the card gains with
+ * Cimmeria (B12), Vastitas Borealis (B13) and the Venuphile line every version of the card gains with
  * Venus Next (Adding Expansions p.3). One helper — B12's Forecaster — is
  * exempt from the card's payment; see `helperIsFree` above. False when the
  * action is «impossible to resolve»: the caller then tries the NEXT funded
@@ -855,6 +857,41 @@ function tryAwardHelper(game: IGame, awardName: string): boolean {
     }
     marsBotOf(game).stock.add(Resource.MEGACREDITS, 5, {log: true});
     return true;
+  // ── Vastitas Borealis (B13, the official card + Adding Expansions p.12) ───
+  case 'Traveller':
+    // «Advance the Jovian track» — on this board Jovian rides the EARTH row
+    // (Jovian + Earth), the very track the award scores (+5).
+    return advanceRole('earth');
+  case 'Landscaper':
+    // «MarsBot places a greenery tile and raises oxygen 1 step.» Unconstrained.
+    return placeGreenery();
+  case 'Highlander': {
+    // «…a greenery tile and raises oxygen 1 step, NOT ADJACENT TO AN OCEAN OR A
+    // SPACE RESERVED FOR AN OCEAN. If MarsBot cannot legally place a greenery
+    // tile on such a space, this action is impossible to resolve» (Adding
+    // Expansions p.12 — fuller than the card's own line, and the rulebook
+    // outranks the card). A hard constraint, like B10's: a reserved ocean
+    // space counts whether or not its ocean is down yet, and an ocean tile on
+    // a land space (a placed ocean anywhere) counts too.
+    const board = game.board;
+    return placeGreenery((space) => !board.getAdjacentSpaces(space).some((adj) =>
+      adj.spaceType === SpaceType.OCEAN || Board.isOceanSpace(adj)));
+  }
+  case 'Promoter': return advanceRole('event');
+  case 'Blacksmith': {
+    // «Advance the building or space track, whichever is more advanced.» Among
+    // the two that can still move; ties go to the TOPMOST (building) — the
+    // printed row order, the convention Mogul's tie reads too. Both maxed ⇒
+    // impossible to resolve.
+    const alive = (['building', 'space'] as const)
+      .map((role) => ({role, track: board.getTrackOfRole(role)}))
+      .filter((e) => e.track?.canAdvance() === true);
+    if (alive.length === 0) {
+      return false;
+    }
+    alive.sort((a, b) => (b.track?.position ?? 0) - (a.track?.position ?? 0)); // Stable: Building first on ties.
+    return advanceRole(alive[0].role);
+  }
   // ── Venus Next: added to ALL versions of the card ─────────────────────────
   case 'Venuphile': return advanceRole('venus');
   default:

@@ -1,5 +1,10 @@
 import {BoardName} from '../../common/boards/BoardName';
-import {HELLAS_BONUS_OCEAN_COST, TERRA_CIMMERIA_COLONY_COST} from '../../common/constants';
+import {
+  HELLAS_BONUS_OCEAN_COST,
+  MAX_TEMPERATURE,
+  TERRA_CIMMERIA_COLONY_COST,
+  VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST,
+} from '../../common/constants';
 import {Resource} from '../../common/Resource';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {SpaceName} from '../../common/boards/SpaceName';
@@ -26,8 +31,9 @@ import {botDivertsTerraforming} from './BotDivertedTerraforming';
  * strictly between a 2-icon and a 3-icon hex, plus its own printed transaction
  * when the tile lands), UNUSABLE («a hex without rewards», and landing there
  * gains and loses nothing) and, for MSL, ABSENT (no Colonies ⇒ the board never
- * prints the bonus at all). The Vastitas Borealis twin lands here when that
- * map does.
+ * prints the bonus at all). Vastitas Borealis' North Pole is the third twin
+ * (temperature for 4 M€), and its two VIKING hexes add a fourth shape: no
+ * price, but a reward that only exists with the Mars Parliament.
  */
 
 /**
@@ -92,6 +98,54 @@ export function mslCuriosityUsable(game: IGame, bot: IPlayer): boolean {
 }
 
 /**
+ * VASTITAS BOREALIS' NORTH POLE — «the hex containing a temperature bonus and
+ * −4 MC» (Adding Expansions p.11). Identified by the PRINTED BONUS: only that
+ * map prints `SpaceBonus.TEMPERATURE_4MC`.
+ */
+export function isVastitasNorthPole(space: Space): boolean {
+  return space.bonus.includes(SpaceBonus.TEMPERATURE_4MC);
+}
+
+/**
+ * «If the temperature track is not maxed and MarsBot has at least 4 MC» — the
+ * condition that decides BOTH halves of the rule, the South Pole's shape. Under
+ * a law that REPLACES the raise (RX35, D13) there is no step to buy — the hex is
+ * the bot's «hex without rewards» while the law stands, exactly as on Hellas.
+ */
+export function vastitasNorthPoleUsable(game: IGame, bot: IPlayer): boolean {
+  return game.getTemperature() < MAX_TEMPERATURE &&
+    bot.megaCredits >= VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST &&
+    !botDivertsTerraforming(game);
+}
+
+/**
+ * VASTITAS BOREALIS' VIKING 1 / VIKING 2 — «these hexes show a delegate as a
+ * bonus» (Adding Expansions p.11). Identified by the printed bonus.
+ */
+export function isVikingSite(space: Space): boolean {
+  return space.bonus.includes(SpaceBonus.DELEGATE);
+}
+
+/**
+ * Can the Viking hex hand MarsBot its delegate RIGHT NOW? The official rule
+ * pays the bot 1 M€ under classic Turmoil; this fork plays Turmoil Redux, and
+ * the owner's house rule (2026-10-31) is that the bot simply PLACES the
+ * delegate — free, from its reserve, ON TOP of the generation's lobbying
+ * mandate. So the reward exists exactly when such a grant could land: a Mars
+ * Parliament the bot sits in, a resolution up for a vote, a delegate in its
+ * reserve — the conditions of the Parliament's own grant step
+ * (`PlaceDelegatesOnResolution.offer`). Otherwise the hex is «considered
+ * empty» (the rule's no-Turmoil reading): 0 icons, nothing gained.
+ */
+export function vikingDelegateUsable(game: IGame, bot: IPlayer): boolean {
+  const parliament = game.parliament;
+  return parliament !== undefined &&
+    parliament.participates(bot, 'delegates') &&
+    parliament.partiesInVotingArea().length > 0 &&
+    parliament.reserve(bot) > 0;
+}
+
+/**
  * How many reward icons this hex counts as FOR MARSBOT's tiebreakers — plain
  * `space.bonus.length` everywhere except a conditional pay-to-use hex.
  */
@@ -106,6 +160,16 @@ export function botRewardIcons(game: IGame, bot: IPlayer, space: Space): number 
     // adjacency and Terra Cimmeria's special-tile step still run first.
     return mslCuriosityUsable(game, bot) ? PAY_TO_USE_PRIORITY : 0;
   }
+  if (isVastitasNorthPole(space)) {
+    // «A higher priority than other 2-bonus-resource hexes, but otherwise the
+    // same priority for other tiebreakers» — the South Pole's own words.
+    return vastitasNorthPoleUsable(game, bot) ? PAY_TO_USE_PRIORITY : 0;
+  }
+  if (isVikingSite(space)) {
+    // ONE printed icon — worth what any other icon is worth when the delegate
+    // can land, nothing when it cannot («considered empty»).
+    return vikingDelegateUsable(game, bot) ? 1 : 0;
+  }
   return space.bonus.length;
 }
 
@@ -116,7 +180,8 @@ export function botRewardIcons(game: IGame, bot: IPlayer, space: Space): number 
  * anything».
  */
 export function botCoveredIconMegacredits(game: IGame, space: Space): number {
-  return isHellasSouthPole(game, space) || isMslCuriosity(space) ? 0 : space.bonus.length;
+  return isHellasSouthPole(game, space) || isMslCuriosity(space) || isVastitasNorthPole(space) || isVikingSite(space) ?
+    0 : space.bonus.length;
 }
 
 /**
@@ -168,6 +233,26 @@ export function settleMslCuriosity(bot: IPlayer, usable: boolean, buildColony: (
 }
 
 /**
+ * The North Pole's own printed transaction, once MarsBot's tile is on it: «it
+ * doesn't gain 2 resources, but increases temperature (gaining 1 TR) and loses
+ * 4 MC». The raise FIRST, then the price — MSL's order, so the bot never pays
+ * for a step it did not receive. `usable` is captured BEFORE the tile lands,
+ * for the South Pole's reason.
+ *
+ * The raise rides the ordinary bot temperature raise (`raiseTemperature`), so a
+ * corporation that takes the raise over (C36) still does — never a second,
+ * parallel way to move the scale.
+ */
+export function settleVastitasNorthPole(bot: IPlayer, usable: boolean, raiseTemperature: () => void): void {
+  if (!usable) {
+    // «If MarsBot places on here, it doesn't gain or lose anything.»
+    return;
+  }
+  raiseTemperature();
+  bot.stock.deduct(Resource.MEGACREDITS, VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST, {log: true});
+}
+
+/**
  * The M€ rebate that makes a conditional pay-to-use hex legal for MarsBot.
  *
  * The human legality path drops the South Pole when the player cannot pay its
@@ -202,4 +287,17 @@ export const MSL_CURIOSITY_REBATE = -TERRA_CIMMERIA_COLONY_COST;
 export function needsMslCuriosityRebate(game: IGame, bot: IPlayer): boolean {
   return game.gameOptions.boardName === BoardName.TERRA_CIMMERIA_NOVA &&
     !mslCuriosityUsable(game, bot);
+}
+
+/**
+ * The same rebate for the North Pole: the human path drops it when the player
+ * cannot pay its 4 M€ (`VastitasBorealisNovaBoard.spaceCosts`); for MarsBot an
+ * unaffordable North Pole is «a hex without rewards» it may still land on.
+ */
+export const VASTITAS_NORTH_POLE_REBATE = -VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST;
+
+/** True when the bot needs that rebate at all — i.e. it cannot pay the 4 M€. */
+export function needsNorthPoleRebate(game: IGame, bot: IPlayer): boolean {
+  return game.gameOptions.boardName === BoardName.VASTITAS_BOREALIS_NOVA &&
+    bot.megaCredits < VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST;
 }

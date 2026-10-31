@@ -29,28 +29,40 @@ export const VENUS_CELL9_TARGET_TRACK = 6; // Tharsis Bio track (Plant/Animal/Mi
 /** Index the Venus track gets when appended after the 7 Tharsis tracks. */
 export const VENUS_TRACK_INDEX = 7;
 
-export const VENUS_TRACK: TrackDefinition = {
-  role: 'venus',
-  tags: [Tag.VENUS],
-  productions: [],
-  maxPosition: 12,
-  // Cell 9's printed icon is a MICROBE tag (verified vs the component) — a
-  // «microbe advancement» per RB-B FAQ: Pharmacy Union / Splice react to the
-  // bot landing here.
-  microbeTagCells: [9],
-  layout: [
-    undefined, // 0 — start
-    'floater', // 1
-    'floater2', // 2
-    'venus', // 3
-    'floater2', // 4
-    'venus', // 5
-    undefined, // 6
-    'floater2', // 7
-    'venus', // 8
-    `tag_${VENUS_CELL9_TARGET_TRACK}`, // 9 — microbe tag: advance the Bio track (verified vs the component)
-    'venus', // 10
-    'floater2', // 11
-    'tr5', // 12 — end of track
-  ],
-};
+/**
+ * The Venus row with its cell-9 MICROBE icon pointing at `microbeTrackIndex` —
+ * the row the microbe tag belongs to on the map in play. Every board but one
+ * keeps the microbe on the bio row (`VENUS_CELL9_TARGET_TRACK`); Vastitas
+ * Borealis pairs it with Science, so its own row is built here with that index
+ * (`VastitasBorealisMarsBot.VASTITAS_VENUS_TRACK`). The printed row is the same
+ * component either way — only «the track that tag belongs to» differs.
+ */
+export function venusTrackFor(microbeTrackIndex: number): TrackDefinition {
+  return {
+    role: 'venus',
+    tags: [Tag.VENUS],
+    productions: [],
+    maxPosition: 12,
+    // Cell 9's printed icon is a MICROBE tag (verified vs the component) — a
+    // «microbe advancement» per RB-B FAQ: Pharmacy Union / Splice react to the
+    // bot landing here.
+    microbeTagCells: [9],
+    layout: [
+      undefined, // 0 — start
+      'floater', // 1
+      'floater2', // 2
+      'venus', // 3
+      'floater2', // 4
+      'venus', // 5
+      undefined, // 6
+      'floater2', // 7
+      'venus', // 8
+      `tag_${microbeTrackIndex}`, // 9 — microbe tag: advance the microbe's track (verified vs the component)
+      'venus', // 10
+      'floater2', // 11
+      'tr5', // 12 — end of track
+    ],
+  };
+}
+
+export const VENUS_TRACK: TrackDefinition = venusTrackFor(VENUS_CELL9_TARGET_TRACK);

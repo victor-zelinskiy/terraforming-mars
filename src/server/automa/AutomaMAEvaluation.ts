@@ -252,6 +252,27 @@ export class AutomaMAEvaluation {
       return {value: trackPosition(game, 'bio'), target: 10};
     case 'Fundraiser': // "[Event] track at space 10 or higher".
       return {value: trackPosition(game, 'event'), target: 10};
+    // ── Vastitas Borealis (Adding Expansions p.11) ───────────────────────────
+    // The board is VASTITAS_BOREALIS_NOVA — the fork's older VASTITAS_BOREALIS
+    // is a fan map with its own M&A row and is not automa-supported, so no name
+    // here is ambiguous (pinned by `noNameServesTwoBoards`). Geologist is
+    // «Unchanged»: the bot's real tiles on or next to the volcanic areas, read
+    // by the player evaluator (the default branch below), at the threshold the
+    // map prints.
+    case 'Agronomist': // "[Animal/Plant] track at space 4 or higher".
+      return {value: trackPosition(game, 'bio'), target: 4};
+    case 'V. Spacefarer': // "[Space] track space 5 or higher".
+      return {value: trackPosition(game, 'space'), target: 5};
+    case 'Engineer':
+      // "[Jovian/Earth] track and [City/Energy] track has a combined value of 10
+      // or higher." Named by ROLE — the City and Jovian moves of this board need
+      // no special case.
+      return {value: trackPosition(game, 'earth') + trackPosition(game, 'power'), target: 10};
+    case 'Farmer':
+      // "EITHER [Microbe/Science] track OR [Animal/Plant] track at space 6 or
+      // higher." Either one suffices, so the progress is the FURTHER of the two
+      // — never their sum (that would meet it at 3 + 3).
+      return {value: Math.max(trackPosition(game, 'science'), trackPosition(game, 'bio')), target: 6};
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Hoverlord': // Unchanged: 7 floater resources (Adding Expansions p.2).
       return {value: game.automa?.floaters ?? 0, target: 7};
@@ -478,6 +499,20 @@ export class AutomaMAEvaluation {
       // "Every 7 MC counts as 1 card with requirement" — floor, like Hellas'
       // Excentric: 6 M€ is 0 cards, 7 is 1, 13 is 1, 14 is 2.
       score = Math.floor(bot.megaCredits / 7);
+      break;
+    // ── Vastitas Borealis (Adding Expansions p.11) ───────────────────────────
+    // Landscaper and Highlander are «Unchanged» — the bot's real tiles, read by
+    // the player evaluator (the default branch below).
+    case 'Traveller': // "[Jovian/Earth] track space + 5".
+      score = trackPosition(game, 'earth') + 5;
+      break;
+    case 'Promoter': // "[Event] track space".
+      score = trackPosition(game, 'event');
+      break;
+    case 'Blacksmith':
+      // "[Building] track space OR [Space] track space, whichever is
+      // more-advanced." The further of the two, never their sum.
+      score = Math.max(trackPosition(game, 'building'), trackPosition(game, 'space'));
       break;
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Venuphile': // Venus track position (Adding Expansions p.3).

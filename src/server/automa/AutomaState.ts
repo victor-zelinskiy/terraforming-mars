@@ -228,7 +228,7 @@ export class AutomaState {
   private static boardFor(gameOptions: GameOptions): MarsBotBoard {
     const profile = marsBotMapProfile(gameOptions.boardName);
     const tracks = gameOptions.venusNextExtension ?
-      [...profile.tracks, VENUS_TRACK] :
+      [...profile.tracks, profile.venusTrack ?? VENUS_TRACK] :
       [...profile.tracks];
     return new MarsBotBoard(tracks);
   }

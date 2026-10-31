@@ -11,6 +11,7 @@ import {HELLAS_MARSBOT_BOARD} from './HellasMarsBot';
 import {TERRA_CIMMERIA_MARSBOT_BOARD} from './TerraCimmeriaMarsBot';
 import {THARSIS_MARSBOT_BOARD} from './TharsisMarsBot';
 import {UTOPIA_MARSBOT_BOARD} from './UtopiaMarsBot';
+import {VASTITAS_BOREALIS_MARSBOT_BOARD, VASTITAS_VENUS_TRACK} from './VastitasBorealisMarsBot';
 
 /**
  * THE MAP PROFILE — everything that differs between MarsBot boards, and nothing
@@ -26,7 +27,7 @@ import {UTOPIA_MARSBOT_BOARD} from './UtopiaMarsBot';
 /** One ordered placement tiebreaker. Highest score wins; ties fall through. */
 export type MarsBotPlacementTiebreaker = {
   /** Stable id — what the specs pin and what a future placement log would name. */
-  readonly id: 'oceans' | 'polar-region' | 'special-tile' | 'reward-icons' | 'southern-region';
+  readonly id: 'oceans' | 'polar-region' | 'special-tile' | 'reward-icons' | 'southern-region' | 'edge';
   readonly score: (game: IGame, bot: IPlayer, space: Space) => number;
 };
 
@@ -100,6 +101,21 @@ const TERRA_CIMMERIA_SPECIAL_TILE: MarsBotPlacementTiebreaker = {
     (game.board.getAdjacentSpaces(space).some(isSpecialTileSpace) ? 1 : 0),
 };
 
+/**
+ * «Vastitas Borealis: Edge spaces, if possible, otherwise adjacent to as many
+ * oceans as possible» — Adding Expansions p.10 step 6. A YES/NO test (an edge
+ * hex is an edge hex), followed by the ocean count as its own step: the board's
+ * own player aid prints the two as consecutive steps («2 Edge spaces · 3
+ * Adjacent to most ocean tiles»), so among several edge hexes the oceans still
+ * decide before the card flip. The edge predicate is the canonical one
+ * (`MarsBoard.isEdge`) — Utopia's tiebreak icon and the Edgedancer award read
+ * it too.
+ */
+const VASTITAS_EDGE: MarsBotPlacementTiebreaker = {
+  id: 'edge',
+  score: (game, _bot, space) => (game.board.isEdge(space) ? 1 : 0),
+};
+
 export type MarsBotMapProfile = {
   readonly boardName: BoardName;
   /** The transcribed board — 7 tracks, positions 0–18. */
@@ -130,6 +146,13 @@ export type MarsBotMapProfile = {
    * (1 M€ per PRINTED icon), so an edge hex never pays for its virtual icon.
    */
   readonly tiebreakRewardBonus?: (game: IGame, space: Space) => number;
+  /**
+   * The Venus row this map appends when Venus Next is on. Absent = the shared
+   * `VENUS_TRACK`, whose cell-9 microbe advances the bio row. A map that moves
+   * the MICROBE tag elsewhere (Vastitas Borealis: Microbe + Science) brings its
+   * own, because «advance the track that tag belongs to» follows the tag.
+   */
+  readonly venusTrack?: TrackDefinition;
 };
 
 const THARSIS_PROFILE: MarsBotMapProfile = {
@@ -188,8 +211,33 @@ const TERRA_CIMMERIA_PROFILE: MarsBotMapProfile = {
   placementTiebreakers: [OCEAN_ADJACENCY, TERRA_CIMMERIA_SPECIAL_TILE, REWARD_ICONS],
 };
 
+/**
+ * VASTITAS BOREALIS — specifically `VASTITAS_BOREALIS_NOVA`, the official map
+ * (Viking 1/2, the North Pole −4 M€ temperature hex, the B13 milestone/award
+ * row). The fork's older `VASTITAS_BOREALIS` is an unrelated fan map and stays
+ * unsupported.
+ */
+const VASTITAS_BOREALIS_PROFILE: MarsBotMapProfile = {
+  boardName: BoardName.VASTITAS_BOREALIS_NOVA,
+  tracks: VASTITAS_BOREALIS_MARSBOT_BOARD,
+  corporateCompetition: BonusCardId.B13_CORPORATE_COMPETITION_BOREALIS,
+  // Adding Expansions p.10: 4. reward icons · 6. edge, otherwise oceans. Step 1
+  // (ocean adjacency FIRST) names Hellas, Elysium, Terra Cimmeria and Utopia —
+  // not this map, which is why the oceans come LAST here. The North Pole and
+  // the Viking hexes ride step 4 as conditional weights (`AutomaPlacementBonus`).
+  placementTiebreakers: [REWARD_ICONS, VASTITAS_EDGE, OCEAN_ADJACENCY],
+  // «On Vastitas Borealis, volcanic spaces and spaces adjacent to them are
+  // considered to have an additional reward icon for purposes of tiebreakers»
+  // (a bullet UNDER step 4). ONE extra icon however many volcanoes touch the
+  // hex — «have an additional reward icon», never one per volcano. Tiebreak
+  // only: the payout stays the printed icons.
+  tiebreakRewardBonus: (game, space) =>
+    (space.volcanic === true || game.board.getAdjacentSpaces(space).some((s) => s.volcanic === true) ? 1 : 0),
+  venusTrack: VASTITAS_VENUS_TRACK,
+};
+
 const PROFILES: ReadonlyArray<MarsBotMapProfile> =
-  [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE, TERRA_CIMMERIA_PROFILE];
+  [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE, TERRA_CIMMERIA_PROFILE, VASTITAS_BOREALIS_PROFILE];
 
 /** Every board MarsBot can be played on. */
 export const MARSBOT_BOARDS: ReadonlyArray<BoardName> = PROFILES.map((p) => p.boardName);

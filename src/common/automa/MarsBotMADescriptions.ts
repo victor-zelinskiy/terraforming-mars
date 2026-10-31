@@ -35,11 +35,12 @@ export const MARSBOT_MILESTONE_DESCRIPTIONS: Partial<Record<MilestoneName, strin
   'Coastguard': 'Tiles adjacent to ocean (unchanged)',
   'C. Forester': 'Bio track \u2265 10',
   'Fundraiser': 'Event track \u2265 10',
-  // Vastitas Borealis Nova
-  'Agronomist': 'Bio + Science track \u2265 4',
-  'Engineer': 'Energy + Science track \u2265 10',
+  // Vastitas Borealis \u2014 the official board is VASTITAS_BOREALIS_NOVA (RB-C p.11)
+  'Agronomist': 'Animal/Plant track \u2265 4',
   'V. Spacefarer': 'Space track \u2265 5',
-  'Farmer': 'Science + Event \u2265 6 OR Bio + Science \u2265 6',
+  'Geologist': 'Tiles on or next to volcanic areas (unchanged)',
+  'Engineer': 'Jovian/Earth + City/Energy tracks combined \u2265 10',
+  'Farmer': 'Microbe/Science OR Animal/Plant track \u2265 6',
   // Modular
   'Briber': '20+ MC (loses 12 MC on claim)',
   'Builder7': 'Building track \u2265 7',
@@ -90,11 +91,13 @@ export const MARSBOT_AWARD_DESCRIPTIONS: Partial<Record<AwardName, string>> = {
   'Botanist': 'Bio track minus 2',
   'Metropolist': 'Cities owned (unchanged)',
   'Incorporator': 'Cards costing 10 MC or less (including events)',
-  // Vastitas Borealis Nova
-  'Traveller': 'Building + Science track + 5',
-  'Manufacturer': 'Building + Energy track',
+  // Vastitas Borealis — the official board is VASTITAS_BOREALIS_NOVA (RB-C p.11)
+  'Traveller': 'Jovian/Earth track + 5',
+  'Landscaper': 'Largest group of connected tiles (unchanged)',
+  'Highlander': 'Tiles not next to an ocean (unchanged)',
+  'Promoter': 'Event track',
   'Blacksmith': 'Building OR Space track (higher)',
-  'Promoter': 'Energy track',
+  'Manufacturer': 'Building + Energy track',
   // Modular
   'Administrator': 'Cards without tags in played pile + 2',
   'Collector': 'Tracks at space 3+',

@@ -68,7 +68,7 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
     expect(conflicts).has.length(1);
     expect(conflicts[0].key).eq('board');
     expect(conflicts[0].reason)
-      .eq('the amazonis p. board yet — MarsBot covers tharsis, hellas, elysium, utopia planitia and terra cimmeria nova');
+      .eq('the amazonis p. board yet — MarsBot covers tharsis, hellas, elysium, utopia planitia, terra cimmeria nova and vastitas borealis nova');
   });
 
   it('reports EVERY conflict (the UI highlights all of them at once)', () => {

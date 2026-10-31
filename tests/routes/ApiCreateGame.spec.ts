@@ -28,14 +28,16 @@ describe('ApiCreateGame', () => {
     expect(ApiCreateGame.boardOptions(RandomBoardOption.OFFICIAL)).deep.eq([BoardName.THARSIS, BoardName.HELLAS, BoardName.ELYSIUM]);
   });
   it('Fully random boards include fan maps but exclude unadapted-bonus maps', () => {
-    // Vastitas Borealis Nova and Arabia Terra are temporarily excluded from the
-    // random-all pool (expansion-linked bonuses not adapted yet); see
-    // ApiCreateGame.RANDOM_ALL_EXCLUSIONS.
+    // Arabia Terra is temporarily excluded from the random-all pool (its
+    // Pathfinders bonuses are not adapted yet); see RANDOM_ALL_EXCLUSIONS.
+    // Vastitas Borealis Nova joined it once its Viking delegate bonus reached
+    // the Mars Parliament (2026-10-31).
     expect(ApiCreateGame.boardOptions(RandomBoardOption.ALL)).deep.eq([
       BoardName.THARSIS,
       BoardName.HELLAS,
       BoardName.ELYSIUM,
       BoardName.UTOPIA_PLANITIA,
+      BoardName.VASTITAS_BOREALIS_NOVA,
       BoardName.TERRA_CIMMERIA_NOVA,
       BoardName.VASTITAS_BOREALIS,
       BoardName.AMAZONIS,
@@ -51,6 +53,7 @@ describe('ApiCreateGame', () => {
       BoardName.HELLAS,
       BoardName.ELYSIUM,
       BoardName.UTOPIA_PLANITIA,
+      BoardName.VASTITAS_BOREALIS_NOVA,
       BoardName.TERRA_CIMMERIA_NOVA,
     ]);
     // All three official boards have MarsBot adaptations — the pool is unchanged.

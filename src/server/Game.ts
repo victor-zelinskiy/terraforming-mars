@@ -64,6 +64,7 @@ import {ParliamentHandler} from './parliament/ParliamentHandler';
 import {SittingAcks} from './parliament/SittingAcks';
 import {caughtAtNet} from './parliament/resolutions/DivertedTerraforming';
 import {ParliamentPhase} from './parliament/ParliamentPhase';
+import {PlaceDelegatesOnResolution} from './parliament/PlaceDelegatesOnResolution';
 import {ChairmanSeat} from './parliament/quests/ChairmanSeat';
 import {PoliticalOps, politicalOpsOf} from './politics/PoliticalOps';
 import {RandomMAOptionType} from '../common/ma/RandomMAOptionType';
@@ -3014,7 +3015,18 @@ export class Game implements IGame, Logger {
       this.defer(cardBonus(CardResource.ASTEROID));
       return {kind: 'other'};
     case SpaceBonus.DELEGATE:
-      Turmoil.ifTurmoil(this, () => this.defer(new SendDelegateToArea(player)));
+      // Vastitas Borealis' Viking 1 / 2: «place a delegate for free from the Reserve (ignore if not playing with
+      // Turmoil)». Under Turmoil Redux that reserve feeds the Mars Parliament, so the delegate goes onto a resolution
+      // of the voting area — the Parliament's own grant step, the cell naming the giver (it refuses with a named skip
+      // when no vote is open or the reserve is empty). MarsBot never reaches here: its covered icons settle in
+      // `AutomaTilePlacer` (the owner's Viking house rule).
+      if (this.parliament !== undefined) {
+        const sender = source?.spaceId ?? source?.placedSpaceId;
+        this.defer(new PlaceDelegatesOnResolution(player, count,
+          sender !== undefined ? spaceSource(sender, PLACEMENT_BONUS_SOURCE_NAME) : {kind: 'system'}));
+      } else {
+        Turmoil.ifTurmoil(this, () => this.defer(new SendDelegateToArea(player)));
+      }
       return {kind: 'other'};
     case SpaceBonus.COLONY:
       this.defer(new SelectPaymentDeferred(

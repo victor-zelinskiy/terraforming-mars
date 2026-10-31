@@ -74,6 +74,7 @@ export const PREMIUM_MAPS: ReadonlyArray<PremiumMapMeta> = [
   {id: BoardName.ELYSIUM, random: false, accent: '60,170,80', labelKey: 'Elysium', descKey: 'Volcano-heavy map with scattered oceans and contested city spots.'},
   {id: BoardName.UTOPIA_PLANITIA, random: false, accent: '96,150,196', labelKey: 'Utopia Planitia', descKey: 'Northern lowlands rich in oceans, with energy placement bonuses.'},
   {id: BoardName.TERRA_CIMMERIA_NOVA, random: false, accent: '210,80,160', labelKey: 'Terra Cimmeria Nova', descKey: 'Metal-rich highlands with colony placement bonuses.'},
+  {id: BoardName.VASTITAS_BOREALIS_NOVA, random: false, accent: '150,200,230', labelKey: 'Vastitas Borealis Nova', descKey: 'The ancient northern sea: a North Pole that buys heat for 4 M€, Viking delegate sites and four volcanoes.'},
   {id: BoardName.VASTITAS_BOREALIS, random: false, accent: '200,184,70', labelKey: 'Vastitas Borealis', descKey: 'Vast northern plains with heat and temperature bonuses.'},
   {id: BoardName.AMAZONIS, random: false, accent: '130,190,50', labelKey: 'Amazonis Planitia', descKey: 'Western plateau with plant, heat and life (microbe/animal) bonuses.'},
   {id: BoardName.TERRA_CIMMERIA, random: false, accent: '200,60,150', labelKey: 'Terra Cimmeria', descKey: 'Rugged southern highlands with steel and energy bonuses.'},

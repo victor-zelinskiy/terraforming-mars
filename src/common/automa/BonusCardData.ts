@@ -65,7 +65,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   },
   [BonusCardId.B13_CORPORATE_COMPETITION_BOREALIS]: {
     name: 'Corporate Competition (Vastitas Borealis)',
-    text: 'The Vastitas Borealis version of Corporate Competition.',
+    text: 'With 5+ M€, MarsBot pushes the Vastitas Borealis award race it is closest to being ahead on, then loses 5 M€.',
   },
   [BonusCardId.B14_CORPORATE_COMPETITION_MA]: {
     name: 'Corporate Competition (Milestones & Awards)',
@@ -328,6 +328,24 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
         {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
         {icon: 'megacredits', text: 'Forecaster instead GAINS ${0} M€ — that option costs the card nothing', params: ['5']},
+        {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
+      ],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.B13_CORPORATE_COMPETITION_BOREALIS:
+    // The Vastitas Borealis face (B13): same card, its own helper list.
+    // Highlander is CONSTRAINED — with no legal space away from every ocean
+    // (reserved or placed) the helper is impossible and the card moves on.
+    return {
+      name,
+      lines: [
+        {icon: 'award', text: 'With 5+ M€: MarsBot pushes the award race it is closest to leading'},
+        {icon: 'tile', text: 'Traveller advances the Jovian track; Promoter the event track', muted: true},
+        {icon: 'greenery', text: 'Landscaper places a greenery and raises oxygen 1 step', muted: true},
+        {icon: 'greenery', text: 'Highlander places a greenery away from every ocean and raises oxygen 1 step', muted: true},
+        {icon: 'tile', text: 'Blacksmith advances the building or space track, whichever is further', muted: true},
+        ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
+        {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
         {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
       ],
       fate: FATE_DISCARD,

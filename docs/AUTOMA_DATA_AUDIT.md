@@ -233,6 +233,40 @@ Jovian к Earth, Energy остаётся один. Производственн�
 ⚠️ **Что с листа НЕ переносится:** встроенный ряд Венеры, «FAILED ACTIONS = 5», «REMOVE ANY
 RESOURCES», таблица финального пересчёта M€.
 
+## 2e. Vastitas Borealis MarsBot board (`src/server/automa/boards/VastitasBorealisMarsBot.ts`)
+
+Статус: **транскрибирован покадрово** с официального компонента «Vastitas Borealis MarsBot board»
+(«compatible with rules v1.16+», прислан владельцем 2026-10-31) вместе с картой B13 и страницами RB-C
+pp.8, 11–12. Все 7 × 19 клеток пиннит `tests/automa/VastitasBorealisMarsBotBoard.spec.ts`.
+
+⚠️ **КАКАЯ ИМЕННО «Vastitas Borealis».** Официальная карта (коробка FryxGames «Amazonis & Vastitas»,
+2024; та же, что в RB-C 2023) — это **`BoardName.VASTITAS_BOREALIS_NOVA`**: Viking 1/2, Северный полюс
+«температура за 4 M€», вехи Agronomist · Spacefarer · Geologist · Engineer · Farmer, награды
+Traveller · Landscaper · Highlander · Promoter · Blacksmith. Сверена гекс в гекс с фото поля из листа
+правил FryxGames (нижний ряд у апстрима был перепутан — исправлено e702c94202). Старая
+`VASTITAS_BOREALIS` форка — фанатская карта, бот её НЕ поддерживает.
+
+**Пары меток — три сдвига сразу (RB-C p.8):** Microbe + Science (row 3, роль `science`), City + Energy
+(row 4, `power`), Jovian + Earth (row 5, `earth`), Animal + Plant (row 6, `bio`). Значки производства
+печатные: сталь/титан/M€/— /энергия/тепло/растения. Второй торговый флот — клетка 9 трека `power`
+(RB-C p.4 печатает для этой карты значок City/Energy; на клетке — жетон флота).
+
+**Ряд Венеры следует за МИКРОБОМ.** Клетка 9 ряда Венеры — метка микроба, «advance the track that tag
+belongs to»; здесь это Microbe/Science, поэтому у профиля свой ряд `VASTITAS_VENUS_TRACK`
+(`venusTrackFor(3)`), у остальных карт — общий `VENUS_TRACK` (био).
+
+**Две круглые тег-иконки:** building 11 — значок ВЕНЕРЫ (`tag_7`, без Venus Next инертен, как на
+Утопии), science 16 — значок ЖИВОТНОГО (`tag_6`, ряд Animal/Plant).
+
+Diff против Tharsis (закреплён тестом): building 1 →advance, 11 tag_1→tag_7 · space 11 tr3→tr4, 16
+tr4→tr5 · event 6 venus2→floater2, 12 tr4→tr5 · science 3 advance→пусто, 16 →tag_6, 18 tr7→tr5 · power
+2/4 venus/venus2→пусто, 5 и 9 temperature→city · earth 2 →floater, 4 tr3→temperature, 5 city→floater2,
+8 city→temperature · bio 2/4 →greenery, 3/5 greenery→пусто, 12 tr3→tr4, 18 tr6→tr8.
+
+⚠️ **Что с листа НЕ переносится:** «FAILED ACTIONS = 5», «REMOVE ANY RESOURCES», таблица M€. Панель
+вех листа печатает Geologist «4 tiles»; RB-C говорит «Unchanged» — бот берёт порог, который печатает
+карта (3).
+
 ## 3. Venus Next MarsBot board (`src/server/automa/boards/VenusMarsBot.ts`)
 
 Статус: **транскрибирован** с RB-A p.2 (кроп «1 Venus Next MarsBot board», масштаб 26–30).
@@ -312,7 +346,8 @@ Extended Shipping Lines подмешивается со следующего п�
 | B18 Outer System Foothold | ✓ (колония flip-методом + 2 ресурса; затем draw из BONUS deck и discard без резолва — reshuffle без самого OSF) | RB-C p.5 |
 | B19/B20 Shipping / Extended Shipping Lines | ✓ (тайл с самым продвинутым треком → tie: где колония бота → tie: flip-метод; −1 MC и trade) | RB-C p.5 |
 | B21 Party Politics | ✓ **транскрибирована полностью 2026-09-29** (дамп страницы целиком через `pypdfium2`). Официальный текст (RB-C p.6, там карта названа «B20» — конфликт нумерации решён в §1): *«If MarsBot has at least 1 delegate left in the reserve, place 1 of its delegates from the reserve into one of the delegate areas, then check whether the Party Leader or the Dominant Party changes because of this. To select which party to place it in, use the below priority list to narrow the options until a single party is selected: 1. A party where placing 1 delegate would cause MarsBot to become Party Leader AND the party to become Dominant. 2. A party where placing 1 delegate would cause MarsBot to become Party Leader. 3. A party where MarsBot is already Party Leader, and placing 1 delegate would make the party Dominant. 4. A party where you (the player) have the fewest (including zero) delegates (including possibly a Party Leader). 5. A party where MarsBot has fewest (including zero) delegates (including possibly a Party Leader). 6. The next party clockwise from the Dominance marker (circling around). Then, if there is at least 1 MarsBot delegate remaining in reserve and MarsBot has at least 5 MC, flip a card from the project deck (and then discard it). If the flipped card's price is evenly divisible by 3, MarsBot spends 5 MC and repeats the above procedure to place a second delegate from the reserve.»* Реализована **в Redux-прочтении** (§15): делегат — на РЕЗОЛЮЦИЮ по списку §3.3 проекта, хвост про флип снят — платные делегаты даёт «Лоббирование» | RB-C p.6 |
-| B09–B14, B22–B32 | вне POC (карты/Awards&Milestones/корпорации) | — |
+| B09–B13 | ✓ по одной на карту — §11–14, §16 (B13: скан карты владельца 2026-10-31) | RB-C p.12 + сканы |
+| B14, B22–B32 | вне POC (Awards&Milestones/корпорации) | — |
 
 ## 6. Venus-правила, закрытые RB-C (бывшие блокеры B1/B4)
 
@@ -942,3 +977,73 @@ Turmoil Step 1) и p.7 (Turmoil Step 2–4, End of Game, Increasing the Difficul
 | Increasing the Difficulty: −7 вместо −10; случайный делегат при сетапе | — | — | **С** (D8: не делать) |
 | Награда победителя ★, Повестка, влияние, Народная поддержка, задания, колонии Redux, Лоббирование | — | — | **Н** (§2 проекта) |
 | Shipping Board (RB-A p.2): 11 областей базовых тайлов | Плутон Redux наследует область Плутона (замена) | ДОБАВЛЕНИЯ Redux без близнеца: **Венера Redux → метка Венеры** (трек только с Venus Next; без него область копит, обмена нет — как Титан), **Веста → метка космоса**; бот строит/торгует по абстракции (ресурсы в область, печатная награда и правило держателя игнорируются); гейт дилера снят | **Н** (D7, `ShippingBoardData.ts`, `VenusAndShippingData.spec`) |
+
+## 16. Vastitas Borealis — правила карты (RB-C: Adding Expansions + карта B13)
+
+Статус: **закрыто по официальным источникам + одно домашнее правило владельца (Viking)**, шестой map
+profile. Ни одна из прежних карт не менялась ни в одной клетке. Доска — §2e.
+
+### 16.1. Setup
+`corporateCompetition = B13`. Второй флот — `power` (City/Energy) клетка 9. Карта вошла в пул
+«Случайная карта» (`RANDOM_ALL_EXCLUSIONS` больше её не держит) и в список карт консольного создателя;
+кампания с ботом тянет теперь 4 из 6 карт.
+
+### 16.2. Вехи (RB-C p.11)
+| Веха | Условие для бота | Семья |
+|---|---|---|
+| Agronomist | Animal/Plant ≥ 4 | своё правило бота |
+| Spacefarer (`V. Spacefarer`) | Space ≥ 5 | своё правило бота |
+| Geologist | *Unchanged* — реальные тайлы на/у вулканов, порог карты (3) | **default** |
+| Engineer | Jovian/Earth **+** City/Energy ≥ 10 | своё правило бота |
+| Farmer | Microbe/Science **ИЛИ** Animal/Plant ≥ 6 (прогресс = дальний из двух, не сумма) | своё правило бота |
+| Hoverlord | *Unchanged* — 7 флоатеров | существующая ветка Venus |
+
+### 16.3. Награды (RB-C p.11)
+| Награда | Сила бота |
+|---|---|
+| Traveller | Jovian/Earth **+ 5** |
+| Landscaper | *Unchanged* (**default**) — крупнейшая связная группа тайлов |
+| Highlander | *Unchanged* (**default**) — тайлы не у океана |
+| Promoter | клетка трека событий |
+| Blacksmith | клетка Building **или** Space — дальняя из двух |
+| Venuphile | клетка трека Венеры |
+
+### 16.4. Тайбрейкеры размещения (RB-C p.10)
+Для Vastitas активны шаги 4 и 6 — **океаны НЕ первые** (шаг 1 называет Hellas/Elysium/TC/Utopia):
+4. максимум наградных иконок; вулканические гексы и их соседи — **+1 иконка** (одна, сколько бы
+   вулканов ни касалось; только для тайбрейка, выплата — печатные иконки);
+6. край поля (да/нет), затем максимум соседних океанов — лист бота печатает их двумя шагами подряд
+   («2 Edge spaces · 3 Adjacent to most ocean tiles»);
+7. флип карты проекта.
+
+### 16.5. Северный полюс (температура за 4 M€)
+Близнец южного полюса Эллады и MSL (`AutomaPlacementBonus`): ACTIVE (температура не на максимуме,
+≥4 M€, закон-замена RX35 не действует) — вес 2.5, при размещении −2 иконки, +1 шаг температуры
+(обычный `raiseTemperature` бота — C36 его перехватывает) и −4 M€; INACTIVE — вес 0, ничего не
+получает и не платит; недоступный по деньгам полюс остаётся ЛЕГАЛЬНЫМ (ребейт −4, как у Эллады).
+
+### 16.6. Viking 1 / 2 (делегат) — ДОМАШНЕЕ ПРАВИЛО владельца 2026-10-31
+RB-C: с классическим Turmoil игрок берёт делегата, бот — 1 M€; без Turmoil — гекс пустой. В форке
+Turmoil Redux, и правило владельца: **бот ставит делегата** (бесплатно, из резерва, СВЕРХ мандата
+поколения — `placeBotGrantDelegate`, мандат не трогается). Вес для тайбрейка — 1 иконка, когда
+делегат может встать (Парламент есть, бот в нём, есть резолюция на голосовании, резерв не пуст), иначе
+0 («considered empty»). Иконочных M€ гекс не платит никогда.
+
+Человек на Viking при Redux теперь тоже получает делегата: `Game.grantSpaceBonus` DELEGATE →
+`PlaceDelegatesOnResolution` с источником-клеткой (раньше бонус молча терялся — классический
+`Turmoil.ifTurmoil` в Redux-партии ложен). Без Парламента — классический путь как был.
+
+### 16.7. B13 Corporate Competition
+| Награда | Helper |
+|---|---|
+| Traveller | продвинуть трек Юпитера (= Jovian/Earth, роль `earth`) |
+| Landscaper | озеленение + кислород |
+| Highlander | озеленение + кислород **не у океана и не у зарезервированной под океан клетки** (RB-C p.12 полнее карты); нет такой клетки — невозможно, 5 M€ не платятся |
+| Promoter | продвинуть трек событий |
+| Blacksmith | продвинуть Building или Space — дальний из НЕзаполненных; ничья → Building (верхний) |
+| Venuphile | продвинуть трек Венеры |
+
+### 16.8. Прямые размещения бота теперь тоже рассчитывают клетку
+B05/B17 («город у 2+ озеленений/океанов») и оба размещения Philares клали тайл мимо
+`AutomaTilePlacer.placeAndSettle` — на Южном полюсе, MSL, Северном полюсе или Viking это значило «ничего
+не получил и не заплатил». Теперь они идут через тот же расчёт.

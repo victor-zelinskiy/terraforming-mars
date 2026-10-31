@@ -102,6 +102,9 @@ export const AUTOMA_SUPPORTED_BOARDS: ReadonlyArray<BoardName> = [
   // with the MSL Curiosity colony hex and the B12 milestone/award row. The
   // fork's older `TERRA_CIMMERIA` is a different map and is NOT supported.
   BoardName.TERRA_CIMMERIA_NOVA,
+  // The official Vastitas Borealis (Viking 1/2, the North Pole, the B13 row).
+  // The fork's older `VASTITAS_BOREALIS` is a fan map and is NOT supported.
+  BoardName.VASTITAS_BOREALIS_NOVA,
 ];
 
 /** «tharsis, hellas and elysium» — the list read out in the rejection reason. */

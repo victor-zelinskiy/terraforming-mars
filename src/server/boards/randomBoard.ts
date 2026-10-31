@@ -6,8 +6,10 @@ import {AUTOMA_SUPPORTED_BOARDS} from '../../common/automa/automaCompatibility';
 // tied to expansions this fork hasn't adapted yet. Drop an entry once that map's
 // expansion-linked bonuses are adapted. They are still selectable explicitly —
 // only the random-all pool skips them.
+//
+// Vastitas Borealis Nova left the list on 2026-10-31: its Viking delegate bonus
+// now reaches the Mars Parliament (Turmoil Redux) for humans and MarsBot alike.
 const RANDOM_ALL_EXCLUSIONS: ReadonlyArray<BoardName> = [
-  BoardName.VASTITAS_BOREALIS_NOVA,
   BoardName.ARABIA_TERRA,
 ];
 

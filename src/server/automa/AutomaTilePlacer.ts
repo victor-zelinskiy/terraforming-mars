@@ -12,15 +12,24 @@ import {marsBotMapProfile} from './boards/MarsBotMapProfile';
 import {
   HELLAS_SOUTH_POLE_REBATE,
   MSL_CURIOSITY_REBATE,
+  VASTITAS_NORTH_POLE_REBATE,
   hellasSouthPoleUsable,
   isHellasSouthPole,
   isMslCuriosity,
+  isVastitasNorthPole,
+  isVikingSite,
   mslCuriosityUsable,
   needsMslCuriosityRebate,
+  needsNorthPoleRebate,
   needsSouthPoleRebate,
   settleHellasSouthPole,
   settleMslCuriosity,
+  settleVastitasNorthPole,
+  vastitasNorthPoleUsable,
+  vikingDelegateUsable,
 } from './AutomaPlacementBonus';
+import {AutomaTerraformer} from './AutomaTerraformer';
+import {placeBotGrantDelegate} from './AutomaPolitics';
 import {marsBotOf} from './AutomaUtil';
 import {divertBotTerraforming} from './BotDivertedTerraforming';
 
@@ -259,18 +268,33 @@ export class AutomaTilePlacer {
         return [...available, recovered];
       }
     }
+    if (needsNorthPoleRebate(game, bot)) {
+      // Vastitas Borealis' North Pole — the South Pole's shape: the same
+      // legality question with the 4 M€ rebated, used only to recover that hex.
+      const northPole = spaces({cost: VASTITAS_NORTH_POLE_REBATE, tr: {}}).find(isVastitasNorthPole);
+      if (northPole !== undefined && !available.includes(northPole)) {
+        return [...available, northPole];
+      }
+    }
     return available;
   }
 
   /**
    * Put the tile down, then settle whatever the HEX itself owes — Hellas' South
-   * Pole («places an ocean, loses 6 M€») and Terra Cimmeria's MSL Curiosity
-   * («places a colony, loses 5 M€»), both of which run after the tile lands.
+   * Pole («places an ocean, loses 6 M€»), Terra Cimmeria's MSL Curiosity
+   * («places a colony, loses 5 M€»), Vastitas Borealis' North Pole («raises
+   * the temperature, loses 4 M€») and its Viking hexes (a delegate), all of
+   * which run after the tile lands.
    * Usability is read BEFORE the placement: the tile can pay the bot
    * ocean-adjacency M€, and a hex ranked as reward-less must not turn into an
    * ocean (or a colony) because that money just arrived.
+   *
+   * PUBLIC because a few bot placements choose their hex by their own printed
+   * criterion (B05/B17's «adjacent to 2+», Philares' «beside your city») and put
+   * the tile down themselves — they still settle through here, or a pay-to-use
+   * hex they land on would silently pay nothing and charge nothing.
    */
-  private static placeAndSettle(game: IGame, bot: IPlayer, space: Space, place: () => void): void {
+  public static placeAndSettle(game: IGame, bot: IPlayer, space: Space, place: () => void): void {
     if (isHellasSouthPole(game, space)) {
       const usable = hellasSouthPoleUsable(game, bot);
       place();
@@ -283,6 +307,26 @@ export class AutomaTilePlacer {
       const usable = mslCuriosityUsable(game, bot);
       place();
       settleMslCuriosity(bot, usable, () => AutomaColonies.botBuildColony(game));
+      return;
+    }
+    if (isVastitasNorthPole(space)) {
+      // Vastitas Borealis' North Pole — temperature for 4 M€, the same shape.
+      const usable = vastitasNorthPoleUsable(game, bot);
+      place();
+      settleVastitasNorthPole(bot, usable, () => AutomaTerraformer.raiseTemperature(game));
+      return;
+    }
+    if (isVikingSite(space)) {
+      // Viking 1 / 2 — the owner's house rule for Turmoil Redux (2026-10-31):
+      // the bot PLACES the printed delegate, free, from its reserve, beside its
+      // lobbying mandate (never counted against it). The Parliament's own grant
+      // primitive — the bot's chooser picks the resolution, the journal and the
+      // turn step are its. Read before the tile lands, like every hex above.
+      const usable = vikingDelegateUsable(game, bot);
+      place();
+      if (usable) {
+        placeBotGrantDelegate(game, bot);
+      }
       return;
     }
     place();

@@ -344,7 +344,7 @@ function tryCityBesideOpponentGreenery(game: IGame): boolean {
   const most = Math.max(...candidates.map(besideGreenery));
   const space = AutomaTilePlacer.breakTie(game,
     AutomaAres.preferAwayFromHazards(game, candidates.filter((s) => besideGreenery(s) === most)));
-  game.addCity(bot, space);
+  AutomaTilePlacer.placeAndSettle(game, bot, space, () => game.addCity(bot, space));
   payOrTake(game, CITY_PRICE, 'lose');
   return true;
 }
@@ -381,7 +381,7 @@ function trySpecialTileBesideOpponentCity(game: IGame): CardName | undefined {
   const most = Math.max(...candidates.map(besideCity));
   const space = AutomaTilePlacer.breakTie(game,
     AutomaAres.preferAwayFromHazards(game, candidates.filter((s) => besideCity(s) === most)));
-  game.addTile(bot, space, {tileType});
+  AutomaTilePlacer.placeAndSettle(game, bot, space, () => game.addTile(bot, space, {tileType}));
   // «Destroy that card»: out of the played pile, so it scores nothing.
   automa.playedPile.splice(index, 1);
   game.log('${0} planted ${1} beside your city and destroyed the card',
