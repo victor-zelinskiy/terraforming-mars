@@ -30,11 +30,15 @@ const PROFILES = [
   {id: 'deck', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld'},
 ] as const;
 
-type Case = {id: string, fixture: FixtureName, card: string, variant: number, pick?: string};
+/** `context`: the «after the action» line the sheet owes (a regexp over its text), or `null` when the role says nothing (VP). */
+type Case = {id: string, fixture: FixtureName, card: string, variant: number, pick?: string, context: RegExp | null};
 const CORPUS: ReadonlyArray<Case> = [
-  {id: 'cloud-tourism', fixture: 'cloud-tourism-vp', card: 'Cloud Tourism', variant: 0},
-  {id: 'refinery-remove', fixture: 'floating-refinery-action', card: 'Floating Refinery', variant: 1, pick: 'Floating Habs'},
-  {id: 'refinery-sole', fixture: 'floating-refinery-sole', card: 'Floating Refinery', variant: 0},
+  // A VP holder: the VP chip reads the point — no second line.
+  {id: 'cloud-tourism', fixture: 'cloud-tourism-vp', card: 'Cloud Tourism', variant: 0, context: null},
+  // The move is on ANOTHER card (the source pick) — the hero's capsule does not move: no line.
+  {id: 'refinery-remove', fixture: 'floating-refinery-action', card: 'Floating Refinery', variant: 1, pick: 'Floating Habs', context: null},
+  // «+1 floater here» on a 1-floater P73 whose 2 floaters buy titanium + M€: the line says the action opens, 2 / 2.
+  {id: 'refinery-sole', fixture: 'floating-refinery-sole', card: 'Floating Refinery', variant: 0, context: /После действия.*Действие откроется: 2 \/ 2/},
 ];
 
 type Rect = {t: number, b: number, l: number, r: number, w: number, h: number};
@@ -49,6 +53,13 @@ type Scene = {
   ctaShadow: string,
   outside: Array<string>,
   cut: Array<string>,
+  /** The body zone (between the rule and the commit) and the block it holds — (g) a short block stands CENTRED in it. */
+  body: Rect | null,
+  block: Rect | null,
+  /** The «after the action» line — (h) present for a holder whose role is a priced good / tender, absent for a VP holder. */
+  context: string | null,
+  /** (i) the plain «confirm to perform» sentence stands ONLY where no formula does — never under one (it restates the plate). */
+  plainUnderFormula: boolean,
 };
 
 async function readScene(page: Page): Promise<Scene> {
@@ -94,6 +105,19 @@ async function readScene(page: Page): Promise<Scene> {
         cut.push(h.textContent ?? '');
       }
     }
+    const bodyEl = sheet.querySelector('[data-setup-body]');
+    let block: Rect | null = null;
+    if (bodyEl !== null) {
+      const kids = [...bodyEl.children].map((k) => k.getBoundingClientRect()).filter((r) => r.height > 0);
+      if (kids.length > 0) {
+        const t = Math.min(...kids.map((r) => r.top));
+        const b = Math.max(...kids.map((r) => r.bottom));
+        const l = Math.min(...kids.map((r) => r.left));
+        const rr = Math.max(...kids.map((r) => r.right));
+        block = {t, b, l, r: rr, w: rr - l, h: b - t};
+      }
+    }
+    const contextEl = sheet.querySelector('[data-setup-context]');
     return {
       sheet: rect(sheet), hero, band,
       valueFs: effective(value), kickerFs: effective(kicker),
@@ -101,6 +125,11 @@ async function readScene(page: Page): Promise<Scene> {
       cta: ctaEl !== null ? rect(ctaEl) : null,
       ctaShadow: ctaEl !== null ? getComputedStyle(ctaEl).boxShadow : '',
       outside, cut,
+      body: bodyEl !== null ? rect(bodyEl) : null,
+      block,
+      context: contextEl !== null ? (contextEl.textContent ?? '').replace(/\s+/g, ' ').trim() : null,
+      plainUnderFormula: sheet.querySelector('.con-composer__hero:not(.con-composer__hero--plain)') !== null &&
+        sheet.querySelector('.con-composer__hero--plain') !== null,
     };
   }, STAGE);
 }
@@ -155,9 +184,29 @@ async function openSetup(page: Page, c: Case): Promise<void> {
   await settle(page);
 }
 
-/** The scene laws (a), (c)–(f) on the current frame. */
-function expectSetupScene(scene: Scene, label: string, deck: boolean): void {
+/** The scene laws (a), (c)–(h) on the current frame. */
+function expectSetupScene(scene: Scene, label: string, deck: boolean, context: RegExp | null): void {
   const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
+  // (g) THE BODY CENTRES A SHORT BLOCK (iteration 2): the statement stands at the card's mid-height beside the art —
+  // never pinned to the top over a void; a block taller than the body starts at its top and scrolls inside.
+  expect.soft(scene.body, `${label}: the sheet has a body zone`).not.toBeNull();
+  expect.soft(scene.block, `${label}: the body holds a block`).not.toBeNull();
+  if (scene.body !== null && scene.block !== null) {
+    const bodyMid = (scene.body.t + scene.body.b) / 2;
+    const blockMid = (scene.block.t + scene.block.b) / 2;
+    if (scene.block.h < scene.body.h - 6) {
+      expect.soft(near(bodyMid, blockMid, 3), `${label}: (g) a short block is centred in the body — body ${JSON.stringify([scene.body.t, scene.body.b])} block ${JSON.stringify([scene.block.t, scene.block.b])}`).toBe(true);
+    } else {
+      expect.soft(scene.block.t >= scene.body.t - 1, `${label}: (g) a tall block starts at the body's top`).toBe(true);
+    }
+  }
+  expect.soft(scene.plainUnderFormula, `${label}: (i) no «confirm to perform» sentence under a standing formula`).toBe(false);
+  // (h) THE «AFTER THE ACTION» LINE: owed exactly where the hero's own resource moves and its role prices it.
+  if (context === null) {
+    expect.soft(scene.context, `${label}: (h) no «after the action» line — the role has nothing to add`).toBeNull();
+  } else {
+    expect.soft(scene.context ?? '', `${label}: (h) the «after the action» line reads the role`).toMatch(context);
+  }
   if (!deck) {
     expect.soft(scene.hero, `${label}: the hero stands beside the sheet`).not.toBeNull();
     expect.soft(near(scene.sheet.t, scene.hero!.t, 2) && near(scene.sheet.b, scene.hero!.b, 2),
@@ -191,7 +240,7 @@ for (const profile of PROFILES) {
         const first = await readScene(page);
         await page.screenshot({path: path.join(dir, `${c.id}-a.png`)});
         console.log(`[setup-scene] ${profile.id} ${c.id} ${JSON.stringify(first)}`);
-        expectSetupScene(first, `${profile.id} ${c.id}`, profile.id === 'deck');
+        expectSetupScene(first, `${profile.id} ${c.id}`, profile.id === 'deck', c.context);
         if (c.pick !== undefined) {
           // (b) THE FRAME DOES NOT MOVE while the player answers inside it: open the source step, choose, compare.
           for (let i = 0; i < 6 && await page.locator(`${STAGE} .con-composer__row--focused.con-composer__row--missing`).count() === 0; i++) {
@@ -212,7 +261,7 @@ for (const profile of PROFILES) {
           await page.screenshot({path: path.join(dir, `${c.id}-b.png`)});
           const moved = ['t', 'b', 'l', 'r'].filter((k) => Math.abs(answered.sheet[k as keyof Rect] - first.sheet[k as keyof Rect]) > 1);
           expect(moved, `${profile.id} ${c.id}: (b) the sheet keeps its box across the answer — ${JSON.stringify(first.sheet)} → ${JSON.stringify(answered.sheet)}`).toEqual([]);
-          expectSetupScene(answered, `${profile.id} ${c.id} answered`, profile.id === 'deck');
+          expectSetupScene(answered, `${profile.id} ${c.id} answered`, profile.id === 'deck', c.context);
         }
       });
     }

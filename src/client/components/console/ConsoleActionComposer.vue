@@ -251,6 +251,13 @@
         </div>
       </div>
 
+      <!-- ── THE BODY OF THE SHEET (P73 · DC, iteration 2 — the owner: «простое действие — информация сверху, всё
+           остальное пустое»). The sheet mirrors the card beside it: the rule above is its TITLE plate, this body is
+           its ART zone, the commit dock below is its MECHANICS box. The body takes the room between them and CENTRES
+           its block when the block fits (a simple action's statement stands at the card's mid-height, beside the art
+           — air above and below by design, never a form pinned to the top); a block taller than the room starts at
+           the top and scrolls only its decision list (`safe center`). -->
+      <div class="con-composer__body" data-setup-body>
       <!-- ── Hero: the LIVE cost → reward formula of the ACTIVE branch.
            Shown once a branch is chosen (or a single-branch card); the
            multi-branch option cards below carry their own chips. ─────── -->
@@ -317,13 +324,28 @@
       <ConsoleCountedWhy v-if="showHero && heroCountWhy !== undefined" class="con-composer__countwhy" :why="heroCountWhy" data-unfold-item />
       <!-- No formula (a branch not yet chosen / a decision-less action): the
            plain line, and the «Сработает» row as ONE line under the rule —
-           never a new vertical section. -->
-      <div v-else-if="!hasDecisions || forecastRowShown" class="con-composer__hero con-composer__hero--plain" data-unfold-item>
+           never a new vertical section. The condition is SPELLED OUT (never a `v-else-if` behind the formula): the
+           «РАСЧЁТ» strip inserted between them silently turned this into «whenever there is no count» — the sentence
+           «Подтвердите…» stood under every formula, restating the commit plate. -->
+      <div v-if="!showHero && (!hasDecisions || forecastRowShown)" class="con-composer__hero con-composer__hero--plain" data-unfold-item>
         <span v-if="!hasDecisions">{{ $t('Confirm to perform this action.') }}</span>
         <ConsoleForecastRow v-if="forecastRowShown" class="con-composer__hero-forecast con-composer__hero-forecast--line"
                             :class="{'con-forecast--descend': forecastPulse}"
                             :forecast="forecast"
                             @open="openForecastLayer()" />
+      </div>
+      <!-- ── WHAT THE RESOURCE HERE BUYS, AFTER THE MOVE (P73 · DC, iteration 2) — the one line the statement owes
+           and the face cannot print: the hero's own stored resource moves («+1 floater here», «−2 from here»), and
+           its ROLE on this card (the satellite's own model — `holderRoleOf`) says what that is worth once it has
+           landed: the action it opens («Действие откроется: 2 / 2»), the money it pays as tender, the delegate or
+           trade it reaches. A VP role says nothing here — the VP chip above already reads the points; plain storage
+           has nothing to say; a move on ANOTHER card is that step's own reading. -->
+      <div v-if="setupContext !== undefined" class="con-composer__context" data-unfold-item data-setup-context>
+        <div class="con-composer__context-kicker">{{ $t('After the action') }}</div>
+        <div class="con-composer__context-line">
+          <i v-for="(icon, k) in setupContext.icons" :key="k" class="con-composer__context-icon" :class="iconClass(icon)" aria-hidden="true"></i>
+          <span class="con-composer__context-text">{{ setupContext.text }}</span>
+        </div>
       </div>
 
       <!-- ── THE LEDGER — «all your colony bonuses» as the BODY of this action's result (TR23 Habitat Science).
@@ -751,6 +773,7 @@
 
         </template>
       </ConsoleScrollArea>
+      </div><!-- /__body -->
 
       <!-- ── The CTA DOCK — pinned OUTSIDE the scroll so the confirm is
            always on screen (couch rule: the operation's exit is never hidden
@@ -1095,6 +1118,8 @@ import {consoleTranslate} from '@/client/console/consoleTranslate';
 import {isBoilerplateTitle} from '@/client/console/consoleTaskSummary';
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {holderGainOutcome, holderGainOutcomeReading, holderLossOutcome, holderLossOutcomeReading, holderRoleIcons, holderRoleOf} from '@/client/console/holderRoles';
+import {readingLineText} from '@/client/console/readingText';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
 import {targetImpactRows, targetImpactText, targetImpactIsLoss} from '@/client/components/modalInputs/targetImpactRows';
 import {RATING_RAIL_KEY, cardResourceKey, isStandardResource} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -1886,6 +1911,41 @@ export default defineComponent({
         return this.commonCost.length > 0 || this.heroPending;
       }
       return this.heroCost.length + this.heroGain.length + this.heroChoice.length > 0 || this.heroTimeline !== undefined;
+    },
+    /**
+     * WHAT THE RESOURCE HERE BUYS once this action's move on the hero's own capsule has landed (P73 · DC, iteration 2):
+     * the role of the stored resource (`holderRoleOf` — the satellite's model, never a second reading) applied to the
+     * capsule's `current → resulting` — a gain through `holderGainOutcome`, a spend through `holderLossOutcome`. `undefined`
+     * when the hero's capsule does not move, when the role is VP (the chip reads it) or plain storage, and while a
+     * hosted target step owns the column.
+     */
+    setupContext(): {icons: ReadonlyArray<string>, text: string} | undefined {
+      const name = this.heroCardName;
+      if (name === undefined || this.sub?.kind === 'playedTarget') {
+        return undefined;
+      }
+      const role = holderRoleOf(name);
+      if (role.kind === 'store' || role.kind === 'vp') {
+        return undefined;
+      }
+      const move = this.heroTimeline?.effect ??
+        [...this.heroGain, ...this.heroCost].find((e) => e.note === 'on this card' && e.current !== undefined && e.resulting !== undefined);
+      if (move === undefined || move.current === undefined || move.resulting === undefined || move.current === move.resulting) {
+        return undefined;
+      }
+      const reading = move.resulting > move.current ?
+        (() => {
+          const outcome = holderGainOutcome(role, move.current, move.resulting);
+          return outcome === undefined ? undefined : holderGainOutcomeReading(outcome);
+        })() :
+        (() => {
+          const outcome = holderLossOutcome(role, move.current, move.resulting);
+          return outcome === undefined ? undefined : holderLossOutcomeReading(outcome);
+        })();
+      if (reading === undefined) {
+        return undefined;
+      }
+      return {icons: holderRoleIcons(role), text: readingLineText(reading)};
     },
     /** The formula's «Вы получите» side is RESERVED — a variant is still to be chosen (the slot the answer fills). */
     heroPending(): boolean {

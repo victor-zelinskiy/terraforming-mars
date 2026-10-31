@@ -1822,7 +1822,13 @@ html.con-profile-tv {
         .con-composer__surface .con-composer__hero { --con-chip-c-fs: 1.3rem; --con-chip-c-icon: 1.65rem; }
         /* The plate's cap is the SHEET's 60 % in rendered pixels: a percentage is resolved before the zoom scales it. */
         .con-composer__surface .con-composer__cta { max-width: calc(60% / 1.22); }
-        .con-composer__rules { opacity: .62; }
+        /* The rule is the sheet's TITLE line (P73 · DC, iteration 2): readable from the couch, a step under the formula —
+           at .62 it read as a disabled caption over a simple action's whole sheet. */
+        .con-composer__rules { opacity: .8; }
+        .con-composer__surface .con-composer__rule-text { font-size: var(--con-t-body); }
+        .con-composer__surface .con-composer__context-kicker { font-size: var(--con-t-floor); }
+        .con-composer__surface .con-composer__context-line { font-size: var(--con-t-body); }
+        .con-composer__surface .con-composer__context-icon { width: 1.6rem; height: 1.6rem; }
         .con-composer__rule-text { font-size: var(--con-t-secondary); }
         .con-composer__cta-hint { font-size: var(--con-t-secondary); }
         .con-composer__ctadock { --con-ctahint-lane: 1.6rem; }

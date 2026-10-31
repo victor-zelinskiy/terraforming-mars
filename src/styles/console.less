@@ -36696,9 +36696,51 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         /* The tether opens WITH the plate (the unfold clips pseudos too), so
            the card ↔ plane link is part of the same phrase, not an arrival. */
         &::before { .con-stage-tether(); }
-        /* The scroll + CTA keep their own rhythm inside the plane. The MIDDLE zone takes the room the floor gives: the
-           decisions hang under the formula and the commit dock stands on the sheet's bottom line (P73 · DC). */
-        .con-composer__scroll { min-height: 0; flex: 1 1 auto; }
+        /* THE BODY (P73 · DC, iteration 2 — the owner: a simple action's sheet was «information at the top, the rest
+           empty»). The sheet mirrors the card's anatomy: the rule is its title plate, this body its ART zone, the
+           dock its mechanics box. The body takes the room between them and CENTRES its block when the block fits —
+           a simple action's statement stands at the card's mid-height beside the art, with equal air above and
+           below by design; a block taller than the room starts at the top (`safe`) and only its decision list
+           scrolls (the scroll shrinks — `flex: 0 1 auto` — never grows, so the block stays content-sized). */
+        .con-composer__body {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: safe center;
+        }
+        .con-composer__scroll { min-height: 0; flex: 0 1 auto; }
+        /* WHAT THE RESOURCE HERE BUYS, after the move — the statement's one quiet line under the formula: the role's
+           icons lead, the reading follows; a kicker in the formula's own voice. No box (a box in a box). */
+        .con-composer__context {
+            margin-top: .6rem;
+            display: flex;
+            flex-direction: column;
+            gap: .2rem;
+        }
+        .con-composer__context-kicker {
+            font-size: .6rem;
+            font-weight: 700;
+            letter-spacing: .12rem;
+            text-transform: uppercase;
+            color: fade(@con-text-dim, 88%);
+        }
+        .con-composer__context-line {
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+            min-width: 0;
+            font-size: .92rem;
+            color: fade(@con-text, 94%);
+        }
+        .con-composer__context-icon {
+            flex: 0 0 auto;
+            width: 1.15rem;
+            height: 1.15rem;
+            background-size: contain !important;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
         /* THE CONSEQUENCE LINE — inside the plate it sheds its own box (a
            box in a box read as a second card floating in the panel) and
            lays out as ONE reading line: label · chips → label · chips. The
