@@ -221,6 +221,13 @@ export type MarsBotAttack = {
   outcome: MarsBotAttackOutcome;
 };
 
+/**
+ * HOME RULE (`common/automa/AutomaFlipTags.ts`): a tag with no track flipped the top project card(s) — `card` is
+ * the one whose random tracked tag `tag` gave the step (`trackIndex` on the step); `skipped` cards were flipped
+ * first and had no tracked tag. Read ONLY by the bot-turn review.
+ */
+export type MarsBotTagFlip = {card: CardName, tag: Tag, skipped?: number};
+
 export type MarsBotTurnStep =
   /** Empty action deck — MarsBot passes for the round. */
   | {kind: 'pass', message?: LogMessage}
@@ -234,7 +241,7 @@ export type MarsBotTurnStep =
    * track it advances — resolved for Wild; undefined = an unused-expansion
    * icon that is ignored.
    */
-  | {kind: 'tag', tag: Tag, trackIndex?: number, cause?: MarsBotStepCause}
+  | {kind: 'tag', tag: Tag, trackIndex?: number, cause?: MarsBotStepCause, flip?: MarsBotTagFlip}
   /**
    * A tracker moved `from` → `to`; `action` is the landed-on icon, if any.
    * `depth` (Phase B) is the cascade depth — 0 for the tag's direct advance,

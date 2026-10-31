@@ -188,6 +188,7 @@
     "Revealed": "Вскрыта карта",
     "Revealed a bonus card": "Вскрыта бонусная карта",
     "tag of an unused expansion — ignored": "метка неиспользуемого дополнения — игнорируется",
+    "no track for this tag — flipped ${0}": "у метки нет трека — вскрыта карта «${0}»",
     "advances the track": "продвигает трек",
     "Target": "Цель",
     "Nothing to lose": "Терять нечего",

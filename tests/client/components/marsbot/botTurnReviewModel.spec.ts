@@ -143,6 +143,19 @@ describe('botTurnReviewModel', () => {
     expect(r.chains[0].lines[0]).deep.eq({kind: 'note', depth: 1, noteKey: 'tag of an unused expansion — ignored', tone: 'ignored'});
   });
 
+  it('7b. a tag with no track (the home rule\'s flip) names the flipped card in ONE info note — the track is the step\'s', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'project', name: CardName.MARTIAN_CENSUS}},
+      {kind: 'tag', tag: Tag.MARS, trackIndex: 1, cause: {kind: 'tag', index: 0}, flip: {card: CardName.GENE_REPAIR, tag: Tag.SCIENCE}},
+      {kind: 'advance', trackIndex: 1, from: 0, to: 1, cause: {kind: 'tag', index: 0}},
+    ]));
+    expect(r.chains[0].cause).deep.eq({kind: 'tag', tag: Tag.MARS, trackTag: Tag.SCIENCE});
+    expect(r.chains[0].lines[0]).deep.eq({
+      kind: 'note', depth: 1, noteKey: 'no track for this tag — flipped ${0}', tone: 'info', noteParams: [CardName.GENE_REPAIR], translateParams: true,
+    });
+    expect(r.chains[0].lines.some((l) => l.kind === 'note' && l.tone === 'ignored'), 'never «ignored»').is.false;
+  });
+
   it('8. pass → quiet, pass verdict, no card, no chains (the body shows the verdict panel)', () => {
     const r = buildBotTurnReview(src([{kind: 'pass', message: log('${0} passed')}]));
     expect(r.verdict.key).eq('MarsBot passed this turn');

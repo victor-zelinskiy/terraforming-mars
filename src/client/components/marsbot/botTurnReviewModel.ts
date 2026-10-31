@@ -26,6 +26,7 @@ import {
   MarsBotImpactChange,
   MarsBotLogRole,
   MarsBotStepCause,
+  MarsBotTagFlip,
   MarsBotTurn,
   MarsBotTurnStep,
 } from '@/common/automa/MarsBotTurn';
@@ -60,7 +61,7 @@ export type BotReviewLine =
   | {kind: 'track', depth: number, capsule: ReadonlyArray<Tag>, from: number, to: number, action?: TrackAction, cells: ReadonlyArray<BotReviewScaleCell>}
   | {kind: 'log', depth: number, message: LogMessage, tone?: 'cost' | 'gain', labelKey?: string}
   | {kind: 'attack', depth: number, attack: MarsBotAttack}
-  | {kind: 'note', depth: number, noteKey: string, tone: 'ignored' | 'skip' | 'info', noteParams?: ReadonlyArray<string>}
+  | {kind: 'note', depth: number, noteKey: string, tone: 'ignored' | 'skip' | 'info', noteParams?: ReadonlyArray<string>, translateParams?: boolean}
   /** A chained fallback bonus card, its OWN effect lines nested — ONE flow. */
   | {kind: 'secondary-card', depth: number, id: BonusCardId, lines: Array<BotReviewLine>};
 
@@ -416,7 +417,9 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
         break;
       }
       const chain = ensureChain(step.cause, step);
-      if (step.trackIndex === undefined) {
+      if (step.flip !== undefined) {
+        chain.lines.push(tagFlipNote(step.flip));
+      } else if (step.trackIndex === undefined) {
         chain.lines.push({kind: 'note', depth: 1, noteKey: 'tag of an unused expansion — ignored', tone: 'ignored'});
       }
       break;
@@ -515,7 +518,9 @@ function buildChainsByOrder(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
       const trackTag = tagOfTrack(source.trackTags, step.trackIndex);
       current = {cause: {kind: 'tag', tag: step.tag, trackTag}, lines: []};
       chains.push(current);
-      if (step.trackIndex === undefined) {
+      if (step.flip !== undefined) {
+        current.lines.push(tagFlipNote(step.flip));
+      } else if (step.trackIndex === undefined) {
         current.lines.push({kind: 'note', depth: 1, noteKey: 'tag of an unused expansion — ignored', tone: 'ignored'});
       }
       break;
@@ -802,4 +807,14 @@ export function buildBotTurnReview(source: BotTurnReviewSource): BotTurnReview {
     ...(tiles.length > 0 ? {primarySpaceId: tiles[0].spaceId} : {}),
     quiet,
   };
+}
+
+/**
+ * The home rule's flip (`common/automa/AutomaFlipTags.ts`) told in the review — the ONLY place it is told: a tag
+ * with no track flipped the top project card and moved the track of one of its tags (the advance line below says
+ * which). The card name is an i18n key, translated by the line's renderer.
+ */
+export const TAG_FLIP_NOTE_KEY = 'no track for this tag — flipped ${0}';
+function tagFlipNote(flip: MarsBotTagFlip): BotReviewLine {
+  return {kind: 'note', depth: 1, noteKey: TAG_FLIP_NOTE_KEY, tone: 'info', noteParams: [flip.card], translateParams: true};
 }

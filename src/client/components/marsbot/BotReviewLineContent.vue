@@ -98,7 +98,7 @@ export default defineComponent({
     /** A note's text — a bare key, or a template with its params (the chooser's «N more delegates needed»). */
     noteText(line: Extract<BotReviewLine, {kind: 'note'}>): string {
       return line.noteParams !== undefined && line.noteParams.length > 0 ?
-        translateTextWithParams(line.noteKey, [...line.noteParams]) :
+        translateTextWithParams(line.noteKey, line.translateParams === true ? line.noteParams.map((p) => translateText(p)) : [...line.noteParams]) :
         translateText(line.noteKey);
     },
     cellGlyph(action: TrackAction | undefined): CellGlyph {

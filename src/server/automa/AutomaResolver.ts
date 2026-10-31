@@ -4,6 +4,8 @@ import {CardResource} from '../../common/CardResource';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Tag} from '../../common/cards/Tag';
 import {TrackAction} from '../../common/automa/AutomaTypes';
+import {AUTOMA_FLIP_MAX_CARDS, AUTOMA_FLIP_TAGS} from '../../common/automa/AutomaFlipTags';
+import {MarsBotTagFlip} from '../../common/automa/MarsBotTurn';
 import {IGame} from '../IGame';
 import {IProjectCard} from '../cards/IProjectCard';
 import {failedAction} from './AutomaFailedAction';
@@ -85,6 +87,18 @@ export class AutomaResolver {
       trackIndex = automa.board.getLeastAdvancedTrackIndex();
     } else {
       trackIndex = automa.board.getTrackIndexForTag(tag);
+      if (trackIndex === undefined && AUTOMA_FLIP_TAGS.has(tag)) {
+        // HOME RULE: a tag with no track resolves as a random ordinary tag of the project deck
+        // (`common/automa/AutomaFlipTags.ts`) — told only in the bot-turn review.
+        const flip = AutomaResolver.flipForTrack(game);
+        if (flip !== undefined) {
+          AutomaTurnLog.note(game, {kind: 'tag', tag, trackIndex: flip.trackIndex, flip: flip.flip});
+          AutomaResolver.advanceTrack(game, flip.trackIndex);
+          // The corporation's clause watches the PRINTED tag (the flip only chose the track).
+          AutomaCorporations.onTagResolved(game, tag);
+          return;
+        }
+      }
       if (trackIndex === undefined) {
         // A tag with no track on this board (e.g. a Venus tag without Venus
         // Next) is an unused-expansion icon: ignored, no Failed Action — but
@@ -99,6 +113,34 @@ export class AutomaResolver {
     // The corporation's own «when MarsBot resolves a <tag>» clause (C08),
     // AFTER the tag did its work — the trigger reacts to a finished event.
     AutomaCorporations.onTagResolved(game, tag);
+  }
+
+  /**
+   * The home rule's flip: the top project card(s), until one carries a tag this board has a track for — one of them
+   * at random (the game's seeded RNG). Every flipped card is discarded. Undefined when none turned up within
+   * {@link AUTOMA_FLIP_MAX_CARDS} or the deck ran dry (the tag is then ignored, as before the rule).
+   */
+  public static flipForTrack(game: IGame): {trackIndex: number, flip: MarsBotTagFlip} | undefined {
+    const automa = game.automa;
+    if (automa === undefined) {
+      return undefined;
+    }
+    for (let skipped = 0; skipped < AUTOMA_FLIP_MAX_CARDS; skipped++) {
+      const card = game.projectDeck.draw(game);
+      if (card === undefined) {
+        return undefined;
+      }
+      game.projectDeck.discard(card);
+      const tracked = AutomaResolver.printedTags(card).filter((t) => t !== Tag.WILD && automa.board.getTrackIndexForTag(t) !== undefined);
+      if (tracked.length > 0) {
+        const tag = tracked[game.rng.nextInt(tracked.length)];
+        const trackIndex = automa.board.getTrackIndexForTag(tag);
+        if (trackIndex !== undefined) {
+          return {trackIndex, flip: {card: card.name, tag, ...(skipped > 0 ? {skipped} : {})}};
+        }
+      }
+    }
+    return undefined;
   }
 
   public static advanceTrack(game: IGame, trackIndex: number, depth: number = 0): void {
