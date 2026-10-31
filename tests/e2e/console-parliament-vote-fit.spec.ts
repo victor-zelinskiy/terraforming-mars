@@ -379,7 +379,7 @@ for (const preset of PRESETS) {
         // P70 · K6: a resolution with no leader prints NOTHING — its place is reserved and empty (no «—», no «0»).
         expect(badges.noLeader.every((t) => t === ''), `no leader is an empty reserved place: ${badges.noLeader.join('|')}`).toBe(true);
         expect(budget.suffixes, `the win's difference (${fixture.why})`).toEqual(fixture.suffix);
-        expect(budget.kickers, 'two kickers').toBe(2);
+        expect(budget.kickers, 'ONE kicker — the reading\'s (P77 · DH: the vote zone\'s words label its source line)').toBe(1);
         expect(budget.facts.slice(0, 2), 'the leader and the winning state').toEqual(['lead', 'win']);
         expect(budget.facts.length, onEdge ? 'on the edge: the party effect is the third fact' : 'off the edge: two facts').toBe(onEdge ? 3 : 2);
         if (onEdge) {

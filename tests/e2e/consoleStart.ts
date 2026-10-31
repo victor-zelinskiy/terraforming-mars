@@ -3046,6 +3046,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // Prelude 2 P72 Envoys from Venus — the first EVENT whose whole play is a delegate grant (CZ): 3 Venus tags (Venus Governor ·
   // Dirigibles), a government outside the voting area, reserve 6 · red already on the first resolution (the pair turns the lead) · locked at 2.
   'envoys-from-venus' | 'envoys-from-venus-overtake' | 'envoys-from-venus-locked' |
+  // Prelude 2 P77 Jovian Envoys — P72's twin (DH): 2 Jovian tags (Saturn Systems · Jovian Lanterns), no tag of its own, 2 M€ ·
+  // red already on the first resolution · locked at 1.
+  'jovian-envoys' | 'jovian-envoys-overtake' | 'jovian-envoys-locked' |
   // Prelude 2 P70 Colonial Envoys — a SERIES of grants (DA): Unity ruling, three colonies (N = 3), reserve 6 · locked «1 of 2».
   'colonial-envoys' | 'colonial-envoys-locked' |
   // P70 · the Parliament's chrome guard: 4 seats, two on one Career place, a quest with one leader, an empty discard, no votes.

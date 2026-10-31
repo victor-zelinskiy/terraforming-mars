@@ -9809,6 +9809,86 @@ envoysFromVenusFixture('envoys-from-venus', 'open');
 envoysFromVenusFixture('envoys-from-venus-overtake', 'overtake');
 envoysFromVenusFixture('envoys-from-venus-locked', 'locked');
 
+// ── P77 · JOVIAN ENVOYS — the SIXTEENTH Prelude 2 card, P72's twin (the stand `console-jovian-envoys`): «requires 2 Jovian
+//    tags; add 2 delegates to one resolution» — an event with NO tag of its own, 2 M€. A 2p Redux + Colonies + Prelude 2
+//    table (Saturn Systems · ThorGate — Saturn Systems' own Jovian tag is the first of the two), the ENACTED slot holding a
+//    quiet law of a party OUTSIDE the voting area, three resolutions up for the vote, blue's lobby cube placed (reserve 6),
+//    blue on the move with P77 MOVED into the hand and 10 M€:
+//      · `jovian-envoys`          — Jovian Lanterns on the table → 2 Jovian tags: playable; the DRY RUN on a copy:
+//        10 − 2 = 8 M€, ONE grant prompt for 2 named by the card offering only the voting area, both cubes from the
+//        reserve (6 → 4) on one resolution;
+//      · `jovian-envoys-overtake` — the same, red ALREADY holding 1 delegate on the FIRST resolution (red 1 → blue 2);
+//      · `jovian-envoys-locked`   — no Jovian Lanterns → 1 Jovian tag: «Requires 2 tag(s)», current 1. ──
+function jovianEnvoysFixture(name: string, variant: 'open' | 'overtake' | 'locked'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [10, 30],
+    options: {prelude2Expansion: true, customCorporationsList: [CardName.SATURN_SYSTEMS, CardName.THORGATE]},
+    arrange: ({game, p1, p2, parliament}) => {
+      const area = new Set(parliament.slots.map((s) => parliament.resolutionOf(s.instance).party));
+      const government = ([PartyName.MARS, PartyName.INDUSTRIALISTS, PartyName.REDS, PartyName.UNITY] as const).find((party) => !area.has(party));
+      if (government === undefined) {
+        throw new Error(`${name}: no party outside the voting area to seat as the government`);
+      }
+      seatEnacted(parliament, quietResolutionOf(government));
+      if (variant !== 'locked') {
+        moveToDeckTop(game, CardName.JOVIAN_LANTERNS);
+        p1.playedCards.push(game.projectDeck.drawOrThrow(game));
+      }
+      moveToDeckTop(game, CardName.JOVIAN_ENVOYS);
+      p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+      if (variant === 'overtake') {
+        parliament.placeVote(p2, parliament.slots[0], 'reserve');
+      }
+    },
+    expect: ({game, p1, p2, parliament}) => {
+      const playable = variant !== 'locked';
+      const card = p1.cardsInHand.find((c) => c.name === CardName.JOVIAN_ENVOYS);
+      const canPlay = card !== undefined && p1.canPlay(card) !== false;
+      const reason = card === undefined ? undefined : unplayableReasons(p1, card)[0];
+      const counted = reason?.type === 'tag' && reason.current === 1;
+      const enacted = parliament.enacted === undefined ? undefined : parliament.resolutionOf(parliament.enacted).party;
+      if (card === undefined || canPlay !== playable || (!playable && !counted) || enacted === undefined ||
+        parliament.partiesInVotingArea().includes(enacted) || parliament.reserve(p1) !== 6 || parliament.slots.length !== 3 ||
+        game.activePlayer.id !== p1.id || p1.tags.count(Tag.JOVIAN, 'raw') !== (playable ? 2 : 1)) {
+        throw new Error(`the ${name} fixture expected P77 in blue's hand (playable=${playable}) with a government outside the voting area, three resolutions on the vote, a reserve of 6 and blue on the move — got card=${card !== undefined} playable=${canPlay} reason=${JSON.stringify(reason)} enacted=${enacted} reserve=${parliament.reserve(p1)} slots=${parliament.slots.length} jovian=${p1.tags.count(Tag.JOVIAN, 'raw')}`);
+      }
+      const first = parliament.slots[0];
+      if (variant === 'overtake' && (parliament.votesOf(p2, first) !== 1 || parliament.votesOf(p1, first) !== 0)) {
+        throw new Error(`the ${name} fixture expected red's one delegate on the first resolution — got red=${parliament.votesOf(p2, first)} blue=${parliament.votesOf(p1, first)}`);
+      }
+      parliament.assertLedger(game);
+      if (playable) {
+        // THE DRY RUN — the real play on a copy, paid with 2 M€, its grant answered on the FIRST resolution.
+        const copy = Game.deserialize(structuredClone(game.serialize()));
+        const blue = copy.getPlayerById(p1.id);
+        const hero = blue.cardsInHand.find((c) => c.name === CardName.JOVIAN_ENVOYS)!;
+        const cost = blue.getCardCost(hero);
+        blue.playCard(hero, Payment.of({megacredits: cost}));
+        runAllActions(copy);
+        const select = blue.getWaitingFor();
+        const table = copy.parliament!;
+        if (cost !== 2 || blue.megaCredits !== 8 || !(select instanceof SelectParty) || select.votePrompt?.source !== 'grant' ||
+          select.votePrompt?.count !== 2 || select.parties.length !== 3 || select.parties.includes(enacted)) {
+          throw new Error(`the ${name} fixture expected a 2 M€ play and ONE grant prompt for 2 over the voting area only — got cost=${cost} mc=${blue.megaCredits} prompt=${select?.type} ${JSON.stringify((select as SelectParty | undefined)?.votePrompt)}`);
+        }
+        const target = table.resolutionOf(table.slots[0].instance).party;
+        blue.process({type: 'party', partyName: target});
+        runAllActions(copy);
+        const slot = table.slots[0];
+        const red = copy.getPlayerById(p2.id);
+        if (table.reserve(blue) !== 4 || table.votesOf(blue, slot) !== 2 || table.votesOf(red, slot) !== (variant === 'overtake' ? 1 : 0)) {
+          throw new Error(`the ${name} fixture expected both cubes from the reserve (6 → 4) on the first resolution — got reserve=${table.reserve(blue)} blue=${table.votesOf(blue, slot)} red=${table.votesOf(red, slot)}`);
+        }
+        table.assertLedger(copy);
+      }
+    },
+  });
+}
+jovianEnvoysFixture('jovian-envoys', 'open');
+jovianEnvoysFixture('jovian-envoys-overtake', 'overtake');
+jovianEnvoysFixture('jovian-envoys-locked', 'locked');
+
 // ── P70 · COLONIAL ENVOYS — the ELEVENTH Prelude 2 card, the first whose delegates are a SERIES of separate decisions
 //    (the stand `console-colonial-envoys`): «requires Unity ruling or 2 of your delegates there; add 1 delegate per
 //    colony you have — you may add them to different resolutions». A 2p Redux + Colonies + Prelude 2 table (Teractor ·

@@ -87,54 +87,58 @@ describe('ConsoleInfluenceYield — a counted part with no influence term (Jovia
 });
 
 /**
- * THE WIN COLUMN (2026-10-26) — the one-number block of a card whose win raises a number reads as a TWO-COLUMN TABLE:
- * the estimate's plates on the left, the win's numbers on the right under ONE head («[★] если победите · [нашивка] ③»).
+ * THE WIN'S SUFFIX (P77 · DH — it replaced the «win column» of 2026-10-26, which read as a second, louder number): the
+ * one-number block of a card whose win raises a number gains ONE quiet line UNDER that number — what the win ADDS,
+ * «+1 [unit] если победите · [нашивка] ③», the Career node said once per block. A row the win leaves as it is has no line.
  * Mining Incentives (RX22) at the owner's frame: Career position 2 (influence 1), the win moving the marker to node 3
  * (influence 2) — the titanium is flat (+1 either way), the steel is +1 → +2.
  */
-describe('ConsoleInfluenceYield — the win column (Mining Incentives)', () => {
+describe('ConsoleInfluenceYield — the win\'s suffix (Mining Incentives)', () => {
   const MINING_ID = 'RDX_INDUSTRIALISTS_MINING_INCENTIVES';
-  const mountMining = (oneNumber: boolean) => {
+  const mountMining = (oneNumber: boolean, agenda = 2, influence = 1) => {
     const resolution = getResolution(MINING_ID);
     if (resolution === undefined) {
       throw new Error(`${MINING_ID} is not in the client manifest`);
     }
-    const yields = voteYieldsOf(resolution, model([seat('blue' as Color, 2, 1, [])]), 'blue' as Color);
+    const yields = voteYieldsOf(resolution, model([seat('blue' as Color, agenda, influence, [])]), 'blue' as Color);
     return mount(ConsoleInfluenceYield, {props: {yields, formula: false, oneNumber, captions: false}, global: {mocks: {$t: (key: string) => key}}});
   };
 
-  it('the head is said ONCE for the block — the condition and the Career node the win moves the marker to', () => {
+  it('no second plate: no head of its own, no table — ONE line under the number the win raises', () => {
     const wrapper = mountMining(true);
-    expect(wrapper.find('[data-influence-yield]').classes()).to.include('con-iyield--table');
-    const heads = wrapper.findAll('[data-parl-vote-winhead]');
-    expect(heads.length, 'one head, never one per row').to.eq(1);
-    expect(heads[0].attributes('data-winhead-step')).to.eq('3');
-    expect(heads[0].find('.career-step-glyph').exists(), 'the step is the Career insignia, not the word «шаг»').to.eq(true);
-    expect(heads[0].find('.con-iyield__winhead-node').text()).to.eq('3');
-    expect(heads[0].text()).to.contain('if you win');
+    expect(wrapper.find('[data-influence-yield]').classes()).not.to.include('con-iyield--table');
+    expect(wrapper.find('[data-parl-vote-winhead]').exists(), 'no head of a win column').to.eq(false);
+    const suffixes = wrapper.findAll('.con-iyield__suffix');
+    expect(suffixes.length, 'the flat titanium has no line — only the steel the win raises').to.eq(1);
+    const steel = wrapper.find('[data-yield-effect="steelProduction"]');
+    const line = steel.find('.con-iyield__suffix');
+    expect(line.exists(), 'the line stands in the steel\'s own group, under its number').to.eq(true);
+    expect(line.attributes('data-parl-vote-suffix'), 'the witness keeps what the win ADDS').to.eq('1');
+    expect(line.attributes('data-suffix-step')).to.eq('3');
+    expect(line.find('.con-iyield__suffix-num').text(), 'what the win ADDS — never the total').to.eq('+1');
+    expect(line.find('.con-iyield__suffix-words').text()).to.eq('if you win');
+    expect(line.find('.career-step-glyph').exists(), 'the step is the Career insignia, not the word «шаг»').to.eq(true);
+    expect(line.find('.con-iyield__suffix-node').text()).to.eq('3');
+    expect(wrapper.find('[data-yield-effect="titaniumProduction"] .con-iyield__suffix').exists(), 'a row the win does not change has no line').to.eq(false);
     expect(wrapper.text(), 'the word «step» is gone from the block').not.to.contain('step');
   });
 
-  it('every row has ONE win cell: the steel reads «[influence] 2 → +2», gold; the flat titanium repeats «+1» quietly', () => {
-    const wrapper = mountMining(true);
-    const cells = wrapper.findAll('.con-iyield__suffix');
-    expect(cells.length, 'one cell per row').to.eq(2);
-    const [titanium, steelCell] = cells;
-    expect(titanium.classes(), 'the flat part is unchanged by the win').to.include('con-iyield__suffix--same');
-    expect(titanium.attributes('data-parl-vote-suffix'), 'an unchanged cell carries no win witness').to.eq(undefined);
-    expect(titanium.find('.con-iyield__suffix-num').text()).to.eq('+1');
-    expect(titanium.find('[data-suffix-in="influence"]').exists(), 'a flat part reads no influence').to.eq(false);
-    expect(steelCell.classes()).not.to.include('con-iyield__suffix--same');
-    expect(steelCell.attributes('data-parl-vote-suffix'), 'the witness keeps what the win ADDS').to.eq('1');
-    expect(steelCell.attributes('data-suffix-step')).to.eq('3');
-    expect(steelCell.find('[data-suffix-in="influence"]').text(), 'read at the influence the win brings').to.eq('2');
-    expect(steelCell.find('.con-iyield__suffix-num').text(), 'the number the seat would get — never a delta to add up').to.eq('+2');
+  it('outside the one-number mode there is no suffix line (the inspector keeps its forecast plate)', () => {
+    const wrapper = mountMining(false);
+    expect(wrapper.find('.con-iyield__suffix').exists()).to.eq(false);
   });
 
-  it('outside the one-number mode there is no table and no win column (the inspector keeps its forecast plate)', () => {
-    const wrapper = mountMining(false);
-    expect(wrapper.find('[data-influence-yield]').classes()).not.to.include('con-iyield--table');
-    expect(wrapper.find('[data-parl-vote-winhead]').exists()).to.eq(false);
-    expect(wrapper.find('.con-iyield__suffix').exists()).to.eq(false);
+  it('a block whose every number is a plain ZERO prints the word, never «0 → +0» — and the suffix still stands under it', () => {
+    // Influence 0 at the start of the Career: the steel reads 0 and the flat titanium… is +1 — so this block is NOT a zero.
+    const mixed = mountMining(true, 0, 0);
+    expect(mixed.find('[data-yield-zero]').exists(), 'a block with a +1 in it is no zero block').to.eq(false);
+    // Architecture Award at influence 0 with no counted cards: «0 + 0 → +0» — one zero, the word in its place.
+    const resolution = getResolution(AWARD_ID)!;
+    const bare: ParliamentPlayerModel = {...seat('blue' as Color, 0, 0, []), counts: [{id: 'buildingCardsWithNonNegativeVp', count: 0, cards: []}]};
+    const yields = voteYieldsOf(resolution, model([bare]), 'blue' as Color);
+    const zero = mount(ConsoleInfluenceYield, {props: {yields, formula: false, oneNumber: true, captions: false}, global: {mocks: {$t: (key: string) => key}}});
+    expect(zero.find('[data-yield-zero]').text()).to.eq('Nothing');
+    expect(zero.find('[data-yield-context="estimate"]').exists(), 'no «0 → +0» plate').to.eq(false);
+    expect(zero.find('[data-parl-vote-suffix]').exists(), 'what the win adds still stands').to.eq(true);
   });
 });

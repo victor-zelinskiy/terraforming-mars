@@ -60,15 +60,17 @@
                      'con-parl__info-own--rival': voteInfo.reading.subject !== undefined,
                    }"
                    data-parl-vote-item data-parl-info="own" :data-parl-subject="voteSubject">
-                <!-- THE HEAD LINE — the kicker and, at its right end, THE LEDGER OF OUTCOMES.
-                     THE KICKER NAMES THE SUBJECT, ONCE: «ДЛЯ ВАС ПРИ ПРИНЯТИИ», or another seat by its
-                     CUBE and its name. Everything below speaks in the third person and repeats no name —
-                     and the block drops the cyan «mine» register, so a rival's number can never be read
-                     as the player's own. The row
-                     rides this line because it is the block's only strip with room: measured at 4K, a
-                     row of its own costs 41 px and the block's tallest readings leave 12 («clipped-y
-                     con-parl__info-own 332 > 302»). Where the line cannot hold both, flex-wrap drops
-                     the row underneath — no magic number decides it. -->
+                <!-- THE HEAD LINE — THE KICKER NAMES THE SUBJECT, ONCE: «ДЛЯ ВАС ПРИ ПРИНЯТИИ», or another
+                     seat by its CUBE and its name. Everything below speaks in the third person and repeats
+                     no name — and the block drops the cyan «mine» register, so a rival's number can never be
+                     read as the player's own. -->
+                <!-- THE SEATS — the ledger of outcomes as the reading's TABS, on a row of their own at the plate's top
+                     (P77 · DH): on the kicker's line its digits were a .5rem smudge beside their cubes. Inside the plate,
+                     so a row that wraps on one card and not on the next moves the plate's CONTENT, never its box (the
+                     stability law). Reserved for the table, never the card: one seat compares nothing (law 21). -->
+                <div v-if="seatsRowReserved || ledgerShown" class="con-parl__info-seats">
+                  <ConsoleVoteLedger class="con-parl__info-ledger-row" :chips="voteLedger" :subject="voteSubject" :cubeLogicalPx="16" />
+                </div>
                 <div class="con-parl__info-own-head">
                   <span class="con-parl__info-kicker" data-parl-kicker="reading" data-parl-vote-late :data-parl-kicker-subject="voteInfo.reading.subject?.color">
                     <template v-if="voteInfo.reading.subject !== undefined">
@@ -81,7 +83,6 @@
                     </template>
                     <template v-else>{{ $t(voteInfo.reading.kicker) }}</template>
                   </span>
-                  <ConsoleVoteLedger class="con-parl__info-ledger-row" :chips="voteLedger" :subject="voteSubject" :cubeLogicalPx="11" />
                 </div>
                 <div class="con-parl__info-own-body">
                   <!-- («Зал» v7, Ф4: the card's PRINTED graphic is on the bill itself, a size up right above this
@@ -243,50 +244,14 @@
         <div class="con-parl__info-vote-main" v-show="flow.stage !== 'paying'">
           <transition name="con-parl-xfade">
             <div v-if="voteInfo !== undefined" :key="voteInfo.instance" class="con-parl__info-body con-parl__info-body--vote">
-              <!-- YOUR VOTE — ONE block: the delegate at its place with its
-                   source and price (only when there is one to send — a
-                   missing delegate is the confirm's one reason, never said
-                   twice), then this vote's consequences as current →
-                   projected (a fact that does not change is ONE value): the
-                   leader, the winning state, and the party effect only on
-                   the edge this delegate crosses. The count is the ribbon
-                   under the card; every note is the inspector's. -->
+              <!-- THIS VOTE'S CONSEQUENCES (P77 · DH «ФАКТЫ — ОБЪЕКТЫ»): one row of TILES of one height — the leader as a
+                   cube (an empty socket where nobody leads yet), the vote as a crown, the party effect as its sockets —
+                   current → projected, a fact that does not change ONE value; the party effect only on the edge this
+                   delegate crosses. The tiles take the zone's height: the block is the vote zone's body, never a strip
+                   floating over a void. The count is the ribbon under the card; every note is the inspector's. -->
               <div class="con-parl__info-block con-parl__info-block--after" :class="{'con-parl__info-block--done': flow.stage === 'landed'}" data-parl-vote-item data-parl-vote-forecast>
-                <div class="con-parl__info-src" :class="{'con-parl__info-src--none': voteInfo.vote.source === 'none'}" data-parl-vote-source>
-                  <span class="con-parl__info-kicker con-parl__info-kicker--inline" data-parl-kicker="vote" data-parl-vote-late>{{ $t(voteInfo.vote.kicker) }}</span>
-                  <template v-if="voteInfo.vote.source !== 'none'">
-                    <span class="con-parl__socket con-parl__socket--small">
-                      <PlayerDelegate v-if="viewerColor !== undefined" :color="viewerColor" :size="figurePx(18)" :glow="false" />
-                    </span>
-                    <span class="con-parl__info-src-text" data-parl-vote-late :data-parl-vote-count="voteInfo.vote.count">
-                      <!-- A CARD's own door (TR03): «из резерва · по карте» — the delegate is free, the card is what is paid for. -->
-                      <template v-if="voteInfo.vote.door === 'card'">{{ $t(cardDoorSource) }}</template>
-                      <!-- A delegate GRANT: «×2 из резерва · бесплатно» — the count, the place, no price. -->
-                      <template v-else-if="voteInfo.vote.grant">{{ grantSourceText }}</template>
-                      <template v-else-if="voteInfo.vote.source === 'lobby'">{{ $t('from the lobby · free') }}</template>
-                      <template v-else>
-                        <span>{{ $t('from the reserve') }}</span>
-                        <span class="con-parl__info-src-sep" aria-hidden="true">·</span>
-                        <b class="con-parl__info-src-num">{{ voteInfo.vote.cost }}</b>
-                        <i class="con-parl__info-src-mc resource_icon resource_icon--megacredits" aria-hidden="true"></i>
-                      </template>
-                    </span>
-                  </template>
-                </div>
-                <!-- THE RECEIPT of a staged card door: the card's price as the composer settled it — LOCKED here
-                     (the mode cannot change it; B walks back to the composer, which can). Its icon is the price's
-                     place ON SCREEN while the step holds the stage (the source card is parked under it): a card
-                     resource leaves FROM it for the reserve, a rail price is drawn INTO it. -->
-                <div v-if="voteInfo.vote.receipt !== undefined" class="con-parl__info-receipt" data-parl-vote-receipt data-parl-vote-late
-                     :data-receipt-cost="voteInfo.vote.receipt.amount" :data-receipt-icon="voteInfo.vote.receipt.icon">
-                  <span class="con-parl__info-receipt-key">{{ $t(cardDoorReceipt) }}</span>
-                  <span class="con-parl__info-src-sep" aria-hidden="true">·</span>
-                  <b class="con-parl__info-src-num">{{ voteInfo.vote.receipt.amount }}</b>
-                  <i class="con-parl__info-src-mc" :class="receiptIconClass" aria-hidden="true" data-parl-vote-receipt-icon></i>
-                </div>
-                <!-- The SHARED fact row (ConsoleVoteFactRow) — the same markup the fullscreen inspector's footer prints. -->
-                <div class="con-parl__facts">
-                  <ConsoleVoteFactRow v-for="fact in voteInfo.vote.facts" :key="fact.id" :fact="fact" :figurePx="figurePx(18)" data-parl-vote-late />
+                <div class="con-parl__facts con-parl__facts--tiles">
+                  <ConsoleVoteFactRow v-for="fact in voteInfo.vote.facts" :key="fact.id" :fact="fact" :figurePx="figurePx(22)" variant="tile" data-parl-vote-late />
                 </div>
               </div>
             </div>
@@ -294,24 +259,60 @@
         </div>
         <!-- A paid vote's PAYMENT stands here, inside the mode. -->
         <div class="con-parl__embed" data-embed-slot="parliament-vote"></div>
-        <!-- THE CONFIRM — the verb and, beside it, the delegate's SOURCE and
-             PRICE (the lobby's is free; the reserve's costs the server's own
-             M€), read from the same vote option the submit answers. Blocked,
-             the plate carries the ONE reason. -->
-        <div class="con-parl__cta"
-             :class="{
-               'con-parl__cta--ready': canVoteNow && flow.stage === 'vote',
-               'con-parl__cta--blocked': !canVoteNow && flow.stage === 'vote',
-               'con-parl__cta--busy': flow.stage === 'submitting' || flow.stage === 'paying' || (flow.stage === 'landed' && (voteInFlight || supportInFlight)),
-               'con-parl__cta--done': (flow.stage === 'landed' && !voteInFlight && !supportInFlight) || flow.stage === 'access',
-             }"
-             data-parl-vote-item data-parl-cta @click="submitVote()">
-          <GamepadGlyph v-if="flow.stage === 'vote' && canVoteNow" control="confirm" class="con-parl__cta-glyph" />
-          <!-- The verb alone (R-14): the delegate's source and price are the «ВАШ ГОЛОС» row's, said once —
-               the tail here doubled them and wrapped the plate onto two lines on the TV. The cost stays
-               readable to probes on the plate's own attribute. -->
-          <span class="con-parl__cta-label">{{ ctaText }}</span>
-          <span v-if="flow.stage === 'vote' && canVoteNow && ctaCost.kind !== 'none'" class="con-parl__cta-cost con-parl__cta-cost--silent" data-parl-cta-cost :data-cost-kind="ctaCost.kind" :data-cost-amount="ctaCost.kind === 'free' ? 0 : ctaCost.amount" aria-hidden="true"></span>
+        <!-- THE FOOT — where the delegate leaves from, and the confirm as a PLATE (P77 · DH): one line, the source
+             quiet at the left (the cube, «из резерва · 5 M€» / «из лобби · бесплатно» / «×2 из резерва · бесплатно»
+             — no «ВАШ ГОЛОС» kicker: the crumb and the bar already say ГОЛОСОВАНИЕ; the words stay the line's
+             label for assistive tech), the plate at the right, sized by its words. -->
+        <div class="con-parl__info-foot">
+          <div class="con-parl__info-foot-src" data-parl-vote-item>
+            <div v-if="voteInfo !== undefined" class="con-parl__info-src" :class="{'con-parl__info-src--none': voteInfo.vote.source === 'none'}"
+                 :aria-label="$t(voteInfo.vote.kicker)" data-parl-vote-source>
+              <template v-if="voteInfo.vote.source !== 'none'">
+                <span class="con-parl__socket con-parl__socket--small">
+                  <PlayerDelegate v-if="viewerColor !== undefined" :color="viewerColor" :size="figurePx(18)" :glow="false" />
+                </span>
+                <span class="con-parl__info-src-text" data-parl-vote-late :data-parl-vote-count="voteInfo.vote.count">
+                  <!-- A CARD's own door (TR03): «из резерва · по карте» — the delegate is free, the card is what is paid for. -->
+                  <template v-if="voteInfo.vote.door === 'card'">{{ $t(cardDoorSource) }}</template>
+                  <!-- A delegate GRANT: «×2 из резерва · бесплатно» — the count, the place, no price. -->
+                  <template v-else-if="voteInfo.vote.grant">{{ grantSourceText }}</template>
+                  <template v-else-if="voteInfo.vote.source === 'lobby'">{{ $t('from the lobby · free') }}</template>
+                  <template v-else>
+                    <span>{{ $t('from the reserve') }}</span>
+                    <span class="con-parl__info-src-sep" aria-hidden="true">·</span>
+                    <b class="con-parl__info-src-num">{{ voteInfo.vote.cost }}</b>
+                    <i class="con-parl__info-src-mc resource_icon resource_icon--megacredits" aria-hidden="true"></i>
+                  </template>
+                </span>
+              </template>
+            </div>
+            <!-- THE RECEIPT of a staged card door: the card's price as the composer settled it — LOCKED here
+                 (the mode cannot change it; B walks back to the composer, which can). Its icon is the price's
+                 place ON SCREEN while the step holds the stage (the source card is parked under it): a card
+                 resource leaves FROM it for the reserve, a rail price is drawn INTO it. -->
+            <div v-if="voteInfo !== undefined && voteInfo.vote.receipt !== undefined" class="con-parl__info-receipt" data-parl-vote-receipt data-parl-vote-late
+                 :data-receipt-cost="voteInfo.vote.receipt.amount" :data-receipt-icon="voteInfo.vote.receipt.icon">
+              <span class="con-parl__info-receipt-key">{{ $t(cardDoorReceipt) }}</span>
+              <span class="con-parl__info-src-sep" aria-hidden="true">·</span>
+              <b class="con-parl__info-src-num">{{ voteInfo.vote.receipt.amount }}</b>
+              <i class="con-parl__info-src-mc" :class="receiptIconClass" aria-hidden="true" data-parl-vote-receipt-icon></i>
+            </div>
+          </div>
+          <!-- THE CONFIRM — a PLATE sized by its words: the A glyph, the verb, and the price on the plate's own
+               attribute (the source line says it once). «Ready» is a kant and a weight, never a fill across the
+               panel; blocked, the plate carries the ONE reason. -->
+          <div class="con-parl__cta"
+               :class="{
+                 'con-parl__cta--ready': canVoteNow && flow.stage === 'vote',
+                 'con-parl__cta--blocked': !canVoteNow && flow.stage === 'vote',
+                 'con-parl__cta--busy': flow.stage === 'submitting' || flow.stage === 'paying' || (flow.stage === 'landed' && (voteInFlight || supportInFlight)),
+                 'con-parl__cta--done': (flow.stage === 'landed' && !voteInFlight && !supportInFlight) || flow.stage === 'access',
+               }"
+               data-parl-vote-item data-parl-cta @click="submitVote()">
+            <GamepadGlyph v-if="flow.stage === 'vote' && canVoteNow" control="confirm" class="con-parl__cta-glyph" />
+            <span class="con-parl__cta-label">{{ ctaText }}</span>
+            <span v-if="flow.stage === 'vote' && canVoteNow && ctaCost.kind !== 'none'" class="con-parl__cta-cost con-parl__cta-cost--silent" data-parl-cta-cost :data-cost-kind="ctaCost.kind" :data-cost-amount="ctaCost.kind === 'free' ? 0 : ctaCost.amount" aria-hidden="true"></span>
+          </div>
         </div>
       </div>
     </div>
@@ -399,9 +400,11 @@ type CtaCost = {kind: 'free' | 'cost' | 'none', amount: number};
 /**
  * The reading's own scale steps in its frame, largest first (PL-785 — `fitReading`): ×1 is the floor. Since the win column (2026-10-26)
  * a one-row reading is far narrower than its frame, and at ×1.5 it still floated in a third of the hall's plate — the ladder reaches
- * ×1.8, and the measurement still decides (a reading that does not stand whole at a step never takes it).
+ * ×1.8, and the measurement still decides (a reading that does not stand whole at a step never takes it). Below ×1 two
+ * last steps (P77 · DH): a reading taller than its frame at ×1 (a colony ledger on the Deck, where the seats' row took a
+ * line) yields a step of scale rather than being cut — the smallest step is the floor when none stands whole.
  */
-const READING_FIT_STEPS: ReadonlyArray<number> = [1.8, 1.65, 1.5, 1.35, 1.2, 1.1, 1];
+const READING_FIT_STEPS: ReadonlyArray<number> = [1.8, 1.65, 1.5, 1.35, 1.2, 1.1, 1, 0.92, 0.85];
 
 /**
  * THE VOTE MODE — the Parliament frame's phase descent: the three slots are
@@ -637,6 +640,20 @@ export default defineComponent({
         viewer: this.viewerColor,
         players: this.playerView.players,
       });
+    },
+    /**
+     * THE SEATS' ROW is RESERVED for the game, never for the card (P77 · DH): a table of two seats or more keeps the row
+     * whatever the selected card pays — a card that pays nobody draws no chips, and a row that came and went with the
+     * card moved the reading under a d-pad step (`console-parliament-stability`).
+     */
+    seatsRowReserved(): boolean {
+      // Asked of the TABLE: any resolution up for the vote that draws the row reserves it for all of them.
+      return this.view.slots.some((slot) => voteLedgerOf({
+        resolution: slot.resolution ?? getResolution(slot.resolutionId),
+        model: this.model,
+        viewer: this.viewerColor,
+        players: this.playerView.players,
+      }).length > 1);
     },
     /** The row of seats stands only where it COMPARES — two seats or more (`ConsoleVoteLedger` draws nothing below). */
     ledgerShown(): boolean {
@@ -876,7 +893,7 @@ export default defineComponent({
       const plates = Array.from(readings.querySelectorAll<HTMLElement>('.con-iyield__reading'));
       readings.style.setProperty('--con-parl-reading-fit', '1');
       const natural = plates.map((plate) => plate.getBoundingClientRect().height);
-      let fit = 1;
+      let fit = READING_FIT_STEPS[READING_FIT_STEPS.length - 1];
       for (const step of READING_FIT_STEPS) {
         readings.style.setProperty('--con-parl-reading-fit', String(step));
         const r = readings.getBoundingClientRect();

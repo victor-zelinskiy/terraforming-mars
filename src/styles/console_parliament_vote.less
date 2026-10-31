@@ -150,7 +150,6 @@
     &__info-emblem { width: 1.5rem; height: 1.5rem; object-fit: contain; flex-shrink: 0; }
     &__info-name { font-size: 1rem; line-height: 1.1; letter-spacing: .04em; text-transform: uppercase; color: #f6f3ec; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
     /* The two KICKERS the panel has — tracked caps, quiet; the number is the loud voice. */
-    &__info-kicker--inline { margin-right: .2rem; flex-shrink: 0; }
     &__info-kicker { font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; opacity: .7; white-space: nowrap; }
     /* THE READING — the main block: the card's graphic as the formula, the ONE
        number beside it (its suffix inside the same plate), the party's answer
@@ -401,13 +400,9 @@
        never touches it. The card right above the panel prints the very same graphic. */
     @container con-parl-reading (max-width: 24rem) {
         .con-parl__info-mech { display: none; }
-        /* …and the win column's HEAD may break at its own seams. Since the TV composer grew its hero to 1.6× (PL-139)
-           the hosted Parliament's reading block is 476 px at 4K (`console-martian-census` tv4k — the old per-row
-           suffix «+1 ЕСЛИ ПОБЕДИТЕ · ШАГ ①» was one nowrap line of 648 px there). The head is said once now, and in
-           a narrow block its words wrap over the Career node instead of widening the column; the cells are numbers
-           and stay one line. A full-band Parliament never reaches this width, so nothing there changes. */
-        .con-iyield__winhead { flex-wrap: wrap; white-space: normal; row-gap: .12rem; }
-        .con-iyield__suffix { margin-left: .5rem; padding-left: .5rem; }
+        /* …and the win's suffix line may break at its own seams in a narrow block (the hosted Parliament's reading
+           block is 476 px at 4K beside the TV composer's 1.6× hero — `console-martian-census` tv4k). */
+        .con-iyield__suffix { flex-wrap: wrap; white-space: normal; row-gap: .12rem; justify-content: center; }
     }
     /* THE VOTE — the source line over the facts. */
     &__info-block {
@@ -422,11 +417,12 @@
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
         overflow: hidden;
         transition: opacity calc(180ms * var(--motion-scale, 1)) @con-ease-standard;
-        /* Content-sized: the room the column has left stays UNBOXED between the facts and the confirm (a stretched, half-empty box read as a missing line). */
-        &--after { flex: 0 0 auto; }
-        &--done { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 45%); }
+        /* THE VOTE ZONE'S BODY (P77 · DH): no plate of its own — the TILES are the objects and they take the zone's
+           height (a content-sized block over a void read as a missing line; a plate around tiles is a plate in a plate). */
+        &--after { flex: 1 1 auto; padding: 0; background: none; box-shadow: none; }
     }
-    &__info-block--after .con-parl__info-kicker { color: @con-parl-mint; opacity: .9; }
+    /* Landed: the tiles answer by their kant, once (the confirm's «Делегат поставлен» is the word). */
+    &__info-block--done .con-parl__fact--tile { box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 50%); }
     /* THE SOURCE line: the cube at its place, where it leaves from and what it costs. */
     &__info-src { display: flex; align-items: center; gap: .5rem; min-width: 0; flex-wrap: nowrap; min-height: 1.1rem; }
     /* The source's words may take two lines on a narrow column — never an ellipsis on the place a delegate leaves from. */
@@ -456,9 +452,99 @@
     &__fact-after { color: @con-cyan; border-bottom: .08rem dashed fade(@con-cyan, 55%); }
     &__info-block--done &__fact-after { color: @con-parl-mint; border-bottom-color: transparent; }
     &__fact-none { opacity: .5; }
+    /* ══ THE FACTS AS OBJECTS (P77 · DH): one row of TILES of one height — the key as the tile's kicker, the value drawn
+       as the Parliament's own objects: the leader's cube (an empty socket where nobody leads), the vote's crown
+       (filled — this resolution leads; a hollow ring — it does not), the party's places (n of the threshold).
+       «current → projected» inside the tile; a fact that does not change is ONE value. A gain is a mint KANT, never
+       a light. The words ride the tile for assistive tech (`__fact-words`), never painted twice. ══ */
+    &__facts--tiles {
+        flex: 1 1 auto;
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+        gap: .5rem;
+        min-height: 0;
+    }
+    &__fact--tile {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .4rem;
+        min-height: 0;
+        padding: .45rem .5rem;
+        border-radius: .55rem;
+        background: rgba(255, 255, 255, 0.035);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.09);
+        .con-parl__fact-key { flex-shrink: 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; opacity: .74; }
+        &.con-parl__fact--gain { background: fade(@con-parl-mint, 6%); box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 60%); }
+        &.con-parl__fact--dim { opacity: 1; .con-parl__fact-val--objects { opacity: .62; } }
+    }
+    &__fact-val--objects { display: inline-flex; align-items: center; justify-content: center; gap: .45rem; min-width: 0; }
+    &__fact-obj { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; }
+    /* The party effect crossed: its word on its own line under the places. */
+    &__fact-yours { border-bottom: none; font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    /* An empty SOCKET — nobody holds the lead (the plaques' own empty place, by form: a hollow ring). */
+    &__fact-socket { display: inline-block; flex-shrink: 0; width: 1.05rem; height: 1.05rem; border-radius: 50%; box-shadow: inset 0 0 0 .07rem rgba(255, 255, 255, 0.36); background: rgba(0, 0, 0, 0.25); }
+    /* THE CROWN — the card's own «★ ПОБЕЖДАЕТ» mark; «does not lead» is its hollow ring (form, never a dimmed star). */
+    &__fact-crown {
+        display: inline-block; flex-shrink: 0; width: 1.3rem; height: 1.3rem;
+        background: url(./assets/misc/vote-winner.svg) center / contain no-repeat;
+        &--off { width: 1.05rem; height: 1.05rem; background: rgba(0, 0, 0, 0.25); border-radius: 50%; box-shadow: inset 0 0 0 .07rem rgba(255, 255, 255, 0.36); }
+    }
+    /* THE PARTY'S PLACES — n of the threshold filled (the plaque's vocabulary: a filled place, an empty one). */
+    &__fact-places { display: inline-flex; align-items: center; gap: .22rem; }
+    &__fact-place {
+        display: inline-block; width: .82rem; height: .82rem; border-radius: .18rem;
+        box-shadow: inset 0 0 0 .07rem rgba(255, 255, 255, 0.38); background: rgba(0, 0, 0, 0.25);
+        &--on { background: fade(@con-parl-mint, 88%); box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.35); }
+    }
+    /* The words of a drawn fact — for assistive tech and the text a probe reads; never painted. */
+    &__fact-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    /* ══ THE FOOT (P77 · DH): the source quiet at the left, the confirm a PLATE at the right — one line on the zone's
+       bottom edge. ══ */
+    &__info-foot { flex-shrink: 0; display: flex; align-items: flex-end; justify-content: space-between; gap: .8rem; min-width: 0; }
+    &__info-foot-src { flex: 1 1 auto; display: flex; flex-direction: column; gap: .14rem; min-width: 0; }
+    /* ONE WIDTH from A to the leave (the vote's geometry law — «Делегат поставлен» is longer than «Отправить делегата»):
+       a plate sized for the longest of its verbs, never the panel's width. */
+    &__info-foot > .con-parl__cta {
+        flex: 0 0 auto;
+        justify-content: center;
+        width: 15rem;
+        max-width: 60%;
+        padding: .5rem 1.1rem;
+        background: rgba(255, 255, 255, 0.035);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.3);
+        .con-parl__cta-label { white-space: nowrap; line-height: 1.15; }
+        /* A refusal is the one label that may take two lines — a blocked plate never travels through the flow. */
+        &.con-parl__cta--blocked .con-parl__cta-label { white-space: normal; }
+        /* «Ready» is a KANT and a WEIGHT (VISUAL RESTRAINT) — never a fill across the panel. */
+        &.con-parl__cta--ready { background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 80%); .con-parl__cta-label { color: #effff8; font-weight: 800; } }
+        &.con-parl__cta--done { background: transparent; box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 55%); .con-parl__cta-label { color: @con-parl-mint; } }
+    }
     &__vote .con-parl__embed:not(:empty) { flex: 1 1 auto; min-height: 0; }
     &__vote--paying .con-parl__cta { display: none; }
-    &__vote .con-parl__cta { margin-top: auto; }
+    &__vote .con-parl__info-foot { margin-top: auto; }
+    /* ══ THE SEATS — the reading's TABS on a row of their own (P77 · DH): the row's height is the game's (its seats),
+       never the card's. ══ */
+    &__info-seats { flex-shrink: 0; display: flex; align-items: center; min-width: 0; }
+    &__info-seats > .con-vledger { flex: 0 1 auto; }
+    /* ══ THE READING'S VOICE (P77 · DH): the number is the panel's loudest element — the result heavy and large, the
+       inputs a step quieter, the arrow a shape; the formula on NO plate of its own (the block is the plate — a violet
+       wash inside a glass plate was a plate in a plate). A forfeit keeps its amber kant. ══ */
+    &__info-own .con-iyield--onenum {
+        .con-iyield__reading { background: none; box-shadow: none; padding: 0; }
+        .con-iyield__reading--skipped { padding: .2rem .5rem; box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%); }
+        .con-iyield__in b { color: fade(@con-text, 80%); }
+        .con-iyield__arrow { color: fade(@con-text, 46%); }
+        .con-iyield__out b { font-weight: 800; }
+    }
+    &__info-own .con-iyield--onenum.con-iyield--normal {
+        .con-iyield__in b { font-size: 1.02rem; }
+        .con-iyield__out b { font-size: 1.9rem; }
+        .con-iyield__out .con-iyield__unit { width: 1.6rem; height: 1.6rem; }
+    }
 }
 
 /* THE INFO SURFACE'S CROSSFADE — a body enters over the one leaving, both absolute. */
@@ -600,13 +686,11 @@ html.con-profile-handheld .con-parl__info-own--yields {
     .con-iyield__readings { gap: .3rem; }
     .con-iyield__reading { padding: .14rem .3rem .12rem; column-gap: .14rem; }
     .con-iyield__in, .con-iyield__out { gap: .1rem; }
-    .con-iyield__in b { font-size: .9rem; }
-    .con-iyield__out b { font-size: .95rem; }
-    /* The win column speaks the plate's sizes, so a row and its win cell read as one line. */
-    .con-iyield__suffix-in { font-size: .9rem; }
-    .con-iyield__suffix-num { font-size: .95rem; }
-    .con-iyield__suffix .con-iyield__inf, .con-iyield__suffix .con-iyield__unit { width: .9rem; height: .9rem; }
-    .con-iyield__in .con-iyield__inf, .con-iyield__out .con-iyield__unit { width: .9rem; height: .9rem; }
+    .con-iyield__in b { font-size: .78rem; }
+    /* The number stays the voice at the Deck's size too (P77 · DH: ≥ 1.6 × the kicker's .5rem). */
+    .con-iyield__out b { font-size: 1.25rem; }
+    .con-iyield__in .con-iyield__inf { width: .8rem; height: .8rem; }
+    .con-iyield__out .con-iyield__unit { width: 1.1rem; height: 1.1rem; }
     .con-iyield__in .con-iyield__glyph { --pvpcard-size: .9rem; }
     .con-iyield__plus { margin: 0; }
     .con-iyield__arrow { font-size: .85rem; }
@@ -779,3 +863,56 @@ html.con-profile-tv .con-parl__info-veto { font-size: .92rem; }
     55% { transform: scale(1.12); box-shadow: inset 0 0 0 .11rem #e6c34a; }
     100% { transform: scale(1); box-shadow: inset 0 0 0 .05rem rgba(230, 195, 74, 0.55); }
 }
+
+/* THE READING'S VOICE on the Deck (P77 · DH) — the same chain as the panel's own rule, one profile up: the number
+   stays the voice (≥ 1.6 × the .5rem kicker), at the Deck's size. */
+html.con-profile-handheld .con-parl .con-parl__info-own .con-iyield--onenum.con-iyield--normal {
+    .con-iyield__in b { font-size: .78rem; }
+    .con-iyield__out b { font-size: 1.25rem; }
+    .con-iyield__out .con-iyield__unit { width: 1.1rem; height: 1.1rem; }
+}
+
+/* ══ THE SEATS' TABS at reading size (P77 · DH) — the row of its own gives the digits the room the kicker's line never
+   had: the number beside its cube is read, not deciphered. Written per profile (the ledger's own ladders are (0,3,1)). ══ */
+html .con-parl__info-seats .con-vledger {
+    gap: .25rem .35rem;
+    padding: .16rem .22rem;
+    .con-vledger__chip { gap: .26rem; padding: .14rem .5rem .16rem .36rem; }
+    .con-vledger__you { font-size: .56rem; }
+    .con-vledger__part b { font-size: .95rem; }
+    .con-vledger__part .con-iyield__unit, .con-vledger__tile, .con-vledger__career { width: .95rem; height: .95rem; }
+}
+html.con-profile-tv .con-parl__info-seats .con-vledger {
+    .con-vledger__you { font-size: .8rem; }
+    .con-vledger__part b { font-size: 1.05rem; }
+    .con-vledger__part .con-iyield__unit, .con-vledger__tile, .con-vledger__career { width: 1.05rem; height: 1.05rem; }
+}
+html.con-profile-handheld .con-parl__info-seats .con-vledger {
+    gap: .14rem .2rem;
+    .con-vledger__chip { gap: .14rem; padding: .08rem .3rem .1rem .22rem; }
+    .con-vledger__you { font-size: .46rem; }
+    .con-vledger__part b { font-size: .74rem; }
+    .con-vledger__part .con-iyield__unit, .con-vledger__tile, .con-vledger__career { width: .74rem; height: .74rem; }
+}
+
+/* The tile's own box on every profile (the profile ladders size the ROW variant's `.con-parl__fact` at (0,2,1)). */
+html .con-parl .con-parl__facts--tiles .con-parl__fact--tile { padding: .45rem .5rem; }
+html.con-profile-handheld .con-parl .con-parl__facts--tiles .con-parl__fact--tile { padding: .25rem .3rem; gap: .22rem; }
+html.con-profile-handheld .con-parl .con-parl__facts--tiles { gap: .3rem; }
+html.con-profile-handheld .con-parl .con-parl__fact-socket, html.con-profile-handheld .con-parl .con-parl__fact-crown--off { width: .8rem; height: .8rem; }
+html.con-profile-handheld .con-parl .con-parl__fact-crown { width: .95rem; height: .95rem; }
+html.con-profile-handheld .con-parl .con-parl__fact-place { width: .62rem; height: .62rem; }
+html.con-profile-handheld .con-parl .con-parl__fact-yours { font-size: .5rem; }
+html.con-profile-tv .con-parl .con-parl__fact-yours { font-size: .8rem; }
+
+/* The seats' row keeps ONE height per profile whatever the card draws in it (a card paying nobody draws no tabs). */
+.con-parl__info-seats { min-height: 1.8rem; }
+html.con-profile-tv .con-parl__info-seats { min-height: 1.85rem; }
+html.con-profile-handheld .con-parl__info-seats { min-height: 1.3rem; }
+
+/* The plate's one width on the couch: the TV's 1.05rem verb («Отправить делегатов» / «Делегаты поставлены») on ONE line. */
+html.con-profile-tv .con-parl .con-parl__info-foot > .con-parl__cta { width: 18.5rem; }
+/* …and ONE HEIGHT: the A glyph leaves the plate with the press («Выполняется…»), and the plate may not shrink under it. */
+html .con-parl .con-parl__info-foot > .con-parl__cta { min-height: 2.2rem; }
+html.con-profile-tv .con-parl .con-parl__info-foot > .con-parl__cta { min-height: 2.65rem; }
+html.con-profile-handheld .con-parl .con-parl__info-foot > .con-parl__cta { min-height: 2rem; }

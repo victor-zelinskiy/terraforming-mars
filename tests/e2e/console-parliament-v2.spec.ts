@@ -593,7 +593,10 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-fact="access"]'), 'the party effect is a fact only on the edge (0 → 1 is not it)').toHaveCount(0);
       await expect(page.locator('[data-parl-fact="lead"]'), 'the leader').toHaveCount(1);
       await expect(page.locator('[data-parl-fact="win"]'), 'the winning state').toHaveCount(1);
-      await expect(page.locator('[data-parl-kicker]'), 'two kickers — the reading\'s and the vote\'s').toHaveCount(2);
+      // P77 · DH: the vote zone prints no kicker of its own (the crumb and the bar say ГОЛОСОВАНИЕ) — its words are the
+      // source line's label.
+      await expect(page.locator('[data-parl-kicker]'), 'ONE kicker — the reading\'s').toHaveCount(1);
+      await expect(page.locator('[data-parl-vote-source]'), 'the vote zone\'s words label its source line').toHaveAttribute('aria-label', /голос/i);
       await expect(page.locator('.con-parl__slot--selected [data-parl-vote-place]'), 'the place the delegate will take, on the selected card').toHaveCount(1);
       await expect(page.locator('[data-parl-info="own"]'), 'the resolution\'s own effect block').toHaveCount(1);
       await expect(page.locator('[data-parl-vote-reading]'), 'ONE reading — the viewer\'s number').toHaveCount(1);

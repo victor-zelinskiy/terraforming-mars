@@ -1644,8 +1644,10 @@ html.con-profile-tv .con-parl-qd {
         grid-template-columns: minmax(0, 1fr);
         /* The vote block's row is the old band's height PLUS the seam over it (its `padding-top`) — the block keeps its
            own geometry to the pixel (the Deck's reserve vote: 95 px in a 93 px body without it). */
-        grid-template-rows: minmax(0, 1fr) calc(var(--con-parl-info-h) + .4rem);
-        row-gap: .9rem;
+        /* P77 · DH: the vote zone is the TILES + the foot — its old block's height (`--con-parl-info-h`) less a fifth goes to
+           the reading, the panel's voice; the tiles stretch to whatever the zone keeps. */
+        grid-template-rows: minmax(0, 1fr) calc(var(--con-parl-info-h) * .78 + .4rem);
+        row-gap: .6rem;
         column-gap: 0;
         padding: 1.1rem 1.2rem 1.1rem;
         border-radius: 1rem;
@@ -1654,7 +1656,7 @@ html.con-profile-tv .con-parl-qd {
     }
     .con-parl__vote--bill .con-parl__info { grid-template-columns: minmax(0, 1fr); }
     /* The reading column: the head, then the reading — stacked, never side by side (the column is the chamber's). */
-    .con-parl__vote .con-parl__info-body { gap: .7rem; }
+    .con-parl__vote .con-parl__info-body { gap: .5rem; } /* P77 · DH: three zones, no void between them */
     .con-parl__vote .con-parl__info-head { gap: .7rem; padding-bottom: .55rem; border-bottom: .05rem solid rgba(201, 198, 214, 0.16); }
     .con-parl__vote .con-parl__info-emblem { width: 2.4rem; height: 2.4rem; }
     .con-parl__vote .con-parl__info-name { font-size: 1.2rem; white-space: normal; line-height: 1.15; }
@@ -1685,7 +1687,7 @@ html.con-profile-tv .con-parl-qd {
         .con-parl__info-party-formula { flex: 0 0 auto; }
         .con-parl__info-support { flex: 0 1 auto; width: auto; }
     }
-    .con-parl__vote .con-parl__info-vote { padding-top: .8rem; border-top: .05rem solid rgba(201, 198, 214, 0.16); }
+    .con-parl__vote .con-parl__info-vote { padding-top: .6rem; border-top: .05rem solid rgba(201, 198, 214, 0.16); }
     /* The career and the quest STAY as they are (the owner, 2026-10-19): the vote is read beside the track it pays on —
        nothing about them changes when the mode opens, so nothing about them may look as though it did. */
 }

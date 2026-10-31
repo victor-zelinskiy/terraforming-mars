@@ -54,8 +54,8 @@ const panelOf = (page: Page) => page.evaluate(() => {
       seat: chip.getAttribute('data-ledger-seat'),
       texts: Array.from(chip.querySelectorAll<HTMLElement>('[data-ledger-part] b')).map((b) => (b.textContent ?? '').trim()),
     })),
-    // The VOTE half is the viewer's at every subject — its kicker never moves.
-    voteKicker: (document.querySelector('[data-parl-kicker="vote"]')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+    // The VOTE half is the viewer's at every subject — its source line (labelled «ВАШ ГОЛОС», P77 · DH) never moves.
+    voteKicker: `${document.querySelector('[data-parl-vote-source]')?.getAttribute('aria-label') ?? ''} · ${(document.querySelector('[data-parl-vote-source]')?.textContent ?? '').replace(/\s+/g, ' ').trim()}`,
     cta: (document.querySelector('[data-parl-cta] .con-parl__cta-label')?.textContent ?? '').trim(),
   };
 });

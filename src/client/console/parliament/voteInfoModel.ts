@@ -25,6 +25,11 @@
  * else the places under the card already say n/2. The delegate count is not
  * a fact here: the ribbon of cubes under the card IS that fact. A fact's
  * NOTE (the tie rule, «two of your delegates») is the inspector's line.
+ *
+ * THE DELIVERY (P77 · ledger DH — «ПАНЕЛЬ ГОЛОСОВАНИЯ — ОДИН ВЗГЛЯД»): this content is unchanged; the panel
+ * PRESENTS it as three zones on the table's lines — the reading (the number the loudest voice, the win's
+ * suffix one quiet line under it, a zero said by a word), the seats as tabs on a row of their own, and the
+ * vote (the facts as object tiles — cube · crown · sockets — the source and the confirm as a plate).
  */
 import type {StagedReceipt} from '@/client/console/stagedPlay';
 import {Color} from '@/common/Color';
@@ -90,6 +95,12 @@ export const SUFFIX_IF_YOU_WIN = 'if you win';
 export const SUFFIX_IF_THEY_WIN = 'if they win';
 export const SUFFIX_HINT = 'If you win, your Agenda marker moves to step ${0} first. The effect uses that influence.';
 export const SUFFIX_HINT_THEIRS = 'If they win, the Agenda marker moves to step ${0} first. The effect uses that influence.';
+
+/**
+ * The ZERO reading's word (P77 · DH): a one-number block whose every number is a plain 0 prints this in the number's
+ * place — «0 → +0» said «nothing» twice. One word: the kicker over it already says «при принятии».
+ */
+export const ZERO_READING_KEY = 'Nothing';
 
 /** The suffix's words for a reading of `person` — one place, so the panel and the inspector cannot drift. */
 export function suffixWinKey(person: ReadingPerson): string {
