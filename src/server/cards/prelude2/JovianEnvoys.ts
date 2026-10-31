@@ -19,8 +19,11 @@ export class JovianEnvoys extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'P77',
-        renderData: CardRenderer.builder((b) => b.delegates(2).asterix),
-        description: 'Requires 2 Jovian tags. Place 2 delegates in 1 party.',
+        // P72's twin: under Redux «in 1 party» is «on ONE resolution of the voting area» — the shared grant step
+        // (`PlaceDelegatesOnResolution`) never offers the enacted law. The scan prints no asterisk (the classic
+        // footnote it pointed at does not exist under Redux) and no tag of the card's own.
+        renderData: CardRenderer.builder((b) => b.delegates(2)),
+        description: 'Requires 2 Jovian tags. Add 2 delegates to one resolution.',
       },
     });
   }
