@@ -1375,5 +1375,9 @@
     "for a tile on your marked area": "за тайл на вашем участке",
     "Vetoed by ${0}: your terraform rating is the highest — ${1} TR not gained": "«${0}»: у вас наибольший РТ — ${1} РТ не засчитывается",
     "The printed bonus of the city's cell is doubled.": "Печатный бонус клетки города удвоен.",
-    "Then your cube lands on each adjacent non-reserved area — up to 6. Only you can build there.": "Затем ваш куб ложится на каждую соседнюю незарезервированную клетку — до 6. Строить там можете только вы."
+    "Then your cube lands on each adjacent non-reserved area — up to 6. Only you can build there.": "Затем ваш куб ложится на каждую соседнюю незарезервированную клетку — до 6. Строить там можете только вы.",
+    "Resolutions with 2+ of your delegates": "Резолюции с 2+ вашими делегатами",
+    "Resolutions with your delegates": "Резолюции с вашими делегатами",
+    "not counted": "не считается",
+    "${0}: your delegates ${1} of ${2}": "${0}: ваших делегатов ${1} из ${2}"
 }

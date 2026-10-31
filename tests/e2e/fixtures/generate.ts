@@ -41,6 +41,7 @@ import {MartianIndustries} from '../../../src/server/cards/prelude/MartianIndust
 import {PROTEUS_ACTION_DATA, Proteus} from '../../../src/server/cards/turmoilRedux/Proteus';
 import {TitanHoldings} from '../../../src/server/cards/turmoilRedux/TitanHoldings';
 import {AerospaceCompany} from '../../../src/server/cards/turmoilRedux/AerospaceCompany';
+import {CorridorsOfPowerRedux} from '../../../src/server/cards/turmoilRedux/CorridorsOfPowerRedux';
 import {CouncilSeat} from '../../../src/server/cards/turmoilRedux/CouncilSeat';
 import {NoctisCity} from '../../../src/server/cards/base/NoctisCity';
 import {ImmigrantCity} from '../../../src/server/cards/base/ImmigrantCity';
@@ -3498,6 +3499,44 @@ function aerospaceFixture(name: string, at: 'table' | 'none' | 'family'): void {
 aerospaceFixture('aerospace', 'table');
 aerospaceFixture('aerospace-none', 'none');
 aerospaceFixture('aerospace-family', 'family');
+// ── TRP0 · CORRIDORS OF POWER — the Redux replacement of the classic P47: «Action: draw 1 card for each RESOLUTION you
+//    have at least 2 delegates on» (the Parliament's counted term). A 2p Redux table, blue with the Prelude on its table
+//    (TRP8's recipe), the Scientists enacted, red on a pinned corporation with no first action.
+//      · `corridors-action` — blue 2 on slot 0, 2 on slot 1, 1 on slot 2 → N = 2; the composer's «РАСЧЁТ» names the
+//                              three resolutions, the third short of the threshold;
+//      · `corridors-futile` — blue 1 on slot 0 only → N = 0: the tile «БЕЗ ЭФФЕКТА» with its reason, the action available. ──
+function corridorsFixture(name: string, at: 'action' | 'futile'): void {
+  const layout = at === 'action' ? [2, 2, 1] : [1, 0, 0];
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [15, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({p1, parliament}) => {
+      seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+      layout.forEach((count, slot) => {
+        for (let i = 0; i < count; i++) {
+          parliament.placeVote(p1, parliament.slots[slot], 'reserve');
+        }
+      });
+      p1.playedCards.push(new CorridorsOfPowerRedux());
+      p1.cardsInHand = [new MartianRails()];
+    },
+    expect: ({game, p1, parliament}) => {
+      const card = p1.playedCards.get(CardName.CORRIDORS_OF_POWER_REDUX) as unknown as ({canAct(p: IPlayer): boolean}) | undefined;
+      const facts = {
+        card: card !== undefined, acts: card?.canAct(p1), slots: parliament.slots.length, ruling: parliament.rulingParty(),
+        own: parliament.slots.map((slot) => parliament.votesOf(p1, slot)),
+        n: game.politics?.resolutionsWithDelegates(p1, 2),
+      };
+      if (!facts.card || facts.acts !== true || facts.slots !== 3 || facts.n !== (at === 'action' ? 2 : 0) || facts.ruling !== PartyName.SCIENTISTS) {
+        throw new Error(`${name}: the subject is not what the spec reads — ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+corridorsFixture('corridors-action', 'action');
+corridorsFixture('corridors-futile', 'futile');
 // ── TR51 · INFLUENTIAL DISCOVERY — «1 science OR 6 data to ANY card» (TR43's optional `or` as the whole card) and the
 //    stand of the choice-grammar iteration (docs/claude/prompts/project-tr51-influential-discovery.md): the comparison
 //    «1 science against 6 data» whose both ends depend on the table. Blue's action phase, the SCIENTISTS enacted (the

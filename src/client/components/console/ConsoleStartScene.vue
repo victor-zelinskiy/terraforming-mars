@@ -453,7 +453,9 @@
                   band by construction) — the bought / drawn cards' landing. -->
           <div class="con-start__deploy">
             <div class="con-start__queuecol">
-              <div class="con-start__queue" ref="queueEl">
+              <div class="con-start__queue" ref="queueEl"
+                   :class="{'con-start__queue--solved': queueZoom !== undefined}"
+                   :style="queueZoom !== undefined ? {'--con-start-qzoom': String(queueZoom)} : undefined">
                 <!-- ONE transition-group holds the whole reading order of the
                      start: КОРПОРАЦИЯ (order 1) → КУПЛЕННЫЕ ПРОЕКТЫ (the buy
                      block, order 2) → ПРОЛОГИ (order 3) — the player's real
@@ -488,6 +490,18 @@
                          :class="{'con-start__slot-a--armed': riskStage !== undefined && riskArmed === entry.name}">
                       <GamepadGlyph control="confirm" />
                       <span>{{ riskStage !== undefined && riskArmed === entry.name ? $t(riskStage.commitLabel) : $t(entry.verb) }}</span>
+                    </div>
+                    <!-- THE READING LINE (TRP0 · DE — S2): under EVERY corporation / prelude of the queue, one quiet line —
+                         the verdict word and what the table answers to the play — so two preludes compare at a glance
+                         without walking the focus. Never a fact of the face (the card above prints those); absolute
+                         under the card (its room is the solver's reserve), the same in every focus state: a d-pad walk
+                         changes the kant and the hero's scale, never a line. -->
+                    <div v-if="entry.reading !== undefined" class="con-start__qread"
+                         data-qcard-reading :data-qcard-verdict="entry.reading.verdict">
+                      <span v-if="entry.reading.text !== undefined" class="con-start__qread-verdict"
+                            :class="'con-start__qread-verdict--' + entry.reading.tone">{{ queueReadingText(entry.reading) }}</span>
+                      <ConsoleForecastRow v-if="queueAnswerShown(entry.name)" class="con-start__qread-answer"
+                                          :forecast="playForecasts.get(entry.name)" :caption="false" />
                     </div>
                   </div>
 
@@ -1259,6 +1273,8 @@ import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZ
 import {applyDiscardExit, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {StartQueueReading, startQueueLayout, startQueueReading} from '@/client/console/startQueueLayout';
+import {readingText} from '@/client/console/readingText';
 import {nearestInDirection, rowFitZoom, gridFitPlan} from '@/client/console/consoleStartNav';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {holdForGsapAnimation} from '@/client/components/presentation/animationHold';
@@ -1300,6 +1316,8 @@ type QueueEntry = {
   enabler?: boolean,
   dimmed: boolean,
   dealIdx: number,
+  /** The reading line under the card (TRP0 · DE) — a corporation / prelude only. */
+  reading?: StartQueueReading,
 };
 
 /** The card-payment beat's synthetic focus key (it is not a card). */
@@ -1394,6 +1412,9 @@ function gsapSettled(animation: gsap.core.Animation): Promise<void> {
 
 /** The start's registration as a reactor's place (PL-1098) — one start scene at a time. */
 let startReactorPlaceOff: (() => void) | undefined;
+/** The queue box's observer (TRP0 · DE — the queue card sized from the box) and the element it watches. */
+let queueBoxObserver: ResizeObserver | undefined;
+let queueBoxObserved: Element | undefined;
 /** How long the start waits for its corporation's face to stand before the reactor rises at the stage instead. */
 const START_REACTOR_FACE_WAIT_MS = 2400;
 
@@ -1490,6 +1511,8 @@ export default defineComponent({
       /** Per pressable card: WHAT THE TABLE ANSWERS to its play (TR82 — the same preview's forecast, branch 0): the
        *  focused Prelude's «Сработает» row and its «Эффекты» layer read it. */
       playForecasts: new Map<CardName, EffectForecast>(),
+      /** THE QUEUE CARD'S ZOOM solved from the queue's box (TRP0 · DE — `startQueueLayout`); undefined until measured. */
+      queueZoom: undefined as number | undefined,
       /** Per pressable card: how many cards its play DRAWS (from the same
        *  preview branch) — the embed claim's `expectedCards`. */
       drawExpected: new Map<CardName, number>(),
@@ -3172,6 +3195,10 @@ export default defineComponent({
      * physical row: the pending corporation, the draw/Merger candidates, the
      * prelude rail. A resolved card leaves; the rest only ever slide over.
      */
+    /** What mounts / unmounts the queue's box (the ceremony body's own `v-if`) — the observer re-attaches on it. */
+    queueHostKey(): string {
+      return `${this.mode}|${this.sponsorStep}|${this.colonyStep}`;
+    },
     queueCards(): ReadonlyArray<QueueEntry> {
       if (this.mode !== 'ceremony') {
         return [];
@@ -3179,7 +3206,8 @@ export default defineComponent({
       const out: Array<QueueEntry> = [];
       const corp = this.corpPlayCard;
       if (corp !== undefined) {
-        out.push({name: corp.name, kind: 'corp', verb: 'Play now', dimmed: false, dealIdx: -1});
+        out.push({name: corp.name, kind: 'corp', verb: 'Play now', dimmed: false, dealIdx: -1,
+          reading: startQueueReading({kind: 'corp', playable: true, risk: undefined}, translateText)});
       }
       // CAMPAIGN: EVERY additional corporation stands PRE-LAID in the queue
       // from the first frame, in its activation order — dimmed until its own
@@ -3240,6 +3268,7 @@ export default defineComponent({
           enabler,
           dimmed: !playable,
           dealIdx: -1,
+          reading: startQueueReading({kind: 'prelude', playable, risk: preludeRisk(e.outlook, (n) => translateText(n), {hold: true})}, translateText),
         });
       }
       return out;
@@ -4221,6 +4250,20 @@ export default defineComponent({
     },
   },
   watch: {
+    /** The queue's box is re-observed whenever the ceremony (re)mounts it; its count re-solves the size (TRP0 · DE). */
+    'queueCards.length': {
+      flush: 'post',
+      handler(): void {
+        this.observeQueueBox();
+        this.solveQueueZoom();
+      },
+    },
+    'queueHostKey': {
+      flush: 'post',
+      handler(): void {
+        this.observeQueueBox();
+      },
+    },
     /** The verdict's MIRROR for the shell's start watchdog (module state — the shell cannot read a child's computed). */
     'servesNow': {
       immediate: true,
@@ -4859,6 +4902,7 @@ export default defineComponent({
     },
   },
   mounted() {
+    this.$nextTick(() => this.observeQueueBox());
     // THE START IS A REACTOR'S PLACE (PL-1098 — TR84 Titan Holdings answers its OWN play): a corporation the ceremony
     // carries (the queue → the shelf «РАЗЫГРАНО» → the seat «Источник») may be in no painted place at the very moment its
     // reaction rises — the solo colony step arrives in the same response and the seat is still being dealt in. The start
@@ -5039,6 +5083,9 @@ export default defineComponent({
     }).stop;
   },
   beforeUnmount() {
+    queueBoxObserver?.disconnect();
+    queueBoxObserver = undefined;
+    queueBoxObserved = undefined;
     startReactorPlaceOff?.();
     startReactorPlaceOff = undefined;
     delete (window as unknown as Record<string, unknown>).__conStartDiag;
@@ -5119,6 +5166,52 @@ export default defineComponent({
     resetConsoleStartUi();
   },
   methods: {
+    /** The reading line's words — through the ONE reading renderer (a «Сначала: 0» carries its param). */
+    queueReadingText(reading: StartQueueReading): string {
+      return reading.text === undefined ? '' : readingText({label: reading.text, params: reading.params});
+    },
+    /** What the table answers to this card's play stands under it (the same preview's forecast the focused rail reads). */
+    queueAnswerShown(name: CardName): boolean {
+      return forecastRowPresent(this.playForecasts.get(name));
+    },
+    /**
+     * THE QUEUE'S BOX → THE CARD'S ZOOM (TRP0 · DE — S1). Observes `.con-start__queue` (re-attached when the ceremony
+     * mounts a new one) and solves `startQueueLayout` from its box, the row's other blocks (measured) and the number of
+     * queue cards. The cards keep the old fixed zoom until the first measure. Never during a hero flight: the source
+     * slot must not change under a card that is leaving it.
+     */
+    observeQueueBox(): void {
+      const el = this.$refs.queueEl as HTMLElement | undefined;
+      if (el === queueBoxObserved) {
+        return;
+      }
+      queueBoxObserver?.disconnect();
+      queueBoxObserved = el;
+      if (el === undefined || typeof ResizeObserver === 'undefined') {
+        return;
+      }
+      queueBoxObserver = new ResizeObserver(() => this.solveQueueZoom());
+      queueBoxObserver.observe(el);
+      this.solveQueueZoom();
+    },
+    solveQueueZoom(): void {
+      const el = queueBoxObserved as HTMLElement | undefined;
+      if (el === undefined || !el.isConnected || el.clientWidth === 0 || el.clientHeight === 0 || this.heroDepartedName !== undefined) {
+        return;
+      }
+      const others = Array.from(el.querySelectorAll<HTMLElement>(':scope > .con-start__queue-row > :not(.con-start__qcard)'));
+      const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const plan = startQueueLayout({
+        width: el.clientWidth,
+        height: el.clientHeight,
+        othersWidth: others.reduce((sum, o) => sum + o.getBoundingClientRect().width, 0),
+        others: others.length,
+      }, this.queueCards.length, remPx, conUiScale());
+      const zoom = Math.round(plan.zoom * 1000) / 1000;
+      if (zoom !== this.queueZoom) {
+        this.queueZoom = zoom;
+      }
+    },
     /** The «ДАЛЕЕ» row's inline tile pictogram (the same art as the card face). */
     tileIconStyle,
     /** Shared step/frame settle: reseed focus, mark visited, refit. */

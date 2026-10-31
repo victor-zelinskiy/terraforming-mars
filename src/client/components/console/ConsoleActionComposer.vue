@@ -277,7 +277,7 @@
           <div class="con-composer__hero-chips">
             <!-- A TIMELINE on the card's own capsule (TR28): ONE chip, start → end, its two movements in order. -->
             <ActionEffectChip v-if="heroTimeline !== undefined" :effect="heroTimeline.effect" :moves="heroTimeline.moves" data-capsule-timeline />
-            <ActionEffectChip v-for="(eff, k) in heroGain" :key="'g' + k" :effect="eff" />
+            <ActionEffectChip v-for="(eff, k) in heroGain" :key="'g' + k" :effect="eff" :basis-in-strip="heroCountWhy !== undefined && heroCountWhy.chip === eff" />
           </div>
         </div>
         <!-- THE RESERVED SIDE (2026-10-14 — the owner's «the workspace jumps after a choice»): while the variant is
@@ -311,6 +311,10 @@
                               @open="openForecastLayer()" />
         </div>
       </div>
+      <!-- «РАСЧЁТ» OF A PARLIAMENT COUNT (TRP0 Corridors of Power): the resolutions the result counts, each its emblem
+           and «own / all» delegates, the ones short of the threshold named — the play composer's ONE strip
+           (`ConsoleCountedWhy`), under the formula; the chip above stops restating the basis. -->
+      <ConsoleCountedWhy v-if="showHero && heroCountWhy !== undefined" class="con-composer__countwhy" :why="heroCountWhy" data-unfold-item />
       <!-- No formula (a branch not yet chosen / a decision-less action): the
            plain line, and the «Сработает» row as ONE line under the rule —
            never a new vertical section. -->
@@ -1023,6 +1027,8 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {DeclineModel, declineIsButton, declineResponse, optionalChoiceOf, optionalPickInputOf} from '@/client/console/optionalChoice';
 import {paymentLanes, megacreditsAvailable, paymentCovers, paymentFromCounts, initialCounts, dialLaneCount, buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow} from '@/client/console/paymentPlan';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import ConsoleCountedWhy from '@/client/components/console/ConsoleCountedWhy.vue';
+import {CountedWhy, countedWhyOf} from '@/client/console/countedPlay';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
@@ -1331,7 +1337,7 @@ const WORKSPACE_REVEAL_ZONE = '[data-embed-slot="workspace-reveal"]';
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ConsoleVariantChoice, ConsoleDeclinePlate, ConsoleColonyLedger, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsoleAmountOperation, PremiumCard, ConsolePlayedReceivingStage},
+  components: {ConsoleVariantChoice, ConsoleDeclinePlate, ConsoleColonyLedger, ActionEffectChip, ConsoleCountedWhy, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsoleAmountOperation, PremiumCard, ConsolePlayedReceivingStage},
   directives: {embedZone: vEmbedZone, stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -2402,6 +2408,14 @@ export default defineComponent({
         out.push(...this.syntheticCost(c));
       }
       return formulaFollowingParts(out, this.answeredPartChips, 'cost');
+    },
+    /**
+     * TRP0 — the «РАСЧЁТ» of a PARLIAMENT count (`ActionEffectBasis.resolutions`): the play composer's strip read off
+     * the formula's own gain chips. Only that class here — every other counted action keeps its chip's basis pill.
+     */
+    heroCountWhy(): CountedWhy | undefined {
+      const why = countedWhyOf(this.heroGain);
+      return why !== undefined && why.resolutions.length > 0 ? why : undefined;
     },
     heroGain(): ReadonlyArray<ActionEffect> {
       const branch = this.totalsBranch;

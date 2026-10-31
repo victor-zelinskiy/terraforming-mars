@@ -1152,6 +1152,8 @@ export enum CardName {
   VOTE_OF_NO_CONFIDENCE_REDUX = 'Vote Of No Confidence:redux',
   // The PRINTED name (the scan says «Septem»); the classic enum keeps upstream's `SEPTUM_TRIBUS` spelling.
   SEPTEM_TRIBUS_REDUX = 'Septem Tribus:redux',
+  // The replacement PRELUDE (TRP0) of the classic Prelude 2 P47.
+  CORRIDORS_OF_POWER_REDUX = 'Corridors of Power:redux',
 
   // Turmoil Redux NEW corporations (TR78…TR85 — `common/cards/turmoilReduxCorporations.ts`)
   ARWIND_INC = 'Arwind Inc.',

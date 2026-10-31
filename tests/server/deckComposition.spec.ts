@@ -88,7 +88,7 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
     // Company — the first with an action; TRP9 Medical Institute — the first prelude-reactor;
     // dealt only beside Preludes, which this creator config has).
     const reduxPreludes = Object.keys(TURMOIL_REDUX_CARD_MANIFEST.preludeCards).length;
-    expect(reduxPreludes, 'TRP1 Lobbying Campaign + TRP2 Unity Campaign + TRP3 Mars First Campaign + TRP4 Reds Campaign + TRP5 Greens Campaign + TRP6 Scientists Campaign + TRP7 Industrialists Campaign + TRP8 Aerospace Company + TRP9 Medical Institute').eq(9);
+    expect(reduxPreludes, 'TRP1 Lobbying Campaign + TRP2 Unity Campaign + TRP3 Mars First Campaign + TRP4 Reds Campaign + TRP5 Greens Campaign + TRP6 Scientists Campaign + TRP7 Industrialists Campaign + TRP8 Aerospace Company + TRP9 Medical Institute + TRP0 Corridors of Power (the replacement prelude)').eq(10);
     expect(c.contributions.turmoilRedux).deep.eq({projects: 70 + projectReplacements + adaptedClassic, corporations: adaptedCorporations, preludes: reduxPreludes, colonies: additions, resolutions: c.extras.resolutions});
     expect(c.contributions.colonies?.colonies).eq(pool.length - additions);
   });

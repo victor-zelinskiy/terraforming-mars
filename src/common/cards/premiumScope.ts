@@ -57,8 +57,10 @@ export function inPremiumScope(card: PremiumScopeSubject, modules: ReadonlyArray
     // is the Redux card in scope.
     return !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(card.name as CardName);
   case 'prelude2':
-    // A card still held back is neither dealt nor covered — TEMPORARY, goes with the list.
-    return !PRELUDE2_CARDS_HELD_BACK.has(card.name as CardName);
+    // A card still held back is neither dealt nor covered — TEMPORARY, goes with the list. A classic card the Redux
+    // set REPLACES (P47 Corridors of Power → TRP0) never reaches a table at all: the registry keeps it out whatever
+    // the list says — the read stays when the list is deleted.
+    return !PRELUDE2_CARDS_HELD_BACK.has(card.name as CardName) && !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(card.name as CardName);
   default:
     return true;
   }

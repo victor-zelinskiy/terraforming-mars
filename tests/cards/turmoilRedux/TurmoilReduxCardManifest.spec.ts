@@ -128,13 +128,37 @@ describe('TurmoilReduxCardManifest', () => {
       }
     });
 
+    // THE REPLACEMENT PRELUDE (2026-10-31): TRP0 — the preludes' own family, printed on its scan — is exactly the
+    // registry's `prelude` row: `reimplements` the classic, registered `:redux`, numbered by `replacementCardNumber`.
+    // Every other prelude of the set is NEW (its own art and lore).
+    it('TRP0 is the replacement prelude — its registry row, reimplementing the classic, named :redux', () => {
+      const preludeRows = TURMOIL_REDUX_CLASSIC_REPLACEMENTS.filter((row) => row.kind === 'prelude');
+      expect(preludeRows.map((row) => row.classic)).deep.eq([CardName.CORRIDORS_OF_POWER]);
+      for (const {name, card} of preludes) {
+        const n = Number(card.metadata.cardNumber?.slice(3));
+        expect(n, `${name}: the set's preludes run TRP0…TRP9`).to.be.within(0, 9);
+        if (n !== 0) {
+          expect(card.metadata.reimplements, `${name} (${card.metadata.cardNumber}) is a NEW prelude — no reimplements`).is.undefined;
+          continue;
+        }
+        const row = preludeRows[0];
+        expect(card.metadata.reimplements).eq(row.classic);
+        expect(name).eq(`${row.classic}:redux`);
+        expect(replacementCardNumber(row.classic)).eq('TRP0');
+      }
+      expect(preludes.some(({card}) => card.metadata.cardNumber === 'TRP0'), 'TRP0 is authored').is.true;
+    });
+
     it('every authored replacement removes its classic card — and only a replaced classic card is removed', () => {
-      const replaced = reduxCards
-        .filter(({card}) => {
+      const replaced = [
+        ...reduxCards.filter(({card}) => {
           const n = Number(card.metadata.cardNumber?.slice(2));
           return n > 70 && n < FIRST_NEW_CORPORATION_CARD_NUMBER;
-        })
-        .map(({card}) => card.metadata.reimplements);
+        }),
+        ...preludes.filter(({card}) => card.metadata.reimplements !== undefined),
+      ].map(({card}) => card.metadata.reimplements);
+      // Six projects, the corporation and the prelude.
+      expect(replaced).to.have.lengthOf(8);
       expect(replaced, 'TR71 Aerial Lenses is the first').to.contain(CardName.AERIAL_LENSES);
       expect([...TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove]).to.have.members(replaced).and.length(replaced.length);
       for (const name of TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove) {
@@ -178,7 +202,7 @@ describe('TurmoilReduxCardManifest', () => {
     // name stays the classic card's, so `newCard` resolves it to the classic
     // class in every game and the Redux manifest's `cardsToRemove` can name it.
     it('the replacement cards are never registered under the classic card\'s own name', () => {
-      for (const {name} of reduxCards) {
+      for (const {name} of allReduxCards) {
         expect(TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name), `${name} is a classic Turmoil card's name — register the replacement as "${name}:redux"`).is.false;
       }
     });

@@ -292,5 +292,6 @@
     "Aerospace Company": "Аэрокосмическая компания",
     "Action: Add 1 mech or fighter resource to ANY card.": "Действие: положите 1 мех или 1 истребитель на ЛЮБУЮ карту.",
     "Medical Institute": "Медицинский институт",
-    "Effect: After you play a Science tag (including this), add 1 microbe or data resource to ANY card.": "Эффект: после того как вы разыграете метку науки (включая эту), положите 1 микроб или 1 единицу данных на ЛЮБУЮ карту."
+    "Effect: After you play a Science tag (including this), add 1 microbe or data resource to ANY card.": "Эффект: после того как вы разыграете метку науки (включая эту), положите 1 микроб или 1 единицу данных на ЛЮБУЮ карту.",
+    "Action: Draw 1 card for each resolution you have at least 2 delegates on.": "Действие: возьмите 1 карту за каждую резолюцию, на которой у вас не меньше 2 делегатов."
 }

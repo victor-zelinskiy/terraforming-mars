@@ -3122,6 +3122,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'veynon' | 'veynon-family' | 'veynon-dock' |
   // TRP8 Aerospace Company — the Prelude's action over four holders of two kinds, none at all, four + four.
   'aerospace' | 'aerospace-none' | 'aerospace-family' |
+  // TRP0 Corridors of Power — the action counting 2 resolutions (one short named), and the empty count (no effect).
+  'corridors-action' | 'corridors-futile' |
   'parliament-architecture-vote' | 'parliament-access-edge' | 'septem-tribus' | 'septem-win' | 'arwind-walker' | 'arwind-walker-two' | 'arwind-sitting-win' | 'arwind-sitting-win-solo' | 'arwind-chairman-quest' | 'arwind-chairman-quest-solo' | 'arwind-pay-space' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |
   'parliament-biodome-vote' | 'parliament-biodome-enact' | 'parliament-biodome-maxed' | 'parliament-biodome-recap' |
   'parliament-biodome-nocell' | 'parliament-biodome-neutral' |

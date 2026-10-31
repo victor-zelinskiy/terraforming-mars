@@ -12,6 +12,7 @@ import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE, MAX
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis} from '../../common/models/ActionPreviewModel';
 import {_Countable} from '../behavior/Countable';
+import {delegatesTermWords} from '../behavior/countedBasis';
 import {steelSpendSourceOptions} from '../behavior/steelSpendSource';
 import {collectActionBehaviorReasons} from './actionUnavailableReasons';
 import {DecreaseAnyProduction} from '../deferredActions/DecreaseAnyProduction';
@@ -494,6 +495,19 @@ function countableBasis(ctx: Counter, raw: unknown): ReadonlyArray<ActionEffectB
   }
   if (r.floaters !== undefined) {
     terms.push({count: count({floaters: r.floaters}), label: 'Your floaters'});
+  }
+  if (r.delegates !== undefined) {
+    // THE PARLIAMENT (TRP0): the term names its RESOLUTIONS — every slot of the voting area with the player's own
+    // delegates against all of them, the counted ones and the ones short of the threshold alike, so «2» adds up
+    // against the Parliament the player sees. The facade's one reading; a table without one keeps the bare count.
+    const atLeast = r.delegates.resolutionsWithAtLeast;
+    const words = delegatesTermWords(atLeast);
+    const term: ActionEffectBasis = {count: count({delegates: r.delegates}), label: words.label, zero: words.zero};
+    const rows = ctx.resolutionDelegates();
+    if (rows !== undefined) {
+      term.resolutions = rows.map((row) => ({resolution: row.resolution, party: row.party, own: row.own, total: row.total, counted: row.own >= atLeast}));
+    }
+    terms.push(term);
   }
   if (r.resourcesHere !== undefined) {
     terms.push({count: count({resourcesHere: r.resourcesHere}), label: 'Resources on this card'});

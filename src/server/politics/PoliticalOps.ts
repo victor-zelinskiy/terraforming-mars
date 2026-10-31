@@ -44,6 +44,21 @@ export type ResolutionLeadership = {
   tie?: 'yours' | 'theirs';
 };
 
+/**
+ * ONE RESOLUTION OF THE VOTING AREA, read for one player's DELEGATES (TRP0 Corridors of Power — «draw 1 card for each
+ * resolution you have at least 2 delegates on»): the player's OWN cubes on its slot (`Parliament.votesOf` — neutrals,
+ * the lobby, the chairman's seat and the reserve never count) against every cube standing there, in the voting
+ * area's order. The ONE reading the counted term (`resolutionsWithDelegates`) and its basis share.
+ */
+export type ResolutionDelegates = {
+  resolution: ResolutionId;
+  party: ReduxParty;
+  /** The player's own delegates on the slot. */
+  own: number;
+  /** Every delegate on the slot (the player's, the others', the neutrals). */
+  total: number;
+};
+
 /** How a card's delegates land (`PoliticalOps.placeDelegates`). */
 export type PlaceDelegatesOptions = {
   /**
@@ -131,6 +146,15 @@ export interface PoliticalOps {
    * Classic: `undefined` — its requirement keeps upstream's line.
    */
   leadershipStanding(player: IPlayer): ReadonlyArray<ResolutionLeadership> | undefined;
+  /**
+   * How many RESOLUTIONS hold at least `atLeast` of the player's OWN delegates (TRP0 — the counted term
+   * `{delegates: {resolutionsWithAtLeast}}`). Redux: the voting area's slots by `votesOf` — an enacted resolution's
+   * cubes went home, its slot is gone. Classic: the PARTIES holding that many of the player's delegates (the classic
+   * table has no resolutions; a party is its nearest reading).
+   */
+  resolutionsWithDelegates(player: IPlayer, atLeast: number): number;
+  /** …and the same reading TOLD, slot by slot (the count's «РАСЧЁТ»). Classic: `undefined`. */
+  resolutionDelegates(player: IPlayer): ReadonlyArray<ResolutionDelegates> | undefined;
   delegatesInReserve(player: IPlayer): number;
   delegatesOf(player: IPlayer, party: PartyName): number;
   /**
@@ -261,6 +285,15 @@ export class ReduxPoliticalOps implements PoliticalOps {
       return row;
     });
   }
+  public resolutionsWithDelegates(player: IPlayer, atLeast: number): number {
+    return this.resolutionDelegates(player).filter((row) => row.own >= atLeast).length;
+  }
+  public resolutionDelegates(player: IPlayer): ReadonlyArray<ResolutionDelegates> {
+    return this.parliament.slots.map((slot) => {
+      const definition = this.parliament.resolutionOf(slot.instance);
+      return {resolution: definition.id, party: definition.party, own: this.parliament.votesOf(player, slot), total: slot.votes.length};
+    });
+  }
   public delegatesInReserve(player: IPlayer): number {
     return this.parliament.reserve(player);
   }
@@ -345,6 +378,12 @@ export class ClassicPoliticalOps implements PoliticalOps {
   }
   public partiesLedBy(player: IPlayer): number {
     return this.turmoil.parties.filter((party) => party.partyLeader === player).length;
+  }
+  public resolutionsWithDelegates(player: IPlayer, atLeast: number): number {
+    return this.turmoil.parties.filter((party) => party.delegates.count(player) >= atLeast).length;
+  }
+  public resolutionDelegates(): undefined {
+    return undefined;
   }
   public delegatesInReserve(player: IPlayer): number {
     return this.turmoil.getAvailableDelegateCount(player);

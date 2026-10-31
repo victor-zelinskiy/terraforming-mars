@@ -93,6 +93,7 @@ import {GreensCampaign} from './GreensCampaign';
 import {ScientistsCampaign} from './ScientistsCampaign';
 import {IndustrialistsCampaign} from './IndustrialistsCampaign';
 import {AerospaceCompany} from './AerospaceCompany';
+import {CorridorsOfPowerRedux} from './CorridorsOfPowerRedux';
 import {MedicalInstitute} from './MedicalInstitute';
 
 /**
@@ -467,6 +468,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // TRP9 — the first PRELUDE-REACTOR: a card drawn, then per Science tag its owner plays (its own included) 1 microbe
     // OR data to ANY card — Olympus Conference's tag hook over TRP8's pick of a LIST of kinds. Dealt only beside Preludes.
     [CardName.MEDICAL_INSTITUTE]: {Factory: MedicalInstitute, compatibility: 'prelude'},
+    // TRP0 — the set's ONE replacement PRELUDE (the classic Prelude 2 P47, removed below): +4 M€, and an ACTION drawing
+    // 1 card per resolution holding 2+ of the player's delegates — the Parliament's counted term, one declaration.
+    // Dealt only beside the Prelude expansion, as TRP1.
+    [CardName.CORRIDORS_OF_POWER_REDUX]: {Factory: CorridorsOfPowerRedux, compatibility: 'prelude'},
   },
   // The classic cards a replacement above stands in for — never dealt into a Redux game (upstream's
   // `GameCards.filterReplacedCards`); a classic-Turmoil game does not load this manifest, so it keeps them.
@@ -478,5 +483,6 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     CardName.SPONSORED_MOHOLE,
     CardName.VOTE_OF_NO_CONFIDENCE,
     CardName.SEPTUM_TRIBUS,
+    CardName.CORRIDORS_OF_POWER,
   ],
 });

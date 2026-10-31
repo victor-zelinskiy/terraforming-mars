@@ -25,7 +25,7 @@ export const COLONIES_IN_PLAY_UNIT = '{colony|colonies} in play';
 export const TILES_ON_MARS_UNIT = '{tile|tiles} on Mars';
 
 const ENTITY_KEYS: ReadonlyArray<keyof _Countable> = [
-  'tag', 'cities', 'greeneries', 'oceans', 'tiles', 'resourcesHere', 'floaters', 'colonies', 'moon', 'underworld',
+  'tag', 'cities', 'greeneries', 'oceans', 'tiles', 'resourcesHere', 'floaters', 'colonies', 'delegates', 'moon', 'underworld',
 ];
 
 export function countedResourceBasis(countable: Countable, count: number): CardResourceBasis | undefined {
@@ -47,4 +47,17 @@ export function countedResourceBasis(countable: Countable, count: number): CardR
     return {count, unitKey: TILES_ON_MARS_UNIT};
   }
   return undefined;
+}
+
+/**
+ * THE PARLIAMENT'S counted term in words (TRP0 Corridors of Power) — the label of «resolutions holding N+ of your
+ * delegates» and its honest zero. One key per printed threshold (the corpus prints 2); another threshold reads the
+ * generic pair until its card adds its own row.
+ */
+const DELEGATES_TERM_WORDS: Readonly<Record<number, {label: string, zero: string}>> = {
+  2: {label: 'Resolutions with 2+ of your delegates', zero: 'No resolution with 2 of your delegates'},
+};
+
+export function delegatesTermWords(atLeast: number): {label: string, zero: string} {
+  return DELEGATES_TERM_WORDS[atLeast] ?? {label: 'Resolutions with your delegates', zero: 'No resolution with your delegates'};
 }

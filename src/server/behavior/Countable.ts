@@ -41,6 +41,13 @@ export type _Countable = {
     mine?: NoAttributes,
     road?: NoAttributes,
   },
+  /**
+   * Count the RESOLUTIONS of the voting area holding at least `resolutionsWithAtLeast` of the player's OWN delegates
+   * (TRP0 Corridors of Power — «1 card per resolution you have at least 2 delegates on»). Read through the political
+   * facade (`PoliticalOps.resolutionsWithDelegates` — Redux slots, classic parties); 0 on a table without politics.
+   * The player's own count only (`all` / `others` do not apply).
+   */
+  delegates?: {resolutionsWithAtLeast: number},
   underworld?: {
     corruption?: NoAttributes,
     excavationMarkers?: NoAttributes,

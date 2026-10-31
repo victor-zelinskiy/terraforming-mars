@@ -33,13 +33,19 @@ import {CardName} from './CardName';
  * `cardLoreSource`) — the illustration and the printed quote are the same; the
  * classic card number (`T01`…) keys both files.
  *
+ * The PRELUDE (rulebook p.1 «9 new Prelude cards (and 1 replacement prelude)» — Corridors
+ * of Power, the classic Prelude 2 P47) is numbered in its OWN family: the Redux preludes are
+ * TRP1…TRP9 and the scan prints TRP0, a free number of that family (a number is the family
+ * of its KIND — never a TR7x past the projects). It borrows the classic P47's art and lore the
+ * same way.
+ *
  * `scan` is relative to `…/TM Turmoil Redux/`; `changes` is what the scan prints
  * differently from the classic card (read 2026-10-21).
  */
 export type ClassicReplacement = {
   /** The classic card's name — the one the Redux deck must never hold. */
   classic: CardName;
-  kind: 'project' | 'corporation';
+  kind: 'project' | 'corporation' | 'prelude';
   scan: string;
   changes: string;
 };
@@ -85,6 +91,12 @@ export const TURMOIL_REDUX_CLASSIC_REPLACEMENTS: ReadonlyArray<ClassicReplacemen
     classic: CardName.SEPTUM_TRIBUS, kind: 'corporation', scan: 'Corporations/Corporation - Septem Tribus.png',
     changes: '36 → 40 M€, Wild tag kept; the M€-per-party action is gone. First action: place 1 player cube on the BANNER of any party. Effect: when you win on a resolution, place your cube on its party\'s banner; you gain the effect of every party whose banner holds at least 1 of your cubes — in addition to the ruling party and the 2-delegate road (the `grantPartyEffect` reserve of `PoliticalOps`; the requirement reading never counts it — FAQ p.19).',
   },
+  {
+    // TRP0 — AUTHORED 2026-10-31 (`turmoilRedux/CorridorsOfPowerRedux.ts`, `Corridors of Power:redux`) — the PRELUDE row,
+    // numbered by its scan in the Redux preludes' own family (TRP1…TRP9 are the set's new preludes).
+    classic: CardName.CORRIDORS_OF_POWER, kind: 'prelude', scan: 'Preludes/Replacement - Corridors of Power.png',
+    changes: 'still a Prelude, Earth tag; +1 TR is gone, 4 M€ stays; the «each time you become party leader, draw 1 card» effect becomes an ACTION: draw 1 card per resolution of the voting area holding 2+ of your delegates.',
+  },
 ];
 
 /** The classic names of the rows above — the set a Redux deck must never contain. */
@@ -97,10 +109,16 @@ export const FIRST_REPLACEMENT_CARD_NUMBER = 71;
 /**
  * The `TR##` number a replacement of `classic` carries: TR71 + its index among
  * the PROJECT rows (registry order), and the CORPORATION the first number past
- * them (TR77 — decided 2026-10-25: one prefix, one namespace). Undefined for a
- * card that is not replaced.
+ * them (TR77 — decided 2026-10-25: one prefix, one namespace). The PRELUDE is
+ * numbered in the preludes' own family — TRP0, printed on its scan (2026-10-31:
+ * a number is the family of its kind). Undefined for a card that is not replaced.
  */
 export function replacementCardNumber(classic: CardName): string | undefined {
+  const preludes = TURMOIL_REDUX_CLASSIC_REPLACEMENTS.filter((row) => row.kind === 'prelude');
+  const prelude = preludes.findIndex((row) => row.classic === classic);
+  if (prelude >= 0) {
+    return `TRP${prelude}`;
+  }
   const projects = TURMOIL_REDUX_CLASSIC_REPLACEMENTS.filter((row) => row.kind === 'project');
   const index = projects.findIndex((row) => row.classic === classic);
   if (index >= 0) {

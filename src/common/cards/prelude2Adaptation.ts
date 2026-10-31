@@ -27,7 +27,7 @@ import {CardName} from './CardName';
  *  · REPLACED BY THE REDUX SET — the Turmoil Redux set prints ONE replacement prelude
  *    («Replacement - Corridors of Power.png»; rulebook p.1 «9 new Prelude cards (and 1
  *    replacement prelude)»). The classic card is NEVER dealt under Redux: «adapting» it =
- *    authoring the Redux replacement (`CORRIDORS_OF_POWER_REDUX`, the TR71…TR77 contract,
+ *    authoring the Redux replacement (`CORRIDORS_OF_POWER_REDUX` — TRP0, done 2026-10-31; the TR71…TR77 contract,
  *    `docs/TURMOIL_REDUX_CLASSIC_CARDS.md` §3.2) with the classic name in the Redux
  *    manifest's `cardsToRemove` and a `kind: 'prelude'` row in the replacement registry
  *    (`turmoilReduxReplacements.ts`); only then does its row leave this list.
@@ -51,7 +51,7 @@ export const PRELUDE2_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
   CardName.VENUS_SHUTTLES, // P89 · Venus · behavior + bespoke action
   CardName.VENUS_TRADE_HUB, // P90 · Colonies + Venus · an EFFECT card (no play / action hook)
   CardName.WG_PROJECT, // P91 · POLITICAL (chairman) · bespokePlay — draw 3 preludes, play 1
-  // ── Preludes (P43…P67; P47 Corridors of Power is REPLACED, below) ──
+  // ── Preludes (P43…P67; P47 Corridors of Power is REPLACED by TRP0 — below, crossed) ──
   CardName.APPLIED_SCIENCE, // P43 · declarative — 6 science resources here
   CardName.ATMOSPHERIC_ENHANCERS, // P44 · Venus · behavior + bespokePlay — a parameter choice + 2 floater cards
   CardName.BOARD_OF_DIRECTORS, // P45 · behavior + action (`ActivePreludeCard`) — director resources
@@ -85,13 +85,14 @@ export const PRELUDE2_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
 ];
 
 /**
- * REPLACED BY THE REDUX SET — 1 prelude. The classic card never joins a Redux deck;
- * the row leaves when its `:redux` replacement is authored AND the classic name stands
- * in the Redux manifest's `cardsToRemove` (the guard fails a row that left without it).
+ * REPLACED BY THE REDUX SET — the classic card never joins a Redux deck; a row leaves
+ * when its `:redux` replacement is authored AND the classic name stands in the Redux
+ * manifest's `cardsToRemove` AND in the replacement registry (the guard fails a row that
+ * left without them). EMPTY since 2026-10-31: P47 Corridors of Power crossed as TRP0
+ * (`turmoilRedux/CorridorsOfPowerRedux.ts`) — the registry keeps the classic out of the
+ * premium scope (`inPremiumScope`). The constant goes with the list (§2.4).
  */
-export const PRELUDE2_CARDS_AWAITING_REDUX_REPLACEMENT: ReadonlyArray<CardName> = [
-  CardName.CORRIDORS_OF_POWER, // P47 · POLITICAL · scan «Preludes/Replacement - Corridors of Power.png»
-];
+export const PRELUDE2_CARDS_AWAITING_REDUX_REPLACEMENT: ReadonlyArray<CardName> = [];
 
 /** The one set `GameCards` (through the server predicate) and `inPremiumScope` read: every Prelude 2 card not yet adapted. */
 export const PRELUDE2_CARDS_HELD_BACK: ReadonlySet<CardName> = new Set<CardName>([

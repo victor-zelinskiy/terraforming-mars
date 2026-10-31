@@ -28843,18 +28843,23 @@ body.con-start-barshold .con-status {
     &__qcard {
         position: relative;
         border-radius: .6rem;
-        zoom: calc(0.62 * var(--con-ui-scale, 1));
-        /* The cursor's clock (TR58); the ring's lists `[outer, outer]` from none interpolate. */
-        transition: box-shadow var(--con-cursor-ms) var(--con-cursor-ease);
+        /* THE SIZE IS SOLVED FROM THE BOX (TRP0 · DE — S1): `--con-start-qzoom` is the scene's `startQueueLayout` (the
+           queue's box, a row capacity of four, the room under every card reserved); the old fixed notch until measured. */
+        zoom: var(--con-start-qzoom, calc(0.62 * var(--con-ui-scale, 1)));
+        /* THE CURSOR (TR58 grammar, `.con-cursor-shadow()`) AND THE HERO BY SIZE (TRP0 · DE — S5): ONE list scaled by
+           `--con-cursor-on` on the cursor's clock — the ring widens from nothing and the focused card stands a step larger,
+           grown UP from its foot (the reading line under it counter-scales and never moves). A card that is LEAVING
+           (`.con-deal-hold` — its hero proxy is born over a card at rest) closes the gate: no ring, no scale. */
+        transform-origin: 50% 100%;
+        .con-cursor-shadow(@transform: ~"scale(calc(1 + .06 * var(--con-cursor-on)))"; @z: 2);
+        box-shadow:
+            0 0 0 calc(.12rem * var(--con-cursor-on)) fade(@con-cyan, 85%),
+            0 .6rem 1.4rem rgba(0, 0, 0, calc(.45 * var(--con-cursor-on)));
         > :is(.card-container, .pcard) { margin: 0; }
+        .con-start__qread { transform: translateX(-50%) scale(calc(1 / (1 + .06 * var(--con-cursor-on)))); }
 
-        /* Focus is a RING, never a transform: the hero proxy spawns over the
-           slot's live rect, and a focus-lifted card would hand the flight a
-           displaced first frame (the visible "jump at liftoff"). */
-        &--focused {
-            box-shadow: 0 0 0 .12rem fade(@con-cyan, 85%), 0 .6rem 1.4rem rgba(0, 0, 0, 0.45);
-            z-index: 2;
-        }
+        &--focused { .con-cursor-on(); }
+        &.con-deal-hold { --con-cursor-gate: 0; }
         /* ARMED — the BURN GATE. The focus ring turns amber IN PLACE (the
            card itself never moves: the hero proxy still spawns over this
            slot's live rect). Ordered after --focused so it wins on the card
@@ -28875,6 +28880,47 @@ body.con-start-barshold .con-status {
         }
         .con-cards__pickband { zoom: calc(1.15 / var(--con-ui-scale, 1)); }
     }
+    /* THE READING LINE under every queue card (TRP0 · DE — S2): the verdict word + what the table answers, one quiet
+       line hanging under the card's foot (below the A pill), out of flow — the solver reserved its room. Counter-zoomed
+       to root rem (the card's zoom never sizes a word); a kant-less, glow-less line: the verdict's tone is its colour
+       and weight only. */
+    &__qread {
+        position: absolute;
+        left: 50%;
+        top: 100%;
+        transform: translateX(-50%);
+        transform-origin: 50% 0;
+        /* The counter-scale runs on the HOST's lift clock, so the two cancel frame by frame. */
+        transition: transform var(--con-cursor-lift-ms, var(--con-cursor-move-ms)) var(--con-cursor-ease);
+        zoom: calc(1 / var(--con-start-qzoom, calc(0.62 * var(--con-ui-scale, 1))));
+        padding-top: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .6rem;
+        white-space: nowrap;
+        pointer-events: none;
+        font-size: .82rem;
+        line-height: 1.2;
+    }
+    &__qread-verdict {
+        font-weight: 700;
+        letter-spacing: .02em;
+        color: @con-text-dim;
+        &--ok { color: fade(@con-mint, 92%); }
+        &--wait { color: fade(@con-amber, 92%); }
+        &--loss { color: #ffb4a8; }
+    }
+    &__qread-answer { font-size: .78rem; }
+    /* THE A PILL BY THE PROFILE'S TOKENS (S4): once the size is solved the pill is counter-zoomed to root rem — one
+       legible size on every profile, never the card's zoom squared. Its role and anchor (the risk stage's face) stay. */
+    .con-start__queue--solved .con-start__qcard .con-start__slot-a {
+        zoom: calc(1 / var(--con-start-qzoom));
+        font-size: .78rem;
+        padding: .22rem .75rem;
+        /* Hangs BELOW the card's foot — never over its bottom row of the face (the production plate). */
+        bottom: -1.5rem;
+    }
     /* The BOUGHT PROJECTS row — part of the queue until the payment resolves
        them into the hand (they keep their pay-grid identity for the delivery
        flight). */
@@ -28891,7 +28937,7 @@ body.con-start-barshold .con-status {
         transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, background calc(160ms * var(--motion-scale, 1)) ease;
         &--focused {
             background: fade(@con-mint, 12%);
-            box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 1.2rem fade(@con-mint, 28%);
+            box-shadow: inset 0 0 0 .1rem @con-mint;
         }
     }
     &__buy-row {
@@ -28930,7 +28976,7 @@ body.con-start-barshold .con-status {
         &--awaiting { opacity: .62; }
         &--focused {
             opacity: 1;
-            box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 1.2rem fade(@con-mint, 28%);
+            box-shadow: inset 0 0 0 .1rem @con-mint;
         }
     }
     &__bonusplate-cap {
@@ -28965,7 +29011,7 @@ body.con-start-barshold .con-status {
        own cards; X = the fullscreen detailed read). Profile-scaled displays
        (TV / Deck) never hit this: their zone scales with the cards. */
     @media (max-height: 880px) {
-        &__qcard { zoom: calc(0.52 * var(--con-ui-scale, 1)); }
+        &__qcard { zoom: var(--con-start-qzoom, calc(0.52 * var(--con-ui-scale, 1))); }
         &__buycard > :is(.card-container, .pcard) { zoom: calc(0.28 * var(--con-ui-scale, 1)); }
     }
     &__buy-meta {
@@ -30059,10 +30105,11 @@ body.con-start-barshold .con-status {
         border-radius: .4rem;
         transition: box-shadow calc(220ms * var(--motion-scale, 1)) ease;
 
+        /* THE SOCKET (TRP0 · DE — S3): an empty place is ONE hairline in the shelf's tone on neutral glass — never a
+           dashed box (it read «something is missing here») and never a light pool behind it. Same geometry: it is the
+           landing a flight measures. */
         &--empty {
-            background:
-                radial-gradient(ellipse at 50% 42%, rgba(120, 190, 240, 0.05), transparent 70%),
-                rgba(255, 255, 255, 0.025);
+            background: rgba(255, 255, 255, 0.02);
             box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.2);
         }
         /* ARMED — the destination is prepared and waiting for its card: a
@@ -30089,7 +30136,7 @@ body.con-start-barshold .con-status {
         position: absolute;
         inset: .3rem;
         border-radius: .35rem;
-        border: .07rem dashed rgba(130, 175, 215, 0.28);
+        border: .06rem solid rgba(130, 175, 215, 0.14);
 
         .con-splayed__top--armed & {
             border-color: fade(@con-cyan, 55%);
@@ -36037,6 +36084,12 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         &--lit { box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 80%); background: fade(@con-cyan, 14%); }
         &--dim { opacity: .5; }
     }
+    /* A PARLIAMENT count's resolution (TRP0): the party's emblem and «own / all» — one short of the threshold stays
+       NAMED and recedes by opacity (its words say «не считается» to the reader); a kant, never a light. */
+    &__res { gap: .28em; }
+    &__res--out { opacity: .5; }
+    &__emblem { width: 1.6em; height: 1.6em; flex: none; object-fit: contain; }
+    &__of { color: @con-text-dim; font-weight: 700; font-size: .9em; }
     &__result { display: inline-flex; align-items: center; gap: .25em; color: fade(@con-mint, 96%); }
     &__ico { display: inline-block; width: 1.4em; height: 1.4em; flex: none; background-size: contain; background-position: center; background-repeat: no-repeat; }
     &__zero {

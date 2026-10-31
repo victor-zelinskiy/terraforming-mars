@@ -101,7 +101,7 @@ describe('classic Turmoil under Turmoil Redux — part of the set', () => {
   });
 
   describe('the replacements (the printed set\'s permanent fact)', () => {
-    it('are the six project scans and the Septem Tribus corporation', () => {
+    it('are the six project scans, the Septem Tribus corporation and the Corridors of Power prelude', () => {
       const projects = TURMOIL_REDUX_CLASSIC_REPLACEMENTS.filter((row) => row.kind === 'project').map((row) => row.classic);
       const corporations = TURMOIL_REDUX_CLASSIC_REPLACEMENTS.filter((row) => row.kind === 'corporation').map((row) => row.classic);
       expect(projects).to.have.members([
@@ -109,7 +109,15 @@ describe('classic Turmoil under Turmoil Redux — part of the set', () => {
         CardName.RECRUITMENT, CardName.SPONSORED_MOHOLE, CardName.VOTE_OF_NO_CONFIDENCE,
       ]);
       expect(corporations).to.have.members([CardName.SEPTUM_TRIBUS]);
+      // The ONE replacement prelude (rulebook p.1 «and 1 replacement prelude») — the classic Prelude 2 P47 (2026-10-31).
+      const preludes = TURMOIL_REDUX_CLASSIC_REPLACEMENTS.filter((row) => row.kind === 'prelude').map((row) => row.classic);
+      expect(preludes).deep.eq([CardName.CORRIDORS_OF_POWER]);
       for (const row of TURMOIL_REDUX_CLASSIC_REPLACEMENTS) {
+        if (row.kind === 'prelude') {
+          expect(row.scan).to.match(/^Preludes\/.+\.png$/);
+          expect(row.changes).is.not.empty;
+          continue;
+        }
         expect(PROJECTS.includes(row.classic) || CORPORATIONS.includes(row.classic), `${row.classic} must be a classic Turmoil card`).is.true;
         expect(row.scan).to.match(/^(Projects|Corporations)\/.+\.png$/);
         expect(row.changes).is.not.empty;

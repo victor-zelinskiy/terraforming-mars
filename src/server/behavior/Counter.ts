@@ -13,6 +13,7 @@ import {AutomaTargeting} from '../automa/AutomaTargeting';
 import {ColoniesHandler} from '../colonies/ColoniesHandler';
 import {once} from './Lazy';
 import {Tag} from '../../common/cards/Tag';
+import type {ResolutionDelegates} from '../politics/PoliticalOps';
 
 /**
  * Counts things in game state.
@@ -69,6 +70,14 @@ export class Counter implements ICounter {
    */
   public ownWildTags(): number {
     return this.player.tags.count(Tag.WILD, 'default');
+  }
+
+  /**
+   * The voting area read for the player's DELEGATES, slot by slot — the reading the Parliament's counted term
+   * (`delegates`) counts (`PoliticalOps.resolutionDelegates`); `undefined` without a Redux Parliament.
+   */
+  public resolutionDelegates(): ReadonlyArray<ResolutionDelegates> | undefined {
+    return this.player.game.politics?.resolutionDelegates(this.player);
   }
 
   private getAdjacentSpaces(countable: Exclude<Countable, number>): ReadonlyArray<Space> {
@@ -253,6 +262,11 @@ export class Counter implements ICounter {
         // THE ONE reading of the player's own colonies (`Player.getColoniesCount` and the parliament's counted term share it).
         sum += ColoniesHandler.coloniesOf(player.game, player).length;
       }
+    }
+
+    if (countable.delegates !== undefined) {
+      // THE PARLIAMENT'S counted term — the facade's one reading (Redux slots by `votesOf`, classic parties).
+      sum += player.game.politics?.resolutionsWithDelegates(player, countable.delegates.resolutionsWithAtLeast) ?? 0;
     }
 
     if (countable.moon !== undefined) {

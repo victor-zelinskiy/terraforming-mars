@@ -25,11 +25,14 @@ describe('premium scope', () => {
     expect(PREMIUM_FACE_SCOPE_MODULES).deep.eq([...PREMIUM_SCOPE_MODULES, 'ceo']);
   });
 
-  it('Prelude 2 is in scope MINUS the hold-back list — «the manifest minus the list»', () => {
+  it('Prelude 2 is in scope MINUS the hold-back list and the card the Redux set REPLACES — «the manifest minus the list»', () => {
     const manifest = Object.keys(PRELUDE2_CARD_MANIFEST.projectCards)
       .concat(Object.keys(PRELUDE2_CARD_MANIFEST.preludeCards), Object.keys(PRELUDE2_CARD_MANIFEST.corporationCards));
     const inScope = manifest.filter((name) => inPremiumScope({module: 'prelude2', name}));
-    expect(inScope).deep.eq(manifest.filter((name) => !PRELUDE2_CARDS_HELD_BACK.has(name as CardName)));
+    expect(inScope).deep.eq(manifest.filter((name) => !PRELUDE2_CARDS_HELD_BACK.has(name as CardName) && !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name as CardName)));
+    // P47 Corridors of Power is replaced by TRP0 (2026-10-31): out by the registry, never by the list.
+    expect(inPremiumScope({module: 'prelude2', name: CardName.CORRIDORS_OF_POWER})).is.false;
+    expect(inPremiumScope({module: 'turmoilRedux', name: CardName.CORRIDORS_OF_POWER_REDUX})).is.true;
     expect(inPremiumScope({module: 'prelude2', name: 'A Prelude 2 card that crossed'})).is.true;
     // The list is read for the Prelude 2 module ONLY.
     for (const name of PRELUDE2_CARDS_HELD_BACK) {

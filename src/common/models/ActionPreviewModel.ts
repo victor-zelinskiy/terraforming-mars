@@ -346,7 +346,18 @@ export type ActionEffectBasis = {
    * counting function); the client reads the sides, it never takes a minimum. Exclusive with `tag` / `tags` / `parts`.
    */
   set?: ReadonlyArray<ActionEffectBasisSetSide>,
+  /**
+   * THE RESOLUTIONS a PARLIAMENT count reads (TRP0 Corridors of Power — «1 card per resolution you have at least 2
+   * delegates on»): every slot of the voting area in its order, the player's OWN delegates on it against all of them,
+   * and whether it COUNTS (`own ≥` the term's threshold). A slot that does not count is still listed — named, never
+   * hidden — so the number adds up against the Parliament the player sees. `count` is the number of counted rows.
+   * The SERVER's reading (`PoliticalOps.resolutionDelegates`); the client compares nothing.
+   */
+  resolutions?: ReadonlyArray<ActionEffectBasisResolution>,
 };
+
+/** One resolution of a Parliament count (`ActionEffectBasis.resolutions`). */
+export type ActionEffectBasisResolution = {resolution: ResolutionId, party: ReduxParty, own: number, total: number, counted: boolean};
 
 /**
  * One side of a SET count (`ActionEffectBasis.set`): the tag, its count with everything that counts for it, the WILD

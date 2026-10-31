@@ -14,7 +14,9 @@
  * Nothing here adds, divides or partitions: a number on screen is a number
  * the server sent.
  */
-import {ActionEffect, ActionEffectBasis, ActionEffectBasisPartKind} from '@/common/models/ActionPreviewModel';
+import {ActionEffect, ActionEffectBasis, ActionEffectBasisPartKind, ActionEffectBasisResolution} from '@/common/models/ActionPreviewModel';
+import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {CardModel} from '@/common/models/CardModel';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {AltSecondaryTag} from '@/common/cards/render/AltSecondaryTag';
@@ -233,6 +235,13 @@ export const WILD_GLYPH: CountedGlyph = glyph(CardRenderItemType.TAG, {tag: Tag.
  */
 export type CountedSetSide = {tag: Tag, count: number, wild: number | undefined, self: number | undefined, glyph: CountedGlyph};
 
+/**
+ * One RESOLUTION of a Parliament count (TRP0 — «per resolution you have at least 2 delegates on»): the party's emblem,
+ * the player's own delegates on it against all of them, and whether it COUNTS — the server's row
+ * (`ActionEffectBasis.resolutions`), the client compares nothing.
+ */
+export type CountedResolution = ActionEffectBasisResolution & {emblem: string};
+
 /** One term of a SUMMED reading (P85 — «3 planet tags + 2 colonies»): the server's term and its glyphs. */
 export type CountedTerm = {term: ActionEffectBasis, glyphs: ReadonlyArray<CountedGlyph>};
 
@@ -257,6 +266,12 @@ export type CountedWhy = {
    * The number of sets is `term.count` — the server's; the client never takes a minimum. Empty for any other basis.
    */
   sides: ReadonlyArray<CountedSetSide>,
+  /**
+   * THE RESOLUTIONS OF A PARLIAMENT COUNT (TRP0 Corridors of Power): every slot of the voting area in its order — its
+   * emblem, «own / all» delegates, counted or NAMED as not counted — read «[Наука] 2/3 · [Союз] 1/2 → +1». Empty for
+   * any other basis.
+   */
+  resolutions: ReadonlyArray<CountedResolution>,
   parts: ReadonlyArray<{kind: ActionEffectBasisPartKind, count: number, spaces: ReadonlyArray<SpaceId>, glyph: CountedGlyph | undefined}>,
   excluded: ReadonlyArray<{kind: ActionEffectBasisPartKind, count: number, spaces: ReadonlyArray<SpaceId>}>,
   /**
@@ -324,6 +339,7 @@ export function countedWhyOf(effects: ReadonlyArray<ActionEffect> | undefined): 
       glyph: countGlyphOf(term),
       glyphs: countGlyphsOf(term),
       terms,
+      resolutions: (term.resolutions ?? []).map((r) => ({...r, emblem: partyEmblemUrl(r.party)})),
       sides: (term.set ?? []).map((s) => ({tag: s.tag, count: s.count, wild: s.wild, self: s.self, glyph: glyph(CardRenderItemType.TAG, {tag: s.tag})})),
       parts: (term.parts ?? []).map((p) => ({kind: p.kind, count: p.count, spaces: p.spaces, glyph: PART_GLYPH[p.kind]})),
       excluded: (term.excluded ?? []).map((p) => ({kind: p.kind, count: p.count, spaces: p.spaces})),
@@ -361,6 +377,15 @@ export function countedWhyRow(why: CountedWhy, t: CountedTranslator): string {
     // A SUMMED basis (P85): «Ваши метки (Юпитер, Земля, Венера, Марс) 3 + Ваши колонии 2 → +5» — every term with its
     // own number, a zero included (each entity named with its 0: the reading says what WOULD have counted).
     return `${why.terms.map((c) => termReading(c.term, t)).join(' + ')} → ${result}`;
+  }
+  if (why.resolutions.length > 0) {
+    // A PARLIAMENT count (TRP0): «Наука 2/3 · Союз 1/2 (не считается) → +1» — every resolution named, the ones short of
+    // the threshold marked; a zero in the server's words after them.
+    const rows = why.resolutions.map((r) => `${t.text(partyNameKey(r.party))} ${r.own}/${r.total}${r.counted ? '' : ` (${t.text('not counted')})`}`).join(' · ');
+    if (why.zero && why.zeroLabel !== undefined) {
+      return `${rows} · ${t.text(why.zeroLabel)} → ${result}`;
+    }
+    return `${rows} → ${result}`;
   }
   if (why.sides.length > 0) {
     // A SET count (P69): «Земля 2 · Венера 2 (в т.ч. любых: 1 · эта карта 1) → 2 пары → +2 производство» — every side

@@ -15,6 +15,7 @@ import {
 } from '../../../src/server/cards/prelude2/prelude2Adaptation';
 import {TURMOIL_REDUX_CARD_MANIFEST} from '../../../src/server/cards/turmoilRedux/TurmoilReduxCardManifest';
 import {inPremiumScope} from '../../../src/common/cards/premiumScope';
+import {TURMOIL_REDUX_REPLACED_CLASSIC_NAMES} from '../../../src/common/cards/turmoilReduxReplacements';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../../src/server/game/GameOptions';
 
 /**
@@ -120,8 +121,10 @@ describe('Prelude 2 cards under the hold-back list', () => {
       expect(PRELUDE2_CARDS_HELD_BACK.size).to.eq(rows.length);
     });
 
-    it('keeps the two kinds of row apart — the Redux set replaces Corridors of Power and nothing else', () => {
-      expect([...PRELUDE2_CARDS_AWAITING_REDUX_REPLACEMENT]).deep.eq([CardName.CORRIDORS_OF_POWER]);
+    // The Redux set replaces Corridors of Power and nothing else — and its replacement crossed on 2026-10-31 (TRP0):
+    // the «awaiting» kind is empty, and the classic is never a row to adapt in place.
+    it('keeps the two kinds of row apart — the Redux replacement of Corridors of Power has crossed', () => {
+      expect([...PRELUDE2_CARDS_AWAITING_REDUX_REPLACEMENT]).deep.eq([]);
       expect(PRELUDE2_CARDS_TO_ADAPT_IN_PLACE).not.to.include(CardName.CORRIDORS_OF_POWER);
     });
 
@@ -191,8 +194,16 @@ describe('Prelude 2 cards under the hold-back list', () => {
   describe('the scope', () => {
     it('the premium scope reads the same list — a held-back card is out, a card that crossed is in', () => {
       for (const name of ALL) {
-        expect(inPremiumScope({module: 'prelude2', name}), name).to.eq(!PRELUDE2_CARDS_HELD_BACK.has(name));
+        expect(inPremiumScope({module: 'prelude2', name}), name).to.eq(!PRELUDE2_CARDS_HELD_BACK.has(name) && !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name));
       }
+    });
+
+    // A classic card the Redux set REPLACES never reaches a table — the registry keeps it out of the scope whatever
+    // the list says (the list's «awaiting» row is gone; the read stays when the list is deleted).
+    it('the replaced classic is out of scope by the replacement registry', () => {
+      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.CORRIDORS_OF_POWER)).is.false;
+      expect(inPremiumScope({module: 'prelude2', name: CardName.CORRIDORS_OF_POWER})).is.false;
+      expect(inPremiumScope({module: 'turmoilRedux', name: CardName.CORRIDORS_OF_POWER_REDUX})).is.true;
     });
 
     it('the exception is read for the Prelude 2 module ONLY', () => {
@@ -206,7 +217,8 @@ describe('Prelude 2 cards under the hold-back list', () => {
     // The console creator has no classic-Turmoil toggle: an adapted political card that is
     // not marked `politics: 'redux' | 'both'` would be in every guard and dealt nowhere.
     it('a POLITICAL card that left the list is marked for the Redux table', () => {
-      const adaptedPolitical = ALL.filter((name) => !PRELUDE2_CARDS_HELD_BACK.has(name) && isPolitical(name));
+      // A REPLACED classic (P47) is not adapted — its Redux replacement is the card a Redux table deals.
+      const adaptedPolitical = ALL.filter((name) => !PRELUDE2_CARDS_HELD_BACK.has(name) && !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name) && isPolitical(name));
       const unmarked = adaptedPolitical.filter((name) => !reachesRedux(name));
       expect(unmarked, `adapted political Prelude 2 cards without politics: 'redux' in the manifest:\n${unmarked.join('\n')}`).deep.eq([]);
     });
@@ -218,8 +230,9 @@ describe('Prelude 2 cards under the hold-back list', () => {
       const {preludes} = dealt(OPEN_REDUX);
       for (const name of [CardName.CORRIDORS_OF_POWER]) {
         expect(preludes, `${name} is replaced by the Redux set and must not be dealt`).not.to.include(name);
-        const keptOut = PRELUDE2_CARDS_HELD_BACK.has(name) || TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(name);
-        expect(keptOut, `${name} must be held back by the list or removed by the Redux manifest's cardsToRemove`).is.true;
+        const keptOut = PRELUDE2_CARDS_HELD_BACK.has(name) ||
+          (TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(name) && TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name));
+        expect(keptOut, `${name} must be held back by the list, or removed by the Redux manifest's cardsToRemove AND named by the replacement registry`).is.true;
       }
     });
   });

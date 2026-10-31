@@ -6,6 +6,7 @@ import {ActionEffect} from '../../src/common/models/ActionPreviewModel';
 import {CardRenderItemType} from '../../src/common/cards/render/CardRenderItemType';
 import {AltSecondaryTag} from '../../src/common/cards/render/AltSecondaryTag';
 import {Tag} from '../../src/common/cards/Tag';
+import {PartyName} from '../../src/common/turmoil/PartyName';
 import {countedWhyOf, countedWhyRow, excludedTail, handForecastPlate, signedAmount, CountedTranslator} from '../../src/client/console/countedPlay';
 import {countedPlayForYouAnnotation} from '../../src/client/console/consolePlayCardComposer';
 import {peekable, peekGroupsOf, rollCallOf} from '../../src/client/console/boardPeek';
@@ -240,6 +241,27 @@ describe('countedPlay', () => {
       const one: ActionEffect = {...pairs, amount: 1, basis: [{count: 1, label: 'Your tag sets', set: [{tag: Tag.EARTH, count: 1}, {tag: Tag.VENUS, count: 1, self: 1}]}]};
       expect(countedWhyRow(countedWhyOf([one])!, t)).eq('Earth 1 · Venus 1 (this card 1) → 1 pair → +1 production');
       expect(countedWhyRow(countedWhyOf([noPairs])!, t)).eq('Earth 0 · Venus 3 (this card 1) · No Earth tags → 0 production');
+    });
+
+    it('TRP0 — a PARLIAMENT count names every resolution, the ones short of the threshold marked; its zero in the server words', () => {
+      const corridors: ActionEffect = {
+        direction: 'gain', icon: 'cards', amount: 1, note: 'draw',
+        basis: [{
+          count: 1, label: 'Resolutions with 2+ of your delegates', zero: 'No resolution with 2 of your delegates',
+          resolutions: [
+            {resolution: 'RX01' as never, party: PartyName.SCIENTISTS, own: 2, total: 3, counted: true},
+            {resolution: 'RX02' as never, party: PartyName.UNITY, own: 1, total: 2, counted: false},
+          ],
+        }],
+      };
+      const why = countedWhyOf([corridors])!;
+      expect(why.resolutions.map((r) => [r.party, r.own, r.total, r.counted])).deep.eq([[PartyName.SCIENTISTS, 2, 3, true], [PartyName.UNITY, 1, 2, false]]);
+      expect(why.resolutions[0].emblem).to.match(/scientists.png$/);
+      expect(why.terms).is.empty;
+      expect(countedWhyRow(why, t)).eq('party name: Scientists 2/3 · party name: Unity 1/2 (not counted) → +1 draw');
+      const none = countedWhyOf([{...corridors, amount: 0, basis: [{...corridors.basis![0], count: 0, resolutions: corridors.basis![0].resolutions!.map((r) => ({...r, own: Math.min(r.own, 1), counted: false}))}]}])!;
+      expect(none.zero).is.true;
+      expect(countedWhyRow(none, t)).eq('party name: Scientists 1/3 (not counted) · party name: Unity 1/2 (not counted) · No resolution with 2 of your delegates → 0 draw');
     });
 
     it('T12 — a single term with cells reads as a single term; its zero reads in the words the server sent', () => {

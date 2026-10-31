@@ -34,6 +34,20 @@
         <span class="con-cwhy__label" data-count-sets :data-count-sets-n="why.term.count">{{ sets }}</span>
       </template>
     </template>
+    <!-- A PARLIAMENT count (TRP0 — «per resolution you have at least 2 delegates on»): every resolution of the voting
+         area in its order, its party's emblem and «own / all» delegates; one short of the threshold stays NAMED, receded
+         and marked «не считается» for the eye and the reader — so the number adds up against the Parliament. -->
+    <template v-else-if="why.resolutions.length > 0">
+      <template v-for="(r, ri) in why.resolutions" :key="r.resolution">
+        <span v-if="ri > 0" class="con-cwhy__op" aria-hidden="true">·</span>
+        <span class="con-cwhy__part con-cwhy__res" :class="{'con-cwhy__res--out': !r.counted}"
+              :data-count-resolution="r.party" :data-count-resolution-own="r.own" :data-count-resolution-counted="r.counted ? 'yes' : 'no'"
+              :aria-label="resolutionLabel(r)">
+          <img class="con-cwhy__emblem" :src="r.emblem" alt="" aria-hidden="true">
+          <b class="con-cwhy__num">{{ r.own }}</b><span class="con-cwhy__of">/{{ r.total }}</span>
+        </span>
+      </template>
+    </template>
     <template v-else-if="why.terms.length > 0">
       <template v-for="(t, ti) in why.terms" :key="ti">
         <span v-if="ti > 0" class="con-cwhy__op" aria-hidden="true">+</span>
@@ -85,11 +99,12 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
-import {CountedWhy, excludedTail, PART_LABEL, setsReading, signedAmount, WILD_GLYPH} from '@/client/console/countedPlay';
+import {CountedResolution, CountedWhy, excludedTail, PART_LABEL, setsReading, signedAmount, WILD_GLYPH} from '@/client/console/countedPlay';
 import {ActionEffectBasisPartKind} from '@/common/models/ActionPreviewModel';
 import {BoardPeekBeat} from '@/client/console/boardPeek';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 
 export default defineComponent({
   name: 'ConsoleCountedWhy',
@@ -128,6 +143,11 @@ export default defineComponent({
     /** A share's word for the screen reader — «4 города» (the pictogram carries it for the eye). */
     partLabel(kind: ActionEffectBasisPartKind, count: number): string {
       return translateTextWithParams(PART_LABEL[kind], [String(count)]);
+    },
+    /** A resolution's words for the screen reader — «Наука: ваших делегатов 2 из 3» (+ «не считается»). */
+    resolutionLabel(r: CountedResolution): string {
+      const head = translateTextWithParams('${0}: your delegates ${1} of ${2}', [translateText(partyNameKey(r.party)), String(r.own), String(r.total)]);
+      return r.counted ? head : `${head} · ${translateText('not counted')}`;
     },
   },
 });

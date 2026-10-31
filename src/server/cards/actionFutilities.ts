@@ -54,6 +54,14 @@ export function noProduction(production: number): ActionFutilityVerdict {
     {kind: 'zero-yield', reason: 'Production 0'};
 }
 
+/**
+ * A counted gain whose term names its own zero (TRP0 — «No resolution with 2 of your delegates»): the term's words,
+ * never the generic «Gives nothing right now».
+ */
+export function namedZeroYield(reason: string): ActionFutilityVerdict {
+  return {kind: 'zero-yield', reason};
+}
+
 /** «Add to any card» with no card to take it. */
 export function noTarget(): ActionFutilityVerdict {
   return {kind: 'no-target', reason: 'No card to receive the resource'};
