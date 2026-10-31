@@ -4,18 +4,45 @@ import {
   abortHydroMarker, armHydroMarker, armHydroMarkerTraversal, detectHydroMarker, enableHydroStepTrace,
   endHydroMarker, hydroActiveStepSourceCard, hydroMarkerNetsArmed, hydroMarkerState, hydroPlanDeclaresSource,
   hydroStepActivated, hydroStepOwnerFor,
+  hydroRewardHoldOwed, hydroRewardWaveActive,
   hydroStepQueuedFor, hydroStepTrace, hydroTraversalPaused, hydroTraversalPending,
   hydroVisualTrackPosition, isHydroMarkerActive, noteHydroLandPresence, registerHydroMarkerHandle,
   resetHydroMarker, resumeHydroMarkerTraversal, runHydroMarker, seedHydroMarkerRewardHold,
   setHydroMarkerPhase,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
 import {CardName} from '@/common/cards/CardName';
-import {clearPanelRewardHold, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {beginPanelRewardHold, clearPanelRewardHold, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 describe('consoleHydroMarker', () => {
   beforeEach(() => resetHydroMarker());
   afterEach(() => resetHydroMarker());
+
+  /**
+   * THE FLOW OWNS ITS REWARD WORK (the hydro freeze of 2026-10-31): the resolution's busy reads the marker's OWN hold
+   * and waves — never the global panel hold, which a FOREIGN scene (another seat's tile paying the viewer, parked for
+   * a board this very workspace covers) can keep raised for as long as the workspace stands.
+   */
+  describe('the reward hold the flow owns', () => {
+    afterEach(() => clearPanelRewardHold());
+
+    it('is owed from the seed until its own wave, and never raised by a foreign hold', () => {
+      const steel: ResourceTransferSpec = {channel: 'stock', resource: 'steel', amount: 2};
+      armHydroMarker(2, 5, 'blue', [steel]);
+      expect(hydroRewardHoldOwed(), 'armed, not yet seeded').to.eq(false);
+      seedHydroMarkerRewardHold();
+      expect(hydroRewardHoldOwed(), 'seeded with the response').to.eq(true);
+      expect(panelRewardHold.active).to.eq(true);
+      resetHydroMarker();
+      expect(hydroRewardHoldOwed(), 'a reset lets go').to.eq(false);
+      expect(hydroRewardWaveActive()).to.eq(false);
+      // A FOREIGN hold on the panel (a rival's tile paying the viewer) is not the flow's.
+      beginPanelRewardHold([{channel: 'stock', resource: 'megacredits', amount: 1}]);
+      expect(panelRewardHold.active, 'the panel is held by somebody else').to.eq(true);
+      expect(hydroRewardHoldOwed(), '…and the flow owes nothing').to.eq(false);
+      expect(hydroRewardWaveActive()).to.eq(false);
+    });
+  });
 
   it('arm sets the advance live synchronously (input gate closes at once)', () => {
     expect(isHydroMarkerActive()).to.eq(false);

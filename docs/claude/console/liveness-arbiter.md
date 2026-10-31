@@ -78,6 +78,42 @@ on every spec, and a field report with `[liveness]` in its export names the owni
 The structural fixes stay where they were: the claim/stage law (`claimRepeatOutcome`), the one-batch intake, the
 release funnel, the board-beat park's own gates.
 
+## 5a. The audit of 2026-10-31 (the Hydronetwork finish — the second freeze of the day)
+
+The owner's report: the marker moved onto the 5 VP finish as the turn's SECOND action, the move passed to another
+seat, and after the ceremony the screen froze; it un-froze only on «свернуть», with the «Экран завис» notice (the
+board-home watchdog). The field table (game gce2206994265, history 00363 → the fixture `field-hydro-terminal`: blue's
+first action — the free delegate — replayed through the engine; the finish passes the move to MarsBot, whose turn
+arrives behind the ceremony with a tile beside blue's and blue's own M€ reaction) REPRODUCED it on the box: the hydro
+frame stood `executing` with EMPTY holds for 13 s; the morning's beat stall guard tore it down at 14 s
+(`[workspace-stall] beat «hydro:executing» … last in flight: transport, hydro-marker`), and only then did
+`tile-placement-remote` fly.
+
+**The cycle** (the agent's map, confirmed by the probe):
+
+1. the bot's tile beside blue's pays blue — `consoleRemotePlacement.claimIncome` seeds the viewer's income on the
+   PANEL (`beginPanelRewardHold`) at staging, to be released chip by chip when the landing flies;
+2. the landing parks for a watchable board (`flyRemote` → `boardCovered()` reads `workspaceStackActive()` — the hydro
+   frame covers it); the parked hold is deliberately NOT blocking;
+3. the hydro resolution's busy read the GLOBAL `panelRewardHold.active` as «my reward is held» → `executing`, the
+   pad absorbed, the frame standing → the board covered → back to 2. Nothing in flight; every net blind by contract
+   (`hydro-flow-stuck` heals a missed edge, never a true-stuck term; the watchdog acts on the board home).
+
+**The fixes** (two laws, each its own side of the cycle):
+
+- **A flow's busy reads its OWN work.** `hydroMarkerState.rewardHoldOwed` / `wavesActive` (reactive — invariant 17)
+  are what the hydro marker seeded and flies; `ConsoleShell.hydroResolutionBusy` reads `hydroRewardHoldOwed()` /
+  `hydroRewardWaveActive()`, never the panel's or the transfer layer's global facts. A new flow's busy term that reads
+  a GLOBAL presentation fact is this cycle again.
+- **A foreign landing parked for a covered board gives the viewer their truth NOW.** `tickViewerHoldsNow(ev)` releases
+  the event's income and card-payout holds at the park (`holdsTicked`), the counters tick, the chips name the cause,
+  and the beat that eventually flies flies nothing for them. Nothing is lost — only the token's flight into a board
+  nobody could see.
+
+Guards: `consoleHydroMarker.spec` § the reward hold the flow owns; e2e `console-hydro-terminal-field` (the field
+table + a two-human table — the ceremony plays, the workspace leaves by itself within 14 s, the harness red on any
+stall marker).
+
 ## 5. The audit of 2026-10-31 (the Venus trade)
 
 The field table was replayed exactly (fixture `field-venus-unity-trade` — the owner's save with Fringe Colony

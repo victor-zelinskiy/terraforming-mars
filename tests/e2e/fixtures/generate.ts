@@ -1111,6 +1111,61 @@ finaleRichFixture('finale-rich-2p', 2);
   write('hydro-terminal', game);
 }
 
+// ── hydro-terminal-2p: the owner's freeze of 2026-10-31 — the SAME terminal landing («К дальнему» onto the 5 VP
+//    finish slot) as the turn's SECOND action in a TWO-HUMAN game: the answer PASSES THE MOVE to red, so the viewer's
+//    `waitingFor` goes empty and no next prompt of their own ever follows (unlike solo, where the seat's own next
+//    action menu arrives at once, and unlike a bot game, where the bot's turn arrives behind the landing). The first
+//    action is the corporation's own (answered over the API by the loader's seed). ──
+{
+  const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false, deltaProjectExpansion: true});
+  answerStartFlow(game, [p1, p2]);
+  p1.playedCards.push(new SolarPower(), new AdaptedLichen(), new RegolithEaters(), new IoMiningIndustries(), new Pets());
+  p1.deltaProjectData!.position = 5;
+  p1.energy = 12;
+  p1.megaCredits = 60;
+  p1.drawCard(2);
+  runAllActions(game);
+  if (game.activePlayer.id !== p1.id) {
+    throw new Error(`hydro-terminal-2p: expected blue on the move, got ${game.activePlayer.color}`);
+  }
+  write('hydro-terminal-2p', game);
+}
+
+// ── field-hydro-terminal: THE FIELD TABLE of the owner's hydro freeze (2026-10-31, game gce2206994265, history
+//    00363 — generation 8, blue on the move with two actions ahead; three seats, a human rival, MarsBot). The generator
+//    replays blue's FIRST action through the menu (the free delegate from the lobby to the Reds — as in the field);
+//    the e2e drives the SECOND on the real UI: six energy into the Hydronetwork, 5 → 11, the 5 VP finish — and the
+//    answer passes the move to the BOT, whose whole turn (an ocean, a tile beside blue's, blue's own M€ reaction)
+//    arrives behind blue's ceremony. The screen froze after the 5 VP animation until the board-home watchdog. ──
+{
+  const name = 'field-hydro-terminal';
+  const sourceFile = path.join(__dirname, 'field', 'gce2206994265-00363.json');
+  const source = JSON.parse(fs.readFileSync(sourceFile, 'utf8')) as SerializedGame;
+  const game = Game.deserialize(source);
+  const blue = game.players.find((p) => p.color === 'blue');
+  if (blue === undefined || game.activePlayer.id !== blue.id) {
+    throw new Error(`${name}: expected blue on the move`);
+  }
+  const menu = blue.getWaitingFor();
+  if (!(menu instanceof OrOptions)) {
+    throw new Error(`${name}: blue is not on the action menu (${menu?.constructor.name})`);
+  }
+  const voteIndex = menu.options.findIndex((o) => o instanceof SelectParty);
+  if (voteIndex < 0) {
+    throw new Error(`${name}: the menu offers no free delegate`);
+  }
+  blue.process({type: 'or', index: voteIndex, response: {type: 'party', partyName: PartyName.REDS}});
+  runAllActions(game);
+  if (game.activePlayer.id !== blue.id || blue.actionsTakenThisRound !== 1 || !(blue.getWaitingFor() instanceof OrOptions) ||
+      blue.deltaProjectData?.position !== 5 || blue.energy < 6) {
+    throw new Error(`${name}: the replay did not land on blue's second action (actions=${blue.actionsTakenThisRound} wf=${blue.getWaitingFor()?.constructor.name} pos=${blue.deltaProjectData?.position} energy=${blue.energy})`);
+  }
+  for (const [i, p] of game.players.entries()) {
+    p.name = p.isMarsBot ? p.name : `seat${i + 1}`;
+  }
+  write(name, game);
+}
+
 // ── hydro-terminal-surge: the FIELD SHAPE of the 2026-09-10 wedge — a
 //    Delta-Surge traversal whose FINAL leg is the animal stage. Position 7,
 //    energy for exactly TWO steps (so «К дальнему» is 9, deterministically),

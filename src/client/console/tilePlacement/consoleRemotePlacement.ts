@@ -311,6 +311,13 @@ export type RemoteEvent = FreshPlacement & {
    */
   income: ReadonlyArray<AresAdjacencyFlight>,
   /**
+   * The viewer's holds of this event (its income, its card payouts) were RELEASED when the landing parked for a
+   * covered board — the money and the points showed at once, named by their chips; the beat then flies nothing for
+   * them. A hold that waits for a board the viewer's own workspace covers is a lie the workspace itself can be
+   * waiting on (the hydro freeze of 2026-10-31).
+   */
+  holdsTicked?: boolean,
+  /**
    * THE RING THIS TILE BROUGHT (TR79 Ferrus Academy — a rival's first city): the cells that gained the placer's cube
    * WITHOUT a tile in the same diff. Held hidden at staging (same synchronous block as the commit) and set down ONE BY
    * ONE after the city's own cube — never before the city, never in one frame.
@@ -921,6 +928,9 @@ async function drainEvents(myEpoch: number): Promise<void> {
  */
 async function moveRemote(ev: RemoteEvent, move: RemoteMove, myEpoch: number): Promise<void> {
   if (boardCovered()) {
+    // TRUTH BEFORE STORY: the viewer's income and payouts of this landing tick NOW, named by their chips — never held
+    // on the panel for a board that may be covered by the very flow waiting on that hold.
+    tickViewerHoldsNow(ev);
     parkForBoard();
   }
   try {
@@ -1056,6 +1066,9 @@ async function degradeMove(ev: RemoteEvent, myEpoch: number): Promise<void> {
  */
 async function liftRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   if (boardCovered()) {
+    // TRUTH BEFORE STORY: the viewer's income and payouts of this landing tick NOW, named by their chips — never held
+    // on the panel for a board that may be covered by the very flow waiting on that hold.
+    tickViewerHoldsNow(ev);
     parkForBoard();
   }
   try {
@@ -1131,6 +1144,9 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   // stays held: the wait costs nothing (the cell reads untouched) and buys
   // the player the one moment the placement actually happens.
   if (boardCovered()) {
+    // TRUTH BEFORE STORY: the viewer's income and payouts of this landing tick NOW, named by their chips — never held
+    // on the panel for a board that may be covered by the very flow waiting on that hold.
+    tickViewerHoldsNow(ev);
     parkForBoard();
   }
   try {
@@ -1455,7 +1471,7 @@ function runOwnPayoutOnRemoteStage(item: {payout: CardAdjacencyPayoutModel, own:
  */
 async function runRemoteAresIncomeBeat(ev: RemoteEvent, tileRect: TileRect, ui: number, myEpoch: number, breathMs?: number): Promise<void> {
   const releaseAll = () => releaseIncomeHolds(ev);
-  if (typeof document === 'undefined') {
+  if (typeof document === 'undefined' || ev.holdsTicked === true) {
     releaseAll();
     return;
   }
@@ -1510,6 +1526,21 @@ async function runRemoteAresIncomeBeat(ev: RemoteEvent, tileRect: TileRect, ui: 
     onArrive: (spec) => releasePanelRewardHold(spec),
   });
   remotePlacementState.aresSources = [];
+}
+
+/**
+ * THE LANDING PARKS FOR A COVERED BOARD — the viewer's own holds of it (the owner income, the card payouts) are let go
+ * at once: the counters tick, the chips name the cause, and the beat that eventually flies flies nothing for them.
+ * Nothing is lost (the amounts are the server's); only the token's flight is, and a flight into a hidden board was
+ * never going to be seen anyway.
+ */
+function tickViewerHoldsNow(ev: RemoteEvent): void {
+  if (ev.holdsTicked === true) {
+    return;
+  }
+  ev.holdsTicked = true;
+  releaseIncomeHolds(ev);
+  releaseCityPayoutHolds(ev);
 }
 
 /** Release every panel hold this event seeded (idempotent per amount — the

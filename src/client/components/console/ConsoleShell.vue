@@ -2023,7 +2023,7 @@ import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovSca
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
 import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/ConsoleHydroMarkerLayer.vue';
 import {
-  armHydroMarker, armHydroMarkerTraversal, abortHydroMarker, isHydroMarkerActive, hydroMarkerState,
+  armHydroMarker, armHydroMarkerTraversal, abortHydroMarker, isHydroMarkerActive, hydroMarkerState, hydroRewardHoldOwed, hydroRewardWaveActive,
   HydroMarkerLegPlan, hydroActiveStepSourceCard, hydroPlanDeclaresSource, hydroStepQueuedFor,
   hydroTraversalPaused, hydroTraversalPending, resumeHydroMarkerTraversal, hydroParkedForeignStop,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
@@ -2073,7 +2073,7 @@ import {railRewardPending, type RailReward} from '@/client/console/resourceTrans
 import {discardExchangeRailKey, releaseDiscardExchange} from '@/client/console/cardDiscard/discardExchangeBeat';
 import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
 import {movementBonusTransfers, withMovementBonusOnLastLeg} from '@/client/console/hydroFlow/hydroMovementBonus';
-import {abortResourceTransfers, runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, panelRewardHold, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {abortResourceTransfers, runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ActionCommitPlan, abortConsoleActionCommit, actionCommitHolding, commitRewardSpecs, consumeActionCommitPlan, playCardPriceReward, releaseActionCommit} from '@/client/console/consoleActionCommit';
 import {actionCommitRailState, flyActionCommitRail} from '@/client/console/consoleActionCommitRail';
 import {abortActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
@@ -4452,8 +4452,11 @@ export default defineComponent({
       return hydroResolutionBusyOf({
         committed: this.hydroFlow.commit !== undefined,
         markerGliding: isHydroMarkerActive(),
-        rewardHeld: panelRewardHold.active,
-        transfersFlying: isResourceTransferActive(),
+        // THE FLOW'S OWN reward work only (never the global panel hold / transfer facts): a foreign scene's hold — another
+        // seat's tile paying the viewer, parked for a board THIS workspace covers — made the resolution busy for as long
+        // as the landing waited, and the landing waited for this workspace to leave (the owner's freeze, 2026-10-31).
+        rewardHeld: hydroRewardHoldOwed(),
+        transfersFlying: hydroRewardWaveActive(),
         ceremony: isHydroCeremonyActive(),
         followUpInteractive: this.hydroFollowUpLive,
         // A multi-leg traversal plan (Delta Surge) holds the flow through its
@@ -25105,7 +25108,7 @@ export default defineComponent({
       resolutionBusy: this.hydroResolutionBusy,
       busyTerms: {
         markerGliding: isHydroMarkerActive(),
-        rewardHeld: panelRewardHold.active,
+        rewardHeld: hydroRewardHoldOwed(),
         transfersFlying: isResourceTransferActive(),
         ceremony: isHydroCeremonyActive(),
         followUpInteractive: this.hydroFollowUpLive,

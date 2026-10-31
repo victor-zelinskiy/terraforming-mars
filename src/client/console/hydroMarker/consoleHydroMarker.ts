@@ -79,6 +79,14 @@ type HydroMarkerState = {
    *  what keeps the flow's close gate honest (`traversalPending`). */
   planPaused: boolean;
   /**
+   * THE FLOW'S OWN REWARD WORK (the hydro resolution's busy reads THESE, never the global panel / transfer facts):
+   * its reward hold seeded on the panel and not yet flown, and its own waves still in the air. A foreign scene's hold
+   * (another seat's tile paying the viewer — parked for a board this very workspace covers) used to make the flow
+   * «busy» forever: the owner's freeze of 2026-10-31, cured only by the board-home watchdog.
+   */
+  rewardHoldOwed: boolean;
+  wavesActive: number;
+  /**
    * WHERE THE VIEWER'S MARKER VISUALLY STANDS while a plan runs — the
    * settled cell of the last completed leg. The section renders the viewer's
    * marker (and the current-position chip) from THIS, never from the server
@@ -110,7 +118,18 @@ export const hydroMarkerState = reactive<HydroMarkerState>({
   planPaused: false,
   visualPosition: -1,
   parkedAt: -1,
+  rewardHoldOwed: false,
+  wavesActive: 0,
 });
+
+/** The flow's OWN rewards are still owed or flying — the hydro resolution's scoped «reward» term. */
+export function hydroRewardHoldOwed(): boolean {
+  return hydroMarkerState.rewardHoldOwed;
+}
+
+export function hydroRewardWaveActive(): boolean {
+  return hydroMarkerState.wavesActive > 0;
+}
 
 /**
  * One leg of a traversal plan: the cell it ARRIVES at (legs are single-cell
@@ -450,6 +469,7 @@ export function armHydroMarker(
   claimed = false;
   pendingRewards = rewards;
   rewardHoldSeeded = false;
+  hydroMarkerState.rewardHoldOwed = false;
   hydroMarkerState.active = true;
   hydroMarkerState.phase = 'charge';
   hydroMarkerState.fromPosition = fromPosition;
@@ -499,6 +519,7 @@ export function armHydroMarkerTraversal(
   pendingRewards = range.transfers;
   planSeedFrom = range.nextFrom;
   rewardHoldSeeded = false;
+  hydroMarkerState.rewardHoldOwed = false;
   hydroMarkerState.active = true;
   hydroMarkerState.phase = 'charge';
   hydroMarkerState.fromPosition = firstFrom;
@@ -550,6 +571,7 @@ export function seedHydroMarkerRewardHold(): void {
     return;
   }
   rewardHoldSeeded = true;
+  hydroMarkerState.rewardHoldOwed = true;
   beginPanelRewardHold(pendingRewards);
 }
 
@@ -558,10 +580,12 @@ export function seedHydroMarkerRewardHold(): void {
  *  that delta chip at the contact. Fire-and-forget; degrades honestly. */
 function runHydroRewardWave(stopPosition: number, rewards: ReadonlyArray<ResourceTransferSpec>): void {
   rewardHoldSeeded = false;
+  hydroMarkerState.rewardHoldOwed = false;
   if (rewards.length === 0) {
     clearPanelRewardHold();
     return;
   }
+  hydroMarkerState.wavesActive++;
   void runResourceTransfers({
     specs: rewards,
     source: {selectors: [`[data-hydro-marker="${stopPosition}"]`]},
@@ -570,6 +594,8 @@ function runHydroRewardWave(stopPosition: number, rewards: ReadonlyArray<Resourc
   }).then(() => {
     // Belt-and-braces: any hold a degraded transfer left snaps to truth now.
     clearPanelRewardHold();
+  }).finally(() => {
+    hydroMarkerState.wavesActive = Math.max(0, hydroMarkerState.wavesActive - 1);
   });
 }
 
@@ -813,6 +839,7 @@ function pauseTraversal(position: number): void {
   pendingRewards = range.transfers;
   planSeedFrom = range.nextFrom;
   rewardHoldSeeded = false;
+  hydroMarkerState.rewardHoldOwed = false;
 }
 
 /**
@@ -902,12 +929,16 @@ function releaseProxy(): Promise<void> {
 /** One leg's wave — the SAME transfer framework, awaited; holds release per
  *  touchdown and are NEVER cleared here (later legs still own theirs). */
 function runLegRewardWave(stopPosition: number, rewards: ReadonlyArray<ResourceTransferSpec>): Promise<void> {
+  hydroMarkerState.rewardHoldOwed = false;
+  hydroMarkerState.wavesActive++;
   return runResourceTransfers({
     specs: rewards,
     source: {selectors: [`[data-hydro-marker="${stopPosition}"]`]},
     arrival: 'auto',
     onArrive: (spec) => releasePanelRewardHold(spec),
-  }).then(() => undefined);
+  }).then(() => undefined).finally(() => {
+    hydroMarkerState.wavesActive = Math.max(0, hydroMarkerState.wavesActive - 1);
+  });
 }
 
 function delay(ms: number): Promise<void> {
@@ -1088,6 +1119,8 @@ export function resetHydroMarker(): void {
   claimed = false;
   pendingRewards = [];
   rewardHoldSeeded = false;
+  hydroMarkerState.rewardHoldOwed = false;
+  hydroMarkerState.wavesActive = 0;
   planEpoch++;
   planLegs = [];
   planBaseColor = '';
