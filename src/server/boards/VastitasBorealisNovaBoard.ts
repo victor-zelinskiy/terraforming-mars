@@ -39,8 +39,9 @@ export class VastitasBorealisNovaBoard extends MarsBoard {
     builder.volcanic(TITANIUM).land(STEEL).ocean().ocean(HEAT, HEAT).land(PLANT, PLANT).land(PLANT).land();
     // y=7
     builder.land(PLANT).land().land(PLANT).land(PLANT, STEEL).land(STEEL).land(PLANT);
-    // y=8
-    builder.land(DELEGATE).land().land(DRAW_CARD).land(STEEL).land(TITANIUM);
+    // y=8 — titanium then steel (steel on Lyot), per the official Amazonis & Vastitas
+    // rule sheet (FryxGames 2024). Upstream prints them the other way round; keep this on sync.
+    builder.land(DELEGATE).land().land(DRAW_CARD).land(TITANIUM).land(STEEL);
 
     const spaces = builder.build();
     return new VastitasBorealisNovaBoard(spaces);

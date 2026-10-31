@@ -76,8 +76,8 @@ describe('VastitasBorealisNovaBoard', () => {
       {id: '59', spaceType: 'land', x: 4, y: 8, bonus: [16]},
       {id: '60', spaceType: 'land', x: 5, y: 8, bonus: []},
       {id: '61', spaceType: 'land', x: 6, y: 8, bonus: [3]},
-      {id: '62', spaceType: 'land', x: 7, y: 8, bonus: [1]},
-      {id: '63', spaceType: 'land', x: 8, y: 8, bonus: [0]},
+      {id: '62', spaceType: 'land', x: 7, y: 8, bonus: [0]},
+      {id: '63', spaceType: 'land', x: 8, y: 8, bonus: [1]},
     ]);
     expect(board.volcanicSpaceIds).deep.eq(['05', '13', '21', '46']);
   });
