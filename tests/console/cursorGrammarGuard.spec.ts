@@ -33,6 +33,7 @@ const BASELINE = path.resolve(__dirname, 'cursorGrammarBaseline.json');
 /** The surfaces this iteration migrated: the host's resting rule and its cursor state, by resolved selector. */
 const MIGRATED: ReadonlyArray<{surface: string, host: string, on: string}> = [
   {surface: '«Карты в руке» (the album slot)', host: '.con-hand__slot', on: '.con-hand__slot--selected'},
+  {surface: 'the card album (P87 — «Наследие проектов»)', host: '.con-album__slot', on: '.con-album__slot--selected'},
   {surface: '«Действия карт» (the action tile)', host: '.con-cardactions__tile', on: '.con-cardactions__tile--focused'},
   {surface: '«Действия карт» (the live group)', host: '.con-cardactions__group', on: '.con-cardactions__group--live'},
   {surface: '«Колонии» (the colony tile)', host: '.con-coltile', on: '.con-coltile--focused'},
@@ -245,8 +246,11 @@ describe('the cursor grammar (TR58 — the cursor is one living object)', () => 
     const rules = allRules();
     const missing: Array<string> = [];
     for (const m of MIGRATED) {
-      const host = rules.some((r) => r.selectors.includes(m.host) && r.calls.some((c) => ['.con-cursor(', '.con-cursor-shadow(', '.con-cursor-glow(', '.con-cursor-ring('].some((m) => c.startsWith(m))));
-      const on = rules.some((r) => r.selectors.includes(m.on) && r.calls.some((c) => c.startsWith('.con-cursor-on(')));
+      // THE ALBUM CHASSIS (P87): `.con-album-slot()` IS the grammar — it calls `.con-cursor(…)` on the slot and
+      // `.con-cursor-on()` on its `--selected` (`console_card_album.less`), so a host applying it stays on the grammar.
+      const chassis = rules.some((r) => r.selectors.includes(m.host) && r.calls.some((c) => c.startsWith('.con-album-slot(')));
+      const host = chassis || rules.some((r) => r.selectors.includes(m.host) && r.calls.some((c) => ['.con-cursor(', '.con-cursor-shadow(', '.con-cursor-glow(', '.con-cursor-ring('].some((m) => c.startsWith(m))));
+      const on = chassis || rules.some((r) => r.selectors.includes(m.on) && r.calls.some((c) => c.startsWith('.con-cursor-on(')));
       if (!host) {
         missing.push(`${m.surface}: no \`.con-cursor(…)\` / \`-shadow\` / \`-glow\` / \`-ring\` on ${m.host}`);
       }

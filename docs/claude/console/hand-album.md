@@ -1,5 +1,10 @@
 # The Hand ALBUM — «Карты в руке» без скролла (2026-08-16)
 
+> **The chassis is shared (P87, 2026-11-01):** the planner below, the page / slot geometry (`console_card_album.less`
+> mixins) and the spine (`foundation/ConsoleAlbumSpine.vue`) are the ONE chassis every «choose N cards from a hand»
+> surface stands on — the host-agnostic `foundation/ConsoleCardAlbum.vue` first serves the campaign's «Наследие
+> проектов». Contract: `docs/claude/console/card-album.md`.
+
 The console hand workspace no longer scrolls. The hand is a horizontal ribbon
 of STRICT PAGES — an album — and the viewport shows exactly one page:
 

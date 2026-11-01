@@ -56,6 +56,7 @@
                 'cmap__card--cursor': cursor.zone === 'route' && cursor.index === m.slot,
                 'cmap__card--done': m.state === 'committed',
                 'cmap__card--current': m.isCurrent,
+                'cmap__card--receiving': m.isCurrent && carryReceiving,
                 'cmap__card--future': m.state === 'locked',
                 'cmap__card--final': m.final,
                 'cmap__card--waitfocus': m.isCurrent && waitStrip !== undefined,
@@ -94,6 +95,7 @@
           :key="row.seat"
           class="cmap__seat"
           :class="{'cmap__seat--cursor': cursor.zone === 'rail' && cursor.index === i, 'cmap__seat--champion': row.isChampion}"
+          :data-cmap-seat-you="row.isYou ? 'true' : undefined"
           @click="cursor = {zone: 'rail', index: i}"
         >
           <span class="cmap__seat-cube" :class="`player_bg_color_${row.color}`"></span>
@@ -127,8 +129,8 @@
             </template>
           </span>
           <span v-if="row.pendingBonus > 0" class="cmap__seat-bonus">+{{ row.pendingBonus }} M€</span>
-          <span v-if="row.carry !== undefined && row.carry.status === 'confirmed'" class="cmap__seat-carry">
-            {{ carryText(row.carry.count) }}
+          <span v-if="row.carry !== undefined && row.carry.status === 'confirmed'" class="cmap__seat-carry" data-cmap-seat-carry>
+            {{ carryText(row.isYou && carryHeldCount !== undefined ? carryHeldCount : row.carry.count) }}
           </span>
           <!-- The readiness chip — the interlude's «кто готов» lives on the
                seat row itself; the pending text folds into the chip. -->
@@ -181,10 +183,9 @@
         </div>
       </div>
 
-      <!-- The mandatory carryover STEP — the map's central stage one level
-           deeper (the map's own content releases in place under it); the
-           ENTER is the picker's internal cascade, the LEAVE is this
-           transition's short fold. -->
+      <!-- The carryover STEP — the map's central stage one level deeper, on the HAND ALBUM'S chassis (P87). The ENTER is
+           a deal from the viewer's seat row (`dealCarryIn`), the CONFIRM the kept cards' flight into the next mission's
+           card (`flyKeptIntoMission`); the LEAVE is this transition's short fold. -->
       <Transition name="cm-carry">
         <ConsoleCarryoverPicker
           v-if="overlay?.kind === 'carryover'"
@@ -192,6 +193,9 @@
           class="cmap__carry-overlay"
           :eligible="vm.yourEligibleCards"
           :selected="carryDraft"
+          :limit="vm.yourCarryLimit"
+          :next-mission="vm.currentSlot + 1"
+          :root="embedded ? 'Game results' : 'Campaign'"
           :confirmed="vm.carryoverConfirmed && !carryDirty"
           :submitting="state.submittingCarryover"
           :error="state.error"
@@ -199,6 +203,7 @@
           @confirm="confirmCarry"
           @back="closeOverlay"
           @arm-change="carryArmed = $event"
+          @bar="carryBar = $event"
         />
       </Transition>
 
@@ -240,6 +245,8 @@ import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleCarryoverPicker from './ConsoleCarryoverPicker.vue';
+import {CloneFlightHandle, flyCardClones} from '@/client/console/cardFlight/cloneFlights';
+import {motionMs} from '@/client/components/motion/motionTokens';
 import CampaignMissionCard from './CampaignMissionCard.vue';
 import CampaignMissionInspect from './CampaignMissionInspect.vue';
 import CampaignSeatLegacy from './CampaignSeatLegacy.vue';
@@ -303,6 +310,13 @@ export default defineComponent({
       carryDirty: false,
       /** The picker's ARMED zero-carry confirm (mirrored up for the bar). */
       carryArmed: false,
+      /** The picker's bar facts (the A verb by focus, the page count) — mirrored up for the ONE command bar. */
+      carryBar: {primary: 'Keep for the next mission', pages: 1} as {primary: string, pages: number},
+      /** The CONFIRM flight is in the air: the viewer's seat row holds its carry count until each card's touchdown. */
+      carryHeldCount: undefined as number | undefined,
+      /** The next mission's card answers the touchdown (a one-shot kant impulse). */
+      carryReceiving: false,
+      carryFlights: [] as Array<CloneFlightHandle>,
       /**
        * The interlude flow's mandatory step opens ITSELF once per visit —
        * arriving with an unresolved carryover door lands the player straight
@@ -440,12 +454,12 @@ export default defineComponent({
         // X = inspect (the console-wide verb); RT = confirm (the standard
         // next-step verb). While the fullscreen viewer is open the modal
         // draws its own bar on top (the dev-picker precedent).
-        const carryCmds: Array<ConsoleCommand> = [
-          {control: 'dpad', label: 'Choose'},
-          {control: 'confirm', label: 'Take / return'},
-        ];
+        const carryCmds: Array<ConsoleCommand> = [];
         if (vm.yourEligibleCards.length > 0) {
+          carryCmds.push({control: 'dpad', label: 'Choose'});
+          carryCmds.push({control: 'confirm', label: this.carryBar.primary});
           carryCmds.push({control: 'secondary', label: 'Inspect'});
+          // LB / RB turn the page — the SPINE in the stage foot says so (one action, one hint: never the bar).
         }
         carryCmds.push({control: 'triggerR', label: this.carryConfirmLabel, highlight: true});
         carryCmds.push({control: 'back', label: 'Close'});
@@ -715,6 +729,9 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.offPad?.();
+    for (const flight of this.carryFlights) {
+      flight.dispose();
+    }
     resetCampaignMapUi();
     if (!this.embedded) {
       stopCampaignWatch();
@@ -977,13 +994,69 @@ export default defineComponent({
       this.carryDraft = [...(this.vm?.yourCarryCards ?? [])];
       this.carryDirty = false;
       this.carryArmed = false;
+      // A REVISION (Y) opens with the kept cards already in their kant — they are «here» already, nothing is dealt.
+      const revise = this.carryDraft.length > 0 || this.vm?.carryoverConfirmed === true;
       this.overlay = {kind: 'carryover'};
+      if (!revise) {
+        void this.$nextTick(() => requestAnimationFrame(() => this.dealCarryIn()));
+      }
+    },
+    /** THE ENTRY: the terminal hand arrives from the viewer's seat row (the cards of your hand from the mission just played). */
+    dealCarryIn(): void {
+      const picker = this.$refs.carryPicker as {dealIn?: (from: DOMRect | undefined) => void} | undefined;
+      const row = (this.$el as HTMLElement | undefined)?.querySelector?.<HTMLElement>('[data-cmap-seat-you]');
+      picker?.dealIn?.(row?.getBoundingClientRect());
+    },
+    /**
+     * THE CONFIRM's phrase — the server said yes: the KEPT cards rise out of their slots and fly into the next mission's
+     * card, which answers each touch (a one-shot impulse) while the seat row's «carrying N» ticks per touchdown. The
+     * stage folds at once (the leave fold), so the destination is in sight; the rest of the hand goes with the stage.
+     */
+    flyKeptIntoMission(kept: Map<CardName, {el: HTMLElement, rect: DOMRect}>): void {
+      const card = (this.$el as HTMLElement | undefined)?.querySelector?.<HTMLElement>('.cmap__card--current');
+      const dest = card?.getBoundingClientRect();
+      if (kept.size === 0 || dest === undefined || dest.width < 8 || motionMs(100) === 0) {
+        return;
+      }
+      const entries = [...kept.entries()];
+      const names = entries.map(([n]) => n);
+      const first = entries[0][1].rect;
+      const h = dest.height * 0.62;
+      const w = h * (first.width / first.height);
+      const to = new DOMRect(dest.left + dest.width / 2 - w / 2, dest.top + dest.height / 2 - h / 2, w, h);
+      this.carryHeldCount = 0;
+      // The layer is the convoy's own: it leaves with the last card.
+      const flight: CloneFlightHandle = flyCardClones({
+        names,
+        sourceEl: (n) => kept.get(n)?.el ?? null,
+        from: new Map(entries.map(([n, k]) => [n, k.rect] as [CardName, DOMRect])),
+        to: new Map(names.map((n) => [n, to] as [CardName, DOMRect])),
+        layerClass: 'con-carry-flight',
+        onLand: () => {
+          this.carryHeldCount = (this.carryHeldCount ?? 0) + 1;
+          this.carryReceiving = false;
+          void this.$nextTick(() => {
+            this.carryReceiving = true;
+          });
+        },
+        onDone: () => {
+          this.carryHeldCount = undefined;
+          flight.dispose();
+          this.carryFlights = this.carryFlights.filter((x) => x !== flight);
+          window.setTimeout(() => {
+            this.carryReceiving = false;
+          }, motionMs(520));
+        },
+        travelMs: 420,
+        staggerMs: 90,
+      });
+      this.carryFlights.push(flight);
     },
     toggleCarry(name: CardName): void {
       const idx = this.carryDraft.indexOf(name);
       if (idx >= 0) {
         this.carryDraft.splice(idx, 1);
-      } else if (this.carryDraft.length < 2) {
+      } else if (this.carryDraft.length < (this.vm?.yourCarryLimit ?? 0)) {
         this.carryDraft.push(name);
       }
       this.carryDirty = true;
@@ -999,10 +1072,14 @@ export default defineComponent({
       if (playerId === undefined) {
         return;
       }
+      // ARM → DETECT: the kept faces are measured before the POST; only a confirmed answer flies them.
+      const picker = this.$refs.carryPicker as {keptFaces?: () => Map<CardName, {el: HTMLElement, rect: DOMRect}>} | undefined;
+      const kept = picker?.keptFaces?.() ?? new Map<CardName, {el: HTMLElement, rect: DOMRect}>();
       const ok = await submitCampaignCarryover(playerId, this.carryDraft);
       if (ok) {
         this.carryDirty = false;
         this.carryArmed = false;
+        this.flyKeptIntoMission(kept);
         this.overlay = undefined;
         // ONE FLOW: the confirmation was the readiness press. Everyone lands
         // back on the map — the wait strip states the next move (the ready

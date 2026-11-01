@@ -96,6 +96,12 @@ export type CampaignMapVm = {
   carryoverConfirmed: boolean;
   yourCarryCards: ReadonlyArray<CardName>;
   yourEligibleCards: ReadonlyArray<CardName>;
+  /**
+   * The viewer's CARRY LIMIT — a variable of the seat, the server's number (`CampaignCarryoverModel.yourLimit`). THE one
+   * reader every carryover surface asks (the toggle, the manifest, the question line, the summary); 0 when the window
+   * names no limit for the viewer.
+   */
+  yourCarryLimit: number;
   championSeats: ReadonlyArray<number>;
 };
 
@@ -233,6 +239,7 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
     carryoverConfirmed: yourCarry?.status === 'confirmed',
     yourCarryCards: model.carryover?.yourCards ?? [],
     yourEligibleCards: model.carryover?.yourEligible ?? [],
+    yourCarryLimit: model.carryover?.yourLimit ?? 0,
     championSeats,
   };
 }

@@ -4,6 +4,12 @@
 > addenda marked ✅), including the approval-time addition of **project carryover**
 > («Наследие проектов», §2.12).
 >
+> **Addendum 2026-11-01 (P87 · DR):** the carry limit is a VARIABLE OF THE SEAT (`CarryoverSeatState.limit`, written by
+> `server/campaign/carryoverLimit.ts` `carryoverLimitFor` — default 2, the modifier point named; public
+> `CarryoverSeatPublic.limit` / `CampaignCarryoverModel.yourLimit`), and the picker stands on the HAND ALBUM'S chassis
+> (`foundation/ConsoleCardAlbum` + the spine + `ConsoleWsHead`; keeping is a toggle in place; the entry a deal from the
+> seat row, the confirm a flight into the next mission's card) — `docs/claude/console/card-album.md`.
+>
 > Shipped: the server campaign domain (`src/server/campaign/` — manager, standings,
 > mission setup; `IDatabase` ×3 backends; routes `api/campaign[/create|/launch|
 > /carryover|/dev]`; rollback guards; purge exemption; durable create-idempotency via
@@ -737,7 +743,7 @@ campaign.generator = {seed, version: CAMPAIGN_GENERATOR_VERSION, pool: [...pool]
 
 ### 2.12 ✅ Project carryover — «Наследие проектов» (added at approval)
 
-After missions 1–3 each **human** seat may keep 0–2 project cards from their actual
+After missions 1–3 each **human** seat may keep 0–`limit` project cards (the SEAT's limit — default 2, P87) from their actual
 terminal hand; the cards travel ONLY into the immediately-next mission. MarsBot never
 participates and receives no compensation. No fee to keep, no fee to receive (the card
 arrives in hand free; playing it later costs its normal price). Nothing else of the hand
@@ -752,7 +758,8 @@ carryover?: {
   sourceSlot: number;                       // == pointer's committed slot
   bySeat: Record<number /*seat*/, {
     status: 'pending' | 'confirmed';
-    cards: ReadonlyArray<CardName>;         // 0..2, validated server-side
+    cards: ReadonlyArray<CardName>;         // 0..limit, validated server-side
+    limit?: number;                         // the SEAT's carry limit (P87) — absent on an old save = the default
     consumed: boolean;                      // set atomically by the next launch
   }>;
 };
@@ -764,7 +771,7 @@ carryover?: {
   auto-`confirmed` with 0 cards.
 - Selection route (`POST /api/campaign/carryover`): owner-only (their mission PlayerId
   is the bearer token), re-validates every card against the recorded terminal hand,
-  rejects duplicates/`>2`/forged names/non-project cards; idempotent re-submit;
+  rejects duplicates/`>limit`/forged names/non-project cards; idempotent re-submit;
   revisable while `pending || confirmed` and the next mission is not launched.
 - Launch gate: the creator can launch the next mission only when every human seat is
   `confirmed` (0 cards counts). Launch atomically marks all selections `consumed` in the

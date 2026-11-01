@@ -3052,6 +3052,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'summit-logistics' | 'summit-logistics-locked' |
   // P79 Microgravity Nutrition — a counted production declaration: 2 colonies → the hand plate «+2», M€ production 0 → 2.
   'microgravity-nutrition' |
+  // P87 Venus Allies — a declaration: Venus 12 → 16 % (TR +3 with the 16 % bonus), 2 colonies → +8 M€, titanium pays.
+  'venus-allies' |
   // Prelude 2 P72 Envoys from Venus — the first EVENT whose whole play is a delegate grant (CZ): 3 Venus tags (Venus Governor ·
   // Dirigibles), a government outside the voting area, reserve 6 · red already on the first resolution (the pair turns the lead) · locked at 2.
   'envoys-from-venus' | 'envoys-from-venus-overtake' | 'envoys-from-venus-locked' |

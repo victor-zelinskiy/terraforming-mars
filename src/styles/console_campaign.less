@@ -477,14 +477,13 @@
   to { opacity: 1; transform: none; }
 }
 
-/* ── The carryover picker («Наследие проектов») — a WORKSPACE-STEP STAGE ──
-   Full central stage over its own shade (never a floating card): head →
-   the keep-slots hero band → the terminal hand fitted by the shared stage
-   engine (`consoleWsStageLayout` publishes --con-cards-zoom / gaps / the
-   wrap cap onto the row) → one reserved status line. The entrance is a
-   one-shot cascade (shade → stage → slots/cards staggered via --i), all
-   transform/opacity, `backwards` fill so the pre-delay frame is already
-   the entry's first frame. */
+/* ── The carryover step («Наследие проектов») — ON THE HAND ALBUM'S CHASSIS (P87) ──
+   One opaque stage (PL-137 — a full page between the host's bars, never a veil over the map): the ONE workspace head
+   (`ConsoleWsHead`), the hand's own QUESTION LINE with the running summary, the SEAT MANIFEST, the album
+   (`.con-album` — the chassis mixins of `console_card_album.less`: no geometry, no cursor, no frame of its own here),
+   and the FOOT — the album spine and one reserved status line at the workspace foot height. No standing halo:
+   a kept card is a kant + its band (VISUAL RESTRAINT). The entry is the host's DEAL from the seat row — never a
+   cascade of independent fade-ins; the stage itself only resolves out of the opaque room tone. */
 .con-carry {
   position: absolute;
   inset: 0;
@@ -495,15 +494,10 @@
   &__shade {
     position: absolute;
     inset: 0;
-    /* A FULL PAGE, never a veil: the carryover pick is its own screen, and
-       the mission map ghosting through a translucent shade read as a modal
-       rendered OVER an interface the player was supposedly still on. Opaque
-       room tone (the workspace-plate voice) with a quiet upper glow — the
-       map's dim/scale beneath stays as the LEAVE's return context only. */
     background:
         radial-gradient(120% 85% at 50% 0%, rgba(24, 38, 56, 0.55), transparent 62%),
         #070d15;
-    animation: con-carry-shade-in calc(240ms * var(--motion-scale, 1)) ease backwards;
+    animation: con-carry-shade-in calc(200ms * var(--motion-scale, 1)) ease backwards;
   }
   &__stage {
     position: relative;
@@ -512,176 +506,82 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 0.9rem;
-    /* The bottom inset clears the host's command bar — the status line is
-       the stage's last voice and may never sink under the bar. */
-    padding: 1.5rem 3rem 3.4rem;
-    animation: con-carry-stage-in calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+    gap: 0.45rem;
+    /* The bottom inset clears the host's command bar — the foot is the stage's last voice. */
+    padding: 1.1rem 2.6rem 3.4rem;
+  }
+  &__head { flex: 0 0 auto; }
+
+  /* The question line (the hand's chassis) — the ask yields first, the summary keeps its words. */
+  &__question { padding: 0 .3rem; }
+  &__ask { color: #d6f3ff; }
+  /* The summary in the KEEP tone (mint), the sale bar's shape. */
+  &__summary .con-hand__salebar-item--gain {
+    background: linear-gradient(180deg, fade(@con-mint, 20%), fade(@con-mint, 9%)), rgba(14, 22, 33, 0.55);
+    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 78%);
+    color: #d8fbe9;
+  }
+  &__summary .con-hand__salebar-item:not(.con-hand__salebar-item--gain):not(.con-hand__salebar-item--zero) {
+    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 36%);
   }
 
-  &__head {
+  /* THE SEAT MANIFEST — one plaque per seat of the limit (the draft shelf's seat grammar): an empty seat is its
+     number on a dotted hairline, a taken seat its number + the card's NAME on a solid mint kant. A label, never a face. */
+  &__seats {
+    flex: 0 0 auto;
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.35rem;
-    animation: con-carry-in calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
-    animation-delay: calc(60ms * var(--motion-scale, 1));
-  }
-  &__kicker {
-    font-size: 1.05rem;
-    letter-spacing: 0.32em;
-    text-transform: uppercase;
-    color: #ecd39a;
-  }
-  &__lede {
-    max-width: 42rem;
-    text-align: center;
-    color: #b9c6d6;
-    font-size: 0.9rem;
-    line-height: 1.45;
-  }
-
-  /* The keep band: two reserved slots + the counter, the stage's hero row. */
-  &__keep {
-    display: flex;
-    align-items: center;
-    gap: 1.6rem;
-  }
-  &__slots {
-    display: flex;
-    align-items: center;
-    gap: 1.1rem;
-  }
-  /* The slot box and the card zoom are ONE pair: the .pcard is 320×460 at
-     zoom 1, so 0.6 → 192×276 px (9.6×13.8 rem @20px) inside a 10×14.2 rem
-     frame. Changing one without the other crops the kept card. */
-  &__slot {
-    width: 10rem;
-    height: 14.2rem;
-    border-radius: 0.55rem;
-    border: 1px dashed rgba(214, 178, 106, 0.5);
-    background: rgba(14, 20, 30, 0.55);
-    display: flex;
-    align-items: center;
     justify-content: center;
-    overflow: hidden;
-    animation: con-carry-in calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
-    animation-delay: ~"calc((110ms + var(--i, 0) * 60ms) * var(--motion-scale, 1))";
-
-    &--filled {
-      border-style: solid;
-      border-color: rgba(240, 208, 130, 0.75);
-      box-shadow: 0 0 0 1px rgba(240, 208, 130, 0.25), 0 0.5rem 1.4rem rgba(0, 0, 0, 0.45);
-    }
-
-    :is(.card-container, .pcard) {
-      margin: 0;
-      zoom: ~"calc(0.6 * var(--con-ui-scale, 1))";
-    }
+    min-width: 0;
   }
-  &__slot-empty {
-    width: 2.4rem;
-    height: 2.4rem;
-    border-radius: 50%;
-    border: 1px dashed rgba(154, 176, 202, 0.4);
+  &__seats-row {
+    display: inline-flex;
+    gap: .55rem;
+    min-width: 0;
+    max-width: 100%;
   }
-  &__counter {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    min-width: 10rem;
-    animation: con-carry-in calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
-    animation-delay: calc(220ms * var(--motion-scale, 1));
-  }
-  &__counter-num {
-    font-size: 1.6rem;
-    color: #f2e9d8;
-    letter-spacing: 0.1em;
-  }
-  &__counter-note {
-    font-size: 0.8rem;
-    color: #8fa2b8;
-  }
-
-  /* The terminal hand — the fitted grid. The row takes the REST of the
-     stage; the engine owns zoom, gaps and the wrap cap (its outputs land
-     as inline custom properties on this very element). */
-  &__row {
-    flex: 1 1 auto;
-    min-height: 0;
-    width: 100%;
-    max-width: var(--con-ws-stage-rowmax, 100%);
-    margin: 0 auto;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-content: center;
+  &__seat {
+    display: inline-flex;
     align-items: center;
-    column-gap: var(--con-ws-stage-gap, 0.9rem);
-    row-gap: var(--con-ws-stage-rowgap, 0.9rem);
-    padding: 0.4rem 0;
+    gap: .45rem;
+    min-width: 2.4rem;
+    max-width: 18rem;
+    height: 2.1rem;
+    padding: 0 .75rem;
+    font-size: .9rem;
+    border-radius: .35rem;
+    background: rgba(14, 22, 33, 0.6);
+    box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.32);
+    outline: .05rem dotted rgba(150, 175, 205, 0.32);
+    outline-offset: -.2rem;
+    color: @con-text-dim;
+    white-space: nowrap;
+    transition:
+      background calc(180ms * var(--motion-scale, 1)) ease,
+      box-shadow calc(180ms * var(--motion-scale, 1)) ease,
+      color calc(180ms * var(--motion-scale, 1)) ease;
+
+    &--taken {
+      background: linear-gradient(180deg, fade(@con-mint, 16%), fade(@con-mint, 6%)), rgba(14, 22, 33, 0.6);
+      box-shadow: inset 0 0 0 .06rem fade(@con-mint, 80%);
+      outline-color: transparent;
+      color: #d8fbe9;
+    }
+  }
+  &__seat-num {
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+  &__seat-name {
+    min-width: 0;
     overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 700;
+    letter-spacing: .02rem;
+    animation: con-carry-seat-in calc(180ms * var(--motion-scale, 1)) @con-ease-standard backwards;
   }
-  &__card {
-    position: relative;
-    padding: 0.25rem;
-    border: none;
-    border-radius: 0.45rem;
-    background: transparent;
-    cursor: pointer;
-    transition: transform calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
-    animation: con-carry-in calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
-    animation-delay: ~"calc((160ms + min(var(--i, 0) * 26ms, 420ms)) * var(--motion-scale, 1))";
 
-    :is(.card-container, .pcard) {
-      margin: 0;
-      zoom: var(--con-cards-zoom, 1);
-    }
+  &__album { flex: 1 1 auto; }
 
-    /* The focused card pops by exactly the reserve the engine bought
-       (WS_STAGE_FOCUS_SCALE) — the ring never grows over a neighbour. */
-    &--cursor {
-      transform: scale(var(--con-ws-focus-scale, 1.045));
-      z-index: 2;
-      box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85), 0 0.5rem 1.3rem rgba(0, 0, 0, 0.45);
-    }
-    /* AWAY — the card physically lives in its slot (one visual owner): the
-       socket keeps its exact box (visibility, never display — the return
-       flight aims at this rect) and reads as an empty seat. */
-    &--away {
-      :is(.card-container, .pcard) { visibility: hidden; }
-      &::after {
-        content: '';
-        position: absolute;
-        inset: 0.25rem;
-        border: 1px dashed rgba(154, 176, 202, 0.45);
-        border-radius: 0.45rem;
-        pointer-events: none;
-      }
-    }
-    &--away&--cursor {
-      box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85);
-      &::after { border-color: rgba(120, 200, 255, 0.6); }
-    }
-    &--dimmed { opacity: 0.55; }
-    &--unavailable { opacity: 0.45; }
-  }
-  /* A slot awaiting its inbound flight withholds the real face — touchdown
-     is what reveals it (never a crossfade of identical twins). */
-  &__slot--inbound :is(.card-container, .pcard) { visibility: hidden; }
-  &__unavail {
-    position: absolute;
-    left: 0.3rem;
-    right: 0.3rem;
-    bottom: 0.4rem;
-    padding: 0.15rem 0.3rem;
-    border-radius: 0.25rem;
-    background: rgba(48, 26, 18, 0.92);
-    color: #e0a48b;
-    font-size: 0.68rem;
-    text-align: center;
-  }
   &__empty {
     flex: 1 1 auto;
     display: flex;
@@ -691,8 +591,6 @@
     gap: 0.5rem;
     color: #8fa2b8;
     font-size: 0.95rem;
-    animation: con-carry-in calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
-    animation-delay: calc(180ms * var(--motion-scale, 1));
   }
   &__empty-mark {
     width: 3.4rem;
@@ -710,12 +608,24 @@
     text-align: center;
     line-height: 1.5;
   }
-  /* One reserved line — the armed warning, the confirmation state or an
-     error land here without moving the stage. */
+
+  /* THE FOOT — the spine (where you are) beside one reserved status line (what the step says now); a fixed height,
+     one line, never a min-height (the album above must not re-solve on a status change). */
+  &__foot {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.2rem;
+    height: var(--con-ws-foot-h, 2.4rem);
+    overflow: hidden;
+  }
   &__status {
-    min-height: 1.5rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 0.9rem;
-    text-align: center;
   }
   &__status-ok { color: #9fc3a4; }
   &__status-err { color: #e0a48b; }
@@ -730,18 +640,32 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
-@keyframes con-carry-stage-in {
-  from { opacity: 0; transform: translateY(0.7rem) scale(0.988); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes con-carry-in {
-  from { opacity: 0; transform: translateY(0.5rem) scale(0.97); }
+@keyframes con-carry-seat-in {
+  from { opacity: 0; transform: translateX(-.3rem); }
   to { opacity: 1; transform: none; }
 }
 
-/* The map hosts the picker as its central stage — the wrapper is pure
-   position (the picker brings its own shade); the LEAVE is the map's
-   Vue transition (the enter is the picker's internal cascade). */
+/* The seat plaque's enter / leave — a short phrase on the toggle (180 ms), opacity + a hair of travel. */
+.con-carry-seat-enter-active,
+.con-carry-seat-leave-active {
+  transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
+}
+.con-carry-seat-enter-from,
+.con-carry-seat-leave-to { opacity: 0; }
+
+/* The next mission's card ANSWERS each kept card's touchdown — a one-shot kant impulse that ends on its own (an
+   event the player must not miss: the legacy has arrived), never a standing light. */
+.cmap__card--receiving {
+  animation: cmap-card-receive calc(420ms * var(--motion-scale, 1)) @con-ease-standard;
+}
+@keyframes cmap-card-receive {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.035); }
+  100% { transform: scale(1); }
+}
+
+/* The map hosts the step as its central stage — the wrapper is pure position (the stage brings its own room tone);
+   the LEAVE is the map's Vue transition. */
 .cmap__carry-overlay {
   position: fixed;
   inset: 0;
@@ -749,17 +673,9 @@
 }
 .cm-carry-leave-active {
   transition: opacity calc(170ms * var(--motion-scale, 1)) ease;
-
-  .con-carry__stage {
-    transition: transform calc(170ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
-  }
 }
 .cm-carry-leave-to {
   opacity: 0;
-
-  .con-carry__stage {
-    transform: translateY(0.5rem) scale(0.99);
-  }
 }
 
 /* ── The creator's stage 0: the session-mode pick ────────────────────── */
@@ -1058,8 +974,7 @@
   }
   .cmap__lane-fill,
   .cmap__card,
-  .cm-mode__tile,
-  .con-carry__card {
+  .cm-mode__tile {
     transition: none;
   }
 }

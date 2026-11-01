@@ -90,7 +90,7 @@ describe('campaignMapModel', () => {
     expect(vm.yourEligibleCards).has.length(2);
     // The rail shows the OTHER seat's status as count only (privacy: no names).
     const bruno = vm.rail.find((r) => r.seat === 1)!;
-    expect(bruno.carry).deep.eq({status: 'confirmed', count: 2, limit: 2});
+    expect(bruno.carry).deep.eq({status: 'confirmed', count: 2});
   });
 
   it('interlude: a confirmed non-creator stands READY — waiting CTA with the auto-join promise', () => {

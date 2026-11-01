@@ -127,7 +127,9 @@ test.describe('campaign map', () => {
     // the interlude's entry is the mandatory step, not a button hunt.
     await openMapAs(page, id, 'Bruno');
     await page.waitForSelector('.con-carry', {timeout: 20_000});
-    await expect(page.locator('.con-carry__card')).toHaveCount(2);
+    // P87: the step stands on the HAND ALBUM's chassis — the cards are album slots, the head is the ONE workspace head.
+    await expect(page.locator('.con-carry .con-album__slot')).toHaveCount(2);
+    await expect(page.locator('.con-carry .con-wshead')).toBeVisible();
 
     // X = INSPECT (the console-wide verb): the cursored card opens in the
     // SHARED fullscreen viewer through the `consoleCardZoom` module — served
@@ -171,11 +173,14 @@ test.describe('campaign map', () => {
 
     // THE CHANGE DOOR: an accidental «continue without cards» is correctable
     // until the launch consumes the selection — Y re-opens the SAME picker
-    // (its own cascade entrance), a card is taken, the confirm re-submits.
+    // (no deal — the cards are already here), a card is kept, the confirm re-submits.
     await press(page, 'KeyY', 800);
     await page.waitForSelector('.con-carry', {timeout: 10_000});
-    await expect(page.locator('.con-carry__card')).toHaveCount(2);
-    await press(page, 'Enter', 500); // take the cursored card
+    await expect(page.locator('.con-carry .con-album__slot')).toHaveCount(2);
+    await press(page, 'Enter', 500); // keep the cursored card — a toggle IN PLACE: the kant + the band, nothing flies away
+    await expect(page.locator('.con-carry .con-album__slot--picked')).toHaveCount(1);
+    await expect(page.locator('.con-carry [data-album-band]')).toHaveCount(1);
+    await expect(page.locator('.con-carry [data-carry-seat-card]')).toHaveCount(1);
     await press(page, 'Period', 800); // RT «Сохранить выбор» — one press, draft > 0
     await page.waitForSelector('.cmap__wait-strip--ready', {timeout: 20_000});
     const revised = await campaignModelAs(request, id, 'Bruno');

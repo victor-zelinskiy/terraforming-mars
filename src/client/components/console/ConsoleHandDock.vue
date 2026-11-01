@@ -110,60 +110,7 @@
                 class="con-handdock__num con-handdock__num--total con-handdock__num--insp">{{ inspection.count }}</span>
         </span>
       </span>
-      <span v-else-if="album !== undefined"
-            class="con-handdock__pager"
-            :class="{
-              'con-handdock__pager--single': album.pages <= 1,
-              'con-handdock__pager--held': transit,
-              'con-handdock__pager--fired-next': pageFlash === 'next',
-              'con-handdock__pager--fired-prev': pageFlash === 'prev',
-            }">
-        <span class="con-handdock__pager-well" aria-hidden="true"></span>
-        <button type="button" tabindex="-1"
-                class="con-handdock__pager-side con-handdock__pager-side--prev"
-                :class="{'con-handdock__pager-side--off': !album.canPrev}"
-                @click.stop="onPage(-1)">
-          <GamepadGlyph control="bumperL" />
-          <span class="con-handdock__pager-arrow" aria-hidden="true">‹</span>
-        </button>
-        <span class="con-handdock__pager-pos">
-          <!-- The POSITION: the current page is the line's loudest voice,
-               the total a calm companion. Both cells are fixed-width
-               (tabular digits + a reserved 2ch box), so 1/4 → 10/12 never
-               moves the centre. The current number swaps DIRECTIONALLY —
-               keyed on the page so Vue re-creates it, with the turn's own
-               direction driving which way it enters. -->
-          <span class="con-handdock__pager-now" :class="`con-handdock__pager-now--${turnDir}`">
-            <b :key="album.page">{{ album.page }}</b>
-          </span>
-          <span class="con-handdock__pager-slash" aria-hidden="true">/</span>
-          <span class="con-handdock__pager-total">{{ album.pages }}</span>
-        </span>
-        <button type="button" tabindex="-1"
-                class="con-handdock__pager-side con-handdock__pager-side--next"
-                :class="{'con-handdock__pager-side--off': !album.canNext}"
-                @click.stop="onPage(1)">
-          <span class="con-handdock__pager-arrow" aria-hidden="true">›</span>
-          <GamepadGlyph control="bumperR" />
-        </button>
-        <!-- The PROGRESS hairline under the numbers: segmented while the
-             segments stay legible, one continuous filled line past that
-             (never a dust of micro-dots, never a loading bar). Absolutely
-             positioned — it can never grow the bay's height. -->
-        <span v-if="album.pages > 1" class="con-handdock__pager-track" aria-hidden="true">
-          <template v-if="album.pages <= 8">
-            <span v-for="p in album.pages" :key="p"
-                  class="con-handdock__pager-seg"
-                  :class="{
-                    'con-handdock__pager-seg--on': p === album.page,
-                    'con-handdock__pager-seg--past': p < album.page,
-                  }"></span>
-          </template>
-          <span v-else class="con-handdock__pager-bar">
-            <span class="con-handdock__pager-bar-fill" :style="progressStyle"></span>
-          </span>
-        </span>
-      </span>
+      <ConsoleAlbumSpine v-else-if="album !== undefined" :album="album" :held="transit" @page="$emit('page', $event)" />
       <span v-else class="con-handdock__status">
         <!-- THE ARMED ONE-PLAY EFFECT's compact twin (TR49 class) stands IN THE LABEL'S PLACE while something is armed:
              «⚡ ТРЕБ. 4/4» — what the next card spends, readable from the board. The plate is a low trapezoid: beside the
@@ -230,8 +177,8 @@ import {DockInspectionView, InspectionFanSlot} from '@/client/console/handDock/d
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
-import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleArmedEffectsStrip from '@/client/components/console/ConsoleArmedEffectsStrip.vue';
+import ConsoleAlbumSpine, {AlbumSpinePosition} from '@/client/components/console/foundation/ConsoleAlbumSpine.vue';
 import {PresentedArmedEffect} from '@/client/console/armedEffectFlight';
 
 /**
@@ -242,17 +189,11 @@ import {PresentedArmedEffect} from '@/client/console/armedEffectFlight';
  * the header's «ВСЕ 14» chip and the page's own cards are on screen. What
  * they need is where they are and how far the album goes.
  */
-export type HandDockAlbum = {
-  /** 1-based current page and the page count. */
-  page: number,
-  pages: number,
-  canPrev: boolean,
-  canNext: boolean,
-};
+export type HandDockAlbum = AlbumSpinePosition;
 
 export default defineComponent({
   name: 'ConsoleHandDock',
-  components: {AnimatedMetricValue, GamepadGlyph, ConsoleArmedEffectsStrip},
+  components: {AnimatedMetricValue, ConsoleArmedEffectsStrip, ConsoleAlbumSpine},
   props: {
     /**
      * THE ALBUM SPINE: while the hand album owns the cards, the bay centre
@@ -338,14 +279,6 @@ export default defineComponent({
       /** A card just landed — the short "the pack accepts it" pulse. */
       receiving: false,
       receiveTimer: undefined as ReturnType<typeof setTimeout> | undefined,
-      /** Which way the last page turn went — the number enters from the
-       *  opposite side, so the swap reads as the album moving. */
-      turnDir: 'next' as 'next' | 'prev',
-      /** An ACTUAL page change just landed — the side chip of the turn's
-       *  direction fires once (`--fired-*`), the instrument's half of the
-       *  beat the album's edge gate answers with its kick. */
-      pageFlash: undefined as 'next' | 'prev' | undefined,
-      pageFlashTimer: undefined as ReturnType<typeof setTimeout> | undefined,
     };
   },
   computed: {
@@ -366,32 +299,8 @@ export default defineComponent({
       const shown = this.inspection !== undefined ? this.inspection.count : this.count;
       return `${translateText('Cards in hand')}: ${shown}`;
     },
-    /** The continuous progress fill (many-page albums). */
-    progressStyle(): Record<string, string> {
-      const a = this.album;
-      if (a === undefined || a.pages <= 1) {
-        return {width: '0%'};
-      }
-      return {width: `${(a.page / a.pages) * 100}%`};
-    },
   },
   watch: {
-    /** Remember the DIRECTION of a page change for the number's swap, and
-     *  fire the matching side chip once (the flash rides the SAME edge —
-     *  an availability/filter re-derive without a page move fires nothing). */
-    album(now: HandDockAlbum | undefined, was: HandDockAlbum | undefined) {
-      if (now !== undefined && was !== undefined && now.page !== was.page) {
-        this.turnDir = now.page > was.page ? 'next' : 'prev';
-        this.pageFlash = this.turnDir;
-        if (this.pageFlashTimer !== undefined) {
-          clearTimeout(this.pageFlashTimer);
-        }
-        this.pageFlashTimer = setTimeout(() => {
-          this.pageFlash = undefined;
-          this.pageFlashTimer = undefined;
-        }, motionMs(300));
-      }
-    },
     /** A landing (or any growth) — the pack "accepts" the card: a short
      *  spread-breathe + plate glow, riding the cards' own transitions. */
     count(now: number, was: number) {
@@ -410,9 +319,6 @@ export default defineComponent({
   beforeUnmount() {
     if (this.receiveTimer !== undefined) {
       clearTimeout(this.receiveTimer);
-    }
-    if (this.pageFlashTimer !== undefined) {
-      clearTimeout(this.pageFlashTimer);
     }
   },
   methods: {
@@ -440,13 +346,6 @@ export default defineComponent({
         zIndex: String(3 + i),
         transform: `translateX(-50%) translate(${s.xRem}rem, ${f.sinkRem}rem) scale(${f.scale})`,
       };
-    },
-    /** A pager side clicked — the shell turns the album page. A muted side
-     *  still swallows the click (the edge is felt, nothing else happens). */
-    onPage(dir: 1 | -1): void {
-      if (this.album !== undefined && (dir === 1 ? this.album.canNext : this.album.canPrev)) {
-        this.$emit('page', dir);
-      }
     },
   },
 });
