@@ -9837,6 +9837,80 @@ stratosphericExpeditionFixture('stratospheric-expedition', 'choice');
 stratosphericExpeditionFixture('stratospheric-expedition-sole', 'sole');
 stratosphericExpeditionFixture('stratospheric-expedition-noholder', 'noholder');
 
+// ── P89 · VENUS SHUTTLES — the TWENTY-THIRD Prelude 2 card (docs/claude/prompts/prelude2-p89-venus-shuttles.md):
+//    «spend 12 M€ minus 1 per Venus tag → Venus +1 step» (the SP1a Air Scrapping variant's own shape, cheaper, in
+//    «ДЕЙСТВИЯ КАРТ») + «add 2 floaters to ANY Venus card» on its play. A solo Venus + Prelude 2 table (Teractor — no
+//    Venus tag), blue on the move:
+//      · `venus-shuttles`        — P89 on the table + Dirigibles: TWO Venus tags → the price 10 (the capsule «−2»),
+//                                  15 M€, Venus 10 % → 12 %;
+//      · `venus-shuttles-poor`   — the same at 9 M€: the tile blocked by «Need 1 more M€»;
+//      · `venus-shuttles-max`    — Venus 30 %: legal, futile «Venus is at its maximum»;
+//      · `venus-shuttles-alt16`  — the alternative Venus board at 16 %: the step into 18 % raises the Venus bonus;
+//      · `venus-shuttles-play`   — P89 in the hand, Dirigibles (a Venus holder) + Jupiter Floating Station (a floater
+//                                  holder WITHOUT a Venus tag): one candidate, seeded and SHOWN (T14).
+//    A DRY RUN on a copy proves each claim. ──
+function venusShuttlesFixture(name: string, variant: 'base' | 'poor' | 'max' | 'alt16' | 'play'): void {
+  const {game, player} = soloActionPhase({
+    venusNextExtension: true, prelude2Expansion: true, customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
+    ...(variant === 'alt16' ? {altVenusBoard: true} : {}),
+  });
+  const take = (n: CardName) => {
+    moveToDeckTop(game, n);
+    return game.projectDeck.drawOrThrow(game);
+  };
+  player.playedCards.push(take(CardName.DIRIGIBLES));
+  const shuttles = take(CardName.VENUS_SHUTTLES);
+  if (variant === 'play') {
+    player.playedCards.push(new JupiterFloatingStation());
+    player.cardsInHand.push(shuttles);
+  } else {
+    player.playedCards.push(shuttles);
+  }
+  player.megaCredits = variant === 'poor' ? 9 : 15;
+  setVenusScaleLevel(game, variant === 'max' ? 30 : variant === 'alt16' ? 16 : 10);
+  runAllActions(game);
+  // THE DRY RUN — the real action / play on a copy.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(player.id);
+  if (variant === 'play') {
+    blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.VENUS_SHUTTLES)!, Payment.of({megacredits: 9}));
+    runAllActions(copy);
+    const ask = blue.getWaitingFor();
+    if (!(ask instanceof SelectCard) || ask.cards.map((c) => c.name).join(',') !== CardName.DIRIGIBLES) {
+      throw new Error(`the ${name} fixture expected the floater pick to offer Dirigibles alone — got ${ask?.constructor.name}`);
+    }
+  } else {
+    const card = blue.playedCards.get(CardName.VENUS_SHUTTLES) as IActionCard & ICard;
+    const can = card.canAct(blue);
+    if (variant === 'poor') {
+      if (can) {
+        throw new Error(`the ${name} fixture expected P89 blocked at 9 M€`);
+      }
+    } else {
+      if (!can) {
+        throw new Error(`the ${name} fixture expected P89 actable`);
+      }
+      card.action(blue);
+      runAllActions(copy);
+      const facts = {mc: blue.megaCredits, venus: copy.getVenusScaleLevel(), bonus: blue.getWaitingFor()?.venusBonusPrompt?.kind};
+      const want = {
+        mc: 5,
+        venus: variant === 'max' ? 30 : variant === 'alt16' ? 18 : 12,
+        bonus: variant === 'alt16' ? 'standard' : undefined,
+      };
+      if (JSON.stringify(facts) !== JSON.stringify(want)) {
+        throw new Error(`the ${name} fixture's dry run read ${JSON.stringify(facts)} — expected ${JSON.stringify(want)}`);
+      }
+    }
+  }
+  write(name, game);
+}
+venusShuttlesFixture('venus-shuttles', 'base');
+venusShuttlesFixture('venus-shuttles-poor', 'poor');
+venusShuttlesFixture('venus-shuttles-max', 'max');
+venusShuttlesFixture('venus-shuttles-alt16', 'alt16');
+venusShuttlesFixture('venus-shuttles-play', 'play');
+
 // ── P86 · UNEXPECTED APPLICATION — the TWENTIETH Prelude 2 card (docs/claude/prompts/prelude2-p86-unexpected-
 //    application.md): a Venus EVENT, 4 M€, «discard 1 card to raise Venus 1 step» — the play's PRICE is a card out of
 //    the hand, pre-collected as the play's FIRST step (the album opens from the play sheet as a pre-select; the card

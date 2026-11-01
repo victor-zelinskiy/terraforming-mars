@@ -4236,13 +4236,27 @@ export default defineComponent({
     },
     /** …and the same classification, gated on the `host` admission so a reveal
      *  still owns the foreground while it plays. */
+    /**
+     * THE SCALE BONUS IS OWED BEHIND ITS STEP'S STORY (P89 · DZ): the bonus prompt rides the commit's own response, while
+     * the workspace that made the step still covers the board — the admission's `board-story` block is raised only on a
+     * board in plain view, so the band rose OVER the workspace and the step's story then played under it (the marker
+     * still on 16 % under «Разместите бонус шкалы Венеры»). While the park owes the story, the band waits; the workspace
+     * leaves (it never waits for this prompt), the board tells the step, the band stands. A colony trade and a sitting
+     * tell the scales by their OWN laws (the trade's park under the covered stage, the sitting's world beat) — there the
+     * band keeps the host family's admission.
+     */
+    scaleBonusOwesStory(): boolean {
+      void boardBeatParkState.heldParams;
+      return (boardBeatParkPending() || boardBeatParkState.draining) &&
+        !workspaceFrameKnown('colonies') && !workspaceFrameKnown('parliament');
+    },
     nativeCompositeTask(): ConsoleTask | undefined {
       if (this.pendingClientPayment !== undefined || this.pendingClientPick !== undefined || !this.admits('host')) {
         return undefined;
       }
       const task = taskFor(this.playerView);
       // The alternative Venus board's bonus band waits for the board's story of the step that earned it (P89 · DZ).
-      if (task?.kind === 'venusBonus' && !this.admits('scaleBonus')) {
+      if (task?.kind === 'venusBonus' && (!this.admits('scaleBonus') || this.scaleBonusOwesStory)) {
         return undefined;
       }
       return task !== undefined && NATIVE_COMPOSITE_KINDS.has(task.kind) ? task : undefined;
