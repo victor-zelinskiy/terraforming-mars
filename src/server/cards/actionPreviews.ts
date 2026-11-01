@@ -19,7 +19,7 @@ import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS, TEMPERATURE_FOR_OCEAN_BONUS} from '../../common/constants';
 import {parameterRoom} from '../../common/parliament/parameterMove';
 import {tileRemovalRoom} from '../../common/parliament/tileRemoval';
-import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis, ActionEffectBasisSetSide, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel, NeutralRallyModel} from '../../common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis, ActionEffectBasisSetSide, ActionRevealDescriptor, ActionRevealSplitDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel, NeutralRallyModel} from '../../common/models/ActionPreviewModel';
 import {AllColonyBonusesModel} from '../../common/models/ColonyBonusLedgerModel';
 import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
 import {AmountConversionModel, AmountCostModel, AmountResultModel, DiscardPromptMeta, PlacementEffect, PlayerInputModel, SelectColonyModel} from '../../common/models/PlayerInputModel';
@@ -1380,7 +1380,7 @@ export function singleBranch(
   player: IPlayer,
   steps: ReadonlyArray<ActionPreviewStep> = [],
   effects: ReadonlyArray<ActionEffect> = [],
-  opts: {reveal?: ActionRevealDescriptor, unavailableReason?: string | Message | UnplayableReason, colonyBonuses?: AllColonyBonusesModel} = {},
+  opts: {reveal?: ActionRevealDescriptor, revealSplit?: ActionRevealSplitDescriptor, unavailableReason?: string | Message | UnplayableReason, colonyBonuses?: AllColonyBonusesModel} = {},
 ): ActionPreview {
   const available = card.canAct(player);
   // A blocked branch ALWAYS names its blocker. `opts.unavailableReason` wins when
@@ -1403,6 +1403,7 @@ export function singleBranch(
     effects,
     steps: available ? steps : [],
     reveal: opts.reveal,
+    ...(opts.revealSplit !== undefined ? {revealSplit: opts.revealSplit} : {}),
     ...(opts.colonyBonuses !== undefined ? {colonyBonuses: opts.colonyBonuses} : {}),
   };
   return {...base(card), kind: 'bespoke', branches: [branch]};

@@ -48,6 +48,9 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   // exactly why the marker had to exist.
   {row: '13a deck keep-some', wf: {type: 'card', title: 'Select 2 card(s) to keep', buttonLabel: 'Select', cards: [{name: 'Birds'}, {name: 'Tardigrades'}], deckPickPrompt: {revealed: 2, min: 2, max: 2, origin: 'deck', mode: 'keep'}}, expect: {kind: 'deckSelect'}},
   {row: '13b discard-pile keep-some', wf: {type: 'card', title: 'Select 1 card(s) to keep', buttonLabel: 'Select', cards: [{name: 'Birds'}], deckPickPrompt: {revealed: 1, min: 1, max: 1, origin: 'discard', mode: 'keep'}}, expect: {kind: 'deckSelect'}},
+  // A PAYING reveal the player cannot afford (`max 0`, `buyMode` false — «You cannot afford any cards» / «Ok»)
+  // is still the PURCHASE, by its marker — never the generic target browser (P88 — and any paid draw on a dry wallet).
+  {row: '13d paying reveal, cannot afford', wf: {type: 'card', title: 'You cannot afford any cards', buttonLabel: 'Ok', cards: [{name: 'Birds'}], max: 0, min: 0, deckPickPrompt: {revealed: 2, min: 0, max: 0, origin: 'deck', mode: 'buy'}}, expect: {kind: 'cardSelect', mode: 'buy'}},
   // The MANDATORY TAKE of a draw ANOTHER player's effect made for the viewer —
   // an ordinary `SelectCard` on the wire, and the marker carries its whole
   // meaning (cause, initiator, trigger). Classified by type it lands in the

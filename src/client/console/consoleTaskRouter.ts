@@ -833,6 +833,13 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     if (wf.deckPickPrompt?.mode === 'keep') {
       return {kind: 'deckSelect'};
     }
+    // A PAYING reveal is the purchase BY ITS MARKER, whatever it can afford: `buyMode` is false at
+    // `max 0` («You cannot afford any cards» / «Ok» — the player still SEES what was turned over and
+    // where it goes), and that prompt used to fall through to the generic target browser — no deck,
+    // no source, no discard. The purchase stage reads `max 0` itself (nothing pickable, RT = OK).
+    if (wf.deckPickPrompt?.mode === 'buy') {
+      return {kind: 'cardSelect', mode: 'buy'};
+    }
     // Structural buy marker (ChooseCards) — NOT a `title.includes('buy')` sniff,
     // which broke once i18n rewrote the translatable title in place.
     if (wf.buyMode === true) {

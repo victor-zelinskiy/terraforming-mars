@@ -12215,3 +12215,149 @@ for (const [name, resolution, extra] of [
     },
   });
 }
+
+
+// ── P88 · VENUS ORBITAL SURVEY — the split reveal (the action on the table): blue's action phase, Venus Next + Prelude 2,
+//    the corporations pinned (Teractor / Thorgate — no first action), P88 on the table, 10 M€, the deck's TOP stacked BY
+//    NAME so the reveal is known: `-mixed` Venus Waystation (Venus) then Research (no Venus) — the companion + one buy;
+//    `-venus` two Venus cards — no question, one drawn batch; `-none` two non-Venus — the ordinary buy of two; `-poor` the
+//    mixed pair on 2 M€ — `max 0`, «В сброс · не хватает M€»; `-helion` the mixed pair with Helion's heat — the payment
+//    is a live prompt. A DRY RUN on a copy runs the action and answers it, so a rule change fails HERE. ──
+const VENUS_ORBITAL_SURVEY_TOPS: Record<'mixed' | 'venus' | 'none' | 'poor' | 'helion', readonly [CardName, CardName]> = {
+  'mixed': [CardName.VENUS_WAYSTATION, CardName.RESEARCH],
+  'venus': [CardName.VENUS_WAYSTATION, CardName.VENUSIAN_ANIMALS],
+  'none': [CardName.RESEARCH, CardName.ASTEROID],
+  'poor': [CardName.VENUS_WAYSTATION, CardName.RESEARCH],
+  'helion': [CardName.VENUS_WAYSTATION, CardName.RESEARCH],
+};
+function venusOrbitalSurveyFixture(name: string, variant: 'mixed' | 'venus' | 'none' | 'poor' | 'helion'): void {
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, venusNextExtension: true, prelude2Expansion: true,
+    customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
+  });
+  answerStartFlow(game, [p1, p2]);
+  if (variant === 'helion') {
+    // The deal does not seat a named corporation on a named seat: blue's is replaced through the real play.
+    for (const corp of p1.playedCards.corporations()) {
+      p1.playedCards.remove(corp);
+    }
+    p1.playCorporationCard(newCorporationCard(CardName.HELION)!);
+    runAllActions(game);
+  }
+  if (variant === 'helion' && !p1.tableau.has(CardName.HELION)) {
+    throw new Error(`the ${name} fixture expected blue to hold Helion — got another corporation`);
+  }
+  game.projectDeck.discardPile.push(...p1.cardsInHand.splice(0));
+  moveToDeckTop(game, CardName.VENUS_ORBITAL_SURVEY);
+  const survey = game.projectDeck.drawOrThrow(game);
+  p1.playedCards.push(survey);
+  p1.megaCredits = variant === 'poor' ? 2 : 10;
+  if (variant === 'helion') {
+    p1.heat = 5;
+  }
+  p2.megaCredits = 30;
+  const top = VENUS_ORBITAL_SURVEY_TOPS[variant];
+  stackDeckTop(game, top);
+  runAllActions(game);
+  if (game.activePlayer.id !== p1.id) {
+    throw new Error(`the ${name} fixture expected blue on the move — got ${game.activePlayer.color}`);
+  }
+  // THE DRY RUN — on a copy.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(p1.id);
+  const card = blue.playedCards.get(CardName.VENUS_ORBITAL_SURVEY) as IActionCard & ICard;
+  const hand = blue.cardsInHand.length;
+  card.action(blue);
+  runAllActions(copy);
+  const asked = blue.getWaitingFor();
+  if (variant === 'venus') {
+    if (asked !== undefined && asked instanceof SelectCard) {
+      throw new Error(`the ${name} fixture expected NO question for two Venus cards — got a SelectCard`);
+    }
+    if (blue.cardsInHand.length !== hand + 2 || blue.cardDrawReveals.length !== 1) {
+      throw new Error(`the ${name} fixture expected +2 in hand as one drawn batch — got +${blue.cardsInHand.length - hand}, ${blue.cardDrawReveals.length} batch(es)`);
+    }
+    write(name, game);
+    return;
+  }
+  if (!(asked instanceof SelectCard)) {
+    throw new Error(`the ${name} fixture expected the purchase — got ${asked?.constructor.name}`);
+  }
+  const meta = asked.deckPickPrompt;
+  const companions = meta?.companions?.cards.map((c) => c.name) ?? [];
+  const expectCompanions = variant === 'none' ? [] : [CardName.VENUS_WAYSTATION];
+  if (meta?.mode !== 'buy' || meta.revealed !== 2 || companions.join() !== expectCompanions.join() ||
+      meta.max !== (variant === 'poor' ? 0 : variant === 'none' ? 2 : 1)) {
+    throw new Error(`the ${name} fixture expected a buy marker revealing 2 with companions [${expectCompanions.join()}] — got ${JSON.stringify(meta)}`);
+  }
+  asked.cb(variant === 'poor' ? [] : [...asked.cards]);
+  runAllActions(copy);
+  if (variant === 'helion') {
+    // The payment is a live prompt (heat accepted) — its existence is the fixture's point; the walk pays it in the UI.
+    write(name, game);
+    return;
+  }
+  const kept = variant === 'poor' ? 1 : 2;
+  if (blue.cardsInHand.length !== hand + kept) {
+    throw new Error(`the ${name} fixture expected +${kept} in hand — got +${blue.cardsInHand.length - hand}`);
+  }
+  write(name, game);
+}
+venusOrbitalSurveyFixture('venus-orbital-survey-mixed', 'mixed');
+venusOrbitalSurveyFixture('venus-orbital-survey-venus', 'venus');
+venusOrbitalSurveyFixture('venus-orbital-survey-none', 'none');
+venusOrbitalSurveyFixture('venus-orbital-survey-poor', 'poor');
+venusOrbitalSurveyFixture('venus-orbital-survey-helion', 'helion');
+
+// ── P88 · THE «РАЗЫГРАНО» POLISH — the owner's frames (2026-11-01): a small early table with stacks of DIFFERENT heights
+//    (a corporation · two preludes, spread one under the other · one active · one automated · ONE event, face down; the
+//    corporation is Teractor / Thorgate, never the frame's Tharsis Republic — its mandatory first action would stand
+//    between the boot and the table).
+//    `played-table-polish`: solo, blue on the move — ◀/▶ walk the stacks in order, the lone event opens the category
+//    scene (lift + flip), the floor is the table's material. `played-table-draft`: two seats WITH the draft, the
+//    generation's draft standing at blue — collapse it, open the table, A on a category must open the CATEGORY. ──
+function playedPolishTableau(player: TestPlayer): void {
+  player.playedCards.push(
+    newPrelude(CardName.DONATION)!,
+    newPrelude(CardName.MOHOLE)!,
+    newProjectCard(CardName.SEARCH_FOR_LIFE)!,
+    newProjectCard(CardName.MINE)!,
+    newProjectCard(CardName.COMET)!,
+  );
+}
+{
+  const [game, player] = testGame(1, {skipInitialCardSelection: false, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]});
+  answerStartFlow(game, [player]);
+  playedPolishTableau(player);
+  player.megaCredits = 20;
+  runAllActions(game);
+  if (game.activePlayer.id !== player.id || !(player.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`played-table-polish: expected the solo seat on the move — got wf=${player.getWaitingFor()?.constructor.name}`);
+  }
+  write('played-table-polish', game);
+}
+{
+  const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false, draftVariant: true, customCorporationsList: [CardName.THORGATE, CardName.TERACTOR], startingCorporations: 1});
+  answerStartFlow(game, [p1, p2]);
+  // Both seats wear the table: the page boots on whichever seat the fixture's first player is.
+  playedPolishTableau(p1);
+  playedPolishTableau(p2);
+  p1.megaCredits = 20;
+  p2.megaCredits = 20;
+  // Red has passed; blue passes through the real menu — the production phase and the generation's draft follow at once.
+  p2.pass();
+  runAllActions(game);
+  const menu = p1.getWaitingFor();
+  const titleOf = (o: {title: unknown}) => typeof o.title === 'string' ? o.title : (o.title as {message?: string} | undefined)?.message ?? '';
+  const passIndex = menu instanceof OrOptions ? menu.options.findIndex((o) => titleOf(o) === 'Pass for this generation') : -1;
+  if (passIndex < 0) {
+    throw new Error(`played-table-draft: blue holds no pass option (wf=${menu?.constructor.name})`);
+  }
+  p1.process({type: 'or', index: passIndex, response: {type: 'option'}});
+  runAllActions(game);
+  const wf = p1.getWaitingFor();
+  if (!(wf instanceof SelectCard) || wf.draftPrompt === undefined) {
+    throw new Error(`played-table-draft: expected the draft pick standing at blue — got ${wf?.constructor.name}`);
+  }
+  write('played-table-draft', game);
+}

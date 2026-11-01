@@ -355,7 +355,8 @@ export function commitKindForBranch(
     return 'deck-check';
   }
   const effects = [...(branch.effects ?? []), ...chosenStepEffects(branch, stepResponses)];
-  if (effects.some((e) => e.direction === 'gain' && e.icon === 'cards')) {
+  // A split reveal (P88) is a draw: the impulse lands on the printed cards, the deck answers.
+  if (branch.revealSplit !== undefined || effects.some((e) => e.direction === 'gain' && e.icon === 'cards')) {
     return 'draw';
   }
   if ((branch.steps ?? []).some((s) => s.kind === 'boardPlacement')) {

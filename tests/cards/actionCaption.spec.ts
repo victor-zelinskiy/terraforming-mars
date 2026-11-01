@@ -138,14 +138,13 @@ describe('action captions (the action browser one-liner)', () => {
    * that makes that impossible is authoring-side and one line long: describe
    * every row you draw.
    *
-   * The two survivors are SAFE and stay listed rather than silently skipped:
-   * their modules generate no action information at all (asserted below), so
+   * The survivor is SAFE and stays listed rather than silently skipped:
+   * its module generates no action information at all (asserted below), so
    * there is no group to fold into and no caption to leak.
    */
   it('every printed action row carries its own description', () => {
     const SAFE_WITHOUT_INFORMATION: ReadonlyArray<string> = [
       'community/ProjectWorkshop.ts',
-      'prelude2/VenusOrbitalSurvey.ts',
     ];
     const root = path.join(__dirname, '..', '..', 'src', 'server', 'cards');
     const offenders: Array<string> = [];
@@ -181,7 +180,7 @@ describe('action captions (the action browser one-liner)', () => {
    *  action information, its fold becomes the caption bug again. */
   it('the description-less exemptions still generate no action information', () => {
     const live: Array<string> = [];
-    for (const name of ['Project Workshop', 'Venus Orbital Survey']) {
+    for (const name of ['Project Workshop']) {
       const card = CARDS.find((c) => c.name === name);
       if (card !== undefined && actionBlocks(card).length > 0) {
         live.push(`${name} now has action information — its rows must each be described`);

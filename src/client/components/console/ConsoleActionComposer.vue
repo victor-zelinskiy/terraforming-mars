@@ -754,6 +754,20 @@
             <span class="con-composer__next-glyph" aria-hidden="true">#</span>
             <span class="con-composer__next-text">{{ poolLine(revealPreview.pool) }}</span>
           </div>
+          <!-- A SPLIT REVEAL'S «ДО» (P88 — `revealSplit`): what leaves the deck, and where each kind of card
+               goes — the check's own printed glyph, the price of the rest, how many of them the wallet can
+               take, and the open deck size. Structure only: every number is the server's descriptor. -->
+          <template v-if="revealSplitRows.length > 0">
+            <div v-for="row in revealSplitRows" :key="row.key" class="con-composer__next con-composer__next--split"
+                 :data-reveal-split="row.key">
+              <span v-if="row.tagUrl !== undefined" class="con-composer__next-check" aria-hidden="true">
+                <i class="con-composer__next-tag" :style="{backgroundImage: 'url(' + row.tagUrl + ')'}"></i>
+              </span>
+              <i v-else-if="row.iconClass !== undefined" class="con-composer__next-res" :class="row.iconClass" aria-hidden="true"></i>
+              <span class="con-composer__next-text">{{ row.text }}</span>
+              <span v-if="row.tail !== ''" class="con-composer__next-tail">{{ row.tail }}</span>
+            </div>
+          </template>
 
           <!-- PAYMENT — the ONE shared panel, identical to the play-card flow.
                A persistent INFO block, NOT a focus row: the dedicated trigger +
@@ -1135,6 +1149,7 @@ import {translateMessage, translateText, translateTextWithParams, translateCardN
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
+import {Tag} from '@/common/cards/Tag';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {armPayloadCarry, armPayloadReturn, playPayloadCarry, playPayloadReturn} from '@/client/console/played/payloadCarry';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
@@ -1154,7 +1169,7 @@ import ConsoleAmountOperation from '@/client/components/console/foundation/Conso
 import {amountOperationVm, ConversionPromptVm} from '@/client/console/conversionPromptModel';
 import ConsoleRevealVerdict from '@/client/components/console/foundation/ConsoleRevealVerdict.vue';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
-import {REVEAL_POOL_EMPTY_WARNING, RevealPreviewReading, revealPreviewReading} from '@/client/console/revealReading';
+import {REVEAL_POOL_EMPTY_WARNING, RevealPreviewReading, revealCheckGlyph, revealPreviewReading} from '@/client/console/revealReading';
 import {runRevealHandoff} from '@/client/console/revealHandoff';
 import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
@@ -2275,7 +2290,14 @@ export default defineComponent({
      * nine sockets of the prepared stage while two cards landed (ONE FRAMEWORK П3 caught it).
      */
     beatRevealedNames(): ReadonlyArray<string> {
-      const wf = this.playerView.waitingFor as {cards?: ReadonlyArray<{name: string}>, discardPrompt?: unknown} | undefined;
+      const wf = this.playerView.waitingFor as {cards?: ReadonlyArray<{name: string}>, discardPrompt?: unknown, deckPickPrompt?: {order?: ReadonlyArray<string>}} | undefined;
+      // A SPLIT REVEAL (P88): the prompt offers only the cards still to decide, but the deck turned
+      // over the WHOLE reveal — the marker names it in deck order (the free companions included), so
+      // the objects in flight are exactly the cards that left the pile, in the order they came up.
+      const order = wf?.deckPickPrompt?.order;
+      if (order !== undefined && order.length > 0) {
+        return order;
+      }
       const fromPrompt = wf?.discardPrompt !== undefined ? [] : (wf?.cards ?? []).map((c) => c.name).filter((n) => n !== '');
       if (fromPrompt.length > 0) {
         return fromPrompt;
@@ -2577,6 +2599,26 @@ export default defineComponent({
     revealPreview(): RevealPreviewReading | undefined {
       const reveal = this.selectedBranch?.reveal;
       return reveal !== undefined ? revealPreviewReading(reveal) : undefined;
+    },
+    /**
+     * A SPLIT REVEAL (P88 — `revealSplit`) as the setup stage's rows: the deal, the match's verdict,
+     * the miss's price. Read off the server's descriptor only — the client counts nothing.
+     */
+    revealSplitRows(): ReadonlyArray<{key: string, text: string, tail: string, tagUrl?: string, iconClass?: string}> {
+      const split = this.selectedBranch?.revealSplit;
+      if (split === undefined) {
+        return [];
+      }
+      const glyph = revealCheckGlyph(split.check);
+      return [
+        {key: 'deal', text: translateTextWithParams('Reveal the top ${0} cards', [String(split.count)]),
+          tail: translateTextWithParams('In the deck: ${0}', [String(split.deckSize)]), iconClass: 'resource_icon resource_icon--cards'},
+        {key: 'match', text: translateText(split.check.tag === Tag.VENUS ? 'Venus cards — to your hand for free' : 'To your hand for free'),
+          tail: '', tagUrl: glyph.kind === 'tag' ? glyph.url : undefined},
+        {key: 'miss', text: translateTextWithParams('Other cards — buy for ${0} M€ or discard', [String(split.miss.cardCost)]),
+          tail: translateTextWithParams('Enough M€ for ${0}', [String(Math.min(split.miss.affordable, split.count))]),
+          iconClass: 'resource_icon resource_icon--megacredits'},
+      ];
     },
     /** The check's name, translated («Требование партии», «Бактерия»). */
     revealCheckLabel(): string {

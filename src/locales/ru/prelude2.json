@@ -32,5 +32,15 @@
     "New Partner": "Новый партнёр",
     "Raise your M€ production 1 step. Immediately draw 2 prelude cards. Play 1 of them, and discard the other.": "Повысьте своё производство M€ на 1. Сразу возьмите 2 прелюдии: одну разыграйте, другую сбросьте.",
     "Old Mining Colony": "Старая горняцкая колония",
-    "Increase your titanium production 1 step. Place 1 colony. Discard 1 card.": "Повысьте своё производство титана на 1. Постройте колонию. Сбросьте 1 карту с руки."
+    "Increase your titanium production 1 step. Place 1 colony. Discard 1 card.": "Повысьте своё производство титана на 1. Постройте колонию. Сбросьте 1 карту с руки.",
+    "Fewer than 2 cards left in the deck": "В колоде меньше 2 карт",
+    "Venus card — to your hand for free": "Карта Венеры — в руку бесплатно",
+    "To your hand for free": "В руку бесплатно",
+    "Not enough M€ (${0} per card)": "Не хватает M€ (${0} за карту)",
+    "To the discard pile": "В сброс",
+    "Reveal the top ${0} cards": "Вскрыть ${0} верхние карты",
+    "Venus cards — to your hand for free": "Карты Венеры — в руку бесплатно",
+    "Other cards — buy for ${0} M€ or discard": "Прочие — купить за ${0} M€ или сбросить",
+    "Enough M€ for ${0}": "Хватит на ${0}",
+    "In the deck: ${0}": "В колоде: ${0}"
 }

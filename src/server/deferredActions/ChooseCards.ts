@@ -12,6 +12,8 @@ import {Aerotech} from '../cards/community/Aerotech';
 import {CardName} from '../../common/cards/CardName';
 import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
 import {deckPickPrompt} from '../inputs/deckPickPrompt';
+import {Tag} from '../../common/cards/Tag';
+import {cardsToModel} from '../models/ModelUtils';
 
 export const LogType = {
   DREW: 'drew',
@@ -43,6 +45,21 @@ export type ChooseOptions = {
    * claiming the deck produced cards it never lost.
    */
   origin?: 'deck' | 'discard',
+  /**
+   * THE REST OF THE SAME REVEAL, already decided by the rule — P88 Venus Orbital
+   * Survey: the Venus cards go to the hand FOR FREE, only the others are offered.
+   * They ride the prompt's marker (the console lays the WHOLE reveal out, each
+   * card with its verdict) and join the hand WITH the answer — first thing in
+   * the callback, synchronously, before any payment is deferred — so the
+   * bought and the free cards are ONE intake and nothing is in the hand before
+   * the player has seen it. Never offered, never in `cards`.
+   */
+  companions?: {
+    cards: ReadonlyArray<IProjectCard>,
+    check: {tag: Tag, label: string},
+    /** The whole reveal in deck order (companions + `cards`). */
+    order: ReadonlyArray<IProjectCard>,
+  },
 }
 
 export class ChooseCards extends DeferredAction {
@@ -103,7 +120,9 @@ export class ChooseCards extends DeferredAction {
       // Bounds are copied off the config above (the paying branch narrows `max`
       // by affordability) so the marker can never disagree with its own input.
       .markDeckPickPrompt(deckPickPrompt({
-        revealed: cards.length,
+        // With companions the reveal is the WHOLE turn of the deck, not only
+        // the cards offered for this decision.
+        revealed: cards.length + (options.companions?.cards.length ?? 0),
         // `?? 1` mirrors `SelectCard`'s own default for an omitted `min` — the
         // marker states what the input will actually enforce, not what was
         // passed to it.
@@ -112,12 +131,23 @@ export class ChooseCards extends DeferredAction {
         origin: options.origin,
         mode: options.paying === true ? 'buy' : 'keep',
         source: options.promptSource,
+        companions: options.companions === undefined ? undefined : {
+          cards: cardsToModel(player, options.companions.cards, {showCalculatedCost: true, unplayableReasons: true}),
+          check: options.companions.check,
+          destination: 'hand',
+        },
+        order: options.companions?.order.map((c) => c.name),
       }))
       .andThen((selected) => {
         if (selected.length > max) {
           throw new Error('Selected too many cards');
         }
         const unselected = oneWayDifference(cards, selected);
+        // The free half of the reveal joins the hand WITH the answer (and
+        // before any payment is deferred): ONE decision, ONE intake.
+        if (options.companions !== undefined && options.companions.cards.length > 0) {
+          keep(player, options.companions.cards, [], LogType.DREW_VERBOSE);
+        }
         if (options.logDrawnCard === true) {
           LogHelper.logRevealedCards(player, cards);
         }
@@ -128,7 +158,11 @@ export class ChooseCards extends DeferredAction {
             new SelectPaymentDeferred(
               player,
               cost,
-              {title: message('Select how to spend ${0} M€ for ${1} cards', (b) => b.number(cost).number(selected.length))})
+              {
+                title: message('Select how to spend ${0} M€ for ${1} cards', (b) => b.number(cost).number(selected.length)),
+                // The payment panel names the card whose reveal is being paid for.
+                cause: options.promptSource,
+              })
               .andThen(() => keep(player, selected, unselected, boughtLogType)));
         } else {
           keep(player, selected, unselected, options.paying ? boughtLogType : LogType.DREW);

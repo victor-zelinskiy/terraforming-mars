@@ -126,11 +126,12 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
     if (this.repeatActionPrompt === true) {
       model.repeatActionPrompt = true;
     }
-    // Same reasoning for the DECK-PICK marker: a keep-some / buy-some prompt is
-    // routinely nested (Venus Orbital Survey offers the free Venus cards and the
-    // paid rest as two branches of one decision), and stripped of the marker the
-    // console falls back to the generic card-target browser — no deck to come
-    // out of, no source card, no discard beat for the cards left behind.
+    // Same reasoning for the DECK-PICK marker: a keep-some / buy-some prompt can be
+    // nested, and stripped of the marker the console falls back to the generic
+    // card-target browser — no deck to come out of, no source card, no discard
+    // beat for the cards left behind. (A SPLIT reveal — Venus Orbital Survey — is
+    // ONE prompt over the paid cards whose marker also carries the free
+    // companions of the same reveal: `DeckPickPromptMeta.companions`.)
     if (this.deckPickPrompt !== undefined) {
       model.deckPickPrompt = this.deckPickPrompt;
     }

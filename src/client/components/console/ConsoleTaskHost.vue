@@ -320,8 +320,24 @@
                        --picked outline and the «✓ Выбрана» band live on the
                        slot, not the card, so they'd linger in the empty slot).
                        `trayPickBeat` suppresses that chrome + the band. -->
-                  <div v-for="(entry, i) in cardEntries" :key="entry.card.name + '#' + i"
-                       class="con-cards__slot"
+                  <!-- THE WHOLE REVEAL, in deck order (P88): a split reveal's COMPANIONS — the cards
+                       the RULE already sent to the hand for free — stand in the same row, interleaved
+                       in the order the deck turned them over (the arriving batch pairs its proxies
+                       with the slots by DOM order — a CSS reorder would land the wrong face). Never
+                       pickable, never focused: the cursor walks the OFFERED cards (`i`) only. -->
+                  <template v-for="(entry, i) in cardEntries" :key="entry.card.name + '#' + i">
+                  <div v-for="c in companionsBefore(i)" :key="'companion:' + c.name"
+                       class="con-cards__slot con-cards__slot--companion"
+                       :data-zoom-slot="c.name"
+                       data-companion-slot>
+                    <Card :card="c" :key="c.name" lightweight />
+                    <!-- The verdict is MATERIAL (a kant + the tag + a word), never light — the SERVER
+                         decided it (the marker's companion list); the client only prints it. -->
+                    <span class="con-cards__pickband con-cards__pickband--free" data-companion-verdict>
+                      <span class="con-cards__pickband-tag resource-tag" :class="'tag-' + companionCheckTag" aria-hidden="true"></span>{{ companionVerdictText }}
+                    </span>
+                  </div>
+                  <div class="con-cards__slot"
                        :data-zoom-slot="entry.card.name"
                        :data-spread="isSpreadMode ? spreadOnCard(entry.card.name) : undefined"
                        :class="{
@@ -329,6 +345,7 @@
                          'con-cards__slot--picked': isPicked(entry.card.name) && !trayPickBeat,
                          'con-cards__slot--spread': isSpreadMode && spreadOnCard(entry.card.name) > 0,
                          'con-cards__slot--disabled': entry.disabled,
+                         'con-cards__slot--refused': buyCannotAfford && !entry.disabled,
                          'con-cards__slot--dim': cardDimUnpicked && !entry.disabled && !isPicked(entry.card.name),
                          'con-cards__slot--receiving': receivingPick === entry.card.name,
                          'con-cards__slot--receded': receivingPick !== undefined && receivingPick !== entry.card.name,
@@ -349,6 +366,21 @@
                          concrete reason line (glance + detail). -->
                     <span v-else-if="entry.disabled" class="con-cards__pickband con-cards__pickband--disabled" aria-hidden="true">{{ $t('Unavailable') }}</span>
                     <span v-if="entry.disabled" class="con-cards__reason">{{ entry.reason !== '' ? entry.reason : $t('Unavailable right now') }}</span>
+                    <!-- A paying reveal the player cannot afford (`max 0`): the card is not choosable and
+                         goes to the discard — NAMED with the price that stops it (no silent loss). -->
+                    <span v-if="buyCannotAfford && !entry.disabled" class="con-cards__pickband con-cards__pickband--discard" data-buy-verdict="discard">{{ $t('To the discard pile') }}</span>
+                  </div>
+                  </template>
+                  <div v-for="c in companionsAfter" :key="'companion:' + c.name"
+                       class="con-cards__slot con-cards__slot--companion"
+                       :data-zoom-slot="c.name"
+                       data-companion-slot>
+                    <Card :card="c" :key="c.name" lightweight />
+                    <!-- The verdict is MATERIAL (a kant + the tag + a word), never light — the SERVER
+                         decided it (the marker's companion list); the client only prints it. -->
+                    <span class="con-cards__pickband con-cards__pickband--free" data-companion-verdict>
+                      <span class="con-cards__pickband-tag resource-tag" :class="'tag-' + companionCheckTag" aria-hidden="true"></span>{{ companionVerdictText }}
+                    </span>
                   </div>
                 </div>
                 <!-- The focused card's verdict line — compact context, never a
@@ -421,7 +453,10 @@
                            the one thing that stops the decision, and now that
                            the header is a single row this line is where the
                            embedded stage states things. -->
-                      <span v-if="isBuyMode && picks.length > 0 && !cardBuyAffordable"
+                      <span v-if="buyCannotAfford" class="con-cards__verdict con-cards__verdict--blocked" data-buy-verdict-reason>
+                        <span aria-hidden="true">✕</span><span>{{ $t('To the discard pile') }} · {{ buyCannotAffordText }}</span>
+                      </span>
+                      <span v-else-if="isBuyMode && picks.length > 0 && !cardBuyAffordable"
                             class="con-cards__verdict con-cards__verdict--blocked">
                         <span aria-hidden="true">⚠</span><span>{{ buyShortfallText }}</span>
                       </span>
@@ -981,6 +1016,9 @@ export default defineComponent({
           // EMBEDDED single card: the mass-selector title misnames the moment.
           // ONE card was just revealed by the player's own action, and the
           // decision is buy-or-decline — not «select cards» out of a set.
+          if (this.buyCannotAfford) {
+            return textOf(this.wf?.title);
+          }
           if (this.embeddedSingleBuy) {
             return translateText('Buy the revealed card?');
           }
@@ -1894,6 +1932,71 @@ export default defineComponent({
     focusedCardEntry(): {card: CardModel, disabled: boolean, reason: string} | undefined {
       return this.cardEntries[this.focusIdx];
     },
+    /**
+     * A SPLIT REVEAL's COMPANIONS (P88 Venus Orbital Survey — the server's `deckPickPrompt.companions`):
+     * the cards of the SAME reveal the rule already sent to the hand for free. Shown beside the
+     * offered ones, never pickable; they leave with the answer in the SAME intake as the bought cards.
+     * The verdict is the server's — the client never counts a tag.
+     */
+    companionCards(): ReadonlyArray<CardModel> {
+      return this.isBuyMode ? (this.cardModel?.deckPickPrompt?.companions?.cards ?? []) : [];
+    },
+    /**
+     * WHERE each companion stands in the row: the reveal's own order (`deckPickPrompt.order`) mapped
+     * onto the offered entries — `before[i]` are the companions the deck turned over between offered
+     * card i−1 and i, `after` those past the last one. Computed once per prompt (pure over the model).
+     */
+    companionPlacement(): {before: Array<Array<CardModel>>, after: Array<CardModel>} {
+      const companions = this.companionCards;
+      const before: Array<Array<CardModel>> = this.cardEntries.map(() => []);
+      if (companions.length === 0) {
+        return {before, after: []};
+      }
+      const byName = new Map(companions.map((c) => [c.name, c] as const));
+      const order = this.cardModel?.deckPickPrompt?.order ?? companions.map((c) => c.name);
+      const pending: Array<CardModel> = [];
+      const placed = new Set<string>();
+      let next = 0;
+      for (const name of order) {
+        const companion = byName.get(name);
+        if (companion !== undefined) {
+          pending.push(companion);
+          placed.add(name);
+          continue;
+        }
+        const at = this.cardEntries.findIndex((e, i) => i >= next && e.card.name === name);
+        if (at < 0) {
+          continue;
+        }
+        before[at].push(...pending.splice(0));
+        next = at + 1;
+      }
+      // A companion the order did not name (an older marker) closes the row.
+      const after = [...pending, ...companions.filter((c) => !placed.has(c.name))];
+      return {before, after};
+    },
+    companionsAfter(): ReadonlyArray<CardModel> {
+      return this.companionPlacement.after;
+    },
+    /** The printed check the companions met — its tag glyph on the verdict band. */
+    companionCheckTag(): string {
+      return this.cardModel?.deckPickPrompt?.companions?.check.tag ?? '';
+    },
+    companionVerdictText(): string {
+      return translateText(this.companionCheckTag === Tag.VENUS ? 'Venus card — to your hand for free' : 'To your hand for free');
+    },
+    /**
+     * A PAYING reveal the player cannot afford at all (`max 0` — «You cannot afford any cards»): the
+     * purchase stage still stands (it is routed by the marker), nothing is choosable, every offered
+     * card is marked for the discard with the price that stops it, and RT is the server's «OK».
+     */
+    buyCannotAfford(): boolean {
+      return this.isBuyMode && this.cardMax === 0;
+    },
+    /** «Не хватает M€ (3 за карту)» — the named reason of the discard above (one renderer, PL-160). */
+    buyCannotAffordText(): string {
+      return translateTextWithParams('Not enough M€ (${0} per card)', [String(this.buyCostPerCard)]);
+    },
     cardMin(): number {
       return this.cardModel?.min ?? 0;
     },
@@ -1983,6 +2086,10 @@ export default defineComponent({
     /** RT/commit label for the MULTI (buy / multi-target) commit. */
     cardConfirmLabel(): string {
       if (this.isBuyMode) {
+        // Nothing can be bought: the decision is only «seen» — the server's own «OK».
+        if (this.buyCannotAfford) {
+          return 'OK';
+        }
         return this.picks.length === 0 ? 'Skip' : 'Buy';
       }
       return this.confirmLabel;
@@ -2545,6 +2652,20 @@ export default defineComponent({
     }
   },
   methods: {
+    /** The split reveal's companions the deck turned over right before offered card `i` (see `companionPlacement`). */
+    companionsBefore(i: number): ReadonlyArray<CardModel> {
+      return this.companionPlacement.before[i] ?? [];
+    },
+    /** The companion slots as they stand in the row (DOM = reveal order) — they leave WITH the answer. */
+    companionExitSources(): Array<{name: CardName, el: HTMLElement}> {
+      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      if (strip === undefined || strip === null || typeof strip.querySelectorAll !== 'function') {
+        return [];
+      }
+      return Array.from(strip.querySelectorAll<HTMLElement>(':scope > [data-companion-slot]'))
+        .map((el) => ({name: (el.dataset.zoomSlot ?? '') as CardName, el}))
+        .filter((s) => s.name !== '');
+    },
     // The keyed panel's prompt → prompt swap: the PROMPT HANDOFF phrase (release → arrive → compose, PL-384) on a
     // family plate; an embedded stage keeps its quiet swap.
     promptSwapEnterHook,
@@ -3346,8 +3467,12 @@ export default defineComponent({
         .map((name) => ({name, el: this.exitSlotFor(name)}))
         .filter((s): s is {name: CardName, el: HTMLElement} => s.el !== null);
       const chosen = new Set(sources.map((s) => s.el));
+      // A split reveal's COMPANIONS (P88) are neither picked nor rejected: the rule sent them to the
+      // hand, so they leave WITH the answer in the same intake as the bought cards.
+      const companions = this.companionExitSources();
+      const companionEls = new Set(companions.map((c) => c.el));
       const rejects = (Array.from(strip.children) as Array<HTMLElement>)
-        .filter((el) => !chosen.has(el) && !el.classList.contains('con-deal-hold'));
+        .filter((el) => !chosen.has(el) && !companionEls.has(el) && !el.classList.contains('con-deal-hold'));
       if (this.isDraftPick && sources.length > 0) {
         applyDiscardExit(rejects, {delayMs: 150});
         runDraftPickBeat({picks: sources, commit});
@@ -3368,8 +3493,15 @@ export default defineComponent({
           const refused = (this.cardEntries ?? [])
             .map((e) => ({name: e.card.name, el: this.exitSlotFor(e.card.name) ?? undefined}))
             .filter((s) => s.el !== undefined);
-          if (refused.length > 0) {
-            void discardOpenCards(refused);
+          if (refused.length > 0 || companions.length > 0) {
+            if (refused.length > 0) {
+              void discardOpenCards(refused);
+            }
+            // The companions still go home — ONE intake, the same seam as a purchase (`onStaged`).
+            if (companions.length > 0) {
+              void runHandIntake(companions, {mode: 'stack', commit, onStaged: () => this.$emit('result-detached')});
+              return;
+            }
             this.$emit('result-detached');
             commit();
             return;
@@ -3382,7 +3514,19 @@ export default defineComponent({
         commit();
         return;
       }
-      applyDiscardExit(rejects);
+      // AN UNBOUGHT CARD BESIDE A PURCHASE lands on the table's ONE discard pile too (TR52 — «СБРОС»
+      // is an object of the table): embedded, these cards were turned over by the player's own action,
+      // and a tumble into nowhere beside the bought card was a second truth of the same discard.
+      if (this.embedded) {
+        const refused = rejects
+          .map((el) => ({name: (el.dataset.zoomSlot ?? '') as CardName, el}))
+          .filter((r) => r.name !== '');
+        if (refused.length > 0) {
+          void discardOpenCards(refused);
+        }
+      } else {
+        applyDiscardExit(rejects);
+      }
       // THE PURCHASE HANDOFF. `onStaged` is the director's designed seam: it
       // fires the frame the proxies physically stand over the real cards, so
       // the host may drop its surface with nothing left to lose. Collapsing
@@ -3390,7 +3534,13 @@ export default defineComponent({
       // overlap — the card lifts, the workspace folds under it, the dock comes
       // back, and only then does the intake's own slot polling find the REAL
       // geometry and finish the flight. Never a guessed target, never a pause.
-      void runHandIntake(sources.map((s) => ({name: s.name, el: s.el})), {
+      // ONE intake for everything that goes home — the bought cards and the companions, in the row's
+      // order (= the reveal's): «one action — one intake».
+      const home = companions.length === 0 ? sources : (Array.from(strip.children) as Array<HTMLElement>)
+        .filter((el) => chosen.has(el) || companionEls.has(el))
+        .map((el) => sources.find((s) => s.el === el) ?? companions.find((c) => c.el === el))
+        .filter((s): s is ExitSource => s !== undefined);
+      void runHandIntake(home.map((s) => ({name: s.name, el: s.el})), {
         mode: 'stack',
         commit,
         onStaged: this.embedded ? () => this.$emit('result-detached') : undefined,

@@ -1,4 +1,5 @@
-import {ChoiceContextSource, DeckPickPromptMeta} from '../../common/models/PlayerInputModel';
+import {CardName} from '../../common/cards/CardName';
+import {ChoiceContextSource, DeckPickCompanions, DeckPickPromptMeta} from '../../common/models/PlayerInputModel';
 
 /**
  * The {@link DeckPickPromptMeta} builder — attached to every "these cards were
@@ -39,8 +40,15 @@ export function deckPickPrompt(o: {
   origin?: 'deck' | 'discard',
   mode: 'keep' | 'buy',
   source?: ChoiceContextSource,
+  /**
+   * The cards of the SAME reveal the rule already decided (P88: the Venus cards,
+   * to the hand for free) — see {@link DeckPickPromptMeta.companions}. `revealed`
+   * then counts the WHOLE reveal, and `order` names it in deck order.
+   */
+  companions?: DeckPickCompanions,
+  order?: ReadonlyArray<CardName>,
 }): DeckPickPromptMeta {
-  return {
+  const meta: DeckPickPromptMeta = {
     revealed: o.revealed,
     min: o.min,
     max: o.max,
@@ -48,4 +56,9 @@ export function deckPickPrompt(o: {
     mode: o.mode,
     source: o.source,
   };
+  if (o.companions !== undefined && o.companions.cards.length > 0) {
+    meta.companions = o.companions;
+    meta.order = o.order;
+  }
+  return meta;
 }

@@ -80,5 +80,6 @@
     "Requires that Unity is ruling or that you have 2 delegates there. Add 1 delegate per colony you have — you may add them to different resolutions.": "Требуется: у власти «Союз» или 2 ваших делегата на резолюции этой партии. Добавьте по 1 делегату за каждую вашу колонию — их можно добавить на разные резолюции.",
     "Requires that Greens are ruling or that you have 2 delegates there. Steal 4 plants from another player.": "Требуется: у власти «Зелёные» или 2 ваших делегата на резолюции этой партии. Украдите 4 растения у другого игрока.",
     "Requires that Mars First is ruling or that you have 2 delegates there. Decrease your energy production 1 step. Place a city tile and gain its printed placement bonus 2 additional times.": "Требуется: у власти «Марс вперёд» или 2 ваших делегата на резолюции этой партии. Понизьте производство энергии на 1. Разместите тайл города и получите бонус размещения его клетки ещё 2 раза.",
-    "Requires 2 Jovian tags. Add 2 delegates to one resolution.": "Требуется 2 метки Юпитера. Добавьте 2 делегата на одну резолюцию."
+    "Requires 2 Jovian tags. Add 2 delegates to one resolution.": "Требуется 2 метки Юпитера. Добавьте 2 делегата на одну резолюцию.",
+    "Action: Reveal the top 2 cards of the deck. Take any Venus cards into your hand for free. Buy or discard any other card.": "Действие: вскройте 2 верхние карты колоды. Карты Венеры возьмите в руку бесплатно, остальные купите или сбросьте."
 }

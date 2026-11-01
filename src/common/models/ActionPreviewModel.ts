@@ -427,6 +427,34 @@ export type ActionRevealDescriptor = {
   vp?: {from: number, to: number};
 };
 
+/**
+ * A REVEAL WITH A SPLIT (P88 Venus Orbital Survey: «reveal the top 2 cards; take
+ * any Venus cards into your hand for free; buy or discard any other card»): the
+ * deck turns `count` cards over and EACH one is decided by the printed check —
+ * a match goes to the hand free of charge, a miss is the ordinary purchase
+ * (`player.cardCost` each, or the discard). Structure only, never prose: the
+ * setup stage reads the check, the price and the open deck size; the outcome
+ * claim reads `count` as the number of physical cards that leave the deck.
+ *
+ * Deliberately NOT a generalized {@link ActionRevealDescriptor}: that one is a
+ * single-card deck CHECK whose verdict is a stage of its own and whose claim
+ * (`deck-check`) is never routed into the draw stage, and some thirty readers
+ * know it as exactly that. A split reveal is a draw the player then decides on.
+ */
+export type ActionRevealSplitDescriptor = {
+  deck: 'project';
+  /** How many cards leave the deck (the printed «top 2»). */
+  count: number;
+  /** The printed condition each card is checked against. */
+  check: {tag: Tag, label: string};
+  /** A card that meets it: into the hand, free. */
+  match: {destination: 'hand', free: true};
+  /** A card that does not: offered for `cardCost` M€ (the player can afford `affordable` of them now) or discarded. */
+  miss: {kind: 'buy', cardCost: number, affordable: number};
+  /** Open information: the cards the deck can still deal (draw pile + discard pile — what `canDraw` counts). */
+  deckSize: number;
+};
+
 export type ActionPreviewBranch = {
   /**
    * THE ADDRESS of the branch slot's answer (the `{type:'or', index}` pick, or
@@ -486,6 +514,13 @@ export type ActionPreviewBranch = {
   /** Present when this action REVEALS a deck card to check a condition — the modal
    *  shows the premium reveal slot instead of (or alongside) a fixed result chip. */
   reveal?: ActionRevealDescriptor;
+  /**
+   * Present when this action turns SEVERAL cards over and each one meets its own
+   * verdict (P88 Venus Orbital Survey) — see {@link ActionRevealSplitDescriptor}.
+   * Never set beside `reveal`: that one is a single-card deck CHECK (a verdict
+   * stage, a `deck-check` claim), this one is a DRAW the player then decides on.
+   */
+  revealSplit?: ActionRevealSplitDescriptor;
   /**
    * The card-target steps in this branch are SLOTS of ONE SelectCard (e.g. Astra
    * Mechanica "return UP TO 2 events to hand"): the live play produces a SINGLE

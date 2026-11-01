@@ -269,6 +269,27 @@
     to { opacity: 1; transform: translateX(-50%) scale(1); }
 }
 
+/* ── A SPLIT REVEAL's COMPANION (P88 — «a Venus card goes to the hand for free»): a slot of the
+   same row, never pickable, its verdict a MATERIAL band (a mint kant + the tag + a word — invariant
+   15: no halo). It is not a focus stop, so it never wears the cursor; the face stays at full
+   strength — it is a card the player GETS, not a refused one. ──────────────────────────────── */
+.con-cards__pickband--free {
+    background: linear-gradient(180deg, fade(@con-mint, 24%), fade(@con-mint, 10%)), @con-glass;
+    box-shadow: inset 0 0 0 .075rem fade(@con-mint, 88%), 0 .2rem .7rem rgba(0, 0, 0, 0.55);
+    color: #d6fbe9;
+    gap: .35rem;
+}
+.con-cards__pickband-tag {
+    display: inline-block;
+    width: 1.1em;
+    height: 1.1em;
+    flex: 0 0 auto;
+    background-size: contain;
+}
+.con-cards__slot--companion { cursor: default; }
+/* A card a paying reveal cannot buy (max 0): the band names the discard, the face stays legible. */
+.con-cards__slot--refused > :is(.card-container, .pcard) { filter: saturate(.72) brightness(.86); }
+
 /* ── Verdict bar: the focused card's context swaps smoothly, not pop ─── */
 .con-cards__verdict-inner {
     display: flex;

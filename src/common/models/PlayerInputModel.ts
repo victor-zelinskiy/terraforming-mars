@@ -424,6 +424,31 @@ export type DeckPickPromptMeta = {
   /** Who turned the cards over — drives the source-card anchor + the crumb.
    *  Absent when the engine itself dealt them (the research phase). */
   source?: ChoiceContextSource;
+  /**
+   * THE REST OF THE SAME REVEAL, already decided by the RULE (P88 Venus Orbital
+   * Survey: «take any Venus cards into your hand for free, buy or discard any
+   * other card»). They are NOT candidates — the prompt's `cards` stay exactly
+   * the cards offered (an upstream spec indexes `cards[0]`) — and they are NOT
+   * in the hand yet: they join it with the answer, in the same intake as the
+   * bought ones («one action — one intake»). The verdict is the server's (the
+   * check that matched), never a client tag count.
+   */
+  companions?: DeckPickCompanions;
+  /**
+   * The WHOLE reveal in the order the deck turned it over (companions and
+   * candidates interleaved) — present only beside `companions`, so the scene
+   * lays the cards out as the deck dealt them, never «the free ones first».
+   */
+  order?: ReadonlyArray<CardName>;
+}
+
+/** See {@link DeckPickPromptMeta.companions}. */
+export type DeckPickCompanions = {
+  cards: ReadonlyArray<CardModel>;
+  /** The printed condition they met (a tag check), named for the verdict line. */
+  check: {tag: Tag, label: string};
+  /** Where they go — today always the hand, free of charge. */
+  destination: 'hand';
 }
 
 /**

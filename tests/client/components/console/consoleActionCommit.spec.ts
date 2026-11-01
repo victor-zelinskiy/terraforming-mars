@@ -89,6 +89,10 @@ describe('consoleActionCommit — the universal activation beat', () => {
       expect(commitKindForBranch(branchWith({effects: [gain('cards', 1)]}))).to.eq('draw');
     });
 
+    it('a SPLIT reveal (P88) is a draw — the impulse lands on the printed cards, the deck answers', () => {
+      expect(commitKindForBranch(branchWith({revealSplit: {} as never}))).to.eq('draw');
+    });
+
     it('a board placement step is a tile', () => {
       expect(commitKindForBranch(branchWith({
         steps: [{kind: 'boardPlacement', placementType: 'land'}],

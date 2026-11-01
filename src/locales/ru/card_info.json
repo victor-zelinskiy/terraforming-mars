@@ -640,5 +640,6 @@
     "Playable only while no other player has passed this generation.": "Можно разыграть, только пока никто другой не спасовал в этом поколении.",
     "This counts as passing: you get no more turns this generation.": "Это считается пасом: ходов в этом поколении у вас больше нет.",
     "Place a city tile and gain its printed placement bonus 2 additional times.": "Разместите тайл города и получите бонус размещения его клетки ещё 2 раза.",
-    "Draw 1 card per resolution with 2+ of your delegates": "Карта за резолюцию с 2+ вашими делегатами"
+    "Draw 1 card per resolution with 2+ of your delegates": "Карта за резолюцию с 2+ вашими делегатами",
+    "Reveal 2: Venus cards free, buy or discard the rest": "Вскройте 2: Венера — в руку, прочие — купить/сброс"
 }

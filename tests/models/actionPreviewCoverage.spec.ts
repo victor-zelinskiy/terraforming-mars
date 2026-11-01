@@ -64,6 +64,7 @@ function isMuteBranch(b: ActionPreviewBranch): boolean {
     b.steps.length === 0 &&
     b.optionInput === undefined &&
     b.reveal === undefined &&
+    b.revealSplit === undefined &&
     b.mergeCardSteps === undefined;
 }
 

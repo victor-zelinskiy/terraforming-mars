@@ -3078,6 +3078,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // Prelude 2 P73 Floating Refinery — the first Venus action CHOICE (DC): the play +4 (Venus Governor · Dirigibles · this) ·
   // B with two sources (Dirigibles 3, Floating Habs 2) · B unavailable with its reason, A the sole live variant.
   'floating-refinery' | 'floating-refinery-action' | 'floating-refinery-sole' |
+  // P88 Venus Orbital Survey — the split reveal; the «Разыграно» polish tables (stacks of different heights, the draft).
+  'venus-orbital-survey-mixed' | 'venus-orbital-survey-venus' | 'venus-orbital-survey-none' | 'venus-orbital-survey-poor' | 'venus-orbital-survey-helion' |
+  'played-table-polish' | 'played-table-draft' |
   // Prelude 2 P81 Soil Studies — «per Venus tag, plant tag (INCLUDING THIS ONE) and colony» (DJ): the play +5 (Venus
   // Governor · Arctic Algae · this · one cube) · locked at −2 °C.
   'soil-studies' | 'soil-studies-locked' |

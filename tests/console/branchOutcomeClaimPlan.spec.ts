@@ -31,4 +31,12 @@ describe('branchOutcomeClaimPlan — the prepared arrival is sized by the cards 
     expect(plan.expectedCards).eq(0);
     expect(plan.kinds).deep.eq([]);
   });
+
+  it('a SPLIT REVEAL (P88) claims draw + pick and prepares every card it turns over — never a deck-check', () => {
+    const split = {branches: [{index: -1, effects: [], revealSplit: {deck: 'project', count: 2, check: {tag: 'venus', label: 'Venus tag'},
+      match: {destination: 'hand', free: true}, miss: {kind: 'buy', cardCost: 3, affordable: 1}, deckSize: 40}}]} as unknown as ActionPreview;
+    const plan = branchOutcomeClaimPlan(split, -1);
+    expect(plan.expectedCards).eq(2);
+    expect(plan.kinds).deep.eq(['draw', 'pick']);
+  });
 });

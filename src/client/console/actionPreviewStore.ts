@@ -389,6 +389,13 @@ export function branchOutcomeClaimPlan(
   if (branch?.reveal !== undefined) {
     kinds.push('deck-check');
   }
+  // A SPLIT REVEAL (P88 — «reveal 2: Venus cards free, buy or discard the rest») is a DRAW the player
+  // then decides on: every revealed card leaves the deck as a physical object (`count`), and the
+  // purchase that may follow is the same embedded stage («ПОКУПКА» — a buy is a pick). Never a
+  // deck-check: there is no single verdict, and that claim is never routed into the draw stage.
+  if (branch?.revealSplit !== undefined) {
+    expectedCards += Math.max(1, branch.revealSplit.count);
+  }
   // «ALL YOUR COLONY BONUSES» (the branch's `colonyBonuses` ledger — TR23 Habitat
   // Science): a row that hands cards over DRAWS, whether or not a chip says so
   // — Pluto's «take 1, then discard 1» is «decided after the confirm» and wears
