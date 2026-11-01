@@ -72,6 +72,22 @@ describe('fieldRecorder — the console\'s flight recorder', () => {
     expect(r.snapshot().lines[0].text.length).to.be.lessThan(1300);
   });
 
+  it('a live batch carries the WHOLE heartbeat ring — the seconds that LED to a warn line (the 2026-11-01 13:50 freeze)', () => {
+    const h = harness();
+    const r = h.make();
+    for (let i = 0; i < FIELD_HEARTBEATS_MAX + 5; i++) {
+      r.heartbeat({prompt: `or|first#${i}`, accepting: false, inFlight: ['story'], frames: ['start:browse'], section: 'board/',
+        quietS: i, presses: 0, block: 'board-story', start: 'stage'});
+      h.tick(1000);
+    }
+    r.line('[presentation-ledger] story «board-beat-park» degraded after 30s');
+    h.runTimers();
+    const live = h.posts.find((p) => p.body.kind === 'live');
+    expect(live?.body.record.heartbeats, 'every kept second rides the post').length(FIELD_HEARTBEATS_MAX);
+    expect(FIELD_HEARTBEATS_MAX, 'the ring outlasts a 30 s safety').to.be.greaterThan(30);
+    expect(live?.body.record.heartbeats.at(-1)).to.include({block: 'board-story', start: 'stage'});
+  });
+
   it('lines go out in ONE live batch after the debounce; nothing pending → nothing posted', () => {
     const h = harness();
     const r = h.make();

@@ -19,6 +19,9 @@
  * handoff take their storage / clock / poster from the caller (`tests/console/fieldRecorder.spec.ts`).
  */
 
+import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
+
 export type FieldHeartbeat = {
   /** The game id (the shell knows it; the URL does not carry it). */
   game?: string;
@@ -35,6 +38,10 @@ export type FieldHeartbeat = {
   quietS: number;
   /** A / B presses the arbiter counted since the last progress. */
   presses: number;
+  /** The admission block holding the live prompt's surface ('' = none) — what a wait waits FOR. */
+  block?: string;
+  /** The start scene's own verdict (`data-start-serves`) while it is mounted, '' otherwise. */
+  start?: string;
   at: number;
 };
 
@@ -78,7 +85,7 @@ export type FieldRecorderDeps = {
 export const FIELD_LINES_MAX = 120;
 export const FIELD_LINE_CHARS = 1200;
 /** Heartbeats kept (one a second — the last half minute before whatever happened). */
-export const FIELD_HEARTBEATS_MAX = 30;
+export const FIELD_HEARTBEATS_MAX = 45;
 export const FIELD_BATCH_MS = 1500;
 /** The diagnostic convention: a tagged line. Anything else the console prints is not ours to ship. */
 const TAGGED = /^\[[a-z][a-z0-9-]*\]/i;
@@ -172,7 +179,9 @@ export class FieldRecorder {
     this.pendingLines = [];
     this.deps.post({
       kind: final ? 'pagehide' : 'live',
-      record: {...this.record, lines, heartbeats: this.record.heartbeats.slice(-5)},
+      // The WHOLE ring rides every post: a warn line is the END of an incident (a story degraded at its 30 s safety), and
+      // the seconds that led to it are what names its cause — the field export of 2026-11-01 13:50 had only the line.
+      record: {...this.record, lines, heartbeats: [...this.record.heartbeats]},
     }, final);
   }
 
@@ -226,14 +235,22 @@ function pageIdentity(): FieldRecorderDeps['page'] {
   };
 }
 
+/**
+ * THE ADDRESS IS THE APP'S, never a bare `/api/…` (the owner's export of 2026-11-01 13:50 — a freeze on the box, and
+ * NOTHING in the field log: the recorder had posted to `app://bundle/api/field-log` since it shipped). In the
+ * Electron host the page lives on `app://bundle` and the embedded server on a loopback port — every other API call
+ * goes through `apiUrl`, and so does this one. The body travels as `text/plain` (the route reads a string): a
+ * CORS-safelisted type needs no preflight, which a beacon cannot make across origins.
+ */
 function browserPost(body: FieldPost, final: boolean): void {
   const json = JSON.stringify(body);
+  const url = apiUrl(paths.API_FIELD_LOG);
   try {
     if (final && typeof navigator.sendBeacon === 'function') {
-      navigator.sendBeacon('/api/field-log', new Blob([json], {type: 'application/json'}));
+      navigator.sendBeacon(url, new Blob([json], {type: 'text/plain'}));
       return;
     }
-    void fetch('/api/field-log', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: json, keepalive: true}).catch(() => undefined);
+    void fetch(url, {method: 'POST', headers: {'Content-Type': 'text/plain'}, body: json, keepalive: true}).catch(() => undefined);
   } catch {
     // The recorder never throws into the console it records.
   }

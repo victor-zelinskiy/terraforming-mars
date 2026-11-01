@@ -21360,6 +21360,9 @@ export default defineComponent({
         section: `${this.consoleState.section}/${this.consoleState.sheet ?? ''}`,
         quietS: Math.round((Date.now() - livenessStateSnapshot().progressAt) / 1000),
         presses: livenessStateSnapshot().pressesSinceProgress,
+        // What a wait waits FOR, and what the opening says it serves — the two facts the 2026-11-01 13:50 freeze lacked.
+        block: wf === undefined ? '' : promptAdmissionBlock(wf.type === 'space' ? 'placement' : 'host', this.admissionSignals) ?? '',
+        start: this.startSceneMounted ? consoleStartState.serves ?? '' : '',
       });
       const verdict = tickLiveness({
         now: Date.now(),
