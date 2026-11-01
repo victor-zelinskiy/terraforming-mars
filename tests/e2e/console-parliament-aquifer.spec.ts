@@ -219,7 +219,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card .pcard'), 'carried onto the payout stage').toHaveClass(/rdx-greens-aquifer-contest/);
       await expect(page.locator('[data-parl-sit-hero] .pcard__art img'), 'its own art (keyed by the code)').toHaveAttribute('src', /RX01/);
       await expect(page.locator('.pcard__code, .con-src__plate-code'), 'card numbers are OFF by default — technical information').toHaveCount(0);
-      expect(await crumbText(page), 'the crumb names the pick stage of the sitting').toMatch(/ВЫБОР|CHOICE/i);
+      await expect.poll(() => crumbText(page), {message: 'the crumb names the pick stage of the sitting', timeout: 10_000}).toMatch(/ВЫБОР|CHOICE/i);
       // The focused candidate's own reading: current → resulting + VP.
       const impacts = await page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-cards__verdict--impact').allTextContents();
       expect(impacts.length, 'the resource and VP readings of the focused card').toBeGreaterThan(0);
@@ -281,7 +281,7 @@ for (const preset of PRESETS) {
       //    the reward page stops on the tile's DOOR, the board is not live yet, and A «К полю» opens it. No second
       //    plate either way.
       await expect.poll(() => sittingStep(page), {timeout: 60_000, message: 'the reward page stops on the winner\'s tile'}).toBe('placement');
-      expect(await hotVerb(page), 'the door is the command bar\'s own verb').toMatch(/К полю|Onto the board/i);
+      await expect.poll(() => hotVerb(page), {message: 'the door is the command bar\'s own verb', timeout: 10_000}).toMatch(/К полю|Onto the board/i);
       expect(await placementState(page), 'the board waits for the press').toBe('none');
       expect(await pressUntil(page, 'Enter', async () => await placementState(page) !== 'none', {tries: 3, settleMs: 1500}),
         'A «К полю» opens the winner\'s ocean placement').toBe(true);

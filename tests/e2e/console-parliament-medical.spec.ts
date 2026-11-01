@@ -222,7 +222,7 @@ test.describe('Medical Database · standard-1080', () => {
     // ── THE LAYOUT STANDS INSIDE THE SITTING: the hero on the left, the two holders as real faces, every counter at ZERO.
     await expect(page.locator(`${STAGE} .con-cards__slot`), 'the two holders, inside the Parliament').toHaveCount(2);
     await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card .pcard'), 'carried onto the stage as the hero').toHaveClass(MEDICAL_CLASS);
-    expect(await crumbText(page), 'the crumb\'s tail names the layout stage').toMatch(/РАСКЛАДКА|DISTRIBUTION/i);
+    await expect.poll(() => crumbText(page), {message: 'the crumb\'s tail names the layout stage', timeout: 10_000}).toMatch(/РАСКЛАДКА|DISTRIBUTION/i);
     // The reading names where the number comes from: the tags and the influence after the winner's step — and the unit by both kinds.
     await expect(page.locator('.con-parl [data-yield-in="count"]').first(), 'the science tags').toHaveText('2');
     await expect(page.locator('.con-parl [data-yield-in="influence"]').first(), 'the influence after the winner\'s step').toHaveText('2');

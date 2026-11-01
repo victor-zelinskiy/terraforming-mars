@@ -250,7 +250,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       await expect(page.locator('.con-parl__gov-card .pcard'), 'exactly one enacted card on screen').toHaveCount(1);
       await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card .pcard'), 'carried onto the stage as the hero').toHaveClass(/rdx-unity-cloud-development/);
       await expect(page.locator('[data-parl-sit-hero] .pcard__art img')).toHaveAttribute('src', /RX06/);
-      expect(await crumbText(page), 'the crumb\'s tail names the layout stage').toMatch(/РАСКЛАДКА|DISTRIBUTION/i);
+      await expect.poll(() => crumbText(page), {message: 'the crumb\'s tail names the layout stage', timeout: 10_000}).toMatch(/РАСКЛАДКА|DISTRIBUTION/i);
       // The reading names where the number comes from: the tags by kind and the influence.
       await expect(page.locator('.con-parl [data-yield-in="tag:venus"]').first(), 'the Venus tags').toHaveText('1');
       await expect(page.locator('.con-parl [data-yield-in="tag:jovian"]').first(), 'the Jovian tags').toHaveText('1');

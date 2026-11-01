@@ -1677,7 +1677,16 @@ function targetPointFor(spec: ResourceTransferSpec, skipped?: Array<SkippedEnd>,
   // …else the ДОП. РЕСУРСЫ satellite — ONLY while it is painted (the law of visible ends): under a band surface's
   // opaque glass it is a box, not a place, and the transfer degrades to its tick instead of flying into the glass.
   const aux = measure(`.con-res-aux__cell[data-aux-resource="${cardResourceKey(spec.resource)}"]`);
-  return aux !== undefined ? centerOf(aux) : undefined;
+  if (aux !== undefined) {
+    return centerOf(aux);
+  }
+  // …else, a REACTOR RISEN AT THE STAGE answering ITSELF with no other place painted («СРАБАТЫВАНИЕ КАРТЫ»: TR81 Lotus
+  // Innovations' data for a rating paid off an event still standing in the composer, P84 · DU — no receiving stage, no
+  // seat, the satellite under the composer's glass): its live risen face is the one physical card on screen, so the
+  // token lands in ITS capsule rather than ticking with no flight. Last — a painted satellite stays the home (R07).
+  const risen = spec.targetCard === undefined ? undefined :
+    measure(`.con-reaction__face[data-reaction-card="${escapeName(spec.targetCard)}"] .pcard__res`);
+  return risen !== undefined ? centerOf(risen) : undefined;
 }
 
 /** Say it once per run in a dev build: an end the player would have seen a token come from / go to nothing for. */

@@ -119,7 +119,7 @@ test.describe('the sitting v2 · the spectator (standard-1080)', () => {
     await waitSittingAtRest(page, 40_000);
     await expect(page.locator('[data-sit-results-hidden]')).toHaveCount(0);
     // The close names where it leads when the next workspace is known (the owner, 2026-10-30).
-    expect(await hotVerb(page)).toMatch(/Закрыть заседание|Close the sitting|К исследованию|To the research|К драфту|To the draft/i);
+    await expect.poll(() => hotVerb(page), {timeout: 10_000}).toMatch(/Закрыть заседание|Close the sitting|К исследованию|To the research|К драфту|To the draft/i);
     await expectParliamentFits(page, 'remote results');
     await shoot(page, '03-results');
     await closeSitting(page, request, playerId);

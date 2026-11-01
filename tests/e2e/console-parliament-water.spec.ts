@@ -306,7 +306,7 @@ test.describe(`Water Export · ${PRESET.id}`, () => {
     await waitSittingAtRest(page, 60_000);
     await waitSittingAtRest(redPage, 60_000); // the observer's walk stands on its wait for this seat
     // The crumb's tail names what the board step DOES — a removal, never a «placement» (the door and the pose are the tile's).
-    expect(await crumbText(page), 'the tail reads СНЯТИЕ').toMatch(/СНЯТИЕ|Removal/i);
+    await expect.poll(() => crumbText(page), {message: 'the tail reads СНЯТИЕ', timeout: 10_000}).toMatch(/СНЯТИЕ|Removal/i);
     await shoot(page, '02-removal-step');
     expect(await pressUntil(page, 'Enter', async () => await placementState(page) !== 'none', {tries: 6, settleMs: 1500}),
       'A opens the ocean pick on the board').toBe(true);

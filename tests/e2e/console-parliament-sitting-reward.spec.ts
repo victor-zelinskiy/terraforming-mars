@@ -509,7 +509,7 @@ for (const preset of PARLIAMENT_PRESETS) {
           await expect.poll(() => sittingStep(page), {timeout: 40_000}).toBe('placement');
           // v5: the tile is a chip of the BAND; the door's verb stays on the command bar.
           await expect(page.locator('.con-band [data-parl-band-chip="tile"]'), 'the band names the tile').toHaveCount(1);
-          expect(await hotVerb(page)).toMatch(/К полю|Onto the board/i);
+          await expect.poll(() => hotVerb(page), {timeout: 10_000}).toMatch(/К полю|Onto the board/i);
           await settle(page, {timeoutMs: 20_000});
           const probe = await readProbe(page);
           expect(probe.samples.some((s) => s.placing), 'the board never went live by itself').toBe(false);

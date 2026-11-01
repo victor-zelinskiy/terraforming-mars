@@ -724,6 +724,17 @@ export default defineComponent({
     stepFrameNested(): boolean {
       return workspaceFrameHasNested('parliament');
     },
+    /**
+     * THE REWARD PAGE MAY BE LEFT NOW — the walk's own stop condition (`mayLeave`), as a reactive fact. The walk
+     * STOPS on the reward page while any term holds it (a wave owed or in the air, a receipt, the ledger's read, a
+     * hosted frame, the world's move) and resumes only when queued; a term whose falling edge has no watcher of its
+     * own (a wave's last flight landing after the beat resolved) left the sitting on «Награда» for good (CI-like
+     * box run, `console-parliament-colonial`: the stage never reached the results). The rising edge re-queues.
+     */
+    rewardPageLeavable(): boolean {
+      const position = this.sitting;
+      return this.sittingUp && position !== undefined && this.sittingStage === 'reward' && this.mayLeave('reward', position);
+    },
     /** The stage's FIELD pose stands (the overview receded, the card on the hero slot, the zone open). */
     sittingField(): boolean {
       return this.sittingFieldState.pose;
@@ -1654,6 +1665,12 @@ export default defineComponent({
      * stage's door closes with the frame (`sittingStepOpen` falls), the hero card folds home, and the walk
      * goes on from the reward page: «получено», the renewal, the results. The sitting is never concluded here.
      */
+    /** The reward page's stop lifted (every term the walk waited on has let go): the walk goes on from it. */
+    rewardPageLeavable(on: boolean, was: boolean): void {
+      if (on && !was && parliamentFlow.stage === 'sitting') {
+        this.queueWalk();
+      }
+    },
     stepFrameNested(on: boolean, was: boolean): void {
       if (!on && was && parliamentFlow.stage === 'sitting') {
         this.queueWalk();
@@ -3287,7 +3304,14 @@ export default defineComponent({
      * mid-beat (a poll, the viewer's own answer) is picked up where it lands.
      */
     async runWalk(): Promise<void> {
-      if (this.walking || this.stageEntering || !this.sittingUp) {
+      if (this.walking) {
+        // A walk queued while one is RUNNING is OWED, never dropped: the running loop may already have passed the
+        // check its trigger changed (a reward that arrived mid-beat — the API answering the last pairs of Colonial
+        // Affairs while the ledger read), and only the `finally` below re-queues on `walkOwed`.
+        this.walkOwed = true;
+        return;
+      }
+      if (this.stageEntering || !this.sittingUp) {
         return;
       }
       this.walking = true;

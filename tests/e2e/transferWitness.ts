@@ -171,6 +171,9 @@ export async function armTransferWitness(page: Page): Promise<void> {
       ['reactor', '.con-reaction__face[data-reaction-card] .pcard-ic, .con-recv__emerge[data-played-key] .pcard-ic, .con-citypay__card[data-played-key] .pcard-ic, .con-start__embedsource [data-start-seat-card] .pcard-ic, [data-reaction-home][data-reaction-lifted] .pcard-ic, [data-composer-card][data-reaction-lifted] .pcard-ic, .con-played [data-played-key][data-reaction-lifted] .pcard-ic, .con-start__played [data-played-key][data-reaction-lifted] .pcard-ic'],
       // The START STAGE's seated card — the capsule a corporation's own answer lands in (TR81). `start-seat:<card>`.
       ['start-seat', '.con-start__embedsource [data-start-seat-card]'],
+      // A REACTOR RISEN AT THE STAGE answering ITSELF — its own capsule on its risen face (TR81 Lotus Innovations' data
+      // for a rating paid off an event still standing in the composer, P84 · DU). `reactor-seat:<card>`.
+      ['reactor-seat', '.con-reaction__face[data-reaction-card]'],
       // The ASKER's printed icon on the answer stage's hero (TR78) when the face is NOT lifted — a live pick's / layout's
       // answer is born there (the receive scene, not the framework's rise). `asker:<sprite>`.
       ['asker', '.con-tans [data-tans-asker-face] .pcard-ic'],
@@ -243,6 +246,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
       case 'cell': return `cell:${name(el, 'data_space_id')}`;
       case 'tag': return `tag:${name(el, 'data-tag')}`;
       case 'start-seat': return `start-seat:${name(el, 'data-start-seat-card')}`;
+      case 'reactor-seat': return `reactor-seat:${name(el, 'data-reaction-card')}`;
       case 'reactor': {
         const face = el.closest('[data-reaction-card], [data-played-key], [data-start-seat-card], [data-reaction-home], [data-composer-card]');
         const card = face === null ? '' :

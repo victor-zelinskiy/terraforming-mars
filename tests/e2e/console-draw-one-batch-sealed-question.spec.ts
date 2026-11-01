@@ -152,7 +152,7 @@ test.describe('the sealed place of a question — the university\'s answer turns
     expect(wire2.waitingFor?.choiceContext?.source?.card, 'the server asks the university now').toBe(MU);
     const drawn = handOf(wire2).filter((n) => !before.includes(n));
     expect(drawn.length, `Olympus' card is in the hand (${handOf(wire2).join(', ')})`).toBe(1);
-    expect(await crumbText(page), 'the album is a stage of the play').toContain('Сброс карты');
+    await expect.poll(() => crumbText(page), {message: 'the album is a stage of the play', timeout: 10_000}).toContain('Сброс карты');
     // …and the parked table lies UNDER the album, never on its cards (the owner's TV, 2026-11-01: the sealed place,
     // the taken socket and «Получены карты» were painted over the hand): the outcome zone goes with the paused stage,
     // and every album card is the topmost paint at its own centre.

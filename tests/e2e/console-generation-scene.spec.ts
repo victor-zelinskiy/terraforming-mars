@@ -252,7 +252,7 @@ for (const preset of PRESETS) {
       const samples = await sceneSamples(page);
       await shoot(page, preset.id, 'b-01-draft');
       await expectScene(page, request, playerId, samples, AFTER, {convert: true});
-      expect(await crumbText(page)).toMatch(/ДРАФТ/i);
+      await expect.poll(() => crumbText(page), {timeout: 10_000}).toMatch(/ДРАФТ/i);
 
       // ── Drive the draft to the buy: the viewer picks on the UI (A on the focused card), the rival over the API. ──
       for (let round = 0; round < 24; round++) {
@@ -278,7 +278,7 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 30_000});
       await shoot(page, preset.id, 'b-02-purchase');
       // PARITY: the buy chrome is the same set of hooks the no-draft road rendered.
-      expect(await crumbText(page)).toMatch(/ПОКУПКА/i);
+      await expect.poll(() => crumbText(page), {timeout: 10_000}).toMatch(/ПОКУПКА/i);
       await expect(page.locator('[data-draft-wallet]'), 'the wallet closes the reading row (T10 · CE)').toBeVisible();
       expect(await page.locator('.con-task--wide').count(), 'no standalone plate on the drafting road either').toBe(0);
     });

@@ -168,8 +168,8 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-played__family--event .con-played__caption-count')).toHaveText('2');
       await expect(page.locator('[data-played-stack="active"] .con-played__caption-count')).toHaveText('14');
       await expect(page.locator('[data-played-stack="active"] [data-played-key]')).toHaveCount(14);
-      expect(await crumb(page)).toMatch(/Разыграно/i);
-      expect(await crumb(page)).toMatch(/player1/i);
+      await expect.poll(() => crumb(page), {timeout: 10_000}).toMatch(/Разыграно/i);
+      await expect.poll(() => crumb(page), {timeout: 10_000}).toMatch(/player1/i);
       const b = await bar(page);
       expect(b, 'A opens, B closes').toMatch(/Открыть/);
       expect(b).toMatch(/Закрыть/);
@@ -223,15 +223,15 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
         return new Set(Array.from(page0?.querySelectorAll<HTMLElement>('.con-played-cat__slot') ?? []).map((el) => Math.round(el.getBoundingClientRect().top))).size;
       });
       expect(rows, 'the album page has at least two rows').toBeGreaterThanOrEqual(2);
-      expect(await bar(page), 'LB/RB «Листать» inside the album').toMatch(/Листать/);
+      await expect.poll(() => bar(page), {message: 'LB/RB «Листать» inside the album', timeout: 10_000}).toMatch(/Листать/);
       await shoot(page, preset.id, '03-album-page1');
       // RB — the next page; the seat is NOT switched (the crumb's subject stays).
       await key(page, 'KeyE', 700);
       await expect(album).toHaveAttribute('data-cat-page', '1');
       await expect(page.locator('[data-cat-spine] .con-played-cat__spine-page')).toHaveText(`2 / ${pages}`);
       expect(own, 'the own seat before the album').toMatch(/player1/i);
-      expect(await crumb(page), 'the seat stays inside a category').toMatch(/player1/i);
-      expect(await crumb(page)).not.toMatch(/player2/i);
+      await expect.poll(() => crumb(page), {message: 'the seat stays inside a category', timeout: 10_000}).toMatch(/player1/i);
+      await expect.poll(() => crumb(page), {timeout: 10_000}).not.toMatch(/player2/i);
       const firstOnScreen = await page.evaluate(() => {
         const box = document.querySelector('.con-played-cat__album')!.getBoundingClientRect();
         return Array.from(document.querySelectorAll<HTMLElement>('.con-played-cat__slot')).some((el) => {
@@ -248,7 +248,7 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       await key(page, 'Escape', 400);
       await expect(page.locator('.con-played-cat')).toHaveCount(0, {timeout: 15_000});
       await key(page, 'KeyE', 1000);
-      expect(await crumb(page), 'at the table RB is the seat').toMatch(/player2/i);
+      await expect.poll(() => crumb(page), {message: 'at the table RB is the seat', timeout: 10_000}).toMatch(/player2/i);
       await key(page, 'Escape', 1000);
     });
 
@@ -309,7 +309,7 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       for (const [edge, d] of Object.entries({top: room?.dTop, left: room?.dLeft, right: room?.dRight, bottom: room?.dBottom})) {
         expect(Math.abs(d ?? 99), `the view's ${edge} edge is the body's`).toBeLessThanOrEqual(2);
       }
-      expect(await crumb(page)).toMatch(/Активные/i);
+      await expect.poll(() => crumb(page), {timeout: 10_000}).toMatch(/Активные/i);
       await expect(page.locator('.con-played .con-wshead'), 'ONE head (the table’s) — the category view draws none').toHaveCount(1);
       // X — the fullscreen out of the grid's real slot; the table stays on stage under the viewer.
       await key(page, 'KeyX', 1200);
@@ -365,7 +365,7 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       expect(paint.color, 'no fill').toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
       expect(paint.border, 'the place is drawn by its outline').toBe('dashed');
       await key(page, 'KeyQ', 1000); // LB — back to the own seat
-      expect(await crumb(page)).toBe(own);
+      await expect.poll(() => crumb(page), {timeout: 10_000}).toBe(own);
       await key(page, 'Escape', 1000);
     });
   });
@@ -384,11 +384,11 @@ test.describe('the played table · the bot, the early table, reduced motion', ()
     await expect(page.locator('.con-played__family--corporation .con-played__slot')).toHaveCount(1);
     await expect(page.locator('.con-played__none'), 'the projects\' room says so in words').toBeVisible();
     await expect(page.locator('.con-played__seat-place--events'), 'the events\' prepared place').toHaveCount(1);
-    expect(await bar(page), 'one page — no page verb').not.toMatch(/Листать/);
+    await expect.poll(() => bar(page), {message: 'one page — no page verb', timeout: 10_000}).not.toMatch(/Листать/);
     // RB — the bot: its flipped pile on the same chassis, its corporation on the first stack (a player's table — D16).
     await key(page, 'KeyE', 1200);
     await expect(page.locator('.con-played__botcorp')).toHaveCount(1);
-    expect(await crumb(page)).toMatch(/Бот/);
+    await expect.poll(() => crumb(page), {timeout: 10_000}).toMatch(/Бот/);
     await key(page, 'Enter', 1400);
     await expect(page.locator('dialog.con-zoom[open]'), 'A on the bot\'s corporation — the fullscreen out of its slot').toHaveCount(1, {timeout: 8_000});
     await closeZoomViewer(page);

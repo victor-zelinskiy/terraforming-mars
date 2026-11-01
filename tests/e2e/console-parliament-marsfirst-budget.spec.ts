@@ -362,7 +362,7 @@ for (const preset of PRESETS) {
       expect(gain![0].i, 'the payout left the card only once the levy had landed — in turn').toBeGreaterThan(landingIndex(loss!));
       if (await placementState(page) === 'none') {
         await settle(page, {timeoutMs: 20_000});
-        expect(await hotVerb(page), 'the door\'s verb').toMatch(/К полю|Onto the board/i);
+        await expect.poll(() => hotVerb(page), {message: 'the door\'s verb', timeout: 10_000}).toMatch(/К полю|Onto the board/i);
         expect((await crumbText(page)).toUpperCase()).toMatch(/РАЗМЕЩЕНИЕ|PLACEMENT/);
         await shoot(page, preset.id, '03-door');
         await press(page, 'Enter', 800);

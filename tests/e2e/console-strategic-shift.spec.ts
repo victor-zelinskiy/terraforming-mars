@@ -117,13 +117,13 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${ALBUM} [data-zoom-slot="${INELIGIBLE[0]}"]`)).toHaveCount(0);
 
       // THE REFUSAL AT ZERO (PL-259): RT reads the refusal in words, no badge; the summary reads zero.
-      expect(await bar(page), 'RT at zero is the refusal').toMatch(/RT\s*Не сбрасывать/);
-      expect(await bar(page)).not.toMatch(/Сбросить\s*0/);
+      await expect.poll(() => bar(page), {message: 'RT at zero is the refusal', timeout: 10_000}).toMatch(/RT\s*Не сбрасывать/);
+      await expect.poll(() => bar(page), {timeout: 10_000}).not.toMatch(/Сбросить\s*0/);
       // A marks one; R3 marks all four; the running summary reads +4 M€ AND +4 cards.
       expect(await focusCard(page, 'Lichen', slots * 2 + 6)).toBe(true);
       await press(page, 'Enter', 700);
       await expect(picked(page)).toHaveCount(1);
-      expect(await bar(page), 'with a pick RT is the verb with its count').toMatch(/RT\s*Сбросить/);
+      await expect.poll(() => bar(page), {message: 'with a pick RT is the verb with its count', timeout: 10_000}).toMatch(/RT\s*Сбросить/);
       await press(page, 'KeyV', 700); // R3 — select all
       await expect(picked(page)).toHaveCount(4);
       await expect(page.locator('.con-hand__salebar--select .con-hand__salebar-item--gain').first()).toContainText('+4');
@@ -212,11 +212,11 @@ test.describe('Strategic Shift · a single candidate', () => {
     await openDiscardPick(page);
     await expect(page.locator(`${ALBUM} [data-zoom-slot="Lichen"]`)).toHaveCount(1);
     await expect(page.locator(`${ALBUM} .con-hand__slot[data-zoom-slot]`)).toHaveCount(1);
-    expect(await bar(page)).toMatch(/R3\s*Выбрать все/i);
-    expect(await bar(page)).toMatch(/RT\s*Не сбрасывать/);
+    await expect.poll(() => bar(page), {timeout: 10_000}).toMatch(/R3\s*Выбрать все/i);
+    await expect.poll(() => bar(page), {timeout: 10_000}).toMatch(/RT\s*Не сбрасывать/);
     await press(page, 'Enter', 700);
     await expect(picked(page)).toHaveCount(1);
-    expect(await bar(page)).toMatch(/RT\s*Сбросить/);
+    await expect.poll(() => bar(page), {timeout: 10_000}).toMatch(/RT\s*Сбросить/);
     await press(page, 'Period', 1200);
     await expect(page.locator(`${PLAY}:visible`)).toHaveCount(1, {timeout: 15_000});
     await expect(page.locator(`${PLAY} [data-impact-draw]`)).toContainText('+1');

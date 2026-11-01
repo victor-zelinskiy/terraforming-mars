@@ -157,7 +157,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       // v5: the winner's tile reads as a chip of the BAND; the DOOR is still the command bar's own «К полю».
       await expect(page.locator('.con-band [data-parl-band-chip="tile"]'), 'the band names the tile').toHaveCount(1);
       expect((await crumbText(page)).toUpperCase()).toMatch(/РАЗМЕЩЕНИЕ|PLACEMENT/);
-      expect(await hotVerb(page)).toMatch(/К полю|Onto the board/i);
+      await expect.poll(() => hotVerb(page), {timeout: 10_000}).toMatch(/К полю|Onto the board/i);
       await settle(page, {timeoutMs: 20_000});
       expect(await placementState(page), 'the board waits for the press').toBe('none');
       expect((await parliamentWire(request, playerId)).waitingFor?.type, 'the server\'s placement stands').toBe('space');
@@ -212,7 +212,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       expect(revealed[0]?.resultsHidden, 'the card was HIDDEN when its page opened, revealed by its own beat').toBe(true);
       expect((await crumbText(page)).toUpperCase()).toMatch(/ИТОГИ|RESULTS/);
       // The close names where it leads when the next workspace is known (the owner, 2026-10-30).
-      expect(await hotVerb(page)).toMatch(/Закрыть заседание|Close the sitting|К исследованию|To the research|К драфту|To the draft/i);
+      await expect.poll(() => hotVerb(page), {timeout: 10_000}).toMatch(/Закрыть заседание|Close the sitting|К исследованию|To the research|К драфту|To the draft/i);
       await expect(page.locator('[data-sit-results] [data-sit-fresh]'), 'the new resolutions with their parties').not.toHaveCount(0);
       await expectParliamentFits(page, `${preset.id} results`);
       // The card never covers the Agenda track PARTIALLY (reviewed on the first run's frames: the track's label row

@@ -310,4 +310,65 @@ describe('e2e driver guard', () => {
       expect(fell, `a migrated site must be LOCKED IN — lower its FROZEN count in this guard:\n  ${fell.join('\n  ')}`).to.deep.equal([]);
     });
   });
+
+  describe('⑦ a live chrome string is asserted by POLLING, never by one read', () => {
+    /**
+     * A ONE-SHOT READ OF A LIVE STRING IS A RACE. The command bar, the crumb and the bar's hot verb are republished a
+     * frame (or, on a starved 4K SwiftShader runner, several) AFTER the press that changes them, so
+     * `expect(await bar(page)).toMatch(…)` right after a key reads whatever stood a moment earlier — CI 2026-11-01,
+     * `console-played-table` B: «LB/RB «Листать» inside the album» received «АвтоматическиеBНазад», the album already
+     * open; green on the retry. 57 such sites stood in 28 specs. → `await expect.poll(() => bar(page), {message,
+     * timeout}).toMatch(…)` — a poll that already holds returns at once, so it costs nothing when the bar is ready.
+     *
+     * The READERS are named and DERIVED: the shared ones (`crumbText` — consoleStart.ts, `hotVerb` — parliamentDrive.ts)
+     * plus every helper a spec declares whose body reads the bar or the crumb (`.con-cmdbar`, `.con-wshead`, a crumb).
+     */
+    const SHARED_READERS = ['crumbText', 'hotVerb'];
+    const LIVE_CHROME = /con-cmdbar|con-wshead/;
+    /** A reader assertion that deliberately snapshots ONE frame (an ORDER claim), with its reason. */
+    const ALLOWED: ReadonlyArray<string> = [
+      // «A stands in the SAME place on the step» compares the hot verb's BOX against the one read before the press —
+      // a no-shift claim about the settled step, read after `settle` and after the step's own surface is asserted.
+      'console-parliament-payout-details.spec.ts:86',
+    ];
+
+    function readersOf(text: string): Array<string> {
+      // TOP-LEVEL declarations only (column 0): a nested `const x = (…)` inside a test body is not a reader.
+      const decls = [...text.matchAll(/(?:^|\n)(?:export\s+)?(?:async\s+function\s+(\w+)|const\s+(\w+)\s*=\s*(?:async\s*)?\()/g)];
+      const names = new Set(SHARED_READERS);
+      decls.forEach((m, i) => {
+        const name = m[1] ?? m[2];
+        const end = Math.min(i + 1 < decls.length ? (decls[i + 1].index ?? text.length) : text.length, (m.index ?? 0) + 600);
+        if (name !== undefined && LIVE_CHROME.test(text.slice(m.index ?? 0, end))) {
+          names.add(name);
+        }
+      });
+      return [...names];
+    }
+
+    it('the reader derivation still SEES the spec-local readers (a guard that finds none proves nothing)', () => {
+      const readers = (file: string) => readersOf(stripComments(fs.readFileSync(path.join(E2E_DIR, file), 'utf8')));
+      expect(readers('console-played-table.spec.ts')).to.include.members(['bar', 'crumb']);
+      expect(readers('console-ma-workspace.spec.ts')).to.include('barText');
+      expect(readers('console-strategic-shift.spec.ts')).to.include('bar');
+    });
+
+    it('no spec asserts the bar / the crumb / the hot verb with a one-shot read', () => {
+      const offenders: Array<string> = [];
+      for (const file of specFiles()) {
+        const text = stripComments(fs.readFileSync(path.join(E2E_DIR, file), 'utf8'));
+        for (const name of readersOf(text)) {
+          for (const m of text.matchAll(new RegExp(`expect\\(\\s*await\\s+${name}\\(`, 'g'))) {
+            const site = `${file}:${lineOf(text, m.index ?? 0)}`;
+            if (!ALLOWED.includes(site)) {
+              offenders.push(`${site} (${name})`);
+            }
+          }
+        }
+      }
+      expect(offenders, 'a live string is republished frames AFTER the press — assert it with ' +
+        '`await expect.poll(() => reader(page), {message, timeout}).toMatch(…)`, never `expect(await reader(page))`:' +
+        offenders.map((o) => String.fromCharCode(10) + '  ' + o).join('')).to.deep.equal([]);
+    });
+  });
 });

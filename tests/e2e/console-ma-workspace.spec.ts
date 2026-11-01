@@ -121,7 +121,7 @@ for (const profile of PROFILES) {
         .toBe(focusedName.toUpperCase());
       expect((await page.locator('.con-wshead__step').innerText()).trim().toUpperCase(),
         'the pre-commit stage word').toBe('СПОНСОРСТВО');
-      expect(await barText(page), 'the detail footer advertises the commit verb').toContain('СПОНСИРОВАТЬ');
+      await expect.poll(() => barText(page), {message: 'the detail footer advertises the commit verb', timeout: 10_000}).toContain('СПОНСИРОВАТЬ');
 
       // The detail state speaks the SAME rail — one projection, one language,
       // and the old «БУДЕТ ПОТРАЧЕНО −8 462 → 454» band is gone with it.
@@ -172,7 +172,7 @@ for (const profile of PROFILES) {
         const k = document.querySelector('.con-mafocus__cere-kicker');
         return k !== null && Number(getComputedStyle(k).opacity) > 0.6;
       }, undefined, {timeout: 20_000});
-      expect(await barText(page), 'no commit verb may survive the commit').not.toContain('СПОНСИРОВАТЬ');
+      await expect.poll(() => barText(page), {message: 'no commit verb may survive the commit', timeout: 10_000}).not.toContain('СПОНСИРОВАТЬ');
 
       // THE CORONATION MAY NEVER SHRINK THE ARTEFACT. Both are the same
       // physical object, so the ceremony seat is derived from the detail hero
@@ -226,7 +226,7 @@ for (const profile of PROFILES) {
           await key(page, i % 2 === 0 ? 'ArrowRight' : 'ArrowDown', 260);
         }
         // A blocked focus advertises the READING verb — never a false intent.
-        expect(await barText(page), 'a blocked item offers «Осмотреть»').toContain('ОСМОТРЕТЬ');
+        await expect.poll(() => barText(page), {message: 'a blocked item offers «Осмотреть»', timeout: 10_000}).toContain('ОСМОТРЕТЬ');
         await key(page, 'Enter', 1400);
         if (await page.locator('.con-mafocus').count() > 0) {
           const stage = (await page.locator('.con-mafocus').innerText()).replace(/\s+/g, ' ');

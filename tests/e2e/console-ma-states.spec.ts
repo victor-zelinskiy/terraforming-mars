@@ -229,7 +229,7 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     'focus alone lights no shelf — the two layers stay apart').toBeLessThan(0.1);
     expect((await goCard.locator('.con-ma__avail').innerText()).trim().length,
       'the «ДОСТУПНО» word stands without focus').toBeGreaterThan(0);
-    expect(await barText(page), 'a non-actionable focus advertises the reading verb')
+    await expect.poll(() => barText(page), {message: 'a non-actionable focus advertises the reading verb', timeout: 10_000})
       .toContain('ОСМОТРЕТЬ');
     await shoot(page, '20-milestones-avail-unfocused');
 
@@ -244,7 +244,7 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
       'focus must not eat the shelf light either').toBeGreaterThan(0.9);
     expect(await goFocused.evaluate((el) => getComputedStyle(el).boxShadow !== 'none'),
       'the cyan focus ring stands beside the state').toBeTruthy();
-    expect(await barText(page), 'an available milestone advertises the intent verb')
+    await expect.poll(() => barText(page), {message: 'an available milestone advertises the intent verb', timeout: 10_000})
       .toContain('ЗАЯВИТЬ');
     await shoot(page, '21-milestones-avail-focused');
 
@@ -285,7 +285,7 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     const fundedIdx = awardStates.findIndex((s) => s.taken);
     if (fundedIdx >= 0) {
       await focusCardAt(page, fundedIdx);
-      expect(await barText(page), 'a funded award offers the reading verb, never a false intent')
+      await expect.poll(() => barText(page), {message: 'a funded award offers the reading verb, never a false intent', timeout: 10_000})
         .toContain('ОСМОТРЕТЬ');
       await shoot(page, '31-awards-funded-focused');
     }

@@ -278,7 +278,7 @@ test.describe('Greens Budget · standard-1080', () => {
     await expect.poll(async () => sorted((await readProbe(page)).samples.slice(-1)[0]?.slots ?? []), {timeout: 60_000, message: 'the animals\' picker shows Fish and Pets'}).toEqual(ANIMAL_HOLDERS);
     await settle(page, {timeoutMs: 20_000});
     await expect(page.locator('.con-sit')).toHaveAttribute('data-sit-step', 'choice');
-    expect(await crumbText(page), 'the crumb names the pick stage of the sitting').toMatch(/ВЫБОР|CHOICE/i);
+    await expect.poll(() => crumbText(page), {message: 'the crumb names the pick stage of the sitting', timeout: 10_000}).toMatch(/ВЫБОР|CHOICE/i);
     await expect(page.locator('.con-parl__gov-card .pcard'), 'exactly one enacted card on screen').toHaveCount(1);
     await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card .pcard'), 'carried onto the stage').toHaveClass(BUDGET_CLASS);
     expect((await wireOf(request, playerId)).waitingFor?.cards?.map((c) => c.name).sort(), 'the server asks the same two').toEqual(ANIMAL_HOLDERS);
@@ -312,7 +312,7 @@ test.describe('Greens Budget · standard-1080', () => {
     await expect.poll(async () => sorted((await readProbe(page)).samples.slice(-1)[0]?.slots ?? []), {timeout: 60_000, message: 'the microbes\' picker shows the two microbe holders'}).toEqual(MICROBE_HOLDERS);
     await settle(page, {timeoutMs: 20_000});
     await expect(page.locator('.con-sit')).toHaveAttribute('data-sit-step', 'choice');
-    expect(await crumbText(page), 'the crumb is still the sitting\'s pick stage').toMatch(/ВЫБОР|CHOICE/i);
+    await expect.poll(() => crumbText(page), {message: 'the crumb is still the sitting\'s pick stage', timeout: 10_000}).toMatch(/ВЫБОР|CHOICE/i);
     expect((await wireOf(request, playerId)).waitingFor?.cards?.map((c) => c.name).sort(), 'the server asks the two microbe holders').toEqual(MICROBE_HOLDERS);
     const mid = await wireOf(request, playerId);
     expect(mid.thisPlayer.tableau.find((c) => c.name === animalCard)?.resources, `the animals landed on ${animalCard}`).toBe(2);

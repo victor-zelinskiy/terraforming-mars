@@ -128,7 +128,7 @@ test.describe('the sealed place in the ledger — Pluto\'s two pairs are one tab
     await waitArrival(page);
     await pressOnce(page, 'Enter', async () => await page.locator('.con-hand.con-hand--embedded').count() > 0, 'A takes the card — the hand opens as the discard step');
     await settle(page);
-    expect(await crumbText(page), 'the step is the action\'s').toContain('Сброс');
+    await expect.poll(() => crumbText(page), {message: 'the step is the action\'s', timeout: 10_000}).toContain('Сброс');
     await shoot(page, 'C2-discard-step');
     await pressOnce(page, 'Enter', async () => await page.locator('.con-hand.con-hand--embedded').count() === 0, 'A discards the focused card');
 

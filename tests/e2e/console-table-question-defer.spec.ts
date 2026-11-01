@@ -108,7 +108,7 @@ async function expectUniversityMayWait(page: Page): Promise<void> {
   await expect(mu.locator('[data-tq-note]')).toContainText('Сначала добор');
   await expect(mu.locator('[data-tq-note]')).toContainText('Конференция на Олимпе');
   await expect(page.locator('.con-composer__cta--ready'), 'nothing holds the commit up').toHaveCount(1);
-  expect(await barText(page), 'A is «Выбрать сейчас» here').toContain('Выбрать сейчас');
+  await expect.poll(() => barText(page), {message: 'A is «Выбрать сейчас» here', timeout: 10_000}).toContain('Выбрать сейчас');
 }
 
 /** From the offered row to the commit rail, then A: the play's ONE POST. */
@@ -234,7 +234,7 @@ test.describe('a discard behind a draw — answer now, or after the draw', () =>
       await expect(page.locator(`.con-hand__slot--selected[data-zoom-slot="${drawn[0]}"]`),
         'the album OPENS on it — the last card of the hand, on whichever page it stands').toHaveCount(1);
       await expect(page.locator(`.con-hand__slot--selected[data-zoom-slot="${drawn[0]}"]`)).toBeInViewport();
-      expect(await crumbText(page), 'the album is a stage of the play').toContain('Сброс карты');
+      await expect.poll(() => crumbText(page), {message: 'the album is a stage of the play', timeout: 10_000}).toContain('Сброс карты');
       await shoot(page, preset.id, '03-live-album-new-card');
 
       // The player gives up the card Olympus just brought.
@@ -268,7 +268,7 @@ test.describe('a discard behind a draw — answer now, or after the draw', () =>
     await expect(page.locator(`${ALBUM} .con-hand__question [data-defer-plate]`), '«R3 Решить после добора»').toHaveCount(1);
     await expect(page.locator(`${ALBUM} .con-hand__question [data-defer-plate]`)).toContainText('Конференция на Олимпе');
     await expect(page.locator(`${ALBUM} .con-hand__question [data-decline-plate]`), '«RT Не сбрасывать»').toHaveCount(1);
-    expect(await barText(page), 'the bar names R3 too (its short form)').toContain('После добора');
+    await expect.poll(() => barText(page), {message: 'the bar names R3 too (its short form)', timeout: 10_000}).toContain('После добора');
     await shoot(page, 'tv4k', 'B1-album-two-buttons');
     const chosen = await page.locator('.con-hand__slot--selected').first().getAttribute('data-zoom-slot') ?? '';
     expect(chosen, 'a card under the cursor').not.toBe('');

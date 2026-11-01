@@ -456,7 +456,7 @@ for (const preset of PRESETS) {
       await expect(page.locator(rowOf('Luna')), 'Luna paid first').toHaveAttribute('data-colony-row-state', 'received', {timeout: 20_000});
       await expect(page.locator(rowOf('Miranda')), 'the walk stands on Miranda').toHaveAttribute('data-colony-row-active', '');
       await expect(page.locator('.con-footer'), 'the take\'s own verb is on the bar (the arrival gate opened)').toContainText('Взять', {timeout: 20_000});
-      expect(await crumbText(page), 'the tail names the step').toMatch(/добор карт/i);
+      await expect.poll(() => crumbText(page), {message: 'the tail names the step', timeout: 10_000}).toMatch(/добор карт/i);
       await expect(page.locator(`${zone} .con-reveal .con-wshead`), 'the embedded take draws no head of its own').toHaveCount(0);
       await shoot(page, preset.id, '03-take-miranda');
       const rowState = (colony: string) => page.locator(rowOf(colony)).getAttribute('data-colony-row-state');

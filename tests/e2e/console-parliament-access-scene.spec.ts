@@ -68,7 +68,7 @@ test.describe('parliament · the access scene', () => {
     // ④ the zone's head says it — and the crumb's tail names the stage while it does.
     await expect(page.locator('[data-parl-effects-won]'), 'the zone\'s head: «Эффект партии получен»').toHaveCount(1, {timeout: 20_000});
     await expect(page.locator('[data-parl-effects-won]')).toContainText(/Эффект партии получен/i);
-    expect(await crumbText(page), 'the crumb\'s tail names the stage').toMatch(/эффект партии/i);
+    await expect.poll(() => crumbText(page), {message: 'the crumb\'s tail names the stage', timeout: 10_000}).toMatch(/эффект партии/i);
     fs.mkdirSync(OUT_ROOT, {recursive: true});
     await page.screenshot({path: path.join(OUT_ROOT, '01-won.png')});
 

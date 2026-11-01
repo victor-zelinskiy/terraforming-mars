@@ -199,7 +199,7 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     await expect(page.locator(`${LEDGER} [data-colony-ledger]`)).toHaveAttribute('data-colony-ledger-multiplier', '3');
     await expect(page.locator(`${LEDGER} [data-colony-row="Luna"] [data-colony-row-times]`)).toHaveText(/3/);
     await expect(page.locator(`${LEDGER} [data-colony-ledger-none]`), 'never «no colonies» here').toHaveCount(0);
-    expect(await crumbText(page), 'the crumb: the sitting, its reward stage').toMatch(/заседание|sitting/i);
+    await expect.poll(() => crumbText(page), {message: 'the crumb: the sitting, its reward stage', timeout: 10_000}).toMatch(/заседание|sitting/i);
     await shoot(page, '01-ledger');
 
     // ── ② THE WAVE LEAVES THE ROW — Luna pays 6 M€: the chips are born on the row's bonus cell, the row is
@@ -256,7 +256,7 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     await expect(page.locator(`${STAGE} [data-spread-blocked]`), 'opens with everything still to place').toHaveCount(1, {timeout: 20_000});
     await expect(page.locator(LEDGER), 'the ledger yielded the zone to the step').toBeHidden();
     await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card .pcard'), 'the hero stays').toHaveCount(1);
-    expect(await crumbText(page), 'the crumb\'s tail names the layout').toMatch(/раскладка|distribution/i);
+    await expect.poll(() => crumbText(page), {message: 'the crumb\'s tail names the layout', timeout: 10_000}).toMatch(/раскладка|distribution/i);
     await expectParliamentFits(page, `${PRESET.id} layout`);
     await shoot(page, '03-layout');
     await press(page, 'KeyE', 500);
@@ -273,7 +273,7 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     await expect(page.locator(`${STAGE} .con-extdraw`), 'host-agnostic: no plate of its own').toHaveClass(/con-extdraw--embedded/);
     await expect(page.locator(`${STAGE} .con-extdraw .con-cards__slot`), 'three cards were drawn at once').toHaveCount(3, {timeout: 20_000});
     await expect(page.locator(LEDGER), 'the ledger yielded').toBeHidden();
-    expect(await crumbText(page), 'the crumb\'s tail names the take').toMatch(/получение|intake/i);
+    await expect.poll(() => crumbText(page), {message: 'the crumb\'s tail names the take', timeout: 10_000}).toMatch(/получение|intake/i);
     await waitSittingAtRest(page, 30_000);
     await shoot(page, '04-take-three');
     const plutoTakeStands = async () => {
@@ -285,7 +285,7 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
 
     // ── ⑥ THE TAKE OF ONE — Pluto's first draw: a pair is never merged with the next.
     await expect(page.locator(`${STAGE} .con-extdraw .con-cards__slot`), 'one card was drawn').toHaveCount(1, {timeout: 40_000});
-    expect(await crumbText(page)).toMatch(/получение|intake/i);
+    await expect.poll(() => crumbText(page), {timeout: 10_000}).toMatch(/получение|intake/i);
     await waitSittingAtRest(page, 30_000);
     await shoot(page, '05-take-one');
     expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, playerId)).waitingFor?.discardPrompt !== undefined, {tries: 4, settleMs: 1800}),
@@ -347,7 +347,25 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     // ── The rest of blue's pairs over the API (the surface is the subject, not the repetition); red owes nothing.
     await answerAsksAs(request, playerId, 12);
     await answerAsksAs(request, red);
-    await expect.poll(() => sittingStage(page), {timeout: 90_000}).toBe('results');
+    try {
+      await expect.poll(() => sittingStage(page), {timeout: 90_000}).toBe('results');
+    } catch (error) {
+      // NAME THE STATE the sitting stood in: the server's question per seat, the sitting's own attributes, the holds.
+      const seatAsk = async (seat: string) => {
+        const w = await wireOf(request, seat);
+        return `${w.thisPlayer.color}: wf=${w.waitingFor?.type ?? '-'}${w.waitingFor?.discardPrompt !== undefined ? '(discard)' : ''}` +
+          `${w.waitingFor?.externalDrawPrompt !== undefined ? '(draw)' : ''} phase=${w.game.parliament.phase?.step ?? '-'}`;
+      };
+      const ui = await page.evaluate(() => {
+        const w = window as unknown as {__conReady?: () => unknown};
+        const parl = document.querySelector('.con-parl');
+        const sit = document.querySelector('.con-sit');
+        const attrs = (el: Element | null) => el === null ? '-' : Array.from(el.attributes)
+          .filter((a) => a.name.startsWith('data-')).map((a) => `${a.name}=${a.value}`).join(' ');
+        return `parl[${attrs(parl)}] sit[${attrs(sit)}] stage>${Array.from(document.querySelectorAll('[data-embed-slot="parliament-stage"] > *')).map((e) => e.className.toString().split(' ')[0]).join(',')} ready=${JSON.stringify(w.__conReady?.() ?? null)}`;
+      });
+      throw new Error(`${(error as Error).message}\n[sitting stall] ${await seatAsk(playerId)} | ${await seatAsk(red)}\n${ui}`);
+    }
     await waitSittingAtRest(page, 30_000);
 
     // ── ⑧ THE RESULTS group blue's payouts by tile; the ledger read every row received before it left.

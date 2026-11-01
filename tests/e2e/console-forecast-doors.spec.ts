@@ -80,7 +80,7 @@ for (const preset of PRESETS) {
       await press(page, 'Enter', 900);
       await expect(page.locator('.con-colfocus'), 'A opened the trade stage').toHaveCount(1, {timeout: 10_000});
       await settle(page, {timeoutMs: 15_000});
-      expect(await crumb(page)).toMatch(/КОЛОНИИ.*МИРАНДА.*ТОРГОВЛЯ/);
+      await expect.poll(() => crumb(page), {timeout: 10_000}).toMatch(/КОЛОНИИ.*МИРАНДА.*ТОРГОВЛЯ/);
 
       // ── 1. The door: the table's answer on the «ВАШ ИТОГ» rail, the key on it, the verb on the bar.
       const door = page.locator('.con-colfocus [data-forecast-row]');
@@ -96,7 +96,7 @@ for (const preset of PRESETS) {
         'R3 opens the «Эффекты» layer inside the colony stage').toBeTruthy();
       // The colony stage ROOT is the forecast host (the layer parks the whole configuration column under it).
       await expect(page.locator('.con-colfocus[data-forecast-host] [data-forecast-layer] .con-efx--forecast')).toHaveCount(1);
-      expect(await crumb(page), 'the crumb gains «· ЭФФЕКТЫ»').toMatch(/ТОРГОВЛЯ\s*·\s*ЭФФЕКТЫ/);
+      await expect.poll(() => crumb(page), {message: 'the crumb gains «· ЭФФЕКТЫ»', timeout: 10_000}).toMatch(/ТОРГОВЛЯ\s*·\s*ЭФФЕКТЫ/);
       await expect(page.locator('.con-colfocus [data-forecast-layer] [data-forecast-group="receive"]'), 'Meat Industry stands in «Вы получите»').toHaveCount(1);
       expect(await page.locator('.con-colfocus [data-forecast-browse]').count(), 'the configuration is PARKED, not gone').toBe(1);
       await expect(page.locator('.con-colfocus .con-colfocus__trackzone'), 'the track instrument stays in view').toBeVisible();

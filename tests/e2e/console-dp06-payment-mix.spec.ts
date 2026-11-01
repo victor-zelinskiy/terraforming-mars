@@ -388,7 +388,7 @@ for (const profile of PROFILES) {
       // ── Back to the flexible family: the gateway returns. ──
       await press(page, 'ArrowUp', 600);
       await press(page, 'Enter', 900);
-      expect(await barText(page)).toContain('ПРОДОЛЖИТЬ К ОПЛАТЕ');
+      await expect.poll(() => barText(page), {timeout: 10_000}).toContain('ПРОДОЛЖИТЬ К ОПЛАТЕ');
       expect((await readOutcomePay(page)).map((r) => r.icon)).toEqual(['energy']);
 
       // ── CONFIGURE → PAYMENT (X) ──

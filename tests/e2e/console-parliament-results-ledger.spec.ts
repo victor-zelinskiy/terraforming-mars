@@ -109,7 +109,7 @@ test.describe(`P71 · the sitting's results — a ledger of totals, a breakdown 
     // ── X: THE BREAKDOWN PER SEAT ──
     expect(await pressUntil(page, 'KeyX', async () => await page.locator(DETAILS).count() === 1, {tries: 3, settleMs: 900}), 'X opens «ПОДРОБНОСТИ ВЫПЛАТ»').toBe(true);
     await settle(page, {timeoutMs: 20_000});
-    expect(await crumbText(page), 'the crumb grows forward one level').toMatch(/ИТОГИ\s*·\s*ВЫПЛАТЫ/i);
+    await expect.poll(() => crumbText(page), {message: 'the crumb grows forward one level', timeout: 10_000}).toMatch(/ИТОГИ\s*·\s*ВЫПЛАТЫ/i);
     const col = page.locator(`${DETAILS} [data-sitpd-seat="${blue}"]`);
     await expect(col.locator('[data-sitpd-influence]'), 'the influence the law read').toHaveAttribute('data-sitpd-influence-total', '2');
     await expect(col.locator('[data-sitpd-influence-source="career"]'), 'the Career: level 1').toHaveAttribute('data-sitpd-influence-amount', '1');

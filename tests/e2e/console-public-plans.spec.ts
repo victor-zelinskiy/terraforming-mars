@@ -90,7 +90,7 @@ for (const preset of PRESETS) {
       expect((b.match(/L3/g) ?? []).length, 'one L3 on the bar').toBe(1);
       await press(page, 'KeyV', 600); // R3
       await expect(picked(page), 'R3 selects every candidate').toHaveCount(candidates);
-      expect(await bar(page), 'R3 now reads unselect all').toMatch(/R3\s*Снять все/i);
+      await expect.poll(() => bar(page), {message: 'R3 now reads unselect all', timeout: 10_000}).toMatch(/R3\s*Снять все/i);
       await shoot(page, preset.id, 'a-02-all-selected');
       await press(page, 'KeyV', 600); // R3 again
       await expect(picked(page), 'R3 again clears the selection').toHaveCount(0);

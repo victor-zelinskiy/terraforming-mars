@@ -510,7 +510,7 @@ for (const preset of PRESETS) {
       expect(destinations, 'the lifted ocean\'s own cell is not a destination').not.toContain(X);
       expect(destinations, 'the other ocean\'s cell is occupied').not.toContain(OCEAN2);
       expect(await focusedSpaceId(page), 'the cursor moved onto a destination — a focus, never a choice').not.toBe(X);
-      expect(await barText(page), 'B on the cell level is «Другой океан»').toMatch(/Другой океан/);
+      await expect.poll(() => barText(page), {message: 'B on the cell level is «Другой океан»', timeout: 10_000}).toMatch(/Другой океан/);
 
       // The panel does not move while the player points: walk the destinations, one box. Cell 25 sits a row ABOVE the
       // ring's other cells, and the strict-grid d-pad walk (P27b — up/down never drift to a neighbouring column) does not
@@ -545,7 +545,7 @@ for (const preset of PRESETS) {
       await press(page, 'Enter', 500); // lock
       await expect(page.locator('.con-bcur--locked'), 'A locks the cell').toHaveCount(1);
       await expect(page.locator('.con-bmove--locked'), 'the vector firms up at the lock').toHaveCount(1);
-      expect(await barText(page), 'the locked verb is the ocean\'s').toMatch(/Подтвердить перенос/);
+      await expect.poll(() => barText(page), {message: 'the locked verb is the ocean\'s', timeout: 10_000}).toMatch(/Подтвердить перенос/);
       await shoot(page, preset.id, '05-locked');
       await press(page, 'Escape', 500);
       await expect(page.locator('.con-bcur--locked'), 'B unlocks — one level').toHaveCount(0);
