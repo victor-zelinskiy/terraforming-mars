@@ -10280,9 +10280,6 @@ parliamentFixture('parliament-chrome', {
     skipInitialCardSelection: false, coloniesExtension: true, prelude2Expansion: true,
     customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
   });
-  // PINNED, never dealt: the seeded shuffle hands the two names out in whichever order the deck's size leads to (P89
-  // leaving the hold-back list gave blue ThorGate — no Earth tag, one pair).
-  assignPinnedCorporations(name, [p1, p2], [CardName.TERACTOR, CardName.THORGATE]);
   answerStartFlow(game, [p1, p2]);
   game.colonies[0].addColony(p1);
   game.colonies[1].addColony(p1);
@@ -10461,6 +10458,9 @@ function cloudTourismFixture(name: string, variant: 'play' | 'wild' | 'vp'): voi
     skipInitialCardSelection: false, venusNextExtension: true, prelude2Expansion: true,
     customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
   });
+  // PINNED, never dealt: the seeded shuffle hands the two names out in whichever order the deck's size leads to (P89
+  // leaving the hold-back list gave blue ThorGate — no Earth tag, one pair).
+  assignPinnedCorporations(name, [p1, p2], [CardName.TERACTOR, CardName.THORGATE]);
   answerStartFlow(game, [p1, p2]);
   game.projectDeck.discardPile.push(...p1.cardsInHand.splice(0));
   moveToDeckTop(game, CardName.CARTEL);
