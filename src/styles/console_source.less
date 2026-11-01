@@ -102,6 +102,22 @@
         color: fade(#cfe6fb, 88%);
     }
     &__plate-sep { color: fade(@con-cyan, 60%); }
+    /* A CELL source's printed face — its bonus icons after the name, the scene badge's own reading (never a frame). */
+    &__plate-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: .2rem;
+        flex-shrink: 0;
+    }
+    &__plate-ico {
+        display: inline-block;
+        width: 1.15rem;
+        height: 1.15rem;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        &.resource_icon--bonus-temperature-4mc { width: 1.8rem; }
+    }
     /* The NAME is decision context and is never clamped — in the dock too, not only in the chip (TR53 walk: on 4K the
        printed bonus's plate read «КЛЕТКА ПОЛЯ · Бонус размещ…»). A long name wraps under the kind; the dock is constant
        for the whole prompt, so a second line moves nothing while the player points. */
@@ -157,4 +173,14 @@ html.con-profile-handheld .con-src {
     zoom: 0.82;
     &__plate { max-width: 12rem; }
     &__rule { max-width: 12rem; }
+}
+
+/* THE HEAD'S SOURCE PLATE — a board cell that asked (Vastitas Borealis' Viking grant, Terra Cimmeria's MSL Curiosity
+   colony) stands at the head's trailing edge before the bench / the fleet: one line, never stretched to the head's
+   height, the same plate the payment and the task host wear. */
+.con-parl__giver,
+.con-colonies__giver {
+    align-self: center;
+    flex: 0 0 auto;
+    margin-right: .6rem;
 }

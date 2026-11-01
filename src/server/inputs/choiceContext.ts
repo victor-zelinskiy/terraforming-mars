@@ -3,6 +3,7 @@ import {CardType} from '../../common/cards/CardType';
 import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
 import {SpaceId} from '../../common/Types';
+import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {ICard} from '../cards/ICard';
 
 /**
@@ -104,6 +105,11 @@ export function colonySource(name: string | Message, via?: CardName): ChoiceCont
 /** The name a cell's PRINTED placement bonus gives its own prompt (the dock: «КЛЕТКА · Бонус размещения»). */
 export const PLACEMENT_BONUS_SOURCE_NAME = 'Placement bonus';
 
-export function spaceSource(space: SpaceId, name?: string | Message): ChoiceContextSource {
-  return name === undefined ? {kind: 'space', space} : {kind: 'space', space, name};
+export function spaceSource(space: SpaceId, name?: string | Message, bonus?: ReadonlyArray<SpaceBonus>): ChoiceContextSource {
+  return {
+    kind: 'space',
+    space,
+    ...(name === undefined ? {} : {name}),
+    ...(bonus === undefined || bonus.length === 0 ? {} : {bonus: [...bonus]}),
+  };
 }

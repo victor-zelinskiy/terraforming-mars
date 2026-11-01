@@ -90,7 +90,7 @@ describe('BoardCardPayout — one record for every card resource the field pays'
       runAllActions(game);
 
       const select = cast(player.popWaitingFor(), SelectCard);
-      expect(select.choiceContext?.source).deep.eq({kind: 'space', space: space.id, name: 'Placement bonus'});
+      expect(select.choiceContext?.source).deep.eq({kind: 'space', space: space.id, name: 'Placement bonus', bonus: [...space.bonus]});
       expect(select.resourceGainPrompt?.fromSpace).eq(space.id);
       expect(select.toModel(player).resourceGainPrompt?.fromSpace, 'the marker rides the model').eq(space.id);
       expect(recordsAfter(0), 'nothing is recorded before the answer').is.empty;

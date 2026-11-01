@@ -6474,6 +6474,8 @@ export default defineComponent({
         } : {}),
         // …and whether it is the STAGED door (nothing on the wire yet) or a live server prompt.
         ...(this.playerView.waitingFor?.type !== 'colony' && this.stagedColonyModel !== undefined ? {staged: true} : {}),
+        // A BOARD CELL asked for this colony (Terra Cimmeria's MSL Curiosity): the head names it — the source plate.
+        ...(model.choiceContext?.source.kind === 'space' ? {cellGiver: {source: model.choiceContext.source, boardName: this.game.gameOptions.boardName}} : {}),
       };
     },
     /** STAGED COLONY (TR07): the store's fourth target — the colony pick the hand's step serves before the one submit. */

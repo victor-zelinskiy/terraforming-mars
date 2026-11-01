@@ -33,6 +33,8 @@ import {BotAttackSource} from '@/common/models/BotAttackPromptModel';
 import {ChoiceContextSource, PlayerInputModel, SelectProductionToLoseModel} from '@/common/models/PlayerInputModel';
 import {ProductionLossSource} from '@/common/models/ProductionLossSource';
 import {getResolution, resolutionName} from '@/client/parliament/ClientParliamentManifest';
+import {SpaceId} from '@/common/Types';
+import {cellBonusIcons} from '@/client/console/revealStageHead';
 
 export interface PromptSourceView {
   /** The premium card face to render — set exactly when the source IS a card. */
@@ -72,6 +74,12 @@ export interface PromptSourceView {
    * chip), so the code the face engraves is never lost on a plate.
    */
   code?: string;
+  /**
+   * A BOARD CELL asked (its printed placement bonus — the Viking delegate, MSL Curiosity's colony, a card resource):
+   * the cell and the printed icons it is named by — the received-cards scene's own reading («Клетка поля» + the
+   * printed face). The dock names a cell with a proper name by it (`specialCellInfo`, given the board).
+   */
+  cell?: {space: SpaceId, icons: ReadonlyArray<string>};
 }
 
 /**
@@ -112,7 +120,10 @@ export function choiceSourceView(source: ChoiceContextSource | undefined): Promp
   // A BOARD CELL's printed placement bonus asks (TR53 iteration): «КЛЕТКА ПОЛЯ · Бонус размещения» — the cell itself
   // is lit on the field while the player chooses; there is nothing to open fullscreen.
   case 'space':
-    return {kindKey: 'Board cell', name: source.name, inspectable: false};
+    return {
+      kindKey: 'Board cell', name: source.name, inspectable: false,
+      ...(source.space === undefined ? {} : {cell: {space: source.space, icons: cellBonusIcons(source.bonus ?? [])}}),
+    };
   // Turmoil Redux: a PARTY's action or effect asks (the Reds' recycle discard).
   case 'party':
     return {kindKey: 'Party action', name: source.party ?? source.name, inspectable: false};

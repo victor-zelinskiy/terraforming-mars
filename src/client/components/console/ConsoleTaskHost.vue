@@ -132,7 +132,7 @@
             </span>
           </div>
           <console-source-dock v-if="dockedSource !== undefined" :view="dockedSource"
-                               :compact="sourceCompact" ref="sourceCard">
+                               :compact="sourceCompact" :boardName="playerView.game.gameOptions.boardName" ref="sourceCard">
             <!-- A resolution's payout reads under its face: influence → the
                  amount THIS pick adds (the server's own number). -->
             <template v-if="sourceYield !== undefined" #under>

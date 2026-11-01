@@ -96,6 +96,7 @@ import {PathfindersExpansion} from './pathfinders/PathfindersExpansion';
 import {PathfindersData} from './pathfinders/PathfindersData';
 import {AddResourcesToCard} from './deferredActions/AddResourcesToCard';
 import {PLACEMENT_BONUS_SOURCE_NAME, spaceSource} from './inputs/choiceContext';
+import type {ChoiceContextSource} from '../common/models/PlayerInputModel';
 import {ColonyDeserializer} from './colonies/ColonyDeserializer';
 import {GameLoader} from './database/GameLoader';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from './game/GameOptions';
@@ -2944,11 +2945,18 @@ export class Game implements IGame, Logger {
       return new AddResourcesToCard(player, resource, {
         count,
         ...(sender !== undefined ? {
-          cause: spaceSource(sender.id, PLACEMENT_BONUS_SOURCE_NAME),
+          cause: spaceSource(sender.id, PLACEMENT_BONUS_SOURCE_NAME, sender.bonus),
           fromSpace: sender.id,
           ...(placed !== undefined ? {boardPayout: {space: placed, sender, cause: 'space-bonus' as const}} : {}),
         } : {}),
       });
+    };
+    // THE CELL THAT PAYS, as a prompt's giver — named by what it prints (the Viking delegate, MSL Curiosity's colony):
+    // every surface that asks for this bonus says WHICH cell asked, in one language (`spaceSource`).
+    const cellGiver = (): ChoiceContextSource => {
+      const id = source?.spaceId ?? source?.placedSpaceId;
+      const cell = id === undefined ? undefined : this.board.spaces.find((s) => s.id === id);
+      return cell === undefined ? {kind: 'system'} : spaceSource(cell.id, PLACEMENT_BONUS_SOURCE_NAME, cell.bonus);
     };
     switch (spaceBonus) {
     case SpaceBonus.DRAW_CARD:
@@ -3021,9 +3029,7 @@ export class Game implements IGame, Logger {
       // when no vote is open or the reserve is empty). MarsBot never reaches here: its covered icons settle in
       // `AutomaTilePlacer` (the owner's Viking house rule).
       if (this.parliament !== undefined) {
-        const sender = source?.spaceId ?? source?.placedSpaceId;
-        this.defer(new PlaceDelegatesOnResolution(player, count,
-          sender !== undefined ? spaceSource(sender, PLACEMENT_BONUS_SOURCE_NAME) : {kind: 'system'}));
+        this.defer(new PlaceDelegatesOnResolution(player, count, cellGiver()));
       } else {
         Turmoil.ifTurmoil(this, () => this.defer(new SendDelegateToArea(player)));
       }
@@ -3035,8 +3041,10 @@ export class Game implements IGame, Logger {
         {
           title: 'Select how to pay for building a colony',
           skipIfUnaffordable: 'The colony placement bonus is skipped — ${0} cannot pay ${1} M€',
+          // MSL Curiosity names itself on the bill and on the colony pick it buys — the same giver for both steps.
+          cause: cellGiver(),
         }))
-        .andThen(() => this.defer(new BuildColony(player)));
+        .andThen(() => this.defer(new BuildColony(player, {giver: cellGiver()})));
       return {kind: 'other'};
     default:
       throw new Error('Unhandled space bonus ' + spaceBonus + '. Report this exact error, please.');

@@ -78,6 +78,9 @@
                    :stage="headStage"
                    :committed="headCommitted">
       <template #trailing>
+        <!-- WHO ASKED, when it is a board cell (Vastitas Borealis' Viking): the same source plate as everywhere else. -->
+        <console-source-dock v-if="cellGiverView !== undefined" class="con-parl__giver" chip
+                             :view="cellGiverView" :boardName="pv.game.gameOptions.boardName" data-parl-cell-giver />
         <ConsoleParliamentSeats :view="view" :viewerColor="viewerColor" :benchSource="benchSource" :benchWarn="benchWarn" :neutralSource="neutralSource" />
       </template>
     </ConsoleWsHead>
@@ -223,7 +226,9 @@ import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {ChoiceContextSource, PlayerInputModel} from '@/common/models/PlayerInputModel';
+import ConsoleSourceDock from '@/client/components/console/ConsoleSourceDock.vue';
+import {choiceSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {StagedReceipt} from '@/client/console/stagedPlay';
 import {InputResponse} from '@/common/inputs/InputResponse';
@@ -378,6 +383,7 @@ export default defineComponent({
     ConsoleParliamentBannerMode,
     ConsoleBannerCubeStage,
     ConsoleParliamentDelegateMode,
+    ConsoleSourceDock,
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -414,6 +420,11 @@ export default defineComponent({
   emits: ['close', 'submit', 'notice', 'inspect', 'inspect-source', 'open-action', 'open-resolution-action', 'flow-complete', 'collapse', 'staged-back', 'to-board'],
   data() {
     return {
+      /**
+       * The BOARD CELL that granted the delegate being placed (Vastitas Borealis' Viking) — latched from the live grant
+       * so the head keeps naming it while the cube lands (the prompt is gone by then), let go when the vote ends.
+       */
+      cellGiverLatch: undefined as ChoiceContextSource | undefined,
       /** The chairman quest's DOSSIER stands over the hall (X on the quest — Парламент v8 § 7). */
       questDossierOpen: false,
       /** …and the career's (X on the career). */
@@ -512,6 +523,20 @@ export default defineComponent({
     },
     bridge(): ParliamentPromptBridge {
       return parliamentPromptBridge(this.pv.waitingFor, this.stagedVote);
+    },
+    /** A delegate GRANT whose giver is a BOARD CELL (the live prompt's `choiceContext.source`), else undefined. */
+    liveCellGiver(): ChoiceContextSource | undefined {
+      const source = this.bridge.grant?.model.choiceContext?.source;
+      return source?.kind === 'space' ? source : undefined;
+    },
+    /**
+     * WHO ASKED, when it is a board cell: the ONE source plate (`ConsoleSourceDock`) the payment, the task host and
+     * the colony pick wear — «ИСТОЧНИК · Место посадки «Викинга-1» [делегат]» — at the head's right edge, standalone
+     * only (hosted, the host's crumb carries the flow).
+     */
+    cellGiverView(): PromptSourceView | undefined {
+      const source = this.liveCellGiver ?? this.cellGiverLatch;
+      return source === undefined || this.embedded || parliamentFlow.stage !== 'vote' ? undefined : choiceSourceView(source);
     },
     /**
      * THE NEUTRAL SUPPLY IS A SOURCE TOO — while the vote mode stands behind a door that also pays the
@@ -1352,6 +1377,14 @@ export default defineComponent({
     },
   },
   watch: {
+    'liveCellGiver': {
+      handler(source: ChoiceContextSource | undefined): void {
+        if (source !== undefined) {
+          this.cellGiverLatch = source;
+        }
+      },
+      immediate: true,
+    },
     /**
      * A read-only dossier never outlives the browse layer it was opened from (a sitting, a vote, a step take the hall).
      * …and BACK ON THE BROWSE LAYER WITH A MANDATORY PROMPT STANDING: the doors below open their stage only from
@@ -1360,6 +1393,9 @@ export default defineComponent({
      * from «ВАШИ ЭФФЕКТЫ») stood unanswered over an overview nothing on screen served. One pass per server position.
      */
     'flow.stage'(stage: ParliamentStage): void {
+      if (stage !== 'vote') {
+        this.cellGiverLatch = undefined; // the cell's grant is over — the head stops naming it
+      }
       if (stage !== 'browse') {
         this.questDossierOpen = false;
         this.careerDossierOpen = false;

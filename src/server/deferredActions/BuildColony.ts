@@ -80,6 +80,9 @@ export class BuildColony extends DeferredAction<IColony> {
       // The CARD whose on-play effect this build is: the prompt's
       // `choiceContext.source` (a staged tail's address) and the named skip.
       cause?: ChoiceContextSource,
+      // A GIVER that is not a card's play (Terra Cimmeria's MSL Curiosity cell): it names the prompt
+      // (`choiceContext.source`) and nothing else — never a staged tail's address, never the named skip a play owes.
+      giver?: ChoiceContextSource,
       // The PREVIEW's: the unpaid price of the card folded into «can the TR be afforded».
       canAffordOptions?: CanAffordOptions,
       // Cancellability (pay-on-commit Build-Colony standard project). Cards leave
@@ -137,8 +140,9 @@ export class BuildColony extends DeferredAction<IColony> {
     select.onCancel = this.options?.onCancel;
     select.disabledColonies = offer.disabled;
     select.buildSites = offer.candidates.map((colony) => this.site(colony));
-    if (this.options?.cause !== undefined) {
-      select.markChoiceContext({source: this.options.cause, mode: 'effect-choice'});
+    const source = this.options?.cause ?? this.options?.giver;
+    if (source !== undefined) {
+      select.markChoiceContext({source, mode: 'effect-choice'});
     }
     return select;
   }

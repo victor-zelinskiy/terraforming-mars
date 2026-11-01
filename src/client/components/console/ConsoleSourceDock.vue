@@ -69,6 +69,10 @@
       <span class="con-src__plate-kind">{{ $t(chip ? 'Source' : view.kindKey) }}</span>
       <span v-if="nameText !== ''" class="con-src__plate-sep" aria-hidden="true">·</span>
       <span v-if="nameText !== ''" class="con-src__plate-name">{{ nameText }}</span>
+      <!-- A CELL is named by its printed face too — the received-cards scene's grammar (the icons it prints). -->
+      <span v-if="cellIcons.length > 0" class="con-src__plate-cell" data-source-cell aria-hidden="true">
+        <i v-for="(icon, i) in cellIcons" :key="i" class="con-src__plate-ico resource_icon" :class="icon"></i>
+      </span>
       <span v-if="view.code !== undefined && showCardNumber" class="con-src__plate-code" :data-source-code="view.code">{{ view.code }}</span>
     </div>
 
@@ -101,6 +105,8 @@ import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {cardNumberDisplayState} from '@/client/components/premiumCard/cardNumberDisplay';
+import {BoardName} from '@/common/boards/BoardName';
+import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 
 export default defineComponent({
   name: 'ConsoleSourceDock',
@@ -123,6 +129,11 @@ export default defineComponent({
      * carries into stays unmarked, so no unrelated phase FLIP can claim it.
      */
     motionAnchor: {type: String, default: undefined},
+    /**
+     * The board in play — lets a CELL source be named by its proper name («Место посадки «Викинга-1»») where the
+     * map prints one (`specialCellInfo`). Without it a cell reads by its kind and its printed icons alone.
+     */
+    boardName: {type: String as PropType<BoardName>, default: undefined},
   },
   computed: {
     /** The printed catalog number is an opt-in (`cardNumberDisplay.ts`) — the face's stamp and this plate follow one flag. */
@@ -145,12 +156,21 @@ export default defineComponent({
     bonusCard(): {id: BonusCardId, ctx: BonusCardContext} | undefined {
       return this.chip ? undefined : this.view.bonusCard;
     },
+    /** A cell's proper name, when the map prints one (Viking 1, MSL Curiosity) — an English key. */
+    cellName(): string | undefined {
+      const cell = this.view.cell;
+      return cell === undefined || this.boardName === undefined ? undefined : getSpecialCellInfo(cell.space, this.boardName)?.title;
+    },
+    /** The cell's printed icons (`resource_icon--*`), when the source is a cell. */
+    cellIcons(): ReadonlyArray<string> {
+      return this.view.cell?.icons ?? [];
+    },
     nameText(): string {
       // The chip is ONE line, so its value must always say something: the card
       // when there is one, else the source's own name, else its kind. A chip
       // reading a bare «ИСТОЧНИК» with nothing after it is worse than none.
       const name: string | Message | undefined =
-        this.chip && this.view.card !== undefined ? this.view.card : this.view.name;
+        this.chip && this.view.card !== undefined ? this.view.card : (this.cellName ?? this.view.name);
       if (name === undefined) {
         return this.chip ? translateText(this.view.kindKey) : '';
       }

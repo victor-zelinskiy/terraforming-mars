@@ -12,6 +12,7 @@ import type {DeltaEspionageProjectionModel} from './DeltaEspionageModel';
 import type {TargetImpact, TargetImpactChange} from './TargetImpactModel';
 import type {AdjacencyAmountBasis} from './CardAdjacencyPayoutModel';
 import {CardName} from '../cards/CardName';
+import type {SpaceBonus} from '../boards/SpaceBonus';
 import {Tag} from '../cards/Tag';
 import {ColonyName} from '../colonies/ColonyName';
 import {Color, ColorWithNeutral} from '../Color';
@@ -151,6 +152,11 @@ export type ChoiceContextSource = {
    * lights the cell itself while the player chooses.
    */
   space?: SpaceId;
+  /**
+   * `kind: 'space'` — what that cell PRINTS (its placement bonuses), so a surface names the giver by its own face —
+   * the received-cards scene's grammar («Клетка поля» + the printed icons) — without reading the board.
+   */
+  bonus?: ReadonlyArray<SpaceBonus>;
   /** `kind: 'party'` — WHICH political party's effect asks (Turmoil Redux). */
   party?: PartyName;
   /** `kind: 'resolution'` — WHICH enacted resolution asks (catalog id). */

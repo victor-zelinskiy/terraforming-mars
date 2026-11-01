@@ -164,12 +164,17 @@ for (const profile of PROFILES) {
           count: document.querySelector('[data-parl-vote-count]')?.getAttribute('data-parl-vote-count') ?? '',
           cta: t(document.querySelector('.con-parl__cta')),
           crumbs: Array.from(document.querySelectorAll('.con-wshead')).map(t),
+          giver: t(document.querySelector('[data-parl-cell-giver]')),
+          giverIcon: document.querySelector('[data-parl-cell-giver] [data-source-cell] .resource_icon--delegate') !== null,
         };
       });
       console.log('── the vote ──', JSON.stringify(vote, null, 2));
       expect(vote.parls, 'ONE Parliament instance').toBe(1);
       expect(vote.stage, 'straight into the vote pose').toBe('vote');
       expect(vote.count, 'the cell grants ONE delegate').toBe('1');
+      // WHO ASKED: the head names the cell — the ONE source plate (its proper name and its printed delegate).
+      expect(vote.giver, 'the head names the Viking cell').toMatch(/Викинга-1/);
+      expect(vote.giverIcon, 'the plate wears the printed delegate of the cell').toBe(true);
 
       await page.keyboard.press('Enter');
       await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.type ?? 'none',

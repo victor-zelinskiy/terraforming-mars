@@ -58,6 +58,9 @@
              past the descent — the crumb tail then names the mode). -->
         <span v-if="pick !== undefined" class="con-colonies__mode-chip">{{ $t(pick.labelKey) }}</span>
         <template #trailing>
+          <!-- WHO ASKED, when it is a board cell (MSL Curiosity): the same source plate as the payment it follows. -->
+          <console-source-dock v-if="cellGiverView !== undefined" class="con-colonies__giver" chip
+                               :view="cellGiverView" :boardName="pick?.cellGiver?.boardName" data-colonies-cell-giver />
           <ConsoleColonyFleetBar :chips="fleetChips" :launchingColor="launchingFleetColor" />
         </template>
       </ConsoleWsHead>
@@ -482,7 +485,10 @@ import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {SelectOptionModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
+import {ChoiceContextSource, SelectOptionModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
+import {BoardName} from '@/common/boards/BoardName';
+import ConsoleSourceDock from '@/client/components/console/ConsoleSourceDock.vue';
+import {choiceSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {
   colonyGridLayout, colonyGridCols, ColonyGridLayout, ColonyFocusIntent,
@@ -623,6 +629,11 @@ export type ConsoleColonyPick = {
    * reserve) and a replacement's chosen leaving tile. Its presence makes the act `roster` (`colonyPickIntent`).
    */
   roster?: ColonyRosterPickView,
+  /**
+   * A BOARD CELL asked for this pick (Terra Cimmeria's MSL Curiosity — the prompt's `choiceContext.source`): the head
+   * names it with the ONE source plate the payment before it wore (`ConsoleSourceDock`), on the board in play.
+   */
+  cellGiver?: {source: ChoiceContextSource, boardName: BoardName},
 };
 
 /** The focus stage's confirm payload (forwarded verbatim to the shell). */
@@ -669,7 +680,7 @@ const COMPLETION_SETTLE_MS = 300;
 export default defineComponent({
   name: 'ConsoleColoniesSection',
   directives: {embedZone: vEmbedZone},
-  components: {ConsoleWsHead, ConsoleColonyFleetBar, ConsoleColonyTile, ConsoleColonyFocusStage, ConsoleColonyInspect, ConsoleFleetDockTile, ConsoleFleetDockStage, ActionEffectChip, ColonyFleetIcon, BenefitGlyph, PlayerCube, PremiumCountGlyph},
+  components: {ConsoleWsHead, ConsoleSourceDock, ConsoleColonyFleetBar, ConsoleColonyTile, ConsoleColonyFocusStage, ConsoleColonyInspect, ConsoleFleetDockTile, ConsoleFleetDockStage, ActionEffectChip, ColonyFleetIcon, BenefitGlyph, PlayerCube, PremiumCountGlyph},
   props: {
     colonies: {type: Array as PropType<ReadonlyArray<ColonyModel>>, required: true},
     index: {type: Number, required: true},
@@ -953,6 +964,11 @@ export default defineComponent({
     // Two depths share the one line: the FOCUS STAGE (pre-commit — cyan) and
     // the EMBEDDED PAYOUT (post-commit — amber): «КОЛОНИИ › ПЛУТОН › ДОБОР
     // КАРТ». Stable context before the mutable stage; only the tail moves.
+    /** The board cell that asked for this pick (MSL Curiosity) — the head's source plate. */
+    cellGiverView(): PromptSourceView | undefined {
+      const giver = this.pick?.cellGiver;
+      return giver === undefined ? undefined : choiceSourceView(giver.source);
+    },
     crumbSubject(): string {
       // THE HOSTED VOTE (a colony's delegate grant) is the build's / the trade's
       // continuation: the carried object survives into the step — «КОЛОНИИ ›
