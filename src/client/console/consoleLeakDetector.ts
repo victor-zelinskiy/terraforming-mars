@@ -33,7 +33,7 @@ import {inputTitleText} from '@/client/console/turnIntents';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {Message} from '@/common/logs/Message';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
-import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
+import {blockingAnimationHoldCount, isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
 import {decisionPromptStamp, effectDecisionState} from '@/client/console/effectDecision/effectDecisionState';
 import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
@@ -41,7 +41,8 @@ import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
 import {sittingAskResolution} from '@/client/console/promptSource';
 import {agendaReactionOf} from '@/client/console/parliament/agendaReaction';
 import {resetForegroundWatchdog, runForegroundWatchdog} from '@/client/console/consoleForegroundWatchdog';
-import {stackServes, workspaceFrameKnown, workspaceStackCollapsed, workspaceSurfacesFor, yieldedStackServes} from '@/client/console/consoleWorkspaceStack';
+import {stackServes, workspaceFrameKnown, workspaceFrameRenders, workspaceFrameSelector, workspaceKindSpec, workspaceStackCollapsed, workspaceStackState, workspaceSurfacesFor, yieldedStackServes, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenOwner, ScreenShadowStreak, advanceScreenShadowStreak, expectedScreenOwners, noteScreenShadowPass, recordScreenShadowFinding, screenPromptShape, screenPromptToken, screenShadowVerdict} from '@/client/console/screenDirector';
 import {StartServes, startServesSomething} from '@/client/console/startServing';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
@@ -404,6 +405,226 @@ export function coveredPromptSurface(): string | undefined {
   return undefined;
 }
 
+/**
+ * WHY A LIVE QUESTION MAY STAND WITH NO SURFACE RIGHT NOW — one list, read by the stranded check (any reason clears it)
+ * and by the SCREEN SHADOW (a reason makes a disagreement `held`, never a finding). `anyHold` is the one difference:
+ * the stranded check counts every animation hold (a hand intake renders into the always-on dock), the shadow only the
+ * BLOCKING ones — a notification-only hold is a story, and «a decision never waits on a story» (the liveness law).
+ */
+function promptHeldReason(view: PlayerViewModel, task: ConsoleTask | undefined, opts: {anyHold: boolean}): string {
+  const wf = view.waitingFor;
+  if (wf === undefined) {
+    return 'no-prompt';
+  }
+  // AN OPTIONAL INPUT IS NOT A DEMAND (the draft re-pick, a sitting's early close — the owner, 2026-10-28): nothing is
+  // asked of the player, so no surface is owed. The surface that OFFERS it (the sitting's reward page) is a courtesy,
+  // and a courtesy with nowhere to stand is no strand — «В заседании от вас ничего не требуется — недоступен в
+  // консольном режиме» was this guard reading the early close as a demand.
+  if (wf.optional === true) {
+    return 'optional';
+  }
+  // The Government Support scale-focus choreography intentionally shows NO surface for a beat — the panel closes
+  // (`closing`, WGT prompt still live) then the board scale animates while the next modal is held (`holding`).
+  if (govScaleFocusState.holding || govScaleFocusState.closing) {
+    return 'gov-scale-focus';
+  }
+  // A critical premium animation (a prelude tile / resource flight, the card intake into the dock, the card deal, a
+  // reveal / ceremony beat) owns the foreground for its bounded lifetime — any pending prompt is legitimately held
+  // BEHIND it (e.g. the corp first-action confirm waits out the prelude and intake cinematics; a placement follow-up
+  // waits out the reward beat). The named animation STAGES are already listed in SERVING_SURFACES, but the
+  // 'notification-only' holds (hand intake / deal) render into the always-on dock, which has no dedicated serving node
+  // — so the stranded check treats ANY active hold as a legitimate serving beat. A genuinely stranded prompt still
+  // persists after the hold releases (bounded by the 35 s ceiling) and surfaces then.
+  if (opts.anyHold ? isAnimationHoldActive() : blockingAnimationHoldCount() > 0) {
+    return 'animation-hold';
+  }
+  // The MANDATORY ANNOUNCEMENT GATE (consoleMandatoryGate) is deliberately holding an interruptive prompt CLOSED — it
+  // is announced (the top card + the chip status) and opens only on the player's press (B). While held the prompt
+  // legitimately has no open surface; the announcement / chip serve it.
+  if (isMandatoryGateHeld()) {
+    return 'announce-gate';
+  }
+  // THE SITTING HOSTS ITS LAW'S QUESTIONS (`WORKSPACE_KINDS.parliament`: «a pick, a take, a tile are STEPS of the
+  // sitting: hosted in its stage zone, never served by name»). A question the enacted law asks this seat has no
+  // surface of its own until the sitting's walk reaches its stop — before the frame stands it is held by the
+  // `stage-gate` block while the sitting RISES (`sittingRise.ts`, bounded by `SITTING_RISE_NET_MS`), and once the
+  // frame stands the walk plays the beats in front of it and opens the step at its page (bounded by the sitting's own
+  // stage ceilings). On a slow renderer either window outlasts the confirm streak (CI run 40194963188: RX40's take,
+  // «externalDraw has NO serving surface» over a standing Parliament at rest between beats). A parked sitting is the
+  // park's case below; a law's question with no sitting rising or known still strands as usual.
+  // …and a table's answer to a step of the Career the Parliament walked (TR78 — the quest, the sitting, a law): its
+  // flow's stage hosts it once the step's bonus has landed, the same window.
+  const career = agendaReactionOf(wf);
+  if ((sittingAskResolution(wf) !== undefined || (career !== undefined && career.reason !== 'card')) &&
+      (sittingRiseOwed() || workspaceFrameKnown('parliament'))) {
+    return 'sitting';
+  }
+  // A live CLIENT HAND PICK (consoleHandPick) is a serving beat by construction: the bridge exists ONLY while a
+  // composer or the task host is holding a prompt and has handed the card choice to the hand overlay, hiding itself
+  // for the pick's lifetime. The hand IS that prompt's surface — and matching `.con-hand` per kind would be wrong,
+  // because the player can also open the hand freely over a genuinely stranded prompt.
+  if (isConsoleHandPickActive()) {
+    return 'hand-pick';
+  }
+  // …and the beat right AFTER such a pick, when the album was the decision itself (`directPick`): its answer is on
+  // the wire and the answered prompt stands until the server moves past it — deliberately with no surface (re-opening
+  // the album would ask the question twice). Bounded by the prompt's serial: the next prompt, or a refusal, ends it.
+  if (effectDecisionState.pickAnsweredAt !== '' && effectDecisionState.pickAnsweredAt === decisionPromptStamp(view)) {
+    return 'pick-answered';
+  }
+  // A task the player DEFERRED (B = set it aside) is never stranded — see setConsoleTaskDeferred. The unified
+  // mandatory-prompt card is its serving surface and returns on B, but it is deliberately hidden while the player
+  // browses off the board home, so there is no serving DOM node to match then.
+  if (consoleTaskDeferred) {
+    return 'deferred';
+  }
+  // A PARKED WORKSPACE STACK is the same fact stated structurally: the frames that serve this prompt are alive, merely
+  // hidden while the player reads the board, and the board-home card is their door. Deliberately only while PARKED: a
+  // frame that is supposed to be on screen and is not is exactly the strand this detector exists to shout about.
+  if (task !== undefined && workspaceStackCollapsed() && stackServes(task.kind)) {
+    return 'parked';
+  }
+  // …and a stack that stepped ASIDE for the board (a sitting away for another seat's tile of the law — PL-764): its
+  // frames come back with the landing's end, and they serve this prompt the whole trip.
+  if (task !== undefined && yieldedStackServes(task.kind)) {
+    return 'yielded';
+  }
+  // …and an entry the player pressed for that waits for the screen handoff (see setConsoleTaskHandoffPending).
+  if (consoleTaskHandoffPending) {
+    return 'handoff';
+  }
+  // A task's nested SelectSpace branch being answered ON THE BOARD (the final greenery, the WGT ocean): the shell
+  // unmounts every task surface for the placement's lifetime — the board serves it. See setConsoleTaskSpacePlacement.
+  if (consoleTaskSpacePlacement) {
+    return 'task-on-board';
+  }
+  return '';
+}
+
+/**
+ * 4. THE SCREEN SHADOW (`screenDirector.ts`, phase 0) — the shell's half of the input: is the question the START's
+ * (the start director judges the opening), and which admission block holds the prompt's surface ('' = none).
+ */
+export type ScreenShadowContext = {startOwned: boolean, admission: string};
+let screenShadowContext: (() => ScreenShadowContext) | undefined;
+export function registerScreenShadowContext(supplier: (() => ScreenShadowContext) | undefined): void {
+  screenShadowContext = supplier;
+}
+
+function paints(el: Element): boolean {
+  return (el as HTMLElement).getClientRects().length > 0 && !(el as HTMLElement).hasAttribute('data-surface-warm') &&
+    startSceneServes(el);
+}
+
+/**
+ * The probe's selectors, built once: every workspace root (shared roots once — the stack tells their kinds apart), the
+ * play composer (a phase of the hand), every surface of its own, every beat. ONE document traversal per pass over the
+ * joined list (the detector's own perf law — its per-selector form was ~30 traversals a second for the whole session),
+ * the matches classified by `matches()` — a test on the few painted nodes, never another traversal.
+ */
+let probeSelectors: ReadonlyArray<string> | undefined;
+let probeJoined = '';
+function screenProbeSelectors(): ReadonlyArray<string> {
+  if (probeSelectors === undefined) {
+    probeSelectors = [...new Set([
+      ...ALL_WORKSPACE_KINDS.map((k) => workspaceFrameSelector(k)),
+      '.con-composer--play',
+      ...Object.values(OWNER_SURFACES),
+      ...BEAT_SURFACES,
+    ])];
+    probeJoined = probeSelectors.join(',');
+  }
+  return probeSelectors;
+}
+
+/** What PAINTS now: the serving owners (a workspace only while its frame renders AND its root paints) and the beats. */
+function screenProbe(): {present: Array<ScreenOwner>, beats: Array<string>} {
+  const selectors = screenProbeSelectors();
+  const painted = new Set<string>();
+  for (const el of document.querySelectorAll(probeJoined)) {
+    if (!paints(el)) {
+      continue;
+    }
+    for (const sel of selectors) {
+      if (!painted.has(sel) && el.matches(sel)) {
+        painted.add(sel);
+      }
+    }
+  }
+  const present: Array<ScreenOwner> = ALL_WORKSPACE_KINDS.filter((k) => painted.has(workspaceFrameSelector(k)) && workspaceFrameRenders(k));
+  if (!present.includes('hand') && painted.has('.con-composer--play')) {
+    present.push('hand');
+  }
+  for (const [owner, selector] of Object.entries(OWNER_SURFACES) as Array<[ScreenOwner, string]>) {
+    if (painted.has(selector)) {
+      present.push(owner);
+    }
+  }
+  return {present, beats: BEAT_SURFACES.filter((sel) => painted.has(sel))};
+}
+
+/** The workspaces entitled to a kind beyond the table — the registry's defaults and every frame's earned serves. */
+function workspacesServing(kind: ConsoleTask['kind']): Array<WorkspaceFrameKind> {
+  const out = new Set<WorkspaceFrameKind>();
+  for (const k of ALL_WORKSPACE_KINDS) {
+    if (workspaceKindSpec(k).serves.includes(kind)) {
+      out.add(k);
+    }
+  }
+  for (const frame of [...workspaceStackState.frames, ...workspaceStackState.parked]) {
+    if (frame.serves.includes(kind)) {
+      out.add(frame.kind);
+    }
+  }
+  return [...out];
+}
+
+let screenStreak: ScreenShadowStreak = {signature: '', ticks: 0};
+
+function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | undefined): void {
+  const wf = view?.waitingFor;
+  if (view === undefined || wf === undefined || task === undefined) {
+    screenStreak = advanceScreenShadowStreak(screenStreak, '');
+    return;
+  }
+  const ctx = screenShadowContext?.();
+  const shape = screenPromptShape(task);
+  // Out of the judge's scope → counted, and no DOM probe spent on it (the 1 Hz pass runs the whole session).
+  if (ctx === undefined || ctx.startOwned || typeof expectedScreenOwners(task) === 'string') {
+    const verdict = screenShadowVerdict({task, startOwned: ctx?.startOwned ?? false, frameServes: [], held: '', present: [], beats: []});
+    noteScreenShadowPass(shape, ctx === undefined ? {kind: 'none', scope: 'no-context'} : verdict);
+    screenStreak = advanceScreenShadowStreak(screenStreak, '');
+    return;
+  }
+  const hold = promptHeldReason(view, task, {anyHold: false});
+  const {present, beats} = screenProbe();
+  const verdict = screenShadowVerdict({
+    task,
+    startOwned: false,
+    frameServes: workspacesServing(task.kind),
+    held: hold !== '' ? hold : ctx.admission !== '' ? `admit:${ctx.admission}` : '',
+    present,
+    beats,
+  });
+  noteScreenShadowPass(shape, verdict);
+  if (verdict.kind !== 'unserved' && verdict.kind !== 'misserved') {
+    screenStreak = advanceScreenShadowStreak(screenStreak, '');
+    return;
+  }
+  const prompt = screenPromptToken(task, wf.promptId);
+  screenStreak = advanceScreenShadowStreak(screenStreak, `${verdict.kind}|${present.join(',')}|${prompt}`);
+  if (screenStreak.ticks !== SCREEN_SHADOW_CONFIRM_TICKS) {
+    return;
+  }
+  const finding = {kind: verdict.kind, expected: verdict.expected, present, prompt, at: Date.now()};
+  if (recordScreenShadowFinding(finding)) {
+    const frames = workspaceStackState.frames.map((fr) => fr.kind);
+    const parked = workspaceStackState.parked.map((fr) => fr.kind);
+    console.warn(`[screen-shadow] ${verdict.kind} — expected «${verdict.expected.join('|')}», on screen «${present.join('|') || 'nothing'}» for «${prompt}» ` +
+      JSON.stringify({...finding, wf: wf.type, frames, parked, admission: ctx.admission, collapsed: workspaceStackCollapsed()}));
+  }
+}
+
 const warned = new Set<string>();
 
 function warnOnce(key: string, message: string): void {
@@ -468,115 +689,17 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
     }
   }
 
+  // 4. THE SCREEN SHADOW — read only: a sustained disagreement is logged, nothing on screen changes.
+  runScreenShadow(view, task);
+
   // 1. Stranded prompt.
   if (view === undefined || wf === undefined) {
     clearStranded();
     return;
   }
-  // AN OPTIONAL INPUT IS NOT A DEMAND (the draft re-pick, a sitting's early close — the owner, 2026-10-28): nothing is
-  // asked of the player, so no surface is owed. The surface that OFFERS it (the sitting's reward page) is a courtesy,
-  // and a courtesy with nowhere to stand is no strand — «В заседании от вас ничего не требуется — недоступен в
-  // консольном режиме» was this guard reading the early close as a demand.
-  if (wf.optional === true) {
-    clearStranded();
-    return;
-  }
-  // The Government Support scale-focus choreography intentionally shows NO
-  // surface for a beat — the panel closes (`closing`, WGT prompt still live)
-  // then the board scale animates while the next modal is held (`holding`).
-  // Never a stranded prompt during either.
-  if (govScaleFocusState.holding || govScaleFocusState.closing) {
-    clearStranded();
-    return;
-  }
-  // A critical premium animation (a prelude tile / resource flight, the card
-  // intake into the dock, the card deal, a reveal / ceremony beat) owns the
-  // foreground for its bounded lifetime — any pending prompt is legitimately
-  // held BEHIND it (e.g. the corp first-action confirm waits out the prelude
-  // and intake cinematics; a placement follow-up waits out the reward beat).
-  // The named animation STAGES are already listed in SERVING_SURFACES, but the
-  // 'notification-only' holds (hand intake / deal) render into the always-on
-  // dock, which has no dedicated serving node — so treat ANY active hold as a
-  // legitimate serving beat. A genuinely stranded prompt still persists after
-  // the hold releases (bounded by the 35 s ceiling) and surfaces then.
-  if (isAnimationHoldActive()) {
-    clearStranded();
-    return;
-  }
-  // The MANDATORY ANNOUNCEMENT GATE (consoleMandatoryGate) is deliberately
-  // holding an interruptive prompt CLOSED — it is announced (the top card +
-  // the chip status) and opens only on the player's press (B). While held the
-  // prompt legitimately has no open surface; the announcement / chip serve it.
-  if (isMandatoryGateHeld()) {
-    clearStranded();
-    return;
-  }
-  // THE SITTING HOSTS ITS LAW'S QUESTIONS (`WORKSPACE_KINDS.parliament`: «a pick, a take, a tile are STEPS of the
-  // sitting: hosted in its stage zone, never served by name»). A question the enacted law asks this seat has no
-  // surface of its own until the sitting's walk reaches its stop — before the frame stands it is held by the
-  // `stage-gate` block while the sitting RISES (`sittingRise.ts`, bounded by `SITTING_RISE_NET_MS`), and once the
-  // frame stands the walk plays the beats in front of it and opens the step at its page (bounded by the sitting's own
-  // stage ceilings). On a slow renderer either window outlasts the confirm streak (CI run 40194963188: RX40's take,
-  // «externalDraw has NO serving surface» over a standing Parliament at rest between beats). A parked sitting is the
-  // park's case below; a law's question with no sitting rising or known still strands as usual.
-  // …and a table's answer to a step of the Career the Parliament walked (TR78 — the quest, the sitting, a law): its
-  // flow's stage hosts it once the step's bonus has landed, the same window.
-  const career = agendaReactionOf(wf);
-  if ((sittingAskResolution(wf) !== undefined || (career !== undefined && career.reason !== 'card')) &&
-      (sittingRiseOwed() || workspaceFrameKnown('parliament'))) {
-    clearStranded();
-    return;
-  }
-  // A live CLIENT HAND PICK (consoleHandPick) is a serving beat by
-  // construction: the bridge exists ONLY while a composer or the task host is
-  // holding a prompt and has handed the card choice to the hand overlay,
-  // hiding itself for the pick's lifetime. The hand IS that prompt's surface —
-  // and matching `.con-hand` per kind would be wrong, because the player can
-  // also open the hand freely over a genuinely stranded prompt.
-  if (isConsoleHandPickActive()) {
-    clearStranded();
-    return;
-  }
-  // …and the beat right AFTER such a pick, when the album was the decision itself (`directPick`): its answer is on
-  // the wire and the answered prompt stands until the server moves past it — deliberately with no surface (re-opening
-  // the album would ask the question twice). Bounded by the prompt's serial: the next prompt, or a refusal, ends it.
-  if (effectDecisionState.pickAnsweredAt !== '' && effectDecisionState.pickAnsweredAt === decisionPromptStamp(view)) {
-    clearStranded();
-    return;
-  }
-  // A task the player DEFERRED (B = set it aside) is never stranded — see
-  // setConsoleTaskDeferred. The unified mandatory-prompt card is its serving
-  // surface and returns on B, but it is deliberately hidden while the player
-  // browses off the board home, so there is no serving DOM node to match then.
-  if (consoleTaskDeferred) {
-    clearStranded();
-    return;
-  }
-  // A PARKED WORKSPACE STACK is the same fact stated structurally: the frames
-  // that serve this prompt are alive, merely hidden while the player reads the
-  // board, and the board-home card is their door. Plain TS, read straight from
-  // the model — no mirror to keep in sync, no round trip through the shell.
-  // Deliberately only while PARKED: a frame that is supposed to be on screen
-  // and is not is exactly the strand this detector exists to shout about.
-  if (task !== undefined && workspaceStackCollapsed() && stackServes(task.kind)) {
-    clearStranded();
-    return;
-  }
-  // …and a stack that stepped ASIDE for the board (a sitting away for another seat's tile of the law — PL-764): its
-  // frames come back with the landing's end, and they serve this prompt the whole trip.
-  if (task !== undefined && yieldedStackServes(task.kind)) {
-    clearStranded();
-    return;
-  }
-  // …and an entry the player pressed for that waits for the screen handoff (see setConsoleTaskHandoffPending).
-  if (consoleTaskHandoffPending) {
-    clearStranded();
-    return;
-  }
-  // A task's nested SelectSpace branch being answered ON THE BOARD (the final
-  // greenery, the WGT ocean): the shell unmounts every task surface for the
-  // placement's lifetime — the board serves it. See setConsoleTaskSpacePlacement.
-  if (consoleTaskSpacePlacement) {
+  // Every reason a live question may legitimately stand with no surface (`promptHeldReason` — ONE list with the
+  // screen shadow; here any animation hold counts).
+  if (promptHeldReason(view, task, {anyHold: true}) !== '') {
     clearStranded();
     return;
   }

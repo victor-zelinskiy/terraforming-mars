@@ -275,6 +275,48 @@ const LIVENESS_STALL = '[liveness] stall';
  */
 const START_SHADOW = '[start-shadow]';
 /**
+ * The SCREEN SHADOW's marker (`src/client/console/screenDirector.ts`, the same phase 0 for the WHOLE console, 2026-10-31):
+ * the server's question past the opening, by its kind, may be served by a set of owners — and for a while none of them
+ * stood (`unserved`) or a foreign one did (`misserved`). DATA, never red — filed under `test-results/screen-shadow/`.
+ */
+const SCREEN_SHADOW = '[screen-shadow]';
+
+/**
+ * A SHADOW's findings of one test, FILED, never failed: the marker's console lines of every page of the test's context
+ * → one JSON under `<outputDir>/<dir>/` (pulled back from the box with `test-results/`) and an annotation.
+ */
+function armShadowHarvest(context: import('@playwright/test').BrowserContext, marker: string): Array<string> {
+  const lines: Array<string> = [];
+  const watch = (page: Page) => {
+    page.on('console', (message) => {
+      const text = message.text();
+      if (text.includes(marker)) {
+        lines.push(text.slice(0, 4000));
+      }
+    });
+  };
+  context.pages().forEach(watch);
+  context.on('page', watch);
+  return lines;
+}
+
+function fileShadowFindings(testInfo: import('@playwright/test').TestInfo, marker: string, dir: string, lines: ReadonlyArray<string>): void {
+  if (lines.length === 0) {
+    return;
+  }
+  // A `cure` line (the director acted — phase 1) is named as such: a cure on a spec path is a latch bug to stand up.
+  const brief = (l: string): string => {
+    const kind = l.startsWith(`${marker} cure`) ? 'CURE ' : '';
+    return kind + (l.split(' — ')[1]?.split(' {')[0] ?? l);
+  };
+  testInfo.annotations.push({type: dir, description: `${lines.length} finding(s): ${lines.map(brief).join(' · ').slice(0, 600)}`});
+  const out = path.join(testInfo.project.outputDir, dir);
+  fs.mkdirSync(out, {recursive: true});
+  // The slug keeps the title's words (`\w`): a class that dropped them filed every test of a file under one name.
+  const slug = `${path.basename(testInfo.file, '.spec.ts')}--${testInfo.title}`.replace(/[^\w.-]+/g, '-').slice(0, 150);
+  fs.writeFileSync(path.join(out, `${slug}-r${testInfo.retry}.json`), JSON.stringify({file: path.basename(testInfo.file), title: testInfo.title, retry: testInfo.retry, findings: lines}, null, 1));
+}
+/**
  * The «flight end» sentinel's marker (`src/client/console/resourceTransfer/consoleResourceTransfer.ts` — T06 «ОБА КОНЦА
  * ПОЛЁТА — ЖИВЫЕ»): a resource token was born on, or touched down over, a point where NOTHING was painted (the page, the
  * console's bare root) — a token out of nothing / into nothing. An object end can never print it (it is measured through
@@ -436,7 +478,7 @@ function sleepSiteOf(stack: string): string {
   return '<unknown>';
 }
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, livenessGuard: void, startShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, stallHarvest: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, livenessGuard: void, startShadowHarvest: void, screenShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, stallHarvest: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
   /**
    * CI's STARVED RENDERER ON DEMAND (`TM_E2E_CPU_THROTTLE=<rate>`, e.g. 4): every page of the test's context runs under
    * CDP CPU throttling. CI's 4K software raster on a shared runner starves the main thread for hundreds of ms — the
@@ -767,31 +809,35 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
    * `<outputDir>/start-shadow/` (pulled back from the box with `test-results/`) and a `start-shadow` annotation.
    */
   startShadowHarvest: [async ({context}, use, testInfo) => {
-    const lines: Array<string> = [];
-    const watch = (page: Page) => {
-      page.on('console', (message) => {
-        const text = message.text();
-        if (text.includes(START_SHADOW)) {
-          lines.push(text.slice(0, 4000));
-        }
-      });
-    };
-    context.pages().forEach(watch);
-    context.on('page', watch);
+    const lines = armShadowHarvest(context, START_SHADOW);
     await use();
-    if (lines.length === 0) {
-      return;
+    fileShadowFindings(testInfo, START_SHADOW, 'start-shadow', lines);
+  }, {auto: true}],
+
+  /**
+   * EVERY TEST: the SCREEN SHADOW's findings (`[screen-shadow]`) — the same filing under `<outputDir>/screen-shadow/`;
+   * `scripts/screen-shadow-report.mjs` groups a whole run.
+   */
+  screenShadowHarvest: [async ({context}, use, testInfo) => {
+    const lines = armShadowHarvest(context, SCREEN_SHADOW);
+    await use();
+    // HOW THE SHADOW LOOKED — a run with no finding is evidence only beside these numbers (the passes judged, the holds
+    // and beats that explained a wait, who served each prompt shape). One line per page, every test, findings or not.
+    type ShadowReadout = {judged: number, stats: unknown};
+    const pages: Array<ShadowReadout> = [];
+    for (const page of context.pages()) {
+      const r = await page.evaluate(() => (window as unknown as {__conScreenShadow?: () => ShadowReadout}).__conScreenShadow?.())
+        .catch(() => undefined);
+      if (r !== undefined) {
+        pages.push({judged: r.judged, stats: r.stats});
+      }
     }
-    // A `cure` line (the director acted — phase 1) is named as such: a cure on a spec path is a latch bug to stand up.
-    const brief = (l: string): string => {
-      const kind = l.startsWith(`${START_SHADOW} cure`) ? 'CURE ' : '';
-      return kind + (l.split(' — ')[1]?.split(' {')[0] ?? l);
-    };
-    testInfo.annotations.push({type: 'start-shadow', description: `${lines.length} finding(s): ${lines.map(brief).join(' · ').slice(0, 600)}`});
-    const dir = path.join(testInfo.project.outputDir, 'start-shadow');
-    fs.mkdirSync(dir, {recursive: true});
-    const slug = `${path.basename(testInfo.file, '.spec.ts')}--${testInfo.title}`.replace(/[^w.-]+/g, '-').slice(0, 150);
-    fs.writeFileSync(path.join(dir, `${slug}-r${testInfo.retry}.json`), JSON.stringify({file: path.basename(testInfo.file), title: testInfo.title, retry: testInfo.retry, findings: lines}, null, 1));
+    const judged = pages.reduce((n, p) => n + p.judged, 0);
+    testInfo.annotations.push({type: 'screen-shadow-judged', description: String(judged)});
+    fs.mkdirSync(testInfo.project.outputDir, {recursive: true});
+    fs.appendFileSync(path.join(testInfo.project.outputDir, 'screen-shadow-judged.jsonl'),
+      JSON.stringify({file: path.basename(testInfo.file), title: testInfo.title, judged, findings: lines.length, pages}) + '\n');
+    fileShadowFindings(testInfo, SCREEN_SHADOW, 'screen-shadow', lines);
   }, {auto: true}],
 
   /**

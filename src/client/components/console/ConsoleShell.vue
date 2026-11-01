@@ -2017,7 +2017,8 @@ import {ConsoleTaskSummary, consoleTaskSummary, placementKicker} from '@/client/
 import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
 import {cancelResponse, cardsResponse, colonyResponse, orOptionResponse, orWrappedResponse} from '@/client/console/taskResponses';
-import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskHandoffPending, setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
+import {leakDetectorState, registerScreenShadowContext, startConsoleLeakDetector, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskHandoffPending, setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
+import {resetScreenShadowLog, screenShadowLog} from '@/client/console/screenDirector';
 import {armSceneDestination, clearGameExitTarget, deferSceneReveal, loadingScreenState, registerGameExitTarget, sceneTransitionInputLocked} from '@/client/console/loadingScreenState';
 import {paths} from '@/common/app/paths';
 import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
@@ -21345,7 +21346,6 @@ export default defineComponent({
       const accepting = beat === undefined && leakDetectorState.stranded === undefined && !isSurfaceAwaitingHandoff();
       // THE FIELD FLIGHT RECORDER's heartbeat (phase 2): what the arbiter sees, once a second, kept across a reload.
       recordFieldHeartbeat({
-        game: this.playerView.game.id,
         prompt: wf === undefined ? '' : `${promptIdentityKey(wf)}#${wf.promptId ?? ''}`,
         accepting, inFlight,
         frames: workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`),
@@ -25032,6 +25032,18 @@ export default defineComponent({
     (window as unknown as {__conStartShadow?: () => unknown}).__conStartShadow = () => ({
       findings: [...startShadowLog.findings], judged: startShadowLog.judged, now: this.startShadowNow,
     });
+    // THE SCREEN SHADOW (`screenDirector.ts`, phase 0) — the leak detector's 1 Hz pass judges every question past the
+    // opening; the shell supplies what only it knows (the start owns the opening; the admission block on the surface).
+    resetScreenShadowLog();
+    registerScreenShadowContext(() => {
+      const wf = this.playerView.waitingFor;
+      const block = wf === undefined ? undefined : promptAdmissionBlock(wf.type === 'space' ? 'placement' : 'host', this.admissionSignals);
+      return {startOwned: this.startSceneMounted, admission: block ?? ''};
+    });
+    (window as unknown as {__conScreenShadow?: () => unknown}).__conScreenShadow = () => ({
+      findings: [...screenShadowLog.findings], judged: screenShadowLog.judged,
+      stats: JSON.parse(JSON.stringify(screenShadowLog.stats)) as unknown,
+    });
     // A decision that IS its pick standing at boot (a reload mid-prompt) opens its album — the watcher is not
     // `immediate`, so the mount edge is asked here.
     this.openEffectDecisionPick(this.effectDecisionDirectPick);
@@ -25480,6 +25492,8 @@ export default defineComponent({
     resetLiveness();
     window.clearTimeout(this.startShadowTimer); // …and its shadow
     delete (window as unknown as {__conStartShadow?: unknown}).__conStartShadow;
+    registerScreenShadowContext(undefined);
+    delete (window as unknown as {__conScreenShadow?: unknown}).__conScreenShadow;
     registerBoardShownDespiteStack(undefined);
     setConsoleTaskHandoffPending(false);
     registerColonyTrackMoveHost(undefined);
