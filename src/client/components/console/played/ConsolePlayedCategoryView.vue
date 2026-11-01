@@ -106,7 +106,7 @@
       <!-- GRID — windowed rows over the plan (hand-section discipline). The
            edge inset keeps the focus ring / lift clear of the scroll clip;
            a fitting grid centres vertically (the physical-table air). -->
-      <div v-else class="con-played-cat__bodybox" ref="body">
+      <div v-else class="con-played-cat__bodybox" ref="body" :style="bodyAirStyle">
         <div class="con-played-cat__grid"
              :class="{'con-played-cat__grid--centered': !gridPlan.scrolls}"
              ref="grid"
@@ -239,6 +239,15 @@ const CAT_EDGE_INSET = 22;
 /** Fallback body box before the first measure / under JSDOM. */
 const FALLBACK_W = 1280;
 const FALLBACK_H = 560;
+/**
+ * The grid body's air around its clip (rem — top, sides, bottom). Inline on `__bodybox`, read by the plan: the GRID
+ * stands in the body's box MINUS this air, the album and the single stage in the whole box. One source, so the plan
+ * knows the grid's room while the album is the one on screen (PL-1416 — a box measured off whichever element was
+ * mounted flipped the layout grid ↔ album under the open flight).
+ */
+const BODY_AIR_REM = {top: 1, side: 1.2, bottom: 1.2};
+/** The focused card's lift (rem) — `__slot--lifted` in console_played.less; its proxy lands ON that pose. */
+const FOCUS_LIFT_REM = 0.35;
 /** Right-stick page flick (the album): the axis magnitude that turns a page, and the hold cadence. */
 const FLICK_THRESHOLD = 0.5;
 const FLICK_REPEAT_MS = 280;
@@ -282,7 +291,11 @@ export default defineComponent({
     return {
       state: playedCategoryState,
       registerCategoryFlightEl,
-      box: {w: 0, h: 0},
+      /** The BODY's box — the one element all three layouts stand in (`$refs.body`, flex: 1 of the panel): it never
+       *  depends on which layout is mounted, so the plan cannot feed back into its own measure. */
+      outer: {w: 0, h: 0},
+      /** px per root rem (the console's ui scale rides the root font size). */
+      remPx: 20,
       scrollTopPx: 0,
       scrollFrac: 0,
       lastFirstRow: -1,
@@ -328,20 +341,43 @@ export default defineComponent({
     insetPx(): number {
       return Math.round(CAT_EDGE_INSET * conUiScale());
     },
+    /** The body's whole box (the album's and the single stage's room). */
+    outerBox(): {w: number, h: number} {
+      return {w: this.outer.w > 0 ? this.outer.w : FALLBACK_W, h: this.outer.h > 0 ? this.outer.h : FALLBACK_H};
+    },
+    /** The grid's room: the body's box minus its air — DERIVED, so it is known whichever layout is on screen. */
+    gridBox(): {w: number, h: number} {
+      const o = this.outerBox;
+      return {
+        w: Math.max(1, o.w - BODY_AIR_REM.side * 2 * this.remPx),
+        h: Math.max(1, o.h - (BODY_AIR_REM.top + BODY_AIR_REM.bottom) * this.remPx),
+      };
+    },
+    /** The box of the layout on screen — the grid's room for a grid, the body's whole box otherwise. */
+    box(): {w: number, h: number} {
+      return this.layout.kind === 'grid' ? this.gridBox : this.outerBox;
+    },
+    bodyAirStyle(): Record<string, string> {
+      const r = this.remPx;
+      return {padding: `${BODY_AIR_REM.top * r}px ${BODY_AIR_REM.side * r}px ${BODY_AIR_REM.bottom * r}px`};
+    },
     layout(): CategoryViewLayout {
-      const w = this.box.w > 0 ? this.box.w : FALLBACK_W;
-      const h = this.box.h > 0 ? this.box.h : FALLBACK_H;
-      // The grid box includes its own edge inset (clip padding) — the plan
-      // works the inner content box. The single stage keeps its raw box
-      // (its width/height SHARES already reserve the air).
-      const inset = this.cards.length > 1 ? this.insetPx * 2 : 0;
+      const o = this.outerBox;
       const spec = albumSpecFor(consoleLayoutState.profile, albumLayoutState.layout);
+      if (this.cards.length <= 1) {
+        // The single stage keeps its raw box (its width/height SHARES already reserve the air).
+        return planCategoryView({availW: o.w, availH: o.h, count: this.cards.length, uiScale: conUiScale(), faceFloorZoom: this.faceFloorZoom, albumSpec: spec});
+      }
+      // A grid is judged in the room it WOULD stand in — the grid's box minus its own edge inset (clip padding) —
+      // whatever stands on screen now: the decision never reads its own result back.
+      const g = this.gridBox;
+      const inset = this.insetPx * 2;
       const layout = planCategoryView({
-        availW: w - inset, availH: h - inset, count: this.cards.length, uiScale: conUiScale(), faceFloorZoom: this.faceFloorZoom, albumSpec: spec,
+        availW: g.w - inset, availH: g.h - inset, count: this.cards.length, uiScale: conUiScale(), faceFloorZoom: this.faceFloorZoom, albumSpec: spec,
       });
       // The album stands in the WHOLE body (its edge lanes are its own inset — the grid's clip padding is not).
       return layout.kind === 'album' ?
-        {kind: 'album', album: planCategoryAlbum({availW: w, availH: h, count: this.cards.length, spec, uiScale: conUiScale()})} :
+        {kind: 'album', album: planCategoryAlbum({availW: o.w, availH: o.h, count: this.cards.length, spec, uiScale: conUiScale()})} :
         layout;
     },
     /** The album plan (album layouts only — a convenience narrow). */
@@ -524,20 +560,26 @@ export default defineComponent({
       const start = row * this.gridPlan.cols;
       return this.cards.slice(start, start + this.gridPlan.cols);
     },
-    /** The layout box: the GRID's content box (its padding is zero, so
-     *  clientWidth = the true usable width) or the single-card stage. */
-    boxEl(): HTMLElement | undefined {
-      return (this.$refs.grid as HTMLElement | undefined) ?? (this.$refs.body as HTMLElement | undefined);
-    },
+    /**
+     * The body's box — `$refs.body` is the stage, the album box or the grid's body box, each `flex: 1` of the panel, so
+     * the SAME box whichever is mounted (offset size: a transform never shrinks the plan). Never the grid itself: its
+     * box is the body's minus the air, and a plan measured off its own element flipped grid ↔ album under the flight.
+     */
     measure(): void {
-      const el = this.boxEl();
+      if (typeof document !== 'undefined' && typeof getComputedStyle === 'function') {
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        if (rem > 0 && rem !== this.remPx) {
+          this.remPx = rem;
+        }
+      }
+      const el = this.$refs.body as HTMLElement | undefined;
       if (el === undefined) {
         return;
       }
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      if (w !== this.box.w || h !== this.box.h) {
-        this.box = {w, h};
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      if (w !== this.outer.w || h !== this.outer.h) {
+        this.outer = {w, h};
       }
     },
     clearFrameTimer(): void {
@@ -760,7 +802,10 @@ export default defineComponent({
           continue;
         }
         const t = categoryTargetRect(layout, f.index, this.cards.length, origin);
-        const target: FlightRect = {x: t.x, y: t.y - scrollTop, w: t.w, h: t.h};
+        // The focused card stands LIFTED (`__slot--lifted`, from the opening on — under the hold): its proxy lands on
+        // that pose and leaves from it, so the handoff never shows the card stepping up (or down) after the dissolve.
+        const lift = f.index === this.state.focusIndex ? FOCUS_LIFT_REM * this.remPx : 0;
+        const target: FlightRect = {x: t.x, y: t.y - scrollTop - lift, w: t.w, h: t.h};
         const targetVisible = target.y + target.h > clip.top - 4 && target.y < clip.bottom + 4;
         let targetClip: {top: number, bottom: number} | undefined;
         if (targetVisible && gridClip !== undefined && gridClip.width > 4) {
@@ -979,8 +1024,12 @@ export default defineComponent({
       return {left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px'};
     },
     slotClasses(index: number, _name: string): Record<string, boolean> {
+      const focused = index === this.state.focusIndex;
       return {
-        'con-played-cat__slot--focused': this.state.phase === 'open' && index === this.state.focusIndex,
+        'con-played-cat__slot--focused': this.state.phase === 'open' && focused,
+        // The lift stands for the WHOLE episode (under the hold while the proxies fly): the card is lifted before it
+        // paints and lowers only after it is hidden — its proxy carries the same pose (`buildFlightPlans`).
+        'con-played-cat__slot--lifted': this.state.phase !== 'closed' && focused,
       };
     },
     /** The card lies FACE DOWN on the table — the events category. */

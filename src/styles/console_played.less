@@ -507,10 +507,10 @@
        IS the plan's availW — the measured element and the layout box are one
        and the same), while the pad centres the content via margin auto. */
     &__bodybox {
+        /* Its air (padding) is INLINE — the plan reads the same numbers (BODY_AIR_REM in the view, PL-1416). */
         position: relative;
         flex: 1;
         min-height: 0;
-        padding: 1rem 1.2rem 1.2rem;
     }
     &__grid {
         height: 100%;
@@ -691,8 +691,12 @@
     &__lift {
         .con-cursor-ring(0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 85%), 0 0 var(--con-glow-r, 1rem) fade(@con-cyan, 26%); .45rem; after; none; 8);
     }
-    &__slot--focused .con-played-cat__lift {
+    /* The lift stands for the whole episode, under the hold too — the proxy lands on it (FOCUS_LIFT_REM, PL-1416);
+       the cursor's light comes on only once the view stands. */
+    &__slot--lifted .con-played-cat__lift {
         transform: translateY(-.35rem);
+    }
+    &__slot--focused .con-played-cat__lift {
         .con-cursor-on();
     }
     &__slot--focused .con-played-cat__face > :is(.card-container, .pcard) {

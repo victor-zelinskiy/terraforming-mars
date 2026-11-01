@@ -92,6 +92,13 @@ when it can, never under `CAT_GRID_MIN_ZOOM`) → the adaptive grid (`planHandGr
   the slots of the lifted zone keep their geometry and wear `--held-out` (ONE instance); an ALBUM flies the page on screen
   (`plannedFlightIndices(..., page)`) and the other pages' cards dissolve in place (grounded); the close flies the page on screen home.
   **The view stands over the table's BODY** (PL-626 — `catInset`), the crumb stays lit and reads the open zone.
+- **ONE box, ONE layout for the whole episode** (PL-1416): the view measures the BODY (`$refs.body` — the single stage, the
+  album box and the grid's body box are the same `flex: 1` child of the panel), and the grid's room is DERIVED from it (minus
+  `BODY_AIR_REM`, the body's inline padding — one source). Never measure the element a layout mounted: the album's box planned a
+  grid and the grid's planned the album, so the flight was planned for one and landed in the other (24 cards at 4K: handoff 616 px).
+  **The focused card is LIFTED for the whole episode** (`__slot--lifted`, under the hold; the cursor's light `--focused` only once the
+  view stands) and its proxy lands on — and leaves from — that pose (`FOCUS_LIFT_REM`, PL-1417). Witness: e2e
+  `console-played-landing-probe` (one layout, handoff ≤ 2 px, no landed card moving).
 - **A played card LANDS on its stack** (`providePlayedHeroTarget`, `measureHeroTarget` / `peekHeroTarget`, `heroHiddenKey` → `--incoming`):
   the table renders the +1 layout before the card arrives — the reserved slot is the FRONT of its zone's last lane; an EVENT lands on the
   pile. **The content renders ONCE, against the measured body** (PL-625). An event has already PAID by then — before its lift,

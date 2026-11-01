@@ -117,6 +117,7 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-longgame-perf-probe.spec.ts',
   'console-play-landing-probe.spec.ts',
   'console-played-perf-probe.spec.ts',
+  'console-played-landing-probe.spec.ts', // the category's landing: every frame of the proxies and the real slots — motion x1
   'console-recv-perf-probe.spec.ts',
   'draft-finale-probe.spec.ts',
   'hand-album-probe.spec.ts',
