@@ -14,6 +14,7 @@ import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, Act
 import {_Countable} from '../behavior/Countable';
 import {delegatesTermWords} from '../behavior/countedBasis';
 import {steelSpendSourceOptions} from '../behavior/steelSpendSource';
+import {spendCardsDiscardPrompt} from '../behavior/spendCardsDiscard';
 import {collectActionBehaviorReasons} from './actionUnavailableReasons';
 import {DecreaseAnyProduction} from '../deferredActions/DecreaseAnyProduction';
 import {RemoveAnyPlants} from '../deferredActions/RemoveAnyPlants';
@@ -903,8 +904,25 @@ export function stepsForBehavior(
   // them in sequence). So the steps MUST be emitted in the SAME order
   // `Executor.execute` DEFERS them (the deferred queue drains FIFO within a
   // priority). Executor defer order for these keys:
-  //   spend.steel source split → addResourcesToAnyCard → decreaseAnyProduction →
-  //   removeAnyPlants → colonies.buildColony → ocean → city → greenery → tile.
+  //   spend.cards discard → spend.steel source split → addResourcesToAnyCard →
+  //   decreaseAnyProduction → removeAnyPlants → colonies.buildColony → ocean →
+  //   city → greenery → tile.
+
+  // A card cost (`spend.cards` — P86 Unexpected Application: «discard 1 card to
+  // raise Venus 1 step») is the play's PRICE and `Executor.execute` defers its
+  // discard FIRST (the rest runs in its callback). SAME builder as the live path
+  // (`spendCardsDiscardPrompt`): title, candidates (the hand without this card)
+  // and the `discardPrompt` marker — so the exit pass addresses the step
+  // `{role: 'discard', source: this card}` exactly as the live prompt reads.
+  // Asked even with ONE candidate (no auto-select — the composer seeds it, T14);
+  // too few candidates → no step (the card is not playable then).
+  const cardSpend = behavior.spend?.cards;
+  if (typeof cardSpend === 'number' && cardSpend > 0) {
+    const discardPrompt = spendCardsDiscardPrompt(player, card, cardSpend, () => {});
+    if (discardPrompt !== undefined) {
+      steps.push({kind: 'input', input: discardPrompt.toModel(player)});
+    }
+  }
 
   // A unit-steel cost (`spend.steel`) with steel stored on Modular Floodgates
   // (DP11) prompts a source split FIRST — `Executor.execute` defers it before

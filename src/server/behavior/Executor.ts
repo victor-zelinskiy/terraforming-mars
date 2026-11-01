@@ -41,9 +41,8 @@ import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCar
 import {isIProjectCard} from '../cards/IProjectCard';
 import {MAXIMUM_HABITAT_RATE, MAXIMUM_LOGISTIC_RATE, MAXIMUM_MINING_RATE, MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
 import {CardName} from '../../common/cards/CardName';
-import {asArray, inplaceRemove} from '../../common/utils/utils';
-import {SelectCard} from '../inputs/SelectCard';
-import {cardDiscard} from '../inputs/discardPrompt';
+import {asArray} from '../../common/utils/utils';
+import {spendCardsDiscardPrompt} from './spendCardsDiscard';
 import {steelSpendSourceOptions} from './steelSpendSource';
 import {FLEET_LIMIT_REASON, skippedTradeFleet, tradeFleetsLost} from '../colonies/tradeFleetGain';
 import {recordSkippedEffect} from '../deferredActions/skippedEffect';
@@ -470,25 +469,21 @@ export class Executor implements BehaviorExecutor {
         UnderworldExpansion.loseCorruption(player, spend.corruption);
       }
       if ((spend.cards ?? 0) > 0) {
-        const count: number = spend.cards ?? 0;
-        const cards = player.cardsInHand.filter((c) => card !== c);
-        player.defer(
-          new SelectCard(
-            message('Select ${0} card(s) to discard', (b) => b.number(count)),
-            undefined,
-            cards,
-            {min: count, max: count},
-          ).markDiscardPrompt(cardDiscard(card, {min: count, max: count})).andThen((cards) => {
-            for (const c of cards) {
-              inplaceRemove(player.cardsInHand, c);
-              player.game.projectDeck.discard(c);
-            }
-            this.execute(remainder, player, card);
-            return undefined;
-          }),
-        );
-        // Exit early as the rest of handled by the deferred action.
-        return;
+        // The price FIRST, the rest of the behavior in its callback — ONE builder
+        // with the preview's pre-collected step (`spendCardsDiscardPrompt`), so
+        // the batch's addressed answer meets exactly this prompt. Through
+        // `discardCardFromHand` (the journal line «… discarded …»).
+        const prompt = spendCardsDiscardPrompt(player, card, spend.cards ?? 0, (cards) => {
+          for (const c of cards) {
+            player.discardCardFromHand(c, {log: true});
+          }
+          this.execute(remainder, player, card);
+        });
+        if (prompt !== undefined) {
+          player.defer(prompt);
+          // Exit early as the rest of handled by the deferred action.
+          return;
+        }
       }
     }
 

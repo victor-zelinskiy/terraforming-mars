@@ -500,6 +500,11 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
   if (b.spend !== undefined) {
     for (const [k, raw] of Object.entries(b.spend)) {
       const n = numeric(raw);
+      // A CARD price (P86 Unexpected Application: «discard 1 card to …») — the hand pays, not the supply.
+      if (k === 'cards' && n !== undefined && n > 0) {
+        push('spend.cards', n === 1 ? 'Discard 1 card from your hand.' : `Discard ${n} cards from your hand.`, ['cards']);
+        continue;
+      }
       const res = k as Resource;
       if (n === undefined || EN_RESOURCE[res] === undefined) {
         complex = true;

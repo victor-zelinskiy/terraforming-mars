@@ -473,6 +473,11 @@ function collectBehaviorReasons(player: IPlayer, card: IProjectCard, out: Array<
   // A declared STOCK price paid with the play (TR54: «also pay 3 energy») — the action ladder's own rung.
   if (b.spend !== undefined) {
     out.push(...spendStockReasons(player, b.spend));
+    // A CARD price (`spend.cards` — P86: «discard 1 card to …») needs OTHER cards
+    // in hand — the card being played is not one of them (`Executor.canExecute`).
+    if ((b.spend.cards ?? 0) > 0 && player.cardsInHand.filter((c) => c !== card).length < (b.spend.cards ?? 0)) {
+      out.push({type: 'rule', message: 'Requires another card in hand to discard'});
+    }
   }
 
   if (b.city !== undefined && b.city.space === undefined) {
