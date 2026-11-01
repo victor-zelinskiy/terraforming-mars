@@ -234,13 +234,14 @@ shows only in the R3 layer's «Пропустится». The payment head below 
 discount tail («ЦЕНА 10 → 8» + «−2») from the same forecast, and collapses to
 «БЕСПЛАТНО» when the price is zero — see `payment-panel.md`.
 
-## 2c · After the press — AN EVENT PAYS FACE UP (P84 Stratospheric Expedition — ledger DK, 2026-11-01)
+## 2c · After the press — AN EVENT PAYS BEFORE ITS LIFT (P84 Stratospheric Expedition — ledger DK, 2026-11-01)
 
-What the result line promised is paid on the receiving stage from the card's PRINTED icons — every channel (a card resource
-on a holder, a stock gain, a production, a «?», the VP badge, the printed TR) through the one icon grammar the action
-commit speaks (`resolvePlayGainIconEnds`). An EVENT no longer turns over in the arc: it lands FACE UP a breath above its
-pile, pays, and is laid on the pile turning over INSIDE the reading pause the scene already held (the owner's budget law —
-not one new millisecond); the pile's count ticks on that touchdown. Contract: `workspace-band.md` § СОБЫТИЕ ПЛАТИТ ЛИЦОМ.
+What the result line promised is paid from the card's PRINTED icons — every channel (a card resource on a holder, a
+stock gain, a production, a «?», the VP badge, the printed TR) through the one icon grammar the action commit speaks
+(`resolvePlayGainIconEnds`). An EVENT pays while it still STANDS here, in the composer, face up — a holder's gain lands
+on the target row's miniature — and only then lifts, turns over in the arc and lands face down on its pile (the owner:
+the arc reads more premium than a face-up landing). The composer keeps the view the play was confirmed on for that beat
+(`playedHeroComposerView`). Contract: `workspace-band.md` § СОБЫТИЕ ПЛАТИТ ДО ВЗЛЁТА.
 
 ## 3 · The heading
 

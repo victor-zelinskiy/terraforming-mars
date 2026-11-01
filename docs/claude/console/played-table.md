@@ -81,10 +81,8 @@ when it can, never under `CAT_GRID_MIN_ZOOM`) → the adaptive grid (`planHandGr
   **The view stands over the table's BODY** (PL-626 — `catInset`), the crumb stays lit and reads the open zone.
 - **A played card LANDS on its stack** (`providePlayedHeroTarget`, `measureHeroTarget` / `peekHeroTarget`, `heroHiddenKey` → `--incoming`):
   the table renders the +1 layout before the card arrives — the reserved slot is the FRONT of its zone's last lane; an EVENT lands on the
-  pile. **The content renders ONCE, against the measured body** (PL-625). ⚠ This is the STANDALONE table (hero host `overlay`, a table
-  the player opened by hand): its landing IS the face-down pile, so only here does the event still turn over in the arc
-  (`eventFlipsInFlight`). In the hand workspace's receiving stage an event lands FACE UP over its pile, pays from its printed icons and is
-  laid on the pile turning over inside the reading pause (P84 · DK — `workspace-band.md` § СОБЫТИЕ ПЛАТИТ ЛИЦОМ).
+  pile. **The content renders ONCE, against the measured body** (PL-625). An event has already PAID by then — before its lift,
+  from the card standing in the composer (P84 · DK — `workspace-band.md` § СОБЫТИЕ ПЛАТИТ ДО ВЗЛЁТА).
 - **The X viewer** rises out of the slot under the cursor; the table stays painted under it.
 
 ## 6 · Seats — the rival, the bot, the empty table, the embedded table
