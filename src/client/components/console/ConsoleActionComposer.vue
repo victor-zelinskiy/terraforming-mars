@@ -265,7 +265,7 @@
         <div v-if="heroCost.length > 0" class="con-composer__hero-side">
           <div class="con-composer__hero-label">{{ $t('Will be spent') }}</div>
           <div class="con-composer__hero-chips">
-            <ActionEffectChip v-for="(eff, k) in heroCost" :key="'c' + k" :effect="eff" />
+            <ActionEffectChip v-for="(eff, k) in heroCost" :key="'c' + k" :effect="eff" :basis-in-strip="heroCountWhy !== undefined && heroCountWhy.chip === eff" />
           </div>
         </div>
         <!-- THE RESERVED PRICE (TR58 — the mirror of the reserved «Вы получите»): the variants are PRICES of one good,
@@ -1071,7 +1071,7 @@ import {DeclineModel, declineIsButton, declineResponse, optionalChoiceOf, option
 import {paymentLanes, megacreditsAvailable, paymentCovers, paymentFromCounts, initialCounts, dialLaneCount, buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow} from '@/client/console/paymentPlan';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ConsoleCountedWhy from '@/client/components/console/ConsoleCountedWhy.vue';
-import {CountedWhy, countedWhyOf} from '@/client/console/countedPlay';
+import {CountedWhy, countedWhyOf, discountWhyOf} from '@/client/console/countedPlay';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
@@ -2539,7 +2539,8 @@ export default defineComponent({
       // heat, `−2` floaters): the branch's bare «−5 heat» beside them would count the heat twice (TR58).
       const heatSplit = this.allChoices.some((c) => c.kind === 'spendHeat');
       // A cost of NOTHING is no price («Будет списано −0» — Unity's free trade): never printed as one.
-      const out: Array<ActionEffect> = branch.effects.filter((e) => e.direction === 'cost' && e.amount !== 0 && !variable.suppressCostIcons.has(e.icon) &&
+      // …except a DISCOUNTED price that reached zero (P89 at 12+ Venus tags): «12 → 0 · −12» is the reading.
+      const out: Array<ActionEffect> = branch.effects.filter((e) => e.direction === 'cost' && (e.amount !== 0 || e.printed !== undefined) && !variable.suppressCostIcons.has(e.icon) &&
         !timeline.includes(e) && !(heatSplit && e.icon === 'heat'));
       for (const c of this.allChoices) {
         out.push(...this.syntheticCost(c));
@@ -2552,7 +2553,11 @@ export default defineComponent({
      */
     heroCountWhy(): CountedWhy | undefined {
       const why = countedWhyOf(this.heroGain);
-      return why !== undefined && why.resolutions.length > 0 ? why : undefined;
+      if (why !== undefined && why.resolutions.length > 0) {
+        return why;
+      }
+      // …and a DISCOUNTED PRICE (P89 Venus Shuttles): «12 − [V] 3 → 9 [M€]» — the standard projects' discount, read.
+      return discountWhyOf(this.heroCost);
     },
     heroGain(): ReadonlyArray<ActionEffect> {
       const branch = this.totalsBranch;

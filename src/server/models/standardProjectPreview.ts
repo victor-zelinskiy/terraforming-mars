@@ -42,7 +42,9 @@ export function buildStandardProjectPreview(
 ): StandardProjectPreviewModel {
   const effects: Array<ActionEffect> = [];
   if (calculatedCost > 0) {
-    effects.push(preview.stockCost(player, Resource.MEGACREDITS, calculatedCost));
+    // A price the project's discount lowered reads «printed → paid» with its counted basis — the ONE builder a card
+    // action's discounted price shares (P89 Venus Shuttles), so the two speak one grammar.
+    effects.push(preview.discountedStockCost(player, Resource.MEGACREDITS, card.cost, calculatedCost, card.costDiscountBasis?.(player)));
   }
   // Reserve units the project consumes during execution (Moon tiles): a real
   // cost beside the M€ one, from the same request `canAct` checks.

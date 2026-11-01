@@ -14,6 +14,14 @@
   <div class="con-cwhy" :class="{'con-cwhy--zero': why.zero}"
        data-count-why :data-count-why-total="why.terms.length > 0 ? undefined : why.term.count">
     <span class="con-cwhy__kicker">{{ kicker }}</span>
+    <!-- A DISCOUNTED PRICE (P89 · SP1a): the printed price first, «−» the counted term (below), «→» what is paid. -->
+    <template v-if="why.printed !== undefined">
+      <span class="con-cwhy__part" data-count-printed :data-count-printed-n="why.printed">
+        <b class="con-cwhy__num">{{ why.printed }}</b>
+        <span class="con-cwhy__ico" :class="resultIcon" aria-hidden="true"></span>
+      </span>
+      <span class="con-cwhy__op" aria-hidden="true">−</span>
+    </template>
     <!-- A SET count (P69 — «per pair of Earth and Venus tags»): every side its printed tag and its OWN number, what it
          includes named on it (the wild tags the card dealt there, the card's own tag), then «→ N пар» — the number of
          complete sets, the server's. Never a sum, never one number for a row of tags. -->
@@ -131,7 +139,8 @@ export default defineComponent({
       return translateText('Calculation');
     },
     result(): string {
-      return signedAmount(this.why.chip.amount);
+      // A price reads what is PAID, unsigned (the discount's own reading); a counted gain its signed amount.
+      return this.why.printed !== undefined ? String(this.why.chip.amount) : signedAmount(this.why.chip.amount);
     },
     resultIcon(): string {
       return iconClassFor(this.why.chip.icon);

@@ -289,6 +289,11 @@ export type CountedWhy = {
   composed: boolean,
   /** Nothing counted — the reading names the zero instead of a sum. */
   zero: boolean,
+  /**
+   * A DISCOUNTED PRICE's reading (P89 Venus Shuttles · SP1a — `ActionEffect.printed`): the printed price the strip
+   * opens with, read «12 − [V] 3 → 9 [M€]». Absent for a counted gain.
+   */
+  printed?: number,
 };
 
 /**
@@ -347,6 +352,29 @@ export function countedWhyOf(effects: ReadonlyArray<ActionEffect> | undefined): 
       zeroLabel: terms.length === 0 ? term.zero : undefined,
       composed: term.parts !== undefined,
       zero: terms.length > 0 ? terms.every((t) => t.term.count === 0) : term.count === 0,
+    };
+  }
+  return undefined;
+}
+
+/**
+ * THE «РАСЧЁТ» OF A DISCOUNTED PRICE (P89 Venus Shuttles — «12 M€ minus 1 per Venus tag»; the SP1a variant): the
+ * first cost chip whose amount a counted discount lowered (`printed` + ONE basis term), read «printed − term → paid».
+ * Every number is the server's — the discount is the chip's `printed − amount`, the term what it counted.
+ */
+export function discountWhyOf(effects: ReadonlyArray<ActionEffect> | undefined): CountedWhy | undefined {
+  for (const chip of effects ?? []) {
+    if (chip.direction !== 'cost' || chip.printed === undefined || chip.printed <= chip.amount) {
+      continue;
+    }
+    const term = chip.basis?.length === 1 ? chip.basis[0] : undefined;
+    if (term === undefined) {
+      continue;
+    }
+    return {
+      chip, term, glyph: countGlyphOf(term), glyphs: countGlyphsOf(term),
+      terms: [], sides: [], resolutions: [], parts: [], excluded: [], spaces: [],
+      zeroLabel: undefined, composed: false, zero: false, printed: chip.printed,
     };
   }
   return undefined;

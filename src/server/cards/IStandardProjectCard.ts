@@ -4,7 +4,7 @@ import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {Payment} from '../../common/inputs/Payment';
 import {Units} from '../../common/Units';
 import {StandardProjectCanPayWith} from '../../common/cards/Types';
-import {ActionEffect} from '../../common/models/ActionPreviewModel';
+import {ActionEffect, ActionEffectBasis} from '../../common/models/ActionPreviewModel';
 import type {TerraformingUnit} from '../parliament/resolutions/IResolution';
 
 export interface IStandardProjectCard extends ICard {
@@ -27,6 +27,12 @@ export interface IStandardProjectCard extends ICard {
    * mutates state; wording comes from the `cards/actionPreviews.ts` builders.
    */
   standardProjectPreviewEffects?(player: IPlayer): ReadonlyArray<ActionEffect>;
+  /**
+   * What the project's OWN discount counts (the SP1a Air Scrapping variant — «less 1 M€ per Venus tag»): the basis of
+   * the discounted price chip (`actionPreviews.discountedStockCost`), co-located with the `discount` override it
+   * explains. Absent: a lowered price names no count (a table discount, Standard Technology's rebate).
+   */
+  costDiscountBasis?(player: IPlayer): ReadonlyArray<ActionEffectBasis>;
   /**
    * THE ONE TERRAFORMING UNIT this project's `tr` stands for when a law REPLACES terraforming (Turmoil Redux RX35),
    * where the declaration alone misreads it: the Greenery project declares `tr: {oxygen: 1}` for its TILE — the tile

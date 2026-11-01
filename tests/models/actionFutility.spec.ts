@@ -323,7 +323,8 @@ describe('actionFutility — the «no effect» verdict', () => {
     });
 
     it('WHOLE-futile at max for the cards whose whole result is a maxed step', () => {
-      for (const name of [CardName.WATER_SPLITTING_PLANT, CardName.VENUS_MAGNETIZER, CardName.PLASMA_FANS, CardName.AQUIFER_PUMPING, CardName.WATER_IMPORT_FROM_EUROPA]) {
+      for (const name of [CardName.WATER_SPLITTING_PLANT, CardName.VENUS_MAGNETIZER, CardName.PLASMA_FANS, CardName.AQUIFER_PUMPING, CardName.WATER_IMPORT_FROM_EUROPA,
+        CardName.VENUS_SHUTTLES]) {
         const r = readings.get(name);
         expect(r?.max.canAct, `${name} is legal on the maxed table`).is.true;
         expect(r?.max.futile, `${name} is futile on the maxed table`).is.true;

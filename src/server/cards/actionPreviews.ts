@@ -107,6 +107,29 @@ export function stockCost(player: IPlayer, resource: Resource, amount: number): 
   return {direction: 'cost', icon: resource, amount, current: cur, resulting: Math.max(0, cur - amount)};
 }
 /**
+ * A DISCOUNTED price (P89 Venus Shuttles · the SP1a Air Scrapping variant — «N M€ minus 1 per Venus tag»): the stock
+ * cost of what is PAID, the printed price beside it (`ActionEffect.printed` — the chip's `−N` capsule and the «Расчёт»
+ * strip's «printed − N → paid») and the counted basis of the discount. ONE builder for a card action and a standard
+ * project, so the two speak one grammar. No discount (paid === printed) → the plain `stockCost`, nothing added.
+ */
+export function discountedStockCost(
+  player: IPlayer, resource: Resource, printed: number, paid: number, basis?: ReadonlyArray<ActionEffectBasis>): ActionEffect {
+  const chip = stockCost(player, resource, paid);
+  if (paid >= printed) {
+    return chip;
+  }
+  return {...chip, printed, ...(basis !== undefined && basis.length > 0 ? {basis} : {})};
+}
+/**
+ * The basis of a discount «1 per <tag> you have»: the player's counted tags of that kind — the SAME `tags.count` the
+ * price reads — with the WILD share it includes named (the share the table does not show under that tag).
+ */
+export function ownTagBasis(player: IPlayer, tag: Tag): ActionEffectBasis {
+  const count = player.tags.count(tag);
+  const wild = count > 0 ? Math.min(count, player.tags.count(Tag.WILD, 'default')) : 0;
+  return {count, label: 'Your tags', tag, ...(wild > 0 ? {wild} : {})};
+}
+/**
  * A HEAT price the stock alone cannot cover but Stormcraft's floaters can (TR58): the chip is the price, POOL-LESS
  * («−5») — never «1 / 5», which reads as a shortfall of an action the server offers. The sources (`1 → 0` heat, `−2`
  * floaters) are the heat-split step's own statement (`spendHeatStep`, asked before the commit).

@@ -202,6 +202,14 @@ export type ActionEffect = {
   icons?: ReadonlyArray<string>;
   /** Magnitude of the change (always positive; `direction` conveys the sign). */
   amount: number;
+  /**
+   * THE PRINTED PRICE of a DISCOUNTED cost chip (P89 Venus Shuttles — «12 M€ minus 1 per Venus tag»; the SP1a Air
+   * Scrapping variant — «15 M€ minus 1 per Venus tag»): `amount` is what is paid, `printed − amount` the discount the
+   * chip wears as its `−N` capsule (the standard projects' `.pcard__cost-delta` language) and the «Расчёт» strip reads
+   * as «12 − N → amount»; `basis` names what was counted. Only on a `cost` chip whose amount the discount LOWERED —
+   * built by ONE builder (`actionPreviews.discountedStockCost`), absent otherwise.
+   */
+  printed?: number;
   /** Current value of the affected pool, for a `current → resulting` preview.
    *  Omitted when there's no single pool to show (e.g. add to ANY card, draw). */
   current?: number;

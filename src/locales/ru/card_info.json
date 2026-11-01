@@ -22,6 +22,7 @@
     "Add 2 animals to this card.": "Добавьте 2 животных на эту карту.",
     "Add 2 asteroids here": "Добавьте сюда 2 астероида",
     "Add 2 floaters to any card.": "Добавьте 2 аэростата на любую карту.",
+    "Add 2 floaters to any venus card.": "Добавьте 2 аэростата на любую карту Венеры.",
     "Add 2 floaters to any jovian card.": "Добавьте 2 аэростата на любую карту с меткой Юпитера.",
     "Add 2 microbes or 2 animals to another Venus card.": "Добавьте 2 бактерии или 2 животных на другую карту Венеры.",
     "Add 2 microbes to any card.": "Добавьте 2 бактерии на любую карту.",
@@ -641,5 +642,6 @@
     "This counts as passing: you get no more turns this generation.": "Это считается пасом: ходов в этом поколении у вас больше нет.",
     "Place a city tile and gain its printed placement bonus 2 additional times.": "Разместите тайл города и получите бонус размещения его клетки ещё 2 раза.",
     "Draw 1 card per resolution with 2+ of your delegates": "Карта за резолюцию с 2+ вашими делегатами",
-    "Reveal 2: Venus cards free, buy or discard the rest": "Вскройте 2: Венера — в руку, прочие — купить/сброс"
+    "Reveal 2: Venus cards free, buy or discard the rest": "Вскройте 2: Венера — в руку, прочие — купить/сброс",
+    "Raise Venus 1 step: 12 M€, −1 per Venus tag": "Венера +1 шаг: 12 M€ минус 1 за метку Венеры"
 }

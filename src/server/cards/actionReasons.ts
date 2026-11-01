@@ -1,7 +1,7 @@
 import {Resource} from '../../common/Resource';
 import {CardResource} from '../../common/CardResource';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
-import {IPlayer} from '../IPlayer';
+import {CanAffordOptions, IPlayer} from '../IPlayer';
 
 /*
  * Thin, stable builders for a card's "why can't I do this right now" reason —
@@ -25,6 +25,15 @@ export const notEnoughMC = (): UnplayableReason => ({type: 'megacredits', messag
 /** Pure-M€ shortfall with the exact amount still needed (lower bound). */
 export const needMoreMC = (player: IPlayer, cost: number): UnplayableReason =>
   ({type: 'megacredits', message: 'Need ${0} more M€', params: [String(Math.max(1, cost - player.spendableMegacredits()))]});
+/**
+ * The M€ shortfall of a FULL affordability request («Need ${0} more M€») — the player's own `affordabilityDeficitFor`,
+ * so a price with a global step carries the Reds' levy inside ONE number (P89 Venus Shuttles; the standard projects
+ * read the same deficit). `undefined` when the request is affordable.
+ */
+export function needMoreMCFor(player: IPlayer, options: CanAffordOptions): UnplayableReason | undefined {
+  const deficit = player.affordabilityDeficitFor(options);
+  return deficit > 0 ? {type: 'megacredits', message: 'Need ${0} more M€', params: [String(deficit)]} : undefined;
+}
 export const noResourcesHere = (): UnplayableReason => ({type: 'count', message: 'Not enough resources on this card'});
 
 /**

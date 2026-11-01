@@ -4,6 +4,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Tag} from '../../../common/cards/Tag';
 import {AirScrappingStandardProject} from './AirScrappingStandardProject';
 import {Size} from '../../../common/cards/render/Size';
+import * as actionPreviews from '../actionPreviews';
 
 export class AirScrappingStandardProjectVariant extends AirScrappingStandardProject {
   constructor() {
@@ -21,6 +22,11 @@ export class AirScrappingStandardProjectVariant extends AirScrappingStandardProj
         }),
       },
     });
+  }
+
+  /** What the discount below counts — the price chip's basis (the same Venus tags, the −5 cap is the face's). */
+  public costDiscountBasis(player: IPlayer) {
+    return [actionPreviews.ownTagBasis(player, Tag.VENUS)];
   }
 
   protected override discount(player: IPlayer): number {

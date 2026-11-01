@@ -19,6 +19,7 @@
           'action-effect-chip--diverted': diverted || vetoed,
           'action-effect-chip--diverted-lost': diverted && effect.diverted?.lost === true,
           'action-effect-chip--vetoed': vetoed,
+          'action-effect-chip--discounted': discount !== undefined,
           'premium-tooltip': vetoed,
         }]"
         :data-diverted="diverted ? effect.diverted?.data : undefined"
@@ -61,6 +62,13 @@
         <span class="action-effect-chip__sep" aria-hidden="true">/</span>
         <span class="action-effect-chip__need">{{ effect.amount }}{{ unit }}</span>
       </template>
+      <!-- A DISCOUNTED PRICE (P89 · SP1a — `effect.printed`): the price itself reads «printed → paid»; the wallet's own
+           «current → resulting» is the rail's. -->
+      <template v-else-if="discount !== undefined">
+        <span class="action-effect-chip__cur action-effect-chip__printed" data-chip-printed>{{ effect.printed }}</span>
+        <span class="action-effect-chip__arrow" aria-hidden="true">→</span>
+        <span class="action-effect-chip__res" data-chip-paid>{{ effect.amount }}</span>
+      </template>
       <template v-else-if="hasDelta">
         <span class="action-effect-chip__cur">{{ effect.current }}{{ unit }}</span>
         <span class="action-effect-chip__arrow" aria-hidden="true">→</span>
@@ -68,6 +76,11 @@
       </template>
       <span v-else class="action-effect-chip__amount">{{ sign }}{{ effect.amount }}{{ unit }}</span>
     </span>
+
+    <!-- …and its DISCOUNT as the standard projects' capsule (`.pcard__cost-delta` language): absolutely positioned on
+         the chip's corner — zero row growth, nothing at zero discount. -->
+    <span v-if="discount !== undefined" class="action-effect-chip__delta" data-chip-discount :data-chip-discount-n="discount"
+          :aria-label="$t('Discount')">−{{ discount }}</span>
 
     <!-- A TIMELINE on one pool (TR28: «+1 here, then −2 here») — the pool's start and end above, its MOVEMENTS
          here, in order, each in its own direction's colour: two movements read as two, never as a bare net. -->
@@ -234,6 +247,11 @@ export default defineComponent({
     isVictoryPoints(): boolean {
       return this.effect.icon === 'vp';
     },
+    /** The discount a DISCOUNTED price wears (`printed − amount`, both the server's) — `undefined` without one. */
+    discount(): number | undefined {
+      const printed = this.effect.printed;
+      return printed !== undefined && printed > this.effect.amount && this.effect.direction === 'cost' ? printed - this.effect.amount : undefined;
+    },
     basisTerms(): ReadonlyArray<ActionEffectBasis> {
       return this.effect.basis ?? [];
     },
@@ -276,6 +294,24 @@ export default defineComponent({
 </script>
 
 <style scoped lang="less">
+.action-effect-chip--discounted { position: relative; }
+/* The discount capsule — the premium face's `.pcard__cost-delta` (dark pill, gold-deep hairline, mint figure), docked
+   on the chip's upper-right corner. Material, never light (invariant 15). */
+.action-effect-chip__delta {
+  position: absolute;
+  top: -9px;
+  right: -6px;
+  height: 15px;
+  padding: 0 6px;
+  line-height: 13px;
+  font-size: 11px;
+  border-radius: 8px;
+  background: rgba(8, 14, 11, 0.92);
+  border: 1px solid #8a6a24;
+  color: #7de0a8;
+  white-space: nowrap;
+  pointer-events: none;
+}
 .action-effect-chip {
   display: inline-flex;
   align-items: center;
