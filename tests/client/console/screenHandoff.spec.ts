@@ -10,6 +10,7 @@ import {remotePlacementState} from '@/client/console/tilePlacement/consoleRemote
 import {presentationLedgerSnapshot, resetPresentationLedger} from '@/client/console/presentationLedger';
 import {PARLIAMENT_DOOR} from '@/client/console/parliament/parliamentDoorHandoff';
 import {openRulingChangePark, resetRulingChangeDraw} from '@/client/console/parliament/rulingChangeDraw';
+import {noteDeferredGenerationFlipEnd, oweDeferredGenerationFlip, resetDeferredGenerationFlip} from '@/client/console/generationScene/deferredGenerationFlip';
 import {AgendaBonusOwed, parliamentRewardState, resetParliamentRewards} from '@/client/console/parliament/parliamentRewardBeat';
 
 /*
@@ -25,11 +26,21 @@ function reset(): void {
   remotePlacementState.active = false;
   remotePlacementState.waitingForBoard = false;
   resetPresentationLedger();
+  resetDeferredGenerationFlip();
 }
 
 describe('screenHandoff — what the player is still owed before the next screen', () => {
   beforeEach(reset);
   afterEach(reset);
+
+  it('the counter’s DEFERRED flip is a named debt until the strip says it ended (P89 · EA)', () => {
+    oweDeferredGenerationFlip(4);
+    expect(screenHandoffReasons()).to.deep.eq(['generation-flip']);
+    noteDeferredGenerationFlipEnd(3);
+    expect(screenHandoffOwed(), 'a flip to an older generation settles nothing').is.true;
+    noteDeferredGenerationFlipEnd(4);
+    expect(screenHandoffOwed()).is.false;
+  });
 
   it('a quiet screen is handed over at once', async () => {
     expect(screenHandoffReasons()).to.deep.eq([]);

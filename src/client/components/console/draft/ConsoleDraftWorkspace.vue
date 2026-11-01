@@ -335,6 +335,7 @@ import {
   draftPicksKey, rememberDraftPicks, recallDraftPicks, draftPaymentPending, draftVariantOn,
   DraftStage, DraftJourneyInput,
 } from '@/client/console/draft/consoleDraftFlow';
+import {whenParliamentSurfaceGone} from '@/client/console/parliament/consoleParliamentFlow';
 import {draftCommands, setConsoleDraftCommands, resetConsoleDraftUi, DraftCommandState} from '@/client/console/draft/consoleDraftUi';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
@@ -1312,7 +1313,9 @@ export default defineComponent({
       if (this.deal.prepare(dealKey, names, keys)) {
         this.dealLaunchTimer = window.setTimeout(() => {
           this.dealLaunchTimer = undefined;
-          void whenPickBeatDone().then(() => requestAnimationFrame(() => this.launchPacketDeal()));
+          // The first packet comes off the HUD deck over a CLEAR screen: a Parliament that handed the screen over
+          // («К драфту» — P89 · EA) finishes its leave first; the slots hold the cards hidden until then.
+          void whenPickBeatDone().then(() => whenParliamentSurfaceGone()).then(() => requestAnimationFrame(() => this.launchPacketDeal()));
         }, motionMs(300));
       }
     },
@@ -1391,7 +1394,7 @@ export default defineComponent({
       if (this.deal.prepare(dealKey, names, keys)) {
         this.dealLaunchTimer = window.setTimeout(() => {
           this.dealLaunchTimer = undefined;
-          void whenPickBeatDone().then(() => requestAnimationFrame(() => this.launchBuyDeal()));
+          void whenPickBeatDone().then(() => whenParliamentSurfaceGone()).then(() => requestAnimationFrame(() => this.launchBuyDeal()));
         }, motionMs(300));
       } else if (riseSceneEngaged()) {
         // Already presented once (defer/restore) — never replay the scene.

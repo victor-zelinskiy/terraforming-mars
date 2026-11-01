@@ -5,8 +5,9 @@ import {ProductionIncomeModel} from '@/common/models/ProductionIncomeModel';
 import {
   detectGenerationScene, generationIncomeReward, generationSceneState, noteGenerationFlipEnd, resetGenerationScene, runGenerationFlip,
   endGenerationScene, armedGenerationScene, seedGenerationIncomeHold, GENERATION_INCOME_KEY, incomeHookOf,
-  registerGenerationSceneHandoff, runGenerationIncomeFlights,
+  registerGenerationSceneHandoff, runGenerationIncomeFlights, detectDeferredGenerationFlip,
 } from '@/client/console/generationScene/generationScene';
+import {deferredGenerationFlipOwed} from '@/client/console/generationScene/deferredGenerationFlip';
 import {reactive} from 'vue';
 import {railRewardPending, resetRailRewards, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {CardName} from '@/common/cards/CardName';
@@ -252,6 +253,31 @@ describe('the generation scene — the pure half (TR61)', () => {
       await runGenerationIncomeFlights(() => after);
       expect(generationSceneState.phase).eq('idle');
       expect(generationSceneState.lastEnd).eq('concluded');
+    });
+  });
+
+  describe('THE DEFERRED FLIP — the counter turns over at the seat’s own close (P89 · EA)', () => {
+    function sitting(generation: number, sittingGen: number | undefined): PlayerViewModel {
+      const v = view({generation, phase: Phase.DRAFTING});
+      (v.game as {parliament?: unknown}).parliament = sittingGen === undefined ? {} : {phase: {generation: sittingGen}};
+      return v;
+    }
+
+    it('owed once at the close (the sitting’s generation → the game’s), never at the pass, never replayed', () => {
+      detectDeferredGenerationFlip(sitting(3, 2), sitting(3, 2));
+      expect(deferredGenerationFlipOwed(), 'the sitting still stands').is.false;
+      detectDeferredGenerationFlip(sitting(3, 2), sitting(3, undefined));
+      expect(deferredGenerationFlipOwed()).is.true;
+      noteGenerationFlipEnd(3);
+      expect(deferredGenerationFlipOwed(), 'the strip’s flip-end settles it').is.false;
+      detectDeferredGenerationFlip(sitting(3, 2), sitting(3, undefined));
+      expect(deferredGenerationFlipOwed(), 'claimed once per seat and generation').is.false;
+    });
+
+    it('a fresh load owes nothing; the income record is never re-claimed', () => {
+      detectDeferredGenerationFlip(undefined, sitting(3, undefined));
+      expect(deferredGenerationFlipOwed()).is.false;
+      expect(armedGenerationScene()).is.undefined;
     });
   });
 });

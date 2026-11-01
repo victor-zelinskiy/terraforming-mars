@@ -30,11 +30,19 @@ function idle(): AdmissionSignals {
 }
 
 const SURFACES: ReadonlyArray<PromptSurface> =
-  ['host', 'section', 'standaloneModal', 'scene', 'placement', 'followUp'];
+  ['host', 'section', 'standaloneModal', 'scene', 'placement', 'followUp', 'scaleBonus'];
 
 describe('consolePromptAdmission (the one prompt-surface admission gate)', () => {
   beforeEach(() => resetPromptAdmission());
   afterEach(() => resetPromptAdmission());
+
+  it('the scale bonus band waits for the board story of the step that earned it; the host does not (P89 · DZ)', () => {
+    const s = {...idle(), boardStory: true};
+    expect(promptAdmissionBlock('scaleBonus', s)).to.equal('board-story');
+    expect(promptAdmissionBlock('host', s), 'every other host prompt is untouched').to.be.undefined;
+    // …and everything the host waits for, it waits for too.
+    expect(promptAdmissionBlock('scaleBonus', {...idle(), playedHero: true})).to.equal('played-hero');
+  });
 
   it('admits every surface when nothing is running', () => {
     for (const surface of SURFACES) {

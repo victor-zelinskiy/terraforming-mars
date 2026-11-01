@@ -303,6 +303,32 @@ describe('consoleDraftFlow', () => {
     expect(draftWorkspaceState.meta).is.undefined;
   });
 
+  describe('THE SEAT’S ADMISSION to the generation (Turmoil Redux soft gates — P89 · EA)', () => {
+    function withSitting(v: PlayerViewModel, standing: boolean): PlayerViewModel {
+      (v.game as {parliament?: unknown}).parliament = standing ? {phase: {generation: 1}} : {};
+      return v;
+    }
+
+    it('the sitting stood in DRAFTING → its close is the live entry', () => {
+      const during = withSitting(view({waitingFor: undefined}), true);
+      observeDraftWorkspace(withSitting(view({phase: Phase.PRODUCTION}), true), during);
+      expect(draftWorkspaceState.sawDraftStart, 'the pass answered with the sitting standing — no entry yet').is.false;
+      observeDraftWorkspace(during, withSitting(view({waitingFor: pickPrompt([CardName.FISH])}), false));
+      expect(draftWorkspaceState.sawDraftStart).is.true;
+    });
+
+    it('…and its research twin (no draft): the buy is dealt live', () => {
+      const research = (standing: boolean) => withSitting(view({phase: Phase.RESEARCH, draftVariant: false}), standing);
+      observeDraftWorkspace(research(true), research(false));
+      expect(draftWorkspaceState.sawResearchStart).is.true;
+    });
+
+    it('a reload into the draft after the close claims nothing (PL-924)', () => {
+      observeDraftWorkspace(undefined, withSitting(view({waitingFor: pickPrompt([CardName.FISH])}), false));
+      expect(draftWorkspaceState.sawDraftStart).is.false;
+    });
+  });
+
   it('hydration: a first view already mid-draft never claims a live entry', () => {
     observeDraftWorkspace(undefined, view({waitingFor: pickPrompt([CardName.FISH])}));
     expect(draftWorkspaceState.sawDraftStart).is.false;

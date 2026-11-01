@@ -4241,6 +4241,10 @@ export default defineComponent({
         return undefined;
       }
       const task = taskFor(this.playerView);
+      // The alternative Venus board's bonus band waits for the board's story of the step that earned it (P89 · DZ).
+      if (task?.kind === 'venusBonus' && !this.admits('scaleBonus')) {
+        return undefined;
+      }
       return task !== undefined && NATIVE_COMPOSITE_KINDS.has(task.kind) ? task : undefined;
     },
     /**
@@ -12355,6 +12359,10 @@ export default defineComponent({
         this.parliamentWarmTimer = undefined;
         this.parliamentWarmArmed = this.hostedStepDeclaredCard === card;
       }, motionMs(PARLIAMENT_WARM_SETTLE_MS));
+    },
+    /** The section's leave, mirrored for a surface that entered over it (`whenParliamentSurfaceGone` — P89 · EA). */
+    parliamentLeaving(leaving: boolean): void {
+      consoleParliamentUi.surfaceLeaving = leaving;
     },
     parliamentShown(shown: boolean, was: boolean): void {
       window.clearTimeout(this.parliamentLeaveNet);

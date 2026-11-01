@@ -486,13 +486,18 @@ export function observeDraftWorkspace(prev: PlayerViewModel | undefined, next: P
     draftWorkspaceState.generation = generation;
   }
 
+  // THE SEAT'S ADMISSION TO THE GENERATION (Turmoil Redux, the soft gates — P89 · EA): the game reached DRAFTING /
+  // RESEARCH while this seat's sitting stood, so no PHASE edge is left to see — the seat enters the phase at its own
+  // close, live. Without this edge the first packet read as a reload and was presented with no deal (the owner's
+  // «драфт открывается сразу с уже розданными картами»). A hydration (`prev` undefined) is never an edge (PL-924).
+  const admitted = prev !== undefined && prev.game.parliament?.phase !== undefined && next.game.parliament?.phase === undefined;
   // The live transition INTO the draft — the entrance cinematic's cue.
   const wasDrafting = prev !== undefined && prev.game.phase === Phase.DRAFTING;
-  if (next.game.phase === Phase.DRAFTING && !wasDrafting && prev !== undefined) {
+  if (next.game.phase === Phase.DRAFTING && (!wasDrafting || admitted) && prev !== undefined) {
     draftWorkspaceState.sawDraftStart = true;
   }
   // …and the live transition INTO the research of a game without a draft (TR61): the buy's deal plays off the deck.
-  if (prev !== undefined && next.game.phase === Phase.RESEARCH && prev.game.phase !== Phase.RESEARCH && !draftVariantOn(next)) {
+  if (prev !== undefined && next.game.phase === Phase.RESEARCH && (prev.game.phase !== Phase.RESEARCH || admitted) && !draftVariantOn(next)) {
     draftWorkspaceState.sawResearchStart = true;
   }
 

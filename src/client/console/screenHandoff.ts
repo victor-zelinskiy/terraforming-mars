@@ -20,6 +20,8 @@
  *                         presents once its park drains; the next screen must not bury it);
  *   · `card-arrival`    — cards physically arriving: the deck search, a card on its way into the dock;
  *   · `transfer`        — resource tokens in the air;
+ *   · `generation-flip` — the generation counter's flip a seat's SITTING deferred to its close (P89 · EA —
+ *                         `deferredGenerationFlip.ts`): the strip turns over BEFORE the next screen arrives;
  *   · `animation`       — any registered animation hold, EVERY scope (a notification-only hold runs inside a surface
  *                         the next screen would tear down — the mandatory-surface gate deliberately ignores those,
  *                         which is exactly why the finale opened over the intake).
@@ -44,6 +46,7 @@ import {probeTick} from '@/client/console/probeTick';
 import {isResourceTransferActive} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {boardStorySettling} from '@/client/console/rewardPayoutQuiet';
 import {remoteLandingOwed} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {deferredGenerationFlipOwed} from '@/client/console/generationScene/deferredGenerationFlip';
 
 export type ScreenHandoffReason =
   | 'board-story'
@@ -51,7 +54,8 @@ export type ScreenHandoffReason =
   | 'reveal'
   | 'card-arrival'
   | 'transfer'
-  | 'animation';
+  | 'animation'
+  | 'generation-flip';
 
 /**
  * The whole wait's ceiling. Above every term's own bound (the park's 30 s is the longest) so an honest chain —
@@ -111,6 +115,9 @@ export function screenHandoffReasons(opts?: ScreenHandoffOptions): Array<ScreenH
   }
   if (isResourceTransferActive()) {
     reasons.push('transfer');
+  }
+  if (deferredGenerationFlipOwed()) {
+    reasons.push('generation-flip');
   }
   // The registry names a hold `label[scope]`; a caller ignores by the bare label.
   const ignored = new Set(opts?.ignoreHolds ?? []);

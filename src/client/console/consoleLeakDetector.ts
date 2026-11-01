@@ -34,6 +34,7 @@ import {translateMessage, translateText} from '@/client/directives/i18n';
 import {Message} from '@/common/logs/Message';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {blockingAnimationHoldCount, isAnimationHoldActive} from '@/client/components/presentation/animationHold';
+import {boardBeatParkPending, boardBeatParkState} from '@/client/console/boardBeatPark';
 import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
 import {decisionPromptStamp, effectDecisionState} from '@/client/console/effectDecision/effectDecisionState';
 import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
@@ -437,6 +438,12 @@ function promptHeldReason(view: PlayerViewModel, task: ConsoleTask | undefined, 
   // persists after the hold releases (bounded by the 35 s ceiling) and surfaces then.
   if (opts.anyHold ? isAnimationHoldActive() : blockingAnimationHoldCount() > 0) {
     return 'animation-hold';
+  }
+  // THE SCALE BONUS WAITS FOR ITS STEP'S STORY (P89 · DZ): the alternative Venus board's bonus band is held by the
+  // admission's `board-story` block while the board-beat park still owes (or drains) the scale's story on a board in
+  // plain view — bounded by the park's own 30 s safety.
+  if (task?.kind === 'venusBonus' && (boardBeatParkPending() || boardBeatParkState.draining)) {
+    return 'board-story';
   }
   // The MANDATORY ANNOUNCEMENT GATE (consoleMandatoryGate) is deliberately holding an interruptive prompt CLOSED — it
   // is announced (the top card + the chip status) and opens only on the player's press (B). While held the prompt

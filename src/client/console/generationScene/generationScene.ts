@@ -69,6 +69,7 @@ import {cardReactionAnswerFlight} from '@/client/console/cardReaction/cardReacti
 import {enterWorkspace, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {betweenGenResearchLive, draftMandatoryFlowBeat} from '@/client/console/draft/consoleDraftFlow';
 import {parliamentSittingFlowBeat, presentedGeneration} from '@/client/console/parliament/consoleSittingFlow';
+import {noteDeferredGenerationFlipEnd, oweDeferredGenerationFlip, resetDeferredGenerationFlip} from '@/client/console/generationScene/deferredGenerationFlip';
 
 /** The rail-reward key of the income wave (one scene at a time). */
 export const GENERATION_INCOME_KEY = 'generation-income';
@@ -165,6 +166,34 @@ export function detectGenerationScene(prev: PlayerViewModel | undefined, next: P
   return armed;
 }
 
+/**
+ * THE DEFERRED FLIP (P89 · EA): the seat's sitting CLOSED in this response and the presented generation moved — the
+ * flip the scene could not play when it rose into the sitting (Р7) is the strip's now, and the screen owes it
+ * (`deferredGenerationFlip.ts`). Claimed once per seat and generation in the scene's own memory; the income is never
+ * replayed (its record was claimed at the rise). A fresh load and reduced motion owe nothing.
+ */
+export function detectDeferredGenerationFlip(prev: PlayerViewModel | undefined, next: PlayerViewModel | undefined): void {
+  if (prev === undefined || next === undefined) {
+    return;
+  }
+  if (prev.game.parliament?.phase === undefined || next.game.parliament?.phase !== undefined) {
+    return;
+  }
+  const to = presentedGeneration(next);
+  if (presentedGeneration(prev) >= to) {
+    return;
+  }
+  const key = `flip:${next.thisPlayer?.color ?? ''}:${to}`;
+  if (seen.has(key)) {
+    return;
+  }
+  seen.add(key);
+  if (consoleReducedMotionActive()) {
+    return;
+  }
+  oweDeferredGenerationFlip(to);
+}
+
 /** The armed scene (between the detect and the conclusion), if any. */
 export function armedGenerationScene(): GenerationSceneEvent | undefined {
   return armed;
@@ -220,6 +249,7 @@ export function runGenerationFlip(event: GenerationSceneEvent, displayed: Player
 
 /** The strip's completion signal (ConsoleFlipValue → ConsoleStatusStrip): the generation readout finished its flip. */
 export function noteGenerationFlipEnd(generation: number): void {
+  noteDeferredGenerationFlipEnd(generation);
   if (flipResolve !== undefined && generationSceneState.phase === 'flip' && generation >= generationSceneState.generation) {
     flipResolve();
   }
@@ -472,6 +502,7 @@ export function endGenerationScene(reason: string): void {
 export function resetGenerationScene(): void {
   endGenerationScene('reset');
   seen.clear();
+  resetDeferredGenerationFlip();
   hookSpecs.clear();
   generationSceneState.color = '';
   generationSceneState.generation = 0;

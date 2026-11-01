@@ -1956,6 +1956,18 @@ const architectureTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTa
 });
 parliamentFixture('parliament-architecture-assembly', architectureTable('pass'));
 parliamentFixture('parliament-architecture-adjourn', architectureTable('close'));
+// ── «К драфту» (P89 · EA): the same table WITH THE DRAFT — the viewer's pass convenes the sitting while the next
+//    generation's packets are dealt to every seat (the soft gates, К4); the sitting's close is the seat's admission
+//    to the draft, and its first packet must come off the HUD deck. The first Redux fixture with a draft. ──
+parliamentFixture('parliament-architecture-assembly-draft', {
+  ...architectureTable('pass'),
+  options: {draftVariant: true},
+  expect: ({game}) => {
+    if (!game.gameOptions.draftVariant || game.phase !== Phase.ACTION) {
+      throw new Error(`parliament-architecture-assembly-draft: expected a drafting Redux table one pass from the sitting, got draft=${game.gameOptions.draftVariant} ${game.phase}`);
+    }
+  },
+});
 // ── «Итоги: честность» — the SUPPORT STOCK. The same table, except that UNITY has been collecting
 //    neutral delegates for two generations already, and every Unity card lies at the BOTTOM of the deck:
 //    the refresh (three slots, drawn from the top) deals other parties first, so it never deals Unity a
@@ -10268,6 +10280,9 @@ parliamentFixture('parliament-chrome', {
     skipInitialCardSelection: false, coloniesExtension: true, prelude2Expansion: true,
     customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
   });
+  // PINNED, never dealt: the seeded shuffle hands the two names out in whichever order the deck's size leads to (P89
+  // leaving the hold-back list gave blue ThorGate — no Earth tag, one pair).
+  assignPinnedCorporations(name, [p1, p2], [CardName.TERACTOR, CardName.THORGATE]);
   answerStartFlow(game, [p1, p2]);
   game.colonies[0].addColony(p1);
   game.colonies[1].addColony(p1);

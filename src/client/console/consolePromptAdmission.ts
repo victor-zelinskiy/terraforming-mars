@@ -56,6 +56,13 @@ export type PromptSurface =
   /** The T5 full-screen START SCENE (initial cards wizard / start ceremony). */
   | 'scene'
   /**
+   * THE SCALE BONUS'S STANDALONE BAND (P89 · ledger DZ — the alternative Venus board's 18–30 % bonus with no surface
+   * to host it): `host`'s list plus `board-story` — a surface that asks about a scale step never stands over the
+   * board's untold story of that step. Raised only while the board is in plain view (the park drains there), so a
+   * covered board never holds it.
+   */
+  | 'scaleBonus'
+  /**
    * BOARD PLACEMENT — the server's top-level `SelectSpace`. Served by the
    * ALWAYS-MOUNTED board, so it has no `v-if` of its own: admission decides
    * whether the board goes LIVE, whether the section is force-switched and
@@ -247,6 +254,11 @@ const POLICY: Record<PromptSurface, ReadonlySet<AdmissionBlock>> = {
     'stage-gate',
     'reveal', 'played-hero', 'tile-hero', 'card-arrival', 'board-bonus',
     'card-discard', 'presentation', 'announce-gate',
+  ]),
+  scaleBonus: new Set<AdmissionBlock>([
+    'stage-gate',
+    'reveal', 'played-hero', 'tile-hero', 'card-arrival', 'board-bonus',
+    'card-discard', 'presentation', 'announce-gate', 'board-story',
   ]),
   // `section` waits for less than the others by design (see above), but the
   // stage gate is NOT a cinematic: a section standing up for a step that has

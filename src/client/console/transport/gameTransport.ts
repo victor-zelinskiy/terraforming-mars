@@ -79,7 +79,7 @@ import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {checkPostCommitChoice, checkPreselectReask, notePreselectBatch} from '@/client/console/preselectWitness';
 import {notePromptSubmit, notePromptView} from '@/client/console/promptSequence';
 import {
-  detectGenerationScene, markGenerationConversion, runGenerationFlip, runGenerationIncomeFlights, seedGenerationIncomeHold,
+  detectDeferredGenerationFlip, detectGenerationScene, markGenerationConversion, runGenerationFlip, runGenerationIncomeFlights, seedGenerationIncomeHold,
 } from '@/client/console/generationScene/generationScene';
 import {seedTerraformedScene} from '@/client/console/terraformedScene/terraformedScene';
 import {
@@ -1111,6 +1111,8 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
          * own reaction to the committed view and the income flies after it.
          */
         const generationScene = detectGenerationScene(currentView(), newView);
+        // …and the flip a seat's SITTING deferred: owed to the screen at the seat's own close (P89 · EA).
+        detectDeferredGenerationFlip(currentView(), newView);
         /*
          * MarsBot turns (the MAIN path — ending your turn is what lets the
          * bot act, so its resolved turn(s) ride THIS response).

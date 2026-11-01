@@ -1,4 +1,4 @@
-import {reactive} from 'vue';
+import {reactive, watch} from 'vue';
 import type {StagedReceipt} from '@/client/console/stagedPlay';
 import type {GrantSeriesKey} from '@/client/console/parliament/grantSeries';
 import {Color} from '@/common/Color';
@@ -28,6 +28,25 @@ import {disarmAccessToldOnStage} from './accessToldOnStage';
  *    client memory of «already seen»: the political phase is game state, the
  *    section only reads it — docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md §3).
  */
+/**
+ * RESOLVES ONCE THE PARLIAMENT'S SURFACE HAS LEFT THE SCREEN — at once when it is not leaving. The leave is the
+ * section's own and bounded by the shell's leave net (`PARLIAMENT_LEAVE_NET_MS`, which lowers the mirror), so this is
+ * the leave's END signal — never a duration of its own (the parliament tree keeps no wall clock).
+ */
+export function whenParliamentSurfaceGone(): Promise<void> {
+  if (!consoleParliamentUi.surfaceLeaving) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const stop = watch(() => consoleParliamentUi.surfaceLeaving, (leaving) => {
+      if (!leaving) {
+        stop();
+        resolve();
+      }
+    });
+  });
+}
+
 export const consoleParliamentUi = reactive({
   commands: [] as Array<ConsoleCommand>,
   /** The VOTE STEP stands (its payment zone `[data-embed-slot="parliament-vote"]` is in the DOM — published post-flush by the section). */
@@ -66,6 +85,12 @@ export const consoleParliamentUi = reactive({
   answerZone: false,
   /** The Agenda marker is gliding along the track — an Agenda card reward's cover waits for it to settle. */
   agendaSettling: false,
+  /**
+   * THE SECTION IS PLAYING ITS LEAVE (the shell's `parliamentLeaving`, mirrored): it is still on screen, dissolving.
+   * A surface that ENTERED over it (the draft at «К драфту» — P89 · EA) starts its own physical story only once it
+   * has gone (`whenParliamentSurfaceGone`) — the first packet comes off the HUD deck over a clear screen.
+   */
+  surfaceLeaving: false,
   /**
    * WHEN a hosted step that is a workspace FRAME last LEFT the Parliament (the colonies of the winner's free
    * colony — Colony Contest): a witness for diagnostics and probes. The work itself is the section's — it
