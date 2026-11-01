@@ -308,10 +308,26 @@ function resolveIconPoints(scope: HTMLElement, specs: ReadonlyArray<ResourceTran
   });
 }
 
-/** Each spec's printed icon ELEMENT in the scope (measurable — a box wider than 4 px), the icon grammar below. */
-function resolveIconEls(scope: HTMLElement, specs: ReadonlyArray<ResourceTransferSpec>): Array<HTMLElement | undefined> {
-  const icons = Array.from(scope.querySelectorAll<HTMLElement>('.pcard-ic'));
-  const prod = scope.querySelector<HTMLElement>('.pcard-prod');
+/**
+ * A PLAY's printed gains as OBJECTS (P84 · DK — «НАГРАДА РОЗЫГРЫША — С ПЕЧАТНОГО ЗНАЧКА»): the SAME icon grammar the
+ * action commit speaks, read on a landed card's ON-PLAY row — an icon inside an action / effect frame (`.pcard-effect`)
+ * is never the play's (TR45 prints «spend 2 microbes» in its action; the play's «+14» is the third microbe). Every
+ * channel: a stock gain on its printed icon (M€ on its tile), a production on the production plate, a card resource on
+ * its sprite (`bornOn` — the struck icon a law replaced), a resource chosen from the face's «?» on that «?». The k-th
+ * spec of one resource on the k-th icon. Undefined per spec when the face prints none — the caller's body point stands.
+ */
+export function resolvePlayGainIconEnds(face: HTMLElement, specs: ReadonlyArray<ResourceTransferSpec>): Array<TransferEnd | undefined> {
+  return resolveIconEls(face, specs, '.pcard-effect').map(centreEndOf);
+}
+
+/**
+ * Each spec's printed icon ELEMENT in the scope (measurable — a box wider than 4 px), the icon grammar below. An element
+ * inside `outside` (a frame that is not this reading's — the play skips the action / effect frames) is no candidate.
+ */
+function resolveIconEls(scope: HTMLElement, specs: ReadonlyArray<ResourceTransferSpec>, outside?: string): Array<HTMLElement | undefined> {
+  const keep = (el: HTMLElement): boolean => outside === undefined || el.closest(outside) === null;
+  const icons = Array.from(scope.querySelectorAll<HTMLElement>('.pcard-ic')).filter(keep);
+  const prod = Array.from(scope.querySelectorAll<HTMLElement>('.pcard-prod')).find(keep);
   const centerOf = (el: HTMLElement | undefined): HTMLElement | undefined => {
     if (el === undefined) {
       return undefined;
@@ -322,14 +338,14 @@ function resolveIconEls(scope: HTMLElement, specs: ReadonlyArray<ResourceTransfe
   // The M€ tiles of the graphic, in print order. A face can print SEVERAL: a budget's «−10 [M€]» beside its
   // «1 [M€] / …» — the LOSS is born on / lands on the NEGATIVE tile, a gain on a non-negative one, so each
   // chip answers «where did this come from» with the very number that caused it.
-  const mcTiles = Array.from(scope.querySelectorAll<HTMLElement>('.pcard-mi--mc'));
+  const mcTiles = Array.from(scope.querySelectorAll<HTMLElement>('.pcard-mi--mc')).filter(keep);
   const printsNegative = (el: HTMLElement): boolean => /^[−-]/.test((el.textContent ?? '').trim());
   // TWO PRINTED ICONS ARE TWO SOURCES: the k-th token of one resource is born on the k-th icon that prints it
   // (TR27's «[floater·V] [floater·V]» — each token from its own icon), the first icon when the row prints fewer.
   const seen = new Map<string, number>();
   // THE PRINTED «?» (TR54): a stock resource the scope prints NOWHERE was chosen from the row's «?» — its token is born
   // there (the k-th such resource on the k-th bare «?»), never «out of the plate».
-  const wilds = bareWildIcons(scope);
+  const wilds = bareWildIcons(scope).filter(keep);
   let wildsTaken = 0;
   const fromWild = (): HTMLElement | undefined => {
     if (wilds.length === 0) {
@@ -341,10 +357,10 @@ function resolveIconEls(scope: HTMLElement, specs: ReadonlyArray<ResourceTransfe
   };
   return specs.map((spec) => {
     if (spec.channel === 'production') {
-      const inProd = prod !== null && prod !== undefined ?
+      const inProd = prod !== undefined ?
         Array.from(prod.querySelectorAll<HTMLElement>('.pcard-ic')).find((el) => iconMatches(el, spec.resource)) :
         undefined;
-      return centerOf(inProd) ?? centerOf(prod ?? undefined);
+      return centerOf(inProd) ?? centerOf(prod);
     }
     if (spec.resource === 'megacredits') {
       const wantNegative = spec.direction === 'loss';

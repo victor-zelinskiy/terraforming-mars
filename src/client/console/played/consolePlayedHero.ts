@@ -53,6 +53,7 @@ import {
   HeroRect, PlayedHeroPhase, planHeroPath,
   HERO_LIFT_MS, HERO_FLIGHT_MS, HERO_LAND_MS, HERO_CLOSE_MS,
   HERO_RESULT_PAUSE_MS, HERO_REDUCED_MS, HERO_REDUCED_PAUSE_MS, HERO_SAFETY_TIMEOUT_MS,
+  HERO_EVENT_SETTLE_MS, eventFlipsInFlight, eventTurnsOnStage, heroEventTurnMs,
 } from '@/client/console/played/playedHeroModel';
 import {
   placeHeroProxy, playHeroLift, playHeroFlight, playHeroReducedHop, disposeHeroProxy, glideHeroOnto, hideHeroProxyNextFrame,
@@ -75,7 +76,7 @@ import {RailAnswerCause, RailAnswerFlight, RailReward, flyRailReward, railReward
 import {ReactorEmergence, cardReactionAnswerFlight, composeAnswerFlights, markReactionCause, reactionDeclarationBlock} from '@/client/console/cardReaction/cardReactionDirector';
 import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnds';
 import {TOUCHDOWN_TICK_GAP_MS, TransferEnd, TransferEndLike, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {bareWildIcons, centreEndOf, iconNeedlesFor, resolveActionCommitAnchors, resolveSpendIconEnds, wildChosen} from '@/client/console/consoleActionCommitMotion';
+import {centreEndOf, iconNeedlesFor, resolveActionCommitAnchors, resolvePlayGainIconEnds, resolveSpendIconEnds} from '@/client/console/consoleActionCommitMotion';
 import type {PlayCardPrice} from '@/client/console/consoleActionCommit';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {armedEffectsChange, releaseArmedEffectHolds, releaseStagedArmedSpends, settleArmedEffectHolds, shipArmedEffects} from '@/client/console/armedEffectFlight';
@@ -607,6 +608,15 @@ export type ReceivingEffectHooks = {
   holdsCard?: (card: CardName) => boolean,
   /** The emerged (or open) face of `card` on the stage — the reactor's tokens are born on its printed effect row. */
   emergedFaceEl?: (card: CardName) => HTMLElement | undefined,
+  /**
+   * AN EVENT PAYS FACE UP (P84 · DK): the landed event, which paid from its printed icons, TURNS OVER on the stage over
+   * `ms` — inside the scene's reading pause, never after it. Resolves once its back is up (reduced motion: at once).
+   */
+  turnEvent?: (ms: number) => Promise<void>,
+  /** …a turn still in flight lands at once (A / B skipped the pause). */
+  finishEventTurn?: () => void,
+  /** …and the turned card settles onto its pile over `ms` (the pile's count ticks on the touchdown) — never awaited. */
+  settleEvent?: (ms: number) => void,
 };
 
 /** The receiving stage's way of bringing a reactor forward (the director's `ReactorEmergence`) — undefined without hooks. */
@@ -1049,6 +1059,9 @@ async function executeFlight(): Promise<void> {
     playedHeroState.tableOpen = true;
   }
   const reduced = consoleReducedMotionActive();
+  // AN EVENT PAYS FACE UP (P84 · DK): on the workspace stage it flies and lands face up; only the standalone table,
+  // whose landing IS the face-down pile, still turns it over in the arc.
+  const flipsInFlight = eventFlipsInFlight(playedHeroState.isEvent, playedHeroState.host);
   let sourceRect = captureSourceRect();
   // The source can be TRANSIENTLY unmeasurable: a fullscreen viewer's
   // close-flight still holds the slot empty (`con-zoom-hold`), a layout is a
@@ -1074,7 +1087,7 @@ async function executeFlight(): Promise<void> {
   }
 
   if (sourceRect !== undefined) {
-    playedHeroState.proxy = {card, isEvent: playedHeroState.isEvent, rect: sourceRect, face: {...sourceFace}};
+    playedHeroState.proxy = {card, isEvent: flipsInFlight, rect: sourceRect, face: {...sourceFace}};
     await nextTick();
   }
   const els = playedHeroState.proxy !== undefined ? stage?.els() : undefined;
@@ -1164,10 +1177,10 @@ async function executeFlight(): Promise<void> {
     }
   };
   if (reduced) {
-    await playHeroReducedHop(els, target, HERO_REDUCED_MS, onApex);
+    await playHeroReducedHop(els, target, HERO_REDUCED_MS, onApex, flipsInFlight);
   } else {
     await playHeroFlight(els, plan, {
-      isEvent: playedHeroState.isEvent,
+      isEvent: flipsInFlight,
       durationMs: motionMs(HERO_FLIGHT_MS + HERO_LAND_MS),
       uiScale: conUiScale(),
       retarget: () => peekTargetRect(),
@@ -1616,8 +1629,7 @@ export async function endPlayedHero(): Promise<void> {
       // ЛЯЖЕТ», П6: «3 [мех] ИЛИ 3 [истребитель] ИЛИ 6 [аэростат]» — the chosen branch's own icon, never the row's
       // first); a card that prints none keeps the shared spawn point.
       const payGains = (specs: ReadonlyArray<ResourceTransferSpec>) => {
-        const printedOrigins = specs.map((spec) => heroGainOrigin(playedHeroState.card ?? '', spec));
-        const origins = printedOrigins.some((o) => o !== undefined) ? printedOrigins : undefined;
+        const origins = heroGainOrigins(playedHeroState.card ?? '', specs);
         return runResourceTransfers({specs, source, ...(origins !== undefined ? {origins} : {}), arrival: 'auto', onArrive: release, onAbsorbed: stageAbsorb()});
       };
       for (const step of receiveSteps(cardTargetGroups(cardSpecs, playedHeroState.card as CardName), hooks)) {
@@ -1654,8 +1666,8 @@ export async function endPlayedHero(): Promise<void> {
     }
     if (railKey !== undefined) {
       // THE TR, LAST: after the card's own gains, the token is born on the
-      // printed TR of the card that just landed (the face-down pile for an
-      // event — where that card now lies), the rating and its VP cell tick on
+      // printed TR of the card that just landed (an EVENT's too — it pays face
+      // up and turns over only after, P84 · DK), the rating and its VP cell tick on
       // the touchdown, and the table's answer (the ruling Greens' M€) one beat
       // after — `flyRailReward` resolves once all of it has ticked.
       await flyRailReward(railKey, () => heroRailOrigin(playedHeroState.card ?? ''),
@@ -1666,7 +1678,7 @@ export async function endPlayedHero(): Promise<void> {
       }
     }
     playedHeroState.told = true;
-    await skippablePause(motionMs(TRANSFER_RESIDUAL_PAUSE_MS));
+    await resultPause(motionMs(TRANSFER_RESIDUAL_PAUSE_MS));
   } else {
     // The RESOLVED-TABLEAU beat: the workspace stage reads shorter than the
     // standalone overlay's result pause — the player is already inside the
@@ -1675,7 +1687,7 @@ export async function endPlayedHero(): Promise<void> {
     const pauseMs = consoleReducedMotionActive() ? HERO_REDUCED_PAUSE_MS :
       (followUpPending ? HERO_RESULT_PAUSE_FOLLOWUP_MS : idlePause);
     playedHeroState.told = true;
-    await skippablePause(motionMs(pauseMs));
+    await resultPause(motionMs(pauseMs));
   }
   if (!playedHeroState.active) {
     return;
@@ -1714,6 +1726,29 @@ export async function endPlayedHero(): Promise<void> {
     await wait(motionMs(HERO_CLOSE_MS));
   }
   finish();
+}
+
+/**
+ * THE RESULT'S READING PAUSE — and, for an EVENT on the workspace stage, its TURN (P84 · DK — «СОБЫТИЕ ПЛАТИТ ЛИЦОМ»):
+ * the card that paid face up turns over INSIDE this very pause, never after it (the owner's budget law, 2026-11-01: not
+ * one new millisecond — the turn REPLACES the residual pause), and settles onto its pile once turned, overlapping the
+ * stage's close and the next surface's unfold (never awaited). A / B skips the pause and lands the turn at once.
+ */
+async function resultPause(ms: number): Promise<void> {
+  const hooks = effectHooks;
+  if (!eventTurnsOnStage(playedHeroState.isEvent, playedHeroState.host) || hooks?.turnEvent === undefined) {
+    await skippablePause(ms);
+    return;
+  }
+  const episode = playedHeroState.nonce;
+  const turned = hooks.turnEvent(heroEventTurnMs(ms, motionMs(TRANSFER_RESIDUAL_PAUSE_MS))).then(() => {
+    if (playedHeroState.active && playedHeroState.nonce === episode) {
+      hooks.settleEvent?.(motionMs(HERO_EVENT_SETTLE_MS));
+    }
+  });
+  await skippablePause(ms);
+  hooks.finishEventTurn?.();
+  await turned;
 }
 
 /** A / B during the result beat: accelerate the close — never a cancel. */
@@ -1946,8 +1981,9 @@ function escapeName(name: string): string {
 }
 
 /** WHERE a play's reward chips are born, in resolution order: the receiving
- *  stage's front card / events pile (the workspace scene), else the landed
- *  card on the «Разыграно» table (the overlay scene). */
+ *  stage's front card (the workspace scene — an EVENT's too: it pays FACE UP
+ *  over its pile, P84 · DK; never its back), else the landed card on the
+ *  «Разыграно» table (the overlay scene). */
 function heroRewardSourceSelectors(card: string): Array<string> {
   const esc = escapeName(card);
   return [
@@ -1957,27 +1993,18 @@ function heroRewardSourceSelectors(card: string): Array<string> {
     // The receiving stage (the hand workspace's landing).
     '.con-recv [data-recv-front] .con-recv__face',
     '.con-recv [data-recv-front]',
-    '.con-recv .con-recv__backpile',
     // The GAME START workspace's bottom «Разыграно» zone — a start play
     // docks directly into its family pile there.
     `.con-start__played [data-played-key="${esc}"] .con-played__face`,
     `.con-start__played [data-played-key="${esc}"]`,
     `.con-played [data-played-key="${esc}"] .con-played__face`,
     `.con-played [data-played-key="${esc}"]`,
-    // An EVENT lands face-down on the events backstack — its rewards
-    // emerge from the pile (the card's honest on-table location).
+    // The STANDALONE table only (its landing IS the face-down pile — `eventFlipsInFlight`): an EVENT lies on the events
+    // backstack there and that pile is the card's honest on-table place. The workspace stage never reaches this rung.
     '.con-played .con-played__family--event .con-played__backstack',
   ];
 }
 
-/**
- * WHERE THE PLAY'S TR TOKEN IS BORN — measured at fly time on the card that
- * has just landed: the first measurable place of the reward ladder
- * (`heroRewardSourceSelectors`), and inside it the PRINTED TR icon. A place
- * that prints none is the card's honest location with its face hidden — an
- * EVENT lies face-down on its pile — and the token is born on that place.
- * Undefined only when nothing is measurable: the rail reward names it.
- */
 /** Every card-resource spec the beat will carry — the card's own gains and the promised holders' (К-S1). */
 function pendingWaveSpecs(): ReadonlyArray<ResourceTransferSpec> {
   return [...pendingRewards, ...pendingReactions.map((r) => r.spec)];
@@ -2219,37 +2246,22 @@ function heroTagOrigin(card: string, tag: Tag): TransferEnd | undefined {
 }
 
 /**
- * WHERE THE PLAY'S CARD-RESOURCE GAIN IS BORN (PL-190 — the play's twin of PL-063; TR56 — a payload put on ANOTHER
- * card): on the landed card, the PRINTED icon of that resource in its ON-PLAY row — never one inside an action or
- * effect frame (TR45 prints two microbes in its action, «spend 2 microbes»; the play's «+14» is the third,
- * «[microbe] / [tile on Mars]»). A row of alternatives prints each branch's own resource («3 [мех]* OR 3 [истребитель]*
- * OR 6 [аэростат]*»), so the icon of the token's resource IS the chosen branch's. The first such icon of the first
- * VISIBLE place of the reward ladder, as an object end; undefined when the face prints none outside a frame (the
- * shared spawn point stands) or for any other channel.
+ * WHERE EACH OF THE PLAY'S GAINS IS BORN (P84 · DK — «НАГРАДА РОЗЫГРЫША — С ПЕЧАТНОГО ЗНАЧКА»; PL-190 / TR56 / TR54
+ * before it, for one channel each): on the landed card, the PRINTED icon of that gain in its ON-PLAY row, through the
+ * ONE icon grammar the ACTION COMMIT speaks (`resolvePlayGainIconEnds` — never one inside an action or effect frame:
+ * TR45 prints two microbes in its action, the play's «+14» is the third). Every channel — a card resource (a row of
+ * alternatives prints each branch's own resource, so the chosen branch's icon), a stock gain (M€ on its tile), a
+ * production on the production plate, a resource chosen from the face's bare «?» on that «?» — the k-th spec of one
+ * resource on the k-th icon. Read on the first VISIBLE place of the reward ladder (an EVENT's face-up landing too — it
+ * pays before it turns over); an entry is undefined when the face prints no such icon, and the run's body point stands.
  */
-function heroGainOrigin(card: string, spec: ResourceTransferSpec): TransferEnd | undefined {
-  if (spec.channel !== 'card-resource') {
+function heroGainOrigins(card: string, specs: ReadonlyArray<ResourceTransferSpec>): Array<TransferEnd | undefined> | undefined {
+  const place = heroRewardPlace(card);
+  if (place === undefined || specs.length === 0) {
     return undefined;
   }
-  // A replaced unit's data (RX35) is born on the STRUCK printed scale / tile icon (`bornOn`) — the step it replaced.
-  const needles = iconNeedlesFor(spec.bornOn ?? spec.resource) ?? [];
-  if (needles.length === 0) {
-    return undefined;
-  }
-  const place = heroRewardPlace(card);
-  return centreEndOf(place === undefined ? undefined : Array.from(place.querySelectorAll<HTMLElement>('.pcard-ic'))
-    .find((icon) => icon.closest('.pcard-effect') === null && needles.some((needle) => (icon.style.backgroundImage ?? '').includes(needle))));
-}
-
-/**
- * WHERE A STANDARD RESOURCE CHOSEN FROM THE FACE'S «?» IS BORN (TR54 — «ПАЛИТРА СТАНДАРТНОГО РЕСУРСА»): on the landed
- * card, its bare printed «?» outside every action / effect frame (never the «?» inside a production frame — that one
- * is the production it reads). The first VISIBLE place of the reward ladder; undefined when that place prints no
- * bare «?» (the shared spawn point stands — the card).
- */
-function heroWildOrigin(card: string): TransferEnd | undefined {
-  const place = heroRewardPlace(card);
-  return centreEndOf(place === undefined ? undefined : bareWildIcons(place).find((icon) => icon.closest('.pcard-effect') === null));
+  const ends = resolvePlayGainIconEnds(place, specs);
+  return ends.some((end) => end !== undefined) ? ends : undefined;
 }
 
 /**
@@ -2281,7 +2293,7 @@ function vpReleaseOnTouchdown(played: string, specs: ReadonlyArray<ResourceTrans
  * THE CARD'S RAIL WAVE AND ITS PRINTED POINTS (TR55, the owner's decision 4): what the card IS follows what it GAVE —
  * as the NEXT TOKEN OF THE SAME WAVE, one stagger after the gains (`transferWaveDelayMs`), never as a beat of its own:
  * a whole second flight after the wave would lengthen every play by a flight. The token is born on the landed card's
- * printed VP badge (the face-down pile for an event), the badge answers with a short press, and the score cell ticks
+ * printed VP badge (an event's too, face up — P84 · DK), the badge answers with a short press, and the score cell ticks
  * on the touchdown; before the table's answer, before the TR. Resolves once both have touched down.
  */
 async function railWaveWithPrintedVp(
@@ -2290,9 +2302,9 @@ async function railWaveWithPrintedVp(
   release: (spec: ResourceTransferSpec) => void,
 ): Promise<void> {
   const card = playedHeroState.card ?? '';
-  // A standard resource CHOSEN from the face's printed «?» (TR54) is born on that «?», never out of the plate.
-  const wildAt = specs.some(wildChosen) ? heroWildOrigin(card) : undefined;
-  const origins = wildAt !== undefined ? specs.map((spec) => (wildChosen(spec) ? wildAt : undefined)) : undefined;
+  // Every gain on its PRINTED icon (P84 · DK) — a stock gain on its icon, a production on the plate, a standard resource
+  // CHOSEN from the face's printed «?» (TR54) on that «?» — never out of the plate's middle while the face prints it.
+  const origins = heroGainOrigins(card, specs);
   const wave = specs.length === 0 ? Promise.resolve() :
     runResourceTransfers({specs, source, ...(origins !== undefined ? {origins} : {}), arrival: 'auto', onArrive: release});
   const vp = (specs.length === 0 ? Promise.resolve() : wait(motionMs(transferWaveDelayMs(1, 2))))
@@ -2325,14 +2337,19 @@ function heroVpBadgeEl(card: string): HTMLElement | undefined {
 }
 
 /**
- * WHERE THE CARD'S POINTS ARE BORN (TR55): the landed card's printed VP badge — and, when the place prints no face (an
- * EVENT lies face-down on its pile), that place: the card's honest location. Object ends (T06).
+ * WHERE THE CARD'S POINTS ARE BORN (TR55): the landed card's printed VP badge — an EVENT's too, on its face-up landing
+ * (P84 · DK); a place that prints no badge (the standalone table's face-down pile) is the card's honest location.
+ * Object ends (T06).
  */
 function heroVpOrigin(card: string): TransferEnd | undefined {
   return centreEndOf(heroVpBadgeEl(card)) ?? centreEndOf(heroRewardPlace(card));
 }
 
-/** The landed card's printed TR icon on the first visible place of the reward ladder, else that place — object ends. */
+/**
+ * WHERE THE PLAY'S TR TOKEN IS BORN — measured at fly time on the card that has just landed: the first VISIBLE place of
+ * the reward ladder, and inside it the PRINTED TR icon (an EVENT's too — it pays face up before it turns over, P84 · DK);
+ * a place that prints none is the card's body. Undefined only when nothing is visible: the rail reward names it.
+ */
 function heroRailOrigin(card: string): TransferEnd | undefined {
   const place = heroRewardPlace(card);
   if (place === undefined) {

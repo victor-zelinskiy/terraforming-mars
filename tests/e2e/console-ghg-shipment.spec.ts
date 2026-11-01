@@ -200,8 +200,9 @@ test.describe(`P75 GHG Shipment · the classic Kelvinists read as the Greens, th
     fs.writeFileSync(path.join(OUT, PRESET.id, 'b-trail.txt'), transferTrail(witness) + '\n');
     const heatLandings = witness.landings.filter((e) => e.under === 'rail:heat');
     expect(heatLandings.length, `the heat landed on its row (trail:\n${transferTrail(witness)})`).toBeGreaterThan(0);
-    const cardHeat = heatLandings.filter((l) => /^(recv:front|printed:.*heat)/.test(witness.births.find((b) => b.id === l.id)?.under ?? ''));
-    expect(cardHeat.length, `the card's heat born on the landed event (trail:\n${transferTrail(witness)})`).toBeGreaterThan(0);
+    // AN EVENT PAYS FACE UP (P84 · DK): the card's heat is born on its PRINTED heat, never on its back.
+    const cardHeat = heatLandings.filter((l) => /^printed:.*heat/.test(witness.births.find((b) => b.id === l.id)?.under ?? ''));
+    expect(cardHeat.length, `the card's heat born on the landed event's printed heat (trail:\n${transferTrail(witness)})`).toBeGreaterThan(0);
     const answer = witness.births.filter((b) => b.under.startsWith(`reactor:${MANUTECH}`));
     expect(answer.length, `Manutech's answer born on its printed effect (trail:\n${transferTrail(witness)})`).toBeGreaterThan(0);
     expect(endsOverGlass(witness), 'no end over glass or nothing').toEqual([]);

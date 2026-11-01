@@ -9695,6 +9695,82 @@ function ishtarExpeditionFixture(name: string, venus: 8 | 10): void {
 ishtarExpeditionFixture('ishtar-expedition', 10);
 ishtarExpeditionFixture('ishtar-expedition-locked', 8);
 
+// ── P84 · STRATOSPHERIC EXPEDITION — the NINETEENTH Prelude 2 card (docs/claude/prompts/prelude2-p84-stratospheric-
+//    expedition.md): a Venus + Space EVENT «2 floaters to ANY card + draw 2 Venus cards» — ONE press, two effects, and
+//    the stand of «СОБЫТИЕ ПЛАТИТ ЛИЦОМ» (DK). A solo action phase on a Venus + Prelude 2 table, Teractor, 10 M€ +
+//    2 titanium (12 = 2 × 3 + 6 — two lanes), P84 MOVED into the hand, the deck's top seeded Ants ✗ → Venusian Insects ✓
+//    → Birds ✗ → Aerial Mappers ✓ (`STRATO_TAPE` — P76's tape):
+//      · `stratospheric-expedition`          — Dirigibles (3) + Floating Habs (0) on the table: the holder is a CHOICE;
+//      · `stratospheric-expedition-sole`     — Dirigibles alone: the one holder seeded and SHOWN (T14), still asked;
+//      · `stratospheric-expedition-noholder` — no holder: the preview names the loss, the play stands, the tape runs.
+//    A DRY RUN on a copy proves the holder's +2, the two Venus cards and the two rejects by name. ──
+const STRATO_TAPE = ISHTAR_TAPE;
+function stratosphericExpeditionFixture(name: string, variant: 'choice' | 'sole' | 'noholder'): void {
+  const {game, player} = soloActionPhase({
+    venusNextExtension: true, prelude2Expansion: true, customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
+  });
+  const take = (n: CardName) => {
+    moveToDeckTop(game, n);
+    return game.projectDeck.drawOrThrow(game);
+  };
+  if (variant !== 'noholder') {
+    const dirigibles = take(CardName.DIRIGIBLES);
+    dirigibles.resourceCount = 3;
+    player.playedCards.push(dirigibles);
+    if (variant === 'choice') {
+      player.playedCards.push(take(CardName.FLOATING_HABS));
+    }
+  }
+  player.cardsInHand.push(take(CardName.STRATOSPHERIC_EXPEDITION));
+  stackDeckTop(game, STRATO_TAPE);
+  player.megaCredits = 10;
+  player.titanium = 2;
+  runAllActions(game);
+  const card = player.cardsInHand.find((c) => c.name === CardName.STRATOSPHERIC_EXPEDITION);
+  const top = game.projectDeck.drawPile.slice(-STRATO_TAPE.length).map((c) => c.name).reverse().join(',');
+  if (card === undefined || player.canPlay(card) === false || top !== STRATO_TAPE.join(',')) {
+    throw new Error(`the ${name} fixture expected P84 playable in the hand with the tape on top — got card=${card !== undefined} top=${top}`);
+  }
+  // THE DRY RUN — the real play on a copy.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(player.id);
+  const discardBefore = copy.projectDeck.discardPile.length;
+  blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.STRATOSPHERIC_EXPEDITION)!, Payment.of({megacredits: 6, titanium: 2}));
+  runAllActions(copy);
+  const asked = blue.getWaitingFor();
+  if (variant !== 'noholder') {
+    blue.process({type: 'card', cards: [CardName.DIRIGIBLES]});
+    runAllActions(copy);
+  }
+  const batch = blue.cardDrawReveals[0];
+  const facts = {
+    asked: asked?.constructor.name,
+    holder: blue.playedCards.get(CardName.DIRIGIBLES)?.resourceCount,
+    cards: batch?.cards.map((c) => c.name).join(','),
+    discarded: copy.projectDeck.discardPile.slice(discardBefore).map((c) => c.name).join(','),
+    mc: blue.megaCredits,
+    titanium: blue.titanium,
+    skipped: copy.events.events.filter((e) => e.type === 'effect-skipped').length,
+  };
+  const want = {
+    // No holder: nothing about the floaters is asked — the next thing standing is the action menu.
+    asked: variant === 'noholder' ? 'OrOptions' : 'SelectCard',
+    holder: variant === 'noholder' ? undefined : 5,
+    cards: [CardName.VENUSIAN_INSECTS, CardName.AERIAL_MAPPERS].join(','),
+    discarded: [CardName.ANTS, CardName.BIRDS].join(','),
+    mc: 4,
+    titanium: 0,
+    skipped: variant === 'noholder' ? 1 : 0,
+  };
+  if (JSON.stringify(facts) !== JSON.stringify(want)) {
+    throw new Error(`the ${name} fixture's dry run read ${JSON.stringify(facts)} — expected ${JSON.stringify(want)}`);
+  }
+  write(name, game);
+}
+stratosphericExpeditionFixture('stratospheric-expedition', 'choice');
+stratosphericExpeditionFixture('stratospheric-expedition-sole', 'sole');
+stratosphericExpeditionFixture('stratospheric-expedition-noholder', 'noholder');
+
 // ── P79 · MICROGRAVITY NUTRITION — the SEVENTEENTH Prelude 2 card (the stand `console-microgravity-nutrition`): «+1 M€
 //    production per colony you have» — a counted production DECLARATION. A 2p Redux (Colonies mandatory) + Prelude 2
 //    table (Teractor · ThorGate), blue on the move with P79 MOVED out of the dealt pool into the hand, blue's cubes on the

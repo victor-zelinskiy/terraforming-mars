@@ -193,7 +193,7 @@ describe('ConsolePlayedReceivingStage (the receiving & effect resolution stage)'
     wrapper.unmount();
   });
 
-  it('an EVENT destination is the face-down pile; the landed card is a back, keyed for the reward source', async () => {
+  it('an EVENT destination is the face-down pile; the landed card stands FACE UP over it, keyed for the reward source (P84 · DK)', async () => {
     armPlayedHero(CardName.ASTEROID, true, {manualTableOpen: false, host: 'workspace'});
     playedHeroState.phase = 'preparing';
     const wrapper = make(view([CardName.BIG_ASTEROID]));
@@ -202,7 +202,34 @@ describe('ConsolePlayedReceivingStage (the receiving & effect resolution stage)'
     expect(wrapper.find('.con-recv__stack').exists()).to.be.false;
     playedHeroState.revealed = true;
     await wrapper.vm.$nextTick();
-    expect(wrapper.find('[data-recv-front]').attributes('data-played-key')).to.eq(CardName.ASTEROID);
+    const front = wrapper.find('[data-recv-front]');
+    expect(front.attributes('data-played-key')).to.eq(CardName.ASTEROID);
+    expect(front.classes()).to.include('con-recv__front--event');
+    // The reward ladder's first rung is the FACE — the card pays from its printed icons, never from a back.
+    expect(front.find('.con-recv__face').exists(), 'the face stands on the front').to.be.true;
+    expect(front.findComponent({name: 'ConsolePlayedCardLite'}).exists()).to.be.true;
+    expect(front.find('.con-recv__turn').attributes('data-event-side')).to.eq('up');
+    expect(wrapper.find('.con-recv__caption-count').text(), 'the pile still reads 1 — the card is held over it').to.eq('1');
+    wrapper.unmount();
+  });
+
+  it('the event TURNS (one object, face → back) and only its SETTLE onto the pile ticks the count (P84 · DK)', async () => {
+    armPlayedHero(CardName.ASTEROID, true, {manualTableOpen: false, host: 'workspace'});
+    playedHeroState.phase = 'showing-result';
+    playedHeroState.revealed = true;
+    const wrapper = make(view([CardName.BIG_ASTEROID]));
+    await wrapper.vm.$nextTick();
+    const vm = wrapper.vm as unknown as {turnEvent(ms: number): Promise<void>, settleEvent(ms: number): void};
+    // (jsdom reads as reduced motion — the sides swap at once; the order of the two acts is what is pinned here.)
+    await vm.turnEvent(40);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.con-recv__turn').attributes('data-event-side')).to.eq('down');
+    expect(wrapper.findAll('.con-recv__turn').length, 'ONE object turns — never a second copy').to.eq(1);
+    expect(wrapper.find('.con-recv__caption-count').text(), 'turned, not yet laid').to.eq('1');
+    vm.settleEvent(0);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.con-recv__turn').attributes('data-event-landed')).to.eq('');
+    expect(wrapper.find('.con-recv__caption-count').text(), 'the touchdown on the pile ticks N + 1').to.eq('2');
     wrapper.unmount();
   });
 

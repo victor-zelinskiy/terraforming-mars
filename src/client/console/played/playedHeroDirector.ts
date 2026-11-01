@@ -242,10 +242,10 @@ export function playHeroFlight(els: HeroStageEls, plan: HeroPathPlan, opts: Hero
 
 /**
  * Reduced motion: one short controlled transition straight to the target —
- * no arc, no roll, an event crossfades to its back at the midpoint (no 3D).
+ * no arc, no roll, the standalone table's event crossfades to its back at the midpoint (no 3D).
  * Same commit semantics as the full scene.
  */
-export function playHeroReducedHop(els: HeroStageEls, target: HeroRect, durationMs: number, onApex?: () => void): Promise<void> {
+export function playHeroReducedHop(els: HeroStageEls, target: HeroRect, durationMs: number, onApex?: () => void, flip = false): Promise<void> {
   const g = geometry;
   if (g === undefined) {
     return Promise.resolve();
@@ -266,7 +266,9 @@ export function playHeroReducedHop(els: HeroStageEls, target: HeroRect, duration
     }
     // The gentle non-3D turn / the face swap: both ride the midpoint.
     tl.call(() => onApex?.(), undefined, durationMs / 2000);
-    if (els.flip !== undefined) {
+    // Only a card that turns in flight (the standalone table's event — `eventFlipsInFlight`) shows its back; every other
+    // card lands face up (an event on the workspace stage turns there, after it paid — P84 · DK).
+    if (flip && els.flip !== undefined) {
       tl.set(els.flip, {rotationY: 180}, durationMs / 2000);
     }
   }, durationMs);

@@ -27,7 +27,8 @@ import {armLeakWitness, strandedReports} from './parliamentDrive';
  *      composer; the plants row reads 5 on every sample before the birth and 2
  *      from the departure; the steel token the same (4 → 1); the card LIFTS only
  *      after both have been absorbed; the «+3» TR token is born on the event's
- *      face-down pile after the landing, the rating N on every sample until its
+ *      PRINTED TR, face up after the landing (P84 · DK — an event pays face up
+ *      and turns over only after), the rating N on every sample until its
  *      touchdown; the «+4» M€ after; the M€ row reads mc0 → mc0 − 17 (the
  *      landing) → mc0 − 13. The beat names itself `flown`; nothing degrades.
  *   4. The journal: one entry for the card, its chips reading the shipment and
@@ -133,8 +134,8 @@ type Sample = {
   plantsRow?: Rect, steelRow?: Rect,
   /** The printed plant / steel icons of the card STANDING in the composer (where the tokens are absorbed). */
   plantIcon?: Rect, steelIcon?: Rect,
-  /** The event's face-down pile on the receiving stage (where the pay-back is born). */
-  front?: Rect,
+  /** The event's landing on the receiving stage, its printed TR (where the pay-back is born — P84 · DK) and its side. */
+  front?: Rect, trIcon?: Rect, side?: string,
 };
 type Probe = {samples: Array<Sample>, ticks: number};
 
@@ -209,6 +210,8 @@ async function armProbe(page: Page): Promise<void> {
         plantIcon: printed('plant.'),
         steelIcon: printed('steel.'),
         front: rect(document.querySelector('.con-recv [data-recv-front]')),
+        trIcon: rect(Array.from(document.querySelectorAll<HTMLElement>('.con-recv [data-recv-front] .pcard-ic')).find((el) => el.style.backgroundImage.includes('tr.'))),
+        side: document.querySelector<HTMLElement>('.con-recv [data-event-side]')?.dataset.eventSide,
       };
       const last = p.samples[p.samples.length - 1];
       if (last === undefined || JSON.stringify({...last, t: 0, tick: false}) !== JSON.stringify({...s, t: 0, tick: false})) {
@@ -451,14 +454,18 @@ for (const preset of PRESETS) {
       expect(steel.born, 'the steel leaves no earlier than the plants (the printed order)').toBeGreaterThanOrEqual(plants.born);
       expect(samples.some((s) => s.phase === 'shipping'), 'the scene published its shipment phase').toBe(true);
 
-      // The pay-back: the TR token is born on the event's face-down pile AFTER the landing, the rating on its touchdown.
+      // The pay-back: the TR token is born on the event's PRINTED TR — face up — AFTER the landing (P84 · DK), the rating
+      // on its touchdown; the card turns over only after.
       const born = births(samples);
       const token = born.find((b) => b.chip.v === 'tr+3');
       expect(token, `a TR token «+3» was born — births: ${born.map((b) => b.chip.v).join(', ')}`).toBeDefined();
       expect(token!.at, 'the TR is born after the shipment was absorbed').toBeGreaterThan(steel.gone);
       const at = samples[token!.at];
-      expect(at.front, 'the event\'s pile stands where the token is born').toBeDefined();
-      expect(inside(token!.chip, at.front!, 2), `the TR is born on the face-down pile — ${JSON.stringify(token!.chip)} vs ${JSON.stringify(at.front)}`).toBe(true);
+      expect(at.trIcon, 'the landed event prints its TR face up where the token is born').toBeDefined();
+      expect(at.side, 'the event is FACE UP when it pays').toBe('up');
+      expect(inside(token!.chip, at.trIcon!, 2), `the TR is born on the printed TR — ${JSON.stringify(token!.chip)} vs ${JSON.stringify(at.trIcon)}`).toBe(true);
+      const turned = samples.findIndex((s, i) => i > token!.at && s.side !== undefined && s.side !== 'up');
+      expect(turned, 'the event turned over AFTER it paid').toBeGreaterThan(token!.at);
       const trUp = samples.findIndex((s) => s.tr === String(N + 3));
       expect(trUp, 'the rating ticked after the token was born').toBeGreaterThan(token!.at);
       expect(samples.slice(0, trUp).every((s) => s.tr === String(N)), `the rating read ${N} on every sample before the touchdown — it read ${[...new Set(samples.slice(0, trUp).map((s) => s.tr))].join(', ')}`).toBe(true);

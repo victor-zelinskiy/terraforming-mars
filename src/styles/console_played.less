@@ -978,20 +978,42 @@
         inset: 0;
         border-radius: .55rem;
     }
-    /* The events front anchor rides ON TOP of the pile — no plate over a
-       real back… */
-    &__front--back {
+    /* AN EVENT PAYS FACE UP (P84 · DK): the events front anchor stands a
+       breath ABOVE the pile — the landed card reads as held over the table,
+       not yet laid — positioned by its box (never a transform: the hero
+       lands on the anchor's resting rect, and a transform there is read as
+       transient motion). No plate over a real back. */
+    &__front--event {
         position: absolute;
-        inset: 0;
+        left: 0;
+        right: 0;
+        top: calc(-1 * var(--con-recv-event-lift, .9rem));
+        bottom: var(--con-recv-event-lift, .9rem);
         background: none;
         box-shadow: none;
+        perspective: 60rem;
     }
-    /* …except when the family is EMPTY: prepared room must read as room,
-       never as nothing («СОБЫТИЯ 0» over bare table). `--revealed` clears
-       it exactly like the face-up front. */
-    &__front--back&__front--seat {
+    /* An EMPTY family is prepared room on the table itself, never nothing
+       («СОБЫТИЯ 0» over bare table) — the pile's own place, under the card. */
+    &__backpile--seat {
+        border-radius: .55rem;
         background: linear-gradient(180deg, rgba(120, 155, 190, 0.055), rgba(120, 155, 190, 0.02));
         box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.12);
+    }
+    /* ONE object turns over: the face and its back on one 3D chassis — the
+       back comes up at 90°, form only. */
+    &__turn {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        transform-style: preserve-3d;
+    }
+    &__turn-face,
+    &__turn-back {
+        backface-visibility: hidden;
+    }
+    &__turn-back {
+        transform: rotateY(180deg);
     }
 
     /* ── a peripheral pile — head band over closed-pile depth edges ── */

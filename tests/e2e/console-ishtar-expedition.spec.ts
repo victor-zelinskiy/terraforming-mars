@@ -6,7 +6,7 @@ import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from 
 
 /**
  * P76 «ЭКСПЕДИЦИЯ ИШТАР» — THE FIRST PRELUDE 2 CARD, and the witness of a class that had none: a play FROM THE HAND whose
- * result is a RESOURCE (3 titanium, born on the landed card — an event face-down on its pile) AND a SEARCH BY TAG (the deck turned over
+ * result is a RESOURCE (3 titanium, born on the landed card's printed titanium — an event pays FACE UP, P84 · DK) AND a SEARCH BY TAG (the deck turned over
  * until two Venus cards show — the tape, the one discard pile, the finds), taken into the dock, the flow LEAVING
  * (docs/claude/prompts/prelude2-p76-ishtar-expedition.md §3; docs/PRELUDE2_ADAPTATION.md).
  *
@@ -257,10 +257,9 @@ test.describe(`P76 Ishtar Expedition · a play from the hand with a reward and a
     expect(probe.wsMax, 'one workspace').toBeLessThanOrEqual(1);
     expect(probe.stranded, 'nothing stranded').toBe(false);
 
-    // The titanium: born on the landed card where it lies — an EVENT lands face-down on the «События» pile and its
-    // rewards emerge from it (`consolePlayedHero` § heroRewardSourceSelectors: «the card's honest on-table location»),
-    // so the birth is the card (`recv:front`), never a printed icon its face no longer shows; landed on the titanium
-    // row with its contact beat.
+    // The titanium: born on the landed card's PRINTED titanium — an EVENT lands FACE UP over the «События» pile, pays
+    // from its printed icons and only then turns over (P84 · DK — «СОБЫТИЕ ПЛАТИТ ЛИЦОМ»; P76's gap №1 closed), so the
+    // birth is the icon, never the card's back; landed on the titanium row with its contact beat.
     const witness = await transferWitness(page);
     fs.mkdirSync(path.join(OUT, PRESET.id), {recursive: true});
     fs.writeFileSync(path.join(OUT, PRESET.id, 'b-trail.txt'), transferTrail(witness) + '\n');
@@ -268,7 +267,7 @@ test.describe(`P76 Ishtar Expedition · a play from the hand with a reward and a
     expect(landedTi.length, `the titanium landed on its row (trail:\n${transferTrail(witness)})`).toBeGreaterThan(0);
     for (const landing of landedTi) {
       const birth = witness.births.find((b) => b.id === landing.id);
-      expect(birth?.under, `born on the landed card (trail:\n${transferTrail(witness)})`).toMatch(/^(recv:front|printed:.*titanium)$/);
+      expect(birth?.under, `born on the printed titanium of the face-up event (trail:\n${transferTrail(witness)})`).toMatch(/^printed:.*titanium$/);
       expect(landing.touched, 'its contact beat played').toBeDefined();
     }
     expect(endsOverGlass(witness), 'no end over glass or nothing').toEqual([]);

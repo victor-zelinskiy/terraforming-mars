@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {transferEndPointNow, unpaintedUnder} from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {resolveGainIconEnds} from '@/client/console/consoleActionCommitMotion';
+import {resolveGainIconEnds, resolvePlayGainIconEnds} from '@/client/console/consoleActionCommitMotion';
 import {seatChipEnd} from '@/client/console/tilePlacement/cityDataPayoutBeat';
 import {railAnswerTags} from '@/client/console/played/receivingStageModel';
 import {Tag} from '@/common/cards/Tag';
@@ -94,6 +94,45 @@ describe('a flight end is an object — measured now', () => {
       [{channel: 'stock', resource: 'plants', amount: 1}]);
     expect(end?.el).eq(icon);
     expect(end).to.include({fx: 0.5, fy: 0.5});
+  });
+
+  it('a PLAY\'s gains are born on the ON-PLAY row\'s printed icons — every channel, the k-th on the k-th, never inside a frame (P84 · DK)', () => {
+    const face = document.createElement('div');
+    const ic = (url: string, parent: HTMLElement, at: number) => {
+      const el = document.createElement('span');
+      el.className = 'pcard-ic';
+      el.style.backgroundImage = `url(assets/resources/${url})`;
+      parent.appendChild(el);
+      box(el, {left: at, top: 10, width: 20, height: 20});
+      return el;
+    };
+    // The card's action frame prints a floater too («spend 1 floater») — it is NOT the play's.
+    const frame = document.createElement('div');
+    frame.className = 'pcard-effect';
+    face.appendChild(frame);
+    ic('floater.png', frame, 10);
+    const f1 = ic('floater.png', face, 100);
+    const f2 = ic('floater.png', face, 130);
+    const plant = ic('plant.png', face, 160);
+    const prod = document.createElement('div');
+    prod.className = 'pcard-prod';
+    face.appendChild(prod);
+    const energy = ic('power.png', prod, 200);
+    const mc = document.createElement('span');
+    mc.className = 'pcard-mi pcard-mi--mc';
+    mc.textContent = '3';
+    face.appendChild(mc);
+    box(mc, {left: 240, top: 10, width: 20, height: 20});
+    root.appendChild(face);
+    const ends = resolvePlayGainIconEnds(face, [
+      {channel: 'card-resource', resource: 'floater', amount: 1, targetCard: CardName.DIRIGIBLES},
+      {channel: 'card-resource', resource: 'floater', amount: 1, targetCard: CardName.DIRIGIBLES},
+      {channel: 'stock', resource: 'plants', amount: 2},
+      {channel: 'production', resource: 'energy', amount: 1},
+      {channel: 'stock', resource: 'megacredits', amount: 3},
+      {channel: 'stock', resource: 'heat', amount: 2},
+    ]);
+    expect(ends.map((e) => e?.el)).deep.eq([f1, f2, plant, energy, mc, undefined]);
   });
 
   it('another seat\'s chip is the destination as an OBJECT — and no chip on screen is no destination (never the top of the screen)', () => {

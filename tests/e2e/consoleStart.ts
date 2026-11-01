@@ -3043,6 +3043,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'mu-olympus' | 'mu-natural-preserve' | 'habitat-science-pluto2' | 'sb-olympus' |
   // P76 Ishtar Expedition — the first Prelude 2 card: a play from the hand with a search by tag (the tape seeded) · locked at Venus 8 %.
   'ishtar-expedition' | 'ishtar-expedition-locked' |
+  // P84 Stratospheric Expedition — 2 floaters to ANY card + the search for 2 Venus cards, and «СОБЫТИЕ ПЛАТИТ ЛИЦОМ» (DK):
+  // two holders (a choice) · one holder (seeded, shown) · no holder (a named loss) — the tape seeded on all three.
+  'stratospheric-expedition' | 'stratospheric-expedition-sole' | 'stratospheric-expedition-noholder' |
   // P85 Summit Logistics — the first POLITICAL Prelude 2 card: the Scientists rule, a two-term count, steel + titanium · locked «0 of 2».
   'summit-logistics' | 'summit-logistics-locked' |
   // P79 Microgravity Nutrition — a counted production declaration: 2 colonies → the hand plate «+2», M€ production 0 → 2.
