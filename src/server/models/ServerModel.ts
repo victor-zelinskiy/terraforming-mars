@@ -781,7 +781,7 @@ export class Server {
       terraformRating: player.terraformRating,
       ratingRaisedThisGeneration: player.hasIncreasedTerraformRatingThisGeneration,
       ...ratingSkipField(player),
-      timer: player.timer.serialize(),
+      timer: player.timer.toModel(),
       titanium: player.titanium,
       titaniumProduction: player.production.titanium,
       titaniumValue: player.getTitaniumValue(),

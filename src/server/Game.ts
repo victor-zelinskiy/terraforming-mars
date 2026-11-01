@@ -978,6 +978,9 @@ export class Game implements IGame, Logger {
   private playerHasPickedCorporationCard(player: IPlayer, corporationCard: ICorporationCard | undefined): void {
     // TODO(kberg): I think we can get rid of this weird validation at a later time.
     player.pickedCorporationCard = corporationCard;
+    // The clock starts with the corporation pick — the initial draft and card selection are untimed (upstream
+    // 31f1669f9a). Every road through here enables it: the beginner corporation, the campaign's corp-less final.
+    player.timer.enable();
     // A FINAL campaign mission has no corporation step («Штаб» plays the
     // accumulated lineage), so completion is tracked by its own persisted
     // flag — `initialSelectionDoneOf` reads either signal.
