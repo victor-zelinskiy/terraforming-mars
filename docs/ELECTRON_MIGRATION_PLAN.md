@@ -2,7 +2,7 @@
 
 **Status:** Phase 0 — feasibility audit + implementation-grade plan (analysis only; no Electron runtime added yet).
 **Target runtime:** Electron **43.0.0** · **Windows-first** · macOS signing/notarization deferred to a separate future initiative.
-> **Runtime pin has since moved — this document is a Phase-0 historical record and its `43.0.0` references are NOT the shipped version.** The live pin is `package.json` `devDependencies.electron` (**45.0.0** as of 2026-10-21 — Chromium 156, Node 24.22.0, V8 15.6). Runtime-version upgrades do not amend the Phase-0 analysis below; see the *Runtime upgrades* log at the end of this file.
+> **Runtime pin has since moved — this document is a Phase-0 historical record and its `43.0.0` references are NOT the shipped version.** The live pin is `package.json` `devDependencies.electron` (**45.2.1** as of 2026-11-01 — Chromium 156, Node 24.22.1, V8 15.6). Runtime-version upgrades do not amend the Phase-0 analysis below; see the *Runtime upgrades* log at the end of this file.
 **Baseline:** builds on the completed WebSocket realtime layer — see `WEBSOCKET_MIGRATION_PLAN.md` (§L mutation matrix + flag ladder). This document is its desktop-shell companion.
 
 This plan is grounded in a read-only audit of the actual codebase (branch `main`, Node v22.22.3 / npm 10.9.8). Every load-bearing claim cites `file:line`. It is a plan, not an implementation — the first code lands only when Phase 1 is explicitly requested.
@@ -939,18 +939,41 @@ letting the web-server lane drift: `engines.node`, `devDependencies.@types/node`
 must move all of them in the same commit.**
 
 Aligned 2026-08-31 on **Node 24 «Krypton»** (Active LTS to 2028-04; Electron 44.0.0 bundles 24.18.1,
-44.1.0 bundles 24.19.0, 44.2.0+ bundle 24.20.0): `engines` `>=22.22.2 <23` → `>=24.18.1 <25` (raised to `>=24.19.0 <25` with the 44.1.0 bump, to `>=24.20.0 <25` with 44.3.0, and deliberately LEFT there by 45.0.0 — same major, nothing needs a 24.22 API, and the local fnm toolchain is 24.20.0); `@types/node` `^25` → `^24` (both 25
+44.1.0 bundles 24.19.0, 44.2.0+ bundle 24.20.0): `engines` `>=22.22.2 <23` → `>=24.18.1 <25` (raised to `>=24.19.0 <25` with the 44.1.0 bump, to `>=24.20.0 <25` with 44.3.0, and deliberately LEFT there by 45.0.0 and 45.2.1 — same major, nothing needs a 24.22 API, and the local fnm toolchain is 24.20.0); `@types/node` `^25` → `^24` (both 25
 and 26 track **non-LTS** Node lines, and types ahead of the runtime turn a missing API into a production
 crash rather than a build error); 7 CI `node-version` pins and the `Dockerfile` base `22-alpine3.21` →
 `24-alpine3.21`. `.nvmrc` already read `v24`.
 
 | Date | Pin | Chromium | Node | V8 | Notes |
 | --- | --- | --- | --- | --- | --- |
+| 2026-11-01 | **45.2.1** | 156.0.8078.75 | 24.22.1 | 15.6.75.25 | Rolls up 45.1.0 + 45.2.0 + 45.2.1 — no breaking changes; see the upgrade notes below |
 | 2026-10-21 | **45.0.0** | 156.0.8078.48 | 24.22.0 | 15.6.75.19 | Major — breaking-change audit below. Skips 44.4.0…44.9.3 (dependabot proposed 44.4.5) |
 | 2026-09-11 | **44.3.0** | 152.0.7977.78 | 24.20.0 | 15.2.124.19 | Rolls up 44.1.1 + 44.2.0 + 44.3.0 — no breaking changes; see the upgrade notes below |
 | 2026-08-31 | **44.1.0** | 152.0.7977.65 | 24.19.0 | 15.2.124.18 | Patch release - no breaking changes; see below |
 | 2026-08-25 | **44.0.0** | 152.0.7977.54 | 24.18.1 | 15.2.124.13 | See audit below |
 | (prior) | 43.4.0 | 150.0.7871.224 | 24.18.1 | 15.0.245.28 | |
+
+### 45.0.0 → 45.2.1 — upgrade notes
+
+Three stable releases inside major 45 (45.1.0, 45.2.0, 45.2.1), so there is **no new breaking change** to audit —
+the 45.0.0 table below still describes the whole delta from 44. What the three releases change *for this codebase*:
+
+| Upstream change | Impact here |
+| --- | --- |
+| **`utilityProcess` now emits `exit` when the app quits while the process is still launching** (45.1.0, [#55274](https://github.com/electron/electron/pull/55274)) | **On our path.** The embedded server is a `utilityProcess` forked at startup (`electron/embeddedServer.ts`), and its `exit` handler is what clears `child` and rejects a not-yet-ready start. A quit during that window (a fast close on the Steam Machine) used to leave the start promise to the ready timeout. |
+| **asar paths handled the same in the main process and in child processes; malformed asar size fields handled** (45.1.0, [#55184](https://github.com/electron/electron/pull/55184), [#55175](https://github.com/electron/electron/pull/55175)) | Robustness only — the forked server already runs from `app.asar.unpacked` (`embeddedServer.ts:117`), and `asar: true` ships the rest. |
+| **Linux crash when a D-Bus method call hits a disconnected bus** (45.1.0, [#55292](https://github.com/electron/electron/pull/55292)) | The Steam Deck / gamescope lane's kind of bug — re-check on hardware. |
+| **`protocol.registerSource` schemes get the same fetch rules as `protocol.handle`** (45.1.0); faster body-less / `file:` `net.fetch` (45.2.0) | **No-op for us** — `app://` is still a `protocol.handle` that builds its own `Response` (`electron/protocol.ts`) and never forwards a `net.fetch`. Matters only if the `registerSource` migration from the Electron 45 research report is ever done. |
+| **Extension / `chrome.webRequest` / `session.registerPreloadScript` filters / `Menu.setHighlightColors` / DevTools «Save»** (45.1.0, 45.2.0) | No impact — no extensions, no `webRequest`, no `registerPreloadScript`; the only `Menu` call is `setApplicationMenu(null)`. |
+| **Chromium 156.0.8078.48 → .75 + upstream security backports; Node 24.22.0 → 24.22.1** | The reason for the bump. Same Node major — the repo's Node pins stay where they are. |
+
+**Verified on the bump (2026-11-01, Windows):** `npx electron --version` → `v45.2.1`,
+`node_modules/electron/dist/version` → `45.2.1` (unpacked manually — see the gotcha below);
+`electron:build:main` green; a clean `npm ci --dry-run` (npm 11.19, empty directory) accepts the lockfile. Boot under
+`TM_ELECTRON_LOAD=app`: the embedded server forked as a `utilityProcess` (local-filesystem DB, 11 ids preloaded, WS gateway
+on `/ws`), `app://bundle/` loaded, zero errors in the boot log; GPU unchanged from 45.0.0 (`gpu_compositing: enabled`,
+`opengl: enabled_on`, `skia_graphite: enabled_on`, `webgl`/`webgpu: enabled`). Closing the window walks
+`before-quit → will-quit → quit`, the embedded server gets its shutdown request and exits 0, no process left.
 
 ### 45.0.0 — breaking-change audit
 
