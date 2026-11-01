@@ -47,13 +47,26 @@ shrink. Every px knob multiplies by `conUiScale()` in lockstep (the unit spec's 
 
 ## 3 · Navigation — by STACK
 
-The d-pad walks the stacks spatially (`pickSpatialTarget` over the live `[data-played-cat]` rects); A (and X) opens the focused zone —
-a ONE-card zone goes straight to the fullscreen out of its slot (the smart open), the bot's corporation too; LB / RB walk the SEATS
+**The table is ONE ROW, walked IN ORDER** (P88 · DY, the owner's frame of 2026-11-01): ◀ / ▶ step to the previous / next FOCUSABLE
+stack in layout order (`stepTableFocus` over `stacks.stacks` — `PLAYED_STACK_ORDER`), an edge stays, ▲ / ▼ do nothing on one row. The
+old spatial walk scored centre to centre over stacks of very different heights — two preludes SPREAD one under the other stand twice as
+tall as the corporation beside them — and ▶ from the corporation landed on «Активные», past «Прологи» (the unit spec reproduces the frame).
+A (and X) opens the focused zone — **a ONE-card zone opens the same category scene** (law 4: the physics is one whatever the layout — the
+old «smart open» went straight to the fullscreen viewer, and a lone EVENT rose out of the depth with no lift and no flip, the pile's count
+never falling); the bot's corporation opens its inspect; LB / RB walk the SEATS
 (standalone; embedded the Information workspace owns the seat); LT / RT and the right stick have nothing to turn at the table. The stack
 is on the CURSOR GRAMMAR (TR58 — `.con-cursor()`: the ring + halo a layer, the lift the stack's own transform — the whole stack rises as
 one object). The bar reads «A Открыть · LB/RB Игрок · B Закрыть» — no page verb.
 
 ## 4 · The category view — one screen when it fits, else an ALBUM (`ConsolePlayedCategoryView`, `consolePlayedCategoryModel`)
+
+**The category stands on the TABLE'S material and opens as a PHRASE** (P88 · DY — the owner's frame «a box inside a box»): the floor is
+`.con-stage-surface()` (square, opaque, the three seams, the top's inner shade — no ring, no drop shadow, no lighter gradient of its own),
+the SAME in both hosts; it UNFOLDS out of the opened stack's rect (`--con-cat-from-*` → `clip-path`, `--unfolded`) IN PARALLEL with the
+cards' lift and folds back into it on the close — never the old panel that faded in AFTER the landing («chrome assembling round the
+cards»). The rows of the grid and the single card stand on the table's hairline SHELF; the focused slot wears only the cursor grammar
+(`.con-cursor-ring()` on the lift — the hand-made halo is gone; the glow and cursor ratchets fell 3 → 2). A caption that does not fit its
+measured room takes the SHORT label (`PLAYED_CATEGORY_LABEL_SHORT` — «Автомат.»), never an ellipsis in the middle of a word.
 
 `planCategoryView` decides: ONE card → the near-fullscreen stage; a zone that stands on ONE screen at a readable face (≥ the table's face
 when it can, never under `CAT_GRID_MIN_ZOOM`) → the adaptive grid (`planHandGrid`); else the **PAGED ALBUM** (`planCategoryAlbum`):

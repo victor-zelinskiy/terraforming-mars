@@ -203,3 +203,11 @@ draw»): three defects of the presentation, one law each.
 1 the server's order · 2 «ПОЛУЧЕНО N» + a chip per cause with its share · 3 a search beside a plain draw stays the
 search theatre (its tape covers the batch) · 4 external draws never merge · 5 a cell under a covered board deals from
 the deck (named), the peek is next · 6 B on a merged batch = «Забрать все» · 7 rows up to the stage layout's cap.
+
+## A split reveal's companions ride the PROMPT, never a batch (P88 Venus Orbital Survey, 2026-11-01)
+
+A paying reveal whose RULE already sent some cards to the hand (the Venus cards of Venus Orbital Survey) keeps them on
+the purchase prompt's marker (`deckPickPrompt.companions`) and puts them in the hand WITH the answer — so the free and
+the bought cards leave the stage in ONE `runHandIntake` (R8), and no batch opens for them. A reveal whose every card
+matched asks nothing: that is the ordinary batch (`enqueueCardDrawReveal`, source the card), taken in place.
+

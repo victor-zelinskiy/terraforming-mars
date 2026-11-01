@@ -474,6 +474,10 @@ more precise failure messages.
 
 ## 6. Rules of thumb for new/edited action cards
 
+- **A reveal the player then DECIDES on is announced by its descriptor, never pre-collected** (P88 Venus Orbital
+  Survey — `revealSplit`): the faces are hidden information (`hiddenInfoPrompt`), so the buy is a live prompt the
+  workspace CLAIMS (`draw` + `pick`, `expectedCards = count`) and hosts as its embedded «ПОКУПКА»; the coverage's
+  `workspaceClaims` reads `revealSplit` like a `cards` gain chip.
 - A bespoke `action()` that builds a variable option list **must resolve a lone option**
   (`opts[0].cb(undefined)`), or declare `orBranches(..., {autoResolveSingle: false})` and
   actually return the one-option `OrOptions`.

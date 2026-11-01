@@ -48,8 +48,22 @@ stage, the discard-pile diggers and the research buy. A card that starts drawing
 tomorrow is covered by construction; there is no per-card table.
 
 Serialized on **`SelectCard.toModel`**, not centrally — the same
-nesting-survival reason `discardPrompt` is (Venus Orbital Survey offers the free
-Venus cards and the paid rest as two branches of one decision).
+nesting-survival reason `discardPrompt` is.
+
+**A SPLIT REVEAL carries the WHOLE reveal on ONE prompt** (P88 Venus Orbital Survey, 2026-11-01): «reveal the top 2;
+Venus cards to the hand for free; buy or discard the rest». The prompt's `cards` stay exactly the cards OFFERED (the
+upstream spec indexes `cards[0]`); the marker adds `companions` (`{cards, check, destination: 'hand'}` — the cards the
+RULE already decided, as `CardModel`s) and `order` (every name of the reveal in deck order), and `revealed` counts the
+whole reveal. The companions are NOT in the hand before the answer: `ChooseCards`'s `andThen` keeps them FIRST,
+synchronously, before any payment is deferred — so the bought and the free cards are ONE intake and nothing reached the
+hand unseen. A reveal whose every card matched asks nothing: the ordinary drawn batch (`enqueueCardDrawReveal`, source
+the card). The client lays the companions in the same row, interleaved by `order` (DOM order — the arriving batch pairs
+proxies with slots by it), never pickable, never a focus stop, their verdict a material band; the composer's beat reads
+`order` for its faces, so the flight is the whole reveal from the first frame.
+
+**A PAYING reveal is the purchase BY ITS MARKER** — `mode: 'buy'` routes to `cardSelect/buy` whatever `max` is: at
+`max 0` («You cannot afford any cards» / «Ok», `buyMode` false) the stage still stands, every offered card marked «В сброс»
+with the price that stops it, RT «ОК». It used to fall through to the generic target browser.
 
 Bounds are **copied off the real config**, never re-derived: the paying branch
 narrows `max` by affordability, and a marker disagreeing with the input it rides
