@@ -49,6 +49,8 @@ import {HartlanHeating} from '../../src/server/cards/turmoilRedux/HartlanHeating
 import {Proteus} from '../../src/server/cards/turmoilRedux/Proteus';
 import {Biolab} from '../../src/server/cards/prelude/Biolab';
 import {SelectColony} from '../../src/server/inputs/SelectColony';
+import {Luna} from '../../src/server/colonies/Luna';
+import {buildColonyTradePreview} from '../../src/server/colonies/colonyTradePreview';
 import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /**
@@ -518,6 +520,57 @@ describe('effect-forecast ↔ execution parity', function() {
       const forecast = effectForecastForPlay(table.player, trigger, cardPlayPreview(table.player, trigger));
       expect(forecast.facts.filter((f) => f.source.name === CardName.POSEIDON)).deep.eq([]);
     });
+  });
+
+  describe('trades (exact facts of the cards that answer a trade — P90)', () => {
+    /** Every in-scope card with the live trade hook — the block's worklist (a twin-less one is the coverage guard's). */
+    function inScopeTradeReactors(): Array<Factory> {
+      const out: Array<Factory> = [];
+      for (const manifest of ALL_MODULE_MANIFESTS) {
+        if (!SCOPE.includes(manifest.module)) {
+          continue;
+        }
+        for (const group of [manifest.projectCards, manifest.corporationCards, manifest.preludeCards]) {
+          for (const name of Object.keys(group)) {
+            const F = (group as Record<string, {Factory: Factory}>)[name]?.Factory;
+            if (F !== undefined && inPremiumScope({module: manifest.module, name}, SCOPE) && new F().onTrade !== undefined) {
+              out.push(F);
+            }
+          }
+        }
+      }
+      return out;
+    }
+
+    function tradeTable(F: Factory, suffix: string): Table & {luna: Luna} {
+      const [game, player] = testGame(2, {coloniesExtension: true}, suffix);
+      const luna = new Luna();
+      game.colonies = [luna];
+      const reactor = new F();
+      player.playedCards.push(reactor);
+      return {game, player, owner: player, reactor, luna};
+    }
+
+    it('the block reaches every in-scope trade reactor', () => {
+      expect(inScopeTradeReactors().length, 'P90 Venus Trade Hub at least').to.be.greaterThan(0);
+    });
+
+    for (const F of inScopeTradeReactors()) {
+      const name = new F().name;
+      it(`${name} ← a real trade with Luna: the fact, then the event on 'trade'`, () => {
+        const forecastTable = tradeTable(F, `-trade-${name}-fc`.replace(/\s+/g, ''));
+        const facts = (buildColonyTradePreview(forecastTable.player, forecastTable.luna).forecast?.facts ?? []).filter((f) => f.source.name === name);
+        expect(facts.length, 'the trade preview states the reaction').to.be.greaterThan(0);
+        expect(facts[0].source.channel).eq('trade');
+
+        const {game, player, luna} = tradeTable(F, `-trade-${name}-live`.replace(/\s+/g, ''));
+        const before = game.events.events.length;
+        luna.trade(player);
+        runAllActions(game);
+        const markers = firedMarkers(game.events.events.slice(before), facts[0], recipientColorOf(facts[0], player));
+        expect(markers.length, `${name} must have fired on 'trade'`).to.be.greaterThan(0);
+      });
+    }
   });
 
   describe('MarsBot corporations', () => {

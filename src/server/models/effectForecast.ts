@@ -1463,6 +1463,27 @@ export function patentSaleFacts(player: IPlayer, project: ICard, count: number):
   return [...rewardReactionFacts(player, project, [stockGain(player, Resource.MEGACREDITS, count)]), ...answers];
 }
 
+/**
+ * WHAT THE TABLE ANSWERS TO A TRADE (P90 Venus Trade Hub): the income's grants
+ * through the reward pass above (`card` — the dock, the reward's source; none
+ * for a colony), then the trader's `onTrade` reactors — `reactors`, their twins
+ * in the live walk's order (`tradePerformed.tradeReactorFacts`, which the
+ * trade fires AFTER the income) — then what answers THEM (the cascade: a card
+ * that pays on the reactor's M€). The reactors are facts, never grants: the
+ * same 3 M€ is stated once. Read-only.
+ */
+export function tradeReactionForecast(
+  player: IPlayer,
+  card: ICard | undefined,
+  effects: ReadonlyArray<ActionEffect>,
+  reactors: ReadonlyArray<EffectForecastFact>,
+): EffectForecast | undefined {
+  const ctx: EffectForecastContext = {operation: 'action', ...(card !== undefined ? {card} : {}), tiles: []};
+  const answers = [...reactors, ...cascadeFacts(player, card, reactors, ctx)].map((fact) => stampHosts(fact, card));
+  const facts = [...rewardReactionFacts(player, card, effects), ...answers];
+  return facts.length === 0 ? undefined : {...emptyEffectForecast(), facts, coverage: coverageOf(facts)};
+}
+
 /** The forecast of PLAYING `card` (a hand card, a prelude, the picked corporation). */
 export function effectForecastForPlay(player: IPlayer, card: ICard, preview: ActionPreview): EffectForecast {
   return buildForecast(player, card, preview, 'play');
@@ -1502,6 +1523,8 @@ export const FORECAST_HOOK_PAIRS: ReadonlyArray<{live: keyof ICard, forecast: ke
   {live: 'onColonyAddedByAnyPlayer', forecast: 'grantForecast'},
   // The patent sale (TR46): the seller's «when you sell patents» — the sale prompt's `patentSale` model.
   {live: 'onPatentsSold', forecast: 'patentsSoldForecast'},
+  // A trade (P90 Venus Trade Hub): the trader's «when you trade» — the colony's and the dock's trade previews.
+  {live: 'onTrade', forecast: 'tradeForecast'},
   // A walk of the Career (Turmoil Redux): the walk a PLAY makes — the table's ONE answer to it (TR78 Arwind Inc.).
   {live: 'onAgendaWalked', forecast: 'agendaWalkedForecast'},
   // A rating gain is a `tr` grant — the operation's rating (`ratingStepsOf`, the Greens' own sum), every seat's

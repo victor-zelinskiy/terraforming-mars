@@ -1,5 +1,6 @@
 import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
+import {ColonyName} from '../colonies/ColonyName';
 import {Color} from '../Color';
 import {GlobalParameter} from '../GlobalParameter';
 import {Resource} from '../Resource';
@@ -49,6 +50,8 @@ export type CardReactionCause = {
    * a card's walk) — the stage is chosen off this, never off the last walk the model happens to carry.
    */
   walk?: {reason: 'quest' | 'phase' | 'card' | 'resolution', from: number, to: number};
+  /** A TRADE (`'trade'` — `colonies/tradePerformed.fireTradeHooks`): where the fleet went — a colony tile, or a fleet-dock card. */
+  trade?: {kind: 'colony', name: ColonyName} | {kind: 'card', card: CardName};
 };
 
 /** THE ROOT the reaction stands under: the chain's correlationId (the SAME id a draw batch's `actionId` carries), the acting seat, the action's category. */

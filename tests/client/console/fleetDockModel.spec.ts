@@ -441,8 +441,8 @@ describe('fleetDockModel — the «ПРИЧАЛЫ» column (TR06 Water Hauling)'
       expect(tradeKnownRailMoves({option: option('energy', 2, 0), mix: {energy: 2, steel: 1}})).deep.eq({'stock:energy': -2, 'stock:steel': -1});
     });
 
-    it('a flat every-trade bonus adds to its row; a free path and a card-resource fee leave no rail row', () => {
-      expect(tradeKnownRailMoves({option: option('megacredits', 12, 3), flatBonuses: [{resource: 'megacredits', amount: 3}]})).deep.eq({'stock:megacredits': -6});
+    it('the fee alone (a trade reactor is the plan reaction, never a known move); a free path and a card-resource fee leave no rail row', () => {
+      expect(tradeKnownRailMoves({option: option('megacredits', 12, 3)})).deep.eq({'stock:megacredits': -9});
       expect(tradeKnownRailMoves({option: {type: 'option', title: 't', buttonLabel: 'b'} as unknown as SelectOptionModel})).deep.eq({});
       expect(tradeKnownRailMoves({option: option('floater', 2, 1)})).deep.eq({});
       expect(tradeKnownRailMoves({option: undefined})).deep.eq({});

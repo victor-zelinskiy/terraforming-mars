@@ -99,6 +99,7 @@ const TRIGGER_LABEL: Readonly<Record<EventTrigger, string>> = {
   'production-phase': 'in the production phase',
   'tr-increase': 'for a TR increase',
   'colony-added': 'for a built colony',
+  'trade': 'for a trade',
   'global-parameter': 'for a global parameter step',
   'standard-project': 'for a standard project',
   'resource-added': 'for an added resource',

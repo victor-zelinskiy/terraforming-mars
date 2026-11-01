@@ -44,7 +44,7 @@ import {colonySource, namedCardSource} from '../inputs/choiceContext';
 import {ParliamentHandler} from '../parliament/ParliamentHandler';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
 import {TradeDestinationSource} from './ITradeDestination';
-import {payTradeFlatBonuses, reportTrade} from './tradePerformed';
+import {fireTradeHooks, reportTrade} from './tradePerformed';
 
 export abstract class Colony implements IColony {
   // Players can't build colonies on Miranda until someone has played an Animal card.
@@ -412,9 +412,9 @@ export abstract class Colony implements IColony {
       player.colonies.usedTradeFleets++;
     }
 
-    // The flat every-trade card bonuses (Venus Trade Hub's +3 M€) — the list a
-    // fleet dock's trade pays too, and the one the previews read.
-    payTradeFlatBonuses(player);
+    // The cards that answer a trade (Venus Trade Hub's +3 M€) — each under its
+    // own effect scope; a fleet dock's trade fires the same hooks.
+    fireTradeHooks(player, {destination: {kind: 'colony', name: this.name}});
 
     // The trade FINALIZER: reset the track (Colonies rules — the marker
     // returns to the number of built colonies) and close the trade-stamping

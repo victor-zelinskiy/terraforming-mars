@@ -29,7 +29,6 @@ import {
 } from '../../src/server/colonies/FleetDock';
 import {dockFleet, FleetDockDestination} from '../../src/server/colonies/FleetDockDestination';
 import {buildColonyTradePreview, buildFleetDockPreview} from '../../src/server/colonies/colonyTradePreview';
-import {tradeFlatBonuses} from '../../src/server/colonies/tradePerformed';
 import {TradeWithEnergy} from '../../src/server/player/Colonies';
 import {cardsToModel} from '../../src/server/models/ModelUtils';
 import {potentialActions} from '../../src/server/models/potentialActions';
@@ -407,7 +406,7 @@ describe('FleetDock — a card as a destination of the trade', () => {
         expect(g.colonies.map((c) => c.trackPosition), 'no track moved').deep.eq([1, 1]);
         // The reward — the card's, once.
         expect(p.production.titanium).eq(1);
-        // The trade was performed ONCE: the flat bonus is paid once, and named.
+        // The trade was performed ONCE: the card that answers a trade fires once, under its own scope.
         const flat = g.events.events.filter((e) => e.impact.stock?.megacredits === 3);
         expect(flat).has.lengthOf(1);
         expect(flat[0].source).deep.include({card: CardName.VENUS_TRADE_HUB});
@@ -570,7 +569,11 @@ describe('FleetDock — a card as a destination of the trade', () => {
       expect(preview.reason).is.undefined;
       expect(preview.effects).deep.eq(fleetDockOffers(player)[0].effects);
       expect(preview.followUps).deep.eq([]);
-      expect(preview.flatBonuses).deep.eq(tradeFlatBonuses(player).map((b) => ({card: b.card, resource: b.resource, amount: b.amount})));
+      expect(preview.flatBonuses).deep.eq([{card: CardName.VENUS_TRADE_HUB, resource: 'megacredits', amount: 3}]);
+      // The card answers the trade: a reactor's exact fact in the forecast, never a grant of the reward.
+      const fact = preview.forecast?.facts.find((f) => f.source.name === CardName.VENUS_TRADE_HUB);
+      expect(fact).deep.include({certainty: 'exact'});
+      expect(fact?.source).deep.include({channel: 'trade', printedEffect: 0});
       const colony = buildColonyTradePreview(player, game.colonies[0]);
       expect(preview.megacreditsPayment, 'the M€ prompt is the same fact').deep.eq(colony.megacreditsPayment);
       expect(preview.megacreditsPayment?.amount).eq(9);

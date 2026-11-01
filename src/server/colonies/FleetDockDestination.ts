@@ -1,7 +1,7 @@
 import {IPlayer} from '../IPlayer';
 import {FleetDockCard, fleetDockBlockedReason, fleetDockRewardTarget} from './FleetDock';
 import {ITradeDestination, TradeDestinationSource} from './ITradeDestination';
-import {payTradeFlatBonuses, reportTrade} from './tradePerformed';
+import {fireTradeHooks, reportTrade} from './tradePerformed';
 import {SimpleDeferredAction} from '../deferredActions/DeferredAction';
 
 /**
@@ -45,8 +45,8 @@ export function dockFleet(player: IPlayer, card: FleetDockCard): void {
  * A fleet-dock card AS A TRADE DESTINATION — what a payment path hands the
  * paid trade to in place of a colony. Its `trade()` is the whole of «a trade
  * with a card»: the trade is a fact (the chairman quest counts it), the fleet
- * lands and the card pays (`dockFleet`), then the flat every-trade bonuses
- * (Venus Trade Hub) — the colony's own order. The track terms (`tradeOptions`,
+ * lands and the card pays (`dockFleet`), then the cards that answer a trade
+ * (Venus Trade Hub — `fireTradeHooks`) — the colony's own order. The track terms (`tradeOptions`,
  * `bonusTradeOffset` — the Unity action's extra step) do not apply: there is
  * no track.
  */
@@ -65,6 +65,6 @@ export class FleetDockDestination implements ITradeDestination {
   public trade(player: IPlayer): void {
     reportTrade(player);
     dockFleet(player, this.card);
-    payTradeFlatBonuses(player, {named: true});
+    fireTradeHooks(player, {destination: this.tradeSource});
   }
 }

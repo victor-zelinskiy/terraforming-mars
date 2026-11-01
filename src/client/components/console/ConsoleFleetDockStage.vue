@@ -1203,14 +1203,14 @@ export default defineComponent({
     holdPresentation(): void {
       const entry = this.payEntries[this.payIdx];
       const mix = this.payRowMix;
-      // The trade's OTHER moves on the rail, as priced at the press (the fee of the chosen path, the flat
-      // bonuses): the reward's diff check allows for exactly these. Read BEFORE the receipt pins the rows.
+      // The trade's OTHER moves on the rail, as priced at the press (the fee of the chosen path — a card that
+      // answers the trade is the plan's reaction): the reward's diff check allows for exactly these. Read BEFORE the receipt pins the rows.
       const paid = this.paymentStep !== undefined && this.paymentView !== undefined && this.thisPlayer !== undefined ?
         paymentFromCounts(this.paymentView.cost, this.payLanes, this.paymentCounts, megacreditsAvailable(this.thisPlayer)) :
         undefined;
       // (A card door's bare pick has no path of its own: its fee was the card's, and is no rail row.)
       const known = tradeKnownRailMoves({
-        option: this.pickMode ? undefined : this.options[this.payIdx], payment: paid, mix, flatBonuses: this.preview?.flatBonuses,
+        option: this.pickMode ? undefined : this.options[this.payIdx], payment: paid, mix,
       });
       // The receiving card and every counter as they stand AT THE PRESS — read before `held` flips the readings.
       const target = this.chosenTarget ?? '';

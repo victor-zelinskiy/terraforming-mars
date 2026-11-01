@@ -16,7 +16,7 @@ import {
   TradePaymentPreviewModel,
 } from '../../common/models/ColonyTradePreviewModel';
 import {FleetDockCard, fleetDockBlockedReason, fleetDockRewardTarget} from './FleetDock';
-import {tradeFlatBonuses} from './tradePerformed';
+import {TradeContext, tradeReactorFacts} from './tradePerformed';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {cardResourceGain, distributionVictoryPoints, drawGain, globalGain, oceanGain, productionChange, stockGain, trGain} from '../cards/actionPreviews';
 import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
@@ -27,7 +27,8 @@ import {IPlayer} from '../IPlayer';
 import {IColony} from './IColony';
 import {message} from '../logs/MessageBuilder';
 import {colonySource} from '../inputs/choiceContext';
-import {rewardReactionForecast} from '../models/effectForecast';
+import {rewardReactionForecast, tradeReactionForecast} from '../models/effectForecast';
+import {EffectForecastFact} from '../../common/models/EffectForecastModel';
 import {divertEffects, divertingLaw} from '../models/divertedTerraforming';
 import {vetoEffects} from '../models/vetoedRating';
 import {divertedDataPicker} from '../parliament/resolutions/DivertedTerraforming';
@@ -95,9 +96,11 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony, pathOf
   //    Delta Works mix) — the part every destination of a trade shares. ──────
   const payment = tradePaymentPreview(player);
 
-  // ── Flat every-trade card modifiers — the very list the trade pays
-  //    (`tradePerformed.ts`). ─────────────────────────────────────────────────
-  const flatBonuses = flatBonusModels(player);
+  // ── The cards that ANSWER a trade (Venus Trade Hub's +3 M€) — their forecast
+  //    twins, the very hooks the trade fires (`tradePerformed.ts`). ──────────
+  const trade: TradeContext = {destination: {kind: 'colony', name: colony.name}};
+  const tradeReactors = tradeReactorFacts(player, trade);
+  const flatBonuses = flatBonusModels(tradeReactors);
 
   // ── What BUILDING here would ask this player (the NEXT free slot's
   //    placement bonus). Same shape as a trade follow-up, so the console
@@ -108,12 +111,14 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony, pathOf
   // ── WHAT THE TABLE ANSWERS — to the trade's income and to a build here (PL-066: the same answer the dock's
   //    stage reads; the stage's «⚡ сработает» line and its R3 «Эффекты» layer read these and nothing else). The
   //    grants are the income exactly as `Colony.trade` pays it — the fixed part, the marker's income, the player's
-  //    own colony bonuses, the flat modifiers — as the preview builders' chips; a benefit no reactor answers (VP,
-  //    influence, a delegate) is no grant. No card is the source: the reactors are the tableaux alone. ────────
+  //    own colony bonuses — as the preview builders' chips; a benefit no reactor answers (VP, influence, a delegate)
+  //    is no grant. No card is the source: the reactors are the tableaux alone. The cards that answer the TRADE
+  //    itself (Venus Trade Hub) are REACTORS, never grants — their own facts lead, what answers THEM follows
+  //    (`tradeReactionForecast`). ────────────────────────────────────────────────────────────────────────────
   //    A card-resource income with NO card to land on is LOST (the follow-up says so) — the live engine adds nothing
   //    and no reactor fires, so it is no grant either.
-  const forecast = rewardReactionForecast(player, undefined, tradeGrantEffects(player, metadata, effective, ownColonies, flatBonuses,
-    {reward: isLostTarget(rewardFollowUp), colonyBonus: colonyBonusLost}));
+  const forecast = tradeReactionForecast(player, undefined, tradeGrantEffects(player, metadata, effective, ownColonies,
+    {reward: isLostTarget(rewardFollowUp), colonyBonus: colonyBonusLost}), tradeReactors);
   const buildForecast = colony.hasFreeTrackCell() ?
     rewardReactionForecast(player, undefined, buildGrantEffects(player, colony, metadata, isLostTarget(buildFollowUps[0])), {coloniesBuilt: 1}) :
     undefined;
@@ -170,13 +175,12 @@ function benefitGrantEffects(player: IPlayer, metadata: ColonyMetadata, type: Co
   }
 }
 
-/** The TRADE's income at `effective`, in the order `Colony.trade` pays it: the fixed part, the marker's income, the own colony bonuses, the flat modifiers. */
+/** The TRADE's income at `effective`, in the order `Colony.trade` pays it: the fixed part, the marker's income, the own colony bonuses. */
 function tradeGrantEffects(
   player: IPlayer,
   metadata: ColonyMetadata,
   effective: number,
   ownColonies: number,
-  flatBonuses: ReadonlyArray<{resource: string, amount: number}>,
   lost: {reward: boolean, colonyBonus: boolean},
 ): Array<ActionEffect> {
   const effects: Array<ActionEffect> = [];
@@ -188,9 +192,6 @@ function tradeGrantEffects(
   effects.push(...benefitGrantEffects(player, metadata, income.type, income.quantity, income.resource, lost.reward));
   for (let i = 0; i < ownColonies; i++) {
     effects.push(...benefitGrantEffects(player, metadata, metadata.colony.type, metadata.colony.quantity ?? 1, metadata.colony.resource, lost.colonyBonus));
-  }
-  for (const bonus of flatBonuses) {
-    effects.push(stockGain(player, bonus.resource as Resource, bonus.amount));
   }
   return effects;
 }
@@ -230,9 +231,10 @@ function isLostTarget(followUp: ColonyTradeFollowUpModel | undefined): boolean {
  */
 export function buildFleetDockPreview(player: IPlayer, card: FleetDockCard): FleetDockPreviewModel {
   const reason = fleetDockBlockedReason(player, card);
-  const flatBonuses = flatBonusModels(player);
+  const tradeReactors = tradeReactorFacts(player, {destination: {kind: 'card', card: card.name}});
+  const flatBonuses = flatBonusModels(tradeReactors);
   const effects = card.fleetDock.previewEffects(player);
-  const forecast = rewardReactionForecast(player, card, effects);
+  const forecast = tradeReactionForecast(player, card, effects, tradeReactors);
   const target = fleetDockRewardTarget(player, card);
   return {
     card: card.name,
@@ -284,9 +286,24 @@ export function tradePaymentPreview(player: IPlayer): TradePaymentPreviewModel {
   };
 }
 
-/** The flat every-trade bonuses in the previews' wire form (the resource as its icon key). */
-function flatBonusModels(player: IPlayer): Array<{card: CardName, resource: string, amount: number}> {
-  return tradeFlatBonuses(player).map((bonus) => ({card: bonus.card, resource: bonus.resource, amount: bonus.amount}));
+/**
+ * The trade reactors' own stock gains in the previews' wire form (the resource
+ * as its icon key, the card that pays) — read off their EXACT facts, so the
+ * reward's composition («СОСТАВ НАГРАДЫ») and «⚡ сработает» state one number.
+ */
+function flatBonusModels(reactors: ReadonlyArray<EffectForecastFact>): Array<{card: CardName, resource: string, amount: number}> {
+  const out: Array<{card: CardName, resource: string, amount: number}> = [];
+  for (const fact of reactors) {
+    if (fact.certainty !== 'exact' || fact.recipient.kind !== 'you' || fact.source.kind === 'rule') {
+      continue;
+    }
+    for (const effect of fact.effects) {
+      if (effect.direction === 'gain' && effect.note === undefined && effect.icon !== undefined && Object.values(Resource).includes(effect.icon as Resource)) {
+        out.push({card: fact.source.name as CardName, resource: effect.icon, amount: effect.amount ?? 0});
+      }
+    }
+  }
+  return out;
 }
 
 /**

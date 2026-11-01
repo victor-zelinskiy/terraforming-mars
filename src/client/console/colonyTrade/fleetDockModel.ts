@@ -552,14 +552,15 @@ const PAYMENT_RAIL_ROWS: ReadonlyArray<keyof Payment> = ['megacredits', 'heat', 
  * the viewer's rows beside the reward: the FEE of the chosen path (the
  * server's own `current → resulting` on the path's option; the captured
  * payment of an M€ path that asked for one; the Delta Works composition of an
- * energy path) and the flat every-trade bonuses. Keyed by `railRowKey`; the
- * reward's diff check (`railReward.verifyRailReward`) allows for exactly these.
+ * energy path). Keyed by `railRowKey`; the reward's diff check
+ * (`railReward.verifyRailReward`) allows for exactly these. The cards that
+ * answer the trade (Venus Trade Hub's +3 M€) are not known moves: they are the
+ * forecast's facts, flown as the plan's `reactions` (P90).
  */
 export function tradeKnownRailMoves(input: {
   option: SelectOptionModel | undefined,
   payment?: Payment,
   mix?: {energy: number, steel: number},
-  flatBonuses?: ReadonlyArray<{resource: string, amount: number}>,
 }): Record<string, number> {
   const known: Record<string, number> = {};
   const add = (resource: string, amount: number) => {
@@ -580,9 +581,6 @@ export function tradeKnownRailMoves(input: {
     if (meta?.icon !== undefined && meta.resource !== undefined) {
       add(meta.icon, meta.resource.resulting - meta.resource.current);
     }
-  }
-  for (const bonus of input.flatBonuses ?? []) {
-    add(bonus.resource, bonus.amount);
   }
   return known;
 }

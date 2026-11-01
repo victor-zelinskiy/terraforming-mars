@@ -37,6 +37,7 @@ import {AdjacencyBonus} from '../ares/AdjacencyBonus';
 import {EffectForecastFact} from '../../common/models/EffectForecastModel';
 import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from './EffectForecastContext';
 import type {FleetDock} from '../colonies/FleetDock';
+import type {TradeContext} from '../colonies/tradePerformed';
 import type {AgendaWalkCause} from '../parliament/quests/ChairmanSeat';
 import {AgendaAdvanceStep} from '../../common/parliament/ParliamentTypes';
 import type {DeclaredHolderRole, HolderActionGood} from '../../common/cards/holderRole';
@@ -603,6 +604,20 @@ export interface ICard {
    */
   onColonyAddedByAnyPlayer?(cardOwner: IPlayer, colonyOwner: IPlayer): void;
   onColonyAdded?: never;
+  /**
+   * THE TRADE (fork hook — P90 Venus Trade Hub: «when you trade, gain 3 M€»):
+   * called on the TRADER's own tableau once per trade, after the destination's
+   * own income — with a colony and with a fleet dock alike. Its ONE writer is
+   * `colonies/tradePerformed.fireTradeHooks`, inside a `'trade'` effect scope
+   * per card (the scope names the card — never `from: {card}`).
+   */
+  onTrade?(player: IPlayer, trade: TradeContext): void;
+  /**
+   * The forecast twin of {@link onTrade} — what one trade with `trade.destination`
+   * pays THIS card's owner, by the live hook's own rule. Read-only; asked by
+   * `tradePerformed.tradeReactorFacts` (the colony and the dock trade previews).
+   */
+  tradeForecast?(owner: IPlayer, trade: TradeContext): ReadonlyArray<EffectForecastFact>;
 
   onNonCardTagAdded?(player: IPlayer, tag: Tag): void;
   onNonCardTagAddedByAnyPlayer?(cardOwner: IPlayer, tag: Tag): void;

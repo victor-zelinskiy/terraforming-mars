@@ -259,6 +259,7 @@ export type EventTrigger =
   | 'production-phase' // a card's own `onProductionPhase` paid inside the production phase (Pristar's 6 M€ — the card-reaction record, CN)
   | 'tr-increase'
   | 'colony-added'
+  | 'trade' // the player traded — with a colony, or a fleet dock (`colonies/tradePerformed.fireTradeHooks`: P90 Venus Trade Hub)
   | 'global-parameter'
   | 'standard-project'
   | 'resource-added'

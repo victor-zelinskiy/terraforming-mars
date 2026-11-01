@@ -47,6 +47,13 @@ const GREENS: EffectForecastFact = {
   effects: [{direction: 'gain', icon: 'megacredits', amount: 2, current: 0, resulting: 2}],
   reason: 'The Greens pay 2 M€ per TR step you gain',
 } as unknown as EffectForecastFact;
+/** P90 — the trade reactor's exact fact on its printed effect row (`VenusTradeHub.tradeForecast`). */
+const VENUS_TRADE_HUB_FACT: EffectForecastFact = {
+  id: 'vth-trade', source: {kind: 'card', name: CardName.VENUS_TRADE_HUB, owner: 'blue', channel: 'trade', printedEffect: 0},
+  certainty: 'exact', recipient: {kind: 'you'}, timing: 'immediate',
+  effects: [{direction: 'gain', icon: 'megacredits', amount: 3, current: 0, resulting: 3}],
+  reason: 'You trade',
+} as unknown as EffectForecastFact;
 /** The server's forecast object for a dock (`rewardReactionForecast`): facts, no discount, no payment value. */
 const forecastOf = (facts: ReadonlyArray<EffectForecastFact>): EffectForecast =>
   ({facts, discounts: {base: 0, final: 0, items: [], other: 0}, paymentValues: [], coverage: 'complete'});
@@ -195,13 +202,13 @@ describe('ConsoleFleetDockStage — the reward\'s category decides how the trade
     expect(stage.find('[data-fleet-dock-result] [data-forecast-vfx]').exists(), 'the receipt keeps naming what the press was promised').is.true;
   });
 
-  it('the COMMIT BOUNDARY arms the trade\'s other moves on the rail: the fee of the chosen path and the flat bonuses', () => {
-    const stage = mountStage({...LINER, forecast: forecastOf([GREENS]), flatBonuses: [{card: CardName.VENUS_TRADE_HUB, resource: 'megacredits', amount: 3}]});
+  it('the COMMIT BOUNDARY arms the trade\'s other moves on the rail: the fee of the chosen path; a card that answers the trade is a reaction', () => {
+    const stage = mountStage({...LINER, forecast: forecastOf([GREENS, VENUS_TRADE_HUB_FACT]), flatBonuses: [{card: CardName.VENUS_TRADE_HUB, resource: 'megacredits', amount: 3}]});
     stage.vm.holdPresentation();
     const armed = armedFleetDockScene(CardName.UNMI_LINER);
     expect(armed?.plan.specs).deep.eq([{channel: 'stock', resource: 'rating', amount: 1}]);
-    expect(armed?.plan.reactions).deep.eq([{channel: 'stock', resource: 'megacredits', amount: 2}]);
-    expect(armed?.known, 'the energy path\'s 3 and Venus Trade Hub\'s +3').deep.eq({'stock:energy': -3, 'stock:megacredits': 3});
+    expect(armed?.plan.reactions, 'the Greens\' 2 and Venus Trade Hub\'s 3 — the forecast\'s facts').deep.eq([{channel: 'stock', resource: 'megacredits', amount: 5}]);
+    expect(armed?.known, 'the energy path\'s 3 — the reactor is never a known move as well').deep.eq({'stock:energy': -3});
   });
 
   it('a rail reward of THIS dock that was not shown as promised is NAMED on the stage; another owner\'s is not', async () => {
