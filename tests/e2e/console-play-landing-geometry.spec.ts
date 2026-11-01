@@ -69,7 +69,7 @@ const PROFILES = [
   {tag: 'deck', width: 1280, height: 800, query: ''},
 ] as const;
 
-/** Blue → blue → event: empty family, occupied family, the events pile (an event lands FACE UP over it — P84 · DK). */
+/** Blue → blue → event: empty family, occupied family, the face-down pile. */
 const PLAYS: ReadonlyArray<{card: string, kind: 'active' | 'event'}> = [
   {card: 'Earth Office', kind: 'active'},
   {card: 'Rover Construction', kind: 'active'},
@@ -155,10 +155,9 @@ async function armRecorder(page: Page, mode: 'hand' | 'start'): Promise<void> {
         }
         front = trackedTop !== null && trackedTop.isConnected ? trackedTop : null;
       }
-      // The REAL card at the landing place: its `.pcard` — an EVENT's too: it
-      // lands FACE UP over its pile and turns over only after it paid (P84 · DK;
-      // its back follows the face in the DOM, so the face is matched first) —
-      // and the proxy's matching side (a back only on the standalone table).
+      // The REAL card at the landing place: a face-up card's `.pcard`, or the
+      // events pile's back (a face-down landing has no printed face) — and the
+      // proxy's matching side (its back is what an event shows at the landing).
       const faceCard = front?.querySelector<HTMLElement>('.pcard, .con-card-back') ?? null;
       const proxyCard = faceCard !== null && faceCard.classList.contains('con-card-back') ?
         (proxy?.querySelector<HTMLElement>('.con-deal-proxy__back .con-card-back') ?? proxy?.querySelector<HTMLElement>('.pcard') ?? null) :
@@ -599,8 +598,8 @@ for (const profile of PROFILES) {
  * the card lands where the real card paints (≤ 1 px on every axis, both at
  * the touchdown and at the last opaque proxy frame), nothing moves after the
  * reveal, no frame shows no card, no frame shows two half-cards (no
- * crossfade), and the two faces are the same picture. An EVENT lands FACE UP
- * over its pile (P84 · DK): its geometry is asserted against its printed face.
+ * crossfade), and the two faces are the same picture. An EVENT lands on the
+ * face-down pile: its geometry is asserted against the pile's back.
  */
 function assertBoundary(r: Report): void {
   const tol = 1.0;

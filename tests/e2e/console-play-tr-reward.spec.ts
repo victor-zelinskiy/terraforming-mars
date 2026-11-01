@@ -15,8 +15,8 @@ import {armLeakWitness, strandedReports} from './parliamentDrive';
  *   3. The landing, by ORDER (MutationObserver + setInterval — never rAF): the
  *      price ticks with the card's landing, the card's OWN gains fly first (the
  *      Dome's production wave), the TR token is BORN on the landed card's
- *      printed TR — an EVENT's too: it lands FACE UP and pays before it turns
- *      over (P84 · DK) — the rating reads N on every sample until the token's touchdown
+ *      printed TR — an EVENT's on the card still STANDING in the composer: it pays
+ *      before its lift, then turns over in the arc (P84 · DK) — the rating reads N on every sample until the token's touchdown
  *      on the rating cell, the VP cell no earlier, the Greens' M€ after it: the
  *      M€ row reads the price first, then only rises to the answer (one token
  *      per unit off the Greens' charter — never the price and the answer as one). The
@@ -36,7 +36,7 @@ const PRESETS = [
 ] as const;
 
 const CASES = [
-  // `vp`: the card's PRINTED points (TR55 — the score cell): they fly from the landed card's badge (an event's face up) as their
+  // `vp`: the card's PRINTED points (TR55 — the score cell): they fly from the card's badge (an event's before its lift) as their
   // own token, after the card's gains and BEFORE its TR; a penalty walks the same token back (the cell ticks on its departure).
   {card: 'Bribed Committee', key: 'bribed', tr: 2, event: true, wave: false, vp: -2},
   {card: 'Terraforming Ganymede', key: 'ganymede', tr: 1, event: false, wave: false, vp: 2},
@@ -95,10 +95,10 @@ async function rectOf(page: Page, selector: string): Promise<Rect | undefined> {
 type Chip = {x: number, y: number, w: number, h: number, v: string};
 type Sample = {
   t: number, tick: boolean, ws: number, tr: string, vp: string, mc: string, chips: Array<Chip>, stranded: boolean,
-  /** The landed card's printed TR icon (a face — an event's too) and the landing place itself. */
+  /** The card's printed TR icon — on the landed face, or (an event, P84 · DK) on the card standing in the composer — and the landing place. */
   icon?: Rect, front?: Rect,
-  /** The landed EVENT's side on the stage (P84 · DK): `up` while it pays, `turning` / `down` after. */
-  side?: string,
+  /** The hero scene's phase (`data-hero-phase`) — an event pays in `shipping`, before its lift. */
+  phase?: string,
 };
 type Probe = {samples: Array<Sample>, ticks: number};
 
@@ -147,7 +147,9 @@ async function armProbe(page: Page): Promise<void> {
         };
       });
       const front = document.querySelector('.con-recv [data-recv-front]');
-      const icon = Array.from(front?.querySelectorAll<HTMLElement>('.pcard-ic') ?? []).find((el) => el.style.backgroundImage.includes('tr.'));
+      const trIn = (scope: Element | null) =>
+        Array.from(scope?.querySelectorAll<HTMLElement>('.pcard-ic') ?? []).find((el) => el.style.backgroundImage.includes('tr.'));
+      const icon = trIn(front) ?? trIn(document.querySelector('.con-composer--play .con-composer__playcard'));
       const s: Sample = {
         t: Math.round(performance.now() - t0),
         tick,
@@ -160,7 +162,7 @@ async function armProbe(page: Page): Promise<void> {
         stranded: document.querySelector('.con-stranded') !== null,
         icon: rect(icon),
         front: rect(front),
-        side: front?.querySelector<HTMLElement>('[data-event-side]')?.dataset.eventSide,
+        phase: document.querySelector<HTMLElement>('.con-played-hero')?.dataset.heroPhase,
       };
       const last = p.samples[p.samples.length - 1];
       if (last === undefined || JSON.stringify({...last, t: 0, tick: false}) !== JSON.stringify({...s, t: 0, tick: false})) {
@@ -252,7 +254,7 @@ for (const preset of PRESETS) {
     test.use({viewport: preset.viewport});
 
     for (const c of CASES) {
-      test(`${c.card}: one POST → ${c.wave ? 'the production wave → ' : ''}the TR token from the printed TR${c.event ? ' (the event face up)' : ''} → the rating on the touchdown → the Greens after`, async ({page, request, context}) => {
+      test(`${c.card}: one POST → ${c.wave ? 'the production wave → ' : ''}the TR token from the printed TR${c.event ? ' (before the lift)' : ''} → the rating on the touchdown → the Greens after`, async ({page, request, context}) => {
         test.setTimeout(360_000);
         const seen = watchPage(page);
         const {playerId, seats} = await bootFixtureSeats(page, request, 'play-tr-reward', {query: preset.query});
@@ -305,14 +307,12 @@ for (const preset of PRESETS) {
         const token = born.find((b) => b.chip.v === `tr+${c.tr}`);
         expect(token, `a TR token «+${c.tr}» was born — births: ${born.map((b) => b.chip.v).join(', ')}`).toBeDefined();
         const at = samples[token!.at];
-        // AN EVENT PAYS FACE UP (P84 · DK): its TR is born on its PRINTED TR exactly like any card's — the face is up
-        // while it pays, and it turns over only after its last token (never a birth on its back).
-        expect(at.icon, 'the landed face prints its TR icon').toBeDefined();
-        expect(inside(token!.chip, at.icon!, 2), `the TR is BORN inside the landed card's printed TR — ${JSON.stringify(token!.chip)} vs ${JSON.stringify(at.icon)}`).toBe(true);
+        // Every card's TR is born on its PRINTED TR — an EVENT's on the card still standing in the composer: it pays
+        // before its lift and only then turns over in the arc (P84 · DK — never a birth on its back).
+        expect(at.icon, 'the card prints its TR icon where the token is born').toBeDefined();
+        expect(inside(token!.chip, at.icon!, 2), `the TR is BORN inside the card's printed TR — ${JSON.stringify(token!.chip)} vs ${JSON.stringify(at.icon)}`).toBe(true);
         if (c.event) {
-          expect(at.side, 'the event is FACE UP when its TR is born').toBe('up');
-          const turned = samples.findIndex((s, i) => i > token!.at && s.side !== undefined && s.side !== 'up');
-          expect(turned, 'the event turned over AFTER its TR was born').toBeGreaterThan(token!.at);
+          expect(at.phase, 'an event\'s TR is born before the lift').toBe('shipping');
         }
         if (c.wave) {
           const wave = born.find((b) => b.chip.v.startsWith('prod:plants'));

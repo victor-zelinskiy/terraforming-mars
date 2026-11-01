@@ -12,10 +12,6 @@ import {
   HERO_FLIP_START_T,
   HERO_FLIP_END_T,
   HeroRect,
-  eventFlipsInFlight,
-  eventTurnsOnStage,
-  heroEventTurnMs,
-  HERO_EVENT_LAID_READ_MS,
 } from '@/client/console/played/playedHeroModel';
 
 const VIEW = {viewportW: 1920, viewportH: 1080};
@@ -157,31 +153,6 @@ describe('playedHeroModel', () => {
         expect(v).to.be.at.least(prev - 1e-9);
         prev = v;
       }
-    });
-  });
-
-  describe('AN EVENT PAYS FACE UP (P84 · DK)', () => {
-    it('the arc flips only the event of the STANDALONE table — on the workspace stage the event lands face up', () => {
-      expect(eventFlipsInFlight(true, 'overlay')).is.true;
-      expect(eventFlipsInFlight(true, 'workspace')).is.false;
-      expect(eventFlipsInFlight(false, 'overlay')).is.false;
-      expect(eventFlipsInFlight(false, 'workspace')).is.false;
-    });
-
-    it('…and the stage turns it over after the pay-back — the other half of the same rule, never both, never neither', () => {
-      for (const host of ['overlay', 'workspace'] as const) {
-        expect(eventFlipsInFlight(true, host)).not.eq(eventTurnsOnStage(true, host));
-        expect(eventTurnsOnStage(false, host)).is.false;
-      }
-    });
-
-    it('the turn REPLACES the reading pause — inside it, never past its read of the laid count, never past the residual cap (the budget law)', () => {
-      expect(HERO_EVENT_LAID_READ_MS).eq(60);
-      expect(heroEventTurnMs(220, 220), 'the residual pause: the lay ends 60 ms before it — the count is READ on a standing stage').eq(160);
-      expect(heroEventTurnMs(260, 220), 'the resolved beat keeps its 260; the lay ends inside it').eq(200);
-      expect(heroEventTurnMs(400, 220), 'a long pause: the cap').eq(220);
-      expect(heroEventTurnMs(50, 220), 'a pause shorter than the read: lay at once').eq(0);
-      expect(heroEventTurnMs(220, 220, 0), 'no read asked: the whole pause').eq(220);
     });
   });
 });

@@ -1535,7 +1535,7 @@
                                 v-show="!pickBridgeActive || repeatPickHandoff || handPickPhrased"
                                 :class="{'con-bridgefade': repeatPickHandoff}"
                                 ref="playConfirm"
-                                :playerView="playerView"
+                                :playerView="playedHeroComposerView() ?? playerView"
                                 :cardName="pendingPlayCard.cardName"
                                 :input="pendingPlayCard.input"
                                 :passReading="passLeftBehind"
@@ -1936,7 +1936,7 @@ import {resetPlayedCategoryView} from '@/client/console/played/playedCategoryVie
 import {resetPlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {resetCategoryDirector} from '@/client/console/played/playedCategoryDirector';
 import {
-  abortPlayedHero, armPlayedHero, isPlayedHeroActive, playedHeroHolding, playedHeroState, skipPlayedHeroResult,
+  abortPlayedHero, armPlayedHero, isPlayedHeroActive, playedHeroComposerView, playedHeroHolding, playedHeroState, skipPlayedHeroResult,
   runStagedPlayedLanding, finishStagedPlayedLanding,
 } from '@/client/console/played/consolePlayedHero';
 import {CardType} from '@/common/cards/CardType';
@@ -14013,6 +14013,10 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The view the play composer reads — frozen on the confirmed one while an event pays before its lift (P84 · DK). */
+    playedHeroComposerView(): PlayerViewModel | undefined {
+      return playedHeroComposerView();
+    },
     /** The discard verdict's tag medallion (TR32) — the card face's own art. */
     zoomVerdictTagStyle(tag: Tag): Record<string, string> {
       return tagIconStyle(tag);

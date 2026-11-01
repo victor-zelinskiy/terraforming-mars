@@ -178,8 +178,9 @@ export async function armTransferWitness(page: Page): Promise<void> {
       // recipient's face in the stage's row — a walk's unit lands on it. `answer:<card>`. After the printed-icon anchors
       // above: a token born on the lifted asker's effect row is the REACTOR's, never the stage's.
       ['answer', '.con-tans [data-tans-card], .con-tans [data-receipt-card]'],
-      ['tag', '.con-recv [data-recv-front] .pcard-tag[data-tag], .con-played [data-played-key] .pcard-tag[data-tag]'],
-      ['printed', '.con-recv [data-recv-front] .pcard-ic'],
+      // …and on the card STANDING in the play composer: an EVENT pays there, face up, before its lift (P84 · DK).
+      ['tag', '.con-recv [data-recv-front] .pcard-tag[data-tag], .con-played [data-played-key] .pcard-tag[data-tag], .con-composer__playcard .pcard-tag[data-tag]'],
+      ['printed', '.con-recv [data-recv-front] .pcard-ic, .con-composer__playcard .pcard-ic:not(.pcard__cost .pcard-ic)'],
       // A party's SEAL in the chamber — a card's rating answer to a change of power is born on the seal of the party that
       // came to power (TR63). `seal:<party>`.
       ['seal', '.con-parl__party[data-party] .con-pseal__seal'],

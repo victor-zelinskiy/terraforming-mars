@@ -45,32 +45,17 @@
       <template v-for="entry in rowEntries" :key="entry.key">
         <!-- THE DESTINATION — the receiving stack, promoted in its own slot. -->
         <div v-if="entry.kind === 'dest'" class="con-recv__dest" data-recv-group ref="dest">
-          <!-- EVENTS destination: the face-down pile. AN EVENT PAYS FACE UP
-               (P84 · DK): the incoming card lands FACE UP a breath above the
-               pile (the front anchor stands lifted over it), pays from its
-               printed icons, then ONE object is laid on the pile turning over
-               (`turnEvent`) — the count ticks on that touchdown. Depth reads from the pile shadowing + the caption
-               count, never loose card crops. -->
+          <!-- EVENTS destination: the face-down pile; the incoming card lands
+               face-down on top (the flip rides the hero arc). Depth reads from
+               the pile shadowing + the caption count, never loose card crops. -->
           <div v-if="destKey === 'events'" class="con-recv__backcol" :style="{width: plan.slotW + 'px'}">
-            <div ref="eventPile"
-                 class="con-recv__backpile"
-                 :class="{'con-recv__backpile--deep': pileCount > 1, 'con-recv__backpile--seat': pileCount === 0}"
-                 :style="{height: plan.cardH + 'px'}">
+            <div class="con-recv__backpile" :class="{'con-recv__backpile--deep': stackCount > 1}" :style="{height: plan.cardH + 'px'}">
               <div v-if="stackCount > 0" class="con-card-back con-recv__back"></div>
-              <div class="con-recv__front con-recv__front--event"
+              <div class="con-recv__front con-recv__front--back"
                    data-recv-front
-                   :class="{'con-recv__front--pulse': sourcePulse && eventSide === 'up'}"
+                   :class="{'con-recv__front--pulse': sourcePulse, 'con-recv__front--seat': stackCount === 0}"
                    :data-played-key="revealed && incoming !== undefined ? incoming.name : undefined">
-                <div v-if="revealed && incoming !== undefined"
-                     ref="eventTurn"
-                     class="con-recv__turn"
-                     :data-event-side="eventSide"
-                     :data-event-landed="eventLanded ? '' : undefined">
-                  <div class="con-recv__face con-recv__turn-face" :style="{zoom: String(plan.zoom)}">
-                    <ConsolePlayedCardLite :name="incoming.name" :card="capsuleModelFor(incoming.name)" />
-                  </div>
-                  <div class="con-card-back con-recv__back con-recv__turn-back"></div>
-                </div>
+                <div v-if="revealed" class="con-card-back con-recv__back"></div>
               </div>
             </div>
           </div>
@@ -211,8 +196,6 @@ const WAVE_STAGGER_MS = 50;
 const WAVE_MIN_SCALE = 0.6;
 /** The stage emergence (the shelf rises; the destination leads). */
 const STAGE_IN_MS = 230;
-/** The lay of an event whose transaction ended before its reading pause (ms @ motion scale 1). */
-const LAY_FALLBACK_MS = 140;
 /** Fallback stage box before the first measure (logical px). */
 const FALLBACK_W = 1400;
 const FALLBACK_H = 620;
@@ -282,16 +265,6 @@ export default defineComponent({
        * the slot is only passing through.
        */
       emergenceUntil: 0,
-      /**
-       * AN EVENT PAYS FACE UP (P84 · DK) — the landed event's side: `up` from the landing through its pay-back,
-       * `turning` inside the reading pause, `down` once its back is up. Reset with the nonce; never read by a
-       * non-event destination.
-       */
-      eventSide: 'up' as 'up' | 'turning' | 'down',
-      /** …and it has been LAID on its pile — the pile's count reads N + 1 from this touchdown on. */
-      eventLanded: false,
-      /** The turn in flight (A / B lands it at once — `finishEventTurn`). */
-      eventTween: undefined as gsap.core.Timeline | undefined,
     };
   },
   computed: {
@@ -339,15 +312,9 @@ export default defineComponent({
     stackCount(): number {
       return this.destCards.length;
     },
-    /** The caption count — ticks to N+1 exactly at the dock (re-keyed pulse); an EVENT's at its touchdown ON the pile,
-     *  after it paid face up and turned over (P84 · DK). */
+    /** The caption count — ticks to N+1 exactly at the dock (re-keyed pulse). */
     destCount(): number {
-      return this.pileCount;
-    },
-    /** The cards lying in the destination pile now — the incoming one counts from its dock (an event's: its settle). */
-    pileCount(): number {
-      const arrived = this.destKey === 'events' ? this.revealed && this.eventLanded : this.revealed;
-      return this.stackCount + (arrived ? 1 : 0);
+      return this.stackCount + (this.revealed ? 1 : 0);
     },
     plan(): ReceivingPlan {
       return planReceivingStage({
@@ -413,20 +380,7 @@ export default defineComponent({
         void this.$nextTick(() => this.runStageEmergence());
       }
     },
-    /**
-     * A transaction that ENDED before its reading pause (an abort, a scene cut short) still lays its event on the pile —
-     * a card left hovering face up over its pile, the count never moved, is the one picture this stage may not end on.
-     */
-    'heroState.active'(now: boolean) {
-      if (!now && this.destKey === 'events' && this.latchedRevealed && !this.eventLanded) {
-        void this.turnEvent(motionMs(LAY_FALLBACK_MS));
-      }
-    },
     'heroState.nonce'() {
-      this.eventTween?.kill();
-      this.eventTween = undefined;
-      this.eventSide = 'up';
-      this.eventLanded = false;
       this.emergenceRan = false;
       this.emerged = [];
       this.targetAccent = undefined;
@@ -478,8 +432,6 @@ export default defineComponent({
         const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
         return (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-played-key="${esc}"]`) ?? undefined;
       },
-      turnEvent: (ms) => this.turnEvent(ms),
-      finishEventTurn: () => this.eventTween?.progress(1),
     });
   },
   beforeUnmount() {
@@ -487,9 +439,8 @@ export default defineComponent({
     this.unregisterHooks?.();
     const root = this.$el as HTMLElement | undefined;
     if (root !== undefined && typeof root.querySelectorAll === 'function') {
-      gsap.killTweensOf(root.querySelectorAll('[data-recv-group], [data-recv-strip], .con-recv__mini, .con-recv__emerge, .con-recv__turn'));
+      gsap.killTweensOf(root.querySelectorAll('[data-recv-group], [data-recv-strip], .con-recv__mini, .con-recv__emerge'));
     }
-    this.eventTween = undefined;
   },
   methods: {
     miniLabel(m: ReceivingMini): string {
@@ -875,63 +826,6 @@ export default defineComponent({
         });
       }));
       this.emerged = this.emerged.filter((e) => !cards.includes(e.name));
-    },
-    // ── AN EVENT PAYS FACE UP (P84 · DK) — the turn and the settle of ONE object ──
-    /** The landed event's turning body (the face and its back on one 3D chassis), when it stands on the stage. */
-    eventTurnEl(): HTMLElement | undefined {
-      return this.refEl('eventTurn');
-    },
-    /** A connected element behind a `ref` — the refs here sit inside the row's `v-for`, so Vue 3 collects ARRAYS. */
-    refEl(name: string): HTMLElement | undefined {
-      const r = this.$refs[name] as HTMLElement | ReadonlyArray<HTMLElement> | null | undefined;
-      const el = Array.isArray(r) ? r[0] : r;
-      return el === null || el === undefined || !(el as HTMLElement).isConnected ? undefined : el as HTMLElement;
-    },
-    /**
-     * THE TURN AND THE LAYING — ONE phrase, inside the scene's reading pause (the hero hands this stage exactly that
-     * pause's length — never a beat of its own): after the card paid from its printed icons it is laid on its pile the
-     * way a hand lays an event down — the face turns away on the vertical axis (the back comes up at 90°, form only, no
-     * light) while the card lowers the breath it stood above the pile, the lowering in the second half so the back is up
-     * before the contact. The touchdown is the phrase's end — the pile's count ticks there, BEFORE the stage closes (a
-     * settle after the turn ran into the close: the board-bound plays never showed the tick). Reduced motion lays it at
-     * once. Resolves at the touchdown.
-     */
-    turnEvent(ms: number): Promise<void> {
-      const el = this.eventTurnEl();
-      if (el === undefined) {
-        this.eventSide = 'down';
-        this.eventLanded = true;
-        return Promise.resolve();
-      }
-      this.eventTween?.kill();
-      const pile = this.refEl('eventPile');
-      const drop = pile === undefined ? 0 : pile.getBoundingClientRect().top - el.getBoundingClientRect().top;
-      const lay = () => {
-        this.eventTween = undefined;
-        this.eventSide = 'down';
-        this.eventLanded = true;
-      };
-      if (consoleReducedMotionActive() || ms <= 0) {
-        gsap.set(el, {rotationY: 180, y: drop});
-        lay();
-        return Promise.resolve();
-      }
-      this.eventSide = 'turning';
-      const sec = ms / 1000;
-      return new Promise<void>((resolve) => {
-        this.eventTween = gsap.timeline({
-          onComplete: () => {
-            lay();
-            resolve();
-          },
-          onInterrupt: () => {
-            this.eventTween = undefined;
-            resolve();
-          },
-        })
-          .to(el, {rotationY: 180, duration: sec, ease: 'power2.inOut'}, 0)
-          .to(el, {y: drop, duration: sec * 0.55, ease: 'power2.in'}, sec * 0.45);
-      });
     },
     wait(ms: number): Promise<void> {
       return new Promise((resolve) => setTimeout(resolve, ms));

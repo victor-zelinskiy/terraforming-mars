@@ -8,15 +8,16 @@ import {armEventFaceProbe, eventFaceLine, readEventFaceProbe} from './eventFaceW
 /**
  * P84 «ЭКСПЕДИЦИЯ В СТРАТОСФЕРУ» — the NINETEENTH Prelude 2 card, and the stand of «СОБЫТИЕ ПЛАТИТ ЛИЦОМ» (DK): ONE press,
  * TWO effects of different nature — 2 floaters on a holder the composer's target step names, then the search for 2 Venus
- * cards (P76's tape) — played by an EVENT that lands FACE UP, pays from its printed icons, turns over and only then lies
- * on its pile (docs/claude/prompts/prelude2-p84-stratospheric-expedition.md §2, §4).
+ * cards (P76's tape) — played by an EVENT that PAYS FACE UP while it still stands in the composer, from its printed icons,
+ * and only then lifts, turns over in the arc and lands face down on its pile (the owner's direction of 2026-11-01;
+ * docs/claude/prompts/prelude2-p84-stratospheric-expedition.md, ledger DK).
  *
  *   A · `stratospheric-expedition` (Dirigibles 3 · Floating Habs 0; 10 M€ + 2 titanium): the composer asks WHERE (two
- *       holders — an open question), names the search on its draw chip; the holder answered, ONE POST; the card flies and
- *       lands FACE UP, the floaters are born on its PRINTED floaters and land on the chosen holder, its points on its
- *       printed badge; it turns over after its last token and the pile reads N + 1 only on its touchdown; the search's
- *       reveal stands in the hand AFTER the turn began; the take; the server: 2 floaters on the holder, 2 Venus cards,
- *       2 titanium + 6 M€ paid.
+ *       holders — an open question), names the search on its draw chip; the holder answered, ONE POST; BEFORE the lift
+ *       the floaters are born on the standing card's PRINTED floaters and land on the holder's miniature in the
+ *       composer, its point on its printed badge; then the card lifts, turns over in the arc and lands face down — the
+ *       pile reads N + 1 from that landing; the search's reveal stands in the hand after it; the take; the server: 2
+ *       floaters on the holder (less what its floaters paid), 2 Venus cards, the price paid by the POST.
  *   B · `stratospheric-expedition-sole` (Dirigibles alone): the row is SEEDED and shown, the POST carries Dirigibles.
  *   C · `stratospheric-expedition-noholder`: the composer NAMES the loss («аэростаты пропадут»), the play stands, the tape runs.
  *
@@ -162,10 +163,10 @@ async function take(page: Page): Promise<void> {
   expect(await page.locator('.con-ws').count(), 'no workspace left standing').toBe(0);
 }
 
-test.describe(`P84 Stratospheric Expedition · 2 floaters to ANY card + the search for 2 Venus cards, an event that pays FACE UP · ${PRESET.id}`, () => {
+test.describe(`P84 Stratospheric Expedition · 2 floaters to ANY card + the search for 2 Venus cards, an event that pays before its lift · ${PRESET.id}`, () => {
   test.use({viewport: PRESET.viewport});
 
-  test('A · two holders: WHERE asked, ONE POST, the event lands FACE UP, pays from its printed icons, turns over, lies on its pile; then the search', async ({page, request}) => {
+  test('A · two holders: WHERE asked, ONE POST, the event pays FACE UP in the composer, then lifts, turns over in the arc, lies on its pile; then the search', async ({page, request}) => {
     test.setTimeout(480_000);
     const pageErrors: Array<string> = [];
     page.on('pageerror', (e) => pageErrors.push(e.message));
@@ -204,25 +205,27 @@ test.describe(`P84 Stratospheric Expedition · 2 floaters to ANY card + the sear
     test.info().annotations.push({type: 'event-face', description: eventFaceLine(probe)});
     expect(probe.ticks, 'the probe sampled').toBeGreaterThan(10);
 
-    // The flight: FACE UP all the way (the flip chassis never turned) — the card lands on the face over its pile.
-    expect(probe.flipCosMin, `the event flew FACE UP (${eventFaceLine(probe)})`).toBeGreaterThan(0.99);
-    // The pay-back: the floaters on the PRINTED floater icons, landed on the holder; the point on the printed badge.
+    // THE PAY-BACK BEFORE THE LIFT: the floaters on the standing card's PRINTED floater icons, landed on the holder's
+    // miniature in the composer; the point on the printed badge — every one of the play's tokens born while the card still
+    // stood (`shipping`), none on the pile or the landed card.
     const floaters = witness.births.filter((b) => /^printed:.*floater/.test(b.under));
     expect(floaters.length, `the floaters were born on the printed floaters (trail:\n${transferTrail(witness)})`).toBeGreaterThan(0);
+    expect(witness.landings.some((l) => l.under === `composer-card:${chosen}`), `the floaters landed on «${chosen}» in the composer (trail:\n${transferTrail(witness)})`).toBe(true);
     expect(witness.births.some((b) => b.under === 'vp-badge'), `the point was born on the printed badge (trail:\n${transferTrail(witness)})`).toBe(true);
-    expect(witness.births.filter((b) => b.under === 'recv:front').map((b) => b.value), 'nothing born on the card\'s body while its face prints the icon').toEqual([]);
+    expect(witness.births.filter((b) => /^recv:/.test(b.under)).map((b) => `${b.value}@${b.under}`), 'nothing born on the stage — the event paid before it left').toEqual([]);
     expect(endsOverGlass(witness), 'no end over glass or nothing').toEqual([]);
-    // The order: the last birth BEFORE the turn; the turn BEFORE the pile's tick; the next surface after the turn began.
-    // (`-` — a token born before the card landed: a price off the rail, never one of the play's gains.)
-    expect(probe.birthSides.filter((side) => side === 'up').length, `the play's tokens were born on the landed face (${probe.birthSides.join(' ')})`).toBeGreaterThan(0);
-    expect(probe.birthSides.filter((side) => side !== 'up' && side !== '-'), `every token of the play was born while the event stood FACE UP (${probe.birthSides.join(' ')})`).toEqual([]);
-    expect(probe.tTurnStart, 'the event turned over').toBeDefined();
-    expect(probe.tLanded, 'the event lay on its pile').toBeDefined();
-    expect(probe.tNext, 'the search\'s reveal stood').toBeDefined();
-    expect(probe.tNext!, 'the search opened only after the event let go of its face').toBeGreaterThanOrEqual(probe.tTurnStart!);
+    expect(probe.paybacks.map(([, st]) => st), `the pay-back ran before the lift (${eventFaceLine(probe)})`).toEqual(['paying', 'paid']);
+    expect(probe.birthPhases.filter((ph) => ph !== 'shipping'), `every token was born before the lift (${probe.birthPhases.join(' ')})`).toEqual([]);
+    expect(probe.tPaid, 'paid').toBeDefined();
+    expect(probe.tLifting, 'lifted').toBeDefined();
+    expect(probe.tLifting!, 'the card lifts only after it paid').toBeGreaterThanOrEqual(probe.tPaid!);
+    // THE ARC: the event turns over in flight (the flip chassis' m11 reaches its back) and lands face down.
+    expect(probe.flipCosMin, `the event turned over in the arc (${eventFaceLine(probe)})`).toBeLessThan(-0.9);
     const ticked = probe.counts.findIndex(([, c], i) => i > 0 && c !== probe.counts[0][1]);
     expect(ticked, `the pile ticked N + 1 (${eventFaceLine(probe)})`).toBeGreaterThan(0);
-    expect(probe.counts[ticked][0], 'the pile ticks on the touchdown, never before the turn').toBeGreaterThanOrEqual(probe.tTurned ?? Infinity);
+    expect(probe.counts[ticked][0], 'the pile ticks on the landing').toBeGreaterThanOrEqual(probe.tRevealed ?? Infinity);
+    expect(probe.tNext, 'the search\'s reveal stood').toBeDefined();
+    expect(probe.tNext!, 'the search opened after the landing').toBeGreaterThanOrEqual(probe.tRevealed!);
     await shoot(page, 'a-search');
 
     await take(page);

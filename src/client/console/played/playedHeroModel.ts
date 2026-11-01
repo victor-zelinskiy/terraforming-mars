@@ -8,11 +8,8 @@
  * composer, the «Разыграно» table opens UNDER it with the +1 layout already
  * final (the slot reserved, hidden), the card travels one continuous spatial
  * arc whose apex uses the free hero area (never a full stop in the centre),
- * and the card settles into the reserved slot pixel-perfect — proxy and real
- * card swapped within one frame. An EVENT pays FACE UP (P84 · DK): on the
- * workspace stage it lands face up over its pile and turns over only after its
- * rewards, inside the scene's own reading pause; only the standalone table
- * (whose landing IS the face-down pile) still flips it in the arc.
+ * an EVENT card flips to its back at the apex, and the card settles into the
+ * reserved slot pixel-perfect — proxy and real card swapped within one frame.
  *
  * This module owns everything unit-testable: the phase vocabulary, the arc
  * geometry (quadratic Bézier through a clamped apex), the tilt/scale/flip
@@ -42,7 +39,7 @@ export type PlayedHeroPhase =
   | 'shipping' // server success proven; the price the play takes OFF THE RAIL leaves into the standing card (the shipment beat) — before the lift
   | 'preparing' // server success proven; measuring source, opening the table
   | 'lifting' // the card separates from the composer
-  | 'flying' // the hero arc (the standalone table's event flip rides its middle)
+  | 'flying' // the hero arc (event flip rides its middle)
   | 'landing' // deceleration + settle into the reserved slot
   | 'committing' // reveal real slot, remove proxy, commit the playerView
   | 'showing-result' // the landed table breathes; delta-chips tick in
@@ -93,40 +90,9 @@ export const HERO_RETARGET_AT = 0.78;
  *  progress on it fades out, so the touchdown frame carries no extra paint
  *  the real slot does not have. */
 export const HERO_SHADE_OUT_FROM = 0.72;
-/** The STANDALONE table's event flip occupies the MIDDLE of the arc (t-range of the flight) — see `eventFlipsInFlight`. */
+/** The event flip occupies the MIDDLE of the arc (t-range of the flight). */
 export const HERO_FLIP_START_T = 0.32;
 export const HERO_FLIP_END_T = 0.82;
-
-/**
- * AN EVENT PAYS FACE UP (P84 · DK — the physical game: an event is played face up, applied, then laid face down). The
- * flip rides the ARC only where the landing place IS the face-down pile (the standalone «Разыграно» table); on the
- * workspace stage the card flies and lands FACE UP, pays from its printed icons, and turns over afterwards.
- */
-export function eventFlipsInFlight(isEvent: boolean, host: 'overlay' | 'workspace'): boolean {
-  return isEvent && host !== 'workspace';
-}
-
-/** …and the stage's TURN after the pay-back is the other half of the same rule. */
-export function eventTurnsOnStage(isEvent: boolean, host: 'overlay' | 'workspace'): boolean {
-  return isEvent && host === 'workspace';
-}
-
-/**
- * The touchdown on the pile is READ before the stage closes (ms @ motion scale 1): the turn-and-lay ends this much before
- * its pause does, so the pile's «N + 1» stands on a stage that is still up — a lay ending on the pause's last frame
- * ticked the count in the very flush the stage began to close (`console-play-landing-probe` never saw it).
- */
-export const HERO_EVENT_LAID_READ_MS = 60;
-
-/**
- * The owner's budget law (2026-11-01 — «премиальность растёт, длительность нет»): the turn-and-lay after the pay-back is
- * not a beat of its own — it REPLACES the reading pause the scene already holds: at most `turnCap` of it (the residual
- * pause, 220 ms at scale 1), and never into its last `readMs` (the laid count is read there). A longer pause keeps its
- * length and the card lies on its pile early in it.
- */
-export function heroEventTurnMs(pauseMs: number, turnCap: number, readMs = HERO_EVENT_LAID_READ_MS): number {
-  return Math.max(0, Math.min(pauseMs - readMs, turnCap));
-}
 
 export function heroCenter(r: HeroRect): {x: number, y: number} {
   return {x: r.x + r.w / 2, y: r.y + r.h / 2};

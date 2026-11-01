@@ -36,7 +36,7 @@
  *     board only after the result beat. The external overlay never opens.
  */
 
-import {reactive, nextTick} from 'vue';
+import {reactive, nextTick, shallowRef} from 'vue';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
@@ -53,7 +53,6 @@ import {
   HeroRect, PlayedHeroPhase, planHeroPath,
   HERO_LIFT_MS, HERO_FLIGHT_MS, HERO_LAND_MS, HERO_CLOSE_MS,
   HERO_RESULT_PAUSE_MS, HERO_REDUCED_MS, HERO_REDUCED_PAUSE_MS, HERO_SAFETY_TIMEOUT_MS,
-  HERO_EVENT_LAID_READ_MS, eventFlipsInFlight, eventTurnsOnStage, heroEventTurnMs,
 } from '@/client/console/played/playedHeroModel';
 import {
   placeHeroProxy, playHeroLift, playHeroFlight, playHeroReducedHop, disposeHeroProxy, glideHeroOnto, hideHeroProxyNextFrame,
@@ -156,6 +155,12 @@ export type PlayedHeroHost = 'overlay' | 'workspace';
 export const playedHeroState = reactive({
   /** TRUE from arm until finish/abort — the transaction lock. */
   active: false,
+  /**
+   * THE EVENT'S PAY-BACK BEFORE THE LIFT (P84 · DK), named: '' — none (not an event, or nothing to pay there);
+   * `paying` → `paid`; `no-source` / `late` — it could not run there (the landing's half pays off the pile).
+   * Published on the hero layer as `data-hero-payback`.
+   */
+  payback: '' as '' | 'paying' | 'paid' | 'no-source' | 'late',
   phase: 'idle' as PlayedHeroPhase,
   nonce: 0,
   card: undefined as CardName | undefined,
@@ -337,6 +342,27 @@ let heldAnswerTags: Readonly<Partial<Record<string, ReadonlyArray<RailAnswerCaus
  */
 const stageAbsorbs: Array<Promise<void>> = [];
 
+/**
+ * THE ABSORBS THE STANDING CARD OWES BEFORE IT LIFTS (P84's CI red, 2026-11-01 — diagnosed by the bf session): a
+ * shipment's token is drawn INTO the standing card (its printed cost badge, its printed icons), and its absorb runs on
+ * past the touchdown the run resolves at. The fixed beat after the touchdowns covered that tail only at motion ×1 (the
+ * chip's fade ends 0.02 + min(0.24, beat) s in, the beat is 0.32 s); at ×0.5 the fade ends 20 ms PAST the beat, and on a
+ * slow frame the card lifted out from under a token still being absorbed — «−2» left over the hand's glass where the
+ * badge had been. The lift waits for the beat AND for every token's own `onAbsorbed` (bounded below).
+ */
+const shipAbsorbs: Array<Promise<void>> = [];
+/** How long past the beat the lift may wait for a shipment's absorbs before it goes anyway (a lost callback). */
+const SHIP_ABSORB_GRACE_MS = 400;
+
+/** A shipment run's `onAbsorbed`, registered with the lift — the card stands until it fires. */
+function shipAbsorb(): () => void {
+  let done: () => void = () => {};
+  shipAbsorbs.push(new Promise<void>((resolve) => {
+    done = resolve;
+  }));
+  return () => done();
+}
+
 /** A run's `onAbsorbed`, registered with the stage — the close waits for it. */
 function stageAbsorb(): () => void {
   let done: () => void = () => {};
@@ -489,7 +515,7 @@ async function answerHeroAfterWave(): Promise<void> {
   // «СРАБАТЫВАНИЕ КАРТЫ»: the REACTOR that paid rises first (out of its place on the receiving stage, or at a seat beside
   // the rail) and its share is born on its effect row; the printed tag that woke it is marked. What no reactor records
   // (a party's share) keeps the T06 birth on the tag; what no visible cause covers ticks at the beat.
-  const reaction = cardReactionAnswerFlight({block: heroReactionBlock, emergence: playedHeroState.host === 'workspace' ? heroEmergence(effectHooks) : undefined});
+  const reaction = cardReactionAnswerFlight({block: heroReactionBlock, emergence: playedHeroState.host === 'workspace' && !payingFromStandingCard ? heroEmergence(effectHooks) : undefined});
   if (reaction !== undefined && playedHeroState.active) {
     await reaction.prepare?.();
   }
@@ -553,7 +579,7 @@ function heroAnswerFlight(card: string, tags: Readonly<Partial<Record<string, Re
   };
   // «СРАБАТЫВАНИЕ КАРТЫ» (the owner's decision 2): the token is born on the REACTOR that paid — risen out of its place
   // on the receiving stage, or at a seat beside the rail — and the printed tag that woke it is MARKED, not a birth place.
-  const reaction = cardReactionAnswerFlight({block: heroReactionBlock, emergence: playedHeroState.host === 'workspace' ? heroEmergence(effectHooks) : undefined});
+  const reaction = cardReactionAnswerFlight({block: heroReactionBlock, emergence: playedHeroState.host === 'workspace' && !payingFromStandingCard ? heroEmergence(effectHooks) : undefined});
   if (reaction === undefined) {
     return tagFlight;
   }
@@ -630,14 +656,6 @@ export type ReceivingEffectHooks = {
   holdsCard?: (card: CardName) => boolean,
   /** The emerged (or open) face of `card` on the stage — the reactor's tokens are born on its printed effect row. */
   emergedFaceEl?: (card: CardName) => HTMLElement | undefined,
-  /**
-   * AN EVENT PAYS FACE UP (P84 · DK): the landed event, which paid from its printed icons, is LAID on its pile turning
-   * over — one phrase of `ms`, inside the scene's reading pause, never after it; the pile's count ticks on its
-   * touchdown. Resolves at the touchdown (reduced motion: at once).
-   */
-  turnEvent?: (ms: number) => Promise<void>,
-  /** …a phrase still in flight lands at once (A / B skipped the pause). */
-  finishEventTurn?: () => void,
 };
 
 /** The receiving stage's way of bringing a reactor forward (the director's `ReactorEmergence`) — undefined without hooks. */
@@ -846,6 +864,11 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   playedHeroState.host = opts.host ?? 'overlay';
   playedHeroState.revealed = false;
   playedHeroState.told = false;
+  playedHeroState.payback = '';
+  payingFromStandingCard = false;
+  payingComposerView.value = undefined;
+  liftGo = undefined;
+  flightDone = undefined;
   playedHeroState.awaitingTarget = false;
   playedHeroState.tableOpen = false;
   playedHeroState.autoClose = !opts.manualTableOpen;
@@ -963,8 +986,15 @@ export function runPlayedHero(view: PlayerViewModel, before?: PlayerViewModel): 
       // back to hand are lying. The commit removes them from the tableau one
       // frame later — a player whose last events these were loses the pile
       // element entirely, and with it any chance of an honest departure.
-      capturePlayedCardReturnSource();
+      // (An event that paid before its lift was committed already — measured there.)
+      if (runResolve !== undefined) {
+        capturePlayedCardReturnSource();
+      }
       freeRunGate();
+      // …and an event that paid before its lift: its landing is what the commit's half waits for.
+      const landed = flightDone;
+      flightDone = undefined;
+      landed?.();
     });
   });
 }
@@ -1073,6 +1103,15 @@ async function executeFlight(): Promise<void> {
   if (!mine()) {
     return; // aborted during the shipment — the abort already cleaned up
   }
+  // THE EVENT PAYS BEFORE IT LEAVES (P84 · DK): the commit is let through NOW, while the card still stands in the
+  // composer — the transport applies the view and seeds every hold in its own block, and `endPlayedHero` pays the
+  // rewards off the standing card's printed icons, then lets the lift go (`liftGo`).
+  if (eventPaysBeforeLift()) {
+    await openGateForPayBack(mine);
+    if (!mine()) {
+      return;
+    }
+  }
   playedHeroState.phase = 'preparing';
   // The table opens NOW (play-animation mode) so its +1 layout settles while
   // the card lifts; a manually-open table just gains the reserved slot. The
@@ -1083,9 +1122,9 @@ async function executeFlight(): Promise<void> {
     playedHeroState.tableOpen = true;
   }
   const reduced = consoleReducedMotionActive();
-  // AN EVENT PAYS FACE UP (P84 · DK): on the workspace stage it flies and lands face up; only the standalone table,
-  // whose landing IS the face-down pile, still turns it over in the arc.
-  const flipsInFlight = eventFlipsInFlight(playedHeroState.isEvent, playedHeroState.host);
+  // AN EVENT TURNS OVER IN THE ARC and lands face down on its pile (the owner, 2026-11-01: the arc reads more premium
+  // than a face-up landing turned on the stage) — it has already PAID, face up, before the lift (`payBackFromStandingCard`).
+  const flipsInFlight = playedHeroState.isEvent;
   let sourceRect = captureSourceRect();
   // The source can be TRANSIENTLY unmeasurable: a fullscreen viewer's
   // close-flight still holds the slot empty (`con-zoom-hold`), a layout is a
@@ -1241,6 +1280,7 @@ async function shipPrice(mine: () => boolean): Promise<void> {
   }
   const price = pendingPrice;
   pendingPrice = undefined;
+  shipAbsorbs.splice(0);
   const stock = shipStockSpends(mine);
   const cards = shipCardPrice(price, mine);
   const target = shipTargetSpends(mine);
@@ -1264,7 +1304,14 @@ async function shipPrice(mine: () => boolean): Promise<void> {
   // a shorter one lifted the card out from under a token still being absorbed: the TR52 transfer witness). An armed
   // spend alone resolves only once ABSORBED (its quick beat is its own) — no second beat (TR49, measured A/B).
   if (stock !== undefined || cards !== undefined || target !== undefined) {
-    await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
+    const beat = new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
+    // …and every token drawn into the card has finished its absorb (`shipAbsorbs`) — bounded: a guarded absorb always
+    // reports, but the lift must never wait on a run that lost its callback.
+    const absorbed = Promise.race([
+      Promise.all(shipAbsorbs.splice(0)),
+      new Promise<void>((resolve) => gsap.delayedCall((motionMs(TRANSFER_BEAT_MS) + SHIP_ABSORB_GRACE_MS) / 1000, resolve)),
+    ]);
+    await Promise.all([beat, absorbed]);
   }
   if (mine() && playedHeroState.shipment === 'flying') {
     playedHeroState.shipment = 'flown';
@@ -1373,6 +1420,7 @@ function shipTargetSpends(mine: () => boolean): Promise<void> | undefined {
     arrival: 'auto',
     // Drawn INTO the printed icons of the card they pay for: no settle, the short absorb (PL-140's spend grammar).
     absorb: 'quick',
+    onAbsorbed: shipAbsorb(),
     onDegrade: (spec, why) => {
       playedHeroState.targetSpend = `degraded: ${why} (${spec.resource})`;
     },
@@ -1423,6 +1471,7 @@ function shipCardPrice(price: PlayCardPrice | undefined, mine: () => boolean): P
       source: {end: absorb},
       destination: {el: icon, fx: 0.5, fy: 0.5},
       arrival: 'auto',
+      onAbsorbed: shipAbsorb(),
       onDegrade: (_spec, why) => {
         playedHeroState.price = `degraded: ${why} (${spec.resource})`;
       },
@@ -1528,6 +1577,7 @@ function shipStockSpends(mine: () => boolean): Promise<void> | undefined {
         seedDeparture(spec);
       }
     },
+    onAbsorbed: shipAbsorb(),
     onDegrade: (spec, why) => {
       playedHeroState.shipment = `degraded: ${why} (${spec.resource})`;
     },
@@ -1595,6 +1645,27 @@ export async function endPlayedHero(): Promise<void> {
   }
   const episode = playedHeroState.nonce;
   const mine = () => playedHeroState.active && playedHeroState.nonce === episode;
+  if (liftGo !== undefined) {
+    // THE EVENT PAYS BEFORE IT LEAVES (P84 · DK): the view is applied and the holds are seeded — the pay-back plays off
+    // the card standing in the composer, then the card lifts, turns over in the arc and lands on its pile; only then
+    // does the landing's own half run (a reveal on the pile, the reading beat — nothing left to pay).
+    await payBackFromStandingCard(mine);
+    if (!mine()) {
+      return;
+    }
+    const landed = new Promise<void>((resolve) => {
+      flightDone = resolve;
+    });
+    const go = liftGo;
+    liftGo = undefined;
+    payingFromStandingCard = false;
+    payingComposerView.value = undefined;
+    go?.();
+    await Promise.race([landed, wait(motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + PAYBACK_FLIGHT_GRACE_MS)]);
+    if (!mine()) {
+      return;
+    }
+  }
   playedHeroState.phase = 'committing';
   const els = stage?.els();
   if (els !== undefined && playedHeroState.proxy !== undefined) {
@@ -1732,7 +1803,7 @@ export async function endPlayedHero(): Promise<void> {
       }
     }
     playedHeroState.told = true;
-    await resultPause(motionMs(TRANSFER_RESIDUAL_PAUSE_MS));
+    await skippablePause(motionMs(TRANSFER_RESIDUAL_PAUSE_MS));
   } else {
     // The RESOLVED-TABLEAU beat: the workspace stage reads shorter than the
     // standalone overlay's result pause — the player is already inside the
@@ -1741,7 +1812,7 @@ export async function endPlayedHero(): Promise<void> {
     const pauseMs = consoleReducedMotionActive() ? HERO_REDUCED_PAUSE_MS :
       (followUpPending ? HERO_RESULT_PAUSE_FOLLOWUP_MS : idlePause);
     playedHeroState.told = true;
-    await resultPause(motionMs(pauseMs));
+    await skippablePause(motionMs(pauseMs));
   }
   if (!playedHeroState.active) {
     return;
@@ -1782,22 +1853,133 @@ export async function endPlayedHero(): Promise<void> {
   finish();
 }
 
+// ── THE EVENT PAYS BEFORE IT LEAVES (P84 · DK, the owner's direction of 2026-11-01) ──────────────────────────────
+//
+// The physical game plays an event FACE UP, applies it, and only then lays it face down. The arc's flip is the scene's
+// premium gesture (the owner: «прошлая сцена посадки "в дуге" воспринималась более премиально»), so the turn stays in the
+// arc and the event lands face down on its pile — and its pay-back moves to where the face is still up: the card standing
+// in the composer, BEFORE the lift (the moment the price's shipment already uses — PL-107). Every token is born on the
+// card's PRINTED icon (the one icon grammar, `resolvePlayGainIconEnds`), a card-resource gain lands on the holder the
+// composer shows (its target row's miniature), the table's answers come from their reactors as ever, the TR last. The
+// commit is let through for it (`openGateForPayBack`) so every hold is the commit block's own — the ordinary machinery,
+// no second presentation of a gain ahead of the view. After the landing the beat has nothing left to pay: a reveal on
+// the pile and the reading pause. An event that cannot pay there (no standing card, reduced motion, nothing to pay) keeps
+// the old road (pays after the landing, off the pile).
+
+/** TRUE while the pay-back plays off the standing card — `heroRewardPlace` answers that card. */
+let payingFromStandingCard = false;
 /**
- * THE RESULT'S READING PAUSE — and, for an EVENT on the workspace stage, its LAYING (P84 · DK — «СОБЫТИЕ ПЛАТИТ ЛИЦОМ»):
- * the card that paid face up is laid on its pile turning over INSIDE this very pause, never after it (the owner's
- * budget law, 2026-11-01: not one new millisecond — the phrase REPLACES the residual pause); its touchdown — and the
- * pile's tick — come before the stage closes. A / B skips the pause and lands the phrase at once.
+ * THE VIEW THE COMPOSER KEEPS while the event pays before its lift: the view the player confirmed the play on. The commit
+ * is let through for the pay-back, and a composer reading the applied view re-derives its answered rows against a new
+ * state version — the target row lost its answer (`playedTargetResultLive`) and with it the holder's miniature the
+ * floaters fly into (the stand's first red of this rework). Reactive (a shallow ref — the view is never made deep).
  */
-async function resultPause(ms: number): Promise<void> {
-  const hooks = effectHooks;
-  if (!eventTurnsOnStage(playedHeroState.isEvent, playedHeroState.host) || hooks?.turnEvent === undefined) {
-    await skippablePause(ms);
+const payingComposerView = shallowRef<PlayerViewModel | undefined>(undefined);
+
+/** The view the play composer reads while the event pays before its lift; undefined — the live one. */
+export function playedHeroComposerView(): PlayerViewModel | undefined {
+  return payingComposerView.value;
+}
+/** The lift's go, given by the pay-back (`endPlayedHero`); set while the flight waits for it. */
+let liftGo: (() => void) | undefined;
+/** The landing's signal to a commit half that ran BEFORE the flight (the pay-back's). */
+let flightDone: (() => void) | undefined;
+/** How long the pay-back's commit half waits for the flight beyond its own length (a lost landing never wedges it). */
+const PAYBACK_FLIGHT_GRACE_MS = 3000;
+/** How long a flight waits for a pay-back that never comes (the commit lost — the event lifts anyway). */
+const PAYBACK_WAIT_MAX_MS = 8000;
+
+/** Does this play pay before its lift? An EVENT with something to pay, standing in the composer, full motion. */
+function eventPaysBeforeLift(): boolean {
+  if (!playedHeroState.isEvent || consoleReducedMotionActive()) {
+    return false;
+  }
+  const standing = standingSourceEl();
+  if (standing === undefined) {
+    return false;
+  }
+  return pendingRewards.length > 0 || pendingRail !== undefined || pendingReactions.length > 0 ||
+    standing.querySelector('.pcard__vp') !== null;
+}
+
+/**
+ * Let the commit through BEFORE the lift and wait for the pay-back's go: the transport applies the view, seeds the holds
+ * in its block and calls `endPlayedHero`, which pays and gives the go. Bounded — a commit that never comes lifts anyway.
+ */
+async function openGateForPayBack(mine: () => boolean): Promise<void> {
+  payingFromStandingCard = true;
+  payingComposerView.value = beforeView;
+  playedHeroState.payback = 'paying';
+  // The card still stands in the composer — the pre-lift beat is the shipment's phase (the stage stays down).
+  playedHeroState.phase = 'shipping';
+  const go = new Promise<void>((resolve) => {
+    liftGo = resolve;
+  });
+  capturePlayedCardReturnSource();
+  freeRunGate();
+  await Promise.race([go, wait(PAYBACK_WAIT_MAX_MS)]);
+  if (liftGo !== undefined && mine()) {
+    // The pay-back never came: lift with nothing paid here (the landing's half pays off the pile, the old road).
+    liftGo = undefined;
+    payingFromStandingCard = false;
+    payingComposerView.value = undefined;
+    playedHeroState.payback = 'late';
+  }
+}
+
+/**
+ * THE PAY-BACK off the standing card (the view applied, the holds seeded): the card's own gains — every channel on its
+ * printed icon, a card-resource gain onto the composer's miniature of its holder —, its printed points, the table's
+ * answers, the TR last; the card stands until every token born on it has LEFT it (the fold law).
+ */
+async function payBackFromStandingCard(mine: () => boolean): Promise<void> {
+  const card = playedHeroState.card ?? '';
+  const standing = standingSourceEl();
+  if (standing === undefined || card === '') {
+    payingFromStandingCard = false;
+    playedHeroState.payback = 'no-source';
     return;
   }
-  const laid = hooks.turnEvent(heroEventTurnMs(ms, motionMs(TRANSFER_RESIDUAL_PAUSE_MS), motionMs(HERO_EVENT_LAID_READ_MS)));
-  await skippablePause(ms);
-  hooks.finishEventTurn?.();
-  await laid;
+  const railKey = heldRailKey !== undefined && railRewardPending(heldRailKey) ? heldRailKey : undefined;
+  const rewards = pendingRewards;
+  pendingRewards = [];
+  const source = {selectors: [sourceSelector]};
+  const releaseFedVp = vpReleaseOnTouchdown(card, [...rewards, ...heldReactions.map((r) => r.spec)]);
+  const release = (spec: ResourceTransferSpec) => {
+    releaseHeroReward(spec);
+    releaseFedVp(spec);
+  };
+  // A card-resource gain lands on the holder the composer SHOWS — its target row's miniature (a flight end, PL-162);
+  // a holder it does not show keeps the ordinary ladder.
+  const onComposerCard = (spec: ResourceTransferSpec): TransferEnd | undefined => {
+    if (spec.channel !== 'card-resource' || spec.targetCard === undefined) {
+      return undefined;
+    }
+    const mini = firstVisibleEnd(`.con-composer--play [data-composer-card="${escapeName(spec.targetCard)}"]`);
+    return mini === undefined ? undefined : {el: mini, fx: 0.5, fy: 0.5};
+  };
+  await railWaveWithPrintedVp(rewards, source, release, onComposerCard);
+  if (!mine()) {
+    return;
+  }
+  await flyHeroReactions(source, release, undefined);
+  await answerHeroAfterWave();
+  releaseHeroRewards();
+  releaseVpShares(PLAYED_HERO_VP_OWNER, {why: 'a fed card was not reached by its token'});
+  if (!mine()) {
+    return;
+  }
+  if (railKey !== undefined) {
+    await flyRailReward(railKey, () => heroRailOrigin(card), heroAnswerFlight(card, heldRailAnswerTags));
+    heldRailKey = undefined;
+  }
+  // The card stands until every token born on it has LEFT it, and the composer until every token landing IN it (a holder's
+  // miniature) has been ABSORBED there — the CI-like stand (no GPU) saw the floater still fading on the miniature while
+  // the composer let go: «+2» over the hand's glass. The fold law (`surfaceClear`) on the whole composer.
+  await surfaceClear(standing.closest<HTMLElement>('.con-composer--play') ?? standing);
+  if (mine()) {
+    playedHeroState.payback = 'paid';
+  }
 }
 
 /** A / B during the result beat: accelerate the close — never a cancel. */
@@ -1918,6 +2100,11 @@ export function abortPlayedHero(): void {
   playedHeroState.proxy = undefined;
   playedHeroState.revealed = false;
   playedHeroState.told = false;
+  playedHeroState.payback = '';
+  payingFromStandingCard = false;
+  payingComposerView.value = undefined;
+  liftGo = undefined;
+  flightDone = undefined;
   playedHeroState.awaitingTarget = false;
   playedHeroState.tableOpen = false;
   playedHeroState.active = false;
@@ -1966,6 +2153,11 @@ function finish(): void {
   playedHeroState.host = 'overlay';
   playedHeroState.revealed = false;
   playedHeroState.told = false;
+  playedHeroState.payback = '';
+  payingFromStandingCard = false;
+  payingComposerView.value = undefined;
+  liftGo = undefined;
+  flightDone = undefined;
   playedHeroState.awaitingTarget = false;
   playedHeroState.tableOpen = false;
   playedHeroState.proxy = undefined;
@@ -2032,9 +2224,11 @@ function escapeName(name: string): string {
 }
 
 /** WHERE a play's reward chips are born, in resolution order: the receiving
- *  stage's front card (the workspace scene — an EVENT's too: it pays FACE UP
- *  over its pile, P84 · DK; never its back), else the landed card on the
- *  «Разыграно» table (the overlay scene). */
+ *  stage's front card / events pile (the workspace scene), else the landed
+ *  card on the «Разыграно» table (the overlay scene). An EVENT pays BEFORE its
+ *  lift, from the card standing in the composer (`payBackFromStandingCard` —
+ *  `heroRewardPlace` answers that card then); the pile is the rung only of an
+ *  event whose pay-back could not run there. */
 function heroRewardSourceSelectors(card: string): Array<string> {
   const esc = escapeName(card);
   return [
@@ -2044,14 +2238,15 @@ function heroRewardSourceSelectors(card: string): Array<string> {
     // The receiving stage (the hand workspace's landing).
     '.con-recv [data-recv-front] .con-recv__face',
     '.con-recv [data-recv-front]',
+    '.con-recv .con-recv__backpile',
     // The GAME START workspace's bottom «Разыграно» zone — a start play
     // docks directly into its family pile there.
     `.con-start__played [data-played-key="${esc}"] .con-played__face`,
     `.con-start__played [data-played-key="${esc}"]`,
     `.con-played [data-played-key="${esc}"] .con-played__face`,
     `.con-played [data-played-key="${esc}"]`,
-    // The STANDALONE table only (its landing IS the face-down pile — `eventFlipsInFlight`): an EVENT lies on the events
-    // backstack there and that pile is the card's honest on-table place. The workspace stage never reaches this rung.
+    // An EVENT lands face-down on the events backstack — the degrade rung of an event that could not pay before its
+    // lift (the pile is the card's honest on-table location).
     '.con-played .con-played__family--event .con-played__backstack',
   ];
 }
@@ -2278,6 +2473,13 @@ function heroRewardPlace(card: string): HTMLElement | undefined {
   if (typeof document === 'undefined' || card === '') {
     return undefined;
   }
+  // THE EVENT PAYS BEFORE IT LEAVES (P84 · DK): the place is the card standing in the composer, face up.
+  if (payingFromStandingCard) {
+    const standing = standingSourceEl();
+    if (standing !== undefined) {
+      return standing;
+    }
+  }
   for (const selector of heroRewardSourceSelectors(card)) {
     const el = firstVisibleEnd(selector);
     if (el !== undefined) {
@@ -2363,13 +2565,17 @@ async function railWaveWithPrintedVp(
   specs: ReadonlyArray<ResourceTransferSpec>,
   source: {selectors: Array<string>},
   release: (spec: ResourceTransferSpec) => void,
+  destinationOf?: (spec: ResourceTransferSpec) => TransferEnd | undefined,
 ): Promise<void> {
   const card = playedHeroState.card ?? '';
   // Every gain on its PRINTED icon (P84 · DK) — a stock gain on its icon, a production on the plate, a standard resource
   // CHOSEN from the face's printed «?» (TR54) on that «?» — never out of the plate's middle while the face prints it.
   const origins = heroGainOrigins(card, specs);
   const wave = specs.length === 0 ? Promise.resolve() :
-    runResourceTransfers({specs, source, ...(origins !== undefined ? {origins} : {}), arrival: 'auto', onArrive: release});
+    runResourceTransfers({
+      specs, source, ...(origins !== undefined ? {origins} : {}), ...(destinationOf !== undefined ? {destinationOf} : {}),
+      arrival: 'auto', onArrive: release,
+    });
   const vp = (specs.length === 0 ? Promise.resolve() : wait(motionMs(transferWaveDelayMs(1, 2))))
     .then(() => (playedHeroState.active ? flyHeroCardVp(card) : undefined));
   await Promise.all([wave, vp]);

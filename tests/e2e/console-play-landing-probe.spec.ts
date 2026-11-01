@@ -805,7 +805,7 @@ test.describe('console Game Start Workspace + play landing', () => {
     assertScene(blueLog, {isEvent: false});
     await expect(page.locator('.con-played')).toHaveCount(0);
 
-    // ── same game: the EVENT (lands FACE UP over its pile, pays, turns over — P84 · DK; the counter ticks on its touchdown) ──
+    // ── same game: the EVENT (face-down pile; counter ticks at dock) ──
     await descendIntoPlay(page, EVENT);
     const eventLog = await runLandingScene(page, EVENT, true, 'fhd-event');
     assertScene(eventLog, {isEvent: true, minEvents: 1});
