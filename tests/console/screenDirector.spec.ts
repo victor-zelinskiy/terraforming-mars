@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {
   ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenShadowInput,
-  SCREEN_TABLE_KINDS, advanceScreenShadowStreak, expectedScreenOwners, noteScreenShadowPass, recordScreenShadowFinding,
+  SCREEN_TABLE_KINDS, advanceScreenShadowStreak, expectedScreenOwners, hostableStep, noteScreenShadowPass, recordScreenShadowFinding,
   resetScreenShadowLog, screenPromptShape, screenPromptToken, screenShadowLog, screenShadowVerdict,
 } from '../../src/client/console/screenDirector';
 import {ConsoleTask} from '../../src/client/console/consoleTaskRouter';
@@ -67,6 +67,24 @@ describe('screenDirector', () => {
       expect(screenShadowVerdict(base(payment, {present: ['hydro'], frameServes: ['hydro']})).kind).eq('agree');
     });
 
+    it('a STEP of a flow is served by the flow\'s HOST — the basis told apart; a non-hostable kind never is', () => {
+      const draw = {kind: 'externalDraw'} as ConsoleTask;
+      expect(screenShadowVerdict(base(draw, {present: ['parliament'], host: 'parliament'}))).deep.eq({kind: 'agree', owners: ['parliament'], basis: 'host'});
+      expect(screenShadowVerdict(base(draw, {present: ['parliament']})).kind, 'no host → a foreign surface').eq('misserved');
+      expect(screenShadowVerdict(base(draw, {present: ['external-draw', 'parliament'], host: 'parliament'}))).deep.include({basis: 'table'});
+      const attack = {kind: 'botAttack'} as ConsoleTask;
+      expect(hostableStep('botAttack')).eq(false);
+      expect(screenShadowVerdict(base(attack, {present: ['card-actions'], host: 'card-actions'})).kind, 'a modal of its own is never a step').eq('misserved');
+      expect(screenShadowVerdict(base(draw, {host: 'parliament'}))).deep.eq({kind: 'unserved', expected: ['external-draw', 'parliament']});
+    });
+
+    it('a task\'s nested placement is the BOARD\'s (the final greenery\'s branch)', () => {
+      const branch = {kind: 'choice', flavor: 'generic'} as ConsoleTask;
+      expect(screenShadowVerdict(base(branch, {present: ['board'], boardBranch: true}))).deep.eq({kind: 'agree', owners: ['board'], basis: 'branch'});
+      expect(screenShadowVerdict(base(branch, {present: ['board']})).kind).eq('misserved');
+    });
+
+
     it('a named hold outranks a beat, a beat outranks a disagreement', () => {
       expect(screenShadowVerdict(base(payment, {held: 'announce-gate', beats: ['.con-reveal']})).kind).eq('held');
       expect(screenShadowVerdict(base(payment, {beats: ['.con-reveal']})).kind).eq('beat');
@@ -104,16 +122,16 @@ describe('screenDirector', () => {
     it('the stats: every verdict counted, a hold\'s LONGEST unbroken run, the owners that served each shape', () => {
       noteScreenShadowPass('payment', {kind: 'held', reason: 'announce-gate', present: []});
       noteScreenShadowPass('payment', {kind: 'held', reason: 'announce-gate', present: []});
-      noteScreenShadowPass('payment', {kind: 'agree', owners: ['task']});
+      noteScreenShadowPass('payment', {kind: 'agree', owners: ['task'], basis: 'table'});
       noteScreenShadowPass('payment', {kind: 'held', reason: 'announce-gate', present: []});
       noteScreenShadowPass('payment', {kind: 'beat', beats: ['.con-reveal'], present: ['hand']});
-      noteScreenShadowPass('colony', {kind: 'agree', owners: ['colonies']});
+      noteScreenShadowPass('colony', {kind: 'agree', owners: ['parliament'], basis: 'host'});
       noteScreenShadowPass(undefined, {kind: 'none', scope: 'free'});
       const s = screenShadowLog.stats;
       expect(s.verdicts).deep.eq({'held': 3, 'agree': 2, 'beat': 1, 'none:free': 1});
       expect(s.held['announce-gate']).eq(3);
       expect(s.heldMaxRun['announce-gate'], 'two, then broken, then one').eq(2);
-      expect(s.owners).deep.eq({payment: {task: 1}, colony: {colonies: 1}});
+      expect(s.owners, 'an owner entitled by the host is told apart').deep.eq({payment: {task: 1}, colony: {'parliament@host': 1}});
       expect(s.shapes).deep.eq({payment: 5, colony: 1});
       expect(s.masked, 'what each wait HID — nothing under the gate, the hand under the reveal').deep.eq(
         {payment: {'held:announce-gate | nothing': 3, 'beat | hand': 1}});

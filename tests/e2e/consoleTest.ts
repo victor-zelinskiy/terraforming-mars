@@ -820,17 +820,44 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
    */
   screenShadowHarvest: [async ({context}, use, testInfo) => {
     const lines = armShadowHarvest(context, SCREEN_SHADOW);
-    await use();
     // HOW THE SHADOW LOOKED — a run with no finding is evidence only beside these numbers (the passes judged, the holds
-    // and beats that explained a wait, who served each prompt shape). One line per page, every test, findings or not.
+    // and beats that explained a wait, who served each prompt shape). The log lives as long as the page's document:
+    // a reload or a navigation resets it and a closed page takes it along, so the readout is taken BEFORE each of them
+    // (the page's own `reload` / `goto` / `close`, wrapped) and once more at the end — every snapshot a disjoint span.
     type ShadowReadout = {judged: number, stats: unknown};
     const pages: Array<ShadowReadout> = [];
-    for (const page of context.pages()) {
+    const snapshot = async (page: Page): Promise<void> => {
+      if (page.isClosed()) {
+        return;
+      }
       const r = await page.evaluate(() => (window as unknown as {__conScreenShadow?: () => ShadowReadout}).__conScreenShadow?.())
         .catch(() => undefined);
-      if (r !== undefined) {
+      if (r !== undefined && r !== null) {
         pages.push({judged: r.judged, stats: r.stats});
       }
+    };
+    const wrap = (page: Page): void => {
+      const reload = page.reload.bind(page);
+      const goto = page.goto.bind(page);
+      const close = page.close.bind(page);
+      page.reload = async (...args: Parameters<Page['reload']>) => {
+        await snapshot(page);
+        return reload(...args);
+      };
+      page.goto = async (...args: Parameters<Page['goto']>) => {
+        await snapshot(page);
+        return goto(...args);
+      };
+      page.close = async (...args: Parameters<Page['close']>) => {
+        await snapshot(page);
+        return close(...args);
+      };
+    };
+    context.pages().forEach(wrap);
+    context.on('page', wrap);
+    await use();
+    for (const page of context.pages()) {
+      await snapshot(page);
     }
     const judged = pages.reduce((n, p) => n + p.judged, 0);
     testInfo.annotations.push({type: 'screen-shadow-judged', description: String(judged)});

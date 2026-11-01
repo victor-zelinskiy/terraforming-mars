@@ -133,6 +133,31 @@ const EXPECTED: {[K in TaskKind]: (task: Extract<ConsoleTask, {kind: K}>) => Rea
 /** The table's rows — the coverage report lists every one the suite never observed (an unverified row). */
 export const SCREEN_TABLE_KINDS = Object.keys(EXPECTED) as ReadonlyArray<TaskKind>;
 
+/**
+ * A QUESTION ASKED AS A STEP OF A FLOW IS SERVED BY THAT FLOW'S HOST (step 1, the first map of 2026-11-01: under the
+ * holds stood the Parliament for a law's take / tile / pick — 667 passes —, the hand for a play's effect and colony,
+ * the card-actions for an action's discard). The host is the stack's own answer — `workspaceHostForStep()`, the top
+ * frame while it hosts a step in its current phase — never a list per kind; this table says only which kinds CAN be
+ * such a step. A kind whose surface is a modal or a screen of its own (the bot's attack, the lanes, the thresholds,
+ * the awards' free funding, a colony bonus another seat's trade paid, the draft's wait) or the start's own is never
+ * hosted — a flow standing over one of those is a foreign surface, never its answer.
+ */
+const HOSTABLE: {[K in TaskKind]: boolean} = {
+  actionMenu: false, space: true, choice: true, awardFunding: false, player: true, amount: true, resource: true,
+  distribute: true, payment: true, draftWait: false, cardSelect: true, deckSelect: true, handSelect: true,
+  projectCard: true, colony: true, colonyBonus: false, party: true, parliamentPhase: true, chairmanQuest: true,
+  externalDraw: true, venusBonus: false, spendHeat: false, botAttack: false, composite: true, initialDraft: false,
+  startSequence: false, corpFirstAction: false, aresGlobal: false, unknown: false,
+};
+
+export function hostableStep(kind: TaskKind): boolean {
+  return HOSTABLE[kind];
+}
+
+/** Why an owner is entitled: its row in the table (or a frame's `serves`), the host of the flow, the board under a
+ *  task's nested placement. */
+export type ScreenOwnerBasis = 'table' | 'host' | 'branch';
+
 export function expectedScreenOwners(task: ConsoleTask): ReadonlyArray<ScreenOwner> | ScreenScope {
   const row = EXPECTED[task.kind] as (t: ConsoleTask) => ReadonlyArray<ScreenOwner> | ScreenScope;
   return row(task);
@@ -146,6 +171,10 @@ export type ScreenShadowInput = {
   /** Workspaces entitled to the task kind beyond the table: the registry's default `serves` and every live / parked
    *  frame's runtime-earned ones (`workspaceSurfacesFor`'s two halves). */
   frameServes: ReadonlyArray<WorkspaceFrameKind>;
+  /** The flow's HOST for a step right now (`workspaceHostForStep()`), undefined when the top frame hosts nothing. */
+  host?: WorkspaceFrameKind;
+  /** A task's nested placement is answered on the BOARD (the final greenery's branch, the WGT ocean). */
+  boardBranch?: boolean;
   /** A named, bounded hold the prompt legitimately waits behind ('' = none). */
   held: string;
   /** The serving owners PAINTED now (the probe). */
@@ -160,7 +189,7 @@ export type ScreenNoneScope = 'start-owned' | ScreenScope | 'no-context';
 export type ScreenShadowVerdict =
   | {kind: 'none', scope: ScreenNoneScope}
   /** The expected owners that PAINT — the observed «who serves» map is built from these. */
-  | {kind: 'agree', owners: ReadonlyArray<ScreenOwner>}
+  | {kind: 'agree', owners: ReadonlyArray<ScreenOwner>, basis: ScreenOwnerBasis}
   /** `present` — what stood UNDER the wait (never an expected owner: that would have agreed): `[]` = nothing, else a
    *  FOREIGN surface. The evidence a hold hides — a row the table is missing reads here, never as a finding. */
   | {kind: 'held', reason: string, present: ReadonlyArray<ScreenOwner>}
@@ -178,11 +207,21 @@ export function screenShadowVerdict(i: ScreenShadowInput): ScreenShadowVerdict {
   if (typeof row === 'string') {
     return {kind: 'none', scope: row};
   }
-  const expected = [...new Set<ScreenOwner>([...row, ...i.frameServes])];
-  const owners = i.present.filter((o) => expected.includes(o));
-  if (owners.length > 0) {
-    return {kind: 'agree', owners};
+  const table = [...new Set<ScreenOwner>([...row, ...i.frameServes])];
+  const byTable = i.present.filter((o) => table.includes(o));
+  if (byTable.length > 0) {
+    return {kind: 'agree', owners: byTable, basis: 'table'};
   }
+  const host = i.host !== undefined && HOSTABLE[i.task.kind] ? i.host : undefined;
+  if (host !== undefined && i.present.includes(host)) {
+    return {kind: 'agree', owners: [host], basis: 'host'};
+  }
+  if (i.boardBranch === true && i.present.includes('board')) {
+    return {kind: 'agree', owners: ['board'], basis: 'branch'};
+  }
+  const expected = [...new Set<ScreenOwner>([
+    ...table, ...(host === undefined ? [] : [host]), ...(i.boardBranch === true ? ['board' as const] : []),
+  ])];
   if (i.held !== '') {
     return {kind: 'held', reason: i.held, present: i.present};
   }
@@ -273,7 +312,7 @@ export function noteScreenShadowPass(shape: string | undefined, verdict: ScreenS
   }
   if (verdict.kind === 'agree') {
     const row = s.owners[shape] ?? (s.owners[shape] = {});
-    verdict.owners.forEach((o) => bump(row, o));
+    verdict.owners.forEach((o) => bump(row, verdict.basis === 'table' ? o : `${o}@${verdict.basis}`));
   }
 }
 

@@ -699,6 +699,37 @@ plutoSettlementsTable('pluto-settlements-3-wide', {cubes: 3, track: 6});
 plutoSettlementsTable('pluto-settlements-foreign', {cubes: 2, track: 3, foreign: true});
 plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, foreign: true, hand: 0});
 
+// ── miranda-remote-bonus: the SCREEN DIRECTOR's row `colonyBonus` (step 1 of `docs/claude/console/screen-director.md` —
+//    the first map never judged it: every remote-bonus stand patched its prompts). Two seats; blue (the viewer) owns a
+//    colony on MIRANDA, whose colony bonus DRAWS A CARD; red is on the move with a free fleet. Red's trade over the API
+//    pays blue's bonus as a DETACHED delivery (`Colony.isDetachedBonusDelivery`) — blue's live `SelectOption` with the
+//    `colonyBonusPrompt` marker, announced, collected on the colonies' stage. ──
+{
+  const [game, blue, red] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true,
+    customCorporationsList: [CardName.CREDICOR, CardName.CREDICOR], startingCorporations: 1,
+  });
+  answerStartFlow(game, [blue, red]);
+  const miranda = new Miranda();
+  const others = [new Luna(), new Europa(), new Callisto()];
+  for (const colony of [miranda, ...others]) {
+    colony.isActive = true;
+  }
+  game.colonies = [miranda, ...others];
+  miranda.colonies.push(blue.id);
+  miranda.trackPosition = 3;
+  blue.megaCredits = 30;
+  red.megaCredits = 30;
+  blue.clearWaitingFor();
+  game.playerIsFinishedTakingActions();
+  runAllActions(game);
+  if (game.activePlayer.id !== red.id || !(red.getWaitingFor() instanceof OrOptions) ||
+      red.colonies.getFleetSize() - red.colonies.usedTradeFleets < 1 || miranda.colonies[0] !== blue.id) {
+    throw new Error(`the miranda-remote-bonus fixture expected red on the move with a free fleet and blue's cube on Miranda — got active=${game.activePlayer.color} wf=${red.getWaitingFor()?.constructor.name}`);
+  }
+  write('miranda-remote-bonus', game);
+}
+
 // ── play-scale-card: a solo action phase with a card in hand that RAISES A
 //    GLOBAL PARAMETER on play and has no target/placement follow-up
 //    (MiningExpedition: oxygen +1, +2 steel; its removeAnyPlants finds no

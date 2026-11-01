@@ -1,11 +1,11 @@
 import {expect} from 'chai';
-import {leakDetectorState, registerScreenShadowContext, runLeakDetection, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
+import {leakDetectorState, registerScreenShadowContext, runLeakDetection, setConsoleTaskSpacePlacement, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
 import {resetScreenShadowLog, screenShadowLog, SCREEN_SHADOW_CONFIRM_TICKS} from '@/client/console/screenDirector';
 import {setMandatoryGateHeld, resetMandatoryGate} from '@/client/console/consoleMandatoryGate';
 import {beginAnimationHold, expireActiveAnimationHolds, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
 import {resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
 import {resetConsoleHandPick} from '@/client/console/consoleHandPick';
-import {enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
+import {enterWorkspace, resetWorkspaceStack, setWorkspaceFramePhase} from '@/client/console/consoleWorkspaceStack';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
 /*
@@ -116,6 +116,30 @@ describe('screen shadow — positive controls through the leak detector', () => 
     expect(screenShadowLog.findings).length(0);
     expect(screenShadowLog.stats.verdicts.agree).eq(5);
     expect(screenShadowLog.stats.owners.handSelect).deep.eq({hand: 5});
+  });
+
+  it('a STEP of a flow in progress is served by the flow\'s HOST (an action\'s discard in the card centre) — told apart', () => {
+    enterWorkspace('card-actions');
+    setWorkspaceFramePhase('card-actions', 'configure');
+    paint('con-cardactions');
+    passes(handSelectView(), 4);
+    expect(screenShadowLog.findings).length(0);
+    expect(screenShadowLog.stats.owners.handSelect).deep.eq({'card-actions@host': 4});
+  });
+
+  it('…but a host only BROWSED is no flow: a question over a browsed list is misserved', () => {
+    enterWorkspace('card-actions');
+    paint('con-cardactions');
+    passes(handSelectView(), SCREEN_SHADOW_CONFIRM_TICKS);
+    expect(screenShadowLog.findings[0]).deep.include({kind: 'misserved', present: ['card-actions']});
+  });
+
+  it('a task\'s nested placement is the BOARD\'s while the shell says so (the final greenery\'s branch)', () => {
+    paint('con-board--placing');
+    setConsoleTaskSpacePlacement(true);
+    passes(handSelectView(), 3);
+    expect(screenShadowLog.stats.owners.handSelect).deep.eq({'board@branch': 3});
+    setConsoleTaskSpacePlacement(false);
   });
 
   it('a root that paints WITHOUT its frame does not count — the stack decides presence (two kinds share a root)', () => {

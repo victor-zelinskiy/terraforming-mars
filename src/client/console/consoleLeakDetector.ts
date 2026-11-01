@@ -41,7 +41,7 @@ import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
 import {sittingAskResolution} from '@/client/console/promptSource';
 import {agendaReactionOf} from '@/client/console/parliament/agendaReaction';
 import {resetForegroundWatchdog, runForegroundWatchdog} from '@/client/console/consoleForegroundWatchdog';
-import {stackServes, workspaceFrameKnown, workspaceFrameRenders, workspaceFrameSelector, workspaceKindSpec, workspaceStackCollapsed, workspaceStackState, workspaceSurfacesFor, yieldedStackServes, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {stackServes, workspaceFrameKnown, workspaceFrameRenders, workspaceHostForStep, workspaceFrameSelector, workspaceKindSpec, workspaceStackCollapsed, workspaceStackState, workspaceSurfacesFor, yieldedStackServes, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenOwner, ScreenShadowStreak, advanceScreenShadowStreak, expectedScreenOwners, noteScreenShadowPass, recordScreenShadowFinding, screenPromptShape, screenPromptToken, screenShadowVerdict} from '@/client/console/screenDirector';
 import {StartServes, startServesSomething} from '@/client/console/startServing';
 
@@ -579,6 +579,17 @@ function workspacesServing(kind: ConsoleTask['kind']): Array<WorkspaceFrameKind>
   return [...out];
 }
 
+/**
+ * THE HOST OF THE FLOW a question is a step of — the stack's own answer (`workspaceHostForStep`), and only while the
+ * flow is IN PROGRESS: a host that hosts 'always' (the card centre) also hosts in BROWSE, where nothing the player did
+ * asked the question — a mandatory prompt arriving over a browsed list is not that list's step.
+ */
+function flowHost(): WorkspaceFrameKind | undefined {
+  const host = workspaceHostForStep();
+  const top = workspaceStackState.frames[workspaceStackState.frames.length - 1];
+  return host === undefined || top === undefined || top.phase === 'browse' ? undefined : host;
+}
+
 let screenStreak: ScreenShadowStreak = {signature: '', ticks: 0};
 
 function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | undefined): void {
@@ -602,6 +613,8 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
     task,
     startOwned: false,
     frameServes: workspacesServing(task.kind),
+    host: flowHost(),
+    boardBranch: consoleTaskSpacePlacement,
     held: hold !== '' ? hold : ctx.admission !== '' ? `admit:${ctx.admission}` : '',
     present,
     beats,

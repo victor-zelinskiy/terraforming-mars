@@ -170,14 +170,26 @@ the finale timing specs on a quiet `--exclusive` box (red only at load 6–7); R
 (the ledger box moves 21 px), `classic-gmo-contract` C (`[reaction] foreign face`, 1/6), `social-heating` fhd (the heat
 row against the server, 3/3).
 
-## Step 1 — the worklist the map wrote
-1. **The HOST owner.** `expectedScreenOwners(task)` ∪ the registry ∪ the frames' `serves` ∪ **the host of the flow the
-   question is a step of** — read off the stack (`workspaceHostForStep()`, the same «nearest live unfinished step» law
-   the routing uses), never a list per kind; plus the board for a task's nested placement (`task-on-board` already names
-   it). Re-run the 84 held files: the table above must turn into `agree`, and what stays `held` must be a genuine wait
-   with nothing under it.
-2. **The four unverified rows** get a stand each (`player`, `resource`, `colonyBonus`, `composite`), and the weak ones
-   an agree in the suite (`corpFirstAction` past the opening, `awardFunding`, `chairmanQuest`).
-3. **The readout survives a closed page** (91 tests): the harvest reads `__conScreenShadow()` on the page's `close`
-   too.
-4. Only then step 2 (tightening `TASK_FAMILY` against «who served»).
+## Step 1 — DONE (2026-11-01): the HOST, the rows, the readout
+1. **The HOST owner** (`screenDirector.ts` `HOSTABLE` + the verdict's `basis`): a question asked as a step of a flow
+   is served by that flow's host — the stack's own `workspaceHostForStep()`, counted only while the flow is IN PROGRESS
+   (`consoleLeakDetector.flowHost` — a host that hosts `'always'`, the card centre, also hosts in BROWSE, and a
+   mandatory prompt over a browsed list is not its step); a kind with a surface of its own (`botAttack`, the lanes,
+   the thresholds, the awards' free funding, a remote colony bonus, the draft's wait, the start's) is never hosted. A
+   task's nested placement is the BOARD's while the shell's mirror says so (`boardBranch` — the final greenery's
+   branch). The stats tell the basis apart (`parliament@host`, `board@branch`).
+2. **The re-run of the 84 held files** (`scrsh5`, 471 tests, 3189 judged passes, 0 findings): held 1428 → **625**;
+   `externalDraw` 12 → 372 agree (+360 `parliament@host`), `space` +154 `parliament@host`, `cardSelect:target` /
+   `:distribute` +151 `parliament@host`, `colony` +25 `hand@host` (+13 parliament / hydro), `choice:contextual` +41
+   `hand@host`, `choice:generic` +54 `board@branch`. **What a wait still hides is explained, never a table row**: the
+   previous flow's frame behind an ANNOUNCED mandatory discard (card-actions after a card's / a party's draw — 47
+   passes, the announce is the surface), the hand under its own album pick (`hand-pick` — 30). Holds ≤ 9 s.
+3. **The rows** — `colonyBonus` has its stand (`console-screen-shadow-rows`, the `miranda-remote-bonus` fixture: two
+   seats, red trades Miranda over the API): judged, held by the announce with NOTHING under it, and the door that opens
+   it IS the answer (the collect) — after it the colonies present the payout with no question standing. `resource`,
+   `player`, `composite` are not reachable as a LIVE prompt in today's scope (`resource` only from held-back Prelude 2
+   cards and Pathfinders; `player` / `composite` pre-collected by the composers) — the report's `KNOWN_UNREACHABLE`,
+   each with its reason, and a warning when one is judged after all (the scope moved).
+4. **The readout survives a reload / navigation / close** — the harvest wraps the page's own `reload` / `goto` / `close`
+   and snapshots `__conScreenShadow()` before each (every snapshot a disjoint span; no readout lost: 11 of 471 left
+   none, against 91 of 1461).

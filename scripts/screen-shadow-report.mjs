@@ -176,8 +176,26 @@ const rowText = new Map([...block.matchAll(/^ {2}(\w+): (.*)$/gm)].map((m) => [m
 const observedKinds = new Set([...shapes.keys()].map((s) => s.split(':')[0]));
 console.log(`\nTHE TABLE'S COVERAGE — ${rows.length} rows`);
 const outOfScope = rows.filter(([k]) => /'(free|start|unknown)'/.test(rowText.get(k) ?? '') && !/\[/.test(rowText.get(k) ?? ''));
-const unverified = rows.filter(([k]) => !observedKinds.has(k) && !outOfScope.some(([o]) => o === k));
+/**
+ * Rows the console never meets as a LIVE prompt today — each with the reason, read off the server's producers (step 1,
+ * 2026-11-01). A row here is not «verified»: it is a row the suite cannot reach, and the reason is what to re-check
+ * when the scope widens (a held-back Prelude 2 card enters, a composer stops pre-collecting).
+ */
+const KNOWN_UNREACHABLE = new Map([
+  ['resource', 'SelectResource comes only from `standardResource` (Applied Science, Focused Organization — both held back in prelude2Adaptation.ts) and Pathfinders (out of scope)'],
+  ['player', 'SelectPlayer (Law Suit, DecreaseAnyProduction, a colony discard) is PRE-COLLECTED by the composers — live only on a batch divergence'],
+  ['composite', 'a bare AndOptions (the Industrialists\' action, the colony trade) is pre-collected; Stormcraft / the Venus bonus / a distribution route to their own kinds'],
+]);
+const unreachable = rows.filter(([k]) => !observedKinds.has(k) && KNOWN_UNREACHABLE.has(k));
+const unverified = rows.filter(([k]) => !observedKinds.has(k) && !outOfScope.some(([o]) => o === k) && !KNOWN_UNREACHABLE.has(k));
+const reachedAnyway = rows.filter(([k]) => observedKinds.has(k) && KNOWN_UNREACHABLE.has(k));
 console.log(`  out of the judge's scope: ${outOfScope.map(([k]) => k).join(', ')}`);
+for (const [k] of unreachable) {
+  console.log(`  not reachable live in scope: ${k} — ${KNOWN_UNREACHABLE.get(k)}`);
+}
+for (const [k] of reachedAnyway) {
+  console.log(`  ⚠ ${k} is listed as unreachable but was JUDGED — the scope moved: drop it from KNOWN_UNREACHABLE`);
+}
 console.log(`  NEVER JUDGED by this run (unverified rows): ${unverified.length === 0 ? 'none' : unverified.map(([k]) => k).join(', ')}`);
 
 // ── the findings ────────────────────────────────────────────────────────────────────────────────────────────────────
