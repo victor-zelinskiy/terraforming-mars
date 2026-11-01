@@ -55,11 +55,13 @@ describe('screenDirector', () => {
       expect(expectedScreenOwners({kind: 'cardSelect', mode: 'buy'} as ConsoleTask)).deep.eq(['draft', 'task']);
       expect(expectedScreenOwners({kind: 'choice', flavor: 'wgt'} as ConsoleTask)).deep.eq(['gov-support']);
       expect(expectedScreenOwners({kind: 'distribute', mode: 'production'} as ConsoleTask)).deep.eq(['prod-loss', 'task']);
-      expect(expectedScreenOwners({kind: 'choice', flavor: 'espionage'} as ConsoleTask)).include.members(['task', 'lanes']);
+      expect(expectedScreenOwners({kind: 'choice', flavor: 'espionage'} as ConsoleTask)).deep.eq(['hydro']);
+      expect(expectedScreenOwners({kind: 'player'} as ConsoleTask)).deep.eq(['task']);
+      expect(expectedScreenOwners({kind: 'choice', flavor: 'confirm'} as ConsoleTask)).include.members(['task', 'lanes']);
     });
 
     it('every UNOBSERVED shape keeps the generic family, and only those do', () => {
-      const family = expectedScreenOwners({kind: 'player'} as ConsoleTask);
+      const family = expectedScreenOwners({kind: 'composite'} as ConsoleTask);
       for (const shape of Object.keys(UNOBSERVED_SHAPES)) {
         expect(expectedScreenOwners(taskOfShape(shape)), shape).deep.eq(family);
         expect(UNOBSERVED_SHAPES[shape].length, `${shape} carries its reason`).greaterThan(10);

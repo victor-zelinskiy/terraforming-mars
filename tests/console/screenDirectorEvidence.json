@@ -4,11 +4,21 @@
   ".e2e-remote/s2-res0/test-results",
   ".e2e-remote/s2-res1/test-results",
   ".e2e-remote/s2-pull-scrsh7/test-results",
-  ".e2e-remote/s2-pull-scrsh8/test-results"
+  ".e2e-remote/s2-pull-scrsh8/test-results",
+  ".e2e-remote/scrsh7/test-results"
  ],
- "tests": 1497,
- "judged": 4938,
+ "tests": 1501,
+ "judged": 4945,
  "shapes": {
+  "amount:delta": {
+   "judged": 2,
+   "table": {
+    "task": 2
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
   "amount:generic": {
    "judged": 5,
    "table": {
@@ -116,6 +126,15 @@
    "host": {},
    "branch": {}
   },
+  "choice:espionage": {
+   "judged": 2,
+   "table": {},
+   "serves": {
+    "hydro": 2
+   },
+   "host": {},
+   "branch": {}
+  },
   "choice:generic": {
    "judged": 185,
    "table": {},
@@ -148,7 +167,7 @@
    "branch": {}
   },
   "colonyBonus": {
-   "judged": 1,
+   "judged": 2,
    "table": {},
    "serves": {},
    "host": {},
@@ -255,6 +274,15 @@
    "host": {
     "parliament": 1
    },
+   "branch": {}
+  },
+  "player": {
+   "judged": 2,
+   "table": {
+    "task": 2
+   },
+   "serves": {},
+   "host": {},
    "branch": {}
   },
   "projectCard:playFromHand": {

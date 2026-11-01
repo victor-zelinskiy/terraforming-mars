@@ -173,6 +173,7 @@ import {Titan} from '../../../src/server/colonies/Titan';
 import {Europa} from '../../../src/server/colonies/Europa';
 import {Callisto} from '../../../src/server/colonies/Callisto';
 import {Miranda} from '../../../src/server/colonies/Miranda';
+import {LawSuit} from '../../../src/server/cards/promo/LawSuit';
 import {Ceres} from '../../../src/server/colonies/Ceres';
 import {Io} from '../../../src/server/colonies/Io';
 import {LunaGovernor} from '../../../src/server/cards/colonies/LunaGovernor';
@@ -728,6 +729,28 @@ plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, forei
     throw new Error(`the miranda-remote-bonus fixture expected red on the move with a free fleet and blue's cube on Miranda — got active=${game.activePlayer.color} wf=${red.getWaitingFor()?.constructor.name}`);
   }
   write('miranda-remote-bonus', game);
+}
+
+// ── law-suit-live: the SCREEN DIRECTOR's shape `player` (the shapes no run met live — `UNOBSERVED_SHAPES`). The
+//    composer pre-collects Law Suit's pick, so the console meets a LIVE `SelectPlayer` only on a divergence or a
+//    reconnect — exactly what the stand drives: blue plays Law Suit over the API (no batch), the server asks the pick,
+//    the console opens on it. Two seats; red removed blue's resources this generation (`removingPlayers`). ──
+{
+  const [game, blue, red] = testGame(2, {
+    skipInitialCardSelection: false, promoCardsOption: true,
+    customCorporationsList: [CardName.CREDICOR, CardName.CREDICOR], startingCorporations: 1,
+  });
+  answerStartFlow(game, [blue, red]);
+  blue.cardsInHand.push(new LawSuit());
+  blue.removingPlayers = [red.id];
+  blue.megaCredits = 30;
+  red.megaCredits = 20;
+  runAllActions(game);
+  if (game.activePlayer.id !== blue.id || !(blue.getWaitingFor() instanceof OrOptions) ||
+      !blue.getPlayableCards().some((c) => c.name === CardName.LAW_SUIT)) {
+    throw new Error(`the law-suit-live fixture expected blue on the move with Law Suit playable — got active=${game.activePlayer.color}`);
+  }
+  write('law-suit-live', game);
 }
 
 // ── play-scale-card: a solo action phase with a card in hand that RAISES A

@@ -104,11 +104,8 @@ const UNOBSERVED_FAMILY: ReadonlyArray<ScreenOwner> = ['task', 'decision', 'prod
  * narrows its row.
  */
 export const UNOBSERVED_SHAPES: Readonly<Record<string, string>> = {
-  'choice:confirm': 'a bare SelectOption — every producer in scope is pre-collected or answered by its own door',
-  'choice:espionage': 'Modular Floodgates\' blockade pick — its workspace serves it through the pick door; no stand asks it live',
-  'amount:delta': 'the Hydronetwork\'s amount — its frame serves it at runtime',
-  'player': 'pre-collected by the composers (Law Suit, DecreaseAnyProduction) — live only on a batch divergence',
-  'composite': 'a bare AndOptions is pre-collected (the Industrialists\' action, the colony trade)',
+  'choice:confirm': 'never asked STANDALONE in scope: a bare SelectOption is an option of an OrOptions, and the one deferred alone (the remote colony bonus\'s collect) carries its marker and routes to colonyBonus',
+  'composite': 'never asked STANDALONE in scope: every AndOptions is nested in the action menu (the party actions — `partyActionPrompt`, the colony trade) or routes to its own kind (Stormcraft\'s heat, the Venus bonus, a distribution)',
 };
 
 /**
@@ -121,6 +118,7 @@ export const ROW_REASONS: Readonly<Record<string, string>> = {
   'awardFunding|awards': 'Vitor\'s free funding is the opening\'s (the start director\'s); the awards sheet is its surface past it',
   'corpFirstAction|start': 'inside the opening the start serves it (the start director judges that)',
   'corpFirstAction|corp-first': 'the corporation\'s first action past the opening (a merger) — its own confirm',
+  'choice:espionage|hydro': 'the blockade / espionage pick is the Hydronetwork frame\'s by its serves (the pick door); the row names it so the shape always has its owner',
   'colonyBonus|colonies': 'the live window is the announce; the colonies stand only in the beat its door answers',
 };
 
@@ -142,12 +140,16 @@ const EXPECTED: {[K in TaskKind]: (task: Extract<ConsoleTask, {kind: K}>) => Rea
     case 'contextual': return ['decision', 'task'];
     case 'generic': return ['task'];
     case 'deltaBonus': return ['hydro'];
+    // Met live only off a batch (`console-screen-shadow-rows`): the Hydronetwork frame serves it by its `serves`.
+    case 'espionage': return ['hydro'];
     default: return UNOBSERVED_FAMILY;
     }
   },
   awardFunding: () => ['awards'],
-  player: () => UNOBSERVED_FAMILY,
-  amount: (t) => t.flavor === 'generic' ? ['task'] : UNOBSERVED_FAMILY,
+  // Pre-collected by the composers; met live off a batch (Law Suit — `console-screen-shadow-rows`): the task host.
+  player: () => ['task'],
+  // `delta` (the Hydronetwork's stepper, a divergence) is the task host's too — seen live off a batch.
+  amount: () => ['task'],
   // Seen only in the prompt-family gallery (a patched prompt): live, only held-back Prelude 2 cards and Pathfinders ask it.
   resource: () => ['task'],
   distribute: (t) => t.mode === 'production' ? ['prod-loss', 'task'] : ['task'],

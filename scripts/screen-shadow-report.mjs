@@ -205,8 +205,7 @@ const outOfScope = rows.filter(([k]) => /'(free|start|unknown)'/.test(rowText.ge
  * when the scope widens (a held-back Prelude 2 card enters, a composer stops pre-collecting).
  */
 const KNOWN_UNREACHABLE = new Map([
-  ['player', 'SelectPlayer (Law Suit, DecreaseAnyProduction, a colony discard) is PRE-COLLECTED by the composers — live only on a batch divergence'],
-  ['composite', 'a bare AndOptions (the Industrialists\' action, the colony trade) is pre-collected; Stormcraft / the Venus bonus / a distribution route to their own kinds'],
+  ['composite', 'never asked STANDALONE in scope: every AndOptions is nested in the action menu (the party actions, the colony trade) or routes to its own kind (Stormcraft, the Venus bonus, a distribution)'],
 ]);
 const unreachable = rows.filter(([k]) => !observedKinds.has(k) && KNOWN_UNREACHABLE.has(k));
 const unverified = rows.filter(([k]) => !observedKinds.has(k) && !outOfScope.some(([o]) => o === k) && !KNOWN_UNREACHABLE.has(k));

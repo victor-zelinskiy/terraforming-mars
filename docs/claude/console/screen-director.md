@@ -201,8 +201,8 @@ row against the server, 3/3).
    `amount:generic` → task · `distribute:resources` → task · `:production` → prod-loss, task · `deckSelect` →
    deck-pick · `projectCard:standardProject` → standard-projects (the generic sheet was never seen) · `resource` →
    task (seen only in the prompt-family gallery's patched prompt). The generic family (`UNOBSERVED_FAMILY`) stays ONLY
-   on the shapes nobody met live, each with its reason (`UNOBSERVED_SHAPES` — `choice:confirm`, `choice:espionage`,
-   `amount:delta`, `player`, `composite`); an owner a row keeps without having been seen carries its reason
+   on the shapes never asked standalone in scope, each with its reason (`UNOBSERVED_SHAPES` — `choice:confirm`,
+   `composite`; see 5); an owner a row keeps without having been seen carries its reason
    (`ROW_REASONS` — the generic choice's task host, the draft's re-pick banner, Vitor's free funding, the corp's first
    action, the remote colony bonus's colonies).
 2. **A frame's `serves` is its own basis** (`serves`, beside `table` · `host` · `branch`) — the Hydronetwork's deck pick,
@@ -219,6 +219,17 @@ row against the server, 3/3).
    `martian-media-center`, `parliament-zone-v5` GREEN on a worktree of HEAD + this step only (the neighbours'
    uncommitted work was in the shared build); `habitat-science`, `social-heating` red on the bare HEAD; the finale's
    timing specs only beside other runs.
+
+5. **…and the shapes a composer pre-collects are met LIVE too** (the owner: «а почему бы на них не написать e2e?» —
+   2026-11-01). Three of the five «unobserved» shapes are asked STANDALONE by the server whenever the answer did not
+   ride a batch — a divergence, a reconnect — so `console-screen-shadow-rows` makes the move over the API and reloads
+   the console onto the live prompt: `player` (Law Suit, fixture `law-suit-live`) → task · `choice:espionage`
+   (Modular Floodgates' blockade, `floodgates-blockade-then-action`) → the Hydronetwork by its `serves` ·
+   `amount:delta` (the Hydronetwork advance, `hydro-terminal`) → task — each judged and served, nothing filed; the rows
+   are narrowed to it. The two left are PROVABLY never standalone in scope, and say why: `composite` (every AndOptions
+   is nested in the action menu — the party actions' `partyActionPrompt`, the colony trade — or routes to its own kind)
+   and `choice:confirm` (a bare SelectOption is an option of an OrOptions; the one deferred alone, the remote colony
+   bonus's collect, routes to `colonyBonus`). The report's coverage now reads «unverified rows: none».
 
 **Gate G2 is green.** Step 3 (the field agrees) needs the owner's games on a build ≥ this one — the flight recorder
 already ships every `[screen-shadow]` line from the box and the Deck; `scripts/field-log-report.mjs` reads them.
