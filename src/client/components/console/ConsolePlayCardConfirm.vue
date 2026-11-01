@@ -174,7 +174,7 @@
               <div class="con-composer__resulthero"
                    data-unfold-item
                    :class="{'con-composer__resulthero--muted': payExpanded}">
-              <!-- RESULT: variants (selectable) — their heading on top; a plain result's heading is its cell's (the head line). -->
+              <!-- RESULT: variants (selectable) — their heading on top; a plain result's heading stands over its row (below). -->
               <div v-if="hasVariants" class="con-composer__sub-title con-composer__sub-title--result">{{ $t(resultHeading) }}</div>
               <!-- THE ИЛИ CHOICE — a COMPARISON, so the options stand side by
                    side while the width allows it and fall into a column when it
@@ -222,56 +222,27 @@
                   </div>
                 </template>
               </ConsoleVariantChoice>
-              <!-- THE HEAD LINE (P81 · DU-bis, the owner 2026-11-01): what the card GIVES, split HORIZONTALLY into cells that
-                   mirror the face — «РЕЗУЛЬТАТ» (the immediate change, the loudest), then what it leaves on the table in
-                   the face's own print: «ЭФФЕКТ», «ДЕЙСТВИЕ» (the printed box, 1:1 — nothing predicted), the VP shield.
-                   The set of cells is the CARD's, never the table's: one card always reads the same (only «Сработает» —
-                   the table's answer — depends on the table, on its own line below). Side by side while the width allows,
-                   a cell wraps whole when it does not; the vertical room stays the body's. -->
-              <div v-if="(!hasVariants && immediateEffects.length > 0) || printedCells.length > 0 || vpCell !== undefined"
-                   class="con-composer__heroline" data-composer-heroline>
-                <div v-if="!hasVariants && immediateEffects.length > 0" class="con-composer__herocell con-composer__herocell--result" data-herocell="result">
-                  <div class="con-composer__sub-title con-composer__sub-title--result">{{ $t(resultHeading) }}</div>
-                  <div class="con-composer__hero-chips con-composer__result-chips">
-                    <!-- A chip that opens a PHASE of the result («THEN» — TR47's fall after its raise; «Net» — the rating
-                         the whole swing leaves) is preceded by the card's own printed divider word: the row reads in the
-                         face's order (the raise · ЗАТЕМ · the fall · ИТОГ), never one undivided list of ups and downs. -->
-                    <template v-for="(eff, k) in immediateEffects" :key="k">
-                      <span v-if="eff.phase !== undefined" class="con-composer__phase" :data-phase="eff.phase">{{ $t(eff.phase) }}</span>
-                      <ActionEffectChip :effect="eff" :basisInStrip="basisReadByStrip(eff)" />
-                    </template>
-                  </div>
+              <!-- THE RESULT ROW (P81 · the owner 2026-11-01): EVERYTHING the play brings is the result — the resources
+                   (`current → resulting`), a NEW EFFECT, a NEW ACTION, the VP — as chips of ONE row on one chassis, under ONE
+                   «РЕЗУЛЬТАТ» heading. The card's own graphic is never printed a second time (the face beside the sheet
+                   carries it); the chip says only that the card brings it. The set is the CARD's (one card always reads
+                   the same); only «Сработает» — the table's answer — depends on the table, on its own line below. -->
+              <template v-if="!hasVariants && (immediateEffects.length > 0 || resultGains.length > 0 || vpCell !== undefined)">
+                <div class="con-composer__sub-title con-composer__sub-title--result">{{ $t(resultHeading) }}</div>
+                <div class="con-composer__hero-chips con-composer__result-chips">
+                  <!-- A chip that opens a PHASE of the result («THEN» — TR47's fall after its raise; «Net» — the rating the
+                       whole swing leaves) is preceded by the card's own printed divider word: the row reads in the face's
+                       order (the raise · ЗАТЕМ · the fall · ИТОГ), never one undivided list of ups and downs. -->
+                  <template v-for="(eff, k) in immediateEffects" :key="k">
+                    <span v-if="eff.phase !== undefined" class="con-composer__phase" :data-phase="eff.phase">{{ $t(eff.phase) }}</span>
+                    <ActionEffectChip :effect="eff" :basisInStrip="basisReadByStrip(eff)" />
+                  </template>
+                  <ConsolePlayResultGains :gains="resultGains" :vp="vpCell" />
                 </div>
-                <div v-for="cell in printedCells" :key="cell.key" class="con-composer__herocell con-composer__herocell--printed"
-                     :data-herocell="cell.kind">
-                  <div class="con-composer__sub-title con-composer__sub-title--printed">{{ $t(cell.label) }}</div>
-                  <div class="con-composer__printed">
-                    <div v-for="(n, ni) in cell.nodes" :key="ni" class="con-composer__printed-graphic card-container" v-i18n v-strip-action-prefix>
-                      <CardRenderEffectBoxComponent v-if="n.node !== undefined" :effectData="n.node" />
-                      <CardRenderData v-else-if="n.root !== undefined" :renderData="n.root" />
-                      <span v-else class="con-composer__graphic-text">{{ n.text ?? '' }}</span>
-                    </div>
-                  </div>
-                </div>
-                <!-- THE VP CELL — ONE language for every kind of points (the owner, 2026-11-01): the shield and the number;
-                     a «per X» card's number is what it scores NOW and its printed formula stands BESIDE it, quiet (the
-                     score explorer's own formatter — the counted tag / object, «2 × 1 ПО», the shortfall); a VP the play
-                     cannot know yet says so in a word. Never a sentence row of its own. -->
-                <div v-if="vpCell !== undefined" class="con-composer__herocell con-composer__herocell--vp" data-herocell="vp"
-                     :data-printed-vp="vpCell.value" :data-vp-kind="vpCell.kind">
-                  <div class="con-composer__printed-vp">
-                    <ConsoleVpBadge class="con-composer__vpbadge" :label="$t('VP')" />
-                    <b class="con-composer__vpnum" :class="{'con-composer__vpnum--word': vpCell.kind === 'variable'}">{{ vpCell.value }}</b>
-                    <span v-if="vpCell.formula !== undefined" class="con-composer__vpformula" data-vp-formula>
-                      <img v-if="formulaTagIcon(vpCell.formula) !== undefined" class="con-composer__vpformula-tag"
-                           :src="formulaTagIcon(vpCell.formula)" alt="" aria-hidden="true">
-                      <PremiumCountGlyph v-for="(glyph, gi) in formulaCountGlyphs(vpCell.formula)" :key="'vg' + gi"
-                                         class="con-composer__rescat-vpglyph" :glyph="glyph" data-vp-glyph />
-                      <span>{{ formulaOperandsText(vpCell.formula) }}</span>
-                      <span v-if="shortfallText(vpCell.formula) !== ''" class="con-composer__vpformula-short">· {{ shortfallText(vpCell.formula) }}</span>
-                    </span>
-                  </div>
-                </div>
+              </template>
+              <!-- …and under an «ИЛИ» choice the card's other gains stand ONCE below the options (they come with every one). -->
+              <div v-else-if="hasVariants && (resultGains.length > 0 || vpCell !== undefined)" class="con-composer__hero-chips con-composer__result-chips">
+                <ConsolePlayResultGains :gains="resultGains" :vp="vpCell" />
               </div>
               <!-- «ПОЧЕМУ» (PL-156, the owner's M1 2026-10-11): a walk whose length the card COUNTS (TR42) explains its
                    number as a READING of the result, at the chips' scale, right under them — never as a «ДАЛЕЕ» row (the
@@ -889,8 +860,8 @@ import {cardHasAction, playerActionGroups, ActionGroup} from '@/client/component
 import {stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
 import {divertedTileWarnings} from '@/client/components/actions/divertedTileWarning';
-import {cardHasPassiveEffect, playerEffectGroups} from '@/client/components/effects/effectExtraction';
-import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
+import {cardHasPassiveEffect} from '@/client/components/effects/effectExtraction';
+import ConsolePlayResultGains, {ResultGain, ResultVp} from '@/client/components/console/ConsolePlayResultGains.vue';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
 import {orOptionDoor} from '@/client/console/handPickRouting';
@@ -1012,13 +983,6 @@ import {tileIconStyle} from '@/client/console/consoleTileIcon';
  * neither needs to be a focus target competing with the CTA.
  */
 type GroupNode = ActionGroup['nodes'][number];
-/** One cell of the head line's printed half: the face's effect boxes or its action's box(es), 1:1. */
-type PrintedCell = {
-  key: string,
-  kind: 'effect' | 'action',
-  label: string,
-  nodes: ReadonlyArray<{node: GroupNode['actionNode'], root: GroupNode['renderRoot'], text: string | undefined}>,
-};
 
 type PlayRow =
   | {i: number, id: string, kind: 'variant', pos: number}
@@ -1154,7 +1118,7 @@ export default defineComponent({
   name: 'ConsolePlayCardConfirm',
   // ConsoleCardFaceLite — the answered target row's miniature (PL-269: it was used in the template and never
   // registered, so the row rendered an unknown <consolecardfacelite> tag — no miniature, ever).
-  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierMarks, PremiumPartyRequirementGlyph, ConsoleVpBadge},
+  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierMarks, PremiumPartyRequirementGlyph, ConsolePlayResultGains},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1485,34 +1449,26 @@ export default defineComponent({
       return !this.payFree && paymentLineEligible(this.paymentView) ? 'line' : 'compact';
     },
     /**
-     * WHAT THE CARD LEAVES ON THE TABLE, in the face's own print (P81 · the owner 2026-11-01 — «ЭФФЕКТ» / «ДЕЙСТВИЕ»):
-     * the printed effect boxes and the action's box(es), read by the SAME extractors the «Эффекты» / «Действия карт»
-     * screens use — a card property, never a prediction: one card always shows the same cells.
+     * WHAT THE PLAY ADDS BEYOND ITS RESOURCES (the owner, 2026-11-01): a NEW EFFECT, a NEW ACTION — chips of the result
+     * row (`ConsolePlayResultGains`), the glyphs of the «Эффекты» / «Действия карт» screens; never the card's graphic a
+     * second time. A card property (`cardHasPassiveEffect` / `cardHasAction`): one card always reads the same.
      */
-    printedCells(): ReadonlyArray<PrintedCell> {
-      const model = [{name: this.cardName} as CardModel];
-      const cells: Array<PrintedCell> = [];
-      const effects = playerEffectGroups(model).flatMap((g) => g.effects);
-      if (effects.length > 0) {
-        cells.push({key: 'effect', kind: 'effect', label: 'Effect',
-          nodes: effects.map((e) => ({node: e.effectNode, root: e.renderRoot, text: e.text}))});
+    resultGains(): ReadonlyArray<ResultGain> {
+      const gains: Array<ResultGain> = [];
+      if (cardHasPassiveEffect(this.cardName)) {
+        gains.push({kind: 'effect', icon: 'effects', label: 'Effect'});
       }
-      const actions = playerActionGroups(model).flatMap((g) => g.nodes);
-      if (actions.length > 0) {
-        cells.push({key: 'action', kind: 'action', label: 'Action',
-          nodes: actions.map((n) => {
-            const stripped = stripNodeOr(n);
-            return {node: stripped.actionNode, root: stripped.renderRoot, text: stripped.text};
-          })});
+      if (cardHasAction(this.cardName)) {
+        gains.push({kind: 'action', icon: 'actions', label: 'Action'});
       }
-      return cells;
+      return gains;
     },
     /**
      * THE VP CELL (one language for every kind of points): a fixed print («1», a penalty «-1»), a «per X» card's
      * projection — what it scores NOW, the server's number, with its formula — or a value the play cannot know yet
      * («по условию»). Read off the result's `vp` section (`derivePlayResultSections` — the server's projection).
      */
-    vpCell(): {kind: 'fixed' | 'formula' | 'variable', value: string, formula?: ScoreFormula} | undefined {
+    vpCell(): ResultVp | undefined {
       const sec = this.resultSections.find((s) => s.kind === 'vp');
       if (sec === undefined) {
         return undefined;
@@ -1520,7 +1476,8 @@ export default defineComponent({
       if (sec.variable === true) {
         return {kind: 'variable', value: translateText('by condition')};
       }
-      const value = (sec.detail ?? '').replace(/^\+/, '');
+      // A gain reads signed («+1», a penalty «-1») — the result row's own voice; the server's projection as given.
+      const value = sec.detail ?? '';
       return sec.formula !== undefined ? {kind: 'formula', value, formula: sec.formula} : {kind: 'fixed', value};
     },
     /** The payment stands in the DOCK only as ONE line (one lane, nothing to shape) or as FREE; a ledger is the body's. */

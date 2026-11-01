@@ -25,9 +25,10 @@ import {bootFixture, FixtureName, focusCard, press, settle} from './consoleStart
  *   (i) a ledger (several lanes) stands in the BODY, never in the dock; the one-line price in the dock;
  *   (j) the commit stands whole inside the sheet — a tall ledger never pushes it out;
  *   (k) a short body block is CENTRED in the body (the result at the card's mid-height, never pinned over a void);
- *   (m) THE HEAD LINE (the owner, 2026-11-01): no heading over nothing; what the card leaves on the table stands in the
- *       face's own print — «ЭФФЕКТ» / «ДЕЙСТВИЕ» cells, the VP shield — a card with no immediate result shows them alone
- *       (Cutting Edge Technology), never an empty sheet; on the TV the cells stand on ONE line (horizontal, not stacked).
+ *   (m) THE RESULT ROW (the owner, 2026-11-01): no heading over nothing; everything the play brings is a chip of ONE
+ *       «РЕЗУЛЬТАТ» row — the resources, «+ Эффект», «+ Действие», the VP shield — never the card's graphic a second time;
+ *       a card with no immediate result reads its gains alone (Cutting Edge Technology), never an empty sheet; on the TV
+ *       the row is ONE line.
  * Frames: `screenshots/play-sheet/<profile>/`.
  */
 
@@ -41,7 +42,7 @@ const PROFILES = [
 ] as const;
 
 /** `density`: the payment's expected density; `undefined` — whatever the deal gives (annotated, not judged). */
-type Case = {id: string, fixture: FixtureName, card: string | undefined, density: 'line' | 'compact' | undefined, why: boolean, tall?: boolean, cells?: ReadonlyArray<string>};
+type Case = {id: string, fixture: FixtureName, card: string | undefined, density: 'line' | 'compact' | undefined, why: boolean, tall?: boolean, gains?: ReadonlyArray<string>, vp?: boolean};
 const CORPUS: ReadonlyArray<Case> = [
   // A counted event, M€ only: the line, «РАСЧЁТ» of two terms, the event-tags role.
   {id: 'soil-studies', fixture: 'soil-studies', card: 'Soil Studies', density: 'line', why: true},
@@ -52,10 +53,10 @@ const CORPUS: ReadonlyArray<Case> = [
   // A solo hand with steel and titanium: the first card whose payment holds an alternative lane (the ledger case).
   {id: 'ledger', fixture: 'solo-actions', card: undefined, density: 'compact', why: false},
   // THE WORST PAYMENT (the owner's question): Space Elevator with every lane open — an eight-row ledger.
-  {id: 'ledger-8', fixture: 'play-sheet-ledger', card: 'Space Elevator', density: 'compact', why: false, tall: true, cells: ['result', 'action', 'vp']},
+  {id: 'ledger-8', fixture: 'play-sheet-ledger', card: 'Space Elevator', density: 'compact', why: false, tall: true, gains: ['action'], vp: true},
   // THE OTHER EXTREME (the owner's frame of an empty sheet): no immediate result — a printed EFFECT and 1 VP (Helion's heat
   // is a second lane: the ledger).
-  {id: 'effect-only', fixture: 'play-sheet-ledger', card: 'Cutting Edge Technology', density: 'compact', why: false, cells: ['effect', 'vp']},
+  {id: 'effect-only', fixture: 'play-sheet-ledger', card: 'Cutting Edge Technology', density: 'compact', why: false, gains: ['effect'], vp: true},
 ];
 
 type Rect = {t: number, b: number, l: number, r: number, w: number, h: number};
@@ -78,8 +79,12 @@ type Scene = {
   faceRoles: Array<string>,
   /** Where the payment panel stands: 'dock' | 'body' | ''. */
   payWhere: string,
-  /** The head line's cells (m): kind + bottom edge. */
-  cells: Array<{kind: string, bottom: number}>,
+  /** The result row (m): its non-resource gains, the VP chip, the distinct lines its chips stand on, and the card's
+   *  graphic printed a second time (must be none). */
+  gains: Array<string>,
+  vpChip: boolean,
+  resultLines: number,
+  graphicDuplicates: number,
   /** A «РЕЗУЛЬТАТ» heading standing over nothing (m). */
   emptyKicker: boolean,
   /** The sheet wears the EXPANDED mark (l). */
@@ -174,9 +179,15 @@ async function readScene(page: Page): Promise<Scene> {
         return kind === 'tags' || kind === 'action' || kind === 'effect' || kind === 'vp';
       }).map((el) => el.getAttribute('data-rescat') ?? ''),
       expanded: sheetEl?.hasAttribute('data-sheet-expanded') ?? false,
-      cells: [...host.querySelectorAll('[data-herocell]')].map((el) => ({kind: el.getAttribute('data-herocell') ?? '', bottom: Math.round(el.getBoundingClientRect().bottom)})),
+      gains: [...host.querySelectorAll('[data-result-gain]')].map((el) => el.getAttribute('data-result-gain') ?? ''),
+      vpChip: host.querySelector('[data-result-vp]') !== null,
+      resultLines: (() => {
+        const row = host.querySelector('.con-composer__result-chips');
+        return row === null ? 0 : new Set([...row.children].map((c) => Math.round(c.getBoundingClientRect().top / 6))).size;
+      })(),
+      graphicDuplicates: host.querySelectorAll('.con-composer__result-chips .card-container, .con-composer__result-chips .card-description').length,
       emptyKicker: host.querySelector('.con-composer__sub-title--result') !== null &&
-        host.querySelector('.con-composer__result-chips .action-effect-chip') === null && host.querySelector('.con-composer__variants') === null,
+        host.querySelector('.con-composer__result-chips > *') === null && host.querySelector('.con-composer__variants') === null,
       payWhere: host.querySelector('.con-composer__playdock .con-pay') !== null ? 'dock' :
         host.querySelector('.con-composer__playmid .con-pay') !== null ? 'body' : '',
       body: rect(viewport),
@@ -311,10 +322,12 @@ function expectSheet(scene: Scene, label: string, deck: boolean, c: Case): void 
       `${label}: (j) the commit whole inside the sheet — commit ${JSON.stringify([scene.cta.t, scene.cta.b])} sheet ${JSON.stringify([scene.sheet.t, scene.sheet.b])}`).toBe(true);
   }
   expect.soft(scene.emptyKicker, `${label}: (m) no «РЕЗУЛЬТАТ» heading over nothing`).toBe(false);
-  if (c.cells !== undefined) {
-    expect.soft(scene.cells.map((x) => x.kind), `${label}: (m) the head line's cells are the card's`).toEqual([...c.cells]);
+  expect.soft(scene.graphicDuplicates, `${label}: (m) the card's graphic is never printed a second time in the sheet`).toBe(0);
+  if (c.gains !== undefined) {
+    expect.soft(scene.gains, `${label}: (m) the result's gains are the card's`).toEqual([...c.gains]);
+    expect.soft(scene.vpChip, `${label}: (m) the VP stands as a chip of the result`).toBe(c.vp === true);
     if (label.startsWith('tv4k')) {
-      expect.soft(new Set(scene.cells.map((x) => Math.round(x.bottom / 4))).size, `${label}: (m) the cells stand on ONE line — ${JSON.stringify(scene.cells)}`).toBe(1);
+      expect.soft(scene.resultLines, `${label}: (m) the result row is ONE line`).toBe(1);
     }
   }
   if (scene.body !== null && scene.block !== null && scene.block.h < scene.body.h - 6) {
