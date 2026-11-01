@@ -26,8 +26,10 @@
          'con-played-cat--busy': busy,
          'con-played-cat--framed': state.frameOn,
          'con-played-cat--held': state.holdCards,
+         'con-played-cat--unfolded': unfolded,
+         'con-played-cat--closing': state.phase === 'closing',
        }"
-       :style="boxInset"
+       :style="rootStyle"
        role="dialog"
        :aria-label="$t(title)">
     <div class="con-played-cat__backdrop" aria-hidden="true" @click="requestClose"></div>
@@ -290,6 +292,14 @@ export default defineComponent({
       /** Grid faces are mounted (deferred past the open flight — see the
        *  template note). Seeded true for a view that mounts already open. */
       facesOn: playedCategoryState.phase === 'open',
+      /**
+       * THE FLOOR UNFOLDS out of the opened stack (`console_played.less` § the category's floor): the stack's rect as
+       * insets of this view (`--con-cat-from-*`), and whether the floor stands open. Set the frame the director has
+       * painted the proxies — the floor opens IN PARALLEL with the lift, never after the landing. A view that mounts
+       * already open (a restore) starts unfolded.
+       */
+      unfolded: playedCategoryState.phase === 'open',
+      fromInset: {} as Record<string, string>,
       /** Focused-card full-art prewarm debounce (thumb-tier grids only). */
       prewarmTimer: undefined as number | undefined,
       /** The album's strip slides only once the view stands (a fresh mount lands on its page, never slides there). */
@@ -300,6 +310,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The host's measured inset + where the floor unfolds FROM (the opened stack). */
+    rootStyle(): Record<string, string> {
+      return {...(this.boxInset ?? {}), ...this.fromInset};
+    },
     title(): string {
       const key = this.state.category;
       return key !== undefined ? PLAYED_CATEGORY_LABEL[key] : 'Played';
@@ -532,6 +546,43 @@ export default defineComponent({
         this.frameTimer = undefined;
       }
     },
+    /**
+     * The opened stack's rect as insets of this view — the floor's starting clip. Read off the table's own stack
+     * (`[data-played-cat]`, the element the cursor stood on); no stack (a restore, a vanished zone) → the floor
+     * opens from its own centre line, still a phrase.
+     */
+    measureUnfoldOrigin(): void {
+      const root = this.$el as HTMLElement | undefined;
+      if (root === undefined || typeof root.getBoundingClientRect !== 'function') {
+        return;
+      }
+      const view = root.getBoundingClientRect();
+      const host = root.closest('.con-played');
+      const key = this.state.category;
+      const esc = key === undefined ? '' : typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(key) : key;
+      const stack = esc !== '' ? host?.querySelector<HTMLElement>(`[data-played-cat="${esc}"]`) : null;
+      const r = stack?.getBoundingClientRect();
+      const px = (v: number) => `${Math.max(0, Math.round(v))}px`;
+      if (r === undefined || r.width < 2 || r.height < 2 || view.width < 2) {
+        this.fromInset = {'--con-cat-from-t': '50%', '--con-cat-from-b': '50%', '--con-cat-from-l': '0px', '--con-cat-from-r': '0px'};
+        return;
+      }
+      this.fromInset = {
+        '--con-cat-from-t': px(r.top - view.top),
+        '--con-cat-from-l': px(r.left - view.left),
+        '--con-cat-from-r': px(view.right - r.right),
+        '--con-cat-from-b': px(view.bottom - r.bottom),
+      };
+    },
+    /** Open the floor on the NEXT frame — the closed clip must paint once for the transition to have a `from`. */
+    unfoldFloor(): void {
+      this.measureUnfoldOrigin();
+      void this.frame().then(() => {
+        if (this.state.phase === 'opening' || this.state.phase === 'open') {
+          this.unfolded = true;
+        }
+      });
+    },
     // ── the OPEN flight (mounted at phase 'opening') ────────────────────
     async beginOpenFlight(): Promise<void> {
       if (this.state.phase !== 'opening') {
@@ -559,8 +610,11 @@ export default defineComponent({
       // table hands its cards over in the same synchronous turn (no frame
       // where a card exists twice or not at all).
       this.state.holdCards = true;
+      // …and the floor starts unfolding out of the stack WITH the lift.
+      this.unfoldFloor();
     },
     settleOpenInstant(): void {
+      this.unfolded = true;
       this.state.flights = [];
       this.state.groundedNames = [];
       this.state.holdCards = false;
@@ -571,6 +625,7 @@ export default defineComponent({
     onOpenSettled(settledAs: 'open' | 'closed'): void {
       if (settledAs === 'closed') {
         // B reversed the open mid-flight — the cards are back on the table.
+        this.unfolded = false;
         resetPlayedCategoryView();
         this.$emit('settled-closed');
         return;
@@ -630,6 +685,9 @@ export default defineComponent({
       // fades back in place on the table when the close settles.
       this.state.phase = 'closing';
       this.state.frameOn = false;
+      // The floor folds back INTO the stack with the cards' return (the same phrase backwards).
+      this.measureUnfoldOrigin();
+      this.unfolded = false;
       const closeIndices = plannedFlightIndices(
         this.layout, this.cards.length,
         this.box.h > 0 ? this.box.h : FALLBACK_H,
@@ -663,6 +721,7 @@ export default defineComponent({
     onCloseSettled(settledAs: 'open' | 'closed'): void {
       if (settledAs === 'open') {
         // B reversed the close — back to the open view (same landing dance).
+        this.unfolded = true;
         this.onOpenSettled('open');
         return;
       }

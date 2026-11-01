@@ -3,7 +3,7 @@ import {mount, VueWrapper} from '@vue/test-utils';
 import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlayedOverlay.vue';
 import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
 import {playedCategoryState, resetPlayedCategoryView} from '@/client/console/played/playedCategoryView';
-import {consoleCardZoom, closeConsoleCardZoom, consoleZoomProvenance} from '@/client/console/consoleCardZoom';
+import {consoleCardZoom, closeConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {Color} from '@/common/Color';
@@ -355,25 +355,21 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
     });
   });
 
-  // ── SMART OPEN: a one-card zone skips the grid ────────────────────────
-  describe('smart category open (a lone card goes straight to fullscreen)', () => {
+  // ── ONE CARD IS THE SAME SCENE (the owner, 2026-11-01): no shortcut past the category ──
+  describe('a lone card opens the category scene too (never a shortcut to the fullscreen)', () => {
     afterEach(() => closeConsoleCardZoom());
 
-    it('a ONE-card zone opens the fullscreen directly — no category episode', async () => {
+    it('a ONE-card zone opens the category episode — the same flight, the single stage', async () => {
       const wrapper = await make([player('red' as Color, 'Вы', RED_TABLEAU)]);
       // Corporation holds exactly one card in this tableau.
       wrapper.vm.openCategory('corporation');
-      expect(playedCategoryState.phase).to.eq('closed'); // the grid never opened
-      expect(consoleCardZoom.card?.name).to.eq(CardName.THARSIS_REPUBLIC);
-      expect(consoleCardZoom.cards).to.have.length(1);
-      // Lifted PHYSICALLY out of its table slot (returns into it on close).
-      expect(consoleCardZoom.origin.kind).to.eq('physical');
-      // …and it carries the provenance plate.
-      expect(consoleZoomProvenance()?.category).to.eq('Corporation');
+      expect(playedCategoryState.phase).to.eq('opening');
+      expect(playedCategoryState.names).to.deep.eq([CardName.THARSIS_REPUBLIC]);
+      expect(consoleCardZoom.card, 'no fullscreen before the scene').to.be.undefined;
       wrapper.unmount();
     });
 
-    it('a MULTI-card zone still opens the category grid (never the shortcut)', async () => {
+    it('a MULTI-card zone opens the category grid', async () => {
       const wrapper = await make([player('red' as Color, 'Вы', RED_TABLEAU)]);
       wrapper.vm.openCategory('events'); // two events
       expect(playedCategoryState.phase).to.eq('opening');

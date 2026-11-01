@@ -55,8 +55,8 @@ test.describe('played table ⇄ fullscreen', () => {
     //    and its panes are `v-show` (`ConsoleStartScene.vue:26`).
     await bootIntoGame(page, request, {config: GAME_CONFIG, query: '&consoleProfile=auto'});
 
-    // Board home → «Разыграно» (X), then A on the corporation zone: it holds
-    // exactly one card, so the smart shortcut opens the fullscreen directly.
+    // Board home → «Разыграно» (X), then A on the corporation zone: one card opens the category's single stage (the
+    // same scene as any zone — P88 · DY), and X there opens the fullscreen out of the scene's slot.
     await key(page, 'KeyX', 1000);
     const table = page.locator('.con-played');
     await expect(table).toHaveCount(1);
@@ -64,6 +64,8 @@ test.describe('played table ⇄ fullscreen', () => {
     expect(slotBefore, 'the table must have a real slot rect').toBeTruthy();
 
     await key(page, 'Enter', 1400);
+    await expect(page.locator('.con-played-cat--framed'), 'the category scene').toHaveCount(1, {timeout: 15_000});
+    await key(page, 'KeyX', 1400);
     await expect(page.locator('.con-zoom__prov')).toHaveCount(1);
 
     // 1 · The table is NOT parked — it reads as a dimmed silhouette under
@@ -88,6 +90,11 @@ test.describe('played table ⇄ fullscreen', () => {
     await expect(plate).toHaveCount(0);
     await expect(table).toBeVisible();
     await expect(page.locator('.con-played .con-zoom-hold')).toHaveCount(0);
+    // …and B takes the card home from the category scene.
+    for (let i = 0; i < 3 && await page.locator('.con-played-cat').count() > 0; i++) {
+      await key(page, 'Escape', 1200);
+    }
+    await expect(page.locator('.con-played-cat')).toHaveCount(0);
     await shoot(page, '02-returned');
   });
 });

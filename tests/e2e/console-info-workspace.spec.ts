@@ -399,9 +399,17 @@ for (const preset of PRESETS) {
       await key(page, 'Enter', 900);
       await expect(page.locator('.con-info .con-played--embedded')).toHaveCount(1);
       await shoot(page, preset, '07-played-human');
-      // SMART OPEN: the корпорация zone holds ONE card → A goes straight
-      // to fullscreen, carrying the PROVENANCE plate.
+      // ONE CARD IS THE SAME SCENE (P88 · DY): A on the одна-карта корпорация opens the category's single stage (the
+      // old «smart open» shortcut to the viewer is gone); X there opens the fullscreen with the PROVENANCE plate.
       await key(page, 'Enter', 1200);
+      await expect(page.locator('.con-info .con-played-cat--framed'), 'the category scene, embedded').toHaveCount(1, {timeout: 15_000});
+      // …standing on the table's own material in this host too (P88 · DY): square, no drop shadow of its own.
+      const floor = await page.locator('.con-info .con-played-cat__panel').evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return {radius: cs.borderTopLeftRadius, outer: cs.boxShadow.split(/,(?![^(]*\))/).filter((x) => !x.includes('inset') && x.trim() !== 'none').length};
+      });
+      expect(floor, 'the embedded category floor is the stage surface').toEqual({radius: '0px', outer: 0});
+      await key(page, 'KeyX', 1400);
       const plate = page.locator('.con-zoom__prov');
       await expect(plate).toHaveCount(1);
       await expect(plate.locator('.con-zoom__prov-kicker')).toHaveText('Разыграно');
@@ -410,6 +418,11 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-info .con-played--embedded')).toBeVisible();
       await closeZoom(page);
       await expect(page.locator('.con-info .con-played--embedded')).toHaveCount(1);
+      // B closes the category scene (back onto the table), B again leaves the table.
+      for (let i = 0; i < 3 && await page.locator('.con-info .con-played-cat').count() > 0; i++) {
+        await key(page, 'Escape', 1200);
+      }
+      await expect(page.locator('.con-info .con-played-cat')).toHaveCount(0);
       await key(page, 'Escape', 800);
       await expect(workspace.locator('.con-info__layout')).toHaveCount(1);
       // B from the played route lands the ring on ITS zone.

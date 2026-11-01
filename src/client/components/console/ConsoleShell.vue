@@ -6150,7 +6150,13 @@ export default defineComponent({
         !this.finaleSessionEngaged &&
         !this.botTurnReviewState.open &&
         !this.govScaleFocusState.holding &&
-        !this.govScaleFocusState.closing;
+        !this.govScaleFocusState.closing &&
+        // «РАЗЫГРАНО» and the Information workspace stand OVER the board without moving the section (the
+        // board stays the section beneath them) — the board is not the surface the player is looking at, so a
+        // collapsed prompt's plate and its A belong to the board, never to a table the player opened on top
+        // (the owner, 2026-11-01: a collapsed draft came back on A pressed on a category of the table).
+        !this.playedTableVisible &&
+        !infoModeState.open;
     },
     /**
      * MAY THE CURRENT BEAT'S FIRST PRESENTATION HAPPEN NOW? The pending →

@@ -159,11 +159,11 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
 import {
-  buildPlayedZones, planPlayedStacks, pickSpatialTarget, unionNavRects,
-  NavRect, PlayedStackKey, PlayedStackPlan, PlayedStacksPlan, PlayedZones,
+  buildPlayedZones, planPlayedStacks, stepTableFocus,
+  PlayedStackKey, PlayedStackPlan, PlayedStacksPlan, PlayedZones,
 } from '@/client/components/console/consolePlayedModel';
 import {
-  playedCategories, categoryCards, PlayedCategory, PlayedCategoryKey, PLAYED_CATEGORY_LABEL,
+  playedCategories, categoryCards, PlayedCategory, PlayedCategoryKey, PLAYED_CATEGORY_LABEL, PLAYED_CATEGORY_LABEL_SHORT,
 } from '@/client/components/console/consolePlayedCategoryModel';
 import {
   playedCategoryState, resetPlayedCategoryView, isCategoryViewUp, isCategoryViewBusy,
@@ -174,7 +174,7 @@ import {providePlayedHeroTarget} from '@/client/console/played/consolePlayedHero
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {HeroRect} from '@/client/console/played/playedHeroModel';
 import {openConsoleCardZoom, slotZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
-import {playedProvenanceByName, zoomProvenanceOver} from '@/client/components/console/played/playedProvenance';
+import {playedProvenanceByName} from '@/client/components/console/played/playedProvenance';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsolePlayedStack from '@/client/components/console/played/ConsolePlayedStack.vue';
 import ConsolePlayedEventsPile from '@/client/components/console/played/ConsolePlayedEventsPile.vue';
@@ -229,6 +229,8 @@ export default defineComponent({
   },
   data() {
     return {
+      /** The stacks whose caption takes the SHORT label (the full one overflowed its measured room — P5). */
+      shortCaptions: [] as Array<string>,
       /** The measured table body (offset box — transform-independent, so a materializing panel never mis-sizes it). */
       box: {w: 0, h: 0},
       /** The CATEGORY VIEW stands over the table's BODY, never over its head (PL-626): the crumb reads the open zone
@@ -445,6 +447,14 @@ export default defineComponent({
     },
   },
   watch: {
+    /** A new plan (a play, a seat switch, a resize) re-judges every caption from its full label. */
+    'stacks': {
+      flush: 'post',
+      handler(): void {
+        this.shortCaptions = [];
+        void this.$nextTick(() => this.fitCaptions());
+      },
+    },
     /** Data updated (play / undo / reconnect / seat switch): keep the focused
      *  category while it still exists, else land on the first one. */
     'categories': {
@@ -592,7 +602,32 @@ export default defineComponent({
     },
     // ── the stacks ──────────────────────────────────────────────────────
     stackLabel(st: PlayedStackPlan): string {
-      return PLAYED_CATEGORY_LABEL[st.key];
+      return this.shortCaptions.includes(st.key) ? PLAYED_CATEGORY_LABEL_SHORT[st.key] : PLAYED_CATEGORY_LABEL[st.key];
+    },
+    /**
+     * A caption whose FULL label overflows its own box (`captionRoom`) takes the short one — an ellipsis in the middle
+     * of a word («АВТОМАТИЧЕСК…») is a cut, never a label (P5). Measured off the rendered label, so the font, the
+     * profile and the locale decide, never a character count.
+     */
+    fitCaptions(): void {
+      const root = this.$el as HTMLElement | undefined;
+      if (root === undefined || typeof root.querySelectorAll !== 'function') {
+        return;
+      }
+      const next = [...this.shortCaptions];
+      root.querySelectorAll<HTMLElement>('[data-played-stack]').forEach((el) => {
+        const key = el.dataset.playedStack;
+        const label = el.querySelector<HTMLElement>('.con-played__caption-label');
+        if (key === undefined || label === null || next.includes(key)) {
+          return;
+        }
+        if (label.scrollWidth > label.clientWidth + 0.5) {
+          next.push(key);
+        }
+      });
+      if (next.length !== this.shortCaptions.length) {
+        this.shortCaptions = next;
+      }
     },
     stackCards(key: PlayedStackKey): ReadonlyArray<CardModel> {
       return categoryCards(this.zones, key);
@@ -729,28 +764,20 @@ export default defineComponent({
         break;
       }
     },
-    // ── category focus (spatial over the live stack rects) ──────────────
-    /** One rect per focusable stack. */
-    collectCategoryRects(): ReadonlyArray<NavRect> {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelectorAll !== 'function') {
-        return [];
-      }
-      const out: Array<NavRect> = [];
-      root.querySelectorAll<HTMLElement>('[data-played-cat]').forEach((el) => {
-        const key = el.dataset.playedCat;
-        if (key === undefined || key === '') {
-          return;
-        }
-        const r = el.getBoundingClientRect();
-        if (r.width > 2 && r.height > 2) {
-          out.push({key, x: r.left, y: r.top, w: r.width, h: r.height});
-        }
-      });
-      return unionNavRects(out);
-    },
+    // ── category focus (the table is ONE row, walked in layout order) ──
+    /**
+     * THE TABLE IS ONE ROW (law 1): ◀ / ▶ walk the focusable stacks in their LAYOUT order — never the
+     * nearest centre, which skipped a tall stack («Прологи», spread) for a short one further on; ▲ / ▼
+     * have nowhere to go on one row. An edge keeps the cursor (no wrap). `stepTableFocus` is pure.
+     */
     moveFocus(dir: NavDirection): void {
-      const next = pickSpatialTarget(this.focusCategory, this.collectCategoryRects(), dir);
+      if (dir !== 'left' && dir !== 'right') {
+        return;
+      }
+      const keys = this.stacks.stacks
+        .map((st) => this.stackFocusKey(st))
+        .filter((k): k is TableFocusKey => k !== undefined);
+      const next = stepTableFocus(keys, this.focusCategory, dir === 'left' ? -1 : 1);
       if (next !== undefined) {
         this.focusCategory = next as TableFocusKey;
       }
@@ -804,19 +831,10 @@ export default defineComponent({
       if (cards.length === 0) {
         return;
       }
-      // SMART OPEN: a zone holding exactly ONE card has nothing to browse —
-      // the intermediate grid would be a ceremony around a single tile. Go
-      // straight to the fullscreen, lifted PHYSICALLY out of its table slot
-      // (and returned into it on close), carrying the provenance plate.
-      if (cards.length === 1) {
-        this.focusCategory = key;
-        const list = [...cards];
-        openConsoleCardZoom(list, 0, undefined, undefined, {
-          origin: slotZoomOrigin(() => this.$el as HTMLElement, (i) => list[i]?.name ?? ''),
-          provenance: zoomProvenanceOver(this.provenanceByName, list),
-        });
-        return;
-      }
+      // ONE CARD IS THE SAME SCENE (law 4 — the physics is one whatever the layout): the category's
+      // own `single` stage, reached by the same flight. The old «smart open» went straight to the
+      // fullscreen viewer, and an EVENT — face down in a pile with no slot of its own — rose out of
+      // the depth with no lift and no flip, the pile's count never fell (the owner, 2026-11-01).
       this.focusCategory = key;
       playedCategoryState.category = key;
       playedCategoryState.names = cards.map((c) => c.name);

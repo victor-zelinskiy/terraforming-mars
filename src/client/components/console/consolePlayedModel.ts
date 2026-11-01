@@ -474,3 +474,19 @@ export function pickSpatialTarget(
   }
   return best;
 }
+
+/**
+ * THE TABLE IS ONE ROW — ◀ / ▶ walk its stacks IN ORDER (`PLAYED_STACK_ORDER`, the order the
+ * stacks are laid out in), never by distance between centres. The stacks are of very different
+ * heights (two preludes SPREAD one under the other stand twice as tall as the corporation beside
+ * them), so «the nearest centre to the right» skipped the tall neighbour for a short one further
+ * on — ▶ from the corporation landed on «Активные», past «Прологи» (the owner's frame 2026-11-01).
+ * `keys` are the FOCUSABLE stacks in layout order; an edge keeps the cursor where it is (no wrap).
+ */
+export function stepTableFocus(keys: ReadonlyArray<string>, fromKey: string, delta: -1 | 1): string | undefined {
+  const at = keys.indexOf(fromKey);
+  if (at < 0) {
+    return keys[0];
+  }
+  return keys[at + delta];
+}

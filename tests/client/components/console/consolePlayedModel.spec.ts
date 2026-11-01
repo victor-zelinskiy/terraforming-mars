@@ -9,6 +9,7 @@ import {
   planPlayedStacks,
   stackSlotOf,
   pickSpatialTarget,
+  stepTableFocus,
   unionNavRects,
   PLAYED_CARD_NATURAL_W,
   PLAYED_CARD_NATURAL_H,
@@ -233,6 +234,50 @@ describe('consolePlayedModel', () => {
     it('deterministic tie-break: the first candidate in DOM order wins', () => {
       const rects = [r('from', 0, 0), r('t1', 100, 50), r('t2', 100, -50)];
       expect(pickSpatialTarget('from', rects, 'right')).to.eq('t1');
+    });
+  });
+
+  /*
+   * THE OWNER'S FRAME (2026-11-01): ▶ from the corporation skipped «ПРОЛОГИ». The table is ONE row of stacks of very
+   * different heights — two preludes SPREAD one under the other stand twice as tall as the corporation — and the
+   * centre-to-centre score preferred the short, level «Активные» further right.
+   */
+  describe('stepTableFocus — the table is one row, walked in layout order', () => {
+    const slotW = 160;
+    const slotH = 230;
+    const gap = 24;
+    const cap = 30;
+    // corporation 1 · preludes 2 (spread: one under the other) · active 1 · automated 1 · events (pile)
+    const frame: Array<NavRect> = [
+      {key: 'corporation', x: 0, y: 0, w: slotW, h: cap + slotH},
+      {key: 'prelude', x: slotW + gap, y: 0, w: slotW, h: cap + 2 * slotH + gap},
+      {key: 'active', x: 2 * (slotW + gap), y: 0, w: slotW, h: cap + slotH},
+      {key: 'automated', x: 3 * (slotW + gap), y: 0, w: slotW, h: cap + slotH},
+      {key: 'event', x: 4 * (slotW + gap), y: 0, w: slotW, h: cap + slotH},
+    ];
+    const order = frame.map((r) => r.key);
+
+    it('the old centre-to-centre walk SKIPS the tall stack (the defect, proven on the frame)', () => {
+      expect(pickSpatialTarget('corporation', frame, 'right')).to.eq('active');
+    });
+
+    it('▶ walks every stack in order, ◀ walks back, an edge stays', () => {
+      const walk: Array<string> = ['corporation'];
+      for (let i = 0; i < 5; i++) {
+        const next = stepTableFocus(order, walk[walk.length - 1], 1);
+        if (next === undefined) {
+          break;
+        }
+        walk.push(next);
+      }
+      expect(walk).deep.eq(['corporation', 'prelude', 'active', 'automated', 'event']);
+      expect(stepTableFocus(order, 'event', 1), 'the right edge').to.be.undefined;
+      expect(stepTableFocus(order, 'prelude', -1)).to.eq('corporation');
+      expect(stepTableFocus(order, 'corporation', -1), 'the left edge').to.be.undefined;
+    });
+
+    it('a vanished focus key lands on the first stack', () => {
+      expect(stepTableFocus(order, 'gone', 1)).to.eq('corporation');
     });
   });
 });

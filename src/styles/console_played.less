@@ -424,27 +424,48 @@
         opacity: 0;
         animation: con-played-cat-backdrop calc(280ms * var(--motion-scale, 1)) ease forwards;
     }
+    /* THE FLOOR IS THE TABLE'S OWN MATERIAL, one level deeper (the owner's 4K frame, 2026-11-01 — «a box inside a
+       box»): the category is the SAME scene as the table it opened from, so it stands on the stage surface the table
+       stands on — square, opaque, the three seams and the top's inner shade (`.con-stage-surface()`) — never a lighter,
+       bluer, rounded plate with a ring and a drop shadow of its own. One material in both hosts (the standalone table
+       and the Information workspace's embedded one). OPAQUE (PL-137's law, PL-626): the table's faces never ghost
+       through it.
+       THE OPENING IS A PHRASE, NOT A POP-IN: the floor UNFOLDS out of the opened stack's rect (`--con-cat-from-*`, set
+       by the view from the stack's measured box) IN PARALLEL with the cards' lift — the cards land on a floor already
+       there; the old panel faded in only AFTER they had landed («chrome assembling round the cards»). clip-path +
+       opacity only: no transform — the landed cards live inside it and a moving panel would drag them. */
     &__panel {
         position: relative;
         display: flex;
         flex-direction: column;
         width: 100%; /* the table's box IS the view's box */
         height: 100%; /* the band IS the height — fills between the bars */
-        border-radius: .8rem;
-        /* OPAQUE (PL-137's law, PL-626): at 0.97 the table's faces and the crumb ghosted through the view at ≈ 3 %. */
-        background: linear-gradient(180deg, rgb(20, 28, 40), rgb(10, 15, 22));
+        .con-stage-surface();
         box-shadow:
-            inset 0 0 0 .05rem rgba(150, 185, 220, 0.2),
-            0 1.2rem 3rem rgba(0, 0, 0, 0.7);
-        /* The chrome assembles AROUND the landed cards — veiled until then.
-           OPACITY ONLY (no transform): the landed cards live INSIDE this
-           panel, so any panel motion here would drag the just-settled cards
-           with it — the exact post-landing "jerk" this forbids. */
+            inset 0 .06rem 0 rgba(190, 225, 255, 0.055),
+            inset 0 1.1rem 1.8rem -1.1rem rgba(0, 0, 0, 0.6),
+            inset .05rem 0 0 rgba(120, 160, 200, 0.13),
+            inset 0 -.05rem 0 rgba(110, 150, 190, 0.07);
+        clip-path: inset(var(--con-cat-from-t, 0) var(--con-cat-from-r, 0) var(--con-cat-from-b, 0) var(--con-cat-from-l, 0));
         opacity: 0;
-        transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
+        transition:
+            clip-path calc(var(--con-cat-unfold-ms, 300) * 1ms * var(--motion-scale, 1)) @con-ease-standard,
+            opacity calc(160ms * var(--motion-scale, 1)) ease;
     }
-    &--framed &__panel {
+    &--unfolded &__panel {
+        clip-path: inset(0 0 0 0);
         opacity: 1;
+    }
+    /* The close is the same phrase backwards: the floor folds back INTO the stack while the cards fly home. */
+    &--closing &__panel {
+        clip-path: inset(var(--con-cat-from-t, 0) var(--con-cat-from-r, 0) var(--con-cat-from-b, 0) var(--con-cat-from-l, 0));
+        opacity: 0;
+        transition:
+            clip-path calc(var(--con-cat-unfold-ms, 300) * 1ms * var(--motion-scale, 1)) @con-ease-standard,
+            opacity calc(200ms * var(--motion-scale, 1)) ease calc(100ms * var(--motion-scale, 1));
+    }
+    @media (prefers-reduced-motion: reduce) {
+        &__panel { transition: none; }
     }
     &--closing &__backdrop {
         animation: none;
@@ -461,6 +482,25 @@
         justify-content: center;
         padding: 1rem 1.2rem 1.2rem;
     }
+    /* THE SHELF the cards stand on — the table's own hairline (`.con-played__none-shelf`'s ink), under every row of
+       the grid and under the single card: the category stands on the table's furniture, not in a void. A line, never
+       a light: the hairline and a short shade under it. */
+    &__slot--single::after,
+    &__row::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        bottom: -.9rem;
+        transform: translateX(-50%);
+        width: min(100%, calc(100% + 2.4rem));
+        height: .5rem;
+        pointer-events: none;
+        background:
+            linear-gradient(90deg, rgba(150, 185, 220, 0), rgba(150, 185, 220, 0.30) 14%, rgba(150, 185, 220, 0.30) 86%, rgba(150, 185, 220, 0))
+                top / 100% .05rem no-repeat,
+            linear-gradient(180deg, rgba(120, 165, 210, 0.08), rgba(120, 165, 210, 0)) top / 100% 100% no-repeat;
+    }
+    &__row { position: relative; }
 
     /* ── the adaptive GRID (windowed rows; centred like the plan math) ──
        Block layout on purpose: the GRID fills the body box (its clientWidth
@@ -645,14 +685,18 @@
             box-shadow: 0 .18rem .5rem rgba(0, 0, 0, 0.45);
         }
     }
+    /* THE CURSOR IS THE ONE GRAMMAR (TR58 · the table's own stack): the ring a LAYER of the lift (only its opacity
+       moves), the lift the slot's transform — never a hand-made halo on the face (invariant 15: light only under
+       the cursor, through `.con-cursor()`). */
+    &__lift {
+        .con-cursor-ring(0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 85%), 0 0 var(--con-glow-r, 1rem) fade(@con-cyan, 26%); .45rem; after; none; 8);
+    }
     &__slot--focused .con-played-cat__lift {
         transform: translateY(-.35rem);
+        .con-cursor-on();
     }
     &__slot--focused .con-played-cat__face > :is(.card-container, .pcard) {
-        box-shadow:
-            0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 85%),
-            0 .5rem 1.1rem rgba(0, 0, 0, 0.62),
-            0 0 .9rem fade(@con-cyan, 26%);
+        box-shadow: 0 .5rem 1.1rem rgba(0, 0, 0, 0.62);
     }
     /* HELD: the flights own the cards — the slot keeps layout, paints
        nothing (badges included: a ✓ band over an empty slot while its card

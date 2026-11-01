@@ -22,12 +22,7 @@
  *
  * Px knobs are authored for the 1080p logical space and multiplied by the TV
  * `uiScale` (conUiScale()); 1 on every non-tv profile.
- *
- * PICK-MODE SEAM (phase 2 — tableau-pick): the category grid is the future
- * pick surface. This model stays selection-agnostic — eligibility filtering /
- * disabled reasons / min-max bounds arrive as a typed context on the VIEW
- * state (playedCategoryView.ts) and only tint the same layout; nothing here
- * needs to change for it.
+
  */
 
 import {CardModel} from '@/common/models/CardModel';
@@ -49,6 +44,21 @@ export const PLAYED_CATEGORY_LABEL: Record<PlayedCategoryKey, string> = {
   active: 'Active',
   automated: 'Automated',
   events: 'Events',
+};
+
+/**
+ * The table's CAPTION in a narrow lane (P5 — the owner's 4K frame read «АВТОМАТИЧЕСК… 1»): a one-lane stack beside a
+ * neighbour leaves its caption less room than «АВТОМАТИЧЕСКИЕ», and an ellipsis in the middle of a word is a cut, never
+ * a label. The table takes this short form when the full one does not fit its measured room (`captionRoom`) — the
+ * crumb and the category scene still name the zone in full.
+ */
+export const PLAYED_CATEGORY_LABEL_SHORT: Record<PlayedCategoryKey, string> = {
+  corporation: 'Corp.',
+  prelude: 'Prel.',
+  ceo: 'CEO',
+  active: 'Act.',
+  automated: 'Auto.',
+  events: 'Evt.',
 };
 
 export type PlayedCategory = {
