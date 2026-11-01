@@ -157,6 +157,36 @@ turning in place, the table gone with the take). Guards: `settlementTable.spec` 
 draw from a hook (`forecastPromisesDraw` — a `you`-recipient fact, exact or asked, gaining cards), and deals the merged
 batch run by run with its own trigger faces (`beatTriggers`, the SAME assembly director).
 
+## Polish 1 — the causes are READ, nothing blinks, the question table lies UNDER the album (2026-11-01)
+
+The owner's TV (a city on a card-bonus cell under a ruling Mars First; Olympus × Mars University «decide after the
+draw»): three defects of the presentation, one law each.
+- **EVERY CAUSE IS NAMED — no silent loss in the head.** The merged head dropped a segment it had no words for
+  (`revealSourceReading` → `undefined`), so «ПОЛУЧЕНО 2» stood over ONE chip and the party's card belonged to nobody.
+  Now: a party's draw says whether it is the party's ACTION or its PASSIVE (`CardDrawRevealSource.party.passive` — set
+  by `DrawCards.revealSourceFromContext` from an `effect` scope; Mars First's city card names itself explicitly), a
+  law names itself through the host's manifest reader (`resolutionNameKey`), the Agenda step as «Карьера», and a cause
+  nobody can name still stands as «ЭФФЕКТ +N» — the chips always add up to the count. A batch-wide `fallbackName`
+  belongs to the batch's ONE cause, never to every unnamed segment of a merge. A cause chip drops the generic
+  «ИСТОЧНИК» (a cell, a party, a law keep their kind word).
+- **WHICH EFFECT GAVE ME THIS CARD is read by pointing.** `RevealStageHead.causeByCard` maps every card of a merged
+  batch to its cause's chip (segments and cards share the dealing order); the focused card's chip wears a kant
+  (`data-reveal-source-current` — material, never light) and the name bar names the cause after the card's name
+  (`data-reveal-cause`). A one-cause batch marks nothing (the head says it once for every card).
+- **ONE HANDOFF FOR THE WHOLE ROW — the guest never dissolves on its own landing.** The board card-bonus scene holds
+  the real cards until ITS handoff; the deck layer's guest run used to dissolve its flyers the moment they landed, so
+  its slot stood EMPTY for the host's frame beat — the card vanished and came back. The guest's flyers now HOVER
+  (`holdIntakeGuest`) and dissolve in the host's handoff frame (`releaseIntakeGuest` — also at every end of the host
+  scene; bounded by `GUEST_HOVER_MAX_MS`). Guards: `tests/console/intakeGuestHover.spec.ts`; e2e
+  `console-draw-one-batch-board-card` — the BLINK WITNESS (every row slot, once painted as its flyer or itself, stays
+  painted through the assembly).
+- **THE QUESTION TABLE LIES UNDER THE ALBUM.** The hand's outcome zone (`.con-hand__outcome`, z 3 over the stage)
+  hosts the parked table, and a pick paused only the STAGE — the sealed place, the taken socket and «Получены карты»
+  were painted over the album's cards. The outcome zone now belongs to the stage's side of the pick swap: hidden with
+  `--stagepaused`, released and returned WITH the stage in the pick phrase (`consoleHandStageMotion.pickLayersOf`).
+  A question's seal carries no ordinal (one place, no sequence — the «1» read as a count). e2e
+  `console-draw-one-batch-sealed-question` (②: the zone hidden, no album card covered by the table).
+
 ## The one named degrade left
 
 - **A tile's run under a COVERED board** stays `board-covered` → the deck, named in the plan. The L3 peek of the paying

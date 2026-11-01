@@ -153,6 +153,22 @@ test.describe('the sealed place of a question — the university\'s answer turns
     const drawn = handOf(wire2).filter((n) => !before.includes(n));
     expect(drawn.length, `Olympus' card is in the hand (${handOf(wire2).join(', ')})`).toBe(1);
     expect(await crumbText(page), 'the album is a stage of the play').toContain('Сброс карты');
+    // …and the parked table lies UNDER the album, never on its cards (the owner's TV, 2026-11-01: the sealed place,
+    // the taken socket and «Получены карты» were painted over the hand): the outcome zone goes with the paused stage,
+    // and every album card is the topmost paint at its own centre.
+    await expect.poll(() => page.evaluate(() => {
+      const zoneEl = document.querySelector('.con-hand__outcome');
+      return zoneEl === null ? 'absent' : getComputedStyle(zoneEl).visibility;
+    }), {timeout: 10_000, message: 'the outcome zone is hidden under the album'}).not.toBe('visible');
+    const coveredSlots = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-hand__slot[data-zoom-slot]')).filter((slot) => {
+      const r = slot.getBoundingClientRect();
+      if (r.width < 4 || r.right < 0 || r.left > window.innerWidth) {
+        return false;
+      }
+      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return top !== null && top.closest('.con-reveal') !== null;
+    }).map((slot) => slot.getAttribute('data-zoom-slot')));
+    expect(coveredSlots, 'no album card is covered by the table').toEqual([]);
     await shoot(page, 'D2-question-album');
 
     // ③ the discard breaks the seal — the answer's card turns IN PLACE: nothing flies a second time.

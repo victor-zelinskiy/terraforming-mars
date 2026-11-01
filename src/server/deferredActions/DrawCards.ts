@@ -21,7 +21,10 @@ import {DrawSearchModel} from '../../common/models/CardDrawRevealModel';
  * change. An explicit `options.source` always wins; no scope → generic text.
  */
 function revealSourceFromContext(player: IPlayer): CardDrawRevealSource | undefined {
-  const source = player.game?.events?.captureContext()?.source;
+  const context = player.game?.events?.captureContext();
+  const source = context?.source;
+  // A party's / a law's PASSIVE (a `withEffectSource` scope) answers the player's move — not their action.
+  const passive = context?.kind === 'effect' ? {passive: true as const} : {};
   if (source === undefined) {
     return undefined;
   }
@@ -35,9 +38,9 @@ function revealSourceFromContext(player: IPlayer): CardDrawRevealSource | undefi
   // Turmoil Redux: a party action (the Reds' recycle) names its party; the
   // enacted resolution's action (Open IP Trade) names the law.
   case 'party':
-    return {type: 'party', party: source.name};
+    return {type: 'party', party: source.name, ...passive};
   case 'resolution':
-    return {type: 'resolution', resolution: source.id};
+    return {type: 'resolution', resolution: source.id, ...passive};
   default:
     return undefined;
   }

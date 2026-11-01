@@ -402,10 +402,17 @@ function artSettled(browse: HTMLElement): Promise<void> {
   });
 }
 
-function pickLayersOf(root: HTMLElement): {browse: HTMLElement, stage: HTMLElement} | undefined {
+/**
+ * The two layers a pick swaps — and the OUTCOME zone, which belongs to the stage's side of the swap: what the play
+ * produced (a question's sealed table, the drawn batch) stands OVER the stage in the same region, so a pick that
+ * hid only the stage left that table painted on top of the album's cards (the owner's TV, 2026-11-01 — Mars
+ * University under Olympus Conference, «decide after the draw»). It lets go and returns WITH the stage.
+ */
+function pickLayersOf(root: HTMLElement): {browse: HTMLElement, stage: HTMLElement, outcome: Array<HTMLElement>} | undefined {
   const browse = root.querySelector<HTMLElement>('.con-hand__browse');
   const stage = root.querySelector<HTMLElement>('.con-hand__stage');
-  return browse !== null && stage !== null ? {browse, stage} : undefined;
+  const outcome = root.querySelector<HTMLElement>('.con-hand__outcome');
+  return browse !== null && stage !== null ? {browse, stage, outcome: outcome === null ? [] : [outcome]} : undefined;
 }
 
 /**
@@ -418,11 +425,11 @@ const livePickPhrases = new WeakMap<Element, () => void>();
  * ONE pick phrase: the inline «before» poses applied in this flush, the gate held, a finish that clears every inline
  * value it wrote. `run` builds the motion and calls `finish` when it is done.
  */
-function pickPhrase(root: HTMLElement, layers: {browse: HTMLElement, stage: HTMLElement}, targets: ReadonlyArray<HTMLElement>,
+function pickPhrase(root: HTMLElement, layers: {browse: HTMLElement, stage: HTMLElement, outcome: Array<HTMLElement>}, targets: ReadonlyArray<HTMLElement>,
   budgetMs: number, run: (finish: () => void, alive: () => boolean) => void, onDone?: () => void): void {
   livePickPhrases.get(root)?.();
   killEpisode(root);
-  const all = [layers.stage, layers.browse, ...targets];
+  const all = [layers.stage, layers.browse, ...layers.outcome, ...targets];
   const release = acquireGate();
   let finished = false;
   // ONE end, whichever road reaches it first (the timeline, the safety, a superseding phrase): the caller's `onDone`
@@ -453,12 +460,12 @@ export function handStagePickPause(root: HTMLElement): void {
     livePickPhrases.get(root)?.();
     return; // the class flip IS the reduced-motion answer: the shelf at once
   }
-  const {browse, stage} = layers;
+  const {browse, stage, outcome} = layers;
   const items = cascadeItemsOf(stage);
   const siblings = pickSiblingsOf(browse);
   pickPhrase(root, layers, [...items, ...siblings], GROUPS_OUT_MS + SIBLINGS_IN_MS + ART_WAIT_MS, (finish, alive) => {
     // FIRST, before this flush can paint: the composer stays where it stood, the shelf stays dark.
-    gsap.set(stage, {autoAlpha: 1});
+    gsap.set([stage, ...outcome], {autoAlpha: 1});
     gsap.set(browse, {autoAlpha: 0});
     if (siblings.length > 0) {
       gsap.set(siblings, {autoAlpha: 0});
@@ -467,7 +474,7 @@ export function handStagePickPause(root: HTMLElement): void {
     if (items.length > 0) {
       gsap.to(items, {autoAlpha: 0, duration: s(GROUPS_OUT_MS), ease: 'power1.in'});
     }
-    gsap.to(stage, {autoAlpha: 0, duration: s(100), delay: s(30), ease: 'power1.in'});
+    gsap.to([stage, ...outcome], {autoAlpha: 0, duration: s(100), delay: s(30), ease: 'power1.in'});
     // 2 · BLOOM — the hand comes back in around the card flying home, once its art is there to be seen and once the
     //     composer has LET GO of the place (released, never cross-faded: two surfaces in one place read as neither).
     const lead = new Promise<void>((resolve) => window.setTimeout(resolve, motionMs(130)));
@@ -494,13 +501,13 @@ export function handStagePickResume(root: HTMLElement, onDone?: () => void): voi
     onDone?.();
     return;
   }
-  const {browse, stage} = layers;
+  const {browse, stage, outcome} = layers;
   const items = cascadeItemsOf(stage);
   const siblings = pickSiblingsOf(browse);
   pickPhrase(root, layers, [...items, ...siblings], ISOLATE_MS + CASCADE_MS, (finish) => {
     // FIRST: the shelf stays on screen (the class just parked it), the stage stays dark (the class just lit it).
     gsap.set(browse, {autoAlpha: 1});
-    gsap.set(stage, {autoAlpha: 0});
+    gsap.set([stage, ...outcome], {autoAlpha: 0});
     if (items.length > 0) {
       gsap.set(items, {autoAlpha: 0, y: 9 * conUiScale()});
     }
@@ -512,7 +519,7 @@ export function handStagePickResume(root: HTMLElement, onDone?: () => void): voi
     tl.set(browse, {autoAlpha: 0}, s(ISOLATE_MS));
     // 2 · CARD-LED REVEAL — once the hand has let go of the place, the stage returns and its groups materialize in
     //     reading order while the card is still travelling (released, never cross-faded).
-    tl.to(stage, {autoAlpha: 1, duration: s(100), ease: 'power1.out'}, s(ISOLATE_MS));
+    tl.to([stage, ...outcome], {autoAlpha: 1, duration: s(100), ease: 'power1.out'}, s(ISOLATE_MS));
     if (items.length > 0) {
       tl.to(items, {autoAlpha: 1, y: 0, duration: s(CASCADE_MS), ease: 'expo.out', stagger: CASCADE_STAGGER_S}, s(ISOLATE_MS + 20));
     }

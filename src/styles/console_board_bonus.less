@@ -94,11 +94,13 @@
     .con-reveal__strip .con-start__deal {
         animation: none; /* the handoff is the entrance — never the deal-in replay */
     }
-    /* The release fade — the real card materializes under its proxy. The
-       second arm reaches the take-in-place slots, where the card sits inside
-       the flip chassis instead of directly under the slot. */
+    /* The release is an INSTANT snap — the real card stands OPAQUE under its still-opaque proxy, and only the proxy
+       fades above it (the hand reveal's law: opaque-under / fade-above can never dip below the settled card). It was a
+       160 ms fade-in under a fading proxy — two half-transparent copies over a dark stage, a visible DIP at the
+       handoff that the e2e blink witness measured on the cell's own card (2026-11-01). The second arm reaches the
+       take-in-place slots, where the card sits inside the flip chassis instead of directly under the slot. */
     .con-reveal__strip :is(.con-cards__slot, .con-reveal__flip-face) > :is(.card-container, .pcard) {
-        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+        transition: none;
     }
 }
 .con-reveal--bonus-veiled {

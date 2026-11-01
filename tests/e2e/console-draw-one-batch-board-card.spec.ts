@@ -37,19 +37,50 @@ async function wireOf(request: APIRequestContext, id: string): Promise<Wire> {
   return await (await request.get(`/api/player?id=${id}`)).json() as Wire;
 }
 
-type Sample = {reveals: number, slots: number, cover: number, triggers: Array<string>, viewer: boolean};
+/** `present` — per row slot (dealing order): is the card PAINTED there right now, as the real card or as a flyer
+ *  standing over it (the blink witness — the owner's «вторая карта мигнула при приземлении», 2026-11-01). */
+type Sample = {reveals: number, slots: number, cover: number, triggers: Array<string>, viewer: boolean, present: Array<boolean>};
 
 declare global {
   interface Window {
-    __obWatchB?: {samples: Array<Sample>, stop: () => void},
+    __obWatchB?: {samples: Array<Sample>, stop: () => void, freeze: () => void},
   }
 }
 
 async function installWatch(page: Page): Promise<void> {
   await page.evaluate(() => {
     const samples: Array<Sample> = [];
+    let frozen = false;
+    const painted = (el: Element): boolean => {
+      let opacity = 1;
+      for (let n: Element | null = el; n !== null; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.visibility === 'hidden' || cs.display === 'none') {
+          return false;
+        }
+        opacity *= Number(cs.opacity);
+      }
+      return opacity > 0.3;
+    };
+    const presence = (): Array<boolean> => {
+      const flyers = Array.from(document.querySelectorAll<HTMLElement>('.con-deckdraw-proxy, .con-bonusfly-proxy')).filter(painted);
+      return Array.from(document.querySelectorAll<HTMLElement>('.con-reveal .con-cards__slot[data-zoom-slot]')).map((slot) => {
+        const r = slot.getBoundingClientRect();
+        const face = slot.querySelector(':scope .pcard, :scope .card-container');
+        if (face !== null && painted(face)) {
+          return true;
+        }
+        return flyers.some((f) => {
+          const q = f.getBoundingClientRect();
+          const cx = q.left + q.width / 2;
+          const cy = q.top + q.height / 2;
+          return cx > r.left && cx < r.right && cy > r.top && cy < r.bottom;
+        });
+      });
+    };
     const sample = () => {
       samples.push({
+        present: frozen ? [] : presence(),
         reveals: document.querySelectorAll('.con-reveal').length,
         slots: document.querySelectorAll('.con-reveal .con-cards__slot').length,
         cover: Array.from(document.querySelectorAll<HTMLElement>('.con-bonusfly-proxy, .con-bonusfly-cover'))
@@ -63,7 +94,9 @@ async function installWatch(page: Page): Promise<void> {
     const mo = new MutationObserver(sample);
     mo.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['data-dd-run', 'class', 'style']});
     const iv = setInterval(sample, 80);
-    window.__obWatchB = {samples, stop: () => {
+    window.__obWatchB = {samples, freeze: () => {
+      frozen = true;
+    }, stop: () => {
       mo.disconnect();
       clearInterval(iv);
     }};
@@ -119,7 +152,18 @@ test.describe('one press, a cell bonus and a table draw — ONE batch, the cell 
     expect((batches[0].segments ?? []).map((s) => s.source?.type), 'the cell first, the card after').toEqual(['tile', 'card']);
     expect(batches[0].segments?.[0].source?.spaceId).toBe(cell!.id);
     await cinematicBeat(page, 2200, 'the assembly settles — the cover landed, the university surfaced, dealt and receded');
+    await page.evaluate(() => window.__obWatchB?.freeze());
     await shoot(page, 'B1-batch-assembled');
+    // NO BLINK: once a card is painted in its slot (as its flyer or as itself) it stays painted through the whole
+    // assembly — the guest's flyer hovers until the cover scene's handoff releases the real cards under it.
+    const assembly = await page.evaluate(() => window.__obWatchB?.samples.filter((s) => s.present.length > 0).map((s) => s.present) ?? []);
+    for (let slot = 0; slot < 2; slot++) {
+      const trail = assembly.map((p) => p[slot] === true);
+      const first = trail.indexOf(true);
+      expect(first, `slot ${slot} was painted during the assembly`).toBeGreaterThanOrEqual(0);
+      const gaps = trail.slice(first).filter((on) => !on).length;
+      expect(gaps, `slot ${slot} never vanished after it landed (trail ${trail.map((on) => on ? '█' : '·').join('')})`).toBe(0);
+    }
 
     for (let i = 0; i < 6 && await page.locator('.con-reveal').count() > 0; i++) {
       await press(page, 'Enter', 900);

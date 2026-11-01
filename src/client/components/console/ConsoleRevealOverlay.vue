@@ -89,10 +89,17 @@
                 </span>
                 <!-- WHERE FROM — a navigation-context fact, never a second card: the cell's printed bonuses (the very
                      glyphs the cover lifted off), a card's name with its L3, a colony / a scale / a law by name. -->
+                <!-- …and in a MERGED batch every cause is a chip of its own; the one that dealt the FOCUSED card wears a
+                     kant (`data-reveal-source-current`) — «which effect gave me this card» is read by pointing. A
+                     cause chip drops the generic «ИСТОЧНИК» (the row of causes says it once by being a row); a cell,
+                     a party, a law keep their kind word. -->
                 <span v-else-if="badge.kind === 'source'" class="con-ws-stage-badge con-reveal__sourcebadge"
-                      :class="{'con-reveal__sourcebadge--inspectable': badge.reading.inspectable}"
+                      :class="{'con-reveal__sourcebadge--inspectable': badge.reading.inspectable,
+                               'con-reveal__sourcebadge--cause': badge.count !== undefined,
+                               'con-reveal__sourcebadge--current': badgeIndex === focusedCauseBadge}"
+                      :data-reveal-source-current="badgeIndex === focusedCauseBadge ? '' : undefined"
                       data-reveal-source>
-                  <span class="con-ws-stage-badge__label">{{ $t(badge.reading.labelKey) }}</span>
+                  <span v-if="badge.count === undefined || badge.reading.labelKey !== 'Source'" class="con-ws-stage-badge__label">{{ $t(badge.reading.labelKey) }}</span>
                   <span v-if="badge.reading.icons.length > 0" class="con-reveal__sourcebadge-cell" data-reveal-source-cell>
                     <i v-for="(icon, i) in badge.reading.icons" :key="icon + i"
                        class="con-reveal__sourcebadge-icon resource_icon" :class="icon" aria-hidden="true"></i>
@@ -261,7 +268,7 @@
                                  opened yet. No verb on it (the bar promises none); it breaks when the discard for
                                  the place before it touches down, and the card under it then turns over. -->
                             <span v-if="placeSealVisible(zone)" class="con-reveal__seal" :data-settlement-seal="zone.index"
-                                  :class="{'con-reveal__seal--breaking': sealBreaking(zone)}"
+                                  :class="{'con-reveal__seal--breaking': sealBreaking(zone), 'con-reveal__seal--question': questionTable}"
                                   aria-hidden="true"
                                   @animationend="onSealBreakEnd(zone.index, $event)">
                               <svg class="con-reveal__seal-lock" viewBox="0 0 24 24" aria-hidden="true">
@@ -269,7 +276,9 @@
                                 <rect class="con-reveal__seal-body" x="5" y="10.5" width="14" height="10" rx="2.2" />
                                 <circle class="con-reveal__seal-hole" cx="12" cy="15.2" r="1.5" />
                               </svg>
-                              <b class="con-reveal__seal-num">{{ zone.index }}</b>
+                              <!-- The ordinal is a SETTLEMENT's (Pluto's pairs — «бонус 2»); a question's one place has
+                                   no sequence to number, and a «1» on it read as a count. -->
+                              <b v-if="!questionTable" class="con-reveal__seal-num">{{ zone.index }}</b>
                             </span>
                           </div>
                           <div class="con-card3d__edge" aria-hidden="true"></div>
@@ -401,6 +410,14 @@
                 </template>
                 <template v-else-if="drawnUntaken[focusIdx] !== undefined">
                   <span class="con-cards__verdict-name" :key="drawnUntaken[focusIdx].card.name">{{ $t(drawnUntaken[focusIdx].card.name) }}</span>
+                  <!-- WHICH EFFECT DEALT IT (a merged batch only): the head chip's own words, quiet, after the name —
+                       never on a one-cause batch (the head already says it once for every card). -->
+                  <span v-if="focusedCause !== undefined" class="con-reveal__cause" data-reveal-cause>
+                    <i v-for="(icon, i) in focusedCause.icons" :key="icon + i"
+                       class="con-reveal__cause-icon resource_icon" :class="icon" aria-hidden="true"></i>
+                    <span v-if="focusedCause.icons.length > 0 && focusedCause.nameKey === '' && focusedCause.nameText === undefined">{{ $t(focusedCause.labelKey) }}</span>
+                    <span v-else>{{ focusedCause.nameText ?? $t(focusedCause.nameKey) }}</span>
+                  </span>
                   <ConsoleCardAvailabilityPanel v-if="drawnAvailability !== undefined"
                                                 variant="line"
                                                 class="con-reveal__avail"
@@ -580,7 +597,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {RevealStageHead, revealStageHead} from '@/client/console/revealStageHead';
+import {RevealSourceReading, RevealStageHead, revealStageHead} from '@/client/console/revealStageHead';
 import {closeRevealSourcePeek, openRevealSourcePeek, revealSourcePeekState} from '@/client/console/revealSourcePeek';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import {SpaceId} from '@/common/Types';
@@ -1084,9 +1101,6 @@ export default defineComponent({
     /** A party's action / a law name themselves through this component's readers — handed to the head translated. */
     sourceFallbackName(): string | undefined {
       const s = this.drawnSource;
-      if (s?.type === 'party') {
-        return translateTextWithParams('Party action of ${0}', [translateText(partyNameKey(s.party))]);
-      }
       if (s?.type === 'resolution') {
         return translateText(resolutionName(s.resolution));
       }
@@ -1123,8 +1137,24 @@ export default defineComponent({
         // reactive through the claim's own state (`workspaceOutcomeState.sourceCard`)
         foreignSource: this.embedded && revealSourceForeignToClaim(this.drawnSource),
         fallbackName: this.sourceFallbackName,
+        resolutionNameKey: (id: string) => resolutionName(id),
         discarded: this.batchDiscarded,
       });
+    },
+    /**
+     * THE FOCUSED CARD'S CAUSE in a merged batch: the badge index of the effect that dealt the card under the cursor
+     * (`RevealStageHead.causeByCard`) — its chip wears a kant and the name bar names it. -1 = nothing to mark (one
+     * cause, a sealed place, a closing step).
+     */
+    focusedCauseBadge(): number {
+      const causes = this.stageHead.causeByCard;
+      const entry = this.drawnUntaken[this.focusIdx];
+      return causes === undefined || entry === undefined ? -1 : causes[entry.index] ?? -1;
+    },
+    /** …and that cause as the name bar's quiet tail (the head chip's own words), or undefined. */
+    focusedCause(): RevealSourceReading | undefined {
+      const badge = this.stageHead.badges[this.focusedCauseBadge];
+      return badge?.kind === 'source' ? badge.reading : undefined;
     },
     /**
      * …and the VERDICT stage has a fit of its own, on the same lifecycle. Its
@@ -1273,8 +1303,10 @@ export default defineComponent({
         return {name: translateText('Carried from the previous mission'), inspectable: false};
       }
       if (s.type === 'party') {
-        // Turmoil Redux: the party action that drew them (the Reds' recycle).
-        return {name: translateTextWithParams('Party action of ${0}', [translateText(partyNameKey(s.party))]), inspectable: false};
+        // Turmoil Redux: the party action that drew them (the Reds' recycle) — or the party ITSELF, its passive
+        // answering the player's move (Mars First's city card).
+        return {name: s.passive === true ? translateText(partyNameKey(s.party)) :
+          translateTextWithParams('Party action of ${0}', [translateText(partyNameKey(s.party))]), inspectable: false};
       }
       if (s.type === 'resolution') {
         // Turmoil Redux: the enacted resolution's action drew them (Open IP Trade) — the law's own name.

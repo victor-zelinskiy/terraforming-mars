@@ -115,7 +115,7 @@ import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {BatchArrivalHandle, runBatchArrival} from '@/client/console/consoleBatchArrivalMotion';
 import {intakeAssemblyOwnsBatch, intakeAssemblyPresentsBatch, intakeSearchRun} from '@/client/console/cardIntake/intakeAssemblyPlan';
 import {IntakeAssemblyHandle, IntakeTriggerFace, planAssemblyFor, playIntakeAssembly} from '@/client/console/cardIntake/intakeAssemblyDirector';
-import {registerIntakeContinuation} from '@/client/console/cardIntake/intakeAssembly';
+import {holdIntakeGuest, registerIntakeContinuation} from '@/client/console/cardIntake/intakeAssembly';
 import {conWsPresence} from '@/client/console/conWsPresenceBridge';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {drawnBatchGoesFullscreen} from '@/client/console/consoleRevealPresentation';
@@ -133,6 +133,12 @@ const DECK_SEL = '.con-deckstack__pile';
  * reveal withheld.
  */
 const STAGE_WAIT_MAX_MS = 9_000;
+
+/**
+ * A GUEST run's flyers hover in their slots until the cover scene's handoff releases the real cards
+ * (`releaseIntakeGuest`); bounded, so a host that never reaches its handoff cannot leave them standing.
+ */
+const GUEST_HOVER_MAX_MS = 4_000;
 
 /** One scene card: the name + the server's verdict. */
 /**
@@ -823,15 +829,33 @@ export default defineComponent({
           return;
         }
         finished = true;
+        // THE FLYERS HOVER IN THEIR SLOTS like the cell's own (the real cards are still HELD by the cover scene until
+        // its handoff): dissolving them here emptied the slot for the host's whole frame beat — the card vanished
+        // and came back (the owner's «мигнула», 2026-11-01). They dissolve in the host's handoff frame instead,
+        // bounded by our own safety in case the host never comes to it.
         const own = this.proxyRefs.slice(fromCard).filter((el): el is HTMLElement => el !== null && el !== undefined);
-        ctx.sceneHandle = runDeckDrawHandoff({
-          proxies: own,
-          t: this.timings(),
-          onDone: () => {
-            this.endGuestRun();
-            onDone();
-          },
-        });
+        let released = false;
+        const release = () => {
+          if (released) {
+            return;
+          }
+          released = true;
+          clearTimeout(safety);
+          if (!this.guestRun) {
+            return;
+          }
+          ctx.sceneHandle = runDeckDrawHandoff({
+            proxies: own,
+            t: this.timings(),
+            onDone: () => this.endGuestRun(),
+          });
+        };
+        const safety = setTimeout(() => {
+          holdIntakeGuest(undefined);
+          release();
+        }, GUEST_HOVER_MAX_MS);
+        holdIntakeGuest(release);
+        onDone();
       };
       void this.$nextTick().then(async () => {
         const alive = () => this.guestRun && currentRevealEvent()?.id === e.id;
@@ -853,6 +877,7 @@ export default defineComponent({
     },
 
     endGuestRun(): void {
+      holdIntakeGuest(undefined);
       ctx.assemblyHandle?.kill();
       ctx.assemblyHandle = undefined;
       this.guestRun = false;

@@ -14,6 +14,7 @@
  */
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import {CardDrawRevealSource, CardIntakeSegment} from '@/common/models/CardDrawRevealModel';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 
 export type RevealHeadHost = 'embedded' | 'scene';
 
@@ -50,6 +51,12 @@ export type RevealStageHead = {
   /** The stage's ONE sentence (an i18n key) — never repeated by a kicker. */
   titleKey: string;
   badges: ReadonlyArray<RevealHeadBadge>;
+  /**
+   * A MERGED batch only: for every card of the batch (by its index in `cards`), the index in `badges` of the cause
+   * that dealt it — the segments are in dealing order and so are the cards. The host marks the focused card's cause
+   * (its chip wears a kant, the name bar names it), so «which effect gave me THIS card» is read by pointing.
+   */
+  causeByCard?: ReadonlyArray<number>;
 };
 
 export type RevealStageHeadInput = {
@@ -77,8 +84,10 @@ export type RevealStageHeadInput = {
    * name the law: an embedded stage never says less than the scene it replaced.
    */
   foreignSource?: boolean;
-  /** A translated name for a source this module has no words of its own for (a party's action, a law). */
+  /** A translated name for a source this module has no words of its own for (a batch's ONE cause only). */
   fallbackName?: string;
+  /** A law's name key by its id (the parliament manifest — the host owns it; absent → the law reads through `fallbackName`). */
+  resolutionNameKey?: (id: string) => string | undefined;
   /**
    * EVERY card of the batch was already discarded by the RULES (К-5 — Pluto's «discard 1» met a hand with no other card,
    * `CardDrawRevealModel.autoDiscarded`): nothing was received, so the head says so instead of «Получена карта».
@@ -113,7 +122,8 @@ export function cellBonusIcons(bonuses: ReadonlyArray<SpaceBonus>): Array<string
  * bonuses — the reward the player just saw lift off it), never by a template «Бонус клетки»; a card by its name (and
  * L3 opens it); a colony, a scale, a party, a law by their own names. `undefined` = nothing honest to say.
  */
-export function revealSourceReading(source: CardDrawRevealSource | undefined, cellBonuses?: ReadonlyArray<SpaceBonus>, fallbackName?: string): RevealSourceReading | undefined {
+export function revealSourceReading(source: CardDrawRevealSource | undefined, cellBonuses?: ReadonlyArray<SpaceBonus>, fallbackName?: string,
+  resolutionNameKey?: (id: string) => string | undefined): RevealSourceReading | undefined {
   if (source === undefined) {
     return undefined;
   }
@@ -135,9 +145,22 @@ export function revealSourceReading(source: CardDrawRevealSource | undefined, ce
     return source.parameter === 'venus' ? {labelKey: 'Source', nameKey: 'Venus scale bonus', icons: [], inspectable: false} : undefined;
   case 'campaign':
     return {labelKey: 'Source', nameKey: 'Carried from the previous mission', icons: [], inspectable: false};
+  case 'party':
+    // A party's PASSIVE answering the press (Mars First's «a city → a card») is the party itself; its ACTION (the
+    // Reds' recycle) is the party's action — two different things the player did or did not do.
+    return {labelKey: source.passive === true ? 'Party' : 'Party action', nameKey: partyNameKey(source.party), icons: [], inspectable: false};
+  case 'resolution': {
+    const key = resolutionNameKey?.(source.resolution);
+    if (key !== undefined && key !== '') {
+      return {labelKey: 'Resolution', nameKey: key, icons: [], inspectable: false};
+    }
+    return fallbackName !== undefined && fallbackName !== '' ?
+      {labelKey: 'Source', nameKey: '', nameText: fallbackName, icons: [], inspectable: false} : undefined;
+  }
+  case 'agenda':
+    return {labelKey: 'Source', nameKey: 'Agenda track', icons: [], inspectable: false};
   default:
-    // A party / a law name themselves through the component's own readers (they need translation helpers this pure
-    // module does not own), handed in already translated.
+    // Anything else names itself through the host's own reader, handed in already translated.
     return fallbackName !== undefined && fallbackName !== '' ?
       {labelKey: 'Source', nameKey: '', nameText: fallbackName, icons: [], inspectable: false} : undefined;
   }
@@ -160,16 +183,23 @@ export function revealStageHead(o: RevealStageHeadInput): RevealStageHead {
       return {titleKey: 'Discarded: no other card in hand', badges};
     }
     badges.push({kind: 'received', count: o.cards});
-    for (const segment of merged) {
-      const reading = revealSourceReading(segment.source, segment.source?.type === 'tile' ? o.cellBonuses : undefined, o.fallbackName);
-      if (reading !== undefined) {
-        badges.push({kind: 'source', reading, count: segment.count});
+    const causeByCard: Array<number> = [];
+    for (const fold of merged) {
+      // NO SILENT LOSS (invariant 4): a cause this module cannot name still stands with its share — «ЭФФЕКТ +1» — or
+      // «ПОЛУЧЕНО 2» would sit over ONE chip and a card the player cannot place (Mars First's city card, 2026-11-01).
+      // A batch-wide fallback name belongs to the batch's ONE cause, never to every unnamed segment of a merge.
+      const reading = revealSourceReading(fold.source, fold.source?.type === 'tile' ? o.cellBonuses : undefined, undefined, o.resolutionNameKey) ??
+        {labelKey: 'Source', nameKey: 'Effect', icons: [], inspectable: false};
+      const badge = badges.length;
+      badges.push({kind: 'source', reading, count: fold.count});
+      for (const index of fold.cards) {
+        causeByCard[index] = badge;
       }
     }
-    return {titleKey: 'Cards received', badges};
+    return {titleKey: 'Cards received', badges, causeByCard};
   }
   if ((o.host === 'scene' && !o.sourceOnStage) || (o.host === 'embedded' && o.foreignSource === true)) {
-    const reading = revealSourceReading(o.source, o.cellBonuses, o.fallbackName);
+    const reading = revealSourceReading(o.source, o.cellBonuses, o.fallbackName, o.resolutionNameKey);
     if (reading !== undefined) {
       badges.push({kind: 'source', reading});
     }
@@ -190,19 +220,23 @@ export function revealStageHead(o: RevealStageHeadInput): RevealStageHead {
  * source — a search beside its own plain draw — read as one share); `undefined` for a one-cause batch, which keeps
  * the single-source reading.
  */
-function mergedSegments(segments: ReadonlyArray<CardIntakeSegment> | undefined): Array<{source: CardDrawRevealSource | undefined, count: number}> | undefined {
+function mergedSegments(segments: ReadonlyArray<CardIntakeSegment> | undefined): Array<{source: CardDrawRevealSource | undefined, count: number, cards: Array<number>}> | undefined {
   if (segments === undefined || segments.length < 2) {
     return undefined;
   }
-  const folded: Array<{key: string, source: CardDrawRevealSource | undefined, count: number}> = [];
+  const folded: Array<{key: string, source: CardDrawRevealSource | undefined, count: number, cards: Array<number>}> = [];
+  let card = 0;
   for (const segment of segments) {
     const key = JSON.stringify(segment.source ?? null);
-    const run = folded.find((f) => f.key === key);
-    if (run !== undefined) {
-      run.count += segment.count;
-    } else {
-      folded.push({key, source: segment.source, count: segment.count});
+    let run = folded.find((f) => f.key === key);
+    if (run === undefined) {
+      run = {key, source: segment.source, count: 0, cards: []};
+      folded.push(run);
+    }
+    run.count += segment.count;
+    for (let i = 0; i < segment.count; i++) {
+      run.cards.push(card++);
     }
   }
-  return folded.length < 2 ? undefined : folded.map(({source, count}) => ({source, count}));
+  return folded.length < 2 ? undefined : folded.map(({source, count, cards}) => ({source, count, cards}));
 }

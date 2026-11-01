@@ -268,7 +268,8 @@ const MARS_FIRST: PartyEffectDefinition = {
     const answer = MARS_FIRST_TILE_ANSWER;
     player.stock.add(answer.perTile.resource, answer.perTile.amount, {log: true, from: {partyName: PartyName.MARS}});
     if (Board.isCitySpace(space)) {
-      player.drawCard(answer.cityCards);
+      // Named explicitly: the reveal's head reads «ПАРТИЯ Марс вперёд +1» beside the cell's own card (2026-11-01).
+      player.drawCard(answer.cityCards, {source: {type: 'party', party: PartyName.MARS, passive: true}});
     }
   },
 };

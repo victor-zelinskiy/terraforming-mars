@@ -64,7 +64,7 @@ import {
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {drawnBatchGoesFullscreen} from '@/client/console/consoleRevealPresentation';
 import {intakeAssemblyOwnsBatch} from '@/client/console/cardIntake/intakeAssemblyPlan';
-import {continueIntakeAssembly} from '@/client/console/cardIntake/intakeAssembly';
+import {continueIntakeAssembly, releaseIntakeGuest} from '@/client/console/cardIntake/intakeAssembly';
 
 /** The natural (unscaled) FaceLite height — mirrors the premium card frame (320×460). */
 const CARD_NATURAL_H = 460;
@@ -680,6 +680,9 @@ export default defineComponent({
             // Handoff: the overlay releases its held static cards (they
             // fade in UNDER the proxies), the proxies dissolve above them.
             setBoardCardBonusPhase('handoff');
+            // The trigger runs' flyers (the deck layer's guest) hovered in their slots beside ours — they dissolve
+            // in THIS frame too, over the real cards the phase just released: one handoff for the whole row.
+            releaseIntakeGuest();
             ctx.sceneHandle = runBonusHandoff({
               proxies: this.proxyEls(),
               t,
@@ -771,6 +774,8 @@ export default defineComponent({
         gsap.set(cover, {autoAlpha: 0});
       }
       this.proxyEls().forEach((el) => gsap.set(el, {autoAlpha: 0}));
+      // A guest still hovering in the row (an abort before our handoff) never outlives the scene it stood in.
+      releaseIntakeGuest();
       this.sceneCards = [];
       this.proxyRefs = [];
       this.flipRefs = [];

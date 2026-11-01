@@ -4,6 +4,7 @@ import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
 import {CardName} from '../../src/common/cards/CardName';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
 import {GlobalParameter} from '../../src/common/GlobalParameter';
+import {PartyName} from '../../src/common/turmoil/PartyName';
 
 /**
  * TR57 «НАГРАДА ВНЕ WORKSPACE» — the received-cards head is ONE reading in both hosts. The form it replaced said
@@ -88,6 +89,40 @@ describe('revealStageHead — the words of «вы получили карты»,
     expect(revealStageHead(input({cards: 3, source: segments[0].source, segments: [{source: segments[0].source, count: 2}, {source: segments[0].source, count: 1}]})).badges.map((b) => b.kind)).deep.eq(['source', 'received']);
   });
 
+  it('NO SILENT LOSS — every cause of a merged batch stands with its share, a party\'s passive by the party (2026-11-01)', () => {
+    // The owner's TV: a city on a card-bonus cell under a ruling Mars First — «ПОЛУЧЕНО 2» over ONE chip, because the
+    // party's segment had no name this module could give it and was dropped.
+    const head = revealStageHead(input({cards: 2, segments: [
+      {source: {type: 'tile', spaceId: '38'}, count: 1},
+      {source: {type: 'party', party: PartyName.MARS, passive: true}, count: 1},
+    ]}));
+    expect(head.badges).deep.eq([
+      {kind: 'received', count: 2},
+      {kind: 'source', reading: {labelKey: 'Board cell', nameKey: '', icons: ['resource_icon--cards', 'resource_icon--cards'], inspectable: false}, count: 1},
+      {kind: 'source', reading: {labelKey: 'Party', nameKey: 'party name: Mars First', icons: [], inspectable: false}, count: 1},
+    ]);
+    // …and every card knows the chip of the cause that dealt it (dealing order = card order).
+    expect(head.causeByCard).deep.eq([1, 2]);
+    // A cause nobody can name still stands — «ЭФФЕКТ +1» — so the chips always add up to the count.
+    const unnamed = revealStageHead(input({cards: 3, segments: [
+      {source: {type: 'card', cardName: CardName.RESEARCH}, count: 2},
+      {source: undefined, count: 1},
+    ]}));
+    expect(unnamed.badges.filter((b) => b.kind === 'source').map((b) => b.kind === 'source' ? b.count : 0)).deep.eq([2, 1]);
+    expect(unnamed.badges[2]).deep.eq({kind: 'source', reading: {labelKey: 'Source', nameKey: 'Effect', icons: [], inspectable: false}, count: 1});
+    expect(unnamed.causeByCard).deep.eq([1, 1, 2]);
+    // A batch-wide fallback name is the batch's ONE cause's — never pinned on an unnamed segment of a merge.
+    expect(revealStageHead(input({cards: 2, fallbackName: 'Чужое имя', segments: [
+      {source: {type: 'tile', spaceId: '38'}, count: 1}, {source: {type: 'other'}, count: 1},
+    ]})).badges[2]).deep.include({count: 1}).and.nested.include({'reading.nameKey': 'Effect'});
+    // Two runs of one cause fold into one chip, and both its cards point at it.
+    expect(revealStageHead(input({cards: 3, segments: [
+      {source: {type: 'card', cardName: CardName.RESEARCH}, count: 1},
+      {source: {type: 'tile', spaceId: '38'}, count: 1},
+      {source: {type: 'card', cardName: CardName.RESEARCH}, count: 1},
+    ]})).causeByCard).deep.eq([1, 2, 1]);
+  });
+
   it('a filtered search states its tally instead of the count; a settlement table its places and its own title', () => {
     expect(revealStageHead(input({search: true})).badges.map((b) => b.kind)).deep.eq(['source', 'search']);
     const table = revealStageHead(input({host: 'embedded', table: {income: 1, total: 2}}));
@@ -115,6 +150,12 @@ describe('revealSourceReading — where the cards came from, in the player\'s wo
     expect(revealSourceReading({type: 'resolution', resolution: 'X'}, undefined, 'Открытая торговля')).deep.eq(
       {labelKey: 'Source', nameKey: '', nameText: 'Открытая торговля', icons: [], inspectable: false});
     expect(revealSourceReading({type: 'other'})).is.undefined;
+    // A party's ACTION and its PASSIVE are different things the player did or did not do.
+    expect(revealSourceReading({type: 'party', party: PartyName.REDS})).deep.eq({labelKey: 'Party action', nameKey: 'party name: Reds', icons: [], inspectable: false});
+    expect(revealSourceReading({type: 'party', party: PartyName.MARS, passive: true})?.labelKey).eq('Party');
+    // A law names itself through the host's manifest reader when it has one.
+    expect(revealSourceReading({type: 'resolution', resolution: 'X'}, undefined, undefined, (id) => `law ${id}`)).deep.eq(
+      {labelKey: 'Resolution', nameKey: 'law X', icons: [], inspectable: false});
     expect(revealSourceReading(undefined)).is.undefined;
   });
 

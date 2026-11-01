@@ -78,10 +78,13 @@ export type CardDrawRevealSource =
    *  granted FREE with the base corporation play. No workspace claim matches
    *  it, so it presents as its own reveal — clearly carried, never bought. */
   | {type: 'campaign'}
-  /** Turmoil Redux: a PARTY ACTION drew them (the Reds' «draw 2, discard 2»). */
-  | {type: 'party', party: PartyName}
-  /** Turmoil Redux: the ENACTED RESOLUTION'S ACTION drew them (Open IP Trade's «a card per card discarded»). */
-  | {type: 'resolution', resolution: string}
+  /**
+   * Turmoil Redux: a PARTY drew them — its ACTION (the Reds' «draw 2, discard 2»), or, `passive`, its EFFECT answering
+   * the player's own move (Mars First's «a city on Mars → a card»): the head names the two differently.
+   */
+  | {type: 'party', party: PartyName, passive?: true}
+  /** Turmoil Redux: the ENACTED RESOLUTION drew them — its action (Open IP Trade), or, `passive`, its passive answering a move (Urban Development). */
+  | {type: 'resolution', resolution: string, passive?: true}
   /**
    * Turmoil Redux: the Agenda track's card step (the chairman quest / the political phase / a card advanced a marker).
    * `step` — the track step whose bonus drew it (absent on a batch from before the field existed): one walk can cross
