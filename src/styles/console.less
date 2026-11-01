@@ -35006,6 +35006,20 @@ html.con-profile-tv {
            two lines) as the action composer's `__actright`. */
         justify-content: safe center;
     }
+    /* THE SHEET STANDS ON THE CARD'S FOOT (P81 · DJ — the owner's decision for the extreme payment): the column puts
+       the sheet at its end with the room under the hero face's bottom line below it (`__playfoot`, half of what the
+       band has over the face). A sheet as tall as the face sits exactly on the card's lines; a TALLER one (a ledger of
+       many lanes) grows UPWARD past the card's top — the same sheet, expanded: the commit stays on the card's bottom
+       line, the result goes above the card's top — and the foot gives way only once the sheet meets the band's top
+       (then the body scrolls, the last resort). Before the face is measured the foot has no basis (the var is unset —
+       the declaration is invalid at computed time) and the sheet simply stands at the end. */
+    .con-composer__playright { justify-content: safe flex-end; }
+    .con-composer__playfoot {
+        display: block;
+        flex: 0 1 calc((100% - var(--con-setup-face-h)) / 2);
+        min-height: 0;
+        pointer-events: none;
+    }
     /* Content-height by default so the centring has something to centre, and
        shrinkable so a long card still gets the whole band and scrolls. */
     .con-composer__scroll { flex: 0 1 auto; min-height: 0; }
@@ -35017,26 +35031,35 @@ html.con-profile-tv {
        lower third of the column empty, no line shared with the card. Now the sheet's FLOOR is the hero face's MEASURED
        height (`--con-setup-face-h`, the composer reads the slot as painted and brings it into this space) and the
        column centres it beside the card — so its top and bottom ARE the card's, one spread. Three zones mirror the
-       card's anatomy: the RESULT at the top (the title's line), the BODY in the middle (the art's zone — centred when
-       short, the only scroll), the PAYMENT and the COMMIT on the bottom line (the mechanics box). A grid, not a flex
+       card's anatomy: the BODY — the RESULT, the table's answer, the decisions, a payment ledger — is ONE block centred at
+       the card's mid-height (the owner's 4K review: the result is the hero, never a small strip pinned to the top over a
+       void; the only scroll), the COMMIT (and a one-line price) on the bottom line (the mechanics box). A grid, not a flex
        column: the body's row is `minmax(0, 1fr)`, so it takes exactly the room the dock leaves — and the body's own
        percentage floor resolves against a definite grid area. Content taller than the card still grows the sheet up
        to the band (the floor is a floor, never a clip); content shorter than it never moves the sheet (PL-1228). ── */
     .con-composer__playsheet {
-        flex: 0 1 auto;
+        /* never shrinks before the card's foot is gone (the foot gives way first); `max-height` is its ceiling. */
+        flex: 0 0 auto;
         min-height: min(var(--con-setup-face-h, 0px), 100%);
         max-height: 100%;
         display: grid;
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr) auto;
     }
-    .con-composer__playsheet--review .con-composer__scroll-body { min-height: 100%; }
-    /* THE BODY centres its block in the room between the result and the dock (equal air above and below — never a
-       block hanging under the result over a void); a block taller than the room starts at its top and scrolls. */
+    /* THE BODY centres its block in the room above the dock (equal air above and below — never a block hanging from
+       the top over a void); a block taller than the room starts at its top (`safe`) and scrolls. */
+    .con-composer__playsheet--review .con-composer__scroll-body { min-height: 100%; justify-content: safe center; }
+    .con-composer__playblock,
     .con-composer__playmid {
         display: flex;
         flex-direction: column;
-        margin-block: auto;
+    }
+    /* A LEDGER (several lanes / a shortfall) is a decision zone of the body: read after the choices, scrolled with
+       them; the dock's seam closes it, so it draws no hairline of its own. */
+    .con-composer__payledger {
+        margin-top: .6rem;
+        padding-bottom: 0;
+        border-bottom: 0;
     }
     /* THE DOCK — the bottom line: the price said once on the left, the commit plate on the right. A ledger (several
        lanes, a shortfall) takes the line's whole width and the plate stands under it, at the same right edge. */
@@ -35168,11 +35191,11 @@ html.con-profile-tv {
     .con-composer__result-chips {
         gap: .4rem;
         padding-bottom: 0;
-        --con-chip-c-fs: 1.12rem;
-        --con-chip-c-icon: 1.45rem;
-        --con-chip-c-pad: .18rem .55rem .18rem .3rem;
-        --con-chip-c-gap: .3rem;
-        --con-chip-c-note: .66rem;
+        --con-chip-c-fs: 1.3rem;
+        --con-chip-c-icon: 1.7rem;
+        --con-chip-c-pad: .2rem .6rem .2rem .32rem;
+        --con-chip-c-gap: .32rem;
+        --con-chip-c-note: .7rem;
         .action-effect-chip__cur { opacity: .72; font-weight: 600; }
         .action-effect-chip__res { font-weight: 800; }
     }
@@ -35205,12 +35228,11 @@ html.con-profile-tv {
         background: linear-gradient(90deg, fade(@con-cyan, 9%) 0%, transparent 42%);
         box-shadow: inset .14rem 0 0 fade(@con-cyan, 62%);
     }
-    /* In the DOCK: a ledger takes the line's whole width (the plate goes under it); the one-line price shares the line
-       with the plate and closes with no hairline of its own — the dock's top seam is the zone's. */
-    .con-composer__playdock > .con-pay { flex: 1 1 100%; min-width: 0; }
-    .con-composer__playdock > .con-pay--line,
-    .con-composer__playdock > .con-pay--free {
+    /* In the DOCK only the ONE-LINE price (or «free») stands, sharing the line with the plate, with no hairline of its
+       own — the dock's top seam is the zone's. A ledger is the body's (`__payledger`). */
+    .con-composer__playdock > .con-pay {
         flex: 1 1 auto;
+        min-width: 0;
         padding-bottom: 0;
         border-bottom: 0;
     }
@@ -36396,6 +36418,7 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     /* The sheet and its dock (P81 · DJ) — a plain column outside the embedded workspace. */
     &__playsheet { display: flex; flex-direction: column; gap: .5rem; min-height: 0; }
     &__playdock { display: flex; flex-direction: column; gap: .3rem; }
+    &__playfoot { display: none; }
     &__loading { font-size: .95rem; color: @con-text-dim; padding: .5rem 0; }
 
     &__sub-title--spaced { margin-top: .3rem; }
@@ -37541,8 +37564,9 @@ html.con-profile-handheld .con-composer--embed {
     .con-composer__rescat-glyph { font-size: .68rem; width: .8rem; }
     .con-composer__rescat-tag { width: 1.05rem; height: 1.05rem; line-height: 1.05rem; }
     .con-composer__cta { padding: .55rem .8rem; }
-    /* The Deck: the card is small beside a narrow band — the sheet takes the band's height (P81 · DJ). */
+    /* The Deck: the card is small beside a narrow band — the sheet takes the band's height (P81 · DJ), no foot. */
     .con-composer__playsheet { min-height: 100%; }
+    .con-composer__playfoot { display: none; }
     .con-composer__cta-label { font-size: .9rem; }
     /* The «Сработает» unit may take ONE extra line on the Deck (the spec's
        allowance) — its chips shrink with the compact tokens. */

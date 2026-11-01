@@ -10632,6 +10632,44 @@ function soilStudiesFixture(name: string, variant: 'play' | 'locked'): void {
 soilStudiesFixture('soil-studies', 'play');
 soilStudiesFixture('soil-studies-locked', 'locked');
 
+// ── play-sheet-ledger · THE PLAY SHEET'S WORST PAYMENT (P81 · DJ / DT — the owner's question: «what with many payment
+//    choices?»): Space Elevator (Space + Building, 27) in Helion's hand with EVERY lane a play can open on that card —
+//    steel, titanium, heat (Helion), Modular Floodgates' steel, EVA Mechs' and Construction Mechs' mechs, Carbon
+//    Nanosystems' graphene — and M€: an eight-row ledger. The witness `console-play-composer-sheet` reads that the sheet
+//    EXPANDS (rises above the card, the ledger dense) instead of scrolling. ──
+{
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, customCorporationsList: [CardName.HELION, CardName.THORGATE], startingCorporations: 1,
+  });
+  answerStartFlow(game, [p1, p2]);
+  game.projectDeck.discardPile.push(...p1.cardsInHand.splice(0));
+  const holders: Array<[CardName, number]> = [
+    [CardName.MODULAR_FLOODGATES, 1], [CardName.EVA_MECHS, 2], [CardName.CONSTRUCTION_MECHS, 2], [CardName.CARBON_NANOSYSTEMS, 2],
+  ];
+  for (const [name, count] of holders) {
+    const holder = newProjectCard(name)!;
+    holder.resourceCount = count;
+    p1.playedCards.push(holder);
+  }
+  const elevator = newProjectCard(CardName.SPACE_ELEVATOR)!;
+  p1.cardsInHand.push(elevator);
+  p1.megaCredits = 30;
+  p1.steel = 4;
+  p1.titanium = 3;
+  p1.heat = 6;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  const options = p1.paymentOptionsForCard(elevator);
+  const lanes = [
+    ...(['steel', 'titanium', 'heat'] as const).filter((u) => options[u] === true && p1[u] > 0),
+    ...(['floodgateSteel', 'mechs', 'constructionMechs', 'graphene'] as const).filter((u) => options[u] === true && p1.getSpendable(u) > 0),
+  ];
+  if (game.activePlayer.id !== p1.id || p1.canPlay(elevator) === false || lanes.length !== 7) {
+    throw new Error(`the play-sheet-ledger fixture expected blue on the move with Space Elevator playable and 7 alternative lanes — got active=${game.activePlayer.id === p1.id} lanes=${lanes.join()}`);
+  }
+  write('play-sheet-ledger', game);
+}
+
 // ── P75 · GHG SHIPMENT — the SEVENTH Prelude 2 card and the FIRST in scope with a KELVINISTS requirement (docs/claude/
 //    prompts/prelude2-p75-ghg-shipment.md): «requires the Kelvinists — the GREENS under Redux (rulebook p.13,
 //    `normalizeReduxParty`) — ruling or 2 of your delegates there; +1 heat production; 1 heat per floater you have».

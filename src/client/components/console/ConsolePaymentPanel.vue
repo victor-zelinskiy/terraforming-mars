@@ -16,7 +16,7 @@
        mutates and NEVER emits — so no payment surface can drift from the
        pure `buildPaymentView` rules. -->
   <div class="con-pay"
-       :class="['con-pay--' + mode, {'con-pay--configurable': view.configurable && !free, 'con-pay--blocked': !view.status.ok && !free, 'con-pay--free': free}]"
+       :class="['con-pay--' + mode, {'con-pay--configurable': view.configurable && !free, 'con-pay--blocked': !view.status.ok && !free, 'con-pay--free': free, 'con-pay--dense': dense}]"
        :data-pay-density="mode"
        role="group"
        :aria-label="panelLabel">
@@ -175,6 +175,14 @@ export default defineComponent({
     /** The price's denomination — every icon/aria in the panel follows it. */
     costUnit(): string {
       return this.view.costUnit ?? 'megacredits';
+    },
+    /**
+     * A LEDGER OF MANY LANES (five or more — steel, titanium, heat, the card-bound units, M€) sets its rows denser in
+     * BOTH the summary and the editor (P81 · DJ, the owner's extreme payment): the same rows, the same order, the same
+     * geometry between the two densities — only the row's height is the profile's dense token.
+     */
+    dense(): boolean {
+      return this.mode !== 'line' && !this.free && this.view.rows.length >= 5;
     },
     /** The LINE's wallet: the one lane, what it holds before → what it keeps (undefined in any other density). */
     lineKeep(): {unit: string, before: number, after: number} | undefined {

@@ -86,7 +86,7 @@
              result strip, payment, commit rail, …): they materialize with a
              short stagger just behind the bridge's sweep, so the surface
              assembles in reading order instead of arriving in one frame. -->
-        <div class="con-composer__playright" ref="playRight">
+        <div class="con-composer__playright" ref="playRight" :style="sheetStyle">
           <!-- (No summary line above the work surface. It carried the price and
                a «МОЖНО РАЗЫГРАТЬ» badge — both already stated by the blocks
                below it: the payment head owns the price (after discounts), and
@@ -103,7 +103,7 @@
                data-forecast-browse: the WORK COLUMN the R3 «Эффекты» layer parks in place (consoleForecastFocusMotion) —
                every capture, the payment and the cursor survive underneath by construction. -->
           <div class="con-composer__playsheet" ref="sheet" data-forecast-browse
-               :class="{'con-composer__playsheet--review': reviewShown}" :style="sheetStyle">
+               :class="{'con-composer__playsheet--review': reviewShown}" :data-sheet-expanded="sheetExpanded ? '' : undefined">
           <ConsoleScrollArea class="con-composer__scroll" content-class="con-composer__scroll-body" ref="scroll">
             <div v-if="loading" class="con-composer__loading" data-unfold-item>{{ $t('Loading') }}…</div>
 
@@ -163,6 +163,10 @@
                  form: the card, the header, the result and the CTA all keep
                  their place, only emphasis moves). ──────────────────────── -->
             <template v-else>
+              <!-- THE BODY'S BLOCK (P81 · DJ): the result and everything under it, ONE in-flow block — centred in the
+                   body for the opening composition, PINNED where it stands by the player's first press (the settled
+                   column): a chosen variant's section grows it downward, nothing re-centres it under the cursor. -->
+              <div class="con-composer__playblock" ref="playBlock">
               <!-- RESULT HERO: the decision-carrying data (what you get) is the
                    dominant, glance-readable block — not the CTA. While the
                    payment editor is open it steps back (dimmed, NOT unmounted,
@@ -562,7 +566,7 @@
                      endgame points, the tags it carries): ONE quiet line under the body (P81 · DJ — never a row of
                      pills with emoji: a role is a fact the face already prints, read at the caption's weight). Membership
                      is data-driven — no card and no count is named here. -->
-                <div v-if="repeatChoice !== undefined || resultSections.length > 0" class="con-composer__rescats" data-composer-roles>
+                <div v-if="repeatChoice !== undefined || roleSections.length > 0" class="con-composer__rescats" data-composer-roles>
                   <!-- ProjectInspection: the result IS repeating a played action. -->
                   <div v-if="repeatChoice !== undefined" class="con-composer__rescat con-composer__rescat--action">
                     <span class="con-composer__rescat-text">{{ $t('Repeats a played card action') }}</span>
@@ -571,7 +575,7 @@
 
                   <!-- Derived result categories. A tag row is "label: [inline chips]"; a VP row is "label: +N". A card with no
                        role on the table renders nothing here (an empty line says nothing). -->
-                  <div v-for="(sec, i) in resultSections" :key="'r' + i" class="con-composer__rescat" :data-rescat="sec.kind"
+                  <div v-for="(sec, i) in roleSections" :key="'r' + i" class="con-composer__rescat" :data-rescat="sec.kind"
                        :class="[sec.penalty ? 'con-composer__rescat--penalty' : 'con-composer__rescat--' + sec.kind,
                                 {'con-composer__rescat--event-tags': sec.eventTags,
                                  'con-composer__rescat--vpformula': sec.formula !== undefined}]">
@@ -615,18 +619,31 @@
                     <span v-if="sec.note !== undefined" class="con-composer__rescat-note">{{ $t(sec.note) }}</span>
                   </div>
                 </div>
+
+                <!-- THE PAYMENT LEDGER — several lanes (steel, titanium, heat, card resources) or a shortfall: a decision
+                     zone of the body, read after the result and the choices, scrolled with them (P81 · DJ, the owner's
+                     4K review: a ledger of five lanes pinned to the sheet's foot would eat the result's room or be cut).
+                     ONE shared panel, `compact` summary (LB/RB the single alt lane, LT the editor) or `expanded`
+                     editor — same rows, same geometry; the host owns all input. The one-lane LINE stands in the dock. -->
+                <ConsolePaymentPanel v-if="!payInDock"
+                                     class="con-composer__payledger"
+                                     :view="paymentView"
+                                     :mode="payMode"
+                                     :focus-unit="payFocusUnit"
+                                     :flash-nonce="payFlashNonce"
+                                     :discount="forecastDiscount"
+                                     :free="payFree"
+                                     data-unfold-item />
               </div><!-- /__playmid -->
+              </div><!-- /__playblock -->
             </template>
           </ConsoleScrollArea>
-          <!-- THE DOCK — the sheet's bottom line: what it costs, and the commit. Mounted with the review (a pick list or
-               the target step owns the whole sheet, as it always owned the whole column). -->
+          <!-- THE DOCK — the sheet's bottom line: the commit, and the price beside it when it is ONE line (one lane, or
+               free). Mounted with the review (a pick list or the target step owns the whole sheet, as it always owned the
+               whole column). -->
           <div v-if="reviewShown" class="con-composer__playdock">
-            <!-- PAYMENT — the ONE shared panel, in the density the state asks
-                 for: `compact` summary (LB/RB drive the single alt lane, LT
-                 opens the editor) or `expanded` editor (cursor + every lane
-                 dialable). Same rows, same order, same geometry — the host
-                 owns all input, the panel only renders `paymentView`. -->
-            <ConsolePaymentPanel :view="paymentView"
+            <ConsolePaymentPanel v-if="payInDock"
+                                 :view="paymentView"
                                  :mode="payMode"
                                  :focus-unit="payFocusUnit"
                                  :flash-nonce="payFlashNonce"
@@ -668,6 +685,12 @@
             </div>
           </div>
           </div><!-- /__playsheet -->
+          <!-- THE CARD'S FOOT (P81 · DJ, the owner's decision for the extreme payment): the room under the hero face's
+               bottom line. The column stands the sheet ON it, so the sheet's bottom — the commit — is the card's bottom;
+               a sheet taller than the card (a ledger of many lanes) grows UPWARD past the card's top (the same sheet,
+               expanded — the result above the card's line, the payment taking the room), and only once it meets the
+               band's top does this foot give way, then the body scrolls. Inert, out of the tab and the pad. -->
+          <div class="con-composer__playfoot" aria-hidden="true"></div>
 
           <!-- ── THE «ЭФФЕКТЫ» LAYER (R3) — a LEVEL of this composer, never a
                surface of its own: the work column above PARKS in place, the
@@ -1107,8 +1130,13 @@ export default defineComponent({
     return {
       /** The decision column that stops re-centring once the player presses (`settledColumn.ts`). */
       settled: undefined as SettledColumn | undefined,
+      /** …and the SHEET in its column: pinned by the same press, so a sheet that grows mid-decision grows DOWNWARD. */
+      settledSheet: undefined as SettledColumn | undefined,
       /** The hero face's layout height (px, the sheet's own coordinate space) — the sheet's floor (P81 · DJ). */
       heroFaceHeight: 0,
+      /** The sheet stands taller than the hero face (the EXPANDED composition — a ledger of many lanes). */
+      sheetExpanded: false,
+      stopSheetObs: undefined as (() => void) | undefined,
       stopHeroFaceObs: undefined as (() => void) | undefined,
       boardPeekUi: boardPeekState,
       preview: undefined as ActionPreview | undefined,
@@ -1406,6 +1434,21 @@ export default defineComponent({
       }
       return !this.payFree && paymentLineEligible(this.paymentView) ? 'line' : 'compact';
     },
+    /** The payment stands in the DOCK only as ONE line (one lane, nothing to shape) or as FREE; a ledger is the body's. */
+    payInDock(): boolean {
+      return this.payMode === 'line' || this.payFree;
+    },
+    /**
+     * THE CARD'S ROLES THE FACE CANNOT PRINT (P81 · DJ — the owner's 4K review: «Метки» in the middle of the sheet is
+     * help the card already shows). The play's tags, its new action, its ongoing effect and a printed VP stand ON the
+     * face beside the sheet, so the sheet does not repeat them (the status-line law) — an EVENT's tags included (the
+     * table's answer to them is «Сработает», already under the result); what stays is what only the play knows: the VP
+     * a «per X» card scores NOW, what the play arms for the next card, a play that passes, the honest fallback.
+     */
+    roleSections(): ReadonlyArray<PlayResultSection> {
+      return this.resultSections.filter((s) => s.formula !== undefined ||
+        s.kind === 'armed' || s.kind === 'pass' || s.kind === 'fallback');
+    },
     /** The REVIEW stands (the sheet's three zones): not loading, and no pick list / target step owning the sheet. */
     reviewShown(): boolean {
       if (this.loading) {
@@ -1417,7 +1460,8 @@ export default defineComponent({
       }
       return !(sub !== undefined && (sub.kind === 'list' || sub.kind === 'orNested' || sub.kind === 'tabbed'));
     },
-    /** THE SHEET IS AS TALL AS THE CARD (P81 · DJ — the setup's DC mechanism): the hero face's measured height, its floor. */
+    /** THE SHEET IS AS TALL AS THE CARD (P81 · DJ — the setup's DC mechanism): the hero face's measured height — the sheet's
+     *  floor and the card's foot beside it (`__playfoot`), published on the column so both read it. */
     sheetStyle(): Record<string, string> {
       return this.heroFaceHeight > 0 ? {'--con-setup-face-h': `${this.heroFaceHeight}px`} : {};
     },
@@ -2672,6 +2716,7 @@ export default defineComponent({
   watch: {
     settleSuspended(now: boolean) {
       this.settled?.suspend(now);
+      this.settledSheet?.suspend(now);
     },
     /**
      * THE PAYLOAD IS CARRIED, both ways (TR56 «КУДА ЛЯЖЕТ», П3) — a `pre` watcher, so the level that is LEAVING is still
@@ -2884,9 +2929,20 @@ export default defineComponent({
     },
   },
   created() {
-    // THE SETTLED COLUMN: the work column composes centred, the player's first press pins it — a chosen variant's
-    // step section grows the column DOWNWARD and every group below slides into place (`settledColumn.ts`).
+    // THE SETTLED COLUMN: the sheet's body composes its block centred, the player's first press pins it — a chosen
+    // variant's step section grows the block DOWNWARD and every group below slides into place (`settledColumn.ts`). The
+    // column is the scroll's content (it grows with the block), so its frame is the band's (P81 · DJ).
     this.settled = markRaw(new SettledColumn({
+      column: () => (this.$refs.playBlock as HTMLElement | undefined)?.parentElement ?? undefined,
+      block: () => this.$refs.playBlock as HTMLElement | undefined,
+      active: () => !this.submitting && !this.loading,
+      // The FRAME is the band (the column the sheet stands in), never the body's viewport: the sheet legitimately grows
+      // under the pin (a section a press adds) and its viewport with it — that is the same composition, not a new one.
+      room: () => (this.$refs.playRight as HTMLElement | undefined)?.clientHeight ?? 0,
+    }));
+    // The SHEET stands on the card's foot and grows UPWARD at its opening (the expanded composition); from the player's
+    // first press it is pinned too — a section a press adds grows the sheet DOWNWARD, nothing moves under the cursor.
+    this.settledSheet = markRaw(new SettledColumn({
       column: () => this.$refs.playRight as HTMLElement | undefined,
       block: () => this.$refs.sheet as HTMLElement | undefined,
       active: () => !this.submitting && !this.loading,
@@ -2921,7 +2977,17 @@ export default defineComponent({
           return;
         }
         this.heroFaceHeight = Math.round(painted * column.offsetHeight / columnPainted);
+        judgeExpanded();
       };
+      // THE EXPANDED SHEET: taller than the face — read off the sheet's own layout box, re-judged as it grows.
+      const judgeExpanded = (): void => {
+        const sheet = this.$refs.sheet as HTMLElement | undefined;
+        this.sheetExpanded = sheet !== undefined && this.heroFaceHeight > 0 && sheet.offsetHeight > this.heroFaceHeight + 2;
+      };
+      const sheet = this.$refs.sheet as HTMLElement | undefined;
+      if (sheet !== undefined) {
+        this.stopSheetObs = useResizeObserver(sheet, judgeExpanded).stop;
+      }
       this.stopHeroFaceObs = useResizeObserver(card, measure).stop;
       measure();
     }
@@ -2938,7 +3004,9 @@ export default defineComponent({
     releaseCursor(this.lateCursor);
     leaveCommit(this.commitArrival);
     this.settled?.stop();
+    this.settledSheet?.stop();
     this.stopHeroFaceObs?.();
+    this.stopSheetObs?.();
     resetConsolePlayCardUi();
     closeEffectForecastLayer('play');
     closeBoardPeek(true);
@@ -4067,6 +4135,7 @@ export default defineComponent({
       }
       // The player's press pins the work column where it stands (centred) — nothing it causes re-centres it — and
       // whatever it moves inside the column slides into place.
+      this.settledSheet?.around();
       this.settled?.around();
       // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open («the player drives
       // the surface they see»); R3 at the review level opens it. Both are
@@ -4369,6 +4438,7 @@ export default defineComponent({
       return noteRow(`${translateCardName(c.reaction?.card ?? this.cardName)}: ${title !== '' ? title : translateText('Choose a target')}`);
     },
     clickVariantAt(index: number): void {
+      this.settledSheet?.around();
       this.settled?.around();
       const row = this.variantRows[index];
       if (row !== undefined) {

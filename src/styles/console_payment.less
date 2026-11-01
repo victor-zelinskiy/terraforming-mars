@@ -167,6 +167,9 @@
         color: @con-mint;
         white-space: nowrap;
     }
+    /* A LEDGER OF MANY LANES (P81 · DJ): five or more rows set denser — the token alone, the same in both densities
+       (the layout-shift contract holds: `compact` ⇄ `expanded` share it). */
+    &--dense { --con-pay-row-h: 2.5rem; }
     /* THE LINE (P81 · DJ) — the price said ONCE when there is nothing to shape: «ОПЛАТА · 11 [M€] · [M€] 15 → 4».
        No plate, no ledger, no verdict — the head is the whole block, and the wallet's consequence follows the price a
        step quieter (the price is the fact). */
@@ -620,6 +623,7 @@ html.con-profile-tv .con-pay {
     .con-pay__hint { font-size: .82rem; }
     .con-pay__keep { font-size: 1.05rem; }
     .con-pay__keep-icon { width: 1.2rem; height: 1.2rem; }
+    &.con-pay--dense { --con-pay-row-h: 2.9rem; }
     .con-payrow__rate { font-size: .75rem; }
     .con-payrow__auto { font-size: .7rem; }
     .con-payrow__worth-icon { width: .95rem; height: .95rem; }
@@ -660,6 +664,7 @@ html.con-profile-handheld .con-pay {
     .con-pay__price-saved { font-size: .56rem; line-height: 1rem; }
     .con-pay__hint { font-size: .58rem; }
     .con-pay__keep { font-size: .7rem; }
+    &.con-pay--dense { --con-pay-row-h: 2.3rem; }
     .con-payrow { column-gap: .35rem; padding: .15rem .4rem; }
     .con-payrow__rate { font-size: .55rem; }
     .con-payrow__auto { font-size: .52rem; }

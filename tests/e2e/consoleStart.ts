@@ -3081,6 +3081,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // Prelude 2 P81 Soil Studies — «per Venus tag, plant tag (INCLUDING THIS ONE) and colony» (DJ): the play +5 (Venus
   // Governor · Arctic Algae · this · one cube) · locked at −2 °C.
   'soil-studies' | 'soil-studies-locked' |
+  // The play sheet's worst payment (DJ): Space Elevator with every lane open — steel, titanium, Helion's heat,
+  // Floodgates' steel, both mechs, graphene, M€ — the ledger stands in the sheet's body, the commit on the bottom line.
+  'play-sheet-ledger' |
   // Prelude 2 P75 GHG Shipment — the classic Kelvinists read as the Greens (CW): the Greens rule (5 floaters, Manutech) · locked «0 of 2».
   'ghg-shipment' | 'ghg-shipment-locked' |
   // Prelude 2 P83 Sponsoring Nation — the play's live delegate grant with no board door (CX): 4 Earth tags (Teractor ·

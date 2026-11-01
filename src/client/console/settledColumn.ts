@@ -67,6 +67,14 @@ export type SettledColumnHost = {
   block: () => HTMLElement | null | undefined;
   /** May the column settle now? (the configuration state — not a reveal, a hosted step, an in-flight commit). */
   active: () => boolean;
+  /**
+   * The FRAME the composition belongs to, when the column itself is not the fixed box (P81 · DJ — the play sheet's
+   * body: the column is the scroll's content, which grows with its block; the frame is the band the sheet stands in —
+   * never the body's viewport, which grows with the sheet under the pin). Read ONLY
+   * to tell a new composition (the frame changed size → release); the clamp keeps the column's own box, so a growing
+   * column never pulls the pinned block up — what does not fit scrolls. Absent: the column's own height.
+   */
+  room?: () => number;
 };
 
 export class SettledColumn {
@@ -94,7 +102,7 @@ export class SettledColumn {
     }
     const top = block.getBoundingClientRect().top - column.getBoundingClientRect().top - column.clientTop - padTop(column);
     this.pinned = Math.max(0, Math.round(top));
-    this.frame = {w: column.clientWidth, h: column.clientHeight};
+    this.frame = {w: column.clientWidth, h: this.roomOf(column)};
     this.apply(column, this.pinned);
   }
 
@@ -195,7 +203,7 @@ export class SettledColumn {
       // nothing slides.
       return;
     }
-    if (this.frame !== undefined && (Math.abs(column.clientWidth - this.frame.w) > 1 || Math.abs(column.clientHeight - this.frame.h) > 1)) {
+    if (this.frame !== undefined && (Math.abs(column.clientWidth - this.frame.w) > 1 || Math.abs(this.roomOf(column) - this.frame.h) > 1)) {
       this.release();
       return;
     }
@@ -298,6 +306,11 @@ export class SettledColumn {
   private appliedTop(column: HTMLElement): number {
     const v = parseFloat(column.style.paddingTop);
     return Number.isFinite(v) ? v : (this.pinned ?? 0);
+  }
+
+  /** The height of the frame a composition belongs to: the host's room, or the column's own box. */
+  private roomOf(column: HTMLElement): number {
+    return this.host.room?.() ?? column.clientHeight;
   }
 
   private apply(column: HTMLElement, top: number): void {

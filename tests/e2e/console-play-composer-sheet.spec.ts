@@ -14,9 +14,17 @@ import {bootFixture, FixtureName, focusCard, press, settle} from './consoleStart
  *   (d) one lane and nothing to shape → the payment is ONE line (`data-pay-density="line"`), no «✓ Оплачено» verdict;
  *       a ledger case (an alternative lane) stays `compact`;
  *   (e) the commit is a PLATE: ≤ 60 % of the sheet's width, its «ready» row wears no light halo;
- *   (f) the card's roles are a LINE: no plate behind a role, no emoji glyph (a penalty's ⚠ excepted);
+ *   (f) the card's roles are a LINE: no plate behind a role, no emoji glyph (a penalty's ⚠ excepted) — and no role the
+ *       FACE already prints (its tags, its action, its effect, a printed VP — the owner's 4K review: «Метки» centred
+ *       on the sheet is help the card shows — an event's tags too); a «per X» VP now, an armed effect, a pass stay;
  *   (g) a «РАСЧЁТ» strip, where one stands, is ONE line with nothing cut;
- *   (h) the sheet's body fits — no scroll for these short plays.
+ *   (h) the sheet's body fits — no scroll (the eight-lane ledger included, off the Deck: the sheet EXPANDS instead);
+ *   (l) THE EXPANDED SHEET (the owner's decision for the extreme payment): a sheet taller than the card keeps its bottom
+ *       — the commit — on the card's bottom line and grows UPWARD past the card's top (`data-sheet-expanded`); a sheet
+ *       as tall as the card is never marked expanded;
+ *   (i) a ledger (several lanes) stands in the BODY, never in the dock; the one-line price in the dock;
+ *   (j) the commit stands whole inside the sheet — a tall ledger never pushes it out;
+ *   (k) a short body block is CENTRED in the body (the result at the card's mid-height, never pinned over a void).
  * Frames: `screenshots/play-sheet/<profile>/`.
  */
 
@@ -30,7 +38,7 @@ const PROFILES = [
 ] as const;
 
 /** `density`: the payment's expected density; `undefined` — whatever the deal gives (annotated, not judged). */
-type Case = {id: string, fixture: FixtureName, card: string | undefined, density: 'line' | 'compact' | undefined, why: boolean};
+type Case = {id: string, fixture: FixtureName, card: string | undefined, density: 'line' | 'compact' | undefined, why: boolean, tall?: boolean};
 const CORPUS: ReadonlyArray<Case> = [
   // A counted event, M€ only: the line, «РАСЧЁТ» of two terms, the event-tags role.
   {id: 'soil-studies', fixture: 'soil-studies', card: 'Soil Studies', density: 'line', why: true},
@@ -40,6 +48,8 @@ const CORPUS: ReadonlyArray<Case> = [
   {id: 'floating-refinery', fixture: 'floating-refinery', card: 'Floating Refinery', density: 'compact', why: true},
   // A solo hand with steel and titanium: the first card whose payment holds an alternative lane (the ledger case).
   {id: 'ledger', fixture: 'solo-actions', card: undefined, density: 'compact', why: false},
+  // THE WORST PAYMENT (the owner's question): Space Elevator with every lane open — an eight-row ledger.
+  {id: 'ledger-8', fixture: 'play-sheet-ledger', card: 'Space Elevator', density: 'compact', why: false, tall: true},
 ];
 
 type Rect = {t: number, b: number, l: number, r: number, w: number, h: number};
@@ -58,6 +68,15 @@ type Scene = {
   whyLines: number,
   whyCut: boolean,
   bodyScroll: {sh: number, ch: number},
+  /** Roles that repeat the face (plain tags, action, effect, a printed VP). */
+  faceRoles: Array<string>,
+  /** Where the payment panel stands: 'dock' | 'body' | ''. */
+  payWhere: string,
+  /** The sheet wears the EXPANDED mark (l). */
+  expanded: boolean,
+  /** The body's viewport and the block it holds (k). */
+  body: Rect | null,
+  block: Rect | null,
   /** The share of the sheet's height no zone content stands on — annotated (the body's air is by design). */
   voidShare: number,
 };
@@ -139,6 +158,25 @@ async function readScene(page: Page): Promise<Scene> {
       whyCut,
       bodyScroll: viewport === null ? {sh: 0, ch: 0} : {sh: viewport.scrollHeight, ch: viewport.clientHeight},
       voidShare,
+      faceRoles: rescats.filter((el) => {
+        const kind = el.getAttribute('data-rescat') ?? '';
+        return kind === 'tags' || kind === 'action' || kind === 'effect' ||
+          (kind === 'vp' && !el.classList.contains('con-composer__rescat--vpformula'));
+      }).map((el) => el.getAttribute('data-rescat') ?? ''),
+      expanded: sheetEl?.hasAttribute('data-sheet-expanded') ?? false,
+      payWhere: host.querySelector('.con-composer__playdock .con-pay') !== null ? 'dock' :
+        host.querySelector('.con-composer__playmid .con-pay') !== null ? 'body' : '',
+      body: rect(viewport),
+      block: (() => {
+        const content = viewport?.querySelector('.con-scroll-area__content .con-composer__scroll-body') ?? null;
+        const kids = content === null ? [] : [...content.children].map((k) => k.getBoundingClientRect()).filter((r) => r.height > 0);
+        if (kids.length === 0) {
+          return null;
+        }
+        const t = Math.min(...kids.map((r) => r.top));
+        const b = Math.max(...kids.map((r) => r.bottom));
+        return {t, b, l: 0, r: 0, w: 0, h: b - t};
+      })(),
     };
   }, COMPOSER);
 }
@@ -211,11 +249,17 @@ function expectSheet(scene: Scene, label: string, deck: boolean, c: Case): void 
   }
   if (!deck) {
     expect.soft(scene.hero, `${label}: the hero stands beside the sheet`).not.toBeNull();
-    if (scene.hero !== null) {
+    if (scene.hero !== null && c.tall === true) {
+      // (l) THE EXPANDED SHEET: the commit's line on the card's bottom, the sheet grown upward past the card's top.
+      expect.soft(scene.sheet.b >= scene.hero.b - 2 && scene.sheet.t < scene.hero.t - 2,
+        `${label}: (l) the expanded sheet rises above the card's top and keeps its commit at or below the card's bottom line — sheet ${JSON.stringify([scene.sheet.t, scene.sheet.b])} hero ${JSON.stringify([scene.hero.t, scene.hero.b])}`).toBe(true);
+      expect.soft(scene.expanded, `${label}: (l) the sheet is marked expanded`).toBe(true);
+    } else if (scene.hero !== null) {
+      expect.soft(scene.expanded, `${label}: (l) a sheet as tall as the card is not expanded`).toBe(false);
       expect.soft(near(scene.sheet.t, scene.hero.t, 2) && near(scene.sheet.b, scene.hero.b, 2),
         `${label}: (a) the sheet's top / bottom on the hero face's — sheet ${JSON.stringify([scene.sheet.t, scene.sheet.b])} hero ${JSON.stringify([scene.hero.t, scene.hero.b])}`).toBe(true);
     }
-  } else if (scene.band !== null) {
+  } else if (scene.band !== null && c.tall !== true) {
     expect.soft(near(scene.sheet.t, scene.band.t, 2) && near(scene.sheet.b, scene.band.b, 2),
       `${label}: (a) on the Deck the sheet spans the band — sheet ${JSON.stringify([scene.sheet.t, scene.sheet.b])} band ${JSON.stringify([scene.band.t, scene.band.b])}`).toBe(true);
   }
@@ -241,7 +285,20 @@ function expectSheet(scene: Scene, label: string, deck: boolean, c: Case): void 
     expect.soft(scene.whyLines, `${label}: (g) «РАСЧЁТ» on ONE line`).toBe(1);
     expect.soft(scene.whyCut, `${label}: (g) «РАСЧЁТ» cut by nothing`).toBe(false);
   }
-  expect.soft(scene.bodyScroll.sh, `${label}: (h) the body fits — ${scene.bodyScroll.sh} of ${scene.bodyScroll.ch}`).toBeLessThanOrEqual(scene.bodyScroll.ch + 2);
+  if (c.tall !== true || !deck) {
+    expect.soft(scene.bodyScroll.sh, `${label}: (h) the body fits — ${scene.bodyScroll.sh} of ${scene.bodyScroll.ch}`).toBeLessThanOrEqual(scene.bodyScroll.ch + 2);
+  }
+  expect.soft(scene.faceRoles, `${label}: (f) no role the face already prints`).toEqual([]);
+  expect.soft(scene.payWhere, `${label}: (i) a ledger in the body, the one line in the dock`).toBe(scene.density === 'line' ? 'dock' : 'body');
+  if (scene.cta !== null) {
+    expect.soft(scene.cta.t >= scene.sheet.t - 1 && scene.cta.b <= scene.sheet.b + 1,
+      `${label}: (j) the commit whole inside the sheet — commit ${JSON.stringify([scene.cta.t, scene.cta.b])} sheet ${JSON.stringify([scene.sheet.t, scene.sheet.b])}`).toBe(true);
+  }
+  if (scene.body !== null && scene.block !== null && scene.block.h < scene.body.h - 6) {
+    const bodyMid = (scene.body.t + scene.body.b) / 2;
+    const blockMid = (scene.block.t + scene.block.b) / 2;
+    expect.soft(near(bodyMid, blockMid, 3), `${label}: (k) a short block centred in the body — body ${JSON.stringify([scene.body.t, scene.body.b])} block ${JSON.stringify([scene.block.t, scene.block.b])}`).toBe(true);
+  }
 }
 
 for (const profile of PROFILES) {
