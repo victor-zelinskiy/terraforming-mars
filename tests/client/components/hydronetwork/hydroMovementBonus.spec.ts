@@ -44,6 +44,9 @@ describe('hydroMovementBonus', () => {
       expect(out[0].transfers).deep.eq([]);
       expect(out[1].transfers).deep.eq([{channel: 'stock', resource: Resource.STEEL, amount: 2}]);
       expect(out[2].transfers).deep.eq([{channel: 'stock', resource: Resource.HEAT, amount: 3}]);
+      // …and NAMES them as the leg's card answers (declared at the hold seed — never held twice).
+      expect(out[2].answers).deep.eq([{channel: 'stock', resource: Resource.HEAT, amount: 3}]);
+      expect(out[1].answers).eq(undefined);
     });
 
     it('merges with the destination stage’s own reward of the same pool', () => {

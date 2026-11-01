@@ -35,7 +35,7 @@ import {
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 
 /** One leg of an armed traversal, as far as this module cares. */
-type LegWithTransfers = {transfers: ReadonlyArray<ResourceTransferSpec>};
+type LegWithTransfers = {transfers: ReadonlyArray<ResourceTransferSpec>, answers?: ReadonlyArray<ResourceTransferSpec>};
 
 /**
  * The panel-bound flight for the projected bonuses: a STOCK chip per resource,
@@ -60,18 +60,27 @@ export function movementBonusTransfers(
  * one aggregate delivery when the marker finally stops, never a chip per cell.
  * Returns the legs unchanged when nothing is owed, so the historical plan is
  * byte-identical.
+ *
+ * The same specs are named on the leg as its `answers`: the server records the
+ * bonus as a CARD REACTION (the card's own effect scope), and the marker that
+ * flies it must declare it at its hold seed, or the reaction seeder holds the
+ * row a second time (the rail dipped below its old number at the commit).
  */
 export function withMovementBonusOnLastLeg<T extends LegWithTransfers>(
   legs: ReadonlyArray<T>,
   bonuses: ReadonlyArray<DeltaMovementBonusProjection> | undefined,
-): Array<T> {
+): Array<T & {answers?: ReadonlyArray<ResourceTransferSpec>}> {
   const specs = movementBonusTransfers(bonuses);
   const out = [...legs];
   if (specs.length === 0 || out.length === 0) {
     return out;
   }
   const last = out[out.length - 1];
-  out[out.length - 1] = {...last, transfers: mergeTransferSpecs([...last.transfers, ...specs])};
+  out[out.length - 1] = {
+    ...last,
+    transfers: mergeTransferSpecs([...last.transfers, ...specs]),
+    answers: mergeTransferSpecs([...(last.answers ?? []), ...specs]),
+  };
   return out;
 }
 

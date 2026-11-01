@@ -11,7 +11,7 @@ import {
   setHydroMarkerPhase,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
 import {CardName} from '@/common/cards/CardName';
-import {beginPanelRewardHold, clearPanelRewardHold, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {beginPanelRewardHold, clearPanelRewardHold, panelRewardHold, takeDeclaredAnswers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 describe('consoleHydroMarker', () => {
@@ -41,6 +41,38 @@ describe('consoleHydroMarker', () => {
       expect(panelRewardHold.active, 'the panel is held by somebody else').to.eq(true);
       expect(hydroRewardHoldOwed(), '…and the flow owes nothing').to.eq(false);
       expect(hydroRewardWaveActive()).to.eq(false);
+    });
+
+    /**
+     * A CARD'S ANSWER TO THE MOVEMENT (Social Heating's heat) rides the marker's wave AND is a card-reaction record on
+     * the server — the seed declares it, or the reaction seeder holds the same row a second time (CI 2026-11-01: the
+     * heat row read 500 → 497 «−3» at the commit, then climbed back twice).
+     */
+    it('DECLARES the movement bonus it holds — a single step and a traversal alike', () => {
+      takeDeclaredAnswers();
+      const heat: ResourceTransferSpec = {channel: 'stock', resource: 'heat', amount: 3};
+      const steel: ResourceTransferSpec = {channel: 'stock', resource: 'steel', amount: 2};
+      armHydroMarker(2, 5, 'blue', [steel, heat], [heat]);
+      seedHydroMarkerRewardHold();
+      expect(takeDeclaredAnswers(), 'the answer, never the stage reward').to.deep.eq([heat]);
+      seedHydroMarkerRewardHold();
+      expect(takeDeclaredAnswers(), 'declared once per seed').to.deep.eq([]);
+      resetHydroMarker();
+      clearPanelRewardHold();
+
+      armHydroMarkerTraversal(0, [
+        {position: 1, transfers: [steel]},
+        {position: 2, transfers: [heat], answers: [heat]},
+      ], 'blue');
+      seedHydroMarkerRewardHold();
+      expect(takeDeclaredAnswers()).to.deep.eq([heat]);
+    });
+
+    it('declares nothing when the move owes no card an answer', () => {
+      takeDeclaredAnswers();
+      armHydroMarker(2, 5, 'blue', [{channel: 'stock', resource: 'steel', amount: 2}]);
+      seedHydroMarkerRewardHold();
+      expect(takeDeclaredAnswers()).to.deep.eq([]);
     });
   });
 

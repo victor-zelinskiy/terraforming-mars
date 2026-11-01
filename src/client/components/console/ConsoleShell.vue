@@ -19673,11 +19673,12 @@ export default defineComponent({
         armHydroMarkerTraversal(payload.fromPosition, [{
           position: payload.toPosition,
           transfers: rewards,
+          answers: movementSpecs,
           stop: 'repeat',
           sourceCard: payload.selectedCard,
         }], this.thisPlayer.color);
       } else {
-        armHydroMarker(payload.fromPosition, payload.toPosition, this.thisPlayer.color, rewards);
+        armHydroMarker(payload.fromPosition, payload.toPosition, this.thisPlayer.color, rewards, movementSpecs);
       }
       this.syncHydroFramePhase();
     },

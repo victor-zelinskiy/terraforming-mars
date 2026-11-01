@@ -105,6 +105,26 @@ async function armProbe(page: Page, spaceId: string): Promise<void> {
     };
     take();
     setInterval(take, 40);
+    // THE LIFT IS A TRANSIENT, and a sampler can sleep through it: on CI's starved renderer the observer's interval
+    // stalled ~360 ms (cell «O» at one sample, bare at the next) — exactly the proxy's 380 ms — and the test called a
+    // departure that may well have played «never seen» (CI 2026-11-01). The proxy's BIRTH and the cell's repaint are
+    // DOM mutations, so they take a sample in the very task the product writes them (tests.md: a transient pose is asked
+    // of a MutationObserver record, never a polling sample).
+    const departs = (el: Element): boolean =>
+      el.classList.contains('con-tileplace__tile--depart') || el.querySelector('.con-tileplace__tile--depart') !== null;
+    new MutationObserver((records) => {
+      for (const r of records) {
+        const hit = r.type === 'attributes' ?
+          r.target instanceof Element && (r.target.classList.contains('con-tileplace__tile--depart') ||
+            r.target.matches(`.board-space[data_space_id="${id}"] [data-test="tile"]`)) :
+          Array.from(r.addedNodes).some((n) => n instanceof Element && departs(n)) ||
+            Array.from(r.removedNodes).some((n) => n instanceof Element && departs(n));
+        if (hit) {
+          take();
+          return;
+        }
+      }
+    }).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class']});
   }, spaceId);
 }
 

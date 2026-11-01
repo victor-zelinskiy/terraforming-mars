@@ -257,7 +257,7 @@
            its block when the block fits (a simple action's statement stands at the card's mid-height, beside the art
            — air above and below by design, never a form pinned to the top); a block taller than the room starts at
            the top and scrolls only its decision list (`safe center`). -->
-      <div class="con-composer__body" data-setup-body>
+      <div class="con-composer__body" data-setup-body ref="bodyEl" :style="ledgerBodyStyle">
       <!-- ── Hero: the LIVE cost → reward formula of the ACTIVE branch.
            Shown once a branch is chosen (or a single-branch card); the
            multi-branch option cards below carry their own chips. ─────── -->
@@ -1217,6 +1217,28 @@ function asElements(ref: unknown): Array<HTMLElement> {
   return isEl(ref) ? [ref] : [];
 }
 
+/**
+ * The room the body's `safe center` leaves above its block, as the padding that keeps the block there once the body is
+ * top-aligned ('' — nothing to pin). Layout offsets, never rects: the press can land inside the surface's unfold
+ * transform, and the pin must be the block's place in the layout, not in that frame's paint.
+ */
+function bodyBlockPin(body: HTMLElement | undefined): string {
+  const first = body?.firstElementChild as HTMLElement | null | undefined;
+  if (body === undefined || first === null || first === undefined || typeof getComputedStyle !== 'function') {
+    return '';
+  }
+  const cs = getComputedStyle(body);
+  const padTop = parseFloat(cs.paddingTop) || 0;
+  const marginTop = parseFloat(getComputedStyle(first).marginTop) || 0;
+  // A positioned body IS the child's offsetParent (offsets from its padding edge); otherwise both share one, and the
+  // body's own border sits between its box and its content.
+  const fromContent = first.offsetParent === body ?
+    first.offsetTop :
+    first.offsetTop - body.offsetTop - (parseFloat(cs.borderTopWidth) || 0);
+  const offset = fromContent - padTop - marginTop;
+  return `${padTop + Math.max(0, offset)}px`;
+}
+
 type GroupNode = ActionGroup['nodes'][number];
 type Item = {id: string, kind: 'branch', pos: number} | {id: string, kind: 'choice', choice: ComposerChoice};
 /** Several cards answered in the hand album for one `or` option, kept as ONE `orDescents` pick. */
@@ -1530,6 +1552,8 @@ export default defineComponent({
       ledgerFrozen: undefined as AllColonyBonusesModel | undefined,
       /** The surface's height AT THE PRESS (its own used value) — the box the paying ledger keeps ('' — not pinned). */
       ledgerSurfaceHeight: '',
+      /** The body's block offset AT THE PRESS (the room `safe center` left above it, as a padding) — '' — not pinned. */
+      ledgerBodyPin: '',
       /** This stage MOUNTED into a payout already running (a restored park): the decisions the press carried are not
        *  this instance's to show — its rows are put away, the ledger and the dock speak. */
       ledgerResumed: false,
@@ -3044,6 +3068,16 @@ export default defineComponent({
       // floor (`console.less` § the configuration surface) — a number from the layout, never one written in CSS.
       const face: Record<string, string> = this.heroFaceHeight > 0 ? {'--con-setup-face-h': `${this.heroFaceHeight}px`} : {};
       return this.ledgerPaying && this.ledgerSurfaceHeight !== '' ? {...face, minHeight: this.ledgerSurfaceHeight} : face;
+    },
+    /**
+     * …AND THE BODY KEEPS ITS BLOCK WHERE IT STOOD. The body centres a block that fits (P73 · DC iteration 2), so the
+     * moment the press folds the chosen target into its one-line receipt the decision list shrinks and the CENTRED
+     * block re-centres — the ledger (the wave's source) slid down 21 px at 4K in the frame the first chip was born
+     * (CI 2026-11-01, `console-habitat-science`). The offset `safe center` gave the block at the press becomes a
+     * padding, the alignment the top: the same picture, frozen for the flow's life.
+     */
+    ledgerBodyStyle(): Record<string, string> | undefined {
+      return this.ledgerPaying && this.ledgerBodyPin !== '' ? {justifyContent: 'flex-start', paddingTop: this.ledgerBodyPin} : undefined;
     },
     /** Every row has paid (the read beat and after) — the dock reads «Выполнено». */
     ledgerSettled(): boolean {
@@ -6667,6 +6701,7 @@ export default defineComponent({
       const surface = this.$refs.surfaceEl as HTMLElement | undefined;
       this.ledgerSurfaceHeight = branch.colonyBonuses !== undefined && surface !== undefined && typeof getComputedStyle === 'function' ?
         getComputedStyle(surface).height : '';
+      this.ledgerBodyPin = branch.colonyBonuses !== undefined ? bodyBlockPin(this.$refs.bodyEl as HTMLElement | undefined) : '';
       // Capture the configuration surface's box NOW — the outcome unfolds from
       // it, and by the time that zone mounts this surface is already gone.
       armOutcomeOrigin(this.$refs.rootEl as HTMLElement | undefined);

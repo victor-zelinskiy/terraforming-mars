@@ -32,7 +32,7 @@
  * FIRST press.
  */
 import {expect, test, APIRequestContext, Page} from './consoleTest';
-import {answerTableQuestions, bootIntoGame, cinematicBeat, press, settle, soloGameConfig, TableQuestionAnswer} from './consoleStart';
+import {answerTableQuestions, bootIntoGame, cinematicBeat, press, settle, soloGameConfig, TableQuestionAnswer, takeRevealCard} from './consoleStart';
 
 const OLYMPUS = 'Olympus Conference';
 const MARS_UNIVERSITY = 'Mars University';
@@ -163,7 +163,7 @@ test.describe('two triggered effects in a row', () => {
     // The play's own batch presents first (surfaces go in turn) — take it; prompt 1 follows, as its ALBUM.
     for (let i = 0; i < 120 && !await albumAsks(page); i++) {
       if (await page.locator('.con-hand__outcome .con-reveal').count() > 0) {
-        await press(page, 'Period', 800);
+        await takeRevealCard(page, 15_000);
       } else {
         await page.waitForTimeout(300);
       }
@@ -262,7 +262,12 @@ test.describe('two triggered effects in a row', () => {
         break;
       }
       if (await page.locator('.con-hand__outcome .con-reveal').count() > 0) {
-        await press(page, 'Enter', 700);
+        // A TAKE IS ACT → VERIFY (`takeRevealCard`: a press only on a reveal that TAKES — `data-take="ready"` — and
+        // never a retry once it has landed). The blind `press(Enter)` here waited for quiet BEFORE its key, so on a
+        // starved CI renderer the last take finished, the university's album rose in that window and the key landed IN
+        // it — the very question this test exists to measure, answered by the driver (CI 2026-11-01: «the second
+        // question never reached the screen», 55 s).
+        await takeRevealCard(page, 15_000);
       } else {
         await page.waitForTimeout(300);
       }

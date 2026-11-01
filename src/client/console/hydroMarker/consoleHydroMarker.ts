@@ -44,7 +44,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold,
-  clearPanelRewardHold, abortResourceTransfers,
+  clearPanelRewardHold, abortResourceTransfers, declareHeldAnswers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 
 export type MarkerPhase = 'idle' | 'charge' | 'glide' | 'arrive' | 'lock' | 'pulse';
@@ -142,6 +142,9 @@ export function hydroRewardWaveActive(): boolean {
 export type HydroMarkerLegPlan = {
   position: number;
   transfers: ReadonlyArray<ResourceTransferSpec>;
+  /** The part of `transfers` that is a card's answer to the movement (`withMovementBonusOnLastLeg`) — declared at
+   *  the hold seed, never held twice (see `pendingAnswers`). */
+  answers?: ReadonlyArray<ResourceTransferSpec>;
   stop?: 'deck-draw' | 'repeat' | 'prompt';
   excluded?: boolean;
   /**
@@ -198,6 +201,13 @@ let settleTimerId = 0;
 /** The reward the advance grants — flown to the panel when the marker locks
  *  (the resource-transfer reward beat). Empty for a tag / VP / flow reward. */
 let pendingRewards: ReadonlyArray<ResourceTransferSpec> = [];
+/**
+ * The part of `pendingRewards` that is a CARD'S ANSWER to the movement (Social Heating's heat — a passive effect the
+ * server records as a card reaction): the marker's wave flies it, so the hold seed DECLARES it
+ * (`declareHeldAnswers`) — the card-reaction seeder then attaches the record to this host instead of holding the
+ * same row a second time (CI 2026-11-01: the rail read 500 → 497 «−3» at the commit, two holds of one +3).
+ */
+let pendingAnswers: ReadonlyArray<ResourceTransferSpec> = [];
 let rewardHoldSeeded = false;
 /** The traversal plan's legs (module-level: render state is the reactive
  *  cursor above; the legs themselves never change once armed). */
@@ -464,10 +474,11 @@ function clearArmSafety(): void {
  */
 export function armHydroMarker(
   fromPosition: number, toPosition: number, color: Color,
-  rewards: ReadonlyArray<ResourceTransferSpec> = []): void {
+  rewards: ReadonlyArray<ResourceTransferSpec> = [], answers: ReadonlyArray<ResourceTransferSpec> = []): void {
   clearArmSafety();
   claimed = false;
   pendingRewards = rewards;
+  pendingAnswers = answers;
   rewardHoldSeeded = false;
   hydroMarkerState.rewardHoldOwed = false;
   hydroMarkerState.active = true;
@@ -517,6 +528,7 @@ export function armHydroMarkerTraversal(
   recordHydroStepEvent(`move:${firstFrom}-${legs[0].position}:start`);
   const range = seedRangeFrom(0);
   pendingRewards = range.transfers;
+  pendingAnswers = range.answers;
   planSeedFrom = range.nextFrom;
   rewardHoldSeeded = false;
   hydroMarkerState.rewardHoldOwed = false;
@@ -534,19 +546,21 @@ export function armHydroMarkerTraversal(
 /** The transfers granted by ONE response, starting at leg `from`: everything
  *  up to (and including) the next hidden-information stop — its own transfers
  *  are empty, and the rewards past it ride the response that answers it. */
-function seedRangeFrom(from: number): {transfers: Array<ResourceTransferSpec>, nextFrom: number} {
+function seedRangeFrom(from: number): {transfers: Array<ResourceTransferSpec>, answers: Array<ResourceTransferSpec>, nextFrom: number} {
   const transfers: Array<ResourceTransferSpec> = [];
+  const answers: Array<ResourceTransferSpec> = [];
   for (let i = from; i < planLegs.length; i++) {
     transfers.push(...planLegs[i].transfers);
+    answers.push(...(planLegs[i].answers ?? []));
     // A `prompt` stop splits the range for the same reason a deck stop does:
     // everything past it is granted only by the response that ANSWERS it (an
     // espionage target's own decision) — a hold seeded earlier would describe
     // rewards the server has not committed.
     if (planLegs[i].stop === 'deck-draw' || planLegs[i].stop === 'prompt') {
-      return {transfers, nextFrom: i + 1};
+      return {transfers, answers, nextFrom: i + 1};
     }
   }
-  return {transfers, nextFrom: planLegs.length};
+  return {transfers, answers, nextFrom: planLegs.length};
 }
 
 /**
@@ -568,11 +582,14 @@ export function seedHydroMarkerRewardHold(): void {
   }
   if (hydroMarkerState.reducedMotion) {
     pendingRewards = [];
+    pendingAnswers = [];
     return;
   }
   rewardHoldSeeded = true;
   hydroMarkerState.rewardHoldOwed = true;
   beginPanelRewardHold(pendingRewards);
+  declareHeldAnswers(pendingAnswers);
+  pendingAnswers = [];
 }
 
 /** The reward beat: the granted resources emerge from the just-reached stop
@@ -671,6 +688,7 @@ export function endHydroMarker(): void {
   const settled = hydroMarkerState.toPosition;
   const rewards = pendingRewards;
   pendingRewards = [];
+  pendingAnswers = [];
   const finalize = () => {
     hydroMarkerState.active = false;
     hydroMarkerState.phase = 'idle';
@@ -837,6 +855,7 @@ function pauseTraversal(position: number): void {
   recordHydroStepEvent(`stage:${position}:stopOpened`);
   const range = seedRangeFrom(planSeedFrom);
   pendingRewards = range.transfers;
+  pendingAnswers = range.answers;
   planSeedFrom = range.nextFrom;
   rewardHoldSeeded = false;
   hydroMarkerState.rewardHoldOwed = false;
@@ -897,6 +916,7 @@ function finalizeTraversal(): void {
   planSeedFrom = 0;
   pendingResumeWave = undefined;
   pendingRewards = [];
+  pendingAnswers = [];
   rewardHoldSeeded = false;
   // Belt-and-braces: any hold a degraded leg left snaps to truth now.
   clearPanelRewardHold();
@@ -1093,6 +1113,7 @@ export function abortHydroMarker(): void {
   clearPlanProgressNet();
   recordHydroStepEvent('traversal:abort');
   pendingRewards = [];
+  pendingAnswers = [];
   rewardHoldSeeded = false;
   resolveLandExitWaiter();
   abortResourceTransfers();
@@ -1118,6 +1139,7 @@ export function resetHydroMarker(): void {
   lockResolve = undefined;
   claimed = false;
   pendingRewards = [];
+  pendingAnswers = [];
   rewardHoldSeeded = false;
   hydroMarkerState.rewardHoldOwed = false;
   hydroMarkerState.wavesActive = 0;
