@@ -338,7 +338,7 @@ for (const preset of PRESETS) {
       await expect(page.locator(composer), 'the delegate leaves the reserve').toContainText('из резерва');
       // `textContent`, not `innerText`: the composer's groups materialize in a cascade, and a group still hidden
       // by it is absent from the rendered text.
-      const paymentBefore = await textOf(page, `${composer} .con-paystatus`);
+      const paymentBefore = await textOf(page, `${composer} .con-pay`);
       expect(paymentBefore, 'the payment line states the price').toContain('4');
 
       await armProbe(page, viewer);
@@ -383,7 +383,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-parl'), 'the step left').toHaveCount(0, {timeout: 10_000});
       await settle(page);
       await expect(page.locator(composer)).toContainText('Выбрать резолюцию');
-      await expect.poll(() => textOf(page, `${composer} .con-paystatus`), {timeout: 10_000, message: 'the payment survived the round trip'}).toBe(paymentBefore);
+      await expect.poll(() => textOf(page, `${composer} .con-pay`), {timeout: 10_000, message: 'the payment survived the round trip'}).toBe(paymentBefore);
       expect(posts).toEqual([]);
       expect((await wireOf(request, playerId)).game.gameAge, 'the round trip left no trace').toBe(before.game.gameAge);
 

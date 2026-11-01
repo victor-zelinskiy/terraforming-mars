@@ -179,7 +179,7 @@ for (const preset of PRESETS) {
       expect(await focusedTile(page, ROOT), 'the cursor stands on a tile').toBeGreaterThanOrEqual(0);
       await shoot(page, preset.id, 'b-01-before');
       await arm(page, {
-        scroll: `${ROOT} .con-composer__playright > .con-composer__scroll`,
+        scroll: `${ROOT} .con-composer__playsheet > .con-composer__scroll`,
         group: `${ROOT} .con-vchoice`,
         cta: `${ROOT} .con-composer__cta`,
       });

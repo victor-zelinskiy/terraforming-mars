@@ -565,7 +565,7 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${composer} .action-effect-chip .resource_icon--rating`), 'no TR step on this walk — no TR chip').toHaveCount(0);
       const stageLine = page.locator(composer).getByText('Карьера — маркер пройдёт 2 шага в Парламенте');
       await expect(stageLine, 'the coming stage is named ONCE, from the server\'s reading').toHaveCount(1);
-      expect(await textOf(page, `${composer} .con-paystatus`), 'the payment line states the price').toContain('5');
+      expect(await textOf(page, `${composer} .con-pay`), 'the payment line states the price').toContain('5');
       await shoot(page, preset.id, '01-composer-6');
 
       await armProbe(page, viewer, 7, 8);

@@ -2,7 +2,7 @@ import {mount} from '@vue/test-utils';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
-import {buildEnergyMixView, buildPaymentView, PaymentLane, PaymentView} from '@/client/console/paymentPlan';
+import {buildEnergyMixView, buildPaymentView, PaymentLane, PaymentView, paymentLineEligible} from '@/client/console/paymentPlan';
 
 /**
  * The ONE console payment panel, rendered in both densities.
@@ -354,5 +354,45 @@ describe('ConsolePaymentPanel — one panel, two densities', () => {
     expect(w.find('.con-paystatus').classes()).to.include('con-paystatus--short');
     expect(w.find('.con-paystatus__delta').text()).to.equal('2');
     expect(w.find('.con-paystatus__delta-icon').classes()).to.include('resource_icon--energy');
+  });
+});
+
+/**
+ * THE LINE (P81 · DJ) — the price said ONCE when there is nothing to shape: one lane (M€), the mix exact. The play
+ * composer's dock reads «ОПЛАТА · 11 [M€] · [M€] 15 → 4»: no ledger, no «✓ Оплачено» beside «ТОЧНАЯ ОПЛАТА» (one fact,
+ * said once), no editor hint. A second lane, an alternative or a shortfall keeps the compact ledger.
+ */
+describe('ConsolePaymentPanel — the line density (P81)', () => {
+  const mcOnly = (cost: number, mc: number) => buildPaymentView({cost, lanes: [], counts: {}, mcAvailable: mc});
+
+  it('eligible only with ONE lane and an exact mix', () => {
+    expect(paymentLineEligible(mcOnly(11, 15)), 'M€ only, affordable').is.true;
+    expect(paymentLineEligible(mcOnly(11, 5)), 'a shortfall keeps the ledger').is.false;
+    expect(paymentLineEligible(view({cost: 21, lanes: [STEEL], counts: {steel: 2}, mcAvailable: 30})), 'an alternative lane keeps the ledger').is.false;
+  });
+
+  it('one line: the price, the wallet «15 → 4»; no rows, no verdict, no hint, no «Цена» label', () => {
+    const w = mountPanel(mcOnly(11, 15), {mode: 'line'});
+    expect(w.find('.con-pay').attributes('data-pay-density')).eq('line');
+    expect(w.find('.con-pay__price-value').text()).eq('11');
+    expect(w.find('.con-pay__price-label').exists()).is.false;
+    const keep = w.find('[data-pay-keep]');
+    expect(keep.find('.con-pay__keep-before').text()).eq('15');
+    expect(keep.find('.con-pay__keep-after').text()).eq('4');
+    expect(w.findAll('.con-payrow')).has.length(0);
+    expect(w.find('.con-paystatus').exists(), 'no «✓ Оплачено» / «ТОЧНАЯ ОПЛАТА» — the fact is said once').is.false;
+    expect(w.find('.con-pay__hint').exists()).is.false;
+  });
+
+  it('a discount stays on the line: «21 → 18» and «−3»', () => {
+    const w = mountPanel(mcOnly(18, 30), {mode: 'line', discount: {base: 21, final: 18}});
+    expect(w.find('[data-pay-base]').text()).eq('21');
+    expect(w.find('[data-pay-saved]').text()).eq('−3');
+    expect(w.find('[data-pay-keep] .con-pay__keep-after').text()).eq('12');
+  });
+
+  it('the other densities carry their own name on the same hook', () => {
+    expect(mountPanel(view()).find('.con-pay').attributes('data-pay-density')).eq('compact');
+    expect(mountPanel(view(), {mode: 'expanded', focusUnit: 'steel'}).find('.con-pay').attributes('data-pay-density')).eq('expanded');
   });
 });

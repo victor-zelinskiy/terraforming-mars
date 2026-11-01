@@ -585,6 +585,21 @@ export type PaymentView = {
 };
 
 /**
+ * The panel's DENSITY (`ConsolePaymentPanel`): `line` — the price said once, one line (P81 · DJ); `compact` — the
+ * summary with its lanes and verdict; `expanded` — the LT editor.
+ */
+export type PaymentDensity = 'line' | 'compact' | 'expanded';
+
+/**
+ * Is there NOTHING TO SHAPE in this payment — so the panel may say it in ONE line (P81 · DJ)? One lane (the auto
+ * M€ lane — no steel, titanium, heat or card resource to weigh), and the mix covers the price. A second lane, an
+ * alternative or a shortfall keeps the `compact` ledger: there the rows and the verdict carry a decision.
+ */
+export function paymentLineEligible(view: PaymentView): boolean {
+  return !view.configurable && view.rows.length === 1 && view.status.ok;
+}
+
+/**
  * ONE verdict vocabulary for every density and every payment context: the mix
  * either meets the price exactly, wastes an unavoidable remainder, or does not
  * cover it. Deliberately NOT «оплачено автоматически» when no alternative

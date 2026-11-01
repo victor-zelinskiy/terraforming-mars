@@ -1,0 +1,283 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import {test, expect, Page} from './consoleTest';
+import {bootFixture, FixtureName, focusCard, press, settle} from './consoleStart';
+
+/**
+ * THE PLAY COMPOSER IS A SHEET THAT MIRRORS THE CARD (P81 · DJ — docs/claude/prompts/prelude2-p81-soil-studies.md §4;
+ * `docs/claude/console/workspace-band.md` § ЛИСТ РОЗЫГРЫША). «КАРТЫ В РУКЕ › <карта> › РОЗЫГРЫШ» — the screen every card
+ * play passes through — witnessed over a corpus of play shapes × three profiles:
+ *
+ *   (a) the SHEET stands as tall as the hero's face — its top and bottom on the card's (±2 px); on the Deck the band's;
+ *   (b) the sheet and the commit keep their boxes while the cursor walks the sheet (±1 px);
+ *   (c) the result's VALUE is the louder voice: its chip type ≥ 1.6 × the «РЕЗУЛЬТАТ» kicker's;
+ *   (d) one lane and nothing to shape → the payment is ONE line (`data-pay-density="line"`), no «✓ Оплачено» verdict;
+ *       a ledger case (an alternative lane) stays `compact`;
+ *   (e) the commit is a PLATE: ≤ 60 % of the sheet's width, its «ready» row wears no light halo;
+ *   (f) the card's roles are a LINE: no plate behind a role, no emoji glyph (a penalty's ⚠ excepted);
+ *   (g) a «РАСЧЁТ» strip, where one stands, is ONE line with nothing cut;
+ *   (h) the sheet's body fits — no scroll for these short plays.
+ * Frames: `screenshots/play-sheet/<profile>/`.
+ */
+
+const OUT = path.resolve('screenshots', 'play-sheet');
+const COMPOSER = '.con-composer--play';
+
+const PROFILES = [
+  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: ''},
+  {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
+  {id: 'deck', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld'},
+] as const;
+
+/** `density`: the payment's expected density; `undefined` — whatever the deal gives (annotated, not judged). */
+type Case = {id: string, fixture: FixtureName, card: string | undefined, density: 'line' | 'compact' | undefined, why: boolean};
+const CORPUS: ReadonlyArray<Case> = [
+  // A counted event, M€ only: the line, «РАСЧЁТ» of two terms, the event-tags role.
+  {id: 'soil-studies', fixture: 'soil-studies', card: 'Soil Studies', density: 'line', why: true},
+  // A discounted price (Teractor −3), «ДАЛЕЕ», «Сработает»: still one line — the discount on it.
+  {id: 'sponsoring-nation', fixture: 'sponsoring-nation', card: 'Sponsoring Nation', density: 'line', why: false},
+  // A counted floater play with an action and VP roles — and Dirigibles' floaters are a SECOND lane for a Venus card: the ledger.
+  {id: 'floating-refinery', fixture: 'floating-refinery', card: 'Floating Refinery', density: 'compact', why: true},
+  // A solo hand with steel and titanium: the first card whose payment holds an alternative lane (the ledger case).
+  {id: 'ledger', fixture: 'solo-actions', card: undefined, density: 'compact', why: false},
+];
+
+type Rect = {t: number, b: number, l: number, r: number, w: number, h: number};
+type Scene = {
+  sheet: Rect | null,
+  hero: Rect | null,
+  band: Rect | null,
+  cta: Rect | null,
+  ctaShadow: string,
+  valueFs: number,
+  kickerFs: number,
+  density: string,
+  verdicts: number,
+  rolePlates: Array<string>,
+  roleGlyphs: Array<string>,
+  whyLines: number,
+  whyCut: boolean,
+  bodyScroll: {sh: number, ch: number},
+  /** The share of the sheet's height no zone content stands on — annotated (the body's air is by design). */
+  voidShare: number,
+};
+
+async function readScene(page: Page): Promise<Scene> {
+  return page.evaluate((root) => {
+    const rect = (el: Element | null): Rect | null => {
+      if (el === null) {
+        return null;
+      }
+      const r = el.getBoundingClientRect();
+      return r.height > 0 ? {t: r.top, b: r.bottom, l: r.left, r: r.right, w: r.width, h: r.height} : null;
+    };
+    const effective = (el: Element | null) => {
+      if (el === null) {
+        return 0;
+      }
+      let z = 1;
+      for (let n: Element | null = el; n !== null; n = n.parentElement) {
+        const zoom = Number(getComputedStyle(n).zoom || '1');
+        z *= Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+      }
+      return parseFloat(getComputedStyle(el).fontSize) * z;
+    };
+    const host = document.querySelector(root)!;
+    const sheetEl = host.querySelector('.con-composer__playsheet');
+    const heroEl = host.querySelector('.con-composer__playcard');
+    const ctaEl = host.querySelector('.con-composer__cta');
+    const value = host.querySelector('.con-composer__result-chips .action-effect-chip__res') ??
+      host.querySelector('.con-composer__result-chips .action-effect-chip') ??
+      host.querySelector('.con-composer__variants .action-effect-chip');
+    const rescats = [...host.querySelectorAll('.con-composer__rescat')];
+    const why = host.querySelector('[data-count-why]');
+    let whyLines = 0;
+    let whyCut = false;
+    if (why !== null) {
+      const mids = [...why.children].map((c) => {
+        const r = c.getBoundingClientRect();
+        return Math.round((r.top + r.bottom) / 2);
+      });
+      whyLines = new Set(mids.map((m) => Math.round(m / 12))).size;
+      whyCut = (why as HTMLElement).scrollWidth > (why as HTMLElement).clientWidth + 2;
+    }
+    const viewport = host.querySelector('.con-composer__playsheet .con-scroll-area__viewport') as HTMLElement | null;
+    const sheet = rect(sheetEl);
+    let voidShare = 0;
+    if (sheet !== null && sheetEl !== null) {
+      const parts = [...sheetEl.querySelectorAll('[data-unfold-item], .con-composer__rescats, .con-composer__row')]
+        .map((el) => el.getBoundingClientRect()).filter((r) => r.height > 0)
+        .sort((a, b) => a.top - b.top);
+      let covered = 0;
+      let reach = sheet.t;
+      for (const r of parts) {
+        const top = Math.max(r.top, reach);
+        if (r.bottom > top) {
+          covered += r.bottom - top;
+          reach = r.bottom;
+        }
+      }
+      voidShare = Math.max(0, 1 - covered / sheet.h);
+    }
+    return {
+      sheet,
+      hero: rect(heroEl),
+      band: rect(host.querySelector('.con-composer__playmain')),
+      cta: rect(ctaEl),
+      ctaShadow: ctaEl !== null ? getComputedStyle(ctaEl).boxShadow : '',
+      valueFs: effective(value),
+      kickerFs: effective(host.querySelector('.con-composer__sub-title--result')),
+      density: host.querySelector('.con-pay')?.getAttribute('data-pay-density') ?? '',
+      verdicts: host.querySelectorAll('.con-paystatus').length,
+      rolePlates: rescats.filter((el) => {
+        const bg = getComputedStyle(el).backgroundColor;
+        return bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
+      }).map((el) => (el.textContent ?? '').trim().slice(0, 40)),
+      roleGlyphs: rescats.flatMap((el) => [...el.querySelectorAll('.con-composer__rescat-glyph')].map((g) => (g.textContent ?? '').trim()))
+        .filter((g) => g !== '⚠'),
+      whyLines,
+      whyCut,
+      bodyScroll: viewport === null ? {sh: 0, ch: 0} : {sh: viewport.scrollHeight, ch: viewport.clientHeight},
+      voidShare,
+    };
+  }, COMPOSER);
+}
+
+/** A blurred OUTER shadow in a light colour (the glow the restraint law forbids for a standing state). */
+function hasLightHalo(shadow: string): boolean {
+  if (shadow === '' || shadow === 'none') {
+    return false;
+  }
+  for (const part of shadow.split(/,(?![^(]*\))/)) {
+    if (part.includes('inset')) {
+      continue;
+    }
+    const nums = (part.replace(/rgba?\([^)]*\)/, '').match(/-?[\d.]+px/g) ?? []).map((n) => parseFloat(n));
+    const blur = nums[2] ?? 0;
+    const rgb = part.match(/rgba?\(([^)]*)\)/)?.[1].split(',').map((n) => parseFloat(n)) ?? [0, 0, 0, 1];
+    if (blur > 2 && (rgb[0] + rgb[1] + rgb[2]) / 3 > 100 && (rgb[3] ?? 1) > 0.05) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function openHand(page: Page): Promise<void> {
+  for (let i = 0; i < 4 && await page.locator('.con-hand').count() === 0; i++) {
+    await press(page, 'Period', 600);
+    await press(page, 'Enter', 1600);
+  }
+  await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
+  await settle(page);
+}
+
+async function openComposer(page: Page, card: string): Promise<boolean> {
+  await openHand(page);
+  const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
+  if (!await focusCard(page, card, slots * 2 + 6)) {
+    return false;
+  }
+  if (!await page.locator('.con-hand__verdictbar').evaluate((el) => el.classList.contains('con-hand__verdictbar--ok')).catch(() => false)) {
+    return false;
+  }
+  await press(page, 'Enter', 1200);
+  await page.locator(COMPOSER).waitFor({timeout: 15_000});
+  await settle(page);
+  return true;
+}
+
+/** The ledger case: the first playable card of the deal whose payment holds an alternative lane. */
+async function openLedgerComposer(page: Page): Promise<string | undefined> {
+  await openHand(page);
+  const names = await page.locator('.con-hand__slot[data-zoom-slot]').evaluateAll((els) => els.map((e) => e.getAttribute('data-zoom-slot') ?? ''));
+  for (const name of names) {
+    if (!await openComposer(page, name)) {
+      continue;
+    }
+    if (await page.locator(`${COMPOSER} .con-pay`).getAttribute('data-pay-density') === 'compact') {
+      return name;
+    }
+    await press(page, 'Escape', 900);
+    await settle(page);
+  }
+  return undefined;
+}
+
+function expectSheet(scene: Scene, label: string, deck: boolean, c: Case): void {
+  const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
+  expect.soft(scene.sheet, `${label}: the sheet stands`).not.toBeNull();
+  if (scene.sheet === null) {
+    return;
+  }
+  if (!deck) {
+    expect.soft(scene.hero, `${label}: the hero stands beside the sheet`).not.toBeNull();
+    if (scene.hero !== null) {
+      expect.soft(near(scene.sheet.t, scene.hero.t, 2) && near(scene.sheet.b, scene.hero.b, 2),
+        `${label}: (a) the sheet's top / bottom on the hero face's — sheet ${JSON.stringify([scene.sheet.t, scene.sheet.b])} hero ${JSON.stringify([scene.hero.t, scene.hero.b])}`).toBe(true);
+    }
+  } else if (scene.band !== null) {
+    expect.soft(near(scene.sheet.t, scene.band.t, 2) && near(scene.sheet.b, scene.band.b, 2),
+      `${label}: (a) on the Deck the sheet spans the band — sheet ${JSON.stringify([scene.sheet.t, scene.sheet.b])} band ${JSON.stringify([scene.band.t, scene.band.b])}`).toBe(true);
+  }
+  expect.soft(scene.kickerFs, `${label}: the result kicker stands`).toBeGreaterThan(0);
+  // (c) is judged where a result chip stands — a card whose result is a next step alone («ДАЛЕЕ») has no value to weigh.
+  if (scene.valueFs > 0) {
+    expect.soft(scene.valueFs / Math.max(1, scene.kickerFs), `${label}: (c) the value ≥ 1.6 × its kicker — ${scene.valueFs.toFixed(1)} / ${scene.kickerFs.toFixed(1)}`).toBeGreaterThanOrEqual(1.6);
+  }
+  if (c.density !== undefined) {
+    expect.soft(scene.density, `${label}: (d) the payment's density`).toBe(c.density);
+  }
+  if (scene.density === 'line') {
+    expect.soft(scene.verdicts, `${label}: (d) one line — no «✓ Оплачено» verdict beside the price`).toBe(0);
+  }
+  expect.soft(scene.cta, `${label}: the commit stands`).not.toBeNull();
+  if (scene.cta !== null) {
+    expect.soft(scene.cta.w / scene.sheet.w, `${label}: (e) the commit is a plate — ${scene.cta.w.toFixed(0)} of ${scene.sheet.w.toFixed(0)} px`).toBeLessThanOrEqual(0.6);
+  }
+  expect.soft(hasLightHalo(scene.ctaShadow), `${label}: (e) no light halo on the commit row — ${scene.ctaShadow}`).toBe(false);
+  expect.soft(scene.rolePlates, `${label}: (f) no plate behind a role`).toEqual([]);
+  expect.soft(scene.roleGlyphs, `${label}: (f) no emoji glyph on a role`).toEqual([]);
+  if (c.why) {
+    expect.soft(scene.whyLines, `${label}: (g) «РАСЧЁТ» on ONE line`).toBe(1);
+    expect.soft(scene.whyCut, `${label}: (g) «РАСЧЁТ» cut by nothing`).toBe(false);
+  }
+  expect.soft(scene.bodyScroll.sh, `${label}: (h) the body fits — ${scene.bodyScroll.sh} of ${scene.bodyScroll.ch}`).toBeLessThanOrEqual(scene.bodyScroll.ch + 2);
+}
+
+for (const profile of PROFILES) {
+  test.describe(`play composer — a sheet that mirrors the card · ${profile.id}`, () => {
+    test.use({viewport: profile.viewport});
+    for (const c of CORPUS) {
+      test(`${c.id}: as tall as the card, the number louder than its label, the price once, the commit a plate, the roles a line`, async ({page}) => {
+        test.setTimeout(240_000);
+        await bootFixture(page, page.request, c.fixture, {query: profile.query});
+        await settle(page);
+        const card = c.card === undefined ? await openLedgerComposer(page) : (await openComposer(page, c.card) ? c.card : undefined);
+        if (card === undefined) {
+          test.info().annotations.push({type: 'skipped-case', description: `${c.id}: the deal holds no ${c.card === undefined ? 'card with an alternative lane' : 'playable ' + c.card}`});
+          expect.soft(c.card, `${c.id}: a named corpus card must open`).toBeUndefined();
+          return;
+        }
+        const dir = path.join(OUT, profile.id);
+        fs.mkdirSync(dir, {recursive: true});
+        const first = await readScene(page);
+        await page.screenshot({path: path.join(dir, `${c.id}-a.png`)});
+        test.info().annotations.push({type: 'scene', description: `${card} ${JSON.stringify(first)}`});
+        expectSheet(first, `${profile.id} ${c.id}`, profile.id === 'deck', c);
+        // (b) THE FRAME DOES NOT MOVE while the cursor walks the sheet.
+        for (const key of ['ArrowUp', 'ArrowDown']) {
+          await press(page, key, 300);
+          await settle(page);
+          const walked = await readScene(page);
+          for (const [name, a, b] of [['sheet', first.sheet, walked.sheet], ['commit', first.cta, walked.cta]] as const) {
+            if (a !== null && b !== null) {
+              expect.soft(Math.abs(a.t - b.t) <= 1 && Math.abs(a.b - b.b) <= 1 && Math.abs(a.w - b.w) <= 1,
+                `${profile.id} ${c.id}: (b) the ${name}'s box after ${key} — ${JSON.stringify([a.t, a.b, a.w])} → ${JSON.stringify([b.t, b.b, b.w])}`).toBe(true);
+            }
+          }
+        }
+        await page.screenshot({path: path.join(dir, `${c.id}-b.png`)});
+      });
+    }
+  });
+}

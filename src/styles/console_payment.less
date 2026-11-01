@@ -167,6 +167,35 @@
         color: @con-mint;
         white-space: nowrap;
     }
+    /* THE LINE (P81 · DJ) — the price said ONCE when there is nothing to shape: «ОПЛАТА · 11 [M€] · [M€] 15 → 4».
+       No plate, no ledger, no verdict — the head is the whole block, and the wallet's consequence follows the price a
+       step quieter (the price is the fact). */
+    &--line {
+        padding: 0;
+        background: none;
+        box-shadow: none;
+    }
+    &--line &__head { min-height: 0; align-items: center; flex-wrap: nowrap; }
+    &__keep {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        white-space: nowrap;
+        font-size: .82rem;
+        color: fade(@con-text, 70%);
+        font-variant-numeric: tabular-nums;
+    }
+    &__keep-sep { margin-right: .15rem; color: fade(@con-text-dim, 70%); }
+    &__keep-icon {
+        width: .95rem;
+        height: .95rem;
+        display: block;
+        background-size: contain !important;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__keep-arrow { color: fade(@con-cyan, 80%); font-weight: 700; }
+    &__keep-after { font-weight: 800; color: @con-text; }
     /* The mode switch belongs TO the block (right rail of its own head) — it is
        a secondary action of the payment, never a stray global command. */
     &__hint {
@@ -589,6 +618,8 @@ html.con-profile-tv .con-pay {
     .con-pay__price-saved { font-size: .85rem; line-height: 1.5rem; padding: 0 .5rem; }
     .con-pay__free { font-size: var(--con-t-caption, .9rem); }
     .con-pay__hint { font-size: .82rem; }
+    .con-pay__keep { font-size: 1.05rem; }
+    .con-pay__keep-icon { width: 1.2rem; height: 1.2rem; }
     .con-payrow__rate { font-size: .75rem; }
     .con-payrow__auto { font-size: .7rem; }
     .con-payrow__worth-icon { width: .95rem; height: .95rem; }
@@ -628,6 +659,7 @@ html.con-profile-handheld .con-pay {
     .con-pay__price-arrow { font-size: .7rem; }
     .con-pay__price-saved { font-size: .56rem; line-height: 1rem; }
     .con-pay__hint { font-size: .58rem; }
+    .con-pay__keep { font-size: .7rem; }
     .con-payrow { column-gap: .35rem; padding: .15rem .4rem; }
     .con-payrow__rate { font-size: .55rem; }
     .con-payrow__auto { font-size: .52rem; }

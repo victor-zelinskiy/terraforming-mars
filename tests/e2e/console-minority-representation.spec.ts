@@ -294,7 +294,7 @@ for (const preset of PRESETS) {
       const trChip = page.locator(`${composer} .action-effect-chip`).filter({has: page.locator('.resource_icon--rating')});
       await expect(trChip, 'the TR chip is its own chip').toHaveCount(1);
       await expect(page.locator(composer), 'the coming stage is named, from the server\'s reading').toContainText('Карьера — маркер пройдёт 2 шага в Парламенте');
-      const paymentBefore = await textOf(page, `${composer} .con-paystatus`);
+      const paymentBefore = await textOf(page, `${composer} .con-pay`);
       expect(paymentBefore, 'the payment line states the price').toContain('6');
 
       await armProbe(page, viewer);

@@ -574,7 +574,7 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${composer} .con-composer__next`), 'nothing «next» for a zero — no stage, no cut').toHaveCount(0);
       await expect(page.locator(composer).getByText(/маркер пройдёт/), 'no stage is promised').toHaveCount(0);
       await expect(page.locator(composer), 'the play stays alive').toContainText('Разыграть карту');
-      expect((await page.locator(`${composer} .con-paystatus`).textContent()) ?? '', 'the payment line states the price').toContain('2');
+      expect((await page.locator(`${composer} .con-pay`).textContent()) ?? '', 'the payment line states the price').toContain('2');
       await shoot(page, preset.id, '12-composer-23');
       // PL-157: a walk of ZERO steps hosts nothing — no Parliament is warmed under this composer (PL-127's mount is armed
       // a settle after the composer declares a hosted step; by the screenshot that settle is long over).

@@ -3074,6 +3074,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // Prelude 2 P73 Floating Refinery — the first Venus action CHOICE (DC): the play +4 (Venus Governor · Dirigibles · this) ·
   // B with two sources (Dirigibles 3, Floating Habs 2) · B unavailable with its reason, A the sole live variant.
   'floating-refinery' | 'floating-refinery-action' | 'floating-refinery-sole' |
+  // Prelude 2 P81 Soil Studies — «per Venus tag, plant tag (INCLUDING THIS ONE) and colony» (DJ): the play +5 (Venus
+  // Governor · Arctic Algae · this · one cube) · locked at −2 °C.
+  'soil-studies' | 'soil-studies-locked' |
   // Prelude 2 P75 GHG Shipment — the classic Kelvinists read as the Greens (CW): the Greens rule (5 floaters, Manutech) · locked «0 of 2».
   'ghg-shipment' | 'ghg-shipment-locked' |
   // Prelude 2 P83 Sponsoring Nation — the play's live delegate grant with no board door (CX): 4 Earth tags (Teractor ·

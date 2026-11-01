@@ -34990,6 +34990,44 @@ html.con-profile-tv {
     .con-composer__scroll { flex: 0 1 auto; min-height: 0; }
     .con-composer__scroll-body { display: flex; flex-direction: column; gap: 0; }
 
+    /* ── THE SHEET IS AS TALL AS THE CARD (P81 · DJ — «КАРТЫ В РУКЕ › <карта> › РОЗЫГРЫШ», the action setup's DC / DF
+       grammar carried over). The column used to be a stack of four unlike blocks hugging its content, centred beside a
+       card twice its height: the result kicker, the chips, a two-row payment ledger and a full-width mint bar, the
+       lower third of the column empty, no line shared with the card. Now the sheet's FLOOR is the hero face's MEASURED
+       height (`--con-setup-face-h`, the composer reads the slot as painted and brings it into this space) and the
+       column centres it beside the card — so its top and bottom ARE the card's, one spread. Three zones mirror the
+       card's anatomy: the RESULT at the top (the title's line), the BODY in the middle (the art's zone — centred when
+       short, the only scroll), the PAYMENT and the COMMIT on the bottom line (the mechanics box). A grid, not a flex
+       column: the body's row is `minmax(0, 1fr)`, so it takes exactly the room the dock leaves — and the body's own
+       percentage floor resolves against a definite grid area. Content taller than the card still grows the sheet up
+       to the band (the floor is a floor, never a clip); content shorter than it never moves the sheet (PL-1228). ── */
+    .con-composer__playsheet {
+        flex: 0 1 auto;
+        min-height: min(var(--con-setup-face-h, 0px), 100%);
+        max-height: 100%;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) auto;
+    }
+    .con-composer__playsheet--review .con-composer__scroll-body { min-height: 100%; }
+    /* THE BODY centres its block in the room between the result and the dock (equal air above and below — never a
+       block hanging under the result over a void); a block taller than the room starts at its top and scrolls. */
+    .con-composer__playmid {
+        display: flex;
+        flex-direction: column;
+        margin-block: auto;
+    }
+    /* THE DOCK — the bottom line: the price said once on the left, the commit plate on the right. A ledger (several
+       lanes, a shortfall) takes the line's whole width and the plate stands under it, at the same right edge. */
+    .con-composer__playdock {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .55rem 1.2rem;
+        padding-top: .6rem;
+        border-top: .05rem solid rgba(120, 155, 190, 0.2);
+    }
+
     /* (No summary strip above the surface: the price lives in the payment
        head, «можно разыграть» in an active commit rail. As a fixed first row
        it also pinned the whole column to the top of the band — the reason the
@@ -35035,6 +35073,14 @@ html.con-profile-tv {
        in a COLUMN is height — the old `0 0 100%` full-row trick must not
        survive the axis change.) */
     .con-composer__sub-title--result { flex: 0 0 auto; padding-bottom: 0; }
+    /* THE NUMBER IS THE MAIN VOICE (P81 · DJ): the kicker over the result is a quiet tracked caption, the chips stand
+       at the face's printed scale (≥ 1.6 × the kicker), `current → resulting` with the result the heaviest. */
+    .con-composer__sub-title--result {
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .12rem;
+        color: fade(@con-text-dim, 88%);
+    }
 
     /* LEVEL 2 — an intrinsic CLUSTER, never a grid of equal columns.
        Each unit is exactly as wide as what it says, they flow left to right on
@@ -35054,8 +35100,9 @@ html.con-profile-tv {
         /* Each unit keeps its OWN height: a stretch would inflate the short
            facts beside a unit that happens to carry a second line, which is the
            same «big empty panel» in a different disguise. */
-        align-items: flex-start;
-        gap: .35rem .4rem;
+        align-items: center;
+        gap: .25rem 0;
+        margin-top: .6rem;
     }
     .con-composer__rescat {
         /* Content-sized (the flex initial `0 1 auto`) and capped, so ONE long
@@ -35064,31 +35111,50 @@ html.con-profile-tv {
            whole band. The cap is relative, so it holds on every profile. */
         flex: 0 1 auto;
         width: auto;
-        max-width: min(30rem, 100%);
-        min-height: 1.85rem;
-        gap: .4rem;
-        padding: .2rem .6rem;
-        /* Squared, not a full pill — a 49.95rem radius impersonates a button. */
-        border-radius: .45rem;
-        font-size: .82rem;
-        /* And QUIETER than anything interactive on this surface: a payment row,
-           a focus ring and the commit rail all outrank it on purpose. A result
-           is a fact — it reads by its text, not by its frame. */
-        background: rgba(14, 24, 36, 0.5);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.11);
+        max-width: 100%;
+        min-height: 0;
+        gap: .35rem;
+        padding: 0;
+        /* THE CARD'S ROLES ARE A LINE, NOT A ROW OF PILLS (P81 · DJ): three facts of one weight in three plates read as
+           three buttons. A role is a fact the face already prints — the caption's weight, joined by a «·», no plate,
+           no emoji; the tags keep their own sprites. */
+        border-radius: 0;
+        font-size: .8rem;
+        color: fade(@con-text-dim, 96%);
+        background: none;
+        box-shadow: none;
     }
+    .con-composer__rescat + .con-composer__rescat::before {
+        content: '·';
+        margin: 0 .55rem;
+        color: fade(@con-text-dim, 60%);
+    }
+    .con-composer__rescat + .con-composer__rescat--pass::before { content: none; }
+    .con-composer__rescat--pass .con-composer__rescat-text { color: fade(@con-amber, 96%); }
+    .con-composer__rescat--penalty .con-composer__rescat-text { color: fade(@con-amber, 92%); }
+    .con-composer__rescat-note { margin-left: 0; }
     /* The «Сработает» unit is the one unit whose CONTENT is a chip row: it
        takes the cluster's whole width when the line cannot hold it beside
        its neighbours (never the 30rem reading cap — its chips are not prose)
        and never shrinks in place (a caption on one line and its chips on the
        next is the wrong reading). */
-    .con-composer__rescat--forecast { flex: 0 0 auto; max-width: 100%; }
+    .con-composer__resforecast { flex: 0 0 auto; max-width: 100%; }
     /* «ЭТО ПАС» names what the pass leaves — a sentence list, so it takes the cluster's width before it wraps. */
     .con-composer__rescat--pass { flex: 1 1 100%; max-width: 100%; }
     /* (The tag icons stay ONE object without help: `__rescat-tags` is an
        `inline-flex`, i.e. `nowrap` by construction. What it must NOT be is a
        band of its own — hence no `--tags` rule here any more.) */
-    .con-composer__result-chips { gap: .4rem; padding-bottom: 0; }
+    .con-composer__result-chips {
+        gap: .4rem;
+        padding-bottom: 0;
+        --con-chip-c-fs: 1.12rem;
+        --con-chip-c-icon: 1.45rem;
+        --con-chip-c-pad: .18rem .55rem .18rem .3rem;
+        --con-chip-c-gap: .3rem;
+        --con-chip-c-note: .66rem;
+        .action-effect-chip__cur { opacity: .72; font-weight: 600; }
+        .action-effect-chip__res { font-weight: 800; }
+    }
 
     /* ── 5 · PAYMENT — the level's working zone, on the surface itself. ──── */
     .con-pay {
@@ -35118,6 +35184,15 @@ html.con-profile-tv {
         background: linear-gradient(90deg, fade(@con-cyan, 9%) 0%, transparent 42%);
         box-shadow: inset .14rem 0 0 fade(@con-cyan, 62%);
     }
+    /* In the DOCK: a ledger takes the line's whole width (the plate goes under it); the one-line price shares the line
+       with the plate and closes with no hairline of its own — the dock's top seam is the zone's. */
+    .con-composer__playdock > .con-pay { flex: 1 1 100%; min-width: 0; }
+    .con-composer__playdock > .con-pay--line,
+    .con-composer__playdock > .con-pay--free {
+        flex: 1 1 auto;
+        padding-bottom: 0;
+        border-bottom: 0;
+    }
     /* NOTHING is written for `.con-payrow` here on purpose: its idle / live /
        auto / focused paints are the panel's own state language, and a rule at
        this specificity would out-rank every one of them and flatten the row
@@ -35130,20 +35205,28 @@ html.con-profile-tv {
        it, and a wall of green light on the confirm was pulling the eye away
        from both. Shorter, and its mint wash toned down; the FOCUS ring keeps
        its full strength (it is navigation, not decoration). ─────────────── */
+    /* THE COMMIT IS A PLATE, NOT A BAR (P81 · DJ — the setup's DC law): a full-width mint bar was the loudest object
+       of the scene, louder than the result it commits. The row sizes to its content (the glyph and the verb — the
+       price is said once, in the payment line beside it) at the sheet's bottom-right, at most 60 % of the line; «ready»
+       is a kant and weight, never a fill. Classes, the pad's focus target and the cursor's layer are unchanged. */
     .con-composer__cta {
-        margin-top: .55rem;
-        padding: .6rem 1.05rem;
+        flex: 0 0 auto;
+        margin: 0 0 0 auto;
+        min-width: min(14rem, 100%);
+        max-width: 60%;
+        padding: .55rem 1.1rem;
         border-radius: .55rem;
-        justify-content: flex-start;
-        gap: .75rem;
+        justify-content: center;
+        gap: .7rem;
     }
     /* ⚠ FLAT, never nested as `&--ready&--focused`: inside a DESCENDANT block
        the second `&` re-inserts the WHOLE parent selector
        (`… __cta--ready.con-composer--embed …`) and the rule is silently dead. */
     .con-composer__cta--ready {
-        background: fade(@con-mint, 7%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 38%);
+        background: rgba(14, 24, 32, 0.7);
+        box-shadow: inset 0 0 0 .08rem fade(@con-mint, 62%);
     }
+    .con-composer__cta--ready .con-composer__cta-label { font-weight: 800; }
     /* The embedded ready-and-focused commit row is the cursor LAYER's quieter mint paint (PL-510). */
     .con-composer__cta--ready::after {
         box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 .8rem fade(@con-mint, 24%);
@@ -36289,6 +36372,9 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     &__playright {
         flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .5rem; min-height: 0;
     }
+    /* The sheet and its dock (P81 · DJ) — a plain column outside the embedded workspace. */
+    &__playsheet { display: flex; flex-direction: column; gap: .5rem; min-height: 0; }
+    &__playdock { display: flex; flex-direction: column; gap: .3rem; }
     &__loading { font-size: .95rem; color: @con-text-dim; padding: .5rem 0; }
 
     &__sub-title--spaced { margin-top: .3rem; }
@@ -36431,11 +36517,9 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     /* The «Сработает» unit — the same chassis as its neighbours, a mint
        hairline for the TRIGGERS family it belongs to, and it may grow past
        the reading measure: its chips are the content. */
-    &__rescat--forecast {
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 30%);
-        /* NEVER SHRINK beside its neighbours: when the line cannot hold the
-           whole row, the row takes the NEXT line of the cluster whole — one
-           reading, never a caption on one line and its chips on the next. */
+    &__resforecast {
+        /* The «Сработает» line — what the TABLE adds to the result, standing right under it (P81 · DJ: never one of
+           the card's roles). One reading, never a caption on one line and its chips on the next. */
         flex: 0 0 auto;
         max-width: 100%;
         gap: .35rem;
@@ -37432,10 +37516,12 @@ html.con-profile-handheld .con-composer--embed {
        full-width rows (or of equal columns): that is the shape this removed. */
     .con-composer__resulthero { gap: .25rem; padding-bottom: .35rem; margin-bottom: .35rem; }
     .con-composer__rescats { gap: .28rem .3rem; }
-    .con-composer__rescat { min-height: 1.6rem; padding: .18rem .45rem; font-size: .68rem; gap: .35rem; max-width: 100%; }
+    .con-composer__rescat { min-height: 0; padding: 0; font-size: .68rem; gap: .35rem; max-width: 100%; }
     .con-composer__rescat-glyph { font-size: .68rem; width: .8rem; }
     .con-composer__rescat-tag { width: 1.05rem; height: 1.05rem; line-height: 1.05rem; }
-    .con-composer__cta { margin-top: .45rem; padding: .55rem .8rem; }
+    .con-composer__cta { padding: .55rem .8rem; }
+    /* The Deck: the card is small beside a narrow band — the sheet takes the band's height (P81 · DJ). */
+    .con-composer__playsheet { min-height: 100%; }
     .con-composer__cta-label { font-size: .9rem; }
     /* The «Сработает» unit may take ONE extra line on the Deck (the spec's
        allowance) — its chips shrink with the compact tokens. */

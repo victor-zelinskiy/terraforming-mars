@@ -94,10 +94,17 @@
                structural: a fixed strip at the top of the column pinned the
                whole scene to the ceiling, so a short card left a well of empty
                band under the CTA while the hero card sat centred beside it.) -->
-          <!-- data-forecast-browse: the WORK COLUMN the R3 «Эффекты» layer
-               parks in place (consoleForecastFocusMotion) — every capture,
-               the payment and the cursor survive underneath by construction. -->
-          <ConsoleScrollArea class="con-composer__scroll" content-class="con-composer__scroll-body" ref="scroll" data-forecast-browse>
+          <!-- THE SHEET (P81 · DJ — the action setup's grammar, DC / DF, carried over): a sheet AS TALL AS THE CARD
+               beside it (its floor is the hero face's MEASURED height, `--con-setup-face-h`), in three zones that mirror
+               the card's anatomy — the RESULT at the top (the title's line), the body in the middle (the art's zone: the
+               table's answer, the next steps, the decisions, the card's roles — centred when short, the ONLY part that
+               scrolls), the PAYMENT and the COMMIT docked on the bottom line (the mechanics box). Its box stands still
+               while the player decides: content below the floor never grows it (PL-1228).
+               data-forecast-browse: the WORK COLUMN the R3 «Эффекты» layer parks in place (consoleForecastFocusMotion) —
+               every capture, the payment and the cursor survive underneath by construction. -->
+          <div class="con-composer__playsheet" ref="sheet" data-forecast-browse
+               :class="{'con-composer__playsheet--review': reviewShown}" :style="sheetStyle">
+          <ConsoleScrollArea class="con-composer__scroll" content-class="con-composer__scroll-body" ref="scroll">
             <div v-if="loading" class="con-composer__loading" data-unfold-item>{{ $t('Loading') }}…</div>
 
             <!-- ── THE EMBEDDED PLAYED-TARGET STEP — a LEVEL of this
@@ -271,78 +278,18 @@
                 </span>
               </div>
 
-              <!-- ── THE SECOND LEVEL — what the card IS once it is on the
-                   table (a new action, an ongoing effect, endgame points, the
-                   tags it carries), under the immediate state change above it.
-                   They share ONE container so they lay out as an even grid
-                   rather than as chips that happened to wrap: same rhythm,
-                   several columns where there is width, a natural wrap where
-                   there is not. Membership is data-driven — no card and no
-                   count is named here. -->
-              <div v-if="repeatChoice !== undefined || resultSections.length > 0 || forecastRowShown" class="con-composer__rescats">
-                <!-- ProjectInspection: the result IS repeating a played action. -->
-                <div v-if="repeatChoice !== undefined" class="con-composer__rescat con-composer__rescat--action">
-                  <span class="con-composer__rescat-glyph" aria-hidden="true">⟳</span>
-                  <span class="con-composer__rescat-text">{{ $t('Repeats a played card action') }}</span>
-                </div>
-
-                <!-- ⚡ «СРАБОТАЕТ» — what the TABLE answers to this play, over
-                     and above the card's own result: one more unit of this
-                     cluster, chips only (the R3 layer names the sources). Absent
-                     while the forecast is empty; not a focus stop. -->
-                <ConsoleForecastRow v-if="forecastRowShown"
-                                    class="con-composer__rescat con-composer__rescat--forecast"
-                                    :class="{'con-forecast--descend': forecastPulse}"
-                                    :forecast="forecastAnswered"
-                                    @open="openForecastLayer()" />
-
-                <!-- Derived result categories — the block is NEVER empty. A tag
-                     row is "label: [inline chips]"; a VP row is "label: +N". -->
-                <div v-for="(sec, i) in resultSections" :key="'r' + i" class="con-composer__rescat" :data-rescat="sec.kind"
-                     :class="[sec.penalty ? 'con-composer__rescat--penalty' : 'con-composer__rescat--' + sec.kind,
-                              {'con-composer__rescat--event-tags': sec.eventTags,
-                               'con-composer__rescat--vpformula': sec.formula !== undefined}]">
-                  <span class="con-composer__rescat-glyph" aria-hidden="true">{{ sec.penalty ? '⚠' : rescatGlyph(sec.kind) }}</span>
-                  <span class="con-composer__rescat-text"
-                  >{{ $t(sec.text) }}<template v-if="sec.kind === 'vp'">: <b>{{ vpDetail(sec) }}</b></template
-                  ><template v-else-if="sec.kind === 'tags'">:</template
-                  ><span v-if="sec.formula !== undefined" class="con-composer__rescat-qual">&nbsp;{{ $t('now') }}</span></span>
-                  <!-- THE SERVER'S VP PROJECTION («per tags» cards): the formula
-                       behind the number, through the score explorer's own
-                       formatter — the number is printed ONCE (above), the
-                       formula carries its operands only. One line; a long
-                       localization cuts by an ellipsis in this box. -->
-                  <span v-if="sec.formula !== undefined" class="con-composer__rescat-formula" data-vp-formula
-                  >· <img v-if="formulaTagIcon(sec.formula) !== undefined" class="con-composer__rescat-vptag"
-                          :src="formulaTagIcon(sec.formula)" alt="" aria-hidden="true"
-                  ><PremiumCountGlyph v-for="(glyph, gi) in formulaCountGlyphs(sec.formula)" :key="'vg' + gi"
-                                      class="con-composer__rescat-vpglyph" :glyph="glyph" data-vp-glyph
-                  />{{ formulaOperandsText(sec.formula) }}<template v-if="shortfallText(sec.formula) !== ''"
-                  > · {{ shortfallText(sec.formula) }}</template></span>
-                  <!-- WHAT THE PLAY ARMS (TR49 class): the effect's badge — the waiver's struck plate — and its formula. -->
-                  <span v-if="sec.kind === 'armed' && sec.arms !== undefined" class="con-composer__rescat-arms" data-composer-arms>
-                    <template v-for="(arm, ai) in sec.arms" :key="'arm' + ai">
-                      <span v-if="arm.kind === 'requirementWaiver'" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
-                      <!-- the PARTY family (TR70): the printed party plate, struck — the face's own glyph of the waiver -->
-                      <PremiumPartyRequirementGlyph v-else-if="arm.kind === 'partyWaiver'" class="pprq--waived con-armed__pprq" />
-                      <span v-else class="con-armed__badge" aria-hidden="true">{{ armedEffectBadge(arm) }}</span>
-                      <span class="con-composer__rescat-armtext" :data-armed-kind="arm.kind">{{ armedEffectFormula(arm) }}</span>
-                    </template>
-                  </span>
-                  <!-- THIS PLAY PASSES (class CT): what the pass leaves unused — the pass confirm's own lines, one reading. -->
-                  <span v-if="sec.kind === 'pass' && (sec.passLines?.length ?? 0) > 0" class="con-composer__rescat-passlist" data-composer-pass-left>
-                    <span v-for="(line, li) in sec.passLines" :key="'pl' + li" class="con-composer__rescat-passline" data-pass-line
-                    >{{ passLineText(line) }}</span>
-                  </span>
-                  <span v-if="sec.kind === 'pass' && sec.passQuiet !== undefined" class="con-composer__rescat-passquiet" data-pass-quiet
-                  >{{ passLineText(sec.passQuiet) }}</span>
-                  <span v-if="sec.kind === 'tags' && sec.tags !== undefined" class="con-composer__rescat-tags">
-                    <span v-for="(tag, t) in sec.tags" :key="t" class="resource-tag con-composer__rescat-tag" :class="'tag-' + tag" aria-hidden="true"></span>
-                  </span>
-                  <span v-if="sec.note !== undefined" class="con-composer__rescat-note">{{ $t(sec.note) }}</span>
-                </div>
-              </div>
+              <!-- ⚡ «СРАБОТАЕТ» — what the TABLE answers to this play, over and above the card's own result: one
+                   more unit of the result (the R3 layer names the sources), right under the number it adds to — never
+                   one of the card's roles. Absent while the forecast is empty; not a focus stop. -->
+              <ConsoleForecastRow v-if="forecastRowShown"
+                                  class="con-composer__resforecast"
+                                  :class="{'con-forecast--descend': forecastPulse}"
+                                  :forecast="forecastAnswered"
+                                  @open="openForecastLayer()" />
               </div><!-- /__resulthero -->
+
+              <!-- THE BODY — the sheet's middle zone: centred when it is short, the scroll's only reason when it is not. -->
+              <div class="con-composer__playmid">
 
               <!-- SILENT-LOSS warnings (verbatim desktop parity): NAME the skipped
                    effect + the magnitude lost, then the reason. -->
@@ -611,53 +558,116 @@
                 </template>
               </div>
 
-              <!-- PAYMENT — the ONE shared panel, in the density the state asks
-                   for: `compact` summary (LB/RB drive the single alt lane, LT
-                   opens the editor) or `expanded` editor (cursor + every lane
-                   dialable). Same rows, same order, same geometry — the host
-                   owns all input, the panel only renders `paymentView`. -->
-              <ConsolePaymentPanel :view="paymentView"
-                                   :mode="payMode"
-                                   :focus-unit="payFocusUnit"
-                                   :flash-nonce="payFlashNonce"
-                                   :discount="forecastDiscount"
-                                   :free="payFree"
-                                   data-unfold-item />
+                <!-- ── THE CARD'S ROLES — what the card IS once it is on the table (a new action, an ongoing effect,
+                     endgame points, the tags it carries): ONE quiet line under the body (P81 · DJ — never a row of
+                     pills with emoji: a role is a fact the face already prints, read at the caption's weight). Membership
+                     is data-driven — no card and no count is named here. -->
+                <div v-if="repeatChoice !== undefined || resultSections.length > 0" class="con-composer__rescats" data-composer-roles>
+                  <!-- ProjectInspection: the result IS repeating a played action. -->
+                  <div v-if="repeatChoice !== undefined" class="con-composer__rescat con-composer__rescat--action">
+                    <span class="con-composer__rescat-text">{{ $t('Repeats a played card action') }}</span>
+                  </div>
 
-              <!-- The explicit «Разыграть» CTA — a FOCUSABLE row that draws the Ⓐ
-                   glyph, so what A does is never ambiguous: A plays ONLY when this
-                   row is focused (a pick row's A opens/changes that pick instead). -->
-              <div class="con-composer__cta"
-                   data-unfold-item
-                   :class="{
-                     'con-composer__cta--off': !ctaDisplayReady,
-                     'con-composer__cta--ready': ctaDisplayReady,
-                     'con-composer__cta--focused': ctaFocused && !payExpanded && ctaPressMeaningful,
-                     'con-composer__cta--held': !ctaPressMeaningful && !submitting,
-                     'con-composer__cta--blocked': ctaBlockedReason !== '',
-                   }"
-                   :data-composer-armed="commitArrival.armed && ctaFocused ? '' : undefined"
-                   :ref="ctaFocused && !payExpanded ? 'focusedEl' : undefined"
-                   @animationend="onCommitBreathEnd"
-                   @click="clickCta()">
-                <!-- A REFUSED rail does not advertise Ⓐ. It swaps the glyph for
-                     the amber blocker mark this UI uses everywhere else, and
-                     its LABEL is the reason itself — so the concrete «почему
-                     нельзя» that used to live in the removed header badge is
-                     still on screen, now attached to the control it explains
-                     instead of floating two blocks above it. -->
-                <span v-if="ctaBlockedReason !== ''" class="con-composer__cta-block" aria-hidden="true">⚠</span>
-                <!-- …and a rail that cannot RUN advertises no Ⓐ at all: while
-                     the result is unchosen this is the first thing on screen,
-                     and a glyph there invites exactly the accidental press the
-                     pre-select removes. `visibility` keeps its box, so the
-                     label never moves when the play becomes possible. -->
-                <GamepadGlyph v-else control="confirm" class="con-composer__cta-glyph"
-                              :class="{'con-composer__cta-glyph--mute': !ctaPressMeaningful && !submitting}" />
-                <span class="con-composer__cta-label">{{ $t(ctaDisplayLabel) }}</span>
-              </div>
+
+                  <!-- Derived result categories. A tag row is "label: [inline chips]"; a VP row is "label: +N". A card with no
+                       role on the table renders nothing here (an empty line says nothing). -->
+                  <div v-for="(sec, i) in resultSections" :key="'r' + i" class="con-composer__rescat" :data-rescat="sec.kind"
+                       :class="[sec.penalty ? 'con-composer__rescat--penalty' : 'con-composer__rescat--' + sec.kind,
+                                {'con-composer__rescat--event-tags': sec.eventTags,
+                                 'con-composer__rescat--vpformula': sec.formula !== undefined}]">
+                    <span v-if="sec.penalty" class="con-composer__rescat-glyph" aria-hidden="true">⚠</span>
+                    <span class="con-composer__rescat-text"
+                    >{{ $t(sec.text) }}<template v-if="sec.kind === 'vp'">: <b>{{ vpDetail(sec) }}</b></template
+                    ><template v-else-if="sec.kind === 'tags'">:</template
+                    ><span v-if="sec.formula !== undefined" class="con-composer__rescat-qual">&nbsp;{{ $t('now') }}</span></span>
+                    <!-- THE SERVER'S VP PROJECTION («per tags» cards): the formula
+                         behind the number, through the score explorer's own
+                         formatter — the number is printed ONCE (above), the
+                         formula carries its operands only. One line; a long
+                         localization cuts by an ellipsis in this box. -->
+                    <span v-if="sec.formula !== undefined" class="con-composer__rescat-formula" data-vp-formula
+                    >· <img v-if="formulaTagIcon(sec.formula) !== undefined" class="con-composer__rescat-vptag"
+                            :src="formulaTagIcon(sec.formula)" alt="" aria-hidden="true"
+                    ><PremiumCountGlyph v-for="(glyph, gi) in formulaCountGlyphs(sec.formula)" :key="'vg' + gi"
+                                        class="con-composer__rescat-vpglyph" :glyph="glyph" data-vp-glyph
+                    />{{ formulaOperandsText(sec.formula) }}<template v-if="shortfallText(sec.formula) !== ''"
+                    > · {{ shortfallText(sec.formula) }}</template></span>
+                    <!-- WHAT THE PLAY ARMS (TR49 class): the effect's badge — the waiver's struck plate — and its formula. -->
+                    <span v-if="sec.kind === 'armed' && sec.arms !== undefined" class="con-composer__rescat-arms" data-composer-arms>
+                      <template v-for="(arm, ai) in sec.arms" :key="'arm' + ai">
+                        <span v-if="arm.kind === 'requirementWaiver'" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
+                        <!-- the PARTY family (TR70): the printed party plate, struck — the face's own glyph of the waiver -->
+                        <PremiumPartyRequirementGlyph v-else-if="arm.kind === 'partyWaiver'" class="pprq--waived con-armed__pprq" />
+                        <span v-else class="con-armed__badge" aria-hidden="true">{{ armedEffectBadge(arm) }}</span>
+                        <span class="con-composer__rescat-armtext" :data-armed-kind="arm.kind">{{ armedEffectFormula(arm) }}</span>
+                      </template>
+                    </span>
+                    <!-- THIS PLAY PASSES (class CT): what the pass leaves unused — the pass confirm's own lines, one reading. -->
+                    <span v-if="sec.kind === 'pass' && (sec.passLines?.length ?? 0) > 0" class="con-composer__rescat-passlist" data-composer-pass-left>
+                      <span v-for="(line, li) in sec.passLines" :key="'pl' + li" class="con-composer__rescat-passline" data-pass-line
+                      >{{ passLineText(line) }}</span>
+                    </span>
+                    <span v-if="sec.kind === 'pass' && sec.passQuiet !== undefined" class="con-composer__rescat-passquiet" data-pass-quiet
+                    >{{ passLineText(sec.passQuiet) }}</span>
+                    <span v-if="sec.kind === 'tags' && sec.tags !== undefined" class="con-composer__rescat-tags">
+                      <span v-for="(tag, t) in sec.tags" :key="t" class="resource-tag con-composer__rescat-tag" :class="'tag-' + tag" aria-hidden="true"></span>
+                    </span>
+                    <span v-if="sec.note !== undefined" class="con-composer__rescat-note">{{ $t(sec.note) }}</span>
+                  </div>
+                </div>
+              </div><!-- /__playmid -->
             </template>
           </ConsoleScrollArea>
+          <!-- THE DOCK — the sheet's bottom line: what it costs, and the commit. Mounted with the review (a pick list or
+               the target step owns the whole sheet, as it always owned the whole column). -->
+          <div v-if="reviewShown" class="con-composer__playdock">
+            <!-- PAYMENT — the ONE shared panel, in the density the state asks
+                 for: `compact` summary (LB/RB drive the single alt lane, LT
+                 opens the editor) or `expanded` editor (cursor + every lane
+                 dialable). Same rows, same order, same geometry — the host
+                 owns all input, the panel only renders `paymentView`. -->
+            <ConsolePaymentPanel :view="paymentView"
+                                 :mode="payMode"
+                                 :focus-unit="payFocusUnit"
+                                 :flash-nonce="payFlashNonce"
+                                 :discount="forecastDiscount"
+                                 :free="payFree"
+                                 data-unfold-item />
+
+            <!-- The explicit «Разыграть» CTA — a FOCUSABLE row that draws the Ⓐ
+                 glyph, so what A does is never ambiguous: A plays ONLY when this
+                 row is focused (a pick row's A opens/changes that pick instead). -->
+            <div class="con-composer__cta"
+                 data-unfold-item
+                 :class="{
+                   'con-composer__cta--off': !ctaDisplayReady,
+                   'con-composer__cta--ready': ctaDisplayReady,
+                   'con-composer__cta--focused': ctaFocused && !payExpanded && ctaPressMeaningful,
+                   'con-composer__cta--held': !ctaPressMeaningful && !submitting,
+                   'con-composer__cta--blocked': ctaBlockedReason !== '',
+                 }"
+                 :data-composer-armed="commitArrival.armed && ctaFocused ? '' : undefined"
+                 :ref="ctaFocused && !payExpanded ? 'focusedEl' : undefined"
+                 @animationend="onCommitBreathEnd"
+                 @click="clickCta()">
+              <!-- A REFUSED rail does not advertise Ⓐ. It swaps the glyph for
+                   the amber blocker mark this UI uses everywhere else, and
+                   its LABEL is the reason itself — so the concrete «почему
+                   нельзя» that used to live in the removed header badge is
+                   still on screen, now attached to the control it explains
+                   instead of floating two blocks above it. -->
+              <span v-if="ctaBlockedReason !== ''" class="con-composer__cta-block" aria-hidden="true">⚠</span>
+              <!-- …and a rail that cannot RUN advertises no Ⓐ at all: while
+                   the result is unchosen this is the first thing on screen,
+                   and a glyph there invites exactly the accidental press the
+                   pre-select removes. `visibility` keeps its box, so the
+                   label never moves when the play becomes possible. -->
+              <GamepadGlyph v-else control="confirm" class="con-composer__cta-glyph"
+                            :class="{'con-composer__cta-glyph--mute': !ctaPressMeaningful && !submitting}" />
+              <span class="con-composer__cta-label">{{ $t(ctaDisplayLabel) }}</span>
+            </div>
+          </div>
+          </div><!-- /__playsheet -->
 
           <!-- ── THE «ЭФФЕКТЫ» LAYER (R3) — a LEVEL of this composer, never a
                surface of its own: the work column above PARKS in place, the
@@ -863,7 +873,7 @@ import {isGeneralBranch, sharedLeadingEffects,
 import {useResizeObserver} from '@vueuse/core';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {
-  buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow,
+  buildPaymentView, PaymentDensity, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow, paymentLineEligible,
   initialCounts, dialLaneCount, megacreditsAvailable,
   paymentCovers, paymentFromCounts, PaymentLane, paymentLanes, projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
@@ -1096,6 +1106,9 @@ export default defineComponent({
     return {
       /** The decision column that stops re-centring once the player presses (`settledColumn.ts`). */
       settled: undefined as SettledColumn | undefined,
+      /** The hero face's layout height (px, the sheet's own coordinate space) — the sheet's floor (P81 · DJ). */
+      heroFaceHeight: 0,
+      stopHeroFaceObs: undefined as (() => void) | undefined,
       boardPeekUi: boardPeekState,
       preview: undefined as ActionPreview | undefined,
       loading: true,
@@ -1381,8 +1394,31 @@ export default defineComponent({
     payExpanded(): boolean {
       return this.sub?.kind === 'payment';
     },
-    payMode(): 'compact' | 'expanded' {
-      return this.payExpanded ? 'expanded' : 'compact';
+    /**
+     * The payment's DENSITY: the editor while it is open; ONE line when there is nothing to shape (one lane, the mix
+     * exact — P81 · DJ: «ОПЛАТА · 11 [M€] · 15 → 4», the price said once); the compact ledger otherwise. A free play
+     * keeps its own one-word composition (`free`).
+     */
+    payMode(): PaymentDensity {
+      if (this.payExpanded) {
+        return 'expanded';
+      }
+      return !this.payFree && paymentLineEligible(this.paymentView) ? 'line' : 'compact';
+    },
+    /** The REVIEW stands (the sheet's three zones): not loading, and no pick list / target step owning the sheet. */
+    reviewShown(): boolean {
+      if (this.loading) {
+        return false;
+      }
+      const sub = this.sub;
+      if (sub?.kind === 'playedTarget' && this.playedTargetModel !== undefined) {
+        return false;
+      }
+      return !(sub !== undefined && (sub.kind === 'list' || sub.kind === 'orNested' || sub.kind === 'tabbed'));
+    },
+    /** THE SHEET IS AS TALL AS THE CARD (P81 · DJ — the setup's DC mechanism): the hero face's measured height, its floor. */
+    sheetStyle(): Record<string, string> {
+      return this.heroFaceHeight > 0 ? {'--con-setup-face-h': `${this.heroFaceHeight}px`} : {};
     },
     /**
      * THE STAGE'S OWN NAME (i18n key), handed UP to the workspace breadcrumb.
@@ -2851,11 +2887,43 @@ export default defineComponent({
     // step section grows the column DOWNWARD and every group below slides into place (`settledColumn.ts`).
     this.settled = markRaw(new SettledColumn({
       column: () => this.$refs.playRight as HTMLElement | undefined,
-      block: () => (this.$refs.scroll as {$el?: unknown} | undefined)?.$el as HTMLElement | undefined,
+      block: () => this.$refs.sheet as HTMLElement | undefined,
       active: () => !this.submitting && !this.loading,
     }));
   },
   mounted() {
+    // THE SHEET IS AS TALL AS THE CARD (P81 · DJ): the hero slot carries its own `zoom`, so its height is read as
+    // painted and brought into the sheet's coordinate space by the column's own ratio (layout ÷ painted) — any
+    // transform the band rides (the descend, a clip) cancels out. The card's OWN transform (the zoom hand-off's flight)
+    // would not, so a frame where it moves is skipped and read again on the next one; an empty frame of the face's
+    // keyed swap (0) keeps the last height.
+    const card = this.$refs.playCard as HTMLElement | undefined;
+    if (card !== undefined) {
+      let retries = 0;
+      const measure = (): void => {
+        const slot = this.$refs.playCard as HTMLElement | undefined;
+        const column = this.$refs.playRight as HTMLElement | undefined;
+        if (slot === undefined || column === undefined || typeof getComputedStyle !== 'function') {
+          return;
+        }
+        const transform = getComputedStyle(slot).transform;
+        if (transform !== '' && transform !== 'none') {
+          if (retries++ < 90 && typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(measure);
+          }
+          return;
+        }
+        retries = 0;
+        const painted = slot.getBoundingClientRect().height;
+        const columnPainted = column.getBoundingClientRect().height;
+        if (painted <= 0 || columnPainted <= 0 || column.offsetHeight <= 0) {
+          return;
+        }
+        this.heroFaceHeight = Math.round(painted * column.offsetHeight / columnPainted);
+      };
+      this.stopHeroFaceObs = useResizeObserver(card, measure).stop;
+      measure();
+    }
     // THE SECOND REVEAL. The zone opened a flush ago (it must exist before the
     // teleport resolves, or the content is dropped), so its own enter hook had
     // nothing to cascade. Without this the controls would simply appear inside
@@ -2869,6 +2937,7 @@ export default defineComponent({
     releaseCursor(this.lateCursor);
     leaveCommit(this.commitArrival);
     this.settled?.stop();
+    this.stopHeroFaceObs?.();
     resetConsolePlayCardUi();
     closeEffectForecastLayer('play');
     closeBoardPeek(true);
@@ -3019,17 +3088,6 @@ export default defineComponent({
     /** One line of the pass reading, exactly as the pass confirm prints it («key: N»). */
     passLineText(line: PassLine): string {
       return line.count !== undefined ? `${translateText(line.key)}: ${line.count}` : translateText(line.key);
-    },
-    rescatGlyph(kind: string): string {
-      switch (kind) {
-      case 'action': return '⟳';
-      case 'effect': return '✦';
-      case 'armed': return '⚡';
-      case 'pass': return '⏸';
-      case 'vp': return '★';
-      case 'tags': return '#';
-      default: return '›';
-      }
     },
     /** The «ДАЛЕЕ» row's inline tile pictogram (the same art as the card face). */
     tileIconStyle,
@@ -5846,9 +5904,15 @@ export default defineComponent({
         // The payment editor's cursor lives INSIDE the shared panel (a child
         // component), so it is located by its rendered focus class instead of
         // a template ref — the panel stays purely presentational.
+        // THE DOCK (P81 · DJ): the payment and the commit stand on the sheet's bottom line, outside the scroll — there
+        // is nothing to bring into view (and asking the scroller to reach them would scroll the result away).
+        const scroll = this.$refs.scroll as {$el?: unknown, ensureVisible?: (el: Element | null | undefined) => void} | undefined;
+        const inScroll = (el: Element | null | undefined): boolean => el !== null && el !== undefined && (scroll?.$el as HTMLElement | undefined)?.contains(el) === true;
         if (this.payExpanded) {
           const row = (this.$refs.rootEl as HTMLElement | undefined)?.querySelector('.con-payrow--focused');
-          (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(row);
+          if (inScroll(row)) {
+            scroll?.ensureVisible?.(row);
+          }
           return;
         }
         const el = this.$refs.focusedEl as HTMLElement | Array<HTMLElement> | undefined;
@@ -5856,7 +5920,9 @@ export default defineComponent({
         const node = (Array.isArray(el) ? el[0] : el) ??
           (this.$refs.rootEl as HTMLElement | undefined)?.querySelector('.con-vchoice__opt--focused') ?? undefined;
         // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
-        (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
+        if (inScroll(node)) {
+          scroll?.ensureVisible?.(node);
+        }
       });
     },
   },

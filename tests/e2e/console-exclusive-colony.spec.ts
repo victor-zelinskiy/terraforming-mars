@@ -409,7 +409,7 @@ for (const preset of PRESETS) {
       await openComposer(page);
       await expect(page.locator(composer), 'the CTA is the door\'s navigation verb').toContainText('Выбрать колонию');
       await expect(page.locator(composer), 'the next step is named, not guessed').toContainText('Колония — плитка выбирается в «Колониях»');
-      const paymentBefore = await textOf(page, `${composer} .con-paystatus`);
+      const paymentBefore = await textOf(page, `${composer} .con-pay`);
       expect(paymentBefore, 'the payment line states the price').toContain('10');
       await shoot(page, preset.id, '01-composer');
       await armProbe(page, 'Luna', 3);
@@ -461,7 +461,7 @@ for (const preset of PRESETS) {
       await expect(page.locator(composer), 'B restores the composer').toHaveCount(1, {timeout: 15_000});
       await expect(page.locator('.con-hand .con-colonies'), 'the step left').toHaveCount(0, {timeout: 10_000});
       await settle(page);
-      await expect.poll(() => textOf(page, `${composer} .con-paystatus`), {timeout: 10_000, message: 'the payment survived the round trip'}).toBe(paymentBefore);
+      await expect.poll(() => textOf(page, `${composer} .con-pay`), {timeout: 10_000, message: 'the payment survived the round trip'}).toBe(paymentBefore);
       expect(own.posts).toEqual([]);
       expect((await wireOf(request, playerId)).game.gameAge, 'the round trip left no trace').toBe(before.game.gameAge);
 

@@ -99,7 +99,7 @@ export function playPayloadReturn(scope: HTMLElement | undefined, from: Rect | u
   }
   const ink = scope.querySelector<HTMLElement>('.con-vchoice__shared [data-vchoice-print] .con-vchoice__ink') ??
     scope.querySelector<HTMLElement>('.con-vchoice__opt--selected [data-vchoice-print] .con-vchoice__ink');
-  const body = scope.querySelectorAll<HTMLElement>('.con-composer__scroll-body [data-unfold-item]');
+  const body = scope.querySelectorAll<HTMLElement>('.con-composer__scroll-body [data-unfold-item], .con-composer__playdock [data-unfold-item]');
   const all = Array.from(body.length > 0 ? body : scope.querySelectorAll<HTMLElement>('[data-unfold-item]'))
     .filter((el) => el.closest('.con-ptsel') === null);
   const flip = ink === null ? undefined : descendFlipFrom(ink, from);

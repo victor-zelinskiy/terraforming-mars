@@ -1,5 +1,8 @@
 <template>
-  <!-- THE console-native payment surface — ONE component, TWO densities.
+  <!-- THE console-native payment surface — ONE component, THREE densities.
+       `line` (P81 · DJ) is the price said ONCE when there is nothing to shape: one lane (M€), chosen by itself, the
+       mix exact — «ОПЛАТА · 11 [M€] · 15 → 4» on one line, no ledger, no «✓ Оплачено» beside «ТОЧНАЯ ОПЛАТА» (one
+       fact, said once). A second lane, an alternative or a shortfall is `compact`, as it always was.
        `compact` is the summary that lives inside a composer next to the CTA;
        `expanded` is the same block opened up by LT for manual editing. Same
        rows, same order, same icons, same numbers, same captions, same verdict,
@@ -14,6 +17,7 @@
        pure `buildPaymentView` rules. -->
   <div class="con-pay"
        :class="['con-pay--' + mode, {'con-pay--configurable': view.configurable && !free, 'con-pay--blocked': !view.status.ok && !free, 'con-pay--free': free}]"
+       :data-pay-density="mode"
        role="group"
        :aria-label="panelLabel">
     <div class="con-pay__head">
@@ -26,7 +30,7 @@
            layout-shift contract: the pill is line-height bound). The sources
            of the discount live in the R3 «Эффекты» layer, never here. -->
       <span class="con-pay__price" :class="{'con-pay__price--discounted': discount !== undefined}">
-        <span class="con-pay__price-label">{{ $t('Cost') }}</span>
+        <span v-if="mode !== 'line'" class="con-pay__price-label">{{ $t('Cost') }}</span>
         <template v-if="discount !== undefined">
           <span class="con-pay__price-base" data-pay-base>{{ discount.base }}</span>
           <span class="con-pay__price-arrow" aria-hidden="true">→</span>
@@ -45,6 +49,16 @@
            no rows, no ledger, no editor — there is nothing to pay with. -->
       <span v-if="free" class="con-pay__free" data-pay-free>{{ $t('Free') }}</span>
 
+      <!-- THE LINE's second half — what the one lane KEEPS: «[M€] 15 → 4», quieter than the price (the price is the
+           fact, the wallet its consequence). -->
+      <span v-if="lineKeep !== undefined" class="con-pay__keep" data-pay-keep>
+        <span class="con-pay__keep-sep" aria-hidden="true">·</span>
+        <i class="resource_icon con-pay__keep-icon" :class="'resource_icon--' + lineKeep.unit" aria-hidden="true"></i>
+        <span class="con-pay__keep-before">{{ lineKeep.before }}</span>
+        <span class="con-pay__keep-arrow" aria-hidden="true">→</span>
+        <b class="con-pay__keep-after">{{ lineKeep.after }}</b>
+      </span>
+
       <!-- The mode switch as a SECONDARY action OF THIS BLOCK (never a
            free-floating command): LT opens the editor, B folds it back. It is
            absent when the editor would show the same block a second time (a
@@ -59,7 +73,7 @@
          0 / 0 · ТОЧНАЯ ОПЛАТА» would be a ledger about nothing. The whole
          block below is absent, not hidden (`payment-panel.md`: `free` is a
          DIFFERENT composition, static for the composer's session). -->
-    <template v-if="!free">
+    <template v-if="!free && mode !== 'line'">
       <div class="con-pay__rows">
         <ConsolePaymentSourceRow v-for="row in view.rows" :key="row.unit"
                                  :row="row"
@@ -103,7 +117,7 @@
  * verdict or the geometry.
  */
 import {defineComponent, PropType} from 'vue';
-import {PaymentView, paymentUnitLabel} from '@/client/console/paymentPlan';
+import {PaymentDensity, PaymentView, paymentUnitLabel} from '@/client/console/paymentPlan';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsolePaymentSourceRow from '@/client/components/console/ConsolePaymentSourceRow.vue';
@@ -118,8 +132,9 @@ export default defineComponent({
   props: {
     /** The pure payment view-model — rows + verdict + editability. */
     view: {type: Object as PropType<PaymentView>, required: true},
-    /** Density: the composer summary, or the LT editor. */
-    mode: {type: String as PropType<'compact' | 'expanded'>, default: 'compact'},
+    /** Density: the one-line price (one lane, nothing to shape — `paymentLineEligible`), the composer summary, or the
+     *  LT editor. */
+    mode: {type: String as PropType<PaymentDensity>, default: 'compact'},
     /** Expanded only — the unit the cursor sits on (LB/RB drive it). */
     focusUnit: {type: String, default: undefined},
     /** Bumped by the host on each adjust to re-key the one-shot pulse. */
@@ -161,8 +176,13 @@ export default defineComponent({
     costUnit(): string {
       return this.view.costUnit ?? 'megacredits';
     },
+    /** The LINE's wallet: the one lane, what it holds before → what it keeps (undefined in any other density). */
+    lineKeep(): {unit: string, before: number, after: number} | undefined {
+      const row = this.mode === 'line' && !this.free ? this.view.rows[0] : undefined;
+      return row === undefined ? undefined : {unit: row.unit, before: row.available, after: row.remaining};
+    },
     hint(): PanelHint | undefined {
-      if (this.hintMode === 'none' || this.free) {
+      if (this.hintMode === 'none' || this.free || this.mode === 'line') {
         return undefined;
       }
       if (this.mode === 'expanded') {

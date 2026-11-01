@@ -10459,6 +10459,59 @@ floatingRefineryFixture('floating-refinery', 'play');
 floatingRefineryFixture('floating-refinery-action', 'action');
 floatingRefineryFixture('floating-refinery-sole', 'sole');
 
+// ── P81 · SOIL STUDIES — the EIGHTEENTH Prelude 2 card (docs/claude/prompts/prelude2-p81-soil-studies.md): «requires
+//    −4 °C or colder; 1 plant per Venus tag, plant tag (INCLUDING THIS ONE) and colony you have» — a basis of two terms
+//    (the row [V][plant] with «в т.ч. эта карта», and the colonies). A 2p Venus + Colonies + Prelude 2 table (Teractor ·
+//    ThorGate), blue on the move with Venus Governor (2 Venus) and Arctic Algae (1 plant) on the table, a cube on the
+//    first colony tile, P81 MOVED into the hand, 20 M€:
+//      · `soil-studies`        — fresh temperature (−30 °C): the hand plate «+5» = 2 + 1 + this card + 1 colony;
+//      · `soil-studies-locked` — the temperature set to −2 °C: the card is locked by its requirement.
+//    A DRY RUN on a copy proves the play's +5 plants. ──
+function soilStudiesFixture(name: string, variant: 'play' | 'locked'): void {
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, venusNextExtension: true, coloniesExtension: true, prelude2Expansion: true,
+    customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
+  });
+  answerStartFlow(game, [p1, p2]);
+  game.projectDeck.discardPile.push(...p1.cardsInHand.splice(0));
+  const take = (n: CardName) => {
+    moveToDeckTop(game, n);
+    return game.projectDeck.drawOrThrow(game);
+  };
+  p1.playedCards.push(take(CardName.VENUS_GOVERNOR), take(CardName.ARCTIC_ALGAE));
+  for (const tile of game.colonies) {
+    tile.colonies = tile.colonies.filter((id) => id !== p1.id);
+  }
+  game.colonies[0].isActive = true;
+  game.colonies[0].colonies.push(p1.id);
+  const soil = take(CardName.SOIL_STUDIES);
+  p1.cardsInHand.push(soil);
+  p1.megaCredits = 20;
+  p2.megaCredits = 30;
+  if (variant === 'locked') {
+    setTemperature(game, -2);
+  }
+  runAllActions(game);
+  const playable = p1.canPlay(soil) !== false;
+  if (game.activePlayer.id !== p1.id || p1.getColoniesCount() !== 1 || playable !== (variant === 'play')) {
+    throw new Error(`the ${name} fixture expected blue on the move, 1 colony, P81 ${variant === 'play' ? 'playable' : 'locked'} — got active=${game.activePlayer.id === p1.id} colonies=${p1.getColoniesCount()} playable=${playable}`);
+  }
+  if (variant === 'play') {
+    // THE DRY RUN — on a copy.
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const blue = copy.getPlayerById(p1.id);
+    const plants = blue.plants;
+    blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.SOIL_STUDIES)!, Payment.of({megacredits: 13}));
+    runAllActions(copy);
+    if (blue.plants - plants !== 5 || blue.megaCredits !== 7) {
+      throw new Error(`the ${name} fixture expected +5 plants and 7 M€ after the play — got +${blue.plants - plants} / ${blue.megaCredits}`);
+    }
+  }
+  write(name, game);
+}
+soilStudiesFixture('soil-studies', 'play');
+soilStudiesFixture('soil-studies-locked', 'locked');
+
 // ── P75 · GHG SHIPMENT — the SEVENTH Prelude 2 card and the FIRST in scope with a KELVINISTS requirement (docs/claude/
 //    prompts/prelude2-p75-ghg-shipment.md): «requires the Kelvinists — the GREENS under Redux (rulebook p.13,
 //    `normalizeReduxParty`) — ruling or 2 of your delegates there; +1 heat production; 1 heat per floater you have».

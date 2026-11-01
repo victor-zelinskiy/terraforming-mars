@@ -449,7 +449,7 @@ for (const preset of PRESETS) {
       await openComposer(page);
       await expect(page.locator(composer), 'the CTA is the staged cell\'s own verb').toContainText('Разыграть на поле');
       await expect(page.locator(composer), 'the next step is named, not guessed').toContainText(/переселите свой город/i);
-      const paymentBefore = await textOf(page, `${composer} .con-paystatus`);
+      const paymentBefore = await textOf(page, `${composer} .con-pay`);
       expect(paymentBefore, 'the payment line states the price').toContain('7');
       await shoot(page, preset.id, '01-composer');
 
@@ -537,7 +537,7 @@ for (const preset of PRESETS) {
       await press(page, 'Escape', 1400);
       await page.locator(composer).waitFor({timeout: 15_000});
       await expect(page.locator(composer), 'the composer carries the SAME card').toContainText(CARD_RU);
-      expect(await textOf(page, `${composer} .con-paystatus`), 'the same payment').toBe(paymentBefore);
+      expect(await textOf(page, `${composer} .con-pay`), 'the same payment').toBe(paymentBefore);
       expect(posts, 'the whole ladder sent nothing').toEqual([]);
       expect((await wireOf(request, playerId)).game.gameAge).toBe(before.game.gameAge);
 
