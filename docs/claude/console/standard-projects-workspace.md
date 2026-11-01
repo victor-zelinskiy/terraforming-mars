@@ -194,6 +194,15 @@ Guard: the acceptance spec samples the step's opacity per frame and asserts
 both that the FIRST painted frame is transparent and that the surface never
 dips once it has risen.
 
+**…except the sale's HAND, whose entry IS its cards' flight** (P86): an
+opacity-from-0 entry hid the very slots the bodies land on (the hand
+«appeared» with its cards down) — and the bodies themselves flew UNDER this
+panel, the intake lease released at the episode's install. The hosted hand
+wears `data-hand-arrives="flight"` while its open episode runs and the step's
+entry skips it (`.con-stdp__step > [data-hand-arrives="flight"]`); the reveal
+director holds the intake lease for the episode's whole life. Witness
+`console-hosted-hand-open` (TIMING).
+
 ## Preview — the shared chip language, from the real rule sources
 
 `CardModel.standardProjectPreview` (`server/models/standardProjectPreview.ts`),

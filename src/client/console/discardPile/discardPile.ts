@@ -44,9 +44,25 @@ export const discardPileState = reactive({
   pulseNonce: 0,
   /** The leases standing right now, by name (read by the e2e probe and the diagnostics). */
   holders: [] as Array<string>,
+  /**
+   * THE SERVER'S TRUTH this episode owes the pile (P86, the owner's «СБРОШЕНО: 0»): the highest count an owner has
+   * declared will lie here (`expectDiscardPileCount`). Diagnostic only (`data-discard-pile-expected`) — the count
+   * itself ticks on contact and is SETTLED to it at the episode's exit.
+   */
+  expected: 0,
 });
 
 const leases = new Set<string>();
+/** Per owner: the count the pile must read once THAT owner's cards are down (the base it saw + what it lays). */
+const expectations = new Map<string, number>();
+/** Dev positive control (`?dpileTruth=0`): the settle is switched off, so a lost touchdown MUST reach the sentinel. */
+let truthDisabled: boolean | undefined;
+function settleDisabled(): boolean {
+  if (truthDisabled === undefined) {
+    truthDisabled = typeof window !== 'undefined' && new URLSearchParams(window.location?.search ?? '').get('dpileTruth') === '0';
+  }
+  return truthDisabled;
+}
 let slotEl: HTMLElement | undefined;
 let stackEl: HTMLElement | undefined;
 let closedWaiters: Array<() => void> = [];
@@ -128,10 +144,47 @@ export function openDiscardPile(owner: string): void {
   }
 }
 
+/**
+ * THE PILE SAYS THE TRUTH — half one: an owner DECLARES what its episode lays on the pile, from the server's own answer
+ * (a hand discard: the names the server removed; a search: its thrown-away cards). Read at the declaration: the pile's
+ * count then (what lay there before these) + `n`. The count still ticks on CONTACT (with the pulse); the declaration
+ * only says what it must read once this owner is done.
+ */
+export function expectDiscardPileCount(owner: string, n: number): void {
+  if (n <= 0) {
+    return;
+  }
+  const target = discardPileState.count + n;
+  expectations.set(owner, Math.max(expectations.get(owner) ?? 0, target));
+  discardPileState.expected = Math.max(discardPileState.expected, target);
+}
+
+/**
+ * THE PILE SAYS THE TRUTH — half two: the owner's episode is ending (the READ before its release, an abort of any
+ * kind): the count is brought up to what the owner declared. A touchdown only makes the truth arrive WITH its
+ * pulse — it never replaces it: a carry whose timeline never reached its contact (a rAF stall, the guard's timer
+ * firing first, the liveness arbiter's abort) used to leave the pile reading «0» over a card the server discarded.
+ */
+export function settleDiscardPile(owner: string): void {
+  const target = expectations.get(owner);
+  if (target === undefined || settleDisabled()) {
+    return;
+  }
+  ensureDiscardPileCount(target);
+}
+
 /** RELEASE — the holder is done. The last release closes the pile (its leave is the component's phrase). */
 export function releaseDiscardPile(owner: string): void {
   if (!leases.delete(owner)) {
     return;
+  }
+  // THE SENTINEL (every build; red on every e2e — `consoleTest.ts`): an owner letting go of a pile that reads less
+  // than it declared skipped its settle. Named, then healed in the same line — truth before story.
+  const target = expectations.get(owner);
+  expectations.delete(owner);
+  if (target !== undefined && target > discardPileState.count) {
+    console.warn(`[discard-pile] released under its count owner=${owner} expected=${target} count=${discardPileState.count}`);
+    discardPileState.count = target;
   }
   syncHolders();
   if (leases.size === 0) {
@@ -190,6 +243,8 @@ export function noteDiscardPileClosed(): void {
     return; // re-opened during the leave — the same pile carries on
   }
   discardPileState.count = 0;
+  discardPileState.expected = 0;
+  expectations.clear();
   discardPileState.anchor = undefined;
   const waiters = closedWaiters;
   closedWaiters = [];
@@ -211,6 +266,9 @@ export function resetDiscardPile(): void {
   discardPileState.visible = false;
   discardPileState.anchor = undefined;
   discardPileState.count = 0;
+  discardPileState.expected = 0;
+  expectations.clear();
+  truthDisabled = undefined;
   discardPileState.pulseNonce = 0;
   const waiters = closedWaiters;
   closedWaiters = [];

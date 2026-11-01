@@ -13,6 +13,7 @@
        :class="{'con-ws': !embedded, 'con-hand--embedded': embedded, 'con-hand--transit': transitHold, 'con-hand--chrome-wait': chromeWait, 'con-hand--frame-wait': frameWait, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined, 'con-hand--discarding': discarding, 'con-hand--staged': stageOpen, 'con-hand--stagepaused': stagePaused}"
        :data-flow="stageOpen ? (stagePaused ? 'picking' : 'configure') : 'browse'"
        :data-cursor-pending="cursorPending ? '' : undefined"
+       :data-hand-arrives="arrivesByFlight ? 'flight' : undefined"
        :style="rootStyle">
   <!-- The workspace FRAME — ONE chrome for both presentation states (the card
        shelf AND the embedded play stage). It is the screen's single plane: the
@@ -1210,6 +1211,14 @@ export default defineComponent({
     chromeWait(): boolean {
       const phase = handRevealState.phase;
       return phase === 'opening' || ((phase === 'open' || phase === 'closing') && handRevealState.chrome !== 'all');
+    },
+    /**
+     * A HOSTED hand whose entry IS the bodies' flight (P86): the host's own step entry (`con-stdp-step-in` — opacity
+     * from 0) must not hide the slots the bodies land on, or the player sees the hand «appear» with its cards already
+     * down. Without a flight (reduced motion, the short path) the host's entry plays as before.
+     */
+    arrivesByFlight(): boolean {
+      return this.embedded && (handRevealState.phase === 'opening' || this.chromeWait);
     },
     /** The album's FRAME (the header, the page edges) waits only for the copies to take off (PL-508). */
     frameWait(): boolean {

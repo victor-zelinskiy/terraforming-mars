@@ -215,7 +215,29 @@ export const playedHeroState = reactive({
    * flown (`reduced`, `mismatch: …` — the holder moved otherwise, `no-row` — the target row was not on screen).
    */
   targetSpend: '' as string,
+  /**
+   * THE PLAY'S CARD PRICE — a discard out of the hand (P86 Unexpected Application: «discard 1 card to …»; PL-1128),
+   * named: '' — the play discards nothing before its lift; `leaving` — the pre-selected cards are coming off the dock;
+   * `left` — the packet has left (the card lifts now, its landing on the pile runs beside the flight); `late` — the
+   * departure did not come within its bound (the card lifts anyway, the pile still takes the packet).
+   */
+  discard: '' as string,
 });
+
+/**
+ * THE PLAY'S CARD PRICE (P86, PL-1128 — P68's door carried to the play composer): the departure of a discard the
+ * composer pre-selected, handed in by the transport right before the scene runs (`shipPlayDiscard`). The shared
+ * discard scene plays it (ONE transaction — the transport's discard gate never plays it twice); the hero only WAITS
+ * for its departure as the fourth shipment of `shipPrice`, beside the stock, card and target spends.
+ */
+let pendingDiscardDeparture: Promise<void> | undefined;
+/** The bound of that wait: a departure that never comes never holds the lift (the scene's own net is longer). */
+const DISCARD_DEPARTURE_MAX_MS = 4000;
+
+/** The transport hands the play's discard departure to the scene (before `runPlayedHero`). */
+export function shipPlayDiscard(departed: Promise<void>): void {
+  pendingDiscardDeparture = departed;
+}
 
 /** One-shot claim per response (mirrors tradeFleet's `claimed`). */
 let claimed = false;
@@ -803,6 +825,8 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   playedHeroState.bill = '';
   playedHeroState.price = '';
   playedHeroState.targetSpend = '';
+  pendingDiscardDeparture = undefined;
+  playedHeroState.discard = '';
   beforeView = undefined;
   playedHeroState.shipment = '';
   // THIS payout's touchdown tally starts empty (the colony flows arm the same
@@ -931,6 +955,7 @@ export function runPlayedHero(view: PlayerViewModel, before?: PlayerViewModel): 
     }, motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000 +
       (pendingSpends !== undefined ? shipmentBudgetMs() + 1000 : 0) +
       (pendingBill !== undefined ? shipmentBudgetMs() + 1000 : 0) +
+      (pendingDiscardDeparture !== undefined ? DISCARD_DEPARTURE_MAX_MS : 0) +
       // The one-play class (TR49): a spend wave, then an arm wave.
       (armedEffectsChange(before, view) ? 2 * shipmentBudgetMs() + 1000 : 0));
     void executeFlight().finally(() => {
@@ -1222,11 +1247,15 @@ async function shipPrice(mine: () => boolean): Promise<void> {
   // THE ONE-PLAY CLASS (TR49): an armed effect this play spends is drawn into the card, and what the card arms
   // leaves its printed glyph for the dock — in the same beat, while the card stands in its composer.
   const armed = shipArmedEffects(standingSourceEl(), beforeView, landingView, mine);
-  if (stock === undefined && cards === undefined && target === undefined && armed === undefined) {
+  // THE CARD PRICE OUT OF THE HAND (P86): the pre-selected discard comes off the dock BESIDE the other shipments —
+  // the card lifts once the packet has LEFT (its carry started; never its touchdown — PL-099 / PL-104: a row ticks on
+  // the departure), and the packet's landing on the pile runs beside the flight. No beat of its own (the P84 budget).
+  const discard = shipDiscardPrice(mine);
+  if (stock === undefined && cards === undefined && target === undefined && armed === undefined && discard === undefined) {
     return;
   }
   playedHeroState.phase = 'shipping';
-  await Promise.all([stock, cards, target, armed]);
+  await Promise.all([stock, cards, target, armed, discard]);
   if (!mine()) {
     return;
   }
@@ -1246,6 +1275,32 @@ async function shipPrice(mine: () => boolean): Promise<void> {
   if (mine() && playedHeroState.targetSpend === 'flying') {
     playedHeroState.targetSpend = 'flown';
   }
+}
+
+/** The fourth shipment (see `pendingDiscardDeparture`): resolves on the packet's departure, bounded. */
+function shipDiscardPrice(mine: () => boolean): Promise<void> | undefined {
+  const departed = pendingDiscardDeparture;
+  pendingDiscardDeparture = undefined;
+  if (departed === undefined) {
+    return undefined;
+  }
+  playedHeroState.discard = 'leaving';
+  return new Promise<void>((resolve) => {
+    let done = false;
+    const finish = (how: 'left' | 'late') => {
+      if (done) {
+        return;
+      }
+      done = true;
+      window.clearTimeout(bound);
+      if (mine()) {
+        playedHeroState.discard = how;
+      }
+      resolve();
+    };
+    const bound = window.setTimeout(() => finish('late'), motionMs(DISCARD_DEPARTURE_MAX_MS));
+    void departed.then(() => finish('left'), () => finish('late'));
+  });
 }
 
 /** A card's stored count in a view — on WHICHEVER seat's tableau holds it (an attack's target is a rival's). */
@@ -1853,6 +1908,7 @@ export function abortPlayedHero(): void {
   pendingSpends = undefined;
   pendingPrice = undefined;
   pendingBill = undefined;
+  pendingDiscardDeparture = undefined;
   beforeView = undefined;
   pendingRewards = [];
   rewardHoldSeeded = false;
@@ -1896,6 +1952,7 @@ function finish(): void {
   pendingSpends = undefined;
   pendingPrice = undefined;
   pendingBill = undefined;
+  pendingDiscardDeparture = undefined;
   beforeView = undefined;
   pendingRewards = [];
   rewardHoldSeeded = false;

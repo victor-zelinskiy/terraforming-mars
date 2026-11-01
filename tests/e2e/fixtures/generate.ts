@@ -9802,6 +9802,72 @@ stratosphericExpeditionFixture('stratospheric-expedition', 'choice');
 stratosphericExpeditionFixture('stratospheric-expedition-sole', 'sole');
 stratosphericExpeditionFixture('stratospheric-expedition-noholder', 'noholder');
 
+// ── P86 · UNEXPECTED APPLICATION — the TWENTIETH Prelude 2 card (docs/claude/prompts/prelude2-p86-unexpected-
+//    application.md): a Venus EVENT, 4 M€, «discard 1 card to raise Venus 1 step» — the play's PRICE is a card out of
+//    the hand, pre-collected as the play's FIRST step (the album opens from the play sheet as a pre-select; the card
+//    leaves the DOCK at the press, before the lift). A solo action phase on a Venus + Prelude 2 table, Teractor, 10 M€:
+//      · `unexpected-application`      — P86 + Tardigrades + Research: the discard is a CHOICE of two;
+//      · `unexpected-application-sole` — P86 + Tardigrades: the one candidate seeded and SHOWN (T14), still asked;
+//      · `unexpected-application-none` — P86 alone: not playable, with its reason.
+//    A DRY RUN on a copy proves the live prompt (no P86 among its cards), the discard on the pile, Venus +1 step, TR +1. ──
+function unexpectedApplicationFixture(name: string, variant: 'choice' | 'sole' | 'none'): void {
+  const {game, player} = soloActionPhase({
+    venusNextExtension: true, prelude2Expansion: true, customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
+  });
+  const take = (n: CardName) => {
+    moveToDeckTop(game, n);
+    return game.projectDeck.drawOrThrow(game);
+  };
+  player.cardsInHand.length = 0;
+  player.cardsInHand.push(take(CardName.UNEXPECTED_APPLICATION));
+  if (variant !== 'none') {
+    player.cardsInHand.push(take(CardName.TARDIGRADES));
+  }
+  if (variant === 'choice') {
+    player.cardsInHand.push(take(CardName.RESEARCH));
+  }
+  player.megaCredits = 10;
+  runAllActions(game);
+  const card = player.cardsInHand.find((c) => c.name === CardName.UNEXPECTED_APPLICATION);
+  if (card === undefined || player.canPlay(card) !== (variant !== 'none')) {
+    throw new Error(`the ${name} fixture expected P86 in the hand, playable=${variant !== 'none'} — got card=${card !== undefined}`);
+  }
+  if (variant !== 'none') {
+    // THE DRY RUN — the real play on a copy.
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const blue = copy.getPlayerById(player.id);
+    const venus = copy.getVenusScaleLevel();
+    const tr = blue.terraformRating;
+    blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.UNEXPECTED_APPLICATION)!, Payment.of({megacredits: 4}));
+    runAllActions(copy);
+    const asked = blue.getWaitingFor();
+    const offered = asked instanceof SelectCard ? asked.cards.map((c) => c.name).join(',') : '';
+    blue.process({type: 'card', cards: [CardName.TARDIGRADES]});
+    runAllActions(copy);
+    const facts = {
+      offered,
+      discarded: copy.projectDeck.discardPile.some((c) => c.name === CardName.TARDIGRADES),
+      venus: copy.getVenusScaleLevel() - venus,
+      tr: blue.terraformRating - tr,
+      mc: blue.megaCredits,
+    };
+    const want = {
+      offered: variant === 'choice' ? [CardName.TARDIGRADES, CardName.RESEARCH].join(',') : CardName.TARDIGRADES,
+      discarded: true,
+      venus: 2,
+      tr: 1,
+      mc: 6,
+    };
+    if (JSON.stringify(facts) !== JSON.stringify(want)) {
+      throw new Error(`the ${name} fixture's dry run read ${JSON.stringify(facts)} — expected ${JSON.stringify(want)}`);
+    }
+  }
+  write(name, game);
+}
+unexpectedApplicationFixture('unexpected-application', 'choice');
+unexpectedApplicationFixture('unexpected-application-sole', 'sole');
+unexpectedApplicationFixture('unexpected-application-none', 'none');
+
 // ── P79 · MICROGRAVITY NUTRITION — the SEVENTEENTH Prelude 2 card (the stand `console-microgravity-nutrition`): «+1 M€
 //    production per colony you have» — a counted production DECLARATION. A 2p Redux (Colonies mandatory) + Prelude 2
 //    table (Teractor · ThorGate), blue on the move with P79 MOVED out of the dealt pool into the hand, blue's cubes on the

@@ -16,7 +16,8 @@
   -->
   <div v-if="playedHeroState.active || playedReturnState.active" class="con-played-hero" aria-hidden="true"
        :data-hero-phase="playedHeroState.phase"
-       :data-hero-wait="playedHeroState.awaitingTarget ? 'target' : undefined">
+       :data-hero-wait="playedHeroState.awaitingTarget ? 'target' : undefined"
+       :data-hero-discard="playedHeroState.discard !== '' ? playedHeroState.discard : undefined">
     <div v-if="playedHeroState.proxy !== undefined" ref="proxy" class="con-played-hero__proxy">
       <div ref="shade" class="con-played-hero__shade"></div>
       <div ref="flip" class="con-deal-proxy__flip">

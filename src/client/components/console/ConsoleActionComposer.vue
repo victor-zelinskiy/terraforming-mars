@@ -1009,6 +1009,7 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {discardExchangeCommitSpecs, discardExchangeRailKey} from '@/client/console/cardDiscard/discardExchangeBeat';
 import {armPreselectedDiscard} from '@/client/console/cardDiscard/consoleCardDiscard';
+import {preselectedDiscardsOf} from '@/client/console/cardDiscard/preselectedDiscards';
 import {flyRailReward, railRewardPending} from '@/client/console/resourceTransfer/railReward';
 import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
 import {BranchView as PrintedBranchView, branchPositionsForNode, branchSetAvailability, branchTitleText, buildBranchViews, stripNodeOr} from '@/client/components/actions/actionBranchView';
@@ -6549,13 +6550,9 @@ export default defineComponent({
      * marker, never a title; an empty answer arms nothing.
      */
     armPreselectedDiscards(branch: ActionPreviewBranch): void {
-      branch.steps.forEach((step, i) => {
-        const meta = step.kind === 'input' && step.input.type === 'card' ? (step.input as SelectCardModel).discardPrompt : undefined;
-        const answer = this.captured[i] as {type?: string, cards?: ReadonlyArray<CardName>} | undefined;
-        if (meta !== undefined && answer?.type === 'card' && answer.cards !== undefined) {
-          armPreselectedDiscard(answer.cards, meta);
-        }
-      });
+      for (const d of preselectedDiscardsOf(branch.steps, this.captured)) {
+        armPreselectedDiscard(d.names, d.meta);
+      }
     },
     submit(): void {
       const branch = this.selectedBranch;

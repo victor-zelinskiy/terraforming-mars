@@ -1861,8 +1861,9 @@ import ConsoleDiscardPile from '@/client/components/console/discardPile/ConsoleD
 import {resetDiscardPile} from '@/client/console/discardPile/discardPile';
 import {
   armCardDiscard, cardDiscardColonyBonus, cardDiscardTransaction, isCardDiscardActive,
-  registerDiscardOverlayHandoff, registerPreselectedDiscardArm, resetCardDiscard,
+  armPreselectedDiscard, registerDiscardOverlayHandoff, registerPreselectedDiscardArm, resetCardDiscard,
 } from '@/client/console/cardDiscard/consoleCardDiscard';
+import {PreselectedDiscard} from '@/client/console/cardDiscard/preselectedDiscards';
 import {
   COLONY_RESOLUTION_SERVES,
   COLONY_BONUS_ENTRY_WAIT_MS,
@@ -17993,7 +17994,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, reactions?: ReadonlyArray<PlayReaction>, rail?: RailReward, spends?: RailReward, known?: Readonly<Record<string, number>>, targetSpends?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, agendaWalkRail?: AgendaWalkRailPromise, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, armedSpends?: ReadonlyArray<ArmedPlayEffectModel>, composerDraft?: PlayComposerDraft}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, reactions?: ReadonlyArray<PlayReaction>, rail?: RailReward, spends?: RailReward, known?: Readonly<Record<string, number>>, targetSpends?: ReadonlyArray<ResourceTransferSpec>, discards?: ReadonlyArray<PreselectedDiscard>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, agendaWalkRail?: AgendaWalkRailPromise, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, armedSpends?: ReadonlyArray<ArmedPlayEffectModel>, composerDraft?: PlayComposerDraft}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -18253,6 +18254,13 @@ export default defineComponent({
       // a claim that lapsed there would tear the hand out from under a card
       // that is still in the air.
       setWorkspaceFramePhase('hand', 'executing');
+      // THE PLAY'S CARD PRICE (P86 · PL-1128 — P68's door carried to the play): a discard the composer pre-selected in
+      // the album leaves the hand NOW, at the press — armed synchronously before the batch goes, its source the card's
+      // body in the dock. The transport plays it as the hero's fourth shipment, before the lift. (A STAGED play parks
+      // its batch and submits later — none of today's discarding plays is staged; such a play meets its scene live.)
+      for (const d of payload.discards ?? []) {
+        armPreselectedDiscard(d.names, d.meta);
+      }
       // Stamped with the prompt the composer was OPENED on: a play composed for a prompt the server no longer holds is
       // refused as stale, never applied to whatever menu stands now.
       this.submitBatch(batch, pending.promptId);
@@ -24787,13 +24795,16 @@ export default defineComponent({
       armCardDiscard({
         names,
         meta,
+        // A pre-selected discard leaves from the DOCK and hands no pick surface off (P86 — the play composer that
+        // pre-selected it stands in the hand workspace, and the ordinary close would fold it under the play).
+        fromDock: preselected !== undefined,
         // BOTH the live element AND a rect snapshot, always: the element is
         // re-measured if it is still connected when the proxies spawn, and the
         // snapshot carries the flight when the surface unmounted in between (a
         // commit can tear the hand down three frames before the spawn). Without
         // the snapshot the card would silently skip its flight.
         sources: names.map((name) => {
-          const el = this.discardSourceElement(name);
+          const el = this.discardSourceElement(name, preselected !== undefined);
           return {name, el, rect: this.discardSourceRect(el)};
         }),
       });
@@ -24803,7 +24814,13 @@ export default defineComponent({
      *  the zoom), else its BODY in the hand dock (`data-hand-dock-card` — the berth
      *  anchor every intake director targets): a card action's PRE-SELECTED discard
      *  (P68) leaves at the commit, with no album standing. */
-    discardSourceElement(name: CardName): HTMLElement | undefined {
+    discardSourceElement(name: CardName, fromDock = false): HTMLElement | undefined {
+      // A PRE-SELECTED discard (P68 / P86) leaves from where the card stands at the press — its body in the dock; an
+      // album slot parked behind the composer's stage is not where the player sees it.
+      const body = document.querySelector<HTMLElement>(`.con-handbody[data-hand-dock-card="${name}"]`) ?? undefined;
+      if (fromDock && body !== undefined && body.getBoundingClientRect().width > 10) {
+        return body;
+      }
       const slot = document.querySelector<HTMLElement>(`.con-hand__slot[data-zoom-slot="${name}"]`);
       if (slot !== null) {
         return slot;

@@ -33,10 +33,12 @@ import {
   discardedFromHand,
 } from '@/client/console/cardDiscard/discardModel';
 import {
+  HAND_DISCARD_PILE_LEASE,
   cardDiscardState,
   discardTrayEl,
   resetCardDiscardStage,
 } from '@/client/console/cardDiscard/cardDiscardState';
+import {discardPileState, expectDiscardPileCount, settleDiscardPile} from '@/client/console/discardPile/discardPile';
 import {
   DiscardSource,
   SpawnedDiscard,
@@ -60,6 +62,12 @@ export type CardDiscardArm = {
   /** The server marker that produced the pick (drives copy elsewhere; kept
    *  here so a diagnosis can name WHICH discard is stuck). */
   meta: DiscardPromptMeta | undefined,
+  /**
+   * A PRE-SELECTED discard leaving from the DOCK (P68's action, P86's play): no pick surface stands, so phase D hands
+   * no overlay off — the ordinary hand close would fold the very workspace the press was made in (a play composer
+   * stands in the hand). Absent → a live pick's discard (the album / the zoom is the source).
+   */
+  fromDock?: boolean,
 };
 
 export const cardDiscardTransaction = reactive({
@@ -89,6 +97,27 @@ registerAnimationHoldSupplier('card-discard', cardDiscardHolding, {
 function setPhase(phase: DiscardPhase): void {
   cardDiscardTransaction.phase = phase;
   cardDiscardState.phase = phase;
+  if (DEPARTED_PHASES.has(phase)) {
+    const waiters = departureWaiters.splice(0);
+    for (const w of waiters) {
+      w();
+    }
+  }
+}
+
+/**
+ * THE PACKET HAS LEFT — the carry started (or the scene ended without one: nothing measurable, an abort). The play's
+ * hero lifts on it (P86 — the discard is the play's PRICE, the fourth shipment of `shipPrice`): a row ticks on the
+ * DEPARTURE, never on the touchdown (PL-099 / PL-104).
+ */
+const DEPARTED_PHASES: ReadonlySet<DiscardPhase> = new Set<DiscardPhase>(['carrying', 'landing', 'settling', 'idle']);
+const departureWaiters: Array<() => void> = [];
+
+export function cardDiscardDeparted(): Promise<void> {
+  if (!cardDiscardTransaction.active || DEPARTED_PHASES.has(cardDiscardTransaction.phase)) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => departureWaiters.push(resolve));
 }
 
 function clearArmTimer(): void {
@@ -261,7 +290,14 @@ export async function runCardDiscard(): Promise<void> {
       // Nothing measurable to animate: hand the overlay off anyway so the
       // surface never sticks open, and finish quietly.
       setPhase('leaving');
-      await overlayHandoff?.(gone);
+      // No flight — but a pile another owner holds out (a reveal, a colony) still reads the truth: these cards are on it.
+      if (discardPileState.visible) {
+        expectDiscardPileCount(HAND_DISCARD_PILE_LEASE, gone.size);
+        settleDiscardPile(HAND_DISCARD_PILE_LEASE);
+      }
+      if (arm.fromDock !== true) {
+        await overlayHandoff?.(gone);
+      }
       return;
     }
     await runDiscardFixate(spawned, t);
@@ -288,10 +324,14 @@ export async function runCardDiscard(): Promise<void> {
     //    receiver arms BEFORE the carry, so the pile is visibly waiting for
     //    the cards rather than appearing under them. ─────────────────────────
     setPhase('leaving');
+    // THE PILE'S TRUTH (P86): what this scene lays on it is the server's answer — declared as the pile comes out, settled
+    // at the read and at any abort (`settleDiscardPile`); the touchdowns tick it with their pulse in between.
+    expectDiscardPileCount(HAND_DISCARD_PILE_LEASE, gone.size);
     cardDiscardState.trayVisible = true;
     cardDiscardState.trayArmed = true;
     await Promise.all([
-      overlayHandoff?.(gone) ?? Promise.resolve(),
+      // A pre-selected discard leaves the DOCK: no pick surface to hand off (the play's own workspace stays).
+      arm.fromDock === true ? Promise.resolve() : overlayHandoff?.(gone) ?? Promise.resolve(),
       runDiscardHold(spawned, t),
     ]);
     if (!alive()) {
@@ -367,6 +407,8 @@ export function abortCardDiscard(): void {
 }
 
 function finishCardDiscard(): void {
+  // Every way out (the read, an abort, the arbiter's rung, the safety): the pile reads the truth BEFORE its lease goes.
+  settleDiscardPile(HAND_DISCARD_PILE_LEASE);
   clearArmTimer();
   disposeDiscardProxies(spawned);
   spawned = [];

@@ -257,7 +257,12 @@ test.describe('console start — «Эпатажный спонсор» as a work
     // THE DOCK PRESENCE CONTRACT: mounted, in its compact pose (a workspace
     // owns the screen), and its backs never overlap the status rail.
     expect(s.dockMounted, 'the hand dock is never hidden by a screen').toBeTruthy();
-    expect(s.dockCompact, 'the dock stepped into its compact pose').toBeTruthy();
+    // …once the OPEN EPISODE has flown (P86: the reveal episode holds the intake lease for its whole flight — the dock
+    // is FULL while its cards are leaving it, then compact). A state wait, bounded well under the lease's 6 s ceiling:
+    // a compact pose that only comes back at the ceiling is a leaked lease, and the elapsed time names it.
+    const compactFrom = Date.now();
+    await expect.poll(async () => (await surfaces(page)).dockCompact, {timeout: 4_000, message: 'the dock stepped into its compact pose'}).toBe(true);
+    test.info().annotations.push({type: 'dock-compact-after', description: `${Date.now() - compactFrom} ms past the 1.2 s sample`});
     expect(s.dockOverRail, 'no dock card overlaps the status rail').toBeFalsy();
     // …and the browse toolbar IS visible while browsing (it only hides for
     // the configure stage).

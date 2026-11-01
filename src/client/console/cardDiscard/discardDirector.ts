@@ -29,7 +29,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
-import {discardPileStackEl, landOnDiscardPile, releaseDiscardPile} from '@/client/console/discardPile/discardPile';
+import {discardPileStackEl, landOnDiscardPile, releaseDiscardPile, settleDiscardPile} from '@/client/console/discardPile/discardPile';
 import {
   HAND_DISCARD_PILE_LEASE,
   cardDiscardState,
@@ -394,6 +394,8 @@ export function runDiscardPileSettle(t: DiscardTimings): Promise<void> {
  */
 export function runDiscardTrayWithdraw(t: DiscardTimings): Promise<void> {
   const hold = s(t.settleMs) * 0.58; // the READ: the count has landed, look at it
+  // …and it READS THE TRUTH (P86): a touchdown the timeline never reached is settled here, before the read.
+  settleDiscardPile(HAND_DISCARD_PILE_LEASE);
   return guarded((done) => {
     gsap.delayedCall(hold, () => {
       releaseDiscardPile(HAND_DISCARD_PILE_LEASE);

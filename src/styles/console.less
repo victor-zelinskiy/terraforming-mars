@@ -2101,9 +2101,13 @@ html.console-native {
    the docked fan paints over every dockcover panel (the game-surface leak,
    v2 edition). The intake exception rides the root class (the layer is not
    a dock descendant, and a root `:has()` is banned): while cards arrive,
-   the dock is FULL and on top. A flight EPISODE never coexists with a
-   dockcover surface — opening the hand replaces the workspace laterally —
-   so the drop only ever demotes a STANDING pack. */
+   the dock is FULL and on top. A flight EPISODE lifts the layer for its
+   WHOLE life (the reveal director's own intake lease, `installEpisode` →
+   `teardown` — P86): a hosted hand opens UNDER a dockcover panel since
+   2026-08-13 (the patent sale became a step of «Стандартные проекты») and
+   every hosted pick opens the hand physically since 2026-10-25, so the
+   bodies' flight dock → album paints over the panel it lands in. Between
+   episodes the drop still demotes the STANDING pack. */
 .con-root.con-root--ws-dockcover:not(.con-root--dock-intake) .con-handreveal-layer {
     z-index: 11469;
 }
@@ -2114,8 +2118,11 @@ html.console-native {
    the in-footer pack had). Negative z keeps them above the root's own
    background; flights stay high (delivery proxies live on their own
    z11646 layer and legitimately fly OVER the section into the tucked
-   dock — the Pluto trade-draw contract). */
-.con-root.con-root--footer-behind .con-handreveal-layer {
+   dock — the Pluto trade-draw contract). The same INTAKE exception as the
+   dockcover drop (P86): while a reveal episode flies the bodies (a hosted
+   hand opening — Pluto's discard in the colonies section), the layer stays
+   at its own height, over the section it lands in. */
+.con-root.con-root--footer-behind:not(.con-root--dock-intake) .con-handreveal-layer {
     z-index: -2;
 }
 
@@ -14434,6 +14441,14 @@ html.con-profile-handheld .con-mafocus {
         > * {
             animation: con-stdp-step-in calc(260ms * var(--motion-scale, 1))
                 @con-ease-standard calc(90ms * var(--motion-scale, 1)) backwards;
+        }
+        /* …except a hosted HAND whose entry IS its cards' flight out of the
+           dock (P86 — «Продажа патентов»): an opacity-from-0 entry here hid
+           the very slots the bodies land on, so the hand «appeared» with its
+           cards already down. The flight is the entry; without one (reduced
+           motion) the step's own entry plays. */
+        > [data-hand-arrives="flight"] {
+            animation: none;
         }
     }
     &__wallet {

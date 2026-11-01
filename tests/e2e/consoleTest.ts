@@ -336,6 +336,12 @@ const TRANSFER_SURFACE_FOLDED = '[transfer] surface folded under its token';
  */
 const TRANSFER_TOKEN_UNDER = '[transfer] token painted under';
 /**
+ * …and the DISCARD PILE's (P86 — the owner's «СБРОШЕНО: 0»): an owner let go of the table's pile while it read LESS than
+ * the server's discards it had declared (`discardPile.ts` — `expectDiscardPileCount` / `settleDiscardPile`): a lost
+ * touchdown nobody settled. Healed on the spot by the product; red here, so the cause is never lost.
+ */
+const DISCARD_PILE_UNDER = '[discard-pile] released under its count';
+/**
  * …and the REACTION IDENTITY sentinel's (P82 — «ПОДНИМАЕТСЯ ТОЛЬКО ТА КАРТА, ЧТО СРАБОТАЛА», `cardReaction/reactionIdentity.ts`):
  * after a rise or a settle of the card-reaction chain, a face the player can see moving that no rise declared (a foreign
  * group, a warm face painted, two faces stacked in one slot, a lift that carries another card, one card in two places).
@@ -594,7 +600,8 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     const watch = (page: Page) => {
       page.on('console', (message) => {
         const text = message.text();
-        if (text.includes(TRANSFER_END_NOT_PAINTED) || text.includes(TRANSFER_SURFACE_FOLDED) || text.includes(TRANSFER_TOKEN_UNDER)) {
+        if (text.includes(TRANSFER_END_NOT_PAINTED) || text.includes(TRANSFER_SURFACE_FOLDED) || text.includes(TRANSFER_TOKEN_UNDER) ||
+            text.includes(DISCARD_PILE_UNDER)) {
           unpainted.push(text.slice(0, 300));
         }
       });
@@ -607,7 +614,7 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
       throw new Error(foreignFaces);
     }
     if (unpainted.length > 0) {
-      throw new Error(`${TRANSFER_END_NOT_PAINTED} / ${TRANSFER_SURFACE_FOLDED} / ${TRANSFER_TOKEN_UNDER} — a resource token was born on / landed over nothing, its surface folded under it, or it was painted under a surface (the laws of live flight ends, of the fold and of the paint):\n  ${unpainted.join('\n  ')}`);
+      throw new Error(`${TRANSFER_END_NOT_PAINTED} / ${TRANSFER_SURFACE_FOLDED} / ${TRANSFER_TOKEN_UNDER} / ${DISCARD_PILE_UNDER} — a resource token was born on / landed over nothing, its surface folded under it, it was painted under a surface, or the discard pile was let go under the server's count (the laws of live flight ends, of the fold, of the paint and of the pile's truth):\n  ${unpainted.join('\n  ')}`);
     }
   }, {auto: true}],
 

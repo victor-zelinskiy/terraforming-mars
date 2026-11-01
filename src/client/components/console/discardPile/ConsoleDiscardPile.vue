@@ -11,6 +11,7 @@
     <div v-if="state.visible" ref="root" class="con-dpile" :style="rootStyle" aria-hidden="true"
          data-discard-pile
          :data-discard-pile-count="state.count"
+         :data-discard-pile-expected="state.expected"
          :data-discard-pile-holders="state.holders.join(' ')">
       <div class="con-dpile__plate" :class="{'con-dpile__plate--armed': armed}">
         <div ref="stack" class="con-dpile__stack"

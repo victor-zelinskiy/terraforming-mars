@@ -1,8 +1,8 @@
 import {expect} from 'chai';
 import {
-  discardPileAnchorOf, discardPileHeldBy, discardPileState, ensureDiscardPileCount, landOnDiscardPile,
-  noteDiscardPileClosed, openDiscardPile, releaseDiscardPile, releaseDiscardPileExcept, resetDiscardPile,
-  whenDiscardPileClosed,
+  discardPileAnchorOf, discardPileHeldBy, discardPileState, ensureDiscardPileCount, expectDiscardPileCount,
+  landOnDiscardPile, noteDiscardPileClosed, openDiscardPile, releaseDiscardPile, releaseDiscardPileExcept,
+  resetDiscardPile, settleDiscardPile, whenDiscardPileClosed,
 } from '@/client/console/discardPile/discardPile';
 
 /**
@@ -105,6 +105,72 @@ describe('discardPile', () => {
       await closed;
       expect(discardPileState.count).eq(0);
       expect(discardPileState.anchor).eq(undefined);
+    });
+  });
+
+  describe('the TRUTH — the pile reads the server’s discards at the read and at any abort (P86, «СБРОШЕНО: 0»)', () => {
+    let warns: Array<string> = [];
+    let warn: typeof console.warn;
+    beforeEach(() => {
+      warns = [];
+      warn = console.warn;
+      console.warn = (...args: Array<unknown>) => {
+        warns.push(args.map(String).join(' '));
+      };
+    });
+    afterEach(() => {
+      console.warn = warn;
+    });
+
+    it('a touchdown that never came (the carry’s guard fired first, an abort): the settle brings the count to the declared truth — no sentinel', () => {
+      openDiscardPile('hand-discard');
+      expectDiscardPileCount('hand-discard', 1);
+      expect(discardPileState.expected).eq(1);
+      // …no landOnDiscardPile(): the timeline never reached its contact.
+      settleDiscardPile('hand-discard');
+      expect(discardPileState.count).eq(1);
+      releaseDiscardPile('hand-discard');
+      expect(warns.filter((w) => w.includes('[discard-pile]'))).deep.eq([]);
+    });
+
+    it('the touchdowns tick it on contact; the settle then changes nothing (it never raises past the truth)', () => {
+      openDiscardPile('hand-discard');
+      expectDiscardPileCount('hand-discard', 2);
+      landOnDiscardPile();
+      landOnDiscardPile();
+      settleDiscardPile('hand-discard');
+      expect(discardPileState.count).eq(2);
+    });
+
+    it('the declaration counts what lay there before: a second owner’s cards stack on the first’s', () => {
+      openDiscardPile('scene:7');
+      expectDiscardPileCount('scene:7', 2);
+      landOnDiscardPile();
+      landOnDiscardPile();
+      openDiscardPile('hand-discard');
+      expectDiscardPileCount('hand-discard', 1);
+      settleDiscardPile('hand-discard');
+      expect(discardPileState.count).eq(3);
+    });
+
+    it('POSITIVE CONTROL — an owner that lets go WITHOUT its settle is NAMED by the sentinel, and healed on the spot', () => {
+      openDiscardPile('hand-discard');
+      expectDiscardPileCount('hand-discard', 1);
+      releaseDiscardPile('hand-discard');
+      expect(warns.some((w) => w.includes('[discard-pile] released under its count owner=hand-discard expected=1 count=0'))).is.true;
+      expect(discardPileState.count, 'truth before story').eq(1);
+    });
+
+    it('the episode’s close forgets the declarations (the next episode starts from its own truth)', () => {
+      openDiscardPile('scene:9');
+      expectDiscardPileCount('scene:9', 1);
+      settleDiscardPile('scene:9');
+      releaseDiscardPile('scene:9');
+      noteDiscardPileClosed();
+      expect(discardPileState.count).eq(0);
+      expect(discardPileState.expected).eq(0);
+      settleDiscardPile('scene:9');
+      expect(discardPileState.count, 'a forgotten declaration settles nothing').eq(0);
     });
   });
 });

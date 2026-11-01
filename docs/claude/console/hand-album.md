@@ -262,7 +262,13 @@ marks ownership) and releases them; nothing mounts or unmounts mid-flight.
   `.con-root--ws-dockcover:not(--dock-intake) .con-handreveal-layer` drops
   to 11469 (the same gap the pack used), with the intake accent published
   as a root class because the layer is not a dock descendant and a root
-  `:has()` is banned.
+  `:has()` is banned. ⚠ Its old premise — «a flight episode never coexists
+  with a dockcover surface» — was FALSE since 2026-08-13 (the patent sale
+  became a hosted step) and 2026-10-25 (every hosted pick opens the hand
+  physically): the shell released its lease at the episode's INSTALL and the
+  bodies flew under the panel. Since P86 the reveal director holds its OWN
+  lease for the episode's life (`installEpisode` → `teardown`), and the
+  footer-behind tuck carries the same `:not(--dock-intake)` exception.
 - **BODIES BOOT INVISIBLE** (`visibility: hidden` until the first pose
   write flips it via autoAlpha) — an unseated body must never paint a
   natural-size card at the layer origin. The anchor-missing retry is a

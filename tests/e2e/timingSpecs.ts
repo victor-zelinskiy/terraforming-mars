@@ -99,6 +99,8 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-rail-landing.spec.ts',
   'console-play-landing-geometry.spec.ts',
   'console-event-pays-face-up.spec.ts', // P84 · DK — the face-up flight (sampled per frame), the turn INSIDE the reading pause and the A/B scene length vs HEAD: motion ×1, the real boot, alone
+  'console-discard-pile-truth.spec.ts', // P86 — the pile's last count before it leaves, sampled per mutation under CPU ×6: alone, as a rate (--repeat-each)
+  'console-hosted-hand-open.spec.ts', // P86 — the bodies' flight dock → album under a HOSTING panel (the patent sale): the intake lease and the layer's z sampled per frame, alone
   'console-start-motion.spec.ts',
   'console-start-field-deploy-leave.spec.ts', // the first FIELD cure of the start director (2026-10-31 21:48): the empty start over the menu was timing-shaped — the real boot and motion ×1 are the stand's point
   'console-start-hold-param-leave.spec.ts', // the same field shape through the WHOLE opening (the wizard's summary arms the lifetime hold) — the real boot and motion ×1

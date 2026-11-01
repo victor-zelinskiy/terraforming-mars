@@ -61,7 +61,14 @@ z-index» model — this is a deliberate contract REVERSAL.)*
    `holdDockIntakeAccent(label, promise)` which releases on BOTH outcomes.
    Leases nest (an intake landing while the hand opens) and **every one of
    them expires on its own after `ACCENT_MAX_MS`**, so no director can pin the
-   pose. Held by: `runHandIntake`, the hand open/close reveal episodes.
+   pose. Held by: `runHandIntake`, the hand open/close reveal episodes —
+   ⚠ by the EPISODE ITSELF (P86, 2026-11-01): `openHandWithReveal`'s own lease
+   covers only the preparation and is released in its `finally` the tick
+   `runHandOpenEpisode` INSTALLS the timeline, so the bodies flew their whole
+   dock → album path with the accent off — under a dockcover panel (the patent
+   sale) or a tucked footer (Pluto's discard in the colonies). The reveal
+   director now takes `hand-<kind>` in `installEpisode` and lets it go in
+   `teardown` (every way out); the cancel path's lease is a special case of it.
 
    ⚠️ THE BUG THIS REPLACES. The first cut ORed four booleans owned by four
    directors (`isHandDeliveryActive() || isHandRevealEpisodeRunning() ||

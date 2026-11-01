@@ -842,6 +842,13 @@ function installEpisode(kind: Episode['kind'], tl: gsap.core.Timeline, els: Arra
   const ep: Episode = {
     kind, tl, scrollTop, onResize, finished: false, safety, pairs,
     els: els.map((e) => e as HTMLElement),
+    // THE INTAKE LEASE LIVES WITH THE EPISODE (P86 — the owner's «веер руки при продаже патентов не виден»): the
+    // shell's lease covers only the PREPARATION (measure + two frames) and is let go as this episode is INSTALLED —
+    // the very tick the bodies take off. Without its own, the reveal layer fell back under a dockcover panel
+    // (`.con-root--ws-dockcover:not(.con-root--dock-intake)`) or a tucked footer for the whole flight: a hosted hand
+    // (the patent sale, Pluto's discard in the colonies, the Reds' discard) «appeared» with its cards already down.
+    // Released in `teardown` (every way out); leases nest, and each one is bounded by `ACCENT_MAX_MS`.
+    accentRelease: beginDockIntakeAccent(`hand-${kind}`),
   };
   episode = ep;
   armLog(`arm ${kind} n=${pairs.length} rev=${handRevealState.rev}`);
@@ -892,12 +899,8 @@ export function reverseHandReveal(): boolean {
   ep.tl.reversed(nowReversed);
   if (ep.kind === 'open') {
     handRevealState.phase = nowReversed ? 'closing' : 'opening';
-    if (nowReversed) {
-      ep.accentRelease ??= beginDockIntakeAccent('hand-open-cancel');
-    } else {
-      ep.accentRelease?.();
-      ep.accentRelease = undefined;
-    }
+    // The episode's own lease covers BOTH directions now (installed with it) — a reversed open still flies to the dock.
+    ep.accentRelease ??= beginDockIntakeAccent('hand-open-cancel');
   } else {
     handRevealState.phase = nowReversed ? 'opening' : 'closing';
     if (nowReversed) {

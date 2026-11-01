@@ -1381,6 +1381,33 @@ deck-check — `markWorkspaceOutcomePresenting()` звал только draw-п�
    (`.con-plate-*`, `transition: none` на leave). То же рассуждение
    применимо к любой другой привязанной-к-месту плашке.
 
+### ЦЕНА РОЗЫГРЫША — КАРТА ИЗ РУКИ: ЧЕТВЁРТАЯ ПОСТАВКА (P86 Unexpected Application, PL-1128, 2026-11-01)
+
+Сброс, который композер розыгрыша ПРЕ-СОБРАЛ в альбоме (`spend.cards` P86 — шаг
+превью ПЕРВЫМ, `spendCardsDiscardPrompt`; Sponsored Academies; Strategic Shift),
+уходит из ДОКА на нажатии — дверь действия P68 перенесена на дверь розыгрыша:
+
+- **сборщик один** — `cardDiscard/preselectedDiscards.ts` `preselectedDiscardsOf(steps,
+  captured)` (маркер шага `discardPrompt` + захваченный `{type:'card', cards}`),
+  его читают ОБА композера (действие — `armPreselectedDiscards`, розыгрыш —
+  payload `discards` → шелл);
+- **взвод на нажатии** — шелл (`onPlayCardConfirmNative`) перед `submitBatch`
+  зовёт `armPreselectedDiscard` → `armDiscardScene(names, meta)` →
+  `armCardDiscard({fromDock: true})`: источник — тело карты в доке; фаза D
+  НЕ передаёт оверлей (обычное закрытие руки свернуло бы workspace, в котором
+  стоит композер). Стейдженный розыгрыш паркует батч — сегодня ни одна
+  сбрасывающая карта не стейджится (такая встретит сцену живьём);
+- **порядок — цена раньше результата**: транспорт детектит сброс розыгрыша ДО
+  ворот героя (`playDiscardEvent`), запускает ОДНУ сцену сброса рядом с
+  героем и отдаёт герою её отъезд (`shipPlayDiscard(cardDiscardDeparted())`);
+  герой ждёт его в `shipPrice` четвёртой поставкой (∥ склад / карта / цель /
+  взведённое — ни одного нового такта, закон бюджета P84), поднимается, когда
+  пакет ПОКИНУЛ док (фаза `carrying` — не касание), посадка на стопку идёт
+  параллельно полёту; ворота сброса ниже его не играют второй раз. Ожидание
+  ограничено (`DISCARD_DEPARTURE_MAX_MS`), исход назван
+  (`data-hero-discard` — `leaving` · `left` · `late`). Стенд
+  `console-unexpected-application`.
+
 ### Один язык сброса — два входа
 
 `consoleCardDiscard.ts` — ТРАНЗАКЦИЯ: вооружается серверным `discardPrompt` и

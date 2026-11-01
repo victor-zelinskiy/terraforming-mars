@@ -3046,6 +3046,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // P84 Stratospheric Expedition — 2 floaters to ANY card + the search for 2 Venus cards, and «СОБЫТИЕ ПЛАТИТ ЛИЦОМ» (DK):
   // two holders (a choice) · one holder (seeded, shown) · no holder (a named loss) — the tape seeded on all three.
   'stratospheric-expedition' | 'stratospheric-expedition-sole' | 'stratospheric-expedition-noholder' |
+  // P86 Unexpected Application: the discard a choice of two · one candidate (seeded, T14) · none (not playable).
+  'unexpected-application' | 'unexpected-application-sole' | 'unexpected-application-none' |
   // P85 Summit Logistics — the first POLITICAL Prelude 2 card: the Scientists rule, a two-term count, steel + titanium · locked «0 of 2».
   'summit-logistics' | 'summit-logistics-locked' |
   // P79 Microgravity Nutrition — a counted production declaration: 2 colonies → the hand plate «+2», M€ production 0 → 2.

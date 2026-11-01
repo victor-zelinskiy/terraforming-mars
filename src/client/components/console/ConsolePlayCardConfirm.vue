@@ -813,6 +813,7 @@ import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentTypes';
 import {extractPlayRewards} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {actionKnownRailMoves, playRailReward, playSpendReward, playTargetSpendSpecs, withRailAnswerTags} from '@/client/console/consoleActionCommit';
+import {preselectedDiscardsOf} from '@/client/console/cardDiscard/preselectedDiscards';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
 import {playCardReactions, railAnswerTags, ratingAnswerSpecs} from '@/client/console/played/receivingStageModel';
 import {Tag} from '@/common/cards/Tag';
@@ -5738,6 +5739,10 @@ export default defineComponent({
         // …and the price taken off a card THIS composer's own step chose (PL-268 — TR52's 2 data off a rival's census):
         // born on the answered target row, absorbed into the standing card's printed icons before the lift.
         targetSpends: playTargetSpendSpecs(this.cardName, b, this.captured),
+        // …and THE PLAY'S CARD PRICE out of the hand (P86 · PL-1128): the discards this composer pre-selected in the
+        // album (nothing left the hand at the pick). The shell arms the ONE discard scene at the submit — the cards
+        // leave from the DOCK as the hero's fourth shipment, before the lift (`shipPlayDiscard`).
+        discards: preselectedDiscardsOf(b.steps, this.captured),
         // …plus the draw the player's OWN multi pick decides (Strategic Shift: a card per card thrown) — the fixed
         // chips alone would claim nothing for it and the embedded draw stage would wait on the wrong count.
         draws: heroRewardEffectsOf(b).reduce((n, e) =>

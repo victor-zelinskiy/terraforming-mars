@@ -109,6 +109,7 @@ import {
   detectPlayedHero,
   endPlayedHero,
   runPlayedHero,
+  shipPlayDiscard,
   seedPlayedHeroRewardHold,
 } from '@/client/console/played/consolePlayedHero';
 import {stagePlayedCardReturns} from '@/client/console/played/playedCardReturn';
@@ -171,6 +172,7 @@ import {
   abortCardDiscard,
   detectCardDiscard,
   endCardDiscard,
+  cardDiscardDeparted,
   runCardDiscard,
 } from '@/client/console/cardDiscard/consoleCardDiscard';
 import {
@@ -870,6 +872,20 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
          * is presented only after the player's own card has landed.
          */
         const playedHeroEvent = detectPlayedHero(newView);
+        /*
+         * THE PLAY'S CARD PRICE (P86 — PL-1128): a discard the play composer PRE-SELECTED is armed at the press and
+         * is the play's PRICE — the server discards it FIRST. So it is detected HERE, before the hero, and its ONE
+         * scene (the shared discard transaction — the discard gate below never plays it a second time) starts beside
+         * the hero's shipment: the hero lifts once the packet has LEFT the dock (`shipPlayDiscard`), the packet lands
+         * on the pile while the card flies. Price before result, no beat of its own.
+         */
+        const playDiscardEvent = playedHeroEvent !== undefined ? detectCardDiscard(newView) : undefined;
+        let playDiscardRun: Promise<void> | undefined;
+        if (playDiscardEvent !== undefined) {
+          transportHolds.cardDiscard = true;
+          playDiscardRun = runCardDiscard();
+          shipPlayDiscard(cardDiscardDeparted());
+        }
         if (playedHeroEvent !== undefined) {
           // The play's RETURN BEAT (Astra Mechanica): work out from the
           // authoritative diff which cards travelled table → hand and
@@ -883,6 +899,13 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             await runPlayedHero(newView, currentView());
           } finally {
             transportHolds.playedHero = false;
+          }
+        }
+        if (playDiscardRun !== undefined) {
+          try {
+            await playDiscardRun;
+          } finally {
+            transportHolds.cardDiscard = false;
           }
         }
         /*
@@ -973,8 +996,8 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
          * turns, and an early `return` down there would skip everything
          * below it.
          */
-        const discardEvent = detectCardDiscard(newView);
-        if (discardEvent !== undefined) {
+        const discardEvent = playDiscardEvent ?? detectCardDiscard(newView);
+        if (discardEvent !== undefined && playDiscardEvent === undefined) {
           transportHolds.cardDiscard = true;
           try {
             await runCardDiscard();

@@ -107,7 +107,8 @@ import {
   DeckDrawHandle, runDeckDrawAssemble, runDeckDrawBeat, runDeckDrawHandoff, runDeckSettleTick,
 } from '@/client/console/deckDraw/deckDrawDirector';
 import {
-  discardPileHeldBy, discardPileSlotEl, landOnDiscardPile, openDiscardPile, releaseDiscardPile,
+  discardPileHeldBy, discardPileSlotEl, expectDiscardPileCount, landOnDiscardPile, openDiscardPile, releaseDiscardPile,
+  settleDiscardPile,
 } from '@/client/console/discardPile/discardPile';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
@@ -558,6 +559,9 @@ export default defineComponent({
       this.sceneEventId = e.id;
       if (deckDrawState.hasDiscards) {
         openDiscardPile(`scene:${e.id}`);
+        // THE PILE'S TRUTH (P86): the rejects this scene lays down are the server's tape — settled at the scene's end
+        // whatever its touchdowns did (a stalled frame, a teardown, a degraded scene).
+        expectDiscardPileCount(`scene:${e.id}`, steps.filter((st) => !st.matched && st.tail !== true).length);
       }
 
       this.sceneCards = steps;
@@ -1181,6 +1185,7 @@ export default defineComponent({
       markDiscardStreaming(false);
       if (stream !== undefined) {
         stream.allPeeled();
+        settleDiscardPile(stream.lease);
         releaseDiscardPile(stream.lease);
       }
     },
@@ -1202,6 +1207,7 @@ export default defineComponent({
       markDiscardStreaming(true);
       const lease = `stream:${req.eventId}`;
       openDiscardPile(lease);
+      expectDiscardPileCount(lease, req.cards.length);
       this.sceneCards = req.cards.map((name) => ({name, matched: false}));
       this.sceneNonce++;
       this.proxyRefs = [];
@@ -1307,6 +1313,7 @@ export default defineComponent({
       const handOver = () => {
         const owed = pendingRevealEvents().some((e) => e.id === eventId);
         if (discardPileHeldBy(`reveal:${eventId}`) || !owed || Date.now() - started > 4_000) {
+          settleDiscardPile(lease);
           releaseDiscardPile(lease);
           if (ctx.stream?.lease === lease) {
             ctx.stream = undefined;
@@ -1320,6 +1327,7 @@ export default defineComponent({
     /** The scene's lease on the discard pile ends with the scene. */
     releasePile(): void {
       if (this.sceneEventId !== undefined) {
+        settleDiscardPile(`scene:${this.sceneEventId}`);
         releaseDiscardPile(`scene:${this.sceneEventId}`);
         this.sceneEventId = undefined;
       }
