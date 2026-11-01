@@ -523,8 +523,11 @@ for (const preset of PRESETS) {
       await openComposer(page);
       await expect(page.locator(composer), 'the CTA is the door\'s navigation verb').toContainText('Выбрать колонию');
       await expect(page.locator(composer), 'the next step is named, not guessed').toContainText('Город на плитке колонии — выбор в «Колониях»');
-      const vpRow = page.locator(`${composer} .con-composer__rescat--vpformula`);
-      await expect(vpRow, 'the VP projection: «+4 сейчас»').toContainText('+4');
+      // The VP projection is the head line's VP CELL (P81 · DW — one language for every kind of points): the shield, the
+      // number it scores NOW, its printed formula beside it.
+      const vpRow = page.locator(`${composer} [data-herocell="vp"]`);
+      await expect(vpRow, 'the VP projection: 4 now').toHaveAttribute('data-printed-vp', '4');
+      await expect(vpRow, 'a «per X» projection').toHaveAttribute('data-vp-kind', 'formula');
       await expect(vpRow.locator('[data-vp-formula]'), 'its formula: two space cities, two VP each').toContainText(/2\s*×\s*2/);
       await expect(vpRow.locator('[data-vp-glyph]'), 'the counted object is drawn — a space city').toHaveCount(1);
       // «⚡ СРАБОТАЕТ»: the city answers Pets AFTER the tile is laid — a DEFERRED fact, and the forecast's law keeps

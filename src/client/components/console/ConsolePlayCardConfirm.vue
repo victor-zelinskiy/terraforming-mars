@@ -228,7 +228,7 @@
                    The set of cells is the CARD's, never the table's: one card always reads the same (only «Сработает» —
                    the table's answer — depends on the table, on its own line below). Side by side while the width allows,
                    a cell wraps whole when it does not; the vertical room stays the body's. -->
-              <div v-if="(!hasVariants && immediateEffects.length > 0) || printedCells.length > 0 || printedVp !== undefined"
+              <div v-if="(!hasVariants && immediateEffects.length > 0) || printedCells.length > 0 || vpCell !== undefined"
                    class="con-composer__heroline" data-composer-heroline>
                 <div v-if="!hasVariants && immediateEffects.length > 0" class="con-composer__herocell con-composer__herocell--result" data-herocell="result">
                   <div class="con-composer__sub-title con-composer__sub-title--result">{{ $t(resultHeading) }}</div>
@@ -253,10 +253,23 @@
                     </div>
                   </div>
                 </div>
-                <div v-if="printedVp !== undefined" class="con-composer__herocell con-composer__herocell--vp" data-herocell="vp" :data-printed-vp="printedVp">
+                <!-- THE VP CELL — ONE language for every kind of points (the owner, 2026-11-01): the shield and the number;
+                     a «per X» card's number is what it scores NOW and its printed formula stands BESIDE it, quiet (the
+                     score explorer's own formatter — the counted tag / object, «2 × 1 ПО», the shortfall); a VP the play
+                     cannot know yet says so in a word. Never a sentence row of its own. -->
+                <div v-if="vpCell !== undefined" class="con-composer__herocell con-composer__herocell--vp" data-herocell="vp"
+                     :data-printed-vp="vpCell.value" :data-vp-kind="vpCell.kind">
                   <div class="con-composer__printed-vp">
                     <ConsoleVpBadge class="con-composer__vpbadge" :label="$t('VP')" />
-                    <b class="con-composer__vpnum">{{ printedVp }}</b>
+                    <b class="con-composer__vpnum" :class="{'con-composer__vpnum--word': vpCell.kind === 'variable'}">{{ vpCell.value }}</b>
+                    <span v-if="vpCell.formula !== undefined" class="con-composer__vpformula" data-vp-formula>
+                      <img v-if="formulaTagIcon(vpCell.formula) !== undefined" class="con-composer__vpformula-tag"
+                           :src="formulaTagIcon(vpCell.formula)" alt="" aria-hidden="true">
+                      <PremiumCountGlyph v-for="(glyph, gi) in formulaCountGlyphs(vpCell.formula)" :key="'vg' + gi"
+                                         class="con-composer__rescat-vpglyph" :glyph="glyph" data-vp-glyph />
+                      <span>{{ formulaOperandsText(vpCell.formula) }}</span>
+                      <span v-if="shortfallText(vpCell.formula) !== ''" class="con-composer__vpformula-short">· {{ shortfallText(vpCell.formula) }}</span>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1494,10 +1507,21 @@ export default defineComponent({
       }
       return cells;
     },
-    /** The card's PRINTED victory points (a fixed number — a «per X» VP reads its live projection in the roles line). */
-    printedVp(): number | undefined {
-      const vp = getCard(this.cardName)?.victoryPoints;
-      return typeof vp === 'number' && vp !== 0 ? vp : undefined;
+    /**
+     * THE VP CELL (one language for every kind of points): a fixed print («1», a penalty «-1»), a «per X» card's
+     * projection — what it scores NOW, the server's number, with its formula — or a value the play cannot know yet
+     * («по условию»). Read off the result's `vp` section (`derivePlayResultSections` — the server's projection).
+     */
+    vpCell(): {kind: 'fixed' | 'formula' | 'variable', value: string, formula?: ScoreFormula} | undefined {
+      const sec = this.resultSections.find((s) => s.kind === 'vp');
+      if (sec === undefined) {
+        return undefined;
+      }
+      if (sec.variable === true) {
+        return {kind: 'variable', value: translateText('by condition')};
+      }
+      const value = (sec.detail ?? '').replace(/^\+/, '');
+      return sec.formula !== undefined ? {kind: 'formula', value, formula: sec.formula} : {kind: 'fixed', value};
     },
     /** The payment stands in the DOCK only as ONE line (one lane, nothing to shape) or as FREE; a ledger is the body's. */
     payInDock(): boolean {
@@ -1511,8 +1535,7 @@ export default defineComponent({
      * a «per X» card scores NOW, what the play arms for the next card, a play that passes, the honest fallback.
      */
     roleSections(): ReadonlyArray<PlayResultSection> {
-      return this.resultSections.filter((s) => s.formula !== undefined ||
-        s.kind === 'armed' || s.kind === 'pass' || s.kind === 'fallback');
+      return this.resultSections.filter((s) => s.kind === 'armed' || s.kind === 'pass' || s.kind === 'fallback');
     },
     /** The REVIEW stands (the sheet's three zones): not loading, and no pick list / target step owning the sheet. */
     reviewShown(): boolean {

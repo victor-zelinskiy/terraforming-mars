@@ -35262,6 +35262,26 @@ html.con-profile-tv {
         color: @con-text;
         font-variant-numeric: tabular-nums;
     }
+    /* A VP the play cannot know yet — a word, at the caption's weight (never a big number it does not have). */
+    .con-composer__vpnum--word {
+        font-size: .82rem;
+        font-weight: 600;
+        color: fade(@con-text-dim, 96%);
+    }
+    /* A «per X» card's printed formula BESIDE its number — quiet, one line, the counted tag / object as the face draws it. */
+    .con-composer__vpformula {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        margin-left: .35rem;
+        white-space: nowrap;
+        font-size: .82rem;
+        font-weight: 600;
+        color: fade(@con-text-dim, 96%);
+        font-variant-numeric: tabular-nums;
+    }
+    .con-composer__vpformula-tag { width: 1.2rem; height: 1.2rem; flex-shrink: 0; }
+    .con-composer__vpformula-short { color: fade(@con-text-dim, 80%); font-weight: 500; }
 
     /* ── 5 · PAYMENT — the level's working zone, on the surface itself. ──── */
     .con-pay {

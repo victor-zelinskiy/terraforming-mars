@@ -170,8 +170,8 @@ async function readScene(page: Page): Promise<Scene> {
       voidShare,
       faceRoles: rescats.filter((el) => {
         const kind = el.getAttribute('data-rescat') ?? '';
-        return kind === 'tags' || kind === 'action' || kind === 'effect' ||
-          (kind === 'vp' && !el.classList.contains('con-composer__rescat--vpformula'));
+        // VP of every kind stand in the head line's VP cell (P81 · DW), never in the roles line.
+        return kind === 'tags' || kind === 'action' || kind === 'effect' || kind === 'vp';
       }).map((el) => el.getAttribute('data-rescat') ?? ''),
       expanded: sheetEl?.hasAttribute('data-sheet-expanded') ?? false,
       cells: [...host.querySelectorAll('[data-herocell]')].map((el) => ({kind: el.getAttribute('data-herocell') ?? '', bottom: Math.round(el.getBoundingClientRect().bottom)})),
