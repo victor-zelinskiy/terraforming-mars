@@ -10652,7 +10652,10 @@ soilStudiesFixture('soil-studies-locked', 'locked');
     p1.playedCards.push(holder);
   }
   const elevator = newProjectCard(CardName.SPACE_ELEVATOR)!;
-  p1.cardsInHand.push(elevator);
+  // …and the sheet's OTHER extreme: Cutting Edge Technology — no immediate result, a printed EFFECT and 1 VP (the owner's
+  // frame of an empty sheet, 2026-11-01): the head line stands on the face's own print.
+  const cutting = newProjectCard(CardName.CUTTING_EDGE_TECHNOLOGY)!;
+  p1.cardsInHand.push(elevator, cutting);
   p1.megaCredits = 30;
   p1.steel = 4;
   p1.titanium = 3;
@@ -10664,7 +10667,7 @@ soilStudiesFixture('soil-studies-locked', 'locked');
     ...(['steel', 'titanium', 'heat'] as const).filter((u) => options[u] === true && p1[u] > 0),
     ...(['floodgateSteel', 'mechs', 'constructionMechs', 'graphene'] as const).filter((u) => options[u] === true && p1.getSpendable(u) > 0),
   ];
-  if (game.activePlayer.id !== p1.id || p1.canPlay(elevator) === false || lanes.length !== 7) {
+  if (game.activePlayer.id !== p1.id || p1.canPlay(elevator) === false || p1.canPlay(cutting) === false || lanes.length !== 7) {
     throw new Error(`the play-sheet-ledger fixture expected blue on the move with Space Elevator playable and 7 alternative lanes — got active=${game.activePlayer.id === p1.id} lanes=${lanes.join()}`);
   }
   write('play-sheet-ledger', game);

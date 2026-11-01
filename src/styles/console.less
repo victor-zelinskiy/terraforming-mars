@@ -35199,6 +35199,69 @@ html.con-profile-tv {
         .action-effect-chip__cur { opacity: .72; font-weight: 600; }
         .action-effect-chip__res { font-weight: 800; }
     }
+    /* THE HEAD LINE (the owner, 2026-11-01 — «премиальное горизонтальное разбитие, вертикаль экономить»): what the card
+       gives as CELLS side by side — «РЕЗУЛЬТАТ» (the immediate change, the loudest), «ЭФФЕКТ» / «ДЕЙСТВИЕ» (the face's
+       printed box, 1:1), the VP shield — each a quiet kicker over its value, the values on one bottom line, a hairline
+       seam between cells (a kant, never a plate). A cell that does not fit WRAPS WHOLE to the next line — the line is
+       horizontal while the width allows it and spends vertical room only when it must. */
+    .con-composer__heroline {
+        display: flex;
+        flex-wrap: wrap;
+        /* cells as tall as the tallest: the kickers on ONE top line, the values on ONE bottom line */
+        align-items: stretch;
+        row-gap: .8rem;
+    }
+    .con-composer__herocell {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: .3rem;
+        min-width: 0;
+        padding-right: 1.3rem;
+        margin-right: 1.3rem;
+        box-shadow: inset -.05rem 0 0 rgba(120, 155, 190, 0.22);
+    }
+    .con-composer__herocell:last-child {
+        padding-right: 0;
+        margin-right: 0;
+        box-shadow: none;
+    }
+    .con-composer__herocell > .con-composer__sub-title { margin-bottom: auto; }
+    .con-composer__sub-title--printed {
+        flex: 0 0 auto;
+        padding-bottom: 0;
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .12rem;
+        color: fade(@con-text-dim, 88%);
+    }
+    .con-composer__printed {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .5rem .8rem;
+    }
+    /* The face's own print, at a size that reads beside the result (the repeat slot's chassis, one step smaller). */
+    .con-composer__printed-graphic {
+        flex-shrink: 0;
+        margin: 0 !important;
+        zoom: calc(1.2 * var(--con-ui-scale, 1));
+        .card-description { display: none; }
+        > .card-container, &.card-container { margin: 0; }
+    }
+    .con-composer__printed-vp {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+    }
+    .con-composer__vpbadge { width: 1.9rem; height: 2.1rem; flex-shrink: 0; }
+    .con-composer__vpnum {
+        font-size: 1.45rem;
+        font-weight: 800;
+        line-height: 1;
+        color: @con-text;
+        font-variant-numeric: tabular-nums;
+    }
 
     /* ── 5 · PAYMENT — the level's working zone, on the surface itself. ──── */
     .con-pay {

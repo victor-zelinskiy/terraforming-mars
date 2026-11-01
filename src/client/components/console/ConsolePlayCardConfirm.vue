@@ -174,8 +174,8 @@
               <div class="con-composer__resulthero"
                    data-unfold-item
                    :class="{'con-composer__resulthero--muted': payExpanded}">
-              <!-- RESULT: variants (selectable) or the single immediate effect. -->
-              <div class="con-composer__sub-title con-composer__sub-title--result">{{ $t(resultHeading) }}</div>
+              <!-- RESULT: variants (selectable) — their heading on top; a plain result's heading is its cell's (the head line). -->
+              <div v-if="hasVariants" class="con-composer__sub-title con-composer__sub-title--result">{{ $t(resultHeading) }}</div>
               <!-- THE ИЛИ CHOICE — a COMPARISON, so the options stand side by
                    side while the width allows it and fall into a column when it
                    does not (intrinsic: `flex-basis: auto` = each card's own
@@ -222,14 +222,43 @@
                   </div>
                 </template>
               </ConsoleVariantChoice>
-              <div v-else-if="immediateEffects.length > 0" class="con-composer__hero-chips con-composer__result-chips">
-                <!-- A chip that opens a PHASE of the result («THEN» — TR47's fall after its raise; «Net» — the rating the
-                     whole swing leaves) is preceded by the card's own printed divider word: the row reads in the face's
-                     order (the raise · ЗАТЕМ · the fall · ИТОГ), never one undivided list of ups and downs. -->
-                <template v-for="(eff, k) in immediateEffects" :key="k">
-                  <span v-if="eff.phase !== undefined" class="con-composer__phase" :data-phase="eff.phase">{{ $t(eff.phase) }}</span>
-                  <ActionEffectChip :effect="eff" :basisInStrip="basisReadByStrip(eff)" />
-                </template>
+              <!-- THE HEAD LINE (P81 · DU-bis, the owner 2026-11-01): what the card GIVES, split HORIZONTALLY into cells that
+                   mirror the face — «РЕЗУЛЬТАТ» (the immediate change, the loudest), then what it leaves on the table in
+                   the face's own print: «ЭФФЕКТ», «ДЕЙСТВИЕ» (the printed box, 1:1 — nothing predicted), the VP shield.
+                   The set of cells is the CARD's, never the table's: one card always reads the same (only «Сработает» —
+                   the table's answer — depends on the table, on its own line below). Side by side while the width allows,
+                   a cell wraps whole when it does not; the vertical room stays the body's. -->
+              <div v-if="(!hasVariants && immediateEffects.length > 0) || printedCells.length > 0 || printedVp !== undefined"
+                   class="con-composer__heroline" data-composer-heroline>
+                <div v-if="!hasVariants && immediateEffects.length > 0" class="con-composer__herocell con-composer__herocell--result" data-herocell="result">
+                  <div class="con-composer__sub-title con-composer__sub-title--result">{{ $t(resultHeading) }}</div>
+                  <div class="con-composer__hero-chips con-composer__result-chips">
+                    <!-- A chip that opens a PHASE of the result («THEN» — TR47's fall after its raise; «Net» — the rating
+                         the whole swing leaves) is preceded by the card's own printed divider word: the row reads in the
+                         face's order (the raise · ЗАТЕМ · the fall · ИТОГ), never one undivided list of ups and downs. -->
+                    <template v-for="(eff, k) in immediateEffects" :key="k">
+                      <span v-if="eff.phase !== undefined" class="con-composer__phase" :data-phase="eff.phase">{{ $t(eff.phase) }}</span>
+                      <ActionEffectChip :effect="eff" :basisInStrip="basisReadByStrip(eff)" />
+                    </template>
+                  </div>
+                </div>
+                <div v-for="cell in printedCells" :key="cell.key" class="con-composer__herocell con-composer__herocell--printed"
+                     :data-herocell="cell.kind">
+                  <div class="con-composer__sub-title con-composer__sub-title--printed">{{ $t(cell.label) }}</div>
+                  <div class="con-composer__printed">
+                    <div v-for="(n, ni) in cell.nodes" :key="ni" class="con-composer__printed-graphic card-container" v-i18n v-strip-action-prefix>
+                      <CardRenderEffectBoxComponent v-if="n.node !== undefined" :effectData="n.node" />
+                      <CardRenderData v-else-if="n.root !== undefined" :renderData="n.root" />
+                      <span v-else class="con-composer__graphic-text">{{ n.text ?? '' }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="printedVp !== undefined" class="con-composer__herocell con-composer__herocell--vp" data-herocell="vp" :data-printed-vp="printedVp">
+                  <div class="con-composer__printed-vp">
+                    <ConsoleVpBadge class="con-composer__vpbadge" :label="$t('VP')" />
+                    <b class="con-composer__vpnum">{{ printedVp }}</b>
+                  </div>
+                </div>
               </div>
               <!-- «ПОЧЕМУ» (PL-156, the owner's M1 2026-10-11): a walk whose length the card COUNTS (TR42) explains its
                    number as a READING of the result, at the chips' scale, right under them — never as a «ДАЛЕЕ» row (the
@@ -847,7 +876,8 @@ import {cardHasAction, playerActionGroups, ActionGroup} from '@/client/component
 import {stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
 import {divertedTileWarnings} from '@/client/components/actions/divertedTileWarning';
-import {cardHasPassiveEffect} from '@/client/components/effects/effectExtraction';
+import {cardHasPassiveEffect, playerEffectGroups} from '@/client/components/effects/effectExtraction';
+import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
 import {orOptionDoor} from '@/client/console/handPickRouting';
@@ -969,6 +999,13 @@ import {tileIconStyle} from '@/client/console/consoleTileIcon';
  * neither needs to be a focus target competing with the CTA.
  */
 type GroupNode = ActionGroup['nodes'][number];
+/** One cell of the head line's printed half: the face's effect boxes or its action's box(es), 1:1. */
+type PrintedCell = {
+  key: string,
+  kind: 'effect' | 'action',
+  label: string,
+  nodes: ReadonlyArray<{node: GroupNode['actionNode'], root: GroupNode['renderRoot'], text: string | undefined}>,
+};
 
 type PlayRow =
   | {i: number, id: string, kind: 'variant', pos: number}
@@ -1104,7 +1141,7 @@ export default defineComponent({
   name: 'ConsolePlayCardConfirm',
   // ConsoleCardFaceLite — the answered target row's miniature (PL-269: it was used in the template and never
   // registered, so the row rendered an unknown <consolecardfacelite> tag — no miniature, ever).
-  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierMarks, PremiumPartyRequirementGlyph},
+  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierMarks, PremiumPartyRequirementGlyph, ConsoleVpBadge},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1433,6 +1470,34 @@ export default defineComponent({
         return 'expanded';
       }
       return !this.payFree && paymentLineEligible(this.paymentView) ? 'line' : 'compact';
+    },
+    /**
+     * WHAT THE CARD LEAVES ON THE TABLE, in the face's own print (P81 · the owner 2026-11-01 — «ЭФФЕКТ» / «ДЕЙСТВИЕ»):
+     * the printed effect boxes and the action's box(es), read by the SAME extractors the «Эффекты» / «Действия карт»
+     * screens use — a card property, never a prediction: one card always shows the same cells.
+     */
+    printedCells(): ReadonlyArray<PrintedCell> {
+      const model = [{name: this.cardName} as CardModel];
+      const cells: Array<PrintedCell> = [];
+      const effects = playerEffectGroups(model).flatMap((g) => g.effects);
+      if (effects.length > 0) {
+        cells.push({key: 'effect', kind: 'effect', label: 'Effect',
+          nodes: effects.map((e) => ({node: e.effectNode, root: e.renderRoot, text: e.text}))});
+      }
+      const actions = playerActionGroups(model).flatMap((g) => g.nodes);
+      if (actions.length > 0) {
+        cells.push({key: 'action', kind: 'action', label: 'Action',
+          nodes: actions.map((n) => {
+            const stripped = stripNodeOr(n);
+            return {node: stripped.actionNode, root: stripped.renderRoot, text: stripped.text};
+          })});
+      }
+      return cells;
+    },
+    /** The card's PRINTED victory points (a fixed number — a «per X» VP reads its live projection in the roles line). */
+    printedVp(): number | undefined {
+      const vp = getCard(this.cardName)?.victoryPoints;
+      return typeof vp === 'number' && vp !== 0 ? vp : undefined;
     },
     /** The payment stands in the DOCK only as ONE line (one lane, nothing to shape) or as FREE; a ledger is the body's. */
     payInDock(): boolean {
