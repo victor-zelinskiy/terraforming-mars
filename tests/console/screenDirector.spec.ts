@@ -1,10 +1,22 @@
 import {expect} from 'chai';
 import {
   ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenShadowInput,
-  SCREEN_TABLE_KINDS, advanceScreenShadowStreak, expectedScreenOwners, hostableStep, noteScreenShadowPass, recordScreenShadowFinding,
+  ROW_REASONS, SCREEN_TABLE_KINDS, UNOBSERVED_SHAPES, advanceScreenShadowStreak, expectedScreenOwners, hostableStep, noteScreenShadowPass, recordScreenShadowFinding,
   resetScreenShadowLog, screenPromptShape, screenPromptToken, screenShadowLog, screenShadowVerdict,
 } from '../../src/client/console/screenDirector';
 import {ConsoleTask} from '../../src/client/console/consoleTaskRouter';
+import * as fs from 'fs';
+import * as path from 'path';
+
+/** The whole suite's observation (`scripts/screen-shadow-report.mjs --write-evidence`) — what served each shape, by basis. */
+type Evidence = {shapes: Record<string, {judged: number, table: Record<string, number>}>};
+const EVIDENCE = JSON.parse(fs.readFileSync(path.join(__dirname, 'screenDirectorEvidence.json'), 'utf8')) as Evidence;
+
+/** A task of a shape (`kind[:mode]`) — the mode rides as both `mode` and `flavor`, the rows read the one they know. */
+function taskOfShape(shape: string): ConsoleTask {
+  const [kind, mode] = shape.split(':');
+  return (mode === undefined ? {kind} : {kind, mode, flavor: mode}) as unknown as ConsoleTask;
+}
 
 /**
  * THE SCREEN DIRECTOR — phase 0, the SHADOW for the whole console (the owner, 2026-10-31: «внедрять на 100% по всему
@@ -33,14 +45,46 @@ describe('screenDirector', () => {
 
     it('a project card is read by its mode', () => {
       expect(expectedScreenOwners({kind: 'projectCard', mode: 'playFromHand'})).deep.eq(['hand']);
-      expect(expectedScreenOwners({kind: 'projectCard', mode: 'standardProject'})).deep.eq(['standard-projects', 'sheet']);
+      expect(expectedScreenOwners({kind: 'projectCard', mode: 'standardProject'})).deep.eq(['standard-projects']);
       expect(expectedScreenOwners({kind: 'projectCard', mode: 'generic'})).deep.eq(['task']);
     });
 
-    it('the generic family may stand in the task host or any of its dedicated stand-ins', () => {
-      const payment = expectedScreenOwners({kind: 'payment'} as ConsoleTask);
-      expect(payment).include.members(['task', 'decision', 'deck-pick']);
-      expect(expectedScreenOwners({kind: 'cardSelect', mode: 'draft'} as ConsoleTask)).include('draft');
+    it('step 2 — an OBSERVED shape is narrowed to what served it; an unobserved one keeps the family, named', () => {
+      expect(expectedScreenOwners({kind: 'payment'} as ConsoleTask)).deep.eq(['task']);
+      expect(expectedScreenOwners({kind: 'cardSelect', mode: 'draft'} as ConsoleTask)).deep.eq(['draft']);
+      expect(expectedScreenOwners({kind: 'cardSelect', mode: 'buy'} as ConsoleTask)).deep.eq(['draft', 'task']);
+      expect(expectedScreenOwners({kind: 'choice', flavor: 'wgt'} as ConsoleTask)).deep.eq(['gov-support']);
+      expect(expectedScreenOwners({kind: 'distribute', mode: 'production'} as ConsoleTask)).deep.eq(['prod-loss', 'task']);
+      expect(expectedScreenOwners({kind: 'choice', flavor: 'espionage'} as ConsoleTask)).include.members(['task', 'lanes']);
+    });
+
+    it('every UNOBSERVED shape keeps the generic family, and only those do', () => {
+      const family = expectedScreenOwners({kind: 'player'} as ConsoleTask);
+      for (const shape of Object.keys(UNOBSERVED_SHAPES)) {
+        expect(expectedScreenOwners(taskOfShape(shape)), shape).deep.eq(family);
+        expect(UNOBSERVED_SHAPES[shape].length, `${shape} carries its reason`).greaterThan(10);
+      }
+      for (const shape of Object.keys(EVIDENCE.shapes)) {
+        if (UNOBSERVED_SHAPES[shape] === undefined) {
+          expect(expectedScreenOwners(taskOfShape(shape)), `${shape} was observed — its row is narrowed`).not.deep.eq(family);
+        }
+      }
+    });
+
+    it('THE EVIDENCE GATE: every owner the suite saw serving a shape BY ITS ROW is in that row, and every owner in a row was seen', () => {
+      for (const [shape, entry] of Object.entries(EVIDENCE.shapes)) {
+        const row = expectedScreenOwners(taskOfShape(shape));
+        if (typeof row === 'string' || UNOBSERVED_SHAPES[shape] !== undefined) {
+          continue;
+        }
+        for (const owner of Object.keys(entry.table)) {
+          expect(row, `${shape}: «${owner}» served it by its row`).include(owner);
+        }
+        for (const owner of row) {
+          expect(entry.table[owner] !== undefined || ROW_REASONS[`${shape}|${owner}`] !== undefined,
+            `${shape}: «${owner}» is in the row but was never seen serving it — narrow it or write its reason`).eq(true);
+        }
+      }
     });
 
     it('lists every workspace kind once and every own surface once', () => {

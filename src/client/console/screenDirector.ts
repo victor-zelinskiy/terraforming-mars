@@ -91,28 +91,72 @@ export const BEAT_SURFACES: ReadonlyArray<string> = [
   'dialog[open]',
 ];
 
-const TASK_FAMILY: ReadonlyArray<ScreenOwner> =['task', 'decision', 'prod-loss', 'gov-support', 'lanes', 'ares', 'bot-attack', 'deck-pick'];
+/**
+ * THE GENERIC FAMILY — every surface that stands in for the task host. Step 2 (2026-11-01) narrowed every row the suite
+ * OBSERVED to what was seen serving it; this family is left ONLY on the shapes the suite never met live (each listed
+ * in `UNOBSERVED_SHAPES` with its reason) — a row nobody has seen is not narrowed on a guess.
+ */
+const UNOBSERVED_FAMILY: ReadonlyArray<ScreenOwner> = ['task', 'decision', 'prod-loss', 'gov-support', 'lanes', 'ares', 'bot-attack', 'deck-pick'];
 
 /**
- * THE TABLE. One row per prompt kind — the compiler refuses a missing one. A row names every surface that is THE
- * answer to that question; the frames that EARNED the kind at runtime (`WorkspaceFrame.serves` — the Hydronetwork's
- * bonus offer, a landed stage's follow-up) are added by the caller (`frameServes`).
+ * The shapes no run has judged live, each with the reason its row keeps the generic family. Read by the evidence guard
+ * (`tests/console/screenDirector.spec.ts`): a shape observed after all must leave this list in the same diff that
+ * narrows its row.
+ */
+export const UNOBSERVED_SHAPES: Readonly<Record<string, string>> = {
+  'choice:confirm': 'a bare SelectOption — every producer in scope is pre-collected or answered by its own door',
+  'choice:espionage': 'Modular Floodgates\' blockade pick — its workspace serves it through the pick door; no stand asks it live',
+  'amount:delta': 'the Hydronetwork\'s amount — its frame serves it at runtime',
+  'player': 'pre-collected by the composers (Law Suit, DecreaseAnyProduction) — live only on a batch divergence',
+  'composite': 'a bare AndOptions is pre-collected (the Industrialists\' action, the colony trade)',
+};
+
+/**
+ * An owner a row names WITHOUT the suite having seen it serve that shape — kept on purpose, the reason written. The
+ * evidence gate fails on any other unseen owner: a row is what was observed, or a reason, never a guess.
+ */
+export const ROW_REASONS: Readonly<Record<string, string>> = {
+  'choice:generic|task': 'the task host renders a generic OrOptions; every one the suite met stood behind the announce or on the board\'s branch',
+  'draftWait|draft-wait': 'the optional re-pick banner when the draft workspace is not open',
+  'awardFunding|awards': 'Vitor\'s free funding is the opening\'s (the start director\'s); the awards sheet is its surface past it',
+  'corpFirstAction|start': 'inside the opening the start serves it (the start director judges that)',
+  'corpFirstAction|corp-first': 'the corporation\'s first action past the opening (a merger) — its own confirm',
+  'colonyBonus|colonies': 'the live window is the announce; the colonies stand only in the beat its door answers',
+};
+
+/**
+ * THE TABLE. One row per prompt kind — the compiler refuses a missing one — and, where a kind's mode or flavor decides
+ * its surface, one row per SHAPE. A row names the surfaces OBSERVED serving that shape across the whole suite
+ * (step 2 — `docs/claude/console/screen-director.md` § Step 2; the evidence is `tests/console/screenDirectorEvidence.json`,
+ * written by `scripts/screen-shadow-report.mjs --write-evidence`). The frames that EARN a kind at runtime (the
+ * registry's default `serves`, a frame's runtime `serves` — the Hydronetwork's bonus offer, the colony resolution's
+ * discard) are added by the caller (`frameServes`) and are not in the rows; the flow's HOST is the stack's
+ * (`HOSTABLE`). A shape never seen live keeps `UNOBSERVED_FAMILY`, with its reason in `UNOBSERVED_SHAPES`.
  */
 const EXPECTED: {[K in TaskKind]: (task: Extract<ConsoleTask, {kind: K}>) => ReadonlyArray<ScreenOwner> | ScreenScope} = {
   actionMenu: () => 'free',
   space: () => ['board'],
-  choice: (t) => t.flavor === 'wgt' ? ['gov-support', 'task'] : TASK_FAMILY,
+  choice: (t) => {
+    switch (t.flavor) {
+    case 'wgt': return ['gov-support'];
+    case 'contextual': return ['decision', 'task'];
+    case 'generic': return ['task'];
+    case 'deltaBonus': return ['hydro'];
+    default: return UNOBSERVED_FAMILY;
+    }
+  },
   awardFunding: () => ['awards'],
-  player: () => TASK_FAMILY,
-  amount: () => TASK_FAMILY,
-  resource: () => TASK_FAMILY,
-  distribute: () => TASK_FAMILY,
-  payment: () => TASK_FAMILY,
+  player: () => UNOBSERVED_FAMILY,
+  amount: (t) => t.flavor === 'generic' ? ['task'] : UNOBSERVED_FAMILY,
+  // Seen only in the prompt-family gallery (a patched prompt): live, only held-back Prelude 2 cards and Pathfinders ask it.
+  resource: () => ['task'],
+  distribute: (t) => t.mode === 'production' ? ['prod-loss', 'task'] : ['task'],
+  payment: () => ['task'],
   draftWait: () => ['draft-wait', 'draft'],
-  cardSelect: () => [...TASK_FAMILY, 'draft'],
-  deckSelect: () => ['deck-pick', 'task'],
+  cardSelect: (t) => t.mode === 'draft' ? ['draft'] : t.mode === 'buy' ? ['draft', 'task'] : ['task'],
+  deckSelect: () => ['deck-pick'],
   handSelect: () => ['hand'],
-  projectCard: (t) => t.mode === 'playFromHand' ? ['hand'] : t.mode === 'standardProject' ? ['standard-projects', 'sheet'] : ['task'],
+  projectCard: (t) => t.mode === 'playFromHand' ? ['hand'] : t.mode === 'standardProject' ? ['standard-projects'] : ['task'],
   colony: () => ['colonies'],
   colonyBonus: () => ['colonies'],
   party: () => ['parliament'],
@@ -122,7 +166,7 @@ const EXPECTED: {[K in TaskKind]: (task: Extract<ConsoleTask, {kind: K}>) => Rea
   venusBonus: () => ['lanes'],
   spendHeat: () => ['lanes'],
   botAttack: () => ['bot-attack'],
-  composite: () => TASK_FAMILY,
+  composite: () => UNOBSERVED_FAMILY,
   initialDraft: () => 'start',
   startSequence: () => 'start',
   corpFirstAction: () => ['start', 'corp-first'],
@@ -154,9 +198,9 @@ export function hostableStep(kind: TaskKind): boolean {
   return HOSTABLE[kind];
 }
 
-/** Why an owner is entitled: its row in the table (or a frame's `serves`), the host of the flow, the board under a
- *  task's nested placement. */
-export type ScreenOwnerBasis = 'table' | 'host' | 'branch';
+/** Why an owner is entitled: its row in the table, a frame's `serves` (the registry's default or earned at runtime), the
+ *  host of the flow, the board under a task's nested placement. */
+export type ScreenOwnerBasis = 'table' | 'serves' | 'host' | 'branch';
 
 export function expectedScreenOwners(task: ConsoleTask): ReadonlyArray<ScreenOwner> | ScreenScope {
   const row = EXPECTED[task.kind] as (t: ConsoleTask) => ReadonlyArray<ScreenOwner> | ScreenScope;
@@ -207,11 +251,15 @@ export function screenShadowVerdict(i: ScreenShadowInput): ScreenShadowVerdict {
   if (typeof row === 'string') {
     return {kind: 'none', scope: row};
   }
-  const table = [...new Set<ScreenOwner>([...row, ...i.frameServes])];
-  const byTable = i.present.filter((o) => table.includes(o));
-  if (byTable.length > 0) {
-    return {kind: 'agree', owners: byTable, basis: 'table'};
+  const byRow = i.present.filter((o) => row.includes(o));
+  if (byRow.length > 0) {
+    return {kind: 'agree', owners: byRow, basis: 'table'};
   }
+  const byServes = i.present.filter((o) => (i.frameServes as ReadonlyArray<ScreenOwner>).includes(o));
+  if (byServes.length > 0) {
+    return {kind: 'agree', owners: byServes, basis: 'serves'};
+  }
+  const table = [...new Set<ScreenOwner>([...row, ...i.frameServes])];
   const host = i.host !== undefined && HOSTABLE[i.task.kind] ? i.host : undefined;
   if (host !== undefined && i.present.includes(host)) {
     return {kind: 'agree', owners: [host], basis: 'host'};

@@ -193,3 +193,32 @@ row against the server, 3/3).
 4. **The readout survives a reload / navigation / close** — the harvest wraps the page's own `reload` / `goto` / `close`
    and snapshots `__conScreenShadow()` before each (every snapshot a disjoint span; no readout lost: 11 of 471 left
    none, against 91 of 1461).
+
+## Step 2 — DONE (2026-11-01): the table is NARROWED to what was observed, and GUARDED
+1. **The rows are the evidence.** Every shape the suite met live names only the owners seen serving it BY ITS ROW:
+   `payment` → task · `cardSelect:draft` → draft · `:buy` → draft, task · `:target` / `:distribute` → task ·
+   `choice:wgt` → gov-support · `:contextual` → decision, task · `:generic` → task · `:deltaBonus` → hydro ·
+   `amount:generic` → task · `distribute:resources` → task · `:production` → prod-loss, task · `deckSelect` →
+   deck-pick · `projectCard:standardProject` → standard-projects (the generic sheet was never seen) · `resource` →
+   task (seen only in the prompt-family gallery's patched prompt). The generic family (`UNOBSERVED_FAMILY`) stays ONLY
+   on the shapes nobody met live, each with its reason (`UNOBSERVED_SHAPES` — `choice:confirm`, `choice:espionage`,
+   `amount:delta`, `player`, `composite`); an owner a row keeps without having been seen carries its reason
+   (`ROW_REASONS` — the generic choice's task host, the draft's re-pick banner, Vitor's free funding, the corp's first
+   action, the remote colony bonus's colonies).
+2. **A frame's `serves` is its own basis** (`serves`, beside `table` · `host` · `branch`) — the Hydronetwork's deck pick,
+   the colony resolution's discard, the draft's payment are runtime grants, not rows, and the evidence tells them apart.
+3. **THE EVIDENCE GATE** (`tests/console/screenDirector.spec.ts`, server runner): `tests/console/screenDirectorEvidence.json`
+   (written by `node scripts/screen-shadow-report.mjs <dirs…> --write-evidence <file>` from a whole-suite run) is
+   checked against the table — every owner seen serving a shape by its row is IN the row, every owner in a row was
+   SEEN or has a reason, every observed shape left the generic family, every unobserved shape kept it with its reason.
+   Narrowing a row, or widening one, is a diff that updates the evidence or a reason with it.
+4. **The verification run on the narrowed table** (box, four quarters, snapshots `scrsh7` / `scrsh8`, build ff7d5b8012):
+   **1497 tests, 4938 judged passes, 0 findings** (only the live control's two deliberate defects); agree 4164 · held
+   763 (≤ 13 s) · a handful of hand-off passes (unserved 6 / misserved 5) never confirmed. Coverage: every in-scope row
+   judged except the two named unreachable. Reds of that run, none the shadow's: `arboretum`, `arwind-inc`,
+   `martian-media-center`, `parliament-zone-v5` GREEN on a worktree of HEAD + this step only (the neighbours'
+   uncommitted work was in the shared build); `habitat-science`, `social-heating` red on the bare HEAD; the finale's
+   timing specs only beside other runs.
+
+**Gate G2 is green.** Step 3 (the field agrees) needs the owner's games on a build ≥ this one — the flight recorder
+already ships every `[screen-shadow]` line from the box and the Deck; `scripts/field-log-report.mjs` reads them.

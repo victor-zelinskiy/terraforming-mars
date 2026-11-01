@@ -10,7 +10,7 @@
  *    prompt shape.
  * A remote run pulls both into `.e2e-remote/<task>/test-results/` (the timing pass under `test-results/timing/`).
  *
- *   node scripts/screen-shadow-report.mjs <task | test-results dir> [more…] [--detail]
+ *   node scripts/screen-shadow-report.mjs <task | test-results dir> [more…] [--detail] [--write-evidence <file>]
  *
  * Several arguments are merged (a whole suite split into parts). The report ends with the TABLE'S COVERAGE: every row
  * of `expectedScreenOwners` the suite never judged (unverified), and every row whose expected owners were never all
@@ -19,7 +19,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const evidenceAt = process.argv.indexOf('--write-evidence');
+const evidenceOut = evidenceAt === -1 ? undefined : process.argv[evidenceAt + 1];
+const args = process.argv.slice(2).filter((a, i, all) => !a.startsWith('--') && all[i - 1] !== '--write-evidence');
 const detail = process.argv.includes('--detail');
 if (args.length === 0) {
   console.error('usage: node scripts/screen-shadow-report.mjs <task | test-results dir> [more…] [--detail]');
@@ -168,6 +170,27 @@ for (const [shape] of sorted(shapes)) {
   }
 }
 
+// ── the evidence file (step 2): what served each shape, by basis — the table's rows are guarded against it ─────────
+if (evidenceOut !== undefined) {
+  const evidence = {
+    note: 'Written by scripts/screen-shadow-report.mjs --write-evidence from a whole-suite run; read by tests/console/screenDirector.spec.ts (the evidence gate). Owners by basis: table = the row, serves = a frame\'s serves, host = the flow\'s host, branch = the board under a nested placement.',
+    sources: args,
+    tests,
+    judged: judgedTotal,
+    shapes: {},
+  };
+  for (const [shape, n] of [...shapes.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    const entry = {judged: n, table: {}, serves: {}, host: {}, branch: {}};
+    for (const [key, count] of owners.get(shape) ?? []) {
+      const [owner, basis] = key.includes('@') ? key.split('@') : [key, 'table'];
+      entry[basis][owner] = (entry[basis][owner] ?? 0) + count;
+    }
+    evidence.shapes[shape] = entry;
+  }
+  fs.writeFileSync(evidenceOut, JSON.stringify(evidence, null, 1) + '\n');
+  console.log(`\nevidence written: ${evidenceOut} (${Object.keys(evidence.shapes).length} shapes)`);
+}
+
 // ── the table's coverage ────────────────────────────────────────────────────────────────────────────────────────────
 const src = fs.readFileSync(path.join('src', 'client', 'console', 'screenDirector.ts'), 'utf8');
 const block = src.slice(src.indexOf('const EXPECTED'), src.indexOf('\n};', src.indexOf('const EXPECTED')));
@@ -182,7 +205,6 @@ const outOfScope = rows.filter(([k]) => /'(free|start|unknown)'/.test(rowText.ge
  * when the scope widens (a held-back Prelude 2 card enters, a composer stops pre-collecting).
  */
 const KNOWN_UNREACHABLE = new Map([
-  ['resource', 'SelectResource comes only from `standardResource` (Applied Science, Focused Organization — both held back in prelude2Adaptation.ts) and Pathfinders (out of scope)'],
   ['player', 'SelectPlayer (Law Suit, DecreaseAnyProduction, a colony discard) is PRE-COLLECTED by the composers — live only on a batch divergence'],
   ['composite', 'a bare AndOptions (the Industrialists\' action, the colony trade) is pre-collected; Stormcraft / the Venus bonus / a distribution route to their own kinds'],
 ]);

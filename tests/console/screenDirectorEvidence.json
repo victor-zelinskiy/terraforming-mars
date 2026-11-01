@@ -1,0 +1,328 @@
+{
+ "note": "Written by scripts/screen-shadow-report.mjs --write-evidence from a whole-suite run; read by tests/console/screenDirector.spec.ts (the evidence gate). Owners by basis: table = the row, serves = a frame's serves, host = the flow's host, branch = the board under a nested placement.",
+ "sources": [
+  ".e2e-remote/s2-res0/test-results",
+  ".e2e-remote/s2-res1/test-results",
+  ".e2e-remote/s2-pull-scrsh7/test-results",
+  ".e2e-remote/s2-pull-scrsh8/test-results"
+ ],
+ "tests": 1497,
+ "judged": 4938,
+ "shapes": {
+  "amount:generic": {
+   "judged": 5,
+   "table": {
+    "task": 2
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "aresGlobal": {
+   "judged": 11,
+   "table": {
+    "ares": 11
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "awardFunding": {
+   "judged": 1,
+   "table": {},
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "botAttack": {
+   "judged": 8,
+   "table": {
+    "bot-attack": 6
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "cardSelect:buy": {
+   "judged": 242,
+   "table": {
+    "draft": 163,
+    "task": 25
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "cardSelect:distribute": {
+   "judged": 134,
+   "table": {
+    "task": 80
+   },
+   "serves": {},
+   "host": {
+    "parliament": 41
+   },
+   "branch": {}
+  },
+  "cardSelect:draft": {
+   "judged": 93,
+   "table": {
+    "draft": 67
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "cardSelect:target": {
+   "judged": 263,
+   "table": {
+    "task": 122
+   },
+   "serves": {},
+   "host": {
+    "parliament": 119
+   },
+   "branch": {}
+  },
+  "chairmanQuest": {
+   "judged": 30,
+   "table": {
+    "parliament": 7
+   },
+   "serves": {},
+   "host": {
+    "hand": 4
+   },
+   "branch": {}
+  },
+  "choice:contextual": {
+   "judged": 106,
+   "table": {
+    "decision": 13,
+    "task": 3
+   },
+   "serves": {},
+   "host": {
+    "hand": 46
+   },
+   "branch": {}
+  },
+  "choice:deltaBonus": {
+   "judged": 38,
+   "table": {
+    "hydro": 18
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "choice:generic": {
+   "judged": 185,
+   "table": {},
+   "serves": {},
+   "host": {},
+   "branch": {
+    "board": 59
+   }
+  },
+  "choice:wgt": {
+   "judged": 8,
+   "table": {
+    "gov-support": 8
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "colony": {
+   "judged": 138,
+   "table": {
+    "colonies": 92
+   },
+   "serves": {},
+   "host": {
+    "hydro": 2,
+    "hand": 27,
+    "parliament": 12
+   },
+   "branch": {}
+  },
+  "colonyBonus": {
+   "judged": 1,
+   "table": {},
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "corpFirstAction": {
+   "judged": 3,
+   "table": {},
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "deckSelect": {
+   "judged": 88,
+   "table": {
+    "deck-pick": 50
+   },
+   "serves": {
+    "hydro": 26
+   },
+   "host": {},
+   "branch": {}
+  },
+  "distribute:production": {
+   "judged": 24,
+   "table": {
+    "prod-loss": 24,
+    "task": 1
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "distribute:resources": {
+   "judged": 25,
+   "table": {
+    "task": 25
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "draftWait": {
+   "judged": 48,
+   "table": {
+    "draft": 44
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "externalDraw": {
+   "judged": 487,
+   "table": {
+    "external-draw": 11
+   },
+   "serves": {},
+   "host": {
+    "parliament": 411
+   },
+   "branch": {}
+  },
+  "handSelect": {
+   "judged": 540,
+   "table": {
+    "hand": 190
+   },
+   "serves": {
+    "colonies": 266
+   },
+   "host": {
+    "parliament": 3
+   },
+   "branch": {}
+  },
+  "parliamentPhase": {
+   "judged": 1449,
+   "table": {
+    "parliament": 1331
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "party": {
+   "judged": 130,
+   "table": {
+    "parliament": 110
+   },
+   "serves": {},
+   "host": {
+    "hand": 3
+   },
+   "branch": {}
+  },
+  "payment": {
+   "judged": 27,
+   "table": {
+    "task": 23
+   },
+   "serves": {
+    "draft": 1
+   },
+   "host": {
+    "parliament": 1
+   },
+   "branch": {}
+  },
+  "projectCard:playFromHand": {
+   "judged": 30,
+   "table": {
+    "hand": 17
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "projectCard:standardProject": {
+   "judged": 6,
+   "table": {
+    "standard-projects": 4
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "resource": {
+   "judged": 7,
+   "table": {
+    "task": 7
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "space": {
+   "judged": 767,
+   "table": {
+    "board": 472
+   },
+   "serves": {},
+   "host": {
+    "hydro": 2,
+    "parliament": 172,
+    "hand": 1
+   },
+   "branch": {}
+  },
+  "spendHeat": {
+   "judged": 15,
+   "table": {
+    "lanes": 15
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "venusBonus:final": {
+   "judged": 18,
+   "table": {
+    "lanes": 17
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  },
+  "venusBonus:standard": {
+   "judged": 11,
+   "table": {
+    "lanes": 11
+   },
+   "serves": {},
+   "host": {},
+   "branch": {}
+  }
+ }
+}
