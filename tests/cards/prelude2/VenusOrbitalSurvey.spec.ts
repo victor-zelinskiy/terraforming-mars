@@ -12,6 +12,10 @@ import {CardName} from '../../../src/common/cards/CardName';
 import {SelectCardModel} from '../../../src/common/models/PlayerInputModel';
 import {SelectPaymentDeferred} from '../../../src/server/deferredActions/SelectPaymentDeferred';
 import {actionPreview} from '../../../src/server/models/actionPreview';
+import {Payment} from '../../../src/common/inputs/Payment';
+import {InputResponse} from '../../../src/common/inputs/InputResponse';
+import {PreselectAddress} from '../../../src/common/inputs/preselectAddress';
+import {parkedBatchTailLength, replayBatch} from '../../../src/server/inputs/deferredInputBatch';
 
 describe('VenusOrbitalSurvey', () => {
   let card: VenusOrbitalSurvey;
@@ -341,5 +345,45 @@ describe('VenusOrbitalSurvey · premium', () => {
     selectCard.cb([]);
     runAllActions(game);
     expect(player.cardsInHand.filter((c) => c.name === venus.name)).has.length(1);
+  });
+  it('PICK-THEN-PAY IS ONE DECISION: the marker carries the payment the purchase WILL ask (Helion), none for M€ only', () => {
+    player.megaCredits = 10;
+    game.projectDeck.drawPile.push(earthCard(), venusCard());
+    const plain = cast(churn(card.action(player), player), SelectCard);
+    expect(plain.deckPickPrompt?.payment, 'M€ only: paid automatically, nothing asked').is.undefined;
+
+    [game, player] = testGame(2);
+    player.megaCredits = 10;
+    player.canUseHeatAsMegaCredits = true;
+    player.heat = 5;
+    game.projectDeck.drawPile.push(earthCard(), venusCard());
+    const helion = cast(churn(card.action(player), player), SelectCard);
+    const payment = helion.deckPickPrompt?.payment;
+    expect(payment?.type).eq('payment');
+    expect(payment?.amount, 'priced for ONE card').eq(player.cardCost);
+    expect(payment?.paymentOptions.heat).is.true;
+  });
+
+  it('ONE batch answers the purchase AND its payment (Helion pays 3 heat): +2 in the hand, nothing left asked', () => {
+    player.megaCredits = 10;
+    player.canUseHeatAsMegaCredits = true;
+    player.heat = 5;
+    const venus = venusCard();
+    const earth = earthCard();
+    game.projectDeck.drawPile.push(earth, venus);
+    card.action(player);
+    runAllActions(game);
+    const select = cast(player.getWaitingFor(), SelectCard);
+    const payFor = {source: {kind: 'card', card: CardName.VENUS_ORBITAL_SURVEY}, role: 'payment'} as PreselectAddress;
+    replayBatch(player, [
+      {type: 'card', cards: [select.cards[0].name]},
+      {type: 'payment', payment: Payment.of({heat: 3}), for: payFor} as InputResponse,
+    ]);
+    runAllActions(game);
+    expect(player.getWaitingFor(), 'the payment was answered by the batch').is.undefined;
+    expect(parkedBatchTailLength(player)).eq(0);
+    expect(player.cardsInHand.map(toName)).to.have.members([venus.name, earth.name]);
+    expect(player.heat).eq(2);
+    expect(player.megaCredits).eq(10);
   });
 });

@@ -24063,6 +24063,16 @@ html.console-mode {
         min-width: 0;
         max-width: min(34rem, 100%);
     }
+    /* THE PURCHASE'S PAY STAGE (P88 · PL-1411): the payment of a workspace purchase stands UNDER the cards being bought
+       (they stay on the strip, picked — the bill is about them), in the slot the status rail held; the shared panel, the
+       same width as the project-card pay stage. */
+    &__buypay {
+        flex: 0 0 auto;
+        display: flex;
+        justify-content: center;
+        padding-top: .6rem;
+        .con-pay { width: min(34rem, 100%); }
+    }
 
     /* Distribute lanes — the prompt-modal family's ROW chassis (`console_prompt.less`): one plate, the one cyan
        cursor, a lane holding part of the answer in the DECISION's tone (mint for a gain, the loss ink for a

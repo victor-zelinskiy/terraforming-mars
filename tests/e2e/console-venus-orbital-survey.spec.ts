@@ -18,7 +18,8 @@ import {
  *   (C) `-none` — two offered, both bought: 10 → 4 M€, +2.
  *   (D) `-poor` — `max 0`: the purchase stage still stands (by the marker), the other card marked «В сброс» with
  *       the price that stops it, RT «ОК» → ONE POST, the companion home, the other discarded.
- *   (E) `-helion` — the buy leaves a live payment in the SAME workspace (heat accepted).
+ *   (E) `-helion` — the purchase owes a live payment (heat accepted): RT opens it as the purchase's own stage in the SAME
+ *       workspace («› ОПЛАТА»), B is one level back, A pays both prompts in ONE batch (PL-1411).
  *   (G) `-mixed` — a reload mid-purchase rebuilds the same stage: two slots, the companion once.
  *
  * Fixtures: tests/e2e/fixtures/generate.ts § P88 (dry runs prove the marker and the hands).
@@ -115,9 +116,8 @@ test.describe(`P88 Venus Orbital Survey · the split reveal · ${PRESET.id}`, ()
     await settle(page);
     const posts = watchPosts(page);
     await openSurvey(page);
-    const crumb = (await crumbText(page)).toUpperCase();
-    expect(crumb, 'the crumb: the workspace › the card › НАСТРОЙКА').toContain(CARD_RU);
-    expect(crumb).toContain('НАСТРОЙКА');
+    await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the crumb: the workspace › the card › НАСТРОЙКА'})
+      .toMatch(new RegExp(`${CARD_RU}.*НАСТРОЙКА`));
     // THE SPLIT, read off the server's descriptor: what leaves the deck and where each kind goes.
     const rows = page.locator('[data-reveal-split]');
     await expect(rows, 'three rows: the deal · the match · the miss').toHaveCount(3);
@@ -135,9 +135,8 @@ test.describe(`P88 Venus Orbital Survey · the split reveal · ${PRESET.id}`, ()
       {name: OTHER, companion: false},
     ]);
     await expect(page.locator(`${HOST} [data-companion-verdict]`), 'the companion\'s verdict, in words').toContainText('Карта Венеры — в руку бесплатно');
-    const tail = (await crumbText(page)).toUpperCase();
-    expect(tail, 'the same flow, the tail moved forward').toContain(CARD_RU);
-    expect(tail).toContain('ПОКУПКА');
+    await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the same flow, the tail moved forward'})
+      .toMatch(new RegExp(`${CARD_RU}.*ПОКУПКА`));
     await shoot(page, 'a2-stage');
 
     // B collapses (the decision stays live), A restores the SAME stage — no request.
@@ -170,13 +169,19 @@ test.describe(`P88 Venus Orbital Survey · the split reveal · ${PRESET.id}`, ()
     const posts = watchPosts(page);
     await openSurvey(page);
     await confirmToStage(page, posts);
-    // The refused card is SEEN leaving onto the discard (never a tumble into nowhere): a sampler armed BEFORE the press
-    // records the names of the discard flight's proxies.
+    // The refused card is SEEN leaving onto the table's ONE discard pile and the pile COUNTS it (PL-1410 — it used to
+    // read «0» under the card that had just landed): a sampler armed BEFORE the press records the discard flight and
+    // every count the pile shows while it stands.
     await page.evaluate(() => {
-      const w = window as unknown as {__p88Discard: Array<string>};
-      w.__p88Discard = [];
+      const w = window as unknown as {__p88Discard: number, __p88Pile: Array<number>};
+      w.__p88Discard = 0;
+      w.__p88Pile = [];
       const t = window.setInterval(() => {
-        document.querySelectorAll<HTMLElement>('.con-discard-proxy').forEach((el) => w.__p88Discard.push(el.getAttribute('data-card') ?? el.textContent?.slice(0, 40) ?? '?'));
+        w.__p88Discard += document.querySelectorAll('.con-discard-proxy').length;
+        const pile = document.querySelector('[data-discard-pile-count]');
+        if (pile !== null) {
+          w.__p88Pile.push(Number(pile.getAttribute('data-discard-pile-count') ?? '0'));
+        }
       }, 30);
       window.setTimeout(() => window.clearInterval(t), 15_000);
     });
@@ -187,8 +192,14 @@ test.describe(`P88 Venus Orbital Survey · the split reveal · ${PRESET.id}`, ()
     expect(after.thisPlayer.megacredits, 'nothing paid').toBe(10);
     expect(handNames(after)).toContain(VENUS);
     expect(handNames(after)).not.toContain(OTHER);
-    const seen = await page.evaluate(() => (window as unknown as {__p88Discard: Array<string>}).__p88Discard);
-    expect(seen.length, 'the unbought card flew to the discard').toBeGreaterThan(0);
+    const seen = await page.evaluate(() => {
+      const w = window as unknown as {__p88Discard: number, __p88Pile: Array<number>};
+      return {__p88Discard: w.__p88Discard, __p88Pile: w.__p88Pile};
+    });
+    expect(seen.__p88Discard, 'the unbought card flew to the discard').toBeGreaterThan(0);
+    expect(seen.__p88Pile.length, 'the ONE discard pile stood for it').toBeGreaterThan(0);
+    expect(Math.max(...seen.__p88Pile) - seen.__p88Pile[0],
+      `the pile COUNTED the refused card (counts ${[...new Set(seen.__p88Pile)].join(' → ')})`).toBe(1);
   });
 
   test('(B) two Venus cards: no question — one drawn batch, taken in place', async ({page, request}) => {
@@ -251,25 +262,49 @@ test.describe(`P88 Venus Orbital Survey · the split reveal · ${PRESET.id}`, ()
     expect(handNames(after)).not.toContain(OTHER);
   });
 
-  // KNOWN GAP (ledger DX · PL-1411, open): the pick-then-pay PAYMENT rises as its own band instead of inside the
-  // workspace — the claim is gone by the time the payment arrives. What holds today is asserted here.
-  test('(E) Helion: the buy asks the payment (heat accepted), naming the card; X pays — both cards home', async ({page, request}) => {
+  // PICK-THEN-PAY IS ONE DECISION (PL-1411): Helion's heat makes the server ASK the price — the payment is the
+  // purchase's own second stage in the SAME workspace, beside the cards being bought; B is one level back; A pays both
+  // prompts in ONE batch, and the cards leave in one intake. It used to rise as a band of its own over the board.
+  test('(E) Helion: RT carries the picks into «› ОПЛАТА» in the same workspace; B back; A pays — ONE batch, both cards home', async ({page, request}) => {
     test.setTimeout(300_000);
     const id = await bootFixture(page, request, 'venus-orbital-survey-helion', {query: PRESET.query});
     await settle(page);
+    const before = await wireOf(request, id) as Wire & {thisPlayer: {heat: number}};
     const posts = watchPosts(page);
     await openSurvey(page);
     await confirmToStage(page, posts);
     await press(page, 'Enter', 500);
-    await commitOnce(page, posts, 1, 'Period');
-    await expect(page.locator('.con-task-host'), 'the payment is asked').toHaveCount(1, {timeout: 30_000});
-    await expect(page.locator('.con-task-host'), 'it names the card it pays for').toContainText('Орбитальная разведка Венеры');
-    await shoot(page, 'e-helion-pay');
-    await commitOnce(page, posts, 2, 'KeyX');
-    await expect.poll(async () => handNames(await wireOf(request, id)), {timeout: 30_000, message: 'both cards in the hand'})
-      .toEqual(expect.arrayContaining([VENUS, OTHER]));
+    await expect(page.locator(`${HOST} .con-cards__slot--picked[data-zoom-slot="${OTHER}"]`)).toHaveCount(1);
+    // RT: the payment opens INSIDE the purchase — nothing is sent.
+    await press(page, 'Period', 900);
+    const pay = page.locator(`${HOST} [data-buy-pay]`);
+    await expect(pay, 'the payment stands in the same stage').toHaveCount(1, {timeout: 10_000});
+    expect(posts.length, 'RT sent nothing — the purchase and its payment are ONE decision').toBe(1);
+    expect(await page.locator('.con-task-host:not(.con-task-host--embedded)').count(), 'never a band of its own').toBe(0);
+    await expect(page.locator('.con-cardactions'), 'the workspace stands').toHaveCount(1);
+    expect(await stageRow(page), 'the cards being bought stay on the stage').toEqual([{name: VENUS, companion: true}, {name: OTHER, companion: false}]);
+    await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the card stays in the crumb, the tail moved forward to the payment'})
+      .toMatch(new RegExp(`${CARD_RU}.*ОПЛАТА`));
+    await expect(pay.locator('.con-payrow[data-pay-unit="heat"]'), 'heat is a lane').toBeVisible();
+    await shoot(page, 'e-helion-pay-stage');
+    // B: one level back to the picks — the pick survives, nothing sent.
+    await press(page, 'Escape', 900);
+    await expect(pay).toHaveCount(0);
+    await expect(page.locator(`${HOST} .con-cards__slot--picked[data-zoom-slot="${OTHER}"]`), 'the pick survives B').toHaveCount(1);
+    expect(posts.length).toBe(1);
+    await press(page, 'Period', 900);
+    await expect(pay).toHaveCount(1, {timeout: 10_000});
+    // A pays: ONE more POST — the batch answering the purchase and its payment.
+    await commitOnce(page, posts, 1, 'Enter');
+    expect(posts[1], 'one batch: the card pick and the payment').toContain('"payment"');
+    await expect(page.locator('.con-cardactions'), 'the flow leaves').toHaveCount(0, {timeout: 40_000});
     await settle(page, {timeoutMs: 40_000});
-    await expect(page.locator('.con-task-host'), 'nothing left standing').toHaveCount(0, {timeout: 20_000});
+    const after = await wireOf(request, id) as Wire & {thisPlayer: {heat: number}};
+    expect(handNames(after), 'both cards in the hand').toEqual(expect.arrayContaining([VENUS, OTHER]));
+    expect((before.thisPlayer.megacredits + before.thisPlayer.heat) - (after.thisPlayer.megacredits + after.thisPlayer.heat),
+      '3 M€ worth paid (M€ + heat)').toBe(3);
+    expect(await page.locator('.con-task-host').count(), 'nothing left asking').toBe(0);
+    expect(posts.length, 'two POSTs in all: the action, the purchase with its payment').toBe(2);
   });
 
   test('(G) a reload mid-purchase rebuilds the same stage — the companion once', async ({page, request}) => {

@@ -110,6 +110,17 @@ export class ChooseCards extends DeferredAction {
     // has already provably passed. The client's draft voice filters to the
     // requirement reasons on its own.
     const showUnplayableReasons = true;
+    // THE PURCHASE'S PAYMENT — ONE builder for the live deferred and the marker's preview, so the two can never
+    // disagree about whether (and how) the price is asked.
+    const paymentOf = (count: number) => new SelectPaymentDeferred(
+      player,
+      count * player.cardCost,
+      {
+        title: message('Select how to spend ${0} M€ for ${1} cards', (b) => b.number(count * player.cardCost).number(count)),
+        // The payment panel names the card whose reveal is being paid for.
+        cause: options.promptSource,
+      });
+    const payment = buyMode ? paymentOf(1).previewPaymentModel() : undefined;
     return new SelectCard(msg, button, cards, {max, min, played: !options.paying, buyMode, showUnplayableReasons})
       // THE STRUCTURAL "these are a temporary reveal" SIGNAL. Attached here and
       // nowhere else: every producer of this prompt in the game — the behavior
@@ -137,6 +148,7 @@ export class ChooseCards extends DeferredAction {
           destination: 'hand',
         },
         order: options.companions?.order.map((c) => c.name),
+        payment,
       }))
       .andThen((selected) => {
         if (selected.length > max) {
@@ -153,17 +165,8 @@ export class ChooseCards extends DeferredAction {
         }
         const boughtLogType = options.logBoughtCards === true ? LogType.BOUGHT_VERBOSE : LogType.BOUGHT;
         if (options.paying && selected.length > 0) {
-          const cost = selected.length * player.cardCost;
-          player.game.defer(
-            new SelectPaymentDeferred(
-              player,
-              cost,
-              {
-                title: message('Select how to spend ${0} M€ for ${1} cards', (b) => b.number(cost).number(selected.length)),
-                // The payment panel names the card whose reveal is being paid for.
-                cause: options.promptSource,
-              })
-              .andThen(() => keep(player, selected, unselected, boughtLogType)));
+          player.game.defer(paymentOf(selected.length)
+            .andThen(() => keep(player, selected, unselected, boughtLogType)));
         } else {
           keep(player, selected, unselected, options.paying ? boughtLogType : LogType.DREW);
         }

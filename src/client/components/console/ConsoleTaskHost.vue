@@ -341,7 +341,7 @@
                        :data-zoom-slot="entry.card.name"
                        :data-spread="isSpreadMode ? spreadOnCard(entry.card.name) : undefined"
                        :class="{
-                         'con-cards__slot--focused': focusIdx === i && !trayPickBeat && !arrivalPending,
+                         'con-cards__slot--focused': focusIdx === i && !trayPickBeat && !arrivalPending && !buyPayStage,
                          'con-cards__slot--picked': isPicked(entry.card.name) && !trayPickBeat,
                          'con-cards__slot--spread': isSpreadMode && spreadOnCard(entry.card.name) > 0,
                          'con-cards__slot--disabled': entry.disabled,
@@ -394,7 +394,16 @@
                      pops in under the cards" jump). While the cinematic runs
                      only its CONTENT hides (opacity — never promise a selection
                      that isn't interactive yet). -->
-                <div v-if="cardEntries.length > 0" class="con-cards__verdictbar"
+                <!-- PICK-THEN-PAY (PL-1411): the purchase's payment stands BESIDE the cards being bought — the shared
+                     payment panel, the payment contract on the bar; B is one level back to the picks. -->
+                <div v-if="buyPayStage && buyPayView !== undefined" class="con-task__buypay" data-buy-pay>
+                  <ConsolePaymentPanel :view="buyPayView"
+                                       mode="expanded"
+                                       hint-mode="none"
+                                       :focus-unit="buyPayFocusUnit"
+                                       :flash-nonce="payFlashNonce" />
+                </div>
+                <div v-else-if="cardEntries.length > 0" class="con-cards__verdictbar"
                      :class="{'con-cards__verdictbar--held': deal.state.active || trayPickBeat || arrivalPending,
                               'con-ws-stage-status': embedded}">
                   <div v-if="focusedCardEntry !== undefined" class="con-cards__verdict-inner">
@@ -736,6 +745,7 @@ import {
   orWrappedResponse, paymentResponse, playerResponse, productionToLoseResponse, projectCardResponse,
   resourceResponse, resourcesResponse,
 } from '@/client/console/taskResponses';
+import {addressed} from '@/common/inputs/preselectAddress';
 import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {
@@ -903,7 +913,7 @@ export default defineComponent({
      */
     embedded: {type: Boolean, default: false},
   },
-  emits: ['submit', 'defer', 'space-pick', 'hand-pick', 'result-detached'],
+  emits: ['submit', 'submit-batch', 'defer', 'space-pick', 'hand-pick', 'result-detached'],
   data() {
     return {
       focusIdx: 0,
@@ -921,6 +931,8 @@ export default defineComponent({
       spread: {} as SpreadState,
       /** projectCard (generic, wave 2): pick → pay two-stage state. */
       pcStage: 'pick' as 'pick' | 'pay',
+      /** PICK-THEN-PAY (PL-1411): a purchase whose price the server WILL ask stands its payment as its own second stage. */
+      buyStage: 'pick' as 'pick' | 'pay',
       pcPick: undefined as CardName | undefined,
       /** T3 payment: the dialed-in non-M€ lane counts (M€ auto-derives). */
       payCounts: {} as Partial<Record<SpendableResource, number>>,
@@ -1019,6 +1031,9 @@ export default defineComponent({
           if (this.buyCannotAfford) {
             return textOf(this.wf?.title);
           }
+          if (this.buyPayStage) {
+            return translateTextWithParams('Select how to spend ${0} M€ for ${1} cards', [String(this.buyTotal), String(this.picks.length)]);
+          }
           if (this.embeddedSingleBuy) {
             return translateText('Buy the revealed card?');
           }
@@ -1052,6 +1067,10 @@ export default defineComponent({
     },
     /** What to publish upward: the stage name while embedded, '' otherwise. */
     embeddedPhase(): string {
+      // PICK-THEN-PAY: the crumb's tail moves forward to the purchase's payment («› ОПЛАТА»).
+      if (this.embedded && this.buyPayStage) {
+        return 'Payment';
+      }
       return this.embedded ? this.kickerKey : '';
     },
     /**
@@ -1997,6 +2016,42 @@ export default defineComponent({
     buyCannotAffordText(): string {
       return translateTextWithParams('Not enough M€ (${0} per card)', [String(this.buyCostPerCard)]);
     },
+    /**
+     * PICK-THEN-PAY IS ONE DECISION (P88 · PL-1411). When the server WILL ask the purchase's price (Helion's heat, a
+     * titanium-as-M€ corporation — the marker's `payment`, the server's own preview of that prompt, priced for ONE
+     * card), the payment is this stage's SECOND HALF: RT carries the picks into a «pay» stage standing beside the very
+     * cards being bought (B — one level back), and A pays both prompts in ONE batch. The bought cards never leave a
+     * stage that still owes their price, and the payment never rises as a band of its own after the workspace folded.
+     * Embedded purchases only — the research buy keeps its own flow.
+     */
+    buyPaysByPrompt(): boolean {
+      return this.embedded && this.isBuyMode && this.cardModel?.deckPickPrompt?.payment !== undefined;
+    },
+    /** The payment the purchase will ask, priced for the current picks. */
+    buyPaymentPrompt(): SelectPaymentModel | undefined {
+      const one = this.buyPaysByPrompt ? this.cardModel?.deckPickPrompt?.payment : undefined;
+      return one === undefined || this.picks.length === 0 ? undefined : {...one, amount: this.buyTotal};
+    },
+    buyPayStage(): boolean {
+      return this.buyStage === 'pay' && this.buyPaymentPrompt !== undefined;
+    },
+    buyPayLanes(): Array<PaymentLane> {
+      const model = this.buyPaymentPrompt;
+      return model === undefined ? [] : paymentLanes(model, this.playerView.thisPlayer);
+    },
+    buyPayView(): PaymentView | undefined {
+      if (this.buyPaymentPrompt === undefined) {
+        return undefined;
+      }
+      return buildPaymentView({cost: this.buyTotal, lanes: this.buyPayLanes, counts: this.payCounts, mcAvailable: this.megacreditsOnHand});
+    },
+    buyPayFocusUnit(): string | undefined {
+      const v = this.buyPayView;
+      return v === undefined ? undefined : editableRows(v)[this.focusIdx]?.unit;
+    },
+    buyPayReady(): boolean {
+      return paymentCovers(this.buyTotal, this.buyPayLanes, this.payCounts, this.megacreditsOnHand);
+    },
     cardMin(): number {
       return this.cardModel?.min ?? 0;
     },
@@ -2229,6 +2284,9 @@ export default defineComponent({
       case 'cardSelect':
         // The LAYOUT is sendable only when complete — the same condition the
         // handler and the response builder each check for themselves.
+        if (this.buyPayStage) {
+          return this.buyPayReady;
+        }
         return this.isSpreadMode ? this.spreadReady : this.cardPicksValid;
       case 'payment':
         return this.paymentReady;
@@ -2370,6 +2428,17 @@ export default defineComponent({
         // X ALWAYS opens the fullscreen INSPECT viewer (never labelled "Card").
         const nav: {control: GlyphControl, label: string} = {control: this.gridMode ? 'dpad' : 'dpadH', label: 'Navigate'};
         const inspect: {control: GlyphControl, label: string} = {control: 'secondary', label: 'Inspect'};
+        // THE PURCHASE'S PAY STAGE (PL-1411): the shared payment contract + B = one level back to the picks.
+        if (this.buyPayStage) {
+          return [
+            {control: 'dpad', label: 'Navigate'},
+            {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
+            {control: 'triggerR', label: 'MAX'},
+            {control: 'confirm', label: 'Pay', enabled: this.confirmReady, priority: 0},
+            ...this.sourceHint,
+            {control: 'back', label: 'Back'},
+          ];
+        }
         if (this.isSpreadMode) {
           // THE LAYOUT speaks the console's existing amount grammar and nothing
           // new: LB / RB move one unit on the focused card, RT pours the rest
@@ -2508,6 +2577,10 @@ export default defineComponent({
       handler(key: string) {
         setWorkspaceOutcomePhase(key);
       },
+    },
+    // The purchase's pay stage takes the status rail's room under the strip: the row re-fits to what is left.
+    buyStage(): void {
+      void this.$nextTick(() => this.fitCardStrip());
     },
     resetKey: {
       immediate: true,
@@ -2707,6 +2780,7 @@ export default defineComponent({
       // stage — a stale pay stage would price a card the new ask never offered.
       this.pcStage = 'pick';
       this.pcPick = undefined;
+      this.buyStage = 'pick';
       this.submitting = false;
       // Payment opens on the SAME optimal default mix the desktop form uses.
       this.payCounts = this.activeTask.kind === 'payment' ?
@@ -3073,7 +3147,8 @@ export default defineComponent({
         return;
       }
       if (this.activeTask.kind === 'distribute' || this.activeTask.kind === 'payment' ||
-          (this.activeTask.kind === 'projectCard' && this.pcStage === 'pay')) {
+          (this.activeTask.kind === 'projectCard' && this.pcStage === 'pay') ||
+          (this.activeTask.kind === 'cardSelect' && this.buyPayStage)) {
         if (vertical) {
           this.moveFocus(dir === 'down' ? 1 : -1);
         } else {
@@ -3453,6 +3528,13 @@ export default defineComponent({
      *  instead lands its heroes on the drafted tray — the same physical
      *  place every pick joins. */
     confirmCardSetWithExit(): void {
+      // PICK-THEN-PAY: RT on a purchase whose price the server WILL ask carries the picks into the payment — nothing is
+      // sent and nothing leaves; the second press (A in the pay stage) answers both prompts in one batch.
+      if (this.activeTask.kind === 'cardSelect' && this.buyPaysByPrompt && !this.buyPayStage &&
+          this.picks.length > 0 && this.cardPicksValid && !this.submitting) {
+        this.enterBuyPay();
+        return;
+      }
       if (this.activeTask.kind !== 'cardSelect' || this.singlePick || this.submitting || !this.confirmReady) {
         this.onConfirm(); // self-guarding fallback (also the 'not ready' path)
         return;
@@ -3701,6 +3783,20 @@ export default defineComponent({
         }
         this.payCounts = {...this.payCounts, [lane.unit]: next};
         this.payFlashNonce += 1;
+        return;
+      }
+      if (this.activeTask.kind === 'cardSelect' && this.buyPayStage) {
+        const lane = this.buyPayLanes[this.focusIdx];
+        if (lane === undefined) {
+          return;
+        }
+        const current = this.payCounts[lane.unit] ?? 0;
+        const next = dialLaneCount(this.buyTotal, lane, this.buyPayLanes, this.payCounts, step);
+        if (next === current) {
+          return;
+        }
+        this.payCounts = {...this.payCounts, [lane.unit]: next};
+        this.payFlashNonce += 1;
       }
     },
     maxOut(): void {
@@ -3744,6 +3840,15 @@ export default defineComponent({
         }
         this.payCounts = {...this.payCounts, [lane.unit]: dialLaneCount(this.pcCost, lane, this.pcLanes, this.payCounts, 'max')};
         this.payFlashNonce += 1;
+        return;
+      }
+      if (this.activeTask.kind === 'cardSelect' && this.buyPayStage) {
+        const lane = this.buyPayLanes[this.focusIdx];
+        if (lane === undefined) {
+          return;
+        }
+        this.payCounts = {...this.payCounts, [lane.unit]: dialLaneCount(this.buyTotal, lane, this.buyPayLanes, this.payCounts, 'max')};
+        this.payFlashNonce += 1;
       }
     },
     // Foundation: SEMANTIC actions — LB/RB(prev/nextSection) adjust,
@@ -3768,6 +3873,10 @@ export default defineComponent({
         // read-only drafted-cards viewer instead. In the LAYOUT it pours
         // everything left onto the focused card (the amount grammar's MAX).
         if (this.activeTask.kind === 'cardSelect') {
+          if (this.buyPayStage) {
+            this.maxOut(); // the payment contract: RT = MAX of the focused source
+            return;
+          }
           if (this.isSpreadMode) {
             this.spreadPourFocused();
           } else if (this.canInspectDrafted) {
@@ -3786,6 +3895,11 @@ export default defineComponent({
         // P13 global rule: X opens the focused card FULLSCREEN in every
         // card context; elsewhere it stays the one-press confirm.
         if (this.activeTask.kind === 'cardSelect') {
+          // The pay stage speaks the payment contract: X pays (A too).
+          if (this.buyPayStage) {
+            this.confirmCardSetWithExit();
+            return;
+          }
           this.zoomFocusedCard();
           return;
         }
@@ -3818,6 +3932,11 @@ export default defineComponent({
           this.pcBackToPick();
           return;
         }
+        // The purchase's pay stage: B is ONE level — back to the picks, nothing sent.
+        if (this.activeTask.kind === 'cardSelect' && this.buyPayStage) {
+          this.buyBackToPick();
+          return;
+        }
         this.$emit('defer');
         return;
       default:
@@ -3848,6 +3967,8 @@ export default defineComponent({
       if (this.activeTask.kind === 'cardSelect') {
         if (this.isSpreadMode) {
           this.spreadCommit(); // LAYOUT: A sends a COMPLETE layout, and nothing else
+        } else if (this.buyPayStage) {
+          this.confirmCardSetWithExit(); // the purchase's payment: A pays
         } else if (this.singlePick) {
           this.commitFocusedCard(); // PICK phase: A selects + submits at once
         } else {
@@ -3963,6 +4084,12 @@ export default defineComponent({
           clearCardBrowserPicks();
           return;
         }
+        // PICK-THEN-PAY: the purchase and its payment answered in ONE batch.
+        if (this.buyPayStage) {
+          this.submitBuyBatch();
+          clearCardBrowserPicks();
+          return;
+        }
         // Byte-parity: the bare top-level {type:'card', cards} the desktop
         // CardSelectionContent / hand-select flow POSTs.
         this.submitResponse( cardsResponse(this.picks));
@@ -4016,6 +4143,41 @@ export default defineComponent({
       this.payCounts = {};
       this.focusIdx = backTo !== -1 ? backTo : 0;
       this.armed = false;
+    },
+    /** PICK-THEN-PAY: RT carries the picks into the payment (the same optimal default mix every payment opens on). */
+    enterBuyPay(): void {
+      this.buyStage = 'pay';
+      this.payCounts = initialCounts(this.buyTotal, this.buyPayLanes, this.megacreditsOnHand);
+      this.focusIdx = 0;
+      this.armed = false;
+    },
+    /** B from the purchase's payment: one level back — the picks survive, the cursor on the first of them. */
+    buyBackToPick(): void {
+      const backTo = this.cardEntries.findIndex((e) => this.picks.includes(e.card.name as CardName));
+      this.buyStage = 'pick';
+      this.payCounts = {};
+      this.focusIdx = backTo !== -1 ? backTo : 0;
+      this.armed = false;
+    },
+    /**
+     * The purchase and its price, answered in ONE batch: the card pick (the live prompt) and the payment the server
+     * raises behind it, ADDRESSED to it (`{source: the reveal's card, role: 'payment'}` — a foreign question that jumps
+     * the queue never consumes it). The bought cards leave on the same staged seam as a plain purchase.
+     */
+    submitBuyBatch(): void {
+      if (this.submitting) {
+        return;
+      }
+      this.submitting = true;
+      if (this.embedded) {
+        this.$emit('result-detached');
+      }
+      const source = this.cardModel?.deckPickPrompt?.source;
+      const payment = paymentResponse(paymentFromCounts(this.buyTotal, this.buyPayLanes, this.payCounts, this.megacreditsOnHand));
+      this.$emit('submit-batch', [
+        cardsResponse(this.picks),
+        addressed(payment, source === undefined ? undefined : {source, role: 'payment'}),
+      ]);
     },
     /** X: fullscreen-inspect the stage's card (candidate / the picked one). */
     pcZoom(): void {

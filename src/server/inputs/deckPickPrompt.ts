@@ -1,5 +1,5 @@
 import {CardName} from '../../common/cards/CardName';
-import {ChoiceContextSource, DeckPickCompanions, DeckPickPromptMeta} from '../../common/models/PlayerInputModel';
+import {ChoiceContextSource, DeckPickCompanions, DeckPickPromptMeta, SelectPaymentModel} from '../../common/models/PlayerInputModel';
 
 /**
  * The {@link DeckPickPromptMeta} builder — attached to every "these cards were
@@ -47,6 +47,8 @@ export function deckPickPrompt(o: {
    */
   companions?: DeckPickCompanions,
   order?: ReadonlyArray<CardName>,
+  /** The payment a purchase WILL ask (one card's price) — see {@link DeckPickPromptMeta.payment}. */
+  payment?: SelectPaymentModel,
 }): DeckPickPromptMeta {
   const meta: DeckPickPromptMeta = {
     revealed: o.revealed,
@@ -59,6 +61,9 @@ export function deckPickPrompt(o: {
   if (o.companions !== undefined && o.companions.cards.length > 0) {
     meta.companions = o.companions;
     meta.order = o.order;
+  }
+  if (o.payment !== undefined) {
+    meta.payment = o.payment;
   }
   return meta;
 }

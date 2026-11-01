@@ -61,6 +61,14 @@ the card). The client lays the companions in the same row, interleaved by `order
 proxies with slots by it), never pickable, never a focus stop, their verdict a material band; the composer's beat reads
 `order` for its faces, so the flight is the whole reveal from the first frame.
 
+**PICK-THEN-PAY IS ONE DECISION** (P88 · PL-1411, the owner's critical bug of 2026-11-01): when the server WILL ask the
+purchase's price (Helion's heat, a titanium-as-M€ corporation), the marker says so — `payment`, the server's own preview of
+that prompt (`SelectPaymentDeferred.previewPaymentModel`, ONE builder with the live deferred, priced for one card; absent
+when M€ pays automatically). An EMBEDDED purchase then stands the payment as its own second stage beside the cards being
+bought (RT → «› ОПЛАТА», the shared payment panel, B one level back) and A answers BOTH prompts in ONE batch, the payment
+addressed `{source: the reveal's card, role: 'payment'}`. Before, the host released its claim in `submitResponse` (4 ms
+after RT, before the answer) and the payment rose as a band of its own over the board.
+
 **A PAYING reveal is the purchase BY ITS MARKER** — `mode: 'buy'` routes to `cardSelect/buy` whatever `max` is: at
 `max 0` («You cannot afford any cards» / «Ok», `buyMode` false) the stage still stands, every offered card marked «В сброс»
 with the price that stops it, RT «ОК». It used to fall through to the generic target browser.

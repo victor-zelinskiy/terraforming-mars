@@ -729,6 +729,7 @@
                          :prompt-override="pendingClientPayment !== undefined ? pendingClientPayment.input : pendingClientPick?.input"
                          :defer-label="pendingClientPayment !== undefined || pendingClientPick !== undefined ? 'Cancel' : 'Minimize'"
                          @submit="onTaskSubmit"
+                         @submit-batch="onTaskSubmitBatch"
                          @defer="onTaskDefer"
                          @result-detached="onWorkspaceResultDetached"
                          @space-pick="onTaskSpacePick"
@@ -20315,6 +20316,18 @@ export default defineComponent({
       }
       this.consoleState.task.deferred = false;
       this.submit(response);
+    },
+    /**
+     * PICK-THEN-PAY in ONE submit (PL-1411): a workspace purchase whose price the server asks answers the pick AND its
+     * payment in one batch (`ConsoleTaskHost.submitBuyBatch`) — the same rules as a single answer: the layers that host
+     * it stay, the deferred flag drops.
+     */
+    onTaskSubmitBatch(responses: ReadonlyArray<unknown>): void {
+      if (!this.taskBelongsToWorkspace && this.effectDecisionEmbedTarget === undefined) {
+        closeConsoleLayers();
+      }
+      this.consoleState.task.deferred = false;
+      this.submitBatch(responses);
     },
     /**
      * Government Support scale param (temp/oxygen/venus): CLOSE the panel

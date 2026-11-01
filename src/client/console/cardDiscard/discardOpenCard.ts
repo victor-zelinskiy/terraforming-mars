@@ -25,11 +25,12 @@
  */
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {
-  DiscardSource, disposeDiscardProxies, runDiscardCarry, runDiscardFixate, runDiscardFlip,
+  DiscardSource, disposeDiscardProxies, landOnPile, runDiscardCarry, runDiscardFixate, runDiscardFlip,
   runDiscardGather, runDiscardHold, runDiscardPileSettle, runDiscardTrayWithdraw, spawnDiscardProxies,
 } from './discardDirector';
 import {discardTimings} from './discardModel';
-import {cardDiscardState, noticeDiscardLanding, resetCardDiscardStage} from './cardDiscardState';
+import {HAND_DISCARD_PILE_LEASE, cardDiscardState, resetCardDiscardStage} from './cardDiscardState';
+import {discardPileState, expectDiscardPileCount, settleDiscardPile} from '@/client/console/discardPile/discardPile';
 
 /** One open card being thrown away, with its live slot (or a snapshot rect). */
 export type OpenDiscardSource = DiscardSource;
@@ -60,7 +61,12 @@ export async function discardOpenCards(sources: ReadonlyArray<OpenDiscardSource>
   const spawned = await spawnDiscardProxies(sources);
   if (spawned.length === 0) {
     // Nothing measurable to fly (a torn-down layout / JSDOM) — leave the stage
-    // exactly as we found it rather than parking a live-but-empty scene.
+    // exactly as we found it rather than parking a live-but-empty scene. A pile
+    // another owner holds out still reads the truth: these cards are on it.
+    if (discardPileState.visible) {
+      expectDiscardPileCount(HAND_DISCARD_PILE_LEASE, sources.length);
+      settleDiscardPile(HAND_DISCARD_PILE_LEASE);
+    }
     cardDiscardState.live = false;
     cardDiscardState.phase = 'idle';
     return;
@@ -72,12 +78,18 @@ export async function discardOpenCards(sources: ReadonlyArray<OpenDiscardSource>
     cardDiscardState.phase = 'gathering';
     await runDiscardGather(spawned, t);
     // The pile lights up as a RECEIVER before the cards travel, so it visibly
-    // waits for them instead of materialising underneath them.
+    // waits for them instead of materialising underneath them — and it says
+    // the TRUTH (P86 · PL-1410): the refused cards are the server's discards,
+    // declared as the pile comes out, ticked on each touchdown, settled at the
+    // read (`runDiscardTrayWithdraw`) even if a contact never fires. This
+    // episode used to tick only the scene's own tally — the pile read «0»
+    // under a card that had just landed on it.
+    expectDiscardPileCount(HAND_DISCARD_PILE_LEASE, spawned.length);
     cardDiscardState.trayArmed = true;
     cardDiscardState.trayVisible = true;
     await runDiscardHold(spawned, t);
     cardDiscardState.phase = 'carrying';
-    await runDiscardCarry(spawned, t, () => noticeDiscardLanding());
+    await runDiscardCarry(spawned, t, () => landOnPile());
     cardDiscardState.phase = 'settling';
     await runDiscardPileSettle(t);
     await runDiscardTrayWithdraw(t);

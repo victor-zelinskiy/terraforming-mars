@@ -440,6 +440,14 @@ export type DeckPickPromptMeta = {
    * lays the cards out as the deck dealt them, never «the free ones first».
    */
   order?: ReadonlyArray<CardName>;
+  /**
+   * PICK-THEN-PAY IS ONE DECISION (P88 · PL-1411): the payment a PURCHASE will ask, when the server WILL ask one
+   * (Helion's heat, a titanium-as-M€ corporation — `SelectPaymentDeferred.previewPaymentModel`, the same options the
+   * live deferred is built with), priced for ONE card (`amount` = `cardCost`; a purchase of N costs N × it). Absent
+   * when buying is paid in M€ automatically. The console stands the payment as the purchase's own second stage and
+   * answers both prompts in ONE batch — the bought cards never leave a stage that still owes their price.
+   */
+  payment?: SelectPaymentModel;
 }
 
 /** See {@link DeckPickPromptMeta.companions}. */
