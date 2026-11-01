@@ -2214,13 +2214,24 @@ html.console-native {
     }
     /* SPATIAL PRE-SELECT hint (std projects §9): the readout the focused
        project would move carries a quiet ring — «this dial is affected».
-       box-shadow (perf-lite safe), padding+negative margin so the net box —
-       and therefore the strip's layout — does not move by a pixel. */
-    &__param--ghost {
-        padding: .12rem .38rem;
-        margin: -.12rem -.38rem;
+       Drawn by a PSEUDO-ELEMENT outside the flow, so the strip's layout
+       cannot move by a pixel: the old padding + negative margin «net zero»
+       was zero only for a cell with no padding of its own — Venus keeps a
+       1rem separator gap (`&__param--venus`), its padding won the cascade,
+       the ghost's −.38rem margin did not, and the cell (and everything after
+       it) jumped while the player walked the projects (the owner,
+       2026-11-01). A kant, never a glow. */
+    &__param--ghost::before {
+        content: '';
+        position: absolute;
+        inset: -.12rem -.38rem;
         border-radius: .45rem;
         box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 45%);
+        pointer-events: none;
+    }
+    /* Venus's ring hugs its CONTENT, not its separator gap (padding-left). */
+    &__param--venus&__param--ghost::before {
+        left: calc(var(--con-status-venus-gap, 1rem) - .38rem);
     }
     /* The wgt-icon--* classes only carry background-images — their SIZE
        lives on the desktop modal's compound selector, so a standalone use
@@ -2752,7 +2763,8 @@ html.con-reduced-motion {
     }
     /* Venus is deliberately SEPARATED from the shared rail group. */
     &__param--venus {
-        padding-left: 1rem;
+        --con-status-venus-gap: 1rem;
+        padding-left: var(--con-status-venus-gap);
         border-left: .05rem solid fade(@con-cyan, 25%);
     }
     /* Persistent FINAL GENERATION marker — the generation block turns gold.
@@ -14398,9 +14410,13 @@ html.con-profile-handheld .con-mafocus {
         /* …except a hosted HAND whose entry IS its cards' flight out of the
            dock (P86 — «Продажа патентов»): an opacity-from-0 entry here hid
            the very slots the bodies land on, so the hand «appeared» with its
-           cards already down. The flight is the entry; without one (reduced
-           motion) the step's own entry plays. */
-        > [data-hand-arrives="flight"] {
+           cards already down. The flight is the entry (reduced motion: the
+           album is laid at once, its own contract).
+           ⚠ Keyed on the CLASS, never on a state attribute: an attribute that
+           fell when the flight ended took `animation: none` away, the browser
+           STARTED the step's entry over (opacity from 0, `backwards`) and the
+           whole landed album blinked once (the owner, 2026-11-01). */
+        > .con-hand {
             animation: none;
         }
     }
@@ -37795,7 +37811,7 @@ html.con-profile-handheld {
         &__terra { gap: .7rem; }
         &__terra-pct { font-size: .65rem; }
         &__terra-rail { height: .1rem; bottom: .1rem; }
-        &__param--venus { padding-left: .6rem; }
+        &__param--venus { --con-status-venus-gap: .6rem; }
         /* The «ПКЛ.» label stays VISIBLE on handheld (an earlier pass hid
            it — a bare number read as ambiguous), just compact. The gold
            final-generation marker recolours the same element (colour only). */

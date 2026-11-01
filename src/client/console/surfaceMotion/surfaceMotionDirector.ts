@@ -639,9 +639,22 @@ function contentCascade(id: SurfaceMotionId, el: Element, tl: gsap.core.Timeline
   if (id === 'std-projects') {
     const rows = [...el.querySelectorAll<HTMLElement>('.con-stdp__card')].slice(0, 10);
     if (rows.length > 0) {
+      // A row composes to ITS OWN resting opacity (an unavailable project rests at .62 — `--off`), never to 1, and the
+      // cursor's CSS opacity transition on the row is off for the cascade: the two used to FIGHT — the transition chased
+      // GSAP's inline value a beat behind, so a row dipped, overshot past its rest and then dimmed back (the owner's
+      // «плитки мигают при открытии», 2026-11-01: .62 → .46 → .85 → .62). Read before the from-state is written.
+      const rest = rows.map((row) => {
+        const o = Number.parseFloat(window.getComputedStyle(row).opacity);
+        return Number.isFinite(o) ? o : 1;
+      });
+      gsap.set(rows, {transition: 'none'});
       tl.fromTo(rows,
         {y: 8 * u, opacity: 0},
-        {y: 0, opacity: 1, duration: s(150), ease: 'power2.out', stagger: 0.014, clearProps: 'transform,opacity'}, at);
+        {
+          y: 0, opacity: (i: number) => rest[i] ?? 1, duration: s(150), ease: 'power2.out', stagger: 0.014,
+          clearProps: 'transform,opacity,transition',
+          onInterrupt: () => gsap.set(rows, {clearProps: 'transform,opacity,transition'}),
+        }, at);
     }
     return;
   }

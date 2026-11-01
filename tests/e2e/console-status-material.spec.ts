@@ -90,11 +90,13 @@ async function readAnchors(page: Page): Promise<Anchors> {
 }
 
 /**
- * Two posed states extend a FRAME by a net-zero padding + negative margin on purpose — the conveyor's window (the soft
- * fade bands live just outside the resting chips) and the ghost ring of the focused project's dial — so the frame's own
- * rect grows while nothing inside it moves; their contents (every chip, the parameter's icon and value) are read.
+ * A posed state that extends a FRAME by a net-zero padding + negative margin on purpose — the conveyor's window (the
+ * soft fade bands live just outside the resting chips) — so the frame's own rect grows while nothing inside it moves;
+ * its contents (every chip) are read. The ghost ring of the focused project's dial is NOT one any more (2026-11-01):
+ * it is a pseudo-element outside the flow, so the parameter's own frame must stand still too — the padding / margin
+ * version was «net zero» only for a cell with no padding of its own, and Venus's jumped (the owner's report).
  */
-const NET_ZERO_FRAMES: ReadonlySet<string> = new Set(['players', 'param.0']);
+const NET_ZERO_FRAMES: ReadonlySet<string> = new Set(['players']);
 
 function drift(a: Anchors, b: Anchors, skip: ReadonlySet<string> = new Set()): Array<string> {
   const out: Array<string> = [];

@@ -198,9 +198,14 @@ dips once it has risen.
 opacity-from-0 entry hid the very slots the bodies land on (the hand
 «appeared» with its cards down) — and the bodies themselves flew UNDER this
 panel, the intake lease released at the episode's install. The hosted hand
-wears `data-hand-arrives="flight"` while its open episode runs and the step's
-entry skips it (`.con-stdp__step > [data-hand-arrives="flight"]`); the reveal
-director holds the intake lease for the episode's whole life. Witness
+is never given the step's entry (`.con-stdp__step > .con-hand` — keyed on the
+CLASS: a first cut keyed it on `data-hand-arrives="flight"`, the attribute fell
+when the flight ended, the browser started the entry over and the landed album
+blinked — PL-1368); the reveal director holds the intake lease for the
+episode's whole life. And the workspace's own content cascade composes every
+row to ITS OWN resting opacity with the cursor's CSS transition off for the
+cascade (PL-1369 — the two fought, an unavailable tile dipped, overshot and
+dimmed back). Witness
 `console-hosted-hand-open` (TIMING).
 
 ## Preview — the shared chip language, from the real rule sources
