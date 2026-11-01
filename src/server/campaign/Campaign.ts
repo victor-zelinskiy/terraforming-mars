@@ -53,8 +53,14 @@ export type SerializedMissionSlot = {
 
 export type CarryoverSeatState = {
   status: CarryoverStatus;
-  /** PRIVATE to the seat owner. 0..CARRYOVER_MAX_CARDS entries. */
+  /** PRIVATE to the seat owner. 0..`limit` entries. */
   cards: Array<CardName>;
+  /**
+   * How many cards this seat may carry — a VARIABLE OF THE SEAT, written once
+   * by `carryoverLimitFor` when the window opens. Absent on an older save:
+   * read through `carryoverLimitOf` (the default).
+   */
+  limit?: number;
   /** Set atomically by the next mission's launch — re-launch can never re-apply. */
   consumed: boolean;
 };

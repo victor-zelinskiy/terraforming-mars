@@ -90,7 +90,13 @@ export async function devCommit(
   request: APIRequestContext,
   id: string,
   placements: number[],
-  fixture: {lineages?: Record<number, Array<string>>, carryover?: Record<number, Array<string>>, carryoverPending?: boolean} = {},
+  fixture: {
+    lineages?: Record<number, Array<string>>,
+    carryover?: Record<number, Array<string>>,
+    carryoverPending?: boolean,
+    /** seat → the seat's carry limit (the server's default otherwise). */
+    carryoverLimits?: Record<number, number>,
+  } = {},
 ): Promise<void> {
   const res = await request.post(`${campaignBase()}/api/campaign/dev?name=admin`, {
     data: {campaignId: id, placements, ...fixture},
@@ -101,7 +107,7 @@ export async function devCommit(
 /** The viewer-scoped campaign model (per-seat fields like `yourPlayerId`). */
 export async function campaignModelAs(request: APIRequestContext, id: string, name: string): Promise<{
   missions: Array<{gameId?: string, yourPlayerId?: string}>,
-  carryover?: {bySeat: Array<{seat: number, status: string, count: number}>},
+  carryover?: {bySeat: Array<{seat: number, status: string, count: number, limit: number}>, yourCards?: Array<string>, yourLimit?: number},
 }> {
   const res = await request.get(`${campaignBase()}/api/campaign?id=${id}&name=${encodeURIComponent(name)}`);
   expect(res.ok(), await res.text()).toBeTruthy();

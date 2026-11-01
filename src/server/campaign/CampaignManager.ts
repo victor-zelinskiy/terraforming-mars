@@ -31,7 +31,6 @@ import {drawBotHoldings, holdingsForSlot} from './botPortfolio';
 import {
   CAMPAIGN_GENERATOR_VERSION,
   CAMPAIGN_MISSION_COUNT,
-  CARRYOVER_MAX_CARDS,
   CampaignSeat,
   MissionResult,
   MissionSlotState,
@@ -59,6 +58,7 @@ import {Player} from '../Player';
 import {generateRandomId} from '../utils/server-ids';
 import {CarryoverSeatState, SerializedCampaign, SerializedMissionSlot} from './Campaign';
 import {computeMissionStandings} from './missionStandings';
+import {carryoverLimitFor, carryoverLimitOf} from './carryoverLimit';
 
 export class CampaignManager {
   private static instance: CampaignManager | undefined;
@@ -641,7 +641,7 @@ export class CampaignManager {
         }
         const hand = player.cardsInHand.map((c) => c.name);
         slot.finalHands[seat] = hand;
-        bySeat[seat] = {status: 'pending', cards: [], consumed: false};
+        bySeat[seat] = {status: 'pending', cards: [], consumed: false, limit: carryoverLimitFor(campaign, seat, slot.modifiers)};
       }
       campaign.carryover = {sourceSlot: slot.slot, bySeat};
       campaign.pointer = slot.slot + 1;
@@ -686,8 +686,9 @@ export class CampaignManager {
     if (state.consumed) {
       throw new Error('The selection was already applied by the next mission');
     }
-    if (cards.length > CARRYOVER_MAX_CARDS) {
-      throw new Error(`At most ${CARRYOVER_MAX_CARDS} project cards can be carried over`);
+    const limit = carryoverLimitOf(state);
+    if (cards.length > limit) {
+      throw new Error(`This seat can carry at most ${limit} project card(s) over`);
     }
     if (new Set(cards).size !== cards.length) {
       throw new Error('Duplicate cards in the carryover selection');
@@ -1115,6 +1116,8 @@ export class CampaignManager {
      * confirm → launch gate → auto-join) testable without playing a mission.
      */
     carryoverPending?: boolean,
+    /** seat → the seat's carry limit, overriding `carryoverLimitFor` (a stand sees 1 / 3 / 5 live). */
+    carryoverLimits?: Record<number, number>,
   }): Promise<SerializedCampaign> {
     const campaign = await this.load(id);
     if (campaign === undefined) {
@@ -1184,9 +1187,10 @@ export class CampaignManager {
       for (const seat of humanSeats) {
         const carried = fixture?.carryover?.[seat] ?? [];
         slot.finalHands[seat] = [...carried];
+        const limit = fixture?.carryoverLimits?.[seat] ?? carryoverLimitFor(campaign, seat, slot.modifiers);
         bySeat[seat] = fixture?.carryoverPending === true ?
-          {status: 'pending', cards: [], consumed: false} :
-          {status: 'confirmed', cards: [...carried], consumed: false};
+          {status: 'pending', cards: [], consumed: false, limit} :
+          {status: 'confirmed', cards: carried.slice(0, limit), consumed: false, limit};
       }
       campaign.carryover = {sourceSlot: slot.slot, bySeat};
       campaign.pointer = slot.slot + 1;
@@ -1316,10 +1320,13 @@ export class CampaignManager {
           seat: Number(seat),
           status: state.status,
           count: state.cards.length,
+          limit: carryoverLimitOf(state),
         })),
         // PRIVACY: card identities go to their owner alone.
         yourCards: viewerSeat !== undefined ? campaign.carryover.bySeat[viewerSeat.seat]?.cards : undefined,
         yourEligible: viewerSeat !== undefined ? source.finalHands?.[viewerSeat.seat] : undefined,
+        yourLimit: viewerSeat !== undefined && campaign.carryover.bySeat[viewerSeat.seat] !== undefined ?
+          carryoverLimitOf(campaign.carryover.bySeat[viewerSeat.seat]) : undefined,
       };
     }
 

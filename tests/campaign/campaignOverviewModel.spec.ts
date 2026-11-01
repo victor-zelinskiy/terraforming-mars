@@ -161,7 +161,7 @@ describe('campaignOverviewModel', () => {
     delete (model.missions[1] as any).yourCarried;
     model.carryover = {
       sourceSlot: 0,
-      bySeat: [{seat: 0, status: 'pending', count: 0}, {seat: 1, status: 'confirmed', count: 1}],
+      bySeat: [{seat: 0, status: 'pending', count: 0, limit: 2}, {seat: 1, status: 'confirmed', count: 1, limit: 2}],
       yourCards: [],
       yourEligible: [CardName.ANTS],
     };
@@ -214,7 +214,7 @@ describe('campaignOverviewModel', () => {
     // The interlude window that launched mission 2 is still the latest one.
     model.carryover = {
       sourceSlot: 0,
-      bySeat: [{seat: 0, status: 'confirmed', count: 2}, {seat: 1, status: 'confirmed', count: 0}],
+      bySeat: [{seat: 0, status: 'confirmed', count: 2, limit: 2}, {seat: 1, status: 'confirmed', count: 0, limit: 2}],
       yourCards: [CardName.ANTS, CardName.ALGAE],
       yourEligible: [CardName.ANTS, CardName.ALGAE, CardName.BIRDS],
     };
@@ -236,7 +236,7 @@ describe('campaignOverviewModel', () => {
     delete (model.missions[1] as any).yourCarried;
     model.carryover = {
       sourceSlot: 0,
-      bySeat: [{seat: 0, status: 'confirmed', count: 2}, {seat: 1, status: 'confirmed', count: 0}],
+      bySeat: [{seat: 0, status: 'confirmed', count: 2, limit: 2}, {seat: 1, status: 'confirmed', count: 0, limit: 2}],
       yourCards: [CardName.ANTS, CardName.ALGAE],
       yourEligible: [CardName.ANTS, CardName.ALGAE, CardName.BIRDS],
     };

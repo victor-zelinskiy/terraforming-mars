@@ -2,7 +2,7 @@
 //
 // A campaign is a server-authoritative document linking 4 mission games with a
 // frozen roster/settings, a generated board route, corporation lineages, titles
-// (Титулы), next-mission bonus M€ and the 0–2 project-card carryover
+// (Титулы), next-mission bonus M€ and the per-seat project-card carryover
 // («Наследие проектов»). Ordinary games never reference any of this.
 //
 // Everything here is data-shaped: no runtime logic bound to either side.
@@ -14,7 +14,11 @@ import {GameId} from '../Types';
 
 export const CAMPAIGN_MISSION_COUNT = 4;
 export const CAMPAIGN_GENERATOR_VERSION = 1;
-/** Max project cards a human seat may carry into the next mission. */
+/**
+ * The DEFAULT carry limit of a human seat. The limit itself is a variable of the
+ * seat (`CarryoverSeatState.limit`, written by the server's `carryoverLimitFor`);
+ * this constant is that function's default and is never read by the client.
+ */
 export const CARRYOVER_MAX_CARDS = 2;
 /**
  * The campaign merge follows the Merger prelude's own rule («Then pay

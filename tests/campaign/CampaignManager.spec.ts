@@ -255,7 +255,7 @@ describe('CampaignManager', () => {
 
     const failureOf = (p: Promise<unknown>) => p.then(() => undefined, (e) => e as Error);
     // >2 cards refused.
-    expect((await failureOf(manager.submitCarryover(campaign.id, alicePid, aliceHand.slice(0, 3))))?.message).contains('At most 2');
+    expect((await failureOf(manager.submitCarryover(campaign.id, alicePid, aliceHand.slice(0, 3))))?.message).contains('at most 2');
     // Duplicates refused.
     expect((await failureOf(manager.submitCarryover(campaign.id, alicePid, [aliceHand[0], aliceHand[0]])))?.message).contains('Duplicate');
     // A card from someone ELSE's hand (not in yours) refused.
@@ -302,6 +302,83 @@ describe('CampaignManager', () => {
     const loserSeat = loaded.missions[0].result!.standings[1].seat;
     const grant = stored2.gameOptions.campaign!.grants.find((g) => g.seat === loserSeat)!;
     expect(grant.bonusMegaCredits).eq(5);
+  });
+
+  describe('the carry limit is a VARIABLE OF THE SEAT (the owner, 2026-11-01)', () => {
+    /** Mission 1 played to a 5-card terminal hand each and committed; the source slot's player ids. */
+    async function interlude() {
+      const campaign = await manager.createCampaign(key(), campaignTestConfig());
+      const {gameId} = await manager.launchMission(campaign.id, 'Alice');
+      const game = (await GameLoader.getInstance().getGame(gameId))!;
+      const alice = game.players.find((p) => p.name === 'Alice')!;
+      alice.cardsInHand.push(...alice.dealtProjectCards.slice(0, 5));
+      const hand = alice.cardsInHand.map((c) => c.name);
+      await manager.commitMissionResult(game);
+      const loaded = (await manager.load(campaign.id))!;
+      return {campaign, hand, alicePid: loaded.missions[0].playerIds![0]};
+    }
+    /** Overwrite the stored limit of seat 0 — what a future modifier writes through `carryoverLimitFor`. */
+    async function setLimit(id: Parameters<CampaignManager['load']>[0], limit: number | undefined) {
+      const loaded = (await manager.load(id))!;
+      const state = loaded.carryover!.bySeat[0];
+      if (limit === undefined) {
+        delete state.limit;
+      } else {
+        state.limit = limit;
+      }
+    }
+    const failureOf = (p: Promise<unknown>) => p.then(() => undefined, (e) => e as Error);
+
+    it('the commit writes the default (2) onto every human seat, and the model publishes it', async () => {
+      const {campaign} = await interlude();
+      const loaded = (await manager.load(campaign.id))!;
+      expect(Object.values(loaded.carryover!.bySeat).map((s) => s.limit)).deep.eq([2, 2]);
+      const model = manager.getModel(loaded, 'Alice');
+      expect(model.carryover!.yourLimit).eq(2);
+      expect(model.carryover!.bySeat.map((s) => s.limit)).deep.eq([2, 2]);
+    });
+
+    it('a seat limit of 3: three cards pass, the fourth is refused naming 3', async () => {
+      const {campaign, hand, alicePid} = await interlude();
+      await setLimit(campaign.id, 3);
+      await manager.submitCarryover(campaign.id, alicePid, hand.slice(0, 3));
+      expect((await manager.load(campaign.id))!.carryover!.bySeat[0].cards).deep.eq(hand.slice(0, 3));
+      expect((await failureOf(manager.submitCarryover(campaign.id, alicePid, hand.slice(0, 4))))?.message).contains('at most 3');
+    });
+
+    it('a seat limit of 1: the second card is refused', async () => {
+      const {campaign, hand, alicePid} = await interlude();
+      await setLimit(campaign.id, 1);
+      expect((await failureOf(manager.submitCarryover(campaign.id, alicePid, hand.slice(0, 2))))?.message).contains('at most 1');
+      await manager.submitCarryover(campaign.id, alicePid, [hand[0]]);
+    });
+
+    it('a seat limit of 0: only the empty selection — readiness — passes', async () => {
+      const {campaign, hand, alicePid} = await interlude();
+      await setLimit(campaign.id, 0);
+      expect((await failureOf(manager.submitCarryover(campaign.id, alicePid, [hand[0]])))?.message).contains('at most 0');
+      await manager.submitCarryover(campaign.id, alicePid, []);
+      expect((await manager.load(campaign.id))!.carryover!.bySeat[0].status).eq('confirmed');
+    });
+
+    it('a save written before the limit existed reads as the default (degraded on read)', async () => {
+      const {campaign, hand, alicePid} = await interlude();
+      await setLimit(campaign.id, undefined);
+      const loaded = (await manager.load(campaign.id))!;
+      expect(manager.getModel(loaded, 'Alice').carryover!.yourLimit).eq(2);
+      expect((await failureOf(manager.submitCarryover(campaign.id, alicePid, hand.slice(0, 3))))?.message).contains('at most 2');
+      await manager.submitCarryover(campaign.id, alicePid, hand.slice(0, 2));
+    });
+
+    it('the dev fixture seats a limit per seat (`carryoverLimits`) — the stands see 1 / 3 / 5 live', async () => {
+      const campaign = await manager.createCampaign(key(), campaignTestConfig());
+      const hand = [CardName.ALGAE, CardName.ANTS, CardName.BIRDS, CardName.CARTEL];
+      const after = await manager.devCommit(campaign.id, [0, 1], {carryover: {0: hand, 1: []}, carryoverPending: true, carryoverLimits: {0: 3}});
+      expect(after.carryover!.bySeat[0].limit).eq(3);
+      expect(after.carryover!.bySeat[1].limit).eq(2);
+      expect(manager.getModel(after, 'Alice').carryover!.yourLimit).eq(3);
+      expect(manager.getModel(after, 'Bruno').carryover!.yourLimit).eq(2);
+    });
   });
 
   it('carried-in history: snapshotted at launch, counts public, names owner-only', async () => {

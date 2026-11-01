@@ -74,8 +74,8 @@ describe('campaignMapModel', () => {
       carryover: {
         sourceSlot: 0,
         bySeat: [
-          {seat: 0, status: 'pending', count: 0},
-          {seat: 1, status: 'confirmed', count: 2},
+          {seat: 0, status: 'pending', count: 0, limit: 2},
+          {seat: 1, status: 'confirmed', count: 2, limit: 2},
         ],
         yourCards: [],
         yourEligible: [CardName.ANTS, CardName.ALGAE],
@@ -90,7 +90,7 @@ describe('campaignMapModel', () => {
     expect(vm.yourEligibleCards).has.length(2);
     // The rail shows the OTHER seat's status as count only (privacy: no names).
     const bruno = vm.rail.find((r) => r.seat === 1)!;
-    expect(bruno.carry).deep.eq({status: 'confirmed', count: 2});
+    expect(bruno.carry).deep.eq({status: 'confirmed', count: 2, limit: 2});
   });
 
   it('interlude: a confirmed non-creator stands READY — waiting CTA with the auto-join promise', () => {
@@ -103,8 +103,8 @@ describe('campaignMapModel', () => {
       carryover: {
         sourceSlot: 0,
         bySeat: [
-          {seat: 0, status: 'pending', count: 0},
-          {seat: 1, status: 'confirmed', count: 1},
+          {seat: 0, status: 'pending', count: 0, limit: 2},
+          {seat: 1, status: 'confirmed', count: 1, limit: 2},
         ],
         yourCards: [CardName.ANTS],
         yourEligible: [CardName.ANTS, CardName.ALGAE],
@@ -132,8 +132,8 @@ describe('campaignMapModel', () => {
       carryover: {
         ...model.carryover!,
         bySeat: [
-          {seat: 0, status: 'confirmed', count: 0},
-          {seat: 1, status: 'confirmed', count: 1},
+          {seat: 0, status: 'confirmed', count: 0, limit: 2},
+          {seat: 1, status: 'confirmed', count: 1, limit: 2},
         ],
       },
     } as CampaignModel);
@@ -149,7 +149,7 @@ describe('campaignMapModel', () => {
       launchBlockers: [],
       carryover: {
         sourceSlot: 0,
-        bySeat: [{seat: 1, status: 'pending', count: 0}],
+        bySeat: [{seat: 1, status: 'pending', count: 0, limit: 2}],
         yourCards: [],
         yourEligible: [],
       },

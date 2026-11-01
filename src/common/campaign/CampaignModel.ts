@@ -55,6 +55,8 @@ export type CarryoverSeatPublic = {
   seat: number;
   status: CarryoverStatus;
   count: number;
+  /** The seat's carry limit (public — a limit is not a secret; the cards are). */
+  limit: number;
 };
 
 export type CampaignCarryoverModel = {
@@ -64,6 +66,8 @@ export type CampaignCarryoverModel = {
   yourCards?: ReadonlyArray<CardName>;
   /** Owner-only: the recorded terminal hand the viewer may pick from. */
   yourEligible?: ReadonlyArray<CardName>;
+  /** The viewer's own carry limit — THE one number every carryover surface reads. */
+  yourLimit?: number;
 };
 
 export type CampaignModel = {
