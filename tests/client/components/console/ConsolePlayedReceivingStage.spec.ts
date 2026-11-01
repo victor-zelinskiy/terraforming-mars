@@ -213,21 +213,19 @@ describe('ConsolePlayedReceivingStage (the receiving & effect resolution stage)'
     wrapper.unmount();
   });
 
-  it('the event TURNS (one object, face → back) and only its SETTLE onto the pile ticks the count (P84 · DK)', async () => {
+  it('the event is LAID on its pile turning over (one object, face → back) and the touchdown ticks the count (P84 · DK)', async () => {
     armPlayedHero(CardName.ASTEROID, true, {manualTableOpen: false, host: 'workspace'});
     playedHeroState.phase = 'showing-result';
     playedHeroState.revealed = true;
     const wrapper = make(view([CardName.BIG_ASTEROID]));
     await wrapper.vm.$nextTick();
-    const vm = wrapper.vm as unknown as {turnEvent(ms: number): Promise<void>, settleEvent(ms: number): void};
+    const vm = wrapper.vm as unknown as {turnEvent(ms: number): Promise<void>};
+    expect(wrapper.find('.con-recv__caption-count').text(), 'held over the pile').to.eq('1');
     // (jsdom reads as reduced motion — the sides swap at once; the order of the two acts is what is pinned here.)
     await vm.turnEvent(40);
     await wrapper.vm.$nextTick();
     expect(wrapper.find('.con-recv__turn').attributes('data-event-side')).to.eq('down');
     expect(wrapper.findAll('.con-recv__turn').length, 'ONE object turns — never a second copy').to.eq(1);
-    expect(wrapper.find('.con-recv__caption-count').text(), 'turned, not yet laid').to.eq('1');
-    vm.settleEvent(0);
-    await wrapper.vm.$nextTick();
     expect(wrapper.find('.con-recv__turn').attributes('data-event-landed')).to.eq('');
     expect(wrapper.find('.con-recv__caption-count').text(), 'the touchdown on the pile ticks N + 1').to.eq('2');
     wrapper.unmount();

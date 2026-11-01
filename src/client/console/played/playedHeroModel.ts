@@ -112,16 +112,21 @@ export function eventTurnsOnStage(isEvent: boolean, host: 'overlay' | 'workspace
 }
 
 /**
- * The owner's budget law (2026-11-01 — «премиальность растёт, длительность нет»): the turn after the pay-back is not a
- * beat of its own — it REPLACES the reading pause the scene already holds, at most `turnCap` of it (the residual pause,
- * 220 ms at scale 1); a longer pause keeps its length and the turn ends early in it.
+ * The touchdown on the pile is READ before the stage closes (ms @ motion scale 1): the turn-and-lay ends this much before
+ * its pause does, so the pile's «N + 1» stands on a stage that is still up — a lay ending on the pause's last frame
+ * ticked the count in the very flush the stage began to close (`console-play-landing-probe` never saw it).
  */
-export function heroEventTurnMs(pauseMs: number, turnCap: number): number {
-  return Math.max(0, Math.min(pauseMs, turnCap));
-}
+export const HERO_EVENT_LAID_READ_MS = 60;
 
-/** The turned card's settle onto its pile (ms @ motion scale 1) — overlaps the stage's close / the next unfold, never awaited. */
-export const HERO_EVENT_SETTLE_MS = 160;
+/**
+ * The owner's budget law (2026-11-01 — «премиальность растёт, длительность нет»): the turn-and-lay after the pay-back is
+ * not a beat of its own — it REPLACES the reading pause the scene already holds: at most `turnCap` of it (the residual
+ * pause, 220 ms at scale 1), and never into its last `readMs` (the laid count is read there). A longer pause keeps its
+ * length and the card lies on its pile early in it.
+ */
+export function heroEventTurnMs(pauseMs: number, turnCap: number, readMs = HERO_EVENT_LAID_READ_MS): number {
+  return Math.max(0, Math.min(pauseMs - readMs, turnCap));
+}
 
 export function heroCenter(r: HeroRect): {x: number, y: number} {
   return {x: r.x + r.w / 2, y: r.y + r.h / 2};

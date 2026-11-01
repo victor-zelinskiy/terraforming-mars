@@ -53,7 +53,7 @@ import {
   HeroRect, PlayedHeroPhase, planHeroPath,
   HERO_LIFT_MS, HERO_FLIGHT_MS, HERO_LAND_MS, HERO_CLOSE_MS,
   HERO_RESULT_PAUSE_MS, HERO_REDUCED_MS, HERO_REDUCED_PAUSE_MS, HERO_SAFETY_TIMEOUT_MS,
-  HERO_EVENT_SETTLE_MS, eventFlipsInFlight, eventTurnsOnStage, heroEventTurnMs,
+  HERO_EVENT_LAID_READ_MS, eventFlipsInFlight, eventTurnsOnStage, heroEventTurnMs,
 } from '@/client/console/played/playedHeroModel';
 import {
   placeHeroProxy, playHeroLift, playHeroFlight, playHeroReducedHop, disposeHeroProxy, glideHeroOnto, hideHeroProxyNextFrame,
@@ -76,7 +76,7 @@ import {RailAnswerCause, RailAnswerFlight, RailReward, flyRailReward, railReward
 import {ReactorEmergence, cardReactionAnswerFlight, composeAnswerFlights, markReactionCause, reactionDeclarationBlock} from '@/client/console/cardReaction/cardReactionDirector';
 import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnds';
 import {TOUCHDOWN_TICK_GAP_MS, TransferEnd, TransferEndLike, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {centreEndOf, iconNeedlesFor, resolveActionCommitAnchors, resolvePlayGainIconEnds, resolveSpendIconEnds} from '@/client/console/consoleActionCommitMotion';
+import {bareWildIcons, centreEndOf, iconNeedlesFor, resolveActionCommitAnchors, resolvePlayGainIconEnds, resolveSpendIconEnds, wildChosen} from '@/client/console/consoleActionCommitMotion';
 import type {PlayCardPrice} from '@/client/console/consoleActionCommit';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {armedEffectsChange, releaseArmedEffectHolds, releaseStagedArmedSpends, settleArmedEffectHolds, shipArmedEffects} from '@/client/console/armedEffectFlight';
@@ -609,14 +609,13 @@ export type ReceivingEffectHooks = {
   /** The emerged (or open) face of `card` on the stage — the reactor's tokens are born on its printed effect row. */
   emergedFaceEl?: (card: CardName) => HTMLElement | undefined,
   /**
-   * AN EVENT PAYS FACE UP (P84 · DK): the landed event, which paid from its printed icons, TURNS OVER on the stage over
-   * `ms` — inside the scene's reading pause, never after it. Resolves once its back is up (reduced motion: at once).
+   * AN EVENT PAYS FACE UP (P84 · DK): the landed event, which paid from its printed icons, is LAID on its pile turning
+   * over — one phrase of `ms`, inside the scene's reading pause, never after it; the pile's count ticks on its
+   * touchdown. Resolves at the touchdown (reduced motion: at once).
    */
   turnEvent?: (ms: number) => Promise<void>,
-  /** …a turn still in flight lands at once (A / B skipped the pause). */
+  /** …a phrase still in flight lands at once (A / B skipped the pause). */
   finishEventTurn?: () => void,
-  /** …and the turned card settles onto its pile over `ms` (the pile's count ticks on the touchdown) — never awaited. */
-  settleEvent?: (ms: number) => void,
 };
 
 /** The receiving stage's way of bringing a reactor forward (the director's `ReactorEmergence`) — undefined without hooks. */
@@ -1729,10 +1728,10 @@ export async function endPlayedHero(): Promise<void> {
 }
 
 /**
- * THE RESULT'S READING PAUSE — and, for an EVENT on the workspace stage, its TURN (P84 · DK — «СОБЫТИЕ ПЛАТИТ ЛИЦОМ»):
- * the card that paid face up turns over INSIDE this very pause, never after it (the owner's budget law, 2026-11-01: not
- * one new millisecond — the turn REPLACES the residual pause), and settles onto its pile once turned, overlapping the
- * stage's close and the next surface's unfold (never awaited). A / B skips the pause and lands the turn at once.
+ * THE RESULT'S READING PAUSE — and, for an EVENT on the workspace stage, its LAYING (P84 · DK — «СОБЫТИЕ ПЛАТИТ ЛИЦОМ»):
+ * the card that paid face up is laid on its pile turning over INSIDE this very pause, never after it (the owner's
+ * budget law, 2026-11-01: not one new millisecond — the phrase REPLACES the residual pause); its touchdown — and the
+ * pile's tick — come before the stage closes. A / B skips the pause and lands the phrase at once.
  */
 async function resultPause(ms: number): Promise<void> {
   const hooks = effectHooks;
@@ -1740,15 +1739,10 @@ async function resultPause(ms: number): Promise<void> {
     await skippablePause(ms);
     return;
   }
-  const episode = playedHeroState.nonce;
-  const turned = hooks.turnEvent(heroEventTurnMs(ms, motionMs(TRANSFER_RESIDUAL_PAUSE_MS))).then(() => {
-    if (playedHeroState.active && playedHeroState.nonce === episode) {
-      hooks.settleEvent?.(motionMs(HERO_EVENT_SETTLE_MS));
-    }
-  });
+  const laid = hooks.turnEvent(heroEventTurnMs(ms, motionMs(TRANSFER_RESIDUAL_PAUSE_MS), motionMs(HERO_EVENT_LAID_READ_MS)));
   await skippablePause(ms);
   hooks.finishEventTurn?.();
-  await turned;
+  await laid;
 }
 
 /** A / B during the result beat: accelerate the close — never a cancel. */
@@ -2261,6 +2255,18 @@ function heroGainOrigins(card: string, specs: ReadonlyArray<ResourceTransferSpec
     return undefined;
   }
   const ends = resolvePlayGainIconEnds(place, specs);
+  // A standard resource CHOSEN from the face's bare «?» (TR54) is born on that «?» even where the face prints the same
+  // resource elsewhere — as the card's own COST (Overclocked Equipment: «−3 [energy] → ?»; «+1 energy» chosen is the
+  // «?»'s, never the price's icon). The k-th chosen resource on the k-th bare «?».
+  const wilds = bareWildIcons(place).filter((icon) => icon.closest('.pcard-effect') === null);
+  if (wilds.length > 0) {
+    let k = 0;
+    specs.forEach((spec, i) => {
+      if (wildChosen(spec)) {
+        ends[i] = centreEndOf(wilds[Math.min(k++, wilds.length - 1)]) ?? ends[i];
+      }
+    });
+  }
   return ends.some((end) => end !== undefined) ? ends : undefined;
 }
 

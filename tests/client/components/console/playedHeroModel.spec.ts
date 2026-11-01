@@ -15,6 +15,7 @@ import {
   eventFlipsInFlight,
   eventTurnsOnStage,
   heroEventTurnMs,
+  HERO_EVENT_LAID_READ_MS,
 } from '@/client/console/played/playedHeroModel';
 
 const VIEW = {viewportW: 1920, viewportH: 1080};
@@ -174,11 +175,13 @@ describe('playedHeroModel', () => {
       }
     });
 
-    it('the turn REPLACES the reading pause — never longer than the pause, never longer than the residual cap (the budget law)', () => {
-      expect(heroEventTurnMs(220, 220)).eq(220);
-      expect(heroEventTurnMs(260, 220), 'the resolved beat keeps its 260; the turn ends inside it').eq(220);
-      expect(heroEventTurnMs(110, 220), 'a skipped / short pause: the turn fits it').eq(110);
-      expect(heroEventTurnMs(-5, 220)).eq(0);
+    it('the turn REPLACES the reading pause — inside it, never past its read of the laid count, never past the residual cap (the budget law)', () => {
+      expect(HERO_EVENT_LAID_READ_MS).eq(60);
+      expect(heroEventTurnMs(220, 220), 'the residual pause: the lay ends 60 ms before it — the count is READ on a standing stage').eq(160);
+      expect(heroEventTurnMs(260, 220), 'the resolved beat keeps its 260; the lay ends inside it').eq(200);
+      expect(heroEventTurnMs(400, 220), 'a long pause: the cap').eq(220);
+      expect(heroEventTurnMs(50, 220), 'a pause shorter than the read: lay at once').eq(0);
+      expect(heroEventTurnMs(220, 220, 0), 'no read asked: the whole pause').eq(220);
     });
   });
 });
