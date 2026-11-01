@@ -41,7 +41,6 @@ import {CardName} from './CardName';
 /** ADAPT IN PLACE — 24 project cards, 24 preludes, 5 corporations (ordered as the manifest prints them). */
 export const PRELUDE2_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
   // ── Project cards (P68…P91) ──
-  CardName.VENUS_ALLIES, // P87 · Venus + Colonies · declarative — Venus 2 steps + 4 M€ per colony
   CardName.VENUS_ORBITAL_SURVEY, // P88 · Venus · bespoke action (listed SAFE in `actionCaption.spec` while out of scope)
   CardName.VENUS_SHUTTLES, // P89 · Venus · behavior + bespoke action
   CardName.VENUS_TRADE_HUB, // P90 · Colonies + Venus · an EFFECT card (no play / action hook)
