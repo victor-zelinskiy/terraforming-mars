@@ -1,5 +1,5 @@
 import {expect, test, Page} from './consoleTest';
-import {bootSeededGame, corporationsExcluding, openBotBoardDetail, press, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootSeededGame, corporationsExcluding, openBotBoardDetail, openBotScreenHub, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * POLYPHEMOS (C32) — SIX printed starting tags, the most of any implemented
@@ -58,15 +58,22 @@ test.describe('console: a MarsBot corporation with six starting tags', () => {
 
     await page.screenshot({path: 'screenshots/bot-corp-six-tags-mat.png', fullPage: false});
 
-    // …and the corporation's own FACE, where all six tags must fit the rail.
-    await key(page, 'KeyB', 900); // back to the seat overview
-    const face = page.locator('.pcard').first();
-    for (let i = 0; i < 6 && await face.count() === 0; i++) {
-      await key(page, 'KeyE', 700);
+    // …and the corporation's own FACE, where all six tags must stand WHOLE in one row, like the printed card
+    // (the owner, 2026-11-03: the count-only overlap hid 41 % of every medallion — «пила» of half-coins).
+    await key(page, 'Escape', 900); // back to the seat overview
+    await openBotScreenHub(page);
+    const face = page.locator('.con-info__block--botcorp .pcard');
+    await expect(face, 'the bot screen carries the corporation face').toBeVisible();
+    const rail = face.locator('.pcard__tags');
+    await expect(rail).toHaveClass(/pcard__tags--row/);
+    const boxes = await rail.locator('.pcard-tag').evaluateAll((nodes) => nodes.map((n) => {
+      const r = n.getBoundingClientRect();
+      return {left: r.left, right: r.right};
+    }));
+    expect(boxes, 'six medallions').toHaveLength(6);
+    for (let i = 1; i < boxes.length; i++) {
+      expect(boxes[i].left, `medallion ${i + 1} clears medallion ${i}: ${JSON.stringify(boxes)}`).toBeGreaterThanOrEqual(boxes[i - 1].right - 0.5);
     }
-    if (await face.count() > 0) {
-      await expect(face.locator('.pcard__tags .pcard-tag')).toHaveCount(6);
-      await page.screenshot({path: 'screenshots/bot-corp-six-tags-face.png', fullPage: false});
-    }
+    await face.screenshot({path: 'screenshots/bot-corp-six-tags-face.png'});
   });
 });

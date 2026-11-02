@@ -11,6 +11,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardRenderer} from '@/server/cards/render/CardRenderer';
 import {all} from '@/server/cards/Options';
 import {buildPremiumCardViewModel, PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
+import {printedTagRowPlan} from '@/client/components/premiumCard/tagLayout';
 import {standardResourceIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 
 /**
@@ -706,6 +707,8 @@ export function buildMarsBotCorpPremiumVm(id: MarsBotCorpId, resources: number, 
   const result: PremiumCardVM = {
     ...vm,
     expansion: 'automa',
+    // The bot card prints its starting tags in a ROW (up to six) — never the human face's overlap.
+    tagCluster: printedTagRowPlan(vm.tags.length),
     resource: vm.resource === undefined ? undefined : {
       ...vm.resource,
       // Only where the stored thing is not a card resource — the socket keeps

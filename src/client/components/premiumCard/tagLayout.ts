@@ -56,3 +56,23 @@ export function tagClusterPlan(count: number): TagClusterPlan {
   const perRow = Math.ceil(count / 2);
   return {mode: 'stack', size, overlap, rows: 2, width: size + (perRow - 1) * (size - overlap), count};
 }
+
+/**
+ * THE PRINTED ROW — the tag cluster of a MarsBot corporation's face. The
+ * official bot cards print every starting tag side by side, never tucked
+ * under its neighbour (C32 Polyphemos: six in a row; C08 Saturn Systems:
+ * four), and a bot corporation carries up to six where a human card carries
+ * three at most — so the count-only overlap above (41 % of every medallion
+ * hidden at six) read as a saw of half-coins on the TV (the owner,
+ * 2026-11-03). Here every medallion stands whole, at the `row` mode's own
+ * gap (the rings kiss, as two tags already do), shrinking with the count so
+ * the title keeps its room; human faces keep `tagClusterPlan`.
+ */
+export function printedTagRowPlan(count: number): TagClusterPlan {
+  // One or two already stand in a row; past six no bot card prints.
+  if (count <= 2 || count > 6) {
+    return tagClusterPlan(count);
+  }
+  const size = count === 3 ? 26 : count === 4 ? 24 : count === 5 ? 21 : 20;
+  return {mode: 'row', size, overlap: 0, rows: 1, width: count * size + (count - 1) * ROW_GAP, count};
+}

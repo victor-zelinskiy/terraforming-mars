@@ -19,7 +19,7 @@ import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {REDUX_PARTIES} from '@/common/parliament/ParliamentTypes';
 import {isPremiumFaceType, premiumThemeFor} from '@/client/components/premiumCard/premiumCardTheme';
-import {tagClusterPlan} from '@/client/components/premiumCard/tagLayout';
+import {printedTagRowPlan, tagClusterPlan} from '@/client/components/premiumCard/tagLayout';
 import {cardArtUrl, premiumCardArt, CARD_ART_FALLBACK_URL} from '@/client/cards/cardArt';
 import loreTexts from '../../../../assets/text/lore_texts.json';
 
@@ -413,6 +413,22 @@ describe('tagClusterPlan (title overlay geometry)', () => {
     expect(plan.mode).to.eq('stack');
     expect(plan.rows).to.eq(2);
     expect(plan.width).to.be.lessThan(70);
+  });
+});
+
+describe('printedTagRowPlan (a MarsBot corporation face — the printed row)', () => {
+  it('3–6 tags stand WHOLE in one row — never tucked under a neighbour', () => {
+    for (const count of [3, 4, 5, 6]) {
+      const plan = printedTagRowPlan(count);
+      expect(plan, `${count} tags`).to.deep.include({mode: 'row', overlap: 0, rows: 1, count});
+      expect(plan.width).to.eq(count * plan.size + (count - 1) * 4);
+    }
+    expect(printedTagRowPlan(6).size, 'six still read as medallions').to.be.at.least(20);
+    expect(printedTagRowPlan(6).width, 'and leave the title its room on the 286 px plate').to.be.at.most(140);
+  });
+  it('1–2 tags are the human row; the human face keeps its overlap', () => {
+    expect(printedTagRowPlan(2)).to.deep.eq(tagClusterPlan(2));
+    expect(tagClusterPlan(6).mode).to.eq('overlap');
   });
 });
 

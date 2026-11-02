@@ -672,6 +672,14 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(text).not.match(/to hand|buying cards/i);
   });
 
+  it('a corporation with many starting tags prints them in a ROW, like the official card (C32 six, C08 four)', () => {
+    for (const [id, count] of [[MarsBotCorpId.C32_POLYPHEMOS, 6], [MarsBotCorpId.C08_SATURN_SYSTEMS, 4]] as const) {
+      const rail = mountFace(id).find('.pcard__tags');
+      expect(rail.classes(), id).to.include('pcard__tags--row');
+      expect(rail.findAll('.pcard-tag'), id).has.length(count);
+    }
+  });
+
   it('Septem Tribus prints the card that replaces Party Politics, never the human banner cubes', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C37_SEPTEM_TRIBUS);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Before action phase']);
