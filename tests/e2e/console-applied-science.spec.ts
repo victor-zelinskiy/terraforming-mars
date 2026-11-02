@@ -299,31 +299,43 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     expect(posts.length, 'nothing sent').toBe(0);
   });
 
-  test('D: eight candidates — PAGES of four (balanced), the position on the rail, RB and the d-pad edge turn', async ({page, request}) => {
+  /** The cards on screen in rows (distinct tops), their widths, and whether each tag stays inside its card on one line. */
+  async function cellGeometry(page: Page) {
+    return page.evaluate(() => {
+      const cells = [...document.querySelectorAll('[data-wild-inner] .con-ptsel__cell')].map((cell) => {
+        const r = cell.getBoundingClientRect();
+        const tag = cell.querySelector('.con-ptsel__tag')?.getBoundingClientRect();
+        const line = cell.querySelector<HTMLElement>('.con-ptsel__tag-line');
+        return {w: r.width, top: Math.round(r.top), left: r.left, right: r.right, tagLeft: tag?.left ?? r.left, tagRight: tag?.right ?? r.right,
+          lineFits: line === null || line.scrollWidth <= (line.parentElement?.clientWidth ?? line.scrollWidth) + 1};
+      });
+      const stamp = document.querySelector('[data-wild-inner] .con-ptsel')?.getAttribute('data-ptsel-geom') ?? '';
+      const lines = document.querySelector('[data-wild-inner] .con-ptsel')?.getAttribute('data-tag-lines') ?? '';
+      // The selector's own viewport never scrolls — a cut second row's tags read as a scroll of its own.
+      const vp = document.querySelector<HTMLElement>('[data-wild-inner] .con-ptsel__viewport .con-scroll-area__viewport');
+      const cut = vp === null ? 0 : vp.scrollHeight - vp.clientHeight;
+      return {cells, rows: new Set(cells.map((c) => Math.round(c.top / 8))).size, zoom: Number(/z([0-9.]+)/.exec(stamp)?.[1] ?? 0), lines, cut};
+    });
+  }
+
+  test('D: eight candidates — ONE page of two rows, no page to turn', async ({page, request}) => {
     test.setTimeout(240_000);
     await bootFixture(page, request, 'applied-science-many', {query: PRESET.query});
     await settle(page);
     await openSetup(page);
     await openWild(page);
     await choosePlate(page, 'onCard');
-    // PAGES (the owner, 2026-11-02): the set the readable floor cannot hold whole is paged — never shrunk, never scrolled.
-    const pages = page.locator(`${INNER} [data-ptsel-pages]`);
-    await expect(pages, 'the page position stands').toHaveCount(1);
-    await expect(pages, 'two pages').toHaveAttribute('data-ptsel-page-count', '2');
-    await expect(pages).toHaveAttribute('data-ptsel-page', '1');
-    await expect(page.locator(`${INNER} .con-ptsel__cell`), 'four on a page').toHaveCount(4);
-    const first = (await candidatesOf(page)).map((c) => c.name);
+    // TWO ROWS ON A 4K PAGE (the owner, 2026-11-02): eight holders stand whole — 2 × 4 — at the readable floor or above.
+    await expect(page.locator(`${INNER} .con-ptsel__cell`), 'all eight on screen').toHaveCount(8);
+    await expect(page.locator(`${INNER} [data-ptsel-pages]`), 'no page position — one page').toHaveCount(0);
+    const g = await cellGeometry(page);
     await shoot(page, 'i-many');
-    await press(page, 'KeyE', 500); // RB — the next page
-    await expect(pages, 'RB turned the page').toHaveAttribute('data-ptsel-page', '2');
-    const second = (await candidatesOf(page)).map((c) => c.name);
-    expect(second.some((n) => first.includes(n)), 'a page is a different set').toBe(false);
-    expect(await focusedCandidate(page), 'the cursor came along').not.toBe('');
-    // The d-pad against the page's LEFT edge turns back (the album's grammar).
-    for (let i = 0; i < 6 && (await pages.getAttribute('data-ptsel-page')) === '2'; i++) {
-      await press(page, 'ArrowLeft', 260);
+    expect(g.rows, 'two rows').toBe(2);
+    expect(g.cut, 'nothing cut at the bottom — the selector does not scroll').toBeLessThanOrEqual(1);
+    expect(g.zoom, 'no smaller than the readable floor (× ui)').toBeGreaterThanOrEqual(0.36);
+    for (const c of g.cells) {
+      expect(c.lineFits && c.tagLeft >= c.left - 1 && c.tagRight <= c.right + 1, 'every tag whole, under ITS card').toBe(true);
     }
-    await expect(pages, 'the left edge turned back').toHaveAttribute('data-ptsel-page', '1');
     const scrolls = await page.evaluate(() => {
       const vp = document.querySelector('.con-cardactions__stagewrap .con-composer--stage .con-scroll-area__viewport');
       return vp === null ? 0 : vp.scrollHeight - vp.clientHeight;
@@ -331,7 +343,7 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     expect(scrolls, 'the decision column does not scroll').toBeLessThanOrEqual(2);
   });
 
-  test('D′: thirteen candidates — three pages, readable cards, every tag on its own card', async ({page, request}) => {
+  test('D′: thirteen candidates — two pages of seven in two rows, RB and the d-pad edge turn, every tag on its own card', async ({page, request}) => {
     test.setTimeout(240_000);
     await bootFixture(page, request, 'applied-science-crowd', {query: PRESET.query});
     await settle(page);
@@ -339,25 +351,42 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     await openWild(page);
     await choosePlate(page, 'onCard');
     const pages = page.locator(`${INNER} [data-ptsel-pages]`);
-    await expect(pages, 'three pages').toHaveAttribute('data-ptsel-page-count', '3');
+    await expect(pages, 'two pages').toHaveAttribute('data-ptsel-page-count', '2');
+    await expect(pages).toHaveAttribute('data-ptsel-page', '1');
+    await expect(page.locator(`${INNER} .con-ptsel__cell`), 'seven on a page (balanced 7 + 6)').toHaveCount(7);
     await shoot(page, 'l-crowd');
-    // THE FLOOR: a candidate is never drawn smaller than the readable size (0.4 × the TV's scale of the 320 px face).
-    const geom = await page.evaluate(() => [...document.querySelectorAll('[data-wild-inner] .con-ptsel__cell')].map((cell) => {
-      const r = cell.getBoundingClientRect();
-      const tag = cell.querySelector('.con-ptsel__tag')?.getBoundingClientRect();
-      return {w: r.width, left: r.left, right: r.right, tagLeft: tag?.left ?? r.left, tagRight: tag?.right ?? r.right};
-    }));
-    expect(Math.min(...geom.map((g) => g.w)), 'readable cards').toBeGreaterThanOrEqual(250);
-    for (const g of geom) {
-      expect(g.tagLeft >= g.left - 1 && g.tagRight <= g.right + 1, 'the tag stands under ITS card, no wider').toBe(true);
+    const g = await cellGeometry(page);
+    expect(g.rows, 'the page stands two rows').toBe(2);
+    expect(g.cut, 'nothing cut at the bottom — the selector does not scroll').toBeLessThanOrEqual(1);
+    expect(g.zoom, 'no smaller than the readable floor (× ui)').toBeGreaterThanOrEqual(0.36);
+    expect(Math.min(...g.cells.map((c) => c.w)), 'readable cards (0.36 × the TV’s 640 px face)').toBeGreaterThanOrEqual(228);
+    const overlap = await page.evaluate(() => {
+      const turns = [...document.querySelectorAll('[data-wild-inner] [data-ptsel-turn]')]
+        .filter((t) => getComputedStyle(t).opacity !== '0').map((t) => t.getBoundingClientRect());
+      const cells = [...document.querySelectorAll('[data-wild-inner] .con-ptsel__cell')].map((c) => c.getBoundingClientRect());
+      return turns.some((t) => cells.some((c) => t.left < c.right && t.right > c.left && t.top < c.bottom && t.bottom > c.top));
+    });
+    expect(overlap, 'the page-turn chevron stands in its gutter, never over a card or its tag').toBe(false);
+    for (const c of g.cells) {
+      expect(c.lineFits && c.tagLeft >= c.left - 1 && c.tagRight <= c.right + 1, 'every tag whole, under ITS card').toBe(true);
     }
-    // The d-pad walks the whole set: past the last card of a page the right edge turns to the next.
-    for (let i = 0; i < 20 && (await pages.getAttribute('data-ptsel-page')) !== '3'; i++) {
-      await press(page, 'ArrowRight', 240);
-    }
-    await expect(pages, 'walked to the last page').toHaveAttribute('data-ptsel-page', '3');
+    const first = (await candidatesOf(page)).map((c) => c.name);
+    await press(page, 'KeyE', 500); // RB — the next page
+    await expect(pages, 'RB turned the page').toHaveAttribute('data-ptsel-page', '2');
+    const second = (await candidatesOf(page)).map((c) => c.name);
+    expect(second.some((n) => first.includes(n)), 'a page is a different set').toBe(false);
     await expect(pages, 'the range names the tail').toContainText('из 13');
     await shoot(page, 'm-crowd-last');
+    // The d-pad against the page's LEFT edge turns back (the album's grammar).
+    for (let i = 0; i < 8 && (await pages.getAttribute('data-ptsel-page')) === '2'; i++) {
+      await press(page, 'ArrowLeft', 260);
+    }
+    await expect(pages, 'the left edge turned back').toHaveAttribute('data-ptsel-page', '1');
+    // …and the right edge forward again: the d-pad walks the whole set.
+    for (let i = 0; i < 12 && (await pages.getAttribute('data-ptsel-page')) !== '2'; i++) {
+      await press(page, 'ArrowRight', 240);
+    }
+    await expect(pages, 'walked to the last page').toHaveAttribute('data-ptsel-page', '2');
   });
 
   test('E: the last science spent — the card leaves the actions to take', async ({page, request}) => {

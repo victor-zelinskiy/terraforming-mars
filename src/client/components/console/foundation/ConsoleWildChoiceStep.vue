@@ -167,6 +167,7 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {LANE_LABELS} from '@/client/console/compositePrompts';
 import {spreadOn} from '@/client/console/cardResourceDistribution';
+import {layoutTopWithin} from '@/client/console/layoutTop';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {VariantChoiceOption} from '@/client/console/variantChoiceModel';
 import {translateText} from '@/client/directives/i18n';
@@ -334,7 +335,9 @@ export default defineComponent({
             inset += (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
           }
           const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-          const room = band.getBoundingClientRect().bottom - slot.getBoundingClientRect().top - inset - 0.4 * rem;
+          // In LAYOUT, never a client rect: measured during the rows' entrance the slot read lower than it stands and
+          // kept a stale, short height once the motion ended (the selector's second row did not stand — P43 at 4K).
+          const room = band.offsetHeight - layoutTopWithin(slot, band) - inset - 0.4 * rem;
           const next = Math.max(9 * rem, Math.floor(room));
           if (Math.abs(next - this.slotH) > 1) {
             this.slotH = next;

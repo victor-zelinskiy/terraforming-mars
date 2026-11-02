@@ -931,7 +931,8 @@ html.con-profile-handheld {
         color: @con-text-dim;
         font-variant-numeric: tabular-nums;
     }
-    &__sections--paged { position: relative; }
+    /* A paged row stands its chevrons in a GUTTER of its own on each side (a margin — the width probe reads paddings). */
+    &__sections--paged { position: relative; margin-inline: 2.1rem; }
     &__turn {
         position: absolute;
         top: 50%;
@@ -951,8 +952,10 @@ html.con-profile-handheld {
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
         pointer-events: none;
         transition: opacity calc(120ms * var(--motion-scale, 1)) linear;
-        &--prev { left: -.2rem; }
-        &--next { right: -.2rem; }
+        /* In the row's GUTTER (`PLAYED_TARGET_TURN_GUTTER` — 1.6rem + .5rem of air, taken off a paged set's width by the
+           solver): beside the cards, never over a card or its tag. */
+        &--prev { left: -2.1rem; }
+        &--next { right: -2.1rem; }
         /* With nothing beyond, the chevron leaves the row: muted, it sat over the first card's frame — the spine already
            says «page 1 of 3». */
         &--off { opacity: 0; }

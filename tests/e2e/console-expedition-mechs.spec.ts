@@ -6,6 +6,7 @@ import {
 } from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {acrossTargetPages} from './targetPages';
 
 /**
  * TR50 «ЭКСПЕДИЦИОННЫЕ МЕХИ» — the set's SEVENTH mech holder: TR40 Forestry
@@ -475,31 +476,48 @@ for (const preset of PRESETS) {
       await walkComposer(page, async () => /Куда/.test(await focusedRow(page)), 'the target row');
       await press(page, 'Enter', 600);
       await expect(page.locator('.con-ptsel'), 'the target step opened').toBeVisible();
-      await expect(page.locator('.con-ptsel__cell'), 'seven mech holders').toHaveCount(7);
-      // PL-224: every candidate stands WHOLE inside every box that clips it (4K solved seven cards into one row 39 px
-      // wider than the room and the composer's scroller cut the seventh — TR50 itself — with its focus ring).
-      const clipped = await page.evaluate(() => Array.from(document.querySelectorAll('.con-ptsel__cell')).flatMap((cell) => {
-        const c = cell.getBoundingClientRect();
-        const out: Array<string> = [];
-        // Up to the workspace's own root — above it the shell's containers hold the band as fixed, not as flow.
-        for (let el = cell.parentElement; el !== null && !el.classList.contains('con-ws'); el = el.parentElement) {
-          const cs = getComputedStyle(el);
-          if (cs.overflowX !== 'visible' || cs.overflowY !== 'visible') {
-            const b = el.getBoundingClientRect();
-            if (c.left < b.left - 1 || c.right > b.right + 1 || c.top < b.top - 1 || c.bottom > b.bottom + 1) {
-              out.push(`${cell.querySelector('[data-zoom-slot]')?.getAttribute('data-zoom-slot') ?? 'self'} [${Math.round(c.left)}–${Math.round(c.right)}] ⊄ ${el.className.toString().slice(0, 40)} [${Math.round(b.left)}–${Math.round(b.right)}]`);
+      // A set the readable floor cannot hold whole is PAGED (ledger ET): every page is read, RB between them.
+      const pageRead = await acrossTargetPages(page, async () => [await page.evaluate(() => {
+        const nameOf = (cell: Element) => cell.querySelector('[data-ptsel-self]') !== null ? 'self' : (cell.querySelector('[data-zoom-slot]')?.getAttribute('data-zoom-slot') ?? '?');
+        const cells = Array.from(document.querySelectorAll('.con-ptsel__cell'));
+        // PL-224: every candidate stands WHOLE inside every box that clips it (4K solved seven cards into one row 39 px
+        // wider than the room and the composer's scroller cut the seventh — TR50 itself — with its focus ring).
+        const clipped = cells.flatMap((cell) => {
+          const c = cell.getBoundingClientRect();
+          const out: Array<string> = [];
+          // Up to the workspace's own root — above it the shell's containers hold the band as fixed, not as flow.
+          for (let el = cell.parentElement; el !== null && !el.classList.contains('con-ws'); el = el.parentElement) {
+            const cs = getComputedStyle(el);
+            if (cs.overflowX !== 'visible' || cs.overflowY !== 'visible') {
+              const b = el.getBoundingClientRect();
+              if (c.left < b.left - 1 || c.right > b.right + 1 || c.top < b.top - 1 || c.bottom > b.bottom + 1) {
+                out.push(`${nameOf(cell)} [${Math.round(c.left)}–${Math.round(c.right)}] ⊄ ${el.className.toString().slice(0, 40)}`);
+              }
             }
           }
-        }
-        return out;
-      }));
-      expect(clipped, 'every candidate stands whole inside the boxes that clip it').toEqual([]);
-      // PL-219: EVERY candidate wears its outcome tag — read without moving the cursor.
-      const tags = await page.evaluate(() => Array.from(document.querySelectorAll('.con-ptsel__cell')).map((cell) => {
-        const name = cell.querySelector('[data-ptsel-self]') !== null ? 'self' : (cell.querySelector('[data-zoom-slot]')?.getAttribute('data-zoom-slot') ?? '?');
-        const tag = cell.querySelector('[data-ptsel-tag]');
-        return [name, tag?.getAttribute('data-ptsel-tag') ?? 'missing', (tag?.textContent ?? '').replace(/s+/g, ' ').trim()];
-      }));
+          return out;
+        });
+        // PL-219: EVERY candidate wears its outcome tag — read without moving the cursor.
+        const tags = cells.map((cell) => {
+          const tag = cell.querySelector('[data-ptsel-tag]');
+          return [nameOf(cell), tag?.getAttribute('data-ptsel-tag') ?? 'missing', (tag?.textContent ?? '').replace(/\s+/g, ' ').trim()];
+        });
+        // Nothing of any tag is cut: its line fits the cell it stands under (seven at 4K cut «2 → 3 · [M€] +5» to «+:»).
+        const cut = Array.from(document.querySelectorAll('.con-ptsel__cell .con-ptsel__tag')).flatMap((tag) => {
+          const box = tag.getBoundingClientRect();
+          const line = tag.querySelector('.con-ptsel__tag-line');
+          if (line === null) {
+            return [];
+          }
+          const r = line.getBoundingClientRect();
+          return r.left < box.left - 1 || r.right > box.right + 1 || r.bottom > box.bottom + 1 || (tag as HTMLElement).scrollWidth > (tag as HTMLElement).clientWidth + 1 ?
+            [`${(tag.textContent ?? '').replace(/\s+/g, ' ').trim()} [${Math.round(r.width)}×${Math.round(r.height)} in ${Math.round(box.width)}×${Math.round(box.height)}]`] : [];
+        });
+        return {clipped, tags, cut};
+      })]);
+      const tags = pageRead.flatMap((p) => p.tags);
+      expect(tags.length, 'seven mech holders, across the pages').toBe(7);
+      expect(pageRead.flatMap((p) => p.clipped), 'every candidate stands whole inside the boxes that clip it').toEqual([]);
       console.log(`[${preset.id} c tags] ${JSON.stringify(tags)}`);
       expect(tags.filter((t) => t[1] === 'missing' || t[1] === 'none'), 'every candidate wears a tag').toEqual([]);
       const tagText = (card: string) => tags.find((t) => t[0] === card)?.[2] ?? '';
@@ -507,31 +525,22 @@ for (const preset of PRESETS) {
       // tag that says two things stacks on two lines, `data-tag-lines="2"`).
       expect([tagText('EVA Mechs'), tagText('Construction Mechs')].every((t) => /→.*\+5$/.test(t)), 'tender: the count, then +5 each').toBe(true);
       await expect(page.locator('.con-ptsel'), 'the step reserves two tag lines').toHaveAttribute('data-tag-lines', '2');
-      // Nothing of any tag is cut: its line fits the cell it stands under (seven at 4K cut «2 → 3 · [M€] +5» to «+:»).
-      const cut = await page.evaluate(() => Array.from(document.querySelectorAll('.con-ptsel__cell .con-ptsel__tag')).flatMap((tag) => {
-        const box = tag.getBoundingClientRect();
-        const line = tag.querySelector('.con-ptsel__tag-line');
-        if (line === null) {
-          return [];
-        }
-        const r = line.getBoundingClientRect();
-        return r.left < box.left - 1 || r.right > box.right + 1 || r.bottom > box.bottom + 1 || (tag as HTMLElement).scrollWidth > (tag as HTMLElement).clientWidth + 1 ?
-          [`${(tag.textContent ?? '').replace(/\s+/g, ' ').trim()} [${Math.round(r.width)}×${Math.round(r.height)} in ${Math.round(box.width)}×${Math.round(box.height)}]`] : [];
-      }));
-      expect(cut, 'every tag stands whole inside its row').toEqual([]);
+      expect(pageRead.flatMap((p) => p.cut), 'every tag stands whole inside its row').toEqual([]);
       expect(tagText('Mech Sports'), 'Mech Sports: its VP').toMatch(/ПО\s*3\s*→\s*4/);
       expect(tags.filter((t) => t[1] === 'already').map((t) => t[0]).sort(), 'already within reach: a quiet ✓')
         .toEqual(['Automated Convoys', 'Expedition Mechs', 'Forestry Mechs', 'Mars Army Mechs'].sort());
-      const resting = await cellTexts(page);
+      const resting = Object.assign({}, ...await acrossTargetPages(page, async () => [await cellTexts(page)]));
       console.log(`[${preset.id} c cells at rest] ${JSON.stringify(resting, null, 1)}`);
       await shoot(page, preset.id, 'c-02-target');
       const readings: Record<string, {text: string, outcomes: Array<string>}> = {};
-      // The candidates stand in a grid (4 + 3 at fhd): a snake — across, down, back, up — reads every cell.
-      const snake = ['ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft',
-        'ArrowUp', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowRight', 'ArrowRight'];
-      for (const key of ['', ...snake]) {
-        if (key !== '') {
-          await press(page, key, 220);
+      // Every candidate read under the cursor: from the first card of the first page, rightwards — the d-pad across a
+      // page's edge turns it (the album's grammar), so one walk reads the whole set.
+      for (let i = 0; i < 8; i++) {
+        await press(page, 'ArrowLeft', 220);
+      }
+      for (let i = 0; i < 16 && Object.keys(readings).length < FAMILY.length; i++) {
+        if (i > 0) {
+          await press(page, 'ArrowRight', 220);
         }
         const name = await focusedCandidate(page);
         if (name !== '' && readings[name] === undefined) {
@@ -541,11 +550,10 @@ for (const preset of PRESETS) {
       console.log(`[${preset.id} c readings] ${JSON.stringify(readings, null, 1)}`);
       expect(Object.keys(readings).sort(), 'every candidate was read').toEqual([...FAMILY].sort());
       expect(Object.values(readings).every((r) => !/\$\{/.test(r.text)), 'no raw template on the rail').toBe(true);
-      for (const key of ['ArrowDown', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowLeft']) {
-        if (await focusedCandidate(page) === CARD) {
-          break;
+      for (const key of ['ArrowLeft', 'ArrowRight']) {
+        for (let i = 0; i < 16 && await focusedCandidate(page) !== CARD; i++) {
+          await press(page, key, 220);
         }
-        await press(page, key, 220);
       }
       expect(await focusedCandidate(page)).toBe(CARD);
       await shoot(page, preset.id, 'c-03-target-tr50');

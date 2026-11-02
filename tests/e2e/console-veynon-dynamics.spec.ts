@@ -6,6 +6,7 @@ import {
 } from './consoleStart';
 import {openColoniesSection} from './cardTradeDoor';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {acrossTargetPages} from './targetPages';
 
 /**
  * TR85 «VEYNON DYNAMICS» — the eighth and last new corporation of Turmoil Redux: Trade Envoys' «raise the track
@@ -214,8 +215,9 @@ test.describe(`console · TR85 Veynon Dynamics · ${PRESET.id}`, () => {
     expect(await row(), 'the cursor reached «КУДА»').toMatch(/Куда/);
     await press(page, 'Enter', 700);
     await expect(page.locator('.con-ptsel'), 'the target step opened').toBeVisible();
-    await expect(page.locator('.con-ptsel__cell'), 'EIGHT mech holders — Veynon among them').toHaveCount(8);
-    const clipped = await page.evaluate(() => Array.from(document.querySelectorAll('.con-ptsel__cell')).flatMap((cell) => {
+    // A set the readable floor cannot hold whole is PAGED (ledger ET): every page is read, RB between them.
+    await shoot(page, 'd-target-eight');
+    const readPage = () => page.evaluate(() => Array.from(document.querySelectorAll('.con-ptsel__cell')).map((cell) => {
       const c = cell.getBoundingClientRect();
       const out: Array<string> = [];
       for (let el = cell.parentElement; el !== null && !el.classList.contains('con-ws'); el = el.parentElement) {
@@ -227,10 +229,12 @@ test.describe(`console · TR85 Veynon Dynamics · ${PRESET.id}`, () => {
           }
         }
       }
-      return out;
+      return {self: cell.querySelector('[data-ptsel-self]') !== null, out};
     }));
-    await shoot(page, 'd-target-eight');
-    expect(clipped, 'every candidate stands whole inside the boxes that clip it').toEqual([]);
+    const cells = await acrossTargetPages(page, readPage);
+    expect(cells.length, 'EIGHT mech holders across the pages').toBe(8);
+    expect(cells.some((c) => c.self), 'Veynon among them').toBe(true);
+    expect(cells.flatMap((c) => c.out), 'every candidate stands whole inside the boxes that clip it').toEqual([]);
     const tags = await page.evaluate(() => Array.from(document.querySelectorAll('.con-ptsel__cell [data-ptsel-tag]'))
       .map((t) => t.getAttribute('data-ptsel-tag') ?? 'missing'));
     expect(tags.filter((t) => t === 'missing' || t === 'none'), 'every candidate wears its outcome tag').toEqual([]);

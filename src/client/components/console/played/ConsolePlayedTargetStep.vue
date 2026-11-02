@@ -6,10 +6,11 @@
   <div class="con-ptsel"
        :data-mode="layout.mode"
        :data-owners="visibleOwners.length"
-       :data-tag-lines="tagLines"
+       :data-tag-lines="drawnTagLines"
        :data-flow="sizing.sectionFlow"
        :data-direction="model.contract.direction"
        :data-overflow="sizing.overflows ? '1' : undefined"
+       :data-ptsel-geom="geomStamp"
        :style="sizeVars">
     <!-- ── THE SELECTION CONTRACT — one question, answered once. The count
          rides the SAME line as the title: it is a property of the ask, not a
@@ -282,7 +283,7 @@
                      :class="tagOf(cand) === undefined ? 'con-ptsel__tag--none' : 'con-ptsel__tag--' + tagOf(cand)?.tone"
                      :data-ptsel-tag="tagOf(cand)?.tone ?? 'none'">
                   <!-- ONE renderer for the tag (`ConsolePlayedTargetTag`) — the answered composer row reads the same line. -->
-                  <ConsolePlayedTargetTag v-for="tag in tagList(cand)" :key="'tag'" :tag="tag" :stacked="tagLines === 2" />
+                  <ConsolePlayedTargetTag v-for="tag in tagList(cand)" :key="'tag'" :tag="tag" :stacked="drawnTagLines === 2" />
                 </div>
               </div>
             </div>
@@ -427,6 +428,7 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {readingTailText, readingText} from '@/client/console/readingText';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {layoutTopWithin} from '@/client/console/layoutTop';
 import {setPlayedTargetSelfLink, bumpPlayedTargetSelfGeometry, resetPlayedTargetSelf} from '@/client/console/played/consolePlayedTargetSelf';
 import {TableTargetStand} from '@/client/console/played/tableTargetZone';
 import {
@@ -499,6 +501,8 @@ export default defineComponent({
       budgetPx: 0,
       /** The page each band last stood on — the focused band's page is the CURSOR's (derived, never stored). */
       ownerPages: {} as Record<string, number>,
+      /** The card budget the solver was last given (px) — read by `geomStamp`. */
+      availHPx: 0,
     };
   },
   computed: {
@@ -511,6 +515,11 @@ export default defineComponent({
     },
     activeOwnerId(): string {
       return this.focus.ownerId;
+    },
+    /** The solver's answer in one attribute — the budget it was given, the card it drew (× ui), the rows, the page. */
+    geomStamp(): string {
+      const ui = conUiScale();
+      return `h${Math.round(this.availHPx)} z${(this.sizing.cardZoom / ui).toFixed(3)} r${this.sizing.rows} p${this.sizing.pageSize ?? 0}`;
     },
     /** The size of a band's page (undefined: the whole set is one page). */
     pageSize(): number | undefined {
@@ -593,6 +602,10 @@ export default defineComponent({
     /** Two lines when some tag says the count AND its consequence (`playedTargetTagStacked`) — every cell reserves them. */
     tagLines(): 1 | 2 {
       return this.model.owners.some((o) => o.candidates.some((c) => playedTargetTagStacked(playedTargetTagOfPreview(c.preview)))) ? 2 : 1;
+    },
+    /** The tag's lines as DRAWN — one where the solved card holds the whole line (`PlayedTargetSizing.tagLines`). */
+    drawnTagLines(): 1 | 2 {
+      return this.sizing.tagLines ?? this.tagLines;
     },
     railQuick(): ReadonlyArray<PlayedTargetQuickImpact> {
       // The rail keeps the WORDS; the digits the tag under the card prints are the tag's (TR56, П4).
@@ -945,9 +958,14 @@ export default defineComponent({
         const cs = getComputedStyle(el);
         inset += (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
       }
-      const budget = Math.max(160, band !== null ?
-        band.getBoundingClientRect().bottom - root.getBoundingClientRect().top - inset :
-        this.bandHeight);
+      // …and never past the room the HOST gives (`bandHeight`): a host that sizes a box of its own for the step (the wild
+      // step's slot, P43) is the box that clips it — sized off the band alone the step outgrew that slot by 69 px at 4K
+      // and its second row's tags were cut.
+      // The step's place in the band is read in LAYOUT (`layoutTopWithin`): measured mid-entrance a client rect reads
+      // the unfold's offset, and the budget it gave stayed short after the motion ended (nothing resizes to say so).
+      const budget = Math.max(160, Math.min(this.bandHeight, band !== null ?
+        band.offsetHeight - layoutTopWithin(root, band) - inset :
+        this.bandHeight));
       this.budgetPx = budget;
       const chrome = (this.$refs.contract as HTMLElement | undefined)?.offsetHeight ?? 0;
       const tabs = (this.$refs.tabs as HTMLElement | undefined)?.offsetHeight ?? 0;
@@ -961,6 +979,7 @@ export default defineComponent({
       // round. That ordering is what stops an oversized candidate from pushing
       // the reading of it off the screen.
       const availH = Math.max(120, budget - chrome - tabs - rail - gaps);
+      this.availHPx = availH;
       this.sizing = planPlayedTargetSizing({
         owners: this.model.owners,
         mode: this.layout.mode,
@@ -970,7 +989,33 @@ export default defineComponent({
         handheld: consoleLayoutState.profile === 'handheld',
         tags: this.tagsOn,
         tagLines: this.tagLines,
+        tagOneLineW: this.tagOneLinePx(),
+        ownerBar: this.showsOwnerBar,
       });
+    },
+    /**
+     * The widest STACKED tag laid out on one line (px): its count, the dot, its consequence and the plate's padding —
+     * measured off the tags as they stand (stacked or not, the count and the consequence are the same two runs).
+     * Undefined: no stacked tag on screen yet.
+     */
+    tagOneLinePx(): number | undefined {
+      if (this.tagLines !== 2) {
+        return undefined;
+      }
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      let widest: number | undefined;
+      for (const line of (this.$el as HTMLElement).querySelectorAll<HTMLElement>('.con-ptsel__tag-line')) {
+        const lead = line.querySelector<HTMLElement>('.con-ptsel__tag-lead');
+        const out = line.querySelector<HTMLElement>('.con-ptsel__tag-out');
+        if (lead === null || out === null) {
+          continue;
+        }
+        // Stacked, the lead carries no dot: «·» and its two gaps (.25rem each) come back; flat, the lead's own width has it.
+        const dot = line.classList.contains('con-ptsel__tag-line--stacked') ? 1.1 * rem : 0;
+        const w = lead.scrollWidth + out.scrollWidth + .25 * rem + dot + .9 * rem;
+        widest = Math.max(widest ?? 0, w);
+      }
+      return widest;
     },
     /** Chosen = the confirmed single target, or a member of the multi pick. */
     isChosen(cardName: string): boolean {

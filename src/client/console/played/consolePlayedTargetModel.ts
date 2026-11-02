@@ -979,8 +979,12 @@ export function playedTargetSelfBox(
   return {w, h};
 }
 
-/** Below this a card stops being readable and starts being a swatch. */
-const MIN_CARD_ZOOM = 0.4;
+/**
+ * Below this a card stops being readable and starts being a swatch. 0.36 × ui (≈ 230 px at 4K — the owner's crowded
+ * frame drew ~140): the floor at which a 4K page stands TWO ROWS with two-line tags (the owner, 2026-11-02: «дать
+ * страницам занимать два ряда — это реально с достойной читаемостью»); 0.4 kept every page a single row.
+ */
+const MIN_CARD_ZOOM = 0.36;
 const MIN_CARD_ZOOM_HANDHELD = 0.3;
 /** The HARD floor — a compact host that cannot stand one card at the comfortable floor still draws a readable one. */
 const HARD_CARD_ZOOM = 0.3;
@@ -1049,6 +1053,11 @@ const CARDS_PAD_Y = 12;
 export const PLAYED_TARGET_TAG_ROW_H = 30;
 /** The same row when a tag reads on two lines (`playedTargetTagStacked`): `height: 2.4rem; margin-top: .3rem` (48 + 6). */
 export const PLAYED_TARGET_TAG_ROW_H2 = 54;
+/**
+ * A PAGED row's gutter on each side, rem-equivalent px at ui 1: the page-turn chevron (`.con-ptsel__turn`, 1.6rem) and
+ * .5rem of air — 2.1rem. The solver takes it off the width of a paged set, so the chevron never stands over a card.
+ */
+export const PLAYED_TARGET_TURN_GUTTER = 42;
 
 export const PLAYED_TARGET_VIEWPORT_CHROME_H =
   OWNER_BAR_H + ZONE_PAD_Y + OWNER_PAD_Y + OWNER_GAP + CARDS_PAD_Y;
@@ -1091,6 +1100,12 @@ export type PlayedTargetSizing = {
    * lies flat in one row while a band of nine takes two, instead of every band standing as tall as the busiest.
    */
   ownerRows?: Readonly<Record<string, number>>;
+  /**
+   * The tag's LINES as drawn (absent: as asked). A stacked tag lies on ONE line when the drawn card holds it whole
+   * (`tagOneLineW`) — the two-line reserve was what kept a page from standing TWO ROWS at 4K (the owner, 2026-11-02:
+   * «дать страницам занимать два ряда на TV 4K — с достойной читаемостью»).
+   */
+  tagLines?: 1 | 2;
   /** Nothing fits even at the floor — the zone must scroll for real. */
   overflows: boolean;
   /**
@@ -1114,6 +1129,17 @@ export type PlayedTargetSizingInput = {
   tags?: boolean;
   /** Some tag reads on two lines (`playedTargetTagStacked`) — the row reserved is `PLAYED_TARGET_TAG_ROW_H2`. */
   tagLines?: 1 | 2;
+  /**
+   * The widest stacked tag laid out on ONE line, px (measured by the step: the count, the dot, the consequence and the
+   * plate). A card at least this wide wears its tag on one line and reserves one line's row — see `tagLines` on the
+   * result. Absent: the stacked tags stay stacked.
+   */
+  tagOneLineW?: number;
+  /**
+   * The band draws its OWNER BAR (default). A lone band whose host states the ask draws none — its bar's height and the
+   * gap under it are room for the cards (72 px at 4K was what a SECOND ROW lacked).
+   */
+  ownerBar?: boolean;
 };
 
 /** The card's aspect as width-per-height — the solver turns a height budget
@@ -1286,11 +1312,39 @@ export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTarget
   // TWO FLOORS (the owner, 2026-11-02): the COMFORTABLE one decides the pages; a host too small to stand even one card
   // at it (the MarsBot attack's compact modal) falls back to the HARD floor — the old readable minimum — rather than
   // letting a card stick out of its panel.
-  const comfortable = planPlayedTargetSizingAt(o, o.handheld ? MIN_CARD_ZOOM_HANDHELD : MIN_CARD_ZOOM);
+  const comfortable = planPlayedTargetSizingLines(o, o.handheld ? MIN_CARD_ZOOM_HANDHELD : MIN_CARD_ZOOM);
   if (!comfortable.overflows) {
     return comfortable;
   }
-  return planPlayedTargetSizingAt(o, o.handheld ? HARD_CARD_ZOOM_HANDHELD : HARD_CARD_ZOOM);
+  return planPlayedTargetSizingLines(o, o.handheld ? HARD_CARD_ZOOM_HANDHELD : HARD_CARD_ZOOM);
+}
+
+/** How much of the set a plan shows at once — the whole set beats any page, a bigger page beats a smaller one. */
+function planShows(p: PlayedTargetSizing): number {
+  return p.overflows ? -1 : p.pageSize ?? Number.MAX_SAFE_INTEGER;
+}
+
+/**
+ * ONE LINE OR TWO for the outcome tags. A stacked tag is the narrow card's answer; where the card is wide enough to hold
+ * the whole line, the second line is a reserve the rows pay for — at 4K it was exactly the height a SECOND ROW needed.
+ * Both plans are solved (the one-line one never draws a card narrower than its line) and the one that shows MORE of the
+ * set at once wins — the whole set over a page, a bigger page over a smaller one — then the bigger card.
+ */
+function planPlayedTargetSizingLines(o: PlayedTargetSizingInput, floorZoom: number): PlayedTargetSizing {
+  const stacked = planPlayedTargetSizingAt(o, floorZoom);
+  if (o.tags !== true || o.tagLines !== 2 || o.tagOneLineW === undefined) {
+    return stacked;
+  }
+  const lineZoom = Math.max(floorZoom, o.tagOneLineW / (o.ui * SLOT_W));
+  if (lineZoom > (o.handheld ? MAX_CARD_ZOOM_HANDHELD : MAX_CARD_ZOOM)) {
+    return stacked;
+  }
+  const flat = planPlayedTargetSizingAt({...o, tagLines: 1}, lineZoom);
+  if (flat.overflows) {
+    return stacked;
+  }
+  const more = planShows(flat) - planShows(stacked);
+  return more > 0 || (more === 0 && flat.cardZoom > stacked.cardZoom) ? {...flat, tagLines: 1} : stacked;
 }
 
 function planPlayedTargetSizingAt(o: PlayedTargetSizingInput, floorZoom: number): PlayedTargetSizing {
@@ -1327,7 +1381,8 @@ function planPlayedTargetSizingAt(o: PlayedTargetSizingInput, floorZoom: number)
   const ownerW = (o.availW - (ownerCols - 1) * ownerGap) / ownerCols;
   // The chrome counts the stylesheet's `.3rem` top; the headroom beyond it is
   // room the cards do not get.
-  const bandChrome = PLAYED_TARGET_VIEWPORT_CHROME_H * o.ui + (headroom - CARDS_PAD_TOP * o.ui);
+  const barChrome = o.ownerBar === false ? OWNER_BAR_H + OWNER_GAP : 0;
+  const bandChrome = (PLAYED_TARGET_VIEWPORT_CHROME_H - barChrome) * o.ui + (headroom - CARDS_PAD_TOP * o.ui);
   const railH = groups.some((secs) => playedTargetShowsCategoryRails(secs)) ? SECTION_RAIL_H * o.ui : 0;
   const tagRow = o.tags === true ? (o.tagLines === 2 ? PLAYED_TARGET_TAG_ROW_H2 : PLAYED_TARGET_TAG_ROW_H) * o.ui : 0;
   const solve = (g: ReadonlyArray<ReadonlyArray<PlayedTargetSection>>, w: number, h: number, secGap: number): PlayedTargetSizing =>
@@ -1335,16 +1390,19 @@ function planPlayedTargetSizingAt(o: PlayedTargetSizingInput, floorZoom: number)
   const n = Math.max(1, o.owners.length);
   // A band's category rails are the WHOLE band's (the renderer asks the owner, never the page on screen).
   const railsOf = o.owners.map((owner) => playedTargetShowsCategoryRails(playedTargetSections(owner)) ? SECTION_RAIL_H * o.ui : 0);
-  const solveFor = (g: ReadonlyArray<ReadonlyArray<PlayedTargetSection>>): PlayedTargetSizing => {
+  // A PAGED row keeps a gutter on each side for its page-turn chevron — never a chevron over a card or its tag.
+  const turnGutters = 2 * PLAYED_TARGET_TURN_GUTTER * o.ui;
+  const solveFor = (g: ReadonlyArray<ReadonlyArray<PlayedTargetSection>>, paged = false): PlayedTargetSizing => {
+    const cut = paged ? turnGutters : 0;
     if (o.mode !== 'board') {
-      return solve(g, ownerW, o.availH - bandChrome, sectionGap);
+      return solve(g, ownerW - cut, o.availH - bandChrome, sectionGap);
     }
     // `board` — EVERY group on screen as BANDS one under another (the owner's decision B2, 2026-10-29: always bands),
     // each band carrying its own bar and headroom. The height is shared BY NEED (`solveBands`); the equal share is
     // the fallback when even that cannot stand the floor.
     return solveBands(g, o.owners.map((owner) => owner.id), {
-      w: o.availW, h: o.availH - n * bandChrome, gap, sectionGap, rails: railsOf, tagRow, headroom, minCardW, maxCardW,
-    }) ?? solve(g, o.availW, (o.availH - n * bandChrome) / n, sectionGap);
+      w: o.availW - cut, h: o.availH - n * bandChrome, gap, sectionGap, rails: railsOf, tagRow, headroom, minCardW, maxCardW,
+    }) ?? solve(g, o.availW - cut, (o.availH - n * bandChrome) / n, sectionGap);
   };
   const whole = solveFor(groups);
   // A set that stands whole at a readable size within the row cap is ONE page. A frieze past the cap is paged too.
@@ -1356,14 +1414,14 @@ function planPlayedTargetSizingAt(o: PlayedTargetSizingInput, floorZoom: number)
   // The PAGE CHROME (the band's position spine) is reserved by the host's own budget, never here.
   const most = Math.max(...o.owners.map((owner) => owner.candidates.length));
   for (let size = most - 1; size >= 1; size--) {
-    const paged = solveFor(o.owners.map((owner) => playedTargetSections(playedTargetPage(owner, size, 0))));
+    const paged = solveFor(o.owners.map((owner) => playedTargetSections(playedTargetPage(owner, size, 0))), true);
     if (!paged.overflows && paged.perRow <= PLAYED_TARGET_MAX_PER_ROW) {
       // BALANCED pages: the same page count, the cards shared evenly (eight at a capacity of six read 4 + 4, never
       // 6 + a lonely 2) — a smaller page always fits where the larger one did.
       const pages = Math.ceil(most / size);
       const even = Math.ceil(most / pages);
       if (even < size) {
-        const balanced = solveFor(o.owners.map((owner) => playedTargetSections(playedTargetPage(owner, even, 0))));
+        const balanced = solveFor(o.owners.map((owner) => playedTargetSections(playedTargetPage(owner, even, 0))), true);
         if (!balanced.overflows) {
           return {...balanced, pageSize: even};
         }

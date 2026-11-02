@@ -6,6 +6,7 @@ import {
   sendPlayerInput, settle, soloGameConfig, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {acrossTargetPages} from './targetPages';
 
 /**
  * TRP8 «AEROSPACE COMPANY» — the second PRELUDE of Turmoil Redux and the first one with an ACTION: no play effect,
@@ -266,10 +267,15 @@ test.describe(`console · TRP8 Aerospace Company · ${PRESET.id}`, () => {
     await openActionFocus(page);
     await settle(page);
     await openTargetStep(page);
-    await expect(page.locator('.con-ptsel__cell'), 'EIGHT candidates of two kinds').toHaveCount(8);
+    // A set the readable floor cannot hold whole is PAGED (ledger ET): every page is read, RB between them.
     await shoot(page, 'd-where-eight');
-    expect(await clippedCells(page), 'every candidate stands whole inside the boxes that clip it').toEqual([]);
-    const tags = await candidateTags(page);
+    const cells = await acrossTargetPages(page, async () => {
+      const here = await candidateTags(page);
+      return [{here, clipped: await clippedCells(page)}];
+    });
+    expect(cells.reduce((n, c) => n + c.here.length, 0), 'EIGHT candidates of two kinds, across the pages').toBe(8);
+    expect(cells.flatMap((c) => c.clipped), 'every candidate stands whole inside the boxes that clip it').toEqual([]);
+    const tags = cells.flatMap((c) => c.here);
     expect(tags.filter((t) => t.tag === 'missing'), `every candidate reserves its tag row — ${JSON.stringify(tags)}`).toEqual([]);
   });
 });

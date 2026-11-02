@@ -1463,6 +1463,38 @@ describe('the target selector’s PAGES (the owner, 2026-11-02)', () => {
     }
   });
 
+  /** TWO ROWS ON A 4K PAGE (the owner, 2026-11-02): the tag lies on one line where the card holds it, a lone band
+   *  without a bar reserves no bar — together the height a second row lacked. */
+  it('a 4K page stands TWO ROWS: eight on one page, 2 × 4, at the readable floor (0.36 × ui) or above', () => {
+    const sized = planPlayedTargetSizing({owners: [owner(8)], mode: 'tabs', availW: 1900, availH: 990, ui: 2, handheld: false, tags: true, tagLines: 2, ownerBar: false});
+    expect(sized.pageSize, 'one page').is.undefined;
+    expect(sized.rows).eq(2);
+    expect(sized.cardZoom / 2, 'no smaller than the floor').gte(0.36);
+  });
+
+  it('a tag the card holds on one line gives its second line back to the cards — a bigger card, the same page', () => {
+    const base = {owners: [owner(8)], mode: 'tabs' as const, availW: 1900, availH: 990, ui: 2, handheld: false, tags: true, tagLines: 2 as const, ownerBar: false};
+    const stacked = planPlayedTargetSizing(base);
+    const flat = planPlayedTargetSizing({...base, tagOneLineW: 240});
+    expect(flat.pageSize).eq(stacked.pageSize);
+    expect(flat.tagLines, 'drawn on one line').eq(1);
+    expect(flat.cardZoom).gt(stacked.cardZoom);
+    expect(flat.cardZoom * 320, 'and the card holds the line').gte(240);
+    const wide = planPlayedTargetSizing({...base, tagOneLineW: 420});
+    expect(wide.tagLines, 'a line no card here holds stays stacked').not.eq(1);
+  });
+
+  it('thirteen read two pages of seven, two rows each — never three pages of a single row', () => {
+    const sized = planPlayedTargetSizing({owners: [owner(13)], mode: 'tabs', availW: 1900, availH: 990, ui: 2, handheld: false, tags: true, tagLines: 2, tagOneLineW: 240, ownerBar: false});
+    expect(sized.pageSize).eq(7);
+    expect(sized.rows).eq(2);
+  });
+
+  it('a lone band without a bar reserves no bar', () => {
+    const base = {owners: [owner(3)], mode: 'tabs' as const, availW: 3000, availH: 700, ui: 2, handheld: false};
+    expect(planPlayedTargetSizing({...base, ownerBar: false}).cardZoom).gt(planPlayedTargetSizing(base).cardZoom);
+  });
+
   it('balanced pages: eight cards at a capacity of six read four and four', () => {
     const sized = planPlayedTargetSizing({owners: [owner(8)], mode: 'tabs', availW: 1900, availH: 880, ui: 2, handheld: false, tags: true, tagLines: 2});
     expect(sized.pageSize).eq(4);
