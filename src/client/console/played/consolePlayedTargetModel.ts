@@ -616,7 +616,10 @@ export type BuildPlayedTargetInput = {
  * physical pair, and any card standing between them reads as the pair being
  * broken (the proxy then points across a stranger). The promotion exists only
  * while a self-target exists, so the ordinary no-self prompt keeps the
- * opponents-first order untouched.
+ * opponents-first order untouched — and NEVER on an ATTACK (`remove`, the owner
+ * 2026-11-02: «цель атаки — сам игрок — где-то в конце»): hitting your own
+ * tableau is the last thing a cursor may land on first, so a taking step keeps
+ * the viewer's band LAST even when it carries the source card.
  */
 export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTargetModel {
   // `selfHarm` is deliberately absent here: it depends on whether an OPPONENT
@@ -707,8 +710,8 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
       selfHarm: g.self && direction === 'remove' && opponentsInvolved,
     }))
     .sort((a, b) => {
-      // The source+«ЭТА КАРТА» pair wins the front (see the builder's doc).
-      const pair = Number(carriesSource(b)) - Number(carriesSource(a));
+      // The source+«ЭТА КАРТА» pair wins the front (see the builder's doc) — never on an attack.
+      const pair = direction === 'remove' ? 0 : Number(carriesSource(b)) - Number(carriesSource(a));
       if (pair !== 0) {
         return pair;
       }
@@ -1082,6 +1085,12 @@ export type PlayedTargetSizing = {
   rows: number;
   /** The widest section's cards-per-row at this size (nav fallback + CSS hint). */
   perRow: number;
+  /**
+   * `board` only — the ROWS EACH BAND uses (by owner id; absent: `rows` for every band). The bands share the height
+   * by what they hold (the owner, 2026-11-02: «когда все игроки помещаются на одной странице»): a band of two cards
+   * lies flat in one row while a band of nine takes two, instead of every band standing as tall as the busiest.
+   */
+  ownerRows?: Readonly<Record<string, number>>;
   /** Nothing fits even at the floor — the zone must scroll for real. */
   overflows: boolean;
   /**
@@ -1137,6 +1146,79 @@ type GridShape = {
  */
 function sectionColumnsAt(sections: ReadonlyArray<PlayedTargetSection>, rows: number): Array<number> {
   return sections.map((sec) => Math.max(1, Math.ceil(sec.candidates.length / rows)));
+}
+
+/**
+ * THE BOARD'S SOLVER — the bands share the height BY NEED (the owner, 2026-11-02: «когда все игроки помещаются на
+ * одной странице, компоновка должна так сделать»). One uniform card for every band; each band takes the FEWEST rows
+ * that hold its cards across the width within the row cap, and the bands' heights together fit the zone — so a band
+ * of two lies flat while the busiest takes the rows, and a table that fits whole is never paged for an equal share.
+ * The largest card that stands wins (feasibility is monotone in the card's width: a narrower card never needs more
+ * rows, nor more height — a bisection finds it). Undefined: not even the floor stands — the caller pages / falls back.
+ */
+function solveBands(
+  groups: ReadonlyArray<ReadonlyArray<PlayedTargetSection>>,
+  ids: ReadonlyArray<string>,
+  o: {w: number, h: number, gap: number, sectionGap: number, rails: ReadonlyArray<number>, tagRow: number,
+    headroom: number, minCardW: number, maxCardW: number},
+): PlayedTargetSizing | undefined {
+  const rowsAt = (sections: ReadonlyArray<PlayedTargetSection>, cardW: number): number | undefined => {
+    const count = sections.reduce((n, sec) => n + sec.candidates.length, 0);
+    for (let rows = 1; rows <= Math.min(MAX_GRID_ROWS, Math.max(1, count)); rows++) {
+      const c = sectionColumnsAt(sections, rows).reduce((a, b) => a + b, 0);
+      if (c <= PLAYED_TARGET_MAX_PER_ROW && c * cardW + (c - 1) * o.gap + (sections.length - 1) * o.sectionGap <= o.w) {
+        return rows;
+      }
+    }
+    return undefined;
+  };
+  const plan = (cardW: number): ReadonlyArray<number> | undefined => {
+    const rows: Array<number> = [];
+    let height = 0;
+    for (let i = 0; i < groups.length; i++) {
+      const r = rowsAt(groups[i], cardW);
+      if (r === undefined) {
+        return undefined;
+      }
+      rows.push(r);
+      height += (o.rails[i] ?? 0) + r * (cardW / ASPECT_W_OVER_H + o.tagRow) + (r - 1) * o.gap;
+    }
+    return height <= o.h ? rows : undefined;
+  };
+  let cardW = o.maxCardW;
+  if (plan(cardW) === undefined) {
+    if (plan(o.minCardW) === undefined) {
+      return undefined;
+    }
+    let lo = o.minCardW;
+    let hi = o.maxCardW;
+    for (let k = 0; k < 24; k++) {
+      const mid = (lo + hi) / 2;
+      if (plan(mid) !== undefined) {
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    cardW = lo;
+  }
+  const rows = plan(cardW) ?? [];
+  const sections = Math.max(...groups.map((g) => g.length));
+  const ownerRows: Record<string, number> = {};
+  ids.forEach((id, i) => {
+    ownerRows[id] = rows[i] ?? 1;
+  });
+  return {
+    cardZoom: cardW / SLOT_W,
+    gapPx: o.gap,
+    headroomPx: o.headroom,
+    sectionFlow: sections > 1 ? 'columns' : 'rows',
+    sectionColumns: sections,
+    rows: Math.max(1, ...rows),
+    perRow: Math.max(1, ...groups.map((g, i) => Math.max(...sectionColumnsAt(g, rows[i] ?? 1)))),
+    ownerRows,
+    overflows: false,
+  };
 }
 
 /**
@@ -1251,11 +1333,19 @@ function planPlayedTargetSizingAt(o: PlayedTargetSizingInput, floorZoom: number)
   const solve = (g: ReadonlyArray<ReadonlyArray<PlayedTargetSection>>, w: number, h: number, secGap: number): PlayedTargetSizing =>
     solveSizing(g, solveGrid(g, w, h, gap, secGap, railH, tagRow), gap, headroom, minCardW, maxCardW, capW);
   const n = Math.max(1, o.owners.length);
-  const solveFor = (g: ReadonlyArray<ReadonlyArray<PlayedTargetSection>>): PlayedTargetSizing => o.mode !== 'board' ?
-    solve(g, ownerW, o.availH - bandChrome, sectionGap) :
-    // `board` — EVERY group on screen as BANDS one under another (the owner's decision B2, 2026-10-29: always bands):
-    // the height is shared, each band carries its own bar and headroom.
-    solve(g, o.availW, (o.availH - n * bandChrome) / n, sectionGap);
+  // A band's category rails are the WHOLE band's (the renderer asks the owner, never the page on screen).
+  const railsOf = o.owners.map((owner) => playedTargetShowsCategoryRails(playedTargetSections(owner)) ? SECTION_RAIL_H * o.ui : 0);
+  const solveFor = (g: ReadonlyArray<ReadonlyArray<PlayedTargetSection>>): PlayedTargetSizing => {
+    if (o.mode !== 'board') {
+      return solve(g, ownerW, o.availH - bandChrome, sectionGap);
+    }
+    // `board` — EVERY group on screen as BANDS one under another (the owner's decision B2, 2026-10-29: always bands),
+    // each band carrying its own bar and headroom. The height is shared BY NEED (`solveBands`); the equal share is
+    // the fallback when even that cannot stand the floor.
+    return solveBands(g, o.owners.map((owner) => owner.id), {
+      w: o.availW, h: o.availH - n * bandChrome, gap, sectionGap, rails: railsOf, tagRow, headroom, minCardW, maxCardW,
+    }) ?? solve(g, o.availW, (o.availH - n * bandChrome) / n, sectionGap);
+  };
   const whole = solveFor(groups);
   // A set that stands whole at a readable size within the row cap is ONE page. A frieze past the cap is paged too.
   if (!whole.overflows && whole.perRow <= PLAYED_TARGET_MAX_PER_ROW) {

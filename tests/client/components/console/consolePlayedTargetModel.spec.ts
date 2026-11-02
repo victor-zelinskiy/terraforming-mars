@@ -57,6 +57,7 @@ function build(opts: {
   bot?: ReadonlyArray<string>,
   resourceContext?: (name: CardName, model: CardModel) => {icon: string, count: number, showZero?: boolean} | undefined,
   sourceCardName?: string,
+  takesFromTarget?: boolean,
 }) {
   return buildPlayedTargetModel({
     candidates: opts.candidates.map(card),
@@ -71,6 +72,7 @@ function build(opts: {
     preview: (n) => [{key: 'copy', title: 'Will be copied', entity: 'target', impacts: [{label: n}]}],
     resourceContext: opts.resourceContext,
     sourceCardName: opts.sourceCardName as CardName | undefined,
+    takesFromTarget: opts.takesFromTarget,
   });
 }
 
@@ -1196,6 +1198,18 @@ describe('self-target — one physical object, never two', () => {
       expect(m.owners[0].candidates[0].relation).to.eq('source-card');
       expect(m.owners[1].self).to.eq(false);
     });
+
+    /** An ATTACK never leads with the viewer (the owner, 2026-11-02: «цель атаки — сам игрок — где-то в конце»). */
+    it('an attack keeps the viewer LAST even while its group holds the handle', () => {
+      const m = build({
+        candidates: ['Predators', 'Mars Hydro Turbines'],
+        admin: ['Predators'],
+        victor: ['Mars Hydro Turbines'],
+        sourceCardName: 'Predators',
+        takesFromTarget: true,
+      });
+      expect(m.owners.map((o) => o.self), 'the opponent first, the viewer last').deep.eq([false, true]);
+    });
   });
 });
 
@@ -1426,6 +1440,27 @@ describe('the target selector’s PAGES (the owner, 2026-11-02)', () => {
     expect(playedTargetTurnPage({ownerId: 'red', index: 3}, [o], 4, 1, 'first')).deep.eq({ownerId: 'red', index: 4});
     expect(playedTargetTurnPage({ownerId: 'red', index: 4}, [o], 4, -1, 'last')).deep.eq({ownerId: 'red', index: 3});
     expect(playedTargetTurnPage({ownerId: 'red', index: 9}, [o], 4, 1), 'no page beyond').is.undefined;
+  });
+
+  /** The bands share the height BY NEED — a table that fits whole is never paged for an equal share. */
+  it('a board of 8 + 2 stands on ONE page — each band its own rows, the small one flat (an equal share paged it)', () => {
+    const band = (id: string, n: number) => ({...owner(n), id, color: id, self: id === 'red'});
+    const owners = [band('blue', 8), band('red', 2)];
+    const sized = planPlayedTargetSizing({owners, mode: 'board', availW: 2900, availH: 1600, ui: 2, handheld: false, tags: true});
+    expect(sized.pageSize, 'one page for the whole table').is.undefined;
+    expect(sized.overflows).eq(false);
+    expect(sized.ownerRows, 'the busy band takes two rows, the small one lies flat').deep.eq({blue: 2, red: 1});
+    expect(sized.cardZoom * 320, 'at no less than the readable floor').gte(0.4 * 2 * 320 - 0.01);
+  });
+
+  it('the shared height never draws a card SMALLER than the equal share did', () => {
+    const band = (id: string, n: number) => ({...owner(n), id, color: id, self: false});
+    for (const [w, h] of [[2900, 1250], [2400, 900], [3400, 1600]]) {
+      const owners = [band('blue', 6), band('green', 3), band('yellow', 1)];
+      const sized = planPlayedTargetSizing({owners, mode: 'board', availW: w, availH: h, ui: 2, handheld: false, tags: true});
+      const flat = planPlayedTargetSizing({owners: [band('blue', 6)], mode: 'board', availW: w, availH: h / 3, ui: 2, handheld: false, tags: true});
+      expect(sized.cardZoom, `${w}×${h}`).gte(Math.min(flat.cardZoom, 1) - 1e-6);
+    }
   });
 
   it('balanced pages: eight cards at a capacity of six read four and four', () => {

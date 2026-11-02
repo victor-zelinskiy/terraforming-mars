@@ -146,7 +146,7 @@
             <span class="con-ptsel__turn con-ptsel__turn--next" :class="{'con-ptsel__turn--off': pageOf(owner) >= pagesOf(owner) - 1}"
                   data-ptsel-turn="next" aria-hidden="true">›</span>
           </template>
-          <div v-for="section in sectionsOf(owner)" :key="section.key" class="con-ptsel__section" :style="sectionStyle(section)">
+          <div v-for="section in sectionsOf(owner)" :key="section.key" class="con-ptsel__section" :style="sectionStyle(section, owner)">
             <!-- The SELF block draws no rail of its own (the proxy is a handle,
                  not a card family) — but while the neighbours wear rails it
                  keeps an EMPTY one, so every cards row starts on one baseline. -->
@@ -1048,8 +1048,10 @@ export default defineComponent({
      * exactly that width is what makes the flex row inside it wrap at the right
      * place, so the cards land in the grid the solver actually planned.
      */
-    sectionStyle(section: PlayedTargetSection): Record<string, string> {
-      const cols = Math.max(1, Math.ceil(section.candidates.length / Math.max(1, this.sizing.rows)));
+    sectionStyle(section: PlayedTargetSection, owner: PlayedTargetOwner): Record<string, string> {
+      // A board's band takes its OWN rows (`ownerRows` — the height shared by need), every other layout the grid's.
+      const rows = this.sizing.ownerRows?.[owner.id] ?? this.sizing.rows;
+      const cols = Math.max(1, Math.ceil(section.candidates.length / Math.max(1, rows)));
       const cardW = this.cardWidthPx;
       // CEIL plus a pixel of slack: the cards row wraps at exactly this
       // width, so a half-pixel of rounding the other way would push the last
