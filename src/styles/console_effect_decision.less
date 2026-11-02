@@ -218,6 +218,14 @@
     line-height: 1.3;
     color: fade(@con-amber, 94%);
 }
+/* A raise onto a scale at its maximum — the calm «на максимуме · ничего не изменит» (a fact, not a downside: dim, no amber). */
+.con-decision__opt-notice {
+    width: 100%;
+    .con-read-text(500);
+    font-size: ~"calc(.8rem * var(--con-read-scale, 1))";
+    line-height: 1.3;
+    color: fade(@con-text-dim, 94%);
+}
 /* THE DECLINE of a YES / NO — graphite, fully readable, its own calm rim (the cursor and the seal still paint over it). */
 .con-decision .con-vchoice__opt[data-decision-role="decline"]:not(.con-vchoice__opt--focused):not(.con-vchoice__opt--selected) {
     background: linear-gradient(168deg, rgba(30, 35, 43, 0.96) 0%, rgba(18, 22, 28, 0.97) 100%);

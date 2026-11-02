@@ -37,6 +37,21 @@ describe('consoleOrChoice — premium or items', () => {
     expect(items[1].warnings, 'an unmarked option stays silent').to.eq(undefined);
   });
 
+  it('a global parameter option draws the SCALE’s `current → resulting` (P44 — never the stock branch’s bare «−2»)', () => {
+    const model = {
+      type: 'or',
+      options: [
+        {type: 'option', title: 'Raise temperature 2 steps', warnings: ['maxtemp'],
+          metadata: {kind: 'globalParameter', icon: 'temperature', amount: 2, global: {current: 8, resulting: 8, unit: '°C'}}},
+        {type: 'option', title: 'Raise Venus 2 steps',
+          metadata: {kind: 'globalParameter', icon: 'venus', amount: 2, global: {current: 0, resulting: 4, unit: '%'}}},
+      ],
+    } as unknown as OrOptionsModel;
+    const items = buildOrItems(model);
+    expect(items[0].chips).deep.eq([{direction: 'gain', icon: 'temperature', amount: 2, current: 8, resulting: 8, unit: '°C'}]);
+    expect(items[1].chips).deep.eq([{direction: 'gain', icon: 'venus', amount: 2, current: 0, resulting: 4, unit: '%'}]);
+  });
+
   it('builds a leaf option with its steal metadata chip + player colour', () => {
     const model = {
       type: 'or',

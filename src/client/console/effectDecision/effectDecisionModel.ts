@@ -48,6 +48,8 @@ import {
   SelectCardModel,
 } from '@/common/models/PlayerInputModel';
 import {buildOrItems, ConsoleOrItem} from '@/client/console/consoleOrChoice';
+import {atMaximumNotice} from '@/client/components/card/cardWarnings';
+import {Warning} from '@/common/cards/Warning';
 import {DeclineModel, declineIsButton, DISCARD_DECLINE_KEY, optionalChoiceOf} from '@/client/console/optionalChoice';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 
@@ -84,6 +86,8 @@ export type EffectDecisionAction = {
   chips: ReadonlyArray<ActionEffect>;
   /** A non-numeric downside ("the card is turned face down"). */
   tradeoff?: string | Message;
+  /** i18n KEY — the option raises a scale already at its maximum: offered, and it says so («на максимуме · ничего не изменит»). */
+  notice?: string;
   /** Player-target colour, when the option targets a seat. */
   playerColor?: Color;
   navigation: EffectDecisionNavigation;
@@ -455,6 +459,7 @@ export function buildEffectDecision(
       description: item.description,
       chips,
       tradeoff: item.tradeoff,
+      ...noticeOf(option),
       playerColor: item.playerColor,
       navigation,
       nested,
@@ -598,4 +603,10 @@ export function decisionCommands(vm: EffectDecisionViewModel, focusIdx: number):
 /** The contract's labels, in order. */
 export function decisionCommandKeys(vm: EffectDecisionViewModel, focusIdx: number): Array<string> {
   return decisionCommands(vm, focusIdx).map((c) => c.label);
+}
+
+/** The option's own executor warning, read as ONE calm word (`atMaximumNotice`) — never dropped between the wire and the tile. */
+function noticeOf(option: PlayerInputModel): {notice?: string} {
+  const notice = atMaximumNotice((option as {warnings?: ReadonlyArray<Warning>}).warnings);
+  return notice === undefined ? {} : {notice};
 }

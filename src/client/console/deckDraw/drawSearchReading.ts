@@ -24,7 +24,9 @@ export type DrawSearchTerm =
   | {kind: 'type', type: CardType}
   | {kind: 'with', tag: Tag}
   | {kind: 'resource', resource: CardResource}
-  | {kind: 'without', tags: ReadonlyArray<Tag>};
+  | {kind: 'without', tags: ReadonlyArray<Tag>}
+  /** «со значком аэростата» — Celestic / P44 (`DrawSearchModel.floaterIcon`); drawn as the floater icon. */
+  | {kind: 'floaterIcon'};
 
 /** The word a clause opens with — an English i18n key. The tag / resource itself is drawn as its icon. */
 export function drawSearchTermLabel(term: DrawSearchTerm): string {
@@ -33,6 +35,7 @@ export function drawSearchTermLabel(term: DrawSearchTerm): string {
   case 'with': return 'with the tag';
   case 'resource': return 'collecting';
   case 'without': return 'without the tags';
+  case 'floaterIcon': return 'with a floater icon';
   }
 }
 
@@ -58,6 +61,9 @@ export function drawSearchTerms(search: DrawSearchModel | undefined): Array<Draw
   }
   if (search.withoutTags !== undefined && search.withoutTags.length > 0) {
     out.push({kind: 'without', tags: search.withoutTags});
+  }
+  if (search.floaterIcon === true) {
+    out.push({kind: 'floaterIcon'});
   }
   return out;
 }

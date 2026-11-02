@@ -8,6 +8,7 @@
       <span class="con-dsearch__label">{{ $t(labelOf(term)) }}</span>
       <span v-if="term.kind === 'with'" class="con-dsearch__tag" :data-tag="term.tag" :style="tagStyle(term.tag)" aria-hidden="true"></span>
       <span v-else-if="term.kind === 'resource'" class="con-dsearch__res" :style="resourceStyle(term.resource)" aria-hidden="true"></span>
+      <span v-else-if="term.kind === 'floaterIcon'" class="con-dsearch__res" :style="resourceStyle(floater)" aria-hidden="true"></span>
       <template v-else-if="term.kind === 'without'">
         <span v-for="tag in term.tags" :key="tag" class="con-dsearch__tag con-dsearch__tag--struck" :data-tag="tag" :style="tagStyle(tag)" aria-hidden="true"></span>
       </template>
@@ -44,6 +45,9 @@ export default defineComponent({
     size: {type: String as PropType<'chip' | 'line'>, default: 'chip'},
   },
   computed: {
+    floater(): CardResource {
+      return CardResource.FLOATER;
+    },
     terms(): ReadonlyArray<DrawSearchTerm> {
       return this.clauses ?? drawSearchTerms(this.search);
     },
@@ -55,6 +59,7 @@ export default defineComponent({
         case 'with': return `with:${t.tag}`;
         case 'resource': return `resource:${t.resource}`;
         case 'without': return `without:${t.tags.join(',')}`;
+        case 'floaterIcon': return 'floaterIcon';
         }
       }).join(' ');
     },

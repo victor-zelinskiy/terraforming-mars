@@ -89,6 +89,8 @@
                     <ActionEffectChip v-for="(chip, k) in action.chips" :key="k" :effect="chip" />
                   </div>
                   <div v-if="tradeoffOf(action) !== ''" class="con-decision__opt-tradeoff">⚠ {{ tradeoffOf(action) }}</div>
+                  <!-- The raise lands on a scale at its maximum: offered (the rules allow it), and it says so — calm. -->
+                  <div v-if="action.notice !== undefined" class="con-decision__opt-notice" data-decision-notice="at-maximum">{{ $t(action.notice) }}</div>
                 </template>
               </template>
             </ConsoleVariantChoice>

@@ -65,6 +65,14 @@ describe('effectDecisionModel', () => {
   const cardContext = (mode = 'optional-effect', card = CardName.MARS_UNIVERSITY) =>
     ({source: {kind: 'card', card}, trigger: 'You played a science tag.', mode});
 
+  // ── a variant at its ceiling (P44 · ledger EQ) ─────────────────────────────
+
+  it('an option that raises a scale at its maximum is OFFERED and says so — the executor warning is never dropped', () => {
+    const maxed = {...leaf('Raise temperature 2 steps'), warnings: ['maxtemp']} as unknown as PlayerInputModel;
+    const vm = buildEffectDecision(or([maxed, leaf('Raise oxygen 2 steps')], cardContext('effect-choice', CardName.ATMOSPHERIC_ENHANCERS)), {handNames: HAND});
+    expect(vm?.actions.map((a) => a.notice)).deep.eq(['At its maximum · changes nothing', undefined]);
+  });
+
   // ── the gate ──────────────────────────────────────────────────────────────
 
   it('refuses everything that is not a MARKED top-level choice', () => {

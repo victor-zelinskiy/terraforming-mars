@@ -121,6 +121,16 @@ describe('drawSearchReading', () => {
     expect(planDeckDraw(JOURNEY, T, true)).deep.eq(planDeckDraw(bare, T, true));
   });
 
+  describe('a floater-icon search names itself (Celestic, P44)', () => {
+    const FLOATERS: DrawSearchModel = {count: 2, floaterIcon: true};
+    it('one clause «with a floater icon»; a discard reads the rule it did not meet', () => {
+      expect(drawSearchTerms(FLOATERS)).deep.eq([{kind: 'floaterIcon'}]);
+      expect(drawSearchTermLabel({kind: 'floaterIcon'})).eq('with a floater icon');
+      expect(drawDiscardVerdict(step(CardName.ANTS, false), FLOATERS)).deep.eq({kind: 'rule', terms: [{kind: 'floaterIcon'}]});
+      expect(drawDiscardVerdict(step(CardName.DIRIGIBLES, true), FLOATERS)).is.undefined;
+    });
+  });
+
   describe('the «Далее» row of a filtered draw', () => {
     const translate = (key: string, params: ReadonlyArray<string>) => `${key}|${params.join(',')}`;
 

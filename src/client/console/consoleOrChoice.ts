@@ -95,6 +95,12 @@ function chipsFromMetadata(m: OptionMetadata | undefined): Array<ActionEffect> {
     return [...m.effects];
   }
   const out: Array<ActionEffect> = [];
+  // A global parameter's metadata also carries `icon` + `amount`; its `current → resulting` is the SCALE's, so it is
+  // read first (it once fell into the stock branch below and drew «−2» with no before → after).
+  if (m.kind === 'globalParameter' && m.global !== undefined) {
+    out.push({direction: 'gain', icon: m.icon ?? 'venus', amount: m.amount ?? 0, current: m.global.current, resulting: m.global.resulting, unit: m.global.unit});
+    return out;
+  }
   if (m.icon !== undefined && m.amount !== undefined && m.amount !== 0) {
     // A steal / removal reads as the TARGET losing the resource (cost/amber);
     // a gain reads mint. `player.current → resulting` is the honest before→after.

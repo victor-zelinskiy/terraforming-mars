@@ -85,6 +85,18 @@ export function warningLevel(warning: Warning): WarningLevel {
   return WARNING_LEVEL[warning] ?? 'warning';
 }
 
+/** The scale-ceiling warnings: the raise is offered, and changes nothing. */
+const AT_MAXIMUM: ReadonlySet<Warning> = new Set<Warning>(['maxtemp', 'maxoxygen', 'maxoceans', 'maxvenus', 'maxHabitatRate', 'maxMiningRate', 'maxLogisticRate']);
+
+/**
+ * THE VARIANT AT ITS CEILING, in one calm word (P44 · ledger EQ) — an option whose raise lands on a scale already at
+ * its maximum is OFFERED (the rules allow it) and says so on its own tile: «на максимуме · ничего не изменит». The
+ * executor's own warning decides (`Executor.canExecute` → `option.warnings`); undefined for any other option.
+ */
+export function atMaximumNotice(warnings: ReadonlyArray<Warning> | undefined): string | undefined {
+  return warnings?.some((w) => AT_MAXIMUM.has(w)) === true ? 'At its maximum · changes nothing' : undefined;
+}
+
 export function warningText(warning: Warning): string {
   return WARNING_TEXT[warning] ?? String(warning);
 }
