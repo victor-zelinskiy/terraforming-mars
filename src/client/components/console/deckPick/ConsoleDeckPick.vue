@@ -95,6 +95,37 @@
         </div>
       </div>
 
+      <!-- THE VERDICT AFTER THE REVEAL (P45 Board of Directors · ledger ET): ONE prelude was drawn and the player decides
+           what happens to it — two OUTCOME rows (play it for the printed price · let it go to the discard), each with its
+           chips and its reason; A on a row is the decision AND the commit. A refused row is read, never taken; the one
+           open outcome is marked and still pressed (no auto-answer). -->
+      <div v-if="verdictRows.length > 0" class="con-deckpick__verdict" data-deckpick-verdict role="listbox"
+           :aria-label="$t('Prelude decision')">
+        <div v-for="(row, i) in verdictRows" :key="row.key"
+             class="con-deckpick__vrow"
+             role="option"
+             :aria-selected="verdictFocus === i"
+             :data-verdict-row="row.key"
+             :data-verdict-available="row.available ? 'true' : 'false'"
+             :data-verdict-sole="row.sole ? 'true' : undefined"
+             :class="{
+               'con-deckpick__vrow--focused': verdictFocus === i && interactive,
+               'con-deckpick__vrow--refused': !row.available,
+               'con-deckpick__vrow--burns': row.burns,
+             }">
+          <span class="con-deckpick__vlabel">{{ $t(row.label) }}</span>
+          <span class="con-deckpick__vdetail">{{ verdictText(row.detail) }}</span>
+          <span v-if="row.chips.length > 0" class="con-deckpick__vchips">
+            <span v-for="(chip, c) in row.chips" :key="c" class="con-deckpick__vchip" :data-verdict-chip="chip.kind">
+              <span class="con-deckpick__vchip-icon" :class="chipIconClass(chip)" aria-hidden="true"></span>
+              <span class="con-deckpick__vchip-num">{{ chip.from }} → {{ chip.to }}</span>
+            </span>
+          </span>
+          <span v-if="row.reason !== undefined" class="con-deckpick__vreason" data-verdict-reason>{{ verdictText(row.reason) }}</span>
+          <span v-if="row.sole" class="con-deckpick__vsole" data-verdict-sole-mark>{{ $t('The only outcome') }}</span>
+        </div>
+      </div>
+
       <!-- THE PRELUDE'S «ВАРИАНТ» STEP (P44 · ledger EQ) — a LAYER over the candidates (their slots keep their geometry,
            receded): RT on a prelude whose play is a choice opens it, A on a row chooses AND plays (ONE batch — the pick
            and the addressed answer), B returns to the candidates with the pick kept. The same component the start
@@ -168,7 +199,7 @@ import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWs
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {Message} from '@/common/logs/Message';
-import {DeckPickPromptMeta, SelectCardModel} from '@/common/models/PlayerInputModel';
+import {DeckPickPlayPrice, DeckPickPromptMeta, SelectCardModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -198,10 +229,11 @@ import {startQueueFxLane, StartQueueFxLane} from '@/client/console/startQueueLay
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {armPreludeBurn, flyPreludeBurn, preludeBurnOwed, releasePreludeBurn} from '@/client/console/deckPick/preludeBurnReward';
 import {beginPreludePlayChain} from '@/client/console/deckPick/preludePlayChain';
+import {initialVerdictFocus, preludePriceBill, preludeVerdictOf, PreludeVerdictChip, preludeVerdictRows, PreludeVerdictRow, stepVerdictFocus} from '@/client/console/deckPick/preludeVerdict';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {cardsResponse} from '@/client/console/taskResponses';
-import {markWorkspaceOutcomeArrivalDone, setWorkspaceOutcomePhase, workspaceOutcomeArrivalFlown, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeArrivalDone, setWorkspaceOutcomePhase, workspaceOutcomeArrivalFlown, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {
   armDeckPickFlight, beginDeckPickChoosing, beginDeckPickClearing, beginDeckPickDeal,
   beginDeckPickSend, clearDeckPickFlight, deckPickProxyEls, deckPickState,
@@ -274,7 +306,11 @@ export default defineComponent({
         play: boolean,
         /** Which of the candidates BURN (the verdict read at the commit — the prompt dies with the submit). */
         burning: Array<CardName>,
+        /** The verdict's price (P45), frozen with the rest — the rows stand through the exit. */
+        verdict: DeckPickPlayPrice | undefined,
       } | undefined,
+      /** THE VERDICT's cursor (P45): 0 = play it, 1 = discard it. */
+      verdictFocus: 0,
       /** THE PRELUDE DECK'S NUMBERS AS PRESENTED (P91) — held while bodies are still moving, else the server's. */
       heldDeckCount: undefined as number | undefined,
       heldDiscardCount: undefined as number | undefined,
@@ -341,13 +377,34 @@ export default defineComponent({
         return this.frozen.bounds;
       }
       const m = this.meta;
+      if (this.verdictPrice !== undefined) {
+        // A VERDICT is «0 or 1» — and `max 0` is real (the play is refused): never lifted to 1.
+        return {min: 0, max: Math.max(0, m?.max ?? 0)};
+      }
       return {min: m?.min ?? 1, max: Math.max(1, m?.max ?? 1)};
+    },
+    /** THE VERDICT AFTER THE REVEAL (P45): the marker's price, or undefined (P91's «choose 1 of N» stands). */
+    verdictPrice(): DeckPickPlayPrice | undefined {
+      return this.frozen !== undefined ? this.frozen.verdict : preludeVerdictOf(this.meta);
+    },
+    /** The two outcome rows — off the marker (`price`, `max`) and the server's burn verdict, never re-derived. */
+    verdictRows(): Array<PreludeVerdictRow> {
+      const price = this.verdictPrice;
+      const card = this.entries[0]?.name;
+      if (price === undefined || card === undefined) {
+        return [];
+      }
+      return preludeVerdictRows(price, {megacredits: this.playerView.thisPlayer.megacredits, max: this.bounds.max, burns: this.burns(card)});
     },
     /** The whole prompt is answered by taking EXACTLY this many. */
     exact(): boolean {
       return this.bounds.min === this.bounds.max;
     },
     ready(): boolean {
+      if (this.verdictPrice !== undefined) {
+        // The verdict's answer is the ROW; either row is a whole answer (`[]` or the card).
+        return true;
+      }
       return handSelectPicksValid(this.bounds, this.picks.length);
     },
     /** The flow's phase, as the module sees it — one source for the class, the
@@ -417,7 +474,11 @@ export default defineComponent({
     },
     stageKey(): string {
       if (this.playMode) {
-        // «… › ВЫБОР ПРОЛОГА» → «… › ПРОЛОГ»: the tail only moves forward.
+        // «… › ВЫБОР ПРОЛОГА» → «… › ПРОЛОГ»: the tail only moves forward. A verdict (P45) reads «› ВЕРДИКТ»
+        // until the press; a played one moves on to «› ПРОЛОГ», a discard stays on its verdict.
+        if (this.verdictPrice !== undefined) {
+          return this.committed ? (this.picks.length > 0 ? 'Prelude' : 'Verdict') : (this.variantStep !== undefined ? 'Variant' : 'Verdict');
+        }
         return this.committed ? 'Prelude' : (this.variantStep !== undefined ? 'Variant' : 'Prelude choice');
       }
       switch (this.phase) {
@@ -430,6 +491,9 @@ export default defineComponent({
     /** The stage's own sentence. The SERVER title wins («Оставьте себе 2
      *  карт(ы)») — it is the precise ask, phrased by the rule that asked. */
     askText(): string {
+      if (this.verdictPrice !== undefined) {
+        return translateText('Play the drawn prelude, or discard it');
+      }
       if (this.playMode) {
         return translateTextWithParams('Choose 1 of ${0} preludes to play', [String(this.entries.length)]);
       }
@@ -446,6 +510,9 @@ export default defineComponent({
         return translateText(this.meta?.origin === 'discard' ? 'From the discard pile' : this.playMode ? 'From the prelude deck' : 'Drawing cards…');
       }
       if (this.committed && this.playMode) {
+        if (this.verdictPrice !== undefined && this.picks.length === 0) {
+          return translateText('The prelude is discarded');
+        }
         return translateText(this.pickBurns ? 'The prelude burns' : 'The prelude is played');
       }
       if (this.committed) {
@@ -458,8 +525,16 @@ export default defineComponent({
       if (this.phase === 'dealing') {
         return translateTextWithParams(this.playMode ? 'Preludes from the deck: ${0}' : 'Cards from the deck: ${0}', [String(this.entries.length)]);
       }
+      if (this.committed && this.verdictPrice !== undefined) {
+        return translateText(this.picks.length > 0 ? 'The price is paid first' : 'To the prelude discard pile');
+      }
       if (this.committed) {
         return translateText(this.playMode ? 'The other preludes go to the discard pile' : 'The rest is discarded');
+      }
+      if (this.verdictPrice !== undefined) {
+        // The focused OUTCOME's consequence (its refusal when refused) — one line, what the face cannot print.
+        const row = this.verdictRows[this.verdictFocus];
+        return row === undefined ? '' : this.verdictText(row.reason ?? row.detail);
       }
       if (this.playMode) {
         // The FOCUSED candidate's fate in one line — what the face cannot print.
@@ -489,7 +564,7 @@ export default defineComponent({
       // Deliberately off the LIVE model, never the frozen snapshot: this key's
       // whole job is to notice the server moving on, and a frozen one never
       // would.
-      return `${this.liveEntries.map((e) => e.name).join('|')}#${m?.min ?? 0}-${m?.max ?? 0}`;
+      return `${this.liveEntries.map((e) => e.name).join('|')}#${m?.min ?? 0}-${m?.max ?? 0}${m?.price !== undefined ? '$' + m.price.megacredits : ''}`;
     },
     footCommands(): Array<ConsoleCommand> {
       if (!this.interactive) {
@@ -510,6 +585,24 @@ export default defineComponent({
           {control: 'secondary', label: 'Inspect'},
           {control: 'back', label: 'Back'},
         ];
+      }
+      if (this.verdictPrice !== undefined) {
+        // THE VERDICT (P45): A on a row decides AND commits — the verb names the row (a burn named as one).
+        const row = this.verdictRows[this.verdictFocus];
+        const cmds: Array<ConsoleCommand> = [
+          {control: 'dpad', label: 'Navigate'},
+          {
+            control: 'confirm',
+            label: row?.key === 'discard' ? 'Discard' : (row?.burns === true ? 'Burn for 15 M€' : 'Play now'),
+            enabled: row?.available === true,
+          },
+          {control: 'secondary', label: 'Inspect'},
+        ];
+        if (this.sourceView?.inspectable === true) {
+          cmds.push({control: 'stickL', label: 'Source', priority: 1});
+        }
+        cmds.push({control: 'back', label: 'Minimize'});
+        return cmds;
       }
       if (this.playMode) {
         // A prelude is PLAYED — A chooses, RT commits; the verb names a burn (the press is the confirmation).
@@ -573,6 +666,7 @@ export default defineComponent({
         this.picks = [];
         this.focusIdx = 0;
         this.submitting = false;
+        this.verdictFocus = initialVerdictFocus(this.verdictRows);
         if (this.entries.length > 0) {
           this.startDeal();
         }
@@ -922,7 +1016,7 @@ export default defineComponent({
       let budget = frame.clientHeight -
         (parseFloat(fcs.paddingTop) || 0) - (parseFloat(fcs.paddingBottom) || 0);
       const root = this.$el as HTMLElement | undefined;
-      for (const sel of ['.con-wshead', '.con-deckpick__head', '.con-deckpick__status']) {
+      for (const sel of ['.con-wshead', '.con-deckpick__head', '.con-deckpick__status', '.con-deckpick__verdict']) {
         const el = root?.querySelector<HTMLElement>(sel) ?? null;
         if (el !== null) {
           const ecs = window.getComputedStyle(el);
@@ -955,6 +1049,26 @@ export default defineComponent({
           this.variantCard = undefined;
         } else if (verb === 'inspect') {
           this.inspectFocused();
+        }
+        return;
+      }
+      if (this.verdictPrice !== undefined && this.verdictRows.length > 0) {
+        // THE VERDICT (P45): the cursor walks the OUTCOMES (one card, two rows); A on a row decides and commits.
+        if (intent.kind === 'nav') {
+          this.verdictFocus = stepVerdictFocus(this.verdictRows, this.verdictFocus, intent.dir === 'down' || intent.dir === 'right' ? 1 : -1);
+          return;
+        }
+        if (intent.kind === 'press' && intent.button === 'stickL') {
+          this.inspectSource();
+          return;
+        }
+        const verb = consoleActionOf(intent);
+        if (verb === 'primary') {
+          this.chooseVerdictRow(this.verdictFocus);
+        } else if (verb === 'inspect') {
+          this.inspectFocused();
+        } else if (verb === 'back') {
+          this.$emit('defer');
         }
         return;
       }
@@ -1014,6 +1128,29 @@ export default defineComponent({
         row?.style.getPropertyValue('--con-ws-stage-per-row') || String(this.entries.length), 10) ||
         this.entries.length);
       this.focusIdx = stepHandGrid(this.focusIdx, dir, this.entries.length, perRow);
+    },
+    /** A on a verdict row (P45): the play — through the ordinary commit (the «ВАРИАНТ» step first when the prelude's play
+     *  is a choice) — or the discard (`[]`). A refused row is read, never taken. */
+    chooseVerdictRow(index: number): void {
+      const row = this.verdictRows[index];
+      const card = this.entries[0]?.name;
+      if (row === undefined || card === undefined || !row.available) {
+        return;
+      }
+      this.verdictFocus = index;
+      this.picks = row.key === 'play' ? [card] : [];
+      this.confirm();
+      if (!this.submitting && this.variantCard === undefined) {
+        this.picks = [];
+      }
+    },
+    verdictText(text: {key: string, params: ReadonlyArray<string>}): string {
+      return text.params.length > 0 ? translateTextWithParams(text.key, [...text.params]) : translateText(text.key);
+    },
+    chipIconClass(chip: PreludeVerdictChip): string {
+      return chip.kind === 'megacredits' ?
+        'resource_icon resource_icon--megacredits' :
+        'con-deckpick__vchip-icon--card';
     },
     toggleFocused(): void {
       const name = this.focusedName as CardName;
@@ -1147,6 +1284,7 @@ export default defineComponent({
         source: this.sourceView,
         play: this.playMode,
         burning: this.entries.map((e) => e.name).filter((name) => this.burns(name)),
+        verdict: this.verdictPrice,
       };
       if (this.frozen.play) {
         this.frozenKey = this.promptKey;
@@ -1324,14 +1462,17 @@ export default defineComponent({
         return;
       }
       this.heldDiscardCount = this.playerView.game.preludeDiscardSize ?? 0;
+      const price = this.verdictPrice;
       if (this.burns(chosen)) {
         // PL-1469: the 15 M€ are this card's — the answer that pays them is held on the rail for a token off its face.
-        armPreludeBurn(chosen);
+        // A verdict's burn (P45) is charged its price in the same answer: a known move of the burn's check.
+        armPreludeBurn(chosen, price?.megacredits ?? 0);
         return;
       }
       // PL-1467: what the prelude asks next is a step of THIS hand's flow — a board step included (the hand yields
       // to the board and comes back if the flow still owes it).
-      beginPreludePlayChain(chosen);
+      // …in the workspace this pick stands in: the hand (P91) or «ДЕЙСТВИЯ КАРТ» (P45's verdict — the action's claim).
+      beginPreludePlayChain(chosen, this.embedded && workspaceOutcomeState.host === 'card-actions' ? 'card-actions' : 'hand');
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(chosen) : chosen.replace(/"/g, '\\"');
       armPlayedHero(chosen, false, {
         manualTableOpen: false,
@@ -1339,6 +1480,8 @@ export default defineComponent({
         sourceSelector: `.con-deckpick [data-deckpick-slot="${esc}"] :is(.card-container, .pcard)`,
         targetSelector: PRELUDE_SEAT_SELECTOR,
         rewards: this.candidateRewards[chosen],
+        // THE VERDICT'S PRICE LEAVES FIRST (P45 · PL-099 / PL-104): off the M€ row into the source's printed «12 M€».
+        ...(price !== undefined ? {bill: preludePriceBill(price, this.candidateRewards[chosen])} : {}),
         sourceFace: {lightweight: true},
         landingFace: {lightweight: true, model: 'none'},
       });

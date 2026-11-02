@@ -393,6 +393,10 @@ function kindSummary(
     // just turned over. The server title («Оставьте себе 2 карт(ы)») is the
     // precise ask and wins, as it does everywhere else.
     const deck = wf?.deckPickPrompt;
+    if (deck?.mode === 'play' && deck.min === 0 && deck.price !== undefined) {
+      // THE VERDICT AFTER THE REVEAL (P45 Board of Directors): one drawn prelude — play it for its price, or discard it.
+      return {kickerKey: 'Prelude decision', ask: ask(wf, 'Play the drawn prelude, or discard it'), sourceCard: source, returnKey: 'Return to the decision'};
+    }
     if (deck?.mode === 'play') {
       // THE MID-GAME PRELUDE PICK (P91): the pick is played, never kept.
       return {kickerKey: 'Prelude choice', ask: ask(wf, 'Choose a prelude to play'), sourceCard: source, returnKey: 'Return to selection'};

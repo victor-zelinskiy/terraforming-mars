@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {
-  beginPreludePlayChain, endPreludePlayChain, preludeChainHoldsClaim, preludeChainOwesHand, preludePlayChainState,
+  beginPreludePlayChain, endPreludePlayChain, preludeChainHoldsClaim, preludeChainOn, preludeChainOwesHand, preludePlayChainState,
 } from '@/client/console/deckPick/preludePlayChain';
 import {CardName} from '@/common/cards/CardName';
 
@@ -30,6 +30,18 @@ describe('preludePlayChain', () => {
     expect(preludeChainHoldsClaim(true), 'a live placement of the chain keeps the claim').is.true;
     endPreludePlayChain();
     expect(preludeChainHoldsClaim(true)).is.false;
+  });
+
+  it('the HOST is a parameter (P45): a chain played out of «ДЕЙСТВИЯ КАРТ» stands there, not in the hand', () => {
+    beginPreludePlayChain('Loan' as CardName);
+    expect(preludePlayChainState.host, 'the default stays the hand (P91)').eq('hand');
+    expect(preludeChainOn('hand')).is.true;
+    endPreludePlayChain();
+    beginPreludePlayChain('Loan' as CardName, 'card-actions');
+    expect(preludeChainOn('card-actions')).is.true;
+    expect(preludeChainOn('hand')).is.false;
+    endPreludePlayChain();
+    expect(preludePlayChainState.host, 'the end resets the host').eq('hand');
   });
 
   it('owed: a card pick / a deck pick the hand hosts brings the hand back', () => {

@@ -36,6 +36,7 @@
  * PURE-ish: reads the workspace stack, writes the claim. No DOM, no Vue
  * components, no i18n.
  */
+import {preludeChainOn} from '@/client/console/deckPick/preludePlayChain';
 import {
   WorkspaceOutcomeHost,
   WorkspaceOutcomeKind,
@@ -298,7 +299,7 @@ export function playOwesTargetPick(waitingFor: PlayerInputModel | undefined): bo
 
 export function isPlayOutcomeHost(host: WorkspaceOutcomeHost | undefined): boolean {
   return host !== undefined && (PLAY_OUTCOME_HOSTS.some((spec) => spec.host === host) ||
-    (host === 'card-actions' && lawPlayOutcomeLive()));
+    (host === 'card-actions' && (lawPlayOutcomeLive() || preludeChainOn('card-actions'))));
 }
 
 /**

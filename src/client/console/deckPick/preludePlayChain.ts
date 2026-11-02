@@ -17,6 +17,10 @@
  *
  * Gated to this chain on purpose: an ordinary play from the hand keeps its own road (a staged tile commits on the
  * board and ends there); the law is general, its first owner is the prelude a pick played.
+ *
+ * THE HOST IS A PARAMETER (P45 Board of Directors · ledger ET): the pick that plays the prelude stands in the hand
+ * (P91 WG Project) OR in «ДЕЙСТВИЯ КАРТ» (P45's action — the verdict after the reveal). Every reader asks the chain's
+ * OWN host — the frame that steps aside for the board, the frame whose unmount ends the chain — never the hand by name.
  */
 import {reactive} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -26,25 +30,36 @@ import {currentRevealEvent, pendingRevealEvents} from '@/client/components/drawn
 import {workspaceClaimsRevealSource} from '@/client/console/consoleWorkspaceOutcome';
 import {stackYieldedToBoard, workspaceFrameDescended, workspaceFrameMounted} from '@/client/console/consoleWorkspaceStack';
 
+/** The workspaces a prelude pick that PLAYS can stand in. */
+export type PreludeChainHost = 'hand' | 'card-actions';
+
 export const preludePlayChainState = reactive({
   live: false,
   card: '' as string,
+  host: 'hand' as PreludeChainHost,
 });
 
-/** The pick played `card` (not a burn): its follow-ups are this chain's until the hand's flow is over. */
-export function beginPreludePlayChain(card: CardName): void {
+/** The pick played `card` (not a burn): its follow-ups are this chain's until its HOST's flow is over. */
+export function beginPreludePlayChain(card: CardName, host: PreludeChainHost = 'hand'): void {
   preludePlayChainState.live = true;
   preludePlayChainState.card = card;
+  preludePlayChainState.host = host;
 }
 
 export function endPreludePlayChain(): void {
   preludePlayChainState.live = false;
   preludePlayChainState.card = '';
+  preludePlayChainState.host = 'hand';
 }
 
-/** A placement now: the hand steps aside instead of going home (the hand hosts the chain's play). */
+/** Does a live chain stand in `host`? */
+export function preludeChainOn(host: PreludeChainHost): boolean {
+  return preludePlayChainState.live && preludePlayChainState.host === host;
+}
+
+/** A placement now: the host steps aside instead of going home (the host carries the chain's play). */
 export function preludeChainYieldsToBoard(): boolean {
-  return preludePlayChainState.live && workspaceFrameDescended('hand');
+  return preludePlayChainState.live && workspaceFrameDescended(preludePlayChainState.host);
 }
 
 /** The play's claim survives the board step — it is a step of the flow, not its end. */
@@ -68,9 +83,9 @@ export function preludeChainOwesHand(view: PlayerViewModel): boolean {
   return pendingRevealEvents().some((entry) => workspaceClaimsRevealSource(entry.source));
 }
 
-/** Every applied view: a chain whose hand is gone (and not merely aside for the board) is over. */
+/** Every applied view: a chain whose host is gone (and not merely aside for the board) is over. */
 export function notePreludeChainView(): void {
-  if (preludePlayChainState.live && !stackYieldedToBoard() && !workspaceFrameMounted('hand')) {
+  if (preludePlayChainState.live && !stackYieldedToBoard() && !workspaceFrameMounted(preludePlayChainState.host)) {
     endPreludePlayChain();
   }
 }

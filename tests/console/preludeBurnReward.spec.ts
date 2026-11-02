@@ -56,6 +56,13 @@ describe('preludeBurnReward', () => {
     expect(preludeBurnOwed(), 'the spent arm takes no later gain').is.false;
   });
 
+  it('a verdict’s burn (P45) is charged its price in the same answer: +15 − 12 = +3 still holds the 15', () => {
+    armPreludeBurn('Loan' as CardName, 12);
+    seedPreludeBurnRewardHold(view(40), view(43));
+    expect(preludeBurnOwed(), 'the price is a known move of the row').is.true;
+    expect(heldStock('megacredits')).eq(PRELUDE_BURN_MEGACREDITS);
+  });
+
   it('the flyer leaving releases the hold — the row ticks now, the blocking hold falls', () => {
     armPreludeBurn('Huge Asteroid' as CardName);
     seedPreludeBurnRewardHold(view(0), view(PRELUDE_BURN_MEGACREDITS));

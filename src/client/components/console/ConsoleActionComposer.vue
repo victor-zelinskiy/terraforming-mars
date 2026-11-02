@@ -2797,6 +2797,22 @@ export default defineComponent({
      * the miss's price. Read off the server's descriptor only — the client counts nothing.
      */
     revealSplitRows(): ReadonlyArray<{key: string, text: string, tail: string, tagUrl?: string, iconClass?: string}> {
+      // A VERDICT REVEAL over the PRELUDE deck (P45 — `revealVerdict`) reads on the same rows: what leaves which deck,
+      // the decision AFTER the reveal with its price, and whether the wallet opens the play. The server's numbers only.
+      const verdict = this.selectedBranch?.revealVerdict;
+      if (verdict !== undefined) {
+        const here = verdict.play.resourcesHere;
+        return [
+          {key: 'deal', text: translateText('Draw 1 card from the prelude deck'),
+            tail: translateTextWithParams('In the deck: ${0}', [String(verdict.deckSize)]), iconClass: 'resource_icon resource_icon--cards'},
+          {key: 'decide', text: translateTextWithParams('After the reveal: discard it, or pay ${0} M€ and 1 director to play it', [String(verdict.play.megacredits)]),
+            tail: here === undefined ? '' : translateTextWithParams('Directors: ${0} → ${1}', [String(here.have), String(Math.max(0, here.have - here.count))])},
+          {key: 'money', text: verdict.play.affordable ?
+            translateText('Enough M€ to play it') :
+            translateTextWithParams('Need ${0} more M€ — only the discard is open', [String(verdict.play.deficit ?? 1)]),
+          tail: '', iconClass: 'resource_icon resource_icon--megacredits'},
+        ];
+      }
       const split = this.selectedBranch?.revealSplit;
       if (split === undefined) {
         return [];

@@ -2729,11 +2729,17 @@ export default defineComponent({
         }
         if (kinds.length > 0) {
           claimWorkspaceOutcome('card-actions', comp.cardName, kinds, comp.nodeIndex, expectedCards,
-            stageScope ?? 'card');
+            stageScope ?? plan.scope ?? 'card');
         }
         if (branch?.reveal !== undefined) {
           this.outcomeFlow = {kind: 'deck-check'};
           setConsoleActionRevealClaim(comp.cardName);
+        } else if (branch?.revealVerdict !== undefined) {
+          // THE VERDICT AFTER THE REVEAL (P45 Board of Directors): the deck pick deals its ONE prelude off its own deck
+          // object, in the zone — a STEP stage (no card beat of the composer's: nothing comes off the HUD pile), its
+          // stage names («ВЕРДИКТ» → «ВАРИАНТ» → «ПРОЛОГ») handed up by the surface it hosts.
+          this.outcomeFlow = {kind: 'step'};
+          markWorkspaceOutcomeBeatDone();
         } else if (kinds.some((k) => k === 'draw' || k === 'pick') && armedRailLandsOnRow()) {
           // …BUT a unit that lands on the card a ROW of this composer shows (TR53 — «+1 to the chosen card, then
           // draw»): the row is that token's destination, and the pending stage would replace it at the submit. The

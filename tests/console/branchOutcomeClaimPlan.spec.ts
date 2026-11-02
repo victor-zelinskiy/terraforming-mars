@@ -40,6 +40,15 @@ describe('branchOutcomeClaimPlan — the prepared arrival is sized by the cards 
     expect(plan.kinds).deep.eq(['draw', 'pick']);
   });
 
+  it('a VERDICT REVEAL over the prelude deck (P45) claims the pick AND the play’s chain — no prepared arrival', () => {
+    const verdict = {branches: [{index: -1, effects: [], revealVerdict: {deck: 'prelude', count: 1, deckSize: 20, discardSize: 3,
+      play: {megacredits: 12, affordable: true}, miss: {kind: 'discard'}}}]} as unknown as ActionPreview;
+    const plan = branchOutcomeClaimPlan(verdict, -1);
+    expect(plan.expectedCards, 'the deck pick deals its own card off the prelude deck object').eq(0);
+    expect(plan.kinds).to.have.members(['pick', 'draw', 'effect', 'venus-bonus']);
+    expect(plan.scope, 'the played prelude is credited, never the source card').eq('chain');
+  });
+
   it('a Venus step that earns the alternative board’s bonus claims the step (P89 · EE); a plain one claims nothing', () => {
     const bonus = {direction: 'gain', icon: 'venus', amount: 2, current: 16, resulting: 18, altVenusBonus: {standard: 1, wild: false, from: 16, to: 18}};
     expect(branchOutcomeClaimPlan(preview([bonus]) as unknown as ActionPreview, 0).kinds).deep.eq(['venus-bonus']);

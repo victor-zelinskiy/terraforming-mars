@@ -363,9 +363,9 @@ export function branchOutcomeClaimPlan(
    * science), so a draw the CHOICE decides is claimed by the choice — never by a client «is it science».
    */
   answered: ReadonlyArray<CardName> = [],
-): {kinds: Array<'deck-check' | 'draw' | 'pick' | 'venus-bonus'>, expectedCards: number} {
+): {kinds: Array<'deck-check' | 'draw' | 'pick' | 'effect' | 'venus-bonus'>, expectedCards: number, scope?: 'chain'} {
   const branch = previewBranchByIndex(preview, branchIndex);
-  const kinds: Array<'deck-check' | 'draw' | 'pick' | 'venus-bonus'> = [];
+  const kinds: Array<'deck-check' | 'draw' | 'pick' | 'effect' | 'venus-bonus'> = [];
   let expectedCards = 0;
   for (const e of branch?.effects ?? []) {
     if (e.direction === 'gain' && e.icon === 'cards') {
@@ -413,6 +413,19 @@ export function branchOutcomeClaimPlan(
   if ((branch?.effects ?? []).some((e) => e.icon === 'venus' && e.altVenusBonus !== undefined) &&
       !(branch?.steps ?? []).some((step) => step.kind === 'venusBonus')) {
     kinds.push('venus-bonus');
+  }
+  // A VERDICT REVEAL over the PRELUDE deck (P45 Board of Directors — «draw 1 prelude: discard it, or pay 12 M€ and 1
+  // director to play it»): the decision is a deck PICK the stage hosts (its own deal off the prelude deck object — no HUD
+  // pile, no prepared arrival, so `expectedCards` stays the chips'), and the prelude it PLAYS is this action's next
+  // stages — its draw, its own pick, the effect it wakes, the Venus bonus it earns — claimed OPTIMISTICALLY over the
+  // whole causal chain (`chain`: the server credits the played prelude, never this card), exactly as a play claims.
+  if (branch?.revealVerdict !== undefined) {
+    for (const k of ['pick', 'draw', 'effect', 'venus-bonus'] as const) {
+      if (!kinds.includes(k)) {
+        kinds.push(k);
+      }
+    }
+    return {kinds, expectedCards, scope: 'chain'};
   }
   return {kinds, expectedCards};
 }
