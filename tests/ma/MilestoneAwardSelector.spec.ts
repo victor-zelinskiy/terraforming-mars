@@ -232,6 +232,25 @@ describe('MilestoneAwardSelector', () => {
       expect(milestones).to.include('Economizer'); // fan-board milestone
     });
 
+    // The Redux FAQ: «Can I use the Lobbyist Milestone or Politician Award with Turmoil Redux? No» — both count
+    // delegates SITTING in parties, which the Redux Parliament has no more. T. Politician counts delegates PLACED,
+    // the Redux Parliament's core action (`Parliament.placeVote`), so it stays offered under either Parliament.
+    it('the delegate MAs follow their Parliament: T. Politician under either, Lobbyist / Politician under the classic only', () => {
+      const pool = (expansions: Partial<GameOptions['expansions']>) => getCandidates({
+        ...DEFAULT_GAME_OPTIONS,
+        randomMA: RandomMAOptionType.ALL,
+        expansions: {...DEFAULT_GAME_OPTIONS.expansions, ...expansions},
+      });
+      const [reduxMilestones, reduxAwards] = pool({turmoilRedux: true, colonies: true});
+      expect(reduxAwards, 'Redux offers T. Politician').to.include('T. Politician');
+      expect(reduxAwards, 'Redux never offers Politician').to.not.include('Politician');
+      expect(reduxMilestones, 'Redux never offers Lobbyist').to.not.include('Lobbyist');
+      const [, classicAwards] = pool({turmoil: true});
+      expect(classicAwards).to.include('T. Politician');
+      const [, noneAwards] = pool({});
+      expect(noneAwards, 'no Parliament, no delegate award').to.not.include('T. Politician');
+    });
+
     it('respects enabled expansions', () => {
       const [milestones, awards] = getCandidates({...DEFAULT_GAME_OPTIONS, randomMA: RandomMAOptionType.ALL});
       expect(milestones).to.not.include('Hoverlord'); // venus, disabled

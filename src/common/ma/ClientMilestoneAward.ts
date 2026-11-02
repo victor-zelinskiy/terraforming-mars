@@ -5,7 +5,8 @@ import {Expansion} from '../cards/GameModule';
 type ClientMA<T> = {
   name: T;
   description: string;
-  requirements: Expansion | undefined;
+  /** The module this MA needs — or a list, ANY ONE of which suffices (T. Politician: either Parliament). */
+  requirements: Expansion | ReadonlyArray<Expansion> | undefined;
   // Numeric threshold needed to claim (Milestone) or to score one point (Award).
   // Only defined for the BaseMilestone / BaseAward implementations — special
   // ones (e.g. Terraformer, Coastguard) leave it undefined and the UI just

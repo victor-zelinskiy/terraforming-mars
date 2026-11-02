@@ -202,7 +202,7 @@ import {byType, getCard, getCardOrThrow, getCards} from '@/client/cards/ClientCa
 import {COMMUNITY_COLONY_NAMES, OFFICIAL_COLONY_NAMES, PATHFINDERS_COLONY_NAMES, TURMOIL_REDUX_COLONY_NAMES} from '@/common/colonies/AllColonies';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyName} from '@/common/colonies/ColonyName';
-import {GameModule, GAME_MODULES} from '@/common/cards/GameModule';
+import {Expansion, GameModule, GAME_MODULES} from '@/common/cards/GameModule';
 import {Tag} from '@/common/cards/Tag';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {ClientCard} from '@/common/cards/ClientCard';
@@ -508,13 +508,21 @@ export default defineComponent({
       if (!this.include(name, 'ma')) {
         return false;
       }
-      return this.expansions[getMilestone(name).requirements ?? 'base'] === true;
+      return this.requirementsMet(getMilestone(name).requirements);
     },
     showAward(name: AwardName): boolean {
       if (!this.include(name, 'ma')) {
         return false;
       }
-      return this.expansions[getAward(name).requirements ?? 'base'] === true;
+      return this.requirementsMet(getAward(name).requirements);
+    },
+    /** A milestone / award shows when ANY of the modules it needs is selected (none = base). */
+    requirementsMet(requirements: Expansion | ReadonlyArray<Expansion> | undefined): boolean {
+      if (requirements === undefined) {
+        return this.expansions.base === true;
+      }
+      const anyOf: ReadonlyArray<Expansion> = typeof requirements === 'string' ? [requirements] : requirements;
+      return anyOf.some((m) => this.expansions[m] === true);
     },
     getLanguageCssClass() {
       const language = getPreferences().lang;

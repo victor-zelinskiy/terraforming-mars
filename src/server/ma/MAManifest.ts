@@ -5,8 +5,12 @@ import {GameOptions} from '../game/GameOptions';
 type MAManifestSpec<V> = {
   /** Constructor that a new instance of this MA. */
   Factory: new () => V;
-  /** If set, the module this MA needs to function. */
-  compatibility?: Expansion;
+  /**
+   * If set, the module this MA needs to function — or a LIST of modules, ANY ONE of which suffices (T. Politician
+   * counts delegates PLACED, which both the classic Turmoil and the Turmoil Redux Parliament do; the Redux FAQ bars only
+   * Lobbyist and Politician, whose delegates-in-parties no longer exist there).
+   */
+  compatibility?: Expansion | ReadonlyArray<Expansion>;
   /** When true, do not include in any new games when picking randomly. */
   deprecated?: true;
   random?: 'modular' | 'both';
@@ -22,12 +26,10 @@ export type MAManifest<K extends string, V> = {
 }
 
 export function isCompatible<T extends string>(name: T, manifest: MAManifest<T, any>, gameOptions: GameOptions) {
-  for (const expansion of EXPANSIONS) {
-    if (manifest.all[name].compatibility === expansion) {
-      if (gameOptions.expansions[expansion] !== true) {
-        return false;
-      }
-    }
+  const needs = manifest.all[name].compatibility;
+  if (needs === undefined) {
+    return true;
   }
-  return true;
+  const anyOf: ReadonlyArray<Expansion> = typeof needs === 'string' ? [needs] : needs;
+  return anyOf.some((expansion) => EXPANSIONS.includes(expansion) && gameOptions.expansions[expansion] === true);
 }

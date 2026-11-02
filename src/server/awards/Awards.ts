@@ -107,7 +107,9 @@ export const awardManifest: MAManifest<AwardName, IAward> = {
     'Scientist': {Factory: Scientist, random: 'both'},
     'Space Baron': {Factory: SpaceBaron, random: 'both'},
     'Suburbian': {Factory: Suburbian, random: 'modular'},
-    'T. Politician': {Factory: TPolitician, compatibility: 'turmoil'},
+    // Counts delegates PLACED — the core action of both Parliaments (classic Turmoil and the Redux Parliament,
+    // `Parliament.placeVote`); the Redux FAQ's ban covers Lobbyist / Politician only (delegates-in-parties).
+    'T. Politician': {Factory: TPolitician, compatibility: ['turmoil', 'turmoilRedux']},
     'Thermalist': {Factory: Thermalist, random: 'both'},
     'Tourist': {Factory: Tourist},
     'Traveller': {Factory: Traveller, random: 'modular'},
