@@ -77,6 +77,15 @@ It then tears the workspace down through the force path the owed-conclusion net 
 has been released». This was proven on the box against the unfixed door: the stall was caught at 12 s, the verdict was
 shown standalone, and `A ОК` worked.
 
+**…and the structural half, generalised (P89 · ledger EE, 2026-11-02).** The freeze was a claim of a kind the opened
+stage could not present. Every claimed stage of «ДЕЙСТВИЯ КАРТ» is now opened through ONE function decided WITH the
+claim — `ConsoleCardActions.openClaimedStage(kinds)`: cards (`draw` / `pick`) → the prepared `pending` stage; the
+alternative Venus board's bonus alone (`venus-bonus`) → the `step` stage (the outcome zone with no card beat, the beat
+marked done at once), which only hosts the shell's re-homed surface. The direct door, the repeat door
+(`claimRepeatOutcome` — Viron, R&D Funding) and the political door all go through it, so a new outcome kind is a new
+row there, never a stage left to guess. Witness: e2e `console-venus-bonus-hosts` H6 (R&D Funding repeating P89 on the
+alternative board — the bonus stands in the law's stage and is answered there).
+
 ## 3. The audit (2026-10-31)
 
 **Outcome claim vs stage — every `claimWorkspaceOutcome` site.** On card-actions a `deck-check` claim needs

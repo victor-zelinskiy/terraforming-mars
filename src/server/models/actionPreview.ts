@@ -673,7 +673,8 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
     if (typeof steps === 'number') {
       const cur = g.get(game);
       const delta = steps * g.step;
-      out.push({direction: delta >= 0 ? 'gain' : 'cost', icon: g.key, amount: Math.abs(delta), current: cur, resulting: clampValue(cur + delta, g.min, g.max), unit: g.unit});
+      out.push({direction: delta >= 0 ? 'gain' : 'cost', icon: g.key, amount: Math.abs(delta), current: cur, resulting: clampValue(cur + delta, g.min, g.max), unit: g.unit,
+        ...(g.key === 'venus' ? actionPreviews.altVenusBonusMark(game, steps) : {})});
     }
   }
   // A VARIABLE amount that currently counts to ZERO stays on screen. Dropping it

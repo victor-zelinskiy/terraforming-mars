@@ -1367,6 +1367,13 @@ export type ComposerOutcome =
    */
   | {kind: 'pending'}
   /**
+   * COMMITTED, and the press owes a STEP that is not a card (P89 · ledger EE — the alternative Venus board's bonus):
+   * the zone stands for the shell's re-homed surface and shows no card beat of its own. A claim of that kind opens
+   * THIS stage, never the draw-only `pending` one — the claim and the stage that presents it are decided together
+   * (the R&D Funding freeze of 2026-10-31).
+   */
+  | {kind: 'step'}
+  /**
    * The action produced CARDS and the zone is showing them. Deliberately one
    * kind for both a drawn batch and a follow-up pick (buy / keep-some): from
    * the stage's side they are the same phase — the same zone, the same name,
@@ -2249,7 +2256,7 @@ export default defineComponent({
      * happen to land.
      */
     drawOutcomeOn(): boolean {
-      return this.outcome?.kind === 'draw' || this.outcome?.kind === 'pending';
+      return this.outcome?.kind === 'draw' || this.outcome?.kind === 'pending' || this.outcome?.kind === 'step';
     },
     /** A SelectColony this activation raised is HOSTED here — the colonies
      *  section teleports into the outcome column (workspace-embed). */
@@ -2261,7 +2268,8 @@ export default defineComponent({
       // AWAITING, never «not presenting»: a RELEASED claim reads `idle`, and while the workspace concluded around a
       // still-set draw flow that re-opened the prepared stage for a frame — an empty «Вскрываем карту» over the
       // leaving zone, with a beat flight scheduled behind it (the TR46 probe's last sample, 2026-10-14).
-      return this.drawOutcomeOn && workspaceOutcomeState.stage === 'awaiting';
+      // A STEP stage has no card beat (P89 · EE): it hosts the shell's re-homed surface and nothing else.
+      return this.drawOutcomeOn && this.outcome?.kind !== 'step' && workspaceOutcomeState.stage === 'awaiting';
     },
     /**
      * The card has LANDED but the server still has not answered — the genuine

@@ -141,7 +141,16 @@ export type WorkspaceOutcomeKind =
    * otherwise the workspace dissolves and an unrelated-looking window takes
    * its place, which is precisely the break the embedding removes.
    */
-  | 'effect';
+  | 'effect'
+  /**
+   * THE ALTERNATIVE VENUS BOARD'S BONUS the press's Venus step earned (P89 · ledger EE — the owner's law «the bonus is
+   * a STEP of the surface where the scale step fired»): the server asks it in the very response that carries the step
+   * (`GrantVenusAltTrackBonusDeferred`), and the workspace the press was made in hosts it in its outcome zone — the
+   * shell re-homes the ONE `ConsoleVenusBonus` there. Claimed when the preview's Venus chip says the step reaches a
+   * bonus cell (`ActionEffect.altVenusBonus` → `branchOutcomeClaimPlan`), optimistically by a play and a trade (their
+   * chains are not all previewed); the reconciler keeps it only while the prompt really is the bonus.
+   */
+  | 'venus-bonus';
 
 /**
  * The live claim. `sourceCard` is the key every predicate matches on; `kinds`
@@ -967,6 +976,11 @@ export function workspaceClaimsPick(): boolean {
  */
 export function workspaceClaimsEffect(): boolean {
   return workspaceOutcomeAdmits('effect');
+}
+
+/** Does an open workspace own the alternative Venus board's bonus its press raised? (Same narrowness as the two above.) */
+export function workspaceClaimsVenusBonus(): boolean {
+  return workspaceOutcomeAdmits('venus-bonus');
 }
 
 /** Full reset (game switch / test cleanup). Forced: nothing survives it. */

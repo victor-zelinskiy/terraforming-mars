@@ -186,10 +186,15 @@ describe('VenusShuttles', () => {
     const [game3, p3] = testGame(1, {venusNextExtension: true, altVenusBoard: true});
     setVenusScaleLevel(game3, 16);
     p3.megaCredits = 20;
+    // The preview's Venus chip names the bonus the step earns (P89 · EE) — the claim and the door read it.
+    const chip = actionPreview(p3, card).branches[0].effects.find((e) => e.icon === 'venus');
+    expect(chip?.altVenusBonus).deep.eq({standard: 1, wild: false, from: 16, to: 18});
+    expect(actionPreview(player, card).branches[0].effects.find((e) => e.icon === 'venus')?.altVenusBonus, 'never on the standard board').is.undefined;
     card.action(p3);
     runAllActions(game3);
     const bonus = p3.popWaitingFor();
     expect(bonus?.venusBonusPrompt?.kind).eq('standard');
+    expect(bonus?.venusBonusPrompt?.step).deep.eq({from: 16, to: 18});
     expect(game3.getVenusScaleLevel()).eq(18);
   });
 

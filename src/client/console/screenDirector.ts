@@ -184,15 +184,18 @@ export const SCREEN_TABLE_KINDS = Object.keys(EXPECTED) as ReadonlyArray<TaskKin
  * holds stood the Parliament for a law's take / tile / pick — 667 passes —, the hand for a play's effect and colony,
  * the card-actions for an action's discard). The host is the stack's own answer — `workspaceHostForStep()`, the top
  * frame while it hosts a step in its current phase — never a list per kind; this table says only which kinds CAN be
- * such a step. A kind whose surface is a modal or a screen of its own (the bot's attack, the lanes, the thresholds,
+ * such a step. A kind whose surface is a modal or a screen of its own (the bot's attack, the spend-heat lanes, the thresholds,
  * the awards' free funding, a colony bonus another seat's trade paid, the draft's wait) or the start's own is never
- * hosted — a flow standing over one of those is a foreign surface, never its answer.
+ * hosted — a flow standing over one of those is a foreign surface, never its answer. The alternative Venus board's
+ * bonus IS hostable since P89 · ledger EE (the owner's law «the bonus is a STEP of the surface where the scale step
+ * fired»): the press's workspace claims it and the ONE `ConsoleVenusBonus` is teleported into its zone — its root keeps
+ * `.con-lanes`, so the table's row judges it whether it stands hosted or as the band no host claimed.
  */
 const HOSTABLE: {[K in TaskKind]: boolean} = {
   actionMenu: false, space: true, choice: true, awardFunding: false, player: true, amount: true, resource: true,
   distribute: true, payment: true, draftWait: false, cardSelect: true, deckSelect: true, handSelect: true,
   projectCard: true, colony: true, colonyBonus: false, party: true, parliamentPhase: true, chairmanQuest: true,
-  externalDraw: true, venusBonus: false, spendHeat: false, botAttack: false, composite: true, initialDraft: false,
+  externalDraw: true, venusBonus: true, spendHeat: false, botAttack: false, composite: true, initialDraft: false,
   startSequence: false, corpFirstAction: false, aresGlobal: false, unknown: false,
 };
 

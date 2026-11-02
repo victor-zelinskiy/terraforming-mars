@@ -39,4 +39,13 @@ describe('branchOutcomeClaimPlan — the prepared arrival is sized by the cards 
     expect(plan.expectedCards).eq(2);
     expect(plan.kinds).deep.eq(['draw', 'pick']);
   });
+
+  it('a Venus step that earns the alternative board’s bonus claims the step (P89 · EE); a plain one claims nothing', () => {
+    const bonus = {direction: 'gain', icon: 'venus', amount: 2, current: 16, resulting: 18, altVenusBonus: {standard: 1, wild: false, from: 16, to: 18}};
+    expect(branchOutcomeClaimPlan(preview([bonus]) as unknown as ActionPreview, 0).kinds).deep.eq(['venus-bonus']);
+    expect(branchOutcomeClaimPlan(preview([{...bonus, altVenusBonus: undefined}]) as unknown as ActionPreview, 0).kinds).deep.eq([]);
+    // …beside a draw: both — the draw's stage hosts the bonus too.
+    const both = branchOutcomeClaimPlan(preview([bonus, {direction: 'gain', icon: 'cards', amount: 1}]) as unknown as ActionPreview, 0);
+    expect(both.kinds).deep.eq(['draw', 'pick', 'venus-bonus']);
+  });
 });

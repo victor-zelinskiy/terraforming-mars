@@ -132,6 +132,15 @@ as its shallowest holder, and each of these silently cut it:
    source card is a client capture, so after a reload the crumb reads the
    generic «ПРОЛОГИ» rather than lying.
 
+**The alternative Venus board's bonus is a hosted step too (P89 · ledger EE, 2026-11-02).** `ConsoleVenusBonus` follows
+the six rules: ONE `embedded` prop (no `con-ws`, no motion id, no self-titling kicker — the host's crumb names
+«БОНУС ВЕНЕРЫ»), ONE instance teleported by the shell (`venusBonusEmbedTarget`), ownership ≠ readiness
+(`venusBonusHeldForWorkspace` — claimed but the zone not standing → render nowhere). The claim is the outcome kind
+`venus-bonus` (a card action / a repeat / a political door from the preview's `ActionEffect.altVenusBonus`; a play, a
+law's play and a trade optimistically); the standard projects host it from their own flow (`stdpHostsVenusBonus`, the
+`stdp-step` zone). The root keeps `.con-lanes`, so the screen director and the leak detector read it in either dress.
+Contract: `.claude/rules/console-ui.md` § THE VENUS BONUS IS A STEP OF THE SURFACE WHERE THE SCALE STEP FIRED.
+
 ## The sponsor flow, as the reference implementation
 
 - Claim: `startSponsorEmbed` (shell computed — «start serves ∧ prompt is

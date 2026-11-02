@@ -1,4 +1,5 @@
 import * as constants from '../common/constants';
+import {altVenusBonusFor} from '../common/venus/altVenusBonus';
 import {automaModeFor, getAutomaMaxGeneration} from '../common/automa/AutomaTypes';
 import {AutomaController} from './automa/AutomaController';
 import {AutomaCorporations} from './automa/corps/AutomaCorporations';
@@ -1980,14 +1981,11 @@ export class Game implements IGame, Logger {
         player.increaseTerraformRating(1, {trAttribution: {sourceType: 'venusTrackBonus', sourceName: 'Venus track bonus'}});
       }
       if (this.gameOptions.altVenusBoard) {
-        const newValue = this.venusScaleLevel + steps * 2;
-        const minimalBaseline = Math.max(this.venusScaleLevel, constants.ALT_VENUS_MINIMUM_BONUS);
-        const maximumBaseline = Math.min(newValue, constants.MAX_VENUS_SCALE);
-        const standardResourcesGranted = Math.max((maximumBaseline - minimalBaseline) / 2, 0);
-
-        const grantWildResource = this.venusScaleLevel + (steps * 2) >= constants.MAX_VENUS_SCALE;
-        // The second half of this expression removes any increases earler than 16-to-18.
-        if (grantWildResource || standardResourcesGranted > 0) {
+        // The ONE arithmetic of the bonus (`common/venus/altVenusBonus.ts`) — the previews name it from the same function.
+        const bonus = altVenusBonusFor(this.venusScaleLevel, steps);
+        const standardResourcesGranted = bonus?.standard ?? 0;
+        const grantWildResource = bonus?.wild === true;
+        if (bonus !== undefined) {
           if (player.isMarsBot) {
             // MarsBot never answers prompts, so the alt-track bonus resolves
             // immediately as fixed gains (house rule, mirroring the -24/-20
@@ -2002,7 +2000,7 @@ export class Game implements IGame, Logger {
               this.log('${0} gained ${1} ${2}', (b) => b.player(player).number(1).cardResource(CardResource.FLOATER));
             }
           } else {
-            this.defer(new GrantVenusAltTrackBonusDeferred(player, standardResourcesGranted, grantWildResource));
+            this.defer(new GrantVenusAltTrackBonusDeferred(player, standardResourcesGranted, grantWildResource, {from: bonus.from, to: bonus.to}));
           }
         }
       }

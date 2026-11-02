@@ -77,7 +77,8 @@ describe('AltVenusTrackBonuses', () => {
     runAllActions(game);
     const model = Server.getWaitingFor(player, player.getWaitingFor());
     expect(model?.type).eq('and');
-    expect(model?.venusBonusPrompt).to.deep.eq({kind: 'standard', baseCount: 1});
+    // …and the raise that earned it rides the marker (P89 · EE — the hosted step's head «16 % → 18 %»).
+    expect(model?.venusBonusPrompt).to.deep.eq({kind: 'standard', baseCount: 1, step: {from: 16, to: 18}});
   });
 
   it('final bonus model carries the venusBonusPrompt marker', () => {
@@ -90,5 +91,6 @@ describe('AltVenusTrackBonuses', () => {
     expect(model?.venusBonusPrompt?.kind).eq('final');
     expect(model?.venusBonusPrompt?.baseCount).eq(3);
     expect(model?.venusBonusPrompt?.wildCardTargets).to.include(new Tardigrades().name);
+    expect(model?.venusBonusPrompt?.step).to.deep.eq({from: 24, to: 30});
   });
 });

@@ -124,6 +124,13 @@ describe('screenDirector', () => {
       expect(screenShadowVerdict(base(draw, {host: 'parliament'}))).deep.eq({kind: 'unserved', expected: ['external-draw', 'parliament']});
     });
 
+    it('the alternative Venus board’s bonus is a STEP of its host (P89 · EE): the lanes or the host serve it', () => {
+      const bonus = {kind: 'venusBonus', mode: 'standard'} as unknown as ConsoleTask;
+      expect(hostableStep('venusBonus')).eq(true);
+      expect(screenShadowVerdict(base(bonus, {present: ['card-actions'], host: 'card-actions'}))).deep.include({kind: 'agree', basis: 'host'});
+      expect(screenShadowVerdict(base(bonus, {present: ['lanes']})).kind, 'the hosted surface keeps its own root').eq('agree');
+    });
+
     it('a task\'s nested placement is the BOARD\'s (the final greenery\'s branch)', () => {
       const branch = {kind: 'choice', flavor: 'generic'} as ConsoleTask;
       expect(screenShadowVerdict(base(branch, {present: ['board'], boardBranch: true}))).deep.eq({kind: 'agree', owners: ['board'], basis: 'branch'});

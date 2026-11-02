@@ -19,13 +19,24 @@
     data-motion-*: rides the shared `.con-shade` dim + the surface-motion
     director — no own backdrop.
   -->
-  <div class="con-lanes con-venus con-ws" role="dialog" :aria-label="$t(headlineKey)" data-motion-surface="venus-bonus">
+  <!-- HOST-AGNOSTIC (P89 · ledger EE — the owner's law «the bonus is a STEP of the surface where the scale step fired»):
+       `embedded` strips the band (`con-ws`, its own motion id — a kept one would claim the shared shade and dim the
+       host) and the self-titling kicker (the HOST'S crumb names the stage «БОНУС ВЕНЕРЫ»); the same instance is
+       teleported by the shell into the host's zone — logic, input path and submit untouched. -->
+  <div class="con-lanes con-venus" :class="{'con-ws': !embedded, 'con-venus--embedded': embedded}"
+       :role="embedded ? 'group' : 'dialog'" :aria-label="$t(headlineKey)"
+       :data-motion-surface="embedded ? undefined : 'venus-bonus'" :data-venus-bonus-embedded="embedded ? '' : undefined">
     <!-- A plate of the PROMPT-MODAL FAMILY (`console_prompt.less`) — a GIFT, so its tone is a GAIN (the mint crest,
          the plus emblem, «▲ ВЫГОДА», «ВЫ ПОЛУЧИТЕ» at the foot). The wild card's pick is the `xl` tier (a card row). -->
     <div class="con-lanes__panel con-prompt con-prompt--gain"
          :class="stage === 'wildCard' ? 'con-lanes__panel--wide con-prompt--xl' : 'con-prompt--m'"
          data-motion-panel data-prompt-panel>
-      <ConsolePromptHead class="con-lanes__head" tone="gain" :kicker="$t('Venus bonus')" :title="$t(headlineKey)"
+      <!-- EMBEDDED: the question line only — the crumb above is where the stage names itself. -->
+      <header v-if="embedded" class="con-lanes__head con-venus__ask">
+        <h2 class="con-venus__title con-ws-stage-title">{{ $t(headlineKey) }}</h2>
+        <div v-if="stage === 'place' && placed > 0 && blockedText !== ''" class="con-lanes__blocked">⚠ {{ blockedText }}</div>
+      </header>
+      <ConsolePromptHead v-else class="con-lanes__head" tone="gain" :kicker="$t('Venus bonus')" :title="$t(headlineKey)"
                          :prompt-key="sequenceKey">
         <!-- The stage tail. Stable context BEFORE the mutable stage, and only the tail advances — the console's
              breadcrumb grammar. -->
@@ -40,6 +51,10 @@
              to spread: «0 / 1» over six radio rows is the same sentence a third time. -->
         <div v-if="stage === 'place' && placed > 0 && blockedText !== ''" class="con-lanes__blocked">⚠ {{ blockedText }}</div>
       </ConsolePromptHead>
+
+      <!-- THE STEP THAT EARNED IT (P89 · EE): «Шкала Венеры 16 % → 18 %» — in both dresses, the context of the question
+           (the server's marker; absent on an older save). -->
+      <p v-if="stepReading !== ''" class="con-venus__step" data-venus-step>{{ stepReading }}</p>
 
       <!-- ── STAGE 1 (final step only): where does the WILD go? ──────────── -->
       <div v-if="stage === 'wild'" class="con-venus__wild">
@@ -215,6 +230,8 @@ export default defineComponent({
   components: {ConsolePlayedTargetStep, GamepadGlyph, ConsolePromptHead, ConsolePromptOutcome},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+    /** Hosted inside a workspace's zone (P89 · EE) — see the root's note. */
+    embedded: {type: Boolean, default: false},
   },
   emits: ['submit', 'defer'],
   data() {
@@ -244,6 +261,11 @@ export default defineComponent({
   computed: {
     meta(): VenusBonusPromptMeta | undefined {
       return this.playerView.waitingFor?.venusBonusPrompt;
+    },
+    /** «Шкала Венеры 16 % → 18 %» — the raise that earned the bonus (`VenusBonusPromptMeta.step`), or ''. */
+    stepReading(): string {
+      const step = this.meta?.step;
+      return step === undefined ? '' : `${translateText('Venus scale')} ${step.from} % → ${step.to} %`;
     },
     isFinal(): boolean {
       return this.meta?.kind === 'final';

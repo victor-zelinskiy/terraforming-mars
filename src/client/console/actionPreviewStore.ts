@@ -363,9 +363,9 @@ export function branchOutcomeClaimPlan(
    * science), so a draw the CHOICE decides is claimed by the choice — never by a client «is it science».
    */
   answered: ReadonlyArray<CardName> = [],
-): {kinds: Array<'deck-check' | 'draw' | 'pick'>, expectedCards: number} {
+): {kinds: Array<'deck-check' | 'draw' | 'pick' | 'venus-bonus'>, expectedCards: number} {
   const branch = previewBranchByIndex(preview, branchIndex);
-  const kinds: Array<'deck-check' | 'draw' | 'pick'> = [];
+  const kinds: Array<'deck-check' | 'draw' | 'pick' | 'venus-bonus'> = [];
   let expectedCards = 0;
   for (const e of branch?.effects ?? []) {
     if (e.direction === 'gain' && e.icon === 'cards') {
@@ -404,6 +404,11 @@ export function branchOutcomeClaimPlan(
   // composer's own beat); a ledger's cards come off the deck row by row.
   if (expectedCards > 0 || ledgerDraws(branch?.colonyBonuses)) {
     kinds.push('draw', 'pick');
+  }
+  // THE ALTERNATIVE VENUS BOARD'S BONUS this branch's Venus step earns (P89 · EE): the server stamped it on the chip —
+  // the bonus is asked in the commit's own response and is this workspace's next stage.
+  if ((branch?.effects ?? []).some((e) => e.icon === 'venus' && e.altVenusBonus !== undefined)) {
+    kinds.push('venus-bonus');
   }
   return {kinds, expectedCards};
 }

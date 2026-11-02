@@ -18,6 +18,7 @@ import {TileType} from '../../common/TileType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS, TEMPERATURE_FOR_OCEAN_BONUS} from '../../common/constants';
 import {parameterRoom} from '../../common/parliament/parameterMove';
+import {altVenusBonusFor} from '../../common/venus/altVenusBonus';
 import {tileRemovalRoom} from '../../common/parliament/tileRemoval';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis, ActionEffectBasisSetSide, ActionRevealDescriptor, ActionRevealSplitDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel, NeutralRallyModel} from '../../common/models/ActionPreviewModel';
 import {AllColonyBonusesModel} from '../../common/models/ColonyBonusLedgerModel';
@@ -205,7 +206,20 @@ export function globalGain(player: IPlayer, parameter: 'oxygen' | 'temperature' 
   const m = GLOBAL_META[parameter];
   const cur = m.get(player);
   const delta = steps * m.step;
-  return {direction: delta >= 0 ? 'gain' : 'cost', icon: parameter, amount: Math.abs(delta), current: cur, resulting: clampValue(cur + delta, m.min, m.max), unit: m.unit};
+  const chip: ActionEffect = {direction: delta >= 0 ? 'gain' : 'cost', icon: parameter, amount: Math.abs(delta), current: cur, resulting: clampValue(cur + delta, m.min, m.max), unit: m.unit};
+  return parameter === 'venus' ? {...chip, ...altVenusBonusMark(player.game, steps)} : chip;
+}
+/**
+ * The alternative Venus board's bonus a raise of `steps` earns (`ActionEffect.altVenusBonus`) — the engine's own
+ * arithmetic (`altVenusBonusFor`), only on that board. Spread onto a Venus gain chip by EVERY builder of one (the
+ * behaviour walker's `global.venus` and `globalGain`), so the claim and the door read one fact.
+ */
+export function altVenusBonusMark(game: IPlayer['game'], steps: number): {altVenusBonus?: {standard: number, wild: boolean, from: number, to: number}} {
+  if (game.gameOptions.altVenusBoard !== true || steps <= 0) {
+    return {};
+  }
+  const bonus = altVenusBonusFor(game.getVenusScaleLevel(), steps);
+  return bonus === undefined ? {} : {altVenusBonus: bonus};
 }
 /**
  * Place N ocean tiles — the oceans count their own tiles (`globalGain` covers

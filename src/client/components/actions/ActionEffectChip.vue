@@ -98,6 +98,11 @@
          Agenda chip — why the walk is this long); a plain note is vocabulary («на эту карту»). -->
     <span v-if="effect.note && !productionPlate" class="action-effect-chip__note" :class="{'action-effect-chip__note--sentence': effect.noteParams !== undefined}" v-i18n="effect.noteParams">{{ effect.note }}</span>
     <span v-if="noEffect" class="action-effect-chip__note action-effect-chip__note--noeffect" v-i18n>no effect</span>
+    <!-- THE DOOR NAMED IN ADVANCE (P89 · ledger EE): a Venus step that reaches a bonus cell of the alternative board says
+         so on its own chip — the setup, the play sheet and the standard projects read one fact (`altVenusBonus`, the
+         engine's arithmetic). The bonus is the player's CHOICE, so no resource chip is promised — only the next stage. -->
+    <span v-if="effect.altVenusBonus !== undefined" class="action-effect-chip__note action-effect-chip__note--sentence"
+          data-chip-venus-bonus :data-chip-venus-bonus-wild="effect.altVenusBonus.wild ? '' : undefined">› {{ $t('Venus bonus') }}</span>
     <!-- A UNIT A LAW REPLACES (Turmoil Redux RX35 — `effect.diverted`): the printed value stays, STRUCK in the Reds'
          own red (never a grey «disabled»), and the tail says what it becomes — «→ +N [data]» on one of the player's
          cards, or the loss when none can take it. The law is named in the hint; the state reads by weight and the

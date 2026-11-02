@@ -179,6 +179,8 @@ import {Io} from '../../../src/server/colonies/Io';
 import {LunaGovernor} from '../../../src/server/cards/colonies/LunaGovernor';
 import {Pluto} from '../../../src/server/colonies/Pluto';
 import {VenusRedux} from '../../../src/server/colonies/VenusRedux';
+import {VenusShuttles} from '../../../src/server/cards/prelude2/VenusShuttles';
+import {AirScrappingStandardProjectVariant} from '../../../src/server/cards/venusNext/AirScrappingStandardProjectVariant';
 import {Vesta} from '../../../src/server/colonies/Vesta';
 import {AsteroidHollowing} from '../../../src/server/cards/promo/AsteroidHollowing';
 import {ColonyName} from '../../../src/common/colonies/ColonyName';
@@ -9910,6 +9912,109 @@ venusShuttlesFixture('venus-shuttles-poor', 'poor');
 venusShuttlesFixture('venus-shuttles-max', 'max');
 venusShuttlesFixture('venus-shuttles-alt16', 'alt16');
 venusShuttlesFixture('venus-shuttles-play', 'play');
+
+// ── THE VENUS BONUS IS A STEP OF ITS HOST (the owner's law of 2026-11-01, ledger EE — gap PL-1422 closed): the
+//    alternative Venus board's bonus (18 … 30 %) raised by every door the scale step can come through, each table on
+//    `altVenusBoard: true` (no fixture reached the bonus before — the creator turns the board ON by default):
+//      · `venus-bonus-play`      — a card PLAY from the hand: Neutralizer Factory (+1 Venus) at 16 % → 18 %;
+//      · `venus-bonus-stdp`      — the STANDARD PROJECT: Air Scrapping (the SP1a variant on this board) at 16 %;
+//      · `venus-bonus-final`     — the 30 % finish through P89's action at 28 %: the WILD resource with a holder
+//                                  (Dirigibles) — the final bonus's three stages inside one step;
+//      · `venus-bonus-trade`     — the Redux «Venus» colony TRADE: its fixed income steps Venus 16 → 18 %;
+//      · `venus-bonus-rdfunding` — R&D Funding's law action REPEATING P89's spent action at 16 % (the door of the
+//                                  2026-10-31 freeze: a claim and the stage that presents it are decided together).
+//    A DRY RUN on a copy proves each: after the step stands a `venusBonusPrompt` of the right kind. ──
+function venusBonusDryRun(name: string, copy: IGame, seat: IPlayer, kind: 'standard' | 'final'): void {
+  runAllActions(copy);
+  const asked = seat.getWaitingFor()?.venusBonusPrompt?.kind;
+  if (asked !== kind || copy.getVenusScaleLevel() < 18) {
+    throw new Error(`the ${name} fixture expected a «${kind}» Venus bonus after the step — got ${asked ?? 'none'} (${seat.getWaitingFor()?.constructor.name}: ${JSON.stringify(seat.getWaitingFor()?.title).slice(0, 80)}) at ${copy.getVenusScaleLevel()} %`);
+  }
+}
+function venusBonusFixture(name: string, door: 'play' | 'stdp' | 'final'): void {
+  const {game, player} = soloActionPhase({
+    venusNextExtension: true, prelude2Expansion: true, altVenusBoard: true,
+    customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
+  });
+  const take = (n: CardName) => {
+    moveToDeckTop(game, n);
+    return game.projectDeck.drawOrThrow(game);
+  };
+  player.megaCredits = 30;
+  if (door === 'play') {
+    player.cardsInHand.push(take(CardName.NEUTRALIZER_FACTORY));
+    setVenusScaleLevel(game, 16);
+  } else if (door === 'stdp') {
+    setVenusScaleLevel(game, 16);
+  } else {
+    player.playedCards.push(take(CardName.DIRIGIBLES), take(CardName.VENUS_SHUTTLES));
+    setVenusScaleLevel(game, 28);
+  }
+  runAllActions(game);
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(player.id);
+  if (door === 'play') {
+    blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.NEUTRALIZER_FACTORY)!, Payment.of({megacredits: 7}));
+  } else if (door === 'stdp') {
+    const project = new AirScrappingStandardProjectVariant();
+    project.payAndExecute(blue, Payment.of({megacredits: project.getAdjustedCost(blue)}));
+  } else {
+    (blue.playedCards.get(CardName.VENUS_SHUTTLES) as IActionCard & ICard).action(blue);
+  }
+  venusBonusDryRun(name, copy, blue, door === 'final' ? 'final' : 'standard');
+  write(name, game);
+}
+venusBonusFixture('venus-bonus-play', 'play');
+venusBonusFixture('venus-bonus-stdp', 'stdp');
+venusBonusFixture('venus-bonus-final', 'final');
+{
+  // TWO seats (the Redux table): a solo colonies table keeps asking which tile to remove in front of the trade.
+  const {game, p1} = reduxTable('venus-bonus-trade', {venusNextExtension: true, altVenusBoard: true});
+  const venus = new VenusRedux();
+  game.colonies = [venus, new Luna(), new Europa(), new Callisto()];
+  venus.trackPosition = 1;
+  setVenusScaleLevel(game, 16);
+  p1.megaCredits = 80;
+  runAllActions(game);
+  if (game.activePlayer.id !== p1.id || !(p1.getWaitingFor() instanceof OrOptions)) {
+    throw new Error('the venus-bonus-trade fixture expected blue on the move');
+  }
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(p1.id);
+  copy.colonies.find((c) => c.name === venus.name)!.trade(blue);
+  venusBonusDryRun('venus-bonus-trade', copy, blue, 'standard');
+  write('venus-bonus-trade', game);
+}
+parliamentFixture('venus-bonus-rdfunding', {
+  resolution: RD_FUNDING_ID,
+  votes: [1],
+  agenda: [1, 3],
+  stopAt: 'done',
+  options: {venusNextExtension: true, altVenusBoard: true},
+  arrange: ({p2}) => {
+    p2.playedCards.push(new Research());
+  },
+  after: ({game, p2}) => {
+    const shuttles = new VenusShuttles();
+    p2.playedCards.push(shuttles);
+    p2.megaCredits = 40;
+    shuttles.action(p2);
+    runAllActions(game);
+    p2.actionsThisGeneration.add(shuttles.name);
+    setVenusScaleLevel(game, 16);
+  },
+  expect: (table) => {
+    const {p2, parliament} = table;
+    const candidates = repeatableActionCards(p2).map((c) => c.name);
+    if (candidates.length !== 1 || candidates[0] !== CardName.VENUS_SHUTTLES || parliament.resolutionActionUsesLeft(p2) !== 1) {
+      throw new Error(`the venus-bonus-rdfunding fixture expected Venus Shuttles as the one repeat and the law action unspent, got ${candidates.join(', ')}`);
+    }
+    if (table.game.getVenusScaleLevel() !== 16 || !table.game.gameOptions.altVenusBoard) {
+      throw new Error('the venus-bonus-rdfunding fixture expected Venus at 16 % on the alternative board');
+    }
+    expectViewerOpensGeneration(table, p2, 'venus-bonus-rdfunding');
+  },
+});
 
 // ── P86 · UNEXPECTED APPLICATION — the TWENTIETH Prelude 2 card (docs/claude/prompts/prelude2-p86-unexpected-
 //    application.md): a Venus EVENT, 4 M€, «discard 1 card to raise Venus 1 step» — the play's PRICE is a card out of

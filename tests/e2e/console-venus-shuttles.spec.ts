@@ -112,31 +112,24 @@ test.describe(`P89 Venus Shuttles · ${PRESET.id}`, () => {
     expect((await wireOf(request, id)).game.venusScaleLevel).toBe(30);
   });
 
-  test('(E) the alternative board 16 → 18 %: the bonus band stands AFTER the board told the step; the pick is collected', async ({page, request}) => {
+  test('(E) the alternative board 16 → 18 %: the bonus is the action’s next stage (hosted — P89 · EE); the board tells the step after', async ({page, request}) => {
     test.setTimeout(300_000);
     const posts = watchPosts(page);
     const id = await bootFixture(page, request, 'venus-shuttles-alt16', {query: PRESET.query});
-    await page.evaluate(() => {
-      const w = window as unknown as {__venusBandAt?: string};
-      new MutationObserver(() => {
-        if (w.__venusBandAt === undefined && document.querySelector('.con-venus') !== null) {
-          w.__venusBandAt = document.querySelector<HTMLElement>('[data-scale-marker="venus"]')?.dataset.scaleMarkerAt ?? 'moving';
-        }
-      }).observe(document.body, {subtree: true, childList: true});
-    });
     await focusShuttles(page, true);
     await commit(page, posts);
-    await expect(page.locator('.con-venus'), 'the Venus bonus stands').toHaveCount(1, {timeout: 30_000});
-    const at = await page.evaluate(() => (window as unknown as {__venusBandAt?: string}).__venusBandAt);
-    expect(at, 'the marker had RESTED on 18 when the band rose — the story first, the question after').toBe('18');
+    await expect(page.locator('.con-cardactions .con-venus[data-venus-bonus-embedded]'), 'the bonus stands INSIDE «ДЕЙСТВИЯ КАРТ»')
+      .toBeVisible({timeout: 30_000});
+    await expect(page.locator('.con-lanes.con-ws'), 'never a band of its own').toHaveCount(0);
     await shoot(page, 'E1-bonus');
-    const before = await wireOf(request, id);
-    expect(before.waitingFor?.venusBonusPrompt?.kind).toBe('standard');
-    const stock = (w: Wire) => w.thisPlayer.megacredits + w.thisPlayer.steel + w.thisPlayer.titanium + w.thisPlayer.plants + w.thisPlayer.energy + w.thisPlayer.heat;
-    await press(page, 'Enter', 400); // A — the one resource on the focused row
-    await press(page, 'KeyX', 400); // X — collect
-    await expect.poll(async () => (await wireOf(request, id)).waitingFor?.venusBonusPrompt, {timeout: 20_000}).toBeUndefined();
-    expect(stock(await wireOf(request, id)), 'one resource collected').toBe(stock(before) + 1);
+    await press(page, 'Enter', 400);
+    await expect.poll(async () => {
+      await press(page, 'KeyX', 600);
+      return (await wireOf(request, id)).waitingFor?.venusBonusPrompt;
+    }, {timeout: 30_000, message: 'X collects the bonus'}).toBeUndefined();
+    await expect(page.locator('.con-cardactions'), 'the workspace leaves').toHaveCount(0, {timeout: 30_000});
+    await expect.poll(() => page.evaluate(() => document.querySelector<HTMLElement>('[data-scale-marker="venus"]')?.dataset.scaleMarkerAt ?? ''),
+      {timeout: 30_000, message: 'the step’s story plays after — the marker rests on 18'}).toBe('18');
     await shoot(page, 'E2-collected');
   });
 

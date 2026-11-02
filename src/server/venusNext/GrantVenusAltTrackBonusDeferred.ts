@@ -13,8 +13,14 @@ export class GrantVenusAltTrackBonusDeferred extends DeferredAction {
     player: IPlayer,
     public standardResourceCount: number,
     public wildResource: boolean,
+    /** The raise that earned it (Venus before → after) — rides the marker for the hosted step's head. */
+    public step?: {from: number, to: number},
   ) {
     super(player, Priority.GAIN_RESOURCE_OR_PRODUCTION);
+  }
+
+  private stepMeta(): {step?: {from: number, to: number}} {
+    return this.step === undefined ? {} : {step: this.step};
   }
 
   private selectStandardResources(count: number) {
@@ -33,7 +39,7 @@ export class GrantVenusAltTrackBonusDeferred extends DeferredAction {
     // client renders the resource-tile picker instead of the legacy form.
     if (this.wildResource === false) {
       return this.selectStandardResources(base)
-        .markVenusBonusPrompt({kind: 'standard', baseCount: base});
+        .markVenusBonusPrompt({kind: 'standard', baseCount: base, ...this.stepMeta()});
     }
 
     // Final-step (30%) bonus with a wild resource but NO card that can host it:
@@ -43,7 +49,7 @@ export class GrantVenusAltTrackBonusDeferred extends DeferredAction {
     // player must NEVER silently lose the wild just because they have no card.
     if (resourceCards.length === 0) {
       return this.selectStandardResources(base + 1)
-        .markVenusBonusPrompt({kind: 'final', baseCount: base, wildCardTargets: []});
+        .markVenusBonusPrompt({kind: 'final', baseCount: base, wildCardTargets: [], ...this.stepMeta()});
     }
 
     // Final-step (30%) bonus: the base standard resources PLUS one wild resource
@@ -81,6 +87,7 @@ export class GrantVenusAltTrackBonusDeferred extends DeferredAction {
       kind: 'final',
       baseCount: base,
       wildCardTargets: resourceCards.map((c) => c.name),
+      ...this.stepMeta(),
       ...(wildCardVp === undefined ? {} : {wildCardVp}),
     });
   }

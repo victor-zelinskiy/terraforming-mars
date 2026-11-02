@@ -1031,6 +1031,10 @@ export default defineComponent({
       // «Добор карт», so the crumb never blanks and never renames itself
       // twice.
       const published = workspaceOutcomeState.phaseKey;
+      if (published === '' && kind === 'step') {
+        // A STEP stage (P89 · EE) before its surface has named itself: the press is still executing — never «Добор карт».
+        return focusKicker('executing');
+      }
       return published !== '' ? published : focusKicker('draw');
     },
     /**
@@ -2469,8 +2473,22 @@ export default defineComponent({
       }
       if (kinds.length > 0) {
         claimWorkspaceOutcome('card-actions', repeat.chosenCard, kinds, repeat.nodeIndex, expectedCards, 'chain');
-        this.outcomeFlow = {kind: 'pending'};
+        this.openClaimedStage(kinds);
       }
+    },
+    /**
+     * THE STAGE A CLAIM OPENS — decided WITH the claim, in one place (the R&D Funding freeze of 2026-10-31: a claim of a
+     * kind the opened stage cannot present is a frozen workspace). Cards → the prepared `pending` stage; only the
+     * alternative Venus board's bonus (P89 · EE) → a `step` stage, which shows no card beat (the beat is marked done at
+     * once — nothing will arrive off the deck) and only hosts the shell's re-homed bonus surface.
+     */
+    openClaimedStage(kinds: ReadonlyArray<WorkspaceOutcomeKind>): void {
+      if (kinds.some((k) => k === 'draw' || k === 'pick')) {
+        this.outcomeFlow = {kind: 'pending'};
+        return;
+      }
+      this.outcomeFlow = {kind: 'step'};
+      markWorkspaceOutcomeBeatDone();
     },
     /**
      * «ВЫБРАТЬ КОЛОНИЮ» — the second door into the ONE trade.
@@ -2713,7 +2731,7 @@ export default defineComponent({
         if (branch?.reveal !== undefined) {
           this.outcomeFlow = {kind: 'deck-check'};
           setConsoleActionRevealClaim(comp.cardName);
-        } else if (kinds.length > 0 && armedRailLandsOnRow()) {
+        } else if (kinds.some((k) => k === 'draw' || k === 'pick') && armedRailLandsOnRow()) {
           // …BUT a unit that lands on the card a ROW of this composer shows (TR53 — «+1 to the chosen card, then
           // draw»): the row is that token's destination, and the pending stage would replace it at the submit. The
           // grammar's order is price → +1 → read → the draw: the stage opens when the rail half ends (the watcher on
@@ -2725,8 +2743,9 @@ export default defineComponent({
           // stage now, not when the batch lands. It holds the column's
           // geometry (so the arrival shifts nothing) and, decisively, it is
           // what puts the teleport target in the DOM — the re-homed reveal
-          // needs its slot to already exist when it mounts.
-          this.outcomeFlow = {kind: 'pending'};
+          // needs its slot to already exist when it mounts. (A claim of the
+          // Venus bonus alone opens a STEP stage instead — `openClaimedStage`.)
+          this.openClaimedStage(kinds);
         }
       } else {
         // Viron's repeat: the COPY's outcome, through the one function every repeat door shares.
@@ -2780,7 +2799,7 @@ export default defineComponent({
         const plan = branchOutcomeClaimPlan(preview, payload.branchIndex, answeredCards);
         if (plan.kinds.length > 0) {
           claimWorkspaceOutcome('card-actions', comp.cardName, [...plan.kinds], comp.nodeIndex, plan.expectedCards, 'card');
-          this.outcomeFlow = {kind: 'pending'};
+          this.openClaimedStage(plan.kinds);
         }
       } else {
         // A LAW'S PLAY (RX36): what the CARD sets off — its draw, its keep-some pick, a woken card's question, a repeated

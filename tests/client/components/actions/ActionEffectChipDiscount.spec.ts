@@ -55,3 +55,15 @@ describe('ActionEffectChip — a discounted price (P89)', () => {
     expect(discountWhyOf([{...discounted, printed: undefined}])).is.undefined;
   });
 });
+
+describe('ActionEffectChip — the Venus step names the alternative board’s bonus door (P89 · EE)', () => {
+  it('a step that earns the bonus reads «› Бонус Венеры»; a plain step reads nothing more', () => {
+    const step: ActionEffect = {direction: 'gain', icon: 'venus', amount: 2, current: 16, resulting: 18, unit: '%'};
+    const w = mount(ActionEffectChip, {...globalConfig, props: {effect: {...step, altVenusBonus: {standard: 1, wild: false, from: 16, to: 18}}}});
+    expect(w.find('[data-chip-venus-bonus]').exists()).is.true;
+    w.unmount();
+    const plain = mount(ActionEffectChip, {...globalConfig, props: {effect: step}});
+    expect(plain.find('[data-chip-venus-bonus]').exists()).is.false;
+    plain.unmount();
+  });
+});

@@ -826,15 +826,22 @@
                         @submit="onTaskSubmit"
                         @defer="onTaskDefer" />
     </transition>
-    <transition :css="false" appear
-                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
-                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleVenusBonus v-if="venusBonusActive"
-                         ref="venusBonus"
-                         :playerView="playerView"
-                         @submit="onTaskSubmit"
-                         @defer="onTaskDefer" />
-    </transition>
+    <!-- THE VENUS BONUS IS A STEP OF ITS HOST (P89 · ledger EE — the owner's law of 2026-11-01): the alternative board's
+         bonus the press's Venus step earned stands INSIDE the workspace the press was made in («ДЕЙСТВИЯ КАРТ ›
+         <карта> › БОНУС ВЕНЕРЫ», the hand's play, the standard projects, the trade) — the same instance teleported into
+         the host's zone; a band of its own only when no surface hosts it, and then after the board's story. -->
+    <Teleport :to="venusBonusEmbedTarget ?? 'body'" :disabled="venusBonusEmbedTarget === undefined">
+      <transition :css="false" appear
+                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                  @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+        <ConsoleVenusBonus v-if="venusBonusActive"
+                           ref="venusBonus"
+                           :playerView="playerView"
+                           :embedded="venusBonusEmbedTarget !== undefined"
+                           @submit="onTaskSubmit"
+                           @defer="onTaskDefer" />
+      </transition>
+    </Teleport>
     <transition :css="false" appear
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
@@ -2040,7 +2047,7 @@ import {
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {revealSourcePeekState} from '@/client/console/revealSourcePeek';
-import {workspaceClaimsColonyRevealBatch, workspaceClaimsDrawRevealBatch, workspaceClaimsRevealBatch, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsColonyRevealBatch, workspaceClaimsVenusBonus, workspaceClaimsDrawRevealBatch, workspaceClaimsRevealBatch, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkPending, boardBeatParkState, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
 import {rulingChangeParksReveal} from '@/client/console/parliament/rulingChangeDraw';
@@ -2472,6 +2479,11 @@ function playReceiptOf(pending: PendingPlayCard): StagedReceipt | undefined {
   return cost === undefined ? undefined : {amount: cost, icon: 'megacredits'};
 }
 
+/** The standard projects' step zone — the hosted payment / pick / Venus bonus re-home there (one literal). */
+const STDP_STEP_ZONE = '.con-stdp [data-embed-slot="stdp-step"]';
+/** The hosted Venus bonus's stage name in its host's crumb (P89 · EE) — «БОНУС ВЕНЕРЫ». */
+const VENUS_BONUS_STAGE = 'Venus bonus';
+
 export default defineComponent({
   name: 'ConsoleShell',
   components: {
@@ -2601,6 +2613,8 @@ export default defineComponent({
       handDeliveryState,
       /** The Parliament section's leave is in flight: the frame is out of the stack, the section still mounted (v3 В1). */
       parliamentLeaving: false,
+      /** The standard projects' terminal commit is HOSTING the Venus bonus its step earned (P89 · EE). */
+      stdpVenusStep: false,
       /** THE START WATCHDOG (`startServing.ts`): a strand the heal could not end hands its question to the shell's own
        *  surfaces (the scene yields) until the prompt changes; the two timers are the confirm and the heal's grace. */
       startStrandYield: false,
@@ -4250,13 +4264,55 @@ export default defineComponent({
       return (boardBeatParkPending() || boardBeatParkState.draining) &&
         !workspaceFrameKnown('colonies') && !workspaceFrameKnown('parliament');
     },
+    /**
+     * THE VENUS BONUS BELONGS TO A WORKSPACE (P89 · ledger EE). Read off the RAW prompt — ownership is settled at the
+     * press (the claim's `venus-bonus` kind: a card action / a repeat / a law's play / a play from the hand / a trade),
+     * long before the surface may show; the standard projects' terminal commit holds for it on its own
+     * (`stdpVenusStep` — that workspace is no outcome host).
+     */
+    venusBonusBelongsToWorkspace(): boolean {
+      if (this.playerView.waitingFor?.venusBonusPrompt === undefined) {
+        return false;
+      }
+      return this.stdpHostsVenusBonus || workspaceClaimsVenusBonus();
+    },
+    /**
+     * The standard projects HOST the bonus their terminal project's step earned: the frame stands and its flow is the
+     * submit the bonus answers (or the hold already taken). Structural — never only the reconcile's flag, which is set
+     * a watcher AFTER the computeds that admit the band: read late, the band rose on its own for that flush.
+     */
+    stdpHostsVenusBonus(): boolean {
+      return this.playerView.waitingFor?.venusBonusPrompt !== undefined && workspaceFrameMounted('standard-projects') &&
+        (this.stdpVenusStep || stdProjectsFlow.state === 'submitting');
+    },
+    /** Claimed, but the host's zone is not standing yet → render NOWHERE for the gap, never a band of its own. */
+    venusBonusHeldForWorkspace(): boolean {
+      if (!this.venusBonusBelongsToWorkspace || this.stdpHostsVenusBonus) {
+        return false;
+      }
+      return workspaceOutcomeZone() === '' || workspaceOutcomeBeatPending();
+    },
+    /** The zone the ONE bonus surface is re-homed into, or undefined (no host → the standalone band). */
+    venusBonusEmbedTarget(): string | undefined {
+      if (!this.venusBonusBelongsToWorkspace || this.venusBonusHeldForWorkspace) {
+        return undefined;
+      }
+      if (this.stdpHostsVenusBonus) {
+        return STDP_STEP_ZONE;
+      }
+      const slot = workspaceOutcomeZone();
+      return slot === '' ? undefined : slot;
+    },
     nativeCompositeTask(): ConsoleTask | undefined {
       if (this.pendingClientPayment !== undefined || this.pendingClientPick !== undefined || !this.admits('host')) {
         return undefined;
       }
       const task = taskFor(this.playerView);
       // The alternative Venus board's bonus band waits for the board's story of the step that earned it (P89 · DZ).
-      if (task?.kind === 'venusBonus' && (!this.admits('scaleBonus') || this.scaleBonusOwesStory)) {
+      // …unless a workspace HOSTS it: the question is answered inside, the story plays after (P89 · EE) — waiting for a
+      // story the covered board cannot tell would hold both forever.
+      if (task?.kind === 'venusBonus' && !this.venusBonusBelongsToWorkspace &&
+          (!this.admits('scaleBonus') || this.scaleBonusOwesStory)) {
         return undefined;
       }
       return task !== undefined && NATIVE_COMPOSITE_KINDS.has(task.kind) ? task : undefined;
@@ -4525,7 +4581,7 @@ export default defineComponent({
         workspaceOutcomeState.embedSlot !== '';
     },
     venusBonusActive(): boolean {
-      return this.nativeCompositeTask?.kind === 'venusBonus' && !this.consoleState.task.deferred;
+      return this.nativeCompositeTask?.kind === 'venusBonus' && !this.consoleState.task.deferred && !this.venusBonusHeldForWorkspace;
     },
     spendHeatActive(): boolean {
       return this.nativeCompositeTask?.kind === 'spendHeat' && !this.consoleState.task.deferred;
@@ -4599,7 +4655,7 @@ export default defineComponent({
           !this.deckPickHeldForWorkspace && this.deckPickEmbedTarget === undefined) ||
         (this.taskHostRendered && this.taskEmbedTarget === undefined) ||
         (this.effectDecisionRendered && this.effectDecisionEmbedTarget === undefined) ||
-        this.venusBonusActive || this.spendHeatActive || this.aresGlobalsActive ||
+        (this.venusBonusActive && this.venusBonusEmbedTarget === undefined) || this.spendHeatActive || this.aresGlobalsActive ||
         (this.botAttackActive && this.botAttackVm !== undefined) ||
         (this.govSupportActive && !this.consoleState.task.deferred) ||
         (this.productionLossActive && !this.consoleState.task.deferred);
@@ -5566,7 +5622,9 @@ export default defineComponent({
         this.deckPickEmbedTarget !== undefined ||
         // …and the EFFECT DECISION a play's own triggered card raised. Same
         // claim, same zone, same two failure modes if it were left out.
-        this.effectDecisionEmbedTarget !== undefined;
+        this.effectDecisionEmbedTarget !== undefined ||
+        // …and the alternative Venus board's BONUS the press's step earned (P89 · EE) — an outcome claim's only.
+        (this.venusBonusEmbedTarget !== undefined && !this.stdpHostsVenusBonus);
     },
     /**
      * MAY THE PLAY COMPOSER LET GO OF THE STAGE?
@@ -5716,6 +5774,10 @@ export default defineComponent({
       }
       // The optional effect the press woke up — structural on both sides.
       if (this.effectDecisionBelongsToWorkspace) {
+        return true;
+      }
+      // …and the Venus bonus the press's step earned (P89 · EE): the server's marker on the raw prompt + the claim.
+      if (this.venusBonusBelongsToWorkspace) {
         return true;
       }
       // An UNACKNOWLEDGED deck-check verdict the claim owns: `lastReveal` is
@@ -9071,7 +9133,8 @@ export default defineComponent({
         return false;
       }
       return workspaceFrameHasNested('standard-projects') ||
-        this.pendingClientPayment !== undefined || this.pendingClientPick?.host === 'standard-projects';
+        this.pendingClientPayment !== undefined || this.pendingClientPick?.host === 'standard-projects' ||
+        this.stdpHostsVenusBonus;
     },
     /**
      * The SPATIAL PRE-SELECT hint (§9): while the player browses the std
@@ -11253,7 +11316,7 @@ export default defineComponent({
         // lookup cannot see the colony any more; `pick` rides along when the
         // colony's rewards can land on a card (the late-prompt defense).
         const kinds = this.colonyTradeClaimKinds(colonyTradeState.colonyName);
-        claimWorkspaceOutcome('colonies', colonyTradeState.colonyName, kinds.length > 0 ? kinds : ['draw']);
+        claimWorkspaceOutcome('colonies', colonyTradeState.colonyName, kinds.some((k) => k !== 'venus-bonus') ? kinds : ['draw', ...kinds]);
         markWorkspaceOutcomeArrivalDone();
       }
       this.bringColoniesHome();
@@ -12374,6 +12437,17 @@ export default defineComponent({
         this.parliamentWarmArmed = this.hostedStepDeclaredCard === card;
       }, motionMs(PARLIAMENT_WARM_SETTLE_MS));
     },
+    /** The hosted Venus bonus hands its stage name UP (P89 · EE): the host's crumb gains «› БОНУС ВЕНЕРЫ». */
+    venusBonusEmbedTarget(target: string | undefined): void {
+      if (target === undefined) {
+        return;
+      }
+      if (this.stdpHostsVenusBonus) {
+        setWorkspaceFrameStage('standard-projects', VENUS_BONUS_STAGE);
+      } else {
+        setWorkspaceOutcomePhase(VENUS_BONUS_STAGE);
+      }
+    },
     /** The section's leave, mirrored for a surface that entered over it (`whenParliamentSurfaceGone` — P89 · EA). */
     parliamentLeaving(leaving: boolean): void {
       consoleParliamentUi.surfaceLeaving = leaving;
@@ -13364,8 +13438,10 @@ export default defineComponent({
       if (workspaceFramePhase('standard-projects') !== 'committed') {
         return;
       }
+      // …and the Venus bonus the project's step earned (P89 · EE) is the project's own step: held until the answer's
+      // response plays the terminal beat (`stdpVenusStep` falls only there).
       if (workspaceFrameHasNested('standard-projects') || this.colonyResolutionLive ||
-          this.placementActive) {
+          this.placementActive || this.stdpVenusStep || this.stdpHostsVenusBonus) {
         return; // a step / its payout is still owed — the conclusion holds
       }
       this.endStdProjectsFlow();
@@ -18468,7 +18544,9 @@ export default defineComponent({
     armStdProjectSafety(): void {
       const card = stdProjectsFlow.card;
       window.setTimeout(() => {
-        if (stdProjectsFlow.state === 'submitting' && stdProjectsFlow.card === card) {
+        // …never while the response DID land and the project hosts its Venus bonus (P89 · EE): the player is reading
+        // a live question, not waiting on a lost submit.
+        if (stdProjectsFlow.state === 'submitting' && stdProjectsFlow.card === card && !this.stdpVenusStep) {
           this.rollbackStdProjectFlow();
           this.showNotice('Unavailable right now');
         }
@@ -18549,6 +18627,15 @@ export default defineComponent({
           this.playStdProjectCommitBeat();
           return;
         }
+        // THE VENUS BONUS the project's step earned (Air Scrapping on the alternative board — P89 · EE): the
+        // project's own next stage, hosted in `stdp-step` («СТАНДАРТНЫЕ ПРОЕКТЫ › ОЧИСТКА ВОЗДУХА › БОНУС ВЕНЕРЫ»);
+        // the decision is live (B collapses, never a stalled «executing» beat); its answer's response ends the
+        // project through the terminal beat above.
+        if (task.kind === 'venusBonus' && workspaceFrameMounted('standard-projects')) {
+          this.stdpVenusStep = true;
+          setWorkspaceFramePhase('standard-projects', 'committed');
+          return;
+        }
         // A follow-up this workspace has no surface for (a Moon placement, a
         // Collusion party pick, the maxed-oceans Whales redirect): fold
         // honestly and let the prompt route to its own home.
@@ -18610,6 +18697,7 @@ export default defineComponent({
      * the phrase's own (`stdProjectCommitBeatMs`), not a number typed here.
      */
     playStdProjectCommitBeat(): void {
+      this.stdpVenusStep = false;
       markStdProjectCommit();
       if (workspaceFrameMounted('standard-projects')) {
         setWorkspaceFramePhase('standard-projects', stdProjectsFramePhase('commit'));
@@ -18700,8 +18788,14 @@ export default defineComponent({
      * zone instead of rising as a standalone band over the workspace that
      * asked the question.
      */
-    colonyTradeClaimKinds(colonyName: string): Array<'draw' | 'pick'> {
-      const kinds: Array<'draw' | 'pick'> = [];
+    colonyTradeClaimKinds(colonyName: string): Array<'draw' | 'pick' | 'venus-bonus'> {
+      const kinds: Array<'draw' | 'pick' | 'venus-bonus'> = [];
+      // A trade can step Venus (the Redux «Venus» colony's fixed income) — on the alternative board that step may earn
+      // the bonus, asked between the income and the track's reset: the trade's own next stage (P89 · EE). Optimistic,
+      // like a play's: the reconciler keeps it only while the bonus is what the server asks.
+      if (this.playerView.game.gameOptions.altVenusBoard === true) {
+        kinds.push('venus-bonus');
+      }
       if (this.colonyTradeDealsCards(colonyName)) {
         kinds.push('draw');
       }
@@ -20333,7 +20427,7 @@ export default defineComponent({
       // question a play's own card asked is a stage of that play, not the end
       // of the screen it was made in (the discard it opens, and the card that
       // discard buys, are still inside this workspace).
-      if (!this.taskBelongsToWorkspace && this.effectDecisionEmbedTarget === undefined) {
+      if (!this.taskBelongsToWorkspace && this.effectDecisionEmbedTarget === undefined && this.venusBonusEmbedTarget === undefined) {
         closeConsoleLayers();
       }
       this.consoleState.task.deferred = false;
@@ -20345,7 +20439,7 @@ export default defineComponent({
      * it stay, the deferred flag drops.
      */
     onTaskSubmitBatch(responses: ReadonlyArray<unknown>): void {
-      if (!this.taskBelongsToWorkspace && this.effectDecisionEmbedTarget === undefined) {
+      if (!this.taskBelongsToWorkspace && this.effectDecisionEmbedTarget === undefined && this.venusBonusEmbedTarget === undefined) {
         closeConsoleLayers();
       }
       this.consoleState.task.deferred = false;
@@ -20404,8 +20498,9 @@ export default defineComponent({
       // the step alone. Which collapse that is depends on the host — the action
       // centre has its own atomic one; every other workspace parks its whole
       // stack, exactly as its own B does.
-      if (this.deckPickEmbedTarget !== undefined || this.effectDecisionEmbedTarget !== undefined) {
-        if (workspaceOutcomeState.host === 'card-actions') {
+      if (this.deckPickEmbedTarget !== undefined || this.effectDecisionEmbedTarget !== undefined ||
+          this.venusBonusEmbedTarget !== undefined) {
+        if (workspaceOutcomeState.host === 'card-actions' && !this.stdpHostsVenusBonus) {
           this.onCardActionsCollapse();
         } else {
           this.collapseWorkspace();
@@ -21164,7 +21259,7 @@ export default defineComponent({
         // play's outcome, and holding the workspace for it would stand the
         // flow around a PARKED browse layer — the picker the prompt needs,
         // invisible behind a finished stage.
-        ownsPrompt: (mine && (this.taskBelongsToWorkspace || this.deckPickBelongsToWorkspace)) ||
+        ownsPrompt: (mine && (this.taskBelongsToWorkspace || this.deckPickBelongsToWorkspace || this.venusBonusBelongsToWorkspace)) ||
           (servedPromptHolds && task !== undefined && frameServing(task.kind)?.kind === kind) ||
           // THE ENACTED LAW'S ACTION still owes a step (Turmoil Redux, RX36): its card landing in the stage, or the live
           // play pick a bill with a payment of its own raised after it — neither a prompt this frame «serves» by registry.
@@ -22093,7 +22188,7 @@ export default defineComponent({
             // present — so an ordinary un-hostable OrOptions branch still
             // releases the claim exactly as before.
             PLAY_CLAIMED_TASK_KINDS.has(task?.kind as TaskKind) ||
-              this.effectDecisionBelongsToWorkspace :
+              this.effectDecisionBelongsToWorkspace || this.venusBonusBelongsToWorkspace :
             // The prompt exists but the gate is still holding it: it may yet be
             // ours once it opens — but only a prompt of a kind THIS claim can
             // host (`workspaceOutcomePromptServed`, read off the RAW prompt: a

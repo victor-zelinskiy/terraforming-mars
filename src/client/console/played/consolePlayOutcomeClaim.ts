@@ -328,7 +328,9 @@ export function lawPlayOutcomeLive(): boolean {
 export function claimLawPlayOutcome(card: string, expectedCards = 0, opts: {deckCheck?: boolean} = {}): void {
   markPlayLandingReleased();
   setWorkspaceOutcomeSlot(LAW_PLAY_OUTCOME_ZONE);
-  const kinds: Array<WorkspaceOutcomeKind> = ['draw', 'pick', 'effect'];
+  // …and the alternative Venus board's bonus (P89 · EE): a play's chain is not all previewed (a triggered effect's
+  // step, a card's own bespoke raise), so it is claimed OPTIMISTICALLY like the effect — kept only while it is asked.
+  const kinds: Array<WorkspaceOutcomeKind> = ['draw', 'pick', 'effect', 'venus-bonus'];
   if (opts.deckCheck === true) {
     kinds.push('deck-check');
   }
@@ -383,7 +385,9 @@ export function claimPlayOutcome(
   // exist yet drops its content on the floor, and the claim is what makes the
   // consumers start looking for it.
   setWorkspaceOutcomeSlot(spec.zone);
-  const kinds: Array<WorkspaceOutcomeKind> = ['draw', 'pick', 'effect'];
+  // …and the alternative Venus board's bonus (P89 · EE): a play's chain is not all previewed (a triggered effect's
+  // step, a card's own bespoke raise), so it is claimed OPTIMISTICALLY like the effect — kept only while it is asked.
+  const kinds: Array<WorkspaceOutcomeKind> = ['draw', 'pick', 'effect', 'venus-bonus'];
   if (opts.deckCheck === true) {
     kinds.push('deck-check');
   }

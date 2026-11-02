@@ -75,7 +75,9 @@ async function armSampler(page: Page): Promise<void> {
         return;
       }
       const cs = getComputedStyle(proxy);
-      if (cs.transform === 'none' || Number(cs.opacity) === 0) {
+      // The director PLACES the proxy at its origin (transform written) before it lifts its opacity and flies — the
+      // first written transform is the origin; waiting for a visible frame read a mid-flight pose under load.
+      if (cs.transform === 'none') {
         return;
       }
       const c = centre(proxy);

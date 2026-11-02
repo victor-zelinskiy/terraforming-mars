@@ -210,6 +210,14 @@ export type ActionEffect = {
    * built by ONE builder (`actionPreviews.discountedStockCost`), absent otherwise.
    */
   printed?: number;
+  /**
+   * THE ALTERNATIVE VENUS BOARD'S BONUS THIS VENUS STEP EARNS (P89 · ledger EE — the owner's law «the bonus is a step of
+   * the surface where the scale step fired»): the ONE arithmetic `common/venus/altVenusBonus.ts`, stamped by the server on
+   * a Venus gain chip only on that board and only when the step reaches a bonus cell. The client reads it twice — the
+   * claim (`branchOutcomeClaimPlan` → the outcome kind `venus-bonus`: the stage that will host the bonus is decided with
+   * the claim) and the door named in advance («› ДАЛЕЕ: БОНУС ВЕНЕРЫ»). Absent everywhere else.
+   */
+  altVenusBonus?: {standard: number, wild: boolean, from: number, to: number};
   /** Current value of the affected pool, for a `current → resulting` preview.
    *  Omitted when there's no single pool to show (e.g. add to ANY card, draw). */
   current?: number;

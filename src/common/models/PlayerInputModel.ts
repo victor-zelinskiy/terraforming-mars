@@ -243,6 +243,12 @@ export type VenusBonusPromptMeta = {
   kind: 'standard' | 'final';
   /** Distinct standard resources granted by the base bonus. */
   baseCount: number;
+  /**
+   * THE SCALE STEP THAT EARNED IT (P89 · ledger EE): Venus before → after the raise — the hosted step's head reads
+   * «Шкала Венеры 16 % → 18 %», and the bonus cell the reward is born on is the last cell reached. Absent on a save
+   * older than the marker.
+   */
+  step?: {from: number, to: number};
   /** (final only) Card names eligible to receive the wild card-resource. */
   wildCardTargets?: ReadonlyArray<CardName>;
   /**
