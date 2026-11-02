@@ -241,6 +241,18 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
     description: 'Water ice under a layer of frozen carbon dioxide. Placing a tile here costs 4 M€ and raises the temperature 1 step.',
     placement: 'top',
   },
+  // ── Hellas — the South Pole ────────────────────────────────────────
+  // The map prints no named locations; its ONE special cell is the South Pole (land(OCEAN), fixed, not shuffled):
+  // a tile here pays 6 M€ and places an ocean — free and empty once every ocean is down (`HellasBoard.spaceCosts`).
+  // The same words as the two North Poles, so the source plate on the bill names the cell the same way.
+  {
+    id: 'hellas_south_pole',
+    boardName: BoardName.HELLAS,
+    spaceId: SpaceName.HELLAS_OCEAN_TILE, // '61' — y=8, land(OCEAN)
+    title: 'South Pole',
+    description: 'Water ice under a layer of frozen carbon dioxide. Placing a tile here costs 6 M€ and places an ocean; once every ocean is down, it is free and places nothing.',
+    placement: 'top',
+  },
   // ── Vastitas Borealis Nova — named locations ───────────────────────
   // The six legacy SVG text labels (Board.vue) replaced by hover markers, plus
   // the two cells whose printed bonus the table decides: the North Pole and the
