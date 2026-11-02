@@ -44,8 +44,8 @@
 	
 	"Board of Directors": "Совет директоров",
     "ACTION:": "Действие:",
-    "DRAW 1 PRELUDE CARD: EITHER DISCARD IT, OR PAY 12 M€ AND REMOVE 1 DIRECTOR RESOURCE HERE TO PLAY IT.": "Возьмите 1 карту Прелюдии: либо сбросьте её, либо заплатите 12 М€ и уберите 1 ресурс директора с этой карты, чтобы сыграть её.",
-    "Add 4 director resources here.": "Добавьте на эту карту 4 ресурса директора.",
+    "Draw 1 prelude card. Either discard it, or pay 12 M€ and remove 1 director resource from here to play it.": "Возьмите 1 пролог из колоды прологов. Либо сбросьте его, либо заплатите 12 M€ и уберите 1 директора с этой карты, чтобы разыграть его.",
+    "Add 4 director resources here.": "Положите на эту карту 4 директора.",
 
 	"Corridors of Power": "Коридоры власти",
     "Effect: Each time you become party leader, draw 1 card.": "Эффект: Каждый раз когда вы становитесь лидером партии, добирите 1 карту.",

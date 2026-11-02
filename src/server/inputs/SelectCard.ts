@@ -205,7 +205,9 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
       if (preludes.length > 0) {
         // Pool = what the player can still play AFTER this decision. In a
         // drew-N ask the rivals are discarded on the spot and enable nothing.
-        const outlooks = computePreludeOutlooks(player, preludes, player.preludeCardsInHand);
+        // A pick played for a PRICE (P45 — `price`) is judged with that price held back: «will fizzle» must count the
+        // 12 M€ the play takes first.
+        const outlooks = computePreludeOutlooks(player, preludes, player.preludeCardsInHand, {reserve: this.deckPickPrompt?.price?.megacredits});
         for (const card of model.cards) {
           const outlook = outlooks.get(card.name);
           if (outlook !== undefined) {

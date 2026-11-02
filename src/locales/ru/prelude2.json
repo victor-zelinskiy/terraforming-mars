@@ -1,5 +1,6 @@
 {
     "Applied Science": "Прикладная наука",
+    "Action: Draw 1 prelude card. Either discard it, or pay 12 M€ and remove 1 director resource from here to play it.": "Действие: возьмите 1 пролог из колоды прологов. Либо сбросьте его, либо заплатите 12 M€ и уберите 1 директора с этой карты, чтобы разыграть его.",
     "Action: Remove 1 resource here to either add 1 resource to ANY CARD WITH A RESOURCE or gain 1 standard resource.": "Действие: снимите 1 ресурс с этой карты, чтобы положить 1 ресурс на ЛЮБУЮ КАРТУ, ГДЕ УЖЕ ЕСТЬ РЕСУРС, или получить 1 стандартный ресурс.",
     "Spend 1 science resource here to gain 1 standard resource": "Снять 1 науку: 1 стандартный ресурс",
     "Spend 1 science resource here to gain 1 resource on ANY CARD WITH A RESOURCE.": "Снять 1 науку: 1 ресурс на любую карту с ресурсом",
@@ -42,5 +43,24 @@
     "Venus cards — to your hand for free": "Карты Венеры — в руку бесплатно",
     "Other cards — buy for ${0} M€ or discard": "Прочие — купить за ${0} M€ или сбросить",
     "Enough M€ for ${0}": "Хватит на ${0}",
-    "In the deck: ${0}": "В колоде: ${0}"
+    "In the deck: ${0}": "В колоде: ${0}",
+    "Play ${0} for 12 M€ and 1 director, or discard it": "Разыграть ${0} за 12 M€ и 1 директора или сбросить",
+    "The prelude deck is empty": "Колода прологов пуста",
+    "Prelude decision": "Решение по прологу",
+    "Play the drawn prelude, or discard it": "Разыграйте взятый пролог или сбросьте его",
+    "Play it": "Разыграть",
+    "Play: it burns": "Разыграть: сгорит",
+    "Discard it": "В сброс",
+    "The only outcome": "Единственный исход",
+    "The prelude is discarded": "Пролог сброшен",
+    "The price is paid first": "Сначала — цена",
+    "To the prelude discard pile": "В сброс прологов",
+    "Pay ${0} M€ and 1 director to play it": "Заплатите ${0} M€ и 1 директора — пролог разыгрывается",
+    "Pay ${0} M€ and 1 director; the prelude burns and you gain 15 M€": "Заплатите ${0} M€ и 1 директора — пролог сгорит, вы получите 15 M€",
+    "To the prelude discard pile; nothing else changes": "Пролог ложится в сброс прологов; больше ничего не меняется",
+    "Draw 1 card from the prelude deck": "Возьмёте 1 пролог из колоды прологов",
+    "After the reveal: discard it, or pay ${0} M€ and 1 director to play it": "Решение после вскрытия: сбросить или заплатить ${0} M€ и 1 директора за розыгрыш",
+    "Directors: ${0} → ${1}": "Директора: ${0} → ${1}",
+    "Enough M€ to play it": "M€ на розыгрыш хватает",
+    "Need ${0} more M€ — only the discard is open": "Не хватает ${0} M€ — открыт только сброс"
 }

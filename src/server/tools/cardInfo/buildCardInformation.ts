@@ -363,6 +363,10 @@ function enCardResource(res: CardResource, n: number): string {
   if (res === CardResource.SCIENCE) {
     return n === 1 ? 'science resource' : 'science resources';
   }
+  // «director» counts as a RESOURCE too (P45 prints «Add 4 director resources here»).
+  if (res === CardResource.DIRECTOR) {
+    return n === 1 ? 'director resource' : 'director resources';
+  }
   const noun = res.toLowerCase();
   return n === 1 || UNCOUNTABLE_CARD_RESOURCES.has(res) ? noun : (noun.endsWith('s') ? noun : `${noun}s`);
 }

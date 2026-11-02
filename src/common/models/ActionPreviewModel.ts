@@ -6,7 +6,7 @@ import {Color} from '../Color';
 import {Message} from '../logs/Message';
 import {TileType} from '../TileType';
 import {Units} from '../Units';
-import {PlayerInputModel, SelectCardModel, SelectColonyModel, SelectPartyModel} from './PlayerInputModel';
+import {DeckPickPlayPrice, PlayerInputModel, SelectCardModel, SelectColonyModel, SelectPartyModel} from './PlayerInputModel';
 import {DeltaAdvanceOffer} from './DeltaBonusPromptModel';
 import {AllColonyBonusesModel} from './ColonyBonusLedgerModel';
 import {EffectForecast} from './EffectForecastModel';
@@ -471,6 +471,31 @@ export type ActionRevealSplitDescriptor = {
   deckSize: number;
 };
 
+/**
+ * A REVEAL DECIDED BY A VERDICT over the PRELUDE deck (P45 Board of Directors: «draw 1 prelude card: either discard
+ * it, or pay 12 M€ and remove 1 director resource from here to play it»): ONE card leaves the prelude deck, and the
+ * player decides AFTER seeing it — play it for `play`'s price, or discard it. The price is not paid at the action's
+ * press (nothing is promised there but the draw); it is the verdict's. Structure only, never prose: the setup stage
+ * reads the deck, the price and the open counts; the outcome claim reads it as an action that PLAYS a card (its whole
+ * causal chain is the workspace's — the played prelude's own draw, placement and branch).
+ *
+ * Deliberately NOT a {@link ActionRevealDescriptor} (a deck CHECK with a printed condition and a fixed reward) nor a
+ * {@link ActionRevealSplitDescriptor} (several project cards, each one's verdict a printed tag): here the verdict is
+ * the PLAYER's and it plays a card.
+ */
+export type ActionRevealVerdictDescriptor = {
+  deck: 'prelude';
+  /** How many cards leave the deck (the printed «draw 1 prelude»). */
+  count: number;
+  /** Open information: the prelude draw pile now, and the discard pile (reshuffled in when the pile runs out). */
+  deckSize: number;
+  discardSize: number;
+  /** The price of the «play it» outcome — the same shape the deck pick's marker carries (`DeckPickPromptMeta.price`). */
+  play: DeckPickPlayPrice;
+  /** The other outcome: the prelude goes to the prelude discard pile, nothing changes. */
+  miss: {kind: 'discard'};
+};
+
 export type ActionPreviewBranch = {
   /**
    * THE ADDRESS of the branch slot's answer (the `{type:'or', index}` pick, or
@@ -543,6 +568,12 @@ export type ActionPreviewBranch = {
    * stage, a `deck-check` claim), this one is a DRAW the player then decides on.
    */
   revealSplit?: ActionRevealSplitDescriptor;
+  /**
+   * Present when this action draws a card and the player decides on it AFTER the reveal — play it for a price or
+   * discard it (P45 Board of Directors) — see {@link ActionRevealVerdictDescriptor}. Never beside `reveal` /
+   * `revealSplit`.
+   */
+  revealVerdict?: ActionRevealVerdictDescriptor;
   /**
    * The card-target steps in this branch are SLOTS of ONE SelectCard (e.g. Astra
    * Mechanica "return UP TO 2 events to hand"): the live play produces a SINGLE

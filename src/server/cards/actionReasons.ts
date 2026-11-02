@@ -54,6 +54,7 @@ const RESOURCES_HERE_SHORT: Partial<Record<CardResource, string>> = {
   [CardResource.ASTEROID]: '${0} of ${1} {asteroid|asteroids} on this card',
   [CardResource.CAMP]: '${0} of ${1} {camp|camps} on this card',
   [CardResource.LEVERAGE]: '${0} of ${1} leverage on this card',
+  [CardResource.DIRECTOR]: '${0} of ${1} {director|directors} on this card',
 };
 /** The counted generic for a resource without its own row. */
 export const RESOURCES_HERE_SHORT_GENERIC = '${0} of ${1} {resource|resources} on this card';

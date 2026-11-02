@@ -33,7 +33,6 @@ export const WARNING_TEXT: Record<Warning, string> = {
   'buildOnLuna': 'You will only be able to build the colony on Luna.',
   'preludeFizzle': 'This prelude is not playable, so you will discard it and gain 15 M€.',
   'deckTooSmall': 'There are not enough cards to complete this action. You will draw fewer cards than expected.',
-  'cannotAffordBoardOfDirectors': 'Warning: you do not have the 12 M€ required to act on a prelude.',
   'marsIsTerraformed': 'Note: all global parameters are at their goals.',
   'ineffectiveDoubleDown': 'Behavior in this card will apply to Double Down, and so have no effect.',
   'unusableEventsForAstraMechanica': 'Astra Mechanica does not apply to events that return cards to a player\'s hand.',
@@ -72,7 +71,6 @@ const WARNING_LEVEL: Partial<Record<Warning, WarningLevel>> = {
   'pharmacyUnion': 'warning',
   'kaguyaTech': 'warning',
   'underworldtokendiscard': 'warning',
-  'cannotAffordBoardOfDirectors': 'warning',
   // Neutral heads-up.
   'buildOnLuna': 'info',
   'hostileTakeover': 'info',

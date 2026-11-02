@@ -333,14 +333,15 @@ function answerLive(input: PlayerInput, player: TestPlayer): PlayerInput | undef
  * Guild is the reference flow). The claim derives from the preview through
  * `branchOutcomeClaimPlan` (actionPreviewStore.ts), which reads exactly two
  * signals: a `+N cards` GAIN chip (→ 'draw'/'pick'), the branch's `reveal`
- * descriptor (→ 'deck-check') and a split reveal (`revealSplit` → 'draw'/'pick', P88). A `card` prompt arriving under that claim is the
+ * descriptor (→ 'deck-check'), a split reveal (`revealSplit` → 'draw'/'pick', P88) and a verdict reveal over the prelude deck
+ * (`revealVerdict` → 'pick' + the play's chain, P45). A `card` prompt arriving under that claim is the
  * embedded flow, not a standalone band — mirror the SAME reading here.
  */
 function workspaceClaims(branch: ActionPreviewBranch, live: PlayerInput): boolean {
   if (live.type !== 'card') {
     return false;
   }
-  if (branch.reveal !== undefined || branch.revealSplit !== undefined) {
+  if (branch.reveal !== undefined || branch.revealSplit !== undefined || branch.revealVerdict !== undefined) {
     return true;
   }
   return branch.effects.some((e) => e.direction === 'gain' && e.icon === 'cards');

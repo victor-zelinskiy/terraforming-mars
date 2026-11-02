@@ -5,10 +5,11 @@ import {IPreludeCard} from '../cards/prelude/IPreludeCard';
 import {SelectCard} from '../inputs/SelectCard';
 import {computePreludeOutlooks} from './preludeOutlook';
 import {Phase} from '../../common/Phase';
-import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
+import {ChoiceContextSource, DeckPickPlayPrice, SelectPaymentModel} from '../../common/models/PlayerInputModel';
 import {deckPickPrompt} from '../inputs/deckPickPrompt';
 import {cardSource} from '../inputs/choiceContext';
 import {ICard} from '../cards/ICard';
+import {Message} from '../../common/logs/Message';
 
 export class PreludesExpansion {
   public static fizzle(player: IPlayer, card: IPreludeCard): void {
@@ -72,15 +73,30 @@ export class PreludesExpansion {
    * discarded) — the second, documented attachment point of the marker (see
    * `inputs/deckPickPrompt.ts`).
    */
-  private static markMidGamePick(selectCard: SelectCard<IPreludeCard>, cards: ReadonlyArray<IPreludeCard>, source: ChoiceContextSource | undefined): void {
+  private static markMidGamePick(
+    selectCard: SelectCard<IPreludeCard>,
+    cards: ReadonlyArray<IPreludeCard>,
+    source: ChoiceContextSource | undefined,
+    bounds: {min: number, max: number, price?: DeckPickPlayPrice, payment?: SelectPaymentModel} = {min: 1, max: 1}): void {
     selectCard.markDeckPickPrompt(deckPickPrompt({
       revealed: cards.length,
-      min: 1,
-      max: 1,
+      min: bounds.min,
+      max: bounds.max,
       origin: 'prelude',
       mode: 'play',
       source,
+      price: bounds.price,
+      payment: bounds.payment,
     }));
+  }
+
+  /** Play a picked prelude, or burn it for 15 M€ when its effect cannot resolve now — the one rule every pick ends in. */
+  public static playOrFizzle(player: IPlayer, card: IPreludeCard): void {
+    if (card.canPlay?.(player) === false) {
+      PreludesExpansion.fizzle(player, card);
+    } else {
+      player.playCard(card, undefined, 'add');
+    }
   }
 
   /**
@@ -95,7 +111,10 @@ export class PreludesExpansion {
     cards: Array<IPreludeCard>,
     remainders: undefined | 'discard' = undefined,
     cardAction: CardAction = 'add',
-    opts: {source?: ICard} = {}): SelectCard<IPreludeCard> {
+    opts: {source?: ICard, verdict?: PreludeVerdict} = {}): SelectCard<IPreludeCard> {
+    if (opts.verdict !== undefined) {
+      return PreludesExpansion.selectPreludeVerdict(player, cards, opts.verdict, opts.source);
+    }
     // This preps the warning attribute in preludes.
     // All preludes can be presented. Unplayable ones just fizzle.
     //
@@ -176,4 +195,46 @@ export class PreludesExpansion {
         return undefined;
       });
   }
+
+  /**
+   * THE VERDICT AFTER A REVEAL (P45 Board of Directors): the drawn prelude is SHOWN, and the player either plays it
+   * for `verdict.price` or lets it go — `min 0`, `max` narrowed by affordability (`max 0` = only the discard is open;
+   * the prompt is still asked, so the player sees what was drawn and lets it go knowingly). The same marker family
+   * as every mid-game prelude pick (`play` mode) with the PRICE on it; the outlook is computed with the price held
+   * back (`reserve`), so «will fizzle» counts the money the play takes first. What the answer does is the CALLER's
+   * (`resolve`) — the price, its order and the play belong to the card that charges it.
+   */
+  private static selectPreludeVerdict(player: IPlayer, cards: Array<IPreludeCard>, verdict: PreludeVerdict, source: ICard | undefined): SelectCard<IPreludeCard> {
+    const reserve = verdict.price.megacredits;
+    const outlooks = computePreludeOutlooks(player, cards, player.preludeCardsInHand, {reserve});
+    for (const card of cards) {
+      card.clearWarnings();
+      const outlook = outlooks.get(card.name);
+      if (outlook !== undefined && outlook.state !== 'playable') {
+        card.addWarning('preludeFizzle');
+      }
+    }
+    const max = verdict.price.affordable ? Math.min(1, cards.length) : 0;
+    const selectCard = new SelectCard(verdict.title, 'Play', cards, {min: 0, max});
+    // A card ACTION is always mid-game: the marker is the deck pick's, never the start's.
+    PreludesExpansion.markMidGamePick(selectCard, cards, source !== undefined ? cardSource(source) : undefined,
+      {min: 0, max, price: verdict.price, payment: verdict.payment});
+    return selectCard.andThen((selected) => {
+      verdict.resolve(selected[0]);
+      return undefined;
+    });
+  }
 }
+
+/**
+ * A prelude pick decided AFTER the reveal, for a price (P45) — see {@link PreludesExpansion.selectPreludeToPlay}.
+ * `resolve(undefined)` = the player let it go (the caller discards it); `resolve(card)` = play it (the caller charges
+ * the price, then plays or burns it through `PreludesExpansion.playOrFizzle`).
+ */
+export type PreludeVerdict = {
+  title: string | Message;
+  price: DeckPickPlayPrice;
+  /** The price's payment prompt when the server WILL ask one (`SelectPaymentDeferred.previewPaymentModel`). */
+  payment?: SelectPaymentModel;
+  resolve: (card: IPreludeCard | undefined) => void;
+};

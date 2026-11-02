@@ -14,7 +14,6 @@ export type Warning =
  'buildOnLuna' |
  'preludeFizzle' |
  'deckTooSmall' |
- 'cannotAffordBoardOfDirectors' |
  'marsIsTerraformed' |
  'ineffectiveDoubleDown' |
  'noMatchingCards' |

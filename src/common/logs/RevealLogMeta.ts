@@ -10,8 +10,8 @@ import {CardName} from '../cards/CardName';
  * adds the SEMANTICS (where from, what happened, which source card).
  */
 
-/** Where the revealed cards came from. */
-export type RevealOrigin = 'deck' | 'hand';
+/** Where the revealed cards came from. `prelude` = the PRELUDE deck (P45 Board of Directors' draw). */
+export type RevealOrigin = 'deck' | 'hand' | 'prelude';
 
 /** What happened to them afterwards. */
 export type RevealResult = 'discarded' | 'shown' | 'kept' | 'revealed';

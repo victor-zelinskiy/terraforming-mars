@@ -20,7 +20,7 @@ import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX
 import {parameterRoom} from '../../common/parliament/parameterMove';
 import {altVenusBonusFor} from '../../common/venus/altVenusBonus';
 import {tileRemovalRoom} from '../../common/parliament/tileRemoval';
-import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis, ActionEffectBasisSetSide, ActionRevealDescriptor, ActionRevealSplitDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel, NeutralRallyModel} from '../../common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis, ActionEffectBasisSetSide, ActionRevealDescriptor, ActionRevealSplitDescriptor, ActionRevealVerdictDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel, NeutralRallyModel} from '../../common/models/ActionPreviewModel';
 import {AllColonyBonusesModel} from '../../common/models/ColonyBonusLedgerModel';
 import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
 import {AmountConversionModel, AmountCostModel, AmountResultModel, DiscardPromptMeta, PlacementEffect, PlayerInputModel, SelectColonyModel} from '../../common/models/PlayerInputModel';
@@ -1417,7 +1417,7 @@ export function singleBranch(
   player: IPlayer,
   steps: ReadonlyArray<ActionPreviewStep> = [],
   effects: ReadonlyArray<ActionEffect> = [],
-  opts: {reveal?: ActionRevealDescriptor, revealSplit?: ActionRevealSplitDescriptor, unavailableReason?: string | Message | UnplayableReason, colonyBonuses?: AllColonyBonusesModel} = {},
+  opts: {reveal?: ActionRevealDescriptor, revealSplit?: ActionRevealSplitDescriptor, revealVerdict?: ActionRevealVerdictDescriptor, unavailableReason?: string | Message | UnplayableReason, colonyBonuses?: AllColonyBonusesModel} = {},
 ): ActionPreview {
   const available = card.canAct(player);
   // A blocked branch ALWAYS names its blocker. `opts.unavailableReason` wins when
@@ -1441,6 +1441,7 @@ export function singleBranch(
     steps: available ? steps : [],
     reveal: opts.reveal,
     ...(opts.revealSplit !== undefined ? {revealSplit: opts.revealSplit} : {}),
+    ...(opts.revealVerdict !== undefined ? {revealVerdict: opts.revealVerdict} : {}),
     ...(opts.colonyBonuses !== undefined ? {colonyBonuses: opts.colonyBonuses} : {}),
   };
   return {...base(card), kind: 'bespoke', branches: [branch]};

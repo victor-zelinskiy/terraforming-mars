@@ -36,6 +36,7 @@
     "Add a floater to any card.": "Добавьте 1 аэростат на любую карту.",
     "Add a science resource here": "Положите сюда жетон науки",
     "Add 6 science resources to this card.": "Положите на эту карту 6 ресурсов науки.",
+    "Add 4 director resources to this card.": "Положите на эту карту 4 директора.",
     "1 science → +1 on a card or a standard resource": "1 наука → +1 на карту или стандартный ресурс",
     "Add an asteroid to any card": "Добавьте астероид на любую карту",
     "Add an asteroid to this card": "Добавьте астероид на эту карту",
@@ -647,6 +648,7 @@
     "Place a city tile and gain its printed placement bonus 2 additional times.": "Разместите тайл города и получите бонус размещения его клетки ещё 2 раза.",
     "Draw 1 card per resolution with 2+ of your delegates": "Карта за резолюцию с 2+ вашими делегатами",
     "Reveal 2: Venus cards free, buy or discard the rest": "Вскройте 2: Венера — в руку, прочие — купить/сброс",
+    "Draw a prelude: discard, or 12 M€ + director to play": "Пролог: сброс или розыгрыш за 12 M€ и 1 директора",
     "Raise Venus 1 step: 12 M€, −1 per Venus tag": "Венера +1 шаг: 12 M€ минус 1 за метку Венеры",
     "Draw 3 prelude cards from the prelude deck and play 1 of them; discard the other 2.": "Возьмите 3 пролога из колоды прологов и разыграйте 1 из них, остальные 2 сбросьте."
 }

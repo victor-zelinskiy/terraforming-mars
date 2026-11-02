@@ -1,4 +1,4 @@
-import {IPlayer} from '../../IPlayer';
+import {CanAffordOptions, IPlayer} from '../../IPlayer';
 import {PreludeCard} from './PreludeCard';
 import {CardName} from '../../../common/cards/CardName';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
@@ -34,8 +34,9 @@ export class HugeAsteroid extends PreludeCard {
       },
     });
   }
-  public override bespokeCanPlay(player: IPlayer) {
-    return player.canAfford(5);
+  public override bespokeCanPlay(player: IPlayer, canAffordOptions: CanAffordOptions) {
+    // A price paid BEFORE this play (P45 Board of Directors' 12 M€) is held back: the 5 M€ come after it.
+    return player.canAfford({...canAffordOptions, cost: canAffordOptions.cost + 5});
   }
   public override bespokePlay(player: IPlayer) {
     player.game.defer(new SelectPaymentDeferred(player, -this.startingMegaCredits, {cause: cardSource(this)}));

@@ -941,7 +941,7 @@ export class EventRecorder {
    * its own journal-visible fact, {@link recordDeckSearched} (PL-033).
    * NEVER called for a private draw, so a private draw can't become a public fact.
    */
-  public recordCardReveal(player: IPlayer, source: ICard, reveal: {origin: 'deck' | 'hand'; result: 'discarded' | 'shown' | 'kept' | 'revealed'; count: number; found?: boolean}): void {
+  public recordCardReveal(player: IPlayer, source: ICard, reveal: {origin: 'deck' | 'hand' | 'prelude'; result: 'discarded' | 'shown' | 'kept' | 'revealed'; count: number; found?: boolean}): void {
     if (reveal.count <= 0) {
       return;
     }

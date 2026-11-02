@@ -12,6 +12,7 @@ import type {DeltaEspionageProjectionModel} from './DeltaEspionageModel';
 import type {TargetImpact, TargetImpactChange} from './TargetImpactModel';
 import type {AdjacencyAmountBasis} from './CardAdjacencyPayoutModel';
 import {CardName} from '../cards/CardName';
+import type {CardResource} from '../CardResource';
 import type {SpaceBonus} from '../boards/SpaceBonus';
 import {Tag} from '../cards/Tag';
 import {ColonyName} from '../colonies/ColonyName';
@@ -465,7 +466,28 @@ export type DeckPickPromptMeta = {
    * answers both prompts in ONE batch — the bought cards never leave a stage that still owes their price.
    */
   payment?: SelectPaymentModel;
+  /**
+   * THE PRICE OF PLAYING THE PICK — a prelude pick DECIDED AFTER THE REVEAL (P45 Board of Directors: «draw 1 prelude:
+   * either discard it, or pay 12 M€ and remove 1 director here to play it»). Present only in `play` mode with `min 0`:
+   * the pick is a VERDICT between two outcomes — play it for this price, or let it go to the prelude discard pile —
+   * never «choose 1 of N». `max` is already narrowed by `affordable` on the server (`max 0` = only the discard is
+   * open); the console reads the price for the outcome rows, the reason and the price's flight, never re-derives it.
+   * `payment` beside it is that same price's payment prompt when the server WILL ask one (Helion's heat).
+   */
+  price?: DeckPickPlayPrice;
 }
+
+/** See {@link DeckPickPromptMeta.price} — and the action preview's `revealVerdict.play` (the same shape, one builder). */
+export type DeckPickPlayPrice = {
+  /** The M€ the play costs (a payment the player makes after the reveal — never at the action's press). */
+  megacredits: number;
+  /** A card resource spent from the SOURCE card with the play (P45: 1 director), with what the card holds now. */
+  resourcesHere?: {card: CardName, resource: CardResource, count: number, have: number};
+  /** Can the player pay the M€ now? (`max 0` when not.) */
+  affordable: boolean;
+  /** The M€ still missing when not affordable — the reason's magnitude. */
+  deficit?: number;
+};
 
 /** See {@link DeckPickPromptMeta.companions}. */
 export type DeckPickCompanions = {

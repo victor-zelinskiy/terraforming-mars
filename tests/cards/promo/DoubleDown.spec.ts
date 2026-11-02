@@ -199,7 +199,7 @@ describe('DoubleDown', () => {
 
     const modelCard = (<SelectCardModel>model.waitingFor).cards[0];
     expect(modelCard.name).eq(CardName.BOARD_OF_DIRECTORS);
-    expect(modelCard.warnings).deep.eq(['ineffectiveDoubleDown', 'cannotAffordBoardOfDirectors']);
+    expect(modelCard.warnings).deep.eq(['ineffectiveDoubleDown']);
   });
 
   it('Make compatible with Merger + Corp with resources', () => {

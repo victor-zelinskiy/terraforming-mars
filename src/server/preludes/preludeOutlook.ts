@@ -96,6 +96,12 @@ export function computePreludeOutlooks(
   player: IPlayer,
   candidates: ReadonlyArray<IPreludeCard>,
   pool: ReadonlyArray<IPreludeCard>,
+  /**
+   * M€ the player must still pay BEFORE the candidate is played (P45 Board of Directors: 12 M€ to play the drawn
+   * prelude) — the candidate's own verdict is asked with that money held back (`canPlay(player, {cost: reserve})`,
+   * the card's own rule source), so a prelude that pays M€ itself is not read «playable» on money the price will take.
+   */
+  opts: {reserve?: number} = {},
 ): Map<CardName, PreludeOutlook> {
   const out = new Map<CardName, PreludeOutlook>();
   // One `canPlay` per distinct card for the whole pass: a bespoke one can be
@@ -107,7 +113,9 @@ export function computePreludeOutlooks(
     if (cached !== undefined) {
       return cached;
     }
-    const verdict = card.canPlay(player);
+    // The reserve binds the CANDIDATES only: an enabler in the pool is played later, after the price is paid —
+    // but by then the money is gone too, so the same reserve is the honest reading for both.
+    const verdict = opts.reserve !== undefined && opts.reserve > 0 ? card.canPlay(player, {cost: opts.reserve}) : card.canPlay(player);
     playableNow.set(card.name, verdict);
     return verdict;
   };
