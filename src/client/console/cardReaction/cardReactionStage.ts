@@ -70,6 +70,8 @@ export type CardReactionPhase = 'idle' | 'waiting' | 'rising' | 'paying' | 'rece
 
 export const cardReactionState = reactive({
   phase: 'idle' as CardReactionPhase,
+  /** The chain WAITS on something long of its own (a sitting, the rating's story, a decision, an attached host) — not the table's answer a decision waits for. */
+  waitingOnOther: false,
   /** The faces the layer paints right now (seated reactors and warm faces). */
   faces: [] as Array<ReactorFace>,
   /** The chain on stage: the cards in order, how many landed, how many were summarized (ticked past the ceiling). */

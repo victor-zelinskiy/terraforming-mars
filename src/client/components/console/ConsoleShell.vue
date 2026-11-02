@@ -2092,7 +2092,7 @@ import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement
 import ConsoleCityPayoutLayer from '@/client/components/console/tilePlacement/ConsoleCityPayoutLayer.vue';
 import ConsoleScaleStepRewardLayer from '@/client/components/console/scaleStepReward/ConsoleScaleStepRewardLayer.vue';
 import ConsoleCardReactionLayer from '@/client/components/console/cardReaction/ConsoleCardReactionLayer.vue';
-import {cardReactionPending, hurryCardReactions} from '@/client/console/cardReaction/cardReactionDirector';
+import {cardReactionPending, cardReactionTellsTableAnswer, hurryCardReactions} from '@/client/console/cardReaction/cardReactionDirector';
 import {cardReactionState} from '@/client/console/cardReaction/cardReactionStage';
 import ConsoleScaleSwingLayer from '@/client/components/console/scaleSwing/ConsoleScaleSwingLayer.vue';
 import {setPlacementPeek} from '@/client/components/board/placementRenderState';
@@ -2264,9 +2264,14 @@ import {
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {
   AdmissionSignals,
+  LATCHED_SURFACES,
   PromptSurface,
   isPromptAdmitted,
+  isPromptPresent,
+  latchPromptPresence,
   promptAdmissionBlock,
+  promptPresenceState,
+  releasePromptPresence,
   setConsolePlacementHeld,
   resetPromptAdmission,
 } from '@/client/console/consolePromptAdmission';
@@ -4116,7 +4121,28 @@ export default defineComponent({
         boardStory: this.boardStoryBeforePlacement,
         // Another seat's tile is owed to this board (state delivery, 2026-10-28): the board's truth lands first.
         remoteLanding: this.remoteLandingBeforePlacement,
+        // A card's reaction to the cause is being told (the owner, 2026-11-01): a decision of the same response after it.
+        tableAnswer: cardReactionTellsTableAnswer(),
       };
+    },
+    /**
+     * THE PROMPT A SURFACE IS ADMITTED FOR — the presence latch's identity (`consolePromptAdmission` § ENTRY IS NOT
+     * PRESENCE). The server's prompt id with its type: a new prompt is a new entry, the same prompt keeps its surface.
+     */
+    promptPresenceIdentity(): string {
+      const wf = this.playerView.waitingFor;
+      return wf === undefined ? '' : `${wf.type}#${wf.promptId ?? ''}`;
+    },
+    /** The latched families admitted RIGHT NOW by entry (the watcher latches them) — one string per state, for the watcher. */
+    /** The submit funnel is closed — the answer is on its way (the presence latch lets go). */
+    promptAnswerInFlight(): boolean {
+      return transportState.requestInProgress;
+    },
+    promptPresenceEntries(): string {
+      if (this.promptPresenceIdentity === '') {
+        return '';
+      }
+      return [...LATCHED_SURFACES].filter((surface) => isPromptAdmitted(surface, this.admissionSignals)).join(',');
     },
     /**
      * ANOTHER SEAT'S TILE LANDS BEFORE THE GRID LIGHTS (state delivery, 2026-10-28). Read by the `remote-landing`
@@ -11159,6 +11185,24 @@ export default defineComponent({
     },
   },
   watch: {
+    /** THE PRESENCE LATCH (`consolePromptAdmission` § ENTRY IS NOT PRESENCE): a family admitted for the prompt keeps it. */
+    promptPresenceEntries(entries: string): void {
+      for (const surface of entries.split(',')) {
+        if (surface !== '') {
+          latchPromptPresence(surface as PromptSurface, this.promptPresenceIdentity);
+        }
+      }
+    },
+    /** …a new prompt is a new entry … */
+    promptPresenceIdentity(): void {
+      releasePromptPresence();
+    },
+    /** …and the answer sent lets the surface go (the next presence is an entry again). */
+    promptAnswerInFlight(inProgress: boolean): void {
+      if (inProgress) {
+        releasePromptPresence();
+      }
+    },
     /**
      * A CLIENT-HOSTED PICK ANSWERED AS A SCENE (RX35): the pick stood, sealed, while the transport held the commit
      * and played the data onto the chosen card inside the door's plate; the scene let go (its end a tick after the
@@ -14134,8 +14178,16 @@ export default defineComponent({
      * May this prompt-surface family come alive right now? THE single admission
      * question — every family asks it, none re-derives it (consolePromptAdmission).
      */
+    /**
+     * MAY THIS SURFACE BE ON SCREEN — entry for a surface not yet up, PRESENCE for one that is (the owner, 2026-11-01:
+     * «модалка не должна мигать и исчезать, если уже появилась»). A family admitted for THIS prompt keeps its surface
+     * through every later scene until the answer is sent; only a modal of its own, an answer in flight or a prompt not
+     * of this stage withdraw it (`PRESENCE_WITHDRAWS`).
+     */
     admits(surface: PromptSurface): boolean {
-      return isPromptAdmitted(surface, this.admissionSignals);
+      const latched = promptPresenceState.latched[surface] === this.promptPresenceIdentity &&
+        this.promptPresenceIdentity !== '' && !transportState.requestInProgress;
+      return isPromptPresent(surface, this.admissionSignals, latched);
     },
     // ── THE WORKSPACE STACK — the shell's whole navigation vocabulary ──────
     /** Presence, from the stack. The ONE `v-if` of every hostable screen —

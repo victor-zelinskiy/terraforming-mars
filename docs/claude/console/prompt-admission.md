@@ -158,6 +158,46 @@ while every other placement affordance is correctly held.
 outside console mode it stays `false` and every reader is a constant no-op.
 Cleared on shell unmount (`resetPromptAdmission`).
 
+## ENTRY IS NOT PRESENCE — the presence latch and the table's answer (2026-11-01)
+
+**The owner's report:** «когда игрок получает модалку на поле (промт от "Энергоконсультантов Нептуна" после того, как
+он сам разместил океан) и в этот момент срабатывает эффект (партия Зелёных после получения РТ), модалка исчезает на
+время анимации срабатывания и потом опять появляется — мигание, дешёвое впечатление». The stand
+(`console-decision-no-blink`, fixture `npc-ocean-greens`) measured it exactly: one response carries the ocean's landing,
+its rating, the ruling Greens' answer to that rating (a card reaction at the rail's edge) AND Neptunian's optional
+question. The tile's scene let go → the question came up (10196 ms) → the Greens' token flight raised
+`resource-transfer` (BLOCKING → `presentation`) → the question went DOWN (10850 ms) → up again (11500 ms).
+
+**Two defects, one architecture.** Every policy here answers «may this surface COME ALIVE now?», and the shell asked it
+every frame as «may it STAY?» too — so ANY scene that started after a surface had come up took it down again (the
+class, not one card: a late token flight, a rival's landing, a ceremony beat, a board story). And the entry itself
+happened in the one frame between two scenes of the same response, splitting the player's eye between a question and a
+story still telling its cause.
+
+1. **THE PRESENCE LATCH** (`isPromptPresent`, `promptPresenceState`): a family admitted for a prompt (identity = the
+   server's `promptId` with its type — `ConsoleShell.promptPresenceIdentity`) keeps its surface for THAT prompt until
+   the answer is sent (`transportState.requestInProgress` — the submit funnel closes) or the server asks something else.
+   Only the blocks that by their meaning take the question's place withdraw it — `PRESENCE_WITHDRAWS`: `reveal` (a
+   modal of its own owns the opening and the pad), `card-discard` (the answer is already in flight), `stage-gate` (the
+   prompt is not this stage's). Latched families: `host`, `section`, `standaloneModal`, `scaleBonus`, `placement`;
+   never `followUp` (a DOOR opens once — nothing of it stands) and not `scene` (the opening is the start director's).
+   The shell latches from a WATCHER (`promptPresenceEntries`), never from a computed; `admits()` reads the latch.
+2. **THE TABLE'S ANSWER BEFORE THE NEXT QUESTION** (block `table-answer`, signal `tableAnswer` ←
+   `cardReactionTellsTableAnswer`): while a card's reaction to the cause is ON STAGE, or WAITS for the same scenes the
+   decision waits for (the cause's landing and payout, a blocking scene), the ENTRY of `host` · `scaleBonus` ·
+   `placement` · `followUp` waits for it — one story at a time. It is never raised while the chain waits on something
+   long of its own (a sitting's beats, the rating's story, a decision standing, an attached host —
+   `cardReactionState.waitingOnOther`), so no decision ever waits on a story that waits elsewhere (the liveness law). A
+   `section` never waits for it: a section stands through its own cinematics by design.
+
+After the fix the stand reads ONE edge: the question shown at 11872 ms, after the Greens (10500…11805 ms), never hidden.
+Guards: `consolePromptAdmission.spec` § ENTRY IS NOT PRESENCE; e2e `console-decision-no-blink` (TIMING-free — the probe
+samples the surface's paint every 50 ms with the named holds beside each edge).
+
+**Adding a block**: decide whether it is an ENTRY wait (most are — it lands in the policies and nothing else) or a
+WITHDRAW (it takes the question's place by meaning — then it joins `PRESENCE_WITHDRAWS` with its reason). A withdraw
+added «to be safe» is the blink back.
+
 ## Traps
 
 - **Client-side pickers are NOT gated.** `convertPlantsPending` /

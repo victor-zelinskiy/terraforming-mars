@@ -42,6 +42,7 @@ function signals(partial: Partial<AdmissionSignals> = {}): AdmissionSignals {
     anyAnimation: false,
     boardStory: false,
     remoteLanding: false,
+    tableAnswer: false,
     ...partial,
   };
 }

@@ -275,6 +275,8 @@ import {ResearchCoordination} from '../../../src/server/cards/prelude/ResearchCo
 import {rallyPlan} from '../../../src/server/parliament/RallyNeutralDelegates';
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
 import {UnmiLiner} from '../../../src/server/cards/turmoilRedux/UnmiLiner';
+import {NeptunianPowerConsultants} from '../../../src/server/cards/promo/NeptunianPowerConsultants';
+import {SubterraneanReservoir} from '../../../src/server/cards/base/SubterraneanReservoir';
 import {EarthArmyContract} from '../../../src/server/cards/turmoilRedux/EarthArmyContract';
 import {SpaceshipRecycling} from '../../../src/server/cards/turmoilRedux/SpaceshipRecycling';
 import {FormulaZero} from '../../../src/server/cards/turmoilRedux/FormulaZero';
@@ -3202,6 +3204,30 @@ parliamentFixture('unmi-liner', {
     parliament.assertLedger(game);
   },
 });
+// ── npc-ocean-greens: THE DECISION THAT BLINKED (the owner, 2026-11-01 — «модалка от промта исчезает на время
+//    анимации срабатывания эффекта и опять появляется»). The Greens rule (their «+2 M€ per TR step» answers the ocean's
+//    rating); blue holds Subterranean Reservoir (an ocean for 11 M€) with Neptunian Power Consultants on the table — the
+//    ocean asks the optional «pay 5 M€ for +1 energy production» in the SAME response the Greens answer the rating in.
+//    The decision must come to the screen ONCE, after the table's answer, and stand until it is answered. ──
+parliamentFixture('npc-ocean-greens', {
+  stopAt: 'vote',
+  megacredits: [40, 30],
+  arrange: ({game, p1}) => {
+    game.colonies = [new Luna(), new Europa(), new Callisto(), new Ceres(), new Io(), new Miranda()];
+    p1.playedCards.push(new NeptunianPowerConsultants());
+    p1.cardsInHand.push(new SubterraneanReservoir());
+    p1.steel = 0;
+  },
+  expect: ({game, p1, parliament}) => {
+    if (!p1.playedCards.has(CardName.NEPTUNIAN_POWER_CONSULTANTS) || !p1.cardsInHand.some((c) => c.name === CardName.SUBTERRANEAN_RESERVOIR) ||
+        !game.canAddOcean() || parliament.rulingParty() !== PartyName.GREENS || !parliament.hasPartyEffect(p1, PartyName.GREENS) ||
+        p1.megaCredits !== 40) {
+      throw new Error(`the npc-ocean-greens fixture expected Neptunian on the table, the reservoir in hand, room for an ocean, 40 M€ and the Greens ruling with their effect — got mc=${p1.megaCredits} ruling=${parliament.rulingParty()} greens=${parliament.hasPartyEffect(p1, PartyName.GREENS)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
 // ── TR27 · AURORA STATION — the THIRD fleet dock, the first whose reward ASKS (docs/TURMOIL_REDUX_WATER_HAULING.md
 //    §10): a Venus Next table at blue's action phase with «Aurora Station» played (its city standing on its own cell,
 //    the fifth of the Venus flank) and «Floating Habs» beside it (1 floater — a second Venus floater holder, so the

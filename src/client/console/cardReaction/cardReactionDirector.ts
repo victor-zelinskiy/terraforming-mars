@@ -232,6 +232,22 @@ let hurriedAt = 0;
 /** One gesture, one hurry: a press that opens a sheet is a press AND a navigation — within this window the second call is the same gesture. */
 const HURRY_REPEAT_WINDOW_MS = 700;
 
+/**
+ * THE TABLE'S ANSWER IS BEING TOLD — the prompt admission's `table-answer` (the owner, 2026-11-01: «модалка от промта
+ * исчезает на время анимации срабатывания эффекта и опять появляется»). A decision asked in the same response as a
+ * card's reaction comes to the screen AFTER the reaction, once — never in the frame the cause's scene let go and the
+ * reaction had not risen yet (Neptunian Power Consultants' question stood 650 ms, then the Greens' token flight took it
+ * down). True while the chain is on stage, and while it WAITS for the same scenes a decision waits for (the cause's
+ * landing and payout, a blocking scene); false while it waits on something long of its OWN (a sitting's beats, the
+ * rating's story, a decision standing, an attached host) — a decision never waits on a story that waits elsewhere.
+ * Reactive (the phase and `waitingOnOther` are the state's), so the admission reads it in a computed.
+ */
+export function cardReactionTellsTableAnswer(): boolean {
+  const phase = cardReactionState.phase;
+  return phase === 'rising' || phase === 'paying' || phase === 'receding' ||
+    (phase === 'waiting' && !cardReactionState.waitingOnOther);
+}
+
 export function cardReactionPending(): boolean {
   return cardReactionState.phase !== 'idle' || standaloneQueue.length > 0 || rivalQueue.length > 0;
 }
@@ -892,6 +908,7 @@ async function runStandalone(): Promise<void> {
   const myEpoch = epoch;
   try {
     cardReactionState.phase = 'waiting';
+    cardReactionState.waitingOnOther = false;
     // The board's own story first (a tile's landing, its cell's payout) — a reaction never cuts into the cause's scene;
     // and every BLOCKING scene (a sitting's beats, a landing) plays out before the chain — bounded, never a session.
     await waitRewardPayoutQuiet({alive: () => epoch === myEpoch && (standaloneQueue.length > 0 || rivalQueue.length > 0)});
@@ -901,6 +918,7 @@ async function runStandalone(): Promise<void> {
     await waitHydroStoryQuiet(myEpoch);
     await waitDecisionClear(myEpoch);
     await waitAttachedQuiet(myEpoch);
+    cardReactionState.waitingOnOther = false;
     if (epoch !== myEpoch) {
       return;
     }
@@ -1075,6 +1093,7 @@ async function waitSittingQuiet(myEpoch: number): Promise<void> {
     if (typeof performance !== 'undefined' && performance.now() - started > SITTING_QUIET_MAX_MS) {
       return;
     }
+    cardReactionState.waitingOnOther = true;
     await nextPaintedFrame();
   }
 }
@@ -1097,6 +1116,7 @@ async function waitHydroStoryQuiet(myEpoch: number): Promise<void> {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
       return;
     }
+    cardReactionState.waitingOnOther = true;
     await nextPaintedFrame();
   }
 }
@@ -1112,6 +1132,7 @@ async function waitRatingStoryQuiet(myEpoch: number): Promise<void> {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
       return;
     }
+    cardReactionState.waitingOnOther = true;
     await nextPaintedFrame();
   }
 }
@@ -1126,6 +1147,7 @@ async function waitAttachedQuiet(myEpoch: number): Promise<void> {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
       return;
     }
+    cardReactionState.waitingOnOther = true;
     await nextPaintedFrame();
   }
 }
@@ -1173,6 +1195,7 @@ async function waitDecisionClear(myEpoch: number): Promise<void> {
     if (typeof performance !== 'undefined' && performance.now() - started > DECISION_WAIT_MAX_MS) {
       return;
     }
+    cardReactionState.waitingOnOther = true;
     await nextPaintedFrame();
   }
 }

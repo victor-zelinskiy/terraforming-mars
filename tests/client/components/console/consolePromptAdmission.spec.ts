@@ -2,8 +2,14 @@ import {expect} from 'chai';
 import {
   AdmissionBlock,
   AdmissionSignals,
+  LATCHED_SURFACES,
+  PRESENCE_WITHDRAWS,
   PromptSurface,
   isPromptAdmitted,
+  isPromptPresent,
+  latchPromptPresence,
+  promptPresenceState,
+  releasePromptPresence,
   promptAdmissionBlock,
   setConsolePlacementHeld,
   isConsolePlacementHeld,
@@ -26,6 +32,7 @@ function idle(): AdmissionSignals {
     anyAnimation: false,
     boardStory: false,
     remoteLanding: false,
+    tableAnswer: false,
   };
 }
 
@@ -311,5 +318,45 @@ describe('consolePromptAdmission (the one prompt-surface admission gate)', () =>
       expect(promptAdmissionBlock('placement', {...idle(), tileHero: true})).to.equal('tile-hero');
       expect(isPromptAdmitted('placement', idle())).to.be.true;
     });
+  });
+});
+
+describe('consolePromptAdmission — ENTRY IS NOT PRESENCE (the decision that blinked, 2026-11-01)', () => {
+  beforeEach(() => resetPromptAdmission());
+  afterEach(() => resetPromptAdmission());
+
+  it('a decision of the same response waits for the table\'s answer — every family the player is HANDED after something', () => {
+    const s = {...idle(), tableAnswer: true};
+    for (const surface of ['host', 'scaleBonus', 'placement', 'followUp'] as const) {
+      expect(promptAdmissionBlock(surface, s), surface).to.equal('table-answer');
+    }
+    // A SECTION stands through its own cinematics by design — a reaction never holds it.
+    expect(promptAdmissionBlock('section', s)).to.be.undefined;
+  });
+
+  it('once admitted, a surface STANDS through a later scene — Neptunian\'s question under the Greens\' token flight', () => {
+    const flight = {...idle(), presentation: true, anyAnimation: true, tableAnswer: true};
+    expect(isPromptPresent('host', flight, false), 'not yet on screen: the scene holds its entry').to.equal(false);
+    expect(isPromptPresent('host', flight, true), 'on screen: the scene plays beside it').to.equal(true);
+    for (const block of ['tileHero', 'playedHero', 'cardArrival', 'boardBonus', 'boardStory', 'remoteLanding'] as const) {
+      expect(isPromptPresent('host', {...idle(), [block]: true}, true), block).to.equal(true);
+    }
+  });
+
+  it('only a modal of its own, an answer in flight or a prompt not of this stage WITHDRAW a standing surface', () => {
+    for (const [signal, block] of [['revealOpen', 'reveal'], ['cardDiscard', 'card-discard'], ['stageGated', 'stage-gate']] as const) {
+      expect(PRESENCE_WITHDRAWS.has(block), block).to.equal(true);
+      expect(isPromptPresent('host', {...idle(), [signal]: true}, true), block).to.equal(false);
+    }
+  });
+
+  it('the DOOR is never latched; the latch is per prompt and lets go as a whole', () => {
+    expect(LATCHED_SURFACES.has('followUp')).to.equal(false);
+    expect(isPromptPresent('followUp', {...idle(), presentation: true}, true)).to.equal(false);
+    latchPromptPresence('host', 'or#7');
+    latchPromptPresence('followUp', 'or#7');
+    expect(promptPresenceState.latched).to.deep.equal({host: 'or#7'});
+    releasePromptPresence();
+    expect(promptPresenceState.latched).to.deep.equal({});
   });
 });

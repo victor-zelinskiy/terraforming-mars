@@ -149,7 +149,16 @@ export type AdmissionBlock =
    * `placementTakesBoardForLanding` watcher makes the board visible for the landing (the stack yields exactly as the
    * placement's own rising edge would), so the block can never wait on a board a workspace covers.
    */
-  | 'remote-landing';
+  | 'remote-landing'
+  /**
+   * THE TABLE'S ANSWER IS BEING TOLD (the owner, 2026-11-01 — «модалка исчезает на время анимации срабатывания эффекта и
+   * опять появляется»): a card's REACTION to the cause (the ruling Greens' «+2 M€ per TR step» for the ocean's rating)
+   * is on stage or waits for the same scenes a decision waits for. A decision asked in the SAME response comes AFTER it,
+   * once — the player's eye on one story at a time. Bounded by the chain's own ceiling; never raised while the chain waits
+   * on something long of its own (`cardReactionTellsTableAnswer`), so no decision waits on a story that waits elsewhere.
+   * An ENTRY block only: a surface already on screen is never taken down by it (the presence latch below).
+   */
+  | 'table-answer';
 
 /**
  * The live signals, all owned + computed by ConsoleShell. Grouped as ONE object
@@ -190,6 +199,8 @@ export type AdmissionSignals = {
   boardStory: boolean;
   /** Another seat's tile is owed to this board and no placement is live yet (see the block). */
   remoteLanding: boolean;
+  /** A card's reaction to the cause is being told (`cardReactionTellsTableAnswer`). */
+  tableAnswer: boolean;
   /**
    * The prompt is owned by a traversal step whose cell the marker has not
    * settled on (`hydroStepQueuedFor`). Ownership, not timing — see the block.
@@ -210,7 +221,7 @@ const BLOCK_ORDER: ReadonlyArray<AdmissionBlock> = [
   'stage-gate',
   'reveal', 'played-hero', 'tile-hero', 'card-arrival', 'board-bonus',
   // The board's TRUTH before the board's STORY: a foreign tile lands, then the scales tell what it did.
-  'card-discard', 'presentation', 'announce-gate', 'remote-landing', 'board-story', 'animation',
+  'card-discard', 'presentation', 'announce-gate', 'remote-landing', 'board-story', 'table-answer', 'animation',
 ];
 
 /** Is this block RAISED by the current signals? */
@@ -228,6 +239,7 @@ function raised(block: AdmissionBlock, s: AdmissionSignals): boolean {
   case 'animation': return s.anyAnimation;
   case 'board-story': return s.boardStory;
   case 'remote-landing': return s.remoteLanding;
+  case 'table-answer': return s.tableAnswer;
   }
 }
 
@@ -253,12 +265,12 @@ const POLICY: Record<PromptSurface, ReadonlySet<AdmissionBlock>> = {
   host: new Set<AdmissionBlock>([
     'stage-gate',
     'reveal', 'played-hero', 'tile-hero', 'card-arrival', 'board-bonus',
-    'card-discard', 'presentation', 'announce-gate',
+    'card-discard', 'presentation', 'announce-gate', 'table-answer',
   ]),
   scaleBonus: new Set<AdmissionBlock>([
     'stage-gate',
     'reveal', 'played-hero', 'tile-hero', 'card-arrival', 'board-bonus',
-    'card-discard', 'presentation', 'announce-gate', 'board-story',
+    'card-discard', 'presentation', 'announce-gate', 'board-story', 'table-answer',
   ]),
   // `section` waits for less than the others by design (see above), but the
   // stage gate is NOT a cinematic: a section standing up for a step that has
@@ -280,12 +292,12 @@ const POLICY: Record<PromptSurface, ReadonlySet<AdmissionBlock>> = {
   placement: new Set<AdmissionBlock>([
     'stage-gate',
     'reveal', 'played-hero', 'tile-hero', 'card-arrival',
-    'card-discard', 'presentation', 'announce-gate', 'remote-landing', 'board-story',
+    'card-discard', 'presentation', 'announce-gate', 'remote-landing', 'board-story', 'table-answer',
   ]),
   followUp: new Set<AdmissionBlock>([
     'stage-gate',
     'reveal', 'played-hero', 'tile-hero', 'card-arrival', 'board-bonus',
-    'card-discard', 'presentation',
+    'card-discard', 'presentation', 'table-answer',
   ]),
 };
 
@@ -301,6 +313,60 @@ export function promptAdmissionBlock(
 /** May this surface serve its prompt right now? PURE. */
 export function isPromptAdmitted(surface: PromptSurface, signals: AdmissionSignals): boolean {
   return promptAdmissionBlock(surface, signals) === undefined;
+}
+
+/**
+ * ENTRY IS NOT PRESENCE — THE PRESENCE LATCH (the owner, 2026-11-01: «модалка не должна мигать и исчезать, если уже
+ * появилась»). Every policy above answers «may this surface COME ALIVE now?», and the shell used to ask it every frame
+ * as «may it STAY?» too: a decision that had come to the screen was taken DOWN by the next scene that raised a block —
+ * Neptunian Power Consultants' question stood 650 ms, the ruling Greens' token flight raised `resource-transfer`
+ * (blocking → `presentation`), the question vanished for 650 ms and came back: a blink, a cheap screen. Once a
+ * surface has come alive for a prompt it STAYS for that prompt until the player answers it (the submit funnel closes)
+ * or the server asks something else — a later scene plays beside it, never by taking it away. Only the blocks that by
+ * their meaning take the question's place withdraw it:
+ *  · `reveal` — a modal of its own owns the opening and the pad (two modals stacked is worse than one at a time);
+ *  · `card-discard` — the answer is already in flight (the pick surface let go of it);
+ *  · `stage-gate` — the prompt is not this stage's (ownership, never timing).
+ * `followUp` is a DOOR (it opens once; nothing of it stands) and is never latched.
+ */
+export const PRESENCE_WITHDRAWS: ReadonlySet<AdmissionBlock> = new Set<AdmissionBlock>(['reveal', 'card-discard', 'stage-gate']);
+
+/** The families whose surface STANDS once admitted (every presence family but the opening's scene, which the start director owns; the door is not one). */
+export const LATCHED_SURFACES: ReadonlySet<PromptSurface> =
+  new Set<PromptSurface>(['host', 'section', 'standaloneModal', 'scaleBonus', 'placement']);
+
+/** The prompt each family was ADMITTED for (its identity — the server's prompt id with its type), '' for none. */
+export const promptPresenceState = reactive({
+  latched: {} as Partial<Record<PromptSurface, string>>,
+});
+
+/**
+ * MAY THIS SURFACE BE ON SCREEN — entry for a surface not yet up, presence for one that is. PURE in its inputs:
+ * `latched` = this family was admitted for THIS prompt and its answer has not been sent.
+ */
+export function isPromptPresent(surface: PromptSurface, signals: AdmissionSignals, latched: boolean): boolean {
+  if (isPromptAdmitted(surface, signals)) {
+    return true;
+  }
+  if (!latched || !LATCHED_SURFACES.has(surface)) {
+    return false;
+  }
+  const policy = POLICY[surface];
+  return ![...PRESENCE_WITHDRAWS].some((block) => policy.has(block) && raised(block, signals));
+}
+
+/** The shell records that a family came alive for a prompt (from a watcher — never from a computed). */
+export function latchPromptPresence(surface: PromptSurface, identity: string): void {
+  if (LATCHED_SURFACES.has(surface) && promptPresenceState.latched[surface] !== identity) {
+    promptPresenceState.latched[surface] = identity;
+  }
+}
+
+/** The answer was sent (or the game switched): every family lets go — its next presence is an entry again. */
+export function releasePromptPresence(): void {
+  if (Object.keys(promptPresenceState.latched).length > 0) {
+    promptPresenceState.latched = {};
+  }
 }
 
 /**
@@ -335,4 +401,5 @@ export function isConsolePlacementHeld(): boolean {
 /** Full reset (game switch / test cleanup). */
 export function resetPromptAdmission(): void {
   promptAdmissionState.placementHeld = false;
+  releasePromptPresence();
 }
