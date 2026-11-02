@@ -386,8 +386,8 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     // to go and finish the current action is telling them to finish the thing
     // they are looking at.
     const status = await page.evaluate(() => ({
-      busy: document.querySelector('.con-hydro__chip--busy') !== null,
-      text: document.querySelector('.con-hydro__chip--status')?.textContent?.trim() ?? '',
+      busy: document.querySelector('[data-hydro-status="busy"]') !== null,
+      text: document.querySelector('.con-hydro__act')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
     }));
     expect(status.busy, `the status chip read «${status.text}»`).toBe(false);
     expect(status.text, `the status chip read «${status.text}»`).not.toMatch(/завершите/i);
@@ -574,7 +574,7 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     expect(await page.locator('.con-hydro').count()).toBe(1);
     expect(await page.locator('.con-hydro__layer--bonus').count()).toBe(1);
     // …and no false warning on the way back in either.
-    expect(await page.locator('.con-hydro__chip--busy').count(),
+    expect(await page.locator('[data-hydro-status="busy"]').count(),
       'the re-entered workspace nagged about the current action').toBe(0);
 
     // ══ THE MOVE IS PRESENTED — AND THE WORKSPACE OUTLIVES IT ════════════

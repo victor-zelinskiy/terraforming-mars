@@ -6894,11 +6894,12 @@ html.con-section-leaving .con-strat {
     display: flex;
     flex-direction: column;
     gap: .5rem;
-    /* PERIMETER SHELL: the section spans to the viewport's right edge now —
-       the track scene stays open (no plate; the void IS its stage). The
-       track and the dossier are large visual matter: the VISUAL-STAGE inset
-       (two-level safe area) — nothing textual lives at this screen's right
-       edge. */
+    /* PERIMETER SHELL: the section spans to the viewport's right edge — and since the premium iteration (P90 · EF)
+       it STANDS ON THE STAGE SURFACE like every reference workspace (the hand, the colonies, the Parliament's «ОДНА
+       РАМА»): one opaque machined plane, never «the void as a stage» with a glass dossier floating in it. The track
+       and the dossier are large visual matter: the VISUAL-STAGE inset (two-level safe area) — nothing textual lives at
+       this screen's right edge. */
+    .con-stage-surface();
     padding: var(--con-hydro-pad-t, .1rem) var(--con-stage-x, .55rem) 0 var(--con-hydro-pad-l, .55rem);
     font-family: @con-font;
     color: @con-text;
@@ -6932,40 +6933,19 @@ html.con-section-leaving .con-strat {
        or shift). This one keeps its BOX so nothing below it moves, and draws
        nothing: `visibility`, never `display`. */
     &__head--ghost { visibility: hidden; }
-    &__chip {
+    /* THE POSITION READOUT — the header's one aux voice (P90 · EF): typography, never a pill. The number is the
+       loud part, «/ 11» and the caption are quiet; the status the second pill used to repeat is the act column's
+       verdict, stated once where the decision is (`data-hydro-status`). */
+    &__headpos {
         display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        padding: .35rem .7rem;
-        border-radius: 49.95rem;
-        background: rgba(12, 20, 30, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
-        font-size: .8rem;
+        align-items: baseline;
+        gap: .35rem;
         white-space: nowrap;
-
-        b { font-size: .95rem; }
-        &--ready {
-            background: fade(@con-hydro-mint, 10%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 55%);
-            .con-hydro__chip-dot { background: @con-hydro-mint; box-shadow: none; }
-        }
-        // Timing states (not your turn / mid-decision) — amber: it will pass.
-        &--waiting,
-        &--busy {
-            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%);
-            .con-hydro__chip-dot { background: @con-amber; }
-        }
-        // A rule block — red, like every hard «нельзя» in the fork.
-        &--blocked {
-            box-shadow: inset 0 0 0 .05rem fade(@con-red, 45%);
-            .con-hydro__chip-dot { background: @con-red; }
-        }
-        &--used,
-        &--end {
-            opacity: 0.8;
-            .con-hydro__chip-dot { background: rgba(150, 175, 205, 0.6); }
-        }
+        color: @con-text-dim;
+        b { font-size: 1.15rem; font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
     }
+    &__headpos-cap { font-size: .7rem; letter-spacing: .06rem; text-transform: uppercase; }
+    &__headpos-of { font-size: .8rem; font-weight: 700; }
     &__chip-ico {
         display: inline-block;
         width: 1.1rem;
@@ -6974,7 +6954,6 @@ html.con-section-leaving .con-strat {
         background-position: center;
         background-repeat: no-repeat;
     }
-    &__chip-dim { color: @con-text-dim; font-size: .7rem; }
     &__chip-dot {
         width: .45rem;
         height: .45rem;
@@ -6988,6 +6967,9 @@ html.con-section-leaving .con-strat {
         position: relative; /* the movement-link SVG overlay's coordinate space */
         display: flex;
         align-items: stretch;
+        /* The track is the workspace's protagonist: centred in its band (the free run splits evenly left and right),
+           never pinned to the left edge with the slack piled up at the right. */
+        justify-content: center;
         padding: .4rem .1rem .3rem;
         flex-shrink: 0;
     }
@@ -7048,6 +7030,10 @@ html.con-section-leaving .con-strat {
         background: rgba(12, 20, 30, 0.62);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
         cursor: pointer;
+        /* THE CURSOR on the ONE grammar (P90 · EF): the ring is a LAYER on `::before` (`::after` is the stem that plugs
+           into the panel), its halo scaled by `--con-cursor-on` — no lift: the stem's seam to the panel is a measured
+           contract (`console-hydro-geometry`). */
+        .con-cursor-ring(inset 0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 85%), 0 0 var(--con-glow-r, .9rem) fade(@con-cyan, 22%); @radius: .6rem; @pseudo: before);
         /* The cell GROWTH is the rail's one physical gesture — long enough
            to read as opening (150ms was a snap), the settle-flavoured enter
            curve, and the dim/ring states riding the same clock so a step
@@ -7088,9 +7074,18 @@ html.con-section-leaving .con-strat {
             box-shadow: inset 0 0 0 .05rem fade(@con-hydro-gold, 45%);
             background: fade(@con-hydro-gold, 5%);
         }
-        &--grade-blocked .con-hydro__stop-badge--grade { color: @con-red; }
-        &--grade-occupied .con-hydro__stop-badge--grade { color: @con-red; }
-        &--grade-needs-energy .con-hydro__stop-badge--grade { color: @con-amber; }
+        /* THE GRADE IS MATERIAL (P90 · EF — no ✕/⛔/⚡ painted on the cell): out of reach or occupied = a DASHED red
+           kant on a recessed cell, «needs energy» = a DOTTED amber kant. Form carries it, so it survives
+           desaturation; the stage panel names the reason in words. */
+        &--grade-blocked,
+        &--grade-occupied {
+            outline: .07rem dashed fade(@con-red, 55%);
+            outline-offset: -.2rem;
+        }
+        &--grade-needs-energy {
+            outline: .07rem dotted fade(@con-amber, 70%);
+            outline-offset: -.2rem;
+        }
         &--dimmed { filter: saturate(0.55); opacity: 0.7; }
 
         /* The SELECTED stop is the magnified hero of the rail. */
@@ -7098,8 +7093,10 @@ html.con-section-leaving .con-strat {
             width: 10.2rem;
             opacity: 1;
             filter: none;
+            outline: none;
             background: fade(@con-cyan, 11%);
-            box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 85%), 0 0 1.1rem fade(@con-cyan, 25%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%);
+            .con-cursor-on();
 
             /* TRACK → DETAIL: the stem grows from the hero stop and PLUGS
                INTO the work surface below (the frame's top edge is welded
@@ -7146,18 +7143,21 @@ html.con-section-leaving .con-strat {
         color: @con-hydro-gold;
         small { font-size: .6rem; font-weight: 700; }
     }
-    &__stop-flag { font-size: 1.1rem; color: @con-hydro-aqua; }
+    /* The START cell names itself in a word (P90 · EG — no ⚑): a small tracked-caps plate in the track's aqua. */
+    &__stop-flag {
+        padding: .12rem .35rem;
+        border-radius: .25rem;
+        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 50%);
+        font-size: .6rem;
+        font-weight: 800;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: @con-hydro-aqua;
+    }
     &__stop-num {
         font-size: .7rem;
         font-weight: 700;
         color: @con-text-dim;
-    }
-    /* The stage's own GRADE, and nothing else — what HAPPENED on a cell is
-       read in the stage panel (`&__roster`), never painted onto the track. */
-    &__stop-badge {
-        font-size: .8rem;
-        font-weight: 800;
-        &--grade { color: @con-text-dim; }
     }
     /* The magnified stop's own content — laid out at its FINAL width from
        birth (no re-wrap while the cell opens under it) and crossfaded by the
@@ -7304,9 +7304,9 @@ html.con-section-leaving .con-strat {
         grid-template-areas: "ctx flow act";
         column-gap: var(--hydro-col-gap);
         padding: var(--hydro-panel-pad);
-        border-radius: .7rem;
-        background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 25%), 0 .6rem 2rem rgba(0, 0, 0, 0.4);
+        /* THE STAGE PLATE (P90 · EF): the one quiet plane every workspace stage stands on — alloy fall-off, a hairline
+           ring, a machined top seam. The old aqua ring + heavy drop shadow read as «a giant modal arrived». */
+        .con-stage-plate();
         overflow: hidden;
     }
     /* ── CTX — the persistent identity column: the stage (glyph · name ·
@@ -7644,7 +7644,17 @@ html.con-section-leaving .con-strat {
         font-weight: 800;
         white-space: nowrap;
     }
-    &__stage-flag { font-size: 1.5rem; color: @con-hydro-aqua; }
+    /* The START stage's identity — the word «Старт» as the title's mark (P90 · EG — no ⚑). */
+    &__stage-flag {
+        padding: .2rem .5rem;
+        border-radius: .3rem;
+        box-shadow: inset 0 0 0 .06rem fade(@con-hydro-aqua, 55%);
+        font-size: .8rem;
+        font-weight: 800;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: @con-hydro-aqua;
+    }
     &__stage-name {
         font-size: 1.3rem;
         font-weight: 700;
@@ -7850,7 +7860,7 @@ html.con-section-leaving .con-strat {
         cursor: pointer;
         /* The focus ring changes PAINT only — the row's box is constant. */
         &--focused {
-            box-shadow: inset 0 0 0 .09rem fade(@con-cyan, 85%), 0 0 .7rem fade(@con-cyan, 18%);
+            box-shadow: inset 0 0 0 .09rem fade(@con-cyan, 85%);
         }
         &--selected {
             background: fade(@con-hydro-mint, 9%);
@@ -7967,17 +7977,6 @@ html.con-section-leaving .con-strat {
         border-radius: .25rem;
         box-shadow: inset 0 0 0 .05rem rgba(10, 16, 24, 0.7), 0 0 .35rem rgba(8, 14, 22, 0.5);
     }
-    &__gate-lock {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        font-style: normal;
-        font-size: .62rem;
-        font-weight: 800;
-        color: rgba(16, 24, 34, 0.9);
-        text-align: center;
-    }
     /* The pick's CURSOR-FOLLOWING preview: translucent, dashed — a decision
        being weighed, never mistakable for a standing module. */
     &__gate--ghost {
@@ -7986,7 +7985,6 @@ html.con-section-leaving .con-strat {
             background: rgba(150, 165, 182, 0.28);
             box-shadow: inset 0 0 0 .09rem fade(@con-cyan, 70%);
         }
-        .con-hydro__gate-lock { color: fade(@con-cyan, 90%); }
     }
     /* One-shot entry (the assembly settle) and leave (the expiration
        retract): transform/opacity only, compositor-friendly, no loops. */
@@ -8212,7 +8210,7 @@ html.con-section-leaving .con-strat {
         &:hover { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%); }
         &--focused {
             background: fade(@con-mint, 10%);
-            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 85%), 0 0 .9rem fade(@con-mint, 18%);
+            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 85%);
         }
     }
     &__summary-body {
@@ -8325,6 +8323,8 @@ html.con-section-leaving .con-strat {
         .con-hydro__reasons { padding: 0 .4rem .4rem; }
     }
     &__cta {
+        position: relative;
+        isolation: isolate;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -8332,8 +8332,10 @@ html.con-section-leaving .con-strat {
         padding: .65rem .9rem;
         border: none;
         border-radius: .6rem;
-        background: linear-gradient(180deg, fade(@con-hydro-mint, 26%), fade(@con-hydro-mint, 14%));
-        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 75%);
+        /* READY IS A KANT, NEVER A BREATH (P90 · EF — invariant 15): the composers' commit plate — a mint hairline on
+           a calm mint glass. The 2.4 s infinite mint halo this replaced was an availability carried by light. */
+        background: fade(@con-hydro-mint, 12%);
+        box-shadow: inset 0 0 0 .06rem fade(@con-hydro-mint, 62%);
         color: #eafff5;
         font-family: @con-font;
         font-size: .9rem;
@@ -8341,39 +8343,37 @@ html.con-section-leaving .con-strat {
         letter-spacing: .03rem;
         text-transform: uppercase;
         cursor: pointer;
-        animation: con-hydro-cta calc(2400ms * var(--motion-scale, 1)) ease-in-out infinite;
+        transition: box-shadow var(--con-cursor-ms) var(--con-cursor-ease), background var(--con-cursor-ms) var(--con-cursor-ease);
+        /* THE CURSOR on the ONE grammar: one ring layer under the content whose opacity alone moves. */
+        .con-cursor-ring(@shadow: inset 0 0 0 .1rem @con-cyan, 0 0 1.1rem fade(@con-cyan, 30%); @radius: .6rem; @layer-z: -1; @bg: rgba(20, 34, 50, 0.38));
 
         &--disabled {
             background: rgba(14, 22, 33, 0.6);
             box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.25);
             color: rgba(196, 216, 236, 0.5);
             cursor: default;
-            animation: none;
+            --con-cursor-on: 0;
             .gp-glyph { opacity: 0.4; }
         }
         /* PENDING — the move is legal and this button LIVE, but it is not the
            act in front of the player: the landed stage still owes its target,
            and the pick row above owns that press. So the plate keeps its
-           affordance and gives up the PRIMARY register (the mint fill and the
-           breathing loop that reads as «press me»). Deliberately NOT
+           affordance and gives up the PRIMARY register (the mint kant that
+           reads as «press me»). Deliberately NOT
            `--disabled`: advancing from here is a legal, deliberate move, and a
            control that looks refused would say the opposite. */
         &--pending {
             background: rgba(14, 22, 33, 0.55);
             box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.32);
             color: rgba(206, 224, 240, 0.74);
-            animation: none;
         }
         /* The CURSOR stands here (a scene whose focus walks several targets —
-           the source card, the pick row, the answers): the same ring language
-           as every focused plate, on top of whatever register the CTA wears. */
-        &--focused {
-            box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 88%), 0 0 1.1rem fade(@con-cyan, 20%);
-        }
+           the source card, the pick row, the answers): the ring layer, on top
+           of whatever register the CTA wears. */
+        &--focused { .con-cursor-on(); }
         /* A submitted answer holds BOTH answers inert — by state, briefly. */
         &:disabled {
             cursor: default;
-            animation: none;
         }
     }
     /* ONE badge size for every hydro verb — rem, so it rides the root scale
@@ -8406,8 +8406,7 @@ html.con-section-leaving .con-strat {
         transition: box-shadow calc(120ms * var(--motion-scale, 1)) linear;
 
         &--focused {
-            box-shadow: inset 0 0 0 .1rem fade(@con-hydro-aqua, 90%),
-                        0 0 1rem fade(@con-hydro-aqua, 22%);
+            box-shadow: inset 0 0 0 .1rem fade(@con-hydro-aqua, 90%);
         }
     }
     &__bonus-body {
@@ -8648,7 +8647,6 @@ html.con-section-leaving .con-strat {
             transform: translateX(.18rem);
             box-shadow:
                 inset 0 0 0 .075rem fade(@con-hydro-aqua, 88%),
-                0 0 1.1rem fade(@con-hydro-aqua, 18%),
                 0 .4rem 1.1rem rgba(0, 0, 0, 0.45);
 
             &::before { background: @con-hydro-aqua; }
@@ -8667,8 +8665,7 @@ html.con-section-leaving .con-strat {
            becomes one that matches nothing. */
         &--decline.con-hydro__bonus-action--focused {
             box-shadow:
-                inset 0 0 0 .075rem fade(@con-hydro-aqua, 82%),
-                0 0 1rem fade(@con-hydro-aqua, 15%);
+                inset 0 0 0 .075rem fade(@con-hydro-aqua, 82%);
 
             &::before { background: @con-hydro-aqua; }
         }
@@ -8719,20 +8716,16 @@ html.con-section-leaving .con-strat {
         &--todo {
             background: fade(@con-cyan, 7%);
             box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
-            .con-hydro__reason-glyph { color: @con-cyan; }
         }
         /* The EXECUTION GATE («сейчас не ваш ход» / «завершите действие»): the
-           advance is legal, the moment is not. Amber — the same register the
-           header chip already uses for exactly these two states, so the screen
-           stops contradicting itself. */
+           advance is legal, the moment is not. Amber — its tone is the row's
+           own kant (no ⏳ glyph since P90 · EG: the words say it). */
         &--notnow {
             background: fade(@con-amber, 8%);
             box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%);
             color: #ffe6b0;
-            .con-hydro__reason-glyph { color: @con-amber; }
         }
     }
-    &__reason-glyph { color: @con-red; font-weight: 800; flex-shrink: 0; }
     &__reason-tag {
         width: 1.2rem;
         height: 1.2rem;
@@ -8915,7 +8908,6 @@ html.con-section-leaving .con-strat {
             box-shadow:
                 inset 0 0 0 .1rem fade(@con-cyan, 88%),
                 inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
-                0 0 1.2rem fade(@con-cyan, 22%),
                 0 .5rem 1.4rem rgba(0, 0, 0, 0.4);
             transform: translateY(-.12rem);
             &::before { background: linear-gradient(90deg, transparent, fade(@con-cyan, 75%), transparent); }
@@ -8934,7 +8926,6 @@ html.con-section-leaving .con-strat {
             box-shadow:
                 inset 0 0 0 .1rem fade(@con-hydro-mint, 95%),
                 inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
-                0 0 1.3rem fade(@con-hydro-mint, 26%),
                 0 .5rem 1.4rem rgba(0, 0, 0, 0.4);
         }
     }
@@ -9311,10 +9302,6 @@ html.con-section-leaving .con-strat {
     from { opacity: 0; }
     to { opacity: 1; }
 }
-@keyframes con-hydro-cta {
-    0%, 100% { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 75%), 0 0 .8rem fade(@con-hydro-mint, 14%); }
-    50% { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 90%), 0 0 1.3rem fade(@con-hydro-mint, 26%); }
-}
 @keyframes con-hydro-spin {
     to { transform: rotate(360deg); }
 }
@@ -9336,7 +9323,6 @@ html.con-section-leaving .con-strat {
     to { opacity: 1; transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
-    .con-hydro__cta { animation: none; }
     .con-hydro__cere { animation: none; }
     .con-hydro__commit-spin { animation: none; }
     .con-hydro__stop,
@@ -9383,9 +9369,7 @@ html.con-profile-handheld .con-hydro {
     }
     .con-hydro__stop-tag { width: 1.35rem; height: 1.35rem; }
     .con-hydro__stop-vp { font-size: .85rem; small { font-size: .5rem; } }
-    .con-hydro__stop-flag { font-size: .9rem; }
     .con-hydro__stop-num { font-size: .6rem; }
-    .con-hydro__stop-badge { font-size: .65rem; }
     .con-hydro__stop-name { font-size: .625rem; min-height: 1.5rem; }
     .con-hydro__stop-reward { zoom: 0.9; }
     .con-hydro__stop-marker { width: .55rem; height: .55rem; }

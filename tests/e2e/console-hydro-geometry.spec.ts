@@ -158,16 +158,18 @@ for (const profile of PROFILES) {
         const f = document.querySelector('.con-hydro__stop--focused');
         const notes = Array.from(document.querySelectorAll('.con-hydro__routenote'))
           .map((n) => (n as HTMLElement).innerText.trim());
+        const skip = (document.querySelector('.con-hydro__routenote[data-routenote="skip"]') as HTMLElement | null)?.innerText.trim();
         return {
           panelTop: p === null ? -1 : p.getBoundingClientRect().top,
           focusedRight: f === null ? -1 : f.getBoundingClientRect().right,
           notes,
+          skip,
           reqCount: document.querySelectorAll('.con-hydro__req-tag').length,
         };
       });
       expect(Math.abs(far.panelTop - geo.panel.y), 'the far stage keeps the anchor').toBeLessThanOrEqual(1);
       expect(far.reqCount, 'the far stage states its whole requirement set').toBeGreaterThanOrEqual(5);
-      const skipNote = far.notes.find((n) => n.includes('↷'));
+      const skipNote = far.skip;
       expect(skipNote, 'the skipped-reward policy line exists').toBeTruthy();
       expect(skipNote!, 'a COUNT, never a roster').toMatch(/·\s*\d+/);
       expect(skipNote!.includes(','), 'no comma-separated stage names').toBe(false);

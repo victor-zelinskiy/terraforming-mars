@@ -886,9 +886,8 @@ html.con-profile-tv {
         &__routenote { font-size: var(--con-t-caption); }
         /* Track stops: the VP / flag / position marks read from the couch. */
         &__stop-vp { font-size: 1.25rem; }
-        &__stop-flag { font-size: 1.3rem; }
         &__stop-num { font-size: var(--con-t-floor); }
-        &__stop-badge { font-size: var(--con-t-caption); }
+        &__stop-flag { font-size: var(--con-t-caption); }
         /* Stage identity column — the context column's glyph is the surface's
            identity object, the name its title voice. ONE rule, ONE scale:
            the per-panel `:not()` ladders are gone (a `:not()` chain that
@@ -2016,8 +2015,7 @@ html.con-profile-tv {
     .con-sheet__row--focused,
     .con-colfocus__payrow--focused,
     .con-colfocus__steprow--focused,
-    .con-govsupport__card--focused,
-    .con-hydro__stop--focused {
+    .con-govsupport__card--focused {
         box-shadow: inset 0 0 0 var(--con-focus-ring) fade(@con-cyan, 90%), 0 0 var(--con-glow-r) fade(@con-cyan, 32%);
     }
 

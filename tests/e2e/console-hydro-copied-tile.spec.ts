@@ -394,14 +394,12 @@ flow: ${flowDiag}`).toBe(true);
         // band), and its only badge is the stage's own grade.
         trail: Array.from(document.querySelectorAll('.con-hydro__stop [class*="player_bg_color_"]'))
           .filter((el) => el.closest('[data-hydro-marker]') === null && el.closest('.con-hydro__gate') === null).length,
-        badges: document.querySelectorAll('.con-hydro__stop-badge:not(.con-hydro__stop-badge--grade)').length,
         roster: Array.from(document.querySelectorAll('.con-hydro__roster-row'))
           .map((r) => (r.textContent ?? '').replace(/\s+/g, ' ').trim()),
       };
     });
     await shoot(page, '06-stage-roster');
     expect(track.trail, `no per-cell history marks — ${JSON.stringify(track)}`).toBe(0);
-    expect(track.badges, `and no per-cell verdict badges either — ${JSON.stringify(track)}`).toBe(0);
     // ONE marker per player, in ONE position. (Solo here, so exactly one seat.)
     expect(track.seats.length, `one token per player — ${JSON.stringify(track)}`).toBe(1);
     expect(new Set(track.seats.map((x) => x.split('@')[0])).size,

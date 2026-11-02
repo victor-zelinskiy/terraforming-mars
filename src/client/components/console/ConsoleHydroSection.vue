@@ -51,13 +51,11 @@
                    :subject="headSubject"
                    :stage="crumbStagePublished"
                    :committed="crumbCommitted">
-      <span class="con-hydro__chip">
-        <span class="con-hydro__chip-dim">{{ $t('Track position') }}</span>
-        <b>{{ model.currentPosition }} / 11</b>
-      </span>
-      <span class="con-hydro__chip con-hydro__chip--status" :class="'con-hydro__chip--' + statusKind">
-        <span class="con-hydro__chip-dot" aria-hidden="true"></span>
-        <span>{{ $t(statusLabel) }}</span>
+      <!-- THE POSITION — one quiet readout, never a pill (premium iteration, EF): the status the old second pill
+           repeated is the act column's own verdict (`data-hydro-status`), stated once where the decision is. -->
+      <span class="con-hydro__headpos" :data-hydro-position="model.currentPosition">
+        <span class="con-hydro__headpos-cap">{{ $t('Track position') }}</span>
+        <b>{{ model.currentPosition }}</b><span class="con-hydro__headpos-of">/ 11</span>
       </span>
     </ConsoleWsHead>
 
@@ -107,23 +105,18 @@
                   aria-hidden="true">
               <i class="con-hydro__gate-bar"></i>
               <i class="con-hydro__gate-band" :class="'player_bg_color_' + gate.target"></i>
-              <i class="con-hydro__gate-lock">⌸</i>
             </span>
           </transition-group>
           <div class="con-hydro__stop-req">
             <span v-if="stop.vm.stage.tag !== undefined" class="con-hydro__stop-tag resource-tag" :class="'tag-' + stop.vm.stage.tag" aria-hidden="true"></span>
             <span v-else-if="stop.vm.stage.vp !== undefined" class="con-hydro__stop-vp">{{ stop.vm.stage.vp }}<small>{{ $t('VP') }}</small></span>
-            <span v-else class="con-hydro__stop-flag" aria-hidden="true">⚑</span>
+            <span v-else class="con-hydro__stop-flag">{{ $t('Track start') }}</span>
             <span class="con-hydro__stop-num">{{ stop.position }}</span>
-            <!-- The stage's own GRADE, and nothing else. A cell carries what
-                 it IS plus the player markers below; what HAPPENED here — who
-                 took the reward, who was paid for crossing, who leapt over,
-                 who is standing on it now — is READING, and reading lives in
-                 the stage panel the cursor is already pointing at. Both the
-                 viewer's ✓/⇢/↷ badges and a per-player mark row were tried
-                 here and are the same mistake at two sizes: the track's one
-                 job is «where is everybody», and a chart is not that. -->
-            <span v-if="stop.gradeGlyph !== ''" class="con-hydro__stop-badge con-hydro__stop-badge--grade" aria-hidden="true">{{ stop.gradeGlyph }}</span>
+            <!-- The stage's own GRADE is the cell's MATERIAL (`--grade-*`: a dashed red kant for out of reach /
+                 occupied, a dotted amber one for «needs energy»), never a glyph painted on it. A cell carries what it
+                 IS plus the player markers below; what HAPPENED here is READING, and reading lives in the stage panel
+                 the cursor is already pointing at (the ✓/⇢/↷ badges of 2026-08-31 and the ✕/⛔/⚡ grade glyphs are
+                 the same mistake at two sizes). -->
           </div>
           <!-- The magnified stop's own content CROSSFADES with the cell's
                growth (a bare v-if pop is the one thing this rail may never
@@ -235,7 +228,7 @@
           <div v-else class="con-hydro__ident">
             <span v-if="ctxView.tag !== undefined" class="con-hydro__stage-tag resource-tag" :class="'tag-' + ctxView.tag" aria-hidden="true"></span>
             <span v-else-if="ctxView.vp !== undefined" class="con-hydro__stage-vp">{{ ctxView.vp }} {{ $t('VP') }}</span>
-            <span v-else class="con-hydro__stage-flag" aria-hidden="true">⚑</span>
+            <span v-else class="con-hydro__stage-flag">{{ $t('Track start') }}</span>
             <div class="con-hydro__stage-titles">
               <div class="con-hydro__stage-name">{{ $t(ctxView.nameKey ?? '') }}</div>
               <div class="con-hydro__stage-pos">{{ ctxView.posText }}</div>
@@ -322,20 +315,20 @@
                    STRIP is always in layout (a reserved line, the settings
                    idiom) — appearing text may never re-flow the rows below. -->
               <div class="con-hydro__routenotes" data-unfold-item>
-                <span v-if="model.skippedStages.length > 0" class="con-hydro__routenote">
-                  ↷ {{ skippedSummary }}
+                <span v-if="model.skippedStages.length > 0" class="con-hydro__routenote" data-routenote="skip">
+                  {{ skippedSummary }}
                 </span>
                 <!-- The MODIFIER's promise, named with its card: every crossed
                      stage pays. The 2 VP crossing is the one exclusion, stated
                      beside it — an omission may never be silent. -->
-                <span v-if="traversalActive" class="con-hydro__routenote con-hydro__routenote--paid">
-                  ✦ {{ traversalNoteText }}
+                <span v-if="traversalActive" class="con-hydro__routenote con-hydro__routenote--paid" data-routenote="paid">
+                  {{ traversalNoteText }}
                 </span>
-                <span v-if="traversalActive && model.traversalExcludedVp" class="con-hydro__routenote">
-                  ↷ {{ $t('The crossed 2 VP stage grants no reward — it is claimed only by stopping there.') }}
+                <span v-if="traversalActive && model.traversalExcludedVp" class="con-hydro__routenote" data-routenote="excluded">
+                  {{ $t('The crossed 2 VP stage grants no reward — it is claimed only by stopping there.') }}
                 </span>
-                <span v-if="jumpedOverVp2" class="con-hydro__routenote">
-                  ⤴ {{ $t('The occupied 2 VP position is leapt over to reach the 5 VP slot.') }}
+                <span v-if="jumpedOverVp2" class="con-hydro__routenote" data-routenote="leap">
+                  {{ $t('The occupied 2 VP position is leapt over to reach the 5 VP slot.') }}
                 </span>
               </div>
 
@@ -409,7 +402,7 @@
               <div class="con-hydro__detailline" data-unfold-item>
                 <span class="con-hydro__detail-status">{{ detailsStatusText }}</span>
                 <span v-if="startSelected" class="con-hydro__routenote">{{ $t('The starting point of the Hydronetwork track.') }}</span>
-                <span class="con-hydro__routenote">→ {{ $t('Select a stage ahead to plan the advance') }}</span>
+                <span class="con-hydro__routenote">{{ $t('Select a stage ahead to plan the advance') }}</span>
               </div>
             </template>
             </div>
@@ -561,7 +554,7 @@
                                :options="rewardFocusAsk?.kind === 'choice' && !rewardFocusAsk.answered ? selectedStage.rewardOptions : undefined"
                                data-unfold-item />
             <div v-else class="con-hydro__routenotes" data-unfold-item>
-              <span class="con-hydro__routenote">↷ {{ $t(rewardFocusBlockKey) }}</span>
+              <span class="con-hydro__routenote">{{ $t(rewardFocusBlockKey) }}</span>
             </div>
           </div>
         </div>
@@ -1014,7 +1007,7 @@
              exists to ban); its content crossfades. A substate with no
              standing verb (the commit beat, the target grid — their verbs
              live on the ONE bottom bar) keeps the column as composed air. ═══ -->
-        <div class="con-hydro__act">
+        <div class="con-hydro__act" :data-hydro-status="statusKind">
           <transition name="con-hydro-act">
             <!-- PREVIEW / plan: the omission warning (reserved line) + the
                  primary, or the disabled verdict with its honest reasons. -->
@@ -1032,7 +1025,6 @@
                                         @open="focusAndOpenRail" />
               <p class="con-hydro__pickwarn" :class="{'con-hydro__pickwarn--on': pickWarned && planPickMissing}" role="status">
                 <span v-if="pickWarned && planPickMissing">
-                  <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚠</span>
                   {{ $t(pickWarningKey) }}
                 </span>
               </p>
@@ -1063,7 +1055,6 @@
                 </div>
                 <div class="con-hydro__reasons">
                   <div v-if="requirementsUnmet" class="con-hydro__reason">
-                    <span class="con-hydro__reason-glyph" aria-hidden="true">✕</span>
                     <span>{{ $t('Stage requirements are not met') }}</span>
                   </div>
                   <!-- The tone is the reason's OWN semantics: a turn gate is
@@ -1073,7 +1064,6 @@
                          'con-hydro__reason--todo': !r.blocking,
                          'con-hydro__reason--notnow': r.blocking && reasonTone(r) === 'warning',
                        }">
-                    <span class="con-hydro__reason-glyph" aria-hidden="true">{{ !r.blocking ? '→' : (reasonTone(r) === 'warning' ? '⏳' : '✕') }}</span>
                     <span>{{ reasonText(r) }}</span>
                   </div>
                 </div>
@@ -1168,7 +1158,6 @@
                                         @open="focusAndOpenRail" />
               <p class="con-hydro__pickwarn" :class="{'con-hydro__pickwarn--on': pickWarned && bonusPickMissing}" role="status">
                 <span v-if="pickWarned && bonusPickMissing">
-                  <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚠</span>
                   {{ $t(pickWarningKey) }}
                 </span>
               </p>
@@ -1372,7 +1361,6 @@ type RailStop = {
   position: number;
   vm: HydroStageVM;
   grade: HydroStopGrade | undefined;
-  gradeGlyph: string;
   linkKind: 'done' | 'route' | 'dim';
 };
 
@@ -2012,14 +2000,11 @@ export default defineComponent({
       return this.model.stages.map((vm): RailStop => {
         const d = destinationAt(this.preview, vm.position);
         const grade = d !== undefined ? gradeDestination(d) : undefined;
-        let gradeGlyph = '';
-        if (vm.position > this.model.currentPosition && grade !== undefined) {
-          gradeGlyph = grade === 'blocked' ? '✕' : grade === 'occupied' ? '⛔' : grade === 'needs-energy' ? '⚡' : '';
-        }
         const linkKind: RailStop['linkKind'] =
           vm.position <= this.model.currentPosition ? 'done' :
             (vm.state === 'route' || vm.state === 'target') ? 'route' : 'dim';
-        return {position: vm.position, vm, grade, gradeGlyph, linkKind};
+        // The grade is read only AHEAD of the marker (a cell behind it is history, not a destination).
+        return {position: vm.position, vm, grade: vm.position > this.model.currentPosition ? grade : undefined, linkKind};
       });
     },
     selectedStage(): HydroStage {

@@ -517,3 +517,51 @@ leading AND trailing `or` connectors),
 `tests/delta/DeltaProjectExpansion.spec.ts`, the Delta row in
 `promptSource.spec.ts`; the batch shape stays pinned by
 `consoleHydroAdvance.spec.ts`.
+
+## THE PREMIUM ITERATION — layer 1 (P90, 2026-11-02, ledger EG)
+
+The owner (2026-11-02, frames `20261101164458_1.jpg` · `20261101234452_1.jpg`): «слабый и визуально корявый интерфейс
+гидросети довести до реально премиум-уровня на TV 4K … функционально и по управлению всё должно остаться УЗНАВАЕМО».
+The iteration is planned in six LAYERS (`prompts/prelude2-p90-venus-trade-hub.md` решение 6 (ж)); a layer is either
+translated whole or left as it was. **Layer 1 — the overview / preview, the track, the dock — is done:**
+
+- **MATERIAL.** The root stands on `.con-stage-surface()` (the hand's, the colonies', the Parliament's «ОДНА РАМА»);
+  the scene panel is `.con-stage-plate()` — the aqua ring + heavy drop shadow that read «a giant modal arrived» is gone.
+- **THE HEADER SPEAKS ONCE.** The two pills («Позиция на треке N / 11» + a status pill with a dot) are gone: the position
+  is one quiet readout (`.con-hydro__headpos[data-hydro-position]`, typography — the number loud, «/ 11» quiet), the
+  status lives where the decision is — the act column's verdict and its hook `.con-hydro__act[data-hydro-status]`
+  (`ready` · `used` · `end` · `waiting` · `busy` · `offer` · `blocked`). A status pill repeated what the verdict says.
+- **LIGHT → MATERIAL** (invariant 15). The CTA's infinite 2.4 s mint «breathing» (`@keyframes con-hydro-cta`) is
+  deleted; READY is a mint kant on calm mint glass (the composers' commit plate). The focused stop and the CTA wear the
+  cursor on the ONE grammar — `.con-cursor-ring` (the stop's layer on `::before`: `::after` is the stem that plugs into
+  the panel, so NO lift — the stem's seam is a measured contract) + `.con-cursor-on()`. Every other focus halo of the
+  block (the espionage row, the source card, the bonus actions, the plan cards, the choice cards) lost its outer glow —
+  the inset ring stays. The TV profile's §3.3 ring group no longer lists `.con-hydro__stop--focused` (a second static
+  ring beside the living layer). Ratchets: `glowRestraintBaseline.json` `console.less` 73 → 64,
+  `cursorGrammarBaseline.json` `console.less` 71 → 69.
+- **NO EMOJI AS MEANING on the overview.** The cell's grade (✕ / ⛔ / ⚡ painted on the cell) is MATERIAL —
+  `--grade-blocked` / `--grade-occupied` a dashed red kant, `--grade-needs-energy` a dotted amber kant, read only AHEAD
+  of the marker; the start cell / the start stage say «Старт» (⚑ gone); the blockade gate keeps its steel bar and
+  colour band (⌸ gone); the route notes carry no ↷ ✦ ⤴ → — they are words, each with its hook
+  (`[data-routenote="skip|paid|excluded|leap"]`); the verdict's reasons and the plan's / the offer's pick warnings carry no ✕ ⏳ → ⚠ (the reward pick's → / ✓ is layer 5).
+- **THE TRACK IS CENTRED** in its band (`justify-content: center` — the free run splits evenly; it used to pile up at the
+  right edge).
+
+**What did NOT change** (the contract — П-К of the prompt): the frame never moves between substates (`hydroAnchor`
+probes), the stem 1.05 rem into the panel with its gap ∈ [0, .9rem], the geometry floors (cell ≥ 5.1 × 10.3 rem, the
+selected ≥ 1.5×), cells carry markers ONLY, the skipped-reward note is a COUNT (`·\s*\d+`), one Gains block, one CTA
+named by the next required interaction, B = «Свернуть», the stage-5 deal once, the permanent glyph berth, the pick row
+a column, the reserved warning line, the decision rail above the CTA, every control (◀/▶, A, RT, B, ◆).
+
+**Named gaps (not translated in this iteration — each layer stands as it was):** EG-1 the stage SHEET (three zones —
+hero · one centred body · the dock with the commit plate ≤ 60 % and a one-line price; the fixed rem columns
+`--hydro-ctx-w` / `--hydro-act-w` stay, so the panel body still stands short over a void on TV — the frame
+`screenshots/hydro-geometry/tv4k-02-hydro-step3.png`; the requirement row keeps its ✓ / ✕ marks until it becomes the
+sheet's «ПУТЬ» row); EG-2 the track's SOLVED fit (a planner over the measured band — cells and
+links are still fixed rem with flexible links, now centred); EG-3 ONE chip language (`HydroReward` under
+`zoom × ui-scale`, the `__delta/__plus/__zero` gains, the desktop `.resource-tag` discs → `ActionEffectChip` +
+`premium_tags`; the composer's requirement row gaining a TAG kind); EG-4 the price leaving the rail on the commit
+(PL-099 — the energy row still ticks in the apply frame); EG-5 layers 2–6 (the stage choice cards, the result, stages
+5 / 7 / 9, the bonus offer, espionage / blockade / Dutch Mountains, the VP ceremony) — their emoji (🛡 ⛔ ✓ in the
+espionage and reward-pick rows) and the ceremony's gold halos (`__cere-value`, `__landflash`) stay; EG-6 the clean-up
+(splitting `ConsoleHydroSection.vue` into `ConsoleHydroStop` / `ConsoleHydroStageSheet`; the orphan `HydroActionZone.vue` IS deleted).
