@@ -37,7 +37,7 @@ away), and the start scene kept the pad, so the bottom bar advertised
 
 ```ts
 {revealed: number, min: number, max: number,
- origin: 'deck' | 'discard', mode: 'keep' | 'buy',
+ origin: 'deck' | 'discard' | 'prelude', mode: 'keep' | 'buy' | 'play',
  source?: ChoiceContextSource}
 ```
 
@@ -49,6 +49,24 @@ tomorrow is covered by construction; there is no per-card table.
 
 Serialized on **`SelectCard.toModel`**, not centrally — the same
 nesting-survival reason `discardPrompt` is.
+
+**…and ONE funnel per DECK: the PRELUDE funnel is `PreludesExpansion.selectPreludeToPlay` in the action phase** (P91
+WG Project, 2026-11-02 — ledger EI). A prelude picked in the MIDDLE of the game carries `origin: 'prelude'`,
+`mode: 'play'` («the pick is PLAYED at once, never kept; the rest goes to the prelude discard pile»), sourced by the
+card that drew (WG Project, New Partner). The START keeps its own marker (`startGamePrompt preludeSelection`) —
+`inStartSequence` decides: not the action phase, or under the corporation's first-action root (Valley Trust lives in
+ACTION of generation 1), or inside a prelude a start pick played (`playInStartChain` — the answer arrives in a later
+request, outside that root). `SelectCard.toModel` stamps `preludeOutlook` on the `play` pick too.
+
+**The client's `play` mode** (same `ConsoleDeckPick`, same grammar, routed to `deckSelect`, embedded in the play's
+outcome zone by the play's own `'chain'` claim): the prelude deck has no HUD stack, so the stage stands an OBJECT up
+in the row's mirrored source reserve (`ConsolePreludeDeck` — pile · «Разыграно» seat · discard; `GameModel
+.preludeDeckSize / preludeDiscardSize`, held while bodies move); the deal leaves ITS pile (`runBatchArrival` `from`)
+and never holds the project counter; a candidate the server says cannot resolve wears «Сгорит · +15 M€»; A chooses, RT
+plays («Разыграть» / «Сжечь за 15 M€» — no auto-confirm); the exit is NOT an intake: the rest fly face up onto the
+object's discard, the played one lifts out of its slot onto the seat (`armPlayedHero`, target the seat, rewards from
+the server's preview), a burnt one goes to the discard last; a nested pick (New Partner) re-deals on the same surface.
+Witness `console-wg-project`.
 
 **A SPLIT REVEAL carries the WHOLE reveal on ONE prompt** (P88 Venus Orbital Survey, 2026-11-01): «reveal the top 2;
 Venus cards to the hand for free; buy or discard the rest». The prompt's `cards` stay exactly the cards OFFERED (the
