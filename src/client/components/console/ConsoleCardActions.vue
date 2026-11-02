@@ -1021,6 +1021,9 @@ export default defineComponent({
         if (consoleCardActionsUi.targetStage) {
           return 'Target';
         }
+        if (consoleCardActionsUi.venusStage) {
+          return 'Venus bonus';
+        }
         const setup = focusKicker('setup');
         return forecastStageText('action', setup) ?? setup;
       }

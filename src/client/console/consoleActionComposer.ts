@@ -51,7 +51,7 @@ import {
 } from '@/common/models/PlayerInputModel';
 import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
 import type {DeferralReaction} from '@/common/models/tableQuestionDeferral';
-import {VenusBonusPart, venusBonusMetaOf, venusBonusParts, venusWildChoiceModel} from '@/client/console/venusBonus/venusBonusPreselect';
+import {venusBonusMetaOf, venusWhenHolds} from '@/client/console/venusBonus/venusBonusPreselect';
 
 // ── The choice model ─────────────────────────────────────────────────────────
 
@@ -67,11 +67,10 @@ export type ComposerChoice = {
   kind: 'spendHeat' | 'amount' | 'card' | 'player' | 'or' | 'payment' | 'lawPlay' | 'distribute' | 'venusBonus' | 'other';
   input: PlayerInputModel;
   /**
-   * A PART of a pre-selected Venus bonus step (P89 · EL — `venusBonusPreselect.ts`): `wild` is the 30 % wild's optional
-   * card pick (an `or` row, its own id `step#i:wild`), `spread` the six-lane layout (kind `venusBonus`). Both answer the
-   * ONE response at the step's index — the composer composes them (`venusPreselectResponse`), never captures a part.
+   * A CONDITIONAL row (PL-1505 — the Venus bonus Atmoscoop's «Venus» option earns): it stands only while the `or` step
+   * at `step` is answered with `option` (`venusWhenHolds`); `branchChoices` given the captures drops it otherwise.
    */
-  venusPart?: VenusBonusPart;
+  when?: {step: number, option: number};
   /** Signed per-target delta for a card-target step ("2 → 4 on the card"). */
   amount?: number;
   /** Icon key of the card resource an add/remove step moves. */
@@ -428,8 +427,11 @@ export function commonVariantGain<T>(variants: ReadonlyArray<{gain: ReadonlyArra
   return common ? first : [];
 }
 
-/** The selected branch's choices: the direct optionInput + every input step. */
-export function branchChoices(branch: ActionPreviewBranch | undefined): Array<ComposerChoice> {
+/**
+ * The selected branch's choices: the direct optionInput + every input step. With the step `captured` answers, a
+ * CONDITIONAL row (a Venus bonus one `or` option earns) stands only while that option is the answer.
+ */
+export function branchChoices(branch: ActionPreviewBranch | undefined, captured?: Readonly<Record<number, unknown>>): Array<ComposerChoice> {
   if (branch === undefined) {
     return [];
   }
@@ -459,7 +461,9 @@ export function branchChoices(branch: ActionPreviewBranch | undefined): Array<Co
     } else if (step.kind === 'spendHeat') {
       out.push({id: `step#${i}`, scope: 'step', index: i, kind: 'spendHeat', input: step.input});
     } else if (step.kind === 'venusBonus') {
-      out.push(...venusBonusChoices(step.input, i));
+      if (captured === undefined || venusWhenHolds(step.when, captured)) {
+        out.push(...venusBonusChoices(step.input, i, step.when));
+      }
     } else if (step.kind === 'lawPlay') {
       // A LAW THAT PLAYS A CARD (RX36): the play is a SLOT — the hand album + the play composer answer it (the pick
       // bridge), its composed result is the step's capture; the result rides the commit after every other step.
@@ -470,26 +474,15 @@ export function branchChoices(branch: ActionPreviewBranch | undefined): Array<Co
 }
 
 /**
- * THE ROWS OF A PRE-SELECTED VENUS BONUS (P89 · EL): the wild's optional card pick (30 % with a holder) and the spread —
- * two rows, two pre-selects, ONE answer at the step's index. A step whose prompt carries no bonus marker draws nothing.
+ * THE ROW OF A PRE-SELECTED VENUS BONUS (P89 · EL / EM): ONE row for the whole bonus — the 30 % wild, its card and the
+ * standard spread are answered INSIDE it (the inner step, `venusBonusInner.ts`), composed into ONE answer at the step's
+ * index. A step whose prompt carries no bonus marker draws nothing.
  */
-export function venusBonusChoices(input: PlayerInputModel, index: number): Array<ComposerChoice> {
-  const meta = venusBonusMetaOf(input);
-  if (meta === undefined) {
+export function venusBonusChoices(input: PlayerInputModel, index: number, when?: {step: number, option: number}): Array<ComposerChoice> {
+  if (venusBonusMetaOf(input) === undefined) {
     return [];
   }
-  const out: Array<ComposerChoice> = [];
-  for (const part of venusBonusParts(meta)) {
-    if (part === 'wild') {
-      const wild = venusWildChoiceModel(input);
-      if (wild !== undefined) {
-        out.push({id: `step#${index}:wild`, scope: 'step', index, kind: 'or', input: wild, venusPart: 'wild'});
-      }
-    } else {
-      out.push({id: `step#${index}`, scope: 'step', index, kind: 'venusBonus', input, venusPart: 'spread'});
-    }
-  }
-  return out;
+  return [{id: `step#${index}`, scope: 'step', index, kind: 'venusBonus', input, ...(when !== undefined ? {when} : {})}];
 }
 
 /** Display-only "after confirming" steps (notes / board placements). */
@@ -649,7 +642,7 @@ export function firstMissingChoice(
   if (branch === undefined) {
     return undefined;
   }
-  const all = branchChoices(branch);
+  const all = branchChoices(branch, captures.steps);
   return all.find((c) =>
     (c.scope === 'option' && (c.index >= 0 ? captures.optionParts?.[c.index] === undefined : captures.option === undefined)) ||
     (c.scope === 'step' && captures.steps[c.index] === undefined));
@@ -796,6 +789,10 @@ export function orderedStepResponses(
 ): Array<unknown> {
   const out: Array<unknown> = [];
   branch.steps.forEach((step, i) => {
+    // A conditional Venus bonus whose option is not the answer any more is no part of the batch (PL-1505).
+    if (step.kind === 'venusBonus' && !venusWhenHolds(step.when, steps)) {
+      return;
+    }
     if ((step.kind === 'input' || step.kind === 'tabbedTargets' || step.kind === 'spendHeat' || step.kind === 'venusBonus') && steps[i] !== undefined) {
       // ADDRESSED — the step's own address (the server's), so the replay lands
       // this answer only on its own prompt (`common/inputs/preselectAddress.ts`).
@@ -826,6 +823,9 @@ export function plannedStepResponses(
 ): Array<unknown> {
   const out: Array<unknown> = [];
   branch.steps.forEach((step, i) => {
+    if (step.kind === 'venusBonus' && !venusWhenHolds(step.when, steps)) {
+      return;
+    }
     if ((step.kind === 'input' || step.kind === 'tabbedTargets' || step.kind === 'spendHeat' || step.kind === 'venusBonus') && steps[i] !== undefined) {
       out.push(steps[i]);
     } else if (step.kind === 'deltaAdvance') {

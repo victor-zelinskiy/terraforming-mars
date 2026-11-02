@@ -714,8 +714,12 @@ export type ActionPreviewStep =
    * own step (a card or one more standard resource) beside the base spread. The answer rides the batch ADDRESSED
    * (`for` = role `venusBonus` + the card that raises the scale); a state that moved since the preview is refused and
    * the live prompt is asked as before — the hosted step is the fallback, never removed.
+   *
+   * `when` — the bonus is earned only by ONE option of an `or` step of this branch (Atmoscoop: «raise the temperature
+   * 2 steps OR Venus 2 steps» — PL-1505): the step at `step` answered with option `option`. The composer shows (and
+   * asks) the bonus only while that option is the answer; any other answer drops it from the batch.
    */
-  | {kind: 'venusBonus', input: PlayerInputModel, for?: PreselectAddress}
+  | {kind: 'venusBonus', input: PlayerInputModel, for?: PreselectAddress, when?: {step: number, option: number}}
   /**
    * THIS BRANCH *IS* A COLONY TRADE — it does not do a trade of its own, it
    * enters the ONE trade the server already offers, paying with this card.

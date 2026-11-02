@@ -16,6 +16,7 @@ import {reactive} from 'vue';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {CardName} from '@/common/cards/CardName';
 import {WorkspacePhase, backVerbFor, WorkspaceBackVerb} from '@/client/console/consoleWorkspaceFlow';
+import type {VenusInnerCommand} from '@/client/console/venusBonus/venusBonusInner';
 
 export type ColonyGridLayout = 'solo' | 'duo' | 'trio' | 'four' | 'five' | 'six' | 'catalog';
 
@@ -128,6 +129,8 @@ export const consoleColoniesUi = reactive({
    *  A = choose, X = inspect the focused card — its own command grammar);
    *  `mix` = the Delta Works composition substep (LB/RB dial · X confirm). */
   composerSub: '' as '' | 'list' | 'lanes' | 'targets' | 'mix' | 'venus',
+  /** The Venus bonus's inner step's bar (P89 · EM — `venusInnerFootHints`), while `composerSub` is `venus`. */
+  composerVenusBar: [] as ReadonlyArray<VenusInnerCommand>,
   /** Focus stage: the open list's DECLINE as a button (RT, its i18n key — `optionalChoice.ts`); '' = none. */
   composerDecline: '' as string,
   /** Focus stage: every decision is captured — X (confirm) is meaningful. */
@@ -222,6 +225,7 @@ export function resetColonyDockCursor(): void {
 export function resetConsoleColoniesUi(): void {
   consoleColoniesUi.inspectOpen = false;
   consoleColoniesUi.composerSub = '';
+  consoleColoniesUi.composerVenusBar = [];
   consoleColoniesUi.composerDecline = '';
   consoleColoniesUi.composerReady = false;
   consoleColoniesUi.composerEditable = false;

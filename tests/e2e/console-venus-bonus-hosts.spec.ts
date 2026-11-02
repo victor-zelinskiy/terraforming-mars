@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  answerVenusSpread, bootFixture, bootFixtureSeats, crumbText, fetchPlayerModel, focusCard, openActionFocus, openCardActions, playCardFromHand, press,
+  answerVenusSpread, openVenusStep, venusOwed, bootFixture, bootFixtureSeats, crumbText, fetchPlayerModel, focusCard, openActionFocus, openCardActions, playCardFromHand, press,
   pressUntil, reloadConsole, settle, walkFocusUntil,
 } from './consoleStart';
 import {enterSittingByPass, parliament, strandedReports, armLeakWitness, turnTo, waitSittingAtRest} from './parliamentDrive';
@@ -172,8 +172,7 @@ async function runAirScrapping(page: Page, request: APIRequestContext, id: strin
 async function composeRepeat(page: Page, shot: string): Promise<void> {
   const slotFilled = async () => await page.locator('[data-composer-repeat-name]').count() > 0;
   for (let i = 0; i < 10 && !await slotFilled(); i++) {
-    const spread = page.locator('[data-venus-spread]').first();
-    if (await spread.count() > 0 && (await spread.getAttribute('data-venus-spread-left')) !== '0') {
+    if (await venusOwed(page)) {
       await shoot(page, `${shot}-copied-spread`);
       expect(await answerVenusSpread(page, 'steel'), 'the copied composer\'s bonus laid out').toBe(true);
       continue;
@@ -211,12 +210,24 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     const id = await bootFixture(page, request, 'venus-shuttles-alt16', {query: PRESET.query});
     await armBonusWitness(page);
     await focusShuttles(page);
-    const spread = page.locator(`${ACTION_COMPOSER} [data-venus-spread]`);
-    await expect(spread, 'the bonus is a ROW of the setup — before the commit').toBeVisible({timeout: 15_000});
-    await expect(spread).toHaveAttribute('data-venus-spread-left', '1');
-    await expect(spread.locator('[data-venus-step]'), 'the row reads the raise that earns it').toContainText(/16\s*%\s*→\s*18\s*%/);
-    expect(await answerVenusSpread(page, 'steel'), 'the steel lane takes the one unit').toBe(true);
-    await expect(spread.locator('[data-lane-resource="steel"]')).toHaveAttribute('data-lane-amount', '1');
+    const row = page.locator(`${ACTION_COMPOSER} [data-venus-bonus-row]`);
+    await expect(row, 'the bonus is ONE ROW of the setup — before the commit').toBeVisible({timeout: 15_000});
+    await expect(row.locator('[data-venus-step]'), 'the row reads the raise that earns it').toContainText(/16\s*%\s*→\s*18\s*%/);
+    await shoot(page, 'H1-row');
+    // THE INNER STEP (P89 · EM): A enters it — the crumb names it, the grid is 2 × 3, the dial's pills say LB/RB.
+    expect(await openVenusStep(page), 'A enters the inner step').toBe(true);
+    const inner = page.locator(`${ACTION_COMPOSER} [data-venus-inner]`);
+    await expect(inner.locator('[data-venus-spread]')).toHaveAttribute('data-venus-spread-left', '1');
+    await expect(inner.locator('[data-lane-resource]'), 'six standard resources').toHaveCount(6);
+    await expect(inner.locator('[data-venus-dial-hint]'), 'the LB/RB hint on the grid').toBeVisible();
+    await expect(inner.locator('[data-venus-wild]'), 'no 30 % OR on a 16 → 18 % step').toHaveCount(0);
+    await expect.poll(() => crumbText(page), {message: 'the crumb names the inner step'}).toMatch(/бонус венеры/i);
+    await press(page, 'ArrowDown', 260);
+    await expect(inner, '↓ moves a ROW of the 2 × 3 grid').toHaveAttribute('data-venus-focus-index', '3');
+    await press(page, 'ArrowUp', 260);
+    await shoot(page, 'H1-inner');
+    expect(await answerVenusSpread(page, 'steel'), 'the steel lane takes the one unit; A confirms and leaves').toBe(true);
+    await expect(row.locator('[data-venus-summary-unit="steel"]'), 'the row reads the answer').toBeVisible();
     await shoot(page, 'H1-preselect');
     const before = await wireOf(request, id);
     await armCellWitness(page, 'venus-18');
@@ -285,12 +296,12 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     }
     await expect(focusedRow, 'the cursor reaches the bonus row').toHaveCount(1);
     await shoot(page, 'H4-row');
-    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-colfocus [data-venus-spread]').count() > 0, {tries: 3, settleMs: 700}),
-      'A opens the spread').toBe(true);
-    expect(await answerVenusSpread(page, 'steel'), 'the steel lane takes the unit').toBe(true);
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-colfocus [data-venus-inner]').count() > 0, {tries: 3, settleMs: 700}),
+      'A opens the inner step').toBe(true);
+    await expect.poll(() => crumbText(page), {message: 'the crumb names the inner step'}).toMatch(/бонус венеры/i);
     await shoot(page, 'H4-spread');
-    await press(page, 'Enter', 500); // back to the decisions
-    await expect(page.locator('[data-venus-spread-summary]'), 'the row reads the answer').toBeVisible({timeout: 10_000});
+    expect(await answerVenusSpread(page, 'steel'), 'the steel lane takes the unit; A confirms back to the decisions').toBe(true);
+    await expect(page.locator('.con-colfocus [data-venus-bonus-row][data-venus-answered]'), 'the row reads the answer').toBeVisible({timeout: 10_000});
     const before = await wireOf(request, id);
     await armCellWitness(page, 'venus-18');
     expect(await pressUntil(page, 'KeyX', async () => (await wireOf(request, id)).game.venusScaleLevel === 18, {tries: 3, settleMs: 2000}),
@@ -304,23 +315,29 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     expect(w.band, 'no standalone bonus band').toBe(0);
   });
 
-  test('H5 the 30 % finish (P89 at 28 %): the WILD is its own pre-select (a card, or a standard resource) beside the spread', async ({page, request}) => {
+  test('H5 the 30 % finish (P89 at 28 %): the inner step asks the OR first — «on a card» puts the wild on the sole holder, the grid takes the base unit', async ({page, request}) => {
     test.setTimeout(300_000);
     const id = await bootFixture(page, request, 'venus-bonus-final', {query: PRESET.query});
     await armBonusWitness(page);
     await focusShuttles(page);
-    const spread = page.locator(`${ACTION_COMPOSER} [data-venus-spread]`);
-    await expect(spread, 'the spread row stands').toBeVisible({timeout: 15_000});
+    const row = page.locator(`${ACTION_COMPOSER} [data-venus-bonus-row]`);
+    await expect(row, 'ONE bonus row stands').toBeVisible({timeout: 15_000});
     await shoot(page, 'H5-rows');
     const before = await wireOf(request, id);
     const floaters = (w: Wire) => w.thisPlayer.tableau.find((c) => c.name === 'Dirigibles')?.resources ?? 0;
-    // THE WILD — its own row: A opens the card pick, A takes the focused holder (Dirigibles, the one candidate — shown, T14).
-    expect(await pressUntil(page, 'Enter', async () => await page.locator(`${ACTION_COMPOSER} .con-ptsel, .con-cardactions .con-ptsel`).count() > 0,
-      {tries: 3, settleMs: 900}), 'A opens the wild\'s card pick').toBe(true);
-    await shoot(page, 'H5-wild-pick');
-    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions .con-ptsel').count() === 0,
-      {tries: 3, settleMs: 900}), 'A takes the holder').toBe(true);
-    expect(await answerVenusSpread(page, 'steel'), 'the base unit on steel').toBe(true);
+    expect(await openVenusStep(page), 'A enters the inner step').toBe(true);
+    const inner = page.locator(`${ACTION_COMPOSER} [data-venus-inner]`);
+    // THE OR FIRST — it is really taken here (28 → 30 %), and it opens there.
+    await expect(inner.locator('[data-venus-wild-option]'), 'the two answers of the 30 % finish').toHaveCount(2);
+    await expect(inner, 'the step opens on the OR').toHaveAttribute('data-venus-focus-zone', 'wild');
+    await shoot(page, 'H5-or');
+    await press(page, 'Enter', 500);
+    await expect(inner.locator('[data-venus-card="Dirigibles"][data-chosen]'), 'the sole holder is the answer, shown').toHaveCount(1);
+    await expect(inner, 'the cursor went on to the grid').toHaveAttribute('data-venus-focus-zone', 'lane');
+    await shoot(page, 'H5-card');
+    // «On a card»: the sole holder is the answer, shown and marked; the cursor goes on to the grid.
+    expect(await answerVenusSpread(page, 'steel', {wild: 'onCard'}), 'the wild on Dirigibles, the base unit on steel').toBe(true);
+    await expect(row.locator('[data-venus-summary-card="Dirigibles"]'), 'the row reads the wild\'s card').toBeVisible();
     await shoot(page, 'H5-ready');
     await commitComposer(page);
     await expect.poll(async () => (await wireOf(request, id)).game.venusScaleLevel, {timeout: 30_000}).toBe(30);
@@ -348,7 +365,7 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     await settle(page, {timeoutMs: 15_000});
     // The copied action's own composer stands in the repeat bridge — its Venus bonus is pre-selected there (P89 · EL).
     for (let i = 0; i < 6 && !(await page.locator('.con-cardactions').count() === 1 && await page.locator('[data-composer-repeat-name]').count() === 1); i++) {
-      if (await page.locator('[data-venus-spread]').count() > 0 && (await page.locator('[data-venus-spread]').first().getAttribute('data-venus-spread-left')) !== '0') {
+      if (await venusOwed(page)) {
         expect(await answerVenusSpread(page, 'steel'), 'the copied composer\'s bonus laid out').toBe(true);
         continue;
       }
@@ -427,8 +444,7 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
       .cardsInHand.every((c) => c.name !== 'Project Inspection');
     let laidOut = false;
     for (let i = 0; i < 12 && !await played(); i++) {
-      const spread = page.locator('[data-venus-spread]').first();
-      if (await spread.count() > 0 && (await spread.getAttribute('data-venus-spread-left')) !== '0') {
+      if (await venusOwed(page)) {
         await shoot(page, 'H10-copied-spread');
         expect(await answerVenusSpread(page, 'steel'), 'the copied composer’s bonus laid out').toBe(true);
         laidOut = true;
@@ -442,6 +458,47 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
       .toBe(before.thisPlayer.steel + 1);
     expect((await wireOf(request, id)).waitingFor?.venusBonusPrompt, 'no bonus is asked after the play').toBeUndefined();
     await expectBornOnCell(page, 'venus-18');
+    expect((await witnessOf(page)).band, 'no standalone bonus band').toBe(0);
+  });
+
+  test('H11 ATMOSCOOP at 16 %: the bonus is earned by ONE answer of the «temperature OR Venus» step — the row stands only after «Venus», the play pays it', async ({page, request}) => {
+    test.setTimeout(420_000);
+    const id = await bootFixture(page, request, 'venus-bonus-atmoscoop', {query: PRESET.query});
+    await armBonusWitness(page);
+    await press(page, 'Period', 600);
+    await press(page, 'Enter', 1600);
+    await expect(page.locator('.con-hand [data-zoom-slot="Atmoscoop"]'), 'the hand stands').toHaveCount(1, {timeout: 15_000});
+    expect(await focusCard(page, 'Atmoscoop'), 'Atmoscoop is focused in the hand').toBe(true);
+    await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
+    await press(page, 'Enter', 900);
+    const sheet = page.locator('.con-composer--play');
+    await expect(sheet, 'the play sheet').toHaveCount(1, {timeout: 15_000});
+    await settle(page, {timeoutMs: 15_000});
+    await expect(sheet.locator('[data-venus-bonus-row]'), 'no bonus row before the OR is answered (PL-1505)').toHaveCount(0);
+    await shoot(page, 'H11-or-open');
+    // A on the commit leads to the first open question — the OR; ↓ «Venus», A takes it: the bonus row rises.
+    const list = sheet.locator('.con-composer__sublist');
+    expect(await pressUntil(page, 'Enter', async () => await list.count() > 0, {tries: 4, settleMs: 900}), 'A opens the OR').toBe(true);
+    await press(page, 'ArrowDown', 300);
+    expect(await pressUntil(page, 'Enter', async () => await list.count() === 0, {tries: 3, settleMs: 900}), 'A takes «Venus»').toBe(true);
+    const row = sheet.locator('[data-venus-bonus-row]');
+    await expect(row, 'the Venus answer raises the bonus row').toBeVisible({timeout: 10_000});
+    await expect(row.locator('[data-venus-step]'), 'the raise it earns').toContainText(/16\s*%\s*→\s*20\s*%/);
+    expect(await openVenusStep(page), 'A enters the inner step').toBe(true);
+    await expect(page.locator('[data-venus-inner] [data-venus-spread]'), 'two cells crossed — two units to lay out').toHaveAttribute('data-venus-spread-amount', '2');
+    await shoot(page, 'H11-inner');
+    expect(await answerVenusSpread(page, 'steel'), 'both units on steel; A confirms and leaves').toBe(true);
+    await shoot(page, 'H11-ready');
+    const before = await wireOf(request, id);
+    await armCellWitness(page, 'venus-20');
+    const played = async () => ((await fetchPlayerModel(request, id)) as unknown as {cardsInHand: Array<{name: string}>})
+      .cardsInHand.every((c) => c.name !== 'Atmoscoop');
+    expect(await pressUntil(page, 'Enter', played, {tries: 6, settleMs: 1200}), 'the play is made').toBe(true);
+    await expect.poll(async () => (await wireOf(request, id)).game.venusScaleLevel, {timeout: 30_000}).toBe(20);
+    await expect.poll(async () => (await wireOf(request, id)).thisPlayer.steel, {timeout: 30_000, message: 'the batch of the play paid the bonus'})
+      .toBe(before.thisPlayer.steel + 2);
+    expect((await wireOf(request, id)).waitingFor?.venusBonusPrompt, 'no bonus is asked after the play').toBeUndefined();
+    await expectBornOnCell(page, 'venus-20');
     expect((await witnessOf(page)).band, 'no standalone bonus band').toBe(0);
   });
 

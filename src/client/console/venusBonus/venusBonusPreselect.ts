@@ -8,21 +8,19 @@
  * two can never answer the bonus differently.
  *
  * The server's preview step (`ActionPreviewStep` `venusBonus`) carries the VERY prompt it will ask. A composer reads it
- * as up to TWO rows, each its own pre-select, both answering ONE response at the step's index:
- *  · the WILD (30 % only, with a card that can hold it) — a card pick with a decline: «on a card» picks through the
- *    target row's own grammar, RT «a standard resource instead» declines (the optional-choice law: a choice whose one
- *    answer is a pick IS that pick, the refusal a button). Its model is SYNTHESISED from the live branch-0 `SelectCard`
- *    beside a skip-marked option (`venusWildChoiceModel`) — the composer's existing `or` door answers it as it answers
- *    any optional pick;
- *  · the SPREAD — the standard resources laid out over the six gain lanes, the LAYOUT row's grammar (TR78): ←→ between
- *    the lanes, LB/RB one unit, RT the rest, the commit held until the sum is exact. Its sum is the base, +1 when the
- *    wild is taken as a standard resource.
+ * as ONE row (its answer read back in chips) and answers it in an INNER step (`venusBonusInner.ts` — ledger EM): the
+ * 30 % wild's OR (only where it is really taken), «put it on a card» or one more standard resource, the six standard
+ * lanes on a fixed 2 × 3 grid (LB/RB one unit, RT the rest), its own confirm leaving the step.
  * The composed answer is `venusBonusResponse` — byte-identical to what the live surface (`ConsoleVenusBonus`) POSTs —
  * and rides the batch ADDRESSED (role `venusBonus` + the raising card). A state that moved since the preview is
  * refused by the live prompt and asked for real: the hosted step stays the fallback.
+ *
+ * A bonus earned by ONE option of an `or` step (Atmoscoop's «temperature OR Venus», PL-1505) is CONDITIONAL
+ * (`step.when`): the row stands, and the answer rides, only while that option is the answer (`venusWhenHolds`).
  */
 import {CardName} from '@/common/cards/CardName';
 import {OrOptionsModel, PlayerInputModel, SelectCardModel, VenusBonusPromptMeta, AndOptionsModel} from '@/common/models/PlayerInputModel';
+import {CardModel} from '@/common/models/CardModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {VenusWildChoice, venusBaseCount, venusBonusResponse, venusWildTargets} from '@/client/console/compositePrompts';
 import {SpreadState, spreadComplete} from '@/client/console/cardResourceDistribution';
@@ -62,7 +60,7 @@ export function venusBonusParts(meta: VenusBonusPromptMeta): ReadonlyArray<Venus
 }
 
 /** The live branch-0 card pick (`AndOptions(SelectCard, GainResources)`), as the server serialised it. */
-function wildCardModel(input: PlayerInputModel): SelectCardModel | undefined {
+export function wildCardModel(input: PlayerInputModel): SelectCardModel | undefined {
   if (input.type !== 'or') {
     return undefined;
   }
@@ -74,42 +72,9 @@ function wildCardModel(input: PlayerInputModel): SelectCardModel | undefined {
   return pick as SelectCardModel | undefined;
 }
 
-/** The decline's words — the wild taken as one more standard resource. */
-export const VENUS_WILD_STANDARD_KEY = 'Take one more standard resource';
-
-/**
- * THE WILD'S ROW MODEL — an OPTIONAL CHOICE (`optionalChoice.ts`): the live card pick beside ONE skip-marked option.
- * The composer's `or` door answers it the way it answers every optional pick (the target row; RT declines). Undefined
- * when the step asks no wild.
- */
-export function venusWildChoiceModel(input: PlayerInputModel): OrOptionsModel | undefined {
-  const meta = venusBonusMetaOf(input);
-  const pick = wildCardModel(input);
-  if (meta === undefined || !venusWildAsks(meta) || pick === undefined) {
-    return undefined;
-  }
-  const decline = {type: 'option', title: VENUS_WILD_STANDARD_KEY, buttonLabel: VENUS_WILD_STANDARD_KEY, metadata: {kind: 'skip'}} as unknown as PlayerInputModel;
-  return {
-    type: 'or',
-    title: 'Wild resource',
-    buttonLabel: 'Confirm',
-    options: [{...pick, title: 'Put it on a card'} as PlayerInputModel, decline],
-  } as unknown as OrOptionsModel;
-}
-
-/** Read the wild row's `or` answer back into the bonus's own terms. */
-export function venusWildOfAnswer(answer: unknown): VenusBonusParts['wild'] {
-  const or = answer as {type?: string, index?: number, response?: {type?: string, cards?: ReadonlyArray<CardName>}} | undefined;
-  if (or?.type !== 'or') {
-    return undefined;
-  }
-  if (or.index === 0 && or.response?.type === 'card' && or.response.cards?.[0] !== undefined) {
-    return {wild: 'onCard', card: or.response.cards[0]};
-  }
-  if (or.index === 1) {
-    return {wild: 'asStandard'};
-  }
-  return undefined;
+/** The wild's candidates as the server serialised them (their live faces and counts) — undefined for no wild. */
+export function venusWildCandidates(input: PlayerInputModel | undefined): ReadonlyArray<CardModel> | undefined {
+  return input === undefined ? undefined : wildCardModel(input)?.cards;
 }
 
 /** The spread's sum — the base, +1 once the wild is declined into a standard resource (or always, with no wild row). */
@@ -126,7 +91,7 @@ export const VENUS_SPREAD_LANES: ReadonlyArray<string> = STANDARD_UNITS;
 /** Is a part answered? The wild — chosen; the spread — its sum exact (an empty spread of a zero sum is complete). */
 export function venusPartAnswered(meta: VenusBonusPromptMeta, parts: VenusBonusParts, part: VenusBonusPart): boolean {
   if (part === 'wild') {
-    return parts.wild !== undefined;
+    return parts.wild?.wild === 'asStandard' || (parts.wild?.wild === 'onCard' && parts.wild.card !== undefined);
   }
   return spreadComplete(venusSpreadAmount(meta, parts), parts.spread ?? {});
 }
@@ -158,4 +123,28 @@ export function venusPreselectArm(meta: VenusBonusPromptMeta, parts: VenusBonusP
     ...(meta.step !== undefined ? {step: meta.step} : {}),
     preselected: true,
   };
+}
+
+/**
+ * A CONDITIONAL bonus (PL-1505): `when` names the `or` step and the option that earns it. Holds while the captured
+ * answer of that step IS that option (`{type: 'or', index}`); no `when` — always.
+ */
+export function venusWhenHolds(when: {step: number, option: number} | undefined, captured: Readonly<Record<number, unknown>>): boolean {
+  if (when === undefined) {
+    return true;
+  }
+  const answer = captured[when.step] as {type?: string, index?: number} | undefined;
+  return answer?.type === 'or' && answer.index === when.option;
+}
+
+/** The row's reading of an answer: the units per lane (in lane order) and the card the wild lands on. */
+export type VenusBonusSummary = {units: ReadonlyArray<{key: string, n: number}>, card?: CardName};
+
+export function venusBonusSummary(parts: VenusBonusParts): VenusBonusSummary {
+  const units = VENUS_SPREAD_LANES.flatMap((key) => {
+    const n = parts.spread?.[key] ?? 0;
+    return n > 0 ? [{key, n}] : [];
+  });
+  const card = parts.wild?.wild === 'onCard' ? parts.wild.card : undefined;
+  return {units, ...(card !== undefined ? {card} : {})};
 }

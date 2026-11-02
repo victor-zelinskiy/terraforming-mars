@@ -15,6 +15,10 @@ import {SelectOption} from '../../../src/server/inputs/SelectOption';
 import {testGame} from '../../TestGame';
 import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {cast} from '@/common/utils/utils';
+import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
+import {addressVerdict} from '../../../src/common/inputs/preselectAddress';
+import {parkedBatchTailLength, replayBatch} from '../../../src/server/inputs/deferredInputBatch';
+import {InputResponse} from '../../../src/common/inputs/InputResponse';
 
 describe('Atmoscoop', () => {
   let card: Atmoscoop;
@@ -164,4 +168,75 @@ describe('Atmoscoop', () => {
       expect(player.canPlay(card)).eq(run.expected);
     });
   }
+
+  describe('the Venus bonus PRE-SELECT behind the OR (PL-1505)', () => {
+    function altTable(venus: number): [IGame, TestPlayer] {
+      const [g, p] = testGame(1, {venusNextExtension: true, altVenusBoard: true});
+      setVenusScaleLevel(g, venus);
+      setTemperature(g, -10);
+      p.playedCards.push(new Research(), new SearchForLife(), dirigibles);
+      p.steel = 0;
+      p.titanium = 0;
+      return [g, p];
+    }
+    const bonusSteps = (p: TestPlayer) => cardPlayPreview(p, card).branches[0].steps.flatMap((s, i) => s.kind === 'venusBonus' ? [{s, i}] : []);
+    const orIndex = (p: TestPlayer) => cardPlayPreview(p, card).branches[0].steps.findIndex((s) => s.kind === 'input' && s.input.type === 'or');
+
+    it('the Venus OPTION earns the bonus: a CONDITIONAL step tied to that option, the bonus of the raise counted', () => {
+      const [, p] = altTable(16);
+      const steps = bonusSteps(p);
+      expect(steps).has.lengthOf(1);
+      const step = steps[0].s;
+      if (step.kind !== 'venusBonus') {
+        return;
+      }
+      expect(step.when).deep.eq({step: orIndex(p), option: 1});
+      expect(step.input.venusBonusPrompt).deep.include({kind: 'standard', baseCount: 2, step: {from: 16, to: 20}});
+      expect(step.for).deep.eq({role: 'venusBonus', source: {kind: 'card', card: card.name}});
+    });
+
+    it('no bonus below 16 % — the raise to 14 % crosses no bonus cell', () => {
+      const [, p] = altTable(10);
+      expect(bonusSteps(p)).is.empty;
+    });
+
+    it('the addressed answer lands on the bonus the Venus option raised: nothing parked, nothing asked', () => {
+      const [g, p] = altTable(16);
+      const step = bonusSteps(p)[0].s;
+      g.events.beginAction(p, {kind: 'card', card: card.name});
+      p.playCard(card);
+      runAllActions(g);
+      const amounts = (steel: number, titanium: number) =>
+        ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'].map((r) => ({type: 'amount', amount: r === 'steel' ? steel : r === 'titanium' ? titanium : 0}));
+      const answers: Array<unknown> = [
+        {type: 'or', index: 1, response: {type: 'option'}},
+        {type: 'card', cards: [dirigibles.name]},
+        {type: 'and', responses: amounts(1, 1), for: step.for},
+      ];
+      replayBatch(p, answers as Array<InputResponse>);
+      runAllActions(g);
+      expect(parkedBatchTailLength(p)).eq(0);
+      expect(p.getWaitingFor(), 'the bonus was answered by the batch').is.undefined;
+      expect(g.getVenusScaleLevel()).eq(20);
+      expect([p.steel, p.titanium]).deep.eq([1, 1]);
+    });
+
+    it('the live bonus is the card’s own (role venusBonus + Atmoscoop)', () => {
+      const [g, p] = altTable(16);
+      g.events.beginAction(p, {kind: 'card', card: card.name});
+      p.playCard(card);
+      runAllActions(g);
+      cast(p.getWaitingFor(), OrOptions);
+      p.process({type: 'or', index: 1, response: {type: 'option'}});
+      runAllActions(g);
+      let bonus = p.getWaitingFor();
+      if (bonus instanceof SelectCard) {
+        p.process({type: 'card', cards: [dirigibles.name]});
+        runAllActions(g);
+        bonus = p.getWaitingFor();
+      }
+      expect(bonus?.venusBonusPrompt?.kind).eq('standard');
+      expect(addressVerdict({role: 'venusBonus', source: {kind: 'card', card: card.name}}, bonus!)).eq('own');
+    });
+  });
 });

@@ -348,29 +348,11 @@
             </div>
           </template>
 
-          <!-- SUB: THE VENUS BONUS'S SPREAD (P89 · ledger EL) — the trade's fixed Venus step earns the alternative board's
-               bonus, pre-selected here like a card target: the composers' ONE spread row (←→ lanes · LB/RB one unit ·
-               RT the rest), A / B back to the decisions with the layout intact. -->
+          <!-- SUB: THE VENUS BONUS'S INNER STEP (P89 · ledgers EL / EM) — the trade's fixed Venus step earns the alternative
+               board's bonus, pre-selected here like a card target: the composers' ONE inner step (the 30 % wild's OR, its
+               card, the 2 × 3 standard grid); its own confirm / B come back to the decisions with the layout intact. -->
           <template v-else-if="sub === 'venus' && venusStepInput !== undefined">
-            <!-- (No sub-head of its own: the row names itself — «БОНУС ВЕНЕРЫ · Шкала Венеры 16 % → 18 %».) -->
-            <ConsoleVenusSpreadRow :input="venusStepInput" :parts="venusParts" :laneIndex="venusLane" focused :stock="venusStock" />
-          </template>
-
-          <!-- SUB: the 30 % WILD — its own pre-select: a card that can hold it, or one more standard resource. -->
-          <template v-else-if="sub === 'venusWild' && venusStepInput !== undefined">
-            <div class="con-colfocus__sub-head">
-              <div class="con-colfocus__sub-title">{{ $t('Wild resource') }}</div>
-            </div>
-            <div v-for="(opt, i) in venusWildOptions" :key="'vw' + i"
-                 class="con-task__option"
-                 :class="{'con-task__option--focused': subIdx === i, 'con-colfocus__option--chosen': venusWildChosen(opt)}"
-                 :data-venus-wild-option="opt.card ?? 'standard'"
-                 :ref="subIdx === i ? 'focusedEl' : undefined">
-              <div class="con-task__option-main">
-                <span class="con-task__opt-title">{{ opt.card !== undefined ? $t(opt.card) : $t('Take one more standard resource') }}</span>
-                <span v-if="venusWildChosen(opt)" class="con-colfocus__opt-check" aria-hidden="true">✓</span>
-              </div>
-            </div>
+            <ConsoleVenusBonusStep :input="venusStepInput" :parts="venusParts" :focus="venusFocus" :stock="venusStock" />
           </template>
 
           <!-- SUB: track advance choice (IncreaseColonyTrack). -->
@@ -441,8 +423,11 @@
                        'con-colfocus__steprow--missing': rowMissing(row),
                      }"
                      :ref="isFocused('step', i) ? 'focusedEl' : undefined">
-                  <div class="con-colfocus__steprow-label">{{ $t(row.label) }}</div>
-                  <div class="con-colfocus__steprow-value">
+                  <!-- THE VENUS BONUS is the composers' ONE row (its label, the raise, the answer in chips — P89 · EM). -->
+                  <ConsoleVenusBonusRow v-if="row.kind === 'venusBonus' && venusStepInput !== undefined" class="con-colfocus__venusrow"
+                                        :input="venusStepInput" :parts="venusParts" />
+                  <div v-else class="con-colfocus__steprow-label">{{ $t(row.label) }}</div>
+                  <div v-if="row.kind !== 'venusBonus'" class="con-colfocus__steprow-value">
                     <template v-if="row.kind === 'payment'">
                       <span v-if="paymentSummary !== ''">{{ paymentSummary }}</span>
                       <span v-else class="con-colfocus__steprow-empty">{{ $t('Configure payment') }}…</span>
@@ -450,14 +435,6 @@
                     <template v-else-if="row.kind === 'trackChoice'">
                       <span v-if="captures['track'] !== undefined">{{ trackSummary }}</span>
                       <span v-else class="con-colfocus__steprow-empty">{{ $t('Choose the track advance') }}…</span>
-                    </template>
-                    <template v-else-if="row.kind === 'venusBonus'">
-                      <span v-if="venusSpreadSummary !== ''" data-venus-spread-summary>{{ venusSpreadSummary }}</span>
-                      <span v-else class="con-colfocus__steprow-empty">{{ $t('Distribute the whole bonus') }}…</span>
-                    </template>
-                    <template v-else-if="row.kind === 'venusWild'">
-                      <span v-if="venusParts.wild !== undefined" data-venus-wild-summary>{{ venusWildSummary }}</span>
-                      <span v-else class="con-colfocus__steprow-empty">{{ $t('Put it on a card') }}…</span>
                     </template>
                     <!-- The SHARED reading of a «КУДА» row (the fleet-dock stage draws the same). -->
                     <ConsoleTradeTargetValue v-else-if="row.kind === 'cardTarget' && row.step !== undefined"
@@ -963,14 +940,15 @@ import {
   foldForecastHost, forecastHostIntent, forecastOwnerColors, forecastStatsByColor, openForecastHost, pulseForecastDoor,
 } from '@/client/console/consoleForecastHost';
 import {VersionedView} from '@/client/console/gameStateVersion';
-import ConsoleVenusSpreadRow from '@/client/components/console/foundation/ConsoleVenusSpreadRow.vue';
-import {CardName} from '@/common/cards/CardName';
+import ConsoleVenusBonusRow from '@/client/components/console/foundation/ConsoleVenusBonusRow.vue';
+import ConsoleVenusBonusStep from '@/client/components/console/foundation/ConsoleVenusBonusStep.vue';
 import {
-  VENUS_SPREAD_LANES, VenusBonusParts, venusBonusMetaOf, venusPreselectArm, venusPreselectResponse, venusSpreadAmount, venusWildAsks,
+  VENUS_SPREAD_LANES, VenusBonusParts, venusBonusMetaOf, venusPreselectArm, venusPreselectResponse,
 } from '@/client/console/venusBonus/venusBonusPreselect';
-import {LANE_LABELS, venusWildTargets} from '@/client/console/compositePrompts';
+import {
+  VenusInnerCommand, VenusInnerFocus, venusInnerBar, venusInnerClamp, venusInnerFootHints, venusInnerNav, venusInnerOpen, venusInnerPress,
+} from '@/client/console/venusBonus/venusBonusInner';
 import {armVenusBonusCell} from '@/client/console/scaleStepReward/venusBonusCellBeat';
-import {pourRemaining, stepSpread} from '@/client/console/cardResourceDistribution';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
 
 /** What the stage asks of its target step's host (`ConsoleTradeTargetStep`). */
@@ -991,7 +969,7 @@ function payIconClass(icon: string): string {
 }
 type StepRow = {
   key: string,
-  kind: 'payment' | 'trackChoice' | 'cardTarget' | 'venusBonus' | 'venusWild',
+  kind: 'payment' | 'trackChoice' | 'cardTarget' | 'venusBonus',
   label: string,
   iconClass: string,
   step?: Extract<TradeStep, {kind: 'cardTarget'}>,
@@ -1028,7 +1006,7 @@ const CARDLAND_LEAVE_MS = 300;
 /** The stage's nested sub-screens. `mix` is the Delta Works COMPOSITION
  *  step — entered from the trade's own confirm, ONLY while the server model
  *  admits at least two valid energy/steel mixes (`minSteel < maxSteel`). */
-type Sub = undefined | 'lanes' | 'track' | 'targets' | 'mix' | 'venus' | 'venusWild';
+type Sub = undefined | 'lanes' | 'track' | 'targets' | 'mix' | 'venus';
 /** The hero's verdict: its tone and its words (an English key). */
 type StageVerdict = {tone: 'ok' | 'notnow' | 'no', text: string};
 /** The hero's visitor line: its words and the fleet's colour. */
@@ -1086,7 +1064,7 @@ export default defineComponent({
   components: {
     BenefitGlyph, ConsoleDeclinePlate, ColonyFleetIcon, PlayerCube, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows,
     ConsoleTradeTargetStep, ConsoleTradeTargetValue, ConsoleTradeReceivingCards, ConsoleColonyTrackInstrument, ConsolePlanetDisc, ConsoleFlipValue,
-    ConsoleColonyCitySeat, PremiumCountGlyph, ConsoleForecastDoor, ConsoleForecastLayer, ConsoleVenusSpreadRow,
+    ConsoleColonyCitySeat, PremiumCountGlyph, ConsoleForecastDoor, ConsoleForecastLayer, ConsoleVenusBonusRow, ConsoleVenusBonusStep,
   },
   props: {
     colony: {type: Object as PropType<ColonyModel>, required: true},
@@ -1178,7 +1156,8 @@ export default defineComponent({
       captures: {} as Record<string, unknown>,
       /** The pre-selected Venus bonus (P89 · EL) — its two parts and the spread's lane cursor; the composed answer is `captures.venus`. */
       venusParts: {} as VenusBonusParts,
-      venusLane: 0,
+      /** The inner step's cursor (`venusBonusInner.ts`). */
+      venusFocus: {zone: 'lane', index: 0} as VenusInnerFocus,
       /** The MEASURED height the panel's columns want (see `measureFit`). */
       fitNeedPx: 0,
       fitRaf: undefined as number | undefined,
@@ -2045,22 +2024,10 @@ export default defineComponent({
     venusStock(): Partial<Record<string, number>> {
       return Object.fromEntries(VENUS_SPREAD_LANES.map((key) => [key, playerResourceValue(this.thisPlayer, key, 'stock') ?? 0]));
     },
-    /** The 30 % wild's choices: every card the server offers, then one more standard resource. */
-    venusWildOptions(): Array<{card?: CardName}> {
+    /** THE INNER STEP'S BAR (P89 · EM) — mirrored to the shell's trade bar while the step stands. */
+    venusBar(): ReadonlyArray<VenusInnerCommand> {
       const meta = venusBonusMetaOf(this.venusStepInput);
-      return meta === undefined ? [] : [...venusWildTargets(meta).map((card) => ({card})), {}];
-    },
-    /** «+1 Сталь · +1 Титан» — the spread as laid out, or '' while it is not complete. */
-    venusSpreadSummary(): string {
-      if (this.captures['venus'] === undefined) {
-        return '';
-      }
-      return Object.entries(this.venusParts.spread ?? {}).filter(([, n]) => n > 0)
-        .map(([key, n]) => `+${n} ${translateText(LANE_LABELS[key] ?? key)}`).join(' · ');
-    },
-    venusWildSummary(): string {
-      const wild = this.venusParts.wild;
-      return wild?.wild === 'onCard' && wild.card !== undefined ? translateText(wild.card) : translateText('Take one more standard resource');
+      return this.sub !== 'venus' || meta === undefined ? [] : venusInnerFootHints(venusInnerBar(meta, this.venusParts, this.venusFocus));
     },
     stepRows(): Array<StepRow> {
       return this.steps.flatMap((step, i): Array<StepRow> => {
@@ -2077,13 +2044,9 @@ export default defineComponent({
         if (step.kind === 'trackChoice') {
           return [{key, kind: 'trackChoice' as const, label: 'Colony track', iconClass: ''}];
         }
-        // THE VENUS BONUS (P89 · EL): the 30 % wild is its OWN row (it decides the spread's sum), then the spread.
+        // THE VENUS BONUS (P89 · EL / EM): ONE row — the 30 % wild, its card and the spread are answered inside it.
         if (step.kind === 'venusBonus') {
-          const meta = venusBonusMetaOf(step.input);
-          const spread: StepRow = {key, kind: 'venusBonus' as const, label: 'Venus bonus', iconClass: ''};
-          return meta !== undefined && venusWildAsks(meta) ?
-            [{key: 'venus:wild', kind: 'venusWild' as const, label: 'Wild resource', iconClass: ''}, spread] :
-            [spread];
+          return [{key, kind: 'venusBonus' as const, label: 'Venus bonus', iconClass: ''}];
         }
         return [{
           key,
@@ -2568,6 +2531,12 @@ export default defineComponent({
     fxOpen(): void {
       this.syncUiMirror();
     },
+    venusBar: {
+      handler(bar: ReadonlyArray<VenusInnerCommand>): void {
+        consoleColoniesUi.composerVenusBar = bar;
+      },
+      immediate: true,
+    },
     isMcSelected() {
       this.seedPaymentDefault();
     },
@@ -3000,6 +2969,11 @@ export default defineComponent({
         setColonyFocusStage('Reward target');
         return;
       }
+      // …and so is the Venus bonus's INNER step («…› ТОРГОВЛЯ» → «…› БОНУС ВЕНЕРЫ», P89 · EM).
+      if (this.sub === 'venus') {
+        setColonyFocusStage('Venus bonus');
+        return;
+      }
       // THE CITY ACT names its own stage («… › ЛУНА · ГОРОД»).
       if (this.city !== undefined) {
         setColonyFocusStage(this.city.stageKey);
@@ -3103,8 +3077,9 @@ export default defineComponent({
         return;
       }
       if (this.sub === 'venus') {
-        if (dir === 'left' || dir === 'right') {
-          this.venusLane = Math.max(0, Math.min(VENUS_SPREAD_LANES.length - 1, this.venusLane + (dir === 'right' ? 1 : -1)));
+        const meta = venusBonusMetaOf(this.venusStepInput);
+        if (meta !== undefined) {
+          this.venusFocus = venusInnerNav(meta, this.venusParts, this.venusFocus, dir);
         }
         return;
       }
@@ -3150,9 +3125,6 @@ export default defineComponent({
     subListLength(): number {
       if (this.sub === 'track') {
         return this.trackOptions.length;
-      }
-      if (this.sub === 'venusWild') {
-        return this.venusWildOptions.length;
       }
       return 0;
     },
@@ -3208,19 +3180,22 @@ export default defineComponent({
       }
       this.captures = next;
     },
-    adjustVenusLane(delta: number, pour = false): void {
+    /** A verb inside the inner step — the pure model decides; a confirm / B come back to the decisions. */
+    venusStepPress(verb: 'primary' | 'back' | 'prevSection' | 'nextSection' | 'nextTab'): void {
       const meta = venusBonusMetaOf(this.venusStepInput);
-      const key = VENUS_SPREAD_LANES[this.venusLane];
-      if (meta === undefined || key === undefined) {
+      if (meta === undefined) {
+        this.sub = undefined;
         return;
       }
-      const amount = venusSpreadAmount(meta, this.venusParts);
-      const spread = this.venusParts.spread ?? {};
-      this.setVenusParts({...this.venusParts, spread: pour ? pourRemaining(spread, key, amount) : stepSpread(spread, key, delta, amount)});
-    },
-    venusWildChosen(opt: {card?: CardName}): boolean {
-      const wild = this.venusParts.wild;
-      return wild !== undefined && (opt.card === undefined ? wild.wild === 'asStandard' : wild.card === opt.card);
+      const result = venusInnerPress(meta, this.venusParts, this.venusFocus, verb);
+      if (result.parts !== this.venusParts) {
+        this.setVenusParts(result.parts);
+      }
+      if (result.exit !== undefined) {
+        this.sub = undefined;
+        return;
+      }
+      this.venusFocus = venusInnerClamp(meta, result.parts, result.focus);
     },
     /** The cell beat's promise (PL-1437) for the trade's pre-selected bonus — armed at the confirm. */
     armVenusPreselect(): void {
@@ -3246,18 +3221,13 @@ export default defineComponent({
         default: return;
         }
       }
-      // THE VENUS SPREAD (P89 · EL): the layout row's verbs — LB/RB one unit, RT the rest; A / B back to the decisions.
+      // THE VENUS BONUS'S INNER STEP (P89 · EM): the pure model's verbs — A the zone's verb (confirm leaves), LB/RB one
+      // unit, RT the rest, B back to the decisions with the draft kept.
       if (this.sub === 'venus') {
-        switch (action) {
-        case 'prevSection': this.adjustVenusLane(-1); return;
-        case 'nextSection': this.adjustVenusLane(1); return;
-        case 'nextTab': this.adjustVenusLane(0, true); return;
-        case 'primary':
-        case 'back':
-          this.sub = undefined;
-          return;
-        default: return;
+        if (action === 'primary' || action === 'back' || action === 'prevSection' || action === 'nextSection' || action === 'nextTab') {
+          this.venusStepPress(action);
         }
+        return;
       }
       // THE COMPOSITION SUBSTEP owns its own three verbs: the dial, the same
       // final trade confirm, and B back to Configure (draft intact).
@@ -3358,15 +3328,6 @@ export default defineComponent({
         }
         return;
       }
-      if (this.sub === 'venusWild') {
-        const opt = this.venusWildOptions[this.subIdx];
-        if (opt !== undefined) {
-          // The wild decides the spread's sum: a spread laid out for the other sum is no longer exact (re-laid by the player).
-          this.setVenusParts({...this.venusParts, wild: opt.card !== undefined ? {wild: 'onCard', card: opt.card} : {wild: 'asStandard'}});
-          this.sub = undefined;
-        }
-        return;
-      }
       if (this.sub === 'track') {
         const option = this.trackOptions[this.subIdx];
         if (option !== undefined) {
@@ -3404,12 +3365,11 @@ export default defineComponent({
         return;
       }
       if (row.kind === 'venusBonus') {
-        this.sub = 'venus';
-        return;
-      }
-      if (row.kind === 'venusWild') {
-        this.sub = 'venusWild';
-        this.subIdx = 0;
+        const meta = venusBonusMetaOf(this.venusStepInput);
+        if (meta !== undefined) {
+          this.venusFocus = venusInnerOpen(meta, this.venusParts);
+          this.sub = 'venus';
+        }
         return;
       }
     },
@@ -3641,9 +3601,6 @@ export default defineComponent({
       }
       if (row.kind === 'venusBonus') {
         return this.captures['venus'] === undefined;
-      }
-      if (row.kind === 'venusWild') {
-        return this.venusParts.wild === undefined;
       }
       if (row.kind === 'payment') {
         return this.paymentView !== undefined && !this.paymentView.status.ok;

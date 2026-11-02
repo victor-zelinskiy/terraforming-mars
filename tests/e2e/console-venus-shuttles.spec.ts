@@ -117,8 +117,8 @@ test.describe(`P89 Venus Shuttles · ${PRESET.id}`, () => {
     const posts = watchPosts(page);
     const id = await bootFixture(page, request, 'venus-shuttles-alt16', {query: PRESET.query});
     await focusShuttles(page, true);
-    const spread = page.locator(`${ACTION_COMPOSER} [data-venus-spread]`);
-    await expect(spread, 'the bonus is a row of the setup').toBeVisible({timeout: 15_000});
+    const row = page.locator(`${ACTION_COMPOSER} [data-venus-bonus-row]`);
+    await expect(row, 'the bonus is a row of the setup').toBeVisible({timeout: 15_000});
     await shoot(page, 'E1-row');
     expect(await answerVenusSpread(page, 'steel')).toBe(true);
     const before = await wireOf(request, id);

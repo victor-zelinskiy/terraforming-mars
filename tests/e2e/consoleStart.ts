@@ -3199,6 +3199,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'parliament-venus-step-assembly' |
   // P89 · EL: Venus Shuttles' action spent at 16 % (alt board) with a copier at hand — Viron / Project Inspection.
   'venus-bonus-viron' | 'venus-bonus-inspection' |
+  // P89 · EM (PL-1505): Atmoscoop in hand at Venus 16 % (alt board) — the bonus its «Venus» option earns.
+  'venus-bonus-atmoscoop' |
   // RX24 Open IP Trade: the law ENACTED, blue opening generation 2 with four cards in hand and the action unspent.
   'parliament-openip-enacted' |
   'parliament-rdfunding-enacted' |
@@ -3587,33 +3589,90 @@ export async function passDeferredTableQuestions(page: Page): Promise<void> {
  * screen. Both are structural; neither can be true for the wrong reason.
  */
 /**
- * THE VENUS BONUS PRE-SELECT (P89 · ledger EL): a composer whose branch raises Venus into the alternative board's bonus
- * HOLDS its commit until the spread row is laid out (`[data-venus-spread]`, the layout row's chassis over the six
- * standard resources). Bring the cursor onto the spread (the ONE cursor rule usually seeds it there), steer ←→ to `lane`
- * (a resource key — `steel` is the one a press's own price never moves), and pour what is left onto it (RT). A no-op
- * without a spread row. True once the spread reads nothing left.
+ * THE VENUS BONUS PRE-SELECT (P89 · ledgers EL / EM): a composer whose branch raises Venus into the alternative board's
+ * bonus HOLDS its commit until the bonus is answered — ONE row (`[data-venus-bonus-row]`) whose INNER step
+ * (`[data-venus-inner]`) lays it out. The walk: bring the cursor onto the row, A enters the step, the 30 % finish's OR
+ * (`wild` — `asStandard` by default; `onCard` takes the first candidate), then the fixed 2 × 3 grid: the cursor to
+ * `lane` (a resource key — `steel` is the one a press's own price never moves), RB until nothing is left, A confirms and
+ * leaves. A no-op without a bonus row. True once the row reads its answer (`data-venus-answered`).
  */
-export async function answerVenusSpread(page: Page, lane?: string): Promise<boolean> {
-  const spread = page.locator('[data-venus-spread]').first();
-  if (await spread.count() === 0) {
+const VENUS_LANES = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
+/** Is a Venus bonus still owed on screen — its inner step open, or its row unanswered? */
+export async function venusOwed(page: Page): Promise<boolean> {
+  return await page.locator('[data-venus-inner]').count() > 0 ||
+    await page.locator('[data-venus-bonus-row]:not([data-venus-answered])').count() > 0;
+}
+
+/** Bring the cursor onto the bonus row and ENTER its inner step (A). True once `[data-venus-inner]` stands. */
+export async function openVenusStep(page: Page): Promise<boolean> {
+  const inner = page.locator('[data-venus-inner]').first();
+  if (await inner.count() > 0) {
     return true;
   }
-  const focusedLane = spread.locator('.con-composer__lane--focused');
-  for (let i = 0; i < 10 && await focusedLane.count() === 0; i++) {
-    await press(page, i < 5 ? 'ArrowDown' : 'ArrowUp', 260);
+  const focusedRow = page.locator('.con-composer__row--focused [data-venus-bonus-row], .con-colfocus__steprow--focused [data-venus-bonus-row]');
+  for (let i = 0; i < 12 && await focusedRow.count() === 0; i++) {
+    await press(page, i < 6 ? 'ArrowDown' : 'ArrowUp', 260);
   }
-  if (await focusedLane.count() === 0) {
+  if (await focusedRow.count() === 0) {
     return false;
   }
-  if (lane !== undefined) {
-    for (let i = 0; i < 8 && await focusedLane.getAttribute('data-lane-resource') !== lane; i++) {
-      await press(page, (await focusedLane.getAttribute('data-lane-resource')) === 'heat' ? 'ArrowLeft' : 'ArrowRight', 220);
+  return pressUntil(page, 'Enter', async () => await inner.count() > 0, {tries: 3, settleMs: 600});
+}
+
+export async function answerVenusSpread(page: Page, lane?: string, opts: {wild?: 'onCard' | 'asStandard'} = {}): Promise<boolean> {
+  const row = page.locator('[data-venus-bonus-row]').first();
+  const inner = page.locator('[data-venus-inner]').first();
+  if (await row.count() === 0 && await inner.count() === 0) {
+    return true;
+  }
+  if (!await openVenusStep(page)) {
+    return false;
+  }
+  const zone = async () => await inner.getAttribute('data-venus-focus-zone') ?? '';
+  const index = async () => Number(await inner.getAttribute('data-venus-focus-index') ?? '0');
+  // THE 30 % FINISH: the OR (only where it is really taken), then — on «a card» — its candidates.
+  if (await inner.locator('[data-venus-wild]').count() > 0) {
+    const want = opts.wild ?? 'asStandard';
+    if (await inner.locator(`[data-venus-wild-option="${want}"][data-chosen]`).count() === 0) {
+      for (let i = 0; i < 5 && await zone() !== 'wild'; i++) {
+        await press(page, 'ArrowUp', 220);
+      }
+      await press(page, want === 'onCard' ? 'ArrowLeft' : 'ArrowRight', 220);
+      await press(page, 'Enter', 400);
+    }
+    if (want === 'onCard' && await inner.locator('[data-venus-card][data-chosen]').count() === 0) {
+      if (await zone() === 'card') {
+        await press(page, 'Enter', 400);
+      }
     }
   }
+  // THE GRID: the cursor to `lane` (row and column), then RB until nothing is left.
+  for (let i = 0; i < 5 && await zone() !== 'lane'; i++) {
+    await press(page, 'ArrowDown', 220);
+  }
+  if (await zone() !== 'lane') {
+    return false;
+  }
+  if (lane !== undefined && VENUS_LANES.includes(lane)) {
+    const target = VENUS_LANES.indexOf(lane);
+    for (let i = 0; i < 6 && await index() !== target; i++) {
+      const at = await index();
+      const dir = Math.floor(at / 3) !== Math.floor(target / 3) ?
+        (target > at ? 'ArrowDown' : 'ArrowUp') :
+        (target > at ? 'ArrowRight' : 'ArrowLeft');
+      await press(page, dir, 220);
+    }
+  }
+  const spread = inner.locator('[data-venus-spread]');
   for (let i = 0; i < 4 && (await spread.getAttribute('data-venus-spread-left')) !== '0'; i++) {
     await press(page, 'Period', 300);
   }
-  return (await spread.getAttribute('data-venus-spread-left')) === '0';
+  if ((await spread.getAttribute('data-venus-spread-left')) !== '0') {
+    return false;
+  }
+  // A on the laid-out grid CONFIRMS and leaves the step; the row reads its answer.
+  await pressUntil(page, 'Enter', async () => await inner.count() === 0, {tries: 3, settleMs: 600});
+  return await inner.count() === 0 && await row.getAttribute('data-venus-answered') !== null;
 }
 
 export async function playCardFromHand(page: Page, card: string, attempts = 3, opts: {venusLane?: string} = {}): Promise<boolean> {

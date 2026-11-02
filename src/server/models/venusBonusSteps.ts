@@ -1,5 +1,6 @@
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep} from '../../common/models/ActionPreviewModel';
-import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
+import {ChoiceContextSource, OptionMetadata, OrOptionsModel} from '../../common/models/PlayerInputModel';
+import {AltVenusBonus, altVenusBonusFor} from '../../common/venus/altVenusBonus';
 import {IPlayer} from '../IPlayer';
 import {ICard} from '../cards/ICard';
 import {GrantVenusAltTrackBonusDeferred} from '../venusNext/GrantVenusAltTrackBonusDeferred';
@@ -37,17 +38,45 @@ function withBranchBonus(player: IPlayer, branch: ActionPreviewBranch, source: C
   if (!branch.available || branch.steps.some((step) => step.kind === 'venusBonus')) {
     return branch;
   }
-  const marks = branch.effects.flatMap((effect) => effect.altVenusBonus === undefined ? [] : [effect.altVenusBonus]);
+  const marks: Array<{mark: AltVenusBonus, when?: {step: number, option: number}}> =
+    branch.effects.flatMap((effect) => effect.altVenusBonus === undefined ? [] : [{mark: effect.altVenusBonus}]);
+  marks.push(...optionMarks(branch.steps));
   if (marks.length === 0) {
     return branch;
   }
-  const steps: Array<ActionPreviewStep> = marks.map((mark) => {
+  const steps: Array<ActionPreviewStep> = marks.map(({mark, when}) => {
     const input = GrantVenusAltTrackBonusDeferred.prompt(player, mark.standard, mark.wild, {from: mark.from, to: mark.to}, source,
       played === undefined ? [] : [played]);
     const model = input.toModel(player);
     // `toModel` leaves the markers to the central serializer (`ServerModel.getWaitingFor`) — a step model carries its own.
     model.venusBonusPrompt = input.venusBonusPrompt;
-    return {kind: 'venusBonus', input: model, for: {role: 'venusBonus', source}};
+    return {kind: 'venusBonus', input: model, for: {role: 'venusBonus', source}, ...(when !== undefined ? {when} : {})};
   });
   return {...branch, steps: [...branch.steps, ...steps]};
+}
+
+/**
+ * A VENUS RAISE THAT IS ONE ANSWER OF AN `or` STEP (PL-1505 — Atmoscoop: «raise the temperature 2 steps OR Venus 2
+ * steps»): the option's own `globalParameter` metadata (`optionMetadata.globalParameter('venus', steps, current, …)` —
+ * the same reading the option card prints) names the raise, the engine's ONE arithmetic (`altVenusBonusFor`) the
+ * bonus it earns. The step it adds is CONDITIONAL — `when` the step is answered with that option.
+ */
+function optionMarks(steps: ReadonlyArray<ActionPreviewStep>): Array<{mark: AltVenusBonus, when: {step: number, option: number}}> {
+  const out: Array<{mark: AltVenusBonus, when: {step: number, option: number}}> = [];
+  steps.forEach((step, i) => {
+    if (step.kind !== 'input' || step.input.type !== 'or') {
+      return;
+    }
+    (step.input as OrOptionsModel).options.forEach((option, k) => {
+      const meta = (option as {metadata?: OptionMetadata}).metadata;
+      if (meta?.kind !== 'globalParameter' || meta.icon !== 'venus' || meta.global?.current === undefined || meta.amount === undefined) {
+        return;
+      }
+      const mark = altVenusBonusFor(meta.global.current, meta.amount);
+      if (mark !== undefined) {
+        out.push({mark, when: {step: i, option: k}});
+      }
+    });
+  });
+  return out;
 }

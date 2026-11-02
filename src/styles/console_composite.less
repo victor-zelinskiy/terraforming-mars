@@ -531,12 +531,19 @@ html.con-profile-handheld {
     color: @con-text-dim;
 }
 
-/* THE VENUS BONUS, PRE-SELECTED — the spread row of both composers (P89 · ledger EL, `ConsoleVenusSpreadRow`): the
-   LAYOUT row's lanes (`.con-composer__lane*`) with a resource icon where a holder's miniature stands, and the raise that
-   earned the bonus beside the row's label — the hosted surface's own words. Material only (invariant 15). */
-.con-venusspread {
+/* THE VENUS BONUS, PRE-SELECTED — the composers' ONE row (P89 · ledgers EL / EM, `ConsoleVenusBonusRow`): the label
+   and the raise that earned it, then what is owed or the answer in chips — the two values in ONE grid cell, an opacity
+   change between them (answering moves nothing). Material only (invariant 15). */
+.con-venusrow {
+    /* ONE LINE, the target row's shape («КУДА: …»): the question on the left, its value to the right. */
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+    width: 100%;
+    &__label { display: inline-flex; align-items: baseline; gap: .6rem; flex: 0 0 auto; white-space: nowrap; }
     &__step {
-        margin-left: .6rem;
         font-size: .78rem;
         font-weight: 500;
         letter-spacing: 0;
@@ -544,13 +551,268 @@ html.con-profile-handheld {
         color: @con-text-dim;
         font-variant-numeric: tabular-nums;
     }
+    &__value { display: flex; align-items: center; gap: .6rem; min-width: 0; flex: 1 1 auto; }
+    &__cell { display: grid; flex: 1 1 auto; min-width: 0; }
+    &__ask,
+    &__answer {
+        grid-area: 1 / 1;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        min-width: 0;
+        white-space: nowrap;
+        transition: opacity calc(140ms * var(--motion-scale, 1)) linear;
+    }
+    &__face--off { opacity: 0; pointer-events: none; }
+    &__ask { font-size: .95rem; font-weight: 600; color: fade(@con-amber, 92%); }
+    &__final { color: @con-text-dim; font-weight: 600; }
+    &__sep { color: @con-text-dim; opacity: .7; }
+    &__chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        padding: .12rem .5rem .12rem .25rem;
+        border-radius: .4rem;
+        background: rgba(18, 30, 40, 0.85);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 34%);
+        font-size: .95rem;
+        b { color: @con-mint; font-variant-numeric: tabular-nums; }
+    }
+    &__card {
+        max-width: 14rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 600;
+        color: @con-text;
+    }
     &__icon {
         display: inline-block;
-        width: 2.2rem;
-        height: 2.2rem;
+        width: 1.45rem;
+        height: 1.45rem;
         flex: 0 0 auto;
         background-repeat: no-repeat;
         background-position: center;
         background-size: contain !important;
     }
+    &__door { margin-left: auto; font-size: 1.3rem; font-weight: 700; color: @con-text-dim; }
 }
+
+/* THE VENUS BONUS — THE INNER PRE-SELECT (P89 · ledger EM, `ConsoleVenusBonusStep`): a level of the composer in the
+   review's place. Three zones top to bottom — the 30 % finish's OR (two plates side by side), its consequence (ONE slot
+   that never changes height: the candidates' faces or a quiet line), the standard resources on a FIXED 2 × 3 grid. The
+   cursor is the one grammar (`.con-cursor()`); a choice is a KANT + a fill + a seal, never light (invariant 15). */
+@venusstep-gap: .9rem;
+.con-venusstep {
+    display: flex;
+    flex-direction: column;
+    gap: @venusstep-gap;
+    width: 100%;
+    min-width: 0;
+    padding: .2rem 0 .4rem;
+
+    &__head { display: flex; align-items: baseline; gap: .8rem; }
+    &__title {
+        font-size: 1.15rem;
+        font-weight: 800;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: @con-text;
+    }
+    &__reading { font-size: .9rem; color: @con-text-dim; font-variant-numeric: tabular-nums; }
+
+    &__zone { display: flex; flex-direction: column; gap: .45rem; min-width: 0; }
+    &__zone-head { display: flex; align-items: center; justify-content: space-between; gap: .8rem; min-height: 1.6rem; }
+    &__zone-title {
+        font-size: .72rem;
+        font-weight: 700;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 92%);
+        transition: color calc(140ms * var(--motion-scale, 1)) linear;
+        &--quiet { color: @con-text-dim; }
+    }
+
+    /* ── the 30 % finish's OR: two plates, «или» between them ── */
+    &__or { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; gap: .6rem; }
+    &__or-word {
+        align-self: center;
+        font-size: .72rem;
+        font-weight: 700;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__opt {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+        min-width: 0;
+        padding: .6rem .8rem;
+        border-radius: .55rem;
+        background: rgba(14, 22, 34, 0.7);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+        .con-cursor(inset 0 0 0 var(--con-focus-ring) @con-cyan; .55rem; none; 1; after; rgba(20, 34, 50, 0.7); -1);
+        &--focused { .con-cursor-on(); }
+        &--chosen {
+            background: rgba(16, 36, 34, 0.92);
+            box-shadow: inset 0 0 0 .08rem fade(@con-mint, 70%);
+        }
+    }
+    &__opt-mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.4rem;
+        height: 2.4rem;
+        flex: 0 0 auto;
+        border-radius: .45rem;
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+    }
+    &__opt-icon {
+        display: inline-block;
+        width: 1.9rem;
+        height: 1.9rem;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+    &__opt-body { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+    &__opt-title { font-size: .98rem; font-weight: 700; color: @con-text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    &__opt-desc { font-size: .78rem; color: @con-text-dim; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    &__opt-seal {
+        margin-left: auto;
+        font-size: 1rem;
+        font-weight: 800;
+        color: @con-mint;
+        opacity: 0;
+        transition: opacity calc(120ms * var(--motion-scale, 1)) linear;
+    }
+    &__opt--chosen &__opt-seal { opacity: 1; }
+
+    /* ── the consequence: ONE slot, the faces / the line in one grid cell ── */
+    &__slot { display: grid; min-height: 5.6rem; }
+    &__cards,
+    &__note {
+        grid-area: 1 / 1;
+        transition: opacity calc(160ms * var(--motion-scale, 1)) linear;
+    }
+    &__face--off { opacity: 0; pointer-events: none; }
+    &__cards {
+        display: grid;
+        grid-template-columns: repeat(var(--venus-cards, 1), minmax(0, 15rem));
+        gap: .6rem;
+        align-items: stretch;
+    }
+    &__card {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        min-width: 0;
+        padding: .35rem .6rem .35rem .35rem;
+        border-radius: .5rem;
+        background: rgba(14, 22, 33, 0.7);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+        .con-cursor(inset 0 0 0 var(--con-focus-ring) @con-cyan; .5rem; none; 1; after; rgba(20, 34, 50, 0.7); -1);
+        &--focused { .con-cursor-on(); }
+        &--chosen {
+            background: rgba(16, 36, 34, 0.92);
+            box-shadow: inset 0 0 0 .08rem fade(@con-mint, 70%);
+        }
+    }
+    /* A px-authored face inside the rem layout: the zoom rides the TV scale (the composer target thumb's rule). */
+    &__card-mini {
+        flex: 0 0 auto;
+        zoom: ~"calc(.18 * var(--con-ui-scale, 1))";
+        > :is(.card-container, .pcard) { margin: 0; border-radius: .5rem; }
+    }
+    &__card-body { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+    &__card-name { font-size: .85rem; font-weight: 700; color: @con-text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    &__card-count { display: inline-flex; align-items: center; gap: .25rem; font-size: .82rem; color: @con-text-dim; font-variant-numeric: tabular-nums; b { color: @con-mint; } }
+    &__card-icon {
+        display: inline-block;
+        width: 1.1rem;
+        height: 1.1rem;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+    &__sole { font-size: .68rem; letter-spacing: .06rem; text-transform: uppercase; color: fade(@con-cyan, 85%); }
+    &__note {
+        align-self: center;
+        justify-self: start;
+        padding: .45rem .8rem;
+        border-radius: .45rem;
+        font-size: .9rem;
+        color: @con-text-dim;
+        background: rgba(255, 255, 255, 0.02);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
+    }
+
+    /* ── the standard resources: the dial's pills on the head, a FIXED 2 × 3 grid ── */
+    &__dial { display: inline-flex; align-items: center; gap: .3rem; }
+    &__pill {
+        .con-dial-pill();
+        &--off {
+            color: rgba(180, 200, 220, 0.42);
+            background: rgba(14, 22, 32, 0.6);
+            box-shadow: inset 0 0 0 .05rem rgba(140, 165, 190, 0.2);
+            .gp-glyph { opacity: .5; }
+        }
+    }
+    &__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: .5rem; }
+    &__lane {
+        position: relative;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: .6rem;
+        min-width: 0;
+        padding: .45rem .7rem .45rem .45rem;
+        border-radius: .5rem;
+        background: rgba(14, 22, 33, 0.7);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+        .con-cursor(inset 0 0 0 var(--con-focus-ring) @con-cyan; .5rem; none; 1; after; rgba(20, 34, 50, 0.7); -1);
+        &--focused { .con-cursor-on(); }
+        &--filled {
+            background: rgba(16, 32, 34, 0.9);
+            box-shadow: inset 0 0 0 .06rem fade(@con-mint, 46%);
+        }
+    }
+    &__lane-icon {
+        display: inline-block;
+        width: 2.2rem;
+        height: 2.2rem;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+    &__lane-body { display: flex; flex-direction: column; gap: .12rem; min-width: 0; }
+    &__lane-name { font-size: .82rem; font-weight: 600; color: @con-text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    &__lane-count { display: inline-flex; align-items: center; gap: .2rem; font-size: .8rem; color: @con-text-dim; font-variant-numeric: tabular-nums; b { color: @con-text; } }
+    &__lane-amount {
+        min-width: 2.2rem;
+        text-align: right;
+        font-size: 1.3rem;
+        font-weight: 800;
+        color: @con-mint;
+        font-variant-numeric: tabular-nums;
+        &--zero { color: @con-text-dim; font-weight: 500; opacity: .6; }
+    }
+    &__arrow { opacity: .7; }
+    &__status {
+        align-self: flex-end;
+        min-height: 1.3rem;
+        font-size: .74rem;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: @con-amber;
+        white-space: nowrap;
+        b { font-size: .98rem; font-variant-numeric: tabular-nums; }
+        &--done { color: @con-mint; }
+    }
+}
+/* The colony trade's decision list: the bonus row is the composers' row, inside the stage's own row plate. */
+.con-colfocus__venusrow { flex: 1 1 auto; min-width: 0; }

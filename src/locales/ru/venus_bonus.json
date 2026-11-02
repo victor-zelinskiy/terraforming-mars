@@ -5,5 +5,16 @@
     "Standard resource": "Обычный ресурс",
     "Gain ${0} resource(s) for your Venus track bonus.": "Получите ресурсы за бонус шкалы Венеры: ${0}",
     "Choose your wild resource bonus.": "Выберите дополнительный бонус",
-    "Choose your wild resource bonus, after which you will gain ${0} more distinct standard resources.": "Выберите дополнительный бонус, затем получите ещё базовых ресурсов: ${0}"
+    "Choose your wild resource bonus, after which you will gain ${0} more distinct standard resources.": "Выберите дополнительный бонус, затем получите ещё базовых ресурсов: ${0}",
+    "Final step · 30 %": "Последнее деление · 30 %",
+    "One more standard resource": "Ещё один базовый ресурс",
+    "A resource of the card’s own kind": "Ресурс того вида, что хранит карта",
+    "Lay it out with the others": "Разложить вместе с остальными",
+    "+1 to the standard resources below": "+1 к базовым ресурсам ниже",
+    "Choose where the 30 % bonus goes": "Выберите, куда пойдёт бонус 30 %",
+    "Choose a card for the wild resource": "Выберите карту для дополнительного ресурса",
+    "Standard resources": "Базовые ресурсы",
+    "The rest": "Остаток",
+    "Add one here": "+1 сюда",
+    "Resources to lay out: ${0}": "Ресурсов к раскладке: ${0}"
 }

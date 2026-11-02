@@ -10040,6 +10040,31 @@ venusBonusFixture('venus-bonus-play', 'play');
 venusBonusFixture('venus-bonus-stdp', 'stdp');
 venusBonusFixture('venus-bonus-final', 'final');
 
+// ── P89 · EM (PL-1505) — a bonus ONE OPTION earns: Atmoscoop in hand (three science tags on the table, Dirigibles to
+//    hold its floaters) at Venus 16 % on the alternative board. Its «temperature OR Venus» is a step of the play sheet;
+//    the Venus answer raises the bonus row, the temperature answer drops it. ──
+function venusBonusAtmoscoopFixture(name: string): void {
+  const {game, player} = soloActionPhase({
+    venusNextExtension: true, prelude2Expansion: true, altVenusBoard: true,
+    customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
+  });
+  const take = (n: CardName) => {
+    moveToDeckTop(game, n);
+    return game.projectDeck.drawOrThrow(game);
+  };
+  player.playedCards.push(take(CardName.RESEARCH), take(CardName.SEARCH_FOR_LIFE), take(CardName.DIRIGIBLES));
+  player.cardsInHand.push(take(CardName.ATMOSCOOP));
+  player.megaCredits = 40;
+  setVenusScaleLevel(game, 16);
+  runAllActions(game);
+  const scoop = player.cardsInHand.find((c) => c.name === CardName.ATMOSCOOP);
+  if (scoop === undefined || !player.canPlay(scoop)) {
+    throw new Error(`${name}: expected a playable Atmoscoop in hand`);
+  }
+  write(name, game);
+}
+venusBonusAtmoscoopFixture('venus-bonus-atmoscoop');
+
 // ── P89 · EL — the bonus PRE-SELECTED in a COPY of the action: Venus Shuttles' action spent this generation at 16 % on
 //    the alternative board, and the copier at hand — `venus-bonus-viron` (Viron the corporation, its action unspent),
 //    `venus-bonus-inspection` (Project Inspection in hand). The copier's repeat bridge composes the COPIED card's

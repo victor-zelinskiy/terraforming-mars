@@ -124,6 +124,12 @@
                                      :lockedCard="playedTargetLockedCard"
                                      :decline="subDecline" />
 
+            <!-- ── THE VENUS BONUS'S INNER STEP (P89 · EM): a level of this workspace in the review's place — the
+                 30 % wild's OR, its card, the 2 × 3 standard grid; its own confirm comes back to the review. ── -->
+            <ConsoleVenusBonusStep v-else-if="sub !== undefined && sub.kind === 'venus' && venusSubChoice !== undefined"
+                                   :input="venusSubChoice.input" :parts="venusPartsOf(venusSubChoice)"
+                                   :focus="sub.focus" :stock="venusStock" />
+
             <!-- ── SUB-STATE: a PREMIUM pick list (card / player / or w/ metadata
                  chips / nested-input target / tabbed target). ─────────── -->
             <template v-else-if="sub !== undefined && (sub.kind === 'list' || sub.kind === 'orNested' || sub.kind === 'tabbed')">
@@ -410,11 +416,10 @@
                      kant, ←→ between the lanes, LB/RB one unit on the focused one, RT the rest; what is still to place
                      on the row's edge. The row holds the commit until the sum is exact (the layout opens EMPTY — a
                      filled default would be an auto-select); a complete layout is captured as the ONE `and` answer. -->
-                <!-- THE VENUS BONUS, PRE-SELECTED (P89 · ledger EL): the spread — the layout row's chassis over the six
-                     standard resources (one shared row with the action composer); the 30 % wild is its own `or` row above. -->
+                <!-- THE VENUS BONUS, PRE-SELECTED (P89 · ledgers EL / EM): ONE row — the raise and the answer in chips; A
+                     opens the INNER step (`sub` venus) where the 30 % wild, its card and the standard spread are laid out. -->
                 <template v-else-if="row.choice.kind === 'venusBonus'">
-                  <ConsoleVenusSpreadRow :input="row.choice.input" :parts="venusPartsOf(row.choice)"
-                                         :laneIndex="laneIndexFor(row.choice.id)" :focused="focusIdx === row.i" :stock="venusStock" />
+                  <ConsoleVenusBonusRow :input="row.choice.input" :parts="venusPartsOf(row.choice)" />
                 </template>
                 <template v-else-if="row.choice.kind === 'distribute'">
                   <div class="con-composer__row-label">{{ choiceTitle(row.choice) }}</div>
@@ -877,11 +882,14 @@ import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
 import ConsoleAmountOperation from '@/client/components/console/foundation/ConsoleAmountOperation.vue';
-import ConsoleVenusSpreadRow from '@/client/components/console/foundation/ConsoleVenusSpreadRow.vue';
+import ConsoleVenusBonusRow from '@/client/components/console/foundation/ConsoleVenusBonusRow.vue';
+import ConsoleVenusBonusStep from '@/client/components/console/foundation/ConsoleVenusBonusStep.vue';
 import {
-  VENUS_SPREAD_LANES, VenusBonusParts, venusBonusMetaOf, venusPartAnswered, venusPreselectArm, venusPreselectResponse,
-  venusSpreadAmount, venusWildOfAnswer,
+  VENUS_SPREAD_LANES, VenusBonusParts, venusBonusMetaOf, venusPreselectArm, venusPreselectResponse, venusWhenHolds,
 } from '@/client/console/venusBonus/venusBonusPreselect';
+import {
+  VenusInnerFocus, venusInnerBar, venusInnerClamp, venusInnerFootHints, venusInnerNav, venusInnerOpen, venusInnerPress,
+} from '@/client/console/venusBonus/venusBonusInner';
 import {armVenusBonusCell} from '@/client/console/scaleStepReward/venusBonusCellBeat';
 import {amountOperationVm, ConversionPromptVm} from '@/client/console/conversionPromptModel';
 import {targetImpactRows, targetImpactText, targetImpactIsLoss} from '@/client/components/modalInputs/targetImpactRows';
@@ -1033,7 +1041,9 @@ type SubState =
   | {kind: 'list', choiceId: string, index: number}
   | {kind: 'orNested', choiceId: string, item: ConsoleOrItem, index: number}
   | {kind: 'tabbed', stepIndex: number, index: number}
-  | {kind: 'payment', index: number};
+  | {kind: 'payment', index: number}
+  /** THE VENUS BONUS'S INNER STEP (P89 · EM) — the 30 % wild, its card and the 2 × 3 standard grid (`venusBonusInner.ts`). */
+  | {kind: 'venus', choiceId: string, focus: VenusInnerFocus};
 
 type ListItem = {
   key: string, label: string, meta: string, disabled: boolean, reason: string, chosen: boolean,
@@ -1130,7 +1140,7 @@ export default defineComponent({
   name: 'ConsolePlayCardConfirm',
   // ConsoleCardFaceLite — the answered target row's miniature (PL-269: it was used in the template and never
   // registered, so the row rendered an unknown <consolecardfacelite> tag — no miniature, ever).
-  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsolePlayedReceivingStage, ConsoleAmountOperation, ConsoleVenusSpreadRow, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierMarks, PremiumPartyRequirementGlyph, ConsolePlayResultGains},
+  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsolePlayedReceivingStage, ConsoleAmountOperation, ConsoleVenusBonusRow, ConsoleVenusBonusStep, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierMarks, PremiumPartyRequirementGlyph, ConsolePlayResultGains},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1517,7 +1527,12 @@ export default defineComponent({
       if (sub?.kind === 'playedTarget' && this.playedTargetModel !== undefined) {
         return false;
       }
-      return !(sub !== undefined && (sub.kind === 'list' || sub.kind === 'orNested' || sub.kind === 'tabbed'));
+      return !(sub !== undefined && (sub.kind === 'list' || sub.kind === 'orNested' || sub.kind === 'tabbed' || sub.kind === 'venus'));
+    },
+    /** The bonus row the inner step answers. */
+    venusSubChoice(): ComposerChoice | undefined {
+      const sub = this.sub;
+      return sub?.kind === 'venus' ? this.allChoices.find((c) => c.id === sub.choiceId) : undefined;
     },
     /** THE SHEET IS AS TALL AS THE CARD (P81 · DJ — the setup's DC mechanism): the hero face's measured height — the sheet's
      *  floor and the card's foot beside it (`__playfoot`), published on the column so both read it. */
@@ -1541,6 +1556,10 @@ export default defineComponent({
       }
       if (this.sub?.kind === 'payment') {
         return 'Payment';
+      }
+      // The Venus bonus's inner step names itself in the crumb's tail («… › БОНУС ВЕНЕРЫ»), never on its own plate.
+      if (this.sub?.kind === 'venus') {
+        return 'Venus bonus';
       }
       // A gain pick asks WHERE its payload lands — the stage is the TARGET (TR56, decision 6: «… › ЦЕЛЬ»).
       if (this.sub?.kind === 'playedTarget' && this.playedTargetModel?.contract.payload !== undefined) {
@@ -1733,7 +1752,8 @@ export default defineComponent({
       }, 0);
     },
     allChoices(): ReadonlyArray<ComposerChoice> {
-      return [...preChoices(this.preview), ...branchChoices(this.selectedBranch), ...this.espOwnerChoices];
+      // A conditional Venus bonus (PL-1505) stands only while its option is the `or` step's answer — the captures decide.
+      return [...preChoices(this.preview), ...branchChoices(this.selectedBranch, this.captured), ...this.espOwnerChoices];
     },
     // ── the ESPIONAGE ask (Corporate Espionage, DP10) ─────────────────────
     /** The play's espionage step, when the card carries one. */
@@ -2553,8 +2573,7 @@ export default defineComponent({
       if (row.choice.kind === 'spendHeat') {
         return 'spendHeat';
       }
-      // The pre-selected Venus spread speaks the LAYOUT row's verbs (←→ lanes · LB/RB one unit · RT the rest).
-      if (row.choice.kind === 'distribute' || row.choice.kind === 'venusBonus') {
+      if (row.choice.kind === 'distribute') {
         return 'distribute';
       }
       return 'pick';
@@ -2586,6 +2605,16 @@ export default defineComponent({
     },
     /** The focused row opens a sub-picker on A (card/player/or step or tabbed) —
      *  A = «Выбрать»/«Изменить» there, never «Разыграть». */
+    /** THE INNER STEP'S BAR (P89 · EM): D-pad · A (choose / +1 here / confirm) · LB/RB one unit · RT the rest · B back. */
+    venusFootHints(): Array<FootHint> {
+      const sub = this.sub;
+      const c = this.venusSubChoice;
+      const meta = c === undefined ? undefined : venusBonusMetaOf(c.input);
+      if (sub?.kind !== 'venus' || c === undefined || meta === undefined) {
+        return [];
+      }
+      return venusInnerFootHints(venusInnerBar(meta, this.venusPartsOf(c), sub.focus));
+    },
     /** The viewer's stock per standard resource — the Venus spread's «current → resulting» (P89 · EL). */
     venusStock(): Partial<Record<string, number>> {
       return Object.fromEntries(VENUS_SPREAD_LANES.map((key) => [key, playerResourceValue(this.thisPlayer, key, 'stock') ?? 0]));
@@ -2603,10 +2632,15 @@ export default defineComponent({
         // nothing to change, and the verb must not promise otherwise.
         return (row.choice.input as DeltaEspionageInputModel).projection.hasLegalTarget;
       }
+      // The Venus bonus's row is a DOOR into its inner step (P89 · EM) — A «Выбрать» / «Изменить».
       return row.kind === 'step' &&
-        (row.choice.kind === 'card' || row.choice.kind === 'player' || row.choice.kind === 'or');
+        (row.choice.kind === 'card' || row.choice.kind === 'player' || row.choice.kind === 'or' || row.choice.kind === 'venusBonus');
     },
     footHints(): Array<FootHint> {
+      // THE VENUS BONUS'S INNER STEP owns the bar — the pure model's reading (P89 · EM).
+      if (this.sub?.kind === 'venus') {
+        return this.venusFootHints;
+      }
       // The R3 «Эффекты» LAYER owns the bar while it is open — the explorer's
       // own contract, verbatim (the same way the Information workspace
       // republishes it). Nothing of the review's verbs applies underneath.
@@ -3787,11 +3821,6 @@ export default defineComponent({
       return seed === undefined ? undefined : soleMarkKeys(seed, this.choiceMode(c) === 'handPick');
     },
     captureFor(c: ComposerChoice, response: unknown | undefined): void {
-      // A PART of a pre-selected Venus bonus (the wild's `or`): kept as its part, the step's ONE answer composed (P89 · EL).
-      if (c.venusPart === 'wild') {
-        this.setVenusParts(c, {...this.venusPartsOf(c), wild: venusWildOfAnswer(response)});
-        return;
-      }
       if (c.scope === 'pre') {
         if (response === undefined) {
           delete this.capturedPre[c.index];
@@ -3815,9 +3844,9 @@ export default defineComponent({
     },
     /** Has this choice no answer captured? (Not «does it hold up the commit» — that is `stepMissing`.) */
     stepUnanswered(c: ComposerChoice): boolean {
-      if (c.venusPart !== undefined) {
-        const meta = venusBonusMetaOf(this.venusStepInput(c));
-        return meta === undefined || !venusPartAnswered(meta, this.venusPartsOf(c), c.venusPart);
+      if (c.kind === 'venusBonus') {
+        const meta = venusBonusMetaOf(c.input);
+        return meta === undefined || venusPreselectResponse(meta, this.venusPartsOf(c)) === undefined;
       }
       if (c.scope === 'option') {
         return this.capturedOption === undefined;
@@ -3947,34 +3976,42 @@ export default defineComponent({
         this.captured[c.index] = response;
       }
     },
-    /** LB/RB: one unit off / onto the focused resource — bounded by zero and by what is left to place. */
-    adjustVenusLane(c: ComposerChoice, delta: number): void {
+    /** A on the bonus row: the INNER step opens on the first open question (the wild, its card, then the grid). */
+    openVenusStep(c: ComposerChoice): void {
       const meta = venusBonusMetaOf(c.input);
-      const key = VENUS_SPREAD_LANES[this.laneIndexFor(c.id)];
-      if (meta === undefined || key === undefined) {
+      if (meta !== undefined) {
+        this.sub = {kind: 'venus', choiceId: c.id, focus: venusInnerOpen(meta, this.venusPartsOf(c))};
+      }
+    },
+    /** A verb inside the inner step — the pure model decides; a confirm comes back to the review on the next question. */
+    venusStepPress(verb: 'primary' | 'back' | 'prevSection' | 'nextSection' | 'nextTab'): void {
+      const sub = this.sub;
+      const c = this.venusSubChoice;
+      const meta = c === undefined ? undefined : venusBonusMetaOf(c.input);
+      if (sub?.kind !== 'venus' || c === undefined || meta === undefined) {
+        this.sub = undefined;
         return;
       }
-      const parts = this.venusPartsOf(c);
-      this.setVenusParts(c, {...parts, spread: stepSpread(parts.spread ?? {}, key, delta, venusSpreadAmount(meta, parts))});
-    },
-    /** RT: everything still unplaced onto the focused resource. */
-    pourVenusLane(c: ComposerChoice): void {
-      const meta = venusBonusMetaOf(c.input);
-      const key = VENUS_SPREAD_LANES[this.laneIndexFor(c.id)];
-      if (meta === undefined || key === undefined) {
+      const before = this.venusPartsOf(c);
+      const result = venusInnerPress(meta, before, sub.focus, verb);
+      if (result.parts !== before) {
+        this.setVenusParts(c, result.parts);
+      }
+      if (result.exit !== undefined) {
+        this.sub = undefined;
+        if (result.exit === 'confirm') {
+          this.landCursor();
+        }
+        this.scrollFocused();
         return;
       }
-      const parts = this.venusPartsOf(c);
-      this.setVenusParts(c, {...parts, spread: pourRemaining(parts.spread ?? {}, key, venusSpreadAmount(meta, parts))});
-    },
-    moveVenusLane(c: ComposerChoice, dir: -1 | 1): void {
-      this.laneFocus[c.id] = Math.max(0, Math.min(VENUS_SPREAD_LANES.length - 1, this.laneIndexFor(c.id) + dir));
+      this.sub = {...sub, focus: venusInnerClamp(meta, result.parts, result.focus)};
     },
     /** THE CELL BEAT'S PROMISE (PL-1437) for every pre-selected bonus the commit carries — armed at the press. */
     armVenusPreselects(): void {
       for (const [index, parts] of Object.entries(this.venusParts)) {
         const step = this.selectedBranch?.steps[Number(index)];
-        const meta = step?.kind === 'venusBonus' ? venusBonusMetaOf(step.input) : undefined;
+        const meta = step?.kind === 'venusBonus' && venusWhenHolds(step.when, this.captured) ? venusBonusMetaOf(step.input) : undefined;
         if (meta !== undefined && venusPreselectResponse(meta, parts) !== undefined) {
           armVenusBonusCell(venusPreselectArm(meta, parts));
         }
@@ -4316,6 +4353,15 @@ export default defineComponent({
         this.movePlayedTarget(dir);
         return;
       }
+      // The Venus bonus's inner step walks its own 2-D grid (the wild's OR · its cards · 2 × 3 resources).
+      if (this.sub?.kind === 'venus') {
+        const c = this.venusSubChoice;
+        const meta = c === undefined ? undefined : venusBonusMetaOf(c.input);
+        if (c !== undefined && meta !== undefined) {
+          this.sub = {...this.sub, focus: venusInnerNav(meta, this.venusPartsOf(c), this.sub.focus, dir)};
+        }
+        return;
+      }
       if (this.sub !== undefined) {
         const len = this.sub.kind === 'payment' ? this.payEditableRows.length : this.listItems.length;
         if (dir === 'up' || dir === 'down') {
@@ -4377,8 +4423,6 @@ export default defineComponent({
         this.adjustFloaters(row.choice, dir === 'left' ? -1 : 1);
       } else if (row?.kind === 'step' && row.choice.kind === 'distribute') {
         this.moveLane(row.choice, dir === 'left' ? -1 : 1);
-      } else if (row?.kind === 'step' && row.choice.kind === 'venusBonus') {
-        this.moveVenusLane(row.choice, dir === 'left' ? -1 : 1);
       }
     },
     // REVIEW state: A(primary) play/lead-to-choice, LT(prevTab) enter payment
@@ -4435,8 +4479,6 @@ export default defineComponent({
           this.adjustFloaters(row.choice, step);
         } else if (row?.kind === 'step' && row.choice.kind === 'distribute') {
           this.adjustLane(row.choice, step);
-        } else if (row?.kind === 'step' && row.choice.kind === 'venusBonus') {
-          this.adjustVenusLane(row.choice, step);
         } else {
           this.adjustQuickPayment(step);
         }
@@ -4454,8 +4496,6 @@ export default defineComponent({
         } else if (row?.kind === 'step' && row.choice.kind === 'distribute') {
           // RT on a LAYOUT's lane: everything still unplaced goes here.
           this.pourLane(row.choice);
-        } else if (row?.kind === 'step' && row.choice.kind === 'venusBonus') {
-          this.pourVenusLane(row.choice);
         } else if (!(row?.kind === 'step' && row.choice.kind === 'spendHeat')) {
           this.adjustQuickPayment(1, true);
         }
@@ -4690,7 +4730,9 @@ export default defineComponent({
         this.openEspOwnerRewardPick(row.choice);
         return;
       }
-      if (row.kind === 'repeat') {
+      if (row.kind === 'step' && row.choice.kind === 'venusBonus') {
+        this.openVenusStep(row.choice);
+      } else if (row.kind === 'repeat') {
         this.openRepeatPick(row.choice);
       } else if (row.kind === 'step' && row.choice.input.type === 'deltaEspionage') {
         this.openEspionagePick(row.choice);
@@ -5307,10 +5349,6 @@ export default defineComponent({
     },
     /** The target row's label when it carries no payload — the role once answered, the server's ask before. */
     targetRowLabel(c: ComposerChoice): string {
-      // The 30 % Venus bonus's wild keeps its own name, answered or not (P89 · EL) — never the generic «chosen card».
-      if (c.venusPart === 'wild') {
-        return translateText('Wild resource');
-      }
       if (this.playedTargetResult(c) !== undefined) {
         return translateText(cardPickRoleKey(c.amount));
       }
@@ -5531,6 +5569,12 @@ export default defineComponent({
     onSubPress(action: ConsoleAction): void {
       const sub = this.sub;
       if (sub === undefined) {
+        return;
+      }
+      if (sub.kind === 'venus') {
+        if (action === 'primary' || action === 'back' || action === 'prevSection' || action === 'nextSection' || action === 'nextTab') {
+          this.venusStepPress(action);
+        }
         return;
       }
       switch (action) {
