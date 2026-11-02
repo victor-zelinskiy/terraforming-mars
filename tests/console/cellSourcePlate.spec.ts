@@ -57,6 +57,37 @@ describe('a board cell that asks — the server names it by its id and its print
   });
 });
 
+describe('a board cell that asks — the pay-to-use bills name their cell', () => {
+  it('the North Pole (the fan map and Nova alike): the 4 M€ bill names the cell, printing the temperature plate', () => {
+    for (const boardName of [BoardName.VASTITAS_BOREALIS, BoardName.VASTITAS_BOREALIS_NOVA]) {
+      const [game, player] = testGame(2, {boardName}, `-pole-${boardName.length}`) as [IGame, TestPlayer];
+      const pole = cellWith(game, SpaceBonus.TEMPERATURE_4MC);
+      player.megaCredits = 20;
+      player.heat = 10; // a second currency, so the bill is ASKED rather than paid at once
+      game.addGreenery(player, pole);
+      runAllActions(game);
+      const prompt = player.popWaitingFor();
+      if (prompt instanceof SelectPayment) {
+        expect(prompt.choiceContext?.source, `${boardName}: the bill names the pole`)
+          .deep.eq({kind: 'space', space: pole.id, name: 'Placement bonus', bonus: [SpaceBonus.TEMPERATURE_4MC]});
+      }
+    }
+  });
+
+  it('Hellas\' South Pole: the 6 M€ ocean bill names the cell too', () => {
+    const [game, player] = testGame(2, {boardName: BoardName.HELLAS}, '-south-pole') as [IGame, TestPlayer];
+    const pole = cellWith(game, SpaceBonus.OCEAN);
+    player.megaCredits = 20;
+    player.heat = 10;
+    game.addGreenery(player, pole);
+    runAllActions(game);
+    const prompt = player.popWaitingFor();
+    if (prompt instanceof SelectPayment) {
+      expect(prompt.choiceContext?.source).deep.eq({kind: 'space', space: pole.id, name: 'Placement bonus', bonus: [...pole.bonus]});
+    }
+  });
+});
+
 describe('a board cell that asks — the console\'s ONE source model', () => {
   it('a cell source carries the cell and its printed icons, and reads «Клетка поля»', () => {
     const view = choiceSourceView({kind: 'space', space: '28' as SpaceId, name: 'Placement bonus', bonus: [SpaceBonus.DELEGATE]});
@@ -73,6 +104,8 @@ describe('a board cell that asks — the console\'s ONE source model', () => {
   it('the plate names both cells by their proper names on their own boards only', () => {
     expect(getSpecialCellInfo('59' as SpaceId, BoardName.VASTITAS_BOREALIS_NOVA)?.title).eq('Viking 1 landing site');
     expect(getSpecialCellInfo('16' as SpaceId, BoardName.TERRA_CIMMERIA_NOVA)?.title).eq('MSL Curiosity landing site');
+    expect(getSpecialCellInfo('33' as SpaceId, BoardName.VASTITAS_BOREALIS)?.title, 'the fan map\'s pole').eq('North Pole');
+    expect(getSpecialCellInfo('33' as SpaceId, BoardName.VASTITAS_BOREALIS_NOVA)?.title).eq('North Pole');
     expect(getSpecialCellInfo('59' as SpaceId, BoardName.THARSIS)?.title).not.eq('Viking 1 landing site');
   });
 });

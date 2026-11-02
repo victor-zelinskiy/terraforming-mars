@@ -26,6 +26,9 @@ describe('specialCellInfo', () => {
     expect(getSpecialCellInfo('49', BoardName.AMAZONIS)?.title).eq('Ulysses Tholus');
     expect(getSpecialCellInfo('07', BoardName.VASTITAS_BOREALIS)?.title).eq('Elysium Mons');
     expect(getSpecialCellInfo('22', BoardName.VASTITAS_BOREALIS)?.title).eq('Alba Mons');
+    // The fan map's North Pole is named like the Nova board's — the same printed cell, the same words.
+    expect(getSpecialCellInfo('33', BoardName.VASTITAS_BOREALIS)?.title).eq('North Pole');
+    expect(getSpecialCellInfo('33', BoardName.VASTITAS_BOREALIS)?.description).eq(getSpecialCellInfo('33', BoardName.VASTITAS_BOREALIS_NOVA)?.description);
     expect(getSpecialCellInfo('27', BoardName.TERRA_CIMMERIA)?.title).eq('Apollinaris Mons');
     expect(getSpecialCellInfo('38', BoardName.TERRA_CIMMERIA)?.title).eq('Hadriacus Mons');
   });

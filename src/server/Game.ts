@@ -2998,9 +2998,11 @@ export class Game implements IGame, Logger {
       // Hellas special requirements ocean tile. Under a law that REPLACES the ocean (RX35) the purchase is offered
       // at nine oceans too — it buys 1 data, and the cell's dossier said so before the placement.
       if (this.canAddOcean() || ParliamentHandler.divertsTerraforming(player)) {
+        // The bill names the cell that asks (the one source plate — MSL Curiosity's shape).
         this.defer(new SelectPaymentDeferred(player, constants.HELLAS_BONUS_OCEAN_COST, {
           title: 'Select how to pay for placement bonus ocean',
           skipIfUnaffordable: 'The ocean placement bonus is skipped — ${0} cannot pay ${1} M€',
+          cause: cellGiver(),
         }))
           .andThen(() => {
             this.defer(new PlaceOceanTile(player, {title: 'Select space for ocean from placement bonus'}));
@@ -3032,6 +3034,8 @@ export class Game implements IGame, Logger {
           {
             title: 'Select how to pay for placement bonus temperature',
             skipIfUnaffordable: 'The temperature placement bonus is skipped — ${0} cannot pay ${1} M€',
+            // The bill names the North Pole (both Vastitas Borealis maps print it) — the one source plate.
+            cause: cellGiver(),
           }))
           .andThen(() => this.increaseTemperature(player, 1));
       }

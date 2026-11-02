@@ -220,6 +220,17 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
     description: 'Alba Mons is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
     placement: 'left',
   },
+  {
+    // The fan map's own North Pole — the same printed cell as the Nova board's (TEMPERATURE_4MC, fixed, not
+    // shuffled), in the centre of this map inside a ring of four ocean reserves; the same words, so the source
+    // plate and the hover name it the same way on both maps.
+    id: 'vastitas_north_pole',
+    boardName: BoardName.VASTITAS_BOREALIS,
+    spaceId: SpaceName.VASTITAS_BOREALIS_NORTH_POLE, // '33' — y=4, land(TEMPERATURE_4MC)
+    title: 'North Pole',
+    description: 'Water ice under a layer of frozen carbon dioxide. Placing a tile here costs 4 M€ and raises the temperature 1 step.',
+    placement: 'top',
+  },
   // ── Vastitas Borealis Nova — named locations ───────────────────────
   // The six legacy SVG text labels (Board.vue) replaced by hover markers, plus
   // the two cells whose printed bonus the table decides: the North Pole and the
