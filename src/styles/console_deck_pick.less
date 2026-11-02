@@ -285,9 +285,10 @@
     border-radius: .5rem;
     background: rgba(18, 28, 40, 0.92);
     box-shadow: inset 0 0 0 .05rem rgba(150, 180, 210, 0.3);
+    .con-cursor(inset 0 0 0 var(--con-focus-ring) @con-cyan; .5rem);
 
     &--focused {
-        .con-cursor(inset 0 0 0 var(--con-focus-ring) @con-cyan; .5rem; none; 1; after; rgba(20, 34, 50, 0.7); -1);
+        .con-cursor-on();
     }
     &--refused {
         background: rgba(22, 24, 30, 0.95);

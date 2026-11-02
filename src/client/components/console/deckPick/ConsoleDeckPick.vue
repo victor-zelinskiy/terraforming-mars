@@ -30,7 +30,8 @@
            the shared chassis every card result in a workspace wears. -->
       <ConsoleWsStageHead class="con-deckpick__head" :title="headTitle">
         <template #badges>
-          <span class="con-ws-stage-badge" :class="{'con-ws-stage-badge--ready': ready}">
+          <!-- A VERDICT (P45) counts no picks — its rows are the answer. -->
+          <span v-if="verdictPrice === undefined" class="con-ws-stage-badge" :class="{'con-ws-stage-badge--ready': ready}">
             <span class="con-ws-stage-badge__icon resource_icon resource_icon--cards" aria-hidden="true"></span>
             <span class="con-ws-stage-badge__label">{{ $t('Selected') }}</span>
             <b class="con-ws-stage-badge__num">{{ picks.length }}/{{ bounds.max }}</b>
@@ -82,7 +83,7 @@
              :class="{'con-cards__verdictbar--held': !interactive && !committed}" role="status">
           <div class="con-cards__verdict-inner">
             <span v-if="!committed" class="con-cards__verdict-name" :key="focusedName">{{ focusedName === '' ? '' : $t(focusedName) }}</span>
-            <span class="con-cards__verdict" :class="statusToneClass">{{ statusText }}</span>
+            <span v-if="statusText !== ''" class="con-cards__verdict" :class="statusToneClass">{{ statusText }}</span>
             <!-- The focused card's FUTURE value in the shared draft voice —
                  informational beside the pick progress, never a gate (see
                  `focusedAvailability`). The shared one-line register, so the
@@ -308,6 +309,8 @@ export default defineComponent({
         burning: Array<CardName>,
         /** The verdict's price (P45), frozen with the rest — the rows stand through the exit. */
         verdict: DeckPickPlayPrice | undefined,
+        /** The verdict's rows AS PRESSED — their chips read the wallet of the press, never the one the answer moved. */
+        verdictRows: Array<PreludeVerdictRow>,
       } | undefined,
       /** THE VERDICT's cursor (P45): 0 = play it, 1 = discard it. */
       verdictFocus: 0,
@@ -389,6 +392,9 @@ export default defineComponent({
     },
     /** The two outcome rows — off the marker (`price`, `max`) and the server's burn verdict, never re-derived. */
     verdictRows(): Array<PreludeVerdictRow> {
+      if (this.frozen !== undefined) {
+        return this.frozen.verdictRows;
+      }
       const price = this.verdictPrice;
       const card = this.entries[0]?.name;
       if (price === undefined || card === undefined) {
@@ -532,9 +538,9 @@ export default defineComponent({
         return translateText(this.playMode ? 'The other preludes go to the discard pile' : 'The rest is discarded');
       }
       if (this.verdictPrice !== undefined) {
-        // The focused OUTCOME's consequence (its refusal when refused) — one line, what the face cannot print.
-        const row = this.verdictRows[this.verdictFocus];
-        return row === undefined ? '' : this.verdictText(row.reason ?? row.detail);
+        // The rows below already say each outcome and its refusal — the rail never repeats them (a state with nothing
+        // to add renders nothing).
+        return '';
       }
       if (this.playMode) {
         // The FOCUSED candidate's fate in one line — what the face cannot print.
@@ -1285,6 +1291,7 @@ export default defineComponent({
         play: this.playMode,
         burning: this.entries.map((e) => e.name).filter((name) => this.burns(name)),
         verdict: this.verdictPrice,
+        verdictRows: this.verdictRows,
       };
       if (this.frozen.play) {
         this.frozenKey = this.promptKey;
