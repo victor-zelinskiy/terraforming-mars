@@ -672,6 +672,23 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(text).not.match(/to hand|buying cards/i);
   });
 
+  it('Septem Tribus prints the card that replaces Party Politics, never the human banner cubes', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C37_SEPTEM_TRIBUS);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'what it destroys').contains('Party Politics');
+    expect(text, 'what takes its place').contains('Gray Eminence');
+    expect(text, 'the module it needs').contains('Turmoil Redux');
+    expect(text, 'two delegates, 2 M€ for each one not sent').contains('2 delegates');
+    // The human Septem Tribus:redux starts with 40 M€ and puts its cube on a
+    // party's banner — none of that is here.
+    expect(text).not.contains('40');
+    expect(text).not.match(/banner/i);
+    const face = mountFace(MarsBotCorpId.C37_SEPTEM_TRIBUS);
+    expect(face.find('.pcard__tags').exists(), 'C37 prints NO starting tag').is.false;
+    expect(face.find('.pcard__res').exists(), 'and stores nothing').is.false;
+  });
+
   it('Pristar prints the four cancelled parameters, never the human preservation VP', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C36_PRISTAR);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation effect', 'Before action phase']);

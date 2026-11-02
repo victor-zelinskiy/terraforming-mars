@@ -469,7 +469,7 @@ Politics»), всегда ставит лобби-куб — даже на ре�
 
 ## 11. Вне скоупа (названо, чтобы не всплыло молча)
 
-Corporation C37 / B29 Gray Eminence (по всей видимости Septem Tribus; в реестре бота нет); Chaotic Variant /
+~~Corporation C37 / B29 Gray Eminence~~ — **реализована 2026-11-02** (`MarsBotSeptemTribus.ts`, адаптация владельца: общий лимит 7, голоса по правилам Redux, B29 = два голоса Party Politics вместо одного, мандат без изменений; `AUTOMA_DATA_AUDIT.md` §10); Chaotic Variant /
 глобальные события; вехи/награды Redux (Activist, Aeronaut, Dataminer, Influencer, Politologist — не
 реализованы ни для кого); классический Turmoil; эффекты партий для бота; влияние как валюта бота.
 

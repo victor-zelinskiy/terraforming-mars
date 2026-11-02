@@ -1062,6 +1062,37 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C37_SEPTEM_TRIBUS]: {
+    id: MarsBotCorpId.C37_SEPTEM_TRIBUS,
+    cardNumber: 'C37',
+    // The classic Turmoil card (R15) — its name, logo, art and lore. The
+    // human's Turmoil Redux twin `Septem Tribus:redux` REIMPLEMENTS it, and
+    // the collision rule reads that link (`humanCorporationNames`).
+    original: CardName.SEPTUM_TRIBUS,
+    // No starting tag and no priority plate are printed.
+    startingTags: [],
+    // «Use this corporation only when playing with Turmoil» — in this fork
+    // Turmoil is the Mars Parliament of Turmoil Redux (classic Turmoil is
+    // refused for MarsBot games).
+    requiresModules: ['turmoilRedux'],
+    corpBonusCards: [BonusCardId.B29_GRAY_EMINENCE],
+    // ADAPTED to Redux (the owner, 2026-11-02): the printed «add all delegates
+    // of another color to the reserve» is NOT played — the bot keeps the
+    // common seven, and its votes go through the Redux rules the bot already
+    // has (the chooser, the hold, the lobbying mandate). What the corporation
+    // changes is the card that votes: two delegates a generation instead of
+    // Party Politics' one.
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'deck', text: 'Party Politics is destroyed — Gray Eminence takes its place'},
+        {text: 'This corporation is only used in a game with Turmoil Redux', muted: true},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'deck', text: 'Add Gray Eminence to MarsBot\'s action deck'},
+        {icon: 'delegate', text: 'Gray Eminence sends ${0} delegates instead of Party Politics\' one, and pays ${1} M€ for each it cannot send', params: ['2', '2'], muted: true},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C38_TERRALABS]: {
     id: MarsBotCorpId.C38_TERRALABS,
     cardNumber: 'C38',
@@ -1374,6 +1405,10 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           over — TR is one per conversion) and pristarMc (the M€ they
  *           paid), plus pristarSkipped<Parameter> per parameter, so the
  *           finale can name WHICH of the four stood still.
+ * Septem Tribus: grayEminencePlayed (times B29 resolved), grayEminenceDelegates
+ *           (the delegates it sent — two a card at most) and grayEminenceMc
+ *           (the M€ paid for the delegates it could not send; a KEPT
+ *           delegate pays nothing).
  * Lakefront Resorts: lakefrontOceans (oceans placed at the table while it was
  *           in play, both seats), lakefrontSteps (the building-track advances
  *           every SECOND one of them bought — a completed track is a Failed

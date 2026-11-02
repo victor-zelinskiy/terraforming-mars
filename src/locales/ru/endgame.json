@@ -887,5 +887,6 @@
     "Tie on VP for the victory — decided on M€": "Равенство ПО за победу — решили M€",
     "Tie on VP for place ${0} — decided on M€": "Равенство ПО за ${0}-е место — решили M€",
     "Tie on VP and M€ for place ${0} — the place is shared": "Равенство ПО и M€ за ${0}-е место — место делят",
-    "Equal VP — the M€ decide": "Равенство ПО — решают M€"
+    "Equal VP — the M€ decide": "Равенство ПО — решают M€",
+    "The strings were pulled behind the curtain at ${0}'s ${1}: ${2} delegates took their seats in the Parliament on its quiet word.": "${1} дёргала за ниточки из-за кулис: по её тихому слову в Парламенте заняли места ${2} делегатов."
 }

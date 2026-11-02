@@ -727,5 +727,19 @@
     "${0} reveals its lobbying mandate for this generation: all its delegates, ${1} sent — it kept the rest, the vote being out of its reach": "${0} раскрывает мандат лоббирования этого поколения: все делегаты, отправлено ${1} — остальных бот оставил: голосование ему не выиграть",
     "${0} cannot lobby: not enough M€ for a delegate (${1} M€)": "${0} не может лоббировать: не хватает M€ на делегата (${1} M€)",
     "Lobbying": "Лоббирование",
-    "Chairman quest completed — the chairmanship": "Задание выполнено → председательство"
+    "Chairman quest completed — the chairmanship": "Задание выполнено → председательство",
+    "Party Politics is destroyed — Gray Eminence takes its place": "«Партийная политика» уничтожена — её место занимает «Серый кардинал»",
+    "This corporation is only used in a game with Turmoil Redux": "Эта корпорация используется только в игре с дополнением «Кризис: Возвращение»",
+    "Add Gray Eminence to MarsBot's action deck": "Добавить «Серого кардинала» в колоду действий Бота",
+    "Gray Eminence sends ${0} delegates instead of Party Politics' one, and pays ${1} M€ for each it cannot send": "«Серый кардинал» отправляет ${0} делегатов вместо одного у «Партийной политики» и даёт ${1} M€ за каждого, кого не может отправить",
+    "Septem Tribus: MarsBot sends 2 free delegates to the resolutions up for the vote, by the same rules as Party Politics, which it replaces; 2 M€ for each delegate it cannot send. Recurs into the action deck every generation.": "Septem Tribus: Бот отправляет 2 свободных делегатов на резолюции на голосовании — по тем же правилам, что и «Партийная политика», которую карта заменяет; 2 M€ за каждого делегата, которого не удалось отправить. Возвращается в колоду действий каждое поколение.",
+    "MarsBot sends ${0} free delegates (from the lobby, else the reserve) to the resolutions up for the vote": "Бот отправляет ${0} свободных делегатов (из лобби, иначе из резерва) на резолюции на голосовании",
+    "Each goes where Party Politics would send it: where it makes MarsBot the winning player, else where it is closest to winning": "Каждый идёт туда же, куда его отправила бы «Партийная политика»: где он делает Бота победителем голосования, иначе — где Бот ближе всего к победе",
+    "For each delegate it cannot send, MarsBot gains ${0} M€": "За каждого делегата, которого не удалось отправить, Бот получает ${0} M€",
+    "${0} destroyed Party Politics from its bonus deck — Gray Eminence replaces it": "${0} уничтожает «Партийную политику» из бонусной колоды — её заменяет «Серый кардинал»",
+    "${0} shuffled Gray Eminence into its action deck": "${0} замешивает «Серого кардинала» в свою колоду действий",
+    "${0} could not send ${1} delegate(s) and gained ${2} M€ instead": "${0} не может отправить ${1} {делегата|делегатов|делегатов} и вместо этого получает ${2} M€",
+    "Sent ${0} delegate(s) — ${1} M€ for the one it could not send": "Отправлено делегатов: ${0} — ${1} M€ за неотправленного",
+    "Could not send its delegates — ${0} M€ instead": "Делегатов отправить не удалось — ${0} M€ взамен",
+    "Sent ${0} delegate(s)": "Отправлено делегатов: ${0}"
 }

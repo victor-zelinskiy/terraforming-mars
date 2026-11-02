@@ -80,21 +80,21 @@ describe('LobbyMandate — the bot\'s further delegates a generation', () => {
 
   describe('the pace — how many this turn, and why', () => {
     it('nothing left → nothing, whatever the card', () => {
-      expect(lobbyingThisTurn({left: 0, trigger: true, partyPolitics: false, ahead: 0})).deep.eq({count: 0, byTrigger: 0, byMandate: 0});
+      expect(lobbyingThisTurn({left: 0, trigger: true, cardVotes: 0, ahead: 0})).deep.eq({count: 0, byTrigger: 0, byMandate: 0});
     });
     it('a trigger sends one while the deck ahead can carry the rest', () => {
-      expect(lobbyingThisTurn({left: 2, trigger: true, partyPolitics: false, ahead: 4})).deep.eq({count: 1, byTrigger: 1, byMandate: 0});
+      expect(lobbyingThisTurn({left: 2, trigger: true, cardVotes: 0, ahead: 4})).deep.eq({count: 1, byTrigger: 1, byMandate: 0});
     });
     it('no trigger and room ahead → the bot waits', () => {
-      expect(lobbyingThisTurn({left: 2, trigger: false, partyPolitics: false, ahead: 4})).deep.eq({count: 0, byTrigger: 0, byMandate: 0});
+      expect(lobbyingThisTurn({left: 2, trigger: false, cardVotes: 0, ahead: 4})).deep.eq({count: 0, byTrigger: 0, byMandate: 0});
     });
     it('what the deck ahead can no longer carry is sent now — the catch-up', () => {
-      expect(lobbyingThisTurn({left: 3, trigger: false, partyPolitics: false, ahead: 2})).deep.eq({count: 1, byTrigger: 0, byMandate: 1});
-      expect(lobbyingThisTurn({left: 6, trigger: true, partyPolitics: false, ahead: 4})).deep.eq({count: 2, byTrigger: 1, byMandate: 1});
+      expect(lobbyingThisTurn({left: 3, trigger: false, cardVotes: 0, ahead: 2})).deep.eq({count: 1, byTrigger: 0, byMandate: 1});
+      expect(lobbyingThisTurn({left: 6, trigger: true, cardVotes: 0, ahead: 4})).deep.eq({count: 2, byTrigger: 1, byMandate: 1});
     });
     it('never more than two a turn — and only one beside Party Politics\' own delegate', () => {
-      expect(lobbyingThisTurn({left: 6, trigger: true, partyPolitics: false, ahead: 0}).count).eq(MAX_BOT_DELEGATES_PER_TURN);
-      expect(lobbyingThisTurn({left: 6, trigger: false, partyPolitics: true, ahead: 0}).count).eq(1);
+      expect(lobbyingThisTurn({left: 6, trigger: true, cardVotes: 0, ahead: 0}).count).eq(MAX_BOT_DELEGATES_PER_TURN);
+      expect(lobbyingThisTurn({left: 6, trigger: false, cardVotes: 1, ahead: 0}).count).eq(1);
     });
   });
 
@@ -127,7 +127,7 @@ describe('LobbyMandate — the bot\'s further delegates a generation', () => {
           const step = lobbyingThisTurn({
             left,
             trigger: typeof entry === 'object' && entry.project !== undefined && lobbyingTrigger(entry.project),
-            partyPolitics: entry === 'pp',
+            cardVotes: entry === 'pp' ? 1 : 0,
             ahead,
           });
           maxTurn = Math.max(maxTurn, step.count + (entry === 'pp' ? 1 : 0));

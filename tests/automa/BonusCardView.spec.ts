@@ -276,9 +276,20 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(buildBonusCardView(BonusCardId.B21_PARTY_POLITICS, VENUS)).deep.eq(view);
   });
 
-  it('an out-of-scope card degrades to its printed summary', () => {
+  it('B29 Gray Eminence (C37): Party Politics\' vote twice, 2 M€ per unsent delegate, recurring', () => {
     const view = buildBonusCardView(BonusCardId.B29_GRAY_EMINENCE, BASE);
-    expect(view.lines).has.length(1);
     expect(view.name).eq('Gray Eminence');
+    expect(view.lines).has.length(3);
+    expect(view.lines[0]).to.deep.include({icon: 'delegate', params: ['2']});
+    expect(view.lines[0].text).to.include('free delegates (from the lobby, else the reserve)');
+    expect(view.lines[1].muted).is.true;
+    expect(view.lines[2]).to.deep.include({icon: 'megacredits', params: ['2']});
+    expect(view.fate.kind).eq('recurring');
+  });
+
+  it('an out-of-scope card degrades to its printed summary', () => {
+    const view = buildBonusCardView(BonusCardId.B14_CORPORATE_COMPETITION_MA, BASE);
+    expect(view.lines).has.length(1);
+    expect(view.fate.kind).eq('discard');
   });
 });

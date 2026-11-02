@@ -40,14 +40,13 @@
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {IProjectCard} from '../cards/IProjectCard';
-import {BonusCardId} from '../../common/automa/AutomaTypes';
 import {AutomaActionCard} from './AutomaState';
 import {BotVoteRefusal, botVoteHold, castBotVote} from './AutomaPolitics';
 import {botDelegateSupply} from '../parliament/BotVoteChooser';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
 import {
-  BotVoteHold, drawLobbyMandate, LOBBYING_DIVISOR, LobbyMandate, lobbyingThisTurn, lobbyingTrigger, mandateSize, turnCapacity,
+  BotVoteHold, cardVotesOf, drawLobbyMandate, LOBBYING_DIVISOR, LobbyMandate, lobbyingThisTurn, lobbyingTrigger, mandateSize, turnCapacity,
 } from './LobbyMandate';
 
 export class AutomaLobbying {
@@ -66,18 +65,19 @@ export class AutomaLobbying {
 
   /**
    * EVERY DELEGATE THE BOT MAY STILL SEND THIS GENERATION — what «out of reach» is judged against: the mandate
-   * left, Party Politics' own while its card is still ahead in the action deck (`partyPoliticsNow`: its card is
-   * the one resolving), never more than the delegates it still has. An upper bound, so a hold on it is a fact.
+   * left, the voting cards' own (`cardVotesOf` — Party Politics' one, Gray Eminence's two) still ahead in the
+   * action deck plus `cardVotesNow` of the card resolving, never more than the delegates it still has. An upper
+   * bound, so a hold on it is a fact.
    */
-  public static budgetOf(game: IGame, bot: IPlayer, partyPoliticsNow: boolean): number {
+  public static budgetOf(game: IGame, bot: IPlayer, cardVotesNow: number): number {
     const parliament = game.parliament;
     if (parliament === undefined) {
       return 0;
     }
     const mandate = AutomaLobbying.mandateOf(game);
     const left = mandate.lapsed === true ? 0 : Math.max(0, mandateSize(mandate.card) - mandate.sent);
-    const partyPoliticsAhead = (game.automa?.actionDeck ?? []).some((card) => card.kind === 'bonus' && card.id === BonusCardId.B21_PARTY_POLITICS);
-    return Math.min(botDelegateSupply(parliament, bot), left + (partyPoliticsNow || partyPoliticsAhead ? 1 : 0));
+    const cardVotesAhead = (game.automa?.actionDeck ?? []).reduce((sum, card) => sum + cardVotesOf(card), 0);
+    return Math.min(botDelegateSupply(parliament, bot), left + cardVotesNow + cardVotesAhead);
   }
 
   /**
@@ -135,7 +135,7 @@ export class AutomaLobbying {
     const {count, byTrigger, byMandate} = lobbyingThisTurn({
       left,
       trigger,
-      partyPolitics: entry.kind === 'bonus' && entry.id === BonusCardId.B21_PARTY_POLITICS,
+      cardVotes: cardVotesOf(entry),
       ahead: turnCapacity(game.automa?.actionDeck ?? []),
     });
     if (count === 0) {
@@ -144,7 +144,7 @@ export class AutomaLobbying {
     // A reserve delegate that can change nothing is kept — asked BEFORE the reasons are said, so a turn that
     // holds never reads «lobbies: …» followed by «keeps its delegates». The lobby's delegate always goes, and no
     // delegate at all is the refusal's to name — both are `botVoteHold`'s own rule, the same one `castBotVote` asks.
-    const hold = botVoteHold(game, bot, AutomaLobbying.budgetOf(game, bot, false));
+    const hold = botVoteHold(game, bot, AutomaLobbying.budgetOf(game, bot, 0));
     if (hold !== undefined) {
       AutomaLobbying.noteHold(game, bot, hold);
       return;
@@ -158,7 +158,7 @@ export class AutomaLobbying {
       game.log('${0} lobbies: its mandate for this generation', (b) => b.player(bot));
     }
     for (let i = 0; i < count; i++) {
-      const vote = castBotVote(game, bot, AutomaLobbying.budgetOf(game, bot, false));
+      const vote = castBotVote(game, bot, AutomaLobbying.budgetOf(game, bot, 0));
       if (!vote.placed && (vote.refusal === 'vote-decided' || vote.refusal === 'out-of-reach')) {
         // The first delegate of the turn decided the vote: the second is kept.
         AutomaLobbying.noteHold(game, bot, vote.refusal);

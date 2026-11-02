@@ -101,7 +101,7 @@ export function pickMandate(weights: ReadonlyArray<number>, u: number): LobbyMan
   return LOBBY_MANDATE_CARDS[LOBBY_MANDATE_CARDS.length - 1];
 }
 
-/** At most this many of the bot's delegates a turn — Party Politics' own included (a player's pace). */
+/** At most this many of the bot's delegates a turn — a voting card's own included (a player's pace). */
 export const MAX_BOT_DELEGATES_PER_TURN = 2;
 
 /** The price divisible by this sends one delegate of the mandate (the official generator). */
@@ -117,14 +117,27 @@ export function lobbyingTrigger(cost: number): boolean {
   return cost % LOBBYING_DIVISOR === 0;
 }
 
-/** Party Politics — the one card of the action deck that sends a delegate of its own. */
-function isPartyPolitics(card: AutomaActionCard): boolean {
-  return card.kind === 'bonus' && card.id === BonusCardId.B21_PARTY_POLITICS;
+/** Gray Eminence (B29, C37 Septem Tribus' own card) sends this many delegates of its own — Party Politics' slot, doubled. */
+export const GRAY_EMINENCE_VOTES = 2;
+
+/**
+ * THE CARDS THAT VOTE OF THEIR OWN — how many delegates each sends when it resolves: Party Politics one, Gray
+ * Eminence (which replaces it under C37) two. Every other card of the action deck sends none; the lobbying's
+ * delegates ride beside them, within the turn's places.
+ */
+const CARD_VOTES: Partial<Record<BonusCardId, number>> = {
+  [BonusCardId.B21_PARTY_POLITICS]: 1,
+  [BonusCardId.B29_GRAY_EMINENCE]: GRAY_EMINENCE_VOTES,
+};
+
+/** The delegates `card` sends of its own when it resolves (0 for every card that does not vote). */
+export function cardVotesOf(card: AutomaActionCard): number {
+  return card.kind === 'bonus' ? CARD_VOTES[card.id] ?? 0 : 0;
 }
 
-/** What the bot can still send over `deck`, at two a turn — one beside Party Politics' own. */
+/** What the bot can still send over `deck`, at two a turn — the places a voting card's own delegates leave. */
 export function turnCapacity(deck: ReadonlyArray<AutomaActionCard>): number {
-  return deck.reduce((sum, card) => sum + MAX_BOT_DELEGATES_PER_TURN - (isPartyPolitics(card) ? 1 : 0), 0);
+  return deck.reduce((sum, card) => sum + Math.max(0, MAX_BOT_DELEGATES_PER_TURN - cardVotesOf(card)), 0);
 }
 
 export type LobbyingStep = {
@@ -132,8 +145,8 @@ export type LobbyingStep = {
   left: number;
   /** The card just resolved — a project card whose cost is divisible by 3 triggers one. */
   trigger: boolean;
-  /** The card just resolved was Party Politics (its own delegate takes one of the turn's two places). */
-  partyPolitics: boolean;
+  /** The delegates the card just resolved sent of its own (`cardVotesOf` — Party Politics 1, Gray Eminence 2): they take the turn's places first. */
+  cardVotes: number;
   /** What the cards still in the action deck can carry (`turnCapacity`). */
   ahead: number;
 };
@@ -145,7 +158,7 @@ export type LobbyingStep = {
  * the delegate the played card's cost sent (0 or 1), `byMandate` the rest.
  */
 export function lobbyingThisTurn(step: LobbyingStep): {count: number; byTrigger: number; byMandate: number} {
-  const places = MAX_BOT_DELEGATES_PER_TURN - (step.partyPolitics ? 1 : 0);
+  const places = Math.max(0, MAX_BOT_DELEGATES_PER_TURN - step.cardVotes);
   const owed = Math.max(0, step.left - step.ahead);
   const wanted = Math.max(step.trigger ? 1 : 0, owed);
   const count = Math.max(0, Math.min(step.left, places, wanted));

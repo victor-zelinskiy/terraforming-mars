@@ -47,6 +47,7 @@ import {MarsBotPoseidon} from './MarsBotPoseidon';
 import {MarsBotStormcraft} from './MarsBotStormcraft';
 import {MarsBotLakefrontResorts} from './MarsBotLakefrontResorts';
 import {MarsBotPristar} from './MarsBotPristar';
+import {MarsBotSeptemTribus} from './MarsBotSeptemTribus';
 import {MarsBotTerraLabs} from './MarsBotTerraLabs';
 import {MarsBotUtopiaInvest} from './MarsBotUtopiaInvest';
 import {MarsBotEcotec} from './MarsBotEcotec';
@@ -128,6 +129,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C34_STORMCRAFT]: MarsBotStormcraft,
     [MarsBotCorpId.C35_LAKEFRONT_RESORTS]: MarsBotLakefrontResorts,
     [MarsBotCorpId.C36_PRISTAR]: MarsBotPristar,
+    [MarsBotCorpId.C37_SEPTEM_TRIBUS]: MarsBotSeptemTribus,
     [MarsBotCorpId.C38_TERRALABS]: MarsBotTerraLabs,
     [MarsBotCorpId.C39_UTOPIA_INVEST]: MarsBotUtopiaInvest,
     [MarsBotCorpId.C40_ECOTEC]: MarsBotEcotec,
@@ -175,15 +177,25 @@ export class AutomaCorporations {
     return all && any;
   }
 
-  /** Every corporation any human PICKED or already PLAYED (union — robust across the start flow). */
+  /**
+   * Every corporation any human PICKED or already PLAYED (union — robust across the start flow), each with the
+   * card it REIMPLEMENTS: a Turmoil Redux replacement is the same corporation as the classic card it stands in for
+   * (`Septem Tribus:redux` ↔ the classic Septem Tribus that C37's `original` names), so it collides with it.
+   */
   public static humanCorporationNames(game: IGame): Set<CardName> {
     const names = new Set<CardName>();
+    const add = (card: ICard) => {
+      names.add(card.name);
+      if (card.metadata.reimplements !== undefined) {
+        names.add(card.metadata.reimplements);
+      }
+    };
     for (const human of humansOf(game)) {
       for (const card of human.playedCards.filter(isICorporationCard)) {
-        names.add(card.name);
+        add(card);
       }
       if (human.pickedCorporationCard !== undefined) {
-        names.add(human.pickedCorporationCard.name);
+        add(human.pickedCorporationCard);
       }
     }
     return names;

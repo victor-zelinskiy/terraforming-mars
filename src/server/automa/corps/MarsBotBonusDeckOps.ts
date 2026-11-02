@@ -63,6 +63,36 @@ export function destroyBonusCard(game: IGame, id: BonusCardId): boolean {
   return true;
 }
 
+/**
+ * «Destroy the card X from the bonus deck» where X is a RECURRING card — C37
+ * Septem Tribus (Party Politics). Such a card never sits in the bonus deck:
+ * it lives in the recurring pool and joins every generation's action deck
+ * BESIDE the one bonus slot (`AutomaSetup` / `AutomaResearch`), so its
+ * generation-1 copy is simply taken out — nothing inherits a slot it never
+ * held (the corporation's own recurring card joins at Before Action Phase).
+ *
+ * Returns true when the card was in this game.
+ */
+export function destroyRecurringBonusCard(game: IGame, id: BonusCardId): boolean {
+  const automa = game.automa;
+  if (automa === undefined) {
+    return false;
+  }
+  const inPool = automa.recurringBonusCards.indexOf(id);
+  if (inPool !== -1) {
+    automa.recurringBonusCards.splice(inPool, 1);
+  }
+  const inAction = automa.actionDeck.findIndex((entry) => entry.kind === 'bonus' && entry.id === id);
+  if (inAction !== -1) {
+    automa.actionDeck.splice(inAction, 1);
+  }
+  if (inPool === -1 && inAction === -1) {
+    return false; // Not part of this game (no Parliament).
+  }
+  automa.destroyedBonusCards.push(id);
+  return true;
+}
+
 /** What a seeding setup box does with the cards its reveal turned over. */
 export type SeedShuffleMode =
   /**

@@ -113,7 +113,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   [BonusCardId.B26_VENUSIAN_LOBBY]: {name: 'Venusian Lobby', text: 'Morning Star Inc.: MarsBot raises Venus and advances its Venus track, then pushes whichever Martian parameter is furthest from done.'},
   [BonusCardId.B27_BUILD_BUILD_BUILD]: {name: 'Build Build Build', text: 'Philares: MarsBot builds a city beside one of the opponent\'s greeneries, or a special tile from its played pile beside one of their cities — paying M€ either way; otherwise it takes 3 M€ and goes back into the bonus deck.'},
   [BonusCardId.B28_DIVERSIFICATION]: {name: 'Diversification', text: 'Robinson Industries: MarsBot advances its least-advanced track, then loses 4 M€ if it can afford it. Recurs into the action deck every generation.'},
-  [BonusCardId.B29_GRAY_EMINENCE]: {name: 'Gray Eminence', text: 'A corporation-specific bonus card (outside the POC scope).'},
+  [BonusCardId.B29_GRAY_EMINENCE]: {name: 'Gray Eminence', text: 'Septem Tribus: MarsBot sends 2 free delegates to the resolutions up for the vote, by the same rules as Party Politics, which it replaces; 2 M€ for each delegate it cannot send. Recurs into the action deck every generation.'},
   [BonusCardId.B30_INTERFACE_HYPERLINK]: {name: 'Interface Hyperlink', text: 'Tycho Magnetics: MarsBot draws as many project cards as its space on the power track (at least 2), plays the best 2 of them and discards the rest. Destroyed afterwards.'},
   [BonusCardId.B31_GOVERNMENT_SUBSIDY]: {name: 'Government Subsidy', text: 'UNMI: MarsBot raises its TR 1 step.'},
   [BonusCardId.B32_INVESTORS]: {name: 'Investors', text: 'Utopia Invest: on an even generation MarsBot advances its weakest track and pulls its strongest one back; otherwise it gains M€ equal to the space number of its weakest track. Recurs into the action deck every generation.'},
@@ -451,6 +451,18 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {text: 'It picks the card where the delegate makes it the winning player, else the card it is closest to winning', muted: true},
       ],
       fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
+    };
+  case BonusCardId.B29_GRAY_EMINENCE:
+    // Septem Tribus' corporation-specific card (official B29), adapted to the
+    // Mars Parliament: Party Politics' vote, twice (docs/AUTOMA_DATA_AUDIT.md §10).
+    return {
+      name,
+      lines: [
+        {icon: 'delegate', text: 'MarsBot sends ${0} free delegates (from the lobby, else the reserve) to the resolutions up for the vote', params: ['2']},
+        {text: 'Each goes where Party Politics would send it: where it makes MarsBot the winning player, else where it is closest to winning', muted: true},
+        {icon: 'megacredits', text: 'For each delegate it cannot send, MarsBot gains ${0} M€', params: ['2']},
+      ],
+      fate: {kind: 'recurring', text: 'At the beginning of every generation it is shuffled back into MarsBot\'s action deck'},
     };
   case BonusCardId.B25_DO_IT_RIGHT:
     // Inventrix's corporation-specific card (official B25): Lobbyists' own

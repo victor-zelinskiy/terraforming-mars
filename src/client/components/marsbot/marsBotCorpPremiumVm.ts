@@ -453,6 +453,20 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.emptyTile('normal', {size: Size.SMALL}).oceans(1, {size: Size.SMALL}).startEffect.megacredits(3);
       });
     });
+  case MarsBotCorpId.C37_SEPTEM_TRIBUS:
+    return CardRenderer.builder((b) => {
+      // BEFORE ACTION PHASE: Gray Eminence joins the action deck — the named
+      // plate flowing into the TWO delegates it sends (Party Politics sent
+      // one), the deck-join shape C05/C02 draw for their own recurring card.
+      b.action(undefined, (eb) => {
+        eb.plate('Gray Eminence').startAction.delegates(2);
+      });
+      // What a delegate it cannot send pays — the asterisk sends the reader
+      // to the rules row.
+      b.effect(undefined, (eb) => {
+        eb.delegates(1).asterix().startEffect.megacredits(2);
+      });
+    });
   case MarsBotCorpId.C36_PRISTAR:
     return CardRenderer.builder((b) => {
       // EFFECT: the four parameter actions, each struck through — the human

@@ -40,8 +40,11 @@ export function voteBranchOf(choice: BotVoteChoice): BotVoteBranch {
   return voteRuleBranch(decidingVoteRule(choice.rules), choice.deficit);
 }
 
-/** The card's journal line and its resolved branch for each way the vote can be refused. */
-function logRefusal(game: IGame, bot: IPlayer, refusal: BotVoteRefusal): BotVoteBranch {
+/**
+ * The card's journal line and its resolved branch for each way the vote can be refused — shared with B29 Gray
+ * Eminence (C37), the card that votes in Party Politics' place.
+ */
+export function logVoteRefusal(game: IGame, bot: IPlayer, refusal: BotVoteRefusal): BotVoteBranch {
   switch (refusal) {
   case 'no-seat':
     game.log('${0} has no seat at the Mars Parliament: no delegate to send', (b) => b.player(bot));
@@ -61,9 +64,9 @@ function logRefusal(game: IGame, bot: IPlayer, refusal: BotVoteRefusal): BotVote
 
 export function partyPolitics(game: IGame): BonusCardOutcome {
   const bot = marsBotOf(game);
-  const vote = castBotVote(game, bot, AutomaLobbying.budgetOf(game, bot, true));
+  const vote = castBotVote(game, bot, AutomaLobbying.budgetOf(game, bot, 1));
   if (!vote.placed) {
-    const branch = logRefusal(game, bot, vote.refusal);
+    const branch = logVoteRefusal(game, bot, vote.refusal);
     if (vote.refusal === 'vote-decided' || vote.refusal === 'out-of-reach') {
       // The journal line once a generation, shared with the lobbying (a hold is not a refusal).
       AutomaLobbying.noteHold(game, bot, vote.refusal);

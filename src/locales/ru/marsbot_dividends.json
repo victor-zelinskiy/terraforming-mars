@@ -275,5 +275,10 @@
     "Awards where MarsBot is second": "Награды, где MarsBot второй",
     "Cards with exactly one tag": "Карты ровно с одной меткой",
     "Cards with 2 or more tags": "Карты с 2 и более метками",
-    "Cards with 3 or more tags": "Карты с 3 и более метками"
+    "Cards with 3 or more tags": "Карты с 3 и более метками",
+    "Behind the Scenes": "Закулисье",
+    "${0} VP per step MarsBot reached on the Career track": "${0} ПО за каждый шаг трека Карьеры, пройденный MarsBot",
+    "Covert operations": "Тайные операции",
+    "Event cards in MarsBot's played pile": "карты-события",
+    "Steps on the Career track": "Шаги трека Карьеры"
 }

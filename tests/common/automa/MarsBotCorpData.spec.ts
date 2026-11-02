@@ -130,9 +130,11 @@ describe('MarsBotCorpData', () => {
     // when playing with Prelude»). A condition naming a module the automa
     // validator REJECTS would make that corporation permanently unreachable —
     // a silent dead entry in the pool, which is exactly what this guard is
-    // here to fail on. The POC's playable set is Corporate Era + Prelude +
-    // Venus Next + Colonies.
-    const playable: ReadonlyArray<Expansion> = ['corpera', 'prelude', 'venus', 'colonies'];
+    // here to fail on. The playable set is Corporate Era + Prelude + Venus
+    // Next + Colonies + Turmoil Redux (the Mars Parliament the bot sits in —
+    // C37 Septem Tribus prints «only when playing with Turmoil»; classic
+    // Turmoil stays refused by `automaConflicts`).
+    const playable: ReadonlyArray<Expansion> = ['corpera', 'prelude', 'venus', 'colonies', 'turmoilRedux'];
     for (const id of MARS_BOT_CORP_IDS) {
       const info = marsBotCorpInfo(id);
       // BOTH forms of the printed condition — «only with X» (all) and «only
@@ -160,7 +162,8 @@ describe('MarsBotCorpData', () => {
       .eq(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES);
     expect(corpOwningBonusCard(BonusCardId.B24_SUPPLY_AND_DEMAND)?.id, 'B24 now belongs to C20')
       .eq(MarsBotCorpId.C20_FACTORUM);
-    expect(corpOwningBonusCard(BonusCardId.B29_GRAY_EMINENCE), 'still unowned').is.undefined;
+    expect(corpOwningBonusCard(BonusCardId.B29_GRAY_EMINENCE)?.id, 'B29 now belongs to C37')
+      .eq(MarsBotCorpId.C37_SEPTEM_TRIBUS);
     expect(corpOwningBonusCard(BonusCardId.B01_METEOR_SHOWER)).is.undefined;
   });
 

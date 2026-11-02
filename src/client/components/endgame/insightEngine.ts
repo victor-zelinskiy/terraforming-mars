@@ -3261,6 +3261,21 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 40,
         });
       }
+    } else if (corp.id === 'C37') {
+      // Septem Tribus: what the table SAW is the bot's delegates turning up in
+      // the Parliament twice as often — Gray Eminence's two a generation. A
+      // couple of generations of it is the Party Politics baseline; six or
+      // more delegates is a presence somebody had to vote against.
+      const delegates = stat('grayEminenceDelegates');
+      if (delegates >= 6) {
+        stories.push({
+          key: 'effect',
+          textKey: 'The strings were pulled behind the curtain at ${0}\'s ${1}: ${2} delegates took their seats in the Parliament on its quiet word.',
+          params: [raw(p.name), raw(corp.name), raw(delegates)],
+          measure: delegates,
+          scale: 14,
+        });
+      }
     } else if (corp.id === 'C38') {
       // TerraLabs is a trade, and the two halves of it are two facts: the
       // thicker deck it bought, and the 8 TR it paid for it. The late doubling

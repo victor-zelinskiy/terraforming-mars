@@ -339,7 +339,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       [BonusCardId.B26_VENUSIAN_LOBBY]: touchesHumans, // venus + parameter ladder
       [BonusCardId.B27_BUILD_BUILD_BUILD]: touchesHumans, // builds beside human tiles
       [BonusCardId.B28_DIVERSIFICATION]: botOnly,
-      [BonusCardId.B29_GRAY_EMINENCE]: botOnly, // unimplemented (C37 companion)
+      [BonusCardId.B29_GRAY_EMINENCE]: botOnly, // C37 Septem Tribus: the bot's own delegates (the vote is public)
       [BonusCardId.B30_INTERFACE_HYPERLINK]: touchesHumans, // resolves 2 cards → human reactors
       [BonusCardId.B31_GOVERNMENT_SUBSIDY]: botOnly,
       [BonusCardId.B32_INVESTORS]: botOnly,
@@ -387,6 +387,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       [MarsBotCorpId.C34_STORMCRAFT]: botOnly,
       [MarsBotCorpId.C35_LAKEFRONT_RESORTS]: botOnly,
       [MarsBotCorpId.C36_PRISTAR]: botOnly,
+      [MarsBotCorpId.C37_SEPTEM_TRIBUS]: botOnly, // destroys/joins bot deck cards; its B29 votes like Party Politics
       [MarsBotCorpId.C38_TERRALABS]: botOnly,
       [MarsBotCorpId.C39_UTOPIA_INVEST]: botOnly,
       [MarsBotCorpId.C40_ECOTEC]: botOnly,
