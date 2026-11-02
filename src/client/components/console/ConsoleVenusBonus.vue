@@ -203,7 +203,7 @@ import {clearPanelCommands, setPanelCommands} from '@/client/console/consolePane
 import {
   PlayedTargetCell, PlayedTargetFocus, PlayedTargetLayout, PlayedTargetModel, PlayedTargetNavDir,
   findPlayedTargetFocus, planPlayedTargetLayout, playedTargetAt, reseatPlayedTargetFocus,
-  stepPlayedTargetFocus, stepPlayedTargetFocusAt,
+  stepPlayedTargetFocus, stepPlayedTargetFocusVia,
 } from '@/client/console/played/consolePlayedTargetModel';
 import {openPlayedTargetZoom} from '@/client/console/played/playedTargetDossier';
 import {buildVenusWildTargetModel, venusWildCandidates} from '@/client/console/venusBonus/venusWildTargetStep';
@@ -744,7 +744,7 @@ export default defineComponent({
       const step = this.$refs.wildStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
       const cells = step?.cells?.() ?? [];
       const next = cells.length > 0 ?
-        stepPlayedTargetFocusAt(focus, dir, cells) :
+        stepPlayedTargetFocusVia(step, focus, dir, cells) :
         stepPlayedTargetFocus(focus, dir, owners, this.wildLayout);
       if (next === undefined) {
         return; // an edge HOLDS — never a wrap, never a silent jump

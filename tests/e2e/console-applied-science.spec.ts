@@ -299,24 +299,65 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     expect(posts.length, 'nothing sent').toBe(0);
   });
 
-  test('D: eight candidates — the slot holds them, no scroll', async ({page, request}) => {
+  test('D: eight candidates — PAGES of four (balanced), the position on the rail, RB and the d-pad edge turn', async ({page, request}) => {
     test.setTimeout(240_000);
     await bootFixture(page, request, 'applied-science-many', {query: PRESET.query});
     await settle(page);
     await openSetup(page);
     await openWild(page);
     await choosePlate(page, 'onCard');
-    await expect(page.locator(`${INNER} .con-ptsel__cell`), 'eight candidates').toHaveCount(8);
-    // A COMPOSITION OF ROWS (the row cap): eight holders never stand in one line.
-    const rows = await page.evaluate(() => new Set([...document.querySelectorAll('[data-wild-inner] .con-ptsel__cell')]
-      .map((el) => Math.round(el.getBoundingClientRect().top / 8))).size);
-    expect(rows, 'eight candidates in more than one row').toBeGreaterThan(1);
+    // PAGES (the owner, 2026-11-02): the set the readable floor cannot hold whole is paged — never shrunk, never scrolled.
+    const pages = page.locator(`${INNER} [data-ptsel-pages]`);
+    await expect(pages, 'the page position stands').toHaveCount(1);
+    await expect(pages, 'two pages').toHaveAttribute('data-ptsel-page-count', '2');
+    await expect(pages).toHaveAttribute('data-ptsel-page', '1');
+    await expect(page.locator(`${INNER} .con-ptsel__cell`), 'four on a page').toHaveCount(4);
+    const first = (await candidatesOf(page)).map((c) => c.name);
+    await shoot(page, 'i-many');
+    await press(page, 'KeyE', 500); // RB — the next page
+    await expect(pages, 'RB turned the page').toHaveAttribute('data-ptsel-page', '2');
+    const second = (await candidatesOf(page)).map((c) => c.name);
+    expect(second.some((n) => first.includes(n)), 'a page is a different set').toBe(false);
+    expect(await focusedCandidate(page), 'the cursor came along').not.toBe('');
+    // The d-pad against the page's LEFT edge turns back (the album's grammar).
+    for (let i = 0; i < 6 && (await pages.getAttribute('data-ptsel-page')) === '2'; i++) {
+      await press(page, 'ArrowLeft', 260);
+    }
+    await expect(pages, 'the left edge turned back').toHaveAttribute('data-ptsel-page', '1');
     const scrolls = await page.evaluate(() => {
       const vp = document.querySelector('.con-cardactions__stagewrap .con-composer--stage .con-scroll-area__viewport');
       return vp === null ? 0 : vp.scrollHeight - vp.clientHeight;
     });
-    await shoot(page, 'i-many');
     expect(scrolls, 'the decision column does not scroll').toBeLessThanOrEqual(2);
+  });
+
+  test('D′: thirteen candidates — three pages, readable cards, every tag on its own card', async ({page, request}) => {
+    test.setTimeout(240_000);
+    await bootFixture(page, request, 'applied-science-crowd', {query: PRESET.query});
+    await settle(page);
+    await openSetup(page);
+    await openWild(page);
+    await choosePlate(page, 'onCard');
+    const pages = page.locator(`${INNER} [data-ptsel-pages]`);
+    await expect(pages, 'three pages').toHaveAttribute('data-ptsel-page-count', '3');
+    await shoot(page, 'l-crowd');
+    // THE FLOOR: a candidate is never drawn smaller than the readable size (0.4 × the TV's scale of the 320 px face).
+    const geom = await page.evaluate(() => [...document.querySelectorAll('[data-wild-inner] .con-ptsel__cell')].map((cell) => {
+      const r = cell.getBoundingClientRect();
+      const tag = cell.querySelector('.con-ptsel__tag')?.getBoundingClientRect();
+      return {w: r.width, left: r.left, right: r.right, tagLeft: tag?.left ?? r.left, tagRight: tag?.right ?? r.right};
+    }));
+    expect(Math.min(...geom.map((g) => g.w)), 'readable cards').toBeGreaterThanOrEqual(250);
+    for (const g of geom) {
+      expect(g.tagLeft >= g.left - 1 && g.tagRight <= g.right + 1, 'the tag stands under ITS card, no wider').toBe(true);
+    }
+    // The d-pad walks the whole set: past the last card of a page the right edge turns to the next.
+    for (let i = 0; i < 20 && (await pages.getAttribute('data-ptsel-page')) !== '3'; i++) {
+      await press(page, 'ArrowRight', 240);
+    }
+    await expect(pages, 'walked to the last page').toHaveAttribute('data-ptsel-page', '3');
+    await expect(pages, 'the range names the tail').toContainText('из 13');
+    await shoot(page, 'm-crowd-last');
   });
 
   test('E: the last science spent — the card leaves the actions to take', async ({page, request}) => {

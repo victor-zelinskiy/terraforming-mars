@@ -32,7 +32,7 @@ import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {
   PlayedTargetCell, PlayedTargetFocus, PlayedTargetLayout, PlayedTargetModel, PlayedTargetNavDir,
   planPlayedTargetLayout, playedTargetAt,
-  reseatPlayedTargetFocus, stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner,
+  reseatPlayedTargetFocus, stepPlayedTargetFocus, stepPlayedTargetFocusVia, turnPlayedTargetPageVia, stepPlayedTargetOwner,
 } from '@/client/console/played/consolePlayedTargetModel';
 import {openPlayedTargetZoom} from '@/client/console/played/playedTargetDossier';
 import {openTradeTargetFocus} from '@/client/console/colonyTrade/colonyTradeTargetStep';
@@ -114,7 +114,7 @@ export default defineComponent({
       const step = this.$refs.targetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
       const cells = step?.cells?.() ?? [];
       const next = cells.length > 0 ?
-        stepPlayedTargetFocusAt(focus, d, cells) :
+        stepPlayedTargetFocusVia(step, focus, d, cells) :
         stepPlayedTargetFocus(focus, d, owners, this.layout);
       if (next === undefined) {
         return; // an edge HOLDS — never a wrap, never a silent owner change
@@ -126,6 +126,13 @@ export default defineComponent({
     cycleOwner(delta: number): void {
       const owners = this.model.owners;
       const focus = this.focus;
+      // A PAGED band: LB/RB turn its page where they walk nothing else.
+      const turned = turnPlayedTargetPageVia(this.$refs.targetStep, focus, delta);
+      if (turned !== undefined) {
+        this.focus = turned;
+        (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+        return;
+      }
       if (focus === undefined || (this.layout.mode !== 'tabs' && this.layout.mode !== 'board') || owners.length < 2) {
         return;
       }

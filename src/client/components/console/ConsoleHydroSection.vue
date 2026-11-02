@@ -1311,7 +1311,7 @@ import {
 import {
   PlayedTargetCell, PlayedTargetFocus, PlayedTargetLayout, PlayedTargetModel, PlayedTargetNavDir,
   findPlayedTargetFocus, planPlayedTargetLayout, playedTargetAt,
-  reseatPlayedTargetFocus, stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner,
+  reseatPlayedTargetFocus, stepPlayedTargetFocus, stepPlayedTargetFocusVia, turnPlayedTargetPageVia, stepPlayedTargetOwner,
 } from '@/client/console/played/consolePlayedTargetModel';
 import {openPlayedTargetZoom} from '@/client/console/played/playedTargetDossier';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
@@ -5299,7 +5299,7 @@ export default defineComponent({
       const step = this.$refs.targetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
       const cells = step?.cells?.() ?? [];
       const next = cells.length > 0 ?
-        stepPlayedTargetFocusAt(focus, dir as PlayedTargetNavDir, cells) :
+        stepPlayedTargetFocusVia(step, focus, dir as PlayedTargetNavDir, cells) :
         stepPlayedTargetFocus(focus, dir as PlayedTargetNavDir, owners, this.targetLayout);
       if (next === undefined) {
         return; // an edge HOLDS — never a wrap, never a silent owner change
@@ -5310,6 +5310,13 @@ export default defineComponent({
     cycleTargetOwner(delta: number): void {
       const owners = this.targetStepModel?.owners ?? [];
       const focus = this.targetFocus;
+      // A PAGED band: LB/RB turn its page where they walk nothing else.
+      const turned = turnPlayedTargetPageVia(this.$refs.targetStep, focus, delta);
+      if (turned !== undefined) {
+        this.targetFocus = turned;
+        (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+        return;
+      }
       if (focus === undefined || this.targetLayout.mode !== 'tabs' || owners.length < 2) {
         return;
       }

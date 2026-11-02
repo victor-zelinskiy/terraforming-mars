@@ -129,9 +129,23 @@
           <span v-if="showsOwnerTargets" class="con-ptsel__ownercount">
             <i>{{ $t('Selectable') }}</i><b class="con-ptsel__ownercount-live">{{ selectableIn(owner.candidates) }}</b>
           </span>
+          <!-- THE BAND'S PAGE (the owner, 2026-11-02 — «the player must see where to turn»): its range and the album's
+               own spine, on the band's bar — each band of several players keeps its own place. -->
+          <span v-if="pagesOf(owner) > 1" class="con-ptsel__pages" data-ptsel-pages :data-ptsel-page="pageOf(owner) + 1" :data-ptsel-page-count="pagesOf(owner)">
+            <span class="con-ptsel__pages-range">{{ rangeOf(owner) }}</span>
+            <ConsoleAlbumSpine :album="spineOf(owner)" variant="foot" :held="!pageTurnOnBumpers" />
+          </span>
         </header>
 
-        <div class="con-ptsel__sections">
+        <div class="con-ptsel__sections" :class="{'con-ptsel__sections--paged': pagesOf(owner) > 1}">
+          <!-- WHERE TO TURN — a chevron on each edge a page lies beyond (zero layout: absolute on the row;
+               shape-free, gone on the edge with nothing beyond — the spine states the position). -->
+          <template v-if="pagesOf(owner) > 1">
+            <span class="con-ptsel__turn con-ptsel__turn--prev" :class="{'con-ptsel__turn--off': pageOf(owner) === 0}"
+                  data-ptsel-turn="prev" aria-hidden="true">‹</span>
+            <span class="con-ptsel__turn con-ptsel__turn--next" :class="{'con-ptsel__turn--off': pageOf(owner) >= pagesOf(owner) - 1}"
+                  data-ptsel-turn="next" aria-hidden="true">›</span>
+          </template>
           <div v-for="section in sectionsOf(owner)" :key="section.key" class="con-ptsel__section" :style="sectionStyle(section)">
             <!-- The SELF block draws no rail of its own (the proxy is a handle,
                  not a card family) — but while the neighbours wear rails it
@@ -348,6 +362,12 @@
           </span>
         </template>
       </template>
+      <!-- A band with no bar of its own (the host states the ask, one owner) reads its page HERE, at the rail's end. -->
+      <span v-if="railPageOwner !== undefined" class="con-ptsel__pages con-ptsel__pages--rail" data-ptsel-pages
+            :data-ptsel-page="pageOf(railPageOwner) + 1" :data-ptsel-page-count="pagesOf(railPageOwner)">
+        <span class="con-ptsel__pages-range">{{ rangeOf(railPageOwner) }}</span>
+        <ConsoleAlbumSpine :album="spineOf(railPageOwner)" variant="foot" :held="!pageTurnOnBumpers" />
+      </span>
     </footer>
   </div>
 </template>
@@ -402,6 +422,7 @@ import type {DeclineModel} from '@/client/console/optionalChoice';
 import ConsolePlayedTargetTag from '@/client/components/console/played/ConsolePlayedTargetTag.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
+import ConsoleAlbumSpine, {AlbumSpinePosition} from '@/client/components/console/foundation/ConsoleAlbumSpine.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {readingTailText, readingText} from '@/client/console/readingText';
@@ -416,6 +437,8 @@ import {
   playedTargetSections, playedTargetShowsCategoryRails, playedTargetAt,
   playedTargetShowsOwnerTargetCount, playedTargetShowsResource,
   playedTargetReadingImpacts, planPlayedTargetSizing,
+  PlayedTargetNavDir, playedTargetPage, playedTargetPageCount, playedTargetPageOf, playedTargetTurnPage,
+  stepPlayedTargetFocusAt,
 } from '@/client/console/played/consolePlayedTargetModel';
 
 /** The sizing used until the first measurement lands (one frame, at most). */
@@ -430,7 +453,7 @@ const UNMEASURED: PlayedTargetSizing =
 
 export default defineComponent({
   name: 'ConsolePlayedTargetStep',
-  components: {ConsoleDeclinePlate, ConsoleCardFaceLite, ConsoleCardResourceChip, GamepadGlyph, ConsoleScrollArea, ConsolePlayedTargetTag, PremiumMechNode},
+  components: {ConsoleAlbumSpine, ConsoleDeclinePlate, ConsoleCardFaceLite, ConsoleCardResourceChip, GamepadGlyph, ConsoleScrollArea, ConsolePlayedTargetTag, PremiumMechNode},
   props: {
     model: {type: Object as PropType<PlayedTargetModel>, required: true},
     layout: {type: Object as PropType<PlayedTargetLayout>, required: true},
@@ -474,6 +497,8 @@ export default defineComponent({
       stopResizeObs: undefined as (() => void) | undefined,
       /** The step's own vertical CAP, measured against the stretched band. */
       budgetPx: 0,
+      /** The page each band last stood on — the focused band's page is the CURSOR's (derived, never stored). */
+      ownerPages: {} as Record<string, number>,
     };
   },
   computed: {
@@ -486,6 +511,29 @@ export default defineComponent({
     },
     activeOwnerId(): string {
       return this.focus.ownerId;
+    },
+    /** The size of a band's page (undefined: the whole set is one page). */
+    pageSize(): number | undefined {
+      return this.sizing.pageSize;
+    },
+    /**
+     * LB/RB turn the page only where they walk nothing else — one band, or the split's two columns. Over several bands
+     * (tabs, the table's `board`) the bumpers keep their job (the next owner) and the d-pad across the edge turns pages.
+     */
+    pageTurnOnBumpers(): boolean {
+      return this.model.owners.length === 1 || this.layout.mode === 'split';
+    },
+    /** The band whose page the RAIL reads — the one band on screen when it shows no bar of its own. */
+    railPageOwner(): PlayedTargetOwner | undefined {
+      if (this.showsOwnerBar || this.visibleOwners.length !== 1) {
+        return undefined;
+      }
+      const owner = this.visibleOwners[0];
+      return this.pagesOf(owner) > 1 ? owner : undefined;
+    },
+    /** One key for the pages on screen — a page turn moves every cell, so the cached boxes expire with it. */
+    pageKey(): string {
+      return this.visibleOwners.map((o) => `${o.id}:${this.pageOf(o)}`).join('|') + `/${this.pageSize ?? 0}`;
     },
     focused(): PlayedTargetCandidate | undefined {
       return playedTargetAt(this.focus, this.model.owners);
@@ -680,6 +728,19 @@ export default defineComponent({
     },
     'sizing.sectionFlow'() {
       this.invalidateGeometry();
+    },
+    pageKey() {
+      this.invalidateGeometry();
+    },
+    /** The focused band's page is remembered as the cursor leaves it (the band keeps the page the player left it on). */
+    focus: {
+      deep: true,
+      handler(next: PlayedTargetFocus) {
+        const owner = this.model.owners.find((o) => o.id === next.ownerId);
+        if (owner !== undefined) {
+          this.ownerPages = {...this.ownerPages, [owner.id]: playedTargetPageOf(owner, next.index, this.pageSize)};
+        }
+      },
     },
   },
   mounted() {
@@ -933,8 +994,50 @@ export default defineComponent({
     showsResource(cand: PlayedTargetCandidate): boolean {
       return playedTargetShowsResource(cand.resourceContext);
     },
+    /** The band's sections on its CURRENT page (the whole band without paging). */
     sectionsOf(owner: PlayedTargetOwner): ReadonlyArray<PlayedTargetSection> {
-      return playedTargetSections(owner);
+      return playedTargetSections(playedTargetPage(owner, this.pageSize, this.pageOf(owner)));
+    },
+    /** The band's current page: the cursor's when it stands in this band, else the one it was left on. */
+    pageOf(owner: PlayedTargetOwner): number {
+      const page = owner.id === this.focus.ownerId ?
+        playedTargetPageOf(owner, this.focus.index, this.pageSize) :
+        this.ownerPages[owner.id] ?? 0;
+      return Math.max(0, Math.min(page, this.pagesOf(owner) - 1));
+    },
+    pagesOf(owner: PlayedTargetOwner): number {
+      return playedTargetPageCount(owner, this.pageSize);
+    },
+    /** «5–8 из 12» — the band's range on its page. */
+    rangeOf(owner: PlayedTargetOwner): string {
+      const size = this.pageSize ?? owner.candidates.length;
+      const first = this.pageOf(owner) * size + 1;
+      const last = Math.min(owner.candidates.length, first + size - 1);
+      return translateTextWithParams('${0}–${1} of ${2}', [String(first), String(last), String(owner.candidates.length)]);
+    },
+    spineOf(owner: PlayedTargetOwner): AlbumSpinePosition {
+      const page = this.pageOf(owner);
+      const pages = this.pagesOf(owner);
+      return {page: page + 1, pages, canPrev: page > 0, canNext: page < pages - 1};
+    },
+    /**
+     * THE HOST'S STEP of the cursor — page-aware: the real boxes first (the page on screen and the bands beside it), and
+     * a left / right press against the page's edge TURNS the band's page (the hand album's grammar: the d-pad across
+     * the edge IS the page turn), landing on the near edge of the new page. Undefined: an edge that holds.
+     */
+    navigate(focus: PlayedTargetFocus, dir: PlayedTargetNavDir): PlayedTargetFocus | undefined {
+      const next = stepPlayedTargetFocusAt(focus, dir, this.cells());
+      if (next !== undefined) {
+        return next;
+      }
+      if (dir === 'left' || dir === 'right') {
+        return playedTargetTurnPage(focus, this.model.owners, this.pageSize, dir === 'right' ? 1 : -1, dir === 'right' ? 'first' : 'last');
+      }
+      return undefined;
+    },
+    /** LB / RB — the focused band's page, the cursor keeping its place in the page. Undefined: no page that way. */
+    turnPage(focus: PlayedTargetFocus, delta: number): PlayedTargetFocus | undefined {
+      return this.pageTurnOnBumpers ? playedTargetTurnPage(focus, this.model.owners, this.pageSize, delta, 'same') : undefined;
     },
     /**
      * A category's WIDTH IS ITS SPAN — the columns its own cards need at the

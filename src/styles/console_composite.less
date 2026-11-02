@@ -909,3 +909,62 @@ html.con-profile-handheld {
     }
     &__warn { font-size: .82rem; color: @con-amber; }
 }
+
+/* THE TARGET SELECTOR'S PAGES (the owner, 2026-11-02 — «too small, the numbers mix; limit the scale, page or scroll —
+   the player must see where to turn»; `planPlayedTargetSizing` → `pageSize`). The band's position rides a line the
+   layout already reserves (its own bar, or the rail's end — never a new row, or the solver would chase its own chrome);
+   the chevrons stand on the row's edges in zero layout, only on a side a page lies beyond (the spine says the rest). */
+.con-ptsel {
+    &__pages {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        margin-left: auto;
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+    &__pages--rail { padding-left: .6rem; }
+    &__pages-range {
+        font-size: .78rem;
+        font-weight: 700;
+        letter-spacing: .04rem;
+        color: @con-text-dim;
+        font-variant-numeric: tabular-nums;
+    }
+    &__sections--paged { position: relative; }
+    &__turn {
+        position: absolute;
+        top: 50%;
+        z-index: 4;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.6rem;
+        height: 3.2rem;
+        margin-top: -1.6rem;
+        border-radius: .45rem;
+        font-size: 1.6rem;
+        font-weight: 800;
+        line-height: 1;
+        color: @con-text;
+        background: rgba(10, 18, 28, 0.88);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
+        pointer-events: none;
+        transition: opacity calc(120ms * var(--motion-scale, 1)) linear;
+        &--prev { left: -.2rem; }
+        &--next { right: -.2rem; }
+        /* With nothing beyond, the chevron leaves the row: muted, it sat over the first card's frame — the spine already
+           says «page 1 of 3». */
+        &--off { opacity: 0; }
+    }
+    /* THE OUTCOME TAG ON ITS OWN PLATE — under its card and no wider: two neighbours' digits used to run into one line
+       («ПО 4 → 5 · +1 ПО 8 → 9 · +1»), the eye could not tell whose they were. A plate is a kant and a fill
+       (invariant 15); a candidate with no tag keeps an empty row, plate-less. */
+    &__tag:not(.con-ptsel__tag--none) {
+        width: var(--con-ptsel-slot-w, 100%);
+        padding: 0 .3rem;
+        border-radius: .35rem;
+        background: rgba(255, 255, 255, 0.035);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 180, 210, 0.16);
+    }
+}

@@ -1269,7 +1269,7 @@ import ConsolePlayedTargetLink from '@/client/components/console/played/ConsoleP
 import ConsoleComposerTargetRow from '@/client/components/console/played/ConsoleComposerTargetRow.vue';
 import {
   buildPlayedTargetModel, planPlayedTargetLayout, findPlayedTargetFocus, reseatPlayedTargetFocus,
-  stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner, playedTargetAt,
+  stepPlayedTargetFocus, stepPlayedTargetFocusVia, turnPlayedTargetPageVia, stepPlayedTargetOwner, playedTargetAt,
   playedTargetResultOf, playedTargetResultLive, playedTargetReadingImpacts,
   PLAYED_TARGET_SUMMARY_IMPACT_CAP,
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetNavDir, PlayedTargetCell,
@@ -5349,7 +5349,7 @@ export default defineComponent({
       }
       const step = this.$refs.wildTargetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>, ensureFocusVisible?: () => void} | undefined;
       const cells = step?.cells?.() ?? [];
-      const next = cells.length > 0 ? stepPlayedTargetFocusAt(focus, d, cells) : undefined;
+      const next = cells.length > 0 ? stepPlayedTargetFocusVia(step, focus, d, cells) : undefined;
       if (next === undefined) {
         if (d === 'up') {
           // The selector's top edge: the cursor goes back to the OR, on «на карту».
@@ -6069,7 +6069,7 @@ export default defineComponent({
       const step = this.$refs.targetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
       const cells = step?.cells?.() ?? [];
       const next = cells.length > 0 ?
-        stepPlayedTargetFocusAt(this.sub.focus, d, cells) :
+        stepPlayedTargetFocusVia(step, this.sub.focus, d, cells) :
         stepPlayedTargetFocus(this.sub.focus, d, owners, this.playedTargetLayout);
       if (next === undefined) {
         return; // an edge HOLDS — never a wrap, never a silent owner change
@@ -6085,6 +6085,15 @@ export default defineComponent({
     /** LB/RB — the owner axis, tabbed mode only (in split both groups are on
      *  screen and the d-pad crosses between them spatially). */
     cyclePlayedTargetOwner(delta: number): void {
+      // A PAGED band (the owner, 2026-11-02): LB/RB turn its page where they walk nothing else (one band / the split).
+      if (this.sub?.kind === 'playedTarget') {
+        const turned = turnPlayedTargetPageVia(this.$refs.targetStep, this.sub.focus, delta);
+        if (turned !== undefined) {
+          this.sub = {...this.sub, focus: turned};
+          this.scrollPlayedTargetFocused();
+          return;
+        }
+      }
       if (this.sub?.kind !== 'playedTarget' || (this.playedTargetLayout.mode !== 'tabs' && this.playedTargetLayout.mode !== 'board')) {
         return;
       }
@@ -6418,6 +6427,14 @@ export default defineComponent({
         if (sub.focus.zone === 'card' && this.wildTargetModel !== undefined) {
           if (action === 'primary') {
             this.wildTargetChoose();
+            return;
+          }
+          if (action === 'prevSection' || action === 'nextSection') {
+            const turned = turnPlayedTargetPageVia(this.$refs.wildTargetStep, this.wildTargetFocusShown, action === 'nextSection' ? 1 : -1);
+            if (turned !== undefined) {
+              this.wildTargetFocusRaw = turned;
+              (this.$refs.wildTargetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+            }
             return;
           }
           if (action === 'inspect') {

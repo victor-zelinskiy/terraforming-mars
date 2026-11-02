@@ -4,6 +4,9 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {
   PLAYED_TARGET_MAX_PER_ROW,
+  playedTargetPage,
+  playedTargetPageOf,
+  playedTargetTurnPage,
   buildPlayedTargetModel,
   planPlayedTargetLayout,
   playedTargetSections,
@@ -598,8 +601,11 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
       expect(sized.rows).to.be.greaterThan(1);
     });
 
-    it('keeps the widest shape when the band is too short for a comfortable second row (readability over the cap)', () => {
-      expect(plan(owner(8), 2400, 230).rows, 'one row').to.eq(1);
+    it('a band too short for a readable second row PAGES the set (never a frieze past the cap, never a shrink)', () => {
+      const sized = plan(owner(8), 2400, 300);
+      expect(sized.rows, 'one row a page').to.eq(1);
+      expect(sized.pageSize, 'eight in pages').to.be.lessThan(8);
+      expect(sized.perRow).to.be.at.most(PLAYED_TARGET_MAX_PER_ROW);
     });
 
     // Within the regime of ROWS a taller band never draws smaller cards. The switch from the frieze to the rows is a
@@ -1293,18 +1299,19 @@ describe('sizing — the rail is reserved before the cards', () => {
     // …and when even the FLOOR cannot hold the set, it says so rather than
     // shrinking on: the cards stay readable and the viewport scrolls.
     const impossible = planPlayedTargetSizing({owners: [many(40)], mode: 'tabs', availW: 420, availH: 320, ui: 1, handheld: false});
-    expect(impossible.overflows, 'an impossible box must scroll, not collapse').to.eq(true);
-    expect(impossible.cardZoom).to.be.at.least(0.3);
+    // PAGES (the owner, 2026-11-02): a set the floor cannot hold whole is paged at the floor — never shrunk past it.
+    expect(impossible.overflows, 'paged, not scrolled').to.eq(false);
+    expect(impossible.pageSize, 'a page of what fits').to.be.lessThan(40);
+    expect(impossible.cardZoom).to.be.at.least(0.4);
   });
 
   /** …and the floor is the SAME size the fitting path would have produced, so
    *  crossing into overflow is not a visual jolt. */
   it('the overflow floor is a real size, not a collapse', () => {
     const over = planPlayedTargetSizing({owners: [many(40)], mode: 'tabs', availW: 420, availH: 320, ui: 1, handheld: false});
-    expect(over.overflows).to.eq(true);
-    // A scrolling viewport still shows READABLE cards — that is the whole
-    // reason the floor exists.
-    expect(over.cardZoom).to.be.at.least(0.3);
+    expect(over.pageSize, 'paged').to.not.eq(undefined);
+    // A page still shows READABLE cards — that is the whole reason the floor exists.
+    expect(over.cardZoom).to.be.at.least(0.4);
   });
 
   /** Overflow is a LAST resort: the same set on a taller band fits. */
@@ -1392,5 +1399,37 @@ describe('playedTargetDossier — X on a candidate reads the card AS A TARGET', 
   it('a card holding nothing of the kind has no «now» reading; a name the step lacks has no dossier', () => {
     expect(playedTargetDossierOf(model, 'Mars Hydro Turbines' as CardName)?.holding).is.undefined;
     expect(playedTargetDossierOf(model, 'Ecoline' as CardName)).is.undefined;
+  });
+});
+
+describe('the target selector’s PAGES (the owner, 2026-11-02)', () => {
+  const owner = (n: number) => ({
+    id: 'red', name: 'admin', color: 'red', self: true, selfHarm: false, totalPlayed: n,
+    candidates: new Array(n).fill(0).map((_x, i) => ({
+      cardName: `C${i}` as CardName, category: 'active' as const, relation: 'external-card' as const, ownerId: 'red',
+      slotKey: `C${i}`, preview: [], model: card(`C${i}`),
+    })),
+  });
+
+  it('a page is the render order sliced; the last page holds the rest', () => {
+    const o = owner(10);
+    expect(playedTargetPage(o, 4, 0).candidates.map((c) => c.cardName)).deep.eq(['C0', 'C1', 'C2', 'C3']);
+    expect(playedTargetPage(o, 4, 2).candidates.map((c) => c.cardName)).deep.eq(['C8', 'C9']);
+    expect(playedTargetPage(o, undefined, 3), 'no paging — the owner itself').eq(o);
+  });
+
+  it('the cursor’s page follows its card; the turn lands at the same place, the near edge, or the far edge', () => {
+    const o = owner(10);
+    expect(playedTargetPageOf(o, 5, 4)).eq(1);
+    expect(playedTargetTurnPage({ownerId: 'red', index: 5}, [o], 4, 1, 'same')).deep.eq({ownerId: 'red', index: 9});
+    expect(playedTargetTurnPage({ownerId: 'red', index: 6}, [o], 4, 1, 'same'), 'clamped to the last card there').deep.eq({ownerId: 'red', index: 9});
+    expect(playedTargetTurnPage({ownerId: 'red', index: 3}, [o], 4, 1, 'first')).deep.eq({ownerId: 'red', index: 4});
+    expect(playedTargetTurnPage({ownerId: 'red', index: 4}, [o], 4, -1, 'last')).deep.eq({ownerId: 'red', index: 3});
+    expect(playedTargetTurnPage({ownerId: 'red', index: 9}, [o], 4, 1), 'no page beyond').is.undefined;
+  });
+
+  it('balanced pages: eight cards at a capacity of six read four and four', () => {
+    const sized = planPlayedTargetSizing({owners: [owner(8)], mode: 'tabs', availW: 1900, availH: 880, ui: 2, handheld: false, tags: true, tagLines: 2});
+    expect(sized.pageSize).eq(4);
   });
 });

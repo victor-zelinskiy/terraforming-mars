@@ -280,13 +280,7 @@ export const PLAYED_TARGET_RAIL_IMPACT_CAP = 3;
 
 /** The most cards one row of the target step lays out when a composition of rows reads as well (see `solveSizing`). */
 export const PLAYED_TARGET_MAX_PER_ROW = 6;
-/**
- * …while a capped shape draws a card of at least this zoom — a hair UNDER the readable floor: the 4K walk (P43, eight
- * holders under two lines of outcome tags) drew 2 × 4 at ~190 px against a frieze at ~218 px, nearly one size and a far
- * better composition; the floor itself kept the frieze. Below this the widest shape stands.
- */
-export const PLAYED_TARGET_ROW_CAP_ZOOM = 0.27;
-export const PLAYED_TARGET_ROW_CAP_ZOOM_HANDHELD = 0.22;
+
 /** The answered summary's line — the Result already carries the full before→after. */
 export const PLAYED_TARGET_SUMMARY_IMPACT_CAP = 2;
 
@@ -983,8 +977,11 @@ export function playedTargetSelfBox(
 }
 
 /** Below this a card stops being readable and starts being a swatch. */
-const MIN_CARD_ZOOM = 0.3;
-const MIN_CARD_ZOOM_HANDHELD = 0.24;
+const MIN_CARD_ZOOM = 0.4;
+const MIN_CARD_ZOOM_HANDHELD = 0.3;
+/** The HARD floor — a compact host that cannot stand one card at the comfortable floor still draws a readable one. */
+const HARD_CARD_ZOOM = 0.3;
+const HARD_CARD_ZOOM_HANDHELD = 0.24;
 
 /**
  * The focused candidate's emphasis. Deliberately tiny: at the sizes this step
@@ -1087,6 +1084,12 @@ export type PlayedTargetSizing = {
   perRow: number;
   /** Nothing fits even at the floor — the zone must scroll for real. */
   overflows: boolean;
+  /**
+   * THE PAGE (the owner, 2026-11-02 — «too small, the numbers mix; limit the scale, page or scroll — the player must
+   * see where to turn»): when the whole set cannot stand at the readable floor, each owner's band shows this many
+   * candidates a page (its render order sliced — `playedTargetPage`), the size solved for ONE page. Absent: one page.
+   */
+  pageSize?: number;
 };
 
 export type PlayedTargetSizingInput = {
@@ -1198,14 +1201,25 @@ function solveGrid(
  * The cards are the layout unit now.
  */
 export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTargetSizing {
+  // TWO FLOORS (the owner, 2026-11-02): the COMFORTABLE one decides the pages; a host too small to stand even one card
+  // at it (the MarsBot attack's compact modal) falls back to the HARD floor — the old readable minimum — rather than
+  // letting a card stick out of its panel.
+  const comfortable = planPlayedTargetSizingAt(o, o.handheld ? MIN_CARD_ZOOM_HANDHELD : MIN_CARD_ZOOM);
+  if (!comfortable.overflows) {
+    return comfortable;
+  }
+  return planPlayedTargetSizingAt(o, o.handheld ? HARD_CARD_ZOOM_HANDHELD : HARD_CARD_ZOOM);
+}
+
+function planPlayedTargetSizingAt(o: PlayedTargetSizingInput, floorZoom: number): PlayedTargetSizing {
   const solo = o.owners.reduce((n, owner) => n + owner.candidates.length, 0) === 1;
   const ceiling = o.handheld ?
     (solo ? SOLO_CARD_ZOOM_HANDHELD : MAX_CARD_ZOOM_HANDHELD) :
     (solo ? SOLO_CARD_ZOOM : MAX_CARD_ZOOM);
   const maxCardW = ceiling * o.ui * SLOT_W;
-  const minCardW = (o.handheld ? MIN_CARD_ZOOM_HANDHELD : MIN_CARD_ZOOM) * o.ui * SLOT_W;
-  // The row cap holds while a capped shape draws at least this (see `solveSizing`).
-  const capW = (o.handheld ? PLAYED_TARGET_ROW_CAP_ZOOM_HANDHELD : PLAYED_TARGET_ROW_CAP_ZOOM) * o.ui * SLOT_W;
+  const minCardW = floorZoom * o.ui * SLOT_W;
+  // The row cap holds while a capped shape stays readable — the floor itself (see `solveSizing`).
+  const capW = minCardW;
   const sectionGap = SECTION_GAP * o.ui;
   const ownerGap = SPLIT_GAP * o.ui;
   // Solved for the LARGEST card any shape could produce, so a shape can never
@@ -1236,14 +1250,104 @@ export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTarget
   const tagRow = o.tags === true ? (o.tagLines === 2 ? PLAYED_TARGET_TAG_ROW_H2 : PLAYED_TARGET_TAG_ROW_H) * o.ui : 0;
   const solve = (g: ReadonlyArray<ReadonlyArray<PlayedTargetSection>>, w: number, h: number, secGap: number): PlayedTargetSizing =>
     solveSizing(g, solveGrid(g, w, h, gap, secGap, railH, tagRow), gap, headroom, minCardW, maxCardW, capW);
-  if (o.mode !== 'board') {
-    return solve(groups, ownerW, o.availH - bandChrome, sectionGap);
-  }
-  // `board` — EVERY group on screen as BANDS one under another (the owner's decision B2, 2026-10-29: always bands —
-  // a wide, short host reads the bands at a smaller card or scrolls honestly, never a row of groups): the height is
-  // shared, each band carries its own bar and headroom.
   const n = Math.max(1, o.owners.length);
-  return solve(groups, o.availW, (o.availH - n * bandChrome) / n, sectionGap);
+  const solveFor = (g: ReadonlyArray<ReadonlyArray<PlayedTargetSection>>): PlayedTargetSizing => o.mode !== 'board' ?
+    solve(g, ownerW, o.availH - bandChrome, sectionGap) :
+    // `board` — EVERY group on screen as BANDS one under another (the owner's decision B2, 2026-10-29: always bands):
+    // the height is shared, each band carries its own bar and headroom.
+    solve(g, o.availW, (o.availH - n * bandChrome) / n, sectionGap);
+  const whole = solveFor(groups);
+  // A set that stands whole at a readable size within the row cap is ONE page. A frieze past the cap is paged too.
+  if (!whole.overflows && whole.perRow <= PLAYED_TARGET_MAX_PER_ROW) {
+    return whole;
+  }
+  // PAGES, never a shrink past the floor and never a scroll first: the most candidates a band can show at the readable
+  // floor is its page; every band is cut to it in its own render order and the size is solved for that one page.
+  // The PAGE CHROME (the band's position spine) is reserved by the host's own budget, never here.
+  const most = Math.max(...o.owners.map((owner) => owner.candidates.length));
+  for (let size = most - 1; size >= 1; size--) {
+    const paged = solveFor(o.owners.map((owner) => playedTargetSections(playedTargetPage(owner, size, 0))));
+    if (!paged.overflows && paged.perRow <= PLAYED_TARGET_MAX_PER_ROW) {
+      // BALANCED pages: the same page count, the cards shared evenly (eight at a capacity of six read 4 + 4, never
+      // 6 + a lonely 2) — a smaller page always fits where the larger one did.
+      const pages = Math.ceil(most / size);
+      const even = Math.ceil(most / pages);
+      if (even < size) {
+        const balanced = solveFor(o.owners.map((owner) => playedTargetSections(playedTargetPage(owner, even, 0))));
+        if (!balanced.overflows) {
+          return {...balanced, pageSize: even};
+        }
+      }
+      return {...paged, pageSize: size};
+    }
+  }
+  return whole;
+}
+
+// ── PAGES (the owner, 2026-11-02) ───────────────────────────────────────────
+
+/** A band's candidates in RENDER order — its sections flattened (the self proxy, then the categories). */
+export function playedTargetRenderOrder(owner: PlayedTargetOwner): ReadonlyArray<PlayedTargetCandidate> {
+  return playedTargetSections(owner).flatMap((section) => section.candidates);
+}
+
+/** How many pages a band of `owner` takes at `pageSize` (1 without paging). */
+export function playedTargetPageCount(owner: PlayedTargetOwner, pageSize: number | undefined): number {
+  return pageSize === undefined || pageSize <= 0 ? 1 : Math.max(1, Math.ceil(owner.candidates.length / pageSize));
+}
+
+/** The page the candidate at model `index` stands on (its position in the RENDER order, cut by `pageSize`). */
+export function playedTargetPageOf(owner: PlayedTargetOwner, index: number, pageSize: number | undefined): number {
+  if (pageSize === undefined || pageSize <= 0) {
+    return 0;
+  }
+  const card = owner.candidates[index];
+  const at = card === undefined ? -1 : playedTargetRenderOrder(owner).indexOf(card);
+  return at < 0 ? 0 : Math.floor(at / pageSize);
+}
+
+/**
+ * The owner as ONE PAGE shows it — the render order sliced, so its sections re-derive from exactly the cards on the
+ * page (a category may continue on the next page; its rail repeats there). Without paging, the owner itself.
+ */
+export function playedTargetPage(owner: PlayedTargetOwner, pageSize: number | undefined, page: number): PlayedTargetOwner {
+  if (pageSize === undefined || pageSize <= 0) {
+    return owner;
+  }
+  const order = playedTargetRenderOrder(owner);
+  const clamped = Math.max(0, Math.min(page, playedTargetPageCount(owner, pageSize) - 1));
+  return {...owner, candidates: order.slice(clamped * pageSize, (clamped + 1) * pageSize)};
+}
+
+/**
+ * THE PAGE TURN of a band: the cursor onto page `page + delta` at the same position in the page (clamped to the last
+ * card there) — the model's own index, so every host keeps its vocabulary. Undefined when there is no page that way.
+ */
+export function playedTargetTurnPage(
+  focus: PlayedTargetFocus,
+  owners: ReadonlyArray<PlayedTargetOwner>,
+  pageSize: number | undefined,
+  delta: number,
+  landAt?: 'first' | 'last' | 'same',
+): PlayedTargetFocus | undefined {
+  const owner = owners.find((o) => o.id === focus.ownerId);
+  if (owner === undefined || pageSize === undefined || pageSize <= 0) {
+    return undefined;
+  }
+  const order = playedTargetRenderOrder(owner);
+  const card = owner.candidates[focus.index];
+  const at = card === undefined ? 0 : Math.max(0, order.indexOf(card));
+  const page = Math.floor(at / pageSize);
+  const next = page + delta;
+  if (next < 0 || next >= playedTargetPageCount(owner, pageSize)) {
+    return undefined;
+  }
+  const first = next * pageSize;
+  const last = Math.min(order.length - 1, first + pageSize - 1);
+  const offset = at - page * pageSize;
+  const pos = landAt === 'first' ? first : landAt === 'last' ? last : Math.min(last, first + offset);
+  const target = order[pos];
+  return target === undefined ? undefined : {ownerId: owner.id, index: owner.candidates.indexOf(target)};
 }
 
 /** The best readable shape of the solved candidates — or the floor and an honest scroll. */
@@ -1588,4 +1692,31 @@ export function playedTargetResultLive(
     return false;
   }
   return findPlayedTargetFocus(result.cardName, owners) !== undefined;
+}
+
+/** What a host may ask of the mounted step (its ref) — the boxes, the page-aware step, the page turn. */
+type PlayedTargetStepApi = {
+  cells?: () => ReadonlyArray<PlayedTargetCell>,
+  navigate?: (focus: PlayedTargetFocus, dir: PlayedTargetNavDir) => PlayedTargetFocus | undefined,
+  turnPage?: (focus: PlayedTargetFocus, delta: number) => PlayedTargetFocus | undefined,
+};
+
+/**
+ * THE HOST'S ONE STEP of the cursor through the mounted selector: page-aware when the step can (the d-pad across a
+ * page's edge turns the band's page — `ConsolePlayedTargetStep.navigate`), else the measured boxes. Undefined: a hold.
+ */
+export function stepPlayedTargetFocusVia(
+  step: unknown,
+  focus: PlayedTargetFocus,
+  dir: PlayedTargetNavDir,
+  cells: ReadonlyArray<PlayedTargetCell>,
+): PlayedTargetFocus | undefined {
+  const api = step as PlayedTargetStepApi | undefined;
+  return typeof api?.navigate === 'function' ? api.navigate(focus, dir) : stepPlayedTargetFocusAt(focus, dir, cells);
+}
+
+/** LB / RB through the mounted selector: the band's page turn, or undefined (no pages — the bumpers keep their job). */
+export function turnPlayedTargetPageVia(step: unknown, focus: PlayedTargetFocus | undefined, delta: number): PlayedTargetFocus | undefined {
+  const api = step as PlayedTargetStepApi | undefined;
+  return focus === undefined || typeof api?.turnPage !== 'function' ? undefined : api.turnPage(focus, delta);
 }

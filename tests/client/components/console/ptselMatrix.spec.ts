@@ -103,12 +103,13 @@ describe('played-target layout — the decision matrix', () => {
 
   /** …and scroll IS reachable — it is the honest answer for a box that cannot
    *  hold the set at a readable size, not an outcome the solver avoids. */
-  it('reports overflow when even the floor cannot hold the set', () => {
+  it('PAGES a set the floor cannot hold whole (the owner, 2026-11-02 — pages over a scroll)', () => {
     const s = planPlayedTargetSizing({
       owners: [owner([['active', 40]])], mode: 'tabs', availW: 420, availH: 300, ui: 1, handheld: false,
     });
-    expect(s.overflows).to.eq(true);
-    expect(s.cardZoom, 'and the cards stay readable while it scrolls').to.be.at.least(0.3);
+    expect(s.overflows, 'paged, never scrolled').to.eq(false);
+    expect(s.pageSize, 'a page of what fits').to.be.lessThan(40);
+    expect(s.cardZoom, 'and the cards stay readable on every page').to.be.at.least(0.4);
   });
 
   /** The layout is DETERMINISTIC — a repeated entry lands on the same geometry,

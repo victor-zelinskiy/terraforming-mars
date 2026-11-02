@@ -152,7 +152,7 @@ import {commitAllowed, computeCommitGate} from '@/client/console/consoleCommitGa
 import {botAttackState} from '@/client/console/botAttack/botAttackState';
 import {
   buildPlayedTargetModel, findPlayedTargetFocus, planPlayedTargetLayout,
-  playedTargetAt, reseatPlayedTargetFocus, stepPlayedTargetFocusAt,
+  playedTargetAt, reseatPlayedTargetFocus, stepPlayedTargetFocusVia,
   PlayedTargetCell, PlayedTargetFocus, PlayedTargetLayout, PlayedTargetModel,
 } from '@/client/console/played/consolePlayedTargetModel';
 import {
@@ -454,7 +454,7 @@ export default defineComponent({
       const step = this.$refs.targetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
       const cells = step?.cells?.() ?? [];
       const at = this.targetFocus;
-      const next = at === undefined ? undefined : stepPlayedTargetFocusAt(at, dir, cells);
+      const next = at === undefined ? undefined : stepPlayedTargetFocusVia(step, at, dir, cells);
       if (next !== undefined) {
         this.focus = next;
         // The step's own viewport keeps the cursored candidate in view — the

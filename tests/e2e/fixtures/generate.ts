@@ -12969,7 +12969,7 @@ wgProjectFixture('wg-project-aquifer', {
 //      · `applied-science-many`    — 6 science, EIGHT holders: the slot's row of candidates;
 //      · `applied-science-last`    — 1 science, Birds 1: after the action the tile is blocked «0 of 1 science».
 //    A DRY RUN on a copy proves the OR's shape and the candidate set. ──
-function appliedScienceFixture(name: string, variant: 'holders' | 'none' | 'sole' | 'many' | 'last'): void {
+function appliedScienceFixture(name: string, variant: 'holders' | 'none' | 'sole' | 'many' | 'crowd' | 'last'): void {
   const [game, p1, p2] = testGame(2, {
     skipInitialCardSelection: false, venusNextExtension: true, prelude2Expansion: true,
     customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
@@ -12995,6 +12995,13 @@ function appliedScienceFixture(name: string, variant: 'holders' | 'none' | 'sole
   } else if (variant === 'many') {
     for (const n of [CardName.BIRDS, CardName.DIRIGIBLES, CardName.TARDIGRADES, CardName.FISH, CardName.LIVESTOCK,
       CardName.ANTS, CardName.DECOMPOSERS, CardName.REGOLITH_EATERS]) {
+      take(n, 1);
+    }
+  } else if (variant === 'crowd') {
+    // THIRTEEN holders — the owner's 4K frame had twelve: the target selector's PAGES (2026-11-02).
+    for (const n of [CardName.BIRDS, CardName.DIRIGIBLES, CardName.TARDIGRADES, CardName.FISH, CardName.LIVESTOCK,
+      CardName.ANTS, CardName.DECOMPOSERS, CardName.REGOLITH_EATERS, CardName.PETS, CardName.SMALL_ANIMALS,
+      CardName.PREDATORS, CardName.ECOLOGICAL_ZONE, CardName.FLOATING_HABS]) {
       take(n, 1);
     }
   }
@@ -13034,4 +13041,5 @@ appliedScienceFixture('applied-science-holders', 'holders');
 appliedScienceFixture('applied-science-none', 'none');
 appliedScienceFixture('applied-science-sole', 'sole');
 appliedScienceFixture('applied-science-many', 'many');
+appliedScienceFixture('applied-science-crowd', 'crowd');
 appliedScienceFixture('applied-science-last', 'last');
