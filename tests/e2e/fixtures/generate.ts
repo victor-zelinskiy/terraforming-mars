@@ -278,6 +278,7 @@ import {UnmiLiner} from '../../../src/server/cards/turmoilRedux/UnmiLiner';
 import {VenusTradeHub} from '../../../src/server/cards/prelude2/VenusTradeHub';
 import {NeptunianPowerConsultants} from '../../../src/server/cards/promo/NeptunianPowerConsultants';
 import {SubterraneanReservoir} from '../../../src/server/cards/base/SubterraneanReservoir';
+import {LagrangeObservatory} from '../../../src/server/cards/base/LagrangeObservatory';
 import {EarthArmyContract} from '../../../src/server/cards/turmoilRedux/EarthArmyContract';
 import {SpaceshipRecycling} from '../../../src/server/cards/turmoilRedux/SpaceshipRecycling';
 import {FormulaZero} from '../../../src/server/cards/turmoilRedux/FormulaZero';
@@ -3271,6 +3272,34 @@ parliamentFixture('npc-ocean-greens', {
       throw new Error(`the npc-ocean-greens fixture expected Neptunian on the table, the reservoir in hand, room for an ocean, 40 M€ and the Greens ruling with their effect — got mc=${p1.megaCredits} ruling=${parliament.rulingParty()} greens=${parliament.hasPartyEffect(p1, PartyName.GREENS)}`);
     }
     parliament.assertLedger(game);
+  },
+});
+
+// ── npc-remote-ocean-draw: THE FOREIGN DECISION A PLAY'S CLAIM ADOPTED (the owner's field lock of 2026-11-02 —
+//    «при розыгрыше "Обсерватории Лагранжа" после забора карты workspace завис и его даже нельзя закрыть»). Blue's
+//    SECOND action is Lagrange Observatory (draw 1): the turn passes to red while the drawn card is still landing in the
+//    hand blue played from; red's ocean (Subterranean Reservoir) then wakes blue's Neptunian Power Consultants — a
+//    decision of ANOTHER seat's causal chain, asked of blue while the play's claim still stands. ──
+parliamentFixture('npc-remote-ocean-draw', {
+  stopAt: 'vote',
+  megacredits: [40, 30],
+  arrange: ({game, p1, p2}) => {
+    game.colonies = [new Luna(), new Europa(), new Callisto(), new Ceres(), new Io(), new Miranda()];
+    p1.playedCards.push(new NeptunianPowerConsultants());
+    p1.cardsInHand.push(new LagrangeObservatory());
+    p1.steel = 0;
+    p1.titanium = 0;
+    p1.actionsTakenThisRound = 1;
+    p2.cardsInHand.push(new SubterraneanReservoir());
+    p2.steel = 0;
+    // Red's corporation's first action is not the subject — its turn opens straight on the action menu.
+    p2.pendingInitialActions = [];
+  },
+  expect: ({game, p1, p2}) => {
+    if (!p1.playedCards.has(CardName.NEPTUNIAN_POWER_CONSULTANTS) || !p1.cardsInHand.some((c) => c.name === CardName.LAGRANGE_OBSERVATORY) ||
+        !p2.cardsInHand.some((c) => c.name === CardName.SUBTERRANEAN_RESERVOIR) || !game.canAddOcean() || p1.actionsTakenThisRound !== 1) {
+      throw new Error(`the npc-remote-ocean-draw fixture expected Neptunian + Lagrange with blue, the reservoir with red, room for an ocean and blue on its second action — got actions=${p1.actionsTakenThisRound}`);
+    }
   },
 });
 

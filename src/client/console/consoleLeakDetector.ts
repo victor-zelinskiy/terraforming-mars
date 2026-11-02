@@ -516,7 +516,12 @@ function promptHeldReason(view: PlayerViewModel, task: ConsoleTask | undefined, 
  * 4. THE SCREEN SHADOW (`screenDirector.ts`, phase 0) — the shell's half of the input: is the question the START's
  * (the start director judges the opening), and which admission block holds the prompt's surface ('' = none).
  */
-export type ScreenShadowContext = {startOwned: boolean, admission: string};
+export type ScreenShadowContext = {
+  startOwned: boolean,
+  admission: string,
+  /** The announce gate's beat: none · announced but not yet presented · PRESENTED (its plate / beacon owed on screen). */
+  announce?: 'none' | 'pending' | 'presented',
+};
 let screenShadowContext: (() => ScreenShadowContext) | undefined;
 export function registerScreenShadowContext(supplier: (() => ScreenShadowContext) | undefined): void {
   screenShadowContext = supplier;
@@ -671,13 +676,18 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
   }
   const hold = promptHeldReason(view, task, {anyHold: false});
   const {present, beats} = screenProbe();
+  // A BLIND announce: the gate holds a decision it has already PRESENTED, and neither its plate nor the chip's beacon
+  // paints — the question waits behind a door nobody can see (the Lagrange Observatory field lock, 2026-11-02).
+  const blind = hold === 'announce-gate' && ctx.announce === 'presented' && !beats.includes('.con-mandatory') &&
+    ![...document.querySelectorAll('.con-status__beacon')].some((el) => paints(el)) ? 'announce-gate' : '';
   const verdict = screenShadowVerdict({
     task,
     startOwned: false,
     frameServes: workspacesServing(task.kind),
     host: flowHost(),
     boardBranch: consoleTaskSpacePlacement,
-    held: hold !== '' ? hold : ctx.admission !== '' ? `admit:${ctx.admission}` : '',
+    held: blind !== '' ? '' : hold !== '' ? hold : ctx.admission !== '' ? `admit:${ctx.admission}` : '',
+    blind,
     present,
     beats,
   });
@@ -688,7 +698,7 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
     return;
   }
   const prompt = screenPromptToken(task, wf.promptId);
-  const signature = `${verdict.kind}|${present.join(',')}|${prompt}`;
+  const signature = `${verdict.kind}|${present.join(',')}|${prompt}|${blind}`;
   screenStreak = advanceScreenShadowStreak(screenStreak, signature);
   if (screenStreak.signature !== screenShadowStanding.signature) {
     clearScreenShadowStanding();
@@ -704,9 +714,11 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
     routerDoor: SHELL_SECTION_KINDS.has(task.kind),
     parkServes: workspaceStackCollapsed() && workspaceStackState.parked.some((fr) => fr.serves.includes(task.kind)),
     deferred: consoleTaskDeferred,
+    blind,
   });
   const finding: ScreenShadowFinding = {
     kind: verdict.kind, expected: verdict.expected, present, prompt, at: Date.now(), cure: `plan:${screenCurePlanText(plan)}`,
+    ...(blind !== '' ? {blind} : {}),
   };
   if (recordScreenShadowFinding(finding)) {
     const frames = workspaceStackState.frames.map((fr) => fr.kind);

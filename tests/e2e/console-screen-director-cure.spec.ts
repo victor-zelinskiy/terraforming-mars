@@ -111,7 +111,7 @@ test.describe('the screen director\'s cure — step 4, prepared', () => {
     test.setTimeout(300_000);
     const lines = listen(page);
     await liveColonyPick(page, request, QUERY);
-    expect((await readout(page)).cure.armed, 'nothing is armed without the URL').toEqual([]);
+    expect((await readout(page)).cure.armed, 'without the URL only the owner\'s armed class — the blind announce').toEqual(['announce']);
 
     await control(page, 'standWorkspace', 'card-actions');
     await expect.poll(async () => (await findingOf(page, 'unserved'))?.cure ?? '',

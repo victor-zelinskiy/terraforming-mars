@@ -145,6 +145,14 @@ export const mandatoryGateState = reactive({
    */
   presentedKey: '' as string,
   /**
+   * The key of the beat whose chip BEACON the screen director lit (`forceMandatoryBeacon`): a presented decision whose
+   * announcement stood nowhere — no plate (the player is not on the board home) and no beacon (a surface wrongly
+   * counted as serving it). The beacon is the existing reminder and only that: it opens nothing, acknowledges nothing,
+   * and the player answers when they choose (A on the plate once the screen they stand in is done). As durable as the
+   * beat it names (`noteMandatoryBeatIdentity`).
+   */
+  beaconKey: '' as string,
+  /**
    * A live mirror of the shell's `mandatoryGateHeld` computed. The leak detector
    * runs on a 1 s timer and cannot recompute the shell signals (reveal state /
    * forced-reaction / taskFor), so the shell keeps this in sync and the detector
@@ -361,6 +369,16 @@ export function markMandatoryBeatPresented(key: string): void {
   mandatoryGateState.presentedKey = key;
 }
 
+/** The screen director's cure for a BLIND announce: light the chip's beacon for this beat (never open it). */
+export function forceMandatoryBeacon(key: string): void {
+  mandatoryGateState.beaconKey = key;
+}
+
+/** Is the beacon of this beat lit by the director? PURE. */
+export function isMandatoryBeaconForced(beat: MandatoryBeat | undefined): boolean {
+  return beat !== undefined && beat.key === mandatoryGateState.beaconKey;
+}
+
 /**
  * The current beat IDENTITY changed (a different key, or no beat at all) —
  * called by the shell's beat-key watcher. Latches referring to a beat that no
@@ -380,6 +398,9 @@ export function noteMandatoryBeatIdentity(currentKey: string | undefined): void 
   if (mandatoryGateState.presentedKey !== '' && mandatoryGateState.presentedKey !== currentKey) {
     mandatoryGateState.presentedKey = '';
   }
+  if (mandatoryGateState.beaconKey !== '' && mandatoryGateState.beaconKey !== currentKey) {
+    mandatoryGateState.beaconKey = '';
+  }
 }
 
 /**
@@ -397,4 +418,5 @@ export function noteMandatoryBeatIdentity(currentKey: string | undefined): void 
 export function resetMandatoryGate(): void {
   mandatoryGateState.acknowledgedKey = '';
   mandatoryGateState.presentedKey = '';
+  mandatoryGateState.beaconKey = '';
 }

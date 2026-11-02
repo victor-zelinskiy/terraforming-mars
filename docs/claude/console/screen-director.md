@@ -296,3 +296,53 @@ a cure needs is in place and proven, and the arming is one switch per class.
 
 **Gate G4 per class**, unchanged: the class's stand green, a whole-suite run filing no APPLIED cure off a control, the
 field (G3) agreeing.
+
+## Step 4 — the FIRST CLASS ARMED (2026-11-02): the BLIND ANNOUNCE
+The owner's field lock of 2026-11-02 (game-pdb745eb, «при розыгрыше «Обсерватории Лагранжа» после забора карты
+workspace завис и его даже нельзя закрыть», and: «механизм нужен в продакшене как можно скорее»).
+
+**The chain.**
+1. Lagrange Observatory was blue's SECOND action. The turn passed while its drawn card was still landing in the hand.
+2. The bot placed an ocean, and blue's Neptunian Power Consultants asked «pay 5 M€?» off-turn.
+3. The play's optimistic `effect` claim was still alive — its draw kept it — and adopted that FOREIGN decision as its
+   stage «ЭФФЕКТ».
+4. Asked off-turn, the decision was ANNOUNCED. The plate stands only on the board home, and the chip's beacon was
+   suppressed: `promptServedWhereIStand` counted ANY presenting claim as «the question is here», even a claim presenting
+   its own draw while the question belonged to nobody in it.
+
+The question was held behind a door nobody could see: `hand:committed` + `announce-gate` for minutes. The shadow judged
+it `agree hand@host`, and the liveness arbiter `accepting`.
+
+**Three fixes.** The owner set the direction (2026-11-02): «зачем принудительно показывать промт поверх workspace с
+добором карты? Достаточно резолвить на уровне чипов: игрок увидит, что его чип мигает — значит от него ожидается
+решение». The question opens when the player chooses, never over the screen they are reading — focus control and
+anti-spam are the console's own rules.
+- **The root** (`consoleWorkspaceOutcome.closeWorkspaceOutcomeChain`). A press's chain ends at either structural end:
+  the server asks the viewer NOTHING (the turn left them), or asks them in the action phase while ANOTHER seat is
+  active (`viewerAskedOffTurn` — narrower than the strip's «forcedaction», which also covers the political and solar
+  phases where a law's live play legitimately hosts its own effect). From there a claim keeps its ARTIFACTS (`draw`,
+  `deck-check`) and admits no QUESTION (`pick` · `effect` · `venus-bonus`). The effect ownership and the late adoption
+  (`adoptPlayEffectDecision`) refuse an off-turn decision outright. Stand: `console-foreign-decision-play-claim`
+  (fixture `npc-remote-ocean-draw` — red's ocean over the API the moment blue's turn passes). Red before (the field's
+  empty hand, reproduced); green after: the question is ANNOUNCED where the player stands (the beacon over the hand,
+  never opened over it) and answered by the player's own road.
+- **The beacon** (`ConsoleShell.promptOwnedByClaim`). A claim is «here» only for a prompt it OWNS (its task, its effect
+  decision, its Venus bonus, its deck pick). A foreign question raised while the claim presents its own cards lights
+  the chip's beacon — the existing reminder — and the player answers once the screen they stand in is done.
+- **The net — the BLIND hold** (`ScreenShadowInput.blind`). The announce gate holds a decision it has already
+  PRESENTED (`ScreenShadowContext.announce: 'presented'`), and neither its plate (`.con-mandatory`) nor the chip's
+  beacon (`.con-status__beacon`) paints. That hold explains nothing to the player, so it is never `held` and never a
+  host's step: it is a finding with `blind: 'announce-gate'`. A row owner painting still agrees; the blind check comes
+  after `byRow` / `byServes`. The cure is the new verb **`announce`** → the chip's BEACON lit
+  (`consoleMandatoryGate.forceMandatoryBeacon` — a latch as durable as its beat). It never presses the plate's A: it
+  opens nothing and answers nothing, it makes the announcement VISIBLE. (A first cut pressed A for the player; the
+  owner rejected it the same day — a question forced open over the draw the player is taking breaks focus control.)
+
+  **ARMED BY DEFAULT** (`SCREEN_CURE_DEFAULT_ARMED = ['announce']`). A URL's `screenCure=` names its own set (`none` =
+  nothing). `open` / `restore` / `yield` stay planned only.
+
+  Proof:
+  - `screenShadow.spec` § the cure — BLIND ANNOUNCE lights the beacon; a painted plate and a pending (not yet
+    presented) beat are held;
+  - `consoleMandatoryGate.spec` — the director's beacon opens nothing (the beat stays held) and dies with its beat;
+  - `screenDirector.spec` — the plan, the verdict, the default arming.

@@ -47,6 +47,7 @@ describe('screen shadow — positive controls through the leak detector', () => 
   let realWarn: typeof console.warn;
   let admission = '';
   let startOwned = false;
+  let announce: 'none' | 'pending' | 'presented' = 'none';
 
   /** A node with layout — what the probe counts as PAINTED. */
   function paint(cls: string): HTMLElement {
@@ -72,7 +73,8 @@ describe('screen shadow — positive controls through the leak detector', () => 
     expireActiveAnimationHolds();
     admission = '';
     startOwned = false;
-    registerScreenShadowContext(() => ({startOwned, admission}));
+    announce = 'none';
+    registerScreenShadowContext(() => ({startOwned, admission, announce}));
     warns.length = 0;
     realWarn = console.warn;
     console.warn = (...args: Array<unknown>) => {
@@ -261,6 +263,39 @@ describe('screen shadow — positive controls through the leak detector', () => 
       paint('con-hand');
       passes(handSelectView(), 1);
       expect(screenShadowStanding.plan).eq(undefined);
+    });
+
+    /*
+     * THE BLIND ANNOUNCE (the Lagrange Observatory field lock, 2026-11-02): the gate holds a decision it already
+     * PRESENTED, the hand stands committed as the flow's host, and neither the plate nor the chip's beacon paints. The
+     * hold explains nothing and the host shows nothing — a finding, cured by lighting the chip's beacon (armed by default) — never by opening the question.
+     */
+    it('BLIND ANNOUNCE: a presented gate with no plate and no beacon is a finding — not held, not the host\'s — and the director lights the chip\'s beacon (never opens it)', () => {
+      screenCureArming.armed = new Set(['announce']);
+      enterWorkspace('card-actions');
+      setWorkspaceFramePhase('card-actions', 'committed');
+      paint('con-cardactions');
+      setMandatoryGateHeld(true);
+      announce = 'presented';
+      passes(handSelectView(), SCREEN_SHADOW_CONFIRM_TICKS);
+      expect(screenShadowLog.findings[0]).deep.include({kind: 'misserved', present: ['card-actions'], blind: 'announce-gate'});
+      expect(calls.map((p) => p.verb), 'the beacon, never the plate\'s A').deep.eq(['announce']);
+      expect(screenShadowLog.findings[0]?.cure).eq('cure:announce:forceMandatoryBeacon');
+    });
+
+    it('…but a gate whose plate paints, or one not yet presented, is a legitimate hold', () => {
+      screenCureArming.armed = new Set(['announce']);
+      enterWorkspace('card-actions');
+      setWorkspaceFramePhase('card-actions', 'committed');
+      paint('con-cardactions');
+      setMandatoryGateHeld(true);
+      announce = 'pending';
+      passes(handSelectView(), SCREEN_SHADOW_CONFIRM_TICKS + 1);
+      announce = 'presented';
+      paint('con-mandatory');
+      passes(handSelectView(), SCREEN_SHADOW_CONFIRM_TICKS + 1);
+      expect(screenShadowLog.findings, 'held by an announce the player can see (or is about to)').length(0);
+      expect(calls).deep.eq([]);
     });
 
     it('a question the player SET ASIDE is never planned at all — it is held, not stranded', () => {

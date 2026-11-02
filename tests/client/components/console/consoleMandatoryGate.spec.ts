@@ -8,6 +8,8 @@ import {
   acknowledgeMandatoryBeat,
   markMandatoryBeatPresented,
   noteMandatoryBeatIdentity,
+  forceMandatoryBeacon,
+  isMandatoryBeaconForced,
   resetMandatoryGate,
   setMandatoryGateHeld,
   isMandatoryGateHeld,
@@ -254,6 +256,21 @@ describe('consoleMandatoryGate (the mandatory announcement gate)', () => {
       markMandatoryBeatPresented(draft.key);
       noteMandatoryBeatIdentity(draft.key);
       expect(isMandatoryBeatPresented(draft)).to.be.true;
+    });
+
+    it('the DIRECTOR\'S BEACON (a blind announce) lights the reminder only — it opens nothing and dies with its beat', () => {
+      const decision = {key: 'task:or|npc', taskKind: 'choice'} as const;
+      markMandatoryBeatPresented(decision.key);
+      forceMandatoryBeacon(decision.key);
+      expect(isMandatoryBeaconForced(decision)).to.be.true;
+      expect(isMandatoryBeatHeld(decision), 'still held: the player opens it, never the director').to.be.true;
+      noteMandatoryBeatIdentity(decision.key);
+      expect(isMandatoryBeaconForced(decision), 'as durable as its beat').to.be.true;
+      noteMandatoryBeatIdentity(undefined);
+      expect(isMandatoryBeaconForced(decision), 'gone with the answered beat').to.be.false;
+      forceMandatoryBeacon(decision.key);
+      resetMandatoryGate();
+      expect(isMandatoryBeaconForced(decision)).to.be.false;
     });
   });
 });

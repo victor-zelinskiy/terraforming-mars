@@ -2807,7 +2807,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // Colony polish 1 — several settlements on Pluto («draw 1, then discard 1» per settlement): blue trades with 2 / 3
   // of its own cubes there (a hand of three); `-foreign` red trades (blue owns 2, a hand of three); `-empty-hand` the
   // same foreign table with blue's hand empty (each cycle's discard decides itself).
-  'pluto-settlements-2' | 'pluto-settlements-3' | 'pluto-settlements-foreign' | 'pluto-settlements-empty-hand' | 'miranda-remote-bonus' | 'law-suit-live' | 'npc-ocean-greens' |
+  'pluto-settlements-2' | 'pluto-settlements-3' | 'pluto-settlements-foreign' | 'pluto-settlements-empty-hand' | 'miranda-remote-bonus' | 'law-suit-live' | 'npc-ocean-greens' | 'npc-remote-ocean-draw' |
   // Colony polish 2 — the WIDE tables: 3 income cards + 2 places (the owner's 4K frame), 4 income cards + 3 places.
   'pluto-settlements-2-wide' | 'pluto-settlements-3-wide' |
   'play-scale-card' | 'effect-forecast' |

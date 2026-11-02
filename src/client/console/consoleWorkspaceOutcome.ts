@@ -751,6 +751,45 @@ export function releaseWorkspaceOutcome(reason = 'unspecified', opts?: {force?: 
   return true;
 }
 
+/** The kinds a claim holds for a QUESTION the press's chain may still ask — never an artifact already on its way. */
+const CHAIN_QUESTION_KINDS: ReadonlySet<WorkspaceOutcomeKind> = new Set<WorkspaceOutcomeKind>(['pick', 'effect', 'venus-bonus']);
+
+/**
+ * THE PRESS'S CHAIN IS OVER — the claim keeps its ARTIFACTS, never its QUESTIONS (the owner's field lock of
+ * 2026-11-02, game-pdb745eb: «Обсерватория Лагранжа» as the second action).
+ *
+ * A `'chain'` claim answers for one press's causal chain, and the window it was designed for is one submit wide. Its
+ * ARTIFACTS legitimately outlive that window — the drawn card still flying into the hand keeps the claim alive — and
+ * that is exactly how its QUESTION kinds outlived it too: the turn passed (the server asked the player nothing),
+ * another seat placed an ocean, and the player's Neptunian Power Consultants asked «pay 5 M€?» — a decision of ANOTHER
+ * seat's chain, adopted as the play's stage «ЭФФЕКТ». Asked off-turn, it was announced (the plate waits for A), the
+ * plate stands only on the board home, the workspace «served» the question, so nothing ever showed it: an empty
+ * committed hand with no way out.
+ *
+ * The server asks a player one thing at a time and asks every question of their own chain BEFORE the turn leaves
+ * them, so «the server asks nothing» and «the server asks off-turn» are the two structural ends of the chain. From
+ * either on, the claim admits no question (`pick` · `effect` · `venus-bonus`); its draws / verdict still land where
+ * they were going. Returns whether anything was dropped.
+ */
+export function closeWorkspaceOutcomeChain(reason: string): boolean {
+  if (workspaceOutcomeState.sourceCard === '') {
+    return false;
+  }
+  const kept = workspaceOutcomeState.kinds.filter((k) => !CHAIN_QUESTION_KINDS.has(k));
+  if (kept.length === workspaceOutcomeState.kinds.length) {
+    return false;
+  }
+  workspaceOutcomeState.kinds = kept;
+  lastChainClose = `${reason} @${typeof performance !== 'undefined' ? Math.round(performance.now()) : 0}`;
+  return true;
+}
+
+let lastChainClose = '';
+/** Diagnostics: why and when the last claim's chain was closed. */
+export function workspaceOutcomeLastChainClose(): string {
+  return lastChainClose;
+}
+
 /** Is ANY workspace holding a claim right now? */
 export function workspaceOutcomeClaimed(): boolean {
   return workspaceOutcomeState.sourceCard !== '';

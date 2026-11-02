@@ -1847,7 +1847,7 @@ import {
   WorkspaceFrameKind,
 } from '@/client/console/consoleWorkspaceStack';
 import {acceptsInput, isCommitted, workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
-import {installConsoleReadinessProbe} from '@/client/console/e2eReadiness';
+import {installConsoleReadinessProbe, registerReadinessDecisionDiag} from '@/client/console/e2eReadiness';
 import {
   beginStdProjectSubmit,
   markStdProjectCommit,
@@ -2029,7 +2029,7 @@ import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/st
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
 import {cancelResponse, cardsResponse, colonyResponse, orOptionResponse, orWrappedResponse} from '@/client/console/taskResponses';
 import {leakDetectorState, registerScreenCureExecutor, registerScreenShadowContext, runScreenCure, screenShadowStanding, startConsoleLeakDetector, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskHandoffPending, setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
-import {ScreenCurePlan, parseScreenCureArming, resetScreenShadowLog, screenCureArming, screenCurePlanText, screenShadowLog} from '@/client/console/screenDirector';
+import {ScreenCurePlan, resetScreenShadowLog, screenCureArming, screenCureArmingFor, screenCurePlanText, screenShadowLog} from '@/client/console/screenDirector';
 import {armSceneDestination, clearGameExitTarget, deferSceneReveal, loadingScreenState, registerGameExitTarget, sceneTransitionInputLocked} from '@/client/console/loadingScreenState';
 import {paths} from '@/common/app/paths';
 import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
@@ -2050,7 +2050,7 @@ import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/clien
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {revealSourcePeekState} from '@/client/console/revealSourcePeek';
 import {endPreludePlayChain, preludeChainHoldsClaim, preludeChainOwesHand, preludeChainYieldsToBoard, preludePlayChainState} from '@/client/console/deckPick/preludePlayChain';
-import {workspaceClaimsColonyRevealBatch, workspaceClaimsVenusBonus, workspaceClaimsDrawRevealBatch, workspaceClaimsRevealBatch, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
+import {closeWorkspaceOutcomeChain, workspaceClaimsColonyRevealBatch, workspaceClaimsVenusBonus, workspaceClaimsDrawRevealBatch, workspaceClaimsRevealBatch, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkPending, boardBeatParkState, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
 import {rulingChangeParksReveal} from '@/client/console/parliament/rulingChangeDraw';
@@ -2254,7 +2254,7 @@ import {
   MandatoryFlowBeat,
   mandatoryBeatFor,
   isMandatoryBeatHeld,
-  isMandatoryBeatPresented,
+  isMandatoryBeatPresented, forceMandatoryBeacon, isMandatoryBeaconForced,
   acknowledgeMandatoryBeat,
   markMandatoryBeatPresented,
   noteMandatoryBeatIdentity,
@@ -3874,7 +3874,9 @@ export default defineComponent({
      * would SUPPRESS the standalone band and leave the prompt nowhere.
      */
     effectDecisionBelongsToWorkspace(): boolean {
-      return workspaceClaimsEffect() && this.rawEffectDecisionVm !== undefined;
+      // …and never a decision asked OFF the player's turn: that is another seat's chain (a rival's ocean waking the
+      // viewer's Neptunian Power Consultants), whatever claim happens to be landing its cards (`closeWorkspaceOutcomeChain`).
+      return workspaceClaimsEffect() && this.rawEffectDecisionVm !== undefined && !this.viewerAskedOffTurn;
     },
     /** Claimed but not ready → render NOWHERE for the gap frame, never in a
      *  band of our own for one frame and somewhere else the next. The BEAT is
@@ -6115,6 +6117,19 @@ export default defineComponent({
      * opponent's card forcing a SelectPlayer / production loss); the viewer's
      * OWN turn continuations stay `turn` and open immediately.
      */
+    /** The server asks the viewer NOTHING — the turn has left them (the end of their press's chain). */
+    viewerAskedNothing(): boolean {
+      return this.playerView.waitingFor === undefined;
+    },
+    /**
+     * The server asks the viewer in the ACTION phase while ANOTHER seat is active — a reaction to that seat's move (a
+     * rival's ocean waking the viewer's Neptunian Power Consultants), never a stage of the viewer's own press. Narrower
+     * than the strip's «forcedaction» on purpose: that label also covers the political phase and the solar phase, where
+     * nobody's turn is running and a law's live play from the hand legitimately hosts its own woken effect.
+     */
+    viewerAskedOffTurn(): boolean {
+      return this.playerView.waitingFor !== undefined && this.game.phase === Phase.ACTION && this.thisPlayer?.isActive !== true;
+    },
     viewerForcedReaction(): boolean {
       const label = actionLabelForPlayer(this.playerView, this.thisPlayer, liveWaitingSignal(this.waitingOnPlayers));
       // The FINALE is a forced reaction for the gate's purposes: the player was idle through production, so its
@@ -6385,7 +6400,9 @@ export default defineComponent({
       // second opinion about the chip's status to offer.
       return this.mandatoryActionPresented &&
         !this.mandatoryAnnounceVisible &&
-        !this.promptServedWhereIStand;
+        // THE DIRECTOR'S BEACON (a BLIND announce — `forceMandatoryBeacon`): lit even where a surface claims to serve it,
+        // because the director has just seen that nothing does.
+        (!this.promptServedWhereIStand || isMandatoryBeaconForced(this.mandatoryBeat));
     },
     /**
      * IS THE PLAYER STANDING WHERE THE PROMPT IS ANSWERED?
@@ -6409,8 +6426,18 @@ export default defineComponent({
     promptServedWhereIStand(): boolean {
       return this.shellTaskOnSurface ||
         (workspaceOutcomeState.host !== undefined &&
-          workspaceOutcomeState.stage === 'presenting') ||
+          workspaceOutcomeState.stage === 'presenting' && this.promptOwnedByClaim) ||
         this.promptServedByStandingFrame;
+    },
+    /**
+     * …and a claim is «here» only for a prompt it OWNS. Presenting its own draw says nothing about a question another
+     * seat's move raised meanwhile: counted as «here», the beacon stayed dark over a question no surface showed (the
+     * field lock of 2026-11-02 — a rival's ocean woke Neptunian Power Consultants while the Lagrange Observatory card
+     * was still landing in the hand; the plate stands only on the board home, so the decision was announced nowhere).
+     */
+    promptOwnedByClaim(): boolean {
+      return this.taskBelongsToWorkspace || this.effectDecisionBelongsToWorkspace ||
+        this.venusBonusBelongsToWorkspace || this.deckPickBelongsToWorkspace;
     },
     /**
      * THE THIRD HONEST FORM OF «здесь»: a workspace that is ON SCREEN and is
@@ -11226,6 +11253,21 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * THE PRESS'S CHAIN IS OVER at either structural end — the server asks the viewer nothing (the turn left them), or
+     * asks them in the action phase while another seat is active (another seat's chain — `viewerAskedOffTurn`). From there a standing claim keeps its artifacts (the drawn card still
+     * landing) and admits no question (the field lock of 2026-11-02 — `closeWorkspaceOutcomeChain`).
+     */
+    viewerAskedNothing(none: boolean): void {
+      if (none) {
+        closeWorkspaceOutcomeChain('server-asks-nothing');
+      }
+    },
+    viewerAskedOffTurn(offTurn: boolean): void {
+      if (offTurn) {
+        closeWorkspaceOutcomeChain('asked-off-turn');
+      }
+    },
     /** THE PRESENCE LATCH (`consolePromptAdmission` § ENTRY IS NOT PRESENCE): a family admitted for the prompt keeps it. */
     promptPresenceEntries(entries: string): void {
       for (const surface of entries.split(',')) {
@@ -21709,6 +21751,16 @@ export default defineComponent({
         this.restoreDeferredTask();
         return 'the parked chain restored';
       }
+      if (plan.verb === 'announce') {
+        // The ANNOUNCEMENT made visible — the chip's beacon, the existing reminder. Never the plate's A: the question
+        // opens when the player chooses (the screen they stand in done, A on the plate), never over a draw they take.
+        const beat = this.mandatoryBeat;
+        if (!this.mandatoryGateHeld || beat === undefined || isMandatoryBeaconForced(beat)) {
+          return '';
+        }
+        forceMandatoryBeacon(beat.key);
+        return `the chip's beacon lit for «${task.kind}»`;
+      }
       if (plan.verb === 'open') {
         this.openShellTaskSurface(task);
         return `the router's door opened for «${task.kind}»`;
@@ -21830,7 +21882,8 @@ export default defineComponent({
      * names its stage now (it opened when nothing owned it, so it named none).
      */
     adoptPlayEffectDecision(): void {
-      if (workspaceOutcomeClaimed() || this.rawEffectDecisionVm === undefined ||
+      // A decision asked OFF the turn is another seat's chain — never the play's next stage.
+      if (workspaceOutcomeClaimed() || this.rawEffectDecisionVm === undefined || this.viewerAskedOffTurn ||
           !isCommitted(workspaceFramePhase('hand') ?? 'browse')) {
         return;
       }
@@ -25384,8 +25437,18 @@ export default defineComponent({
     // THE SCREEN SHADOW (`screenDirector.ts`, phase 0) — the leak detector's 1 Hz pass judges every question past the
     // opening; the shell supplies what only it knows (the start owns the opening; the admission block on the surface).
     resetScreenShadowLog();
-    // STEP 4, PREPARED — nothing is armed unless a stand asks (`?screenCure=open,restore,yield` / `all`).
-    screenCureArming.armed = parseScreenCureArming(new URLSearchParams(window.location.search).get('screenCure'));
+    registerReadinessDecisionDiag(() => ({
+      raw: this.rawEffectDecisionVm !== undefined, vm: this.effectDecisionVm !== undefined,
+      belongs: this.effectDecisionBelongsToWorkspace, heldForWorkspace: this.effectDecisionHeldForWorkspace,
+      active: this.effectDecisionActive, rendered: this.effectDecisionRendered,
+      askedNothing: this.viewerAskedNothing, offTurn: this.viewerAskedOffTurn,
+      gateHeld: this.mandatoryGateHeld, presented: this.mandatoryActionPresented, plate: this.mandatoryAnnounceVisible,
+      beacon: this.mandatoryChipAttention, servedHere: this.promptServedWhereIStand, ownedByClaim: this.promptOwnedByClaim,
+      hostBlock: this.playerView.waitingFor === undefined ? '' : promptAdmissionBlock('host', this.admissionSignals) ?? '',
+    }));
+    // STEP 4 — the owner's armed classes (`SCREEN_CURE_DEFAULT_ARMED`: the blind announce); a stand names its own set
+    // (`?screenCure=open,restore,yield,announce` / `all` / `none`).
+    screenCureArming.armed = screenCureArmingFor(new URLSearchParams(window.location.search).get('screenCure'));
     registerScreenCureExecutor((plan) => this.runScreenDirectorCure(plan));
     // THE CURE STAND'S SEAM (`?screenControl=1` only): a latch bug put in on purpose — the stack dropped, or a foreign
     // workspace stood up, behind the product's back.
@@ -25398,7 +25461,11 @@ export default defineComponent({
     registerScreenShadowContext(() => {
       const wf = this.playerView.waitingFor;
       const block = wf === undefined ? undefined : promptAdmissionBlock(wf.type === 'space' ? 'placement' : 'host', this.admissionSignals);
-      return {startOwned: this.startSceneMounted, admission: block ?? ''};
+      return {
+        startOwned: this.startSceneMounted,
+        admission: block ?? '',
+        announce: !this.mandatoryGateHeld ? 'none' : isMandatoryBeatPresented(this.mandatoryBeat) ? 'presented' : 'pending',
+      };
     });
     (window as unknown as {__conScreenShadow?: () => unknown}).__conScreenShadow = () => ({
       findings: [...screenShadowLog.findings], judged: screenShadowLog.judged,
@@ -25858,6 +25925,7 @@ export default defineComponent({
     delete (window as unknown as {__conStartShadow?: unknown}).__conStartShadow;
     registerScreenShadowContext(undefined);
     registerScreenCureExecutor(undefined);
+    registerReadinessDecisionDiag(undefined);
     delete (window as unknown as {__conScreenShadow?: unknown}).__conScreenShadow;
     delete (window as unknown as {__conScreenControl?: unknown}).__conScreenControl;
     registerBoardShownDespiteStack(undefined);

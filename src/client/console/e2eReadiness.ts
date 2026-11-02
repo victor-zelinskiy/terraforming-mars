@@ -40,7 +40,7 @@ import {transferTrailTail} from '@/client/console/resourceTransfer/consoleResour
 import {reactionIdentitySnapshot} from '@/client/console/cardReaction/reactionIdentity';
 import {cardReactionState} from '@/client/console/cardReaction/cardReactionStage';
 import {playedHeroState} from '@/client/console/played/consolePlayedHero';
-import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceOutcomeLastChainClose, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkState} from '@/client/console/boardBeatPark';
 import {scaleStepRatingState} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {presentationLedgerSnapshot} from '@/client/console/presentationLedger';
@@ -78,7 +78,15 @@ export type ConsoleReadinessSnapshot = {
   /** The card PLAY's landing scene: its phase and how its SHIPMENT BEAT (the price taken off the rail — PL-107) ended, by name. */
   playedHero: {phase: string, shipment: string, bill: string, host: string};
   /** The workspace OUTCOME claim's gates — who holds it, how far the answer / the beat / the arrival are (an embedded stage swallows presses while `arrivalDone` is false). */
-  outcome: {host: string, stage: string, answerIn: boolean, beatDone: boolean, arrivalDone: boolean, arrivalFlown: boolean};
+  outcome: {host: string, stage: string, answerIn: boolean, beatDone: boolean, arrivalDone: boolean, arrivalFlown: boolean,
+    /** The kinds the claim still admits, and why / when its press's chain was last closed (`closeWorkspaceOutcomeChain`). */
+    kinds: Array<string>, chainClose: string};
+  /**
+   * THE OPTIONAL EFFECT DECISION as the shell sees it (the field lock of 2026-11-02): read off the raw prompt, admitted,
+   * owned by a workspace claim, held for it, rendered — and the announce's own facts (the gate, the presentation, the
+   * beacon, «served here»). Undefined until the shell registers it.
+   */
+  decision?: unknown;
   /**
    * THE SCALES' STORY (PL-778): the camera's phase, the park (draining · the parameters it still holds), the step-rating
    * beat's phase, and every owed presentation story with the reason it still waits — a late token names its cause.
@@ -108,7 +116,9 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
     outcome: {
       host: workspaceOutcomeState.host ?? '', stage: workspaceOutcomeState.stage, answerIn: workspaceOutcomeState.answerIn,
       beatDone: workspaceOutcomeState.beatDone, arrivalDone: workspaceOutcomeState.arrivalDone, arrivalFlown: workspaceOutcomeState.arrivalFlown,
+      kinds: [...workspaceOutcomeState.kinds], chainClose: workspaceOutcomeLastChainClose(),
     },
+    decision: decisionDiag?.(),
     scaleStory: {
       camera: planetFocusState.phase, storyReady: planetFocusState.storyReady,
       draining: boardBeatParkState.draining, held: Object.keys(boardBeatParkState.heldParams ?? {}).join(','),
@@ -117,6 +127,12 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
     },
     at: Date.now(),
   };
+}
+
+let decisionDiag: (() => unknown) | undefined;
+/** The shell's decision facts for the readout (`ConsoleReadinessSnapshot.decision`). */
+export function registerReadinessDecisionDiag(diag: (() => unknown) | undefined): void {
+  decisionDiag = diag;
 }
 
 /** Idempotent; ConsoleShell installs it on mount. */

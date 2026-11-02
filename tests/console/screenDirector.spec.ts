@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {
   ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenShadowInput,
   ROW_REASONS, SCREEN_TABLE_KINDS, UNOBSERVED_SHAPES, advanceScreenShadowStreak, expectedScreenOwners, hostableStep, noteScreenShadowPass, recordScreenShadowFinding,
-  SCREEN_CURE_VERBS, parseScreenCureArming, planScreenCure, resetScreenShadowLog, screenCurePlanText, screenPromptShape, screenPromptToken, screenShadowLog, screenShadowVerdict,
+  SCREEN_CURE_VERBS, parseScreenCureArming, planScreenCure, screenCureArmingFor, resetScreenShadowLog, screenCurePlanText, screenPromptShape, screenPromptToken, screenShadowLog, screenShadowVerdict,
 } from '../../src/client/console/screenDirector';
 import {ConsoleTask} from '../../src/client/console/consoleTaskRouter';
 import * as fs from 'fs';
@@ -229,6 +229,20 @@ describe('screenDirector', () => {
     it('MISSERVED: a foreign surface with no leave verb, and the opening’s own frame, are never touched', () => {
       expect(screenCurePlanText(planScreenCure({...base, kind: 'misserved', present: ['decision', 'colonies']}))).eq('none:no-leave:decision');
       expect(screenCurePlanText(planScreenCure({...base, kind: 'misserved', present: ['start']}))).eq('none:start-director');
+    });
+    it('a BLIND announce (the gate holds a presented decision nobody can see) is cured by lighting the chip\'s beacon — never by opening it', () => {
+      expect(screenCurePlanText(planScreenCure({...base, kind: 'misserved', present: ['hand'], blind: 'announce-gate'}))).eq('announce:forceMandatoryBeacon');
+      expect(screenCurePlanText(planScreenCure({...base, kind: 'unserved', blind: 'announce-gate'}))).eq('announce:forceMandatoryBeacon');
+    });
+    it('the verdict: a blind hold is neither a hold nor the host\'s — a finding with the hold named', () => {
+      const v = screenShadowVerdict({task: {kind: 'choice', flavor: 'contextual'} as ConsoleTask, startOwned: false, frameServes: [], host: 'hand',
+        held: '', blind: 'announce-gate', present: ['hand'], beats: []});
+      expect(v).deep.eq({kind: 'misserved', expected: ['decision', 'task'], blind: 'announce-gate'});
+    });
+    it('the default arming is the owner\'s armed classes; a URL names its own set', () => {
+      expect([...screenCureArmingFor(null)]).deep.eq(['announce']);
+      expect([...screenCureArmingFor('none')]).deep.eq([]);
+      expect([...screenCureArmingFor('open')]).deep.eq(['open']);
     });
     it('a question the player set aside is never cured', () => {
       expect(screenCurePlanText(planScreenCure({...base, kind: 'unserved', routerDoor: true, deferred: true}))).eq('none:deferred');

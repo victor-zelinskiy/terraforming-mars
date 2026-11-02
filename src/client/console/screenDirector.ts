@@ -226,6 +226,13 @@ export type ScreenShadowInput = {
   boardBranch?: boolean;
   /** A named, bounded hold the prompt legitimately waits behind ('' = none). */
   held: string;
+  /**
+   * A hold whose OWN announcement is not on screen ('' = none): the announce gate holds a decision its plate already
+   * presented, and neither the plate nor the chip's beacon paints. Such a hold explains nothing to the player — the
+   * question is held behind a door nobody can see (the field lock of 2026-11-02: an empty committed hand standing for
+   * minutes over a question the gate held). Never `held`, never served by a host: a finding.
+   */
+  blind?: string;
   /** The serving owners PAINTED now (the probe). */
   present: ReadonlyArray<ScreenOwner>;
   /** The transient scenes painted now (a reveal, a hero, a deck deal, the announce card …). */
@@ -243,7 +250,7 @@ export type ScreenShadowVerdict =
    *  FOREIGN surface. The evidence a hold hides — a row the table is missing reads here, never as a finding. */
   | {kind: 'held', reason: string, present: ReadonlyArray<ScreenOwner>}
   | {kind: 'beat', beats: ReadonlyArray<string>, present: ReadonlyArray<ScreenOwner>}
-  | {kind: 'unserved' | 'misserved', expected: ReadonlyArray<ScreenOwner>};
+  | {kind: 'unserved' | 'misserved', expected: ReadonlyArray<ScreenOwner>, blind?: string};
 
 export function screenShadowVerdict(i: ScreenShadowInput): ScreenShadowVerdict {
   if (i.task === undefined) {
@@ -265,6 +272,11 @@ export function screenShadowVerdict(i: ScreenShadowInput): ScreenShadowVerdict {
     return {kind: 'agree', owners: byServes, basis: 'serves'};
   }
   const table = [...new Set<ScreenOwner>([...row, ...i.frameServes])];
+  // A BLIND hold: the question is held behind a door nobody can see — no host stands for it (the host's stage cannot
+  // show a question the gate has not let through), no hold explains it.
+  if (i.blind !== undefined && i.blind !== '') {
+    return {kind: i.present.length === 0 ? 'unserved' : 'misserved', expected: table, blind: i.blind};
+  }
   const host = i.host !== undefined && HOSTABLE[i.task.kind] ? i.host : undefined;
   if (host !== undefined && i.present.includes(host)) {
     return {kind: 'agree', owners: [host], basis: 'host'};
@@ -296,6 +308,8 @@ export type ScreenShadowFinding = {
   at: number;
   /** The cure the director planned (`screenCurePlanText`), prefixed `plan:` (dry run) or `cure:` (armed, executed). */
   cure?: string;
+  /** The hold whose announcement was not on screen (a BLIND hold), if that is what this finding is. */
+  blind?: string;
 };
 
 /**
@@ -425,13 +439,18 @@ export function screenPromptToken(task: ConsoleTask, promptId: number | undefine
  *   · `yield`   — `misserved`, a FOREIGN surface stands: it steps aside through its own leave verb (a workspace — the
  *                 board home, never a park: a parked foreign chain would be what the restore card brings back; the
  *                 generic sheet — the layers close), then the owner's door, if its kind has one;
+ *   · `announce` — a BLIND announce (the gate holds a presented decision, neither its plate nor the chip's beacon
+ *                 paints): the chip's BEACON lit (`forceMandatoryBeacon`) — the reminder that already exists; it opens
+ *                 nothing and answers nothing (the owner, 2026-11-02: never force a question over the screen the player
+ *                 is reading — focus control). ARMED BY DEFAULT since 2026-11-02 («механизм нужен в продакшене как
+ *                 можно скорее», after the Lagrange Observatory field lock);
  *   · `none`    — no honest door: named (`no-door:<owners>` is the worklist of the class, never guessed at).
  */
-export type ScreenCureVerb = 'open' | 'restore' | 'yield';
-export const SCREEN_CURE_VERBS: ReadonlyArray<ScreenCureVerb> = ['open', 'restore', 'yield'];
+export type ScreenCureVerb = 'open' | 'restore' | 'yield' | 'announce';
+export const SCREEN_CURE_VERBS: ReadonlyArray<ScreenCureVerb> = ['open', 'restore', 'yield', 'announce'];
 
 export type ScreenCurePlan =
-  | {verb: 'open' | 'restore', door: string}
+  | {verb: 'open' | 'restore' | 'announce', door: string}
   | {verb: 'yield', door: string, then?: string}
   | {verb: 'none', why: string};
 
@@ -445,6 +464,8 @@ export type ScreenCureInput = {
   parkServes: boolean;
   /** The player set the question aside (the deferred plate) — never cured. */
   deferred: boolean;
+  /** The finding is a BLIND hold (`ScreenShadowInput.blind`). */
+  blind?: string;
 };
 
 const ROUTER_DOOR = 'openShellTaskSurface';
@@ -452,6 +473,11 @@ const ROUTER_DOOR = 'openShellTaskSurface';
 export function planScreenCure(i: ScreenCureInput): ScreenCurePlan {
   if (i.deferred) {
     return {verb: 'none', why: 'deferred'};
+  }
+  // A BLIND announce: the announcement made VISIBLE — the chip's beacon (the existing reminder). Never the plate's A:
+  // the question opens when the player chooses, never over the screen they are reading (the owner, 2026-11-02).
+  if (i.blind === 'announce-gate') {
+    return {verb: 'announce', door: 'forceMandatoryBeacon'};
   }
   if (i.kind === 'unserved') {
     if (i.parkServes) {
@@ -482,10 +508,17 @@ export function screenCurePlanText(plan: ScreenCurePlan): string {
 }
 
 /**
- * THE ARMING — which verbs EXECUTE (everything else is planned and logged). Empty by default; a stand arms a verb with
- * the URL's `screenCure=<verb,verb>` (`all` = every verb). The owner's go turns a verb on here, ONE class at a time.
+ * THE ARMING — which verbs EXECUTE (everything else is planned and logged). The owner's go turns a verb on here, ONE
+ * class at a time (`SCREEN_CURE_DEFAULT_ARMED`); a stand overrides the whole set with the URL's `screenCure=<verb,…>`
+ * (`all` = every verb, `none` = nothing).
  */
-export const screenCureArming: {armed: Set<ScreenCureVerb>} = {armed: new Set<ScreenCureVerb>()};
+export const SCREEN_CURE_DEFAULT_ARMED: ReadonlyArray<ScreenCureVerb> = ['announce'];
+export const screenCureArming: {armed: Set<ScreenCureVerb>} = {armed: new Set<ScreenCureVerb>(SCREEN_CURE_DEFAULT_ARMED)};
+
+/** The armed set for a URL's `screenCure` parameter: absent → the default; present → exactly what it names. */
+export function screenCureArmingFor(query: string | null | undefined): Set<ScreenCureVerb> {
+  return query === null || query === undefined ? new Set<ScreenCureVerb>(SCREEN_CURE_DEFAULT_ARMED) : parseScreenCureArming(query);
+}
 
 export function parseScreenCureArming(query: string | null | undefined): Set<ScreenCureVerb> {
   const out = new Set<ScreenCureVerb>();
