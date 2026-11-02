@@ -1867,86 +1867,154 @@ html.con-profile-handheld {
 .cm-exp__chips,
 .cm-exp__needs { display: none; }
 
-/* ── Map carousel ────────────────────────────────────────────────── */
-.cm-maps {
-    justify-content: center;
-    gap: .7rem;
-}
-.cm-maps__viewport {
-    position: relative;
-    overflow: hidden;
-    /* Tall enough to hold the (scaled 1.05) card — the strip is absolute, so
-       it no longer contributes height. */
-    height: 14.4rem;
-}
-.cm-maps__strip {
-    /* Centred on the VIEWPORT: left edge at 50%, then shifted LEFT by the
-       cursor card's centre (JS `translateX(-Npx)`), so the cursored card
-       always sits under the viewport centre. A translateX *percentage* would
-       be self-relative (the strip is `max-content` ≈ all cards wide) and
-       would fling the strip off-screen — hence the pixel offset. */
-    position: absolute;
-    top: .6rem;
-    left: 50%;
+/* ── Map showcase (P44 · ledger ER) ──────────────────────────────────
+   The «Карта» deck on the grammar of «Мои партии»: a GRID solved from the measured stage (`mapGridPlan` — the columns,
+   the tile, the rows; strict pages on the Deck), never a carousel on a hard-coded slot. The stage is the band's own
+   surface; the tile a plate whose STATE is material — the cursor through the one grammar (`.con-cursor()`), «ТЕКУЩАЯ» a
+   gold KANT, a board the seated bot cannot play receded with its reason; no standing halo (invariant 15). */
+.cm-maps--grid {
     display: flex;
+    flex-direction: column;
     gap: .8rem;
-    width: max-content;
-    transition: transform calc(200ms * var(--motion-scale, 1)) ease;
+    min-height: 0;
+    flex: 1 1 auto;
 }
-.cm-map {
+.cm-maps--wide {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 1.6rem;
+}
+.cm-maps__stage {
     position: relative;
-    width: 11rem;
-    flex-shrink: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 16rem;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: .4rem;
-    padding: .7rem .6rem .6rem;
+    justify-content: center;
+    gap: .6rem;
+}
+.cm-maps__grid {
+    display: grid;
+    gap: 1rem;
+    justify-content: center;
+    align-content: center;
+}
+.cm-map {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .35rem;
+    min-width: 0;
+    padding: .6rem .6rem .5rem;
     border: 0;
-    border-radius: .6rem;
-    background: @con-glass-soft;
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 18%);
+    border-radius: .7rem;
+    .con-stage-plate();
     color: @con-text;
     font-family: inherit;
     cursor: pointer;
-    transition: transform calc(180ms * var(--motion-scale, 1)) ease, box-shadow calc(180ms * var(--motion-scale, 1)) ease;
+    isolation: isolate;
+    .con-cursor(
+        @shadow: inset 0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 90%), 0 .7rem 1.8rem rgba(0, 0, 0, 0.5);
+        @radius: .7rem;
+        @transform: ~"translateY(calc(-.25rem * var(--con-cursor-on))) scale(calc(1 + .02 * var(--con-cursor-on)))";
+        @z: 2;
+    );
 
-    &--cursor {
-        transform: scale(1.05);
-        background: rgba(14, 24, 36, 0.96);
-        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 85%), 0 0 1.2rem fade(@con-cyan, 28%);
-    }
-    &--selected { box-shadow: inset 0 0 0 .1rem fade(@cm-gold, 80%), 0 0 .9rem fade(@cm-gold, 25%); }
-    &--selected&--cursor { box-shadow: inset 0 0 0 .1rem fade(@cm-gold, 95%), 0 0 1.3rem fade(@cm-gold, 40%); }
-    &--conflict { box-shadow: inset 0 0 0 .1rem fade(@con-red, 75%); }
+    /* «ТЕКУЩАЯ» is a KANT — an inset gold hairline, never a halo. */
+    &--selected { box-shadow: inset 0 0 0 .1rem fade(@cm-gold, 85%), 0 .5rem 1.4rem rgba(0, 0, 0, 0.38); }
+    /* A board the seated MarsBot cannot play — receded BEFORE the pick, its reason in the dossier / detail line. */
+    &--botless { opacity: .55; }
+    &--botless.cm-map--cursor { opacity: .85; }
+    &--conflict { box-shadow: inset 0 0 0 .1rem fade(@con-red, 75%), 0 .5rem 1.4rem rgba(0, 0, 0, 0.38); }
 }
+.cm-map--cursor { .con-cursor-on(); }
 .cm-map__thumb {
-    width: 8.4rem;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     pointer-events: none;
+
+    > * { max-height: 100%; }
 }
 .cm-map__name {
-    font-size: .85rem;
+    max-width: 100%;
+    overflow: hidden;
+    font-size: .9rem;
+    font-weight: 600;
     letter-spacing: .07rem;
     text-transform: uppercase;
     text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
-.cm-map__current {
-    padding: .15rem .5rem;
+.cm-map__chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: .3rem;
+    min-height: 1.1rem;
+}
+.cm-map__chip {
+    padding: .1rem .45rem;
     border-radius: 49.95rem;
-    background: fade(@cm-gold, 16%);
-    box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 60%);
-    color: @cm-gold;
-    font-size: .6rem;
-    letter-spacing: .09rem;
+    font-size: .58rem;
+    letter-spacing: .08rem;
     text-transform: uppercase;
+    white-space: nowrap;
+
+    &--current { background: fade(@cm-gold, 14%); box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 60%); color: @cm-gold; }
+    &--fan { background: rgba(255, 255, 255, 0.04); box-shadow: inset 0 0 0 .05rem rgba(200, 210, 225, 0.35); color: @con-text-dim; }
+    &--bot { background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%); color: @con-text; }
+    &--botno { background: rgba(255, 255, 255, 0.02); box-shadow: inset 0 0 0 .05rem rgba(200, 120, 120, 0.4); color: @con-text-dim; }
 }
+.cm-maps__spine {
+    flex: none;
+    font-size: .75rem;
+    letter-spacing: .1rem;
+    color: @con-text-dim;
+}
+.cm-maps__dossier {
+    flex: 0 0 min(30%, 26rem);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: .6rem;
+    padding: 1rem 1.1rem;
+    .con-stage-plate();
+    min-height: 0;
+    overflow: hidden;
+}
+.cm-maps__dossier-map {
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+}
+.cm-maps__dossier-name {
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: .1rem;
+    text-transform: uppercase;
+    color: @cm-gold;
+}
+.cm-maps__dossier-desc {
+    font-size: .85rem;
+    line-height: 1.4;
+    color: @con-text-dim;
+}
+.cm-maps__dossier .cm-map__chips { justify-content: flex-start; }
 .cm-maps__detail {
     min-height: 3.6rem;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: .3rem;
-    padding: 0 8vw;
+    padding: 0 2rem;
     text-align: center;
 }
 .cm-maps__detail-name {
@@ -2575,21 +2643,11 @@ html.con-profile-handheld {
     .cm-exp__needs-mark { font-weight: 700; }
 
     /* THE MAP — board cards of a campaign mission card's size, the carousel centred as before. */
-    .cm-maps { gap: 1.2rem; }
-    .cm-maps__viewport { height: 25rem; }
-    .cm-maps__strip { gap: 1.4rem; top: 1rem; }
-    .cm-map {
-        width: 16.5rem;
-        gap: .7rem;
-        padding: 1.1rem 1rem 1rem;
-        border-radius: .9rem;
-    }
-    .cm-map__thumb { width: 14rem; }
     .cm-map__name { font-size: 1.05rem; }
-    .cm-map__current { font-size: .8rem; padding: .22rem .7rem; }
-    .cm-maps__detail { min-height: 5rem; gap: .45rem; }
-    .cm-maps__detail-name { font-size: 1.2rem; }
-    .cm-maps__detail-desc { font-size: .95rem; max-width: 52rem; }
+    .cm-map__chip { font-size: .8rem; padding: .18rem .6rem; }
+    .cm-maps__spine { font-size: .85rem; }
+    .cm-maps__dossier-name { font-size: 1.35rem; }
+    .cm-maps__dossier-desc { font-size: .95rem; }
 
     /* THE BRIEFING — a mission DOSSIER: blocks of the party, the board as a miniature, every line readable. */
     .cm-launch { width: 22rem; gap: .8rem; padding: 1rem 1.1rem 1rem; border-radius: .9rem; }
@@ -2649,7 +2707,6 @@ html.con-profile-handheld {
     .cm-row--shake { animation: none; }
     .cm-launch__status-dot,
     .cm-confirm__btn--launch::after { animation: none; }
-    .cm-maps__strip,
     .cm-map,
     .cm-item { transition: none; }
     /* The deck meter snaps (T04): segments and gaps land at once; the numbers keep ConsoleFlipValue's own snap. */

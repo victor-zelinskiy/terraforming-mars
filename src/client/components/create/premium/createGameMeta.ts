@@ -62,6 +62,8 @@ export type PremiumMapMeta = {
   descKey: string;
   /** "r,g,b" accent for the preview / chips. */
   accent: string;
+  /** A FAN-MADE board (not an official FryxGames map) — the tile says so before the pick (P44 · ER). */
+  fan?: true;
 };
 
 // Random-All first (default), then official boards, then the rest of the
@@ -75,8 +77,8 @@ export const PREMIUM_MAPS: ReadonlyArray<PremiumMapMeta> = [
   {id: BoardName.UTOPIA_PLANITIA, random: false, accent: '96,150,196', labelKey: 'Utopia Planitia', descKey: 'Northern lowlands rich in oceans, with energy placement bonuses.'},
   {id: BoardName.TERRA_CIMMERIA_NOVA, random: false, accent: '210,80,160', labelKey: 'Terra Cimmeria Nova', descKey: 'Metal-rich highlands with colony placement bonuses.'},
   {id: BoardName.VASTITAS_BOREALIS_NOVA, random: false, accent: '150,200,230', labelKey: 'Vastitas Borealis Nova', descKey: 'The ancient northern sea: a North Pole that buys heat for 4 M€, Viking delegate sites and four volcanoes.'},
-  {id: BoardName.VASTITAS_BOREALIS, random: false, accent: '200,184,70', labelKey: 'Vastitas Borealis', descKey: 'Vast northern plains with heat and temperature bonuses.'},
-  {id: BoardName.AMAZONIS, random: false, accent: '130,190,50', labelKey: 'Amazonis Planitia', descKey: 'Western plateau with plant, heat and life (microbe/animal) bonuses.'},
+  {id: BoardName.VASTITAS_BOREALIS, random: false, fan: true, accent: '200,184,70', labelKey: 'Vastitas Borealis', descKey: 'Vast northern plains with heat and temperature bonuses.'},
+  {id: BoardName.AMAZONIS, random: false, fan: true, accent: '130,190,50', labelKey: 'Amazonis Planitia', descKey: 'Western plateau with plant, heat and life (microbe/animal) bonuses.'},
   {id: BoardName.TERRA_CIMMERIA, random: false, accent: '200,60,150', labelKey: 'Terra Cimmeria', descKey: 'Rugged southern highlands with steel and energy bonuses.'},
   {id: BoardName.HOLLANDIA, random: false, accent: '224,212,96', labelKey: 'Hollandia', descKey: 'Compact map with dense, high-value bonus clusters.'},
 ];

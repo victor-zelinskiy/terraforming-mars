@@ -308,9 +308,25 @@ for (const preset of PRESETS) {
         if (deck === 'expansions' && preset.id !== 'deck') {
           await expect(page.locator('.cm-exp__desc').first(), 'an expansion says what it adds').toBeVisible();
         }
-        if (deck === 'map' && preset.id === 'tv4k') {
-          const w = await page.locator('.cm-map').first().evaluate((el) => el.getBoundingClientRect().width);
-          expect(w, 'a board card of a mission card\'s size').toBeGreaterThan(600);
+        if (deck === 'map') {
+          // THE MAP SHOWCASE (P44 · ER): a grid solved from the stage — every map on the page INSIDE the stage (the
+          // carousel once parked the cursor ~2560 px past the edge), four columns on the TV, the dossier beside it.
+          const geo = await page.evaluate(() => {
+            const stage = document.querySelector('.cm-maps__stage')!.getBoundingClientRect();
+            const tiles = Array.from(document.querySelectorAll('.cm-map')).map((t) => t.getBoundingClientRect());
+            const tol = 0.04 * stage.height;
+            return {
+              count: tiles.length,
+              outside: tiles.filter((r) => r.left < stage.left - tol || r.right > stage.right + tol || r.top < stage.top - tol || r.bottom > stage.bottom + tol).length,
+              cols: new Set(tiles.map((r) => Math.round(r.left / 8))).size,
+            };
+          });
+          expect(geo.outside, `every map inside the stage (${JSON.stringify(geo)})`).toBe(0);
+          if (preset.id === 'tv4k') {
+            expect(geo.count, 'the eleven maps on one page').toBe(11);
+            expect(geo.cols, 'a grid of four columns').toBe(4);
+            await expect(page.locator('[data-map-dossier]'), 'the cursored map\'s dossier').toBeVisible();
+          }
         }
       }
       expect(overflow, `no console overflow on ${decks.join(' / ')}`).toEqual([]);

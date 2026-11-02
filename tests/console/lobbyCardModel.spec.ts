@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {campaignCardView, gameCardView, showcaseGrid, showcaseStep} from '../../src/client/console/menu/lobbyCardModel';
+import {campaignCardView, gameCardView, mapGridPlan, showcaseGrid, showcaseStep} from '../../src/client/console/menu/lobbyCardModel';
 import {waveDelays} from '../../src/client/console/menu/lobbyScreenMotion';
 import {JoinableGameSummary} from '../../src/common/models/JoinableGameModel';
 import {CampaignSummaryModel} from '../../src/common/campaign/CampaignSummary';
@@ -209,6 +209,28 @@ describe('lobbyCardModel — one card of the pregame showcase', () => {
       // Two cards symmetric about the centre still come in turn (the reading-order step).
       const pair = waveDelays([{left: 100, top: 160, width: 280, height: 280}, {left: 520, top: 160, width: 280, height: 280}], stage, 55, 60);
       expect(pair[1]).gt(pair[0]);
+    });
+  });
+
+  describe('the map showcase (P44 · ER) — a grid solved from the stage, never a carousel', () => {
+    /** The deck's own tile proportions at a rem of `r` px (ConsoleMapDeck's constants). */
+    const opts = (r: number) => ({gap: 1 * r, minW: 9.5 * r, maxW: 17 * r, aspect: 0.62, chromeH: 4.6 * r});
+
+    it('the eleven maps are ONE page of 4 × 3 on the TV and on FHD (the stage beside the dossier)', () => {
+      const fhd = mapGridPlan(1100, 700, 11, opts(20));
+      expect([fhd.cols, fhd.rows, fhd.pages]).deep.eq([4, 3, 1]);
+      const tv = mapGridPlan(2200, 1400, 11, opts(40));
+      expect([tv.cols, tv.rows, tv.pages]).deep.eq([4, 3, 1]);
+      // Every tile inside the stage by construction.
+      expect(fhd.cols * fhd.tileW + 3 * 20).to.be.at.most(1100);
+      expect(fhd.rows * fhd.tileH + 2 * 20).to.be.at.most(700);
+    });
+
+    it('the Deck pages — strict pages, never a scroll; a page always fits', () => {
+      const deck = mapGridPlan(1100, 330, 11, opts(16));
+      expect(deck.pages).to.be.greaterThan(1);
+      expect(deck.rows * deck.tileH + (deck.rows - 1) * 16).to.be.at.most(330);
+      expect(deck.perPage * deck.pages).to.be.at.least(11);
     });
   });
 });

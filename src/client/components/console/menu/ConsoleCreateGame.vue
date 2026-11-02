@@ -108,8 +108,10 @@
           :rows="maps"
           :cursor="ui.cursor.map"
           :shake-row="shakeRowFor('map')"
+          :wide="creatorWide"
           @hover="setCursor('map', $event)"
           @activate="activateMap($event)"
+          @layout="mapCols = $event.cols"
         />
       </ConsoleScrollArea>
       <ConsoleLaunchPanel />
@@ -285,6 +287,8 @@ export default defineComponent({
   },
   data() {
     return {
+      /** The map showcase's MEASURED columns (`ConsoleMapDeck` → `layout`) — the cursor's walk (P44 · ER). */
+      mapCols: undefined as number | undefined,
       ui: consoleCreateUi,
       identityState,
       offPad: undefined as (() => void) | undefined,
@@ -592,7 +596,7 @@ export default defineComponent({
       // ── Deck level ──
       if (intent.kind === 'nav') {
         const deck = this.ui.deck;
-        const next = deckNavStep(deck, this.ui.cursor[deck], intent.dir, deckRowCount(deck), {wide: this.creatorWide});
+        const next = deckNavStep(deck, this.ui.cursor[deck], intent.dir, deckRowCount(deck), {wide: this.creatorWide, mapCols: this.mapCols});
         if (next !== undefined) {
           this.ui.cursor[deck] = next;
           this.keepDeckCursorVisible();

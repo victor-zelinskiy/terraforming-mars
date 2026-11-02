@@ -92,10 +92,15 @@ describe('consoleCreateModel', () => {
       expect(deckNavStep('crew', 0, 'left', 3, {wide: false})).to.eq(undefined);
     });
 
-    it('steps the map carousel horizontally only', () => {
-      expect(deckNavStep('map', 0, 'right', 5)).to.eq(1);
-      expect(deckNavStep('map', 4, 'right', 5)).to.eq(4);
-      expect(deckNavStep('map', 0, 'up', 5)).to.eq(undefined);
+    it('walks the map SHOWCASE grid (P44 · ER): ◀ ▶ the ring, ▲ ▼ a row with a wall, ▼ into a short row lands on the last', () => {
+      const grid = {mapCols: 4};
+      expect(deckNavStep('map', 0, 'right', 11, grid)).to.eq(1);
+      expect(deckNavStep('map', 10, 'right', 11, grid), 'the ring wraps').to.eq(0);
+      expect(deckNavStep('map', 0, 'left', 11, grid)).to.eq(10);
+      expect(deckNavStep('map', 1, 'down', 11, grid)).to.eq(5);
+      expect(deckNavStep('map', 1, 'up', 11, grid), 'a wall').to.eq(1);
+      expect(deckNavStep('map', 7, 'down', 11, grid), 'into the short last row → its last map').to.eq(10);
+      expect(deckNavStep('map', 9, 'down', 11, grid), 'nothing below — a wall').to.eq(9);
     });
   });
 
@@ -304,12 +309,12 @@ describe('consoleCreateModel', () => {
       toggleExpansion('promo');
       const promoRow = expansionRows().find((r) => r.meta.id === 'promo');
       expect(promoRow?.conflictKey).to.eq(undefined);
-      // Hellas (B09) and Elysium (B10) both have a MarsBot board; Amazonis has none.
+      // Hellas (B09) and Elysium (B10) both have a MarsBot board; Hollandia has none (Amazonis got its home-made board, 2026-11-02).
       selectMap(BoardName.HELLAS);
       expect(mapRows().find((m) => m.selected)?.conflict).to.eq(false);
       selectMap(BoardName.ELYSIUM);
       expect(mapRows().find((m) => m.selected)?.conflict).to.eq(false);
-      selectMap(BoardName.AMAZONIS);
+      selectMap(BoardName.HOLLANDIA);
       expect(mapRows().find((m) => m.selected)?.conflict).to.eq(true);
     });
   });
@@ -355,7 +360,7 @@ describe('consoleCreateModel', () => {
       // Promo is automa-supported now — a RULES conflict stands in for the
       // former expansions-deck one.
       createGameState.config.rules.randomBoardTiles = true;
-      selectMap(BoardName.AMAZONIS); // Tharsis/Hellas/Elysium are supported; Amazonis is not.
+      selectMap(BoardName.HOLLANDIA); // Hollandia has no MarsBot board.
       const issues = launchIssues();
       const decks = issues.map((i) => i.target.deck);
       expect(decks).to.include('rules');

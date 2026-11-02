@@ -23,6 +23,7 @@
  * seat-bot confirm step is deleted and nothing else moves.
  */
 
+import {showcaseStep} from '@/client/console/menu/lobbyCardModel';
 import {reactive} from 'vue';
 import {Color, PLAYER_COLORS} from '@/common/Color';
 
@@ -137,6 +138,8 @@ export const CREATE_WIDE_MIN_WIDTH = 1900;
 export type DeckNavLayout = {
   /** The wide creator's layout (`CREATE_WIDE_MIN_WIDTH`): the crew is a row, the rules a two-column grid. */
   wide?: boolean;
+  /** The map showcase's MEASURED columns (`mapGridPlan` — P44 · ER); absent before the first measurement. */
+  mapCols?: number;
 };
 
 /** A row-major grid of `cols` with felt edges (no wrap): ◀ ▶ within a row, ▲ ▼ a whole row. */
@@ -179,13 +182,9 @@ export function deckNavStep(deck: CreateDeckId, cursor: number, dir: NavDirectio
     return cursor;
   }
   if (deck === 'map') {
-    if (dir === 'left') {
-      return clamp(cursor - 1);
-    }
-    if (dir === 'right') {
-      return clamp(cursor + 1);
-    }
-    return undefined;
+    // THE MAP SHOWCASE (P44 · ER): the lobby's grammar — ◀ ▶ walk the ring (wrapping), ▲ ▼ a whole row with a wall,
+    // ▼ into a shorter last row lands on its last map. A page is a run of rows, so the walk crosses pages by itself.
+    return showcaseStep(cursor, dir, count, layout.mapCols ?? count);
   }
   // crew / rules: vertical lists.
   if (dir === 'up') {

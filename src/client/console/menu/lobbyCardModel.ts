@@ -205,6 +205,36 @@ export function showcaseGrid(width: number, height: number, opts: {gap: number, 
 }
 
 /**
+ * THE MAP SHOWCASE (P44 · ledger ER — the owner: «сетка, а не ряд»): the creator's «Карта» deck is a GRID SOLVED FROM
+ * THE MEASURED STAGE, never a carousel on a hard-coded slot (the 236 px slot the wide profile had long outgrown sent
+ * the cursor ≈ 2560 px past the edge at Hollandia). Columns from the width at the tile's minimum, up to `maxCols`; a tile
+ * as wide as the columns allow (≤ `maxW`), its height the miniature's (`aspect`) plus the name and chips (`chromeH`);
+ * then as many rows as `count` needs if they FIT the height (the tile shrinks to make them fit, never below `minW`),
+ * else as many as fit — the rest are PAGES (the album's law: strict pages, never a scroll). All lengths in px.
+ */
+export type MapGridPlan = {cols: number, rows: number, tileW: number, tileH: number, perPage: number, pages: number};
+
+export function mapGridPlan(width: number, height: number, count: number, opts: {gap: number, minW: number, maxW: number, aspect: number, chromeH: number, maxCols?: number}): MapGridPlan {
+  const n = Math.max(1, count);
+  const maxCols = Math.max(1, opts.maxCols ?? 4);
+  const cols = Math.max(1, Math.min(maxCols, n, Math.floor((width + opts.gap) / (opts.minW + opts.gap))));
+  let tileW = Math.max(opts.minW, Math.min(opts.maxW, Math.floor((width - opts.gap * (cols - 1)) / cols)));
+  const tileHOf = (w: number) => Math.round(w * opts.aspect + opts.chromeH);
+  const needRows = Math.ceil(n / cols);
+  // Shrink the tile until every row fits — never below the minimum.
+  const fitW = Math.floor(((height - opts.gap * (needRows - 1)) / needRows - opts.chromeH) / opts.aspect);
+  if (fitW >= opts.minW) {
+    tileW = Math.min(tileW, fitW);
+  } else {
+    tileW = opts.minW;
+  }
+  const tileH = tileHOf(tileW);
+  const rows = Math.max(1, Math.min(needRows, Math.floor((height + opts.gap) / (tileH + opts.gap))));
+  const perPage = cols * rows;
+  return {cols, rows, tileW, tileH, perPage, pages: Math.max(1, Math.ceil(n / perPage))};
+}
+
+/**
  * THE CURSOR'S STEP over the showcase grid (row-major, `cols` per row): ◀ ▶ walk the ring (wrapping, the lobby's
  * old list rule), ▲ ▼ move a whole row — a row that is not there is a WALL (the cursor stays), except ▼ into a SHORTER
  * last row, which lands on its last card (a card below exists, just not under the cursor).

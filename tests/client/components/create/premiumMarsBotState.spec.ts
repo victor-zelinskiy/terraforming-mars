@@ -125,7 +125,7 @@ describe('premium create — MarsBot mode', () => {
 
     setGameMode('multiplayer');
     createGameState.config.mapMode = 'specific';
-    createGameState.config.mapId = BoardName.AMAZONIS;
+    createGameState.config.mapId = BoardName.HOLLANDIA;
     setGameMode('marsbot');
     expect(createGameState.config.mapMode).eq('specific');
     expect(createGameState.config.mapId).eq(BoardName.THARSIS);
@@ -135,7 +135,7 @@ describe('premium create — MarsBot mode', () => {
     setGameMode('marsbot');
     setSlotName(0, 'Astronaut');
     createGameState.config.mapMode = 'specific';
-    createGameState.config.mapId = BoardName.AMAZONIS;
+    createGameState.config.mapId = BoardName.HOLLANDIA;
     expect(stateAutomaConflictKeys().has('board')).is.true;
     expect(canCreateGame()).is.false;
 
