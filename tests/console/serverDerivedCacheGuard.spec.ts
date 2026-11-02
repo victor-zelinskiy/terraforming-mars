@@ -77,6 +77,8 @@ const VERSIONED = [
  * to silence the guard.
  */
 const NOT_A_CACHE = new Map<string, string>([
+  [path.join('src', 'client', 'console', 'deckPick', 'preludePick.ts'),
+    'the candidate previews of ONE live pick — the deck pick keeps the answers for that batch only (reset at every deal); the candidates are fixed until the answer'],
   [path.join('src', 'client', 'console', 'transport', 'gameTransport.ts'),
     'the transport FETCHES the state; it caches no verdict derived from it'],
   [path.join('src', 'client', 'components', 'console', 'menu', 'adminRollbackState.ts'),

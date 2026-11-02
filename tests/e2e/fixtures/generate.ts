@@ -12627,3 +12627,141 @@ function playedPolishTableau(player: TestPlayer): void {
   }
   write('played-table-draft', game);
 }
+
+// ── P91 · WG PROJECT — «draw 3 preludes, play 1, discard 2»: the first prelude played in the MIDDLE of the game
+//    (docs/claude/prompts/prelude2-p91-wg-project.md, ledger EH). A 2p Redux + Colonies + Prelude 2 table in the action
+//    phase of generation 2, blue the CHAIRMAN (Thorgate — Teractor would price the Earth tag 3 lower), WG Project in
+//    blue's hand, the top of the prelude deck SEEDED (the table has no start-of-game prelude phase — the deck holds exactly the preludes put there, so the deck object's
+//    count is a known number). A DRY RUN on a copy plays the card and answers the pick, so a rule change fails HERE:
+//      · `wg-project-plain`      — Metals Company · Donation · Supplier (declarative), 20 M€;
+//      · `wg-project-fizzle`     — Huge Asteroid first, 9 M€ exactly: after the price it cannot pay 5 → «burns, +15»;
+//      · `wg-project-place`      — Early Settlement first: the prelude asks a CITY on the board;
+//      · `wg-project-draw`       — Biolab first: the prelude draws 3 cards;
+//      · `wg-project-nested`     — New Partner first: a SECOND pick of 2 off the same deck;
+//      · `wg-project-not-chair`  — red holds the chair: the card is locked with the chairman's reason;
+//      · `wg-project-short-deck` — two preludes left in all: locked with its own named reason. ──
+/** Stack the PRELUDE deck so `topFirst[0]` is drawn first (the top of the draw pile is its END). */
+function stackPreludeDeckTop(game: IGame, topFirst: ReadonlyArray<CardName>): void {
+  for (const name of [...topFirst].reverse()) {
+    const card = newPrelude(name);
+    if (card === undefined) {
+      throw new Error(`stackPreludeDeckTop: ${name} is not a prelude`);
+    }
+    game.preludeDeck.drawPile.push(card);
+  }
+}
+
+type WgProjectVariant = {
+  top: ReadonlyArray<CardName>,
+  /** Extra preludes UNDER the seeded top (the deck object's count). */
+  under?: ReadonlyArray<CardName>,
+  megacredits: number,
+  chair?: 'blue' | 'red',
+  /** The dry run's answer (index into the pick's cards) and what it must leave. */
+  dry?: {pick: CardName, expect: (blue: IPlayer, copy: IGame) => string | undefined},
+};
+
+function wgProjectFixture(name: string, v: WgProjectVariant): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [v.megacredits, 30],
+    options: {prelude2Expansion: true, customCorporationsList: [CardName.THORGATE, CardName.TERACTOR]},
+    arrange: ({game, p1, p2, parliament}) => {
+      game.generation = 2;
+      parliament.chairman = (v.chair ?? 'blue') === 'blue' ? p1.id : p2.id;
+      moveToDeckTop(game, CardName.WG_PROJECT);
+      p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+      game.preludeDeck.drawPile.length = 0;
+      game.preludeDeck.discardPile.length = 0;
+      stackPreludeDeckTop(game, [...v.top, ...(v.under ?? [])]);
+    },
+    expect: ({game, p1}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.WG_PROJECT);
+      const playable = card !== undefined && p1.canPlay(card) !== false;
+      const wantPlayable = v.dry !== undefined;
+      if (card === undefined || playable !== wantPlayable || game.activePlayer.id !== p1.id || game.phase !== Phase.ACTION) {
+        throw new Error(`the ${name} fixture expected WG Project in blue's hand, playable=${wantPlayable}, blue on the move in the action phase — got card=${card !== undefined} playable=${playable} active=${game.activePlayer.color} phase=${game.phase}`);
+      }
+      if (v.dry === undefined) {
+        return;
+      }
+      const copy = Game.deserialize(structuredClone(game.serialize()));
+      const blue = copy.getPlayerById(p1.id);
+      const wg = blue.cardsInHand.find((c) => c.name === CardName.WG_PROJECT)!;
+      blue.playCard(wg, Payment.of({megacredits: 9}));
+      runAllActions(copy);
+      const pick = blue.getWaitingFor();
+      if (!(pick instanceof SelectCard) || pick.deckPickPrompt?.mode !== 'play' || pick.deckPickPrompt.origin !== 'prelude' ||
+        pick.startGamePrompt !== undefined || pick.cards.length !== 3) {
+        throw new Error(`the ${name} fixture expected the mid-game prelude pick (deckPickPrompt play/prelude, 3 cards, no start marker) — got ${pick?.type} ${JSON.stringify(pick?.deckPickPrompt)} start=${JSON.stringify(pick?.startGamePrompt)}`);
+      }
+      blue.process({type: 'card', cards: [v.dry.pick]});
+      runAllActions(copy);
+      const wrong = v.dry.expect(blue, copy);
+      if (wrong !== undefined) {
+        throw new Error(`the ${name} fixture's dry run: ${wrong}`);
+      }
+    },
+  });
+}
+
+wgProjectFixture('wg-project-plain', {
+  top: [CardName.METALS_COMPANY, CardName.DONATION, CardName.SUPPLIER],
+  under: [CardName.LOAN, CardName.BIOFUELS, CardName.SOCIETY_SUPPORT],
+  megacredits: 20,
+  dry: {
+    pick: CardName.DONATION,
+    expect: (blue, copy) => (blue.megaCredits !== 20 - 9 + 21 || !blue.tableau.has(CardName.DONATION) || copy.preludeDeck.discardPile.length !== 2 ?
+      `expected 32 M€, Donation in the tableau and 2 in the discard — got ${blue.megaCredits}, ${blue.tableau.has(CardName.DONATION)}, ${copy.preludeDeck.discardPile.length}` : undefined),
+  },
+});
+wgProjectFixture('wg-project-fizzle', {
+  top: [CardName.HUGE_ASTEROID, CardName.DONATION, CardName.SUPPLIER],
+  under: [CardName.LOAN, CardName.BIOFUELS],
+  megacredits: 9,
+  dry: {
+    pick: CardName.HUGE_ASTEROID,
+    expect: (blue, copy) => (blue.megaCredits !== 15 || blue.tableau.has(CardName.HUGE_ASTEROID) || copy.preludeDeck.discardPile.length !== 3 ?
+      `expected the burn: 15 M€, no Huge Asteroid on the table, 3 in the discard — got ${blue.megaCredits}, ${blue.tableau.has(CardName.HUGE_ASTEROID)}, ${copy.preludeDeck.discardPile.length}` : undefined),
+  },
+});
+wgProjectFixture('wg-project-place', {
+  top: [CardName.EARLY_SETTLEMENT, CardName.DONATION, CardName.SUPPLIER],
+  under: [CardName.LOAN],
+  megacredits: 20,
+  dry: {
+    pick: CardName.EARLY_SETTLEMENT,
+    expect: (blue) => (blue.getWaitingFor() instanceof SelectSpace ? undefined : `expected the city's board placement — got ${blue.getWaitingFor()?.type}`),
+  },
+});
+wgProjectFixture('wg-project-draw', {
+  top: [CardName.BIOLAB, CardName.DONATION, CardName.SUPPLIER],
+  under: [CardName.LOAN],
+  megacredits: 20,
+  dry: {
+    pick: CardName.BIOLAB,
+    expect: (blue) => (blue.tableau.has(CardName.BIOLAB) ? undefined : 'expected Biolab on the table'),
+  },
+});
+wgProjectFixture('wg-project-nested', {
+  top: [CardName.NEW_PARTNER, CardName.DONATION, CardName.SUPPLIER, CardName.METALS_COMPANY, CardName.LOAN],
+  under: [CardName.BIOFUELS],
+  megacredits: 20,
+  dry: {
+    pick: CardName.NEW_PARTNER,
+    expect: (blue) => {
+      const nested = blue.getWaitingFor();
+      return nested instanceof SelectCard && nested.deckPickPrompt?.mode === 'play' && nested.cards.length === 2 &&
+        nested.deckPickPrompt.source?.card === CardName.NEW_PARTNER ? undefined : `expected New Partner's own pick of 2 — got ${nested?.type} ${JSON.stringify(nested?.deckPickPrompt)}`;
+    },
+  },
+});
+wgProjectFixture('wg-project-not-chair', {
+  top: [CardName.METALS_COMPANY, CardName.DONATION, CardName.SUPPLIER],
+  megacredits: 20,
+  chair: 'red',
+});
+wgProjectFixture('wg-project-short-deck', {
+  top: [CardName.METALS_COMPANY, CardName.DONATION],
+  megacredits: 20,
+});

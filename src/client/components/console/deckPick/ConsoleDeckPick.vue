@@ -9,6 +9,7 @@
          'con-deckpick--embedded': embedded,
          'con-deckpick--sending': phase === 'sending',
          'con-deckpick--clearing': phase === 'clearing',
+         'con-deckpick--play': playMode,
        }"
        :role="embedded ? 'group' : 'dialog'"
        :aria-label="askText"
@@ -61,6 +62,11 @@
             <span v-if="isPicked(entry.name)" class="con-cards__pickband con-cards__pickband--select" aria-hidden="true">
               ✓ {{ $t('Card selected') }}
             </span>
+            <!-- A prelude that cannot resolve BURNS for 15 M€ — shown on the card BEFORE the press (invariant 4), as a
+                 word on a plate, never a ring of light. Choosing it is legal: the verb on the command bar says it. -->
+            <span v-if="playMode && burns(entry.name)" class="con-deckpick__burn" data-prelude-burns>
+              {{ $t('Will fizzle') }} · +15 M€
+            </span>
           </div>
         </div>
 
@@ -87,6 +93,14 @@
           </div>
         </div>
       </div>
+
+      <!-- THE PRELUDE DECK — the mid-game prelude pick's own source object (P91): the pile the cards come off, the
+           discard the rest land on, the «РАЗЫГРАНО» seat the played prelude lands on. -->
+      <ConsolePreludeDeck v-if="playMode"
+                          class="con-deckpick__predeck"
+                          :deck-count="shownDeckCount"
+                          :discard-count="shownDiscardCount"
+                          :played="seatedPrelude" />
     </div>
 
     <!-- (THE DEAL's bodies live in the APP-LEVEL `ConsoleDeckPickLayer` — a
@@ -161,6 +175,11 @@ import {applyDiscardExit} from '@/client/console/cardDeal/cardExitDirector';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
+import ConsolePreludeDeck from '@/client/components/console/deckPick/ConsolePreludeDeck.vue';
+import {runCardTransfer} from '@/client/console/cardDeal/cardExitDirector';
+import {armPlayedHero, isPlayedHeroActive, playedHeroState} from '@/client/console/played/consolePlayedHero';
+import {preludePickBurns, preludePickRewards, PRELUDE_SEAT_SELECTOR} from '@/client/console/deckPick/preludePick';
+import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {cardsResponse} from '@/client/console/taskResponses';
 import {markWorkspaceOutcomeArrivalDone, setWorkspaceOutcomePhase, workspaceOutcomeArrivalFlown, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
@@ -200,7 +219,7 @@ export default defineComponent({
   // `console-source-dock` is registered GLOBALLY (main.ts) — deliberately not a
   // local import: it renders the real premium card face, and that import chain
   // zeroes this file's mochapack spec.
-  components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleWsStageHead},
+  components: {Card, ConsoleCardAvailabilityPanel, ConsolePreludeDeck, ConsoleWsHead, ConsoleWsStageHead},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** Teleported into a host workspace's zone → no shell of its own. */
@@ -233,7 +252,17 @@ export default defineComponent({
         entries: Array<{name: CardName}>,
         bounds: {min: number, max: number},
         source: PromptSourceView | undefined,
+        play: boolean,
+        /** Which of the candidates BURN (the verdict read at the commit — the prompt dies with the submit). */
+        burning: Array<CardName>,
       } | undefined,
+      /** THE PRELUDE DECK'S NUMBERS AS PRESENTED (P91) — held while bodies are still moving, else the server's. */
+      heldDeckCount: undefined as number | undefined,
+      heldDiscardCount: undefined as number | undefined,
+      /** The prelude standing on the «РАЗЫГРАНО» seat (shown once the hero hands it over). */
+      seatedPrelude: undefined as CardName | undefined,
+      /** The on-play rewards of each candidate (the server's own preview), for the hero's reward beat. */
+      candidateRewards: {} as Record<string, ReadonlyArray<ResourceTransferSpec>>,
       rowStyle: {} as Record<string, string>,
       /** Re-fit when the HOST's box changes, not merely when the window does.
        *  The zone this surface lives in is a host's zone: the start
@@ -253,6 +282,21 @@ export default defineComponent({
     },
     meta(): DeckPickPromptMeta | undefined {
       return this.model?.deckPickPrompt;
+    },
+    /** THE MID-GAME PRELUDE PICK (P91 WG Project): the pick is PLAYED, never kept — the same surface, its own exit. */
+    playMode(): boolean {
+      return this.frozen !== undefined ? this.frozen.play : this.meta?.mode === 'play';
+    },
+    shownDeckCount(): number {
+      return this.heldDeckCount ?? this.playerView.game.preludeDeckSize ?? 0;
+    },
+    shownDiscardCount(): number {
+      return this.heldDiscardCount ?? this.playerView.game.preludeDiscardSize ?? 0;
+    },
+    /** The chosen candidate burns (the verb on RT names it). */
+    pickBurns(): boolean {
+      const pick = this.picks[0];
+      return pick !== undefined && this.burns(pick);
     },
     /** The candidates as the SERVER currently states them. */
     liveEntries(): Array<{name: CardName}> {
@@ -316,7 +360,8 @@ export default defineComponent({
      * name line already respects).
      */
     focusedAvailability(): CardAvailabilityView | undefined {
-      if (!this.interactive || this.committed || this.focusedName === '') {
+      if (!this.interactive || this.committed || this.focusedName === '' || this.playMode) {
+        // A prelude played at once has no «for later» — its verdict is the burn mark on its face and the status line.
         return undefined;
       }
       const context = availabilityContextFor('deck-keep');
@@ -337,6 +382,10 @@ export default defineComponent({
     /** The stage segment, handed UP while embedded. One word: the root already
      *  says «ДОБОР КАРТ», so the tail must not echo its noun. */
     stageKey(): string {
+      if (this.playMode) {
+        // «… › ВЫБОР ПРОЛОГА» → «… › ПРОЛОГ»: the tail only moves forward.
+        return this.committed ? 'Prelude' : 'Prelude choice';
+      }
       switch (this.phase) {
       case 'dealing': return 'Drawing cards…';
       case 'sending': return 'Received';
@@ -347,6 +396,9 @@ export default defineComponent({
     /** The stage's own sentence. The SERVER title wins («Оставьте себе 2
      *  карт(ы)») — it is the precise ask, phrased by the rule that asked. */
     askText(): string {
+      if (this.playMode) {
+        return translateTextWithParams('Choose 1 of ${0} preludes to play', [String(this.entries.length)]);
+      }
       const server = textOf(this.model?.title);
       if (server !== '') {
         return server;
@@ -357,7 +409,10 @@ export default defineComponent({
     },
     headTitle(): string {
       if (this.phase === 'dealing') {
-        return translateText(this.meta?.origin === 'discard' ? 'From the discard pile' : 'Drawing cards…');
+        return translateText(this.meta?.origin === 'discard' ? 'From the discard pile' : this.playMode ? 'From the prelude deck' : 'Drawing cards…');
+      }
+      if (this.committed && this.playMode) {
+        return translateText(this.pickBurns ? 'The prelude burns' : 'The prelude is played');
       }
       if (this.committed) {
         return translateTextWithParams('Taken into hand: ${0}', [String(this.flow.kept)]);
@@ -367,10 +422,17 @@ export default defineComponent({
     /** What the status rail says — one line, always in layout. */
     statusText(): string {
       if (this.phase === 'dealing') {
-        return translateTextWithParams('Cards from the deck: ${0}', [String(this.entries.length)]);
+        return translateTextWithParams(this.playMode ? 'Preludes from the deck: ${0}' : 'Cards from the deck: ${0}', [String(this.entries.length)]);
       }
       if (this.committed) {
-        return translateText('The rest is discarded');
+        return translateText(this.playMode ? 'The other preludes go to the discard pile' : 'The rest is discarded');
+      }
+      if (this.playMode) {
+        // The FOCUSED candidate's fate in one line — what the face cannot print.
+        if (this.focusedName !== '' && this.burns(this.focusedName as CardName)) {
+          return translateText('Cannot resolve now: burns, and you gain 15 M€');
+        }
+        return translateText(this.picks.length > 0 ? 'Selection complete' : 'Played at once; the rest go to the discard pile');
       }
       const left = this.bounds.max - this.picks.length;
       if (left > 0) {
@@ -406,6 +468,20 @@ export default defineComponent({
       // set, L3 opens the source, B minimizes. A single-keep prompt answers on
       // the A press itself (there is no set to commit), so RT is not offered.
       const picked = this.isPicked(this.focusedName as CardName);
+      if (this.playMode) {
+        // A prelude is PLAYED — A chooses, RT commits; the verb names a burn (the press is the confirmation).
+        const cmds: Array<ConsoleCommand> = [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: picked ? 'Deselect' : 'Select'},
+          {control: 'secondary', label: 'Inspect'},
+        ];
+        if (this.sourceView?.inspectable === true) {
+          cmds.push({control: 'stickL', label: 'Source', priority: 1});
+        }
+        cmds.push({control: 'triggerR', label: this.pickBurns ? 'Burn for 15 M€' : 'Play now', enabled: this.ready, priority: 0});
+        cmds.push({control: 'back', label: 'Minimize'});
+        return cmds;
+      }
       const single = this.exact && this.bounds.max === 1;
       const cmds: Array<ConsoleCommand> = [
         {control: 'dpad', label: 'Navigate'},
@@ -588,7 +664,12 @@ export default defineComponent({
       // ONLY for a deck-sourced reveal. A discard-pile digger never touched the
       // deck, and inflating the counter for it would invent a draw that did not
       // happen — a worse lie than the one this is fixing.
-      if (this.meta?.origin !== 'discard') {
+      if (this.playMode) {
+        // THE PRELUDE DECK is this surface's own object: its number is held at the pre-draw value and ticks card by
+        // card as each one leaves its pile — the project deck's HUD counter is never touched (it drew nothing).
+        this.heldDeckCount = (this.playerView.game.preludeDeckSize ?? 0) + names.length;
+        this.prefetchRewards(names);
+      } else if (this.meta?.origin !== 'discard') {
         holdDeckDisplay(this.playerView.game.deckSize + names.length);
       }
       void this.$nextTick(() => {
@@ -611,9 +692,20 @@ export default defineComponent({
       }
       // The faces exist from the first frame (the prompt carries them), so the
       // batch opens IN FLIGHT — a post-landing flip here would be a bug.
+      // The PRELUDE pick deals off its own deck object (never the HUD's project pile — `from`), its count ticking per card.
+      const pile = this.playMode ? (this.$el as HTMLElement).querySelector<HTMLElement>('[data-prelude-pile]') : null;
+      const pileRect = pile?.getBoundingClientRect();
       this.handle = runBatchArrival({
         cards, slots,
         mode: 'in-flight-reveal',
+        from: pileRect !== undefined && pileRect.width > 4 ?
+          {rect: {left: pileRect.left, top: pileRect.top, width: pileRect.width, height: pileRect.height}, kind: 'card'} :
+          undefined,
+        onCardPeeled: () => {
+          if (this.heldDeckCount !== undefined) {
+            this.heldDeckCount = Math.max(this.playerView.game.preludeDeckSize ?? 0, this.heldDeckCount - 1);
+          }
+        },
         onDeparted: () => releaseDeckDisplay(),
         onSettled: () => {
           this.handle = undefined;
@@ -647,6 +739,7 @@ export default defineComponent({
       clearDeckPickFlight();
       this.held.clear();
       releaseDeckDisplay();
+      this.heldDeckCount = undefined;
       // THIS batch's deal has physically played — a later remount of the same
       // server ask adopts a settled table instead of re-dealing it.
       markBatchDealt(this.promptKey);
@@ -872,6 +965,11 @@ export default defineComponent({
         this.picks.splice(at, 1);
         return;
       }
+      if (this.playMode) {
+        // ONE prelude is played: A moves the choice; RT is the press that plays (or burns) it.
+        this.picks = [name];
+        return;
+      }
       if (this.picks.length >= this.bounds.max) {
         // At the ceiling A does nothing rather than silently swapping a pick
         // the player cannot see leaving — the status rail already says how
@@ -970,7 +1068,12 @@ export default defineComponent({
         entries: [...this.entries],
         bounds: {...this.bounds},
         source: this.sourceView,
+        play: this.playMode,
+        burning: this.entries.map((e) => e.name).filter((name) => this.burns(name)),
       };
+      if (this.frozen.play) {
+        this.armPreludePlay(kept[0]);
+      }
       // Synchronous with the submit — no frame exists in which the prompt is
       // gone and the hold is not yet up.
       beginDeckPickSend(kept.length);
@@ -979,6 +1082,15 @@ export default defineComponent({
     },
     async runOutgoing(kept: ReadonlyArray<CardName>): Promise<void> {
       const key = this.promptKey;
+      if (this.frozen?.play === true) {
+        try {
+          await this.runPreludeExit(kept[0]);
+        } finally {
+          await this.awaitPromptMoved(key);
+          this.endOutgoing(key);
+        }
+        return;
+      }
       try {
         // THE REST LEAVE WHILE THE PICK IS IN THE AIR (PL-207). Sequenced on the pick's LANDING, the cards nobody took
         // stood still for the whole intake tail — the hover for the server's answer, the dock's touchdown and settle:
@@ -1020,16 +1132,145 @@ export default defineComponent({
         // flow back to `choosing` (the surface is still mounted by the ordinary
         // gate) instead of unmounting a screen that is still owed an answer.
         await this.awaitPromptMoved(key);
-        this.frozen = undefined;
-        if (this.model !== undefined && this.promptKey === key) {
+        this.endOutgoing(key);
+      }
+    },
+    /** The commit's end: rolled back on a refusal (the same question still stands), released otherwise. */
+    endOutgoing(key: string): void {
+      this.frozen = undefined;
+      this.heldDiscardCount = undefined;
+      if (this.model !== undefined && this.promptKey === key) {
+        this.picks = [];
+        this.focusIdx = 0;
+        this.submitting = false;
+        this.seatedPrelude = undefined;
+        this.held.clear();
+        rollbackDeckPickCommit();
+      } else {
+        endDeckPickCommit();
+        // A NEW BATCH ON THE SAME SURFACE (P91 — New Partner played out of the pick raises a pick of its own): the
+        // surface stayed mounted across the commit, so the identity watcher returned early while the snapshot owned
+        // the screen. The new batch is dealt now, off the same deck object — never inherited picks over cards that
+        // were never dealt.
+        if (this.model !== undefined) {
           this.picks = [];
           this.focusIdx = 0;
           this.submitting = false;
-          rollbackDeckPickCommit();
-        } else {
-          endDeckPickCommit();
+          this.held.clear();
+          if (this.entries.length > 0) {
+            this.startDeal();
+          }
         }
       }
+    },
+
+    // ── THE PRELUDE PLAY (P91) ──────────────────────────────────────────
+    /** Is this candidate a prelude that cannot resolve now — it burns for 15 M€ (the server's verdict, never re-derived). */
+    burns(name: CardName): boolean {
+      if (this.frozen !== undefined) {
+        return this.frozen.burning.includes(name);
+      }
+      return preludePickBurns(this.liveModelFor(name)?.preludeOutlook);
+    },
+    /** The candidates' own on-play rewards, from the server's preview — fetched while the player reads the cards. */
+    prefetchRewards(names: ReadonlyArray<CardName>): void {
+      // ONE batch's answers — a new deal asks again (the state a nested pick is asked in is not the first one's).
+      this.candidateRewards = {};
+      const viewer = this.playerView.id;
+      for (const name of names) {
+        void preludePickRewards(viewer, name).then((rewards) => {
+          if (rewards !== undefined && rewards.length > 0) {
+            this.candidateRewards = {...this.candidateRewards, [name]: rewards};
+          }
+        });
+      }
+    },
+    /**
+     * ARMED IN THE PRESS, before the submit (the start's `armStartHero` shape): the prelude lifts out of ITS SLOT and
+     * lands on the deck object's «РАЗЫГРАНО» seat — the hero scene the transport plays on the answer, paying from the
+     * landed card's printed icons. A burning prelude arms nothing: it never reaches the table.
+     */
+    armPreludePlay(chosen: CardName | undefined): void {
+      if (chosen === undefined) {
+        return;
+      }
+      this.heldDiscardCount = this.playerView.game.preludeDiscardSize ?? 0;
+      if (this.burns(chosen)) {
+        return;
+      }
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(chosen) : chosen.replace(/"/g, '\\"');
+      armPlayedHero(chosen, false, {
+        manualTableOpen: false,
+        host: 'workspace',
+        sourceSelector: `.con-deckpick [data-deckpick-slot="${esc}"] :is(.card-container, .pcard)`,
+        targetSelector: PRELUDE_SEAT_SELECTOR,
+        rewards: this.candidateRewards[chosen],
+        sourceFace: {lightweight: true},
+        landingFace: {lightweight: true, model: 'none'},
+      });
+    },
+    /**
+     * THE PRELUDE EXIT, in the order the eye reads it: the two not played go to the deck object's discard (the count
+     * ticking on each touchdown), the played one lifts out of its slot onto the seat (the transport's hero scene), or —
+     * a burn — stays in its slot under its burn mark and goes to the discard last. The surface stands until the hero
+     * scene has finished paying from the seat.
+     */
+    async runPreludeExit(chosen: CardName | undefined): Promise<void> {
+      beginDeckPickClearing();
+      const burnt = chosen !== undefined && this.burns(chosen);
+      const rest = this.entries.map((e) => e.name).filter((name) => name !== chosen);
+      await Promise.all(rest.map((name, i) => this.discardPrelude(name, i * 90)));
+      if (burnt && chosen !== undefined) {
+        await this.discardPrelude(chosen, 0);
+        return;
+      }
+      if (chosen !== undefined) {
+        // The hero hands the card over to the seat at its commit — the seat paints it from then on.
+        await this.until(() => playedHeroState.card !== chosen || playedHeroState.revealed || !isPlayedHeroActive(), 6000);
+        this.seatedPrelude = chosen;
+        this.held.add(chosen);
+        await this.until(() => !isPlayedHeroActive() || playedHeroState.card !== chosen, 12000);
+      }
+    },
+    /** One prelude to the deck object's discard — from its slot, face up (the pile is public), the count on contact. */
+    async discardPrelude(name: CardName, delayMs: number): Promise<void> {
+      const from = this.slotEl(name);
+      if (from === null) {
+        this.heldDiscardCount = Math.min(this.playerView.game.preludeDiscardSize ?? 0, (this.heldDiscardCount ?? 0) + 1);
+        return;
+      }
+      if (delayMs > 0) {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, motionMs(delayMs)));
+      }
+      await runCardTransfer({
+        name,
+        from,
+        resolveTo: () => (this.$el as HTMLElement | undefined)?.querySelector<HTMLElement>('[data-prelude-discard]') ?? null,
+        holdFrom: true,
+        onLift: () => this.held.add(name),
+        onTouchdown: () => {
+          const live = this.playerView.game.preludeDiscardSize;
+          const next = (this.heldDiscardCount ?? 0) + 1;
+          this.heldDiscardCount = live !== undefined ? Math.min(Math.max(live, next), next) : next;
+        },
+      });
+    },
+    /** Bounded wait for a condition (the hero's own state) — never a fixed sleep standing in for it. */
+    until(cond: () => boolean, maxMs: number): Promise<void> {
+      if (cond() || typeof window === 'undefined') {
+        return Promise.resolve();
+      }
+      return new Promise<void>((resolve) => {
+        const deadline = Date.now() + maxMs;
+        const tick = () => {
+          if (cond() || Date.now() > deadline) {
+            resolve();
+            return;
+          }
+          probeTick(tick);
+        };
+        probeTick(tick);
+      });
     },
     /** Wait (bounded) for the server to move off `key`. Resolves at once when
      *  it already has — the common case, since the answer normally lands long

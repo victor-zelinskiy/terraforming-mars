@@ -1228,5 +1228,16 @@
     "Prel.": "Прол.",
     "Act.": "Актив.",
     "Auto.": "Автомат.",
-    "Evt.": "Событ."
+    "Evt.": "Событ.",
+    "Prelude choice": "Выбор пролога",
+    "Choose 1 of ${0} preludes to play": "Выберите 1 из ${0} прологов для розыгрыша",
+    "From the prelude deck": "Из колоды прологов",
+    "Preludes from the deck: ${0}": "Прологов из колоды: ${0}",
+    "The prelude burns": "Пролог сгорает",
+    "The prelude is played": "Пролог разыгран",
+    "The other preludes go to the discard pile": "Остальные прологи уходят в сброс",
+    "Cannot resolve now: burns, and you gain 15 M€": "Сейчас не сработает: сгорит, вы получите 15 M€",
+    "Played at once; the rest go to the discard pile": "Разыгрывается сразу, остальные уходят в сброс",
+    "Burn for 15 M€": "Сжечь за 15 M€",
+    "Choose a prelude to play": "Выберите пролог для розыгрыша"
 }

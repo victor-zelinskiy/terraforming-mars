@@ -47,6 +47,9 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   // Byte-identical to row 13 on the wire apart from `deckPickPrompt`, which is
   // exactly why the marker had to exist.
   {row: '13a deck keep-some', wf: {type: 'card', title: 'Select 2 card(s) to keep', buttonLabel: 'Select', cards: [{name: 'Birds'}, {name: 'Tardigrades'}], deckPickPrompt: {revealed: 2, min: 2, max: 2, origin: 'deck', mode: 'keep'}}, expect: {kind: 'deckSelect'}},
+  // P91 WG Project: a prelude pick in the ACTION phase rides the deck-pick marker in `play` mode — the SAME surface,
+  // never the start scene (the start marker is the opening's alone).
+  {row: '13e mid-game prelude pick', wf: {type: 'card', title: 'Select prelude card to play', buttonLabel: 'Play', cards: [{name: 'Donation'}, {name: 'Supplier'}, {name: 'Loan'}], deckPickPrompt: {revealed: 3, min: 1, max: 1, origin: 'prelude', mode: 'play', source: {kind: 'card', card: 'WG Project'}}}, expect: {kind: 'deckSelect'}},
   {row: '13b discard-pile keep-some', wf: {type: 'card', title: 'Select 1 card(s) to keep', buttonLabel: 'Select', cards: [{name: 'Birds'}], deckPickPrompt: {revealed: 1, min: 1, max: 1, origin: 'discard', mode: 'keep'}}, expect: {kind: 'deckSelect'}},
   // A PAYING reveal the player cannot afford (`max 0`, `buyMode` false — «You cannot afford any cards» / «Ok»)
   // is still the PURCHASE, by its marker — never the generic target browser (P88 — and any paid draw on a dry wallet).

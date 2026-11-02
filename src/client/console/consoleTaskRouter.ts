@@ -830,7 +830,9 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     // not missing anything, so they keep their home; the marker rides along on
     // them anyway (it describes what the cards ARE), which is what will let a
     // later iteration unify the two without another server change.
-    if (wf.deckPickPrompt?.mode === 'keep') {
+    // …and the MID-GAME PRELUDE PICK (P91 WG Project — mode `play`: the pick is played at once, the rest goes to
+    // the prelude discard pile) is the SAME surface on the same engine, dealt off the prelude deck it names.
+    if (wf.deckPickPrompt?.mode === 'keep' || wf.deckPickPrompt?.mode === 'play') {
       return {kind: 'deckSelect'};
     }
     // A PAYING reveal is the purchase BY ITS MARKER, whatever it can afford: `buyMode` is false at

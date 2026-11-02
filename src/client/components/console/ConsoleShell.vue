@@ -4784,6 +4784,13 @@ export default defineComponent({
       }
       const task = taskFor(this.playerView);
       if (task !== undefined && SCENE_KINDS.has(task.kind)) {
+        // A SAFETY CATCH, never the routing (P91): the start scene is the opening's, generation 1 only. A start
+        // marker past it is a server that forgot the mid-game prelude pick's own marker (`deckPickPrompt` mode
+        // `play`) — raising the start workspace there would reset the stack over the hand that played the card.
+        if (this.playerView.game.generation > 1) {
+          console.warn(`[start] scene kind outside generation 1: ${task.kind}`);
+          return undefined;
+        }
         return task;
       }
       // The corporation's mandatory FIRST ACTION is the start flow's own

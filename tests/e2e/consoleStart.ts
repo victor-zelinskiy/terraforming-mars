@@ -3083,6 +3083,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // P88 Venus Orbital Survey — the split reveal; the «Разыграно» polish tables (stacks of different heights, the draft).
   'venus-orbital-survey-mixed' | 'venus-orbital-survey-venus' | 'venus-orbital-survey-none' | 'venus-orbital-survey-poor' | 'venus-orbital-survey-helion' |
   'played-table-polish' | 'played-table-draft' |
+  // P91 WG Project — a prelude played in the middle of the game (ledger EH).
+  'wg-project-plain' | 'wg-project-fizzle' | 'wg-project-place' | 'wg-project-draw' | 'wg-project-nested' |
+  'wg-project-not-chair' | 'wg-project-short-deck' |
   // Prelude 2 P81 Soil Studies — «per Venus tag, plant tag (INCLUDING THIS ONE) and colony» (DJ): the play +5 (Venus
   // Governor · Arctic Algae · this · one cube) · locked at −2 °C.
   'soil-studies' | 'soil-studies-locked' |

@@ -393,6 +393,10 @@ function kindSummary(
     // just turned over. The server title («Оставьте себе 2 карт(ы)») is the
     // precise ask and wins, as it does everywhere else.
     const deck = wf?.deckPickPrompt;
+    if (deck?.mode === 'play') {
+      // THE MID-GAME PRELUDE PICK (P91): the pick is played, never kept.
+      return {kickerKey: 'Prelude choice', ask: ask(wf, 'Choose a prelude to play'), sourceCard: source, returnKey: 'Return to selection'};
+    }
     return {
       kickerKey: deck?.origin === 'discard' ? 'From the discard pile' : 'Card draw',
       ask: ask(wf, 'Choose the cards to keep'),
