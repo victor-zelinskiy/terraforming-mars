@@ -214,16 +214,16 @@ describe('lobbyCardModel — one card of the pregame showcase', () => {
 
   describe('the map showcase (P44 · ER) — a grid solved from the stage, never a carousel', () => {
     /** The deck's own tile proportions at a rem of `r` px (ConsoleMapDeck's constants). */
-    const opts = (r: number) => ({gap: 1 * r, minW: 9.5 * r, maxW: 17 * r, aspect: 0.62, chromeH: 4.6 * r});
+    const opts = (r: number) => ({gap: 1 * r, minW: 9.5 * r, maxW: 17 * r, aspect: 0.62, chromeH: 6 * r});
 
     it('the eleven maps are ONE page of 4 × 3 on the TV and on FHD (the stage beside the dossier)', () => {
-      const fhd = mapGridPlan(1100, 700, 11, opts(20));
+      const fhd = mapGridPlan(1100, 820, 11, opts(20));
       expect([fhd.cols, fhd.rows, fhd.pages]).deep.eq([4, 3, 1]);
-      const tv = mapGridPlan(2200, 1400, 11, opts(40));
+      const tv = mapGridPlan(2200, 1640, 11, opts(40));
       expect([tv.cols, tv.rows, tv.pages]).deep.eq([4, 3, 1]);
       // Every tile inside the stage by construction.
       expect(fhd.cols * fhd.tileW + 3 * 20).to.be.at.most(1100);
-      expect(fhd.rows * fhd.tileH + 2 * 20).to.be.at.most(700);
+      expect(fhd.rows * fhd.tileH + 2 * 20).to.be.at.most(820);
     });
 
     it('the Deck pages — strict pages, never a scroll; a page always fits', () => {

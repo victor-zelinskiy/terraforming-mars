@@ -103,7 +103,14 @@ for (const preset of PRESETS) {
       await expect(page.locator(`[data-map-tile="${target}"] [data-map-current]`)).toHaveCount(1);
       await expect(page.locator('[data-map-current]')).toHaveCount(1);
       // A standing state is a KANT — no blurred halo on the current map.
-      const halo = await page.locator(`[data-map-tile="${target}"]`).evaluate((el) => /\b0px 0px \d+(\.\d+)?px/.test(getComputedStyle(el).boxShadow.replace(/inset[^,]*,?/g, '')));
+      // A halo is an OUTER shadow with no offset and a blur (`0 0 <blur> <colour>`); an inset kant and a drop shadow are not.
+      const halo = await page.locator(`[data-map-tile="${target}"]`).evaluate((el) => getComputedStyle(el).boxShadow
+        .split(/,(?![^(]*\))/)
+        .filter((sh) => !sh.includes('inset'))
+        .some((sh) => {
+          const px = (sh.match(/-?\d+(\.\d+)?px/g) ?? []).map((v) => parseFloat(v));
+          return px.length >= 3 && px[0] === 0 && px[1] === 0 && px[2] > 0;
+        }));
       expect(halo, 'the current map wears a kant, never a halo').toBe(false);
       await page.screenshot({path: `screenshots/create-map-grid/${preset.id}/selected.png`});
     });

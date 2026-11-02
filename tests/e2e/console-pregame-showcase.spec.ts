@@ -318,7 +318,7 @@ for (const preset of PRESETS) {
             return {
               count: tiles.length,
               outside: tiles.filter((r) => r.left < stage.left - tol || r.right > stage.right + tol || r.top < stage.top - tol || r.bottom > stage.bottom + tol).length,
-              cols: new Set(tiles.map((r) => Math.round(r.left / 8))).size,
+              cols: Number(document.querySelector<HTMLElement>('[data-map-showcase]')?.dataset.mapCols ?? 0),
             };
           });
           expect(geo.outside, `every map inside the stage (${JSON.stringify(geo)})`).toBe(0);

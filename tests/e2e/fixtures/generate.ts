@@ -12771,6 +12771,10 @@ type WgProjectVariant = {
   under?: ReadonlyArray<CardName>,
   megacredits: number,
   chair?: 'blue' | 'red',
+  /** A Venus table (P44 — a prelude dealt with Venus). */
+  venus?: boolean,
+  /** The table's last arrangement (P44 — a scale at its maximum). */
+  also?: (game: IGame) => void,
   /** The dry run's answer (index into the pick's cards) and what it must leave. */
   dry?: {pick: CardName, expect: (blue: IPlayer, copy: IGame) => string | undefined},
 };
@@ -12779,9 +12783,10 @@ function wgProjectFixture(name: string, v: WgProjectVariant): void {
   parliamentFixture(name, {
     stopAt: 'vote',
     megacredits: [v.megacredits, 30],
-    options: {prelude2Expansion: true, customCorporationsList: [CardName.THORGATE, CardName.TERACTOR]},
+    options: {prelude2Expansion: true, customCorporationsList: [CardName.THORGATE, CardName.TERACTOR], ...(v.venus === true ? {venusNextExtension: true} : {})},
     arrange: ({game, p1, p2, parliament}) => {
       game.generation = 2;
+      v.also?.(game);
       parliament.chairman = (v.chair ?? 'blue') === 'blue' ? p1.id : p2.id;
       moveToDeckTop(game, CardName.WG_PROJECT);
       p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
@@ -12815,6 +12820,27 @@ function wgProjectFixture(name: string, v: WgProjectVariant): void {
       if (wrong !== undefined) {
         throw new Error(`the ${name} fixture's dry run: ${wrong}`);
       }
+    },
+  });
+}
+
+// ── P44 Atmospheric Enhancers mid-game (docs/claude/prompts/prelude2-p44-atmospheric-enhancers.md, ledger EQ, stand E):
+//    WG Project deals P44 first — RT on it opens the «ВАРИАНТ» step over the candidates; A on a row plays it with the
+//    chosen branch in ONE POST (the pick + the addressed `or`). `-wg-maxed`: the temperature at its maximum. ──
+for (const [name, maxed] of [['atmospheric-enhancers-wg', false], ['atmospheric-enhancers-wg-maxed', true]] as const) {
+  wgProjectFixture(name, {
+    top: [CardName.ATMOSPHERIC_ENHANCERS, CardName.DONATION, CardName.SUPPLIER],
+    under: [CardName.LOAN, CardName.BIOFUELS, CardName.SOCIETY_SUPPORT],
+    megacredits: 20,
+    venus: true,
+    also: maxed ? (game) => setTemperature(game, MAX_TEMPERATURE) : undefined,
+    dry: {
+      pick: CardName.ATMOSPHERIC_ENHANCERS,
+      expect: (blue) => {
+        const or = blue.getWaitingFor();
+        return blue.tableau.has(CardName.ATMOSPHERIC_ENHANCERS) && or instanceof OrOptions && or.options.length === 3 ?
+          undefined : `expected P44 played and its three-way OR asked — got ${or?.type} tableau=${blue.tableau.has(CardName.ATMOSPHERIC_ENHANCERS)}`;
+      },
     },
   });
 }

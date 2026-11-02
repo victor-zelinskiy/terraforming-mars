@@ -1942,16 +1942,20 @@ html.con-profile-handheld {
 
     > * { max-height: 100%; }
 }
+/* The name is the tile's loudest voice and is never cut: two lines reserved (two Vastitas Borealis must read apart). */
 .cm-map__name {
     max-width: 100%;
-    overflow: hidden;
+    min-height: 2.3em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: .9rem;
     font-weight: 600;
-    letter-spacing: .07rem;
+    line-height: 1.15;
+    letter-spacing: .06rem;
     text-transform: uppercase;
     text-align: center;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 .cm-map__chips {
     display: flex;

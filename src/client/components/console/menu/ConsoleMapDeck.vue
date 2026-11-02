@@ -93,7 +93,7 @@ const TILE_MIN_REM = 9.5;
 const TILE_MAX_REM = 17;
 const TILE_GAP_REM = 1;
 const TILE_ASPECT = 0.62;
-const TILE_CHROME_REM = 4.6;
+const TILE_CHROME_REM = 6;
 
 export default defineComponent({
   name: 'ConsoleMapDeck',
