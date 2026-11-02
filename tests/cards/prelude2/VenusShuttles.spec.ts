@@ -23,6 +23,11 @@ import {parkedBatchTailLength, replayBatch} from '../../../src/server/inputs/def
 import {InputResponse} from '../../../src/common/inputs/InputResponse';
 import {Payment} from '../../../src/common/inputs/Payment';
 import {CardName} from '../../../src/common/cards/CardName';
+import {Viron} from '../../../src/server/cards/venusNext/Viron';
+import {ProjectInspection} from '../../../src/server/cards/promo/ProjectInspection';
+import {OrOptions} from '../../../src/server/inputs/OrOptions';
+import {SelectProjectCardToPlay} from '../../../src/server/inputs/SelectProjectCardToPlay';
+import {PlayerInput} from '../../../src/server/PlayerInput';
 
 describe('VenusShuttles', () => {
   let card: VenusShuttles;
@@ -275,6 +280,52 @@ describe('VenusShuttles', () => {
       expect(addressVerdict({role: 'venusBonus', source: {kind: 'card', card: card.name}}, bonus)).eq('own');
       expect(addressVerdict({role: 'venusBonus', source: {kind: 'card', card: CardName.DIRIGIBLES}}, bonus), 'another card\'s bonus').eq('foreign');
     });
+
+    /**
+     * A COPY of the action (Viron, Project Inspection, R&D Funding, the Hydronetwork's stage 7): the composer answers the
+     * COPIED card's own preview, so the live bonus must name the copied card — through the menu, with the engine's real
+     * scopes (the price is a deferred payment whose `andThen` raises the scale after the copy's own call returned).
+     */
+    function bonusAfterCopy(copier: 'viron' | 'inspection'): [IGame, TestPlayer, PlayerInput] {
+      const [g, p] = altTable(16);
+      p.megaCredits = 40;
+      p.playedCards.push(card);
+      p.actionsThisGeneration.add(card.name);
+      const viron = new Viron();
+      if (copier === 'viron') {
+        p.playedCards.push(viron);
+      }
+      p.takeAction();
+      const menu = cast(p.getWaitingFor(), OrOptions);
+      if (copier === 'viron') {
+        const idx = menu.options.findIndex((o) => o instanceof SelectCard);
+        p.process({type: 'or', index: idx, response: {type: 'card', cards: [viron.name]}});
+      } else {
+        const inspection = new ProjectInspection();
+        p.cardsInHand.push(inspection);
+        p.takeAction();
+        const fresh = cast(p.getWaitingFor(), OrOptions);
+        const idx = fresh.options.findIndex((o) => o instanceof SelectProjectCardToPlay);
+        p.process({type: 'or', index: idx, response: {type: 'projectCard', card: inspection.name, payment: {...Payment.EMPTY, megacredits: inspection.cost}}});
+      }
+      runAllActions(g);
+      p.process({type: 'card', cards: [card.name]});
+      runAllActions(g);
+      if (p.getWaitingFor() instanceof SelectPayment) {
+        p.process({type: 'payment', payment: {...Payment.EMPTY, megacredits: 12}});
+        runAllActions(g);
+      }
+      return [g, p, p.getWaitingFor()!];
+    }
+
+    for (const copier of ['viron', 'inspection'] as const) {
+      it(`a COPY (${copier}): the live bonus names the COPIED card — the copied composer's answer is its own`, () => {
+        const [g, , bonus] = bonusAfterCopy(copier);
+        expect(g.getVenusScaleLevel()).eq(18);
+        expect(bonus.venusBonusPrompt?.source).deep.eq({kind: 'card', card: card.name});
+        expect(addressVerdict({role: 'venusBonus', source: {kind: 'card', card: card.name}}, bonus)).eq('own');
+      });
+    }
   });
 
   it('play: a floater holder WITHOUT a Venus tag is not a candidate; a single Venus holder is still ASKED (T14)', () => {

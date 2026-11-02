@@ -34,7 +34,7 @@ import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {PARLIAMENT_DELEGATES_PER_PLAYER, REDUX_PARTIES, ReduxParty} from '../../src/common/parliament/ParliamentTypes';
 import {AddResourcesToCard} from '../../src/server/deferredActions/AddResourcesToCard';
 import {colonySource} from '../../src/server/inputs/choiceContext';
-import {addressed} from '../../src/common/inputs/preselectAddress';
+import {addressed, addressVerdict, PreselectAddress} from '../../src/common/inputs/preselectAddress';
 import {InputResponse} from '../../src/common/inputs/InputResponse';
 import {Phase} from '../../src/common/Phase';
 import {MAX_VENUS_SCALE} from '../../src/common/constants';
@@ -614,6 +614,49 @@ describe('VenusRedux', () => {
       const restored = Game.deserialize(serialized);
       expect(restored.colonies.map(toName)).to.not.include('Venus');
       expect(restored.colonies).to.have.lengthOf(serialized.colonies.length - 1);
+    });
+  });
+  describe('the alternative board: the fixed step\'s Venus bonus is PRE-SELECTED on the trade stage (P89 · EL)', () => {
+    function altTable(level: number): [IGame, TestPlayer, VenusRedux] {
+      const v = new VenusRedux();
+      const [g, p] = testGame(2, {coloniesExtension: true, turmoilReduxExpansion: true, venusNextExtension: true, altVenusBoard: true});
+      g.phase = Phase.ACTION;
+      g.colonies = [v];
+      seatEnacted(g.parliament!, ARCHITECTURE_AWARD_ID);
+      setVenusScaleLevel(g, level);
+      v.trackPosition = 1; // the 2nd cell: a levy of nothing — the income is the fixed step alone
+      p.steel = 0;
+      return [g, p, v];
+    }
+
+    it('16 % → the preview carries the bonus as a follow-up: the very prompt, addressed by its role', () => {
+      const [, p, v] = altTable(16);
+      const followUp = buildColonyTradePreview(p, v).followUps.find((f) => f.kind === 'venusBonus');
+      expect(followUp?.kind).eq('venusBonus');
+      if (followUp?.kind !== 'venusBonus') {
+        return;
+      }
+      expect(followUp.input.venusBonusPrompt).deep.include({kind: 'standard', baseCount: 1, step: {from: 16, to: 18}});
+      expect(followUp.for).deep.eq({role: 'venusBonus'});
+      const [, below, vBelow] = altTable(10);
+      expect(buildColonyTradePreview(below, vBelow).followUps.some((f) => f.kind === 'venusBonus'), 'no bonus below 18 %').is.false;
+    });
+
+    it('the stage\'s addressed answer lands on the live bonus: nothing parked, nothing asked, the steel on the rail', () => {
+      const [g, p, v] = altTable(16);
+      const followUp = buildColonyTradePreview(p, v).followUps.find((f) => f.kind === 'venusBonus');
+      v.trade(p);
+      runAllActions(g);
+      const bonus = p.getWaitingFor();
+      expect(bonus?.venusBonusPrompt?.kind, 'the trade asks the bonus').eq('standard');
+      const amounts = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'].map((r) => ({type: 'amount', amount: r === 'steel' ? 1 : 0}));
+      const answer = addressed({type: 'and', responses: amounts}, followUp?.kind === 'venusBonus' ? followUp.for : undefined);
+      expect(addressVerdict((answer as {for?: PreselectAddress}).for!, bonus!), 'the role is the bonus’s alone — the address lets it land').not.eq('foreign');
+      replayBatch(p, [answer as unknown as InputResponse]);
+      runAllActions(g);
+      expect(p.steel).eq(1);
+      expect(g.getVenusScaleLevel()).eq(18);
+      expect(p.getWaitingFor()?.venusBonusPrompt).is.undefined;
     });
   });
 });

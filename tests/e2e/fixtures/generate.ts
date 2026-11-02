@@ -10039,6 +10039,40 @@ function venusBonusFixture(name: string, door: 'play' | 'stdp' | 'final'): void 
 venusBonusFixture('venus-bonus-play', 'play');
 venusBonusFixture('venus-bonus-stdp', 'stdp');
 venusBonusFixture('venus-bonus-final', 'final');
+
+// ── P89 · EL — the bonus PRE-SELECTED in a COPY of the action: Venus Shuttles' action spent this generation at 16 % on
+//    the alternative board, and the copier at hand — `venus-bonus-viron` (Viron the corporation, its action unspent),
+//    `venus-bonus-inspection` (Project Inspection in hand). The copier's repeat bridge composes the COPIED card's
+//    action — its bonus row included — and the live bonus names the copied card (`Game.venusBonusSource`). ──
+function venusBonusCopyFixture(name: string, copier: 'viron' | 'inspection'): void {
+  const {game, player} = soloActionPhase({
+    venusNextExtension: true, prelude2Expansion: true, altVenusBoard: true, promoCardsOption: true,
+    customCorporationsList: [copier === 'viron' ? CardName.VIRON : CardName.TERACTOR], startingCorporations: 1,
+  });
+  const take = (n: CardName) => {
+    moveToDeckTop(game, n);
+    return game.projectDeck.drawOrThrow(game);
+  };
+  const shuttles = take(CardName.VENUS_SHUTTLES);
+  player.playedCards.push(shuttles);
+  if (copier === 'inspection') {
+    player.cardsInHand.push(take(CardName.PROJECT_INSPECTION));
+  }
+  // The action counts as SPENT this generation — what makes it a copier's honest candidate (`repeatableActionCards`).
+  player.actionsThisGeneration.add(shuttles.name);
+  setVenusScaleLevel(game, 16);
+  player.megaCredits = 40;
+  runAllActions(game);
+  if (copier === 'viron' && !player.playedCards.some((c) => c.name === CardName.VIRON)) {
+    throw new Error(`${name}: expected Viron as the corporation`);
+  }
+  if (game.getVenusScaleLevel() !== 16 || !player.actionsThisGeneration.has(CardName.VENUS_SHUTTLES)) {
+    throw new Error(`${name}: expected Venus at 16 % with Venus Shuttles' action spent`);
+  }
+  write(name, game);
+}
+venusBonusCopyFixture('venus-bonus-viron', 'viron');
+venusBonusCopyFixture('venus-bonus-inspection', 'inspection');
 {
   // TWO seats (the Redux table): a solo colonies table keeps asking which tile to remove in front of the trade.
   const {game, p1} = reduxTable('venus-bonus-trade', {venusNextExtension: true, altVenusBoard: true});

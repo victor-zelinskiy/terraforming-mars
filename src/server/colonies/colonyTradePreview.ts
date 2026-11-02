@@ -28,6 +28,8 @@ import {IColony} from './IColony';
 import {message} from '../logs/MessageBuilder';
 import {colonySource} from '../inputs/choiceContext';
 import {rewardReactionForecast, tradeReactionForecast} from '../models/effectForecast';
+import {altVenusBonusFor} from '../../common/venus/altVenusBonus';
+import {GrantVenusAltTrackBonusDeferred} from '../venusNext/GrantVenusAltTrackBonusDeferred';
 import {EffectForecastFact} from '../../common/models/EffectForecastModel';
 import {divertEffects, divertingLaw} from '../models/divertedTerraforming';
 import {vetoEffects} from '../models/vetoedRating';
@@ -49,6 +51,28 @@ import {divertedDataPicker} from '../parliament/resolutions/DivertedTerraforming
  * `AddResourcesToCard` at GAIN_RESOURCE_OR_PRODUCTION — so a player's own
  * colony-bonus pick prompts BEFORE the trade-reward pick.)
  */
+/**
+ * THE TRADE'S VENUS BONUS (P89 · ledger EL): a tile whose FIXED income steps Venus (`trade.fixed` —
+ * `INCREASE_VENUS_SCALE`, the Redux «Venus») earns the alternative board's bonus whenever that step crosses a bonus cell
+ * — the engine's ONE arithmetic (`altVenusBonusFor`) decides, its ONE builder (`GrantVenusAltTrackBonusDeferred.prompt`)
+ * builds the prompt it will ask. The address carries no source: the trade's doors run under a card's, a party's or the
+ * colony's scope — the role is the bonus's alone, and a trade earns one.
+ */
+function venusBonusFollowUp(player: IPlayer, metadata: ColonyMetadata): ColonyTradeFollowUpModel | undefined {
+  const fixed = tradeFixedIncome(metadata);
+  if (fixed?.type !== ColonyBenefit.INCREASE_VENUS_SCALE || player.game.gameOptions.altVenusBoard !== true || player.isMarsBot === true) {
+    return undefined;
+  }
+  const bonus = altVenusBonusFor(player.game.getVenusScaleLevel(), fixed.quantity);
+  if (bonus === undefined) {
+    return undefined;
+  }
+  const input = GrantVenusAltTrackBonusDeferred.prompt(player, bonus.standard, bonus.wild, {from: bonus.from, to: bonus.to}, undefined);
+  const model = input.toModel(player);
+  model.venusBonusPrompt = input.venusBonusPrompt;
+  return {kind: 'venusBonus', input: model, for: {role: 'venusBonus'}};
+}
+
 export function buildColonyTradePreview(player: IPlayer, colony: IColony, pathOffset = 0): ColonyTradePreviewModel {
   const metadata = colony.metadata;
 
@@ -68,6 +92,13 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony, pathOf
   const followUps: Array<ColonyTradeFollowUpModel> = [];
   if (willAsk) {
     followUps.push({kind: 'trackChoice', steps, minSteps: plan.minSteps});
+  }
+
+  // ── THE VENUS BONUS the FIXED Venus step earns on the alternative board (the Redux «Venus» — P89 · ledger EL): the
+  //    very prompt the engine will ask, pre-collected on the stage like a card target and answered in the same batch. ─
+  const venusBonus = venusBonusFollowUp(player, metadata);
+  if (venusBonus !== undefined) {
+    followUps.push(venusBonus);
   }
 
   // ── The player's OWN colony bonuses on this tile (GiveColonyBonus prompts

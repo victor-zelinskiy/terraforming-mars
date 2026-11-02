@@ -34,7 +34,7 @@ import {Payment} from '@/common/inputs/Payment';
 import {
   ColonyTradeFollowUpModel, ColonyTradeFollowUpRole, ColonyTradePreviewModel, TradePaymentPreviewModel,
 } from '@/common/models/ColonyTradePreviewModel';
-import {SelectCardModel, SelectPaymentModel} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, SelectCardModel, SelectPaymentModel} from '@/common/models/PlayerInputModel';
 import {PreselectAddress, addressed} from '@/common/inputs/preselectAddress';
 
 // ── Interactive pre-collect steps ────────────────────────────────────────────
@@ -57,7 +57,13 @@ export type TradeStep =
       pick: SelectCardModel,
       /** The pick answer's address (the server's — `ColonyTradeFollowUpModel.for`). */
       for?: PreselectAddress,
-    };
+    }
+  /**
+   * THE VENUS BONUS the trade's fixed step earns (the Redux «Venus» on the alternative board — P89 · ledger EL):
+   * pre-collected on the stage (the spread, and the 30 % wild as its own row), answered by ONE composed response
+   * (`venusPreselectResponse`), addressed by the role `venusBonus`.
+   */
+  | {kind: 'venusBonus', input: PlayerInputModel, for?: PreselectAddress};
 
 /** The interactive steps ONE follow-up list contributes, in its own order. */
 function followUpSteps(followUps: ReadonlyArray<ColonyTradeFollowUpModel>): Array<TradeStep> {
@@ -65,6 +71,8 @@ function followUpSteps(followUps: ReadonlyArray<ColonyTradeFollowUpModel>): Arra
   for (const followUp of followUps) {
     if (followUp.kind === 'trackChoice') {
       steps.push({kind: 'trackChoice', steps: followUp.steps, minSteps: followUp.minSteps ?? 0});
+    } else if (followUp.kind === 'venusBonus') {
+      steps.push({kind: 'venusBonus', input: followUp.input, ...(followUp.for !== undefined ? {for: followUp.for} : {})});
     } else if (followUp.kind === 'cardTarget' && followUp.pick !== undefined) {
       steps.push({
         kind: 'cardTarget',
@@ -204,6 +212,9 @@ export function stepResponse(step: TradeStep, capture: unknown): InputResponse |
   case 'cardTarget':
     // ADDRESSED: the reward's own pick — never offered to a question of another asker in front of it.
     return capture === undefined ? undefined : addressed<InputResponse>({type: 'card', cards: [capture as CardName]}, step.for);
+  case 'venusBonus':
+    // The stage's composed answer (both parts — the wild and the spread), ADDRESSED to the bonus alone.
+    return capture === undefined ? undefined : addressed(capture as InputResponse, step.for);
   default:
     return undefined;
   }

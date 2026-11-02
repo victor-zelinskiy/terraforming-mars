@@ -127,7 +127,7 @@ export const consoleColoniesUi = reactive({
    *  `targets` = the embedded played-card target step (physical candidates:
    *  A = choose, X = inspect the focused card — its own command grammar);
    *  `mix` = the Delta Works composition substep (LB/RB dial · X confirm). */
-  composerSub: '' as '' | 'list' | 'lanes' | 'targets' | 'mix',
+  composerSub: '' as '' | 'list' | 'lanes' | 'targets' | 'mix' | 'venus',
   /** Focus stage: the open list's DECLINE as a button (RT, its i18n key — `optionalChoice.ts`); '' = none. */
   composerDecline: '' as string,
   /** Focus stage: every decision is captured — X (confirm) is meaningful. */

@@ -10140,6 +10140,17 @@ export default defineComponent({
         if (consoleColoniesUi.forecastOpen) {
           return [...(forecastExplorerUi('colony').barCommands ?? [])];
         }
+        // THE VENUS SPREAD of a trade (P89 · EL): the hosted surface's own verbs — LB/RB one unit, RT the rest.
+        if (consoleColoniesUi.composerSub === 'venus') {
+          return [
+            {control: 'dpad', label: 'Navigate'},
+            {control: 'bumperL', label: '−1'},
+            {control: 'bumperR', label: '+1'},
+            {control: 'triggerR', label: 'MAX'},
+            {control: 'confirm', label: 'Done'},
+            {control: 'back', label: 'Back'},
+          ];
+        }
         if (consoleColoniesUi.composerSub === 'lanes') {
           return [
             {control: 'triggerR', label: 'Max'},

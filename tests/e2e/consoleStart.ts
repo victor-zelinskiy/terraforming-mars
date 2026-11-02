@@ -3197,6 +3197,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'parliament-mohole-assembly' |
   // P89 · EJ: the dev law «Venus Survey Charter» at 14 % on the alternative board, blue's delegate on it, one pass before the sitting.
   'parliament-venus-step-assembly' |
+  // P89 · EL: Venus Shuttles' action spent at 16 % (alt board) with a copier at hand — Viron / Project Inspection.
+  'venus-bonus-viron' | 'venus-bonus-inspection' |
   // RX24 Open IP Trade: the law ENACTED, blue opening generation 2 with four cards in hand and the action unspent.
   'parliament-openip-enacted' |
   'parliament-rdfunding-enacted' |

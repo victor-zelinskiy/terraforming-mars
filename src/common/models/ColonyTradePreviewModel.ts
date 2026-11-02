@@ -2,7 +2,7 @@ import type {PreselectAddress} from '../inputs/preselectAddress';
 import {ColonyName} from '../colonies/ColonyName';
 import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
-import {SelectCardModel, SelectPaymentModel} from './PlayerInputModel';
+import {PlayerInputModel, SelectCardModel, SelectPaymentModel} from './PlayerInputModel';
 import type {ActionEffect, VictoryPointsDelta} from './ActionPreviewModel';
 import type {EffectForecast} from './EffectForecastModel';
 
@@ -95,7 +95,14 @@ export type ColonyTradeFollowUpModel =
        */
       for?: PreselectAddress,
     }
-  | {kind: 'note', role: ColonyTradeFollowUpRole, note: ColonyTradeNoteKind};
+  | {kind: 'note', role: ColonyTradeFollowUpRole, note: ColonyTradeNoteKind}
+  /**
+   * THE ALTERNATIVE VENUS BOARD'S BONUS the trade's FIXED Venus step earns (the Redux «Venus» — P89 · ledger EL):
+   * PRE-COLLECTED on the stage like a card target — `input` is the very prompt the engine will ask
+   * (`GrantVenusAltTrackBonusDeferred.prompt`, its `venusBonusPrompt` marker), `for` its address (role `venusBonus`,
+   * no source — a trade's door may run under a card's or a party's scope; the role is the bonus's alone).
+   */
+  | {kind: 'venusBonus', input: PlayerInputModel, for?: PreselectAddress};
 
 /**
  * Read-only preview of ONE colony trade for the trading player — the shared

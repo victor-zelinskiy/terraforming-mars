@@ -678,4 +678,14 @@ describe('a FIXED trade income beside the marker\'s bonus (the Redux Venus)', ()
     } as unknown as ColonyTradePreviewModel;
     expect(tradeNotices(preview)).to.deep.eq([{kind: 'afterConfirm', note: 'After confirming: add delegates to a resolution'}]);
   });
+
+  it('the trade’s Venus bonus (P89 · EL) is a step: the stage’s composed answer rides the batch ADDRESSED to the bonus', () => {
+    const input = {type: 'and', title: 'bonus', options: [], venusBonusPrompt: {kind: 'standard', baseCount: 1, step: {from: 16, to: 18}}};
+    const steps = tradeSteps({followUps: [{kind: 'venusBonus', input, for: {role: 'venusBonus'}}]} as never, true);
+    expect(steps.map((s) => s.kind)).deep.eq(['venusBonus']);
+    const answer = {type: 'and', responses: [{type: 'amount', amount: 0}, {type: 'amount', amount: 1}]};
+    const batch = buildTradeBatch({colonyName: 'Venus Redux' as never, tradePath: [2], paymentIndex: 0, steps, captures: {0: answer}});
+    expect(batch[1]).deep.eq({...answer, for: {role: 'venusBonus'}});
+    expect(buildTradeBatch({colonyName: 'Venus Redux' as never, tradePath: [2], paymentIndex: 0, steps, captures: {}}), 'unanswered: nothing posted for it').has.length(1);
+  });
 });

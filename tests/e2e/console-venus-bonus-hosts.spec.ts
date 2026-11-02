@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  answerVenusSpread, bootFixture, bootFixtureSeats, crumbText, fetchPlayerModel, openActionFocus, openCardActions, playCardFromHand, press,
+  answerVenusSpread, bootFixture, bootFixtureSeats, crumbText, fetchPlayerModel, focusCard, openActionFocus, openCardActions, playCardFromHand, press,
   pressUntil, reloadConsole, settle, walkFocusUntil,
 } from './consoleStart';
 import {enterSittingByPass, parliament, strandedReports, armLeakWitness, turnTo, waitSittingAtRest} from './parliamentDrive';
@@ -164,6 +164,26 @@ async function runAirScrapping(page: Page, request: APIRequestContext, id: strin
     'A runs the project').toBe(true);
 }
 
+/**
+ * THE REPEAT, COMPOSED (P89 · EL): A opens the repeat bridge (the ДЕЙСТВИЯ КАРТ list in repeat mode), A takes the copied
+ * action, its own composer stands with the bonus's spread — laid out on steel — and its commit hands the composed answer
+ * back into the copier's slot (`[data-composer-repeat-name]`).
+ */
+async function composeRepeat(page: Page, shot: string): Promise<void> {
+  const slotFilled = async () => await page.locator('[data-composer-repeat-name]').count() > 0;
+  for (let i = 0; i < 10 && !await slotFilled(); i++) {
+    const spread = page.locator('[data-venus-spread]').first();
+    if (await spread.count() > 0 && (await spread.getAttribute('data-venus-spread-left')) !== '0') {
+      await shoot(page, `${shot}-copied-spread`);
+      expect(await answerVenusSpread(page, 'steel'), 'the copied composer\'s bonus laid out').toBe(true);
+      continue;
+    }
+    await press(page, 'Enter', 900);
+  }
+  expect(await slotFilled(), 'the composed repeat lands in the copier\'s slot').toBe(true);
+  await settle(page, {timeoutMs: 15_000});
+}
+
 async function focusShuttles(page: Page): Promise<void> {
   await openCardActions(page);
   const focused = () => page.evaluate(() => document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-card') ?? '');
@@ -240,7 +260,7 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     await answerHostedBonus(page, request, id, 'standard-projects', '.con-stdp', 'H3');
   });
 
-  test('H4 «КОЛОНИИ»: a trade on the Redux «Venus» at 16 % → the bonus stands in the trade\'s stage', async ({page, request}) => {
+  test('H4 «КОЛОНИИ»: a trade on the Redux «Venus» at 16 % → the bonus is PRE-SELECTED on the trade stage, the batch answers it', async ({page, request}) => {
     test.setTimeout(420_000);
     const {playerId: id} = await bootFixtureSeats(page, request, 'venus-bonus-trade', {query: PRESET.query, keepColony: 'Venus Redux'});
     await armBonusWitness(page);
@@ -256,9 +276,32 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     }
     await expect(tile, 'the Venus colony is focused').toHaveCount(1);
     await press(page, 'Enter', 2000);
+    // THE BONUS IS A DECISION OF THE TRADE (P89 · EL): its row stands among «Ваши выборы»; A opens the spread.
+    const row = page.locator('.con-colfocus__steprow', {hasText: /бонус венеры/i});
+    await expect(row, 'the Venus bonus row stands on the trade stage').toHaveCount(1, {timeout: 15_000});
+    const focusedRow = page.locator('.con-colfocus__steprow--focused', {hasText: /бонус венеры/i});
+    for (let i = 0; i < 8 && await focusedRow.count() === 0; i++) {
+      await press(page, 'ArrowDown', 300);
+    }
+    await expect(focusedRow, 'the cursor reaches the bonus row').toHaveCount(1);
+    await shoot(page, 'H4-row');
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-colfocus [data-venus-spread]').count() > 0, {tries: 3, settleMs: 700}),
+      'A opens the spread').toBe(true);
+    expect(await answerVenusSpread(page, 'steel'), 'the steel lane takes the unit').toBe(true);
+    await shoot(page, 'H4-spread');
+    await press(page, 'Enter', 500); // back to the decisions
+    await expect(page.locator('[data-venus-spread-summary]'), 'the row reads the answer').toBeVisible({timeout: 10_000});
+    const before = await wireOf(request, id);
+    await armCellWitness(page, 'venus-18');
     expect(await pressUntil(page, 'KeyX', async () => (await wireOf(request, id)).game.venusScaleLevel === 18, {tries: 3, settleMs: 2000}),
       'X confirms the trade').toBe(true);
-    await answerHostedBonus(page, request, id, 'colonies', '.con-colonies', 'H4');
+    await expect.poll(async () => (await wireOf(request, id)).thisPlayer.steel, {timeout: 30_000, message: 'the trade\'s batch paid the bonus'})
+      .toBe(before.thisPlayer.steel + 1);
+    expect((await wireOf(request, id)).waitingFor?.venusBonusPrompt, 'no bonus is asked after the trade').toBeUndefined();
+    await expectBornOnCell(page, 'venus-18');
+    const w = await witnessOf(page);
+    expect(w.hosted, 'no hosted bonus step').toBe('');
+    expect(w.band, 'no standalone bonus band').toBe(0);
   });
 
   test('H5 the 30 % finish (P89 at 28 %): the WILD is its own pre-select (a card, or a standard resource) beside the spread', async ({page, request}) => {
@@ -340,6 +383,66 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     }, {timeout: 30_000, message: 'the standalone band collects too'}).toBeUndefined();
     // …and its resource comes off the cell too (the story was already told — the stage stands at once).
     await expectBornOnCell(page, 'venus-18');
+  });
+
+  test('H9 VIRON repeats P89 at 16 %: the copied action\'s bonus is pre-selected in the repeat composer, Viron\'s commit answers it', async ({page, request}) => {
+    test.setTimeout(420_000);
+    const id = await bootFixture(page, request, 'venus-bonus-viron', {query: PRESET.query});
+    await armBonusWitness(page);
+    await openCardActions(page);
+    const focused = () => page.evaluate(() => document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-card') ?? '');
+    await walkFocusUntil(page, async () => await focused() === 'Viron', focused, 30);
+    await openActionFocus(page);
+    await settle(page, {timeoutMs: 15_000});
+    await composeRepeat(page, 'H9');
+    const before = await wireOf(request, id);
+    await armCellWitness(page, 'venus-18');
+    await commitComposer(page);
+    await expect.poll(async () => (await wireOf(request, id)).game.venusScaleLevel, {timeout: 30_000}).toBe(18);
+    await expect.poll(async () => (await wireOf(request, id)).thisPlayer.steel, {timeout: 30_000, message: 'Viron\'s batch paid the copied bonus'})
+      .toBe(before.thisPlayer.steel + 1);
+    expect((await wireOf(request, id)).waitingFor?.venusBonusPrompt, 'no bonus is asked after the copy').toBeUndefined();
+    await expectBornOnCell(page, 'venus-18');
+    expect((await witnessOf(page)).band, 'no standalone bonus band').toBe(0);
+  });
+
+  test('H10 PROJECT INSPECTION repeats P89 at 16 %: the play sheet\'s repeat composes the copied bonus, the play\'s batch answers it', async ({page, request}) => {
+    test.setTimeout(420_000);
+    const id = await bootFixture(page, request, 'venus-bonus-inspection', {query: PRESET.query});
+    await armBonusWitness(page);
+    const before = await wireOf(request, id);
+    await armCellWitness(page, 'venus-18');
+    // Open the play sheet, then walk the repeat: the bridge opens, the copied composer stands, its bonus is laid out.
+    await press(page, 'Period', 600);
+    await press(page, 'Enter', 1600);
+    const card = page.locator('.con-hand [data-zoom-slot="Project Inspection"]');
+    await expect(card, 'the hand stands').toHaveCount(1, {timeout: 15_000});
+    expect(await focusCard(page, 'Project Inspection'), 'the copier is focused in the hand').toBe(true);
+    await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
+    await press(page, 'Enter', 900);
+    await expect(page.locator('.con-composer--play'), 'the play sheet').toHaveCount(1, {timeout: 15_000});
+    // The sheet's repeat row opens the bridge, the copied composer stands with its bonus row — laid out on steel —
+    // and the sheet's own commit makes the play (one batch: the play, the pick, the copied action, its bonus).
+    const played = async () => ((await fetchPlayerModel(request, id)) as unknown as {cardsInHand: Array<{name: string}>})
+      .cardsInHand.every((c) => c.name !== 'Project Inspection');
+    let laidOut = false;
+    for (let i = 0; i < 12 && !await played(); i++) {
+      const spread = page.locator('[data-venus-spread]').first();
+      if (await spread.count() > 0 && (await spread.getAttribute('data-venus-spread-left')) !== '0') {
+        await shoot(page, 'H10-copied-spread');
+        expect(await answerVenusSpread(page, 'steel'), 'the copied composer’s bonus laid out').toBe(true);
+        laidOut = true;
+        continue;
+      }
+      await press(page, 'Enter', 1000);
+    }
+    expect(laidOut, 'the copied action’s bonus was PRE-SELECTED (its spread row stood in the copied composer)').toBe(true);
+    expect(await played(), 'the play is made').toBe(true);
+    await expect.poll(async () => (await wireOf(request, id)).thisPlayer.steel, {timeout: 45_000, message: 'the play\'s batch paid the copied bonus'})
+      .toBe(before.thisPlayer.steel + 1);
+    expect((await wireOf(request, id)).waitingFor?.venusBonusPrompt, 'no bonus is asked after the play').toBeUndefined();
+    await expectBornOnCell(page, 'venus-18');
+    expect((await witnessOf(page)).band, 'no standalone bonus band').toBe(0);
   });
 
   test("H8 «ПАРЛАМЕНТ»: the winner's Venus step (14 → 18 %) → the bonus is a step of the sitting's reward page; the planet's story AFTER the answer, the resource off its cell", async ({page, request}) => {

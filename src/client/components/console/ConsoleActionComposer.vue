@@ -6882,9 +6882,11 @@ export default defineComponent({
         if (this.repeatResult === undefined && runtimeNavigationSteps(branch).length === 0) {
           this.armCommitWitness(branch);
         }
-        // The Venus bonus this action pre-selected flies off its cell once the board tells the step (P89 · EL).
-        this.armVenusPreselects(branch);
       }
+      // The Venus bonus this composer pre-selected flies off its cell once the board tells the step (P89 · EL) — armed
+      // here for a nested repeat composer too (Viron, Project Inspection, R&D Funding, the Hydronetwork's stage 7): its
+      // answer rides the copier's commit, and the promise waits for the response in which the scale reaches the cell.
+      this.armVenusPreselects(branch);
       this.$emit('confirm', {
         branchIndex: branch.index,
         // The branch slot's pre-select address — the server's (`ActionPreviewBranch.for`).
