@@ -43,6 +43,11 @@ if (roots.length === 0) {
 
 // ── findings ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 const groups = new Map();
+/** STEP 4, prepared: the cure lines (`[screen-shadow] cure-plan …` — a dry run; `[screen-shadow] cure …` — applied). */
+const cures = new Map();
+/** The specs that put a defect in ON PURPOSE (the positive controls) — their findings and cures are expected. */
+const DELIBERATE = new Set(['console-screen-shadow-control.spec.ts', 'console-screen-director-cure.spec.ts']);
+const label = (rec) => `${rec.file} › ${rec.title}${rec.retry > 0 ? ` (retry ${rec.retry})` : ''}${DELIBERATE.has(rec.file) ? '  [deliberate — a positive control]' : ''}`;
 let findingFiles = 0;
 for (const root of roots) {
   const dir = path.join(root, 'screen-shadow');
@@ -53,6 +58,15 @@ for (const root of roots) {
     findingFiles++;
     const rec = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
     for (const line of rec.findings) {
+      const cure = /^\[screen-shadow\] (cure-plan|cure) «([^»]*)» by (\w+)/.exec(line);
+      if (cure !== null) {
+        const key = `${cure[1] === 'cure' ? 'APPLIED' : 'planned (dry run)'} · ${cure[2]} · by ${cure[3]}`;
+        const c = cures.get(key) ?? {count: 0, tests: new Set()};
+        c.count++;
+        c.tests.add(label(rec));
+        cures.set(key, c);
+        continue;
+      }
       const brace = line.indexOf(' {');
       let f = {};
       try {
@@ -62,10 +76,10 @@ for (const root of roots) {
       }
       const shape = String(f.prompt ?? '').replace(/#\d*$/, '');
       const present = (f.present ?? []).join('|') || 'nothing';
-      const key = `${f.kind} · ${shape} · expected ${(f.expected ?? []).join('|')} → on screen ${present}`;
+      const key = `${f.kind} · ${shape} · expected ${(f.expected ?? []).join('|')} → on screen ${present}${f.cure !== undefined ? ` · ${f.cure}` : ''}`;
       const g = groups.get(key) ?? {count: 0, tests: new Set(), samples: []};
       g.count++;
-      g.tests.add(`${rec.file} › ${rec.title}${rec.retry > 0 ? ` (retry ${rec.retry})` : ''}`);
+      g.tests.add(label(rec));
       if (g.samples.length < 3) {
         g.samples.push(line.slice(brace + 1, brace + 1 + 900));
       }
@@ -234,5 +248,15 @@ for (const [key, g] of fRows) {
     for (const s of g.samples) {
       console.log(`    ${s}`);
     }
+  }
+}
+
+// ── the cures (step 4, prepared) ────────────────────────────────────────────────────────────────────────────────────
+const cRows = [...cures.entries()].sort((a, b) => b[1].tests.size - a[1].tests.size);
+console.log(`\nCURES — ${cRows.length === 0 ? 'none (no confirmed finding reached a plan)' : `${cRows.length} distinct`} · an APPLIED cure off a positive control is a latch bug to stand up`);
+for (const [key, c] of cRows) {
+  console.log(`■ ${key}  — ${c.count}× in ${c.tests.size} test(s)`);
+  for (const t of [...c.tests].slice(0, 6)) {
+    console.log(`    ${t}`);
   }
 }

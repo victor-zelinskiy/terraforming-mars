@@ -1,6 +1,6 @@
 import {expect} from 'chai';
-import {leakDetectorState, registerScreenShadowContext, runLeakDetection, setConsoleTaskSpacePlacement, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
-import {resetScreenShadowLog, screenShadowLog, SCREEN_SHADOW_CONFIRM_TICKS} from '@/client/console/screenDirector';
+import {leakDetectorState, registerScreenCureExecutor, registerScreenShadowContext, runLeakDetection, runScreenCure, screenShadowStanding, setConsoleTaskDeferred, setConsoleTaskSpacePlacement, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
+import {ScreenCurePlan, resetScreenShadowLog, screenCureArming, screenShadowLog, SCREEN_SHADOW_CONFIRM_TICKS} from '@/client/console/screenDirector';
 import {setMandatoryGateHeld, resetMandatoryGate} from '@/client/console/consoleMandatoryGate';
 import {beginAnimationHold, expireActiveAnimationHolds, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
 import {resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
@@ -26,6 +26,9 @@ function clearForeground(): void {
   resetWorkspaceStack();
   resetAnimationHoldsForTest();
   registerScreenShadowContext(undefined);
+  registerScreenCureExecutor(undefined);
+  screenCureArming.armed = new Set();
+  setConsoleTaskDeferred(false);
   resetScreenShadowLog();
 }
 
@@ -60,7 +63,9 @@ describe('screen shadow — positive controls through the leak detector', () => 
       runLeakDetection(view);
     }
   }
-  const shadowLines = () => warns.filter((w) => w.startsWith('[screen-shadow]'));
+  /** The FINDING lines (the cure's own lines are read apart). */
+  const shadowLines = () => warns.filter((w) => w.startsWith('[screen-shadow]') && !w.startsWith('[screen-shadow] cure'));
+  const cureLines = () => warns.filter((w) => w.startsWith('[screen-shadow] cure'));
 
   beforeEach(() => {
     clearForeground();
@@ -200,5 +205,69 @@ describe('screen shadow — positive controls through the leak detector', () => 
     passes(handSelectView(7), 6);
     passes(handSelectView(8), 3);
     expect(screenShadowLog.findings.map((f) => f.prompt)).deep.eq(['handSelect#7', 'handSelect#8']);
+  });
+
+  /*
+   * STEP 4, PREPARED — the cure. Planned on every confirmed finding and filed on it; EXECUTED only for an armed verb.
+   * The dry run is the default, and it must change nothing: no door called, the finding left standing.
+   */
+  describe('the cure (step 4, prepared)', () => {
+    let calls: Array<ScreenCurePlan>;
+    beforeEach(() => {
+      calls = [];
+      registerScreenCureExecutor((plan) => {
+        calls.push(plan);
+        return 'door called';
+      });
+    });
+
+    it('DRY RUN (nothing armed): the plan is named and filed, no door is called, the finding keeps standing', () => {
+      passes(handSelectView(), SCREEN_SHADOW_CONFIRM_TICKS);
+      expect(calls, 'no door called').deep.eq([]);
+      expect(screenShadowLog.findings[0]?.cure).eq('plan:open:openShellTaskSurface');
+      expect(cureLines()).length(1);
+      expect(cureLines()[0]).match(/^\[screen-shadow\] cure-plan «open:openShellTaskSurface» by shadow \(dry run — not armed\) for «handSelect#7»/);
+      expect(screenShadowStanding.plan?.verb, 'the finding stands — the liveness rung can read it').eq('open');
+      // The rung on a stalled screen: the same dry run — nothing done, the ladder goes on, named ONCE per caller.
+      expect(runScreenCure('liveness')).eq('');
+      expect(runScreenCure('liveness')).eq('');
+      expect(cureLines().filter((l) => l.includes('by liveness'))).length(1);
+      expect(calls).deep.eq([]);
+    });
+
+    it('ARMED: the door is called once, the cure named and written on the finding, the standing finding cleared', () => {
+      screenCureArming.armed = new Set(['open']);
+      passes(handSelectView(), SCREEN_SHADOW_CONFIRM_TICKS);
+      expect(calls.map((p) => p.verb)).deep.eq(['open']);
+      expect(screenShadowLog.findings[0]?.cure).eq('cure:open:openShellTaskSurface');
+      expect(cureLines()[0]).match(/^\[screen-shadow\] cure «open:openShellTaskSurface» by shadow for «handSelect#7»: door called/);
+      expect(screenShadowStanding.finding).eq(undefined);
+      expect(runScreenCure('liveness'), 'nothing left standing for the rung').eq('');
+    });
+
+    it('a verb armed is not another verb armed: a misserved question stays a dry run while only «open» is armed', () => {
+      screenCureArming.armed = new Set(['open']);
+      enterWorkspace('colonies');
+      paint('con-colonies');
+      passes(handSelectView(), SCREEN_SHADOW_CONFIRM_TICKS);
+      expect(calls).deep.eq([]);
+      expect(screenShadowLog.findings[0]?.cure).eq('plan:yield:goBoardHome+openShellTaskSurface');
+    });
+
+    it('the standing finding goes the moment the screen agrees again — the rung never cures a healed screen', () => {
+      passes(handSelectView(), SCREEN_SHADOW_CONFIRM_TICKS);
+      expect(screenShadowStanding.plan).not.eq(undefined);
+      enterWorkspace('hand');
+      paint('con-hand');
+      passes(handSelectView(), 1);
+      expect(screenShadowStanding.plan).eq(undefined);
+    });
+
+    it('a question the player SET ASIDE is never planned at all — it is held, not stranded', () => {
+      setConsoleTaskDeferred(true);
+      passes(handSelectView(), SCREEN_SHADOW_CONFIRM_TICKS + 1);
+      expect(screenShadowLog.findings).length(0);
+      expect(cureLines()).deep.eq([]);
+    });
   });
 });

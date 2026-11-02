@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {
   ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenShadowInput,
   ROW_REASONS, SCREEN_TABLE_KINDS, UNOBSERVED_SHAPES, advanceScreenShadowStreak, expectedScreenOwners, hostableStep, noteScreenShadowPass, recordScreenShadowFinding,
-  resetScreenShadowLog, screenPromptShape, screenPromptToken, screenShadowLog, screenShadowVerdict,
+  SCREEN_CURE_VERBS, parseScreenCureArming, planScreenCure, resetScreenShadowLog, screenCurePlanText, screenPromptShape, screenPromptToken, screenShadowLog, screenShadowVerdict,
 } from '../../src/client/console/screenDirector';
 import {ConsoleTask} from '../../src/client/console/consoleTaskRouter';
 import * as fs from 'fs';
@@ -201,6 +201,42 @@ describe('screenDirector', () => {
       expect(screenPromptToken({kind: 'projectCard', mode: 'generic'}, 7)).eq('projectCard:generic#7');
       expect(screenPromptToken({kind: 'choice', flavor: 'wgt'}, 2)).eq('choice:wgt#2');
       expect(screenPromptToken({kind: 'colony'} as ConsoleTask, undefined)).eq('colony#');
+    });
+  });
+
+  /*
+   * STEP 4, PREPARED — the cure PLAN (pure). Each class through the owner's existing door, or a named `none`; nothing
+   * is armed unless the URL asks.
+   */
+  describe('planScreenCure — the doors (step 4, prepared)', () => {
+    const base = {expected: ['hand'] as const, present: [] as const, routerDoor: false, parkServes: false, deferred: false};
+    it('UNSERVED: a parked chain that serves the question comes BACK (the restore card’s door) before anything opens', () => {
+      expect(screenCurePlanText(planScreenCure({...base, kind: 'unserved', parkServes: true, routerDoor: true}))).eq('restore:restoreDeferredTask');
+    });
+    it('UNSERVED: the router’s own door when the kind has one; else NAMED as the class’s worklist, never guessed', () => {
+      expect(screenCurePlanText(planScreenCure({...base, kind: 'unserved', routerDoor: true}))).eq('open:openShellTaskSurface');
+      expect(screenCurePlanText(planScreenCure({...base, kind: 'unserved', expected: ['draft']}))).eq('none:no-door:draft');
+    });
+    it('MISSERVED: a foreign WORKSPACE goes home (never parked — a parked foreign chain is what the restore would bring back), then the door', () => {
+      expect(screenCurePlanText(planScreenCure({...base, kind: 'misserved', present: ['colonies'], routerDoor: true})))
+        .eq('yield:goBoardHome+openShellTaskSurface');
+      expect(screenCurePlanText(planScreenCure({...base, kind: 'misserved', present: ['colonies'], expected: ['task']})))
+        .eq('yield:goBoardHome');
+    });
+    it('MISSERVED: the generic sheet closes with the layers', () => {
+      expect(screenCurePlanText(planScreenCure({...base, kind: 'misserved', present: ['sheet']}))).eq('yield:closeConsoleLayers');
+    });
+    it('MISSERVED: a foreign surface with no leave verb, and the opening’s own frame, are never touched', () => {
+      expect(screenCurePlanText(planScreenCure({...base, kind: 'misserved', present: ['decision', 'colonies']}))).eq('none:no-leave:decision');
+      expect(screenCurePlanText(planScreenCure({...base, kind: 'misserved', present: ['start']}))).eq('none:start-director');
+    });
+    it('a question the player set aside is never cured', () => {
+      expect(screenCurePlanText(planScreenCure({...base, kind: 'unserved', routerDoor: true, deferred: true}))).eq('none:deferred');
+    });
+    it('the arming reads the URL’s list — unknown tokens ignored, «all» = every verb, nothing by default', () => {
+      expect([...parseScreenCureArming(null)]).deep.eq([]);
+      expect([...parseScreenCureArming('open, bogus')]).deep.eq(['open']);
+      expect([...parseScreenCureArming('all')]).deep.eq([...SCREEN_CURE_VERBS]);
     });
   });
 });

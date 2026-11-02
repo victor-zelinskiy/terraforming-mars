@@ -28,7 +28,7 @@
 
 import {reactive} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {ConsoleTask, taskFor, SHELL_NATIVE_KINDS} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, taskFor, SHELL_NATIVE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
 import {inputTitleText} from '@/client/console/turnIntents';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {Message} from '@/common/logs/Message';
@@ -44,7 +44,7 @@ import {agendaReactionOf} from '@/client/console/parliament/agendaReaction';
 import {sittingTailVenusBonusOf} from '@/client/console/parliament/consoleSittingFlow';
 import {resetForegroundWatchdog, runForegroundWatchdog} from '@/client/console/consoleForegroundWatchdog';
 import {stackServes, workspaceFrameKnown, workspaceFrameRenders, workspaceHostForStep, workspaceFrameSelector, workspaceKindSpec, workspaceStackCollapsed, workspaceStackState, workspaceSurfacesFor, yieldedStackServes, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
-import {ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenOwner, ScreenShadowStreak, advanceScreenShadowStreak, expectedScreenOwners, noteScreenShadowPass, recordScreenShadowFinding, screenPromptShape, screenPromptToken, screenShadowVerdict} from '@/client/console/screenDirector';
+import {ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenCurePlan, ScreenOwner, ScreenShadowFinding, ScreenShadowStreak, advanceScreenShadowStreak, expectedScreenOwners, noteScreenShadowPass, planScreenCure, recordScreenShadowFinding, screenCureArmed, screenShadowKey, screenShadowLog, screenCurePlanText, screenPromptShape, screenPromptToken, screenShadowVerdict} from '@/client/console/screenDirector';
 import {StartServes, startServesSomething} from '@/client/console/startServing';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
@@ -603,10 +603,60 @@ function flowHost(): WorkspaceFrameKind | undefined {
 
 let screenStreak: ScreenShadowStreak = {signature: '', ticks: 0};
 
+/**
+ * STEP 4, PREPARED — the cure's EXECUTOR is the shell's (the doors are its methods); the detector plans, logs, and
+ * hands an ARMED plan over. `screenShadowStanding` is the confirmed finding still standing (its streak unbroken) —
+ * the liveness rung `screen-director` reads it.
+ */
+export type ScreenCureExecutor = (plan: ScreenCurePlan, by: 'shadow' | 'liveness') => string;
+let screenCureExecutor: ScreenCureExecutor | undefined;
+export function registerScreenCureExecutor(executor: ScreenCureExecutor | undefined): void {
+  screenCureExecutor = executor;
+}
+export const screenShadowStanding: {finding?: ScreenShadowFinding, plan?: ScreenCurePlan, signature: string} = {signature: ''};
+
+function clearScreenShadowStanding(): void {
+  screenShadowStanding.finding = undefined;
+  screenShadowStanding.plan = undefined;
+  screenShadowStanding.signature = '';
+}
+
+/**
+ * Apply (armed) or name (dry run) the standing plan. Returns what was DONE ('' = nothing on screen changed). The dry run
+ * logs its plan once per caller and finding (`[screen-shadow] cure-plan …`) — the evidence step 4's gates read.
+ */
+const plannedOnce = new Set<string>();
+export function runScreenCure(by: 'shadow' | 'liveness'): string {
+  const {finding, plan} = screenShadowStanding;
+  if (finding === undefined || plan === undefined) {
+    return '';
+  }
+  const name = screenCurePlanText(plan);
+  if (!screenCureArmed(plan) || screenCureExecutor === undefined) {
+    const key = `${by}|${screenShadowStanding.signature}`;
+    if (!plannedOnce.has(key)) {
+      plannedOnce.add(key);
+      console.warn(`[screen-shadow] cure-plan «${name}» by ${by} (dry run — not armed) for «${finding.prompt}» — ` +
+        `${finding.kind}, expected «${finding.expected.join('|')}», on screen «${finding.present.join('|') || 'nothing'}»`);
+    }
+    return '';
+  }
+  const did = screenCureExecutor(plan, by);
+  if (did === '') {
+    return '';
+  }
+  finding.cure = `cure:${name}`;
+  console.warn(`[screen-shadow] cure «${name}» by ${by} for «${finding.prompt}»: ${did}`);
+  clearScreenShadowStanding();
+  screenStreak = {signature: '', ticks: 0};
+  return `${name}: ${did}`;
+}
+
 function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | undefined): void {
   const wf = view?.waitingFor;
   if (view === undefined || wf === undefined || task === undefined) {
     screenStreak = advanceScreenShadowStreak(screenStreak, '');
+    clearScreenShadowStanding();
     return;
   }
   const ctx = screenShadowContext?.();
@@ -616,6 +666,7 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
     const verdict = screenShadowVerdict({task, startOwned: ctx?.startOwned ?? false, frameServes: [], held: '', present: [], beats: []});
     noteScreenShadowPass(shape, ctx === undefined ? {kind: 'none', scope: 'no-context'} : verdict);
     screenStreak = advanceScreenShadowStreak(screenStreak, '');
+    clearScreenShadowStanding();
     return;
   }
   const hold = promptHeldReason(view, task, {anyHold: false});
@@ -633,20 +684,41 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
   noteScreenShadowPass(shape, verdict);
   if (verdict.kind !== 'unserved' && verdict.kind !== 'misserved') {
     screenStreak = advanceScreenShadowStreak(screenStreak, '');
+    clearScreenShadowStanding();
     return;
   }
   const prompt = screenPromptToken(task, wf.promptId);
-  screenStreak = advanceScreenShadowStreak(screenStreak, `${verdict.kind}|${present.join(',')}|${prompt}`);
+  const signature = `${verdict.kind}|${present.join(',')}|${prompt}`;
+  screenStreak = advanceScreenShadowStreak(screenStreak, signature);
+  if (screenStreak.signature !== screenShadowStanding.signature) {
+    clearScreenShadowStanding();
+  }
   if (screenStreak.ticks !== SCREEN_SHADOW_CONFIRM_TICKS) {
     return;
   }
-  const finding = {kind: verdict.kind, expected: verdict.expected, present, prompt, at: Date.now()};
+  // STEP 4, PREPARED: the cure is PLANNED through the owner's existing door — and only executed when its verb is armed.
+  const plan = planScreenCure({
+    kind: verdict.kind,
+    expected: verdict.expected,
+    present,
+    routerDoor: SHELL_SECTION_KINDS.has(task.kind),
+    parkServes: workspaceStackCollapsed() && workspaceStackState.parked.some((fr) => fr.serves.includes(task.kind)),
+    deferred: consoleTaskDeferred,
+  });
+  const finding: ScreenShadowFinding = {
+    kind: verdict.kind, expected: verdict.expected, present, prompt, at: Date.now(), cure: `plan:${screenCurePlanText(plan)}`,
+  };
   if (recordScreenShadowFinding(finding)) {
     const frames = workspaceStackState.frames.map((fr) => fr.kind);
     const parked = workspaceStackState.parked.map((fr) => fr.kind);
     console.warn(`[screen-shadow] ${verdict.kind} — expected «${verdict.expected.join('|')}», on screen «${present.join('|') || 'nothing'}» for «${prompt}» ` +
       JSON.stringify({...finding, wf: wf.type, frames, parked, admission: ctx.admission, collapsed: workspaceStackCollapsed()}));
   }
+  // The STORED record (a finding seen before is kept once) — the cure's outcome is written on it.
+  screenShadowStanding.finding = screenShadowLog.findings.find((x) => screenShadowKey(x) === screenShadowKey(finding)) ?? finding;
+  screenShadowStanding.plan = plan;
+  screenShadowStanding.signature = signature;
+  runScreenCure('shadow');
 }
 
 const warned = new Set<string>();
@@ -784,4 +856,7 @@ export function stopConsoleLeakDetector(): void {
   consoleTaskDeferred = false;
   consoleTaskSpacePlacement = false;
   resetForegroundWatchdog();
+  clearScreenShadowStanding();
+  screenStreak = {signature: '', ticks: 0};
+  plannedOnce.clear();
 }

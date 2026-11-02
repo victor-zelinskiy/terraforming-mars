@@ -294,6 +294,8 @@ export type ScreenShadowFinding = {
   /** `<taskKind>[:mode]#<promptId>` — the prompt id keeps one finding per prompt. */
   prompt: string;
   at: number;
+  /** The cure the director planned (`screenCurePlanText`), prefixed `plan:` (dry run) or `cure:` (armed, executed). */
+  cure?: string;
 };
 
 /**
@@ -407,4 +409,96 @@ export function advanceScreenShadowStreak(prev: ScreenShadowStreak, signature: s
 /** The prompt's token for a finding — kind, the mode that decides the row, the server's prompt id. */
 export function screenPromptToken(task: ConsoleTask, promptId: number | undefined): string {
   return `${screenPromptShape(task)}#${promptId ?? ''}`;
+}
+
+/*
+ * ── STEP 4, PREPARED (2026-11-02): THE CURE IS PLANNED, NOT APPLIED ──────────────────────────────────────────────────
+ * A confirmed finding is answered by a PLAN through the owner's EXISTING door (the start director's phase-1 grammar,
+ * `docs/claude/console/screen-director.md` § Step 4). Every plan is LOGGED (`[screen-shadow] cure-plan …`) and filed on
+ * the finding; a plan is EXECUTED only for a verb that is ARMED — and none is by default: the owner arms one class at a
+ * time, after its stand, its suite run and the field (gate G3). Until then the screen never changes because of this.
+ *
+ *   · `open`    — `unserved`, the question's kind has the router's own door (`openShellTaskSurface` — the routing that
+ *                 already stands such a prompt up: the hand, the colonies, the Parliament, a draw's workspace, …);
+ *   · `restore` — `unserved`, the stack is PARKED and the parked chain serves the question: it comes back as it was
+ *                 (`restoreDeferredTask` — the restore card's own door);
+ *   · `yield`   — `misserved`, a FOREIGN surface stands: it steps aside through its own leave verb (a workspace — the
+ *                 board home, never a park: a parked foreign chain would be what the restore card brings back; the
+ *                 generic sheet — the layers close), then the owner's door, if its kind has one;
+ *   · `none`    — no honest door: named (`no-door:<owners>` is the worklist of the class, never guessed at).
+ */
+export type ScreenCureVerb = 'open' | 'restore' | 'yield';
+export const SCREEN_CURE_VERBS: ReadonlyArray<ScreenCureVerb> = ['open', 'restore', 'yield'];
+
+export type ScreenCurePlan =
+  | {verb: 'open' | 'restore', door: string}
+  | {verb: 'yield', door: string, then?: string}
+  | {verb: 'none', why: string};
+
+export type ScreenCureInput = {
+  kind: 'unserved' | 'misserved';
+  expected: ReadonlyArray<ScreenOwner>;
+  present: ReadonlyArray<ScreenOwner>;
+  /** The question's kind has the router's own door (`SHELL_SECTION_KINDS` — `openShellTaskSurface`). */
+  routerDoor: boolean;
+  /** The stack is parked and the parked chain serves the question. */
+  parkServes: boolean;
+  /** The player set the question aside (the deferred plate) — never cured. */
+  deferred: boolean;
+};
+
+const ROUTER_DOOR = 'openShellTaskSurface';
+
+export function planScreenCure(i: ScreenCureInput): ScreenCurePlan {
+  if (i.deferred) {
+    return {verb: 'none', why: 'deferred'};
+  }
+  if (i.kind === 'unserved') {
+    if (i.parkServes) {
+      return {verb: 'restore', door: 'restoreDeferredTask'};
+    }
+    return i.routerDoor ? {verb: 'open', door: ROUTER_DOOR} : {verb: 'none', why: `no-door:${i.expected.join('|')}`};
+  }
+  // MISSERVED — the foreign surfaces must all have a leave verb, or nothing is touched.
+  const isWorkspace = (o: ScreenOwner): o is WorkspaceFrameKind => (ALL_WORKSPACE_KINDS as ReadonlyArray<string>).includes(o);
+  if (i.present.includes('start')) {
+    // The opening's own frame — the start director's to release, never this one's.
+    return {verb: 'none', why: 'start-director'};
+  }
+  const stray = i.present.filter((o) => !isWorkspace(o) && o !== 'sheet');
+  if (stray.length > 0) {
+    return {verb: 'none', why: `no-leave:${stray.join('|')}`};
+  }
+  const door = i.present.some(isWorkspace) ? 'goBoardHome' : 'closeConsoleLayers';
+  return i.routerDoor ? {verb: 'yield', door, then: ROUTER_DOOR} : {verb: 'yield', door};
+}
+
+/** A plan's one-line name — the finding's `cure` field, the log, the report. */
+export function screenCurePlanText(plan: ScreenCurePlan): string {
+  if (plan.verb === 'none') {
+    return `none:${plan.why}`;
+  }
+  return plan.verb === 'yield' && plan.then !== undefined ? `yield:${plan.door}+${plan.then}` : `${plan.verb}:${plan.door}`;
+}
+
+/**
+ * THE ARMING — which verbs EXECUTE (everything else is planned and logged). Empty by default; a stand arms a verb with
+ * the URL's `screenCure=<verb,verb>` (`all` = every verb). The owner's go turns a verb on here, ONE class at a time.
+ */
+export const screenCureArming: {armed: Set<ScreenCureVerb>} = {armed: new Set<ScreenCureVerb>()};
+
+export function parseScreenCureArming(query: string | null | undefined): Set<ScreenCureVerb> {
+  const out = new Set<ScreenCureVerb>();
+  for (const token of (query ?? '').split(',').map((t) => t.trim())) {
+    if (token === 'all') {
+      SCREEN_CURE_VERBS.forEach((v) => out.add(v));
+    } else if ((SCREEN_CURE_VERBS as ReadonlyArray<string>).includes(token)) {
+      out.add(token as ScreenCureVerb);
+    }
+  }
+  return out;
+}
+
+export function screenCureArmed(plan: ScreenCurePlan): boolean {
+  return plan.verb !== 'none' && screenCureArming.armed.has(plan.verb);
 }

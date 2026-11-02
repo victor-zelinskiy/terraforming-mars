@@ -91,7 +91,7 @@ G3: a week of the owner's games with no unexplained field finding (or each one s
 cure through the OWNER's existing door — `unserved` → the owner's own opening door (the routing that already stands a
 prompt up: `openHandWorkspace`, `openColoniesForPrompt`, the task host's restore), `misserved` → the foreign surface
 yields through its own leave verb; a cure is a `[screen-shadow] cure` line (a latch bug to stand up, as the start's),
-a liveness rung (rank between the start director's 15 and the flows' 20) so the arbiter's ladder reaches it. Gate G4
+a liveness rung (`screen-director`, rank 17 — between the start director's 15 and the flows' 20) so the arbiter's ladder reaches it. **Prepared 2026-11-02 — see § Step 4 — PREPARED: every cure is planned and logged, none armed.** Gate G4
 per class: the class's stand green, the suite files no cure line on a spec path.
 
 **Step 5 — the nets fold into the director.** Each net is retired only when the director covers its class with
@@ -233,3 +233,66 @@ row against the server, 3/3).
 
 **Gate G2 is green.** Step 3 (the field agrees) needs the owner's games on a build ≥ this one — the flight recorder
 already ships every `[screen-shadow]` line from the box and the Deck; `scripts/field-log-report.mjs` reads them.
+
+## Step 4 — PREPARED (2026-11-02): the cure is PLANNED on every finding, EXECUTED only when its verb is armed
+The owner: «начинаем подготовку шага 4». Gate G3 (the field) is still open, so nothing on screen changes yet. Everything
+a cure needs is in place and proven, and the arming is one switch per class.
+1. **The plan** (`screenDirector.ts` `planScreenCure`, pure). A confirmed finding is answered through the owner's
+   EXISTING door, never a new one:
+   - `open` — `unserved`, and the question's kind has the router's own door (`SHELL_SECTION_KINDS` →
+     `openShellTaskSurface`);
+   - `restore` — `unserved`, and the parked chain serves the question (`restoreDeferredTask`);
+   - `yield` — `misserved`. A foreign workspace goes to the board home. It is never parked: a parked foreign chain is
+     exactly what the restore card would bring back. The generic sheet closes with the layers. Then the router's door
+     opens, if the kind has one;
+   - `none` — no honest door, and the reason is named:
+     - `no-door:<owners>` — the class's worklist;
+     - `no-leave:<surface>` — a foreign surface with no leave verb;
+     - `start-director` — the opening's frame;
+     - `deferred`.
+
+   The plan is filed on the finding (`cure: plan:<verb>:<door>` / `cure:<…>`).
+2. **The dry run is the default.** The detector logs `[screen-shadow] cure-plan «…» by shadow (dry run — not armed)` —
+   once per finding and caller — and the screen is untouched. A verb EXECUTES only when armed:
+   - `screenCureArming` is empty unless the URL says `?screenCure=open,restore,yield` / `all`;
+   - the owner's go turns a verb on in the code, ONE class at a time.
+
+   An executed cure logs `[screen-shadow] cure «…» by <shadow|liveness>: <what the door did>` and clears the standing
+   finding.
+3. **Two callers.**
+   - The shadow's confirmation (the third pass, the same pass that files the finding).
+   - The liveness rung `screen-director`, rank 17: after the start director's 15, before the flows' 20. On a stalled
+     screen with a confirmed finding still STANDING (`screenShadowStanding` — cleared the moment the streak breaks), the
+     rung runs the same plan. In a dry run it does nothing and returns `''`, so the ladder goes on.
+4. **The proof.**
+   - Unit, the whole path (`screenShadow.spec` § the cure): a dry run calls no door and leaves the finding standing for
+     the rung; an armed verb calls its door once and writes `cure:`; a verb armed is not another verb armed; a healed
+     screen clears the standing finding; a set-aside question is never planned.
+   - Pure (`screenDirector.spec` § planScreenCure): every class and every `none`.
+   - Live, on the box (`console-screen-director-cure`, seam `?screenControl=1` → `window.__conScreenControl` — a latch
+     bug put in on purpose):
+     - **the routing heals by itself** a dropped stack and a foreign milestones / hand screen over a live colony pick:
+       the shadow keeps agreeing and files nothing. Those defects are not the director's;
+     - **the card centre stood up over the pick strands it.** `enterWorkspace` unwinds the colonies, the centre's own
+       rule lets it go, the stack ends EMPTY, and nothing re-opens the question — no plate, `unserved` at the third pass.
+       Dry run: planned `open:openShellTaskSurface`, the colonies stay gone. Armed: cured in the same pass, the
+       colonies stand again, and the shadow agrees.
+   - `yield` has no live seam today: every foreign screen tried was healed by the routing. Its plan is guarded by the
+     unit controls.
+5. **The report reads the cures** (`scripts/screen-shadow-report.mjs` § CURES):
+   - `planned (dry run)` vs `APPLIED`, per door;
+   - the positive controls are marked `[deliberate]` (`console-screen-shadow-control`, `console-screen-director-cure`);
+   - an APPLIED cure off a control is a latch bug to stand up.
+
+   The live control's defects read as plans: the fake sheet over the draft → `yield:closeConsoleLayers`; the draft
+   hidden → `none:no-door:draft`. The draft has no router door; its door is the flow beat. That is the first worklist
+   entry of the `open` class.
+
+**The worklist the preparation found** (for the classes, in order):
+- **(a)** the card centre's stand-up over a live mandatory pick strands the pick (the seam above). Whether a PLAYER can
+  reach it (the wheel during a live colony question) is to be stood up through the real UI before `open` is armed.
+- **(b)** a draft pick has no router door (`no-door:draft`).
+- **(c)** `yield` needs a live seam that the routing does not heal by itself.
+
+**Gate G4 per class**, unchanged: the class's stand green, a whole-suite run filing no APPLIED cure off a control, the
+field (G3) agreeing.

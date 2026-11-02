@@ -2026,8 +2026,8 @@ import {ConsoleTaskSummary, consoleTaskSummary, placementKicker} from '@/client/
 import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
 import {cancelResponse, cardsResponse, colonyResponse, orOptionResponse, orWrappedResponse} from '@/client/console/taskResponses';
-import {leakDetectorState, registerScreenShadowContext, startConsoleLeakDetector, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskHandoffPending, setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
-import {resetScreenShadowLog, screenShadowLog} from '@/client/console/screenDirector';
+import {leakDetectorState, registerScreenCureExecutor, registerScreenShadowContext, runScreenCure, screenShadowStanding, startConsoleLeakDetector, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskHandoffPending, setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
+import {ScreenCurePlan, parseScreenCureArming, resetScreenShadowLog, screenCureArming, screenCurePlanText, screenShadowLog} from '@/client/console/screenDirector';
 import {armSceneDestination, clearGameExitTarget, deferSceneReveal, loadingScreenState, registerGameExitTarget, sceneTransitionInputLocked} from '@/client/console/loadingScreenState';
 import {paths} from '@/common/app/paths';
 import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
@@ -21683,6 +21683,35 @@ export default defineComponent({
       console.warn(`[start-shadow] cure «${cure}» by ${by} — expected «${finding.expected}», on screen «${finding.actual}»: ${did}`);
       return `${cure}: ${did}`;
     },
+    /**
+     * THE SCREEN DIRECTOR'S DOORS (step 4, prepared — `planScreenCure`): the detector plans, this executes an ARMED
+     * plan through the doors that already stand a prompt up. Nothing is armed by default (`?screenCure=<verb,…>`).
+     */
+    runScreenDirectorCure(plan: ScreenCurePlan): string {
+      const task = taskFor(this.playerView);
+      if (task === undefined || plan.verb === 'none') {
+        return '';
+      }
+      if (plan.verb === 'restore') {
+        this.restoreDeferredTask();
+        return 'the parked chain restored';
+      }
+      if (plan.verb === 'open') {
+        this.openShellTaskSurface(task);
+        return `the router's door opened for «${task.kind}»`;
+      }
+      const then = plan.verb === 'yield' ? plan.then : undefined;
+      const frames = workspaceStackState.frames.map((fr) => fr.kind).join(',');
+      if (plan.door === 'goBoardHome') {
+        goBoardHome();
+      } else {
+        closeConsoleLayers();
+      }
+      if (then !== undefined) {
+        this.openShellTaskSurface(task);
+      }
+      return `${plan.door} (was «${frames || 'no frame'}»)${then !== undefined ? ` → the router's door for «${task.kind}»` : ''}`;
+    },
     registerLivenessRungs(): void {
       this.livenessRungStops = [
         registerLivenessRelease({
@@ -21696,6 +21725,13 @@ export default defineComponent({
             }
             return this.runStartDirectorCure({kind: 'disagree', expected: s.expected, actual: s.actual}, 'liveness');
           },
+        }),
+        registerLivenessRelease({
+          rank: 17,
+          name: 'screen-director',
+          // A CONFIRMED screen-shadow finding still standing on a stalled screen: its planned cure through the owner's
+          // door — executed only when its verb is armed (step 4, prepared); the dry run names the plan and does nothing.
+          release: () => runScreenCure('liveness'),
         }),
         registerLivenessRelease({
           rank: 25,
@@ -25284,6 +25320,17 @@ export default defineComponent({
     // THE SCREEN SHADOW (`screenDirector.ts`, phase 0) — the leak detector's 1 Hz pass judges every question past the
     // opening; the shell supplies what only it knows (the start owns the opening; the admission block on the surface).
     resetScreenShadowLog();
+    // STEP 4, PREPARED — nothing is armed unless a stand asks (`?screenCure=open,restore,yield` / `all`).
+    screenCureArming.armed = parseScreenCureArming(new URLSearchParams(window.location.search).get('screenCure'));
+    registerScreenCureExecutor((plan) => this.runScreenDirectorCure(plan));
+    // THE CURE STAND'S SEAM (`?screenControl=1` only): a latch bug put in on purpose — the stack dropped, or a foreign
+    // workspace stood up, behind the product's back.
+    if (new URLSearchParams(window.location.search).get('screenControl') === '1') {
+      (window as unknown as {__conScreenControl?: unknown}).__conScreenControl = {
+        dropStack: () => goBoardHome(),
+        standWorkspace: (kind: WorkspaceFrameKind) => enterWorkspace(kind),
+      };
+    }
     registerScreenShadowContext(() => {
       const wf = this.playerView.waitingFor;
       const block = wf === undefined ? undefined : promptAdmissionBlock(wf.type === 'space' ? 'placement' : 'host', this.admissionSignals);
@@ -25292,6 +25339,10 @@ export default defineComponent({
     (window as unknown as {__conScreenShadow?: () => unknown}).__conScreenShadow = () => ({
       findings: [...screenShadowLog.findings], judged: screenShadowLog.judged,
       stats: JSON.parse(JSON.stringify(screenShadowLog.stats)) as unknown,
+      cure: {
+        armed: [...screenCureArming.armed],
+        standing: screenShadowStanding.plan === undefined ? null : screenCurePlanText(screenShadowStanding.plan),
+      },
     });
     // A decision that IS its pick standing at boot (a reload mid-prompt) opens its album — the watcher is not
     // `immediate`, so the mount edge is asked here.
@@ -25742,7 +25793,9 @@ export default defineComponent({
     window.clearTimeout(this.startShadowTimer); // …and its shadow
     delete (window as unknown as {__conStartShadow?: unknown}).__conStartShadow;
     registerScreenShadowContext(undefined);
+    registerScreenCureExecutor(undefined);
     delete (window as unknown as {__conScreenShadow?: unknown}).__conScreenShadow;
+    delete (window as unknown as {__conScreenControl?: unknown}).__conScreenControl;
     registerBoardShownDespiteStack(undefined);
     setConsoleTaskHandoffPending(false);
     registerColonyTrackMoveHost(undefined);
