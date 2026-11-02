@@ -68,6 +68,17 @@ object's discard, the played one lifts out of its slot onto the seat (`armPlayed
 the server's preview), a burnt one goes to the discard last; a nested pick (New Partner) re-deals on the same surface.
 Witness `console-wg-project`.
 
+**…and a `play` pick with a PRICE and `min 0` is a VERDICT, not a choice** (P45 Board of Directors, 2026-11-02 — ledger
+EU). The funnel's verdict mode (`selectPreludeToPlay(…, {verdict})` — the second producer, still the ONE marker point
+for the prelude deck) asks about ONE drawn prelude: `min 0`, `max` = affordable ? 1 : 0, the marker's `price`
+(`DeckPickPlayPrice`: the M€, the source card's resource with what it holds, affordable, deficit) and the price's
+`payment` when the server will ask one; the burn verdict is judged with the price held back (`reserve`). The client
+(`console/deckPick/preludeVerdict.ts`, pure) draws TWO OUTCOME ROWS under the card — «РАЗЫГРАТЬ» with its chips
+(`current → resulting`, a burn honest: −12 + 15) or refused with its magnitude; «В СБРОС» (the sole outcome when the
+play is refused — marked, still pressed). A on a row decides AND commits (`[]` or the card; «ВАРИАНТ» first when the
+prelude's play is a choice); the stage hands «Verdict» up; the price rides the hero's BILL (it leaves first).
+Witness `console-board-of-directors`.
+
 **A SPLIT REVEAL carries the WHOLE reveal on ONE prompt** (P88 Venus Orbital Survey, 2026-11-01): «reveal the top 2;
 Venus cards to the hand for free; buy or discard the rest». The prompt's `cards` stay exactly the cards OFFERED (the
 upstream spec indexes `cards[0]`); the marker adds `companions` (`{cards, check, destination: 'hand'}` — the cards the
