@@ -186,6 +186,7 @@ import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {consoleState} from '@/client/console/consoleRouter';
 import {closeConsoleCardZoom, consoleCardZoom, navigateConsoleCardZoom, ZoomOrigin} from '@/client/console/consoleCardZoom';
@@ -395,17 +396,24 @@ export default defineComponent({
         return true;
       }
       const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+      const rules = this.$refs.zoomRulesPanel as {scrollBody?: (dy: number) => boolean} | undefined;
       if (intent.kind === 'nav') {
         if (intent.dir === 'left') {
           zoom?.prev();
         } else if (intent.dir === 'right') {
           zoom?.next();
+        } else {
+          // ↑/↓ read the rules column — the same body the right stick pages.
+          rules?.scrollBody?.((intent.dir === 'down' ? 1 : -1) * 90 * conUiScale());
         }
         return true;
       }
       if (intent.kind === 'scroll') {
-        const rules = this.$refs.zoomRulesPanel as {scrollBody?: (dy: number) => boolean} | undefined;
-        rules?.scrollBody?.(intent.dy);
+        // The stick's dy is a per-frame deflection (−1…1): scaled to pixels, or
+        // the rules crawled under a pixel a frame.
+        if (Math.abs(intent.dy) >= 0.05) {
+          rules?.scrollBody?.(intent.dy * 24 * conUiScale());
+        }
         return true;
       }
       if (intent.kind !== 'press') {

@@ -15,7 +15,7 @@
        data-motion-surface="ares-globals">
     <!-- A plate of the PROMPT-MODAL FAMILY (`console_prompt.less`): a free choice — the NEUTRAL tone. Each row states
          its own consequence (the threshold and what it moves), so the plate carries no consequence footer. -->
-    <div class="con-ares__panel con-prompt con-prompt--m con-prompt--neutral" data-motion-panel data-prompt-panel>
+    <div class="con-ares__panel con-prompt con-prompt--m con-prompt--neutral" data-motion-panel data-prompt-panel data-stick-scroll>
       <ConsolePromptHead class="con-ares__head" tone="neutral" :kicker="$t('Planetary events')"
                          :title="$t('Shift the planetary event thresholds')"
                          :trigger="$t('Move each threshold up to 1 step up or down.')" :prompt-key="sequenceKey">

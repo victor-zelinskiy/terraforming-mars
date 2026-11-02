@@ -96,7 +96,7 @@
                FROM THE TOP when it doesn't. -->
           <div class="con-colonies__body" ref="body"
                :class="docks.length > 0 ? ['con-colonies__body--docks', 'con-colonies__body--docks-' + docksPlacement] : []">
-          <div class="con-colonies__scroll" ref="scroll">
+          <div class="con-colonies__scroll" ref="scroll" data-stick-scroll>
             <div class="con-colonies__grid" ref="grid" :style="gridStyle">
               <div v-for="(colony, i) in colonies"
                    :key="colony.name"

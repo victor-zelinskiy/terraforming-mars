@@ -515,7 +515,7 @@ type ExplorerTile = EffectsTileVm<ExplorerEntry>;
 type ExplorerGroup = EffectsGroupVm<ExplorerEntry>;
 type ScrollAreaRef = InstanceType<typeof ConsoleScrollArea> & {
   scrollByPx: (dy: number) => void,
-  ensureVisible: (el: Element) => void,
+  ensureVisible: (el: Element, margin?: number) => void,
   scrollToStart: () => void,
 };
 
@@ -898,6 +898,13 @@ export default defineComponent({
       handler(cmds: ReadonlyArray<ConsoleCommand>) {
         this.ui.barCommands = cmds;
       },
+    },
+    /** Track the cursor's live flat position (feeds the nearest-survivor pick). */
+    'ui.focusKey'(key: string): void {
+      const i = this.flatKeys.indexOf(key);
+      if (i >= 0) {
+        this.lastFlatIndex = i;
+      }
     },
     /** Keep the cursor on a valid, present tile (filter change / seat switch /
      *  update) — the nearest-survivor rule, never a jarring reset to first. */
@@ -1470,11 +1477,21 @@ export default defineComponent({
       if (list === undefined || el === null) {
         return;
       }
-      if (this.lastFlatIndex === 0) {
+      // The FIRST row belongs to the top of the list (the facet strip's gap
+      // would otherwise read as «stuck»). Asked of the ROWS, never of a
+      // remembered index — `lastFlatIndex` is the nearest-survivor record, and
+      // read here it pinned every d-pad step back to the top (the owner's
+      // 4K frame of 2026-11-02: the grid never scrolled on the d-pad).
+      if (this.rows[0]?.includes(this.ui.focusKey) === true) {
         list.scrollToStart();
-      } else {
-        list.ensureVisible(el);
+        return;
       }
+      // The tile's GROUP comes along — its plate names the source above the
+      // tile; a group taller than the viewport keeps the tile itself in view.
+      const group = el.closest<HTMLElement>('.con-efx__group');
+      const viewport = el.closest<HTMLElement>('.con-scroll-area__viewport');
+      const fits = group !== null && viewport !== null && group.offsetHeight <= viewport.clientHeight - 2 * 22 * conUiScale();
+      list.ensureVisible(fits ? group : el, Math.round(22 * conUiScale()));
     },
     scheduleCanvasFit(): void {
       if (typeof window === 'undefined' || typeof requestAnimationFrame !== 'function') {

@@ -30,7 +30,7 @@
          the plus emblem, «▲ ВЫГОДА», «ВЫ ПОЛУЧИТЕ» at the foot). The wild card's pick is the `xl` tier (a card row). -->
     <div class="con-lanes__panel con-prompt con-prompt--gain"
          :class="stage === 'wildCard' ? 'con-lanes__panel--wide con-prompt--xl' : 'con-prompt--m'"
-         data-motion-panel data-prompt-panel>
+         data-motion-panel data-prompt-panel data-stick-scroll>
       <!-- EMBEDDED: the question line only — the crumb above is where the stage names itself. -->
       <header v-if="embedded" class="con-lanes__head con-venus__ask">
         <h2 class="con-venus__title con-ws-stage-title">{{ $t(headlineKey) }}</h2>

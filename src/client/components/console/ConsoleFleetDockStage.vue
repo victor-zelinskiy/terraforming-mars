@@ -1322,7 +1322,14 @@ export default defineComponent({
     },
     scrollFocusedIntoView(): void {
       void this.$nextTick(() => {
-        const node = (this.$refs.payRows as {focusedEl?: () => HTMLElement | undefined} | undefined)?.focusedEl?.();
+        // The pay rows name their own cursored row; the «ВАШ ВЫБОР» step rows
+        // (payment · reward target) stand BELOW them in the same scroll and
+        // are found by their zone hook — a cursor on them scrolls too.
+        const zone = this.focusedZone;
+        const root = this.$refs.rootEl as HTMLElement | undefined;
+        const node = zone === 'payment' ? root?.querySelector<HTMLElement>('[data-fleet-dock-payment]') :
+          zone === 'target' ? root?.querySelector<HTMLElement>('[data-fleet-dock-target]') :
+            (this.$refs.payRows as {focusedEl?: () => HTMLElement | undefined} | undefined)?.focusedEl?.();
         (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
       });
     },

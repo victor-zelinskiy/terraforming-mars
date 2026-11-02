@@ -5,7 +5,7 @@
 
     <!-- A plate of the PROMPT-MODAL FAMILY (`console_prompt.less`), the `l` tier (a 2×2 briefing): a free choice —
          the NEUTRAL tone. Each tile states its own `current → resulting`, so there is no consequence footer. -->
-    <div class="con-govsupport__panel con-prompt con-prompt--l con-prompt--neutral" data-motion-panel data-prompt-panel>
+    <div class="con-govsupport__panel con-prompt con-prompt--l con-prompt--neutral" data-motion-panel data-prompt-panel data-stick-scroll>
       <!-- ── Briefing header — the family's ONE head. The KICKER is the decision's category (the same key the
            deferred chip and the command bar read — `consoleTaskSummary`), never the generic «Ожидает решения». ── -->
       <ConsolePromptHead class="con-govsupport__head" tone="neutral" :kicker="$t('Government Support')"

@@ -37,6 +37,7 @@
 </template>
 
 <script lang="ts">
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {defineComponent, PropType} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -97,7 +98,7 @@ export default defineComponent({
   },
   mounted() {
     if (this.standalone) {
-      this.offPad = installMenuPad((intent) => this.handleIntent(intent));
+      this.offPad = installMenuPad((intent) => this.handleIntent(intent), {ownsStick: true});
     }
     this.refreshSectionTitle();
   },
@@ -152,7 +153,8 @@ export default defineComponent({
         return true;
       }
       if (intent.kind === 'scroll') {
-        this.scrollApi()?.scrollByPx(intent.dy);
+        // dy is a per-frame deflection (−1…1) — scaled to pixels.
+        this.scrollApi()?.scrollByPx(intent.dy * 24 * conUiScale());
         return true;
       }
       if (intent.kind === 'press' && intent.button === 'bumperL') {

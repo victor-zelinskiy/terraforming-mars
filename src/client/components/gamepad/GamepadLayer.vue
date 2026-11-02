@@ -115,6 +115,7 @@ import {desktopUpdateBlocking} from '@/client/components/desktop/desktopUpdateSt
 import {leakDetectorState} from '@/client/console/consoleLeakDetector';
 import {installConsoleKeyBridge, uninstallConsoleKeyBridge} from '@/client/console/composables/consoleKeyBridge';
 import {setConsoleSystemMenuInput} from '@/client/console/consoleSystemMenuBridge';
+import {stickScrollBy} from '@/client/console/stickScrollTarget';
 import {installConsoleOverflowGuard, uninstallConsoleOverflowGuard} from '@/client/console/composables/consoleOverflowGuard';
 
 const FOCUS_TICK_MS = 400;
@@ -422,6 +423,15 @@ export default defineComponent({
       return intent.kind === 'release' && intent.button === 'menu';
     },
     handleSystemMenuIntent(intent: GamepadIntent): void {
+      // THE RIGHT STICK pages what overflows INSIDE the overlay (the settings
+      // console's rows, a readout) — never the game behind it.
+      if (intent.kind === 'scroll') {
+        const host = (this.$el as HTMLElement | undefined)?.querySelector?.('.con-sys-host');
+        if (host !== null && host !== undefined) {
+          stickScrollBy(intent.dy, host);
+        }
+        return;
+      }
       // The settings console is a full component that owns its own nav /
       // category ring / primary / back — delegate the whole intent to it (it
       // emits close on B, which returns to the system list).

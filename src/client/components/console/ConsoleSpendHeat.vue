@@ -20,7 +20,7 @@
   <div class="con-lanes con-heat con-ws" role="dialog" :aria-label="titleText" data-motion-surface="spend-heat">
     <!-- A plate of the PROMPT-MODAL FAMILY (`console_prompt.less`). A bill the player chose to pay is a free choice —
          the NEUTRAL tone (the quiet crest, the ◈ emblem); its coverage («ПОКРЫТО N / M») is the footer's meter. -->
-    <div class="con-lanes__panel con-prompt con-prompt--m" :class="'con-prompt--' + tone" data-motion-panel data-prompt-panel>
+    <div class="con-lanes__panel con-prompt con-prompt--m" :class="'con-prompt--' + tone" data-motion-panel data-prompt-panel data-stick-scroll>
       <ConsolePromptHead class="con-lanes__head" :tone="tone" :kicker="$t('Spend heat')" :title="titleText"
                          :prompt-key="sequenceKey">
         <!-- The honest blocker of a PARTIAL or over-covered bill, never a dead confirm with no explanation (nothing

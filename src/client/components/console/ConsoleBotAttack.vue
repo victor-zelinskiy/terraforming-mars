@@ -457,6 +457,9 @@ export default defineComponent({
       const next = at === undefined ? undefined : stepPlayedTargetFocusAt(at, dir, cells);
       if (next !== undefined) {
         this.focus = next;
+        // The step's own viewport keeps the cursored candidate in view — the
+        // host calls it after every move (the target step's contract).
+        (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
         return;
       }
       // An EDGE HOLDS inside the grid — except downwards, where the CTA is the

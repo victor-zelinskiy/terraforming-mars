@@ -5828,6 +5828,8 @@ export default defineComponent({
       const remembered = this.playedTargetOwnerFocus[ownerId] ?? 0;
       this.playedTargetOwnerFocus = {...this.playedTargetOwnerFocus, [this.sub.focus.ownerId]: this.sub.focus.index};
       this.sub = {...this.sub, focus: reseatPlayedTargetFocus({ownerId, index: remembered}, owners) ?? this.sub.focus};
+      // The remembered card of the new tab may stand below the fold.
+      this.scrollPlayedTargetFocused();
     },
     /** A in a MULTI ask toggles instead of choosing. */
     togglePlayedTarget(): void {
@@ -7553,6 +7555,14 @@ export default defineComponent({
         if (this.focusedItem?.kind === 'branch') {
           const tile = this.branchesRoot()?.querySelector('.con-vchoice__opt--focused');
           (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(tile);
+          return;
+        }
+        // A NESTED LIST (a pick / an `or` step's options) replaces the main
+        // items — their `focusedEl` ref is unmounted with them, so the list's
+        // cursored option is found by its rendered focus class.
+        if (this.sub?.kind === 'list' || this.sub?.kind === 'orNested') {
+          const opt = (this.$el as HTMLElement | undefined)?.querySelector('.con-composer__sublist .con-vchoice__opt--focused');
+          (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(opt);
           return;
         }
         const el = this.$refs.focusedEl as HTMLElement | Array<HTMLElement> | undefined;

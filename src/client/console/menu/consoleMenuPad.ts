@@ -27,6 +27,7 @@ import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {registerConsoleIntentHandler} from '@/client/console/consoleRouter';
 import {menuZoomIntent} from '@/client/console/menu/consoleMenuZoomBridge';
+import {stickScrollBy} from '@/client/console/stickScrollTarget';
 
 export type MenuPadHandler = (intent: GamepadIntent) => boolean;
 
@@ -48,7 +49,7 @@ export function menuPadMounted(): boolean {
  * everything — there is no surface below them to fall through to).
  * Keyboard arrives through the global consoleKeyBridge — same stream.
  */
-export function installMenuPad(handler: MenuPadHandler): () => void {
+export function installMenuPad(handler: MenuPadHandler, opts: {ownsStick?: boolean} = {}): () => void {
   // The App-level BLOCKING desktop-update gate is enforced upstream in the two
   // input ROUTERS (GamepadLayer + consoleKeyBridge), which never even reach
   // this handler while the update overlay covers the screen — so the pre-game
@@ -59,6 +60,13 @@ export function installMenuPad(handler: MenuPadHandler): () => void {
   // screen ever hand-rolls a zoom branch (that pattern shipped a dead B).
   const offIntent = registerConsoleIntentHandler((intent) => {
     if (menuZoomIntent(intent)) {
+      return true;
+    }
+    // THE RIGHT STICK reads whatever overflows on screen — the d-pad walks the
+    // screen's own cursor, the stick pages the list the player is looking at
+    // (no menu screen routes it; a screen that does declares `ownsStick`).
+    if (intent.kind === 'scroll' && opts.ownsStick !== true) {
+      stickScrollBy(intent.dy);
       return true;
     }
     return handler(intent);
@@ -75,3 +83,4 @@ export function installMenuPad(handler: MenuPadHandler): () => void {
     menuPadState.textEntry = false;
   };
 }
+

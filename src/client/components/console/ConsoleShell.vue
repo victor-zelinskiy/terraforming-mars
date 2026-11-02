@@ -1060,6 +1060,7 @@
                                    :viewer="thisPlayer.color"
                                    :closing="side.closing" />
           <ConsoleInspectSide v-if="consoleCardZoom.inspect !== undefined && zoomRulesCardName !== undefined"
+                              ref="zoomInspectSide"
                               :cardName="zoomRulesCardName"
                               :history="consoleCardZoom.inspect.history"
                               :tab="consoleCardZoom.inspectTab"
@@ -1576,6 +1577,7 @@
 
 <script lang="ts">
 import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
+import {stickScrollBy} from '@/client/console/stickScrollTarget';
 import {claimMaVp, dropMaVp, flyMaVp} from '@/client/console/scoreCell/maVp';
 import type {PreselectAddress} from '@/common/inputs/preselectAddress';
 import {addressed} from '@/common/inputs/preselectAddress';
@@ -2374,6 +2376,8 @@ const CLIENT_PICK_TASK: ConsoleTask = {kind: 'cardSelect', mode: 'target'};
 /** P17: px per full-deflection frame for the right-stick console scroll
  *  (mirrors the DOM engine's SCROLL_STEP_PX so the feel is identical). */
 const CONSOLE_SCROLL_STEP_PX = 24;
+/** One d-pad press of the card viewer's side column (a reading step, ~3 lines). */
+const ZOOM_SIDE_NAV_STEP_PX = 90;
 /** The roster's LANDING: the stage's fold home into the slot (the focus motion's own fold + the grid breathing back), base ms. */
 const COLONY_ROSTER_LANDING_MS = 420;
 
@@ -15930,7 +15934,9 @@ export default defineComponent({
           // scroll, so the hub's informational sections below the entries
           // (storage, scoring) stay reachable on the d-pad.
         }
-        const scroller = document.querySelector<HTMLElement>('.con-info__scroll');
+        // Scoped to the workspace: the board's context panel is an
+        // `aside.con-info__scroll` too, mounted EARLIER in the DOM.
+        const scroller = document.querySelector<HTMLElement>('.con-info .con-info__scroll');
         if (scroller !== null && (intent.dir === 'up' || intent.dir === 'down')) {
           scroller.scrollBy({top: (intent.dir === 'down' ? 140 : -140) * conUiScale(), behavior: 'smooth'});
         }
@@ -24382,6 +24388,23 @@ export default defineComponent({
       document.body.classList.remove('con-zoom-open');
       closeConsoleCardZoom();
     },
+    /**
+     * Page the viewer's SIDE column by `delta` px: the inspect dossier's active
+     * tab (rules / statistics), else the rules panel, else the resolution
+     * inspector's party column (the second reading surface — it takes the
+     * input when the rules have nothing to scroll).
+     */
+    scrollZoomSide(delta: number): void {
+      const inspect = this.$refs.zoomInspectSide as {scrollBody?: (dy: number) => boolean} | undefined;
+      if (inspect?.scrollBody?.(delta) === true) {
+        return;
+      }
+      const rules = this.$refs.zoomRulesPanel as {scrollBody?: (dy: number) => boolean} | undefined;
+      if (rules?.scrollBody?.(delta) !== true) {
+        const aside = this.$refs.zoomAsidePanel as {scrollBody?: (dy: number) => boolean} | undefined;
+        aside?.scrollBody?.(delta);
+      }
+    },
     /** P15: the controller drives the viewer natively while it is open. */
     handleZoomIntent(intent: GamepadIntent): boolean {
       // A close/handoff flight is in progress: the card is mid-air — swallow
@@ -24415,6 +24438,10 @@ export default defineComponent({
           zoom?.prev();
         } else if (intent.dir === 'right') {
           zoom?.next();
+        } else {
+          // ↑/↓ read the side column — the same body the right stick pages
+          // (a long rules set, the statistics tab); a fitting body ignores it.
+          this.scrollZoomSide((intent.dir === 'down' ? 1 : -1) * ZOOM_SIDE_NAV_STEP_PX * conUiScale());
         }
         return true;
       }
@@ -24426,13 +24453,10 @@ export default defineComponent({
         // keeps its old meaning: swallowed, so it can never leak to a surface
         // underneath. No new binding, no advertised verb for a journey the
         // player cannot make.
-        const rules = this.$refs.zoomRulesPanel as {scrollBody?: (dy: number) => boolean} | undefined;
-        if (rules?.scrollBody?.(intent.dy) !== true) {
-          // The resolution inspector's PARTY column (left) is the second
-          // reading surface of the viewer — it takes the stick when the
-          // rules on the right have nothing to scroll.
-          const aside = this.$refs.zoomAsidePanel as {scrollBody?: (dy: number) => boolean} | undefined;
-          aside?.scrollBody?.(intent.dy);
+        // The stick's dy is a per-frame deflection (−1…1) — scaled to pixels
+        // here, or the body crawled under a pixel a frame (it read as dead).
+        if (Math.abs(intent.dy) >= 0.05) {
+          this.scrollZoomSide(intent.dy * CONSOLE_SCROLL_STEP_PX * conUiScale());
         }
         return true;
       }
@@ -24678,6 +24702,13 @@ export default defineComponent({
           ?.handlePlayedIntent({kind: 'scroll', dx: 0, dy});
         return;
       }
+      // …and the EFFECTS EXPLORER (its grid, or the open dossier's reading
+      // scroll — the explorer knows which layer stands).
+      if (this.infoModeState.open && this.infoModeState.route === 'effects') {
+        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)
+          ?.handleEffectsIntent({kind: 'scroll', dx: 0, dy});
+        return;
+      }
       // The corp first-action modal's briefing column scrolls first.
       if (this.corpFirstActionOpen) {
         const confirm = this.$refs.corpFirstConfirm as InstanceType<typeof ConsoleCorpFirstActionConfirm> | undefined;
@@ -24691,23 +24722,20 @@ export default defineComponent({
         played?.stickScroll(dy);
         return;
       }
-      const candidates: Array<HTMLElement> = [];
+      // The JOURNAL's feed while it is open (its own scroll is the inner
+      // viewport — the `.con-journal__scroll` box itself clips).
       if (journalState.open) {
-        const feed = document.querySelector<HTMLElement>('.con-journal__scroll');
-        if (feed !== null) {
-          candidates.push(feed);
-        }
-      }
-      if (candidates.length === 0) {
-        document.querySelectorAll<HTMLElement>('.con-info__scroll').forEach((el) => candidates.push(el));
-      }
-      for (let i = candidates.length - 1; i >= 0; i--) {
-        const el = candidates[i];
-        if (el.offsetParent !== null && el.scrollHeight > el.clientHeight + 1) {
-          el.scrollBy({top: dy * CONSOLE_SCROLL_STEP_PX * conUiScale(), behavior: 'auto'});
+        const journal = document.querySelector<HTMLElement>('.con-journal__scroll');
+        if (journal !== null && stickScrollBy(dy, journal)) {
           return;
         }
       }
+      // THE NET: no routed surface took the stick — move the overflowing
+      // container the player is LOOKING AT (painted, on top, the largest:
+      // an Info Mode body, a prompt panel, a workspace's list), never one
+      // under a foreign surface, never swallow the stick over a list that
+      // does not fit.
+      stickScrollBy(dy);
     },
     /** Right-stick scroll of the review's scroll area. Returns true when it
      *  actually OVERFLOWS. */

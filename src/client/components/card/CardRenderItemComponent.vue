@@ -24,6 +24,7 @@ import {Size} from '@/common/cards/render/Size';
 import {Tag} from '@/common/cards/Tag';
 import {ICardRenderItem, isICardRenderItem} from '@/common/cards/render/Types';
 import {cardResourceCSS} from '../common/cardResources';
+import {requirementPartyEmblem} from '@/client/components/premiumCard/partyEmblems';
 
 export default defineComponent({
   name: 'CardRenderItemComponent',
@@ -315,6 +316,8 @@ export default defineComponent({
         return ['card-geoscan-icon'];
       case CardRenderItemType.UNDERGROUND_SHELTERS:
         return ['card-underground-shelters'];
+      case CardRenderItemType.PARTY_SEAL:
+        return this.item.stacked === true ? ['card-party-seal', 'card-party-seal--stacked'] : ['card-party-seal'];
       default:
         return [];
       }
@@ -393,6 +396,15 @@ export default defineComponent({
       }
       if (this.item.type === CardRenderItemType.RULING_PARTY) {
         result = '<div class="card-party-icon"></div>';
+      }
+      // ONE NAMED PARTY (TR62): its emblem — the premium face's table — with
+      // the caption («Ruling») under it as a TEXT node, so the host's v-i18n
+      // translates it and the host's ink map colours it.
+      if (this.item.type === CardRenderItemType.PARTY_SEAL && this.item.party !== undefined) {
+        result = `<span class="card-party-seal__disc" style="background-image: url('${requirementPartyEmblem(this.item.party)}')"></span>`;
+        if (this.item.innerText) {
+          result += `<span class="card-party-seal__caption">${this.item.innerText}</span>`;
+        }
       }
       if (this.item.type === CardRenderItemType.AWARD) {
         result = '<span class="card-award-icon">award</span>';

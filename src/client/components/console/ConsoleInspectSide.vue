@@ -21,7 +21,7 @@
 
       <!-- ── The body — only the content crossfades; the box + card are
            stable (the brief: a page swap, not a new modal). ──────────── -->
-      <div class="con-inspect-side__content">
+      <div ref="content" class="con-inspect-side__content">
         <!-- Reduced motion drops the MODE too: an empty-name out-in still
              sequences leave→enter across two flushes, i.e. a guaranteed blank
              frame — the exact opposite of «instant swap». -->
@@ -58,6 +58,7 @@ import {CardName} from '@/common/cards/CardName';
 import {ActionInspectHistory} from '@/client/components/actions/actionInspectHistory';
 import {ConsoleZoomInspectTab} from '@/client/console/consoleCardZoom';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {stopCursorScroll} from '@/client/console/cursorScroll';
 import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesPanel.vue';
 import ConsoleCardHistoryPanel from '@/client/components/console/ConsoleCardHistoryPanel.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -77,6 +78,26 @@ export default defineComponent({
   computed: {
     reduced(): boolean {
       return consoleReducedMotionActive();
+    },
+  },
+  methods: {
+    /**
+     * Right-stick / d-pad paging of the ACTIVE tab's body (the rules or the
+     * statistics — each its own ConsoleScrollArea), routed by the shell's zoom
+     * intent handler. Returns false when nothing overflows, so the shell keeps
+     * swallowing the input instead of pretending a journey.
+     */
+    scrollBody(delta: number): boolean {
+      const content = this.$refs.content as HTMLElement | undefined;
+      const viewports = content === undefined ? [] : Array.from(content.querySelectorAll<HTMLElement>('.con-scroll-area__viewport'));
+      // During the tab crossfade both bodies stand: the LAST one is the entering tab's.
+      const vp = viewports.reverse().find((el) => el.scrollHeight > el.clientHeight + 1);
+      if (vp === undefined) {
+        return false;
+      }
+      stopCursorScroll(vp);
+      vp.scrollTop += delta;
+      return true;
     },
   },
 });

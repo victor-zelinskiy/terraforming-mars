@@ -2135,6 +2135,39 @@
         margin-bottom: -17px;
         border-radius: 5px;
     }
+    /* ONE NAMED PARTY (TR62) — the premium face's emblem disc (`.pcard-pseal`
+       re-stated at the DSL's 40px icon size); a stacked seal overlaps the one
+       before it, its caption hangs under the disc's centre. */
+    .card-party-seal {
+        position: relative;
+        display: inline-block;
+        vertical-align: middle;
+        width: 34px;
+        height: 34px;
+        &--stacked { margin-left: -12px; }
+    }
+    .card-party-seal__disc {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: center / contain no-repeat;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    }
+    .card-party-seal__caption {
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        margin-top: 1px;
+        font-size: 9px;
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        color: #1b1b1b;
+    }
     .card-award-icon {
         text-transform: uppercase;
         background: orange;
