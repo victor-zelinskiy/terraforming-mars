@@ -1,4 +1,5 @@
 import {CardType} from '../../common/cards/CardType';
+import {Tag} from '../../common/cards/Tag';
 import {MarsBotTrackRole} from '../../common/automa/AutomaTypes';
 import {AutomaCorporations} from './corps/AutomaCorporations';
 import {IAward} from '../awards/IAward';
@@ -20,6 +21,31 @@ function trackPosition(game: IGame, role: MarsBotTrackRole): number {
 /** Every track EXCEPT the separate Venus board — the set the "every track" milestones read. */
 function martianTracks(game: IGame) {
   return game.automa?.board.tracks.filter((t) => t.definition.role !== 'venus') ?? [];
+}
+
+/**
+ * The position of the track the JOVIAN tag rides on this map — addressed by
+ * the TAG, because the pairing moves from board to board (Power on Tharsis /
+ * Utopia, Science on Hellas / Elysium and the fan-made Vastitas Borealis,
+ * Earth on Terra Cimmeria / Vastitas Borealis Nova) and a Jovian-counting
+ * criterion means «wherever the Jovian tag lives». 0 when no track carries it.
+ */
+function jovianTrackPosition(game: IGame): number {
+  const board = game.automa?.board;
+  const index = board?.getTrackIndexForTag(Tag.JOVIAN);
+  return board === undefined || index === undefined ? 0 : board.tracks[index].position;
+}
+
+/**
+ * «Visionary — Lowest track space (2nd lowest if playing with Venus) doubled»
+ * (Adding Expansions p.15, the Awards & Milestones module). The base is the
+ * lowest position over EVERY track the board has; with Venus Next the Venus
+ * row joins the set and the rule skips the single lowest — the substitution
+ * reading Diversifier has (one track may be left behind).
+ */
+function visionaryBase(game: IGame): number {
+  const positions = game.automa?.board.tracks.map((t) => t.position) ?? [];
+  return everyTrackScore(positions, game.gameOptions.venusNextExtension ? 1 : 0);
 }
 
 /**
@@ -117,12 +143,17 @@ function printedTarget(milestone: IMilestone, game: IGame, fallback: number): nu
  *
  * Sources: rulebook pp.8–9 (Tharsis) · Adding Expansions p.9 (Hellas) · pp.2–3
  * (Hoverlord / Venuphile / the Venus adaptations of the "every track"
- * milestones).
+ * milestones) · pp.13–15 (the Awards & Milestones module list) · for the
+ * fan-made Vastitas Borealis the fork's own rules, docs/AUTOMA_DATA_AUDIT.md §17.
  *
- * Milestone and award NAMES are unique across the supported board set, so one
- * switch covers every map — the tracks behind the cases are looked up by
- * canonical ROLE, which is what makes «advance the science track» mean the
- * Jovian/Science track on Hellas and the plain Science track on Tharsis.
+ * A milestone / award NAME means ONE milestone / award across the supported
+ * board set — a name two boards share (Smith, Tradesman, Edgedancer on Utopia
+ * and the fan-made Vastitas Borealis; Forecaster on Terra Cimmeria Nova and
+ * that map) is the same object with the same human criterion, so one case
+ * honestly serves both (pinned by `noNameServesTwoBoards`: a NEW collision
+ * still fails). The tracks behind the cases are looked up by canonical ROLE,
+ * which is what makes «advance the science track» mean the Jovian/Science
+ * track on Hellas and the plain Science track on Tharsis.
  *
  * A dedicated module (no AwardScorer import) so AwardScorer itself can consult
  * it without an import cycle.
@@ -273,6 +304,19 @@ export class AutomaMAEvaluation {
       // higher." Either one suffices, so the progress is the FURTHER of the two
       // — never their sum (that would meet it at 3 + 3).
       return {value: Math.max(trackPosition(game, 'science'), trackPosition(game, 'bio')), target: 6};
+    // ── Vastitas Borealis, the fan map (the fork's own rules — docs/AUTOMA_DATA_AUDIT.md §17.2)
+    // Smith and Tradesman stand here under Utopia's official rules above (the
+    // same milestones). Irrigator («4 tiles adjacent to oceans») and
+    // Capitalist («64 M€») are the UNCHANGED family — the default branch
+    // below: Irrigator is literally the Coastguard class («As usual», Adding
+    // Expansions p.13) and the bot's tiles are real; Capitalist reads the M€
+    // the bot really holds.
+    case 'V. Electrician':
+      // HOME RULE: «[Power] track at space 4 or higher» — the N ↔ N law of a
+      // single-tag track (Researcher 4 science tags ↔ 4, Spacefarer 4 ↔ 4,
+      // Terran 5 ↔ 5, Agronomist 4 ↔ 4); Power stands ALONE on this board, so
+      // four power tags read as four spaces.
+      return {value: trackPosition(game, 'power'), target: 4};
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Hoverlord': // Unchanged: 7 floater resources (Adding Expansions p.2).
       return {value: game.automa?.floaters ?? 0, target: 7};
@@ -513,6 +557,30 @@ export class AutomaMAEvaluation {
       // "[Building] track space OR [Space] track space, whichever is
       // more-advanced." The further of the two, never their sum.
       score = Math.max(trackPosition(game, 'building'), trackPosition(game, 'space'));
+      break;
+    // ── Vastitas Borealis, the fan map (docs/AUTOMA_DATA_AUDIT.md §17.3) ─────
+    // Forecaster (M€ / 7, Terra Cimmeria's official rule) and Edgedancer
+    // (unchanged — real edge tiles, Utopia's) stand here under the cases they
+    // already have.
+    case 'Visionary':
+      // OFFICIAL (Adding Expansions p.15): «Lowest track space (2nd lowest if
+      // playing with Venus) doubled».
+      score = visionaryBase(game) * 2;
+      break;
+    case 'Naturalist':
+      // HOME RULE: «plant + heat production» ↔ the plant-badged track (bio)
+      // PLUS the heat-badged track (earth) — Manufacturer's shape («Sum of
+      // [Building] and [Energy] tracks» for steel + energy production, p.15)
+      // and Banker's (building + event).
+      score = trackPosition(game, 'bio') + trackPosition(game, 'earth');
+      break;
+    case 'Voyager':
+      // HOME RULE: «most Jovian tags» ↔ HALF the space of the track the Jovian
+      // tag rides, floored — calibrated on Rim Settler (Hellas, p.9: 3 Jovian
+      // tags ↔ Jovian/Science space 6, a 2:1 ratio). The bare space (Space
+      // Baron's shape) would read the SCIENCE half of the pairing as Jovian
+      // tags — science is 15 % of the deck, Jovian 7 % — and double the bot.
+      score = Math.floor(jovianTrackPosition(game) / 2);
       break;
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Venuphile': // Venus track position (Adding Expansions p.3).

@@ -64,8 +64,10 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     text: 'With 5+ M€, MarsBot pushes the Terra Cimmeria award race it is closest to being ahead on, then loses 5 M€ — except Forecaster, which pays it 5 M€ instead.',
   },
   [BonusCardId.B13_CORPORATE_COMPETITION_BOREALIS]: {
-    name: 'Corporate Competition (Vastitas Borealis)',
-    text: 'With 5+ M€, MarsBot pushes the Vastitas Borealis award race it is closest to being ahead on, then loses 5 M€.',
+    // The official map is the fork's «Vastitas Borealis Nova» (the creator's own label); the plain
+    // «Vastitas Borealis» is the older fan map, whose card is BF1 below.
+    name: 'Corporate Competition (Vastitas Borealis Nova)',
+    text: 'With 5+ M€, MarsBot pushes the Vastitas Borealis Nova award race it is closest to being ahead on, then loses 5 M€.',
   },
   [BonusCardId.B14_CORPORATE_COMPETITION_MA]: {
     name: 'Corporate Competition (Milestones & Awards)',
@@ -115,6 +117,11 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   [BonusCardId.B30_INTERFACE_HYPERLINK]: {name: 'Interface Hyperlink', text: 'Tycho Magnetics: MarsBot draws as many project cards as its space on the power track (at least 2), plays the best 2 of them and discards the rest. Destroyed afterwards.'},
   [BonusCardId.B31_GOVERNMENT_SUBSIDY]: {name: 'Government Subsidy', text: 'UNMI: MarsBot raises its TR 1 step.'},
   [BonusCardId.B32_INVESTORS]: {name: 'Investors', text: 'Utopia Invest: on an even generation MarsBot advances its weakest track and pulls its strongest one back; otherwise it gains M€ equal to the space number of its weakest track. Recurs into the action deck every generation.'},
+  // ── Fan maps — the fork's own Corporate Competition cards (docs/AUTOMA_DATA_AUDIT.md §17.6) ──
+  [BonusCardId.BF1_CORPORATE_COMPETITION_VASTITAS_FAN]: {
+    name: 'Corporate Competition (Vastitas Borealis)',
+    text: 'With 5+ M€, MarsBot pushes the Vastitas Borealis award race it is closest to being ahead on, then loses 5 M€ — except Forecaster, which pays it 5 M€ instead.',
+  },
 };
 
 export function bonusCardInfo(id: BonusCardId): BonusCardInfo {
@@ -346,6 +353,29 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'tile', text: 'Blacksmith advances the building or space track, whichever is further', muted: true},
         ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
         {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
+        {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
+      ],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.BF1_CORPORATE_COMPETITION_VASTITAS_FAN:
+    // The fork's own face for the fan-made Vastitas Borealis (§17.6): the same
+    // card, its own helper list — Forecaster's free option as on B12,
+    // Edgedancer's edge constraint as on B11 (Suburban), and three helpers
+    // shaped by the award they serve (Visionary → the weakest track,
+    // Naturalist → the weaker of the plant / Earth pair, Voyager → the Jovian
+    // track).
+    return {
+      name,
+      lines: [
+        {icon: 'award', text: 'With 5+ M€: MarsBot pushes the award race it is closest to leading'},
+        {icon: 'cards', text: 'Forecaster reveals project cards until one has requirements and resolves it', muted: true},
+        {icon: 'greenery', text: 'Edgedancer places a greenery on the board edge and raises oxygen 1 step', muted: true},
+        {icon: 'tile', text: 'Visionary advances the least-advanced track (the topmost one if tied)', muted: true},
+        {icon: 'tile', text: 'Naturalist advances the plant track or the Earth track, whichever is behind', muted: true},
+        {icon: 'tile', text: 'Voyager advances the Jovian track', muted: true},
+        ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
+        {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
+        {icon: 'megacredits', text: 'Forecaster instead GAINS ${0} M€ — that option costs the card nothing', params: ['5']},
         {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
       ],
       fate: FATE_DISCARD,

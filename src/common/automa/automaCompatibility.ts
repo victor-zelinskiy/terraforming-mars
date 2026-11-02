@@ -103,8 +103,12 @@ export const AUTOMA_SUPPORTED_BOARDS: ReadonlyArray<BoardName> = [
   // fork's older `TERRA_CIMMERIA` is a different map and is NOT supported.
   BoardName.TERRA_CIMMERIA_NOVA,
   // The official Vastitas Borealis (Viking 1/2, the North Pole, the B13 row).
-  // The fork's older `VASTITAS_BOREALIS` is a fan map and is NOT supported.
   BoardName.VASTITAS_BOREALIS_NOVA,
+  // The fork's older, FAN-MADE Vastitas Borealis — the first map with a
+  // HOME-MADE MarsBot board, Corporate Competition (BF1) and milestone / award
+  // rules, designed by the law of the six official boards (2026-11-02;
+  // docs/claude/marsbot-fan-map-checklist.md, docs/AUTOMA_DATA_AUDIT.md §2f / §17).
+  BoardName.VASTITAS_BOREALIS,
 ];
 
 /** «tharsis, hellas and elysium» — the list read out in the rejection reason. */

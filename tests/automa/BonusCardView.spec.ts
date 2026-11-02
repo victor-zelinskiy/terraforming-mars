@@ -109,6 +109,23 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(venus.lines.map((l) => l.text).join(' | ')).to.include('Venuphile');
   });
 
+  it('Corporate Competition (BF1) shows the FAN Vastitas Borealis helper list — its five awards, the free Forecaster, Venuphile only with Venus', () => {
+    const base = buildBonusCardView(BonusCardId.BF1_CORPORATE_COMPETITION_VASTITAS_FAN, BASE);
+    expect(base.name).eq('Corporate Competition (Vastitas Borealis)');
+    const texts = base.lines.map((l) => l.text);
+    expect(texts.some((t) => t.startsWith('Forecaster reveals')), 'Forecaster').is.true;
+    expect(texts.some((t) => t.startsWith('Edgedancer places a greenery on the board edge')), 'Edgedancer').is.true;
+    expect(texts.some((t) => t.startsWith('Visionary advances the least-advanced track')), 'Visionary').is.true;
+    expect(texts.some((t) => t.startsWith('Naturalist advances the plant track or the Earth track')), 'Naturalist').is.true;
+    expect(texts.some((t) => t.startsWith('Voyager advances the Jovian track')), 'Voyager').is.true;
+    expect(texts.some((t) => t.startsWith('Forecaster instead GAINS')), 'the free option is stated').is.true;
+    expect(texts.some((t) => t.startsWith('Venuphile')), 'no Venus line without Venus Next').is.false;
+    expect(buildBonusCardView(BonusCardId.BF1_CORPORATE_COMPETITION_VASTITAS_FAN, VENUS).lines.some((l) => l.text.startsWith('Venuphile'))).is.true;
+    expect(base.fate.kind).eq('discard');
+    // …and the official Nova card names its own map, never the fan one.
+    expect(buildBonusCardView(BonusCardId.B13_CORPORATE_COMPETITION_BOREALIS, BASE).name).eq('Corporate Competition (Vastitas Borealis Nova)');
+  });
+
   it('Corporate Competition (B12) shows the TERRA CIMMERIA helper list and its ONE free option', () => {
     const base = buildBonusCardView(BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA, BASE);
     expect(base.name).eq('Corporate Competition (Terra Cimmeria)');

@@ -8,6 +8,7 @@ import {GlobalParameter} from '../../common/GlobalParameter';
 import {Phase} from '../../common/Phase';
 import {Resource} from '../../common/Resource';
 import {CardType} from '../../common/cards/CardType';
+import {Tag} from '../../common/cards/Tag';
 import {TileType} from '../../common/TileType';
 import {SpaceType} from '../../common/boards/SpaceType';
 import {Board, isSpecialTileSpace} from '../boards/Board';
@@ -257,6 +258,7 @@ function resolveBonusCardEffect(game: IGame, id: BonusCardId): BonusCardOutcome 
   case BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA:
   case BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA:
   case BonusCardId.B13_CORPORATE_COMPETITION_BOREALIS:
+  case BonusCardId.BF1_CORPORATE_COMPETITION_VASTITAS_FAN:
     // One card, one resolver: the map only swaps the helper-action list.
     return corporateCompetition(game);
   case BonusCardId.B16_GOVERNMENT_INTERVENTION: return governmentIntervention(game);
@@ -539,7 +541,7 @@ function localNeuralInstance(game: IGame): BonusCardOutcome {
   return 'destroy';
 }
 
-/** The Corporate Competition card THIS map plays with — B08…B13, one per map. */
+/** The Corporate Competition card THIS map plays with — B08…B13 and the fan maps' BF-cards, one per map. */
 function mapCorporateCompetition(game: IGame): BonusCardId {
   return marsBotMapProfile(game.gameOptions.boardName).corporateCompetition;
 }
@@ -573,8 +575,8 @@ function revealUntilAndResolve(game: IGame, matches: (card: IProjectCard) => boo
 
 /**
  * Corporate Competition — B08 (Tharsis), B09 (Hellas), B10 (Elysium), B11
- * (Utopia Planitia), B12 (Terra Cimmeria) and B13 (Vastitas Borealis) are the
- * SAME card with a different
+ * (Utopia Planitia), B12 (Terra Cimmeria), B13 (Vastitas Borealis Nova) and
+ * the fork's BF1 (the fan-made Vastitas Borealis) are the SAME card with a different
  * helper-action list, so they are the same resolver: with 5+ M€,
  * help its position on the CLOSEST already-funded award (the one the human
  * leads by the smallest margin or is tied; MarsBot leading everywhere → its own
@@ -675,16 +677,20 @@ function helperIsFree(awardName: string): boolean {
 /**
  * The Corporate Competition helper actions — Tharsis (rulebook p.7), Hellas
  * (Adding Expansions p.12), Elysium (B10), Utopia Planitia (B11), Terra
- * Cimmeria (B12), Vastitas Borealis (B13) and the Venuphile line every version of the card gains with
- * Venus Next (Adding Expansions p.3). One helper — B12's Forecaster — is
- * exempt from the card's payment; see `helperIsFree` above. False when the
- * action is «impossible to resolve»: the caller then tries the NEXT funded
- * award and the bot pays nothing — which is how B10's two CONSTRAINED greenery
- * helpers refuse rather than place somewhere the card does not allow.
+ * Cimmeria (B12), Vastitas Borealis Nova (B13), the fork's own BF1 for the
+ * fan-made Vastitas Borealis (docs/AUTOMA_DATA_AUDIT.md §17.6) and the
+ * Venuphile line every version of the card gains with Venus Next (Adding
+ * Expansions p.3). One helper — Forecaster (B12, BF1) — is exempt from the
+ * card's payment; see `helperIsFree` above. False when the action is
+ * «impossible to resolve»: the caller then tries the NEXT funded award and the
+ * bot pays nothing — which is how B10's two CONSTRAINED greenery helpers refuse
+ * rather than place somewhere the card does not allow.
  *
- * Award names are unique across the supported board set, so ONE switch serves
- * every map; the tracks are addressed by canonical ROLE, which is what makes
- * «advance the science track» reach the Jovian/Science track on Hellas.
+ * An award NAME means one award across the supported board set (a name shared
+ * by two boards — Edgedancer, Forecaster — is the SAME award with the same
+ * criterion, so one helper serves both), so ONE switch serves every map; the
+ * tracks are addressed by canonical ROLE, which is what makes «advance the
+ * science track» reach the Jovian/Science track on Hellas.
  */
 function tryAwardHelper(game: IGame, awardName: string): boolean {
   const automa = game.automa;
@@ -787,7 +793,9 @@ function tryAwardHelper(game: IGame, awardName: string): boolean {
     marsBotOf(game).increaseTerraformRating(2, {log: true});
     return true;
   // ── Utopia Planitia (B11, the official card) ─────────────────────
-  // The fork's canonical name for the board's «Suburban» slot is Edgedancer.
+  // The fork's canonical name for the board's «Suburban» slot is Edgedancer —
+  // the same award stands on the fan-made Vastitas Borealis (BF1), where this
+  // helper serves it unchanged.
   case 'Edgedancer':
     // «MarsBot places a greenery tile ON THE EDGE OF THE BOARD and raises
     // oxygen 1 step.» A hard constraint on the legal set — the same edge
@@ -852,6 +860,8 @@ function tryAwardHelper(game: IGame, awardName: string): boolean {
     // SEARCH criterion only — MarsBot never checks whether it could meet it.
     // Canonical card metadata answers it (`card.requirements`), never text.
     // ⚠️ And this helper does NOT pay the card's 5 M€ — see `helperIsFree`.
+    // The same award stands on the fan-made Vastitas Borealis (BF1): the same
+    // helper, the same free option.
     if (!revealUntilAndResolve(game, (card) => card.requirements.length > 0)) {
       return false;
     }
@@ -891,6 +901,47 @@ function tryAwardHelper(game: IGame, awardName: string): boolean {
     }
     alive.sort((a, b) => (b.track?.position ?? 0) - (a.track?.position ?? 0)); // Stable: Building first on ties.
     return advanceRole(alive[0].role);
+  }
+  // ── Vastitas Borealis, the fan map (BF1 — the fork's own card, §17.6) ────
+  // HOME RULES, each the shape the §A law gives its award's type: a «track
+  // space» award → «advance that track» (the B08…B13 precedents named below).
+  case 'Visionary': {
+    // The award reads the bot's LEAST-advanced track (doubled) — so the helper
+    // lifts the floor: «advance its least-advanced track, the topmost if tied»
+    // — the very action two official corporation cards print (B28
+    // Diversification, B32 Investors). Every track maxed ⇒ the least-advanced
+    // one cannot move ⇒ impossible to resolve.
+    const index = board.getLeastAdvancedTrackIndex();
+    if (!board.tracks[index].canAdvance()) {
+      return false;
+    }
+    AutomaResolver.advanceTrack(game, index);
+    return true;
+  }
+  case 'Naturalist': {
+    // The award sums the plant track (bio) and the heat-badged track (earth):
+    // Banker's shape — «advance whichever of the two is least advanced, the
+    // topmost (earth) on ties». Both maxed ⇒ impossible.
+    const alive = (['earth', 'bio'] as const)
+      .map((role) => ({role, track: board.getTrackOfRole(role)}))
+      .filter((e) => e.track?.canAdvance() === true);
+    if (alive.length === 0) {
+      return false;
+    }
+    alive.sort((a, b) => (a.track?.position ?? 0) - (b.track?.position ?? 0)); // Stable: earth first on ties.
+    return advanceRole(alive[0].role);
+  }
+  case 'Voyager': {
+    // «Advance the Jovian track» — Traveller's (B13) shape, addressed by the
+    // TAG: the track the Jovian tag rides on this map (Jovian/Science here),
+    // the very track the award reads (halved). A board with no Jovian track
+    // cannot happen (every profile pairs it somewhere); maxed ⇒ impossible.
+    const index = board.getTrackIndexForTag(Tag.JOVIAN);
+    if (index === undefined || !board.tracks[index].canAdvance()) {
+      return false;
+    }
+    AutomaResolver.advanceTrack(game, index);
+    return true;
   }
   // ── Venus Next: added to ALL versions of the card ─────────────────────────
   case 'Venuphile': return advanceRole('venus');

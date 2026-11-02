@@ -113,9 +113,11 @@ describe('VASTITAS BOREALIS + MarsBot — setup', () => {
     expect(game.automa).is.not.undefined;
   });
 
-  it('the fork\'s OLDER Vastitas Borealis is rejected — a fan map with its own M&A row', () => {
-    expect(() => testAutomaGame({boardName: BoardName.VASTITAS_BOREALIS}, '-vb-old'))
-      .to.throw(/MarsBot \(Automa\) does not support/);
+  it('the fork\'s OLDER Vastitas Borealis is a DIFFERENT map — its own home-made profile, never this one', () => {
+    const [old] = testAutomaGame({boardName: BoardName.VASTITAS_BOREALIS}, '-vb-old');
+    expect(old.automa, 'supported since 2026-11-02 by VastitasBorealisFanMarsBot').is.not.undefined;
+    expect(old.automa!.board.getTrackIndexForTag(Tag.MICROBE), 'its microbe rides bio, not science').eq(old.automa!.board.trackIndexOfRoleOrThrow('bio'));
+    expect(AutomaSetup.bonusDeckContents({boardName: BoardName.VASTITAS_BOREALIS} as never), 'and it never plays with B13').does.not.contain(B13);
   });
 
   it('builds the bonus deck with B13, and no other map\'s card', () => {

@@ -25,7 +25,9 @@ export const MARSBOT_MILESTONE_DESCRIPTIONS: Partial<Record<MilestoneName, strin
   // Utopia Planitia (the fork's canonical names for the board's slots:
   // Specialist → Land Specialist, Trader → Tradesman, Metallurgist → Smith)
   'Land Specialist': '3+ bonus cards destroyed',
-  'Tradesman': 'Jovian/Energy, Earth/City and Venus tracks all \u2265 2',
+  // Tradesman and Smith also stand on the fan-made Vastitas Borealis, whose
+  // pairs differ — the rule is by ROLE (power / earth / venus), so the words are.
+  'Tradesman': 'Power, Earth and Venus tracks all \u2265 2',
   'Smith': 'Building + Space tracks combined \u2265 7',
   'Pioneer': '3+ colonies (unchanged)',
   // Terra Cimmeria — the board the Automa material means is TERRA_CIMMERIA_NOVA
@@ -41,6 +43,10 @@ export const MARSBOT_MILESTONE_DESCRIPTIONS: Partial<Record<MilestoneName, strin
   'Geologist': 'Tiles on or next to volcanic areas (unchanged)',
   'Engineer': 'Jovian/Earth + City/Energy tracks combined \u2265 10',
   'Farmer': 'Microbe/Science OR Animal/Plant track \u2265 6',
+  // Vastitas Borealis, the fan map (the fork's own rules — docs/AUTOMA_DATA_AUDIT.md §17.2)
+  'V. Electrician': 'Power track \u2265 4',
+  'Irrigator': 'Tiles adjacent to oceans (unchanged)',
+  'Capitalist': '64 M\u20ac (unchanged)',
   // Modular
   'Briber': '20+ MC (loses 12 MC on claim)',
   'Builder7': 'Building track \u2265 7',
@@ -97,10 +103,14 @@ export const MARSBOT_AWARD_DESCRIPTIONS: Partial<Record<AwardName, string>> = {
   'Highlander': 'Tiles not next to an ocean (unchanged)',
   'Promoter': 'Event track',
   'Blacksmith': 'Building OR Space track (higher)',
+  // Vastitas Borealis, the fan map (docs/AUTOMA_DATA_AUDIT.md §17.3) — Forecaster
+  // and Edgedancer as above
+  'Naturalist': 'Plant track + Earth (heat) track',
+  'Voyager': 'Half the Jovian track',
   'Manufacturer': 'Building + Energy track',
   // Modular
   'Administrator': 'Cards without tags in played pile + 2',
   'Collector': 'Tracks at space 3+',
   'Politician': 'Always 5',
-  'Visionary': 'Lowest track \u00d7 2',
+  'Visionary': 'Lowest track \u00d7 2 (2nd lowest with Venus)',
 };

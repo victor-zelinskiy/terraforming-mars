@@ -47,6 +47,11 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
     expect(automaConflicts({...cleanInput(), boardName: BoardName.TERRA_CIMMERIA_NOVA})).is.empty;
   });
 
+  it('Vastitas Borealis NOVA is supported (B13), and so is the fork\'s FAN Vastitas Borealis — its own home-made board and BF1', () => {
+    expect(automaConflicts({...cleanInput(), boardName: BoardName.VASTITAS_BOREALIS_NOVA})).is.empty;
+    expect(automaConflicts({...cleanInput(), boardName: BoardName.VASTITAS_BOREALIS})).is.empty;
+  });
+
   it('a RANDOM board request is never a conflict — the server rolls it from the supported pool', () => {
     // src/server/boards/randomBoard.ts narrows the pool to
     // AUTOMA_SUPPORTED_BOARDS for automa games, so the resolved board is
@@ -68,7 +73,7 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
     expect(conflicts).has.length(1);
     expect(conflicts[0].key).eq('board');
     expect(conflicts[0].reason)
-      .eq('the amazonis p. board yet — MarsBot covers tharsis, hellas, elysium, utopia planitia, terra cimmeria nova and vastitas borealis nova');
+      .eq('the amazonis p. board yet — MarsBot covers tharsis, hellas, elysium, utopia planitia, terra cimmeria nova, vastitas borealis nova and vastitas borealis');
   });
 
   it('reports EVERY conflict (the UI highlights all of them at once)', () => {

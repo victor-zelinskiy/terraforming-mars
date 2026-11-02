@@ -239,8 +239,9 @@ describe('the VASTITAS BOREALIS map profile', () => {
 
   it('is a supported MarsBot board — and it is the NOVA one', () => {
     expect(AUTOMA_SUPPORTED_BOARDS).to.include(BoardName.VASTITAS_BOREALIS_NOVA);
-    expect(AUTOMA_SUPPORTED_BOARDS, 'the fork\'s older Vastitas Borealis is a fan map')
-      .to.not.include(BoardName.VASTITAS_BOREALIS);
+    // The fork's older Vastitas Borealis is a fan map with a home-made profile
+    // of its own (`VastitasBorealisFanMarsBot`) — never THIS board's data.
+    expect(marsBotMapProfile(BoardName.VASTITAS_BOREALIS).tracks).not.eq(VASTITAS_BOREALIS_MARSBOT_BOARD);
     expect([...MARSBOT_BOARDS].sort()).deep.eq([...AUTOMA_SUPPORTED_BOARDS].sort());
   });
 

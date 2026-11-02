@@ -16,7 +16,7 @@ import {VENUS_TRACK_INDEX, venusTrackFor} from './VenusMarsBot';
  * `BoardName.VASTITAS_BOREALIS_NOVA` (Viking 1/2, the North Pole −4 M€
  * temperature hex, the Agronomist… / Traveller… row of the B13 reference
  * card). `BoardName.VASTITAS_BOREALIS` is an older fan map with a different
- * M&A row; it is NOT automa-supported.
+ * M&A row and a HOME-MADE board of its own (`VastitasBorealisFanMarsBot.ts`).
  *
  * ⚠️ THE TAG TOPOLOGY MOVES MORE THAN ON ANY OTHER BOARD — three pairings at
  * once (Adding Expansions p.8):

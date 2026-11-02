@@ -99,11 +99,18 @@ export function mslCuriosityUsable(game: IGame, bot: IPlayer): boolean {
 
 /**
  * VASTITAS BOREALIS' NORTH POLE — «the hex containing a temperature bonus and
- * −4 MC» (Adding Expansions p.11). Identified by the PRINTED BONUS: only that
- * map prints `SpaceBonus.TEMPERATURE_4MC`.
+ * −4 MC» (Adding Expansions p.11). Identified by the PRINTED BONUS: the two
+ * Vastitas Borealis maps print `SpaceBonus.TEMPERATURE_4MC` (the official
+ * Nova board and the fork's older fan map — the same cell, the same rule),
+ * and no other map does.
  */
 export function isVastitasNorthPole(space: Space): boolean {
   return space.bonus.includes(SpaceBonus.TEMPERATURE_4MC);
+}
+
+/** Does the map in play print a North Pole at all? Read off the board, never off a board name. */
+export function boardPrintsNorthPole(game: IGame): boolean {
+  return game.board.spaces.some(isVastitasNorthPole);
 }
 
 /**
@@ -291,13 +298,17 @@ export function needsMslCuriosityRebate(game: IGame, bot: IPlayer): boolean {
 
 /**
  * The same rebate for the North Pole: the human path drops it when the player
- * cannot pay its 4 M€ (`VastitasBorealisNovaBoard.spaceCosts`); for MarsBot an
- * unaffordable North Pole is «a hex without rewards» it may still land on.
+ * cannot pay its 4 M€ (`VastitasBorealisNovaBoard.spaceCosts` and the fan
+ * map's `VastitasBorealisBoard.spaceCosts` alike); for MarsBot an unaffordable
+ * North Pole is «a hex without rewards» it may still land on.
  */
 export const VASTITAS_NORTH_POLE_REBATE = -VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST;
 
-/** True when the bot needs that rebate at all — i.e. it cannot pay the 4 M€. */
+/**
+ * True when the bot needs that rebate at all — i.e. the map prints a pole and
+ * the bot cannot pay its 4 M€. Read off the BOARD (both Vastitas Borealis maps
+ * print the pole), never off a board name.
+ */
 export function needsNorthPoleRebate(game: IGame, bot: IPlayer): boolean {
-  return game.gameOptions.boardName === BoardName.VASTITAS_BOREALIS_NOVA &&
-    bot.megaCredits < VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST;
+  return bot.megaCredits < VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST && boardPrintsNorthPole(game);
 }

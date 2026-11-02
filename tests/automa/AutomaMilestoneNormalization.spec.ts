@@ -70,6 +70,13 @@ const BOT_METRIC: ReadonlyArray<string> = [
   'C. Forester', // Bio track 10 ↔ 3 plant production
   'Fundraiser', // Event track 10 ↔ 12 M€ production
   'Hoverlord', // 7 floaters ↔ 7 floaters
+  // Vastitas Borealis NOVA — the official board (Adding Expansions p.11).
+  'Agronomist', // Animal/Plant track 4 ↔ 4 bio tags
+  'V. Spacefarer', // Space track 5 ↔ 5 space tags
+  'Engineer', // Jovian/Earth + City/Energy combined 10 ↔ energy + heat production
+  'Farmer', // Microbe/Science OR Animal/Plant 6 ↔ plant / microbe / animal resources
+  // Vastitas Borealis, the FAN map — the fork's own rules (docs/AUTOMA_DATA_AUDIT.md §17.2).
+  'V. Electrician', // Power track 4 ↔ 4 power tags (Smith / Tradesman stand here under their Utopia rows above)
 ];
 
 /** Milestones the bot meets with the PLAYER's own metric — nothing to rescale. */
@@ -87,7 +94,28 @@ const PLAYER_METRIC: ReadonlyArray<string> = [
   // Terra Cimmeria's Coast Guard is the second control case: «Unchanged», and
   // the criterion (tiles next to oceans) is one the bot's real tiles satisfy.
   'Coastguard', // real tiles adjacent to real ocean tiles
+  // Vastitas Borealis Nova's Geologist: «Unchanged» — the bot's real tiles on or next to the volcanoes.
+  'Geologist',
+  // Vastitas Borealis, the FAN map (docs/AUTOMA_DATA_AUDIT.md §17.2): Irrigator
+  // IS the Coastguard class at 4 («As usual», Adding Expansions p.13), and
+  // Capitalist reads the M€ the bot really holds — the bot's number is the
+  // very quantity the milestone looks at.
+  'Irrigator', // real tiles adjacent to real ocean tiles
+  'Capitalist', // the bot's real M€
 ];
+
+/**
+ * Names that stand on TWO supported boards — allowed only here, with the
+ * reason: a name is ONE milestone / award object with ONE human criterion, so
+ * the bot's one branch serves both boards. A new collision still fails
+ * `noNameServesTwoBoards` below.
+ */
+const SHARED_NAMES: ReadonlyMap<string, string> = new Map([
+  ['Smith', 'Utopia Planitia (Metallurgist) + Vastitas Borealis (fan): Building + Space ≥ 7 on both'],
+  ['Tradesman', 'Utopia Planitia (Trader) + Vastitas Borealis (fan): power / earth / venus ≥ 2 by ROLE on both'],
+  ['Edgedancer', 'Utopia Planitia (Suburban) + Vastitas Borealis (fan): unchanged — real edge tiles'],
+  ['Forecaster', 'Terra Cimmeria Nova + Vastitas Borealis (fan): floor(M€ / 7) on both'],
+]);
 
 const SCOPE: ReadonlyArray<string> = [...BOT_METRIC, ...PLAYER_METRIC];
 
@@ -113,6 +141,10 @@ function supportedGames(): Array<[string, IGame, IPlayer]> {
     ['Utopia+Venus+Colonies', {boardName: BoardName.UTOPIA_PLANITIA, venusNextExtension: true, coloniesExtension: true}],
     ['Terra Cimmeria', {boardName: BoardName.TERRA_CIMMERIA_NOVA}],
     ['Terra Cimmeria+Venus+Colonies', {boardName: BoardName.TERRA_CIMMERIA_NOVA, venusNextExtension: true, coloniesExtension: true}],
+    ['Vastitas Borealis Nova', {boardName: BoardName.VASTITAS_BOREALIS_NOVA}],
+    ['Vastitas Borealis Nova+Venus+Colonies', {boardName: BoardName.VASTITAS_BOREALIS_NOVA, venusNextExtension: true, coloniesExtension: true}],
+    ['Vastitas Borealis (fan)', {boardName: BoardName.VASTITAS_BOREALIS}],
+    ['Vastitas Borealis (fan)+Venus+Colonies', {boardName: BoardName.VASTITAS_BOREALIS, venusNextExtension: true, coloniesExtension: true}],
   ];
   return combos.map(([label, options], i) => {
     const [game, /* human */, bot] = testAutomaGame(options, `-norm-${i}`);
@@ -170,28 +202,33 @@ describe('AutomaMAEvaluation — milestone normalization (the bot reads as a pla
       names.join(', ')).is.empty;
   });
 
-  it('noNameServesTwoBoards: one milestone/award NAME never reaches two supported boards', () => {
+  it('noNameServesTwoBoards: a milestone/award NAME on two supported boards is listed in SHARED_NAMES with its reason', () => {
     // `botMilestoneProgress` and `botAwardScore` are keyed by NAME, which is
-    // only sound while a name means one thing across the supported set. It is
-    // not a law of the domain — several names DO repeat across the fork's full
-    // board list (Forester, Planetologist, Architect, Incorporator, Forecaster,
-    // Zoologist …), and the supported five simply never collide. The day a new
-    // map breaks that, this fails with the offending name instead of the switch
-    // silently applying another board's rule.
+    // sound exactly because a name is ONE milestone / award object with ONE
+    // human criterion — so one branch honestly serves every board it stands
+    // on. The fan-made Vastitas Borealis shares four names with Utopia /
+    // Terra Cimmeria Nova (listed above with the rule each shares). A NEW
+    // collision still fails here with the offending name, so a board can
+    // never silently inherit a rule nobody checked against its own row.
     const seen = new Map<string, string>();
     const collisions: Array<string> = [];
     for (const boardName of AUTOMA_SUPPORTED_BOARDS) {
       for (const name of [...MILESTONES_BY_BOARD[boardName], ...AWARDS_BY_BOARD[boardName]]) {
         const owner = seen.get(name);
-        if (owner !== undefined && owner !== boardName) {
+        if (owner !== undefined && owner !== boardName && !SHARED_NAMES.has(name)) {
           collisions.push(`${name}: ${owner} + ${boardName}`);
         }
         seen.set(name, boardName);
       }
     }
     expect(collisions,
-      'a name on two supported boards cannot be keyed by name alone — make the ' +
-      'branch map-aware before adding this board: ' + collisions.join(' · ')).is.empty;
+      'a name on two supported boards must be listed in SHARED_NAMES with the rule it shares — ' +
+      'check the branch against BOTH rows before adding it: ' + collisions.join(' · ')).is.empty;
+    // …and the list is not decoration: every shared name really stands on two boards.
+    for (const [name] of SHARED_NAMES) {
+      const boards = AUTOMA_SUPPORTED_BOARDS.filter((b) => MILESTONES_BY_BOARD[b].includes(name) || AWARDS_BY_BOARD[b].includes(name));
+      expect(boards, `${name} is listed as shared`).has.length.greaterThan(1);
+    }
   });
 
   it('familyGuard: the declared family is the family the evaluator actually uses', () => {

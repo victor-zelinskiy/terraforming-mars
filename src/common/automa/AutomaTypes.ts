@@ -268,6 +268,11 @@ export enum BonusCardId {
   B30_INTERFACE_HYPERLINK = 'B30',
   B31_GOVERNMENT_SUBSIDY = 'B31',
   B32_INVESTORS = 'B32',
+  // FAN MAPS (BF-prefix — the official numbers B01–B32 are taken, and a number
+  // is only display: behaviour is bound to the enum member, docs/AUTOMA_DATA_AUDIT.md §1).
+  // The fork's own Corporate Competition for the fan-made Vastitas Borealis
+  // (`BoardName.VASTITAS_BOREALIS`), designed 2026-11-02 — §17.6 there.
+  BF1_CORPORATE_COMPETITION_VASTITAS_FAN = 'BF1',
 }
 
 /** The set of bonus cards used in the base game (no expansions). */

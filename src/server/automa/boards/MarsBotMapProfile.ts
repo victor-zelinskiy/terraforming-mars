@@ -12,6 +12,7 @@ import {TERRA_CIMMERIA_MARSBOT_BOARD} from './TerraCimmeriaMarsBot';
 import {THARSIS_MARSBOT_BOARD} from './TharsisMarsBot';
 import {UTOPIA_MARSBOT_BOARD} from './UtopiaMarsBot';
 import {VASTITAS_BOREALIS_MARSBOT_BOARD, VASTITAS_VENUS_TRACK} from './VastitasBorealisMarsBot';
+import {VASTITAS_FAN_MARSBOT_BOARD} from './VastitasBorealisFanMarsBot';
 
 /**
  * THE MAP PROFILE — everything that differs between MarsBot boards, and nothing
@@ -214,8 +215,8 @@ const TERRA_CIMMERIA_PROFILE: MarsBotMapProfile = {
 /**
  * VASTITAS BOREALIS — specifically `VASTITAS_BOREALIS_NOVA`, the official map
  * (Viking 1/2, the North Pole −4 M€ temperature hex, the B13 milestone/award
- * row). The fork's older `VASTITAS_BOREALIS` is an unrelated fan map and stays
- * unsupported.
+ * row). The fork's older `VASTITAS_BOREALIS` is an unrelated fan map with a
+ * HOME-MADE profile of its own below (`VASTITAS_FAN_PROFILE`).
  */
 const VASTITAS_BOREALIS_PROFILE: MarsBotMapProfile = {
   boardName: BoardName.VASTITAS_BOREALIS_NOVA,
@@ -236,8 +237,36 @@ const VASTITAS_BOREALIS_PROFILE: MarsBotMapProfile = {
   venusTrack: VASTITAS_VENUS_TRACK,
 };
 
+/**
+ * VASTITAS BOREALIS, THE FAN MAP (`VASTITAS_BOREALIS`) — the fork's older,
+ * fan-made map (V. Electrician … Capitalist / Forecaster … Voyager, the North
+ * Pole in the centre, four volcanoes, no Viking sites). No official Automa
+ * material covers it: this is the first HOME-MADE profile, designed by the law
+ * of the six official boards (docs/claude/marsbot-fan-map-checklist.md §A;
+ * the design and the owner's decisions: docs/AUTOMA_DATA_AUDIT.md §2f / §17).
+ */
+const VASTITAS_FAN_PROFILE: MarsBotMapProfile = {
+  boardName: BoardName.VASTITAS_BOREALIS,
+  tracks: VASTITAS_FAN_MARSBOT_BOARD,
+  corporateCompetition: BonusCardId.BF1_CORPORATE_COMPETITION_VASTITAS_FAN,
+  // HOME RULE by the §A law («every milestone / award that counts tile
+  // POSITION gives the bot a tiebreak step towards those cells»): this map's
+  // two are Irrigator (tiles next to oceans) and Edgedancer (tiles on the
+  // edge) — exactly Utopia Planitia's pair (its Coast-Guard-shaped step 1 and
+  // Suburban), so the profile is Utopia's: 1. oceans · 4. reward icons, with
+  // the edge bullet below. No region step, no volcano bullet: the row has no
+  // Polar Explorer / Desert Settler / Geologist. The North Pole rides step 4
+  // as a conditional weight by its PRINTED bonus (`AutomaPlacementBonus`).
+  placementTiebreakers: [OCEAN_ADJACENCY, REWARD_ICONS],
+  // Utopia's bullet («edge spaces are considered to have an additional reward
+  // icon for purposes of tiebreakers»), adopted for the same award
+  // (Edgedancer = Suburban). Tiebreak only — the payout stays the printed icons.
+  tiebreakRewardBonus: (game, space) => (game.board.isEdge(space) ? 1 : 0),
+  // The shared Venus row: the microbe tag lives on the bio row here.
+};
+
 const PROFILES: ReadonlyArray<MarsBotMapProfile> =
-  [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE, TERRA_CIMMERIA_PROFILE, VASTITAS_BOREALIS_PROFILE];
+  [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE, TERRA_CIMMERIA_PROFILE, VASTITAS_BOREALIS_PROFILE, VASTITAS_FAN_PROFILE];
 
 /** Every board MarsBot can be played on. */
 export const MARSBOT_BOARDS: ReadonlyArray<BoardName> = PROFILES.map((p) => p.boardName);

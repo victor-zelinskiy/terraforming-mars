@@ -48,6 +48,8 @@ describe('ApiCreateGame', () => {
   it('an automa game rolls a random board only from the MarsBot-supported pool', () => {
     // The roll must never land on a board `AutomaSetup.validateOptions`
     // rejects — that would fail the whole creation.
+    // The fan-made Vastitas Borealis joined the bot's pool on 2026-11-02 — the
+    // first fan map with a home-made MarsBot board (docs/AUTOMA_DATA_AUDIT.md §2f / §17).
     expect(ApiCreateGame.boardOptions(RandomBoardOption.ALL, {automa: true})).deep.eq([
       BoardName.THARSIS,
       BoardName.HELLAS,
@@ -55,6 +57,7 @@ describe('ApiCreateGame', () => {
       BoardName.UTOPIA_PLANITIA,
       BoardName.VASTITAS_BOREALIS_NOVA,
       BoardName.TERRA_CIMMERIA_NOVA,
+      BoardName.VASTITAS_BOREALIS,
     ]);
     // All three official boards have MarsBot adaptations — the pool is unchanged.
     expect(ApiCreateGame.boardOptions(RandomBoardOption.OFFICIAL, {automa: true}))
