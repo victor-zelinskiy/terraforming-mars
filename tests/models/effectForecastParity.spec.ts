@@ -41,6 +41,8 @@ import {VectorComputations} from '../../src/server/cards/turmoilRedux/VectorComp
 import {SpinInducingAsteroid} from '../../src/server/cards/venusNext/SpinInducingAsteroid';
 import {NitrogenRichAsteroid} from '../../src/server/cards/base/NitrogenRichAsteroid';
 import {ReleaseOfInertGases} from '../../src/server/cards/base/ReleaseOfInertGases';
+import {Resource} from '../../src/common/Resource';
+import {ColonyTradeHub} from '../../src/server/cards/prelude2/ColonyTradeHub';
 import {Poseidon} from '../../src/server/cards/colonies/Poseidon';
 import {MiningColony} from '../../src/server/cards/colonies/MiningColony';
 import {NuclearZone} from '../../src/server/cards/base/NuclearZone';
@@ -466,7 +468,7 @@ describe('effect-forecast ↔ execution parity', function() {
   });
 
   describe('colony builds (exact facts, whichever tile is picked)', () => {
-    const COLONY_REACTORS: ReadonlyArray<Factory> = [Poseidon];
+    const COLONY_REACTORS: ReadonlyArray<Factory> = [Poseidon, ColonyTradeHub];
 
     it('the block covers every in-scope «colony built» reactor', () => {
       const inScope = inScopeReactors().map((F) => new F()).filter((card) => card.onColonyAddedByAnyPlayer !== undefined).map((card) => card.name);
@@ -499,7 +501,10 @@ describe('effect-forecast ↔ execution parity', function() {
           const liveTrigger = new MiningColony();
           player.cardsInHand.push(liveTrigger);
           const before = game.events.events.length;
-          const production = owner.production.megacredits;
+          // The fact's own kind decides what is read: production (Poseidon) or the stock (P46 Colony Trade Hub).
+          const promised = facts[0].effects[0];
+          const read = () => (promised.note === 'production' ? owner.production.megacredits : owner.megaCredits);
+          const reading = read();
           player.playCard(liveTrigger);
           runAllActions(game);
           const pick = cast(player.popWaitingFor(), SelectColony);
@@ -508,7 +513,14 @@ describe('effect-forecast ↔ execution parity', function() {
           const markers = firedMarkers(game.events.events.slice(before), facts[0], recipientColorOf(facts[0], player));
           expect(markers.length, `${name} must have fired on 'colony-added'`).to.be.greaterThan(0);
           // …and what it promised is what landed (the chip's own delta).
-          expect(owner.production.megacredits - production).eq(facts[0].effects[0].amount);
+          expect(promised.icon).eq(Resource.MEGACREDITS);
+          if (promised.note === 'production' || foreign) {
+            expect(read() - reading).eq(promised.amount);
+          } else {
+            // The builder's own stock also paid the colony's price — the reaction's share is its record's impact.
+            const records = game.cardReactions.filter((r) => r.card === name && r.channel === 'colony-added');
+            expect(records.flatMap((r) => r.impacts).map((i) => i.amount)).deep.eq([promised.amount]);
+          }
         });
       }
     }

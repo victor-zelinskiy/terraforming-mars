@@ -164,7 +164,8 @@ export abstract class Colony implements IColony {
         if (card.onColonyAddedByAnyPlayer === undefined) {
           continue;
         }
-        player.game.events.withEffect(cardOwner, card, 'colony-added', () => card.onColonyAddedByAnyPlayer?.(cardOwner, player));
+        player.game.events.withEffect(cardOwner, card, 'colony-added', () => card.onColonyAddedByAnyPlayer?.(cardOwner, player),
+          {colony: {name: this.name, builder: player.color}});
       }
     }
     // … and the BOT's own corporation, which is not a card in a tableau (C33

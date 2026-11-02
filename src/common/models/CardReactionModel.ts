@@ -52,6 +52,12 @@ export type CardReactionCause = {
   walk?: {reason: 'quest' | 'phase' | 'card' | 'resolution', from: number, to: number};
   /** A TRADE (`'trade'` — `colonies/tradePerformed.fireTradeHooks`): where the fleet went — a colony tile, or a fleet-dock card. */
   trade?: {kind: 'colony', name: ColonyName} | {kind: 'card', card: CardName};
+  /**
+   * A COLONY BUILT (`'colony-added'` — `Colony.addColony` and the bot's `AutomaColonies.botBuildColony`, the two
+   * writers of a cube): which tile, and whose cube. A rival's or the bot's build is animated nowhere on the viewer's
+   * screen, so this is what lets the reaction name its cause («Луна · Бот» — P46 Colony Trade Hub, 2026-11-03).
+   */
+  colony?: {name: ColonyName, builder: Color};
 };
 
 /** THE ROOT the reaction stands under: the chain's correlationId (the SAME id a draw batch's `actionId` carries), the acting seat, the action's category. */

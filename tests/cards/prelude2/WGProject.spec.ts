@@ -180,7 +180,9 @@ describe('WGProject — on a Turmoil Redux table (P91: a prelude played in the m
   });
 
   it('the model counts the prelude deck and its discard pile (the console\'s deck object)', () => {
-    const t = table();
+    // A SEEDED top: the unseeded deck's top changes with the deck's contents (P46 joined it, 2026-11-03), and the
+    // prelude played from it decides what else lands in the pile — this count is about the two not taken.
+    const t = table([new MetalsCompany(), new Donation(), new Supplier()]);
     const before = t.game.preludeDeck.drawPile.length;
     const pick = play(t);
     const model = Server.getGameModel(t.game);

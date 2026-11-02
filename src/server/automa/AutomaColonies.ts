@@ -155,7 +155,8 @@ export class AutomaColonies {
         if (card.onColonyAddedByAnyPlayer === undefined) {
           continue;
         }
-        game.events.withEffect(cardOwner, card, 'colony-added', () => card.onColonyAddedByAnyPlayer?.(cardOwner, bot));
+        game.events.withEffect(cardOwner, card, 'colony-added', () => card.onColonyAddedByAnyPlayer?.(cardOwner, bot),
+          {colony: {name: colony.name, builder: bot.color}});
       }
     }
     // … and the BOT's own corporation, beside them — the same sentence, the
