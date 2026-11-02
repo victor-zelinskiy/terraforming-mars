@@ -29,6 +29,15 @@ describe('BoardSpace', () => {
     expect(wrapper.find('[data-test="tile"]').classes()).to.not.contain('board-hidden-tile');
   });
 
+  it('a RESTRICTED cell is marked closed by its own class; an ordinary land cell is not', () => {
+    const cell = (spaceType: SpaceType) => mount(BoardSpace, {
+      ...globalConfig,
+      props: {space: {id: '33' as SpaceId, bonus: [], x: 4, y: 4, spaceType}, tileView: 'show'},
+    });
+    expect(cell(SpaceType.RESTRICTED).classes()).to.include('board-space--restricted');
+    expect(cell(SpaceType.LAND).classes()).to.not.include('board-space--restricted');
+  });
+
   it('has hidden tile if hidden props is passed', async () => {
     const wrapper = mount(BoardSpace, {
       ...globalConfig,

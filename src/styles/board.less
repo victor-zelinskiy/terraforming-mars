@@ -366,6 +366,23 @@
 	transition: background 180ms ease, filter 180ms ease, opacity 180ms ease;
 }
 
+// ── A RESTRICTED cell — closed by FORM, never by colour ──────────────
+//
+// Amazonis Planitia's centre takes no tile, ever. It is told the way a closed zone is told on a survey map: a
+// diagonal HATCH inside the hex and a DASHED light core on the same dark casing every hex wears. Both read by form,
+// so they survive desaturation and couch distance; no red (red is the toll's tone on this board — «costly here»,
+// not «closed»), no glow, no motion (a standing fact of the cell — the visual-restraint law). The hatch is two-tone
+// like the grid itself: a dark stroke for the bright highlands, a thin dust stroke for the dark ground.
+@restricted-hatch: ~"<pattern id='rh' width='4.2' height='4.2' patternUnits='userSpaceOnUse' patternTransform='rotate(45)'><rect x='0' y='0' width='1.15' height='4.2' fill='rgb(22,11,5)' fill-opacity='0.34'/><rect x='1.15' y='0' width='0.45' height='4.2' fill='@{grid-core-top-c}' fill-opacity='0.22'/></pattern>";
+.board > .board-space-selectable.board-space--restricted::before,
+.board-outer-spaces > .board-space-selectable.board-space--restricted::before {
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><defs>@{restricted-hatch}</defs><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='url(%23rh)' stroke='@{grid-casing}' stroke-width='2.2' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='@{grid-core-top-c}' stroke-opacity='@{grid-core-bot-o}' stroke-width='0.85' stroke-dasharray='2.6 1.9' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+}
+.board > .board-space-selectable.board-space--restricted:hover::before,
+.board-outer-spaces > .board-space-selectable.board-space--restricted:hover::before {
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><defs>@{restricted-hatch}</defs><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='url(%23rh)' stroke='@{grid-casing}' stroke-width='2.4' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='@{grid-h-core-top-c}' stroke-opacity='@{grid-h-core-top-o}' stroke-width='1.1' stroke-dasharray='2.6 1.9' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+}
+
 // Baseline hover (no placement) — same cased structure, wider casing +
 // brighter core for the focus pop. Stays in the warm dust family, never
 // a hard cold white. The uniform casing keeps the lip readable on the

@@ -260,6 +260,11 @@ export default defineComponent({
       if (this.pile.length > 1 && this.pileDrawn) {
         css += ' board-space--stack';
       }
+      // A RESTRICTED cell (Amazonis's centre) never takes a tile: it is drawn by FORM — a hatch and a dashed contour —
+      // so it reads as closed at couch distance, before any hover or placement asks it. A fixed fact of the cell.
+      if (this.space.spaceType === SpaceType.RESTRICTED) {
+        css += ' board-space--restricted';
+      }
       // A SPECIAL city's cell (the tile a tier would bury): its counter stands clear of the buried tile's mark. A fact
       // of the cell's own tile, never of the height — so the counter does not move when the mark appears or goes.
       // A city OVER AN OCEAN (TR44) is such a cell too: the water is the piece its mark names.

@@ -84,6 +84,17 @@ for (const profile of PROFILES) {
       expect(board.captions, 'no legacy SVG caption is left on this map').not.toMatch(/Tholus|Mons/);
       expect(board.markers, 'exactly the four volcanoes and the restricted centre carry a marker').toEqual(MARKERS.map((id) => `board-space-${id}`));
 
+      // The centre reads CLOSED by form before anything asks it: the hatch and the dashed contour on its own layer.
+      const closed = await page.evaluate((id) => {
+        const cell = document.querySelector(`[data_space_id="${id}"]`);
+        return {
+          marked: cell?.classList.contains('board-space--restricted') ?? false,
+          paint: cell === null ? '' : getComputedStyle(cell, '::before').backgroundImage,
+        };
+      }, RESTRICTED);
+      expect(closed.marked, 'the centre carries the restricted class').toBe(true);
+      expect(closed.paint, 'its contour layer paints the hatch and the dashed core').toMatch(/pattern.*stroke-dasharray/);
+
       // The board's idle selection seeds on the centre, but nobody is inspecting: its marker stays calm (the owner's
       // frame of 2026-11-02 — the «i» on 33 read as focused on a board the player had never entered).
       expect(await page.locator('.special-cell-marker--active').count(), 'no marker lights up for an invisible cursor').toBe(0);
@@ -94,6 +105,13 @@ for (const profile of PROFILES) {
         {timeout: 15_000, message: 'the centre\'s popover names the restricted-area rule'}).toMatch(/Запретная зона/);
       await settle(page);
       await shoot(page, '01-centre-hover');
+      const centreBox = await page.locator(`[data_space_id="${RESTRICTED}"]`).boundingBox();
+      if (centreBox !== null) {
+        fs.mkdirSync(OUT, {recursive: true});
+        const pad = centreBox.width * 1.6;
+        await page.screenshot({path: path.join(OUT, '02-centre-closeup.png'),
+          clip: {x: centreBox.x - pad, y: centreBox.y - pad, width: centreBox.width + 2 * pad, height: centreBox.height + 2 * pad}});
+      }
 
       // ── A GREENERY aimed at a microbe cell ──────────────────────────────────
       const before = await view(request, playerId);
