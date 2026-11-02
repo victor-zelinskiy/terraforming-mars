@@ -160,7 +160,7 @@ const DIVIDENDS: Readonly<Record<MarsBotCorpId, MarsBotDividendInfo>> = {
   ], dividendGoal('Old-fashioned towns', 'MarsBot cities on spaces with no bonus', 3, 4, 5)),
   [MarsBotCorpId.C37_SEPTEM_TRIBUS]: dividendBox('Behind the Scenes', {each: 3}, (r) => [
     {text: '${0} VP per step MarsBot reached on the Career track', params: [r.each]},
-  ], dividendGoal('Covert operations', 'Event cards in MarsBot\'s played pile', 7, 8, 9)),
+  ], dividendGoal('Covert operations', 'Event cards in MarsBot\'s played pile', 6, 7, 8)),
   [MarsBotCorpId.C38_TERRALABS]: dividendBox('Cheap Research', {each: 1, max: 9}, (r) => [
     {text: '${0} VP per card costing ${1} M€ or less in MarsBot\'s played pile', params: [r.each, r.max]},
   ], dividendGoal('Test fields', 'MarsBot greeneries on plant spaces', 4, 5, 6)),
