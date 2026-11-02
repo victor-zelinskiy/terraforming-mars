@@ -13043,3 +13043,83 @@ appliedScienceFixture('applied-science-sole', 'sole');
 appliedScienceFixture('applied-science-many', 'many');
 appliedScienceFixture('applied-science-crowd', 'crowd');
 appliedScienceFixture('applied-science-last', 'last');
+
+// ── P45 · BOARD OF DIRECTORS — the TWENTY-EIGHTH Prelude 2 card: «draw 1 prelude: either discard it, or pay 12 M€ and
+//    remove 1 director here to play it» — the VERDICT AFTER THE REVEAL inside «ДЕЙСТВИЯ КАРТ» (docs/claude/prompts/
+//    prelude2-p45-board-of-directors.md, ledger ET). A 2p Venus + Prelude 2 table (Teractor · ThorGate, or Helion), blue
+//    on the move, P45 on the table with its directors, the prelude deck SEEDED (the top first, a known count under it):
+//      · `board-of-directors-loan`    — Loan on top, 40 M€: «РАЗЫГРАТЬ» open (40 → 28, directors 4 → 3);
+//      · `board-of-directors-poor`    — 7 M€: the play refused «need 5 more M€», the discard the sole outcome (`max 0`);
+//      · `board-of-directors-burn`    — Loan, M€ production −4: the play burns (+15), the price still paid;
+//      · `board-of-directors-variant` — Atmospheric Enhancers: «РАЗЫГРАТЬ» opens the «ВАРИАНТ» step (the third host);
+//      · `board-of-directors-tile`    — Early Settlement: the prelude asks a city on the board;
+//      · `board-of-directors-helion`  — Helion, 5 M€ + 20 heat: the price is a payment the server ASKS (on the marker);
+//      · `board-of-directors-last`    — 1 director: after the play the action is blocked «0 of 1 director»;
+//      · `board-of-directors-empty`   — the prelude deck AND its discard empty: blocked «the prelude deck is empty».
+//    A DRY RUN on a copy runs the action and reads the verdict's marker, so a rule change fails HERE. ──
+type BoardOfDirectorsVariant = {
+  top?: CardName,
+  megacredits: number,
+  directors?: number,
+  helion?: boolean,
+  mcProduction?: number,
+  empty?: boolean,
+  /** The dry run's expected `max` (undefined = the action is blocked). */
+  max?: 0 | 1,
+};
+function boardOfDirectorsFixture(name: string, v: BoardOfDirectorsVariant): void {
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, venusNextExtension: true, prelude2Expansion: true,
+    customCorporationsList: v.helion === true ? [CardName.HELION, CardName.THORGATE] : [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
+  });
+  answerStartFlow(game, [p1, p2]);
+  game.projectDeck.discardPile.push(...p1.cardsInHand.splice(0));
+  const board = newPrelude(CardName.BOARD_OF_DIRECTORS)!;
+  board.resourceCount = v.directors ?? 4;
+  p1.playedCards.push(board);
+  game.preludeDeck.drawPile.length = 0;
+  game.preludeDeck.discardPile.length = 0;
+  if (v.empty !== true) {
+    stackPreludeDeckTop(game, [v.top ?? CardName.LOAN, CardName.BIOFUELS, CardName.SOCIETY_SUPPORT, CardName.DONATION]);
+    game.preludeDeck.discardPile.push(newPrelude(CardName.SUPPLIER)!);
+  }
+  p1.megaCredits = v.megacredits;
+  if (v.helion === true) {
+    p1.heat = 20;
+  }
+  if (v.mcProduction !== undefined) {
+    p1.production.override({...p1.production.asUnits(), megacredits: v.mcProduction});
+  }
+  p2.megaCredits = 30;
+  runAllActions(game);
+  const canAct = (board as unknown as IActionCard).canAct(p1);
+  if (game.activePlayer.id !== p1.id || canAct !== (v.max !== undefined)) {
+    throw new Error(`the ${name} fixture expected blue on the move with P45 canAct=${v.max !== undefined} — got active=${game.activePlayer.id === p1.id} canAct=${canAct}`);
+  }
+  if (v.max !== undefined) {
+    // THE DRY RUN — on a copy: the verdict's marker, its bounds and its price.
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const blue = copy.getPlayerById(p1.id);
+    const card = blue.playedCards.get(CardName.BOARD_OF_DIRECTORS) as IActionCard & ICard;
+    blue.defer(card.action(blue));
+    runAllActions(copy);
+    const asked = blue.getWaitingFor();
+    const marker = asked instanceof SelectCard ? asked.deckPickPrompt : undefined;
+    if (!(asked instanceof SelectCard) || marker?.mode !== 'play' || marker.origin !== 'prelude' || marker.min !== 0 ||
+      marker.max !== v.max || marker.price === undefined || asked.cards[0]?.name !== (v.top ?? CardName.LOAN)) {
+      throw new Error(`the ${name} fixture expected the verdict (play/prelude, min 0, max ${v.max}, a price, ${v.top ?? CardName.LOAN} drawn) — got ${asked?.type} ${JSON.stringify(marker)}`);
+    }
+    if (v.helion === true && marker.payment === undefined) {
+      throw new Error(`the ${name} fixture expected the price's payment on the marker (Helion's heat)`);
+    }
+  }
+  write(name, game);
+}
+boardOfDirectorsFixture('board-of-directors-loan', {megacredits: 40, max: 1});
+boardOfDirectorsFixture('board-of-directors-poor', {megacredits: 7, max: 0});
+boardOfDirectorsFixture('board-of-directors-burn', {megacredits: 40, mcProduction: -4, max: 1});
+boardOfDirectorsFixture('board-of-directors-variant', {top: CardName.ATMOSPHERIC_ENHANCERS, megacredits: 40, max: 1});
+boardOfDirectorsFixture('board-of-directors-tile', {top: CardName.EARLY_SETTLEMENT, megacredits: 40, max: 1});
+boardOfDirectorsFixture('board-of-directors-helion', {megacredits: 5, helion: true, max: 1});
+boardOfDirectorsFixture('board-of-directors-last', {megacredits: 40, directors: 1, max: 1});
+boardOfDirectorsFixture('board-of-directors-empty', {megacredits: 40, empty: true});
