@@ -7,7 +7,7 @@ import {Phase} from '../../src/common/Phase';
 import {
   parliamentSittingFlowBeat, parliamentSittingLive, presentedGeneration, quietRewardPoseOf, SITTING_HOSTED_STEPS, SITTING_SUBJECT_KEY, sittingAskOf, sittingAtLastPage,
   sittingBodyOf, sittingFieldOf, sittingPageAuto, sittingPagesOf, sittingPositionOf, sittingPrimaryKey, sittingRewardSettled, sittingStageAt,
-  sittingStageKey, sittingStartPage, sittingStepTakesStage, sittingCloseKey, sittingCloseLeadsTo, SittingPosition, sittingTailPlacementOf, sittingWorkspacePhase, verdictStandsAt,
+  sittingStageKey, sittingStartPage, sittingStepTakesStage, sittingCloseKey, sittingCloseLeadsTo, SittingPosition, sittingTailPlacementOf, sittingTailVenusBonusOf, sittingWorkspacePhase, verdictStandsAt,
 } from '../../src/client/console/parliament/consoleSittingFlow';
 import {backVerbFor} from '../../src/client/console/consoleWorkspaceFlow';
 import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
@@ -295,6 +295,33 @@ describe('consoleSittingFlow — the political phase as ONE flow (v2)', () => {
       expect(sittingTailPlacementOf(ocean(), phase({step: 'effects', pending: {player: BLUE, key: 'k', input: 'card'}}), BLUE)).is.false;
       expect(sittingTailPlacementOf(ocean(), phase({step: 'done', pending: {player: BLUE, key: 'temperature', input: 'space'}}), BLUE)).is.false;
       expect(sittingTailPlacementOf(tile(), phase({step: 'effects', pending: {player: BLUE, key: 'ocean', input: 'space'}}), BLUE), 'the resolution\'s own tile is a DOOR, never a tail').is.false;
+    });
+
+    it('the VENUS BONUS the winner\'s rewarded Venus step earned (P89 · EJ) is a HOSTED step of the reward page — the bonus marker + `pending` on the viewer, never a title', () => {
+      const bonus = (): PlayerInputModel =>
+        ({type: 'and', title: 'Select your Venus bonus', buttonLabel: 'Confirm', inputs: [],
+          venusBonusPrompt: {kind: 'standard', baseCount: 2, step: {from: 16, to: 20}}} as unknown as PlayerInputModel);
+      const asked = phase({step: 'effects', pending: {player: BLUE, key: 'venus', input: 'and'}});
+      expect(sittingAskOf(bonus()), 'the bonus is the TRACK\'s, never the resolution\'s own ask').is.undefined;
+      expect(sittingTailVenusBonusOf(bonus(), asked, BLUE)).is.true;
+      const position = sittingPositionOf(model(asked), bonus(), BLUE)!;
+      expect(position.rewardStep).eq('venusBonus');
+      expect(position.tail, 'not a placement tail — no board door').is.undefined;
+      expect(SITTING_HOSTED_STEPS.has('venusBonus'), 'the ONE bonus surface stands in the stage zone').is.true;
+      expect(sittingFieldOf('reward', position.rewardStep, true, false), 'the wave that arrived with it flies first').deep.eq({pose: false, stepOpen: false});
+      expect(sittingFieldOf('reward', position.rewardStep, false, false), 'then the field opens for it').deep.eq({pose: true, stepOpen: true});
+      expect(sittingRewardSettled(position), 'the page is held — and with it the planet\'s trip to the board — until the answer').is.false;
+      expect(sittingPrimaryKey(position, 2), 'the bonus surface owns A').is.undefined;
+      expect(sittingStageKey('reward', position.rewardStep), 'the crumb\'s tail: «› БОНУС ВЕНЕРЫ»').eq('Venus bonus');
+      // The OTHER seat reads the honest wait on the winner's bonus.
+      const other = sittingPositionOf(model(asked), undefined, RED)!;
+      expect(other.rewardStep).eq('waiting');
+      expect(other.waitingFor).deep.eq({player: BLUE, input: 'and'});
+      // Not the sitting's: no position on the viewer, another step of the phase, no bonus marker.
+      expect(sittingTailVenusBonusOf(bonus(), phase({step: 'effects', pending: {player: RED, key: 'venus', input: 'and'}}), BLUE)).is.false;
+      expect(sittingTailVenusBonusOf(bonus(), phase({step: 'effects'}), BLUE)).is.false;
+      expect(sittingTailVenusBonusOf(bonus(), phase({step: 'done', pending: {player: BLUE, key: 'venus', input: 'and'}}), BLUE)).is.false;
+      expect(sittingTailVenusBonusOf(pick(), asked, BLUE)).is.false;
     });
   });
 

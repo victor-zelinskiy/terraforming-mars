@@ -5,6 +5,7 @@ import {
   bootFixture, bootFixtureSeats, crumbText, fetchPlayerModel, openActionFocus, openCardActions, playCardFromHand, press, pressUntil,
   reloadConsole, settle, walkFocusUntil,
 } from './consoleStart';
+import {enterSittingByPass, parliament, strandedReports, armLeakWitness, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * THE VENUS BONUS IS A STEP OF ITS HOST (P89 · ledger EE — the owner's law of 2026-11-01: «бонус шкалы Венеры ВСЕГДА
@@ -55,7 +56,8 @@ async function armBonusWitness(page: Page): Promise<void> {
         state.hosted = hosted.closest('.con-cardactions') !== null ? 'card-actions' :
           hosted.closest('.con-hand') !== null ? 'hand' :
             hosted.closest('.con-stdp') !== null ? 'standard-projects' :
-              hosted.closest('.con-colonies') !== null ? 'colonies' : 'elsewhere';
+              hosted.closest('.con-colonies') !== null ? 'colonies' :
+                hosted.closest('.con-parl') !== null ? 'parliament' : 'elsewhere';
       }
     };
     new MutationObserver(take).observe(document.body, {subtree: true, childList: true});
@@ -292,5 +294,51 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     }, {timeout: 30_000, message: 'the standalone band collects too'}).toBeUndefined();
     // …and its resource comes off the cell too (the story was already told — the stage stands at once).
     await expectBornOnCell(page, 'venus-18');
+  });
+
+  test("H8 «ПАРЛАМЕНТ»: the winner's Venus step (14 → 18 %) → the bonus is a step of the sitting's reward page; the planet's story AFTER the answer, the resource off its cell", async ({page, request}) => {
+    test.setTimeout(600_000);
+    // The dev law «Venus Survey Charter» stands one pass before its sitting with blue's delegate on it (P89 · EJ).
+    const {playerId: id} = await bootFixtureSeats(page, request, 'parliament-venus-step-assembly', {query: PRESET.query});
+    await armLeakWitness(page);
+    await armBonusWitness(page);
+    await armCellWitness(page, 'venus-18');
+    // THE SAMPLER: was the sitting ever off the screen while the bonus stood (the planet's trip must wait for the answer)?
+    await page.evaluate(() => {
+      const w = window as unknown as {__sitWitness?: {awayWhileAsked: number, awayAfter: number}};
+      const state = {awayWhileAsked: 0, awayAfter: 0};
+      w.__sitWitness = state;
+      let asked = false;
+      setInterval(() => {
+        const bonus = document.querySelector('.con-venus') !== null;
+        asked = asked || bonus;
+        if (document.querySelector('.con-parl') === null) {
+          if (bonus) {
+            state.awayWhileAsked++;
+          } else if (asked) {
+            state.awayAfter++;
+          }
+        }
+      }, 50);
+    });
+    await enterSittingByPass(page, request, id);
+    await expect.poll(async () => (await wireOf(request, id)).waitingFor?.venusBonusPrompt?.kind, {timeout: 60_000,
+      message: "the winner's rewarded step asks the 18 % bonus inside the political phase"}).toBe('standard');
+    expect((await wireOf(request, id)).game.venusScaleLevel).toBe(18);
+    // The QUESTION INSIDE: the bonus stands in the sitting's stage zone, the crumb's tail names it, the sitting is up.
+    await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-venus[data-venus-bonus-embedded]'),
+      "the bonus stands in the sitting's reward zone").toBeVisible({timeout: 90_000});
+    await expect(page.locator('[data-venus-step]'), 'the head reads the raise that earned it').toContainText(/14\s*%\s*→\s*18\s*%/);
+    await answerHostedBonus(page, request, id, 'parliament', '.con-parl', 'H8');
+    // THE STORY AFTER: the sitting steps aside for the planet only now — the marker's glide, the steel off the 18 % cell.
+    await expectBornOnCell(page, 'venus-18');
+    await expect(parliament(page), 'the sitting comes back from the board').toHaveCount(1, {timeout: 60_000});
+    await waitSittingAtRest(page, 60_000);
+    const sit = await page.evaluate(() => (window as unknown as {__sitWitness: {awayWhileAsked: number, awayAfter: number}}).__sitWitness);
+    expect(sit.awayWhileAsked, 'the sitting never left the screen while its bonus stood').toBe(0);
+    expect(sit.awayAfter, "the planet's trip to the board came AFTER the answer").toBeGreaterThan(0);
+    expect(await turnTo(page, 'results'), 'the walk reaches the results').toBe(true);
+    await shoot(page, 'H8-results');
+    expect(await strandedReports(page), 'no stranded prompt on the way').toEqual([]);
   });
 });

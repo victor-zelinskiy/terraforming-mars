@@ -24,6 +24,8 @@ import {
 } from '../../../common/parliament/ParliamentTypes';
 import {EnactContext, EnactStep, ResolutionDefinition} from './IResolution';
 import {ExternalDrawIntake} from '../../deferredActions/ExternalDrawIntake';
+import {WinnerParameterReward} from '../../../common/parliament/winnerReward';
+import {winnerParameterStep} from './WinnerParameterStep';
 import {PlayerInput} from '../../PlayerInput';
 import {SelectOption} from '../../inputs/SelectOption';
 import {SpaceType} from '../../../common/boards/SpaceType';
@@ -471,6 +473,48 @@ const DEV_SCIENCE: ResolutionDefinition = {
 };
 
 /**
+ * THE WINNER'S VENUS STEP — a development example of a mechanism no real law
+ * exercises yet (never dealt: `copies: 0`). The family's shared executor
+ * (`winnerParameterStep`) already steps Venus for a winner — and on the
+ * ALTERNATIVE Venus board that rewarded step earns the track's bonus (18 … 30 %),
+ * asked of the winner INSIDE the political phase: the engine's own tail of the
+ * seat's step, drained before the next seat (`ParliamentPhase.stepEffects`),
+ * published as the step's ask (`pending`), hosted by the sitting as a step of
+ * its reward page (P89 · ledger EJ). This card is how that road is proven —
+ * the server spec and the e2e fixture seat it — until a real resolution does.
+ */
+export const DEV_VENUS_STEP_RESOLUTION_ID: ResolutionId = 'RDX_DEV_VENUS_STEP';
+export const DEV_VENUS_STEP_REWARD: WinnerParameterReward = {kind: 'parameter', parameter: 'venus', steps: 2};
+
+const DEV_VENUS_STEP: ResolutionDefinition = {
+  id: DEV_VENUS_STEP_RESOLUTION_ID,
+  module: 'turmoilRedux',
+  party: PartyName.UNITY,
+  copies: 0,
+  compatibility: ['venus'],
+  renderData: CardRenderer.builder((b) => {
+    b.megacredits(2).br;
+    b.venus(2).voteWinner();
+  }),
+  text: {
+    name: 'Venus Survey Charter',
+    effect: 'Gain 2 M€.',
+    winner: 'Raise Venus 2 steps.',
+    quest: 'Play 2 Venus tags',
+  },
+  quest: {goal: {kind: 'tag', tag: Tag.VENUS}, count: 2},
+  immediateSteps: [{
+    key: 'grant-mc',
+    run: (ctx) => {
+      grantStock(ctx, Resource.MEGACREDITS, 2, {resolution: DEV_VENUS_STEP_RESOLUTION_ID});
+      return undefined;
+    },
+  }],
+  winnerReward: DEV_VENUS_STEP_REWARD,
+  winnerSteps: [winnerParameterStep(DEV_VENUS_STEP_RESOLUTION_ID, DEV_VENUS_STEP_REWARD)],
+};
+
+/**
  * The shipped catalog: the REAL resolutions and the never-dealt test /
  * development resolutions.
  *
@@ -623,4 +667,5 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   DEV_ACTION,
   DEV_COMPOUND,
   DEV_SCIENCE,
+  DEV_VENUS_STEP,
 ]);

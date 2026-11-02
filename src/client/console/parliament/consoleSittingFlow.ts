@@ -77,18 +77,21 @@ export type SittingStage = 'verdict' | 'enact' | 'reward' | 'renewal' | 'results
  *                  several holders (the shared distribution step's marker), a take, a DISCARD from hand
  *                  (the second half of Pluto's «draw 1, then discard 1» — the hand as a hosted step), the
  *                  winner's COLONY (Colony Contest — the colonies screen as a hosted step, its whole build
- *                  chain inside it), a tile;
+ *                  chain inside it), a tile; `venusBonus` — the alternative Venus board's bonus the seat's OWN
+ *                  rewarded Venus step earned (the engine's tail of the winner's step — P89 · ledger EJ), the ONE
+ *                  bonus surface hosted in the zone;
  *  · `waiting`   — the effects ask ANOTHER seat (the honest wait line);
  *  · `received`  — the viewer's record is in: paid, or skipped with its reason (the plate names it).
  */
-export type SittingRewardStep = 'reading' | 'choice' | 'distribution' | 'intake' | 'discard' | 'colony' | 'placement' | 'waiting' | 'received';
+export type SittingRewardStep = 'reading' | 'choice' | 'distribution' | 'intake' | 'discard' | 'colony' | 'venusBonus' | 'placement' | 'waiting' | 'received';
 
 /**
  * The steps in which the seat WORKS in the stage's zone — a hosted surface stands there (the field). The picker,
  * the layout and the take are the TASK HOST's; the discard and the colony are workspace FRAMES (the hand, the
- * colonies) teleported into the same zone through the Parliament frame's slot.
+ * colonies) teleported into the same zone through the Parliament frame's slot; the Venus bonus is the shell's ONE
+ * `ConsoleVenusBonus` teleported there (`embedded`).
  */
-export const SITTING_HOSTED_STEPS: ReadonlySet<SittingRewardStep> = new Set<SittingRewardStep>(['choice', 'distribution', 'intake', 'discard', 'colony']);
+export const SITTING_HOSTED_STEPS: ReadonlySet<SittingRewardStep> = new Set<SittingRewardStep>(['choice', 'distribution', 'intake', 'discard', 'colony', 'venusBonus']);
 
 /**
  * THE FIELD AND THE STEP'S DOOR — two facts of the reward stage, derived once for the section, the shell
@@ -231,6 +234,24 @@ export function sittingTailPlacementOf(wf: PlayerInputModel | undefined, phase: 
   return phase.step === 'effects' && pending !== undefined && pending.player === viewer && pending.input === 'space';
 }
 
+/**
+ * THE VENUS BONUS THAT IS THE STEP'S OWN TAIL (P89 · ledger EJ — «the bonus is a step of the surface where the scale
+ * step fired»): the winner's REWARDED Venus step on the alternative board earns the track's bonus (18 … 30 %), and the
+ * engine asks it of the winner inside the political phase — no resolution source (the bonus is the TRACK's), but the
+ * server's position names this seat as the one its step is asking (`phase.pending`, the reaction window's scan), and
+ * the prompt carries the bonus's own marker (`venusBonusPrompt`). Structural on both sides, like the placement's tail
+ * — never a title. The sitting hosts it as a step of its reward page: the question inside, the planet's story (the
+ * marker's glide, the token off the bonus cell) on the board AFTER the answer — the world beat never yields while it
+ * stands (`mayYieldForWorld` asks for a settled reward).
+ */
+export function sittingTailVenusBonusOf(wf: PlayerInputModel | undefined, phase: ParliamentPhaseModel | undefined, viewer: Color | undefined): boolean {
+  if (wf?.venusBonusPrompt === undefined || phase === undefined || viewer === undefined) {
+    return false;
+  }
+  const pending = phase.pending;
+  return phase.step === 'effects' && pending !== undefined && pending.player === viewer;
+}
+
 /** The viewer's confirmation, if it stands: the server's own marker. */
 export function sittingGatePromptOf(wf: PlayerInputModel | undefined): ParliamentPhaseStage | undefined {
   return wf?.parliamentPhasePrompt?.stage;
@@ -307,7 +328,7 @@ export function sittingPositionOf(
   const gate: ParliamentPhaseStage | undefined = phase.step === 'done' ? 'close' : undefined;
   const gateStanding = gate !== undefined && sittingGatePromptOf(wf) === gate;
   const tail = sittingTailPlacementOf(wf, phase, viewer);
-  const ask = sittingAskOf(wf) ?? (tail ? 'placement' : undefined);
+  const ask = sittingAskOf(wf) ?? (tail ? 'placement' : sittingTailVenusBonusOf(wf, phase, viewer) ? 'venusBonus' : undefined);
   // A seat that CLOSED this sitting early stands in it no more — unless the law asks it a question now (the soft gates).
   if (ask === undefined && (phase.closed ?? []).includes(viewer)) {
     return undefined;
@@ -451,6 +472,7 @@ export function sittingStageKey(stage: SittingStage, rewardStep: SittingRewardSt
     case 'intake': return 'Intake';
     case 'discard': return 'Discarding';
     case 'colony': return 'Colonies';
+    case 'venusBonus': return 'Venus bonus';
     // A board step that TAKES a tile off (Water Export's ocean — the server's `placementEffect: 'remove'`)
     // is the same door and the same pose as the winner's tile, but the tail must not promise a placement.
     case 'placement': return removal ? 'Removal' : 'Placement';

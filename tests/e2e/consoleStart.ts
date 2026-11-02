@@ -3194,6 +3194,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'parliament-marsfirst-budget-vote' | 'parliament-marsfirst-budget-bot' | 'parliament-marsfirst-budget-botfirst' |
   // RX23 Mohole Contest: the assembly at −4 °C with blue's delegate — the winner's two steps reach 0 °C and the ocean follows inside the sitting.
   'parliament-mohole-assembly' |
+  // P89 · EJ: the dev law «Venus Survey Charter» at 14 % on the alternative board, blue's delegate on it, one pass before the sitting.
+  'parliament-venus-step-assembly' |
   // RX24 Open IP Trade: the law ENACTED, blue opening generation 2 with four cards in hand and the action unspent.
   'parliament-openip-enacted' |
   'parliament-rdfunding-enacted' |

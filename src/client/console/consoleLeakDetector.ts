@@ -41,6 +41,7 @@ import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
 import {sittingAskResolution} from '@/client/console/promptSource';
 import {agendaReactionOf} from '@/client/console/parliament/agendaReaction';
+import {sittingTailVenusBonusOf} from '@/client/console/parliament/consoleSittingFlow';
 import {resetForegroundWatchdog, runForegroundWatchdog} from '@/client/console/consoleForegroundWatchdog';
 import {stackServes, workspaceFrameKnown, workspaceFrameRenders, workspaceHostForStep, workspaceFrameSelector, workspaceKindSpec, workspaceStackCollapsed, workspaceStackState, workspaceSurfacesFor, yieldedStackServes, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenOwner, ScreenShadowStreak, advanceScreenShadowStreak, expectedScreenOwners, noteScreenShadowPass, recordScreenShadowFinding, screenPromptShape, screenPromptToken, screenShadowVerdict} from '@/client/console/screenDirector';
@@ -461,8 +462,11 @@ function promptHeldReason(view: PlayerViewModel, task: ConsoleTask | undefined, 
   // park's case below; a law's question with no sitting rising or known still strands as usual.
   // …and a table's answer to a step of the Career the Parliament walked (TR78 — the quest, the sitting, a law): its
   // flow's stage hosts it once the step's bonus has landed, the same window.
+  // …and the Venus bonus the seat's own rewarded Venus step earned (P89 · ledger EJ): the reward page hosts it once its
+  // field opens, the same window.
   const career = agendaReactionOf(wf);
-  if ((sittingAskResolution(wf) !== undefined || (career !== undefined && career.reason !== 'card')) &&
+  const venusTail = wf.venusBonusPrompt !== undefined && sittingTailVenusBonusOf(wf, view.game?.parliament?.phase, view.thisPlayer?.color);
+  if ((sittingAskResolution(wf) !== undefined || (career !== undefined && career.reason !== 'card') || venusTail) &&
       (sittingRiseOwed() || workspaceFrameKnown('parliament'))) {
     return 'sitting';
   }

@@ -117,7 +117,7 @@ import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {SelectProjectCardToPlay} from '../../../src/server/inputs/SelectProjectCardToPlay';
 import {CLIMATE_RESEARCH_ID} from '../../../src/server/parliament/resolutions/greens/ClimateResearch';
 import {BIODOME_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/BiodomeContest';
-import {DEV_ACTION_RESOLUTION_ID, DEV_PASSIVE_RESOLUTION_ID} from '../../../src/server/parliament/resolutions/ResolutionCatalog';
+import {DEV_ACTION_RESOLUTION_ID, DEV_PASSIVE_RESOLUTION_ID, DEV_VENUS_STEP_RESOLUTION_ID} from '../../../src/server/parliament/resolutions/ResolutionCatalog';
 import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/unity/CloudDevelopment';
 import {GAS_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/GasExport';
 import {HEAT_CAPTURE_ID} from '../../../src/server/parliament/resolutions/reds/HeatCapture';
@@ -10085,6 +10085,31 @@ parliamentFixture('venus-bonus-rdfunding', {
       throw new Error('the venus-bonus-rdfunding fixture expected Venus at 16 % on the alternative board');
     }
     expectViewerOpensGeneration(table, p2, 'venus-bonus-rdfunding');
+  },
+});
+
+// ── parliament-venus-step-assembly (P89 · ledger EJ): the PARLIAMENT's own road to the alt-board bonus — the winner's
+//    REWARDED Venus step. No real law steps Venus for its winner yet, so the never-dealt development card
+//    `RDX_DEV_VENUS_STEP` («Venus Survey Charter»: 2 M€ to every seat, the winner raises Venus 2 steps) is seated in the
+//    first slot with blue's delegate on it, Venus at 14 % on the ALTERNATIVE board; the table stands ONE PASS before
+//    its sitting. The pass runs the law: blue's 2 M€ wave, the step 14 → 18 % (+2 TR, +1 more at 16 %), and the 18 % bonus
+//    asked of blue INSIDE the political phase (the phase waits) — the sitting hosts it as a step of its reward page. ──
+parliamentFixture('parliament-venus-step-assembly', {
+  resolution: DEV_VENUS_STEP_RESOLUTION_ID,
+  votes: [0],
+  agenda: [2, 1],
+  stopAt: 'pass',
+  options: {venusNextExtension: true, altVenusBoard: true, customCorporationsList: [...VENUS_TABLE_CORPORATIONS]},
+  arrange: ({game}) => {
+    setVenusScaleLevel(game, 14);
+  },
+  expect: ({game, parliament}) => {
+    if (game.getVenusScaleLevel() !== 14 || !game.gameOptions.altVenusBoard) {
+      throw new Error('the parliament-venus-step fixture expected Venus at 14 % on the alternative board');
+    }
+    if (!parliament.slots.some((slot) => slot.instance.startsWith(DEV_VENUS_STEP_RESOLUTION_ID))) {
+      throw new Error('the parliament-venus-step fixture lost the Venus Survey Charter out of the voting area');
+    }
   },
 });
 

@@ -1732,7 +1732,7 @@ import {
   dropHostedStepPromises, HostedParliamentStepKind, hostedStepLiveBeat, hostedStepLiveIn, hostedStepOwedTo, hostedStepToEnter, startHostedStepToEnter,
 } from '@/client/console/parliament/hostedParliamentStep';
 import {clearSupportDiscard, promiseSupportDiscard} from '@/client/console/parliament/supportDiscard';
-import {parliamentSittingFlowBeat, parliamentSittingLive, sittingTailPlacementOf} from '@/client/console/parliament/consoleSittingFlow';
+import {parliamentSittingFlowBeat, parliamentSittingLive, sittingTailPlacementOf, sittingTailVenusBonusOf} from '@/client/console/parliament/consoleSittingFlow';
 import {heldSittingKey, sittingSeededLive} from '@/client/console/parliament/parliamentSittingSeed';
 import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
 import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
@@ -2489,6 +2489,8 @@ function playReceiptOf(pending: PendingPlayCard): StagedReceipt | undefined {
 const STDP_STEP_ZONE = '.con-stdp [data-embed-slot="stdp-step"]';
 /** The hosted Venus bonus's stage name in its host's crumb (P89 · EE) — «БОНУС ВЕНЕРЫ». */
 const VENUS_BONUS_STAGE = 'Venus bonus';
+/** The sitting's reward-stage zone (published by `ConsoleParliamentSitting` — `consoleParliamentUi.stageZone`). */
+const SITTING_STAGE_ZONE = '.con-parl [data-embed-slot="parliament-stage"]';
 
 export default defineComponent({
   name: 'ConsoleShell',
@@ -4312,8 +4314,25 @@ export default defineComponent({
       return this.playerView.waitingFor?.venusBonusPrompt !== undefined && workspaceFrameMounted('standard-projects') &&
         (this.stdpVenusStep || stdProjectsFlow.state === 'submitting');
     },
+    /**
+     * THE SITTING HOSTS THE BONUS ITS WINNER'S STEP EARNED (P89 · ledger EJ): the winner's rewarded Venus step on the
+     * alternative board asks the track's bonus inside the political phase — the engine's tail of the seat's own step
+     * (`sittingTailVenusBonusOf`: the bonus marker + the server's `pending` on this seat). A step of the reward page
+     * like the law's own picks: the ONE bonus surface stands in the sitting's stage zone once the field has opened (the
+     * wave that arrived with it has flown), never a band over the Parliament. Not an outcome claim — the sitting is no
+     * outcome host; its own walk holds the page (`sittingRewardSettled`) and its planet beat waits for the answer.
+     */
+    sittingHostsVenusBonus(): boolean {
+      const phase = this.game.parliament?.phase;
+      return this.game.phase === Phase.PARLIAMENT && workspaceFrameKnown('parliament') &&
+        sittingTailVenusBonusOf(this.playerView.waitingFor, phase, this.thisPlayer?.color);
+    },
     /** Claimed, but the host's zone is not standing yet → render NOWHERE for the gap, never a band of its own. */
     venusBonusHeldForWorkspace(): boolean {
+      // The sitting's step waits for its FIELD (the surfaces go in turn: the law's wave first, then the zone opens).
+      if (this.sittingHostsVenusBonus) {
+        return !workspaceFrameMounted('parliament') || !consoleParliamentUi.fieldStanding || !consoleParliamentUi.stageZone;
+      }
       if (!this.venusBonusBelongsToWorkspace || this.stdpHostsVenusBonus) {
         return false;
       }
@@ -4321,6 +4340,9 @@ export default defineComponent({
     },
     /** The zone the ONE bonus surface is re-homed into, or undefined (no host → the standalone band). */
     venusBonusEmbedTarget(): string | undefined {
+      if (this.sittingHostsVenusBonus) {
+        return this.venusBonusHeldForWorkspace ? undefined : SITTING_STAGE_ZONE;
+      }
       if (!this.venusBonusBelongsToWorkspace || this.venusBonusHeldForWorkspace) {
         return undefined;
       }
@@ -4338,7 +4360,8 @@ export default defineComponent({
       // The alternative Venus board's bonus band waits for the board's story of the step that earned it (P89 · DZ).
       // …unless a workspace HOSTS it: the question is answered inside, the story plays after (P89 · EE) — waiting for a
       // story the covered board cannot tell would hold both forever.
-      if (task?.kind === 'venusBonus' && !this.venusBonusBelongsToWorkspace &&
+      // …and the SITTING's step (P89 · EJ) is held by its own field, never by the board's story the sitting tells after it.
+      if (task?.kind === 'venusBonus' && !this.venusBonusBelongsToWorkspace && !this.sittingHostsVenusBonus &&
           (!this.admits('scaleBonus') || this.scaleBonusOwesStory)) {
         return undefined;
       }
@@ -5558,8 +5581,9 @@ export default defineComponent({
         return false;
       }
       // …and a table's answer to a step of the Career the sitting walked (TR78 — the winner's step, a law's step).
+      // …and the Venus bonus the seat's own rewarded Venus step earned (P89 · ledger EJ): a step of the same reward page.
       return sittingAskResolution(wf) !== undefined || sittingReactionOf(wf) !== undefined ||
-        sittingTailPlacementOf(wf, phase, this.thisPlayer?.color);
+        sittingTailPlacementOf(wf, phase, this.thisPlayer?.color) || sittingTailVenusBonusOf(wf, phase, this.thisPlayer?.color);
     },
     /**
      * The same ask by the RAW prompt — not admission-gated: the mandatory
@@ -5658,7 +5682,7 @@ export default defineComponent({
         // claim, same zone, same two failure modes if it were left out.
         this.effectDecisionEmbedTarget !== undefined ||
         // …and the alternative Venus board's BONUS the press's step earned (P89 · EE) — an outcome claim's only.
-        (this.venusBonusEmbedTarget !== undefined && !this.stdpHostsVenusBonus);
+        (this.venusBonusEmbedTarget !== undefined && !this.stdpHostsVenusBonus && !this.sittingHostsVenusBonus);
     },
     /**
      * MAY THE PLAY COMPOSER LET GO OF THE STAGE?
@@ -12492,6 +12516,10 @@ export default defineComponent({
     /** The hosted Venus bonus hands its stage name UP (P89 · EE): the host's crumb gains «› БОНУС ВЕНЕРЫ». */
     venusBonusEmbedTarget(target: string | undefined): void {
       if (target === undefined) {
+        return;
+      }
+      if (this.sittingHostsVenusBonus) {
+        // The sitting's crumb names the step itself (`sittingStageKey` → «› БОНУС ВЕНЕРЫ»).
         return;
       }
       if (this.stdpHostsVenusBonus) {
@@ -20560,7 +20588,7 @@ export default defineComponent({
       // stack, exactly as its own B does.
       if (this.deckPickEmbedTarget !== undefined || this.effectDecisionEmbedTarget !== undefined ||
           this.venusBonusEmbedTarget !== undefined) {
-        if (workspaceOutcomeState.host === 'card-actions' && !this.stdpHostsVenusBonus) {
+        if (workspaceOutcomeState.host === 'card-actions' && !this.stdpHostsVenusBonus && !this.sittingHostsVenusBonus) {
           this.onCardActionsCollapse();
         } else {
           this.collapseWorkspace();
