@@ -2232,6 +2232,10 @@ html.console-native {
        so containment reparents nothing; `layout style` ONLY (no `paint`) so a
        delta chip floating beside a cell is not clipped. */
     contain: layout style;
+    /* ONE REAL WEIGHT (EW, the owner 2026-11-03 — «цифры со странными углублениями»): Prototype ships 400 only, and a
+       synthesized bold smears every glyph into a double contour. Nothing in the strip asks for a weight the font
+       does not have; hierarchy is size and colour. */
+    font-synthesis: none;
 
     &__params {
         display: flex;
@@ -2282,8 +2286,17 @@ html.console-native {
     }
     &__value {
         font-size: 1.2rem;
-        font-weight: 700;
+        font-weight: 400;
         letter-spacing: .03rem;
+        font-variant-numeric: tabular-nums;
+    }
+    /* THE GENERATION'S PLATE has a real width (EW): the flat plate (`console_status_material.less`) sits round a
+       box that holds two digits with air on both sides — never a slot hugging a single glyph. */
+    &__gen &__value {
+        display: inline-block;
+        min-width: 2ch;
+        padding: 0 .32rem;
+        text-align: center;
     }
     &__gen {
         position: relative;
@@ -2389,8 +2402,8 @@ html.console-native {
        moves by a pixel) so the soft fade bands live just OUTSIDE the
        resting chips: nothing is guillotined by the container edge, resting
        geometry is untouched, and removing the class after the run changes
-       no visible pixel. Chip glows (box-shadow ≤ 1rem) stay inside the
-       extended box, so masking on/off never pops them. */
+       no visible pixel. A chip's kants are inset — nothing paints outside
+       its box, so masking on/off never pops anything. */
     &__players--conveyor {
         padding: 1.2rem 1.4rem;
         margin: -1.2rem -1.4rem;
@@ -2569,7 +2582,7 @@ html.console-native {
         display: none;
     }
     &__pname {
-        font-weight: 700;
+        font-weight: 400;
         letter-spacing: .02rem;
         /* Crowded-table degradation: the NAME gives way first (ellipsis),
            the status pill and the counter never truncate. */
@@ -2602,9 +2615,9 @@ html.console-native {
         &--active {
             color: #d9f6e9;
             box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%);
+            /* A STATE, never a loop (EW): the active seat reads by its mint kant, its mint word and the word itself. */
             .con-status__pstatus-glyph {
                 color: @con-mint;
-                animation: con-pulse calc(1800ms * var(--motion-scale, 1)) ease-in-out infinite;
             }
         }
         &--next .con-status__pstatus-glyph { color: @con-cyan; }
@@ -2648,8 +2661,6 @@ html.console-native {
             z-index: -1;
             background: linear-gradient(160deg, #ffdf9a, @con-amber 52%, #b97b1e);
             clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
-            filter: drop-shadow(0 0 .3rem fade(@con-amber, 55%));
-            animation: con-beacon-breath calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
         }
         &::after {
             content: '';
@@ -2657,6 +2668,8 @@ html.console-native {
             inset: -.15rem;
             border-radius: 50%;
             border: .07rem solid fade(@con-amber, 75%);
+            /* The strip's ONE licensed loop (EW): a decision the player OWES, its card off-screen — a sparse sonar,
+               never a breath, never a light. */
             animation: con-beacon-ping calc(3200ms * var(--motion-scale, 1)) ease-out infinite;
         }
     }
@@ -2664,20 +2677,18 @@ html.console-native {
 
 /* Attention entrance: one calm amber bloom, then the steady rim (matches the
    --attention resting box-shadow so the animation lands seamlessly). */
+/* …and it ENDS AT REST (EW): the last keyframe names no box-shadow, so the bloom interpolates into the chip's own
+   resting kants (`console_status_material.less`) — never a halo that vanishes in one frame. */
 @keyframes con-attention-in {
     0% { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 0%), 0 0 0 fade(@con-amber, 0%); transform: scale(1); }
     16% { box-shadow: inset 0 0 0 .1rem fade(@con-amber, 95%), 0 0 1.5rem fade(@con-amber, 48%); transform: scale(1.04); }
     42% { transform: scale(1); }
-    100% { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 72%), 0 0 .9rem fade(@con-amber, 24%); }
-}
-@keyframes con-beacon-breath {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.09); }
+    100% { transform: scale(1); }
 }
 /* Sonar ping: the visible sweep occupies ~60% of the cycle — the rest is a
    deliberate pause so the ring reads as a sparse beacon, not a pulse train. */
 @keyframes con-beacon-ping {
-    0% { transform: scale(.55); opacity: .8; }
+    0% { transform: scale(.55); opacity: .35; }
     62%, 100% { transform: scale(1.9); opacity: 0; }
 }
 /* Vue <transition name="con-beacon"> — transform/opacity only. */
@@ -2726,23 +2737,24 @@ html.con-reduced-motion {
     .con-status__evq-divider { transition: none; }
 }
 
+/* One event, then REST (EW): the last keyframe names no box-shadow — the burst settles into the chip's resting kants. */
 @keyframes con-turn-burst {
     0% { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%), 0 0 0 rgba(88, 214, 166, 0); transform: scale(1); }
     12% { box-shadow: inset 0 0 0 .1rem fade(@con-mint, 95%), 0 0 1.7rem fade(@con-mint, 55%); transform: scale(1.06); }
-    36% { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 80%), 0 0 .9rem fade(@con-mint, 30%); transform: scale(1); }
-    100% { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%), 0 0 1rem fade(@con-mint, 30%); transform: scale(1); }
+    36% { box-shadow: inset 0 0 0 .06rem fade(@con-mint, 80%), 0 0 0 fade(@con-mint, 0%); transform: scale(1); }
+    100% { transform: scale(1); }
 }
 
-/* ── Terraforming progress rail (top HUD) ─────────────────────────── */
+/* ── Terraforming progress — the PLANET DIAL (top HUD, EW 2026-11-03) ─── */
 /* The GAME-END trio (Temperature · Oxygen · Oceans) is one instrument
-   group: a compact total percent + a THIN premium rail underline. The
-   percent deliberately carries no word label — its attachment to the
-   trio IS the meaning. Venus sits OUTSIDE the group behind a divider
-   (it is never part of the total); the generation block follows.
-   The underline no longer buys its own padding row: the group STRETCHES
-   to the rail's fixed height, content centres, and the underline anchors
-   just above the rail's bottom edge — merging with the frame's own
-   bottom accent instead of costing height. */
+   group, and its TOTAL is the group's first dial: the planet, in the same
+   round setting as the three beside it, its ring the average of the trio
+   (`terraformingProgress` — Venus never counts), its value the same size
+   as theirs. The thin rail that used to underline the group painted OVER
+   the dials' lower arcs (the owner, 2026-11-03: «прогресс-бар лежит
+   поверх индикаторов — не премиум»), and the bare percent read as a
+   fourth parameter; both are gone — the strip did not grow a pixel and
+   no icon shrank. Venus sits OUTSIDE the group behind a divider. */
 .con-status {
     &__terra {
         position: relative;
@@ -2751,67 +2763,33 @@ html.con-reduced-motion {
         gap: 1.3rem;
         align-self: stretch;
     }
+    /* The planet's value: the terraforming percent, in the trio's own size; mint (gold once complete). */
     &__terra-pct {
-        position: relative; // delta-chip anchor
-        font-size: .85rem;
-        font-weight: 700;
-        letter-spacing: .04rem;
-        font-variant-numeric: tabular-nums;
-        color: fade(@con-mint, 88%);
-        text-shadow: 0 0 .4rem fade(@con-mint, 25%);
-    }
-    &__terra-rail {
-        position: absolute;
-        left: .1rem;
-        right: .1rem;
-        bottom: .14rem;
-        height: .15rem;
-        border-radius: .1rem;
-        overflow: hidden;
-        background: rgba(10, 18, 28, 0.85);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
-    }
-    &__terra-fill {
-        display: block;
-        height: 100%;
-        width: 0;
-        border-radius: .1rem;
-        background: linear-gradient(90deg, @con-cyan 0%, fade(@con-mint, 92%) 100%);
-        box-shadow: none;
-        transition: width calc(700ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    /* Completed (Temperature + Oxygen + Oceans all maxed — Venus never
-       counts): the rail + percent flip to the completed gold. */
-    &__terra--complete .con-status__terra-fill {
-        background: linear-gradient(90deg, fade(@con-mint, 92%) 0%, @con-amber 100%);
-        box-shadow: none;
+        color: fade(@con-mint, 92%);
     }
     &__terra--complete .con-status__terra-pct {
         color: fade(@con-amber, 95%);
-        text-shadow: 0 0 .45rem fade(@con-amber, 35%);
     }
     /* One-shot celebration pulse on the LIVE completion moment (class is
        applied ~3.4s by the strip; drop-shadow hugs the rendered content). */
     &__terra--celebrating {
         animation: con-terra-celebrate calc(3400ms * var(--motion-scale, 1)) ease-out 1;
     }
-    /* Venus is deliberately SEPARATED from the shared rail group. */
+    /* Venus is deliberately SEPARATED from the shared group. */
     &__param--venus {
         --con-status-venus-gap: 1rem;
         padding-left: var(--con-status-venus-gap);
         border-left: .05rem solid fade(@con-cyan, 25%);
     }
     /* Persistent FINAL GENERATION marker — the generation block turns gold.
-       COLOUR IS THE WHOLE SIGNAL: the label stays the ordinary «ПКЛ.» (same
-       text, same box, zero layout shift) — never an added word, badge or
-       icon. Calm state, not an announcement. */
+       COLOUR IS THE WHOLE SIGNAL (the plate's kant turns gold with it —
+       `console_status_material.less`): the label stays the ordinary «ПКЛ.»,
+       same box, zero layout shift. A state, never a light. */
     &__gen--final .con-status__gen-label {
         color: fade(@con-amber, 92%);
-        text-shadow: 0 0 .4rem fade(@con-amber, 30%);
     }
     &__gen--final .con-status__value {
         color: fade(@con-amber, 96%);
-        text-shadow: 0 0 .5rem fade(@con-amber, 35%);
     }
 }
 @keyframes con-terra-celebrate {
@@ -2894,26 +2872,20 @@ html.con-reduced-motion {
    positioned descendant with it — and the delta chip is one. The parameters
    were already safe (their pop runs on `.con-status__value`, INSIDE the
    `.con-status__param` the host anchors to); the percent ran its pop on the
-   anchor cell itself, so that one chip rode the readout's 0.92→1.10 scale:
-   it arrived undersized, off the shared beam line, and drifted while the
-   number settled. It pops the DIGITS (`.con-flipval`) instead — the chip's
-   containing block never moves, exactly like every other readout's. */
-.con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .con-status__value,
-.con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) > .con-flipval {
+   anchor cell itself, so that one chip rode the readout's 0.92→1.10 scale.
+   Since EW (2026-11-03) the percent IS a parameter cell (the planet dial),
+   so the one rule covers it. */
+.con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .con-status__value {
     animation: global-num-transition-positive calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
 }
-.con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .con-status__value,
-.con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) > .con-flipval {
+.con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .con-status__value {
     animation: global-num-transition-negative calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
     .con-status__terra--celebrating { animation: none; }
-    .con-status__terra-fill { transition: none; }
     .con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .con-status__value,
-    .con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) > .con-flipval,
-    .con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .con-status__value,
-    .con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) > .con-flipval {
+    .con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .con-status__value {
         animation: none;
     }
 }
@@ -3082,9 +3054,8 @@ html.con-reduced-motion {
         width: 1.26rem;
         height: 1.8rem;
         flex-shrink: 0;
-        /* Minimal perspective — reads as a physical object, not an icon. */
-        transform: perspective(16rem) rotateX(7deg);
-        filter: drop-shadow(0 .22rem .28rem rgba(0, 0, 0, 0.55));
+        /* FLAT (EW): the pile is three plain layers offset — the same flat plate grammar as the generation, never a
+           3D tilt with a drop shadow (a fourth form on the strip). */
     }
     &__layer,
     &__top {
@@ -3114,8 +3085,12 @@ html.con-reduced-motion {
        the delta chip. */
     &__count {
         position: relative;
+        display: inline-block;
+        min-width: 2ch;
+        padding: 0 .32rem;
+        text-align: center;
         font-size: .95rem;
-        font-weight: 700;
+        font-weight: 400;
         letter-spacing: .03rem;
         font-variant-numeric: tabular-nums;
         color: fade(#cfe3f4, 92%);
@@ -3124,7 +3099,6 @@ html.con-reduced-motion {
     /* LOW: the count warms to amber — a state, not an alarm. */
     &--low &__count {
         color: fade(@con-amber, 92%);
-        text-shadow: 0 0 .35rem fade(@con-amber, 25%);
     }
     /* EMPTY: the pile stays in layout (no top-bar jump) but reads as an
        exhausted slot — the back art fades to a ghost inside a dashed
@@ -27637,41 +27611,9 @@ body.con-start-ceremony {
     .con-extra-swap-move { transition: none; }
 }
 
-/* ── T7: the ACTING player's chip carries the turn accent — the console-
-   native equivalent of the desktop handoff beam / status chips (that layer
-   anchors to desktop panel geometry and no-ops gracefully in console).
-   COMPOSITOR-ONLY ping (perf iteration 3): the old loop animated the dot's
-   box-shadow spread — a main-thread repaint every frame, forever. The ring
-   is now a fixed-shadow `::after` breathing on transform+opacity only, so
-   Blink runs it on the compositor. Base opacity 0 ⇒ `animation: none`
-   (fx-lite / reduced-motion) rests on the plain dot exactly as before. */
-.con-status__player--active {
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 70%);
-
-    .con-status__dot {
-        position: relative;
-
-        &::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: 50%;
-            pointer-events: none;
-            box-shadow: 0 0 0 .25rem fade(@con-cyan, 45%);
-            opacity: 0;
-            animation: con-active-ping calc(2000ms * var(--motion-scale, 1)) ease-in-out infinite;
-        }
-    }
-}
-@keyframes con-active-ping {
-    0%, 100% { transform: scale(.2); opacity: 0; }
-    25%      { opacity: .5; }
-    50%      { transform: scale(1); opacity: 0; }
-    75%      { opacity: .5; }
-}
-@media (prefers-reduced-motion: reduce) {
-    .con-status__player--active .con-status__dot::after { animation: none; }
-}
+/* ── T7: the ACTING player's chip carries the turn accent — since EW (2026-11-03) as MATERIAL only: the mint kant
+   of the chip and the mint word of its pill (`console_status_material.less`). The old ping round the dot looped
+   forever — a standing state in disguise — and is gone. */
 
 /* ══ THE DELTA-CHIP ANCHOR LAW (R-23 / R-24 — one rule for every console counter) ═══════════════
    Every counter that announces its change with the shared ±N chip (`AnimatedMetricValue` →
@@ -27763,12 +27705,6 @@ html.console-native :is(.con-res, .con-res-aux, .con-status, .con-hand, .con-han
         animation: none;
     }
 }
-.con-status__ptr,
-.con-status__pmc,
-.con-status__intel-value {
-    position: relative;
-}
-
 /* ── T7: the card-action preview confirm (never execute on a bare click) ── */
 .con-actconfirm {
     &__card {
@@ -37904,8 +37840,6 @@ html.con-profile-handheld {
         &__icon { width: 1.3rem; height: 1.3rem; }
         &__value { font-size: .8rem; }
         &__terra { gap: .7rem; }
-        &__terra-pct { font-size: .65rem; }
-        &__terra-rail { height: .1rem; bottom: .1rem; }
         &__param--venus { --con-status-venus-gap: .6rem; }
         /* The «ПКЛ.» label stays VISIBLE on handheld (an earlier pass hid
            it — a bare number read as ambiguous), just compact. The gold
@@ -37916,9 +37850,6 @@ html.con-profile-handheld {
         &__evq-glyph { font-size: .7rem; }
         &__evq-count { font-size: .75rem; width: .9rem; }
         &__evq-divider { height: .65rem; }
-        &__intel { gap: .6rem; }
-        &__intel-label { display: none; } /* icon + numbers suffice */
-        &__intel-value { font-size: .8rem; b { font-size: .9rem; } }
         &__players { gap: .4rem; }
         &__player { gap: .3rem; padding: .1rem .45rem; font-size: .7rem; }
         &__pname { max-width: 4.4rem; }

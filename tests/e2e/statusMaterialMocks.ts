@@ -82,20 +82,20 @@ html.console-native .con-status__pstatus.con-status__pstatus--passed { color: rg
 
 /** The three instruments and the counter plates (M1 / M3). */
 const INSTRUMENTS = `
-html.console-native .con-status__terra > .con-status__param:nth-child(1) .con-status__icon { position: relative; }
-html.console-native .con-status__terra > .con-status__param:nth-child(1) .con-status__icon::after {
+html.console-native .con-status__terra > .con-status__param--temperature .con-status__icon { position: relative; }
+html.console-native .con-status__terra > .con-status__param--temperature .con-status__icon::after {
   content: ''; position: absolute; inset: -.2rem; border-radius: 50%; pointer-events: none;
   background: conic-gradient(from 180deg, #f0975a calc(var(--con-param-fill, 0) * 360deg), rgba(120, 150, 180, .22) 0);
   -webkit-mask: radial-gradient(circle, transparent 62%, #000 64%); mask: radial-gradient(circle, transparent 62%, #000 64%);
 }
-html.console-native .con-status__terra > .con-status__param:nth-child(2) .con-status__icon,
-html.console-native .con-status__terra > .con-status__param:nth-child(3) .con-status__icon { position: relative; }
-html.console-native .con-status__terra > .con-status__param:nth-child(2) .con-status__icon::after {
+html.console-native .con-status__terra > .con-status__param--oxygen .con-status__icon,
+html.console-native .con-status__terra > .con-status__param--oceans .con-status__icon { position: relative; }
+html.console-native .con-status__terra > .con-status__param--oxygen .con-status__icon::after {
   content: ''; position: absolute; inset: -.2rem; border-radius: 50%; pointer-events: none;
   background: conic-gradient(#7fd3ff calc(var(--con-param-fill, 0) * 360deg), rgba(120, 150, 180, .22) 0);
   -webkit-mask: radial-gradient(circle, transparent 62%, #000 64%); mask: radial-gradient(circle, transparent 62%, #000 64%);
 }
-html.console-native .con-status__terra > .con-status__param:nth-child(3) .con-status__icon::after {
+html.console-native .con-status__terra > .con-status__param--oceans .con-status__icon::after {
   content: ''; position: absolute; inset: -.2rem; border-radius: 50%; pointer-events: none;
   background: conic-gradient(#3aa6ff calc(var(--con-param-steps, 0) * 40deg), rgba(120, 150, 180, .24) 0);
   -webkit-mask: repeating-conic-gradient(#000 0 33deg, transparent 33deg 40deg), radial-gradient(circle, transparent 62%, #000 64%);
@@ -103,7 +103,6 @@ html.console-native .con-status__terra > .con-status__param:nth-child(3) .con-st
   mask: repeating-conic-gradient(#000 0 33deg, transparent 33deg 40deg), radial-gradient(circle, transparent 62%, #000 64%);
   mask-composite: intersect;
 }
-html.console-native .con-status__terra-rail { background: linear-gradient(180deg, rgba(0, 0, 0, .7), rgba(10, 18, 28, .85)); box-shadow: inset 0 .05rem .1rem rgba(0, 0, 0, .7), 0 0 0 .05rem rgba(106, 176, 230, .26); }
 html.console-native .con-status__gen .con-status__value,
 html.console-native .con-deckstack__count {
   border-radius: .22rem;

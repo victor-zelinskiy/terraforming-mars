@@ -1,8 +1,8 @@
 /*
  * T05 · CG — THE TOP STRIP: MATERIAL, NOT FORM (2) — the stand of «ВЕРХНЯЯ ПОЛОСА — ПРИБОРНАЯ ДОСКА» (CF's pattern).
  *
- * The status strip (the seats' chips on their conveyor ribbon, the seat INTAKE under a chip, the three global
- * parameters, the terraforming rail, the deck, the generation) may change its PAINT and never its BOXES: a rival's
+ * The status strip (the seats' chips on their conveyor ribbon, the seat INTAKE under a chip, the planet dial of the
+ * terraforming total and the three global parameters, the deck, the generation) may change its PAINT and never its BOXES: a rival's
  * payout lands on the intake's number (`statusIntake.seatIntakeEnd`), a city's payout on the chip (`cityDataPayoutBeat`),
  * the scale swing reads a parameter cell (`scaleSwingDirector`), the deck deals from its pile, every delta chip hangs
  * from the beam's seam — and the strip's height is ONE token (`--con-hud-h`, the architectural invariant). This stand
@@ -76,7 +76,8 @@ async function readAnchors(page: Page): Promise<Anchors> {
       put(`param.${i}.value`, param.querySelector('.con-status__value'));
     });
     put('terra-pct', strip?.querySelector('.con-status__terra-pct'));
-    put('terra-rail', strip?.querySelector('.con-status__terra-rail'));
+    // EW (2026-11-03): the rail under the trio is gone — the total is the PLANET dial, the group's first parameter.
+    put('planet', strip?.querySelector('.con-status__param--planet'));
     put('deck', strip?.querySelector('.con-deckstack'));
     put('deck.pile', strip?.querySelector('.con-deckstack__pile'));
     put('deck.count', strip?.querySelector('.con-deckstack__count'));
@@ -146,9 +147,9 @@ async function stripShot(page: Page, profile: string, name: string): Promise<voi
 /** The instruments' readings: `--con-param-fill` (0…1) and the oceans' `--con-param-steps`, from the strip's own readouts. */
 async function writeInstrumentVars(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const params = Array.from(document.querySelectorAll<HTMLElement>('.con-status__terra > .con-status__param'));
+    const param = (kind: string) => document.querySelector<HTMLElement>(`.con-status__terra > .con-status__param--${kind}`) ?? undefined;
     const num = (el: HTMLElement | undefined) => Number.parseFloat((el?.querySelector('.con-status__value')?.textContent ?? '0').replace('−', '-')) || 0;
-    const [temp, oxy, oceans] = params;
+    const [temp, oxy, oceans] = [param('temperature'), param('oxygen'), param('oceans')];
     temp?.style.setProperty('--con-param-fill', String(Math.min(1, Math.max(0, (num(temp) + 30) / 38))));
     oxy?.style.setProperty('--con-param-fill', String(Math.min(1, Math.max(0, num(oxy) / 14))));
     oceans?.style.setProperty('--con-param-steps', String(Math.min(9, Math.max(0, num(oceans)))));

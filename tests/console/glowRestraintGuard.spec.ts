@@ -20,7 +20,12 @@ import * as path from 'path';
  *     (`.con-status*`) and the Parliament's stylesheets carry ZERO standing halos;
  *  2. THE RATCHET — every other console stylesheet's standing halos are DEBT, counted per file in
  *     `glowRestraintBaseline.json`: growth fails (a new glow — draw the state with a kant), and a fall fails until it
- *     is locked in (lower the number in the same diff) — an improvement cannot erode.
+ *     is locked in (lower the number in the same diff) — an improvement cannot erode;
+ *  3. THE TOP STRIP SEES WHAT A BOX-SHADOW SCAN CANNOT (EW, the owner 2026-11-03 — «чипы игроков несут слишком сильный
+ *     glow»: the strip read ZERO halos by the letter and glowed by the eye) — on the strip a standing `text-shadow`
+ *     with a blur, a `filter: drop-shadow` in a light colour, an endless loop (`infinite` — one licensed row:
+ *     the attention beacon's sonar) and a BRIGHT OUTER RING (`0 0 0 <spread>` in a light colour at ≥ 50 % — a halo
+ *     with no blur; a kant is inset) all fail.
  */
 
 const STYLES = path.resolve(__dirname, '..', '..', 'src', 'styles');
@@ -44,6 +49,19 @@ const TRANSIENT_LIGHT: ReadonlyMap<string, string> = new Map([
 ]);
 
 type Halo = {file: string, line: number, block: string, layer: string};
+
+/** The top strip's blocks inside `console.less` (the strip, its deck's pile and count). */
+const STRIP_BLOCKS = /^\.(con-status|con-deckstack)\b/;
+/** The strip's stylesheets read whole. */
+const STRIP_FILES: ReadonlyArray<string> = ['console_status_material.less'];
+/** A ring of the strip that exists only while a FLIGHT is in the air (never a state) — each row says why. */
+const STRIP_TRANSIENT: ReadonlyMap<string, string> = new Map([
+  ['var(--con-intake-tone', 'the EXPECTING ring of a seat intake (T06): drawn at ≤ .45 opacity only while a token flies to that seat, gone on the touchdown'],
+]);
+/** The ONE endless loop the strip may run, with its reason. */
+const STRIP_LOOPS: ReadonlyMap<string, string> = new Map([
+  ['con-beacon-ping', 'the attention beacon — a decision the player OWES with its card off-screen: one sparse sonar ring'],
+]);
 
 /** Comments blanked (newlines kept — the guard reports line numbers). */
 function stripComments(source: string): string {
@@ -96,6 +114,96 @@ function isHalo(layer: string): boolean {
     return false;
   }
   return !isDark(m[5]);
+}
+
+/** The alpha a colour expression paints at: `fade(@x, N%)`, an rgba alpha, or 1 for an opaque colour. */
+function alphaOf(colour: string): number {
+  const fade = colour.match(/fade\([^,]+,\s*([\d.]+)%\)/);
+  if (fade !== null) {
+    return Number(fade[1]) / 100;
+  }
+  const rgba = colour.match(/rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*([\d.]+)\s*\)/);
+  if (rgba !== null) {
+    return Number(rgba[1]);
+  }
+  return /transparent/.test(colour) ? 0 : 1;
+}
+
+/** A BRIGHT OUTER RING: `0 0 0 <spread> <light colour ≥ 50 %>` — a halo with no blur (a kant is inset). */
+function isBrightRing(layer: string): boolean {
+  const t = layer.trim().replace(/\s+/g, ' ');
+  if (t.startsWith('inset') || t.includes('--con-cursor-on')) {
+    return false;
+  }
+  const m = t.match(/^0 0 0 (-?[\d.]+(?:rem|px)) (.+)$/);
+  return m !== null && Number.parseFloat(m[1]) > 0 && !isDark(m[2]) && alphaOf(m[2]) >= 0.5;
+}
+
+/** A light TEXT shadow: a layer with a blur and a light colour (a dark engraving offset is ink, not light). */
+function isTextGlow(layer: string): boolean {
+  return isHalo(layer);
+}
+
+/** A light DROP SHADOW inside a `filter`: blurred and light. */
+function dropShadowGlows(value: string): Array<string> {
+  const out: Array<string> = [];
+  for (const m of value.matchAll(/drop-shadow\(((?:[^()]|\([^()]*\))*)\)/g)) {
+    if (isHalo(m[1])) {
+      out.push(`drop-shadow(${m[1].trim()})`);
+    }
+  }
+  return out;
+}
+
+/** Every STANDING light of the strip a box-shadow scan cannot see (§ 3). `@keyframes` bodies are events and skipped. */
+function stripLightsOf(file: string, blocks: RegExp | undefined): Array<Halo> {
+  const source = stripComments(fs.readFileSync(path.join(STYLES, file), 'utf8'));
+  const out: Array<Halo> = [];
+  const stack: Array<string> = [];
+  let segment = '';
+  let line = 1;
+  const flushDecl = () => {
+    if (stack.some((h) => h.startsWith('@keyframes')) || (blocks !== undefined && !blocks.test(stack[0] ?? ''))) {
+      return;
+    }
+    const decl = segment.match(/^\s*([a-z-]+)\s*:([\s\S]*)$/);
+    if (decl === null) {
+      return;
+    }
+    const [, prop, value] = decl;
+    const at = {file, line, block: stack[0] ?? ''};
+    if (prop === 'text-shadow') {
+      splitTop(value).filter(isTextGlow).forEach((l) => out.push({...at, layer: `text-shadow: ${l.trim()}`}));
+    } else if (prop === 'filter' || prop === '-webkit-filter') {
+      dropShadowGlows(value).forEach((l) => out.push({...at, layer: `filter: ${l}`}));
+    } else if (prop === 'box-shadow') {
+      splitTop(value).filter((l) => isBrightRing(l) && ![...STRIP_TRANSIENT.keys()].some((k) => l.includes(k))).forEach((l) => out.push({...at, layer: `outer ring: ${l.trim().replace(/\s+/g, ' ')}`}));
+    } else if ((prop === 'animation' || prop === 'animation-iteration-count') && /\binfinite\b/.test(value)) {
+      const name = value.trim().split(/\s+/)[0];
+      if (!STRIP_LOOPS.has(name)) {
+        out.push({...at, layer: `endless loop: ${value.trim().replace(/\s+/g, ' ')}`});
+      }
+    }
+  };
+  for (const ch of source) {
+    if (ch === '{') {
+      stack.push(segment.trim());
+      segment = '';
+    } else if (ch === '}') {
+      flushDecl();
+      stack.pop();
+      segment = '';
+    } else if (ch === ';') {
+      flushDecl();
+      segment = '';
+    } else {
+      segment += ch;
+    }
+    if (ch === '\n') {
+      line++;
+    }
+  }
+  return out;
 }
 
 /** Every standing halo of one stylesheet: `@keyframes` bodies are events, not states, and are skipped. */
@@ -169,6 +277,25 @@ describe('glowRestraintGuard — a standing state is a kant, never a glow', () =
       }
     }
     expect(offenders, `a standing glow on a surface cleaned to zero — draw the state with a kant / fill / weight (\`console-ui.md\` § VISUAL RESTRAINT):\n${offenders.join('\n')}`).to.deep.eq([]);
+  });
+
+  it('the strip\'s detectors see a light a box-shadow scan cannot, and only that', () => {
+    expect(isBrightRing('0 0 0 .06rem fade(@con-mint, 72%)')).is.true;
+    expect(isBrightRing('0 0 0 .05rem fade(@con-cyan, 30%)')).is.false;
+    expect(isBrightRing('0 0 0 .05rem rgba(0, 0, 0, 0.6)')).is.false;
+    expect(isBrightRing('inset 0 0 0 .06rem fade(@con-mint, 72%)')).is.false;
+    expect(isTextGlow('0 0 .4rem fade(@con-mint, 25%)')).is.true;
+    expect(isTextGlow('0 .05rem 0 rgba(0, 0, 0, 0.6)')).is.false;
+    expect(dropShadowGlows('drop-shadow(0 0 .3rem fade(@con-amber, 55%))')).to.have.lengthOf(1);
+    expect(dropShadowGlows('drop-shadow(0 .1rem .3rem rgba(0, 0, 0, 0.5))')).deep.eq([]);
+  });
+
+  it('THE TOP STRIP: no standing text glow, no light drop shadow, no bright outer ring, no endless loop but the beacon\'s', () => {
+    const offenders = [
+      ...STRIP_FILES.flatMap((file) => stripLightsOf(file, undefined)),
+      ...stripLightsOf('console.less', STRIP_BLOCKS),
+    ].map((h) => `  ${h.file}:${h.line} ${h.block} → ${h.layer}`);
+    expect(offenders, `a standing light on the top strip — draw the state with a kant / fill / weight / word (\`console-ui.md\` § VISUAL RESTRAINT):\n${offenders.join('\n')}`).to.deep.eq([]);
   });
 
   it('THE RATCHET: standing halos per stylesheet never grow, and a fall is locked in', () => {

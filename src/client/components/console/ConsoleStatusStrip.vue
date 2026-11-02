@@ -70,9 +70,11 @@
 
     <div class="con-status__params">
       <!-- The GAME-END trio (Temperature · Oxygen · Oceans) reads as ONE
-           instrument group: a compact total percent + a thin premium rail
-           underline. Venus (below) sits OUTSIDE this group on purpose — it
-           is a separate expansion parameter and never part of the total. -->
+           instrument group, its TOTAL the group's first dial — the PLANET (EW,
+           2026-11-03: the thin rail that underlined the group painted over the
+           dials and was retired). Venus (below) sits OUTSIDE this group on
+           purpose — it is a separate expansion parameter and never part of the
+           total. -->
       <div class="con-status__terra"
            :class="{
              'con-status__terra--complete': progress.complete,
@@ -85,6 +87,22 @@
              see ConsoleFlipValue's layering note) plus the delta chip. A global
              parameter a card LOWERS (TR47 «ОБРАТНЫЙ ХОД») is an event too: the
              four parameters flip on a decrease, rolled the other way. -->
+        <!-- THE PLANET (EW): the terraforming total as the group's first dial — the same round setting as the three
+             beside it, its ring the trio's average (`terraformingProgress`), its value the same size as theirs. The
+             value keeps the `__terra-pct` class: it IS the percent (the delta-chip anchor, the probes). -->
+        <span class="con-status__param con-status__param--planet" :style="{'--con-param-fill': String(progress.percent / 100)}">
+          <i class="con-status__icon con-status__icon--planet" aria-hidden="true"></i>
+          <span class="con-status__value con-status__terra-pct"><ConsoleFlipValue
+              :value="progress.percent"
+              :text="`${progress.percent}%`"
+              :accent="progress.complete ? 'gold' : 'mint'" /></span>
+          <AnimatedMetricValue
+            :value="progress.percent"
+            metricKey="globals.terraforming-percent"
+            scopeKey="global"
+            :epoch="epoch"
+            variant="global-parameter" />
+        </span>
         <!-- T05 · CG: each parameter is a DIAL round its own icon (`console_status_material.less`), read off the value shown. -->
         <span class="con-status__param con-status__param--temperature" :class="{'con-status__param--ghost': ghostParam === 'temperature'}"
               :style="{'--con-param-fill': paramFill('temperature')}">
@@ -128,23 +146,10 @@
             :epoch="epoch"
             variant="global-parameter" />
         </span>
-        <!-- The percent is the trio's own mint readout — its beat follows
-             the rail's colour (gold once terraforming is complete). -->
-        <span class="con-status__terra-pct"><ConsoleFlipValue
-            :value="progress.percent"
-            :text="`${progress.percent}%`"
-            :accent="progress.complete ? 'gold' : 'mint'" /><AnimatedMetricValue
-            :value="progress.percent"
-            metricKey="globals.terraforming-percent"
-            scopeKey="global"
-            :epoch="epoch"
-            variant="global-parameter" /></span>
-        <span class="con-status__terra-rail" aria-hidden="true">
-          <span class="con-status__terra-fill" :style="{width: progress.percent + '%'}"></span>
-        </span>
       </div>
       <span v-if="game.gameOptions.expansions.venus" class="con-status__param con-status__param--venus"
-            :class="{'con-status__param--ghost': ghostParam === 'venus'}">
+            :class="{'con-status__param--ghost': ghostParam === 'venus'}"
+            :style="{'--con-param-fill': paramFill('venus')}">
         <i class="wgt-icon wgt-icon--venus con-status__icon" aria-hidden="true"></i>
         <span class="con-status__value">
           <ConsoleFlipValue :value="game.venusScaleLevel" :text="`${game.venusScaleLevel}%`" flip-on-decrease />
@@ -220,7 +225,7 @@
  * "your turn" transition that replaced the central «ВАШ ХОД» pill.
  */
 import {defineComponent, markRaw, PropType} from 'vue';
-import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE} from '@/common/constants';
+import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MAX_VENUS_SCALE, MIN_TEMPERATURE} from '@/common/constants';
 import {GameModel} from '@/common/models/GameModel';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
@@ -617,10 +622,10 @@ export default defineComponent({
      * A DIAL's reading (T05 · CG) — how far the shown value stands along its scale, 0…1: the temperature from −30 to
      * +8 °C, the oxygen from 0 to 14 %. The value is the one the cell prints (the board-beat park's display included).
      */
-    paramFill(param: 'temperature' | 'oxygen'): string {
+    paramFill(param: 'temperature' | 'oxygen' | 'venus'): string {
       const fill = param === 'temperature' ?
         (this.game.temperature - MIN_TEMPERATURE) / (MAX_TEMPERATURE - MIN_TEMPERATURE) :
-        this.game.oxygenLevel / MAX_OXYGEN_LEVEL;
+        param === 'oxygen' ? this.game.oxygenLevel / MAX_OXYGEN_LEVEL : this.game.venusScaleLevel / MAX_VENUS_SCALE;
       return String(Math.max(0, Math.min(1, fill)));
     },
     /**

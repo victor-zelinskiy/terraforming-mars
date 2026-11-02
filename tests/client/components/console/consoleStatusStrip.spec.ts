@@ -369,3 +369,36 @@ describe('ConsoleStatusStrip reads the TRUTH while the board-beat park holds the
     expect((w.vm as unknown as {game: {temperature: number}}).game.temperature).to.eq(-18);
   });
 });
+
+describe('ConsoleStatusStrip — the PLANET dial (EW, 2026-11-03: the total is a dial, never a rail over the dials)', () => {
+  it('the terraforming total is the group\'s FIRST parameter, its ring bound to the percent, its value the percent', () => {
+    const w = mountStrip(5);
+    const params = w.findAll('.con-status__terra > .con-status__param');
+    expect(params[0].classes()).to.include('con-status__param--planet');
+    expect(params.slice(1).map((p) => p.classes().find((c) => c.startsWith('con-status__param--')))).deep.eq([
+      'con-status__param--temperature', 'con-status__param--oxygen', 'con-status__param--oceans',
+    ]);
+    // temperature −20 → 5 of 19 steps, oxygen 3 of 14, oceans 2 of 9 → the shared progress module's average.
+    const fill = Number((params[0].element as HTMLElement).style.getPropertyValue('--con-param-fill'));
+    expect(fill).to.be.greaterThan(0).and.lessThan(1);
+    expect(params[0].find('.con-status__terra-pct').exists(), 'the value keeps the percent hook').to.be.true;
+  });
+
+  it('no rail is drawn under the trio any more', () => {
+    const w = mountStrip(5);
+    expect(w.find('.con-status__terra-rail').exists()).to.be.false;
+    expect(w.find('.con-status__terra-fill').exists()).to.be.false;
+  });
+
+  it('Venus wears the same dial (0…30 %)', () => {
+    const v = view();
+    (v.game as {gameOptions: {expansions: {venus: boolean}}}).gameOptions.expansions.venus = true;
+    (v.game as {venusScaleLevel: number}).venusScaleLevel = 15;
+    const w = mount(ConsoleStatusStrip, {
+      global: {...globalConfig.global, stubs: {AnimatedMetricValue: true, ConsoleFlipValue: true, ConsoleProjectDeck: true}},
+      props: {playerView: v, attentionPending: false, attentionEngageMs: 5},
+    });
+    const venus = w.find('.con-status__param--venus');
+    expect(Number((venus.element as HTMLElement).style.getPropertyValue('--con-param-fill'))).eq(0.5);
+  });
+});

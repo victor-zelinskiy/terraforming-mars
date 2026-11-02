@@ -8,13 +8,12 @@
    never a padding / margin / border / gap / font / transform / filter on the strip, a chip or a cell.
 
      · THE BEAM — the player board's glass (`.con-res__rows`'s recipe), so the two always-visible edges are one material;
-     · THE SEAT CHIP — a cross: the seat's colour is a LIT EDGE on the chip's glass (never a fill), the name on the
-       glass, the status an ENGRAVED label (active: lit mint engraving; waiting: recessed); the states keep their own
-       rims (me cyan · active mint · attention amber) on the new glass;
-     · THE THREE GLOBAL PARAMETERS — three DIALS round their own icons, each read off the server's value
-       (`ConsoleStatusStrip.paramFill`): the temperature an arc in the heat's tone from the bottom (−30 → +8 °C), the
-       oxygen an arc in its blue, the oceans nine segments; the terraforming rail recessed in the same glass;
-     · THE DECK'S COUNT and THE GENERATION on engraved counter plates (spread shadows — zero layout).
+     · THE SEAT CHIP — the seat's colour is the chip's LEFT EDGE (+ a ≤ 8 % key beside it), the status a flat pill;
+       every state an INSET hairline kant (me cyan · active mint · attention amber) — no outer ring, no loop (EW);
+     · THE DIALS — ONE family round the parameters' own icons, each read off the server's value
+       (`ConsoleStatusStrip.paramFill`): the PLANET (the terraforming total — EW retired the rail that painted over
+       the dials), the temperature, the oxygen, the oceans (nine divisions), Venus — every fill from twelve o'clock;
+     · THE DECK'S COUNT and THE GENERATION on one FLAT plate (a level tone + one inset hairline).
 
    Imported after `console.less` (whose strip rules it re-paints at equal specificity) and before `console_tv.less`
    (sizes only). Reduced motion: nothing here moves. */
@@ -40,136 +39,143 @@
         inset 0 -.08rem 0 rgba(0, 0, 0, 0.5),
         0 .45rem 1.5rem rgba(0, 0, 0, 0.42);
 
-    /* ── THE SEAT CHIP — the seat's colour a lit edge on the chip's glass ── */
+    /* ── THE SEAT CHIP (EW, the owner 2026-11-03 — «слишком сильный glow»): the seat's colour is the LEFT EDGE and a
+       ≤ 8 % key at it, nothing more; every state is an INSET hairline kant (me cyan · active mint · attention amber),
+       never an outer ring and never a loop. ── */
     &__player {
         border-radius: .2rem .45rem .45rem .2rem;
         background:
-            linear-gradient(90deg, ~"color-mix(in srgb, var(--seat, #8fb3d6) 20%, transparent)", transparent 42%),
-            linear-gradient(180deg, rgba(42, 56, 74, 0.92), rgba(15, 22, 33, 0.95));
+            linear-gradient(90deg, ~"color-mix(in srgb, var(--seat, #8fb3d6) 8%, transparent)", transparent 38%),
+            linear-gradient(180deg, rgba(36, 48, 64, 0.92), rgba(15, 22, 33, 0.95));
         box-shadow:
             inset .14rem 0 0 var(--seat, #8fb3d6),
-            inset 0 .06rem 0 rgba(255, 255, 255, 0.08),
-            inset 0 -.06rem 0 rgba(0, 0, 0, 0.55),
-            0 0 0 .05rem rgba(0, 0, 0, 0.6);
+            inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
 
         &--me {
             box-shadow:
                 inset .14rem 0 0 var(--seat, #8fb3d6),
-                inset 0 .06rem 0 rgba(255, 255, 255, 0.08),
-                inset 0 -.06rem 0 rgba(0, 0, 0, 0.55),
-                0 0 0 .06rem fade(@con-cyan, 70%);
+                inset 0 0 0 .05rem fade(@con-cyan, 55%);
         }
         &--active {
             background:
-                linear-gradient(90deg, ~"color-mix(in srgb, var(--seat, #8fb3d6) 26%, transparent)", transparent 48%),
-                linear-gradient(180deg, rgba(40, 62, 70, 0.95), rgba(14, 26, 32, 0.97));
+                linear-gradient(90deg, ~"color-mix(in srgb, var(--seat, #8fb3d6) 8%, transparent)", transparent 38%),
+                linear-gradient(180deg, rgba(34, 52, 60, 0.95), rgba(14, 26, 32, 0.97));
             box-shadow:
                 inset .14rem 0 0 var(--seat, #8fb3d6),
-                inset 0 .06rem 0 rgba(255, 255, 255, 0.1),
-                inset 0 -.06rem 0 rgba(0, 0, 0, 0.55),
-                0 0 0 .06rem fade(@con-mint, 72%);
+                inset 0 0 0 .06rem fade(@con-mint, 66%);
         }
         &--active&--me {
             box-shadow:
                 inset .14rem 0 0 var(--seat, #8fb3d6),
-                inset 0 .06rem 0 rgba(255, 255, 255, 0.1),
-                inset 0 -.06rem 0 rgba(0, 0, 0, 0.55),
-                0 0 0 .06rem fade(@con-mint, 80%);
+                inset 0 0 0 .06rem fade(@con-mint, 74%);
         }
         &--attention {
             background:
-                linear-gradient(90deg, ~"color-mix(in srgb, var(--seat, #8fb3d6) 22%, transparent)", transparent 42%),
-                linear-gradient(180deg, rgba(54, 42, 20, 0.95), rgba(30, 22, 10, 0.96));
+                linear-gradient(90deg, ~"color-mix(in srgb, var(--seat, #8fb3d6) 8%, transparent)", transparent 38%),
+                linear-gradient(180deg, rgba(46, 38, 22, 0.95), rgba(28, 22, 12, 0.96));
             box-shadow:
                 inset .14rem 0 0 var(--seat, #8fb3d6),
-                0 0 0 .06rem fade(@con-amber, 78%);
+                inset 0 0 0 .06rem fade(@con-amber, 70%);
         }
     }
     &__pname { color: #eef4fb; }
-    &__dot { box-shadow: 0 0 0 .07rem rgba(0, 0, 0, 0.7), 0 0 0 .12rem rgba(255, 255, 255, 0.14); }
-    /* The status as an ENGRAVED label: recessed into the chip; lit when it is the seat's move. */
+    &__dot { box-shadow: inset 0 0 0 .07rem rgba(0, 0, 0, 0.5); }
+    /* The status pill is FLAT: one quiet tone, one hairline; the active seat's word and hairline turn mint. */
     &__pstatus {
-        color: rgba(196, 210, 228, 0.66);
-        background: linear-gradient(180deg, rgba(0, 0, 0, 0.52), rgba(0, 0, 0, 0.3));
-        box-shadow:
-            inset 0 .07rem .14rem rgba(0, 0, 0, 0.78),
-            inset 0 -.05rem 0 rgba(255, 255, 255, 0.06),
-            0 0 0 .05rem rgba(120, 150, 180, 0.22);
+        color: rgba(196, 210, 228, 0.7);
+        background: rgba(0, 0, 0, 0.26);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
 
         &--active {
             color: #dcfbef;
-            background: linear-gradient(180deg, rgba(10, 40, 32, 0.82), rgba(6, 26, 20, 0.7));
-            box-shadow:
-                inset 0 .07rem .14rem rgba(0, 0, 0, 0.7),
-                0 0 0 .05rem fade(@con-mint, 62%);
+            background: rgba(8, 34, 28, 0.6);
+            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 50%);
         }
         &--ready { color: fade(@con-mint, 82%); }
         &--passed { color: fade(@con-amber, 80%); }
     }
 
-    /* ── THE THREE DIALS round the parameters' own icons — `--con-param-fill` (0…1) / `--con-param-steps` (0…9) are
-       the strip's own bindings of the server's values. The ring is the icon's pseudo-element (absolute, `inset` in %
-       of the icon, so it follows every profile's icon size); the icon gains a `position: relative` that moves nothing. */
+    /* ── THE DIALS — ONE family (EW): the planet (the terraforming total), the temperature, the oxygen, the oceans and
+       Venus each wear the SAME ring round their own icon, every fill starting at twelve o'clock and running clockwise,
+       the ring lying INSIDE the strip (−6 %: the box of a 1.9rem icon ends above the beam's lower edge — at −12 % it
+       stood past both edges of the strip). `--con-param-fill` (0…1) / `--con-param-steps` (0…9) are the strip's own
+       bindings of the server's values. The ring is the icon's pseudo-element; the icon gains a `position: relative`
+       that moves nothing. ── */
+    &__param--planet &__icon,
     &__param--temperature &__icon,
     &__param--oxygen &__icon,
-    &__param--oceans &__icon {
+    &__param--oceans &__icon,
+    &__param--venus &__icon {
         position: relative;
         &::after {
             content: '';
             position: absolute;
-            inset: -12%;
+            inset: -6%;
             border-radius: 50%;
             pointer-events: none;
-            -webkit-mask: radial-gradient(circle, transparent 62%, #000 64%);
-            mask: radial-gradient(circle, transparent 62%, #000 64%);
+            -webkit-mask: radial-gradient(circle, transparent 64%, #000 66%);
+            mask: radial-gradient(circle, transparent 64%, #000 66%);
         }
     }
+    /* THE PLANET — a flat Mars disc (the dials' own glyph, never the deck's art): rust body, a darker terminator, a
+       polar cap. Its ring is the average of the trio — mint, amber once complete. */
+    &__icon--planet {
+        border-radius: 50%;
+        /* The disc sits INSIDE its ring (radius ≈ .34 of the box — the ring's inner edge is at ≈ .36), like every sprite. */
+        background:
+            radial-gradient(ellipse 18% 7% at 50% 26%, rgba(236, 232, 226, 0.9) 96%, transparent 100%),
+            radial-gradient(circle closest-side at 62% 62%, rgba(60, 20, 10, 0.4), transparent 60%),
+            radial-gradient(circle closest-side, #c5603a 0 68%, transparent 70%) !important;
+    }
+    &__param--planet &__icon::after {
+        background: conic-gradient(fade(@con-mint, 90%) calc(var(--con-param-fill, 0) * 360deg), rgba(120, 150, 180, 0.22) 0);
+    }
+    &__terra--complete &__param--planet &__icon::after {
+        background: conic-gradient(fade(@con-amber, 92%) 360deg, rgba(120, 150, 180, 0.22) 0);
+    }
     &__param--temperature &__icon::after {
-        background: conic-gradient(from 180deg, @con-heat-warm calc(var(--con-param-fill, 0) * 360deg), rgba(120, 150, 180, 0.22) 0);
+        background: conic-gradient(@con-heat-warm calc(var(--con-param-fill, 0) * 360deg), rgba(120, 150, 180, 0.22) 0);
     }
     &__param--oxygen &__icon::after {
         background: conic-gradient(#7fd3ff calc(var(--con-param-fill, 0) * 360deg), rgba(120, 150, 180, 0.22) 0);
     }
+    &__param--venus &__icon::after {
+        background: conic-gradient(#e7c27a calc(var(--con-param-fill, 0) * 360deg), rgba(120, 150, 180, 0.22) 0);
+    }
+    /* The oceans' nine tiles are DIVISIONS of the same ring, never a second contour. */
     &__param--oceans &__icon::after {
         background: conic-gradient(#3aa6ff calc(var(--con-param-steps, 0) * 40deg), rgba(120, 150, 180, 0.24) 0);
-        -webkit-mask: repeating-conic-gradient(#000 0 33deg, transparent 33deg 40deg), radial-gradient(circle, transparent 62%, #000 64%);
+        -webkit-mask: repeating-conic-gradient(#000 0 37deg, transparent 37deg 40deg), radial-gradient(circle, transparent 64%, #000 66%);
         -webkit-mask-composite: source-in;
-        mask: repeating-conic-gradient(#000 0 33deg, transparent 33deg 40deg), radial-gradient(circle, transparent 62%, #000 64%);
+        mask: repeating-conic-gradient(#000 0 37deg, transparent 37deg 40deg), radial-gradient(circle, transparent 64%, #000 66%);
         mask-composite: intersect;
     }
-    &__terra-rail {
-        background: linear-gradient(180deg, rgba(0, 0, 0, 0.7), rgba(10, 18, 28, 0.85));
-        box-shadow: inset 0 .05rem .1rem rgba(0, 0, 0, 0.7), 0 0 0 .05rem fade(@con-cyan, 26%);
-    }
 
-    /* ── THE COUNTER PLATES — the generation and the deck's count engraved into the beam (spread shadows only). ── */
+    /* ── THE COUNTER PLATES — the generation and the deck's count on ONE FLAT glass plate (EW): a level dark tone and
+       one inset hairline; the final generation's hairline turns gold with its digit. Never recessed, never ringed. ── */
     &__gen .con-status__value {
         border-radius: .22rem;
-        background: linear-gradient(180deg, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.26));
-        box-shadow: 0 0 0 .16rem rgba(0, 0, 0, 0.42), 0 0 0 .21rem fade(@con-cyan, 30%), inset 0 .06rem .12rem rgba(0, 0, 0, 0.7);
+        background: rgba(0, 0, 0, 0.3);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
     }
     &__gen--final .con-status__value {
-        box-shadow: 0 0 0 .16rem rgba(0, 0, 0, 0.42), 0 0 0 .21rem fade(@con-amber, 55%), inset 0 .06rem .12rem rgba(0, 0, 0, 0.7);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 60%);
     }
 }
 .con-status .con-deckstack__count {
     border-radius: .22rem;
-    background: linear-gradient(180deg, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.26));
-    box-shadow: 0 0 0 .16rem rgba(0, 0, 0, 0.42), 0 0 0 .21rem fade(@con-cyan, 30%), inset 0 .06rem .12rem rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.3);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
 }
-/* The active seat's chip keeps its lit edge under the dot's ping (`console.less` restates the active rim later in the
-   file for the compositor-only ping — re-seated here on the glass). */
+/* The active seat's kant restated after `console.less`'s own `.con-status__player--active` rule (later in the
+   cascade at equal specificity). */
 .con-status__player--active {
     box-shadow:
         inset .14rem 0 0 var(--seat, #8fb3d6),
-        inset 0 .06rem 0 rgba(255, 255, 255, 0.1),
-        inset 0 -.06rem 0 rgba(0, 0, 0, 0.55),
-        0 0 0 .06rem fade(@con-mint, 72%);
+        inset 0 0 0 .06rem fade(@con-mint, 66%);
 }
 .con-status__player--active.con-status__player--me {
     box-shadow:
         inset .14rem 0 0 var(--seat, #8fb3d6),
-        inset 0 .06rem 0 rgba(255, 255, 255, 0.1),
-        inset 0 -.06rem 0 rgba(0, 0, 0, 0.55),
-        0 0 0 .06rem fade(@con-mint, 80%);
+        inset 0 0 0 .06rem fade(@con-mint, 74%);
 }

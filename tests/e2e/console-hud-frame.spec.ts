@@ -268,10 +268,9 @@ for (const preset of PRESETS) {
         };
         const box = (el: Element | null) => el === null ? undefined : (({top, bottom, left, right}) =>
           ({top, bottom, left, right}))(el.getBoundingClientRect());
-        const beamCells: Array<Element> = [
-          ...Array.from(document.querySelectorAll('.con-status__param')),
-          ...Array.from(document.querySelectorAll('.con-status__terra-pct')),
-        ];
+        // The terraforming percent is a parameter cell since EW (2026-11-03 — the planet dial): its chip host is the
+        // cell's, like every other readout's.
+        const beamCells: Array<Element> = Array.from(document.querySelectorAll('.con-status__param'));
         const beam = beamCells.map((c) => mount(c, 'global-parameter'));
         const deckCell = document.querySelector('.con-deckstack__count');
         if (deckCell !== null) {
