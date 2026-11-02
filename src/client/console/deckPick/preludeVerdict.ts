@@ -106,14 +106,28 @@ export function stepVerdictFocus(rows: ReadonlyArray<PreludeVerdictRow>, focus: 
 /** Where the price's token is absorbed: the printed cost on the SOURCE card standing in the action composer's hero. */
 export const PRELUDE_PRICE_TARGET_SELECTOR = '.con-cardactions .con-composer__actcardwrap';
 
+/** The source card's capsule on that hero — where a card-resource token of the price (the director) is BORN. */
+export function preludePriceCapsuleSelector(card: string): string {
+  return `${PRELUDE_PRICE_TARGET_SELECTOR}[data-zoom-slot="${card.replace(/"/g, '\\"')}"] .pcard__res`;
+}
+
+/** The stock rows a price can be paid from (a payment's other keys are card resources — never this price's). */
+const STOCK_PAY_ROWS: ReadonlyArray<string> = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
+
 /**
- * THE PRICE LEAVES FIRST (P45 · decision 5 — PL-099 / PL-104): the verdict's M€ ride the played prelude's hero scene as
- * its BILL (the law's grammar, RX36 PL-725) — one token off the rail's M€ row, sideways, into the printed «12 M€» on the
- * source card, the row ticking on the departure — before the prelude lifts and its own rewards are born. The answer
- * that charges the price also pays the prelude's own stock gains (Loan's 30 M€), so those are the bill's KNOWN moves;
- * the check against the two views is the hero's (`verifyRailReward`), never assumed.
+ * THE PRICE LEAVES FIRST (P45 · decision 5 — PL-099 / PL-104): the verdict's price rides the played prelude's hero scene
+ * as its BILL (the law's grammar, RX36 PL-725) — one token per row the price was ACTUALLY paid from (`paid`: Helion's
+ * heat leaves the heat row; absent = all M€), sideways off the rail into the printed «12 M€» on the source card, and the
+ * DIRECTOR off the source card's own capsule into its printed icon (PL-1561) — each row / the capsule ticking on its
+ * departure — before the prelude lifts and its own rewards are born. The answer that charges the price also pays the
+ * prelude's own stock gains (Loan's 30 M€): those are the bill's KNOWN moves; the check against the two views is the
+ * hero's (`verifyRailReward`), never assumed.
  */
-export function preludePriceBill(price: DeckPickPlayPrice, rewards: ReadonlyArray<ResourceTransferSpec> | undefined): {reward: RailReward, targetSelector: string} {
+export function preludePriceBill(
+  price: DeckPickPlayPrice,
+  rewards: ReadonlyArray<ResourceTransferSpec> | undefined,
+  paid?: Readonly<Record<string, number | undefined>>,
+): {reward: RailReward, targetSelector: string, capsuleSelector?: string} {
   const known: Record<string, number> = {};
   for (const spec of rewards ?? []) {
     if (spec.channel === 'stock') {
@@ -121,8 +135,25 @@ export function preludePriceBill(price: DeckPickPlayPrice, rewards: ReadonlyArra
       known[row] = (known[row] ?? 0) + (spec.direction === 'loss' ? -spec.amount : spec.amount);
     }
   }
+  const cause: Array<ResourceTransferSpec> = [];
+  if (paid === undefined) {
+    cause.push({channel: 'stock', resource: 'megacredits', amount: price.megacredits, direction: 'loss'});
+  } else {
+    for (const row of STOCK_PAY_ROWS) {
+      const amount = paid[row] ?? 0;
+      if (amount > 0) {
+        cause.push({channel: 'stock', resource: row, amount, direction: 'loss'});
+      }
+    }
+  }
+  const here = price.resourcesHere;
+  if (here !== undefined && here.count > 0) {
+    cause.push({channel: 'card-resource', resource: String(here.resource).toLowerCase().replace(/ /g, '-'), amount: here.count,
+      direction: 'loss', targetCard: here.card});
+  }
   return {
-    reward: {cause: [{channel: 'stock', resource: 'megacredits', amount: price.megacredits, direction: 'loss'}], reactions: [], known},
+    reward: {cause, reactions: [], known},
     targetSelector: PRELUDE_PRICE_TARGET_SELECTOR,
+    ...(here !== undefined ? {capsuleSelector: preludePriceCapsuleSelector(here.card)} : {}),
   };
 }

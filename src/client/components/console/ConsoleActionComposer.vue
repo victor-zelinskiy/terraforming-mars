@@ -1249,7 +1249,7 @@ import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '
 import {orOptionDoor} from '@/client/console/handPickRouting';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {ConsolePlayPickResult, enterConsolePlayPick, lawPlayDraftOf, lawPlayLandingOf, lawPlayStagedDoor, rememberLawPlay} from '@/client/console/consolePlayPick';
-import {playedHeroLandingPrewarm, playedHeroLandingUp, playedHeroState} from '@/client/console/played/consolePlayedHero';
+import {playedHeroHoldsCapsule, playedHeroLandingPrewarm, playedHeroLandingUp, playedHeroState} from '@/client/console/played/consolePlayedHero';
 import {LAW_PLAY_OUTCOME_ZONE, beginPlayLandingRelease, lawPlayOutcomeLive, markPlayLandingReleased, playLandingYieldedToOutcome} from '@/client/console/played/consolePlayOutcomeClaim';
 import ConsolePlayedReceivingStage from '@/client/components/console/played/ConsolePlayedReceivingStage.vue';
 import {EASING_KEYS} from '@/client/console/requirementEasingText';
@@ -2533,7 +2533,8 @@ export default defineComponent({
       }
       // A CAPSULE TIMELINE in the air (TR28): the model already holds the result (c − 1); the capsule reads what
       // has physically happened — c until the fighter lands, c + 1 until two leave, then c − 1. Never below zero.
-      if (actionCommitRailHoldsCapsule(this.sourceKey)) {
+      // …and a PRICE paid before a played card (P45's director, the hero's bill): the capsule ticks on its token's departure.
+      if (actionCommitRailHoldsCapsule(this.sourceKey) || playedHeroHoldsCapsule(this.sourceKey)) {
         return Math.max(0, live - heldCardCapsule(this.sourceKey));
       }
       return live;

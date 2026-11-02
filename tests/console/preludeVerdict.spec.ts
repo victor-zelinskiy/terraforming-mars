@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {initialVerdictFocus, PRELUDE_PRICE_TARGET_SELECTOR, preludePriceBill, preludeVerdictOf, preludeVerdictRows, stepVerdictFocus} from '@/client/console/deckPick/preludeVerdict';
+import {initialVerdictFocus, PRELUDE_PRICE_TARGET_SELECTOR, preludePriceBill, preludePriceCapsuleSelector, preludeVerdictOf, preludeVerdictRows, stepVerdictFocus} from '@/client/console/deckPick/preludeVerdict';
 import {DeckPickPromptMeta} from '@/common/models/PlayerInputModel';
 import {CardResource} from '@/common/CardResource';
 import {CardName} from '@/common/cards/CardName';
@@ -61,8 +61,21 @@ describe('preludeVerdict', () => {
       {channel: 'production', resource: 'megacredits', amount: 2, direction: 'loss'},
     ]);
     expect(bill.targetSelector).eq(PRELUDE_PRICE_TARGET_SELECTOR);
-    expect(bill.reward.cause).deep.eq([{channel: 'stock', resource: 'megacredits', amount: 12, direction: 'loss'}]);
+    expect(bill.reward.cause).deep.eq([
+      {channel: 'stock', resource: 'megacredits', amount: 12, direction: 'loss'},
+      // PL-1561: the director leaves the SOURCE card's capsule (born there, absorbed at its printed icon).
+      {channel: 'card-resource', resource: 'director', amount: 1, direction: 'loss', targetCard: CardName.BOARD_OF_DIRECTORS},
+    ]);
     expect(bill.reward.known).deep.eq({'stock:megacredits': 30});
+    expect(bill.capsuleSelector).eq(preludePriceCapsuleSelector(CardName.BOARD_OF_DIRECTORS));
+    expect(bill.capsuleSelector).contains('[data-zoom-slot="Board of Directors"] .pcard__res');
+  });
+
+  it('PL-1562: a price PAID otherwise (Helion’s heat) leaves the rows it was paid from', () => {
+    const bill = preludePriceBill(price, [], {megacredits: 0, heat: 12, steel: 0, titanium: 0, microbes: 0});
+    expect(bill.reward.cause.filter((s) => s.channel === 'stock')).deep.eq([{channel: 'stock', resource: 'heat', amount: 12, direction: 'loss'}]);
+    const mixed = preludePriceBill(price, [], {megacredits: 5, heat: 7});
+    expect(mixed.reward.cause.filter((s) => s.channel === 'stock').map((s) => `${s.resource}:${s.amount}`)).deep.eq(['megacredits:5', 'heat:7']);
   });
 
   it('the d-pad walks the two rows without wrapping', () => {

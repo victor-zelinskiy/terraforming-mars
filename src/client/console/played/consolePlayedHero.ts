@@ -415,7 +415,16 @@ let pendingTargetSpends: ReadonlyArray<ResourceTransferSpec> = [];
  * then the commit's ordinary «−11» at the landing. Checked against the two views first (`verifyRailReward` with the
  * play's own moves as `known`) — a row that moved otherwise flies nothing and names itself in `playedHeroState.bill`.
  */
-let pendingBill: {reward: RailReward, targetSelector: string} | undefined;
+let pendingBill: PlayedHeroBill | undefined;
+
+/**
+ * A PRICE PAID BEFORE THE PLAY (`armPlayedHero({bill})`): the law's (RX36 — stock rows only) and a verdict's (P45 Board
+ * of Directors — 12 M€ AND one director off the SOURCE card): `targetSelector` is the standing card whose PRINTED cost
+ * absorbs the tokens; `capsuleSelector` is where a card-resource token of the price is BORN (the source card's capsule
+ * as the player sees it — a loss walks the geometry backwards: born on its row, absorbed at the origin). The capsule
+ * ticks on the departure like a rail row (a departure hold on the card — `playedHeroHoldsCapsule`).
+ */
+export type PlayedHeroBill = {reward: RailReward, targetSelector: string, capsuleSelector?: string};
 /** The departure holds this transaction seeded (gain-shaped) — released by the commit's block, or by an abort. */
 const departureHolds: Array<ResourceTransferSpec> = [];
 /** The applied view the answer is checked against (handed in with the answer — `runPlayedHero`). */
@@ -805,8 +814,9 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   price?: PlayCardPrice,
   /** The price taken off a card the composer's own step chose — off the answered target row (PL-268). */
   targetSpends?: ReadonlyArray<ResourceTransferSpec>,
-  /** The LAW'S price for this play (PL-725 — RX36): off the rail into the law's printed cost, before anything else. */
-  bill?: {reward: RailReward, targetSelector: string},
+  /** The price paid BEFORE this play (PL-725 — RX36's law; P45's verdict): off the rail (and the source card's capsule)
+   *  into the printed cost, before anything else. */
+  bill?: PlayedHeroBill,
   host?: PlayedHeroHost,
   /** The picture the card wears where it LIFTS from (default: the composer's
    *  stationary hero — `normal` tier, no live model). */
@@ -1511,11 +1521,19 @@ function shipLawBill(mine: () => boolean): Promise<void> | undefined {
   const anchors = resolveActionCommitAnchors(el, undefined);
   const specs = verdict.cause;
   const origins = resolveSpendIconEnds(anchors, specs);
+  // A card's resource of the price (P45's director) is BORN on that card's capsule as the player sees it — never on the
+  // satellite under the workspace's glass; a capsule not painted degrades by name (the counter ticks with the commit).
+  const capsule = bill.capsuleSelector;
+  const capsuleEnd = (): TransferEndLike | undefined => {
+    const at = capsule === undefined ? undefined : firstVisibleEnd(capsule) as HTMLElement | undefined;
+    return at === undefined ? undefined : centreEndOf(at);
+  };
   playedHeroState.bill = 'flying';
   return runResourceTransfers({
     specs,
     source: {end: bodyEnd(anchors.cardEl)},
     origins,
+    destinationOf: (spec) => (spec.channel === 'card-resource' ? capsuleEnd() : undefined),
     arrival: 'auto',
     // A LOSS releases at its LAUNCH: the row ticks the moment the token leaves it (a departure hold — released by the
     // commit's block against the applied view, which then shows only the card's own price moving).
@@ -1598,11 +1616,20 @@ function breakDepartureChipMerges(view: PlayerViewModel | undefined): void {
   }
 }
 
-/** Seed ONE departure hold: from here the row reads `committed − amount` — the pre-commit value minus what just left. */
+/** Seed ONE departure hold: from here the row reads `committed − amount` — the pre-commit value minus what just left.
+ *  A CARD's resource (P45's director) holds that card's capsule the same way (gain-shaped on the card: `heldCardCapsule`
+ *  then reads +amount, and the hero's capsule shows `live − amount` until the commit's block applies the view). */
 function seedDeparture(spec: ResourceTransferSpec): void {
-  const hold: ResourceTransferSpec = {channel: 'stock', resource: spec.resource, amount: spec.amount};
+  const hold: ResourceTransferSpec = spec.channel === 'card-resource' && spec.targetCard !== undefined ?
+    {channel: 'card-resource', resource: spec.resource, amount: spec.amount, targetCard: spec.targetCard} :
+    {channel: 'stock', resource: spec.resource, amount: spec.amount};
   departureHolds.push(hold);
   beginPanelRewardHold([hold]);
+}
+
+/** A departure of THIS card's resource is held right now (the composer's hero reads `heldCardCapsule` only then). */
+export function playedHeroHoldsCapsule(card: string): boolean {
+  return departureHolds.some((hold) => hold.channel === 'card-resource' && hold.targetCard === card);
 }
 
 /**

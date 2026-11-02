@@ -2,8 +2,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixture, crumbText, fetchPlayerModel, openActionFocus, openCardActions, placeTile, press, reloadConsole, settle, walkFocusUntil,
+  bootFixture, createGameWithCards, crumbText, fetchPlayerModel, openActionFocus, openCardActions, openConsole, pickCards, placeTile,
+  playQueueCard, press, reloadConsole, settle, soloGameConfig, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
 } from './consoleStart';
+import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
 /**
  * P45 «СОВЕТ ДИРЕКТОРОВ» — the VERDICT AFTER THE REVEAL inside «ДЕЙСТВИЯ КАРТ» (docs/claude/prompts/
@@ -42,6 +44,28 @@ async function wireOf(request: APIRequestContext, id: string): Promise<Wire> {
   return await fetchPlayerModel(request, id) as unknown as Wire;
 }
 const onTable = (w: Wire, name: string) => w.thisPlayer.tableau.some((c) => c.name === name);
+const heat = (w: Wire) => (w.thisPlayer as unknown as {heat: number}).heat;
+
+/** PL-1561 · THE CAPSULE AS PAINTED: every distinct value the hero's director capsule shows, in order (a sampler armed
+ *  before the press — a one-shot read cannot tell «4 → 3 on the departure» from «3 at the apply»). */
+async function armCapsuleProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const w = window as unknown as {__p45Capsule?: {seen: Array<string>, stop: () => void}};
+    w.__p45Capsule?.stop();
+    const seen: Array<string> = [];
+    const read = () => {
+      const el = document.querySelector('.con-cardactions .con-composer__actcardwrap .pcard__res');
+      const v = el?.textContent?.replace(/\s+/g, '') ?? '';
+      if (v !== '' && seen[seen.length - 1] !== v) {
+        seen.push(v);
+      }
+    };
+    const id = window.setInterval(read, 16);
+    read();
+    w.__p45Capsule = {seen, stop: () => window.clearInterval(id)};
+  });
+}
+const capsuleSeen = (page: Page) => page.evaluate(() => (window as unknown as {__p45Capsule?: {seen: Array<string>}}).__p45Capsule?.seen ?? []);
 const directors = (w: Wire) => w.thisPlayer.tableau.find((c) => c.name === CARD)?.resources ?? 0;
 
 async function shoot(page: Page, name: string): Promise<void> {
@@ -142,13 +166,26 @@ test.describe(`P45 Board of Directors · the verdict after the reveal · ${PRESE
     await shoot(page, 'b-verdict');
 
     await focusRow(page, 'play');
+    await armTransferWitness(page);
+    await armCapsuleProbe(page);
     await commitOnce(page, posts, posts.length, 'the verdict');
     expect(posts[posts.length - 1], 'the body: the pick').toContain('Loan');
+    // PL-1561 — THE DIRECTOR LEAVES ITS CARD: one token born on the hero (the source card's capsule) and absorbed there at
+    // its printed icon, beside the M€ token off the rail; the capsule reads 4 until that departure, then 3 — never a
+    // number that changed with nothing in the air, never above 4.
+    await expect.poll(async () => (await capsuleSeen(page)).join(' → '), {timeout: 30_000, message: 'the capsule ticks 4 → 3'}).toContain('4 → 3');
+    const capsule = await capsuleSeen(page);
+    expect(capsule.every((v) => v === '4' || v === '3'), `the capsule never reads anything but 4 or 3: ${capsule.join(' → ')}`).toBe(true);
     await expect.poll(async () => onTable(await wireOf(request, id), 'Loan'), {timeout: 30_000, message: 'Loan played'}).toBe(true);
     await expect(page.locator('.con-cardactions'), 'the flow LEAVES — never back to the list').toHaveCount(0, {timeout: 40_000});
     await settle(page, {timeoutMs: 40_000});
     await stop();
     await shoot(page, 'b-after');
+    const witness = await transferWitness(page);
+    console.log(`[p45] play trail\n${transferTrail(witness)}`);
+    expect(endsOverGlass(witness), 'no end over glass or nothing').toEqual([]);
+    expect(witness.births.some((b) => b.under === 'hero'), `a token born on the source card (the director) — births: ${witness.births.map((b) => b.under).join(', ')}`).toBe(true);
+    expect(witness.births.some((b) => b.under.startsWith('rail:megacredits')), `the price's M€ born on the rail — births: ${witness.births.map((b) => b.under).join(', ')}`).toBe(true);
     const after = await wireOf(request, id);
     expect(after.thisPlayer.megacredits - before.thisPlayer.megacredits, '−12 + 30').toBe(18);
     expect(directors(after), 'directors 4 → 3').toBe(3);
@@ -298,5 +335,98 @@ test.describe(`P45 Board of Directors · the verdict after the reveal · ${PRESE
     await expect.poll(async () => directors(await wireOf(request, id)), {timeout: 30_000}).toBe(0);
     await expect(page.locator('.con-cardactions'), 'the flow leaves').toHaveCount(0, {timeout: 40_000});
     await settle(page, {timeoutMs: 40_000});
+  });
+
+  test('J: Helion — «РАЗЫГРАТЬ» opens «› ОПЛАТА» in the rows\' place; B back with nothing sent; A pays and plays in ONE POST', async ({page, request}) => {
+    test.setTimeout(300_000);
+    const id = await bootFixture(page, request, 'board-of-directors-helion', {query: PRESET.query});
+    await settle(page);
+    const posts = watchPosts(page);
+    const before = await wireOf(request, id);
+    await openSetup(page);
+    await drawToVerdict(page, posts);
+    await focusRow(page, 'play');
+    const n = posts.length;
+    await press(page, 'Enter', 500);
+    await expect(page.locator(`${PICK} [data-deckpick-pay]`), 'the payment stands in the verdict\'s place').toHaveCount(1);
+    await expect(page.locator(VERDICT), 'the rows give it their place').toHaveCount(0);
+    await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: '… › ОПЛАТА'}).toMatch(/ОПЛАТА/);
+    expect(posts.length, 'nothing sent before the payment').toBe(n);
+    await shoot(page, 'j-pay');
+    await press(page, 'Escape', 400);
+    await expect(page.locator(VERDICT), 'B: back to the verdict').toHaveCount(1);
+    await expect(page.locator(`${PICK} [data-deckpick-pay]`)).toHaveCount(0);
+    expect(posts.length, 'nothing sent').toBe(n);
+    await press(page, 'Enter', 500);
+    await expect(page.locator(`${PICK} [data-deckpick-pay]`)).toHaveCount(1);
+    await armTransferWitness(page);
+    await commitOnce(page, posts, n, 'the pick and its payment');
+    const body = posts[posts.length - 1];
+    expect(body, 'the pick').toContain('Loan');
+    expect(body, 'the payment rides the same POST, addressed').toMatch(/"payment"[\s\S]*"heat"/);
+    await expect.poll(async () => onTable(await wireOf(request, id), 'Loan'), {timeout: 30_000, message: 'Loan played'}).toBe(true);
+    await settle(page, {timeoutMs: 40_000});
+    const after = await wireOf(request, id);
+    expect(after.waitingFor?.type, 'no payment asked after the POST').not.toBe('payment');
+    expect(directors(after), 'directors 4 → 3').toBe(3);
+    const paidHeat = heat(before) - heat(after);
+    const paidMc = before.thisPlayer.megacredits + 30 - after.thisPlayer.megacredits;
+    expect(paidHeat + paidMc, 'the 12 M€ price, paid in heat and M€').toBe(12);
+    expect(paidHeat, 'Helion paid with heat').toBeGreaterThan(0);
+    const witness = await transferWitness(page);
+    console.log(`[p45] helion trail\n${transferTrail(witness)}`);
+    expect(witness.births.some((b) => b.under.startsWith('rail:heat')), `the price leaves the HEAT row — births: ${witness.births.map((b) => b.under).join(', ')}`).toBe(true);
+  });
+
+  test('A: the deployment — the four directors fly off the printed busts onto P45\'s shelf capsule', async ({page, request}) => {
+    test.setTimeout(420_000);
+    const corp = 'Teractor';
+    const preludes = [CARD, 'Donation'];
+    const id = await createGameWithCards(request, [], {config: soloGameConfig({
+      expansions: {prelude: true, prelude2: true, venus: true, promo: true},
+      startingCorporations: 1,
+      customCorporationsList: [corp],
+      customPreludes: [CARD, 'Donation', 'Supplier', 'Loan'],
+    })});
+    await openConsole(page, id, PRESET.query);
+    await walkToSummary(page, {
+      onStep: async (p, kind) => {
+        if (kind === 'corporation') {
+          await pickCards(p, [corp]);
+        } else if (kind === 'prelude') {
+          expect(await pickCards(p, preludes), 'both preludes picked').toEqual(expect.arrayContaining(preludes));
+        }
+      },
+    });
+    await submitSummary(page);
+    await page.locator('.con-start--ceremony').waitFor({timeout: 90_000});
+    await waitQueueIdle(page);
+    await settle(page, {timeoutMs: 30_000});
+    expect(await playQueueCard(page, corp), 'the corporation played').toBe(true);
+    await waitQueueIdle(page);
+    await settle(page, {timeoutMs: 30_000});
+    await armTransferWitness(page);
+    const stop = await storyboard(page, 'deploy');
+    expect(await playQueueCard(page, CARD), 'P45 deployed from the queue').toBe(true);
+    await expect.poll(async () => directors(await wireOf(request, id)), {timeout: 30_000, message: 'the server: 4 directors'}).toBe(4);
+    await waitQueueIdle(page);
+    await settle(page, {timeoutMs: 40_000});
+    await stop();
+    await shoot(page, 'a-deployed');
+    const witness = await transferWitness(page);
+    console.log(`[p45] deploy trail\n${transferTrail(witness)}`);
+    expect(endsOverGlass(witness), 'no end over glass or nothing').toEqual([]);
+    const onShelf = witness.landings.filter((l) => l.under.includes(CARD));
+    expect(onShelf.length, `the directors land on P45's own capsule — landings: ${witness.landings.map((l) => l.under).join(', ')}`).toBeGreaterThan(0);
+  });
+
+  test('I″: the last director spent in an earlier generation — the tile refused «0 из 1 директора»', async ({page, request}) => {
+    test.setTimeout(180_000);
+    await bootFixture(page, request, 'board-of-directors-spent', {query: PRESET.query});
+    await settle(page);
+    await openCardActions(page);
+    await expect(page.locator(`.con-cardactions__tile[data-action-card="${CARD}"]`), 'the tile is listed').toHaveCount(1);
+    await expect(page.locator('.con-cardactions'), 'the reason names the directors with its count').toContainText('0 из 1 директора');
+    await shoot(page, 'i-spent');
   });
 });

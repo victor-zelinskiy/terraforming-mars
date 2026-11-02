@@ -353,3 +353,14 @@
     text-transform: uppercase;
     color: fade(@con-cyan, 92%);
 }
+
+/* THE PRICE'S PAYMENT (P45 · PL-1562): the shared payment panel standing in the outcome rows' place — the same width
+   band, centred; the panel owns its own material and cursor grammar. */
+.con-deckpick__pay {
+    display: flex;
+    justify-content: center;
+    flex: 0 0 auto;
+    padding: 0 var(--con-hud-pad-x, 1rem);
+
+    > * { width: min(40rem, 92%); }
+}

@@ -3086,7 +3086,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'applied-science-holders' | 'applied-science-none' | 'applied-science-sole' | 'applied-science-many' | 'applied-science-crowd' | 'applied-science-last' |
   // P45 Board of Directors: the verdict after the reveal inside «ДЕЙСТВИЯ КАРТ» (play · discard · refused · burn · variant · tile · Helion · last · empty).
   'board-of-directors-loan' | 'board-of-directors-poor' | 'board-of-directors-burn' | 'board-of-directors-variant' | 'board-of-directors-tile' |
-  'board-of-directors-helion' | 'board-of-directors-last' | 'board-of-directors-empty' |
+  'board-of-directors-helion' | 'board-of-directors-last' | 'board-of-directors-empty' | 'board-of-directors-spent' |
   // P88 Venus Orbital Survey — the split reveal; the «Разыграно» polish tables (stacks of different heights, the draft).
   'venus-orbital-survey-mixed' | 'venus-orbital-survey-venus' | 'venus-orbital-survey-none' | 'venus-orbital-survey-poor' | 'venus-orbital-survey-helion' |
   'played-table-polish' | 'played-table-draft' |

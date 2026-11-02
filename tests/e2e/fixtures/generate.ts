@@ -13055,7 +13055,8 @@ appliedScienceFixture('applied-science-last', 'last');
 //      · `board-of-directors-tile`    — Early Settlement: the prelude asks a city on the board;
 //      · `board-of-directors-helion`  — Helion, 5 M€ + 20 heat: the price is a payment the server ASKS (on the marker);
 //      · `board-of-directors-last`    — 1 director: after the play the action is blocked «0 of 1 director»;
-//      · `board-of-directors-empty`   — the prelude deck AND its discard empty: blocked «the prelude deck is empty».
+//      · `board-of-directors-empty`   — the prelude deck AND its discard empty: blocked «the prelude deck is empty»;
+//      · `board-of-directors-spent`   — 0 directors, the action not used this generation: blocked «0 of 1 director».
 //    A DRY RUN on a copy runs the action and reads the verdict's marker, so a rule change fails HERE. ──
 type BoardOfDirectorsVariant = {
   top?: CardName,
@@ -13123,3 +13124,5 @@ boardOfDirectorsFixture('board-of-directors-tile', {top: CardName.EARLY_SETTLEME
 boardOfDirectorsFixture('board-of-directors-helion', {megacredits: 5, helion: true, max: 1});
 boardOfDirectorsFixture('board-of-directors-last', {megacredits: 40, directors: 1, max: 1});
 boardOfDirectorsFixture('board-of-directors-empty', {megacredits: 40, empty: true});
+// PL-1563: the last director spent in an EARLIER generation — the action unused this one, refused «0 of 1 director».
+boardOfDirectorsFixture('board-of-directors-spent', {megacredits: 40, directors: 0});

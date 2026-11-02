@@ -100,7 +100,17 @@
            what happens to it — two OUTCOME rows (play it for the printed price · let it go to the discard), each with its
            chips and its reason; A on a row is the decision AND the commit. A refused row is read, never taken; the one
            open outcome is marked and still pressed (no auto-answer). -->
-      <div v-if="verdictRows.length > 0" class="con-deckpick__verdict" data-deckpick-verdict role="listbox"
+      <!-- THE PRICE'S PAYMENT (P45 · PL-1562 — PICK-THEN-PAY IS ONE DECISION, P88's grammar): when the server WILL ask the
+           price as a payment (Helion's heat — the marker's `payment`), A on «РАЗЫГРАТЬ» opens it IN the rows' place —
+           the shared payment panel and contract; B one level back to the verdict; A pays and plays in ONE POST. -->
+      <div v-if="payStage && payView !== undefined" class="con-deckpick__pay" data-deckpick-pay>
+        <ConsolePaymentPanel :view="payView"
+                             mode="expanded"
+                             hint-mode="none"
+                             :focus-unit="payFocusUnit"
+                             :flash-nonce="payFlashNonce" />
+      </div>
+      <div v-else-if="verdictRows.length > 0" class="con-deckpick__verdict" data-deckpick-verdict role="listbox"
            :aria-label="$t('Prelude decision')">
         <div v-for="(row, i) in verdictRows" :key="row.key"
              class="con-deckpick__vrow"
@@ -200,7 +210,7 @@ import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWs
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {Message} from '@/common/logs/Message';
-import {DeckPickPlayPrice, DeckPickPromptMeta, SelectCardModel} from '@/common/models/PlayerInputModel';
+import {DeckPickPlayPrice, DeckPickPromptMeta, SelectCardModel, SelectPaymentModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -230,6 +240,14 @@ import {startQueueFxLane, StartQueueFxLane} from '@/client/console/startQueueLay
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {armPreludeBurn, flyPreludeBurn, preludeBurnOwed, releasePreludeBurn} from '@/client/console/deckPick/preludeBurnReward';
 import {beginPreludePlayChain} from '@/client/console/deckPick/preludePlayChain';
+import {
+  buildPaymentView, dialLaneCount, editableRows, initialCounts, megacreditsAvailable, paymentCovers, paymentFromCounts,
+  PaymentLane, paymentLanes, PaymentView,
+} from '@/client/console/paymentPlan';
+import {SpendableResource} from '@/common/inputs/Spendable';
+import {addressed} from '@/common/inputs/preselectAddress';
+import {paymentResponse} from '@/client/console/taskResponses';
+import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import {initialVerdictFocus, preludePriceBill, preludeVerdictOf, PreludeVerdictChip, preludeVerdictRows, PreludeVerdictRow, stepVerdictFocus} from '@/client/console/deckPick/preludeVerdict';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
@@ -271,7 +289,7 @@ export default defineComponent({
   // `console-source-dock` is registered GLOBALLY (main.ts) — deliberately not a
   // local import: it renders the real premium card face, and that import chain
   // zeroes this file's mochapack spec.
-  components: {Card, ConsoleCardAvailabilityPanel, ConsolePreludeDeck, ConsoleWsHead, ConsoleWsStageHead, ConsolePreludeVariantStep},
+  components: {Card, ConsoleCardAvailabilityPanel, ConsolePreludeDeck, ConsoleWsHead, ConsoleWsStageHead, ConsolePreludeVariantStep, ConsolePaymentPanel},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** Teleported into a host workspace's zone → no shell of its own. */
@@ -314,6 +332,13 @@ export default defineComponent({
       } | undefined,
       /** THE VERDICT's cursor (P45): 0 = play it, 1 = discard it. */
       verdictFocus: 0,
+      /** THE PRICE'S PAYMENT stands (P45 · PL-1562) — the shared payment's counts, its cursor and its flash. */
+      payStage: false,
+      payCounts: {} as Partial<Record<SpendableResource, number>>,
+      payFocus: 0,
+      payFlashNonce: 0,
+      /** The payment the commit sent (the bill's rows — Helion's heat leaves the heat row). */
+      paidWith: undefined as Readonly<Record<string, number | undefined>> | undefined,
       /** THE PRELUDE DECK'S NUMBERS AS PRESENTED (P91) — held while bodies are still moving, else the server's. */
       heldDeckCount: undefined as number | undefined,
       heldDiscardCount: undefined as number | undefined,
@@ -389,6 +414,30 @@ export default defineComponent({
     /** THE VERDICT AFTER THE REVEAL (P45): the marker's price, or undefined (P91's «choose 1 of N» stands). */
     verdictPrice(): DeckPickPlayPrice | undefined {
       return this.frozen !== undefined ? this.frozen.verdict : preludeVerdictOf(this.meta);
+    },
+    /** The price's payment the server WILL ask (the marker's `payment` — Helion's heat), or undefined (paid in M€). */
+    verdictPayment(): SelectPaymentModel | undefined {
+      return this.verdictPrice !== undefined && this.frozen === undefined ? this.meta?.payment : undefined;
+    },
+    payLanes(): Array<PaymentLane> {
+      const model = this.verdictPayment;
+      return model === undefined ? [] : paymentLanes(model, this.playerView.thisPlayer);
+    },
+    payCost(): number {
+      return this.verdictPrice?.megacredits ?? 0;
+    },
+    payView(): PaymentView | undefined {
+      if (this.verdictPayment === undefined) {
+        return undefined;
+      }
+      return buildPaymentView({cost: this.payCost, lanes: this.payLanes, counts: this.payCounts, mcAvailable: megacreditsAvailable(this.playerView.thisPlayer)});
+    },
+    payFocusUnit(): string | undefined {
+      const v = this.payView;
+      return v === undefined ? undefined : editableRows(v)[this.payFocus]?.unit;
+    },
+    payReady(): boolean {
+      return paymentCovers(this.payCost, this.payLanes, this.payCounts, megacreditsAvailable(this.playerView.thisPlayer));
     },
     /** The two outcome rows — off the marker (`price`, `max`) and the server's burn verdict, never re-derived. */
     verdictRows(): Array<PreludeVerdictRow> {
@@ -483,7 +532,10 @@ export default defineComponent({
         // «… › ВЫБОР ПРОЛОГА» → «… › ПРОЛОГ»: the tail only moves forward. A verdict (P45) reads «› ВЕРДИКТ»
         // until the press; a played one moves on to «› ПРОЛОГ», a discard stays on its verdict.
         if (this.verdictPrice !== undefined) {
-          return this.committed ? (this.picks.length > 0 ? 'Prelude' : 'Verdict') : (this.variantStep !== undefined ? 'Variant' : 'Verdict');
+          if (this.committed) {
+            return this.picks.length > 0 ? 'Prelude' : 'Verdict';
+          }
+          return this.payStage ? 'Payment' : (this.variantStep !== undefined ? 'Variant' : 'Verdict');
         }
         return this.committed ? 'Prelude' : (this.variantStep !== undefined ? 'Variant' : 'Prelude choice');
       }
@@ -592,6 +644,20 @@ export default defineComponent({
           {control: 'back', label: 'Back'},
         ];
       }
+      if (this.verdictPrice !== undefined && this.payStage) {
+        // THE PRICE'S PAYMENT (PL-1562): the shared payment contract; B one level back to the verdict.
+        const cmds: Array<ConsoleCommand> = [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
+          {control: 'triggerR', label: 'MAX'},
+          {control: 'confirm', label: 'Pay', enabled: this.payReady, priority: 0},
+        ];
+        if (this.sourceView?.inspectable === true) {
+          cmds.push({control: 'stickL', label: 'Source', priority: 1});
+        }
+        cmds.push({control: 'back', label: 'Back'});
+        return cmds;
+      }
       if (this.verdictPrice !== undefined) {
         // THE VERDICT (P45): A on a row decides AND commits — the verb names the row (a burn named as one).
         const row = this.verdictRows[this.verdictFocus];
@@ -673,6 +739,9 @@ export default defineComponent({
         this.focusIdx = 0;
         this.submitting = false;
         this.verdictFocus = initialVerdictFocus(this.verdictRows);
+        this.payStage = false;
+        this.payCounts = {};
+        this.paidWith = undefined;
         if (this.entries.length > 0) {
           this.startDeal();
         }
@@ -1022,7 +1091,7 @@ export default defineComponent({
       let budget = frame.clientHeight -
         (parseFloat(fcs.paddingTop) || 0) - (parseFloat(fcs.paddingBottom) || 0);
       const root = this.$el as HTMLElement | undefined;
-      for (const sel of ['.con-wshead', '.con-deckpick__head', '.con-deckpick__status', '.con-deckpick__verdict']) {
+      for (const sel of ['.con-wshead', '.con-deckpick__head', '.con-deckpick__status', '.con-deckpick__verdict', '.con-deckpick__pay']) {
         const el = root?.querySelector<HTMLElement>(sel) ?? null;
         if (el !== null) {
           const ecs = window.getComputedStyle(el);
@@ -1056,6 +1125,10 @@ export default defineComponent({
         } else if (verb === 'inspect') {
           this.inspectFocused();
         }
+        return;
+      }
+      if (this.payStage) {
+        this.handlePayIntent(intent);
         return;
       }
       if (this.verdictPrice !== undefined && this.verdictRows.length > 0) {
@@ -1135,6 +1208,70 @@ export default defineComponent({
         this.entries.length);
       this.focusIdx = stepHandGrid(this.focusIdx, dir, this.entries.length, perRow);
     },
+    /** THE PRICE'S PAYMENT (PL-1562): ↑↓ a source, ←→ / LB RB ±1, RT the source's MAX, A pays and plays, B back. */
+    handlePayIntent(intent: GamepadIntent): void {
+      if (intent.kind === 'nav') {
+        const rows = this.payView === undefined ? 0 : editableRows(this.payView).length;
+        if (intent.dir === 'up' || intent.dir === 'down') {
+          this.payFocus = Math.min(Math.max(0, rows - 1), Math.max(0, this.payFocus + (intent.dir === 'down' ? 1 : -1)));
+        } else {
+          this.dialPay(intent.dir === 'right' ? 1 : -1);
+        }
+        return;
+      }
+      if (intent.kind === 'press' && intent.button === 'stickL') {
+        this.inspectSource();
+        return;
+      }
+      switch (consoleActionOf(intent)) {
+      case 'prevSection':
+        this.dialPay(-1);
+        return;
+      case 'nextSection':
+        this.dialPay(1);
+        return;
+      case 'nextTab':
+        this.dialPay('max');
+        return;
+      case 'primary':
+        if (this.payReady) {
+          this.confirm();
+        }
+        return;
+      case 'back':
+        this.leavePay();
+        return;
+      default:
+        return;
+      }
+    },
+    dialPay(step: number | 'max'): void {
+      const unit = this.payFocusUnit;
+      const lane = this.payLanes.find((l) => l.unit === unit);
+      if (lane === undefined) {
+        return;
+      }
+      const current = this.payCounts[lane.unit] ?? 0;
+      const next = dialLaneCount(this.payCost, lane, this.payLanes, this.payCounts, step);
+      if (next !== current) {
+        this.payCounts = {...this.payCounts, [lane.unit]: next};
+        this.payFlashNonce += 1;
+      }
+    },
+    enterPay(): void {
+      // The chosen branch (P44's «ВАРИАНТ») is KEPT (`variantChosen`); its layer gives the stage to the payment.
+      this.variantCard = undefined;
+      this.payStage = true;
+      this.payCounts = initialCounts(this.payCost, this.payLanes, megacreditsAvailable(this.playerView.thisPlayer));
+      this.payFocus = 0;
+    },
+    /** B from the payment: one level back — the verdict, its cursor on «РАЗЫГРАТЬ», nothing sent, no branch kept. */
+    leavePay(): void {
+      this.payStage = false;
+      this.payCounts = {};
+      this.picks = [];
+      this.variantChosen = undefined;
+    },
     /** A on a verdict row (P45): the play — through the ordinary commit (the «ВАРИАНТ» step first when the prelude's play
      *  is a choice) — or the discard (`[]`). A refused row is read, never taken. */
     chooseVerdictRow(index: number): void {
@@ -1146,7 +1283,7 @@ export default defineComponent({
       this.verdictFocus = index;
       this.picks = row.key === 'play' ? [card] : [];
       this.confirm();
-      if (!this.submitting && this.variantCard === undefined) {
+      if (!this.submitting && this.variantCard === undefined && !this.payStage) {
         this.picks = [];
       }
     },
@@ -1280,7 +1417,15 @@ export default defineComponent({
         this.variantCard = played;
         return;
       }
+      // THE PRICE'S PAYMENT (PL-1562): a play whose price the server WILL ask stands its payment first — the same press
+      // returns here with the counts in hand (`payStage`), and the pick and the payment leave in ONE POST.
+      if (this.verdictPayment !== undefined && played !== undefined && !this.payStage) {
+        this.enterPay();
+        return;
+      }
       this.submitting = true;
+      // The payment is read FIRST — the price's bill (armed below, with the hero) flies the rows it was paid from.
+      const payment = this.payStage ? this.payResponse() : undefined;
       // FREEZE FIRST, submit second. The order is the whole point: the response
       // can land in the same tick, and the row must already be reading from a
       // snapshot when it does.
@@ -1305,11 +1450,14 @@ export default defineComponent({
       const answer = this.variantAnswer(played);
       this.variantCard = undefined;
       this.variantChosen = undefined;
-      if (answer !== undefined) {
-        this.$emit('submit-batch', [cardsResponse(kept), answer]);
+      // …and the price's payment (PL-1562), ADDRESSED to the payment the server raises behind the pick (its `cause` is the
+      // source card) — a foreign question that jumps the queue never consumes it.
+      if (answer !== undefined || payment !== undefined) {
+        this.$emit('submit-batch', [cardsResponse(kept), ...(payment !== undefined ? [payment] : []), ...(answer !== undefined ? [answer] : [])]);
       } else {
         this.$emit('submit', cardsResponse(kept));
       }
+      this.payStage = false;
       void this.runOutgoing(kept);
     },
     async runOutgoing(kept: ReadonlyArray<CardName>): Promise<void> {
@@ -1446,9 +1594,17 @@ export default defineComponent({
       }
       this.candidateRewards = next;
       this.confirm();
-      if (!this.submitting) {
+      if (!this.submitting && !this.payStage) {
         this.variantChosen = undefined; // refused (not ready / not interactive) — the step stands for the next A
       }
+    },
+    /** The price's payment, addressed to its asker (the verdict's source card, role `payment`); the bill reads its rows. */
+    payResponse(): InputResponse {
+      const mc = megacreditsAvailable(this.playerView.thisPlayer);
+      const payment = paymentFromCounts(this.payCost, this.payLanes, this.payCounts, mc);
+      this.paidWith = {...payment} as Record<string, number>;
+      const source = this.meta?.source;
+      return addressed(paymentResponse(payment), source === undefined ? undefined : {source, role: 'payment'});
     },
     /** The chosen branch's addressed answer, or undefined (nothing chosen / nothing to choose). */
     variantAnswer(card: CardName | undefined): InputResponse | undefined {
@@ -1473,7 +1629,7 @@ export default defineComponent({
       if (this.burns(chosen)) {
         // PL-1469: the 15 M€ are this card's — the answer that pays them is held on the rail for a token off its face.
         // A verdict's burn (P45) is charged its price in the same answer: a known move of the burn's check.
-        armPreludeBurn(chosen, price?.megacredits ?? 0);
+        armPreludeBurn(chosen, price === undefined ? 0 : (this.paidWith?.megacredits ?? price.megacredits));
         return;
       }
       // PL-1467: what the prelude asks next is a step of THIS hand's flow — a board step included (the hand yields
@@ -1488,7 +1644,7 @@ export default defineComponent({
         targetSelector: PRELUDE_SEAT_SELECTOR,
         rewards: this.candidateRewards[chosen],
         // THE VERDICT'S PRICE LEAVES FIRST (P45 · PL-099 / PL-104): off the M€ row into the source's printed «12 M€».
-        ...(price !== undefined ? {bill: preludePriceBill(price, this.candidateRewards[chosen])} : {}),
+        ...(price !== undefined ? {bill: preludePriceBill(price, this.candidateRewards[chosen], this.paidWith)} : {}),
         sourceFace: {lightweight: true},
         landingFace: {lightweight: true, model: 'none'},
       });

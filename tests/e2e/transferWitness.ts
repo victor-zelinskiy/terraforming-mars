@@ -205,6 +205,10 @@ export async function armTransferWitness(page: Page): Promise<void> {
       ['recv', '.con-recv__emerge[data-played-key]'],
       ['recv', '.con-recv [data-recv-front], .con-recv [data-played-key], .con-sale-hero [data-played-key], .con-citypay [data-played-key], .con-colfocus [data-played-key], .con-fleetdock [data-played-key], .con-hydro [data-played-key]'],
       ['played', '.con-played [data-played-key], .con-start__played [data-played-key]'],
+      // The PRELUDE DECK's «РАЗЫГРАНО» seat (P91 WG Project / P45 Board of Directors): a prelude a mid-game pick plays
+      // lands there and pays from its own printed icons — the deck object's seat inside the host's zone, not a foreign
+      // glass. `prelude-seat`.
+      ['prelude-seat', '[data-prelude-played-seat]'],
       // A LIVE PICK's own objects (TR53 iteration): the candidate a plate's answer lands on, and the source dock the
       // token is born on (a colony's plate, a card's) — the plate's own glass is not a foreign surface to them.
       ['slot', '.con-cards__slot[data-zoom-slot]'],
@@ -232,6 +236,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
       case 'composer-card': return `composer-card:${name(el, 'data-composer-card')}`;
       case 'recv': return `recv:${el.hasAttribute('data-recv-front') ? 'front' : name(el, 'data-played-key')}`;
       case 'played': return `played:${name(el, 'data-played-key')}`;
+      case 'prelude-seat': return 'prelude-seat';
       case 'slot': return `slot:${name(el, 'data-zoom-slot')}`;
       case 'source': return 'source';
       case 'payrow': return `payrow:${name(el, 'data-pay-unit')}`;
