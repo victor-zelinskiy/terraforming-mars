@@ -76,8 +76,12 @@ for the prelude deck) asks about ONE drawn prelude: `min 0`, `max` = affordable 
 (`console/deckPick/preludeVerdict.ts`, pure) draws TWO OUTCOME ROWS under the card — «РАЗЫГРАТЬ» with its chips
 (`current → resulting`, a burn honest: −12 + 15) or refused with its magnitude; «В СБРОС» (the sole outcome when the
 play is refused — marked, still pressed). A on a row decides AND commits (`[]` or the card; «ВАРИАНТ» first when the
-prelude's play is a choice); the stage hands «Verdict» up; the price rides the hero's BILL (it leaves first).
-Witness `console-board-of-directors`.
+prelude's play is a choice); the stage hands «Verdict» up; the price rides the hero's BILL (it leaves first — the M€
+off the rail AND the director off the source card's capsule, both into the printed price; the capsule ticks on the
+departure — PL-1561). A price the server WILL ask as a payment (the marker's `payment` — Helion's heat) stands as the
+verdict's «› ОПЛАТА» stage IN the rows' place (the shared payment panel, P88's contract; B back to the verdict), and
+the pick + the ADDRESSED payment (+ the variant's `or`) leave in ONE POST; the bill flies the rows actually paid
+(PL-1562). Witness `console-board-of-directors` (A the start's four directors · B … J the Helion payment).
 
 **A SPLIT REVEAL carries the WHOLE reveal on ONE prompt** (P88 Venus Orbital Survey, 2026-11-01): «reveal the top 2;
 Venus cards to the hand for free; buy or discard the rest». The prompt's `cards` stay exactly the cards OFFERED (the

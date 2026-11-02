@@ -127,7 +127,7 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
    порядке ЖИВОГО `OrOptions` (ветка называет свою печатную строку `renderKey`), источник — общий шаг с `cause`
    (`RemoveResourcesFromCard` `source: 'self'`), недоступный вариант показан с причиной, роль держателя объявлена рядом с
    действием (`holderActionGood`) — реестр DC.
-4. **Живой хук** (`onCardPlayed` — Soil Bacteria, Ecotec, Spire, Palladin Shipping, Sagitta; `onColonyAdded` — Colony
+4. **Живой хук** (`onCardPlayed` — Soil Bacteria, Ecotec, Spire, Palladin Shipping, Sagitta; `onColonyAddedByAnyPlayer` — Colony
    Trade Hub; `onProductionGain` — Suitable Infrastructure; `onResourceAdded` — Main Belt Asteroids;
    `onIncreaseTerraformRating` — Terraforming Deal; `onGlobalParameterIncrease` — Venus Contract) — ДВОЙНИК ПРОГНОЗА
    обязателен (`effectForecastCoverage` / `effectForecastParity` падают с именем карты).
@@ -209,7 +209,7 @@ Turmoil → `TurmoilReplacementsUnderRedux.spec`). Постоянная част
 | P91 | WG Project | AUTOMATED · ПОЛИТ (председатель) | bespokePlay, 3 прелюдии → 1 | СДАНА 2026-11-02 c5784e8940 + b5d30e49b6 · пролог посреди партии: один этап пика на движке дек-пика (реестр EI) |
 | P43 | Applied Science | PRELUDE | ActivePreludeCard: 6 науки на себя + действие-выбор (стандартный ресурс | ресурс на карту) | СДАНА 2026-11-02 2c21d4eace + клиент · шаг превью `standardResource`, один предикат кандидатов, общий выбор дикого ресурса (реестр EN / EO) |
 | P44 | Atmospheric Enhancers | PRELUDE · Venus | behavior (декларация целиком: `or` + `drawCard {floaterIcon}`) | **СДАНА 2026-11-02** fd16702e57 · ba5474d9b3 · e48c3d70b3 · 391025e5e2 · a570980ae6 — выбор ветки ДО нажатия (шаг «ВАРИАНТ» на очереди старта и в «ВЫБОР ПРОЛОГА»), именованный поиск «со значком аэростата» (реестр EQ); сетка карты в создателе (ER) |
-| P45 | Board of Directors | PRELUDE | behavior (4 директора) + bespoke-действие с хуками | **СДАНА 2026-11-02** e85632e989 (сервер) · 0fff064a5e (клиент) · c4f98880d7 (стенды) — вердикт после вскрытия в «ДЕЙСТВИЯ КАРТ», цена на вердикте, цепочка с хостом (реестр EU) |
+| P45 | Board of Directors | PRELUDE | behavior (4 директора) + bespoke-действие с хуками | **СДАНА 2026-11-02** e85632e989 (сервер) · 0fff064a5e (клиент) · c4f98880d7 (стенды) — вердикт после вскрытия в «ДЕЙСТВИЯ КАРТ», цена на вердикте, цепочка с хостом; гэпы PL-1561…1563 закрыты 2026-11-03 — директор с капсулы, оплата Helion в вердикте, старт (реестр EU) |
 | P46 | Colony Trade Hub | PRELUDE · Colonies | behavior + `onColonyAdded` | в списке |
 | P47 | Corridors of Power | PRELUDE · ПОЛИТ | **ЗАМЕНА** (§3.2) | **ЗАМЕНА СДАНА (TRP0)** 2026-10-31 |
 | P48 | Early Colonization | PRELUDE · Colonies | behavior + bespokePlay | в списке |
