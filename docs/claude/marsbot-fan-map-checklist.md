@@ -286,3 +286,43 @@ e2e `tests/e2e/console-vastitas-borealis-fan.spec.ts`. Решения владе
 Tourist · A. Zoologist — из них Promoter (event) и A. Zoologist (bio +5) уже официальные по имени (Nova, TC) и
 попадут в `SHARED_NAMES`; Forester (deprecated в манифесте!) и Terran (A&M: «Terran — space 5 on the Earth track»)
 — официальные по A&M-списку.
+
+## E. Вторая карта сдана — что узнал второй агент (Amazonis Planitia, 2026-11-02)
+
+Сдано: доска `src/server/automa/boards/AmazonisMarsBot.ts` (§2g аудита), профиль `AMAZONIS_PROFILE`, карта `BF2`
+(`BonusCardId.BF2_CORPORATE_COMPETITION_AMAZONIS`), правила §18 аудита, спеки `tests/automa/AmazonisMarsBot*.spec.ts`,
+премиум-часть (маркер запретной клетки, досье «бонус будет пропущен», спеки `tests/boards/amazonis*`), e2e
+`tests/e2e/console-amazonis.spec.ts`. Решения владельца — §18.1–18.6 аудита.
+
+**Что добавилось к паттерну (и чего не было в §B):**
+- **Новое действие клетки.** Ряд с Colonizer потребовал «колония за 5 M€» (аналог кубов Pioneer-4 по A&M). Это первый
+  `TrackAction` сверх официального набора: `'colony5'` + `COLONY_CELL_PRICE_MC` в `AutomaTypes.ts`, ветка в
+  `AutomaResolver.performTrackAction` с ТРЕМЯ исходами (нет расширения Колоний → клетка молчит; нет свободного
+  тайла — `failedAction('no-colony-tile')`; построено → `min(5, M€)` списывается с логом), глиф с ценой в
+  `marsBotView.ts` / `MarsBotTracks.vue` (`{kind: 'colony', price}` → «◉ −5»), подпись «Place a colony and lose ${0} M€»
+  с RU. Новое действие = все три слоя (тип · резолвер · вид) + спек на КАЖДОЕ состояние.
+- **Веха «не больше N» (Minimalist — ≤ 2 карт в руке) не имеет порога, который можно пересечь.** Для бота —
+  «колода действий ≤ 2 карт» (`value: 0|1, target: 1`); свип нормализации «пересечение порога» в
+  `AutomaMilestoneNormalization.spec.ts` такую веху ПРОПУСКАЕТ по списку, иначе падает на её же определении.
+- **Сначала — список A&M в RB-C (pp.13–15).** Forester (bio 6), Terran (earth 5 — у нас 6 по калибровке Tharsis),
+  Promoter (event), Zoologist (bio +5), Pioneer (кубы → наша колония), Visionary, Coastguard — официальные правила
+  есть для БОЛЬШЕЙ части фанатских имён; домашними остались только Minimalist, Curator, A. Engineer, Tourist,
+  Colonizer, Tropicalist (все «ДОМАШНЕЕ» в §18).
+- **Статический предикат карты для награды бота.** A. Engineer считает карты, МЕНЯЮЩИЕ производство — человеческая
+  награда держала предикат внутри `getScore`; вынесен в `AmazonisEngineer.altersProduction(card)` (кэш по имени), его
+  читают и награда, и `botPlayedPile`, и `revealUntilAndResolve` помощника BF2. Правило — один предикат на обе стороны.
+- **Общие предикаты поля.** «Экваториальная область» и «пустая клетка» нужны и тайбрекеру бота, и вехе Tropicalist,
+  и Red Tourism Wave — теперь `Board.isEquatorialRegion` / `Board.isEmptyArea` (как `isSouthernRegion`). Тайбрейкер
+  = один предикат, никогда своя копия.
+- **Запретная клетка (`SpaceType.RESTRICTED`, центр 33).** Для бота — ничего (она не в кандидатах по типу); для
+  человека — маркер `specialCellInfo` («Запретная зона», правило «Тайлы здесь не ставятся никогда»), выживает при
+  перемешивании (`doNotShuffleLastSpace`), в досье — правило 'restricted' из `specialZoneFacts`.
+- **Печатные MICROBE / ANIMAL на клетках.** Боту — «1 M€ за иконку» по общему правилу; человеку без карты-держателя
+  движок молча пропускал бонус — теперь досье до нажатия говорит «бонус будет пропущен»
+  (`contextualBonusFacts` → `printed-card-resource-skipped`), а сам пропуск называется в журнале. Это инвариант 4
+  («нет тихой потери») в премиум-скоупе карты.
+- **Бенч без Колоний занижает доску с колониальными клетками** — три `colony5` и два `floater` в бенче инертны, и
+  Amazonis вышла чуть ниже самой слабой официальной (РТ +40.4 против Utopia +42.5). По печатному Σ РТ (79) она в
+  полосе §A; читать бенч с поправкой на мёртвые клетки (§18.8 аудита).
+
+**Иконки без премиума (140×83):** Minimalist, Tropicalist, Curator, A. Engineer, Tourist — владелец.
