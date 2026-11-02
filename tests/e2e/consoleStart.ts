@@ -3080,6 +3080,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // Prelude 2 P73 Floating Refinery — the first Venus action CHOICE (DC): the play +4 (Venus Governor · Dirigibles · this) ·
   // B with two sources (Dirigibles 3, Floating Habs 2) · B unavailable with its reason, A the sole live variant.
   'floating-refinery' | 'floating-refinery-action' | 'floating-refinery-sole' |
+  // Prelude 2 P43 Applied Science — the shared wild-resource choice (EN / EO): holders · none · sole · eight · the last science.
+  'applied-science-holders' | 'applied-science-none' | 'applied-science-sole' | 'applied-science-many' | 'applied-science-last' |
   // P88 Venus Orbital Survey — the split reveal; the «Разыграно» polish tables (stacks of different heights, the draft).
   'venus-orbital-survey-mixed' | 'venus-orbital-survey-venus' | 'venus-orbital-survey-none' | 'venus-orbital-survey-poor' | 'venus-orbital-survey-helion' |
   'played-table-polish' | 'played-table-draft' |

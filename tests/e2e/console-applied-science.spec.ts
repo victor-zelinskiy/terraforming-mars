@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixture, crumbText, fetchPlayerModel, openActionFocus, openCardActions, press, settle, walkFocusUntil,
+  bootFixture, createGameWithCards, crumbText, fetchPlayerModel, openActionFocus, openCardActions, openConsole, pickCards, playQueueCard,
+  press, settle, soloGameConfig, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
@@ -18,6 +19,8 @@ import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from 
  *   B (`applied-science-none`) — «на карту» refused WITH its reason, the OR shown; the standard answer alone posts.
  *   C (`applied-science-sole`) — Birds seeded and marked «Единственная цель», still asked (A confirms).
  *   D (`applied-science-many`) — eight candidates in the slot; no scroll.
+ *   F (the real start) — P43 deployed from the queue: its six science fly off the printed «6 [наука]» onto ITS capsule on
+ *     the start shelf (TR82's receiving shelf), never a capsule reading «6» with nothing in the air.
  *   E (`applied-science-last`) — the last science spent: the card leaves the actions to take (0 science on the server).
  *
  * Fixtures: tests/e2e/fixtures/generate.ts § P43. Storyboard: `TM_E2E_STORYBOARD=1` (frames in screenshots/wild-choice/).
@@ -293,5 +296,49 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     // for the next generation is the server's (AppliedScience.spec § the last science spent).
     await openCardActions(page);
     await expect(page.locator(`.con-cardactions__tile[data-action-card="${CARD}"]`), 'no longer among the actions to take').toHaveCount(0);
+  });
+
+  test('F: the deployment — the six science fly onto the shelf capsule', async ({page, request}) => {
+    test.setTimeout(420_000);
+    const corp = 'Teractor';
+    const preludes = [CARD, 'Donation'];
+    const id = await createGameWithCards(request, [], {config: soloGameConfig({
+      expansions: {prelude: true, prelude2: true, venus: true, promo: true},
+      startingCorporations: 1,
+      customCorporationsList: [corp],
+      customPreludes: [CARD, 'Donation', 'Supplier', 'Loan'],
+    })});
+    await openConsole(page, id, PRESET.query);
+    await walkToSummary(page, {
+      onStep: async (p, kind) => {
+        if (kind === 'corporation') {
+          await pickCards(p, [corp]);
+        } else if (kind === 'prelude') {
+          expect(await pickCards(p, preludes), 'both preludes picked').toEqual(expect.arrayContaining(preludes));
+        }
+      },
+    });
+    await submitSummary(page);
+    await page.locator('.con-start--ceremony').waitFor({timeout: 90_000});
+    await waitQueueIdle(page);
+    await settle(page, {timeoutMs: 30_000});
+    // The corporation is played first — the queue's own order.
+    expect(await playQueueCard(page, corp), 'the corporation played').toBe(true);
+    await waitQueueIdle(page);
+    await settle(page, {timeoutMs: 30_000});
+    await armTransferWitness(page);
+    const stop = await storyboard(page, 'deploy');
+    expect(await playQueueCard(page, CARD), 'P43 deployed from the queue').toBe(true);
+    await expect.poll(async () => resourcesOf(await wireOf(request, id), CARD), {timeout: 30_000, message: 'the server: 6 science'}).toBe(6);
+    await waitQueueIdle(page);
+    await settle(page, {timeoutMs: 40_000});
+    await stop();
+    await shoot(page, 'j-deployed');
+    const witness = await transferWitness(page);
+    console.log(`[p43] deploy trail
+${transferTrail(witness)}`);
+    expect(endsOverGlass(witness), 'no end over glass or nothing').toEqual([]);
+    const onShelf = witness.landings.filter((l) => l.under.includes(CARD));
+    expect(onShelf.length, `the science lands on P43's own capsule — landings: ${witness.landings.map((l) => l.under).join(', ')}`).toBeGreaterThan(0);
   });
 });
