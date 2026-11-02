@@ -198,6 +198,9 @@ export class Server {
       colonies: coloniesToModel(game, game.colonies, false, true),
       deckSize: game.projectDeck.drawPile.length,
       discardPileSize: game.projectDeck.discardPile.length,
+      // The PRELUDE deck, counted only where it exists — a mid-game prelude pick (P91 WG Project) deals off it, and the
+      // console stands it up as an object inside the pick (no HUD stack).
+      ...(game.gameOptions.preludeExtension ? {preludeDeckSize: game.preludeDeck.drawPile.length, preludeDiscardSize: game.preludeDeck.discardPile.length} : {}),
       discardedColonies: game.discardedColonies.map(toName),
       expectedPurgeTimeMs: game.expectedPurgeTimeMs(),
       gameAge: game.gameAge,

@@ -4,11 +4,18 @@ import {CardAction, IPlayer} from '../IPlayer';
 import {IPreludeCard} from '../cards/prelude/IPreludeCard';
 import {SelectCard} from '../inputs/SelectCard';
 import {computePreludeOutlooks} from './preludeOutlook';
+import {Phase} from '../../common/Phase';
+import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
+import {deckPickPrompt} from '../inputs/deckPickPrompt';
+import {cardSource} from '../inputs/choiceContext';
+import {ICard} from '../cards/ICard';
 
 export class PreludesExpansion {
   public static fizzle(player: IPlayer, card: IPreludeCard): void {
     player.game.log('${0} fizzled. ${1} gains 15 M€.', (b) => b.card(card).player(player));
-    player.stock.add(Resource.MEGACREDITS, 15);
+    // The 15 M€ have a SOURCE — the prelude that burned: the console's rail
+    // reads them as a token born on that card, never an anonymous tick.
+    player.stock.add(Resource.MEGACREDITS, 15, {log: false, from: {card}});
     player.defer(() => {
       // This is deferred because it is possible for the parent card to
       // be moved from hand to play area. So, wait until this action finishes and
@@ -20,14 +27,75 @@ export class PreludesExpansion {
   }
 
   /**
+   * Is a prelude pick asked RIGHT NOW part of the GAME START, or a pick in the
+   * middle of the game (P91 WG Project, and every prelude it plays: New
+   * Partner, Merger, Double Down)?
+   *
+   * The start sequence is the prelude phase (and the CEO / drafting phases
+   * around it) PLUS the corporation's mandatory first action — Valley Trust's
+   * «draw 3 preludes» runs in `Phase.ACTION` of generation 1, but under the
+   * root its first action opened (`corporation-action`). Everything else in
+   * the action phase is mid-game. Structural on purpose: a generation number
+   * would misfile a chairman's WG Project the moment one is possible in
+   * generation 1, and the console routes a start marker to the START scene —
+   * raised over the hand that is playing the card that asked.
+   */
+  public static inStartSequence(player: IPlayer): boolean {
+    if (player.game.phase !== Phase.ACTION || PreludesExpansion.startChainDepth > 0) {
+      return true;
+    }
+    return player.game.events?.currentRoot()?.category === 'corporation-action';
+  }
+
+  /**
+   * A prelude PLAYED from a start pick is still the start (Valley Trust draws
+   * New Partner, which draws two more) — but the answer that plays it arrives
+   * in a later request, outside the first action's root. The pick decided its
+   * side when it was asked, and the play it answers runs inside that decision;
+   * a card that asks LATER (Merger's deferred corporation pick) reads it
+   * synchronously in its `bespokePlay`.
+   */
+  private static startChainDepth = 0;
+
+  private static playInStartChain(fn: () => void): void {
+    PreludesExpansion.startChainDepth++;
+    try {
+      fn();
+    } finally {
+      PreludesExpansion.startChainDepth--;
+    }
+  }
+
+  /**
+   * The MID-GAME prelude pick's marker: the deck-pick family's own, over the
+   * PRELUDE deck, in `play` mode (the pick is played at once, the rest is
+   * discarded) — the second, documented attachment point of the marker (see
+   * `inputs/deckPickPrompt.ts`).
+   */
+  private static markMidGamePick(selectCard: SelectCard<IPreludeCard>, cards: ReadonlyArray<IPreludeCard>, source: ChoiceContextSource | undefined): void {
+    selectCard.markDeckPickPrompt(deckPickPrompt({
+      revealed: cards.length,
+      min: 1,
+      max: 1,
+      origin: 'prelude',
+      mode: 'play',
+      source,
+    }));
+  }
+
+  /**
    * Return a `SelectCard` that asks a `player` to choose one of the `cards` to play,
    * and then plays it.
+   *
+   * `opts.source` names the card that drew the preludes (WG Project, New
+   * Partner, Double Down) — the console anchors a mid-game pick on it.
    */
   public static selectPreludeToPlay(
     player: IPlayer,
     cards: Array<IPreludeCard>,
     remainders: undefined | 'discard' = undefined,
-    cardAction: CardAction = 'add'): SelectCard<IPreludeCard> {
+    cardAction: CardAction = 'add',
+    opts: {source?: ICard} = {}): SelectCard<IPreludeCard> {
     // This preps the warning attribute in preludes.
     // All preludes can be presented. Unplayable ones just fizzle.
     //
@@ -65,9 +133,21 @@ export class PreludesExpansion {
       cardAction === 'double-down' ?
         'copy' :
         (cards.every((c) => player.preludeCardsInHand.includes(c)) ? 'hand' : 'draw');
-    return new SelectCard(
-      'Select prelude card to play', 'Play', cards)
-      .markStartGamePrompt({kind: 'preludeSelection', preludeMode})
+    const selectCard = new SelectCard('Select prelude card to play', 'Play', cards);
+    const midGame = !PreludesExpansion.inStartSequence(player);
+    if (midGame) {
+      const source = opts.source !== undefined ? cardSource(opts.source) : undefined;
+      if (preludeMode === 'copy') {
+        // A copy picks among the player's OWN played preludes — a card
+        // target named by its asker, not a reveal off a deck.
+        selectCard.markChoiceContext({source: source ?? {kind: 'system'}, mode: 'effect-choice'});
+      } else {
+        PreludesExpansion.markMidGamePick(selectCard, cards, source);
+      }
+    } else {
+      selectCard.markStartGamePrompt({kind: 'preludeSelection', preludeMode});
+    }
+    return selectCard
       .andThen(([card]) => {
         if (card.canPlay?.(player) === false) {
           PreludesExpansion.fizzle(player, card);
@@ -75,13 +155,22 @@ export class PreludesExpansion {
           if (cardAction === 'double-down') {
             player.game.doubleDownPrelude = card.name;
           }
-          player.playCard(card, undefined, cardAction);
+          const play = () => player.playCard(card, undefined, cardAction);
+          if (midGame) {
+            play();
+          } else {
+            PreludesExpansion.playInStartChain(play);
+          }
         }
         if (remainders === 'discard') {
-          for (const c of cards) {
-            if (c !== card) {
-              player.game.preludeDeck.discard(c);
-            }
+          const discarded = cards.filter((c) => c !== card);
+          for (const c of discarded) {
+            player.game.preludeDeck.discard(c);
+          }
+          // Mid-game the discard pile is a pile on the table, face up —
+          // public: say what went there.
+          if (midGame && discarded.length > 0) {
+            player.game.log('${0} discards preludes ${1}', (b) => b.player(player).cards(discarded));
           }
         }
         return undefined;

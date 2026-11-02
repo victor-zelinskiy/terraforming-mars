@@ -81,7 +81,7 @@ export const PRELUDE2_CARD_MANIFEST = new ModuleManifest({
     [CardName.VENUS_ORBITAL_SURVEY]: {Factory: VenusOrbitalSurvey, compatibility: 'venus'},
     [CardName.VENUS_SHUTTLES]: {Factory: VenusShuttles, compatibility: 'venus'},
     [CardName.VENUS_TRADE_HUB]: {Factory: VenusTradeHub, compatibility: ['colonies', 'venus']},
-    [CardName.WG_PROJECT]: {Factory: WGProject, compatibility: 'turmoil'},
+    [CardName.WG_PROJECT]: {Factory: WGProject, compatibility: 'turmoil', politics: 'redux'},
   },
 
   preludeCards: {

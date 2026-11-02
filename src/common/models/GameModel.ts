@@ -77,6 +77,10 @@ export type GameModel = {
   discardedColonies: ReadonlyArray<ColonyName>;
   deckSize: number;
   discardPileSize: number;
+  /** The PRELUDE deck and its discard pile (only with the Prelude expansion) — the mid-game prelude pick deals off
+   *  them (P91 WG Project), and the console counts them on the deck object it stands up inside the pick. */
+  preludeDeckSize?: number;
+  preludeDiscardSize?: number;
   expectedPurgeTimeMs: number;
   experimentalReset?: boolean;
   gameAge: number;

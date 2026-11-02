@@ -12,9 +12,11 @@ import {ChoiceContextSource, DeckPickCompanions, DeckPickPromptMeta, SelectPayme
  * detect the family from the prompt's title or button label: i18n rewrites
  * `Message.message` in place, so an English match dies after the first render.
  *
- * The marker is attached in ONE place — `ChooseCards.execute()`, which every
- * producer in the game funnels through — so a card that starts drawing
- * tomorrow is covered by construction. What each CALL SITE contributes is the
+ * The marker is attached in ONE place per DECK — `ChooseCards.execute()` for
+ * PROJECT cards, which every producer in the game funnels through, and
+ * `PreludesExpansion.selectPreludeToPlay` for PRELUDES picked in the action
+ * phase (P91 WG Project; mode `play`) — so a card that starts drawing tomorrow
+ * is covered by construction. What each CALL SITE contributes is the
  * `promptSource` (which card / colony asked, built with the existing
  * `inputs/choiceContext.ts` factories — this family coins none of its own) and,
  * when it is not the project deck, the `origin`. Both live in the rule that
@@ -36,9 +38,10 @@ export function deckPickPrompt(o: {
    */
   min: number,
   max: number,
-  /** Defaults to the project deck. `'discard'` = a pile-digging effect. */
-  origin?: 'deck' | 'discard',
-  mode: 'keep' | 'buy',
+  /** Defaults to the project deck. `'discard'` = a pile-digging effect;
+   *  `'prelude'` = the prelude deck (the action-phase prelude pick). */
+  origin?: 'deck' | 'discard' | 'prelude',
+  mode: 'keep' | 'buy' | 'play',
   source?: ChoiceContextSource,
   /**
    * The cards of the SAME reveal the rule already decided (P88: the Venus cards,

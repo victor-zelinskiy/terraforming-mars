@@ -38,10 +38,8 @@ import {CardName} from './CardName';
  * Guard and worklist printer: `tests/cards/prelude2/Prelude2CardsHeldBack.spec.ts`.
  */
 
-/** ADAPT IN PLACE — 23 project cards, 24 preludes, 5 corporations (ordered as the manifest prints them). */
+/** ADAPT IN PLACE — 24 preludes, 5 corporations (ordered as the manifest prints them; every project card P68…P91 is adapted). */
 export const PRELUDE2_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
-  // ── Project cards (P68…P91) ──
-  CardName.WG_PROJECT, // P91 · POLITICAL (chairman) · bespokePlay — draw 3 preludes, play 1
   // ── Preludes (P43…P67; P47 Corridors of Power is REPLACED by TRP0 — below, crossed) ──
   CardName.APPLIED_SCIENCE, // P43 · declarative — 6 science resources here
   CardName.ATMOSPHERIC_ENHANCERS, // P44 · Venus · behavior + bespokePlay — a parameter choice + 2 floater cards

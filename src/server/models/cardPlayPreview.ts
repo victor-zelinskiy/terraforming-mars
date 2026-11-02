@@ -88,7 +88,10 @@ export function previewableCard(player: IPlayer, name: CardName): ICard | undefi
  */
 function offeredPrelude(player: IPlayer, name: CardName): ICard | undefined {
   const waitingFor = player.getWaitingFor();
-  if (!(waitingFor instanceof SelectCard) || waitingFor.startGamePrompt?.kind !== 'preludeSelection') {
+  // …or the MID-GAME pick (P91 WG Project — the deck pick in `play` mode): the same candidates, the same honesty.
+  const offers = waitingFor instanceof SelectCard &&
+    (waitingFor.startGamePrompt?.kind === 'preludeSelection' || waitingFor.deckPickPrompt?.mode === 'play');
+  if (!offers) {
     return undefined;
   }
   const card = (waitingFor.cards as ReadonlyArray<ICard>).find((c) => c.name === name);
@@ -100,7 +103,10 @@ function offeredPrelude(player: IPlayer, name: CardName): ICard | undefined {
  *  an arbitrary prompt's cards can never be previewed through it. */
 function offeredCorporation(player: IPlayer, name: CardName): ICard | undefined {
   const waitingFor = player.getWaitingFor();
-  if (!(waitingFor instanceof SelectCard) || waitingFor.startGamePrompt?.kind !== 'corporationSelection') {
+  // …or Merger played mid-game (P91): the same pick, named by Merger instead of the start marker.
+  const offers = waitingFor instanceof SelectCard &&
+    (waitingFor.startGamePrompt?.kind === 'corporationSelection' || waitingFor.choiceContext?.source.card === CardName.MERGER);
+  if (!offers) {
     return undefined;
   }
   const card = (waitingFor.cards as ReadonlyArray<ICard>).find((c) => c.name === name);

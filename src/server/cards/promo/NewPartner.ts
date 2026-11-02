@@ -42,6 +42,6 @@ export class NewPartner extends PreludeCard {
   public override bespokePlay(player: IPlayer) {
     const game = player.game;
     const cards = game.preludeDeck.drawN(game, 2);
-    return PreludesExpansion.selectPreludeToPlay(player, cards, 'discard');
+    return PreludesExpansion.selectPreludeToPlay(player, cards, 'discard', 'add', {source: this});
   }
 }

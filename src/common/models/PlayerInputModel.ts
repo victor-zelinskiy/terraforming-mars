@@ -417,16 +417,20 @@ export type DeckPickPromptMeta = {
   /** WHERE the cards physically came from — the flight's real origin, and the
    *  only thing that decides whether they fly off the deck stack or the
    *  discard pile. `discard` = a pile-digging effect (Junk Ventures, Return to
-   *  Abandoned Technology). */
-  origin: 'deck' | 'discard';
+   *  Abandoned Technology). `prelude` = the PRELUDE deck (P91 WG Project — a
+   *  prelude pick in the action phase, `PreludesExpansion.selectPreludeToPlay`):
+   *  a deck with no HUD stack, so the flow stands its own deck object up. */
+  origin: 'deck' | 'discard' | 'prelude';
   /**
    * 'keep' — the picks are free and the rest is discarded (the look-at-N
    * family); 'buy' — each pick costs `player.cardCost` and a payment prompt
-   * follows. `buyMode` already says the same thing for the client's cost UI;
-   * this repeats it so a consumer of THIS marker never has to read two fields
-   * to know which grammar it is in.
+   * follows; 'play' — the pick is PLAYED at once (a prelude: it never enters
+   * the hand) and the rest goes to the prelude discard pile. `buyMode` already
+   * says the same thing for the client's cost UI; this repeats it so a
+   * consumer of THIS marker never has to read two fields to know which
+   * grammar it is in.
    */
-  mode: 'keep' | 'buy';
+  mode: 'keep' | 'buy' | 'play';
   /** Who turned the cards over — drives the source-card anchor + the crumb.
    *  Absent when the engine itself dealt them (the research phase). */
   source?: ChoiceContextSource;

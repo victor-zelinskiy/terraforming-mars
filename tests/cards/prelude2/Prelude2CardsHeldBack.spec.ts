@@ -179,13 +179,15 @@ describe('Prelude 2 cards under the hold-back list', () => {
       const project = PRELUDE2_CARDS_TO_ADAPT_IN_PLACE.find((name) => PROJECTS.includes(name));
       const prelude = PRELUDE2_CARDS_TO_ADAPT_IN_PLACE.find((name) => PRELUDES.includes(name));
       const corporation = PRELUDE2_CARDS_TO_ADAPT_IN_PLACE.find((name) => CORPORATIONS.includes(name));
-      expect(project).is.not.undefined;
+      // Every PROJECT card is adapted since P91 WG Project (2026-11-02) — the road is walked with what is still listed.
       expect(prelude).is.not.undefined;
       expect(corporation).is.not.undefined;
       const cards = new GameCards(options({
-        ...OPEN_CLASSIC, customProjectCards: [project!], customPreludes: [prelude!], customCorporationsList: [corporation!],
+        ...OPEN_CLASSIC, customProjectCards: project !== undefined ? [project] : [], customPreludes: [prelude!], customCorporationsList: [corporation!],
       }));
-      expect(cards.getProjectCards().map(toName)).to.contain(project);
+      if (project !== undefined) {
+        expect(cards.getProjectCards().map(toName)).to.contain(project);
+      }
       expect(cards.getPreludeCards().map(toName)).to.contain(prelude);
       expect(cards.getCorporationCards().map(toName)).to.contain(corporation);
     });

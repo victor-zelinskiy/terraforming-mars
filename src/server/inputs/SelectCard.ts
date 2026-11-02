@@ -192,7 +192,10 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
     // whose lifetime is «until somebody else touches an unrelated field» is not
     // a value; deriving it HERE means it is always exactly as fresh as the
     // prompt that carries it, and there is no ephemeral state to go stale.
-    if (this.startGamePrompt?.kind === 'preludeSelection') {
+    // …and the MID-GAME prelude pick (P91 WG Project — a deck pick in `play`
+    // mode): the same verdict, the same freshness; «burns for 15 M€» must be
+    // visible BEFORE the press there too.
+    if (this.startGamePrompt?.kind === 'preludeSelection' || this.deckPickPrompt?.mode === 'play') {
       const preludes: Array<IPreludeCard> = [];
       for (const card of this.cards) {
         if (isPreludeCard(card)) {

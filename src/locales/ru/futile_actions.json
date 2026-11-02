@@ -20,5 +20,6 @@
     "Production 0": "производство 0",
     "Production ${0} → gain 0": "производство ${0} → 0",
     "No resolution with 2 of your delegates": "Нет резолюции с 2 вашими делегатами",
-    "No resolution with your delegates": "Нет резолюции с вашими делегатами"
+    "No resolution with your delegates": "Нет резолюции с вашими делегатами",
+    "Fewer than 3 preludes left in the prelude deck": "В колоде прологов меньше 3 карт"
 }

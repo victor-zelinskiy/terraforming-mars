@@ -5,7 +5,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {SelectCard} from '../../inputs/SelectCard';
 import {Size} from '../../../common/cards/render/Size';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
-import {cardSource} from '../../inputs/choiceContext';
+import {cardSource, effectChoice} from '../../inputs/choiceContext';
 import {LogHelper} from '../../LogHelper';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import {CorporationDeck} from '../Deck';
@@ -46,12 +46,21 @@ export class Merger extends PreludeCard {
       dealtCorps.forEach((corp) => game.corporationDeck.discard(corp));
       return undefined;
     }
+    // Read NOW, inside the play: the pick below is asked from a deferred step.
+    const startChain = PreludesExpansion.inStartSequence(player);
     player.defer(() => {
       // The greyed-out corps are unaffordable — say so on the card instead of
       // leaving the client to guess behind a bare «Недоступна» badge.
       const enabledReasons = enabled.map((ok) => ok ? undefined : 'Not enough M€');
-      return new SelectCard('Choose corporation card to play', 'Play', dealtCorps, {enabled, enabledReasons})
-        .markStartGamePrompt({kind: 'corporationSelection'})
+      const selectCorporation = new SelectCard('Choose corporation card to play', 'Play', dealtCorps, {enabled, enabledReasons});
+      // Mid-game (played by P91 WG Project) the pick is a card choice named by
+      // Merger — never the START marker, which raises the start workspace.
+      if (startChain) {
+        selectCorporation.markStartGamePrompt({kind: 'corporationSelection'});
+      } else {
+        selectCorporation.markChoiceContext(effectChoice(this));
+      }
+      return selectCorporation
         .andThen(([card]) => {
           // Allow merged corps to add resources to themselves.
           player.game.inDoubleDown = false;
