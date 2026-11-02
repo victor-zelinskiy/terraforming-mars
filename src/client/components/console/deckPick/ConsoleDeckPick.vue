@@ -43,7 +43,7 @@
            are the same objects the hand and the buy stage use. What this
            surface adds is only what is genuinely its own: the deck they come
            out of, and the fate of the ones not taken. -->
-      <div class="con-cards con-deckpick__cards">
+      <div class="con-cards con-deckpick__cards" :class="{'con-deckpick__cards--variant': variantStep !== undefined}">
         <div class="con-cards__strip con-ws-stage-row con-deckpick__row"
              :class="{'con-cards__strip--has-focus': entries.length > 0}"
              ref="row">
@@ -57,6 +57,7 @@
                  'con-cards__slot--picked': isPicked(entry.name),
                  'con-cards__slot--dim': dimUnpicked && !isPicked(entry.name),
                  'con-deal-hold': slotHeld(entry.name),
+                 'con-deckpick__slot--varhero': variantStep !== undefined && variantCard === entry.name,
                }">
             <Card :card="{name: entry.name}" :key="entry.name" lightweight />
             <span v-if="isPicked(entry.name)" class="con-cards__pickband con-cards__pickband--select" aria-hidden="true">
@@ -93,6 +94,17 @@
           </div>
         </div>
       </div>
+
+      <!-- THE PRELUDE'S «ВАРИАНТ» STEP (P44 · ledger EQ) — a LAYER over the candidates (their slots keep their geometry,
+           receded): RT on a prelude whose play is a choice opens it, A on a row chooses AND plays (ONE batch — the pick
+           and the addressed answer), B returns to the candidates with the pick kept. The same component the start
+           queue stands up — one step, two hosts. -->
+      <transition name="con-start-firstact">
+        <div v-if="variantStep !== undefined" class="con-deckpick__variant" data-deckpick-variant
+             :style="variantLane !== undefined ? {'--con-dp-var-l': variantLane.left + 'px', '--con-dp-var-r': variantLane.right + 'px'} : undefined">
+          <ConsolePreludeVariantStep :variant="variantStep" :focus="variantFocus" @pick="onVariantPick" />
+        </div>
+      </transition>
 
       <!-- THE PRELUDE DECK — the mid-game prelude pick's own source object (P91): the pile the cards come off, the
            discard the rest land on, the «РАЗЫГРАНО» seat the played prelude lands on. -->
@@ -178,7 +190,12 @@ import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCar
 import ConsolePreludeDeck from '@/client/components/console/deckPick/ConsolePreludeDeck.vue';
 import {runCardTransfer} from '@/client/console/cardDeal/cardExitDirector';
 import {armPlayedHero, isPlayedHeroActive, playedHeroState} from '@/client/console/played/consolePlayedHero';
-import {preludePickBurns, preludePickRewards, PRELUDE_SEAT_SELECTOR} from '@/client/console/deckPick/preludePick';
+import {preludePickBurns, preludePickPreview, preludeRewardsOf, PRELUDE_SEAT_SELECTOR} from '@/client/console/deckPick/preludePick';
+import ConsolePreludeVariantStep from '@/client/components/console/foundation/ConsolePreludeVariantStep.vue';
+import {firstAvailableRow, PreludeVariant, preludeVariantAnswer, preludeVariantOf, stepVariantFocus} from '@/client/console/preludeVariant/preludeVariantModel';
+import {ActionPreview} from '@/common/models/ActionPreviewModel';
+import {startQueueFxLane, StartQueueFxLane} from '@/client/console/startQueueLayout';
+import {InputResponse} from '@/common/inputs/InputResponse';
 import {armPreludeBurn, flyPreludeBurn, preludeBurnOwed, releasePreludeBurn} from '@/client/console/deckPick/preludeBurnReward';
 import {beginPreludePlayChain} from '@/client/console/deckPick/preludePlayChain';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -221,13 +238,13 @@ export default defineComponent({
   // `console-source-dock` is registered GLOBALLY (main.ts) — deliberately not a
   // local import: it renders the real premium card face, and that import chain
   // zeroes this file's mochapack spec.
-  components: {Card, ConsoleCardAvailabilityPanel, ConsolePreludeDeck, ConsoleWsHead, ConsoleWsStageHead},
+  components: {Card, ConsoleCardAvailabilityPanel, ConsolePreludeDeck, ConsoleWsHead, ConsoleWsStageHead, ConsolePreludeVariantStep},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** Teleported into a host workspace's zone → no shell of its own. */
     embedded: {type: Boolean, default: false},
   },
-  emits: ['submit', 'defer'],
+  emits: ['submit', 'submit-batch', 'defer'],
   data() {
     return {
       focusIdx: 0,
@@ -267,6 +284,14 @@ export default defineComponent({
       frozenKey: '',
       /** The on-play rewards of each candidate (the server's own preview), for the hero's reward beat. */
       candidateRewards: {} as Record<string, ReadonlyArray<ResourceTransferSpec>>,
+      /** The candidates' play previews (P44) — the «ВАРИАНТ» step's rows. */
+      candidatePreviews: {} as Record<string, ActionPreview>,
+      /** The prelude whose «ВАРИАНТ» step stands, the cursor's row, the branch POSITION chosen (undefined = none yet). */
+      variantCard: undefined as CardName | undefined,
+      variantFocus: 0,
+      variantChosen: undefined as number | undefined,
+      /** The lane beside the chosen prelude the step stands in (`startQueueFxLane` over the frame). */
+      variantLane: undefined as StartQueueFxLane | undefined,
       rowStyle: {} as Record<string, string>,
       /** Re-fit when the HOST's box changes, not merely when the window does.
        *  The zone this surface lives in is a host's zone: the start
@@ -385,10 +410,15 @@ export default defineComponent({
     },
     /** The stage segment, handed UP while embedded. One word: the root already
      *  says «ДОБОР КАРТ», so the tail must not echo its noun. */
+    /** The «ВАРИАНТ» step standing over the candidates (P44), or undefined. */
+    variantStep(): PreludeVariant | undefined {
+      const card = this.variantCard;
+      return card === undefined || !this.playMode ? undefined : preludeVariantOf(card, this.candidatePreviews[card]);
+    },
     stageKey(): string {
       if (this.playMode) {
         // «… › ВЫБОР ПРОЛОГА» → «… › ПРОЛОГ»: the tail only moves forward.
-        return this.committed ? 'Prelude' : 'Prelude choice';
+        return this.committed ? 'Prelude' : (this.variantStep !== undefined ? 'Variant' : 'Prelude choice');
       }
       switch (this.phase) {
       case 'dealing': return 'Drawing cards…';
@@ -472,6 +502,15 @@ export default defineComponent({
       // set, L3 opens the source, B minimizes. A single-keep prompt answers on
       // the A press itself (there is no set to commit), so RT is not offered.
       const picked = this.isPicked(this.focusedName as CardName);
+      // THE «ВАРИАНТ» STEP (P44): A chooses the row AND plays the prelude; B returns to the candidates, the pick kept.
+      if (this.variantStep !== undefined) {
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Play this variant', enabled: this.variantStep.rows[this.variantFocus]?.available === true},
+          {control: 'secondary', label: 'Inspect'},
+          {control: 'back', label: 'Back'},
+        ];
+      }
       if (this.playMode) {
         // A prelude is PLAYED — A chooses, RT commits; the verb names a burn (the press is the confirmation).
         const cmds: Array<ConsoleCommand> = [
@@ -903,6 +942,22 @@ export default defineComponent({
       if (!this.interactive) {
         return; // a beat in flight absorbs the pad — no double submit possible
       }
+      // THE «ВАРИАНТ» STEP owns the pad while it stands (P44): ↑↓ walk the rows, A (or RT) chooses and plays, B back.
+      if (this.variantStep !== undefined) {
+        if (intent.kind === 'nav') {
+          this.variantFocus = stepVariantFocus(this.variantStep, this.variantFocus, intent.dir === 'down' || intent.dir === 'right' ? 1 : -1);
+          return;
+        }
+        const verb = consoleActionOf(intent);
+        if (verb === 'primary' || verb === 'nextTab') {
+          this.onVariantPick(this.variantFocus);
+        } else if (verb === 'back') {
+          this.variantCard = undefined;
+        } else if (verb === 'inspect') {
+          this.inspectFocused();
+        }
+        return;
+      }
       if (intent.kind === 'nav') {
         this.move(intent.dir);
         return;
@@ -1064,8 +1119,25 @@ export default defineComponent({
       if (!this.ready || this.submitting || !this.interactive) {
         return;
       }
-      this.submitting = true;
       const kept = [...this.picks];
+      // THE «ВАРИАНТ» STEP (P44): a prelude whose play is a CHOICE is never played on RT straight — the step opens over
+      // the candidates first; its row's A comes back here with the branch chosen. A burning prelude has nothing to choose.
+      const played = kept[0];
+      if (this.playMode && played !== undefined && this.variantChosen === undefined && !this.burns(played) &&
+          preludeVariantOf(played, this.candidatePreviews[played]) !== undefined) {
+        const variant = preludeVariantOf(played, this.candidatePreviews[played]);
+        this.variantFocus = variant === undefined ? 0 : firstAvailableRow(variant);
+        const frame = this.$refs.frameEl as HTMLElement | undefined;
+        const hero = asElements(this.$refs.slots).find((el) => el.getAttribute('data-deckpick-slot') === played);
+        if (frame !== undefined && frame !== null && hero !== undefined) {
+          const fr = frame.getBoundingClientRect();
+          const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+          this.variantLane = startQueueFxLane(fr, hero.getBoundingClientRect(), remPx, fr.width > 0 ? frame.offsetWidth / fr.width : 1);
+        }
+        this.variantCard = played;
+        return;
+      }
+      this.submitting = true;
       // FREEZE FIRST, submit second. The order is the whole point: the response
       // can land in the same tick, and the row must already be reading from a
       // snapshot when it does.
@@ -1083,7 +1155,16 @@ export default defineComponent({
       // Synchronous with the submit — no frame exists in which the prompt is
       // gone and the hold is not yet up.
       beginDeckPickSend(kept.length);
-      this.$emit('submit', cardsResponse(kept));
+      // THE CHOSEN BRANCH RIDES THE PICK (P44): ONE POST — the pick's answer + the addressed answer of the prelude's
+      // `or` (`deferredInputBatch` lands it on the card's own question once the server asks it).
+      const answer = this.variantAnswer(played);
+      this.variantCard = undefined;
+      this.variantChosen = undefined;
+      if (answer !== undefined) {
+        this.$emit('submit-batch', [cardsResponse(kept), answer]);
+      } else {
+        this.$emit('submit', cardsResponse(kept));
+      }
       void this.runOutgoing(kept);
     },
     async runOutgoing(kept: ReadonlyArray<CardName>): Promise<void> {
@@ -1183,14 +1264,55 @@ export default defineComponent({
     prefetchRewards(names: ReadonlyArray<CardName>): void {
       // ONE batch's answers — a new deal asks again (the state a nested pick is asked in is not the first one's).
       this.candidateRewards = {};
+      this.candidatePreviews = {};
+      this.variantCard = undefined;
+      this.variantChosen = undefined;
       const viewer = this.playerView.id;
       for (const name of names) {
-        void preludePickRewards(viewer, name).then((rewards) => {
+        void preludePickPreview(viewer, name).then((preview) => {
+          if (preview !== undefined) {
+            this.candidatePreviews = {...this.candidatePreviews, [name]: preview};
+          }
+          const rewards = preludeRewardsOf(name, preview, 0);
           if (rewards !== undefined && rewards.length > 0) {
             this.candidateRewards = {...this.candidateRewards, [name]: rewards};
           }
         });
       }
+    },
+    /** A on a «ВАРИАНТ» row: a takeable row is the CHOICE and the PLAY — its rewards re-read, the pick committed. */
+    onVariantPick(index: number): void {
+      const card = this.variantCard;
+      const row = this.variantStep?.rows[index];
+      if (card === undefined || row === undefined) {
+        return;
+      }
+      this.variantFocus = index;
+      if (!row.available) {
+        return; // a refused row is read, never taken
+      }
+      this.variantChosen = row.position;
+      const rewards = preludeRewardsOf(card, this.candidatePreviews[card], row.position);
+      const next = {...this.candidateRewards};
+      if (rewards !== undefined && rewards.length > 0) {
+        next[card] = rewards;
+      } else {
+        delete next[card];
+      }
+      this.candidateRewards = next;
+      this.confirm();
+      if (!this.submitting) {
+        this.variantChosen = undefined; // refused (not ready / not interactive) — the step stands for the next A
+      }
+    },
+    /** The chosen branch's addressed answer, or undefined (nothing chosen / nothing to choose). */
+    variantAnswer(card: CardName | undefined): InputResponse | undefined {
+      if (card === undefined || this.variantChosen === undefined) {
+        return undefined;
+      }
+      const preview = this.candidatePreviews[card];
+      const row = preview === undefined ? undefined : preludeVariantOf(card, preview)?.rows.find((r) => r.position === this.variantChosen);
+      return preview === undefined || row === undefined ? undefined : preludeVariantAnswer(preview, row);
     },
     /**
      * ARMED IN THE PRESS, before the submit (the start's `armStartHero` shape): the prelude lifts out of ITS SLOT and

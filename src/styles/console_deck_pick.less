@@ -237,3 +237,27 @@
     pointer-events: none;
 }
 .con-deckpick--play .con-deckpick__slot { position: relative; }
+
+/* THE PRELUDE'S «ВАРИАНТ» STEP (P44 · ledger EQ) — the step stands in the lane BESIDE the chosen prelude (measured at
+   the press, `startQueueFxLane` — the start queue's own geometry), the prelude stays where it was (it is what the step
+   is about, and the hero's flight leaves from it), the other candidates recede (opacity only — nothing moves under the
+   player), so B finds the pick exactly where it was. */
+.con-deckpick__variant {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--con-dp-var-l, 1rem);
+    right: var(--con-dp-var-r, 1rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 4;
+    pointer-events: none;
+
+    > * { pointer-events: auto; }
+}
+.con-deckpick__cards--variant .con-deckpick__slot:not(.con-deckpick__slot--varhero),
+.con-deckpick__cards--variant .con-deckpick__status {
+    opacity: 0;
+    transition: opacity calc(160ms * var(--motion-scale, 1)) linear;
+}

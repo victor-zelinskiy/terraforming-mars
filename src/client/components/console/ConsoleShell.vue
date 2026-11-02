@@ -797,6 +797,7 @@
                          :playerView="playerView"
                          :embedded="deckPickEmbedTarget !== undefined"
                          @submit="onTaskSubmit"
+                         @submit-batch="onTaskSubmitBatch"
                          @defer="onTaskDefer" />
       </transition>
     </Teleport>
@@ -881,6 +882,7 @@
                          :waitingOnPlayers="waitingOnPlayers"
                          :task="startTask"
                          @submit="onTaskSubmit"
+                         @submit-batch="onTaskSubmitBatch"
                          @defer="collapseWorkspace()" />
     </transition>
 

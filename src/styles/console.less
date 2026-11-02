@@ -29228,6 +29228,30 @@ body.con-start-barshold .con-status {
         right: var(--con-start-qfx-r, 1rem);
     }
     &__fxhost--narrow .con-efx.con-efx--forecast { .con-efx-forecast-plate(); }
+    /* THE PRELUDE'S «ВАРИАНТ» STEP (P44 · ledger EQ) — the forecast door's lane beside the prelude it is about
+       (`startQueueFxLane`, measured at the press), centred on the deployment's height; the queue's other blocks and the
+       shelf recede (opacity only — nothing moves under the player), the prelude stands. */
+    &__variant {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: var(--con-start-qfx-l, 1rem);
+        right: var(--con-start-qfx-r, 1rem);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        z-index: 3;
+    }
+    &--variant &__queue-row > :not([data-variant-hero]),
+    &--variant &__played {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity calc(160ms * var(--motion-scale, 1)) linear;
+    }
+    &__qread-variants {
+        margin-left: .5em;
+        color: fade(@con-text-dim, 94%);
+    }
     &__firstact {
         position: absolute;
         left: 0;
@@ -39757,4 +39781,40 @@ dialog.con-zoom {
     &__lane-arrow { opacity: .7; }
     &__lane-amount { font-size: 1.25rem; font-weight: 700; color: @con-mint; min-width: 2.2rem; text-align: right; font-variant-numeric: tabular-nums; &--zero { color: @con-text-dim; font-weight: 500; } }
     &__lane-left { align-self: center; font-size: .72rem; letter-spacing: .08rem; text-transform: uppercase; color: @con-amber; white-space: nowrap; b { font-size: .95rem; } &--done { color: @con-mint; } }
+}
+/* THE PRELUDE'S «ВАРИАНТ» STEP (P44 · ledger EQ, `foundation/ConsolePreludeVariantStep.vue`) — the column of printed rows
+   (the shared `ConsoleVariantChoice` grammar: the cursor, the seal, the refusal), each row's own chips under its print,
+   the shared result once below. Host-agnostic: no frame of its own; the host's zone sizes it. */
+.con-pvariant {
+    display: flex;
+    flex-direction: column;
+    gap: .8rem;
+    width: min(34rem, 100%);
+    margin: 0 auto;
+
+    &__chips {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .4rem;
+    }
+    &__a {
+        position: absolute;
+        right: .6rem;
+        bottom: .6rem;
+    }
+    &__shared {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .5rem;
+        padding: .5rem .2rem 0;
+        border-top: .05rem solid fade(@con-text-dim, 22%);
+    }
+    &__shared-label {
+        .con-read-text(500);
+        font-size: ~"calc(.8rem * var(--con-read-scale, 1))";
+        color: fade(@con-text-dim, 94%);
+        letter-spacing: .04em;
+    }
 }

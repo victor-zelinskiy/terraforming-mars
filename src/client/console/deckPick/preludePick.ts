@@ -43,12 +43,24 @@ export function candidateOutlook(outlook: PreludeOutlook | undefined): PreludeOu
  * A card-resource gain needs a host the pick never chose, so it stays with the ordinary commit (the start's rule).
  */
 export async function preludePickRewards(viewerId: string, card: CardName): Promise<ReadonlyArray<ResourceTransferSpec> | undefined> {
+  return preludeRewardsOf(card, await preludePickPreview(viewerId, card), 0);
+}
+
+/** The candidate's play preview (the server's `card-play-preview` over the live pick) — its branches feed the «ВАРИАНТ» step. */
+export function preludePickPreview(viewerId: string, card: CardName): Promise<ActionPreview | undefined> {
   if (typeof fetch !== 'function') {
-    return undefined;
+    return Promise.resolve(undefined);
   }
   const url = apiUrl(paths.API_CARD_PLAY_PREVIEW) + '?id=' + encodeURIComponent(viewerId) + '&card=' + encodeURIComponent(card);
-  const preview = await fetchPreview<ActionPreview>(url);
-  const branch = preview?.branches?.[0];
+  return fetchPreview<ActionPreview>(url);
+}
+
+/**
+ * The rewards of ONE branch of the play — branch 0 for a prelude with no choice, the CHOSEN one once the «ВАРИАНТ»
+ * step answered (P44 · ledger EQ: the pick used to read branch 0 whatever the player chose).
+ */
+export function preludeRewardsOf(card: CardName, preview: ActionPreview | undefined, position: number): ReadonlyArray<ResourceTransferSpec> | undefined {
+  const branch = preview?.branches?.[position] ?? preview?.branches?.[0];
   if (branch === undefined) {
     return undefined;
   }

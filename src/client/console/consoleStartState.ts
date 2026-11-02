@@ -856,7 +856,12 @@ export function deploymentCrumb(signals: {
    *  the crumb keeps the WINDOW as its subject and only the tail names the
    *  nested item («СТАРТ ПАРТИИ › ФОРА › ПЕРВОЕ ДЕЙСТВИЕ»). */
   bonusNested?: boolean,
+  /** A prelude's «ВАРИАНТ» step stands (P44 — the branch chosen BEFORE the press): its card is the subject. */
+  variantSubject?: string,
 }): StartCrumb {
+  if (signals.variantSubject !== undefined && signals.variantSubject !== '') {
+    return {subject: signals.variantSubject, stage: 'Variant'};
+  }
   if (signals.embedActive) {
     return {
       subject: signals.embedSubject ?? 'Preludes',

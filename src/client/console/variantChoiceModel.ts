@@ -272,6 +272,52 @@ function orJoinedRuns(groups: ReadonlyArray<MechGroup>): Array<ReadonlyArray<Mec
   return runs;
 }
 
+function isSlashNode(node: ItemType): boolean {
+  return node !== undefined && node !== null && typeof node !== 'string' && isICardRenderSymbol(node) && node.type === CardRenderSymbolType.SLASH;
+}
+
+/**
+ * THE PRINTED SLASH IS A SEAM TOO (P44 · ledger EQ): «[temp 2] / [oxygen 2] / [Venus 2]» — the alternatives drawn
+ * around a SLASH, the run continuing onto the next row when that row OPENS with one (the face wraps a long choice:
+ * `temperature().slash().oxygen().br.slash().venus()`). The run's nodes joined, split at every slash. A row that
+ * neither carries nor continues a slash is no part of it (the draw row below P44's choice).
+ */
+function slashSegments(groups: ReadonlyArray<MechGroup>): Array<ReadonlyArray<ReadonlyArray<ItemType>>> {
+  const out: Array<ReadonlyArray<ReadonlyArray<ItemType>>> = [];
+  let run: Array<ItemType> | undefined;
+  const flush = () => {
+    if (run !== undefined) {
+      const segments: Array<Array<ItemType>> = [[]];
+      for (const node of run) {
+        if (isSlashNode(node)) {
+          segments.push([]);
+          continue;
+        }
+        segments[segments.length - 1].push(node);
+      }
+      const parts = segments.map(trimmed).filter((p) => p.length > 0);
+      if (parts.length > 1) {
+        out.push(parts);
+      }
+    }
+    run = undefined;
+  };
+  for (const group of groups) {
+    const nodes = trimmed(group.nodes);
+    const opensWithSlash = nodes.length > 0 && isSlashNode(nodes[0]);
+    if (run !== undefined && opensWithSlash) {
+      run.push(...nodes);
+      continue;
+    }
+    flush();
+    if (nodes.some(isSlashNode)) {
+      run = [...nodes];
+    }
+  }
+  flush();
+  return out;
+}
+
 /** A group split at its INTERIOR printed ORs («[science]* OR 6 [data]*») — the alternatives drawn on one row. */
 function interiorSegments(group: MechGroup): ReadonlyArray<ReadonlyArray<ItemType>> {
   const segments: Array<Array<ItemType>> = [[]];
@@ -287,7 +333,8 @@ function interiorSegments(group: MechGroup): ReadonlyArray<ReadonlyArray<ItemTyp
 
 /**
  * The card's PRINTED graphic of each option of its choice, in the printed order — the SAME node references the
- * premium face renders (`buildMechanics`), sliced at the printed OR. Two shapes the face knows: alternatives drawn as
+ * premium face renders (`buildMechanics`), sliced at the printed OR (or, failing any OR, the printed SLASH — P44's three
+ * rows, `slashSegments`). Two shapes the face knows: alternatives drawn as
  * separate rows joined by the «ИЛИ» divider (an action's two variants), and alternatives drawn on ONE row around an
  * interior OR (a play's «2 [animal]* OR 4 [microbe]*»). The slice is taken only when it is UNAMBIGUOUS — exactly one
  * candidate with exactly `count` alternatives; anything else answers `undefined` and the options speak in words.
@@ -307,6 +354,15 @@ export function printedVariantRows(renderData: CardComponent | undefined, count:
     const segments = interiorSegments(group);
     if (segments.length === count && segments.length > 1) {
       candidates.push(segments);
+    }
+  }
+  // Only when no OR seam answered: a slash inside an OR's alternative («2 [animal] / 4 [microbe]» as one variant's
+  // print) is that variant's own glyph, never a second seam.
+  if (candidates.length === 0) {
+    for (const segments of slashSegments(vm.groups)) {
+      if (segments.length === count) {
+        candidates.push(segments);
+      }
     }
   }
   return candidates.length === 1 ? candidates[0] : undefined;

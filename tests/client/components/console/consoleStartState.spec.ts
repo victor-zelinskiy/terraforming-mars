@@ -512,6 +512,13 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       expect(wizardCrumb(undefined)).to.deep.eq({subject: 'Summary', stage: ''});
     });
 
+    it('deployment: a prelude’s «ВАРИАНТ» step names the card and the stage (P44) — over every other beat', () => {
+      const base = {embedActive: false, corpPending: false, payPending: false, corpPick: false};
+      expect(deploymentCrumb({...base, variantSubject: 'Atmospheric Enhancers'}))
+        .to.deep.eq({subject: 'Atmospheric Enhancers', stage: 'Variant'});
+      expect(deploymentCrumb({...base, variantSubject: ''})).to.deep.eq({subject: 'Preludes', stage: 'Playing'});
+    });
+
     it('deployment: the beat drives the tail — corp play / payment / preludes', () => {
       const base = {embedActive: false, corpPending: false, payPending: false, corpPick: false};
       expect(deploymentCrumb({...base, corpPending: true}))

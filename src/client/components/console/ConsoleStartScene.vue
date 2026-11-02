@@ -33,6 +33,8 @@
          // swap must have somewhere visible to happen. It tucks to a PEEK
          // (the stacks' tops) and the stage lays out above it.
          'con-start--shelfstage': shelfOnStage,
+         // A prelude's «ВАРИАНТ» step stands (P44): the queue's other blocks and the shelf recede, the prelude stays.
+         'con-start--variant': variantStep !== undefined,
        }"
        :data-bonus-stage="state.bonusAct.stage"
        :data-first-stage="state.firstAct.stage"
@@ -474,7 +476,8 @@
                        }"
                        :data-zoom-slot="entry.name"
                        :data-queue-slot="entry.name"
-                       :data-forecast-hero="queueForecastCard === entry.name ? '' : undefined">
+                       :data-forecast-hero="queueForecastCard === entry.name ? '' : undefined"
+                       :data-variant-hero="variantStep !== undefined && variantCard === entry.name ? '' : undefined">
                     <Card :card="{name: entry.name}" :key="entry.name" lightweight />
                     <span v-if="entry.badge !== undefined" class="con-cards__pickband" :class="entry.badgeClass">{{ $t(entry.badge) }}</span>
                     <div v-if="entry.reason !== undefined" class="con-cards__reason">{{ $t(entry.reason) }}</div>
@@ -502,6 +505,9 @@
                          data-qcard-reading :data-qcard-verdict="entry.reading.verdict">
                       <span v-if="entry.reading.text !== undefined" class="con-start__qread-verdict"
                             :class="'con-start__qread-verdict--' + entry.reading.tone">{{ queueReadingText(entry.reading) }}</span>
+                      <!-- P44: a prelude whose play is a CHOICE says so before A — its branches named in the printed order. -->
+                      <span v-if="variantReadingText(entry.name) !== ''" class="con-start__qread-variants"
+                            data-qcard-variants>{{ variantReadingText(entry.name) }}</span>
                     </div>
                   </div>
 
@@ -699,6 +705,16 @@
                    beside the focused prelude (`queueFxLane`, measured at the press), the prelude stands as the hero,
                    its neighbours and the shelf park on the phrase's own timeline, and the panel grows up OUT of the
                    status rail's row. -->
+              <!-- THE PRELUDE'S «ВАРИАНТ» STEP (P44 · ledger EQ) — the branch chosen BEFORE the press, in the lane beside the
+                   prelude it is about (the forecast door's own geometry, `startQueueFxLane`): the queue's other blocks
+                   and the shelf recede, the card stays. A on a row chooses AND plays (one batch — the pick and the
+                   addressed answer); B returns to the queue with nothing sent. -->
+              <transition name="con-start-firstact">
+                <div v-if="variantStep !== undefined" class="con-start__variant" data-start-variant
+                     :style="variantLane !== undefined ? {'--con-start-qfx-l': variantLane.left + 'px', '--con-start-qfx-r': variantLane.right + 'px'} : undefined">
+                  <ConsolePreludeVariantStep :variant="variantStep" :focus="variantFocus" :sealed="variantSealed" @pick="onVariantPick" />
+                </div>
+              </transition>
               <div class="con-start__fxhost" data-forecast-host
                    :class="{
                      'con-start__fxhost--queue': queueFxLane !== undefined && !firstActionPanelShown,
@@ -1253,6 +1269,9 @@ import {EffectOverlayStat} from '@/common/events/aggregate';
 import {TransferEnd} from '@/client/console/resourceTransfer/resourceTransferModel';
 import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.vue';
 import ConsoleForecastLayer from '@/client/components/console/ConsoleForecastLayer.vue';
+import ConsolePreludeVariantStep from '@/client/components/console/foundation/ConsolePreludeVariantStep.vue';
+import {InputResponse} from '@/common/inputs/InputResponse';
+import {firstAvailableRow, PreludeVariant, preludeVariantAnswer, preludeVariantOf, preludeVariantReading, stepVariantFocus} from '@/client/console/preludeVariant/preludeVariantModel';
 import {closeEffectForecastLayer, effectForecastOpen, forecastExplorerUi, forecastStageText} from '@/client/console/consoleEffectForecast';
 import {
   foldForecastHost, forecastHostIntent, forecastOwnerColors, forecastStatsByColor, openForecastHost, pulseForecastDoor,
@@ -1433,7 +1452,7 @@ const START_REACTOR_FACE_WAIT_MS = 2400;
 export default defineComponent({
   name: 'ConsoleStartScene',
   directives: {embedZone: vEmbedZone},
-  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite, ActionEffectChip, ConsoleForecastRow, ConsoleForecastLayer},
+  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite, ActionEffectChip, ConsoleForecastRow, ConsoleForecastLayer, ConsolePreludeVariantStep},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** The LIVE `/api/waitingFor` poll (App → shell → here) — see `launch`. */
@@ -1451,7 +1470,7 @@ export default defineComponent({
      */
     yielded: {type: Boolean, default: false},
   },
-  emits: ['submit', 'defer'],
+  emits: ['submit', 'submit-batch', 'defer'],
   data() {
     return {
       state: consoleStartState,
@@ -1661,6 +1680,16 @@ export default defineComponent({
       /** The «Эффекты» room's lane when the QUEUE's door opened it (P79 · DI — measured at the press, beside the hero);
        *  it outlives the layer so the fold plays in the same room. */
       queueFxLane: undefined as StartQueueFxLane | undefined,
+      /** THE «ВАРИАНТ» STEP (P44): the prelude whose branch is being chosen, the cursor's row, the lane it stands in. */
+      variantCard: undefined as CardName | undefined,
+      variantFocus: 0,
+      variantLane: undefined as StartQueueFxLane | undefined,
+      /** The answer is on its way (A pressed on a row) — the seal stands, nothing else takes a press. */
+      variantSealed: false,
+      /** The branch POSITION chosen per prelude — read by the reward prefetch and the press's batch. */
+      variantChosen: new Map<CardName, number>(),
+      /** The play preview per pressable card (this game-state version) — the variant step's rows. */
+      playPreviews: new Map<CardName, ActionPreview>(),
       /** Fetched first-action previews by corp (`has(name)` = fetch settled) —
        *  the briefing's result chips / warnings / follow-up notes. (The stage
        *  MACHINE lives in `consoleStartState.firstAct` — it must survive the
@@ -1839,6 +1868,7 @@ export default defineComponent({
         });
       }
       return deploymentCrumb({
+        variantSubject: this.variantStep !== undefined ? this.variantCard : undefined,
         embedActive: this.embedPresenting,
         embedPhase: this.outcome.phaseKey,
         embedSubject: this.embedSubject,
@@ -1862,6 +1892,14 @@ export default defineComponent({
         bonusSource: this.bonusActionSourceCard,
         bonusNested: this.firstActionNested,
       });
+    },
+    /** The «ВАРИАНТ» step standing (P44) — the prelude's branches from its play preview; undefined = no step. */
+    variantStep(): PreludeVariant | undefined {
+      const card = this.variantCard;
+      if (card === undefined || this.mode !== 'ceremony') {
+        return undefined;
+      }
+      return preludeVariantOf(card, this.playPreviews.get(card));
     },
     wsSubject(): string {
       return this.crumb.subject;
@@ -4191,6 +4229,17 @@ export default defineComponent({
       if (this.legacyViewOn && this.legacyView.phase !== 'open') {
         return [];
       }
+      // THE «ВАРИАНТ» STEP (P44) owns the bar while it stands: A chooses the row AND plays, B back to the queue.
+      if (this.variantStep !== undefined) {
+        if (this.variantSealed) {
+          return [];
+        }
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Play this variant', enabled: this.variantStep.rows[this.variantFocus]?.available === true},
+          {control: 'back', label: 'Back'},
+        ] as unknown as Array<StartCommand>;
+      }
       // The «Эффекты» layer owns the bar while it stands — the explorer's own contract, verbatim.
       if (this.firstActionFxOpen) {
         return [...(forecastExplorerUi('start').barCommands ?? [])] as unknown as Array<StartCommand>;
@@ -6042,6 +6091,13 @@ export default defineComponent({
       return idx > 0 ? idx : 0;
     },
     onNav(dir: NavDirection): void {
+      // THE «ВАРИАНТ» STEP owns the pad while it stands (P44): every direction walks its ONE column.
+      if (this.variantStep !== undefined) {
+        if (!this.variantSealed) {
+          this.variantFocus = stepVariantFocus(this.variantStep, this.variantFocus, dir === 'down' || dir === 'right' ? 1 : -1);
+        }
+        return;
+      }
       // A STANDING STAGE PANEL owns the pad: up/down walk its rows (the CTA
       // and the claimable gains). The room behind it is receded, so handing
       // the press to the invisible queue moved a focus nobody could see.
@@ -7235,6 +7291,13 @@ export default defineComponent({
         }
         return;
       case 'back':
+        // THE «ВАРИАНТ» STEP'S B is one level: back to the queue, nothing sent, the prelude where it stood (P44).
+        if (this.variantStep !== undefined) {
+          if (!this.variantSealed) {
+            this.closeVariantStep();
+          }
+          return;
+        }
         // THE SUB-STAGE'S B IS ONE LOGICAL LEVEL — back to the window's
         // overview, seat handed back to «Фора». Nothing was submitted, so
         // nothing rolls back; the NEXT B (on the overview) minimizes.
@@ -7280,6 +7343,10 @@ export default defineComponent({
     /** A: wizard = single-pick commits + advances / multi-pick toggles (RT
      *  continues) / the SUMMARY's launch CTA; ceremony = act. */
     onPrimary(): void {
+      if (this.variantStep !== undefined) {
+        this.onVariantPick(this.variantFocus);
+        return;
+      }
       if (this.mode === 'wizard') {
         if (this.currentStep === undefined) {
           // The SUMMARY's one press — the explicit «НАЧАТЬ ПАРТИЮ» CTA. A is
@@ -7474,6 +7541,74 @@ export default defineComponent({
      *  StartGameFlow). Safe from fullscreen: the viewer closes BEFORE this runs
      *  (ConsoleZoomAction.execute), so a corp sub-action / prelude effect opens
      *  on a clean surface. */
+    /** Open the «ВАРИАНТ» step for a prelude (P44): the lane beside the card measured now, the cursor on the first takeable row. */
+    openVariantStep(name: CardName): void {
+      const variant = preludeVariantOf(name, this.playPreviews.get(name));
+      if (variant === undefined) {
+        return;
+      }
+      this.clearRiskStage();
+      const root = this.$el as HTMLElement | undefined;
+      const hero = root?.querySelector?.<HTMLElement>('[data-queue-slot="' + CSS.escape(name) + '"]') ?? undefined;
+      const zone = root?.querySelector?.<HTMLElement>('.con-start__embed') ?? undefined;
+      if (hero !== undefined && hero !== null && zone !== undefined && zone !== null) {
+        const zr = zone.getBoundingClientRect();
+        const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        this.variantLane = startQueueFxLane(zr, hero.getBoundingClientRect(), remPx, zr.width > 0 ? zone.offsetWidth / zr.width : 1);
+      }
+      this.variantFocus = firstAvailableRow(variant);
+      this.variantSealed = false;
+      this.variantCard = name;
+    },
+    closeVariantStep(): void {
+      this.variantCard = undefined;
+      this.variantSealed = false;
+    },
+    /** A on a row (or a click): a takeable row is the CHOICE and the PRESS — the branch recorded, its rewards re-read, played. */
+    onVariantPick(index: number): void {
+      const card = this.variantCard;
+      const row = this.variantStep?.rows[index];
+      if (card === undefined || row === undefined || this.variantSealed) {
+        return;
+      }
+      this.variantFocus = index;
+      if (!row.available) {
+        return; // a refused row is read, never taken (its reason stands on the tile)
+      }
+      this.variantChosen.set(card, row.position);
+      const preview = this.playPreviews.get(card);
+      if (preview !== undefined) {
+        this.applyPlayPreview(card, preview, row.position, this.rewardVersion);
+      }
+      this.variantSealed = true;
+      this.actByName(card);
+      // A refused press (the funnel busy, a hero in flight) leaves the step standing for the next A.
+      if (this.variantChosen.has(card)) {
+        this.variantSealed = false;
+        this.variantChosen.delete(card);
+        return;
+      }
+      this.variantCard = undefined;
+      this.variantSealed = false;
+    },
+    /** The chosen branch's addressed answer for a prelude's press, or undefined (no choice made / nothing to choose). */
+    variantAnswerFor(name: CardName): InputResponse | undefined {
+      const position = this.variantChosen.get(name);
+      const preview = this.playPreviews.get(name);
+      const variant = preview === undefined ? undefined : preludeVariantOf(name, preview);
+      const row = position === undefined ? undefined : variant?.rows.find((r) => r.position === position);
+      return preview === undefined || row === undefined ? undefined : preludeVariantAnswer(preview, row);
+    },
+    /** The queue's reading of a prelude's branches — «Выбор: Температура · Кислород (макс.) · Венера»; '' when none. */
+    variantReadingText(name: CardName): string {
+      const parts = preludeVariantReading(this.playPreviews.get(name));
+      if (parts.length === 0) {
+        return '';
+      }
+      const label: Record<string, string> = {temperature: 'Temperature', oxygen: 'Oxygen', venus: 'Venus', oceans: 'Oceans'};
+      return translateText('Choice') + ': ' +
+        parts.map((p) => translateText(label[p.icon] ?? p.icon) + (p.maxed ? ' (' + translateText('max.') + ')' : '')).join(' · ');
+    },
     actByName(name: CardName): void {
       const item = this.focusables.find((f) => f.name === name);
       // THE ONE GATE OF A DEPLOYMENT PRESS (`startPressRefusal`, pure + spec'd):
@@ -7502,6 +7637,15 @@ export default defineComponent({
         return;
       }
       if (item === undefined || item.disabled) {
+        return;
+      }
+      // ── THE «ВАРИАНТ» STEP (P44 · ledger EQ) ────────────────────────────
+      // A prelude whose play is a CHOICE of several executable branches is chosen BEFORE the press (the law «every
+      // choice is made before the commit»): the press opens the step beside the card, nothing is sent; the row's A
+      // comes back here with the branch recorded and plays the prelude with the answer in the SAME batch.
+      if (item.kind === 'prelude' && startFlowPreludeCopyPrompt(this.playerView) === undefined &&
+          !this.variantChosen.has(name) && preludeVariantOf(name, this.playPreviews.get(name)) !== undefined) {
+        this.openVariantStep(name);
         return;
       }
       // ── THE PRE-COMMIT GATE ────────────────────────────────────────────
@@ -7581,6 +7725,14 @@ export default defineComponent({
           // the hero carries the pressed card into the bottom «Разыграно».
           this.armStartHero(name);
           this.claimStartFollowUp(name);
+        }
+        // THE CHOSEN BRANCH RIDES THE PRESS (P44): the pick that plays the prelude + the ADDRESSED answer of its `or`
+        // in ONE batch — no live question after the press; a refusal falls back to the live decision (with chips).
+        const answer = this.variantAnswerFor(name);
+        this.variantChosen.delete(name);
+        if (answer !== undefined) {
+          this.$emit('submit-batch', [cardsResponse([name]), answer]);
+          return;
         }
         this.$emit('submit', cardsResponse([name]));
       };
@@ -8971,6 +9123,64 @@ export default defineComponent({
      * cannot capture — it stays with the ordinary commit + its own follow-up
      * prompt, never a chip flying at a target the player never chose.
      */
+    /**
+     * The reward beat, the rail half, the forecast and the draw size of ONE branch of a card's play preview — branch 0
+     * for a card with no choice, the CHOSEN branch once the «ВАРИАНТ» step answered (P44: the ceremony used to read
+     * branch 0 whatever the player chose — the temperature's TR for a Venus play).
+     */
+    applyPlayPreview(name: CardName, preview: ActionPreview, position: number, version: string): void {
+      const branch = preview.branches?.[position] ?? preview.branches?.[0];
+      if (branch === undefined) {
+        return;
+      }
+      const rewards = extractPlayRewards({
+        cardName: name,
+        effects: branch.effects,
+        steps: branch.steps,
+        stepResponses: {}, // the ceremony pre-collects nothing
+      // …except a gain ON THE CARD ITSELF (P43 · EN — «add 6 science here»): it needs no pre-selected host, its
+      // host is the very card the shelf receives, so its tokens fly onto that card's capsule (TR82's receiving shelf).
+      }).filter((spec) => spec.channel !== 'card-resource' || spec.targetCard === name);
+      if (this.rewardVersion === version) {
+        if (rewards.length > 0) {
+          this.playRewards.set(name, rewards);
+        } else {
+          this.playRewards.delete(name);
+        }
+      }
+      // The rail half — the ceremony pre-collects nothing and a start play costs nothing it pays here; a rating's
+      // card answer (TR81 Lotus Innovations' data) rides it after the TR, like the play composer's.
+      const playForecast = forecastForFixedBranch(preview.forecast, position);
+      if (this.rewardVersion === version) {
+        if (playForecast !== undefined) {
+          this.playForecasts.set(name, playForecast);
+        } else {
+          this.playForecasts.delete(name);
+        }
+      }
+      const facts = playForecast?.facts;
+      const rail = withRailAnswerTags(playRailReward(branch, branch.effects ?? [], {}, undefined,
+        [...reactionRailSpecs(facts), ...ratingAnswerSpecs(facts)]), railAnswerTags(facts));
+      if (this.rewardVersion === version) {
+        if (rail !== undefined) {
+          this.playRails.set(name, rail);
+        } else {
+          this.playRails.delete(name);
+        }
+      }
+      // The same structural read the card-actions workspace uses: a
+      // `cards` gain in the branch means this play DRAWS — its follow-
+      // up reveal will be claimed into OUR embed zone at press time.
+      let expected = 0;
+      for (const e of branch.effects ?? []) {
+        if (e.direction === 'gain' && e.icon === 'cards') {
+          expected += Math.max(1, Math.round(e.amount));
+        }
+      }
+      if (expected > 0 && this.rewardVersion === version) {
+        this.drawExpected.set(name, expected);
+      }
+    },
     prefetchPlayRewards(): void {
       const viewerId = this.playerView.id;
       if (typeof fetch !== 'function') {
@@ -8985,6 +9195,8 @@ export default defineComponent({
       if (this.rewardVersion !== version) {
         this.rewardVersion = version;
         this.rewardFetched = new Set();
+        // The previews belong to the version too — a step opened on an older state would answer an older branch list.
+        this.playPreviews = new Map();
       }
       // Every card the player can press RIGHT NOW: the deferred corporation,
       // Merger's offered corporations (its `corporationSelection` candidates —
@@ -9010,53 +9222,12 @@ export default defineComponent({
           '?id=' + encodeURIComponent(viewerId) + '&card=' + encodeURIComponent(name);
         fetchPreview<ActionPreview>(url)
           .then((preview) => {
-            const branch = preview?.branches?.[0];
-            if (branch === undefined) {
+            if (preview === undefined || this.rewardVersion !== version) {
               return;
             }
-            const rewards = extractPlayRewards({
-              cardName: name,
-              effects: branch.effects,
-              steps: branch.steps,
-              stepResponses: {}, // the ceremony pre-collects nothing
-            // …except a gain ON THE CARD ITSELF (P43 · EN — «add 6 science here»): it needs no pre-selected host, its
-            // host is the very card the shelf receives, so its tokens fly onto that card's capsule (TR82's receiving shelf).
-            }).filter((spec) => spec.channel !== 'card-resource' || spec.targetCard === name);
-            if (rewards.length > 0 && this.rewardVersion === version) {
-              this.playRewards.set(name, rewards);
-            }
-            // The rail half — the ceremony pre-collects nothing and a start play costs nothing it pays here; a rating's
-            // card answer (TR81 Lotus Innovations' data) rides it after the TR, like the play composer's.
-            const playForecast = forecastForFixedBranch(preview?.forecast, 0);
-            if (this.rewardVersion === version) {
-              if (playForecast !== undefined) {
-                this.playForecasts.set(name, playForecast);
-              } else {
-                this.playForecasts.delete(name);
-              }
-            }
-            const facts = playForecast?.facts;
-            const rail = withRailAnswerTags(playRailReward(branch, branch.effects ?? [], {}, undefined,
-              [...reactionRailSpecs(facts), ...ratingAnswerSpecs(facts)]), railAnswerTags(facts));
-            if (this.rewardVersion === version) {
-              if (rail !== undefined) {
-                this.playRails.set(name, rail);
-              } else {
-                this.playRails.delete(name);
-              }
-            }
-            // The same structural read the card-actions workspace uses: a
-            // `cards` gain in the branch means this play DRAWS — its follow-
-            // up reveal will be claimed into OUR embed zone at press time.
-            let expected = 0;
-            for (const e of branch.effects ?? []) {
-              if (e.direction === 'gain' && e.icon === 'cards') {
-                expected += Math.max(1, Math.round(e.amount));
-              }
-            }
-            if (expected > 0 && this.rewardVersion === version) {
-              this.drawExpected.set(name, expected);
-            }
+            // Kept whole: a prelude with branches is chosen in the «ВАРИАНТ» step (P44) and re-read for the chosen one.
+            this.playPreviews.set(name, preview);
+            this.applyPlayPreview(name, preview, this.variantChosen.get(name) ?? 0, version);
           })
           .catch(() => {
             // `fetchPreview` never rejects — an absent preview simply arrives
