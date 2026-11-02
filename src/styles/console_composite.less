@@ -678,6 +678,20 @@ html.con-profile-handheld {
         background-position: center;
         background-size: contain !important;
     }
+    &__opt-mosaic {
+        display: grid;
+        grid-template-columns: repeat(3, .62rem);
+        grid-auto-rows: .62rem;
+        gap: .12rem;
+    }
+    &__opt-tile {
+        display: block;
+        width: .62rem;
+        height: .62rem;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
     &__opt-body { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
     &__opt-title { font-size: .98rem; font-weight: 700; color: @con-text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     &__opt-desc { font-size: .78rem; color: @con-text-dim; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

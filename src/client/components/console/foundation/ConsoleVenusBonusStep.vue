@@ -31,9 +31,14 @@
                :class="{'con-venusstep__opt--focused': focus.zone === 'wild' && focus.index === i,
                         'con-venusstep__opt--chosen': wildChoice === opt.key}"
                :data-venus-wild-option="opt.key" :data-chosen="wildChoice === opt.key ? '' : undefined">
+            <!-- The option's GLYPH says what it is, never one resource it is not: «on a card» is the WILD resource — the
+                 faces' own printed «?» (any card's own kind); «one more standard resource» is the six it may become, in
+                 the grid's own order — a 3 × 2 mosaic, never the M€ coin alone. -->
             <span class="con-venusstep__opt-mark" aria-hidden="true">
-              <i v-if="opt.key === 'onCard'" class="con-venusstep__opt-icon" :class="wildIcon"></i>
-              <i v-else class="con-venusstep__opt-icon con-venusstep__opt-icon--any" :class="standardIcon"></i>
+              <i v-if="opt.key === 'onCard'" class="con-venusstep__opt-icon" :class="wildIcon" data-venus-wild-glyph></i>
+              <span v-else class="con-venusstep__opt-mosaic" data-venus-standard-glyph>
+                <i v-for="key in lanes" :key="key" class="con-venusstep__opt-tile" :class="iconClass(key)"></i>
+              </span>
             </span>
             <span class="con-venusstep__opt-body">
               <span class="con-venusstep__opt-title">{{ $t(opt.title) }}</span>
@@ -183,12 +188,9 @@ export default defineComponent({
         return {name, model, count: model?.resources ?? 0, icon: resource === undefined ? '' : iconClassFor(cardResourceKey(String(resource)))};
       });
     },
-    /** The wild's own glyph on «on a card»: the kind of the first candidate (a card resource), else none. */
+    /** «On a card» is the WILD resource — the card faces' printed «?» (`wild`), whatever kind the chosen card keeps. */
     wildIcon(): string {
-      return this.cards[0]?.icon ?? '';
-    },
-    standardIcon(): string {
-      return iconClassFor('megacredits');
+      return iconClassFor('wild');
     },
     lanes(): ReadonlyArray<string> {
       return VENUS_SPREAD_LANES;
