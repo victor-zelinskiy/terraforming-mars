@@ -96,7 +96,10 @@ From the logical 1920 layout up (`CREATE_WIDE_MIN_WIDTH` — ONE threshold for t
   line (T04 — the text below gets the plate's whole width), WHAT IT ADDS in ONE sentence in its neighbours' voice
   (`.cm-exp__desc` — never a rulebook: the Redux greenery revision is told in the game), what it adds to the DECKS in
   numbers (`.cm-exp__chips`, T04), and what it NEEDS closing that row (`.cm-exp__needs`, T04);
-- **the map** — board cards of a mission card's size (16.5rem — 660 px at 4K), the carousel centred as before;
+- **the map** — a SHOWCASE GRID solved from the measured stage (`mapGridPlan`: 4 × 3 for the eleven maps on the TV and
+  FHD, strict pages with a «N / M» spine on the Deck; P44 · ER — the carousel is gone), the lobby's d-pad (`showcaseStep`),
+  each tile the fingerprint + the name (two lines, never cut) + its state in material («ТЕКУЩАЯ» kant, «ФАН», «MarsBot
+  ✓/—» before the pick), the cursored map's DOSSIER beside the grid on the wide creator;
 - **the briefing** — a dossier (22rem) that FITS without a scroll: the crew's chips, the board's miniature (6.5rem, beside
   its name), the eight emblems on ONE row + the deck totals (the meter's `brief` variant, T04), the rules, the readiness.
   A READOUT, never a second launch button — the verb is the command bar's X alone («Запуск партии» / «К первой проблеме»;
