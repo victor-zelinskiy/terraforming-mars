@@ -64,6 +64,9 @@ describe('the law of the fold — source guard', () => {
       // on a departure — the host that owns the surface (the Parliament section) asks the law itself.
       'src/client/console/parliament/parliamentRewardBeat.ts',
       'src/client/console/parliament/rulingChangeDraw.ts',
+      // The colony trade's CARD ANSWER (P90 Venus Trade Hub — `flyTradeAnswer`): the same composed `RailAnswerFlight`,
+      // `onLeft` in a `finally` after the tokens landed; the trade's own conclusion gates on the wave, not on it.
+      'src/client/console/colonyTrade/consoleColonyTrade.ts',
     ]);
     const offenders: Array<string> = [];
     const walk = (dir: string) => {

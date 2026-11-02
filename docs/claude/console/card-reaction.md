@@ -538,6 +538,44 @@ of the take (PL-1117). Contract: `docs/TURMOIL_REDUX_MEDICAL_INSTITUTE.md`.
     STALE). What did not reproduce in any scenario (H2 painted, H3, H5, H7) is guarded by the sentinel, not claimed fixed
     by words.
 
+## P90 Venus Trade Hub — A TRADE IS A TRIGGER, and both trade doors are ATTACHED hosts (2026-11-02, ledger EF)
+
+«Совершив торговлю, получите 3 M€» was the one «on trade» effect in the game, and it lived as a NAME CHECK in the
+trade registry (`tradeFlatBonuses`), paid by a bare `stock.add` outside any effect scope: no record, no
+`effect-triggered`, no forecast reactor — the 3 M€ ticked in the apply frame with no cause on screen.
+
+35. **A TRADE FIRES THE TRADER'S `onTrade` HOOKS, EACH UNDER ITS OWN `'trade'` SCOPE — from ONE call on both doors.**
+    `EventTrigger += 'trade'`; `ICard.onTrade(player, trade)` / `tradeForecast(owner, trade)` (co-located on the card,
+    `FORECAST_HOOK_PAIRS` names the pair, so a hook without its twin is red in `effectForecastCoverage`);
+    `colonies/tradePerformed.fireTradeHooks(player, {destination})` walks the trader's tableau and runs each hook inside
+    `events.withEffect(player, card, 'trade', …, {trade: destination})` — called by `Colony.handleTrade` (every colony
+    door: the workspace's payment paths, a card's trade door, the Unity action, a selfish trade) and by
+    `FleetDockDestination.trade` (a dock) at the point the flat bonus used to be paid. The gain is the CARD's on every
+    door (the record's `cause.trade` names the colony or the dock). One trade fires once (Mercury's `COPY_TRADE` is
+    Pathfinders, out of scope — noted in `tradePerformed.ts`). MarsBot's trade never enters `Colony.trade` — a human's
+    card stays silent on it.
+36. **THE PROMISE IS A REACTOR, NEVER A GRANT.** The trade previews (`colonyTradePreview.ts`) state the hook's twins as
+    facts — `tradeReactionForecast(player, card, incomeGrants, reactors)`: the income through the reward pass, then the
+    reactors' own facts (`printedEffect: 0` — the birth row), then what answers THEM (the cascade). The income grants no
+    longer carry the flat bonus, so the 3 M€ is stated once; `flatBonuses` (the «СОСТАВ НАГРАДЫ» row) is read off the
+    same exact facts (`reactorGainsOf`). The colony's trade MANIFEST carries the same reading (`reactorGains`) for the
+    scene.
+37. **BOTH TRADE SCENES ARE ATTACHED HOSTS.** The colony scene holds the answer with the income
+    (`colonyTradeHeldSpecs`) and DECLARES it (`colonyTradeAnswerSpecs` → `declareHeldAnswers`, the block kept); after the
+    income has landed, in parallel with the colony bonus, `flyTradeAnswer` asks `cardReactionAnswerFlight({block, rows})`
+    — the card rises (at the rail's edge when its face is not on screen), its tokens are born on the printed `[3 M€]` and
+    land on the M€ row. The DOCK's rail reward already declared its verified reactions (`seedRailReward`) but its stage
+    flew no answer — every dock reactor (the ruling Greens' M€ on UNMI Liner's rating too) ticked a beat after the cause;
+    `fleetDockScene` now keeps the declaration's block and the stage hands `fleetDockAnswerFlight(card)` to
+    `flyRailReward`, the composers' commit-rail grammar. The dock's known rail moves are the FEE alone — a reactor is
+    never a known move as well. **Two reactors on ONE row share it by their RECORDS** — the dock under the ruling Greens
+    holds «+5 M€» (Greens 2 + Venus Trade Hub 3): the flight's split CONSUMES each group's share across calls (`owed`),
+    and an origin asked of a token that is not the split's own object takes the next group of the split's ORDER
+    (`splitOrder`) — the first field run gave all five units to the first group on the row (the Greens' charter was born
+    P90's three M€). Witness: e2e `console-venus-trade-hub` (A — `colony-income:Luna +7` lands, then three
+    `reactor:Venus Trade Hub:megacredit` births land on `rail:megacredits`; B — the dock: two `reactor:Greens` births,
+    three `reactor:Venus Trade Hub`), `cardReactionDirector.spec` § P90 · EF.
+
 ## Files
 
 Server: `common/models/CardReactionModel.ts`, `server/events/EventRecorder.ts` (`recordReaction`, the `cause`

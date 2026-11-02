@@ -1250,15 +1250,19 @@ EE занят соседом (закон бонуса Венеры); в сооб
 причины без ↷ ✦ ⤴ → ✕ ⏳ ⚠; трек по центру. Ratchets: glow `console.less` 73 → 64, cursor 71 → 69.
 
 **Свидетели (бокс, tv4k).** `console-venus-trade-hub` A (колония: доход Луны +7 садится, затем три жетона
-`reactor:Venus Trade Hub:megacredit` → `rail:megacredits`, запись `trade` на сервере) · B (док) — см. реестр EF;
+`reactor:Venus Trade Hub:megacredit` → `rail:megacredits`, запись `trade` на сервере) · B (док UNMI Liner под Зелёными:
+TR с карты, затем два жетона с хартии Зелёных и три — с печатного M€ узла) — 2/2, `--workers=1`;
 регрессия: `console-l1-trade-terminal`, `console-water-hauling`, `console-unmi-liner`, `console-veynon-dynamics`,
 `console-card-reaction` (все 9), `trade-fleet-probe`, `console-colony-venus-redux`, `console-colony-venus-trade-unity`
-— зелёные (прогон 1); семья гидросети — прогон 2 (реестр EG).
+— зелёные; семья гидросети (20 стендов: geometry, forecast, cards-scene, repeat ×3, copied ×2, bonus-order, terminal ×2,
+delta ×3, dp06, espionage, Dutch Mountains, floodgates ×2, social heating) — зелёные на слое 1; `console-unmi-liner`
+перенацелен (ответ Зелёных теперь летит).
 
 **Найдено.** ① Док ОБЪЯВЛЯЛ ответ стола (`seedRailReward` → `declareHeldAnswers`), но не летел его — Зелёные на РТ UNMI
 Liner тикали «через такт после причины» с самой TR26; стенд лайнера проверял лишь «не раньше причины». Класс: хост,
 объявивший ряды, обязан передать `RailAnswerFlight` — иначе объявление крадёт запись у STANDALONE и ничего не играет.
-② «ВАШ ИТОГ» не удваивает: +3 — строка состава (факт) и дверь «⚡ сработает» (тот же факт) — разные зоны, одно число.
+② «ВАШ ИТОГ» не удваивает: +3 — строка состава (факт) и дверь «⚡ сработает» (тот же факт) — разные зоны, одно число. ③ Два реактора на одном ряду: полёт ответа раздавал все единицы первой группе (разбиение без долга, происхождение без
+порядка) — PL-1446, чинено в директоре для всех хостов.
 
 **Что даром.** Класс «карта отвечает на торговлю» — P46 Colony Trade Hub (двойник ещё нужен — свой триггер
 `colony-added`), P49 Floating Trade Hub, TR85: хук + двойник, никаких списков. Гидросеть: язык «кант вместо ореола» и

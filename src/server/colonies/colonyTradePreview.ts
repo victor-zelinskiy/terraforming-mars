@@ -16,7 +16,7 @@ import {
   TradePaymentPreviewModel,
 } from '../../common/models/ColonyTradePreviewModel';
 import {FleetDockCard, fleetDockBlockedReason, fleetDockRewardTarget} from './FleetDock';
-import {TradeContext, tradeReactorFacts} from './tradePerformed';
+import {reactorGainsOf, TradeContext, tradeReactorFacts} from './tradePerformed';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {cardResourceGain, distributionVictoryPoints, drawGain, globalGain, oceanGain, productionChange, stockGain, trGain} from '../cards/actionPreviews';
 import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
@@ -286,24 +286,9 @@ export function tradePaymentPreview(player: IPlayer): TradePaymentPreviewModel {
   };
 }
 
-/**
- * The trade reactors' own stock gains in the previews' wire form (the resource
- * as its icon key, the card that pays) — read off their EXACT facts, so the
- * reward's composition («СОСТАВ НАГРАДЫ») and «⚡ сработает» state one number.
- */
+/** The trade reactors' own stock gains in the previews' wire form — the «СОСТАВ НАГРАДЫ» row reads the same fact as «⚡ сработает». */
 function flatBonusModels(reactors: ReadonlyArray<EffectForecastFact>): Array<{card: CardName, resource: string, amount: number}> {
-  const out: Array<{card: CardName, resource: string, amount: number}> = [];
-  for (const fact of reactors) {
-    if (fact.certainty !== 'exact' || fact.recipient.kind !== 'you' || fact.source.kind === 'rule') {
-      continue;
-    }
-    for (const effect of fact.effects) {
-      if (effect.direction === 'gain' && effect.note === undefined && effect.icon !== undefined && Object.values(Resource).includes(effect.icon as Resource)) {
-        out.push({card: fact.source.name as CardName, resource: effect.icon, amount: effect.amount ?? 0});
-      }
-    }
-  }
-  return out;
+  return reactorGainsOf(reactors);
 }
 
 /**

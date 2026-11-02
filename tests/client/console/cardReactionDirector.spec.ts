@@ -7,7 +7,7 @@ import {CardReactionRecord} from '@/common/models/CardReactionModel';
 import {RailAnswerFlight} from '@/client/console/resourceTransfer/railReward';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
-  beginPanelRewardHold, clearPanelRewardHold, declareHeldAnswers, heldCardResource, heldProduction, heldStock, releasePanelRewardHold,
+  beginPanelRewardHold, clearPanelRewardHold, declareHeldAnswers, heldCardResource, heldProduction, heldStock, releasePanelRewardHold, transferTrailTail,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   cardReactionAnswerFlight, cardReactionHurried, cardReactionPending, composeAnswerFlights, cutCardReactions, hurryCardReactions, markReactionCause,
@@ -216,6 +216,24 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     const tokens = flight?.tokensOf?.({channel: 'stock', resource: 'megacredits', amount: 5}) ?? [];
     expect(tokens.reduce((s, t) => s + t.amount, 0)).eq(5);
     expect(tokens[tokens.length - 1].amount, 'the party\'s 2 M€ the record does not name').eq(2);
+  });
+
+  it('P90 · EF — a held answer handed over as UNIT specs is split by the RECORDS\' shares, never all to the first group on the row', () => {
+    const before = snapshotRailHolds();
+    const answer: Array<ResourceTransferSpec> = [{channel: 'stock', resource: 'megacredits', amount: 5}];
+    beginPanelRewardHold(answer);
+    declareHeldAnswers(answer);
+    seedCardReactionHolds(view([]), view([
+      record(60, {kind: 'party', card: 'Greens' as CardName, channel: 'tr-increase', impacts: [{kind: 'stock', resource: Resource.MEGACREDITS, amount: 2, to: BLUE}]}),
+      record(61, {kind: 'card', card: CardName.VENUS_TRADE_HUB, channel: 'trade', impacts: [{kind: 'stock', resource: Resource.MEGACREDITS, amount: 3, to: BLUE}]}),
+    ]), before);
+    const flight = cardReactionAnswerFlight();
+    // The dock's rail module holds the answer as five unit specs: each call must take from what is still OWED.
+    for (let i = 0; i < 5; i++) {
+      flight?.tokensOf?.({channel: 'stock', resource: 'megacredits', amount: 1});
+    }
+    const splits = transferTrailTail(40).filter((e) => e.ev === 'reaction:split').slice(-5).map((e) => (e.detail as {to: Array<string>}).to.join(','));
+    expect(splits).deep.eq(['Greens:1', 'Greens:1', 'Venus Trade Hub:1', 'Venus Trade Hub:1', 'Venus Trade Hub:1']);
   });
 
   it('a record is claimed ONCE — an echo frame seeds nothing; a rival\'s record is not the viewer\'s', () => {

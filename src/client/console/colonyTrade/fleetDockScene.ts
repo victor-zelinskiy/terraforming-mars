@@ -64,7 +64,8 @@ import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {FleetDockScenePlan} from '@/client/console/colonyTrade/fleetDockModel';
-import {RailReward, railRewardOwed, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
+import {RailAnswerFlight, RailReward, railRewardHoldsAnswer, railRewardOwed, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
+import {cardReactionAnswerFlight, reactionDeclarationBlock} from '@/client/console/cardReaction/cardReactionDirector';
 import {resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 
 export type FleetDockScenePhase = 'idle' | 'owed' | 'seeded' | 'answer' | 'reward' | 'read' | 'leave' | 'conclude';
@@ -101,6 +102,8 @@ export const fleetDockSceneState = reactive({
 
 let armed: ArmedFleetDockScene | undefined;
 let detachObserver: MutationObserver | undefined;
+/** The apply block the dock's held answer was DECLARED in (`seedRailReward` declares the verified reactions) — 0: none. */
+let answerBlock = 0;
 
 function stopWatchingDetach(): void {
   detachObserver?.disconnect();
@@ -219,6 +222,20 @@ export function seedFleetDockHold(card: CardName | '', before?: PlayerViewModel,
   fleetDockSceneState.lastEnd = '';
   fleetDockSceneState.railHeld = scene !== undefined && (scene.plan.category === 'rail' || scene.plan.category === 'card') &&
     scene.plan.specs.length > 0 && seedRailReward(fleetDockRewardKey(card), railRewardOf(scene), before, after);
+  answerBlock = fleetDockSceneState.railHeld ? reactionDeclarationBlock() : 0;
+}
+
+/**
+ * THE TABLE'S ANSWER TO THE DOCK (P90 — «СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК», ATTACHED): the reactors the held reward
+ * declared (Venus Trade Hub's +3 M€ on any trade, the ruling Greens' M€ on the liner's rating) rise and their tokens
+ * are born on their own printed effects after the cause has landed — the composers' commit rail's grammar
+ * (`consoleActionCommitRail`). `undefined` (nothing attached, reduced motion) keeps the old beat: the rows tick.
+ */
+export function fleetDockAnswerFlight(card: CardName | ''): RailAnswerFlight | undefined {
+  if (card === '' || answerBlock === 0 || !railRewardHoldsAnswer(fleetDockRewardKey(card))) {
+    return undefined;
+  }
+  return cardReactionAnswerFlight({block: answerBlock});
 }
 
 /** The stage advances the scene's phase (the beats are its own). */
@@ -241,6 +258,7 @@ export function endFleetDockScene(reason: string): void {
   fleetDockSceneState.lastEnd = reason;
   fleetDockSceneState.railHeld = false;
   fleetDockSceneState.owedCard = '';
+  answerBlock = 0;
   // The reward's own chain releases every row it held on its landings; this is the interrupt's net.
   releaseRailReward(fleetDockRewardKey(card), reason);
   disarmFleetDockScene(card);

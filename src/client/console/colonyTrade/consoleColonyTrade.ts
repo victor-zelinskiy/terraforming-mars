@@ -52,15 +52,16 @@ import {consoleFxLiteState} from '@/client/console/consoleFxLite';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import {translateText} from '@/client/directives/i18n';
 import {
-  beginPanelRewardHold, cardResourceLandings, releasePanelRewardHold, resetCardResourceLandings, runResourceTransfers,
+  beginPanelRewardHold, cardResourceLandings, declareHeldAnswers, releasePanelRewardHold, resetCardResourceLandings, runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {TRANSFER_RESIDUAL_PAUSE_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, TRANSFER_RESIDUAL_PAUSE_MS, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {cardReactionAnswerFlight, reactionDeclarationBlock} from '@/client/console/cardReaction/cardReactionDirector';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {TradeReceiptBase} from '@/client/console/colonyTrade/colonyTradeReceipt';
 import {settlementClaimsBatch} from '@/client/console/colonyTrade/settlementTable';
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
 import {
-  ColonyTradeTargets, benefitCardCount, bonusHandsOverCard, colonyTradeHeldSpecs, incomeTransferSpecs,
+  ColonyTradeTargets, benefitCardCount, bonusHandsOverCard, colonyTradeAnswerSpecs, colonyTradeHeldSpecs, incomeTransferSpecs,
   ownBonusTransferSpecs, viewerBonusCubes,
   trackAdvancePlan, trackGlidePlan, TrackGlidePlan, TRACK_SETTLE_MS, trackWavePlan, TrackWavePlan, TrackMoveRhythm,
 } from '@/client/console/colonyTrade/colonyTradeModel';
@@ -198,6 +199,11 @@ type TradeCtx = {
    * play while it holds — see `setColonyStageYielded`.
    */
   stageYielded: boolean;
+  /**
+   * THE CARDS' ANSWER to this trade (P90 Venus Trade Hub — `colonyTradeAnswerSpecs`): the apply block the rows were
+   * DECLARED in (`reactionDeclarationBlock`), handed back to `cardReactionAnswerFlight({block})` — 0 when none.
+   */
+  answerBlock: number;
 };
 const ctx: TradeCtx = {
   manifest: undefined,
@@ -213,6 +219,7 @@ const ctx: TradeCtx = {
   advanceResolve: undefined,
   revealSeen: false,
   stageYielded: false,
+  answerBlock: 0,
 };
 
 /** Trades already presented this session — a poll replay can never re-play one. */
@@ -642,6 +649,7 @@ export function armColonyTrade(
   ctx.advanceResolve = undefined;
   ctx.revealSeen = false;
   ctx.stageYielded = false;
+  ctx.answerBlock = 0;
   clearRevealWait();
   colonyTradeState.active = true;
   colonyTradeState.phase = 'armed';
@@ -760,6 +768,43 @@ export function seedColonyTradeRewardHold(): void {
     beginPanelRewardHold(held);
     tradeLog('reward hold seeded', held);
   }
+  // The cards' answer (Venus Trade Hub's +3 M€) is held above WITH the income and DECLARED here: the card-reaction
+  // seeder (last in the same block) then attaches the card's record to this scene instead of holding the row twice.
+  const answers = colonyTradeAnswerSpecs(ctx.manifest, colonyTradeState.color as Color);
+  if (answers.length > 0) {
+    declareHeldAnswers(answers);
+    ctx.answerBlock = reactionDeclarationBlock();
+  }
+}
+
+/**
+ * THE CARD ANSWERS THE TRADE (P90 — «СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК», ATTACHED): the reactor rises (in its place
+ * when its face is on screen, else at the rail's edge), each token is born on its printed effect icon and the row
+ * ticks on its own touchdown. Nothing attached (reduced motion, a reload, no record) or no place to be born → the
+ * rows tick at once. Never rejects.
+ */
+async function flyTradeAnswer(specs: ReadonlyArray<ResourceTransferSpec>): Promise<void> {
+  const flight = cardReactionAnswerFlight({block: ctx.answerBlock, rows: [...new Set(specs.map((spec) => railRowKey(spec)))]});
+  if (flight === undefined) {
+    specs.forEach((spec) => releasePanelRewardHold(spec));
+    tradeLog('answer ticked (nothing attached)');
+    return;
+  }
+  try {
+    await flight.prepare?.();
+    const tokens = specs.flatMap((spec) => flight.tokensOf?.(spec) ?? [spec]);
+    const origins = tokens.map((spec) => flight.originOf(spec));
+    if (!origins.every((o) => o !== undefined)) {
+      specs.forEach((spec) => releasePanelRewardHold(spec));
+      tradeLog('answer ticked (no origin)');
+      return;
+    }
+    await runResourceTransfers({specs: tokens, source: {}, origins, arrival: 'auto', onArrive: (spec) => releasePanelRewardHold(spec)});
+    tradeLog('answer landed', tokens.length);
+  } finally {
+    flight.onLeft();
+    flight.onDone?.();
+  }
 }
 
 /**
@@ -812,6 +857,10 @@ export async function runColonyTradeRewards(): Promise<void> {
       onArrive: releasePanelRewardHold,
     });
   }
+  // THE CARDS' ANSWER rides the wave's TAIL — launched once the income has landed (the reactor answers the trade it
+  // just watched pay), in parallel with the colony bonus, never after a pause of its own.
+  const answers = colonyTradeAnswerSpecs(manifest, viewer);
+  const answered = answers.length > 0 ? flyTradeAnswer(answers) : Promise.resolve();
   const bonus = ownBonusTransferSpecs(manifest, viewer, ctx.targets);
   if (bonus.length > 0) {
     if (income.length > 0 && bonusHandsOverCard(income, bonus)) {
@@ -831,6 +880,7 @@ export async function runColonyTradeRewards(): Promise<void> {
       onArrive: releasePanelRewardHold,
     });
   }
+  await answered;
   ctx.chipsDone = true;
   if (colonyTradeState.active && colonyTradeState.phase === 'chips') {
     colonyTradeState.phase = 'awaiting';
@@ -1242,6 +1292,7 @@ export function abortColonyTrade(): void {
   ctx.advancePending = false;
   ctx.revealSeen = false;
   ctx.stageYielded = false;
+  ctx.answerBlock = 0;
 }
 
 /** Test-only full reset (including the session memories). */

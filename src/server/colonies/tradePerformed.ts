@@ -3,6 +3,9 @@ import {ICard} from '../cards/ICard';
 import {ParliamentHandler} from '../parliament/ParliamentHandler';
 import {TradeDestinationSource} from './ITradeDestination';
 import {EffectForecastFact} from '../../common/models/EffectForecastModel';
+import {CardName} from '../../common/cards/CardName';
+import {Resource} from '../../common/Resource';
+import {TradeReactorGainModel} from '../../common/models/ColonyTradeManifestModel';
 import * as forecast from '../cards/effectForecastPreviews';
 
 /**
@@ -71,4 +74,24 @@ export function tradeReactorFacts(player: IPlayer, trade: TradeContext): Array<E
     })]));
   }
   return facts;
+}
+
+/**
+ * The reactors' own STOCK gains, in the wire form both the previews (`flatBonuses` — «СОСТАВ НАГРАДЫ») and the
+ * trade manifest (`reactorGains` — the console's trade scene holds and declares these rows as the card's answer)
+ * read: off their EXACT facts for the trader, so a promise and the scene's plan state one number.
+ */
+export function reactorGainsOf(facts: ReadonlyArray<EffectForecastFact>): Array<TradeReactorGainModel> {
+  const out: Array<TradeReactorGainModel> = [];
+  for (const fact of facts) {
+    if (fact.certainty !== 'exact' || fact.recipient.kind !== 'you' || fact.source.kind === 'rule') {
+      continue;
+    }
+    for (const effect of fact.effects) {
+      if (effect.direction === 'gain' && effect.note === undefined && effect.icon !== undefined && Object.values(Resource).includes(effect.icon as Resource)) {
+        out.push({card: fact.source.name as CardName, resource: effect.icon, amount: effect.amount ?? 0});
+      }
+    }
+  }
+  return out;
 }

@@ -1,3 +1,4 @@
+import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
 import {Color} from '../Color';
 import {ColonyBenefit} from '../colonies/ColonyBenefit';
@@ -92,4 +93,13 @@ export type ColonyTradeManifestModel = {
    * (Coordinated Raid) redirects every cube to the trader.
    */
   bonusRecipients: ReadonlyArray<ColonyTradeBonusRecipientModel>;
+  /**
+   * What the TRADER's cards answer this trade with (P90 Venus Trade Hub: +3 M€) — each paid under the card's own
+   * `'trade'` effect scope after the income (`tradePerformed.fireTradeHooks`), so the console plays it as the card's
+   * reaction: the trade scene HOLDS and DECLARES these rows, and the card rises to pay them. Absent when none.
+   */
+  reactorGains?: ReadonlyArray<TradeReactorGainModel>;
 };
+
+/** One stock gain a card pays in answer to a trade — the card, the resource (its icon key), the amount. */
+export type TradeReactorGainModel = {card: CardName, resource: string, amount: number};

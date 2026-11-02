@@ -716,6 +716,35 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
   const groups = mine.map((a) => a.group);
   const risen: Array<Risen> = [];
   const tokenGroup = new WeakMap<ResourceTransferSpec, CardReactionGroup>();
+  /**
+   * WHAT EACH GROUP IS STILL OWED, per row, across the whole flight (P90 · EF — the dock's held answer reaches the flight
+   * as ONE-UNIT specs, so every per-call share computation handed each unit to the FIRST group on the row: the ruling
+   * Greens took Venus Trade Hub's three M€ too). The split and the origin's fallback CONSUME it, in group order.
+   */
+  const owed = new Map<CardReactionGroup, Map<string, number>>();
+  const owedOf = (group: CardReactionGroup, row: string): number => {
+    let rows = owed.get(group);
+    if (rows === undefined) {
+      rows = new Map();
+      owed.set(group, rows);
+    }
+    if (!rows.has(row)) {
+      rows.set(row, [...group.rail, ...group.cards].filter((s) => railRowKey(s) === row && s.direction !== 'loss').reduce((sum, s) => sum + s.amount, 0));
+    }
+    return rows.get(row) ?? 0;
+  };
+  const consume = (group: CardReactionGroup, row: string, amount: number): void => {
+    owed.get(group)?.set(row, Math.max(0, owedOf(group, row) - amount));
+  };
+  /**
+   * THE SPLIT'S ORDER, per row — the group each token of `tokensOf` was given, in the order given. A host may hand the
+   * launch tokens that are not the very objects the split returned (the dock's rail entry did: every token then fell
+   * through to «the first group on the row» and the Greens' charter was born Venus Trade Hub's three M€); the origin
+   * takes the next group of this queue before any other fallback.
+   */
+  const splitOrder = new Map<string, Array<CardReactionGroup>>();
+  /** The tokens whose place in the split's order is already spent (an origin may be asked twice of one token). */
+  const placed = new WeakSet<ResourceTransferSpec>();
   const myEpoch = epoch;
   const started = typeof performance === 'undefined' ? 0 : performance.now();
   let done = false;
@@ -803,14 +832,15 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
       const out: Array<ResourceTransferSpec> = [];
       let left = spec.amount;
       for (const group of groups) {
-        const share = [...group.rail, ...group.cards].filter((s) => railRowKey(s) === row && s.direction !== 'loss').reduce((sum, s) => sum + s.amount, 0);
-        const take = Math.min(left, share);
+        const take = Math.min(left, owedOf(group, row));
         if (take <= 0) {
           continue;
         }
+        consume(group, row, take);
         for (const token of reactionTokensOf({...spec, amount: take})) {
           tokenGroup.set(token, group);
           out.push(token);
+          splitOrder.set(row, [...(splitOrder.get(row) ?? []), group]);
         }
         left -= take;
       }
@@ -818,13 +848,33 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
         // What no reactor of this flight paid (a party's share, a rule's) keeps the tick.
         out.push({...spec, amount: left});
       }
+      noteTransferTrail('reaction:split', {row, to: out.map((t) => `${tokenGroup.get(t)?.card ?? '-'}:${t.amount}`)});
       return out;
     },
     originOf: (spec) => {
       // A token `tokensOf` split belongs to its group; a host flying a CAUSE spec as given (the generation scene's
       // hook payout — one token of six) finds the risen group whose record moves that row.
       const row = railRowKey(spec);
-      const group = tokenGroup.get(spec) ?? groups.find((g) => [...g.rail, ...g.cards].some((s) => railRowKey(s) === row));
+      // An unsplit token takes the next group still OWED on its row (never the first group again — the shares are the
+      // records'); a row no group is owed any more falls back to the first group that moves it.
+      let group = tokenGroup.get(spec);
+      if (!placed.has(spec)) {
+        placed.add(spec);
+        const queue = splitOrder.get(row);
+        if (group !== undefined) {
+          // The split's own object: its place in the queue is spent.
+          const at = queue?.indexOf(group) ?? -1;
+          if (queue !== undefined && at >= 0) {
+            queue.splice(at, 1);
+          }
+        } else {
+          group = queue?.shift() ??
+            groups.find((g) => owedOf(g, row) >= spec.amount) ?? groups.find((g) => [...g.rail, ...g.cards].some((s) => railRowKey(s) === row));
+          if (group !== undefined) {
+            tokenGroup.set(spec, group);
+          }
+        }
+      }
       const r = group === undefined ? undefined : risen.find((x) => x.group === group);
       if (group === undefined) {
         return undefined;

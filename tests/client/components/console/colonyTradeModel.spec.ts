@@ -6,7 +6,7 @@ import {CardResource} from '@/common/CardResource';
 import {Resource} from '@/common/Resource';
 import {ColonyTradeManifestModel} from '@/common/models/ColonyTradeManifestModel';
 import {
-  benefitCardCount, benefitTransferSpec, bonusHandsOverCard, colonyTradeHeldSpecs, incomeTransferSpecs,
+  benefitCardCount, benefitTransferSpec, bonusHandsOverCard, colonyTradeAnswerSpecs, colonyTradeHeldSpecs, incomeTransferSpecs,
   ownBonusTransferSpecs, revealWaveForIndex, trackAdvancePlan, trackGlidePlan, trackWavePlan, TRACK_WAVE_BREATH_MS, TRACK_WAVE_READ_MS, TRACK_WAVE_STAGGER_MS, TRADE_COVER_STAGGER_MS,
   TRADE_FAN_LEAD_MS, TRADE_FAN_STAGGER_MS, TRADE_WAVE_GAP_MS,
   tradeCoverPlan, tradeCoverPlanBudgetMs, tradeRoleForIndex, viewerBonusCubes,
@@ -103,6 +103,17 @@ describe('colonyTradeModel', () => {
     expect(held).deep.eq([{channel: 'stock', resource: 'titanium', amount: 5}]); // income 3 + 2 own cubes
     // A bonus recipient who is NOT the trader holds only their own cubes.
     expect(colonyTradeHeldSpecs(manifest(), 'blue')).deep.eq([{channel: 'stock', resource: 'titanium', amount: 1}]);
+  });
+
+  it('P90 — the trader cards answer is held WITH the income and is the trader only', () => {
+    const traded = manifest({reactorGains: [{card: CardName.VENUS_TRADE_HUB, resource: 'megacredits', amount: 3}]});
+    expect(colonyTradeAnswerSpecs(traded, 'red')).deep.eq([{channel: 'stock', resource: 'megacredits', amount: 3}]);
+    expect(colonyTradeAnswerSpecs(traded, 'blue'), 'a bonus recipient holds no answer').deep.eq([]);
+    expect(colonyTradeAnswerSpecs(manifest(), 'red'), 'no reactor, no answer').deep.eq([]);
+    expect(colonyTradeHeldSpecs(traded, 'red')).deep.eq([
+      {channel: 'stock', resource: 'titanium', amount: 5},
+      {channel: 'stock', resource: 'megacredits', amount: 3},
+    ]);
   });
 
   it('income specs are the trader’s only', () => {

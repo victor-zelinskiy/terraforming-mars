@@ -277,7 +277,7 @@ import {cardResourceLandings} from '@/client/console/resourceTransfer/consoleRes
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {
-  armFleetDockScene, armedFleetDockScene, disarmFleetDockScene, fleetDockRewardKey, fleetDockSceneState, setFleetDockScenePhase,
+  armFleetDockScene, armedFleetDockScene, disarmFleetDockScene, fleetDockAnswerFlight, fleetDockRewardKey, fleetDockSceneState, setFleetDockScenePhase,
   setFleetDockStageCard, endFleetDockScene,
 } from '@/client/console/colonyTrade/fleetDockScene';
 import {flyRailReward, railRewardState} from '@/client/console/resourceTransfer/railReward';
@@ -1368,7 +1368,7 @@ export default defineComponent({
       // The flights are the ARMED plan's (re-aimed at the card the paying response named) — one origin per token.
       const flown = armedFleetDockScene(this.card)?.plan ?? plan;
       const origins = cardEl === undefined ? [] : resolveGainIconOrigins(resolveActionCommitAnchors(cardEl, node), flown.specs);
-      return flyRailReward(fleetDockRewardKey(this.card), (_spec, index) => origins[index]);
+      return flyRailReward(fleetDockRewardKey(this.card), (_spec, index) => origins[index], fleetDockAnswerFlight(this.card));
     },
     readScene(): void {
       if (!this.scene.holding) {

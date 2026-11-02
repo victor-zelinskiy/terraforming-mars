@@ -431,7 +431,10 @@ for (const preset of PRESETS) {
       expect(Math.hypot(lastFlown.x - samples[firstChip].chip!.x, lastFlown.y - samples[firstChip].chip!.y), 'it travelled').toBeGreaterThan(80);
       expect(firstMc, 'the Greens paid').toBeGreaterThanOrEqual(0);
       expect(firstMc, 'the table\'s answer never ticks before its cause').toBeGreaterThanOrEqual(firstUp);
-      expect(samples.every((s) => s.chips <= 1), 'never two tokens in one frame').toBe(true);
+      // The REWARD is one token: never two in one frame up to its touchdown. Past it the ruling Greens' 2 M€ is the
+      // table's answer — since P90 (ledger EF, PL-1444) the dock flies it off the charter's printed M€ (ATTACHED), a
+      // second object by design that may overlap the TR token's absorb.
+      expect(samples.slice(0, firstUp + 1).every((s) => s.chips <= 1), 'never two tokens in one frame — the reward is ONE token').toBe(true);
       if (barTop !== undefined) {
         expect(samples.filter((s) => s.chip !== undefined).every((s) => s.chip!.y + s.chip!.h / 2 <= barTop), 'the token never flies over the command bar').toBe(true);
       }

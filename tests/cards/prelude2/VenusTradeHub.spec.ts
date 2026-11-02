@@ -12,6 +12,8 @@ import {Resource} from '../../../src/common/Resource';
 import {TradeWithEnergy} from '../../../src/server/player/Colonies';
 import {buildColonyTradePreview} from '../../../src/server/colonies/colonyTradePreview';
 import {runAllActions} from '../../TestingUtils';
+import {UnmiLiner} from '../../../src/server/cards/turmoilRedux/UnmiLiner';
+import {FleetDockDestination} from '../../../src/server/colonies/FleetDockDestination';
 
 describe('VenusTradeHub', () => {
   let card: VenusTradeHub;
@@ -88,6 +90,24 @@ describe('VenusTradeHub — the trade reactor', () => {
     const records = game.cardReactions.filter((r) => r.card === CardName.VENUS_TRADE_HUB);
     expect(records).has.lengthOf(1);
     expect(records[0]).deep.include({owner: player.color, kind: 'card', channel: 'trade', cause: {trade: {kind: 'colony', name: luna.name}}});
+    expect(records[0].impacts).deep.eq([{kind: 'stock', resource: Resource.MEGACREDITS, amount: 3, to: player.color}]);
+  });
+
+  it('the trade manifest names the card answer (the console trade scene holds and declares it)', () => {
+    luna.trade(player);
+    expect(player.colonyTradeManifest?.reactorGains).deep.eq([{card: CardName.VENUS_TRADE_HUB, resource: 'megacredits', amount: 3}]);
+    luna.trade(other);
+    expect(other.colonyTradeManifest?.reactorGains, 'a trader without the card').is.undefined;
+  });
+
+  it('a DOCK trade (UNMI Liner) fires the card under its own scope too — one record, the dock as the cause', () => {
+    const liner = new UnmiLiner();
+    player.playedCards.push(liner);
+    new FleetDockDestination(liner).trade(player);
+    runAllActions(game);
+    const records = game.cardReactions.filter((r) => r.card === CardName.VENUS_TRADE_HUB);
+    expect(records).has.lengthOf(1);
+    expect(records[0]).deep.include({channel: 'trade', cause: {trade: {kind: 'card', card: CardName.UNMI_LINER}}});
     expect(records[0].impacts).deep.eq([{kind: 'stock', resource: Resource.MEGACREDITS, amount: 3, to: player.color}]);
   });
 

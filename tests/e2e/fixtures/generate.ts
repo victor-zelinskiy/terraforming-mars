@@ -275,6 +275,7 @@ import {ResearchCoordination} from '../../../src/server/cards/prelude/ResearchCo
 import {rallyPlan} from '../../../src/server/parliament/RallyNeutralDelegates';
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
 import {UnmiLiner} from '../../../src/server/cards/turmoilRedux/UnmiLiner';
+import {VenusTradeHub} from '../../../src/server/cards/prelude2/VenusTradeHub';
 import {NeptunianPowerConsultants} from '../../../src/server/cards/promo/NeptunianPowerConsultants';
 import {SubterraneanReservoir} from '../../../src/server/cards/base/SubterraneanReservoir';
 import {EarthArmyContract} from '../../../src/server/cards/turmoilRedux/EarthArmyContract';
@@ -3204,6 +3205,51 @@ parliamentFixture('unmi-liner', {
     parliament.assertLedger(game);
   },
 });
+// ── P90 · VENUS TRADE HUB — «when you trade, gain 3 M€»: the card answers EVERY trade of its owner, and the answer is
+//    the CARD's reaction (its own `'trade'` effect scope — `tradePerformed.fireTradeHooks`), played by the card-reaction
+//    framework ATTACHED to the trade's own scene: the card rises, 3 M€ are born on its printed effect and land on the
+//    M€ row. Blue on the move with the card on the table (the requirement is the play's, not the effect's):
+//      · `venus-trade-hub`      — Luna at 3 among six tiles, 3 energy (the energy fee) — a colony trade;
+//      · `venus-trade-hub-dock` — the same + UNMI Liner (a dock whose reward is +1 TR on the rail) and its own fleet:
+//                                 the dock's trade fires the same hook (the source is the card, never the dock).
+//    The chairman quest is one nothing here can close (a quest's gate would be a second story over the trade's). ──
+for (const [name, dock] of [['venus-trade-hub', false], ['venus-trade-hub-dock', true]] as const) {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    arrange: ({game, p1, parliament}) => {
+      game.colonies = [new Luna(), new Europa(), new Callisto(), new Ceres(), new Io(), new Miranda()];
+      game.colonies[0].trackPosition = 3;
+      p1.playedCards.push(new VenusTradeHub());
+      if (dock) {
+        p1.playedCards.push(new UnmiLiner());
+        p1.colonies.setFleetSize(2);
+      }
+      p1.energy = dock ? 6 : 3;
+      p1.titanium = 0;
+      p1.heat = 0;
+      parliament.quest = {definition: {goal: {kind: 'trade'}, count: 9}, source: 'starter', generation: game.generation, progress: new Map()};
+    },
+    expect: ({game, p1, parliament}) => {
+      const hub = p1.playedCards.get(CardName.VENUS_TRADE_HUB);
+      if (hub === undefined || p1.colonies.freeTradeFleets() !== (dock ? 2 : 1) || p1.colonies.tradeBlockedReason() !== undefined ||
+          (dock && p1.playedCards.get(CardName.UNMI_LINER) === undefined) || p1.megaCredits !== 20) {
+        throw new Error(`the ${name} fixture expected Venus Trade Hub on the table, ${dock ? 'two free fleets and the liner' : 'a free fleet'} and 20 M€ — got hub=${hub !== undefined} fleets=${p1.colonies.freeTradeFleets()} trade=${p1.colonies.tradeBlockedReason()} mc=${p1.megaCredits}`);
+      }
+      // THE DRY RUN — a trade on a copy pays the card's 3 M€ under its own scope.
+      const copy = Game.deserialize(structuredClone(game.serialize()));
+      const blue = copy.getPlayerById(p1.id);
+      const before = blue.megaCredits;
+      copy.colonies.find((c) => c.name === game.colonies[0].name)!.trade(blue);
+      runAllActions(copy);
+      const record = copy.cardReactions.find((r) => r.card === CardName.VENUS_TRADE_HUB && r.channel === 'trade');
+      if (record === undefined || blue.megaCredits < before + 3) {
+        throw new Error(`the ${name} fixture expected the trade to fire Venus Trade Hub (+3 M€, a 'trade' record) — got record=${record !== undefined} mc=${before}→${blue.megaCredits}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
 // ── npc-ocean-greens: THE DECISION THAT BLINKED (the owner, 2026-11-01 — «модалка от промта исчезает на время
 //    анимации срабатывания эффекта и опять появляется»). The Greens rule (their «+2 M€ per TR step» answers the ocean's
 //    rating); blue holds Subterranean Reservoir (an ocean for 11 M€) with Neptunian Power Consultants on the table — the

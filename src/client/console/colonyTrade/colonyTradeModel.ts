@@ -140,15 +140,29 @@ export function bonusHandsOverCard(income: ReadonlyArray<ResourceTransferSpec>, 
 }
 
 /**
+ * THE TRADER'S CARDS' ANSWER (P90 Venus Trade Hub: «when you trade, gain 3 M€») — the manifest's `reactorGains` as
+ * rail specs, the trader's only. Each is a card's REACTION (paid under its own `'trade'` scope): the scene holds and
+ * DECLARES these rows (`declareHeldAnswers`), so the card-reaction seeder attaches the record to this host, and the
+ * card rises to pay them after the income — never a tick with no cause, never a second hold of the same row.
+ */
+export function colonyTradeAnswerSpecs(manifest: ColonyTradeManifestModel, viewer: Color): Array<ResourceTransferSpec> {
+  if (manifest.trader !== viewer) {
+    return [];
+  }
+  return mergeTransferSpecs((manifest.reactorGains ?? []).filter((g) => g.amount > 0).map((g) => ({channel: 'stock' as const, resource: g.resource, amount: g.amount})));
+}
+
+/**
  * The panel REWARD-HOLD seed: every metric amount of the viewer's own trade
- * rewards (income + own colony bonuses), MERGED per metric — the panel must
- * hide the whole pending amount from the moment the view commits until the
- * chips physically land.
+ * rewards (income + own colony bonuses + the cards' answer), MERGED per metric —
+ * the panel must hide the whole pending amount from the moment the view commits
+ * until the chips physically land.
  */
 export function colonyTradeHeldSpecs(manifest: ColonyTradeManifestModel, viewer: Color, targets?: ColonyTradeTargets): Array<ResourceTransferSpec> {
   return mergeTransferSpecs([
     ...(manifest.trader === viewer ? incomeTransferSpecs(manifest, targets) : []),
     ...ownBonusTransferSpecs(manifest, viewer, targets),
+    ...colonyTradeAnswerSpecs(manifest, viewer),
   ]);
 }
 

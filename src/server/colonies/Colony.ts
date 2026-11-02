@@ -44,7 +44,7 @@ import {colonySource, namedCardSource} from '../inputs/choiceContext';
 import {ParliamentHandler} from '../parliament/ParliamentHandler';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
 import {TradeDestinationSource} from './ITradeDestination';
-import {fireTradeHooks, reportTrade} from './tradePerformed';
+import {fireTradeHooks, reactorGainsOf, reportTrade, tradeReactorFacts} from './tradePerformed';
 
 export abstract class Colony implements IColony {
   // Players can't build colonies on Miranda until someone has played an Animal card.
@@ -389,6 +389,12 @@ export abstract class Colony implements IColony {
           undefined,
         bonusRecipients: recipients,
       };
+      // What the trader's cards will answer this trade with (Venus Trade Hub) — read off the same forecast twins
+      // `fireTradeHooks` mirrors, so the console's trade scene can hold and declare the card's answer.
+      const reactorGains = reactorGainsOf(tradeReactorFacts(player, {destination: {kind: 'colony', name: this.name}}));
+      if (reactorGains.length > 0) {
+        player.colonyTradeManifest.reactorGains = reactorGains;
+      }
       this.activeTradeId = tradeId;
     }
 
