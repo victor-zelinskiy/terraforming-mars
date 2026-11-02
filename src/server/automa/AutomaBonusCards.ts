@@ -1,5 +1,6 @@
 import * as constants from '../../common/constants';
 import {AutomaTerraformer} from './AutomaTerraformer';
+import {AmazonisEngineer} from '../awards/amazonisPlanitia/AmazonisEngineer';
 import {BonusCardId, MarsBotTrackRole} from '../../common/automa/AutomaTypes';
 import {bonusCardInfo} from '../../common/automa/BonusCardData';
 import {CardName} from '../../common/cards/CardName';
@@ -259,6 +260,7 @@ function resolveBonusCardEffect(game: IGame, id: BonusCardId): BonusCardOutcome 
   case BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA:
   case BonusCardId.B13_CORPORATE_COMPETITION_BOREALIS:
   case BonusCardId.BF1_CORPORATE_COMPETITION_VASTITAS_FAN:
+  case BonusCardId.BF2_CORPORATE_COMPETITION_AMAZONIS:
     // One card, one resolver: the map only swaps the helper-action list.
     return corporateCompetition(game);
   case BonusCardId.B16_GOVERNMENT_INTERVENTION: return governmentIntervention(game);
@@ -942,6 +944,37 @@ function tryAwardHelper(game: IGame, awardName: string): boolean {
     }
     AutomaResolver.advanceTrack(game, index);
     return true;
+  }
+  // ── Amazonis Planitia, the fan map (BF2 — the fork's own card, §18.6) ────
+  // Promoter and A. Zoologist stand here under their official helpers above.
+  case 'Curator': {
+    // The award reads the bot's MOST-advanced track — so the helper is Mogul's
+    // (B12): «advance the most-advanced track, the topmost one of the tied».
+    const index = automa.board.getMostAdvancedNonMaxedTrackIndex();
+    if (index === undefined) {
+      return false;
+    }
+    AutomaResolver.advanceTrack(game, index);
+    return true;
+  }
+  case 'A. Engineer':
+    // The reveal-until family (Magnate / Celebrity / Incorporator / Forecaster):
+    // «reveal cards from the project deck until a card that alters production,
+    // resolve it, discard the rest» — the award's own predicate decides.
+    return revealUntilAndResolve(game, (card) => AmazonisEngineer.altersProduction(card));
+  case 'Tourist': {
+    // The award counts the EMPTY areas beside the bot's tiles — so the helper
+    // builds where nothing stands: «MarsBot places a city tile with every
+    // adjacent space empty» — B07's own placement form (the Neural Instance:
+    // «all neighbors empty») under Founder's city constraint. A hard
+    // constraint on the legal set: no such space ⇒ impossible, and the card
+    // tries the next funded award. A city, never a greenery — a greenery must
+    // touch the bot's own tiles when it can, which is the opposite constraint.
+    const board = game.board;
+    return AutomaTilePlacer.placeCity(game, {
+      restrict: (space) => board.getAdjacentSpaces(space).every((adj) => adj.tile === undefined),
+      onEmpty: 'impossible',
+    });
   }
   // ── Venus Next: added to ALL versions of the card ─────────────────────────
   case 'Venuphile': return advanceRole('venus');

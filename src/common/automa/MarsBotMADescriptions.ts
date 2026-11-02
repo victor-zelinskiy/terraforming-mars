@@ -47,6 +47,12 @@ export const MARSBOT_MILESTONE_DESCRIPTIONS: Partial<Record<MilestoneName, strin
   'V. Electrician': 'Power track \u2265 4',
   'Irrigator': 'Tiles adjacent to oceans (unchanged)',
   'Capitalist': '64 M\u20ac (unchanged)',
+  // Amazonis Planitia, the fan map (docs/AUTOMA_DATA_AUDIT.md §18.2)
+  'Colonizer': '4 colonies (unchanged) \u2014 three colony cells on the board',
+  // (Forester — the modular entry below, «Bio track ≥ 6» — is this board's official rule too)
+  'Minimalist': 'At most 2 cards left in the action deck',
+  'Terran': 'Earth track \u2265 6',
+  'Tropicalist': 'Tiles in the equatorial rows (unchanged)',
   // Modular
   'Briber': '20+ MC (loses 12 MC on claim)',
   'Builder7': 'Building track \u2265 7',
@@ -107,6 +113,10 @@ export const MARSBOT_AWARD_DESCRIPTIONS: Partial<Record<AwardName, string>> = {
   // and Edgedancer as above
   'Naturalist': 'Plant track + Earth (heat) track',
   'Voyager': 'Half the Jovian track',
+  // Amazonis Planitia, the fan map (docs/AUTOMA_DATA_AUDIT.md §18.3) — Promoter and A. Zoologist as above
+  'Curator': 'Most-advanced track',
+  'A. Engineer': 'Production cards in the played pile',
+  'Tourist': 'Empty areas beside its tiles (unchanged)',
   'Manufacturer': 'Building + Energy track',
   // Modular
   'Administrator': 'Cards without tags in played pile + 2',

@@ -122,6 +122,10 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     name: 'Corporate Competition (Vastitas Borealis)',
     text: 'With 5+ M€, MarsBot pushes the Vastitas Borealis award race it is closest to being ahead on, then loses 5 M€ — except Forecaster, which pays it 5 M€ instead.',
   },
+  [BonusCardId.BF2_CORPORATE_COMPETITION_AMAZONIS]: {
+    name: 'Corporate Competition (Amazonis Planitia)',
+    text: 'With 5+ M€, MarsBot pushes the Amazonis Planitia award race it is closest to being ahead on, then loses 5 M€.',
+  },
 };
 
 export function bonusCardInfo(id: BonusCardId): BonusCardInfo {
@@ -376,6 +380,25 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
         {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
         {icon: 'megacredits', text: 'Forecaster instead GAINS ${0} M€ — that option costs the card nothing', params: ['5']},
+        {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
+      ],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.BF2_CORPORATE_COMPETITION_AMAZONIS:
+    // The fork's own face for the fan-made Amazonis Planitia (§18.6): Curator →
+    // the most-advanced track (Mogul's shape), A. Engineer → a reveal until a
+    // production card, Promoter / A. Zoologist their official tracks, Tourist →
+    // a city with every neighbour empty (constrained — impossible without one).
+    return {
+      name,
+      lines: [
+        {icon: 'award', text: 'With 5+ M€: MarsBot pushes the award race it is closest to leading'},
+        {icon: 'tile', text: 'Curator advances the most-advanced track (the topmost one if tied)', muted: true},
+        {icon: 'cards', text: 'A. Engineer reveals project cards until one alters production and resolves it', muted: true},
+        {icon: 'tile', text: 'Promoter advances the event track; A. Zoologist the animal track', muted: true},
+        {icon: 'city', text: 'Tourist places a city with every adjacent space empty', muted: true},
+        ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
+        {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
         {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
       ],
       fate: FATE_DISCARD,

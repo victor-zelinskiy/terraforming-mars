@@ -105,7 +105,7 @@ test.describe('ELYSIUM + MarsBot — the real product', () => {
 
     // …and the guard still speaks: a board with no MarsBot profile is refused,
     // and the reason now names the three that have one.
-    const bad = await create(request, 'amazonis p.', bot);
+    const bad = await create(request, 'Hollandia', bot);
     expect(bad.ok()).toBeFalsy();
     const reason = await bad.text();
     expect(reason).toContain('MarsBot covers');

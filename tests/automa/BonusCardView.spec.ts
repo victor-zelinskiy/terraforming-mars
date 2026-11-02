@@ -126,6 +126,19 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(buildBonusCardView(BonusCardId.B13_CORPORATE_COMPETITION_BOREALIS, BASE).name).eq('Corporate Competition (Vastitas Borealis Nova)');
   });
 
+  it('Corporate Competition (BF2) shows the FAN Amazonis helper list — its five awards, Venuphile only with Venus', () => {
+    const base = buildBonusCardView(BonusCardId.BF2_CORPORATE_COMPETITION_AMAZONIS, BASE);
+    expect(base.name).eq('Corporate Competition (Amazonis Planitia)');
+    const texts = base.lines.map((l) => l.text);
+    expect(texts.some((t) => t.startsWith('Curator advances the most-advanced track')), 'Curator').is.true;
+    expect(texts.some((t) => t.startsWith('A. Engineer reveals project cards until one alters production')), 'A. Engineer').is.true;
+    expect(texts.some((t) => t.startsWith('Promoter advances the event track; A. Zoologist')), 'Promoter + A. Zoologist').is.true;
+    expect(texts.some((t) => t.startsWith('Tourist places a city with every adjacent space empty')), 'Tourist').is.true;
+    expect(texts.some((t) => t.startsWith('Venuphile')), 'no Venus line without Venus Next').is.false;
+    expect(buildBonusCardView(BonusCardId.BF2_CORPORATE_COMPETITION_AMAZONIS, VENUS).lines.some((l) => l.text.startsWith('Venuphile'))).is.true;
+    expect(base.fate.kind).eq('discard');
+  });
+
   it('Corporate Competition (B12) shows the TERRA CIMMERIA helper list and its ONE free option', () => {
     const base = buildBonusCardView(BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA, BASE);
     expect(base.name).eq('Corporate Competition (Terra Cimmeria)');

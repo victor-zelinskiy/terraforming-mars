@@ -77,6 +77,10 @@ const BOT_METRIC: ReadonlyArray<string> = [
   'Farmer', // Microbe/Science OR Animal/Plant 6 ↔ plant / microbe / animal resources
   // Vastitas Borealis, the FAN map — the fork's own rules (docs/AUTOMA_DATA_AUDIT.md §17.2).
   'V. Electrician', // Power track 4 ↔ 4 power tags (Smith / Tradesman stand here under their Utopia rows above)
+  // Amazonis Planitia, the FAN map (docs/AUTOMA_DATA_AUDIT.md §18.2).
+  'Forester', // Bio track 6 ↔ 4 plant production (the A&M list's official rule)
+  'Terran', // Earth track 6 ↔ 6 Earth tags (the A&M list's Terran 5 ↔ 5, scaled)
+  'Minimalist', // the action deck ≤ 2 ↔ ≤ 2 cards in hand (the bot has no hand)
 ];
 
 /** Milestones the bot meets with the PLAYER's own metric — nothing to rescale. */
@@ -102,6 +106,11 @@ const PLAYER_METRIC: ReadonlyArray<string> = [
   // very quantity the milestone looks at.
   'Irrigator', // real tiles adjacent to real ocean tiles
   'Capitalist', // the bot's real M€
+  // Amazonis Planitia, the FAN map (docs/AUTOMA_DATA_AUDIT.md §18.2): Colonizer is the A&M list's
+  // Pioneer at 4 («As usual» — the bot's real colonies; the three cubes are the board's `colony5`
+  // cells), Tropicalist the bot's real tiles in the equatorial rows.
+  'Colonizer',
+  'Tropicalist',
 ];
 
 /**
@@ -115,6 +124,8 @@ const SHARED_NAMES: ReadonlyMap<string, string> = new Map([
   ['Tradesman', 'Utopia Planitia (Trader) + Vastitas Borealis (fan): power / earth / venus ≥ 2 by ROLE on both'],
   ['Edgedancer', 'Utopia Planitia (Suburban) + Vastitas Borealis (fan): unchanged — real edge tiles'],
   ['Forecaster', 'Terra Cimmeria Nova + Vastitas Borealis (fan): floor(M€ / 7) on both'],
+  ['Promoter', 'Vastitas Borealis Nova + Amazonis (fan): the event track on both'],
+  ['A. Zoologist', 'Terra Cimmeria Nova + Amazonis (fan): bio + 5 on both'],
 ]);
 
 const SCOPE: ReadonlyArray<string> = [...BOT_METRIC, ...PLAYER_METRIC];
@@ -145,6 +156,8 @@ function supportedGames(): Array<[string, IGame, IPlayer]> {
     ['Vastitas Borealis Nova+Venus+Colonies', {boardName: BoardName.VASTITAS_BOREALIS_NOVA, venusNextExtension: true, coloniesExtension: true}],
     ['Vastitas Borealis (fan)', {boardName: BoardName.VASTITAS_BOREALIS}],
     ['Vastitas Borealis (fan)+Venus+Colonies', {boardName: BoardName.VASTITAS_BOREALIS, venusNextExtension: true, coloniesExtension: true}],
+    ['Amazonis (fan)', {boardName: BoardName.AMAZONIS}],
+    ['Amazonis (fan)+Venus+Colonies', {boardName: BoardName.AMAZONIS, venusNextExtension: true, coloniesExtension: true}],
   ];
   return combos.map(([label, options], i) => {
     const [game, /* human */, bot] = testAutomaGame(options, `-norm-${i}`);
@@ -226,7 +239,7 @@ describe('AutomaMAEvaluation — milestone normalization (the bot reads as a pla
       'check the branch against BOTH rows before adding it: ' + collisions.join(' · ')).is.empty;
     // …and the list is not decoration: every shared name really stands on two boards.
     for (const [name] of SHARED_NAMES) {
-      const boards = AUTOMA_SUPPORTED_BOARDS.filter((b) => MILESTONES_BY_BOARD[b].includes(name) || AWARDS_BY_BOARD[b].includes(name));
+      const boards = AUTOMA_SUPPORTED_BOARDS.filter((b) => (MILESTONES_BY_BOARD[b] as ReadonlyArray<string>).includes(name) || (AWARDS_BY_BOARD[b] as ReadonlyArray<string>).includes(name));
       expect(boards, `${name} is listed as shared`).has.length.greaterThan(1);
     }
   });
@@ -284,7 +297,12 @@ describe('AutomaMAEvaluation — milestone normalization (the bot reads as a pla
         sweepBotState(game, bot, k);
         for (const milestone of milestonesUnderTest(game)) {
           const threshold = milestoneThreshold(milestone, game);
-          expect(threshold, `${milestone.name} has no numeric threshold`).is.not.undefined;
+          if (threshold === undefined) {
+            // The one «at most» milestone (Amazonis' Minimalist) prints no ≥ threshold — there is no
+            // scale to cross; its met / shown pair is pinned by its own spec instead.
+            expect(milestone.name, 'a threshold-less milestone the sweep does not know').eq('Minimalist');
+            continue;
+          }
           const score = AutomaMAEvaluation.botMilestoneScore(milestone, game);
           const met = AutomaMAEvaluation.botMilestoneMet(milestone, game);
           if ((score >= threshold!) !== met) {

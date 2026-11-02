@@ -1,4 +1,3 @@
-import {BoardName} from '../../src/common/boards/BoardName';
 import {CardName} from '../../src/common/cards/CardName';
 import {CardType} from '../../src/common/cards/CardType';
 import {newProjectCard} from '../../src/server/createCard';

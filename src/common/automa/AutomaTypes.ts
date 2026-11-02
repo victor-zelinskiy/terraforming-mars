@@ -14,7 +14,16 @@ export type TrackAction =
   | 'venus' | 'venus2'
   | 'floater' | 'floater2' // Venus Next MarsBot board: gain 1 / 2 floaters (Adding Expansions p.2)
   | 'colony' // Utopia Planitia: «Place a Colony» — the ordinary bot colony build
+  | 'colony5' // Amazonis (fan): the A&M Pioneer cube in printed form — build a colony, then lose COLONY_CELL_PRICE_MC
   | `tag_${number}`;
+
+/**
+ * What a `colony5` cell charges once its colony is built — «MarsBot loses 5 MC
+ * and resolves a "Build a Colony" action» (Adding Expansions p.14, the Pioneer /
+ * Constructor cube of the Awards & Milestones module), printed on the fan-made
+ * Amazonis board as a cell (docs/AUTOMA_DATA_AUDIT.md §2g).
+ */
+export const COLONY_CELL_PRICE_MC = 5;
 
 /** A single track on the MarsBot board (19 positions: 0–18; the Venus track has 13: 0–12). */
 export type TrackLayout = ReadonlyArray<TrackAction | undefined>;
@@ -273,6 +282,8 @@ export enum BonusCardId {
   // The fork's own Corporate Competition for the fan-made Vastitas Borealis
   // (`BoardName.VASTITAS_BOREALIS`), designed 2026-11-02 — §17.6 there.
   BF1_CORPORATE_COMPETITION_VASTITAS_FAN = 'BF1',
+  // The fork's own Corporate Competition for the fan-made Amazonis Planitia (`BoardName.AMAZONIS`), 2026-11-02 — §18.6.
+  BF2_CORPORATE_COMPETITION_AMAZONIS = 'BF2',
 }
 
 /** The set of bonus cards used in the base game (no expansions). */

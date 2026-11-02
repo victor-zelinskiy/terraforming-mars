@@ -52,15 +52,23 @@ export class AmazonisEngineer implements IAward {
   public readonly description = 'Have the most cards in play that directly alter your own production';
 
   public getScore(player: IPlayer): number {
-    return player.tableau.filter((card) => {
-      const eligible = map.get(card.name);
-      if (eligible !== undefined) {
-        return eligible;
-      }
-      const val = AmazonisEngineer.autoInclude(card);
-      map.set(card.name, val);
-      return val;
-    }).length;
+    return player.tableau.filter(AmazonisEngineer.altersProduction).length;
+  }
+
+  /**
+   * Does this card «directly alter your own production»? The ONE reading of
+   * the award's criterion — the bespoke list, then the card's own definition,
+   * cached by name — read by the human score above and by MarsBot's (its played
+   * pile, docs/AUTOMA_DATA_AUDIT.md §18.3) and the BF2 helper's reveal.
+   */
+  public static altersProduction(card: ICard): boolean {
+    const eligible = map.get(card.name);
+    if (eligible !== undefined) {
+      return eligible;
+    }
+    const val = AmazonisEngineer.autoInclude(card);
+    map.set(card.name, val);
+    return val;
   }
 
   /**

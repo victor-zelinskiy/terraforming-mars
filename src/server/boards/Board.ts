@@ -431,6 +431,26 @@ export abstract class Board {
   }
 
   /**
+   * AMAZONIS PLANITIA'S EQUATORIAL REGION — «the middle 3 equatorial rows»
+   * (rows 3–5 of the nine). Read by the Tropicalist milestone and by the
+   * fan-made Amazonis MarsBot placement tiebreaker (the Hellas Polar step's
+   * shape, docs/AUTOMA_DATA_AUDIT.md §18.4); the southern / polar twins above.
+   */
+  public static isEquatorialRegion(space: Space): boolean {
+    return space.y >= 3 && space.y <= 5;
+  }
+
+  /**
+   * An EMPTY AREA of the map — a cell a tile could still come to: on Mars (not
+   * a colony slot), not the restricted centre, nothing real standing on it.
+   * THE one predicate of «empty spaces adjacent to your tiles»: Red Tourism
+   * Wave's count, the Tourist award and the Amazonis MarsBot tiebreaker read it.
+   */
+  public static isEmptyArea(space: Space): boolean {
+    return space.spaceType !== SpaceType.COLONY && space.spaceType !== SpaceType.RESTRICTED && !Board.hasRealTile(space);
+  }
+
+  /**
    * Returns true when the space holds a neutral player cube (e.g. Martian Nature Wonders.)
    *
    * Cubes are stored in `space.tile` so they render, but they are not tiles.

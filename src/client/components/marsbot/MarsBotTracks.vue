@@ -42,7 +42,7 @@
               <i class="mb-ico mb-ico--floater" aria-hidden="true"></i>
               <span v-if="floaterCount(cell) === 2" class="mb-glyph__multi">×2</span>
             </span>
-            <span v-else-if="glyphFor(cell).kind === 'colony'" class="mb-glyph mb-glyph--ma">◉</span>
+            <span v-else-if="glyphFor(cell).kind === 'colony'" class="mb-glyph mb-glyph--ma">◉<span v-if="colonyPrice(cell) !== undefined" class="mb-glyph__multi">−{{ colonyPrice(cell) }}</span></span>
             <span v-else-if="glyphFor(cell).kind === 'ma'" class="mb-glyph mb-glyph--ma">{{ maGlyph(cell) }}</span>
           </template>
           <span v-if="cell.regressed" class="mb-cell__regress" aria-hidden="true">✕</span>
@@ -147,6 +147,11 @@ export default defineComponent({
     floaterCount(cell: TrackCell): number {
       const g = this.glyphFor(cell);
       return g.kind === 'floater' ? g.count : 1;
+    },
+    /** The M€ a colony cell charges once its colony is built (the fan-made Amazonis board's `colony5`). */
+    colonyPrice(cell: TrackCell): number | undefined {
+      const g = this.glyphFor(cell);
+      return g.kind === 'colony' ? g.price : undefined;
     },
     maGlyph(cell: TrackCell): string {
       const g = this.glyphFor(cell);

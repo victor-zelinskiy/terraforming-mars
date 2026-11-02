@@ -8,7 +8,6 @@ import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {Card} from '../Card';
-import {SpaceType} from '../../../common/boards/SpaceType';
 import {Board} from '../../boards/Board';
 import {Space} from '../../boards/Space';
 import {ActionEffect, ActionPreview} from '../../../common/models/ActionPreviewModel';
@@ -74,7 +73,7 @@ export class RedTourismWave extends Card implements IProjectCard {
   public static getAdjacentEmptySpaces(player: IPlayer): ReadonlyArray<Space> {
     const board = player.game.board;
     return board.spaces.filter((space) => {
-      if (space.spaceType === SpaceType.COLONY || space.spaceType === SpaceType.RESTRICTED || Board.hasRealTile(space)) {
+      if (!Board.isEmptyArea(space)) {
         return false;
       }
       return board.getAdjacentSpaces(space).some((adj) => Board.hasRealTile(adj) && adj.player === player);
@@ -85,13 +84,7 @@ export class RedTourismWave extends Card implements IProjectCard {
   public static getAdjacentEmptySpacesCount(player: IPlayer): number {
     const board = player.game.board;
     return board.spaces.filter((space) => {
-      if (space.spaceType === SpaceType.COLONY) {
-        return false;
-      }
-      if (space.spaceType === SpaceType.RESTRICTED) {
-        return false;
-      }
-      if (Board.hasRealTile(space)) {
+      if (!Board.isEmptyArea(space)) {
         return false;
       }
       return board.getAdjacentSpaces(space).some((adj) => {

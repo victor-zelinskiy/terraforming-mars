@@ -13,6 +13,7 @@ import {THARSIS_MARSBOT_BOARD} from './TharsisMarsBot';
 import {UTOPIA_MARSBOT_BOARD} from './UtopiaMarsBot';
 import {VASTITAS_BOREALIS_MARSBOT_BOARD, VASTITAS_VENUS_TRACK} from './VastitasBorealisMarsBot';
 import {VASTITAS_FAN_MARSBOT_BOARD} from './VastitasBorealisFanMarsBot';
+import {AMAZONIS_MARSBOT_BOARD} from './AmazonisMarsBot';
 
 /**
  * THE MAP PROFILE — everything that differs between MarsBot boards, and nothing
@@ -28,7 +29,7 @@ import {VASTITAS_FAN_MARSBOT_BOARD} from './VastitasBorealisFanMarsBot';
 /** One ordered placement tiebreaker. Highest score wins; ties fall through. */
 export type MarsBotPlacementTiebreaker = {
   /** Stable id — what the specs pin and what a future placement log would name. */
-  readonly id: 'oceans' | 'polar-region' | 'special-tile' | 'reward-icons' | 'southern-region' | 'edge';
+  readonly id: 'oceans' | 'polar-region' | 'special-tile' | 'reward-icons' | 'southern-region' | 'edge' | 'equatorial-region' | 'empty-neighbours';
   readonly score: (game: IGame, bot: IPlayer, space: Space) => number;
 };
 
@@ -115,6 +116,30 @@ const TERRA_CIMMERIA_SPECIAL_TILE: MarsBotPlacementTiebreaker = {
 const VASTITAS_EDGE: MarsBotPlacementTiebreaker = {
   id: 'edge',
   score: (game, _bot, space) => (game.board.isEdge(space) ? 1 : 0),
+};
+
+/**
+ * AMAZONIS (fan map), HOME RULE by the §A law: the Tropicalist milestone counts
+ * tiles in «the middle 3 equatorial rows», so the bot gets a step towards them
+ * in the shape Hellas' Polar Explorer gives its region — a YES/NO test BETWEEN
+ * the oceans and the reward icons (a milestone's region ranks before the icons;
+ * Elysium's award region ranks after them). One predicate, the milestone's own.
+ */
+const AMAZONIS_EQUATORIAL_REGION: MarsBotPlacementTiebreaker = {
+  id: 'equatorial-region',
+  score: (_game, _bot, space) => (Board.isEquatorialRegion(space) ? 1 : 0),
+};
+
+/**
+ * AMAZONIS (fan map), HOME RULE by the same law: the Tourist award counts the
+ * EMPTY areas beside the player's tiles, so the bot prefers — AFTER the reward
+ * icons, where Elysium ranks its award's region — the hex with the most empty
+ * neighbours. A COUNT, like the oceans step («as many as possible»), read
+ * through the very predicate the award counts (`Board.isEmptyArea`).
+ */
+const AMAZONIS_EMPTY_NEIGHBOURS: MarsBotPlacementTiebreaker = {
+  id: 'empty-neighbours',
+  score: (game, _bot, space) => game.board.getAdjacentSpaces(space).filter(Board.isEmptyArea).length,
 };
 
 export type MarsBotMapProfile = {
@@ -265,8 +290,28 @@ const VASTITAS_FAN_PROFILE: MarsBotMapProfile = {
   // The shared Venus row: the microbe tag lives on the bio row here.
 };
 
+/**
+ * AMAZONIS PLANITIA, THE FAN MAP (`AMAZONIS`) — the second HOME-MADE profile
+ * (Colonizer … Tropicalist / Curator … A. Zoologist, the restricted centre,
+ * microbe and animal cell bonuses). Four of its names stand in the official
+ * Awards & Milestones list and Colonizer is that list's Pioneer at 4 colonies
+ * — whose three colony cubes the board prints as `colony5` cells. Design:
+ * docs/AUTOMA_DATA_AUDIT.md §2g / §18.
+ */
+const AMAZONIS_PROFILE: MarsBotMapProfile = {
+  boardName: BoardName.AMAZONIS,
+  tracks: AMAZONIS_MARSBOT_BOARD,
+  corporateCompetition: BonusCardId.BF2_CORPORATE_COMPETITION_AMAZONIS,
+  // 1. oceans (the base step) · 2. the equatorial region (Tropicalist — a
+  // milestone's region, Hellas' position) · 4. reward icons · 5. the most empty
+  // neighbours (Tourist — an award's step, Elysium's position). No «+1 icon»
+  // bullet: the row has no Edgedancer / Geologist / Founder.
+  placementTiebreakers: [OCEAN_ADJACENCY, AMAZONIS_EQUATORIAL_REGION, REWARD_ICONS, AMAZONIS_EMPTY_NEIGHBOURS],
+  // The shared Venus row: the microbe tag lives on the bio row here.
+};
+
 const PROFILES: ReadonlyArray<MarsBotMapProfile> =
-  [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE, TERRA_CIMMERIA_PROFILE, VASTITAS_BOREALIS_PROFILE, VASTITAS_FAN_PROFILE];
+  [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE, TERRA_CIMMERIA_PROFILE, VASTITAS_BOREALIS_PROFILE, VASTITAS_FAN_PROFILE, AMAZONIS_PROFILE];
 
 /** Every board MarsBot can be played on. */
 export const MARSBOT_BOARDS: ReadonlyArray<BoardName> = PROFILES.map((p) => p.boardName);

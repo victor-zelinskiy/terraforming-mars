@@ -2,7 +2,6 @@ import {expect} from 'chai';
 import {BoardName} from '../../src/common/boards/BoardName';
 import {BonusCardId, MarsBotTrackRole} from '../../src/common/automa/AutomaTypes';
 import {CardName} from '../../src/common/cards/CardName';
-import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
 import {SpaceType} from '../../src/common/boards/SpaceType';
 import {Tag} from '../../src/common/cards/Tag';
 import {TileType} from '../../src/common/TileType';
@@ -112,11 +111,6 @@ function land(game: IGame, predicate: (space: Space) => boolean): Space {
     s.spaceType === SpaceType.LAND && s.tile === undefined && predicate(s));
   expect(space, 'the fixture needs this space').is.not.undefined;
   return space!;
-}
-
-/** Next to an ocean RESERVE or an ocean tile — the set the oceans step and Irrigator can ever count. */
-function nearWater(game: IGame, space: Space): boolean {
-  return game.board.getAdjacentSpaces(space).some((a) => a.spaceType === SpaceType.OCEAN || Board.isOceanSpace(a));
 }
 
 function northPole(game: IGame): Space {

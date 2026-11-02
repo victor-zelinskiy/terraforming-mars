@@ -109,6 +109,8 @@ export const AUTOMA_SUPPORTED_BOARDS: ReadonlyArray<BoardName> = [
   // rules, designed by the law of the six official boards (2026-11-02;
   // docs/claude/marsbot-fan-map-checklist.md, docs/AUTOMA_DATA_AUDIT.md §2f / §17).
   BoardName.VASTITAS_BOREALIS,
+  // The fan-made Amazonis Planitia — the second home-made profile (2026-11-02; §2g / §18).
+  BoardName.AMAZONIS,
 ];
 
 /** «tharsis, hellas and elysium» — the list read out in the rejection reason. */

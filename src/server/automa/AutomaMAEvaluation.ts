@@ -8,6 +8,7 @@ import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {IProjectCard} from '../cards/IProjectCard';
 import {Founder} from '../awards/modular/Founder';
+import {AmazonisEngineer} from '../awards/amazonisPlanitia/AmazonisEngineer';
 import {isSpecialTileSpace} from '../boards/Board';
 import {TileType} from '../../common/TileType';
 import {newProjectCard} from '../createCard';
@@ -317,6 +318,30 @@ export class AutomaMAEvaluation {
       // Terran 5 ↔ 5, Agronomist 4 ↔ 4); Power stands ALONE on this board, so
       // four power tags read as four spaces.
       return {value: trackPosition(game, 'power'), target: 4};
+    // ── Amazonis Planitia, the fan map (docs/AUTOMA_DATA_AUDIT.md §18.2) ────
+    // Colonizer («4 colonies» — the A&M list's Pioneer at 4: «As usual», its
+    // three colony cubes printed on the board as `colony5` cells) and
+    // Tropicalist (real tiles in the equatorial rows) are the UNCHANGED family.
+    case 'Forester':
+      // OFFICIAL (Adding Expansions p.13): «Forester — Reached space 6 on the
+      // [bio] track» (the human: 4 plant production).
+      return {value: trackPosition(game, 'bio'), target: 6};
+    case 'Terran':
+      // OFFICIAL calibration (p.14): «Terran — Reached space 5 on the [Earth]
+      // track» for the list's 5-tag Terran (the fork's Terran5), on the Tharsis
+      // board where Earth rides with City — 1:1. This map's Terran asks 6 tags,
+      // so 6 spaces of the City/Earth row.
+      return {value: trackPosition(game, 'earth'), target: 6};
+    case 'Minimalist': {
+      // HOME RULE. «Have no more than 2 cards in hand» — the bot has no hand,
+      // and read as the player's metric (0 cards) the milestone would be met
+      // from the first turn. Its hand is its ACTION DECK of the generation: the
+      // milestone is met while at most 2 cards are left in it. Expressed as a
+      // 0 / 1 fraction because the framework reads «met» as value ≥ target and
+      // this is the one «at most» criterion in the supported set.
+      const left = game.automa?.actionDeck.length ?? 0;
+      return {value: left <= 2 ? 1 : 0, target: 1};
+    }
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Hoverlord': // Unchanged: 7 floater resources (Adding Expansions p.2).
       return {value: game.automa?.floaters ?? 0, target: 7};
@@ -581,6 +606,23 @@ export class AutomaMAEvaluation {
       // Baron's shape) would read the SCIENCE half of the pairing as Jovian
       // tags — science is 15 % of the deck, Jovian 7 % — and double the bot.
       score = Math.floor(jovianTrackPosition(game) / 2);
+      break;
+    // ── Amazonis Planitia, the fan map (docs/AUTOMA_DATA_AUDIT.md §18.3) ────
+    // Promoter (event track, official) and A. Zoologist (bio + 5, official)
+    // stand here under the cases they already have; Tourist is UNCHANGED (the
+    // bot's real tiles and their real empty neighbours — the default below).
+    case 'Curator':
+      // HOME RULE: «most tags of any one type» ↔ the bot's MOST-ADVANCED track
+      // — Mogul's reading (p.15 «Highest track space doubled») without the
+      // doubling: the furthest track IS the tag the bot has resolved most.
+      score = bestTrackPosition(game);
+      break;
+    case 'A. Engineer':
+      // «Most cards in play that directly alter your own production» — the
+      // same criterion read off the bot's PLAYED PILE (it has no tableau): the
+      // Magnate / Celebrity / Tycoon container family, through the award's own
+      // predicate so the two readings cannot drift.
+      score = botPlayedPile(game, (card) => AmazonisEngineer.altersProduction(card));
       break;
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Venuphile': // Venus track position (Adding Expansions p.3).

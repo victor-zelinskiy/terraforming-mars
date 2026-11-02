@@ -9,7 +9,7 @@
  */
 import {CardModel} from '@/common/models/CardModel';
 import {MarsBotModel, MarsBotTrackModel} from '@/common/models/MarsBotModel';
-import {DifficultyLevel, TrackAction} from '@/common/automa/AutomaTypes';
+import {COLONY_CELL_PRICE_MC, DifficultyLevel, TrackAction} from '@/common/automa/AutomaTypes';
 import {MarsBotCorpCubeModel, MarsBotCubeType} from '@/common/automa/MarsBotCorpData';
 import {Tag} from '@/common/cards/Tag';
 
@@ -28,7 +28,7 @@ export type TrackActionGlyph =
   | {kind: 'param', icon: 'temperature' | 'ocean' | 'venus', count: 1 | 2}
   | {kind: 'tile', tile: 'greenery' | 'city'}
   | {kind: 'floater', count: 1 | 2}
-  | {kind: 'colony'}
+  | {kind: 'colony', price?: number}
   | {kind: 'ma', which: 'milestone' | 'award'};
 
 export function trackActionGlyph(action: TrackAction): TrackActionGlyph {
@@ -52,6 +52,7 @@ export function trackActionGlyph(action: TrackAction): TrackActionGlyph {
   case 'floater': return {kind: 'floater', count: 1};
   case 'floater2': return {kind: 'floater', count: 2};
   case 'colony': return {kind: 'colony'};
+  case 'colony5': return {kind: 'colony', price: COLONY_CELL_PRICE_MC}; // Amazonis: the A&M Pioneer cube as a cell
   case 'milestone': return {kind: 'ma', which: 'milestone'};
   case 'award': return {kind: 'ma', which: 'award'};
   default: return {kind: 'advance'};
@@ -79,7 +80,10 @@ export function trackActionLabel(action: TrackAction): {message: string, params:
     return {message: 'Place an ocean', params: []};
   case 'tile': return {message: glyph.tile === 'greenery' ? 'Place a greenery' : 'Place a city', params: []};
   case 'floater': return {message: glyph.count === 2 ? 'Gain 2 floaters' : 'Gain 1 floater', params: []};
-  case 'colony': return {message: 'Place a colony', params: []};
+  case 'colony':
+    return glyph.price === undefined ?
+      {message: 'Place a colony', params: []} :
+      {message: 'Place a colony and lose ${0} M€', params: [String(glyph.price)]};
   case 'ma': return {message: glyph.which === 'milestone' ? 'Claim a milestone' : 'Fund an award', params: []};
   }
 }

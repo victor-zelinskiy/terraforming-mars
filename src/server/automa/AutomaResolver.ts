@@ -2,8 +2,9 @@ import * as constants from '../../common/constants';
 import {CardType} from '../../common/cards/CardType';
 import {CardResource} from '../../common/CardResource';
 import {GlobalParameter} from '../../common/GlobalParameter';
+import {Resource} from '../../common/Resource';
 import {Tag} from '../../common/cards/Tag';
-import {TrackAction} from '../../common/automa/AutomaTypes';
+import {COLONY_CELL_PRICE_MC, TrackAction} from '../../common/automa/AutomaTypes';
 import {AUTOMA_FLIP_MAX_CARDS, AUTOMA_FLIP_TAGS} from '../../common/automa/AutomaFlipTags';
 import {MarsBotTagFlip} from '../../common/automa/MarsBotTurn';
 import {IGame} from '../IGame';
@@ -310,6 +311,25 @@ export class AutomaResolver {
       if (!AutomaColonies.botBuildColony(game)) {
         failedAction(game, 'no-colony-tile');
       }
+      return;
+    case 'colony5':
+      // The fan-made Amazonis board's «colony for 5 M€» cell — the Awards &
+      // Milestones module's Pioneer / Constructor cube in printed form:
+      // «MarsBot loses 5 MC and resolves a "Build a Colony" action» (Adding
+      // Expansions p.14). The colony FIRST, through the ordinary bot build,
+      // then the price (MSL Curiosity's order — never a payment for a colony
+      // it did not get); no eligible tile is the printed icon with nothing to
+      // do, a Failed Action and no payment; without Colonies the icon of an
+      // unused expansion, ignored. The bot loses what it has below the price
+      // (the printed sentence sets no condition on its purse).
+      if (!game.gameOptions.coloniesExtension) {
+        return;
+      }
+      if (!AutomaColonies.botBuildColony(game)) {
+        failedAction(game, 'no-colony-tile');
+        return;
+      }
+      bot.stock.deduct(Resource.MEGACREDITS, Math.min(COLONY_CELL_PRICE_MC, bot.megaCredits), {log: true});
       return;
     case 'milestone':
       AutomaMilestonesAwards.claimMilestoneAction(game);

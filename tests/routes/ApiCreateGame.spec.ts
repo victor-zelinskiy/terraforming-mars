@@ -58,12 +58,13 @@ describe('ApiCreateGame', () => {
       BoardName.VASTITAS_BOREALIS_NOVA,
       BoardName.TERRA_CIMMERIA_NOVA,
       BoardName.VASTITAS_BOREALIS,
+      BoardName.AMAZONIS,
     ]);
     // All three official boards have MarsBot adaptations — the pool is unchanged.
     expect(ApiCreateGame.boardOptions(RandomBoardOption.OFFICIAL, {automa: true}))
       .deep.eq([BoardName.THARSIS, BoardName.HELLAS, BoardName.ELYSIUM]);
     // An explicit pick is never filtered — validation refuses it with a reason instead.
-    expect(ApiCreateGame.boardOptions(BoardName.AMAZONIS, {automa: true})).deep.eq([BoardName.AMAZONIS]);
+    expect(ApiCreateGame.boardOptions(BoardName.HOLLANDIA, {automa: true})).deep.eq([BoardName.HOLLANDIA]);
   });
 
   it('no get', async () => {
