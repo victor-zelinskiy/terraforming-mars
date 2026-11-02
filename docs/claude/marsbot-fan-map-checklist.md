@@ -4,8 +4,9 @@
 логике шести официальных досок, **свою карту Corporate Competition** (в духе B09–B13) и **свои правила вех/наград
 для бота** — а не доску Tharsis из раздела «Awards & Milestones» RB-C (там она — упрощение для карт, о которых
 правила ничего не знают; у нас есть шесть официальных досок, по которым можно вывести закон их построения).
-Порядок: старая **Vastitas Borealis** (образец паттерна) → Amazonis → старая Terra Cimmeria → (Arabia Terra
-после её бонусов Pathfinders) → Hollandia (своего ряда вех/наград нет — отдельное решение). **Официальная
+Порядок: старая **Vastitas Borealis** (образец паттерна — **СДАНА 2026-11-02**, раздел D ниже) → Amazonis →
+старая Terra Cimmeria → (Arabia Terra после её бонусов Pathfinders) → Hollandia (своего ряда вех/наград нет —
+отдельное решение). **Официальная
 Amazonis Planitia (большая, 91 гекс, апстрим)** — последней: там доска бота точно своя по построению.
 
 Один агент = одна карта. Этот файл — высокоуровневый разбор и чеклист; детальная проработка карты — работа
@@ -29,7 +30,9 @@ Amazonis Planitia (большая, 91 гекс, апстрим)** — после
 | Vastitas Borealis | 83 | 37 | 15 | 10 | 13 (+1) | 15 | 10 | 4 | 4 | venus, floater, floater2×2 | 2 |
 
 **Жёсткие инварианты (все шесть):** ровно **10 океанов, 13 температур + 1 двойная, 15 озеленений, 10 городов,
-4 вехи, 4 награды**; ~37 пустых; 14–16 «advance»; Σ РТ 78–84. **Порядок ролей строк одинаков** (building,
+4 вехи, 4 награды**; 37–39 пустых (Terra Cimmeria 39); 14–16 «advance»; Σ РТ 78–84. Инварианты закреплены
+АССЕРТАМИ в спеке первой фанатской доски (`tests/automa/VastitasBorealisFanMarsBotBoard.spec.ts` § «the §A law») —
+копируй тот блок в спек следующей карты. **Порядок ролей строк одинаков** (building,
 space, event, science, power, earth, bio) — на нём держатся ссылки `tag_N`, «верхний при ничьей», ряд Венеры.
 
 **Концы треков (клетка 18):** building tr5 · space tr6 · event tr5 · science tr7 · power tr8 · earth tr7 · bio tr6
@@ -40,9 +43,18 @@ bio A10. Отступления редки и по одной клетке (Utop
 
 **Три одиночных строки (building, space, event) почти не меняются от карты к карте** — различия точечные
 (клетка-две). **Карта выражает себя в ЧЕТЫРЁХ «парных» строках** (science / power / earth / bio): кто с кем в паре
-(Jovian, City, Microbe кочуют — RB-C p.8), где стоят их вехи/награды и концы. Разбор «почему пары именно такие» —
-первая задача агента (гипотеза для проверки: пары выбраны так, чтобы критерии вех/наград КАРТЫ легли на один
-трек или на сумму двух — Vastitas: Engineer = Jovian/Earth + City/Energy, Farmer = Microbe/Science ИЛИ Animal/Plant).
+(Jovian, City, Microbe кочуют — RB-C p.8), где стоят их вехи/награды и концы.
+
+**ЗАКОН ПАР (проверен по всем шести, 2026-11-02):** критерий вехи/награды, считающий МЕТКИ, ложится на трек,
+несущий ровно эти метки; критерий, считающий ПРОИЗВОДСТВО, — на трек с этим печатным значком (сталь → building,
+титан → space, M€ → event, энергия → power, тепло → earth, растения → bio); **два критерия одной карты не делят
+один трек**. Примеры: Hellas — Energizer (энергия) ↔ Power ОДИН, Rim Settler (Юпитер) ↔ Jovian/Science; Elysium —
+Industrialist ↔ Power один, Jovian остаётся на Science; Utopia — Researcher (наука) ↔ Science один, поэтому Jovian
+уходит на Power, Investor (Земля) ↔ Earth/City; TC — Architect (города) ↔ City/Science, Electrician ↔ Power один,
+Planetologist (Jovian+Earth+Venus) ↔ Jovian/Earth + Venus; Nova — Engineer (энергия + тепло) ↔ City/Energy +
+Jovian/Earth (оба значка!), Traveller (Jovian+Earth метки) ↔ Jovian/Earth, Farmer ↔ Microbe/Science ИЛИ Animal/Plant.
+Метка без критерия (чаще City) едет с Землёй — умолчание четырёх досок. Отсюда топология читается с ряда вех/наград
+почти механически; если она совпала с официальной (у старой Vastitas — Hellas/Elysium) — это нормально.
 
 **Иконки расширений:** каждый трек-сет несёт один `venus`, один `floater` и два `floater2` (Tharsis — старая
 версия с venus/venus2); они инертны без Venus / Colonies (`floater` с треугольником Colonies работает при
@@ -68,9 +80,15 @@ Elysium «южный регион» ↔ Desert Settler; Terra Cimmeria «ряд�
 признаком и разыграй»; «M€» → своё (Forecaster платит, а не тратит).
 
 **Вехи/награды для бота (`AutomaMAEvaluation`):** «клетка трека ≥ N» / «сумма двух треков» / «трек + 5» /
-«M€ / K» / «как у игрока» (если у бота есть та же величина в том же месте — тайлы, колонии). Источник цифр —
-официальный раздел RB-C «Awards & Milestones expansion» (стр. 12–15: ~40 вех, ~40 наград, помощники), если имя
-там есть; иначе — по аналогии с ближайшей официальной (ПОМЕТИТЬ как домашнее).
+«M€ / K» / «как у игрока» (если у бота есть та же величина в том же месте — тайлы, колонии, M€). Источник цифр —
+официальный раздел RB-C «Awards & Milestones expansion» (стр. 13–15: ~40 вех, ~40 наград; помощники B14 там НЕ
+напечатаны), если имя там есть; иначе — по аналогии с ближайшей официальной (ПОМЕТИТЬ как домашнее).
+**Калибровки, уже выведенные из официальных правил:** веха «N меток» одиночного трека ↔ клетка N (Researcher 4,
+Spacefarer 4, Terran 5, Agronomist 4); Юпитер на парном треке ↔ 2:1 (Rim Settler: 3 метки ↔ клетка 6); «+5» у
+наград за РЕСУРСЫ (титан, тепло, животные, сталь+энергия), без «+5» у наград за МЕТКИ одиночного трека (Space
+Baron, Investor, Electrician, Promoter); сумма производств ↔ сумма двух значковых треков без добавки (Banker,
+Manufacturer); «минус N» — когда трек заведомо шире критерия (Botanist −2); деление — у M€ (Excentric /5,
+Forecaster /7) и, по той же логике, у парного трека против одной метки (Voyager /2 — домашнее).
 
 ---
 
@@ -220,3 +238,51 @@ Elysium «южный регион» ↔ Desert Settler; Terra Cimmeria «ряд�
   Capitalist, Naturalist, Voyager (сверить по `getScore`).
 - Плиточные: Edgedancer (край) → тайбрейк «край», как у Utopia; Irrigator (тайлы у океанов?) — проверить.
 - Премиум-иконки: нет Naturalist и Voyager (владелец).
+
+---
+
+## D. Первая карта сдана — что узнал первый агент (старая Vastitas Borealis, 2026-11-02)
+
+Сдано: доска `src/server/automa/boards/VastitasBorealisFanMarsBot.ts` (§2f аудита), профиль
+`VASTITAS_FAN_PROFILE`, карта `BF1` (`BonusCardId.BF1_CORPORATE_COMPETITION_VASTITAS_FAN`), правила §17 аудита,
+спеки `tests/automa/VastitasBorealisFanMarsBot*.spec.ts`, бенч `tests/automa/MarsBotBoardBalance.dev.spec.ts`,
+премиум-часть (маркер полюса, табличка источника на счетах полюса/Южного полюса, спеки `tests/boards/vastitasFan*`),
+e2e `tests/e2e/console-vastitas-borealis-fan.spec.ts`. Решения владельца — §17 аудита, таблица в §17.2–17.6.
+
+**Что оказалось ПРОЩЕ, чем ожидал чеклист:**
+- Особая клетка, напечатанная тем же `SpaceBonus`, что и на официальной карте (Северный полюс = `TEMPERATURE_4MC`),
+  уже работает для бота по печатному бонусу — `isVastitasNorthPole`, `settleVastitasNorthPole`, досье человека,
+  `spaceCosts(space, game)`. Единственная привязка к ИМЕНИ карты пряталась в ребейте легальности
+  (`needsNorthPoleRebate` = `=== NOVA`) — теперь он читает доску (`boardPrintsNorthPole`). **Правило для следующей
+  карты: `grep "boardName ===" src/server/automa` — каждое такое сравнение проверить на новую карту.** Остались:
+  Южный полюс (`=== HELLAS`) и MSL (`=== TERRA_CIMMERIA_NOVA`) — честно их, пока никто не печатает те же бонусы.
+- Общие имена вех/наград с поддерживаемыми картами (Smith, Tradesman, Edgedancer — Utopia; Forecaster — TC Nova)
+  не требуют «map-aware» веток: имя = одна веха с одним человеческим критерием ⇒ одна ветка честна для обеих.
+  Гард `noNameServesTwoBoards` ослаблен до списка `SHARED_NAMES` с причиной — новое совпадение по-прежнему падает.
+- Ряд Венеры: если Microbe остаётся на bio — общий `VENUS_TRACK`, свой `venusTrack` не нужен.
+
+**Что оказалось НУЖНЫМ и не было в чеклисте:**
+- Нормализация: `tests/automa/AutomaMilestoneNormalization.spec.ts` требует для КАЖДОЙ вехи новой карты запись в
+  `BOT_METRIC` или `PLAYER_METRIC`, а список `supportedGames()` надо расширить новой картой (± Venus/Colonies).
+  Заодно вскрылось, что Nova туда никогда не входила — добавлены и её вехи. `familyGuard` докажет семью сам.
+- `MarsBotMADescriptions.ts` сегодня никем не читается (мёртвые данные) — поддерживать, но не рассчитывать на UI.
+- Имя карты Corporate Competition: в UI карта зовётся с именем поля в скобках; официальная Nova теперь
+  «(Vastitas Borealis Nova)», фанатская — «(Vastitas Borealis)» (решение владельца). RU-имена наград на лице карты
+  берутся с листа наград (`awards.json`): «Приспособленец», не «Синоптик» (исправлено и у B12).
+- Счета pay-to-use клеток (полюс 4 M€, Южный полюс 6 M€) не несли `cause` → табличка источника не называла клетку.
+  Теперь `SelectPaymentDeferred` получает `cause: cellGiver()` — для следующей карты с платной клеткой это уже есть.
+- Бенч баланса — `TM_BOT_BALANCE=1 npx mocha … tests/automa/MarsBotBoardBalance.dev.spec.ts`: одни и те же
+  последовательности карт на всех поддерживаемых досках; домашняя доска должна лечь внутрь полосы официальных
+  (числа — §17.8 аудита). Первая легла без подстройки.
+- Инвариант «37 пустых» не жёсткий (TC — 39): полоса 37–39.
+
+**Ловушки процесса:** heredoc с длинным python-скриптом в Bash-инструменте обрывается («unexpected EOF») — писать
+скрипт правок в файл (`Write`) и запускать `python -I file`. Импорт `Board.ts` напрямую через `tsx` падает на
+циклической зависимости (`MoonBoard`) — геометрию карты считать временным mocha-спеком через `testGame`.
+
+**Следующая карта (Amazonis):** печатает MICROBE/ANIMAL-бонусы клеток — для бота они «1 M€ за иконку» уже по
+общему правилу (`botCoveredIconMegacredits`), но человеку бонус «на карту» идёт через `cardBonus` — проверить досье
+и `spaceCosts`; ряд Colonizer · Forester · Minimalist · Terran · Tropicalist / Curator · A. Engineer · Promoter ·
+Tourist · A. Zoologist — из них Promoter (event) и A. Zoologist (bio +5) уже официальные по имени (Nova, TC) и
+попадут в `SHARED_NAMES`; Forester (deprecated в манифесте!) и Terran (A&M: «Terran — space 5 on the Earth track»)
+— официальные по A&M-списку.
