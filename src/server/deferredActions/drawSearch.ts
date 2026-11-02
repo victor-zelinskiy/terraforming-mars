@@ -15,6 +15,7 @@ export type DrawSearchFilter = {
   type?: CardType,
   resource?: CardResource,
   withoutTags?: ReadonlyArray<Tag>,
+  floaterIcon?: boolean,
 };
 
 /**
@@ -32,7 +33,8 @@ export function drawSearchOf(count: number, filter: DrawSearchFilter | undefined
     return undefined;
   }
   const withoutTags = filter.withoutTags !== undefined && filter.withoutTags.length > 0 ? [...filter.withoutTags] : undefined;
-  if (filter.tag === undefined && filter.type === undefined && filter.resource === undefined && withoutTags === undefined) {
+  const floaterIcon = filter.floaterIcon === true;
+  if (filter.tag === undefined && filter.type === undefined && filter.resource === undefined && withoutTags === undefined && !floaterIcon) {
     return undefined;
   }
   const search: DrawSearchModel = {count};
@@ -47,6 +49,9 @@ export function drawSearchOf(count: number, filter: DrawSearchFilter | undefined
   }
   if (withoutTags !== undefined) {
     search.withoutTags = withoutTags;
+  }
+  if (floaterIcon) {
+    search.floaterIcon = true;
   }
   return search;
 }

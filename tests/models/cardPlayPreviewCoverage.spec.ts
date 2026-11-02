@@ -91,6 +91,10 @@ const ACCEPTED_DYNAMIC: Partial<Record<CardName, 'automatic' | 'follow-up'>> = {
   // pre-collected; −1 card / +3 cards result chips.
   // 'Productive Outpost' now has a cardPlayPreview hook — it aggregates every owned
   // colony's FIXED metadata.colony bonus into result chips; interactive bonuses note.
+  // ── PRELUDES (the guard walks them since P44 — they play through the same preview family) ──
+  'Merger': 'follow-up', // deals 4 corporations and asks which to merge — a live corporation pick
+  'Double Down': 'follow-up', // copies one of your played preludes — a live pick over the tableau
+  'Eccentric Sponsor': 'follow-up', // plays a project card from hand at −25 M€ — the hand’s own play flow
 };
 
 /**
@@ -124,6 +128,14 @@ const BEHAVIOR_BESPOKE_NO_HIDDEN_RESULT: Partial<Record<CardName, string>> = {
   'Martian Lumber Corp': 'sets the canUsePlantsAsMegacredits ABILITY flag (no immediate result, like Helion); +1 plant production in behavior',
   // ── Ares ──
   'Butterfly Effect': 'shifts the hazard-constraint thresholds (ShiftAresGlobalParametersDeferred — a board/rule choice) → follow-up; +1 TR in behavior',
+  // ── PRELUDES (walked since P44) ──
+  'New Partner': 'draws 2 preludes and plays one — the «ВЫБОР ПРОЛОГА» stage (a live pick); +1 M€ production in behavior',
+  'Ecology Experts': 'plays a project card ignoring global requirements — the hand’s own play flow; +1 plant production in behavior',
+  'Aquifer Turbines': 'the PRINTED PRICE (negative `startingMegaCredits`) paid through SelectPayment — the start queue’s «ОПЛАТИТЬ» step reads it; the gains are in behavior',
+  'Business Empire': 'the PRINTED PRICE (negative `startingMegaCredits`) paid through SelectPayment — the start queue’s «ОПЛАТИТЬ» step reads it; the gains are in behavior',
+  'Galilean Mining': 'the PRINTED PRICE (negative `startingMegaCredits`) paid through SelectPayment — the start queue’s «ОПЛАТИТЬ» step reads it; the gains are in behavior',
+  'Huge Asteroid': 'the PRINTED PRICE (negative `startingMegaCredits`) paid through SelectPayment — the start queue’s «ОПЛАТИТЬ» step reads it; the gains are in behavior',
+  'Strategic Base Planning': 'the PRINTED PRICE (negative `startingMegaCredits`) paid through SelectPayment — the start queue’s «ОПЛАТИТЬ» step reads it; the city / colony are in behavior',
 };
 
 function overridesBespokePlay(card: ICard): boolean {
@@ -154,8 +166,11 @@ function forEachInScopeProjectCard(cb: (card: ICard, module: GameModule) => void
     if (!SCOPE.includes(manifest.module)) {
       continue;
     }
-    for (const name of Object.keys(manifest.projectCards)) {
-      const Factory = (manifest.projectCards as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
+    // The PRELUDES are played through the same preview family (`card-play-preview` reads `preludeCardsInHand` — the
+    // start queue's ceremony and the «ВЫБОР ПРОЛОГА» stage), so a prelude's bespoke play is the same gap (P44).
+    const cards = {...manifest.projectCards, ...(manifest.preludeCards ?? {})};
+    for (const name of Object.keys(cards)) {
+      const Factory = (cards as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
       if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
         continue;
       }

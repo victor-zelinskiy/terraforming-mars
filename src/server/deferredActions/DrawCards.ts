@@ -10,6 +10,7 @@ import {CardDrawRevealSource} from '../../common/models/CardDrawRevealModel';
 import {RevealedCard} from '../IPlayer';
 import {deckSearchFactOf, drawSearchOf, forbiddenTagsOn} from './drawSearch';
 import {DrawSearchModel} from '../../common/models/CardDrawRevealModel';
+import {hasFloaterIcon} from '../cards/venusNext/floaterCards';
 
 /**
  * Best-effort attribution for the "you drew cards" reveal modal when the caller
@@ -52,6 +53,8 @@ export type DrawOptions = {
   cardType?: CardType,
   /** Discard cards WITH any of these tags (`Behavior.DrawCard.withoutTags` — Red Tech Convention). */
   withoutTags?: ReadonlyArray<Tag>,
+  /** Keep only cards WITH A FLOATER ICON (`Behavior.DrawCard.floaterIcon` — Celestic, P44): a NAMED rule, never an `include`. */
+  floaterIcon?: boolean,
   include?(card: IProjectCard): boolean,
   /**
    * Attribution for the "you drew cards" reveal modal, when cheaply known
@@ -113,6 +116,9 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
       if (forbiddenTagsOn(this.player, card, withoutTags).length > 0) {
         return false;
       }
+      if (this.options.floaterIcon === true && !hasFloaterIcon(card)) {
+        return false;
+      }
       if (this.options.include !== undefined && !this.options.include(card)) {
         return false;
       }
@@ -135,6 +141,7 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
       type: options.cardType,
       resource: options.resource,
       withoutTags: options.withoutTags,
+      floaterIcon: options.floaterIcon,
     });
   }
 

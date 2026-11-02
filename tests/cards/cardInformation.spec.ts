@@ -183,6 +183,7 @@ describe('card information model', function() {
       ['Viral Enhancers', 'the bare tag row is the trigger half of the effect drawn below it'],
       ['Neptunian Power Consultants', 'the production/resource row is the payoff half of the ocean effect'],
       ['Io Sulphur Research', 'the "3 Venus tags → 3 cards" row is the second branch of the one draw rule'],
+      ['Atmospheric Enhancers', 'the three-way choice prints across two rows (temperature / oxygen, then / Venus) — one block describes it'],
     ]);
     const offenders: Array<string> = [];
     for (const card of cards) {

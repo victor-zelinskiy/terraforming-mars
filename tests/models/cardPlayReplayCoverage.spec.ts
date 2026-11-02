@@ -168,8 +168,11 @@ function forEachInScopeProjectCard(cb: (Factory: new () => ICard, name: string, 
     if (!SCOPE.includes(manifest.module)) {
       continue;
     }
-    for (const name of Object.keys(manifest.projectCards)) {
-      const Factory = (manifest.projectCards as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
+    // The PRELUDES ride the same batch (the start queue's ceremony and the «ВЫБОР ПРОЛОГА» stage post the play with its
+    // pre-collected answers — P44's branch), so their replay is walked too.
+    const cards = {...manifest.projectCards, ...(manifest.preludeCards ?? {})};
+    for (const name of Object.keys(cards)) {
+      const Factory = (cards as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
       if (Factory !== undefined && inPremiumScope({module: manifest.module, name}, SCOPE)) {
         cb(Factory, name, manifest.module);
       }

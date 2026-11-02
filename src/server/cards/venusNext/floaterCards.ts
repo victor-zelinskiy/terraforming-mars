@@ -1,4 +1,5 @@
 import {CardName} from '../../../common/cards/CardName';
+import {CardResource} from '../../../common/CardResource';
 
 export const floaterCards: ReadonlySet<CardName> = new Set([
   // Venus
@@ -40,3 +41,13 @@ export const floaterCards: ReadonlySet<CardName> = new Set([
   CardName.REPROCESSING_PLANT,
 ]);
 
+
+/**
+ * «A card WITH A FLOATER ICON» — the search rule Celestic and P44 Atmospheric Enhancers print: a card that prints the
+ * floater icon without holding floaters (the list above) or a card that collects them. ONE reader for the draw that
+ * performs the search (`DrawCards`, the `floaterIcon` descriptor — `DrawSearchModel.floaterIcon`); the client is sent
+ * the flag, never the list.
+ */
+export function hasFloaterIcon(card: {name: CardName, resourceType?: CardResource}): boolean {
+  return floaterCards.has(card.name) || card.resourceType === CardResource.FLOATER;
+}

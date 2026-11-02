@@ -5,8 +5,8 @@ import {ActiveCorporationCard} from '../corporation/CorporationCard';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {AltSecondaryTag} from '../../../common/cards/render/AltSecondaryTag';
-import {floaterCards} from './floaterCards';
 import * as actionPreviews from '../actionPreviews';
+import {drawSearchOf} from '../../deferredActions/drawSearch';
 
 export class Celestic extends ActiveCorporationCard {
   constructor() {
@@ -49,16 +49,17 @@ export class Celestic extends ActiveCorporationCard {
 
 
   public override initialAction(player: IPlayer) {
-    player.drawCard(2, {
-      include: (card) => floaterCards.has(card.name) || card.resourceType === CardResource.FLOATER,
-    });
+    // THE NAMED RULE (`floaterIcon` — one descriptor with P44 Atmospheric Enhancers): the reveal's head, its discard
+    // verdicts and the journal's search row say «со значком аэростата» instead of an opaque predicate's silence.
+    player.drawCard(2, {floaterIcon: true});
     return undefined;
   }
 
   // A reveal-search that genuinely nets 2 cards to hand — the draw chip is
   // exact; the note explains the reveal mechanic (discards ride the log).
   public firstActionPreview() {
-    return actionPreviews.firstActionBranch(this, [actionPreviews.drawGain(2)], [
+    const search = drawSearchOf(2, {floaterIcon: true});
+    return actionPreviews.firstActionBranch(this, [{...actionPreviews.drawGain(2), ...(search !== undefined ? {search} : {})}], [
       actionPreviews.noteStep('generic', 'Reveal cards from the deck until you find 2 cards with a floater icon — they go to your hand.'),
     ]);
   }

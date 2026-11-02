@@ -204,6 +204,12 @@ export interface DrawCard {
    * rule's order, which is the order every surface names them in.
    */
   withoutTags?: ReadonlyArray<Tag>,
+  /**
+   * Keep only cards WITH A FLOATER ICON (Celestic, P44 Atmospheric Enhancers) — a card that prints the icon OR collects
+   * floaters (`hasFloaterIcon`). NOT `resource: FLOATER`: that rule is «cards that collect floaters» and misses every
+   * card that only prints the icon (Air Raid, Atmoscoop, …).
+   */
+  floaterIcon?: boolean,
 }
 
 export interface AddResource {

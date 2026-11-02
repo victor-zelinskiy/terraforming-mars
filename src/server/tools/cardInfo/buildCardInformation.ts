@@ -485,6 +485,9 @@ export function drawSearchSentence(search: DrawSearchModel): string {
     const list = orList(search.withoutTags);
     qualifiers.push(`without ${article(list)} ${list} tag`);
   }
+  if (search.floaterIcon === true) {
+    qualifiers.push('with a floater icon');
+  }
   const what = [`${amount} ${noun}`, ...qualifiers].join(' ');
   return `Reveal cards from the project deck until you reveal ${what}. Take ${one ? 'it' : 'them'} into your hand and discard the rest.`;
 }

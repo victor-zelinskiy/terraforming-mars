@@ -152,6 +152,11 @@ export type DrawSearchModel = {
   resource?: CardResource;
   /** Keep only cards with NONE of these tags (Red Tech Convention). In the printed rule's order. */
   withoutTags?: ReadonlyArray<Tag>;
+  /**
+   * Keep only cards WITH A FLOATER ICON (Celestic, P44) — the printed icon or a floater holder. The server owns the
+   * list (`floaterCards`); a surface only names the rule («со значком аэростата»).
+   */
+  floaterIcon?: true;
 };
 
 /**

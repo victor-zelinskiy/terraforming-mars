@@ -47,6 +47,10 @@ import {FLEET_LIMIT_REASON, skippedTradeFleet, tradeFleetsLost} from '../colonie
 import {recordSkippedEffect} from '../deferredActions/skippedEffect';
 import {skippedOrBranch} from '../cards/actionPreviews';
 import {delegateIsTheActionsResult} from '../politics/delegateIsTheActionsResult';
+import {DisabledOptionModel, OptionMetadata} from '../../common/models/PlayerInputModel';
+import {globalParameter} from '../inputs/optionMetadata';
+import {collectActionBehaviorReasons} from '../models/actionUnavailableReasons';
+import {UnplayableReason} from '../../common/cards/UnplayableReason';
 
 export class Executor implements BehaviorExecutor {
   public canExecute(behavior: Behavior, player: IPlayer, card: ICard, canAffordOptions?: CanAffordOptions) {
@@ -333,11 +337,17 @@ export class Executor implements BehaviorExecutor {
       // Warnings the card already had (unrelated to this or-block) must survive it.
       const saved = new Set(card.warnings);
       const options: Array<SelectOption> = [];
+      const disabled: Array<DisabledOptionModel> = [];
       for (const subBehavior of behavior.or.behaviors) {
         // Check (and clear) one sub-behavior at a time so its warnings don't bleed into
         // the next sub-behavior's option.
         card.clearWarnings();
+        const metadata = orBranchMetadata(player, subBehavior);
         if (!this.canExecute(subBehavior, player, card)) {
+          // A branch that cannot run is SHOWN greyed with its reason (invariant 2), never dropped: the player sees
+          // the printed row they cannot take and why. Informational only — the runtime indices stay those of the
+          // executable branches, exactly what the preview's `index` assigns (`deriveOrBranches`).
+          disabled.push({title: subBehavior.title, reason: orBranchReason(player, card, subBehavior), ...(metadata !== undefined ? {metadata} : {})});
           continue;
         }
         const option = new SelectOption(subBehavior.title)
@@ -345,6 +355,11 @@ export class Executor implements BehaviorExecutor {
             this.execute(subBehavior, player, card);
             return undefined;
           });
+        if (metadata !== undefined) {
+          // The branch's `current → resulting` rides the live prompt (Atmoscoop's form, for every declarative OR):
+          // a fallback decision after the press reads the same chip the pre-collected variant step showed.
+          option.withMetadata(metadata);
+        }
         if (card.warnings.size > 0) {
           option.warnings = Array.from(card.warnings);
         }
@@ -372,6 +387,9 @@ export class Executor implements BehaviorExecutor {
         // surfaces standalone as a bare «Выберите вариант» — and THEN the card
         // that offered the choice is the one thing the player cannot see.
         const orOptions = new OrOptions(...options).markChoiceContext(cardEffect(card, undefined, 'effect-choice'));
+        if (disabled.length > 0) {
+          orOptions.setDisabledOptions(disabled);
+        }
         if (behavior.or.title) {
           orOptions.title = behavior.or.title;
         }
@@ -510,13 +528,14 @@ export class Executor implements BehaviorExecutor {
       } else {
         // This conditional could probably be removed, using the else clause for both.
         if (drawCard.keep === undefined && drawCard.pay === undefined) {
-          player.drawCard(ctx.count(drawCard.count), {tag: drawCard.tag, resource: drawCard.resource, cardType: drawCard.type, withoutTags: drawCard.withoutTags, source: revealSource});
+          player.drawCard(ctx.count(drawCard.count), {tag: drawCard.tag, resource: drawCard.resource, cardType: drawCard.type, withoutTags: drawCard.withoutTags, floaterIcon: drawCard.floaterIcon, source: revealSource});
         } else {
           player.drawCardKeepSome(ctx.count(drawCard.count), {
             tag: drawCard.tag,
             resource: drawCard.resource,
             cardType: drawCard.type,
             withoutTags: drawCard.withoutTags,
+            floaterIcon: drawCard.floaterIcon,
             keepMax: drawCard.keep,
             paying: drawCard.pay,
             // The look-at-N pick is a CONTINUATION of playing this card, so it
@@ -884,4 +903,48 @@ export class Executor implements BehaviorExecutor {
     };
     return trSource;
   }
+}
+
+/**
+ * THE BRANCH'S `current → resulting` — a declarative `or` branch that raises ONE global parameter (P44 Atmospheric
+ * Enhancers' three printed rows) carries Atmoscoop's metadata (`globalParameter`), so every surface that reads the live
+ * prompt draws the same chip the preview did. Clamped at the scale's ceiling: a maxed branch reads «8 → 8», its option
+ * also carries the executor's `maxtemp` / `maxoxygen` / `maxvenus` warning. Undefined for any other branch shape.
+ */
+export function orBranchMetadata(player: IPlayer, sub: Behavior): OptionMetadata | undefined {
+  const keys = Object.keys(sub).filter((k) => k !== 'title' && (sub as Record<string, unknown>)[k] !== undefined);
+  const g = sub.global;
+  if (keys.length !== 1 || g === undefined) {
+    return undefined;
+  }
+  const raised = Object.keys(g).filter((k) => (g as Record<string, unknown>)[k] !== undefined);
+  if (raised.length !== 1) {
+    return undefined;
+  }
+  const game = player.game;
+  if (g.temperature !== undefined && g.temperature > 0) {
+    const now = game.getTemperature();
+    return globalParameter('temperature', g.temperature, now, Math.min(MAX_TEMPERATURE, now + 2 * g.temperature), '°C');
+  }
+  if (g.oxygen !== undefined && g.oxygen > 0) {
+    const now = game.getOxygenLevel();
+    return globalParameter('oxygen', g.oxygen, now, Math.min(MAX_OXYGEN_LEVEL, now + g.oxygen), '%');
+  }
+  if (g.venus !== undefined && g.venus > 0) {
+    const now = game.getVenusScaleLevel();
+    return globalParameter('venus', g.venus, now, Math.min(MAX_VENUS_SCALE, now + 2 * g.venus), '%');
+  }
+  return undefined;
+}
+
+/** WHY a branch cannot run — the read-only mirror of `canExecute` (`collectActionBehaviorReasons`), never a bare «unavailable». */
+function orBranchReason(player: IPlayer, card: ICard, sub: Behavior): string | ReturnType<typeof message> {
+  const reasons: Array<UnplayableReason> = [];
+  collectActionBehaviorReasons(player, card, sub, reasons);
+  const first = reasons[0];
+  if (first === undefined) {
+    return 'Not available right now';
+  }
+  const params = first.params ?? [];
+  return params.length === 0 ? first.message : message(first.message, (b) => params.forEach((p) => b.string(p)));
 }

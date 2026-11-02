@@ -799,6 +799,23 @@ describe('Executor', () => {
     expect(player.megaCredits).eq(1);
   });
 
+  it('or, execute, a branch that cannot run is SHOWN greyed with its reason — the runtime indices stay the executable ones', () => {
+    const behavior: Behavior = {or: {behaviors: [
+      {spend: {steel: 1}, stock: {megacredits: 3}, title: '3MC'},
+      {global: {venus: 1}, title: 'Venus'},
+    ]}};
+    executor.execute(behavior, player, fake);
+    runAllActions(game);
+    const orOptions = cast(player.popWaitingFor(), OrOptions);
+    expect(orOptions.options.map((o) => o.title)).deep.eq(['Venus']);
+    expect(orOptions.disabledOptions).has.length(1);
+    expect(orOptions.disabledOptions[0].title).eq('3MC');
+    const reason = orOptions.disabledOptions[0].reason;
+    expect(typeof reason === 'string' ? reason : reason.message, 'never a bare «unavailable»').eq('Not enough steel');
+    // The global branch carries its `current → resulting` (Atmoscoop's metadata, for every declarative OR).
+    expect(cast(orOptions.options[0], SelectOption).metadata).deep.eq({kind: 'globalParameter', icon: 'venus', amount: 1, global: {current: 0, resulting: 2, unit: '%'}});
+  });
+
   it('or, execute, autoselect', () => {
     const behavior: Behavior = {or: {
       autoSelect: true,
