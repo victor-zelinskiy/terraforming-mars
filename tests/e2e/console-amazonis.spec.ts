@@ -84,6 +84,10 @@ for (const profile of PROFILES) {
       expect(board.captions, 'no legacy SVG caption is left on this map').not.toMatch(/Tholus|Mons/);
       expect(board.markers, 'exactly the four volcanoes and the restricted centre carry a marker').toEqual(MARKERS.map((id) => `board-space-${id}`));
 
+      // The board's idle selection seeds on the centre, but nobody is inspecting: its marker stays calm (the owner's
+      // frame of 2026-11-02 — the «i» on 33 read as focused on a board the player had never entered).
+      expect(await page.locator('.special-cell-marker--active').count(), 'no marker lights up for an invisible cursor').toBe(0);
+
       // The centre, hovered: the popover names its rule (the engine's own `restricted` fact).
       await page.locator(`[data_space_id="${RESTRICTED}"]`).hover();
       await expect.poll(async () => (await page.locator('.board-cell-popover').innerText().catch(() => '')).replace(/\s+/g, ' '),

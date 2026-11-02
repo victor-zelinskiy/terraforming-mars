@@ -42,6 +42,12 @@ type State = {
   // caller didn't supply one (e.g. the `i` badge) → the popover falls back to
   // the query.
   cellRect: DOMRect | undefined;
+  /**
+   * The hovered cell was written by an INVISIBLE cursor — the console board's selection while neither an inspection
+   * nor a placement is live (it seeds on the centre at boot and warms the cell's facts so the inspection opens with
+   * its dossier). The facts are wanted; the cell's «i» marker must NOT light up for a cursor the player cannot see.
+   */
+  quiet: boolean;
   cfg: Config;
 };
 
@@ -50,6 +56,7 @@ export const boardInfoState: State = reactive({
   info: undefined,
   loading: false,
   cellRect: undefined,
+  quiet: false,
   cfg: {participantId: undefined, color: undefined, boardName: undefined, players: []},
 });
 
@@ -158,9 +165,10 @@ function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, 
   return `${apiUrl(paths.API_GAME_BOARD_CELL_PREVIEW)}?${params.toString()}`;
 }
 
-export function hoverBoardCell(spaceId: SpaceId, rect?: DOMRect): void {
+export function hoverBoardCell(spaceId: SpaceId, rect?: DOMRect, opts?: {quiet?: boolean}): void {
   boardInfoState.spaceId = spaceId;
   boardInfoState.cellRect = rect;
+  boardInfoState.quiet = opts?.quiet === true;
   const key = cacheKey(spaceId);
   const cached = infoCache.get(key);
   if (cached !== undefined) {
@@ -233,6 +241,11 @@ export function prefetchBoardCells(spaceIds: ReadonlyArray<SpaceId>): void {
     });
     prefetchEpochOf.set(key, cacheEpoch);
   }
+}
+
+/** The console cursor became visible (an inspection / a placement opened) or invisible again — on the SAME cell. */
+export function setBoardCellHoverQuiet(quiet: boolean): void {
+  boardInfoState.quiet = quiet;
 }
 
 export function clearBoardCellHover(spaceId: SpaceId): void {

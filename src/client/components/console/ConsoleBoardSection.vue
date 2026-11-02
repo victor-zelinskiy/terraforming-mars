@@ -97,7 +97,7 @@ import {SpaceId} from '@/common/Types';
 import {Color} from '@/common/Color';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {NavRect, pickDirectional, pickNearest, pickStrictGrid, rectCenter} from '@/client/gamepad/spatialNav';
-import {boardInfoState, hoverBoardCell, prefetchBoardCells} from '@/client/components/board/boardInfoState';
+import {boardInfoState, hoverBoardCell, prefetchBoardCells, setBoardCellHoverQuiet} from '@/client/components/board/boardInfoState';
 import {consoleState} from '@/client/console/consoleRouter';
 import {TileView, nextTileView} from '@/client/components/board/TileView';
 import {
@@ -556,6 +556,10 @@ export default defineComponent({
     selectedSpaceId(): string | undefined {
       return this.consoleState.boardSpaceId;
     },
+    /** The board's selection is a cursor the player SEES — an inspection or a placement is live. */
+    cursorShown(): boolean {
+      return this.inspecting || this.placementActive;
+    },
     /** The breath layer stands from the camera's arrival to the scene's end (its keyframes play at the show). */
     terraformedBreathUp(): boolean {
       const phase = this.terraformedSceneState.phase;
@@ -800,7 +804,8 @@ export default defineComponent({
       handler(now: string | undefined, before: string | undefined) {
         this.applySpotlight(before, now);
         if (now !== undefined) {
-          hoverBoardCell(now as SpaceId);
+          // The facts are warmed whatever the mode; the cell's marker lights only while the cursor is SEEN.
+          hoverBoardCell(now as SpaceId, undefined, {quiet: !this.cursorShown});
         }
         // A step clears the PREVIOUS cell's relation marks in the same press —
         // the new cell's marks arrive with its preview (the watcher below), so
@@ -859,6 +864,12 @@ export default defineComponent({
       if (this.inspecting && !this.placementActive) {
         this.applyRelationMarks();
       }
+    },
+    cursorShown: {
+      immediate: true,
+      handler(now: boolean): void {
+        setBoardCellHoverQuiet(!now);
+      },
     },
     inspecting(now: boolean): void {
       if (!now && !this.placementActive) {

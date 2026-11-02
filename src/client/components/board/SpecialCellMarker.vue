@@ -92,8 +92,9 @@ export default defineComponent({
       return `board-space-${this.space.id}`;
     },
     isActive(): boolean {
-      // The badge pops in sync with the unified BoardInformation popover.
-      return boardInfoState.spaceId === this.space.id;
+      // The badge pops in sync with the unified BoardInformation popover — and only for a cursor the player SEES (a
+      // mouse hover, a console inspection / placement), never for the console's idle selection warming the facts.
+      return boardInfoState.spaceId === this.space.id && !boardInfoState.quiet;
     },
   },
   methods: {
