@@ -32,7 +32,9 @@ async function shoot(page: Page, name: string): Promise<void> {
  */
 type Sample = {
   t: number, gen: string, flipping: boolean, parl: boolean, draft: boolean,
-  slots: number, held: number, layer: boolean, proxies: number,
+  slots: number, held: number, layer: boolean, proxies: number, host: boolean,
+  /** The SURFACE painted at the screen's centre (the first `con-*` root up from the hit) — named in every failure. */
+  top: string,
 };
 type Origin = {proxy: {x: number, y: number}, pile: {x: number, y: number, w: number} | undefined};
 async function armSampler(page: Page): Promise<void> {
@@ -59,6 +61,18 @@ async function armSampler(page: Page): Promise<void> {
         held: document.querySelectorAll('.con-draftws .con-draftws__slot.con-deal-hold').length,
         layer: document.querySelector('.con-draftws .con-deal-layer .con-deal-proxy') !== null,
         proxies: document.querySelectorAll('.con-deal-proxy').length,
+        // The GENERIC task host's card browser — the legacy face of the draft prompt (the owner, 2026-11-02).
+        host: document.querySelector('.con-task-host') !== null,
+        top: (() => {
+          let el: Element | null = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+          for (; el !== null; el = el.parentElement) {
+            const root = [...el.classList].find((c) => /^con-[a-z]+$/.test(c));
+            if (root !== undefined) {
+              return root;
+            }
+          }
+          return '';
+        })(),
       });
       if (samples.length > 6000) {
         samples.splice(0, 3000);
@@ -93,25 +107,54 @@ async function armSampler(page: Page): Promise<void> {
 const samplesOf = (page: Page): Promise<Array<Sample>> => page.evaluate(() => (window as unknown as {__intoDraft: Array<Sample>}).__intoDraft);
 const originOf = (page: Page): Promise<Origin | undefined> => page.evaluate(() => (window as unknown as {__intoDraftOrigin?: Origin}).__intoDraftOrigin);
 
+/** A STORYBOARD of the handover (`TM_E2E_STORYBOARD=1` only — the suite's convention): every frame the compositor produced. */
+async function storyboard(page: Page, name: string): Promise<() => Promise<void>> {
+  if (process.env.TM_E2E_STORYBOARD !== '1') {
+    return async () => {};
+  }
+  const dir = path.join(OUT, `story-${name}`);
+  fs.rmSync(dir, {recursive: true, force: true});
+  fs.mkdirSync(dir, {recursive: true});
+  const client = await page.context().newCDPSession(page);
+  const t0 = Date.now();
+  client.on('Page.screencastFrame', (frame) => {
+    fs.writeFileSync(path.join(dir, `t${String(Date.now() - t0).padStart(5, '0')}.jpg`), Buffer.from(frame.data, 'base64'));
+    void client.send('Page.screencastFrameAck', {sessionId: frame.sessionId}).catch(() => undefined);
+  });
+  await client.send('Page.startScreencast', {format: 'jpeg', quality: 70, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 1});
+  return async () => {
+    await client.send('Page.stopScreencast').catch(() => undefined);
+  };
+}
+
 /** Walk a sitting to its results and close it on screen; returns the press's page time. */
-async function walkAndClose(page: Page, request: Parameters<typeof closeSitting>[1], seat: string, door: RegExp): Promise<number> {
+async function walkAndClose(page: Page, request: Parameters<typeof closeSitting>[1], seat: string, door: RegExp, beforePress?: () => Promise<void>): Promise<number> {
   await enterSittingByPass(page, request, seat);
   expect(await turnTo(page, 'results', 120_000), 'the walk reaches the results by itself').toBe(true);
   await expect(page.locator('.con-cmdbar'), 'A names the next workspace').toContainText(door);
   await shoot(page, '01-results');
+  const stop = await storyboard(page, door.source.includes('драфт') ? 'into-draft' : 'into-research');
+  await beforePress?.();
   const pressedAt = await page.evaluate(() => Math.round(performance.now()));
   await closeSitting(page, request, seat);
+  setTimeout(() => void stop().catch(() => undefined), 8000);
   return pressedAt;
 }
 
 /** The handover's witnesses, read off the samples from the press on. */
 function judgeHandover(samples: ReadonlyArray<Sample>, pressedAt: number): {afterPress: Array<Sample>, firstDraft: number} {
   const afterPress = samples.filter((s) => s.t >= pressedAt);
+  fs.mkdirSync(OUT, {recursive: true});
+  fs.writeFileSync(path.join(OUT, `${TV.id}-samples-${pressedAt}.json`), JSON.stringify(afterPress.slice(0, 400)));
   const firstDraft = afterPress.findIndex((s) => s.draft);
   expect(firstDraft, 'the sampler saw the draft arrive').toBeGreaterThan(-1);
   // (2) the board never shows between the two surfaces.
   const bare = afterPress.slice(0, firstDraft).filter((s) => !s.parl);
   expect(bare.length, `no frame of the board home between the sitting and the draft (first at ${bare[0]?.t})`).toBe(0);
+  // (2b) …and no LEGACY PROMPT anywhere in the handover: while the entry waits for the screen (the counter's flip), the
+  // draft claims its own pick — the generic host's card browser never stands between the two surfaces, nor over either.
+  const legacy = afterPress.filter((s) => s.host);
+  expect(legacy.length, `the generic task host never rises for the draft's prompt (first at ${legacy[0]?.t}, parl=${legacy[0]?.parl}, draft=${legacy[0]?.draft})`).toBe(0);
   // (1) the counter flips as a BEAT while the Parliament still stands — before the draft's first frame.
   const flipBeforeDraft = afterPress.slice(0, firstDraft + 1).some((s) => s.flipping && s.parl);
   expect(flipBeforeDraft, `the counter flips while the Parliament stands, before the draft arrives (${[...new Set(afterPress.map((s) => s.gen))].join(' → ')})`).toBe(true);
@@ -156,6 +199,26 @@ test.describe(`the Parliament → draft handover · ${TV.id}`, () => {
       return ((await parliamentWire(request, blue)) as unknown as {draftedCards?: Array<unknown>}).draftedCards?.length ?? 0;
     }, {timeout: 60_000, message: 'the first pick lands'}).toBeGreaterThan(before);
     await shoot(page, '04-first-pick');
+  });
+
+  test('a LONG handover (the screen still owes a notification-only story) — the draft claims its pick, no legacy browser in the wait', async ({page, request}) => {
+    // The owner, 2026-11-02: «между ними виден ЛЕГАСИ ПРОМТ на драфт». At the close the press is honoured (the beat
+    // acknowledged — no plate) and the entry waits for the screen; a hold the task host's admission does not count (a
+    // card into the dock, a token wave) left the draft's pick to the GENERIC host's card browser for the whole wait.
+    test.setTimeout(600_000);
+    const {playerId: blue} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly-draft', {query: `${TV.query}&screenControl=1`});
+    await armSampler(page);
+    const pressedAt = await walkAndClose(page, request, blue, /К драфту|To the draft/i, async () => {
+      await page.evaluate(() => (window as unknown as {__conScreenControl: {holdScreen: (ms: number) => void}}).__conScreenControl.holdScreen(4000));
+    });
+    await expect(page.locator('.con-draftws'), 'the draft takes the screen by itself once the screen is handed over').toHaveCount(1, {timeout: 30_000});
+    await expect.poll(async () => page.locator('.con-draftws .con-draftws__slot:not(.con-deal-hold)').count(), {timeout: 30_000}).toBeGreaterThan(0);
+    const {afterPress, firstDraft} = judgeHandover(await samplesOf(page), pressedAt);
+    // The wait was REAL: the Parliament stood in its frozen pose for most of the hold before the draft arrived.
+    const waited = (afterPress[firstDraft]?.t ?? pressedAt) - pressedAt;
+    expect(waited, `the entry waited for the screen (${waited} ms)`).toBeGreaterThan(2500);
+    await expect(page.locator('.con-mandatory'), 'no plate: the press already opened it').toHaveCount(0);
+    await shoot(page, '07-long-handover-draft');
   });
 
   test('a reload right after the close presents the packet at once — no deal plays twice (PL-924)', async ({page, request}) => {

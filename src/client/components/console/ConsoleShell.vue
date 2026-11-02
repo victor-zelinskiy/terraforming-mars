@@ -1608,7 +1608,7 @@ import {addressed} from '@/common/inputs/preselectAddress';
  * byte-identical to the desktop dedicated buttons (turnIntents walkers).
  */
 import {installCursorArrivalInput} from '@/client/console/cursorArrivalInput';
-import {defineComponent, nextTick as vueNextTick, PropType, ref, watch as vueWatch} from 'vue';
+import {defineComponent, nextTick as vueNextTick, PropType, reactive, ref, watch as vueWatch} from 'vue';
 import {promptReceiveArmed, promptReceiveState} from '@/client/console/cardReceive/promptReceive';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import type {CardDrawRevealSource, CardIntakeBatchRef} from '@/common/models/CardDrawRevealModel';
@@ -1646,7 +1646,7 @@ import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnRevi
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
 import {openBotTurnReviewByKey, skipBotTurnPresentation, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
 import {acquireForegroundLease, isMandatoryPromptsHeld, isMandatoryPromptsHeldByScreen, registerRevealParkSupplier} from '@/client/components/presentation/presentationFlow';
-import {activeAnimationHoldLabels, blockingAnimationHoldCount, isAnimationHoldActive, oldestAnimationHoldAgeMs} from '@/client/components/presentation/animationHold';
+import {activeAnimationHoldLabels, beginAnimationHold, blockingAnimationHoldCount, isAnimationHoldActive, oldestAnimationHoldAgeMs} from '@/client/components/presentation/animationHold';
 import {isTransientBeat, resetBeatStall, transientSurfaceBeats} from '@/client/console/workspaceBeatStall';
 import {LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
@@ -1919,7 +1919,7 @@ import {
 import ConsoleDraftWorkspace from '@/client/components/console/draft/ConsoleDraftWorkspace.vue';
 import {
   DRAFT_DEFAULT_SERVES, DRAFT_PAYMENT_SERVES,
-  betweenGenResearchLive, draftCompletionHolding, draftMandatoryFlowBeat, draftPaymentPending,
+  betweenGenResearchLive, draftClaimsPrompt, draftCompletionHolding, draftMandatoryFlowBeat, draftPaymentPending,
   observeDraftWorkspace, resetDraftWorkspace,
 } from '@/client/console/draft/consoleDraftFlow';
 import {consoleDraftUi} from '@/client/console/draft/consoleDraftUi';
@@ -2441,8 +2441,12 @@ let freshPickFocusGiven = false;
  * reader and writer.
  */
 let boardBeatDrainWaitArmed = false;
-/** Workspace entries deferred to the screen handoff (`enterWorkspaceAfterHandoff`) — one pending entry per kind. */
-const handoffPendingEntries = new Set<WorkspaceFrameKind>();
+/**
+ * Workspace entries deferred to the screen handoff (`enterWorkspaceAfterHandoff`) — one pending entry per kind.
+ * REACTIVE: a cached computed reads it (`draftClaimsTask` — an owed entry claims its prompts), and a plain Set there
+ * would be a latch (invariant 17).
+ */
+const handoffPendingEntries = reactive(new Set<WorkspaceFrameKind>());
 /**
  * The yielded stack's return waits for the board's handoff this long at most — above the reveal's own take (player-
  * paced, but the park's 30 s safety presents a parked batch by then) and the remote stage's 20 s board wait; past it
@@ -5362,15 +5366,9 @@ export default defineComponent({
      *  post-buy PAYMENT deliberately stays host-served — teleported into the
      *  workspace's pay slot, same instance, same submit path.) */
     draftClaimsTask(): boolean {
-      if (!workspaceFrameMounted('draft')) {
-        return false;
-      }
-      const task = taskFor(this.playerView);
-      if (task === undefined) {
-        return false;
-      }
-      return task.kind === 'draftWait' ||
-        (task.kind === 'cardSelect' && (task.mode === 'draft' || task.mode === 'buy'));
+      // …and while its ENTRY IS OWED to the screen handoff (`draftClaimsPrompt`): the press was honoured, the plate is
+      // gone, and the generic host's card browser must not fill the wait between the Parliament and the draft.
+      return draftClaimsPrompt(taskFor(this.playerView), {mounted: workspaceFrameMounted('draft'), entryOwed: handoffPendingEntries.has('draft')});
     },
     /** The workspace owns the pad exactly while it is the surface the player
      *  sees; `hostTask === undefined` yields it to the embedded payment and
@@ -25504,6 +25502,12 @@ export default defineComponent({
       (window as unknown as {__conScreenControl?: unknown}).__conScreenControl = {
         dropStack: () => goBoardHome(),
         standWorkspace: (kind: WorkspaceFrameKind) => enterWorkspace(kind),
+        // A NOTIFICATION-ONLY hold the screen handoff waits for and the task host's admission does not — the class of a
+        // card into the dock / a token wave at a sitting's close (the «К драфту» stand: no legacy browser in the wait).
+        holdScreen: (ms: number) => {
+          const hold = beginAnimationHold('screen-control-owed', {scope: 'notification-only'});
+          window.setTimeout(() => hold.release(), ms);
+        },
       };
     }
     registerScreenShadowContext(() => {

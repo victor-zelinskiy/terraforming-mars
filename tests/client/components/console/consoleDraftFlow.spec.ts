@@ -9,8 +9,9 @@ import {
   requirementHeadsUp, observeDraftWorkspace, draftWorkspaceState, resetDraftWorkspace,
   draftPicksKey, rememberDraftPicks, recallDraftPicks,
   beginDraftCompletion, markDraftCompletionFlightsDone, finishDraftCompletion,
-  draftCompletionHolding, draftNeighbor, draftMandatoryFlowBeat,
+  draftCompletionHolding, draftNeighbor, draftMandatoryFlowBeat, draftClaimsPrompt,
 } from '@/client/console/draft/consoleDraftFlow';
+import type {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {draftCommands} from '@/client/console/draft/consoleDraftUi';
 
 /** A minimal PlayerViewModel for the pure flow derivations. */
@@ -326,6 +327,31 @@ describe('consoleDraftFlow', () => {
     it('a reload into the draft after the close claims nothing (PL-924)', () => {
       observeDraftWorkspace(undefined, withSitting(view({waitingFor: pickPrompt([CardName.FISH])}), false));
       expect(draftWorkspaceState.sawDraftStart).is.false;
+    });
+  });
+
+  describe('THE DRAFT CLAIMS ITS PROMPTS while its entry is OWED (the «К драфту» handoff — no legacy browser between)', () => {
+    const pick: ConsoleTask = {kind: 'cardSelect', mode: 'draft'} as ConsoleTask;
+    const buy: ConsoleTask = {kind: 'cardSelect', mode: 'buy'} as ConsoleTask;
+    const wait: ConsoleTask = {kind: 'draftWait'};
+
+    it('the entry waiting for the screen handoff claims the pick, the buy and the wait — the host never rises', () => {
+      for (const task of [pick, buy, wait]) {
+        expect(draftClaimsPrompt(task, {mounted: false, entryOwed: true}), task.kind).is.true;
+        expect(draftClaimsPrompt(task, {mounted: true, entryOwed: false}), task.kind).is.true;
+      }
+    });
+
+    it('no frame and no owed entry → nothing is claimed (a reload’s plate stands for the prompt)', () => {
+      expect(draftClaimsPrompt(pick, {mounted: false, entryOwed: false})).is.false;
+    });
+
+    it('a prompt the draft does not present natively stays host-served (the post-buy payment, a target pick)', () => {
+      const payment = {kind: 'payment'} as ConsoleTask;
+      const target = {kind: 'cardSelect', mode: 'target'} as ConsoleTask;
+      expect(draftClaimsPrompt(payment, {mounted: true, entryOwed: true})).is.false;
+      expect(draftClaimsPrompt(target, {mounted: false, entryOwed: true})).is.false;
+      expect(draftClaimsPrompt(undefined, {mounted: true, entryOwed: true})).is.false;
     });
   });
 

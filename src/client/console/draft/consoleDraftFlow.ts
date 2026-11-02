@@ -33,7 +33,7 @@ import {UnplayableReason} from '@/common/cards/UnplayableReason';
 // Type-only on purpose: this module stays Vue-free at runtime (the fast
 // server-runner spec), and the gate's reactive store must not be dragged in.
 import type {MandatoryFlowBeat} from '@/client/console/consoleMandatoryGate';
-import type {TaskKind} from '@/client/console/consoleTaskRouter';
+import type {ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
 
 // ── journey types (structural twins of ConsoleJourneyRail's exports — no
 //    .vue import so this module stays pure and server-runner-testable) ──────
@@ -128,6 +128,22 @@ export function betweenGenResearchLive(view: PlayerViewModel): boolean {
   // The research that FOLLOWS the draft — alive until this player's buy is
   // answered (covers the Underworld swap choice standing before the buy).
   return view.game.phase === Phase.RESEARCH && view.thisPlayer.needsToResearch === true;
+}
+
+/**
+ * THE DRAFT CLAIMS ITS OWN PROMPTS (the pick, the wait, the research buy) — the standalone task host must not rise for
+ * them. Claimed while the frame is MOUNTED and, just as much, while its ENTRY IS OWED: a door whose press was honoured
+ * (its beat acknowledged — no plate) but whose entry waits for the screen handoff (`enterWorkspaceAfterHandoff`, the
+ * sitting's «К драфту» waiting out the counter's flip / a card into the dock / the board's story). Keyed on the mounted
+ * frame alone, that wait was a window with the gate open and no draft to claim the packet — the generic host's card
+ * browser stood between the Parliament and the draft (the owner, 2026-11-02: «между ними виден ЛЕГАСИ ПРОМТ на
+ * драфт»). The embedded post-buy PAYMENT stays host-served (teleported into the workspace's pay slot).
+ */
+export function draftClaimsPrompt(task: ConsoleTask | undefined, frame: {mounted: boolean, entryOwed: boolean}): boolean {
+  if (task === undefined || (!frame.mounted && !frame.entryOwed)) {
+    return false;
+  }
+  return task.kind === 'draftWait' || (task.kind === 'cardSelect' && (task.mode === 'draft' || task.mode === 'buy'));
 }
 
 /**
