@@ -51,6 +51,7 @@ import {
 } from '@/common/models/PlayerInputModel';
 import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
 import type {DeferralReaction} from '@/common/models/tableQuestionDeferral';
+import {VenusBonusPart, venusBonusMetaOf, venusBonusParts, venusWildChoiceModel} from '@/client/console/venusBonus/venusBonusPreselect';
 
 // ── The choice model ─────────────────────────────────────────────────────────
 
@@ -63,8 +64,14 @@ export type ComposerChoice = {
   scope: ComposerScope;
   /** Index within its source list (preSteps / steps); -1 for the optionInput. */
   index: number;
-  kind: 'spendHeat' | 'amount' | 'card' | 'player' | 'or' | 'payment' | 'lawPlay' | 'distribute' | 'other';
+  kind: 'spendHeat' | 'amount' | 'card' | 'player' | 'or' | 'payment' | 'lawPlay' | 'distribute' | 'venusBonus' | 'other';
   input: PlayerInputModel;
+  /**
+   * A PART of a pre-selected Venus bonus step (P89 · EL — `venusBonusPreselect.ts`): `wild` is the 30 % wild's optional
+   * card pick (an `or` row, its own id `step#i:wild`), `spread` the six-lane layout (kind `venusBonus`). Both answer the
+   * ONE response at the step's index — the composer composes them (`venusPreselectResponse`), never captures a part.
+   */
+  venusPart?: VenusBonusPart;
   /** Signed per-target delta for a card-target step ("2 → 4 on the card"). */
   amount?: number;
   /** Icon key of the card resource an add/remove step moves. */
@@ -451,12 +458,37 @@ export function branchChoices(branch: ActionPreviewBranch | undefined): Array<Co
       });
     } else if (step.kind === 'spendHeat') {
       out.push({id: `step#${i}`, scope: 'step', index: i, kind: 'spendHeat', input: step.input});
+    } else if (step.kind === 'venusBonus') {
+      out.push(...venusBonusChoices(step.input, i));
     } else if (step.kind === 'lawPlay') {
       // A LAW THAT PLAYS A CARD (RX36): the play is a SLOT — the hand album + the play composer answer it (the pick
       // bridge), its composed result is the step's capture; the result rides the commit after every other step.
       out.push({id: `step#${i}`, scope: 'step', index: i, kind: 'lawPlay', input: step.play.input});
     }
   });
+  return out;
+}
+
+/**
+ * THE ROWS OF A PRE-SELECTED VENUS BONUS (P89 · EL): the wild's optional card pick (30 % with a holder) and the spread —
+ * two rows, two pre-selects, ONE answer at the step's index. A step whose prompt carries no bonus marker draws nothing.
+ */
+export function venusBonusChoices(input: PlayerInputModel, index: number): Array<ComposerChoice> {
+  const meta = venusBonusMetaOf(input);
+  if (meta === undefined) {
+    return [];
+  }
+  const out: Array<ComposerChoice> = [];
+  for (const part of venusBonusParts(meta)) {
+    if (part === 'wild') {
+      const wild = venusWildChoiceModel(input);
+      if (wild !== undefined) {
+        out.push({id: `step#${index}:wild`, scope: 'step', index, kind: 'or', input: wild, venusPart: 'wild'});
+      }
+    } else {
+      out.push({id: `step#${index}`, scope: 'step', index, kind: 'venusBonus', input, venusPart: 'spread'});
+    }
+  }
   return out;
 }
 
@@ -764,7 +796,7 @@ export function orderedStepResponses(
 ): Array<unknown> {
   const out: Array<unknown> = [];
   branch.steps.forEach((step, i) => {
-    if ((step.kind === 'input' || step.kind === 'tabbedTargets' || step.kind === 'spendHeat') && steps[i] !== undefined) {
+    if ((step.kind === 'input' || step.kind === 'tabbedTargets' || step.kind === 'spendHeat' || step.kind === 'venusBonus') && steps[i] !== undefined) {
       // ADDRESSED — the step's own address (the server's), so the replay lands
       // this answer only on its own prompt (`common/inputs/preselectAddress.ts`).
       out.push(addressed(steps[i], step.for));
@@ -794,7 +826,7 @@ export function plannedStepResponses(
 ): Array<unknown> {
   const out: Array<unknown> = [];
   branch.steps.forEach((step, i) => {
-    if ((step.kind === 'input' || step.kind === 'tabbedTargets' || step.kind === 'spendHeat') && steps[i] !== undefined) {
+    if ((step.kind === 'input' || step.kind === 'tabbedTargets' || step.kind === 'spendHeat' || step.kind === 'venusBonus') && steps[i] !== undefined) {
       out.push(steps[i]);
     } else if (step.kind === 'deltaAdvance') {
       out.push(steps[i] ?? {type: 'deltaProject' as const, amount: step.offer.steps});

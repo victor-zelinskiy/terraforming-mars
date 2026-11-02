@@ -707,6 +707,16 @@ export type ActionPreviewStep =
    *  AndOptions model (carrying its `spendHeatPrompt` marker). Used as a preStep. */
   | {kind: 'spendHeat', input: PlayerInputModel, for?: PreselectAddress}
   /**
+   * THE VENUS BONUS, PRE-SELECTED (P89 · ledger EL — the owner, 2026-11-02): the alternative board's bonus a Venus
+   * step of this branch earns (`ActionEffect.altVenusBonus`), collected in the composer BEFORE the commit. `input` is
+   * the very prompt the server will ask (`GrantVenusAltTrackBonusDeferred.prompt` — the one builder), carrying its
+   * `venusBonusPrompt` marker: `standard` = six lanes, the budget spread with LB/RB; `final` (30 %) = the wild as its
+   * own step (a card or one more standard resource) beside the base spread. The answer rides the batch ADDRESSED
+   * (`for` = role `venusBonus` + the card that raises the scale); a state that moved since the preview is refused and
+   * the live prompt is asked as before — the hosted step is the fallback, never removed.
+   */
+  | {kind: 'venusBonus', input: PlayerInputModel, for?: PreselectAddress}
+  /**
    * THIS BRANCH *IS* A COLONY TRADE — it does not do a trade of its own, it
    * enters the ONE trade the server already offers, paying with this card.
    *

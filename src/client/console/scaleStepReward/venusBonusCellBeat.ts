@@ -53,7 +53,15 @@ export type VenusBonusCellArm = {
   card?: {name: CardName, resource: string},
   /** The raise that earned the bonus (`VenusBonusPromptMeta.step`) — which cells the tokens are born on. */
   step?: {from: number, to: number},
+  /**
+   * PRE-SELECTED in a composer (P89 · ledger EL): the answer rides the commit's batch, so no bonus prompt ever
+   * stands — the response that APPLIES it is the one in which Venus reached `step.to` (and no bonus is asked).
+   */
+  preselected?: true,
 };
+
+/** A pre-selected promise the commit never redeemed (a refused batch, a cancelled play) does not outlive its press. */
+const PRESELECT_ARM_MAX_MS = 60_000;
 
 /**
  * THE CELLS a raise reached, in the scale's order — the board's own chip keys (`Board.bonusZoneProps`:
@@ -102,6 +110,7 @@ export const venusBonusCellState = reactive({
 type Entry = {plan: Array<{spec: ResourceTransferSpec, cell: string | undefined}>, held: Array<ResourceTransferSpec>, to: number};
 
 let armed: VenusBonusCellArm | undefined;
+let armedAt = 0;
 let entry: Entry | undefined;
 let epoch = 0;
 let running = false;
@@ -112,6 +121,27 @@ let quietPromise: Promise<void> = Promise.resolve();
 /** ARM — the bonus surface, at the answer it sends (never on the server's clock). */
 export function armVenusBonusCell(arm: VenusBonusCellArm): void {
   armed = arm;
+  armedAt = Date.now();
+}
+
+/**
+ * IS THIS RESPONSE THE ONE THAT APPLIED THE ARMED ANSWER? The live surface's answer: a bonus was asked before and is
+ * not after. A PRE-SELECTED answer (the composer's batch — no bonus prompt ever stands): Venus reached the raise's
+ * cell in this very response and nothing asks the bonus after it (a refused batch asks it live — the surface re-arms).
+ */
+export function venusBonusAnswerApplied(arm: VenusBonusCellArm, before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): boolean {
+  if (after?.waitingFor?.venusBonusPrompt !== undefined) {
+    return false;
+  }
+  if (before?.waitingFor?.venusBonusPrompt !== undefined) {
+    return true;
+  }
+  if (arm.preselected !== true || arm.step === undefined) {
+    return false;
+  }
+  const was = before?.game.venusScaleLevel;
+  const now = after?.game.venusScaleLevel;
+  return was !== undefined && now !== undefined && was < arm.step.to && now >= arm.step.to;
 }
 
 export function venusBonusCellBusy(): boolean {
@@ -135,7 +165,11 @@ registerAnimationHoldSupplier(VENUS_BONUS_CELL_KEY, venusBonusCellBusy, {
  */
 export function seedVenusBonusCellHold(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): void {
   const arm = armed;
-  if (arm === undefined || before?.waitingFor?.venusBonusPrompt === undefined || after?.waitingFor?.venusBonusPrompt !== undefined) {
+  if (arm?.preselected === true && Date.now() - armedAt > PRESELECT_ARM_MAX_MS) {
+    armed = undefined;
+    return;
+  }
+  if (arm === undefined || !venusBonusAnswerApplied(arm, before, after)) {
     return;
   }
   armed = undefined;

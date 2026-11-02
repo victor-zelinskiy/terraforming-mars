@@ -264,6 +264,13 @@ export type VenusBonusPromptMeta = {
    * ABSENT here (never a fabricated zero).
    */
   wildCardVp?: Partial<Record<CardName, VictoryPointsDelta>>;
+  /**
+   * WHO RAISED THE SCALE (P89 · ledger EL — the bonus PRE-SELECT): the card whose step earned it (the copied card for
+   * a copied action — Viron, R&D Funding), read off the event scope at the raise. It is the prompt's pre-select
+   * ADDRESS source (`promptAddressOf`, role `venusBonus`): an answer a composer collected for THIS card's bonus lands
+   * on this prompt and on no other. Absent when the raise has no card (a colony trade, a law, a standard project).
+   */
+  source?: ChoiceContextSource;
 }
 
 /**

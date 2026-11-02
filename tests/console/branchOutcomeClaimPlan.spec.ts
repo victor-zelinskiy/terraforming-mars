@@ -48,4 +48,10 @@ describe('branchOutcomeClaimPlan — the prepared arrival is sized by the cards 
     const both = branchOutcomeClaimPlan(preview([bonus, {direction: 'gain', icon: 'cards', amount: 1}]) as unknown as ActionPreview, 0);
     expect(both.kinds).deep.eq(['draw', 'pick', 'venus-bonus']);
   });
+
+  it('a bonus the composer PRE-SELECTED (the branch\'s own `venusBonus` step) claims no stage — no prompt will stand (P89 · EL)', () => {
+    const bonus = {direction: 'gain', icon: 'venus', amount: 2, current: 16, resulting: 18, altVenusBonus: {standard: 1, wild: false, from: 16, to: 18}};
+    const withStep = {branches: [{index: 0, effects: [bonus], steps: [{kind: 'venusBonus', input: {type: 'and'}}]}]};
+    expect(branchOutcomeClaimPlan(withStep as unknown as ActionPreview, 0).kinds).deep.eq([]);
+  });
 });

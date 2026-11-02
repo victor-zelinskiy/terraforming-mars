@@ -252,6 +252,11 @@ export function playChoiceMode(
   if (c.kind === 'distribute') {
     return 'inline';
   }
+  // THE VENUS BONUS, PRE-SELECTED (P89 · EL): the spread is the same inline layout row — never a follow-up (a follow-up
+  // posts nothing, and the server would ask the bonus live after the press).
+  if (c.kind === 'venusBonus') {
+    return 'inline';
+  }
   // The espionage ask (Corporate Espionage): an INLINE pre-select whose
   // picker is the Hydronetwork workspace's target-selection bridge — never a
   // follow-up (the target is mandatory before the CTA, and the projection is

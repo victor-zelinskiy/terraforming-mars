@@ -25,6 +25,7 @@ import * as actionPreviews from '../cards/actionPreviews';
 import {FLEET_LIMIT_REASON, skippedTradeFleet, tradeFleetGainChip, tradeFleetsLost} from '../colonies/tradeFleetGain';
 import {drawSearchOf} from '../deferredActions/drawSearch';
 import {withPreselectAddresses} from './preselectAddresses';
+import {withVenusBonusSteps} from './venusBonusSteps';
 import {withDivertedTerraforming} from './divertedTerraforming';
 import {withVetoedRating} from './vetoedRating';
 import * as divertedGate from '../parliament/divertedTerraformingGate';
@@ -56,8 +57,10 @@ export function actionPreview(player: IPlayer, card: ICard & IActionCard): Actio
   // The door's exit passes, in order: a replacing law strikes the printed units and pre-collects the «where»
   // (`divertedTerraforming.ts`, RX35), the rating pass states no rating for a struck chip, the rating veto strikes
   // every rating the funnel will refuse (`vetoedRating.ts`, RX42 — after the ratings are all stated), every step is
-  // addressed to its own prompt (the pre-select law, `preselectAddresses.ts`), the «no effect» verdicts last.
-  return withActionFutility(player, card, withPreselectAddresses(withVetoedRating(player, withImpliedRatings(withDivertedTerraforming(player, actionPreviewOf(player, card))))));
+  // addressed to its own prompt (the pre-select law, `preselectAddresses.ts`) — the Venus bonus a step earns pre-selected
+  // beside them (`venusBonusSteps.ts`, P89 · EK) — the «no effect» verdicts last.
+  return withActionFutility(player, card,
+    withPreselectAddresses(withVenusBonusSteps(player, withVetoedRating(player, withImpliedRatings(withDivertedTerraforming(player, actionPreviewOf(player, card)))))));
 }
 
 /**

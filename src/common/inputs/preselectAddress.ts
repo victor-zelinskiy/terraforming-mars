@@ -45,7 +45,10 @@ import {ChoiceContextSource} from '../models/PlayerInputModel';
  *    gives a card UP; a target pick of the same source names a card that
  *    RECEIVES something);
  *  · `deckPick` — a pick over cards just turned off the deck (hidden
- *    information: no composer can have collected its answer).
+ *    information: no composer can have collected its answer);
+ *  · `venusBonus` — the alternative Venus board's bonus (`venusBonusPrompt`):
+ *    an `and` of amounts or an `or` with a card wild, but ONE question of its
+ *    own — never a card's own branch pick or its own distribution (P89 · EL).
  */
 export type PreselectRole = 'discard' | 'deckPick' | string;
 
@@ -67,6 +70,8 @@ export type AddressableInput = {
   deckPickPrompt?: {source?: ChoiceContextSource},
   /** A placement's own card (`SelectSpace.sourceCard`) — the staged cell's address since TR21. */
   sourceCard?: CardName,
+  /** The Venus bonus marker — its role, and its source (the card whose step earned it). */
+  venusBonusPrompt?: {source?: ChoiceContextSource},
   /** A party question: only a GRANT, a SUPPORT AREA pick or a DELEGATE pick is a card's own; the chairman's seat is nobody's pre-select. */
   votePrompt?: {source: string},
   supportPrompt?: unknown,
@@ -78,6 +83,9 @@ export type AddressableInput = {
 export function roleOf(input: AddressableInput): PreselectRole {
   if (input.deckPickPrompt !== undefined) {
     return 'deckPick';
+  }
+  if (input.venusBonusPrompt !== undefined) {
+    return 'venusBonus';
   }
   if (input.type === 'card' && input.discardPrompt !== undefined) {
     return 'discard';
@@ -113,6 +121,7 @@ function promptSourceOf(input: AddressableInput): ChoiceContextSource | undefine
     return own ? input.choiceContext?.source : undefined;
   }
   return input.choiceContext?.source ??
+    input.venusBonusPrompt?.source ??
     input.placementContext?.source ??
     input.discardPrompt?.source ??
     input.deckPickPrompt?.source;
@@ -187,7 +196,8 @@ export type AddressVerdict = 'own' | 'foreign' | 'anonymous';
 export function addressVerdict(stamped: PreselectAddress, live: AddressableInput): AddressVerdict {
   const address = promptAddressOf(live);
   const kindOk = stamped.role === address.role ||
-    (stamped.role === 'or' && address.role !== 'deckPick') ||
+    // A card's own branch pick never answers the Venus bonus (an `or` on the wire when it has a wild — P89 · EL).
+    (stamped.role === 'or' && address.role !== 'deckPick' && address.role !== 'venusBonus') ||
     (address.role === 'or' && (live.options?.length ?? 0) === 1);
   if (!kindOk) {
     return 'foreign';

@@ -580,6 +580,12 @@
                 </template>
               </template>
 
+              <!-- THE VENUS BONUS, PRE-SELECTED (P89 · ledger EL): the spread — ONE row with the play composer (the layout
+                   row's chassis over the six standard resources); the 30 % wild is its own `or` row above it. -->
+              <template v-else-if="item.choice.kind === 'venusBonus'">
+                <ConsoleVenusSpreadRow :input="item.choice.input" :parts="venusPartsOf(item.choice)"
+                                       :laneIndex="venusLaneFor(item.choice.id)" :focused="isFocused(item)" :stock="venusStock" />
+              </template>
               <template v-else-if="item.choice.kind === 'spendHeat'">
                 <div class="con-composer__row-label">{{ $t('Heat sources') }}</div>
                 <div class="con-composer__stepper">
@@ -1166,6 +1172,13 @@ import {resolveCardArrivalMode} from '@/client/console/consoleCardArrival';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import ConsoleAmountOperation from '@/client/components/console/foundation/ConsoleAmountOperation.vue';
+import ConsoleVenusSpreadRow from '@/client/components/console/foundation/ConsoleVenusSpreadRow.vue';
+import {
+  VENUS_SPREAD_LANES, VenusBonusParts, venusBonusMetaOf, venusPartAnswered, venusPreselectArm, venusPreselectResponse,
+  venusSpreadAmount, venusWildOfAnswer,
+} from '@/client/console/venusBonus/venusBonusPreselect';
+import {armVenusBonusCell} from '@/client/console/scaleStepReward/venusBonusCellBeat';
+import {pourRemaining, stepSpread} from '@/client/console/cardResourceDistribution';
 import {amountOperationVm, ConversionPromptVm} from '@/client/console/conversionPromptModel';
 import ConsoleRevealVerdict from '@/client/components/console/foundation/ConsoleRevealVerdict.vue';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
@@ -1424,7 +1437,7 @@ const WORKSPACE_REVEAL_ZONE = '[data-embed-slot="workspace-reveal"]';
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ConsoleVariantChoice, ConsoleDeclinePlate, ConsoleColonyLedger, ActionEffectChip, ConsoleCountedWhy, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsoleAmountOperation, PremiumCard, ConsolePlayedReceivingStage},
+  components: {ConsoleVariantChoice, ConsoleDeclinePlate, ConsoleColonyLedger, ActionEffectChip, ConsoleCountedWhy, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsoleAmountOperation, ConsoleVenusSpreadRow, PremiumCard, ConsolePlayedReceivingStage},
   directives: {embedZone: vEmbedZone, stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1509,6 +1522,9 @@ export default defineComponent({
       capturedOption: undefined as unknown,
       /** A TWO-PART option's answered parts, by part index — `capturedOption` is their composed `and` once all stand. */
       capturedOptionParts: {} as Record<number, unknown>,
+      /** The pre-selected Venus bonus per step index — its two parts — and each spread's lane cursor (P89 · EL). */
+      venusParts: {} as Record<number, VenusBonusParts>,
+      venusLanes: {} as Record<string, number>,
       /** A LAW's card landing in this stage rose (RX36): the receiving stage stays standing to the workspace's leave. */
       lawLandingLatched: false,
       captured: {} as Record<number, unknown>,
@@ -1655,6 +1671,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The viewer's stock per standard resource — the Venus spread's «current → resulting» (P89 · EL). */
+    venusStock(): Partial<Record<string, number>> {
+      return Object.fromEntries(VENUS_SPREAD_LANES.map((key) => [key, playerResourceValue(this.thisPlayer, key, 'stock') ?? 0]));
+    },
     thisPlayer() {
       return this.playerView.thisPlayer;
     },
@@ -2506,7 +2526,7 @@ export default defineComponent({
      */
     activeDialChoice(): ComposerChoice | undefined {
       const item = this.focusedItem;
-      if (item?.kind === 'choice' && (item.choice.kind === 'amount' || item.choice.kind === 'spendHeat')) {
+      if (item?.kind === 'choice' && (item.choice.kind === 'amount' || item.choice.kind === 'spendHeat' || item.choice.kind === 'venusBonus')) {
         return item.choice;
       }
       if (this.focusFreeDialChoice !== undefined) {
@@ -2523,6 +2543,10 @@ export default defineComponent({
       }
       if (c.kind === 'amount' || c.kind === 'spendHeat') {
         return {kind: c.kind};
+      }
+      // The Venus spread speaks the stepper's verbs: LB/RB one unit, RT the rest onto the focused lane (P89 · EL).
+      if (c.kind === 'venusBonus') {
+        return {kind: 'amount'};
       }
       const row = quickAdjustRow(this.paymentPanelView(c));
       return {kind: 'payment', canDecrease: row?.canDecrease === true, canIncrease: row?.canIncrease === true};
@@ -4236,6 +4260,11 @@ export default defineComponent({
       return translateText(c.kind === 'card' ? cardPickAskKey(c.amount, isDiscardPick(c.input)) : c.kind === 'player' ? 'Choose a player' : this.optionalPickVerb(c));
     },
     choiceMissing(c: ComposerChoice): boolean {
+      // A PART of a pre-selected Venus bonus (P89 · EL): the wild chosen / the spread's sum exact.
+      if (c.venusPart !== undefined) {
+        const meta = venusBonusMetaOf(this.venusStepInput(c));
+        return meta === undefined || !venusPartAnswered(meta, this.venusPartsOf(c), c.venusPart);
+      }
       if (c.repeatAction === true) {
         // The nested read-only slot is never «missing» — it resolves post-submit.
         return !this.repeatPickDisabled && this.repeatResult === undefined;
@@ -4295,6 +4324,8 @@ export default defineComponent({
     resetFromPreview(): void {
       this.capturedPre = {};
       this.captured = {};
+      this.venusParts = {};
+      this.venusLanes = {};
       this.capturedOption = undefined;
       this.capturedOptionParts = {};
       this.amounts = {};
@@ -4558,6 +4589,11 @@ export default defineComponent({
       return this.sub === undefined && this.focusedItem?.id === item.id;
     },
     captureFor(c: ComposerChoice, response: unknown | undefined): void {
+      // A PART of a pre-selected Venus bonus (the wild's `or`): kept as its part, the step's ONE answer composed (P89 · EL).
+      if (c.venusPart === 'wild') {
+        this.setVenusParts(c, {...this.venusPartsOf(c), wild: venusWildOfAnswer(response)});
+        return;
+      }
       if (c.scope === 'pre') {
         if (response === undefined) {
           delete this.capturedPre[c.index];
@@ -5062,6 +5098,12 @@ export default defineComponent({
         this.scrollFocused();
         return;
       }
+      // ←→ on the Venus spread walk its lanes (the layout row's grammar — the bumpers move the units, P89 · EL).
+      const focused = this.focusedItem;
+      if (focused?.kind === 'choice' && focused.choice.kind === 'venusBonus') {
+        this.moveVenusLane(focused.choice, dir === 'left' ? -1 : 1);
+        return;
+      }
       // d-pad ←→ mirrors LB/RB on the active dial (a lone stepper is adjustable
       // straight from the CTA — the cursor never has to visit it).
       this.dialActive(dir === 'left' ? -1 : 1);
@@ -5076,8 +5118,66 @@ export default defineComponent({
         this.setAmount(c, this.amountFor(c.id) + step);
       } else if (c.kind === 'spendHeat') {
         this.adjustFloaters(c, step);
+      } else if (c.kind === 'venusBonus') {
+        this.adjustVenusLane(c, step);
       } else {
         this.adjustQuickPayment(c, step);
+      }
+    },
+    // ── the Venus bonus, PRE-SELECTED (P89 · EL) ────────────────────────
+    venusPartsOf(c: ComposerChoice): VenusBonusParts {
+      return this.venusParts[c.index] ?? {};
+    },
+    venusLaneFor(id: string): number {
+      return this.venusLanes[id] ?? 0;
+    },
+    /** The step's own prompt (both parts read it — the wild row's input is the synthesised pick). */
+    venusStepInput(c: ComposerChoice): PlayerInputModel | undefined {
+      const step = this.selectedBranch?.steps[c.index];
+      return step?.kind === 'venusBonus' ? step.input : undefined;
+    },
+    /** One write for both parts: the parts, then the step's ONE answer (or none — the commit is held). */
+    setVenusParts(c: ComposerChoice, parts: VenusBonusParts): void {
+      this.venusParts = {...this.venusParts, [c.index]: parts};
+      const meta = venusBonusMetaOf(this.venusStepInput(c));
+      const response = meta === undefined ? undefined : venusPreselectResponse(meta, parts);
+      const next = {...this.captured};
+      if (response === undefined) {
+        delete next[c.index];
+      } else {
+        next[c.index] = response;
+      }
+      this.captured = next;
+    },
+    adjustVenusLane(c: ComposerChoice, delta: number): void {
+      const meta = venusBonusMetaOf(c.input);
+      const key = VENUS_SPREAD_LANES[this.venusLaneFor(c.id)];
+      if (meta === undefined || key === undefined) {
+        return;
+      }
+      const parts = this.venusPartsOf(c);
+      this.setVenusParts(c, {...parts, spread: stepSpread(parts.spread ?? {}, key, delta, venusSpreadAmount(meta, parts))});
+    },
+    pourVenusLane(c: ComposerChoice): void {
+      const meta = venusBonusMetaOf(c.input);
+      const key = VENUS_SPREAD_LANES[this.venusLaneFor(c.id)];
+      if (meta === undefined || key === undefined) {
+        return;
+      }
+      const parts = this.venusPartsOf(c);
+      this.setVenusParts(c, {...parts, spread: pourRemaining(parts.spread ?? {}, key, venusSpreadAmount(meta, parts))});
+    },
+    moveVenusLane(c: ComposerChoice, dir: -1 | 1): void {
+      this.venusLanes = {...this.venusLanes, [c.id]: Math.max(0, Math.min(VENUS_SPREAD_LANES.length - 1, this.venusLaneFor(c.id) + dir))};
+    },
+    /** THE CELL BEAT'S PROMISE (PL-1437) for every pre-selected bonus the commit carries — armed at the press. */
+    armVenusPreselects(branch: ActionPreviewBranch): void {
+      for (const [index, parts] of Object.entries(this.venusParts)) {
+        const step = branch.steps[Number(index)];
+        const meta = step?.kind === 'venusBonus' ? venusBonusMetaOf(step.input) : undefined;
+        if (meta !== undefined && venusPreselectResponse(meta, parts) !== undefined) {
+          armVenusBonusCell(venusPreselectArm(meta, parts));
+        }
       }
     },
     // MAIN state: A(primary) acts on the FOCUSED row (select a branch / open
@@ -5101,7 +5201,7 @@ export default defineComponent({
           // A variant is an answer: the ONE rule lands the cursor on the next question, or arrives on the commit.
           this.landCursor();
           this.scrollFocused();
-        } else if (item.choice.kind === 'amount' || item.choice.kind === 'spendHeat') {
+        } else if (item.choice.kind === 'amount' || item.choice.kind === 'spendHeat' || item.choice.kind === 'venusBonus') {
           // A stepper adjusts via LB/RB — A is «Далее»: the dial's visible, editable default is already captured, so
           // the ONE rule lands the cursor on the next question or the commit (the play composer's grammar).
           this.landCursor();
@@ -5140,6 +5240,8 @@ export default defineComponent({
         }
         if (dial.kind === 'amount') {
           this.setAmount(dial, this.amountModel(dial).max);
+        } else if (dial.kind === 'venusBonus') {
+          this.pourVenusLane(dial);
         } else if (dial.kind === 'payment') {
           this.maxQuickPayment(dial);
         }
@@ -5844,6 +5946,10 @@ export default defineComponent({
     },
     /** The target row's label when it carries no payload — the role once answered, the server's ask before. */
     targetRowLabel(c: ComposerChoice): string {
+      // The 30 % Venus bonus's wild keeps its own name, answered or not (P89 · EL) — never the generic «chosen card».
+      if (c.venusPart === 'wild') {
+        return translateText('Wild resource');
+      }
       if (this.playedTargetResult(c) !== undefined) {
         return translateText(cardPickRoleKey(c.amount));
       }
@@ -5987,6 +6093,8 @@ export default defineComponent({
       // Branch-specific captures reset (desktop selectBranch parity); the
       // preSteps stay captured (branch-independent).
       this.captured = {};
+      this.venusParts = {};
+      this.venusLanes = {};
       this.capturedOption = undefined;
       this.capturedOptionParts = {};
       this.picks = {};
@@ -6774,6 +6882,8 @@ export default defineComponent({
         if (this.repeatResult === undefined && runtimeNavigationSteps(branch).length === 0) {
           this.armCommitWitness(branch);
         }
+        // The Venus bonus this action pre-selected flies off its cell once the board tells the step (P89 · EL).
+        this.armVenusPreselects(branch);
       }
       this.$emit('confirm', {
         branchIndex: branch.index,

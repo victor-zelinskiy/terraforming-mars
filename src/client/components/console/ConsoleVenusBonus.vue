@@ -34,7 +34,8 @@
       <!-- EMBEDDED: the question line only — the crumb above is where the stage names itself. -->
       <header v-if="embedded" class="con-lanes__head con-venus__ask">
         <h2 class="con-venus__title con-ws-stage-title">{{ $t(headlineKey) }}</h2>
-        <div v-if="stage === 'place' && placed > 0 && blockedText !== ''" class="con-lanes__blocked">⚠ {{ blockedText }}</div>
+        <div v-if="blockedSlot" class="con-lanes__blocked" :class="{'con-lanes__blocked--off': !blockedShown}"
+             data-venus-blocked :aria-hidden="blockedShown ? undefined : 'true'">⚠ {{ blockedLine }}</div>
       </header>
       <ConsolePromptHead v-else class="con-lanes__head" tone="gain" :kicker="$t('Venus bonus')" :title="$t(headlineKey)"
                          :prompt-key="sequenceKey">
@@ -49,7 +50,8 @@
         <!-- The honest «why not yet» of a PARTIAL placement (nothing placed → the footer says what is owed). The
              budget itself is the footer's meter — a BUDGET readout, so it goes away entirely when there is no budget
              to spread: «0 / 1» over six radio rows is the same sentence a third time. -->
-        <div v-if="stage === 'place' && placed > 0 && blockedText !== ''" class="con-lanes__blocked">⚠ {{ blockedText }}</div>
+        <div v-if="blockedSlot" class="con-lanes__blocked" :class="{'con-lanes__blocked--off': !blockedShown}"
+             data-venus-blocked :aria-hidden="blockedShown ? undefined : 'true'">⚠ {{ blockedLine }}</div>
       </ConsolePromptHead>
 
       <!-- THE STEP THAT EARNED IT (P89 · EE): «Шкала Венеры 16 % → 18 %» — in both dresses, the context of the question
@@ -207,6 +209,7 @@ import {
 import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
 import {buildVenusWildTargetModel, venusWildCandidates} from '@/client/console/venusBonus/venusWildTargetStep';
 import {armVenusBonusCell} from '@/client/console/scaleStepReward/venusBonusCellBeat';
+import {venusStepReading} from '@/client/console/venusBonus/venusBonusPreselect';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   VenusWildChoice, venusBaseCount, venusBonusLanes, venusBonusResponse, venusWildTargets,
@@ -266,8 +269,7 @@ export default defineComponent({
     },
     /** «Шкала Венеры 16 % → 18 %» — the raise that earned the bonus (`VenusBonusPromptMeta.step`), or ''. */
     stepReading(): string {
-      const step = this.meta?.step;
-      return step === undefined ? '' : `${translateText('Venus scale')} ${step.from} % → ${step.to} %`;
+      return venusStepReading(this.meta);
     },
     isFinal(): boolean {
       return this.meta?.kind === 'final';
@@ -393,6 +395,22 @@ export default defineComponent({
     },
     ready(): boolean {
       return budgetValid(this.lanes, this.picks, this.rule);
+    },
+    /**
+     * THE BLOCKER'S SLOT IS RESERVED, its words toggle by VISIBILITY (the owner, 2026-11-02: «размер элемента скачет из-за
+     * валидации "распределите весь бонус"»): a budget of more than one unit owns the line for the whole placement —
+     * mounted before the first unit, after the last — so the plate never grows or shrinks under the press that changes
+     * the state. A single unit has no partial state, so no slot at all.
+     */
+    blockedSlot(): boolean {
+      return this.stage === 'place' && !this.singleStep;
+    },
+    blockedShown(): boolean {
+      return this.placed > 0 && this.blockedText !== '';
+    },
+    /** The reserved line's words — the live blocker, or the same sentence held invisible so the slot keeps its height. */
+    blockedLine(): string {
+      return this.blockedText !== '' ? this.blockedText : translateText('Distribute the whole bonus');
     },
     blockedText(): string {
       const key = budgetBlockedKey(this.lanes, this.picks, this.rule);

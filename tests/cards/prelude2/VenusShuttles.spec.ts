@@ -18,6 +18,11 @@ import {setRulingParty, setVenusScaleLevel} from '../../TestingUtils';
 import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {MAX_VENUS_SCALE} from '../../../src/common/constants';
 import {Tag} from '../../../src/common/cards/Tag';
+import {addressVerdict, promptAddressOf} from '../../../src/common/inputs/preselectAddress';
+import {parkedBatchTailLength, replayBatch} from '../../../src/server/inputs/deferredInputBatch';
+import {InputResponse} from '../../../src/common/inputs/InputResponse';
+import {Payment} from '../../../src/common/inputs/Payment';
+import {CardName} from '../../../src/common/cards/CardName';
 
 describe('VenusShuttles', () => {
   let card: VenusShuttles;
@@ -196,6 +201,80 @@ describe('VenusShuttles', () => {
     expect(bonus?.venusBonusPrompt?.kind).eq('standard');
     expect(bonus?.venusBonusPrompt?.step).deep.eq({from: 16, to: 18});
     expect(game3.getVenusScaleLevel()).eq(18);
+  });
+
+  describe('the Venus bonus PRE-SELECT (P89 · EL)', () => {
+    function altTable(venus: number): [IGame, TestPlayer] {
+      const [g, p] = testGame(1, {venusNextExtension: true, altVenusBoard: true});
+      setVenusScaleLevel(g, venus);
+      p.megaCredits = 20;
+      p.steel = 0;
+      return [g, p];
+    }
+    const bonusStep = (p: TestPlayer) => actionPreview(p, card).branches[0].steps.find((s) => s.kind === 'venusBonus');
+
+    it('the preview carries the bonus as a STEP: the very prompt the server asks, addressed to this card', () => {
+      const [, p] = altTable(16);
+      const step = bonusStep(p);
+      expect(step?.kind).eq('venusBonus');
+      if (step?.kind !== 'venusBonus') {
+        return;
+      }
+      expect(step.input.venusBonusPrompt).deep.include({kind: 'standard', baseCount: 1, step: {from: 16, to: 18}});
+      expect(step.input.venusBonusPrompt?.source).deep.eq({kind: 'card', card: card.name});
+      expect(step.for).deep.eq({role: 'venusBonus', source: {kind: 'card', card: card.name}});
+      expect(bonusStep(player), 'never on the standard board').is.undefined;
+      const [, below] = altTable(10);
+      expect(bonusStep(below), 'no bonus below 18 %').is.undefined;
+    });
+
+    it('the live prompt names the card that raised the scale (the event scope) and its role', () => {
+      const [g, p] = altTable(16);
+      g.events.beginAction(p, {kind: 'card', card: card.name});
+      card.action(p);
+      runAllActions(g);
+      const bonus = p.getWaitingFor()!;
+      expect(bonus.venusBonusPrompt?.source).deep.eq({kind: 'card', card: card.name});
+      expect(promptAddressOf(bonus)).deep.eq({role: 'venusBonus', source: {kind: 'card', card: card.name}});
+    });
+
+    it('the addressed answer LANDS on the bonus: nothing parked, nothing asked, the steel on the rail', () => {
+      const [g, p] = altTable(16);
+      const step = bonusStep(p)!;
+      g.events.beginAction(p, {kind: 'card', card: card.name});
+      card.action(p);
+      runAllActions(g);
+      const payment = p.getWaitingFor();
+      const answers: Array<unknown> = [];
+      if (payment instanceof SelectPayment) {
+        answers.push({type: 'payment', payment: {...Payment.EMPTY, megacredits: 12}});
+      }
+      const amounts = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'].map((r) => ({type: 'amount', amount: r === 'steel' ? 1 : 0}));
+      answers.push({type: 'and', responses: amounts, for: step.for});
+      replayBatch(p, answers as Array<InputResponse>);
+      runAllActions(g);
+      expect(parkedBatchTailLength(p)).eq(0);
+      expect(p.getWaitingFor(), 'the bonus was answered by the batch').is.undefined;
+      expect(p.steel).eq(1);
+      expect(g.getVenusScaleLevel()).eq(18);
+    });
+
+    it('a card\'s own branch pick never answers the bonus (an `or` answer is foreign to the role)', () => {
+      const [g, p] = altTable(28);
+      g.events.beginAction(p, {kind: 'card', card: card.name});
+      card.action(p);
+      runAllActions(g);
+      const live = p.getWaitingFor();
+      if (live instanceof SelectPayment) {
+        p.process({type: 'payment', payment: {...Payment.EMPTY, megacredits: 12}});
+        runAllActions(g);
+      }
+      const bonus = p.getWaitingFor()!;
+      expect(bonus.venusBonusPrompt?.kind).eq('final');
+      expect(addressVerdict({role: 'or', source: {kind: 'card', card: card.name}}, bonus), 'a branch pick').eq('foreign');
+      expect(addressVerdict({role: 'venusBonus', source: {kind: 'card', card: card.name}}, bonus)).eq('own');
+      expect(addressVerdict({role: 'venusBonus', source: {kind: 'card', card: CardName.DIRIGIBLES}}, bonus), 'another card\'s bonus').eq('foreign');
+    });
   });
 
   it('play: a floater holder WITHOUT a Venus tag is not a candidate; a single Venus holder is still ASKED (T14)', () => {

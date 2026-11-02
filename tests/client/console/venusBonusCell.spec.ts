@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
 import {
-  armVenusBonusCell, resetVenusBonusCell, seedVenusBonusCellHold, venusBonusCellPlan, venusBonusCells, venusBonusCellState,
+  armVenusBonusCell, resetVenusBonusCell, seedVenusBonusCellHold, venusBonusAnswerApplied, venusBonusCellPlan, venusBonusCells, venusBonusCellState,
 } from '@/client/console/scaleStepReward/venusBonusCellBeat';
 import {clearPanelRewardHold, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {resetPresentationLedger} from '@/client/console/presentationLedger';
@@ -64,5 +64,17 @@ describe('venusBonusCellBeat — the bonus is born on its cell', () => {
     seedVenusBonusCellHold(view({}, true), view({steel: 1}, false));
     expect(heldStock('plants')).eq(0);
     expect(venusBonusCellState.degraded).is.true;
+  });
+
+  it('a PRE-SELECTED answer (P89 · EL) is applied by the response in which Venus REACHED the cell — no bonus prompt ever stood', () => {
+    const arm = {units: {steel: 1}, step: {from: 16, to: 18}, preselected: true as const};
+    const at = (level: number, asking = false) => ({...view({}, asking), game: {phase: 'action', venusScaleLevel: level}} as unknown as PlayerViewModel);
+    expect(venusBonusAnswerApplied(arm, at(16), at(18)), 'the commit\'s response: the step and the answer together').is.true;
+    expect(venusBonusAnswerApplied(arm, at(16), at(16)), 'a view ahead of the answer (the price only)').is.false;
+    expect(venusBonusAnswerApplied(arm, at(16), at(18, true)), 'refused — the bonus asked live (the surface re-arms)').is.false;
+    expect(venusBonusAnswerApplied(arm, at(18), at(18)), 'already past the cell — not this response').is.false;
+    const live = {units: {steel: 1}, step: {from: 16, to: 18}};
+    expect(venusBonusAnswerApplied(live, at(18, true), at(18)), 'the live surface\'s answer: asked before, not after').is.true;
+    expect(venusBonusAnswerApplied(live, at(16), at(18)), 'a live arm never guesses from the scale').is.false;
   });
 });

@@ -65,6 +65,9 @@
         .con-read-text(500);
         font-size: .86rem;
         color: fade(@lanes-spend, 92%);
+        /* The slot is RESERVED for the whole placement and only its words come and go (P89 · EL): a line that mounted on
+           the first unit and unmounted on the last grew and shrank the plate under the very press. */
+        &--off { visibility: hidden; }
     }
 
     /* NOT `flex: 1`: the panel is the scroll container, so this row must size
@@ -526,4 +529,28 @@ html.con-profile-handheld {
     font-size: .88rem;
     letter-spacing: .02em;
     color: @con-text-dim;
+}
+
+/* THE VENUS BONUS, PRE-SELECTED — the spread row of both composers (P89 · ledger EL, `ConsoleVenusSpreadRow`): the
+   LAYOUT row's lanes (`.con-composer__lane*`) with a resource icon where a holder's miniature stands, and the raise that
+   earned the bonus beside the row's label — the hosted surface's own words. Material only (invariant 15). */
+.con-venusspread {
+    &__step {
+        margin-left: .6rem;
+        font-size: .78rem;
+        font-weight: 500;
+        letter-spacing: 0;
+        text-transform: none;
+        color: @con-text-dim;
+        font-variant-numeric: tabular-nums;
+    }
+    &__icon {
+        display: inline-block;
+        width: 2.2rem;
+        height: 2.2rem;
+        flex: 0 0 auto;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
 }

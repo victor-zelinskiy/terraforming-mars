@@ -115,4 +115,22 @@ describe('preselectAddress', () => {
       expect(withoutAddress(stamped)).deep.eq(answer);
     });
   });
+
+  describe('the Venus bonus is a role of its own (P89 · EL)', () => {
+    const SHUTTLES = {kind: 'card' as const, card: CardName.VENUS_SHUTTLES};
+    const bonusAnd = {type: 'and', venusBonusPrompt: {source: SHUTTLES}} as AddressableInput;
+    const bonusOr = {type: 'or', options: [{}, {}], venusBonusPrompt: {source: SHUTTLES}} as AddressableInput;
+    it('reads role `venusBonus` and the raising card off the marker, whatever its wire type', () => {
+      expect(promptAddressOf(bonusAnd)).deep.eq({role: 'venusBonus', source: SHUTTLES});
+      expect(promptAddressOf(bonusOr)).deep.eq({role: 'venusBonus', source: SHUTTLES});
+    });
+    it('only a bonus answer of the same card lands; a branch pick or another card\'s bonus never does', () => {
+      expect(addressVerdict({role: 'venusBonus', source: SHUTTLES}, bonusOr)).eq('own');
+      expect(addressVerdict({role: 'or', source: SHUTTLES}, bonusOr)).eq('foreign');
+      expect(addressVerdict({role: 'and', source: SHUTTLES}, bonusAnd)).eq('foreign');
+      expect(addressVerdict({role: 'venusBonus', source: {kind: 'card', card: CardName.DIRIGIBLES}}, bonusAnd)).eq('foreign');
+      expect(addressVerdict({role: 'venusBonus', source: SHUTTLES}, {type: 'and', venusBonusPrompt: {}} as AddressableInput), 'a prompt with no raising card').eq('anonymous');
+    });
+  });
 });
+

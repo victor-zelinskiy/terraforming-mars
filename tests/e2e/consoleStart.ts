@@ -3584,7 +3584,37 @@ export async function passDeferredTableQuestions(page: Page): Promise<void> {
  * ask IT (card-exact); otherwise ask the DOCK's total, which is live on every
  * screen. Both are structural; neither can be true for the wrong reason.
  */
-export async function playCardFromHand(page: Page, card: string, attempts = 3): Promise<boolean> {
+/**
+ * THE VENUS BONUS PRE-SELECT (P89 · ledger EL): a composer whose branch raises Venus into the alternative board's bonus
+ * HOLDS its commit until the spread row is laid out (`[data-venus-spread]`, the layout row's chassis over the six
+ * standard resources). Bring the cursor onto the spread (the ONE cursor rule usually seeds it there), steer ←→ to `lane`
+ * (a resource key — `steel` is the one a press's own price never moves), and pour what is left onto it (RT). A no-op
+ * without a spread row. True once the spread reads nothing left.
+ */
+export async function answerVenusSpread(page: Page, lane?: string): Promise<boolean> {
+  const spread = page.locator('[data-venus-spread]').first();
+  if (await spread.count() === 0) {
+    return true;
+  }
+  const focusedLane = spread.locator('.con-composer__lane--focused');
+  for (let i = 0; i < 10 && await focusedLane.count() === 0; i++) {
+    await press(page, i < 5 ? 'ArrowDown' : 'ArrowUp', 260);
+  }
+  if (await focusedLane.count() === 0) {
+    return false;
+  }
+  if (lane !== undefined) {
+    for (let i = 0; i < 8 && await focusedLane.getAttribute('data-lane-resource') !== lane; i++) {
+      await press(page, (await focusedLane.getAttribute('data-lane-resource')) === 'heat' ? 'ArrowLeft' : 'ArrowRight', 220);
+    }
+  }
+  for (let i = 0; i < 4 && (await spread.getAttribute('data-venus-spread-left')) !== '0'; i++) {
+    await press(page, 'Period', 300);
+  }
+  return (await spread.getAttribute('data-venus-spread-left')) === '0';
+}
+
+export async function playCardFromHand(page: Page, card: string, attempts = 3, opts: {venusLane?: string} = {}): Promise<boolean> {
   const inHand = page.locator(`.con-hand [data-zoom-slot="${card}"]`);
   const handScreen = page.locator('.con-hand');
   /**
@@ -3651,6 +3681,8 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3): 
     await press(page, 'Enter', 900); // open the play composer
     // A table question left for after a draw is offered to the cursor once — never answered by a blind A here.
     await passDeferredTableQuestions(page);
+    // The alternative board's Venus bonus is PRE-SELECTED on the sheet (P89 · EL): the commit is held until it is laid out.
+    await answerVenusSpread(page, opts.venusLane);
     for (let i = 0; i < 5 && await page.locator('.con-composer--play').count() > 0; i++) {
       await press(page, 'Enter', 900);
     }

@@ -407,7 +407,11 @@ export function branchOutcomeClaimPlan(
   }
   // THE ALTERNATIVE VENUS BOARD'S BONUS this branch's Venus step earns (P89 · EE): the server stamped it on the chip —
   // the bonus is asked in the commit's own response and is this workspace's next stage.
-  if ((branch?.effects ?? []).some((e) => e.icon === 'venus' && e.altVenusBonus !== undefined)) {
+  // …unless the composer PRE-SELECTED it (P89 · EL — the branch's own `venusBonus` step, which the commit cannot pass
+  // unanswered): the answer rides the batch and no bonus is asked, so a claimed stage would only stand empty until the
+  // reconcile let it go. A refused answer is asked live and stands as the band, after the board told the step.
+  if ((branch?.effects ?? []).some((e) => e.icon === 'venus' && e.altVenusBonus !== undefined) &&
+      !(branch?.steps ?? []).some((step) => step.kind === 'venusBonus')) {
     kinds.push('venus-bonus');
   }
   return {kinds, expectedCards};

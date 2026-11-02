@@ -11,6 +11,7 @@ import {Resource} from '../../common/Resource';
 import {ActionEffect, ActionPreview, ActionPreviewBranch, ActionPreviewStep} from '../../common/models/ActionPreviewModel';
 import {deriveOrBranches, effectsForBehavior, stepsForBehavior, withImpliedRatings} from './actionPreview';
 import {withPreselectAddresses} from './preselectAddresses';
+import {withVenusBonusSteps} from './venusBonusSteps';
 import {withDivertedTerraforming} from './divertedTerraforming';
 import {withVetoedRating} from './vetoedRating';
 import {attachStagedPlacement, stagedPlacementForBehavior} from './stagedBehaviorPlacement';
@@ -118,8 +119,10 @@ export function cardPlayPreview(player: IPlayer, card: ICard): ActionPreview {
   // pre-collects the «where» (`divertedTerraforming.ts`, RX35 — the played card is a holder of its own data), a scale
   // step's own rating stated after the scale (PL-147; none for a struck chip), the rating veto striking every rating
   // the funnel will refuse (`vetoedRating.ts`, RX42 — right after the ratings are all stated), and every step
-  // addressed to its own prompt (the pre-select law, `preselectAddresses.ts`).
-  return withPreselectAddresses(withVetoedRating(player, withImpliedRatings(withDivertedTerraforming(player, cardPlayPreviewOf(player, card), card))));
+  // addressed to its own prompt (the pre-select law, `preselectAddresses.ts`) — the Venus bonus a step earns pre-selected
+  // beside them, the played card a holder of its wild (`venusBonusSteps.ts`, P89 · EK).
+  return withPreselectAddresses(withVenusBonusSteps(player,
+    withVetoedRating(player, withImpliedRatings(withDivertedTerraforming(player, cardPlayPreviewOf(player, card), card))), card));
 }
 
 function cardPlayPreviewOf(player: IPlayer, card: ICard): ActionPreview {

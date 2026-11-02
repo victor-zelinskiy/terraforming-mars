@@ -1936,6 +1936,27 @@ export class Game implements IGame, Logger {
     return this.oxygenLevel;
   }
 
+  /**
+   * WHO RAISED VENUS — the card whose step earns the alternative board's bonus (P89 · ledger EL): the copied card
+   * while a copied action runs (Viron, R&D Funding — the composer collected the answer from THAT card's preview), else
+   * the card / corporation / standard project of the event scope. The bonus prompt's pre-select address source.
+   */
+  private venusBonusSource(): ChoiceContextSource | undefined {
+    const copied = this.events.currentCopiedCard();
+    if (copied !== undefined) {
+      return {kind: 'card', card: copied};
+    }
+    const source = this.events.currentSource();
+    switch (source?.kind) {
+    case 'card':
+    case 'corporation':
+    case 'standardProject':
+      return {kind: source.kind, card: source.card};
+    default:
+      return undefined;
+    }
+  }
+
   public increaseVenusScaleLevel(player: IPlayer, increments: -1 | 1 | 2 | 3, options?: ParameterMoveOptions): number {
     if (this.venusScaleLevel >= constants.MAX_VENUS_SCALE) {
       return 0;
@@ -2000,7 +2021,8 @@ export class Game implements IGame, Logger {
               this.log('${0} gained ${1} ${2}', (b) => b.player(player).number(1).cardResource(CardResource.FLOATER));
             }
           } else {
-            this.defer(new GrantVenusAltTrackBonusDeferred(player, standardResourcesGranted, grantWildResource, {from: bonus.from, to: bonus.to}));
+            this.defer(new GrantVenusAltTrackBonusDeferred(player, standardResourcesGranted, grantWildResource, {from: bonus.from, to: bonus.to},
+              this.venusBonusSource()));
           }
         }
       }

@@ -2,8 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixture, bootFixtureSeats, crumbText, fetchPlayerModel, openActionFocus, openCardActions, playCardFromHand, press, pressUntil,
-  reloadConsole, settle, walkFocusUntil,
+  answerVenusSpread, bootFixture, bootFixtureSeats, crumbText, fetchPlayerModel, openActionFocus, openCardActions, playCardFromHand, press,
+  pressUntil, reloadConsole, settle, walkFocusUntil,
 } from './consoleStart';
 import {enterSittingByPass, parliament, strandedReports, armLeakWitness, turnTo, waitSittingAtRest} from './parliamentDrive';
 
@@ -143,6 +143,27 @@ async function answerHostedBonus(page: Page, request: APIRequestContext, id: str
   await shoot(page, `${shot}-done`);
 }
 
+/** LT → the standard projects, the snake to Air Scrapping, A runs it (the 16 → 18 % step and the live bonus). */
+async function runAirScrapping(page: Page, request: APIRequestContext, id: string): Promise<void> {
+  await press(page, 'Comma', 1100);
+  await press(page, 'Enter', 1400);
+  await expect(page.locator('.con-stdp'), 'the standard projects open').toHaveCount(1, {timeout: 15_000});
+  const focused = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
+  // The project grid is 2-D: the snake of `console-stdp-workspace` (up to the top, then row by row both ways).
+  const target = /очистк|scrapping/i;
+  for (let i = 0; i < 6 && !target.test(await focused()); i++) {
+    await press(page, 'ArrowUp', 200);
+  }
+  const snake = ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowLeft', 'ArrowDown',
+    'ArrowRight', 'ArrowRight', 'ArrowLeft', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowRight'];
+  for (let i = 0; i < snake.length && !target.test(await focused()); i++) {
+    await press(page, snake[i], 240);
+  }
+  expect(await focused(), 'the Air Scrapping row is focused').toMatch(target);
+  expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, id)).game.venusScaleLevel === 18, {tries: 3, settleMs: 1500}),
+    'A runs the project').toBe(true);
+}
+
 async function focusShuttles(page: Page): Promise<void> {
   await openCardActions(page);
   const focused = () => page.evaluate(() => document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-card') ?? '');
@@ -165,50 +186,57 @@ async function commitComposer(page: Page): Promise<void> {
 test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
   test.use({viewport: PRESET.viewport});
 
-  test('H1 «ДЕЙСТВИЯ КАРТ»: P89 at 16 % → the bonus stands in the action\'s stage, answered there, the workspace leaves', async ({page, request}) => {
+  test('H1 «ДЕЙСТВИЯ КАРТ»: P89 at 16 % → the bonus is PRE-SELECTED in the setup (P89 · EL), the batch answers it, the steel comes off its cell', async ({page, request}) => {
     test.setTimeout(300_000);
     const id = await bootFixture(page, request, 'venus-shuttles-alt16', {query: PRESET.query});
     await armBonusWitness(page);
     await focusShuttles(page);
-    await commitComposer(page);
+    const spread = page.locator(`${ACTION_COMPOSER} [data-venus-spread]`);
+    await expect(spread, 'the bonus is a ROW of the setup — before the commit').toBeVisible({timeout: 15_000});
+    await expect(spread).toHaveAttribute('data-venus-spread-left', '1');
+    await expect(spread.locator('[data-venus-step]'), 'the row reads the raise that earns it').toContainText(/16\s*%\s*→\s*18\s*%/);
+    expect(await answerVenusSpread(page, 'steel'), 'the steel lane takes the one unit').toBe(true);
+    await expect(spread.locator('[data-lane-resource="steel"]')).toHaveAttribute('data-lane-amount', '1');
+    await shoot(page, 'H1-preselect');
+    const before = await wireOf(request, id);
     await armCellWitness(page, 'venus-18');
-    await answerHostedBonus(page, request, id, 'card-actions', '.con-cardactions', 'H1');
-    // PL-1436: the chosen resource comes OFF THE BONUS CELL — after the step's own story.
+    await commitComposer(page);
+    await expect.poll(async () => (await wireOf(request, id)).game.venusScaleLevel, {timeout: 30_000, message: 'the step is made'}).toBe(18);
+    await expect.poll(async () => (await wireOf(request, id)).thisPlayer.steel, {timeout: 30_000, message: 'the batch paid the pre-selected steel'})
+      .toBe(before.thisPlayer.steel + 1);
+    expect((await wireOf(request, id)).waitingFor?.venusBonusPrompt, 'no bonus is asked after the press').toBeUndefined();
+    // PL-1437: the chosen resource comes OFF THE BONUS CELL — after the step's own story, on the board.
     await expectBornOnCell(page, 'venus-18');
     await expect(page.locator('.con-cardactions'), 'the workspace leaves').toHaveCount(0, {timeout: 30_000});
     await expect.poll(() => page.evaluate(() => document.querySelector<HTMLElement>('[data-scale-marker="venus"]')?.dataset.scaleMarkerAt ?? ''),
       {timeout: 30_000, message: 'the board tells the step AFTER — the marker rests on 18'}).toBe('18');
+    const w = await witnessOf(page);
+    expect(w.hosted, 'no hosted bonus step ever stood — it was answered before the press').toBe('');
+    expect(w.band, 'no standalone bonus band ever stood').toBe(0);
   });
 
-  test('H2 «КАРТЫ В РУКЕ»: a Venus card played at 16 % → the bonus is the play\'s next stage', async ({page, request}) => {
+  test('H2 «КАРТЫ В РУКЕ»: a Venus card played at 16 % → the bonus is PRE-SELECTED on the play sheet, the batch answers it', async ({page, request}) => {
     test.setTimeout(300_000);
     const id = await bootFixture(page, request, 'venus-bonus-play', {query: PRESET.query});
     await armBonusWitness(page);
-    expect(await playCardFromHand(page, 'Neutralizer Factory'), 'the card is played').toBe(true);
-    await answerHostedBonus(page, request, id, 'hand', '.con-hand', 'H2');
+    const before = await wireOf(request, id);
+    await armCellWitness(page, 'venus-18');
+    // The sheet holds its commit until the spread is laid out — the driver lays it on steel (P89 · EL).
+    expect(await playCardFromHand(page, 'Neutralizer Factory', 3, {venusLane: 'steel'}), 'the card is played').toBe(true);
+    await expect.poll(async () => (await wireOf(request, id)).thisPlayer.steel, {timeout: 30_000, message: 'the play\'s batch paid the pre-selected steel'})
+      .toBe(before.thisPlayer.steel + 1);
+    expect((await wireOf(request, id)).waitingFor?.venusBonusPrompt, 'no bonus is asked after the play').toBeUndefined();
+    await expectBornOnCell(page, 'venus-18');
+    const w = await witnessOf(page);
+    expect(w.hosted, 'no hosted bonus step').toBe('');
+    expect(w.band, 'no standalone bonus band').toBe(0);
   });
 
   test('H3 «СТАНДАРТНЫЕ ПРОЕКТЫ»: Air Scrapping at 16 % → the terminal commit hosts the bonus in its step', async ({page, request}) => {
     test.setTimeout(300_000);
     const id = await bootFixture(page, request, 'venus-bonus-stdp', {query: PRESET.query});
     await armBonusWitness(page);
-    await press(page, 'Comma', 1100);
-    await press(page, 'Enter', 1400);
-    await expect(page.locator('.con-stdp'), 'the standard projects open').toHaveCount(1, {timeout: 15_000});
-    const focused = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
-    // The project grid is 2-D: the snake of `console-stdp-workspace` (up to the top, then row by row both ways).
-    const target = /очистк|scrapping/i;
-    for (let i = 0; i < 6 && !target.test(await focused()); i++) {
-      await press(page, 'ArrowUp', 200);
-    }
-    const snake = ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowLeft', 'ArrowDown',
-      'ArrowRight', 'ArrowRight', 'ArrowLeft', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowRight'];
-    for (let i = 0; i < snake.length && !target.test(await focused()); i++) {
-      await press(page, snake[i], 240);
-    }
-    expect(await focused(), 'the Air Scrapping row is focused').toMatch(target);
-    expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, id)).game.venusScaleLevel === 18, {tries: 3, settleMs: 1500}),
-      'A runs the project').toBe(true);
+    await runAirScrapping(page, request, id);
     await answerHostedBonus(page, request, id, 'standard-projects', '.con-stdp', 'H3');
   });
 
@@ -233,28 +261,36 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     await answerHostedBonus(page, request, id, 'colonies', '.con-colonies', 'H4');
   });
 
-  test('H5 the 30 % finish (P89 at 28 %): the wild\'s stages stay INSIDE the one hosted step', async ({page, request}) => {
+  test('H5 the 30 % finish (P89 at 28 %): the WILD is its own pre-select (a card, or a standard resource) beside the spread', async ({page, request}) => {
     test.setTimeout(300_000);
     const id = await bootFixture(page, request, 'venus-bonus-final', {query: PRESET.query});
     await armBonusWitness(page);
     await focusShuttles(page);
+    const spread = page.locator(`${ACTION_COMPOSER} [data-venus-spread]`);
+    await expect(spread, 'the spread row stands').toBeVisible({timeout: 15_000});
+    await shoot(page, 'H5-rows');
+    const before = await wireOf(request, id);
+    const floaters = (w: Wire) => w.thisPlayer.tableau.find((c) => c.name === 'Dirigibles')?.resources ?? 0;
+    // THE WILD — its own row: A opens the card pick, A takes the focused holder (Dirigibles, the one candidate — shown, T14).
+    expect(await pressUntil(page, 'Enter', async () => await page.locator(`${ACTION_COMPOSER} .con-ptsel, .con-cardactions .con-ptsel`).count() > 0,
+      {tries: 3, settleMs: 900}), 'A opens the wild\'s card pick').toBe(true);
+    await shoot(page, 'H5-wild-pick');
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions .con-ptsel').count() === 0,
+      {tries: 3, settleMs: 900}), 'A takes the holder').toBe(true);
+    expect(await answerVenusSpread(page, 'steel'), 'the base unit on steel').toBe(true);
+    await shoot(page, 'H5-ready');
     await commitComposer(page);
-    await expect(page.locator('.con-cardactions .con-venus[data-venus-bonus-embedded] .con-venus__wild'), 'the wild question stands hosted')
-      .toBeVisible({timeout: 45_000});
-    await shoot(page, 'H5-wild');
-    await press(page, 'Enter', 600); // «Положить на карту»
-    await expect(page.locator('.con-cardactions .con-venus__pick'), 'the card pick stands in the same step').toBeVisible({timeout: 15_000});
-    await press(page, 'Enter', 600); // the focused holder
-    await press(page, 'Enter', 500); // the base resource on the focused lane
-    await expect.poll(async () => {
-      await press(page, 'KeyX', 600);
-      return (await wireOf(request, id)).waitingFor?.venusBonusPrompt;
-    }, {timeout: 30_000, message: 'X collects the final bonus'}).toBeUndefined();
+    await expect.poll(async () => (await wireOf(request, id)).game.venusScaleLevel, {timeout: 30_000}).toBe(30);
+    await expect.poll(async () => floaters(await wireOf(request, id)), {timeout: 30_000, message: 'the wild landed on Dirigibles'})
+      .toBe(floaters(before) + 1);
+    const after = await wireOf(request, id);
+    expect(after.thisPlayer.steel, 'the base unit on steel').toBe(before.thisPlayer.steel + 1);
+    expect(after.waitingFor?.venusBonusPrompt, 'no bonus is asked after the press').toBeUndefined();
     expect((await witnessOf(page)).band, 'no standalone bonus band ever stood').toBe(0);
     await expect(page.locator('.con-cardactions'), 'the workspace leaves').toHaveCount(0, {timeout: 30_000});
   });
 
-  test('H6 R&D Funding repeats P89 at 16 %: the law\'s stage hosts the bonus — the claim and its stage decided together', async ({page, request}) => {
+  test('H6 R&D Funding repeats P89 at 16 %: the copied action\'s bonus is pre-selected in its own composer, the law\'s commit answers it', async ({page, request}) => {
     test.setTimeout(420_000);
     const {playerId: id} = await bootFixtureSeats(page, request, 'venus-bonus-rdfunding', {query: PRESET.query});
     await armBonusWitness(page);
@@ -267,21 +303,31 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions').count() === 2, {tries: 4, settleMs: 900}),
       'A opens the repeat pick').toBe(true);
     await settle(page, {timeoutMs: 15_000});
-    expect(await pressUntil(page, 'Enter',
-      async () => await page.locator('.con-cardactions').count() === 1 && await page.locator('[data-composer-repeat-name]').count() === 1,
-      {tries: 6, settleMs: 900}), 'the pick resolves into the law\'s slot').toBe(true);
+    // The copied action's own composer stands in the repeat bridge — its Venus bonus is pre-selected there (P89 · EL).
+    for (let i = 0; i < 6 && !(await page.locator('.con-cardactions').count() === 1 && await page.locator('[data-composer-repeat-name]').count() === 1); i++) {
+      if (await page.locator('[data-venus-spread]').count() > 0 && (await page.locator('[data-venus-spread]').first().getAttribute('data-venus-spread-left')) !== '0') {
+        expect(await answerVenusSpread(page, 'steel'), 'the copied composer\'s bonus laid out').toBe(true);
+        continue;
+      }
+      await press(page, 'Enter', 900);
+    }
+    expect(await page.locator('[data-composer-repeat-name]').count(), 'the pick resolves into the law\'s slot').toBe(1);
     await settle(page, {timeoutMs: 15_000});
+    const before = await wireOf(request, id);
     expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, id)).game.venusScaleLevel === 18, {tries: 4, settleMs: 900}),
       'the law\'s CTA commits the repeat').toBe(true);
-    await answerHostedBonus(page, request, id, 'card-actions', '.con-cardactions', 'H6');
+    await expect.poll(async () => (await wireOf(request, id)).thisPlayer.steel, {timeout: 30_000, message: 'the repeat\'s batch paid the bonus'})
+      .toBe(before.thisPlayer.steel + 1);
+    expect((await wireOf(request, id)).waitingFor?.venusBonusPrompt, 'no bonus is asked after the repeat').toBeUndefined();
+    expect((await witnessOf(page)).band, 'no standalone bonus band').toBe(0);
   });
 
   test('H7 no host (a reload mid-bonus): the band stands on its own — after the board told the step', async ({page, request}) => {
     test.setTimeout(300_000);
-    const id = await bootFixture(page, request, 'venus-shuttles-alt16', {query: PRESET.query});
-    await focusShuttles(page);
-    await commitComposer(page);
-    await expect(page.locator('.con-cardactions .con-venus[data-venus-bonus-embedded]'), 'hosted first').toBeVisible({timeout: 45_000});
+    // The standard projects pre-select nothing: their terminal commit HOSTS the live bonus (H3) — the reload takes the host away.
+    const id = await bootFixture(page, request, 'venus-bonus-stdp', {query: PRESET.query});
+    await runAirScrapping(page, request, id);
+    await expect(page.locator('.con-stdp .con-venus[data-venus-bonus-embedded]'), 'hosted first').toBeVisible({timeout: 45_000});
     await reloadConsole(page);
     await expect(page.locator('.con-lanes.con-ws'), 'the standalone band stands after the reload').toBeVisible({timeout: 45_000});
     await shoot(page, 'H7-standalone');

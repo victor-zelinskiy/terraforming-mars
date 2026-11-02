@@ -7,6 +7,9 @@ import {IPlayer} from '../IPlayer';
 import {GainResources} from '../inputs/GainResources';
 import {message} from '../logs/MessageBuilder';
 import {targetVictoryPoints} from '../cards/actionPreviews';
+import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
+import {ICard} from '../cards/ICard';
+import {PlayerInput} from '../PlayerInput';
 
 export class GrantVenusAltTrackBonusDeferred extends DeferredAction {
   constructor(
@@ -15,12 +18,32 @@ export class GrantVenusAltTrackBonusDeferred extends DeferredAction {
     public wildResource: boolean,
     /** The raise that earned it (Venus before → after) — rides the marker for the hosted step's head. */
     public step?: {from: number, to: number},
+    /** The card whose step earned it — the prompt's pre-select address (P89 · EL). */
+    public source?: ChoiceContextSource,
+    /**
+     * PREVIEW ONLY: holders the live prompt will offer that are not in the tableau yet — the card being PLAYED, when
+     * it holds resources (it lands before the bonus is asked). Never set by the engine.
+     */
+    private readonly pendingHolders: ReadonlyArray<ICard> = [],
   ) {
     super(player, Priority.GAIN_RESOURCE_OR_PRODUCTION);
   }
 
-  private stepMeta(): {step?: {from: number, to: number}} {
-    return this.step === undefined ? {} : {step: this.step};
+  private stepMeta(): {step?: {from: number, to: number}, source?: ChoiceContextSource} {
+    return {
+      ...(this.step === undefined ? {} : {step: this.step}),
+      ...(this.source === undefined ? {} : {source: this.source}),
+    };
+  }
+
+  /**
+   * THE PROMPT, built and asked nothing — the ONE builder the engine's `execute` and the pre-select preview share
+   * (`models/venusBonusSteps.ts`): what the composer collects an answer for is byte-for-byte what the server will ask.
+   * Read-only: the card pick's `andThen` runs only on an answer.
+   */
+  public static prompt(player: IPlayer, standard: number, wild: boolean, step: {from: number, to: number} | undefined,
+    source: ChoiceContextSource | undefined, pendingHolders: ReadonlyArray<ICard> = []): PlayerInput {
+    return new GrantVenusAltTrackBonusDeferred(player, standard, wild, step, source, pendingHolders).execute();
   }
 
   private selectStandardResources(count: number) {
@@ -31,8 +54,9 @@ export class GrantVenusAltTrackBonusDeferred extends DeferredAction {
     );
   }
 
-  public execute() {
-    const resourceCards = this.player.getResourceCards(undefined);
+  public execute(): PlayerInput {
+    const resourceCards = [...this.player.getResourceCards(undefined),
+      ...this.pendingHolders.filter((card) => card.resourceType !== undefined && !this.player.playedCards.some((c) => c.name === card.name))];
     const base = this.standardResourceCount;
 
     // No wild bonus → just the base standard resources. Marked so the premium
