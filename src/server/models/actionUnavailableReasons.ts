@@ -4,7 +4,7 @@ import {Behavior} from '../behavior/Behavior';
 import {Counter} from '../behavior/Counter';
 import {Resource} from '../../common/Resource';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
-import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
+import {addToAnyCardTarget} from '../behavior/addToAnyCardTarget';
 import {resourcesHereShort} from '../cards/actionReasons';
 import {delegateIsTheActionsResult} from '../politics/delegateIsTheActionsResult';
 
@@ -148,12 +148,8 @@ export function collectActionBehaviorReasons(
   if (behavior.addResourcesToAnyCard !== undefined && !Array.isArray(behavior.addResourcesToAnyCard)) {
     const arctac = behavior.addResourcesToAnyCard;
     if (arctac.mustHaveCard === true) {
-      const action = new AddResourcesToCard(player, arctac.type, {
-        count: ctx.count(arctac.count),
-        restrictedTag: arctac.tag,
-        min: arctac.min,
-        robotCards: arctac.robotCards !== undefined,
-      });
+      // The ONE candidate set `Executor.canExecute` counts (a branch paying from here never targets this card).
+      const action = addToAnyCardTarget(player, card, behavior, arctac, {count: ctx.count(arctac.count)});
       if (action.getCards().length === 0) {
         out.push({type: 'target', message: 'No card to add the resource to'});
       }

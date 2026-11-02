@@ -1,7 +1,7 @@
 import {Units} from '../../common/Units';
 import {ICard} from '../cards/ICard';
 import {TRSource} from '../../common/cards/TRSource';
-import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
+import {addToAnyCardTarget} from './addToAnyCardTarget';
 import {BuildColony} from '../deferredActions/BuildColony';
 import {DecreaseAnyProduction} from '../deferredActions/DecreaseAnyProduction';
 import {PlaceCityTile} from '../deferredActions/PlaceCityTile';
@@ -26,7 +26,6 @@ import {OrOptions} from '../inputs/OrOptions';
 import {SelectOption} from '../inputs/SelectOption';
 import {Payment} from '../../common/inputs/Payment';
 import {CardDrawRevealSource} from '../../common/models/CardDrawRevealModel';
-import {SelectResources} from '../inputs/SelectResources';
 import {TITLES} from '../inputs/titles';
 import {cardEffect, cardSource} from '../inputs/choiceContext';
 import * as divertedGate from '../parliament/divertedTerraformingGate';
@@ -36,13 +35,13 @@ import {IdentifySpacesDeferred} from '../underworld/IdentifySpacesDeferred';
 import {ClaimSpacesDeferred} from '../underworld/ClaimSpacesDeferred';
 import {ExcavateSpacesDeferred} from '../underworld/ExcavateSpacesDeferred';
 import {UnderworldExpansion} from '../underworld/UnderworldExpansion';
-import {SelectResource} from '../inputs/SelectResource';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
 import {isIProjectCard} from '../cards/IProjectCard';
 import {MAXIMUM_HABITAT_RATE, MAXIMUM_LOGISTIC_RATE, MAXIMUM_MINING_RATE, MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
 import {CardName} from '../../common/cards/CardName';
 import {asArray} from '../../common/utils/utils';
 import {spendCardsDiscardPrompt} from './spendCardsDiscard';
+import {standardResourceEntry, standardResourcePrompt} from './standardResourcePrompt';
 import {steelSpendSourceOptions} from './steelSpendSource';
 import {FLEET_LIMIT_REASON, skippedTradeFleet, tradeFleetsLost} from '../colonies/tradeFleetGain';
 import {recordSkippedEffect} from '../deferredActions/skippedEffect';
@@ -236,24 +235,14 @@ export class Executor implements BehaviorExecutor {
     if (behavior.addResourcesToAnyCard !== undefined) {
       const arctac = behavior.addResourcesToAnyCard;
       if (!Array.isArray(arctac) && arctac.mustHaveCard === true) {
-        const action = new AddResourcesToCard(player, arctac.type, {
-          count: ctx.count(arctac.count),
-          restrictedTag: arctac.tag,
-          min: arctac.min,
-          robotCards: arctac.robotCards !== undefined,
-        });
-        const cards = action.getCards();
+        // Not playable if the behavior is based on spending a resource from
+        // itself to add to itself, like Applied Science: the ONE candidate set
+        // (`addToAnyCardTarget`) never offers the paying card, so «the only
+        // candidate is the card itself» is simply «no candidate» — the same
+        // count the preview's branch availability and the live pick read.
+        const cards = addToAnyCardTarget(player, card, behavior, arctac, {count: ctx.count(arctac.count)}).getCards();
         if (cards.length === 0) {
           return false;
-        }
-        // Not playable if the behavior is based on spending a resource
-        // from itself to add to itself, like Applied Science.
-        if (cards.length === 1 && (behavior.spend?.resourcesHere ?? 0 > 0)) {
-          // TODO(kberg): also check wither arctac.min + spend is enough.
-          // but that's just to make this future-proof.
-          if (cards[0]?.name === card.name) {
-            return false;
-          }
         }
       }
     }
@@ -495,32 +484,10 @@ export class Executor implements BehaviorExecutor {
       const units = ctx.countUnits(behavior.stock);
       player.stock.adjust(units, {log: true});
     }
-    if (behavior.standardResource) {
-      const entry = behavior.standardResource;
-      const count = typeof(entry) === 'number' ? entry : entry.count;
-      const same = typeof(entry) === 'number' ? true : entry.same ?? true;
-      // The declarative twin of Philares' payout: a bare resource dial. Marked
-      // for the same reason — a dial with no attribution is a prompt the player
-      // cannot explain (see `docs/PROMPT_SOURCE_AUDIT.md`).
-      const reward = cardEffect(card, undefined, 'reward');
-      if (same === false) {
-        player.defer(
-          new SelectResources(message('Gain ${0} standard resources', (b) => b.number(count)), count)
-            .markChoiceContext(reward)
-            .andThen((units) => {
-              player.stock.adjust(units, {log: true});
-              return undefined;
-            }));
-      } else {
-        player.defer(
-          new SelectResource(message('Gain ${0} units of a standard resource', (b) => b.number(count)))
-            .withGainAmount(count)
-            .markChoiceContext(reward)
-            .andThen((unit) => {
-              player.stock.add(unit, count, {log: true});
-              return undefined;
-            }));
-      }
+    const standard = standardResourceEntry(behavior);
+    if (standard !== undefined) {
+      // ONE builder with the preview's pre-collected step (`standardResourcePrompt`).
+      player.defer(standardResourcePrompt(player, card, standard));
     }
     if (behavior.steelValue === 1) {
       player.increaseSteelValue();
@@ -625,14 +592,14 @@ export class Executor implements BehaviorExecutor {
       for (const arctac of array) {
         const count = ctx.count(arctac.count);
         if (count > 0) {
-          const action = new AddResourcesToCard(
+          // The ONE candidate set (`addToAnyCardTarget`) — the pre-collected pick's answer lands on the set it was asked over.
+          const action = addToAnyCardTarget(
             player,
-            arctac.type,
+            card,
+            behavior,
+            arctac,
             {
               count,
-              restrictedTag: arctac.tag,
-              min: arctac.min,
-              robotCards: arctac.robotCards !== undefined,
               // ALWAYS ask WHERE the resource goes — even with one candidate —
               // so "add to ANY card" never resolves silently behind the board.
               // The premium play / action-confirm modal pre-collects this pick

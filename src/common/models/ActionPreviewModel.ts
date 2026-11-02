@@ -509,6 +509,12 @@ export type ActionPreviewBranch = {
   /** The branch's costs + gains as premium chips (icon + current→resulting). */
   effects: ReadonlyArray<ActionEffect>;
   /**
+   * THE WILD-RESOURCE CHOICE's role of this branch (P43 · ledger EO — `wildChoiceRoles`): the printed «?» is ONE row
+   * whose answer is either «a standard resource» or «a resource on any card». The console answers both branches in the
+   * one shared inner step (`ConsoleWildChoiceStep`, exclusive) instead of two outcome tiles. Absent on any other shape.
+   */
+  wildChoice?: 'standard' | 'onCard';
+  /**
    * When the branch's `OrOptions` option is a DIRECT input (a `SelectAmount` /
    * `SelectCard`, NOT a `SelectOption`), this is that input — the modal hosts it
    * and its response is NESTED into the branch pick (`{type:'or', index,

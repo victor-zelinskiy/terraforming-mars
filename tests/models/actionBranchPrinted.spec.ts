@@ -142,6 +142,10 @@ describe('actionBranchView · the printed row of ONE branch', () => {
    * lock it in here; a card ARRIVING on it is a regression (or a new card whose row wants a seam) — name it.
    */
   const KNOWN_UNSLICED: ReadonlyArray<string> = [
+    // ONE printed row («[science] → ? *») over two branches (P43, 2026-11-02) — the «?» IS the choice (a standard
+    // resource OR a resource on any card): no seam to cut. The composer shows the row ONCE and its door opens the
+    // shared wild-resource choice, whose plates are the two answers.
+    'Applied Science [prelude2]',
     // ONE printed row («→ +1 production of your lowest») over six branches — no seam to cut: words and chips.
     'Robinson Industries [prelude]',
     // ONE printed row («[?-production] → 4 [?]») over six branches (R33, 2026-10-23) — the «?» is every resource at

@@ -10,6 +10,7 @@ import {SelectOption} from '../../src/server/inputs/SelectOption';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {SelectAmount} from '../../src/server/inputs/SelectAmount';
 import {SelectPlayer} from '../../src/server/inputs/SelectPlayer';
+import {SelectResource} from '../../src/server/inputs/SelectResource';
 import {SelectPayment} from '../../src/server/inputs/SelectPayment';
 import {SelectPaymentDeferred} from '../../src/server/deferredActions/SelectPaymentDeferred';
 import {AndOptions} from '../../src/server/inputs/AndOptions';
@@ -305,6 +306,10 @@ function answerLive(input: PlayerInput, player: TestPlayer): PlayerInput | undef
   }
   if (input instanceof SelectPlayer) {
     return churn(() => input.cb(input.players[0]), player);
+  }
+  if (input instanceof SelectResource) {
+    // A standard resource of your choice (`standardResource`, P43 / P50): the first unit offered.
+    return churn(() => input.cb(input.include[0]), player);
   }
   if (input instanceof AndOptions && input.spendHeatPrompt !== undefined) {
     // Stormcraft's split: as many floaters as the stock heat leaves short, the rest heat — never an overspend.

@@ -18,7 +18,8 @@ import {spendCardsDiscardPrompt} from '../behavior/spendCardsDiscard';
 import {collectActionBehaviorReasons} from './actionUnavailableReasons';
 import {DecreaseAnyProduction} from '../deferredActions/DecreaseAnyProduction';
 import {RemoveAnyPlants} from '../deferredActions/RemoveAnyPlants';
-import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
+import {addToAnyCardTarget} from '../behavior/addToAnyCardTarget';
+import {standardResourceEntry, standardResourcePrompt} from '../behavior/standardResourcePrompt';
 import {TITLES} from '../inputs/titles';
 import {cardSource} from '../inputs/choiceContext';
 import * as actionPreviews from '../cards/actionPreviews';
@@ -236,6 +237,7 @@ export function deriveOrBranches(
   const availabilities = subs.map((sub) => subAvailability(player, card, sub));
   const availableCount = availabilities.filter((a) => a.available).length;
   const autoResolve = or.autoSelect === true && availableCount === 1;
+  const wild = wildChoiceRoles(subs);
   let runtimeIdx = 0;
   const branches = subs.map((sub, i): ActionPreviewBranch => {
     const a = availabilities[i];
@@ -254,6 +256,7 @@ export function deriveOrBranches(
       renderKeys: [String(i)],
       effects: [...outerEffects, ...effectsForBehavior(player, card, sub)],
       steps: a.available ? [...outerSteps, ...branchHeatSteps(player, sub), ...stepsFor(sub)] : [],
+      ...(wild !== undefined ? {wildChoice: wild[i]} : {}),
     };
   });
   if (availableCount === 0 && or.optional === true) {
@@ -268,6 +271,35 @@ export function deriveOrBranches(
     ];
   }
   return branches;
+}
+
+/**
+ * THE WILD-RESOURCE CHOICE (P43 · ledger EO): an `or` of exactly two branches paying the SAME price, one gaining «a
+ * standard resource of your choice» (`standardResource`), the other «a resource on ANY card» (an any-kind
+ * `addResourcesToAnyCard`) — the printed «?» that is either. Each branch is stamped with its ROLE so the console reads
+ * the one shared choice (`ConsoleWildChoiceStep`) STRUCTURALLY, never by a title. Undefined for any other shape.
+ */
+export function wildChoiceRoles(subs: ReadonlyArray<Behavior>): ReadonlyArray<'standard' | 'onCard'> | undefined {
+  if (subs.length !== 2) {
+    return undefined;
+  }
+  const roleOf = (sub: Behavior): 'standard' | 'onCard' | undefined => {
+    const keys = Object.keys(sub).filter((k) => k !== 'spend' && k !== 'title' && (sub as Record<string, unknown>)[k] !== undefined);
+    if (keys.length !== 1) {
+      return undefined;
+    }
+    if (keys[0] === 'standardResource') {
+      return 'standard';
+    }
+    const a = sub.addResourcesToAnyCard;
+    return keys[0] === 'addResourcesToAnyCard' && a !== undefined && !Array.isArray(a) && a.type === undefined ? 'onCard' : undefined;
+  };
+  const roles = subs.map(roleOf);
+  const samePrice = JSON.stringify(subs[0].spend ?? {}) === JSON.stringify(subs[1].spend ?? {});
+  if (!samePrice || roles[0] === undefined || roles[1] === undefined || roles[0] === roles[1]) {
+    return undefined;
+  }
+  return roles as ReadonlyArray<'standard' | 'onCard'>;
 }
 
 /** The heat-source step a branch's own `spend.heat` raises (Stormcraft's split) — `[]` when the live path asks nothing. */
@@ -386,13 +418,9 @@ function addToAnyCardList(behavior: Behavior): ReadonlyArray<AddToAnyCard> {
  *  is the card being PLAYED (not on the tableau yet) — passed as `cardBeingPlayed` so
  *  an on-play "add to ANY card" can target the card ITSELF (Jovian Lanterns adds its
  *  own floaters), which the live `getResourceCards` would only see post-play. */
-function addAnyCardCandidates(player: IPlayer, card: ICard, a: AddToAnyCard): ReadonlyArray<ICard> {
-  return new AddResourcesToCard(player, a.type, {
-    restrictedTag: a.tag,
-    min: a.min,
-    robotCards: a.robotCards !== undefined,
-    cardBeingPlayed: card,
-  }).getCards();
+function addAnyCardCandidates(player: IPlayer, card: ICard, behavior: Behavior, a: AddToAnyCard): ReadonlyArray<ICard> {
+  // The ONE candidate set every reader takes (`addToAnyCardTarget` — a branch paying from here never targets this card).
+  return addToAnyCardTarget(player, card, behavior, a, {cardBeingPlayed: card}).getCards();
 }
 
 /**
@@ -661,7 +689,7 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
   // actually HOLD it (with no eligible card the effect is skipped, the warning step
   // says so, and a gain chip would be a lie — the silent-loss bug this closes).
   for (const a of addToAnyCardList(behavior)) {
-    if (addAnyCardCandidates(player, card, a).length > 0) {
+    if (addAnyCardCandidates(player, card, behavior, a).length > 0) {
       // A COUNTED addition («1 microbe per science tag» — Bactoviral Research,
       // Hydrogen to Venus) names what it counted, as every counted chip does.
       const basis = countableBasis(ctx, a.count);
@@ -670,6 +698,13 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
       const icons = actionPreviews.cardResourceIcons(a.type);
       out.push({direction: 'gain', icon: icons.length === 1 ? icons[0] : 'resources', ...(icons.length > 1 ? {icons} : {}), amount: ctx.count(a.count), note: 'to a card', ...(basis !== undefined ? {basis} : {})});
     }
+  }
+  // «N units of a standard resource of your choice» (`standardResource` — P43 Applied Science, P50 Focused
+  // Organization): the gain is real, its KIND is the step's question — one chip on the WILD icon (the printed «?»),
+  // never a silent branch whose only chip is its price. The kind's own `current → resulting` is the step's reading.
+  const standard = standardResourceEntry(behavior);
+  if (standard !== undefined) {
+    out.push({direction: 'gain', icon: 'wild', amount: standard.count, note: 'of your choice'});
   }
   for (const g of GLOBAL) {
     const steps = behavior.global?.[g.key];
@@ -942,6 +977,15 @@ export function stepsForBehavior(
     }
   }
 
+  // A standard resource of your choice → its pick, pre-collected (`standardResourcePrompt` — the ONE builder the
+  // live `Executor.execute` defers, so the model is byte-identical: type, `include`, amount, title, `choiceContext`).
+  // The exit pass (`preselectAddresses`) addresses it `{role: 'resource', source: this card}`. Executor defers it
+  // before the any-card addition, so it is emitted first.
+  const standardEntry = standardResourceEntry(behavior);
+  if (standardEntry !== undefined) {
+    steps.push({kind: 'input', input: standardResourcePrompt(player, card, standardEntry).toModel()});
+  }
+
   // Add a resource to ANY card → a card-target picker PER addition (the value is
   // single-OR-ARRAY — Imported Nitrogen adds microbes AND animals), OR a WARNING when
   // no card can hold it (the resource would be silently lost). Emitted in array order
@@ -962,11 +1006,9 @@ export function stepsForBehavior(
     // ONE instance, asked twice: the candidate set the VP reading is computed
     // over is then the set the picker presents BY CONSTRUCTION, rather than by
     // two separate constructions that happen to agree today.
-    const target = new AddResourcesToCard(player, a.type, {
+    // The ONE candidate set the live defer builds (`addToAnyCardTarget`), so the batch's answer lands on this very set.
+    const target = addToAnyCardTarget(player, card, behavior, a, {
       count,
-      restrictedTag: a.tag,
-      min: a.min,
-      robotCards: a.robotCards !== undefined,
       // ALWAYS pre-collect the target pick in the modal — even for one
       // candidate — so the player ALWAYS sees WHERE the resource goes (matches
       // the live `Executor` defer; no silent single-apply).

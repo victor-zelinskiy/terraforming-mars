@@ -398,7 +398,10 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
     if (kinds !== undefined && kinds.length === 2) {
       return message('Select a card — ${1} or ${2}: +${0}', (b) => b.number(qty).string(kinds[0]).string(kinds[1]));
     }
-    return message('Select a card — ${1}: +${0}', (b) => b.number(qty).string(this.resourceType || 'resources'));
+    // «ANY resource» (no kinds — P43 Applied Science, Stormcraft's kin) names itself as such: the bare plural «resources»
+    // printed «Выберите карту — ресурсов: +1», a case form with nothing to agree with.
+    const word = this.resourceType ?? (kinds === undefined ? 'any resource' : 'resources');
+    return message('Select a card — ${1}: +${0}', (b) => b.number(qty).string(word));
   }
 
   /**

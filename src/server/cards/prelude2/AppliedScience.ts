@@ -49,6 +49,8 @@ export class AppliedScience extends ActivePreludeCard implements IActionCard {
           b.resource(CardResource.SCIENCE, {amount: 6, digit}).br;
         }),
         description: 'Add 6 science resources here.',
+        // The printed rule runs 104 characters — past the action caption's budget; the short form names both answers.
+        infoText: [{kind: 'action-short', text: '1 science → +1 on a card or a standard resource', tokens: ['res-science', 'wild']}],
       },
     });
   }

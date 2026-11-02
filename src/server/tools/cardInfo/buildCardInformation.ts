@@ -359,6 +359,10 @@ function enResourceCount(res: Resource, n: number): string {
 const UNCOUNTABLE_CARD_RESOURCES: ReadonlySet<CardResource> = new Set([CardResource.DATA, CardResource.STEEL, CardResource.GRAPHENE]);
 
 function enCardResource(res: CardResource, n: number): string {
+  // «science» counts as a RESOURCE, never «sciences» (P43 prints «6 science resources»).
+  if (res === CardResource.SCIENCE) {
+    return n === 1 ? 'science resource' : 'science resources';
+  }
   const noun = res.toLowerCase();
   return n === 1 || UNCOUNTABLE_CARD_RESOURCES.has(res) ? noun : (noun.endsWith('s') ? noun : `${noun}s`);
 }

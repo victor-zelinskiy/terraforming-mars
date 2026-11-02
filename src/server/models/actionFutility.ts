@@ -23,7 +23,7 @@ import {ICard, IActionCard} from '../cards/ICard';
 import {Behavior} from '../behavior/Behavior';
 import {Counter} from '../behavior/Counter';
 import {delegatesTermWords} from '../behavior/countedBasis';
-import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
+import {addToAnyCardTarget} from '../behavior/addToAnyCardTarget';
 import {CardName} from '../../common/cards/CardName';
 import {CardResource} from '../../common/CardResource';
 import {
@@ -175,9 +175,7 @@ function yieldOf(player: IPlayer, card: ICard, behavior: Behavior): BehaviorYiel
           continue;
         }
         // The holders the live step would offer — the deferred action's own reading (`Executor.canExecute` asks it so).
-        const holders = new AddResourcesToCard(player, add.type, {
-          count, restrictedTag: add.tag, min: add.min, robotCards: add.robotCards !== undefined,
-        }).getCards();
+        const holders = addToAnyCardTarget(player, card, behavior, add, {count}).getCards();
         if (holders.length > 0) {
           return 'yields';
         }
