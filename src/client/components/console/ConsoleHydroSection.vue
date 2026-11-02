@@ -1313,7 +1313,7 @@ import {
   findPlayedTargetFocus, planPlayedTargetLayout, playedTargetAt,
   reseatPlayedTargetFocus, stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner,
 } from '@/client/console/played/consolePlayedTargetModel';
-import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
+import {openPlayedTargetZoom} from '@/client/console/played/playedTargetDossier';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {backLabelForVerb, backVerbWithOwedPrompt, WorkspaceBackVerb} from '@/client/console/consoleWorkspaceFlow';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -5378,14 +5378,10 @@ export default defineComponent({
       if (candidate === undefined) {
         return;
       }
-      const cards = owners.flatMap((o) => o.candidates.map((c) => c.model));
-      const at = Math.max(0, cards.findIndex((c) => c.name === candidate.cardName));
-      openConsoleCardZoom(cards, at, undefined, undefined, {
-        origin: playedTargetZoomOrigin(
-          () => this.$refs.rootEl as HTMLElement | undefined,
-          (i) => cards[i]?.name ?? '',
-          ''),
-      });
+      // THE ONE DOOR — with the TARGET DOSSIER.
+      if (this.targetStepModel !== undefined) {
+        openPlayedTargetZoom({model: this.targetStepModel, cardName: candidate.cardName, getRoot: () => this.$refs.rootEl as HTMLElement | undefined});
+      }
     },
     // ── the REWARD-ONLY PICK (Dutch Mountains) ────────────────────────────
     /**

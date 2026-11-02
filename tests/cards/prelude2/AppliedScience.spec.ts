@@ -155,7 +155,7 @@ describe('AppliedScience', () => {
       }
       const executor = new Executor();
       for (const sub of branches()) {
-        expect(subAvailability(player, card, sub).available, JSON.stringify(sub.title)).eq(executor.canExecute(sub, player, card));
+        expect(subAvailability(player, card, sub).available, JSON.stringify((sub as {title?: unknown}).title)).eq(executor.canExecute(sub, player, card));
       }
     });
   }

@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixture, createGameWithCards, crumbText, fetchPlayerModel, openActionFocus, openCardActions, openConsole, pickCards, playQueueCard,
+  bootFixture, closeZoomViewer, createGameWithCards, openZoomViewer, crumbText, fetchPlayerModel, openActionFocus, openCardActions, openConsole, pickCards, playQueueCard,
   press, settle, soloGameConfig, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
@@ -129,6 +129,15 @@ async function toCommitRow(page: Page): Promise<void> {
   await expect(page.locator(`${STAGE} .con-composer__cta--focused`), 'the cursor stands on the commit row').toHaveCount(1);
 }
 
+/** The selector's candidates in the slot — each name and whether it is a near miss. */
+const candidatesOf = (page: Page) => page.evaluate(() => [...document.querySelectorAll('[data-wild-inner] .con-ptsel__cell')].map((cell) => ({
+  name: cell.querySelector('[data-zoom-slot]')?.getAttribute('data-zoom-slot') ?? '',
+  blocked: cell.querySelector('[data-ptsel-blocked]') !== null,
+})));
+/** The candidate under the selector's cursor. */
+const focusedCandidate = (page: Page) => page.evaluate(() =>
+  document.querySelector('[data-wild-inner] .con-ptsel__cell[data-focused="1"] [data-zoom-slot]')?.getAttribute('data-zoom-slot') ?? '');
+
 const slotBox = (page: Page) => page.locator(`${INNER} .con-wildstep__slot`).boundingBox();
 
 test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESET.id}`, () => {
@@ -154,8 +163,10 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
 
     await choosePlate(page, 'onCard');
     expect(await zone(page), 'the cursor in the candidates').toBe('card');
-    const offered = await page.evaluate(() => [...document.querySelectorAll('[data-wild-inner] [data-wild-card]')].map((el) => el.getAttribute('data-wild-card')));
-    expect(offered, 'Birds and Dirigibles — never the card itself').toEqual(['Birds', 'Dirigibles']);
+    // «На карту» is the console's ONE target selector (`.con-ptsel`) in the slot: the near miss SHOWN, never chosen.
+    const offered = await candidatesOf(page);
+    expect(offered.filter((c) => !c.blocked).map((c) => c.name), 'Birds and Dirigibles — never the card itself').toEqual(['Birds', 'Dirigibles']);
+    expect(offered.filter((c) => c.blocked).map((c) => c.name), 'Tardigrades — a near miss, shown').toEqual(['Tardigrades']);
     await expect(page.locator(`${INNER} [data-wild-face="lanes"]`), 'no grid beside the candidates').toHaveClass(/con-wildstep__face--off/);
     const box1 = await slotBox(page);
     await shoot(page, 'c-on-card');
@@ -206,9 +217,10 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     await openSetup(page);
     await openWild(page);
     await choosePlate(page, 'onCard');
-    for (let i = 0; i < 3 && await index(page) !== 0; i++) {
+    for (let i = 0; i < 4 && await focusedCandidate(page) !== 'Birds'; i++) {
       await press(page, 'ArrowLeft', 220);
     }
+    expect(await focusedCandidate(page), 'the cursor on Birds').toBe('Birds');
     await press(page, 'Enter', 500);
     await expect(inner(page), 'A on Birds answered and left').toHaveCount(0);
     await expect(page.locator(`${ROW}[data-wild-answered] [data-wild-row-card="Birds"]`), 'the row reads «+1 · Птицы»').toHaveCount(1);
@@ -220,6 +232,30 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     await stop();
     expect(resourcesOf(await wireOf(request, id), CARD), 'science 6 → 5').toBe(5);
     expect(posts.length).toBe(1);
+  });
+
+  test('X: a candidate inspected AS A TARGET — the dossier beside the card (what lies on it, what this move does)', async ({page, request}) => {
+    test.setTimeout(240_000);
+    await bootFixture(page, request, 'applied-science-holders', {query: PRESET.query});
+    await settle(page);
+    await openSetup(page);
+    await openWild(page);
+    await choosePlate(page, 'onCard');
+    for (let i = 0; i < 4 && await focusedCandidate(page) !== 'Birds'; i++) {
+      await press(page, 'ArrowLeft', 220);
+    }
+    await openZoomViewer(page);
+    const dossier = page.locator('[data-target-dossier]');
+    await expect(dossier, 'the target dossier leads the side column').toBeVisible();
+    await expect(dossier, 'the card on screen is Birds').toHaveAttribute('data-target-dossier-card', 'Birds');
+    await expect(dossier.locator('[data-target-dossier-count]'), 'what lies on it now: 1 animal').toHaveText('1');
+    await shoot(page, 'k-dossier');
+    // LB/RB browse the step's cards — the dossier follows the card on screen.
+    await press(page, 'KeyE', 600); // RB
+    await expect(dossier, 'browsed to Dirigibles').toHaveAttribute('data-target-dossier-card', 'Dirigibles');
+    await expect(dossier.locator('[data-target-dossier-count]'), 'Dirigibles: 2 floaters').toHaveText('2');
+    await closeZoomViewer(page);
+    await expect(inner(page), 'the step stands after the viewer').toHaveCount(1);
   });
 
   test('B: no holder — «на карту» refused with its reason, the OR shown; the standard answer alone posts', async ({page, request}) => {
@@ -254,8 +290,8 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     await openSetup(page);
     await openWild(page);
     await choosePlate(page, 'onCard');
-    await expect(page.locator(`${INNER} [data-wild-card="Birds"][data-chosen]`), 'Birds seeded').toHaveCount(1);
-    await expect(page.locator(`${INNER} .con-wildstep__sole`), '«Единственная цель»').toHaveCount(1);
+    await expect(page.locator(`${INNER} .con-ptsel__slot--locked[data-zoom-slot="Birds"]`), 'Birds seeded — shown chosen').toHaveCount(1);
+    expect(await focusedCandidate(page), 'the cursor stands on it').toBe('Birds');
     await expect(inner(page), 'the step still stands — the player confirms').toHaveCount(1);
     await shoot(page, 'h-sole');
     await press(page, 'Enter', 500);
@@ -270,7 +306,11 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     await openSetup(page);
     await openWild(page);
     await choosePlate(page, 'onCard');
-    await expect(page.locator(`${INNER} [data-wild-card]`), 'eight candidates').toHaveCount(8);
+    await expect(page.locator(`${INNER} .con-ptsel__cell`), 'eight candidates').toHaveCount(8);
+    // A COMPOSITION OF ROWS (the row cap): eight holders never stand in one line.
+    const rows = await page.evaluate(() => new Set([...document.querySelectorAll('[data-wild-inner] .con-ptsel__cell')]
+      .map((el) => Math.round(el.getBoundingClientRect().top / 8))).size);
+    expect(rows, 'eight candidates in more than one row').toBeGreaterThan(1);
     const scrolls = await page.evaluate(() => {
       const vp = document.querySelector('.con-cardactions__stagewrap .con-composer--stage .con-scroll-area__viewport');
       return vp === null ? 0 : vp.scrollHeight - vp.clientHeight;

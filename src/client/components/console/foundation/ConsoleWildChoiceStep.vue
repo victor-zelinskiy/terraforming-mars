@@ -47,12 +47,24 @@
 
     <!-- ── ITS CONSEQUENCE — one slot, its faces in ONE grid cell (an opacity change, never a blink or a reflow) ── -->
     <section v-if="slotShown" class="con-wildstep__zone" data-wild-slot data-unfold-item v-bind="venusAttrs({'data-venus-cards': ''})">
-      <div class="con-wildstep__zone-head">
+      <!-- The slot names its face only where the OR above does not already say it (Venus: «на карту» under the 30 %
+           finish). Exclusive (P43) — the chosen plate IS the slot's title one line above; a second head repeated it and
+           took the very rows the candidates need. -->
+      <div v-if="!spec.exclusive" class="con-wildstep__zone-head">
         <span class="con-wildstep__zone-title" :class="{'con-wildstep__zone-title--quiet': wildChoice === undefined}">{{ $t(slotTitle) }}</span>
-        <!-- The radio's grid needs no dial; the exclusive slot names its face in the head instead. -->
       </div>
-      <div class="con-wildstep__slot" :class="{'con-wildstep__slot--grid': spec.exclusive}">
-        <div class="con-wildstep__cards" :class="{'con-wildstep__face--off': wildChoice !== 'onCard'}" data-wild-face="cards"
+      <div class="con-wildstep__slot" :class="{'con-wildstep__slot--grid': spec.exclusive}" ref="slot"
+           :style="slotH > 0 ? {height: slotH + 'px'} : undefined">
+        <!-- THE HOST'S TARGET STEP (the owner, 2026-11-02 — eight holders in one line read as a strip of stamps): a host
+             that walks the console's shared target selector (`ConsolePlayedTargetStep` — rows solved from this very box,
+             near misses, the outcome tags, the rail under the cursor, X with the TARGET DOSSIER) hands it in here; the
+             face's size is the slot's, measured. Without it the slot keeps its miniatures. -->
+        <div v-if="$slots.cards !== undefined" class="con-wildstep__face con-wildstep__face--host"
+             :class="{'con-wildstep__face--off': wildChoice !== 'onCard'}" data-wild-face="cards"
+             :aria-hidden="wildChoice === 'onCard' ? undefined : 'true'">
+          <slot name="cards" :width="slotW" :height="slotH" />
+        </div>
+        <div v-else class="con-wildstep__cards" :class="{'con-wildstep__face--off': wildChoice !== 'onCard'}" data-wild-face="cards"
              :style="{'--wild-cards': String(Math.max(1, cards.length))}" :aria-hidden="wildChoice === 'onCard' ? undefined : 'true'">
           <div v-for="(card, ci) in cards" :key="card.name" class="con-wildstep__card"
                :class="{'con-wildstep__card--focused': focus.zone === 'card' && focus.index === ci,
@@ -191,6 +203,29 @@ export default defineComponent({
     /** The Venus host: its historical hooks ride beside the shared ones. */
     venus: {type: Boolean, default: false},
   },
+  data() {
+    return {
+      /** The slot's measured box — the exclusive slot grows to the column's foot (no scroll), the host's step solves its rows off it. */
+      slotW: 0,
+      slotH: 0,
+      stopObs: undefined as (() => void) | undefined,
+    };
+  },
+  mounted() {
+    this.measureSlot();
+    // The band is the box the slot's room is read off (see `measureSlot`); the slot itself for its width.
+    const host = (this.$refs.slot as HTMLElement | undefined)?.closest<HTMLElement>('[data-ws-band]') ?? undefined;
+    const slot = this.$refs.slot as HTMLElement | undefined;
+    const targets = [host, slot].filter((el): el is HTMLElement => el !== undefined && el !== null);
+    if (targets.length > 0 && typeof ResizeObserver !== 'undefined') {
+      const obs = new ResizeObserver(() => this.measureSlot());
+      targets.forEach((el) => obs.observe(el));
+      this.stopObs = () => obs.disconnect();
+    }
+  },
+  beforeUnmount() {
+    this.stopObs?.();
+  },
   computed: {
     orShown(): boolean {
       return wildShown(this.spec);
@@ -278,6 +313,36 @@ export default defineComponent({
     },
   },
   methods: {
+    /**
+     * THE SLOT'S BOX. Exclusive (P43): the slot takes the column down to the BAND's foot — the candidates get every row
+     * the column has, the grid face stands at its top, and nothing scrolls. Measured the way the target selector measures
+     * itself: the band's bottom minus every bottom padding / border between the slot and the band — never the scroll
+     * viewport's height (content-sized, it reports back whatever the slot last came out as: the slot collapsed to its
+     * floor and the selector, sized off the band, was cut in half). Venus keeps its natural slot (its grid follows).
+     */
+    measureSlot(): void {
+      const slot = this.$refs.slot as HTMLElement | undefined;
+      if (slot === undefined || slot === null) {
+        return;
+      }
+      if (this.spec.exclusive) {
+        const band = slot.closest<HTMLElement>('[data-ws-band]');
+        if (band !== null) {
+          let inset = 0;
+          for (let el = slot.parentElement; el !== null && el !== band; el = el.parentElement) {
+            const cs = getComputedStyle(el);
+            inset += (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+          }
+          const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+          const room = band.getBoundingClientRect().bottom - slot.getBoundingClientRect().top - inset - 0.4 * rem;
+          const next = Math.max(9 * rem, Math.floor(room));
+          if (Math.abs(next - this.slotH) > 1) {
+            this.slotH = next;
+          }
+        }
+      }
+      this.slotW = Math.max(0, Math.floor(slot.clientWidth));
+    },
     venusAttrs(attrs: Record<string, string | undefined>): Record<string, string | undefined> {
       return this.venus ? attrs : {};
     },

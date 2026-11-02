@@ -200,13 +200,12 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {clearPanelCommands, setPanelCommands} from '@/client/console/consolePanelUi';
-import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {
   PlayedTargetCell, PlayedTargetFocus, PlayedTargetLayout, PlayedTargetModel, PlayedTargetNavDir,
   findPlayedTargetFocus, planPlayedTargetLayout, playedTargetAt, reseatPlayedTargetFocus,
   stepPlayedTargetFocus, stepPlayedTargetFocusAt,
 } from '@/client/console/played/consolePlayedTargetModel';
-import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
+import {openPlayedTargetZoom} from '@/client/console/played/playedTargetDossier';
 import {buildVenusWildTargetModel, venusWildCandidates} from '@/client/console/venusBonus/venusWildTargetStep';
 import {armVenusBonusCell} from '@/client/console/scaleStepReward/venusBonusCellBeat';
 import {venusStepReading} from '@/client/console/venusBonus/venusBonusPreselect';
@@ -789,18 +788,12 @@ export default defineComponent({
       if (focused === undefined) {
         return;
       }
-      const cards = owners.flatMap((o) => o.candidates.map((c) => c.model));
-      const at = Math.max(0, cards.findIndex((c) => c.name === focused));
-      openConsoleCardZoom(cards, at, undefined, undefined, {
-        // The picker's ZONE is the root the origin resolves inside — an element
-        // ref, so the physical entrance survives a build that leaves `$el` a
-        // fragment anchor. No source card here: the bonus is paid by the VENUS
-        // TRACK, so every candidate is an ordinary slot.
-        origin: playedTargetZoomOrigin(
-          () => this.$refs.wildZone as HTMLElement | undefined,
-          (i) => cards[i]?.name ?? '',
-          ''),
-      });
+      // THE ONE DOOR — with the TARGET DOSSIER. The picker's ZONE is the root the origin resolves inside (an element
+      // ref, so the physical entrance survives a build that leaves `$el` a fragment anchor); no source card here — the
+      // bonus is paid by the VENUS TRACK, so every candidate is an ordinary slot.
+      if (this.wildModel !== undefined && owners.length > 0) {
+        openPlayedTargetZoom({model: this.wildModel, cardName: focused, getRoot: () => this.$refs.wildZone as HTMLElement | undefined});
+      }
     },
   },
 });

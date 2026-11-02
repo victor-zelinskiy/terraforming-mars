@@ -1050,6 +1050,11 @@
              is never squeezed, the «§ ПРАВИЛА» head always stands, and only
              the rules BODY takes an internal scroll. -->
         <div class="con-zoom-sidecol">
+          <!-- THE TARGET DOSSIER leads when the cards are TARGETS of a «where does it go» step (`playedTargetDossier.ts`):
+               the card as a target — whose, what lies on it, what this move does to it — before its permanent rules. -->
+          <ConsoleTargetDossierPanel v-if="zoomTargetDossier !== undefined"
+                                     :dossier="zoomTargetDossier"
+                                     :closing="side.closing" />
           <ConsoleCardAvailabilityPanel v-if="zoomAvailabilityView !== undefined && consoleCardZoom.inspect === undefined"
                                         variant="panel"
                                         :view="zoomAvailabilityView"
@@ -1987,6 +1992,8 @@ import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
 import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesPanel.vue';
 import {cardHasRules, cardRuleAnnotations, denserRulesTier, RulesLengthTier, rulesLengthTier} from '@/client/components/console/consoleCardRules';
 import ConsoleInspectSide from '@/client/components/console/ConsoleInspectSide.vue';
+import ConsoleTargetDossierPanel from '@/client/components/console/played/ConsoleTargetDossierPanel.vue';
+import type {PlayedTargetDossier} from '@/client/console/played/playedTargetDossier';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {availabilityContextFor, buildZoomAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import {withRequirementEasing} from '@/client/console/composerRequirementRow';
@@ -2533,6 +2540,7 @@ export default defineComponent({
     ConsoleCardRulesPanel,
     ConsoleBotDividendLedger,
     ConsoleInspectSide,
+    ConsoleTargetDossierPanel,
     ConsoleCardAvailabilityPanel,
     ConsoleStrandedPrompt,
     ConsoleTaskHost,
@@ -10823,7 +10831,11 @@ export default defineComponent({
      *  Gates the panel AND the viewer's width reservation. */
     zoomSideVisible(): boolean {
       return this.zoomHasRules || this.zoomBotCorpAnnotations !== undefined || this.zoomParliamentAnnotations !== undefined ||
-        this.consoleCardZoom.inspect !== undefined || this.zoomAvailabilityView !== undefined;
+        this.consoleCardZoom.inspect !== undefined || this.zoomAvailabilityView !== undefined || this.zoomTargetDossier !== undefined;
+    },
+    /** The card on screen AS A TARGET of a «where does it go» step — re-read on every LB/RB browse. */
+    zoomTargetDossier(): PlayedTargetDossier | undefined {
+      return this.consoleCardZoom.targetAt?.(this.consoleCardZoom.index);
     },
     /**
      * A hand card that WALKS the Agenda (TR04 / TR12 / TR37 / TR42): its rules, then «ДЛЯ ВАС» — the walk the server

@@ -947,7 +947,7 @@ import ConsoleComposerTargetRow from '@/client/components/console/played/Console
 import {
   buildPlayedTargetModel, planPlayedTargetLayout, findPlayedTargetFocus, reseatPlayedTargetFocus,
   stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner, playedTargetAt,
-  playedTargetResultOf, playedTargetResultLive, playedTargetReadingImpacts, playedTargetSourceCardName,
+  playedTargetResultOf, playedTargetResultLive, playedTargetReadingImpacts,
   PLAYED_TARGET_SUMMARY_IMPACT_CAP,
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetNavDir, PlayedTargetCell,
   PlayedTargetPreviewSection, PlayedTargetResult, PlayedTargetQuickImpact, PlayedTargetSelection,
@@ -957,7 +957,7 @@ import {
 } from '@/client/console/played/consolePlayedTargetModel';
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
 import {armPayloadCarry, armPayloadReturn, playPayloadCarry, playPayloadReturn} from '@/client/console/played/payloadCarry';
-import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
+import {openPlayedTargetZoom} from '@/client/console/played/playedTargetDossier';
 import {
   computeCommitGate, commitAllowed, commitAcceptsCursor, commitRedirectTarget, CommitGate, CommitRequirement, CursorLanding,
   nextCursorAfterAnswer,
@@ -4689,7 +4689,10 @@ export default defineComponent({
      * «0» on every building card disappears without a card-specific rule.
      */
     playedTargetResourceContext(c: ComposerChoice, card: CardModel): PlayedTargetResourceContext | undefined {
-      return playedTargetResourceFor(c.amount, c.cardResource, card);
+      // A pick of ANY kind (P43's «a resource on any card with a resource») names no kind of its own — each candidate
+      // takes ITS OWN, the server's per-card marker (`cardResourceByCard`); a bare «resource» key drew no sprite.
+      const byCard = (c.input as {resourceGainPrompt?: {cardResourceByCard?: Partial<Record<string, string>>}}).resourceGainPrompt?.cardResourceByCard;
+      return playedTargetResourceFor(c.amount, c.cardResource ?? byCard?.[card.name], card);
     },
     /** A LATER card step of a merge branch — collapsed into the first one's
      *  multi pick (never its own row, never a follow-up note). */
@@ -5860,15 +5863,10 @@ export default defineComponent({
       if (candidate === undefined || candidate.stand !== undefined) {
         return;
       }
-      const cards = owners.flatMap((o) => o.candidates.filter((c) => c.stand === undefined).map((c) => c.model));
-      const at = Math.max(0, cards.findIndex((c) => c.name === candidate.cardName));
-      openConsoleCardZoom(cards, at, undefined, undefined, {
-        origin: playedTargetZoomOrigin(
-          // The REF, never `$el` — see the note on the root element.
-          () => this.$refs.rootEl as HTMLElement | undefined,
-          (i) => cards[i]?.name ?? '',
-          playedTargetSourceCardName(owners)),
-      });
+      // THE ONE DOOR — with the TARGET DOSSIER. The REF, never `$el` — see the note on the root element.
+      if (this.playedTargetModel !== undefined) {
+        openPlayedTargetZoom({model: this.playedTargetModel, cardName: candidate.cardName, getRoot: () => this.$refs.rootEl as HTMLElement | undefined});
+      }
     },
     inspectListItem(index: number): void {
       const item = this.listItems[index];

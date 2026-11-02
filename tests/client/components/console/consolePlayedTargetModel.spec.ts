@@ -3,6 +3,7 @@ import {CardType} from '@/common/cards/CardType';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {
+  PLAYED_TARGET_MAX_PER_ROW,
   buildPlayedTargetModel,
   planPlayedTargetLayout,
   playedTargetSections,
@@ -34,6 +35,7 @@ import {
   playedTargetPayloadOf,
 } from '@/client/console/played/consolePlayedTargetModel';
 import {playChoiceMode} from '@/client/console/consolePlayCardComposer';
+import {playedTargetDossierOf} from '@/client/console/played/playedTargetDossier';
 
 const card = (name: string): CardModel => ({name} as CardModel);
 
@@ -588,6 +590,29 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
     });
     const plan = (o: PlayedTargetOwner, availW = 1600, availH = 800) =>
       planPlayedTargetSizing({owners: [o], mode: 'tabs', availW, availH, ui: 1, handheld: false});
+
+    // THE ROW CAP (the owner, 2026-11-02 — eight holders in one line read as a strip of stamps).
+    it('lays eight candidates out in ROWS of at most PLAYED_TARGET_MAX_PER_ROW when the band holds a second row', () => {
+      const sized = plan(owner(8), 1600, 900);
+      expect(sized.perRow, 'never a frieze of eight').to.be.at.most(PLAYED_TARGET_MAX_PER_ROW);
+      expect(sized.rows).to.be.greaterThan(1);
+    });
+
+    it('keeps the widest shape when the band is too short for a comfortable second row (readability over the cap)', () => {
+      expect(plan(owner(8), 2400, 230).rows, 'one row').to.eq(1);
+    });
+
+    // Within the regime of ROWS a taller band never draws smaller cards. The switch from the frieze to the rows is a
+    // deliberate step DOWN in size (the owner's call: a composition of rows over a strip of stamps) — once, at the band
+    // where a capped shape first reaches the comfortable size; past it the cards grow with the band again.
+    it('the cap is monotonic within its rows: a taller band never draws smaller cards', () => {
+      let last = 0;
+      for (let h = 600; h <= 1400; h += 40) {
+        const zoom = plan(owner(8), 1800, h).cardZoom;
+        expect(zoom, `at ${h}px`).to.be.at.least(last - 1e-9);
+        last = zoom;
+      }
+    });
 
     it('gives FEWER candidates BIGGER cards — the whole point', () => {
       const two = plan(owner(2)).cardZoom;
@@ -1345,5 +1370,27 @@ describe('consolePlayedTargetModel — the payload and the protagonist (TR56)', 
       const seven = planPlayedTargetSizing({owners: [owner(7)], mode: 'tabs', availW: z.availW, availH: z.availH, ui: z.ui, handheld: false, tags: true});
       expect(seven.overflows, `${z.name}: seven still fit without a scroll`).to.eq(false);
     }
+  });
+});
+
+describe('playedTargetDossier — X on a candidate reads the card AS A TARGET', () => {
+  const model = build({
+    candidates: ['Predators', 'Mars Hydro Turbines'],
+    admin: ['Predators'],
+    victor: ['Mars Hydro Turbines'],
+    resourceContext: (name) => name === 'Predators' ? {icon: 'animal', count: 3} : undefined,
+  });
+
+  it('names whose card it is, what lies on it now and the step’s own reading — never a second derivation', () => {
+    const d = playedTargetDossierOf(model, 'Predators' as CardName);
+    expect(d?.owner).deep.eq({name: 'admin', color: 'red', self: true});
+    expect(d?.holding).deep.eq({icon: 'animal', count: 3});
+    expect(d?.sections.map((x) => x.title)).deep.eq(['Will be copied']);
+    expect(d?.sections[0].impacts[0].label).eq('Predators');
+  });
+
+  it('a card holding nothing of the kind has no «now» reading; a name the step lacks has no dossier', () => {
+    expect(playedTargetDossierOf(model, 'Mars Hydro Turbines' as CardName)?.holding).is.undefined;
+    expect(playedTargetDossierOf(model, 'Ecoline' as CardName)).is.undefined;
   });
 });

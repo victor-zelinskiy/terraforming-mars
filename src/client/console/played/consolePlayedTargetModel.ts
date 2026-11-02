@@ -277,6 +277,16 @@ export type PlayedTargetQuickImpact = PlayedTargetImpact & {
 
 /** The focus rail's line. Beyond this the line stops being glanceable. */
 export const PLAYED_TARGET_RAIL_IMPACT_CAP = 3;
+
+/** The most cards one row of the target step lays out when a composition of rows reads as well (see `solveSizing`). */
+export const PLAYED_TARGET_MAX_PER_ROW = 6;
+/**
+ * …while a capped shape draws a card of at least this zoom — a hair UNDER the readable floor: the 4K walk (P43, eight
+ * holders under two lines of outcome tags) drew 2 × 4 at ~190 px against a frieze at ~218 px, nearly one size and a far
+ * better composition; the floor itself kept the frieze. Below this the widest shape stands.
+ */
+export const PLAYED_TARGET_ROW_CAP_ZOOM = 0.27;
+export const PLAYED_TARGET_ROW_CAP_ZOOM_HANDHELD = 0.22;
 /** The answered summary's line — the Result already carries the full before→after. */
 export const PLAYED_TARGET_SUMMARY_IMPACT_CAP = 2;
 
@@ -1194,6 +1204,8 @@ export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTarget
     (solo ? SOLO_CARD_ZOOM : MAX_CARD_ZOOM);
   const maxCardW = ceiling * o.ui * SLOT_W;
   const minCardW = (o.handheld ? MIN_CARD_ZOOM_HANDHELD : MIN_CARD_ZOOM) * o.ui * SLOT_W;
+  // The row cap holds while a capped shape draws at least this (see `solveSizing`).
+  const capW = (o.handheld ? PLAYED_TARGET_ROW_CAP_ZOOM_HANDHELD : PLAYED_TARGET_ROW_CAP_ZOOM) * o.ui * SLOT_W;
   const sectionGap = SECTION_GAP * o.ui;
   const ownerGap = SPLIT_GAP * o.ui;
   // Solved for the LARGEST card any shape could produce, so a shape can never
@@ -1223,7 +1235,7 @@ export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTarget
   const railH = groups.some((secs) => playedTargetShowsCategoryRails(secs)) ? SECTION_RAIL_H * o.ui : 0;
   const tagRow = o.tags === true ? (o.tagLines === 2 ? PLAYED_TARGET_TAG_ROW_H2 : PLAYED_TARGET_TAG_ROW_H) * o.ui : 0;
   const solve = (g: ReadonlyArray<ReadonlyArray<PlayedTargetSection>>, w: number, h: number, secGap: number): PlayedTargetSizing =>
-    solveSizing(g, solveGrid(g, w, h, gap, secGap, railH, tagRow), gap, headroom, minCardW, maxCardW);
+    solveSizing(g, solveGrid(g, w, h, gap, secGap, railH, tagRow), gap, headroom, minCardW, maxCardW, capW);
   if (o.mode !== 'board') {
     return solve(groups, ownerW, o.availH - bandChrome, sectionGap);
   }
@@ -1242,21 +1254,34 @@ function solveSizing(
   headroom: number,
   minCardW: number,
   maxCardW: number,
+  capW: number,
 ): PlayedTargetSizing {
   const sections = Math.max(...groups.map((g) => g.length));
   const perRowOf = (rows: number): number =>
     Math.max(...groups.map((g) => Math.max(...sectionColumnsAt(g, rows))));
 
-  let best: GridShape | undefined;
-  for (const shape of shapes) {
-    const w = Math.min(shape.cardW, maxCardW);
-    if (w < minCardW) {
-      continue;
+  const widest = (pool: ReadonlyArray<GridShape>, floor = minCardW): GridShape | undefined => {
+    let found: GridShape | undefined;
+    for (const shape of pool) {
+      const w = Math.min(shape.cardW, maxCardW);
+      if (w < floor) {
+        continue;
+      }
+      if (found === undefined || w > Math.min(found.cardW, maxCardW)) {
+        found = shape;
+      }
     }
-    if (best === undefined || w > Math.min(best.cardW, maxCardW)) {
-      best = shape;
-    }
-  }
+    return found;
+  };
+  // THE ROW CAP (the owner, 2026-11-02 — eight holders in one line read as a strip of stamps): a shape of at most
+  // `PLAYED_TARGET_MAX_PER_ROW` cards a row is preferred whenever its card is no smaller than
+  // `PLAYED_TARGET_ROW_CAP_GIVE` of the widest shape's — a composition of rows over a frieze. A band too short for
+  // a second row keeps the widest shape (readability is never traded for the cap).
+  // The cap is a CONSTRAINT, not a comparison: a ratio against the widest shape flips back and forth as the band grows
+  // (a taller band could draw SMALLER cards — the budget guard caught it). It holds whenever some capped shape draws at
+  // least the comfortable size (`PLAYED_TARGET_ROW_CAP_ZOOM`); below that the widest shape stands.
+  const capped = widest(shapes.filter((shape) => shape.columns <= PLAYED_TARGET_MAX_PER_ROW), capW);
+  const best = capped ?? widest(shapes);
   if (best !== undefined) {
     return {
       cardZoom: Math.min(best.cardW, maxCardW) / SLOT_W,

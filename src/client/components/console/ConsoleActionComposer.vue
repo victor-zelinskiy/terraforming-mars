@@ -397,7 +397,23 @@
                                :head="{title: 'Resource of your choice', reading: ''}"
                                :titles="{asStandard: 'Standard resource'}"
                                :descs="{onCard: 'A card that already has a resource', asStandard: 'Any of the six, your choice'}"
-                               :candidates="wildCandidateModels" :vp-box="wildVpBox" :resource-by-card="wildResourceByCard" />
+                               :candidates="wildCandidateModels" :vp-box="wildVpBox" :resource-by-card="wildResourceByCard">
+          <!-- «НА КАРТУ» IS THE CONSOLE'S ONE TARGET SELECTOR (the owner, 2026-11-02): the same step every «where does it
+               go» of this composer walks — its rows solved off the slot's box (a row cap, then rows), the near misses, the
+               outcome tags, the rail under the cursor, X with the target dossier. Built off the card branch's own step
+               (`playedTargetModelFor`), so the slot and the live pick read ONE set. -->
+          <template #cards="{width, height}">
+            <ConsolePlayedTargetStep v-if="wildTargetModel !== undefined"
+                                     ref="wildTargetStep"
+                                     :model="wildTargetModel"
+                                     :layout="wildTargetLayoutFor(width)"
+                                     :focus="wildTargetFocusShown"
+                                     :selection="{mode: 'single'}"
+                                     :bandHeight="height"
+                                     :lockedCard="wildParts.wild?.card ?? ''"
+                                     hostStatesAsk />
+          </template>
+        </ConsoleWildChoiceStep>
 
         <!-- SUB-STATE: a premium pick list (card / player / or), and the SAME
              list one level deeper when the chosen or-branch is itself an input
@@ -1254,7 +1270,7 @@ import ConsoleComposerTargetRow from '@/client/components/console/played/Console
 import {
   buildPlayedTargetModel, planPlayedTargetLayout, findPlayedTargetFocus, reseatPlayedTargetFocus,
   stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner, playedTargetAt,
-  playedTargetResultOf, playedTargetResultLive, playedTargetReadingImpacts, playedTargetSourceCardName,
+  playedTargetResultOf, playedTargetResultLive, playedTargetReadingImpacts,
   PLAYED_TARGET_SUMMARY_IMPACT_CAP,
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetNavDir, PlayedTargetCell,
   PlayedTargetResult, PlayedTargetQuickImpact, PlayedTargetSelection,
@@ -1263,7 +1279,7 @@ import {
 } from '@/client/console/played/consolePlayedTargetModel';
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
 import {playedTargetSelfState} from '@/client/console/played/consolePlayedTargetSelf';
-import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
+import {openPlayedTargetZoom} from '@/client/console/played/playedTargetDossier';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {
   computeCommitGate, commitAllowed, commitAcceptsCursor,
@@ -1627,6 +1643,8 @@ export default defineComponent({
        *  answer (that inverted the card size for a single candidate once). */
       playedTargetWidth: 0,
       playedTargetHeight: 0,
+      /** The cursor of the target selector inside the wild step's «на карту» slot (P43). */
+      wildTargetFocusRaw: undefined as PlayedTargetFocus | undefined,
       submitting: false,
       /**
        * THE ACTION WAS SENT — past the commit boundary for real. `submitting` alone cannot say it: a staged board
@@ -1930,6 +1948,25 @@ export default defineComponent({
     venusStepOpen(): boolean {
       // The wild-resource choice's inner step takes the body's place the same way (P43 · EO).
       return this.sub?.kind === 'venus' || this.sub?.kind === 'wild';
+    },
+    /** The card branch's own target step as a composer choice — whether or not that branch is selected yet. */
+    wildCardChoice(): ComposerChoice | undefined {
+      const plan = this.wildPlan;
+      if (plan === undefined || plan.cardStep === undefined) {
+        return undefined;
+      }
+      return branchChoices(this.branches[plan.cardPos]).find((c) => c.scope === 'step' && c.index === plan.cardStep);
+    },
+    /** The target selector's model for «на карту» — the composer's ONE builder for a card step. */
+    wildTargetModel(): PlayedTargetModel | undefined {
+      const choice = this.wildCardChoice;
+      return choice === undefined ? undefined : this.playedTargetModelFor(choice);
+    },
+    /** The selector's cursor — shown only while the inner step's cursor stands in the candidates. */
+    wildTargetFocusShown(): PlayedTargetFocus {
+      const owners = this.wildTargetModel?.owners ?? [];
+      const live = reseatPlayedTargetFocus(this.wildTargetFocusRaw, owners);
+      return this.sub?.kind === 'wild' && this.sub.focus.zone === 'card' && live !== undefined ? live : {ownerId: '', index: -1};
     },
     /** THE WILD-RESOURCE CHOICE (P43 · EN): the plan of the server-stamped pair of branches, or undefined. */
     wildPlan(): WildBranchPlan | undefined {
@@ -2572,7 +2609,20 @@ export default defineComponent({
         }
         if (this.sub.kind === 'wild') {
           const spec = this.wildSpec;
-          return spec === undefined ? [] : wildFootHints(wildBar(spec, this.wildParts, this.sub.focus, WILD_BLOCK_KEYS));
+          if (spec === undefined) {
+            return [];
+          }
+          const hints: Array<ConsoleCommand> = wildFootHints(wildBar(spec, this.wildParts, this.sub.focus, WILD_BLOCK_KEYS));
+          if (this.sub.focus.zone === 'card' && this.wildTargetModel !== undefined) {
+            // A near miss refuses A (its reason is on the rail); X inspects the card AS A TARGET (the dossier).
+            const focused = playedTargetAt(this.wildTargetFocusShown, this.wildTargetModel.owners);
+            const at = hints.findIndex((h) => h.control === 'confirm');
+            if (at >= 0) {
+              hints[at] = {...hints[at], enabled: focused !== undefined && focused.blocked === undefined};
+            }
+            hints.splice(at + 1, 0, {control: 'secondary', label: 'Inspect'});
+          }
+          return hints;
         }
         if (this.sub.kind === 'payment') {
           return focusCommandRun({state: 'sub-payment', covers: this.paymentView?.status.ok === true});
@@ -5165,10 +5215,19 @@ export default defineComponent({
         this.movePlayedTarget(dir);
         return;
       }
-      // The wild-resource choice walks the same 2-D grid (P43 · EO).
+      // The wild-resource choice walks the same 2-D grid (P43 · EO); inside «на карту» the TARGET SELECTOR walks its own
+      // cards by their real boxes, and its top edge hands the cursor back to the OR.
+      if (this.sub?.kind === 'wild' && this.sub.focus.zone === 'card' && this.wildTargetModel !== undefined) {
+        this.wildTargetNav(dir);
+        return;
+      }
       if (this.sub?.kind === 'wild') {
         if (this.wildSpec !== undefined) {
-          this.sub = {...this.sub, focus: wildNav(this.wildSpec, this.wildParts, this.sub.focus, dir)};
+          const next = wildNav(this.wildSpec, this.wildParts, this.sub.focus, dir);
+          if (next.zone === 'card' && this.sub.focus.zone !== 'card') {
+            this.seatWildTarget();
+          }
+          this.sub = {...this.sub, focus: next};
         }
         return;
       }
@@ -5264,6 +5323,72 @@ export default defineComponent({
     },
     /** A on the bonus row: the INNER step opens on the first open question (the wild, its card, then the grid). */
     // ── THE WILD-RESOURCE CHOICE (P43 · EN / EO) ────────────────────────
+    wildTargetLayoutFor(width: number): PlayedTargetLayout {
+      return planPlayedTargetLayout({
+        owners: this.wildTargetModel?.owners ?? [],
+        availW: width,
+        ui: conUiScale(),
+        handheld: consoleLayoutState.profile === 'handheld',
+      });
+    },
+    /** Seat the selector's cursor: on the chosen card, else the first candidate that is no near miss. */
+    seatWildTarget(): void {
+      const owners = this.wildTargetModel?.owners ?? [];
+      const chosen = this.wildParts.wild?.card;
+      const first = owners.flatMap((o) => o.candidates.map((c, index) => ({o, c, index}))).find((x) => x.c.blocked === undefined);
+      this.wildTargetFocusRaw = (chosen !== undefined ? findPlayedTargetFocus(chosen, owners) : undefined) ??
+        (first !== undefined ? {ownerId: first.o.id, index: first.index} : reseatPlayedTargetFocus(this.wildTargetFocusRaw, owners));
+    },
+    wildTargetNav(dir: NavDirection): void {
+      const sub = this.sub;
+      const owners = this.wildTargetModel?.owners ?? [];
+      const focus = reseatPlayedTargetFocus(this.wildTargetFocusRaw, owners);
+      const d = ({left: 'left', right: 'right', up: 'up', down: 'down'} as Record<string, PlayedTargetNavDir | undefined>)[dir as string];
+      if (sub?.kind !== 'wild' || focus === undefined || d === undefined) {
+        return;
+      }
+      const step = this.$refs.wildTargetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>, ensureFocusVisible?: () => void} | undefined;
+      const cells = step?.cells?.() ?? [];
+      const next = cells.length > 0 ? stepPlayedTargetFocusAt(focus, d, cells) : undefined;
+      if (next === undefined) {
+        if (d === 'up') {
+          // The selector's top edge: the cursor goes back to the OR, on «на карту».
+          this.sub = {...sub, focus: {zone: 'wild', index: 0}};
+        }
+        return; // any other edge HOLDS — never a wrap
+      }
+      this.wildTargetFocusRaw = next;
+      step?.ensureFocusVisible?.();
+    },
+    /** A on a candidate: the card branch (selected if it was not), its step answered — the step leaves. */
+    wildTargetChoose(): void {
+      const plan = this.wildPlan;
+      const owners = this.wildTargetModel?.owners ?? [];
+      const candidate = playedTargetAt(this.wildTargetFocusShown, owners);
+      if (plan === undefined || plan.cardStep === undefined || candidate === undefined || candidate.blocked !== undefined || candidate.stand !== undefined) {
+        return;
+      }
+      if (this.selectedPos !== plan.cardPos) {
+        this.selectBranch(plan.cardPos);
+      }
+      const c = this.branchChoiceList.find((x) => x.scope === 'step' && x.index === plan.cardStep);
+      if (c === undefined) {
+        return;
+      }
+      this.captureFor(c, {type: 'card', cards: [candidate.cardName]});
+      this.sub = undefined;
+      this.landCursor();
+      this.scrollFocused();
+    },
+    /** X on a candidate: the card fullscreen, its TARGET DOSSIER beside it (what lies on it, what this move does). */
+    wildTargetInspect(): void {
+      const model = this.wildTargetModel;
+      const candidate = model === undefined ? undefined : playedTargetAt(this.wildTargetFocusShown, model.owners);
+      if (model === undefined || candidate === undefined || candidate.stand !== undefined) {
+        return;
+      }
+      openPlayedTargetZoom({model, cardName: candidate.cardName, getRoot: () => this.$refs.rootEl as HTMLElement | undefined});
+    },
     openWildStep(): void {
       const spec = this.wildSpec;
       if (spec !== undefined) {
@@ -5308,7 +5433,11 @@ export default defineComponent({
         this.scrollFocused();
         return;
       }
-      this.sub = {...sub, focus: wildClamp(spec, this.wildParts, result.focus)};
+      const nextFocus = wildClamp(spec, this.wildParts, result.focus);
+      if (nextFocus.zone === 'card' && sub.focus.zone !== 'card') {
+        this.seatWildTarget();
+      }
+      this.sub = {...sub, focus: nextFocus};
     },
     openVenusStep(c: ComposerChoice): void {
       const meta = venusBonusMetaOf(c.input);
@@ -5918,7 +6047,10 @@ export default defineComponent({
       return input.type === 'card' ? (input as SelectCardModel) : undefined;
     },
     playedTargetResourceContext(c: ComposerChoice, card: CardModel) {
-      return playedTargetResourceFor(c.amount, c.cardResource, card);
+      // A pick of ANY kind (P43's «a resource on any card with a resource») names no kind of its own — each candidate
+      // takes ITS OWN, the server's per-card marker (`cardResourceByCard`); a bare «resource» key drew no sprite.
+      const byCard = (c.input as {resourceGainPrompt?: {cardResourceByCard?: Partial<Record<string, string>>}}).resourceGainPrompt?.cardResourceByCard;
+      return playedTargetResourceFor(c.amount, c.cardResource ?? byCard?.[card.name], card);
     },
     /** Move the cursor inside the step — BY WHERE THE CARDS ARE (the index walk
      *  survives only as the answer for a step that has not measured yet). */
@@ -6078,17 +6210,12 @@ export default defineComponent({
       if (candidate === undefined || candidate.stand !== undefined) {
         return;
       }
-      const cards = owners.flatMap((o) => o.candidates.filter((c) => c.stand === undefined).map((c) => c.model));
-      const at = Math.max(0, cards.findIndex((c) => c.name === candidate.cardName));
-      openConsoleCardZoom(cards, at, undefined, undefined, {
-        // The SELF-TARGET resolves to the hero card this action is composed on,
-        // never to the proxy that points at it — one card on screen, always.
-        // Scoped to this composer's own root, never `document`.
-        origin: playedTargetZoomOrigin(
-          () => this.$refs.rootEl as HTMLElement | undefined,
-          (i) => cards[i]?.name ?? '',
-          playedTargetSourceCardName(owners)),
-      });
+      // THE ONE DOOR (`openPlayedTargetZoom`): the self-target resolves to the hero card this action is composed on,
+      // every card carries its TARGET DOSSIER (what lies on it, what this move does to it). Scoped to this composer's own
+      // root, never `document`.
+      if (this.playedTargetModel !== undefined) {
+        openPlayedTargetZoom({model: this.playedTargetModel, cardName: candidate.cardName, getRoot: () => this.$refs.rootEl as HTMLElement | undefined});
+      }
     },
     /** The summary of an answered played-target choice (undefined = unanswered
      *  or gone stale — a target whose card left the table is never shown as
@@ -6288,6 +6415,16 @@ export default defineComponent({
         return;
       }
       if (sub.kind === 'wild') {
+        if (sub.focus.zone === 'card' && this.wildTargetModel !== undefined) {
+          if (action === 'primary') {
+            this.wildTargetChoose();
+            return;
+          }
+          if (action === 'inspect') {
+            this.wildTargetInspect();
+            return;
+          }
+        }
         if (action === 'primary' || action === 'back' || action === 'prevSection' || action === 'nextSection' || action === 'nextTab') {
           this.wildStepPress(action);
         }

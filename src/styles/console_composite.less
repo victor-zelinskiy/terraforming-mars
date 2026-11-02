@@ -725,8 +725,10 @@ html.con-profile-handheld {
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
     }
     /* EXCLUSIVE (P43): the slot holds the radio grid's two rows — its height never changes between the faces. */
-    &__slot--grid { min-height: 0; }
-    &__face { min-width: 0; }
+    &__slot--grid { min-height: 0; grid-template-rows: minmax(0, 1fr); }
+    &__face { min-width: 0; align-self: start; }
+    /* The HOST'S target step fills the slot: its rows are solved off the slot's measured box (`bandHeight`). */
+    &__face--host { align-self: stretch; height: 100%; min-height: 0; display: flex; flex-direction: column; }
 
     /* ── the standard resources: the dial's pills on the head, a FIXED 2 × 3 grid ── */
     &__dial { display: inline-flex; align-items: center; gap: .3rem; }
@@ -821,3 +823,89 @@ html.con-profile-handheld {
 }
 /* The colony trade's decision list: the bonus row is the composers' row, inside the stage's own row plate. */
 .con-colfocus__venusrow { flex: 1 1 auto; min-width: 0; }
+
+/* THE TARGET DOSSIER (the owner, 2026-11-02 — `ConsoleTargetDossierPanel`): the viewer's side column leads with the card
+   AS A TARGET — whose, what lies on it now, what lands, what this move does. The rules panel's own box and width, a
+   cyan hairline for the plate, a red one for a near miss; every state a kant, a fill or a word (invariant 15). */
+.con-tdossier {
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    width: var(--con-rules-w, 20rem);
+    padding: .85rem 1rem .9rem;
+    border-radius: .8rem;
+    background: linear-gradient(180deg, rgba(15, 24, 36, 0.97) 0%, rgba(8, 14, 22, 0.96) 100%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%), 0 1.1rem 2.8rem rgba(0, 0, 0, 0.55);
+    transition: opacity calc(90ms * var(--motion-scale, 1)) ease;
+    &--closing { opacity: 0; transition-duration: calc(60ms * var(--motion-scale, 1)); }
+    &--blocked { box-shadow: inset 0 0 0 .05rem fade(@con-red, 42%), 0 1.1rem 2.8rem rgba(0, 0, 0, 0.55); }
+
+    &__head { display: flex; align-items: baseline; justify-content: space-between; gap: .8rem; }
+    &__kicker { font-size: .72rem; font-weight: 800; letter-spacing: .14rem; text-transform: uppercase; color: fade(@con-cyan, 92%); }
+    &__owner { display: inline-flex; align-items: center; gap: .4rem; font-size: .88rem; font-weight: 700; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    &__dot { width: .62rem; height: .62rem; border-radius: 50%; flex: 0 0 auto; }
+    &__owner-name { color: @con-text; }
+
+    &__now { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+    &__fact {
+        display: flex;
+        flex-direction: column;
+        gap: .25rem;
+        padding: .5rem .65rem;
+        border-radius: .5rem;
+        background: rgba(255, 255, 255, 0.025);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.07);
+    }
+    &__fact-label { font-size: .68rem; letter-spacing: .08rem; text-transform: uppercase; color: @con-text-dim; }
+    &__fact-value {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        font-variant-numeric: tabular-nums;
+        b { font-size: 1.45rem; font-weight: 800; color: @con-text; }
+        &--gain b { color: @con-mint; }
+    }
+    &__icon {
+        display: inline-block;
+        width: 1.45rem;
+        height: 1.45rem;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+
+    &__section { display: flex; flex-direction: column; gap: .3rem; padding-top: .45rem; border-top: .05rem solid rgba(255, 255, 255, 0.06); }
+    &__section-title { font-size: .68rem; font-weight: 800; letter-spacing: .1rem; text-transform: uppercase; color: @con-text-dim; }
+    &__row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: .5rem;
+        font-size: .86rem;
+        color: @con-text;
+    }
+    &__row-icons { display: inline-flex; align-items: center; gap: .15rem; .con-tdossier__icon { width: 1.15rem; height: 1.15rem; } }
+    &__row-join { font-size: .72rem; color: @con-text-dim; }
+    &__row-label { min-width: 0; line-height: 1.3; }
+    &__row-delta {
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        color: @con-text-dim;
+        b { color: @con-mint; font-weight: 800; }
+        &--down b { color: @con-amber; }
+    }
+    &__arrow { margin: 0 .2rem; opacity: .7; }
+    &__note { font-size: .78rem; color: @con-text-dim; }
+    &__blocked {
+        display: flex;
+        align-items: baseline;
+        gap: .4rem;
+        padding: .45rem .6rem;
+        border-radius: .45rem;
+        font-size: .84rem;
+        color: fade(@con-red, 92%);
+        background: rgba(60, 14, 18, 0.45);
+        b { margin-left: auto; font-variant-numeric: tabular-nums; }
+    }
+    &__warn { font-size: .82rem; color: @con-amber; }
+}

@@ -17,6 +17,7 @@
  * (hidden-info safe by construction).
  */
 
+import type {PlayedTargetDossier} from '@/client/console/played/playedTargetDossier';
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {ZoomCard} from '@/client/components/card/cardZoomTypes';
@@ -341,6 +342,11 @@ export type ConsoleZoomExtra = {
    * its synthetic one). The in-game shell reads its own live table.
    */
   parliament?: ConsoleZoomParliament,
+  /**
+   * Present ⇔ the cards are TARGETS of a «where does it go» step (the target dossier, `playedTargetDossier.ts`): the
+   * viewer leads its side column with the card AS A TARGET — whose, what lies on it, what this move does to it.
+   */
+  target?: (index: number) => PlayedTargetDossier | undefined,
 };
 
 /**
@@ -404,6 +410,8 @@ export const consoleCardZoom = reactive({
   counterInFooter: false,
   /** The parliament a resolution scene reads outside a game (see ConsoleZoomExtra). */
   parliament: undefined as ConsoleZoomParliament | undefined,
+  /** The target dossier resolver (index → dossier), when the cards are targets of a step. */
+  targetAt: undefined as ((index: number) => PlayedTargetDossier | undefined) | undefined,
 });
 
 /** The provenance plate for the card currently on screen (undefined = the
@@ -442,6 +450,7 @@ export function openConsoleCardZoom(cards: ReadonlyArray<ZoomCard>, index: numbe
   consoleCardZoom.vote = extra?.vote;
   consoleCardZoom.counterInFooter = extra?.counterInFooter === true;
   consoleCardZoom.parliament = extra?.parliament;
+  consoleCardZoom.targetAt = extra?.target;
 }
 
 /** Switch the inspect dossier tab (LB/RB). No-op outside an inspect context. */
@@ -506,4 +515,5 @@ export function closeConsoleCardZoom(): void {
   consoleCardZoom.vote = undefined;
   consoleCardZoom.counterInFooter = false;
   consoleCardZoom.parliament = undefined;
+  consoleCardZoom.targetAt = undefined;
 }

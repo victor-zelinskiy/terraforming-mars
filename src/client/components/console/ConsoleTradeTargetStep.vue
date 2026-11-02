@@ -31,12 +31,11 @@ import {CardName} from '@/common/cards/CardName';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {
   PlayedTargetCell, PlayedTargetFocus, PlayedTargetLayout, PlayedTargetModel, PlayedTargetNavDir,
-  planPlayedTargetLayout, playedTargetAt, playedTargetSourceCardName,
+  planPlayedTargetLayout, playedTargetAt,
   reseatPlayedTargetFocus, stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner,
 } from '@/client/console/played/consolePlayedTargetModel';
-import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
+import {openPlayedTargetZoom} from '@/client/console/played/playedTargetDossier';
 import {openTradeTargetFocus} from '@/client/console/colonyTrade/colonyTradeTargetStep';
-import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {playColonyTargetStepEnter, playColonyTargetStepLeave} from '@/client/console/consoleColonyFocusMotion';
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
@@ -153,14 +152,8 @@ export default defineComponent({
       if (candidate === undefined) {
         return;
       }
-      const cards = owners.flatMap((o) => o.candidates.map((c) => c.model));
-      const at = Math.max(0, cards.findIndex((c) => c.name === candidate.cardName));
-      openConsoleCardZoom(cards, at, undefined, undefined, {
-        origin: playedTargetZoomOrigin(
-          () => this.$refs.zone as HTMLElement | undefined,
-          (i) => cards[i]?.name ?? '',
-          playedTargetSourceCardName(owners)),
-      });
+      // THE ONE DOOR — with the TARGET DOSSIER.
+      openPlayedTargetZoom({model: this.model, cardName: candidate.cardName, getRoot: () => this.$refs.zone as HTMLElement | undefined});
     },
   },
   mounted() {
