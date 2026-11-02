@@ -26,6 +26,19 @@ export function preludePickBurns(outlook: PreludeOutlook | undefined): boolean {
 }
 
 /**
+ * A CANDIDATE of a «draw N, play 1» pick (PL-1468 — the START's Valley Trust / New Partner, read with the same reader
+ * as the mid-game pick) is played NOW or not at all: there is no «play another prelude first» for a card that is
+ * discarded the moment the pick is answered. Any verdict but `playable` is therefore FINAL — the risk stage of the
+ * deployment reads it as «no effect» (the burn), never as advice to wait.
+ */
+export function candidateOutlook(outlook: PreludeOutlook | undefined): PreludeOutlook | undefined {
+  if (outlook === undefined || outlook.state === 'playable') {
+    return undefined;
+  }
+  return {state: 'noEffect', need: outlook.need};
+}
+
+/**
  * The stock / production gains a candidate's play pays — the beat flies them off the landed card's printed icons.
  * A card-resource gain needs a host the pick never chose, so it stays with the ordinary commit (the start's rule).
  */

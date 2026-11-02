@@ -3086,6 +3086,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // P91 WG Project — a prelude played in the middle of the game (ledger EH).
   'wg-project-plain' | 'wg-project-fizzle' | 'wg-project-place' | 'wg-project-draw' | 'wg-project-nested' |
   'wg-project-not-chair' | 'wg-project-short-deck' |
+  'valley-trust-burn' | 'wg-project-forest' | 'wg-project-aquifer' |
   // Prelude 2 P81 Soil Studies — «per Venus tag, plant tag (INCLUDING THIS ONE) and colony» (DJ): the play +5 (Venus
   // Governor · Arctic Algae · this · one cube) · locked at −2 °C.
   'soil-studies' | 'soil-studies-locked' |

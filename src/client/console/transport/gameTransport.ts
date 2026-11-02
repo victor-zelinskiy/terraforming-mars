@@ -156,6 +156,8 @@ import {
   seedPatentSaleRewardHold,
 } from '@/client/console/patentSale/consolePatentSale';
 import {seedPoliticalDiscardExchange} from '@/client/console/cardDiscard/discardExchangeBeat';
+import {seedPreludeBurnRewardHold} from '@/client/console/deckPick/preludeBurnReward';
+import {notePreludeChainView} from '@/client/console/deckPick/preludePlayChain';
 import {
   detectResolutionPayout,
   endResolutionPayout,
@@ -713,6 +715,11 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // A PATENT SALE's answers to its answers (TR46 → Martian Fiber's M€): held on the rail from this commit until their
   // own chip, born on the answering card beside the terminal, touches down (`consolePatentSale.ts`).
   seedPatentSaleRewardHold();
+  // A BURNT PRELUDE's 15 M€ (PL-1469 — the mid-game prelude pick, P91): held on the rail from the answer that paid them
+  // until the token born on the burnt card's face touches down (`deckPick/preludeBurnReward.ts`).
+  seedPreludeBurnRewardHold(currentView(), newView);
+  // …and a prelude chain whose hand is gone (not merely aside for the board) is over (PL-1467).
+  notePreludeChainView();
   // A PARTY ACTION'S DISCARD answered in the card composer (the Reds' «2 M€ per tag»): its payout is held on the rail
   // from this commit until each token, born on the plaque's printed M€ icon, touches down (`discardExchangeBeat.ts`).
   seedPoliticalDiscardExchange(currentView(), newView);

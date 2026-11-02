@@ -1285,6 +1285,7 @@ import {applyDiscardExit, runHeroPick} from '@/client/console/cardDeal/cardExitD
 import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {StartQueueFxLane, StartQueueReading, startQueueFxLane, startQueueLayout, startQueueReading} from '@/client/console/startQueueLayout';
+import {candidateOutlook} from '@/client/console/deckPick/preludePick';
 import {readingText} from '@/client/console/readingText';
 import {nearestInDirection, rowFitZoom, gridFitPlan} from '@/client/console/consoleStartNav';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -3241,11 +3242,15 @@ export default defineComponent({
       }
       this.candidateCards.forEach((c, i) => {
         const disabled = c.isDisabled === true;
+        // PL-1468: a drawn prelude that cannot resolve BURNS when chosen — said on the card before the press, in the
+        // very word an own prelude wears (one reader: `candidateOutlook`), never a silent «Разыграть».
+        const burn = disabled ? undefined : this.candidateOutlookOf(c.name);
         out.push({
           name: c.name, kind: 'candidate',
           verb: disabled ? undefined : this.candidateVerb,
-          badge: disabled ? 'Unavailable' : undefined,
-          badgeClass: disabled ? 'con-cards__pickband--disabled' : undefined,
+          badge: disabled ? 'Unavailable' : preludeBadge(burn),
+          badgeClass: disabled ? 'con-cards__pickband--disabled' : (burn !== undefined ? 'con-cards__pickband--warn' : undefined),
+          ...(burn !== undefined ? {reading: startQueueReading({kind: 'prelude', playable: true, risk: preludeRisk(burn, (n) => translateText(n), {hold: true})}, translateText)} : {}),
           // The server's own reason (Merger's unaffordable corps say so). This
           // used to be hardcoded `undefined`, so the template's reason line
           // never rendered and a dimmed card carried a bare «Недоступна».
@@ -3944,7 +3949,20 @@ export default defineComponent({
      */
     outlookOf(): (name: CardName) => PreludeOutlook | undefined {
       const rail = this.preludeRail;
-      return (name: CardName) => rail.find((e) => e.name === name)?.outlook;
+      const candidate = this.candidateOutlookOf;
+      return (name: CardName) => rail.find((e) => e.name === name)?.outlook ?? candidate(name);
+    },
+    /**
+     * PL-1468 — a drew-N CANDIDATE's verdict (Valley Trust, New Partner): the server stamps it on the start pick, and
+     * for a card played now-or-never any non-playable verdict is final (`candidateOutlook`). A copy (Double Down) or a
+     * corporation pick (Merger) carries none.
+     */
+    candidateOutlookOf(): (name: CardName) => PreludeOutlook | undefined {
+      if (startFlowPreludeCopyPrompt(this.playerView) !== undefined || startFlowCorpSelectPrompt(this.playerView) !== undefined) {
+        return () => undefined;
+      }
+      const cards = this.candidateCards;
+      return (name: CardName) => candidateOutlook(cards.find((c) => c.name === name)?.preludeOutlook);
     },
     /**
      * THE RISK of the FOCUSED prelude — what is missing, what could still fix
@@ -3960,7 +3978,7 @@ export default defineComponent({
      */
     focusedRisk(): PreludeRisk | undefined {
       const f = this.focusedItem;
-      if (f === undefined || f.kind !== 'prelude') {
+      if (f === undefined || (f.kind !== 'prelude' && f.kind !== 'candidate')) {
         return undefined;
       }
       return preludeRisk(this.outlookOf(f.name), (n) => translateText(n), {hold: true});
@@ -7500,7 +7518,7 @@ export default defineComponent({
       // Deliberately re-asked here rather than read off `riskStage`, so the
       // fullscreen viewer's A (which arrives by NAME and may have moved the
       // cursor on its way out) is gated identically.
-      if (item.kind === 'prelude' && this.riskArmed !== name &&
+      if ((item.kind === 'prelude' || item.kind === 'candidate') && this.riskArmed !== name &&
           preludeRisk(this.outlookOf(name), (n) => translateText(n)) !== undefined) {
         this.riskArmed = name;
         cancelHoldConfirm();

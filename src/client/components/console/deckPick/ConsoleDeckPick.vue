@@ -179,6 +179,8 @@ import ConsolePreludeDeck from '@/client/components/console/deckPick/ConsolePrel
 import {runCardTransfer} from '@/client/console/cardDeal/cardExitDirector';
 import {armPlayedHero, isPlayedHeroActive, playedHeroState} from '@/client/console/played/consolePlayedHero';
 import {preludePickBurns, preludePickRewards, PRELUDE_SEAT_SELECTOR} from '@/client/console/deckPick/preludePick';
+import {armPreludeBurn, flyPreludeBurn, preludeBurnOwed, releasePreludeBurn} from '@/client/console/deckPick/preludeBurnReward';
+import {beginPreludePlayChain} from '@/client/console/deckPick/preludePlayChain';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {cardsResponse} from '@/client/console/taskResponses';
@@ -261,6 +263,8 @@ export default defineComponent({
       heldDiscardCount: undefined as number | undefined,
       /** The prelude standing on the «РАЗЫГРАНО» seat (shown once the hero hands it over). */
       seatedPrelude: undefined as CardName | undefined,
+      /** The prompt identity the prelude commit was made on (the exit waits for the server to move off it). */
+      frozenKey: '',
       /** The on-play rewards of each candidate (the server's own preview), for the hero's reward beat. */
       candidateRewards: {} as Record<string, ReadonlyArray<ResourceTransferSpec>>,
       rowStyle: {} as Record<string, string>,
@@ -579,6 +583,7 @@ export default defineComponent({
       saveDeckPickDraft(this.promptKey, this.picks, this.focusIdx);
     }
     clearPanelCommands('deckPick');
+    releasePreludeBurn('deck-pick-unmounted');
     if (this.embedded) {
       setWorkspaceOutcomePhase('');
     }
@@ -1072,6 +1077,7 @@ export default defineComponent({
         burning: this.entries.map((e) => e.name).filter((name) => this.burns(name)),
       };
       if (this.frozen.play) {
+        this.frozenKey = this.promptKey;
         this.armPreludePlay(kept[0]);
       }
       // Synchronous with the submit — no frame exists in which the prompt is
@@ -1137,6 +1143,7 @@ export default defineComponent({
     },
     /** The commit's end: rolled back on a refusal (the same question still stands), released otherwise. */
     endOutgoing(key: string): void {
+      releasePreludeBurn('deck-pick-ended');
       this.frozen = undefined;
       this.heldDiscardCount = undefined;
       if (this.model !== undefined && this.promptKey === key) {
@@ -1196,8 +1203,13 @@ export default defineComponent({
       }
       this.heldDiscardCount = this.playerView.game.preludeDiscardSize ?? 0;
       if (this.burns(chosen)) {
+        // PL-1469: the 15 M€ are this card's — the answer that pays them is held on the rail for a token off its face.
+        armPreludeBurn(chosen);
         return;
       }
+      // PL-1467: what the prelude asks next is a step of THIS hand's flow — a board step included (the hand yields
+      // to the board and comes back if the flow still owes it).
+      beginPreludePlayChain(chosen);
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(chosen) : chosen.replace(/"/g, '\\"');
       armPlayedHero(chosen, false, {
         manualTableOpen: false,
@@ -1221,6 +1233,14 @@ export default defineComponent({
       const rest = this.entries.map((e) => e.name).filter((name) => name !== chosen);
       await Promise.all(rest.map((name, i) => this.discardPrelude(name, i * 90)));
       if (burnt && chosen !== undefined) {
+        // PL-1469 — THE BURN PAYS FROM THE CARD: the answer's 15 M€ wait on the rail (seeded in the apply block); one
+        // token is born on the burnt card's face where it stands, the row ticks on the touchdown; only then does the
+        // card follow the others to the discard.
+        await this.until(() => preludeBurnOwed() || this.model === undefined || this.promptKey !== this.frozenKey, 4000);
+        if (preludeBurnOwed()) {
+          const face = this.slotEl(chosen)?.querySelector<HTMLElement>(':is(.pcard, .card-container)') ?? this.slotEl(chosen) ?? undefined;
+          await flyPreludeBurn(face !== undefined ? {el: face, fx: 0.5, fy: 0.5} : undefined);
+        }
         await this.discardPrelude(chosen, 0);
         return;
       }

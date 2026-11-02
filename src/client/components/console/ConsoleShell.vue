@@ -2047,6 +2047,7 @@ import {
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {revealSourcePeekState} from '@/client/console/revealSourcePeek';
+import {endPreludePlayChain, preludeChainHoldsClaim, preludeChainOwesHand, preludeChainYieldsToBoard, preludePlayChainState} from '@/client/console/deckPick/preludePlayChain';
 import {workspaceClaimsColonyRevealBatch, workspaceClaimsVenusBonus, workspaceClaimsDrawRevealBatch, workspaceClaimsRevealBatch, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkPending, boardBeatParkState, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
@@ -12944,7 +12945,7 @@ export default defineComponent({
       if (!now) {
         return;
       }
-      if (!yieldStackToBoard()) {
+      if (!yieldStackToBoard() && !(preludeChainYieldsToBoard() && yieldStackForStagedPlay())) {
         goBoardHome();
       }
       closeConsoleLayers();
@@ -12960,7 +12961,9 @@ export default defineComponent({
         // copy an action whose target is a SPACE, and unwinding the track there
         // ended the player's walk on the board with its reward wave unplayed
         // and its result unread.
-        if (!yieldStackToBoard()) {
+        // …and the HAND hosting a prelude a pick played (PL-1467): its board step is a step of the flow — the hand
+        // steps aside at the same depth and comes back if the flow still owes it something (`preludePlayChain.ts`).
+        if (!yieldStackToBoard() && !(preludeChainYieldsToBoard() && yieldStackForStagedPlay())) {
           goBoardHome();
         }
         closeConsoleLayers();
@@ -22074,6 +22077,32 @@ export default defineComponent({
       if (!stackYieldedToBoard()) {
         return;
       }
+      // THE PRELUDE CHAIN (PL-1467): the hand comes back for what the flow still owes it — a batch its claim owns, a
+      // card pick, a payment, a colony — and NEVER into an empty workspace: owed nothing, the flow finishes on the
+      // board (the yielded stack dropped, the claim released). A batch the claim owns is the RETURN's own content, so
+      // the handoff does not wait for it (it would wait for the very surface it is about to stand up).
+      if (preludePlayChainState.live) {
+        if (!preludeChainOwesHand(this.playerView)) {
+          discardYieldedStack();
+          releaseWorkspaceOutcome('prelude-chain-finished-on-board');
+          endPreludePlayChain();
+          return;
+        }
+        const chainSettling = () => screenHandoffOwed({ignoreReasons: ['animation'], ownedReveal: workspaceClaimsRevealSource});
+        if (!chainSettling()) {
+          this.resumeStackFromBoardAndSettle();
+          return;
+        }
+        void waitConsoleQuiet(chainSettling, {
+          alive: () => stackYieldedToBoard() && !this.placementActive,
+          maxMs: STACK_RETURN_MAX_MS,
+        }).then(() => {
+          if (stackYieldedToBoard() && !this.placementActive) {
+            this.resumeStackFromBoardAndSettle();
+          }
+        });
+        return;
+      }
       // `boardStorySettling` (not merely the scene): the return must also
       // wait out an OWED SCALE STORY — the placement's own parameter change
       // parked behind the focused stage. Resumed on the raw scene edge, the
@@ -22286,6 +22315,9 @@ export default defineComponent({
           // parked for its turn, the discard between a pair's halves, the next
           // pair on its way — none of it is «the server asked for something else».
           this.ledgerPayoutClaimed ||
+          // The PRELUDE CHAIN's board step (PL-1467): a placement the prelude asks is a step of the play, not «the
+          // server asked for something else» — the claim waits for what the flow owes after it.
+          (isPlayOutcomeHost(workspaceOutcomeState.host) && preludeChainHoldsClaim(this.placementActive)) ||
           // The HYDRO claim spans the advance's own resolution: the marker
           // gate delays the view (nothing is «asked» until the token locks),
           // the deck pick's closing beats outlive its prompt, and a PARKED

@@ -12790,3 +12790,54 @@ wgProjectFixture('wg-project-short-deck', {
   top: [CardName.METALS_COMPANY, CardName.DONATION],
   megacredits: 20,
 });
+
+// ── PL-1468 · valley-trust-burn: THE START'S DREW-N PICK READS THE SAME VERDICT AS THE MID-GAME ONE. A solo table at
+//    Valley Trust's mandatory first action («draw 3 preludes, play 1»), the prelude deck seeded — Huge Asteroid on top
+//    (it pays 5 M€: with 0 M€ it BURNS), Donation and Supplier under it. A dry run takes the first action on a copy and
+//    proves the start marker and the server's verdict on the candidate. ──
+{
+  const name = 'valley-trust-burn';
+  const [game, blue] = testGame(1, {skipInitialCardSelection: false, customCorporationsList: [CardName.VALLEY_TRUST], startingCorporations: 1});
+  answerStartFlow(game, [blue]);
+  game.preludeDeck.drawPile.length = 0;
+  game.preludeDeck.discardPile.length = 0;
+  stackPreludeDeckTop(game, [CardName.HUGE_ASTEROID, CardName.DONATION, CardName.SUPPLIER, CardName.LOAN]);
+  blue.megaCredits = 0;
+  const wf = blue.getWaitingFor();
+  if (!(wf instanceof OrOptions) || wf.startGamePrompt?.kind !== 'corporationInitialAction' || blue.pendingInitialActions.length !== 1) {
+    throw new Error(`${name}: expected Valley Trust's first action owed (wf=${wf?.type}/${wf?.startGamePrompt?.kind})`);
+  }
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const seat = copy.getPlayerById(blue.id);
+  seat.process({type: 'or', index: 0, response: {type: 'option'}});
+  runAllActions(copy);
+  const pick = seat.getWaitingFor();
+  const asteroid = pick instanceof SelectCard ? pick.toModel(seat).cards.find((c) => c.name === CardName.HUGE_ASTEROID) : undefined;
+  if (!(pick instanceof SelectCard) || pick.startGamePrompt?.kind !== 'preludeSelection' || asteroid?.preludeOutlook?.state === 'playable' || asteroid?.preludeOutlook === undefined) {
+    throw new Error(`${name}: expected the START pick with Huge Asteroid's non-playable verdict — got ${pick?.type} ${JSON.stringify(pick?.startGamePrompt)} ${JSON.stringify(asteroid?.preludeOutlook)}`);
+  }
+  write(name, game);
+}
+
+// ── PL-1467 · the hand yields to the board and comes back only if the flow still owes it (P91, decision 6):
+//      · `wg-project-forest`  — Experimental Forest: a greenery on the board, THEN «reveal until 2 plant cards» — the
+//                               found batch is the hand's again (the hand returns for it);
+//      · `wg-project-aquifer` — Great Aquifer: two oceans on the board and nothing after — the flow ends on the board. ──
+wgProjectFixture('wg-project-forest', {
+  top: [CardName.EXPERIMENTAL_FOREST, CardName.DONATION, CardName.SUPPLIER],
+  under: [CardName.LOAN],
+  megacredits: 20,
+  dry: {
+    pick: CardName.EXPERIMENTAL_FOREST,
+    expect: (blue) => (blue.getWaitingFor() instanceof SelectSpace ? undefined : `expected the greenery's board placement — got ${blue.getWaitingFor()?.type}`),
+  },
+});
+wgProjectFixture('wg-project-aquifer', {
+  top: [CardName.GREAT_AQUIFER, CardName.DONATION, CardName.SUPPLIER],
+  under: [CardName.LOAN],
+  megacredits: 20,
+  dry: {
+    pick: CardName.GREAT_AQUIFER,
+    expect: (blue) => (blue.getWaitingFor() instanceof SelectSpace ? undefined : `expected the first ocean's placement — got ${blue.getWaitingFor()?.type}`),
+  },
+});
