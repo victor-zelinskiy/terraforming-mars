@@ -65,8 +65,8 @@ export type PremiumMapMeta = {
 };
 
 // Random-All first (default), then official boards, then the rest of the
-// random-all pool. The two random-all exclusions (Vastitas Borealis Nova /
-// Arabia Terra) are intentionally not offered — outside the fork's scope.
+// random-all pool. The one random-all exclusion (Arabia Terra — its Pathfinders
+// bonuses are not adapted) is intentionally not offered — outside the fork's scope.
 export const PREMIUM_MAPS: ReadonlyArray<PremiumMapMeta> = [
   {id: 'random-all', random: true, accent: '240,168,80', labelKey: 'Random All', descKey: 'One of the maps in the current rotation will be chosen at game start.'},
   {id: BoardName.THARSIS, random: false, accent: '224,153,109', labelKey: 'Tharsis', descKey: 'The classic Mars map — balanced cities, oceans and plant-rich lowlands.'},
