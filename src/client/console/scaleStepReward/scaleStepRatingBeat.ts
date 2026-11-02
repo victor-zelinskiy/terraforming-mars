@@ -69,8 +69,12 @@ import {freshCardReactions} from '@/client/console/cardReaction/cardReactionMode
 export const SCALE_STEP_RATING_KEY = 'scale-step-rating';
 /** The Venus level whose crossing pays the track's one-time TR (`constants.VENUS_LEVEL_FOR_TR_BONUS`). */
 const VENUS_TR_BONUS_LEVEL = 16;
-/** The 16 % chip's own key on the board (`scaleBonusZones.ts` — the token of the track bonus is born on it). */
-const VENUS_TR_BONUS_CHIP = 'v-tr-16';
+/**
+ * The 16 % chip as the BOARD marks it (`Board.bonusZoneProps` → `claimKey` `<scale>-<step>` → `data-arc-marker`) — the
+ * token of the track bonus is born on it. It read the zone DEFINITION's key `v-tr-16` until P89 · EE (PL-1436), which no
+ * element carries: the lookup always missed and the token silently fell back to the marker's rim.
+ */
+const VENUS_TR_BONUS_CHIP = 'venus-16';
 /** The ruling Greens' answer per rating step (`PartyEffects.GREENS_MEGACREDITS_PER_TR`) — the only answer this beat recognizes. */
 const GREENS_MEGACREDITS_PER_TR = 2;
 

@@ -206,6 +206,8 @@ import {
 } from '@/client/console/played/consolePlayedTargetModel';
 import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
 import {buildVenusWildTargetModel, venusWildCandidates} from '@/client/console/venusBonus/venusWildTargetStep';
+import {armVenusBonusCell} from '@/client/console/scaleStepReward/venusBonusCellBeat';
+import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   VenusWildChoice, venusBaseCount, venusBonusLanes, venusBonusResponse, venusWildTargets,
 } from '@/client/console/compositePrompts';
@@ -692,6 +694,23 @@ export default defineComponent({
         return;
       }
       this.submitting = true;
+      // THE PROMISE of the cell beat (P89 · EE, PL-1436): what this answer pays — the rows (the wild taken as a standard
+      // resource is already folded into the picks) and the card the wild lands on; checked against the views on the
+      // response, flown off the bonus cell the step reached.
+      const units: Partial<Record<string, number>> = {};
+      for (const lane of this.lanes) {
+        const n = laneValue(this.picks, lane.key);
+        if (n > 0) {
+          units[lane.key] = n;
+        }
+      }
+      const resource = this.wild === 'onCard' && this.wildCard !== undefined ? getCard(this.wildCard)?.resourceType : undefined;
+      armVenusBonusCell({
+        units,
+        ...(resource !== undefined && this.wildCard !== undefined ?
+          {card: {name: this.wildCard, resource: cardResourceKey(String(resource))}} : {}),
+        ...(this.meta.step !== undefined ? {step: this.meta.step} : {}),
+      });
       this.$emit('submit', venusBonusResponse(this.meta, this.picks, this.wild, this.wildCard));
     },
     /**

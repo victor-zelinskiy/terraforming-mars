@@ -122,6 +122,7 @@ import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleSt
 import {openReactionSeedBlock, seedCardReactionHolds, snapshotRailHolds} from '@/client/console/cardReaction/cardReactionDirector';
 import {detectTableAnswerPayout, endTableAnswerPayout, runTableAnswerPayout, seedTableAnswers} from '@/client/console/parliament/tableAnswerBeat';
 import {seedScaleStepRatingHold} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
+import {seedVenusBonusCellHold} from '@/client/console/scaleStepReward/venusBonusCellBeat';
 import {seedParameterSwings} from '@/client/console/scaleSwing/scaleSwingDirector';
 import {heldStock as heldRailStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -817,6 +818,9 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // is presented from this very block, and a raise that arrived together with its fall flies its rating itself.
   seedParameterSwings(currentView(), newView);
   seedScaleStepRatingHold(currentView(), newView, heldRailStock(RATING_RAIL_KEY) - ratingHeldBefore);
+  // …and the alternative Venus board's BONUS the player just chose (P89 · EE, PL-1436): its rows keep their pre-bonus
+  // numbers until each token born on the bonus CELL the step reached has landed — after the step's own rating.
+  seedVenusBonusCellHold(currentView(), newView);
   // …and WHICH CARD REACTED («СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК», TR80 Hartlan Heating): the server's record of every
   // card effect that fired in this response (`cardReactions`). A row a host above holds is the host's answer — its
   // flight asks this module for the reactor; a row nobody holds is held HERE and flown by the reactor's own chain.

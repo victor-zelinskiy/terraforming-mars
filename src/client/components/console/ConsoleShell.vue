@@ -2099,6 +2099,7 @@ import {setPlacementPeek} from '@/client/components/board/placementRenderState';
 import {PlacementPeek, peekTargetOf} from '@/client/console/tilePlacement/placementPeek';
 import {resetScaleStepRewards} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
 import {resetScaleStepRating} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
+import {resetVenusBonusCell} from '@/client/console/scaleStepReward/venusBonusCellBeat';
 import {resetScaleSwing} from '@/client/console/scaleSwing/scaleSwingDirector';
 import ConsoleNomadMoveLayer from '@/client/components/console/nomads/ConsoleNomadMoveLayer.vue';
 import {abortTilePlacement, tilePlacementHolding, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
@@ -25730,6 +25731,7 @@ export default defineComponent({
     // …and what a scale step still owed to tell (TR24): its holds release honestly, no record replays.
     resetScaleStepRewards();
     resetScaleStepRating();
+    resetVenusBonusCell();
     resetFinaleSession(); // …and the finale's session (PL-303): a dead shell's context must not outlive it.
     resetScaleSwing(); // …and a parameter swing's scene (TR47): its display lets go, its held rating ticks.
     this.releaseRevealQueuePark?.();
