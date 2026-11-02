@@ -32,8 +32,8 @@
          the printed bonus of the tile that pays it), so the body stands BEFORE the wave. The zone is a
          LAYER STACK: the ledger and the hosted step's slot share one rect; the ledger yields (folds down)
          while a step stands and comes back when it has left — never a `v-if` cut. ── -->
-    <section class="con-sit__panel con-sit__panel--reward" :class="{'con-sit__panel--on': stage === 'reward' || answerUp}" data-sit-panel="reward"
-             :data-sit-answer="answerUp ? '' : undefined">
+    <section class="con-sit__panel con-sit__panel--reward" :class="{'con-sit__panel--on': stage === 'reward' || answerUp || drawUp}" data-sit-panel="reward"
+             :data-sit-answer="answerUp ? '' : undefined" :data-sit-draw="drawUp ? '' : undefined">
       <div class="con-sit__reward" :class="{'con-sit__reward--field': field, 'con-sit__reward--fullstep': field && fullStep}" :data-sit-fullstep="field && fullStep ? '' : undefined">
         <div class="con-sit__hero" :class="{'con-sit__hero--field': field}">
           <!-- The carried enacted card lands here (one DOM instance, teleported by the government) while the step holds the field. -->
@@ -63,6 +63,14 @@
         <transition :css="false" @enter="onAnswerEnter" @leave="onAnswerLeave" @enter-cancelled="onLedgerCancelled" @leave-cancelled="onLedgerCancelled">
           <div v-if="answerUp" class="con-sit__answer" data-sit-answer-layer>
             <ConsoleParliamentTableAnswer :answer="answer" :asking="asking" :askerModel="askerModel" embedded />
+          </div>
+        </transition>
+        <!-- «ПРИЁМКА» (2026-11-02): a card the sitting DREW (the enactment's tail — a card answering the change of power;
+             a step of the Career) is received HERE — the one reveal teleported into the stage's zone, the player's take
+             awaited by the walk. A LAYER over the reward chassis, the answer's own phrase both ways. -->
+        <transition :css="false" @enter="onDrawEnter" @leave="onAnswerLeave" @enter-cancelled="onLedgerCancelled" @leave-cancelled="onLedgerCancelled">
+          <div v-if="drawUp" class="con-sit__draw" data-sit-draw-layer>
+            <ConsoleParliamentDrawStage :source="drawSource" :heroLive="drawHero" />
           </div>
         </transition>
       </div>
@@ -282,6 +290,9 @@ import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleC
 import ConsoleTableReceipt from '@/client/components/console/parliament/ConsoleTableReceipt.vue';
 import {CardModel} from '@/common/models/CardModel';
 import ConsoleParliamentTableAnswer from '@/client/components/console/parliament/ConsoleParliamentTableAnswer.vue';
+import ConsoleParliamentDrawStage from '@/client/components/console/parliament/ConsoleParliamentDrawStage.vue';
+import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import {noteParliamentDrawPaneIn} from '@/client/console/parliament/parliamentDraw';
 import {noteTableAnswerPaneIn, TableAnswer, TableAnswerAsk} from '@/client/console/parliament/tableAnswerBeat';
 import {TableReceipt, TableReceiptPhase, tableReceiptState} from '@/client/console/parliament/tableReceiptBeat';
 import {ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
@@ -303,7 +314,7 @@ import {ParameterMoveId} from '@/common/parliament/parameterMove';
 
 export default defineComponent({
   name: 'ConsoleParliamentSitting',
-  components: {PlayerDelegate, ConsoleColonyLedger, ConsoleTableReceipt, ConsoleSitTotals, ConsoleSittingPayoutDetails, ConsoleParliamentTableAnswer},
+  components: {PlayerDelegate, ConsoleColonyLedger, ConsoleTableReceipt, ConsoleSitTotals, ConsoleSittingPayoutDetails, ConsoleParliamentTableAnswer, ConsoleParliamentDrawStage},
   props: {
     /** Where the sitting stands on the server (`consoleSittingFlow.sittingPositionOf`). */
     position: {type: Object as PropType<SittingPosition>, required: true},
@@ -335,6 +346,12 @@ export default defineComponent({
     askerModel: {type: Object as PropType<CardModel | undefined>, default: undefined},
     /** …and whether the stage STANDS as a layer of this chassis right now (the section decides by page and beat). */
     answerUp: {type: Boolean, default: false},
+    /** «ПРИЁМКА»: a batch the sitting drew is received on this chassis (the section decides — `parliamentDraw.ts`). */
+    drawUp: {type: Boolean, default: false},
+    /** …the batch's root source (the hero names the card that drew, if a card did). */
+    drawSource: {type: Object as PropType<CardDrawRevealSource | undefined>, default: undefined},
+    /** …and that card's live model. */
+    drawHero: {type: Object as PropType<CardModel | undefined>, default: undefined},
     /** Hosted inside another surface's zone (nothing of the chassis to strip — the sitting never titles itself). */
     embedded: {type: Boolean, default: false},
     /** `live` — the phase in progress; `review` — a finished sitting re-read (the protocol, later). */
@@ -528,6 +545,13 @@ export default defineComponent({
     onAnswerEnter(el: Element, done: () => void): void {
       playZoneLayerEnter(el as HTMLElement, () => {
         noteTableAnswerPaneIn();
+        done();
+      });
+    },
+    /** «ПРИЁМКА» enters as a layer over the chassis — the same phrase; its end lets the shell teleport the reveal in. */
+    onDrawEnter(el: Element, done: () => void): void {
+      playZoneLayerEnter(el as HTMLElement, () => {
+        noteParliamentDrawPaneIn();
         done();
       });
     },

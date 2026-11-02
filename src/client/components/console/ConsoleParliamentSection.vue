@@ -164,7 +164,7 @@
                  table's own cell — the first action's answer and the sitting's «куб на знамя» alike — and the cube leaves it. -->
             <ConsoleBannerCubeStage />
             <transition :css="false" @enter="onStageEnter" @leave="onStageLeave" @enter-cancelled="onStageEnterCancelled" @leave-cancelled="onStageLeaveCancelled">
-              <div v-if="stageKind === 'seat' || stageKind === 'sitting' || answerStageUp" v-show="stagePanelUp" class="con-parl__stage" :class="['con-parl__stage--' + stagePanelKind, {'con-parl__stage--field': flow.sittingField}]" :data-parl-stage="stagePanelKind" data-parl-reading>
+              <div v-if="stageKind === 'seat' || stageKind === 'sitting' || answerStageUp || drawStageUp" v-show="stagePanelUp" class="con-parl__stage" :class="['con-parl__stage--' + stagePanelKind, {'con-parl__stage--field': flow.sittingField}]" :data-parl-stage="stagePanelKind" data-parl-reading>
                 <ConsoleParliamentSeatPick v-if="stageKind === 'seat' && focusedSlot !== undefined" ref="seatPick"
                                            :view="view" :slot="focusedSlot" :viewerColor="viewerColor" :seatCandidates="seatCandidates"
                                            @submit="submitSeat($event)" @inspect="$emit('inspect', $event)" />
@@ -173,13 +173,18 @@
                                           :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
                                           :field="flow.sittingField" :fullStep="flow.sittingFullStep" :stepOpen="sittingStepOpen" :ledger="sittingLedger"
                                           :receipt="tableReceiptShown" :resultsHidden="resultsHidden" mode="live"
-                                          :answer="tableAnswerShowing" :asking="tableAnswerAsking" :askerModel="answerAskerModel" :answerUp="sittingAnswerUp" />
+                                          :answer="tableAnswerShowing" :asking="tableAnswerAsking" :askerModel="answerAskerModel" :answerUp="sittingAnswerUp"
+                                          :drawUp="sittingDrawUp" :drawSource="drawSource" :drawHero="drawHeroModel" />
                 <!-- «ОТВЕТ СТОЛА» (TR78 Arwind Inc.): a card of the table answers a walk of the Career the QUEST or a CARD made —
                      the section's own stage kind, unfolded over the TABLE from the rect the bills stood in (the body swap's
                      one grammar); the asker on its hero, the receipt / the picker in its zone. Inside a sitting the same
                      stage is a LAYER of the sitting's reward chassis instead (above). -->
                 <ConsoleParliamentTableAnswer v-else-if="answerStageUp" ref="answerStage"
                                               :answer="tableAnswerShowing" :asking="tableAnswerAsking" :askerModel="answerAskerModel" />
+                <!-- «ПРИЁМКА» (2026-11-02): a card the quest or a card's walk DREW on the Career is received on the
+                     section's own stage — unfolded over the TABLE (the body swap), the one reveal teleported into its
+                     zone; inside a sitting the same stage is a LAYER of the reward chassis (above). -->
+                <ConsoleParliamentDrawStage v-else-if="drawStageUp" :source="drawSource" :heroLive="drawHeroModel" />
                 <div class="con-parl__embed" data-embed-slot="parliament"></div>
               </div>
             </transition>
@@ -288,6 +293,13 @@ import {
 } from '@/client/console/parliament/parliamentRewardBeat';
 import {TableReceipt, tableReceiptState, tableReceiptsOwed} from '@/client/console/parliament/tableReceiptBeat';
 import {deliverRulingChangeDraws, openRulingChangePark, releaseOrphanRulingRatings, releaseUntoldRulingRatings} from '@/client/console/parliament/rulingChangeDraw';
+import ConsoleParliamentDrawStage from '@/client/components/console/parliament/ConsoleParliamentDrawStage.vue';
+import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
+import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import {
+  noteParliamentDrawPaneIn, noteParliamentDrawPaneOut, PARLIAMENT_DRAW_READY_NET_MS, parliamentDrawsSettled,
+  parliamentDrawStanding, parliamentDrawZone, parliamentOwnsRevealBatch, refuseParliamentDraw, setParliamentDrawHost,
+} from '@/client/console/parliament/parliamentDraw';
 import {sittingSeededLive} from '@/client/console/parliament/parliamentSittingSeed';
 import {
   parliamentWorldBeatState, runTrackMoveBeat, runWorldMoveBeat, seatTileOwed, takeWorldReceipt, trackMoveOwed, worldMoveOwed, worldReceiptOwed,
@@ -378,7 +390,7 @@ export default defineComponent({
   name: 'ConsoleParliamentSection',
   components: {
     ConsoleWsHead, ConsoleParliamentSeats, ConsoleParliamentGovernment, ConsoleParliamentVotingArea, ConsoleParliamentBand,
-    ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting, ConsoleParliamentTableAnswer, ConsoleParliamentEffects, ConsoleParliamentEffectsStep, ConsoleParliamentQuestDossier, ConsoleParliamentCareerDossier,
+    ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting, ConsoleParliamentTableAnswer, ConsoleParliamentDrawStage, ConsoleParliamentEffects, ConsoleParliamentEffectsStep, ConsoleParliamentQuestDossier, ConsoleParliamentCareerDossier,
     ConsoleParliamentSupportMode,
     ConsoleParliamentBannerMode,
     ConsoleBannerCubeStage,
@@ -425,6 +437,8 @@ export default defineComponent({
        * so the head keeps naming it while the cube lands (the prompt is gone by then), let go when the vote ends.
        */
       cellGiverLatch: undefined as ChoiceContextSource | undefined,
+      /** «ПРИЁМКА»'s readiness net: armed while a hosted batch waits for a stage that has not entered. */
+      drawNetTimer: undefined as number | undefined,
       /** The chairman quest's DOSSIER stands over the hall (X on the quest — Парламент v8 § 7). */
       questDossierOpen: false,
       /** …and the career's (X on the career). */
@@ -583,7 +597,7 @@ export default defineComponent({
     /** The body is NOT the row: the chairman seat pick (a decision), or the sitting in a step / the results. */
     stagePanelUp(): boolean {
       const kind = parliamentStageKind();
-      return kind === 'seat' || (kind === 'sitting' && this.sittingReading) || this.answerStageUp;
+      return kind === 'seat' || (kind === 'sitting' && this.sittingReading) || this.answerStageUp || this.drawStageUp;
     },
     /**
      * THE HALL'S VOTE (Парламент v8 § 5) — on EVERY door (the owner, 2026-10-19: «голосование должно быть идентично
@@ -653,8 +667,11 @@ export default defineComponent({
       if (!this.sittingUp || p === undefined) {
         return {pose: false, stepOpen: false};
       }
-      return sittingFieldOf(this.sittingStage, p.rewardStep, this.rewardPending, this.sittingLedger !== undefined, this.stepFrameNested, this.tableReceiptOwed,
+      const field = sittingFieldOf(this.sittingStage, p.rewardStep, this.rewardPending, this.sittingLedger !== undefined, this.stepFrameNested, this.tableReceiptOwed,
         this.sittingAnswerUp);
+      // «ПРИЁМКА»: the draw layer stands on the reward chassis — the field takes the stage for it (the door stays the
+      // hosted steps' own: a draw is the reveal's, never a step teleported through the frame's slot).
+      return this.sittingDrawUp ? {pose: true, stepOpen: field.stepOpen} : field;
     },
     /** «ОТВЕТ СТОЛА» (TR78): the receipt on the answer stage / the question standing on it — the ONE stage's state (`tableAnswerBeat`). */
     tableAnswerShowing(): TableAnswer | undefined {
@@ -691,7 +708,47 @@ export default defineComponent({
     },
     /** The stage panel's KIND class — the section's own answer stage wears its own paint. */
     stagePanelKind(): string {
-      return this.answerStageUp ? 'answer' : this.stageKind;
+      return this.answerStageUp ? 'answer' : this.drawStageUp ? 'draw' : this.stageKind;
+    },
+    /**
+     * «ПРИЁМКА» — MAY THIS SECTION HOST A DRAW right now (`parliamentDraw.ts` ownership): a Parliament on screen —
+     * the viewer's own, or the one a card's walk stands in the hand / the start (`embedded` — the walk's card step is
+     * received where the marker walked, never in a band over the hand) — never a nested scene's yield or a warming
+     * mount; and, inside a sitting, a page with a reward chassis to stand the layer on (the enactment's tail, the
+     * Career's walks). Anywhere else the ordinary reveal presents the batch at once (never held for a stage that
+     * cannot come).
+     */
+    drawHostable(): boolean {
+      if (this.warm || this.sceneHandedOver) {
+        return false;
+      }
+      return !this.sittingUp || this.sittingStage === 'enact' || this.sittingStage === 'reward';
+    },
+    /** The batch the Parliament hosts now — the reveal queue's head, when it is the Parliament's own family. */
+    drawBatch(): DrawnCardEntry | undefined {
+      const ev = currentRevealEvent();
+      return parliamentOwnsRevealBatch(ev) ? ev : undefined;
+    },
+    drawSource(): CardDrawRevealSource | undefined {
+      return this.drawBatch?.source;
+    },
+    /** The card that drew (a card's answer to a change of power) as the viewer holds it — the hero's live face. */
+    drawHeroModel(): CardModel | undefined {
+      const source = this.drawSource;
+      return source?.type === 'ruling-change' ? this.pv.thisPlayer?.tableau?.find((c) => c.name === source.cardName) : undefined;
+    },
+    /** The section's OWN draw stage kind (the quest, a card's walk): no sitting stands to host it as a layer. */
+    drawStageUp(): boolean {
+      return this.drawBatch !== undefined && !this.sittingUp;
+    },
+    /** …and the sitting's LAYER (the enactment's tail, the Career's walks on the reward page). */
+    sittingDrawUp(): boolean {
+      return this.drawBatch !== undefined && this.sittingUp;
+    },
+    /** A hosted batch waits for a stage that has not entered yet — the readiness net watches this. */
+    drawAwaitingZone(): number | undefined {
+      const batch = this.drawBatch;
+      return batch !== undefined && parliamentDrawZone() === '' ? batch.id : undefined;
     },
     /**
      * THE QUESTION THE TABLE ASKS, with its host, as a stable KEY (a watcher's edge, never an object's identity): the
@@ -1388,6 +1445,46 @@ export default defineComponent({
     },
   },
   watch: {
+    /** «ПРИЁМКА»: the section publishes whether it may host a draw (the ownership half — `parliamentDraw.ts`). */
+    'drawHostable': {
+      immediate: true,
+      handler(on: boolean): void {
+        setParliamentDrawHost(this.$.uid, on);
+      },
+    },
+    /**
+     * …the section's own stage that was ALREADY standing (another kind folded into it, no body swap played) has entered
+     * by construction — read a tick later, after the transition hooks of this very patch have run.
+     */
+    'drawStageUp': {
+      flush: 'post',
+      handler(on: boolean): void {
+        if (on) {
+          void this.$nextTick(() => {
+            if (this.drawStageUp && !this.stageEntering) {
+              noteParliamentDrawPaneIn();
+            }
+          });
+        }
+      },
+    },
+    /**
+     * THE READINESS NET: a batch the Parliament claimed waits NOWHERE for a stage that has not entered — bounded. A
+     * stage that never comes (a pose nobody foresaw) lets the batch go to the ordinary reveal, named; never a card
+     * lost behind a zone that does not exist.
+     */
+    'drawAwaitingZone': {
+      immediate: true,
+      handler(id: number | undefined): void {
+        if (this.drawNetTimer !== undefined) {
+          window.clearTimeout(this.drawNetTimer);
+          this.drawNetTimer = undefined;
+        }
+        if (id !== undefined && typeof window !== 'undefined') {
+          this.drawNetTimer = window.setTimeout(() => this.onDrawNet(id), PARLIAMENT_DRAW_READY_NET_MS);
+        }
+      },
+    },
     'liveCellGiver': {
       handler(source: ChoiceContextSource | undefined): void {
         if (source !== undefined) {
@@ -2044,6 +2141,13 @@ export default defineComponent({
     consoleParliamentUi.stageStanding = false;
     consoleParliamentUi.fieldStanding = false;
     consoleParliamentUi.answerZone = false;
+    // «ПРИЁМКА»: no stage stands any more — a batch still owed takes the ordinary reveal (the ownership falls with it).
+    setParliamentDrawHost(this.$.uid, false);
+    noteParliamentDrawPaneOut();
+    if (this.drawNetTimer !== undefined) {
+      window.clearTimeout(this.drawNetTimer);
+      this.drawNetTimer = undefined;
+    }
     // «ОТВЕТ СТОЛА» (TR78): a receipt no stage will play ticks now, honestly late; a question's stage is gone with the section.
     releaseTableAnswers();
     endTableAnswerAsk();
@@ -3270,6 +3374,13 @@ export default defineComponent({
      * viewer's is open, no hosted frame is still inside. The world's move is a
      * beat of the sitting, never an interruption of the player's own work.
      */
+    /** The readiness net fired: the stage never entered for `id` — the ordinary reveal takes the batch. */
+    onDrawNet(id: number): void {
+      this.drawNetTimer = undefined;
+      if (this.drawAwaitingZone === id) {
+        refuseParliamentDraw(id, 'stage-never-entered');
+      }
+    },
     mayYieldForWorld(position: SittingPosition): boolean {
       // …or the seat's own step set off a placement on the board (the ocean of 0 °C — a TAIL, never a door):
       // the planet's story and that placement share ONE trip to the board, so the frame steps aside now and
@@ -3279,18 +3390,22 @@ export default defineComponent({
         // that tile land BEFORE this seat's own door is offered (the door stays shut while the frame is away).
         (position.rewardStep === 'placement' && seatTileOwed(this.sittingKey) && !consoleParliamentUi.boardDoorOpen);
       return settled && !this.rewardPending && !parliamentRewardState.receiptShowing &&
-        !this.ledgerReadOwed && !this.stepFrameNested && !this.sittingStepOpen && !this.tableReceiptOwed;
+        !this.ledgerReadOwed && !this.stepFrameNested && !this.sittingStepOpen && !this.tableReceiptOwed && !parliamentDrawStanding();
     },
     /** May the walk leave `stage` by itself? The verdict (read — the soft gates), the enactment and the renewal always; the reward once nothing of this seat's is open there. */
     mayLeave(stage: SittingStage, position: SittingPosition): boolean {
-      if (stage === 'verdict' || stage === 'enact' || stage === 'renewal') {
+      if (stage === 'verdict' || stage === 'renewal') {
         return true;
+      }
+      // «ПРИЁМКА»: a card the sitting drew stands for the player — the walk waits for the take, on the page that drew it.
+      if (stage === 'enact') {
+        return !parliamentDrawStanding();
       }
       if (stage === 'reward') {
         // …and never while a hosted FRAME still stands in the zone (the colonies' build chain after the pick).
         return sittingRewardSettled(position) && !this.rewardPending && !parliamentRewardState.receiptShowing && !this.ledgerReadOwed && !this.tableReceiptOwed &&
           // …and never while the PLANET's own move is still owed to the board, or its read to the page.
-          !worldMoveOwed(this.sittingKey) && !parliamentWorldBeatState.receiptShowing && !this.stepFrameNested;
+          !worldMoveOwed(this.sittingKey) && !parliamentWorldBeatState.receiptShowing && !this.stepFrameNested && !parliamentDrawStanding();
       }
       return false;
     },
@@ -3361,10 +3476,13 @@ export default defineComponent({
             if (stage === 'enact' && careerAgendaTold(key) && !careerPausedAt(this.model?.phase)) {
               noteCareerResumed(key);
             }
+            // «ПРИЁМКА»: a card this page drew (the ПОВЕСТКА's card step, released at the page's rest) stands in the
+            // Parliament's draw stage — the walk waits for the player's take before the next beat.
+            await parliamentDrawsSettled();
             if (stage === 'enact') {
-              // THE ENACTMENT'S TAIL (TR62): the seals have changed places — a card that answered the change of power
-              // leaves the project deck for the hand dock now, and the walk goes on from its touchdown.
-              await deliverRulingChangeDraws(this.pv.id);
+              // THE ENACTMENT'S TAIL (TR62): the seals have changed places — a card that answered the change of power is
+              // handed to the draw stage now (off the deck into the reveal), and the walk goes on from the player's take.
+              await deliverRulingChangeDraws();
             }
             if (receipt) {
               parliamentRewardState.receiptShowing = false;
@@ -3464,6 +3582,10 @@ export default defineComponent({
         // «ОТВЕТ СТОЛА» on the section's own stage (TR78): it has entered — the flight may measure, the picker may come.
         if (this.answerStageUp) {
           noteTableAnswerPaneIn();
+        }
+        // «ПРИЁМКА» on the section's own stage: it has entered — the reveal may be teleported into its zone.
+        if (this.drawStageUp) {
+          noteParliamentDrawPaneIn();
         }
       });
     },

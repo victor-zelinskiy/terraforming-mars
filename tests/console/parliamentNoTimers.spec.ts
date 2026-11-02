@@ -40,6 +40,16 @@ const ALLOWED: ReadonlyArray<{file: string, marker: string, why: string}> = [
     why: 'TR62: the park of a card\'s answer to a change of power — a bound over a sitting that never tells its enactment, not a beat',
   },
   {
+    file: path.join('src', 'client', 'console', 'parliament', 'parliamentDraw.ts'),
+    marker: 'PARLIAMENT_DRAW_TAKE_NET_MS',
+    why: '«ПРИЁМКА»: the wait for the player\'s take — a bound over a batch that neither presents nor leaves, not a beat',
+  },
+  {
+    file: path.join('src', 'client', 'components', 'console', 'ConsoleParliamentSection.vue'),
+    marker: 'PARLIAMENT_DRAW_READY_NET_MS',
+    why: '«ПРИЁМКА»: a draw stage that never enters lets its batch go to the ordinary reveal — a bound, not a beat',
+  },
+  {
     file: path.join('src', 'client', 'console', 'parliament', 'bannerCubeScene.ts'),
     marker: 'showUnflown',
     why: 'Septem Tribus:redux: a cube held for a flight nobody plays is SHOWN (9 s for the first action, 60 s for a sitting) — a bound over a missing scene, not a beat',

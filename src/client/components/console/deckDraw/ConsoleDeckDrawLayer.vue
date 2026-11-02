@@ -119,6 +119,7 @@ import {holdIntakeGuest, registerIntakeContinuation} from '@/client/console/card
 import {conWsPresence} from '@/client/console/conWsPresenceBridge';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {drawnBatchGoesFullscreen} from '@/client/console/consoleRevealPresentation';
+import {parliamentDrawReady} from '@/client/console/parliament/parliamentDraw';
 
 /** The natural (unscaled) FaceLite height — mirrors the premium card frame (320×460). */
 const CARD_NATURAL_H = 460;
@@ -719,6 +720,12 @@ export default defineComponent({
       const keys = e.cards.map((c, i) => `${c.name}#${i}`);
       const slotOf = (key: string) => document.querySelector<HTMLElement>(
         `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`);
+      // «ПРИЁМКА»: a batch the Parliament hosts (a card's answer to a change of power) is dealt into its draw stage's
+      // slots — they exist once the stage has entered (bounded by the stage's own net).
+      await parliamentDrawReady(e);
+      if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
+        return;
+      }
       // One stable probe on the first slot — the veiled overlay's fit pass has
       // settled once it answers; the director then measures RESTING rects for
       // every slot itself.

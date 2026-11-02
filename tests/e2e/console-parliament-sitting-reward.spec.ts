@@ -699,6 +699,10 @@ test.describe('the Agenda step\'s TR bonus (standard-1080)', () => {
     expect(parked.every((s) => s.hand === String(handBefore)), 'the dock holds the old total through the plate and the verdict').toBe(true);
     // The glide lands on the card step → the cover lifts off it → the card opens over the sitting → A takes it to the dock.
     await expect(page.locator('.con-reveal, dialog.con-zoom[open]'), 'the step\'s card is presented after the glide').toHaveCount(1, {timeout: 30_000});
+    // «ПРИЁМКА» (2026-11-02): received IN the sitting — the reveal stands in the draw stage, a layer of the enactment
+    // page, and the walk waits there for the take.
+    await expect(page.locator('.con-parl [data-sit-draw-layer] [data-parl-draw] .con-reveal--embedded'), 'the card stands in the sitting\'s draw stage').toHaveCount(1);
+    expect(await sittingStage(page), 'the walk waits on the enactment page for the take').toBe('enact');
     await shoot(page, 'standard-1080', 'RX05-card-bonus-reveal');
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-reveal, dialog.con-zoom[open]').count() === 0, {tries: 6, settleMs: 1500}), 'A takes the card').toBe(true);
     await expect.poll(() => page.locator('[data-hand-total]').getAttribute('data-hand-total'), {timeout: 30_000}).toBe(String(handBefore + 1));

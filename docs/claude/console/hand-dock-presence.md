@@ -87,6 +87,13 @@ z-index» model — this is a deliberate contract REVERSAL.)*
    *A pose that silently stops working is worse than a pose that is briefly
    wrong.* The worst case is now «full a few seconds too long», never «compact
    is dead until restart».
+   ⚠️ **…AND THE TUCKED FOOTER COMES UP WITH IT** (2026-11-02, the owner's Parliament report — Tharsis Alliance's card):
+   the colonies / hydro / Parliament sections drop the WHOLE footer to z:-1 (`dockBehindWorkspace` →
+   `.con-footer--behind-workspace`), and the intake exception lifted only the BODIES' layer (11645) back over the
+   section — so the rising fan painted over the plate, the «КАРТЫ» counter and the command bar it was landing in (the
+   texture occludes the bodies per pixel only from ABOVE them). `dockBehindWorkspace` now yields to the accent
+   (`if (this.dockIntakeAccent) return false`): the whole dock comes up together and goes back together. Witness:
+   e2e `console-tharsis-alliance` F (`tuckedWhileIntake` = 0).
 5. **Full-bleed cinematics may COVER the dock; nothing may UNMOUNT it.** The
    reveal overlay (z11900), the fullscreen zoom veil (z11890) and the endgame
    legitimately paint over it — those are the moments the whole table steps

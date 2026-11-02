@@ -4,8 +4,7 @@ import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentRulingAnswerModel} from '@/common/models/ParliamentModel';
 import {isReduxParty, ReduxParty} from '@/common/parliament/ParliamentTypes';
-import {acknowledgeDraw, dismissEvent, drawnCardsState, DrawnCardEntry, markAllTaken, setAcking} from '@/client/components/drawnCards/drawnCardsState';
-import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
+import {drawnCardsState, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -17,6 +16,7 @@ import {consoleParliamentUi} from './consoleParliamentFlow';
 import {generationSceneRisesIntoSitting} from '@/client/console/generationScene/generationScene';
 import {scheduleParliamentBeat} from './parliamentBeat';
 import {probeTick} from '@/client/console/probeTick';
+import {parliamentDrawTaken} from './parliamentDraw';
 import {sittingBaselineOf} from './sittingBaseline';
 import {sittingRiseOwed} from './sittingRise';
 
@@ -25,9 +25,12 @@ import {sittingRiseOwed} from './sittingRise';
  * becomes ruling»). The server draws at the sitting's ENACTMENT and names the batch `{type: 'ruling-change', cardName,
  * party}` (never the card's name here — the source's TYPE is the contract). The batch arrives with the response that
  * answered the sitting's first gate, while the director still has the Agenda, the support and the enactment to play,
- * so its one honest presentation is the TAIL OF THE ENACTMENT TACT: once the seals have changed places, the card leaves
- * the project deck's pile and lands in the hand dock through the shared intake (`runHandIntake` — the dock's counter
- * ticks on the touchdown), and the batch is consumed (acknowledged) with no reveal over the sitting.
+ * so its one honest presentation is the TAIL OF THE ENACTMENT TACT: once the seals have changed places, the batch is
+ * HANDED to the Parliament's draw stage («ПРИЁМКА», `parliamentDraw.ts` — the owner, 2026-11-02): the card leaves the
+ * project deck's pile into the embedded reveal standing in the sitting (Tharsis Alliance's face on its hero), the
+ * player takes it («Взять» → the hand dock, the counter ticking on the touchdown), and the tail WAITS for that take
+ * before the ratings and the walk go on. (It used to fly face down straight into the dock with no reveal at all — a
+ * card the player never saw, and the rising fan painted over the dock it landed in.)
  *
  * THE PARK. While a sitting stands whose enactment has not been told yet, such a batch is presented NOWHERE (the same
  * law and shape as the Agenda card's park: scoped to the batch type it parks, never «the reveal»): the deck-draw scene
@@ -59,8 +62,10 @@ const IMPULSE_WAIT_MS = 1_600;
 export const rulingChangeDrawState = reactive({
   /** The sitting key whose enactment has not been told yet — the park stands while it is set. */
   owedKey: undefined as string | undefined,
-  /** A delivery in flight (the intake is airborne) — the batch stays parked until it lands. */
+  /** A delivery in flight (the tail is telling the batches / the ratings) — a batch stays parked until it is handed over. */
   delivering: false,
+  /** The tail has HANDED the batch to the draw stage — the park lets it present (and the player take it). */
+  handedOver: false,
   /**
    * WHAT the delivery in flight is (the band's line for the enactment's tail — «Альянс Тарсиса · карта ·
    * «Марс вперёд» у власти»): the card that answered, the party that came to power, the cards it drew.
@@ -226,9 +231,13 @@ export function isRulingChangeDraw(source: CardDrawRevealSource | undefined): bo
   return source?.type === 'ruling-change';
 }
 
-/** THE PARK: a ruling-change batch is presented nowhere while the sitting still owes its enactment tact (or delivers it). */
+/**
+ * THE PARK: a ruling-change batch is presented nowhere while the sitting still owes its enactment tact, or while the
+ * tail has not handed it over yet (the alliance's impulse plays first) — once handed over it presents in the stage.
+ */
 export function rulingChangeParksReveal(source: CardDrawRevealSource | undefined): boolean {
-  return isRulingChangeDraw(source) && (rulingChangeDrawState.owedKey !== undefined || rulingChangeDrawState.delivering);
+  return isRulingChangeDraw(source) && !rulingChangeDrawState.handedOver &&
+    (rulingChangeDrawState.owedKey !== undefined || rulingChangeDrawState.delivering);
 }
 
 /** The section's sitting stands and its enactment is still to be told (`key` — the sitting's own key). */
@@ -265,12 +274,13 @@ function owedBatches(): Array<DrawnCardEntry> {
 }
 
 /**
- * THE ENACTMENT'S TAIL: every owed ruling-change batch leaves the project deck's pile for the hand dock (face down —
- * a card off the deck; the dock shows what it is the frame it lands), the batch is consumed on the intake's commit and
- * acknowledged; then the park closes. Resolves when the last card has LANDED (the walk goes on from the touchdown, so
- * the reward page never opens over a card still in the air). Nothing owed — the park simply closes.
+ * THE ENACTMENT'S TAIL: every owed ruling-change batch is HANDED to the Parliament's draw stage in turn — the park lets
+ * it go, the deck deals it into the embedded reveal, and the tail WAITS for the player's take (every card taken, or the
+ * batch gone — `parliamentDrawTaken`); then the owed ratings fly. A batch the Parliament cannot host (no stage in this
+ * pose — the readiness net refused it) takes the ordinary reveal, and the tail waits for its take all the same.
+ * Nothing owed — the park simply closes.
  */
-export async function deliverRulingChangeDraws(viewId: string): Promise<void> {
+export async function deliverRulingChangeDraws(): Promise<void> {
   clearNet();
   const batches = owedBatches();
   if (batches.length === 0 && rulingChangeDrawState.ratings.length === 0) {
@@ -284,25 +294,20 @@ export async function deliverRulingChangeDraws(viewId: string): Promise<void> {
   await allianceImpulsesSettled(IMPULSE_WAIT_MS, probeTick);
   try {
     for (const batch of batches) {
-      const pile = rectOf(document.querySelector('.con-deckstack__pile'));
       const source = batch.source;
       rulingChangeDrawState.presenting = source?.type === 'ruling-change' && isReduxParty(source.party) ?
         {card: source.cardName, party: source.party, count: batch.cards.length} : undefined;
-      setAcking(batch.id, true);
-      await runHandIntake(batch.cards.map((card) => ({name: card.name, back: true, ...(pile === undefined ? {} : {rect: pile})})), {
-        commit: () => {
-          markAllTaken(batch.id);
-          dismissEvent(batch.id);
-        },
-      });
-      acknowledgeDraw(viewId, batch.id);
+      rulingChangeDrawState.handedOver = true;
+      await parliamentDrawTaken(batch.id);
     }
+    rulingChangeDrawState.handedOver = false;
     for (const rating of rulingChangeDrawState.ratings.slice()) {
       rulingChangeDrawState.presenting = {card: rating.card, party: rating.party, ...presentedAmounts(rating)};
       await deliverRating(rating);
     }
   } finally {
     rulingChangeDrawState.delivering = false;
+    rulingChangeDrawState.handedOver = false;
     rulingChangeDrawState.presenting = undefined;
   }
 }
@@ -382,6 +387,7 @@ export function resetRulingChangeDraw(): void {
   clearNet();
   rulingChangeDrawState.owedKey = undefined;
   rulingChangeDrawState.delivering = false;
+  rulingChangeDrawState.handedOver = false;
   rulingChangeDrawState.presenting = undefined;
   releaseRulingRatings('reset');
 }

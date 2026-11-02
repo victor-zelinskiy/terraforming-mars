@@ -43,6 +43,7 @@ import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
 import {TableAnswer, takeTableAnswer} from './tableAnswerBeat';
 import {agendaReactionResourceKey} from './agendaReaction';
 import {Rect} from './consoleParliamentVoteMotion';
+import {parliamentDrawsSettled} from './parliamentDraw';
 
 // ── the storyboard's budget (base ms — the motion scale is applied by the beat) ──
 /** ЗАДАНИЕ: the block's own answer, read. */
@@ -338,7 +339,20 @@ function launchAgendaBonus(): void {
     // The board card-bonus scene lifts the cover off the step the marker just
     // reached — the release is what lets its parked reveal present at all.
     markAgendaBonusLanded();
-    done();
+    if (bonus.kind !== 'card') {
+      done();
+      return;
+    }
+    // «ПРИЁМКА» (2026-11-02): the card is received in the Parliament's draw stage, and the quest WAITS for the
+    // player's take before its next beat (it used to go on under a reveal standing over it). The take is the
+    // player's: no animation hold stands over a reading (a ceiling over it fires as a leak).
+    state.hold?.release();
+    state.hold = undefined;
+    void parliamentDrawsSettled().then(() => {
+      if (run === state && !state.killed) {
+        done();
+      }
+    });
     return;
   }
   const node = state.ctx.root.querySelector<HTMLElement>(`.con-parl__step[data-step="${bonus.step}"] .con-parl__step-res`) ??

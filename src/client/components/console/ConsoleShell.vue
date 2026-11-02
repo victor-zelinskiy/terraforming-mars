@@ -2054,6 +2054,7 @@ import {closeWorkspaceOutcomeChain, workspaceClaimsColonyRevealBatch, workspaceC
 import {boardBeatParkPending, boardBeatParkState, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
 import {rulingChangeParksReveal} from '@/client/console/parliament/rulingChangeDraw';
+import {PARLIAMENT_DRAW_ZONE, parliamentDrawZone, parliamentOwnsRevealBatch} from '@/client/console/parliament/parliamentDraw';
 import {
   COLONY_LEDGER_STAGE,
   colonyBonusPayout, colonyBonusPayoutArmed, colonyBonusPayoutLive, colonyBonusPayoutOf, colonyBonusPayoutParksReveal,
@@ -2618,6 +2619,12 @@ export default defineComponent({
   },
   data() {
     return {
+      /**
+       * «ПРИЁМКА»: the reveal instance was last re-homed into the PARLIAMENT's draw stage — latched past the take (the
+       * batch leaves the queue before the take's staged seam fires), so its two completion seams know the batch was
+       * nobody's workspace outcome and fold nothing (the Parliament's own flow goes on from the take).
+       */
+      revealParliamentLatch: false,
       boardPeekUi: boardPeekState,
       consoleState,
       consoleCardZoom,
@@ -3308,6 +3315,15 @@ export default defineComponent({
      *  BELOW the section content by z-index so its cards never poke over the
      *  rail. Board home keeps the dock on top as usual. */
     dockBehindWorkspace(): boolean {
+      // THE TUCK YIELDS TO THE INTAKE ACCENT — the whole dock comes up together. While cards are physically arriving
+      // the fan's BODIES leave the tuck (`.con-handreveal-layer`, 11645 — the presence contract: full and on top), so
+      // the footer must leave it too: a footer left at z:-1 put the plate, the «КАРТЫ» counter and the command bar
+      // UNDER the rising fan, and the cards painted over the very dock they were landing in (the owner's Parliament
+      // report — Tharsis Alliance's card; the same in the colonies' and the hydro's sections). The texture occludes
+      // the bodies per pixel only from ABOVE them (`console_card_deal.less` § HAND REVEAL).
+      if (this.dockIntakeAccent) {
+        return false;
+      }
       const phase = this.playerView.game.phase;
       // The DRAFT WORKSPACE is a card-flow surface: the pick heroes fly, the
       // purchase flights land in the dock, and the player must see the bar +
@@ -5472,7 +5488,13 @@ export default defineComponent({
       if (this.consoleRevealMode !== 'drawn') {
         return undefined;
       }
-      if (!workspaceClaimsRevealBatch(currentRevealEvent())) {
+      const ev = currentRevealEvent();
+      if (!workspaceClaimsRevealBatch(ev)) {
+        // «ПРИЁМКА»: the Parliament's own families stand in its draw stage (`parliamentDraw.ts`).
+        if (parliamentOwnsRevealBatch(ev)) {
+          const zone = parliamentDrawZone();
+          return zone === '' ? undefined : zone;
+        }
         return undefined;
       }
       const slot = workspaceOutcomeZone();
@@ -5677,7 +5699,9 @@ export default defineComponent({
     },
     /** Something is (or is about to be) re-homed into the workspace's zone. */
     workspaceOutcomeEmbedded(): boolean {
-      return this.revealEmbedTarget !== undefined ||
+      // «ПРИЁМКА»: a batch re-homed into the PARLIAMENT's draw stage is nobody's workspace outcome — its rise must not
+      // mark a claim presenting, its fall must not end one (a card's walk in the hand: the play's claim stands beside it).
+      return (this.revealEmbedTarget !== undefined && this.revealEmbedTarget !== PARLIAMENT_DRAW_ZONE) ||
         this.taskEmbedTarget !== undefined ||
         // The DRAW & SELECT surface is re-homed by the same claim; leaving it
         // out would arm both failure modes at once — the 20 s backstop would
@@ -5768,6 +5792,12 @@ export default defineComponent({
      *  against a flow that had no legacy component in it at all. */
     revealHeldForWorkspace(): boolean {
       const ev = currentRevealEvent();
+      // «ПРИЁМКА» (`parliamentDraw.ts`): a batch the PARLIAMENT hosts (a Career card step, a card's answer to a change
+      // of power) waits NOWHERE until its draw stage has entered — never the standalone band for a frame and the stage
+      // the next. Ownership ≠ readiness; the section's readiness net bounds the wait.
+      if (ev !== undefined && this.rawDrawnRevealPending && !workspaceClaimsRevealBatch(ev) && parliamentOwnsRevealBatch(ev)) {
+        return parliamentDrawZone() === '';
+      }
       if (ev === undefined || !this.rawDrawnRevealPending || !workspaceClaimsRevealBatch(ev)) {
         return false;
       }
@@ -9553,6 +9583,10 @@ export default defineComponent({
         // already names the stage. One voice, two places (the buy stage's
         // «ПОКУПКА» parity).
         if (this.revealEmbedTarget !== undefined) {
+          // «ПРИЁМКА»: the Parliament's draw stage is no claim's phase — the bar names it in its own word («Добор карт»).
+          if (this.revealEmbedTarget === PARLIAMENT_DRAW_ZONE) {
+            return focusKicker('draw');
+          }
           return workspaceOutcomeState.phaseKey !== '' ? workspaceOutcomeState.phaseKey : focusKicker('draw');
         }
         return 'Cards';
@@ -11266,6 +11300,12 @@ export default defineComponent({
     viewerAskedOffTurn(offTurn: boolean): void {
       if (offTurn) {
         closeWorkspaceOutcomeChain('asked-off-turn');
+      }
+    },
+    /** «ПРИЁМКА»: where the reveal stands — a NEW home re-latches; «nowhere» keeps the last (see the data field). */
+    revealEmbedTarget(target: string | undefined): void {
+      if (target !== undefined) {
+        this.revealParliamentLatch = target === PARLIAMENT_DRAW_ZONE;
       }
     },
     /** THE PRESENCE LATCH (`consolePromptAdmission` § ENTRY IS NOT PRESENCE): a family admitted for the prompt keeps it. */
@@ -21220,6 +21260,10 @@ export default defineComponent({
      * workspace) also covers the case where the workspace has already gone.
      */
     onEmbeddedDrawnComplete(): void {
+      // «ПРИЁМКА»: a batch the Parliament hosted was nobody's workspace outcome — nothing to release, nothing to fold.
+      if (this.revealParliamentLatch) {
+        return;
+      }
       const host = workspaceOutcomeState.host;
       // A COLONY RESOLUTION outlives any one of its batches: the mandatory
       // discard, the next colony's cycle and the closing track reset are still
@@ -21937,6 +21981,10 @@ export default defineComponent({
      * still hidden (or at a guessed rect, which this flow forbids).
      */
     onWorkspaceResultDetached(): void {
+      // «ПРИЁМКА»: the same law at the take's staged seam (it fires FIRST for a single card).
+      if (this.revealParliamentLatch) {
+        return;
+      }
       const host = workspaceOutcomeState.host;
       // The colony RESOLUTION's claim spans every batch — same law as the
       // drawn-complete arm above.

@@ -700,9 +700,9 @@ for (const preset of PRESETS) {
       const mid = await fetchPlayerModel(request, playerId) as unknown as {waitingFor?: unknown};
       expect(mid.waitingFor, 'the play was the last action of the turn — blue has no prompt during the walk').toBeUndefined();
 
-      // ONE action — ONE intake: both step cards (⑦ and ⑩) stand in ONE scene, ready to be taken.
-      await expect(page.locator('.con-reveal--scene:not(.con-reveal--bonus-held):not(.con-reveal--bonus-veiled) [data-zoom-slot]'),
-        'both card steps (⑦ and ⑩) stand in ONE scene, ready to be taken').toHaveCount(2, {timeout: 45_000});
+      // ONE action — ONE intake: both step cards (⑦ and ⑩) stand in ONE draw stage of the Parliament («ПРИЁМКА»), ready to be taken.
+      await expect(page.locator('.con-parl [data-parl-draw] .con-reveal--embedded:not(.con-reveal--bonus-held):not(.con-reveal--bonus-veiled) [data-zoom-slot]'),
+        'both card steps (⑦ and ⑩) stand in ONE draw stage, ready to be taken').toHaveCount(2, {timeout: 45_000});
       await shoot(page, preset.id, '30-field-take');
       expect(await pressUntil(page, 'Enter', async () => await page.locator('dialog.con-zoom[open], .con-reveal').count() === 0, {tries: 6, settleMs: 1500}),
         'A takes both cards').toBe(true);

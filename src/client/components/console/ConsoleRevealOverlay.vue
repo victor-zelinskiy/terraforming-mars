@@ -618,6 +618,7 @@ import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCar
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import {focusKicker} from '@/client/console/consoleActionFlow';
 import {markWorkspaceOutcomeArrivalDone, revealSourceForeignToClaim, setWorkspaceOutcomePhase, workspaceClaimsRevealBatch, workspaceOutcomeArrivalPending, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
+import {parliamentOwnsRevealBatch} from '@/client/console/parliament/parliamentDraw';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {
   DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, holdRevealForFollowUp, markAllTaken,
@@ -1134,8 +1135,10 @@ export default defineComponent({
         segments: e?.segments,
         cellBonuses: this.sourceCellBonuses,
         sourceOnStage: this.sourceSeat,
-        // reactive through the claim's own state (`workspaceOutcomeState.sourceCard`)
-        foreignSource: this.embedded && revealSourceForeignToClaim(this.drawnSource),
+        // reactive through the claim's own state (`workspaceOutcomeState.sourceCard`) — and «ПРИЁМКА»: a Career card
+        // step received in the Parliament's draw stage has no card on stage to stand for it, so the head names it.
+        foreignSource: this.embedded && (revealSourceForeignToClaim(this.drawnSource) ||
+          (this.drawnSource?.type === 'agenda' && parliamentOwnsRevealBatch(this.drawnEvent))),
         fallbackName: this.sourceFallbackName,
         resolutionNameKey: (id: string) => resolutionName(id),
         discarded: this.batchDiscarded,
@@ -1628,7 +1631,9 @@ export default defineComponent({
      * workspace's arrival at all.
      */
     arrivalPending(): boolean {
-      return this.embedded && this.mode === 'drawn' && workspaceOutcomeArrivalPending();
+      // «ПРИЁМКА»: a batch the Parliament hosts is no claim's arrival — a claim standing beside it (a play's, while a
+      // card's walk plays in the hand) must not gate this batch's take.
+      return this.embedded && this.mode === 'drawn' && !parliamentOwnsRevealBatch(this.drawnEvent) && workspaceOutcomeArrivalPending();
     },
     /**
      * THE CURSOR WAITS FOR THE CARDS (TR58): while a deal scene's copies still lie over this batch's real cards (the

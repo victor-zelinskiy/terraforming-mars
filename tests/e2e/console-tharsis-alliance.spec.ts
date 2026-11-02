@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openCardActions, openConsole, openZoomViewer, press, pressUntil, reloadConsole,
+  bootFixtureSeats, cinematicBeat, closeZoomViewer, fetchPlayerModel, focusCard, openCardActions, openConsole, openZoomViewer, press, pressUntil, reloadConsole,
   settle, waitForBoardHome,
 } from './consoleStart';
 import {
@@ -29,8 +29,10 @@ import {
  *   E. THE VOTE (`tharsis-alliance-council` — one cube on Mars First under Council Seat): Mars First's slot names the
  *      ally the second cube opens («АЛЬЯНС · Красные → эффект и карты ваши») before the press.
  *   F. THE ENACTMENT (`tharsis-alliance-enact` — Mars First wins the sitting): after the seals change places, the card
- *      the alliance owes leaves the project deck for the hand dock — never a reveal over the sitting; the server's hand
- *      grew by one; the Reds are the viewer's by the alliance.
+ *      the alliance owes leaves the project deck for the sitting's DRAW STAGE («ПРИЁМКА» — the embedded reveal, Tharsis
+ *      Alliance on its hero); the walk WAITS for the take (the enactment page holds), A takes
+ *      the card into the dock — the footer never tucked under the section while it lands; never the standalone reveal;
+ *      the server's hand grew by one; the Reds are the viewer's by the alliance.
  *   G. RED, on its own console: no badge on its seals (the alliance is a property of the SEAT).
  *   H. A reload keeps it all: the law is read off the tableau again.
  */
@@ -344,29 +346,43 @@ for (const preset of PRESETS) {
       await answerNothing(page);
     });
 
-    test(`F: the enactment of Mars First deals the alliance's card from the deck into the dock — never a reveal (${preset.id})`, async ({page, request}) => {
+    test(`F: the enactment of Mars First deals the alliance's card into the sitting's draw stage — the walk waits for the take (${preset.id})`, async ({page, request}) => {
       test.setTimeout(420_000);
       // The table stands ONE PASS before its sitting (the soft gates): the viewer's own pass carries the whole sitting.
       const {playerId} = await bootFixtureSeats(page, request, 'tharsis-alliance-enact', {query: preset.query});
       const before = await wireOf(request, playerId);
       const hand = before.cardsInHand?.length ?? 0;
-      // A probe of the reveal surfaces across the enactment (MutationObserver + setInterval — never rAF).
+      // A probe of the reveal surfaces and the dock across the enactment (MutationObserver + setInterval — never rAF).
       await page.evaluate(() => {
-        const w = window as unknown as {__tr62: {reveal: boolean, proxies: number, samples: number, bandWithCard: boolean, bandWhileFlying: boolean}};
-        w.__tr62 = {reveal: false, proxies: 0, samples: 0, bandWithCard: false, bandWhileFlying: false};
+        type Probe = {embedded: boolean, standalone: boolean, deckDeal: boolean, samples: number, bandWithCard: boolean, bandWithDraw: boolean,
+          intake: number, tuckedWhileIntake: number};
+        const w = window as unknown as {__tr62: Probe};
+        w.__tr62 = {embedded: false, standalone: false, deckDeal: false, samples: 0, bandWithCard: false, bandWithDraw: false, intake: 0, tuckedWhileIntake: 0};
         const sample = () => {
           w.__tr62.samples++;
-          if (document.querySelector('.con-reveal, .con-deckdraw') !== null) {
-            w.__tr62.reveal = true;
+          // «ПРИЁМКА»: the ONE reveal stands inside the Parliament's draw stage — never the standalone band over the sitting.
+          const embedded = document.querySelector('.con-parl [data-parl-draw] [data-embed-slot="parliament-draw"] .con-reveal--embedded') !== null;
+          w.__tr62.embedded = w.__tr62.embedded || embedded;
+          if (document.querySelector('.con-reveal:not(.con-reveal--embedded)') !== null) {
+            w.__tr62.standalone = true;
           }
-          const flying = document.querySelectorAll('.con-handdelivery-layer .con-deal-proxy').length;
-          w.__tr62.proxies = Math.max(w.__tr62.proxies, flying);
-          // THE BAND names the enactment's tail while the card is in the air (the card, the party come to power).
+          if (document.querySelector('.con-deckdraw') !== null) {
+            w.__tr62.deckDeal = true;
+          }
+          // THE BAND names the enactment's tail while the stage stands (the card, the party come to power).
           const band = document.querySelector('[data-parl-band-zone]')?.getAttribute('data-parl-band') ?? '';
           if (band.startsWith('enact:ruling-draw:')) {
             w.__tr62.bandWithCard = true;
-            if (flying > 0) {
-              w.__tr62.bandWhileFlying = true;
+            if (embedded) {
+              w.__tr62.bandWithDraw = true;
+            }
+          }
+          // THE DOCK COMES UP WHOLE: while cards land, the footer (plate · counter · bar) is never tucked under the section
+          // — the rising fan must not paint over the dock it lands in.
+          if (document.querySelector('.con-root--dock-intake') !== null) {
+            w.__tr62.intake++;
+            if (document.querySelector('.con-footer--behind-workspace') !== null) {
+              w.__tr62.tuckedWhileIntake++;
             }
           }
         };
@@ -374,8 +390,8 @@ for (const preset of PRESETS) {
         window.setInterval(sample, 40);
       });
       await enterSittingByPass(page, request, playerId);
-      // THE STORYBOARD of the enactment (TM_E2E_STORYBOARD=1, acceptance on the GPU): the tact from the pass to
-      // the card's touchdown in the dock — the seals changing places, then the card off the deck under the band's line.
+      // THE STORYBOARD of the enactment (TM_E2E_STORYBOARD=1, acceptance on the GPU): the tact from the pass to the
+      // card standing in the draw stage — the seals changing places, then the card off the deck into the reveal's slot.
       if (process.env.TM_E2E_STORYBOARD === '1') {
         // Back to back, as JPEG (a 4K PNG costs more than the card's whole flight): the frames are evidence, not art.
         fs.mkdirSync(path.join(OUT, preset.id), {recursive: true});
@@ -387,17 +403,38 @@ for (const preset of PRESETS) {
       const after = await wireOf(request, playerId);
       expect(after.cardsInHand?.length, 'the server: ONE card for the change of power').toBe(hand + 1);
       expect(accessOf(after, after.thisPlayer.color, REDS)?.allied?.[0], 'the Reds by the alliance — Mars First rules').toMatchObject({via: MARS, road: 'ruling'});
-      await expect.poll(() => page.evaluate(() => (window as unknown as {__tr62: {proxies: number}}).__tr62.proxies), {timeout: 60_000, message: 'the card flew into the dock'})
-        .toBeGreaterThan(0);
-      await waitSittingAtRest(page, 30_000);
-      await shoot(page, preset.id, '11-enact-after');
-      const probe = await page.evaluate(() => (window as unknown as {__tr62: {reveal: boolean, samples: number, bandWithCard: boolean, bandWhileFlying: boolean}}).__tr62);
-      expect(probe.samples, 'the probe ran').toBeGreaterThan(20);
-      expect(probe.reveal, 'no reveal and no deck-draw scene over the sitting — the intake carries the card').toBe(false);
-      expect(probe.bandWithCard, 'the band names the tail of the enactment — the card that answered the change of power').toBe(true);
-      expect(probe.bandWhileFlying, '…while the card is in the air').toBe(true);
+      // THE DRAW STAGE: Tharsis Alliance on its hero, the card dealt off the deck into the embedded reveal, ready to take.
+      const stage = page.locator('.con-parl [data-parl-draw]');
+      const reveal = stage.locator('.con-reveal--embedded');
+      await expect.poll(async () => await reveal.getAttribute('data-take').catch(() => null), {timeout: 60_000, message: 'the card stands in the draw stage, ready to take'})
+        .toBe('ready');
+      // …and LANDED: the deal off the deck has handed over (no scene left over the card), the bar offers the take.
+      await expect(page.locator('.con-deckdraw'), 'the deal has handed the card over').toHaveCount(0, {timeout: 30_000});
+      await expect.poll(() => page.locator('.con-cmdbar').innerText(), {timeout: 15_000, message: 'the bar offers the take'}).toMatch(/взять/i);
+      await expect(stage).toHaveAttribute('data-pdraw-card', CARD);
+      await expect(page.locator('.con-parl [data-sit-draw-layer]'), 'a LAYER of the sitting\'s reward chassis').toHaveCount(1);
+      await shoot(page, preset.id, '11-enact-draw-stage');
+      // THE WALK WAITS FOR THE TAKE: the enactment page holds, the dock has not grown.
+      await cinematicBeat(page, 1500, 'the walk would have moved on by now if it did not wait for the take');
+      expect(await parliament(page).getAttribute('data-sitting-stage'), 'the sitting stands on its enactment page until the take').toBe('enact');
+      expect(await reveal.getAttribute('data-take'), 'the card still waits for the player').toBe('ready');
+      expect(Number(await page.locator('[data-hand-total]').getAttribute('data-hand-total')), 'nothing landed before the take').toBe(hand);
+      // A — «Взять»: the card leaves the stage for the dock, and the stage folds.
+      expect(await pressUntil(page, 'Enter', async () => await stage.count() === 0, {settleMs: 1500}), 'the take ends the draw stage').toBe(true);
       await expect.poll(() => page.evaluate(() => Number(document.querySelector('[data-hand-total]')?.getAttribute('data-hand-total') ?? NaN)), {timeout: 20_000})
         .toBe(hand + 1);
+      await waitSittingAtRest(page, 30_000);
+      await shoot(page, preset.id, '11-enact-after');
+      const probe = await page.evaluate(() => (window as unknown as {__tr62: {embedded: boolean, standalone: boolean, deckDeal: boolean, samples: number,
+        bandWithCard: boolean, bandWithDraw: boolean, intake: number, tuckedWhileIntake: number}}).__tr62);
+      expect(probe.samples, 'the probe ran').toBeGreaterThan(20);
+      expect(probe.embedded, 'the card was received IN the sitting').toBe(true);
+      expect(probe.standalone, 'never the standalone reveal over the sitting').toBe(false);
+      expect(probe.deckDeal, 'the card came off the deck pile').toBe(true);
+      expect(probe.bandWithCard, 'the band names the tail of the enactment — the card that answered the change of power').toBe(true);
+      expect(probe.bandWithDraw, '…while the card stands in the draw stage').toBe(true);
+      expect(probe.intake, 'the take flew the card into the dock').toBeGreaterThan(0);
+      expect(probe.tuckedWhileIntake, 'the footer is never tucked under the section while cards land in the dock').toBe(0);
       expect(await strandedReports(page)).toEqual([]);
     });
   });

@@ -135,9 +135,9 @@ for (const preset of PRESETS) {
 
       await pressPlay(page, posts);
       await page.locator('.con-hand .con-parl--embedded[data-walk-beat]').waitFor({timeout: 40_000});
-      // ⑦ — the card step's card stands in the received-cards scene; A takes it.
-      await expect(page.locator('.con-reveal--scene:not(.con-reveal--bonus-held):not(.con-reveal--bonus-veiled) [data-zoom-slot]'),
-        'the step\'s card stands in the scene').toHaveCount(1, {timeout: 40_000});
+      // ⑦ — the card step's card stands in the Parliament's draw stage («ПРИЁМКА» — the embedded reveal); A takes it.
+      await expect(page.locator('.con-parl [data-parl-draw] .con-reveal--embedded:not(.con-reveal--bonus-held):not(.con-reveal--bonus-veiled) [data-zoom-slot]'),
+        'the step\'s card stands in the Parliament\'s draw stage').toHaveCount(1, {timeout: 40_000});
       await shoot(page, preset.id, 'b-card-step');
       expect(await pressUntil(page, 'Enter', async () => await page.locator('dialog.con-zoom[open], .con-reveal').count() === 0, {tries: 6, settleMs: 1500}), 'A takes the card').toBe(true);
       await waitFlowLeft(page);

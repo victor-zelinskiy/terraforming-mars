@@ -941,3 +941,93 @@ html.con-profile-handheld .con-tans__why { font-size: .62rem; }
     background: linear-gradient(180deg, rgb(9, 15, 23), rgb(7, 12, 19) 46%, rgb(5, 9, 15));
     > .con-tans { flex: 1 1 auto; }
 }
+
+/* ══ «ПРИЁМКА» (2026-11-02) — a card drawn in the Parliament is RECEIVED in the Parliament: the ONE reveal instance is
+   teleported into this stage's zone (`parliamentDraw.ts`), the player takes it, the flow that drew it waits. The
+   «ОТВЕТ СТОЛА» chassis and its two hosts: the section's own stage kind (the quest, a card's walk — the body swap over
+   the TABLE) and a LAYER of the sitting's reward chassis (the enactment's tail, the Career's walks). The HERO is the card
+   that drew (TR62 Tharsis Alliance) beside its result; a Career step has none (its cover rises off the step below, in
+   plain view), so the zone takes the stage. The room's own paint (flat, opaque); it titles nothing. Invariant 15: no
+   halo anywhere here. ══ */
+.con-pdraw {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 1rem;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    padding: .2rem .4rem .3rem;
+    &--solo { grid-template-columns: minmax(0, 1fr); }
+    &__hero {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        min-width: 0;
+        min-height: 0;
+        padding: .2rem .4rem;
+    }
+    &__face {
+        display: flex;
+        justify-content: center;
+        min-height: 0;
+        .pcard { zoom: var(--con-parl-enact-zoom, var(--con-parl-gov-zoom)); }
+    }
+    /* The WHY under the face — the change the card answered: the party's seal, its name, «теперь у власти». */
+    &__why {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .72rem;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        color: fade(@con-text, 82%);
+        white-space: nowrap;
+    }
+    &__emblem { width: 1.3em; height: 1.3em; object-fit: contain; }
+    &__party { font-weight: 700; color: fade(@con-parl-gold, 92%); }
+    &__rule { color: fade(@con-text, 66%); }
+    &__zone {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+    }
+    /* The zone GIVES the room (the `[data-embed-slot] > *` contract takes it): a definite box, a column for the guest. */
+    &__embed {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+        > .con-reveal { flex: 1 1 auto; width: 100%; }
+    }
+}
+html.con-profile-tv .con-pdraw__why { font-size: .9rem; }
+html.con-profile-handheld .con-pdraw__why { font-size: .62rem; }
+/* The section's own stage kind (the quest, a card's walk): the sitting's field paint on the stage plate. */
+.con-parl .con-parl__stage.con-parl__stage--draw {
+    border-radius: 0;
+    background: linear-gradient(180deg, rgb(9, 15, 23), rgb(7, 12, 19) 46%, rgb(5, 9, 15));
+    box-shadow: none;
+    padding: .2rem 0 .3rem;
+    display: flex;
+    > .con-pdraw { flex: 1 1 auto; }
+}
+/* The sitting's LAYER: over the reward chassis — above the answer layer (a draw is the newer beat of the two). */
+.con-sit__draw {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    background: linear-gradient(180deg, rgb(9, 15, 23), rgb(7, 12, 19) 46%, rgb(5, 9, 15));
+    > .con-pdraw { flex: 1 1 auto; }
+}

@@ -65,6 +65,7 @@ import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {drawnBatchGoesFullscreen} from '@/client/console/consoleRevealPresentation';
 import {intakeAssemblyOwnsBatch} from '@/client/console/cardIntake/intakeAssemblyPlan';
 import {continueIntakeAssembly, releaseIntakeGuest} from '@/client/console/cardIntake/intakeAssembly';
+import {parliamentDrawReady} from '@/client/console/parliament/parliamentDraw';
 
 /** The natural (unscaled) FaceLite height — mirrors the premium card frame (320×460). */
 const CARD_NATURAL_H = 460;
@@ -629,6 +630,12 @@ export default defineComponent({
       await waitRewardPayoutQuiet({
         alive: () => boardCardBonusState.active && boardCardBonusState.stagedEventId === e.id,
       });
+      if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
+        return;
+      }
+      // «ПРИЁМКА»: a Career card step received in the Parliament flies into the draw stage's slots — they exist only
+      // once the stage has entered (the cover keeps its hover over the step until then; bounded by the stage's net).
+      await parliamentDrawReady(e);
       if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
         return;
       }
