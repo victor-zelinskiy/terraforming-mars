@@ -55,6 +55,7 @@ import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {CardReactionRecord} from '@/common/models/CardReactionModel';
 import {activeAnimationHoldLabels, blockingAnimationHoldCount, registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -88,6 +89,7 @@ import {
 } from '@/client/console/cardReaction/cardReactionStage';
 import {ReactorEmergence, describeReactorPlaces, findReactorPlace, reactorPlaceArriving, settleInPlace} from '@/client/console/cardReaction/reactorPlaces';
 import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnds';
+import {ReactionCausePlate, causePlateOf} from '@/client/console/cardReaction/reactionCausePlate';
 import {buildCardReactionSummaryNotification} from '@/client/console/cardReaction/cardReactionSummary';
 import {pushTransient} from '@/client/components/notifications/notificationState';
 import {
@@ -305,7 +307,10 @@ function liveModelOf(view: PlayerViewModel | undefined, card: CardName): CardMod
  * the stage's size, the art decoded) so a rise starts on a laid-out face. Reduced motion claims the records and holds
  * nothing.
  */
-export function seedCardReactionHolds(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined, heldBefore: Record<string, number>): void {
+export function seedCardReactionHolds(
+  before: PlayerViewModel | undefined, after: PlayerViewModel | undefined, heldBefore: Record<string, number>,
+  opts?: {only?: (record: CardReactionRecord) => boolean},
+): void {
   // The answers the hosts PROMISED in this block — taken every block, so a declaration never outlives its response.
   const declared = takeDeclaredAnswers();
   const block = seedBlockOpen ? seedBlock : ++seedBlock;
@@ -315,7 +320,10 @@ export function seedCardReactionHolds(before: PlayerViewModel | undefined, after
   }
   const viewer = after.thisPlayer?.color;
   const sameSeat = before !== undefined && before.thisPlayer?.color === viewer;
-  const fresh = freshCardReactions(before?.game?.cardReactions, after.game?.cardReactions, sameSeat).filter((r) => !claimedSeqs.has(r.seq));
+  // A PARTIAL seed (a staged MarsBot turn's delivery — `opts.only` its own records) claims only what it names: the rest
+  // stays fresh for the run's full commit.
+  const fresh = freshCardReactions(before?.game?.cardReactions, after.game?.cardReactions, sameSeat)
+    .filter((r) => !claimedSeqs.has(r.seq) && (opts?.only === undefined || opts.only(r)));
   if (fresh.length === 0) {
     return;
   }
@@ -552,6 +560,12 @@ function seatModelOf(view: PlayerViewModel | undefined, owner: Color, card: Card
   return view?.players?.find((p) => p.color === owner)?.tableau.find((c) => c.name === card);
 }
 
+/** The cause plate of a group told at the stage — what ANOTHER seat did that woke the card (`reactionCausePlate.ts`). */
+function causePlateFor(group: CardReactionGroup): ReactionCausePlate | undefined {
+  const seats = (lastView?.players ?? []).map((p) => ({color: p.color, name: p.name, isMarsBot: p.isMarsBot}));
+  return causePlateOf(group.record, lastView?.thisPlayer?.color, seats);
+}
+
 /** A rival's caption: its seat's colour and name. */
 function seatCaptionOf(view: PlayerViewModel | undefined, owner: Color): ReactorCaption {
   return {color: owner, name: view?.players?.find((p) => p.color === owner)?.name ?? owner};
@@ -564,6 +578,8 @@ type RiseOpts = {
   slots: ReadonlyArray<RectLike>;
   model?: CardModel;
   caption?: ReactorCaption;
+  /** What another seat did that woke the card (`causePlateOf`) — painted under a face risen at the stage. */
+  cause?: ReactionCausePlate;
   /** The read beat the effect row is lit for. */
   readMs: number;
   /**
@@ -601,7 +617,7 @@ async function rise(group: CardReactionGroup, slot: number, view: PlayerViewMode
     return {group, key, face: undefined, via: 'none'};
   }
   const seat = opts.slots[slot % opts.slots.length];
-  const face: ReactorFace = {key, name: group.card, seq: group.record.seq, kind: group.record.kind, card: opts.model ?? liveModelOf(view, group.card), seat, caption: opts.caption};
+  const face: ReactorFace = {key, name: group.card, seq: group.record.seq, kind: group.record.kind, card: opts.model ?? liveModelOf(view, group.card), seat, caption: opts.caption, cause: opts.cause};
   const seated = await seatReactor(face);
   if (seated === undefined) {
     dropWarmFacesOf([group.record.seq]);
@@ -1067,7 +1083,7 @@ function runStep(entry: Standalone, slot: number, t: ReactionTempo, slots: Reado
       if (epoch !== myEpoch) {
         return;
       }
-      const risen = await rise(entry.group, slot, undefined, undefined, {slots, readMs: t.holdMs + TRANSFER_POP_MS});
+      const risen = await rise(entry.group, slot, undefined, undefined, {slots, readMs: t.holdMs + TRANSFER_POP_MS, cause: causePlateFor(entry.group)});
       if (epoch !== myEpoch) {
         return;
       }
@@ -1282,6 +1298,7 @@ async function playRivals(myEpoch: number): Promise<void> {
       slots: stageSlotsFor(1, REACTION_RIVAL_SCALE),
       model: seatModelOf(lastView, entry.owner, entry.group.card),
       caption: seatCaptionOf(lastView, entry.owner),
+      cause: causePlateFor(entry.group),
       readMs: t.holdMs + TRANSFER_POP_MS,
     });
     if (epoch !== myEpoch) {

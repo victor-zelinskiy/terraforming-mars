@@ -38,6 +38,18 @@
         <span class="con-reaction__caption-dot" :class="'player_bg_color_' + face.caption.color" aria-hidden="true"></span>
         <span class="con-reaction__caption-name">{{ face.caption.name }}</span>
       </div>
+      <!-- THE CAUSE PLATE (P46): what ANOTHER seat did that woke the card — the colony's planet, its name, the seat
+           that built it (MarsBot is one more seat) — read off the server's `cause.colony`; it stands with the face. -->
+      <div v-if="face.cause !== undefined && face.warm !== true" class="con-reaction__cause"
+           :data-reaction-cause="face.cause.kind"
+           :data-cause-colony="face.cause.colony"
+           :data-cause-builder="face.cause.builder.color">
+        <ConsolePlanetDisc class="con-reaction__cause-planet" :colony="face.cause.colony" />
+        <span class="con-reaction__cause-name">{{ $t(face.cause.colony) }}</span>
+        <span class="con-reaction__cause-sep" aria-hidden="true">·</span>
+        <span class="con-reaction__caption-dot" :class="'player_bg_color_' + face.cause.builder.color" aria-hidden="true"></span>
+        <span class="con-reaction__cause-seat">{{ face.cause.builder.name }}</span>
+      </div>
       <!-- An ENACTED LAW's face (iteration 4): the resolution's own anatomy from the parliament manifest — the same
            object the government shows and the composer's law hero; its printed effect row carries the icons the
            tokens are born on. -->
@@ -54,6 +66,7 @@
 import {defineComponent} from 'vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
+import ConsolePlanetDisc from '@/client/components/console/ConsolePlanetDisc.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyPremiumVm} from '@/client/components/premiumCard/partyPremiumVm';
@@ -69,7 +82,7 @@ import {abortCardReactions} from '@/client/console/cardReaction/cardReactionDire
 
 export default defineComponent({
   name: 'ConsoleCardReactionLayer',
-  components: {ConsoleCardFaceLite, PremiumCard},
+  components: {ConsoleCardFaceLite, PremiumCard, ConsolePlanetDisc},
   data() {
     return {
       cardReactionState,

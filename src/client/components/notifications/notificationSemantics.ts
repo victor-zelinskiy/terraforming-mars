@@ -96,6 +96,8 @@ export type ViewerImpactCause = {
   triggerCard?: CardName;
   /** For a 'global-parameter' trigger: the ONE scale the chain raised, when unambiguous (PL-051 — «за шаг Венеры»). */
   triggerParameter?: GlobalParameter;
+  /** For a 'colony-added' trigger: the ONE tile the chain built on, read off its build bonus (P46 — «за колонию: Луна»). */
+  triggerColony?: ColonyName;
   /** What the ACTOR did that fired this cause (TR59) — see {@link ViewerCauseVia}. */
   via?: ViewerCauseVia;
   gains: ReadonlyArray<JournalImpactChip>;
@@ -305,7 +307,7 @@ export function viaOfRoot(origin: ViewerCauseOrigin, root: GameEvent | undefined
 /** Structural context for the trigger phrase: the ONE tile the chain placed /
  *  the root card that was played — only when unambiguous. */
 function triggerContextOf(cause: {trigger?: EventTrigger}, chain: ReadonlyArray<GameEvent>, root: GameEvent | undefined):
-  {triggerTile?: TileType; triggerCard?: CardName; triggerParameter?: GlobalParameter} {
+  {triggerTile?: TileType; triggerCard?: CardName; triggerParameter?: GlobalParameter; triggerColony?: ColonyName} {
   if (cause.trigger === 'tile-placed' || cause.trigger === 'tile-adjacency') {
     const tiles = chain.filter((e) => e.type === 'tile-placed' && e.tile !== undefined);
     if (tiles.length === 1) {
@@ -318,6 +320,16 @@ function triggerContextOf(cause: {trigger?: EventTrigger}, chain: ReadonlyArray<
     if (s !== undefined && (s.kind === 'card' || s.kind === 'corporation')) {
       return {triggerCard: s.card};
     }
+  }
+  if (cause.trigger === 'colony-added') {
+    // The tile the chain BUILT on — its build bonus is the one event that names it (one tile names it, two keep the tail).
+    const built = new Set(chain
+      .map((e) => (e.source?.kind === 'colony' && e.source.benefit === 'build' ? e.source.name : undefined))
+      .filter((name): name is ColonyName => name !== undefined));
+    if (built.size === 1) {
+      return {triggerColony: [...built][0]};
+    }
+    return {};
   }
   if (cause.trigger === 'global-parameter') {
     // The scale the chain RAISED (a lowering is no trigger): one parameter names it, two keep the generic tail.

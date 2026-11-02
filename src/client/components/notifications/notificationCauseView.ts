@@ -123,6 +123,7 @@ const TRIGGER_WITH_PARAM: Partial<Record<EventTrigger, string>> = {
   'tile-adjacency': 'for a tile next to it: ${0}',
   'card-played': 'for playing: ${0}',
   'card-played-by-any': 'for playing: ${0}',
+  'colony-added': 'for a colony on ${0}',
 };
 
 /** The three base tiles read as complete phrases (clean declension in RU —
@@ -188,6 +189,9 @@ function triggerOf(cause: ViewerImpactCause, nameKey: string): {triggerKey?: str
       return {triggerKey: base};
     }
     return {triggerKey: TRIGGER_WITH_PARAM[trigger], triggerParamKey: tileTypeToString[cause.triggerTile]};
+  }
+  if (trigger === 'colony-added' && cause.triggerColony !== undefined) {
+    return {triggerKey: TRIGGER_WITH_PARAM[trigger], triggerParamKey: cause.triggerColony};
   }
   if (trigger === 'global-parameter' && cause.triggerParameter !== undefined) {
     const step = PARAM_STEP_TRIGGER[cause.triggerParameter];

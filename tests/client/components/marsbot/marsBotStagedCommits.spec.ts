@@ -12,7 +12,9 @@ import {
 import {
   botStagingState,
   applyTurnVisual,
+  beginBotStaging,
   deliverBotTurnVisual,
+  registerBotTurnApplied,
   isBotStagingActive,
   resetBotStaging,
 } from '@/client/components/marsbot/marsBotStagedCommits';
@@ -458,6 +460,28 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
       expect(committed).eq(1);
       expect(isBotStagingActive()).eq(false);
       expect(ackUrls.filter((u) => u.includes('key=red%3A1%3A2'))).to.have.length(1);
+    });
+  });
+
+  describe('a delivered turn tells what it woke at ITS delivery (P46 — registerBotTurnApplied)', () => {
+    it('the hook runs once per intermediate turn, after its footprint, with the buffered latest — never for the full commit of the run', () => {
+      const seen: Array<{id: number, presentedMc: number, latest: boolean}> = [];
+      const latest = makeView({botMc: 9});
+      const presented = makeView();
+      const off = registerBotTurnApplied((p, l, turn) => {
+        seen.push({id: turn.id, presentedMc: botMcOf(p as PlayerViewModel), latest: l === latest});
+      });
+      try {
+        const turns = [turnWithVisual(1, {mc: [0, 4]}), turnWithVisual(2, {mc: [4, 9]})];
+        beginBotStaging(presented, turns.map((turn) => ({key: `red:1:${turn.id}`, turn})), latest, commitLatest);
+        expect(deliverBotTurnVisual('red:1:1')).eq('applied');
+        expect(seen).deep.eq([{id: 1, presentedMc: 4, latest: true}]);
+        expect(deliverBotTurnVisual('red:1:2')).eq('committed');
+        expect(seen, 'the last turn rides the full commit (its own seed)').to.have.lengthOf(1);
+        expect(committed).eq(1);
+      } finally {
+        off();
+      }
     });
   });
 });

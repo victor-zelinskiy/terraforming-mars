@@ -61,6 +61,46 @@
     box-shadow: inset 0 0 0 2px fade(#000, 35%);
 }
 
+/* THE CAUSE PLATE (P46): under a face told at the stage, what ANOTHER seat did
+   that woke it — the colony's planet, its name, the builder's dot and name. A
+   neutral glass plate with one hairline kant: material, never light. In the
+   face's natural px, riding its scale (one object). */
+.con-reaction__cause {
+    position: absolute;
+    left: 50%;
+    top: 100%;
+    margin-top: 16px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 20px 8px 10px;
+    border-radius: 999px;
+    background: rgba(8, 14, 22, .92);
+    box-shadow: inset 0 0 0 2px fade(#fff, 14%);
+    font-family: @con-font;
+    font-size: 26px;
+    font-weight: 400;
+    font-synthesis: none;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: fade(#fff, 90%);
+    white-space: nowrap;
+}
+
+.con-reaction__cause-planet {
+    --con-planet-size: 40px;
+    flex: none;
+}
+
+.con-reaction__cause-sep {
+    color: fade(#fff, 45%);
+}
+
+.con-reaction__cause-seat {
+    color: fade(#fff, 72%);
+}
+
 /* THE WHY — the effect row that fired wears a one-shot kant for the read beat
    (invariant 15's licence: a `@keyframes` that ends on its own). Its length is
    the beat's (`--con-reaction-row-ms`, written by the director). */

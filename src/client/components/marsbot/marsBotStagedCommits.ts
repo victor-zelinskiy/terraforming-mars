@@ -277,6 +277,25 @@ export function applyTurnVisual(view: ViewModel, turn: MarsBotTurn, opts?: {
   }
 }
 
+/**
+ * What else a DELIVERED turn owes the screen beside its footprint (P46 Colony Trade Hub): the card reactions the
+ * turn woke (a human's «when any colony is placed» on the bot's build) are told AT the delivery of that turn — the
+ * same moment its card names them in the «why» band — never after the whole run's commit. The transport registers
+ * the seeder (it owns the reaction director's apply-block seat); called in the SAME synchronous block as the
+ * footprint's mutation, so the rail never paints a frame of the turn's value without its hold.
+ */
+type BotTurnAppliedHook = (presented: ViewModel, latest: ViewModel, turn: MarsBotTurn) => void;
+let botTurnAppliedHook: BotTurnAppliedHook | undefined;
+
+export function registerBotTurnApplied(hook: BotTurnAppliedHook): () => void {
+  botTurnAppliedHook = hook;
+  return () => {
+    if (botTurnAppliedHook === hook) {
+      botTurnAppliedHook = undefined;
+    }
+  };
+}
+
 // ── the staging window ───────────────────────────────────────────────────────
 
 /**
@@ -355,6 +374,7 @@ export function deliverBotTurnVisual(key: string): 'committed' | 'applied' | 'no
     const turn = batch.turnsByKey.get(next);
     if (turn !== undefined) {
       applyTurnVisual(batch.presented, turn, {aresGrants: batch.latest.game.aresAdjacencyGrants, placements: batch.latest.game.tilePlacements});
+      botTurnAppliedHook?.(batch.presented, batch.latest, turn);
     }
     batch.pendingKeys.shift();
     batch.turnsByKey.delete(next);

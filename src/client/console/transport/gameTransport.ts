@@ -215,6 +215,7 @@ import {resetColonyBonusPayout, seedColonyBonusPayoutHolds} from '@/client/conso
 import {abortBotAttackCommit} from '@/client/console/botAttack/botAttackState';
 import {clearDecisionPickAnswered} from '@/client/console/effectDecision/effectDecisionState';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
+import {registerBotTurnApplied} from '@/client/components/marsbot/marsBotStagedCommits';
 // The GAME START WORKSPACE holds the deployment across prompt gaps. While it
 // does, a submit's response must COMMIT INLINE: the staged-bot pipeline
 // defers the commit to notification deliveries the start scene suppresses —
@@ -393,6 +394,18 @@ export function releaseTransportFunnel(): string {
 }
 
 registerLivenessRelease({rank: 22, name: 'transport', release: releaseTransportFunnel});
+
+// A STAGED MarsBot turn's delivery tells the card reactions THAT turn woke (P46 Colony Trade Hub — a human's
+// «when any colony is placed» on the bot's build): the records under the turn's own root (`correlationId` ===
+// `root.actionId`), seeded in the delivery's own block — the turn's card names them in its «why» band at the same
+// moment, and the run's full commit later finds them claimed (one telling, never two).
+registerBotTurnApplied((presented, latest, turn) => {
+  const root = turn.correlationId;
+  if (root === undefined) {
+    return;
+  }
+  seedCardReactionHolds(presented as PlayerViewModel, latest as PlayerViewModel, snapshotRailHolds(), {only: (r) => r.root.actionId === root});
+});
 
 /**
  * THE SUBMIT FUNNEL IS BUSY — a request is on the wire, or its answer is still being presented behind a cinematic

@@ -97,6 +97,15 @@ describe('notificationCauseView (the «почему» grammar)', () => {
     expect(self?.triggerParamKey).is.undefined;
   });
 
+  it('a colony-added trigger names THE colony built (P46 — «за колонию: Луна»); with none known the generic tail stays', () => {
+    const luna = causeLineOf(cause({kind: 'card', card: CardName.COLONY_TRADE_HUB, owner: 'red'},
+      {own: true, trigger: 'colony-added', triggerColony: ColonyName.LUNA}));
+    expect(luna?.triggerKey).eq('for a colony on ${0}');
+    expect(luna?.triggerParamKey).eq(ColonyName.LUNA);
+    const generic = causeLineOf(cause({kind: 'card', card: CardName.COLONY_TRADE_HUB, owner: 'red'}, {own: true, trigger: 'colony-added'}));
+    expect(generic?.triggerKey).eq('for a built colony');
+  });
+
   it('a global-parameter trigger names ITS scale (PL-051); with no parameter known the generic tail stays', () => {
     const venus = causeLineOf(cause({kind: 'corporation', card: CardName.APHRODITE, owner: 'red'},
       {own: true, trigger: 'global-parameter', triggerParameter: GlobalParameter.VENUS}));

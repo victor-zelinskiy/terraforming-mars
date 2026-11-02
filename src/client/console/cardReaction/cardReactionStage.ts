@@ -41,6 +41,7 @@ import {probeTick} from '@/client/console/probeTick';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {REACTOR_NATURAL_H, ReactionTempo} from '@/client/console/cardReaction/cardReactionModel';
 import {effectRowFor} from '@/client/console/cardReaction/effectIconEnds';
+import {ReactionCausePlate} from '@/client/console/cardReaction/reactionCausePlate';
 
 export {REACTOR_NATURAL_H};
 
@@ -62,6 +63,8 @@ export type ReactorFace = {
   card?: CardModel;
   seat: RectLike;
   caption?: ReactorCaption;
+  /** WHAT ANOTHER SEAT DID that woke the card (P46 — a colony a rival / MarsBot built): painted under the face. */
+  cause?: ReactionCausePlate;
   /** Mounted ahead of its rise — laid out and decoded, never painted (`visibility: hidden` by the layer's own CSS). */
   warm?: boolean;
 };
