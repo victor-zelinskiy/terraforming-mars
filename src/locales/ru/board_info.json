@@ -46,6 +46,7 @@
   "This space is permanently reserved for the Noctis City card and cannot host any other tile.": "Эта клетка навсегда зарезервирована под карту «Город Ноктис»; никакой другой тайл сюда поставить нельзя.",
   "A reserved colony location — tiles cannot be placed here.": "Зарезервированная клетка колонии — тайлы сюда ставить нельзя.",
   "No tiles can ever be placed on this space.": "На эту клетку нельзя поставить ни один тайл.",
+  "No card of yours can hold it — this bonus will be skipped.": "Ни одна ваша карта не примет этот ресурс — бонус будет пропущен.",
   "Volcanic area": "Вулканическая зона",
   "Some cards may only place their tile on a volcanic space.": "Некоторые карты могут размещать свой тайл только на вулканической клетке.",
   "No placement bonus": "Без бонуса размещения",

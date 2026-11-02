@@ -187,6 +187,16 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
     description: 'Ulysses Tholus is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
     placement: 'bottom',
   },
+  {
+    // The map's one special cell: the RESTRICTED centre — nothing is ever placed here. The marker names the rule in
+    // the dossier's own words (the engine's `restricted` fact), so the dead hex in the middle explains itself.
+    id: 'amazonis_restricted',
+    boardName: BoardName.AMAZONIS,
+    spaceId: '33', // y=4, the centre — restricted(), fixed, not shuffled
+    title: 'Restricted area',
+    description: 'No tiles can ever be placed on this space.',
+    placement: 'top',
+  },
   // ── Vastitas Borealis — named locations ────────────────────────────
   {
     id: 'vastitas_elysium_mons',

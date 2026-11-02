@@ -24,6 +24,9 @@ describe('specialCellInfo', () => {
   it('labels the named cells on Amazonis, Vastitas Borealis and Terra Cimmeria', () => {
     expect(getSpecialCellInfo('09', BoardName.AMAZONIS)?.title).eq('Albor Tholus');
     expect(getSpecialCellInfo('49', BoardName.AMAZONIS)?.title).eq('Ulysses Tholus');
+    // The map's one special cell — the restricted centre — is named by the dossier's own rule words.
+    expect(getSpecialCellInfo('33', BoardName.AMAZONIS)?.title).eq('Restricted area');
+    expect(getSpecialCellInfo('33', BoardName.THARSIS)?.title, 'and it stays on Amazonis').not.eq('Restricted area');
     expect(getSpecialCellInfo('07', BoardName.VASTITAS_BOREALIS)?.title).eq('Elysium Mons');
     expect(getSpecialCellInfo('22', BoardName.VASTITAS_BOREALIS)?.title).eq('Alba Mons');
     // The fan map's North Pole is named like the Nova board's — the same printed cell, the same words.

@@ -9,6 +9,7 @@ import {oceanMoveOffer, oceanMoveReasoner} from './oceanMove';
 import {TileMoveOffer} from './tileMove';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
+import {CardResource} from '../../common/CardResource';
 import {SpaceType} from '../../common/boards/SpaceType';
 import {CITY_TILES, OCEAN_TILES, GREENERY_TILES, HAZARD_TILES, TileType, tileTypeToString} from '../../common/TileType';
 import {HAZARD_STEPS, hazardSeverity} from '../../common/AresTileType';
@@ -611,6 +612,20 @@ function printedBonusFacts(player: IPlayer, space: Space, covering: boolean, mul
 function contextualBonusFacts(player: IPlayer, bonus: SpaceBonus, count: number): Array<BoardFact> | undefined {
   const game = player.game;
   const source = {type: 'board-cell' as const, label: 'Cell bonus'};
+  // A printed CARD-RESOURCE bonus (Amazonis' microbes and animals) lands on a card of the player's — and with no card
+  // that can hold it the engine SKIPS it by name (`AddResourcesToCard` → `SKIP_REASON.noHolder`). The dossier says so
+  // before the press instead of promising a resource that will be lost.
+  const holderless = bonus === SpaceBonus.MICROBE ? CardResource.MICROBE : bonus === SpaceBonus.ANIMAL ? CardResource.ANIMAL : undefined;
+  if (holderless !== undefined) {
+    if (player.getResourceCards(holderless).length === 0) {
+      return [{
+        ...rule('printed-card-resource-skipped', 'printed-placement-bonus', 'Add to a card',
+          'No card of yours can hold it — this bonus will be skipped.', 'neutral'),
+        source,
+      }];
+    }
+    return undefined;
+  }
   if (bonus === SpaceBonus.TEMPERATURE_4MC) {
     if (divertsTerraforming(player)) {
       return undefined; // A standing law takes the step — its own fact family speaks for it.
