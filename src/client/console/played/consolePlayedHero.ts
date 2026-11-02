@@ -1955,7 +1955,11 @@ async function payBackFromStandingCard(mine: () => boolean): Promise<void> {
     if (spec.channel !== 'card-resource' || spec.targetCard === undefined) {
       return undefined;
     }
-    const mini = firstVisibleEnd(`.con-composer--play [data-composer-card="${escapeName(spec.targetCard)}"]`);
+    const name = escapeName(spec.targetCard);
+    // …or the START SHELF's top face (P43 · EN): a prelude's «add N here» lands on its OWN capsule on the shelf it just
+    // settled on — the shelf is a receiving host (TR82), so the tokens are born on the printed «6 [science]» and tick it.
+    const mini = firstVisibleEnd(`.con-composer--play [data-composer-card="${name}"]`) ??
+      firstVisibleEnd(`.con-start__played [data-played-face="${name}"] .con-splayed__face`);
     return mini === undefined ? undefined : {el: mini, fx: 0.5, fy: 0.5};
   };
   await railWaveWithPrintedVp(rewards, source, release, onComposerCard);

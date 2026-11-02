@@ -8966,7 +8966,7 @@ export default defineComponent({
      * manifest comes from. Runs while the player reads the cards (never gating
      * the press): a card whose fetch hasn't landed simply arms without a beat.
      *
-     * Only STOCK / PRODUCTION gains ride the beat here: a card-resource gain
+     * Only STOCK / PRODUCTION gains — and a gain ON THE CARD ITSELF — ride the beat here: any other card-resource gain
      * needs a pre-selected host card, which the ceremony (with no composer)
      * cannot capture — it stays with the ordinary commit + its own follow-up
      * prompt, never a chip flying at a target the player never chose.
@@ -9019,7 +9019,9 @@ export default defineComponent({
               effects: branch.effects,
               steps: branch.steps,
               stepResponses: {}, // the ceremony pre-collects nothing
-            }).filter((spec) => spec.channel !== 'card-resource');
+            // …except a gain ON THE CARD ITSELF (P43 · EN — «add 6 science here»): it needs no pre-selected host, its
+            // host is the very card the shelf receives, so its tokens fly onto that card's capsule (TR82's receiving shelf).
+            }).filter((spec) => spec.channel !== 'card-resource' || spec.targetCard === name);
             if (rewards.length > 0 && this.rewardVersion === version) {
               this.playRewards.set(name, rewards);
             }

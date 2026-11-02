@@ -389,6 +389,16 @@
                                :input="venusSubChoice.input" :parts="venusPartsOf(venusSubChoice)"
                                :focus="sub.focus" :stock="venusStock" />
 
+        <!-- THE WILD-RESOURCE CHOICE (P43 · EN / EO): the printed «?» row's inner step — the SHARED component, exclusive:
+             the OR is the branch, its slot the branch's own answer (the candidates · the six as a radio). -->
+        <ConsoleWildChoiceStep v-else-if="sub !== undefined && sub.kind === 'wild' && wildSpec !== undefined"
+                               class="con-composer__venusstep"
+                               :spec="wildSpec" :parts="wildParts" :focus="sub.focus" :stock="venusStock"
+                               :head="{title: 'Resource of your choice', reading: ''}"
+                               :titles="{asStandard: 'Standard resource'}"
+                               :descs="{onCard: 'A card that already has a resource', asStandard: 'Any of the six, your choice'}"
+                               :candidates="wildCandidateModels" :vp-box="wildVpBox" :resource-by-card="wildResourceByCard" />
+
         <!-- SUB-STATE: a premium pick list (card / player / or), and the SAME
              list one level deeper when the chosen or-branch is itself an input
              («выберите карту» inside a removal that also offers the bot). -->
@@ -437,7 +447,28 @@
                  composer's «ИЛИ» does: ←→ switch the tiles while the cursor stands in a row, ↑↓ leave the group;
                  stacked (the cluster too narrow), ↑↓ walk them as rows (`variantGroupNav`, the measured
                  `data-variant-axis`). -->
-            <ConsoleVariantChoice v-if="item.kind === 'branch' && item.pos === branchItemPositions[0]"
+            <!-- THE WILD-RESOURCE ROW (P43 · EN): the card's ONE printed «?» over its two branches — a DOOR into the shared
+                 inner step; answered, it reads the answer in chips («[сталь] +1» · «[животное] +1 · Птицы»). The price
+                 stands once, in the formula above (a row never repeats what the screen already prints). -->
+            <div v-if="item.kind === 'wild'"
+                 class="con-composer__row con-composer__wildrow"
+                 :class="{'con-composer__row--focused': isFocused(item), 'con-composer__row--missing': wildAnswer === undefined}"
+                 data-choice-kind="wild" data-wild-row :data-wild-answered="wildAnswer !== undefined ? '' : undefined"
+                 :ref="isFocused(item) ? 'focusedEl' : undefined">
+              <span class="con-composer__wildrow-print">
+                <i class="con-composer__wildrow-wild" :class="iconClass('wild')" aria-hidden="true" data-wild-row-glyph></i>
+              </span>
+              <span v-if="wildAnswer === undefined" class="con-composer__wildrow-ask">{{ $t('Choose: on a card or a standard resource') }}</span>
+              <span v-else-if="wildAnswer.kind === 'standard'" class="con-composer__wildrow-answer" data-wild-row-answer="standard">
+                <i class="con-composer__wildrow-icon" :class="iconClass(wildAnswer.resource)" aria-hidden="true"></i><b>+{{ wildAnswer.amount }}</b>
+              </span>
+              <span v-else class="con-composer__wildrow-answer" data-wild-row-answer="card" :data-wild-row-card="wildAnswer.card">
+                <i v-if="wildResourceByCard[wildAnswer.card] !== undefined" class="con-composer__wildrow-icon" :class="iconClass(wildResourceByCard[wildAnswer.card] ?? '')" aria-hidden="true"></i><b>+{{ wildAnswer.amount }}</b>
+                <span class="con-composer__wildrow-card">{{ $t(wildAnswer.card) }}</span>
+              </span>
+              <span class="con-composer__wildrow-door" aria-hidden="true">›</span>
+            </div>
+            <ConsoleVariantChoice v-else-if="item.kind === 'branch' && item.pos === branchItemPositions[0]"
                                   ref="branchesEl"
                                   class="con-composer__branches"
                                   :layout="branchPalette ? 'palette' : 'compare'"
@@ -1180,6 +1211,11 @@ import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWs
 import ConsoleAmountOperation from '@/client/components/console/foundation/ConsoleAmountOperation.vue';
 import ConsoleVenusBonusRow from '@/client/components/console/foundation/ConsoleVenusBonusRow.vue';
 import ConsoleVenusBonusStep from '@/client/components/console/foundation/ConsoleVenusBonusStep.vue';
+import ConsoleWildChoiceStep from '@/client/components/console/foundation/ConsoleWildChoiceStep.vue';
+import {WildChoiceSpec, WildFocus, WildParts, wildBar, wildClamp, wildComplete, wildFootHints, wildNav, wildOpen, wildPress} from '@/client/console/wildChoice/wildChoiceInner';
+import {
+  WildBranchPlan, WildRowAnswer, wildBranchPlan, wildCandidates, wildCardPick, wildComposerSpec, wildPartsFrom, wildPosOf, wildRowAnswer,
+} from '@/client/console/wildChoice/wildChoiceComposer';
 import {
   VENUS_SPREAD_LANES, VenusBonusParts, venusBonusMetaOf, venusPreselectArm, venusPreselectResponse, venusWhenHolds,
 } from '@/client/console/venusBonus/venusBonusPreselect';
@@ -1276,7 +1312,9 @@ function bodyBlockPin(body: HTMLElement | undefined): string {
 }
 
 type GroupNode = ActionGroup['nodes'][number];
-type Item = {id: string, kind: 'branch', pos: number} | {id: string, kind: 'choice', choice: ComposerChoice};
+type Item = {id: string, kind: 'branch', pos: number} | {id: string, kind: 'choice', choice: ComposerChoice} | {id: string, kind: 'wild'};
+/** The wild-resource choice's two «still open» reasons (P43 · EO) — its own words. */
+const WILD_BLOCK_KEYS = {chooseWild: 'Choose: on a card or a standard resource', chooseCard: 'Choose a card'};
 /** Several cards answered in the hand album for one `or` option, kept as ONE `orDescents` pick. */
 const NESTED_PICK_SEP = '|';
 type SubState =
@@ -1307,7 +1345,9 @@ type SubState =
       *  feel the same whether or not a bot row sits above it in the list. */
      orItem?: ConsoleOrItem}
   /** THE VENUS BONUS'S INNER STEP (P89 · EM) — the 30 % wild, its card and the 2 × 3 standard grid (`venusBonusInner.ts`). */
-  | {kind: 'venus', choiceId: string, focus: VenusInnerFocus};
+  | {kind: 'venus', choiceId: string, focus: VenusInnerFocus}
+  /** THE WILD-RESOURCE CHOICE (P43 · EN / EO) — the printed «?» row's inner step (`wildChoiceInner.ts`, exclusive). */
+  | {kind: 'wild', choiceId: 'wild', focus: WildFocus};
 
 type ListItem = {
   /** This row is the VIEWER, the move costs them, and another target existed. */
@@ -1447,7 +1487,7 @@ const WORKSPACE_REVEAL_ZONE = '[data-embed-slot="workspace-reveal"]';
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ConsoleVariantChoice, ConsoleDeclinePlate, ConsoleColonyLedger, ActionEffectChip, ConsoleCountedWhy, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsoleAmountOperation, ConsoleVenusBonusRow, ConsoleVenusBonusStep, PremiumCard, ConsolePlayedReceivingStage},
+  components: {ConsoleVariantChoice, ConsoleDeclinePlate, ConsoleColonyLedger, ActionEffectChip, ConsoleCountedWhy, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsoleAmountOperation, ConsoleVenusBonusRow, ConsoleVenusBonusStep, ConsoleWildChoiceStep, PremiumCard, ConsolePlayedReceivingStage},
   directives: {embedZone: vEmbedZone, stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1888,7 +1928,31 @@ export default defineComponent({
      * card and the crumb standing still; the whole 2 × 3 grid fits without a scroll.
      */
     venusStepOpen(): boolean {
-      return this.sub?.kind === 'venus';
+      // The wild-resource choice's inner step takes the body's place the same way (P43 · EO).
+      return this.sub?.kind === 'venus' || this.sub?.kind === 'wild';
+    },
+    /** THE WILD-RESOURCE CHOICE (P43 · EN): the plan of the server-stamped pair of branches, or undefined. */
+    wildPlan(): WildBranchPlan | undefined {
+      return wildBranchPlan(this.branches, this.positions);
+    },
+    wildSpec(): WildChoiceSpec | undefined {
+      return this.wildPlan === undefined ? undefined : wildComposerSpec(this.wildPlan, this.branches);
+    },
+    /** The step's draft READ BACK from the composer's own state (the branch + the step answers) — never a second draft. */
+    wildParts(): WildParts {
+      return this.wildPlan === undefined ? {} : wildPartsFrom(this.wildPlan, this.selectedPos, this.captured);
+    },
+    wildAnswer(): WildRowAnswer | undefined {
+      return this.wildPlan === undefined ? undefined : wildRowAnswer(this.wildPlan, this.branches, this.wildParts);
+    },
+    wildCandidateModels(): ReadonlyArray<CardModel> {
+      return this.wildPlan === undefined ? [] : wildCandidates(this.wildPlan, this.branches);
+    },
+    wildVpBox(): Partial<Record<string, {from: number, to: number}>> {
+      return (this.wildPlan === undefined ? undefined : wildCardPick(this.wildPlan, this.branches)?.vpBox) ?? {};
+    },
+    wildResourceByCard(): Partial<Record<string, string>> {
+      return (this.wildPlan === undefined ? undefined : wildCardPick(this.wildPlan, this.branches)?.input.resourceGainPrompt?.cardResourceByCard) ?? {};
     },
     /** The bonus row the Venus inner step answers (P89 · EM). */
     venusSubChoice(): ComposerChoice | undefined {
@@ -1932,15 +1996,24 @@ export default defineComponent({
           out.push({id: c.id, kind: 'choice', choice: c});
         }
       }
-      if (this.needBranchRow) {
+      // THE WILD-RESOURCE ROW (P43): ONE printed row stands for both branches AND their own steps (answered inside it).
+      const wild = this.wildPlan;
+      if (wild !== undefined) {
+        out.push({id: 'wild', kind: 'wild'});
+      } else if (this.needBranchRow) {
         for (const pos of this.positions) {
           out.push({id: 'branch#' + pos, kind: 'branch', pos});
         }
       }
       for (const c of this.branchChoiceList) {
-        if (c.kind !== 'payment') {
-          out.push({id: c.id, kind: 'choice', choice: c});
+        if (c.kind === 'payment') {
+          continue;
         }
+        if (wild !== undefined && c.scope === 'step' &&
+            ((this.selectedPos === wild.standardPos && c.index === wild.resourceStep) || (this.selectedPos === wild.cardPos && c.index === wild.cardStep))) {
+          continue;
+        }
+        out.push({id: c.id, kind: 'choice', choice: c});
       }
       return out;
     },
@@ -2448,6 +2521,9 @@ export default defineComponent({
       if (item.kind === 'branch') {
         return 'branch';
       }
+      if (item.kind === 'wild') {
+        return 'pick';
+      }
       if (item.choice.kind === 'amount') {
         return 'amount';
       }
@@ -2493,6 +2569,10 @@ export default defineComponent({
           const c = this.venusSubChoice;
           const meta = c === undefined ? undefined : venusBonusMetaOf(c.input);
           return c === undefined || meta === undefined ? [] : venusInnerFootHints(venusInnerBar(meta, this.venusPartsOf(c), this.sub.focus));
+        }
+        if (this.sub.kind === 'wild') {
+          const spec = this.wildSpec;
+          return spec === undefined ? [] : wildFootHints(wildBar(spec, this.wildParts, this.sub.focus, WILD_BLOCK_KEYS));
         }
         if (this.sub.kind === 'payment') {
           return focusCommandRun({state: 'sub-payment', covers: this.paymentView?.status.ok === true});
@@ -3057,6 +3137,11 @@ export default defineComponent({
           if (this.selectedPos === undefined && this.branches[item.pos]?.available === true) {
             out.push({index, verb: 'Choose an option', satisfied: false});
           }
+          return;
+        }
+        if (item.kind === 'wild') {
+          // The wild row is ONE requirement: the branch AND its answer, both chosen in its inner step.
+          out.push({index, verb: 'Choose an option', satisfied: this.wildSpec !== undefined && wildComplete(this.wildSpec, this.wildParts)});
           return;
         }
         if (item.choice.repeatAction === true) {
@@ -5080,6 +5165,13 @@ export default defineComponent({
         this.movePlayedTarget(dir);
         return;
       }
+      // The wild-resource choice walks the same 2-D grid (P43 · EO).
+      if (this.sub?.kind === 'wild') {
+        if (this.wildSpec !== undefined) {
+          this.sub = {...this.sub, focus: wildNav(this.wildSpec, this.wildParts, this.sub.focus, dir)};
+        }
+        return;
+      }
       // The Venus bonus's inner step walks its own 2-D grid (the wild's OR · its cards · 2 × 3 resources).
       if (this.sub?.kind === 'venus') {
         const c = this.venusSubChoice;
@@ -5171,6 +5263,53 @@ export default defineComponent({
       this.captured = next;
     },
     /** A on the bonus row: the INNER step opens on the first open question (the wild, its card, then the grid). */
+    // ── THE WILD-RESOURCE CHOICE (P43 · EN / EO) ────────────────────────
+    openWildStep(): void {
+      const spec = this.wildSpec;
+      if (spec !== undefined) {
+        this.sub = {kind: 'wild', choiceId: 'wild', focus: wildOpen(spec, this.wildParts)};
+      }
+    },
+    /**
+     * A press of the inner step: the pure model answers, and its draft is WRITTEN INTO the composer's own state — a
+     * plate selects its branch (`selectBranch` — the branch's captures reset, a sole holder seeded, T14), the slot
+     * captures the branch step's answer. `confirm` / `back` leave the step; the row reads the answer.
+     */
+    wildStepPress(verb: 'primary' | 'back' | 'prevSection' | 'nextSection' | 'nextTab'): void {
+      const sub = this.sub;
+      const plan = this.wildPlan;
+      const spec = this.wildSpec;
+      if (sub?.kind !== 'wild' || plan === undefined || spec === undefined) {
+        return;
+      }
+      const before = this.wildParts;
+      const result = wildPress(spec, before, sub.focus, verb);
+      const wild = result.parts.wild;
+      if (wild !== undefined && wild.wild !== before.wild?.wild) {
+        this.selectBranch(wildPosOf(plan, wild.wild));
+      }
+      const choices = this.branchChoiceList;
+      if (wild?.wild === 'onCard' && wild.card !== undefined && plan.cardStep !== undefined) {
+        const c = choices.find((x) => x.scope === 'step' && x.index === plan.cardStep);
+        if (c !== undefined) {
+          this.captureFor(c, {type: 'card', cards: [wild.card]});
+        }
+      }
+      const unit = Object.entries(result.parts.spread ?? {}).find(([, n]) => n > 0)?.[0];
+      if (wild?.wild === 'asStandard' && unit !== undefined && plan.resourceStep !== undefined) {
+        const c = choices.find((x) => x.scope === 'step' && x.index === plan.resourceStep);
+        if (c !== undefined) {
+          this.captureFor(c, {type: 'resource', resource: unit});
+        }
+      }
+      if (result.exit !== undefined) {
+        this.sub = undefined;
+        this.landCursor();
+        this.scrollFocused();
+        return;
+      }
+      this.sub = {...sub, focus: wildClamp(spec, this.wildParts, result.focus)};
+    },
     openVenusStep(c: ComposerChoice): void {
       const meta = venusBonusMetaOf(c.input);
       if (meta !== undefined) {
@@ -5232,6 +5371,9 @@ export default defineComponent({
           // A variant is an answer: the ONE rule lands the cursor on the next question, or arrives on the commit.
           this.landCursor();
           this.scrollFocused();
+        } else if (item.kind === 'wild') {
+          // The wild row is a DOOR into the shared inner step (P43 · EO).
+          this.openWildStep();
         } else if (item.choice.kind === 'venusBonus') {
           // The Venus bonus's row is a DOOR into its inner step (P89 · EM).
           this.openVenusStep(item.choice);
@@ -6143,6 +6285,12 @@ export default defineComponent({
     onSubPress(action: ConsoleAction): void {
       const sub = this.sub;
       if (sub === undefined) {
+        return;
+      }
+      if (sub.kind === 'wild') {
+        if (action === 'primary' || action === 'back' || action === 'prevSection' || action === 'nextSection' || action === 'nextTab') {
+          this.wildStepPress(action);
+        }
         return;
       }
       if (sub.kind === 'venus') {

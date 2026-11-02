@@ -597,15 +597,16 @@ html.con-profile-handheld {
     &__door { margin-left: auto; font-size: 1.3rem; font-weight: 700; color: @con-text-dim; }
 }
 
-/* THE VENUS BONUS — THE INNER PRE-SELECT (P89 · ledger EM, `ConsoleVenusBonusStep`): a level of the composer in the
-   review's place. Three zones top to bottom — the 30 % finish's OR (two plates side by side), its consequence (ONE slot
-   that never changes height: the candidates' faces or a quiet line), the standard resources on a FIXED 2 × 3 grid. The
-   cursor is the one grammar (`.con-cursor()`); a choice is a KANT + a fill + a seal, never light (invariant 15). */
-@venusstep-gap: .9rem;
-.con-venusstep {
+/* THE WILD-RESOURCE CHOICE (P43 · ledger EO, `ConsoleWildChoiceStep` — extracted from the Venus bonus's inner
+   pre-select, P89 · EM): a level of its host in the review's place. Three zones top to bottom — the OR (the shared
+   variant grammar, `ConsoleVariantChoice`), its consequence (ONE slot that never changes height: the candidates' faces,
+   a quiet line, or — EXCLUSIVE, P43 — the radio grid in the same cell), the standard resources on a FIXED 2 × 3 grid
+   (Venus). The cursor is the one grammar (`.con-cursor()`); a choice is a KANT + a fill, never light (invariant 15). */
+@wildstep-gap: .9rem;
+.con-wildstep {
     display: flex;
     flex-direction: column;
-    gap: @venusstep-gap;
+    gap: @wildstep-gap;
     width: 100%;
     min-width: 0;
     padding: .2rem 0 .4rem;
@@ -632,82 +633,40 @@ html.con-profile-handheld {
         &--quiet { color: @con-text-dim; }
     }
 
-    /* ── the 30 % finish's OR: two plates, «или» between them ── */
-    &__or { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; gap: .6rem; }
-    &__or-word {
-        align-self: center;
-        font-size: .72rem;
-        font-weight: 700;
-        letter-spacing: .1rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-    }
-    &__opt {
-        position: relative;
-        display: flex;
-        align-items: center;
-        gap: .7rem;
-        min-width: 0;
-        padding: .6rem .8rem;
-        border-radius: .55rem;
-        background: rgba(14, 22, 34, 0.7);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
-        .con-cursor(inset 0 0 0 var(--con-focus-ring) @con-cyan; .55rem; none; 1; after; rgba(20, 34, 50, 0.7); -1);
-        &--focused { .con-cursor-on(); }
-        &--chosen {
-            background: rgba(16, 36, 34, 0.92);
-            box-shadow: inset 0 0 0 .08rem fade(@con-mint, 70%);
-        }
-    }
-    &__opt-mark {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 2.4rem;
-        height: 2.4rem;
-        flex: 0 0 auto;
-        border-radius: .45rem;
-        background: rgba(255, 255, 255, 0.03);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
-    }
-    &__opt-icon {
-        display: inline-block;
-        width: 1.9rem;
-        height: 1.9rem;
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: contain !important;
-    }
-    &__opt-mosaic {
-        display: grid;
-        grid-template-columns: repeat(3, .62rem);
-        grid-auto-rows: .62rem;
-        gap: .12rem;
-    }
-    &__opt-tile {
-        display: block;
-        width: .62rem;
-        height: .62rem;
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: contain !important;
-    }
-    &__opt-body { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
-    &__opt-title { font-size: .98rem; font-weight: 700; color: @con-text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* ── the OR: the shared variant grammar's two plates; their second line and the «standard» mosaic ── */
+    &__or { width: 100%; }
+    &__opt { display: inline-flex; align-items: center; gap: .55rem; min-width: 0; }
     &__opt-desc { font-size: .78rem; color: @con-text-dim; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    &__opt-seal {
-        margin-left: auto;
-        font-size: 1rem;
-        font-weight: 800;
-        color: @con-mint;
-        opacity: 0;
-        transition: opacity calc(120ms * var(--motion-scale, 1)) linear;
+    &__opt-wild {
+        display: inline-block;
+        flex: 0 0 auto;
+        width: 2.25rem;
+        height: 2.25rem;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
     }
-    &__opt--chosen &__opt-seal { opacity: 1; }
+    /* The six a «standard resource» may become, in the grid's own order — a 3 × 2 mosaic, never the M€ coin alone (PL-1511). */
+    &__mosaic {
+        display: grid;
+        flex: 0 0 auto;
+        grid-template-columns: repeat(3, 1.05rem);
+        grid-auto-rows: 1.05rem;
+        gap: .15rem;
+    }
+    &__mosaic-tile {
+        display: block;
+        width: 1.05rem;
+        height: 1.05rem;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
 
     /* ── the consequence: ONE slot, the faces / the line in one grid cell ── */
     &__slot { display: grid; min-height: 5.6rem; }
     &__cards,
+    &__face,
     &__note {
         grid-area: 1 / 1;
         transition: opacity calc(160ms * var(--motion-scale, 1)) linear;
@@ -715,7 +674,7 @@ html.con-profile-handheld {
     &__face--off { opacity: 0; pointer-events: none; }
     &__cards {
         display: grid;
-        grid-template-columns: repeat(var(--venus-cards, 1), minmax(0, 15rem));
+        grid-template-columns: repeat(var(--wild-cards, 1), minmax(0, 15rem));
         gap: .6rem;
         align-items: stretch;
     }
@@ -753,6 +712,7 @@ html.con-profile-handheld {
         background-position: center;
         background-size: contain !important;
     }
+    &__card-vp { font-size: .72rem; color: @con-amber; font-variant-numeric: tabular-nums; }
     &__sole { font-size: .68rem; letter-spacing: .06rem; text-transform: uppercase; color: fade(@con-cyan, 85%); }
     &__note {
         align-self: center;
@@ -764,6 +724,9 @@ html.con-profile-handheld {
         background: rgba(255, 255, 255, 0.02);
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
     }
+    /* EXCLUSIVE (P43): the slot holds the radio grid's two rows — its height never changes between the faces. */
+    &__slot--grid { min-height: 0; }
+    &__face { min-width: 0; }
 
     /* ── the standard resources: the dial's pills on the head, a FIXED 2 × 3 grid ── */
     &__dial { display: inline-flex; align-items: center; gap: .3rem; }
@@ -827,6 +790,34 @@ html.con-profile-handheld {
         b { font-size: .98rem; font-variant-numeric: tabular-nums; }
         &--done { color: @con-mint; }
     }
+}
+/* THE WILD-RESOURCE ROW (P43 · EN): the card's printed «?» — then its answer in chips (or the ask), the door last; the
+   price stands once, in the formula above. A composer row like any other (its plate, its cursor) — laid out in ONE line. */
+.con-composer__row.con-composer__wildrow { flex-direction: row; align-items: center; }
+.con-composer__wildrow {
+    gap: .7rem;
+    min-width: 0;
+    &-print { display: inline-flex; align-items: center; gap: .45rem; flex: 0 0 auto; }
+    &-wild, &-icon {
+        display: inline-block;
+        width: 1.7rem;
+        height: 1.7rem;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+    &-icon { width: 1.4rem; height: 1.4rem; }
+    &-ask { font-size: .9rem; color: @con-text-dim; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    &-answer {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        min-width: 0;
+        font-variant-numeric: tabular-nums;
+        b { font-size: 1.05rem; color: @con-mint; }
+    }
+    &-card { font-size: .9rem; color: @con-text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    &-door { margin-left: auto; font-size: 1.2rem; color: @con-text-dim; }
 }
 /* The colony trade's decision list: the bonus row is the composers' row, inside the stage's own row plate. */
 .con-colfocus__venusrow { flex: 1 1 auto; min-width: 0; }

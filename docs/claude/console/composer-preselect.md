@@ -130,6 +130,14 @@ candidate the gain HURTS (`vpBox` falling, or `victoryPointsSign: 'negative'` on
 no per-count reading), a removal (`amount ≤ 0`), a `skip`-marked pick. Today only the PLAY composer hosts merged picks;
 the action composer has none.
 
+## 3c · A STANDARD RESOURCE OF YOUR CHOICE IS A STEP (P43 Applied Science, ledgers EN / EO, 2026-11-02)
+`standardResource` is pre-collected like any input: the preview's step carries the very `SelectResource` the executor
+defers (ONE builder, `behavior/standardResourcePrompt.ts`), addressed `{role: 'resource', source: the card}`; the answer
+rides the batch, nothing is asked after the press. A pair of branches «same price → a standard resource | a resource on ANY
+card» is stamped `ActionPreviewBranch.wildChoice` and answered in ONE row whose inner step is the shared
+`ConsoleWildChoiceStep` (exclusive): the plate selects the branch, the slot answers that branch's own step — read back
+from the composer's state (`wildChoiceComposer.ts`), never a second draft. A sole holder is seeded and marked; A confirms.
+
 ## 4 · Hooks (e2e contract)
 
 `[data-seeded="sole"]` (or `"all"` — §3b) on the seeded row (target row root, generic row, the party's target row) · `[data-seeded-mark]`

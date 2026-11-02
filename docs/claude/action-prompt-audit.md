@@ -438,6 +438,13 @@ order, the gated discard, the two hidden-draw cases, Splice). The client's witne
 (`preselectWitness.armPostCommitWitness` / `checkPostCommitChoice`, armed by both composers) turns any spec red through the harness's
 `postCommitGuard`.
 
+### NOTE — `standardResource` is a preview STEP (P43, 2026-11-02)
+A declarative «N units of a standard resource of your choice» had NO step and NO chip: the live `SelectResource` stood as a
+separate band after the commit. The preview now emits the step from the executor's own builder
+(`behavior/standardResourcePrompt.ts`) and the chip `wild` «на выбор»; `answerLive` knows `SelectResource`. The
+«resource on ANY card» candidates are ONE predicate (`behavior/addToAnyCardTarget.ts`) for `canExecute`, the reasons, the
+preview and the live pick — a branch paying from its own card never offers that card.
+
 ## 5. The guard
 
 `tests/models/actionPromptCoverage.spec.ts` — walks every in-scope action card across three

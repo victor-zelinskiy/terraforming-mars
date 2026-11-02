@@ -747,6 +747,15 @@ export function extractPlayRewards(args: ExtractPlayRewardsArgs): Array<Resource
       if (args.cardName !== undefined) {
         out.push({channel: 'card-resource', resource: e.icon, amount: e.amount, targetCard: args.cardName});
       }
+    } else if (e.icon === 'wild' && e.note === 'of your choice') {
+      // «N units of a standard resource of your choice» (`standardResource` — P43): the kind is the answer of the
+      // branch's own `resource` step (`{type: 'resource', resource}`), pre-collected — so it flies like any stock gain.
+      const at = args.steps.findIndex((step, i) => !claimedSteps.has(i) && step.kind === 'input' && step.input.type === 'resource');
+      const answer = at < 0 ? undefined : args.stepResponses[at] as {type?: string, resource?: string} | undefined;
+      if (at >= 0 && answer?.type === 'resource' && answer.resource !== undefined && isStandardResource(answer.resource)) {
+        claimedSteps.add(at);
+        out.push({channel: 'stock', resource: answer.resource, amount: e.amount});
+      }
     } else if (e.note === 'to a card' && e.icon !== 'resources') {
       const target = claimTargetStep(e.icon);
       if (target.declined) {

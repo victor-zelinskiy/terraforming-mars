@@ -114,6 +114,7 @@ import {resolutionCount} from '../../../src/server/parliament/resolutions/Resolu
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
 import {SelectColony} from '../../../src/server/inputs/SelectColony';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
+import {SelectResource} from '../../../src/server/inputs/SelectResource';
 import {SelectProjectCardToPlay} from '../../../src/server/inputs/SelectProjectCardToPlay';
 import {CLIMATE_RESEARCH_ID} from '../../../src/server/parliament/resolutions/greens/ClimateResearch';
 import {BIODOME_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/BiodomeContest';
@@ -12929,3 +12930,82 @@ wgProjectFixture('wg-project-aquifer', {
     expect: (blue) => (blue.getWaitingFor() instanceof SelectSpace ? undefined : `expected the first ocean's placement — got ${blue.getWaitingFor()?.type}`),
   },
 });
+
+// ── P43 · APPLIED SCIENCE — the TWENTY-SIXTH Prelude 2 card and the set's first PRELUDE (docs/claude/prompts/
+//    prelude2-p43-applied-science.md): «remove 1 science here → 1 resource on ANY card with a resource OR 1 standard
+//    resource» — the printed «?» ONE row, answered in the shared wild-resource choice (ledgers EN / EO). A 2p Venus +
+//    Prelude 2 table (Teractor · ThorGate), blue on the move, P43 on the table:
+//      · `applied-science-holders` — 6 science; Birds 1 animal, Dirigibles 2 floaters, Tardigrades 0 (a near miss —
+//                                    disabled with its reason): «on a card» offers Birds + Dirigibles, NEVER P43 itself;
+//      · `applied-science-none`    — 6 science, no other holder: «on a card» refused with its reason, the standard
+//                                    branch alone (`index: -1`);
+//      · `applied-science-sole`    — 6 science, Birds alone: the sole holder seeded and marked, still asked;
+//      · `applied-science-many`    — 6 science, EIGHT holders: the slot's row of candidates;
+//      · `applied-science-last`    — 1 science, Birds 1: after the action the tile is blocked «0 of 1 science».
+//    A DRY RUN on a copy proves the OR's shape and the candidate set. ──
+function appliedScienceFixture(name: string, variant: 'holders' | 'none' | 'sole' | 'many' | 'last'): void {
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, venusNextExtension: true, prelude2Expansion: true,
+    customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
+  });
+  answerStartFlow(game, [p1, p2]);
+  game.projectDeck.discardPile.push(...p1.cardsInHand.splice(0));
+  const take = (n: CardName, resources: number) => {
+    moveToDeckTop(game, n);
+    const card = game.projectDeck.drawOrThrow(game);
+    card.resourceCount = resources;
+    p1.playedCards.push(card);
+    return card;
+  };
+  const science = newPrelude(CardName.APPLIED_SCIENCE)!;
+  science.resourceCount = variant === 'last' ? 1 : 6;
+  p1.playedCards.push(science);
+  if (variant === 'holders') {
+    take(CardName.BIRDS, 1);
+    take(CardName.DIRIGIBLES, 2);
+    take(CardName.TARDIGRADES, 0);
+  } else if (variant === 'sole' || variant === 'last') {
+    take(CardName.BIRDS, 1);
+  } else if (variant === 'many') {
+    for (const n of [CardName.BIRDS, CardName.DIRIGIBLES, CardName.TARDIGRADES, CardName.FISH, CardName.LIVESTOCK,
+      CardName.ANTS, CardName.DECOMPOSERS, CardName.REGOLITH_EATERS]) {
+      take(n, 1);
+    }
+  }
+  p1.megaCredits = 12;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  const canAct = (science as unknown as IActionCard).canAct(p1);
+  if (game.activePlayer.id !== p1.id || !canAct) {
+    throw new Error(`the ${name} fixture expected blue on the move with P43 able to act — got active=${game.activePlayer.id === p1.id} canAct=${canAct}`);
+  }
+  // THE DRY RUN — on a copy: the OR's shape, the candidates (never the card itself).
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(p1.id);
+  const card = blue.playedCards.get(CardName.APPLIED_SCIENCE) as IActionCard & ICard;
+  card.action(blue);
+  runAllActions(copy);
+  const asked = blue.getWaitingFor();
+  if (variant === 'none') {
+    if (!(asked instanceof SelectResource)) {
+      throw new Error(`the ${name} fixture expected the lone standard branch's resource pick — got ${asked?.type}`);
+    }
+  } else {
+    if (!(asked instanceof OrOptions) || asked.options.length !== 2) {
+      throw new Error(`the ${name} fixture expected the two-branch OR — got ${asked?.type}`);
+    }
+    asked.options[1].cb(undefined);
+    runAllActions(copy);
+    const pick = blue.getWaitingFor();
+    const names = pick instanceof SelectCard ? (pick as SelectCard<ICard>).cards.map((c) => c.name) : [];
+    if (names.length === 0 || names.includes(CardName.APPLIED_SCIENCE)) {
+      throw new Error(`the ${name} fixture expected the pick over the other holders — got ${names.join()}`);
+    }
+  }
+  write(name, game);
+}
+appliedScienceFixture('applied-science-holders', 'holders');
+appliedScienceFixture('applied-science-none', 'none');
+appliedScienceFixture('applied-science-sole', 'sole');
+appliedScienceFixture('applied-science-many', 'many');
+appliedScienceFixture('applied-science-last', 'last');
