@@ -2,18 +2,26 @@
  * THE PAYOUT OF A DISCARD IS ONE WAVE — FOR ANY SOURCE (ledger CS · P68 Ceres Tech Market, 2026-10-30; first written
  * for the Turmoil Redux «один фреймворк», 2026-10-24 — the Reds' «2 M€ per plant, microbe and animal tag discarded»).
  * A discard that BUYS a stock resource (`DiscardPromptMeta.exchange`) pays it as the ACTION COMMIT's own language, never
- * as a number that changed or a result panel computed as `megacredits − mcBefore`: one token per paying unit, born on
- * the PRINTED icon of the source standing in the hero slot (a party's plaque, a card's action graphic), landing on the
- * rail row, the row ticking on each touchdown — AFTER the cards have left the hand (the cause before the effect).
+ * as a number that changed or a result panel computed as `megacredits − mcBefore`: ONE token carrying the exchange's
+ * TOTAL, born on the PRINTED icon of the source standing in the hero slot (a party's plaque, a card's action graphic),
+ * landing on the rail row, the row ticking ONCE on its touchdown — AFTER the cards have left the hand (the cause before
+ * the effect).
  *
- * ONE RATE READER (`discardExchangeSpecs`) for both shapes of an exchange: `perTag` — a token per paying printed tag of
- * the thrown cards (the Reds); `perCard` — a token per thrown card (Ceres Tech Market's «2x [M€]»). The amount is the
- * SERVER's (the marker's rate × the pick), never client arithmetic. Two doors, because the discard arrives two ways:
+ * ONE TOKEN PER EXCHANGE (P50's polish companion · ledger FD — the owner, 2026-11-03: «чип монет при сбросе Красных
+ * летит визуально с цифрой 2, даже если платит больше»). The law used to be «one token per paying unit», each wearing
+ * the RATE — so three plant / microbe / animal tags flew three «+2» chips while the header read «+6»: the number the
+ * player watched fly was never the number they were paid. A discard is ONE exchange («−2 [cards] → +6 M€ · 3 tags × 2»),
+ * so its payout is ONE token wearing the total, read by the same rule the header reads (`deriveDiscardIntent`).
+ *
+ * ONE RATE READER (`discardExchangeSpecs`) for both shapes of an exchange: `perTag` — the rate × every paying printed
+ * tag of the thrown cards (the Reds); `perCard` — the rate × the thrown cards (Ceres Tech Market's «2x [M€]»). The
+ * amount is the SERVER's (the marker's rate × the pick), never client arithmetic. Two doors, because the discard arrives
+ * two ways:
  *   · a LIVE prompt answered in the card composer (a party's action — the discard is asked AFTER the commit): SEEDED in
  *     the transport's apply block against the two views (`seedPoliticalDiscardExchange` — the thrown cards are the
  *     ones that left the hand), FLOWN by that composer once the hand step has left its zone (`flyDiscardExchange`);
  *   · a PRE-COLLECTED step of a card's action (the discard rides the commit's ONE POST): the commit's own reward wave
- *     carries the tokens (`discardExchangeCommitSpecs` — appended to the wave unmerged, one per unit), so the panel
+ *     carries the token (`discardExchangeCommitSpecs` — appended to the wave, one per exchange), so the panel
  *     hold, the birth on the printed icon and the tick on each touchdown are the wave's; the cards' leaving is the
  *     shared discard scene armed at the same press (the transport holds the view until they have landed on the pile,
  *     and the wave flies after the view — the order is the architecture's).
@@ -35,10 +43,11 @@ export function discardExchangeRailKey(sourceKey: string): string {
 }
 
 /**
- * The tokens of a discard's payout (pure): `perTag` — one per paying printed tag of the thrown cards (an event's printed
- * tags count — the Reds' rule; a card with none of the tags pays nothing); `perCard` — one per thrown card. Each token
- * is the rate's `amount`. Only a STOCK payout is a wave: an exchange in cards (Mars University, Ender) or one with a
- * second payout in cards (Open IP Trade's draw — the deck's own scene) is not read here.
+ * The token of a discard's payout (pure): ONE spec carrying the TOTAL — `perTag`: the rate × every paying printed tag of
+ * the thrown cards (an event's printed tags count — the Reds' rule; a card with two paying tags pays twice; a card with
+ * none pays nothing); `perCard`: the rate × the thrown cards. Zero paid → no token (the server names the skip). Only a
+ * STOCK payout is a wave: an exchange in cards (Mars University, Ender) or one with a second payout in cards (Open IP
+ * Trade's draw — the deck's own scene) is not read here.
  */
 export function discardExchangeSpecs(
   thrown: ReadonlyArray<CardName>,
@@ -48,18 +57,20 @@ export function discardExchangeSpecs(
   if (exchange.amount <= 0 || exchange.icon === 'cards' || exchange.draw !== undefined) {
     return [];
   }
-  const token = (): ResourceTransferSpec => ({channel: 'stock', resource: exchange.icon, amount: exchange.amount});
+  let units = 0;
   if (exchange.perTag !== undefined) {
     const perTag = exchange.perTag;
-    return thrown.flatMap((card) => tagsOf(card).filter((tag) => perTag.includes(tag)).map(token));
+    units = thrown.reduce((sum, card) => sum + tagsOf(card).filter((tag) => perTag.includes(tag)).length, 0);
+  } else if (exchange.perCard === true) {
+    units = thrown.length;
   }
-  return exchange.perCard === true ? thrown.map(token) : [];
+  return units > 0 ? [{channel: 'stock', resource: exchange.icon, amount: units * exchange.amount}] : [];
 }
 
 /**
  * THE PRE-COLLECTED DOOR — a card ACTION whose discard is a step the composer answered before the press (P68): the
- * tokens of every answered discard step of the pressed branch, one per paying unit (`discardExchangeSpecs` — the
- * marker's own rate), for the commit's reward wave. Read off the step's SERVER marker (`discardPrompt`), never a title.
+ * token of every answered discard step of the pressed branch, one per exchange carrying its total (`discardExchangeSpecs`
+ * — the marker's own rate), for the commit's reward wave. Read off the step's SERVER marker (`discardPrompt`), never a title.
  */
 export function discardExchangeCommitSpecs(
   branch: ActionPreviewBranch | undefined,

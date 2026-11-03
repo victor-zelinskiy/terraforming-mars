@@ -1,7 +1,10 @@
 import {expect} from 'chai';
 import {Tag} from '@/common/cards/Tag';
 import {CardModel} from '@/common/models/CardModel';
-import {buildConsoleTagFilters, filterHandByTag, cycleTagFilter, ConsoleTagFilterOption} from '@/client/components/console/consoleHandFilter';
+import {
+  buildAlbumFilters, buildConsoleTagFilters, cardPayout, filterAlbumEntries, filterHandByTag, cycleTagFilter, ConsoleTagFilterOption,
+  hiddenByFilter, paysPresetOffered,
+} from '@/client/components/console/consoleHandFilter';
 
 function card(name: string): CardModel {
   return {name} as unknown as CardModel;
@@ -79,5 +82,45 @@ describe('consoleHandFilter', () => {
     it('is safe with no options', () => {
       expect(cycleTagFilter([], 'all', 1)).to.eq('all');
     });
+  });
+});
+
+describe('consoleHandFilter · the PICKER’s filter (P50 polish · FD)', () => {
+  const T: Record<string, Array<Tag>> = {
+    trees: [Tag.PLANT],
+    experts: [Tag.PLANT, Tag.MICROBE],
+    livestock: [Tag.ANIMAL],
+    elevator: [Tag.SPACE, Tag.BUILDING],
+    lab: [Tag.SCIENCE],
+  };
+  const tagsOfT = (c: CardModel) => T[c.name] ?? [];
+  const REDS = {icon: 'megacredits', amount: 2, perTag: [Tag.PLANT, Tag.MICROBE, Tag.ANIMAL]};
+  const hand = ['trees', 'experts', 'livestock', 'elevator', 'lab'].map(card);
+
+  it('a card’s payout is the header’s rule card by card — every paying printed tag, a card may pay twice', () => {
+    expect(hand.map((c) => cardPayout(c, REDS, tagsOfT))).deep.eq([2, 4, 2, 0, 0]);
+    expect(cardPayout(card('trees'), {icon: 'megacredits', amount: 2, perCard: true}, tagsOfT)).eq(2);
+    expect(cardPayout(card('trees'), undefined, tagsOfT)).eq(0);
+  });
+
+  it('«ПЛАТЯТ» is offered ONLY for a per-tag exchange (read off the marker), second after «ВСЕ», with its count', () => {
+    expect(paysPresetOffered(REDS)).is.true;
+    expect(paysPresetOffered({icon: 'megacredits', amount: 2, perCard: true}), 'every card pays — nothing to narrow').is.false;
+    expect(paysPresetOffered(undefined)).is.false;
+    const opts = buildAlbumFilters(hand, 'all', REDS, tagsOfT);
+    expect(opts.slice(0, 2)).deep.eq([{value: 'all', count: 5}, {value: 'pays', count: 3}]);
+    expect(buildAlbumFilters(hand, 'all', undefined, tagsOfT).some((o) => o.value === 'pays')).is.false;
+  });
+
+  it('the picker narrows by its own chip — «pays» keeps the paying cards, a tag its cards', () => {
+    const entries = hand.map((c) => ({card: c}));
+    expect(filterAlbumEntries(entries, 'pays', REDS, tagsOfT).map((e) => e.card.name)).deep.eq(['trees', 'experts', 'livestock']);
+    expect(filterAlbumEntries(entries, Tag.MICROBE, REDS, tagsOfT).map((e) => e.card.name)).deep.eq(['experts']);
+    expect(filterAlbumEntries(entries, 'all', REDS, tagsOfT)).has.length(5);
+  });
+
+  it('the honesty count names the CANDIDATES a chip hides (never a non-candidate)', () => {
+    expect(hiddenByFilter(['trees', 'experts', 'lab'], ['experts'])).eq(2);
+    expect(hiddenByFilter(['trees'], ['trees', 'lab'])).eq(0);
   });
 });

@@ -23,13 +23,9 @@ describe('discardExchangeBeat', () => {
   };
   const tagsOf = (card: CardName) => tags[card] ?? [];
 
-  it('one token per paying printed tag, each the rate\'s amount — a card with two paying tags pays twice', () => {
+  it('ONE token carrying the TOTAL (FD) — every paying printed tag counted, a card with two paying tags pays twice', () => {
     const specs = discardExchangeSpecs(['Trees', 'Ecology Experts'] as Array<CardName>, REDS, tagsOf);
-    expect(specs).to.deep.eq([
-      {channel: 'stock', resource: 'megacredits', amount: 2},
-      {channel: 'stock', resource: 'megacredits', amount: 2},
-      {channel: 'stock', resource: 'megacredits', amount: 2},
-    ]);
+    expect(specs).to.deep.eq([{channel: 'stock', resource: 'megacredits', amount: 6}]);
   });
 
   it('no paying tag, no token (the server names the skip); no per-tag rate, nothing to read', () => {
@@ -42,10 +38,9 @@ describe('discardExchangeBeat', () => {
    * in cards — the deck's own scene) is not a stock wave. */
   const CERES = {icon: 'megacredits', amount: 2, perCard: true};
 
-  it('perCard: one token per thrown card, each the rate\'s amount — the tags do not matter', () => {
+  it('perCard: ONE token, the rate × the thrown cards — the tags do not matter', () => {
     expect(discardExchangeSpecs(['Space Elevator', 'Trees'] as Array<CardName>, CERES, tagsOf)).to.deep.eq([
-      {channel: 'stock', resource: 'megacredits', amount: 2},
-      {channel: 'stock', resource: 'megacredits', amount: 2},
+      {channel: 'stock', resource: 'megacredits', amount: 4},
     ]);
     expect(discardExchangeSpecs([], CERES, tagsOf)).to.deep.eq([]);
   });
@@ -65,8 +60,7 @@ describe('discardExchangeBeat', () => {
       ],
     } as unknown as ActionPreviewBranch;
     expect(discardExchangeCommitSpecs(branch, {0: {type: 'card', cards: ['Research', 'Tardigrades']}}, tagsOf)).to.deep.eq([
-      {channel: 'stock', resource: 'megacredits', amount: 2},
-      {channel: 'stock', resource: 'megacredits', amount: 2},
+      {channel: 'stock', resource: 'megacredits', amount: 4},
     ]);
     expect(discardExchangeCommitSpecs(branch, {}, tagsOf), 'an unanswered step pays nothing').to.deep.eq([]);
     const plain = {...branch, steps: [{kind: 'input', input: {type: 'card', title: '', buttonLabel: 'Select', cards: [], min: 1, max: 1}}]} as unknown as ActionPreviewBranch;

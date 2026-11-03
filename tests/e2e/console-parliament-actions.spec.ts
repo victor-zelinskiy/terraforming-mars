@@ -541,8 +541,10 @@ test.describe('parliament · party actions', () => {
     const paid = afterReds.megacredits - beforeReds.megacredits;
     const witness = await transferWitness(page);
     if (paid > 0) {
-      const born = witness.births.filter((e) => e.value === '+2');
-      expect(born.length, `one «+2» token per paying tag (trail:\n${transferTrail(witness)}\nat the answer: ${JSON.stringify(atAnswer)}\nthe stack's verbs: ${JSON.stringify(stackTrace)})`).toBe(paid / 2);
+      // ONE token carrying the TOTAL (FD — the owner: «летит с цифрой 2, даже если платит больше»), never N «+2».
+      const born = witness.births.filter((e) => e.value === `+${paid}`);
+      expect(born.length, `ONE «+${paid}» token for the whole exchange (trail:\n${transferTrail(witness)}\nat the answer: ${JSON.stringify(atAnswer)}\nthe stack's verbs: ${JSON.stringify(stackTrace)})`).toBe(1);
+      expect(witness.births.filter((e) => e.value === '+2' && paid !== 2), 'no per-tag «+2» chips beside it').toEqual([]);
       expect(born.every((e) => e.under === 'hero'), `born on the plaque standing in the hero slot (trail:\n${transferTrail(witness)})`).toBe(true);
       const landed = witness.landings.filter((e) => born.some((b) => b.id === e.id));
       expect(landed.every((e) => e.under === 'rail:megacredits'), `landed on the M€ row (trail:\n${transferTrail(witness)})`).toBe(true);

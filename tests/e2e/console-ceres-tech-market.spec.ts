@@ -11,8 +11,8 @@ import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from 
  * a CARD's action (docs/claude/prompts/prelude2-p68-ceres-tech-market.md §3):
  *   · the HAND ALBUM as a STEP of a card's action — the discard skin, the running sum off the server's rate;
  *   · the DISCARD SCENE out of an action's batch — the picked cards leave the hand for the pile;
- *   · THE PAYOUT OF A DISCARD IS ONE WAVE FOR ANY SOURCE (ledger CS) — one «2» token per card, born on the printed
- *     «2x [M€]» of the card standing in the hero slot, the M€ row ticking on each touchdown, AFTER the cards have left.
+ *   · THE PAYOUT OF A DISCARD IS ONE WAVE FOR ANY SOURCE (ledger CS) — ONE token carrying the total (ledger FD), born on the printed
+ *     «2x [M€]» of the card standing in the hero slot, the M€ row ticking once on its touchdown, AFTER the cards have left.
  *
  *   One fixture, one turn (`ceres-tech-market`: blue on the move — P68 + Research, Tardigrades, Ants in the hand, two
  *   colonies, 20 M€, 2 titanium, Olympus Conference on the table):
@@ -282,15 +282,16 @@ test.describe(`P68 Ceres Tech Market · the counted play, the discard action, th
     expect(probe.discardFrom, 'the discard scene played').toBeGreaterThanOrEqual(0);
     expect(probe.proxiesMax, 'the two cards left the hand as a packet').toBe(2);
     const paid = witness.landings.filter((e) => e.under === 'rail:megacredits');
-    expect(paid.length, `two tokens landed on the M€ row (trail:\n${transferTrail(witness)})`).toBe(2);
-    const born = witness.births.filter((e) => e.value.includes('2'));
+    expect(paid.length, `ONE token — the exchange's total — landed on the M€ row (FD; trail:\n${transferTrail(witness)})`).toBe(1);
+    const born = witness.births.filter((e) => e.value === '+4');
+    expect(born.length, `the token wears the total «+4» (trail:\n${transferTrail(witness)})`).toBe(1);
     expect(born.every((e) => e.under === 'hero'), `every token was born on the card in the hero slot (trail:\n${transferTrail(witness)})`).toBe(true);
     expect(endsOverGlass(witness), 'no end over glass or nothing').toEqual([]);
     // The cause before the effect: the row moves only after the cards have left the hand.
     const firstMove = probe.mc.find((s, i) => i > 0 && s.v !== probe.mc[0].v);
     expect(firstMove, `the M€ row moved (${JSON.stringify(probe.mc)})`).not.toBeUndefined();
     expect(firstMove!.t, `the M€ row ticks after the discard scene (${JSON.stringify(probe)})`).toBeGreaterThanOrEqual(probe.discardTo - 100);
-    expect(probe.mc.map((s) => s.v), 'the row ticks once per token: 18 → 20 → 22').toEqual(['18', '20', '22']);
+    expect(probe.mc.map((s) => s.v), 'the row ticks ONCE, on the one token: 18 → 22').toEqual(['18', '22']);
 
     const after = await wireOf(request, id);
     expect(after.cardsInHand?.map((c) => c.name), 'only the kept card').toEqual([KEPT]);

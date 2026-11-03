@@ -73,7 +73,10 @@ export type RailReward = {
   /**
    * The gains the paying object's own icons give — flown, each ticking on its
    * touchdown. NEVER merged: two printed icons are two tokens (TR27's two
-   * floaters), each released on its own touchdown. A `card-resource` spec
+   * floaters), each released on its own touchdown. A DISCARD's exchange is
+   * ONE cause, not N (ledger FD — `discardExchangeBeat.ts`): its seeder hands
+   * in one token carrying the total, born on the source's one printed icon.
+   * A `card-resource` spec
    * lands on its `targetCard` — the card's own counter is its row.
    */
   cause: ReadonlyArray<ResourceTransferSpec>;
