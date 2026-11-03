@@ -12707,7 +12707,7 @@ html.console-mode {
         min-height: 0;
         display: grid;
         grid-template-rows: repeat(var(--ma-rows, 5), minmax(0, 1fr));
-        gap: .5rem;
+        gap: .4rem;
     }
     &__card {
         position: relative;
@@ -12919,14 +12919,22 @@ html.console-mode {
        their own card's column while the neighbours kept theirs, so the same
        reading sat at a different x in every row. One width for every card =
        the eye compares numbers instead of hunting for them. */
+    /* ONE LINE OF READING (FB — five rows a column): the plate (your metric / the race cassette) at a FIXED width,
+       the rivals' strip BESIDE it, never stacked under it — a row is as tall as one reading, so ten rows stand whole
+       on every profile. */
     &__status {
         align-self: center;
         display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: .5rem;
-        width: 9.5rem;
+        flex-direction: row-reverse;
+        align-items: center;
+        gap: .6rem;
         flex-shrink: 0;
+
+        > .con-ma__metric,
+        > .con-ma__race {
+            width: 9.5rem;
+            flex-shrink: 0;
+        }
     }
     /* ── the MILESTONE metric — your count toward the threshold. Colour
        semantics are the strategy rail's, verbatim: GREEN = the requirement
@@ -13262,9 +13270,8 @@ html.console-mode {
     }
     &__rivals {
         display: inline-flex;
-        align-items: center;
-        flex-wrap: wrap;
-        justify-content: flex-end;
+        flex-direction: column;
+        align-items: flex-end;
         gap: .3rem;
     }
     &__rivals-label {
@@ -38397,20 +38404,29 @@ html.con-profile-handheld {
         &__col { gap: .3rem; }
         &__colhead { min-height: 1.6rem; gap: .4rem; padding-bottom: .25rem; }
         &__coltitle { font-size: .675rem; letter-spacing: .07rem; }
-        &__rows { gap: .3rem; }
         &__card { gap: .5rem; padding: .3rem .45rem .3rem .6rem; border-radius: .55rem; }
         &__rail { width: .2rem; }
         /* Ten rows on 800 px (FB): the medallion gives way first — a row is never cut. */
-        &__stage { min-height: 2.6rem; max-height: 4.4rem; border-radius: .55rem; }
+        &__stage { min-height: 2.4rem; max-height: 3.8rem; border-radius: .55rem; }
         &__name { font-size: .75rem; letter-spacing: .05rem; }
         &__desc { font-size: .575rem; line-height: 1.25; -webkit-line-clamp: 2; }
         &__owner { font-size: .65rem; gap: .35rem; }
         &__owner-dot { width: .55rem; height: .55rem; }
         &__owner-verb { font-size: .55rem; }
-        &__status { min-width: 7.8rem; gap: .35rem; }
-        &__metric { min-width: 5.7rem; padding: .3rem .55rem .4rem; }
+        &__status { gap: .35rem; > .con-ma__metric, > .con-ma__race { width: 7.8rem; } }
+        /* TEN ROWS ON 800 px (FB): the row keeps one reading — your number and its meter (an award: the race
+           cassette); the rivals' strip is the detail's race plate (A), never a third line that grows the row. */
+        &__rivals { display: none; }
+        &__race { min-height: 0; padding: .2rem .5rem .25rem; gap: .1rem; }
+        &__tier { min-height: 1rem; }
+        &__tier-score { font-size: 1rem; }
+        &__tier-score--ii { font-size: .8rem; }
+        &__race-foot { font-size: .5rem; }
+        &__rows { gap: .25rem; }
+        &__metric { min-width: 5.7rem; padding: .2rem .5rem .25rem; gap: .05rem; }
         &__metric-label { font-size: .5rem; }
-        &__metric-value { font-size: 1.15rem; }
+        &__metric-value { font-size: 1rem; }
+        &__metric-foot { height: .6rem; }
         &__metric-req { font-size: .7rem; }
         &__metric-sub { font-size: .55rem; }
         &__rival { min-width: 1.1rem; height: 1.1rem; font-size: .625rem; border-radius: .35rem; }

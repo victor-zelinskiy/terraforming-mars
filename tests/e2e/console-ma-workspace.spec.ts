@@ -74,6 +74,17 @@ for (const profile of PROFILES) {
       await key(page, 'KeyE', 1400); // → the AWARDS column (one screen — FB: RB jumps the cursor, nothing reopens)
       expect(await page.locator('.con-ma').count(), 'the MA workspace must survive the column jump').toBe(1);
       expect(await page.locator('.con-ma__col--active[data-ma-column="awards"]').count(), 'the cursor stands in the awards column').toBe(1);
+      // ONE SCREEN WITHOUT A SCROLL (FB): both columns' rows stand whole in the band on every profile (the Deck's ten
+      // rows on 800 px included) — the last row's bottom inside the viewport, nothing to scroll.
+      const fit = await page.evaluate(() => {
+        const vp = document.querySelector('.con-ma__scroll-host .con-scroll-area__viewport');
+        const rows = [...document.querySelectorAll('.con-ma__card')].map((el) => el.getBoundingClientRect().bottom);
+        const box = vp?.getBoundingClientRect();
+        return {overflow: vp === null ? -1 : vp.scrollHeight - vp.clientHeight, rows: rows.length, lastBottom: Math.max(...rows), vpBottom: box?.bottom ?? 0};
+      });
+      expect(fit.rows, 'ten rows (5 + 5)').toBe(10);
+      expect(fit.overflow, `no scroll on ${profile.tag}: ${JSON.stringify(fit)}`).toBeLessThanOrEqual(1);
+      expect(fit.lastBottom, `the last row stands whole on ${profile.tag}: ${JSON.stringify(fit)}`).toBeLessThanOrEqual(fit.vpBottom + 1);
 
       // No per-item CTA (criterion 1); A carries the CONTEXTUAL verb (2):
       // the focused first fundable award advertises the INTENT («Спонсировать»),
