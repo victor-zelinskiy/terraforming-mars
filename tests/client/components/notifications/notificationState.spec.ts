@@ -26,7 +26,9 @@ import {
   DECISION_READ_BEAT_MS,
   noteNotificationLeaveStart,
   noteNotificationLeaveEnd,
+  registerNotificationCornerProbe,
 } from '@/client/components/notifications/notificationState';
+import {reactive} from 'vue';
 import {setNotificationFeedMode} from '@/client/components/notifications/notificationFeedMode';
 import {resetPresentationLeases, acquireForegroundLease} from '@/client/components/presentation/presentationFlow';
 import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
@@ -116,6 +118,27 @@ describe('notificationState (lifecycle)', () => {
       pushTransient(model('a'));
       expect(notificationState.transient).to.have.length(0);
       notificationState.settings.showNormal = true;
+    });
+  });
+
+  describe('the card’s corner (FK — a viewer standing where the card would)', () => {
+    it('a NEW card waits in the queue while the corner is taken, presents on the free edge; a delivered one stays', async () => {
+      const corner = reactive({taken: false});
+      const release = registerNotificationCornerProbe(() => corner.taken);
+      try {
+        pushTransient(model('a'));
+        expect(notificationState.transient.map((n) => n.id), 'delivered before the viewer').to.deep.eq(['a']);
+        corner.taken = true;
+        dismiss('a');
+        pushTransient(model('b'));
+        expect(notificationState.transient, 'never over the viewer').to.have.length(0);
+        expect(notificationState.queue.map((n) => n.id), 'the tail is the beacon').to.deep.eq(['b']);
+        corner.taken = false;
+        await nextTick();
+        expect(notificationState.transient.map((n) => n.id), 'the free edge re-drives the queue').to.deep.eq(['b']);
+      } finally {
+        release();
+      }
     });
   });
 

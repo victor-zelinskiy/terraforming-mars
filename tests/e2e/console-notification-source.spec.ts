@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {NO_PAYMENT, bootFixtureSeats, fetchPlayerModel, pressUntil, sendPlayerInput, settle} from './consoleStart';
 import {TileType} from '../../src/common/TileType';
+import {notificationHonesty} from './notificationWitness';
 
 /**
  * TR59 · THE SOURCE OF A PAYOUT ON THE VIEWER'S OWN TILE — the STAND of the iteration.
@@ -36,8 +37,13 @@ const OUT_ROOT = path.resolve('screenshots', 'tr59');
 const VIEWER_TILE = '47';
 const CITY_CELL = '48';
 
+// THREE profiles (P53 · FK — `docs/claude/notifications.md` promised fhd + tv4k and the handheld card was never stood):
+// the card's LANE is a profile-specific geometry (its width against the opening, the rail beside it) — the
+// `notificationHonesty` witness below reads it on each.
 const PROFILES = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
+  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
+  {id: 'deck', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld'},
 ] as const;
 
 const POSITIVE = '.con-notif.con-notif--sign-positive';
@@ -305,6 +311,15 @@ async function recordPositiveCard(page: Page, profile: string, scene: string): P
   // The AUDIT first, the frames after: a card leaves by its own TTL, and two 4K screenshots under a parallel run
   // outlasted it — `auditCard` then read a card that was gone (`querySelector(…)` null, the first full baseline).
   const audit = await auditCard(page, POSITIVE);
+  // FK — the card as it STANDS: the number whole, in its lane (never over the strategy rail), no row of the cause
+  // starting with «·», no pictograph, the source named once.
+  const honesty = await notificationHonesty(page);
+  expect(honesty.cards, 'the witness read the standing card').toBeGreaterThan(0);
+  expect(honesty.clippedValues, 'the hero number is never cut by its card').toEqual([]);
+  expect(honesty.overRail, 'the card and its queue tail stand in the opening, never over the strategy rail').toEqual([]);
+  expect(honesty.strandedSeparator, 'a wrapped cause row never starts with «·»').toEqual([]);
+  expect(honesty.emoji, 'no pictograph on the card').toEqual([]);
+  expect(honesty.sourceTwice, 'the source is named once').toEqual([]);
   const full = await shootFull(page, profile, scene);
   const crop = await shootCrop(page, profile, scene, box);
   report(scene, audit, [full, crop]);

@@ -403,13 +403,16 @@ function chipValue(text: string): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-/** Merge chips that share icon + production + saved, summing their amounts. */
+/**
+ * Merge chips that share icon + production + saved + SIGN, summing their amounts. A price and an income of one
+ * resource are two statements, never one net (FK · PL-065 / PL-087: «+1 / −2» read as «−1», «−2 and +14» as «+12»).
+ */
 export function mergeChips(chips: ReadonlyArray<JournalImpactChip>): Array<JournalImpactChip> {
   const order: Array<string> = [];
   const byKey = new Map<string, JournalImpactChip & {sum: number}>();
   for (const c of chips) {
     // A COUNTED gain keeps its own pill (PL-195): its reason is part of its identity.
-    const key = `${c.icon}|${c.production === true ? 1 : 0}|${c.saved === true ? 1 : 0}|${c.basis === undefined ? '' : `${c.basis.unitKey}:${c.basis.count}`}`;
+    const key = `${c.icon}|${c.production === true ? 1 : 0}|${c.saved === true ? 1 : 0}|${chipValue(c.text) < 0 ? '-' : '+'}|${c.basis === undefined ? '' : `${c.basis.unitKey}:${c.basis.count}`}`;
     const existing = byKey.get(key);
     if (existing === undefined) {
       byKey.set(key, {...c, sum: chipValue(c.text)});

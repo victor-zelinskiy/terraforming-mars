@@ -156,12 +156,15 @@ function chipAmount(text: string): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-/** Merge chips sharing icon + production flag, summing amounts; drop zero nets. */
+/**
+ * Merge chips sharing icon + production flag + SIGN, summing amounts; drop zero sums. A loss and a gain of one
+ * resource stay two chips (FK · PL-065 — two capsules «+1» and «−2» were one «−1»: the player never saw either move).
+ */
 function mergeNet(chips: ReadonlyArray<JournalImpactChip>): Array<JournalImpactChip> {
   const order: Array<string> = [];
   const byKey = new Map<string, {chip: JournalImpactChip; sum: number}>();
   for (const c of chips) {
-    const key = `${c.icon}|${c.production === true ? 1 : 0}`;
+    const key = `${c.icon}|${c.production === true ? 1 : 0}|${chipAmount(c.text) < 0 ? '-' : '+'}`;
     const existing = byKey.get(key);
     if (existing === undefined) {
       byKey.set(key, {chip: c, sum: chipAmount(c.text)});

@@ -27792,8 +27792,13 @@ html.console-mode .notifications-layer {
        box let the card overflow its right edge off-screen. Hug the card
        instead (right-anchored max-content), clamped to the viewport. */
     width: max-content;
-    max-width: calc(100vw - 2rem);
+    /* FK — THE CARD LIVES IN ITS LANE: never wider than the opening it stands in (its left edge = the player rail's,
+       published by the same geometry), so a narrow opening narrows the card instead of pushing it over a rail. */
+    max-width: calc(100vw - var(--con-stage-l, 1rem) - var(--con-stage-r, 1rem) - 1.2rem);
     align-items: flex-end;
+
+    .con-notif,
+    .con-notifq { max-width: 100%; }
 
     .notification-card--action-required,
     .notification-card--your-turn {
@@ -28012,12 +28017,26 @@ html.console-mode .notifications-layer {
         align-items: center;
         flex-wrap: wrap;
         gap: .3rem .75rem;
+        min-width: 0;
+        max-width: 100%;
+    }
+    /* FK — A WORD OUTCOME IS A SENTENCE, never a pill («продвижение заблокировано до следующего поколения» stood as a
+       four-line tracked-caps pill in the number's frame): ordinary case, the band's tone, at most two lines. */
+    &__you-phrase {
+        font-size: .84rem;
+        font-weight: 700;
+        line-height: 1.25;
+        color: #f2f6fb;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
     }
     /* ONE delta → ONE confident statement: the sign label and the number share the line (label left, the
        statement flush right), so a single «+1» never floats in an empty frame. */
     &__you--dense {
         display: grid;
-        grid-template-columns: auto 1fr;
+        grid-template-columns: auto minmax(0, 1fr);
         align-items: center;
         column-gap: .6rem;
         row-gap: .25rem;
@@ -28026,12 +28045,25 @@ html.console-mode .notifications-layer {
     }
     /* The band's chips are BARE statements — icon · spoken unit · a large tabular value (the number is the
        message). A production delta keeps the production plate under its icon, the one cue it needs. */
+    /* FK — THE NUMBER IS NEVER CUT («РАСТЕНИЯ —» at 720p): the value keeps its whole box (`flex: none`), the
+       spoken unit is the member that yields — an ellipsis in its OWN box — and the chip never outgrows the band. */
     &__chip--big {
         gap: .38rem;
         padding: 0;
         background: transparent;
         box-shadow: none;
         font-size: .95rem;
+        min-width: 0;
+        max-width: 100%;
+
+        .con-notif__chip-icon { flex: none; }
+        .con-notif__chip-value { flex: none; }
+        .con-notif__chip-unit {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
 
         .con-notif__chip-icon { width: 1.4rem; height: 1.4rem; }
         &.con-notif__chip--prod {
@@ -28110,10 +28142,15 @@ html.console-mode .notifications-layer {
         color: @con-text-dim;
         font-size: .76rem;
         white-space: nowrap;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
-    &__cause-tail + &__cause-tail::before {
-        content: '·';
-        margin-right: .4rem;
+    /* FK — the separator TRAILS the tail before it (a non-breaking pair with that tail's last word): a wrapped line
+       starts with the next tail's word, never with «·» (the 4K frame of «Социальное отопление» began a line with it). */
+    &__cause-tail:not(:last-child)::after {
+        content: '\00a0·';
         opacity: .55;
     }
     &__cause-via { color: fade(@con-text-dim, 85%); }
@@ -28168,6 +28205,18 @@ html.console-mode .notifications-layer {
 
         .con-notif__dot { width: .45rem; height: .45rem; }
     }
+    /* FK · PL-087 — an actor's line in two labelled groups: «получил» and «заплатил» (the price dim — the income is
+       the line's news, the price its context). Words in the cluster tag's register; no tint, no plate. */
+    &__cluster-side {
+        font-size: .62rem;
+        font-weight: 700;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: fade(#c4d8ec, 58%);
+        white-space: nowrap;
+    }
+    &__cluster-side--paid { margin-left: .2rem; }
+    &__chip--paid { filter: saturate(.55) brightness(.88); }
 
     /* ── NO SILENT LOSS — «ПРОПУЩЕНО»: an effect that could NOT apply, named with its cause. Slate, dashed, the
        magnitude struck — nothing moved, so it borrows no sign tone. ── */
@@ -38759,7 +38808,12 @@ html.con-profile-handheld {
     .con-journal__scroll { padding: .4rem .5rem .6rem; }
     .con-journal__filterpop { top: 3.8rem; }
     .con-journal__filterpop-row { font-size: .675rem; padding: .3rem .45rem; }
-    &.console-mode .notifications-layer { top: 4.2rem; right: .6rem; }
+    /* FK · PL-553 on the small profile: the corner of the CENTRAL OPENING here too — a bare `right: .6rem` stood the
+       card (and the queue tail) over the strategy rail at 720p. Only the gap shrinks. */
+    &.console-mode .notifications-layer {
+        top: calc(var(--con-stage-t, 3.7rem) + .5rem);
+        right: calc(var(--con-stage-r, 9rem) + .5rem);
+    }
     /* P16: the console card gets the handheld density (the desktop card
        no longer renders in console mode). */
     .con-notif {

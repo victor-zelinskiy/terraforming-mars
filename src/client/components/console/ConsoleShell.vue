@@ -1668,7 +1668,7 @@ import {LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnaps
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
 import {ANIMATION_STALL_GRACE_MS} from '@/client/console/consoleForegroundWatchdog';
-import {notificationState, notificationFeedReadForDecision, acknowledgeFlowHoldingCards, dismiss as dismissNotification, pushWarning} from '@/client/components/notifications/notificationState';
+import {notificationState, notificationFeedReadForDecision, acknowledgeFlowHoldingCards, dismiss as dismissNotification, pushWarning, registerNotificationCornerProbe} from '@/client/components/notifications/notificationState';
 import {beginNotifHold, cancelNotifHold, consumeNotifHoldRelease, resetNotifHold} from '@/client/console/consoleNotifHold';
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -3004,6 +3004,8 @@ export default defineComponent({
       releasePresentationLease: undefined as (() => void) | undefined,
       /** Restore fn of the injected reveal-park supplier (see mounted()). */
       releaseRevealParkSupplier: undefined as (() => void) | undefined,
+      /** Unregister of the notification corner probe (FK — a new card waits while a viewer stands in its corner). */
+      releaseNotificationCorner: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -26296,6 +26298,9 @@ export default defineComponent({
     // NOWHERE by design, and must not read as a live result-modal either.
     // …and the parliament's Agenda CARD park is the third (same law, same shape).
     this.releaseRevealParkSupplier = registerRevealParkSupplier((batch) => this.revealBatchParked(batch));
+    // FK — THE CARD'S CORNER: a full-bleed inspection (the card / party dossier viewer) stands where the card would;
+    // a NEW card waits in the queue (its tail is the beacon) and presents when the viewer leaves (PL-680).
+    this.releaseNotificationCorner = registerNotificationCornerProbe(() => consoleCardZoom.card !== undefined);
     // T6: the notification CTAs go through the typed notificationBus;
     // PlayerHome's listeners don't exist in console — the shell answers them.
     (this as unknown as {__notifOff: Array<() => void>}).__notifOff = [
@@ -26453,6 +26458,8 @@ export default defineComponent({
     // computeds whose effects are stopped at unmount.
     this.releaseRevealParkSupplier?.();
     this.releaseRevealParkSupplier = undefined;
+    this.releaseNotificationCorner?.();
+    this.releaseNotificationCorner = undefined;
     this.consoleState.shellMounted = false;
     resetMandatoryGate(); // never carry an acknowledgment across games/sessions
     setMandatoryGateHeld(false); // shell gone → clear the held mirror (the watcher won't fire on unmount)

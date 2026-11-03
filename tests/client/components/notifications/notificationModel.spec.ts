@@ -56,10 +56,12 @@ function chip(icon: string, text: string, extra: Partial<JournalImpactChip> = {}
 
 describe('notificationModel (pure)', () => {
   describe('mergeChips', () => {
-    it('merges same icon+flags and drops zero net', () => {
+    it('merges same icon+flags+SIGN; a price and an income of one resource stay two chips (FK · PL-065 / PL-087)', () => {
       const merged = mergeChips([chip('energy', '+1'), chip('energy', '+2'), chip('megacredits', '+1'), chip('megacredits', '−1')]);
-      expect(merged).to.have.length(1);
+      expect(merged).to.have.length(3);
       expect(merged[0]).to.include({icon: 'energy', text: '+3'});
+      // «+1 and −1» used to net to nothing — the player saw neither move.
+      expect(merged.slice(1).map((c) => c.text)).to.deep.eq(['+1', '−1']);
     });
 
     it('keeps production and saved variants distinct from stock', () => {

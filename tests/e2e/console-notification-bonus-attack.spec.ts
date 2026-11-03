@@ -2,6 +2,7 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootWithCards, press, soloGameConfig, turnChip, waitForBoardHome, waitForTurn} from './consoleStart';
+import {notificationHonesty} from './notificationWitness';
 
 /**
  * THE P0 REGRESSION — the bot's bonus-card attack as ONE atomic notification.
@@ -235,6 +236,14 @@ test.describe('bonus-card attack — atomic notification lifecycle', () => {
     const found = await passUntilHostileCard(page);
     expect(found, 'the bot played its bonus attack and the hostile card presented').toBe(true);
     await pumpFrames(page, 700);
+    // FK — at 720p the hostile card read «ВЫ ПОТЕРЯЛИ [растения] РАСТЕНИЯ —» (the number cut by the card's edge) and
+    // stood over the strategy rail with its queue tail over a medal: the number whole, the card in its lane.
+    if (await hostileCardLive(page)) {
+      const honesty = await notificationHonesty(page);
+      expect(honesty.clippedValues, 'the hero number is never cut by its card').toEqual([]);
+      expect(honesty.overRail, 'the card and its queue tail stand in the opening, never over the strategy rail').toEqual([]);
+      expect(honesty.emoji, 'no pictograph on the card').toEqual([]);
+    }
     await shoot(page, '01-hostile-card');
 
     const samples = await takeSamples(page);

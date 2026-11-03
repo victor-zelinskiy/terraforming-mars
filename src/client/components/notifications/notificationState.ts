@@ -228,6 +228,11 @@ let starvationWarned = false;
  * degraded mode; a permanently frozen queue is not.
  */
 export function promoteFromQueue(): void {
+  // FK — a surface standing in the card's corner: the backlog waits for it (no starvation escape — a PLAYER is
+  // reading that surface, exactly like a result modal).
+  if (notificationCornerTaken()) {
+    return;
+  }
   if (isNotificationDeliveryBlocked()) {
     if (notificationState.queue.length === 0) {
       queueBlockedSince = undefined;
@@ -413,7 +418,7 @@ export function pushTransient(model: NotificationModel): void {
   if (!settingAllows(model.kind, model.sign) || !feedModeAllows(model) || knownId(model.id)) {
     return;
   }
-  if (isNotificationDeliveryBlocked() || notificationState.transient.length >= MAX_VISIBLE_TRANSIENT) {
+  if (isNotificationDeliveryBlocked() || notificationCornerTaken() || notificationState.transient.length >= MAX_VISIBLE_TRANSIENT) {
     notificationState.queue.push(model);
     return;
   }
@@ -630,6 +635,38 @@ registerFlowHoldSupplier(notificationFlowHoldSupplier);
 // isNotificationDeliveryBlocked). The already-presented card stays — see the
 // delivery-gate contract above.
 onForegroundFreed(() => promoteFromQueue());
+
+/*
+ * ── THE CARD'S CORNER (P53 · ledger FK — «КАРТОЧКА В СВОЕЙ ПОЛОСЕ») ─────────
+ * The card stands in the top-right corner of the central opening, and some surfaces stand THERE too: a full-bleed
+ * inspection (the card / party dossier viewer — its «ДОСТУП» block sat under the party-effect card, PL-680). While one
+ * stands, a NEW card is not delivered over it: it waits in the queue, whose tail «ДАЛЬШЕ +N» is the beacon (announce,
+ * never open — the foreign-decision law), and it presents the moment the surface leaves. A card ALREADY delivered stays
+ * (the delivery contract). The shell registers what takes the corner; nothing does in a spec.
+ */
+let cornerProbe: () => boolean = () => false;
+
+/** The shell: what stands in the card's corner right now (reactive reads — the free edge re-drives the queue). */
+export function registerNotificationCornerProbe(probe: () => boolean): () => void {
+  cornerProbe = probe;
+  // `sync`: the edge re-drives the queue in the same tick the viewer leaves (no frame of an empty corner).
+  const stop = watch(() => cornerProbe(), (taken) => {
+    if (!taken) {
+      promoteFromQueue();
+    }
+  }, {flush: 'sync'});
+  return () => {
+    stop();
+    if (cornerProbe === probe) {
+      cornerProbe = () => false;
+    }
+  };
+}
+
+/** Is the card's corner taken by a surface the player is reading? */
+export function notificationCornerTaken(): boolean {
+  return cornerProbe();
+}
 
 /**
  * The feed mode CHANGED — re-check the QUEUED (not-yet-shown) models against

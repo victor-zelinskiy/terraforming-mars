@@ -55,6 +55,11 @@ export type NotificationCauseLine = {
   viaParamKey?: string;
   /** Per-cause delta chips — present only on a multi-cause card. */
   chips?: ReadonlyArray<JournalImpactChip>;
+  /**
+   * The SOURCE IS ALREADY NAMED on the card (PL-548 · FK — the kicker «ДЕЙСТВИЕ КАРТЫ Модульные гидрозатворы» above
+   * «ИСТОЧНИК Модульные гидрозатворы»): the line keeps its chips and tails and drops its label + name.
+   */
+  sourceNamed?: true;
 };
 
 const PARAM_LABEL: Readonly<Record<GlobalParameter, string>> = {
@@ -295,7 +300,7 @@ export function causeLineOf(cause: ViewerImpactCause): NotificationCauseLine | u
  * dev diagnostic); an empty result under a non-neutral band is a defect the
  * corpus guard exists to catch.
  */
-export function causeLinesOf(meta: ViewerImpactMeta): Array<NotificationCauseLine> {
+export function causeLinesOf(meta: ViewerImpactMeta, opts: {namedCard?: string} = {}): Array<NotificationCauseLine> {
   const named: Array<{cause: ViewerImpactCause; line: NotificationCauseLine}> = [];
   for (const cause of meta.causes) {
     const line = causeLineOf(cause);
@@ -304,6 +309,30 @@ export function causeLinesOf(meta: ViewerImpactMeta): Array<NotificationCauseLin
     }
   }
   const multi = named.length > 1;
-  return named.map(({cause, line}) => multi ?
-    {...line, chips: [...cause.losses, ...cause.gains]} : line);
+  const out: Array<NotificationCauseLine> = [];
+  for (const {cause, line} of named) {
+    const withChips: NotificationCauseLine = multi ? {...line, chips: [...cause.losses, ...cause.gains]} : line;
+    const once = sourceOnce(withChips, opts.namedCard);
+    if (once !== undefined) {
+      out.push(once);
+    }
+  }
+  return out;
+}
+
+/**
+ * THE SOURCE IS NAMED ONCE (PL-548 · FK): a «Source» line whose name the card already prints (its kicker / headline)
+ * drops the label and the name — and a move tail naming that same card («ход: <the same card>») with them. A line
+ * left with nothing to say (no chips, no tail) is dropped whole. An OWN anchor («Your card» …) always stays: it names
+ * what of the viewer's paid, which the kicker never says.
+ */
+function sourceOnce(line: NotificationCauseLine, namedCard: string | undefined): NotificationCauseLine | undefined {
+  if (namedCard === undefined || line.labelKey !== 'Source' || line.nameKey !== namedCard) {
+    return line;
+  }
+  const {viaKey, viaParamKey, ...rest} = line;
+  const keepVia = viaKey !== undefined && viaParamKey !== namedCard;
+  const out: NotificationCauseLine = {...rest, ...(keepVia ? {viaKey, viaParamKey} : {}), sourceNamed: true};
+  const says = (out.chips?.length ?? 0) > 0 || out.detailKey !== undefined || out.triggerKey !== undefined || out.viaKey !== undefined;
+  return says ? out : undefined;
 }

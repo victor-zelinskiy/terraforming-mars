@@ -212,6 +212,15 @@ for (const profile of PROFILES) {
       const cardBox = await card.boundingBox();
       expect(whyBox!.x + whyBox!.width, 'the zone stays inside the card')
         .toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
+
+      // FK · PL-087 — the rival's own line («● +1 −25» — their income and their 25 M€ price in one row, no word for
+      // either): two labelled groups, the price apart. Read only when the line stands (the content mode may drop it).
+      const cluster = card.locator('.con-notif__cluster').first();
+      if (await cluster.count() > 0 && await cluster.locator('.con-notif__chip--paid').count() > 0) {
+        await expect(cluster.locator('[data-notif-side="got"]'), 'the income is labelled').toHaveCount(1);
+        await expect(cluster.locator('[data-notif-side="paid"]'), 'the price is labelled').toHaveCount(1);
+        await expect(cluster.locator('[data-notif-side="paid"]')).toContainText(/заплатил|paid/i);
+      }
     });
   });
 }

@@ -44,23 +44,24 @@
           <span class="con-notif__you-glyph" aria-hidden="true">{{ signGlyph }}</span>
           <span v-i18n>{{ signLabel }}</span>
         </span>
-        <span class="con-notif__you-chips">
-          <span v-for="(chip, i) in impactBand.losses" :key="'l' + i"
+        <span v-if="bandSays.losses.length + bandSays.gains.length > 0" class="con-notif__you-chips">
+          <span v-for="(chip, i) in bandSays.losses" :key="'l' + i"
                 class="con-notif__chip con-notif__chip--neg con-notif__chip--big"
                 :class="{'con-notif__chip--prod': chip.production === true}">
             <span v-if="iconClass(chip.icon) !== ''" class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
             <span v-if="bandUnit(chip) !== undefined" class="con-notif__chip-unit" v-i18n>{{ bandUnit(chip) }}</span>
             <span class="con-notif__chip-value">{{ chip.text }}</span>
           </span>
-          <!-- The transfer: the arrow and WHO took it — the dot alone when that is the actor (the head named them). -->
-          <template v-if="impactBand.transfer === true && impactBand.attacker !== undefined">
+          <!-- The transfer: the arrow and WHO took it — only when that is NOT the actor the head already named
+               (FK: a bare «→ ●» said nothing the head had not). -->
+          <template v-if="taker !== undefined">
             <span class="con-notif__arrow" aria-hidden="true">→</span>
             <span class="con-notif__side">
-              <span class="con-notif__dot" :class="'player_bg_color_' + impactBand.attacker" aria-hidden="true"></span>
-              <span v-if="impactBand.attacker !== notification.actor" class="con-notif__who">{{ attackerName }}</span>
+              <span class="con-notif__dot" :class="'player_bg_color_' + taker" aria-hidden="true"></span>
+              <span class="con-notif__who">{{ attackerName }}</span>
             </span>
           </template>
-          <span v-for="(chip, i) in impactBand.gains" :key="'g' + i"
+          <span v-for="(chip, i) in bandSays.gains" :key="'g' + i"
                 class="con-notif__chip con-notif__chip--pos con-notif__chip--big"
                 :class="{'con-notif__chip--prod': chip.production === true}">
             <span v-if="iconClass(chip.icon) !== ''" class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
@@ -68,6 +69,8 @@
             <span class="con-notif__chip-value">{{ chip.text }}</span>
           </span>
         </span>
+        <!-- A WORD OUTCOME is a sentence under the sign, never a pill (FK). -->
+        <span v-for="phrase in bandSays.phrases" :key="phrase" class="con-notif__you-phrase" data-notif-phrase v-i18n>{{ phrase }}</span>
       </div>
 
       <!-- ── WHY — one line per cause, hanging off the band: the anchor naming WHAT OF YOURS paid («ВАШ ТАЙЛ» /
@@ -85,8 +88,11 @@
               <span>{{ chip.text }}</span>
             </span>
           </span>
-          <span class="con-notif__cause-label" v-i18n>{{ line.labelKey }}</span>
-          <b class="con-notif__card">{{ $t(line.nameKey) }}</b>
+          <!-- The source is named ONCE (PL-548): a «Source» line whose card the kicker already names keeps its tails only. -->
+          <template v-if="line.sourceNamed !== true">
+            <span class="con-notif__cause-label" v-i18n>{{ line.labelKey }}</span>
+            <b class="con-notif__card">{{ $t(line.nameKey) }}</b>
+          </template>
           <!-- The quiet tails on a line of their own — the detail, the trigger, the actor's move — separated BETWEEN
                each other, never a separator stranded at a wrapped line's start. -->
           <span v-if="line.detailKey !== undefined || line.triggerKey !== undefined || line.viaKey !== undefined" class="con-notif__cause-tails">
@@ -179,16 +185,21 @@
                 class="con-notif__dot" :class="'player_bg_color_' + clusterOwner(cluster)" aria-hidden="true"></span>
           <span v-if="clusterLabel(cluster) !== ''" v-i18n>{{ clusterLabel(cluster) }}</span>
         </span>
-        <span v-for="(chip, i) in cluster.chips"
-              :key="i"
-              class="con-notif__chip"
-              :class="chipClass(chip)">
-          <span v-if="iconClass(chip.icon) !== ''" class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
-          <span v-if="chipUnit(chip) !== undefined" class="con-notif__chip-unit" v-i18n>{{ chipUnit(chip) }}</span>
-          <span>{{ chip.text }}</span>
-          <!-- PL-195: a COUNTED gain names what it was counted by, on its own pill. -->
-          <span v-if="chip.basis !== undefined" class="con-notif__chip-basis" data-notif-basis>{{ basisLabel(chip.basis) }}</span>
-        </span>
+        <!-- WHAT THEY GOT, then WHAT THEY PAID — two labelled groups, never one row with a price beside an income and
+             no word for either (FK · PL-087: «● +1 −25»). The words appear only when both sides stand. -->
+        <template v-for="side in clusterSidesOf(cluster)" :key="side.key">
+          <span v-if="side.label !== undefined" class="con-notif__cluster-side" :class="'con-notif__cluster-side--' + side.key" :data-notif-side="side.key" v-i18n>{{ side.label }}</span>
+          <span v-for="(chip, i) in side.chips"
+                :key="side.key + i"
+                class="con-notif__chip"
+                :class="[chipClass(chip), {'con-notif__chip--paid': side.key === 'paid'}]">
+            <span v-if="iconClass(chip.icon) !== ''" class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
+            <span v-if="chipUnit(chip) !== undefined" class="con-notif__chip-unit" v-i18n>{{ chipUnit(chip) }}</span>
+            <span>{{ chip.text }}</span>
+            <!-- PL-195: a COUNTED gain names what it was counted by, on its own pill. -->
+            <span v-if="chip.basis !== undefined" class="con-notif__chip-basis" data-notif-basis>{{ basisLabel(chip.basis) }}</span>
+          </span>
+        </template>
       </span>
     </div>
 
@@ -297,6 +308,7 @@ import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {NOTIF_HOLD_MS, notifHoldState} from '@/client/console/consoleNotifHold';
 import {ViewerImpactMeta} from '@/client/components/notifications/notificationSemantics';
 import {causeLinesOf, NotificationCauseLine} from '@/client/components/notifications/notificationCauseView';
+import {BAND_PHRASE_LABEL, BandStatements, bandStatements, clusterSides, notificationGlyph, transferTaker} from '@/client/components/notifications/notificationBandView';
 import {LiveNotification, NotificationEasedLine, NotificationPillGroup, NotificationSkippedLine, NotificationVariant} from '@/client/components/notifications/notificationTypes';
 import {EASING_KEYS, lawName} from '@/client/console/requirementEasingText';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
@@ -308,9 +320,7 @@ import {partyNameKey} from '@/client/console/parliament/partyNames';
 const UNIT_LABEL: Readonly<Record<string, string>> = {
   'megacredits': 'M€', 'steel': 'Steel', 'titanium': 'Titanium', 'plants': 'plants',
   'energy': 'Energy', 'heat': 'Heat', 'cards': 'cards', 'tr': 'TR', 'vp': 'VP',
-  // The Modular Floodgates blockade band: no number moved — the loss IS the
-  // standing ban, so the unit speaks the whole phrase (duration included).
-  'hydro-blockade': 'Advancement blocked until the next generation',
+  // (A chip with no number — the Modular Floodgates blockade — is a SENTENCE, `BAND_PHRASE_LABEL`, never a unit.)
 };
 // …and a PRODUCTION delta says so in its own unit (TR59): with the «from production» line gone (one number, one
 // statement), the unit is where «stock or income?» is answered — «ПР. ЭНЕРГИИ −1», never a bare «ЭНЕРГИЯ −1».
@@ -347,13 +357,22 @@ export default defineComponent({
       }
       return impact;
     },
+    /** The band's numbers and its word outcomes apart (FK — a phrase is a sentence, never a pill). */
+    bandSays(): BandStatements {
+      const band = this.impactBand;
+      return band === undefined ? {losses: [], gains: [], phrases: []} : bandStatements(band);
+    },
+    /** Who the transfer arrow names — nobody when it is the actor the head named (FK). */
+    taker(): Color | undefined {
+      const band = this.impactBand;
+      return band === undefined ? undefined : transferTaker(band, this.notification.actor);
+    },
     /** ONE delta → the label and the statement share a line (no empty frame). */
     bandDense(): boolean {
-      const band = this.impactBand;
-      if (band === undefined) {
+      if (this.impactBand === undefined) {
         return false;
       }
-      return band.losses.length + band.gains.length === 1 && band.transfer !== true;
+      return this.bandSays.losses.length + this.bandSays.gains.length === 1 && this.bandSays.phrases.length === 0 && this.taker === undefined;
     },
     prestige(): boolean {
       return this.notification.variant === 'milestone' || this.notification.variant === 'award';
@@ -389,7 +408,7 @@ export default defineComponent({
       // A standing ban (the Modular Floodgates blockade) is not a spent
       // amount — «You lost: advancement blocked» misreads, so the band leads
       // with the hostile register instead.
-      if (this.impactBand?.losses.some((c) => c.icon === 'hydro-blockade') === true) {
+      if (this.impactBand?.losses.some((c) => c.text === '' && BAND_PHRASE_LABEL[c.icon] !== undefined) === true) {
         return 'Against you';
       }
       switch (this.notification.sign) {
@@ -414,6 +433,12 @@ export default defineComponent({
      */
     causeLines(): ReadonlyArray<NotificationCauseLine> {
       const band = this.impactBand;
+      // The source is named ONCE (PL-548): a line naming the card the kicker already names keeps only its tails.
+      return band === undefined ? [] : causeLinesOf(band, {namedCard: this.kickerCard});
+    },
+    /** Every nameable cause, the card's own naming aside — the «is the zone buildable» question. */
+    rawCauseLines(): ReadonlyArray<NotificationCauseLine> {
+      const band = this.impactBand;
       return band === undefined ? [] : causeLinesOf(band);
     },
     /**
@@ -429,7 +454,7 @@ export default defineComponent({
       if (this.impactBand === undefined) {
         return true;
       }
-      return this.notification.variant === 'bot-turn' && this.causeLines.length === 0;
+      return this.notification.variant === 'bot-turn' && this.rawCauseLines.length === 0;
     },
     /** Bot-turn headline under a live band = the secondary cause voice. */
     headlineAsCause(): boolean {
@@ -506,33 +531,9 @@ export default defineComponent({
       }
       return typeof p === 'string' ? this.$t(p) : translateMessage(p);
     },
+    /** The head's glyph — a TEXT glyph of the family, never an emoji (FK). */
     glyph(): string {
-      switch (this.notification.variant) {
-      case 'chairman': return '⚖';
-      case 'milestone': return '🏆';
-      case 'award': return '🏅';
-      case 'warning': return '⚠';
-      case 'bot-turn': return '⌬';
-      case 'generation': return '◆';
-      case 'pass': return '⏻';
-      case 'standard-project': return '⬡';
-      case 'colony': return '◉';
-      case 'hydronetwork': return '≈';
-      case 'planetary-event': return '◬';
-      case 'blue-action': return '⟳';
-      case 'passive-effect': return '✦';
-      case 'destroy': return '✖';
-      case 'steal': return '⇢';
-      case 'production-reduction': return '▼';
-      case 'production-transfer': return '⇄';
-      case 'vp-loss': return '★';
-      case 'threat': return '⚠';
-      case 'reveal-deck': return '◇';
-      case 'reveal-hand': return '⊙';
-      case 'play-card':
-      case 'event':
-      default: return '◈';
-      }
+      return notificationGlyph(this.notification.variant);
     },
     metaLine(): string | undefined {
       if (this.notification.kind === 'important' && this.notification.typeLabelKey === 'New generation') {
@@ -594,7 +595,7 @@ export default defineComponent({
     // A live band with NO nameable cause is a producer defect (an event that
     // recorded with no source anywhere in its chain). Never masked by a
     // placeholder — say it where a developer looks.
-    if (this.impactBand !== undefined && this.causeLines.length === 0) {
+    if (this.impactBand !== undefined && this.rawCauseLines.length === 0) {
       console.warn(`[notifications] band with no nameable cause: ${this.notification.id}`,
         JSON.stringify(this.impactBand.causes));
     }
@@ -693,6 +694,20 @@ export default defineComponent({
     // minus the redundant leading actor.
     lineEntries(line: LogMessage): ReadonlyArray<string | LogMessageData> {
       return this.withoutLeadingActor(parseLocalizedLog(line));
+    },
+    /** An actor's line in two labelled groups — what they got, what they paid (FK · PL-087). Labels only when both
+     *  sides stand: a lone income or a lone price reads by its sign. */
+    clusterSidesOf(cluster: NotificationPillGroup): Array<{key: 'got' | 'paid', label?: string, chips: ReadonlyArray<JournalImpactChip>}> {
+      const {got, paid} = clusterSides(cluster.chips);
+      const both = got.length > 0 && paid.length > 0;
+      const out: Array<{key: 'got' | 'paid', label?: string, chips: ReadonlyArray<JournalImpactChip>}> = [];
+      if (got.length > 0) {
+        out.push({key: 'got', ...(both ? {label: 'gained'} : {}), chips: got});
+      }
+      if (paid.length > 0) {
+        out.push({key: 'paid', ...(both ? {label: 'paid'} : {}), chips: paid});
+      }
+      return out;
     },
     chipClass(chip: JournalImpactChip): Record<string, boolean> {
       const plain = chip.production !== true && chip.saved !== true && chip.neutral !== true;
