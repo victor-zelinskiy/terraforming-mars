@@ -250,6 +250,19 @@ describe('resourceTransferModel (pure math of the shared resource-transfer langu
       ]);
     });
 
+    it('a «?» gain binds to the GAIN step — never to a spend «?» standing before it (P50 · FC)', () => {
+      const resourceStep = (extra: Record<string, unknown>) => ({
+        kind: 'input', input: {title: 't', buttonLabel: 'b', type: 'resource', include: [], ...extra},
+      }) as unknown as ActionPreviewStep;
+      const specs = extractPlayRewards({
+        cardName: CardName.FOCUSED_ORGANIZATION,
+        effects: [{direction: 'gain', icon: 'wild', amount: 1, note: 'of your choice'}],
+        steps: [resourceStep({spendAmount: 1}), resourceStep({amount: 1})],
+        stepResponses: {0: {type: 'resource', resource: 'plants'}, 1: {type: 'resource', resource: 'heat'}},
+      });
+      expect(specs.map((s) => [s.channel, s.resource, s.amount])).deep.eq([['stock', 'heat', 1]]);
+    });
+
     it('stock and production of the SAME resource stay two separate transfers', () => {
       const specs = extractPlayRewards({
         cardName: CardName.INSULATION,

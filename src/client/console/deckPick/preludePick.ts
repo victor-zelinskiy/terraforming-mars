@@ -59,7 +59,8 @@ export function preludePickPreview(viewerId: string, card: CardName): Promise<Ac
  * The rewards of ONE branch of the play — branch 0 for a prelude with no choice, the CHOSEN one once the «ВАРИАНТ»
  * step answered (P44 · ledger EQ: the pick used to read branch 0 whatever the player chose).
  */
-export function preludeRewardsOf(card: CardName, preview: ActionPreview | undefined, position: number): ReadonlyArray<ResourceTransferSpec> | undefined {
+export function preludeRewardsOf(card: CardName, preview: ActionPreview | undefined, position: number,
+  stepResponses: Readonly<Record<number, unknown>> = {}): ReadonlyArray<ResourceTransferSpec> | undefined {
   const branch = preview?.branches?.[position] ?? preview?.branches?.[0];
   if (branch === undefined) {
     return undefined;
@@ -68,6 +69,7 @@ export function preludeRewardsOf(card: CardName, preview: ActionPreview | undefi
     cardName: card,
     effects: branch.effects,
     steps: branch.steps,
-    stepResponses: {},
+    // A resource pre-step's answer (P50 · FC) — the «?» flies as the chosen resource.
+    stepResponses,
   }).filter((spec) => spec.channel !== 'card-resource');
 }

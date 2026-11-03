@@ -63,7 +63,12 @@ export const WILD_OPTIONS: ReadonlyArray<{key: WildKind, title: string, desc: st
  *  · `amount(wild)` — the standard resources to lay out for an answer of the OR (0 = no grid owed) — a FUNCTION, so a
  *    host may hand in a budget that MOVES (P49: the branch's amount dial — «+X» on every lane, re-read on every turn);
  *  · `exclusive` — the grid belongs to «a standard resource» ALONE (P43); otherwise the grid is always there (Venus);
- *  · `lanes` — `dial` (LB/RB/RT, A «+1 сюда» then «Подтвердить») or `radio` (budget 1: A chooses and leaves).
+ *  · `lanes` — `dial` (LB/RB/RT, A «+1 сюда» then «Подтвердить») or `radio` (budget 1: A chooses and leaves);
+ *  · `mode` — `gain` (the default: a lane reads `stock → stock + N`) or `spend` (P50 · FC — «spend 1 standard resource»:
+ *    a lane reads `stock → stock − N`); a SPEND is never a dial — the owner, 2026-11-03: «тут только 1 ресурс, так что
+ *    без LB/RB, просто селект»;
+ *  · `laneOff(lane)` — why a lane cannot be chosen (a spend from an empty supply — «нет растений»): the lane STAYS on the
+ *    grid, dimmed with its reason (invariant 2 — never hidden), the cursor steps over it and A refuses it.
  */
 export type WildChoiceSpec = {
   or?: {onCardOff?: string},
@@ -73,7 +78,19 @@ export type WildChoiceSpec = {
   lanes: 'dial' | 'radio',
   /** «On a card» is a NESTED level (`pick`) behind ONE door row — never a strip of every holder (see the header). */
   nestedPick?: boolean,
+  mode?: 'gain' | 'spend',
+  laneOff?: (lane: string) => string | undefined,
 };
+
+/** Why `lane` cannot be chosen (undefined: it can). */
+export function wildLaneOff(spec: WildChoiceSpec, lane: string | undefined): string | undefined {
+  return lane === undefined ? undefined : spec.laneOff?.(lane);
+}
+
+/** May the lane at `index` take the cursor and the press? */
+function laneLive(spec: WildChoiceSpec, index: number): boolean {
+  return WILD_LANES[index] !== undefined && wildLaneOff(spec, WILD_LANES[index]) === undefined;
+}
 
 /** Is the OR asked here? */
 export function wildShown(spec: WildChoiceSpec): boolean {
@@ -156,9 +173,14 @@ export function wildLeft(spec: WildChoiceSpec, parts: WildParts): number {
   return wildLanesShown(spec, parts) ? spreadRemaining(wildAmount(spec, parts), parts.spread ?? {}) : 0;
 }
 
-function firstLane(parts: WildParts): WildFocus {
+function firstLane(parts: WildParts, spec?: WildChoiceSpec): WildFocus {
   const filled = WILD_LANES.findIndex((key) => (parts.spread?.[key] ?? 0) > 0);
-  return {zone: 'lane', index: Math.max(0, filled)};
+  if (filled >= 0) {
+    return {zone: 'lane', index: filled};
+  }
+  // A lane refused with its reason never takes the cursor first (a spend opens on the first resource the player holds).
+  const live = spec === undefined ? 0 : WILD_LANES.findIndex((_, i) => laneLive(spec, i));
+  return {zone: 'lane', index: Math.max(0, live)};
 }
 
 /** The first live plate — a refused «on a card» never takes the cursor first. */
@@ -189,7 +211,7 @@ export function wildOpen(spec: WildChoiceSpec, parts: WildParts): WildFocus {
   if (!wildLanesShown(spec, parts)) {
     return {zone: 'wild', index: firstLivePlate(spec, parts)};
   }
-  return firstLane(parts);
+  return firstLane(parts, spec);
 }
 
 /** A cursor that still points at something (a zone that went away falls to the first row standing). */
@@ -217,15 +239,33 @@ export function wildNav(spec: WildChoiceSpec, parts: WildParts, focus: WildFocus
   }
   const row = rows[at];
   const col = focus.index - row.first;
+  // A lane refused with its reason (a spend from an empty supply) is STEPPED OVER — never a stop of the cursor.
+  const live = (r: GridRow, c: number) => r.zone !== 'lane' || laneLive(spec, r.first + c);
   if (dir === 'left' || dir === 'right') {
-    const next = Math.max(0, Math.min(row.count - 1, col + (dir === 'left' ? -1 : 1)));
-    return {zone: row.zone, index: row.first + next};
+    const step = dir === 'left' ? -1 : 1;
+    for (let c = col + step; c >= 0 && c < row.count; c += step) {
+      if (live(row, c)) {
+        return {zone: row.zone, index: row.first + c};
+      }
+    }
+    return focus; // the edge (or only refused lanes beyond it) HOLDS — never a wrap
   }
-  const target = rows[at + (dir === 'up' ? -1 : 1)];
-  if (target === undefined) {
-    return focus;
+  for (let r = at + (dir === 'up' ? -1 : 1); r >= 0 && r < rows.length; r += dir === 'up' ? -1 : 1) {
+    const target = rows[r];
+    const carried = carryColumn(col, row.count, target.count);
+    if (live(target, carried)) {
+      return {zone: target.zone, index: target.first + carried};
+    }
+    // The carried column is refused: the nearest live column of that row, else the row is skipped.
+    for (let d = 1; d < target.count; d++) {
+      for (const c of [carried - d, carried + d]) {
+        if (c >= 0 && c < target.count && live(target, c)) {
+          return {zone: target.zone, index: target.first + c};
+        }
+      }
+    }
   }
-  return {zone: target.zone, index: target.first + carryColumn(col, row.count, target.count)};
+  return focus;
 }
 
 /** The spread cut down to a smaller sum (the wild moved from «a standard resource» onto a card) — the LAST lanes give way. */
@@ -274,7 +314,7 @@ export function wildPress(spec: WildChoiceSpec, parts: WildParts, focus: WildFoc
       return stay;
     }
     const next = withWild(spec, parts, {wild: 'onCard', card: picked});
-    return {parts: next, focus: firstLane(next)};
+    return {parts: next, focus: firstLane(next, spec)};
   }
   if (verb === 'back') {
     return {...stay, exit: 'back'};
@@ -286,7 +326,7 @@ export function wildPress(spec: WildChoiceSpec, parts: WildParts, focus: WildFoc
     }
     if (key === 'asStandard') {
       const next = withWild(spec, parts, {wild: 'asStandard'});
-      return {parts: next, focus: firstLane(next)};
+      return {parts: next, focus: firstLane(next, spec)};
     }
     // ON A CARD: a sole holder is SEEDED — shown and marked (T14 — the composer seed), never applied silently: the
     // cursor stands on it in the slot and the answer is confirmed by the player's own A there (exclusive) or rides
@@ -301,7 +341,7 @@ export function wildPress(spec: WildChoiceSpec, parts: WildParts, focus: WildFoc
       const at = card === undefined ? 0 : Math.max(0, spec.holders.indexOf(card));
       return {parts: next, focus: {zone: 'card', index: at}};
     }
-    return {parts: next, focus: firstLane(next)};
+    return {parts: next, focus: firstLane(next, spec)};
   }
   if (focus.zone === 'card') {
     if (verb !== 'primary') {
@@ -319,11 +359,11 @@ export function wildPress(spec: WildChoiceSpec, parts: WildParts, focus: WildFoc
     if (spec.exclusive) {
       return {parts: next, focus, exit: 'confirm'};
     }
-    return {parts: next, focus: firstLane(next)};
+    return {parts: next, focus: firstLane(next, spec)};
   }
   const key = WILD_LANES[focus.index];
-  if (key === undefined) {
-    return stay;
+  if (key === undefined || wildLaneOff(spec, key) !== undefined) {
+    return stay; // a refused lane takes no answer (its reason is on it)
   }
   const amount = wildAmount(spec, parts);
   const spread = parts.spread ?? {};
@@ -388,7 +428,8 @@ export function wildBar(spec: WildChoiceSpec, parts: WildParts, focus: WildFocus
     return {primary: {label: spec.nestedPick === true && parts.wild?.card !== undefined ? 'Change the card' : 'Choose', enabled: true}, pour: false, blocked};
   }
   if (spec.lanes === 'radio') {
-    return {primary: {label: 'Choose', enabled: wildAmount(spec, parts) > 0}, pour: false, blocked};
+    const off = wildLaneOff(spec, WILD_LANES[focus.index]) !== undefined;
+    return {primary: {label: 'Choose', enabled: wildAmount(spec, parts) > 0 && !off}, pour: false, blocked};
   }
   const key = WILD_LANES[focus.index] ?? '';
   const on = parts.spread?.[key] ?? 0;

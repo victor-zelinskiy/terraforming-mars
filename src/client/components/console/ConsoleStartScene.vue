@@ -1278,7 +1278,10 @@ import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.v
 import ConsoleForecastLayer from '@/client/components/console/ConsoleForecastLayer.vue';
 import ConsolePreludeVariantStep from '@/client/components/console/foundation/ConsolePreludeVariantStep.vue';
 import {InputResponse} from '@/common/inputs/InputResponse';
-import {firstAvailableRow, PreludeVariant, preludeVariantAnswer, preludeVariantOf, preludeVariantReading, stepVariantFocus} from '@/client/console/preludeVariant/preludeVariantModel';
+import {
+  firstAvailableRow, PreludeVariant, preludePreStepStage, preludeVariantAnswer, preludeVariantOf, preludeVariantReading, preludeVariantRowOf,
+  preludeVariantStepResponses, stepVariantFocus,
+} from '@/client/console/preludeVariant/preludeVariantModel';
 import {closeEffectForecastLayer, effectForecastOpen, forecastExplorerUi, forecastStageText} from '@/client/console/consoleEffectForecast';
 import {
   foldForecastHost, forecastHostIntent, forecastOwnerColors, forecastStatsByColor, openForecastHost, pulseForecastDoor,
@@ -1876,6 +1879,7 @@ export default defineComponent({
       }
       return deploymentCrumb({
         variantSubject: this.variantStep !== undefined ? this.variantCard : undefined,
+        variantStage: this.variantStep !== undefined ? preludePreStepStage(this.variantStep) : undefined,
         embedActive: this.embedPresenting,
         embedPhase: this.outcome.phaseKey,
         embedSubject: this.embedSubject,
@@ -4243,7 +4247,8 @@ export default defineComponent({
         }
         return [
           {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Play this variant', enabled: this.variantStep.rows[this.variantFocus]?.available === true},
+          {control: 'confirm', label: this.variantStep.kind === 'resource' ? 'Play with this resource' : 'Play this variant',
+            enabled: this.variantStep.rows[this.variantFocus]?.available === true},
           {control: 'back', label: 'Back'},
         ] as unknown as Array<StartCommand>;
       }
@@ -7582,10 +7587,11 @@ export default defineComponent({
       if (!row.available) {
         return; // a refused row is read, never taken (its reason stands on the tile)
       }
-      this.variantChosen.set(card, row.position);
+      this.variantChosen.set(card, row.choice);
       const preview = this.playPreviews.get(card);
       if (preview !== undefined) {
-        this.applyPlayPreview(card, preview, row.position, this.rewardVersion);
+        // A RESOURCE row (P50 · FC) carries its answer into the wave — the «?» flies as the chosen resource.
+        this.applyPlayPreview(card, preview, row.position, this.rewardVersion, preludeVariantStepResponses(row));
       }
       this.variantSealed = true;
       this.actByName(card);
@@ -7600,10 +7606,9 @@ export default defineComponent({
     },
     /** The chosen branch's addressed answer for a prelude's press, or undefined (no choice made / nothing to choose). */
     variantAnswerFor(name: CardName): InputResponse | undefined {
-      const position = this.variantChosen.get(name);
       const preview = this.playPreviews.get(name);
       const variant = preview === undefined ? undefined : preludeVariantOf(name, preview);
-      const row = position === undefined ? undefined : variant?.rows.find((r) => r.position === position);
+      const row = preludeVariantRowOf(variant, this.variantChosen.get(name));
       return preview === undefined || row === undefined ? undefined : preludeVariantAnswer(preview, row);
     },
     /** The queue's reading of a prelude's branches — «Выбор: Температура · Кислород (макс.) · Венера»; '' when none. */
@@ -9135,7 +9140,7 @@ export default defineComponent({
      * for a card with no choice, the CHOSEN branch once the «ВАРИАНТ» step answered (P44: the ceremony used to read
      * branch 0 whatever the player chose — the temperature's TR for a Venus play).
      */
-    applyPlayPreview(name: CardName, preview: ActionPreview, position: number, version: string): void {
+    applyPlayPreview(name: CardName, preview: ActionPreview, position: number, version: string, stepResponses: Readonly<Record<number, unknown>> = {}): void {
       const branch = preview.branches?.[position] ?? preview.branches?.[0];
       if (branch === undefined) {
         return;
@@ -9144,7 +9149,8 @@ export default defineComponent({
         cardName: name,
         effects: branch.effects,
         steps: branch.steps,
-        stepResponses: {}, // the ceremony pre-collects nothing
+        // The ceremony pre-collects nothing — except a resource pre-step's answer (P50 · FC).
+        stepResponses,
       // …except a gain ON THE CARD ITSELF (P43 · EN — «add 6 science here»): it needs no pre-selected host, its
       // host is the very card the shelf receives, so its tokens fly onto that card's capsule (TR82's receiving shelf).
       }).filter((spec) => spec.channel !== 'card-resource' || spec.targetCard === name);
@@ -9234,7 +9240,8 @@ export default defineComponent({
             }
             // Kept whole: a prelude with branches is chosen in the «ВАРИАНТ» step (P44) and re-read for the chosen one.
             this.playPreviews.set(name, preview);
-            this.applyPlayPreview(name, preview, this.variantChosen.get(name) ?? 0, version);
+            const chosen = preludeVariantRowOf(preludeVariantOf(name, preview), this.variantChosen.get(name));
+            this.applyPlayPreview(name, preview, chosen?.position ?? 0, version, preludeVariantStepResponses(chosen));
           })
           .catch(() => {
             // `fetchPreview` never rejects — an absent preview simply arrives

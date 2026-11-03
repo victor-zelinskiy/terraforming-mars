@@ -2,10 +2,11 @@ import {expect} from 'chai';
 import {CardName} from '../../src/common/cards/CardName';
 import {ActionPreviewBranch} from '../../src/common/models/ActionPreviewModel';
 import {
-  WILD_LANES, WildChoiceSpec, WildParts, wildBar, wildComplete, wildFootHints, wildLanesShown, wildNav, wildOpen, wildPress,
+  WILD_LANES, WildChoiceSpec, WildParts, wildBar, wildComplete, wildFootHints, wildLaneOff, wildLanesShown, wildNav, wildOpen, wildPress,
 } from '../../src/client/console/wildChoice/wildChoiceInner';
 import {
   wildBranchPlan, wildComposerSpec, wildDialAmount, wildDialAnswer, wildDialParts, wildDialPlan, wildDialSpec, wildPartsFrom, wildRowAnswer,
+  wildStepAnswer, wildStepPlans, wildStepSpec, withWildStepCommitEffects,
 } from '../../src/client/console/wildChoice/wildChoiceComposer';
 
 const BLOCK = {chooseWild: 'w', chooseCard: 'c'};
@@ -155,5 +156,76 @@ describe('wildChoiceComposer · the DIAL\'S resource (P49 · FA)', () => {
     expect(wildComplete(wildDialSpec(() => 3), wildDialParts(plan, captured, 3))).is.true;
     expect(wildDialAnswer(plan, captured, 2)).deep.eq({kind: 'standard', resource: 'plants', amount: 2});
     expect(wildDialAnswer(plan, {}, 2)).is.undefined;
+  });
+});
+
+describe('wildChoiceInner · the SPEND mode (P50 · FC)', () => {
+  // Plants 2, heat 1, the rest empty — the supply decides which lanes may pay.
+  const stock: Record<string, number> = {plants: 2, heat: 1};
+  const plan = {resourceStep: 0, mode: 'spend' as const, amount: 1};
+  const spec = wildStepSpec(plan, ['plants', 'heat'], (r) => stock[r] ?? 0);
+
+  it('a lane the supply cannot pay is SHOWN refused with its reason — never hidden', () => {
+    expect(spec.mode).eq('spend');
+    expect(WILD_LANES.map((lane) => wildLaneOff(spec, lane))).deep.eq(
+      ['No M€', 'No steel', 'No titanium', undefined, 'No energy', undefined]);
+  });
+
+  it('opens on the first lane the player can pay; the cursor steps OVER refused lanes', () => {
+    const open = wildOpen(spec, {wild: {wild: 'asStandard'}});
+    expect(open).deep.eq({zone: 'lane', index: 3});
+    expect(wildNav(spec, {}, open, 'right'), 'energy is stepped over').deep.eq({zone: 'lane', index: 5});
+    expect(wildNav(spec, {}, {zone: 'lane', index: 5}, 'right'), 'the edge holds').deep.eq({zone: 'lane', index: 5});
+    expect(wildNav(spec, {}, open, 'up'), 'a row of refused lanes is skipped').deep.eq(open);
+  });
+
+  it('A on a refused lane answers nothing; A on plants chooses and LEAVES (a radio — no dial, no bumpers)', () => {
+    const refused = wildPress(spec, {}, {zone: 'lane', index: 0}, 'primary');
+    expect(refused.exit).is.undefined;
+    expect(wildBar(spec, {}, {zone: 'lane', index: 0}, BLOCK).primary.enabled).is.false;
+    const chosen = wildPress(spec, {wild: {wild: 'asStandard'}}, {zone: 'lane', index: 3}, 'primary');
+    expect(chosen.exit).eq('confirm');
+    expect(chosen.parts.spread).deep.eq({plants: 1});
+    expect(wildBar(spec, {}, {zone: 'lane', index: 3}, BLOCK).bumpers).is.undefined;
+  });
+});
+
+describe('wildChoiceComposer · STANDALONE «?» steps (P50 · FC)', () => {
+  const step = (input: Record<string, unknown>) => ({kind: 'input', input: {title: 't', buttonLabel: 'b', type: 'resource', include: WILD_LANES, ...input}});
+  const branch = {
+    index: -1, title: '', available: true, renderKeys: [],
+    effects: [
+      {direction: 'cost', icon: 'wild', amount: 1, note: 'of your choice'},
+      {direction: 'gain', icon: 'cards', amount: 1, note: 'draw'},
+      {direction: 'gain', icon: 'wild', amount: 1, note: 'of your choice'},
+    ],
+    steps: [step({include: ['plants'], spendAmount: 1}), {kind: 'input', input: {title: 'd', buttonLabel: 'b', type: 'card', cards: []}}, step({amount: 1})],
+  } as unknown as ActionPreviewBranch;
+
+  it('reads the SPEND and the GAIN apart by the server\'s marker, in the executed order', () => {
+    expect(wildStepPlans(branch)).deep.eq([
+      {resourceStep: 0, mode: 'spend', amount: 1},
+      {resourceStep: 2, mode: 'gain', amount: 1},
+    ]);
+  });
+
+  it('each row reads its own capture, signed by its role', () => {
+    const [spend, gain] = wildStepPlans(branch);
+    const captured = {0: {type: 'resource', resource: 'plants'}, 2: {type: 'resource', resource: 'heat'}};
+    expect(wildStepAnswer(spend, captured)).deep.eq({kind: 'standard', resource: 'plants', amount: 1, mode: 'spend'});
+    expect(wildStepAnswer(gain, captured)).deep.eq({kind: 'standard', resource: 'heat', amount: 1, mode: 'gain'});
+    expect(wildStepAnswer(gain, {})).is.undefined;
+  });
+
+  it('the commit reads each «?» chip as its OWN step\'s resource — the cost ↔ the spend, the gain ↔ the gain', () => {
+    const plans = wildStepPlans(branch);
+    const captured = {0: {type: 'resource', resource: 'plants'}, 2: {type: 'resource', resource: 'plants'}};
+    const out = withWildStepCommitEffects(branch, plans, captured, (r) => (r === 'plants' ? 2 : 0));
+    expect(out.effects.map((e) => [e.direction, e.icon, e.current, e.resulting])).deep.eq([
+      ['cost', 'plants', 2, 1],
+      ['gain', 'cards', undefined, undefined],
+      // The gain reads the supply AFTER the spend (2 → 1 → 2).
+      ['gain', 'plants', 1, 2],
+    ]);
   });
 });

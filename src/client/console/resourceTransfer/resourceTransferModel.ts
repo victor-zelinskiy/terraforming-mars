@@ -750,7 +750,9 @@ export function extractPlayRewards(args: ExtractPlayRewardsArgs): Array<Resource
     } else if (e.icon === 'wild' && e.note === 'of your choice') {
       // «N units of a standard resource of your choice» (`standardResource` — P43): the kind is the answer of the
       // branch's own `resource` step (`{type: 'resource', resource}`), pre-collected — so it flies like any stock gain.
-      const at = args.steps.findIndex((step, i) => !claimedSteps.has(i) && step.kind === 'input' && step.input.type === 'resource');
+      // A SPEND step (`spendAmount` — P50: «spend 1 ?, … gain 1 ?») is never the gain's: the resource it names LEAVES.
+      const at = args.steps.findIndex((step, i) => !claimedSteps.has(i) && step.kind === 'input' && step.input.type === 'resource' &&
+        (step.input as {spendAmount?: number}).spendAmount === undefined);
       const answer = at < 0 ? undefined : args.stepResponses[at] as {type?: string, resource?: string} | undefined;
       if (at >= 0 && answer?.type === 'resource' && answer.resource !== undefined && isStandardResource(answer.resource)) {
         claimedSteps.add(at);

@@ -234,7 +234,10 @@ import {runCardTransfer} from '@/client/console/cardDeal/cardExitDirector';
 import {armPlayedHero, isPlayedHeroActive, playedHeroState} from '@/client/console/played/consolePlayedHero';
 import {preludePickBurns, preludePickPreview, preludeRewardsOf, PRELUDE_SEAT_SELECTOR} from '@/client/console/deckPick/preludePick';
 import ConsolePreludeVariantStep from '@/client/components/console/foundation/ConsolePreludeVariantStep.vue';
-import {firstAvailableRow, PreludeVariant, preludeVariantAnswer, preludeVariantOf, stepVariantFocus} from '@/client/console/preludeVariant/preludeVariantModel';
+import {
+  firstAvailableRow, PreludeVariant, preludePreStepStage, preludeVariantAnswer, preludeVariantOf, preludeVariantRowOf, preludeVariantStepResponses,
+  stepVariantFocus,
+} from '@/client/console/preludeVariant/preludeVariantModel';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import {startQueueFxLane, StartQueueFxLane} from '@/client/console/startQueueLayout';
 import {InputResponse} from '@/common/inputs/InputResponse';
@@ -535,9 +538,9 @@ export default defineComponent({
           if (this.committed) {
             return this.picks.length > 0 ? 'Prelude' : 'Verdict';
           }
-          return this.payStage ? 'Payment' : (this.variantStep !== undefined ? 'Variant' : 'Verdict');
+          return this.payStage ? 'Payment' : (this.variantStep !== undefined ? preludePreStepStage(this.variantStep) : 'Verdict');
         }
-        return this.committed ? 'Prelude' : (this.variantStep !== undefined ? 'Variant' : 'Prelude choice');
+        return this.committed ? 'Prelude' : (this.variantStep !== undefined ? preludePreStepStage(this.variantStep) : 'Prelude choice');
       }
       switch (this.phase) {
       case 'dealing': return 'Drawing cards…';
@@ -639,7 +642,8 @@ export default defineComponent({
       if (this.variantStep !== undefined) {
         return [
           {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Play this variant', enabled: this.variantStep.rows[this.variantFocus]?.available === true},
+          {control: 'confirm', label: this.variantStep.kind === 'resource' ? 'Play with this resource' : 'Play this variant',
+            enabled: this.variantStep.rows[this.variantFocus]?.available === true},
           {control: 'secondary', label: 'Inspect'},
           {control: 'back', label: 'Back'},
         ];
@@ -1584,8 +1588,8 @@ export default defineComponent({
       if (!row.available) {
         return; // a refused row is read, never taken
       }
-      this.variantChosen = row.position;
-      const rewards = preludeRewardsOf(card, this.candidatePreviews[card], row.position);
+      this.variantChosen = row.choice;
+      const rewards = preludeRewardsOf(card, this.candidatePreviews[card], row.position, preludeVariantStepResponses(row));
       const next = {...this.candidateRewards};
       if (rewards !== undefined && rewards.length > 0) {
         next[card] = rewards;
@@ -1612,7 +1616,7 @@ export default defineComponent({
         return undefined;
       }
       const preview = this.candidatePreviews[card];
-      const row = preview === undefined ? undefined : preludeVariantOf(card, preview)?.rows.find((r) => r.position === this.variantChosen);
+      const row = preview === undefined ? undefined : preludeVariantRowOf(preludeVariantOf(card, preview), this.variantChosen);
       return preview === undefined || row === undefined ? undefined : preludeVariantAnswer(preview, row);
     },
     /**

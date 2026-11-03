@@ -133,24 +133,29 @@
             </span>
           </div>
         </div>
-        <!-- THE EXCLUSIVE GRID (P43): the radio of the six, in the slot's own cell. -->
+        <!-- THE EXCLUSIVE GRID (P43): the radio of the six, in the slot's own cell. A SPEND (P50 · FC) reads every lane
+             `stock → stock − N`; a lane the supply cannot pay stays on the grid, dimmed with its reason (a kant and a word,
+             never hidden — invariant 2), and the cursor steps over it. -->
         <div v-if="spec.exclusive" class="con-wildstep__face" :class="{'con-wildstep__face--off': wildChoice !== 'asStandard'}"
              data-wild-face="lanes" :aria-hidden="wildChoice === 'asStandard' ? undefined : 'true'">
           <div class="con-wildstep__grid" role="radiogroup" :aria-label="$t('Standard resources')">
             <div v-for="(key, li) in lanes" :key="key" class="con-wildstep__lane"
-                 :class="{'con-wildstep__lane--focused': focus.zone === 'lane' && focus.index === li, 'con-wildstep__lane--filled': on(key) > 0}"
-                 role="radio" :aria-checked="on(key) > 0 ? 'true' : 'false'"
-                 :data-lane-resource="key" :data-lane-amount="on(key)">
+                 :class="{'con-wildstep__lane--focused': focus.zone === 'lane' && focus.index === li, 'con-wildstep__lane--filled': on(key) > 0,
+                          'con-wildstep__lane--off': laneOff(key) !== undefined}"
+                 role="radio" :aria-checked="on(key) > 0 ? 'true' : 'false'" :aria-disabled="laneOff(key) !== undefined ? 'true' : undefined"
+                 :data-lane-resource="key" :data-lane-amount="on(key)" :data-lane-mode="spend ? 'spend' : 'gain'"
+                 :data-lane-off="laneOff(key) !== undefined ? '' : undefined">
               <i class="con-wildstep__lane-icon" :class="iconClass(key)" aria-hidden="true"></i>
               <span class="con-wildstep__lane-body">
                 <span class="con-wildstep__lane-name">{{ $t(label(key)) }}</span>
-                <span class="con-wildstep__lane-count">
+                <span v-if="laneOff(key) !== undefined" class="con-wildstep__lane-reason" data-lane-reason>{{ $t(laneOff(key) ?? '') }}</span>
+                <span v-else class="con-wildstep__lane-count">
                   <span>{{ stockOf(key) }}</span>
                   <span class="con-wildstep__arrow" aria-hidden="true">→</span>
-                  <b>{{ stockOf(key) + radioGain }}</b>
+                  <b>{{ spend ? stockOf(key) - radioGain : stockOf(key) + radioGain }}</b>
                 </span>
               </span>
-              <span class="con-wildstep__lane-amount" :class="{'con-wildstep__lane-amount--zero': on(key) === 0}">+{{ radioGain }}</span>
+              <span class="con-wildstep__lane-amount" :class="{'con-wildstep__lane-amount--zero': on(key) === 0}">{{ spend ? '−' : '+' }}{{ radioGain }}</span>
             </div>
           </div>
         </div>
@@ -217,7 +222,7 @@ import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransfe
 import {VariantChoiceOption} from '@/client/console/variantChoiceModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {
-  WILD_LANES, WILD_OPTIONS, WildChoiceSpec, WildFocus, WildKind, WildParts, wildAmount, wildComplete, wildLeft, wildOptionLive,
+  WILD_LANES, WILD_OPTIONS, WildChoiceSpec, WildFocus, WildKind, WildParts, wildAmount, wildComplete, wildLaneOff, wildLeft, wildOptionLive,
   wildShown,
 } from '@/client/console/wildChoice/wildChoiceInner';
 
@@ -353,6 +358,10 @@ export default defineComponent({
     radioGain(): number {
       return this.spec.amount('asStandard');
     },
+    /** A SPEND step (P50 · FC): the lanes read what LEAVES. */
+    spend(): boolean {
+      return this.spec.mode === 'spend';
+    },
     left(): number {
       return wildLeft(this.spec, this.parts);
     },
@@ -408,6 +417,10 @@ export default defineComponent({
     },
     optionDesc(key: string): string {
       return this.descs[key as WildKind] ?? WILD_OPTIONS.find((o) => o.key === key)?.desc ?? '';
+    },
+    /** Why a lane is refused (an i18n key), or undefined. */
+    laneOff(key: string): string | undefined {
+      return wildLaneOff(this.spec, key);
     },
     on(key: string): number {
       return spreadOn(this.parts.spread ?? {}, key);

@@ -3087,6 +3087,7 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'solo-pre-endgame' | '
   // Prelude 2 P43 Applied Science — the shared wild-resource choice (EN / EO): holders · none · sole · eight · the last science.
   'applied-science-holders' | 'applied-science-none' | 'applied-science-sole' | 'applied-science-many' | 'applied-science-crowd' | 'applied-science-last' |
   'floating-trade-hub-holders' | 'floating-trade-hub-sole' | 'floating-trade-hub-empty' |
+  'focused-organization-stocked' | 'focused-organization-empty-hand' | 'focused-organization-empty-stock' |
   // PL-1621 / PL-1622 — the milestone's price off the rail, Helion's bill inside the detail.
   'ma-claim-price' | 'ma-claim-helion' |
   // P45 Board of Directors: the verdict after the reveal inside «ДЕЙСТВИЯ КАРТ» (play · discard · refused · burn · variant · tile · Helion · last · empty).

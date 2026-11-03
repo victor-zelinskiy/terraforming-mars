@@ -858,9 +858,11 @@ export function deploymentCrumb(signals: {
   bonusNested?: boolean,
   /** A prelude's «ВАРИАНТ» step stands (P44 — the branch chosen BEFORE the press): its card is the subject. */
   variantSubject?: string,
+  /** The pre-step's stage — «Variant» (P44) or «Resource» (P50 · FC — the play's «?» chosen before the press). */
+  variantStage?: string,
 }): StartCrumb {
   if (signals.variantSubject !== undefined && signals.variantSubject !== '') {
-    return {subject: signals.variantSubject, stage: 'Variant'};
+    return {subject: signals.variantSubject, stage: signals.variantStage ?? 'Variant'};
   }
   if (signals.embedActive) {
     return {

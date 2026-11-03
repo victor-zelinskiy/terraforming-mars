@@ -2,7 +2,8 @@ import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {ActionEffect, ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {
-  AT_MAXIMUM_NOTICE, firstAvailableRow, preludeVariantAnswer, preludeVariantOf, preludeVariantReading, stepVariantFocus,
+  AT_MAXIMUM_NOTICE, firstAvailableRow, preludePreStepStage, preludeVariantAnswer, preludeVariantOf, preludeVariantReading, preludeVariantRowOf,
+  preludeVariantStepResponses, stepVariantFocus,
 } from '@/client/console/preludeVariant/preludeVariantModel';
 
 const DRAW: ActionEffect = {direction: 'gain', icon: 'cards', amount: 2, note: 'draw', search: {count: 2, floaterIcon: true}};
@@ -79,5 +80,42 @@ describe('preludeVariantModel — the «ВАРИАНТ» step (P44)', () => {
     const v = preludeVariantOf(CardName.ATMOSPHERIC_ENHANCERS, p44())!;
     expect(stepVariantFocus(v, 2, 1)).eq(0);
     expect(stepVariantFocus(v, 0, -1)).eq(2);
+  });
+});
+
+describe('preludeVariantModel — the «РЕСУРС» pre-step (P50 · FC)', () => {
+  const RESOURCE_FOR = {source: {kind: 'card' as const, card: CardName.FOCUSED_ORGANIZATION}, role: 'resource'};
+  const WILD: ActionEffect = {direction: 'gain', icon: 'wild', amount: 1, note: 'of your choice'};
+  const CARD: ActionEffect = {direction: 'gain', icon: 'cards', amount: 1, note: 'draw'};
+  function p50(steps: ReadonlyArray<unknown>): ActionPreview {
+    return {
+      kind: 'declarative',
+      branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [CARD, WILD], steps}],
+    } as unknown as ActionPreview;
+  }
+  const gainStep = {kind: 'input', input: {type: 'resource', title: 't', buttonLabel: 'b', include: ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'], amount: 1}, for: RESOURCE_FOR};
+
+  it('a one-branch play asking «a standard resource» is a pre-step: one row per lane, «+1 [lane]», the rest shared', () => {
+    const v = preludeVariantOf(CardName.FOCUSED_ORGANIZATION, p50([gainStep]))!;
+    expect(v.kind).eq('resource');
+    expect(preludePreStepStage(v)).eq('Resource');
+    expect(v.rows.map((r) => r.resource)).deep.eq(['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']);
+    expect(v.rows.map((r) => r.choice)).deep.eq([0, 1, 2, 3, 4, 5]);
+    expect(v.rows[3].chips).deep.eq([{direction: 'gain', icon: 'plants', amount: 1}]);
+    expect(v.shared, 'the «?» is the question, the card is shared').deep.eq([CARD]);
+  });
+
+  it('the answer is the step\'s own `resource`, ADDRESSED by the step — and it rides the reward wave', () => {
+    const preview = p50([gainStep]);
+    const v = preludeVariantOf(CardName.FOCUSED_ORGANIZATION, preview)!;
+    const steel = preludeVariantRowOf(v, 1)!;
+    expect(preludeVariantAnswer(preview, steel)).deep.eq({type: 'resource', resource: 'steel', for: RESOURCE_FOR});
+    expect(preludeVariantStepResponses(steel)).deep.eq({0: {type: 'resource', resource: 'steel'}});
+  });
+
+  it('a SPEND «?» is never a play pre-step; a branch with no resource step stays «nothing to choose»', () => {
+    const spend = {...gainStep, input: {...gainStep.input, spendAmount: 1}};
+    expect(preludeVariantOf(CardName.FOCUSED_ORGANIZATION, p50([spend]))).is.undefined;
+    expect(preludeVariantOf(CardName.FOCUSED_ORGANIZATION, p50([]))).is.undefined;
   });
 });

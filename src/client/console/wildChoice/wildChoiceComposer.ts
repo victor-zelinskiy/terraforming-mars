@@ -181,3 +181,116 @@ export function withDialCommitEffects(
   ];
   return {...branch, effects: [...(branch.effects ?? []), ...effects]};
 }
+
+/*
+ * A STANDALONE «?» STEP (P50 Focused Organization · ledger FC): «spend 1 standard resource … gain 1 standard resource» —
+ * a `resource` step of the branch that is neither one half of a P43 pair nor a dial's resource. Its ROLE is structural:
+ * the server marks a SPEND (`spendAmount` — the resource LEAVES) apart from a GAIN (`amount` — `withGainAmount`), so two
+ * «?» of one action are two rows, each answered in the SAME shared inner step (exclusive, no OR, a radio — budget 1:
+ * A chooses and leaves), the spend's lanes reading `stock → stock − N` and an empty supply's lane shown refused with its
+ * reason. Its answer is the step's own capture (`{type: 'resource', resource}`), addressed at the commit like any step.
+ */
+
+/** One standalone «?» row: its step, its role and its budget. */
+export type WildStepPlan = {resourceStep: number, mode: 'spend' | 'gain', amount: number};
+
+/** The branch's standalone «?» steps, in the executed order (`skip`: the indexes a pair / a dial already answers). */
+export function wildStepPlans(branch: ActionPreviewBranch | undefined, skip: ReadonlyArray<number> = []): Array<WildStepPlan> {
+  const out: Array<WildStepPlan> = [];
+  (branch?.steps ?? []).forEach((step, i) => {
+    if (step.kind !== 'input' || step.input.type !== 'resource' || step.dialBound === true || skip.includes(i)) {
+      return;
+    }
+    const input = step.input as {amount?: number, spendAmount?: number};
+    if (input.spendAmount !== undefined) {
+      out.push({resourceStep: i, mode: 'spend', amount: input.spendAmount});
+    } else {
+      out.push({resourceStep: i, mode: 'gain', amount: input.amount ?? 1});
+    }
+  });
+  return out;
+}
+
+/** The lanes the server offers (its `include`) — a SPEND's other lanes are refused by name: «Нет <ресурса>». */
+export function wildStepIncluded(branch: ActionPreviewBranch | undefined, plan: WildStepPlan): ReadonlyArray<string> | undefined {
+  const step = branch?.steps[plan.resourceStep];
+  return step?.kind === 'input' ? (step.input as {include?: ReadonlyArray<string>}).include : undefined;
+}
+
+/** The i18n key naming why a spend lane is refused — the resource the supply lacks. */
+export const SPEND_LANE_OFF: Readonly<Record<string, string>> = {
+  megacredits: 'No M€', steel: 'No steel', titanium: 'No titanium', plants: 'No plants', energy: 'No energy', heat: 'No heat',
+};
+
+/**
+ * The specification: no OR, no holders, a radio over the six at the step's budget; a SPEND refuses (with its reason) a
+ * lane the server does not offer or the supply cannot pay — `stock` is the viewer's live supply.
+ */
+export function wildStepSpec(plan: WildStepPlan, included: ReadonlyArray<string> | undefined, stock: (resource: string) => number): WildChoiceSpec {
+  return {
+    holders: [], amount: () => plan.amount, exclusive: true, lanes: 'radio', mode: plan.mode,
+    ...(plan.mode === 'spend' || included !== undefined ? {
+      laneOff: (lane: string) => {
+        const short = plan.mode === 'spend' && stock(lane) < plan.amount;
+        const refused = included !== undefined && !included.includes(lane);
+        return short || refused ? (SPEND_LANE_OFF[lane] ?? 'Not available') : undefined;
+      },
+    } : {}),
+  };
+}
+
+/** The parts read back: always «a standard resource»; the chosen lane carries the step's budget. */
+export function wildStepParts(plan: WildStepPlan, captured: Readonly<Record<number, unknown>>): WildParts {
+  const answer = captured[plan.resourceStep] as {type?: string, resource?: string} | undefined;
+  const resource = answer?.type === 'resource' ? answer.resource : undefined;
+  return {wild: {wild: 'asStandard'}, ...(resource !== undefined ? {spread: {[resource]: plan.amount}} : {})};
+}
+
+/** The row's answer: «[растения] −1» (a spend) · «[тепло] +1» (a gain) — undefined while open. */
+export function wildStepAnswer(plan: WildStepPlan, captured: Readonly<Record<number, unknown>>): (WildRowAnswer & {mode: 'spend' | 'gain'}) | undefined {
+  const answer = captured[plan.resourceStep] as {type?: string, resource?: string} | undefined;
+  return answer?.type === 'resource' && answer.resource !== undefined ?
+    {kind: 'standard', resource: answer.resource, amount: plan.amount, mode: plan.mode} : undefined;
+}
+
+/**
+ * THE COMMIT'S CHIPS OF STANDALONE «?» STEPS (P50 · FC — PL-099 / PL-104): the branch prints «−1 ?» and «+1 ?» (its
+ * resources are the player's answers), so at the PRESS each wild chip is read as the resource its own step chose — the
+ * spend's chip «−1 [plants]» (the price — off its rail row FIRST, sideways into the printed first «?»), the gain's
+ * «+1 [heat]» (the result — born after it on the printed second «?», into its row). Wild chips are matched to the steps
+ * BY ROLE in order (a `cost` chip ↔ a spend step, a `gain` chip ↔ a gain step) — never «the first resource step». Pure.
+ */
+export function withWildStepCommitEffects(
+  branch: ActionPreviewBranch, plans: ReadonlyArray<WildStepPlan>, captured: Readonly<Record<number, unknown>>,
+  stock: (resource: string) => number,
+): ActionPreviewBranch {
+  if (plans.length === 0) {
+    return branch;
+  }
+  const spends = plans.filter((p) => p.mode === 'spend');
+  const gains = plans.filter((p) => p.mode === 'gain');
+  const chosen = (plan: WildStepPlan | undefined): string | undefined => {
+    const answer = plan === undefined ? undefined : captured[plan.resourceStep] as {type?: string, resource?: string} | undefined;
+    return answer?.type === 'resource' ? answer.resource : undefined;
+  };
+  // The supply moves in the executed order: a spend lowers what a later gain of the same resource reads from.
+  const live: Record<string, number> = {};
+  const read = (resource: string) => live[resource] ?? stock(resource);
+  let spendAt = 0;
+  let gainAt = 0;
+  const effects = (branch.effects ?? []).map((e): ActionEffect => {
+    if (e.icon !== 'wild' || e.note !== 'of your choice') {
+      return e;
+    }
+    const plan = e.direction === 'cost' ? spends[spendAt++] : gains[gainAt++];
+    const resource = chosen(plan);
+    if (resource === undefined) {
+      return e;
+    }
+    const have = read(resource);
+    const resulting = e.direction === 'cost' ? Math.max(0, have - e.amount) : have + e.amount;
+    live[resource] = resulting;
+    return {direction: e.direction, icon: resource, amount: e.amount, current: have, resulting};
+  });
+  return {...branch, effects};
+}

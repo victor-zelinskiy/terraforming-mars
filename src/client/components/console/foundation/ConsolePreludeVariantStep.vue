@@ -6,7 +6,7 @@
        `focus` and the `pick` event) — the step owns no listener. -->
   <div class="con-pvariant" :class="{'con-pvariant--embedded': embedded}" data-prelude-variant :data-prelude-variant-card="variant.card">
     <ConsoleVariantChoice class="con-pvariant__choices" layout="column" :exclusive="variant.rows.length <= 3"
-                          :options="options" :label="$t('Variant')" @pick="onPick">
+                          :options="options" :label="$t(variant.kind === 'resource' ? 'Resource' : 'Variant')" @pick="onPick">
       <template #body="{index}">
         <template v-for="row in [variant.rows[index]]" :key="row.key">
           <GamepadGlyph v-if="focus === index && row.available && !sealed" control="confirm" class="con-pvariant__a" />
@@ -18,7 +18,7 @@
     </ConsoleVariantChoice>
     <!-- What EVERY variant brings — read once, never on each row (P44's draw of 2 cards with a floater icon). -->
     <div v-if="variant.shared.length > 0" class="con-pvariant__shared" data-prelude-variant-shared>
-      <span class="con-pvariant__shared-label">{{ $t('With any variant') }}</span>
+      <span class="con-pvariant__shared-label">{{ $t(variant.kind === 'resource' ? 'With any resource' : 'With any variant') }}</span>
       <ActionEffectChip v-for="(chip, k) in variant.shared" :key="k" :effect="chip" />
     </div>
   </div>
@@ -50,7 +50,8 @@ export default defineComponent({
   emits: ['pick'],
   computed: {
     printed(): ReadonlyArray<ReadonlyArray<unknown>> | undefined {
-      return printedVariantRows(getCard(this.variant.card)?.metadata.renderData, this.variant.rows.length);
+      // A RESOURCE pre-step (P50 · FC) has no printed rows to cut — each row is a lane, named and iconed by its chip.
+      return this.variant.kind === 'resource' ? undefined : printedVariantRows(getCard(this.variant.card)?.metadata.renderData, this.variant.rows.length);
     },
     options(): ReadonlyArray<VariantChoiceOption> {
       return this.variant.rows.map((row, i): VariantChoiceOption => {

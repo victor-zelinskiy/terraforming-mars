@@ -396,7 +396,7 @@
         <ConsoleWildChoiceStep v-else-if="sub !== undefined && sub.kind === 'wild' && wildSpec !== undefined"
                                class="con-composer__venusstep"
                                :spec="wildSpec" :parts="wildParts" :focus="sub.focus" :stock="venusStock"
-                               :head="{title: 'Resource of your choice', reading: ''}"
+                               :head="{title: wildHeadTitle, reading: ''}"
                                :titles="{asStandard: 'Standard resource'}"
                                :descs="{onCard: 'A card that already has a resource', asStandard: 'Any of the six, your choice'}"
                                :candidates="wildCandidateModels" :vp-box="wildVpBox" :resource-by-card="wildResourceByCard">
@@ -468,19 +468,23 @@
             <!-- THE WILD-RESOURCE ROW (P43 · EN): the card's ONE printed «?» over its two branches — a DOOR into the shared
                  inner step; answered, it reads the answer in chips («[сталь] +1» · «[животное] +1 · Птицы»). The price
                  stands once, in the formula above (a row never repeats what the screen already prints). -->
+            <!-- A STANDALONE «?» (P50 · FC) is the same row, ONE per step, its verb printed first («Потратить» · «Получить»)
+                 and its answer signed by its role («[растения] −1» · «[тепло] +1»). -->
             <div v-if="item.kind === 'wild'"
                  class="con-composer__row con-composer__wildrow"
-                 :class="{'con-composer__row--focused': isFocused(item), 'con-composer__row--missing': wildAnswer === undefined}"
-                 data-choice-kind="wild" data-wild-row :data-wild-answered="wildAnswer !== undefined ? '' : undefined"
+                 :class="{'con-composer__row--focused': isFocused(item), 'con-composer__row--missing': wildRowAnswerOf(item) === undefined}"
+                 data-choice-kind="wild" data-wild-row :data-wild-answered="wildRowAnswerOf(item) !== undefined ? '' : undefined"
+                 :data-wild-row-mode="wildRowMode(item)"
                  :ref="isFocused(item) ? 'focusedEl' : undefined">
               <span class="con-composer__wildrow-print">
                 <i class="con-composer__wildrow-wild" :class="iconClass('wild')" aria-hidden="true" data-wild-row-glyph></i>
               </span>
-              <span v-if="wildAnswer === undefined" class="con-composer__wildrow-ask">{{ $t(wildDial !== undefined ? 'Choose a standard resource' : 'Choose: on a card or a standard resource') }}</span>
-              <span v-else-if="wildAnswer.kind === 'standard'" class="con-composer__wildrow-answer" data-wild-row-answer="standard">
-                <i class="con-composer__wildrow-icon" :class="iconClass(wildAnswer.resource)" aria-hidden="true"></i><b>+{{ wildAnswer.amount }}</b>
+              <span v-if="wildRowMode(item) !== undefined" class="con-composer__wildrow-verb">{{ $t(wildRowMode(item) === 'spend' ? 'Spend' : 'Gain') }}</span>
+              <span v-if="wildRowAnswerOf(item) === undefined" class="con-composer__wildrow-ask">{{ $t(wildRowAsk(item)) }}</span>
+              <span v-else-if="wildRowAnswerOf(item)?.kind === 'standard'" class="con-composer__wildrow-answer" data-wild-row-answer="standard">
+                <i class="con-composer__wildrow-icon" :class="iconClass(wildRowStandard(item))" aria-hidden="true"></i><b>{{ wildRowAnswerOf(item)?.mode === 'spend' ? '−' : '+' }}{{ wildRowAnswerOf(item)?.amount }}</b>
               </span>
-              <span v-else class="con-composer__wildrow-answer" data-wild-row-answer="card" :data-wild-row-card="wildAnswer.card">
+              <span v-else-if="wildAnswer !== undefined && wildAnswer.kind === 'card'" class="con-composer__wildrow-answer" data-wild-row-answer="card" :data-wild-row-card="wildAnswer.card">
                 <i v-if="wildResourceByCard[wildAnswer.card] !== undefined" class="con-composer__wildrow-icon" :class="iconClass(wildResourceByCard[wildAnswer.card] ?? '')" aria-hidden="true"></i><b>+{{ wildAnswer.amount }}</b>
                 <span class="con-composer__wildrow-card">{{ $t(wildAnswer.card) }}</span>
               </span>
@@ -1234,6 +1238,7 @@ import {WildChoiceSpec, WildFocus, WildParts, wildBar, wildClamp, wildComplete, 
 import {
   WildBranchPlan, WildDialPlan, WildRowAnswer, wildBranchPlan, wildCandidates, wildCardPick, wildComposerSpec, wildDialAmount,
   wildDialAnswer, wildDialParts, wildDialPlan, wildDialSpec, wildPartsFrom, wildPosOf, wildRowAnswer, withDialCommitEffects,
+  WildStepPlan, wildStepAnswer, wildStepIncluded, wildStepParts, wildStepPlans, wildStepSpec, withWildStepCommitEffects,
 } from '@/client/console/wildChoice/wildChoiceComposer';
 import {
   VENUS_SPREAD_LANES, VenusBonusParts, venusBonusMetaOf, venusPreselectArm, venusPreselectResponse, venusWhenHolds,
@@ -1331,7 +1336,8 @@ function bodyBlockPin(body: HTMLElement | undefined): string {
 }
 
 type GroupNode = ActionGroup['nodes'][number];
-type Item = {id: string, kind: 'branch', pos: number} | {id: string, kind: 'choice', choice: ComposerChoice} | {id: string, kind: 'wild'};
+/** A `wild` item with a `step` is a STANDALONE «?» row (P50 · FC — a spend or a gain), one per step; without it the P43 pair / the P49 dial. */
+type Item = {id: string, kind: 'branch', pos: number} | {id: string, kind: 'choice', choice: ComposerChoice} | {id: string, kind: 'wild', step?: number};
 /** The wild-resource choice's two «still open» reasons (P43 · EO) — its own words. */
 const WILD_BLOCK_KEYS = {chooseWild: 'Choose: on a card or a standard resource', chooseCard: 'Choose a card'};
 /** Several cards answered in the hand album for one `or` option, kept as ONE `orDescents` pick. */
@@ -1366,7 +1372,7 @@ type SubState =
   /** THE VENUS BONUS'S INNER STEP (P89 · EM) — the 30 % wild, its card and the 2 × 3 standard grid (`venusBonusInner.ts`). */
   | {kind: 'venus', choiceId: string, focus: VenusInnerFocus}
   /** THE WILD-RESOURCE CHOICE (P43 · EN / EO) — the printed «?» row's inner step (`wildChoiceInner.ts`, exclusive). */
-  | {kind: 'wild', choiceId: 'wild', focus: WildFocus};
+  | {kind: 'wild', choiceId: string, focus: WildFocus};
 
 type ListItem = {
   /** This row is the VIEWER, the move costs them, and another target existed. */
@@ -1986,7 +1992,30 @@ export default defineComponent({
     wildDialX(): number {
       return wildDialAmount(this.capturedOption);
     },
+    /**
+     * THE STANDALONE «?» STEPS (P50 · FC): every `resource` step of the selected branch no pair / dial answers — a SPEND
+     * and a GAIN told apart by the server's marker, each its own row and its own inner step.
+     */
+    wildStepList(): ReadonlyArray<WildStepPlan> {
+      return this.wildPlan !== undefined ? [] : wildStepPlans(this.selectedBranch);
+    },
+    /** The standalone «?» step the inner step stands on now (its row's id is `wild#<step>`). */
+    wildStepOpen(): WildStepPlan | undefined {
+      const sub = this.sub;
+      return sub?.kind === 'wild' ? this.wildStepList.find((p) => 'wild#' + p.resourceStep === sub.choiceId) : undefined;
+    },
+    /** The open standalone step's head: the server's own question («Какой ресурс потратить?» / «…получить?»). */
+    wildHeadTitle(): string {
+      const plan = this.wildStepOpen;
+      const step = plan === undefined ? undefined : this.selectedBranch?.steps[plan.resourceStep];
+      const title = step?.kind === 'input' ? step.input.title : undefined;
+      return title === undefined ? 'Resource of your choice' : textOf(title);
+    },
     wildSpec(): WildChoiceSpec | undefined {
+      const stepPlan = this.wildStepOpen;
+      if (stepPlan !== undefined) {
+        return wildStepSpec(stepPlan, wildStepIncluded(this.selectedBranch, stepPlan), (resource) => this.venusStock[resource] ?? 0);
+      }
       if (this.wildPlan !== undefined) {
         return wildComposerSpec(this.wildPlan, this.branches);
       }
@@ -1995,6 +2024,9 @@ export default defineComponent({
     },
     /** The step's draft READ BACK from the composer's own state (the branch + the step answers) — never a second draft. */
     wildParts(): WildParts {
+      if (this.wildStepOpen !== undefined) {
+        return wildStepParts(this.wildStepOpen, this.captured);
+      }
       if (this.wildPlan !== undefined) {
         return wildPartsFrom(this.wildPlan, this.selectedPos, this.captured);
       }
@@ -2077,6 +2109,11 @@ export default defineComponent({
         // THE DIAL'S RESOURCE (P49): the step stands as the «?» row in its own place, under the dial that budgets it.
         if (this.wildDial !== undefined && c.scope === 'step' && c.index === this.wildDial.resourceStep) {
           out.push({id: 'wild', kind: 'wild'});
+          continue;
+        }
+        // A STANDALONE «?» (P50 · FC — a spend, a gain): its own row, in the executed order, a door into the shared step.
+        if (c.scope === 'step' && this.wildStepList.some((p) => p.resourceStep === c.index)) {
+          out.push({id: 'wild#' + c.index, kind: 'wild', step: c.index});
           continue;
         }
         out.push({id: c.id, kind: 'choice', choice: c});
@@ -3236,6 +3273,11 @@ export default defineComponent({
           return;
         }
         if (item.kind === 'wild') {
+          if (item.step !== undefined) {
+            // A standalone «?» — answered once its own step captured a resource.
+            out.push({index, verb: 'Choose a resource', satisfied: this.wildRowAnswerOf(item) !== undefined});
+            return;
+          }
           // The wild row is ONE requirement: the branch AND its answer, both chosen in its inner step.
           out.push({index, verb: 'Choose an option', satisfied: this.wildSpec !== undefined && wildComplete(this.wildSpec, this.wildParts)});
           return;
@@ -5440,11 +5482,45 @@ export default defineComponent({
       }
       openPlayedTargetZoom({model, cardName: candidate.cardName, getRoot: () => this.$refs.rootEl as HTMLElement | undefined});
     },
-    openWildStep(): void {
+    openWildStep(item?: {id: string, step?: number}): void {
+      if (item?.step !== undefined) {
+        // A standalone «?»: the sub names its row first, so the spec / parts computeds read THAT step.
+        const plan = this.wildStepList.find((p) => p.resourceStep === item.step);
+        if (plan !== undefined) {
+          const spec = wildStepSpec(plan, wildStepIncluded(this.selectedBranch, plan), (resource) => this.venusStock[resource] ?? 0);
+          this.sub = {kind: 'wild', choiceId: item.id, focus: wildOpen(spec, wildStepParts(plan, this.captured))};
+        }
+        return;
+      }
       const spec = this.wildSpec;
       if (spec !== undefined) {
         this.sub = {kind: 'wild', choiceId: 'wild', focus: wildOpen(spec, this.wildParts)};
       }
+    },
+    /** A row's answer — a standalone «?» reads its own step's capture; the pair / the dial read the shared one. */
+    wildRowAnswerOf(item: {step?: number}): (WildRowAnswer & {mode?: 'spend' | 'gain'}) | undefined {
+      if (item.step === undefined) {
+        return this.wildAnswer;
+      }
+      const plan = this.wildStepList.find((p) => p.resourceStep === item.step);
+      return plan === undefined ? undefined : wildStepAnswer(plan, this.captured);
+    },
+    /** A standalone «?» row's role — `spend` / `gain`; undefined for the pair / the dial. */
+    wildRowMode(item: {step?: number}): 'spend' | 'gain' | undefined {
+      return item.step === undefined ? undefined : this.wildStepList.find((p) => p.resourceStep === item.step)?.mode;
+    },
+    /** The row's open question in its own words. */
+    wildRowAsk(item: {step?: number}): string {
+      const mode = this.wildRowMode(item);
+      if (mode !== undefined) {
+        return mode === 'spend' ? 'Choose a resource to spend' : 'Choose a resource to gain';
+      }
+      return this.wildDial !== undefined ? 'Choose a standard resource' : 'Choose: on a card or a standard resource';
+    },
+    /** The standard resource a row's answer names (its icon). */
+    wildRowStandard(item: {step?: number}): string {
+      const answer = this.wildRowAnswerOf(item);
+      return answer?.kind === 'standard' ? answer.resource : '';
     },
     /**
      * A press of the inner step: the pure model answers, and its draft is WRITTEN INTO the composer's own state — a
@@ -5456,10 +5532,28 @@ export default defineComponent({
       const plan = this.wildPlan;
       const dial = this.wildDial;
       const spec = this.wildSpec;
-      if (sub?.kind !== 'wild' || (plan === undefined && dial === undefined) || spec === undefined) {
+      const stepPlan = this.wildStepOpen;
+      if (sub?.kind !== 'wild' || (plan === undefined && dial === undefined && stepPlan === undefined) || spec === undefined) {
         return;
       }
       const before = this.wildParts;
+      if (stepPlan !== undefined) {
+        // A STANDALONE «?» (P50 · FC): a radio — A on a live lane captures it at the step's own index and leaves.
+        const pressed = wildPress(spec, before, sub.focus, verb);
+        const chosen = Object.entries(pressed.parts.spread ?? {}).find(([, n]) => n > 0)?.[0];
+        const c = this.branchChoiceList.find((x) => x.scope === 'step' && x.index === stepPlan.resourceStep);
+        if (pressed.exit === 'confirm' && chosen !== undefined && c !== undefined) {
+          this.captureFor(c, {type: 'resource', resource: chosen});
+        }
+        if (pressed.exit !== undefined) {
+          this.sub = undefined;
+          this.landCursor();
+          this.scrollFocused();
+          return;
+        }
+        this.sub = {...sub, focus: wildClamp(spec, before, pressed.focus)};
+        return;
+      }
       const result = wildPress(spec, before, sub.focus, verb);
       const wild = result.parts.wild;
       if (plan !== undefined && wild !== undefined && wild.wild !== before.wild?.wild) {
@@ -5561,8 +5655,8 @@ export default defineComponent({
           this.landCursor();
           this.scrollFocused();
         } else if (item.kind === 'wild') {
-          // The wild row is a DOOR into the shared inner step (P43 · EO).
-          this.openWildStep();
+          // The wild row is a DOOR into the shared inner step (P43 · EO; a standalone «?» — P50 · FC — opens its own).
+          this.openWildStep(item);
         } else if (item.choice.kind === 'venusBonus') {
           // The Venus bonus's row is a DOOR into its inner step (P89 · EM).
           this.openVenusStep(item.choice);
@@ -7011,9 +7105,12 @@ export default defineComponent({
       // A DIAL-BOUND branch (P49 · FA) prints no chips — its price and its result are the dial's X and the lane chosen:
       // read as chips here, the price leaves the hero's capsule first and the result is born after it.
       const dial = this.wildDial;
-      const branch = dial === undefined ? asStep.branch :
+      const dialed = dial === undefined ? asStep.branch :
         withDialCommitEffects(asStep.branch, dial, asStep.captured, this.wildDialX, this.heroCardModel?.resources ?? 0,
           (resource) => this.venusStock[resource] ?? 0);
+      // STANDALONE «?» STEPS (P50 · FC): «−1 ?» / «+1 ?» read as the resources their steps chose — the price leaves its row
+      // first, the gain is born after it on the printed second «?».
+      const branch = withWildStepCommitEffects(dialed, this.wildStepList, asStep.captured, (resource) => this.venusStock[resource] ?? 0);
       const stepAnswers = asStep.captured;
       // BOTH read the captures: a branch whose result is chosen in a step
       // («любой стандартный ресурс») has no chips of its own, so the category
@@ -7033,9 +7130,9 @@ export default defineComponent({
       const ledgerBranch = branch.colonyBonuses !== undefined;
       const baseKind = ledgerBranch ? 'generic' : commitKindForBranch(branch, stepAnswers);
       // A DISCARD that BUYS a stock resource, answered in this composer's own step (P68 — «−X [card] → 2x [M€]»): ONE
-      // token per paying unit at the marker's own rate, born on the printed icon, the row ticking on each touchdown —
-      // the class «a discard's payout is ONE wave for any source» (`discardExchangeBeat.ts`, ledger CS). Never merged
-      // into one «+4»: each card thrown is its own cause.
+      // token carrying the exchange's TOTAL, born on the printed icon, the row ticking once on its touchdown — the class
+      // «a discard's payout is ONE wave for any source» (`discardExchangeBeat.ts`, ledgers CS · FD: the number that
+      // flies is the number the header promised, never the rate N times).
       const discardSpecs = ledgerBranch ? [] : discardExchangeCommitSpecs(branch, stepAnswers);
       const kind = ledgerBranch ? 'generic' : stageFollowUp === 'draw' || stageFollowUp === 'reuse-action' ? 'draw' :
         (baseKind === 'generic' && (stageSpecs.length > 0 || discardSpecs.length > 0) ? 'resources' : baseKind);
