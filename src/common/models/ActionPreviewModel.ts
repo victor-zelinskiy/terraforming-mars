@@ -738,6 +738,14 @@ export type ActionPreviewStep =
      * exact reaction, a question that is itself asked after the press): who draws, and how many when known.
      */
     reaction?: {card: CardName, fact: string, afterDraw?: ReadonlyArray<string>, drawnBefore?: ReadonlyArray<{card: CardName, cards?: number}>},
+    /**
+     * THE DIAL'S RESOURCE (P49 Floating Trade Hub · ledger FA): this `resource` step is the prompt the branch's
+     * `optionInput` amount dial RAISES, and its gain is the dial's X — «remove X here → X of one standard resource».
+     * The model's own `amount` is only the dial's default; the composer reads the gain off the dial it answered, and
+     * answers the step in the shared wild-resource step (a radio over the six lanes, «+X» on each). Structural —
+     * never a title.
+     */
+    dialBound?: boolean,
   }
   /** A "spend N heat" payment hosted INLINE by the premium SpendHeatContent
    *  (Stormcraft: stock heat + floaters-as-heat). `input` is the heat-source

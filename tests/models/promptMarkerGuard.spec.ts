@@ -34,7 +34,7 @@ const SERVER_ROOT = path.join(__dirname, '..', '..', 'src', 'server');
 /** Premium-scope directories whose files can build player prompts. */
 const SCAN_ROOTS: ReadonlyArray<string> = [
   'cards/base', 'cards/corporation', 'cards/promo', 'cards/venusNext',
-  'cards/colonies', 'cards/prelude', 'cards/ares', 'cards/delta',
+  'cards/colonies', 'cards/prelude', 'cards/prelude2', 'cards/ares', 'cards/delta',
   'deferredActions', 'colonies', 'ares', 'behavior', 'automa', 'venusNext',
   'inputs',
 ];
@@ -75,6 +75,10 @@ const OR_OPTIONS_ALLOWLIST: Readonly<Record<string, string>> = {
   // family's own review (PROMPT_PREMIUM_AUDIT § C, the delta carve-out).
   'cards/delta/ModularFloodgates.ts': 'Hydronetwork-owned prompts — deliberate carve-out',
   'cards/delta/StormSurgeBarrier.ts': 'Hydronetwork-owned prompts — deliberate carve-out',
+  // Prelude 2 is in scope CARD BY CARD: a card still on the hold-back list (`src/common/cards/prelude2Adaptation.ts`)
+  // is neither dealt nor covered — its row goes when it crosses.
+  'cards/prelude2/Ecotec.ts': 'Prelude 2 hold-back (PC04) — adapted when it crosses',
+  'cards/prelude2/ProjectEden.ts': 'Prelude 2 hold-back (P58) — adapted when it crosses',
   // Turmoil-only callers living in the shared directory — frontier; adapt
   // with the expansion (empty these rows in that checklist).
   'deferredActions/ChooseAlliedParty.ts': 'turmoil-only — frontier',

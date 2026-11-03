@@ -14,12 +14,20 @@ import {PlayerInputModel, SelectAmountModel} from '../../src/common/models/Playe
  */
 export function bareAmountDials(branch: {optionInput?: PlayerInputModel, steps: ReadonlyArray<ActionPreviewStep>}): number {
   const models: Array<SelectAmountModel> = [];
-  if (branch.optionInput?.type === 'amount') {
-    models.push(branch.optionInput as SelectAmountModel);
-  }
+  // A dial nested INSIDE an `and` (the upstream «amount + resource» pair) is a dial too — it must not slip past.
+  const collect = (model: PlayerInputModel | undefined): void => {
+    if (model?.type === 'amount') {
+      models.push(model as SelectAmountModel);
+    } else if (model?.type === 'and') {
+      for (const part of (model as {options?: ReadonlyArray<PlayerInputModel>}).options ?? []) {
+        collect(part);
+      }
+    }
+  };
+  collect(branch.optionInput);
   for (const step of branch.steps) {
-    if (step.kind === 'input' && step.input.type === 'amount') {
-      models.push(step.input as SelectAmountModel);
+    if (step.kind === 'input') {
+      collect(step.input);
     }
   }
   return models.filter((m) => m.conversion === undefined && m.amountResult === undefined && m.amountCost === undefined).length;

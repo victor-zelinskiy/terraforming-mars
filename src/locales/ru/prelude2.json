@@ -62,5 +62,10 @@
     "After the reveal: discard it, or pay ${0} M€ and 1 director to play it": "Решение после вскрытия: сбросить или заплатить ${0} M€ и 1 директора за розыгрыш",
     "Directors: ${0} → ${1}": "Директора: ${0} → ${1}",
     "Enough M€ to play it": "M€ на розыгрыш хватает",
-    "Need ${0} more M€ — only the discard is open": "Не хватает ${0} M€ — открыт только сброс"
+    "Need ${0} more M€ — only the discard is open": "Не хватает ${0} M€ — открыт только сброс",
+    "Add 2 floaters to any card": "Положите 2 аэростата на любую карту",
+    "Remove how many floaters?": "Сколько аэростатов снять?",
+    "Gain which resource?": "Какой ресурс получить?",
+    "Remove X floaters here to gain X of one standard resource": "Снимите X аэростатов отсюда — получите X единиц одного стандартного ресурса",
+    "No immediate effect — the hub acts from this generation on": "Эффекта при розыгрыше нет — действие узла доступно с этого поколения"
 }
