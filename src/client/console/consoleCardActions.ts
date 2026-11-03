@@ -497,8 +497,8 @@ export const consoleCardActionsUi = reactive({
    * Written by the action composer while the step is open, cleared on its way out.
    */
   targetStage: false,
-  /** THE VENUS BONUS'S INNER STEP stands in the composer (P89 · EM): the tail reads «… › БОНУС ВЕНЕРЫ». */
-  venusStage: false,
+  /** THE VENUS BONUS'S INNER STEP stands in the composer (P89 · EM): its stage key — «… › БОНУС ВЕНЕРЫ» (· КАРТА in the pick). */
+  venusStage: false as false | string,
   /**
    * A party's DISCARD was submitted from this workspace and its payout is still on the wire (Turmoil Redux — the Reds):
    * the transport took the prompt down at the submit, the answer that seeds the payout has not landed. The shell's

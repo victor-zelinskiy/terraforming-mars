@@ -16,5 +16,7 @@
     "Standard resources": "Стандартные ресурсы",
     "The rest": "Остаток",
     "Add one here": "+1 сюда",
-    "Resources to lay out: ${0}": "Ресурсов к раскладке: ${0}"
+    "Resources to lay out: ${0}": "Ресурсов к раскладке: ${0}",
+    "Cards to choose from: ${0}": "Карт на выбор: ${0}",
+    "Venus bonus · card": "Бонус Венеры · карта"
 }

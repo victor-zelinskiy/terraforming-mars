@@ -64,6 +64,51 @@
              :aria-hidden="wildChoice === 'onCard' ? undefined : 'true'">
           <slot name="cards" :width="slotW" :height="slotH" />
         </div>
+        <!-- THE DOOR (the owner, 2026-11-03 — the Venus 30 % finish with thirteen holders in one strip): «on a card» is a
+             level of its own (`nestedPick`). Here it is ONE row — the chosen card with its «current → resulting», or the
+             ask with how many cards answer it; A enters the pick, where the console's target selector takes the whole
+             column (pages, tags, X with the dossier). -->
+        <div v-else-if="spec.nestedPick === true" class="con-wildstep__cards con-wildstep__cards--door"
+             :class="{'con-wildstep__face--off': wildChoice !== 'onCard'}" data-wild-face="cards" data-wild-door
+             :aria-hidden="wildChoice === 'onCard' ? undefined : 'true'">
+          <div class="con-wildstep__card con-wildstep__card--door"
+               :class="{'con-wildstep__card--focused': focus.zone === 'card', 'con-wildstep__card--chosen': doorCard !== undefined}"
+               :data-wild-card="doorCard?.name" :data-chosen="doorCard !== undefined ? '' : undefined"
+               v-bind="venusAttrs(doorCard !== undefined ? {'data-venus-card': doorCard.name} : {})">
+            <template v-if="doorCard !== undefined">
+              <span class="con-wildstep__card-mini" :data-composer-card="doorCard.name" aria-hidden="true">
+                <ConsoleCardFaceLite v-if="doorCard.model !== undefined" :name="doorCard.name" :card="doorCard.model" lightweight />
+                <ConsoleCardFaceLite v-else :name="doorCard.name" lightweight />
+              </span>
+              <span class="con-wildstep__card-body">
+                <span class="con-wildstep__card-name">{{ $t(doorCard.name) }}</span>
+                <span class="con-wildstep__card-count">
+                  <i v-if="doorCard.icon !== ''" class="con-wildstep__card-icon" :class="doorCard.icon" aria-hidden="true"></i>
+                  <span>{{ doorCard.count }}</span>
+                  <span class="con-wildstep__arrow" aria-hidden="true">→</span>
+                  <b>{{ doorCard.count + 1 }}</b>
+                </span>
+                <span v-if="doorCard.vp !== undefined" class="con-wildstep__card-vp" data-wild-card-vp>{{ $t('VP') }} {{ doorCard.vp.from }} → {{ doorCard.vp.to }}</span>
+                <span v-if="cards.length === 1" class="con-wildstep__sole">{{ $t('The only target') }}</span>
+              </span>
+            </template>
+            <template v-else>
+              <span class="con-wildstep__door-fan" aria-hidden="true">
+                <span v-for="(card, ci) in cards.slice(0, 3)" :key="card.name" class="con-wildstep__card-mini con-wildstep__door-face" :style="{'--k': String(ci)}">
+                  <ConsoleCardFaceLite v-if="card.model !== undefined" :name="card.name" :card="card.model" lightweight />
+                  <ConsoleCardFaceLite v-else :name="card.name" lightweight />
+                </span>
+              </span>
+              <span class="con-wildstep__card-body">
+                <span class="con-wildstep__card-name">{{ $t('Choose a card for the wild resource') }}</span>
+                <span class="con-wildstep__card-count" data-wild-door-count>{{ doorCountText }}</span>
+              </span>
+            </template>
+            <span v-if="cards.length > 1" class="con-wildstep__door-verb">
+              <GamepadGlyph control="confirm" />{{ $t(doorCard !== undefined ? 'Change the card' : 'Choose') }}
+            </span>
+          </div>
+        </div>
         <div v-else class="con-wildstep__cards" :class="{'con-wildstep__face--off': wildChoice !== 'onCard'}" data-wild-face="cards"
              :style="{'--wild-cards': String(Math.max(1, cards.length))}" :aria-hidden="wildChoice === 'onCard' ? undefined : 'true'">
           <div v-for="(card, ci) in cards" :key="card.name" class="con-wildstep__card"
@@ -170,7 +215,7 @@ import {spreadOn} from '@/client/console/cardResourceDistribution';
 import {layoutTopWithin} from '@/client/console/layoutTop';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {VariantChoiceOption} from '@/client/console/variantChoiceModel';
-import {translateText} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {
   WILD_LANES, WILD_OPTIONS, WildChoiceSpec, WildFocus, WildKind, WildParts, wildAmount, wildComplete, wildLeft, wildOptionLive,
   wildShown,
@@ -281,6 +326,15 @@ export default defineComponent({
           ...(vp !== undefined && vp.from !== vp.to ? {vp: {from: vp.from, to: vp.to}} : {}),
         };
       });
+    },
+    /** The door's card (a nested pick): the chosen holder, or none yet. */
+    doorCard(): CardView | undefined {
+      const chosen = this.chosenCard;
+      return chosen === undefined ? undefined : this.cards.find((c) => c.name === chosen);
+    },
+    /** «Карт на выбор: 13» — how many holders answer the door. */
+    doorCountText(): string {
+      return translateTextWithParams('Cards to choose from: ${0}', [String(this.cards.length)]);
     },
     /** «On a card» is the WILD resource — the card faces' printed «?» (`wild`), whatever kind the chosen card keeps. */
     wildIcon(): string {

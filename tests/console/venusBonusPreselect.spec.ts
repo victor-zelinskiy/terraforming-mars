@@ -7,7 +7,7 @@ import {
 } from '../../src/client/console/venusBonus/venusBonusPreselect';
 import {
   VENUS_GRID_COLS, VenusInnerFocus, trimVenusSpread, venusInnerBar, venusInnerBlocked, venusInnerCards, venusInnerFootHints, venusInnerNav,
-  venusInnerOpen, venusInnerPress,
+  venusInnerOpen, venusInnerPress, venusInnerStageKey,
 } from '../../src/client/console/venusBonus/venusBonusInner';
 import {ActionPreviewBranch} from '../../src/common/models/ActionPreviewModel';
 import {branchChoices, orderedStepResponses, venusBonusChoices} from '../../src/client/console/consoleActionComposer';
@@ -41,7 +41,10 @@ function finalInput(targets: ReadonlyArray<CardName>, base = 1): PlayerInputMode
 }
 
 /** Walk a sequence of presses through the pure model, the host's way. */
-function press(meta: VenusBonusPromptMeta, start: {parts?: object, focus?: VenusInnerFocus}, verbs: ReadonlyArray<'primary' | 'back' | 'prevSection' | 'nextSection' | 'nextTab' | 'up' | 'down' | 'left' | 'right'>) {
+function press(
+  meta: VenusBonusPromptMeta, start: {parts?: object, focus?: VenusInnerFocus},
+  verbs: ReadonlyArray<'primary' | 'back' | 'prevSection' | 'nextSection' | 'nextTab' | 'up' | 'down' | 'left' | 'right' | {pick: CardName}>,
+) {
   let parts = (start.parts ?? {}) as Parameters<typeof venusInnerPress>[1];
   let focus = start.focus ?? venusInnerOpen(meta, parts);
   let exit: string | undefined;
@@ -50,7 +53,8 @@ function press(meta: VenusBonusPromptMeta, start: {parts?: object, focus?: Venus
       focus = venusInnerNav(meta, parts, focus, v);
       continue;
     }
-    const r = venusInnerPress(meta, parts, focus, v);
+    // A in the nested card pick: the host hands in the selector's focused card.
+    const r = typeof v === 'object' ? venusInnerPress(meta, parts, focus, 'primary', v.pick) : venusInnerPress(meta, parts, focus, v);
     parts = r.parts;
     focus = r.focus;
     exit = r.exit ?? exit;
@@ -117,22 +121,39 @@ describe('venusBonusInner · the inner pre-select', () => {
     expect(venusInnerNav(meta, {}, at(5), 'down')).deep.eq(at(5));
   });
 
-  it('the 30 % finish: the OR first, its cards under it only on «a card», the grid below — the column is carried', () => {
+  it('the 30 % finish: the OR first, «on a card» ONE door under it (the holders are a level of their own), the grid below', () => {
     const meta = finalInput([CardName.DIRIGIBLES, CardName.ATMO_COLLECTORS, CardName.FLOATING_HABS]).venusBonusPrompt!;
     expect(venusInnerOpen(meta, {}), 'opens on the OR').deep.eq({zone: 'wild', index: 0});
     expect(venusInnerNav(meta, {}, {zone: 'wild', index: 1}, 'down'), 'no cards before «on a card»: straight to the grid').deep.eq({zone: 'lane', index: 2});
     const onCard = {wild: {wild: 'onCard' as const}};
     expect(venusInnerCards(meta, onCard)).has.lengthOf(3);
-    expect(venusInnerNav(meta, onCard, {zone: 'wild', index: 1}, 'down')).deep.eq({zone: 'card', index: 2});
-    expect(venusInnerNav(meta, onCard, {zone: 'card', index: 1}, 'down')).deep.eq({zone: 'lane', index: 1});
-    expect(venusInnerNav(meta, onCard, {zone: 'lane', index: 0}, 'up')).deep.eq({zone: 'card', index: 0});
+    expect(venusInnerNav(meta, onCard, {zone: 'wild', index: 1}, 'down'), 'the door is one cell').deep.eq({zone: 'card', index: 0});
+    expect(venusInnerNav(meta, onCard, {zone: 'card', index: 0}, 'right'), 'nothing beside the door').deep.eq({zone: 'card', index: 0});
+    expect(venusInnerNav(meta, onCard, {zone: 'card', index: 0}, 'down')).deep.eq({zone: 'lane', index: 0});
+    expect(venusInnerNav(meta, onCard, {zone: 'lane', index: 2}, 'up')).deep.eq({zone: 'card', index: 0});
     expect(venusInnerNav(meta, onCard, {zone: 'card', index: 0}, 'up')).deep.eq({zone: 'wild', index: 0});
+  });
+
+  it('THE NESTED PICK (the owner, 2026-11-03): «on a card» with no card enters it; A answers with the selector’s card, B is one level back', () => {
+    const meta = finalInput([CardName.DIRIGIBLES, CardName.ATMO_COLLECTORS]).venusBonusPrompt!;
+    const entered = press(meta, {}, ['primary']);
+    expect(entered.focus, '«on a card» opens the pick at once').deep.eq({zone: 'pick', index: 0});
+    expect(venusInnerNav(meta, entered.parts, entered.focus, 'down'), 'the selector walks its own boxes').deep.eq(entered.focus);
+    expect(venusInnerPress(meta, entered.parts, entered.focus, 'primary').focus, 'A with nothing focused answers nothing').deep.eq(entered.focus);
+    const back = press(meta, {parts: entered.parts, focus: entered.focus}, ['back']);
+    expect(back.exit, 'B never leaves the step from the pick').is.undefined;
+    expect(back.focus, '…it returns to the door').deep.eq({zone: 'card', index: 0});
+    expect(press(meta, {parts: back.parts, focus: back.focus}, ['primary']).focus, 'A on the door enters it again').deep.eq({zone: 'pick', index: 0});
+    const bar = venusInnerBar(meta, entered.parts, entered.focus);
+    expect(venusInnerFootHints(bar).map((c) => c.label)).deep.eq(['Navigate', 'Choose', 'Inspect', 'Back']);
+    expect(venusInnerStageKey(entered.focus), 'the crumb goes one level deeper').eq('Venus bonus · card');
+    expect(venusInnerStageKey({zone: 'card', index: 0})).eq('Venus bonus');
   });
 
   it('A walks the questions in order and LEAVES on the laid-out grid — never before', () => {
     const meta = finalInput([CardName.DIRIGIBLES, CardName.ATMO_COLLECTORS]).venusBonusPrompt!;
-    // «On a card» → the cards; a card → the grid; A places one unit; A again confirms and leaves.
-    const r = press(meta, {}, ['primary', 'right', 'primary', 'primary']);
+    // «On a card» → the pick; a card → the grid; A places one unit; A again confirms and leaves.
+    const r = press(meta, {}, ['primary', {pick: CardName.ATMO_COLLECTORS}, 'primary']);
     expect(r.parts).deep.eq({wild: {wild: 'onCard', card: CardName.ATMO_COLLECTORS}, spread: {megacredits: 1}});
     expect(r.exit, 'laid out, not yet confirmed').is.undefined;
     expect(press(meta, {parts: r.parts, focus: r.focus}, ['primary']).exit).eq('confirm');

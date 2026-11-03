@@ -713,6 +713,23 @@ html.con-profile-handheld {
         background-size: contain !important;
     }
     &__card-vp { font-size: .72rem; color: @con-amber; font-variant-numeric: tabular-nums; }
+    /* THE DOOR (a nested pick — the Venus 30 % finish): ONE row, the chosen card or the ask with its count, A's verb at
+       its end. A kant for the chosen state, the cursor's own grammar for focus — never a glow (invariant 15). */
+    &__cards--door { grid-template-columns: minmax(0, 32rem); }
+    &__card--door { padding-right: .9rem; }
+    &__door-fan { position: relative; flex: 0 0 auto; display: inline-flex; }
+    &__door-face + &__door-face { margin-left: -200px; } /* the face's own px under its zoom — each covers most of the last */
+    &__door-verb {
+        margin-left: auto;
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        font-size: .78rem;
+        font-weight: 700;
+        letter-spacing: .04rem;
+        color: @con-text-dim;
+    }
     &__sole { font-size: .68rem; letter-spacing: .06rem; text-transform: uppercase; color: fade(@con-cyan, 85%); }
     &__note {
         align-self: center;
@@ -970,4 +987,29 @@ html.con-profile-handheld {
         background: rgba(255, 255, 255, 0.035);
         box-shadow: inset 0 0 0 .05rem rgba(150, 180, 210, 0.16);
     }
+}
+
+/* ── THE VENUS BONUS STEP'S TWO LEVELS (the owner, 2026-11-03): the step and its card pick are ONE layer stack — the
+   level that leaves paints through its whole leave in the same cell, the level that comes unfolds from under it (a
+   short rise + fade), never a blink. The pick takes the column the step had; its selector solves pages off the box. ── */
+.con-venusstep {
+    display: grid;
+    min-width: 0;
+    > .con-venusstep__level { grid-area: 1 / 1; min-width: 0; }
+}
+.con-venusstep__pick { display: flex; flex-direction: column; gap: .9rem; min-height: 0; }
+/* The head is the step's own (title · reading); the question is its quiet tail at the far end. */
+.con-venusstep__pick-ask { margin-left: auto; font-size: .82rem; color: @con-text-dim; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.con-venusstep-level-enter-active,
+.con-venusstep-level-leave-active {
+    transition:
+        opacity calc(180ms * var(--motion-scale, 1)) cubic-bezier(.2, .8, .2, 1),
+        transform calc(220ms * var(--motion-scale, 1)) cubic-bezier(.2, .8, .2, 1);
+}
+.con-venusstep-level-leave-active { transition-duration: calc(140ms * var(--motion-scale, 1)); pointer-events: none; }
+.con-venusstep-level-enter-from { opacity: 0; transform: translateY(.6rem); }
+.con-venusstep-level-leave-to { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+    .con-venusstep-level-enter-active,
+    .con-venusstep-level-leave-active { transition: none; }
 }

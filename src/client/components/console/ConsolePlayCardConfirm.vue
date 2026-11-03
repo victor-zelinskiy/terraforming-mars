@@ -127,6 +127,8 @@
             <!-- ── THE VENUS BONUS'S INNER STEP (P89 · EM): a level of this workspace in the review's place — the
                  30 % wild's OR, its card, the 2 × 3 standard grid; its own confirm comes back to the review. ── -->
             <ConsoleVenusBonusStep v-else-if="sub !== undefined && sub.kind === 'venus' && venusSubChoice !== undefined"
+                                   ref="venusStep"
+                                   :viewer="{name: playerView.thisPlayer.name, color: playerView.thisPlayer.color}"
                                    :input="venusSubChoice.input" :parts="venusPartsOf(venusSubChoice)"
                                    :focus="sub.focus" :stock="venusStock" />
 
@@ -883,12 +885,12 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
 import ConsoleAmountOperation from '@/client/components/console/foundation/ConsoleAmountOperation.vue';
 import ConsoleVenusBonusRow from '@/client/components/console/foundation/ConsoleVenusBonusRow.vue';
-import ConsoleVenusBonusStep from '@/client/components/console/foundation/ConsoleVenusBonusStep.vue';
+import ConsoleVenusBonusStep, {VenusBonusStepApi} from '@/client/components/console/foundation/ConsoleVenusBonusStep.vue';
 import {
   VENUS_SPREAD_LANES, VenusBonusParts, venusBonusMetaOf, venusPreselectArm, venusPreselectResponse, venusWhenHolds,
 } from '@/client/console/venusBonus/venusBonusPreselect';
 import {
-  VenusInnerFocus, venusInnerBar, venusInnerClamp, venusInnerFootHints, venusInnerNav, venusInnerOpen, venusInnerPress,
+  VenusInnerFocus, venusInnerBar, venusInnerClamp, venusInnerFootHints, venusInnerNav, venusInnerOpen, venusInnerPress, venusInnerStageKey,
 } from '@/client/console/venusBonus/venusBonusInner';
 import {armVenusBonusCell} from '@/client/console/scaleStepReward/venusBonusCellBeat';
 import {amountOperationVm, ConversionPromptVm} from '@/client/console/conversionPromptModel';
@@ -1559,7 +1561,7 @@ export default defineComponent({
       }
       // The Venus bonus's inner step names itself in the crumb's tail («… › БОНУС ВЕНЕРЫ»), never on its own plate.
       if (this.sub?.kind === 'venus') {
-        return 'Venus bonus';
+        return venusInnerStageKey(this.sub.focus);
       }
       // A gain pick asks WHERE its payload lands — the stage is the TARGET (TR56, decision 6: «… › ЦЕЛЬ»).
       if (this.sub?.kind === 'playedTarget' && this.playedTargetModel?.contract.payload !== undefined) {
@@ -3993,7 +3995,14 @@ export default defineComponent({
         return;
       }
       const before = this.venusPartsOf(c);
-      const result = venusInnerPress(meta, before, sub.focus, verb);
+      // THE NESTED CARD PICK: LB/RB turn its page, A answers with the selector's focused card.
+      const step = this.$refs.venusStep as VenusBonusStepApi | undefined;
+      if (sub.focus.zone === 'pick' && (verb === 'prevSection' || verb === 'nextSection')) {
+        step?.pickTurn(verb === 'nextSection' ? 1 : -1);
+        return;
+      }
+      const picked = sub.focus.zone === 'pick' && verb === 'primary' ? step?.pickFocused() : undefined;
+      const result = venusInnerPress(meta, before, sub.focus, verb, picked);
       if (result.parts !== before) {
         this.setVenusParts(c, result.parts);
       }
@@ -4355,6 +4364,11 @@ export default defineComponent({
       }
       // The Venus bonus's inner step walks its own 2-D grid (the wild's OR · its cards · 2 × 3 resources).
       if (this.sub?.kind === 'venus') {
+        // THE NESTED CARD PICK walks the selector's own boxes (`ConsoleVenusBonusStep.pickNav`).
+        if (this.sub.focus.zone === 'pick') {
+          (this.$refs.venusStep as VenusBonusStepApi | undefined)?.pickNav(dir as PlayedTargetNavDir);
+          return;
+        }
         const c = this.venusSubChoice;
         const meta = c === undefined ? undefined : venusBonusMetaOf(c.input);
         if (c !== undefined && meta !== undefined) {
@@ -5584,6 +5598,10 @@ export default defineComponent({
         return;
       }
       if (sub.kind === 'venus') {
+        if (action === 'inspect' && sub.focus.zone === 'pick') {
+          (this.$refs.venusStep as VenusBonusStepApi | undefined)?.pickInspect();
+          return;
+        }
         if (action === 'primary' || action === 'back' || action === 'prevSection' || action === 'nextSection' || action === 'nextTab') {
           this.venusStepPress(action);
         }

@@ -10081,7 +10081,7 @@ function venusBonusDryRun(name: string, copy: IGame, seat: IPlayer, kind: 'stand
     throw new Error(`the ${name} fixture expected a «${kind}» Venus bonus after the step — got ${asked ?? 'none'} (${seat.getWaitingFor()?.constructor.name}: ${JSON.stringify(seat.getWaitingFor()?.title).slice(0, 80)}) at ${copy.getVenusScaleLevel()} %`);
   }
 }
-function venusBonusFixture(name: string, door: 'play' | 'stdp' | 'final'): void {
+function venusBonusFixture(name: string, door: 'play' | 'stdp' | 'final' | 'final-crowd'): void {
   const {game, player} = soloActionPhase({
     venusNextExtension: true, prelude2Expansion: true, altVenusBoard: true,
     customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
@@ -10098,6 +10098,20 @@ function venusBonusFixture(name: string, door: 'play' | 'stdp' | 'final'): void 
     setVenusScaleLevel(game, 16);
   } else {
     player.playedCards.push(take(CardName.DIRIGIBLES), take(CardName.VENUS_SHUTTLES));
+    if (door === 'final-crowd') {
+      // THE CROWD (the owner's 4K frame of 2026-11-03 — thirteen holders squeezed into one strip): fourteen cards able
+      // to take the 30 % finish's wild, a few already holding something (the tags read «a → b» and the VP move).
+      const crowd = [
+        CardName.BIRDS, CardName.FISH, CardName.LIVESTOCK, CardName.PETS, CardName.ANTS, CardName.DECOMPOSERS,
+        CardName.TARDIGRADES, CardName.REGOLITH_EATERS, CardName.GHG_PRODUCING_BACTERIA, CardName.NITRITE_REDUCING_BACTERIA,
+        CardName.SMALL_ANIMALS, CardName.FLOATING_HABS, CardName.EXTREMOPHILES,
+      ];
+      crowd.forEach((n, i) => {
+        const card = take(n);
+        player.playedCards.push(card);
+        card.resourceCount = i % 3;
+      });
+    }
     setVenusScaleLevel(game, 28);
   }
   runAllActions(game);
@@ -10111,12 +10125,13 @@ function venusBonusFixture(name: string, door: 'play' | 'stdp' | 'final'): void 
   } else {
     (blue.playedCards.get(CardName.VENUS_SHUTTLES) as IActionCard & ICard).action(blue);
   }
-  venusBonusDryRun(name, copy, blue, door === 'final' ? 'final' : 'standard');
+  venusBonusDryRun(name, copy, blue, door === 'final' || door === 'final-crowd' ? 'final' : 'standard');
   write(name, game);
 }
 venusBonusFixture('venus-bonus-play', 'play');
 venusBonusFixture('venus-bonus-stdp', 'stdp');
 venusBonusFixture('venus-bonus-final', 'final');
+venusBonusFixture('venus-bonus-final-crowd', 'final-crowd');
 
 // ── P89 · EM (PL-1505) — a bonus ONE OPTION earns: Atmoscoop in hand (three science tags on the table, Dirigibles to
 //    hold its floaters) at Venus 16 % on the alternative board. Its «temperature OR Venus» is a step of the play sheet;

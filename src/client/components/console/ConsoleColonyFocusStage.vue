@@ -352,7 +352,8 @@
                board's bonus, pre-selected here like a card target: the composers' ONE inner step (the 30 % wild's OR, its
                card, the 2 × 3 standard grid); its own confirm / B come back to the decisions with the layout intact. -->
           <template v-else-if="sub === 'venus' && venusStepInput !== undefined">
-            <ConsoleVenusBonusStep :input="venusStepInput" :parts="venusParts" :focus="venusFocus" :stock="venusStock" />
+            <ConsoleVenusBonusStep ref="venusStep" :input="venusStepInput" :parts="venusParts" :focus="venusFocus" :stock="venusStock"
+                                   :viewer="{name: thisPlayer?.name ?? '', color: thisPlayer?.color ?? 'viewer'}" />
           </template>
 
           <!-- SUB: track advance choice (IncreaseColonyTrack). -->
@@ -884,7 +885,7 @@ import {
   ColonyTradePresentedTarget, buildColonyTradeTargetModel, colonyTradeCardDestinations, openTradeTargetFocus,
 } from '@/client/console/colonyTrade/colonyTradeTargetStep';
 import {ColonyTradeTargets, tradeIncomeLine} from '@/client/console/colonyTrade/colonyTradeModel';
-import {PlayedTargetModel} from '@/client/console/played/consolePlayedTargetModel';
+import {PlayedTargetModel, PlayedTargetNavDir} from '@/client/console/played/consolePlayedTargetModel';
 import {cardResourceLandings, resourceTransferState} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {readingText} from '@/client/console/readingText';
@@ -941,12 +942,12 @@ import {
 } from '@/client/console/consoleForecastHost';
 import {VersionedView} from '@/client/console/gameStateVersion';
 import ConsoleVenusBonusRow from '@/client/components/console/foundation/ConsoleVenusBonusRow.vue';
-import ConsoleVenusBonusStep from '@/client/components/console/foundation/ConsoleVenusBonusStep.vue';
+import ConsoleVenusBonusStep, {VenusBonusStepApi} from '@/client/components/console/foundation/ConsoleVenusBonusStep.vue';
 import {
   VENUS_SPREAD_LANES, VenusBonusParts, venusBonusMetaOf, venusPreselectArm, venusPreselectResponse,
 } from '@/client/console/venusBonus/venusBonusPreselect';
 import {
-  VenusInnerCommand, VenusInnerFocus, venusInnerBar, venusInnerClamp, venusInnerFootHints, venusInnerNav, venusInnerOpen, venusInnerPress,
+  VenusInnerCommand, VenusInnerFocus, venusInnerBar, venusInnerClamp, venusInnerFootHints, venusInnerNav, venusInnerOpen, venusInnerPress, venusInnerStageKey,
 } from '@/client/console/venusBonus/venusBonusInner';
 import {armVenusBonusCell} from '@/client/console/scaleStepReward/venusBonusCellBeat';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
@@ -2971,7 +2972,7 @@ export default defineComponent({
       }
       // …and so is the Venus bonus's INNER step («…› ТОРГОВЛЯ» → «…› БОНУС ВЕНЕРЫ», P89 · EM).
       if (this.sub === 'venus') {
-        setColonyFocusStage('Venus bonus');
+        setColonyFocusStage(venusInnerStageKey(this.venusFocus));
         return;
       }
       // THE CITY ACT names its own stage («… › ЛУНА · ГОРОД»).
@@ -3077,6 +3078,11 @@ export default defineComponent({
         return;
       }
       if (this.sub === 'venus') {
+        // THE NESTED CARD PICK walks the selector's own boxes (`ConsoleVenusBonusStep.pickNav`).
+        if (this.venusFocus.zone === 'pick') {
+          (this.$refs.venusStep as VenusBonusStepApi | undefined)?.pickNav(dir as PlayedTargetNavDir);
+          return;
+        }
         const meta = venusBonusMetaOf(this.venusStepInput);
         if (meta !== undefined) {
           this.venusFocus = venusInnerNav(meta, this.venusParts, this.venusFocus, dir);
@@ -3187,7 +3193,14 @@ export default defineComponent({
         this.sub = undefined;
         return;
       }
-      const result = venusInnerPress(meta, this.venusParts, this.venusFocus, verb);
+      // THE NESTED CARD PICK: LB/RB turn its page, A answers with the selector's focused card.
+      const step = this.$refs.venusStep as VenusBonusStepApi | undefined;
+      if (this.venusFocus.zone === 'pick' && (verb === 'prevSection' || verb === 'nextSection')) {
+        step?.pickTurn(verb === 'nextSection' ? 1 : -1);
+        return;
+      }
+      const picked = this.venusFocus.zone === 'pick' && verb === 'primary' ? step?.pickFocused() : undefined;
+      const result = venusInnerPress(meta, this.venusParts, this.venusFocus, verb, picked);
       if (result.parts !== this.venusParts) {
         this.setVenusParts(result.parts);
       }
@@ -3196,6 +3209,7 @@ export default defineComponent({
         return;
       }
       this.venusFocus = venusInnerClamp(meta, result.parts, result.focus);
+      this.publishStageName();
     },
     /** The cell beat's promise (PL-1437) for the trade's pre-selected bonus — armed at the confirm. */
     armVenusPreselect(): void {
@@ -3224,6 +3238,10 @@ export default defineComponent({
       // THE VENUS BONUS'S INNER STEP (P89 · EM): the pure model's verbs — A the zone's verb (confirm leaves), LB/RB one
       // unit, RT the rest, B back to the decisions with the draft kept.
       if (this.sub === 'venus') {
+        if (action === 'inspect' && this.venusFocus.zone === 'pick') {
+          (this.$refs.venusStep as VenusBonusStepApi | undefined)?.pickInspect();
+          return;
+        }
         if (action === 'primary' || action === 'back' || action === 'prevSection' || action === 'nextSection' || action === 'nextTab') {
           this.venusStepPress(action);
         }

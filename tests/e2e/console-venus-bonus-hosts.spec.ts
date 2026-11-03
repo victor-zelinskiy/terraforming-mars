@@ -350,6 +350,70 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     await expect(page.locator('.con-cardactions'), 'the workspace leaves').toHaveCount(0, {timeout: 30_000});
   });
 
+  test('H5′ the 30 % finish over FOURTEEN holders: «on a card» is a level of its own — the selector takes the column, pages, B back to the door', async ({page, request}) => {
+    test.setTimeout(420_000);
+    // The owner's 4K frame of 2026-11-03: thirteen holders squeezed into ONE strip under the OR and the grid — «места для
+    // карт нет … класть на карту делать ЕЩЁ ОДНИМ вложенным шагом».
+    const id = await bootFixture(page, request, 'venus-bonus-final-crowd', {query: PRESET.query});
+    await focusShuttles(page);
+    const before = await wireOf(request, id);
+    expect(await openVenusStep(page), 'A enters the inner step').toBe(true);
+    const inner = page.locator(`${ACTION_COMPOSER} [data-venus-inner]`);
+    const level = page.locator(`${ACTION_COMPOSER} .con-venusstep`);
+    await expect(inner, 'the step opens on the OR').toHaveAttribute('data-venus-focus-zone', 'wild');
+    // «On a card» with no card yet — the pick opens AT ONCE, one level deeper.
+    await press(page, 'Enter', 600);
+    await expect(level, 'the pick took the step\'s place').toHaveAttribute('data-venus-level', 'pick');
+    await expect(inner, 'the step stepped aside').toBeHidden();
+    await expect.poll(() => crumbText(page), {message: 'the crumb goes one level deeper', timeout: 10_000}).toMatch(/БОНУС ВЕНЕРЫ · КАРТА/i);
+    const pick = page.locator(`${ACTION_COMPOSER} [data-venus-pick]`);
+    await expect(pick.locator('.con-ptsel__cell').first()).toBeVisible();
+    await shoot(page, 'H5c-pick');
+    const geom = await pick.evaluate((root) => {
+      const cells = [...root.querySelectorAll('.con-ptsel__cell')].map((c) => c.getBoundingClientRect());
+      const vp = root.querySelector<HTMLElement>('.con-ptsel__viewport .con-scroll-area__viewport');
+      const pages = root.querySelector('[data-ptsel-pages]');
+      return {
+        n: cells.length, w: Math.min(...cells.map((r) => r.width)), rows: new Set(cells.map((r) => Math.round(r.top / 8))).size,
+        cut: vp === null ? 0 : vp.scrollHeight - vp.clientHeight, pages: Number(pages?.getAttribute('data-ptsel-page-count') ?? '1'),
+      };
+    });
+    expect(geom.w, `readable cards — ${JSON.stringify(geom)}`).toBeGreaterThanOrEqual(228);
+    expect(geom.cut, 'nothing cut — the selector never scrolls').toBeLessThanOrEqual(1);
+    expect(geom.n * geom.pages, 'all fourteen reachable (on the page or past it)').toBeGreaterThanOrEqual(14);
+    expect(geom.rows > 1 || geom.pages > 1, `never ONE strip of fourteen — ${JSON.stringify(geom)}`).toBe(true);
+    if (geom.pages > 1) {
+      const pages = pick.locator('[data-ptsel-pages]');
+      await press(page, 'KeyE', 500); // RB — the next page
+      await expect(pages, 'RB turned the page').toHaveAttribute('data-ptsel-page', '2');
+      await press(page, 'KeyQ', 500);
+      await expect(pages, 'LB back').toHaveAttribute('data-ptsel-page', '1');
+    }
+    // B is ONE level: back to the door, the step as it was.
+    await press(page, 'Escape', 600);
+    await expect(level, 'B — back to the step').toHaveAttribute('data-venus-level', 'step');
+    await expect(inner, 'the cursor on the door').toHaveAttribute('data-venus-focus-zone', 'card');
+    await expect(inner.locator('[data-wild-door]'), 'ONE door row — never a strip of holders').toHaveCount(1);
+    await shoot(page, 'H5c-door');
+    // A on the door — the pick again; a step right, A takes THAT card.
+    await press(page, 'Enter', 600);
+    await expect(level).toHaveAttribute('data-venus-level', 'pick');
+    await press(page, 'ArrowRight', 300);
+    const chosen = await pick.getAttribute('data-venus-pick-focused') ?? '';
+    expect(chosen, 'a card under the cursor').not.toBe('');
+    await press(page, 'Enter', 600);
+    await expect(level, 'A answered and came back').toHaveAttribute('data-venus-level', 'step');
+    await expect(inner.locator(`[data-venus-card="${chosen}"][data-chosen]`), 'the door reads the chosen card').toHaveCount(1);
+    await expect(inner, 'the cursor went on to the grid').toHaveAttribute('data-venus-focus-zone', 'lane');
+    await shoot(page, 'H5c-chosen');
+    expect(await answerVenusSpread(page, 'steel', {wild: 'onCard'}), 'the base unit on steel').toBe(true);
+    await commitComposer(page);
+    const held = (w: Wire) => w.thisPlayer.tableau.find((c) => c.name === chosen)?.resources ?? 0;
+    await expect.poll(async () => held(await wireOf(request, id)), {timeout: 30_000, message: `the wild landed on ${chosen}`})
+      .toBe(held(before) + 1);
+    await expect(page.locator('.con-cardactions'), 'the workspace leaves').toHaveCount(0, {timeout: 30_000});
+  });
+
   test('H6 R&D Funding repeats P89 at 16 %: the copied action\'s bonus is pre-selected in its own composer, the law\'s commit answers it', async ({page, request}) => {
     test.setTimeout(420_000);
     const {playerId: id} = await bootFixtureSeats(page, request, 'venus-bonus-rdfunding', {query: PRESET.query});

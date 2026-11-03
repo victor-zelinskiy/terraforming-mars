@@ -71,6 +71,8 @@ export function venusWildSpec(meta: VenusBonusPromptMeta): WildChoiceSpec {
     amount: (wild) => venusSpreadAmount(meta, wild === undefined ? {} : {wild: {wild}}),
     exclusive: false,
     lanes: 'dial',
+    // «On a card» is a level of its own (the owner, 2026-11-03): the 30 % finish's holders get the whole column.
+    nestedPick: true,
   };
 }
 
@@ -119,10 +121,20 @@ export function trimVenusSpread(spread: SpreadState, amount: number): SpreadStat
   return trimWildSpread(spread, amount);
 }
 
-/** WHAT A PRESS DOES — pure; the host writes `parts` back and leaves the step on `exit`. */
-export function venusInnerPress(meta: VenusBonusPromptMeta, parts: VenusBonusParts, focus: VenusInnerFocus, verb: VenusInnerVerb): VenusInnerResult {
-  const result: WildResult = wildPress(venusWildSpec(meta), parts, focus, verb);
+/**
+ * WHAT A PRESS DOES — pure; the host writes `parts` back and leaves the step on `exit`. In the nested card pick
+ * (`pick`) the host hands in the selector's focused, choosable card (`ConsoleVenusBonusStep.pickFocused`).
+ */
+export function venusInnerPress(
+  meta: VenusBonusPromptMeta, parts: VenusBonusParts, focus: VenusInnerFocus, verb: VenusInnerVerb, picked?: CardName,
+): VenusInnerResult {
+  const result: WildResult = wildPress(venusWildSpec(meta), parts, focus, verb, picked);
   return result;
+}
+
+/** The crumb's tail of the inner step — one level deeper while the card pick stands («… › БОНУС ВЕНЕРЫ · КАРТА»). */
+export function venusInnerStageKey(focus: VenusInnerFocus): string {
+  return focus.zone === 'pick' ? 'Venus bonus · card' : 'Venus bonus';
 }
 
 /** The bar of the inner step — ONE reading for every host (labels are i18n keys). */

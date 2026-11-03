@@ -3246,7 +3246,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // RX12 Gas Export: a Venus table at gate 1, oxygen 5 % and Venus 10 % — the world's own move plays from here.
   'parliament-gas-assembly' |
   // The SITTING's gates (Э1): the phase stopped at gate 1 (`-assembly`) / gate 2 (`-adjourn`) for both seats.
-  'parliament-aquifer-assembly' | 'parliament-aquifer-adjourn' | 'parliament-architecture-assembly' | 'parliament-architecture-assembly-draft' | 'venus-shuttles' | 'venus-shuttles-poor' | 'venus-shuttles-max' | 'venus-shuttles-alt16' | 'venus-shuttles-play' | 'venus-bonus-play' | 'venus-bonus-stdp' | 'venus-bonus-final' | 'venus-bonus-trade' | 'venus-bonus-rdfunding' | 'parliament-architecture-adjourn' | 'parliament-support-stock' |
+  'parliament-aquifer-assembly' | 'parliament-aquifer-adjourn' | 'parliament-architecture-assembly' | 'parliament-architecture-assembly-draft' | 'venus-shuttles' | 'venus-shuttles-poor' | 'venus-shuttles-max' | 'venus-shuttles-alt16' | 'venus-shuttles-play' | 'venus-bonus-play' | 'venus-bonus-stdp' | 'venus-bonus-final' | 'venus-bonus-final-crowd' | 'venus-bonus-trade' | 'venus-bonus-rdfunding' | 'parliament-architecture-adjourn' | 'parliament-support-stock' |
   // «Обновление» scenario 2: an EMPTY deck, both losers dealt straight back after the reshuffle, a delegate on a loser.
   'parliament-renewal-assembly' |
   'parliament-biodome-assembly' | 'parliament-biodome-adjourn' | 'parliament-powergrid-assembly' | 'parliament-powergrid-adjourn' |
@@ -3649,9 +3649,14 @@ export async function answerVenusSpread(page: Page, lane?: string, opts: {wild?:
       await press(page, want === 'onCard' ? 'ArrowLeft' : 'ArrowRight', 220);
       await press(page, 'Enter', 400);
     }
+    // «On a card» is a NESTED level (the owner, 2026-11-03): the door (`card`) opens the pick (`pick`), where A takes
+    // the selector's focused card and returns to the grid.
     if (want === 'onCard' && await inner.locator('[data-venus-card][data-chosen]').count() === 0) {
       if (await zone() === 'card') {
         await press(page, 'Enter', 400);
+      }
+      if (await zone() === 'pick') {
+        await pressUntil(page, 'Enter', async () => await zone() !== 'pick', {tries: 3, settleMs: 600});
       }
     }
   }

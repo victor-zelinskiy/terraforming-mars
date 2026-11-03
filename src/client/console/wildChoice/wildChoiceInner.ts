@@ -18,6 +18,14 @@
  *  · `card` — the candidates (only while the wild goes onto a card);
  *  · `lane` — the six standard resources, a FIXED grid of 2 rows × 3 (`WILD_GRID_COLS`), never reflowing.
  * A is the zone's verb, B leaves the step with the draft kept (a pre-select — nothing was sent).
+ *
+ * «ON A CARD» MAY BE A LEVEL OF ITS OWN (`nestedPick` — the owner, 2026-11-03, the Venus 30 % finish with thirteen
+ * holders: «места для карт нет и они идут в один ряд … класть на карту делать ЕЩЁ ОДНИМ вложенным шагом, иначе мы
+ * не можем отдать достаточно свободного места для выбора»). The `card` zone is then ONE door row (the chosen card, or
+ * «choose a card»); A on it — or choosing «on a card» with no card yet — enters `pick`: the step gives the WHOLE column
+ * to the console's target selector (pages, the outcome tags, X with the dossier). The selector's cursor and its
+ * geometry are the HOST's (a pure model has no boxes); this model only says where the cursor stands and what A / B do:
+ * A with the selector's focused card answers it and returns to the grid, B is one level back — to the door.
  */
 import {CardName} from '@/common/cards/CardName';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
@@ -29,7 +37,7 @@ export const WILD_GRID_COLS = 3;
 export const WILD_LANES: ReadonlyArray<string> = STANDARD_UNITS;
 
 export type WildKind = 'onCard' | 'asStandard';
-export type WildZone = 'wild' | 'card' | 'lane';
+export type WildZone = 'wild' | 'card' | 'lane' | 'pick';
 export type WildFocus = {zone: WildZone, index: number};
 export type WildVerb = 'primary' | 'back' | 'prevSection' | 'nextSection' | 'nextTab';
 
@@ -62,6 +70,8 @@ export type WildChoiceSpec = {
   amount: (wild: WildKind | undefined) => number,
   exclusive: boolean,
   lanes: 'dial' | 'radio',
+  /** «On a card» is a NESTED level (`pick`) behind ONE door row — never a strip of every holder (see the header). */
+  nestedPick?: boolean,
 };
 
 /** Is the OR asked here? */
@@ -98,7 +108,8 @@ function gridRows(spec: WildChoiceSpec, parts: WildParts): Array<GridRow> {
   }
   const cards = wildCards(spec, parts);
   if (cards.length > 0) {
-    rows.push({zone: 'card', first: 0, count: cards.length});
+    // A nested pick stands behind ONE door — the row the cursor walks is that door, never the holders.
+    rows.push({zone: 'card', first: 0, count: spec.nestedPick === true ? 1 : cards.length});
   }
   if (wildLanesShown(spec, parts)) {
     for (let first = 0; first < WILD_LANES.length; first += WILD_GRID_COLS) {
@@ -179,6 +190,9 @@ export function wildOpen(spec: WildChoiceSpec, parts: WildParts): WildFocus {
 
 /** A cursor that still points at something (a zone that went away falls to the first row standing). */
 export function wildClamp(spec: WildChoiceSpec, parts: WildParts, focus: WildFocus): WildFocus {
+  if (focus.zone === 'pick') {
+    return wildCards(spec, parts).length > 0 ? focus : {zone: 'wild', index: 0};
+  }
   const rows = gridRows(spec, parts);
   if (rowOf(rows, focus) >= 0) {
     return focus;
@@ -189,6 +203,9 @@ export function wildClamp(spec: WildChoiceSpec, parts: WildParts, focus: WildFoc
 
 /** THE D-PAD — a 2-D walk over the grid's rows: ↑↓ change the row keeping the column, ←→ move within the row (no wrap). */
 export function wildNav(spec: WildChoiceSpec, parts: WildParts, focus: WildFocus, dir: 'up' | 'down' | 'left' | 'right'): WildFocus {
+  if (focus.zone === 'pick') {
+    return focus; // the selector walks its own boxes — the host's
+  }
   const rows = gridRows(spec, parts);
   const at = rowOf(rows, focus);
   if (at < 0) {
@@ -236,9 +253,25 @@ function withWild(spec: WildChoiceSpec, parts: WildParts, wild: WildParts['wild'
   return {...next, spread: trimWildSpread(parts.spread ?? {}, amount)};
 }
 
-/** WHAT A PRESS DOES — pure; the host writes `parts` back and leaves the step on `exit`. */
-export function wildPress(spec: WildChoiceSpec, parts: WildParts, focus: WildFocus, verb: WildVerb): WildResult {
+/** The nested pick's own level (`pick`) — entered from the door or from choosing «on a card» with no card yet. */
+const PICK: WildFocus = {zone: 'pick', index: 0};
+
+/**
+ * WHAT A PRESS DOES — pure; the host writes `parts` back and leaves the step on `exit`. In the nested pick (`pick`)
+ * the host hands in the selector's focused, choosable card as `picked` (undefined: A answers nothing).
+ */
+export function wildPress(spec: WildChoiceSpec, parts: WildParts, focus: WildFocus, verb: WildVerb, picked?: CardName): WildResult {
   const stay = {parts, focus};
+  if (focus.zone === 'pick') {
+    if (verb === 'back') {
+      return {parts, focus: {zone: 'card', index: 0}}; // ONE level back — to the door, the draft kept
+    }
+    if (verb !== 'primary' || picked === undefined || !spec.holders.includes(picked)) {
+      return stay;
+    }
+    const next = withWild(spec, parts, {wild: 'onCard', card: picked});
+    return {parts: next, focus: firstLane(next)};
+  }
   if (verb === 'back') {
     return {...stay, exit: 'back'};
   }
@@ -257,6 +290,9 @@ export function wildPress(spec: WildChoiceSpec, parts: WildParts, focus: WildFoc
     const kept = parts.wild?.wild === 'onCard' ? parts.wild.card : undefined;
     const card = kept ?? (spec.holders.length === 1 ? spec.holders[0] : undefined);
     const next = withWild(spec, parts, {wild: 'onCard', ...(card !== undefined ? {card} : {})});
+    if (spec.nestedPick === true && card === undefined) {
+      return {parts: next, focus: PICK};
+    }
     if (spec.exclusive || card === undefined) {
       const at = card === undefined ? 0 : Math.max(0, spec.holders.indexOf(card));
       return {parts: next, focus: {zone: 'card', index: at}};
@@ -266,6 +302,9 @@ export function wildPress(spec: WildChoiceSpec, parts: WildParts, focus: WildFoc
   if (focus.zone === 'card') {
     if (verb !== 'primary') {
       return stay;
+    }
+    if (spec.nestedPick === true) {
+      return wildCards(spec, parts).length > 0 ? {parts, focus: PICK} : stay;
     }
     const card = wildCards(spec, parts)[focus.index];
     if (card === undefined) {
@@ -317,6 +356,8 @@ export type WildBar = {
   pour: boolean,
   /** Why the step cannot be confirmed yet (the first open question) — an i18n key + params, or undefined. */
   blocked?: {key: string, params: ReadonlyArray<string>},
+  /** X inspects the focused candidate (the nested pick — the target dossier). */
+  inspect?: boolean,
 };
 
 export function wildBlocked(spec: WildChoiceSpec, parts: WildParts, keys: {chooseWild: string, chooseCard: string}): WildBar['blocked'] {
@@ -336,8 +377,11 @@ export function wildBar(spec: WildChoiceSpec, parts: WildParts, focus: WildFocus
     const key = WILD_OPTIONS[focus.index]?.key;
     return {primary: {label: 'Choose', enabled: key !== undefined && wildOptionLive(spec, key)}, pour: false, blocked};
   }
+  if (focus.zone === 'pick') {
+    return {primary: {label: 'Choose', enabled: true}, pour: false, blocked, inspect: true};
+  }
   if (focus.zone === 'card') {
-    return {primary: {label: 'Choose', enabled: true}, pour: false, blocked};
+    return {primary: {label: spec.nestedPick === true && parts.wild?.card !== undefined ? 'Change the card' : 'Choose', enabled: true}, pour: false, blocked};
   }
   if (spec.lanes === 'radio') {
     return {primary: {label: 'Choose', enabled: wildAmount(spec, parts) > 0}, pour: false, blocked};
@@ -368,6 +412,9 @@ export function wildFootHints(bar: WildBar): Array<WildCommand> {
     {control: 'dpad', label: 'Navigate'},
     {control: 'confirm', label: bar.primary.label, enabled: bar.primary.enabled},
   ];
+  if (bar.inspect === true) {
+    out.push({control: 'secondary', label: 'Inspect'});
+  }
   if (bar.bumpers !== undefined) {
     out.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1', enabled: bar.bumpers.canDecrease || bar.bumpers.canIncrease});
     out.push({control: 'triggerR', label: 'The rest', enabled: bar.pour});
