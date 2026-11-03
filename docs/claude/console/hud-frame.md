@@ -313,17 +313,33 @@ bar), the chip ribbon on its one transform (`statusChipConveyor`), the seat INTA
 on its number — `statusIntake.seatIntakeEnd`), the chip a city payout aims at, the parameter cells the scale swing reads, the
 deck's pile the draw deals from, the chip line under the beam's seam. Its PAINT is `src/styles/console_status_material.less`
 (imported right after `console.less`, before the TV sizes): the beam on the player board's glass (the two always-visible
-edges are one material); a seat chip as a CROSS — the seat's colour a LIT EDGE (`--seat` by `data-color`, never a fill), the
-name on the glass, the status ENGRAVED (active lit mint, waiting recessed, the me / active / attention rims re-seated); the
-three global parameters as DIALS round their own icons (the icon's `::after`, `inset` in % of the icon — every profile; the
-reading `--con-param-fill` / `--con-param-steps` bound by `ConsoleStatusStrip.paramFill` off the value the cell prints); the
-deck's count and the generation on engraved plates (spread shadows). Paint only — no padding / margin / border / gap / size /
-font / transform / filter / display outside a pseudo-element. Guards: `tests/console/statusGeometryParity.spec.ts` (the token
-per profile, the banned properties, the import order), e2e `console-status-material` (31 anchors + the posed states — the
-viewer's attention, a passed seat, the conveyor's window, a ghost-ringed dial, the final generation, an intake expecting /
-received — × tv4k / fhd / deck against `tests/e2e/statusAnchorsBaseline.json`, ±1 px; the mockups `TM_E2E_STATUS_MOCK`, a
-mid-game table `TM_E2E_STATUS_FIXTURE=info-dossier-rich`). Two posed frames extend net-zero by design (the conveyor's window,
-the ghost ring) — the stand reads their contents, not the frames (`NET_ZERO_FRAMES`).
+edges are one material); a seat chip whose seat colour is the LEFT EDGE (`--seat` by `data-color`) and a ≤ 8 % key beside
+it, the status a FLAT pill (one tone, one hairline); every state an INSET hairline kant — me cyan · active mint (+ the mint
+word of the pill) · attention amber — never an outer ring, never a loop. **EW (the owner, 2026-11-03 — «прогресс-бар
+поверх индикаторов», «странные углубления цифр», «чипы с сильным glow»):** ① the terraforming rail under the trio painted
+over the dials' lower arcs — it is GONE; the total is the group's first dial, the PLANET (`.con-status__param--planet`, its
+value `.con-status__terra-pct` at the parameters' size); ② every digit of the strip is ONE real weight
+(`font-weight: 400` + `font-synthesis: none` on `.con-status` — Prototype ships 400 only, and a synthesized bold drew the
+«double contour»), the generation's and the deck's plates are FLAT (a level tone + one inset hairline, `min-width: 2ch` +
+a horizontal padding in `console.less` — the old engraved plate hugged a lone «1» as a 15 × 84 px slot), the final
+generation a gold digit + a gold hairline, no `text-shadow`; ③ the chips' 20–26 % washes, outer rings, the recessed pill and
+the FIVE endless loops (the active dot's ping, the status glyph's pulse, the beacon's breath + drop-shadow) are gone — the
+strip's ONE licensed loop is the attention beacon's sparse sonar (≤ 35 %), and the one-shots (`con-turn-burst`,
+`con-attention-in`) END AT REST (the last keyframe names no box-shadow); ④ the dials are ONE family — planet · temperature ·
+oxygen · oceans (nine divisions of the ring) · Venus (now a dial too, 0…30 %) — each a ring round its own icon (the icon's
+`::after`, `inset: -6%` — the box stays inside the 92 px beam at 4K), every fill from twelve o'clock; the deck's pile is
+flat (no `rotateX`, no `drop-shadow`). Not done (named): the parameter SPRITES are the printed ones (the oxygen's glossy
+gold disc, the ocean's hexagon) — a flat-glyph family is a separate art pass. Paint only — no padding / margin / border /
+gap / size / font / transform / filter / display outside a pseudo-element (the plates' width and the one weight live in
+`console.less`). Guards: `tests/console/statusGeometryParity.spec.ts` (the token per profile, the banned properties, the
+import order), `tests/console/glowRestraintGuard.spec.ts` § THE TOP STRIP (a standing `text-shadow` glow, a light
+`drop-shadow`, a bright outer ring `0 0 0 <spread>` ≥ 50 %, an endless loop other than the beacon's sonar — all red), e2e
+`console-status-material` (the anchors + the posed states — the viewer's attention, a passed seat, the conveyor's window, a
+ghost-ringed dial, the final generation, an intake expecting / received — × tv4k / fhd / deck against
+`tests/e2e/statusAnchorsBaseline.json`, ±1 px, RE-MEASURED for EW: the planet cell in front of the trio, the rail gone, the
+plates wider; the mockups `TM_E2E_STATUS_MOCK`, a mid-game table `TM_E2E_STATUS_FIXTURE=info-dossier-rich`). Two posed
+frames extend net-zero by design (the conveyor's window, the ghost ring) — the stand reads their contents, not the frames
+(`NET_ZERO_FRAMES`).
 
 ## THE MARKS OF THE RATING CELL — «Печати на ячейке РТ» (RX42 · R07 Pristar, 2026-10-24)
 

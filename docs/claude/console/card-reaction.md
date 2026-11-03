@@ -576,6 +576,36 @@ trade registry (`tradeFlatBonuses`), paid by a bare `stock.add` outside any effe
     `reactor:Venus Trade Hub:megacredit` births land on `rail:megacredits`; B — the dock: two `reactor:Greens` births,
     three `reactor:Venus Trade Hub`), `cardReactionDirector.spec` § P90 · EF.
 
+## P46 Colony Trade Hub — ANOTHER SEAT'S CAUSE IS NAMED, and a bot's turn tells its reactions AT ITS DELIVERY (2026-11-03, ledger EV)
+
+38. **A REACTION TOLD ON ITS OWN NAMES WHAT ANOTHER SEAT DID.** «When ANY colony is placed» fires on the owner's own
+    build (the colony scene IS the cause — the card rises after it, no plate) and on a rival's or MarsBot's build,
+    which nothing animates on the viewer's screen. The record carries the cause — `CardReactionCause.colony =
+    {name, builder}`, written by BOTH writers of a cube (`Colony.addColony`, `AutomaColonies.botBuildColony`) — and the
+    standalone chain's face (a rival's reactor too) wears a CAUSE PLATE under it (`cardReaction/reactionCausePlate.ts`
+    → `ReactorFace.cause` → `.con-reaction__cause[data-reaction-cause][data-cause-colony][data-cause-builder]`: the
+    planet disc, the colony's name, the builder's seat dot and name — MarsBot one more seat). Read off the record,
+    never the log; a builder who IS the viewer gets none. A new trigger whose cause another seat makes and nothing
+    animates (a rival's trade, a rival's tag…) is one more `kind` of the plate, never a second surface.
+39. **A STAGED BOT TURN TELLS THE REACTIONS IT WOKE AT ITS OWN DELIVERY — ONCE.** The run of bot turns is staged
+    (`marsBotStagedCommits`): each turn's footprint applies when its card is delivered, and the run's last delivery
+    commits the latest view — the only place `seedRewardHolds` ran, so a reaction an EARLIER turn woke (the bot's
+    colony on a human's P46) played after the whole run while its «why» band had named it turns before. The delivery
+    now calls `registerBotTurnApplied` (registered by the transport) in the same synchronous block as the footprint:
+    `seedCardReactionHolds(presented, latest, holds, {only: r => r.root.actionId === turn.correlationId})` — the turn's
+    own records, claimed by `seq`, so the run's full commit finds them taken. A single bot turn (not staged) rides the
+    ordinary apply block as before. Guards: `marsBotStagedCommits.spec` § P46, `ColonyTradeHub.spec` (the records),
+    `reactionCausePlate.spec`; e2e `console-colony-trade-hub` (B rival · C bot).
+40. **ANOTHER SEAT'S MOVE REACHES THE SCREEN BY THE POLL / WEBSOCKET ROAD — and that road SEEDS reactions too.** The
+    framework was built around the viewer's own press: `seedCardReactionHolds` ran ONLY in the transport's
+    `seedRewardHolds` (the own submit + the staged bot run's commit). Every frame that carries ANOTHER seat's move — a
+    rival's build, a bot's lone turn, a reply to a rival's press — is applied by `App.update`, which seeded nothing: such
+    a reaction was never played, only ticked (found by P46's stand: the record on the server, no face on the screen).
+    `App.update`'s commit now snapshots the rail holds at its start, opens a seed block and calls
+    `seedCardReactionHolds(prev, model, held, {only: r => r.root.player !== undefined && r.root.player !== viewer})`
+    before the score cell — only ANOTHER seat's roots: the viewer's own press stays the transport's (its hosts claim
+    their answers in the submit's block; a WS frame that outran the answer must not tell it first).
+
 ## Files
 
 Server: `common/models/CardReactionModel.ts`, `server/events/EventRecorder.ts` (`recordReaction`, the `cause`
@@ -594,4 +624,5 @@ tokensOf / onDone`), `played/consolePlayedHero.ts`, `consoleActionCommitRail.ts`
 (`lawAnswerNotification`), `console/tilePlacement/consoleTilePlacement.ts` (`lawWaveSpecsOf`, `runLawWave`),
 `console/tilePlacement/adjacencyPayoutBeat.ts` (`ReactorOrigin`, `reactorEndsFor`), the law-face hosts
 `parliament/ConsoleParliamentGovernment.vue` / `ConsoleActionComposer.vue` (`data-reaction-home`); e2e
-`console-parliament-forestry`, `console-parliament-craze`.
+`console-parliament-forestry`, `console-parliament-craze`. P46: `console/cardReaction/reactionCausePlate.ts`, `components/marsbot/marsBotStagedCommits.ts`
+(`registerBotTurnApplied`), e2e `console-colony-trade-hub`.

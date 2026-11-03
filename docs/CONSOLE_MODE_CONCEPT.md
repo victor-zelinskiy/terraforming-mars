@@ -224,7 +224,7 @@ Persistent chrome (everything else is contextual):
 ```
 
 - **Status strip** (top): global parameters with big markers, generation,
-  compact player cards (color, TR, key resources, active-player glow). This
+  compact player cards (color, TR, key resources; the active seat — a mint kant, never a glow — EW 2026-11-03). This
   *replaces* the desktop's scattered scale markers + player list for TV
   legibility. Selecting a player mini-card (up on d-pad from a section) =
   quick path to their Table view.
