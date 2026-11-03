@@ -22122,15 +22122,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         0 calc(.4rem + .1rem * var(--con-cursor-on)) calc(1.2rem + .2rem * var(--con-cursor-on)) rgba(0, 0, 0, calc(.45 + .1 * var(--con-cursor-on)));
 
     &--focused { .con-cursor-on(); }
-    /* THE TRACK'S TONE — what the trade pays (the rail's resource keys; ConsoleColonyTile `toneKey`). */
+    /* THE TRACK'S ONE TONE — the same on every colony (the owner, 2026-11-03: a tone per resource «only confuses — the
+       player may think something depends on the colour»; a colour that decides nothing is noise). The material
+       (passed = a fill, ahead = a hairline, the marker solid) carries the reading. */
     --coltile-tone: @con-cyan;
-    &--tone-megacredits { --coltile-tone: @con-amber; }
-    &--tone-steel { --coltile-tone: #c98a4e; }
-    &--tone-titanium { --coltile-tone: #cfd9e8; }
-    &--tone-plants { --coltile-tone: @con-plants; }
-    &--tone-energy { --coltile-tone: @con-energy-violet; }
-    &--tone-heat { --coltile-tone: @con-heat-warm; }
-    &--tone-card { --coltile-tone: @con-mint; }
     &--inactive { filter: saturate(0.55) brightness(0.78); }
     &--blocked:not(&--focused) { filter: saturate(0.75) brightness(0.9); }
 
@@ -22323,9 +22318,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         align-items: center;
         gap: .2rem;
     }
-    /* THE TRACK IN THE COLONY'S OWN TONE (ledger EZ — `--coltile-tone`, what the trade pays: the rail's resource
-       keys): ONE tone for the cells and the marker — a cell the marker has PASSED is a fill, a cell AHEAD a hairline
-       of the tone, the marker the solid tone on a dark kant. Material, never light. */
+    /* THE TRACK BY MATERIAL (ledger EZ — `--coltile-tone`, ONE tone for every colony): a cell the marker has PASSED
+       is a fill, a cell AHEAD a hairline, the marker the solid tone on a dark kant. Material, never light. */
     &__track-cell {
         flex: 1;
         height: .45rem;

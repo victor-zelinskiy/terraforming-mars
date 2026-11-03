@@ -17,7 +17,7 @@
          'con-coltile--just-docked': justDocked,
          'con-coltile--marker-gliding': markerGliding,
          'con-coltile--orbit': orbit,
-       }, 'con-coltile--tone-' + toneKey]"
+       }]"
        :data-colony-orbit="orbit ? '' : undefined"
        :data-test="'con-colony-' + colony.name">
     <header class="con-coltile__head">
@@ -181,7 +181,6 @@ import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyMetadata, colonyCardResources, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
 import {CardResource} from '@/common/CardResource';
-import {Resource} from '@/common/Resource';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
@@ -394,25 +393,6 @@ export default defineComponent({
     /** The track's length, dim after the position («4 / 7» — a place on the track, not a fraction). */
     trackLengthDisplay(): string {
       return ` / ${this.trackMax + 1}`;
-    },
-    /**
-     * THE TRACK'S TONE — the colour of what this colony's trade PAYS at the cell a trade reads (the rail's own
-     * resource keys: M€ amber, steel, titanium, plants, energy, heat; a card resource mint; cards and every global
-     * reward cyan). One tone for the cells and the marker (ledger EZ — passed = fill, ahead = hairline).
-     */
-    toneKey(): string {
-      const income = tradeBenefitAt(this.metadata, this.effectivePosition);
-      switch (income.type) {
-      case ColonyBenefit.GAIN_RESOURCES:
-      case ColonyBenefit.GAIN_PRODUCTION:
-      case ColonyBenefit.LOSE_RESOURCES:
-        return typeof income.resource === 'string' && (Object.values(Resource) as Array<string>).includes(income.resource) ? income.resource : 'global';
-      case ColonyBenefit.ADD_RESOURCES_TO_CARD:
-      case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD:
-        return 'card';
-      default:
-        return 'global';
-      }
     },
   },
 });
