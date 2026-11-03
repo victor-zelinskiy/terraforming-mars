@@ -113,7 +113,7 @@
                       <span v-if="it.takenBy !== undefined && it.kind === 'award'" class="con-ma__owner">
                         <span class="con-ma__owner-dot" :class="'player_bg_color_' + it.takenBy.color" aria-hidden="true"></span>
                         <span class="con-ma__owner-name">{{ it.takenBy.name }}</span>
-                        <span class="con-ma__owner-verb">✓ {{ $t(it.kind === 'milestone' ? 'Claimed' : 'Funded') }}</span>
+                        <span class="con-ma__owner-verb">✓ {{ $t('Funded') }}</span>
                       </span>
                     </div>
                     <div class="con-ma__desc" v-i18n>{{ it.description }}</div>
