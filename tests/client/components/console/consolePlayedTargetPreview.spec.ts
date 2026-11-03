@@ -106,6 +106,26 @@ describe('consolePlayedTargetPreview — what the rail actually says', () => {
       expect(plain.tag?.extra).to.be.undefined;
     });
 
+    /** A REACTOR CANDIDATE's tail (P53 Main Belt Asteroids — «an asteroid HERE pays 1 titanium»): the server reads it
+     *  off the candidate's own forecast twin (`AddResourcesToCard.landingAnswerOf`), so the self candidate wears
+     *  «+1 [titanium]» under its card and the rail says «Also gives»; the other asteroid holder wears nothing. */
+    it('reads a reactor candidate\'s tail: «+1 titanium» on the card that answers a landing on itself, nothing on the other', () => {
+      const model = {
+        ...input([{name: 'Main Belt Asteroids', resources: 0}, {name: 'Comet Aiming', resources: 0}]),
+        resourceGainPrompt: {
+          amount: 1,
+          cardResource: 'asteroid',
+          vpBox: {['Main Belt Asteroids' as CardName]: {from: 0, to: 0}},
+          extraByCard: {['Main Belt Asteroids' as CardName]: [{direction: 'gain', icon: 'titanium', amount: 1}]},
+        },
+      } as SelectCardModel;
+      const self = playedTargetPreviewFor(undefined, model, 'Main Belt Asteroids' as CardName)[0];
+      expect(self.impacts.find((i) => i.label === 'Also gives')).to.include({icon: 'titanium', amount: 1});
+      expect(self.tag?.extra).to.deep.eq([{icon: 'titanium', text: '+1'}]);
+      const other = playedTargetPreviewFor(undefined, model, 'Comet Aiming' as CardName)[0];
+      expect(other.impacts.some((i) => i.label === 'Also gives')).to.eq(false);
+    });
+
     /** A STEP's own amount still wins where it exists (Predators and the whole
      *  add-to-card family) — the branch reading is an addition, not a swap. */
     it('keeps the step\'s own amount as the primary source', () => {

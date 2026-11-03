@@ -72,6 +72,25 @@ export function holderResourceIcons(cards: ReadonlyArray<ICard>): Partial<Record
   return out;
 }
 
+/**
+ * WHAT A CANDIDATE ANSWERS TO A UNIT LANDING ON ITSELF (P53 Main Belt Asteroids: «an asteroid HERE pays 1 titanium») —
+ * read off the candidate's own forecast twin, never a table of «who reacts»: the twin is asked about a grant «on this
+ * card» of the candidate (`target: 'self'`, `ctx.card` = the candidate), and its exact facts are the candidate's tail —
+ * UNLESS the same twin answers an addition to just ANY card as well (Martian Fiber pays for data wherever it lands: that
+ * answer belongs to the operation's forecast, the same for every candidate, never a tag of one). Read-only.
+ */
+export function landingAnswerOf(owner: IPlayer, card: ICard, amount: number): Array<ActionEffect> {
+  const resource = holderResourceOf(card);
+  if (card.onResourceAdded === undefined || card.grantForecast === undefined || resource === undefined || amount <= 0) {
+    return [];
+  }
+  const here = card.grantForecast(owner, owner, {kind: 'cardResource', resource, amount, target: 'self'}, {operation: 'action', card, tiles: []});
+  if (here.length === 0 || card.grantForecast(owner, owner, {kind: 'cardResource', resource, amount, target: 'any'}, {operation: 'action', tiles: []}).length > 0) {
+    return [];
+  }
+  return here.filter((fact) => fact.certainty === 'exact').flatMap((fact) => fact.effects);
+}
+
 export type Options = {
   count?: number;
   restrictedTag?: Tag;
@@ -433,14 +452,12 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
   /** The per-candidate tail of the pick (`Options.extraByCard`), only the candidates it names; undefined when none. */
   private extraByCardOf(cards: ReadonlyArray<ICard>): Partial<Record<CardName, ReadonlyArray<ActionEffect>>> | undefined {
     const read = this.options.extraByCard;
-    if (read === undefined) {
-      return undefined;
-    }
+    const qty = this.options.count ?? 1;
     const out: Partial<Record<CardName, ReadonlyArray<ActionEffect>>> = {};
     let any = false;
     for (const card of cards) {
-      const extra = read(card);
-      if (extra !== undefined && extra.length > 0) {
+      const extra = [...(read?.(card) ?? []), ...landingAnswerOf(this.player, card, qty)];
+      if (extra.length > 0) {
         out[card.name] = extra;
         any = true;
       }

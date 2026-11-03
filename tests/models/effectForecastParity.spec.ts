@@ -6,7 +6,7 @@ import {runAllActions} from '../TestingUtils';
 import {cast} from '../../src/common/utils/utils';
 import {IGame} from '../../src/server/IGame';
 import {IPlayer} from '../../src/server/IPlayer';
-import {ICard} from '../../src/server/cards/ICard';
+import {IActionCard, ICard} from '../../src/server/cards/ICard';
 import {IProjectCard} from '../../src/server/cards/IProjectCard';
 import {CardName} from '../../src/common/cards/CardName';
 import {GameEvent} from '../../src/common/events/GameEvent';
@@ -16,7 +16,7 @@ import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
-import {effectForecastForPlay} from '../../src/server/models/effectForecast';
+import {effectForecastForAction, effectForecastForPlay} from '../../src/server/models/effectForecast';
 import {EffectForecastFact} from '../../src/common/models/EffectForecastModel';
 import {Research} from '../../src/server/cards/base/Research';
 import {NitriteReducingBacteria} from '../../src/server/cards/base/NitriteReducingBacteria';
@@ -49,6 +49,8 @@ import {NuclearZone} from '../../src/server/cards/base/NuclearZone';
 import {RedMuseum} from '../../src/server/cards/turmoilRedux/RedMuseum';
 import {HartlanHeating} from '../../src/server/cards/turmoilRedux/HartlanHeating';
 import {Proteus} from '../../src/server/cards/turmoilRedux/Proteus';
+import {MainBeltAsteroids} from '../../src/server/cards/prelude2/MainBeltAsteroids';
+import {actionPreview} from '../../src/server/models/actionPreview';
 import {Biolab} from '../../src/server/cards/prelude/Biolab';
 import {SelectColony} from '../../src/server/inputs/SelectColony';
 import {Luna} from '../../src/server/colonies/Luna';
@@ -132,6 +134,19 @@ const PRELUDE_TAG_REACTORS: ReadonlyArray<Factory> = [Proteus];
 
 function preludeTagOnly(card: ICard): boolean {
   return PRELUDE_TAG_REACTORS.some((F) => new F().name === card.name);
+}
+
+/**
+ * A reactor that answers ONLY a resource landing on ITSELF (P53 Main Belt Asteroids — «an asteroid HERE pays 1
+ * titanium»): its twin is silent on an addition to just ANY card (the pick may go elsewhere — the candidate's tail
+ * tells it, `AddResourcesToCard.landingAnswerOf`), so no prompt-less trigger of the pool fires it — its own block below
+ * runs the card's own action with itself the only holder. (Meat Industry, Topsoil Contract and Martian Fiber answer an
+ * addition to ANY card: the sweep reaches them.)
+ */
+const RESOURCE_REACTORS: ReadonlyArray<Factory> = [MainBeltAsteroids];
+
+function selfResourceOnly(card: ICard): boolean {
+  return RESOURCE_REACTORS.some((F) => new F().name === card.name);
 }
 
 /**
@@ -301,7 +316,7 @@ describe('effect-forecast ↔ execution parity', function() {
         }
       }
     }
-    const unreached = reactors.map((F) => new F()).filter((card) => !colonyOnly(card) && !tilePlayOnly(card) && !preludeTagOnly(card)).map((card) => card.name).filter((name) => !reached.has(name));
+    const unreached = reactors.map((F) => new F()).filter((card) => !colonyOnly(card) && !tilePlayOnly(card) && !preludeTagOnly(card) && !selfResourceOnly(card)).map((card) => card.name).filter((name) => !reached.has(name));
     expect(unreached, 'every forecast hook must be fired by at least one trigger of the pool (extend TRIGGERS / VARIANTS)').to.deep.eq([]);
     expect(cases, 'parity cases exercised').to.be.greaterThan(40);
   });
@@ -463,6 +478,39 @@ describe('effect-forecast ↔ execution parity', function() {
         const liveTrigger = new Research();
         liveTable.player.cardsInHand.push(liveTrigger);
         assertParity(liveTable, liveTrigger, facts, `${name} ← Research (Biolab seated)`);
+      });
+    }
+  });
+
+  describe('a resource landing on the reactor itself (exact facts when the landing is decided)', () => {
+    it('the block covers every in-scope «lands here» reactor', () => {
+      const inScope = inScopeReactors().map((F) => new F()).filter((card) => selfResourceOnly(card)).map((card) => card.name);
+      expect(inScope.sort()).deep.eq(RESOURCE_REACTORS.map((F) => new F().name).sort());
+    });
+
+    for (const F of RESOURCE_REACTORS) {
+      const name = new F().name;
+      it(`${name} ← its own action, itself the only holder`, () => {
+        const table = arrange(F, false, undefined, `-self-resource-${name}-fc`);
+        const reactor = table.reactor;
+        const forecast = effectForecastForAction(table.player, reactor, actionPreview(table.player, reactor as ICard & IActionCard));
+        const facts = forecast.facts.filter((f) => f.source.name === name);
+        expect(facts.map((f) => f.certainty), 'the landing is decided — one exact fact').deep.eq(['exact']);
+        expect(facts[0].source.channel).eq('resource-added');
+
+        const live = arrange(F, false, undefined, `-self-resource-${name}-live`);
+        const promised = facts[0].effects[0];
+        const reading = live.player.stock.get(promised.icon as Resource);
+        const before = live.game.events.events.length;
+        const action = (live.reactor as ICard & IActionCard).action(live.player);
+        expect(action).undefined;
+        runAllActions(live.game);
+        const pick = cast(live.player.popWaitingFor(), SelectCard<ICard>);
+        pick.cb([live.reactor]);
+        runAllActions(live.game);
+        const markers = firedMarkers(live.game.events.events.slice(before), facts[0], live.player.color);
+        expect(markers.length, `${name} must have fired on 'resource-added'`).to.be.greaterThan(0);
+        expect(live.player.stock.get(promised.icon as Resource) - reading, 'what it promised is what landed').eq(promised.amount);
       });
     }
   });
