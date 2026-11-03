@@ -1,6 +1,7 @@
 import {BaseMilestone} from '../IMilestone';
 import {IPlayer} from '../../IPlayer';
 import {CardType} from '../../../common/cards/CardType';
+import {hasRequirement} from '../../cards/requirements/CardsWithRequirementsRequirement';
 
 export class Tactician4 extends BaseMilestone {
   constructor() {
@@ -14,7 +15,7 @@ export class Tactician4 extends BaseMilestone {
   public getScore(player: IPlayer): number {
     const validCards = player.playedCards.filter((card) => {
       const isValidCardType = !this.excludedCardTypes.includes(card.type);
-      const hasRequirements = card.requirements.length > 0;
+      const hasRequirements = hasRequirement(card);
 
       return isValidCardType && hasRequirements;
     });

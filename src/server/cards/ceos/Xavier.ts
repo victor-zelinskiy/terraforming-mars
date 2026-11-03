@@ -6,6 +6,7 @@ import {AltSecondaryTag} from '../../../common/cards/render/AltSecondaryTag';
 import {IPlayer} from '../../IPlayer';
 import {IProjectCard} from '../IProjectCard';
 import {Tag} from '../../../common/cards/Tag';
+import {hasRequirement} from '../requirements/CardsWithRequirementsRequirement';
 
 export class Xavier extends CeoCard {
   constructor() {
@@ -40,7 +41,7 @@ export class Xavier extends CeoCard {
   }
 
   public override getCardDiscount(_player: IPlayer, card: IProjectCard) {
-    if (this.isDisabled && card.requirements.length > 0) {
+    if (this.isDisabled && hasRequirement(card)) {
       return 1;
     }
     return 0;

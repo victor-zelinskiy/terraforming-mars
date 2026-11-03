@@ -41,6 +41,7 @@ import {AutomaTurnLog} from './AutomaTurnLog';
 import {humansOf, marsBotOf, pickVictim} from './AutomaUtil';
 import {divertBotRaise} from './BotDivertedTerraforming';
 import {marsBotMapProfile} from './boards/MarsBotMapProfile';
+import {hasRequirement} from '../cards/requirements/CardsWithRequirementsRequirement';
 
 /**
  * Where a resolved bonus card goes. Recurring cards (B16, later B19/B20) stay
@@ -863,11 +864,11 @@ function tryAwardHelper(game: IGame, awardName: string): boolean {
     // «Reveal cards from the project deck until a card WITH REQUIREMENTS is
     // revealed. Resolve it, and MarsBot gains 5 MC.» The requirement is a
     // SEARCH criterion only — MarsBot never checks whether it could meet it.
-    // Canonical card metadata answers it (`card.requirements`), never text.
+    // Canonical card metadata answers it (`hasRequirement`), never text.
     // ⚠️ And this helper does NOT pay the card's 5 M€ — see `helperIsFree`.
     // The same award stands on the fan-made Vastitas Borealis (BF1): the same
     // helper, the same free option.
-    if (!revealUntilAndResolve(game, (card) => card.requirements.length > 0)) {
+    if (!revealUntilAndResolve(game, (card) => hasRequirement(card))) {
       return false;
     }
     marsBotOf(game).stock.add(Resource.MEGACREDITS, 5, {log: true});

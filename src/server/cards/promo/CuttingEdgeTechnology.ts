@@ -6,6 +6,7 @@ import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {AltSecondaryTag} from '../../../common/cards/render/AltSecondaryTag';
+import {hasRequirement} from '../requirements/CardsWithRequirementsRequirement';
 
 export class CuttingEdgeTechnology extends Card implements IProjectCard {
   constructor() {
@@ -29,6 +30,6 @@ export class CuttingEdgeTechnology extends Card implements IProjectCard {
   }
 
   public override getCardDiscount(_player: IPlayer, card: IProjectCard) {
-    return card.requirements.length > 0 ? 2 : 0;
+    return hasRequirement(card) ? 2 : 0;
   }
 }

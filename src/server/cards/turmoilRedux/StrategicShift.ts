@@ -13,6 +13,7 @@ import {Priority} from '../../deferredActions/Priority';
 import {recordSkippedEffect} from '../../deferredActions/skippedEffect';
 import {cardSource} from '../../inputs/discardPrompt';
 import * as actionPreviews from '../actionPreviews';
+import {hasRequirement} from '../requirements/CardsWithRequirementsRequirement';
 
 /** The printed exchange, per card thrown: «+X M€» … */
 export const STRATEGIC_SHIFT_MEGACREDITS_PER_CARD = 1;
@@ -57,7 +58,7 @@ export const STRATEGIC_SHIFT_COUNT_LABEL = 'Cards to discard';
  *
  * RULE READINGS (pinned by tests/cards/turmoilRedux/StrategicShift.spec.ts):
  *  1. No requirement; an EVENT — it lies face down on the events pile.
- *  2. «A card with a requirement» = `card.requirements.length > 0` (Forecaster,
+ *  2. «A card with a requirement» = `hasRequirement(card)` (Forecaster,
  *     Nobel Prize, Cutting-Edge Technology, Xavier read it the same way): a
  *     parameter, a tag count, a party plate, resources, cities, a generation —
  *     every descriptor kind alike. A card WITHOUT one is NOT a candidate — it is
@@ -124,12 +125,12 @@ export class StrategicShift extends Card implements IProjectCard {
 
   /** Rule 2 — the candidates: the hand's cards with a requirement, this card never among them. */
   public eligibleCards(player: IPlayer): Array<IProjectCard> {
-    return player.cardsInHand.filter((c) => c.name !== this.name && c.requirements.length > 0);
+    return player.cardsInHand.filter((c) => c.name !== this.name && hasRequirement(c));
   }
 
   /** The rest of the hand — offered DISABLED, each with the reason. */
   private ineligibleCards(player: IPlayer): Array<IProjectCard> {
-    return player.cardsInHand.filter((c) => c.name !== this.name && c.requirements.length === 0);
+    return player.cardsInHand.filter((c) => c.name !== this.name && !hasRequirement(c));
   }
 
   /** THE discard this card asks — ONE source + exchange for the live `DiscardCards` and the preview's marker. */

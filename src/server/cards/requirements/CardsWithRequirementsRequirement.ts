@@ -13,8 +13,12 @@ import {InequalityRequirement} from './InequalityRequirement';
  * one or it does not. `hasPartyRequirement` is its subset (the `party` kind).
  *
  * Readers: the count below, P54 Nobel Prize's named search
- * (`Behavior.DrawCard.requirement`) — a new reader asks this, never a second
- * inline `requirements.length > 0`.
+ * (`Behavior.DrawCard.requirement`), Strategic Shift's candidates, the
+ * Tactician milestones, the Forecaster award, the discounts of Cutting Edge
+ * Technology and Xavier, the chairman quests' requirement report, and MarsBot
+ * (the Forecaster helper, Inventrix's effect and dividend, Mons Insurance's
+ * goal). A new reader asks this, never a second inline
+ * `requirements.length > 0` — `tests/cards/hasRequirementGuard.spec.ts`.
  */
 export function hasRequirement(card: Pick<ICard, 'requirements'>): boolean {
   return card.requirements.length > 0;
@@ -26,8 +30,8 @@ export function hasRequirement(card: Pick<ICard, 'requirements'>): boolean {
  * «now», the composer's requirement row, the inspector).
  *
  * A card counts when it is in the player's `playedCards` and prints a
- * requirement (`card.requirements.length > 0` — the descriptor list, the very
- * test Tactician and Forecaster read). EVENTS COUNT: the rule says «played»,
+ * requirement (`hasRequirement` — the descriptor list, the very test
+ * Tactician and Forecaster read). EVENTS COUNT: the rule says «played»,
  * and an event that has been played lies in the events pile of the same
  * tableau — never «in play» (the milestone's / award's own wording, which is
  * why THEIR semantics stay theirs and this function is not theirs). Preludes

@@ -12,6 +12,7 @@
  */
 import {IPlayer} from '../../IPlayer';
 import {Phase} from '../../../common/Phase';
+import {hasRequirement} from '../../cards/requirements/CardsWithRequirementsRequirement';
 import {Resource} from '../../../common/Resource';
 import {Tag} from '../../../common/cards/Tag';
 import {CardType} from '../../../common/cards/CardType';
@@ -153,7 +154,7 @@ export class QuestTracker {
 
   /** The PRINTED requirement types of `card` — the one reading the play report carries (human and bot alike). */
   public static requirementTypesOf(card: {requirements: ReadonlyArray<CardRequirementDescriptor>}): ReadonlyArray<RequirementType> {
-    if (card.requirements.length === 0) {
+    if (!hasRequirement(card)) {
       return [];
     }
     return CardRequirements.compile([...card.requirements]).requirements.map((requirement) => requirement.type);

@@ -11,6 +11,7 @@ import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
 import {pileCount} from './MarsBotDividendReads';
+import {hasRequirement} from '../../cards/requirements/CardsWithRequirementsRequirement';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.CF4_MONS_INSURANCE);
 
@@ -79,7 +80,7 @@ export const MarsBotMonsInsurance: MarsBotCorp = {
   goal(game: IGame): number {
     // «Fine print» — a policy is its conditions: the cards with a requirement in MarsBot's pile (not the formula's
     // axis: r ≈ 0 against the other players' cities on the owner's real games).
-    return pileCount(game, (card) => card.requirements.length > 0);
+    return pileCount(game, (card) => hasRequirement(card));
   },
 
   setup(game: IGame): void {

@@ -13,6 +13,7 @@ import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm, bonusTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
 import {pileCount} from './MarsBotDividendReads';
+import {hasRequirement} from '../../cards/requirements/CardsWithRequirementsRequirement';
 
 /** The reward of the printed effect (card C05). */
 const REWARD_MC = 2;
@@ -56,7 +57,7 @@ export const MarsBotInventrix: MarsBotCorp = {
   /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
   dividend(game: IGame): MarsBotDividendResult {
     const r = marsBotDividendInfo(MarsBotCorpId.C05_INVENTRIX).rates;
-    const cards = pileCount(game, (card) => card.requirements.length > 0);
+    const cards = pileCount(game, (card) => hasRequirement(card));
     return dividendResult([
       perUnitTerm('Cards with a requirement', cards, r.each),
       bonusTerm('Threshold bonus', cards, r.at, r.bonus),
@@ -85,7 +86,7 @@ export const MarsBotInventrix: MarsBotCorp = {
   onProjectCardResolving(game: IGame, card: IProjectCard): void {
     // «A card with a requirement» is the printed requirement row — any of
     // them, met or not: MarsBot never checks requirements, it resolves tags.
-    if (card.requirements.length === 0) {
+    if (!hasRequirement(card)) {
       return;
     }
     const bot = marsBotOf(game);
