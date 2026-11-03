@@ -44,7 +44,8 @@ async function measure(page: Page) {
         const b = el.getBoundingClientRect();
         return {
           kind: el.dataset.invitationFact ?? '',
-          text: (el.textContent ?? '').replace(/\s+/g, ' ').trim(),
+          // The members are spans with no whitespace between them — read them member by member.
+          text: Array.from(el.children).map((c) => (c.textContent ?? '').trim()).filter((t) => t !== '').join(' '),
           name: name?.textContent?.trim() ?? '',
           inside: b.left >= pb.left - 0.5 && b.right <= pb.right + 0.5,
           nameCut: name === null ? false : name.scrollWidth > name.clientWidth + 1,

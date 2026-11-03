@@ -55,8 +55,8 @@
               data-invitation-fact="winner"
               :data-winner="invitation.winner">
           <span class="con-mandatory__fact-kicker">{{ $t(invitation.forecast ? 'Leader' : 'Winner of the vote') }}</span>
-          <PlayerDelegate v-if="invitation.winner !== 'neutral'" class="con-mandatory__fact-seat" :color="invitation.winner" :size="16" :glow="false" />
-          <PlayerDelegate v-else class="con-mandatory__fact-seat" color="neutral" steel :size="16" :glow="false" />
+          <PlayerDelegate v-if="invitation.winner !== 'neutral'" class="con-mandatory__fact-seat" :color="invitation.winner" :size="seatFigurePx" :glow="false" />
+          <PlayerDelegate v-else class="con-mandatory__fact-seat" color="neutral" steel :size="seatFigurePx" :glow="false" />
           <span class="con-mandatory__fact-name">{{ invitationWinnerName }}</span>
           <span v-if="invitation.tieKey !== undefined" class="con-mandatory__fact-tie">{{ $t(invitation.tieKey) }}</span>
         </span>
@@ -90,6 +90,7 @@ import ConsolePromptEmblem from '@/client/components/console/foundation/ConsoleP
 import {PromptTone, promptToneTagKey} from '@/client/console/promptTone';
 import {SittingInvitationFacts} from '@/client/console/parliament/sittingInvitation';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 
 export default defineComponent({
   name: 'ConsoleMandatoryAnnounce',
@@ -113,6 +114,10 @@ export default defineComponent({
     invitationWinnerName: {type: String as PropType<string | undefined>, default: undefined},
   },
   computed: {
+    /** The winner's figure at the profile's scale (the band's own sizing — a fixed px read as a speck on 4K). */
+    seatFigurePx(): number {
+      return delegateFigurePx(16);
+    },
     invitationEmblem(): string | undefined {
       return this.invitation === undefined ? undefined : partyEmblemUrl(this.invitation.party);
     },
