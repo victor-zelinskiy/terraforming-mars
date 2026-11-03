@@ -48,6 +48,11 @@ async function measure(page: Page) {
           text: Array.from(el.children).map((c) => (c.textContent ?? '').trim()).filter((t) => t !== '').join(' '),
           name: name?.textContent?.trim() ?? '',
           inside: b.left >= pb.left - 0.5 && b.right <= pb.right + 0.5,
+          // …and never under the plate's verb: the facts end before «A Открыть» begins (a painted overlap shipped once).
+          clearOfOpen: (() => {
+            const open = plate!.querySelector('.con-mandatory__open')?.getBoundingClientRect();
+            return open === undefined || b.right <= open.left + 0.5;
+          })(),
           nameCut: name === null ? false : name.scrollWidth > name.clientWidth + 1,
           nameEllipsis: name === null ? '' : getComputedStyle(name).textOverflow,
         };
@@ -65,7 +70,8 @@ async function measure(page: Page) {
         for (const part of st.boxShadow === 'none' ? [] : st.boxShadow.split(/,(?![^(]*\))/)) {
           const rgb = /rgba?\(([^)]*)\)/.exec(part)?.[1].split(',').map((v) => parseFloat(v)) ?? [0, 0, 0];
           const nums = part.replace(/rgba?\([^)]*\)/, '').trim().split(/\s+/).map(parseFloat).filter((n) => !Number.isNaN(n));
-          const bright = (rgb[0] + rgb[1] + rgb[2]) / 3 > 60;
+          // Light is a bright colour at a visible alpha — the shared button glyph's 6 % white rim is an engraving.
+          const bright = (rgb[0] + rgb[1] + rgb[2]) / 3 > 60 && (rgb[3] ?? 1) >= 0.15;
           if (!part.includes('inset') && (nums[2] ?? 0) > 0 && bright) {
             out.push(`${el.className}: halo ${part.trim()}`);
           }
@@ -107,6 +113,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       for (const f of m.facts) {
         expect(f.name.length, `${f.kind}: the fact names its object`).toBeGreaterThan(0);
         expect(f.inside, `${preset.id}: the ${f.kind} fact stands inside the plate`).toBe(true);
+        expect(f.clearOfOpen, `${preset.id}: the ${f.kind} fact ends before the plate's verb`).toBe(true);
         expect(f.text, 'a fact never repeats the kicker\'s noun or the HUD\'s generation').not.toMatch(/Парламент|поколение/i);
         if (f.nameCut) {
           expect(f.nameEllipsis, `${preset.id}: a cut name is an ellipsis in its own box`).toBe('ellipsis');

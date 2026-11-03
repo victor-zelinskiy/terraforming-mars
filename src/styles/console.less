@@ -31229,15 +31229,35 @@ body.con-start-barshold .con-status {
         font-size: 1rem;
         letter-spacing: .01rem;
     }
-    /* THE SITTING'S FACTS (P51 · FG): two lines under the ask — the resolution being enacted, the winner of the
-       vote. Each fact is a quiet tracked-caps kicker + its object; the NAME is the only member that yields, by an
-       ellipsis in its OWN box (`flex-basis: 0` + `min-width` + `max-width: max-content`, never a shrink weight). */
+    /* THE SITTING'S FACTS (P51 · FG): «ПАРЛАМЕНТ · Заседание» stands on ONE line and the two facts — the resolution
+       being enacted, the winner of the vote — on the two lines under it, in their full words: the plate stays inside
+       the band above the planet's first row and R-35's width (the band between the off-Mars spaces — `--sitting`'s
+       cap). Each fact is a quiet tracked-caps kicker + its object; the NAME yields first, by an ellipsis in its OWN box
+       (`flex-basis: 0` + `min-width` + `max-width: max-content`, never a shrink weight), the kicker only after it. */
+    &--sitting {
+        max-width: 27rem;
+    }
+    &--sitting &__body {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: grid;
+        grid-template-columns: max-content minmax(0, 1fr);
+        column-gap: .6rem;
+        row-gap: .06rem;
+        align-items: baseline;
+    }
+    &--sitting &__kicker { grid-column: 1; grid-row: 1; }
+    &--sitting &__ask { grid-column: 2; grid-row: 1; }
+    &--sitting &__src { grid-column: 1 / -1; min-width: 0; max-width: 100%; }
     &__facts {
+        grid-column: 1 / -1;
+        grid-row: 2;
         min-width: 0;
         display: flex;
         flex-direction: column;
-        gap: .08rem;
-        margin-top: .1rem;
+        gap: .04rem;
+        margin-top: .08rem;
+        overflow: hidden;
     }
     &__fact {
         min-width: 0;
@@ -31248,12 +31268,16 @@ body.con-start-barshold .con-status {
         font-size: .8rem;
         line-height: 1.25;
     }
+    /* The kicker yields only after the name has reached its floor (the name's basis is 0, so the shrink falls on it). */
     &__fact-kicker {
-        flex: 0 0 auto;
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
         color: fade(@con-cyan, 88%);
         font-size: .64rem;
         font-weight: 700;
-        letter-spacing: .08em;
+        letter-spacing: .04em;
         text-transform: uppercase;
     }
     &__fact-emblem {
@@ -31372,14 +31396,22 @@ html.con-profile-handheld .con-mandatory {
     &__ask { font-size: .9rem; line-height: 1.15; }
     &__src { font-size: .72rem; }
     &__open { margin-left: .2rem; padding: .18rem .6rem; font-size: .82rem; }
-    /* The Deck's band keeps the plate ≤ 60 px tall: the two facts stand side by side on ONE line, each name
-       yielding by its own ellipsis (R-35's width budget unchanged — the plate stays content-sized and capped). */
-    &__facts { flex-direction: row; gap: .6rem; margin-top: 0; }
-    &__fact { font-size: .72rem; gap: .25rem; line-height: 1.15; }
-    &__fact-kicker { font-size: .56rem; }
+    /* The Deck: the same two columns one rung tighter; the plate stays inside R-35's 404 px (the band between the
+       off-Mars spaces at 1280), each name yielding by its own ellipsis. */
+    &--sitting { max-width: 404px; }
+    &__facts { grid-column: 2; grid-row: 1 / span 2; gap: 0; margin-top: 0; padding-left: .45rem; border-left: .05rem solid fade(@con-cyan, 26%); }
+    &__fact-kicker { display: none; }
+    &__fact { font-size: .7rem; gap: .22rem; line-height: 1.15; }
     &__fact-emblem { width: .9rem; height: .9rem; }
     &__fact-tie { display: none; }
 }
+
+/* …and on the Deck the head goes back to its two lines on the left, the facts in a column beside it by their objects
+   alone — the party's emblem names the resolution, the figure the seat (a third line would push the plate past the
+   60 px band; a kicker cut to «ПРИ…» says nothing). Written out: a `&--sitting &__x` inside the profile block above
+   would expand the profile prefix twice and match nothing. */
+html.con-profile-handheld .con-mandatory--sitting .con-mandatory__body { column-gap: .45rem; row-gap: 0; align-items: center; }
+html.con-profile-handheld .con-mandatory--sitting .con-mandatory__ask { grid-column: 1; grid-row: 2; }
 
 @keyframes con-mandatory-in {
     from { opacity: 0; transform: translate(-50%, -.5rem) scale(.97); }

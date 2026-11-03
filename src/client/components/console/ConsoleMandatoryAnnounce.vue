@@ -22,6 +22,7 @@
     word (invariant 15 — the mark is a kant, never a pulse or a halo).
   -->
   <div class="con-mandatory"
+       :class="{'con-mandatory--sitting': invitation !== undefined}"
        role="status"
        :aria-label="kicker + ': ' + ask"
        data-test="con-mandatory-announce">
@@ -45,7 +46,8 @@
            :data-invitation-forecast="invitation.forecast ? 'true' : 'false'">
         <span class="con-mandatory__fact con-mandatory__fact--resolution"
               data-invitation-fact="resolution"
-              :data-resolution="invitation.resolution">
+              :data-resolution="invitation.resolution"
+              :data-source-resolution="sourceIsTheFact ? sourceResolution : undefined">
           <span class="con-mandatory__fact-kicker">{{ $t(invitation.resolutionKey) }}</span>
           <img class="con-mandatory__fact-emblem" :src="invitationEmblem" alt="" />
           <span class="con-mandatory__fact-name">{{ invitationResolutionName }}</span>
@@ -61,7 +63,7 @@
           <span v-if="invitation.tieKey !== undefined" class="con-mandatory__fact-tie">{{ $t(invitation.tieKey) }}</span>
         </span>
       </div>
-      <div v-if="resolutionSource !== undefined"
+      <div v-if="resolutionSource !== undefined && !sourceIsTheFact"
            class="con-mandatory__src con-mandatory__src--resolution"
            :data-source-resolution="resolutionSource.id">
         <img v-if="resolutionSource.emblem !== undefined" class="con-mandatory__src-emblem" :src="resolutionSource.emblem" alt="" />
@@ -117,6 +119,10 @@ export default defineComponent({
     /** The winner's figure at the profile's scale (the band's own sizing — a fixed px read as a speck on 4K). */
     seatFigurePx(): number {
       return delegateFigurePx(16);
+    },
+    /** The asking law IS the resolution the facts already name — said once (the plate never repeats itself). */
+    sourceIsTheFact(): boolean {
+      return this.invitation !== undefined && this.invitation.resolution === this.sourceResolution;
     },
     invitationEmblem(): string | undefined {
       return this.invitation === undefined ? undefined : partyEmblemUrl(this.invitation.party);
