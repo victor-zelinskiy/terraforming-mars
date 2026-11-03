@@ -2,7 +2,23 @@ import {RequirementType} from '../../../common/cards/RequirementType';
 import {CardName} from '../../../common/cards/CardName';
 import {IPlayer} from '../../IPlayer';
 import {IProjectCard} from '../IProjectCard';
+import {ICard} from '../ICard';
 import {InequalityRequirement} from './InequalityRequirement';
+
+/**
+ * «A CARD WITH A REQUIREMENT» — ONE reading of the phrase: the card prints at
+ * least one requirement of ANY kind (a global parameter, a tag, production, a
+ * party, the chairman, a rating, …) — its descriptor list is not empty. Whether
+ * the player could MEET it right now is not part of the question: the card HAS
+ * one or it does not. `hasPartyRequirement` is its subset (the `party` kind).
+ *
+ * Readers: the count below, P54 Nobel Prize's named search
+ * (`Behavior.DrawCard.requirement`) — a new reader asks this, never a second
+ * inline `requirements.length > 0`.
+ */
+export function hasRequirement(card: Pick<ICard, 'requirements'>): boolean {
+  return card.requirements.length > 0;
+}
 
 /**
  * The ONE count of «cards with requirements you have PLAYED» — the requirement
@@ -22,7 +38,7 @@ import {InequalityRequirement} from './InequalityRequirement';
 export function playedCardsWithRequirements(player: IPlayer, except?: CardName): number {
   let count = 0;
   for (const card of player.playedCards) {
-    if (card.name !== except && card.requirements.length > 0) {
+    if (card.name !== except && hasRequirement(card)) {
       count++;
     }
   }

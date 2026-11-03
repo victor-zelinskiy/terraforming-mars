@@ -12,6 +12,7 @@ import {deckSearchFactOf, drawSearchOf, forbiddenTagsOn} from './drawSearch';
 import {DrawSearchModel} from '../../common/models/CardDrawRevealModel';
 import {hasFloaterIcon} from '../cards/venusNext/floaterCards';
 import {hasPartyRequirement} from '../cards/requirements/partyRequirementCards';
+import {hasRequirement} from '../cards/requirements/CardsWithRequirementsRequirement';
 
 /**
  * Best-effort attribution for the "you drew cards" reveal modal when the caller
@@ -58,6 +59,8 @@ export type DrawOptions = {
   floaterIcon?: boolean,
   /** Keep only cards WITH A PARTY REQUIREMENT (`Behavior.DrawCard.partyRequirement` — P51 High Circles): a NAMED rule. */
   partyRequirement?: boolean,
+  /** Keep only cards WITH A REQUIREMENT of any kind (`Behavior.DrawCard.requirement` — P54 Nobel Prize): a NAMED rule. */
+  requirement?: boolean,
   include?(card: IProjectCard): boolean,
   /**
    * Attribution for the "you drew cards" reveal modal, when cheaply known
@@ -125,6 +128,9 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
       if (this.options.partyRequirement === true && !hasPartyRequirement(card)) {
         return false;
       }
+      if (this.options.requirement === true && !hasRequirement(card)) {
+        return false;
+      }
       if (this.options.include !== undefined && !this.options.include(card)) {
         return false;
       }
@@ -149,6 +155,7 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
       withoutTags: options.withoutTags,
       floaterIcon: options.floaterIcon,
       partyRequirement: options.partyRequirement,
+      requirement: options.requirement,
     });
   }
 

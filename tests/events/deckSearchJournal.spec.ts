@@ -178,7 +178,7 @@ describe('deck search — the journal row (PL-033)', () => {
     expect(row?.search?.exhausted).eq(true);
   });
 
-  it('an opaque `include` search (Nobel Prize, Celestic) is a search too: counts and names, no rule', () => {
+  it('an opaque `include` search (synthetic) is a search too: counts and names, no rule', () => {
     stack(game, [CardName.ANTS, CardName.MINE]);
     game.events.beginAction(owner, {kind: 'card', card: CardName.AQUEDUCT_SYSTEMS, owner: owner.color}, {category: 'card-play'});
     try {

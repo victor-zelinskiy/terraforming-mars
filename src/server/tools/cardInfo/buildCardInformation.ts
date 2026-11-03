@@ -495,6 +495,9 @@ export function drawSearchSentence(search: DrawSearchModel): string {
   if (search.partyRequirement === true) {
     qualifiers.push('with a party requirement');
   }
+  if (search.requirement === true) {
+    qualifiers.push('with a requirement');
+  }
   const what = [`${amount} ${noun}`, ...qualifiers].join(' ');
   return `Reveal cards from the project deck until you reveal ${what}. Take ${one ? 'it' : 'them'} into your hand and discard the rest.`;
 }

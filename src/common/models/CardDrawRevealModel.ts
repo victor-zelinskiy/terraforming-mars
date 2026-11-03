@@ -162,6 +162,11 @@ export type DrawSearchModel = {
    * server owns the reading (`hasPartyRequirement`); a surface only names the rule («с требованием партии»).
    */
   partyRequirement?: true;
+  /**
+   * Keep only cards WITH A REQUIREMENT (P54 Nobel Prize) — any requirement of any kind. The server owns the reading
+   * (`hasRequirement`); a surface only names the rule («с требованием»).
+   */
+  requirement?: true;
 };
 
 /**

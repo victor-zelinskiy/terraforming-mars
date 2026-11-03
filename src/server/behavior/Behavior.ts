@@ -216,6 +216,11 @@ export interface DrawCard {
    * preview chip and the card text all name it.
    */
   partyRequirement?: boolean,
+  /**
+   * Keep only cards WITH A REQUIREMENT (P54 Nobel Prize) — any requirement of any kind (`hasRequirement`, the one
+   * reading of the phrase; `partyRequirement` is its subset). A NAMED rule, never an opaque `include`.
+   */
+  requirement?: boolean,
 }
 
 export interface AddResource {

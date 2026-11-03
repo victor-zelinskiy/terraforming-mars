@@ -3,7 +3,6 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {PreludeCard} from '../prelude/PreludeCard';
 import {AltSecondaryTag} from '../../../common/cards/render/AltSecondaryTag';
-import {IPlayer} from '../../IPlayer';
 
 export class NobelPrize extends PreludeCard {
   constructor() {
@@ -12,8 +11,11 @@ export class NobelPrize extends PreludeCard {
       tags: [Tag.WILD],
       victoryPoints: 2,
 
+      // «Draw 2 cards with requirements» is a NAMED search (`hasRequirement` — any requirement of any kind), never an
+      // opaque `include`: the reveal, the preview chip and the card text all name the rule.
       behavior: {
         stock: {megacredits: 5},
+        drawCard: {count: 2, requirement: true},
       },
 
       metadata: {
@@ -24,10 +26,5 @@ export class NobelPrize extends PreludeCard {
         description: 'Gain 5 M€. Draw 2 cards with requirements.',
       },
     });
-  }
-
-  public override bespokePlay(player: IPlayer) {
-    player.drawCard(2, {include: ((card) =>card.requirements.length > 0)});
-    return undefined;
   }
 }

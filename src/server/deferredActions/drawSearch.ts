@@ -17,6 +17,7 @@ export type DrawSearchFilter = {
   withoutTags?: ReadonlyArray<Tag>,
   floaterIcon?: boolean,
   partyRequirement?: boolean,
+  requirement?: boolean,
 };
 
 /**
@@ -36,7 +37,8 @@ export function drawSearchOf(count: number, filter: DrawSearchFilter | undefined
   const withoutTags = filter.withoutTags !== undefined && filter.withoutTags.length > 0 ? [...filter.withoutTags] : undefined;
   const floaterIcon = filter.floaterIcon === true;
   const partyRequirement = filter.partyRequirement === true;
-  if (filter.tag === undefined && filter.type === undefined && filter.resource === undefined && withoutTags === undefined && !floaterIcon && !partyRequirement) {
+  const requirement = filter.requirement === true;
+  if (filter.tag === undefined && filter.type === undefined && filter.resource === undefined && withoutTags === undefined && !floaterIcon && !partyRequirement && !requirement) {
     return undefined;
   }
   const search: DrawSearchModel = {count};
@@ -57,6 +59,9 @@ export function drawSearchOf(count: number, filter: DrawSearchFilter | undefined
   }
   if (partyRequirement) {
     search.partyRequirement = true;
+  }
+  if (requirement) {
+    search.requirement = true;
   }
   return search;
 }
