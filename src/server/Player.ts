@@ -2275,13 +2275,16 @@ export class Player implements IPlayer {
     }
   }
 
-  public noteRevealAutoDiscard(cards: ReadonlyArray<IProjectCard>): void {
+  public noteRevealAutoDiscard(cards: ReadonlyArray<IProjectCard>): boolean {
+    let shown = false;
     for (const reveal of this.cardDrawReveals) {
       const gone = reveal.cards.filter((card) => cards.includes(card) && reveal.autoDiscarded?.includes(card) !== true);
       if (gone.length > 0) {
         reveal.autoDiscarded = [...(reveal.autoDiscarded ?? []), ...gone];
+        shown = true;
       }
     }
+    return shown;
   }
 
   public acknowledgeCardDrawReveals(id: number | 'all'): void {

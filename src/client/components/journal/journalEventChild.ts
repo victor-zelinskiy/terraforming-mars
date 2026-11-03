@@ -257,6 +257,11 @@ export function impactChips(impact: EventImpact): Array<JournalImpactChip> {
   if (impact.cardsDrawn !== undefined && impact.cardsDrawn !== 0) {
     chips.push({icon: 'cards', text: signed(impact.cardsDrawn)});
   }
+  // A DISCARD the rules made (P53 · ledger FL — `cards-discarded`, PL-186): «−N» beside the draw it followed, never
+  // netted into it (the merges key by sign) — a journal that read «+1 card» for a card thrown away at once lied too.
+  if (impact.cardsDiscarded !== undefined && impact.cardsDiscarded !== 0) {
+    chips.push({icon: 'cards', text: signed(-Math.abs(impact.cardsDiscarded))});
+  }
   if (impact.globalParameter !== undefined && impact.globalParameter.steps !== 0) {
     chips.push({icon: impact.globalParameter.parameter, text: signed(impact.globalParameter.steps)});
   }

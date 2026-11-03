@@ -368,6 +368,21 @@ for (const preset of PRESETS) {
               await expect(pill).toContainText(/Сброшена/i);
               await expect(page.locator('.con-cmdbar'), 'the verb sends it to the discard').toContainText(/В сброс/i);
               await expect(page.locator('.con-cmdbar'), 'nothing offers to TAKE a card the hand does not hold').not.toContainText(/Взять/i);
+              // FL · PL-186 — the reveal TELLS this draw: the feed never repeats «ВЫ ПОЛУЧИЛИ КАРТЫ +N» beside a card the
+              // rules threw away, and no notification card stands over the reveal's head (the corner yields).
+              const feed = await page.evaluate(() => {
+                const head = document.querySelector('.con-reveal__head:not(.con-reveal__head--embedded)')?.getBoundingClientRect();
+                const cards = [...document.querySelectorAll('.con-notif')].filter((el) => Number.parseFloat(getComputedStyle(el).opacity) > 0.5);
+                const over = head === undefined ? [] : cards.filter((el) => {
+                  const r = el.getBoundingClientRect();
+                  return Math.min(r.right, head.right) - Math.max(r.left, head.left) > 2 && Math.min(r.bottom, head.bottom) - Math.max(r.top, head.top) > 2;
+                }).map((el) => el.getAttribute('data-notif-id'));
+                const cardsGain = cards.filter((el) => /(ВЫ ПОЛУЧИЛИ|YOU GAINED)[\s\S]*КАРТ/i.test(el.querySelector('.con-notif__you')?.textContent ?? ''))
+                  .map((el) => el.getAttribute('data-notif-id'));
+                return {over, cardsGain};
+              });
+              expect(feed.over, `settlement ${cycle}: no notification card over the reveal's head`).toEqual([]);
+              expect(feed.cardsGain, `settlement ${cycle}: the band never repeats the cards the reveal tells`).toEqual([]);
               await shoot(page, dir, `c${cycle}-auto-discard`);
               // Act → verify → retry: a press inside the card's own arrival window is the arrival's (the cursor gate),
               // never the verb — one blind press left the card on the table on a slow renderer (CI: 15 s of «Сброшена»).

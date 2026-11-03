@@ -459,7 +459,12 @@ function chipRank(chip: JournalImpactChip): number {
     }
     return chip.production === true ? 3 : 2;
   }
-  // Negatives — losses / payment — last.
+  // Negatives — losses / payment — last. The M€ PRICE is the move's context, never its effect: since a price and an
+  // income stay two chips (FK · PL-087), it ranks LAST so a capped line drops it before a loss the card itself made
+  // (Party Sanctions' «[neutral] −3» was pushed out by «M€ +2 · M€ −2» — FL).
+  if (chip.icon === 'megacredits' && chip.production !== true) {
+    return 6.5;
+  }
   return chip.production === true ? 6 : 5;
 }
 
@@ -505,8 +510,20 @@ export function contextPillGroups(vms: ReadonlyArray<JournalChildVM>, maxPerGrou
   // A cluster's pills read in EVENT order too (PL-076): the actor's «−1 [mech] · +1 [plant production] · +1 [M€
   // production]» is the rival's whole reading of the action, and sorted by salience it read «+1 +1 −1» — the two
   // results ahead of the price that bought them.
-  const pack = (chips: Array<JournalImpactChip>): Array<JournalImpactChip> =>
-    mergeChips(chips).slice(0, maxPerGroup);
+  // …and when a cluster is OVER its cap, the chips that LEAVE are the least salient (`chipRank` — the M€ price last),
+  // the kept ones still in event order: a cut by position dropped Party Sanctions' «[neutral] −3», the card's whole
+  // point, behind «M€ +2 · M€ −2» once a price and an income stayed two chips (FL).
+  const pack = (chips: Array<JournalImpactChip>): Array<JournalImpactChip> => {
+    const merged = mergeChips(chips);
+    if (merged.length <= maxPerGroup) {
+      return merged;
+    }
+    const keep = new Set(merged.map((chip, i) => ({i, rank: chipRank(chip)}))
+      .sort((a, b) => a.rank - b.rank || a.i - b.i)
+      .slice(0, maxPerGroup)
+      .map((entry) => entry.i));
+    return merged.filter((_, i) => keep.has(i));
+  };
   const groups: Array<NotificationPillGroup> = [];
   const packedPlanet = pack(planet);
   if (packedPlanet.length > 0) {
@@ -544,6 +561,19 @@ export function summarizeImpact(vms: ReadonlyArray<JournalChildVM>, maxPills = 3
 }
 
 /**
+ * The chain WITHOUT what the drawn-cards reveal tells the viewer (P53 · ledger FL): the viewer's draw / discard tagged
+ * `revealed` is presented by the reveal on THEIR screen, so the card's context lines never repeat it («● PLAYER1
+ * получил +2 · заплатил −2» about the viewer's own Pluto bonus, in the third person). The SAME array when nothing is
+ * dropped (callers reuse their rows then). The journal keeps every event.
+ */
+function withoutRevealedToViewer(chain: ReadonlyArray<GameEvent>, viewer: Color | undefined): ReadonlyArray<GameEvent> {
+  if (viewer === undefined || !chain.some((e) => e.player === viewer && e.tags?.includes('revealed') === true)) {
+    return chain;
+  }
+  return chain.filter((e) => !(e.player === viewer && e.tags?.includes('revealed') === true));
+}
+
+/**
  * Re-derive a root event's IMPACT (pills + breakdown rows) from the LATEST
  * fetched events. Used to REFRESH a still-visible root notification when its
  * chain grows AFTER it was first shown — e.g. an opponent's colony trade whose
@@ -560,8 +590,10 @@ export function recomputeRootImpact(
   const chain = events.filter((e) => e.correlationId === correlationId);
   const childVMs = buildEventChildren(chain, correlationId, actor);
   const viewerImpact = viewerImpactOfChain(chain, viewerColor, actor);
-  const contextVms = viewerImpact.sign === 'neutral' ? childVMs :
-    childVMs.filter((vm) => vm.player !== viewerColor);
+  const told = withoutRevealedToViewer(chain, viewerColor);
+  const contextBase = told === chain ? childVMs : buildEventChildren(told, correlationId, actor);
+  const contextVms = viewerImpact.sign === 'neutral' ? contextBase :
+    contextBase.filter((vm) => vm.player !== viewerColor);
   const {pills} = summarizeImpact(contextVms);
   const withSource: ViewerImpactMeta = viewerImpact.sign === 'neutral' ? viewerImpact : {
     ...viewerImpact,
@@ -725,9 +757,12 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
   const vms = buildEventChildren(chain, input.correlationId, actor);
   // Context pills: the ACTION's own outcome. When the card leads with the
   // viewer band, the viewer's rows move INTO the band — repeating them below
-  // as anonymous pills would read as a second, unrelated change.
-  const contextVms = viewerImpact.sign === 'neutral' ? vms :
-    vms.filter((vm) => vm.player !== viewerColor);
+  // as anonymous pills would read as a second, unrelated change. And what the
+  // drawn-cards REVEAL tells the viewer on screen (FL) is not told here either.
+  const told = withoutRevealedToViewer(chain, viewerColor);
+  const contextBase = told === chain ? vms : buildEventChildren(told, input.correlationId, actor);
+  const contextVms = viewerImpact.sign === 'neutral' ? contextBase :
+    contextBase.filter((vm) => vm.player !== viewerColor);
   const {pills} = summarizeImpact(contextVms);
   // …and the same context SPLIT BY OWNER (planet / actor / third players), so
   // a chip can never masquerade as the viewer's reward.

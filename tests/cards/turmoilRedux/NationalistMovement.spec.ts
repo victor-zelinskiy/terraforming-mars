@@ -442,7 +442,8 @@ describe('NationalistMovement', () => {
       play(t);
       const impact = recomputeRootImpact(t.game.events.events, rootOf(t), t.p1.color, t.p2.color);
       const actor = impact.pillGroups.find((group) => group.scope === 'actor');
-      expect(actor?.chips.map((chip) => `${chip.icon} ${chip.text}`)).to.include.members([`${NEUTRAL_DELEGATE_ICON} +4`, 'megacredits +2']);
+      // The income and the price are TWO chips (FK · PL-087 — this card's own frame read «+3 · +12»), never one net.
+      expect(actor?.chips.map((chip) => `${chip.icon} ${chip.text}`)).to.include.members([`${NEUTRAL_DELEGATE_ICON} +4`, 'megacredits +4', 'megacredits −2']);
       expect(impact.skipped).deep.eq([]);
     });
 

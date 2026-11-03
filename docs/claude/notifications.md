@@ -74,11 +74,24 @@ and every stand reads the painted card through ONE witness, **`tests/e2e/notific
    only when both sides stand (`clusterSides`).
 7. **NO PICTOGRAPH.** The head glyph is a text glyph of the family (`notificationGlyph`; 🏆 🏅 ⚖ ⚠ ✖ were emoji).
 
+8. **THE REVEAL TELLS THE DRAW — the band never repeats it** (FL): a draw the recipient is SHOWN in the drawn-cards
+   reveal (every `DrawCards.keepAll`) and an auto-discard of a card that reveal shows carry the `revealed` tag;
+   `viewerImpactOfChain` skips them like `external-intake`. A discard is a server FACT now (`cards-discarded`,
+   `auto-discard` when no question was asked) — the journal draws «−N [cards]» beside the draw, never netted (PL-186).
+   An ASKED discard (no reveal) is still a loss the band names.
+9. **THE CORNER YIELDS** (FL): while a full-bleed inspection (the shell's probe — `consoleCardZoom.card`) or the
+   received-cards reveal standing on its own (it CLAIMS the corner itself — `claimNotificationCorner('reveal')` off
+   `!embedded && !parked`) stands there, the feed moves to the opening's BOTTOM-right corner
+   (`notifications-layer--corner-yield` — the journal-open precedent; a delivered card stays, it only moves) and new
+   cards wait in the queue. ⚠ Never read the shell's computeds from the probe: a sync read at the shell's mount, before
+   its suppliers registered, latched their caches (the Pluto discard stopped embedding). The probe holder is a
+   `shallowRef` — a plain `let` latched the layer's `cornerYield` (invariant 17).
+10. **A capped cluster drops the LEAST salient chip** (`chipRank` — the M€ price last), the kept ones in event order.
+
 Stands: `console-notification-source` on **tv4k + fhd + deck**, `console-notification-bonus-attack` (720p — the number
-and the lane), `console-notification-cause` (the Tharsis payout — «получил / заплатил»). **Not done (named):** PL-186
-(«+2 карты» after an auto-discard — the server never writes `impact.cardsDiscarded`, so no client reading can say it;
-the fix is a server fact on the discard event), the reveal head as a corner owner, PL-079 / PL-556 / PL-609 / PL-765
-(the owner's direction — untouched).
+and the lane), `console-notification-cause` (the Tharsis payout — «получил / заплатил»), `console-pluto-settlements`
+(the empty hand: no card over the reveal's head, no «+N cards» band). **Not done (named):** PL-079 / PL-556 / PL-609 /
+PL-765 (the owner's direction — untouched).
 
 ## ⭐⭐ CONSUMER UPDATE BOUNDARIES (2026-09-03) — the ingest module, and why «the server half is green» proved nothing
 

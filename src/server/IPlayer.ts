@@ -753,7 +753,8 @@ export interface IPlayer {
    * every pending reveal batch that SHOWS one of them records it (`CardDrawReveal.autoDiscarded`), so the console
    * presents the card leaving instead of offering to take a card that is no longer in the hand.
    */
-  noteRevealAutoDiscard(cards: ReadonlyArray<IProjectCard>): void;
+  /** …and answers whether any pending batch SHOWED one of them (the reveal names it — FL). */
+  noteRevealAutoDiscard(cards: ReadonlyArray<IProjectCard>): boolean;
   /** Remove a reveal batch (or all) once the player has taken the cards. Idempotent. */
   acknowledgeCardDrawReveals(id: number | 'all'): void;
   discardPlayedCard(card: IProjectCard): void;

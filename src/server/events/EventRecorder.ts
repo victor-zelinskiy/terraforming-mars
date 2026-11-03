@@ -1069,7 +1069,7 @@ export class EventRecorder {
     });
   }
 
-  public recordCardsDrawn(player: IPlayer, count: number, from?: From, opts?: {externalIntake?: boolean}): void {
+  public recordCardsDrawn(player: IPlayer, count: number, from?: From, opts?: {externalIntake?: boolean, revealed?: boolean}): void {
     if (count === 0) {
       return;
     }
@@ -1077,12 +1077,41 @@ export class EventRecorder {
     if (source === undefined && !this.hasContext()) {
       return;
     }
+    // An intake-delivered draw is presented by the mandatory take prompt, a kept-whole draw by the drawn-cards reveal
+    // (P53 · FL) — the tags are what let the recipient's band builder skip the duplicate «+N cards» chip while the
+    // journal keeps the event as usual.
+    const tags: Array<EventTag> = [];
+    if (opts?.externalIntake === true) {
+      tags.push('external-intake');
+    }
+    if (opts?.revealed === true) {
+      tags.push('revealed');
+    }
     this.record({
       type: 'cards-drawn', source, player: player.color, impact: {cardsDrawn: count},
-      // An intake-delivered draw is presented by the mandatory take prompt —
-      // the tag is what lets the recipient's band builder skip the duplicate
-      // «+N cards» chip while the journal keeps the event as usual.
-      tags: opts?.externalIntake === true ? ['external-intake'] : undefined,
+      tags: tags.length > 0 ? tags : undefined,
+    });
+  }
+
+  /**
+   * Cards left the player's hand by a RULE (`DiscardCards`) — the count, never the names (P53 · ledger FL, PL-186:
+   * the impact field existed and nothing wrote it). `auto` — no question was asked; `revealed` — the discarded card
+   * stood in the recipient's drawn-cards reveal, which names it «Сброшена» on screen.
+   */
+  public recordCardsDiscarded(player: IPlayer, count: number, opts: {auto: boolean, revealed: boolean}): void {
+    if (count === 0 || !this.hasContext()) {
+      return;
+    }
+    const tags: Array<EventTag> = [];
+    if (opts.auto) {
+      tags.push('auto-discard');
+    }
+    if (opts.revealed) {
+      tags.push('revealed');
+    }
+    this.record({
+      type: 'cards-discarded', player: player.color, impact: {cardsDiscarded: count},
+      tags: tags.length > 0 ? tags : undefined,
     });
   }
 

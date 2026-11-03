@@ -26358,7 +26358,8 @@ export default defineComponent({
     // …and the parliament's Agenda CARD park is the third (same law, same shape).
     this.releaseRevealParkSupplier = registerRevealParkSupplier((batch) => this.revealBatchParked(batch));
     // FK — THE CARD'S CORNER: a full-bleed inspection (the card / party dossier viewer) stands where the card would;
-    // a NEW card waits in the queue (its tail is the beacon) and presents when the viewer leaves (PL-680).
+    // a NEW card waits in the queue (its tail is the beacon) and presents when the viewer leaves (PL-680). (The
+    // received-cards reveal claims the corner itself — FL; never a read of this shell's computeds from here.)
     this.releaseNotificationCorner = registerNotificationCornerProbe(() => consoleCardZoom.card !== undefined);
     // T6: the notification CTAs go through the typed notificationBus;
     // PlayerHome's listeners don't exist in console — the shell answers them.

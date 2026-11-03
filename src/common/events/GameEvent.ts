@@ -31,6 +31,15 @@ export type GameEventType =
   | 'tr-changed'
   | 'global-parameter-changed'
   | 'cards-drawn'
+  /**
+   * Cards LEFT a hand into the discard pile by a rule (`DiscardCards` — a forced discard, the closing half of a
+   * «draw N, then discard N» colony bonus, an exchange): `impact.cardsDiscarded` is the count (never names — a hand is
+   * private). An auto-discard (no question asked — the hand held nothing else) carries the `auto-discard` tag, and
+   * `revealed` when the discarded card stood in the recipient's drawn-cards reveal (the reveal names it «Сброшена»).
+   * P53 · ledger FL — before this event the impact field existed and nothing wrote it, so a band read «+2 cards» for
+   * a draw half of which was thrown away at once (PL-186).
+   */
+  | 'cards-discarded'
   | 'card-revealed' // a PUBLIC reveal / show / search (counts only, never names)
   /**
    * A CONDITIONAL DRAW SEARCH ran («reveal cards from the deck until you find
@@ -352,7 +361,15 @@ export type EventTag =
    *  recipient's presentation is the prompt + its workspace, so the band
    *  builder must not ALSO show the «+N cards» gain (the journal keeps the
    *  event as usual). */
-  | 'external-intake';
+  | 'external-intake'
+  /** The recipient is SHOWN this draw (or this discard) in the drawn-cards REVEAL — every `DrawCards.keepAll` batch,
+   *  an auto-discard named on a pending batch. The reveal IS its presentation, so the band builder never repeats the
+   *  «+N cards» / «−N cards» the reveal is telling on screen (P53 · ledger FL; the `external-intake` precedent). The
+   *  journal keeps the event as usual. */
+  | 'revealed'
+  /** A discard the rules made with no question asked (the hand held nothing else — Pluto's «draw 1, then discard 1»
+   *  on an empty hand). */
+  | 'auto-discard';
 
 export type GameEvent = {
   /** Monotonic sequence within a game — the canonical ORDERING key (not the timestamp). */

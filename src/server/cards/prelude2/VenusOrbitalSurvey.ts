@@ -110,7 +110,7 @@ export class VenusOrbitalSurvey extends Card implements IActionCard {
       if (rest.length === 0) {
         // Rule 4 — nothing to decide: the ordinary drawn batch, named by this card.
         keep(player, venus, [], LogType.DREW_VERBOSE);
-        game.events?.recordCardsDrawn(player, venus.length);
+        game.events?.recordCardsDrawn(player, venus.length, undefined, {revealed: true});
         player.enqueueCardDrawReveal(venus, {type: 'card', cardName: this.name});
         return;
       }

@@ -69,7 +69,10 @@ export class DiscardCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
       }
       // No question was asked — so a card the player was just SHOWN being drawn (Pluto's «draw 1, then discard 1»
       // on an empty hand) is named on its reveal as already gone, never offered to be taken (colony polish 1, К-5).
-      this.player.noteRevealAutoDiscard(discards);
+      const shown = this.player.noteRevealAutoDiscard(discards);
+      // …and the discard is a FACT of the action (P53 · FL, PL-186): the band no longer reads «+2 cards» for a draw
+      // half of which left at once.
+      this.player.game.events?.recordCardsDiscarded(this.player, discards.length, {auto: true, revealed: shown});
       this.cb(discards);
       return undefined;
     }
@@ -106,6 +109,7 @@ export class DiscardCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
         for (const card of discards) {
           this.player.discardCardFromHand(card);
         }
+        this.player.game.events?.recordCardsDiscarded(this.player, discards.length, {auto: false, revealed: false});
         this.cb(discards);
         return undefined;
       });

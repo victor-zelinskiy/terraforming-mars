@@ -27800,6 +27800,15 @@ html.console-mode .notifications-layer {
     .con-notif,
     .con-notifq { max-width: 100%; }
 
+    /* FL — A SURFACE STANDS IN THE CARD'S CORNER (a full-bleed inspection, the received-cards reveal on its own): the
+       feed yields to the opening's BOTTOM-right corner — the journal-open precedent. A delivered card stays; it only
+       moves out of the way (the surface's own entrance is the motion the eye follows), the queue tail under it. */
+    &.notifications-layer--corner-yield {
+        top: auto;
+        bottom: calc(var(--con-stage-b, 3.4rem) + .6rem);
+        justify-content: flex-end;
+    }
+
     .notification-card--action-required,
     .notification-card--your-turn {
         display: none;
@@ -38813,6 +38822,11 @@ html.con-profile-handheld {
     &.console-mode .notifications-layer {
         top: calc(var(--con-stage-t, 3.7rem) + .5rem);
         right: calc(var(--con-stage-r, 9rem) + .5rem);
+    }
+    /* FL — the corner yield on the small profile too (the rule above out-ranks the base one by order). */
+    &.console-mode .notifications-layer.notifications-layer--corner-yield {
+        top: auto;
+        bottom: calc(var(--con-stage-b, 3rem) + .5rem);
     }
     /* P16: the console card gets the handheld density (the desktop card
        no longer renders in console mode). */

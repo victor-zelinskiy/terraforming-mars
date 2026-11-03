@@ -187,14 +187,12 @@ function mergeNet(chips: ReadonlyArray<JournalImpactChip>): Array<JournalImpactC
 
 /**
  * Chips of the deltas `impactChips` deliberately leaves out of the journal rows
- * but that ARE a personal change worth leading with: a forced discard and a
- * direct VP move. (`vp` has no sprite — the card renders its unit as text.)
+ * but that ARE a personal change worth leading with: a direct VP move. (`vp` has
+ * no sprite — the card renders its unit as text.) A forced discard is a journal
+ * chip of its own since FL (`cards-discarded`), so it is not repeated here.
  */
 function extraViewerChips(impact: EventImpact): Array<JournalImpactChip> {
   const chips: Array<JournalImpactChip> = [];
-  if (impact.cardsDiscarded !== undefined && impact.cardsDiscarded !== 0) {
-    chips.push({icon: 'cards', text: `−${Math.abs(impact.cardsDiscarded)}`});
-  }
   if (impact.vp !== undefined && impact.vp !== 0) {
     chips.push({icon: 'vp', text: impact.vp > 0 ? `+${impact.vp}` : `−${Math.abs(impact.vp)}`});
   }
@@ -459,6 +457,12 @@ export function viewerImpactOfChain(chain: ReadonlyArray<GameEvent>, viewer: Col
     // this one event is skipped: every other effect of the same action keeps
     // its chips, and the journal keeps the draw itself.
     if (e.tags?.includes('external-intake')) {
+      continue;
+    }
+    // …and the same for a draw the recipient is SHOWN in the drawn-cards reveal (every kept-whole batch) and a discard
+    // that reveal names «Сброшена» (P53 · ledger FL): the reveal is the cards' one presentation — the band repeating
+    // «+2 cards» beside it told the draw twice, and lied when half of it left at once (PL-186).
+    if (e.tags?.includes('revealed')) {
       continue;
     }
     // A BACKWARD Hydronetwork move of the viewer's marker (Corporate

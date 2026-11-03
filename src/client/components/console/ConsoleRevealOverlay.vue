@@ -670,6 +670,7 @@ import {
   settlementPairOf, settlementPlacesToDeal, settlementSealStands, settlementTable, startSettlementSealBreak,
 } from '@/client/console/colonyTrade/settlementTable';
 import {cardDiscardState} from '@/client/console/cardDiscard/cardDiscardState';
+import {claimNotificationCorner} from '@/client/components/notifications/notificationState';
 import {cardDiscardAskedBy, cardDiscardSettlementPair} from '@/client/console/cardDiscard/consoleCardDiscard';
 
 /**
@@ -902,6 +903,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** FL — the reveal stands ON ITS OWN in the central opening (not hosted, not parked in a zone). */
+    standsInCorner(): boolean {
+      return !this.embedded && !this.parked;
+    },
     // ── drawn ────────────────────────────────────────────────────────
     drawnEvent(): DrawnCardEntry | undefined {
       // A PARKED table presents no batch — even one that already exists (the next cycle's, held by the shell
@@ -1806,6 +1811,14 @@ export default defineComponent({
     },
   },
   watch: {
+    /** FL — standing on its own in the opening, the reveal's head runs into the feed's corner: claim it (the feed
+     *  yields to the bottom-right corner and new cards wait in the queue). Embedded / parked: no claim. */
+    standsInCorner: {
+      immediate: true,
+      handler(on: boolean): void {
+        claimNotificationCorner('reveal', on);
+      },
+    },
     discardPileLease: {
       immediate: true,
       handler(lease: string, was: string | undefined): void {
@@ -2013,6 +2026,7 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    claimNotificationCorner('reveal', false);
     closeRevealSourcePeek();
     if (this.discardPileLease !== '') {
       releaseDiscardPile(this.discardPileLease);

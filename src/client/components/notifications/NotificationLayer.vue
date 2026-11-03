@@ -6,7 +6,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
 <template>
   <Teleport to="body">
     <div class="notifications-layer"
-         :class="{'notifications-layer--journal-open': journalOpen}"
+         :class="{'notifications-layer--journal-open': journalOpen, 'notifications-layer--corner-yield': cornerYield}"
          aria-live="polite">
       <!-- Pinned singleton turn card (your turn / action required) — kept above
            the transient feed so a mandatory prompt is never crowded out.
@@ -138,6 +138,7 @@ import {
   noteNotificationLeaveStart,
   noteNotificationLeaveEnd,
   noteOpenCorrelationHolders,
+  notificationCornerTaken,
 } from '@/client/components/notifications/notificationState';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {currentBlockReason, isNotificationDeliveryBlocked} from '@/client/components/presentation/presentationFlow';
@@ -217,6 +218,12 @@ export default defineComponent({
     },
     journalOpen(): boolean {
       return journalState.open;
+    },
+    /** FL — a surface stands in the card's corner (a full-bleed inspection, the received-cards reveal's head): the
+     *  feed yields to the opening's BOTTOM-right corner — the journal-open precedent (a delivered card stays, it
+     *  only moves out of the way), and new cards wait in the queue meanwhile. */
+    cornerYield(): boolean {
+      return notificationCornerTaken();
     },
     pending(): PendingQueueSummary {
       return pendingSummary();

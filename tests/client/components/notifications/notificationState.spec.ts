@@ -27,8 +27,10 @@ import {
   noteNotificationLeaveStart,
   noteNotificationLeaveEnd,
   registerNotificationCornerProbe,
+  notificationCornerTaken,
+  claimNotificationCorner,
 } from '@/client/components/notifications/notificationState';
-import {reactive} from 'vue';
+import {computed, reactive} from 'vue';
 import {setNotificationFeedMode} from '@/client/components/notifications/notificationFeedMode';
 import {resetPresentationLeases, acquireForegroundLease} from '@/client/components/presentation/presentationFlow';
 import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
@@ -140,6 +142,33 @@ describe('notificationState (lifecycle)', () => {
         release();
       }
     });
+  });
+
+  it('a computed that read the corner BEFORE the shell registered its probe still follows it (no latch — FL)', () => {
+    const yieldNow = computed(() => notificationCornerTaken());
+    expect(yieldNow.value, 'no probe yet').to.eq(false);
+    const corner = reactive({taken: true});
+    const release = registerNotificationCornerProbe(() => corner.taken);
+    try {
+      expect(yieldNow.value, 'the late registration reaches the cached reader').to.eq(true);
+      corner.taken = false;
+      expect(yieldNow.value).to.eq(false);
+    } finally {
+      release();
+    }
+  });
+
+  it('a surface CLAIMS the corner itself (the standalone reveal — FL): new cards queue, the release presents them', () => {
+    claimNotificationCorner('reveal', true);
+    try {
+      expect(notificationCornerTaken()).to.eq(true);
+      pushTransient(model('r1'));
+      expect(notificationState.transient, 'never over the reveal').to.have.length(0);
+      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['r1']);
+    } finally {
+      claimNotificationCorner('reveal', false);
+    }
+    expect(notificationState.transient.map((n) => n.id), 'the release re-drives the queue').to.deep.eq(['r1']);
   });
 
   describe('presentation-flow delivery gate', () => {

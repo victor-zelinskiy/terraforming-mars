@@ -3,7 +3,7 @@
  * by the desktop-UI deprecation. Full quality bar applies (tests, guards, i18n).
  * Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDIT.md.
  */
-import {reactive, watch} from 'vue';
+import {reactive, shallowRef, watch} from 'vue';
 import {Color} from '@/common/Color';
 import {NotificationModel, LiveNotification, NotificationKind, MAX_VISIBLE_TRANSIENT, NOTIFICATION_PRIORITY, NOTIFICATION_TTL} from './notificationTypes';
 import {ImpactSign} from './notificationSemantics';
@@ -644,28 +644,52 @@ onForegroundFreed(() => promoteFromQueue());
  * never open — the foreign-decision law), and it presents the moment the surface leaves. A card ALREADY delivered stays
  * (the delivery contract). The shell registers what takes the corner; nothing does in a spec.
  */
-let cornerProbe: () => boolean = () => false;
+// The holder is REACTIVE (invariant 17): the layer's `cornerYield` computed first evaluates before the shell registers
+// its probe — read off a plain `let`, it cached the default «false» forever and the feed never yielded (FL, caught by
+// the Pluto stand).
+const cornerProbe = shallowRef<() => boolean>(() => false);
+/**
+ * …and the surfaces that CLAIM the corner themselves (FL — the received-cards reveal standing in the opening on its
+ * own: the component knows whether it is embedded or parked; the shell's computeds are never read from here — a
+ * sync read of them at the shell's mount, before its suppliers registered, latched their caches and broke the Pluto
+ * discard's embedding).
+ */
+const cornerClaims = reactive(new Set<string>());
 
-/** The shell: what stands in the card's corner right now (reactive reads — the free edge re-drives the queue). */
+function cornerTakenNow(): boolean {
+  return cornerProbe.value() || cornerClaims.size > 0;
+}
+
+// The free edge re-drives the queue in the same tick the corner empties (no frame of an empty corner) — one watcher
+// for both sources, armed once at module init.
+watch(cornerTakenNow, (taken) => {
+  if (!taken) {
+    promoteFromQueue();
+  }
+}, {flush: 'sync'});
+
+/** The shell: what stands in the card's corner right now (reactive reads only). */
 export function registerNotificationCornerProbe(probe: () => boolean): () => void {
-  cornerProbe = probe;
-  // `sync`: the edge re-drives the queue in the same tick the viewer leaves (no frame of an empty corner).
-  const stop = watch(() => cornerProbe(), (taken) => {
-    if (!taken) {
-      promoteFromQueue();
-    }
-  }, {flush: 'sync'});
+  cornerProbe.value = probe;
   return () => {
-    stop();
-    if (cornerProbe === probe) {
-      cornerProbe = () => false;
+    if (cornerProbe.value === probe) {
+      cornerProbe.value = () => false;
     }
   };
 }
 
+/** A surface claims (or releases) the card's corner while it stands there. */
+export function claimNotificationCorner(owner: string, on: boolean): void {
+  if (on) {
+    cornerClaims.add(owner);
+  } else {
+    cornerClaims.delete(owner);
+  }
+}
+
 /** Is the card's corner taken by a surface the player is reading? */
 export function notificationCornerTaken(): boolean {
-  return cornerProbe();
+  return cornerTakenNow();
 }
 
 /**
