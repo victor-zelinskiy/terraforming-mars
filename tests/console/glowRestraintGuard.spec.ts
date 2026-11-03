@@ -284,16 +284,37 @@ function isVarHalo(layer: string): boolean {
 
 /** Every STANDING light of the MA blocks (§ 4): halos (numeric or `var()`), bright outer rings, glowing text, light drop shadows, loops. */
 function maLightsOf(): Array<Halo> {
+  return blockLightsOf(MA_BLOCKS, MA_EVENT_LIGHT);
+}
+
+/**
+ * THE HYDRONETWORK BY EYE (§ 6 — P52 · FI, layers 2–6): the `.con-hydro` block of `console.less` — the track, the
+ * stage sheet, every layer, the ceremony — carries no standing light. Its EVENTS are named: the landing flash and the
+ * ceremony's peak are one-shot keyframes that end on their own; the commit spinner is a transient beat (it stands only
+ * while the request is in flight).
+ */
+const HYDRO_BLOCKS = /^\.(con-hydro)\b/;
+const HYDRO_EVENT_LIGHT: ReadonlyArray<{selector: RegExp, why: string}> = [
+  {selector: /&__landflash\b/, why: 'the stage-9 card\'s LANDING — a one-shot @keyframes that fades to 0 (licence (b))'},
+  {selector: /&__commit-spin\b/, why: 'the commit\'s in-flight spinner — a transient beat, unmounted with the request'},
+];
+
+function hydroLightsOf(): Array<Halo> {
+  return blockLightsOf(HYDRO_BLOCKS, HYDRO_EVENT_LIGHT);
+}
+
+/** Every standing light of the top-level blocks `blocks` names in `console.less`, the named event rules excepted. */
+function blockLightsOf(blocks: RegExp, events: ReadonlyArray<{selector: RegExp, why: string}>): Array<Halo> {
   const source = stripComments(fs.readFileSync(path.join(STYLES, 'console.less'), 'utf8'));
   const out: Array<Halo> = [];
   const stack: Array<string> = [];
   let segment = '';
   let line = 1;
   const flushDecl = () => {
-    if (stack.some((h) => h.startsWith('@keyframes')) || !MA_BLOCKS.test(stack[0] ?? '')) {
+    if (stack.some((h) => h.startsWith('@keyframes')) || !blocks.test(stack[0] ?? '')) {
       return;
     }
-    if (stack.some((h) => MA_EVENT_LIGHT.some((e) => e.selector.test(h)))) {
+    if (stack.some((h) => events.some((e) => e.selector.test(h)))) {
       return;
     }
     const decl = segment.match(/^\s*([a-z-]+)\s*:([\s\S]*)$/);
@@ -527,6 +548,11 @@ describe('glowRestraintGuard — a standing state is a kant, never a glow', () =
     expect(isVarHalo('inset 0 0 0 var(--con-focus-ring) fade(@con-cyan, 85%)')).is.false;
     const offenders = maLightsOf().map((h) => `  ${h.file}:${h.line} ${h.block} → ${h.layer}`);
     expect(offenders, `a standing light on the MA workspace / the strategy rail — draw the state with a kant / fill / weight / word (\`console-ui.md\` § VISUAL RESTRAINT):\n${offenders.join('\n')}`).to.deep.eq([]);
+  });
+
+  it('THE HYDRONETWORK BY EYE: no standing halo, glowing text, bright ring or loop (FI · EG-5)', () => {
+    const offenders = hydroLightsOf().map((h) => `  ${h.file}:${h.line} ${h.block} → ${h.layer}`);
+    expect(offenders, `a standing light on the Hydronetwork — draw the state with a kant / fill / weight / word (\`console-ui.md\` § VISUAL RESTRAINT):\n${offenders.join('\n')}`).to.deep.eq([]);
   });
 
   it('THE RATCHET: standing halos per stylesheet never grow, and a fall is locked in', () => {

@@ -221,5 +221,7 @@
     "The Jovian tag is already claimed — no effect": "Метка Юпитера уже получена — без эффекта",
     "Target of the attack": "Цель атаки",
     "their own choice": "его собственный выбор",
-    "The target selection is required": "Выбор цели обязателен"
+    "The target selection is required": "Выбор цели обязателен",
+    "Action repeated: ${0}": "Действие повторено: ${0}",
+    "Resources onto: ${0}": "Ресурсы на карту: ${0}"
 }

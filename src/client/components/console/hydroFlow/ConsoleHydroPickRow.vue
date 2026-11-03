@@ -31,7 +31,7 @@
 
       <!-- NOTHING TO CHOOSE — the honest dead end, never a «choose first». -->
       <span v-if="fizzled" class="con-hydro__summary-body con-hydro__summary-body--fizzled">
-        <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚑</span>
+        <span class="con-hydro__pickwarn-mark" aria-hidden="true"></span>
         <span>{{ $t('This reward will be skipped') }} — {{ $t(fizzleKey) }}</span>
       </span>
 
@@ -46,13 +46,13 @@
           <span v-else class="con-composer__graphic-text">{{ node.text }}</span>
         </span>
         <span class="con-composer__repeatpick-name">{{ $t(card) }}</span>
-        <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+        <span class="con-hydro__bonus-tick" aria-hidden="true"></span>
       </span>
 
       <!-- pos 1/2 on a traversal: the CHOSEN alternative's own printed chips. -->
       <span v-else-if="kind === 'reward-choice' && chips !== undefined" class="con-hydro__summary-body">
         <HydroReward :chips="chips" :compact="true" />
-        <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+        <span class="con-hydro__bonus-tick" aria-hidden="true"></span>
       </span>
 
       <!-- pos 9: the chosen target card + the honest count. -->
@@ -62,7 +62,7 @@
           <span class="card-resource card-resource-animal" aria-hidden="true"></span>
           {{ animalCurrent }} <span aria-hidden="true">→</span> {{ animalCurrent + 2 }}
         </span>
-        <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+        <span class="con-hydro__bonus-tick" aria-hidden="true"></span>
       </span>
 
       <!-- UNCHOSEN — the press IS the content. -->
@@ -74,7 +74,7 @@
          stays — never a silent clearing), the register says it cannot be
          kept, and the reason names the short resource. A = change it. -->
     <span v-if="conflictReason !== ''" class="con-hydro__pickrow-conflict" role="status">
-      <span class="con-hydro__pickwarn-mark" aria-hidden="true">⚠</span>
+      <span class="con-hydro__pickwarn-mark con-hydro__pickwarn-mark--warn" aria-hidden="true"></span>
       <span>{{ $t(conflictReason) }}</span>
     </span>
   </div>

@@ -28,7 +28,7 @@
                 'con-hydro__plansteps-chip--done': s.chosen !== undefined,
                 'con-hydro__plansteps-chip--active': i === activeIdx,
               }">
-          <span class="con-hydro__plansteps-chip-mark" aria-hidden="true">{{ s.chosen !== undefined ? '✓' : '○' }}</span>
+          <span class="con-hydro__plansteps-chip-mark" aria-hidden="true"></span>
           <span class="con-hydro__plansteps-chip-pos">{{ s.stagePosition }}</span>
           <span class="con-hydro__plansteps-chip-name">{{ $t(s.stageNameKey) }}</span>
         </span>
@@ -74,7 +74,7 @@
                M€ production for the heat step, nothing for the energy step — read before the pick. -->
           <ConsoleForecastReactions v-if="opt.reaction !== undefined && (opt.reaction.chips.length > 0 || opt.reaction.more > 0)"
                                     :reaction="opt.reaction" class="con-hydro__choice-fx" data-hydro-choice-fx />
-          <span class="con-hydro__choice-mark" :class="{'con-hydro__choice-mark--on': active.chosen === i}" aria-hidden="true">✓</span>
+          <span class="con-hydro__choice-mark" :class="{'con-hydro__choice-mark--on': active.chosen === i}" aria-hidden="true"></span>
         </button>
       </template>
     </div>

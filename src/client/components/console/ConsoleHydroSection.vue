@@ -250,7 +250,7 @@
             <span aria-hidden="true">→</span>
             <b>{{ ctxView.route.to }}</b>
             <span v-if="ctxView.route.free" class="con-hydro__route-cost con-hydro__route-cost--free">{{ $t('Free') }}</span>
-            <span v-else class="con-hydro__route-cost">
+            <span v-else-if="ctxView.route.priced !== false" class="con-hydro__route-cost">
               <template v-if="ctxView.route.energy > 0">−{{ ctxView.route.energy }}<i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i></template>
               <template v-if="ctxView.route.steel > 0">−{{ ctxView.route.steel }}<i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i></template>
             </span>
@@ -303,8 +303,6 @@
                       class="con-hydro__req-tag"
                       :class="'con-hydro__req-tag--' + tagStatus(t)">
                   <span class="resource-tag" :class="'tag-' + t" aria-hidden="true"></span>
-                  <span class="con-hydro__req-mark" aria-hidden="true">{{ tagStatus(t) === 'missing' ? '✕' : '✓' }}</span>
-                  <span v-if="tagStatus(t) === 'wild'" class="con-hydro__req-wild" aria-hidden="true">✱</span>
                 </span>
               </div>
               <!-- Route notes: the skipped-reward POLICY + the 2VP leap — one
@@ -385,7 +383,7 @@
                      read: the auto-composition kept this energy for the
                      pre-selected action, so the movement may not take it. -->
                 <span v-if="reservedNoteText !== ''" class="con-hydro__payline-reserved">
-                  🛡 {{ reservedNoteText }}
+                  {{ reservedNoteText }}
                 </span>
               </div>
 
@@ -455,7 +453,7 @@
           <div v-if="paymentChosenReward !== undefined" class="con-hydro__paychoice" data-unfold-item>
             <span class="con-hydro__section-label">{{ $t('Reward') }}</span>
             <HydroReward :chips="paymentChosenReward" :compact="true" />
-            <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+            <span class="con-hydro__bonus-tick" aria-hidden="true"></span>
           </div>
           <!-- THE COMPOSITION — the shared premium payment panel over the
                ONE canonical draft, with the room it deserves. -->
@@ -472,7 +470,7 @@
                preserve), and this names WHY the range refuses to go further —
                the pre-selected action holds that energy. -->
           <div v-if="reservedNoteText !== ''" class="con-hydro__payline-reserved" data-unfold-item>
-            🛡 {{ reservedNoteText }}
+            {{ reservedNoteText }}
           </div>
         </div>
 
@@ -609,7 +607,7 @@
                    @click="onEspionageRowClick(i)">
                 <!-- The single-choice state — a RESERVED column, never over text. -->
                 <span class="con-hydro__esprow-state" aria-hidden="true">
-                  <i v-if="espionageSelectedColor === row.target.color" class="con-hydro__esprow-check">✓</i>
+                  <i v-if="espionageSelectedColor === row.target.color" class="con-hydro__esprow-check"></i>
                 </span>
                 <span class="con-hydro__roster-dot" :class="'player_bg_color_' + row.target.color" aria-hidden="true"></span>
                 <span class="con-hydro__esprow-name">{{ row.name }}</span>
@@ -621,7 +619,7 @@
                 <span v-else class="con-hydro__esprow-block">{{ $t(row.blockKey) }}</span>
                 <span v-if="row.target.legal" class="con-hydro__esprow-reward">
                   <template v-if="row.view.skippedKey !== undefined">
-                    <span class="con-hydro__esprow-skip">↷ {{ $t(row.view.skippedKey) }}</span>
+                    <span class="con-hydro__esprow-skip">{{ $t(row.view.skippedKey) }}</span>
                   </template>
                   <span v-else-if="row.view.chipOptions.length > 0" class="con-hydro__esp-chips">
                     <template v-for="(opt, oi) in row.view.chipOptions" :key="oi">
@@ -674,7 +672,7 @@
                    }"
                    @click="onBlockadeRowClick(i)">
                 <span class="con-hydro__esprow-state" aria-hidden="true">
-                  <i v-if="blockadeSelectedColor === row.target.color" class="con-hydro__esprow-check">✓</i>
+                  <i v-if="blockadeSelectedColor === row.target.color" class="con-hydro__esprow-check"></i>
                 </span>
                 <span class="con-hydro__roster-dot" :class="'player_bg_color_' + row.target.color" aria-hidden="true"></span>
                 <span class="con-hydro__esprow-name">{{ row.name }}</span>
@@ -689,8 +687,8 @@
                        most visible denial is already denied — the player
                        weighs the module knowingly (card moves and the bot's
                        Increase stay closed either way). -->
-                  <span v-if="row.target.standardMoveSpent === true" class="con-hydro__esprow-spent">⚠ {{ $t('Has already used their standard advance this generation') }}</span>
-                  <span class="con-hydro__esprow-skip">⌸ {{ $t('Advancement will be blocked') }}</span>
+                  <span v-if="row.target.standardMoveSpent === true" class="con-hydro__esprow-spent">{{ $t('Has already used their standard advance this generation') }}</span>
+                  <span class="con-hydro__esprow-skip con-hydro__esprow-skip--blocked">{{ $t('Advancement will be blocked') }}</span>
                 </span>
               </div>
             </div>
@@ -713,7 +711,7 @@
             <div class="con-hydro__espline con-hydro__espline--result" data-unfold-item>
               <span class="con-hydro__roster-dot" :class="'player_bg_color_' + blockadeExecution!.target" aria-hidden="true"></span>
               <span class="con-hydro__espline-name">{{ blockadeExecTargetName }}</span>
-              <span class="con-hydro__esprow-skip">⌸ {{ $t('Advancement blocked until the next generation') }}</span>
+              <span class="con-hydro__esprow-skip con-hydro__esprow-skip--blocked">{{ $t('Advancement blocked until the next generation') }}</span>
               <span class="con-hydro__route">
                 <span>−1</span>
                 <i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i>
@@ -752,7 +750,7 @@
                 <span aria-hidden="true">→</span>
                 <b>{{ espCommit.target.to }}</b>
               </span>
-              <span v-if="espCommitTargetView.skippedKey !== undefined" class="con-hydro__esprow-skip">↷ {{ $t(espCommitTargetView.skippedKey) }}</span>
+              <span v-if="espCommitTargetView.skippedKey !== undefined" class="con-hydro__esprow-skip">{{ $t(espCommitTargetView.skippedKey) }}</span>
               <template v-else-if="espCommitTargetView.chipOptions.length > 0">
                 <span class="con-hydro__espline-gets">{{ $t('receives') }}</span>
                 <span class="con-hydro__esp-chips">
@@ -766,7 +764,7 @@
                 {{ espWaitingCaption }}<i class="con-hydro__commit-spin" aria-hidden="true"></i>
               </span>
             </template>
-            <span v-else class="con-hydro__esprow-skip">↷ {{ $t('No player can be pushed back — the attack will be skipped') }}</span>
+            <span v-else class="con-hydro__esprow-skip">{{ $t('No player can be pushed back — the attack will be skipped') }}</span>
           </div>
 
           <!-- THE TRAVERSAL STRIP — the committed plan's stages in path order,
@@ -783,8 +781,8 @@
                   }">
               <b>{{ seg.position }}</b>
               <span class="con-hydro__travchip-name">{{ $t(seg.stageNameKey) }}</span>
-              <span v-if="seg.kind === 'excluded'" class="con-hydro__travchip-mark" aria-hidden="true">↷</span>
-              <span v-else-if="travSegState(seg) === 'done'" class="con-hydro__travchip-mark" aria-hidden="true">✓</span>
+              <span v-if="seg.kind === 'excluded'" class="con-hydro__travchip-mark con-hydro__travchip-mark--excluded" aria-hidden="true"></span>
+              <span v-else-if="travSegState(seg) === 'done'" class="con-hydro__travchip-mark con-hydro__travchip-mark--done" aria-hidden="true"></span>
             </span>
           </div>
 
@@ -885,7 +883,7 @@
         <div v-else key="result" class="con-hydro__layer con-hydro__layer--result">
           <div class="con-hydro__result" data-unfold-item>
             <div class="con-hydro__result-head">
-              <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+              <span class="con-hydro__bonus-tick" aria-hidden="true"></span>
               <b>{{ $t('Reinforcement complete') }}</b>
               <span class="con-hydro__result-stage">{{ $t(commitRec.stageNameKey) }}</span>
             </div>
@@ -901,7 +899,7 @@
                   <span aria-hidden="true">→</span>
                   <b>{{ espCommit.target.to }}</b>
                 </span>
-                <span v-if="espCommitTargetView.skippedKey !== undefined" class="con-hydro__esprow-skip">↷ {{ $t(espCommitTargetView.skippedKey) }}</span>
+                <span v-if="espCommitTargetView.skippedKey !== undefined" class="con-hydro__esprow-skip">{{ $t(espCommitTargetView.skippedKey) }}</span>
                 <template v-else-if="espCommitTargetView.chipOptions.length > 0">
                   <span class="con-hydro__espline-gets">{{ $t('received') }}</span>
                   <span class="con-hydro__esp-chips">
@@ -912,7 +910,7 @@
                   </span>
                 </template>
               </template>
-              <span v-else class="con-hydro__esprow-skip">↷ {{ $t('The attack was skipped — no legal target') }}</span>
+              <span v-else class="con-hydro__esprow-skip">{{ $t('The attack was skipped — no legal target') }}</span>
               <span v-if="espCommit.waivedTag !== undefined" class="con-hydro__espwaiver">
                 <span>{{ $t('Ignored tag') }}</span>
                 <span class="con-hydro__stop-tag resource-tag" :class="'tag-' + espCommit.waivedTag" aria-hidden="true"></span>
@@ -926,7 +924,7 @@
                    :class="{'con-hydro__result-stagerow--excl': seg.kind === 'excluded'}">
                 <span class="con-hydro__result-stagename"><b>{{ seg.position }}</b> {{ $t(seg.stageNameKey) }}</span>
                 <span v-if="seg.kind === 'excluded'" class="con-hydro__result-note">
-                  ↷ {{ $t('Excluded — claimed only by stopping there') }}
+                  {{ $t('Excluded — claimed only by stopping there') }}
                 </span>
                 <template v-else>
                   <span v-for="(l, i) in seg.rewardLines" :key="i" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
@@ -936,10 +934,10 @@
                     <span class="con-hydro__beforeafter"><b>{{ l.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ l.after }}</b></span>
                     <span v-if="l.delta !== 0" class="con-hydro__plus">+{{ l.delta }}</span>
                   </span>
-                  <span v-if="seg.kind === 'deck-draw'" class="con-hydro__result-note">⤵ {{ $t('Cards drawn and chosen') }}</span>
-                  <span v-else-if="seg.kind === 'repeat' && seg.selectedCard !== undefined" class="con-hydro__result-note">⟳ {{ $t(seg.selectedCard) }}</span>
-                  <span v-else-if="seg.kind === 'card-resource' && seg.selectedCard !== undefined" class="con-hydro__result-note">→ {{ $t(seg.selectedCard) }}</span>
-                  <span v-else-if="seg.waived === true" class="con-hydro__result-note">↷ {{ $t(seg.position === 7 ? 'Action copy declined' : 'Animal placement declined') }}</span>
+                  <span v-if="seg.kind === 'deck-draw'" class="con-hydro__result-note">{{ $t('Cards drawn and chosen') }}</span>
+                  <span v-else-if="seg.kind === 'repeat' && seg.selectedCard !== undefined" class="con-hydro__result-note">{{ repeatNote(seg.selectedCard) }}</span>
+                  <span v-else-if="seg.kind === 'card-resource' && seg.selectedCard !== undefined" class="con-hydro__result-note">{{ resourcesOntoNote(seg.selectedCard) }}</span>
+                  <span v-else-if="seg.waived === true" class="con-hydro__result-note">{{ $t(seg.position === 7 ? 'Action copy declined' : 'Animal placement declined') }}</span>
                 </template>
               </div>
               <span v-if="commitRec.vp !== undefined" class="con-hydro__vpline">
@@ -960,16 +958,16 @@
                 <span>{{ $t('VP at game end') }}</span>
               </span>
               <span v-if="commitRec.kind === 'repeat' && commitRec.selectedCard !== undefined" class="con-hydro__result-note">
-                ⟳ {{ $t(commitRec.selectedCard) }}
+                {{ repeatNote(commitRec.selectedCard) }}
               </span>
               <span v-else-if="commitRec.kind === 'card-resource' && commitRec.selectedCard !== undefined" class="con-hydro__result-note">
-                → {{ $t(commitRec.selectedCard) }}
+                {{ resourcesOntoNote(commitRec.selectedCard) }}
               </span>
               <!-- The FORFEIT, named — a consciously declined target reward may
                    never end as a silent nothing (cross-cutting «no silent
                    loss»): the result states which effect was declined. -->
               <span v-else-if="commitRec.waivedTarget === true" class="con-hydro__result-note">
-                ↷ {{ $t(waivedNoteKey) }}
+                {{ $t(waivedNoteKey) }}
               </span>
             </div>
             <!-- «ДОПОЛНИТЕЛЬНО», frozen — the SAME rows the plan panel
@@ -993,7 +991,7 @@
             <!-- The standing track rule, restated where it applied: stages
                  passed over paid nothing — the count, never a roster. -->
             <div v-if="(commitRec.skippedCount ?? 0) > 0" class="con-hydro__result-skip">
-              ↷ {{ resultSkippedText }}
+              {{ resultSkippedText }}
             </div>
           </div>
         </div>
@@ -1120,8 +1118,8 @@
             <div v-else-if="actKey === 'reward-pick'" key="reward-pick" class="con-hydro__ctazone">
               <p class="con-hydro__pickwarn" :class="{'con-hydro__pickwarn--on': rewardAskLabel !== ''}" role="status">
                 <span v-if="rewardAskLabel !== ''">
-                  <span v-if="rewardFocusAsk?.answered === true" class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
-                  <span v-else class="con-hydro__pickwarn-mark" aria-hidden="true">→</span>
+                  <span v-if="rewardFocusAsk?.answered === true" class="con-hydro__bonus-tick" aria-hidden="true"></span>
+                  <span v-else class="con-hydro__pickwarn-mark con-hydro__pickwarn-mark--ask" aria-hidden="true"></span>
                   {{ $t(rewardAskLabel) }}
                 </span>
               </p>
@@ -1421,7 +1419,8 @@ type HydroCtxView = {
   /** The state chip — rendered into a RESERVED slot. */
   badge?: {kind: string; text: string};
   /** The route + price — ONE grammar, every substate that has a move. */
-  route?: {from: number; to: number; energy: number; steel: number; free: boolean};
+  /** `priced: false` — the price is read ONCE, on the sheet's «ЦЕНА» line (FI · EG-1); the route names the move only. */
+  route?: {from: number; to: number; energy: number; steel: number; free: boolean; priced?: boolean};
 };
 
 export default defineComponent({
@@ -2656,10 +2655,13 @@ export default defineComponent({
       return {
         kind: 'stage', tag: s.tag, vp: s.vp, nameKey: s.nameKey,
         posText: this.stageOfText,
-        badge: this.stageBadge,
+        // THE STATUS SPEAKS ONCE (FI · EG-1): in the plan the act column's verdict (`data-hydro-status`) says
+        // «available / not now / unavailable» — a pill above the route said it a second time. A browsed stage the
+        // player is NOT planning keeps its history badge («Took the reward», «Passed through»): no verdict says it.
+        badge: this.model.mode === 'plan' ? undefined : this.stageBadge,
         route: this.model.mode === 'plan' ? {
           from: this.model.currentPosition, to: this.model.selectedPosition,
-          energy: this.model.selectedSpend, steel: 0, free: false,
+          energy: this.model.selectedSpend, steel: 0, free: false, priced: false,
         } : undefined,
       };
     },
@@ -4182,6 +4184,13 @@ export default defineComponent({
     }
   },
   methods: {
+    /** The result's notes speak WORDS (EG-5 · FI): a repeat and a card-resource target name the card with their verb. */
+    repeatNote(card: CardName): string {
+      return translateTextWithParams('Action repeated: ${0}', [translateCardName(card)]);
+    },
+    resourcesOntoNote(card: CardName): string {
+      return translateTextWithParams('Resources onto: ${0}', [translateCardName(card)]);
+    },
     $t,
     /** R3 / a click on the «⚡ сработает» door — the WORKSPACE DESCEND into the layer (PL-066). */
     openForecastLayer(): void {
@@ -5662,9 +5671,12 @@ export default defineComponent({
           dressEls: Array.from(root.querySelectorAll<HTMLElement>('[data-hydro-cere-line]')),
           reduced: this.reducedMotion === true,
           onCulmination: () => {
+            // A ONE-SHOT (FI · EG-5): the peak's keyframe marks the culmination and ends on its own; the class is
+            // taken off once the ceremony settles, so no lit state stands after it.
             seat.classList.add('con-hydro__cere-seat--peak');
           },
           onDone: () => {
+            seat.classList.remove('con-hydro__cere-seat--peak');
             this.cereHandle = undefined;
             setHydroCeremonyActive(false);
             markHydroCeremonyPlayed();

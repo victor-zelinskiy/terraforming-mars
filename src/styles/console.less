@@ -6864,6 +6864,36 @@ html.con-section-leaving .con-strat {
    rail (the workspace-band family contract). */
 @con-hydro-aqua: #4fc9d8;
 @con-hydro-mint: #5fe3b4;
+/* THE MARK OF A STATE (EG-5 · FI): a glyph (✓ ✕ ○ ⚑ ⚠ ↷) once carried «chosen / done / warn / skipped» — now MATERIAL.
+   A PIP is a filled disc (chosen · done), a RING a hairline circle (open), a BAR a short vertical stroke (a warning,
+   an ask) — each readable desaturated by FORM. Sized in em so it rides its line's type. */
+.con-hydro-pip(@tone) {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: .55em;
+    height: .55em;
+    border-radius: 50%;
+    background: @tone;
+    vertical-align: middle;
+}
+.con-hydro-ring(@tone) {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: .55em;
+    height: .55em;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 .1em @tone;
+    vertical-align: middle;
+}
+.con-hydro-bar(@tone) {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: .22em;
+    height: 1em;
+    border-radius: .11em;
+    background: @tone;
+    vertical-align: middle;
+}
 @con-hydro-gold: #e6c34a;
 
 .con-hydro {
@@ -7202,7 +7232,8 @@ html.con-section-leaving .con-strat {
         /* Hollow: the fill recedes, the colour lives on the ring. */
         background-clip: content-box;
         padding: .08rem;
-        box-shadow: 0 0 0 .09rem fade(#dfeaf4, 65%);
+        /* A kant, not a bright outer ring (FI · EG-5): the hollow reads by the dashed outline and the ring's FORM. */
+        box-shadow: 0 0 0 .09rem fade(#dfeaf4, 38%);
         outline: .06rem dashed fade(#dfeaf4, 75%);
         outline-offset: .08rem;
     }
@@ -7358,6 +7389,10 @@ html.con-section-leaving .con-strat {
         padding: .1rem .2rem 0 .1rem;
         will-change: opacity, transform;
     }
+    /* THE PLAN'S BODY IS ONE CENTRED BLOCK (FI · EG-1): its rows reserve their lines (the retune swaps data, never
+       rows), so the block's height is the stage's own and it stands at the panel's middle — on TV the top-anchored
+       body read as a short list over a void. The ONE node still retunes in place (`retunePanel`). */
+    &__layer--preview .con-hydro__panelbody { justify-content: center; }
 
     /* ── IMMERSIVE CARD SCENE — while the landed stage's embedded card pick
        is live, the cards are the undisputed primary content: the identity and
@@ -7847,7 +7882,8 @@ html.con-section-leaving .con-strat {
         }
         &--selected&--focused {
             background: fade(@con-hydro-mint, 9%);
-            box-shadow: inset 0 0 0 .06rem fade(@con-hydro-mint, 60%), 0 0 0 .09rem fade(@con-cyan, 85%);
+            /* The cursor over a chosen row is the SAME inset ring as the plain focus (FI — no hand-written outer ring). */
+            box-shadow: inset 0 0 0 .09rem fade(@con-cyan, 85%), inset 0 0 0 .15rem fade(@con-hydro-mint, 60%);
         }
         &--blocked {
             cursor: default;
@@ -7861,11 +7897,7 @@ html.con-section-leaving .con-strat {
         align-items: center;
         justify-content: center;
     }
-    &__esprow-check {
-        font-style: normal;
-        font-weight: 800;
-        color: @con-hydro-mint;
-    }
+    &__esprow-check { .con-hydro-pip(@con-hydro-mint); }
     &__esprow-name {
         font-weight: 700;
         color: @con-text;
@@ -7907,6 +7939,8 @@ html.con-section-leaving .con-strat {
     &__esprow-spent {
         font-size: .7rem;
         color: fade(@con-amber, 90%);
+        padding-left: .4rem;
+        box-shadow: inset .12rem 0 0 fade(@con-amber, 80%);
     }
     /* The backward transition reads amber — direction is words + arrows +
        hue, never hue alone (the row also prints the numbers). */
@@ -8036,17 +8070,21 @@ html.con-section-leaving .con-strat {
             background-repeat: no-repeat;
             border-radius: 50%;
         }
-        .con-hydro__req-mark { color: @con-hydro-mint; }
+        /* MET is a FILL (the tag is yours), WILD the same fill in cyan (a wild tag stands in), MISSING a bare hairline
+           with the tag icon desaturated — the state reads by fill vs. none, never by a ✓ / ✕ beside the tag (FI). */
+        background: fade(@con-hydro-mint, 16%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 55%);
 
-        &--wild { box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%); }
+        &--wild {
+            background: fade(@con-cyan, 14%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%);
+        }
         &--missing {
-            box-shadow: inset 0 0 0 .05rem fade(@con-red, 60%);
-            background: fade(@con-red, 7%);
-            .con-hydro__req-mark { color: @con-red; }
+            background: transparent;
+            box-shadow: inset 0 0 0 .05rem fade(@con-red, 55%);
+            .resource-tag { filter: grayscale(.85) brightness(.7); }
         }
     }
-    &__req-mark { font-size: .75rem; font-weight: 800; }
-    &__req-wild { color: @con-cyan; font-size: .7rem; font-weight: 800; }
     /* (The old `__req-energy` affordability chip is gone: owning the resources
        that PAY for the move is not a tag requirement — the payment panel's
        verdict is the one place that says «не хватает».) */
@@ -8210,7 +8248,7 @@ html.con-section-leaving .con-strat {
     &__pick-action {
         .con-hydro__bonus-tick { margin-left: .15rem; }
     }
-    &__bonus-tick { color: @con-hydro-mint; font-size: .95rem; font-weight: 800; }
+    &__bonus-tick { .con-hydro-pip(@con-hydro-mint); }
 
     /* ── ACT — the persistent action column: ONE physical home for the
        decision's own verbs across every substate (the CTA plate never moves;
@@ -8437,8 +8475,8 @@ html.con-section-leaving .con-strat {
         animation: con-hydro-warn calc(320ms * var(--motion-scale, 1)) @con-ease-standard;
     }
     &__pickwarn-mark {
-        font-size: .9rem;
-        line-height: 1;
+        .con-hydro-bar(@con-amber);
+        &--ask { background: @con-cyan; }
     }
 
     /* THE LANDED STAGE'S PRE-SELECT — ONE row, both roads onto the track (the
@@ -8768,14 +8806,14 @@ html.con-section-leaving .con-strat {
         &--done {
             box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 45%);
             color: @con-text;
-            .con-hydro__plansteps-chip-mark { color: @con-hydro-mint; }
+            .con-hydro__plansteps-chip-mark { background: @con-hydro-mint; box-shadow: none; }
         }
         &--active {
             box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 70%);
             color: @con-text;
         }
     }
-    &__plansteps-chip-mark { flex: 0 0 auto; }
+    &__plansteps-chip-mark { .con-hydro-ring(fade(@con-text-dim, 80%)); }
     &__plansteps-chip-pos { flex: 0 0 auto; color: @con-text-dim; }
     &__plansteps-chip-name {
         min-width: 0;
@@ -8850,13 +8888,12 @@ html.con-section-leaving .con-strat {
         border: none;
         border-radius: .8rem;
         text-align: left;
-        background:
-            radial-gradient(120% 150% at 6% 50%, fade(@con-hydro-aqua, 9%), transparent 62%),
-            linear-gradient(180deg, rgba(19, 29, 42, 0.94), rgba(11, 18, 27, 0.94));
+        /* Neutral glass, a hairline and the plate family's ONE short shadow (FI · EG-5) — no light pooled at the edge. */
+        background: linear-gradient(180deg, rgba(19, 29, 42, 0.94), rgba(11, 18, 27, 0.94));
         box-shadow:
             inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
             inset 0 0 0 .05rem rgba(120, 150, 180, 0.28),
-            0 .4rem 1.2rem rgba(0, 0, 0, 0.36);
+            0 .12rem .35rem rgba(0, 0, 0, 0.32);
         color: @con-text;
         font-family: @con-font;
         cursor: pointer;
@@ -8879,33 +8916,29 @@ html.con-section-leaving .con-strat {
             background: linear-gradient(90deg, transparent, fade(@con-hydro-aqua, 45%), transparent);
         }
 
-        &:hover { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 55%), 0 .4rem 1.2rem rgba(0, 0, 0, 0.36); }
+        &:hover { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 55%), inset 0 .05rem 0 rgba(255, 255, 255, 0.05), 0 .12rem .35rem rgba(0, 0, 0, 0.32); }
         &--focused {
-            background:
-                radial-gradient(120% 150% at 6% 50%, fade(@con-cyan, 16%), transparent 62%),
-                linear-gradient(180deg, rgba(19, 32, 46, 0.96), rgba(11, 20, 30, 0.96));
+            background: linear-gradient(180deg, rgba(19, 32, 46, 0.96), rgba(11, 20, 30, 0.96));
             box-shadow:
                 inset 0 0 0 .1rem fade(@con-cyan, 88%),
                 inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
-                0 .5rem 1.4rem rgba(0, 0, 0, 0.4);
+                0 .12rem .35rem rgba(0, 0, 0, 0.32);
             transform: translateY(-.12rem);
             &::before { background: linear-gradient(90deg, transparent, fade(@con-cyan, 75%), transparent); }
         }
         &--selected {
-            background:
-                radial-gradient(120% 150% at 6% 50%, fade(@con-hydro-mint, 15%), transparent 62%),
-                linear-gradient(180deg, rgba(18, 34, 34, 0.96), rgba(10, 21, 22, 0.96));
+            background: linear-gradient(180deg, rgba(18, 34, 34, 0.96), rgba(10, 21, 22, 0.96));
             box-shadow:
                 inset 0 0 0 .1rem fade(@con-hydro-mint, 82%),
                 inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
-                0 .4rem 1.2rem rgba(0, 0, 0, 0.36);
+                0 .12rem .35rem rgba(0, 0, 0, 0.32);
             &::before { background: linear-gradient(90deg, transparent, fade(@con-hydro-mint, 80%), transparent); }
         }
         &--focused&--selected {
             box-shadow:
                 inset 0 0 0 .1rem fade(@con-hydro-mint, 95%),
                 inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
-                0 .5rem 1.4rem rgba(0, 0, 0, 0.4);
+                0 .12rem .35rem rgba(0, 0, 0, 0.32);
         }
     }
     /* The icon SOCKET — a seated plate, so a flat sprite reads as a physical
@@ -8919,9 +8952,7 @@ html.con-section-leaving .con-strat {
         width: 4.1rem;
         height: 4.1rem;
         border-radius: .7rem;
-        background:
-            radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.09), transparent 64%),
-            linear-gradient(180deg, rgba(26, 38, 52, 0.9), rgba(13, 21, 31, 0.9));
+        background: linear-gradient(180deg, rgba(26, 38, 52, 0.9), rgba(13, 21, 31, 0.9));
         box-shadow:
             inset 0 0 0 .05rem rgba(140, 175, 205, 0.24),
             inset 0 -.14rem .4rem rgba(0, 0, 0, 0.4);
@@ -8996,10 +9027,18 @@ html.con-section-leaving .con-strat {
             background calc(170ms * var(--motion-scale, 1)) ease,
             box-shadow calc(170ms * var(--motion-scale, 1)) ease;
 
+        /* ON — the socket FILLS (a radio's dot by form: a mint disc inside the ring), never a ✓ (FI). */
+        &::after {
+            content: '';
+            width: 42%;
+            height: 42%;
+            border-radius: 50%;
+            background: transparent;
+        }
         &--on {
-            background: fade(@con-hydro-mint, 20%);
+            background: fade(@con-hydro-mint, 12%);
             box-shadow: inset 0 0 0 .07rem fade(@con-hydro-mint, 85%);
-            color: @con-hydro-mint;
+            &::after { background: @con-hydro-mint; }
         }
     }
     /* The cursor has moved DOWN onto the commit: it lights, the unchosen
@@ -9101,7 +9140,10 @@ html.con-section-leaving .con-strat {
         white-space: nowrap;
         max-width: 7.5rem;
     }
-    &__travchip-mark { font-weight: 800; }
+    &__travchip-mark {
+        &--done { .con-hydro-pip(@con-hydro-mint); }
+        &--excluded { .con-hydro-ring(fade(@con-text-dim, 85%)); }
+    }
     &__travchip--done {
         color: fade(@con-hydro-mint, 92%);
         box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 40%);
@@ -9146,7 +9188,8 @@ html.con-section-leaving .con-strat {
         inset: -0.3rem;
         border-radius: .8rem;
         pointer-events: none;
-        box-shadow: 0 0 0 .12rem fade(@con-hydro-mint, 85%), 0 0 1.4rem fade(@con-hydro-mint, 40%);
+        /* A one-shot (the landing — licence (b)), drawn as a KANT that fades: no blurred halo (FI · EG-5). */
+        box-shadow: 0 0 0 .12rem fade(@con-hydro-mint, 40%);
         animation: con-hydro-landflash calc(560ms * var(--motion-scale, 1)) ease-out forwards;
     }
     &__landmeta {
@@ -9188,14 +9231,16 @@ html.con-section-leaving .con-strat {
         padding: .55rem 1.2rem;
         border-radius: .8rem;
         background: fade(@con-hydro-gold, 13%);
-        box-shadow: inset 0 0 0 .1rem fade(@con-hydro-gold, 70%), 0 0 1.6rem fade(@con-hydro-gold, 25%);
+        /* The value is the hero by SIZE and weight — a kant, no standing halo (FI · EG-5, invariant 15 § 4). */
+        box-shadow: inset 0 0 0 .1rem fade(@con-hydro-gold, 70%);
         color: @con-hydro-gold;
         font-size: 2.1rem;
         font-weight: 800;
         small { font-size: .95rem; font-weight: 700; }
     }
+    /* THE CULMINATION — a ONE-SHOT kant beat that ends on its own (the class leaves at the ceremony's settle). */
     &__cere-seat--peak .con-hydro__cere-value {
-        box-shadow: inset 0 0 0 .1rem fade(@con-hydro-gold, 95%), 0 0 2.4rem fade(@con-hydro-gold, 45%);
+        animation: con-hydro-cere-peak calc(620ms * var(--motion-scale, 1)) ease-out;
     }
     &__cere-line {
         font-size: 1.05rem;
@@ -9287,6 +9332,10 @@ html.con-section-leaving .con-strat {
 @keyframes con-hydro-landin {
     from { opacity: 0; transform: translateY(.45rem) scale(.96); }
     to { opacity: 1; transform: none; }
+}
+@keyframes con-hydro-cere-peak {
+    from { box-shadow: inset 0 0 0 .16rem fade(@con-hydro-gold, 98%); }
+    to { box-shadow: inset 0 0 0 .1rem fade(@con-hydro-gold, 70%); }
 }
 @keyframes con-hydro-landflash {
     from { opacity: 1; }
