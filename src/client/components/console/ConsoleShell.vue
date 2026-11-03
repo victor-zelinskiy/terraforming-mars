@@ -25426,7 +25426,9 @@ export default defineComponent({
     },
     cycleHandFilter(dir: 1 | -1): void {
       this.applyHandFilterChange(() => {
-        this.consoleState.handTagFilter = cycleTagFilter(this.handTagFilterOptions, this.consoleState.handTagFilter, dir);
+        // The BROWSE ring (LT/RT) — the hand's own tag chips, never a picker's «ПЛАТЯТ» (FD).
+        const options = buildConsoleTagFilters(this.handEntriesAll.map((e) => e.card), this.consoleState.handTagFilter);
+        this.consoleState.handTagFilter = cycleTagFilter(options, this.consoleState.handTagFilter, dir);
       });
     },
     resetHandFilter(): void {
