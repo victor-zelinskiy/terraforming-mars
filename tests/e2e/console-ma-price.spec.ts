@@ -43,18 +43,18 @@ function watchPosts(page: Page): Array<string> {
   return posts;
 }
 
-/** The MA screen, the cursor on Terraformer (the milestones column), its detail stage open. */
+/** The milestones workspace, the cursor on Terraformer, its detail stage open. */
 async function openTerraformer(page: Page): Promise<void> {
   await press(page, 'KeyQ', 1400);
   await page.waitForSelector('.con-ma', {timeout: 10_000});
   for (let i = 0; i < 8; i++) {
-    const name = await page.locator('.con-ma__col--active .con-ma__card--focused').getAttribute('data-ma-row').catch(() => '');
+    const name = await page.locator('.con-ma__card--focused').getAttribute('data-ma-row').catch(() => '');
     if ((name ?? '').startsWith('Terraformer')) {
       break;
     }
     await press(page, 'ArrowDown', 300);
   }
-  expect(await page.locator('.con-ma__col--active .con-ma__card--focused').getAttribute('data-ma-row'), 'the cursor on Terraformer').toMatch(/^Terraformer/);
+  expect(await page.locator('.con-ma__card--focused').getAttribute('data-ma-row'), 'the cursor on Terraformer').toMatch(/^Terraformer/);
   await press(page, 'Enter', 1200);
   await page.waitForSelector('.con-mafocus', {timeout: 8_000});
   await cinematicBeat(page, 500, 'the detail must be READABLE before its commit arms (COMMIT_ARM_MS)');

@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {buildConsoleMaItems, consoleMaFocusContext, consoleMaPressNotice, ConsoleMaSource, stepGrid} from '@/client/components/console/consoleMaModel';
+import {buildConsoleMaItems, consoleMaFocusContext, consoleMaPressNotice, ConsoleMaSource, maAwardGap, maFieldLanes, stepGrid} from '@/client/components/console/consoleMaModel';
 import type {Color} from '@/common/Color';
 
 /**
@@ -221,6 +221,46 @@ describe('consoleMaModel (P26)', () => {
       const [m] = buildConsoleMaItems('milestones', [milestone()], opts());
       expect(m.leader).to.eq(undefined);
       expect(m.raceTone).to.eq('empty');
+    });
+  });
+
+  /*
+   * THE FIELD (FB′ — the MA workspace's own screens): the table read across a row. A milestone's field is its RIVALS
+   * (the viewer is the plate beside it) while the race is open; an award's is EVERY seat, ranked, the leaders crowned.
+   */
+  describe('maFieldLanes / maAwardGap — the row field', () => {
+    const green: Color = 'green';
+    const award = (scores: ConsoleMaSource['scores']): ConsoleMaSource => ({name: 'Banker', playerName: undefined, color: undefined, scores});
+
+    it('a milestone: the rivals only, ranked, the gauge their share of the threshold, «reached» from the SERVER flag', () => {
+      const [it] = buildConsoleMaItems('milestones', [milestone({scores: [
+        {color: me, score: 1, claimable: false}, {color: rival, score: 2, claimable: false}, {color: green, score: 5, claimable: true},
+      ]})], opts());
+      expect(maFieldLanes(it)).to.deep.eq([
+        {color: green, score: 5, me: false, fill: 1, mark: 'reached'},
+        {color: rival, score: 2, me: false, fill: 2 / 3, mark: 'none'},
+      ]);
+    });
+
+    it('a claimed or closed milestone draws no field — the race is over', () => {
+      const [taken] = buildConsoleMaItems('milestones', [milestone({playerName: 'Bo', color: rival})], opts());
+      expect(maFieldLanes(taken)).to.deep.eq([]);
+    });
+
+    it('an award: every seat incl. the viewer, ranked, the leaders crowned (ties both), the gauge the share of the lead', () => {
+      const [it] = buildConsoleMaItems('awards', [award([
+        {color: me, score: 2}, {color: rival, score: 4}, {color: green, score: 4},
+      ])], opts());
+      const lanes = maFieldLanes(it);
+      expect(lanes.map((l) => [l.color, l.mark, l.me])).to.deep.eq([[rival, 'crown', false], [green, 'crown', false], [me, 'none', true]]);
+      expect(lanes[2].fill).to.eq(0.5);
+      expect(maAwardGap(it)).to.eq(2);
+    });
+
+    it('an empty race: nobody crowned, every gauge empty, no gap', () => {
+      const [it] = buildConsoleMaItems('awards', [award([{color: me, score: 0}, {color: rival, score: 0}])], opts());
+      expect(maFieldLanes(it).every((l) => l.mark === 'none' && l.fill === 0)).to.eq(true);
+      expect(maAwardGap(it)).to.eq(0);
     });
   });
 

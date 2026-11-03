@@ -12660,54 +12660,15 @@ html.console-mode {
         min-height: 0;
         .con-fill-scroll();
     }
-    /* ONE SCREEN, TWO COLUMNS (ledger FB): a column is a KIND — the milestones left, the awards right — each its
-       head-tally over a column of rows of ONE height (`--ma-rows`: the longest list, so the rows align across). There
-       is no span by construction: an odd count never stretches a tile. Vitor's awards-only step: the one column takes
-       the width. */
+    /* TWO WORKSPACES, ONE FAMILY (FB′ — the owner, 2026-11-03): ONE column of FULL-WIDTH rows, each `1fr` of the
+       body (`--ma-rows` = the list), so five and six items (Venus) both stand whole on every profile and an odd count
+       never stretches a tile — there is no span by construction. */
     &__grid {
         flex: 1 0 auto;
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: .9rem;
-        min-height: 100%;
-    }
-    &__col {
-        min-width: 0;
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-        gap: .45rem;
-
-        &:only-child { grid-column: 1 / -1; }
-    }
-    /* The column's head-tally — the name, the door's bumper, the slots, the count, the next price: one line, the
-       facts the rows below cannot print. A kant under it, never a plate. */
-    &__colhead {
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        gap: .55rem;
-        min-height: 2.1rem;
-        padding: 0 .2rem .35rem;
-        box-shadow: inset 0 -.05rem 0 rgba(126, 156, 188, 0.2);
-    }
-    &__coldoor { flex-shrink: 0; }
-    &__coltitle {
-        font-size: .8rem;
-        font-weight: 800;
-        letter-spacing: .1rem;
-        text-transform: uppercase;
-        color: @con-text;
-        white-space: nowrap;
-    }
-    &__col--active &__coltitle { color: #fff; }
-    &__colhead &__tally { margin-left: auto; }
-    &__rows {
-        flex: 1;
-        min-height: 0;
-        display: grid;
         grid-template-rows: repeat(var(--ma-rows, 5), minmax(0, 1fr));
-        gap: .4rem;
+        gap: .45rem;
+        min-height: 100%;
     }
     &__card {
         position: relative;
@@ -12719,8 +12680,8 @@ html.console-mode {
            first, exactly like the stdp tile (the working reference). */
         display: flex;
         align-items: center;
-        gap: .75rem;
-        padding: .55rem .8rem .55rem .9rem;
+        gap: 1.1rem;
+        padding: .5rem .9rem .5rem 1rem;
         border-radius: .7rem;
         overflow: hidden;
         /* Rows carry their own local density — text never mixes with the
@@ -12872,21 +12833,29 @@ html.console-mode {
         flex-direction: column;
         gap: .3rem;
     }
+    /* The name — and WHO took it on the same line (a settled fact beside the name; a third line would grow the row). */
+    &__nameline {
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+        min-width: 0;
+    }
     &__name {
+        flex-shrink: 0;
         font-size: 1.05rem;
         font-weight: 800;
         letter-spacing: .06rem;
         text-transform: uppercase;
         line-height: 1.1;
     }
-    /* The rule text: a ROW is not a reader — the full rule stands on the detail stage (A); three lines here keep
-       every row one height on every profile. */
+    /* The rule text: a ROW is not a reader — the full rule stands on the detail stage (A); two lines of a full-width
+       row hold every standard rule and keep every row one height on every profile. */
     &__desc {
         font-size: .7rem;
         line-height: 1.34;
         color: @con-text-dim;
         display: -webkit-box;
-        -webkit-line-clamp: 3;
+        -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
@@ -12894,8 +12863,10 @@ html.console-mode {
         display: inline-flex;
         align-items: center;
         gap: .45rem;
+        min-width: 0;
         font-size: .75rem;
         color: @con-text;
+        white-space: nowrap;
     }
     &__owner-dot {
         width: .65rem;
@@ -12914,28 +12885,108 @@ html.console-mode {
         text-transform: uppercase;
     }
 
-    /* ── status column: YOU metric / rivals ─────────────────────────
-       FIXED width, not `min-width`: the four-digit values (1013, 990) grew
-       their own card's column while the neighbours kept theirs, so the same
-       reading sat at a different x in every row. One width for every card =
-       the eye compares numbers instead of hunting for them. */
-    /* ONE LINE OF READING (FB — five rows a column): the plate (your metric / the race cassette) at a FIXED width,
-       the rivals' strip BESIDE it, never stacked under it — a row is as tall as one reading, so ten rows stand whole
-       on every profile. */
+    /* ── YOUR PLATE — the one reading that is yours, at ONE FIXED width on every row (a four-digit value shrinks,
+       never widens its own row): the eye compares numbers in one column instead of hunting for them. ── */
     &__status {
         align-self: center;
-        display: flex;
-        flex-direction: row-reverse;
-        align-items: center;
-        gap: .6rem;
         flex-shrink: 0;
+        width: 9.5rem;
+        display: flex;
 
-        > .con-ma__metric,
-        > .con-ma__race {
-            width: 9.5rem;
-            flex-shrink: 0;
+        > * { flex: 1 1 auto; }
+    }
+
+    /* ── THE FIELD — the table read across the row (`maFieldLanes`): one LANE per seat, ranked — its cube, its score,
+       a hairline gauge (a milestone's progress to the threshold, an award's share of the leader's score). States are
+       MATERIAL: the leader's crown and gold gauge, a rival who meets a milestone wears the drawn check on a mint
+       kant, your own lane (awards) a white kant — never light. Every field reserves the screen's widest (`--ma-seats`),
+       so the lanes stand in the same columns row to row. ── */
+    &__field {
+        /* Wide enough for a FOUR-digit score (heat / steel races reach 1000+) beside the mark and the cube. */
+        --ma-lane-w: 5.9rem;
+        --ma-lane-gap: .45rem;
+        align-self: center;
+        flex-shrink: 0;
+        display: flex;
+        gap: var(--ma-lane-gap);
+        width: calc(var(--ma-seats, 1) * var(--ma-lane-w) + (var(--ma-seats, 1) - 1) * var(--ma-lane-gap));
+    }
+    &__lane {
+        flex-shrink: 0;
+        width: var(--ma-lane-w);
+        display: flex;
+        flex-direction: column;
+        gap: .32rem;
+        padding: .4rem .5rem .45rem;
+        border-radius: .5rem;
+        background: rgba(9, 15, 23, 0.5);
+        box-shadow: inset 0 0 0 .05rem rgba(126, 156, 188, 0.16);
+
+        &--lead { box-shadow: inset 0 0 0 .05rem fade(@strat-gold, 42%); }
+        &--reached { box-shadow: inset 0 0 0 .075rem fade(@con-mint, 58%); }
+        /* Your own lane: a white kant (it may also lead — the crown and the gold gauge still say so). */
+        &--me { box-shadow: inset 0 0 0 .075rem rgba(255, 255, 255, 0.46); }
+    }
+    &__lane-head {
+        display: flex;
+        align-items: center;
+        gap: .3rem;
+        min-width: 0;
+    }
+    /* The mark's seat is reserved on every lane (crown · check · nothing) — the cubes and numbers never shift. */
+    &__lane-mark {
+        flex-shrink: 0;
+        width: .9rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    &__lane-tick {
+        display: block;
+        width: .8rem;
+
+        svg {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+        svg path {
+            fill: none;
+            stroke: @con-mint;
+            stroke-width: 2.4;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
     }
+    &__lane-score {
+        margin-left: auto;
+        font-size: 1rem;
+        font-weight: 800;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        color: #e8f1fa;
+        white-space: nowrap;
+    }
+    &__lane--lead &__lane-score { color: #ffe9c4; }
+    /* A seat with nothing yet reads quiet — the scores that MOVE the race stand out by ink, never by light. */
+    &__lane--zero &__lane-score { color: fade(@con-text-dim, 70%); }
+    &__lane-bar {
+        height: .18rem;
+        border-radius: 49.95rem;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+
+        i {
+            display: block;
+            height: 100%;
+            border-radius: 49.95rem;
+            background: fade(@con-cyan, 72%);
+            transition: width calc(220ms * var(--motion-scale, 1)) ease;
+        }
+    }
+    &__lane--lead &__lane-bar i { background: fade(@strat-gold, 85%); }
+    &__lane--reached &__lane-bar i { background: fade(@con-mint, 85%); }
+
     /* ── the MILESTONE metric — your count toward the threshold. Colour
        semantics are the strategy rail's, verbatim: GREEN = the requirement
        is met (check, value, meter), GOLD-WHITE = the claim is offered THIS
@@ -13110,81 +13161,36 @@ html.console-mode {
             stroke-linejoin: round;
         }
     }
-    /* ── the AWARD RACE CASSETTE — the trophy rail's two-level grammar at
-       tile scale: the crowned leader tier over the chaser tier, rank spoken
-       by METAL (gold tread / silver tread), the viewer's cube ringed white,
-       and one word underneath for where YOU stand. This is the award tile's
-       whole identity: a race, not a personal threshold. */
+    /* ── the AWARD plate — YOUR score and where it puts you, in a word (the race itself is the field beside it). The
+       podium tones carry a gold KANT, never a light. ── */
     &__race {
         display: flex;
         flex-direction: column;
-        align-items: stretch;
-        gap: .3rem;
+        align-items: flex-end;
+        gap: .15rem;
         width: 100%;
-        padding: .45rem .75rem .5rem;
+        padding: .4rem .75rem .5rem;
         border-radius: .6rem;
-        position: relative;
         background: rgba(12, 13, 16, 0.62);
         box-shadow: inset 0 0 0 .05rem rgba(190, 170, 130, 0.22);
-        min-height: 3.4rem;
-        justify-content: center;
-    }
-    &__tier {
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .5rem;
-        min-height: 1.25rem;
-        padding: 0 .1rem .12rem;
 
-        /* The STEP — rank as material: gold under the leaders… */
-        &::after {
-            content: '';
-            position: absolute;
-            left: 4%;
-            right: 0;
-            bottom: 0;
-            height: .06rem;
-            border-radius: .05rem;
-            background: linear-gradient(90deg,
-                transparent,
-                fade(@strat-gold, 52%) 26%,
-                fade(@strat-gold, 52%) 88%,
-                transparent);
-            pointer-events: none;
-        }
-        /* …silver under a REAL second place, a faint tread under a chaser
-           the rules would not pay (tie for 1st / a duel). */
-        &--ii::after {
-            background: linear-gradient(90deg,
-                transparent,
-                rgba(160, 180, 200, 0.18) 26%,
-                rgba(160, 180, 200, 0.18) 88%,
-                transparent);
-        }
-        &--ii&--ranked::after {
-            background: linear-gradient(90deg,
-                transparent,
-                rgba(190, 210, 230, 0.34) 26%,
-                rgba(190, 210, 230, 0.34) 88%,
-                transparent);
-        }
+        &--lead,
+        &--tie { box-shadow: inset 0 0 0 .075rem fade(@strat-gold, 62%); }
     }
-    &__tier-chips {
-        position: relative; /* the crown anchors to the CLUSTER's box */
-        display: inline-flex;
-        align-items: center;
-        gap: .14rem;
-        /* Air for the crown-cap above the cubes. */
-        margin-top: .5rem;
+    &__race-value {
+        font-size: 1.5rem;
+        font-weight: 800;
+        line-height: 1.05;
+        font-variant-numeric: tabular-nums;
+        color: #e8f1fa;
+        white-space: nowrap;
     }
+    &__race--lead &__race-value,
+    &__race--tie &__race-value { color: #ffe9c4; }
+    /* The crown — the leader's sign on its lane (a solid gold glyph, never a halo). */
     &__crown {
-        position: absolute;
-        left: 50%;
-        bottom: calc(100% + .06rem);
+        display: block;
         width: .85rem;
-        transform: translateX(-50%);
         color: #eed08b;
         pointer-events: none;
 
@@ -13196,7 +13202,6 @@ html.console-mode {
         }
     }
     &__crown-base { fill: #c9a75e; }
-    &__crown-light { fill: rgba(255, 250, 230, 0.5); }
     /* The player cube — the shared ENAMEL material (one family with the
        rail's cassette and the sponsor socket). */
     &__cube {
@@ -13228,31 +13233,7 @@ html.console-mode {
             height: .68rem;
         }
     }
-    &__tier-score {
-        font-size: 1.3rem;
-        font-weight: 800;
-        line-height: 1;
-        font-variant-numeric: tabular-nums;
-        color: #ffe9c4;
-        white-space: nowrap;
-
-        &--ii {
-            font-size: 1rem;
-            color: #cbd9e6;
-        }
-    }
-    /* The empty race — one calm centred dash, never a disabled plate. */
-    &__race-none {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 1.6rem;
-        color: fade(@con-text-dim, 55%);
-        font-size: 1rem;
-    }
-    /* Where YOU stand — the one word under the cassette. Amber carries the
-       podium tones; TRAILING states the viewer's own count (they may be in
-       neither rendered tier). */
+    /* Where YOU stand — the one word under your score: the podium tones in amber, a trailing race names the GAP. */
     &__race-foot {
         font-size: .625rem;
         font-weight: 800;
@@ -13267,44 +13248,6 @@ html.console-mode {
         &--lead,
         &--tie { color: #ffe9c4; }
         &--empty { font-weight: 600; letter-spacing: .04rem; }
-    }
-    &__rivals {
-        display: inline-flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: .3rem;
-    }
-    &__rivals-label {
-        font-size: .55rem;
-        font-weight: 700;
-        letter-spacing: .065rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-        margin-right: .15rem;
-    }
-    &__rival {
-        min-width: 1.3rem;
-        height: 1.3rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0 .3rem;
-        border-radius: .4rem;
-        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.45), 0 .1rem .3rem rgba(0, 0, 0, 0.4);
-        color: #fff;
-        font-size: .725rem;
-        font-weight: 800;
-        font-variant-numeric: tabular-nums;
-        text-shadow: 0 .05rem .1rem rgba(0, 0, 0, 0.8);
-
-        /* award: the current race leader */
-        &--leader {
-            box-shadow: inset 0 0 0 .075rem fade(@con-amber, 95%);
-        }
-        /* milestone: a rival who has reached the threshold too */
-        &--ready {
-            box-shadow: inset 0 0 0 .075rem fade(#ffd87a, 80%), 0 .05rem .25rem rgba(0, 0, 0, 0.4);
-        }
     }
     /* ── The STATUS RAIL seat (the shared .con-marail lives below) ─── */
     &__foot {
@@ -13324,7 +13267,7 @@ html.console-mode {
        hairlines, warm pedestal light, the crown/cassette instruments, the
        trophy. Same chassis, same geometry — the ATMOSPHERE and the status
        instruments are what tell the two apart before the title is read. */
-    &__col--awards {
+    &--awards {
         .con-ma__card {
             background: linear-gradient(165deg, rgba(28, 26, 21, 0.94), rgba(17, 15, 12, 0.94));
             box-shadow:
@@ -13343,7 +13286,6 @@ html.console-mode {
         .con-ma__price {
             box-shadow: inset 0 0 0 .075rem fade(@strat-gold, 48%);
         }
-        .con-ma__colhead { box-shadow: inset 0 -.05rem 0 fade(@strat-gold, 22%); }
     }
     &--awards {
         .con-ma__foot { border-top-color: fade(@strat-gold, 18%); }
@@ -13362,6 +13304,25 @@ html.console-mode {
         box-shadow: inset 0 0 0 .075rem fade(@strat-gold, 85%);
     }
 
+    /* ── the LB/RB ARRIVE beat — the family's other workspace slides its list in from its bumper's side while the
+       frame, the head and the rail stand still. One-shot class, transform/opacity only, never a remount. ── */
+    &__browse--arrive-l .con-ma__scroll-host,
+    &__browse--arrive-l .con-ma__foot {
+        animation: con-ma-arrive-l calc(240ms * var(--motion-scale, 1)) @con-ease-standard both;
+    }
+    &__browse--arrive-r .con-ma__scroll-host,
+    &__browse--arrive-r .con-ma__foot {
+        animation: con-ma-arrive-r calc(240ms * var(--motion-scale, 1)) @con-ease-standard both;
+    }
+}
+
+@keyframes con-ma-arrive-l {
+    from { opacity: 0.25; transform: translateX(-1.1rem); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes con-ma-arrive-r {
+    from { opacity: 0.25; transform: translateX(1.1rem); }
+    to { opacity: 1; transform: none; }
 }
 
 
@@ -16122,7 +16083,11 @@ html.con-profile-handheld .con-mafocus {
     /* The MA workspace speaks the same activation phrase — same statics. */
     .con-ma__card--arriving .con-ma__art,
     .con-ma__card--arriving .con-ma__avail,
-    .con-ma__card--arriving .con-ma__readymark svg path { animation: none; }
+    .con-ma__card--arriving .con-ma__readymark svg path,
+    .con-ma__browse--arrive-l .con-ma__scroll-host,
+    .con-ma__browse--arrive-l .con-ma__foot,
+    .con-ma__browse--arrive-r .con-ma__scroll-host,
+    .con-ma__browse--arrive-r .con-ma__foot { animation: none; }
 }
 
 /* The recomposition's TransitionGroup classes: survivors FLIP (move),
@@ -38437,36 +38402,32 @@ html.con-profile-handheld {
         &__wallet-shortfall { font-size: .6rem; }
         &__wallet-free { font-size: .525rem; padding: .1rem .5rem; }
         &__complete { font-size: .6rem; padding: .15rem .6rem; }
-        &__grid { gap: .55rem; }
-        &__col { gap: .3rem; }
-        &__colhead { min-height: 1.6rem; gap: .4rem; padding-bottom: .25rem; }
-        &__coltitle { font-size: .675rem; letter-spacing: .07rem; }
-        &__card { gap: .5rem; padding: .3rem .45rem .3rem .6rem; border-radius: .55rem; }
+        &__grid { gap: .3rem; }
+        &__card { gap: .65rem; padding: .3rem .5rem .3rem .65rem; border-radius: .55rem; }
         &__rail { width: .2rem; }
-        /* Ten rows on 800 px (FB): the medallion gives way first — a row is never cut. */
-        &__stage { min-height: 2.4rem; max-height: 3.8rem; border-radius: .55rem; }
+        /* Six rows on 800 px (Venus — FB′): the medallion gives way first — a row is never cut. */
+        &__stage { min-height: 2.4rem; max-height: 4.6rem; border-radius: .55rem; }
         &__name { font-size: .75rem; letter-spacing: .05rem; }
         &__desc { font-size: .575rem; line-height: 1.25; -webkit-line-clamp: 2; }
         &__owner { font-size: .65rem; gap: .35rem; }
         &__owner-dot { width: .55rem; height: .55rem; }
         &__owner-verb { font-size: .55rem; }
-        &__status { gap: .35rem; > .con-ma__metric, > .con-ma__race { width: 7.8rem; } }
-        /* TEN ROWS ON 800 px (FB): the row keeps one reading — your number and its meter (an award: the race
-           cassette); the rivals' strip is the detail's race plate (A), never a third line that grows the row. */
-        &__rivals { display: none; }
-        &__race { min-height: 0; padding: .2rem .5rem .25rem; gap: .1rem; }
-        &__tier { min-height: 1rem; }
-        &__tier-score { font-size: 1rem; }
-        &__tier-score--ii { font-size: .8rem; }
+        &__nameline { gap: .55rem; }
+        &__status { width: 6.6rem; }
+        &__field { --ma-lane-w: 4.3rem; --ma-lane-gap: .3rem; }
+        &__lane { padding: .25rem .35rem .3rem; gap: .2rem; border-radius: .4rem; }
+        &__lane-mark { width: .7rem; }
+        &__lane-tick, &__crown { width: .65rem; }
+        &__lane-score { font-size: .75rem; }
+        &__race { padding: .2rem .5rem .25rem; gap: .05rem; }
+        &__race-value { font-size: 1rem; }
         &__race-foot { font-size: .5rem; }
-        &__rows { gap: .25rem; }
         &__metric { min-width: 5.7rem; padding: .2rem .5rem .25rem; gap: .05rem; }
         &__metric-label { font-size: .5rem; }
         &__metric-value { font-size: 1rem; }
         &__metric-foot { height: .6rem; }
         &__metric-req { font-size: .7rem; }
         &__metric-sub { font-size: .55rem; }
-        &__rival { min-width: 1.1rem; height: 1.1rem; font-size: .625rem; border-radius: .35rem; }
         &__cta { min-height: 1.6rem; }
         &__btn { font-size: .65rem; padding: .3rem .55rem; gap: .35rem; }
         &__foot { min-height: 1.6rem; padding-top: .35rem; gap: .6rem; }

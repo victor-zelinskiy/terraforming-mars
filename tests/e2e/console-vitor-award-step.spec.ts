@@ -132,11 +132,10 @@ test.describe('console Vitor · the free sponsorship is a start-workspace step',
     expect(crumb, 'the crumb roots at the flow the player entered').toContain('СТАРТ ПАРТИИ');
     expect(crumb, 'the corporation stays the carried subject').toContain('VITOR');
     expect(crumb, 'the tail names the stage').toContain('НАГРАДЫ');
-    // The free-sponsorship economics stay stated (the task surface's promise) — on the awards COLUMN's head-tally
-    // (one screen, FB: the step stands with the awards column alone).
-    expect(await page.locator('.con-ma__col').count(), 'the hosted step: the awards column alone').toBe(1);
-    const colHead = (await page.locator('[data-ma-column="awards"] [data-ma-colhead]').innerText()).replace(/\s+/g, ' ').toUpperCase();
-    expect(colHead, 'the price chip reads «БЕСПЛАТНО»').toContain('БЕСПЛАТНО');
+    // The free-sponsorship economics stay stated (the task surface's promise) — on the awards workspace's head-tally.
+    await expect(page.locator('.con-ma.con-ma--awards'), 'the hosted step: the awards workspace').toHaveCount(1);
+    const tally = (await page.locator('.con-ma__wshead [data-ma-tally]').innerText()).replace(/\s+/g, ' ').toUpperCase();
+    expect(tally, 'the price chip reads «БЕСПЛАТНО»').toContain('БЕСПЛАТНО');
 
     // 3 · The command bar: the intent verb + «СВЕРНУТЬ», and NO category
     //     bumper — a mandatory step is not a dashboard stroll.

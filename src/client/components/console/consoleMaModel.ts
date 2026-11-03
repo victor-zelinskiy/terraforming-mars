@@ -294,3 +294,48 @@ export function stepGrid(index: number, dir: 'up' | 'down' | 'left' | 'right', c
     return i;
   }
 }
+
+/**
+ * One seat on a row's FIELD (the MA workspace's own-screen rework, 2026-11-03 — ledger FB′): the table read across the
+ * row, beside the viewer's own plate. `fill` is the hairline gauge (0…1): a milestone's progress to its threshold, an
+ * award's share of the leader's score; `mark` is the one material sign a seat can wear — the leader's crown (an award)
+ * or «reached» (a rival who meets the milestone — the SERVER's `claimable`, never a recount).
+ */
+export type MaFieldLane = {color: Color, score: number, me: boolean, fill: number, mark: 'crown' | 'reached' | 'none'};
+
+/**
+ * The row's field — PURE. A MILESTONE shows the RIVALS (the viewer is the row's plate) while its race is open; a
+ * claimed / closed one shows nobody (the race is over — the seal says who). An AWARD shows EVERY seat, the viewer
+ * included (an award is scored at the end — the race stays live after the funding), ranked, the leaders crowned.
+ * Highest first; equal scores keep the server's seat order.
+ */
+export function maFieldLanes(item: ConsoleMaItem): Array<MaFieldLane> {
+  const ranked = <T extends {score: number}>(lanes: Array<T>) =>
+    lanes.map((l, i) => ({l, i})).sort((a, b) => b.l.score - a.l.score || a.i - b.i).map((e) => e.l);
+  if (item.kind === 'milestone') {
+    if (item.takenBy !== undefined || item.slotsExhausted) {
+      return [];
+    }
+    const t = item.threshold;
+    return ranked(item.scores.filter((s) => s.color !== item.myColor).map((s) => ({
+      color: s.color,
+      score: s.score,
+      me: false,
+      fill: t !== undefined && t > 0 ? Math.min(1, Math.max(0, s.score / t)) : (s.claimable === true ? 1 : 0),
+      mark: s.claimable === true ? 'reached' as const : 'none' as const,
+    })));
+  }
+  const top = item.leaderScore;
+  return ranked(item.scores.map((s) => ({
+    color: s.color,
+    score: s.score,
+    me: s.color === item.myColor,
+    fill: top > 0 ? Math.min(1, Math.max(0, s.score / top)) : 0,
+    mark: top > 0 && s.score === top ? 'crown' as const : 'none' as const,
+  })));
+}
+
+/** How far the viewer trails the award's leader (0 when leading / tied / no race) — the plate's «ОТСТАЁТЕ НА N». */
+export function maAwardGap(item: ConsoleMaItem): number {
+  return item.kind === 'award' && item.raceTone === 'behind' ? Math.max(0, item.leaderScore - item.myScore) : 0;
+}

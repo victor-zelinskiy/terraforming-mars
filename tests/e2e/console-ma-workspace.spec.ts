@@ -49,6 +49,32 @@ async function barText(page: Page): Promise<string> {
   return (await page.locator('.con-cmdbar').innerText().catch(() => '')).replace(/\s+/g, ' ').toUpperCase();
 }
 
+/**
+ * THE LIST STANDS WHOLE (FB′ — the owner, 2026-11-03: the one-screen split scrolled with Venus): every row of the
+ * workspace on screen sits inside the scroll viewport, nothing to scroll, every row the one full width (no span).
+ */
+async function listFit(page: Page): Promise<{overflow: number, rows: number, lastBottom: number, vpBottom: number, widths: number}> {
+  return page.evaluate(() => {
+    const vp = document.querySelector('.con-ma__scroll-host .con-scroll-area__viewport');
+    const cards = [...document.querySelectorAll('.con-ma__card')].map((el) => el.getBoundingClientRect());
+    const box = vp?.getBoundingClientRect();
+    return {
+      overflow: vp === null ? -1 : vp.scrollHeight - vp.clientHeight,
+      rows: cards.length,
+      lastBottom: Math.max(...cards.map((r) => r.bottom)),
+      vpBottom: box?.bottom ?? 0,
+      widths: new Set(cards.map((r) => Math.round(r.width))).size,
+    };
+  });
+}
+
+function expectListFits(fit: Awaited<ReturnType<typeof listFit>>, rows: number, tag: string): void {
+  expect(fit.rows, `${rows} rows`).toBe(rows);
+  expect(fit.overflow, `no scroll on ${tag}: ${JSON.stringify(fit)}`).toBeLessThanOrEqual(1);
+  expect(fit.lastBottom, `the last row stands whole on ${tag}: ${JSON.stringify(fit)}`).toBeLessThanOrEqual(fit.vpBottom + 1);
+  expect(fit.widths, `every row the one full width on ${tag}: ${JSON.stringify(fit)}`).toBe(1);
+}
+
 const PROFILES = [
   {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
   {tag: 'deck', width: 1280, height: 800, query: '&consoleProfile=handheld'},
@@ -71,20 +97,11 @@ for (const profile of PROFILES) {
       // ── 1 · The AWARDS overview (LB opens milestones; RB switches over) ────
       await key(page, 'KeyQ', 1400);
       await page.waitForSelector('.con-ma', {timeout: 8_000});
-      await key(page, 'KeyE', 1400); // → the AWARDS column (one screen — FB: RB jumps the cursor, nothing reopens)
-      expect(await page.locator('.con-ma').count(), 'the MA workspace must survive the column jump').toBe(1);
-      expect(await page.locator('.con-ma__col--active[data-ma-column="awards"]').count(), 'the cursor stands in the awards column').toBe(1);
-      // ONE SCREEN WITHOUT A SCROLL (FB): both columns' rows stand whole in the band on every profile (the Deck's ten
-      // rows on 800 px included) — the last row's bottom inside the viewport, nothing to scroll.
-      const fit = await page.evaluate(() => {
-        const vp = document.querySelector('.con-ma__scroll-host .con-scroll-area__viewport');
-        const rows = [...document.querySelectorAll('.con-ma__card')].map((el) => el.getBoundingClientRect().bottom);
-        const box = vp?.getBoundingClientRect();
-        return {overflow: vp === null ? -1 : vp.scrollHeight - vp.clientHeight, rows: rows.length, lastBottom: Math.max(...rows), vpBottom: box?.bottom ?? 0};
-      });
-      expect(fit.rows, 'ten rows (5 + 5)').toBe(10);
-      expect(fit.overflow, `no scroll on ${profile.tag}: ${JSON.stringify(fit)}`).toBeLessThanOrEqual(1);
-      expect(fit.lastBottom, `the last row stands whole on ${profile.tag}: ${JSON.stringify(fit)}`).toBeLessThanOrEqual(fit.vpBottom + 1);
+      expectListFits(await listFit(page), 5, profile.tag + ' · milestones');
+      await key(page, 'KeyE', 1400); // → the AWARDS workspace (the family's other screen — a lateral move)
+      expect(await page.locator('.con-ma').count(), 'one MA workspace on screen after the bumper').toBe(1);
+      await expect(page.locator('.con-ma.con-ma--awards'), 'RB walked to the awards workspace').toHaveCount(1);
+      expectListFits(await listFit(page), 5, profile.tag + ' · awards');
 
       // No per-item CTA (criterion 1); A carries the CONTEXTUAL verb (2):
       // the focused first fundable award advertises the INTENT («Спонсировать»),
@@ -95,10 +112,10 @@ for (const profile of PROFILES) {
       expect(listBar, 'the overview footer advertises the intent verb').toContain('СПОНСИРОВАТЬ');
       expect(listBar, 'the universal select verb must be gone').not.toContain('ВЫБРАТЬ');
 
-      // THE COLUMN HEAD states the SYSTEM: the live price, never a wallet delta.
-      const head = (await page.locator('[data-ma-column="awards"] [data-ma-colhead]').innerText()).replace(/\s+/g, ' ');
-      expect(head, 'the column head carries the live price chip').toContain('ЦЕНА');
-      expect(head, 'the column head must not project a balance').not.toContain('→');
+      // THE HEAD-TALLY states the SYSTEM: the live price, never a wallet delta.
+      const head = (await page.locator('.con-ma__wshead [data-ma-tally]').innerText()).replace(/\s+/g, ' ');
+      expect(head, 'the head-tally carries the live price chip').toContain('ЦЕНА');
+      expect(head, 'the head-tally must not project a balance').not.toContain('→');
 
       // THE STATUS RAIL carries the WHOLE projection of the focused item, in
       // the shared chips (M€ + the category counter), and nothing else does.
@@ -226,10 +243,10 @@ for (const profile of PROFILES) {
 
       // ── 7 · A blocked item still OPENS, and tells the truth ────────────────
       // (There is no `X` any more: A is the one way in, for every item.)
-      await key(page, 'KeyQ', 1400); // → the MILESTONES column, where a threshold blocks
+      await key(page, 'KeyQ', 1400); // → the MILESTONES workspace, where a threshold blocks
       await page.waitForSelector('.con-ma', {timeout: 8_000});
       const rows = await page.evaluate(() => {
-        const cards = Array.from(document.querySelectorAll('.con-ma__col--active .con-ma__card'));
+        const cards = Array.from(document.querySelectorAll('.con-ma__card'));
         return {
           blocked: cards.findIndex((c) => c.classList.contains('con-ma__card--go') === false &&
             c.classList.contains('con-ma__card--taken') === false),
@@ -238,7 +255,7 @@ for (const profile of PROFILES) {
       });
       const blockedIdx = rows.blocked;
       if (blockedIdx >= 0) {
-        // A column is one row wide: ↑↓ walk it.
+        // The list is one row wide: ↑↓ walk it.
         for (let i = Math.max(0, rows.at); i !== blockedIdx; i += blockedIdx > i ? 1 : -1) {
           await key(page, blockedIdx > i ? 'ArrowDown' : 'ArrowUp', 260);
         }
@@ -257,6 +274,30 @@ for (const profile of PROFILES) {
           await key(page, 'Escape', 1000);
         }
       }
+    });
+
+    // VENUS — the sixth milestone and the sixth award (FB′: the one-screen split scrolled exactly here). Each
+    // workspace stands its six full-width rows whole, nothing to scroll, on this profile.
+    test('Venus · six rows a workspace stand whole — milestones and awards', async ({page, request}) => {
+      test.setTimeout(240_000);
+      await bootIntoGame(page, request, {
+        config: soloGameConfig({
+          players: [{name: 'MAVenus', color: 'red', beginner: false, handicap: 0, first: true}],
+          automa: {difficulty: 'normal'},
+          expansions: {venus: true},
+        }),
+        buy: 0,
+        query: profile.query,
+      });
+      await page.waitForSelector('.con-board', {timeout: 45_000});
+      await key(page, 'KeyQ', 1400);
+      await page.waitForSelector('.con-ma.con-ma--milestones', {timeout: 8_000});
+      expectListFits(await listFit(page), 6, profile.tag + ' · venus milestones');
+      await shoot(page, profile.tag + '-10-venus-milestones');
+      await key(page, 'KeyE', 1400);
+      await expect(page.locator('.con-ma.con-ma--awards'), 'RB walked to the awards workspace').toHaveCount(1);
+      expectListFits(await listFit(page), 6, profile.tag + ' · venus awards');
+      await shoot(page, profile.tag + '-11-venus-awards');
     });
   });
 }

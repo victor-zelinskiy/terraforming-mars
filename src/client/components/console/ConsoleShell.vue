@@ -624,8 +624,6 @@
                        ref="maScreen"
                        :kind="maScreenKind"
                        :items="maScreenItems"
-                       :columnItems="maColumnItems"
-                       :kinds="maScreenKinds"
                        :index="consoleState.sheetIndex"
                        :myMegacredits="thisPlayer.megacredits"
                        :free="awardFundingActive && maScreenKind === 'awards'"
@@ -2671,8 +2669,6 @@ export default defineComponent({
   },
   data() {
     return {
-      /** The MA screen's column the cursor stands in (FB — one screen, two columns); undefined = the door's own kind. */
-      maColumn: undefined as ConsoleMaKind | undefined,
       /**
        * «ПРИЁМКА»: the reveal instance was last re-homed into the PARLIAMENT's draw stage — latched past the take (the
        * batch leaves the queue before the take's staged seam fires), so its two completion seams know the batch was
@@ -9470,38 +9466,18 @@ export default defineComponent({
       }
     },
     /**
-     * P26 → FB: milestones AND awards render on ONE premium screen (two columns); this is the column the CURSOR stands
-     * in. The sheet is the door the player came through (the stack frame stays its kind); the column moves with ←→ /
-     * LB/RB (`maColumn`), an open detail stage owns it, and Vitor's awards-only step is always the awards.
+     * P26 → FB′: milestones and awards are TWO workspaces of ONE family (the owner, 2026-11-03: the one-screen split
+     * divided the player's attention and scrolled with Venus's sixth item). The sheet IS the kind; LB/RB walk between
+     * the two (`openSheet` — a lateral move), and an open detail stage keeps its own sheet.
      */
     maScreenKind(): ConsoleMaKind | undefined {
       const sheet = this.consoleState.sheet;
-      if (sheet !== 'milestones' && sheet !== 'awards') {
-        return undefined;
-      }
-      if (maFocusState.open) {
-        return maFocusState.kind === 'milestone' ? 'milestones' : 'awards';
-      }
-      if (this.maScreenKinds.length === 1) {
-        return this.maScreenKinds[0];
-      }
-      return this.maColumn ?? sheet;
+      return sheet === 'milestones' || sheet === 'awards' ? sheet : undefined;
     },
-    /** The columns the screen stands with — the awards alone while the free sponsorship (Vitor) is the task. */
-    maScreenKinds(): ReadonlyArray<ConsoleMaKind> {
-      return this.awardFundingActive ? ['awards'] : ['milestones', 'awards'];
-    },
-    /** Both columns' items, by kind (the screen draws every column; the cursor walks `maScreenItems`). */
-    maColumnItems(): Partial<Record<ConsoleMaKind, ReadonlyArray<ConsoleMaItem>>> {
-      if (this.maScreenKind === undefined) {
-        return {};
-      }
-      return Object.fromEntries(this.maScreenKinds.map((kind) => [kind, this.buildMaColumn(kind)]));
-    },
-    /** The cursor's column's items — PURE derivation (consoleMaModel). */
+    /** The screen's items — PURE derivation (consoleMaModel). */
     maScreenItems(): Array<ConsoleMaItem> {
       const kind = this.maScreenKind;
-      return kind === undefined ? [] : this.buildMaColumn(kind);
+      return kind === undefined ? [] : this.buildMaItems(kind);
     },
     /**
      * THE LIVE PRICES — the engine's own `milestoneCost()` / `awardFundingCost()`,
@@ -10702,8 +10678,9 @@ export default defineComponent({
             enabled: anyMa,
             highlight: maIntent,
           },
-          // The bumpers JUMP to the other column (one screen — FB); an awards-only step has no other column.
-          ...(this.maScreenKinds.length < 2 ? [] : [
+          // The bumpers walk to the family's OTHER workspace; inside the start's hosted funding step that is a
+          // lateral move off the mandatory task — not offered (see the input arm).
+          ...(this.awardStepHosted ? [] : [
             {control: (this.maScreenKind === 'milestones' ? 'bumperR' : 'bumperL') as GlyphControl,
               label: this.maScreenKind === 'milestones' ? 'Awards' : 'Milestones'},
           ]),
@@ -12461,17 +12438,9 @@ export default defineComponent({
     // away, and a frame cannot be removed from under the step it is carrying.
     // That guard-plus-write pair was the soft-lock.
     /** «СРАБАТЫВАНИЕ КАРТЫ» (iteration 3): the player opened a sheet while reactions play — they HURRY (a pace, never a cut). */
-    'consoleState.sheet'(sheet: string | undefined, prev: string | undefined) {
+    'consoleState.sheet'(sheet: string | undefined) {
       if (sheet !== undefined && cardReactionPending()) {
         hurryCardReactions('navigation');
-      }
-      // THE MA SCREEN OPENS IN ITS DOOR'S COLUMN (FB): a column left over from an earlier visit never survives a new
-      // one, whichever road stood the screen up (the wheel, a restore, a hosted step).
-      const ma = (k: string | undefined) => k === 'milestones' || k === 'awards';
-      if (ma(sheet) && !ma(prev)) {
-        this.maColumn = sheet as ConsoleMaKind;
-      } else if (!ma(sheet)) {
-        this.maColumn = undefined;
       }
     },
     'consoleState.section'(section: string) {
@@ -16812,10 +16781,7 @@ export default defineComponent({
           return;
         }
         if (intent.kind === 'nav') {
-          if (intent.dir === 'left' || intent.dir === 'right') {
-            this.stepMaColumn(intent.dir === 'left' ? 'milestones' : 'awards');
-            return;
-          }
+          // ONE column of full-width rows: ↑↓ walk it, ←→ are no move (the family's other screen is a BUMPER).
           this.consoleState.sheetIndex = stepGrid(
             this.consoleState.sheetIndex, intent.dir, this.maScreenItems.length, 1);
           return;
@@ -16830,12 +16796,16 @@ export default defineComponent({
             this.enterMaFocus();
             break;
           case 'prevSection':
-            // LB / RB JUMP COLUMNS (FB — one screen): the cursor moves, nothing is opened or closed. Vitor's step
-            // stands with the awards alone, so there is no column to jump to.
-            this.stepMaColumn('milestones');
+            // LB / RB walk the FAMILY (a lateral `openSheet` — the other workspace arrives from its bumper's side).
+            // Vitor's hosted funding step stands with the awards alone: no lateral move off a mandatory task.
+            if (this.maScreenKind !== 'milestones' && !this.awardStepHosted) {
+              this.openSheet('milestones');
+            }
             break;
           case 'nextSection':
-            this.stepMaColumn('awards');
+            if (this.maScreenKind !== 'awards') {
+              this.openSheet('awards');
+            }
             break;
           case 'back':
             // A HOSTED step minimizes its WHOLE flow — B on a nested step is
@@ -17971,10 +17941,6 @@ export default defineComponent({
       if (maFocusState.open) {
         return;
       }
-      // The MA screen opens with the cursor in the DOOR's column (the wheel's «Награды» lands in the awards).
-      if (sheet === 'milestones' || sheet === 'awards') {
-        this.maColumn = sheet;
-      }
       const selectables = this.maScreenKind !== undefined ?
         this.maScreenItems.map((it) => ({header: false, available: it.available})) :
         sheet === 'standard-projects' ?
@@ -17984,8 +17950,8 @@ export default defineComponent({
       const firstSelectable = selectables.findIndex((s) => !s.header);
       this.consoleState.sheetIndex = firstAvailable !== -1 ? firstAvailable : Math.max(0, firstSelectable);
     },
-    /** One column's items — PURE derivation (consoleMaModel): the live models, the waitingFor's offer, the price. */
-    buildMaColumn(kind: ConsoleMaKind): Array<ConsoleMaItem> {
+    /** One kind's items — PURE derivation (consoleMaModel): the live models, the waitingFor's offer, the price. */
+    buildMaItems(kind: ConsoleMaKind): Array<ConsoleMaItem> {
       const found = kind === 'milestones' ?
         findMilestoneOptionPath(this.playerView.waitingFor) :
         findAwardOptionPath(this.playerView.waitingFor, this.awardNames);
@@ -18023,28 +17989,12 @@ export default defineComponent({
     },
     /** Mouse/touch on an overview tile: focus it; a second click on the
      *  focused tile descends (the controller's own two-step, same doors). */
-    onMaPick(pick: {kind: ConsoleMaKind, index: number}): void {
-      if (pick.kind === this.maScreenKind && this.consoleState.sheetIndex === pick.index) {
+    onMaPick(index: number): void {
+      if (this.consoleState.sheetIndex === index) {
         this.enterMaFocus();
         return;
       }
-      if (pick.kind !== this.maScreenKind) {
-        this.maColumn = pick.kind;
-      }
-      this.consoleState.sheetIndex = pick.index;
-    },
-    /**
-     * The cursor to another COLUMN of the MA screen (←→ and LB/RB): the same ROW where the column has one (the rows
-     * align across), else its last. A column the screen does not stand with (Vitor's awards-only step) is no move.
-     */
-    stepMaColumn(to: ConsoleMaKind): void {
-      if (this.maScreenKind === undefined || this.maScreenKind === to || !this.maScreenKinds.includes(to)) {
-        return;
-      }
-      const row = this.consoleState.sheetIndex;
-      this.maColumn = to;
-      const count = this.buildMaColumn(to).length;
-      this.consoleState.sheetIndex = Math.max(0, Math.min(row, count - 1));
+      this.consoleState.sheetIndex = index;
     },
     /** B on the detail stage (pre-commit) — fold back to the overview; the
      *  browse layer was only parked, so selection and scroll survive. */

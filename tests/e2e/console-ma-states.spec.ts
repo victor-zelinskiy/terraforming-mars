@@ -132,8 +132,8 @@ async function waitQuiet(page: Page, quietMs = 1600, maxMs = 16_000): Promise<vo
   }
 }
 
-/** The ACTIVE column's rows (FB — one screen, two columns: the cursor's column), name + state classes, top to bottom. */
-const ACTIVE_ROWS = '.con-ma__col--active .con-ma__card';
+/** The screen's rows (FB′ — one kind a screen, one column of full-width rows), name + state classes, top to bottom. */
+const ACTIVE_ROWS = '.con-ma .con-ma__card';
 async function cardStates(page: Page): Promise<Array<{name: string, go: boolean, taken: boolean, focused: boolean}>> {
   return page.evaluate((sel) => {
     return Array.from(document.querySelectorAll(sel)).map((c) => ({
@@ -145,7 +145,7 @@ async function cardStates(page: Page): Promise<Array<{name: string, go: boolean,
   }, ACTIVE_ROWS);
 }
 
-/** Walk the active column's focus onto the row at `target` (↑↓ — a column is one row wide). */
+/** Walk the focus onto the row at `target` (↑↓ — the list is one row wide). */
 async function focusCardAt(page: Page, target: number): Promise<void> {
   for (let hop = 0; hop < 12; hop++) {
     const states = await cardStates(page);
@@ -185,12 +185,14 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     await press(page, 'KeyQ', 1500);
     await page.waitForSelector('.con-ma', {timeout: 8_000});
     await shoot(page, '10-milestones-fresh');
-    // ONE SCREEN (FB): both columns stand at once, and no row spans the width.
-    expect(await page.locator('.con-ma__col').count(), 'milestones and awards on one screen').toBe(2);
-    expect(await page.locator('.con-ma__card').evaluateAll((els) => els.filter((el) => getComputedStyle(el).gridColumnEnd.includes('span')).length),
-      'no row spans both columns').toBe(0);
-    await press(page, 'KeyE', 1500); // RB → the cursor jumps to the awards column (scenario 8)
-    expect(await page.locator('.con-ma__col--active[data-ma-column="awards"]').count(), 'RB jumps to the awards column').toBe(1);
+    // TWO WORKSPACES, ONE FAMILY (FB′): one kind a screen — the milestones alone, every row full width (nothing spans).
+    expect(await page.locator('.con-ma.con-ma--milestones').count(), 'the milestones stand on their own screen').toBe(1);
+    expect(await page.locator('.con-ma__card').evaluateAll((els) => {
+      const w = Math.max(...els.map((el) => el.getBoundingClientRect().width));
+      return els.filter((el) => Math.abs(el.getBoundingClientRect().width - w) > 1).length;
+    }), 'every row has the one full width').toBe(0);
+    await press(page, 'KeyE', 1500); // RB → the family's other workspace (scenario 8)
+    await expect(page.locator('.con-ma.con-ma--awards'), 'RB walks to the awards workspace').toHaveCount(1);
     await shoot(page, '11-awards-fresh');
     await press(page, 'KeyQ', 1200);
     await press(page, 'Escape', 1200);
@@ -262,18 +264,18 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
 
     // ── 5 · the AWARDS race states (funded + leadership; scenario 6/7) ─────
     await press(page, 'KeyE', 1500);
-    // The sibling identity: the awards COLUMN carries its own kind scope, and
-    // every award tile speaks the RACE cassette, never the milestone metric.
-    expect(await page.locator('.con-ma.con-ma--awards').count(), 'the cursor stands in the awards column').toBe(1);
-    const awardTiles = await page.locator('[data-ma-column="awards"] .con-ma__card').count();
-    expect(await page.locator('[data-ma-column="awards"] .con-ma__card .con-ma__race').count(),
-      'every award tile carries the race cassette').toBe(awardTiles);
-    expect(await page.locator('[data-ma-column="awards"] .con-ma__card .con-ma__metric').count(),
-      'no award tile carries the milestone metric').toBe(0);
-    // A live race is CROWNED (lead / tie / behind all render the leader tier).
-    const liveRaces = await page.locator('[data-ma-column="awards"] :is(.con-ma__race--lead, .con-ma__race--tie, .con-ma__race--behind)').count();
-    expect(await page.locator('.con-ma__crown').count(),
-      'every live race wears the crown on its leader tier').toBe(liveRaces);
+    // The sibling identity: the awards WORKSPACE carries its own kind scope, and every award row's plate is YOUR
+    // standing in the race (never the milestone metric); the race itself is the row's FIELD, seat by seat.
+    await expect(page.locator('.con-ma.con-ma--awards'), 'the awards workspace stands').toHaveCount(1);
+    const awardTiles = await page.locator('.con-ma--awards .con-ma__card').count();
+    expect(await page.locator('.con-ma--awards .con-ma__card .con-ma__race').count(),
+      'every award row carries your race plate').toBe(awardTiles);
+    expect(await page.locator('.con-ma--awards .con-ma__card .con-ma__metric').count(),
+      'no award row carries the milestone metric').toBe(0);
+    // A live race is CROWNED on its field (lead / tie / behind all have a leader's lane).
+    const liveRaces = await page.locator('.con-ma--awards :is(.con-ma__race--lead, .con-ma__race--tie, .con-ma__race--behind)').count();
+    expect(await page.locator('.con-ma--awards .con-ma__card:has(.con-ma__lane--lead .con-ma__crown)').count(),
+      'every live race wears the crown on the leader lane').toBe(liveRaces);
     // The funded award mounts the sponsor's cube in the emblem socket.
     expect(await page.locator('.con-ma__card--taken .con-ma__gem').count(),
       'the funded award wears the sponsor socket').toBe(1);
