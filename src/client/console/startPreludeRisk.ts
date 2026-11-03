@@ -54,6 +54,7 @@ function preludeNoEffectTitle(need: PreludeNeed | undefined): string {
   case 'playedPrelude': return 'Nothing to repeat yet';
   case 'playableCard': return 'No available project right now';
   case 'cash': return 'Not enough M€ for its price';
+  case 'cardInHand': return 'No card in hand to discard';
   default: return 'Nothing can meet its condition';
   }
 }
@@ -63,6 +64,7 @@ function noEffectBody(need: PreludeNeed | undefined): string {
   switch (need) {
   case 'playableCard': return 'None of your projects is a legal target right now. Playing this prelude will lose its effect.';
   case 'cash': return 'You cannot pay its price and nothing left to play gives M€. Playing this prelude will lose its effect.';
+  case 'cardInHand': return 'Nothing in hand to discard and nothing left to play draws a card. Playing this prelude will lose its effect.';
   default: return 'Nothing left to play can create what this effect needs. Playing this prelude will lose its effect.';
   }
 }
@@ -109,6 +111,22 @@ export function preludeRisk(
       bodyParams: [],
       commitLabel,
       enablers: [],
+    };
+  }
+
+  if (outlook.need === 'cardInHand') {
+    // A DISCARD over an empty hand — a prelude that draws puts a card there (guaranteed: a playable draw delivers).
+    // Its own words, never the copy prelude's «nothing to repeat».
+    return {
+      tone: 'guaranteed',
+      badge: 'Cards first',
+      title: 'No card in hand to discard',
+      body: only !== undefined ?
+        'Play ${0} first: it draws cards. Played now, this prelude loses its effect.' :
+        'Play a prelude that draws cards first. Played now, this prelude loses its effect.',
+      bodyParams: only !== undefined ? [only] : [],
+      commitLabel,
+      enablers,
     };
   }
 
@@ -190,6 +208,9 @@ export function preludeEnablerBadge(outlook: PreludeOutlook | undefined): string
   }
   if (outlook.need === 'cash') {
     return 'Gives M€ for the waiting price';
+  }
+  if (outlook.need === 'cardInHand') {
+    return 'Draws the card to discard';
   }
   return outlook.certainty === 'guaranteed' ? 'Play this one first' : 'Enables the waiting prelude';
 }

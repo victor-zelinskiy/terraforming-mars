@@ -175,5 +175,11 @@ describe('preludeOutlook (order-aware prelude verdict)', () => {
       expect(preludeProvisions(new EcologyExperts()).has('playableCard'),
         'plant production opens no card target').to.be.false;
     });
+
+    // P55 · FN — a card IN HAND (a discard's material) comes from a draw only; money never puts one there.
+    it('only a declarative draw puts a card in hand', () => {
+      expect(preludeProvisions(new Biolab()).has('cardInHand'), 'draws 3').to.be.true;
+      expect(preludeProvisions(new AlliedBanks()).has('cardInHand'), 'M€ is no card').to.be.false;
+    });
   });
 });

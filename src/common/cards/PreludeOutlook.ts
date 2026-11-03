@@ -22,8 +22,14 @@ import {CardName} from './CardName';
  *    yet (P52 Industrial Complex's 18 M€). A prelude that GRANTS M€ (Loan's
  *    +30) can cover it; whether it covers ALL of it is not read here, so the
  *    order fix is a POSSIBILITY, never claimed as a guarantee.
+ *  · `cardInHand`     — the effect asks the player to DISCARD a card and the
+ *    hand is empty (P55 Old Mining Colony's «discard 1 card»). A prelude that
+ *    DRAWS (a declarative `drawCard` — Biolab, Nobel Prize, High Circles) puts
+ *    a card in hand when it is played (a draw prelude that is itself playable
+ *    always delivers), so the order fix is GUARANTEED. Distinct from
+ *    `playableCard`, which money can also create and which no draw promises.
  */
-export type PreludeNeed = 'playedPrelude' | 'playableCard' | 'cash';
+export type PreludeNeed = 'playedPrelude' | 'playableCard' | 'cash' | 'cardInHand';
 
 /**
  * THE ORDER-AWARE VERDICT for one prelude the player is being asked to play.

@@ -47,6 +47,8 @@ const CERTAINTY_OF_NEED: Readonly<Record<PreludeNeed, 'guaranteed' | 'possible'>
   playedPrelude: 'guaranteed',
   playableCard: 'possible',
   cash: 'possible',
+  // A played draw prelude puts its cards in hand — what a discard reads.
+  cardInHand: 'guaranteed',
 };
 
 /** M€ this behaviour puts in the player's STOCK at once (Loan's +30) — the money a price can be paid with. */
@@ -80,6 +82,10 @@ export function preludeProvisions(card: IPreludeCard): ReadonlySet<PreludeNeed> 
   const behavior = card.behavior;
   if (behavior?.drawCard !== undefined || grantsMegacredits(behavior)) {
     out.add('playableCard');
+  }
+  // A draw puts cards in hand (a discard's material); money never does.
+  if (behavior?.drawCard !== undefined) {
+    out.add('cardInHand');
   }
   // A price is paid out of the stock: only money in hand NOW covers it (production pays next generation).
   if (grantsStockMegacredits(behavior)) {

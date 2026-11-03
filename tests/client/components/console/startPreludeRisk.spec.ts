@@ -21,7 +21,7 @@ const NAMED = (n: CardName) => `«${n}»`;
 function deferred(
   certainty: 'guaranteed' | 'possible',
   enablers: ReadonlyArray<CardName>,
-  need: 'playedPrelude' | 'playableCard' | 'cash'): PreludeOutlook {
+  need: 'playedPrelude' | 'playableCard' | 'cash' | 'cardInHand'): PreludeOutlook {
   return {state: 'deferred', certainty, enablers, need};
 }
 
@@ -168,6 +168,27 @@ describe('startPreludeRisk (the order-aware verdict as words)', () => {
       expect(risk?.tone).to.eq('final');
       expect(risk?.title).to.eq('Not enough M€ for its price');
       expect(risk?.body).to.contain('price');
+    });
+  });
+
+  /** P55 · FN — a DISCARD over an empty hand: a prelude that draws first, in the discard's own words (never «nothing to repeat»). */
+  describe('the cardInHand need (Old Mining Colony\'s discard)', () => {
+    it('one drawing enabler is named; the badge says «cards first»; never the copy prelude\'s heading', () => {
+      const risk = preludeRisk(deferred('guaranteed', [CardName.NOBEL_PRIZE], 'cardInHand'), NAMED);
+      expect(risk?.tone).to.eq('guaranteed');
+      expect(risk?.badge).to.eq('Cards first');
+      expect(risk?.title).to.eq('No card in hand to discard');
+      expect(risk?.body).to.eq('Play ${0} first: it draws cards. Played now, this prelude loses its effect.');
+      expect(risk?.bodyParams).to.deep.eq([`«${CardName.NOBEL_PRIZE}»`]);
+      expect(risk?.commitLabel).to.eq(PRELUDE_RISK_HOLD_LABEL);
+      expect(preludeEnablerBadge(deferred('guaranteed', [CardName.NOBEL_PRIZE], 'cardInHand'))).to.eq('Draws the card to discard');
+    });
+
+    it('nothing left draws — a final verdict naming the empty hand', () => {
+      const risk = preludeRisk({state: 'noEffect', need: 'cardInHand'}, NAMED);
+      expect(risk?.tone).to.eq('final');
+      expect(risk?.title).to.eq('No card in hand to discard');
+      expect(risk?.body).to.contain('discard');
     });
   });
 });

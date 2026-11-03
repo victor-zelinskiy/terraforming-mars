@@ -38,10 +38,9 @@ import {CardName} from './CardName';
  * Guard and worklist printer: `tests/cards/prelude2/Prelude2CardsHeldBack.spec.ts`.
  */
 
-/** ADAPT IN PLACE — 13 preludes, 5 corporations (ordered as the manifest prints them; every project card P68…P91 is adapted). */
+/** ADAPT IN PLACE — 12 preludes, 5 corporations (ordered as the manifest prints them; every project card P68…P91 is adapted). */
 export const PRELUDE2_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
   // ── Preludes (P43…P67; P47 Corridors of Power is REPLACED by TRP0 — below, crossed) ──
-  CardName.OLD_MINING_COLONY, // P55 · Colonies · behavior + bespokePlay — a colony, discard 1
   CardName.PLANETARY_ALLIANCE, // P56 · Venus · behavior + bespokePlay — 2 TR + a Jovian and a Venus card
   CardName.PRESERVATION_PROGRAM, // P57 · bespokePlay — 5 TR
   CardName.PROJECT_EDEN, // P58 · an ocean, a city and a greenery, discard 3 — three placements
