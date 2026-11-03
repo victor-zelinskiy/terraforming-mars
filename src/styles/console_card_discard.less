@@ -309,8 +309,22 @@ html.con-profile-tv .con-hand__fresh { zoom: ~"calc(1.2 / var(--con-hand-zoom, 0
    The row is a FOCUSABLE LINE in every album mode: the chip under the cursor wears the one cursor grammar, the active
    chip its kant (`.con-hand__filter--active`, console.less). «ПЛАТЯТ» carries the exchange's own icon. Under a per-tag
    exchange every card wears ITS payout on a kant at the art's lower edge — «+0» muted, never hidden. No light. */
+/* THE CURSOR on a chip is the ONE grammar (TR58 · `.con-cursor()` — `cursorGrammarGuard`): a ring LAYER on the chip's own
+   `::after`, lit by `.con-cursor-on()`, so the chip's kant (`--active`) and the cursor never share a channel. The chip's
+   own transitions (console.less) are re-stated here: the mixin's `transition+:` replaces the declaration it follows. */
+.con-hand__filter {
+    position: relative;
+    .con-cursor(
+        @shadow: inset 0 0 0 var(--con-focus-ring, .12rem) @con-cyan;
+        @radius: 49.95rem;
+        @z: 1;
+    );
+    transition+: background calc(140ms * var(--motion-scale, 1)) ease;
+    transition+: box-shadow calc(140ms * var(--motion-scale, 1)) ease;
+    transition+: color calc(140ms * var(--motion-scale, 1)) ease;
+}
 .con-hand__filter--focused {
-    box-shadow: inset 0 0 0 var(--con-focus-ring, .12rem) @con-cyan;
+    .con-cursor-on();
     color: @con-text;
 }
 .con-hand__filter-pay {
