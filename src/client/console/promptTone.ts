@@ -14,9 +14,19 @@
  * THREE tones, never more:
  *   gain    — the player receives something (a reward, a bonus, a gift);
  *   loss    — the player gives something up they did not choose to spend
- *             (a hazard penalty, an attack on them, a forced discard);
+ *             (a hazard penalty, an attack on them, a discard that stands alone);
  *   neutral — a free choice, a price the player chose to pay, an attack the
  *             player AIMS (the victim's prompt is the loss, not the aimer's).
+ *
+ * THE TONE IS THE NET OF THE WHOLE DECISION, never of one step (the owner,
+ * 2026-11-03: «убыток или нет — определяется совокупностью эффектов, а не только
+ * тем, что карта сбрасывается»). Pluto's «draw 1, then discard 1» is ONE bonus
+ * whose discard closes a pair: nothing is lost on balance and the player picks
+ * which card to keep — the discard step says so by its STRUCTURAL marker
+ * (`discardPrompt.colonyBonus` / `colonyRepeat`), never by a title. A discard
+ * that is the PRICE of a card the player chose to play (Old Mining Colony,
+ * Project Eden — `source.kind === 'card'`) is a chosen price. Only a discard
+ * that stands alone — an opponent's Hygiea, a global event — is a loss.
  *
  * STRUCTURAL ONLY (cross-cutting invariant 1): every signal is a server marker
  * or the input's own type — never a title. `Message.message` is rewritten in
@@ -36,6 +46,8 @@ export type PromptToneBasis =
   | 'bot-attack'
   | 'production-loss'
   | 'forced-discard'
+  | 'draw-pair'
+  | 'chosen-price'
   | 'reward-mode'
   | 'resource-gain'
   | 'bonus-marker'
@@ -110,9 +122,20 @@ export function promptToneOf(wf: PlayerInputModel | undefined): PromptToneReadin
   if (wf.type === 'productionToLose') {
     return {tone: 'loss', basis: 'production-loss'};
   }
-  // A discard with nothing bought in exchange is a pure loss; an exchange
-  // («discard N to draw N», «discard for M€») is a trade the player weighs.
-  if (wf.discardPrompt !== undefined && wf.discardPrompt.exchange === undefined && wf.discardPrompt.min > 0) {
+  // A discard is judged by the decision it belongs to (the net, never the step):
+  // an exchange («discard N to draw N», «discard for M€») is a trade the player
+  // weighs; the closing half of a draw pair (Pluto, Colonial Affairs' repeat)
+  // gave its card first, so it is a choice of which card to keep; the price of
+  // the player's own play is a chosen price. Only a forced discard that stands
+  // alone is a loss.
+  const discard = wf.discardPrompt;
+  if (discard !== undefined && discard.exchange === undefined && discard.min > 0) {
+    if (discard.colonyBonus !== undefined || discard.colonyRepeat !== undefined) {
+      return {tone: 'neutral', basis: 'draw-pair'};
+    }
+    if (discard.source?.kind === 'card' && wf.choiceContext?.mode !== 'attack') {
+      return {tone: 'neutral', basis: 'chosen-price'};
+    }
     return {tone: 'loss', basis: 'forced-discard'};
   }
   // ── an attack the viewer AIMS is their own free choice ─────────────────

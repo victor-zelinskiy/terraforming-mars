@@ -31187,21 +31187,21 @@ body.con-start-barshold .con-status {
         0 .5rem 1.5rem rgba(0, 0, 0, 0.45);
     animation: con-mandatory-in calc(320ms * var(--motion-scale, 1)) cubic-bezier(.2, .8, .2, 1) both;
 
+    /* The plate's MARK — a solid dot with a kant, standing still (P51 · FG, invariant 15): the plate's attention
+       is its material, its place and its word, never a breathing halo. */
     &__pulse {
         flex: 0 0 auto;
         width: .55rem;
         height: .55rem;
         border-radius: 50%;
         background: @con-cyan;
-        box-shadow: 0 0 .6rem fade(@con-cyan, 85%);
-        animation: con-pulse calc(1800ms * var(--motion-scale, 1)) ease-in-out infinite;
+        box-shadow: inset 0 0 0 .06rem fade(#ffffff, 35%);
     }
     &__glyph {
         flex: 0 0 auto;
         font-size: 1.35rem;
         line-height: 1;
         color: @con-cyan;
-        text-shadow: 0 0 .7rem fade(@con-cyan, 55%);
     }
     &__body {
         min-width: 0;
@@ -31226,6 +31226,60 @@ body.con-start-barshold .con-status {
         color: fade(#ffffff, 94%);
         font-size: 1rem;
         letter-spacing: .01rem;
+    }
+    /* THE SITTING'S FACTS (P51 · FG): two lines under the ask — the resolution being enacted, the winner of the
+       vote. Each fact is a quiet tracked-caps kicker + its object; the NAME is the only member that yields, by an
+       ellipsis in its OWN box (`flex-basis: 0` + `min-width` + `max-width: max-content`, never a shrink weight). */
+    &__facts {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .08rem;
+        margin-top: .1rem;
+    }
+    &__fact {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        white-space: nowrap;
+        font-size: .8rem;
+        line-height: 1.25;
+    }
+    &__fact-kicker {
+        flex: 0 0 auto;
+        color: fade(@con-cyan, 88%);
+        font-size: .64rem;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+    }
+    &__fact-emblem {
+        flex: 0 0 auto;
+        width: 1.05rem;
+        height: 1.05rem;
+        object-fit: contain;
+    }
+    &__fact-seat {
+        flex: 0 0 auto;
+    }
+    &__fact-name {
+        flex: 1 1 0;
+        min-width: 3rem;
+        max-width: max-content;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: fade(#ffffff, 92%);
+        font-weight: 600;
+    }
+    &__fact-tie {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: max-content;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: fade(#ffffff, 58%);
+        font-size: .7rem;
     }
     /* WHO asks — the source card the server named. */
     &__src {
@@ -31316,6 +31370,13 @@ html.con-profile-handheld .con-mandatory {
     &__ask { font-size: .9rem; line-height: 1.15; }
     &__src { font-size: .72rem; }
     &__open { margin-left: .2rem; padding: .18rem .6rem; font-size: .82rem; }
+    /* The Deck's band keeps the plate ≤ 60 px tall: the two facts stand side by side on ONE line, each name
+       yielding by its own ellipsis (R-35's width budget unchanged — the plate stays content-sized and capped). */
+    &__facts { flex-direction: row; gap: .6rem; margin-top: 0; }
+    &__fact { font-size: .72rem; gap: .25rem; line-height: 1.15; }
+    &__fact-kicker { font-size: .56rem; }
+    &__fact-emblem { width: .9rem; height: .9rem; }
+    &__fact-tie { display: none; }
 }
 
 @keyframes con-mandatory-in {
@@ -31324,7 +31385,6 @@ html.con-profile-handheld .con-mandatory {
 }
 @media (prefers-reduced-motion: reduce) {
     .con-mandatory { animation: none; }
-    .con-mandatory__pulse { animation: none; }
 }
 
 /* ── Stranded-prompt guard panel (CTS T0 — never a silent pill) ──── */

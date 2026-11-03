@@ -13,6 +13,13 @@
     WHO ASKS has two shapes: a card (its localized name) and — Turmoil Redux —
     an ENACTED RESOLUTION (its party's emblem, the kind «Резолюция», its
     localized name, and its printed code when card numbers are shown).
+
+    THE SITTING'S INVITATION (P51 · FG, the owner 2026-11-03) carries TWO FACTS
+    under its ask «Заседание»: the resolution being enacted and the winner of
+    the vote (`sittingInvitation.ts` — the server's records, the glossary's
+    words), each in its own box, cut by an ellipsis there and nowhere else.
+    The plate holds no standing light: its attention is the material and the
+    word (invariant 15 — the mark is a kant, never a pulse or a halo).
   -->
   <div class="con-mandatory"
        role="status"
@@ -32,6 +39,28 @@
         </span>
       </div>
       <div class="con-mandatory__ask">{{ ask }}</div>
+      <div v-if="invitation !== undefined"
+           class="con-mandatory__facts"
+           data-sitting-invitation
+           :data-invitation-forecast="invitation.forecast ? 'true' : 'false'">
+        <span class="con-mandatory__fact con-mandatory__fact--resolution"
+              data-invitation-fact="resolution"
+              :data-resolution="invitation.resolution">
+          <span class="con-mandatory__fact-kicker">{{ $t(invitation.resolutionKey) }}</span>
+          <img class="con-mandatory__fact-emblem" :src="invitationEmblem" alt="" />
+          <span class="con-mandatory__fact-name">{{ invitationResolutionName }}</span>
+        </span>
+        <span v-if="invitation.winner !== undefined"
+              class="con-mandatory__fact con-mandatory__fact--winner"
+              data-invitation-fact="winner"
+              :data-winner="invitation.winner">
+          <span class="con-mandatory__fact-kicker">{{ $t(invitation.forecast ? 'Leader' : 'Winner of the vote') }}</span>
+          <PlayerDelegate v-if="invitation.winner !== 'neutral'" class="con-mandatory__fact-seat" :color="invitation.winner" :size="16" :glow="false" />
+          <PlayerDelegate v-else class="con-mandatory__fact-seat" color="neutral" steel :size="16" :glow="false" />
+          <span class="con-mandatory__fact-name">{{ invitationWinnerName }}</span>
+          <span v-if="invitation.tieKey !== undefined" class="con-mandatory__fact-tie">{{ $t(invitation.tieKey) }}</span>
+        </span>
+      </div>
       <div v-if="resolutionSource !== undefined"
            class="con-mandatory__src con-mandatory__src--resolution"
            :data-source-resolution="resolutionSource.id">
@@ -59,10 +88,12 @@ import {cardNumberDisplayState} from '@/client/components/premiumCard/cardNumber
 import {translateText} from '@/client/directives/i18n';
 import ConsolePromptEmblem from '@/client/components/console/foundation/ConsolePromptEmblem.vue';
 import {PromptTone, promptToneTagKey} from '@/client/console/promptTone';
+import {SittingInvitationFacts} from '@/client/console/parliament/sittingInvitation';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 
 export default defineComponent({
   name: 'ConsoleMandatoryAnnounce',
-  components: {GamepadGlyph, ConsolePromptEmblem},
+  components: {GamepadGlyph, ConsolePromptEmblem, PlayerDelegate},
   props: {
     /** The decision TYPE, pre-translated by the shell (consoleTaskSummary). */
     kicker: {type: String, required: true},
@@ -76,8 +107,18 @@ export default defineComponent({
     openLabel: {type: String, default: 'Open'},
     /** The announced decision's CHARACTER (`promptTone.ts`) — gain / loss / neutral. */
     tone: {type: String as PropType<PromptTone>, default: 'neutral'},
+    /** The sitting's invitation: the resolution being enacted and the winner of the vote (absent on every other plate). */
+    invitation: {type: Object as PropType<SittingInvitationFacts | undefined>, default: undefined},
+    /** The winner's display name, resolved by the shell (the bot's seat by its localized name). */
+    invitationWinnerName: {type: String as PropType<string | undefined>, default: undefined},
   },
   computed: {
+    invitationEmblem(): string | undefined {
+      return this.invitation === undefined ? undefined : partyEmblemUrl(this.invitation.party);
+    },
+    invitationResolutionName(): string {
+      return this.invitation === undefined ? '' : translateText(resolutionName(this.invitation.resolution));
+    },
     toneTagKey(): string | undefined {
       return promptToneTagKey(this.tone);
     },

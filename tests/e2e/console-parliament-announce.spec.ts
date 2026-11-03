@@ -37,6 +37,40 @@ async function measure(page: Page) {
       plate: r(plate), plateTop: plate === null ? '' : getComputedStyle(plate).top, hudPx, rem,
       rootW: root === null ? 0 : root.getBoundingClientRect().width,
       ask: plate?.querySelector('.con-mandatory__ask')?.textContent?.trim() ?? '',
+      // P51 · FG — the two facts under the ask, each cut (if at all) in its OWN box; the plate holds no standing light.
+      facts: Array.from(plate?.querySelectorAll<HTMLElement>('[data-invitation-fact]') ?? []).map((el) => {
+        const name = el.querySelector<HTMLElement>('.con-mandatory__fact-name');
+        const pb = plate!.getBoundingClientRect();
+        const b = el.getBoundingClientRect();
+        return {
+          kind: el.dataset.invitationFact ?? '',
+          text: (el.textContent ?? '').replace(/\s+/g, ' ').trim(),
+          name: name?.textContent?.trim() ?? '',
+          inside: b.left >= pb.left - 0.5 && b.right <= pb.right + 0.5,
+          nameCut: name === null ? false : name.scrollWidth > name.clientWidth + 1,
+          nameEllipsis: name === null ? '' : getComputedStyle(name).textOverflow,
+        };
+      }),
+      light: plate === null ? [] : [plate, ...Array.from(plate.querySelectorAll<HTMLElement>('*'))].flatMap((el) => {
+        const st = getComputedStyle(el);
+        const out: Array<string> = [];
+        if (st.animationIterationCount === 'infinite' && st.animationName !== 'none') {
+          out.push(`${el.className}: infinite ${st.animationName}`);
+        }
+        if (st.textShadow !== 'none') {
+          out.push(`${el.className}: text-shadow ${st.textShadow}`);
+        }
+        // An OUTER blurred shadow in a light colour (a halo); an inset kant and the plate's dark drop are not light.
+        for (const part of st.boxShadow === 'none' ? [] : st.boxShadow.split(/,(?![^(]*\))/)) {
+          const rgb = /rgba?\(([^)]*)\)/.exec(part)?.[1].split(',').map((v) => parseFloat(v)) ?? [0, 0, 0];
+          const nums = part.replace(/rgba?\([^)]*\)/, '').trim().split(/\s+/).map(parseFloat).filter((n) => !Number.isNaN(n));
+          const bright = (rgb[0] + rgb[1] + rgb[2]) / 3 > 60;
+          if (!part.includes('inset') && (nums[2] ?? 0) > 0 && bright) {
+            out.push(`${el.className}: halo ${part.trim()}`);
+          }
+        }
+        return out;
+      }),
       open: plate?.querySelector('.con-mandatory__open')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
       spaces,
     };
@@ -65,6 +99,19 @@ for (const preset of PARLIAMENT_PRESETS) {
       // The content: the kicker names the Parliament; the ask names the sitting ONCE; the verb is the family's.
       expect(m.ask, 'the ask names the sitting, once').toMatch(/^Заседание$|^Sitting$/);
       expect(m.ask, 'the ask does not repeat the kicker\'s noun or the HUD\'s generation').not.toMatch(/Парламент|поколение/i);
+      // THE FACTS (P51 · FG — the owner): the resolution and the winner of the vote stand under the ask, ALWAYS.
+      expect(m.facts.map((f) => f.kind), `${preset.id}: the resolution and the winner of the vote — ${JSON.stringify(m.facts)}`).toEqual(['resolution', 'winner']);
+      expect(m.facts[0].text, 'the resolution line reads «принимается» / «принята» and the law\'s name').toMatch(/^(Принимается|Принята|Being enacted|Enacted) \S/);
+      expect(m.facts[1].text, 'the winner line reads «победитель голосования» and the seat').toMatch(/^(Победитель голосования|Winner of the vote) \S/);
+      for (const f of m.facts) {
+        expect(f.name.length, `${f.kind}: the fact names its object`).toBeGreaterThan(0);
+        expect(f.inside, `${preset.id}: the ${f.kind} fact stands inside the plate`).toBe(true);
+        expect(f.text, 'a fact never repeats the kicker\'s noun or the HUD\'s generation').not.toMatch(/Парламент|поколение/i);
+        if (f.nameCut) {
+          expect(f.nameEllipsis, `${preset.id}: a cut name is an ellipsis in its own box`).toBe('ellipsis');
+        }
+      }
+      expect(m.light, `${preset.id}: the plate holds no standing light (invariant 15)`).toEqual([]);
       expect(m.open, 'the plate opens with the family\'s own verb').toMatch(/Открыть|Open/);
       expect(m.open).not.toMatch(/заседание|sitting/i);
       // No board object under the plate — the off-Mars spaces above the planet included.

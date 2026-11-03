@@ -50,7 +50,9 @@
                                 :sourceCard="mandatoryAnnounceView.sourceCard"
                                 :sourceResolution="mandatoryAnnounceView.sourceResolution"
                                 :openLabel="mandatoryAnnounceView.openLabel"
-                                :tone="mandatoryAnnounceView.tone" />
+                                :tone="mandatoryAnnounceView.tone"
+                                :invitation="mandatoryAnnounceView.invitation"
+                                :invitationWinnerName="mandatoryAnnounceView.invitationWinnerName" />
     </transition>
 
     <!-- THE DRAFT TRAY — the ONE persistent "selected cards area" of the
@@ -1777,7 +1779,8 @@ import {WinnerRewardTable} from '@/common/parliament/winnerReward';
 import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {enactedLevyOf, enactedYieldsOf, voteLevyOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
-import {grantSupportOf, parliamentPromptBridge, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
+import {grantSupportOf, parliamentPlayerName, parliamentPromptBridge, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
+import {SittingInvitationFacts, sittingInvitationFacts} from '@/client/console/parliament/sittingInvitation';
 import {supportReadingOf, SupportReadingVm} from '@/client/console/parliament/voteInfoModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
@@ -6536,10 +6539,22 @@ export default defineComponent({
       const frame = frameServing(task.kind);
       return frame !== undefined && workspaceFrameIndex(frame.kind) !== -1;
     },
+    /** The invitation plate's two facts and the winner's display name (the bot's seat by its localized name). */
+    sittingInvitationFields(): {invitation?: SittingInvitationFacts, invitationWinnerName?: string} {
+      const invitation = sittingInvitationFacts(this.game.parliament);
+      if (invitation === undefined) {
+        return {};
+      }
+      return {
+        invitation,
+        invitationWinnerName: invitation.winner === undefined ? undefined : parliamentPlayerName(this.playerView.players, invitation.winner),
+      };
+    },
     /** The prompt card's copy (one consoleTaskSummary source, so nothing can
      *  diverge). The A-verb relabels by STATE: «Открыть» for a fresh held
      *  decision, «Вернуться к решению» for a deferred one. */
-    mandatoryAnnounceView(): {kicker: string, ask: string, sourceCard: CardName | undefined, sourceResolution: string | undefined, openLabel: string, tone: PromptTone} {
+    mandatoryAnnounceView(): {kicker: string, ask: string, sourceCard: CardName | undefined, sourceResolution: string | undefined, openLabel: string, tone: PromptTone,
+      invitation?: SittingInvitationFacts, invitationWinnerName?: string} {
       // THE SITTING'S ONE PLATE (Turmoil Redux): whatever prompt of the phase
       // is standing (a gate, the resolution's pick / take), the beat announces
       // the SITTING — kicker «ПАРЛАМЕНТ», ask «Заседание» — and A opens it; a
@@ -6557,6 +6572,9 @@ export default defineComponent({
           sourceResolution: this.activeTaskSummary?.sourceResolution,
           openLabel: 'Open',
           tone: 'neutral',
+          // THE FACTS UNDER THE ASK (P51 · FG — the owner): the resolution being enacted and the winner of the vote,
+          // ALWAYS, read off the server's records (`sittingInvitation.ts`); «Заседание» stays the ask (R-35).
+          ...this.sittingInvitationFields,
         };
       }
       // THE MINIMIZED FINALE (no live task of its own — another seat decides, or the seat's next prompt is on

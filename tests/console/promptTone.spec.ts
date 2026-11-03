@@ -52,11 +52,31 @@ describe('promptTone', () => {
       .to.deep.eq({tone: 'loss', basis: 'bot-attack'});
   });
 
-  it('a forced discard is a loss; a discard that BUYS something is a trade (neutral); an optional one a free choice', () => {
+  it('a forced discard that STANDS ALONE is a loss; a discard that BUYS something is a trade (neutral); an optional one a free choice', () => {
     const card = {type: 'card', title: 'x', buttonLabel: 'Discard', cards: [], min: 1, max: 1};
     expect(promptToneOf(as({...card, discardPrompt: {min: 1, max: 1}})).tone).to.eq('loss');
+    // Hygiea's colony effect on the VICTIM — no pair, no price of their own: a loss.
+    expect(promptToneOf(as({...card, discardPrompt: {min: 1, max: 1, source: {kind: 'colony', colony: 'Hygiea'}}}))).to.deep.eq({tone: 'loss', basis: 'forced-discard'});
     expect(promptToneOf(as({...card, discardPrompt: {min: 1, max: 1, exchange: {icon: 'cards', amount: 1}}})).tone).to.eq('neutral');
     expect(promptToneOf(as({...card, discardPrompt: {min: 0, max: 1}})).tone).to.eq('neutral');
+  });
+
+  it('THE TONE IS THE NET OF THE DECISION: Pluto\'s «draw 1, discard 1» closes a pair — neutral, the verb «Discard», never «Accept the loss»', () => {
+    const card = {type: 'card', title: 'x', buttonLabel: 'Discard', cards: [], min: 1, max: 1};
+    const pluto = as({...card, discardPrompt: {min: 1, max: 1, source: {kind: 'colony', colony: 'Pluto'}, colonyBonus: {colonyName: 'Pluto'}}});
+    expect(promptToneOf(pluto)).to.deep.eq({tone: 'neutral', basis: 'draw-pair'});
+    expect(promptToneTagKey(promptToneOf(pluto).tone), 'no «УБЫТОК» tag').to.be.undefined;
+    expect(promptCommitLabelKey(promptToneOf(pluto).tone, 'Discard')).to.eq('Discard');
+    // Colonial Affairs pays Pluto's bonus N times — each repeat is the same pair.
+    const repeat = as({...card, discardPrompt: {min: 1, max: 1, source: {kind: 'resolution'}, colonyRepeat: {colonyName: 'Pluto', index: 1, total: 2}}});
+    expect(promptToneOf(repeat)).to.deep.eq({tone: 'neutral', basis: 'draw-pair'});
+  });
+
+  it('a discard that is the PRICE of the player\'s own play (Old Mining Colony, Project Eden) is a chosen price — neutral', () => {
+    const card = {type: 'card', title: 'x', buttonLabel: 'Discard', cards: [], min: 1, max: 1};
+    expect(promptToneOf(as({...card, discardPrompt: {min: 1, max: 1, source: {kind: 'card', card: 'Old Mining Colony'}}})))
+      .to.deep.eq({tone: 'neutral', basis: 'chosen-price'});
+    expect(promptToneOf(as({...card, min: 3, max: 3, discardPrompt: {min: 3, max: 3, source: {kind: 'card', card: 'Project Eden'}}})).tone).to.eq('neutral');
   });
 
   it('an Ares adjacency card pick (a resource onto a card) is a gain', () => {
