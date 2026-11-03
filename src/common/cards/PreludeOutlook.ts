@@ -18,8 +18,12 @@ import {CardName} from './CardName';
  *    (a discounted play, an ignore-requirements play). A draw or a windfall
  *    MAY create one; nothing can promise it, which is what makes the order fix
  *    a POSSIBILITY and never a guarantee.
+ *  · `cash`           — the effect carries a PRICE in M€ the player cannot pay
+ *    yet (P52 Industrial Complex's 18 M€). A prelude that GRANTS M€ (Loan's
+ *    +30) can cover it; whether it covers ALL of it is not read here, so the
+ *    order fix is a POSSIBILITY, never claimed as a guarantee.
  */
-export type PreludeNeed = 'playedPrelude' | 'playableCard';
+export type PreludeNeed = 'playedPrelude' | 'playableCard' | 'cash';
 
 /**
  * THE ORDER-AWARE VERDICT for one prelude the player is being asked to play.

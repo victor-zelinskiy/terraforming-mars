@@ -21,7 +21,7 @@ const NAMED = (n: CardName) => `«${n}»`;
 function deferred(
   certainty: 'guaranteed' | 'possible',
   enablers: ReadonlyArray<CardName>,
-  need: 'playedPrelude' | 'playableCard'): PreludeOutlook {
+  need: 'playedPrelude' | 'playableCard' | 'cash'): PreludeOutlook {
   return {state: 'deferred', certainty, enablers, need};
 }
 
@@ -148,6 +148,26 @@ describe('startPreludeRisk (the order-aware verdict as words)', () => {
         .to.eq('Enables the waiting prelude');
       expect(preludeEnablerBadge({state: 'noEffect'})).to.be.undefined;
       expect(preludeEnablerBadge({state: 'playable'})).to.be.undefined;
+    });
+  });
+
+  /** P52 · FH — a PRICE the stock cannot pay yet: money first, never a promise it covers all of it. */
+  describe('the cash need (Industrial Complex\'s 18 M€)', () => {
+    it('one money enabler is named; the badge says «money first»; the verb still names the loss', () => {
+      const risk = preludeRisk(deferred('possible', [CardName.LOAN], 'cash'), NAMED);
+      expect(risk?.tone).to.eq('possible');
+      expect(risk?.badge).to.eq('Money first');
+      expect(risk?.title).to.eq('Not enough M€ for its price');
+      expect(risk?.bodyParams).to.deep.eq([`«${CardName.LOAN}»`]);
+      expect(risk?.commitLabel).to.eq(PRELUDE_RISK_HOLD_LABEL);
+      expect(preludeEnablerBadge(deferred('possible', [CardName.LOAN], 'cash'))).to.eq('Gives M€ for the waiting price');
+    });
+
+    it('nothing left gives M€ — a final verdict that names the price', () => {
+      const risk = preludeRisk({state: 'noEffect', need: 'cash'}, NAMED);
+      expect(risk?.tone).to.eq('final');
+      expect(risk?.title).to.eq('Not enough M€ for its price');
+      expect(risk?.body).to.contain('price');
     });
   });
 });

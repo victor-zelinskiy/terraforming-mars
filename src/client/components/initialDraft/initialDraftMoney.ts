@@ -75,6 +75,11 @@ function preludeExtraForCorp(
   const card = getCardOrThrow(prelude);
   switch (corp) {
   case CardName.MANUTECH:
+    // P52 Industrial Complex raises every production below 1 to 1 (`bespokePlay`, no production box): at the start
+    // Manutech's M€ production is 0, so its line rises 0 → 1 and pays 1 M€ (the other lines pay their own resource).
+    if (prelude === CardName.INDUSTRIAL_COMPLEX) {
+      return 1;
+    }
     return card.productionBox?.megacredits ?? 0;
   case CardName.THARSIS_REPUBLIC:
     switch (prelude) {

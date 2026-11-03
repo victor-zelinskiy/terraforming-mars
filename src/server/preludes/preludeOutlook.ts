@@ -46,19 +46,25 @@ import {Behavior} from '../behavior/Behavior';
 const CERTAINTY_OF_NEED: Readonly<Record<PreludeNeed, 'guaranteed' | 'possible'>> = {
   playedPrelude: 'guaranteed',
   playableCard: 'possible',
+  cash: 'possible',
 };
+
+/** M€ this behaviour puts in the player's STOCK at once (Loan's +30) — the money a price can be paid with. */
+function grantsStockMegacredits(behavior: Behavior | undefined): boolean {
+  const stock = behavior?.stock;
+  const stockMc = typeof stock === 'object' && stock !== null ? (stock as {megacredits?: unknown}).megacredits : undefined;
+  return typeof stockMc === 'number' && stockMc > 0;
+}
 
 /** Does this behaviour hand the player MONEY (which may make a held card affordable)? */
 function grantsMegacredits(behavior: Behavior | undefined): boolean {
   if (behavior === undefined) {
     return false;
   }
-  const stock = behavior.stock;
-  const stockMc = typeof stock === 'object' && stock !== null ? (stock as {megacredits?: unknown}).megacredits : undefined;
   const production = behavior.production;
   const prodMc = typeof production === 'object' && production !== null ?
     (production as {megacredits?: unknown}).megacredits : undefined;
-  return (typeof stockMc === 'number' && stockMc > 0) || (typeof prodMc === 'number' && prodMc > 0);
+  return grantsStockMegacredits(behavior) || (typeof prodMc === 'number' && prodMc > 0);
 }
 
 /**
@@ -74,6 +80,10 @@ export function preludeProvisions(card: IPreludeCard): ReadonlySet<PreludeNeed> 
   const behavior = card.behavior;
   if (behavior?.drawCard !== undefined || grantsMegacredits(behavior)) {
     out.add('playableCard');
+  }
+  // A price is paid out of the stock: only money in hand NOW covers it (production pays next generation).
+  if (grantsStockMegacredits(behavior)) {
+    out.add('cash');
   }
   for (const provided of card.preludeProvides ?? []) {
     out.add(provided);

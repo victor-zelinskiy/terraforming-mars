@@ -53,7 +53,17 @@ function preludeNoEffectTitle(need: PreludeNeed | undefined): string {
   switch (need) {
   case 'playedPrelude': return 'Nothing to repeat yet';
   case 'playableCard': return 'No available project right now';
+  case 'cash': return 'Not enough M€ for its price';
   default: return 'Nothing can meet its condition';
+  }
+}
+
+/** The body of a FINAL verdict — one per declared `need`, the general one for a card that declared none. */
+function noEffectBody(need: PreludeNeed | undefined): string {
+  switch (need) {
+  case 'playableCard': return 'None of your projects is a legal target right now. Playing this prelude will lose its effect.';
+  case 'cash': return 'You cannot pay its price and nothing left to play gives M€. Playing this prelude will lose its effect.';
+  default: return 'Nothing left to play can create what this effect needs. Playing this prelude will lose its effect.';
   }
 }
 
@@ -95,9 +105,7 @@ export function preludeRisk(
       tone: 'final',
       badge: 'Effect will not happen',
       title: preludeNoEffectTitle(outlook.need),
-      body: outlook.need === 'playableCard' ?
-        'None of your projects is a legal target right now. Playing this prelude will lose its effect.' :
-        'Nothing left to play can create what this effect needs. Playing this prelude will lose its effect.',
+      body: noEffectBody(outlook.need),
       bodyParams: [],
       commitLabel,
       enablers: [],
@@ -114,6 +122,22 @@ export function preludeRisk(
       body: only !== undefined ?
         'Play ${0} first. Playing this prelude now will play the card with no effect.' :
         'Play any of your other preludes first. Playing this one now will play the card with no effect.',
+      bodyParams: only !== undefined ? [only] : [],
+      commitLabel,
+      enablers,
+    };
+  }
+
+  if (outlook.need === 'cash') {
+    // A PRICE the stock cannot pay yet — a prelude that grants M€ may cover it. «может» again: the grant is read off
+    // the enabler's declaration, never simulated against the price.
+    return {
+      tone: 'possible',
+      badge: 'Money first',
+      title: 'Not enough M€ for its price',
+      body: only !== undefined ?
+        '${0} gives M€ now. Play it first to pay this price; played now, this prelude loses its effect.' :
+        'Another of your preludes gives M€ now. Play it first to pay this price; played now, this prelude loses its effect.',
       bodyParams: only !== undefined ? [only] : [],
       commitLabel,
       enablers,
@@ -163,6 +187,9 @@ export function isPreludeEnabler(
 export function preludeEnablerBadge(outlook: PreludeOutlook | undefined): string | undefined {
   if (outlook?.state !== 'deferred') {
     return undefined;
+  }
+  if (outlook.need === 'cash') {
+    return 'Gives M€ for the waiting price';
   }
   return outlook.certainty === 'guaranteed' ? 'Play this one first' : 'Enables the waiting prelude';
 }
