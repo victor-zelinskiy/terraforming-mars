@@ -39,6 +39,49 @@ export class AutomaColonies {
     return colony.colonies.filter((id) => id === bot.id).length;
   }
 
+  /**
+   * MarsBot's trade fleets — THE number the table sees (the colonies' fleet bar reads the player's `fleetSize`).
+   * A save from before the bot's fleets were counted on its player carries the second fleet only as the
+   * `secondFleetUnlocked` flag; the larger of the two answers for it.
+   */
+  public static botFleetCount(game: IGame): number {
+    const bot = marsBotOf(game);
+    const flagged = game.automa?.secondFleetUnlocked === true ? 2 : 1;
+    return Math.max(bot.colonies.getFleetSize(), flagged);
+  }
+
+  /** How many trade fleets MarsBot may own — one trade card per fleet: B19, B20, and a corporation's own third (CF2). */
+  public static botMaxFleets(game: IGame): number {
+    return AutomaCorporations.maxTradeFleets(game);
+  }
+
+  /**
+   * MarsBot gains a trade fleet — the power track's #9 (Adding Expansions p.6) or a corporation's own assembly
+   * (CF2 Veynon Dynamics). The fleet is REAL: the bot's player `fleetSize` grows (the table counts its ships), and
+   * the fleet's trade card joins the action deck from the next generation (B20 for the second; the corporation's own
+   * card for a third). Returns false at the cap — nothing is gained, and the caller says why.
+   */
+  public static gainTradeFleet(game: IGame): boolean {
+    const automa = game.automa;
+    if (automa === undefined) {
+      throw new Error('Not an automa game');
+    }
+    const bot = marsBotOf(game);
+    const fleets = AutomaColonies.botFleetCount(game);
+    if (fleets >= AutomaColonies.botMaxFleets(game)) {
+      return false;
+    }
+    bot.colonies.setFleetSize(fleets + 1);
+    if (fleets + 1 === 2) {
+      automa.secondFleetUnlocked = true;
+      game.log('${0} unlocked its second trade fleet', (b) => b.player(bot));
+    } else {
+      game.log('${0} launched trade fleet number ${1}', (b) => b.player(bot).number(fleets + 1));
+    }
+    AutomaCorporations.onTradeFleetGained(game, fleets + 1);
+    return true;
+  }
+
   /** MarsBot colonies across the whole table (B17's "1 or 0 colonies in play"). */
   public static botColonyCount(game: IGame): number {
     return game.colonies.reduce((sum, colony) => sum + AutomaColonies.botColoniesOn(game, colony), 0);
@@ -185,7 +228,7 @@ export class AutomaColonies {
    * rules; the One-Trade-Fleet-per-Tile rule holds (visitor). Returns false
    * when no tile is tradable (all visited / no M€).
    */
-  public static botTrade(game: IGame): boolean {
+  public static botTrade(game: IGame, options?: {rank?: (colony: IColony) => number}): boolean {
     const automa = game.automa;
     if (automa === undefined) {
       throw new Error('Not an automa game');
@@ -197,6 +240,13 @@ export class AutomaColonies {
     let candidates = game.colonies.filter((colony) => colony.isActive && colony.visitor === undefined);
     if (candidates.length === 0) {
       return false;
+    }
+    // A card's OWN first criterion (BC2 «Veynon Run»: the storage area closest to its exchange), before the
+    // printed track rule — which then breaks its ties exactly as it does for B19 / B20.
+    const rank = options?.rank;
+    if (rank !== undefined) {
+      const best = Math.max(...candidates.map(rank));
+      candidates = candidates.filter((c) => rank(c) === best);
     }
     const top = Math.max(...candidates.map((c) => c.trackPosition));
     candidates = candidates.filter((c) => c.trackPosition === top);
@@ -229,8 +279,11 @@ export class AutomaColonies {
     }
 
     colony.visitor = bot.id;
+    automa.trades++;
     // The ordinary post-trade reset: the marker returns to the colony count.
     colony.trackPosition = colony.colonies.length;
+    // The bot's corporation hears its own trade (CF2 Veynon Dynamics' cargo).
+    AutomaCorporations.onBotTrade(game, colony.name);
     // Turmoil Redux: a trade of the bot's own (the chairman quest's «trade N times») — this path never enters `Colony.trade`.
     BotQuestEvents.traded(game);
     return true;

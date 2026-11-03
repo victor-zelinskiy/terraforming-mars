@@ -73,6 +73,8 @@ export type MarsBotModel = {
   /** Colonies shipping-board storage areas (present only with Colonies). */
   shippingStorage?: Partial<Record<ColonyName, number>>;
   secondFleetUnlocked?: boolean;
+  /** MarsBot's trade fleets (1…3) — the ships the table sees (present only with Colonies). */
+  tradeFleets?: number;
   /** "MarsBot instantly wins" — the game entered the loss round. */
   instantWin?: boolean;
   /**

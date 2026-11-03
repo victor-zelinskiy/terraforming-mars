@@ -291,6 +291,10 @@ function evaluate(file: string): Row | undefined {
   if (d.phase !== 'end' || d.gameOptions?.automa === undefined) return undefined;
   const game = Game.deserialize(d);
   if (game.automa === undefined) return undefined;
+  // Saves from before the durable trade counter (CF2's formula): recount the bot's colony trades from the journal.
+  if (game.automa.trades === 0) {
+    game.automa.trades = game.gameLog.filter((m) => typeof m.message === 'string' && m.message === '${0} trades with ${1}').length;
+  }
   const formula: Record<string, number> = {};
   const goalVp: Record<string, number> = {};
   for (const id of MARS_BOT_CORP_IDS) {

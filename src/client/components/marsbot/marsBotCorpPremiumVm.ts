@@ -533,6 +533,17 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.tag(Tag.POWER).startEffect.cards(1).asterix();
       });
     });
+  case MarsBotCorpId.CF2_VEYNON_DYNAMICS:
+    return CardRenderer.builder((b) => {
+      // EFFECT: the outer system's haulers — Jovian and space tags — put a mech here (the human card's mech square).
+      b.effect(undefined, (eb) => {
+        eb.tag(Tag.JOVIAN).tag(Tag.SPACE).startEffect.resource(CardResource.MECH);
+      });
+      // Three mechs become a trade fleet — the printed colony tile, the human card's own fleet sign.
+      b.effect(undefined, (eb) => {
+        eb.resource(CardResource.MECH, 3).startEffect.colonies(1).asterix();
+      });
+    });
   case MarsBotCorpId.CF1_FERRUS_ACADEMY:
     return CardRenderer.builder((b) => {
       // SETUP: the human card's own first-action shape — the Academy city (its bonus doubled) and the ring of
@@ -665,6 +676,9 @@ function corpResourceSocket(resource: MarsBotCorpResource): {type: CardResource,
   // reads as cubes whichever colour is waiting there.
   case 'cube-black':
     return {type: CardResource.RESOURCE_CUBE, iconUrl: 'assets/cube-black.png'};
+  // A real card resource (CF2 Veynon Dynamics' hulls-to-be): its own icon.
+  case 'mech':
+    return {type: CardResource.MECH};
   default: {
     const never: never = resource;
     void never;

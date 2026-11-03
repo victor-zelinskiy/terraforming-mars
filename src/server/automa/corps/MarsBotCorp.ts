@@ -2,6 +2,7 @@ import {BonusCardId, TrackAction} from '../../../common/automa/AutomaTypes';
 import {GlobalParameter} from '../../../common/GlobalParameter';
 import {MarsBotCorpInfo, MarsBotTrackCube} from '../../../common/automa/MarsBotCorpData';
 import {Tag} from '../../../common/cards/Tag';
+import {ColonyName} from '../../../common/colonies/ColonyName';
 import {FailedActionReason} from '../../../common/automa/MarsBotTurn';
 import {IGame} from '../../IGame';
 import {IPlayer} from '../../IPlayer';
@@ -297,6 +298,18 @@ export type MarsBotCorp = {
    * the tile on the board (a track push it starts may lay the next tile safely).
    */
   onOwnMarkerBuilt?(game: IGame, space: Space): void;
+
+  /**
+   * How many trade fleets MarsBot may own under this corporation (Colonies). One trade card per fleet: B19, B20 —
+   * the default cap of 2 — and a corporation that prints its OWN third card raises it (CF2 Veynon Dynamics: 3).
+   */
+  readonly maxTradeFleets?: number;
+
+  /** MarsBot now owns `fleets` trade fleets (`AutomaColonies.gainTradeFleet` — the power track's #9, CF2's assembly). */
+  onTradeFleetGained?(game: IGame, fleets: number): void;
+
+  /** MarsBot has just traded with `colony` — its income is in the storage area (CF2 Veynon Dynamics' cargo). */
+  onBotTrade?(game: IGame, colony: ColonyName): void;
 
   /**
    * Resolves one of this corporation's OWN bonus cards (`info.corpBonusCards`,

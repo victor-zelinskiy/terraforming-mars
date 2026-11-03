@@ -196,6 +196,9 @@ const DIVIDENDS: Readonly<Record<MarsBotCorpId, MarsBotDividendInfo>> = {
   [MarsBotCorpId.CF1_FERRUS_ACADEMY]: dividendBox('Alma Mater', {each: 4}, (r) => [
     {text: '${0} VP per MarsBot tile around its best-surrounded city', params: [r.each]},
   ], dividendGoal('Astronomical tuition', 'Cards costing 20 M€ or more in MarsBot\'s played pile', 7, 8, 10)),
+  [MarsBotCorpId.CF2_VEYNON_DYNAMICS]: dividendBox('Freight Contracts', {each: 2}, (r) => [
+    {text: '${0} VP per colony trade MarsBot made', params: [r.each]},
+  ], dividendGoal('Earth runs', 'Earth tags in MarsBot\'s played pile', 6, 8, 10)),
 };
 
 export function marsBotDividendInfo(id: MarsBotCorpId): MarsBotDividendInfo {

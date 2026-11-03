@@ -102,13 +102,13 @@
 
     <section v-if="hasSection('shipping')" class="con-botscr__plate con-botscr__plate--extra">
       <h3 class="con-botscr__kicker">{{ $t('Shipping storage') }}</h3>
-      <div v-if="storageEntries.length > 0 || automa.secondFleetUnlocked" class="con-botscr__objects">
+      <div v-if="storageEntries.length > 0 || (automa.tradeFleets ?? 1) > 1 || automa.secondFleetUnlocked" class="con-botscr__objects">
         <span v-for="s in storageEntries" :key="s.colony" class="con-botscr__token">
           <b class="con-botscr__count">{{ s.count }}</b>
           <span class="con-botscr__objlabel">{{ $t(s.colony) }}</span>
         </span>
-        <span v-if="automa.secondFleetUnlocked" class="con-botscr__token">
-          <b class="con-botscr__count">2</b>
+        <span v-if="(automa.tradeFleets ?? 1) > 1 || automa.secondFleetUnlocked" class="con-botscr__token">
+          <b class="con-botscr__count">{{ automa.tradeFleets ?? 2 }}</b>
           <span class="con-botscr__objlabel">{{ $t('Trade fleets') }}</span>
         </span>
       </div>

@@ -19,6 +19,7 @@ import {CardResource} from '../../common/CardResource';
 import {ClaimedMilestoneModel, MilestoneScore} from '../../common/models/ClaimedMilestoneModel';
 import {AutomaDeltaProject} from '../automa/AutomaDeltaProject';
 import {AutomaState} from '../automa/AutomaState';
+import {AutomaColonies} from '../automa/AutomaColonies';
 import {AutomaCorporations} from '../automa/corps/AutomaCorporations';
 import {MarsBotCorpModel, marsBotCorpInfo} from '../../common/automa/MarsBotCorpData';
 import {AutomaMAEvaluation} from '../automa/AutomaMAEvaluation';
@@ -456,6 +457,7 @@ export class Server {
     if (game.gameOptions.coloniesExtension) {
       model.shippingStorage = {...automa.shippingStorage};
       model.secondFleetUnlocked = automa.secondFleetUnlocked;
+      model.tradeFleets = AutomaColonies.botFleetCount(game);
     }
     if (automa.instantWin) {
       model.instantWin = true;
@@ -691,7 +693,8 @@ export class Server {
       color: player.color,
       energy: player.energy,
       energyProduction: player.production.energy,
-      fleetSize: player.colonies.getFleetSize(),
+      // MarsBot's fleets are counted the bot's way (an older save holds its second fleet only as a flag).
+      fleetSize: player.isMarsBot && game.automa !== undefined ? AutomaColonies.botFleetCount(game) : player.colonies.getFleetSize(),
       handicap: useHandicap ? player.handicap : undefined,
       heat: player.heat,
       heatProduction: player.production.heat,

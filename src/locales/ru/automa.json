@@ -767,5 +767,20 @@
     "${0} could not pay the ${1} M€ tuition of Field Practice": "${0} не может оплатить ${1} M€ за «Полевую практику»",
     "${0} paid ${1} M€ tuition for Field Practice": "${0} платит ${1} M€ за «Полевую практику»",
     "A greenery on the Campus — and its Graduation": "Озеленение на Кампусе — и Выпуск",
-    "No free Campus space — a Graduation all the same": "Свободных клеток Кампуса нет — Выпуск всё равно"
+    "No free Campus space — a Graduation all the same": "Свободных клеток Кампуса нет — Выпуск всё равно",
+    "MarsBot's first trade fleet sails from the first generation: Shipping Lines joins the action deck now": "Первый торговый флот Бота выходит с первого поколения: «Судоходные линии» сразу добавляются в колоду действий",
+    "Each Jovian or space tag MarsBot resolves puts a mech on this card": "Каждая метка Юпитера или Космоса, которую разыгрывает Бот, кладёт меха на эту карту",
+    "${0} mechs here assemble a new trade fleet — up to ${1} fleets; the third sails as Veynon Run": "${0} меха здесь собирают новый торговый флот — до ${1} флотов; третий выходит «Рейсом Вейнона»",
+    "With all ${0} fleets afloat, each trade spends a mech here to bring one more resource to that storage area": "Когда все ${0} флота на плаву, каждая торговля тратит меха отсюда и привозит ещё один ресурс на этот склад",
+    "Veynon Run": "Рейс Вейнона",
+    "Veynon Dynamics: the third trade fleet sails to the colony whose storage area is closest to its next exchange (the most-advanced track breaking ties) and trades there. Recurs into the action deck every generation.": "Veynon Dynamics: третий торговый флот идёт к колонии, чей склад ближе всего к следующему обмену (при равенстве — с самым продвинутым треком), и торгует там. Возвращается в колоду действий каждое поколение.",
+    "MarsBot's third fleet trades with the colony whose storage area is closest to its next exchange": "Третий флот Бота торгует с колонией, чей склад ближе всего к следующему обмену",
+    "Ties: the most-advanced track, then a colony of its own, then the flip — as Shipping Lines": "При равенстве — самый продвинутый трек, затем своя колония, затем вскрытие, как у «Судоходных линий»",
+    "${0} launched its first trade fleet: it sails from the first generation": "${0} спускает на воду первый торговый флот: он выходит с первого поколения",
+    "${0} launched trade fleet number ${1}": "${0} спускает на воду торговый флот №${1}",
+    "${0} assembled a new trade fleet from ${1} mechs": "${0} собирает новый торговый флот из ${1} мехов",
+    "${0} unloaded a mech's cargo at ${1}": "${0} выгружает груз меха на ${1}",
+    "Sailed to the storage area closest to its exchange": "Рейс к складу, ближайшему к обмену",
+    "No colony left to trade with": "Не осталось колоний для торговли",
+    "Place ${0} mech on this card": "Положите на эту карту меха — ${0}"
 }

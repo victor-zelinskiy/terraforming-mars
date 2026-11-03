@@ -3276,6 +3276,20 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 14,
         });
       }
+    } else if (corp.id === 'CF2') {
+      // Veynon Dynamics (the fork's own card): what the table SAW is a bot with more ships than anyone — the hulls
+      // its mechs assembled, and the trades they made. One hull is the setup's shape; two or more is the shipyard.
+      const fleets = stat('veynonFleets');
+      const runs = stat('veynonTrades');
+      if (fleets >= 2) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Veynon\'s yards never rested at ${0}\'s ${1}: mechs became ${2} trade fleets, and ${3} trades went out to the colonies.',
+          params: [raw(p.name), raw(corp.name), raw(fleets), raw(runs)],
+          measure: fleets * 4 + runs,
+          scale: 16,
+        });
+      }
     } else if (corp.id === 'CF1') {
       // Ferrus Academy (the fork's own card): what the table SAW is the bot's weakest fields catching up, class after
       // class — the Graduations. Three are the Campus itself; four or more is an academy that kept teaching.

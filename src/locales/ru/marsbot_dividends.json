@@ -285,5 +285,10 @@
     "${0} VP per MarsBot tile around its best-surrounded city": "${0} ПО за каждый тайл MarsBot вокруг его самого обжитого города",
     "Astronomical tuition": "Астрономическая плата за обучение",
     "Cards costing 20 M€ or more in MarsBot's played pile": "карты от 20 M€",
-    "MarsBot tiles around its best-surrounded city": "Тайлы MarsBot вокруг самого обжитого города"
+    "MarsBot tiles around its best-surrounded city": "Тайлы MarsBot вокруг самого обжитого города",
+    "Freight Contracts": "Грузовые контракты",
+    "${0} VP per colony trade MarsBot made": "${0} ПО за каждую торговлю MarsBot с колониями",
+    "Earth runs": "Земные рейсы",
+    "Earth tags in MarsBot's played pile": "метки Земли",
+    "Colony trades of MarsBot": "Торговли MarsBot с колониями"
 }

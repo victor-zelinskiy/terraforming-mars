@@ -84,6 +84,8 @@ export type SerializedAutomaState = {
   holdings?: Array<MarsBotCorpId>;
   /** Failed Actions taken this game. Absent = an older save (reads 0). */
   failedActions?: number;
+  /** Colony trades MarsBot made this game. Absent = an older save / none (reads 0). */
+  trades?: number;
   /** «Вторая смена»: the extra cards drawn in `generation` so far (`SecondShift.ts`). Absent = none drawn yet. */
   secondShift?: SecondShiftState;
 };
@@ -195,6 +197,8 @@ export class AutomaState {
    * one `failedAction` funnel (read by C36 Pristar's dividend).
    */
   public failedActions: number = 0;
+  /** Colony trades the bot made this game — a FACT, counted by the one `AutomaColonies.botTrade` (CF2's dividend). */
+  public trades: number = 0;
   /** The typed script of the last resolved turn (feeds the client turn theater). */
   public lastTurn: MarsBotTurn | undefined = undefined;
   /**
@@ -296,6 +300,9 @@ export class AutomaState {
     if (this.failedActions > 0) {
       result.failedActions = this.failedActions;
     }
+    if (this.trades > 0) {
+      result.trades = this.trades;
+    }
     if (this.secondShift !== undefined) {
       result.secondShift = {...this.secondShift};
     }
@@ -345,6 +352,7 @@ export class AutomaState {
     state.lobbyMandate = d.lobbyMandate !== undefined ? {...d.lobbyMandate} : undefined;
     state.holdings = [...(d.holdings ?? [])];
     state.failedActions = d.failedActions ?? 0;
+    state.trades = d.trades ?? 0;
     state.secondShift = d.secondShift !== undefined ? {...d.secondShift} : undefined;
     return state;
   }

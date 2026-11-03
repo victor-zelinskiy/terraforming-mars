@@ -1,4 +1,5 @@
 import {CardName} from '../../../common/cards/CardName';
+import {ColonyName} from '../../../common/colonies/ColonyName';
 import {Expansion} from '../../../common/cards/GameModule';
 import {Tag} from '../../../common/cards/Tag';
 import {BonusCardId, TrackAction} from '../../../common/automa/AutomaTypes';
@@ -69,6 +70,7 @@ import {MarsBotEcoline} from './MarsBotEcoline';
 import {MarsBotSpire} from './MarsBotSpire';
 import {MarsBotTychoMagnetics} from './MarsBotTychoMagnetics';
 import {MarsBotFerrusAcademy} from './MarsBotFerrusAcademy';
+import {MarsBotVeynonDynamics} from './MarsBotVeynonDynamics';
 
 /**
  * THE MarsBot corporation registry + dispatch layer (Rule Book B "Adding
@@ -141,6 +143,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
     [MarsBotCorpId.C46_TYCHO_MAGNETICS]: MarsBotTychoMagnetics,
     [MarsBotCorpId.CF1_FERRUS_ACADEMY]: MarsBotFerrusAcademy,
+    [MarsBotCorpId.CF2_VEYNON_DYNAMICS]: MarsBotVeynonDynamics,
   };
 
   public static corpFor(id: MarsBotCorpId): MarsBotCorp {
@@ -317,6 +320,21 @@ export class AutomaCorporations {
       return false;
     }
     return AutomaCorporations.activeCorp(game)?.onBuildOnOwnMarker?.(game, space) === 'pays';
+  }
+
+  /** The trade-fleet cap under the seated corporation — 2 (B19 + B20) unless its own card raises it. */
+  public static maxTradeFleets(game: IGame): number {
+    return AutomaCorporations.activeCorp(game)?.maxTradeFleets ?? 2;
+  }
+
+  /** MarsBot now owns `fleets` trade fleets (`MarsBotCorp.onTradeFleetGained`). */
+  public static onTradeFleetGained(game: IGame, fleets: number): void {
+    AutomaCorporations.activeCorp(game)?.onTradeFleetGained?.(game, fleets);
+  }
+
+  /** MarsBot has just traded (`MarsBotCorp.onBotTrade`). */
+  public static onBotTrade(game: IGame, colony: ColonyName): void {
+    AutomaCorporations.activeCorp(game)?.onBotTrade?.(game, colony);
   }
 
   /** MarsBot's tile SEATED on its own marker (`MarsBotCorp.onOwnMarkerBuilt`) — the bot seat only. */

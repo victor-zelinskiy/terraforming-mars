@@ -186,8 +186,8 @@ export class AutomaResolver {
     // AutomaColonies — it is a flag flip, not colony machinery.
     if (game.gameOptions.coloniesExtension && !automa.secondFleetUnlocked &&
         trackIndex === automa.board.getTrackIndexOfRole('power') && track.position === 9) {
-      automa.secondFleetUnlocked = true;
-      game.log('${0} unlocked its second trade fleet', (b) => b.player(marsBotOf(game)));
+      // The fleet is real — the bot's player counts it (`AutomaColonies.gainTradeFleet`, CF2's assembly too).
+      AutomaColonies.gainTradeFleet(game);
     }
     // A cell whose printed icon is a MICROBE tag (Venus board, cell 9): a
     // «microbe advancement» — the sanctioned human reactors (Pharmacy Union /

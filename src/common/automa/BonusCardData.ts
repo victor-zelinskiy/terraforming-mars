@@ -135,6 +135,10 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     name: 'Field Practice',
     text: 'Ferrus Academy: MarsBot pays 10 M€ tuition, if able, then places a greenery on a free space of its Campus, and the Graduation follows; with no free Campus space it advances its least advanced track instead. Recurs into the action deck every generation.',
   },
+  [BonusCardId.BC2_VEYNON_RUN]: {
+    name: 'Veynon Run',
+    text: 'Veynon Dynamics: the third trade fleet sails to the colony whose storage area is closest to its next exchange (the most-advanced track breaking ties) and trades there. Recurs into the action deck every generation.',
+  },
 };
 
 export function bonusCardInfo(id: BonusCardId): BonusCardInfo {
@@ -505,6 +509,17 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'tile', text: 'No free Campus space: a Graduation all the same'},
       ],
       fate: {kind: 'recurring', text: 'At the beginning of every generation it is shuffled back into MarsBot\'s action deck'},
+    };
+  case BonusCardId.BC2_VEYNON_RUN:
+    // CF2 Veynon Dynamics' own card (the fork's design, docs/AUTOMA_DATA_AUDIT.md §20): the third fleet's voyage,
+    // routed by logistics — to the storage area that is nearest its next exchange.
+    return {
+      name,
+      lines: [
+        {icon: 'trade', text: 'MarsBot\'s third fleet trades with the colony whose storage area is closest to its next exchange'},
+        {text: 'Ties: the most-advanced track, then a colony of its own, then the flip — as Shipping Lines', muted: true},
+      ],
+      fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
     };
   case BonusCardId.B25_DO_IT_RIGHT:
     // Inventrix's corporation-specific card (official B25): Lobbyists' own

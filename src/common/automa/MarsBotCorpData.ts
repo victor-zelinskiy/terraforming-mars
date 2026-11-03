@@ -28,7 +28,7 @@ export type {MarsBotCubeType} from './AutomaTypes';
  * C35's card either carries its white cube or it does not, and the count IS
  * the state (the printed effect only ever puts one there or takes it away).
  */
-export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white' | 'cube-black';
+export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white' | 'cube-black' | 'mech';
 
 /**
  * How the bot picks (and protects) cards in the research draft — RB-B "Draft
@@ -1349,6 +1349,30 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.CF2_VEYNON_DYNAMICS]: {
+    id: MarsBotCorpId.CF2_VEYNON_DYNAMICS,
+    // THE FORK'S OWN BOT CARD (the owner, 2026-11-03) for the Turmoil Redux corporation TR85 — «Mechs in the Hold»
+    // (docs/AUTOMA_DATA_AUDIT.md §20): its trade fleets are REAL ships, assembled from the mechs on this card.
+    cardNumber: 'CF2',
+    original: CardName.VEYNON_DYNAMICS,
+    // The human card's corner — Jovian and Venus.
+    startingTags: [Tag.JOVIAN, Tag.VENUS],
+    // The fleets, the trades, the storage areas — Colonies is the corporation.
+    requiresModules: ['colonies'],
+    resource: 'mech',
+    corpBonusCards: [BonusCardId.BC2_VEYNON_RUN],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'colony', text: 'MarsBot\'s first trade fleet sails from the first generation: Shipping Lines joins the action deck now'},
+        {icon: 'mech', text: 'Place ${0} mech on this card', params: ['1']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'mech', text: 'Each Jovian or space tag MarsBot resolves puts a mech on this card'},
+        {icon: 'colony', text: '${0} mechs here assemble a new trade fleet — up to ${1} fleets; the third sails as Veynon Run', params: ['3', '3']},
+        {icon: 'mech', text: 'With all ${0} fleets afloat, each trade spends a mech here to bring one more resource to that storage area', params: ['3']},
+      ]},
+    ],
+  },
 };
 
 export function marsBotCorpInfo(id: MarsBotCorpId): MarsBotCorpInfo {
@@ -1430,6 +1454,9 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           over — TR is one per conversion) and pristarMc (the M€ they
  *           paid), plus pristarSkipped<Parameter> per parameter, so the
  *           finale can name WHICH of the four stood still.
+ * Veynon Dynamics (CF2): veynonMechs (mechs its Jovian / space tags put on the card), veynonFleets (trade fleets
+ *           its mechs assembled), veynonRuns (BC2 Veynon Run resolved), veynonCargo (trades a spare mech carried
+ *           cargo on), veynonTrades (every colony trade it made under this corporation).
  * Ferrus Academy (CF1): ferrusFoundings (the Academy city founded at setup), ferrusCampusSpaces (the Campus cubes
  *           reserved around it), ferrusGraduations (Graduations that advanced a track), fieldPracticePlayed /
  *           fieldPracticeTuition / fieldPracticeGreeneries (BC1 resolved, the M€ it charged, the Campus greeneries

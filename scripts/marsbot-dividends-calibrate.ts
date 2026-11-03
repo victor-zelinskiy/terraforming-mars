@@ -54,6 +54,15 @@ function backfillFailedActions(game: IGame): void {
   automa.failedActions = game.gameLog.filter((m) => typeof m.message === 'string' && m.message.startsWith('${0} took a Failed Action')).length;
 }
 
+/** Saves written before the durable trade counter (CF2's dividend): recount the bot's colony trades from the journal once. */
+function backfillTrades(game: IGame): void {
+  const automa = game.automa;
+  if (automa === undefined || automa.trades > 0) {
+    return;
+  }
+  automa.trades = game.gameLog.filter((m) => typeof m.message === 'string' && m.message === '${0} trades with ${1}').length;
+}
+
 function evaluate(file: string): Row | undefined {
   const d = JSON.parse(fs.readFileSync(file, 'utf8'));
   if (d.phase !== 'end' || d.gameOptions?.automa === undefined) return undefined;
@@ -61,6 +70,7 @@ function evaluate(file: string): Row | undefined {
   const bot = game.players.find((p) => p.isMarsBot);
   if (bot === undefined || game.automa === undefined) return undefined;
   backfillFailedActions(game);
+  backfillTrades(game);
   const humans = game.players.filter((p) => !p.isMarsBot);
   const botVp = bot.getVictoryPoints();
   const clauses: Record<string, number> = {};
