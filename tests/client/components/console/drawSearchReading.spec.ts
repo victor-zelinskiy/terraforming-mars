@@ -141,6 +141,16 @@ describe('drawSearchReading', () => {
     });
   });
 
+  describe('a requirement search names itself (P54 Nobel Prize)', () => {
+    const REQUIREMENT: DrawSearchModel = {count: 2, requirement: true};
+    it('one clause «with a requirement»; a discard reads the rule it did not meet — positively, never «without»', () => {
+      expect(drawSearchTerms(REQUIREMENT)).deep.eq([{kind: 'requirement'}]);
+      expect(drawSearchTermLabel({kind: 'requirement'})).eq('with a requirement');
+      expect(drawDiscardVerdict(step(CardName.POWER_PLANT, false), REQUIREMENT)).deep.eq({kind: 'rule', terms: [{kind: 'requirement'}]});
+      expect(drawDiscardVerdict(step(CardName.BIRDS, true), REQUIREMENT)).is.undefined;
+    });
+  });
+
   describe('the «Далее» row of a filtered draw', () => {
     const translate = (key: string, params: ReadonlyArray<string>) => `${key}|${params.join(',')}`;
 

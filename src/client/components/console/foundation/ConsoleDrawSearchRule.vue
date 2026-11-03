@@ -10,6 +10,7 @@
       <span v-else-if="term.kind === 'resource'" class="con-dsearch__res" :style="resourceStyle(term.resource)" aria-hidden="true"></span>
       <span v-else-if="term.kind === 'floaterIcon'" class="con-dsearch__res" :style="resourceStyle(floater)" aria-hidden="true"></span>
       <PremiumPartyRequirementGlyph v-else-if="term.kind === 'partyRequirement'" class="con-dsearch__pprq" />
+      <PremiumPartyRequirementGlyph v-else-if="term.kind === 'requirement'" class="con-dsearch__pprq" bare />
       <template v-else-if="term.kind === 'without'">
         <span v-for="tag in term.tags" :key="tag" class="con-dsearch__tag con-dsearch__tag--struck" :data-tag="tag" :style="tagStyle(tag)" aria-hidden="true"></span>
       </template>
@@ -64,6 +65,7 @@ export default defineComponent({
         case 'without': return `without:${t.tags.join(',')}`;
         case 'floaterIcon': return 'floaterIcon';
         case 'partyRequirement': return 'partyRequirement';
+        case 'requirement': return 'requirement';
         }
       }).join(' ');
     },

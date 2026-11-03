@@ -79,12 +79,11 @@ describe('NobelPrize', () => {
     expect(reveal.search).deep.eq({count: 2, requirement: true});
   });
 
-  it('rule 3b — nothing left to turn over after the only such card: the empty deck is named, the one card drawn', () => {
+  it('rule 3b — the shared draw gate: a deck that cannot supply 2 cards makes the prelude unplayable (it burns, never half-plays)', () => {
     stack([CardName.BIRDS], []);
-    play();
-    expect(player.cardsInHand.map((c) => c.name)).deep.eq([CardName.BIRDS]);
-    expect(game.gameLog.map((m) => m.message)).contains('The project deck is empty — no card to reveal.');
-    expect(player.cardDrawReveals[0].exhausted).eq(true);
+    expect(card.canPlay(player)).is.false;
+    stack([CardName.ASTEROID, CardName.BIRDS], []);
+    expect(card.canPlay(player)).is.true;
   });
 
   it('rule 4 — the preview: +5 M€ and the NAMED search chip; read-only', () => {
