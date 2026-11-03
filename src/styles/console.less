@@ -28147,6 +28147,14 @@ html.console-mode .notifications-layer {
         }
         line-height: 1.4;
     }
+    /* THE LAW'S LINE (PL-815 · FG): its unit — the rating, a scale's thermometer — rides the LINE's own size (em: the
+       headline's x-height and a little over), never the journal's fixed .8rem speck that read as a dot («▪») on 4K and
+       left the number «1» without its unit. */
+    &__lawline .journal-res .journal-res__icon {
+        width: 1.25em;
+        height: 1.25em;
+        vertical-align: -.25em;
+    }
     /* …and the bot card's headline as the cause voice under a band, when no cause could be named (old saves). */
     &__headline--cause {
         .journal-text { font-size: .8rem; color: @con-text-dim; }

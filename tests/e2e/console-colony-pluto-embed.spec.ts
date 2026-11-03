@@ -532,6 +532,10 @@ test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the
   // asserted NOW, while the phase is live (it folds with it).
   expect(await page.locator('.con-colonies .con-hand__discard-planet').count(),
     'the ask plate did not lead with the colony planet during the discard').toBeGreaterThan(0);
+  // THE TONE IS THE NET OF THE BONUS (P51 · FG — the owner): «draw 1, then discard 1» closes a pair — the discard is a
+  // choice of which card to keep, never «▼ УБЫТОК» and never «Принять убыток» on the bar.
+  await expect(page.locator('[data-prompt-tag]'), 'Pluto\'s paired discard wears no loss tag').toHaveCount(0);
+  await expect(page.locator('.con-cmdbar'), 'the bar never says «Принять убыток» for a paired discard').not.toContainText(/принять убыток/i);
   await shoot(page, '12-embedded-discard');
   // «СБРОШЕННЫЕ» is the TABLE's one pile beside the HUD deck (TR52, PL-264 — the workspace's own corner seat is
   // gone): the thrown card must land on it, its count ticking on the contact. Armed before the press — the pile

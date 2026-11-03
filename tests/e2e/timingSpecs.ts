@@ -41,6 +41,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // TRP1 Lobbying Campaign (2026-10-27): the Prelude's vote and walk inside the start's one Parliament step — the walk's
   // beats and the «never leaving between the two» claim are sampled from before the press, never logic.
   'console-lobbying-campaign.spec.ts',
+  // P51 High Circles (2026-11-03): the named search seen on the reveal and «one Parliament all along» are sampled from
+  // before the press, never logic.
+  'console-high-circles.spec.ts',
   // TRP2 Unity Campaign (2026-10-28): the campaign's rally inside the start — the plaque drawn cube by cube, the beats
   // with no count / coin, «no Parliament while the colonies step stands» are sampled from before the press, never logic.
   'console-unity-campaign.spec.ts',
