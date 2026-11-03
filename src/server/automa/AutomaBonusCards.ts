@@ -1,6 +1,8 @@
 import * as constants from '../../common/constants';
 import {AutomaTerraformer} from './AutomaTerraformer';
 import {AmazonisEngineer} from '../awards/amazonisPlanitia/AmazonisEngineer';
+import {Warmonger} from '../awards/terraCimmeria/Warmonger';
+import {castBotVote} from './AutomaPolitics';
 import {BonusCardId, MarsBotTrackRole} from '../../common/automa/AutomaTypes';
 import {bonusCardInfo} from '../../common/automa/BonusCardData';
 import {CardName} from '../../common/cards/CardName';
@@ -261,6 +263,7 @@ function resolveBonusCardEffect(game: IGame, id: BonusCardId): BonusCardOutcome 
   case BonusCardId.B13_CORPORATE_COMPETITION_BOREALIS:
   case BonusCardId.BF1_CORPORATE_COMPETITION_VASTITAS_FAN:
   case BonusCardId.BF2_CORPORATE_COMPETITION_AMAZONIS:
+  case BonusCardId.BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN:
     // One card, one resolver: the map only swaps the helper-action list.
     return corporateCompetition(game);
   case BonusCardId.B16_GOVERNMENT_INTERVENTION: return governmentIntervention(game);
@@ -976,6 +979,32 @@ function tryAwardHelper(game: IGame, awardName: string): boolean {
       onEmpty: 'impossible',
     });
   }
+  // ── The OLD (fan) Terra Cimmeria (BF3 — the fork's own card, §19.6) ──────
+  // Incorporator stands here under its official helper above.
+  case 'Biologist':
+    // OFFICIAL (Adding Expansions p.16): «Biologist — Advance the [bio] track» — the row the award reads (+5).
+    return advanceRole('bio');
+  case 'T. Politician': {
+    // HOME RULE (the owner's answer, 2026-11-03): the award counts the delegates a seat PLACED, so the helper places
+    // one — through the bot's ONE political door (`castBotVote`: the lobby's free delegate first, then the reserve;
+    // the chooser picks the card; a reserve delegate the stakes call pointless is KEPT). The official Politician
+    // prints no helper («This award has no corresponding competition effect»), but its criterion is not one the bot
+    // can push; this one is. No Parliament / no delegate / a kept one ⇒ impossible, and the card tries the next award.
+    if (game.parliament === undefined) {
+      return false;
+    }
+    return castBotVote(game, marsBotOf(game), 1).placed;
+  }
+  case 'Urbanist':
+    // HOME RULE: the award counts the VP of greeneries beside the bot's own CITIES, so «MarsBot places a greenery
+    // tile ADJACENT TO ONE OF ITS CITIES and raises oxygen 1 step» — Estate Dealer's hard constraint (B10) aimed at
+    // the award's own geometry. No such legal space (no city yet, or every neighbour taken) ⇒ impossible.
+    return placeGreenery((space) => game.board.getAdjacentSpaces(space).some((adj) => Board.isCitySpace(adj) && adj.player === marsBotOf(game)));
+  case 'Warmonger':
+    // HOME RULE, the reveal-until family (Magnate / Celebrity / Incorporator / A. Engineer): «reveal cards from the
+    // project deck until a card that reduces other players' resources or production, resolve it» — the award's own
+    // predicate (`Warmonger.include`) decides, so the two readings cannot drift.
+    return revealUntilAndResolve(game, (card) => Warmonger.include(card));
   // ── Venus Next: added to ALL versions of the card ─────────────────────────
   case 'Venuphile': return advanceRole('venus');
   default:

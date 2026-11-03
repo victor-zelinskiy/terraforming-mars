@@ -59,6 +59,7 @@ describe('ApiCreateGame', () => {
       BoardName.TERRA_CIMMERIA_NOVA,
       BoardName.VASTITAS_BOREALIS,
       BoardName.AMAZONIS,
+      BoardName.TERRA_CIMMERIA,
     ]);
     // All three official boards have MarsBot adaptations — the pool is unchanged.
     expect(ApiCreateGame.boardOptions(RandomBoardOption.OFFICIAL, {automa: true}))

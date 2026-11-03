@@ -324,6 +324,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       [BonusCardId.B13_CORPORATE_COMPETITION_BOREALIS]: touchesHumans, // Highlander / Landscaper greeneries (tile fan-out)
       [BonusCardId.BF1_CORPORATE_COMPETITION_VASTITAS_FAN]: touchesHumans, // Edgedancer greenery + Forecaster reveals → human reactors
       [BonusCardId.BF2_CORPORATE_COMPETITION_AMAZONIS]: touchesHumans, // Tourist city (tile fan-out) + A. Engineer reveals → human reactors
+      [BonusCardId.BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN]: touchesHumans, // Urbanist greenery (tile fan-out) + Warmonger / Incorporator reveals → human reactors
       [BonusCardId.B14_CORPORATE_COMPETITION_MA]: botOnly, // unreachable (no resolver)
       [BonusCardId.B15_LOBBYISTS_VENUS]: touchesHumans, // + venus → human Aphrodite payout
       [BonusCardId.B16_GOVERNMENT_INTERVENTION]: touchesHumans, // ocean/venus branches

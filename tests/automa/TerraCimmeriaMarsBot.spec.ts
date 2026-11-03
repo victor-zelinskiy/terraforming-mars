@@ -90,9 +90,14 @@ describe('TERRA CIMMERIA + MarsBot — setup', () => {
     expect(game.automa).is.not.undefined;
   });
 
-  it('the fork\'s OLDER Terra Cimmeria is rejected — different map, different M&A row', () => {
-    expect(() => testAutomaGame({boardName: BoardName.TERRA_CIMMERIA}, '-tc-old'))
-      .to.throw(/MarsBot \(Automa\) does not support/);
+  it('the fork\'s OLDER Terra Cimmeria is a game of its OWN — its home-made board and BF3, never B12', () => {
+    // The same geography under another milestone / award row (docs/AUTOMA_DATA_AUDIT.md §2h / §19): none of B12's
+    // rules apply to it, so it seats the bot on its own profile.
+    const [game] = testAutomaGame({boardName: BoardName.TERRA_CIMMERIA}, '-tc-old');
+    expect(game.automa!.board.getTrackOfRole('power')!.definition.tags, 'not the Nova pairing').deep.eq([Tag.POWER, Tag.JOVIAN]);
+    const deck = AutomaSetup.bonusDeckContents(game.gameOptions);
+    expect(deck).to.include(BonusCardId.BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN);
+    expect(deck).to.not.include(BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA);
   });
 
   it('uses the TERRA board — City+Science, Jovian+Earth, Energy alone', () => {

@@ -60,7 +60,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     text: 'With 5+ M€, MarsBot pushes the Utopia Planitia award race it is closest to being ahead on, then loses 5 M€.',
   },
   [BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA]: {
-    name: 'Corporate Competition (Terra Cimmeria)',
+    name: 'Corporate Competition (Terra Cimmeria Nova)',
     text: 'With 5+ M€, MarsBot pushes the Terra Cimmeria award race it is closest to being ahead on, then loses 5 M€ — except Forecaster, which pays it 5 M€ instead.',
   },
   [BonusCardId.B13_CORPORATE_COMPETITION_BOREALIS]: {
@@ -125,6 +125,10 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   [BonusCardId.BF2_CORPORATE_COMPETITION_AMAZONIS]: {
     name: 'Corporate Competition (Amazonis Planitia)',
     text: 'With 5+ M€, MarsBot pushes the Amazonis Planitia award race it is closest to being ahead on, then loses 5 M€.',
+  },
+  [BonusCardId.BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN]: {
+    name: 'Corporate Competition (Terra Cimmeria)',
+    text: 'With 5+ M€, MarsBot pushes the old Terra Cimmeria award race it is closest to being ahead on, then loses 5 M€.',
   },
 };
 
@@ -397,6 +401,25 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'cards', text: 'A. Engineer reveals project cards until one alters production and resolves it', muted: true},
         {icon: 'tile', text: 'Promoter advances the event track; A. Zoologist the animal track', muted: true},
         {icon: 'city', text: 'Tourist places a city with every adjacent space empty', muted: true},
+        ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
+        {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
+        {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
+      ],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN:
+    // The fork's own face for the OLD (fan) Terra Cimmeria (§19.6): Biologist / Incorporator their official helpers,
+    // T. Politician → one delegate through the bot's own political door, Urbanist → a greenery beside one of its
+    // cities (constrained), Warmonger → a reveal until an attack card.
+    return {
+      name,
+      lines: [
+        {icon: 'award', text: 'With 5+ M€: MarsBot pushes the award race it is closest to leading'},
+        {icon: 'tile', text: 'Biologist advances the animal track'},
+        {icon: 'cards', text: 'Incorporator reveals project cards until one costs at most 10 M€ and resolves it', muted: true},
+        {icon: 'delegate', text: 'T. Politician sends a delegate to a resolution (only with the Mars Parliament)', muted: true},
+        {icon: 'greenery', text: 'Urbanist places a greenery next to one of its cities', muted: true},
+        {icon: 'cards', text: 'Warmonger reveals project cards until one attacks other players and resolves it', muted: true},
         ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
         {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
         {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},

@@ -53,6 +53,12 @@ export const MARSBOT_MILESTONE_DESCRIPTIONS: Partial<Record<MilestoneName, strin
   'Minimalist': 'At most 2 cards left in the action deck',
   'Terran': 'Earth track \u2265 6',
   'Tropicalist': 'Tiles in the equatorial rows (unchanged)',
+  // The OLD (fan) Terra Cimmeria (docs/AUTOMA_DATA_AUDIT.md §19.2)
+  'T. Collector': 'Sets of green, blue and red cards in the played pile (unchanged)',
+  'Firestarter': 'Earth (heat) track ≥ 8',
+  'Terra Pioneer': 'Tiles owned on Mars (unchanged)',
+  'T. Spacefarer': 'Space track ≥ 6',
+  'Gambler': 'Awards it funded (unchanged)',
   // Modular
   'Briber': '20+ MC (loses 12 MC on claim)',
   'Builder7': 'Building track \u2265 7',
@@ -117,6 +123,11 @@ export const MARSBOT_AWARD_DESCRIPTIONS: Partial<Record<AwardName, string>> = {
   'Curator': 'Most-advanced track',
   'A. Engineer': 'Production cards in the played pile',
   'Tourist': 'Empty areas beside its tiles (unchanged)',
+  // The OLD (fan) Terra Cimmeria (docs/AUTOMA_DATA_AUDIT.md §19.3) — Incorporator as above
+  'Biologist': 'Bio track + 5',
+  'T. Politician': 'Delegates it placed (unchanged)',
+  'Urbanist': 'VP of greeneries beside its cities (unchanged)',
+  'Warmonger': 'Attack cards in the played pile',
   'Manufacturer': 'Building + Energy track',
   // Modular
   'Administrator': 'Cards without tags in played pile + 2',

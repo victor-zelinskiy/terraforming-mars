@@ -139,9 +139,22 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(base.fate.kind).eq('discard');
   });
 
+  it('Corporate Competition (BF3) shows the OLD Terra Cimmeria helper list — its five awards, Venuphile only with Venus', () => {
+    const base = buildBonusCardView(BonusCardId.BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN, BASE);
+    expect(base.name).eq('Corporate Competition (Terra Cimmeria)');
+    const texts = base.lines.map((l) => l.text);
+    for (const head of ['Biologist advances', 'Incorporator reveals', 'T. Politician sends a delegate', 'Urbanist places a greenery', 'Warmonger reveals']) {
+      expect(texts.some((t) => t.startsWith(head)), head).is.true;
+    }
+    expect(texts.some((t) => t.startsWith('Venuphile')), 'no Venus line without Venus Next').is.false;
+    expect(buildBonusCardView(BonusCardId.BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN, VENUS).lines.some((l) => l.text.startsWith('Venuphile'))).is.true;
+    expect(base.fate.kind).eq('discard');
+  });
+
   it('Corporate Competition (B12) shows the TERRA CIMMERIA helper list and its ONE free option', () => {
     const base = buildBonusCardView(BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA, BASE);
-    expect(base.name).eq('Corporate Competition (Terra Cimmeria)');
+    // Renamed with the fan map's own card (2026-11-03, the Vastitas precedent): the official one wears «Nova».
+    expect(base.name).eq('Corporate Competition (Terra Cimmeria Nova)');
     const text = base.lines.map((l) => l.text).join(' | ');
     expect(text).to.include('Electrician');
     expect(text).to.include('Founder');

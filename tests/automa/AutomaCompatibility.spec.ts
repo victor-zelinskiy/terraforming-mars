@@ -56,6 +56,11 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
     expect(automaConflicts({...cleanInput(), boardName: BoardName.AMAZONIS})).is.empty;
   });
 
+  it('the OLD (fan) Terra Cimmeria is supported — its own home-made board and BF3, beside the official Nova (B12)', () => {
+    expect(automaConflicts({...cleanInput(), boardName: BoardName.TERRA_CIMMERIA})).is.empty;
+    expect(automaConflicts({...cleanInput(), boardName: BoardName.TERRA_CIMMERIA_NOVA})).is.empty;
+  });
+
   it('a RANDOM board request is never a conflict — the server rolls it from the supported pool', () => {
     // src/server/boards/randomBoard.ts narrows the pool to
     // AUTOMA_SUPPORTED_BOARDS for automa games, so the resolved board is
@@ -65,19 +70,12 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
     expect(automaConflicts({...cleanInput(), boardName: RandomBoardOption.OFFICIAL})).is.empty;
   });
 
-  it('…but the fork\'s OLDER Terra Cimmeria is a different map, and is not', () => {
-    // Same name, different board: no MSL Curiosity hex and a different
-    // milestone/award row, so none of B12's rules would apply to it.
-    const conflicts = automaConflicts({...cleanInput(), boardName: BoardName.TERRA_CIMMERIA});
-    expect(conflicts.map((c) => c.key)).deep.eq(['board']);
-  });
-
   it('a board without a MarsBot profile conflicts and names it', () => {
     const conflicts = automaConflicts({...cleanInput(), boardName: BoardName.HOLLANDIA});
     expect(conflicts).has.length(1);
     expect(conflicts[0].key).eq('board');
     expect(conflicts[0].reason)
-      .eq('the Hollandia board yet — MarsBot covers tharsis, hellas, elysium, utopia planitia, terra cimmeria nova, vastitas borealis nova, vastitas borealis and amazonis p.');
+      .eq('the Hollandia board yet — MarsBot covers tharsis, hellas, elysium, utopia planitia, terra cimmeria nova, vastitas borealis nova, vastitas borealis, amazonis p. and t. cimmeria');
   });
 
   it('reports EVERY conflict (the UI highlights all of them at once)', () => {

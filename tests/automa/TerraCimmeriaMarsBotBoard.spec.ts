@@ -233,8 +233,9 @@ describe('the TERRA CIMMERIA map profile', () => {
 
   it('is a supported MarsBot board — and it is the NOVA one', () => {
     expect(AUTOMA_SUPPORTED_BOARDS).to.include(BoardName.TERRA_CIMMERIA_NOVA);
-    expect(AUTOMA_SUPPORTED_BOARDS, 'the fork\'s older Terra Cimmeria is a different map')
-      .to.not.include(BoardName.TERRA_CIMMERIA);
+    // The fork's older Terra Cimmeria is supported too — on its OWN home-made profile, never this one.
+    expect(marsBotMapProfile(BoardName.TERRA_CIMMERIA).tracks, 'the old map never reads the Nova board')
+      .to.not.equal(marsBotMapProfile(BoardName.TERRA_CIMMERIA_NOVA).tracks);
     expect([...MARSBOT_BOARDS].sort()).deep.eq([...AUTOMA_SUPPORTED_BOARDS].sort());
   });
 

@@ -100,7 +100,8 @@ export const AUTOMA_SUPPORTED_BOARDS: ReadonlyArray<BoardName> = [
   BoardName.UTOPIA_PLANITIA,
   // The board the official Automa material calls «Terra Cimmeria»: the one
   // with the MSL Curiosity colony hex and the B12 milestone/award row. The
-  // fork's older `TERRA_CIMMERIA` is a different map and is NOT supported.
+  // fork's older `TERRA_CIMMERIA` (the same geography, another row) has its own
+  // home-made board below.
   BoardName.TERRA_CIMMERIA_NOVA,
   // The official Vastitas Borealis (Viking 1/2, the North Pole, the B13 row).
   BoardName.VASTITAS_BOREALIS_NOVA,
@@ -111,6 +112,9 @@ export const AUTOMA_SUPPORTED_BOARDS: ReadonlyArray<BoardName> = [
   BoardName.VASTITAS_BOREALIS,
   // The fan-made Amazonis Planitia — the second home-made profile (2026-11-02; §2g / §18).
   BoardName.AMAZONIS,
+  // The OLD, fan-made Terra Cimmeria — the third home-made board (2026-11-03; §2h / §19). Not the official map
+  // (`TERRA_CIMMERIA_NOVA`, B12 above): the same geography, another milestone / award row.
+  BoardName.TERRA_CIMMERIA,
 ];
 
 /** «tharsis, hellas and elysium» — the list read out in the rejection reason. */

@@ -14,6 +14,7 @@ import {UTOPIA_MARSBOT_BOARD} from './UtopiaMarsBot';
 import {VASTITAS_BOREALIS_MARSBOT_BOARD, VASTITAS_VENUS_TRACK} from './VastitasBorealisMarsBot';
 import {VASTITAS_FAN_MARSBOT_BOARD} from './VastitasBorealisFanMarsBot';
 import {AMAZONIS_MARSBOT_BOARD} from './AmazonisMarsBot';
+import {TERRA_CIMMERIA_FAN_MARSBOT_BOARD} from './TerraCimmeriaFanMarsBot';
 
 /**
  * THE MAP PROFILE — everything that differs between MarsBot boards, and nothing
@@ -29,7 +30,7 @@ import {AMAZONIS_MARSBOT_BOARD} from './AmazonisMarsBot';
 /** One ordered placement tiebreaker. Highest score wins; ties fall through. */
 export type MarsBotPlacementTiebreaker = {
   /** Stable id — what the specs pin and what a future placement log would name. */
-  readonly id: 'oceans' | 'polar-region' | 'special-tile' | 'reward-icons' | 'southern-region' | 'edge' | 'equatorial-region' | 'empty-neighbours';
+  readonly id: 'oceans' | 'polar-region' | 'special-tile' | 'reward-icons' | 'southern-region' | 'edge' | 'equatorial-region' | 'empty-neighbours' | 'own-city';
   readonly score: (game: IGame, bot: IPlayer, space: Space) => number;
 };
 
@@ -140,6 +141,18 @@ const AMAZONIS_EQUATORIAL_REGION: MarsBotPlacementTiebreaker = {
 const AMAZONIS_EMPTY_NEIGHBOURS: MarsBotPlacementTiebreaker = {
   id: 'empty-neighbours',
   score: (game, _bot, space) => game.board.getAdjacentSpaces(space).filter(Board.isEmptyArea).length,
+};
+
+/**
+ * THE OLD (fan) TERRA CIMMERIA, HOME RULE by the law of tile-counting criteria (checklist §A): the Urbanist award
+ * counts the VP of greeneries beside the player's own CITIES, so the bot prefers — after the oceans, where Hellas
+ * ranks its milestone's region — the hex touching the most of ITS OWN cities. A city never stands beside a city, so
+ * the step is 0 for every city candidate and moves only a greenery: exactly the placement the award rewards (the
+ * bot's city rule already maximizes adjacent greeneries — the award's other half).
+ */
+const TERRA_CIMMERIA_FAN_OWN_CITY: MarsBotPlacementTiebreaker = {
+  id: 'own-city',
+  score: (game, bot, space) => game.board.getAdjacentSpaces(space).filter((a) => Board.isCitySpace(a) && a.player === bot).length,
 };
 
 export type MarsBotMapProfile = {
@@ -310,8 +323,25 @@ const AMAZONIS_PROFILE: MarsBotMapProfile = {
   // The shared Venus row: the microbe tag lives on the bio row here.
 };
 
+/**
+ * THE OLD (fan) TERRA CIMMERIA (`TERRA_CIMMERIA`) — the third HOME-MADE profile (T. Collector … Gambler / Biologist
+ * … Warmonger; the official map's geography with energy on its cells). Biologist and Incorporator stand in the
+ * official Awards & Milestones list; the rest are the fork's rules, every one marked. Design:
+ * docs/AUTOMA_DATA_AUDIT.md §2h / §19.
+ */
+const TERRA_CIMMERIA_FAN_PROFILE: MarsBotMapProfile = {
+  boardName: BoardName.TERRA_CIMMERIA,
+  tracks: TERRA_CIMMERIA_FAN_MARSBOT_BOARD,
+  corporateCompetition: BonusCardId.BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN,
+  // 1. oceans (the base step) · 2. beside the bot's own city (Urbanist) · 3. reward icons. No special-tile step:
+  // that is the official map's Founder, which this row does not carry.
+  placementTiebreakers: [OCEAN_ADJACENCY, TERRA_CIMMERIA_FAN_OWN_CITY, REWARD_ICONS],
+  // The shared Venus row: the microbe tag lives on the bio row here.
+};
+
 const PROFILES: ReadonlyArray<MarsBotMapProfile> =
-  [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE, TERRA_CIMMERIA_PROFILE, VASTITAS_BOREALIS_PROFILE, VASTITAS_FAN_PROFILE, AMAZONIS_PROFILE];
+  [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE, TERRA_CIMMERIA_PROFILE, VASTITAS_BOREALIS_PROFILE, VASTITAS_FAN_PROFILE, AMAZONIS_PROFILE,
+    TERRA_CIMMERIA_FAN_PROFILE];
 
 /** Every board MarsBot can be played on. */
 export const MARSBOT_BOARDS: ReadonlyArray<BoardName> = PROFILES.map((p) => p.boardName);

@@ -286,6 +286,8 @@ export enum BonusCardId {
   BF1_CORPORATE_COMPETITION_VASTITAS_FAN = 'BF1',
   // The fork's own Corporate Competition for the fan-made Amazonis Planitia (`BoardName.AMAZONIS`), 2026-11-02 — §18.6.
   BF2_CORPORATE_COMPETITION_AMAZONIS = 'BF2',
+  // The fork's own Corporate Competition for the OLD (fan) Terra Cimmeria (`BoardName.TERRA_CIMMERIA`), 2026-11-03 — §19.6.
+  BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN = 'BF3',
 }
 
 /** The set of bonus cards used in the base game (no expansions). */

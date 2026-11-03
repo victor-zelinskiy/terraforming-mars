@@ -81,6 +81,10 @@ const BOT_METRIC: ReadonlyArray<string> = [
   'Forester', // Bio track 6 ↔ 4 plant production (the A&M list's official rule)
   'Terran', // Earth track 6 ↔ 6 Earth tags (the A&M list's Terran 5 ↔ 5, scaled)
   'Minimalist', // the action deck ≤ 2 ↔ ≤ 2 cards in hand (the bot has no hand)
+  // The OLD (fan) Terra Cimmeria (docs/AUTOMA_DATA_AUDIT.md §19.2).
+  'T. Collector', // sets of green / blue / red cards in the PLAYED PILE ↔ in play (Legend / Tycoon's container)
+  'Firestarter', // Earth (heat-badged) track 8 ↔ 20 heat (Fundraiser's calibration)
+  'T. Spacefarer', // Space track 6 ↔ 6 space tags (the N ↔ N law)
 ];
 
 /** Milestones the bot meets with the PLAYER's own metric — nothing to rescale. */
@@ -111,6 +115,10 @@ const PLAYER_METRIC: ReadonlyArray<string> = [
   // cells), Tropicalist the bot's real tiles in the equatorial rows.
   'Colonizer',
   'Tropicalist',
+  // The OLD (fan) Terra Cimmeria (docs/AUTOMA_DATA_AUDIT.md §19.2): Terra Pioneer counts the bot's real tiles
+  // on Mars (Landlord's «As usual»), Gambler the awards it really funded (its award cells fund them).
+  'Terra Pioneer',
+  'Gambler',
 ];
 
 /**
@@ -126,6 +134,7 @@ const SHARED_NAMES: ReadonlyMap<string, string> = new Map([
   ['Forecaster', 'Terra Cimmeria Nova + Vastitas Borealis (fan): floor(M€ / 7) on both'],
   ['Promoter', 'Vastitas Borealis Nova + Amazonis (fan): the event track on both'],
   ['A. Zoologist', 'Terra Cimmeria Nova + Amazonis (fan): bio + 5 on both'],
+  ['Incorporator', 'Utopia Planitia + Terra Cimmeria (fan): cards ≤ 10 M€ in the played pile, events included, on both'],
 ]);
 
 const SCOPE: ReadonlyArray<string> = [...BOT_METRIC, ...PLAYER_METRIC];
@@ -158,6 +167,8 @@ function supportedGames(): Array<[string, IGame, IPlayer]> {
     ['Vastitas Borealis (fan)+Venus+Colonies', {boardName: BoardName.VASTITAS_BOREALIS, venusNextExtension: true, coloniesExtension: true}],
     ['Amazonis (fan)', {boardName: BoardName.AMAZONIS}],
     ['Amazonis (fan)+Venus+Colonies', {boardName: BoardName.AMAZONIS, venusNextExtension: true, coloniesExtension: true}],
+    ['Terra Cimmeria (fan)', {boardName: BoardName.TERRA_CIMMERIA}],
+    ['Terra Cimmeria (fan)+Venus+Colonies', {boardName: BoardName.TERRA_CIMMERIA, venusNextExtension: true, coloniesExtension: true}],
   ];
   return combos.map(([label, options], i) => {
     const [game, /* human */, bot] = testAutomaGame(options, `-norm-${i}`);
@@ -181,6 +192,9 @@ function sweepBotState(game: IGame, bot: IPlayer, k: number): void {
   game.automa!.playedPile = [
     ...new Array<CardName>(k).fill(CardName.ALGAE), // green
     ...new Array<CardName>(k).fill(CardName.BIG_ASTEROID), // red
+    // Blue — the old Terra Cimmeria's T. Collector counts SETS of the three colours, so the pile must hold all three
+    // or its weakest colour pins it at 0 and the criterion never crosses its threshold.
+    ...new Array<CardName>(k).fill(CardName.AQUIFER_PUMPING), // blue
   ];
   // Utopia's Specialist reads the DESTROYED bonus pile — a quantity nothing
   // else in the sweep touches, so without this its criterion could never cross

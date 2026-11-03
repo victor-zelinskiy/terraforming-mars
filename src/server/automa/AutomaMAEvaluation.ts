@@ -9,6 +9,7 @@ import {IPlayer} from '../IPlayer';
 import {IProjectCard} from '../cards/IProjectCard';
 import {Founder} from '../awards/modular/Founder';
 import {AmazonisEngineer} from '../awards/amazonisPlanitia/AmazonisEngineer';
+import {Warmonger} from '../awards/terraCimmeria/Warmonger';
 import {isSpecialTileSpace} from '../boards/Board';
 import {TileType} from '../../common/TileType';
 import {newProjectCard} from '../createCard';
@@ -342,6 +343,28 @@ export class AutomaMAEvaluation {
       const left = game.automa?.actionDeck.length ?? 0;
       return {value: left <= 2 ? 1 : 0, target: 1};
     }
+    // ── The OLD (fan) Terra Cimmeria (docs/AUTOMA_DATA_AUDIT.md §19.2) ──────
+    // Terra Pioneer («own 5 tiles on Mars» — Landlord's «As usual») and Gambler («fund 2 awards» — the bot funds
+    // awards itself on its award cells, `AutomaMilestonesAwards.fundAwardAction`) are the UNCHANGED family below.
+    case 'T. Collector': {
+      // HOME RULE, «as usual» in the bot's container: «3 sets of automated, active and event cards in play» read
+      // off its PLAYED PILE — Legend's (red cards) and Tycoon's (blue / green) official «As usual (… in played
+      // pile)», the three colours at once. The weakest colour is the number of complete sets.
+      const sets = Math.min(
+        botPlayedPileCount(game, CardType.AUTOMATED),
+        botPlayedPileCount(game, CardType.ACTIVE),
+        botPlayedPileCount(game, CardType.EVENT));
+      return {value: sets, target: printedTarget(milestone, game, 3)};
+    }
+    case 'Firestarter':
+      // HOME RULE (the owner's answer, 2026-11-03): «have 20 heat» — the bot keeps no heat, so the heat-badged track
+      // (the earth role) at space 8: Fundraiser's calibration (p.13: 12 M€ production ↔ space 8), the stock the
+      // milestone asks for read as the production that would fill it.
+      return {value: trackPosition(game, 'earth'), target: 8};
+    case 'T. Spacefarer':
+      // HOME RULE by the N ↔ N law of a single-tag track (Spacefarer 4 space tags ↔ space 4, p.14): 6 space tags ↔
+      // the space track at 6 — Space stands alone on every board.
+      return {value: trackPosition(game, 'space'), target: 6};
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Hoverlord': // Unchanged: 7 floater resources (Adding Expansions p.2).
       return {value: game.automa?.floaters ?? 0, target: 7};
@@ -623,6 +646,19 @@ export class AutomaMAEvaluation {
       // Magnate / Celebrity / Tycoon container family, through the award's own
       // predicate so the two readings cannot drift.
       score = botPlayedPile(game, (card) => AmazonisEngineer.altersProduction(card));
+      break;
+    // ── The OLD (fan) Terra Cimmeria (docs/AUTOMA_DATA_AUDIT.md §19.3) ──────
+    // Incorporator stands here under its official case above; Urbanist (the VP of greeneries beside its REAL cities)
+    // and T. Politician (the delegates it really PLACED — the Redux Parliament's `placeVote` counts the bot's like a
+    // human's; with no Parliament every seat reads 0) are the UNCHANGED family below.
+    case 'Biologist':
+      // OFFICIAL (Adding Expansions p.14): «Biologist — [bio] track space +5».
+      score = trackPosition(game, 'bio') + 5;
+      break;
+    case 'Warmonger':
+      // HOME RULE: «most cards in play that reduce other players' resources or production, events included» read off
+      // the bot's PLAYED PILE (it has no tableau) through the award's own predicate, so the readings cannot drift.
+      score = botPlayedPile(game, (card) => Warmonger.include(card));
       break;
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Venuphile': // Venus track position (Adding Expansions p.3).

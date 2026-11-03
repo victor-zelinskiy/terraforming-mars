@@ -15,8 +15,9 @@ import {TrackAction, TrackDefinition} from '../../../common/automa/AutomaTypes';
  * Automa one is `BoardName.TERRA_CIMMERIA_NOVA` — it is the one that prints the
  * MSL Curiosity colony hex and whose milestone/award row matches the B12
  * reference card (Electrician · Founder · Mogul · Zoologist · Forecaster).
- * `BoardName.TERRA_CIMMERIA` is an older, unrelated map with a different M&A
- * row and no colony hex; it is NOT automa-supported.
+ * `BoardName.TERRA_CIMMERIA` is the older fan map — the SAME geography (every
+ * cell's type; only printed bonuses differ) under a different M&A row and no
+ * colony hex; it has its own HOME-MADE board (`TerraCimmeriaFanMarsBot.ts`).
  *
  * ⚠️ THE TAG TOPOLOGY IS THIS BOARD'S ALONE — three pairings move at once:
  *   · CITY joins SCIENCE (everywhere else City rides Earth);
