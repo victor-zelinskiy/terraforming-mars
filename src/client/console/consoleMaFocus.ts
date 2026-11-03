@@ -58,7 +58,45 @@ export const maFocusState = reactive({
    * a fresh browse beside it (RESUME ≠ FRESH-OPEN).
    */
   draft: undefined as {kind: MaKind, name: string} | undefined,
+  /**
+   * «› ОПЛАТА» (PL-1622 — Helion's heat, Stormcraft's floaters): the bill the claim / the funding WILL ask
+   * (`maCosts.payments`) stands INSIDE the detail stage before the press — the shared payment panel's counts, its
+   * cursor and its one-shot flash. A level of the reversible detail (B folds it, nothing sent); the commit sends the
+   * claim AND the addressed payment in ONE batch. Undefined = no payment stage.
+   */
+  pay: undefined as {counts: Record<string, number>, focus: number, flash: number} | undefined,
 });
+
+/** Stand the payment stage inside the detail (the opening mix of the shared planner). */
+export function openMaPay(counts: Record<string, number>): void {
+  if (maFocusState.open && maFocusState.phase === 'detail') {
+    maFocusState.pay = {counts: {...counts}, focus: 0, flash: 0};
+    maFocusState.error = '';
+  }
+}
+
+/** B on the payment stage: one level back to the detail — nothing was sent. */
+export function closeMaPay(): void {
+  if (maFocusState.phase === 'detail') {
+    maFocusState.pay = undefined;
+  }
+}
+
+/** A dial of the payment (a source's count) — the flash re-keys the panel's one-shot pulse. */
+export function setMaPayCount(unit: string, count: number): void {
+  const pay = maFocusState.pay;
+  if (pay !== undefined && maFocusState.phase === 'detail' && (pay.counts[unit] ?? 0) !== count) {
+    maFocusState.pay = {...pay, counts: {...pay.counts, [unit]: count}, flash: pay.flash + 1};
+  }
+}
+
+/** The payment's cursor (a source row). */
+export function setMaPayFocus(focus: number): void {
+  const pay = maFocusState.pay;
+  if (pay !== undefined && maFocusState.phase === 'detail') {
+    maFocusState.pay = {...pay, focus};
+  }
+}
 
 /**
  * The stage must be READ before it can be committed. A is the list's «open»
@@ -80,6 +118,7 @@ export function openMaFocus(kind: MaKind, name: string, now: number = Date.now()
   maFocusState.committedAt = undefined;
   maFocusState.openedAt = now;
   maFocusState.draft = undefined;
+  maFocusState.pay = undefined;
 }
 
 /** Is the stage old enough to accept its own commit? (See COMMIT_ARM_MS.) */
@@ -96,6 +135,7 @@ export function closeMaFocus(): void {
   maFocusState.name = '';
   maFocusState.error = '';
   maFocusState.committedAt = undefined;
+  maFocusState.pay = undefined;
 }
 
 /** An inline pre-submit refusal (blocked / stale) — the stage names it. */
@@ -154,6 +194,7 @@ export function suspendMaFocus(): void {
   maFocusState.phase = 'detail';
   maFocusState.error = '';
   maFocusState.committedAt = undefined;
+  maFocusState.pay = undefined;
 }
 
 /** Drop the suspended draft (a real close / the prompt moved on). */
@@ -169,6 +210,7 @@ export function resetMaFocus(): void {
   maFocusState.error = '';
   maFocusState.committedAt = undefined;
   maFocusState.draft = undefined;
+  maFocusState.pay = undefined;
 }
 
 /** Input is live only at the reversible depths (flow rule: a double submit

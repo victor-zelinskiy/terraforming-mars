@@ -57,7 +57,11 @@
         <!-- ── DOSSIER column: THREE PLATES, top to bottom, in EVERY mode (FB — the owner's frames: «Условие» floated in
              the middle of an empty column): the rule · what it gives · the race. The column is filled by its plates,
              never centred in a void. ── -->
-        <div class="con-mafocus__main" data-ma-detail>
+        <!-- THE DOSSIER and «› ОПЛАТА» (PL-1622) are TWO FACES of one column, crossing by opacity in one grid cell — the
+             payment stands in the plates' place when the bill will ask (Helion's heat), never a second surface; the plates
+             come back for the commit, so the price flies into the PRINTED price (PL-1621). -->
+        <div class="con-mafocus__dossier">
+        <div class="con-mafocus__main con-mafocus__face" :class="{'con-mafocus__face--off': payShown}" data-ma-detail>
           <div class="con-mafocus__plate" data-unfold-item data-ma-plate="condition">
             <div class="con-mafocus__block-title">{{ $t('Condition') }}</div>
             <div class="con-mafocus__desc" v-i18n>{{ displayView.description }}</div>
@@ -70,6 +74,13 @@
             <div class="con-mafocus__block-title">{{ $t('What it gives') }}</div>
             <div class="con-mafocus__truth">
               <template v-if="kind === 'milestone'">
+                <!-- THE PRINTED PRICE (PL-1621): what the claim costs, where the price token is drawn at the commit. -->
+                <span class="con-mafocus__price" :data-ma-price-target="displayView.free || displayView.cost === 0 ? undefined : ''">
+                  <span class="con-mafocus__price-label">{{ $t('Cost') }}</span>
+                  <template v-if="displayView.free || displayView.cost === 0"><b>{{ $t('Free') }}</b></template>
+                  <template v-else><b>{{ displayView.cost }}</b><i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i></template>
+                </span>
+                <span class="con-mafocus__arrow" aria-hidden="true">→</span>
                 <span class="con-mafocus__vp-badge">+5 {{ $t('VP') }}</span>
                 <span class="con-mafocus__truth-note">{{ $t('Milestones grant 5 victory points immediately when claimed.') }}</span>
               </template>
@@ -82,7 +93,7 @@
             <div v-if="kind === 'award'" class="con-mafocus__ladder" data-ma-ladder>
               <span v-for="(step, si) in ladder" :key="si" class="con-mafocus__ladder-step"
                     :class="{'con-mafocus__ladder-step--next': step.next, 'con-mafocus__ladder-step--funded': step.sponsor !== undefined}"
-                    :data-ma-ladder-step="si">
+                    :data-ma-ladder-step="si" :data-ma-price-target="step.next && !step.free ? '' : undefined">
                 <span v-if="step.sponsor !== undefined" class="con-mafocus__dot" :class="'player_bg_color_' + step.sponsor" aria-hidden="true"></span>
                 <b>{{ step.free ? $t('Free') : step.price }}</b>
                 <i v-if="!step.free" class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
@@ -123,6 +134,11 @@
               </div>
             </div>
           </div>
+        </div>
+        <div v-if="payView !== undefined" class="con-mafocus__pay con-mafocus__face" :class="{'con-mafocus__face--off': !payShown}"
+             data-ma-pay :aria-hidden="payShown ? undefined : 'true'">
+          <ConsolePaymentPanel :view="payView" mode="expanded" hint-mode="none" :focus-unit="payFocusUnit" :flash-nonce="payFlash" />
+        </div>
         </div>
       </div>
 
@@ -195,6 +211,8 @@
 import {defineComponent, PropType} from 'vue';
 import MaHeroArt from '@/client/components/ma/MaHeroArt.vue';
 import ConsoleMaRail from '@/client/components/console/ConsoleMaRail.vue';
+import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
+import {PaymentView} from '@/client/console/paymentPlan';
 import {ConsoleMaItem} from '@/client/components/console/consoleMaModel';
 import {buildMaRail, MaRailView} from '@/client/components/console/consoleMaRail';
 import {MaConfirmView} from '@/client/components/ma/maConfirmModel';
@@ -206,7 +224,7 @@ import {$t} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'ConsoleMaFocusStage',
-  components: {MaHeroArt, ConsoleMaRail},
+  components: {MaHeroArt, ConsoleMaRail, ConsolePaymentPanel},
   props: {
     item: {type: Object as PropType<ConsoleMaItem>, required: true},
     view: {type: Object as PropType<MaConfirmView>, required: true},
@@ -215,6 +233,11 @@ export default defineComponent({
     available: {type: Boolean, required: true},
     /** The concrete reason when not available — the model's ONE ladder (`ConsoleMaItem.blocker`); '' when offered. */
     blockReason: {type: String, default: ''},
+    /** The server WILL ask this claim's bill (PL-1622) — the rail names the payment step instead of an M€-only projection. */
+    billAsks: {type: Boolean, default: false},
+    /** «› ОПЛАТА» (PL-1622): the payment panel's view (undefined while the stage is closed) and its cursor's source. */
+    payView: {type: Object as PropType<PaymentView | undefined>, default: undefined},
+    payFocusUnit: {type: String, default: undefined},
     /** The awards' funded slots in order — each sponsor's colour (the ladder's seats). */
     sponsors: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
   },
@@ -275,6 +298,13 @@ export default defineComponent({
     },
     displayInspect(): MaInspectView {
       return this.heldInspect ?? this.inspect;
+    },
+    /** The payment face stands — only in the reversible detail (the commit brings the plates back for the price). */
+    payShown(): boolean {
+      return this.payView !== undefined && maFocusState.pay !== undefined && this.phase === 'detail';
+    },
+    payFlash(): number {
+      return maFocusState.pay?.flash ?? 0;
     },
     /** A milestone with no numeric threshold — met / not met, never a progress number. */
     conditionMilestone(): boolean {
@@ -365,6 +395,8 @@ export default defineComponent({
         myMegacredits: this.displayView.mcBefore,
         takenCount: this.displayView.takenCount,
         maxSlots: this.displayView.maxSlots,
+        // ON the payment step the panel states every row's «остаётся» — the rail names no step it already is.
+        billAsks: this.billAsks && !this.payShown,
       });
     },
     /**
@@ -406,6 +438,7 @@ export default defineComponent({
         this.heldItem = undefined;
       }
       if (next === 'ceremony' && prev === 'committing') {
+        // (PRICE, THEN CROWN — PL-1621: the shell enters the ceremony only once the price has been absorbed.)
         void this.$nextTick(() => {
           runMaCeremonyStage(this.$el as Element, {kind: this.kind}, () => this.$emit('ceremony-done'));
         });

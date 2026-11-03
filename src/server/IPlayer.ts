@@ -1,4 +1,7 @@
 import {PlayerId, isPlayerId} from '../common/Types';
+import type {IMilestone} from './milestones/IMilestone';
+import type {IAward} from './awards/IAward';
+import type {SelectPaymentDeferred} from './deferredActions/SelectPaymentDeferred';
 import {PendingBonusGain} from '../common/BonusGain';
 import {CardName} from '../common/cards/CardName';
 import {ICorporationCard} from './cards/corporation/ICorporationCard';
@@ -813,6 +816,10 @@ export interface IPlayer {
   /** What funding the NEXT award costs this player (8/14/20, ± the card rules).
    *  Public so the player model can publish the live price the action charges. */
   awardFundingCost(): number;
+  /** The bill a milestone claim asks — ONE builder for the live claim and the console's preview (PL-1622). */
+  milestonePayment(milestone: IMilestone): SelectPaymentDeferred;
+  /** The bill an award funding asks — the same ONE builder (PL-1622). */
+  awardPayment(award: IAward): SelectPaymentDeferred;
 
   /** Shorthand for deferring evaluating a PlayerInput */
   defer(input: PlayerInput | undefined | void | (() => PlayerInput | undefined | void), priority?: Priority): void;

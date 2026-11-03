@@ -7,6 +7,8 @@ import {GameOptionsModel} from '../../common/models/GameOptionsModel';
 import {Board} from '../boards/Board';
 import {Space} from '../boards/Space';
 import {IPlayer} from '../IPlayer';
+import {SelectPaymentModel} from '../../common/models/PlayerInputModel';
+import type {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {PlayerInput} from '../PlayerInput';
 import {PlayerInputModel} from '../../common/models/PlayerInputModel';
 import {PlayerViewModel, Protection, PublicPlayerModel, WaitingForKind} from '../../common/models/PlayerModel';
@@ -366,6 +368,7 @@ export class Server {
       maCosts: {
         milestone: player.milestoneCost(),
         award: player.awardFundingCost(),
+        ...maPaymentPreviews(player),
       },
     };
     return rv;
@@ -1023,4 +1026,35 @@ export class Server {
     }
     return undefined;
   }
+}
+
+/**
+ * THE BILLS THE CLAIMS AND FUNDINGS WILL ASK (PL-1622): per milestone / award not yet taken, the `SelectPayment` its
+ * deferred bill would raise for this player — absent when the bill is paid silently in M€ (and nothing at all when no
+ * name asks). Read-only: the builder and `previewPaymentModel` mutate nothing. Van Allen's claims are free (no bill).
+ */
+function maPaymentPreviews(player: IPlayer): {payments?: Record<string, SelectPaymentModel>} {
+  const game = player.game;
+  const payments: Record<string, SelectPaymentModel> = {};
+  // The bill's MARKER rides the preview as it rides the live prompt (`getWaitingFor` serializes it centrally): the
+  // console addresses its pre-collected answer with it.
+  const preview = (bill: SelectPaymentDeferred, name: string): void => {
+    const model = bill.previewPaymentModel();
+    if (model !== undefined) {
+      payments[name] = {...model, choiceContext: {source: {kind: 'system', name}, mode: 'effect-choice'}};
+    }
+  };
+  if (!player.playedCards.has(CardName.VANALLEN)) {
+    for (const milestone of game.milestones) {
+      if (!game.milestoneClaimed(milestone)) {
+        preview(player.milestonePayment(milestone), milestone.name);
+      }
+    }
+  }
+  for (const award of game.awards) {
+    if (!game.fundedAwards.some((f) => f.award.name === award.name)) {
+      preview(player.awardPayment(award), award.name);
+    }
+  }
+  return Object.keys(payments).length > 0 ? {payments} : {};
 }

@@ -13757,6 +13757,43 @@ html.console-mode {
         flex: 1 1 auto;
         min-height: 0;
     }
+    /* THE DOSSIER AND «› ОПЛАТА» (PL-1622): two faces of ONE column, crossing by opacity in one grid cell — the payment
+       stands in the plates' place, never a second surface; nothing re-lays when they cross. */
+    &__dossier {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: grid;
+        grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+    }
+    &__pay {
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+    }
+    /* THE PRINTED PRICE of a claim (PL-1621) — the price token's landing, a kant like the ladder's next step. */
+    &__price {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .2rem .65rem;
+        border-radius: 49.95rem;
+        font-variant-numeric: tabular-nums;
+        color: #ffe2ad;
+        box-shadow: inset 0 0 0 .075rem fade(@strat-gold, 70%);
+
+        b { font-weight: 800; }
+        .resource_icon { width: .95rem; height: .95rem; background-size: contain !important; }
+    }
+    &__price-label {
+        font-size: var(--mafocus-label, .6rem);
+        font-weight: 700;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__arrow { color: @con-text-dim; }
     /* The sponsorship ladder: one step per slot — a sponsor's seat on a funded one, the next price under a kant. */
     &__ladder {
         display: flex;

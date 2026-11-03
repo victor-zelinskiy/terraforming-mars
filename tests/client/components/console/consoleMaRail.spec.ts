@@ -122,6 +122,12 @@ describe('consoleMaRail', () => {
     expect(rail.message).to.eq('');
   });
 
+  it('a bill the server will ask (Helion — PL-1622): the payment step named, never an M€-only projection', () => {
+    const rail = buildMaRail(input({myMegacredits: 5, cost: 8, billAsks: true}));
+    expect(rail).to.deep.eq({tone: 'projected', chips: [rail.chips[0]], message: 'Choose how to pay next'});
+    expect(rail.chips.some((c) => c.icon === 'megacredits'), 'no M€ chip').to.eq(false);
+  });
+
   it('NEVER the generic «Сейчас недоступно» (FB): a condition milestone not met names the condition', () => {
     const rail = buildMaRail(input({
       kind: 'milestones',

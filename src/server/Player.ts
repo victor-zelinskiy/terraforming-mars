@@ -2391,20 +2391,45 @@ export class Player implements IPlayer {
     if (this.playedCards.has(CardName.VANALLEN)) {
       recordClaim();
     } else {
-      const baseCost = this.milestoneCost();
-      const cost = baseCost + ((milestone.name === 'Briber') ? 12 : 0);
-      const reserveUnits = milestone.name === 'Merchant' ? Units.every(2) : Units.EMPTY;
-      this.game.defer(new SelectPaymentDeferred(this, cost, {
-        // Bake the milestone name into the prompt title so the modal
-        // shown to the player ("ВЫБЕРИТЕ СПОСОБ ОПЛАТЫ TERRAFORMER")
-        // makes the connection between the badge that just appeared and
-        // the payment they're being asked to make.
-        title: message('Select how to pay for ${0} milestone', (b) => b.milestone(milestone)),
-        reserveUnits: reserveUnits,
-      })).andThen(() => {
+      this.game.defer(this.milestonePayment(milestone)).andThen(() => {
         recordClaim();
       });
     }
+  }
+
+  /**
+   * THE BILL OF A MILESTONE CLAIM — ONE builder for the live claim and the console's preview (`maCosts.payments`,
+   * PL-1622): the engine's own price (Briber +12, Merchant's reserve), the title naming the milestone, and a
+   * `choiceContext` naming the CLAIM (`{kind: 'system', name}`) so a pre-collected payment lands on exactly this bill.
+   */
+  public milestonePayment(milestone: IMilestone): SelectPaymentDeferred {
+    const cost = this.milestoneCost() + ((milestone.name === 'Briber') ? 12 : 0);
+    const reserveUnits = milestone.name === 'Merchant' ? Units.every(2) : Units.EMPTY;
+    return new SelectPaymentDeferred(this, cost, {
+      // Bake the milestone name into the prompt title so the modal
+      // shown to the player ("ВЫБЕРИТЕ СПОСОБ ОПЛАТЫ TERRAFORMER")
+      // makes the connection between the badge that just appeared and
+      // the payment they're being asked to make.
+      title: message('Select how to pay for ${0} milestone', (b) => b.milestone(milestone)),
+      reserveUnits: reserveUnits,
+      cause: {kind: 'system', name: milestone.name},
+    });
+  }
+
+  /** THE BILL OF AN AWARD FUNDING — the same ONE builder for the live funding and the console's preview (PL-1622). */
+  public awardPayment(award: IAward): SelectPaymentDeferred {
+    return new SelectPaymentDeferred(
+      this,
+      this.awardFundingCost(),
+      {
+        // Bake the award name into the payment prompt title so the modal
+        // shown to the player ("ВЫБЕРИТЕ СПОСОБ ОПЛАТЫ THERMALIST") makes
+        // the connection between the funded-badge that just appeared and
+        // the payment they're being asked to make.
+        title: message('Select how to pay for ${0} award', (b) => b.award(award)),
+        cause: {kind: 'system', name: award.name},
+      },
+    );
   }
 
   private isStagedProtestsActive() {
@@ -2434,15 +2459,7 @@ export class Player implements IPlayer {
 
   private fundAward(award: IAward): PlayerInput {
     return new SelectOption(award.name, 'Fund - ' + '(' + award.name + ')').andThen(() => {
-      // Bake the award name into the payment prompt title so the modal
-      // shown to the player ("ВЫБЕРИТЕ СПОСОБ ОПЛАТЫ THERMALIST") makes
-      // the connection between the funded-badge that just appeared and
-      // the payment they're being asked to make.
-      this.game.defer(new SelectPaymentDeferred(
-        this,
-        this.awardFundingCost(),
-        {title: message('Select how to pay for ${0} award', (b) => b.award(award))},
-      ));
+      this.game.defer(this.awardPayment(award));
       this.game.fundAward(this, award);
       return undefined;
     });

@@ -201,6 +201,9 @@
                                :available="focusAvailable"
                                :blockReason="focusBlockReason"
                                :sponsors="sponsors"
+                               :payView="payView"
+                               :payFocusUnit="payFocusUnit"
+                               :billAsks="focusItem !== undefined && billNames.includes(focusItem.name)"
                                @ceremony-done="$emit('ceremony-done')" />
         </transition>
       </div>
@@ -234,6 +237,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import {MaConfirmView} from '@/client/components/ma/maConfirmModel';
 import {MaInspectView} from '@/client/components/console/consoleMaInspectModel';
+import {PaymentView} from '@/client/console/paymentPlan';
 import {maArtFitStyle, maDisplayName} from '@/client/components/ma/maArt';
 import {maFocusState, openMaFocus, suspendMaFocus, resetMaFocus} from '@/client/console/consoleMaFocus';
 import {abandonMaCeremonyEmbed} from '@/client/components/ma/maCeremonyState';
@@ -281,6 +285,11 @@ export default defineComponent({
     focusInspect: {type: Object as PropType<MaInspectView | undefined>, default: undefined},
     focusAvailable: {type: Boolean, default: false},
     focusBlockReason: {type: String, default: ''},
+    /** The names whose bill the server WILL ask (PL-1622 — `maCosts.payments`): their rail names the payment step. */
+    billNames: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+    /** «› ОПЛАТА» (PL-1622): the payment stage's panel view (undefined while it is closed) and its cursor's source. */
+    payView: {type: Object as PropType<PaymentView | undefined>, default: undefined},
+    payFocusUnit: {type: String, default: undefined},
     /** The awards' sponsors in funding order (the detail's sponsorship ladder). */
     sponsors: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
   },
@@ -346,6 +355,10 @@ export default defineComponent({
       }
       if (maFocusState.phase === 'ceremony' || maFocusState.phase === 'closing') {
         return 'Ceremony';
+      }
+      // «› ОПЛАТА» (PL-1622) — a level of the reversible detail: the tail moves forward, the root and the item stay.
+      if (maFocusState.pay !== undefined && maFocusState.phase === 'detail') {
+        return 'Payment';
       }
       return this.kind === 'milestones' ? 'Claiming' : 'Sponsorship';
     },
@@ -430,6 +443,7 @@ export default defineComponent({
         myMegacredits: this.myMegacredits,
         takenCount: this.takenCount,
         maxSlots: this.maxSlots,
+        billAsks: this.focused !== undefined && this.billNames.includes(this.focused.name),
       });
     },
   },

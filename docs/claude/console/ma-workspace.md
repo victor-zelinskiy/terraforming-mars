@@ -32,8 +32,14 @@ Supersedes the light grammar below wherever they disagree (the P33 text is kept 
   cross by opacity — no `v-if` blink.
 - **The exit**: after the ceremony and the +5 VP flight, `concludeWorkspaceFlowOrOwe` (`workspaceConclusionFor`) —
   never a bare `leaveWorkspace()`; a hosted step pops one level.
-- **Gaps**: the price token off the rail into the head's «ЦЕНА» (PL-1621); the in-workspace «› ОПЛАТА» step for
-  Helion / Stormcraft (PL-1622, below).
+- **The price leaves the rail first** (PL-1621 — `console/maPriceRail.ts`): armed at the press AS PAID, seeded in the
+  view's apply block (both roads) against the two views, flown before the ceremony mounts — born on its row's ink,
+  sideways, absorbed in the detail's printed price (`[data-ma-price-target]`); the shell enters the ceremony on that
+  absorb. A free claim arms nothing; a refusal / the safety / a yield releases it.
+- **«› ОПЛАТА» inside the detail** (PL-1622): the server publishes the bill each claim / funding WILL ask
+  (`maCosts.payments`, the same builder as the live bill, the claim named on its marker); A on the detail stands the
+  shared payment panel in the plates' place (two faces of one column), the crumb's tail «› ОПЛАТА», B one level back;
+  A pays — ONE POST, the claim and the ADDRESSED payment. The rail names the step instead of an M€-only projection.
 
 ## The BROWSE GRAMMAR (iteration P33) — availability ≠ focus, two identities
 
@@ -312,9 +318,10 @@ task's end (`awardFundingActive` falling edge) discard it.
 - **True solo**: milestones/awards are DISABLED by the rules
   (`Game.allAwardsFunded()` → `players.length === 1`), so the commit path is
   testable only with ≥2 seats (the e2e uses `automa` — human + MarsBot).
-- **Payment fork**: Helion (heat-as-M€) / Stormcraft answer the claim with a
-  real `SelectPayment` — the workspace yields to the standard payment task
-  (today's exact pre-rework behaviour) and the ceremony plays globally. An
-  in-workspace «ОПЛАТА» step is STILL future work (FB left it open — PL-1622).
+- **Payment fork**: Helion (heat-as-M€) / Stormcraft compose the bill in the
+  detail's «› ОПЛАТА» (PL-1622) and the batch answers it. Only a batch whose
+  payment the server REFUSED (the state moved since the preview) leaves the
+  live `SelectPayment` standing — then, and only then, the workspace yields to
+  the standard payment task and the ceremony plays globally (the honest degrade).
 - The stage teardown mid-commit degrades gracefully: the claim is abandoned,
   the beat (when it arrives) plays on the global shell.

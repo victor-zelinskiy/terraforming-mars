@@ -150,6 +150,8 @@ export async function armTransferWitness(page: Page): Promise<void> {
       // A card's PRINTED VP badge — the score cell's token is born there (TR55); more specific than the card it is on.
       ['vp-badge', '.pcard__vp'],
       // …and a milestone's / an award's ceremony line — the +5's printed source (the MA workspace's stage, the global shell).
+      // A claim's / a funding's PRINTED PRICE on the detail stage — the price token is absorbed there (PL-1621). `ma-price`.
+      ['ma-price', '[data-ma-price-target]'],
       ['ma-vp', '.con-mafocus__cere-vp, .con-macere__vp, [data-ma-cere-seat], .con-macere__stage'],
       ['forecast', '[data-forecast-rail], [data-forecast-row] .con-forecast__bolt'],
       // A STRUCK printed icon (RX35 — a law replaced the unit): the data's token is born on it. `struck:<icon>`.
@@ -237,6 +239,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
       case 'recv': return `recv:${el.hasAttribute('data-recv-front') ? 'front' : name(el, 'data-played-key')}`;
       case 'played': return `played:${name(el, 'data-played-key')}`;
       case 'prelude-seat': return 'prelude-seat';
+      case 'ma-price': return 'ma-price';
       case 'slot': return `slot:${name(el, 'data-zoom-slot')}`;
       case 'source': return 'source';
       case 'payrow': return `payrow:${name(el, 'data-pay-unit')}`;

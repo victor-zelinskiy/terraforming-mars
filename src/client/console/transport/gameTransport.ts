@@ -96,6 +96,7 @@ import {
 } from '@/client/console/colonyFleet/consoleTradeFleet';
 import {fleetDockOwedCard, seedFleetDockHold} from '@/client/console/colonyTrade/fleetDockScene';
 import {seedActionCommitRail} from '@/client/console/consoleActionCommitRail';
+import {seedMaPriceRail} from '@/client/console/maPriceRail';
 import {seedFirstActionRail} from '@/client/console/startFirstActionRail';
 import {seedVpShares} from '@/client/console/scoreCell/vpShareLedger';
 import {
@@ -749,6 +750,9 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // capsule moves of a timeline row (TR28) and the table's answer, held only when the two views keep the promise
   // the press armed; the shell's handoff flies them.
   seedActionCommitRail(currentView(), newView);
+  // A MILESTONE / AWARD's PRICE (PL-1621): held on its rows from the view that pays it until the detail stage flies it
+  // into its printed price, before the ceremony (`maPriceRail.ts`).
+  seedMaPriceRail(currentView(), newView);
   // The START STAGE's first action (TR81 — the third ATTACHED host of the card-reaction framework): its own rail gains
   // and the table's answer to them (Lotus Innovations' data on itself), held and DECLARED here so the reaction seeder
   // below attaches the reactor to the stage, which brings it forward out of its seat (`startFirstActionRail.ts`).

@@ -1,7 +1,7 @@
 import {CardModel} from './CardModel';
 import {Color} from '../Color';
 import {VictoryPointsBreakdown} from '../game/VictoryPointsBreakdown';
-import {PlayerInputModel} from './PlayerInputModel';
+import {PlayerInputModel, SelectPaymentModel} from './PlayerInputModel';
 import {TimerModel} from './TimerModel';
 import {GameModel} from './GameModel';
 import {PlayerId, ParticipantId, SpaceId} from '../Types';
@@ -351,6 +351,14 @@ export interface PlayerViewModel extends ViewModel {
 export type MaCostsModel = {
   milestone: number;
   award: number;
+  /**
+   * THE BILL THE CLAIM / THE FUNDING WILL ASK (PL-1622 — Helion's heat, Stormcraft's floaters): per milestone / award
+   * name not yet taken, the very `SelectPayment` the engine's deferred bill would raise
+   * (`Player.milestonePayment` / `awardPayment` — ONE builder, `previewPaymentModel`), its `choiceContext` naming the
+   * claim so the console's batch answer is ADDRESSED to it. Absent for a name the player can only pay in M€ (the bill
+   * then never asks — it is paid silently). The console stands it as «› ОПЛАТА» inside the detail stage.
+   */
+  payments?: Record<string, SelectPaymentModel>;
 };
 
 /** The distinguishable cross-phase prompt kinds a seat's chip names (see `PublicPlayerModel.waitingForKind`). */

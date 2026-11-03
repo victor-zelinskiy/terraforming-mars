@@ -46,6 +46,11 @@ export type MaRailInput = {
   /** How many slots of the category are already taken (the header's tally). */
   takenCount: number,
   maxSlots: number,
+  /**
+   * The server WILL ask the bill (PL-1622 — Helion's heat, Stormcraft's floaters): the price is composed in the
+   * detail's «› ОПЛАТА», so an M€-only projection here would be a lie («5 → −3» for a claim paid in heat).
+   */
+  billAsks?: boolean,
 };
 
 const EMPTY: MaRailView = {tone: 'none', chips: [], message: ''};
@@ -90,6 +95,9 @@ export function buildMaRail(input: MaRailInput): MaRailView {
   // name who: the rail repeats none of it (a status line never repeats the face above it — FB).
   if (item.takenBy !== undefined) {
     return {tone: 'owner', chips: [], message: ''};
+  }
+  if (item.available && input.billAsks === true && !input.free) {
+    return {tone: 'projected', chips: [slotChip(input)], message: 'Choose how to pay next'};
   }
   if (item.available) {
     const money = moneyChip(input);

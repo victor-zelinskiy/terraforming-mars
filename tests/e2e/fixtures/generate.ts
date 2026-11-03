@@ -314,6 +314,7 @@ import {Enceladus} from '../../../src/server/colonies/Enceladus';
 import {JupiterFloatingStation} from '../../../src/server/cards/colonies/JupiterFloatingStation';
 import {GanymedeColony} from '../../../src/server/cards/base/GanymedeColony';
 import {Game} from '../../../src/server/Game';
+import {Server} from '../../../src/server/models/ServerModel';
 import {SerializedGame} from '../../../src/server/SerializedGame';
 import {CeresTechMarket} from '../../../src/server/cards/prelude2/CeresTechMarket';
 import {unplayableReasons} from '../../../src/server/models/unplayableReasons';
@@ -13208,6 +13209,41 @@ function floatingTradeHubFixture(name: string, variant: 'holders' | 'sole' | 'em
 floatingTradeHubFixture('floating-trade-hub-holders', 'holders');
 floatingTradeHubFixture('floating-trade-hub-sole', 'sole');
 floatingTradeHubFixture('floating-trade-hub-empty', 'empty');
+
+// ── PL-1621 / PL-1622 · THE MILESTONE'S PRICE AND HELION'S BILL — the MA workspace's commit (ledger FB): a 2p table,
+//    blue on the move with a TR of 35 (Terraformer claimable):
+//      · `ma-claim-price`  — 20 M€: the claim's 8 M€ leave the rail into the detail's printed price before the ceremony;
+//      · `ma-claim-helion` — Helion, 5 M€ + 20 heat: the bill the claim will ask stands as «› ОПЛАТА» inside the detail
+//        (`maCosts.payments` — the dry run reads it), one POST answers the claim AND its bill.
+function maClaimFixture(name: string, helion: boolean): void {
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false,
+    customCorporationsList: helion ? [CardName.HELION, CardName.THORGATE] : [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
+  });
+  answerStartFlow(game, [p1, p2]);
+  p1.setTerraformRating(35);
+  p1.megaCredits = helion ? 5 : 20;
+  if (helion) {
+    p1.heat = 20;
+  }
+  p2.megaCredits = 30;
+  runAllActions(game);
+  if (game.activePlayer.id !== p1.id) {
+    throw new Error(`the ${name} fixture expected blue on the move`);
+  }
+  const terraformer = game.milestones.find((m) => m.name.startsWith('Terraformer'));
+  if (terraformer === undefined || !p1.claimableMilestones().includes(terraformer)) {
+    throw new Error(`the ${name} fixture expected Terraformer claimable — got ${game.milestones.map((m) => m.name).join()}`);
+  }
+  // THE DRY RUN: the bill the claim will ask is published (Helion) — or not (M€ only).
+  const payments = Server.getPlayerModel(p1).maCosts?.payments ?? {};
+  if (helion !== (payments[terraformer.name] !== undefined)) {
+    throw new Error(`the ${name} fixture expected the bill ${helion ? 'published' : 'silent'} — got ${JSON.stringify(Object.keys(payments))}`);
+  }
+  write(name, game);
+}
+maClaimFixture('ma-claim-price', false);
+maClaimFixture('ma-claim-helion', true);
 
 // ── P45 · BOARD OF DIRECTORS — the TWENTY-EIGHTH Prelude 2 card: «draw 1 prelude: either discard it, or pay 12 M€ and
 //    remove 1 director here to play it» — the VERDICT AFTER THE REVEAL inside «ДЕЙСТВИЯ КАРТ» (docs/claude/prompts/

@@ -234,7 +234,10 @@
                           :softReason="handSoftReason"
                           :turnWindowClosed="handTurnWindowClosed"
                           :tagFilters="handTagFilterOptions"
-                          :activeTag="consoleState.handTagFilter"
+                          :activeTag="handActiveFilter"
+                          :hiddenByFilter="handHiddenByFilter"
+                          :cardPayouts="handCardPayouts"
+                          :payIcon="discardMeta?.exchange?.icon ?? 'megacredits'"
                           :stagedCard="stagedHandCard"
                           :stage="handStage"
                           :stagePaused="pickBridgeActive"
@@ -631,6 +634,9 @@
                        :focusAvailable="maFocusAvailable"
                        :focusBlockReason="maFocusBlockReason"
                        :sponsors="maAwardSponsors"
+                       :payView="maPayView"
+                       :billNames="maBillNames"
+                       :payFocusUnit="maPayFocusUnit"
                        @ceremony-done="onMaCeremonyDone"
                        @pick="onMaPick" />
       <!-- (The BLUE-CARD ACTION CENTER left this chain — it is the ACTION
@@ -1590,7 +1596,7 @@ import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScr
 import {stickScrollBy} from '@/client/console/stickScrollTarget';
 import {claimMaVp, dropMaVp, flyMaVp} from '@/client/console/scoreCell/maVp';
 import type {PreselectAddress} from '@/common/inputs/preselectAddress';
-import {addressed} from '@/common/inputs/preselectAddress';
+import {addressed, AddressableInput, promptAddressOf} from '@/common/inputs/preselectAddress';
 /**
  * ConsoleShell — the console-first TV shell (docs/CONSOLE_MODE_CONCEPT.md;
  * feedback iteration 2 = the console COMMAND MODEL):
@@ -1698,7 +1704,17 @@ import {
   maFocusAcceptsInput,
   maFocusCommitArmed,
   maFocusCommitOutcome,
+  openMaPay,
+  closeMaPay,
+  setMaPayCount,
+  setMaPayFocus,
 } from '@/client/console/consoleMaFocus';
+import {armMaPrice, flyMaPrice, releaseMaPrice} from '@/client/console/maPriceRail';
+import {
+  buildPaymentView as buildMaPaymentView, dialLaneCount as dialMaPayLane, editableRows as maPayRows, initialCounts as maPayInitialCounts,
+  megacreditsAvailable as maPayMcAvailable, paymentCovers as maPayCovers, paymentFromCounts as maPayFromCounts, PaymentLane as MaPayLane,
+  paymentLanes as maPayLanes, PaymentView as MaPayView,
+} from '@/client/console/paymentPlan';
 import ConsoleQuickSelector from '@/client/components/console/ConsoleQuickSelector.vue';
 import ConsoleStdProjectsScreen from '@/client/components/console/ConsoleStdProjectsScreen.vue';
 import {buildRtQuickEntries, buildLtQuickEntries, buildStdProjectItems, QuickEntry, QuickSlot, StdProjectItem} from '@/client/console/consoleQuickModel';
@@ -1729,7 +1745,10 @@ import {shortBlockerLabel} from '@/client/components/console/consoleHandGrid';
 import {unplayableReasonChip} from '@/client/components/handCards/unplayableReasonFormat';
 import {deriveHandSelect, handSelectPicksValid, multiPickConfirmCommand, HandSelectDerivation} from '@/client/components/console/consoleHandSelectModel';
 import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
-import {buildConsoleTagFilters, filterHandByTag, cycleTagFilter, ConsoleTagFilterOption} from '@/client/components/console/consoleHandFilter';
+import {
+  AlbumFilter, AlbumFilterOption, buildAlbumFilters, buildConsoleTagFilters, cardPayout, filterAlbumEntries, filterHandByTag, cycleTagFilter,
+  hiddenByFilter, paysPresetOffered,
+} from '@/client/components/console/consoleHandFilter';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
 import ConsoleColoniesSection, {ConsoleColonyPick} from '@/client/components/console/ConsoleColoniesSection.vue';
 import ConsoleParliamentSection from '@/client/components/console/ConsoleParliamentSection.vue';
@@ -7720,7 +7739,49 @@ export default defineComponent({
       const entry = this.handEntries[this.consoleState.handIndex];
       return entry?.playable === true ? (entry.card.name as CardName) : undefined;
     },
+    /**
+     * THE ALBUM'S ENTRIES — the mode's own set (`handModeEntries`), narrowed in a PICKER (select / sale / a composer's
+     * pick) by the picker's OWN chip (`selectTagFilter` — P50's polish companion · ledger FD): the browse tag is never
+     * read there, so a tag left on in the hand never hides a candidate of a mandatory discard.
+     */
     handEntries(): ReadonlyArray<ConsoleHandEntry> {
+      const mode = this.handModeEntries;
+      return this.handAlbumPicker ? filterAlbumEntries(mode, this.consoleState.selectTagFilter, this.discardMeta?.exchange) : mode;
+    },
+    /** A PICKER owns the album (the sale, a mandatory select, a composer's pick) — its chips are its own. */
+    handAlbumPicker(): boolean {
+      return this.consoleState.sale.active || this.handSelectUiActive;
+    },
+    /** The picker's session — a new prompt, a new pick or the sale's entry starts the chips at «ВСЕ». */
+    handAlbumPickerKey(): string {
+      if (!this.handAlbumPicker) {
+        return '';
+      }
+      return [this.consoleState.sale.active ? 'sale' : '', this.handPickActive ? 'pick' : '', this.handSelectTaskActive ? 'task' : '',
+        String(this.playerView.waitingFor?.promptId ?? '')].join('|');
+    },
+    /** The candidates the picker's chip HIDES — «скрыто фильтром: N» beside the discard's exchange (never a silent cut). */
+    handHiddenByFilter(): number {
+      if (!this.handAlbumPicker || this.consoleState.selectTagFilter === 'all') {
+        return 0;
+      }
+      const candidates = this.consoleState.sale.active ? this.handModeEntries.map((e) => e.card.name) :
+        this.handModeEntries.map((e) => e.card.name).filter((name) => this.handSelectSelectableNames.includes(name));
+      return hiddenByFilter(candidates, this.handEntries.map((e) => e.card.name));
+    },
+    /**
+     * What each card pays if thrown — a PER-TAG exchange only (the Reds' recycle, FD): the plate under the card and the
+     * «ПЛАТЯТ» chip read the same number (`cardPayout` — the header's rule, card by card). Empty otherwise.
+     */
+    handCardPayouts(): Readonly<Record<string, number>> {
+      const exchange = this.discardMeta?.exchange;
+      if (!this.handAlbumPicker || !paysPresetOffered(exchange)) {
+        return {};
+      }
+      return Object.fromEntries(this.handModeEntries.map((e) => [e.card.name, cardPayout(e.card, exchange)]));
+    },
+    /** The mode's own entries, before a picker's chip (the browse hand applies its tag here). */
+    handModeEntries(): ReadonlyArray<ConsoleHandEntry> {
       if (this.consoleState.sale.active) {
         return this.handEntriesAll;
       }
@@ -8142,8 +8203,17 @@ export default defineComponent({
       return model !== undefined && handSelectPicksValid(model, this.consoleState.select.selected.length);
     },
     // The tag-filter options for the panel (All + tags present in the hand).
-    handTagFilterOptions(): Array<ConsoleTagFilterOption> {
+    handTagFilterOptions(): Array<AlbumFilterOption> {
+      if (this.handAlbumPicker) {
+        // A PICKER's chips count the mode's own set (the candidates a «suitable only» left), with «ПЛАТЯТ» for a
+        // per-tag exchange (the Reds) — read off the marker.
+        return buildAlbumFilters(this.handModeEntries.map((e) => e.card), this.consoleState.selectTagFilter, this.discardMeta?.exchange);
+      }
       return buildConsoleTagFilters(this.handEntriesAll.map((e) => e.card), this.consoleState.handTagFilter);
+    },
+    /** The chip the row lights — the picker's own, else the browse tag. */
+    handActiveFilter(): AlbumFilter {
+      return this.handAlbumPicker ? this.consoleState.selectTagFilter : this.consoleState.handTagFilter;
     },
     // In sale mode every NON-hosted hand card is sellable (SRR-hosted cards
     // can't be sold) — the target set for L3 select-all / unselect-all.
@@ -9552,6 +9622,45 @@ export default defineComponent({
       }
       return item.threshold !== undefined ? 'Threshold not reached yet' : 'Condition not met';
     },
+    /**
+     * THE BILL THE CLAIM / THE FUNDING WILL ASK (PL-1622 — Helion's heat, Stormcraft's floaters): the server's preview
+     * of the very payment its deferred bill raises (`maCosts.payments`, the claim named on its marker). Undefined when
+     * the bill is paid silently in M€, and for a free sponsorship (Vitor's).
+     */
+    maFocusPayment(): SelectPaymentModel | undefined {
+      if (!maFocusState.open || this.maFocusView?.free === true) {
+        return undefined;
+      }
+      return this.playerView.maCosts?.payments?.[maFocusState.name];
+    },
+    /** The names whose bill the server WILL ask (`maCosts.payments` — not for a free sponsorship). */
+    maBillNames(): ReadonlyArray<string> {
+      return this.awardFundingActive ? [] : Object.keys(this.playerView.maCosts?.payments ?? {});
+    },
+    maPayLaneList(): Array<MaPayLane> {
+      const model = this.maFocusPayment;
+      return model === undefined ? [] : maPayLanes(model, this.thisPlayer);
+    },
+    /** The bill's amount — the server's own (Briber's +12 included), never the generic claim price. */
+    maPayCost(): number {
+      return this.maFocusPayment?.amount ?? this.maFocusView?.cost ?? 0;
+    },
+    /** The payment stage's panel view (undefined while the stage is closed). */
+    maPayView(): MaPayView | undefined {
+      const pay = maFocusState.pay;
+      if (pay === undefined || this.maFocusPayment === undefined) {
+        return undefined;
+      }
+      return buildMaPaymentView({cost: this.maPayCost, lanes: this.maPayLaneList, counts: pay.counts, mcAvailable: maPayMcAvailable(this.thisPlayer)});
+    },
+    maPayFocusUnit(): string | undefined {
+      const v = this.maPayView;
+      return v === undefined ? undefined : maPayRows(v)[maFocusState.pay?.focus ?? 0]?.unit;
+    },
+    maPayReady(): boolean {
+      const pay = maFocusState.pay;
+      return pay !== undefined && maPayCovers(this.maPayCost, this.maPayLaneList, pay.counts, maPayMcAvailable(this.thisPlayer));
+    },
     /** The awards' sponsors in funding order — the detail's sponsorship ladder seats them on their slots. */
     maAwardSponsors(): ReadonlyArray<string> {
       return this.game.awards
@@ -10558,6 +10667,17 @@ export default defineComponent({
           if (this.maFocusItem?.takenBy !== undefined) {
             return [{control: 'back', label: 'Back'}];
           }
+          // «› ОПЛАТА» (PL-1622): the shared payment contract — ↑↓ a source, ←→ / LB RB ±1, RT its MAX, A pays and
+          // claims (ONE POST), B one level back to the detail (nothing sent).
+          if (maFocusState.pay !== undefined) {
+            return [
+              {control: 'dpad', label: 'Navigate'},
+              {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
+              {control: 'triggerR', label: 'MAX'},
+              {control: 'confirm', label: 'Pay', enabled: this.maPayReady && this.maFocusAvailable, highlight: this.maPayReady, priority: 0},
+              {control: 'back', label: 'Back'},
+            ];
+          }
           return [
             {control: 'confirm', label: this.maScreenKind === 'milestones' ? 'Claim milestone' : 'Fund',
               enabled: this.maFocusAvailable, highlight: this.maFocusAvailable},
@@ -10621,6 +10741,14 @@ export default defineComponent({
           staged: this.placementStagedBar,
         });
       }
+      // THE CHIP ROW (FD) owns the bar while the cursor stands on it — in every album mode.
+      if (this.consoleState.section === 'hand' && this.consoleState.filterFocus >= 0 && this.handTagFilterOptions.length > 1) {
+        return [
+          {control: 'dpadH', label: 'Navigate'},
+          {control: 'confirm', label: 'Apply filter'},
+          {control: 'back', label: 'To the cards'},
+        ];
+      }
       if (this.consoleState.sale.active) {
         const n = this.consoleState.sale.selected.length;
         return [
@@ -10671,6 +10799,10 @@ export default defineComponent({
         }
         if (this.handSelectFiltered) {
           cmds.push({control: 'triggerL', label: this.consoleState.select.suitableOnly ? 'All cards' : 'Only suitable'});
+        }
+        // THE PICKER'S CHIPS (FD): ▲ from the top row enters the filter row — the triggers keep their select verbs.
+        if (this.handTagFilterOptions.length > 1) {
+          cmds.push({control: 'dpadU', label: 'Filter', priority: 2});
         }
         cmds.push({control: 'back', label: 'Minimize'});
         return cmds;
@@ -11327,6 +11459,11 @@ export default defineComponent({
     },
   },
   watch: {
+    /** A PICKER's chips start at «ВСЕ» on entry and on every new question (FD) — never a leftover narrowing. */
+    handAlbumPickerKey(): void {
+      this.consoleState.selectTagFilter = 'all';
+      this.consoleState.filterFocus = -1;
+    },
     /**
      * THE PRESS'S CHAIN IS OVER at either structural end — the server asks the viewer nothing (the turn left them), or
      * asks them in the action phase while another seat is active (another seat's chain — `viewerAskedOffTurn`). From there a standing claim keeps its artifacts (the drawn card still
@@ -16656,6 +16793,10 @@ export default defineComponent({
           if (!maFocusAcceptsInput()) {
             return;
           }
+          if (maFocusState.pay !== undefined) {
+            this.handleMaPayIntent(intent);
+            return;
+          }
           if (intent.kind === 'press') {
             switch (consoleActionOf(intent)) {
             case 'primary':
@@ -16888,6 +17029,11 @@ export default defineComponent({
         }
         return true;
       case 'primary':
+        if (this.padSection === 'hand' && this.consoleState.filterFocus >= 0) {
+          // THE CHIP ROW (FD): A applies the focused chip — a re-pagination — and hands the cursor back to the cards.
+          this.applyFocusedFilterChip();
+          return true;
+        }
         this.handleSectionConfirm();
         return true;
       case 'inspect':
@@ -16918,6 +17064,10 @@ export default defineComponent({
         }
         return true;
       case 'back':
+        if (this.padSection === 'hand' && this.consoleState.filterFocus >= 0) {
+          this.consoleState.filterFocus = -1; // ONE level back — from the chips to the cards
+          return true;
+        }
         this.handleSectionBack();
         return true;
       default:
@@ -17946,6 +18096,23 @@ export default defineComponent({
         setMaFocusError('Unavailable right now');
         return;
       }
+      // «› ОПЛАТА» (PL-1622): a bill the server WILL ask (Helion's heat, Stormcraft's floaters) stands INSIDE the
+      // detail first — the same press returns here with the counts in hand, and the claim and its payment leave in ONE
+      // POST, the payment ADDRESSED to the claim's own bill (`maCosts.payments` names it on its marker).
+      const bill = this.maFocusPayment;
+      if (bill !== undefined && maFocusState.pay === undefined) {
+        openMaPay(maPayInitialCounts(this.maPayCost, this.maPayLaneList, maPayMcAvailable(this.thisPlayer)) as Record<string, number>);
+        return;
+      }
+      if (bill !== undefined && !this.maPayReady) {
+        return;
+      }
+      const payment = bill === undefined || maFocusState.pay === undefined ? undefined :
+        maPayFromCounts(this.maPayCost, this.maPayLaneList, maFocusState.pay.counts, maPayMcAvailable(this.thisPlayer));
+      // THE PRICE LEAVES THE RAIL FIRST (PL-1621): armed at the press as PAID — the M€ (or the composed payment's rows),
+      // held from the view that pays it and flown into the detail's printed price before the ceremony.
+      armMaPrice(item.name, view.free ? {} : payment !== undefined ?
+        {megacredits: payment.megacredits, heat: payment.heat} : {megacredits: view.cost});
       beginMaFocusCommit({gameAge: this.game.gameAge, undoCount: this.game.undoCount});
       claimMaCeremonyEmbed(item.kind, item.name);
       armMaCeremony({kind: item.kind, name: item.name, cost: view.cost, free: view.free});
@@ -17954,7 +18121,60 @@ export default defineComponent({
       this.armMaFocusSafety();
       // Deliberately NOT `submitInnerOption` — that helper closes the console
       // layers, and the whole point here is that the workspace stays up.
-      this.submit(wrapPath([...found.path, innerIdx], {type: 'option' as const}));
+      const claim = wrapPath([...found.path, innerIdx], {type: 'option' as const});
+      if (bill !== undefined && payment !== undefined) {
+        this.submitBatch([claim, addressed({type: 'payment' as const, payment}, promptAddressOf(bill as unknown as AddressableInput))]);
+        return;
+      }
+      this.submit(claim);
+    },
+    /** «› ОПЛАТА» (PL-1622): ↑↓ a source, ←→ / LB RB ±1, RT the source's MAX, A pays and claims, B back to the detail. */
+    handleMaPayIntent(intent: GamepadIntent): void {
+      const pay = maFocusState.pay;
+      const view = this.maPayView;
+      if (pay === undefined || view === undefined) {
+        return;
+      }
+      if (intent.kind === 'nav') {
+        const rows = maPayRows(view).length;
+        if (intent.dir === 'up' || intent.dir === 'down') {
+          setMaPayFocus(Math.min(Math.max(0, rows - 1), Math.max(0, pay.focus + (intent.dir === 'down' ? 1 : -1))));
+        } else {
+          this.dialMaPay(intent.dir === 'right' ? 1 : -1);
+        }
+        return;
+      }
+      if (intent.kind !== 'press') {
+        return;
+      }
+      switch (consoleActionOf(intent)) {
+      case 'prevSection':
+        this.dialMaPay(-1);
+        return;
+      case 'nextSection':
+        this.dialMaPay(1);
+        return;
+      case 'nextTab':
+        this.dialMaPay('max');
+        return;
+      case 'primary':
+        this.submitMaFocusCommit();
+        return;
+      case 'back':
+        closeMaPay();
+        return;
+      default:
+        return;
+      }
+    },
+    dialMaPay(step: number | 'max'): void {
+      const pay = maFocusState.pay;
+      const unit = this.maPayFocusUnit;
+      const lane = this.maPayLaneList.find((l) => l.unit === unit);
+      if (pay === undefined || lane === undefined) {
+        return;
+      }
+      setMaPayCount(lane.unit, dialMaPayLane(this.maPayCost, lane, this.maPayLaneList, pay.counts, step));
     },
     /** The committing beat may never hang: a commit with no verdict restores
      *  the reversible detail with an honest reason. */
@@ -17966,6 +18186,7 @@ export default defineComponent({
           abandonMaCeremonyEmbed();
           disarmMaCeremony();
           dropMaVp('the claim never resolved');
+          releaseMaPrice('the claim never resolved');
           failMaFocusCommit('Unavailable right now');
         }
       }, MA_COMMIT_SAFETY_MS);
@@ -18016,7 +18237,14 @@ export default defineComponent({
           resetMaFocus();
           return;
         }
-        beginMaFocusCeremony();
+        // PRICE, THEN CROWN (PL-1621): the price leaves its rows and is absorbed in the detail's printed price while
+        // the detail still stands; the ceremony mounts on that absorb (at once when nothing was held — a free claim,
+        // reduced motion, views that did not bear it out). Idempotent while it flies: every view re-asks.
+        void flyMaPrice().then(() => {
+          if (maFocusState.phase === 'committing') {
+            beginMaFocusCeremony();
+          }
+        });
         return;
       case 'payment':
         // Helion / Stormcraft: the claim's own payment step needs the
@@ -18025,6 +18253,7 @@ export default defineComponent({
         // then plays globally once the payment resolves.
         this.clearMaFocusSafety();
         releaseMaCeremonyEmbed();
+        releaseMaPrice('the bill is asked on its own surface');
         resetMaFocus();
         leaveWorkspace();
         return;
@@ -18033,6 +18262,7 @@ export default defineComponent({
         abandonMaCeremonyEmbed();
         disarmMaCeremony();
         dropMaVp('the claim was refused');
+        releaseMaPrice('the claim was refused');
         const reason = outcome.cause === 'raced' ?
           (maFocusState.kind === 'milestone' ? 'Already claimed' : 'Already funded') :
           (this.maFocusBlockReason !== '' ? this.maFocusBlockReason : 'Unavailable right now');
@@ -25171,6 +25401,29 @@ export default defineComponent({
     /** LT/RT: cycle the hand tag filter; R3: reset it to "All". Both preserve
      *  the selected card when it survives the new filter, else keep the
      *  nearest logical slot (never a jump to a random first page). */
+    /** A on the focused chip (FD): the browse tag or the picker's own chip changes — the same physical re-pagination. */
+    applyFocusedFilterChip(): void {
+      const option = this.handTagFilterOptions[this.consoleState.filterFocus];
+      this.consoleState.filterFocus = -1;
+      if (option === undefined) {
+        return;
+      }
+      const picker = this.handAlbumPicker;
+      if ((picker ? this.consoleState.selectTagFilter : this.consoleState.handTagFilter) === option.value) {
+        return;
+      }
+      this.applyHandFilterChange(() => {
+        if (picker) {
+          this.consoleState.selectTagFilter = option.value;
+        } else if (option.value !== 'pays') {
+          this.consoleState.handTagFilter = option.value;
+        }
+      });
+      if (picker && this.handEntries.length > 0) {
+        // The cursor lands on the first card the chip left (the pick's own first choosable one when it has one).
+        this.consoleState.handIndex = this.firstPickFocusIndex();
+      }
+    },
     cycleHandFilter(dir: 1 | -1): void {
       this.applyHandFilterChange(() => {
         this.consoleState.handTagFilter = cycleTagFilter(this.handTagFilterOptions, this.consoleState.handTagFilter, dir);
