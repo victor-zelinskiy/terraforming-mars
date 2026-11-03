@@ -525,6 +525,23 @@ profile, the reporting user's exact Electron geometry; no earlier project
 ran it, which is how three «green» fixes shipped defects only that rig
 could show. Permanent acceptance condition for the transition core).
 
+## THE FILTER ROW IN EVERY MODE — the picker's own chip (P50's polish companion · ledger FD, 2026-11-03)
+
+The owner: «экран выбора карт на сброс получает ФИЛЬТРЫ как в „Картах в руке“ — особенно для сброса на действия Красных».
+- **One row, every mode.** `showFilters` = more than «ВСЕ» — in browse, sale, a mandatory select and a composer's pick.
+- **A picker keeps its own state.** `consoleState.selectTagFilter` (`AlbumFilter` = a tag · `all` · `pays`), reset to
+  «ВСЕ» on the picker's entry and on every new question (`handAlbumPickerKey`). The browse `handTagFilter` lives the whole
+  session and is NEVER read in a pick — a tag left on in the hand can never hide a candidate of a mandatory discard.
+  The shell splits `handModeEntries` (the mode's own set — sale / pick / «suitable only») from `handEntries` (+ the chip).
+- **«ПЛАТЯТ»** — only for a per-tag exchange (`exchange.perTag`, the Reds), read off the marker; each card wears its own
+  payout «+N [M€]» (`cardPayout` — the header's rule card by card; «+0» muted, never hidden). A per-card exchange
+  (Ceres) pays for every card alike — no preset.
+- **Never a silent cut**: «Скрыто фильтром: N» beside the exchange counts the CANDIDATES the chip hides.
+- **The pad**: the triggers and R3 keep their select verbs, so the row is a FOCUSABLE LINE — ▲ from the top row of cards
+  enters it on the active chip (`consoleState.filterFocus`), ◀▶ walk the chips (no wrap), A applies (the same
+  re-pagination episode, the cursor on the first choosable card), ▼ / B back to the cards; the bar reads «▲ Фильтр»
+  in a select and «Применить фильтр · К картам» on the row.
+
 ## What did NOT change
 
 The episode machinery shape (one reversible timeline per episode, B

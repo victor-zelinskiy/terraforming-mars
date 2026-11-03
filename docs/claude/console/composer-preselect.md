@@ -178,3 +178,12 @@ target, ONE row for the WHOLE walk (the owner, 2026-10-28 — never one row per 
   commit until the sum is exact (the layout opens EMPTY: a filled default is an auto-select) and captures ONE `and` answer
   (`cardResourceDistributionResponse`), addressed to the corporation.
 The batch carries the one addressed answer; the server lands it on its own prompt. e2e: `console-arwind-inc` (A · A2).
+
+## A SEQUENCE ANSWERED IN ONE BATCH — spend → card → gain (P50 Focused Organization · ledger FC, 2026-11-03)
+
+An action whose server asks several things in turn (never an `AndOptions` — the console has no surface for one) is
+pre-collected step by step and posted ONCE: P50 answers «ПОТРАТИТЬ ?» (role `spend` — `SelectResource.withSpendAmount`),
+the discard in the hand album (role `discard`) and «ПОЛУЧИТЬ ?» (role `resource`) — three addressed answers the replay
+lands on their own prompts as they rise. The two «?» are two roles of one asker, so neither can take the other's answer.
+The SPEND mode of the shared wild step shows a lane the supply cannot pay refused with its reason (never hidden) and
+reads `stock → stock − N`; a sole payable lane is still a choice the player makes (the cursor opens on it).
