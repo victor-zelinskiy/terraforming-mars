@@ -1078,6 +1078,34 @@ export function playSpendReward(
 }
 
 /**
+ * THE PRICE OF A START PLAY (P52 · ledger FH — «the price leaves first»): a prelude's printed price (Industrial
+ * Complex's 18 M€, Huge Asteroid's 5) is a `cost` chip of its play preview, and the start queue flies it like the
+ * play door's shipment (PL-107): off the rail's row, SIDEWAYS (PL-104), into the card — BEFORE the card's result
+ * (PL-099). The table's answer to the same play (Manutech's M€ for the raised M€ line) moves the same row in the same
+ * response, so its stock / production moves join the KNOWN moves the two-view check nets out — otherwise the row reads
+ * «moved otherwise» and the price ticks with the commit. Pure; undefined — nothing to fly.
+ */
+export function startPlaySpendReward(
+  cardName: CardName,
+  branch: ActionPreviewBranch | undefined,
+  stepResponses: Readonly<Record<number, unknown>>,
+  answers: ReadonlyArray<ResourceTransferSpec> = [],
+): RailReward | undefined {
+  const reward = playSpendReward(cardName, branch, stepResponses, undefined);
+  if (reward === undefined) {
+    return undefined;
+  }
+  const known = {...reward.known};
+  for (const spec of answers) {
+    if (spec.channel === 'stock' || spec.channel === 'production') {
+      const row = railRowKey(spec);
+      known[row] = (known[row] ?? 0) + (spec.direction === 'loss' ? -spec.amount : spec.amount);
+    }
+  }
+  return {...reward, known};
+}
+
+/**
  * The known moves WITHOUT the rows a chain carries itself: a link's row is the
  * chain's own promise (a gain's as a positive, a loss's as a negative), never
  * a «known» move beside it — the diff check would count it twice.

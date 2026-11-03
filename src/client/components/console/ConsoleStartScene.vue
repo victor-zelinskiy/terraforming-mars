@@ -1267,7 +1267,7 @@ import ConsoleStartSelectionDock from '@/client/components/console/ConsoleStartS
 import {armDeliveryHold, runHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {extractPlayRewards, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import type {RailReward} from '@/client/console/resourceTransfer/railReward';
-import {playRailReward, withRailAnswerTags} from '@/client/console/consoleActionCommit';
+import {playRailReward, startPlaySpendReward, withRailAnswerTags} from '@/client/console/consoleActionCommit';
 import {railAnswerTags, ratingAnswerSpecs} from '@/client/console/played/receivingStageModel';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
 import {forecastForFixedBranch, forecastLayerAvailable, forecastRowPresent} from '@/client/console/effectForecastModel';
@@ -1546,6 +1546,8 @@ export default defineComponent({
        * the honest default).
        */
       playRewards: new Map<CardName, ReadonlyArray<ResourceTransferSpec>>(),
+      /** The printed PRICE each start play takes off the rail — flown FIRST, before the result (P52 · FH). */
+      playSpends: new Map<CardName, RailReward>(),
       /** Per pressable card: its play's RAIL HALF (PL-001 for plays) — the direct TR and the table's answer,
        *  read off the same preview; flown by the same beat after the gains above. */
       playRails: new Map<CardName, RailReward>(),
@@ -9115,6 +9117,9 @@ export default defineComponent({
         targetSelector: (this.drawExpected.get(name) ?? 0) > 0 ? '[data-embed-source-slot]' : undefined,
         rewards: this.playRewards.get(name),
         rail: this.playRails.get(name),
+        // THE PRICE LEAVES FIRST (P52 · FH — PL-104 / PL-099): a prelude's printed price (Industrial Complex's 18 M€)
+        // comes off the rail's row sideways into the card before the lift; the result's wave follows the landing.
+        spends: this.playSpends.get(name),
         // The queue slot and the dock's top slot (and the effect-source seat)
         // all paint the `thumb`-tier name-only face — the proxy wears it from
         // the lift to the handoff, no swap needed.
@@ -9161,8 +9166,8 @@ export default defineComponent({
           this.playRewards.delete(name);
         }
       }
-      // The rail half — the ceremony pre-collects nothing and a start play costs nothing it pays here; a rating's
-      // card answer (TR81 Lotus Innovations' data) rides it after the TR, like the play composer's.
+      // The rail half — the ceremony pre-collects nothing; a rating's card answer (TR81 Lotus Innovations' data) rides it
+      // after the TR, like the play composer's.
       const playForecast = forecastForFixedBranch(preview.forecast, position);
       if (this.rewardVersion === version) {
         if (playForecast !== undefined) {
@@ -9179,6 +9184,16 @@ export default defineComponent({
           this.playRails.set(name, rail);
         } else {
           this.playRails.delete(name);
+        }
+      }
+      // THE PRICE (P52 · FH): a start play's printed price is NOT free here — it leaves the rail FIRST, the table's
+      // answers to the same play netted out of the two-view check (Manutech's M€ for the raised M€ line).
+      const spends = startPlaySpendReward(name, branch, stepResponses, reactionRailSpecs(facts));
+      if (this.rewardVersion === version) {
+        if (spends !== undefined) {
+          this.playSpends.set(name, spends);
+        } else {
+          this.playSpends.delete(name);
         }
       }
       // The same structural read the card-actions workspace uses: a

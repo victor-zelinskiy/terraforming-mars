@@ -87,7 +87,7 @@ export type TransferEnd = {
    * `law` (the sitting's carrier card on its hero slot — a law's reward wave is born there, RX41) ·
    * `agenda-step:<n>` (a step of the Career — the winner's step pays its bonus off its node) · `hero` ·
    * `composer-card:<name>` ·
-   * `recv:<card|front>` · `played:<card>` ·
+   * `recv:<card|front>` · `played:<card>` · `queue:<card>` (a start-queue card — a prelude's price lands there, P52) ·
    * `slot:<card>` (a live pick's candidate) · `source` (a plate's source dock) ·
    * `rail:<row>` · `aux:<key>` · `payrow:<unit>` · `forecast:<row|bolt>` (a «Сработает» chip — the table's answer is
    * born there, PL-220) · `cell:<id>` (a board cell — PL-306's price into the cell) — or, with no anchor there,
@@ -207,6 +207,9 @@ export async function armTransferWitness(page: Page): Promise<void> {
       ['recv', '.con-recv__emerge[data-played-key]'],
       ['recv', '.con-recv [data-recv-front], .con-recv [data-played-key], .con-sale-hero [data-played-key], .con-citypay [data-played-key], .con-colfocus [data-played-key], .con-fleetdock [data-played-key], .con-hydro [data-played-key]'],
       ['played', '.con-played [data-played-key], .con-start__played [data-played-key]'],
+      // A card standing in the START QUEUE — a prelude's printed price is drawn into it before its lift (P52 · FH:
+      // «−18» off the M€ row into Industrial Complex in its queue slot). `queue:<card>`.
+      ['queue', '.con-start [data-queue-slot]'],
       // The PRELUDE DECK's «РАЗЫГРАНО» seat (P91 WG Project / P45 Board of Directors): a prelude a mid-game pick plays
       // lands there and pays from its own printed icons — the deck object's seat inside the host's zone, not a foreign
       // glass. `prelude-seat`.
@@ -238,6 +241,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
       case 'composer-card': return `composer-card:${name(el, 'data-composer-card')}`;
       case 'recv': return `recv:${el.hasAttribute('data-recv-front') ? 'front' : name(el, 'data-played-key')}`;
       case 'played': return `played:${name(el, 'data-played-key')}`;
+      case 'queue': return `queue:${name(el, 'data-queue-slot')}`;
       case 'prelude-seat': return 'prelude-seat';
       case 'ma-price': return 'ma-price';
       case 'slot': return `slot:${name(el, 'data-zoom-slot')}`;

@@ -22,7 +22,9 @@ import {Resource} from '../../src/common/Resource';
 import {Phase} from '../../src/common/Phase';
 import {Payment} from '../../src/common/inputs/Payment';
 import {RATING_RAIL_KEY} from '../../src/client/console/resourceTransfer/resourceTransferModel';
-import {actionRailTrSpecs, playRailReward, playRailTrSpecs, playSpendReward, playTargetSpendSpecs} from '../../src/client/console/consoleActionCommit';
+import {actionRailTrSpecs, playRailReward, playRailTrSpecs, playSpendReward, playTargetSpendSpecs, startPlaySpendReward} from '../../src/client/console/consoleActionCommit';
+import {IndustrialComplex} from '../../src/server/cards/prelude2/IndustrialComplex';
+import {Manutech} from '../../src/server/cards/venusNext/Manutech';
 import {heroRewardEffectsOf} from '../../src/client/console/consolePlayCardComposer';
 import {reactionRailSpecs} from '../../src/client/console/colonyTrade/fleetDockModel';
 
@@ -164,5 +166,34 @@ describe('PL-268 — the play\'s price off a card the composer CHOSE (TR52 Scien
     const {p} = table();
     p.plants = 2;
     expect(playTargetSpendSpecs(CardName.MOSS, cardPlayPreview(p, new Moss()).branches[0], {})).deep.eq([]);
+  });
+});
+
+describe('P52 · FH — THE PRICE OF A START PLAY leaves the rail FIRST (Industrial Complex)', () => {
+  it('the 18 M€ is a departure off the M€ row; the six raised lines are known moves, never links', () => {
+    const {p} = table();
+    p.production.override({});
+    const card = new IndustrialComplex();
+    const branch = cardPlayPreview(p, card).branches[0];
+    const spends = startPlaySpendReward(card.name, branch, {});
+    expect(spends?.cause).deep.eq([{channel: 'stock', resource: 'megacredits', amount: 18, direction: 'loss'}]);
+    expect(spends?.known).deep.eq({
+      'production:megacredits': 1, 'production:steel': 1, 'production:titanium': 1,
+      'production:plants': 1, 'production:energy': 1, 'production:heat': 1,
+    });
+  });
+
+  it('Manutech\'s answer on the same rows joins the known moves — the check nets it out', () => {
+    const {p} = table();
+    p.playCorporationCard(new Manutech());
+    p.production.override({});
+    const card = new IndustrialComplex();
+    const preview = cardPlayPreview(p, card);
+    const branch = preview.branches[0];
+    const facts = effectForecastForPlay(p, card, preview).facts;
+    const spends = startPlaySpendReward(card.name, branch, {}, reactionRailSpecs(facts));
+    expect(spends?.cause).deep.eq([{channel: 'stock', resource: 'megacredits', amount: 18, direction: 'loss'}]);
+    expect(spends?.known?.['stock:megacredits'], 'Manutech: 1 for the M€ line + 1 for each of the ruling Greens\' two M€ steps').eq(3);
+    expect(spends?.known?.['stock:steel']).eq(1);
   });
 });
