@@ -9,6 +9,32 @@ Close`. The old `ConsoleMaConfirm` modal is GONE from the console-native flow
 (the desktop `MaConfirmContent` path is untouched); the per-item CTA is gone
 from the overview.
 
+## ONE SCREEN · MATERIAL · A FULL RIGHT COLUMN · THE LAW'S EXIT (iteration FB, P49 — 2026-11-03)
+
+Supersedes the light grammar below wherever they disagree (the P33 text is kept as history). Ledger FB (PL-1612…1622).
+
+- **One screen, two columns.** Milestones left, awards right — a column is a KIND, each a head-tally (slots · count ·
+  the engine's next price, `[data-ma-price]`) over rows of ONE height (`--ma-rows` = the longest list, so rows align).
+  No row spans by construction. The door (`sheet` = `milestones` / `awards`) only chooses where the cursor starts;
+  the column is the shell's `maColumn` — ↑↓ rows, ←→ and LB/RB jump columns, nothing reopens. Vitor's hosted free
+  sponsorship is the same screen with `kinds: ['awards']`.
+- **Material, never light** (`console-ui.md` § VISUAL RESTRAINT; `glowRestraintGuard` § 4 — the `.con-ma*` /
+  `.con-mafocus*` / `.con-strat*` blocks at ZERO: halos incl. `var(--con-glow-r)`, glowing text, outer rings ≥ 50 %,
+  `infinite`). Focus = `.con-cursor()` (inset ring); «available now» (a MILESTONE only, P29) = a mint inset kant + the
+  word; taken = owner rail + seal + desaturated emblem. Emblems at one optical size (`maArtFitStyle`). The ceremony
+  keeps its light (licence); the rail's activation rim lights ONCE and goes out.
+- **The detail's right column is always full**: «Условие» · «Что даёт» (awards: the places + the sponsorship LADDER) ·
+  «Текущая гонка» in EVERY mode (claimed: the history row + the field's current values; an award nobody scores:
+  «Пока никто не ведёт», no ranks). Taken items: no claim verb on the bar, the rail empty (no repeat of the badge).
+- **One ladder of reasons** — `ConsoleMaItem.blocker`; the shell's `maFocusBlockReason` reads it; the rail never
+  prints «Сейчас недоступно».
+- **The decision cell** is the workspace foot (`--con-ws-foot-h`): the rail and the commit's line are two faces that
+  cross by opacity — no `v-if` blink.
+- **The exit**: after the ceremony and the +5 VP flight, `concludeWorkspaceFlowOrOwe` (`workspaceConclusionFor`) —
+  never a bare `leaveWorkspace()`; a hosted step pops one level.
+- **Gaps**: the price token off the rail into the head's «ЦЕНА» (PL-1621); the in-workspace «› ОПЛАТА» step for
+  Helion / Stormcraft (PL-1622, below).
+
 ## The BROWSE GRAMMAR (iteration P33) — availability ≠ focus, two identities
 
 Guard: `tests/e2e/console-ma-states.spec.ts` (the staged state matrix at 4K —
@@ -289,6 +315,6 @@ task's end (`awardFundingActive` falling edge) discard it.
 - **Payment fork**: Helion (heat-as-M€) / Stormcraft answer the claim with a
   real `SelectPayment` — the workspace yields to the standard payment task
   (today's exact pre-rework behaviour) and the ceremony plays globally. An
-  in-workspace «ОПЛАТА» step is future work.
+  in-workspace «ОПЛАТА» step is STILL future work (FB left it open — PL-1622).
 - The stage teardown mid-commit degrades gracefully: the claim is abandoned,
   the beat (when it arrives) plays on the global shell.

@@ -86,7 +86,7 @@ not player language). These never mix. No names, no cost — the workspaces
      row bracket, and «ДОСТУПНО» (`Available now`) replacing the meter in
      the same fixed foot — no layout shift on a turn flip. Reduced motion:
      all static, same reads.
-  4. *Taken*: the OWNER SEAL — ONE calm horizontal line `cube · ВЗЯТО · ✓`
+  4. *Taken*: the OWNER SEAL — ONE calm horizontal line `cube · ПОЛУЧЕНО · ✓` (FB — one glossary with the workspace)
      (cube = who, neutral tick = done, thin gold hairline = fixed) in the
      value zone; smaller and quieter than a live row, never a CTA-looking
      plaque, and NO owner cube on the emblem.
@@ -247,3 +247,11 @@ ONCE per row per epoch, and ONLY on a live watched transition:
   scores; fund + claim; the claim through the live MA workspace so the rail
   seal rides the fold): finished-body geometry, ready/offered, sponsor seal
   + podium I/II, the owner seal, the tie-for-first recomposition.
+
+## FB (2026-11-03) — no standing light
+
+The availability rim no longer BREATHES (`strat-avail-breathe … infinite` is gone): «offered now» is a mint inset
+kant on the puck + the «ДОСТУПНО» word; «met» a quieter kant. The bloom, the standing spark and the leader's gold pool
+are gone; the rim and the crystal light ONCE on the activation / the repulse and go out on their own (`strat-activate-
+rim` / `-spark` end at 0, `strat-rim-once`). Viewer cube rings and the sponsor gem ≤ 40 %. Guard:
+`glowRestraintGuard` § 4.
