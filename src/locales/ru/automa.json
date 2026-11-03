@@ -823,5 +823,22 @@
     "${0}'s reserve fund holds less than ${1} M€ — no payout this generation": "В резервном фонде ${0} меньше ${1} M€ — в этом поколении выплаты нет",
     "${0} paid out ${1} M€ from its reserve fund: its least advanced track advances": "${0} выплачивает ${1} M€ из резервного фонда: самый отстающий трек продвигается",
     "Less than ${0} M€ in the fund — no payout this generation": "В фонде меньше ${0} M€ — в этом поколении выплаты нет",
-    "The fund paid out ${0} × ${1} M€ — the least advanced track advances": "Фонд выплатил ${0} × ${1} M€ — самый отстающий трек продвигается"
+    "The fund paid out ${0} × ${1} M€ — the least advanced track advances": "Фонд выплатил ${0} × ${1} M€ — самый отстающий трек продвигается",
+    "Each space tag MarsBot resolves puts a fighter on this card": "Каждая метка космоса, которую разыгрывает Бот, кладёт на эту карту истребитель",
+    "Each step of MarsBot's Agenda marker puts a fighter here too": "Каждый шаг маркера Повестки Бота тоже кладёт сюда истребитель",
+    "Add Off the Slipway to MarsBot's action deck": "Добавить «Спуск со стапеля» в колоду действий Бота",
+    "Off the Slipway spends ${0} fighters: MarsBot reveals cards until one with a space tag and resolves it": "«Спуск со стапеля» тратит истребителей — ${0}: Бот вскрывает карты до первой с меткой космоса и разыгрывает её",
+    "Off the Slipway": "Спуск со стапеля",
+    "Arwind Inc.: MarsBot spends 3 fighters, if able, then reveals project cards until one with a space tag and resolves it; the others are discarded. Recurs into the action deck every generation.": "Arwind Inc.: Бот тратит 3 истребителя, если может, затем вскрывает проектные карты до первой с меткой космоса и разыгрывает её; остальные сбрасываются. Каждое поколение возвращается в колоду действий.",
+    "MarsBot spends ${0} fighters from Arwind Inc., if able — otherwise nothing happens": "Бот тратит истребителей с Arwind Inc. — ${0}, если может, — иначе ничего не происходит",
+    "MarsBot reveals project cards until one with a space tag and resolves it": "Бот вскрывает проектные карты до первой с меткой космоса и разыгрывает её",
+    "The other revealed cards are discarded": "Остальные вскрытые карты сбрасываются",
+    "${0} put ${1} fighter(s) on its corporation ${2}": "${0} кладёт истребителей на свою корпорацию ${2}: ${1}",
+    "${0} shuffled Off the Slipway into its action deck": "${0} замешивает «Спуск со стапеля» в свою колоду действий",
+    "${0} has fewer than ${1} fighters — no launch this generation": "У ${0} меньше ${1} истребителей — в этом поколении спуска нет",
+    "${0} launched ${1} off the slipway": "${0} спускает со стапеля ${1}",
+    "${0} revealed ${1} — no space tag, discarded": "${0} вскрывает ${1} — без метки космоса, в сброс",
+    "Fewer than ${0} fighters in the hangar — no launch this generation": "В ангаре меньше ${0} истребителей — в этом поколении спуска нет",
+    "The deck holds no space card — the launch is scrubbed": "В колоде нет карт с меткой космоса — спуск отменён",
+    "A ship off the slipway — a space card resolved": "Корабль сошёл со стапеля — разыграна карта с меткой космоса"
 }

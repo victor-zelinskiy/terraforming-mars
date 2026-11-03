@@ -55,6 +55,7 @@ import {chooseSeatSlot} from '../BotVoteChooser';
 import {ratingVetoed} from '../ratingVetoGate';
 import {probeStandardMoves, standardMovesSince} from '../standardMoves';
 import {AutomaTurnLog} from '../../automa/AutomaTurnLog';
+import {AutomaCorporations} from '../../automa/corps/AutomaCorporations';
 
 /** What `seat()` did: the office changed hands here and now, or the player still has to pick the delegate. */
 type SeatResult = 'seated' | 'asking';
@@ -171,6 +172,8 @@ export class ChairmanSeat {
    */
   private static answerWalk(player: IPlayer, walk: AgendaWalkContext): void {
     if (player.isMarsBot === true) {
+      // No tableau — but its CORPORATION may answer its own walk (CF5 Arwind Inc.'s fighters), once per walk.
+      AutomaCorporations.onBotAgendaWalked(player.game, walk.steps.length);
       return;
     }
     // WHAT WOKE THE EFFECT — the walk itself (and the card that made it, when a card did): the console's answer

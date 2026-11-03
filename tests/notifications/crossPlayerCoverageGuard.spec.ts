@@ -348,6 +348,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       [BonusCardId.BC2_VEYNON_RUN]: touchesHumans, // a trade → GiveColonyBonus pays the colony owners
       [BonusCardId.BC3_INPOLDERING]: touchesHumans, // a polder greenery (or the ocean instead) → the any-player tile reactors
       [BonusCardId.BC4_INSURANCE_PAYOUT]: botOnly, // the fund pushes the bot's own weakest track (B28's shape)
+      [BonusCardId.BC5_OFF_THE_SLIPWAY]: touchesHumans, // resolves a space card → the RB-B human reactors (B03's shape)
     };
     expect(Object.keys(BONUS).length, 'every bonus card classified').eq(Object.values(BonusCardId).length);
   });
@@ -406,6 +407,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       [MarsBotCorpId.CF2_VEYNON_DYNAMICS]: touchesHumans, // its extra fleets trade → GiveColonyBonus pays the colony owners
       [MarsBotCorpId.CF3_POLDERTECH_DUTCH]: touchesHumans, // the setup ocean + greenery → the any-player tile reactors
       [MarsBotCorpId.CF4_MONS_INSURANCE]: botOnly, // the fund, its premiums and the policy's repayment are the bot's own
+      [MarsBotCorpId.CF5_ARWIND_INC]: botOnly, // fighters onto its own card — the launch is BC5's
     };
     expect(Object.keys(CORPS).length, 'every bot corporation classified').eq(Object.values(MarsBotCorpId).length);
   });

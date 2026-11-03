@@ -3276,6 +3276,18 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 14,
         });
       }
+    } else if (corp.id === 'CF5') {
+      // Arwind Inc. (the fork's own card): what the table SAW is space cards coming off the slipway, one more turn each.
+      const launches = stat('slipwayLaunches');
+      if (launches >= 3) {
+        stories.push({
+          key: 'effect',
+          textKey: 'The slipways of ${0}\'s ${1} never stood idle: ${2} ships were launched off them.',
+          params: [raw(p.name), raw(corp.name), raw(launches)],
+          measure: launches,
+          scale: 5,
+        });
+      }
     } else if (corp.id === 'CF4') {
       // Mons Insurance (the fork's own card): what the table SAW is a capital that worked — payouts on schedule, and
       // attacks the policy repaid.

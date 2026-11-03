@@ -28,7 +28,7 @@ export type {MarsBotCubeType} from './AutomaTypes';
  * C35's card either carries its white cube or it does not, and the count IS
  * the state (the printed effect only ever puts one there or takes it away).
  */
-export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white' | 'cube-black' | 'mech';
+export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white' | 'cube-black' | 'mech' | 'fighter';
 
 /**
  * How the bot picks (and protects) cards in the research draft — RB-B "Draft
@@ -1422,6 +1422,33 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.CF5_ARWIND_INC]: {
+    id: MarsBotCorpId.CF5_ARWIND_INC,
+    // THE FORK'S OWN BOT CARD (the owner, 2026-11-03) for the Turmoil Redux corporation TR78 — «the Orbital Shipyard»
+    // (docs/AUTOMA_DATA_AUDIT.md §20): fighters are the currency of space — they launch space cards off the deck.
+    cardNumber: 'CF5',
+    original: CardName.ARWIND_INC,
+    // The human card's corner — Space (its own tag counts: «including this»).
+    startingTags: [Tag.SPACE],
+    // THE HANGAR — fighters on the card, the ordinary `.pcard__res` capsule (the human card holds fighters too).
+    resource: 'fighter',
+    corpBonusCards: [BonusCardId.BC5_OFF_THE_SLIPWAY],
+    // The Mars Parliament, like the human card: the Agenda's fighters are half the hangar (87 VP without them — §20).
+    requiresModules: ['turmoilRedux'],
+    sections: [
+      {kind: 'setup', lines: [
+        {text: 'This corporation is only used in a game with Turmoil Redux', muted: true},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'fighter', text: 'Each space tag MarsBot resolves puts a fighter on this card'},
+        {icon: 'fighter', text: 'Each step of MarsBot\'s Agenda marker puts a fighter here too'},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'deck', text: 'Add Off the Slipway to MarsBot\'s action deck'},
+        {icon: 'deck', text: 'Off the Slipway spends ${0} fighters: MarsBot reveals cards until one with a space tag and resolves it', params: ['3'], muted: true},
+      ]},
+    ],
+  },
 };
 
 export function marsBotCorpInfo(id: MarsBotCorpId): MarsBotCorpInfo {
@@ -1503,6 +1530,9 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           over — TR is one per conversion) and pristarMc (the M€ they
  *           paid), plus pristarSkipped<Parameter> per parameter, so the
  *           finale can name WHICH of the four stood still.
+ * Arwind Inc. (CF5): arwindSpaceFighters / arwindAgendaFighters (fighters its space tags / its Agenda steps put on the
+ *           card), slipwayPlayed (BC5 resolved), slipwayFighters (fighters spent), slipwayLaunches (space cards
+ *           launched off the deck).
  * Mons Insurance (CF4): insurancePremiumMc (M€ moved from the bot into the fund), insuranceInterestMc (the fund's
  *           interest), insurancePayouts (BC4 pushes of the least advanced track), insurancePayoutMc (the fund spent on
  *           them), insurancePayoutPlayed (BC4 resolved), insuranceClaims (attacks on the bot the policy answered),

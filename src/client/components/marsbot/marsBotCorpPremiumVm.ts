@@ -533,6 +533,17 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.tag(Tag.POWER).startEffect.cards(1).asterix();
       });
     });
+  case MarsBotCorpId.CF5_ARWIND_INC:
+    return CardRenderer.builder((b) => {
+      // EFFECT: the hangar fills — a space tag (and, with the Parliament, an Agenda step) puts a fighter here.
+      b.effect(undefined, (eb) => {
+        eb.tag(Tag.SPACE).slash().agendaStep(1).startEffect.resource(CardResource.FIGHTER);
+      });
+      // BEFORE ACTION PHASE: Off the Slipway — 3 fighters launch a space card off the deck.
+      b.action(undefined, (eb) => {
+        eb.resource(CardResource.FIGHTER, 3).startAction.cards(1, {secondaryTag: Tag.SPACE}).asterix();
+      });
+    });
   case MarsBotCorpId.CF4_MONS_INSURANCE:
     return CardRenderer.builder((b) => {
       // SETUP: the reserve fund opens on the card — the asterisk says «on the card», the capsule below counts it.
@@ -708,6 +719,9 @@ function corpResourceSocket(resource: MarsBotCorpResource): {type: CardResource,
   // A real card resource (CF2 Veynon Dynamics' hulls-to-be): its own icon.
   case 'mech':
     return {type: CardResource.MECH};
+  // CF5 Arwind Inc.'s hangar — the human card's own fighter.
+  case 'fighter':
+    return {type: CardResource.FIGHTER};
   default: {
     const never: never = resource;
     void never;

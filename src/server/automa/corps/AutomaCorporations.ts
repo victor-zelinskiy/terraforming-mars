@@ -73,6 +73,7 @@ import {MarsBotFerrusAcademy} from './MarsBotFerrusAcademy';
 import {MarsBotVeynonDynamics} from './MarsBotVeynonDynamics';
 import {MarsBotPolderTechDutch} from './MarsBotPolderTechDutch';
 import {MarsBotMonsInsurance} from './MarsBotMonsInsurance';
+import {MarsBotArwindInc} from './MarsBotArwindInc';
 
 /**
  * THE MarsBot corporation registry + dispatch layer (Rule Book B "Adding
@@ -148,6 +149,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.CF2_VEYNON_DYNAMICS]: MarsBotVeynonDynamics,
     [MarsBotCorpId.CF3_POLDERTECH_DUTCH]: MarsBotPolderTechDutch,
     [MarsBotCorpId.CF4_MONS_INSURANCE]: MarsBotMonsInsurance,
+    [MarsBotCorpId.CF5_ARWIND_INC]: MarsBotArwindInc,
   };
 
   public static corpFor(id: MarsBotCorpId): MarsBotCorp {
@@ -344,6 +346,11 @@ export class AutomaCorporations {
   /** Another player made MarsBot lose resources or production (`MarsBotCorp.onHarmedByOpponent`) — once per attack. */
   public static onBotHarmed(game: IGame, lostMc: number): void {
     AutomaCorporations.activeCorp(game)?.onHarmedByOpponent?.(game, lostMc);
+  }
+
+  /** MarsBot's Agenda marker walked `steps` steps (`MarsBotCorp.onAgendaWalked`) — once per walk. */
+  public static onBotAgendaWalked(game: IGame, steps: number): void {
+    AutomaCorporations.activeCorp(game)?.onAgendaWalked?.(game, steps);
   }
 
   /** MarsBot's tile SEATED on its own marker (`MarsBotCorp.onOwnMarkerBuilt`) — the bot seat only. */

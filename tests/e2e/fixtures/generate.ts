@@ -13371,3 +13371,21 @@ boardOfDirectorsFixture('board-of-directors-spent', {megacredits: 40, directors:
   }
   write(name, game);
 }
+
+// ── bot-shipyard: CF5 Arwind Inc. (the fork's own bot card, «the Orbital Shipyard») — a Parliament table with the
+//    hangar at a known 5 fighters (docs/AUTOMA_DATA_AUDIT.md §20). Blue on the move; the bot's corporation face is the
+//    subject: one Space tag, the capsule reads the fighters. ──
+{
+  const name = 'bot-shipyard';
+  const [game, human] = testAutomaGame({corporation: MarsBotCorpId.CF5_ARWIND_INC, coloniesExtension: true, turmoilReduxExpansion: true, keepInitialCardSelection: true});
+  answerStartFlow(game, [human]);
+  const automa = game.automa;
+  if (automa === undefined || automa.corporation !== MarsBotCorpId.CF5_ARWIND_INC) {
+    throw new Error(`${name}: expected Arwind Inc. seated`);
+  }
+  automa.corpResources = 5;
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id) {
+    throw new Error(`${name}: expected blue on the move — got phase=${game.phase} active=${game.activePlayer.color}`);
+  }
+  write(name, game);
+}

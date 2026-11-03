@@ -893,5 +893,6 @@
     "Veynon's yards never rested at ${0}'s ${1}: mechs became ${2} trade fleets, and ${3} trades went out to the colonies.": "Верфи ${1} не простаивали: из мехов собрано флотов — ${2}, а торговых рейсов к колониям ушло ${3}.",
     "Land was won from the sea at ${0}'s ${1}: ${2} polders rose where oceans were meant to be.": "${1} отвоевала землю у моря: там, где должны были плескаться океаны, поднялось польдеров — ${2}.",
     "Attacking ${0}'s ${1} did not pay: its policy repaid ${2} M€ out of the reserve fund.": "Нападать на ${1} было невыгодно: полис возместил из резервного фонда ${2} M€.",
-    "The capital of ${0}'s ${1} worked: the reserve fund paid out ${2} times.": "Капитал ${1} работал: резервный фонд сделал выплат — ${2}."
+    "The capital of ${0}'s ${1} worked: the reserve fund paid out ${2} times.": "Капитал ${1} работал: резервный фонд сделал выплат — ${2}.",
+    "The slipways of ${0}'s ${1} never stood idle: ${2} ships were launched off them.": "Стапели ${1} не простаивали: со стапеля сошло кораблей — ${2}."
 }

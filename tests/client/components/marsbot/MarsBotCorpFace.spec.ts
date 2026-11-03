@@ -695,6 +695,21 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(face.find('.pcard__res').exists(), 'the mech store').is.true;
   });
 
+  it('Arwind Inc. (CF5, the fork\'s own card) prints its shipyard, never the human 38 M€ or the fighter payment', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.CF5_ARWIND_INC);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'its own card').contains('Off the Slipway');
+    expect(text, 'the fighters').contains('fighter');
+    expect(text, 'the Agenda').contains('Agenda');
+    // The human Arwind Inc. starts with 38 M€ and titanium production, and pays 4 M€ a fighter — none of that.
+    expect(text).not.contains('38');
+    expect(text).not.match(/titanium|worth 4/i);
+    const face = mountFace(MarsBotCorpId.CF5_ARWIND_INC);
+    expect(face.findAll('.pcard__tags .pcard-tag'), 'Space').has.length(1);
+    expect(face.find('.pcard__res').exists(), 'the hangar\'s capsule').is.true;
+  });
+
   it('Mons Insurance (CF4, the fork\'s own card) prints its reserve fund, never the human 48 M€ or the production attack', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.CF4_MONS_INSURANCE);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect', 'Before action phase']);

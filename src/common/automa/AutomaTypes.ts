@@ -179,6 +179,8 @@ export enum MarsBotCorpId {
   CF3_POLDERTECH_DUTCH = 'CF3',
   // CF4 — Mons Insurance (R46), «the Reserve Fund», 2026-11-03.
   CF4_MONS_INSURANCE = 'CF4',
+  // CF5 — Arwind Inc. (TR78), «the Orbital Shipyard», 2026-11-03.
+  CF5_ARWIND_INC = 'CF5',
 }
 
 /** The implemented set, in official card-number order. */
@@ -233,6 +235,7 @@ export const MARS_BOT_CORP_IDS: ReadonlyArray<MarsBotCorpId> = [
   MarsBotCorpId.CF2_VEYNON_DYNAMICS,
   MarsBotCorpId.CF3_POLDERTECH_DUTCH,
   MarsBotCorpId.CF4_MONS_INSURANCE,
+  MarsBotCorpId.CF5_ARWIND_INC,
 ];
 
 /**
@@ -309,6 +312,8 @@ export enum BonusCardId {
   BC3_INPOLDERING = 'BC3',
   // CF4 Mons Insurance's payout out of its reserve fund.
   BC4_INSURANCE_PAYOUT = 'BC4',
+  // CF5 Arwind Inc.'s shipyard launch — a space card off the deck for fighters.
+  BC5_OFF_THE_SLIPWAY = 'BC5',
 }
 
 /** The set of bonus cards used in the base game (no expansions). */

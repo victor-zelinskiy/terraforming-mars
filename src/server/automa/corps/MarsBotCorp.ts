@@ -320,6 +320,13 @@ export type MarsBotCorp = {
   onHarmedByOpponent?(game: IGame, lostMc: number): void;
 
   /**
+   * MarsBot's own Agenda marker has just walked `steps` steps (the Mars Parliament — a won vote's step, the
+   * chairman's quest, a law's seat step), after the last step's bonus. Dispatched ONCE per walk from
+   * `ChairmanSeat.answerWalk` — the line that answers a human walker's tableau (CF5 Arwind Inc.'s fighters).
+   */
+  onAgendaWalked?(game: IGame, steps: number): void;
+
+  /**
    * Resolves one of this corporation's OWN bonus cards (`info.corpBonusCards`,
    * the B22–B32 family) when the bot flips it from its action deck. Routing
    * (discard / destroy / recurring holding) stays with the caller.

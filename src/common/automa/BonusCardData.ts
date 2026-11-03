@@ -147,6 +147,10 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     name: 'Insurance Payout',
     text: 'Mons Insurance: for every full 8 M€ in its reserve fund, MarsBot spends them to advance its least advanced track; with less in the fund the payout waits. Recurs into the action deck every generation.',
   },
+  [BonusCardId.BC5_OFF_THE_SLIPWAY]: {
+    name: 'Off the Slipway',
+    text: 'Arwind Inc.: MarsBot spends 3 fighters, if able, then reveals project cards until one with a space tag and resolves it; the others are discarded. Recurs into the action deck every generation.',
+  },
 };
 
 export function bonusCardInfo(id: BonusCardId): BonusCardInfo {
@@ -549,6 +553,17 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'megacredits', text: 'For every full ${0} M€ in its reserve fund, MarsBot spends them', params: ['8']},
         {icon: 'deck', text: 'and advances its least advanced track (the topmost if tied) — once per ${0} M€', params: ['8']},
         {text: 'Less in the fund: no payout this generation — the fund keeps growing', muted: true},
+      ],
+      fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
+    };
+  case BonusCardId.BC5_OFF_THE_SLIPWAY:
+    // CF5 Arwind Inc.'s own card (the fork's design, docs/AUTOMA_DATA_AUDIT.md §20): the shipyard launches a ship.
+    return {
+      name,
+      lines: [
+        {icon: 'fighter', text: 'MarsBot spends ${0} fighters from Arwind Inc., if able — otherwise nothing happens', params: ['3']},
+        {icon: 'deck', text: 'MarsBot reveals project cards until one with a space tag and resolves it'},
+        {text: 'The other revealed cards are discarded', muted: true},
       ],
       fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
     };
