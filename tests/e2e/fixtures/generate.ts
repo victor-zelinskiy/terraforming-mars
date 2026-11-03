@@ -277,6 +277,8 @@ import {rallyPlan} from '../../../src/server/parliament/RallyNeutralDelegates';
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
 import {UnmiLiner} from '../../../src/server/cards/turmoilRedux/UnmiLiner';
 import {VenusTradeHub} from '../../../src/server/cards/prelude2/VenusTradeHub';
+import {ColonyTradeHub} from '../../../src/server/cards/prelude2/ColonyTradeHub';
+import {AutomaColonies} from '../../../src/server/automa/AutomaColonies';
 import {NeptunianPowerConsultants} from '../../../src/server/cards/promo/NeptunianPowerConsultants';
 import {SubterraneanReservoir} from '../../../src/server/cards/base/SubterraneanReservoir';
 import {LagrangeObservatory} from '../../../src/server/cards/base/LagrangeObservatory';
@@ -3252,6 +3254,52 @@ for (const [name, dock] of [['venus-trade-hub', false], ['venus-trade-hub-dock',
     },
   });
 }
+// ── P46 · COLONY TRADE HUB — «when ANY colony is placed, gain 2 M€»: the reaction is the card's (its own
+//    `'colony-added'` scope, `cause.colony` naming the tile and the builder), played by the card-reaction framework —
+//    on the owner's own build AND on another seat's. A 2p Redux + Colonies table, Ceres · Luna · Callisto · Io (all
+//    active, every one with room); a quiet chairman quest:
+//      · `colony-trade-hub`       — blue on the move with the card and 40 M€ (the own build: the chain, no plate);
+//      · `colony-trade-hub-rival` — the card is BLUE's, RED is on the move with 30 M€ (a rival's build: blue's card
+//                                   rises with the cause plate «колония · red»).
+//    A DRY RUN on a copy: the build pays the owner 2 M€ under a record naming the colony and its builder. ──
+for (const [name, rival] of [['colony-trade-hub', false], ['colony-trade-hub-rival', true]] as const) {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: rival ? [10, 30] : [40, 30],
+    arrange: ({game, p1, p2, parliament}) => {
+      game.colonies = [new Ceres(), new Luna(), new Callisto(), new Io()];
+      p1.playedCards.push(new ColonyTradeHub());
+      parliament.quest = {definition: {goal: {kind: 'trade'}, count: 9}, source: 'starter', generation: game.generation, progress: new Map()};
+      // The builder's ordinary menu (a corporation's pending first action restricts it to «take it | pass»).
+      p1.pendingInitialActions = [];
+      p2.pendingInitialActions = [];
+      if (rival) {
+        p1.clearWaitingFor();
+        game.playerIsFinishedTakingActions();
+      }
+    },
+    expect: ({game, p1, p2, parliament}) => {
+      const builder = rival ? p2 : p1;
+      const menu = builder.getWaitingFor();
+      if (p1.playedCards.get(CardName.COLONY_TRADE_HUB) === undefined || game.activePlayer.id !== builder.id || !(menu instanceof OrOptions) ||
+          !menu.options.some((o) => o.title === 'Standard projects')) {
+        throw new Error(`the ${name} fixture expected the hub on blue's table and ${builder.color} on the move with the action menu — got active=${game.activePlayer.color}`);
+      }
+      // THE DRY RUN — a build on a copy pays blue's hub 2 M€ under a record naming the colony and the builder.
+      const copy = Game.deserialize(structuredClone(game.serialize()));
+      const owner = copy.getPlayerById(p1.id);
+      const before = owner.megaCredits;
+      copy.colonies.find((c) => c.name === ColonyName.CERES)!.addColony(copy.getPlayerById(builder.id));
+      runAllActions(copy);
+      const record = copy.cardReactions.find((r) => r.card === CardName.COLONY_TRADE_HUB && r.channel === 'colony-added');
+      if (record?.cause?.colony?.builder !== builder.color || owner.megaCredits !== before + 2) {
+        throw new Error(`the ${name} fixture expected the build to fire the hub for blue (+2 M€, a record naming ${builder.color}) — got ${JSON.stringify(record?.cause)} mc=${before}→${owner.megaCredits}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+
 // ── npc-ocean-greens: THE DECISION THAT BLINKED (the owner, 2026-11-01 — «модалка от промта исчезает на время
 //    анимации срабатывания эффекта и опять появляется»). The Greens rule (their «+2 M€ per TR step» answers the ocean's
 //    rating); blue holds Subterranean Reservoir (an ocean for 11 M€) with Neptunian Power Consultants on the table — the
@@ -11267,6 +11315,42 @@ specialPermitFixture('special-permit-stale', false, true);
     throw new Error(`the ${name} fixture expected P82 playable for blue on the move, the Greens ruling — got playable=${blue.canPlay(card)} active=${game.activePlayer.color} ruling=${game.parliament?.rulingParty()}`);
   }
   specialPermitDryRun(name, game, blue.id, bot.color);
+  write(name, game);
+}
+
+// ── colony-trade-hub-bot: P46 against MarsBot (the owner, 2026-11-03: «…и на срабатывания от хода других игроков» —
+//    the bot is one more seat). Solo against the bot (Teractor), blue's hub on the table, ONE action already taken this
+//    turn — its «End Turn» hands the move to the bot, whose deck is pinned to B18 Outer System Foothold: the bot BUILDS A
+//    COLONY (`AutomaColonies.botBuildColony` — the cube's second writer), blue's hub answers with 2 M€ under a record
+//    naming the bot as the builder. Prelude 2 conflicts with MarsBot at creation (`automaCompatibility`) — the card is
+//    INJECTED here, never dealt. ──
+{
+  const name = 'colony-trade-hub-bot';
+  const {game, humans, bot, automa} = botTable(name, 1);
+  const blue = humans[0];
+  blue.megaCredits = 20;
+  blue.playedCards.push(new ColonyTradeHub());
+  for (const colony of game.colonies) {
+    colony.isActive = true;
+  }
+  automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B18_OUTER_SYSTEM_FOOTHOLD}];
+  blue.actionsTakenThisRound = 1;
+  runAllActions(game);
+  if (game.activePlayer.id !== blue.id || !(blue.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected blue on the move with the action menu — got active=${game.activePlayer.color}`);
+  }
+  // THE DRY RUN — the bot's build on a copy pays blue's hub 2 M€ under a record naming the bot.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const owner = copy.getPlayerById(blue.id);
+  const before = owner.megaCredits;
+  if (!AutomaColonies.botBuildColony(copy)) {
+    throw new Error(`${name}: the bot found no tile to build on`);
+  }
+  runAllActions(copy);
+  const record = copy.cardReactions.find((r) => r.card === CardName.COLONY_TRADE_HUB && r.channel === 'colony-added');
+  if (record?.cause?.colony?.builder !== bot.color || owner.megaCredits !== before + 2) {
+    throw new Error(`${name}: expected the bot's build to fire blue's hub (+2 M€, a record naming the bot) — got ${JSON.stringify(record?.cause)} mc=${before}→${owner.megaCredits}`);
+  }
   write(name, game);
 }
 

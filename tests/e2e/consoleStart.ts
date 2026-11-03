@@ -2738,6 +2738,8 @@ export type BootOptions = {
 export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 'venus-trade-delegates' | 'venus-trade-unity' | 'venus-trade-unity-bonus' | 'venus-trade-unity-bonus-2p' | 'field-venus-unity-trade' |
   // P90 Venus Trade Hub: the card's answer to a trade — a colony trade (`venus-trade-hub`) and a dock's (`-dock`).
   'venus-trade-hub' | 'venus-trade-hub-dock' |
+  // P46 Colony Trade Hub: the card's answer to ANY colony built — blue's own build, red's, MarsBot's (B18).
+  'colony-trade-hub' | 'colony-trade-hub-rival' | 'colony-trade-hub-bot' |
   // P44 Atmospheric Enhancers: the prelude's «ВАРИАНТ» step in WG Project's «ВЫБОР ПРОЛОГА» stage (`-maxed`: the temperature at max).
   'atmospheric-enhancers-wg' | 'atmospheric-enhancers-wg-maxed' |
   // TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ»: saturated pre-endgame tables (every base score category, the winner not the viewer).

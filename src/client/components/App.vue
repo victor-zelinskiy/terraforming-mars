@@ -362,6 +362,7 @@ import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleSt
 import {seedParameterSwings} from '@/client/console/scaleSwing/scaleSwingDirector';
 import {seedDeckDrawHold} from '@/client/console/deckDraw/consoleDeckDraw';
 import {seedVpShares} from '@/client/console/scoreCell/vpShareLedger';
+import {openReactionSeedBlock, seedCardReactionHolds, snapshotRailHolds} from '@/client/console/cardReaction/cardReactionDirector';
 import {seedTerraformedScene} from '@/client/console/terraformedScene/terraformedScene';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
@@ -733,6 +734,10 @@ export default defineComponent({
 
           const commit = () => {
             perfMark('playerView:commit');
+            // Every rail row held BEFORE this block (P46 — «СРАБАТЫВАНИЕ КАРТЫ» on this road): the card-reaction seeder,
+            // run after every seeder below, tells a reaction row a host of THIS block holds from one nobody holds.
+            const railHeldBefore = snapshotRailHolds();
+            openReactionSeedBlock();
             /*
              * Console: fresh tiles from OTHER players (this poll path is how
              * an opponent's placement arrives; the staged bot batch's LAST
@@ -857,6 +862,16 @@ export default defineComponent({
             // …and THE SCORE CELL (TR55), the very LAST: what another seat's move did to the viewer's score is
             // attributed off the server's two breakdowns — a share whose cause a scene will show (a rival's tile
             // beside the viewer's city) waits for its token, every other one ticks now with its cause named.
+            // …and WHICH CARD REACTED to a move that arrived through this frame (P46 Colony Trade Hub, 2026-11-03 — «и на
+            // срабатывания от хода других игроков»): another seat's colony on the viewer's hub, a rival's play waking a
+            // card, a bot's lone turn — the viewer's own reactors play their chain (the cause named on a plate when the
+            // cause is another seat's), a rival's reactor rises at its chip. Before this road seeded nothing, so a card
+            // reaction reached the screen only through the viewer's OWN submit (the transport's `seedRewardHolds`). Only
+            // records under ANOTHER seat's root are taken here: the viewer's own press is the transport's (its hosts
+            // claim their answers in the submit's block — a WS frame that outran the answer must not tell it first).
+            const viewerColor = (model as PlayerViewModel).thisPlayer?.color;
+            seedCardReactionHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel, railHeldBefore,
+              {only: (r) => r.root.player !== undefined && r.root.player !== viewerColor});
             seedVpShares(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             app.playerView = nextViewSnapshot(app.playerView, model as PlayerViewModel);
             setTranslationContext(app.playerView);
