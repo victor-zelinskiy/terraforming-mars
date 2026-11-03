@@ -67,8 +67,16 @@ the system surfaces (`.con-stranded`, `.con-alert`, `.con-quit`). `ConsoleConfir
 
 ## The tone — structural, never a title (`promptTone.ts`)
 
+**THE TONE IS THE NET OF THE DECISION, never of one step** (the owner, 2026-11-03 — P51 · FG: «убыток или нет —
+определяется совокупностью эффектов, а не только тем, что карта сбрасывается»). Pluto's «draw 1, then discard 1» is ONE
+bonus: the card came first, the discard only chooses which one to keep — it is never «▼ УБЫТОК» / «Принять убыток». The
+pair is read off the server's STRUCTURAL marker on the discard (`discardPrompt.colonyBonus` / `colonyRepeat`), never a
+title; the price of a card the player chose to play (Old Mining Colony, Project Eden — a `card` source) is a chosen price.
+Only a forced discard that stands alone (Hygiea on its victim, a global event) is a loss.
+
 In priority order: `botAttackPrompt` → loss · `productionToLose` → loss · a `discardPrompt` with no `exchange` and `min > 0`
-→ loss · `choiceContext.mode === 'attack'` → NEUTRAL (the viewer AIMS it; the victim's prompt is the loss) · `mode ===
+→ NEUTRAL when it closes a draw pair (`colonyBonus` / `colonyRepeat` — basis `draw-pair`) or is the price of the player's
+own play (`source.kind === 'card'`, not an attack — `chosen-price`), else loss · `choiceContext.mode === 'attack'` → NEUTRAL (the viewer AIMS it; the victim's prompt is the loss) · `mode ===
 'reward'` → gain · `resources` (only ever «gain N standard resources») → gain · a card pick with `resourceGainPrompt` → gain ·
 the Venus / colony / delta bonus markers → gain · an `or` whose every real answer (the decline excluded) carries effects that
 only GIVE → gain, only TAKE → loss, anything mixed or unreadable → neutral. A wizard step keeps its own character when it
