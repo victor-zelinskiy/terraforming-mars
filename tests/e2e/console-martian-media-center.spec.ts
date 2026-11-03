@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixture, fetchPlayerModel, focusCard, openActionFocus, openCardActions, press, pressUntil, settle, walkFocusUntil} from './consoleStart';
+import {bootFixture, cinematicBeat, fetchPlayerModel, focusCard, openActionFocus, openCardActions, press, pressUntil, settle, walkFocusUntil} from './consoleStart';
 
 /**
  * T07 «МЕДИА-ЦЕНТР НА МАРСЕ» — «pay 3 M€ → add a delegate»: under Turmoil Redux a vote from the RESERVE for 3 M€,
@@ -185,9 +185,17 @@ async function armProbe(page: Page, viewer: string): Promise<void> {
           // WHAT the empty stage was made of: each side's running animations, the Parliament's root classes and the
           // crumb's stage — an entry that started late and a leave inside a standing workspace read the same numbers.
           const anims = (el: Element | null): string => el === null ? '∅' :
-            el.getAnimations({subtree: false}).map((a) => `${(a as CSSAnimation).animationName ?? 'waapi'}:${a.playState}@${Math.round(Number(a.currentTime ?? -1))}`).join(',') || '-';
+            el.getAnimations({subtree: false}).map((a) => `${(a as CSSAnimation).animationName ?? ((a as CSSTransition).transitionProperty !== undefined ? `transition(${(a as CSSTransition).transitionProperty})` : 'waapi')}:${a.playState}@${Math.round(Number(a.currentTime ?? -1))}`).join(',') || '-';
           const parlEl = document.querySelector('.con-composer__parlzone .con-parl');
-          p.gaps.push(`${t}ms parl=${parlSeen.toFixed(2)} setup=${setupSeen.toFixed(2)}` +
+          // WHICH node carries the missing opacity — the Parliament's own entry, or an ancestor's (the zone, the composer).
+          const chain: Array<string> = [];
+          for (let n = parlEl as HTMLElement | null; n !== null && n !== ws?.parentElement; n = n.parentElement) {
+            const o = Number(getComputedStyle(n).opacity);
+            if (o < 0.99) {
+              chain.push(`${(n.className.toString().split(' ')[0] || n.tagName)}=${o.toFixed(2)}[${anims(n)}]`);
+            }
+          }
+          p.gaps.push(`${t}ms parl=${parlSeen.toFixed(2)} setup=${setupSeen.toFixed(2)} chain=${chain.join('>')}` +
             ` parlAnim=${anims(parlEl)} setupAnim=${anims(document.querySelector('.con-composer__actmain'))}` +
             ` parlCls=${(parlEl?.className ?? '').replace(/\s+/g, '.')} step=${text(head?.querySelector('.con-wshead__step:last-child') ?? null)}`);
         }
@@ -357,6 +365,18 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-footer'), 'A is the action\'s commit verb').toContainText('Подтвердить');
       await expect(page.locator('.con-footer'), 'B is reversible').toContainText('Назад');
       await shot(page, preset.id, 'a2-vote-mode');
+
+      // ── B and A again INSIDE the step's own dissolve (a double-tap): the same section is re-shown mid-leave, and the
+      //    leave's `fill: 'forwards'` fade must not finish the re-entered vote at opacity 0 (it did — a live, invisible
+      //    vote over a released setup: the box probe B → 90 ms → A, 2 / 2). Raw keys: the gap IS the subject.
+      await page.keyboard.press('Escape');
+      await cinematicBeat(page, 90, 'A lands inside the step\'s 240 ms leave');
+      await page.keyboard.press('Enter');
+      await expect.poll(() => page.evaluate(() => {
+        const parl = document.querySelector('.con-cardactions .con-composer__parlzone .con-parl');
+        return parl === null ? 'none' : `${Number(getComputedStyle(parl).opacity).toFixed(2)}${parl.getAnimations().some((a) => a.playState === 'finished') ? ' stale-fill' : ''}`;
+      }), {timeout: 10_000, message: 'the vote re-shown mid-leave stands at full opacity, no stale fill'}).toBe('1.00');
+      await settle(page);
 
       // B walks back to the composer — nothing sent.
       const backTaken = () => page.evaluate(() => document.querySelector('.con-cardactions .con-parl') === null);

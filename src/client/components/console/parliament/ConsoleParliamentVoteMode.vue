@@ -1594,21 +1594,55 @@ export default defineComponent({
           this.flySupport(seqs[seqs.length - 1]);
         }
       };
-      seqs.forEach((seq, i) => {
-        const launch = () => {
-          if (parliamentFlow.stage !== 'landed') {
-            return;
-          }
-          if (!this.flyOwnDelegate(seq, color, () => touched(seq))) {
-            // This cube cannot fly (nothing measurable): it is simply there — its source lets go of exactly one.
-            this.releaseOneSource();
-            touched(seq);
-          }
-        };
+      // THE RHYTHM IS THE STACK'S (law 12 — the reserve the eye reads steps down per figure ≥ 90 ms apart). A cube
+      // launches on TWO gates: its own beat of the schedule AND the previous figure's ACTUAL leave from the stack
+      // (`onLifted` — the reserve's count stepping down) plus the same stagger. On a healthy frame both fall together;
+      // on a starved one (a 4K software frame of 150 ms) the first figure's leave is painted a frame late while a beat
+      // timed from the phrase's start fires on time — the two steps read 57 ms apart (CI 2026-11-03). The chained gate
+      // moves the next cube with the frame that showed its predecessor leave, so the interval is a fact, not a hope.
+      const gates = seqs.map((_, i) => ({scheduled: i === 0, chained: i === 0, launched: false, leftStack: false}));
+      const tryLaunch = (i: number) => {
+        const gate = gates[i];
+        if (gate.launched || !gate.scheduled || !gate.chained) {
+          return;
+        }
+        gate.launched = true;
+        launch(i);
+      };
+      const leftStack = (i: number) => {
+        if (gates[i].leftStack) {
+          return;
+        }
+        gates[i].leftStack = true;
+        const next = i + 1;
+        if (next >= seqs.length) {
+          return;
+        }
+        this.grantBeats.push(scheduleParliamentBeat(schedule[next].startMs - schedule[i].startMs, () => {
+          gates[next].chained = true;
+          tryLaunch(next);
+        }));
+      };
+      const launch = (i: number) => {
+        const seq = seqs[i];
+        if (parliamentFlow.stage !== 'landed') {
+          return;
+        }
+        if (!this.flyOwnDelegate(seq, color, () => touched(seq), () => leftStack(i))) {
+          // This cube cannot fly (nothing measurable): it is simply there — its source lets go of exactly one.
+          this.releaseOneSource();
+          leftStack(i);
+          touched(seq);
+        }
+      };
+      seqs.forEach((_, i) => {
         if (i === 0) {
-          launch();
+          tryLaunch(0);
         } else {
-          this.grantBeats.push(scheduleParliamentBeat(schedule[i].startMs, launch));
+          this.grantBeats.push(scheduleParliamentBeat(schedule[i].startMs, () => {
+            gates[i].scheduled = true;
+            tryLaunch(i);
+          }));
         }
       });
     },
@@ -1701,7 +1735,7 @@ export default defineComponent({
       });
     },
     /** The viewer's own delegate's flight, paced by its distance — `onLanded` is the caller's continuation (the next figure, or the landed read). */
-    flyOwnDelegate(seq: number, color: Color, onLanded: () => void): boolean {
+    flyOwnDelegate(seq: number, color: Color, onLanded: () => void, onLeftStack?: () => void): boolean {
       const root = parliamentRootEl();
       const f = parliamentFlow;
       if (root === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
@@ -1737,6 +1771,7 @@ export default defineComponent({
           // This cube's source lets go of exactly ONE figure (a phrase's other cubes may still be standing on it).
           this.releaseOneSource();
           f.flightSeq = undefined;
+          onLeftStack?.();
           onLanded();
           return;
         }
@@ -1753,6 +1788,8 @@ export default defineComponent({
             if (f.sourceHoldCount === 0) {
               f.sourceHold = undefined;
             }
+            // The stack's count has stepped down for THIS figure (the reserve the eye reads — `reserveCubes`).
+            onLeftStack?.();
           },
           onDeparted: () => {
             // The figure has visibly left its place: the footprint's note / the pile's count may say so now.

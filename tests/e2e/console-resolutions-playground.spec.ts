@@ -520,7 +520,10 @@ for (const preset of PRESETS) {
       await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000});
       const plate = page.locator('.con-mandatory');
       await expect(plate, 'the live game opens on the announced greenery').toHaveCount(1, {timeout: 120_000});
-      await expect(plate.locator('.con-mandatory__src-name')).toHaveText(/Конкурс биокуполов|Biodome Contest/);
+      // The plate names its SOURCE once, on whichever node carries `data-source-resolution`: the source row, or — when
+      // the asking law IS the invitation's resolution fact (d163b34eaf: «said once») — that fact itself.
+      await expect(plate.locator('[data-source-resolution]'),
+        'the plate names the law that asks').toContainText(/Конкурс биокуполов|Biodome Contest/);
       expect(await placementState(page), 'the board stays calm until the player presses').toBe('none');
       await shoot(page, preset.id, '27-biodome-live-game');
     });

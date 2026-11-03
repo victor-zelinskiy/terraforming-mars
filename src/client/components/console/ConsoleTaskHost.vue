@@ -2318,11 +2318,15 @@ export default defineComponent({
       if (this.deal.state.active || this.trayPickBeat) {
         return [{control: 'confirm', label: 'Skip'}];
       }
-      // The workspace's batch is still landing: the stage advertises NOTHING
+      // The workspace's batch is still landing: the stage advertises no VERB
       // yet. A verb on the bar while the slots are empty is a promise the
-      // stage cannot keep, and the input path swallows it anyway.
+      // stage cannot keep, and the input path swallows it anyway. ⚠ Never an
+      // EMPTY contract: the shell reads «nothing published» as «use the static
+      // set» and lit «A Выбрать · X Подтвердить» over a stage absorbing every
+      // press (P88 · CI 2026-11-03) — the bar narrates the arrival instead,
+      // the composer's own draw-beat status.
       if (this.arrivalPending) {
-        return [];
+        return [{control: 'confirm', label: 'Drawing cards…', enabled: false}];
       }
       // A live pick's ANSWER is playing as a scene (TR53 iteration): nothing on this surface accepts a press any more —
       // the bar is a STATUS («Выполняется…»), never a verb nothing accepts (the composers' own grammar past the press).

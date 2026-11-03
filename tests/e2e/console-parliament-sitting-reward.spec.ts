@@ -471,10 +471,17 @@ for (const preset of PARLIAMENT_PRESETS) {
           const pickLive = page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task .con-cards__slot--focused');
           await expect(pickLive, 'the pick is live — a focused candidate, no arrival / pick beat holding it').toHaveCount(1, {timeout: 15_000});
           const paidOut = async () => ((await parliamentWire(request, playerId)).game.parliament?.phase?.outcomes ?? []).some((o) => o.player === viewer && o.kind === 'cardResource');
-          const moved = async () => await paidOut() || await page.evaluate(() => {
-            const r = (window as unknown as {__conReady?: () => {holds: Array<string>, transport?: {requestInProgress: boolean}}}).__conReady?.();
-            return r !== undefined && (r.transport?.requestInProgress === true || r.holds.length > 0);
-          });
+          // THE PRESS REACHED THE SERVER — a POST of the answer, or its record. «Any hold stands» is not that witness: the
+          // sitting's own reward page keeps holds of its own up while the pick waits, so a swallowed A read as «moved»,
+          // no retry followed, and the record never came (CI 2026-11-03, deck-handheld RX01: `paidOut` false for 30 s).
+          let answerPosts = 0;
+          const onAnswer = (r: {method: () => string, url: () => string}) => {
+            if (r.method() === 'POST' && /\/player\/input/.test(r.url())) {
+              answerPosts++;
+            }
+          };
+          page.on('request', onAnswer);
+          const moved = async () => answerPosts > 0 || await paidOut();
           const swallowed: Array<string> = [];
           let answered = false;
           for (let attempt = 0; attempt < 3 && !answered; attempt++) {
@@ -498,6 +505,7 @@ for (const preset of PARLIAMENT_PRESETS) {
           if (swallowed.length > 0) {
             console.log(`[${preset.id} ${c.rx}] the recipient pick swallowed ${swallowed.length} press(es): ${swallowed.join(' · ')}`);
           }
+          page.off('request', onAnswer);
           expect(answered, `A on the recipient pick reaches the server (swallowed: ${swallowed.join(' · ')})`).toBe(true);
           // The chip lands on the chosen card; the record is in.
           await expect.poll(paidOut, {timeout: 30_000}).toBe(true);

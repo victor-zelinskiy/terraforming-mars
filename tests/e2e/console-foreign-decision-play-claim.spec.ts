@@ -61,17 +61,27 @@ async function redOceanWhenBlueDone(request: APIRequestContext, blue: string, re
   return Date.now() - started;
 }
 
-async function screenOf(page: Page): Promise<string> {
+type Screen = {decision: boolean, plate: boolean, task: boolean, hand: boolean, beacon: boolean, crumb: string, ready: unknown};
+
+/** What stands on screen, as DATA — the spec decides on it. (It used to be a JSON string sliced to 2500 characters for the
+ *  log, and the spec PARSED that slice: once `__conReady()` grew, every read was cut mid-string and threw — CI 2026-11-03,
+ *  red on all three attempts before a single assertion ran.) */
+async function screenOf(page: Page): Promise<Screen> {
   return page.evaluate(() => {
     const vis = (s: string) => [...document.querySelectorAll<HTMLElement>(s)].some((e) => e.getClientRects().length > 0);
     const ready = (window as unknown as {__conReady?: () => unknown}).__conReady?.();
-    return JSON.stringify({
+    return {
       decision: vis('.con-decision'), plate: vis('.con-mandatory'), task: vis('.con-task-host'), hand: vis('.con-hand'),
       beacon: vis('.con-status__beacon'),
       crumb: document.querySelector('.con-wshead')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
       ready,
-    }).slice(0, 2500);
+    };
   });
+}
+
+/** The same picture for a MESSAGE — capped, never parsed. */
+async function screenText(page: Page): Promise<string> {
+  return JSON.stringify(await screenOf(page)).slice(0, 2500);
 }
 
 test.describe('a foreign decision is never adopted by the play that happened to be landing', () => {
@@ -95,7 +105,7 @@ test.describe('a foreign decision is never adopted by the play that happened to 
     // takes it, as on the field («после забора карты»).
     const announced = () => page.locator('.con-status__beacon, .con-mandatory, .con-decision, .con-task-host').first();
     for (let i = 0; i < 8 && !await announced().isVisible().catch(() => false); i++) {
-      const now = JSON.parse(await screenOf(page)) as {hand: boolean, decision: boolean};
+      const now = await screenOf(page);
       expect(now.hand && now.decision, 'the question is not forced open over the card being taken').toBe(false);
       await page.keyboard.press('Enter');
       await new Promise((r) => setTimeout(r, 1500));
@@ -105,21 +115,21 @@ test.describe('a foreign decision is never adopted by the play that happened to 
     // decision itself — never an empty workspace with no announcement anywhere.
     const shown = await expect(announced(), 'the question is announced').toBeVisible({timeout: 25_000}).then(() => true, () => false);
     if (!shown) {
-      console.log('[foreign-decision] stranded screen', await screenOf(page));
+      console.log('[foreign-decision] stranded screen', await screenText(page));
     }
-    expect(shown, `the Neptunian question is announced — ${await screenOf(page)}`).toBe(true);
+    expect(shown, `the Neptunian question is announced — ${await screenText(page)}`).toBe(true);
     // The hand the player reads is never taken from under them by the question.
-    const first = JSON.parse(await screenOf(page)) as {hand: boolean, decision: boolean};
-    console.log('[foreign-decision] announced as', await screenOf(page));
+    const first = await screenOf(page);
+    console.log('[foreign-decision] announced as', await screenText(page));
     expect(first.hand && first.decision, 'the question is not forced open over the hand being read').toBe(false);
 
     // …and the player answers by their own road: B leaves the hand, A opens the plate, A answers the decision.
     for (let i = 0; i < 10 && (await waitingOf(request, blue))?.promptId === asked; i++) {
-      const now = JSON.parse(await screenOf(page)) as {plate: boolean, decision: boolean, task: boolean, hand: boolean};
+      const now = await screenOf(page);
       // A YES / NO keeps its two cards (Neptunian is one): A answers the focused card; the task host declines on RT.
       await page.keyboard.press(now.plate || now.decision ? 'Enter' : now.task ? 'Period' : 'Escape');
       await new Promise((r) => setTimeout(r, 1500));
     }
-    expect((await waitingOf(request, blue))?.promptId, `the question was answered from the screen — ${await screenOf(page)}`).not.toBe(asked);
+    expect((await waitingOf(request, blue))?.promptId, `the question was answered from the screen — ${await screenText(page)}`).not.toBe(asked);
   });
 });

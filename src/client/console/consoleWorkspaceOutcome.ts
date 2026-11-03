@@ -39,6 +39,7 @@ import {workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {partyTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
 import {embedZoneMounted} from '@/client/console/embedZoneRegistry';
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 
 /**
  * Which workspace holds the claim. A closed union on purpose: every host needs
@@ -406,6 +407,19 @@ export function workspaceOutcomeArrivalFlown(): boolean {
 export function workspaceOutcomeArrivalPending(): boolean {
   return workspaceOutcomeState.sourceCard !== '' && !workspaceOutcomeState.arrivalDone;
 }
+
+/**
+ * THE ARRIVAL NAMES ITSELF AS A HOLD — from the moment a beat has physically launched the batch off the pile
+ * (`arrivalFlown`) until the handoff opens the gate (`arrivalDone`). In that window the stage stands with its cards
+ * on screen and ABSORBS every press by contract (`ConsoleTaskHost.arrivalPending`), and nothing else said so: the
+ * readiness probe read «quiet», so a driver's press — and a player's — landed in it and was swallowed (P88 · CI
+ * 2026-11-03: the purchase stage's first A lost 3 / 3 on the 4K runner, the slot never picked). NOTIFICATION-ONLY: it
+ * holds the feed and tells the probe, never a mandatory surface (the stage it guards IS one). Bounded by the
+ * arrival's own 5 s backstop and the registry's ceiling.
+ */
+registerAnimationHoldSupplier('workspace-outcome-arrival',
+  () => workspaceOutcomeState.sourceCard !== '' && workspaceOutcomeState.arrivalFlown && !workspaceOutcomeState.arrivalDone,
+  {scope: 'notification-only'});
 
 /** The workspace's outcome zone is mounted (or gone) — publish the target. */
 export function setWorkspaceOutcomeSlot(selector: string): void {

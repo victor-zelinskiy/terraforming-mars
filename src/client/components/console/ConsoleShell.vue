@@ -2500,6 +2500,8 @@ const PARLIAMENT_LEAVE_NET_MS = 900;
 const PARLIAMENT_WARM_SETTLE_MS = 450;
 /** A HOSTED Parliament step's leave — a dissolve in place inside its host's zone (the embed contract strips the band phrase). */
 const PARLIAMENT_STEP_LEAVE_MS = 240;
+/** The hosted step's own leave fade — named, so a re-show finds and cancels it (`parliamentShown`). */
+const PARLIAMENT_STEP_LEAVE_ID = 'parliament-step-leave';
 /** The staged vote's RELEASE: the landing scene (the «Разыграно» stage + the landed card's proxy) lets go in place while the Parliament rises — the ONE release beat every staged host shares (`stagedPlay.ts`). */
 const STAGED_VOTE_RELEASE_MS = STAGED_STEP_RELEASE_MS;
 
@@ -2741,6 +2743,8 @@ export default defineComponent({
       releaseRevealQueuePark: undefined as (() => void) | undefined,
       /** …and its bounded net: a leave that never reports back may not latch the surface for the session. */
       parliamentLeaveNet: undefined as number | undefined,
+      /** Each show / hide edge of the section bumps it: a leave's release is honoured only by its own edge. */
+      parliamentLeaveToken: 0,
       patentSaleState,
       /** The terminal std-project commit phrase. MIRRORED for the same reason
        *  as the two below: `'stdProjectCommitState.abortNonce'` resolves
@@ -4196,7 +4200,7 @@ export default defineComponent({
         announceGate: this.taskGateHeld,
         // OWNERSHIP, not timing — the prompt belongs to a traversal step whose
         // cell the marker has not settled on yet (see the block's own doc).
-        stageGated: this.hydroQueuedPromptForLaterStep || this.sittingRiseGatesPrompt,
+        stageGated: this.hydroQueuedPromptForLaterStep || this.sittingRiseGatesPrompt || this.colonyStepReturnGatesPrompt,
         anyAnimation: isAnimationHoldActive(),
         // The board owes a scale story over a board in plain view (PL-336): a new placement waits for it.
         boardStory: this.boardStoryBeforePlacement,
@@ -5644,6 +5648,24 @@ export default defineComponent({
       const ask = tableAnswerAskOf(this.playerView.waitingFor);
       return this.hostTask !== undefined && ask !== undefined && workspaceFrameMounted('parliament') &&
         (ask.cause !== 'quest' || chairmanQuestFlow.live);
+    },
+    /**
+     * A CARD'S QUESTION WAITS FOR THE COLONY STEP TO HAND THE SCREEN BACK (CI 2026-11-03, `console-mu-colony-question` B,
+     * red ×3 since P48): «Научная колония» builds, and the SAME response asks Mars University's discard. The hosted
+     * colony step stands until its story is told (the build's scene, then `dwellColonyFollowUp` — the tokens, one read
+     * of the cube), and the scene's blocking hold falls a beat BEFORE the frame pops — so the question came alive in
+     * that gap and its album stood on the hand's shelf over a colony step still in the stack
+     * (`hand:committed>colonies:committed` — the 2026-10-14 lock's very shape). A question a CARD raised elsewhere
+     * (the server's structural `choiceContext.source.kind === 'card'` — never the colony's own follow-up, which is
+     * hosted INSIDE the step) belongs to the stage AFTER this one: the stage gate holds it until the prompt-pushed
+     * frame has left. Bounded by the frame's own bounded return (`COLONY_STEP_HANDOFF_MAX_MS` + the read).
+     */
+    colonyStepReturnGatesPrompt(): boolean {
+      const wf = this.playerView.waitingFor;
+      const host = workspaceFrameHost('colonies');
+      return wf !== undefined && wf.type !== 'colony' && wf.choiceContext?.source.kind === 'card' &&
+        host !== undefined && host !== 'parliament' &&
+        workspaceFrameAnchor('colonies')?.type === 'prompt' && !workspaceFrameHasNested('colonies');
     },
     /**
      * THE SITTING'S OWN ASK WAITS FOR ITS SITTING (the soft gates): the pass that ran the law carries the law's first
@@ -12807,18 +12829,33 @@ export default defineComponent({
     parliamentShown(shown: boolean, was: boolean): void {
       window.clearTimeout(this.parliamentLeaveNet);
       this.parliamentLeaveNet = undefined;
+      // Every edge retires the leave before it: a release still owed by an older leave answers for a section that is
+      // no longer leaving.
+      const token = ++this.parliamentLeaveToken;
+      const el = (this.$refs.parliamentSection as {$el?: unknown} | undefined)?.$el;
       if (shown) {
+        // RE-SHOWN MID-LEAVE (B, then A again inside the step's dissolve — the same instance is still mounted, the
+        // `v-if` never fell): the leave's WAAPI fade keeps its `fill: 'forwards'` and would finish the re-entered step
+        // at opacity 0 — a live, input-owning vote nobody can see, the setup released under it (an empty stage for
+        // good; the box probe B → 90 ms → A, 2 / 2). The stale fade is cancelled, so the step stands at its CSS
+        // opacity again, and its release (the token above) never runs over the live section.
+        if (el instanceof HTMLElement && typeof el.getAnimations === 'function') {
+          el.getAnimations().filter((a) => a.id === PARLIAMENT_STEP_LEAVE_ID).forEach((a) => a.cancel());
+        }
+        this.parliamentLeaveRelease = undefined;
         this.parliamentLeaving = false;
         this.parliamentEmbedLatch = this.parliamentEmbedTarget ?? '';
         return;
       }
-      const el = (this.$refs.parliamentSection as {$el?: unknown} | undefined)?.$el;
       if (!was || !(el instanceof HTMLElement)) {
         this.parliamentLeaving = false;
         return;
       }
       this.parliamentLeaving = true;
       const release = (): void => {
+        if (token !== this.parliamentLeaveToken) {
+          return; // a later edge (the step re-shown) owns the section now
+        }
         window.clearTimeout(this.parliamentLeaveNet);
         this.parliamentLeaveNet = undefined;
         this.parliamentLeaveRelease = undefined;
@@ -12846,7 +12883,8 @@ export default defineComponent({
           release();
           return;
         }
-        el.animate([{opacity: 1}, {opacity: 0}], {duration: motionMs(PARLIAMENT_STEP_LEAVE_MS), easing: 'ease-out', fill: 'forwards'})
+        el.animate([{opacity: 1}, {opacity: 0}],
+          {id: PARLIAMENT_STEP_LEAVE_ID, duration: motionMs(PARLIAMENT_STEP_LEAVE_MS), easing: 'ease-out', fill: 'forwards'})
           .finished.then(release, release);
         return;
       }
@@ -19713,6 +19751,18 @@ export default defineComponent({
       if ((this.colonyEmbedActive && !colonyTradeEntryLocked()) || this.shellTaskActive) {
         return;
       }
+      // A STEP ANOTHER FLOW RAISED hands the screen BACK to that flow — through the follow-up's own hand-over
+      // (`settleColonyFollowUp`: the build's tokens, one read, the pop), never home. A host that carries its guest as
+      // a SCENE (the Hydronetwork's stage-7 copied trade — the colonies stand over it as an overlay, so
+      // `colonyEmbedActive` is false) reached the `goBoardHome` below and lost its whole flow: the result read, the
+      // conclusion, the frame. Latent until P48's hosted dwell (`dwellColonyFollowUp`) outlasted this section's own
+      // completion settle — the pop used to win the race (`console-hydro-copied-colony`, CI 2026-11-03).
+      if (workspaceFrameHost('colonies') !== undefined && workspaceFrameAnchor('colonies')?.type === 'prompt') {
+        if (!this.colonyFollowUpLive) {
+          this.settleColonyFollowUp();
+        }
+        return;
+      }
       if (this.consoleState.section === 'colonies') {
         goBoardHome();
       }
@@ -22918,6 +22968,15 @@ export default defineComponent({
           handRevealState.chrome = 'held';
         }
         restoreWorkspaceStack();
+        // A PROMPT-PUSHED COLONIES STEP WHOSE FOLLOW-UP ENDED WHILE IT WAS PARKED hands the screen back now — the same
+        // law as `resumeStackFromBoardAndSettle` for the yield. Its falling edge fired against a parked stack, or the
+        // hosted hand-over's dwell was cut by the park (`alive` reads the LIVE stack), and nothing else will pop it: the
+        // CI field lock of 2026-11-03 — the solo opening's «remove a colony tile», answered inside the start, B pressed
+        // during the receipt's dwell, then A «Вернуться к решению» restored a colony grid nothing asked for, and the
+        // start never released (`console-colony-entry-probe` A, `console-pristar` A — «board home never became live»).
+        if (workspaceFrameAnchor('colonies')?.type === 'prompt' && !this.colonyFollowUpLive) {
+          this.settleColonyFollowUp();
+        }
         if (handComesBack) {
           if (this.consoleState.section === 'hand') {
             void this.replayHandOpenReveal();

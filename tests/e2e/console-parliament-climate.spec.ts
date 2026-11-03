@@ -163,7 +163,7 @@ async function armTakeProbe(page: Page, name: string): Promise<void> {
     };
     const esc = CSS.escape(cardName);
     let proxy: HTMLElement | null = null;
-    window.setInterval(() => {
+    const samplePose = (): void => {
       if (proxy === null || !proxy.isConnected) {
         proxy = document.querySelector<HTMLElement>('.con-handdelivery-layer .con-deal-proxy');
       }
@@ -174,6 +174,19 @@ async function armTakeProbe(page: Page, name: string): Promise<void> {
         const body = bodies.length > 0 ? bodies[bodies.length - 1] : undefined;
         w.__take.samples.push({t: Math.round(performance.now() - t0), p, b: body === undefined ? null : pose(body)});
       }
+    };
+    // EVERY POSE THE DIRECTOR WRITES is a sample — the proxy's style mutation, not only the 16 ms tick. The settle-back
+    // tween's LAST write (the exact body pose) and the hide that follows on the next frame can fall between two ticks of
+    // a starved sampler (CI 2026-11-03: the last TICKED pose was mid-settle, 4 px and 2.8 % off the body — the press's
+    // own offset — and the proxy was gone by the next tick). A MutationObserver callback runs after each write, before
+    // the next paint, so the landing is judged on the pose the product actually wrote last.
+    new MutationObserver((records) => {
+      if (records.some((r) => (r.target as Element).classList?.contains('con-deal-proxy'))) {
+        samplePose();
+      }
+    }).observe(document.querySelector('.con-handdelivery-layer') ?? document.body, {subtree: true, attributes: true, attributeFilter: ['style']});
+    window.setInterval(() => {
+      samplePose();
       const total = document.querySelector('.con-handdock__ratio .con-handdock__num--total')?.textContent?.trim();
       if (total !== undefined && total !== '' && total !== w.__take.totals[w.__take.totals.length - 1]) {
         w.__take.totals.push(total);
@@ -340,7 +353,15 @@ for (const preset of PRESETS) {
       const taken = await page.locator('.con-extdraw .con-cards__slot--focused').getAttribute('data-extdraw-slot');
       expect(taken, 'a focused card to take').not.toBeNull();
       await armTakeProbe(page, taken as string);
-      await press(page, 'Enter', 1600);
+      // ACT → VERIFY on the surface's OWN gate (`data-flow`): the take answers A only while `ready` — the zoom's close is
+      // a flight that re-poses the row, and an A in that window is swallowed by design (CI 2026-11-01: «the take press
+      // never landed», the server's hand flat for 20 s). Stand on `ready`, then a press counts only once the flow LEFT
+      // it (`sending`) or the row lost the card — a retry happens only while the same take still stands ready.
+      const takeSurface = page.locator('.con-extdraw');
+      await expect(takeSurface, 'the take is ready for A').toHaveAttribute('data-flow', 'ready', {timeout: 20_000});
+      expect(await pressUntil(page, 'Enter', async () =>
+        await takeSurface.getAttribute('data-flow').catch(() => null) !== 'ready' ||
+        await page.locator('.con-extdraw .con-cards__slot').count() < 2, {tries: 3, settleMs: 1600}), 'A took the card').toBe(true);
       await settle(page, {timeoutMs: 20_000});
       await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.cardsInHandNbr, {timeout: 20_000})
         .toBeGreaterThanOrEqual(handBefore + 1);
