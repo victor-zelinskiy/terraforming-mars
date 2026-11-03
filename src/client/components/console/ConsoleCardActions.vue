@@ -650,6 +650,14 @@ export default defineComponent({
       /** The composer SENT the action and its phrase is still playing (the composer's own `committing` — a staged
        *  placement locks its CTA and sends nothing, so the lock is not the fact). The crumb's tail and the B verb read it. */
       composerExecuting: false,
+      /**
+       * THE PROMPT A SENT COMMIT ANSWERED (PL-738 · FG): set at the press, cleared with the descent. The tail reads
+       * «ВЫПОЛНЕНИЕ» for as long as the SERVER has moved on from it — the funnel's lock (`composerExecuting`) falls the
+       * moment the answer lands, while the commit's phrase (a token onto the target card, the payout) still plays; a law's
+       * action, with no outcome stage of its own, fell back to «НАСТРОЙКА» there. A REFUSAL leaves the same prompt
+       * standing, so the tail honestly returns to the setup.
+       */
+      sentPromptId: undefined as number | undefined,
       /** The tile briefly shaken on an unavailable A press. */
       shakeKey: '',
       /** The slot the player just DESCENDED into (the commit pulse rides it
@@ -1273,12 +1281,16 @@ export default defineComponent({
     },
     /** SENT, no outcome stage of its own: the «Выполнение» beat (an action's submit — a card's, a party's, a law's). */
     executingStage(): boolean {
-      return this.composerExecuting;
+      if (this.composerExecuting) {
+        return true;
+      }
+      const sent = this.sentPromptId;
+      return sent !== undefined && this.composer !== undefined && this.playerView.waitingFor?.promptId !== sent;
     },
     workspacePhase(): WorkspacePhase {
       return workspacePhaseOf({
         open: this.composer !== undefined,
-        committed: this.outcomeFlow !== undefined || this.composerExecuting,
+        committed: this.outcomeFlow !== undefined || this.executingStage,
         // The outcome is INTERACTIVE once something is actually on stage; the
         // «pending» beat before that is machine time, not a destination.
         // A hosted hand step (the Reds' discard) is the party flow's own
@@ -2145,6 +2157,7 @@ export default defineComponent({
       // matters for re-entering the same one).
       this.committedPreview = undefined;
       this.composerExecuting = false;
+      this.sentPromptId = undefined;
       this.composer = {cardName: tile.cardName, nodeIndex: tile.nodeIndex};
       // The DESCENT is recorded where it survives the surface: the module
       // draft (a park unmounts this component, and the draft is what re-seats
@@ -2219,6 +2232,7 @@ export default defineComponent({
       // The frozen preview belongs to the stage that is going away.
       this.committedPreview = undefined;
       this.composerExecuting = false;
+      this.sentPromptId = undefined;
       // A genuine fold ends the descent: the suspended-instance record goes
       // with it. (An UNMOUNT deliberately does not come through here — a park
       // must keep the draft, or the restore has nothing to re-seat.)
@@ -2587,6 +2601,9 @@ export default defineComponent({
       const comp = this.composer;
       if (comp === undefined) {
         return;
+      }
+      if (!this.repeat) {
+        this.sentPromptId = this.playerView.waitingFor?.promptId;
       }
       // REPEAT MODE: this composer is the CHOSEN action's — capture its composed
       // responses and hand them back to the SOURCE (ProjectInspection play /
@@ -3019,6 +3036,7 @@ export default defineComponent({
       this.flowState = 'entering';
       this.committedPreview = undefined;
       this.composerExecuting = false;
+      this.sentPromptId = undefined;
       // ONE FRAMEWORK: the card composer composes a party's (and the enacted law's) action — the same descent, the
       // same stage, a card's flow phases, claim, outcome and steps. The DESCENT is recorded where it survives the
       // surface (a park unmounts this component): the module draft re-seats the composer on restore, the frame

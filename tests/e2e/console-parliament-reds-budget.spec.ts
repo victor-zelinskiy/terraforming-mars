@@ -114,6 +114,8 @@ type Sample = {
   insignia: boolean,
   /** The insignia's painted width (0 = none) — the storyboard takes the impulse's frame at its widest. */
   insW: number,
+  /** PL-784: the law's card wears its source mark — the gold keyline AND the «КАРЬЕРА» word, painted. */
+  careerMark: boolean,
   chips: Array<Chip>,
   tr: string, mc: string,
   /** The band's bonus chip of the step (`tr` · `card` · `megacredits`) — the bot's «+1 M€» reads here. */
@@ -171,6 +173,7 @@ async function armProbe(page: Page, colors: {blue: string, bot: string}): Promis
         proxy: visible(document.querySelector<HTMLElement>('.con-parl__flight--agenda')),
         insignia: insignia !== null && insignia.style.transform !== '' && insignia.style.transform !== 'none',
         insW: insignia === null ? 0 : insignia.getBoundingClientRect().width,
+        careerMark: visible(document.querySelector<HTMLElement>('[data-parl-gov-career]')) && document.querySelector('.con-parl__gov-card--lit') !== null,
         chips,
         tr: text(document.querySelector('.con-res .con-score__value--tr')),
         mc: (text(document.querySelector('.con-res__row--megacredits .con-res__digits')).match(/^-?\d+/) ?? [''])[0],
@@ -346,6 +349,14 @@ for (const preset of PRESETS) {
       const impulseSample = probe.samples.indexOf(ticks[blueImpulse]);
       const tickedAt = probe.samples.findIndex((s, i) => i > impulseSample && s.tr === trAfter);
       expect(tickedAt, 'the rating ticks only once its token has flown, never before it').toBeGreaterThan(ratingBirth);
+
+      // PL-784 · FG: the SOURCE reads by material for the whole beat — every task sample with a walk playing shows the
+      // law's card lit gold with its «КАРЬЕРА» word (a 320 ms pulse of a 40 px glyph was what the eye missed).
+      const walking = ticks.filter((s) => s.careerSeat !== '');
+      expect(walking.length, 'the Career beat was sampled').toBeGreaterThan(0);
+      const unmarked = walking.filter((s) => !s.careerMark).length;
+      expect(unmarked, `PL-784: the source mark stands through the beat (${unmarked} of ${walking.length} samples without it)`).toBeLessThanOrEqual(2);
+      expect(ticks.filter((s) => s.careerSeat === '' && s.careerMark).length, 'PL-784: and only through it').toBeLessThanOrEqual(2);
 
       // ③ THE BOT'S STEP: after blue's walk has landed — never two markers at once — with «+1 M€» named in the band.
       const blueLanded = at((s) => s.careerSeat === blue && s.careerPhase === 'landed');

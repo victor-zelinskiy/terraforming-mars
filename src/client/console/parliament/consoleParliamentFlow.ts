@@ -435,6 +435,29 @@ export function resetParliamentFlow(): void {
 }
 
 /**
+ * THE GRANT'S CURSOR OUTLIVES A «СВЕРНУТЬ» (PL-023 · FG). A live delegate grant is mandatory, so B «Свернуть» parks the
+ * whole hosting stack and the way back RE-MOUNTS the section — whose grant door used to place the cursor afresh (the
+ * viewer's own card, else the first), so the resolution the player had walked to was lost. The cursor is remembered
+ * HERE, per prompt (the server's `promptId`), by the resolution's INSTANCE (a slot index means nothing across a
+ * refresh); the door reads it back while the same prompt stands and the card is still on offer. Module state: it
+ * survives the unmount by construction; a different prompt simply never matches it.
+ */
+const grantCursorMemo: {promptId: number | undefined, instance: string | undefined} = {promptId: undefined, instance: undefined};
+
+export function rememberGrantCursor(promptId: number | undefined, instance: string | undefined): void {
+  if (promptId === undefined || instance === undefined) {
+    return;
+  }
+  grantCursorMemo.promptId = promptId;
+  grantCursorMemo.instance = instance;
+}
+
+/** The resolution the player last stood on for THIS prompt — undefined for any other prompt (or none remembered). */
+export function rememberedGrantCursor(promptId: number | undefined): string | undefined {
+  return promptId !== undefined && grantCursorMemo.promptId === promptId ? grantCursorMemo.instance : undefined;
+}
+
+/**
  * ARM THE VOTE MODE BEFORE THE FIRST RENDER — a DELEGATE GRANT (the Redux
  * Venus's «add 2 delegates to a resolution») hosted INSIDE another workspace:
  * the section mounts straight into its vote pose (the slots teleport into the

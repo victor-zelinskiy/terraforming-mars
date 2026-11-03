@@ -30,9 +30,14 @@
       <!-- The enacted card is ONE instance: while the resolution pays out it is TELEPORTED onto the enactment
            stage's hero slot (and FLIPs there and back) — never a copy beside the government. -->
       <Teleport v-if="enactedVm !== undefined" defer to="[data-parl-sit-hero]" :disabled="!enactCarried">
-        <div class="con-parl__gov-carry" data-parl-gov-carry>
+        <div class="con-parl__gov-carry" :class="{'con-parl__gov-carry--career': careerSource}" data-parl-gov-carry>
+          <!-- THE SOURCE OF A CAREER STEP (PL-784 · FG): while the law the card prints walks the seats' markers (Reds Budget
+               — the КАРЬЕРА beat), the card says so by MATERIAL for the whole beat — its printed edge turns gold (the
+               sitting's one «lit» grammar) and a word stands on its top edge — never a 320 ms pulse of a 40 px glyph the
+               eye misses on the government's small card. Absolute: the card's box never moves. -->
+          <span v-if="careerSource" class="con-parl__gov-career" data-parl-gov-career>{{ $t('Agenda track') }}</span>
           <div class="con-parl__gov-card"
-               :class="{'con-parl__gov-card--awaiting': holds.govAwaits !== undefined && holds.govAwaits === enactedShown?.instance}"
+               :class="{'con-parl__gov-card--awaiting': holds.govAwaits !== undefined && holds.govAwaits === enactedShown?.instance, 'con-parl__gov-card--lit': careerSource}"
                :data-zoom-slot="'resolution:' + enactedShown?.resolutionId"
                :data-reaction-home="enactedShown?.resolutionId">
             <premium-card-face :vmOverride="enactedVm" :lightweight="!enactCarried" :artTier="artTier" :inert="true" />
@@ -57,6 +62,7 @@ import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutio
 import {partyAccent} from '@/client/components/premiumCard/partyEmblems';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import {careerGrantState} from '@/client/console/parliament/careerGrantBeat';
 import {parliamentArtTier} from '@/client/console/parliament/parliamentArtTier';
 import {fitParliamentCards} from '@/client/console/parliament/parliamentCardFit';
 import {CardArtTier} from '@/client/cards/cardArt';
@@ -90,6 +96,10 @@ export default defineComponent({
   computed: {
     flow() {
       return parliamentFlow;
+    },
+    /** A step of the Career the enacted law granted is being walked now (the director's КАРЬЕРА beat, any seat). */
+    careerSource(): boolean {
+      return careerGrantState.current !== undefined && this.enactedShown !== undefined;
     },
     holds() {
       return parliamentHolds;

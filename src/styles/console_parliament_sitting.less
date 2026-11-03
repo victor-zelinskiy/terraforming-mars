@@ -50,6 +50,27 @@
        silver one it replaces) and the body glows — a ring on the card's BOX would show through the cut corner. */
     &__slot--lit .pcard { box-shadow: none; }
     &__slot--lit .pcard-bill__keyline, &__gov-card--lit .pcard-bill__keyline { box-shadow: inset 0 0 0 2.5px @con-parl-gold; }
+    /* THE CAREER STEP'S SOURCE (PL-784): the gold keyline above + ONE word on the card's top edge, for the whole beat —
+       a solid plate with a kant, never light. Absolute on the carry, so the card's box and the row never move. */
+    &__gov-carry--career { position: relative; }
+    &__gov-career {
+        position: absolute;
+        left: 50%;
+        top: 0;
+        z-index: 2;
+        transform: translate(-50%, -55%);
+        padding: .1rem .5rem .08rem;
+        border-radius: .3rem;
+        background: rgb(22, 18, 8);
+        box-shadow: inset 0 0 0 .06rem @con-parl-gold;
+        color: @con-parl-gold;
+        font-size: .62rem;
+        font-weight: 800;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        pointer-events: none;
+    }
     &__slot--lit { box-shadow: inset 0 0 0 .08rem fade(@con-parl-gold, 70%); }
     /* A HELD slot whose card has LEFT for the government: an empty outline in its OWN place (the row never re-orders). */
     &__slot-home--vacated { transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard; }
@@ -453,14 +474,19 @@
         gap: .5rem;
     }
     &__planet, &__tracks { flex: none; }
-    /* THE LEDGER: ONE ROW PER SEAT, rows of EQUAL height that share the who column's width (subgrid — the longest name
-       sets it, never cut), the totals taking the rest. */
+    /* THE LEDGER: ONE ROW PER SEAT that share the who column's width (subgrid — the longest name sets it, never cut),
+       the totals taking the rest. The plates are CONTENT-SIZED and stand from the column's TOP at one interval (PL-812 ·
+       FG): stretched to share the column, two seats were two 230 px plates with their lines floating in the middle — the
+       three columns of the card now start on ONE line (the enacted face, the first plate, the next vote's faces) and the
+       room a short ledger does not need is the column's foot. The solver still budgets a row as the column's share
+       (`resultsLayout.rowH`), so a plate never outgrows it. */
     &__ledger {
         flex: 1 1 0;
         min-height: 0;
         display: grid;
         grid-template-columns: max-content minmax(0, 1fr);
-        grid-template-rows: repeat(var(--sit-seats, 1), minmax(0, 1fr));
+        grid-template-rows: repeat(var(--sit-seats, 1), auto);
+        align-content: start;
         row-gap: .6rem;
     }
     &__payout {
@@ -491,7 +517,7 @@
         grid-row: 1;
         display: flex;
         flex-direction: column;
-        justify-content: center;
+        justify-content: flex-start; /* PL-812 · FG: from the column's top — the card's three columns on one line */
         gap: 1.1rem;
         min-width: 0;
         min-height: 0;

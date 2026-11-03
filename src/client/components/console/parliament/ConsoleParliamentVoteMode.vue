@@ -877,6 +877,11 @@ export default defineComponent({
       const observer = this.readingRoomObserver;
       if (observer !== undefined && (body as HTMLElement & {__fitObserved?: boolean}).__fitObserved !== true) {
         observer.observe(body);
+        // …and the plate whose room the fit reads (PL-766 — the body is content-sized in the hall).
+        const plate = body.closest<HTMLElement>('.con-parl__info-own');
+        if (plate !== null) {
+          observer.observe(plate);
+        }
         (body as HTMLElement & {__fitObserved?: boolean}).__fitObserved = true;
       }
       if (readings === null || this.voteCommitted) {
@@ -887,7 +892,19 @@ export default defineComponent({
         readings.style.removeProperty('--con-parl-reading-fit');
         return;
       }
-      const room = body.getBoundingClientRect();
+      // The ROOM is the plate's, not the body's: in the hall the body is content-sized (its group centred in the plate —
+      // PL-766), so its own box would only ever say «as big as now». The plate's inner height less its head line.
+      const bodyBox = body.getBoundingClientRect();
+      const own = body.closest<HTMLElement>('.con-parl__info-own');
+      const head = own?.querySelector<HTMLElement>('.con-parl__info-own-head') ?? null;
+      // GROUPED (the body content-sized — the hall on TV / 1080) reads the plate; a body that keeps the room (the Deck) its own box.
+      const grouped = typeof getComputedStyle === 'function' && getComputedStyle(body).flexGrow === '0';
+      const room = own === null || own === undefined || !grouped ? bodyBox : (() => {
+        const cs = getComputedStyle(own);
+        const inner = own.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+        const headH = head === null ? 0 : head.getBoundingClientRect().height + parseFloat(cs.rowGap || cs.gap || '0');
+        return {width: bodyBox.width, height: Math.max(0, inner - headH)};
+      })();
       const key = `${Math.round(room.width)}x${Math.round(room.height)}|${readings.childElementCount}|${readings.textContent ?? ''}`;
       if (readings.dataset.fitKey === key) {
         return;
@@ -900,17 +917,56 @@ export default defineComponent({
       // plate's height at ×1 is the reference, and a step may grow it only by the step itself. A secondary line (the
       // holders', the kinds') may still wrap — it is a list, not one number.
       const plates = Array.from(readings.querySelectorAll<HTMLElement>('.con-iyield__reading'));
+      // …and the ROW never wraps to buy scale either (PL-766 · FG): the number and the party's answer beside it stand on
+      // as many lines as they did at ×1 — a step that pushes the answer under the number («город» over «+2 M€ Зелёные»)
+      // reads as two statements and is refused.
+      const rowsOf = (): number => {
+        const tops: Array<number> = [];
+        for (const child of Array.from(readings.children) as Array<HTMLElement>) {
+          const r = child.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) {
+            continue;
+          }
+          if (!tops.some((t) => Math.abs(t - r.top) < r.height / 2)) {
+            tops.push(r.top);
+          }
+        }
+        return tops.length;
+      };
       readings.style.setProperty('--con-parl-reading-fit', '1');
       const natural = plates.map((plate) => plate.getBoundingClientRect().height);
-      let fit = READING_FIT_STEPS[READING_FIT_STEPS.length - 1];
-      for (const step of READING_FIT_STEPS) {
+      const naturalRows = rowsOf();
+      // The party's answer stands BESIDE the number (its row's middle inside the number's box) — the reading's one line.
+      const yieldEl = readings.querySelector<HTMLElement>('.con-parl__info-yield');
+      const answers = Array.from(readings.querySelectorAll<HTMLElement>('.con-parl__info-reaction'));
+      const answerBeside = (): boolean => {
+        if (yieldEl === null || answers.length === 0) {
+          return true;
+        }
+        const y = yieldEl.getBoundingClientRect();
+        return answers.every((a) => {
+          const r = a.getBoundingClientRect();
+          const mid = (r.top + r.bottom) / 2;
+          return mid >= y.top && mid <= y.bottom;
+        });
+      };
+      const stands = (step: number, beside: boolean): boolean => {
         readings.style.setProperty('--con-parl-reading-fit', String(step));
         const r = readings.getBoundingClientRect();
-        const whole = plates.every((plate, i) => plate.getBoundingClientRect().height <= natural[i] * step + 2);
-        if (whole && r.height <= room.height - 1 && r.width <= room.width + 1 && readings.scrollWidth <= readings.clientWidth + 1) {
-          fit = step;
-          break;
-        }
+        const whole = plates.every((plate, i) => plate.getBoundingClientRect().height <= natural[i] * step + 2) && (step <= 1 || rowsOf() <= naturalRows);
+        // Nothing clipped: in the hall the PLATE is the judge (its whole content — the head, the reading and whatever
+        // stands beside the reading in the body — inside its box); elsewhere the body's own room.
+        const fitsTall = grouped && own !== null && own !== undefined ? own.scrollHeight <= own.clientHeight + 1 : r.height <= room.height - 1;
+        return whole && (!beside || answerBeside()) && fitsTall && r.width <= room.width + 1 && readings.scrollWidth <= readings.clientWidth + 1;
+      };
+      // The answer BESIDE the number first, at whatever step it stands (down to the ladder's floor); only when no step
+      // keeps it there does the reading take the largest step that stands whole with the answer under it.
+      let fit = READING_FIT_STEPS[READING_FIT_STEPS.length - 1];
+      const besideStep = READING_FIT_STEPS.find((step) => stands(step, true));
+      if (besideStep !== undefined) {
+        fit = besideStep;
+      } else {
+        fit = READING_FIT_STEPS.find((step) => stands(step, false)) ?? fit;
       }
       readings.style.transform = pose;
       readings.style.setProperty('--con-parl-reading-fit', String(fit));

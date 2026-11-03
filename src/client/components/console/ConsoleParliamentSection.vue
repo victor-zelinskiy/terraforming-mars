@@ -296,7 +296,7 @@ import {
 import {influenceReadingOf} from '@/client/console/parliament/influenceReading';
 import {sittingRiseStood} from '@/client/console/parliament/sittingRise';
 import {
-  armDelegatePickFlow, armGrantVoteFlow, armSupportPickFlow, armBannerPickFlow, parliamentBannerUp, parliamentDelegateUp, consoleParliamentUi, notePlayedSittingStage, parliamentSupportUp, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, WALK_SEAT_STAGE_KEY, ParliamentStage,
+  armDelegatePickFlow, armGrantVoteFlow, rememberGrantCursor, rememberedGrantCursor, armSupportPickFlow, armBannerPickFlow, parliamentBannerUp, parliamentDelegateUp, consoleParliamentUi, notePlayedSittingStage, parliamentSupportUp, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, WALK_SEAT_STAGE_KEY, ParliamentStage,
   parliamentFlow, parliamentSittingUp, parliamentStageKind, parliamentStageUp, parliamentVoteUp, pulseParliamentChair, resetParliamentFlow,
   setParliamentRootEl, sittingSessionKnown, sittingStagePlayed,
 } from '@/client/console/parliament/consoleParliamentFlow';
@@ -925,6 +925,11 @@ export default defineComponent({
     },
     focusedSlot(): ParliamentSlotVm | undefined {
       return this.view.slots[parliamentFlow.slotIndex];
+    },
+    /** The resolution a LIVE grant's cursor stands on — remembered per prompt as it moves (PL-023: any park keeps it). */
+    grantCursorInstance(): string | undefined {
+      return parliamentFlow.stage === 'vote' && this.bridge.grant !== undefined && this.bridge.grant.staged !== true ?
+        this.focusedSlot?.instance : undefined;
     },
     /** «ВАШИ ЭФФЕКТЫ»'s sources as SHOWN (the sitting's holds keep the previous government until its beat) — the block's and the step's one input. */
     effectsInput(): EffectItemsInput {
@@ -1956,6 +1961,11 @@ export default defineComponent({
      * out of the table into the row. The mode opens on the card the viewer's
      * own delegates already stand on (the likeliest address), else the first.
      */
+    grantCursorInstance(instance: string | undefined): void {
+      if (instance !== undefined) {
+        rememberGrantCursor(this.pv.waitingFor?.promptId, instance);
+      }
+    },
     'bridge.grant': {
       immediate: true,
       handler(grant: ParliamentPromptBridge['grant']): void {
@@ -2234,7 +2244,10 @@ export default defineComponent({
       const parties = grant.model.parties;
       const candidates = this.view.slots.map((slot, i) => ({slot, i})).filter(({slot}) => parties.includes(slot.party));
       const own = candidates.filter(({slot}) => slot.viewerVotes > 0).sort((a, b) => b.slot.viewerVotes - a.slot.viewerVotes)[0];
-      const idx = own?.i ?? candidates[0]?.i ?? 0;
+      // Back from «Свернуть» on the SAME prompt: the cursor returns to the resolution the player stood on (PL-023).
+      const remembered = grant.staged === true ? undefined : rememberedGrantCursor(this.pv.waitingFor?.promptId);
+      const back = remembered === undefined ? undefined : candidates.find(({slot}) => slot.instance === remembered);
+      const idx = back?.i ?? own?.i ?? candidates[0]?.i ?? 0;
       const mode = this.voteMode();
       if (mode === undefined || fresh) {
         armGrantVoteFlow(idx);
@@ -2541,6 +2554,7 @@ export default defineComponent({
           // is «Свернуть», the whole hosting stack parks (the board-home
           // card is the way back). The player's own vote folds home.
           if (this.bridge.grant !== undefined) {
+            rememberGrantCursor(this.pv.waitingFor?.promptId, this.focusedSlot?.instance);
             this.$emit('collapse');
             return;
           }

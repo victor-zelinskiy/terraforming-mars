@@ -259,6 +259,28 @@ for (const preset of PRESETS) {
       await expect.poll(() => hotVerb(page), {timeout: 10_000}).toMatch(/К исследованию|To the research|К драфту|To the draft/i);
       expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'the seat\'s confirmation stands until A').toBe('close');
       await expectFits(page, `${preset.id} results`);
+      // PL-812 · FG: the card's three columns stand on ONE top line — the enacted face, the first payout plate, the next
+      // vote's first face — and a payout plate is as tall as its content (two seats were two column-high plates with
+      // their lines floating in the middle).
+      const cols = await sitting(page).evaluate((root) => {
+        const top = (sel: string) => root.querySelector(sel)?.getBoundingClientRect().top;
+        const plates = Array.from(root.querySelectorAll<HTMLElement>('[data-sit-payout]')).map((p) => {
+          const box = p.getBoundingClientRect();
+          const kids = Array.from(p.children).map((c) => c.getBoundingClientRect()).filter((r) => r.height > 0);
+          const content = kids.length === 0 ? 0 : Math.max(...kids.map((r) => r.bottom)) - Math.min(...kids.map((r) => r.top));
+          return {h: box.height, content};
+        });
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        return {rem, enacted: top('[data-sit-section="enacted"] .pcard'), payout: top('[data-sit-payout]'), fresh: top('[data-sit-section="table"] .con-sit__fresh'), plates};
+      });
+      const tol = 1.5 * cols.rem;
+      expect(Math.abs((cols.payout ?? 0) - (cols.enacted ?? 0)), `PL-812: the first payout plate starts on the enacted face's line (${JSON.stringify(cols)})`).toBeLessThanOrEqual(tol);
+      if (cols.fresh !== undefined) {
+        expect(Math.abs(cols.fresh - (cols.enacted ?? 0)), `PL-812: the next vote starts on the same line (${JSON.stringify(cols)})`).toBeLessThanOrEqual(tol);
+      }
+      for (const p of cols.plates) {
+        expect(p.h - p.content, `PL-812: a payout plate is as tall as its content plus its padding (${JSON.stringify(cols)})`).toBeLessThanOrEqual(3 * cols.rem);
+      }
       await shoot(page, preset.id, '06-results');
       // B on the terminal results page is NONE — the workspace stays.
       await press(page, 'Escape', 1000);

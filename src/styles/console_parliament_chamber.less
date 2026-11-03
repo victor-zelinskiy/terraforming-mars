@@ -1666,7 +1666,17 @@ html.con-profile-tv .con-parl-qd {
     .con-parl__vote .con-parl__info-main { flex: 1 1 auto; flex-direction: column; align-items: stretch; gap: .7rem; container: none; }
     .con-parl__vote .con-parl__info-main > .con-parl__info-own { flex: 1 1 0; }
     .con-parl__vote .con-parl__info-own { padding: .7rem .9rem .8rem; gap: .45rem; }
-    .con-parl__vote .con-parl__info-own-body { justify-content: center; }
+    /* PL-766 · FG: the kicker and its reading are ONE group, centred in the plate — the reading stands right under its
+       kicker (the empty band BETWEEN them — a reading centred ALONE in the tall fixed box — is gone). The plate keeps its
+       size for every bill: it is the panel's body (P77 · DH — the panel has no void; the stability law — the vote block
+       and its CTA never move); the reading's scale is solved against the plate's own room (`fitReading`), largest with
+       the party's answer still BESIDE the number. */
+    .con-parl__vote .con-parl__info-own { justify-content: center; }
+    .con-parl__vote .con-parl__info-own-body { flex: 0 0 auto; justify-content: center; align-items: flex-start; }
+    /* …except on the Deck, where the plate has no room to give a centred group (a dense reading clipped by 3 px): there
+       the body keeps the whole room and the reading stands at its TOP, right under the kicker — the band never above. */
+    html.con-profile-handheld & .con-parl__vote .con-parl__info-own { justify-content: flex-start; }
+    html.con-profile-handheld & .con-parl__vote .con-parl__info-own-body { flex: 1 1 auto; align-items: flex-start; }
     /* …and the reading is the plate's HERO: centred in it, never a note pinned to its left edge with the plate empty beside it. */
     .con-parl__vote .con-parl__info-readings { justify-content: center; }
     /* THE PARTY BOX under a door that pays the party (TR03): in the column it is a ROW under the reading — the party's

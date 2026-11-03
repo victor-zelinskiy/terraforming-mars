@@ -242,6 +242,20 @@ for (const preset of PRESETS) {
       await expect(reaction).toHaveAttribute('data-reaction-party', 'Greens');
       await expect(reaction).toHaveAttribute('data-reaction-amount', '2');
       await expect(reaction.locator('.con-preact__unit--prod').first(), 'M€ PRODUCTION, never cash').toBeVisible();
+      // PL-766 · FG: the answer stands BESIDE the number (its row's middle inside the number's box), and the reading
+      // stands right under its kicker — never centred down the fixed box with an empty band above it.
+      const pl766 = await page.evaluate(() => {
+        const box = (sel: string) => document.querySelector(sel)?.getBoundingClientRect();
+        const y = box('[data-parl-vote-yield]');
+        const r = box('[data-parl-vote-reaction]');
+        const head = box('.con-parl__info-own-head');
+        const readings = box('.con-parl__info-readings');
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        const mid = r === undefined ? Number.NaN : (r.top + r.bottom) / 2;
+        return {rem, beside: y !== undefined && mid >= y.top && mid <= y.bottom, gap: head === undefined || readings === undefined ? Number.NaN : readings.top - head.bottom};
+      });
+      expect(pl766.beside, `PL-766: the Greens' answer stands beside the number (${JSON.stringify(pl766)})`).toBe(true);
+      expect(pl766.gap, `PL-766: the reading stands under its kicker (${JSON.stringify(pl766)})`).toBeLessThanOrEqual(1.2 * pl766.rem);
       await expectFits(page, `${preset.id} vote mode`);
       await shoot(page, preset.id, '02-vote-reading');
 

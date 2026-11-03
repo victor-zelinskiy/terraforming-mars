@@ -152,6 +152,24 @@ test.describe('P51 — High Circles: the named search, the influence, the vote i
       .toMatch(/СТАРТ ПАРТИИ.*ГОЛОСОВАНИЕ/);
     await expect(page.locator('.con-parl:not([data-parl-leaving])'), 'ONE Parliament instance').toHaveCount(1);
     await shoot(page, '03-vote-in-start');
+    // PL-766 · FG: «ДЛЯ ВАС ПРИ ПРИНЯТИИ» — the reading stands right under its kicker (no empty band above it), and the
+    // party's answer, when the law has one, stands BESIDE the number (never pushed under it).
+    const reading = await page.evaluate(() => {
+      const box = (sel: string) => document.querySelector(`.con-parl__vote ${sel}`)?.getBoundingClientRect();
+      const head = box('.con-parl__info-own-head');
+      const readings = box('.con-parl__info-readings');
+      const yieldBox = box('.con-parl__info-yield');
+      const answers = Array.from(document.querySelectorAll('.con-parl__vote .con-parl__info-reaction')).map((el) => el.getBoundingClientRect());
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      return {
+        rem,
+        gap: head === undefined || readings === undefined ? Number.NaN : readings.top - head.bottom,
+        beside: yieldBox === undefined ? true : answers.every((r) => (r.top + r.bottom) / 2 >= yieldBox.top && (r.top + r.bottom) / 2 <= yieldBox.bottom),
+        answers: answers.length,
+      };
+    });
+    expect(reading.gap, `PL-766: the reading stands under its kicker (${JSON.stringify(reading)})`).toBeLessThanOrEqual(1.2 * reading.rem);
+    expect(reading.beside, `PL-766: the party's answer stands beside the number (${JSON.stringify(reading)})`).toBe(true);
 
     // THE PRESS: two delegates from the RESERVE onto the chosen resolution.
     const chosen = await page.locator('.con-parl__slot--selected').first().getAttribute('data-party');

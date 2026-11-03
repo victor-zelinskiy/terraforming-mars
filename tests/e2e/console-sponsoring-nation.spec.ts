@@ -265,11 +265,25 @@ test.describe(`P83 Sponsoring Nation · the play's vote is a step of the same fl
     const mid = await wireOf(request, id);
     expect([mid.thisPlayer.terraformRating - tr0, mid.thisPlayer.megacredits], 'the server: TR +3, 25 − 18 + 6 = 13 M€').toEqual([3, 13]);
 
+    // PL-023 · FG: the cursor walks to ANOTHER resolution first — the round trip below must bring it back THERE.
+    const selectedParty = async (): Promise<string> =>
+      await page.locator('.con-parl__slot--selected').first().getAttribute('data-party') ?? '';
+    const startParty = await selectedParty();
+    await press(page, 'ArrowRight', 400);
+    if (await selectedParty() === startParty) {
+      await press(page, 'ArrowLeft', 400);
+      await press(page, 'ArrowLeft', 400);
+    }
+    const walkedTo = await selectedParty();
+    expect(walkedTo, `the cursor moved off ${startParty}`).not.toBe(startParty);
+
     // B past the commit is «Свернуть» — a ROUND TRIP: the vote is parked with its flow, A on the board brings it back.
     await pressUntil(page, 'Escape', async () => await page.locator('.con-hand').count() === 0, {tries: 3, settleMs: 1200});
     await shoot(page, 'c-collapsed');
     expect(await pressUntil(page, 'Enter', async () => await page.locator(VOTE).count() === 1, {tries: 3, settleMs: 1500}),
       'A on the board home restores the vote inside the hand').toBe(true);
+    await expect.poll(selectedParty, {timeout: 15_000, message: 'PL-023: back from «Свернуть», the cursor stands on the resolution the player walked to'})
+      .toBe(walkedTo);
 
     // ── A on a resolution → ONE more POST → two cubes from the reserve → the flow leaves ──
     await settle(page, {timeoutMs: 20_000});

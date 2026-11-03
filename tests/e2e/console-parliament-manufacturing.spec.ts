@@ -183,6 +183,25 @@ for (const preset of PRESETS) {
 
       // ── ③ THE COMMIT: the token is born on the law's face and lands ON the card (never the satellite under the glass).
       await armTransferWitness(page);
+      // PL-738 · FG: from the press on, the crumb's tail is sampled — past the commit it reads «ВЫПОЛНЕНИЕ» and never
+      // falls back to «НАСТРОЙКА» while the law's stage still stands (the funnel's lock falls at the answer; the phrase does not).
+      await page.evaluate(() => {
+        const w = window as unknown as {__pl738: Array<string>};
+        w.__pl738 = [];
+        // The tail's CURRENT word: the stage segment that is not leaving (the swap crossfades two words in one cell).
+        const sample = () => {
+          const steps = Array.from(document.querySelectorAll<HTMLElement>('.con-cardactions .con-wshead__step'))
+            .filter((el) => !Array.from(el.classList).some((c) => c.startsWith('con-wshead-swap-leave')));
+          const step = steps[steps.length - 1];
+          const text = step === undefined ? '' :
+            `${(step.textContent ?? '').replace(/\s+/g, ' ').trim().toUpperCase()}${step.classList.contains('con-wshead__step--committed') ? '·AMBER' : ''}`;
+          if (text !== '' && w.__pl738[w.__pl738.length - 1] !== text) {
+            w.__pl738.push(text);
+          }
+        };
+        new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true});
+        window.setInterval(sample, 40);
+      });
       const stopStory = await storyboard(page, preset.id, 'commit');
       expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, playerId)).game.parliament?.viewer?.resolutionAction?.usesLeft === 1,
         {tries: 3, settleMs: 2500}), 'A on the CTA commits one use').toBeTruthy();
@@ -190,6 +209,13 @@ for (const preset of PRESETS) {
       expect(one.game.parliament?.viewer?.resolutionAction).toMatchObject({usesLeft: 1, usesPerGeneration: 2, available: true});
       await settle(page, {timeoutMs: 30_000});
       await stopStory();
+      const crumbs = await page.evaluate(() => (window as unknown as {__pl738: Array<string>}).__pl738);
+      console.log(`[PL-738 ${preset.id}] ${crumbs.join(' | ')}`);
+      const performing = crumbs.findIndex((c) => c.includes('ВЫПОЛНЕНИЕ'));
+      expect(performing, `PL-738: past the press the tail reads «ВЫПОЛНЕНИЕ» (${crumbs.join(' | ')})`).toBeGreaterThanOrEqual(0);
+      expect(crumbs[performing], `PL-738: «ВЫПОЛНЕНИЕ» stands amber, past the commit (${crumbs.join(' | ')})`).toContain('·AMBER');
+      expect(crumbs.slice(performing).filter((c) => c.includes('НАСТРОЙКА')),
+        `PL-738: never back to «НАСТРОЙКА» past the commit (${crumbs.join(' | ')})`).toEqual([]);
       const witness = await transferWitness(page);
       expect(endsOverGlass(witness), `no end on glass: ${transferTrail(witness)}`).toEqual([]);
       expect(witness.landings.some((l) => l.under === `composer-card:${MECHS}`), `the mech lands on the card in the target row: ${transferTrail(witness)}`).toBe(true);

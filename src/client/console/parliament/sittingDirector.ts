@@ -1204,11 +1204,12 @@ function pulseCareerInsignia(runState: StageRun, k: number): void {
   if (icon === null || icon === undefined || runState.finished) {
     return;
   }
-  // The glow is a BOX-SHADOW ring (the console strips every `filter` — a drop-shadow here painted nothing and the
-  // impulse was a bare ×1.3 of a 40 px glyph on the government's small card at 4K); a one-shot, never a loop.
+  // A one-shot press of the printed insignia — a crisp gold RING, never a blurred halo (the console strips every
+  // `filter`, and light is no state); the SOURCE itself reads by material for the whole beat — the card's gold keyline
+  // and its «КАРЬЕРА» word (PL-784, `ConsoleParliamentGovernment.careerSource`), never by this 320 ms alone.
   const clear = () => gsap.set(icon, {clearProps: 'transform,transformOrigin,boxShadow,borderRadius'});
   const tw = gsap.fromTo(icon, {scale: 1, borderRadius: '50%', boxShadow: '0 0 0 0 rgba(255, 196, 92, 0)'}, {
-    scale: 1.5, boxShadow: '0 0 0 0.12em rgba(255, 196, 92, 0.9), 0 0 0.6em 0.2em rgba(255, 196, 92, 0.55)',
+    scale: 1.5, boxShadow: '0 0 0 0.12em rgba(255, 196, 92, 0.9)',
     duration: s(CAREER_IMPULSE_MS / 2) * k, ease: 'sine.out',
     yoyo: true, repeat: 1, transformOrigin: '50% 50%', onComplete: clear, onInterrupt: clear,
   });
