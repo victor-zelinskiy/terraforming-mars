@@ -132,7 +132,7 @@ async function waitQuiet(page: Page, quietMs = 1600, maxMs = 16_000): Promise<vo
   }
 }
 
-/** The screen's rows (FB′ — one kind a screen, one column of full-width rows), name + state classes, top to bottom. */
+/** The screen's tiles (FB′ — one kind a screen, two columns of three tiles), name + state classes, in reading order. */
 const ACTIVE_ROWS = '.con-ma .con-ma__card';
 async function cardStates(page: Page): Promise<Array<{name: string, go: boolean, taken: boolean, focused: boolean}>> {
   return page.evaluate((sel) => {
@@ -145,7 +145,7 @@ async function cardStates(page: Page): Promise<Array<{name: string, go: boolean,
   }, ACTIVE_ROWS);
 }
 
-/** Walk the focus onto the row at `target` (↑↓ — the list is one row wide). */
+/** Walk the 2-column grid's focus onto the tile at `target` (rows first, then the column). */
 async function focusCardAt(page: Page, target: number): Promise<void> {
   for (let hop = 0; hop < 12; hop++) {
     const states = await cardStates(page);
@@ -153,7 +153,13 @@ async function focusCardAt(page: Page, target: number): Promise<void> {
     if (cur === target || cur < 0) {
       return;
     }
-    await press(page, cur < target ? 'ArrowDown' : 'ArrowUp', 320);
+    const curRow = Math.floor(cur / 2);
+    const tgtRow = Math.floor(target / 2);
+    if (curRow !== tgtRow) {
+      await press(page, curRow < tgtRow ? 'ArrowDown' : 'ArrowUp', 320);
+    } else {
+      await press(page, cur % 2 < target % 2 ? 'ArrowRight' : 'ArrowLeft', 320);
+    }
   }
 }
 
@@ -185,12 +191,15 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     await press(page, 'KeyQ', 1500);
     await page.waitForSelector('.con-ma', {timeout: 8_000});
     await shoot(page, '10-milestones-fresh');
-    // TWO WORKSPACES, ONE FAMILY (FB′): one kind a screen — the milestones alone, every row full width (nothing spans).
+    // TWO WORKSPACES, ONE FAMILY (FB′): one kind a screen — the milestones alone, two columns of tiles of ONE width
+    // (an odd fifth never spans).
     expect(await page.locator('.con-ma.con-ma--milestones').count(), 'the milestones stand on their own screen').toBe(1);
     expect(await page.locator('.con-ma__card').evaluateAll((els) => {
       const w = Math.max(...els.map((el) => el.getBoundingClientRect().width));
       return els.filter((el) => Math.abs(el.getBoundingClientRect().width - w) > 1).length;
-    }), 'every row has the one full width').toBe(0);
+    }), 'every tile has the one width — nothing spans').toBe(0);
+    expect(await page.locator('.con-ma__card').evaluateAll((els) => new Set(els.map((el) => Math.round(el.getBoundingClientRect().left))).size),
+      'two columns of tiles').toBe(2);
     await press(page, 'KeyE', 1500); // RB → the family's other workspace (scenario 8)
     await expect(page.locator('.con-ma.con-ma--awards'), 'RB walks to the awards workspace').toHaveCount(1);
     await shoot(page, '11-awards-fresh');

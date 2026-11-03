@@ -7,9 +7,10 @@ import type {Color} from '@/common/Color';
 
 /*
  * TWO WORKSPACES, ONE FAMILY (ledger FB′ — the owner, 2026-11-03: the one-screen split divided the player's attention
- * and scrolled with Venus's sixth item). Each kind is its own screen: ONE column of full-width rows of one height
- * (five and six both stand whole, nothing spans), the head-tally in the workspace header, and every row read left to
- * right — the medallion · the name and its rule · THE FIELD (the table, seat by seat) · YOUR plate.
+ * and scrolled with Venus's sixth item; two columns of three tiles read more premium and carry a bigger medallion).
+ * Each kind is its own screen: a 2 × 3 grid of tiles (five and six both stand whole, an odd fifth never spans), the
+ * head-tally in the workspace header, and every tile — the medallion · the name and its rule beside YOUR plate · the
+ * table's FIELD at the foot.
  */
 const me: Color = 'red';
 const blue: Color = 'blue';
@@ -35,17 +36,17 @@ function mountScreen(kind: ConsoleMaKind, index: number, items: ReadonlyArray<Co
 }
 
 describe('ConsoleMaScreen — two workspaces, one family (FB′)', () => {
-  it('ONE kind a screen: one column of full-width rows, one height each (`--ma-rows` = the list)', () => {
+  it('ONE kind a screen: two columns of three tiles (`--ma-rows` = half the list, rounded up)', () => {
     const w = mountScreen('milestones', 0);
     expect(w.findAll('.con-ma__card')).has.length(5);
-    expect(w.find('.con-ma__scroll-host').attributes('style')).contains('--ma-rows: 5');
+    expect(w.find('.con-ma__scroll-host').attributes('style')).contains('--ma-rows: 3');
     expect(w.findAll('.con-ma__card').map((c) => c.attributes('data-ma-row'))).deep.eq(['Terraformer', 'Mayor', 'Gardener', 'Builder', 'Planner']);
   });
 
-  it('Venus\'s sixth item is a sixth row of the same height — never a scroll target, never a stretched tile', () => {
+  it('Venus\'s sixth item fills the empty cell — still three rows, never a scroll target', () => {
     const w = mountScreen('awards', 0);
     expect(w.findAll('.con-ma__card')).has.length(6);
-    expect(w.find('.con-ma__scroll-host').attributes('style')).contains('--ma-rows: 6');
+    expect(w.find('.con-ma__scroll-host').attributes('style')).contains('--ma-rows: 3');
   });
 
   it('the head-tally lives in the workspace header: the price of THIS kind\'s next slot', () => {
@@ -81,8 +82,11 @@ describe('ConsoleMaScreen — two workspaces, one family (FB′)', () => {
     expect(row.find('.con-ma__seal').exists()).eq(true);
   });
 
-  it('every field reserves the screen\'s widest table (`--ma-seats`) so lanes align row to row', () => {
-    const w = mountScreen('awards', 0);
-    expect(w.find('.con-ma__scroll-host').attributes('style')).contains('--ma-seats: 2');
+  it('a tile reads: the name and its rule beside YOUR plate on top, the table\'s field at the foot', () => {
+    const tile = mountScreen('awards', 0).findAll('.con-ma__card')[0];
+    const main = tile.find('.con-ma__main');
+    expect(main.element.children[0].classList.contains('con-ma__top')).eq(true);
+    expect(main.element.children[1].hasAttribute('data-ma-field')).eq(true);
+    expect([...main.find('.con-ma__top').element.children].map((c) => c.className)).deep.eq(['con-ma__body', 'con-ma__status']);
   });
 });

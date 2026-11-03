@@ -16781,9 +16781,9 @@ export default defineComponent({
           return;
         }
         if (intent.kind === 'nav') {
-          // ONE column of full-width rows: ↑↓ walk it, ←→ are no move (the family's other screen is a BUMPER).
+          // Two columns of three tiles (FB′): the d-pad walks the grid; the family's other screen is a BUMPER.
           this.consoleState.sheetIndex = stepGrid(
-            this.consoleState.sheetIndex, intent.dir, this.maScreenItems.length, 1);
+            this.consoleState.sheetIndex, intent.dir, this.maScreenItems.length, 2);
           return;
         }
         if (intent.kind === 'press') {

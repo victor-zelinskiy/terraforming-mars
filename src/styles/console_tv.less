@@ -772,10 +772,11 @@ html.con-profile-tv {
         /* (perimeter shell: the panel fills the welded band — no width cap.) */
         &__panel { width: 100%; }
         &__name { font-size: 1.3rem; }
-        &__desc { font-size: var(--con-t-secondary); }
+        /* A tile has the height for the longest standard rule (Шахтёр, Теплотехник) whole. */
+        &__desc { font-size: var(--con-t-secondary); -webkit-line-clamp: 4; }
         &__metric-value { font-size: 1.9rem; }
-        /* Adaptive stage: six full-width rows (Venus — FB′) — the medal takes the row's height, never grows the row. */
-        &__stage { min-height: 4.6rem; max-height: 10rem; }
+        /* Adaptive stage: three tile rows (Venus — FB′) — the medal takes the tile's height, never grows the tile. */
+        &__stage { min-height: 6rem; max-height: 15rem; }
         &__price-value { font-size: 1.35rem; }
         /* The availability word and the drawn check clear the couch floor. */
         &__avail { font-size: .85rem; letter-spacing: .13rem; margin-right: -.13rem; }

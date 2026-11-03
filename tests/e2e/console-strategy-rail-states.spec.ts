@@ -608,9 +608,12 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     await page.waitForSelector('.con-ma', {timeout: 12_000});
     // Home lands on the claimable item; verify structurally, walk if not.
     const goFocused = page.locator('.con-ma__card--focused.con-ma__card--go');
-    // One screen, two columns (FB): the milestones are ONE column — ↓ walks it (→ would jump to the awards).
+    // Two columns of three tiles (FB′): a serpentine walk visits every tile — → on the left, ↓ then ← on the right.
     for (let i = 0; i < 8 && await goFocused.count() === 0; i++) {
-      await press(page, 'ArrowDown', 320);
+      const at = await page.evaluate(() => [...document.querySelectorAll('.con-ma__card')]
+        .findIndex((c) => c.classList.contains('con-ma__card--focused')));
+      const row = Math.floor(at / 2);
+      await press(page, at % 2 === (row % 2) ? (row % 2 === 0 ? 'ArrowRight' : 'ArrowLeft') : 'ArrowDown', 320);
     }
     expect(await goFocused.count(), 'a claimable milestone card must take the focus').toBeGreaterThan(0);
     await press(page, 'Enter', 1000);

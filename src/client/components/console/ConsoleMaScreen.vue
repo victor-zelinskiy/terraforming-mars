@@ -68,12 +68,13 @@
                'con-ma__browse--arrive-l': kindArrive === 'left',
                'con-ma__browse--arrive-r': kindArrive === 'right',
              }">
-          <!-- TWO WORKSPACES, ONE FAMILY (FB′ — the owner, 2026-11-03: the one-screen split divided attention and
-               scrolled with Venus). ONE column of FULL-WIDTH rows of one height (`--ma-rows` = the list), so five and
-               six items both stand whole and an odd count never stretches a tile. Every row reads left to right:
-               the medallion · the name and its rule · THE FIELD (the table, seat by seat) · YOUR plate. -->
+          <!-- TWO WORKSPACES, ONE FAMILY (FB′ — the owner, 2026-11-03): each kind its own screen, TWO COLUMNS OF
+               THREE TILES (`--ma-rows` = half the list, rounded up) — five and six (Venus) both stand whole, the tiles
+               are big enough for a big medallion, and an odd fifth NEVER stretches: its neighbour's cell stays empty.
+               A tile: the medallion the tile's height · the name and its rule beside YOUR plate · the table's FIELD
+               at the foot. -->
           <ConsoleScrollArea class="con-ma__scroll-host" content-class="con-ma__grid" ref="grid"
-                             :style="{'--ma-rows': String(Math.max(1, items.length)), '--ma-seats': String(seatCount)}">
+                             :style="{'--ma-rows': String(Math.max(1, Math.ceil(items.length / 2)))}">
             <article v-for="(it, i) in items" :key="it.key"
                      class="con-ma__card"
                      :class="{
@@ -99,80 +100,83 @@
                    class="con-ma__gem" :class="'player_bg_color_' + it.takenBy.color"></i>
               </div>
 
-              <!-- The name — and WHO took it on the same line (a settled fact beside the name, never a third line
-                   that grows the row) — over the rule. -->
-              <div class="con-ma__body">
-                <div class="con-ma__nameline">
-                  <span class="con-ma__name" v-i18n>{{ shortName(it.name) }}</span>
-                  <span v-if="it.takenBy !== undefined" class="con-ma__owner">
-                    <span class="con-ma__owner-dot" :class="'player_bg_color_' + it.takenBy.color" aria-hidden="true"></span>
-                    <span class="con-ma__owner-name">{{ it.takenBy.name }}</span>
-                    <span class="con-ma__owner-verb">✓ {{ $t(it.kind === 'milestone' ? 'Claimed' : 'Funded') }}</span>
-                  </span>
-                </div>
-                <div class="con-ma__desc" v-i18n>{{ it.description }}</div>
-              </div>
-
-              <!-- THE FIELD — the table read across the row (`maFieldLanes`): a milestone's RIVALS on their way to the
-                   threshold (a rival who meets it wears the drawn check), an award's every SEAT ranked by its score
-                   (the leaders crowned, your own lane ringed). A hairline gauge per seat, a kant for the state —
-                   never light. A finished race draws nothing. -->
-              <div v-if="lanesOf(it).length > 0" class="con-ma__field" data-ma-field>
-                <span v-for="l in lanesOf(it)" :key="l.color"
-                      class="con-ma__lane"
-                      :class="{'con-ma__lane--me': l.me, 'con-ma__lane--lead': l.mark === 'crown', 'con-ma__lane--reached': l.mark === 'reached',
-                               'con-ma__lane--zero': l.score === 0 && !l.me}"
-                      :data-ma-lane="l.color">
-                  <span class="con-ma__lane-head">
-                    <span class="con-ma__lane-mark" aria-hidden="true">
-                      <i v-if="l.mark === 'crown'" class="con-ma__crown">
-                        <svg viewBox="0 0 18 15">
-                          <path d="M2.4 12.2 L3 5.6 L6.5 8.1 L9 1 L11.5 8.1 L15 5.6 L15.6 12.2 Z" />
-                          <path class="con-ma__crown-base" d="M2.9 13 H15.1 A0.62 0.62 0 0 1 15.1 14.24 H2.9 A0.62 0.62 0 0 1 2.9 13 Z" />
-                        </svg>
-                      </i>
-                      <i v-else-if="l.mark === 'reached'" class="con-ma__lane-tick">
+              <!-- The tile's reading column: the name and its rule beside YOUR plate, the table's field at the foot. -->
+              <div class="con-ma__main">
+                <div class="con-ma__top">
+                  <!-- The name — and WHO took it on the same line (a settled fact beside the name, never a line more) —
+                       over the rule. -->
+                  <div class="con-ma__body">
+                    <div class="con-ma__nameline">
+                      <span class="con-ma__name" v-i18n>{{ shortName(it.name) }}</span>
+                      <span v-if="it.takenBy !== undefined" class="con-ma__owner">
+                        <span class="con-ma__owner-dot" :class="'player_bg_color_' + it.takenBy.color" aria-hidden="true"></span>
+                        <span class="con-ma__owner-name">{{ it.takenBy.name }}</span>
+                        <span class="con-ma__owner-verb">✓ {{ $t(it.kind === 'milestone' ? 'Claimed' : 'Funded') }}</span>
+                      </span>
+                    </div>
+                    <div class="con-ma__desc" v-i18n>{{ it.description }}</div>
+                  </div>
+                  <!-- YOUR PLATE — the one reading that is yours, at ONE width on every tile: a milestone's count toward
+                       its threshold (or the owner's seal once claimed); an award's score and where it puts you. -->
+                  <div class="con-ma__status">
+                    <div v-if="it.kind === 'milestone' && it.takenBy !== undefined"
+                         class="con-ma__seal"
+                         :class="{'con-ma__seal--mine': it.takenBy.color === it.myColor}">
+                      <i class="con-ma__seal-cube" :class="'player_bg_color_' + it.takenBy.color" aria-hidden="true"></i>
+                      <i class="con-ma__seal-tick" aria-hidden="true">
                         <svg viewBox="0 0 12 10"><path d="M1.6 5.4 L4.6 8.3 L10.4 1.7" /></svg>
                       </i>
+                    </div>
+                    <div v-else-if="it.kind === 'milestone'" class="con-ma__metric" :class="metricClass(it)">
+                      <span class="con-ma__metric-label">{{ $t('You') }}</span>
+                      <span class="con-ma__metric-value">
+                        <i v-if="it.myReady && it.scores.length > 0" class="con-ma__readymark" aria-hidden="true">
+                          <svg viewBox="0 0 12 10"><path d="M1.6 5.4 L4.6 8.3 L10.4 1.7" /></svg>
+                        </i>
+                        <template v-if="it.scores.length === 0">—</template>
+                        <!-- A condition milestone (no numeric threshold): «—» while not met — the detail reads the same. -->
+                        <template v-else-if="it.threshold === undefined"><b v-if="!it.myReady">—</b></template>
+                        <template v-else><b>{{ it.myScore }}</b><span class="con-ma__metric-req">/{{ it.threshold }}</span></template>
+                      </span>
+                      <span class="con-ma__metric-foot">
+                        <span v-if="it.available" class="con-ma__avail">{{ $t('Available now') }}</span>
+                        <span v-else-if="it.threshold !== undefined && it.scores.length > 0" class="con-ma__meter" aria-hidden="true"><i :style="{width: meterWidth(it)}"></i></span>
+                      </span>
+                    </div>
+                    <div v-else class="con-ma__race" :class="'con-ma__race--' + it.raceTone">
+                      <span class="con-ma__metric-label">{{ $t('You') }}</span>
+                      <span class="con-ma__race-value"><b>{{ it.myScore }}</b></span>
+                      <span class="con-ma__race-foot" :class="'con-ma__race-foot--' + it.raceTone">{{ raceFootText(it) }}</span>
+                    </div>
+                  </div>
+                </div>
+                <!-- THE FIELD — the table read across the tile's foot (`maFieldLanes`): a milestone's RIVALS on their
+                     way to the threshold (a rival who meets it wears the drawn check), an award's every SEAT ranked by its score
+                     (the leaders crowned, your own lane ringed). A hairline gauge per seat, a kant for the state —
+                     never light. A finished race draws nothing. -->
+                <div v-if="lanesOf(it).length > 0" class="con-ma__field" data-ma-field>
+                  <span v-for="l in lanesOf(it)" :key="l.color"
+                        class="con-ma__lane"
+                        :class="{'con-ma__lane--me': l.me, 'con-ma__lane--lead': l.mark === 'crown', 'con-ma__lane--reached': l.mark === 'reached',
+                                 'con-ma__lane--zero': l.score === 0 && !l.me}"
+                        :data-ma-lane="l.color">
+                    <span class="con-ma__lane-head">
+                      <span class="con-ma__lane-mark" aria-hidden="true">
+                        <i v-if="l.mark === 'crown'" class="con-ma__crown">
+                          <svg viewBox="0 0 18 15">
+                            <path d="M2.4 12.2 L3 5.6 L6.5 8.1 L9 1 L11.5 8.1 L15 5.6 L15.6 12.2 Z" />
+                            <path class="con-ma__crown-base" d="M2.9 13 H15.1 A0.62 0.62 0 0 1 15.1 14.24 H2.9 A0.62 0.62 0 0 1 2.9 13 Z" />
+                          </svg>
+                        </i>
+                        <i v-else-if="l.mark === 'reached'" class="con-ma__lane-tick">
+                          <svg viewBox="0 0 12 10"><path d="M1.6 5.4 L4.6 8.3 L10.4 1.7" /></svg>
+                        </i>
+                      </span>
+                      <i class="con-ma__cube" :class="['player_bg_color_' + l.color, {'con-ma__cube--me': l.me}]" aria-hidden="true"></i>
+                      <b class="con-ma__lane-score">{{ l.score }}</b>
                     </span>
-                    <i class="con-ma__cube" :class="['player_bg_color_' + l.color, {'con-ma__cube--me': l.me}]" aria-hidden="true"></i>
-                    <b class="con-ma__lane-score">{{ l.score }}</b>
+                    <span class="con-ma__lane-bar" aria-hidden="true"><i :style="{width: Math.round(l.fill * 100) + '%'}"></i></span>
                   </span>
-                  <span class="con-ma__lane-bar" aria-hidden="true"><i :style="{width: Math.round(l.fill * 100) + '%'}"></i></span>
-                </span>
-              </div>
-
-              <!-- YOUR PLATE — the one reading that is yours, at ONE width on every row: a milestone's count toward
-                   its threshold (or the owner's seal once claimed); an award's score and where it puts you. -->
-              <div class="con-ma__status">
-                <div v-if="it.kind === 'milestone' && it.takenBy !== undefined"
-                     class="con-ma__seal"
-                     :class="{'con-ma__seal--mine': it.takenBy.color === it.myColor}">
-                  <i class="con-ma__seal-cube" :class="'player_bg_color_' + it.takenBy.color" aria-hidden="true"></i>
-                  <i class="con-ma__seal-tick" aria-hidden="true">
-                    <svg viewBox="0 0 12 10"><path d="M1.6 5.4 L4.6 8.3 L10.4 1.7" /></svg>
-                  </i>
-                </div>
-                <div v-else-if="it.kind === 'milestone'" class="con-ma__metric" :class="metricClass(it)">
-                  <span class="con-ma__metric-label">{{ $t('You') }}</span>
-                  <span class="con-ma__metric-value">
-                    <i v-if="it.myReady && it.scores.length > 0" class="con-ma__readymark" aria-hidden="true">
-                      <svg viewBox="0 0 12 10"><path d="M1.6 5.4 L4.6 8.3 L10.4 1.7" /></svg>
-                    </i>
-                    <template v-if="it.scores.length === 0">—</template>
-                    <!-- A condition milestone (no numeric threshold): «—» while not met — the detail reads the same. -->
-                    <template v-else-if="it.threshold === undefined"><b v-if="!it.myReady">—</b></template>
-                    <template v-else><b>{{ it.myScore }}</b><span class="con-ma__metric-req">/{{ it.threshold }}</span></template>
-                  </span>
-                  <span class="con-ma__metric-foot">
-                    <span v-if="it.available" class="con-ma__avail">{{ $t('Available now') }}</span>
-                    <span v-else-if="it.threshold !== undefined && it.scores.length > 0" class="con-ma__meter" aria-hidden="true"><i :style="{width: meterWidth(it)}"></i></span>
-                  </span>
-                </div>
-                <div v-else class="con-ma__race" :class="'con-ma__race--' + it.raceTone">
-                  <span class="con-ma__metric-label">{{ $t('You') }}</span>
-                  <span class="con-ma__race-value"><b>{{ it.myScore }}</b></span>
-                  <span class="con-ma__race-foot" :class="'con-ma__race-foot--' + it.raceTone">{{ raceFootText(it) }}</span>
                 </div>
               </div>
             </article>
@@ -324,10 +328,6 @@ export default defineComponent({
     /** The fund/claim action is genuinely offered on some item right now. */
     anyAvailable(): boolean {
       return this.items.some((it) => it.available && it.takenBy === undefined);
-    },
-    /** The widest field on the screen — every field reserves it, so the lanes stand in the same columns row to row. */
-    seatCount(): number {
-      return Math.max(0, ...this.items.map((it) => maFieldLanes(it).length));
     },
     /** The descended item (undefined = the stage has nothing to stand on). */
     focusItem(): ConsoleMaItem | undefined {

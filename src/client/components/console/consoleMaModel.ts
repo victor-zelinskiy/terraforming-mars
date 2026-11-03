@@ -270,7 +270,8 @@ export function consoleMaPressNotice(item: ConsoleMaItem): string {
 /**
  * D-pad navigation over a row-major CSS grid (2 columns). Every card is
  * focusable (taken/blocked items still show their context); an odd list's
- * last card spans both columns, so a down-step past the end clamps to it.
+ * last tile stands alone in its row (its neighbour's cell empty — FB′), so a
+ * down-step from the empty side lands on it instead of stopping dead.
  */
 export function stepGrid(index: number, dir: 'up' | 'down' | 'left' | 'right', count: number, cols: number): number {
   if (count <= 0) {

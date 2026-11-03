@@ -47,12 +47,20 @@ function watchPosts(page: Page): Array<string> {
 async function openTerraformer(page: Page): Promise<void> {
   await press(page, 'KeyQ', 1400);
   await page.waitForSelector('.con-ma', {timeout: 10_000});
-  for (let i = 0; i < 8; i++) {
-    const name = await page.locator('.con-ma__card--focused').getAttribute('data-ma-row').catch(() => '');
-    if ((name ?? '').startsWith('Terraformer')) {
+  // Two columns of three tiles: walk the grid onto Terraformer (rows first, then the column).
+  for (let hop = 0; hop < 8; hop++) {
+    const at = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll('.con-ma__card')];
+      return {
+        cur: cards.findIndex((c) => c.classList.contains('con-ma__card--focused')),
+        target: cards.findIndex((c) => (c.getAttribute('data-ma-row') ?? '').startsWith('Terraformer')),
+      };
+    });
+    if (at.cur === at.target || at.cur < 0 || at.target < 0) {
       break;
     }
-    await press(page, 'ArrowDown', 300);
+    const [curRow, tgtRow] = [Math.floor(at.cur / 2), Math.floor(at.target / 2)];
+    await press(page, curRow !== tgtRow ? (curRow < tgtRow ? 'ArrowDown' : 'ArrowUp') : (at.cur % 2 < at.target % 2 ? 'ArrowRight' : 'ArrowLeft'), 300);
   }
   expect(await page.locator('.con-ma__card--focused').getAttribute('data-ma-row'), 'the cursor on Terraformer').toMatch(/^Terraformer/);
   await press(page, 'Enter', 1200);

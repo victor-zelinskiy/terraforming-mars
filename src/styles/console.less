@@ -12665,14 +12665,15 @@ html.console-mode {
         min-height: 0;
         .con-fill-scroll();
     }
-    /* TWO WORKSPACES, ONE FAMILY (FB′ — the owner, 2026-11-03): ONE column of FULL-WIDTH rows, each `1fr` of the
-       body (`--ma-rows` = the list), so five and six items (Venus) both stand whole on every profile and an odd count
-       never stretches a tile — there is no span by construction. */
+    /* TWO WORKSPACES, ONE FAMILY (FB′ — the owner, 2026-11-03): each kind its own screen, TWO COLUMNS OF THREE TILES
+       (`--ma-rows` = half the list, rounded up) — five and six (Venus) both stand whole on every profile, each tile a
+       third of the body (a big medallion), and an odd fifth NEVER spans: its neighbour's cell simply stays empty. */
     &__grid {
         flex: 1 0 auto;
         display: grid;
-        grid-template-rows: repeat(var(--ma-rows, 5), minmax(0, 1fr));
-        gap: .45rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(var(--ma-rows, 3), minmax(0, 1fr));
+        gap: .7rem;
         min-height: 100%;
     }
     &__card {
@@ -12686,7 +12687,7 @@ html.console-mode {
         display: flex;
         align-items: center;
         gap: 1.1rem;
-        padding: .5rem .9rem .5rem 1rem;
+        padding: .75rem .95rem .75rem .9rem;
         border-radius: .7rem;
         overflow: hidden;
         /* Rows carry their own local density — text never mixes with the
@@ -12770,8 +12771,9 @@ html.console-mode {
         height: 100%;
         width: auto;
         aspect-ratio: 1 / 1;
-        min-height: 3.4rem;
-        max-height: 8rem;
+        /* The tile's height IS the medallion's (a third of the body) — the big emblem the tiles exist for. */
+        min-height: 5rem;
+        max-height: 13rem;
         flex-shrink: 0;
         border-radius: .7rem;
         /* A PLAIN plate (FB): the emblem stands on material, never in a pool of light. */
@@ -12838,11 +12840,32 @@ html.console-mode {
         flex-direction: column;
         gap: .3rem;
     }
-    /* The name — and WHO took it on the same line (a settled fact beside the name; a third line would grow the row). */
+    /* The tile's reading column: the name and its rule beside YOUR plate on top, the table's field at the foot —
+       centred as one block against the medallion. */
+    &__main {
+        flex: 1 1 auto;
+        min-width: 0;
+        align-self: stretch;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: .75rem;
+    }
+    &__top {
+        display: flex;
+        align-items: flex-start;
+        gap: .9rem;
+        min-width: 0;
+
+        > .con-ma__body { align-self: flex-start; }
+        > .con-ma__status { align-self: flex-start; }
+    }
+    /* The name — and WHO took it beside it (a settled fact; it wraps under the name when the tile is narrow). */
     &__nameline {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
-        gap: .9rem;
+        gap: .25rem .9rem;
         min-width: 0;
     }
     &__name {
@@ -12853,14 +12876,14 @@ html.console-mode {
         text-transform: uppercase;
         line-height: 1.1;
     }
-    /* The rule text: a ROW is not a reader — the full rule stands on the detail stage (A); two lines of a full-width
-       row hold every standard rule and keep every row one height on every profile. */
+    /* The rule text: a TILE is not a reader — the full rule stands on the detail stage (A); three lines hold every
+       standard rule beside the plate. */
     &__desc {
         font-size: .7rem;
         line-height: 1.34;
         color: @con-text-dim;
         display: -webkit-box;
-        -webkit-line-clamp: 2;
+        -webkit-line-clamp: 3;
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
@@ -12890,8 +12913,8 @@ html.console-mode {
         text-transform: uppercase;
     }
 
-    /* ── YOUR PLATE — the one reading that is yours, at ONE FIXED width on every row (a four-digit value shrinks,
-       never widens its own row): the eye compares numbers in one column instead of hunting for them. ── */
+    /* ── YOUR PLATE — the one reading that is yours, at ONE FIXED width on every tile (a four-digit value shrinks,
+       never widens its own tile): the eye compares numbers in one column instead of hunting for them. ── */
     &__status {
         align-self: center;
         flex-shrink: 0;
@@ -12901,24 +12924,22 @@ html.console-mode {
         > * { flex: 1 1 auto; }
     }
 
-    /* ── THE FIELD — the table read across the row (`maFieldLanes`): one LANE per seat, ranked — its cube, its score,
-       a hairline gauge (a milestone's progress to the threshold, an award's share of the leader's score). States are
-       MATERIAL: the leader's crown and gold gauge, a rival who meets a milestone wears the drawn check on a mint
-       kant, your own lane (awards) a white kant — never light. Every field reserves the screen's widest (`--ma-seats`),
-       so the lanes stand in the same columns row to row. ── */
+    /* ── THE FIELD — the table read across the tile's foot (`maFieldLanes`): one LANE per seat, ranked — its cube, its
+       score, a hairline gauge (a milestone's progress to the threshold, an award's share of the leader's score).
+       States are MATERIAL: the leader's crown and gold gauge, a rival who meets a milestone wears the drawn check on a
+       mint kant, your own lane (awards) a white kant — never light. Lanes start at the same x on every tile; a crowded
+       table (five seats) narrows them, never wraps. ── */
     &__field {
         /* Wide enough for a FOUR-digit score (heat / steel races reach 1000+) beside the mark and the cube. */
         --ma-lane-w: 5.9rem;
         --ma-lane-gap: .45rem;
-        align-self: center;
-        flex-shrink: 0;
         display: flex;
         gap: var(--ma-lane-gap);
-        width: calc(var(--ma-seats, 1) * var(--ma-lane-w) + (var(--ma-seats, 1) - 1) * var(--ma-lane-gap));
+        min-width: 0;
     }
     &__lane {
-        flex-shrink: 0;
-        width: var(--ma-lane-w);
+        flex: 0 1 var(--ma-lane-w);
+        min-width: 0;
         display: flex;
         flex-direction: column;
         gap: .32rem;
@@ -38407,13 +38428,15 @@ html.con-profile-handheld {
         &__wallet-shortfall { font-size: .6rem; }
         &__wallet-free { font-size: .525rem; padding: .1rem .5rem; }
         &__complete { font-size: .6rem; padding: .15rem .6rem; }
-        &__grid { gap: .3rem; }
-        &__card { gap: .65rem; padding: .3rem .5rem .3rem .65rem; border-radius: .55rem; }
+        &__grid { gap: .45rem; }
+        &__card { gap: .65rem; padding: .45rem .55rem .45rem .6rem; border-radius: .55rem; }
         &__rail { width: .2rem; }
-        /* Six rows on 800 px (Venus — FB′): the medallion gives way first — a row is never cut. */
-        &__stage { min-height: 2.4rem; max-height: 4.6rem; border-radius: .55rem; }
+        /* Three tile rows on 800 px (Venus — FB′): the medallion gives way first — a tile is never cut. */
+        &__stage { min-height: 3rem; max-height: 7rem; border-radius: .55rem; }
+        &__main { gap: .45rem; }
+        &__top { gap: .55rem; }
         &__name { font-size: .75rem; letter-spacing: .05rem; }
-        &__desc { font-size: .575rem; line-height: 1.25; -webkit-line-clamp: 2; }
+        &__desc { font-size: .575rem; line-height: 1.25; -webkit-line-clamp: 3; }
         &__owner { font-size: .65rem; gap: .35rem; }
         &__owner-dot { width: .55rem; height: .55rem; }
         &__owner-verb { font-size: .55rem; }

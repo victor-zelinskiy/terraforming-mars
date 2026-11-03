@@ -50,10 +50,10 @@ async function barText(page: Page): Promise<string> {
 }
 
 /**
- * THE LIST STANDS WHOLE (FB′ — the owner, 2026-11-03: the one-screen split scrolled with Venus): every row of the
- * workspace on screen sits inside the scroll viewport, nothing to scroll, every row the one full width (no span).
+ * THE GRID STANDS WHOLE (FB′ — the owner, 2026-11-03: the one-screen split scrolled with Venus): every tile of the
+ * workspace sits inside the scroll viewport, nothing to scroll, two columns of tiles of ONE width (no span).
  */
-async function listFit(page: Page): Promise<{overflow: number, rows: number, lastBottom: number, vpBottom: number, widths: number}> {
+async function listFit(page: Page): Promise<{overflow: number, rows: number, lastBottom: number, vpBottom: number, widths: number, columns: number}> {
   return page.evaluate(() => {
     const vp = document.querySelector('.con-ma__scroll-host .con-scroll-area__viewport');
     const cards = [...document.querySelectorAll('.con-ma__card')].map((el) => el.getBoundingClientRect());
@@ -64,15 +64,35 @@ async function listFit(page: Page): Promise<{overflow: number, rows: number, las
       lastBottom: Math.max(...cards.map((r) => r.bottom)),
       vpBottom: box?.bottom ?? 0,
       widths: new Set(cards.map((r) => Math.round(r.width))).size,
+      columns: new Set(cards.map((r) => Math.round(r.left))).size,
     };
   });
 }
 
 function expectListFits(fit: Awaited<ReturnType<typeof listFit>>, rows: number, tag: string): void {
-  expect(fit.rows, `${rows} rows`).toBe(rows);
+  expect(fit.rows, `${rows} tiles`).toBe(rows);
   expect(fit.overflow, `no scroll on ${tag}: ${JSON.stringify(fit)}`).toBeLessThanOrEqual(1);
-  expect(fit.lastBottom, `the last row stands whole on ${tag}: ${JSON.stringify(fit)}`).toBeLessThanOrEqual(fit.vpBottom + 1);
-  expect(fit.widths, `every row the one full width on ${tag}: ${JSON.stringify(fit)}`).toBe(1);
+  expect(fit.lastBottom, `the last tile stands whole on ${tag}: ${JSON.stringify(fit)}`).toBeLessThanOrEqual(fit.vpBottom + 1);
+  expect(fit.widths, `every tile the one width (nothing spans) on ${tag}: ${JSON.stringify(fit)}`).toBe(1);
+  expect(fit.columns, `two columns of tiles on ${tag}: ${JSON.stringify(fit)}`).toBe(2);
+}
+
+/** Walk the 2-column grid's focus onto the tile at `target` (rows first, then the column). */
+async function walkMaGrid(page: Page, target: number): Promise<void> {
+  for (let hop = 0; hop < 12; hop++) {
+    const cur = await page.evaluate(() => [...document.querySelectorAll('.con-ma__card')]
+      .findIndex((c) => c.classList.contains('con-ma__card--focused')));
+    if (cur === target || cur < 0 || target < 0) {
+      return;
+    }
+    const curRow = Math.floor(cur / 2);
+    const tgtRow = Math.floor(target / 2);
+    if (curRow !== tgtRow) {
+      await press(page, curRow < tgtRow ? 'ArrowDown' : 'ArrowUp', 320);
+    } else {
+      await press(page, cur % 2 < target % 2 ? 'ArrowRight' : 'ArrowLeft', 320);
+    }
+  }
 }
 
 const PROFILES = [
@@ -255,10 +275,7 @@ for (const profile of PROFILES) {
       });
       const blockedIdx = rows.blocked;
       if (blockedIdx >= 0) {
-        // The list is one row wide: ↑↓ walk it.
-        for (let i = Math.max(0, rows.at); i !== blockedIdx; i += blockedIdx > i ? 1 : -1) {
-          await key(page, blockedIdx > i ? 'ArrowDown' : 'ArrowUp', 260);
-        }
+        await walkMaGrid(page, blockedIdx);
         // A blocked focus advertises the READING verb — never a false intent.
         await expect.poll(() => barText(page), {message: 'a blocked item offers «Осмотреть»', timeout: 10_000}).toContain('ОСМОТРЕТЬ');
         await key(page, 'Enter', 1400);

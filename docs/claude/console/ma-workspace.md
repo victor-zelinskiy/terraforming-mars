@@ -12,23 +12,27 @@ from the overview.
 ## TWO WORKSPACES · ONE FAMILY · MATERIAL · A FULL RIGHT COLUMN · THE LAW'S EXIT (iterations FB + FB′, 2026-11-03)
 
 Supersedes the light grammar below wherever they disagree (the P33 text is kept as history). Ledger FB (PL-1612…1622),
-FB′ (PL-1623…1625).
+FE (PL-1635…1638).
 
 - **Two workspaces, one family (FB′).** FB's one-screen split (milestones left, awards right) was REVERTED the same
   day — the owner: it divided the player's attention and SCROLLED with Venus's sixth item. Each kind is its own
   screen again (`sheet` = `milestones` / `awards` IS the kind; LB / RB = a lateral `openSheet` with the ARRIVE beat;
   Vitor's hosted step stands with the awards alone and offers no bumper). What the revert keeps from FB is everything
   below; what it re-composes is the LIST:
-  - **ONE column of FULL-WIDTH rows**, each `1fr` of the body (`--ma-rows` = the list) — five and six both stand whole
-    on every profile; nothing spans by construction (the old 2-column grid stretched an odd fifth tile).
+  - **TWO COLUMNS OF THREE TILES** (`--ma-rows` = half the list, rounded up; the d-pad walks the 2-D grid —
+    `stepGrid(…, 2)`) — five and six both stand whole on every profile, each tile a third of the body, so the medallion
+    is BIG. An odd fifth NEVER spans: its neighbour's cell stays empty (the pre-FB grid stretched it over the width).
+    A first pass that day stood one column of full-width rows; the owner judged the 2 × 3 tiles more premium and
+    better read, with a bigger emblem (PL-1638).
   - **The head-tally is back in the header's trailing zone** (`[data-ma-tally]`: slots · count · the engine's next
     price `[data-ma-price="<kind>"]`).
-  - **A row reads left to right**: the medallion (`maArtFitStyle`) · the name — with WHO took it on the same line —
-    over a two-line rule · **THE FIELD** · **YOUR PLATE**. The field (`maFieldLanes`, pure) is the table seat by seat:
+  - **A tile**: the medallion the tile's height (`maArtFitStyle`) · a reading column — the name (WHO took it beside
+    it) over the rule (3 lines; 4 on the TV) next to **YOUR PLATE**, and **THE FIELD** at the foot. The field
+    (`maFieldLanes`, pure) is the table seat by seat:
     a milestone's RIVALS on their way to the threshold (a hairline gauge; a rival the server calls `claimable` wears the
     drawn check on a mint kant), an award's EVERY seat ranked (the leaders crowned, gold gauge; your own lane a white
-    kant). Every field reserves the screen's widest table (`--ma-seats`), so lanes stand in the same columns row to row;
-    a finished milestone race draws none. The plate is always YOU: a milestone's count / threshold + meter / «ДОСТУПНО»
+    kant). Lanes start at the same x on every tile and narrow for a crowded table, never wrap; a finished milestone race
+    draws none. The plate is always YOU: a milestone's count / threshold + meter / «ДОСТУПНО»
     (or the owner's seal), an award's score and where it puts you («Вы лидируете» · «Делите лидерство» ·
     «Отстаёте на N» · «Нет гонки» — `maAwardGap`). The award's race cassette (tiers I / II) left the row: the field IS
     the race now (the detail's «Текущая гонка» plate keeps the ranked places).
