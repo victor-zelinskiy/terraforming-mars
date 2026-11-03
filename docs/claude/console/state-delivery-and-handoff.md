@@ -140,6 +140,14 @@ itself will play; bounded by `STACK_RETURN_MAX_MS` (45 s — the old 8 s cap was
 key, a `parameter` that did not move) is a line on the page, never a yield (`parliamentWorldBeat.spec` § a SKIPPED
 removal).
 
+**A hosted colony step hands its screen back only after its story** (P48 Early Colonization, ledger EY): the
+colony follow-up stays live through the play's raise (`colonyTrackRaiseLive` — the wave off the prompt's
+`trackRaise`) and the build (`colony-build`), and its falling edge in a HOST (the start, the hand, «ДЕЙСТВИЯ КАРТ») is
+a hand-over, not a pop — `ConsoleShell.dwellColonyFollowUp` asks this director for the build's tokens only
+(`only: ['transfer']`, `COLONY_STEP_HANDOFF_MAX_MS` 4 s — a host's own lifetime holds are not the step's story) and
+dwells one read (300 ms, the standalone screen's `COMPLETION_SETTLE_MS`) before the frame pops. The Parliament keeps
+its own walk (it reads the frame's departure itself).
+
 **A turn GIVEN AWAY by a play** (P80 Red Appeasement — the play passes, ledger CT): nothing new — the play's own chip
 lands, the workspace leaves as a finished flow, and whatever takes the screen when the generation ends (the sitting's
 plate, the draft) goes through this director like any automatic transition; the seat reads «СПАСОВАЛ» and «Вы

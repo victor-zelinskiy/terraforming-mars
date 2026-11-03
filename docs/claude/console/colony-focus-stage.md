@@ -511,13 +511,32 @@ header, the fleet dock and the host's chrome cannot drift) and the colonies
 surface from inside it in reading order. It runs after `fit()`, so the grid is
 already solved and no tile can resize under the opening.
 
-**Still open:** the PARENT's own controlled collapse. `ConsoleStartScene` swaps
-the deployment body and the step zone with sibling `v-if`s in one tick, so the
-parent scene still disappears in a single frame. Fixing it needs the step
-slot's publication (`stepSlot`, `flush: 'post'`) to be gated on the ELEMENT
-existing rather than on the step flag — with a `mode="out-in"` swap the selector
-goes live while the target is still leaving, and a `<Teleport>` whose target is
-missing at mount drops its content and does not reliably relocate later.
+**Closed (P48 · ledger EY, 2026-11-03): the PARENT's own collapse.** The start's
+colonies zone no longer replaces the deployment as a `v-if` sibling: it lives
+INSIDE the ceremony body (`.con-start__ceremony--stepped > .con-start__colonystep`,
+`position: absolute; inset: 0`), and the deployment is never unmounted for it —
+it RELEASES in place (opacity 160 ms exit, `visibility` after the fade; its box
+kept, so nothing re-fits) and on the way back the SAME nodes reveal where they
+stood (220 ms enter). The status rail keeps its box under the step and says
+nothing (`--stepped`). The step slot is an element of a body that already
+exists, so the teleport target is present the frame the flag rises — the
+`out-in` trap above never arises. Witness: e2e `console-early-colonization` A
+(the deployment node is the SAME node after the return; the zone mounted once).
+The sponsor's hand step keeps the old sibling swap (a full hand screen needs the
+whole room — not this step's subject).
+
+### 5b · A play's raise before its pick (P48 Early Colonization)
+
+A colony prompt carrying `trackRaise` (the tracks the play already raised) is
+told in the rules' order inside whichever host the stack names: ENTER (the zone
+opens, every tile HELD at `before` from the seed in `openColoniesForPrompt`) →
+the RX29 WAVE (`colonyTrackRaise.ts`, anchors `tile`; the pad locked) → PICK →
+the build's CUBE (`colony-build`) → DWELL → RETURN. The return is
+`settleColonyFollowUp`'s hosted HAND-OVER (`dwellColonyFollowUp`): the follow-up
+is live through the wave and the build, then the frame waits for the build's
+tokens (`waitScreenHandoff`, `only: ['transfer']`, ≤ 4 s) and one read
+(300 ms — the standalone `COMPLETION_SETTLE_MS`) before it pops; the
+Parliament keeps its own walk. Contract of the wave: `docs/TURMOIL_REDUX_UNITY_BUDGET.md` §5.
 
 ---
 

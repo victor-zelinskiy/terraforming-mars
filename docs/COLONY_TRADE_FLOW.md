@@ -677,6 +677,11 @@ embedded step because it is the SAME `ConsoleColoniesSection` instance.
 
 ## THE FLEET DOCK — a trade whose destination is a CARD (TR06, 2026-10-01)
 
+> **2026-11-03 (P48 · ledger EZ):** a dock is a CELL of the colonies grid (after the colonies, one scale, one cursor
+> walk) and its tile speaks the colony tile's language (one-line name + «ПРИЧАЛ» mark, round art medallion, the same
+> ТОРГОВАТЬ cell, status by word and kant) — `docs/TURMOIL_REDUX_WATER_HAULING.md` §8d. The «separate group» notes
+> below are history.
+
 Turmoil Redux TR06 Water Hauling (and its sisters TR26 UNMI Liner, TR27 Aurora
 Station) make a CARD a destination of its owner's trade action — read «по своду»:
 the ordinary fee of the chosen path, the fleet of THAT trade goes to the card,
