@@ -131,6 +131,16 @@ describe('drawSearchReading', () => {
     });
   });
 
+  describe('a party-requirement search names itself (P51 High Circles)', () => {
+    const PARTY: DrawSearchModel = {count: 1, partyRequirement: true};
+    it('one clause «with a party requirement»; a discard reads the rule it did not meet', () => {
+      expect(drawSearchTerms(PARTY)).deep.eq([{kind: 'partyRequirement'}]);
+      expect(drawSearchTermLabel({kind: 'partyRequirement'})).eq('with a party requirement');
+      expect(drawDiscardVerdict(step(CardName.ANTS, false), PARTY)).deep.eq({kind: 'rule', terms: [{kind: 'partyRequirement'}]});
+      expect(drawDiscardVerdict(step(CardName.CULTURAL_METROPOLIS, true), PARTY)).is.undefined;
+    });
+  });
+
   describe('the «Далее» row of a filtered draw', () => {
     const translate = (key: string, params: ReadonlyArray<string>) => `${key}|${params.join(',')}`;
 

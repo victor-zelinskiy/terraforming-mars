@@ -9,6 +9,7 @@
       <span v-if="term.kind === 'with'" class="con-dsearch__tag" :data-tag="term.tag" :style="tagStyle(term.tag)" aria-hidden="true"></span>
       <span v-else-if="term.kind === 'resource'" class="con-dsearch__res" :style="resourceStyle(term.resource)" aria-hidden="true"></span>
       <span v-else-if="term.kind === 'floaterIcon'" class="con-dsearch__res" :style="resourceStyle(floater)" aria-hidden="true"></span>
+      <PremiumPartyRequirementGlyph v-else-if="term.kind === 'partyRequirement'" class="con-dsearch__pprq" />
       <template v-else-if="term.kind === 'without'">
         <span v-for="tag in term.tags" :key="tag" class="con-dsearch__tag con-dsearch__tag--struck" :data-tag="tag" :style="tagStyle(tag)" aria-hidden="true"></span>
       </template>
@@ -23,6 +24,7 @@ import {CardResource} from '@/common/CardResource';
 import {DrawSearchModel} from '@/common/models/CardDrawRevealModel';
 import {DrawSearchTerm, drawSearchTermLabel, drawSearchTerms} from '@/client/console/deckDraw/drawSearchReading';
 import {cardResourceIconUrl, tagIconStyle} from '@/client/components/premiumCard/premiumCardIcons';
+import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
 /**
  * @console-shared LIVE — console native stands on this file.
@@ -38,6 +40,7 @@ import {cardResourceIconUrl, tagIconStyle} from '@/client/components/premiumCard
  */
 export default defineComponent({
   name: 'ConsoleDrawSearchRule',
+  components: {PremiumPartyRequirementGlyph},
   props: {
     search: {type: Object as PropType<DrawSearchModel>, default: undefined},
     clauses: {type: Array as PropType<ReadonlyArray<DrawSearchTerm>>, default: undefined},
@@ -60,6 +63,7 @@ export default defineComponent({
         case 'resource': return `resource:${t.resource}`;
         case 'without': return `without:${t.tags.join(',')}`;
         case 'floaterIcon': return 'floaterIcon';
+        case 'partyRequirement': return 'partyRequirement';
         }
       }).join(' ');
     },

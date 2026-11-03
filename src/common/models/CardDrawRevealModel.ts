@@ -157,6 +157,11 @@ export type DrawSearchModel = {
    * list (`floaterCards`); a surface only names the rule («со значком аэростата»).
    */
   floaterIcon?: true;
+  /**
+   * Keep only cards WITH A PARTY REQUIREMENT (P51 High Circles) — a requirement of the `party` kind, any party. The
+   * server owns the reading (`hasPartyRequirement`); a surface only names the rule («с требованием партии»).
+   */
+  partyRequirement?: true;
 };
 
 /**

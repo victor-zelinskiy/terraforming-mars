@@ -210,6 +210,12 @@ export interface DrawCard {
    * card that only prints the icon (Air Raid, Atmoscoop, …).
    */
   floaterIcon?: boolean,
+  /**
+   * Keep only cards WITH A PARTY REQUIREMENT (P51 High Circles) — a requirement of the `party` kind, for any party
+   * (`hasPartyRequirement`, the one reading of the phrase). A NAMED rule, never an opaque `include`: the reveal, the
+   * preview chip and the card text all name it.
+   */
+  partyRequirement?: boolean,
 }
 
 export interface AddResource {

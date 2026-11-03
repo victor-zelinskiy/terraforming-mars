@@ -492,6 +492,9 @@ export function drawSearchSentence(search: DrawSearchModel): string {
   if (search.floaterIcon === true) {
     qualifiers.push('with a floater icon');
   }
+  if (search.partyRequirement === true) {
+    qualifiers.push('with a party requirement');
+  }
   const what = [`${amount} ${noun}`, ...qualifiers].join(' ');
   return `Reveal cards from the project deck until you reveal ${what}. Take ${one ? 'it' : 'them'} into your hand and discard the rest.`;
 }

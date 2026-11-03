@@ -26,7 +26,9 @@ export type DrawSearchTerm =
   | {kind: 'resource', resource: CardResource}
   | {kind: 'without', tags: ReadonlyArray<Tag>}
   /** «со значком аэростата» — Celestic / P44 (`DrawSearchModel.floaterIcon`); drawn as the floater icon. */
-  | {kind: 'floaterIcon'};
+  | {kind: 'floaterIcon'}
+  /** «с требованием партии» — P51 High Circles (`DrawSearchModel.partyRequirement`); drawn as the requirement plate glyph. */
+  | {kind: 'partyRequirement'};
 
 /** The word a clause opens with — an English i18n key. The tag / resource itself is drawn as its icon. */
 export function drawSearchTermLabel(term: DrawSearchTerm): string {
@@ -36,6 +38,7 @@ export function drawSearchTermLabel(term: DrawSearchTerm): string {
   case 'resource': return 'collecting';
   case 'without': return 'without the tags';
   case 'floaterIcon': return 'with a floater icon';
+  case 'partyRequirement': return 'with a party requirement';
   }
 }
 
@@ -64,6 +67,9 @@ export function drawSearchTerms(search: DrawSearchModel | undefined): Array<Draw
   }
   if (search.floaterIcon === true) {
     out.push({kind: 'floaterIcon'});
+  }
+  if (search.partyRequirement === true) {
+    out.push({kind: 'partyRequirement'});
   }
   return out;
 }
