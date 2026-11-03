@@ -533,6 +533,22 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.tag(Tag.POWER).startEffect.cards(1).asterix();
       });
     });
+  case MarsBotCorpId.CF4_MONS_INSURANCE:
+    return CardRenderer.builder((b) => {
+      // SETUP: the reserve fund opens on the card — the asterisk says «on the card», the capsule below counts it.
+      b.megacredits(10).asterix();
+      // EFFECT: the policy — any player's attack on MarsBot (production or resources, the human card's own glyphs)
+      // is repaid out of the fund, plus the printed 3 M€.
+      b.effect(undefined, (eb) => {
+        eb.production((pb) => pb.wild(1, {all})).or().minus().wild(1, {all});
+        eb.startEffect.megacredits(3).asterix();
+      });
+      // BEFORE ACTION PHASE: Insurance Payout — every full 8 M€ of the fund → the weakest track (the wild tag's own
+      // symbol, as C14/C15/CF1 draw «the least advanced track»).
+      b.action(undefined, (eb) => {
+        eb.megacredits(8).asterix().startAction.wild(1);
+      });
+    });
   case MarsBotCorpId.CF3_POLDERTECH_DUTCH:
     return CardRenderer.builder((b) => {
       // SETUP: the human card's own first-action shape — an ocean and a greenery beside it.

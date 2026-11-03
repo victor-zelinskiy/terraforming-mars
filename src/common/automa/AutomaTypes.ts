@@ -177,6 +177,8 @@ export enum MarsBotCorpId {
   CF2_VEYNON_DYNAMICS = 'CF2',
   // CF3 — PolderTECH Dutch (X-3), «the Polder», 2026-11-03.
   CF3_POLDERTECH_DUTCH = 'CF3',
+  // CF4 — Mons Insurance (R46), «the Reserve Fund», 2026-11-03.
+  CF4_MONS_INSURANCE = 'CF4',
 }
 
 /** The implemented set, in official card-number order. */
@@ -230,6 +232,7 @@ export const MARS_BOT_CORP_IDS: ReadonlyArray<MarsBotCorpId> = [
   MarsBotCorpId.CF1_FERRUS_ACADEMY,
   MarsBotCorpId.CF2_VEYNON_DYNAMICS,
   MarsBotCorpId.CF3_POLDERTECH_DUTCH,
+  MarsBotCorpId.CF4_MONS_INSURANCE,
 ];
 
 /**
@@ -304,6 +307,8 @@ export enum BonusCardId {
   BC2_VEYNON_RUN = 'BC2',
   // CF3 PolderTECH Dutch's land reclamation — burnt after its third polder.
   BC3_INPOLDERING = 'BC3',
+  // CF4 Mons Insurance's payout out of its reserve fund.
+  BC4_INSURANCE_PAYOUT = 'BC4',
 }
 
 /** The set of bonus cards used in the base game (no expansions). */

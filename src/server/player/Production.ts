@@ -4,6 +4,7 @@ import {From, isFromPlayer} from '../logs/From';
 import {BaseStock} from './StockBase';
 import {IPlayer} from '../IPlayer';
 import {AutomaTargeting} from '../automa/AutomaTargeting';
+import {AutomaCorporations} from '../automa/corps/AutomaCorporations';
 import {ParliamentHandler} from '../parliament/ParliamentHandler';
 import {productionFloor} from './productionFloor';
 
@@ -19,7 +20,7 @@ export class Production extends BaseStock {
     // MarsBot has no production: a production DECREASE regresses the mapped
     // track instead (rulebook pp.4–5), leaving the no-reactivation marker.
     if (this.player.isMarsBot && amount < 0) {
-      AutomaTargeting.regressForProduction(this.player.game, resource, -amount);
+      const regressed = AutomaTargeting.regressForProduction(this.player.game, resource, -amount);
       // Mode B (§12 Q10): the bot is a full Mons Insurance beneficiary — a
       // track regress IS its production decrease. Dormant in official solo
       // (the corp is banned there, so monsInsuranceOwner is never set). An
@@ -28,6 +29,10 @@ export class Production extends BaseStock {
       const from = options?.from;
       if (isFromPlayer(from) && from.player.id !== this.player.id) {
         this.player.resolveInsurance();
+        // The bot's OWN corporation answering the regress (CF4's policy) — only a track that actually moved.
+        if (regressed > 0) {
+          AutomaCorporations.onBotHarmed(this.player.game, 0);
+        }
       }
       return;
     }

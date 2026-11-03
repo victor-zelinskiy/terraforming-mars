@@ -13353,3 +13353,21 @@ boardOfDirectorsFixture('board-of-directors-spent', {megacredits: 40, directors:
   }
   write(name, game);
 }
+
+// ── bot-insurance: CF4 Mons Insurance (the fork's own bot card, «the Reserve Fund») — the fund standing on the card
+//    at a known 13 M€ (docs/AUTOMA_DATA_AUDIT.md §20). Blue on the move; the bot's corporation face is the subject:
+//    the capsule reads the fund, the card prints no tag. ──
+{
+  const name = 'bot-insurance';
+  const [game, human] = testAutomaGame({corporation: MarsBotCorpId.CF4_MONS_INSURANCE, keepInitialCardSelection: true});
+  answerStartFlow(game, [human]);
+  const automa = game.automa;
+  if (automa === undefined || automa.corporation !== MarsBotCorpId.CF4_MONS_INSURANCE) {
+    throw new Error(`${name}: expected Mons Insurance seated`);
+  }
+  automa.corpResources = 13;
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id) {
+    throw new Error(`${name}: expected blue on the move — got phase=${game.phase} active=${game.activePlayer.color}`);
+  }
+  write(name, game);
+}

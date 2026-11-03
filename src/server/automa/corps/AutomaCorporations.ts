@@ -72,6 +72,7 @@ import {MarsBotTychoMagnetics} from './MarsBotTychoMagnetics';
 import {MarsBotFerrusAcademy} from './MarsBotFerrusAcademy';
 import {MarsBotVeynonDynamics} from './MarsBotVeynonDynamics';
 import {MarsBotPolderTechDutch} from './MarsBotPolderTechDutch';
+import {MarsBotMonsInsurance} from './MarsBotMonsInsurance';
 
 /**
  * THE MarsBot corporation registry + dispatch layer (Rule Book B "Adding
@@ -146,6 +147,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.CF1_FERRUS_ACADEMY]: MarsBotFerrusAcademy,
     [MarsBotCorpId.CF2_VEYNON_DYNAMICS]: MarsBotVeynonDynamics,
     [MarsBotCorpId.CF3_POLDERTECH_DUTCH]: MarsBotPolderTechDutch,
+    [MarsBotCorpId.CF4_MONS_INSURANCE]: MarsBotMonsInsurance,
   };
 
   public static corpFor(id: MarsBotCorpId): MarsBotCorp {
@@ -337,6 +339,11 @@ export class AutomaCorporations {
   /** MarsBot has just traded (`MarsBotCorp.onBotTrade`). */
   public static onBotTrade(game: IGame, colony: ColonyName): void {
     AutomaCorporations.activeCorp(game)?.onBotTrade?.(game, colony);
+  }
+
+  /** Another player made MarsBot lose resources or production (`MarsBotCorp.onHarmedByOpponent`) — once per attack. */
+  public static onBotHarmed(game: IGame, lostMc: number): void {
+    AutomaCorporations.activeCorp(game)?.onHarmedByOpponent?.(game, lostMc);
   }
 
   /** MarsBot's tile SEATED on its own marker (`MarsBotCorp.onOwnMarkerBuilt`) — the bot seat only. */

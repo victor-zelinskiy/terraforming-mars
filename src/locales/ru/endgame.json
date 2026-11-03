@@ -891,5 +891,7 @@
     "The strings were pulled behind the curtain at ${0}'s ${1}: ${2} delegates took their seats in the Parliament on its quiet word.": "${1} дёргала за ниточки из-за кулис: по её тихому слову в Парламенте заняли места ${2} делегатов.",
     "The pedigree of ${0}'s ${1} was valued everywhere: ${2} classes graduated and went to work wherever the bot was weakest.": "Диплом ${1} ценился везде: выпустилось курсов — ${2}, и выпускники шли работать туда, где у бота было слабее всего.",
     "Veynon's yards never rested at ${0}'s ${1}: mechs became ${2} trade fleets, and ${3} trades went out to the colonies.": "Верфи ${1} не простаивали: из мехов собрано флотов — ${2}, а торговых рейсов к колониям ушло ${3}.",
-    "Land was won from the sea at ${0}'s ${1}: ${2} polders rose where oceans were meant to be.": "${1} отвоевала землю у моря: там, где должны были плескаться океаны, поднялось польдеров — ${2}."
+    "Land was won from the sea at ${0}'s ${1}: ${2} polders rose where oceans were meant to be.": "${1} отвоевала землю у моря: там, где должны были плескаться океаны, поднялось польдеров — ${2}.",
+    "Attacking ${0}'s ${1} did not pay: its policy repaid ${2} M€ out of the reserve fund.": "Нападать на ${1} было невыгодно: полис возместил из резервного фонда ${2} M€.",
+    "The capital of ${0}'s ${1} worked: the reserve fund paid out ${2} times.": "Капитал ${1} работал: резервный фонд сделал выплат — ${2}."
 }

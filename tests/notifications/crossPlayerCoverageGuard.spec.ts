@@ -347,6 +347,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       [BonusCardId.BC1_FIELD_PRACTICE]: touchesHumans, // a Campus greenery → the any-player greenery reactors
       [BonusCardId.BC2_VEYNON_RUN]: touchesHumans, // a trade → GiveColonyBonus pays the colony owners
       [BonusCardId.BC3_INPOLDERING]: touchesHumans, // a polder greenery (or the ocean instead) → the any-player tile reactors
+      [BonusCardId.BC4_INSURANCE_PAYOUT]: botOnly, // the fund pushes the bot's own weakest track (B28's shape)
     };
     expect(Object.keys(BONUS).length, 'every bonus card classified').eq(Object.values(BonusCardId).length);
   });
@@ -404,6 +405,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       [MarsBotCorpId.CF1_FERRUS_ACADEMY]: touchesHumans, // the Academy city at setup → any-player city reactors (Pets, Immigrant City…)
       [MarsBotCorpId.CF2_VEYNON_DYNAMICS]: touchesHumans, // its extra fleets trade → GiveColonyBonus pays the colony owners
       [MarsBotCorpId.CF3_POLDERTECH_DUTCH]: touchesHumans, // the setup ocean + greenery → the any-player tile reactors
+      [MarsBotCorpId.CF4_MONS_INSURANCE]: botOnly, // the fund, its premiums and the policy's repayment are the bot's own
     };
     expect(Object.keys(CORPS).length, 'every bot corporation classified').eq(Object.values(MarsBotCorpId).length);
   });

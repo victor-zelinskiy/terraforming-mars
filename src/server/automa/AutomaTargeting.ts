@@ -7,6 +7,7 @@ import {marsBotCorpInfo} from '../../common/automa/MarsBotCorpData';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {bumpCorpStat, marsBotOf} from './AutomaUtil';
+import {AutomaCorporations} from './corps/AutomaCorporations';
 
 /**
  * How the human's turn interacts with MarsBot (rulebook pp.4–5 + Adding
@@ -156,6 +157,11 @@ export class AutomaTargeting {
       // The bot's side already said «stole» — the thief's gain is the same move, never a second line.
       perpetrator.stock.add(resource, removed, {log: false});
     }
+    // A corporation that answers the loss (CF4's policy) — once per attack, the M€ actually taken: the supply
+    // standing in, plus the Luna area when the M€ themselves were attacked.
+    if (removed > 0 && perpetrator.id !== bot.id) {
+      AutomaCorporations.onBotHarmed(game, resource === Resource.MEGACREDITS ? removed : supplyTaken);
+    }
   }
 
   /** «${0} lost N [unit] because of ${3}» / «${3} stole N [unit] from ${0}» — the line a player's own loss prints. */
@@ -216,6 +222,9 @@ export class AutomaTargeting {
     }
     if (options?.stealing && removed > 0) {
       perpetrator.stock.add(Resource.PLANTS, removed, {log: options?.log ?? true});
+    }
+    if (removed > 0 && perpetrator.id !== bot.id) {
+      AutomaCorporations.onBotHarmed(game, 0);
     }
     return removed;
   }
@@ -282,6 +291,8 @@ export class AutomaTargeting {
       // ONE loss of the unit attacked, its total — as a player at the table loses it (the owner, 2026-10-30).
       game.log('${0} lost ${1} ${2}', (b) => b.player(bot).number(removed).cardResource(cardResource));
       game.events?.recordBotStandInLoss(bot, cardResource, removed, available + fromSupply + bot.megaCredits);
+      // Only another player's card removes from the bot's pools — the policy answers the M€ that stood in.
+      AutomaCorporations.onBotHarmed(game, fromSupply);
     }
     return removed;
   }
@@ -307,14 +318,14 @@ export class AutomaTargeting {
    * "Decrease any player's production" → the mapped tracker regresses (one
    * space per production step), leaving the no-reactivation marker.
    */
-  public static regressForProduction(game: IGame, resource: Resource, steps: number): void {
+  public static regressForProduction(game: IGame, resource: Resource, steps: number): number {
     const automa = game.automa;
     if (automa === undefined) {
       throw new Error('Not an automa game');
     }
     const track = AutomaTargeting.trackFor(game, resource);
     if (track === undefined) {
-      return; // No track carries that production badge on this board.
+      return 0; // No track carries that production badge on this board.
     }
     let regressed = 0;
     for (let i = 0; i < steps && track.position > 0; i++) {
@@ -325,6 +336,7 @@ export class AutomaTargeting {
       game.log('${0} track for ${1} production regressed ${2} {step|steps}', (b) =>
         b.player(marsBotOf(game)).string(resource).number(regressed));
     }
+    return regressed;
   }
 
   /**

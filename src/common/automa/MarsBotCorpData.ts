@@ -1395,6 +1395,33 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.CF4_MONS_INSURANCE]: {
+    id: MarsBotCorpId.CF4_MONS_INSURANCE,
+    // THE FORK'S OWN BOT CARD (the owner, 2026-11-03) for the promo corporation R46 — «the Reserve Fund»
+    // (docs/AUTOMA_DATA_AUDIT.md §20): a cold financier — capital that compounds, payouts on schedule, attacks covered.
+    cardNumber: 'CF4',
+    original: CardName.MONS_INSURANCE,
+    // The human card prints no tag.
+    startingTags: [],
+    // THE FUND — M€ on the card, the ordinary `.pcard__res` capsule (C20's till): never the bot's own M€, so an
+    // attack on MarsBot's M€ never reaches it.
+    resource: 'megacredits',
+    corpBonusCards: [BonusCardId.BC4_INSURANCE_PAYOUT],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'megacredits', text: 'Place ${0} M€ on this card', params: ['10']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'Policy: when a player makes MarsBot lose resources or production, the fund repays the M€ it lost plus ${0} M€, or as much as possible', params: ['3']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'megacredits', text: 'Premiums: ${0} M€ go into the fund', params: ['6']},
+        {icon: 'megacredits', text: 'Interest: then the fund grows by ${0} M€ for every ${1} M€ in it', params: ['1', '4']},
+        {icon: 'deck', text: 'Add Insurance Payout to MarsBot\'s action deck'},
+        {icon: 'deck', text: 'Insurance Payout: for every full ${0} M€ in the fund, MarsBot spends them to advance its least advanced track', params: ['8'], muted: true},
+      ]},
+    ],
+  },
 };
 
 export function marsBotCorpInfo(id: MarsBotCorpId): MarsBotCorpInfo {
@@ -1476,6 +1503,10 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           over — TR is one per conversion) and pristarMc (the M€ they
  *           paid), plus pristarSkipped<Parameter> per parameter, so the
  *           finale can name WHICH of the four stood still.
+ * Mons Insurance (CF4): insurancePremiumMc (M€ moved from the bot into the fund), insuranceInterestMc (the fund's
+ *           interest), insurancePayouts (BC4 pushes of the least advanced track), insurancePayoutMc (the fund spent on
+ *           them), insurancePayoutPlayed (BC4 resolved), insuranceClaims (attacks on the bot the policy answered),
+ *           insuranceClaimMc (what the fund repaid).
  * PolderTECH Dutch (CF3): polders (greeneries won from ocean spaces — BC3 burns at 3), polderSetupGreeneries,
  *           polderWindMc / polderLandMc (the M€ its oceans / greeneries paid), polderDikeMc (BC3's price paid),
  *           inpolderingPlayed.

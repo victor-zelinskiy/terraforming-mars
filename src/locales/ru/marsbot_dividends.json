@@ -295,5 +295,10 @@
     "${0} VP per MarsBot greenery next to an ocean": "${0} ПО за каждое озеленение MarsBot рядом с океаном",
     "Earthworks": "Земляные работы",
     "Building tags in MarsBot's played pile": "метки строительства",
-    "MarsBot greeneries next to an ocean": "Озеленения MarsBot рядом с океаном"
+    "MarsBot greeneries next to an ocean": "Озеленения MarsBot рядом с океаном",
+    "Insured property": "Застрахованная собственность",
+    "${0} VP per ${1} city tiles the other players own": "${0} ПО за каждые ${1} города других игроков",
+    "Orbital underwriting": "Орбитальное страхование",
+    "Space tags in MarsBot's played pile": "метки космоса",
+    "Cities of the other players": "Города других игроков"
 }

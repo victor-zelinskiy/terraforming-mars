@@ -312,6 +312,14 @@ export type MarsBotCorp = {
   onBotTrade?(game: IGame, colony: ColonyName): void;
 
   /**
+   * Another player has just made MarsBot LOSE something — resources (the M€ supply standing in, a storage area, the
+   * corporation card's plants, a card-resource pool) or production (a track regressed). `lostMc` is the M€ the
+   * attack actually took off the bot (0 for a storage / plant / track loss). Dispatched AFTER the loss, once per
+   * attack, from the four sites of `AutomaTargeting` (CF4 Mons Insurance's policy).
+   */
+  onHarmedByOpponent?(game: IGame, lostMc: number): void;
+
+  /**
    * Resolves one of this corporation's OWN bonus cards (`info.corpBonusCards`,
    * the B22–B32 family) when the bot flips it from its action deck. Routing
    * (discard / destroy / recurring holding) stays with the caller.

@@ -43,7 +43,7 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       const style = wrapper.find('.pcard__exp-medallion').attributes('style') ?? '';
       expect(style, `${id} medallion`).contains('expansion_icon_automa.svg');
     }
-  });
+  }).timeout(200 * MARS_BOT_CORP_IDS.length); // one full face mount per corporation — the set grows with every CF card
 
   it('shows the tag rail ONLY for a corporation that prints starting tags', () => {
     expect(mountFace(MarsBotCorpId.C45_SPIRE).find('.pcard__tags').exists()).is.true;
@@ -192,7 +192,7 @@ describe('MarsBotCorpFace (.pcard template)', () => {
       expect(text).not.match(/draw 4/i);
       expect(text, 'no human Helion heat-for-M€ rule').not.match(/heat as/i);
     }
-  });
+  }).timeout(200 * MARS_BOT_CORP_IDS.length); // one full face mount per corporation — the set grows with every CF card
 });
 
 describe('marsBotCorpPremiumVm (pure)', () => {
@@ -693,6 +693,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     const face = mountFace(MarsBotCorpId.CF2_VEYNON_DYNAMICS);
     expect(face.findAll('.pcard__tags .pcard-tag'), 'Jovian + Venus').has.length(2);
     expect(face.find('.pcard__res').exists(), 'the mech store').is.true;
+  });
+
+  it('Mons Insurance (CF4, the fork\'s own card) prints its reserve fund, never the human 48 M€ or the production attack', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.CF4_MONS_INSURANCE);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'its own card').contains('Insurance Payout');
+    expect(text, 'the fund').contains('fund');
+    // The human Mons Insurance starts with 48 M€, +4 M€ production and cuts every opponent's — none of that.
+    expect(text).not.contains('48');
+    expect(text).not.match(/opponents? decrease/i);
+    const face = mountFace(MarsBotCorpId.CF4_MONS_INSURANCE);
+    expect(face.findAll('.pcard__tags .pcard-tag'), 'no tag').has.length(0);
+    expect(face.find('.pcard__res').exists(), 'the fund\'s capsule').is.true;
   });
 
   it('PolderTECH Dutch (CF3, the fork\'s own card) prints its polders, never the human energy or M€ start', () => {

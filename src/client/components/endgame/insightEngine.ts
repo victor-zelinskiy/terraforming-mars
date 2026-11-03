@@ -3276,6 +3276,28 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 14,
         });
       }
+    } else if (corp.id === 'CF4') {
+      // Mons Insurance (the fork's own card): what the table SAW is a capital that worked — payouts on schedule, and
+      // attacks the policy repaid.
+      const payouts = stat('insurancePayouts');
+      const claimMc = stat('insuranceClaimMc');
+      if (claimMc > 0) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Attacking ${0}\'s ${1} did not pay: its policy repaid ${2} M€ out of the reserve fund.',
+          params: [raw(p.name), raw(corp.name), raw(claimMc)],
+          measure: claimMc,
+          scale: 6,
+        });
+      } else if (payouts >= 4) {
+        stories.push({
+          key: 'effect',
+          textKey: 'The capital of ${0}\'s ${1} worked: the reserve fund paid out ${2} times.',
+          params: [raw(p.name), raw(corp.name), raw(payouts)],
+          measure: payouts,
+          scale: 6,
+        });
+      }
     } else if (corp.id === 'CF3') {
       // PolderTECH Dutch (the fork's own card): what the table SAW is green land where the sea was meant to be.
       const polders = stat('polders');

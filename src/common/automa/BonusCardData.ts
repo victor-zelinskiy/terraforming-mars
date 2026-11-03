@@ -143,6 +143,10 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     name: 'Inpoldering',
     text: 'PolderTECH Dutch: MarsBot pays 10 M€ for the dikes, if able, then drains a space reserved for an ocean — never one the remaining oceans need — and places a greenery there; with nothing to drain it places an ocean. Recurs every generation; destroyed after its third polder.',
   },
+  [BonusCardId.BC4_INSURANCE_PAYOUT]: {
+    name: 'Insurance Payout',
+    text: 'Mons Insurance: for every full 8 M€ in its reserve fund, MarsBot spends them to advance its least advanced track; with less in the fund the payout waits. Recurs into the action deck every generation.',
+  },
 };
 
 export function bonusCardInfo(id: BonusCardId): BonusCardInfo {
@@ -536,6 +540,17 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'ocean', text: 'Nothing to drain: MarsBot places an ocean instead'},
       ],
       fate: {kind: 'conditional', text: 'Returns to the action deck every generation — destroyed after the third polder'},
+    };
+  case BonusCardId.BC4_INSURANCE_PAYOUT:
+    // CF4 Mons Insurance's own card (the fork's design, docs/AUTOMA_DATA_AUDIT.md §20): the reserve fund pays out.
+    return {
+      name,
+      lines: [
+        {icon: 'megacredits', text: 'For every full ${0} M€ in its reserve fund, MarsBot spends them', params: ['8']},
+        {icon: 'deck', text: 'and advances its least advanced track (the topmost if tied) — once per ${0} M€', params: ['8']},
+        {text: 'Less in the fund: no payout this generation — the fund keeps growing', muted: true},
+      ],
+      fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
     };
   case BonusCardId.B25_DO_IT_RIGHT:
     // Inventrix's corporation-specific card (official B25): Lobbyists' own
