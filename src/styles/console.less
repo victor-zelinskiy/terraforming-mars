@@ -12868,8 +12868,11 @@ html.console-mode {
         gap: .25rem .9rem;
         min-width: 0;
     }
+    /* A long name («ПИОНЕР ПОВЕРХНОСТИ») WRAPS inside its own column — it never runs under the plate beside it. */
     &__name {
-        flex-shrink: 0;
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow-wrap: anywhere;
         font-size: 1.05rem;
         font-weight: 800;
         letter-spacing: .06rem;
@@ -13136,17 +13139,41 @@ html.console-mode {
        enamel cube and the neutral engraved check on a quiet gold hairline.
        Deliberately the column's QUIETEST composition (words live in the body
        line): prestige, never a call to action. */
+    /* THE CLAIMED PLATE (FE polish): the «ВЫ» plate's own grammar and box — kicker · value · foot, right-aligned, the
+       same paddings, so a claimed tile's plate stands at the height and the edges of its neighbours'. Its value is the
+       OWNER: the enamel cube, the name, the engraved check; a quiet gold hairline — prestige, never a call to action. */
     &__seal {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: .55rem;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: .15rem;
         width: 100%;
-        padding: .55rem .75rem;
+        min-width: 0;
+        padding: .4rem .75rem .5rem;
         border-radius: .6rem;
         background: rgba(9, 15, 23, 0.55);
-        box-shadow: inset 0 0 0 .05rem fade(@strat-gold, 26%);
+        box-shadow: inset 0 0 0 .05rem fade(@strat-gold, 30%);
     }
+    &__seal-who {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .4rem;
+        max-width: 100%;
+        min-width: 0;
+        /* One line of the metric's value (1.5rem × 1.05) — the plates match in height. */
+        min-height: 1.58rem;
+    }
+    &__seal-name {
+        min-width: 0;
+        font-size: 1rem;
+        font-weight: 800;
+        color: #e8f1fa;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__seal--mine .con-ma__seal-name { color: #ffe9c4; }
     &__seal-cube {
         width: 1rem;
         height: 1rem;
@@ -13759,28 +13786,6 @@ html.console-mode {
         flex-direction: column;
         justify-content: flex-start;
     }
-    /* THE PRINTED PRICE of a claim (PL-1621) — the price token's landing, a kant like the ladder's next step. */
-    &__price {
-        display: inline-flex;
-        align-items: center;
-        gap: .35rem;
-        padding: .2rem .65rem;
-        border-radius: 49.95rem;
-        font-variant-numeric: tabular-nums;
-        color: #ffe2ad;
-        box-shadow: inset 0 0 0 .075rem fade(@strat-gold, 70%);
-
-        b { font-weight: 800; }
-        .resource_icon { width: .95rem; height: .95rem; background-size: contain !important; }
-    }
-    &__price-label {
-        font-size: var(--mafocus-label, .6rem);
-        font-weight: 700;
-        letter-spacing: .07rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-    }
-    &__arrow { color: @con-text-dim; }
     /* The sponsorship ladder: one step per slot — a sponsor's seat on a funded one, the next price under a kant. */
     &__ladder {
         display: flex;
@@ -13877,17 +13882,81 @@ html.console-mode {
 
         b { color: @con-text; }
     }
-    &__vp-badge {
-        flex-shrink: 0;
-        align-self: center;
-        padding: .3rem .8rem;
-        border-radius: .5rem;
-        background: fade(@con-ma-gold, 13%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-ma-gold, 65%);
-        color: @con-ma-gold;
+    /* THE EXCHANGE (FE polish — a milestone's «Что даёт»): the price and the reward as TWO EQUAL CELLS on one
+       chassis — the same box, the same kicker over the same value scale — joined by a drawn link; the qualifier note
+       reads under the pair. The price cell is the printed price the claim's token is drawn into (PL-1621). Material
+       only: a dark plate, a gold kant on the price, a warm fill on the reward — no light. */
+    &__truth--exchange {
+        flex-direction: column;
+        align-items: stretch;
+        gap: .6rem;
+    }
+    &__exchange {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: stretch;
+        gap: .7rem;
+        max-width: 26rem;
+    }
+    &__xcell {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: .2rem;
+        padding: .45rem .85rem .5rem;
+        border-radius: .55rem;
+        background: rgba(9, 15, 23, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.24);
+
+        &--price { box-shadow: inset 0 0 0 .075rem fade(@strat-gold, 58%); }
+        &--gain {
+            background: fade(@con-ma-gold, 10%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-ma-gold, 45%);
+        }
+    }
+    &__xlabel {
+        font-size: var(--mafocus-label, .6rem);
+        font-weight: 700;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__xvalue {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
         font-size: var(--mafocus-vp, .95rem);
-        font-weight: 800;
+        line-height: 1.1;
+        font-variant-numeric: tabular-nums;
         white-space: nowrap;
+        color: #ffe2ad;
+
+        b { font-weight: 800; }
+        .resource_icon { width: 1.1em; height: 1.1em; background-size: contain !important; }
+    }
+    &__xcell--gain &__xvalue { color: @con-ma-gold; }
+    &__xunit {
+        font-size: .82em;
+        font-weight: 800;
+        letter-spacing: .04rem;
+    }
+    /* The link: a drawn hairline arrow at the cells' mid-height — the eye goes price → reward without a glyph jump. */
+    &__xlink {
+        align-self: center;
+        width: 1.5rem;
+        color: fade(@con-text-dim, 80%);
+
+        svg {
+            display: block;
+            width: 100%;
+            height: auto;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.6;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
     }
     /* The race plate is the stage's second subject — a panel of its own,
        sized by its standings and bounded so a six-player table scrolls
@@ -38545,6 +38614,10 @@ html.con-profile-handheld {
         &__race-value { font-size: 1rem; }
         &__race-foot { font-size: .5rem; }
         &__metric { min-width: 5.7rem; padding: .2rem .5rem .25rem; gap: .05rem; }
+        /* The claimed plate keeps the metric's box on the Deck too (FE polish). */
+        &__seal { padding: .2rem .5rem .25rem; gap: .05rem; }
+        &__seal-who { min-height: 1.05rem; gap: .3rem; }
+        &__seal-name { font-size: .75rem; }
         &__metric-label { font-size: .5rem; }
         &__metric-value { font-size: 1rem; }
         &__metric-foot { height: .6rem; }
@@ -38775,8 +38848,9 @@ html.con-profile-large {
         &__name { font-size: 1.2rem; }
         &__desc { font-size: .85rem; }
         &__metric-value { font-size: 1.7rem; }
-        /* Adaptive stage caps for the large window (see the base rule) — five rows a column. */
-        &__stage { min-height: 4.4rem; max-height: 9rem; }
+        &__seal-who { min-height: 1.8rem; }
+        /* Adaptive stage caps for the large window (see the base rule) — three tile rows (FE). */
+        &__stage { min-height: 5.5rem; max-height: 14rem; }
     }
 }
 

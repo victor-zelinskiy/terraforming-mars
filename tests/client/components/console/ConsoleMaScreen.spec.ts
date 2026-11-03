@@ -74,12 +74,12 @@ describe('ConsoleMaScreen — two workspaces, one family (FB′)', () => {
     expect(aw.find('.con-ma__race--behind').text()).contains('2');
   });
 
-  it('a claimed milestone draws NO field (the race is over) and its owner stands on the name line', () => {
+  it('a claimed milestone draws NO field (the race is over) and its OWNER is the plate — never repeated on the name line', () => {
     const items = [item('milestone', 'Mayor', {takenBy: {color: green, name: 'Gale'}}), ...MILESTONES.slice(1)];
     const row = mountScreen('milestones', 0, items).findAll('.con-ma__card')[0];
     expect(row.find('[data-ma-field]').exists()).eq(false);
-    expect(row.find('.con-ma__nameline .con-ma__owner').text()).contains('Gale');
-    expect(row.find('.con-ma__seal').exists()).eq(true);
+    expect(row.find('.con-ma__nameline .con-ma__owner').exists()).eq(false);
+    expect(row.find('[data-ma-seal]').text()).contains('Gale');
   });
 
   it('a tile reads: the name and its rule beside YOUR plate on top, the table\'s field at the foot', () => {

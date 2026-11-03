@@ -72,16 +72,28 @@
                the sponsors' seats on the funded ones, the next price marked by a kant. -->
           <div class="con-mafocus__plate con-mafocus__gives" data-unfold-item data-ma-plate="gives">
             <div class="con-mafocus__block-title">{{ $t('What it gives') }}</div>
-            <div class="con-mafocus__truth">
+            <div class="con-mafocus__truth" :class="{'con-mafocus__truth--exchange': kind === 'milestone'}">
               <template v-if="kind === 'milestone'">
-                <!-- THE PRINTED PRICE (PL-1621): what the claim costs, where the price token is drawn at the commit. -->
-                <span class="con-mafocus__price" :data-ma-price-target="displayView.free || displayView.cost === 0 ? undefined : ''">
-                  <span class="con-mafocus__price-label">{{ $t('Cost') }}</span>
-                  <template v-if="displayView.free || displayView.cost === 0"><b>{{ $t('Free') }}</b></template>
-                  <template v-else><b>{{ displayView.cost }}</b><i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i></template>
-                </span>
-                <span class="con-mafocus__arrow" aria-hidden="true">→</span>
-                <span class="con-mafocus__vp-badge">+5 {{ $t('VP') }}</span>
+                <!-- THE EXCHANGE (FE polish — the owner: the price pill, a tiny «→» and a big «+5» did not belong to one
+                     another): two EQUAL cells on one chassis — the kicker over the value, one type scale — joined by a
+                     drawn link. The price cell is the PRINTED PRICE (PL-1621): the price token is drawn into it. -->
+                <div class="con-mafocus__exchange" data-ma-exchange>
+                  <span class="con-mafocus__xcell con-mafocus__xcell--price"
+                        :data-ma-price-target="displayView.free || displayView.cost === 0 ? undefined : ''">
+                    <span class="con-mafocus__xlabel">{{ $t('Cost') }}</span>
+                    <span class="con-mafocus__xvalue">
+                      <template v-if="displayView.free || displayView.cost === 0"><b>{{ $t('Free') }}</b></template>
+                      <template v-else><b>{{ displayView.cost }}</b><i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i></template>
+                    </span>
+                  </span>
+                  <span class="con-mafocus__xlink" aria-hidden="true">
+                    <svg viewBox="0 0 28 12"><path d="M1 6 H25" /><path d="M20 1.6 L25.4 6 L20 10.4" /></svg>
+                  </span>
+                  <span class="con-mafocus__xcell con-mafocus__xcell--gain">
+                    <span class="con-mafocus__xlabel">{{ $t('Reward') }}</span>
+                    <span class="con-mafocus__xvalue con-mafocus__vp-badge"><b>+5</b><span class="con-mafocus__xunit">{{ $t('VP') }}</span></span>
+                  </span>
+                </div>
                 <span class="con-mafocus__truth-note">{{ $t('Milestones grant 5 victory points immediately when claimed.') }}</span>
               </template>
               <template v-else>

@@ -36,6 +36,10 @@ FE (PL-1635…1638).
     (or the owner's seal), an award's score and where it puts you («Вы лидируете» · «Делите лидерство» ·
     «Отстаёте на N» · «Нет гонки» — `maAwardGap`). The award's race cassette (tiers I / II) left the row: the field IS
     the race now (the detail's «Текущая гонка» plate keeps the ranked places).
+- **The claimed plate and the exchange (PL-1651 / PL-1652)**: a claimed milestone's plate speaks the «ВЫ» plate's
+  grammar (kicker «ПОЛУЧЕНО» · the owner's cube + name + engraved check · the foot), the owner said there only; a long
+  name wraps inside its column. The detail's «Что даёт» is an EXCHANGE of two equal cells — «ЦЕНА 8 M€» (the printed
+  price, the token's landing) → «НАГРАДА +5 ПО» — joined by a drawn link, the note under the pair.
 - **Material, never light** (`console-ui.md` § VISUAL RESTRAINT; `glowRestraintGuard` § 4 — the `.con-ma*` /
   `.con-mafocus*` / `.con-strat*` blocks at ZERO: halos incl. `var(--con-glow-r)`, glowing text, outer rings ≥ 50 %,
   `infinite`). Focus = `.con-cursor()` (inset ring); «available now» (a MILESTONE only, P29) = a mint inset kant + the

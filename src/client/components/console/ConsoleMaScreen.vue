@@ -108,7 +108,9 @@
                   <div class="con-ma__body">
                     <div class="con-ma__nameline">
                       <span class="con-ma__name" v-i18n>{{ shortName(it.name) }}</span>
-                      <span v-if="it.takenBy !== undefined" class="con-ma__owner">
+                      <!-- An AWARD's sponsor stands beside the name (the plate is YOUR race); a claimed MILESTONE's owner
+                           is its plate's subject, never said twice. -->
+                      <span v-if="it.takenBy !== undefined && it.kind === 'award'" class="con-ma__owner">
                         <span class="con-ma__owner-dot" :class="'player_bg_color_' + it.takenBy.color" aria-hidden="true"></span>
                         <span class="con-ma__owner-name">{{ it.takenBy.name }}</span>
                         <span class="con-ma__owner-verb">✓ {{ $t(it.kind === 'milestone' ? 'Claimed' : 'Funded') }}</span>
@@ -119,13 +121,21 @@
                   <!-- YOUR PLATE — the one reading that is yours, at ONE width on every tile: a milestone's count toward
                        its threshold (or the owner's seal once claimed); an award's score and where it puts you. -->
                   <div class="con-ma__status">
+                    <!-- THE CLAIMED PLATE — the plate grammar of «ВЫ» (kicker · value · foot, one height): «ПОЛУЧЕНО»,
+                         the owner's enamel cube and name with the engraved check — the settled trophy, never a CTA. -->
                     <div v-if="it.kind === 'milestone' && it.takenBy !== undefined"
                          class="con-ma__seal"
-                         :class="{'con-ma__seal--mine': it.takenBy.color === it.myColor}">
-                      <i class="con-ma__seal-cube" :class="'player_bg_color_' + it.takenBy.color" aria-hidden="true"></i>
-                      <i class="con-ma__seal-tick" aria-hidden="true">
-                        <svg viewBox="0 0 12 10"><path d="M1.6 5.4 L4.6 8.3 L10.4 1.7" /></svg>
-                      </i>
+                         :class="{'con-ma__seal--mine': it.takenBy.color === it.myColor}"
+                         data-ma-seal>
+                      <span class="con-ma__metric-label">{{ $t('Claimed') }}</span>
+                      <span class="con-ma__seal-who">
+                        <i class="con-ma__seal-cube" :class="'player_bg_color_' + it.takenBy.color" aria-hidden="true"></i>
+                        <b class="con-ma__seal-name">{{ it.takenBy.name }}</b>
+                        <i class="con-ma__seal-tick" aria-hidden="true">
+                          <svg viewBox="0 0 12 10"><path d="M1.6 5.4 L4.6 8.3 L10.4 1.7" /></svg>
+                        </i>
+                      </span>
+                      <span class="con-ma__metric-foot" aria-hidden="true"></span>
                     </div>
                     <div v-else-if="it.kind === 'milestone'" class="con-ma__metric" :class="metricClass(it)">
                       <span class="con-ma__metric-label">{{ $t('You') }}</span>
