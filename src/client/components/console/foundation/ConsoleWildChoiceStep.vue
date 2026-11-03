@@ -276,9 +276,12 @@ export default defineComponent({
     orShown(): boolean {
       return wildShown(this.spec);
     },
-    /** The slot stands with the OR (Venus) — P43's slot is the whole answer under its OR. */
+    /**
+     * The slot stands with the OR (Venus) — P43's slot is the whole answer under its OR; an exclusive step with no OR
+     * (P49's dial-bound resource) IS its slot — the radio grid alone.
+     */
     slotShown(): boolean {
-      return this.orShown;
+      return this.orShown || this.spec.exclusive;
     },
     wildChoice(): WildKind | undefined {
       return this.parts.wild?.wild;

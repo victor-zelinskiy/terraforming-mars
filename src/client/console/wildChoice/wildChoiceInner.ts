@@ -60,7 +60,8 @@ export const WILD_OPTIONS: ReadonlyArray<{key: WildKind, title: string, desc: st
  *  · `or` — the OR is asked (absent: the wild is not a question here); `onCardOff` names why «on a card» is refused
  *    (shown disabled with the reason, never hidden — invariant 2);
  *  · `holders` — the candidates of «on a card», in the server's order;
- *  · `amount(wild)` — the standard resources to lay out for an answer of the OR (0 = no grid owed);
+ *  · `amount(wild)` — the standard resources to lay out for an answer of the OR (0 = no grid owed) — a FUNCTION, so a
+ *    host may hand in a budget that MOVES (P49: the branch's amount dial — «+X» on every lane, re-read on every turn);
  *  · `exclusive` — the grid belongs to «a standard resource» ALONE (P43); otherwise the grid is always there (Venus);
  *  · `lanes` — `dial` (LB/RB/RT, A «+1 сюда» then «Подтвердить») or `radio` (budget 1: A chooses and leaves).
  */
@@ -94,9 +95,12 @@ export function wildAmount(spec: WildChoiceSpec, parts: WildParts): number {
   return spec.amount(parts.wild?.wild);
 }
 
-/** Is the grid part of the step right now? Venus: always; P43: only once the wild is «a standard resource». */
+/**
+ * Is the grid part of the step right now? Venus: always; P43: only once the wild is «a standard resource»; an exclusive
+ * step whose OR is NOT asked (P49 — the dial's resource: the branch already chose «a standard resource») — always.
+ */
 export function wildLanesShown(spec: WildChoiceSpec, parts: WildParts): boolean {
-  return spec.exclusive ? parts.wild?.wild === 'asStandard' : true;
+  return spec.exclusive && wildShown(spec) ? parts.wild?.wild === 'asStandard' : true;
 }
 
 type GridRow = {zone: WildZone, first: number, count: number};

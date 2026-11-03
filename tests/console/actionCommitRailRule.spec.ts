@@ -29,6 +29,8 @@ import {Supercomputer} from '../../src/server/cards/turmoilRedux/Supercomputer';
 import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
 import {UtopiaInvest} from '../../src/server/cards/turmoil/UtopiaInvest';
 import {fakeCard} from '../TestingUtils';
+import {FloatingTradeHub} from '../../src/server/cards/prelude2/FloatingTradeHub';
+import {wildDialPlan, withDialCommitEffects} from '../../src/client/console/wildChoice/wildChoiceComposer';
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
 import {CardName} from '../../src/common/cards/CardName';
 import {Resource} from '../../src/common/Resource';
@@ -582,5 +584,24 @@ describe('a DRAW that also pays a stock (ONE FRAMEWORK — Open IP Trade)', () =
     expect(plan?.links).deep.eq([[0]]);
     expect(plan?.reward.known, 'the chain carries the M€ row — never a known move beside it').not.to.have.property('stock:megacredits');
     expect(commitRailPlan({key: 'RESOLUTION_X'}, branch, {}, [], {resultElsewhere: true}), 'a plain draw: nothing on the rail').is.undefined;
+  });
+});
+
+describe('the action commit · a DIAL-BOUND branch (P49 Floating Trade Hub · FA)', () => {
+  it('the price leaves the hero\'s capsule FIRST (X floaters), the result (X of the chosen lane) is born AFTER it', () => {
+    const [/* game */, player] = testGame(2, {preludeExtension: true});
+    const hub = new FloatingTradeHub();
+    hub.resourceCount = 4;
+    player.playedCards.push(hub);
+    const branch = actionPreview(player, hub).branches[1];
+    const plan = wildDialPlan(branch, 1)!;
+    const captured = {[plan.resourceStep]: {type: 'resource', resource: 'plants'}};
+    const read = withDialCommitEffects(branch, plan, captured, 3, 4, () => 2);
+    const rail = commitRailPlan(CardName.FLOATING_TRADE_HUB, read, captured, [])!;
+    expect(rail.reward.cause[0]).deep.include({channel: 'card-resource', resource: 'floater', amount: 3, targetCard: CardName.FLOATING_TRADE_HUB, direction: 'loss'});
+    expect(rail.spendLinks).deep.eq([0]);
+    expect(rail.reward.cause.slice(1).some((spec) => spec.resource === 'plants' && spec.amount === 3 && spec.direction !== 'loss')).is.true;
+    // Unanswered: nothing invented.
+    expect(withDialCommitEffects(branch, plan, {}, 3, 4, () => 0)).eq(branch);
   });
 });

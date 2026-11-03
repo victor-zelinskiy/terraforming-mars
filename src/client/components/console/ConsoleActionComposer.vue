@@ -476,7 +476,7 @@
               <span class="con-composer__wildrow-print">
                 <i class="con-composer__wildrow-wild" :class="iconClass('wild')" aria-hidden="true" data-wild-row-glyph></i>
               </span>
-              <span v-if="wildAnswer === undefined" class="con-composer__wildrow-ask">{{ $t('Choose: on a card or a standard resource') }}</span>
+              <span v-if="wildAnswer === undefined" class="con-composer__wildrow-ask">{{ $t(wildDial !== undefined ? 'Choose a standard resource' : 'Choose: on a card or a standard resource') }}</span>
               <span v-else-if="wildAnswer.kind === 'standard'" class="con-composer__wildrow-answer" data-wild-row-answer="standard">
                 <i class="con-composer__wildrow-icon" :class="iconClass(wildAnswer.resource)" aria-hidden="true"></i><b>+{{ wildAnswer.amount }}</b>
               </span>
@@ -1232,7 +1232,8 @@ import ConsoleVenusBonusStep, {VenusBonusStepApi} from '@/client/components/cons
 import ConsoleWildChoiceStep from '@/client/components/console/foundation/ConsoleWildChoiceStep.vue';
 import {WildChoiceSpec, WildFocus, WildParts, wildBar, wildClamp, wildComplete, wildFootHints, wildNav, wildOpen, wildPress} from '@/client/console/wildChoice/wildChoiceInner';
 import {
-  WildBranchPlan, WildRowAnswer, wildBranchPlan, wildCandidates, wildCardPick, wildComposerSpec, wildPartsFrom, wildPosOf, wildRowAnswer,
+  WildBranchPlan, WildDialPlan, WildRowAnswer, wildBranchPlan, wildCandidates, wildCardPick, wildComposerSpec, wildDialAmount,
+  wildDialAnswer, wildDialParts, wildDialPlan, wildDialSpec, wildPartsFrom, wildPosOf, wildRowAnswer, withDialCommitEffects,
 } from '@/client/console/wildChoice/wildChoiceComposer';
 import {
   VENUS_SPREAD_LANES, VenusBonusParts, venusBonusMetaOf, venusPreselectArm, venusPreselectResponse, venusWhenHolds,
@@ -1974,15 +1975,36 @@ export default defineComponent({
     wildPlan(): WildBranchPlan | undefined {
       return wildBranchPlan(this.branches, this.positions);
     },
+    /**
+     * THE DIAL'S RESOURCE (P49 · FA): the selected branch's amount dial raises a `dialBound` resource prompt — the same
+     * inner step answers it, a radio whose budget is the dial's X. Never beside a P43 pair.
+     */
+    wildDial(): WildDialPlan | undefined {
+      return this.wildPlan === undefined ? wildDialPlan(this.selectedBranch, this.selectedPos) : undefined;
+    },
+    /** The dial's live X (its captured answer). */
+    wildDialX(): number {
+      return wildDialAmount(this.capturedOption);
+    },
     wildSpec(): WildChoiceSpec | undefined {
-      return this.wildPlan === undefined ? undefined : wildComposerSpec(this.wildPlan, this.branches);
+      if (this.wildPlan !== undefined) {
+        return wildComposerSpec(this.wildPlan, this.branches);
+      }
+      // The budget is READ at every use — the dial turns, the lanes' «+X» follow without a remount.
+      return this.wildDial === undefined ? undefined : wildDialSpec(() => this.wildDialX);
     },
     /** The step's draft READ BACK from the composer's own state (the branch + the step answers) — never a second draft. */
     wildParts(): WildParts {
-      return this.wildPlan === undefined ? {} : wildPartsFrom(this.wildPlan, this.selectedPos, this.captured);
+      if (this.wildPlan !== undefined) {
+        return wildPartsFrom(this.wildPlan, this.selectedPos, this.captured);
+      }
+      return this.wildDial === undefined ? {} : wildDialParts(this.wildDial, this.captured, this.wildDialX);
     },
     wildAnswer(): WildRowAnswer | undefined {
-      return this.wildPlan === undefined ? undefined : wildRowAnswer(this.wildPlan, this.branches, this.wildParts);
+      if (this.wildPlan !== undefined) {
+        return wildRowAnswer(this.wildPlan, this.branches, this.wildParts);
+      }
+      return this.wildDial === undefined ? undefined : wildDialAnswer(this.wildDial, this.captured, this.wildDialX);
     },
     wildCandidateModels(): ReadonlyArray<CardModel> {
       return this.wildPlan === undefined ? [] : wildCandidates(this.wildPlan, this.branches);
@@ -2050,6 +2072,11 @@ export default defineComponent({
         }
         if (wild !== undefined && c.scope === 'step' &&
             ((this.selectedPos === wild.standardPos && c.index === wild.resourceStep) || (this.selectedPos === wild.cardPos && c.index === wild.cardStep))) {
+          continue;
+        }
+        // THE DIAL'S RESOURCE (P49): the step stands as the «?» row in its own place, under the dial that budgets it.
+        if (this.wildDial !== undefined && c.scope === 'step' && c.index === this.wildDial.resourceStep) {
+          out.push({id: 'wild', kind: 'wild'});
           continue;
         }
         out.push({id: c.id, kind: 'choice', choice: c});
@@ -5427,26 +5454,28 @@ export default defineComponent({
     wildStepPress(verb: 'primary' | 'back' | 'prevSection' | 'nextSection' | 'nextTab'): void {
       const sub = this.sub;
       const plan = this.wildPlan;
+      const dial = this.wildDial;
       const spec = this.wildSpec;
-      if (sub?.kind !== 'wild' || plan === undefined || spec === undefined) {
+      if (sub?.kind !== 'wild' || (plan === undefined && dial === undefined) || spec === undefined) {
         return;
       }
       const before = this.wildParts;
       const result = wildPress(spec, before, sub.focus, verb);
       const wild = result.parts.wild;
-      if (wild !== undefined && wild.wild !== before.wild?.wild) {
+      if (plan !== undefined && wild !== undefined && wild.wild !== before.wild?.wild) {
         this.selectBranch(wildPosOf(plan, wild.wild));
       }
       const choices = this.branchChoiceList;
-      if (wild?.wild === 'onCard' && wild.card !== undefined && plan.cardStep !== undefined) {
+      if (plan !== undefined && wild?.wild === 'onCard' && wild.card !== undefined && plan.cardStep !== undefined) {
         const c = choices.find((x) => x.scope === 'step' && x.index === plan.cardStep);
         if (c !== undefined) {
           this.captureFor(c, {type: 'card', cards: [wild.card]});
         }
       }
       const unit = Object.entries(result.parts.spread ?? {}).find(([, n]) => n > 0)?.[0];
-      if (wild?.wild === 'asStandard' && unit !== undefined && plan.resourceStep !== undefined) {
-        const c = choices.find((x) => x.scope === 'step' && x.index === plan.resourceStep);
+      const resourceStep = plan !== undefined ? plan.resourceStep : dial?.resourceStep;
+      if (wild?.wild === 'asStandard' && unit !== undefined && resourceStep !== undefined) {
+        const c = choices.find((x) => x.scope === 'step' && x.index === resourceStep);
         if (c !== undefined) {
           this.captureFor(c, {type: 'resource', resource: unit});
         }
@@ -6979,7 +7008,12 @@ export default defineComponent({
       // …and a political branch's card pick IS its option (the Scientists' / Manufacturing Run's «onto a card»): the
       // commit reads it as the step it is, so the token lands on the card the row shows — never the satellite.
       const asStep = optionPickAsStep(perCardTotals(pressed, this.capturedOption), this.captured, this.capturedOption);
-      const branch = asStep.branch;
+      // A DIAL-BOUND branch (P49 · FA) prints no chips — its price and its result are the dial's X and the lane chosen:
+      // read as chips here, the price leaves the hero's capsule first and the result is born after it.
+      const dial = this.wildDial;
+      const branch = dial === undefined ? asStep.branch :
+        withDialCommitEffects(asStep.branch, dial, asStep.captured, this.wildDialX, this.heroCardModel?.resources ?? 0,
+          (resource) => this.venusStock[resource] ?? 0);
       const stepAnswers = asStep.captured;
       // BOTH read the captures: a branch whose result is chosen in a step
       // («любой стандартный ресурс») has no chips of its own, so the category

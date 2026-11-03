@@ -12,7 +12,8 @@
  */
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
-import {ActionPreviewBranch, VictoryPointsDelta} from '@/common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreviewBranch, VictoryPointsDelta} from '@/common/models/ActionPreviewModel';
+import {SelectAmountModel} from '@/common/models/PlayerInputModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {WildChoiceSpec, WildKind, WildParts} from '@/client/console/wildChoice/wildChoiceInner';
 
@@ -110,4 +111,73 @@ export function wildRowAnswer(plan: WildBranchPlan, branches: ReadonlyArray<Acti
     return {kind: 'card', card: parts.wild.card, amount: 1};
   }
   return undefined;
+}
+
+/*
+ * THE DIAL'S RESOURCE (P49 Floating Trade Hub · ledger FA): «remove X floaters here → X of ONE standard resource». The
+ * branch is chosen like any variant (its printed row); its `optionInput` is the amount DIAL, and the prompt the dial
+ * raises — a `resource` step the server marks `dialBound` — is answered in the SAME shared inner step, exclusive with no
+ * OR (the branch already said «a standard resource»): the six as a RADIO whose budget IS the dial's X («+X» on every
+ * lane, re-read when the dial turns — the spec's `amount` is a function). Structural: the dial + the marked step, never a
+ * title, never a literal «X».
+ */
+
+/** Where the dial-bound resource step stands in its branch. */
+export type WildDialPlan = {pos: number, resourceStep: number};
+
+/** The plan of a branch whose amount dial raises a dial-bound resource prompt — undefined on any other shape. */
+export function wildDialPlan(branch: ActionPreviewBranch | undefined, pos: number | undefined): WildDialPlan | undefined {
+  if (branch === undefined || pos === undefined || branch.optionInput?.type !== 'amount') {
+    return undefined;
+  }
+  const at = branch.steps.findIndex((s) => s.kind === 'input' && s.input.type === 'resource' && s.dialBound === true);
+  return at >= 0 ? {pos, resourceStep: at} : undefined;
+}
+
+/** The dial's X read off its captured answer (`{type: 'amount', amount}`) — 0 while unanswered. */
+export function wildDialAmount(captured: unknown): number {
+  const answer = captured as {type?: string, amount?: number} | undefined;
+  return answer?.type === 'amount' && typeof answer.amount === 'number' ? answer.amount : 0;
+}
+
+/** The specification: no OR, no holders, the six as a radio whose budget is the dial's live X. */
+export function wildDialSpec(amount: () => number): WildChoiceSpec {
+  return {holders: [], amount: () => amount(), exclusive: true, lanes: 'radio'};
+}
+
+/** The parts read back: always «a standard resource»; the chosen lane carries the whole X. */
+export function wildDialParts(plan: WildDialPlan, captured: Readonly<Record<number, unknown>>, amount: number): WildParts {
+  const answer = captured[plan.resourceStep] as {type?: string, resource?: string} | undefined;
+  const resource = answer?.type === 'resource' ? answer.resource : undefined;
+  return {wild: {wild: 'asStandard'}, ...(resource !== undefined && amount > 0 ? {spread: {[resource]: amount}} : {})};
+}
+
+/** The row's answer: «[растения] +X» — the X the dial says NOW, never a number fixed at the choice. */
+export function wildDialAnswer(plan: WildDialPlan, captured: Readonly<Record<number, unknown>>, amount: number): WildRowAnswer | undefined {
+  const answer = captured[plan.resourceStep] as {type?: string, resource?: string} | undefined;
+  return answer?.type === 'resource' && answer.resource !== undefined && amount > 0 ? {kind: 'standard', resource: answer.resource, amount} : undefined;
+}
+
+/**
+ * THE COMMIT'S CHIPS OF A DIAL-BOUND BRANCH (PL-099 / PL-104): the branch prints no chips (its numbers are the player's),
+ * so the commit would fly nothing and the counters would tick with no cause. At the PRESS the answer is in hand — the
+ * dial's X and the chosen resource — and the branch is read as what it does: «−X [the dial's icon] on this card» (the
+ * price, off the hero's capsule FIRST, sideways into the printed «X [floater]») and «+X [resource]» (the result, born
+ * after it on the printed «?», into its row). Pure; `here` / `stock` are the counts the chips read «current → resulting».
+ */
+export function withDialCommitEffects(
+  branch: ActionPreviewBranch, plan: WildDialPlan, captured: Readonly<Record<number, unknown>>, amount: number,
+  here: number, stock: (resource: string) => number,
+): ActionPreviewBranch {
+  const answer = captured[plan.resourceStep] as {type?: string, resource?: string} | undefined;
+  const icon = (branch.optionInput as SelectAmountModel | undefined)?.icon;
+  if (answer?.type !== 'resource' || answer.resource === undefined || icon === undefined || amount <= 0) {
+    return branch;
+  }
+  const have = stock(answer.resource);
+  const effects: Array<ActionEffect> = [
+    {direction: 'cost', icon, amount, current: here, resulting: Math.max(0, here - amount), note: 'on this card'},
+    {direction: 'gain', icon: answer.resource, amount, current: have, resulting: have + amount},
+  ];
+  return {...branch, effects: [...(branch.effects ?? []), ...effects]};
 }

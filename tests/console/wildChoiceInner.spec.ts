@@ -4,7 +4,9 @@ import {ActionPreviewBranch} from '../../src/common/models/ActionPreviewModel';
 import {
   WILD_LANES, WildChoiceSpec, WildParts, wildBar, wildComplete, wildFootHints, wildLanesShown, wildNav, wildOpen, wildPress,
 } from '../../src/client/console/wildChoice/wildChoiceInner';
-import {wildBranchPlan, wildComposerSpec, wildPartsFrom, wildRowAnswer} from '../../src/client/console/wildChoice/wildChoiceComposer';
+import {
+  wildBranchPlan, wildComposerSpec, wildDialAmount, wildDialAnswer, wildDialParts, wildDialPlan, wildDialSpec, wildPartsFrom, wildRowAnswer,
+} from '../../src/client/console/wildChoice/wildChoiceComposer';
 
 const BLOCK = {chooseWild: 'w', chooseCard: 'c'};
 
@@ -116,5 +118,42 @@ describe('wildChoiceComposer · the composer reads the step off its own state', 
     expect(wildRowAnswer(plan, branches, std)).deep.eq({kind: 'standard', resource: 'steel', amount: 1});
     const card = wildPartsFrom(plan, 1, {0: {type: 'card', cards: [CardName.BIRDS]}});
     expect(wildRowAnswer(plan, branches, card)).deep.eq({kind: 'card', card: CardName.BIRDS, amount: 1});
+  });
+});
+
+describe('wildChoiceComposer · the DIAL\'S resource (P49 · FA)', () => {
+  const dialBranch = {
+    index: 1, title: 'remove', available: true, renderKeys: [], effects: [],
+    optionInput: {title: 't', buttonLabel: 'b', type: 'amount', min: 1, max: 4, maxByDefault: true},
+    steps: [{kind: 'input', input: {title: 't', buttonLabel: 'b', type: 'resource', include: WILD_LANES, amount: 4}, dialBound: true}],
+  } as unknown as ActionPreviewBranch;
+
+  it('the plan reads the dial + the MARKED resource step — never an unmarked one, never a branch without a dial', () => {
+    expect(wildDialPlan(dialBranch, 1)).deep.eq({pos: 1, resourceStep: 0});
+    const unmarked = {...dialBranch, steps: [{...dialBranch.steps[0], dialBound: undefined}]} as unknown as ActionPreviewBranch;
+    expect(wildDialPlan(unmarked, 1)).is.undefined;
+    expect(wildDialPlan({...dialBranch, optionInput: undefined}, 1)).is.undefined;
+  });
+
+  it('the dial\'s X RE-PRICES every lane: no OR, the radio grid at once, «+X» read live', () => {
+    let x = 4;
+    const spec = wildDialSpec(() => x);
+    expect(wildOpen(spec, {wild: {wild: 'asStandard'}})).deep.eq({zone: 'lane', index: 0});
+    expect(wildLanesShown(spec, {})).is.true;
+    const chose = wildPress(spec, {wild: {wild: 'asStandard'}}, {zone: 'lane', index: 3}, 'primary');
+    expect(chose.exit).eq('confirm');
+    expect(chose.parts.spread).deep.eq({[WILD_LANES[3]]: 4});
+    x = 3;
+    expect(spec.amount('asStandard')).eq(3);
+  });
+
+  it('the parts and the row answer follow the dial — X is never fixed at 1 or at the choice', () => {
+    const plan = wildDialPlan(dialBranch, 1)!;
+    const captured = {0: {type: 'resource', resource: 'plants'}};
+    expect(wildDialAmount({type: 'amount', amount: 3})).eq(3);
+    expect(wildDialParts(plan, captured, 3)).deep.eq({wild: {wild: 'asStandard'}, spread: {plants: 3}});
+    expect(wildComplete(wildDialSpec(() => 3), wildDialParts(plan, captured, 3))).is.true;
+    expect(wildDialAnswer(plan, captured, 2)).deep.eq({kind: 'standard', resource: 'plants', amount: 2});
+    expect(wildDialAnswer(plan, {}, 2)).is.undefined;
   });
 });
