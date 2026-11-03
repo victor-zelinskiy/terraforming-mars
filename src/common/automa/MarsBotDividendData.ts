@@ -199,6 +199,9 @@ const DIVIDENDS: Readonly<Record<MarsBotCorpId, MarsBotDividendInfo>> = {
   [MarsBotCorpId.CF2_VEYNON_DYNAMICS]: dividendBox('Freight Contracts', {each: 2}, (r) => [
     {text: '${0} VP per colony trade MarsBot made', params: [r.each]},
   ], dividendGoal('Earth runs', 'Earth tags in MarsBot\'s played pile', 6, 8, 10)),
+  [MarsBotCorpId.CF3_POLDERTECH_DUTCH]: dividendBox('Dikes', {each: 6}, (r) => [
+    {text: '${0} VP per MarsBot greenery next to an ocean', params: [r.each]},
+  ], dividendGoal('Earthworks', 'Building tags in MarsBot\'s played pile', 12, 14, 17)),
 };
 
 export function marsBotDividendInfo(id: MarsBotCorpId): MarsBotDividendInfo {

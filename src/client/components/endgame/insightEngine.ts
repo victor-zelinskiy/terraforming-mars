@@ -3276,6 +3276,18 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 14,
         });
       }
+    } else if (corp.id === 'CF3') {
+      // PolderTECH Dutch (the fork's own card): what the table SAW is green land where the sea was meant to be.
+      const polders = stat('polders');
+      if (polders >= 2) {
+        stories.push({
+          key: 'effect',
+          textKey: 'Land was won from the sea at ${0}\'s ${1}: ${2} polders rose where oceans were meant to be.',
+          params: [raw(p.name), raw(corp.name), raw(polders)],
+          measure: polders,
+          scale: 3,
+        });
+      }
     } else if (corp.id === 'CF2') {
       // Veynon Dynamics (the fork's own card): what the table SAW is a bot with more ships than anyone — the hulls
       // its mechs assembled, and the trades they made. One hull is the setup's shape; two or more is the shipyard.

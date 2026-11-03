@@ -695,6 +695,19 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(face.find('.pcard__res').exists(), 'the mech store').is.true;
   });
 
+  it('PolderTECH Dutch (CF3, the fork\'s own card) prints its polders, never the human energy or M€ start', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.CF3_POLDERTECH_DUTCH);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'its own card').contains('Inpoldering');
+    expect(text, 'the dikes\' price').contains('10 M€');
+    // The human PolderTECH Dutch starts with 35 M€ and energy production — none of that.
+    expect(text).not.contains('35');
+    expect(text).not.match(/energy/i);
+    const face = mountFace(MarsBotCorpId.CF3_POLDERTECH_DUTCH);
+    expect(face.findAll('.pcard__tags .pcard-tag'), 'Earth').has.length(1);
+  });
+
   it('Ferrus Academy (CF1, the fork\'s own card) prints its Campus, never the human data or card choice', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.CF1_FERRUS_ACADEMY);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Before action phase']);

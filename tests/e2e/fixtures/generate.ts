@@ -333,6 +333,7 @@ import {AutomaCorporations} from '../../../src/server/automa/corps/AutomaCorpora
 import {Phase} from '../../../src/common/Phase';
 import {IPlayer} from '../../../src/server/IPlayer';
 import {AutomaState} from '../../../src/server/automa/AutomaState';
+import {resolveBonusCard, routeBonusCard} from '../../../src/server/automa/AutomaBonusCards';
 import {lobbyingTrigger} from '../../../src/server/automa/LobbyMandate';
 import {botQuestReachable} from '../../../src/common/parliament/botQuestPath';
 import {botQuestTableOf} from '../../../src/server/automa/BotQuestEvents';
@@ -13290,3 +13291,29 @@ boardOfDirectorsFixture('board-of-directors-last', {megacredits: 40, directors: 
 boardOfDirectorsFixture('board-of-directors-empty', {megacredits: 40, empty: true});
 // PL-1563: the last director spent in an EARLIER generation — the action unused this one, refused «0 of 1 director».
 boardOfDirectorsFixture('board-of-directors-spent', {megacredits: 40, directors: 0});
+
+// ── bot-polder: CF3 PolderTECH Dutch (the fork's own bot card, «the Polder») with TWO polders won from the sea — bot
+//    greeneries standing on spaces reserved for oceans (docs/AUTOMA_DATA_AUDIT.md §20). Blue on the move; the board
+//    is the subject: a greenery on a blue cell must read as land won from the water. ──
+{
+  const name = 'bot-polder';
+  const [game, human] = testAutomaGame({corporation: MarsBotCorpId.CF3_POLDERTECH_DUTCH, keepInitialCardSelection: true});
+  answerStartFlow(game, [human]);
+  const automa = game.automa;
+  const bot = game.players.find((p) => p.isMarsBot);
+  if (automa === undefined || bot === undefined || automa.corporation !== MarsBotCorpId.CF3_POLDERTECH_DUTCH) {
+    throw new Error(`${name}: expected PolderTECH Dutch seated`);
+  }
+  for (let i = 0; i < 2; i++) {
+    bot.megaCredits = 30;
+    routeBonusCard(game, BonusCardId.BC3_INPOLDERING, resolveBonusCard(game, BonusCardId.BC3_INPOLDERING));
+    runAllActions(game);
+  }
+  if ((automa.corpStats.polders ?? 0) !== 2) {
+    throw new Error(`${name}: expected two polders, got ${automa.corpStats.polders}`);
+  }
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id) {
+    throw new Error(`${name}: expected blue on the move — got phase=${game.phase} active=${game.activePlayer.color}`);
+  }
+  write(name, game);
+}

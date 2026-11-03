@@ -533,6 +533,19 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.tag(Tag.POWER).startEffect.cards(1).asterix();
       });
     });
+  case MarsBotCorpId.CF3_POLDERTECH_DUTCH:
+    return CardRenderer.builder((b) => {
+      // SETUP: the human card's own first-action shape — an ocean and a greenery beside it.
+      b.oceans(1).greenery().asterix();
+      // EFFECT: wind and land — an ocean or a greenery of the bot pays it 1 M€ (the human card's energy / plant).
+      b.effect(undefined, (eb) => {
+        eb.oceans(1).slash().greenery().startEffect.megacredits(1);
+      });
+      // BEFORE ACTION PHASE: Inpoldering — the dikes' 10 M€ become a greenery won from an ocean space.
+      b.action(undefined, (eb) => {
+        eb.megacredits(10).startAction.greenery().asterix();
+      });
+    });
   case MarsBotCorpId.CF2_VEYNON_DYNAMICS:
     return CardRenderer.builder((b) => {
       // EFFECT: the outer system's haulers — Jovian and space tags — put a mech here (the human card's mech square).

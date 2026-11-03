@@ -175,6 +175,8 @@ export enum MarsBotCorpId {
   CF1_FERRUS_ACADEMY = 'CF1',
   // CF2 — Veynon Dynamics (TR85), «Mechs in the Hold», 2026-11-03.
   CF2_VEYNON_DYNAMICS = 'CF2',
+  // CF3 — PolderTECH Dutch (X-3), «the Polder», 2026-11-03.
+  CF3_POLDERTECH_DUTCH = 'CF3',
 }
 
 /** The implemented set, in official card-number order. */
@@ -227,6 +229,7 @@ export const MARS_BOT_CORP_IDS: ReadonlyArray<MarsBotCorpId> = [
   MarsBotCorpId.C46_TYCHO_MAGNETICS,
   MarsBotCorpId.CF1_FERRUS_ACADEMY,
   MarsBotCorpId.CF2_VEYNON_DYNAMICS,
+  MarsBotCorpId.CF3_POLDERTECH_DUTCH,
 ];
 
 /**
@@ -299,6 +302,8 @@ export enum BonusCardId {
   BC1_FIELD_PRACTICE = 'BC1',
   // CF2 Veynon Dynamics' third fleet's voyage.
   BC2_VEYNON_RUN = 'BC2',
+  // CF3 PolderTECH Dutch's land reclamation — burnt after its third polder.
+  BC3_INPOLDERING = 'BC3',
 }
 
 /** The set of bonus cards used in the base game (no expansions). */

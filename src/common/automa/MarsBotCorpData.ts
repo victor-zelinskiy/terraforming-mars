@@ -1373,6 +1373,28 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.CF3_POLDERTECH_DUTCH]: {
+    id: MarsBotCorpId.CF3_POLDERTECH_DUTCH,
+    // THE FORK'S OWN BOT CARD (the owner, 2026-11-03) for the promo corporation X-3 — «the Polder»
+    // (docs/AUTOMA_DATA_AUDIT.md §20): land won from the sea — greeneries on the spaces reserved for oceans.
+    cardNumber: 'CF3',
+    original: CardName.POLDERTECH_DUTCH,
+    // The human card's corner — Earth.
+    startingTags: [Tag.EARTH],
+    corpBonusCards: [BonusCardId.BC3_INPOLDERING],
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'ocean', text: 'MarsBot places an ocean and a greenery next to it, ignoring the greenery placement rules'},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'Wind and land: each ocean and each greenery MarsBot places pays it ${0} M€', params: ['1']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'deck', text: 'Add Inpoldering to MarsBot\'s action deck'},
+        {icon: 'greenery', text: 'Inpoldering pays ${0} M€ for the dikes, drains a space reserved for an ocean and places a greenery there — destroyed after its third polder', params: ['10'], muted: true},
+      ]},
+    ],
+  },
 };
 
 export function marsBotCorpInfo(id: MarsBotCorpId): MarsBotCorpInfo {
@@ -1454,6 +1476,9 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           over — TR is one per conversion) and pristarMc (the M€ they
  *           paid), plus pristarSkipped<Parameter> per parameter, so the
  *           finale can name WHICH of the four stood still.
+ * PolderTECH Dutch (CF3): polders (greeneries won from ocean spaces — BC3 burns at 3), polderSetupGreeneries,
+ *           polderWindMc / polderLandMc (the M€ its oceans / greeneries paid), polderDikeMc (BC3's price paid),
+ *           inpolderingPlayed.
  * Veynon Dynamics (CF2): veynonMechs (mechs its Jovian / space tags put on the card), veynonFleets (trade fleets
  *           its mechs assembled), veynonRuns (BC2 Veynon Run resolved), veynonCargo (trades a spare mech carried
  *           cargo on), veynonTrades (every colony trade it made under this corporation).

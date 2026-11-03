@@ -139,6 +139,10 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     name: 'Veynon Run',
     text: 'Veynon Dynamics: the third trade fleet sails to the colony whose storage area is closest to its next exchange (the most-advanced track breaking ties) and trades there. Recurs into the action deck every generation.',
   },
+  [BonusCardId.BC3_INPOLDERING]: {
+    name: 'Inpoldering',
+    text: 'PolderTECH Dutch: MarsBot pays 10 M€ for the dikes, if able, then drains a space reserved for an ocean — never one the remaining oceans need — and places a greenery there; with nothing to drain it places an ocean. Recurs every generation; destroyed after its third polder.',
+  },
 };
 
 export function bonusCardInfo(id: BonusCardId): BonusCardInfo {
@@ -520,6 +524,18 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {text: 'Ties: the most-advanced track, then a colony of its own, then the flip — as Shipping Lines', muted: true},
       ],
       fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
+    };
+  case BonusCardId.BC3_INPOLDERING:
+    // CF3 PolderTECH Dutch's own card (the fork's design, docs/AUTOMA_DATA_AUDIT.md §20): land won from the sea.
+    return {
+      name,
+      lines: [
+        {icon: 'megacredits', text: 'MarsBot pays ${0} M€ for the dikes, if able — otherwise nothing happens', params: ['10']},
+        {icon: 'greenery', text: 'MarsBot drains a space reserved for an ocean and places a greenery there — a polder'},
+        {text: 'Beside its own tiles if it can; never a space the remaining oceans need', muted: true},
+        {icon: 'ocean', text: 'Nothing to drain: MarsBot places an ocean instead'},
+      ],
+      fate: {kind: 'conditional', text: 'Returns to the action deck every generation — destroyed after the third polder'},
     };
   case BonusCardId.B25_DO_IT_RIGHT:
     // Inventrix's corporation-specific card (official B25): Lobbyists' own

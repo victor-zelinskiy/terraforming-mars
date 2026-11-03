@@ -290,5 +290,10 @@
     "${0} VP per colony trade MarsBot made": "${0} ПО за каждую торговлю MarsBot с колониями",
     "Earth runs": "Земные рейсы",
     "Earth tags in MarsBot's played pile": "метки Земли",
-    "Colony trades of MarsBot": "Торговли MarsBot с колониями"
+    "Colony trades of MarsBot": "Торговли MarsBot с колониями",
+    "Dikes": "Дамбы",
+    "${0} VP per MarsBot greenery next to an ocean": "${0} ПО за каждое озеленение MarsBot рядом с океаном",
+    "Earthworks": "Земляные работы",
+    "Building tags in MarsBot's played pile": "метки строительства",
+    "MarsBot greeneries next to an ocean": "Озеленения MarsBot рядом с океаном"
 }
