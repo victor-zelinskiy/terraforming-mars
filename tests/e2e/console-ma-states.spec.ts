@@ -132,19 +132,20 @@ async function waitQuiet(page: Page, quietMs = 1600, maxMs = 16_000): Promise<vo
   }
 }
 
-/** The rendered card list: name + state classes, in grid order. */
+/** The ACTIVE column's rows (FB — one screen, two columns: the cursor's column), name + state classes, top to bottom. */
+const ACTIVE_ROWS = '.con-ma__col--active .con-ma__card';
 async function cardStates(page: Page): Promise<Array<{name: string, go: boolean, taken: boolean, focused: boolean}>> {
-  return page.evaluate(() => {
-    return Array.from(document.querySelectorAll('.con-ma__card')).map((c) => ({
+  return page.evaluate((sel) => {
+    return Array.from(document.querySelectorAll(sel)).map((c) => ({
       name: (c.querySelector('.con-ma__name')?.textContent ?? '').trim(),
       go: c.classList.contains('con-ma__card--go'),
       taken: c.classList.contains('con-ma__card--taken'),
       focused: c.classList.contains('con-ma__card--focused'),
     }));
-  });
+  }, ACTIVE_ROWS);
 }
 
-/** Walk the 2-column grid focus onto the card at `target` index. */
+/** Walk the active column's focus onto the row at `target` (↑↓ — a column is one row wide). */
 async function focusCardAt(page: Page, target: number): Promise<void> {
   for (let hop = 0; hop < 12; hop++) {
     const states = await cardStates(page);
@@ -152,13 +153,7 @@ async function focusCardAt(page: Page, target: number): Promise<void> {
     if (cur === target || cur < 0) {
       return;
     }
-    const curRow = Math.floor(cur / 2);
-    const tgtRow = Math.floor(target / 2);
-    if (curRow !== tgtRow) {
-      await press(page, curRow < tgtRow ? 'ArrowDown' : 'ArrowUp', 320);
-    } else {
-      await press(page, cur % 2 < target % 2 ? 'ArrowRight' : 'ArrowLeft', 320);
-    }
+    await press(page, cur < target ? 'ArrowDown' : 'ArrowUp', 320);
   }
 }
 
@@ -190,7 +185,12 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     await press(page, 'KeyQ', 1500);
     await page.waitForSelector('.con-ma', {timeout: 8_000});
     await shoot(page, '10-milestones-fresh');
-    await press(page, 'KeyE', 1500); // LB/RB round trip (scenario 8)
+    // ONE SCREEN (FB): both columns stand at once, and no row spans the width.
+    expect(await page.locator('.con-ma__col').count(), 'milestones and awards on one screen').toBe(2);
+    expect(await page.locator('.con-ma__card').evaluateAll((els) => els.filter((el) => getComputedStyle(el).gridColumnEnd.includes('span')).length),
+      'no row spans both columns').toBe(0);
+    await press(page, 'KeyE', 1500); // RB → the cursor jumps to the awards column (scenario 8)
+    expect(await page.locator('.con-ma__col--active[data-ma-column="awards"]').count(), 'RB jumps to the awards column').toBe(1);
     await shoot(page, '11-awards-fresh');
     await press(page, 'KeyQ', 1200);
     await press(page, 'Escape', 1200);
@@ -220,13 +220,13 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     await focusCardAt(page, awayIdx);
     const goCard = page.locator('.con-ma__card--go:not(.con-ma__card--focused)');
     expect(await goCard.count(), 'the available tile is not the focused one').toBe(1);
-    expect(await goCard.locator('.con-ma__actring').evaluate((el) => Number(getComputedStyle(el).opacity)),
-      'the gold-white activation rim burns without focus').toBeGreaterThan(0.9);
-    expect(await goCard.evaluate((el) => Number(getComputedStyle(el, '::before').opacity)),
-      'the shelf light burns without focus').toBeGreaterThan(0.9);
-    expect(await page.locator('.con-ma__card--focused:not(.con-ma__card--go)')
-      .evaluate((el) => Number(getComputedStyle(el, '::before').opacity)),
-    'focus alone lights no shelf — the two layers stay apart').toBeLessThan(0.1);
+    // MATERIAL, NEVER LIGHT (FB): «available» is the row's own mint KANT (an inset ring) + the word — no rim, no
+    // shelf, no pooled pedestal; the cursor's ring is a separate layer that is dark here.
+    expect(await goCard.evaluate((el) => getComputedStyle(el).boxShadow), 'the available row wears an INSET kant')
+      .toMatch(/inset/);
+    expect(await goCard.evaluate((el) => Number(getComputedStyle(el, '::after').opacity)),
+      'no cursor ring on an unfocused row — availability never borrows the focus channel').toBeLessThan(0.1);
+    expect(await page.locator('.con-ma__name').first().evaluate((el) => getComputedStyle(el).textShadow), 'no glowing name').toBe('none');
     expect((await goCard.locator('.con-ma__avail').innerText()).trim().length,
       'the «ДОСТУПНО» word stands without focus').toBeGreaterThan(0);
     await expect.poll(() => barText(page), {message: 'a non-actionable focus advertises the reading verb', timeout: 10_000})
@@ -238,12 +238,12 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     await focusCardAt(page, goIdx);
     const goFocused = page.locator('.con-ma__card--go.con-ma__card--focused');
     expect(await goFocused.count(), 'focus and availability share one tile').toBe(1);
-    expect(await goFocused.locator('.con-ma__actring').evaluate((el) => Number(getComputedStyle(el).opacity)),
-      'focus must not eat the availability light').toBeGreaterThan(0.9);
-    expect(await goFocused.evaluate((el) => Number(getComputedStyle(el, '::before').opacity)),
-      'focus must not eat the shelf light either').toBeGreaterThan(0.9);
-    expect(await goFocused.evaluate((el) => getComputedStyle(el).boxShadow !== 'none'),
-      'the cyan focus ring stands beside the state').toBeTruthy();
+    expect(await goFocused.evaluate((el) => getComputedStyle(el).boxShadow), 'focus must not eat the availability kant')
+      .toMatch(/inset/);
+    // THE CURSOR (`.con-cursor()`): the ring is the row's own layer, lit — an inset ring, never a blurred halo.
+    await expect.poll(() => goFocused.evaluate((el) => Number(getComputedStyle(el, '::after').opacity)),
+      {message: 'the cursor ring stands beside the state', timeout: 5_000}).toBeGreaterThan(0.9);
+    expect(await goFocused.evaluate((el) => getComputedStyle(el, '::after').boxShadow), 'the ring is an inset kant').toMatch(/inset/);
     await expect.poll(() => barText(page), {message: 'an available milestone advertises the intent verb', timeout: 10_000})
       .toContain('ЗАЯВИТЬ');
     await shoot(page, '21-milestones-avail-focused');
@@ -251,10 +251,10 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     // Mouse parity (the console shell IS the desktop shell): a click focuses
     // a tile, a second click on the focused tile descends — the controller's
     // own two-step, through the same doors.
-    await page.locator('.con-ma__card').nth(awayIdx).click();
+    await page.locator(ACTIVE_ROWS).nth(awayIdx).click();
     await page.waitForTimeout(400);
     expect((await cardStates(page))[awayIdx]?.focused, 'a click focuses the tile').toBe(true);
-    await page.locator('.con-ma__card').nth(awayIdx).click();
+    await page.locator(ACTIVE_ROWS).nth(awayIdx).click();
     await page.waitForTimeout(1200);
     expect(await page.locator('.con-mafocus').count(), 'a click on the focused tile descends').toBe(1);
     await press(page, 'Escape', 1200);
@@ -262,16 +262,16 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
 
     // ── 5 · the AWARDS race states (funded + leadership; scenario 6/7) ─────
     await press(page, 'KeyE', 1500);
-    // The sibling identity: the awards root carries its own kind scope, and
+    // The sibling identity: the awards COLUMN carries its own kind scope, and
     // every award tile speaks the RACE cassette, never the milestone metric.
-    expect(await page.locator('.con-ma.con-ma--awards').count(), 'the awards identity scope').toBe(1);
-    const awardTiles = await page.locator('.con-ma__card').count();
-    expect(await page.locator('.con-ma__card .con-ma__race').count(),
+    expect(await page.locator('.con-ma.con-ma--awards').count(), 'the cursor stands in the awards column').toBe(1);
+    const awardTiles = await page.locator('[data-ma-column="awards"] .con-ma__card').count();
+    expect(await page.locator('[data-ma-column="awards"] .con-ma__card .con-ma__race').count(),
       'every award tile carries the race cassette').toBe(awardTiles);
-    expect(await page.locator('.con-ma__card .con-ma__metric').count(),
+    expect(await page.locator('[data-ma-column="awards"] .con-ma__card .con-ma__metric').count(),
       'no award tile carries the milestone metric').toBe(0);
     // A live race is CROWNED (lead / tie / behind all render the leader tier).
-    const liveRaces = await page.locator('.con-ma__race--lead, .con-ma__race--tie, .con-ma__race--behind').count();
+    const liveRaces = await page.locator('[data-ma-column="awards"] :is(.con-ma__race--lead, .con-ma__race--tie, .con-ma__race--behind)').count();
     expect(await page.locator('.con-ma__crown').count(),
       'every live race wears the crown on its leader tier').toBe(liveRaces);
     // The funded award mounts the sponsor's cube in the emblem socket.
@@ -291,17 +291,22 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     }
     console.log('[ma-states] funded award:', funded, JSON.stringify(awardStates));
 
-    // CONTINUITY (awards door): the detail surface carries the podium
-    // ATMOSPHERE the whole screen stands in — the warm tile must open into
-    // a warm stage, never into the cool-blue axis (the shipped break).
+    // CONTINUITY (awards door): the detail surface carries the awards column's
+    // warm MATERIAL (a dark warm ground — no key light) — the warm tile opens
+    // into a warm stage, never into the cool-blue axis (the shipped break).
     const anyAwardIdx = awardStates.findIndex((s) => !s.taken);
     if (anyAwardIdx >= 0) {
       await focusCardAt(page, anyAwardIdx);
       await press(page, 'Enter', 1500);
       await page.waitForSelector('.con-mafocus--award', {timeout: 6_000});
       expect(await page.locator('.con-mafocus__surface').evaluate(
-        (el) => getComputedStyle(el).backgroundImage.includes('255, 205, 120')),
-      'the award detail surface stands in the warm podium atmosphere').toBe(true);
+        (el) => getComputedStyle(el).backgroundImage.includes('26, 23, 18')),
+      'the award detail surface stands on the warm material').toBe(true);
+      expect(await page.locator('.con-mafocus__surface').evaluate((el) => getComputedStyle(el).backgroundImage.includes('radial-gradient')),
+        'no light pool on the detail surface').toBe(false);
+      // THE RIGHT COLUMN IS FULL (FB): the three plates in every mode — the race plate always.
+      expect(await page.locator('[data-ma-plate]').count(), 'condition · what it gives · the race').toBe(3);
+      expect(await page.locator('[data-ma-ladder]').count(), 'the sponsorship ladder').toBe(1);
       await shoot(page, '32-awards-detail-atmosphere');
       await press(page, 'Escape', 1300);
     }
@@ -314,12 +319,11 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
       await focusCardAt(page, blockedIdx);
       await press(page, 'Enter', 1500);
       await page.waitForSelector('.con-mafocus', {timeout: 6_000});
-      // A blocked milestone descends COOL → COOL: no activation material.
-      expect(await page.locator('.con-mafocus--go').count(),
-        'a blocked milestone never warms the stage').toBe(0);
-      expect(await page.locator('.con-mafocus__surface').evaluate(
-        (el) => Number(getComputedStyle(el, '::before').opacity)),
-      'the activation layer stays dark on a blocked item').toBeLessThan(0.1);
+      // A blocked milestone: no offered kant, a NAMED reason on the rail (never «Сейчас недоступно»), three plates.
+      expect(await page.locator('.con-mafocus--go, .con-mafocus--avail').count(),
+        'a blocked milestone is not offered').toBe(0);
+      expect(await page.locator('[data-ma-plate]').count(), 'the right column is full on a blocked item').toBe(3);
+      expect(await page.locator('.con-mafocus__decision').innerText(), 'the reason is named').not.toMatch(/Сейчас недоступно/i);
       await shoot(page, '40-detail-blocked');
       await press(page, 'Escape', 1300);
     }
@@ -328,21 +332,13 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     await focusCardAt(page, claimIdx);
     await press(page, 'Enter', 1500);
     await page.waitForSelector('.con-mafocus', {timeout: 6_000});
-    // CONTINUITY (the core criterion): the lit tile OPENS into a lit stage —
-    // the activation material rides the surface, the carried pedestal (the
-    // FLIP twin must match the tile's warm pedestal from frame 0) and the
-    // decision band's shelf light; the badge answers in the same gold-white.
-    expect(await page.locator('.con-mafocus--go').count(),
-      'the offered milestone carries the activation material into the stage').toBe(1);
-    expect(await page.locator('.con-mafocus__surface').evaluate(
-      (el) => Number(getComputedStyle(el, '::before').opacity)),
-    'the warm ground burns on the opened surface').toBeGreaterThan(0.9);
-    expect(await page.locator('.con-mafocus__stage').evaluate(
-      (el) => Number(getComputedStyle(el, '::before').opacity)),
-    'the carried pedestal lands on the same warm material').toBeGreaterThan(0.9);
-    expect(await page.locator('.con-mafocus__decision').evaluate(
-      (el) => Number(getComputedStyle(el, '::before').opacity)),
-    'the stage stands on the shelf light').toBeGreaterThan(0.9);
+    // CONTINUITY (the core criterion): the kanted row OPENS into a kanted stage — the offered milestone's pedestal
+    // wears the row's mint kant (an inset ring), and nothing on the stage is light (FB).
+    expect(await page.locator('.con-mafocus--avail').count(),
+      'the offered milestone carries its kant into the stage').toBe(1);
+    expect(await page.locator('.con-mafocus__stage').evaluate((el) => getComputedStyle(el).boxShadow), 'the pedestal kant')
+      .toMatch(/inset/);
+    expect(await page.locator('.con-mafocus__name').evaluate((el) => getComputedStyle(el).textShadow), 'no glowing name').toBe('none');
     await shoot(page, '41-detail-available');
 
     await page.keyboard.press('Enter'); // the commit (past the 400ms ARM)
@@ -351,11 +347,9 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
 
     // The ceremony is GSAP-driven: pump BeginFrame while it plays.
     await page.waitForSelector('.con-mafocus__cere', {timeout: 15_000});
-    // The activation material is LATCHED past the commit: the coronation
-    // plays on the warm stage — a surface that cooled at the press was the
-    // shipped «scene swap» read.
+    // The commit latch (`--go`) holds through the ceremony — the ceremony's own light is its licence.
     expect(await page.locator('.con-mafocus--go').count(),
-      'the warm material holds through the ceremony').toBe(1);
+      'the commit latch holds through the ceremony').toBe(1);
     await shoot(page, '43-ceremony');
     for (let i = 0; i < 60 && await page.locator('.con-ma').count() > 0; i++) {
       await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
@@ -380,6 +374,10 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     await focusCardAt(page, mineIdx);
     await press(page, 'Enter', 1500);
     if (await page.locator('.con-mafocus').count() > 0) {
+      // A TAKEN item reads history: the race plate keeps the field (its history row first), and the bar offers no
+      // dimmed «Заявить» (FB).
+      expect(await page.locator('[data-ma-history]').count(), 'the history row of the claim').toBe(1);
+      await expect.poll(() => barText(page), {message: 'no claim verb on a taken item', timeout: 10_000}).not.toContain('ЗАЯВИТЬ');
       await shoot(page, '51-detail-taken-mine');
       await press(page, 'Escape', 1000);
     }

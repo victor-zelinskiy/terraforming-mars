@@ -286,7 +286,7 @@ test.describe('console strategy rail — FHD', () => {
     await press(page, 'Escape', 1100);
     await expect(page.locator('.con-ma')).toHaveCount(0);
 
-    await press(page, 'KeyE', 1100); // RB → awards workspace
+    await press(page, 'KeyE', 1100); // RB → the MA screen, the cursor in the awards column
     await expect(page.locator('.con-ma')).toBeVisible();
     await press(page, 'Escape', 1100);
 

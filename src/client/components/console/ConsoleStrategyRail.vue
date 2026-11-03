@@ -148,7 +148,7 @@
           </span>
 
           <!-- MILESTONES, taken: the OWNER SEAL — one calm horizontal line
-               «cube · ВЗЯТО · ✓»: the CUBE answers who (the only owner
+               «cube · ПОЛУЧЕНО · ✓» (one glossary with the workspace — FB): the CUBE answers who (the only owner
                marker on the row — the emblem stays clean), the neutral tick
                answers done, the thin gold hairline fixes it. Deliberately
                QUIETER than a live claimable row: a settled trophy, never
@@ -159,7 +159,7 @@
                 :class="{'con-strat__ownseal--mine': row.takenColor === viewerColor}">
             <i class="con-strat__ownseal-cube"
                :class="'player_bg_color_' + row.takenColor" aria-hidden="true"></i>
-            <span class="con-strat__ownseal-word">{{ $t('Taken') }}</span>
+            <span class="con-strat__ownseal-word">{{ $t('Claimed') }}</span>
             <i class="con-strat__ownseal-tick" aria-hidden="true">✓</i>
           </span>
 

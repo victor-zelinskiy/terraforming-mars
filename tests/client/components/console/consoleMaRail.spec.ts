@@ -106,13 +106,11 @@ describe('consoleMaRail', () => {
     expect(rail.messageParams).to.deep.eq(['5']);
   });
 
-  it('a taken item states its owner and projects nothing', () => {
+  it('a taken item projects nothing and REPEATS nothing (the row and the badge already name the owner — FB)', () => {
     const rail = buildMaRail(input({
       item: item({available: false, takenBy: {color: rival, name: 'Бот'}}),
     }));
-    expect(rail).to.deep.include({tone: 'owner', message: 'Funded by ${0}'});
-    expect(rail.messageParams).to.deep.eq(['Бот']);
-    expect(rail.chips.length).to.eq(0);
+    expect(rail).to.deep.eq({tone: 'owner', chips: [], message: ''});
   });
 
   it('an own claimed milestone reads the same way (the race is over either way)', () => {
@@ -121,7 +119,16 @@ describe('consoleMaRail', () => {
       item: item({kind: 'milestone', available: false, takenBy: {color: me, name: 'Вы'}}),
     }));
     expect(rail.tone).to.eq('owner');
-    expect(rail.message).to.eq('Claimed by ${0}');
+    expect(rail.message).to.eq('');
+  });
+
+  it('NEVER the generic «Сейчас недоступно» (FB): a condition milestone not met names the condition', () => {
+    const rail = buildMaRail(input({
+      kind: 'milestones',
+      item: item({kind: 'milestone', available: false, threshold: undefined, myReady: false, blocker: ''}),
+    }));
+    expect(rail).to.deep.include({tone: 'blocked', message: 'Condition not met'});
+    expect(JSON.stringify(rail)).not.to.include('Unavailable right now');
   });
 
   it('no focused item → an empty, silent rail (the line still reserves its height)', () => {

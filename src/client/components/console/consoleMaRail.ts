@@ -86,14 +86,10 @@ export function buildMaRail(input: MaRailInput): MaRailView {
   if (item === undefined) {
     return EMPTY;
   }
-  // TAKEN — the race is over for this one. Who owns it is the whole message.
+  // TAKEN — the race is over for this one. The row (its owner line) and the detail's badge and history row already
+  // name who: the rail repeats none of it (a status line never repeats the face above it — FB).
   if (item.takenBy !== undefined) {
-    return {
-      tone: 'owner',
-      chips: [],
-      message: item.kind === 'milestone' ? 'Claimed by ${0}' : 'Funded by ${0}',
-      messageParams: [item.takenBy.name],
-    };
+    return {tone: 'owner', chips: [], message: ''};
   }
   if (item.available) {
     const money = moneyChip(input);
@@ -132,10 +128,16 @@ export function buildMaRail(input: MaRailInput): MaRailView {
       messageParams: [String(Math.max(0, item.threshold - item.myScore))],
     };
   }
+  // A CONDITION milestone not met: the condition itself is the reason (the plate above prints it) — never the generic
+  // «Сейчас недоступно» the model's contract forbids.
+  if (item.blocker === '' && item.kind === 'milestone' && !item.myReady) {
+    return {tone: 'blocked', chips: [], message: 'Condition not met'};
+  }
   return {
     tone: 'blocked',
     chips: [],
-    message: item.blocker !== '' ? item.blocker : 'Unavailable right now',
+    message: item.blocker !== '' ? item.blocker :
+      item.kind === 'milestone' ? 'This milestone cannot be claimed right now' : 'This award cannot be funded right now',
   };
 }
 

@@ -164,13 +164,15 @@ describe('consoleMaInspectModel', () => {
   });
 
   describe('milestone claimed (owned)', () => {
-    it('no standings, owner surfaced, claimed-other tone for a rival owner', () => {
+    it('the race STANDS (FB — the column is never empty), owner surfaced, claimed-other tone for a rival owner', () => {
       const v = buildMaInspect(
         item({kind: 'milestone', threshold: 3, myColor: R, takenBy: {color: B, name: 'Bob'},
           scores: [{color: R, score: 3}, {color: B, score: 3}]}),
         players(R, B));
       expect(v.mode).to.eq('milestone-claimed');
-      expect(v.rows).to.have.length(0);
+      // The history row names the owner; the field's current values stand under it as the reference.
+      expect(v.rows.map((r) => r.color)).to.deep.eq([R, B]);
+      expect(v.nobodyLeads).to.eq(false);
       // The owner name is resolved from the (caller display-mapped) players by
       // COLOUR, so a MarsBot claimant reads «Бот»; here players(B) is 'blue'.
       expect(v.owner).to.deep.eq({color: B, name: 'blue'});
@@ -191,5 +193,16 @@ describe('consoleMaInspectModel', () => {
       item({kind: 'award', myColor: R, scores: [{color: R, score: 3}, {color: B, score: 3}, {color: G, score: 1}]}),
       players(R, B, G));
     expect(v.rows.map((r) => r.rank)).to.deep.eq([1, 1, 3]);
+  });
+
+  describe('an award NOBODY scores yet (FB)', () => {
+    it('says so: no leader, no rank, no projected points — and the rows still stand', () => {
+      const v = buildMaInspect(
+        item({kind: 'award', myColor: R, scores: [{color: R, score: 0}, {color: B, score: 0}]}),
+        players(R, B));
+      expect(v.nobodyLeads).to.eq(true);
+      expect(v.rows).to.have.length(2);
+      expect(v.rows.every((r) => !r.isLeader && r.projectedVp === undefined)).to.eq(true);
+    });
   });
 });

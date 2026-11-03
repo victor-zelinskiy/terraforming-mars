@@ -25,7 +25,12 @@ import * as path from 'path';
  *     glow»: the strip read ZERO halos by the letter and glowed by the eye) — on the strip a standing `text-shadow`
  *     with a blur, a `filter: drop-shadow` in a light colour, an endless loop (`infinite` — one licensed row:
  *     the attention beacon's sonar) and a BRIGHT OUTER RING (`0 0 0 <spread>` in a light colour at ≥ 50 % — a halo
- *     with no blur; a kant is inset) all fail.
+ *     with no blur; a kant is inset) all fail;
+ *  4. THE MILESTONES / AWARDS WORKSPACE AND THE STRATEGY RAIL (FB, P49 — designed before this law, 11 of the 64 halos
+ *     of `console.less`, a light pool under every emblem, a glowing name on every row, a focus halo through `var()`
+ *     past the scan and a rail rim that breathed forever) — the same eyes as the strip's PLUS the `var()` halo, in the
+ *     `.con-ma*` / `.con-mafocus*` / `.con-strat*` blocks: ZERO. The ceremony keeps its light (the owner's licence —
+ *     a ceremony IS the event) and the activation's one-shot layers are opacity 0 at rest — each exemption has its row.
  */
 
 const STYLES = path.resolve(__dirname, '..', '..', 'src', 'styles');
@@ -253,6 +258,77 @@ function consoleSheets(): Array<string> {
   return fs.readdirSync(STYLES).filter((f) => /^console.*\.less$/.test(f)).sort();
 }
 
+/** The MA workspace and the strategy rail inside `console.less` (§ 4). */
+const MA_BLOCKS = /^\.(con-ma|con-mafocus|con-strat)\b/;
+/** A nested rule of those blocks that is an EVENT, never a state — matched against the rule's own selector path. */
+const MA_EVENT_LIGHT: ReadonlyArray<{selector: RegExp, why: string}> = [
+  {selector: /__cere/, why: 'the claim / sponsorship CEREMONY — the owner\'s licence: a ceremony is the event the light marks, and it ends'},
+  {selector: /&__(actring|spark|sweep|kiss)\b/, why: 'the rail\'s ACTIVATION layers — opacity 0 at rest, lit only inside a one-shot @keyframes that ends at 0'},
+  {selector: /&--(activating|repulse|crownmove)\b/, why: 'a one-shot class the rail\'s machine sets for one phrase and removes'},
+];
+
+/** A halo whose blur is the shared glow radius (`var(--con-glow-r)`) — the hand-written focus halo the numeric scan misses. */
+function isVarHalo(layer: string): boolean {
+  const t = layer.trim().replace(/\s+/g, ' ');
+  if (t.startsWith('inset') || t.includes('--con-cursor-on')) {
+    return false;
+  }
+  const m = t.match(/^0 0 var\(--con-glow-r[^)]*\) (.+)$/);
+  return m !== null && !isDark(m[1]);
+}
+
+/** Every STANDING light of the MA blocks (§ 4): halos (numeric or `var()`), bright outer rings, glowing text, light drop shadows, loops. */
+function maLightsOf(): Array<Halo> {
+  const source = stripComments(fs.readFileSync(path.join(STYLES, 'console.less'), 'utf8'));
+  const out: Array<Halo> = [];
+  const stack: Array<string> = [];
+  let segment = '';
+  let line = 1;
+  const flushDecl = () => {
+    if (stack.some((h) => h.startsWith('@keyframes')) || !MA_BLOCKS.test(stack[0] ?? '')) {
+      return;
+    }
+    if (stack.some((h) => MA_EVENT_LIGHT.some((e) => e.selector.test(h)))) {
+      return;
+    }
+    const decl = segment.match(/^\s*([a-z-]+)\s*:([\s\S]*)$/);
+    if (decl === null) {
+      return;
+    }
+    const [, prop, value] = decl;
+    const at = {file: 'console.less', line, block: stack.join(' ')};
+    if (prop === 'text-shadow') {
+      splitTop(value).filter(isTextGlow).forEach((l) => out.push({...at, layer: `text-shadow: ${l.trim()}`}));
+    } else if (prop === 'filter' || prop === '-webkit-filter') {
+      dropShadowGlows(value).forEach((l) => out.push({...at, layer: `filter: ${l}`}));
+    } else if (prop === 'box-shadow') {
+      splitTop(value).filter((l) => isHalo(l) || isVarHalo(l) || isBrightRing(l))
+        .forEach((l) => out.push({...at, layer: `box-shadow: ${l.trim().replace(/\s+/g, ' ')}`}));
+    } else if ((prop === 'animation' || prop === 'animation-iteration-count') && /\binfinite\b/.test(value)) {
+      out.push({...at, layer: `endless loop: ${value.trim().replace(/\s+/g, ' ')}`});
+    }
+  };
+  for (const ch of source) {
+    if (ch === '{') {
+      stack.push(segment.trim());
+      segment = '';
+    } else if (ch === '}') {
+      flushDecl();
+      stack.pop();
+      segment = '';
+    } else if (ch === ';') {
+      flushDecl();
+      segment = '';
+    } else {
+      segment += ch;
+    }
+    if (ch === '\n') {
+      line++;
+    }
+  }
+  return out;
+}
+
 describe('glowRestraintGuard — a standing state is a kant, never a glow', () => {
   it('the detector sees a halo, and only a halo', () => {
     expect(isHalo('0 0 .9rem fade(@con-mint, 26%)')).is.true;
@@ -296,6 +372,13 @@ describe('glowRestraintGuard — a standing state is a kant, never a glow', () =
       ...stripLightsOf('console.less', STRIP_BLOCKS),
     ].map((h) => `  ${h.file}:${h.line} ${h.block} → ${h.layer}`);
     expect(offenders, `a standing light on the top strip — draw the state with a kant / fill / weight / word (\`console-ui.md\` § VISUAL RESTRAINT):\n${offenders.join('\n')}`).to.deep.eq([]);
+  });
+
+  it('THE MA WORKSPACE AND THE STRATEGY RAIL: no standing halo, glowing text, bright ring or loop (FB)', () => {
+    expect(isVarHalo('0 0 var(--con-glow-r) fade(@con-cyan, 18%)')).is.true;
+    expect(isVarHalo('inset 0 0 0 var(--con-focus-ring) fade(@con-cyan, 85%)')).is.false;
+    const offenders = maLightsOf().map((h) => `  ${h.file}:${h.line} ${h.block} → ${h.layer}`);
+    expect(offenders, `a standing light on the MA workspace / the strategy rail — draw the state with a kant / fill / weight / word (\`console-ui.md\` § VISUAL RESTRAINT):\n${offenders.join('\n')}`).to.deep.eq([]);
   });
 
   it('THE RATCHET: standing halos per stylesheet never grow, and a fall is locked in', () => {

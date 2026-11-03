@@ -621,6 +621,8 @@
                        ref="maScreen"
                        :kind="maScreenKind"
                        :items="maScreenItems"
+                       :columnItems="maColumnItems"
+                       :kinds="maScreenKinds"
                        :index="consoleState.sheetIndex"
                        :myMegacredits="thisPlayer.megacredits"
                        :free="awardFundingActive && maScreenKind === 'awards'"
@@ -628,6 +630,7 @@
                        :focusInspect="maFocusInspect"
                        :focusAvailable="maFocusAvailable"
                        :focusBlockReason="maFocusBlockReason"
+                       :sponsors="maAwardSponsors"
                        @ceremony-done="onMaCeremonyDone"
                        @pick="onMaPick" />
       <!-- (The BLUE-CARD ACTION CENTER left this chain — it is the ACTION
@@ -2649,6 +2652,8 @@ export default defineComponent({
   },
   data() {
     return {
+      /** The MA screen's column the cursor stands in (FB — one screen, two columns); undefined = the door's own kind. */
+      maColumn: undefined as ConsoleMaKind | undefined,
       /**
        * «ПРИЁМКА»: the reveal instance was last re-homed into the PARLIAMENT's draw stage — latched past the take (the
        * batch leaves the queue before the take's staged seam fires), so its two completion seams know the batch was
@@ -9394,45 +9399,39 @@ export default defineComponent({
       default: return '';
       }
     },
-    /** P26: milestones/awards render on the dedicated premium screen. */
+    /**
+     * P26 → FB: milestones AND awards render on ONE premium screen (two columns); this is the column the CURSOR stands
+     * in. The sheet is the door the player came through (the stack frame stays its kind); the column moves with ←→ /
+     * LB/RB (`maColumn`), an open detail stage owns it, and Vitor's awards-only step is always the awards.
+     */
     maScreenKind(): ConsoleMaKind | undefined {
-      return this.consoleState.sheet === 'milestones' || this.consoleState.sheet === 'awards' ?
-        this.consoleState.sheet : undefined;
+      const sheet = this.consoleState.sheet;
+      if (sheet !== 'milestones' && sheet !== 'awards') {
+        return undefined;
+      }
+      if (maFocusState.open) {
+        return maFocusState.kind === 'milestone' ? 'milestones' : 'awards';
+      }
+      if (this.maScreenKinds.length === 1) {
+        return this.maScreenKinds[0];
+      }
+      return this.maColumn ?? sheet;
     },
-    /** The premium screen's items — PURE derivation (consoleMaModel). */
+    /** The columns the screen stands with — the awards alone while the free sponsorship (Vitor) is the task. */
+    maScreenKinds(): ReadonlyArray<ConsoleMaKind> {
+      return this.awardFundingActive ? ['awards'] : ['milestones', 'awards'];
+    },
+    /** Both columns' items, by kind (the screen draws every column; the cursor walks `maScreenItems`). */
+    maColumnItems(): Partial<Record<ConsoleMaKind, ReadonlyArray<ConsoleMaItem>>> {
+      if (this.maScreenKind === undefined) {
+        return {};
+      }
+      return Object.fromEntries(this.maScreenKinds.map((kind) => [kind, this.buildMaColumn(kind)]));
+    },
+    /** The cursor's column's items — PURE derivation (consoleMaModel). */
     maScreenItems(): Array<ConsoleMaItem> {
       const kind = this.maScreenKind;
-      if (kind === undefined) {
-        return [];
-      }
-      const found = kind === 'milestones' ?
-        findMilestoneOptionPath(this.playerView.waitingFor) :
-        findAwardOptionPath(this.playerView.waitingFor, this.awardNames);
-      const describe = (name: string): string => {
-        try {
-          return kind === 'milestones' ?
-            getMilestone(name as MilestoneName).description :
-            getAward(name as AwardName).description;
-        } catch (err) {
-          return '';
-        }
-      };
-      return buildConsoleMaItems(kind, kind === 'milestones' ? this.game.milestones : this.game.awards, {
-        myColor: this.thisPlayer.color,
-        blockedReason: this.awardFundingActive ? '' : this.actionBlockedReason,
-        myTurn: this.myTurn,
-        awaitingInput: this.awaitingInput,
-        passed: this.viewerPassed,
-        myMegacredits: this.thisPlayer.megacredits,
-        availableNow: this.claimableTitles(found?.options),
-        describe,
-        maxSlots: 3,
-        // Free sponsorship (Vitor) costs 0 — the price chip then reads «Бесплатно».
-        nextCost: kind === 'milestones' ? this.milestoneCostValue :
-          (this.awardFundingActive ? 0 : this.awardCostValue),
-        // Claimant label resolves the MarsBot seat to «Бот», never the raw name.
-        resolveName: (color) => displayNameForColor(this.playerView.players, color),
-      });
+      return kind === undefined ? [] : this.buildMaColumn(kind);
     },
     /**
      * THE LIVE PRICES — the engine's own `milestoneCost()` / `awardFundingCost()`,
@@ -9532,27 +9531,32 @@ export default defineComponent({
         findAwardOptionPath(this.playerView.waitingFor, this.awardNames);
       return this.claimableTitles(found?.options).has(maFocusState.name);
     },
-    /** The CONCRETE blocker when the open detail stage cannot act. */
+    /**
+     * The CONCRETE blocker when the open detail stage cannot act — the MODEL's ONE ladder (`ConsoleMaItem.blocker`,
+     * the same the rail and the overview read; FB): the action menu withheld, the slots, the turn, the money — and a
+     * milestone short of its threshold / its condition says so, never a generic «cannot right now».
+     */
     maFocusBlockReason(): string {
       if (this.maFocusAvailable) {
         return '';
       }
-      const v = this.maFocusView;
-      if (v?.takenByOther !== undefined) {
-        return v.kind === 'milestone' ? 'Already claimed' : 'Already funded';
+      const item = this.maFocusItem;
+      if (item === undefined) {
+        return '';
       }
-      // The shared turn ladder — «завершите действие» only while the free action
-      // menu is actually withheld. The old tail returned it unconditionally, so
-      // a player whose menu WAS live got told to finish an action they weren't in.
-      if (!this.myTurn) {
-        return offTurnReason(this.awaitingInput, this.viewerPassed);
+      if (item.takenBy !== undefined) {
+        return item.kind === 'milestone' ? 'Already claimed' : 'Already funded';
       }
-      if (v !== undefined && !v.free && this.thisPlayer.megacredits < v.cost) {
-        return 'Not enough M€';
+      if (item.blocker !== '') {
+        return item.blocker;
       }
-      return v?.kind === 'milestone' ?
-        'This milestone cannot be claimed right now' :
-        'This award cannot be funded right now';
+      return item.threshold !== undefined ? 'Threshold not reached yet' : 'Condition not met';
+    },
+    /** The awards' sponsors in funding order — the detail's sponsorship ladder seats them on their slots. */
+    maAwardSponsors(): ReadonlyArray<string> {
+      return this.game.awards
+        .filter((a) => a.playerName !== undefined && a.playerName !== '' && a.color !== undefined)
+        .map((a) => a.color as string);
     },
     /** The ceremony queue head — the commit watcher's reactive mirror. */
     maCurrentBeat(): MaCeremonyEvent | undefined {
@@ -10550,6 +10554,10 @@ export default defineComponent({
           if (!maFocusAcceptsInput()) {
             return [];
           }
+          // A TAKEN item is over — its stage reads history, and the bar offers no dimmed «Заявить» (FB).
+          if (this.maFocusItem?.takenBy !== undefined) {
+            return [{control: 'back', label: 'Back'}];
+          }
           return [
             {control: 'confirm', label: this.maScreenKind === 'milestones' ? 'Claim milestone' : 'Fund',
               enabled: this.maFocusAvailable, highlight: this.maFocusAvailable},
@@ -10574,10 +10582,8 @@ export default defineComponent({
             enabled: anyMa,
             highlight: maIntent,
           },
-          // Inside the start's hosted funding step the category bumper is a
-          // lateral move off the mandatory task — not offered (see the input
-          // arm); everywhere else the bumpers page the two dashboards.
-          ...(this.awardStepHosted ? [] : [
+          // The bumpers JUMP to the other column (one screen — FB); an awards-only step has no other column.
+          ...(this.maScreenKinds.length < 2 ? [] : [
             {control: (this.maScreenKind === 'milestones' ? 'bumperR' : 'bumperL') as GlyphControl,
               label: this.maScreenKind === 'milestones' ? 'Awards' : 'Milestones'},
           ]),
@@ -12318,9 +12324,17 @@ export default defineComponent({
     // away, and a frame cannot be removed from under the step it is carrying.
     // That guard-plus-write pair was the soft-lock.
     /** «СРАБАТЫВАНИЕ КАРТЫ» (iteration 3): the player opened a sheet while reactions play — they HURRY (a pace, never a cut). */
-    'consoleState.sheet'(sheet: string | undefined) {
+    'consoleState.sheet'(sheet: string | undefined, prev: string | undefined) {
       if (sheet !== undefined && cardReactionPending()) {
         hurryCardReactions('navigation');
+      }
+      // THE MA SCREEN OPENS IN ITS DOOR'S COLUMN (FB): a column left over from an earlier visit never survives a new
+      // one, whichever road stood the screen up (the wheel, a restore, a hosted step).
+      const ma = (k: string | undefined) => k === 'milestones' || k === 'awards';
+      if (ma(sheet) && !ma(prev)) {
+        this.maColumn = sheet as ConsoleMaKind;
+      } else if (!ma(sheet)) {
+        this.maColumn = undefined;
       }
     },
     'consoleState.section'(section: string) {
@@ -16657,8 +16671,12 @@ export default defineComponent({
           return;
         }
         if (intent.kind === 'nav') {
+          if (intent.dir === 'left' || intent.dir === 'right') {
+            this.stepMaColumn(intent.dir === 'left' ? 'milestones' : 'awards');
+            return;
+          }
           this.consoleState.sheetIndex = stepGrid(
-            this.consoleState.sheetIndex, intent.dir, this.maScreenItems.length, 2);
+            this.consoleState.sheetIndex, intent.dir, this.maScreenItems.length, 1);
           return;
         }
         if (intent.kind === 'press') {
@@ -16671,17 +16689,12 @@ export default defineComponent({
             this.enterMaFocus();
             break;
           case 'prevSection':
-            // A HOSTED funding step is not a dashboard stroll: the category
-            // bumper is a LATERAL move (it would truncate the very frame the
-            // task stands on), so inside the start's step it is not offered.
-            if (this.maScreenKind !== 'milestones' && !this.awardStepHosted) {
-              this.openSheet('milestones');
-            }
+            // LB / RB JUMP COLUMNS (FB — one screen): the cursor moves, nothing is opened or closed. Vitor's step
+            // stands with the awards alone, so there is no column to jump to.
+            this.stepMaColumn('milestones');
             break;
           case 'nextSection':
-            if (this.maScreenKind !== 'awards') {
-              this.openSheet('awards');
-            }
+            this.stepMaColumn('awards');
             break;
           case 'back':
             // A HOSTED step minimizes its WHOLE flow — B on a nested step is
@@ -17808,6 +17821,10 @@ export default defineComponent({
       if (maFocusState.open) {
         return;
       }
+      // The MA screen opens with the cursor in the DOOR's column (the wheel's «Награды» lands in the awards).
+      if (sheet === 'milestones' || sheet === 'awards') {
+        this.maColumn = sheet;
+      }
       const selectables = this.maScreenKind !== undefined ?
         this.maScreenItems.map((it) => ({header: false, available: it.available})) :
         sheet === 'standard-projects' ?
@@ -17817,6 +17834,37 @@ export default defineComponent({
       const firstSelectable = selectables.findIndex((s) => !s.header);
       this.consoleState.sheetIndex = firstAvailable !== -1 ? firstAvailable : Math.max(0, firstSelectable);
     },
+    /** One column's items — PURE derivation (consoleMaModel): the live models, the waitingFor's offer, the price. */
+    buildMaColumn(kind: ConsoleMaKind): Array<ConsoleMaItem> {
+      const found = kind === 'milestones' ?
+        findMilestoneOptionPath(this.playerView.waitingFor) :
+        findAwardOptionPath(this.playerView.waitingFor, this.awardNames);
+      const describe = (name: string): string => {
+        try {
+          return kind === 'milestones' ?
+            getMilestone(name as MilestoneName).description :
+            getAward(name as AwardName).description;
+        } catch (err) {
+          return '';
+        }
+      };
+      return buildConsoleMaItems(kind, kind === 'milestones' ? this.game.milestones : this.game.awards, {
+        myColor: this.thisPlayer.color,
+        blockedReason: this.awardFundingActive ? '' : this.actionBlockedReason,
+        myTurn: this.myTurn,
+        awaitingInput: this.awaitingInput,
+        passed: this.viewerPassed,
+        myMegacredits: this.thisPlayer.megacredits,
+        availableNow: this.claimableTitles(found?.options),
+        describe,
+        maxSlots: 3,
+        // Free sponsorship (Vitor) costs 0 — the price chip then reads «Бесплатно».
+        nextCost: kind === 'milestones' ? this.milestoneCostValue :
+          (this.awardFundingActive ? 0 : this.awardCostValue),
+        // Claimant label resolves the MarsBot seat to «Бот», never the raw name.
+        resolveName: (color) => displayNameForColor(this.playerView.players, color),
+      });
+    },
     /** A = «Выбрать» on the overview — descend into the focused item's
      *  detail stage. The SCREEN arms the descend origins (the pressed card's
      *  and its emblem pedestal's rects) synchronously at the press. */
@@ -17825,12 +17873,28 @@ export default defineComponent({
     },
     /** Mouse/touch on an overview tile: focus it; a second click on the
      *  focused tile descends (the controller's own two-step, same doors). */
-    onMaPick(i: number): void {
-      if (this.consoleState.sheetIndex === i) {
+    onMaPick(pick: {kind: ConsoleMaKind, index: number}): void {
+      if (pick.kind === this.maScreenKind && this.consoleState.sheetIndex === pick.index) {
         this.enterMaFocus();
-      } else {
-        this.consoleState.sheetIndex = i;
+        return;
       }
+      if (pick.kind !== this.maScreenKind) {
+        this.maColumn = pick.kind;
+      }
+      this.consoleState.sheetIndex = pick.index;
+    },
+    /**
+     * The cursor to another COLUMN of the MA screen (←→ and LB/RB): the same ROW where the column has one (the rows
+     * align across), else its last. A column the screen does not stand with (Vitor's awards-only step) is no move.
+     */
+    stepMaColumn(to: ConsoleMaKind): void {
+      if (this.maScreenKind === undefined || this.maScreenKind === to || !this.maScreenKinds.includes(to)) {
+        return;
+      }
+      const row = this.consoleState.sheetIndex;
+      this.maColumn = to;
+      const count = this.buildMaColumn(to).length;
+      this.consoleState.sheetIndex = Math.max(0, Math.min(row, count - 1));
     },
     /** B on the detail stage (pre-commit) — fold back to the overview; the
      *  browse layer was only parked, so selection and scroll survive. */
@@ -17996,7 +18060,15 @@ export default defineComponent({
         }
         beginMaFocusClosing();
         abandonMaCeremonyEmbed();
-        leaveWorkspace();
+        // A FINISHED flow LEAVES through the ONE guarded conclusion (`workspaceConclusionFor` — FB): the claim is
+        // over, so the player lands on the board (the rail seals it), never back in the list. A HOSTED step (Vitor's
+        // free sponsorship inside the start) pops one level — its host's flow goes on.
+        const frame: WorkspaceFrameKind = workspaceFrameKnown('awards') ? 'awards' : 'milestones';
+        if (workspaceFrameIndex(frame) > 0) {
+          leaveWorkspace();
+        } else {
+          this.concludeWorkspaceFlowOrOwe(frame);
+        }
       });
     },
     activateSheetRow(row: ConsoleSheetRow | undefined): void {

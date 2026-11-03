@@ -83,6 +83,11 @@ export type MaInspectView = {
   vpSecond: number,
   /** The viewer-perspective headline. */
   summary: MaInspectSummary,
+  /**
+   * NOBODY LEADS — an award race at zero for every seat (FB): the rows stand with empty meters and no ranks, and the
+   * plate says it in words («пока никто не ведёт») instead of ranking everybody first.
+   */
+  nobodyLeads: boolean,
 };
 
 /**
@@ -160,7 +165,9 @@ export function buildMaInspect(
   const topScore = sorted.length > 0 ? sorted[0].score : 0;
   const leaderCount = sorted.filter((r) => r.score === topScore && topScore > 0).length;
   const maxBar = Math.max(1, kind === 'milestone' && threshold !== undefined ? threshold : topScore);
-  const vp = kind === 'award' ? projectAwardVp(sorted.map((r) => r.score), players.length) : undefined;
+  // A race at zero ranks nobody and projects no points (the rules pay no place at 0 — nobody has scored).
+  const nobodyLeads = kind === 'award' && topScore === 0;
+  const vp = kind === 'award' && !nobodyLeads ? projectAwardVp(sorted.map((r) => r.score), players.length) : undefined;
 
   const rows: Array<MaInspectRow> = sorted.map((r, i) => ({
     color: r.color,
@@ -185,13 +192,16 @@ export function buildMaInspect(
     displayName: maDisplayName(item.name),
     description: item.description,
     threshold,
-    rows: mode === 'milestone-claimed' ? [] : rows,
+    // THE RACE STANDS IN EVERY MODE (FB): a claimed milestone keeps the field's current values as the reference under
+    // its history row — the right column is never empty.
+    rows,
     owner: item.takenBy !== undefined ? {color: item.takenBy.color, name: ownerName} : undefined,
     taken,
     playersCount: players.length,
     vpFirst: 5,
     vpSecond: players.length >= 3 ? 2 : 0,
     summary,
+    nobodyLeads,
   };
 }
 

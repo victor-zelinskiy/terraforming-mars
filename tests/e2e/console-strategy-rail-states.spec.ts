@@ -27,7 +27,7 @@ import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
  *  3. STATE C — green facts + the gold-white rim + «ДОСТУПНО» replacing
  *     the meter in the fixed foot line;
  *  4. the claim seal riding the workspace's fold: the calm horizontal
- *     owner line (cube · ВЗЯТО · ✓) and a CLEAN emblem (no floating cube);
+ *     owner line (cube · ПОЛУЧЕНО · ✓) and a CLEAN emblem (no floating cube);
  *  5. a tie for FIRST: ONE crown, two cubes, ONE value, no silver second.
  *
  * And the FINISHED BODY (§ the case/spine geometry): the display case and
@@ -608,8 +608,9 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     await page.waitForSelector('.con-ma', {timeout: 12_000});
     // Home lands on the claimable item; verify structurally, walk if not.
     const goFocused = page.locator('.con-ma__card--focused.con-ma__card--go');
+    // One screen, two columns (FB): the milestones are ONE column — ↓ walks it (→ would jump to the awards).
     for (let i = 0; i < 8 && await goFocused.count() === 0; i++) {
-      await press(page, 'ArrowRight', 320);
+      await press(page, 'ArrowDown', 320);
     }
     expect(await goFocused.count(), 'a claimable milestone card must take the focus').toBeGreaterThan(0);
     await press(page, 'Enter', 1000);
@@ -633,7 +634,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     await page.waitForTimeout(1600); // the seal settles
     await waitToastQuiet(page);
     await expect(mayor).toHaveClass(/con-strat__item--taken/, {timeout: 12_000});
-    // The calm horizontal owner line: cube (who) · ВЗЯТО · ✓ (done) — and
+    // The calm horizontal owner line: cube (who) · ПОЛУЧЕНО · ✓ (done) — and
     // the emblem stays CLEAN (no floating owner cube), the word gone.
     const seal = mayor.locator('.con-strat__ownseal');
     await expect(seal, 'the owner seal fills the value zone').toHaveCount(1);

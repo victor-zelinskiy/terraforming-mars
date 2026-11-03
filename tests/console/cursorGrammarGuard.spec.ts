@@ -38,6 +38,7 @@ const MIGRATED: ReadonlyArray<{surface: string, host: string, on: string}> = [
   {surface: '«Действия карт» (the live group)', host: '.con-cardactions__group', on: '.con-cardactions__group--live'},
   {surface: '«Колонии» (the colony tile)', host: '.con-coltile', on: '.con-coltile--focused'},
   {surface: '«Стандартные проекты» (the project card)', host: '.con-stdp__card', on: '.con-stdp__card--focused'},
+  {surface: '«Достижения · Награды» (a row of the one screen — FB)', host: '.con-ma__card', on: '.con-ma__card--focused'},
   {surface: 'the composers (a choice row)', host: '.con-composer__row', on: '.con-composer__row--focused'},
   {surface: 'the target step (a candidate)', host: '.con-ptsel__slot', on: '.con-ptsel__slot--focused'},
   {surface: 'the target step (the self proxy)', host: '.con-ptsel__self', on: '.con-ptsel__self--focused'},

@@ -12660,12 +12660,54 @@ html.console-mode {
         min-height: 0;
         .con-fill-scroll();
     }
+    /* ONE SCREEN, TWO COLUMNS (ledger FB): a column is a KIND — the milestones left, the awards right — each its
+       head-tally over a column of rows of ONE height (`--ma-rows`: the longest list, so the rows align across). There
+       is no span by construction: an odd count never stretches a tile. Vitor's awards-only step: the one column takes
+       the width. */
     &__grid {
         flex: 1 0 auto;
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-auto-rows: minmax(6.2rem, 1fr);
-        gap: .7rem;
+        gap: .9rem;
+        min-height: 100%;
+    }
+    &__col {
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .45rem;
+
+        &:only-child { grid-column: 1 / -1; }
+    }
+    /* The column's head-tally — the name, the door's bumper, the slots, the count, the next price: one line, the
+       facts the rows below cannot print. A kant under it, never a plate. */
+    &__colhead {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        min-height: 2.1rem;
+        padding: 0 .2rem .35rem;
+        box-shadow: inset 0 -.05rem 0 rgba(126, 156, 188, 0.2);
+    }
+    &__coldoor { flex-shrink: 0; }
+    &__coltitle {
+        font-size: .8rem;
+        font-weight: 800;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: @con-text;
+        white-space: nowrap;
+    }
+    &__col--active &__coltitle { color: #fff; }
+    &__colhead &__tally { margin-left: auto; }
+    &__rows {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: repeat(var(--ma-rows, 5), minmax(0, 1fr));
+        gap: .5rem;
     }
     &__card {
         position: relative;
@@ -12687,91 +12729,26 @@ html.console-mode {
         box-shadow:
             inset 0 0 0 .05rem rgba(126, 156, 188, 0.18),
             inset 0 .05rem 0 rgba(255, 255, 255, 0.04);
-        /* The cursor's clock (TR58); the focus list keeps the resting `[inset, inset]` shape before its glow. */
-        transition:
-            box-shadow var(--con-cursor-ms) var(--con-cursor-ease),
-            background var(--con-cursor-ms) var(--con-cursor-ease);
-
-        /* An odd list's LAST card owns the full row — no orphan gap. */
-        &:last-child:nth-child(odd) {
-            grid-column: span 2;
-        }
-        /* Mouse parity (the console shell IS the desktop shell): a soft
-           pointer affordance that never borrows a semantic channel — and
-           never out-specifies the focus ring. */
+        /* THE CURSOR (TR58, `.con-cursor()`): one ring layer on the cursor's clock — an INSET ring (the row clips its
+           children, so no outer halo is painted here at all). FOCUS owns the ring; every STATE is material on the row
+           itself (VISUAL RESTRAINT — ledger FB): the two never share a channel. */
+        .con-cursor(
+            @shadow: inset 0 0 0 max(.075rem, var(--con-focus-ring)) fade(@con-cyan, 85%);
+            @radius: .7rem;
+            @z: 1;
+            @layer-z: 4;
+        );
+        /* Mouse parity (the console shell IS the desktop shell). */
         cursor: pointer;
 
-        &:hover:not(.con-ma__card--focused) {
-            box-shadow:
-                inset 0 0 0 .05rem rgba(126, 156, 188, 0.34),
-                inset 0 .05rem 0 rgba(255, 255, 255, 0.05);
-        }
+        &--focused { .con-cursor-on(); }
 
-        /* ═══ TWO CHANNELS, NEVER ONE (the availability-vs-focus split) ═══
-           FOCUS answers «where is the controller» and owns the tile's RING
-           (box-shadow) — cyan, on every tile, always. AVAILABILITY answers
-           «what can I take right now» and owns the tile's GROUND (background
-           wash) + the emblem's activation light + the metric's word — so the
-           two states COEXIST on one tile by construction. The old compound
-           rule re-painted the focus ring mint on an available tile: the two
-           strongest signals fought for one border, and whichever lost simply
-           vanished. */
-
-        /* THE SHELF LIGHT — availability's own edge, structurally nothing
-           like the focus ring: a full-width light-line + soft bloom the
-           tile STANDS ON, never an outline. Always present and
-           opacity-driven — the state can rise and fall while the workspace
-           is open, and a mounted/unmounted element would pop instead of
-           fading. Light only: it may tint, it may not carry text. */
-        &::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            height: 1.5rem;
-            background-image:
-                linear-gradient(90deg, transparent, fade(#f6e8c6, 60%) 14%, fade(#f6e8c6, 60%) 86%, transparent),
-                linear-gradient(0deg, fade(@strat-gold, 15%), transparent 82%);
-            background-size: 100% .12rem, 100% 100%;
-            background-position: bottom, bottom;
-            background-repeat: no-repeat;
-            opacity: 0;
-            transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
-            pointer-events: none;
-        }
-
-        /* Actionable NOW (milestone) — the whole tile becomes ONE LIT
-           OBJECT in the activation family (gold-white = «offered this
-           frame», the strategy rail's own word): a warm-shifted ground lit
-           from the emblem's pedestal, plus the shelf light below. The
-           state lives at TILE scale on purpose — the emblem-scale optics
-           (rim + crystal) are gold on gold medal art, camouflaged at couch
-           distance, while the ground is the one layer no emblem competes
-           with; warm-vs-cool is also what keeps the state apart from the
-           cyan focus ring at the periphery. Never the ring channel.
-
-           LIGHT, not ATMOSPHERE: the awards screen's whole identity is a
-           DARK warm ground (podium dusk, no light source, on every tile
-           equally) — so the offered state must be separated from it by
-           LIGHTNESS and structure, never by hue alone. The lit tile sits a
-           full step brighter than the award base can ever be, carries a
-           visible light source (the pedestal radial) and stands on the
-           shelf light below — three things the atmosphere never has. */
+        /* AVAILABLE NOW (a milestone — P29: never an award): a MINT KANT on the row and the word «ДОСТУПНО» on its
+           reading plate. No light — no pooled pedestal, no shelf, no gold rim (VISUAL RESTRAINT). */
         &--go {
-            background:
-                radial-gradient(56% 130% at 15% 58%, fade(@strat-gold, 15%), transparent 70%),
-                linear-gradient(165deg, rgba(42, 42, 34, 0.96), rgba(26, 27, 21, 0.96));
-
-            /* The KINDLE — one-shot, on the shelf's own birth (workspace
-               open / category arrive / a live rising edge): a calm rise of
-               the light into place. Opacity/transform only; `backwards`
-               (never `both`) so the standing state is the RULE's — the
-               falling edge exits through the transition above. */
-            &::before {
-                opacity: 1;
-                animation: con-ma-go-kindle calc(420ms * var(--motion-scale, 1)) @con-ease-standard backwards;
-            }
+            box-shadow:
+                inset 0 0 0 .075rem fade(@con-mint, 62%),
+                inset 0 .05rem 0 rgba(255, 255, 255, 0.04);
         }
         &--taken {
             background: linear-gradient(165deg, rgba(17, 25, 36, 0.95), rgba(11, 16, 24, 0.95));
@@ -12791,22 +12768,11 @@ html.console-mode {
             .con-ma__metric-value { color: fade(#cfe4f7, 55%); }
             .con-ma__desc { color: fade(@con-text-dim, 62%); }
         }
-        /* FOCUS — the cyan ring, semantic-blind: it looks the same on every
-           tile and replaces only the resting hairline, never a state. */
-        &--focused {
-            box-shadow:
-                inset 0 0 0 max(.075rem, var(--con-focus-ring)) fade(@con-cyan, 85%),
-                inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
-                0 0 var(--con-glow-r) fade(@con-cyan, 18%);
-        }
         /* The one-shot AVAILABILITY REVEAL (a live rising edge only): the
            emblem takes the strategy rail's own activation phrase — the same
            motion language in both places. */
         &--arriving {
             .con-ma__art { animation: strat-activate-art calc(880ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.2, 0.5, 1) both; }
-            .con-ma__spark { animation: strat-activate-spark calc(760ms * var(--motion-scale, 1)) ease-out both; }
-            .con-ma__sweep { animation: strat-activate-sweep calc(640ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0.2, 0.3, 1) both calc(160ms * var(--motion-scale, 1)); }
-            .con-ma__actring { animation: strat-activate-rim calc(520ms * var(--motion-scale, 1)) @con-ease-standard both calc(430ms * var(--motion-scale, 1)); }
             .con-ma__avail { animation: strat-activate-avail calc(380ms * var(--motion-scale, 1)) ease-out both calc(640ms * var(--motion-scale, 1)); }
             .con-ma__readymark svg path { animation: strat-activate-check calc(360ms * var(--motion-scale, 1)) ease-out both calc(120ms * var(--motion-scale, 1)); }
         }
@@ -12838,13 +12804,12 @@ html.console-mode {
         height: 100%;
         width: auto;
         aspect-ratio: 1 / 1;
-        min-height: 5.2rem;
-        max-height: 9.4rem;
+        min-height: 3.4rem;
+        max-height: 8rem;
         flex-shrink: 0;
         border-radius: .7rem;
-        background:
-            radial-gradient(circle at 50% 58%, fade(@con-cyan, 12%), transparent 66%),
-            rgba(9, 15, 24, 0.6);
+        /* A PLAIN plate (FB): the emblem stands on material, never in a pool of light. */
+        background: rgba(9, 15, 24, 0.6);
         box-shadow:
             inset 0 0 0 .05rem rgba(120, 150, 180, 0.22),
             inset 0 -.6rem 1.1rem rgba(0, 0, 0, 0.4);
@@ -12869,69 +12834,6 @@ html.console-mode {
         background-position: center;
         background-repeat: no-repeat;
         filter: drop-shadow(0 .4rem .7rem rgba(0, 0, 0, 0.55)) saturate(1.1);
-    }
-
-    /* ── the milestone ACTIVATION OPTICS — the strategy rail's «can act NOW»
-       light, spoken at tile scale: the gold-white RIM around the emblem, the
-       lit bottom crystal, the one-shot contour sweep. The rim is STATIC here
-       (the workspace is a decision surface the player is already reading —
-       the peripheral HUD keeps the breathing); the availability signal lives
-       on the EMBLEM and in the metric, never on the focus ring's channel. */
-    &__actring {
-        position: absolute;
-        inset: 9%;
-        border-radius: 50%;
-        box-shadow: 0 0 0 .09rem rgba(246, 232, 198, 0.66),
-            inset 0 0 .6rem fade(@strat-gold, 15%);
-        opacity: 0;
-        transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
-        pointer-events: none;
-        z-index: 2;
-    }
-    &__spark {
-        position: absolute;
-        left: 50%;
-        bottom: 2%;
-        width: 38%;
-        height: 22%;
-        transform: translateX(-50%);
-        background: radial-gradient(ellipse at 50% 58%,
-            rgba(255, 246, 218, 0.95) 8%,
-            rgba(240, 205, 130, 0.5) 40%,
-            transparent 72%);
-        opacity: 0;
-        transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
-        pointer-events: none;
-        z-index: 2;
-    }
-    &__sweep {
-        position: absolute;
-        inset: 7%;
-        border-radius: 50%;
-        background: conic-gradient(from 180deg,
-            transparent 0 76%,
-            rgba(255, 242, 208, 0.05) 80%,
-            rgba(255, 242, 208, 0.9) 89%,
-            transparent 97%);
-        -webkit-mask: radial-gradient(closest-side, transparent 76%, #000 82%, #000 96%, transparent 100%);
-        mask: radial-gradient(closest-side, transparent 76%, #000 82%, #000 96%, transparent 100%);
-        opacity: 0;
-        pointer-events: none;
-        z-index: 2;
-    }
-    &__card--go &__actring { opacity: 1; }
-    &__card--go &__spark { opacity: 0.85; }
-    /* The pedestal joins the state: the cool ambient radial turns into the
-       activation's own warm light, so the whole stage square — the largest
-       zone the emblem does not cover — reads «lit» at a glance. Paint only
-       (the descend FLIP measures the box, never the pixels). */
-    &__card--go &__stage {
-        background:
-            radial-gradient(circle at 50% 58%, fade(@strat-gold, 18%), transparent 66%),
-            rgba(16, 14, 9, 0.6);
-        box-shadow:
-            inset 0 0 0 .05rem fade(#f6e8c6, 26%),
-            inset 0 -.6rem 1.1rem rgba(0, 0, 0, 0.4);
     }
 
     /* ── the SPONSOR SOCKET (awards, funded) — the trophy rail's provenance
@@ -12976,17 +12878,15 @@ html.console-mode {
         letter-spacing: .06rem;
         text-transform: uppercase;
         line-height: 1.1;
-        text-shadow: 0 0 .9rem fade(@con-cyan, 14%);
     }
-    /* The rule text: a wider body column + a tighter 4-line clamp fits the
-       long descriptions on the card; the X → «Осмотреть» reader is the
-       guaranteed full-text fallback for the very longest ones. */
+    /* The rule text: a ROW is not a reader — the full rule stands on the detail stage (A); three lines here keep
+       every row one height on every profile. */
     &__desc {
         font-size: .7rem;
         line-height: 1.34;
         color: @con-text-dim;
         display: -webkit-box;
-        -webkit-line-clamp: 4;
+        -webkit-line-clamp: 3;
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
@@ -13312,7 +13212,7 @@ html.console-mode {
                 inset 0 .06rem .08rem rgba(255, 255, 255, 0.34),
                 inset 0 -.08rem .1rem rgba(0, 0, 0, 0.42),
                 inset 0 0 0 .055rem rgba(16, 22, 30, 0.8),
-                0 0 0 .07rem rgba(255, 255, 255, 0.62),
+                0 0 0 .07rem rgba(255, 255, 255, 0.4),
                 0 .08rem .16rem rgba(0, 0, 0, 0.5);
         }
         &--ii {
@@ -13417,39 +13317,18 @@ html.console-mode {
        hairlines, warm pedestal light, the crown/cassette instruments, the
        trophy. Same chassis, same geometry — the ATMOSPHERE and the status
        instruments are what tell the two apart before the title is read. */
-    &--awards {
-        .con-ma__backdrop {
-            background:
-                radial-gradient(90% 80% at 72% 18%, rgba(214, 164, 78, 0.10), transparent 62%),
-                radial-gradient(120% 115% at 42% 42%, rgba(8, 6, 3, 0.62), rgba(8, 6, 3, 0.46) 70%, rgba(8, 6, 3, 0.38));
-        }
+    &__col--awards {
         .con-ma__card {
             background: linear-gradient(165deg, rgba(28, 26, 21, 0.94), rgba(17, 15, 12, 0.94));
             box-shadow:
                 inset 0 0 0 .05rem rgba(196, 174, 132, 0.17),
                 inset 0 .05rem 0 rgba(255, 255, 255, 0.04);
         }
-        /* The kind scope raised the card's specificity, so the focus ring and
-           the hover hairline must be RE-ASSERTED at the same weight — or the
-           warm base silently out-specifies them (the ringless-FHD bug). */
-        .con-ma__card:hover:not(.con-ma__card--focused) {
-            box-shadow:
-                inset 0 0 0 .05rem rgba(196, 174, 132, 0.32),
-                inset 0 .05rem 0 rgba(255, 255, 255, 0.05);
-        }
-        .con-ma__card--focused {
-            box-shadow:
-                inset 0 0 0 max(.075rem, var(--con-focus-ring)) fade(@con-cyan, 85%),
-                inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
-                0 0 var(--con-glow-r) fade(@con-cyan, 18%);
-        }
         .con-ma__card--taken {
             background: linear-gradient(165deg, rgba(23, 21, 17, 0.95), rgba(14, 12, 10, 0.95));
         }
         .con-ma__stage {
-            background:
-                radial-gradient(circle at 50% 58%, rgba(255, 205, 120, 0.10), transparent 66%),
-                rgba(15, 12, 8, 0.6);
+            background: rgba(15, 12, 8, 0.6);
             box-shadow:
                 inset 0 0 0 .05rem rgba(196, 170, 120, 0.22),
                 inset 0 -.6rem 1.1rem rgba(0, 0, 0, 0.4);
@@ -13457,6 +13336,9 @@ html.console-mode {
         .con-ma__price {
             box-shadow: inset 0 0 0 .075rem fade(@strat-gold, 48%);
         }
+        .con-ma__colhead { box-shadow: inset 0 -.05rem 0 fade(@strat-gold, 22%); }
+    }
+    &--awards {
         .con-ma__foot { border-top-color: fade(@strat-gold, 18%); }
         .con-wshead__emblem { color: #eed08b; }
     }
@@ -13473,33 +13355,8 @@ html.console-mode {
         box-shadow: inset 0 0 0 .075rem fade(@strat-gold, 85%);
     }
 
-    /* ── the LB/RB ARRIVE beat — the new category's content slides in from
-       its bumper's side while frame, head and rail stand still. One-shot
-       class (data + timer), transform/opacity only, never a remount. ── */
-    &__browse--arrive-l .con-ma__scroll-host,
-    &__browse--arrive-l .con-ma__foot {
-        animation: con-ma-arrive-l calc(240ms * var(--motion-scale, 1)) @con-ease-standard both;
-    }
-    &__browse--arrive-r .con-ma__scroll-host,
-    &__browse--arrive-r .con-ma__foot {
-        animation: con-ma-arrive-r calc(240ms * var(--motion-scale, 1)) @con-ease-standard both;
-    }
 }
 
-@keyframes con-ma-arrive-l {
-    from { opacity: 0.25; transform: translateX(-1.1rem); }
-    to { opacity: 1; transform: none; }
-}
-@keyframes con-ma-arrive-r {
-    from { opacity: 0.25; transform: translateX(1.1rem); }
-    to { opacity: 1; transform: none; }
-}
-/* The availability shelf's one-shot kindle (`from` only — the implicit end
-   is the rule's own standing state, so the animation can never disagree
-   with the style it hands back to). */
-@keyframes con-ma-go-kindle {
-    from { opacity: 0; transform: translateY(38%); }
-}
 
 /* ── THE MA STATUS RAIL — the ONE projected-transaction line of the
    Milestones/Awards workspace, rendered identically by the list state and
@@ -13607,33 +13464,11 @@ html.console-mode {
         flex-direction: column;
         border-radius: .8rem;
         overflow: hidden;
-        /* One level DEEPER than the panel: denser still, its own key light.
-           The browse grid is parked behind it — nothing may read through. */
-        background:
-            radial-gradient(90% 70% at 18% 12%, fade(@con-cyan, 7%), transparent 60%),
-            linear-gradient(165deg, rgba(16, 25, 38, 0.985), rgba(9, 15, 24, 0.985));
+        /* One level DEEPER than the panel: denser still — material, never a key light (FB). The browse grid is
+           parked behind it — nothing may read through. */
+        background: linear-gradient(165deg, rgba(16, 25, 38, 0.985), rgba(9, 15, 24, 0.985));
         box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.55);
 
-        /* THE ACTIVATION MATERIAL, one level deeper — the browse tile's warm
-           lit ground (`.con-ma__card--go`) continued onto the stage surface,
-           so the unfold opens a warm panel OUT OF a warm tile instead of
-           replacing it with a cool one (the shipped «подмена поверхности»).
-           Opacity-driven and always present, like the tile's shelf: the
-           state can fall live (a raced-away claim) and a background swap
-           cannot fade. The grid/decision are positioned above it. */
-        &::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-            border-radius: inherit;
-            background:
-                radial-gradient(58% 44% at 20% 24%, fade(@strat-gold, 10%), transparent 68%),
-                linear-gradient(165deg, rgba(33, 31, 24, 0.94), rgba(19, 18, 13, 0.94));
-            opacity: 0;
-            transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
-            pointer-events: none;
-        }
     }
     /* The BOUNDARY is its own element: the entrance forms it LAST, an abort
        restores it (never painted before its beat). */
@@ -13687,36 +13522,12 @@ html.console-mode {
         flex-shrink: 0;
         border-radius: .9rem;
         z-index: 6;
-        background:
-            radial-gradient(circle at 50% 58%, fade(@con-cyan, 14%), transparent 66%),
-            rgba(9, 15, 24, 0.66);
+        /* A plain plate (FB) — the carried emblem stands on material, never in a pool of light. */
+        background: rgba(9, 15, 24, 0.66);
         box-shadow:
             inset 0 0 0 .05rem rgba(120, 150, 180, 0.24),
             inset 0 -.9rem 1.6rem rgba(0, 0, 0, 0.4),
             0 .8rem 2.4rem rgba(0, 0, 0, 0.45);
-
-        /* The pedestal's ACTIVATION layer — the material twin of the browse
-           tile's warm `--go` pedestal. The FLIP carries this very box out of
-           the pressed card, so the carried emblem must land on the SAME
-           material it took off from: a pedestal that changed temperature at
-           frame 0 of the carry was the most visible break of «one physical
-           object». Paint only (the FLIP measures the box, never pixels);
-           opacity-driven for live rising/falling edges. */
-        &::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: inherit;
-            background:
-                radial-gradient(circle at 50% 58%, fade(@strat-gold, 18%), transparent 66%),
-                rgba(16, 14, 9, 0.62);
-            box-shadow:
-                inset 0 0 0 .05rem fade(#f6e8c6, 26%),
-                inset 0 -.9rem 1.6rem rgba(0, 0, 0, 0.4);
-            opacity: 0;
-            transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
-            pointer-events: none;
-        }
 
         &::after {
             content: '';
@@ -13733,37 +13544,13 @@ html.console-mode {
         position: absolute;
         inset: 8%;
     }
-    /* The «can act NOW» light on the hero — the overview tile's activation
-       rim carried into the confirmation context (absolute: zero layout, the
-       hero's children are identical in every phase). Lit only pre-commit. */
-    &__actring {
-        position: absolute;
-        inset: 10%;
-        border-radius: 50%;
-        box-shadow: 0 0 0 .11rem rgba(246, 232, 198, 0.6),
-            0 0 1.1rem fade(@strat-gold, 38%),
-            inset 0 0 .8rem fade(@strat-gold, 14%);
-        opacity: 0;
-        transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
-        pointer-events: none;
-        z-index: 2;
-    }
-    &--avail &__actring { opacity: 1; }
-    /* THE OFFERED MILESTONE, one level deeper (`--go`, latched through the
-       commit and the ceremony — the coronation is this light consummated,
-       and a surface that cooled the instant A landed read as a scene swap):
-       the tile's lit layers rise at stage scale — warm ground + key light
-       on the surface, the warm pedestal under the carried emblem, the warm
-       decision band standing on the shelf light. The boundary `__edge`
-       stays the frame's cool chrome, exactly like the tile's own hairline:
-       availability never borrows a frame channel. */
-    &--go &__surface::before { opacity: 1; }
-    &--go &__stage::before { opacity: 1; }
-    &--go &__decision {
-        border-top-color: fade(@strat-gold, 22%);
-        background-color: rgba(17, 15, 10, 0.7);
-
-        &::before { opacity: 1; }
+    /* OFFERED NOW (a milestone — P29): the hero pedestal wears the overview row's MINT KANT; no rim of light, no
+       warm lit ground, no shelf (VISUAL RESTRAINT — ledger FB). `--go` stays the commit's latch for the ceremony. */
+    &--avail &__stage {
+        box-shadow:
+            inset 0 0 0 .075rem fade(@con-mint, 62%),
+            inset 0 -.9rem 1.6rem rgba(0, 0, 0, 0.4),
+            0 .8rem 2.4rem rgba(0, 0, 0, 0.45);
     }
     /* THE AWARD IDENTITY — the podium ATMOSPHERE the whole awards screen
        stands in, carried one level deeper (the tile the stage unfolds from
@@ -13774,9 +13561,7 @@ html.console-mode {
        be mistaken for it. Same recipes as `.con-ma--awards`' tile scope,
        one density level deeper. */
     &--award &__surface {
-        background:
-            radial-gradient(90% 70% at 18% 12%, rgba(255, 205, 120, 0.07), transparent 60%),
-            linear-gradient(165deg, rgba(26, 23, 18, 0.985), rgba(15, 13, 10, 0.985));
+        background: linear-gradient(165deg, rgba(26, 23, 18, 0.985), rgba(15, 13, 10, 0.985));
     }
     &--award &__edge {
         box-shadow:
@@ -13784,9 +13569,7 @@ html.console-mode {
             inset 0 .05rem 0 rgba(255, 255, 255, 0.06);
     }
     &--award &__stage {
-        background:
-            radial-gradient(circle at 50% 58%, rgba(255, 205, 120, 0.10), transparent 66%),
-            rgba(15, 12, 8, 0.66);
+        background: rgba(15, 12, 8, 0.66);
         box-shadow:
             inset 0 0 0 .05rem rgba(196, 170, 120, 0.24),
             inset 0 -.9rem 1.6rem rgba(0, 0, 0, 0.4),
@@ -13843,7 +13626,6 @@ html.console-mode {
         text-transform: uppercase;
         line-height: 1.12;
         text-align: center;
-        text-shadow: 0 0 .9rem fade(@con-cyan, 14%);
     }
     /* THE STATE BADGE — one short label. It is BOUNDED BY THE COLUMN: the
        row is the column's full width and the chip may not exceed it, so a
@@ -13882,7 +13664,7 @@ html.console-mode {
            changed the state's language mid-descend). */
         &--go {
             background: rgba(14, 19, 22, 0.8);
-            box-shadow: inset 0 0 0 .075rem rgba(246, 232, 198, 0.6), 0 0 .9rem fade(@strat-gold, 22%);
+            box-shadow: inset 0 0 0 .075rem fade(@con-mint, 70%);
             color: #f2e3bd;
         }
         &--mine {
@@ -13956,10 +13738,54 @@ html.console-mode {
     &__main {
         flex: 1 1 auto;
         min-width: 0;
+        min-height: 0;
         display: flex;
         flex-direction: column;
-        justify-content: center;
+        /* THREE PLATES FILL THE COLUMN (FB): the condition and what it gives at their content, the RACE takes the
+           rest — the column is never centred in a void. */
+        justify-content: flex-start;
         gap: var(--mafocus-gap, 1.1rem);
+    }
+    &__race {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+    /* The sponsorship ladder: one step per slot — a sponsor's seat on a funded one, the next price under a kant. */
+    &__ladder {
+        display: flex;
+        gap: .5rem;
+        margin-top: .55rem;
+    }
+    &__ladder-step {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        padding: .2rem .6rem;
+        border-radius: 49.95rem;
+        font-variant-numeric: tabular-nums;
+        color: @con-text-dim;
+        box-shadow: inset 0 0 0 .05rem rgba(196, 174, 132, 0.22);
+
+        b { font-weight: 800; }
+        .resource_icon { width: .9rem; height: .9rem; background-size: contain !important; }
+
+        &--funded { color: fade(@con-text, 70%); text-decoration: line-through; text-decoration-thickness: .05rem; }
+        &--next { color: #ffe2ad; box-shadow: inset 0 0 0 .075rem fade(@strat-gold, 80%); }
+    }
+    /* The claimed milestone's HISTORY row, over the field's current values. */
+    &__history {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        margin-bottom: .45rem;
+        font-size: var(--mafocus-rowname, .85rem);
+        color: @con-text;
+    }
+    /* An award nobody scores yet — said in a word; the rows rank nobody. */
+    &__nolead {
+        margin-bottom: .45rem;
+        font-size: var(--mafocus-note, .75rem);
+        color: @con-text-dim;
     }
     /* A PLATE is the console's grouped-block material: its own ground, one
        inset edge light, real padding. Naked text lines on the panel is what
@@ -14124,47 +13950,27 @@ html.console-mode {
        fixed by the rail, so the commit's own line replaces the chips in
        place — no layout shift between projection, pending and refusal. */
     &__decision {
-        /* Positioned above the surface's activation layer; flat colours on
-           purpose — background-color/border-color are transitionable, so the
-           warm shift of the offered state can rise and fall smoothly. */
+        /* THE WORKSPACE FOOT (FB): the family's `--con-ws-foot-h`, never a height of its own; the rail and the
+           commit's line are TWO FACES of one cell that cross by opacity — no `v-if` swap, nothing re-lays. */
         position: relative;
         flex-shrink: 0;
-        display: flex;
+        display: grid;
         align-items: center;
-        min-height: 3.1rem;
-        padding: .35rem 1.6rem;
+        height: var(--con-ws-foot-h, 3.1rem);
+        padding: 0 1.6rem;
+        overflow: hidden;
         border-top: .05rem solid fade(@con-cyan, 16%);
         background: rgba(8, 13, 21, 0.7);
-        transition:
-            background-color calc(300ms * var(--motion-scale, 1)) ease,
-            border-top-color calc(300ms * var(--motion-scale, 1)) ease;
-
-        /* THE SHELF LIGHT at stage scale — availability's own edge on the
-           surface's REAL bottom (the tile's signature, carried with the
-           object: line + bloom, light only, never an outline and never
-           text). Same opacity discipline as the tile's. */
-        &::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            height: 1.5rem;
-            background-image:
-                linear-gradient(90deg, transparent, fade(#f6e8c6, 55%) 14%, fade(#f6e8c6, 55%) 86%, transparent),
-                linear-gradient(0deg, fade(@strat-gold, 13%), transparent 82%);
-            background-size: 100% .12rem, 100% 100%;
-            background-position: bottom, bottom;
-            background-repeat: no-repeat;
-            opacity: 0;
-            transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
-            pointer-events: none;
-        }
     }
-    /* The COMMIT's own line (pending / refusal) — it stands where the rail
-       stood, at the same height. */
+    &__face {
+        grid-area: 1 / 1;
+        min-width: 0;
+        transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
+
+        &--off { opacity: 0; pointer-events: none; }
+    }
+    /* The COMMIT's own line (pending / refusal) — the cell's second face. */
     &__status {
-        height: 2.3rem;
         display: inline-flex;
         align-items: center;
         gap: .4rem;
@@ -14172,10 +13978,7 @@ html.console-mode {
         font-weight: 700;
         color: @con-text-dim;
 
-        &--wait {
-            color: fade(@con-cyan, 92%);
-            animation: con-mafocus-wait calc(900ms * var(--motion-scale, 1)) ease-in-out infinite alternate;
-        }
+        &--wait { color: fade(@con-cyan, 92%); }
         &--blocked { color: @con-amber; }
     }
 
@@ -14289,13 +14092,8 @@ html.console-mode {
     &--award {
         .con-mafocus__cere-halo { background: radial-gradient(circle, fade(@con-ma-medal, 22%), transparent 68%); }
         .con-mafocus__cere-ring { box-shadow: 0 0 0 .1rem fade(@con-ma-medal, 55%), 0 0 1.7rem fade(@con-ma-medal, 28%); }
-        .con-mafocus__cere-kicker { color: fade(@con-ma-medal, 94%); text-shadow: 0 0 .9rem fade(@con-ma-medal, 45%); }
+        .con-mafocus__cere-kicker { color: fade(@con-ma-medal, 94%); }
     }
-}
-
-@keyframes con-mafocus-wait {
-    from { opacity: 0.55; }
-    to { opacity: 1; }
 }
 
 /* The Deck's 1280×800 band: the same composition, one size down — the token
@@ -15447,7 +15245,7 @@ html.con-profile-handheld .con-mafocus {
             inset 0 0 0 .07rem rgba(255, 255, 255, 0.5),
             inset 0 .05rem .06rem rgba(255, 255, 255, 0.34),
             inset 0 -.06rem .08rem rgba(0, 0, 0, 0.42),
-            0 0 0 .06rem fade(@strat-gold, 62%),
+            0 0 0 .06rem fade(@strat-gold, 40%),
             0 .1rem .3rem rgba(0, 0, 0, 0.55);
     }
     /* The engraved CHECK on a milestone's provenance socket — «done» cut
@@ -15530,29 +15328,24 @@ html.con-profile-handheld .con-mafocus {
     /* State B — met, but NOT actionable now (turn / money / slots): the
        green facts and a moderate mint rim. No activation light, no word. */
     &__item--ready {
+        /* A MINT KANT on the puck (FB — VISUAL RESTRAINT): no bloom, no outer ring of light. */
         .con-strat__pedestal {
             box-shadow: @strat-puck-shadow,
-                0 0 0 .06rem fade(@con-mint, 50%),
-                inset 0 0 .4rem fade(@con-mint, 14%);
+                inset 0 0 0 .06rem fade(@con-mint, 40%);
         }
-        .con-strat__bloom { opacity: 0.28; }
     }
     /* State C — the claim is OFFERED right now (the server's own option,
        never a client re-derivation): keep the green requirement language
        AND add the gold-white activation light — the rim, the lit bottom
        crystal, a thin row bracket. Only the RIM breathes, slowly. */
     &__item--now {
+        /* OFFERED NOW: a stronger mint kant on the puck and the word «ДОСТУПНО» in the cell's foot — never a
+           standing rim of light and never a loop (FB: the old breathing rim was a standing state in disguise). The
+           rim and the crystal light ONCE, on the activation (below), and go out on their own. */
         .con-strat__pedestal {
             box-shadow: @strat-puck-shadow,
-                0 0 0 .06rem fade(@con-mint, 62%),
-                inset 0 0 .45rem fade(@con-mint, 16%);
+                inset 0 0 0 .075rem fade(@con-mint, 70%);
         }
-        .con-strat__bloom { opacity: 0.3; }
-        .con-strat__actring {
-            opacity: 1;
-            animation: strat-avail-breathe calc(5600ms * var(--motion-scale, 1)) ease-in-out infinite;
-        }
-        .con-strat__spark { opacity: 0.85; }
 
         /* The row's own light accent — a soft gold bracket on the shelf
            edge, tying medal and value into one live line. */
@@ -15593,8 +15386,8 @@ html.con-profile-handheld .con-mafocus {
     /* The short READY-PULSE — the offer came BACK (a new turn, a blocker
        cleared): one calm swell of the standing light, never the ceremony. */
     &__item--repulse {
-        .con-strat__actring { animation: strat-repulse calc(540ms * var(--motion-scale, 1)) ease-out both; }
-        .con-strat__spark { animation: strat-repulse calc(540ms * var(--motion-scale, 1)) ease-out both; }
+        .con-strat__actring { animation: strat-rim-once calc(540ms * var(--motion-scale, 1)) ease-out both; }
+        .con-strat__spark { animation: strat-rim-once calc(540ms * var(--motion-scale, 1)) ease-out both; }
     }
     /* The CROWN HAND-OVER (a live leader change): the FLIP walks the cubes
        along the cassette's own axes, the cap fades across, and the
@@ -15605,7 +15398,7 @@ html.con-profile-handheld .con-mafocus {
             animation: strat-notch-pulse calc(560ms * var(--motion-scale, 1) * var(--strat-mo, 1)) ease-out both;
         }
         .con-strat__unitbody--i .con-strat__pz::before {
-            animation: strat-repulse calc(560ms * var(--motion-scale, 1) * var(--strat-mo, 1)) ease-out both;
+            animation: strat-rim-once calc(560ms * var(--motion-scale, 1) * var(--strat-mo, 1)) ease-out both;
         }
     }
 
@@ -15742,7 +15535,7 @@ html.con-profile-handheld .con-mafocus {
     }
     &__ownseal--mine .con-strat__ownseal-cube {
         box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5),
-            0 0 0 .07rem rgba(255, 255, 255, 0.78);
+            0 0 0 .07rem rgba(255, 255, 255, 0.4);
     }
     &__ownseal-word {
         font-size: .5rem;
@@ -15924,7 +15717,10 @@ html.con-profile-handheld .con-mafocus {
         height: 1.2rem;
         transform: translate(-50%, -50%);
         border-radius: 50%;
+        /* No pool of light (FB): the crown and the gold step name the leader; this layer only flares once on a
+           crown hand-over (`--crownmove`). */
         background: radial-gradient(circle, fade(@strat-gold, 20%) 15%, transparent 68%);
+        opacity: 0;
         pointer-events: none;
     }
     /* The CROWN-CAP: floats a hair ABOVE the leader — anchored to the
@@ -16017,7 +15813,7 @@ html.con-profile-handheld .con-mafocus {
                 inset 0 .05rem .06rem rgba(255, 255, 255, 0.34),
                 inset 0 -.06rem .08rem rgba(0, 0, 0, 0.42),
                 inset 0 0 0 .045rem rgba(16, 22, 30, 0.8),
-                0 0 0 .055rem rgba(255, 255, 255, 0.62),
+                0 0 0 .055rem rgba(255, 255, 255, 0.4),
                 0 .07rem .12rem rgba(0, 0, 0, 0.5);
         }
     }
@@ -16212,7 +16008,7 @@ html.con-profile-handheld .con-mafocus {
     0% { opacity: 0; transform: translateX(-50%) scale(0.4); }
     18% { opacity: 1; transform: translateX(-50%) scale(1.55); }
     60% { opacity: 0.9; transform: translateX(-50%) scale(1); }
-    100% { opacity: 0.85; transform: translateX(-50%) scale(1); }
+    100% { opacity: 0; transform: translateX(-50%) scale(1); }
 }
 @keyframes strat-activate-sweep {
     0% { opacity: 0; transform: rotate(0deg); }
@@ -16220,10 +16016,11 @@ html.con-profile-handheld .con-mafocus {
     86% { opacity: 0.85; }
     100% { opacity: 0; transform: rotate(360deg); }
 }
+/* ONE-SHOT: the rim assembles and goes out on its own — the standing state is the puck's kant (FB). */
 @keyframes strat-activate-rim {
     0% { opacity: 0; transform: scale(1.16); }
-    62% { opacity: 1; transform: scale(0.99); }
-    100% { opacity: 1; transform: none; }
+    55% { opacity: 1; transform: scale(0.99); }
+    100% { opacity: 0; transform: none; }
 }
 @keyframes strat-activate-avail {
     0% { opacity: 0; transform: translateY(.28rem); }
@@ -16234,15 +16031,11 @@ html.con-profile-handheld .con-mafocus {
     100% { stroke-dashoffset: 0; }
 }
 /* The re-gained offer: one calm swell of the standing light. */
-@keyframes strat-repulse {
+/* The offer came BACK: the rim swells once and goes out (never a standing light). */
+@keyframes strat-rim-once {
     0% { opacity: 0.45; transform: scale(1.05); }
-    55% { opacity: 1; }
-    100% { opacity: 1; transform: none; }
-}
-/* The persistent availability rim breathes — ONE layer, slow and shallow. */
-@keyframes strat-avail-breathe {
-    0%, 100% { opacity: 0.78; }
     50% { opacity: 1; }
+    100% { opacity: 0; transform: none; }
 }
 /* The score ROLL — the digits arrive along the change's direction. */
 @keyframes strat-roll-up {
@@ -16284,15 +16077,8 @@ html.con-profile-handheld .con-mafocus {
     .con-strat__item--repulse .con-strat__spark { animation: none; }
     /* The MA workspace speaks the same activation phrase — same statics. */
     .con-ma__card--arriving .con-ma__art,
-    .con-ma__card--arriving .con-ma__spark,
-    .con-ma__card--arriving .con-ma__sweep,
-    .con-ma__card--arriving .con-ma__actring,
     .con-ma__card--arriving .con-ma__avail,
-    .con-ma__card--arriving .con-ma__readymark svg path,
-    .con-ma__browse--arrive-l .con-ma__scroll-host,
-    .con-ma__browse--arrive-l .con-ma__foot,
-    .con-ma__browse--arrive-r .con-ma__scroll-host,
-    .con-ma__browse--arrive-r .con-ma__foot { animation: none; }
+    .con-ma__card--arriving .con-ma__readymark svg path { animation: none; }
 }
 
 /* The recomposition's TransitionGroup classes: survivors FLIP (move),
@@ -38607,13 +38393,17 @@ html.con-profile-handheld {
         &__wallet-shortfall { font-size: .6rem; }
         &__wallet-free { font-size: .525rem; padding: .1rem .5rem; }
         &__complete { font-size: .6rem; padding: .15rem .6rem; }
-        &__grid { gap: .5rem; grid-auto-rows: minmax(4.9rem, 1fr); }
-        &__card { gap: .6rem; padding: .45rem .55rem .45rem .7rem; border-radius: .55rem; }
+        &__grid { gap: .55rem; }
+        &__col { gap: .3rem; }
+        &__colhead { min-height: 1.6rem; gap: .4rem; padding-bottom: .25rem; }
+        &__coltitle { font-size: .675rem; letter-spacing: .07rem; }
+        &__rows { gap: .3rem; }
+        &__card { gap: .5rem; padding: .3rem .45rem .3rem .6rem; border-radius: .55rem; }
         &__rail { width: .2rem; }
-        /* Adaptive stage caps for the Deck window (see the base rule). */
-        &__stage { min-height: 3.9rem; max-height: 5.8rem; border-radius: .55rem; }
-        &__name { font-size: .825rem; letter-spacing: .05rem; }
-        &__desc { font-size: .625rem; line-height: 1.3; -webkit-line-clamp: 3; }
+        /* Ten rows on 800 px (FB): the medallion gives way first — a row is never cut. */
+        &__stage { min-height: 2.6rem; max-height: 4.4rem; border-radius: .55rem; }
+        &__name { font-size: .75rem; letter-spacing: .05rem; }
+        &__desc { font-size: .575rem; line-height: 1.25; -webkit-line-clamp: 2; }
         &__owner { font-size: .65rem; gap: .35rem; }
         &__owner-dot { width: .55rem; height: .55rem; }
         &__owner-verb { font-size: .55rem; }
@@ -38849,8 +38639,8 @@ html.con-profile-large {
         &__name { font-size: 1.2rem; }
         &__desc { font-size: .85rem; }
         &__metric-value { font-size: 1.7rem; }
-        /* Adaptive stage caps for the large window (see the base rule). */
-        &__stage { min-height: 6rem; max-height: 11rem; }
+        /* Adaptive stage caps for the large window (see the base rule) — five rows a column. */
+        &__stage { min-height: 4.4rem; max-height: 9rem; }
     }
 }
 

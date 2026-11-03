@@ -71,8 +71,9 @@ for (const profile of PROFILES) {
       // ── 1 · The AWARDS overview (LB opens milestones; RB switches over) ────
       await key(page, 'KeyQ', 1400);
       await page.waitForSelector('.con-ma', {timeout: 8_000});
-      await key(page, 'KeyE', 1400); // → НАГРАДЫ (the category toggle survives)
-      expect(await page.locator('.con-ma').count(), 'the MA workspace must survive the category switch').toBe(1);
+      await key(page, 'KeyE', 1400); // → the AWARDS column (one screen — FB: RB jumps the cursor, nothing reopens)
+      expect(await page.locator('.con-ma').count(), 'the MA workspace must survive the column jump').toBe(1);
+      expect(await page.locator('.con-ma__col--active[data-ma-column="awards"]').count(), 'the cursor stands in the awards column').toBe(1);
 
       // No per-item CTA (criterion 1); A carries the CONTEXTUAL verb (2):
       // the focused first fundable award advertises the INTENT («Спонсировать»),
@@ -83,10 +84,10 @@ for (const profile of PROFILES) {
       expect(listBar, 'the overview footer advertises the intent verb').toContain('СПОНСИРОВАТЬ');
       expect(listBar, 'the universal select verb must be gone').not.toContain('ВЫБРАТЬ');
 
-      // THE HEADER states the SYSTEM: the live price, never a wallet delta.
-      const head = (await page.locator('.con-ma__wshead').innerText()).replace(/\s+/g, ' ');
-      expect(head, 'the header carries the live price chip').toContain('ЦЕНА');
-      expect(head, 'the header must not project a balance').not.toContain('→');
+      // THE COLUMN HEAD states the SYSTEM: the live price, never a wallet delta.
+      const head = (await page.locator('[data-ma-column="awards"] [data-ma-colhead]').innerText()).replace(/\s+/g, ' ');
+      expect(head, 'the column head carries the live price chip').toContain('ЦЕНА');
+      expect(head, 'the column head must not project a balance').not.toContain('→');
 
       // THE STATUS RAIL carries the WHOLE projection of the focused item, in
       // the shared chips (M€ + the category counter), and nothing else does.
@@ -208,22 +209,27 @@ for (const profile of PROFILES) {
       expect(panel, 'the funded tally is live after the close').toContain('1/3');
       // …and the PRICE followed the game: the second funding costs 14, from the
       // engine's own ladder (the UI never re-derives it from a constant).
-      expect((await page.locator('.con-ma__price').innerText()).replace(/\s+/g, ' '),
+      expect((await page.locator('[data-ma-price="awards"]').innerText()).replace(/\s+/g, ' '),
         'the header price is the LIVE next-award cost').toContain('14');
       await shoot(page, profile.tag + '-06-reopened');
 
       // ── 7 · A blocked item still OPENS, and tells the truth ────────────────
       // (There is no `X` any more: A is the one way in, for every item.)
-      await key(page, 'KeyQ', 1400); // → ДОСТИЖЕНИЯ, where a threshold blocks
+      await key(page, 'KeyQ', 1400); // → the MILESTONES column, where a threshold blocks
       await page.waitForSelector('.con-ma', {timeout: 8_000});
-      const blockedIdx = await page.evaluate(() => {
-        const cards = Array.from(document.querySelectorAll('.con-ma__card'));
-        return cards.findIndex((c) => c.classList.contains('con-ma__card--go') === false &&
-          c.classList.contains('con-ma__card--taken') === false);
+      const rows = await page.evaluate(() => {
+        const cards = Array.from(document.querySelectorAll('.con-ma__col--active .con-ma__card'));
+        return {
+          blocked: cards.findIndex((c) => c.classList.contains('con-ma__card--go') === false &&
+            c.classList.contains('con-ma__card--taken') === false),
+          at: cards.findIndex((c) => c.classList.contains('con-ma__card--focused')),
+        };
       });
+      const blockedIdx = rows.blocked;
       if (blockedIdx >= 0) {
-        for (let i = 0; i < blockedIdx; i++) {
-          await key(page, i % 2 === 0 ? 'ArrowRight' : 'ArrowDown', 260);
+        // A column is one row wide: ↑↓ walk it.
+        for (let i = Math.max(0, rows.at); i !== blockedIdx; i += blockedIdx > i ? 1 : -1) {
+          await key(page, blockedIdx > i ? 'ArrowDown' : 'ArrowUp', 260);
         }
         // A blocked focus advertises the READING verb — never a false intent.
         await expect.poll(() => barText(page), {message: 'a blocked item offers «Осмотреть»', timeout: 10_000}).toContain('ОСМОТРЕТЬ');

@@ -8,7 +8,8 @@
        :class="['con-mafocus--' + kind, {
          'con-mafocus--committing': phase === 'committing',
          'con-mafocus--cere': ceremonyUp,
-         'con-mafocus--avail': available && phase === 'detail',
+         // «Offered now» is a MILESTONE semantic (P29) — an award to sponsor stays calm; a kant, never a glow (FB).
+         'con-mafocus--avail': available && phase === 'detail' && kind === 'milestone',
          'con-mafocus--go': warmGo,
        }]">
     <div class="con-mafocus__surface" data-unfold-surface>
@@ -21,11 +22,6 @@
         <div class="con-mafocus__side">
           <div class="con-mafocus__stage" data-ma-focus-hero>
             <MaHeroArt :name="item.name" :kind="kind" class="con-mafocus__hero" />
-            <!-- The «can act NOW» light — the same gold-white activation rim
-                 the overview tile and the strategy rail wear. Absolute, zero
-                 layout: the hero column's children stay identical in every
-                 phase; only the light comes and goes with availability. -->
-            <i class="con-mafocus__actring" aria-hidden="true"></i>
           </div>
           <div class="con-mafocus__name" data-ma-detail data-unfold-item v-i18n>{{ displayView.displayName }}</div>
           <!-- THE STATE BADGE — ONE short word-pair, never a sentence. It says
@@ -49,58 +45,74 @@
           <div class="con-mafocus__you" data-ma-detail data-unfold-late>
             <span class="con-mafocus__you-label">{{ $t('You') }}</span>
             <span class="con-mafocus__you-value" :class="{'con-mafocus__you-value--met': kind === 'milestone' && displayView.thresholdMet}">
-              <b>{{ displayView.myScore }}</b><span v-if="displayView.threshold !== undefined" class="con-mafocus__you-req">/{{ displayView.threshold }}</span>
+              <!-- A CONDITION milestone's raw score is no progress: «—» until met, «✓» once — the overview's own reading. -->
+              <template v-if="conditionMilestone"><b>{{ item.myReady ? '✓' : '—' }}</b></template>
+              <template v-else><b>{{ displayView.myScore }}</b><span v-if="displayView.threshold !== undefined" class="con-mafocus__you-req">/{{ displayView.threshold }}</span></template>
             </span>
             <span v-if="displayView.threshold !== undefined" class="con-mafocus__meter" aria-hidden="true"><i :style="{width: meterWidth}"></i></span>
             <span v-if="standingNote !== ''" class="con-mafocus__you-note" :class="{'con-mafocus__you-note--lead': displayView.raceTone === 'lead' || displayView.raceTone === 'tie'}">{{ standingNote }}</span>
           </div>
         </div>
 
-        <!-- ── DOSSIER column: two PLATES — what the rule is, and how the
-             field stands. Material (plate + edge light) rather than naked
-             lines: the stage is the artefact's exhibition, and grouped
-             surfaces are what the rest of the console is built from. ── -->
+        <!-- ── DOSSIER column: THREE PLATES, top to bottom, in EVERY mode (FB — the owner's frames: «Условие» floated in
+             the middle of an empty column): the rule · what it gives · the race. The column is filled by its plates,
+             never centred in a void. ── -->
         <div class="con-mafocus__main" data-ma-detail>
-          <div class="con-mafocus__plate" data-unfold-item>
+          <div class="con-mafocus__plate" data-unfold-item data-ma-plate="condition">
             <div class="con-mafocus__block-title">{{ $t('Condition') }}</div>
             <div class="con-mafocus__desc" v-i18n>{{ displayView.description }}</div>
-            <!-- The MECHANIC TRUTH of the category: a milestone pays its 5 VP
-                 the moment it is claimed; an award pays nothing now and
-                 everything at the end. -->
-            <div class="con-mafocus__truth" data-unfold-late>
+          </div>
+
+          <!-- WHAT IT GIVES — the mechanic truth of the category: a milestone pays its 5 VP the moment it is claimed;
+               an award pays nothing now and its places at the end — with the SPONSORSHIP LADDER: every slot's price,
+               the sponsors' seats on the funded ones, the next price marked by a kant. -->
+          <div class="con-mafocus__plate con-mafocus__gives" data-unfold-item data-ma-plate="gives">
+            <div class="con-mafocus__block-title">{{ $t('What it gives') }}</div>
+            <div class="con-mafocus__truth">
               <template v-if="kind === 'milestone'">
                 <span class="con-mafocus__vp-badge">+5 {{ $t('VP') }}</span>
                 <span class="con-mafocus__truth-note">{{ $t('Milestones grant 5 victory points immediately when claimed.') }}</span>
               </template>
               <template v-else>
-                <span class="con-mafocus__truth-mark" aria-hidden="true">⏳</span>
                 <span class="con-mafocus__truth-note">
-                  <b>{{ $t('The award grants no victory points now.') }}</b>
                   {{ $t(displayInspect.playersCount > 2 ? 'At game end: 5 VP for 1st place, 2 VP for 2nd.' : 'At game end: 5 VP for 1st place.') }}
                 </span>
               </template>
             </div>
+            <div v-if="kind === 'award'" class="con-mafocus__ladder" data-ma-ladder>
+              <span v-for="(step, si) in ladder" :key="si" class="con-mafocus__ladder-step"
+                    :class="{'con-mafocus__ladder-step--next': step.next, 'con-mafocus__ladder-step--funded': step.sponsor !== undefined}"
+                    :data-ma-ladder-step="si">
+                <span v-if="step.sponsor !== undefined" class="con-mafocus__dot" :class="'player_bg_color_' + step.sponsor" aria-hidden="true"></span>
+                <b>{{ step.free ? $t('Free') : step.price }}</b>
+                <i v-if="!step.free" class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
+              </span>
+            </div>
           </div>
 
-          <!-- The RACE / STANDINGS — ranked leader→last with relative bars
-               (the inspect view-model; engine-faithful VP projection). A
-               claimed milestone has no meaningful race and renders none. -->
-          <div v-if="displayInspect.rows.length > 0" class="con-mafocus__plate con-mafocus__race" data-unfold-item>
+          <!-- THE RACE — EVERY mode: ranked leader → last with relative bars (the inspect view-model; the engine-
+               faithful VP projection). A claimed milestone opens with its HISTORY row (who claimed it) and keeps the
+               field's current values under it; an award nobody scores yet says so and ranks nobody. -->
+          <div class="con-mafocus__plate con-mafocus__race" data-unfold-item data-ma-plate="race">
             <div class="con-mafocus__block-title">{{ $t('Current race') }}</div>
+            <div v-if="displayInspect.owner !== undefined && kind === 'milestone'" class="con-mafocus__history" data-ma-history>
+              <span class="con-mafocus__dot" :class="'player_bg_color_' + displayInspect.owner.color" aria-hidden="true"></span>
+              <span>{{ $t('Claimed') }} · <b>{{ displayInspect.owner.name }}</b></span>
+            </div>
+            <div v-if="displayInspect.nobodyLeads" class="con-mafocus__nolead" data-ma-nolead>{{ $t('Nobody leads yet') }}</div>
             <div class="con-mafocus__rows">
               <div v-for="r in displayInspect.rows" :key="r.color"
                    class="con-mafocus__row"
                    :class="{'con-mafocus__row--viewer': r.viewer, 'con-mafocus__row--leader': r.isLeader}">
                 <span class="con-mafocus__row-rank" aria-hidden="true">
-                  <!-- The award identity echo: the RACE leader wears the same
-                       crown the overview cassette caps its cluster with. -->
+                  <!-- The award identity echo: the RACE leader wears the same crown the overview cassette caps with. -->
                   <i v-if="kind === 'award' && r.isLeader" class="con-mafocus__row-crown">
                     <svg viewBox="0 0 18 15">
                       <path d="M2.4 12.2 L3 5.6 L6.5 8.1 L9 1 L11.5 8.1 L15 5.6 L15.6 12.2 Z" />
                       <path class="con-mafocus__row-crown-base" d="M2.9 13 H15.1 A0.62 0.62 0 0 1 15.1 14.24 H2.9 A0.62 0.62 0 0 1 2.9 13 Z" />
                     </svg>
                   </i>
-                  <template v-else>{{ r.rank }}</template>
+                  <template v-else-if="!displayInspect.nobodyLeads">{{ r.rank }}</template>
                 </span>
                 <span class="con-mafocus__dot" :class="'player_bg_color_' + r.color" aria-hidden="true"></span>
                 <span class="con-mafocus__row-name">{{ r.viewer ? $t('You') : r.name }}</span>
@@ -119,11 +131,15 @@
            shared `current → resulting` chips, or the one concrete blocker.
            Past the press it states the commit instead (and after a refusal,
            the inline reason). The verbs live in the global command bar. ── -->
-      <div class="con-mafocus__decision" data-ma-detail data-unfold-item>
-        <ConsoleMaRail v-if="commitStatus === ''" :view="railView" />
-        <span v-else class="con-mafocus__status" :class="statusClass">
+      <!-- ONE cell, two faces that CROSS by opacity (FB — the old `v-if` swap blinked on every press): the rail
+           while the decision is the player's, the commit's own line once A was pressed (or a refusal's reason). -->
+      <div class="con-mafocus__decision" data-ma-detail data-unfold-item
+           :data-ma-block-reason="blockReason !== '' ? blockReason : undefined">
+        <ConsoleMaRail class="con-mafocus__face" :class="{'con-mafocus__face--off': commitStatus !== ''}" :view="railView" />
+        <span class="con-mafocus__face con-mafocus__status" :class="[statusClass, {'con-mafocus__face--off': commitStatus === ''}]"
+              :aria-hidden="commitStatus === '' ? 'true' : undefined">
           <template v-if="phase === 'committing'">{{ $t('Confirming…') }}</template>
-          <template v-else>✕ {{ $t(commitStatus) }}</template>
+          <template v-else-if="commitStatus !== ''">✕ {{ $t(commitStatus) }}</template>
         </span>
       </div>
 
@@ -184,6 +200,7 @@ import {buildMaRail, MaRailView} from '@/client/components/console/consoleMaRail
 import {MaConfirmView} from '@/client/components/ma/maConfirmModel';
 import {MaInspectView} from '@/client/components/console/consoleMaInspectModel';
 import {maFocusState, MaFocusPhase} from '@/client/console/consoleMaFocus';
+import {AWARD_COSTS} from '@/common/constants';
 import {runMaCeremonyStage, stopMaCeremonyStage} from '@/client/console/consoleMaFocusMotion';
 import {$t} from '@/client/directives/i18n';
 
@@ -196,8 +213,10 @@ export default defineComponent({
     inspect: {type: Object as PropType<MaInspectView>, required: true},
     /** LIVE availability (the waitingFor tree is the source of truth). */
     available: {type: Boolean, required: true},
-    /** The concrete reason when not available ('' → generic). */
+    /** The concrete reason when not available — the model's ONE ladder (`ConsoleMaItem.blocker`); '' when offered. */
     blockReason: {type: String, default: ''},
+    /** The awards' funded slots in order — each sponsor's colour (the ladder's seats). */
+    sponsors: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
   },
   emits: ['ceremony-done'],
   data() {
@@ -257,6 +276,27 @@ export default defineComponent({
     displayInspect(): MaInspectView {
       return this.heldInspect ?? this.inspect;
     },
+    /** A milestone with no numeric threshold — met / not met, never a progress number. */
+    conditionMilestone(): boolean {
+      return this.kind === 'milestone' && this.displayView.threshold === undefined;
+    },
+    /**
+     * THE SPONSORSHIP LADDER (awards): one step per slot — a funded slot wears its sponsor's seat and the price it went
+     * for (the rules' ladder), the NEXT one the live price (the engine's own — a modifier is already in it) with a kant.
+     */
+    ladder(): Array<{price: number, sponsor?: string, next: boolean, free: boolean}> {
+      const taken = this.displayView.takenCount;
+      return Array.from({length: this.displayView.maxSlots}, (_, i) => {
+        const sponsor = this.sponsors[i];
+        const next = i === taken;
+        return {
+          price: next ? this.displayView.cost : (AWARD_COSTS[i] ?? AWARD_COSTS[AWARD_COSTS.length - 1]),
+          ...(sponsor !== undefined ? {sponsor} : {}),
+          next,
+          free: next && this.displayView.free,
+        };
+      });
+    },
     takenByMe(): boolean {
       return this.item.takenBy !== undefined && this.item.takenBy.color === this.item.myColor;
     },
@@ -279,7 +319,8 @@ export default defineComponent({
       case 'go':
         return this.kind === 'milestone' ? 'Can be claimed' : 'Can be sponsored';
       default:
-        return 'Unavailable right now';
+        // ONE word for the state; the reason is the rail's, named (FB — never «Сейчас недоступно»).
+        return this.kind === 'milestone' && !this.item.myReady ? 'Not met yet' : 'Not now';
       }
     },
     /** The claimant's colour dot rides the badge when someone ELSE owns it. */

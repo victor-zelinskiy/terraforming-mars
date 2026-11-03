@@ -7,11 +7,11 @@
   "console_effect_decision.less": 1,
   "console_endgame_overview.less": 6,
   "console_endgame.less": 1,
-  "console_menu.less": 4,
+  "console_menu.less": 3,
   "console_payment.less": 1,
   "console_played.less": 2,
   "console_production_loss.less": 1,
   "console_tv.less": 1,
   "console_variant_choice.less": 4,
-  "console.less": 69
+  "console.less": 65
 }
