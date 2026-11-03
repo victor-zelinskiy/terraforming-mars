@@ -291,6 +291,14 @@ export type MarsBotCorp = {
   onBuildOnOwnMarker?(game: IGame, space: Space): 'pays' | void;
 
   /**
+   * MarsBot's tile has SEATED on a cell its own player marker reserved (CF1 Ferrus Academy's Graduation) — the
+   * AFTER twin of `onBuildOnOwnMarker`, dispatched from the very line that tells the human cards the same fact
+   * (`Game.answerOwnMarkerBuilt`), so both seats hear one placement at one moment: after the cell's bonuses, with
+   * the tile on the board (a track push it starts may lay the next tile safely).
+   */
+  onOwnMarkerBuilt?(game: IGame, space: Space): void;
+
+  /**
    * Resolves one of this corporation's OWN bonus cards (`info.corpBonusCards`,
    * the B22–B32 family) when the bot flips it from its action deck. Routing
    * (discard / destroy / recurring holding) stays with the caller.

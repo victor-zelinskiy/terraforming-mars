@@ -329,6 +329,16 @@ export function pileTagKinds(game: IGame, atLeast: number): number {
   return [...counts.values()].filter((n) => n >= atLeast).length;
 }
 
+/**
+ * «THE ALMA MATER» (CF1 Ferrus Academy's dividend) — the most bot tiles around ONE bot city: a campus is a city
+ * with its own ground around it, and the academy's measure is its best-grown one (0…6). Counts tiles, never a
+ * marker (a cube is a reservation, not a building).
+ */
+export function bestCampus(game: IGame): number {
+  const own = isBotTile(game);
+  return Math.max(0, ...botCitySpaces(game).map((city) => botNeighbours(game, city, own)));
+}
+
 /** Bonus cards in the bonus deck's discard. */
 export function bonusDiscardCount(game: IGame): number {
   return game.automa?.bonusDiscard.length ?? 0;

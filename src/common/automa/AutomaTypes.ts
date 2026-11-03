@@ -170,6 +170,9 @@ export enum MarsBotCorpId {
   C44_SAGITTA_FRONTIER_SERVICES = 'C44',
   C45_SPIRE = 'C45',
   C46_TYCHO_MAGNETICS = 'C46',
+  // THE FORK'S OWN CORPORATIONS (CF-prefix — the official C01–C46 are closed): a bot card designed here for a human
+  // corporation the official set never covered. CF1 — Ferrus Academy (TR79), «the Campus», 2026-11-03.
+  CF1_FERRUS_ACADEMY = 'CF1',
 }
 
 /** The implemented set, in official card-number order. */
@@ -220,6 +223,7 @@ export const MARS_BOT_CORP_IDS: ReadonlyArray<MarsBotCorpId> = [
   MarsBotCorpId.C44_SAGITTA_FRONTIER_SERVICES,
   MarsBotCorpId.C45_SPIRE,
   MarsBotCorpId.C46_TYCHO_MAGNETICS,
+  MarsBotCorpId.CF1_FERRUS_ACADEMY,
 ];
 
 /**
@@ -288,6 +292,8 @@ export enum BonusCardId {
   BF2_CORPORATE_COMPETITION_AMAZONIS = 'BF2',
   // The fork's own Corporate Competition for the OLD (fan) Terra Cimmeria (`BoardName.TERRA_CIMMERIA`), 2026-11-03 — §19.6.
   BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN = 'BF3',
+  // THE FORK'S OWN CORPORATIONS' cards (BC-prefix — BF is the fan MAPS' series): CF1 Ferrus Academy's recurring card.
+  BC1_FIELD_PRACTICE = 'BC1',
 }
 
 /** The set of bonus cards used in the base game (no expansions). */

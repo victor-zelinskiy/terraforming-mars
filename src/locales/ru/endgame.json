@@ -888,5 +888,6 @@
     "Tie on VP for place ${0} — decided on M€": "Равенство ПО за ${0}-е место — решили M€",
     "Tie on VP and M€ for place ${0} — the place is shared": "Равенство ПО и M€ за ${0}-е место — место делят",
     "Equal VP — the M€ decide": "Равенство ПО — решают M€",
-    "The strings were pulled behind the curtain at ${0}'s ${1}: ${2} delegates took their seats in the Parliament on its quiet word.": "${1} дёргала за ниточки из-за кулис: по её тихому слову в Парламенте заняли места ${2} делегатов."
+    "The strings were pulled behind the curtain at ${0}'s ${1}: ${2} delegates took their seats in the Parliament on its quiet word.": "${1} дёргала за ниточки из-за кулис: по её тихому слову в Парламенте заняли места ${2} делегатов.",
+    "The pedigree of ${0}'s ${1} was valued everywhere: ${2} classes graduated and went to work wherever the bot was weakest.": "Диплом ${1} ценился везде: выпустилось курсов — ${2}, и выпускники шли работать туда, где у бота было слабее всего."
 }

@@ -193,6 +193,9 @@ const DIVIDENDS: Readonly<Record<MarsBotCorpId, MarsBotDividendInfo>> = {
   [MarsBotCorpId.C46_TYCHO_MAGNETICS]: dividendBox('Interface', {each: 4}, (r) => [
     {text: '${0} VP per space of the lower of MarsBot\'s power and science tracks', params: [r.each]},
   ], dividendGoal('Iron ore fields', 'MarsBot tiles on or beside a steel space', 11, 12, 14)),
+  [MarsBotCorpId.CF1_FERRUS_ACADEMY]: dividendBox('Alma Mater', {each: 4}, (r) => [
+    {text: '${0} VP per MarsBot tile around its best-surrounded city', params: [r.each]},
+  ], dividendGoal('Astronomical tuition', 'Cards costing 20 M€ or more in MarsBot\'s played pile', 7, 8, 10)),
 };
 
 export function marsBotDividendInfo(id: MarsBotCorpId): MarsBotDividendInfo {

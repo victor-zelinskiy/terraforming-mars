@@ -1324,6 +1324,31 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.CF1_FERRUS_ACADEMY]: {
+    id: MarsBotCorpId.CF1_FERRUS_ACADEMY,
+    // THE FORK'S OWN BOT CARD (the owner, 2026-11-03) — no official MarsBot card exists for the Turmoil Redux
+    // corporation TR79, so this one is DESIGNED, not transcribed: «the Campus» (docs/AUTOMA_DATA_AUDIT.md §20).
+    cardNumber: 'CF1',
+    original: CardName.FERRUS_ACADEMY,
+    // The human card's corner — science and city — and the academy's own taste in the draft.
+    startingTags: [Tag.SCIENCE, Tag.CITY],
+    draftPriority: {type: 'tags', tags: [Tag.SCIENCE]},
+    corpBonusCards: [BonusCardId.BC1_FIELD_PRACTICE],
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Science'}]},
+      {kind: 'setup', lines: [
+        {icon: 'city', text: 'MarsBot founds the Academy: a city by its usual rules, the bonus icons of its space paying double'},
+        {icon: 'tile', text: 'Its player markers reserve every adjacent non-reserved land space — the Campus: only MarsBot may build there'},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'tile', text: 'Graduation: each tile MarsBot places on a space of its Campus advances its least advanced track'},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'deck', text: 'Add Field Practice to MarsBot\'s action deck'},
+        {icon: 'megacredits', text: 'Field Practice costs MarsBot ${0} M€ tuition, if able: then a greenery on a free Campus space — with none left, a Graduation instead', params: ['10'], muted: true},
+      ]},
+    ],
+  },
 };
 
 export function marsBotCorpInfo(id: MarsBotCorpId): MarsBotCorpInfo {
@@ -1405,6 +1430,10 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           over — TR is one per conversion) and pristarMc (the M€ they
  *           paid), plus pristarSkipped<Parameter> per parameter, so the
  *           finale can name WHICH of the four stood still.
+ * Ferrus Academy (CF1): ferrusFoundings (the Academy city founded at setup), ferrusCampusSpaces (the Campus cubes
+ *           reserved around it), ferrusGraduations (Graduations that advanced a track), fieldPracticePlayed /
+ *           fieldPracticeTuition / fieldPracticeGreeneries (BC1 resolved, the M€ it charged, the Campus greeneries
+ *           it placed).
  * Septem Tribus: grayEminencePlayed (times B29 resolved), grayEminenceDelegates
  *           (the delegates it sent — two a card at most) and grayEminenceMc
  *           (the M€ paid for the delegates it could not send; a KEPT

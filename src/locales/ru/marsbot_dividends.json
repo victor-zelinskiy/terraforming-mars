@@ -280,5 +280,10 @@
     "${0} VP per step MarsBot reached on the Career track": "${0} ПО за каждый шаг трека Карьеры, пройденный MarsBot",
     "Covert operations": "Тайные операции",
     "Event cards in MarsBot's played pile": "карты-события",
-    "Steps on the Career track": "Шаги трека Карьеры"
+    "Steps on the Career track": "Шаги трека Карьеры",
+    "Alma Mater": "Альма-матер",
+    "${0} VP per MarsBot tile around its best-surrounded city": "${0} ПО за каждый тайл MarsBot вокруг его самого обжитого города",
+    "Astronomical tuition": "Астрономическая плата за обучение",
+    "Cards costing 20 M€ or more in MarsBot's played pile": "карты от 20 M€",
+    "MarsBot tiles around its best-surrounded city": "Тайлы MarsBot вокруг самого обжитого города"
 }

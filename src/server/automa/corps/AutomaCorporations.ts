@@ -68,6 +68,7 @@ import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotEcoline} from './MarsBotEcoline';
 import {MarsBotSpire} from './MarsBotSpire';
 import {MarsBotTychoMagnetics} from './MarsBotTychoMagnetics';
+import {MarsBotFerrusAcademy} from './MarsBotFerrusAcademy';
 
 /**
  * THE MarsBot corporation registry + dispatch layer (Rule Book B "Adding
@@ -139,6 +140,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C44_SAGITTA_FRONTIER_SERVICES]: MarsBotSagittaFrontierServices,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
     [MarsBotCorpId.C46_TYCHO_MAGNETICS]: MarsBotTychoMagnetics,
+    [MarsBotCorpId.CF1_FERRUS_ACADEMY]: MarsBotFerrusAcademy,
   };
 
   public static corpFor(id: MarsBotCorpId): MarsBotCorp {
@@ -315,6 +317,14 @@ export class AutomaCorporations {
       return false;
     }
     return AutomaCorporations.activeCorp(game)?.onBuildOnOwnMarker?.(game, space) === 'pays';
+  }
+
+  /** MarsBot's tile SEATED on its own marker (`MarsBotCorp.onOwnMarkerBuilt`) — the bot seat only. */
+  public static onOwnMarkerBuilt(game: IGame, player: IPlayer, space: Space): void {
+    if (player.isMarsBot !== true) {
+      return;
+    }
+    AutomaCorporations.activeCorp(game)?.onOwnMarkerBuilt?.(game, space);
   }
 
   /**

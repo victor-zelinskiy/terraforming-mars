@@ -130,6 +130,11 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     name: 'Corporate Competition (Terra Cimmeria)',
     text: 'With 5+ M€, MarsBot pushes the old Terra Cimmeria award race it is closest to being ahead on, then loses 5 M€.',
   },
+  // ── The fork's own corporations' cards (BC-prefix) ──
+  [BonusCardId.BC1_FIELD_PRACTICE]: {
+    name: 'Field Practice',
+    text: 'Ferrus Academy: MarsBot pays 10 M€ tuition, if able, then places a greenery on a free space of its Campus, and the Graduation follows; with no free Campus space it advances its least advanced track instead. Recurs into the action deck every generation.',
+  },
 };
 
 export function bonusCardInfo(id: BonusCardId): BonusCardInfo {
@@ -484,6 +489,20 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'delegate', text: 'MarsBot sends ${0} free delegates (from the lobby, else the reserve) to the resolutions up for the vote', params: ['2']},
         {text: 'Each goes where Party Politics would send it: where it makes MarsBot the winning player, else where it is closest to winning', muted: true},
         {icon: 'megacredits', text: 'For each delegate it cannot send, MarsBot gains ${0} M€', params: ['2']},
+      ],
+      fate: {kind: 'recurring', text: 'At the beginning of every generation it is shuffled back into MarsBot\'s action deck'},
+    };
+  case BonusCardId.BC1_FIELD_PRACTICE:
+    // CF1 Ferrus Academy's own card (the fork's design, docs/AUTOMA_DATA_AUDIT.md §20): the students go out into
+    // the Campus — paid for («tuition is astronomical»), a greenery on a free Campus space, whose Graduation is the
+    // corporation's ordinary effect.
+    return {
+      name,
+      lines: [
+        {icon: 'megacredits', text: 'MarsBot pays ${0} M€ tuition, if able — otherwise nothing happens', params: ['10']},
+        {icon: 'greenery', text: 'MarsBot places a greenery on a free space of its Campus'},
+        {text: 'The Campus answers as always: a Graduation advances MarsBot\'s least advanced track', muted: true},
+        {icon: 'tile', text: 'No free Campus space: a Graduation all the same'},
       ],
       fate: {kind: 'recurring', text: 'At the beginning of every generation it is shuffled back into MarsBot\'s action deck'},
     };

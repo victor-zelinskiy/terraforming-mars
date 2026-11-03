@@ -2492,6 +2492,8 @@ export class Game implements IGame, Logger {
         this.events.withEffect(player, card, 'own-marker-built', () => card.onOwnMarkerBuilt?.(player, space));
       }
     }
+    // MarsBot has no tableau — its corporation hears the same fact here (CF1 Ferrus Academy's Graduation).
+    AutomaCorporations.onOwnMarkerBuilt(this, player, space);
   }
 
   /** The stack grows: the cell keeps its tile and its owner, its height goes up by one; logged and recorded as a city placed. */
@@ -2523,7 +2525,8 @@ export class Game implements IGame, Logger {
         // A map's conditional PAY-TO-USE hex pays its own printed transaction
         // instead of icon M€ (Hellas' South Pole) — see AutomaPlacementBonus,
         // the one source the placement TIEBREAK reads too.
-        const icons = botCoveredIconMegacredits(this, space);
+        // A doubled printed bonus (CF1 Ferrus Academy founding its city) doubles what the icons pay the bot.
+        const icons = botCoveredIconMegacredits(this, space) * printedBonusMultiplier;
         if (icons > 0) {
           cell = {paid: [{resource: 'megacredits', amount: icons}], cards: 0};
           this.events.withSource({kind: 'spaceBonus'}, () => {

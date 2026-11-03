@@ -680,6 +680,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     }
   });
 
+  it('Ferrus Academy (CF1, the fork\'s own card) prints its Campus, never the human data or card choice', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.CF1_FERRUS_ACADEMY);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the Academy and its Campus').contains('Campus');
+    expect(text, 'the Graduation').contains('least advanced track');
+    expect(text, 'the paid practice').contains('10 M€');
+    // The human Ferrus Academy starts with 40 M€ and 1 plant production and pays 3 data or a card — none of that.
+    expect(text).not.contains('40');
+    expect(text).not.match(/data|draw a card/i);
+    const face = mountFace(MarsBotCorpId.CF1_FERRUS_ACADEMY);
+    expect(face.findAll('.pcard__tags .pcard-tag'), 'science + city').has.length(2);
+  });
+
   it('Septem Tribus prints the card that replaces Party Politics, never the human banner cubes', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C37_SEPTEM_TRIBUS);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Before action phase']);

@@ -1,6 +1,7 @@
 import {Board} from '../boards/Board';
 import {CanAffordOptions} from '../IPlayer';
 import {GlobalParameter} from '../../common/GlobalParameter';
+import {TileType} from '../../common/TileType';
 import {AutomaCorporations} from './corps/AutomaCorporations';
 import {Space} from '../boards/Space';
 import {IGame} from '../IGame';
@@ -44,6 +45,8 @@ import {divertBotTerraforming} from './BotDivertedTerraforming';
 export type BotTileOptions = {
   readonly restrict?: (space: Space) => boolean;
   readonly onEmpty?: 'failed-action' | 'impossible';
+  /** The cell's printed bonus counts this many times (CF1 Ferrus Academy's founding city — `AddTileOptions.printedBonusMultiplier`). */
+  readonly printedBonusMultiplier?: number;
 };
 
 /** Keep the items with the highest score. */
@@ -226,7 +229,10 @@ export class AutomaTilePlacer {
     // Ares: strong hazard avoidance after the printed city strategy.
     candidates = [...AutomaAres.preferAwayFromHazards(game, candidates)];
     const space = AutomaTilePlacer.breakTie(game, candidates);
-    AutomaTilePlacer.placeAndSettle(game, bot, space, () => game.addCity(bot, space));
+    const multiplier = options?.printedBonusMultiplier;
+    AutomaTilePlacer.placeAndSettle(game, bot, space, () => multiplier === undefined ?
+      game.addCity(bot, space) :
+      game.addTile(bot, space, {tileType: TileType.CITY}, {printedBonusMultiplier: multiplier}));
     return true;
   }
 

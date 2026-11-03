@@ -533,6 +533,21 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.tag(Tag.POWER).startEffect.cards(1).asterix();
       });
     });
+  case MarsBotCorpId.CF1_FERRUS_ACADEMY:
+    return CardRenderer.builder((b) => {
+      // SETUP: the human card's own first-action shape — the Academy city (its bonus doubled) and the ring of
+      // cubes around it, the Campus.
+      b.city().asterix().nbsp.community().asterix();
+      // EFFECT: a tile on its own Campus cube (C18's «own marked area» shape) sends a graduate to the weakest
+      // track — the wild tag's own symbol, as C14/C15 draw «the least advanced track».
+      b.effect(undefined, (eb) => {
+        eb.community().emptyTile().startEffect.wild(1);
+      });
+      // BEFORE ACTION PHASE: Field Practice joins the deck — paid tuition flowing into a Campus greenery.
+      b.action(undefined, (eb) => {
+        eb.megacredits(10).startAction.greenery().asterix();
+      });
+    });
   case MarsBotCorpId.C40_ECOTEC:
     return CardRenderer.builder((b) => {
       // EFFECT: the human EcoTec's own printed shape for the identical «bio
