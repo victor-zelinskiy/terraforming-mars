@@ -13058,6 +13058,83 @@ wgProjectFixture('wg-project-aquifer', {
   },
 });
 
+// ── P54 · NOBEL PRIZE — «Gain 5 M€. Draw 2 cards with requirements.» (docs/claude/prompts/prelude2-p54-nobel-prize.md,
+//    ledger FM): the FIRST start stand with a SEEDED project deck — the API road seeds nothing, so a search at the start
+//    was only ever «the rule was seen» (P44 / P51). A solo Prelude 2 table answered through the real start flow
+//    (Teractor bought nothing, Nobel Prize + Donation kept, the corporation played) standing at the deployment queue
+//    (`preludeSelection` · hand), the deck's TOP stacked by name, turned over first → last:
+//      · `nobel-prize`           — Power Plant ✗ (none) → Birds ✓ (oxygen) → Asteroid ✗ (none) → Fish ✓ (temperature):
+//                                   4 turned over, 2 kept, 2 thrown away «Не подошла · с требованием»;
+//      · `nobel-prize-exhausted` — the whole deck is TWO cards, Asteroid ✗ → Birds ✓: 2 turned over, 1 kept, 1 thrown
+//                                   away, the deck runs out (named). Never ONE card: the shared draw gate
+//                                   (`projectDeck.canDraw(2)`) makes the prelude unplayable on a deck that cannot
+//                                   supply two;
+//      · `nobel-prize-wg`        — the mid-game road: WG Project deals Nobel Prize first, the same tape on top — the
+//                                   search reveals in the HAND's outcome zone.
+//    A DRY RUN plays the prelude on a copy, so a rule change fails HERE. ──
+const NOBEL_TAPE = [CardName.POWER_PLANT, CardName.BIRDS, CardName.ASTEROID, CardName.FISH] as const;
+function nobelPrizeFixture(name: string, deck: 'tape' | 'run-out'): void {
+  const [game, blue] = testGame(1, {
+    skipInitialCardSelection: false, preludeExtension: true, prelude2Expansion: true,
+    customPreludes: [CardName.NOBEL_PRIZE, CardName.DONATION], customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
+  });
+  const initial = blue.getWaitingFor();
+  if (!(initial instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${initial?.type}`);
+  }
+  blue.process({type: 'initialCards', responses: [
+    {type: 'card', cards: [CardName.TERACTOR]},
+    {type: 'card', cards: [CardName.NOBEL_PRIZE, CardName.DONATION]},
+    {type: 'card', cards: []},
+  ]});
+  runAllActions(game);
+  if (blue.getWaitingFor()?.startGamePrompt?.kind === 'corporationPlay') {
+    blue.process({type: 'card', cards: [CardName.TERACTOR]});
+    runAllActions(game);
+  }
+  const queue = blue.getWaitingFor();
+  if (queue?.startGamePrompt?.kind !== 'preludeSelection' || !blue.tableau.has(CardName.TERACTOR)) {
+    throw new Error(`${name}: expected the deployment queue with Teractor played — got ${queue?.type} ${JSON.stringify(queue?.startGamePrompt)}`);
+  }
+  if (deck === 'tape') {
+    stackDeckTop(game, NOBEL_TAPE);
+  } else {
+    stackDeckTop(game, [CardName.ASTEROID, CardName.BIRDS]);
+    const pile = game.projectDeck.drawPile;
+    pile.splice(0, pile.length - 2);
+    game.projectDeck.discardPile.length = 0;
+  }
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const seat = copy.getPlayerById(blue.id);
+  const mc = seat.megaCredits;
+  seat.process({type: 'card', cards: [CardName.NOBEL_PRIZE]});
+  runAllActions(copy);
+  const hand = seat.cardsInHand.map((c) => c.name);
+  const reveal = seat.cardDrawReveals[0];
+  const want = deck === 'tape' ? [CardName.BIRDS, CardName.FISH] : [CardName.BIRDS];
+  if (seat.megaCredits !== mc + 5 || JSON.stringify(hand) !== JSON.stringify(want) || reveal?.search?.requirement !== true ||
+    (reveal.exhausted === true) !== (deck === 'run-out')) {
+    throw new Error(`${name}: the dry run expected +5 M€, ${want.join(' + ')} in hand and the named search (exhausted=${deck === 'run-out'}) — got ${seat.megaCredits - mc} M€, [${hand.join(', ')}], ${JSON.stringify(reveal?.search)} exhausted=${reveal?.exhausted}`);
+  }
+  write(name, game);
+}
+nobelPrizeFixture('nobel-prize', 'tape');
+nobelPrizeFixture('nobel-prize-exhausted', 'run-out');
+wgProjectFixture('nobel-prize-wg', {
+  top: [CardName.NOBEL_PRIZE, CardName.DONATION, CardName.SUPPLIER],
+  under: [CardName.LOAN],
+  megacredits: 20,
+  also: (game) => stackDeckTop(game, NOBEL_TAPE),
+  dry: {
+    pick: CardName.NOBEL_PRIZE,
+    expect: (blue) => {
+      const hand = blue.cardsInHand.map((c) => c.name);
+      return blue.tableau.has(CardName.NOBEL_PRIZE) && hand.includes(CardName.BIRDS) && hand.includes(CardName.FISH) ?
+        undefined : `expected Nobel Prize played and Birds + Fish drawn — got tableau=${blue.tableau.has(CardName.NOBEL_PRIZE)} hand=[${hand.join(', ')}]`;
+    },
+  },
+});
+
 // ── P43 · APPLIED SCIENCE — the TWENTY-SIXTH Prelude 2 card and the set's first PRELUDE (docs/claude/prompts/
 //    prelude2-p43-applied-science.md): «remove 1 science here → 1 resource on ANY card with a resource OR 1 standard
 //    resource» — the printed «?» ONE row, answered in the shared wild-resource choice (ledgers EN / EO). A 2p Venus +
