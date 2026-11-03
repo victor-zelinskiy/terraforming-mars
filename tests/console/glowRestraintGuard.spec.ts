@@ -389,7 +389,7 @@ function lessVarsOf(source: string): Map<string, string> {
 
 let allLessVars: Map<string, string> | undefined;
 /** Every stylesheet's variables, the first declaration winning — read once. */
-function ALL_LESS_VARS(): Map<string, string> {
+function allLessVarsOf(): Map<string, string> {
   if (allLessVars === undefined) {
     allLessVars = new Map();
     for (const f of fs.readdirSync(STYLES).filter((x) => x.endsWith('.less')).sort()) {
@@ -407,8 +407,8 @@ function ALL_LESS_VARS(): Map<string, string> {
 function parliamentLightsOf(file: string, blocks: RegExp | undefined): Array<Halo> {
   const raw = stripComments(fs.readFileSync(path.join(STYLES, file), 'utf8'));
   // The sheet's own variables first, then any other sheet's (a mixin's colour is declared where the mixin lives).
-  const vars = new Map([...ALL_LESS_VARS(), ...lessVarsOf(raw)]);
-  const source = raw;
+  const vars = new Map([...allLessVarsOf(), ...lessVarsOf(raw)]);
+  const source = raw; // the variables are resolved per declaration (`resolve`), never over the whole sheet
   const resolve = (text: string) => text.replace(/@([a-z0-9-]+)/gi, (whole, name: string) => {
     const value = vars.get(name);
     return value !== undefined && !value.includes('@') && !/gradient/.test(value) ? value : whole;
