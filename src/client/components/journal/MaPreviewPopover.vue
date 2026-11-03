@@ -32,6 +32,7 @@ import {MilestoneName} from '@/common/ma/MilestoneName';
 import {AwardName} from '@/common/ma/AwardName';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
+import {maArtUrl} from '@/client/components/ma/maArt';
 
 /**
  * Hover preview for a MILESTONE / AWARD token (journal feed / notifications) —
@@ -84,8 +85,7 @@ export default defineComponent({
       if (this.name === '') {
         return '';
       }
-      const file = (this.name as string).toLowerCase().replaceAll(' ', '-').replaceAll('.', '');
-      return `assets/ma/${file}.png`;
+      return maArtUrl(this.name as string);
     },
     positionStyle(): Record<string, string> {
       const a = this.anchor;

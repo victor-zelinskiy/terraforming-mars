@@ -55,6 +55,8 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
+import {maArtPath} from '@/client/console/maArt';
+import {getPreferences} from '@/client/utils/PreferencesManager';
 
 export default defineComponent({
   name: 'ConsoleDossierSealed',
@@ -73,7 +75,7 @@ export default defineComponent({
       return iconClassFor(icon);
     },
     maArt(slug: string): string {
-      return `assets/ma/${slug}.png`;
+      return maArtPath(slug, getPreferences().lang);
     },
   },
 });

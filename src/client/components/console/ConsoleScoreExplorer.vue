@@ -381,6 +381,8 @@ import ConsoleDossierSealed from '@/client/components/console/info/ConsoleDossie
 import ConsoleScoreDisc from '@/client/components/console/info/ConsoleScoreDisc.vue';
 import {DossierGlyph, DossierSealedFacts, dossierMedallions, dossierSealedFacts} from '@/client/console/infoDossierModel';
 import Card from '@/client/components/card/CardFace.vue';
+import {maArtPath} from '@/client/console/maArt';
+import {getPreferences} from '@/client/utils/PreferencesManager';
 
 export default defineComponent({
   name: 'ConsoleScoreExplorer',
@@ -794,7 +796,7 @@ export default defineComponent({
       return translateTextWithParams('+${0} more', [String(n)]);
     },
     maArtStyle(slug: string): Record<string, string> {
-      return {backgroundImage: `url(assets/ma/${slug}.png)`};
+      return {backgroundImage: `url(${maArtPath(slug, getPreferences().lang)})`};
     },
     thresholdText(e: ScoreMaEntry): string {
       return e.myScore !== undefined ?

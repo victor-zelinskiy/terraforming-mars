@@ -13,13 +13,16 @@
 export type MaKind = 'milestone' | 'award';
 
 import maArtFit from './maArtFit.json';
+import {maArtFileSlug, maArtPath} from '@/client/console/maArt';
+import {getPreferences} from '@/client/utils/PreferencesManager';
 
 export function maArtSlug(name: string): string {
   return name.toLowerCase().replaceAll(' ', '-').replaceAll('.', '');
 }
 
+/** The art's path in the player's language (an emblem with words has a file per language). */
 export function maArtUrl(name: string): string {
-  return `assets/ma/${maArtSlug(name)}.png`;
+  return maArtPath(maArtSlug(name), getPreferences().lang);
 }
 
 type MaArtFit = {s: number, x: number, y: number, c?: string};
@@ -34,7 +37,7 @@ type MaArtFit = {s: number, x: number, y: number, c?: string};
  * measurement time, so they never blur). Unknown asset → contain fallback.
  */
 export function maArtFitStyle(name: string): Record<string, string> {
-  const fit = (maArtFit as Record<string, MaArtFit>)[maArtSlug(name)];
+  const fit = (maArtFit as Record<string, MaArtFit>)[maArtFileSlug(maArtSlug(name), getPreferences().lang)];
   if (fit === undefined) {
     return {backgroundImage: `url(${maArtUrl(name)})`, backgroundSize: 'contain'};
   }

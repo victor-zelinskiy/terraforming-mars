@@ -109,7 +109,7 @@
                    borrows the focus ring's channel. A funded award mounts the
                    SPONSOR'S cube in a gold socket at the ribbon corner. -->
               <div class="con-ma__stage" aria-hidden="true">
-                <div class="con-ma__art" :style="{backgroundImage: `url(assets/ma/${artSlug(it)}.png)`}"></div>
+                <div class="con-ma__art" :style="{backgroundImage: `url(${artUrl(it)})`}"></div>
                 <template v-if="it.kind === 'milestone'">
                   <i class="con-ma__sweep"></i>
                   <i class="con-ma__actring"></i>
@@ -264,7 +264,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import {MaConfirmView} from '@/client/components/ma/maConfirmModel';
 import {MaInspectView} from '@/client/components/console/consoleMaInspectModel';
-import {maDisplayName} from '@/client/components/ma/maArt';
+import {maArtUrl, maDisplayName} from '@/client/components/ma/maArt';
 import {maFocusState, openMaFocus, suspendMaFocus, resetMaFocus} from '@/client/console/consoleMaFocus';
 import {abandonMaCeremonyEmbed} from '@/client/components/ma/maCeremonyState';
 import {
@@ -540,9 +540,9 @@ export default defineComponent({
     }
   },
   methods: {
-    /** Same slug the desktop overlays bind (assets/ma/<slug>.png). */
-    artSlug(it: ConsoleMaItem): string {
-      return it.name.toLowerCase().replaceAll(' ', '-').replaceAll('.', '');
+    /** The emblem's art in the player's language (`assets/ma/<slug>[-<lang>].png`). */
+    artUrl(it: ConsoleMaItem): string {
+      return maArtUrl(it.name);
     },
     /** Strip the numeric variant suffix (Terraformer26 → Terraformer). */
     shortName(name: string): string {

@@ -193,6 +193,7 @@ import {standardProjectVisual, StandardProjectVisual} from '@/client/components/
 import {HYDRO_PREVIEW} from '@/client/components/hydronetwork/hydroPreview';
 import {startBoardHighlightPulse, stopBoardHighlightPulse} from '@/client/components/journal/boardCellHighlight';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
+import {maArtUrl} from '@/client/components/ma/maArt';
 
 type GroupRenderNode = {
   kind: 'group';
@@ -373,8 +374,7 @@ export default defineComponent({
       if (i === undefined || (i.kind !== 'milestone' && i.kind !== 'award')) {
         return undefined;
       }
-      const file = i.name.toLowerCase().replaceAll(' ', '-').replaceAll('.', '');
-      return `assets/ma/${file}.png`;
+      return maArtUrl(i.name);
     },
     inspectKicker(): string {
       switch (this.inspect?.kind) {

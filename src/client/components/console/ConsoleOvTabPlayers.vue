@@ -78,7 +78,7 @@
           <div v-else-if="g.key === 'ma'" class="con-ovpl__ma">
             <span v-for="(m, mi) in player.maMedals" :key="m.kind + mi" class="con-ovpl__medal" :class="'con-ovpl__medal--' + m.kind"
                   :data-ovpl-ma="m.kind">
-              <img class="con-ovpl__medal-art" :src="'assets/ma/' + m.slug + '.png'" alt="" draggable="false" />
+              <img class="con-ovpl__medal-art" :src="maArt(m.slug)" alt="" draggable="false" />
               <span class="con-ovpl__medal-name">{{ $t(m.name) }}</span>
               <b class="con-ovpl__medal-vp">+{{ m.vp }}</b>
             </span>
@@ -153,6 +153,8 @@ import {ConsoleEndgameCategoryKey, SCORE_CATEGORY_TABLE} from '@/client/console/
 import {DossierGlyph, scoreCategoryGlyph} from '@/client/console/infoDossierModel';
 import ConsoleScoreDisc from '@/client/components/console/info/ConsoleScoreDisc.vue';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
+import {maArtPath} from '@/client/console/maArt';
+import {getPreferences} from '@/client/utils/PreferencesManager';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 
@@ -225,6 +227,9 @@ export default defineComponent({
   methods: {
     hex(color: Color): string {
       return endgamePlayerHex(color);
+    },
+    maArt(slug: string): string {
+      return maArtPath(slug, getPreferences().lang);
     },
     resIcon(metricKey: string): string | undefined {
       const raw = metricKey.replace(/^(prod|stock):/, '');

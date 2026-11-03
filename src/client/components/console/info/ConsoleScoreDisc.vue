@@ -21,6 +21,8 @@ import {defineComponent, PropType} from 'vue';
 import {DossierGlyph} from '@/client/console/infoDossierModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
+import {maArtPath} from '@/client/console/maArt';
+import {getPreferences} from '@/client/utils/PreferencesManager';
 
 export default defineComponent({
   name: 'ConsoleScoreDisc',
@@ -33,7 +35,7 @@ export default defineComponent({
       return iconClassFor(icon);
     },
     maArt(slug: string): string {
-      return `assets/ma/${slug}.png`;
+      return maArtPath(slug, getPreferences().lang);
     },
   },
 });
