@@ -17,7 +17,7 @@
 
 import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
-import {HandTagFilter} from '@/client/components/console/consoleHandFilter';
+import {AlbumFilter, HandTagFilter} from '@/client/components/console/consoleHandFilter';
 import {loadingScreenState, sceneTransitionInputLocked} from '@/client/console/loadingScreenState';
 import {recordVerbPress} from '@/client/console/inputEcho';
 import {
@@ -59,8 +59,15 @@ export const consoleState = reactive({
   },
   /** Hand grid selection position (per-section memory). */
   handIndex: 0,
-  /** Hand tag filter (LT/RT cycle, R3 reset). `'all'` = no narrowing. */
+  /** Hand tag filter (LT/RT cycle, R3 reset). `'all'` = no narrowing. The BROWSE hand's — a picker never reads it. */
   handTagFilter: 'all' as HandTagFilter,
+  /**
+   * A PICKER's own chip (select / sale / a composer's pick — P50's polish companion · ledger FD): a tag, «all» or the
+   * «pays» preset of a per-tag exchange. Reset to «all» on the picker's entry and on every new question.
+   */
+  selectTagFilter: 'all' as AlbumFilter,
+  /** THE CHIP ROW AS A FOCUSABLE LINE (FD): the focused chip (−1 = the cursor is on the cards). ▲ from the top row enters. */
+  filterFocus: -1,
   /** Board selection (space id — stable across re-renders). */
   boardSpaceId: undefined as string | undefined,
   /** Colonies screen selection. */

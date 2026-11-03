@@ -60,14 +60,25 @@
              Nothing when nothing is armed — and it reserves nothing: the head keeps its one line, the formula yields. -->
         <ConsoleArmedEffectsStrip v-if="!selectActive && !saleActive" class="con-hand__armed" :effects="armedEffects" variant="strip" />
       </div>
-      <!-- Tag filter (LB/RB cycle, R3 reset — advertised in the footer). The
-           active chip is the always-visible source of truth for the filter. -->
-      <div v-if="showFilters" class="con-hand__filters" role="group" :aria-label="$t('Tag filter')">
-        <div v-for="opt in tagFilters"
+      <!-- THE FILTER ROW — in EVERY album mode (P50's polish companion · ledger FD): the browse hand cycles it on LT/RT
+           (R3 resets); a PICKER (a discard, a sale, a composer's pick) keeps its OWN chip (`selectTagFilter`), and the
+           row is a FOCUSABLE LINE everywhere — ▲ from the top row of cards enters it, ◀▶ walk the chips, A applies, ▼ / B
+           back to the cards (the triggers and R3 keep their select verbs). A per-tag exchange (the Reds) adds «ПЛАТЯТ»
+           — the cards that pay. The active chip is the always-visible source of truth for the filter. -->
+      <div v-if="showFilters" class="con-hand__filters" role="group" :aria-label="$t('Tag filter')" data-hand-filters
+           :data-hand-filters-focused="filterFocus >= 0 ? '' : undefined">
+        <div v-for="(opt, oi) in tagFilters"
              :key="opt.value"
              class="con-hand__filter"
-             :class="{'con-hand__filter--active': opt.value === activeTag, 'con-hand__filter--empty': opt.count === 0 && opt.value !== activeTag}">
+             :class="{'con-hand__filter--active': opt.value === activeTag, 'con-hand__filter--empty': opt.count === 0 && opt.value !== activeTag,
+                      'con-hand__filter--focused': filterFocus === oi, 'con-hand__filter--pays': opt.value === 'pays'}"
+             :data-hand-filter="opt.value" :data-hand-filter-count="opt.count"
+             :data-hand-filter-active="opt.value === activeTag ? '' : undefined">
           <span v-if="opt.value === 'all'" class="con-hand__filter-label" v-i18n>All</span>
+          <template v-else-if="opt.value === 'pays'">
+            <i :class="payIconClass" class="con-hand__filter-pay" aria-hidden="true"></i>
+            <span class="con-hand__filter-label">{{ $t('Pays') }}</span>
+          </template>
           <span v-else class="con-hand__filter-icon" :class="'tag-' + opt.value" aria-hidden="true"></span>
           <span class="con-hand__filter-count">{{ opt.count }}</span>
         </div>
@@ -151,6 +162,8 @@
             <i class="resource_icon resource_icon--cards con-hand__discard-icon" aria-hidden="true"></i>
           </template>
         </span>
+        <!-- THE HONESTY COUNT (FD): the picker's chip hides candidates — said, never a silent cut. -->
+        <span v-if="hiddenByFilter > 0" class="con-hand__discard-hidden" data-hand-hidden-by-filter>{{ hiddenText }}</span>
       </div>
       <!-- SELECT mode: the SOURCE-OPERATION chip — a composer's target pick
            names the action it serves («Настройка действия · Газосборники»),
@@ -296,6 +309,13 @@
                  }">
               <Card :card="cell.e.card" :key="cell.e.card.name" :art-tier="handArtTier" lightweight />
               <span v-if="cell.e.robot" class="con-hand__robot" v-i18n>Robots</span>
+              <!-- WHAT THIS CARD PAYS IF THROWN (FD — a per-tag exchange, the Reds): its own «+N [M€]» on a kant, «+0» muted
+                   and never hidden — the count the «ПЛАТЯТ» chip reads. -->
+              <span v-if="cardPayouts[cell.e.card.name] !== undefined" class="con-hand__payplate"
+                    :class="{'con-hand__payplate--zero': cardPayouts[cell.e.card.name] === 0}"
+                    :data-hand-card-pays="cardPayouts[cell.e.card.name]" aria-hidden="true">
+                <b>+{{ cardPayouts[cell.e.card.name] }}</b><i :class="payIconClass" class="con-hand__payplate-icon"></i>
+              </span>
               <!-- State band: sale pick / select pick (✓), a "can't select"
                    marker on a non-candidate, else a COMPACT play blocker chip
                    (the full reason is in the info panel below). -->
@@ -606,7 +626,7 @@ import {
 } from '@/client/components/console/consoleHandAlbum';
 import {albumLayoutState} from '@/client/console/consoleAlbumLayout';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
-import {ConsoleTagFilterOption, HandTagFilter} from '@/client/components/console/consoleHandFilter';
+import {AlbumFilter, AlbumFilterOption} from '@/client/components/console/consoleHandFilter';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {PatentSaleAnswer, PatentSaleSummary, patentSaleAnswers, patentSaleSummary} from '@/client/console/patentSale/patentSaleAnswers';
 import {PatentSaleModel} from '@/common/models/PatentSaleModel';
@@ -788,9 +808,15 @@ export default defineComponent({
      *  turn note joins a blocked card's reason list (never re-derived here). */
     turnWindowClosed: {type: Boolean, default: false},
     /** Tag-filter options (All + tags present in the hand) built by the shell. */
-    tagFilters: {type: Array as PropType<ReadonlyArray<ConsoleTagFilterOption>>, default: () => []},
-    /** The active tag filter (`'all'` or one tag) — drives the chip highlight. */
-    activeTag: {type: String as PropType<HandTagFilter>, default: 'all'},
+    tagFilters: {type: Array as PropType<ReadonlyArray<AlbumFilterOption>>, default: () => []},
+    /** The active filter (`'all'`, one tag, or a picker's «pays») — drives the chip highlight. */
+    activeTag: {type: String as PropType<AlbumFilter>, default: 'all'},
+    /** Candidates the picker's chip hides (FD) — «скрыто фильтром: N»; 0 prints nothing. */
+    hiddenByFilter: {type: Number, default: 0},
+    /** What each card pays if thrown under a per-tag exchange (FD) — empty for any other album. */
+    cardPayouts: {type: Object as PropType<Readonly<Record<string, number>>>, default: () => ({})},
+    /** The exchange's payout icon (the plate's and the «ПЛАТЯТ» chip's). */
+    payIcon: {type: String, default: 'megacredits'},
     /**
      * The card currently STAGED in the play composer (or mid-return /
      * mid-depart) — its hand slot is held empty via a VUE-managed
@@ -1191,10 +1217,19 @@ export default defineComponent({
     },
     // ── header / filter panel ─────────────────────────────────────────────
     showFilters(): boolean {
-      // Only worth a filter panel when there's a real tag beyond "All", and
-      // never in sale / select mode (sale shows the whole hand; select uses the
-      // "suitable only" toggle, not tag filters).
-      return !this.saleActive && !this.selectActive && this.tagFilters.length > 1;
+      // Only worth a filter panel when there's a real chip beyond "All" — in EVERY album mode (FD): a picker's chips
+      // are its own, beside the «suitable only» toggle of a narrowed prompt.
+      return this.tagFilters.length > 1;
+    },
+    /** The focused chip (FD — the row as a focusable line), −1 while the cursor is on the cards. */
+    filterFocus(): number {
+      return this.showFilters ? consoleState.filterFocus : -1;
+    },
+    payIconClass(): string {
+      return iconClassFor(this.payIcon);
+    },
+    hiddenText(): string {
+      return translateTextWithParams('Hidden by the filter: ${0}', [String(this.hiddenByFilter)]);
     },
     totalCount(): number {
       return this.tagFilters.find((o) => o.value === 'all')?.count ?? this.entries.length;
@@ -1657,6 +1692,23 @@ export default defineComponent({
      * preserved. Nothing wraps; every edge is felt.
      */
     move(dir: HandNavDir): void {
+      // THE CHIP ROW (FD): ◀▶ walk the chips (no wrap), ▼ hands the cursor back to the cards.
+      if (this.filterFocus >= 0) {
+        if (dir === 'left' || dir === 'right') {
+          consoleState.filterFocus = Math.max(0, Math.min(this.tagFilters.length - 1, this.filterFocus + (dir === 'left' ? -1 : 1)));
+        } else if (dir === 'down') {
+          consoleState.filterFocus = -1;
+        }
+        return;
+      }
+      if (dir === 'up' && this.showFilters) {
+        const next = stepHandAlbum(this.index, dir, this.entries.length, {perPage: this.plan.perPage, rows: this.activePageRows});
+        if (next === this.index || this.entries.length === 0) {
+          // ▲ from the top row of cards ENTERS the chip row, on the active chip.
+          consoleState.filterFocus = Math.max(0, this.tagFilters.findIndex((o) => o.value === this.activeTag));
+          return;
+        }
+      }
       consoleState.handIndex = stepHandAlbum(this.index, dir, this.entries.length, {
         perPage: this.plan.perPage,
         rows: this.activePageRows,

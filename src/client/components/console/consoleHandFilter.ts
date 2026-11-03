@@ -88,3 +88,81 @@ export function cycleTagFilter(
   const next = (from + dir + options.length) % options.length;
   return options[next].value;
 }
+
+// ── THE PICKER'S FILTER (P50's polish companion · ledger FD — the owner, 2026-11-03: «экран выбора карт на сброс
+// получает ФИЛЬТРЫ как в „Картах в руке“ … особенно полезно для сброса на действия Красных») ───────────────────────
+//
+// Every album mode wears the SAME row of chips (select / sale / a composer's pick), but a PICKER keeps its OWN state
+// (`consoleState.selectTagFilter`, reset on entry and on the answer): the browse tag (`handTagFilter`, a session-long
+// state) is never read in a pick, so a tag left on in the hand can never hide a candidate of a mandatory discard. A
+// discard whose exchange pays PER TAG (the Reds: 2 M€ per plant / microbe / animal tag) adds the preset «ПЛАТЯТ» — the
+// cards whose own payout is above zero — read off the server's `exchange` marker, never a title or a client constant.
+
+/** The picker's active filter — a tag, «all», or the «pays» preset of a per-tag exchange. */
+export type AlbumFilter = HandTagFilter | 'pays';
+
+export interface AlbumFilterOption {
+  value: AlbumFilter;
+  count: number;
+}
+
+/** The exchange a discard marker carries (the shape the picker reads — `DiscardPromptMeta.exchange`). */
+export type FilterExchange = {icon: string, amount: number, perCard?: boolean, perTag?: ReadonlyArray<Tag>};
+
+/**
+ * What ONE card thrown pays under `exchange` — `perTag`: the amount for EVERY printed matching tag (a card may pay
+ * twice); `perCard`: the amount; otherwise 0 (a flat exchange is the pick's, not the card's). The header's own rule
+ * (`cardDiscard/discardIntent.ts`), card by card.
+ */
+export function cardPayout(card: CardModel, exchange: FilterExchange | undefined, tagsOf: TagsOf = cardTags): number {
+  if (exchange === undefined) {
+    return 0;
+  }
+  if (exchange.perTag !== undefined) {
+    const paying = new Set(exchange.perTag);
+    return tagsOf(card).filter((tag) => paying.has(tag)).length * exchange.amount;
+  }
+  return exchange.perCard === true ? exchange.amount : 0;
+}
+
+/** Does the picker offer the «ПЛАТЯТ» preset? Only a PER-TAG exchange — a per-card one pays for every card alike. */
+export function paysPresetOffered(exchange: FilterExchange | undefined): boolean {
+  return exchange?.perTag !== undefined && exchange.perTag.length > 0;
+}
+
+/**
+ * The picker's chips: «ВСЕ», then «ПЛАТЯТ» (a per-tag exchange only), then every tag present — the browse row's own
+ * order and counts. The active value always stays (a chip whose last card left the hand stays cyclable).
+ */
+export function buildAlbumFilters(
+  cards: ReadonlyArray<CardModel>,
+  active: AlbumFilter,
+  exchange?: FilterExchange,
+  tagsOf: TagsOf = cardTags,
+): Array<AlbumFilterOption> {
+  const tags = buildConsoleTagFilters(cards, active === 'pays' ? 'all' : active, tagsOf);
+  if (!paysPresetOffered(exchange)) {
+    return tags;
+  }
+  const pays = cards.filter((card) => cardPayout(card, exchange, tagsOf) > 0).length;
+  return [tags[0], {value: 'pays', count: pays}, ...tags.slice(1)];
+}
+
+/** Narrow the picker's entries to its active filter. */
+export function filterAlbumEntries<T extends {card: CardModel}>(
+  entries: ReadonlyArray<T>,
+  active: AlbumFilter,
+  exchange?: FilterExchange,
+  tagsOf: TagsOf = cardTags,
+): ReadonlyArray<T> {
+  if (active === 'pays') {
+    return entries.filter((e) => cardPayout(e.card, exchange, tagsOf) > 0);
+  }
+  return filterHandByTag(entries, active, tagsOf);
+}
+
+/** How many CANDIDATES the filter hides — the honesty count beside the discard's exchange («скрыто фильтром: N»). */
+export function hiddenByFilter(candidates: ReadonlyArray<string>, visible: ReadonlyArray<string>): number {
+  const shown = new Set(visible);
+  return candidates.filter((name) => !shown.has(name)).length;
+}

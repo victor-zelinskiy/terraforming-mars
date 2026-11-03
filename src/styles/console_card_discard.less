@@ -304,3 +304,55 @@ html.con-profile-tv .con-hand__fresh { zoom: ~"calc(1.2 / var(--con-hand-zoom, 0
     box-shadow: inset 0 0 0 .05rem rgba(255, 170, 130, 0.6);
     color: #ffd9c2;
 }
+
+/* ── THE PICKER'S FILTER ROW (P50's polish companion · ledger FD) ─────────────────────────────────────────────────────
+   The row is a FOCUSABLE LINE in every album mode: the chip under the cursor wears the one cursor grammar, the active
+   chip its kant (`.con-hand__filter--active`, console.less). «ПЛАТЯТ» carries the exchange's own icon. Under a per-tag
+   exchange every card wears ITS payout on a kant at the art's lower edge — «+0» muted, never hidden. No light. */
+.con-hand__filter--focused {
+    box-shadow: inset 0 0 0 var(--con-focus-ring, .12rem) @con-cyan;
+    color: @con-text;
+}
+.con-hand__filter-pay {
+    display: inline-block;
+    width: 1.15rem;
+    height: 1.15rem;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain !important;
+}
+.con-hand__discard-hidden {
+    margin-left: .6rem;
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    color: @con-amber;
+    white-space: nowrap;
+}
+.con-hand__payplate {
+    position: absolute;
+    left: 50%;
+    bottom: .35rem;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .12rem .5rem;
+    border-radius: .4rem;
+    background: rgba(12, 20, 30, 0.92);
+    box-shadow: inset 0 0 0 .06rem fade(@con-mint, 60%);
+    font-size: .9rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: @con-mint;
+    pointer-events: none;
+    &--zero { color: @con-text-dim; box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.14); font-weight: 600; }
+}
+.con-hand__payplate-icon {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain !important;
+}
