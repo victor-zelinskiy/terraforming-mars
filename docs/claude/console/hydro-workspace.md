@@ -565,3 +565,32 @@ links are still fixed rem with flexible links, now centred); EG-3 ONE chip langu
 5 / 7 / 9, the bonus offer, espionage / blockade / Dutch Mountains, the VP ceremony) — their emoji (🛡 ⛔ ✓ in the
 espionage and reward-pick rows) and the ceremony's gold halos (`__cere-value`, `__landflash`) stay; EG-6 the clean-up
 (splitting `ConsoleHydroSection.vue` into `ConsoleHydroStop` / `ConsoleHydroStageSheet`; the orphan `HydroActionZone.vue` IS deleted).
+
+## THE PREMIUM ITERATION — layers 2–6, PARTIAL (P52, 2026-11-03, ledger FI)
+
+Translated whole:
+
+- **MATERIAL, NEVER A GLYPH** (EG-5). Every state glyph of the templates is gone — ✓ ✕ ✱ 🛡 ⚠ ⌸ ⚑ ○ ↷ ⟳ ⤵ and the
+  arrow used as a MARK. Three LESS marks carry them (`console.less`, beside `@con-hydro-mint`): `.con-hydro-pip` — a
+  filled disc (chosen · done · answered: `__bonus-tick`, `__esprow-check`, `__travchip-mark--done`, the plan chip of a
+  made decision), `.con-hydro-ring` — a hairline circle (open · excluded), `.con-hydro-bar` — a short stroke (a
+  warning, amber; an ask, cyan — `__pickwarn-mark`). The requirement tags read by FILL: met = mint fill, wild = cyan
+  fill, missing = a bare red hairline with the tag icon desaturated. The stage-choice radio is a dot inside its socket.
+  The result's notes are WORDS («Действие повторено: …», «Ресурсы на карту: …»). `→` stays: it is the `current →
+  resulting` reading, never a mark. Guard: `tests/console/hydroGlyphGuard.spec.ts`. The e2e hook `__bonus-tick` is
+  kept (an empty pip span).
+- **NO STANDING LIGHT** (EG-5). The ceremony value is the hero by size and a kant; its PEAK is a one-shot
+  `@keyframes con-hydro-cere-peak` and the class leaves at the ceremony's `onDone`; the stage-9 landing flash is a 40 %
+  kant (still one-shot); the espionage ghost ring 38 %; a selected row under the cursor wears two inset kants; the
+  choice cards lost their radial pools and their deep drop shadows (one short shadow of the plate family). Guard:
+  `glowRestraintGuard` § 6 «THE HYDRONETWORK BY EYE» (the whole `.con-hydro` block; named events: the landing flash,
+  the commit spinner). Ratchet `console.less` 61 → 58.
+- **STATUS AND PRICE ONCE** (EG-1, part). In the plan the act column's verdict (`data-hydro-status`) is the only status
+  — the ctx pill is gone there (a browsed stage keeps its history badge, which no verdict says); the ctx route reads
+  «0 → 3» only (`route.priced: false`) — the price is the ONE «ОПЛАТА» line. The plan body is one block centred in the
+  panel (`__layer--preview .con-hydro__panelbody`), still retuned as ONE node.
+
+Not translated (each stands as it was — PL-1662): EG-2 the measured planner (track + columns); the commit plate ≤ 60 %
+(the act column is narrow fixed rem until the planner); EG-3 one chip language; EG-4 the price leaving the rail first on
+the commit (the marker glides from the PRESS, before the answer — an optimistic departure with a rollback is its own
+work); the result as a ledger table and the DOB offer as a plate of facts; EG-6 the split of `ConsoleHydroSection.vue`.
