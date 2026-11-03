@@ -299,6 +299,22 @@ describe('MarsBot dividends (the campaign portfolio)', () => {
     });
   });
 
+  describe('a goal counts a card\'s tags the way MarsBot reads them — an event\'s implicit EVENT tag included', () => {
+    // The tiers were calibrated on `AutomaResolver.printedTags`; the bare `card.tags` (no event tag) left C05's goal
+    // at EV 0.06 and C30's at 0.70 against the catalog's 2.30 / 2.86 (2026-11-03).
+    it('C05 «Interdisciplinary»: an event printing two tags is a card with THREE', () => {
+      const [game] = seated({}, '-goal-c05');
+      game.automa!.playedPile.push(CardName.LARGE_CONVOY); // Earth + space, an event
+      expect(AutomaCorporations.corpFor(MarsBotCorpId.C05_INVENTRIX).goal(game)).eq(1);
+    });
+
+    it('C30 «Wide assortment»: three events make the EVENT kind a kind of its own', () => {
+      const [game] = seated({}, '-goal-c30');
+      game.automa!.playedPile.push(CardName.LARGE_CONVOY, CardName.COMET, CardName.ASTEROID); // three space + three event
+      expect(AutomaCorporations.corpFor(MarsBotCorpId.C30_ARIDOR).goal(game), 'space and event').eq(2);
+    });
+  });
+
   describe('the clauses read their own corporation\'s identity (spot checks across the families)', () => {
     it('the played pile — Credicor counts printed cost, Valley Trust science cards and its threshold', () => {
       const [game] = seated({}, '-pile');

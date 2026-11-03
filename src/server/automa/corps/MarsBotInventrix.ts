@@ -4,6 +4,7 @@ import {MarsBotCorpId, marsBotCorpInfo} from '../../../common/automa/MarsBotCorp
 import {IGame} from '../../IGame';
 import {IProjectCard} from '../../cards/IProjectCard';
 import {NearBonusBranch, pushNearestBonus} from '../AutomaNearBonusPush';
+import {AutomaResolver} from '../AutomaResolver';
 import {LOBBYISTS_VARIANTS, destroyBonusCard} from './MarsBotBonusDeckOps';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
@@ -64,7 +65,9 @@ export const MarsBotInventrix: MarsBotCorp = {
 
   /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
   goal(game: IGame): number {
-    return pileCount(game, (card) => card.tags.length >= 3);
+    // The bot's own reading of a card's tags — an event's implicit EVENT tag counts, as it did when the tiers were
+    // calibrated (the bare `card.tags` made the goal unreachable: EV 0.06 against the catalog's 2.30, 2026-11-03).
+    return pileCount(game, (card) => AutomaResolver.printedTags(card).length >= 3);
   },
 
   setup(game: IGame): void {

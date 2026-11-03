@@ -12,6 +12,7 @@ import {newProjectCard} from '../../createCard';
 import {AwardScorer} from '../../awards/AwardScorer';
 import {MarsBotTrack} from '../MarsBotBoard';
 import {humansOf, marsBotOf} from '../AutomaUtil';
+import {AutomaResolver} from '../AutomaResolver';
 
 /**
  * THE SHARED READS of the dividend clauses (docs/claude/prompts/
@@ -312,11 +313,16 @@ export function largestBotCluster(game: IGame): number {
   return largest;
 }
 
-/** How many KINDS of tag the played pile holds at least `atLeast` cards of (a card with two of a kind counts once). */
+/**
+ * How many KINDS of tag the played pile holds at least `atLeast` cards of (a card with two of a kind counts once).
+ * Read the way MarsBot reads a card — `AutomaResolver.printedTags`, an event's implicit EVENT tag included: the goal
+ * was calibrated on that reading, and the bare `card.tags` (no event tag) left C30's tiers unreachable (EV 0.70
+ * against the catalog's 2.86, 2026-11-03).
+ */
 export function pileTagKinds(game: IGame, atLeast: number): number {
   const counts = new Map<Tag, number>();
   for (const card of pileCards(game)) {
-    for (const tag of new Set(card.tags)) {
+    for (const tag of new Set(AutomaResolver.printedTags(card))) {
       counts.set(tag, (counts.get(tag) ?? 0) + 1);
     }
   }
