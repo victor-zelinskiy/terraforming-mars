@@ -1683,3 +1683,37 @@ D nested (второй пик из 2 в той же зоне, New Partner на �
   двумя подписанными группами «получил / заплатил»; эмодзи → текстовые глифы. Чистые чтения — `notificationBandView.ts`,
   свидетель стендов — `notificationWitness.ts`; стенд источника — tv4k + fhd + deck.
 - Гэпы — реестр FJ/FK (PL-186, Comet Aiming, вскрытие как владелец угла, пре-шаг «ОПЛАТА» P52/P53).
+
+## P54 · Nobel Prize («Нобелевская премия») — ТРИДЦАТЬ ШЕСТАЯ · ТРЕТИЙ ИМЕНОВАННЫЙ ПОИСК — ЛЮБОЕ ТРЕБОВАНИЕ · ПО ПРОЛОГА НА СТАРТЕ · СТЕНД С ПОСЕЯННОЙ КОЛОДОЙ — СДАНА 2026-11-03
+
+Сдана 2026-11-03 (36 / 54; реестр FM). Промт `prompts/prelude2-p54-nobel-prize.md`. Полировки-спутника нет (владелец).
+
+- **Полностью декларативная.** `behavior: {stock: {megacredits: 5}, drawCard: {count: 2, requirement: true}}`;
+  bespoke-`include` долой. Превью, информация, причины — даром; `cardPlayPreviewCoverage` больше не видит скрытого
+  результата; `cardInfoAudit` — `ok` / `derived`, 0/0/0.
+- **Третий именованный поиск — ЛЮБОЕ требование** (после P44 `floaterIcon` и P51 `partyRequirement`): маршрут
+  `Behavior.DrawCard.requirement` → `Executor` → `DrawOptions` + фильтр `DrawCards` → `drawSearchOf` →
+  `DrawSearchModel.requirement` → `drawSearchSentence` («…until you reveal 2 cards with a requirement…») → терм
+  клиента `requirement` («с требованием», голая плашка «MIN» — `PremiumPartyRequirementGlyph bare`, сигнатура
+  `requirement`). Вскрытие несёт правило и исчерпание, факт журнала `deck-searched` — `rule` (у `include` его не было),
+  вердикт отброшенной — «Не подошла · с требованием» (позитивно).
+- **ОДИН предикат** `hasRequirement` (рядом с `playedCardsWithRequirements` в `CardsWithRequirementsRequirement.ts`;
+  `hasPartyRequirement` — его подмножество; счёт «сыгранных с требованием» читает его же). ~10 инлайнов
+  `requirements.length > 0` (Forecaster, Tactician ×2, Strategic Shift, Cutting Edge Technology, Xavier, QuestTracker,
+  MarsBotInventrix, AutomaBonusCards) НЕ переписаны — гэп-чистка (PL-1690).
+- **Декларативный добор наследует общий гейт** `projectDeck.canDraw(2)`: колода, не способная дать две карты, делает
+  пролог неиграбельным (он сгорает) — bespoke-`include` его обходил и «доигрывал наполовину». Правило 3b спека.
+- **Первый пролог, двигающий счёт на старте (+2 ПО).** Механика была (`armPlayedHero` → `claimVpShares` → жетон с
+  `.pcard__vp` севшего лица → ячейка ПО), ни разу не упражнялась на прологе старта (P53 давал 0) — стенд A
+  свидетельствует рождение `vp-badge` → посадку `rail:vp`. Чипа «+2 ПО» в очереди нет и не нужно (лицо печатает «2»).
+- **Стенд с ПОСЕЯННОЙ колодой закрыл долг P44/P51** («правило увидено» → бейдж с числами сервера, вердикт отброса,
+  исчерпание): фикстуры `nobel-prize` (лента Power Plant ✗ → Birds ✓ → Asteroid ✗ → Fish ✓), `nobel-prize-exhausted`
+  (колода — Asteroid + Birds: выкопана до конца), `nobel-prize-wg` (WG Project → Nobel посреди партии) — первые
+  стартовые фикстуры, отвеченные реальным стартовым потоком (корпорация, прологи, корпорация разыграна) и стоящие на
+  очереди развёртывания; сухой прогон каждой — в генераторе. Стенд `console-nobel-prize` (tv4k) A / B / C.
+- **Дикая метка**: `default` +1 к науке, `raw` — нет; Olympus Conference на WILD не отвечает (`cardTagCount` дикую не
+  считает) — спек, правило 7.
+- **Известное различие (не унифицировано)**: «карта с требованием» нарисована двумя знаками — медная плашка на ЛИЦЕ
+  (печать карты, `AltSecondaryTag.REQ`) и «MIN»-плашка в бейдже консоли (правило поиска) (PL-1691).
+- Гэпы — реестр FM.
+

@@ -44,12 +44,24 @@
 сдающего), план `planDeckDraw` от причины не зависит (юнит A/B на одной последовательности).
 Новое — ЧТО поиск искал и ПОЧЕМУ карта ушла, одним описателем сервера:
 
-- **Описатель поиска** `DrawSearchModel {count, tag?, type?, resource?, withoutTags?}` рождается
+- **Описатель поиска** `DrawSearchModel {count, tag?, type?, resource?, withoutTags?, floaterIcon?, partyRequirement?, requirement?}` рождается
   в `server/deferredActions/drawSearch.ts` (`drawSearchOf`) из того объявления, что ищет
   (`Behavior.DrawCard` / `DrawOptions`), и едет в чип добора (`ActionEffect.search`), в
   структурный текст лица (генератор печатает поиск сам) и в reveal (`CardDrawRevealModel.search`
   — на КАЖДОЙ пачке поиска, со сбросами и без; `exhausted` — колода кончилась раньше).
-  Непрозрачный `include` (bespoke-карта) описателя не имеет — его правило в прозе карты.
+  Непрозрачный `include` (bespoke-карта) описателя не имеет — его правило в прозе карты; поэтому
+  в скоупе `include` не пишут: правило — ИМЕНОВАННЫЙ дескриптор, читающий ОДИН общий предикат сервера.
+  Три именованных поиска «по свойству карты» (не метке): `floaterIcon` (Celestic, P44 — `hasFloaterIcon`,
+  клауза «со значком аэростата», иконка аэростата), `partyRequirement` (P51 — `hasPartyRequirement`,
+  «с требованием партии», плашка с партией), `requirement` (P54 Nobel Prize — `hasRequirement`, ЛЮБОЕ
+  требование, «с требованием», голая плашка «MIN» — `PremiumPartyRequirementGlyph bare`). Отброшенная
+  положительным фильтром карта получает вердикт `{kind: 'rule', terms}` — правило ПОЗИТИВНО («Не подошла ·
+  с требованием»), никогда «без …». Новый поиск — поле по всей цепочке (`Behavior.DrawCard` → `Executor` →
+  `DrawOptions` + фильтр `DrawCards` → `drawSearchOf` → `DrawSearchModel` → `drawSearchSentence` → терм
+  `drawSearchReading` (switch без `default` — пропуск не компилируется) → глиф и сигнатура
+  `ConsoleDrawSearchRule`) + RU клаузы и предложения `card_info`.
+  ⚠ Декларативный добор наследует ОБЩИЙ гейт `projectDeck.canDraw(count)`: колода, которая не может дать N
+  карт, делает карту неиграбельной (пролог сгорает) — у bespoke-`include` его не было.
 - **Причина** — `CardDrawRevealStep.failedTags`: метки из `withoutTags`, которые несёт
   отсеянная карта (тот же читатель `Tags.cardHasTag`, что у положительного фильтра). У карты,
   отвергнутой положительным фильтром, причин-меток нет — причина = само правило.

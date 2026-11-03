@@ -23,6 +23,8 @@ paths:
 
 **Prefer the declarative `behavior` DSL over imperative `bespokePlay()`.** Declarative cards are auto-covered by the preview / information / reason subsystems; a bespoke card needs hooks.
 
+**A filtered draw is a NAMED search, never an `include` closure in scope** (P44 · P51 · P54): «draw N cards with X» is a `Behavior.DrawCard` field read by ONE shared server predicate (`hasFloaterIcon` · `hasPartyRequirement` · `hasRequirement` — the last the canon of «a card with a requirement», beside `playedCardsWithRequirements`; a new reader asks it, never a second inline `requirements.length > 0`), carried as ONE descriptor (`drawSearchOf` → `DrawSearchModel`) to the reveal, the preview chip, the card text and the journal fact. Route: `docs/claude/console/card-draw-motion.md` § Правило поиска.
+
 ## Co-location is load-bearing — never centralize per-card hooks
 Every per-card hook lives **IN the card file**, next to `canPlay`/`canAct`/`bespokePlay`, pulling wording from a thin stable builder: `cardPlayPreview?()` and `actionPreview?()` (`cards/actionPreviews.ts`), `actionUnavailableReason?()` (`cards/actionReasons.ts`), `unplayableReason?()`, `metadata.infoText`, modal metadata (`inputs/optionMetadata.ts`). This is a fork that merges upstream: when upstream changes a card, the hook is in the SAME diff/conflict and can't silently drift. A fork-only central table would merge clean and rot. All hooks are READ-ONLY (never mutate game state).
 
