@@ -1,4 +1,3 @@
-import {Tag} from '../../../common/cards/Tag';
 import {Resource} from '../../../common/Resource';
 import {BonusCardId} from '../../../common/automa/AutomaTypes';
 import {MarsBotCorpId, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
@@ -11,7 +10,7 @@ import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {pileTagCount} from './MarsBotDividendReads';
+import {pileCount} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.CF4_MONS_INSURANCE);
 
@@ -78,7 +77,9 @@ export const MarsBotMonsInsurance: MarsBotCorp = {
 
   /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
   goal(game: IGame): number {
-    return pileTagCount(game, [Tag.SPACE]);
+    // «Fine print» — a policy is its conditions: the cards with a requirement in MarsBot's pile (not the formula's
+    // axis: r ≈ 0 against the other players' cities on the owner's real games).
+    return pileCount(game, (card) => card.requirements.length > 0);
   },
 
   setup(game: IGame): void {

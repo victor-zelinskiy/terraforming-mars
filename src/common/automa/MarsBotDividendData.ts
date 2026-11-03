@@ -204,7 +204,7 @@ const DIVIDENDS: Readonly<Record<MarsBotCorpId, MarsBotDividendInfo>> = {
   ], dividendGoal('Earthworks', 'Building tags in MarsBot\'s played pile', 12, 14, 17)),
   [MarsBotCorpId.CF4_MONS_INSURANCE]: dividendBox('Insured property', {each: 3, per: 2}, (r) => [
     {text: '${0} VP per ${1} city tiles the other players own', params: [r.each, r.per]},
-  ], dividendGoal('Orbital underwriting', 'Space tags in MarsBot\'s played pile', 10, 14, 17)),
+  ], dividendGoal('Fine print', 'Cards with a requirement in MarsBot\'s played pile', 16, 18, 21)),
 };
 
 export function marsBotDividendInfo(id: MarsBotCorpId): MarsBotDividendInfo {

@@ -173,7 +173,7 @@ describe('MarsBot Mons Insurance (CF4, the fork\'s own card) — «the Reserve F
   });
 
   describe('the dividend, its goal, save / load', () => {
-    it('«Insured property»: 3 VP per 2 cities of the other players; the goal counts space tags; the fund survives a save', () => {
+    it('«Insured property»: 3 VP per 2 cities of the other players; the goal counts cards with a requirement; the fund survives a save', () => {
       const [game, human] = insuranceGame('-mi-div');
       const corp = AutomaCorporations.corpFor(CF4);
       const r = marsBotDividendInfo(CF4).rates;
@@ -183,7 +183,7 @@ describe('MarsBot Mons Insurance (CF4, the fork\'s own card) — «the Reserve F
       expect(insuredCities(game)).eq(before + 2);
       expect(corp.dividend(game).vp).eq(Math.floor((before + 2) / r.per) * r.each);
       const goal = corp.goal(game);
-      game.automa!.playedPile.push(CardName.SATELLITES); // a space tag
+      game.automa!.playedPile.push(CardName.ALGAE); // a requirement (5 % oxygen)
       expect(corp.goal(game)).eq(goal + 1);
       game.automa!.corpResources = 13;
       const copy = Game.deserialize(game.serialize());
