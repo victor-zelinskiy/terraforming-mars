@@ -790,23 +790,6 @@
   transform: translate(-50%, -50%);
   background: url(./assets/misc/wild-party.png) center / contain no-repeat;
 }
-/* «A CARD WITH ANY REQUIREMENT» (RX36 Live Experiments' quest — `REQUIREMENT_PLATE`): the SAME plate, BARE — its MIN
-   mark where the pill sits, engraved in the plate's own dark ink (the printed footnote's banner). Sized off the one
-   plate height, so it scales with the silhouette; no `text-shadow` (the console strips it). */
-.pprq__min {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--pcard-font-title, inherit);
-  font-size: calc(var(--pprq-h) * 0.46);
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: 0.06em;
-  color: #3b200d;
-}
-
 /* «NEXT CARD: [party plate ×]» (TR70 Backroom Deal) — the party plate STRUCK by the one-play class's red diagonal: the
    SAME stroke `.pcard-plate--waived` prints for «global requirements ignored» and the next card's cassette wears,
    drawn OVER the pill (the clip keeps the plate's silhouette; the stroke is a child, so it is never clipped off). */
@@ -1978,12 +1961,6 @@
 }
 /* «card WITH a requirement» (AltSecondaryTag.REQ — Xavier): the premium
    requirements plate in miniature — a copper bar, drawn, no asset. */
-.pcard-mi__bubble--req {
-  border-radius: 3px;
-  height: calc(var(--pcard-mech-icon) * 0.3);
-  background: linear-gradient(180deg, var(--pcard-req-copper-hi), var(--pcard-req-copper-deep));
-  box-shadow: 0 0 0 1px var(--pcard-req-rim-deep), 0 1px 2px rgba(0, 0, 0, 0.7);
-}
 .pcard-mi--bubbled { margin-right: 6px; }
 .pcard-mi--superscript {
   transform: translateY(-30%) scale(0.72);

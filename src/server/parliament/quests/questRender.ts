@@ -106,10 +106,11 @@ export function questRenderData(quest: QuestDefinition): ICardRenderRoot {
       b.trade({amount: count, digit: true});
       return;
     case 'cardsWithRequirement':
-      // The REQUIREMENT PLATE alone — the yellow MIN banner the footnote
-      // prints («2 [plate]», Live Experiments, decision Р2: any requirement) —
-      // with a DIGIT beside ONE plate. Never the party plate (its pill names a
-      // PARTY requirement) and never a card glyph: the object is the plate.
+      // «A card with a requirement» («2 [mark]», Live Experiments, decision Р2:
+      // any requirement) — the ONE mark of the concept (the cover carrying the
+      // face's banner, PL-1691; the scan's «MIN» word is not printed) with a
+      // DIGIT beside ONE mark. Never the party plate (its pill names a PARTY
+      // requirement).
       b.requirementPlate({amount: count, digit: true});
       return;
     }

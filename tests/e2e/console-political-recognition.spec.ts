@@ -107,12 +107,12 @@ for (const preset of PRESETS) {
       await openHand(page);
       const slot = page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).first();
       const chip = slot.locator('.con-hand__chip--emblem');
-      await expect(slot.locator('img[src*="card-requirement.svg"]').first(), 'the face\'s MIN plate draws the kind\'s glyph').toBeVisible();
+      await expect(slot.locator('img[src*="card-requirement.webp"]').first(), 'the face\'s MIN plate draws the kind\'s glyph').toBeVisible();
       await expect(slot.locator('img[src*="tags/wild"], [style*="tags/wild"]').first(), 'the corner draws the WILD tag').toBeAttached();
-      await expect(chip.locator('.con-hand__chip-emblem[src*="card-requirement.svg"]'), 'the chip reads the glyph').toHaveCount(1);
+      await expect(chip.locator('.con-hand__chip-emblem[src*="card-requirement.webp"]'), 'the chip reads the glyph').toHaveCount(1);
       await expect(chip, 'and the counter alone — the glyph names the subject').toContainText('4/5');
       expect(await focusCard(page, CARD, 24)).toBeTruthy();
-      const bar = page.locator('.con-hand__reason--bar').filter({has: page.locator('[data-reason-emblem][src*="card-requirement.svg"]')});
+      const bar = page.locator('.con-hand__reason--bar').filter({has: page.locator('[data-reason-emblem][src*="card-requirement.webp"]')});
       await expect(bar, 'the verdict bar speaks the same reading').toContainText('4/5');
       await shoot(page, preset.id, 'a-hand-short');
     });

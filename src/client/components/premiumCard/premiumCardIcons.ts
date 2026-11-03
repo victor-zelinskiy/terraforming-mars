@@ -49,8 +49,6 @@ export type MechIconSpec =
   | {kind: 'vpCard', tag?: Tag}
   /** A card with a requirement of ANY party (Turmoil Redux TR13) — `PremiumPartyRequirementGlyph`; `waived` = the plate STRUCK (TR70: the next card ignores it). */
   | {kind: 'partyRequirement', waived?: true}
-  /** «A card WITH A REQUIREMENT» (RX36 Live Experiments' quest) — the same plate, BARE: no party pill, the MIN mark. */
-  | {kind: 'requirementPlate'}
   /**
    * ONE NAMED PARTY's seal (Turmoil Redux TR62 — «[Mars First] = [Reds]»): the party's emblem from the ONE table
    * (`partyEmblems.ts`); `stacked` overlaps the seal before it (the scan's pair), `caption` the English key printed
@@ -181,6 +179,15 @@ export type CountedObjectGlyph =
 export function countedCardCoverUrl(): string {
   return `${RES}/card.webp`;
 }
+
+/**
+ * «A CARD WITH A REQUIREMENT» — the ONE mark of the concept (PL-1691): the same cover carrying the face's own
+ * requirements banner, EMPTY as the printed symbol is (no «MIN», no word — language-neutral). Built from the
+ * cover by `scripts/make-card-requirement-icon.mjs`. Read by the face (`cards(n, {secondaryTag: REQ})`), the
+ * quest footnote (`requirementPlate`), the TR68 requirement chip, the hand's reason badge and the draw search's
+ * rule — never a second drawing.
+ */
+export const CARD_REQUIREMENT_ICON = `${MISC}/card-requirement.webp`;
 
 export function cardTypeBandMod(cardType: CardType.ACTIVE | CardType.AUTOMATED): string {
   return cardType === CardType.ACTIVE ? 'type-blue' : 'type-green';
@@ -645,6 +652,10 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     if (item.secondaryTag === AltSecondaryTag.GREEN) {
       return {kind: 'img', url: countedCardCoverUrl(), mod: cardTypeBandMod(CardType.AUTOMATED)};
     }
+    // A card WITH A REQUIREMENT (Xavier, Cutting Edge Technology, Strategic Shift, Nobel Prize): the ONE mark.
+    if (item.secondaryTag === AltSecondaryTag.REQ) {
+      return {kind: 'img', url: CARD_REQUIREMENT_ICON};
+    }
     return {kind: 'img', url: countedCardCoverUrl()};
   case CardRenderItemType.VP_CARD: {
     // «A card with a VP icon» (and the tag it prints): the composed glyph —
@@ -677,8 +688,8 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     // one-play class's red diagonal, the stroke the next card's cassette wears.
     return item.cancelled === true ? {kind: 'partyRequirement', waived: true} : {kind: 'partyRequirement'};
   case CardRenderItemType.REQUIREMENT_PLATE:
-    // «A card with ANY requirement» (RX36): the SAME plate, bare — the MIN mark instead of the party pill.
-    return {kind: 'requirementPlate'};
+    // «A card with ANY requirement» (RX36's quest footnote): the ONE mark, the count as a digit beside it.
+    return {kind: 'img', url: CARD_REQUIREMENT_ICON};
   case CardRenderItemType.COLONY_TILE:
     // The printed COLONY TILE glyph (the pill of a tile: track bars + the
     // planet's limb — Turmoil Redux TR07 «SET [tile] TO MAX», Aridor, Early

@@ -23,7 +23,8 @@ export const POLITICAL_RECOGNITION_REQUIRED = 5;
  * SCAN READING — a GREEN frame (AUTOMATED), cost 8. The gold MIN plate holds a
  * small card that carries its own gold plate, and «5»: the requirement
  * `{cardsWithRequirements: 5}` (the NEW kind `CARDS_WITH_REQUIREMENTS` — the
- * eight points of the TR02 path, its glyph `assets/misc/card-requirement.svg`).
+ * eight points of the TR02 path, its glyph the ONE «card with a requirement» mark
+ * `assets/misc/card-requirement.webp` — PL-1691).
  * The round white badge with a black «?» in the corner is the set's WILD tag
  * («counts as any tag of your choice when playing cards and actions», never
  * for awards — the rulebook's own words; the Scientists' effect grants an

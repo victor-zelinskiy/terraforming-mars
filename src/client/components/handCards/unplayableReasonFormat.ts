@@ -12,6 +12,7 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {requirementPartyEmblem} from '@/client/components/premiumCard/partyEmblems';
+import {CARD_REQUIREMENT_ICON} from '@/client/components/premiumCard/premiumCardIcons';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 
 /** The measurement unit implied by a reason's message (°C / % / none). */
@@ -110,11 +111,11 @@ const LEADERSHIP_EMBLEM = 'assets/misc/delegate-pair.svg';
 /**
  * A COUNTED reason whose subject has a GLYPH of its own on the card's plate (Turmoil Redux TR68 — «a card with a
  * requirement», the small card carrying its own gold MIN plate). Its rail form is the glyph and the counter alone
- * («[card] 4/5»), the same badge the plate prints (`premiumCardViewModel` → `card-requirement.svg`).
+ * («[card] 4/5»), the same badge the plate prints (`premiumCardViewModel` → `CARD_REQUIREMENT_ICON`).
  */
 const COUNT_MESSAGE_EMBLEMS: Readonly<Record<string, string>> = {
-  'Requires ${0} played cards with requirements': 'assets/misc/card-requirement.svg',
-  'Requires ${0} or less played cards with requirements': 'assets/misc/card-requirement.svg',
+  'Requires ${0} played cards with requirements': CARD_REQUIREMENT_ICON,
+  'Requires ${0} or less played cards with requirements': CARD_REQUIREMENT_ICON,
   // Turmoil Redux (TR73) — «[two figures] 1/2»: the LEADERSHIP badge, the pair of delegate figures the MIN plate prints.
   'Requires leading ${0} resolution(s) at once': LEADERSHIP_EMBLEM,
 };

@@ -32,11 +32,6 @@
     <PremiumVpCardGlyph v-else-if="isVpCard" class="pcard-ic pcard-ic--vp-card" :tag="vpCardTag" />
     <!-- a card with a requirement of ANY party (TR13) — the plate with the wild-party pill -->
     <PremiumPartyRequirementGlyph v-else-if="isPartyRequirement" class="pcard-ic pcard-ic--party-req" :class="{'pprq--waived': isPartyRequirementWaived}" :data-party-req-waived="isPartyRequirementWaived ? 'true' : undefined" />
-    <!-- a card with ANY requirement (RX36) — the same plate, bare; the count as a DIGIT beside one plate -->
-    <template v-else-if="isRequirementPlate">
-      <span v-if="digitText !== undefined" class="pcard-mi__digit">{{ digitText }}</span>
-      <PremiumPartyRequirementGlyph class="pcard-ic pcard-ic--party-req" :bare="true" data-requirement-plate="true" />
-    </template>
     <!-- ONE NAMED PARTY's seal (TR62) — its emblem; a STACKED seal overlaps the one before it, the caption under the pair -->
     <span v-else-if="partySeal !== undefined" class="pcard-pseal" :class="{'pcard-pseal--stacked': partySeal.stacked === true, 'pcard-pseal--captioned': partySeal.caption !== undefined}" :data-party-seal="partySeal.party">
       <span class="pcard-pseal__disc" :style="{backgroundImage: `url(${partySeal.url})`}"></span>
@@ -55,9 +50,6 @@
       <span v-if="bubbleUrl !== undefined" class="pcard-mi__bubble"
             :class="{'pcard-mi__bubble--tile': bubble?.shape === 'tile', 'pcard-mi__bubble--card': bubble?.shape === 'card', 'pcard-ic--type-green': bubble?.band === 'green', 'pcard-ic--type-blue': bubble?.band === 'blue'}"
             :style="bubbleStyle"></span>
-      <!-- «card WITH a requirement» (AltSecondaryTag.REQ — Xavier): the
-           requirements plate in miniature, drawn, not an image -->
-      <span v-else-if="isReqBubble" class="pcard-mi__bubble pcard-mi__bubble--req"></span>
     </template>
     <!-- honest fallback chip for unmapped vocabulary -->
     <span v-else class="pcard-mi__chip">{{ fallbackLabel }}</span>
@@ -138,7 +130,6 @@
 import {defineComponent} from 'vue';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
-import {AltSecondaryTag} from '@/common/cards/render/AltSecondaryTag';
 import {Size} from '@/common/cards/render/Size';
 import {Tag} from '@/common/cards/Tag';
 import {
@@ -304,10 +295,6 @@ export default defineComponent({
     isBannerCube(): boolean {
       return this.mechIcon?.kind === 'bannerCube';
     },
-    /** The requirement plate alone (RX36 — «a card with ANY requirement»). */
-    isRequirementPlate(): boolean {
-      return this.mechIcon?.kind === 'requirementPlate';
-    },
     /** The party plate STRUCK (TR70 — the next card ignores its party requirement): the class's own diagonal, not the generic ×. */
     isPartyRequirementWaived(): boolean {
       return this.mechIcon?.kind === 'partyRequirement' && this.mechIcon.waived === true;
@@ -407,10 +394,6 @@ export default defineComponent({
     bubbleUrl(): string | undefined {
       return this.bubble?.url;
     },
-    /** «Card with a requirement» (Xavier) — a drawn copper bar, no asset. */
-    isReqBubble(): boolean {
-      return this.itemNode?.secondaryTag === AltSecondaryTag.REQ;
-    },
     itemClasses(): Record<string, boolean> {
       const item = this.itemNode;
       return {
@@ -418,7 +401,7 @@ export default defineComponent({
         'pcard-mi--any': item?.anyPlayer === true,
         // The party plate draws the one-play class's own stroke (`pprq--waived`), never the generic × over it too.
         'pcard-mi--cancelled': item?.cancelled === true && !this.isPartyRequirementWaived,
-        'pcard-mi--bubbled': this.bubbleUrl !== undefined || this.isReqBubble,
+        'pcard-mi--bubbled': this.bubbleUrl !== undefined,
         'pcard-mi--superscript': item?.isSuperscript === true,
       };
     },

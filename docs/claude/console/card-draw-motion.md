@@ -54,7 +54,8 @@
   Три именованных поиска «по свойству карты» (не метке): `floaterIcon` (Celestic, P44 — `hasFloaterIcon`,
   клауза «со значком аэростата», иконка аэростата), `partyRequirement` (P51 — `hasPartyRequirement`,
   «с требованием партии», плашка с партией), `requirement` (P54 Nobel Prize — `hasRequirement`, ЛЮБОЕ
-  требование, «с требованием», голая плашка «MIN» — `PremiumPartyRequirementGlyph bare`). Отброшенная
+  требование, «с требованием», ЕДИНЫЙ знак «карта с требованием» — рубашка карты с медным баннером лица,
+  `CARD_REQUIREMENT_ICON`, PL-1691; голой плашки «MIN» больше нет). Отброшенная
   положительным фильтром карта получает вердикт `{kind: 'rule', terms}` — правило ПОЗИТИВНО («Не подошла ·
   с требованием»), никогда «без …». Новый поиск — поле по всей цепочке (`Behavior.DrawCard` → `Executor` →
   `DrawOptions` + фильтр `DrawCards` → `drawSearchOf` → `DrawSearchModel` → `drawSearchSentence` → терм

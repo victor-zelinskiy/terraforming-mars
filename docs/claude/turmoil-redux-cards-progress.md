@@ -2948,7 +2948,7 @@ deck, 9 / 9 на GPU: печати, импульс по обоим концам,
 синхронно в `bespokePlay`, `agendaWalkForecast` + `cardPlayPreview` TR04 слово в слово. НОВЫЙ вид `CARDS_WITH_REQUIREMENTS` по тропе TR02:
 ОДИН счёт `playedCardsWithRequirements(player, except?)` в файле требования (события считаются — «played»; спрашивающая карта
 исключена; Tactician / Forecaster не тронуты), строка правил «Requires that you have played N other cards with requirements.», причина
-«сейчас 4 из 5», глиф лица `assets/misc/card-requirement.svg` — он же ЭМБЛЕМА причины на рельсе (`COUNT_MESSAGE_EMBLEMS`: «[карта] 4/5»
+«сейчас 4 из 5», глиф лица `assets/misc/card-requirement.webp` (с PL-1691 — единый знак «карта с требованием») — он же ЭМБЛЕМА причины на рельсе (`COUNT_MESSAGE_EMBLEMS`: «[карта] 4/5»
 на чипе руки и полосе вердикта, подпись не дублирует). Конец трека назван строками композера (TR37); класс «действия без эффекта» к
 розыгрышам не относится — признак не заводился. Спек — 15 правил.
 

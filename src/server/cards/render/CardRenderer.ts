@@ -251,10 +251,12 @@ abstract class Builder<T> {
   }
 
   /**
-   * Turmoil Redux: «a card WITH A REQUIREMENT» — the requirement plate ALONE,
-   * no party pill (RX36 Live Experiments' quest footnote: «2 [MIN plate]» —
-   * `{amount: N, digit: true}` prints the digit beside ONE plate, as the
-   * delegates' and the trade's footnotes do).
+   * Turmoil Redux: «a card WITH A REQUIREMENT» (RX36 Live Experiments' quest
+   * footnote) — drawn as the ONE mark of the concept, the card cover carrying the
+   * face's requirements banner (`CARD_REQUIREMENT_ICON`, PL-1691 — the scan's
+   * «MIN» word is not printed: an English word in every language read as
+   * unpremium, the owner 2026-11-04); `{amount: N, digit: true}` prints the
+   * digit beside ONE mark, as the delegates' and the trade's footnotes do.
    */
   public requirementPlate(options?: ItemOptions): this {
     return this._appendToRow(new CardRenderItem(CardRenderItemType.REQUIREMENT_PLATE, -1, options));

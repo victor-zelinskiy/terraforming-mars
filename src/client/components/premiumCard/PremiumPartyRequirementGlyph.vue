@@ -18,14 +18,13 @@
     icon), so a rem-authored host and the px-designed face both set it in their
     own units; every part is a share of that one size.
   -->
-  <span class="pprq" :class="{'pprq--bare': bare}" aria-hidden="true">
+  <span class="pprq" aria-hidden="true">
     <span class="pprq__field">
-      <!-- BARE (RX36 — «a card with ANY requirement»): the plate itself, its MIN
-           mark where the party pill sits — the printed footnote's yellow banner. -->
-      <span v-if="bare" class="pprq__min">MIN</span>
-      <span v-else class="pprq__pill"></span>
+      <span class="pprq__pill"></span>
     </span>
   </span>
+  <!-- «A card with ANY requirement» is NOT this plate: it is the card cover carrying the face's banner
+       (`CARD_REQUIREMENT_ICON`, PL-1691) — one mark for that concept, no «MIN» word. -->
 </template>
 
 <script lang="ts">
@@ -33,9 +32,5 @@ import {defineComponent} from 'vue';
 
 export default defineComponent({
   name: 'PremiumPartyRequirementGlyph',
-  props: {
-    /** The plate ALONE — any requirement, no party (`REQUIREMENT_PLATE`). */
-    bare: {type: Boolean, default: false},
-  },
 });
 </script>

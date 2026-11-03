@@ -10,7 +10,7 @@
       <span v-else-if="term.kind === 'resource'" class="con-dsearch__res" :style="resourceStyle(term.resource)" aria-hidden="true"></span>
       <span v-else-if="term.kind === 'floaterIcon'" class="con-dsearch__res" :style="resourceStyle(floater)" aria-hidden="true"></span>
       <PremiumPartyRequirementGlyph v-else-if="term.kind === 'partyRequirement'" class="con-dsearch__pprq" />
-      <PremiumPartyRequirementGlyph v-else-if="term.kind === 'requirement'" class="con-dsearch__pprq" bare />
+      <span v-else-if="term.kind === 'requirement'" class="con-dsearch__res con-dsearch__req" :style="{backgroundImage: `url(${requirementCard})`}" aria-hidden="true"></span>
       <template v-else-if="term.kind === 'without'">
         <span v-for="tag in term.tags" :key="tag" class="con-dsearch__tag con-dsearch__tag--struck" :data-tag="tag" :style="tagStyle(tag)" aria-hidden="true"></span>
       </template>
@@ -24,7 +24,7 @@ import {Tag} from '@/common/cards/Tag';
 import {CardResource} from '@/common/CardResource';
 import {DrawSearchModel} from '@/common/models/CardDrawRevealModel';
 import {DrawSearchTerm, drawSearchTermLabel, drawSearchTerms} from '@/client/console/deckDraw/drawSearchReading';
-import {cardResourceIconUrl, tagIconStyle} from '@/client/components/premiumCard/premiumCardIcons';
+import {CARD_REQUIREMENT_ICON, cardResourceIconUrl, tagIconStyle} from '@/client/components/premiumCard/premiumCardIcons';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
 /**
@@ -51,6 +51,10 @@ export default defineComponent({
   computed: {
     floater(): CardResource {
       return CardResource.FLOATER;
+    },
+    /** «A card with a requirement» — the ONE mark the face, the TR68 chip and the quest footnote print (PL-1691). */
+    requirementCard(): string {
+      return CARD_REQUIREMENT_ICON;
     },
     terms(): ReadonlyArray<DrawSearchTerm> {
       return this.clauses ?? drawSearchTerms(this.search);

@@ -40,7 +40,7 @@ FAQ :616–618; эффект Учёных даёт «extra wild tag» тем ж�
 ### 1.3 Решения (батч владельца 2026-10-18: 4 / 5 — как собрано, 7 — M1, 9 — брифинг, 11 — фон оставить)
 
 1 имя «Политическое признание» · 2 лор EN слово в слово + RU · 3 арт импортирован · 4 (а) `Tag.WILD` · 5 (а) события считаются ·
-6 (а) новый глиф `assets/misc/card-requirement.svg` (мини-карта с золотой MIN-плашкой) — он же эмблема причины на рельсе.
+6 (а) новый глиф `assets/misc/card-requirement.svg` (мини-карта с золотой MIN-плашкой; с 2026-11-04 — единый знак `card-requirement.webp`, PL-1691) — он же эмблема причины на рельсе.
 
 ## 2. ВИД `CARDS_WITH_REQUIREMENTS` (тропа TR02, 8 точек)
 
@@ -52,7 +52,7 @@ FAQ :616–618; эффект Учёных даёт «extra wild tag» тем ж�
 | счёт | `Card.populateCount` |
 | строка правил | `buildCardInformation.requirementBlock` — «Requires that you have played N other cards with requirements.» (RU «Требуется не менее N других разыгранных карт с требованиями.») |
 | причина | `type: 'count'`, «Requires ${0} played cards with requirements» + «сейчас M» + `FULLY_RESTATED_REQUIREMENTS` |
-| клиент | `REQUIREMENT_RENDER` → глиф `card-requirement.svg`; `COUNT_MESSAGE_LABELS` → «Карты с требованиями»; `COUNT_MESSAGE_EMBLEMS` → компактная форма «[глиф] 4/5» на чипе руки и полосе вердикта (подпись не дублирует глиф) |
+| клиент | `REQUIREMENT_RENDER` → глиф `card-requirement.webp` (PL-1691); `COUNT_MESSAGE_LABELS` → «Карты с требованиями»; `COUNT_MESSAGE_EMBLEMS` → компактная форма «[глиф] 4/5» на чипе руки и полосе вердикта (подпись не дублирует глиф) |
 | гард прозы | `requirementProse.spec` — субъект `/cards? with requirements/i` |
 
 ## 3. Итерация «ПРЕДИГРОВОЕ — ЭТО ВИТРИНА»

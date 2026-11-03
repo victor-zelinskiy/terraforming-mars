@@ -593,7 +593,7 @@ describe('normalizeRequirement', () => {
     expect(played.type).to.eq(RequirementType.CARDS_WITH_REQUIREMENTS);
     expect(played.value).to.eq(5);
     expect(played.comparator).to.eq('min');
-    expect(played.iconUrl).to.eq('assets/misc/card-requirement.svg');
+    expect(played.iconUrl).to.eq('assets/misc/card-requirement.webp');
     expect(played.label, 'the glyph names the subject').to.eq(undefined);
     expect(played.plain).to.eq(false);
     expect(played.isBinary).to.eq(false);

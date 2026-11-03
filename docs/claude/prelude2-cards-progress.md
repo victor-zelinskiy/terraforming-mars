@@ -1694,7 +1694,7 @@ D nested (второй пик из 2 в той же зоне, New Partner на �
 - **Третий именованный поиск — ЛЮБОЕ требование** (после P44 `floaterIcon` и P51 `partyRequirement`): маршрут
   `Behavior.DrawCard.requirement` → `Executor` → `DrawOptions` + фильтр `DrawCards` → `drawSearchOf` →
   `DrawSearchModel.requirement` → `drawSearchSentence` («…until you reveal 2 cards with a requirement…») → терм
-  клиента `requirement` («с требованием», голая плашка «MIN» — `PremiumPartyRequirementGlyph bare`, сигнатура
+  клиента `requirement` («с требованием», единый знак «карта с требованием» `CARD_REQUIREMENT_ICON` — PL-1691, сигнатура
   `requirement`). Вскрытие несёт правило и исчерпание, факт журнала `deck-searched` — `rule` (у `include` его не было),
   вердикт отброшенной — «Не подошла · с требованием» (позитивно).
 - **ОДИН предикат** `hasRequirement` (рядом с `playedCardsWithRequirements` в `CardsWithRequirementsRequirement.ts`;
@@ -1713,7 +1713,15 @@ D nested (второй пик из 2 в той же зоне, New Partner на �
   очереди развёртывания; сухой прогон каждой — в генераторе. Стенд `console-nobel-prize` (tv4k) A / B / C.
 - **Дикая метка**: `default` +1 к науке, `raw` — нет; Olympus Conference на WILD не отвечает (`cardTagCount` дикую не
   считает) — спек, правило 7.
-- **Известное различие (не унифицировано)**: «карта с требованием» нарисована двумя знаками — медная плашка на ЛИЦЕ
-  (печать карты, `AltSecondaryTag.REQ`) и «MIN»-плашка в бейдже консоли (правило поиска) (PL-1691).
+- **Знак «карта с требованием» — ОДИН** (PL-1691, владелец 2026-11-04: «MIN выглядит странно и непремиум (тем
+  более на анг в рус версии)»): было три рисунка — медная планка над картой на лице, голая плашка «MIN» (сноска
+  квеста RX36, бейдж поиска) и плоская кремовая карточка `card-requirement.svg` (чип TR68, причина в руке). Теперь
+  ОДИН ассет `assets/misc/card-requirement.webp` — рубашка `card.webp` с баннером требований лица (силуэт и токены
+  `.pcard__reqs`), баннер ПУСТОЙ, как печатный символ: без слова на любом языке. Собирается скриптом
+  `scripts/make-card-requirement-icon.mjs` из рубашки; константа `CARD_REQUIREMENT_ICON`; гард
+  `tests/console/cardRequirementMark.spec.ts`. Плашка с партийной пилюлей (требование ПАРТИИ, TR13) — другое
+  понятие той же грамматики «плашка = требование», не тронута.
+- **Инлайны закрыты** (PL-1690): тринадцать `requirements.length > 0 / === 0` читают `hasRequirement` (с ними —
+  Mons Insurance, которого не было в списке); гард `tests/cards/hasRequirementGuard.spec.ts`.
 - Гэпы — реестр FM.
 
