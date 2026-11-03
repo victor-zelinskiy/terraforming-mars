@@ -1718,6 +1718,12 @@ export type SelectResourceModel = BaseInputModel & {
   include: ReadonlyArray<keyof Units>;
   /** How many of the chosen resource the player GAINS (`SelectResource.withGainAmount`) — absent for a non-gain. */
   amount?: number;
+  /**
+   * How many of the chosen resource the player SPENDS (`SelectResource.withSpendAmount` — P50 Focused Organization):
+   * the wild step's SPEND mode (`stock → stock − N`, an empty lane shown disabled with its reason) and the pre-select
+   * role `spend`. Absent for a gain.
+   */
+  spendAmount?: number;
 }
 
 export type SelectResourcesModel = BaseInputModel & {

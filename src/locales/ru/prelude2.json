@@ -67,5 +67,8 @@
     "Remove how many floaters?": "Сколько аэростатов снять?",
     "Gain which resource?": "Какой ресурс получить?",
     "Remove X floaters here to gain X of one standard resource": "Снимите X аэростатов отсюда — получите X единиц одного стандартного ресурса",
-    "No immediate effect — the hub acts from this generation on": "Эффекта при розыгрыше нет — действие узла доступно с этого поколения"
+    "No immediate effect — the hub acts from this generation on": "Эффекта при розыгрыше нет — действие узла доступно с этого поколения",
+    "Spend which resource?": "Какой ресурс потратить?",
+    "Discard which card?": "Какую карту сбросить?",
+    "No standard resources to spend": "Нет стандартных ресурсов, чтобы потратить"
 }

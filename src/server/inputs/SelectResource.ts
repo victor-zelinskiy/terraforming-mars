@@ -13,6 +13,13 @@ export class SelectResource extends BasePlayerInput<keyof Units> {
    * prompt whose number is not one gain (a discard, a steal).
    */
   public gainAmount: number | undefined = undefined;
+  /**
+   * How many of the chosen resource the player SPENDS (P50 Focused Organization — «spend 1 standard resource»): the
+   * console's wild step prints `stock → stock − N` on every lane and shows a lane the player cannot pay from DISABLED
+   * with its reason (the `include` stays the server's authority). Structural — it is also the prompt's pre-select ROLE
+   * (`spend`, `common/inputs/preselectAddress.ts`), so a spend answer can never land on a gain prompt of the same card.
+   */
+  public spendAmount: number | undefined = undefined;
 
   constructor(
     public override title: string | Message,
@@ -28,6 +35,12 @@ export class SelectResource extends BasePlayerInput<keyof Units> {
     return this;
   }
 
+  /** Mark the prompt as a SPEND of `amount` of the chosen resource (serialized here — nesting-safe). */
+  public withSpendAmount(amount: number): this {
+    this.spendAmount = amount;
+    return this;
+  }
+
   public override toModel(): SelectResourceModel {
     return {
       title: this.title,
@@ -35,6 +48,7 @@ export class SelectResource extends BasePlayerInput<keyof Units> {
       type: 'resource',
       include: this.include,
       ...(this.gainAmount !== undefined ? {amount: this.gainAmount} : {}),
+      ...(this.spendAmount !== undefined ? {spendAmount: this.spendAmount} : {}),
     };
   }
 

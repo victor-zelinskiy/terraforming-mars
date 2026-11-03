@@ -38,10 +38,9 @@ import {CardName} from './CardName';
  * Guard and worklist printer: `tests/cards/prelude2/Prelude2CardsHeldBack.spec.ts`.
  */
 
-/** ADAPT IN PLACE — 18 preludes, 5 corporations (ordered as the manifest prints them; every project card P68…P91 is adapted). */
+/** ADAPT IN PLACE — 17 preludes, 5 corporations (ordered as the manifest prints them; every project card P68…P91 is adapted). */
 export const PRELUDE2_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
   // ── Preludes (P43…P67; P47 Corridors of Power is REPLACED by TRP0 — below, crossed) ──
-  CardName.FOCUSED_ORGANIZATION, // P50 · behavior + action — the AndOptions-nested SelectCard (checklist gotcha)
   CardName.HIGH_CIRCLES, // P51 · POLITICAL · `PartyRequirement` + behavior + bespokePlay
   CardName.INDUSTRIAL_COMPLEX, // P52 · bespokePlay — lose 18 M€, every production below 1 to 1
   CardName.MAIN_BELT_ASTEROIDS, // P53 · bespokePlay + `onResourceAdded` hook — asteroids here, VP per 2

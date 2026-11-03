@@ -48,7 +48,10 @@ import {ChoiceContextSource} from '../models/PlayerInputModel';
  *    information: no composer can have collected its answer);
  *  · `venusBonus` — the alternative Venus board's bonus (`venusBonusPrompt`):
  *    an `and` of amounts or an `or` with a card wild, but ONE question of its
- *    own — never a card's own branch pick or its own distribution (P89 · EL).
+ *    own — never a card's own branch pick or its own distribution (P89 · EL);
+ *  · `spend` — a `resource` pick carrying `spendAmount` (P50 · FC): the
+ *    resource the player GIVES UP, never the one a gain prompt of the SAME
+ *    card hands out (`resource`) — one action asks both, in turn.
  */
 export type PreselectRole = 'discard' | 'deckPick' | string;
 
@@ -76,6 +79,8 @@ export type AddressableInput = {
   votePrompt?: {source: string},
   supportPrompt?: unknown,
   delegatePrompt?: unknown,
+  /** A resource pick that SPENDS (`SelectResource.withSpendAmount`) — role `spend`. */
+  spendAmount?: number,
   options?: ReadonlyArray<unknown>,
 };
 
@@ -89,6 +94,9 @@ export function roleOf(input: AddressableInput): PreselectRole {
   }
   if (input.type === 'card' && input.discardPrompt !== undefined) {
     return 'discard';
+  }
+  if (input.type === 'resource' && input.spendAmount !== undefined) {
+    return 'spend';
   }
   return input.type;
 }
