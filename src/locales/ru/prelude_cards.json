@@ -111,5 +111,9 @@
     "Raise your TR 2 steps. Draw 1 card.": "Повысьте РТ на 2. Возьмите 1 карту.",
 
     "High Circles": "Высшие круги",
-    "Raise your TR 1 step and draw 1 card with PARTY REQUIREMENT. Place 2 delegates in one party.": "Повысьте ваш РТ на 1 и возьмите 1 карту с требованием к партии. Разместите 2 делегатов в одной партии."
+    "Raise your TR 1 step and draw 1 card with PARTY REQUIREMENT. Place 2 delegates in one party.": "Повысьте ваш РТ на 1 и возьмите 1 карту с требованием к партии. Разместите 2 делегатов в одной партии.",
+    "RAISE ALL COLONY TRACKS 2 STEPS": "Поднимите все треки колоний на 2 шага",
+    "Raise all colony tracks 2 steps. Place a colony. Gain 3 energy.": "Поднимите все треки колоний на 2 шага. Разместите колонию. Получите 3 энергии.",
+    "All active colony tracks rise 2 steps (an inactive tile does not; a track stops at its top)": "Все активные треки колоний поднимаются на 2 шага (неактивная колония — нет; трек останавливается на максимуме)",
+    "Gain 3 energy.": "Получите 3 энергии."
 }

@@ -277,6 +277,9 @@
     "New · bonus ${0}": "Новая · бонус ${0}",
     "New card": "Новая карта",
     "Trade income · a bonus card per settlement": "Доход торговли · карта бонуса за каждое поселение",
-    "Discarded: no other card in hand": "Сброшена: другой карты в руке не было"
-
+    "Discarded: no other card in hand": "Сброшена: другой карты в руке не было",
+    "All active colony tracks rise ${0} steps": "Все активные треки колоний поднимутся на ${0} шага",
+    "${0} colony track: ${1} → ${2}": "Трек колонии ${0}: ${1} → ${2}",
+    "${0} colony track: already at its top": "Трек колонии ${0}: уже на максимуме",
+    "${0} colony track: not active, it does not rise": "Трек колонии ${0}: не активна — не поднимается"
 }

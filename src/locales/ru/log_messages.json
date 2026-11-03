@@ -423,5 +423,7 @@
     "${0} received the production income of generation ${1}": "${0} получает доход фазы производства поколения ${1}",
     "${0} ignored the party requirement of ${1} thanks to ${2}": "${0} разыграл ${1} без требования партии благодаря ${2}",
     "${0} met the ${1} party requirement of ${2} through the alliance with ${3} (${4})": "${0} разыграл ${2}: требование партии ${1} выполнено по альянсу через ${3} (${4})",
-    "${0} discards preludes ${1}": "${0} сбрасывает прологи ${1}"
+    "${0} discards preludes ${1}": "${0} сбрасывает прологи ${1}",
+    "${0} raised every active colony track ${1} steps with ${2}": "${0} поднял все активные треки колоний на ${1} шага картой ${2}",
+    "${0} colony track is already at its top": "Трек колонии ${0} уже на максимуме"
 }

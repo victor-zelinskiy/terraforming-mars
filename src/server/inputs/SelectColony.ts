@@ -59,6 +59,14 @@ export class SelectColony extends BasePlayerInput<IColony> {
   public trackMoves: ReadonlyArray<ColonyTrackMove> = [];
 
   /**
+   * THE TRACKS THE SAME PLAY ALREADY RAISED before this pick asks (Prelude 2 P48 Early Colonization — «raise all
+   * colony tracks 2 steps», then «place a colony»): one entry per ACTIVE tile, the marker's `before` and `after`
+   * (equal when the track already stood at its top). A FACT, not a projection — the model's `trackRaise` marker,
+   * from which the client plays the raise before the pick opens. Empty on every other colony pick.
+   */
+  public trackRaise: ReadonlyArray<ColonyTrackMove> = [];
+
+  /**
    * THIS PICK PLACES A TILE ON THE CHOSEN COLONY TILE (TR22 Nova City;
    * `PlaceCityOnColonyTile`). Published as the model's `tileSite` marker: the
    * tile, its hosted cell and the server's projection of the count and the
@@ -129,6 +137,10 @@ export class SelectColony extends BasePlayerInput<IColony> {
     // The track projection rides the input's own toModel too (nesting-safe).
     if (this.trackMoves.length > 0) {
       model.trackMoves = this.trackMoves;
+    }
+    // …and the raise the same play already applied (a fact the pick opens on).
+    if (this.trackRaise.length > 0) {
+      model.trackRaise = this.trackRaise;
     }
     // …and so does the roster marker (the staged twin reads this same model).
     if (this.rosterChange !== undefined) {

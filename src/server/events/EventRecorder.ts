@@ -692,8 +692,10 @@ export class EventRecorder {
   /**
    * A CARD EFFECT MOVED A COLONY TILE'S TRACK (Turmoil Redux TR07 Colony
    * Sponsors): recorded under the live scope, so the fact joins the chain of
-   * the play that caused it and names that play's card. Written only by
-   * `deferredActions/MaximizeColonyTrack`.
+   * the play that caused it and names that play's card. Two writers:
+   * `deferredActions/MaximizeColonyTrack` (one chosen tile, to its top) and
+   * Prelude 2 P48 Early Colonization (every active tile +2, one event per
+   * tile that moved).
    */
   public recordColonyTrackMoved(player: IPlayer, colony: ColonyName, before: number, after: number): void {
     this.record({type: 'colony-track-moved', player: player.color, impact: {colonyTrackMove: {colony, before, after}}, visibility: 'journal'});

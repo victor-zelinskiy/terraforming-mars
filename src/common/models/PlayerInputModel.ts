@@ -1354,6 +1354,14 @@ export type SelectColonyModel = BaseInputModel & {
    */
   trackMoves?: ReadonlyArray<import('../parliament/colonyTrackAdvance').ColonyTrackMove>;
   /**
+   * STRUCTURAL «THE SAME PLAY ALREADY RAISED THESE TRACKS before asking» (Prelude 2 P48 Early Colonization — «raise
+   * all colony tracks 2 steps. Place a colony»): ONE entry per ACTIVE tile in play, the marker before and after the
+   * raise (equal where the track stood at its top already; an inactive tile is absent — the rule skips it). A FACT
+   * the server applied, unlike `trackMoves` (a projection of the pick): the console holds every tile at `before`,
+   * plays the colony-track wave off this marker and only then opens the pick — never a diff of two views.
+   */
+  trackRaise?: ReadonlyArray<import('../parliament/colonyTrackAdvance').ColonyTrackMove>;
+  /**
    * STRUCTURAL «this pick PLACES A TILE ON THE CHOSEN COLONY TILE» (Turmoil
    * Redux TR22 Nova City — «place a city ON A COLONY TILE in play»): the tile,
    * the hosted cell it lands on, whose it is, and the SERVER's projection of

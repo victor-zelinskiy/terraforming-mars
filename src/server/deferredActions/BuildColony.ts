@@ -10,6 +10,8 @@ import type {SkippedEffect} from '../cards/actionPreviews';
 import {ChoiceContextSource, PlacementContext, SelectColonyModel} from '../../common/models/PlayerInputModel';
 import {ColonyBuildSite} from '../../common/colonies/ColonyBuildSite';
 import {berthIsOverLimit} from '../../common/colonies/colonyBerths';
+import {ColonyTrackMove} from '../../common/parliament/colonyTrackAdvance';
+import {CardName} from '../../common/cards/CardName';
 
 /** The skip label — the effect a lost «place a colony» is NAMED by. */
 export const BUILD_COLONY_LABEL = 'Build a colony';
@@ -93,9 +95,27 @@ export class BuildColony extends DeferredAction<IColony> {
       // project uses it to pay + place inside one analytics scope. `place` builds
       // the colony; call it from inside the closure.
       commit?: (colony: IColony, place: () => void) => void,
+      // The tracks the SAME play already raised before this build asks (Prelude 2 P48 Early Colonization): the
+      // prompt carries them as `trackRaise`, so the client plays the raise off the question itself, never a diff.
+      trackRaise?: ReadonlyArray<ColonyTrackMove>,
     },
   ) {
     super(player, Priority.BUILD_COLONY);
+  }
+
+  /**
+   * THE BUILD A CARD'S OWN BEHAVIOUR QUEUED — the one `Executor` deferred for `card`'s play (addressed by its
+   * `cause`, never by position), still waiting in the queue. A card whose bespoke half runs after the declarative
+   * build was queued (P48 raises every track, then the queued build asks) hands it what it did through this.
+   */
+  public static queuedFor(player: IPlayer, card: CardName): BuildColony | undefined {
+    return player.game.deferredActions.queuedFor(player)
+      .find((action): action is BuildColony => action instanceof BuildColony && action.options?.cause?.card === card);
+  }
+
+  /** The tracks this play already raised (see `trackRaise` above). */
+  public setTrackRaise(moves: ReadonlyArray<ColonyTrackMove>): void {
+    this.options = {...this.options, trackRaise: moves};
   }
 
   /** What this door tells the build's one reason function about itself. */
@@ -140,6 +160,9 @@ export class BuildColony extends DeferredAction<IColony> {
     select.onCancel = this.options?.onCancel;
     select.disabledColonies = offer.disabled;
     select.buildSites = offer.candidates.map((colony) => this.site(colony));
+    if (this.options?.trackRaise !== undefined && this.options.trackRaise.length > 0) {
+      select.trackRaise = this.options.trackRaise;
+    }
     const source = this.options?.cause ?? this.options?.giver;
     if (source !== undefined) {
       select.markChoiceContext({source, mode: 'effect-choice'});

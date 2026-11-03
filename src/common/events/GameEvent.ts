@@ -170,8 +170,9 @@ export type GameEventType =
   | 'fleet-docked'
   /**
    * A CARD EFFECT MOVED A COLONY TILE'S TRACK (Turmoil Redux TR07 Colony
-   * Sponsors — «move its marker to the highest position»; written only by
-   * `deferredActions/MaximizeColonyTrack`). `impact.colonyTrackMove` names the
+   * Sponsors — «move its marker to the highest position»; written by
+   * `deferredActions/MaximizeColonyTrack` and by Prelude 2 P48 Early
+   * Colonization — «raise all colony tracks 2 steps», one event per tile). `impact.colonyTrackMove` names the
    * tile and the marker's position before and after; `player` is the one whose
    * effect it was, the card rides the event's `source`. The track is nobody's
    * stock, so no delta names it, and the log line sits inside a chain that has

@@ -667,7 +667,10 @@ export class Executor implements BehaviorExecutor {
     if (behavior.colonies !== undefined) {
       const colonies = behavior.colonies;
       if (colonies.buildColony !== undefined) {
-        player.game.defer(new BuildColony(player, {allowDuplicate: colonies.buildColony.allowDuplicates}));
+        // The build names the card it is the effect of — the prompt's `choiceContext.source` (the dock and the
+        // crumb name the giver), the named skip, and the address a card's bespoke half finds it by
+        // (`BuildColony.queuedFor` — P48 Early Colonization hands it the tracks it raised).
+        player.game.defer(new BuildColony(player, {allowDuplicate: colonies.buildColony.allowDuplicates, cause: cardSource(card)}));
       }
       if (colonies.addTradeFleet !== undefined) {
         // `increaseFleetSize` caps SILENTLY at MAX_FLEET_SIZE: the fleets the
