@@ -695,6 +695,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(face.find('.pcard__res').exists(), 'the mech store').is.true;
   });
 
+  it('Hartlan Heating (CF6, the fork\'s own card) prints its boiler, never the human 48 M€ or M€ production', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.CF6_HARTLAN_HEATING);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'its own card').contains('Heating Season');
+    expect(text, 'the heat').contains('heat');
+    // The human Hartlan Heating starts with 48 M€ and raises M€ production — none of that.
+    expect(text).not.contains('48');
+    expect(text).not.match(/M€ production/i);
+    const face = mountFace(MarsBotCorpId.CF6_HARTLAN_HEATING);
+    expect(face.findAll('.pcard__tags .pcard-tag'), 'Space + Building').has.length(2);
+    expect(face.find('.pcard__res').exists(), 'the boiler\'s capsule').is.true;
+  });
+
   it('Arwind Inc. (CF5, the fork\'s own card) prints its shipyard, never the human 38 M€ or the fighter payment', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.CF5_ARWIND_INC);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect', 'Before action phase']);

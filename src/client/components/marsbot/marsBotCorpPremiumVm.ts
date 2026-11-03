@@ -533,6 +533,18 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.tag(Tag.POWER).startEffect.cards(1).asterix();
       });
     });
+  case MarsBotCorpId.CF6_HARTLAN_HEATING:
+    return CardRenderer.builder((b) => {
+      // EFFECT: the construction boiler — a tile of the bot's (the human card's empty hex) puts 2 heat here.
+      b.effect(undefined, (eb) => {
+        eb.emptyTile().startEffect.heat(2).asterix();
+      });
+      // BEFORE ACTION PHASE: Heating Season — every full 11 heat of the boiler raises the temperature 1 step and plays
+      // a card (the human card's two halves: heat warms Mars, heat buys cards).
+      b.action(undefined, (eb) => {
+        eb.heat(11).asterix().startAction.temperature(1).cards(1);
+      });
+    });
   case MarsBotCorpId.CF5_ARWIND_INC:
     return CardRenderer.builder((b) => {
       // EFFECT: the hangar fills — a space tag (and, with the Parliament, an Agenda step) puts a fighter here.
@@ -708,6 +720,9 @@ function corpResourceSocket(resource: MarsBotCorpResource): {type: CardResource,
     return {type: CardResource.RESOURCE_CUBE, iconUrl: standardResourceIconUrl(Resource.PLANTS)};
   case 'megacredits':
     return {type: CardResource.RESOURCE_CUBE, iconUrl: standardResourceIconUrl(Resource.MEGACREDITS)};
+  // CF6 Hartlan Heating's boiler — heat, a standard resource like plants.
+  case 'heat':
+    return {type: CardResource.RESOURCE_CUBE, iconUrl: standardResourceIconUrl(Resource.HEAT)};
   // …and a white cube IS the cube the socket already draws.
   case 'cube-white':
     return {type: CardResource.RESOURCE_CUBE};

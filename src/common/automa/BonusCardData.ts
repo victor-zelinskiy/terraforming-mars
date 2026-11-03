@@ -151,6 +151,10 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     name: 'Off the Slipway',
     text: 'Arwind Inc.: MarsBot spends 3 fighters, if able, then reveals project cards until one with a space tag and resolves it; the others are discarded. Recurs into the action deck every generation.',
   },
+  [BonusCardId.BC6_HEATING_SEASON]: {
+    name: 'Heating Season',
+    text: 'Hartlan Heating: for every full 11 heat on its corporation, MarsBot spends them, raises the temperature 1 step and draws and resolves a project card; once the temperature is at its maximum, only the card. Recurs into the action deck every generation.',
+  },
 };
 
 export function bonusCardInfo(id: BonusCardId): BonusCardInfo {
@@ -564,6 +568,18 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'fighter', text: 'MarsBot spends ${0} fighters from Arwind Inc., if able — otherwise nothing happens', params: ['3']},
         {icon: 'deck', text: 'MarsBot reveals project cards until one with a space tag and resolves it'},
         {text: 'The other revealed cards are discarded', muted: true},
+      ],
+      fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
+    };
+  case BonusCardId.BC6_HEATING_SEASON:
+    // CF6 Hartlan Heating's own card (the fork's design, docs/AUTOMA_DATA_AUDIT.md §20): the boiler heats Mars.
+    return {
+      name,
+      lines: [
+        {icon: 'heat', text: 'For every full ${0} heat on Hartlan Heating, MarsBot spends them', params: ['11']},
+        {icon: 'temperature', text: 'and raises the temperature 1 step — once per ${0} heat', params: ['11']},
+        {icon: 'deck', text: 'and draws and resolves a project card — the card alone once the temperature is at its maximum'},
+        {text: 'Less heat on the card: no season this generation — the boiler keeps heating', muted: true},
       ],
       fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
     };

@@ -840,5 +840,22 @@
     "${0} revealed ${1} — no space tag, discarded": "${0} вскрывает ${1} — без метки космоса, в сброс",
     "Fewer than ${0} fighters in the hangar — no launch this generation": "В ангаре меньше ${0} истребителей — в этом поколении спуска нет",
     "The deck holds no space card — the launch is scrubbed": "В колоде нет карт с меткой космоса — спуск отменён",
-    "A ship off the slipway — a space card resolved": "Корабль сошёл со стапеля — разыграна карта с меткой космоса"
+    "A ship off the slipway — a space card resolved": "Корабль сошёл со стапеля — разыграна карта с меткой космоса",
+    "Each tile MarsBot places — a city, a greenery or an ocean — puts ${0} heat on this card": "Каждый тайл, который ставит Бот, — город, озеленение или океан — кладёт на эту карту тепло: ${0}",
+    "Heat production: ${0} heat on this card": "Производство тепла: на эту карту ${0} тепла",
+    "Add Heating Season to MarsBot's action deck": "Добавить «Отопительный сезон» в колоду действий Бота",
+    "Heating Season: for every full ${0} heat here, MarsBot raises the temperature 1 step and plays a card": "«Отопительный сезон»: за каждые полные ${0} тепла здесь Бот поднимает температуру на 1 шаг и разыгрывает карту",
+    "Heating Season": "Отопительный сезон",
+    "Hartlan Heating: for every full 11 heat on its corporation, MarsBot spends them, raises the temperature 1 step and draws and resolves a project card; once the temperature is at its maximum, only the card. Recurs into the action deck every generation.": "Hartlan Heating: за каждые полные 11 тепла на корпорации Бот тратит их, поднимает температуру на 1 шаг и берёт и разыгрывает проектную карту; когда температура на максимуме — только карту. Каждое поколение возвращается в колоду действий.",
+    "For every full ${0} heat on Hartlan Heating, MarsBot spends them": "За каждые полные ${0} тепла на Hartlan Heating Бот тратит их",
+    "and raises the temperature 1 step — once per ${0} heat": "и поднимает температуру на 1 шаг — по разу за каждые ${0} тепла",
+    "and draws and resolves a project card — the card alone once the temperature is at its maximum": "и берёт и разыгрывает проектную карту — когда температура на максимуме, только карту",
+    "Less heat on the card: no season this generation — the boiler keeps heating": "Тепла меньше — в этом поколении сезона нет, котельная продолжает греть",
+    "${0} put ${1} heat on its corporation ${2}": "${0} кладёт на свою корпорацию ${2} тепло: ${1}",
+    "${0} shuffled Heating Season into its action deck": "${0} замешивает «Отопительный сезон» в свою колоду действий",
+    "${0} has less than ${1} heat in its boiler — no season this generation": "В котельной ${0} меньше ${1} тепла — в этом поколении сезона нет",
+    "${0} spent ${1} heat from its boiler to raise the temperature": "${0} тратит из котельной тепло (${1}), чтобы поднять температуру",
+    "${0} spent ${1} heat from its boiler — Mars is warm enough, only the card": "${0} тратит из котельной тепло (${1}) — Марс уже прогрет, только карта",
+    "Less than ${0} heat in the boiler — no season this generation": "В котельной меньше ${0} тепла — в этом поколении сезона нет",
+    "The boiler paid ${0} temperature step(s) and ${1} card(s)": "Котельная дала шагов температуры: ${0}, карт: ${1}"
 }

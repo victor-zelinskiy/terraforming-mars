@@ -208,6 +208,9 @@ const DIVIDENDS: Readonly<Record<MarsBotCorpId, MarsBotDividendInfo>> = {
   [MarsBotCorpId.CF5_ARWIND_INC]: dividendBox('Fleet contracts', {each: 3, per: 5}, (r) => [
     {text: '${0} VP per ${1} cards with a space tag the other players played', params: [r.each, r.per]},
   ], dividendGoal('Test launches', 'Space events in MarsBot\'s played pile', 5, 6, 8)),
+  [MarsBotCorpId.CF6_HARTLAN_HEATING]: dividendBox('Heating contracts', {each: 3, per: 5}, (r) => [
+    {text: '${0} VP per ${1} cards with a building tag the other players played', params: [r.each, r.per]},
+  ], dividendGoal('Thermal codes', 'Cards with a temperature requirement in MarsBot\'s played pile', 4, 5, 6)),
 };
 
 export function marsBotDividendInfo(id: MarsBotCorpId): MarsBotDividendInfo {

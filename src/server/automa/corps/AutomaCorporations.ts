@@ -74,6 +74,7 @@ import {MarsBotVeynonDynamics} from './MarsBotVeynonDynamics';
 import {MarsBotPolderTechDutch} from './MarsBotPolderTechDutch';
 import {MarsBotMonsInsurance} from './MarsBotMonsInsurance';
 import {MarsBotArwindInc} from './MarsBotArwindInc';
+import {MarsBotHartlanHeating} from './MarsBotHartlanHeating';
 
 /**
  * THE MarsBot corporation registry + dispatch layer (Rule Book B "Adding
@@ -150,6 +151,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.CF3_POLDERTECH_DUTCH]: MarsBotPolderTechDutch,
     [MarsBotCorpId.CF4_MONS_INSURANCE]: MarsBotMonsInsurance,
     [MarsBotCorpId.CF5_ARWIND_INC]: MarsBotArwindInc,
+    [MarsBotCorpId.CF6_HARTLAN_HEATING]: MarsBotHartlanHeating,
   };
 
   public static corpFor(id: MarsBotCorpId): MarsBotCorp {

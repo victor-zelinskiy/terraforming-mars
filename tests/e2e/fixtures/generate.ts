@@ -13389,3 +13389,21 @@ boardOfDirectorsFixture('board-of-directors-spent', {megacredits: 40, directors:
   }
   write(name, game);
 }
+
+// ── bot-boiler: CF6 Hartlan Heating (the fork's own bot card, «the Construction Boiler») — the boiler at a known 7 heat
+//    (docs/AUTOMA_DATA_AUDIT.md §20). Blue on the move; the bot's corporation face is the subject: Space + Building, the
+//    capsule reads the heat. ──
+{
+  const name = 'bot-boiler';
+  const [game, human] = testAutomaGame({corporation: MarsBotCorpId.CF6_HARTLAN_HEATING, keepInitialCardSelection: true});
+  answerStartFlow(game, [human]);
+  const automa = game.automa;
+  if (automa === undefined || automa.corporation !== MarsBotCorpId.CF6_HARTLAN_HEATING) {
+    throw new Error(`${name}: expected Hartlan Heating seated`);
+  }
+  automa.corpResources = 7;
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id) {
+    throw new Error(`${name}: expected blue on the move — got phase=${game.phase} active=${game.activePlayer.color}`);
+  }
+  write(name, game);
+}

@@ -3276,6 +3276,19 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 14,
         });
       }
+    } else if (corp.id === 'CF6') {
+      // Hartlan Heating (the fork's own card): what the table SAW is the bot's building warming Mars, a card each time.
+      const steps = stat('seasonSteps');
+      const cards = stat('seasonCards');
+      if (steps + cards >= 4) {
+        stories.push({
+          key: 'effect',
+          textKey: 'The boiler of ${0}\'s ${1} kept Mars warm: ${2} temperature steps and ${3} cards came out of it.',
+          params: [raw(p.name), raw(corp.name), raw(steps), raw(cards)],
+          measure: steps + cards,
+          scale: 8,
+        });
+      }
     } else if (corp.id === 'CF5') {
       // Arwind Inc. (the fork's own card): what the table SAW is space cards coming off the slipway, one more turn each.
       const launches = stat('slipwayLaunches');

@@ -181,6 +181,8 @@ export enum MarsBotCorpId {
   CF4_MONS_INSURANCE = 'CF4',
   // CF5 — Arwind Inc. (TR78), «the Orbital Shipyard», 2026-11-03.
   CF5_ARWIND_INC = 'CF5',
+  // CF6 — Hartlan Heating (TR80), «the Construction Boiler», 2026-11-03.
+  CF6_HARTLAN_HEATING = 'CF6',
 }
 
 /** The implemented set, in official card-number order. */
@@ -236,6 +238,7 @@ export const MARS_BOT_CORP_IDS: ReadonlyArray<MarsBotCorpId> = [
   MarsBotCorpId.CF3_POLDERTECH_DUTCH,
   MarsBotCorpId.CF4_MONS_INSURANCE,
   MarsBotCorpId.CF5_ARWIND_INC,
+  MarsBotCorpId.CF6_HARTLAN_HEATING,
 ];
 
 /**
@@ -314,6 +317,8 @@ export enum BonusCardId {
   BC4_INSURANCE_PAYOUT = 'BC4',
   // CF5 Arwind Inc.'s shipyard launch — a space card off the deck for fighters.
   BC5_OFF_THE_SLIPWAY = 'BC5',
+  // CF6 Hartlan Heating's season — the boiler's heat raises the temperature.
+  BC6_HEATING_SEASON = 'BC6',
 }
 
 /** The set of bonus cards used in the base game (no expansions). */

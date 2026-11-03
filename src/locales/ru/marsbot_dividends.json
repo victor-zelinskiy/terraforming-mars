@@ -305,5 +305,10 @@
     "${0} VP per ${1} cards with a space tag the other players played": "${0} ПО за каждые ${1} карт с меткой космоса, сыгранных другими игроками",
     "Test launches": "Испытательные пуски",
     "Space events in MarsBot's played pile": "события с меткой космоса",
-    "Cards with a space tag the other players played": "Карты с меткой космоса у других игроков"
+    "Cards with a space tag the other players played": "Карты с меткой космоса у других игроков",
+    "Heating contracts": "Контракты на отопление",
+    "${0} VP per ${1} cards with a building tag the other players played": "${0} ПО за каждые ${1} карт с меткой строительства, сыгранных другими игроками",
+    "Thermal codes": "Тепловые нормы",
+    "Cards with a temperature requirement in MarsBot's played pile": "карты с требованием по температуре",
+    "Cards with a building tag the other players played": "Карты с меткой строительства у других игроков"
 }

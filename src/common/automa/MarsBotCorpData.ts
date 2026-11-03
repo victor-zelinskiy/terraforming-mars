@@ -28,7 +28,7 @@ export type {MarsBotCubeType} from './AutomaTypes';
  * C35's card either carries its white cube or it does not, and the count IS
  * the state (the printed effect only ever puts one there or takes it away).
  */
-export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white' | 'cube-black' | 'mech' | 'fighter';
+export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white' | 'cube-black' | 'mech' | 'fighter' | 'heat';
 
 /**
  * How the bot picks (and protects) cards in the research draft — RB-B "Draft
@@ -1449,6 +1449,28 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.CF6_HARTLAN_HEATING]: {
+    id: MarsBotCorpId.CF6_HARTLAN_HEATING,
+    // THE FORK'S OWN BOT CARD (the owner, 2026-11-03) for the Turmoil Redux corporation TR80 — «the Construction
+    // Boiler» (docs/AUTOMA_DATA_AUDIT.md §20): every tile MarsBot builds heats the boiler, the boiler heats Mars.
+    cardNumber: 'CF6',
+    original: CardName.HARTLAN_HEATING,
+    // The human card's corner — Space and Building.
+    startingTags: [Tag.SPACE, Tag.BUILDING],
+    // THE BOILER — heat on the card, the standard heat icon in the `.pcard__res` capsule (Ecoline's plant precedent).
+    resource: 'heat',
+    corpBonusCards: [BonusCardId.BC6_HEATING_SEASON],
+    sections: [
+      {kind: 'effect', lines: [
+        {icon: 'heat', text: 'Each tile MarsBot places — a city, a greenery or an ocean — puts ${0} heat on this card', params: ['2']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'heat', text: 'Heat production: ${0} heat on this card', params: ['2']},
+        {icon: 'deck', text: 'Add Heating Season to MarsBot\'s action deck'},
+        {icon: 'temperature', text: 'Heating Season: for every full ${0} heat here, MarsBot raises the temperature 1 step and plays a card', params: ['11'], muted: true},
+      ]},
+    ],
+  },
 };
 
 export function marsBotCorpInfo(id: MarsBotCorpId): MarsBotCorpInfo {
@@ -1530,6 +1552,9 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           over — TR is one per conversion) and pristarMc (the M€ they
  *           paid), plus pristarSkipped<Parameter> per parameter, so the
  *           finale can name WHICH of the four stood still.
+ * Hartlan Heating (CF6): hartlanTileHeat (heat its tiles put on the card), hartlanProductionHeat (the before-action
+ *           heat production), seasonPlayed (BC6 resolved), seasonSteps (temperature steps the boiler raised),
+ *           seasonCards (cards played on a warm Mars instead), seasonHeat (heat spent).
  * Arwind Inc. (CF5): arwindSpaceFighters / arwindAgendaFighters (fighters its space tags / its Agenda steps put on the
  *           card), slipwayPlayed (BC5 resolved), slipwayFighters (fighters spent), slipwayLaunches (space cards
  *           launched off the deck).
