@@ -371,10 +371,11 @@ test.describe('«Итоги: честность» — панель, поддер
 
     const row = await page.locator('[data-sit-support]').evaluateAll((els) => els.map((el) => {
       const places = Array.from(el.querySelectorAll('.con-sit__support-place'));
-      // The place's FOOTPRINT (its ::before trace) carries the rim — the colour and the glow, never the box.
+      // The place's FOOTPRINT (its ::before trace) carries the rim — its colour and its fill, never a glow (FG: a
+      // standing state is a kant, the trace's halo is gone) and never the box.
       const traceOf = (p: Element) => {
         const t = getComputedStyle(p, '::before');
-        return `${t.borderTopColor} ${t.boxShadow}`;
+        return `${t.borderTopColor} ${t.backgroundImage}`;
       };
       const rowBox = el.closest('[data-sit-row="results-support"]')!.getBoundingClientRect();
       const own = el.getBoundingClientRect();

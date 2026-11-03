@@ -131,6 +131,11 @@ function alphaOf(colour: string): number {
   if (rgba !== null) {
     return Number(rgba[1]);
   }
+  // A triplet in a custom property (`rgba(var(--con-track-accent), .4)`) — the alpha is the last argument.
+  const varRgba = colour.match(/rgba\(\s*var\([^)]*\)\s*,\s*([\d.]+)\s*\)/);
+  if (varRgba !== null) {
+    return Number(varRgba[1]);
+  }
   return /transparent/.test(colour) ? 0 : 1;
 }
 
@@ -329,7 +334,150 @@ function maLightsOf(): Array<Halo> {
   return out;
 }
 
+/**
+ * THE PARLIAMENT BY EYE (§ 5 — P51 · FG, the owner 2026-11-03: «визуал и стили ПАРЛАМЕНТА — то, что сделано слабо»).
+ * The Parliament's sheets were ZERO by the letter (`halosOf` reads a blurred box-shadow only) and lit by the eye:
+ * bright OUTER rings for the committed support and the viewer's Agenda dot, an opaque mint ring on the seated winner, a
+ * halo hidden in a custom property (`--pd-foot-glow`, painted by `player_delegate.less`), the ghost footprint that
+ * BREATHED forever, a tinted inset WASH over the party access panel. The strip's eyes now read them too, plus a halo
+ * declared in a custom property and a wide tinted inset wash; the delegate figure's sheet, the invitation plate
+ * (`.con-mandatory`) and the four Parliament readings that were on the ratchet are read the same way.
+ */
+const PARLIAMENT_EYE_FILES: ReadonlyArray<string> = [
+  'console_parliament.less',
+  'console_parliament_chamber.less',
+  'console_parliament_sitting.less',
+  'console_parliament_vote.less',
+  'console_parliament_payout_details.less',
+  'console_party_plaque.less',
+  'console_influence_reading.less',
+  'console_influence_yield.less',
+  'console_resolution_face.less',
+  'console_resolution_inspect.less',
+  'console_track_marker.less',
+  'player_delegate.less',
+];
+/** The invitation plate inside `console.less` (and its tone rules in `console_prompt.less`). */
+const PARLIAMENT_EYE_BLOCKS = /^\.(con-mandatory)\b/;
+/** An inset layer wide enough to be a WASH (a tinted glow over a panel), never a kant: blur ≥ 1rem in a light colour. */
+function isInsetWash(layer: string): boolean {
+  const t = layer.trim().replace(/\s+/g, ' ');
+  const m = t.match(/^inset (-?[\d.]+(?:rem|px)?) (-?[\d.]+(?:rem|px)?) ([\d.]+)(rem|px)(?: -?[\d.]+(?:rem|px))? (.+)$/);
+  if (m === null) {
+    return false;
+  }
+  const blurRem = m[4] === 'px' ? Number(m[3]) / 20 : Number(m[3]);
+  return blurRem >= 1 && !isDark(m[5]);
+}
+
+/**
+ * A TRANSIENT FLIGHT OBJECT of the Parliament's sheets — never a state: the track director's PROXY disc exists for one
+ * glide (charge · glide · lock) and is unmounted on arrival. Matched against the rule's selector path.
+ */
+const PARLIAMENT_TRANSIENT: ReadonlyArray<{selector: RegExp, why: string}> = [
+  {selector: /^\.con-track-proxy-(body|phases)\(/, why: 'the track director\'s PROXY disc in flight (charge · glide · lock) — unmounted on the lock, never a standing state'},
+];
+
+/** The file's own LESS colour variables (`@x: value;`), so a dark ring named by a variable is read as ink, never light. */
+function lessVarsOf(source: string): Map<string, string> {
+  const vars = new Map<string, string>();
+  for (const m of source.matchAll(/^@([a-z0-9-]+)\s*:\s*([^;]+);/gim)) {
+    vars.set(m[1], m[2].trim());
+  }
+  return vars;
+}
+
+let allLessVars: Map<string, string> | undefined;
+/** Every stylesheet's variables, the first declaration winning — read once. */
+function ALL_LESS_VARS(): Map<string, string> {
+  if (allLessVars === undefined) {
+    allLessVars = new Map();
+    for (const f of fs.readdirSync(STYLES).filter((x) => x.endsWith('.less')).sort()) {
+      for (const [k, v] of lessVarsOf(stripComments(fs.readFileSync(path.join(STYLES, f), 'utf8')))) {
+        if (!allLessVars.has(k)) {
+          allLessVars.set(k, v);
+        }
+      }
+    }
+  }
+  return allLessVars;
+}
+
+/** Every standing light of the Parliament's sheets (§ 5). `@keyframes` bodies are events and skipped. */
+function parliamentLightsOf(file: string, blocks: RegExp | undefined): Array<Halo> {
+  const raw = stripComments(fs.readFileSync(path.join(STYLES, file), 'utf8'));
+  // The sheet's own variables first, then any other sheet's (a mixin's colour is declared where the mixin lives).
+  const vars = new Map([...ALL_LESS_VARS(), ...lessVarsOf(raw)]);
+  const source = raw;
+  const resolve = (text: string) => text.replace(/@([a-z0-9-]+)/gi, (whole, name: string) => {
+    const value = vars.get(name);
+    return value !== undefined && !value.includes('@') && !/gradient/.test(value) ? value : whole;
+  });
+  const out: Array<Halo> = [];
+  const stack: Array<string> = [];
+  let segment = '';
+  let line = 1;
+  const flushDecl = () => {
+    if (stack.some((h) => h.startsWith('@keyframes')) || (blocks !== undefined && !blocks.test(stack[0] ?? ''))) {
+      return;
+    }
+    if (TRANSIENT_LIGHT.has(stack[0] ?? '') || stack.some((h) => TRANSIENT_LIGHT.has(h))) {
+      return;
+    }
+    if (PARLIAMENT_TRANSIENT.some((t) => t.selector.test(stack[0] ?? ''))) {
+      return;
+    }
+    const decl = segment.match(/^\s*(--[a-z0-9-]+|[a-z-]+)\s*:([\s\S]*)$/);
+    if (decl === null) {
+      return;
+    }
+    const [, prop, rawValue] = decl;
+    const value = resolve(rawValue);
+    const at = {file, line, block: stack.join(' ')};
+    const shadowish = prop === 'box-shadow' || (prop.startsWith('--') && /^\s*(inset\s+)?-?[\d.]+(rem|px)?\s+-?[\d.]+(rem|px)?\s+[\d.]+(rem|px)/.test(value));
+    if (prop === 'text-shadow') {
+      splitTop(value).filter(isTextGlow).forEach((l) => out.push({...at, layer: `text-shadow: ${l.trim()}`}));
+    } else if (prop === 'filter' || prop === '-webkit-filter') {
+      dropShadowGlows(value).forEach((l) => out.push({...at, layer: `filter: ${l}`}));
+    } else if (shadowish) {
+      splitTop(value).filter((l) => isHalo(l) || isVarHalo(l) || isBrightRing(l) || isInsetWash(l))
+        .forEach((l) => out.push({...at, layer: `${prop}: ${l.trim().replace(/\s+/g, ' ')}`}));
+    } else if ((prop === 'animation' || prop === 'animation-iteration-count') && /\binfinite\b/.test(value)) {
+      out.push({...at, layer: `endless loop: ${value.trim().replace(/\s+/g, ' ')}`});
+    }
+  };
+  for (const ch of source) {
+    if (ch === '{') {
+      stack.push(segment.trim());
+      segment = '';
+    } else if (ch === '}') {
+      flushDecl();
+      stack.pop();
+      segment = '';
+    } else if (ch === ';') {
+      flushDecl();
+      segment = '';
+    } else {
+      segment += ch;
+    }
+    if (ch === '\n') {
+      line++;
+    }
+  }
+  return out;
+}
+
 describe('glowRestraintGuard — a standing state is a kant, never a glow', () => {
+  it('THE PARLIAMENT BY EYE: no standing halo, bright ring, custom-property halo, wash, glowing text or loop (FG)', () => {
+    expect(isInsetWash('inset 0 0 2.6rem var(--paccess-tint)')).is.true;
+    expect(isInsetWash('inset 0 0 0 .06rem fade(@con-mint, 60%)')).is.false;
+    const offenders = [
+      ...PARLIAMENT_EYE_FILES.flatMap((file) => parliamentLightsOf(file, undefined)),
+      ...parliamentLightsOf('console.less', PARLIAMENT_EYE_BLOCKS),
+    ].map((h) => `  ${h.file}:${h.line} ${h.block} → ${h.layer}`);
+    expect(offenders, `a standing light on the Parliament — draw the state with a kant / fill / weight / word (\`console-ui.md\` § VISUAL RESTRAINT):\n${offenders.join('\n')}`).to.deep.eq([]);
+  });
+
   it('the detector sees a halo, and only a halo', () => {
     expect(isHalo('0 0 .9rem fade(@con-mint, 26%)')).is.true;
     expect(isHalo('0 0 1.1rem color-mix(in srgb, var(--x) 45%, transparent)')).is.true;

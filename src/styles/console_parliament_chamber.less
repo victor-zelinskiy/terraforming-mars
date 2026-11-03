@@ -771,7 +771,7 @@
             box-shadow:
                 inset 0 0 0 .1rem var(--pt-edge-hi),
                 inset 0 -.35rem .7rem rgba(0, 0, 0, 0.35),
-                0 0 0 .12rem @con-parl-mint;
+                inset 0 0 0 .18rem @con-parl-mint; /* FG: a kant inside the holder's rim, never a ring of light outside it */
         }
         &--pulse { animation: con-parl-land-flash calc(900ms * var(--motion-scale, 1)) ease-out both; }
     }
@@ -1310,7 +1310,7 @@ html.con-profile-handheld .con-parl {
        .14) — the row reaching no further into the gap than half of it (P70 · K1). */
     &__agenda-dot, &__agenda-nest { width: .5rem; height: .5rem; }
     &__agenda-dot { box-shadow: 0 0 0 .07rem @con-track-ring, @con-track-shade; }
-    &__agenda-dot--viewer { box-shadow: 0 0 0 .07rem @con-track-ring, @con-track-shade, 0 0 0 .14rem rgba(var(--con-track-accent), .85); }
+    &__agenda-dot--viewer { box-shadow: 0 0 0 .07rem @con-track-ring, @con-track-shade, 0 0 0 .14rem rgba(var(--con-track-accent), .4); }
     &__step-cubes { gap: .25rem; }
     &__chair-name { font-size: .5rem; max-width: 4.6rem; }
     &__kicker { font-size: .6rem; }
@@ -1715,7 +1715,6 @@ html.con-profile-handheld .con-parl.con-parl--hall {
 .con-zoom-sidecol > .con-paccess { flex: 0 0 auto; }
 .con-paccess {
     --paccess-accent: fade(#9fb3c8, 55%);
-    --paccess-tint: transparent;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -1724,8 +1723,8 @@ html.con-profile-handheld .con-parl.con-parl--hall {
     padding: .8rem 1rem .85rem 1.15rem;
     border-radius: .8rem;
     background: linear-gradient(180deg, rgba(15, 24, 36, 0.97) 0%, rgba(9, 15, 24, 0.965) 30%, rgba(6, 11, 19, 0.96) 100%);
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 24%), inset 0 .05rem 0 rgba(214, 236, 255, 0.09), 0 1.1rem 2.8rem rgba(0, 0, 0, 0.55),
-                inset 0 0 2.6rem var(--paccess-tint);
+    /* FG: no tinted inset wash — the state is the accent stripe (::before) and the ring's kant. */
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 24%), inset 0 .05rem 0 rgba(214, 236, 255, 0.09), 0 1.1rem 2.8rem rgba(0, 0, 0, 0.55);
     color: #e9eff7;
     transition: opacity calc(90ms * var(--motion-scale, 1)) ease;
     &::before {
@@ -1738,10 +1737,10 @@ html.con-profile-handheld .con-parl.con-parl--hall {
         border-radius: 0 .18rem .18rem 0;
         background: var(--paccess-accent);
     }
-    &--rules { --paccess-accent: fade(@con-parl-gold, 85%); --paccess-tint: fade(@con-parl-gold, 8%); }
-    &--holds { --paccess-accent: fade(@con-parl-mint, 85%); --paccess-tint: fade(@con-parl-mint, 8%); }
+    &--rules { --paccess-accent: fade(@con-parl-gold, 85%); }
+    &--holds { --paccess-accent: fade(@con-parl-mint, 85%); }
     /* BY THE ALLIANCE (TR62): the ring borrows the PARTNER's accent (the seal's borrowed ring, one language). */
-    &--allied { --paccess-accent: var(--paccess-ally-accent, @con-parl-mint); --paccess-tint: color-mix(in srgb, var(--paccess-ally-accent, @con-parl-mint) 10%, transparent); }
+    &--allied { --paccess-accent: var(--paccess-ally-accent, @con-parl-mint); }
     &--closing { opacity: 0; transition-duration: calc(60ms * var(--motion-scale, 1)); }
     &__head { display: flex; align-items: center; gap: .75rem; min-width: 0; }
     &__ring {
@@ -1776,7 +1775,7 @@ html.con-profile-handheld .con-parl.con-parl--hall {
     /* …the PARTNER's emblem in the mark's place, ringed in gold with the link's colour (TR62). */
     /* A FIXED box: an image at 100% of an auto-width absolute box resolves to its intrinsic size (the 4K dossier drew
        the partner's emblem as large as the ring, over the note below). */
-    &__ring-mark--ally { padding: 0; width: 1.35rem; min-width: 0; height: 1.35rem; border-radius: 50%; background: #0d0b07; box-shadow: 0 0 0 .08rem #ffd27a; overflow: hidden; }
+    &__ring-mark--ally { padding: 0; width: 1.35rem; min-width: 0; height: 1.35rem; border-radius: 50%; background: #0d0b07; box-shadow: inset 0 0 0 .08rem #ffd27a; overflow: hidden; }
     &__ally-seal { display: block; width: 100%; height: 100%; object-fit: contain; }
     &__headtext { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
     &__kicker { font-size: .56rem; letter-spacing: .16em; text-transform: uppercase; color: rgba(140, 190, 235, 0.88); }

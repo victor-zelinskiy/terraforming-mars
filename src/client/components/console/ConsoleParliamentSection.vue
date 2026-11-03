@@ -178,13 +178,25 @@
                 <!-- «ОТВЕТ СТОЛА» (TR78 Arwind Inc.): a card of the table answers a walk of the Career the QUEST or a CARD made —
                      the section's own stage kind, unfolded over the TABLE from the rect the bills stood in (the body swap's
                      one grammar); the asker on its hero, the receipt / the picker in its zone. Inside a sitting the same
-                     stage is a LAYER of the sitting's reward chassis instead (above). -->
-                <ConsoleParliamentTableAnswer v-else-if="answerStageUp" ref="answerStage"
-                                              :answer="tableAnswerShowing" :asking="tableAnswerAsking" :askerModel="answerAskerModel" />
+                     stage is a LAYER of the sitting's reward chassis instead. -->
                 <!-- «ПРИЁМКА» (2026-11-02): a card the quest or a card's walk DREW on the Career is received on the
                      section's own stage — unfolded over the TABLE (the body swap), the one reveal teleported into its
-                     zone; inside a sitting the same stage is a LAYER of the reward chassis (above). -->
-                <ConsoleParliamentDrawStage v-else-if="drawStageUp" :source="drawSource" :heroLive="drawHeroModel" />
+                     zone; inside a sitting the same stage is a LAYER of the reward chassis.
+                     ONE STANDING STAGE, TWO LAYERS (P51 · FG): when the answer hands the stage to the draw (or back) while
+                     the stage itself stands, the leaving layer folds down IN PLACE (taken out of the flow) and the
+                     entering one rises from inside — the zone's own layer phrase, the sitting's grammar; a `v-if` swap of
+                     the two was a blink. On the stage's own entry the layer plays nothing (the body swap is the phrase). -->
+                <transition :css="false" @enter="onStageLayerEnter" @leave="onStageLayerLeave" @enter-cancelled="onStageLayerCancelled" @leave-cancelled="onStageLayerCancelled">
+                  <div v-if="ownStageLayersFree && answerStageUp" class="con-parl__stage-layer" data-parl-stage-layer="answer">
+                    <ConsoleParliamentTableAnswer ref="answerStage"
+                                                  :answer="tableAnswerShowing" :asking="tableAnswerAsking" :askerModel="answerAskerModel" />
+                  </div>
+                </transition>
+                <transition :css="false" @enter="onStageLayerEnter" @leave="onStageLayerLeave" @enter-cancelled="onStageLayerCancelled" @leave-cancelled="onStageLayerCancelled">
+                  <div v-if="ownStageLayersFree && drawStageUp && !answerStageUp" class="con-parl__stage-layer" data-parl-stage-layer="draw">
+                    <ConsoleParliamentDrawStage :source="drawSource" :heroLive="drawHeroModel" />
+                  </div>
+                </transition>
                 <div class="con-parl__embed" data-embed-slot="parliament"></div>
               </div>
             </transition>
@@ -367,7 +379,7 @@ import {AGENDA_WALK_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE} from '@/client/console
 import {translateText} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
 import {useResizeObserver} from '@vueuse/core';
-import {playBodyFold, playBodyUnfold, pulseCarrier, settleRow} from '@/client/console/parliament/parliamentStageMotion';
+import {playBodyFold, playBodyUnfold, playZoneLayerEnter, pulseCarrier, settleRow} from '@/client/console/parliament/parliamentStageMotion';
 import {killParliamentVoteMotion, Rect} from '@/client/console/parliament/consoleParliamentVoteMotion';
 import {
   enactCarryRect, killParliamentEnactMotion, parkParliamentForEnact, playParliamentEnactEnter, playParliamentEnactFold,
@@ -684,6 +696,10 @@ export default defineComponent({
     answerAskerModel(): CardModel | undefined {
       const asker = this.tableAnswerShowing?.asker ?? this.tableAnswerAsking?.asker;
       return asker === undefined ? undefined : this.pv.thisPlayer?.tableau?.find((c) => c.name === asker);
+    },
+    /** The section's own stage layers stand only where neither the seat pick nor the sitting holds the stage. */
+    ownStageLayersFree(): boolean {
+      return !(this.stageKind === 'seat' && this.focusedSlot !== undefined) && !(this.stageKind === 'sitting' && this.sitting !== undefined);
     },
     /** The section's OWN answer stage kind (the quest's step, a card's walk): no sitting stands to host it as a layer. */
     answerStageUp(): boolean {
@@ -3607,6 +3623,31 @@ export default defineComponent({
     onStageLeaveCancelled(): void {
       this.stageLeaving = false;
       settleRow(this.$refs.tableTierEl as HTMLElement | undefined, !this.stagePanelUp);
+    },
+    /** A layer of the STANDING stage rises from inside (the zone's layer phrase); its end is the pane's readiness. */
+    onStageLayerEnter(el: Element, done: () => void): void {
+      const kind = (el as HTMLElement).dataset.parlStageLayer;
+      playZoneLayerEnter(el as HTMLElement, () => {
+        if (kind === 'answer') {
+          noteTableAnswerPaneIn();
+        } else if (kind === 'draw') {
+          noteParliamentDrawPaneIn();
+        }
+        done();
+      });
+    },
+    /** …and the leaving one folds down IN PLACE — out of the flow, so the entering layer keeps its box. */
+    onStageLayerLeave(el: Element, done: () => void): void {
+      const layer = el as HTMLElement;
+      layer.style.position = 'absolute';
+      layer.style.inset = '0';
+      playBodyFold(layer, undefined, done);
+    },
+    onStageLayerCancelled(el: Element): void {
+      const layer = el as HTMLElement;
+      layer.style.position = '';
+      layer.style.inset = '';
+      layer.style.opacity = '';
     },
     // ── submits (byte-identical to the live prompt) ─────────────────────
     /** The seat pick's A — `from` is the rect of the cube that leaves the card (the flight's source after the answer). */

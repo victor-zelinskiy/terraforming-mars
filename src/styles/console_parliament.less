@@ -290,7 +290,7 @@
         overflow: hidden;
         animation: con-parl-step-in calc(240ms * var(--motion-scale, 1)) ease-out backwards;
         transition: box-shadow calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
-        &--committed, &--live { box-shadow: 0 0 0 .06rem fade(@con-amber, 55%), 0 .9rem 2rem rgba(0, 0, 0, 0.5); }
+        &--committed, &--live { box-shadow: inset 0 0 0 .06rem fade(@con-amber, 60%), 0 .9rem 2rem rgba(0, 0, 0, 0.5); } /* a kant (FG) — never an outer ring */
     }
     &__support-stage { position: relative; flex: 1 1 auto; min-height: 0; }
     /* The body is CENTRED in the cell: the party, the area as places + «N → 0» at reading size, the rule, the
@@ -853,7 +853,6 @@
            without the pulse; coupled motion is one class, never a JS chase). */
         &--counted {
             --pd-foot-rim: fade(@con-parl-mint, 85%);
-            --pd-foot-glow: 0 0 .35rem fade(@con-parl-mint, 40%);
             &::before { animation: con-parl-counted calc(360ms * var(--motion-scale, 1)) @con-ease-standard both; }
         }
         /* THE PLACE the arriving delegate takes — hollow (a forecast, never a

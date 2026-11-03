@@ -54,10 +54,10 @@
     /* A HELD slot whose card has LEFT for the government: an empty outline in its OWN place (the row never re-orders). */
     &__slot-home--vacated { transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard; }
     /* THE AGENDA SEGMENT the marker is crossing (the ПОВЕСТКА beat): the reached steps' nodes light. */
-    &__step--segment &__step-node { box-shadow: 0 0 0 .08rem fade(@con-parl-gold, 80%); }
+    &__step--segment &__step-node { box-shadow: inset 0 0 0 .08rem fade(@con-parl-gold, 80%); }
     /* (v3 В3) A party tile carries NO stage accent: a gold seam on every receiving tile was the traffic light
        the sitting must not be — only the socket that RECEIVES a cube answers, and only on contact. */
-    &__step--lit &__step-node { box-shadow: 0 0 0 .1rem @con-parl-gold; }
+    &__step--lit &__step-node { box-shadow: inset 0 0 0 .1rem @con-parl-gold; }
 
     /* ── THE FIELD POSE: the stage grows out of the middle tier over the
        whole field (the offsets are MEASURED by the section — `--con-parl-mid-top`
@@ -348,7 +348,7 @@
         &--on { --pd-foot-rim: rgba(200, 205, 215, 0.55); }
         /* …and the ones THIS sitting brought carry the gold trace the whole surface uses for «new»: the
            distinction survives desaturation by the rim's weight, never by colour alone. */
-        &--fresh { --pd-foot-rim: fade(@con-parl-gold, 90%); --pd-foot-glow: 0 0 .3rem fade(@con-parl-gold, 40%); }
+        &--fresh { --pd-foot-rim: fade(@con-parl-gold, 90%); --pd-foot-fill: radial-gradient(closest-side, fade(@con-parl-gold, 22%), fade(@con-parl-gold, 6%)); }
     }
     &__seat-name { font-size: .78rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* THE EXCEPTION READS AS ONE: the amber seam the whole surface uses for «this cost you something»
@@ -920,6 +920,16 @@ html.con-profile-tv .con-parl--sitting-field .con-parl__mid-band > .con-band .co
 }
 html.con-profile-tv .con-tans__why { font-size: .9rem; }
 html.con-profile-handheld .con-tans__why { font-size: .62rem; }
+/* THE SECTION'S STAGE LAYERS (P51 · FG): the answer and the draw stand in one layer box each, filling the stage; a
+   leaving layer is taken out of the flow by its hook (absolute, inset 0) while it folds, so the entering one keeps its box. */
+.con-parl .con-parl__stage-layer {
+    position: relative;
+    flex: 1 1 auto;
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    > .con-tans, > .con-pdraw { flex: 1 1 auto; }
+}
 /* The section's own stage kind (the quest, a card's walk): the sitting's field paint on the stage plate. */
 .con-parl .con-parl__stage.con-parl__stage--answer {
     border-radius: 0;
