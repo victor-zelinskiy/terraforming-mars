@@ -13210,6 +13210,55 @@ floatingTradeHubFixture('floating-trade-hub-holders', 'holders');
 floatingTradeHubFixture('floating-trade-hub-sole', 'sole');
 floatingTradeHubFixture('floating-trade-hub-empty', 'empty');
 
+// ── P53 · MAIN BELT ASTEROIDS — the THIRTY-FIFTH Prelude 2 card: «put 1 asteroid on ANY card»; an asteroid landing HERE
+//    pays 1 titanium; 1 VP per 2 asteroids here (docs/claude/prompts/prelude2-p53-main-belt-asteroids.md, ledger FJ).
+//    A 2p Venus + promo + Prelude 2 table, blue on the move, the belt on the table:
+//      · `main-belt-self`    — 0 asteroids here, no other asteroid card: the belt is the ONLY target (seeded, marked);
+//      · `main-belt-second`  — 1 asteroid here, alone: the second asteroid moves its VP 0 → 1;
+//      · `main-belt-holders` — 0 here + Comet Aiming (0) + Rotator Impacts (0): a real pick, the belt among them.
+//    A DRY RUN on a copy runs the action and checks the candidates, so a rule change fails HERE. ──
+function mainBeltFixture(name: string, variant: 'self' | 'second' | 'holders'): void {
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, venusNextExtension: true, prelude2Expansion: true, promoCardsOption: true,
+    customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
+  });
+  answerStartFlow(game, [p1, p2]);
+  game.projectDeck.discardPile.push(...p1.cardsInHand.splice(0));
+  const belt = newPrelude(CardName.MAIN_BELT_ASTEROIDS)!;
+  belt.resourceCount = variant === 'second' ? 1 : 0;
+  p1.playedCards.push(belt);
+  if (variant === 'holders') {
+    for (const n of [CardName.COMET_AIMING, CardName.ROTATOR_IMPACTS]) {
+      moveToDeckTop(game, n);
+      const card = game.projectDeck.drawOrThrow(game);
+      card.resourceCount = 0;
+      p1.playedCards.push(card);
+    }
+  }
+  p1.titanium = 0;
+  p1.megaCredits = 12;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  if (game.activePlayer.id !== p1.id) {
+    throw new Error(`the ${name} fixture expected blue on the move`);
+  }
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(p1.id);
+  const card = blue.playedCards.get(CardName.MAIN_BELT_ASTEROIDS) as IActionCard & ICard;
+  card.action(blue);
+  runAllActions(copy);
+  const pick = blue.getWaitingFor();
+  const names = pick instanceof SelectCard ? (pick as SelectCard<ICard>).cards.map((c) => c.name) : [];
+  const expected = variant === 'holders' ? 3 : 1;
+  if (!names.includes(CardName.MAIN_BELT_ASTEROIDS) || names.length !== expected) {
+    throw new Error(`the ${name} fixture expected ${expected} targets with the belt among them — got ${names.join()}`);
+  }
+  write(name, game);
+}
+mainBeltFixture('main-belt-self', 'self');
+mainBeltFixture('main-belt-second', 'second');
+mainBeltFixture('main-belt-holders', 'holders');
+
 // ── PL-1621 / PL-1622 · THE MILESTONE'S PRICE AND HELION'S BILL — the MA workspace's commit (ledger FB): a 2p table,
 //    blue on the move with a TR of 35 (Terraformer claimable):
 //      · `ma-claim-price`  — 20 M€: the claim's 8 M€ leave the rail into the detail's printed price before the ceremony;

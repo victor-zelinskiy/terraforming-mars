@@ -606,6 +606,19 @@ trade registry (`tradeFlatBonuses`), paid by a bare `stock.add` outside any effe
     before the score cell — only ANOTHER seat's roots: the viewer's own press stays the transport's (its hosts claim
     their answers in the submit's block; a WS frame that outran the answer must not tell it first).
 
+## P53 Main Belt Asteroids — A TWIN THAT ANSWERS «HERE» IS TOLD PER CANDIDATE (2026-11-03, ledger FJ)
+
+41. **A GRANT «ON ANY CARD» IS NOT A LANDING HERE — the twin stays silent, the candidate speaks.** The forecast's grant
+    of a declarative `addResourcesToAnyCard` is `target: 'any'` (the chip's note «to a card»): a twin that pays only for a
+    unit landing on ITSELF («an asteroid HERE pays 1 titanium») answers it `exact` only where the landing is decided —
+    a grant «on this card» of that card, or its own action with itself the only holder — and otherwise states NOTHING
+    (never a false `exact`, never `unknown`). The honest place for «+1 titanium» is the CANDIDATE: the shared step
+    (`AddResourcesToCard.landingAnswerOf`) asks every candidate's twin about a grant «on you» and publishes its exact
+    facts as that candidate's tail (`resourceGainPrompt.extraByCard` → the target tag «+1 [titanium]»); a twin that
+    answers ANY card as well (Martian Fiber) belongs to the operation's forecast, never to one candidate's tag. When the
+    fact is `exact` the reactor-hero plays IN the commit's beat (born on its printed effect icon — the stand's witness
+    reads `reactor:Main Belt Asteroids:titanium`); when the pick decided it, the framework tells it after the commit.
+
 ## Files
 
 Server: `common/models/CardReactionModel.ts`, `server/events/EventRecorder.ts` (`recordReaction`, the `cause`

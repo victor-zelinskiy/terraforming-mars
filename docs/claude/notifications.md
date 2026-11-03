@@ -40,9 +40,45 @@ chips), one third player's line and one third player's skipped line, a band-less
 `kind` / `target` / `fate`; the server stamps the `bonus-fate` role), so the policy never reads text.
 
 **Guards:** `notificationContentPolicy.spec`, `notificationCauseView.spec` § TR59, the e2e stand
-`console-notification-source.spec.ts` (fhd + tv4k: the anchor, the via, one actor statement, no «Марс», no bookkeeping under the
+`console-notification-source.spec.ts` (tv4k + fhd + deck since P53 · FK: the anchor, the via, one actor statement, no «Марс», no bookkeeping under the
 band, clear of the strategy rail, every text zone ≥ `--con-t-floor` on 4K by COMPUTED style — the static
 `consoleTvTypeFloor` sees only what the TV sheet declares — and the card's text frozen from its first frame).
+
+## ⭐⭐ THE CARD IN ITS LANE (P53 · ledger FK, 2026-11-03) — the number whole, one line of cause, price and income apart
+
+The polish companion of P53, chosen on evidence (the 720p / 4K frames of 2026-11-01…03). Six laws; the pure readings
+live in **`notifications/notificationBandView.ts`** (server runner — `tests/notifications/notificationBandView.spec.ts`)
+and every stand reads the painted card through ONE witness, **`tests/e2e/notificationWitness.ts`**
+(`notificationHonesty` — `clippedValues` · `overRail` · `strandedSeparator` · `emoji` · `sourceTwice`).
+
+1. **THE CARD LIVES IN ITS LANE.** The layer is anchored to the corner of the central opening on EVERY profile (the
+   handheld override `right: .6rem` stood the card and its queue tail over the strategy rail at 720p — PL-553 on the
+   small profile), and the layer is never wider than the opening (`max-width` from `--con-stage-l/-r`), so a narrow
+   opening narrows the card. **A surface standing in the card's corner** — a full-bleed inspection (the card / party
+   dossier viewer, PL-680) — **holds NEW cards in the queue** (`registerNotificationCornerProbe`, the shell registers
+   `consoleCardZoom.card !== undefined`): the tail «ДАЛЬШЕ +N» is the beacon, the free edge re-drives the queue
+   (`flush: 'sync'`), a card already delivered stays (the delivery contract). The reveal head is not a corner owner
+   yet (gap).
+2. **THE NUMBER IS NEVER CUT.** In the hero band the value is `flex: none`; the spoken unit is the member that yields
+   (an ellipsis in its own box); the dense grid is `auto minmax(0, 1fr)`.
+3. **A WORD OUTCOME IS A SENTENCE, never a pill** (`BAND_PHRASE_LABEL` — the Floodgates blockade): ordinary case, at most
+   two lines under the sign (`[data-notif-phrase]`). The transfer arrow names WHO took it only when that is NOT the actor
+   the head already named (`transferTaker` — the bare «→ ●» is gone).
+4. **ONE LINE OF CAUSE, honest breaks.** The tails' separator TRAILS the tail before it (`::after '\00a0·'`), so a wrapped
+   row starts with a word, never with «·».
+5. **THE SOURCE IS NAMED ONCE** (PL-548): `causeLinesOf(meta, {namedCard})` — a «Source» line whose card the kicker
+   already names keeps its chips and tails only (`sourceNamed`), a move tail naming the same card goes with it, a line
+   left with nothing to say goes whole. An OWN anchor («Ваша карта» …) always stays.
+6. **PRICE AND INCOME APART.** `mergeChips` / `mergeNet` key by SIGN too (PL-065 «+1 / −2 → −1», PL-087 «−2 and +14 →
+   +12»); an actor's line is two labelled groups — «получил» and «заплатил» (dim by filter, never opacity) — the words
+   only when both sides stand (`clusterSides`).
+7. **NO PICTOGRAPH.** The head glyph is a text glyph of the family (`notificationGlyph`; 🏆 🏅 ⚖ ⚠ ✖ were emoji).
+
+Stands: `console-notification-source` on **tv4k + fhd + deck**, `console-notification-bonus-attack` (720p — the number
+and the lane), `console-notification-cause` (the Tharsis payout — «получил / заплатил»). **Not done (named):** PL-186
+(«+2 карты» after an auto-discard — the server never writes `impact.cardsDiscarded`, so no client reading can say it;
+the fix is a server fact on the discard event), the reveal head as a corner owner, PL-079 / PL-556 / PL-609 / PL-765
+(the owner's direction — untouched).
 
 ## ⭐⭐ CONSUMER UPDATE BOUNDARIES (2026-09-03) — the ingest module, and why «the server half is green» proved nothing
 

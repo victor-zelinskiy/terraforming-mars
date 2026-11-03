@@ -773,3 +773,12 @@ nothing`, the prompt labels, `Free` → «Бесплатно» for the FREE acce
   every later composer. Indentured Workers (an EVENT, `lastCardPlayed`'s −8
   for the next card) is only inspected, never played, so no later scenario
   inherits its discount.
+
+## RESOURCE_REACTORS — a twin that answers a unit landing on ITSELF (P53, 2026-11-03, ledger FJ)
+
+Main Belt Asteroids pays 1 titanium for an asteroid HERE. Its twin is silent on a grant «on ANY card» (`target: 'any'`)
+unless the landing is decided (its own action, itself the only asteroid holder), so no prompt-less trigger of the parity
+sweep can reach it: `tests/models/effectForecastParity.spec.ts` lists it in `RESOURCE_REACTORS` (beside
+`COLONY_REACTORS` / `TILE_PLAY_REACTORS` / `PRELUDE_TAG_REACTORS`) and its own block runs the card's action with itself
+the only holder — the `exact` fact fired on `resource-added`, the titanium landed. The per-candidate half rides the
+shared step: `AddResourcesToCard.landingAnswerOf` reads the candidate's twin into `extraByCard`.
