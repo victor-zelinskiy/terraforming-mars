@@ -13143,6 +13143,71 @@ appliedScienceFixture('applied-science-many', 'many');
 appliedScienceFixture('applied-science-crowd', 'crowd');
 appliedScienceFixture('applied-science-last', 'last');
 
+// ── P49 · FLOATING TRADE HUB — the THIRTY-FIRST Prelude 2 card: «put 2 floaters on ANY card, OR remove X floaters here
+//    to gain X of one standard resource» (docs/claude/prompts/prelude2-p49-floating-trade-hub.md, ledger FA). A 2p Venus
+//    + Prelude 2 table, blue on the move, the hub on the table:
+//      · `floating-trade-hub-holders` — 4 floaters here + Dirigibles (2) + Aerial Mappers (1) (+ Tardigrades — no floater
+//        card): (a) asks over the hub AND both holders; (b) dials 1…4;
+//      · `floating-trade-hub-sole`    — 4 floaters here, no other floater card: (a)'s only target is the hub itself;
+//      · `floating-trade-hub-empty`   — 0 floaters here: the live action asks (a) directly, (b) refused with its reason.
+//    A DRY RUN on a copy runs the action and checks the shape, so a rule change fails HERE. ──
+function floatingTradeHubFixture(name: string, variant: 'holders' | 'sole' | 'empty'): void {
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, venusNextExtension: true, prelude2Expansion: true,
+    customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
+  });
+  answerStartFlow(game, [p1, p2]);
+  game.projectDeck.discardPile.push(...p1.cardsInHand.splice(0));
+  const take = (n: CardName, resources: number) => {
+    moveToDeckTop(game, n);
+    const card = game.projectDeck.drawOrThrow(game);
+    card.resourceCount = resources;
+    p1.playedCards.push(card);
+  };
+  const hub = newPrelude(CardName.FLOATING_TRADE_HUB)!;
+  hub.resourceCount = variant === 'empty' ? 0 : 4;
+  p1.playedCards.push(hub);
+  if (variant === 'holders') {
+    take(CardName.DIRIGIBLES, 2);
+    take(CardName.AERIAL_MAPPERS, 1);
+    take(CardName.TARDIGRADES, 0);
+  }
+  p1.megaCredits = 12;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  if (game.activePlayer.id !== p1.id) {
+    throw new Error(`the ${name} fixture expected blue on the move`);
+  }
+  // THE DRY RUN — on a copy: the OR's shape (or the direct target pick at zero), the candidates (the hub among them).
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(p1.id);
+  const card = blue.playedCards.get(CardName.FLOATING_TRADE_HUB) as IActionCard & ICard;
+  const asked = card.action(blue);
+  if (variant === 'empty') {
+    runAllActions(copy);
+    const pick = blue.getWaitingFor();
+    if (asked !== undefined || !(pick instanceof SelectCard)) {
+      throw new Error(`the ${name} fixture expected the direct target pick at zero floaters — got ${pick?.type}`);
+    }
+  } else {
+    if (!(asked instanceof OrOptions) || asked.options.length !== 2) {
+      throw new Error(`the ${name} fixture expected the two-branch OR — got ${asked?.type}`);
+    }
+    asked.options[0].cb(undefined);
+    runAllActions(copy);
+    const pick = blue.getWaitingFor();
+    const names = pick instanceof SelectCard ? (pick as SelectCard<ICard>).cards.map((c) => c.name) : [];
+    const expected = variant === 'holders' ? 3 : 1;
+    if (!names.includes(CardName.FLOATING_TRADE_HUB) || names.length !== expected) {
+      throw new Error(`the ${name} fixture expected ${expected} targets with the hub among them — got ${names.join()}`);
+    }
+  }
+  write(name, game);
+}
+floatingTradeHubFixture('floating-trade-hub-holders', 'holders');
+floatingTradeHubFixture('floating-trade-hub-sole', 'sole');
+floatingTradeHubFixture('floating-trade-hub-empty', 'empty');
+
 // ── P45 · BOARD OF DIRECTORS — the TWENTY-EIGHTH Prelude 2 card: «draw 1 prelude: either discard it, or pay 12 M€ and
 //    remove 1 director here to play it» — the VERDICT AFTER THE REVEAL inside «ДЕЙСТВИЯ КАРТ» (docs/claude/prompts/
 //    prelude2-p45-board-of-directors.md, ledger ET). A 2p Venus + Prelude 2 table (Teractor · ThorGate, or Helion), blue
