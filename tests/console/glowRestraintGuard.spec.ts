@@ -468,9 +468,7 @@ function parliamentLightsOf(file: string, blocks: RegExp | undefined): Array<Hal
 }
 
 describe('glowRestraintGuard — a standing state is a kant, never a glow', () => {
-  it('THE PARLIAMENT BY EYE: no standing halo, bright ring, custom-property halo, wash, glowing text or loop (FG)', function() {
-    // It reads every stylesheet's variables once — a cold read on a loaded machine outgrows mocha's 2 s default.
-    this.timeout(20_000);
+  it('THE PARLIAMENT BY EYE: no standing halo, bright ring, custom-property halo, wash, glowing text or loop (FG)', () => {
     expect(isInsetWash('inset 0 0 2.6rem var(--paccess-tint)')).is.true;
     expect(isInsetWash('inset 0 0 0 .06rem fade(@con-mint, 60%)')).is.false;
     const offenders = [
@@ -478,7 +476,7 @@ describe('glowRestraintGuard — a standing state is a kant, never a glow', () =
       ...parliamentLightsOf('console.less', PARLIAMENT_EYE_BLOCKS),
     ].map((h) => `  ${h.file}:${h.line} ${h.block} → ${h.layer}`);
     expect(offenders, `a standing light on the Parliament — draw the state with a kant / fill / weight / word (\`console-ui.md\` § VISUAL RESTRAINT):\n${offenders.join('\n')}`).to.deep.eq([]);
-  });
+  }).timeout(20_000); // it reads every stylesheet's variables once — a cold read on a loaded machine outgrows the 2 s default
 
   it('the detector sees a halo, and only a halo', () => {
     expect(isHalo('0 0 .9rem fade(@con-mint, 26%)')).is.true;
