@@ -6,10 +6,12 @@
  * COLONY WORKSPACE flow state (browse ⇄ focus, the workspace-family model).
  *
  * The in-game colony count is 1–6 (5 in a typical game, 6 with a bonus
- * tile), so the MAIN layouts are designed per count: 1–4 = one centred row
- * of large tiles, 5 = a deliberate 3+2 composition, 6 = a 3×2 grid. The
- * rare "add a new colony tile" catalog (Aridor — possibly >6 candidates)
- * keeps a compact wrap grid and is visually a different mode.
+ * tile) and the viewer's fleet docks (TR06 / TR26 / TR27) are further CELLS
+ * of the same grid, so the MAIN layouts are designed per CELL count: 1–3 =
+ * one centred row of large tiles, 4 = 2×2, 5 = a deliberate 3+2, 6 = 3×2,
+ * 7 = 4+3, 8 = 4×2, 9 = 3×3. The rare "add a new colony tile" catalog
+ * (Aridor — possibly >6 candidates) keeps a compact wrap grid and is visually
+ * a different mode.
  */
 
 import {reactive} from 'vue';
@@ -18,26 +20,52 @@ import {CardName} from '@/common/cards/CardName';
 import {WorkspacePhase, backVerbFor, WorkspaceBackVerb} from '@/client/console/consoleWorkspaceFlow';
 import type {VenusInnerCommand} from '@/client/console/venusBonus/venusBonusInner';
 
-export type ColonyGridLayout = 'solo' | 'duo' | 'trio' | 'four' | 'five' | 'six' | 'catalog';
+export type ColonyGridLayout = 'solo' | 'duo' | 'trio' | 'four' | 'five' | 'six' | 'seven' | 'eight' | 'nine' | 'catalog';
 
-/** Which premium layout the tile grid uses for `count` colonies. Designed
- *  Steam-Deck-first (1280×800): 1–3 = one centred row, 4 = a 2×2 block,
- *  5 = the deliberate 3+2, 6 = 3×2 — every in-game count fits WITHOUT
- *  clipping; the rare >6 add-a-tile catalog is its own compact mode. */
-export function colonyGridLayout(count: number, catalogMode: boolean): ColonyGridLayout {
+/**
+ * Which premium layout the tile grid uses. The grid's CELLS are the colonies
+ * AND the viewer's fleet docks (ledger EZ, the owner 2026-11-03: «a dock is a
+ * cell of the grid, not a group beside it» — docks LAST in reading order), so
+ * the composition is chosen by the TOTAL (`colonyGridCols`): 1–3 = one centred
+ * row, 4 = a 2×2 block, 5 = the deliberate 3+2, 6 = 3×2, 7 = 4+3, 8 = 4×2,
+ * 9 = 3×3. Designed Steam-Deck-first (1280×800) — every in-game count fits
+ * WITHOUT clipping. The rare add-a-tile catalog (> 6 COLONIES offered — the
+ * docks never make a pick a catalog) is its own compact mode.
+ */
+export function colonyGridLayout(count: number, catalogMode: boolean, docks = 0): ColonyGridLayout {
   if (catalogMode && count > 6) {
     return 'catalog';
   }
-  switch (Math.max(1, count)) {
+  switch (Math.max(1, count + Math.max(0, docks))) {
   case 1: return 'solo';
   case 2: return 'duo';
   case 3: return 'trio';
   case 4: return 'four';
   case 5: return 'five';
   case 6: return 'six';
+  case 7: return 'seven';
+  case 8: return 'eight';
+  case 9: return 'nine';
   default: return 'catalog';
   }
 }
+
+/**
+ * THE COLUMNS PER LAYOUT — one table, read by the CSS fit (the grid's
+ * max-width), the d-pad's 2D stepping and the dock cursor alike. An odd
+ * remainder is a CENTRED short last row (5 = 3 + 2, 7 = 4 + 3).
+ */
+const GRID_COLUMNS: Readonly<Record<Exclude<ColonyGridLayout, 'catalog'>, number>> = {
+  solo: 1,
+  duo: 2,
+  trio: 3,
+  four: 2, // 2 × 2 — large tiles
+  five: 3, // 3 + 2 (second row centred)
+  six: 3, // 3 × 2
+  seven: 4, // 4 + 3 (second row centred)
+  eight: 4, // 4 × 2
+  nine: 3, // 3 × 3
+};
 
 /**
  * THE RAIL IS THE ADD-A-TILE CATALOG — a pick-a-NEW-tile prompt (Aridor's
@@ -69,18 +97,9 @@ export function colonyRailIsCatalog(
   return isColonyTask && purpose === 'addNewColonyToGame' && rosterLevel !== 'outgoing';
 }
 
-/** Columns per layout — drives both CSS and the d-pad 2D stepping. */
-export function colonyGridCols(layout: ColonyGridLayout, count: number): number {
-  switch (layout) {
-  case 'solo': return 1;
-  case 'duo': return 2;
-  case 'trio': return 3;
-  case 'four': return 2; // 2 × 2 — large tiles
-  case 'five': return 3; // 3 + 2 (second row centred)
-  case 'six': return 3; // 3 × 2
-  case 'catalog': return 4;
-  default: return Math.max(1, count);
-  }
+/** Columns per layout — drives both CSS and the d-pad 2D stepping. `cells` = colonies + docks. */
+export function colonyGridCols(layout: ColonyGridLayout, cells: number): number {
+  return layout === 'catalog' ? 4 : Math.min(GRID_COLUMNS[layout], Math.max(1, cells));
 }
 
 /**
@@ -201,20 +220,18 @@ export function resetFleetDockUi(): void {
 }
 
 /**
- * The overview cursor's SECOND ZONE — the «ПРИЧАЛЫ» column (`fleetDockModel`
- * steps it). The grid tile stays in `consoleState.colonyIndex`, untouched while
- * the cursor stands on a dock: it is the tile ◀ walks back to.
+ * THE DOCK HALF OF THE ONE GRID WALK. The fleet docks are CELLS of the colony
+ * grid (ledger EZ — docks last in reading order), and the d-pad walks ONE slot
+ * index over colonies + docks (`fleetDockModel.colonyCursorStep`). The shell
+ * keeps the colony half in `consoleState.colonyIndex` (every colony reader
+ * indexes the rail by it); this is the slot's projection onto the docks — the
+ * cursor stands on dock `index` (slot `colonies + index`) while `active`.
  */
 export const colonyDockCursor = reactive({
-  /** The cursor stands on a dock (not on a colony tile). */
+  /** The cursor stands on a dock cell (not on a colony tile). */
   active: false,
-  /** The dock under the cursor (the group's order). */
+  /** The dock under the cursor (the docks' order — tableau order). */
   index: 0,
-  /**
-   * Where the docks group stands beside the grid — the section's fit decides it (`side` | `below`), and the
-   * d-pad walks the group along THAT axis (`fleetDockModel.colonyCursorStep`).
-   */
-  placement: 'side' as 'side' | 'below',
 });
 
 export function resetColonyDockCursor(): void {
@@ -355,7 +372,7 @@ export function openColonyFocus(colony: ColonyName, intent: ColonyFocusIntent): 
   colonyFocusState.committing = false;
 }
 
-/** Enter the FLEET-DOCK stage for `card` (the descend from the docks column). */
+/** Enter the FLEET-DOCK stage for `card` (the descend from its cell of the grid). */
 export function openFleetDockFocus(card: CardName): void {
   colonyFocusState.open = true;
   colonyFocusState.colonyName = '';

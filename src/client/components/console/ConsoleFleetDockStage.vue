@@ -43,6 +43,9 @@
          'con-fleetdock--claimed': outcomeZone && claimPresenting,
        }"
        data-forecast-host
+       :style="{'--fleetdock-hero-h': heroNeedPx + 'px'}"
+       :data-fleet-dock-entering="entering ? '' : undefined"
+       :data-fleet-dock-art="heroArtTier"
        :data-fleet-dock-stage="card"
        :data-fleet-dock-category="presentPlan.category"
        :data-fleet-dock-degraded="rewardDegraded"
@@ -59,8 +62,11 @@
              face's own counter. `data-zoom-slot`: L3 lifts THIS card into the viewer. -->
         <div class="con-fleetdock__card" ref="cardEl" data-colony-focus-planet data-fleet-dock-hero
              :data-played-key="card" :data-zoom-slot="card">
+          <!-- THE ART TIER DOES NOT CHANGE IN FLIGHT (ledger EZ): the hero carries the thumb while the descend's FLIP
+               flies it, and shows the full file only once the entry has SETTLED and that file is decoded — the face
+               crossfades the two (`PremiumCardArt`), never a blink to black. -->
           <div class="con-fleetdock__face" :style="{'--con-fleetdock-zoom': String(heroZoom)}">
-            <ConsoleCardFaceLite :name="card" :card="heroModel" />
+            <ConsoleCardFaceLite :name="card" :card="heroModel" :artTier="heroArtTier" />
           </div>
         </div>
         <div v-if="shortRule !== ''" class="con-colfocus__idmeta" data-unfold-late>
@@ -252,6 +258,7 @@ import {FleetDockPreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {TRADE_FLEET_ICON} from '@/common/colonies/tradeFleet';
 import {getCard} from '@/client/cards/ClientCardManifest';
+import {cardArtUrlAtTier, premiumCardArt} from '@/client/cards/cardArt';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
@@ -336,6 +343,22 @@ function remPx(): number {
   return 20 * conUiScale();
 }
 
+/** Decode one art file (true = the picture exists now); a no-op `false` where there is no image pipeline (JSDOM). */
+function decodeCardArt(url: string): Promise<boolean> {
+  if (typeof Image === 'undefined' || typeof navigator === 'undefined' || /jsdom/i.test(navigator.userAgent)) {
+    return Promise.resolve(false);
+  }
+  const img = new Image();
+  img.src = url;
+  if (typeof img.decode === 'function') {
+    return img.decode().then(() => true, () => false);
+  }
+  return new Promise((resolve) => {
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+  });
+}
+
 /** A row of the summary rail («ИТОГ ТОРГОВЛИ») — the colony stage's own row reading. */
 type RailRow = {icon: string, iconClass: string, label: string, amount: number, production: boolean, reading: string};
 /** A row of the rail's «ОПЛАТА». */
@@ -408,6 +431,12 @@ export default defineComponent({
      * caps the hero card on a short host BEFORE the first frame (the stage then follows its own box).
      */
     roomHeight: {type: Number, default: 0},
+    /**
+     * THE ENTRY IS IN FLIGHT (the section's descend phrase has not settled — its `done`): the hero's zoom is FROZEN
+     * at the press-time room and its art stays on the thumb tier, so the box the FLIP aims at never re-fits and the
+     * picture never re-decodes under the flight (ledger EZ — «при входе внутрь причала его карта странно скачет»).
+     */
+    entering: {type: Boolean, default: false},
   },
   emits: ['confirm', 'cancel', 'inspect', 'flow-complete'],
   data() {
@@ -457,6 +486,8 @@ export default defineComponent({
       pulseCall: undefined as {kill: () => void} | undefined,
       sceneMotion: undefined as ActionCommitMotionHandle | undefined,
       stopRoomObs: undefined as (() => void) | undefined,
+      /** The full art file is decoded AND the entry has settled — the hero shows the full tier. */
+      heroArtFull: false,
     };
   },
   computed: {
@@ -470,6 +501,18 @@ export default defineComponent({
       const capH = this.roomH > 0 ? this.roomH - HERO_RESERVE_REM * rem : Infinity;
       const w = Math.min(width, capH * CARD_W / CARD_H);
       return Math.max(0.3, Math.floor((w / CARD_W) * 1000) / 1000);
+    },
+    /**
+     * THE HERO'S OWN ROOM (px) — the card at its solved zoom plus what the column holds under it. The surface's floor
+     * (`--fleetdock-hero-h`): the server's preview arrives AFTER the entry and grows the result rail, and a surface
+     * sized by its content then re-centred the hero under the eye. Known before the first frame, never measured.
+     */
+    heroNeedPx(): number {
+      return Math.ceil(CARD_H * this.heroZoom + HERO_RESERVE_REM * remPx());
+    },
+    /** The tier the hero paints: the thumb through the entry's flight, the full file once settled and decoded. */
+    heroArtTier(): 'full' | 'thumb' {
+      return this.heroArtFull ? 'full' : 'thumb';
     },
     /** What the dock does, in one calm line — the card's own curated short (`effect-short`), never a truncation. */
     shortRule(): string {
@@ -895,6 +938,13 @@ export default defineComponent({
     },
   },
   watch: {
+    /** The entry has SETTLED: the room follows the stage's own box from now on, and the full art may take over. */
+    entering(now: boolean, was: boolean): void {
+      if (!now && was) {
+        this.measureRoom();
+        this.upgradeHeroArt();
+      }
+    },
     primary: {
       deep: true,
       handler(): void {
@@ -1417,6 +1467,32 @@ export default defineComponent({
       this.sceneCall = {kill: () => call.kill()};
     },
     /** …and only then the workspace leaves as one surface; the shell concludes it and the hold falls at the END of that leave. */
+    /** The room's height from the stage's own box — never while the entry is in flight (the hero's zoom is frozen). */
+    measureRoom(): void {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      if (this.entering || root === undefined || root === null) {
+        return;
+      }
+      const h = root.clientHeight;
+      if (h > 0 && Math.abs(h - this.roomH) >= 1) {
+        this.roomH = h;
+      }
+    },
+    /**
+     * The hero's FULL art: decoded first (fire-and-forget at the press — `preloadPremiumCardArt` — and awaited here),
+     * shown only after — the face crossfades the thumb into it. A decode that fails keeps the thumb (never a hole).
+     */
+    upgradeHeroArt(): void {
+      if (this.heroArtFull || this.entering) {
+        return;
+      }
+      const card = this.card;
+      void decodeCardArt(cardArtUrlAtTier(premiumCardArt(card).url, 'full')).then((ok) => {
+        if (ok && !this.entering && this.card === card) {
+          this.heroArtFull = true;
+        }
+      });
+    },
     concludeScene(): void {
       if (!this.scene.holding) {
         return;
@@ -1428,17 +1504,15 @@ export default defineComponent({
     setFleetDockStageCard(this.card);
     setColonyFocusStage('Trading');
     this.seedPaymentDefault();
-    // The ROOM follows the stage's own box from here on (a host that resizes) — the first answer is the
-    // press-time measurement's, so nothing re-fits under the entrance.
+    // The ROOM follows the stage's own box from here on (a host that resizes) — but only once the entry has
+    // LANDED: the first answer is the press-time measurement's, and the observer's first call (the stage's own box
+    // mid-unfold) must not re-solve the hero the FLIP is flying into.
     const root = this.$refs.rootEl as HTMLElement | undefined;
     if (root !== undefined && root !== null) {
-      this.stopRoomObs = useResizeObserver(root, () => {
-        const h = root.clientHeight;
-        if (h > 0 && Math.abs(h - this.roomH) >= 1) {
-          this.roomH = h;
-        }
-      }).stop;
+      this.stopRoomObs = useResizeObserver(root, () => this.measureRoom()).stop;
     }
+    // A door with no entry phrase in flight (a restore, a reload) shows the full art as soon as it is decoded.
+    this.upgradeHeroArt();
     this.focusIdx = Math.max(0, this.focusables.findIndex((f) => f.zone === 'pay' && f.index === this.payIdx));
     this.syncUiMirror();
   },

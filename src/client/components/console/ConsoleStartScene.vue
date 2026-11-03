@@ -439,11 +439,18 @@
              and wears the start's shell (workspace-embed host 'start' ×
              surface 'colonies'). Same contract as the sponsor step: full-size
              host, the deployment parks (module state, returns untouched), the
-             crumb reads «СТАРТ ПАРТИИ › <пролог> › КОЛОНИИ». -->
-        <div v-if="colonyStep" class="con-start__handstep con-start__colonystep" data-embed-slot="start-colonies"></div>
-
-        <div v-if="mode === 'ceremony' && !sponsorStep && !colonyStep" class="con-start__body con-start__ceremony"
-             :class="{'con-start__ceremony--hidden': !ceremonyRevealed}" ref="ceremonyBody">
+             crumb reads «СТАРТ ПАРТИИ › <пролог> › КОЛОНИИ».
+             Unlike the sponsor's hand, the zone lives INSIDE the deployment's
+             body and the deployment is NEVER unmounted for it (P48 · ledger
+             EY — the open «parent collapse» blink of colony-focus-stage §5):
+             the deployment RELEASES in place (opacity, its box kept — no
+             re-fit), the zone takes exactly that box, and on the way back the
+             same nodes reveal where they stood. -->
+        <div v-if="mode === 'ceremony' && !sponsorStep" class="con-start__body con-start__ceremony"
+             :class="{'con-start__ceremony--hidden': !ceremonyRevealed, 'con-start__ceremony--stepped': colonyStep}"
+             :data-start-step-zone="colonyStep ? 'colonies' : undefined"
+             ref="ceremonyBody">
+          <div v-if="colonyStep" class="con-start__handstep con-start__colonystep" data-embed-slot="start-colonies"></div>
           <!-- ── THE DEPLOYMENT — one row, three physical places ──
                 · the QUEUE COLUMN (left, the protagonist): every unresolved
                   start card + the bought-projects purchase row; the embedded
@@ -998,8 +1005,8 @@
              Once the RISK STAGE is up the stage owns that sentence and the
              rail's chip goes quiet — one voice per statement, never the same
              warning printed twice on one screen. -->
-        <div v-if="mode === 'ceremony' && ceremonyRevealed && !sponsorStep && !colonyStep"
-             class="con-start__statusrail" :class="ceremonyRailClass">
+        <div v-if="mode === 'ceremony' && ceremonyRevealed && !sponsorStep"
+             class="con-start__statusrail" :class="[ceremonyRailClass, {'con-start__statusrail--stepped': colonyStep}]">
           <div class="con-start__status-inner">
             <span class="con-start__status-name" :key="ceremonyStatusName">{{ ceremonyStatusName }}</span>
             <span v-if="ceremonyStatusText !== ''" class="con-start__status-state">{{ ceremonyStatusText }}</span>

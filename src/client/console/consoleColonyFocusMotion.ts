@@ -218,7 +218,7 @@ function tileOf(el: Element): HTMLElement | null {
     '.con-colonies__slot--focused .con-coltile, .con-colonies__dockslot--focused .con-coltile') ?? null;
 }
 
-/** The tile's carried subject's browse twin — the planet medallion, or the dock's CARD. */
+/** The tile's carried subject's browse twin — the planet medallion, or the dock's art medallion (its card's twin). */
 function tilePlanetOf(el: Element): HTMLElement | null {
   return tileOf(el)?.querySelector<HTMLElement>('.con-coltile__planet-berth, [data-fleet-dock-face]') ?? null;
 }
@@ -228,7 +228,7 @@ function tileContentOf(el: Element): Array<HTMLElement> {
   const tile = tileOf(el);
   return tile === null ?
     [] :
-    Array.from(tile.querySelectorAll<HTMLElement>('.con-coltile__head, .con-coltile__mid, .con-coltile__rows, .con-coltile__dockreward, .con-coltile__status'));
+    Array.from(tile.querySelectorAll<HTMLElement>('.con-coltile__head, .con-coltile__mid, .con-coltile__rows, .con-coltile__status'));
 }
 
 function surfaceOf(el: Element): HTMLElement | null {
@@ -560,7 +560,7 @@ const ENTRY_RAIL_MS = 200;
  * the same task as the mount, so nothing secondary is painted before its beat.
  */
 export function colonyEntryCascade(tl: gsap.core.Timeline, root: HTMLElement, atS: number): number {
-  const slots = Array.from(root.querySelectorAll<HTMLElement>('.con-colonies__slot, .con-colonies__dockslot, .con-colonies__docks-title'));
+  const slots = Array.from(root.querySelectorAll<HTMLElement>('.con-colonies__slot, .con-colonies__dockslot'));
   const rail = root.querySelector<HTMLElement>('.con-colonies__rail');
   if (slots.length === 0 && rail === null) {
     return 0;
@@ -626,7 +626,7 @@ export function playColonyStepEntry(root: HTMLElement): void {
     return;
   }
   const stage = root.querySelector<HTMLElement>('.con-colonies__stagewrap');
-  const tiles = Array.from(root.querySelectorAll<HTMLElement>('.con-colonies__slot, .con-colonies__dockslot, .con-colonies__docks-title'));
+  const tiles = Array.from(root.querySelectorAll<HTMLElement>('.con-colonies__slot, .con-colonies__dockslot'));
   const rail = root.querySelector<HTMLElement>('.con-colonies__rail');
   const toolbar = root.querySelector<HTMLElement>('.con-colonies__toolbar');
   if (stage === null && tiles.length === 0 && rail === null) {

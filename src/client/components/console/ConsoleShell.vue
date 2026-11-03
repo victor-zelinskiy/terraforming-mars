@@ -2324,6 +2324,10 @@ import {
 } from '@/client/console/colonyTrade/colonyTrackMove';
 import {trackMoveOf} from '@/client/console/colonyTrade/colonyTrackMoveModel';
 import {
+  clearColonyTrackRaise, colonyTrackRaiseFlow, colonyTrackRaiseLive, colonyTrackRaiseOf, playOwedColonyTrackRaise,
+  seedColonyTrackRaise,
+} from '@/client/console/colonyTrade/colonyTrackRaise';
+import {
   armColonyRosterChange, clearColonyRoster, colonyRosterAnswered, colonyRosterDraft, colonyRosterPending, colonyRosterState,
   disarmColonyRoster, hurryColonyRoster, isColonyRosterInputLocked, presentedColonyRoster, registerColonyRosterHost,
   setColonyRosterLanding,
@@ -2510,6 +2514,18 @@ const STDP_STEP_ZONE = '.con-stdp [data-embed-slot="stdp-step"]';
 const VENUS_BONUS_STAGE = 'Venus bonus';
 /** The sitting's reward-stage zone (published by `ConsoleParliamentSitting` — `consoleParliamentUi.stageZone`). */
 const SITTING_STAGE_ZONE = '.con-parl [data-embed-slot="parliament-stage"]';
+
+/**
+ * THE HOSTED COLONY STEP HANDS THE SCREEN BACK ONLY AFTER ITS STORY (P48 · ledger EY): the follow-up's falling edge
+ * waits for the tokens the build paid (`transfer`, bounded) and one read of the landed cube — the same dwell the
+ * standalone screen owns (`ConsoleColoniesSection` COMPLETION_SETTLE_MS) — before the frame pops into its host.
+ * `idle` → `dwelling` (the wait runs) → `done` (the next settle proceeds). One shell, one dwell at a time.
+ */
+let colonySettleDwell: 'idle' | 'dwelling' | 'done' = 'idle';
+/** The read of the landed cube before a hosted colony step hands its screen back (the standalone dwell's value). */
+const COLONY_STEP_SETTLE_MS = 300;
+/** How long that hand-back waits for the build's tokens at most (a ledger story; a named degrade past it). */
+const COLONY_STEP_HANDOFF_MAX_MS = 4_000;
 
 export default defineComponent({
   name: 'ConsoleShell',
@@ -8556,6 +8572,10 @@ export default defineComponent({
     colonyPromptRaw(): boolean {
       return this.playerView.waitingFor?.type === 'colony';
     },
+    /** The identity of the raise the live colony prompt carries (P48) — '' for every other prompt. */
+    colonyTrackRaiseKey(): string {
+      return colonyTrackRaiseOf(this.playerView.waitingFor, this.playerView.id)?.key ?? '';
+    },
     /**
      * …AND THE SURFACE MAY OPEN FOR IT NOW — the colony workspace's own DOOR.
      *
@@ -8820,6 +8840,8 @@ export default defineComponent({
         this.colonyGrantStepLive || workspaceFrameHost('parliament') === 'colonies' ||
         // A CHOSEN TRACK's move (TR07) the answer carried: the stage it was confirmed on plays it first.
         this.trackMoveFlow.owed !== undefined || this.trackMoveFlow.live ||
+        // A PLAY's RAISE of every track (P48) before its pick: the wave plays to its last landing first.
+        colonyTrackRaiseLive() ||
         // A ROSTER change of the player's own: armed, playing on the stage, or still landing as a receipt.
         colonyRosterPending() || colonyRosterState.landing ||
         // A CITY laid on a colony tile (TR22): armed, landing on the stage, or the stage folding home to its receipt.
@@ -11831,6 +11853,13 @@ export default defineComponent({
       }
       this.openColoniesForPrompt();
     },
+    // THE RAISE BELONGS TO ITS PROMPT (P48): the server asked something else — whatever it still holds is released.
+    colonyTrackRaiseKey(key: string) {
+      const owed = colonyTrackRaiseFlow.owed;
+      if (owed !== undefined && owed.key !== key) {
+        clearColonyTrackRaise();
+      }
+    },
     // The follow-up ended (rewards granted, Pluto resolved, track reset) — the
     // colonies frame is done and pops, uncovering whatever hosted it.
     colonyFollowUpLive(live: boolean, was: boolean) {
@@ -14492,6 +14521,14 @@ export default defineComponent({
         section.completeFlow();
         return;
       }
+      // …and HOSTED it is a hand-over too (P48 · ledger EY — «the premium wave played to the end, and only then the
+      // player was returned»): the frame waits for the build's tokens and one read of the cube, then pops. The
+      // Parliament keeps its own walk (it reads the frame's departure itself).
+      if (host !== undefined && host !== 'parliament' && colonySettleDwell !== 'done') {
+        void this.dwellColonyFollowUp();
+        return;
+      }
+      colonySettleDwell = 'idle';
       // The focus stage (if the follow-up resolved on it) folds with the step —
       // the parent continuation gets a clean surface back.
       closeColonyFocus();
@@ -14527,6 +14564,28 @@ export default defineComponent({
         // («Закрыть заседание»), never through a pop.
         consoleParliamentUi.stepFrameLeftAt = Date.now();
       }
+    },
+    /**
+     * THE HOSTED STEP'S HAND-OVER (see `colonySettleDwell`): wait out the build's tokens (bounded, `transfer` only — a
+     * host's own lifetime holds are not this step's story), dwell one read, and settle again — only if the step is
+     * still the prompt's and its follow-up still over (a new demand arriving meanwhile keeps the frame).
+     */
+    async dwellColonyFollowUp(): Promise<void> {
+      if (colonySettleDwell === 'dwelling') {
+        return;
+      }
+      colonySettleDwell = 'dwelling';
+      const alive = () => workspaceFrameAnchor('colonies')?.type === 'prompt' && !this.colonyFollowUpLive;
+      const outcome = await waitScreenHandoff('colony-step-return', {only: ['transfer'], alive, maxMs: COLONY_STEP_HANDOFF_MAX_MS});
+      if (outcome !== 'dead') {
+        await new Promise<void>((done) => window.setTimeout(done, motionMs(COLONY_STEP_SETTLE_MS)));
+      }
+      if (!alive()) {
+        colonySettleDwell = 'idle';
+        return;
+      }
+      colonySettleDwell = 'done';
+      this.settleColonyFollowUp();
     },
     /**
      * The board's business is done and the yielded stack comes back at the same depth — and a colony follow-up
@@ -14595,6 +14654,19 @@ export default defineComponent({
         this.coloniesForRail.findIndex((c) => pick.selectable.includes(c.name)) : -1;
       this.consoleState.colonyIndex = first !== -1 ? first : 0;
       this.landColonyCursorOnTradeable();
+      this.tellColonyTrackRaise();
+    },
+    /**
+     * THE RAISE THE PLAY ALREADY MADE (P48 Early Colonization — `trackRaise` on the prompt): seeded in the SAME
+     * block that pushed the frame, so the grid's first frame paints every marker where it STOOD, then the ONE
+     * track wave plays (it waits for the standing tiles itself) and the pick opens after the last landing. A raise
+     * this session already told (a reload mid-step) seeds nothing — the tiles stand on the truth.
+     */
+    tellColonyTrackRaise(): void {
+      if (!seedColonyTrackRaise(colonyTrackRaiseOf(this.playerView.waitingFor, this.playerView.id))) {
+        return;
+      }
+      void playOwedColonyTrackRaise();
     },
     /**
      * A CARD ACTION WALKED INTO THE TRADE. The frame is already pushed (the
@@ -16882,17 +16954,16 @@ export default defineComponent({
         return;
       }
       if (this.padSection === 'colonies') {
-        // 2D stepping over the premium tile grid (layout-aware columns).
+        // 2D stepping over the premium tile grid (layout-aware columns) — ONE walk over ONE grid: the cells are the
+        // colonies and, last in reading order, the viewer's fleet docks (ledger EZ — `colonyCursorStep`).
         const count = this.coloniesForRail.length;
-        const cols = colonyGridCols(colonyGridLayout(count, this.colonyPick !== undefined), count);
-        // …and the «ПРИЧАЛЫ» group beside it — a column right of the grid (▶ from a row's last tile enters it, ◀
-        // returns) or a row under it (▼ from the last row, ▲ returns), as the section's fit placed it
-        // (`colonyCursorStep`).
+        const docks = this.colonyDocks.length;
+        const cols = colonyGridCols(colonyGridLayout(count, this.colonyPick !== undefined, docks), count + docks);
         const next = colonyCursorStep(dir, {
           zone: colonyDockCursor.active ? 'docks' : 'grid',
           index: this.consoleState.colonyIndex,
           dock: colonyDockCursor.index,
-        }, count, cols, this.colonyDocks.length, colonyNavStep, colonyDockCursor.placement);
+        }, count, cols, docks, colonyNavStep);
         this.consoleState.colonyIndex = next.index;
         colonyDockCursor.active = next.zone === 'docks';
         colonyDockCursor.index = next.dock;
@@ -19555,9 +19626,9 @@ export default defineComponent({
     inspectFleetDock(card: CardName): void {
       const model = this.thisPlayer.tableau.find((c) => c.name === card);
       // THE CARD IS LIFTED, never re-drawn (physical causality): from the dock's own stage it rises out of the hero,
-      // on the overview out of its tile — the viewer holds that very slot empty while the card is in the player's
-      // hands and lands it back there on close.
-      const host = this.colonyFocusOpen && this.colonyFocus.dock === card ? '.con-fleetdock' : '.con-colonies__docks';
+      // on the overview out of its tile's art medallion (a cell of the colony grid) — the viewer holds that very slot
+      // empty while the card is in the player's hands and lands it back there on close.
+      const host = this.colonyFocusOpen && this.colonyFocus.dock === card ? '.con-fleetdock' : '.con-colonies__grid';
       const key = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
       openConsoleCardZoom([model ?? {name: card}], 0, undefined, undefined, {
         origin: {kind: 'physical', resolve: () => document.querySelector<HTMLElement>(`${host} [data-zoom-slot="${key}"]`)},

@@ -5,7 +5,7 @@ import {
   bootFixtureSeats, fetchPlayerModel, openConsole, openInfoPlayedTable, placeTile, press, pressUntil, pressUntilVisible, settle, waitForBoardHome,
   walkFocusUntil,
 } from './consoleStart';
-import {dockKeys, dockStatusLines, docksApart, enterDocks, focusDockCard, focusedDock, tileSizes} from './fleetDockDriver';
+import {DOCK_WALK, dockStatusLines, docksInGrid, enterDocks, focusDockCard, focusedDock, tileSizes} from './fleetDockDriver';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 
 /**
@@ -261,7 +261,7 @@ for (const preset of PRESETS) {
       });
       await settle(page);
       await openColonies(page);
-      await expect(page.locator('.con-colonies__docks [data-fleet-dock]'), 'the control holds ONE dock').toHaveCount(1);
+      await expect(page.locator('.con-colonies__grid [data-fleet-dock]'), 'the control holds ONE dock').toHaveCount(1);
       const scaleOne = await tileScale(page);
       expect(Number(scaleOne), `the control's grid has a scale — got «${scaleOne}»`).toBeGreaterThan(0.3);
 
@@ -299,48 +299,43 @@ for (const preset of PRESETS) {
 
       // ── 1. The overview: two docks, both free; the grid as large as with one; the cursor's ring.
       await openColonies(page);
-      await expect(page.locator('.con-colonies__docks [data-fleet-dock]'), 'the column holds TWO docks').toHaveCount(2);
-      expect(await page.locator('.con-colonies__docks [data-fleet-dock]').evaluateAll((els) => els.map((el) => el.getAttribute('data-fleet-dock'))),
+      await expect(page.locator('.con-colonies__grid [data-fleet-dock]'), 'the grid holds TWO dock cells').toHaveCount(2);
+      expect(await page.locator('.con-colonies__grid [data-fleet-dock]').evaluateAll((els) => els.map((el) => el.getAttribute('data-fleet-dock'))),
         'in tableau order').toEqual([LINER, HAULING]);
       expect(await page.locator('[data-fleet-dock-status="free"]').count(), 'both docks are free').toBe(2);
       const scaleTwo = await tileScale(page);
-      // THE DOCKS ARE TILES OF THE COLONY FAMILY (the owner, 2026-10-25): ONE size for the whole surface, the group a
-      // step apart — the fit solves the grid and the group together, so a second dock may cost the grid a little.
+      // THE DOCKS ARE CELLS OF THE COLONY GRID (the owner, 2026-10-25 + ledger EZ): ONE size for the whole grid, one
+      // fit over colonies + docks — 6 + 1 is 4 + 3 and 6 + 2 is 4 × 2, so the second dock costs the grid nothing.
       console.log(`[${preset.id}] --coltile-scale: one dock ${scaleOne} · two docks ${scaleTwo}`);
       const sizes = await tileSizes(page);
       expect(new Set([...sizes.colonies, ...sizes.docks]).size, `ONE tile size — ${JSON.stringify(sizes)}`).toBe(1);
       expect(Number(scaleTwo), 'the second dock costs the grid at most a step').toBeGreaterThanOrEqual(Number(scaleOne) * 0.85);
-      expect(await docksApart(page), 'the group stands inside the layer, clear of the grid').toEqual({measured: true, inside: true, clear: true});
+      expect(await docksInGrid(page), 'the docks are the grid\'s last cells, inside it — 4 × 2').toEqual({measured: true, inside: true, last: true, rows: [4, 4]});
       expect(await dockStatusLines(page), 'each status line reads whole, inside its tile').toEqual([
         {text: 'Причал свободен', insideTile: true, whole: true},
         {text: 'Причал свободен', insideTile: true, whole: true},
       ]);
-      const keys = await dockKeys(page);
+      // ONE WALK over ONE grid (ledger EZ): six colonies + two docks = 4 × 2 — the docks close the second row.
       const grid0 = await tileRects(page);
       await enterDocks(page);
-      const firstIn = await focusedDock(page);
-      expect([LINER, HAULING], 'the cursor entered the group').toContain(firstIn);
-      expect(await tileRects(page), 'walking into the group moves no planet tile').toEqual(grid0);
-      await press(page, keys.back, 350);
-      expect(await focusedDock(page), 'the way back leaves the group').toBe('');
-      const edgeTile = await focusedTile(page);
-      expect(edgeTile, 'the cursor is back on a planet tile').not.toBe('');
-      await press(page, keys.into, 350);
-      expect(await focusedDock(page), 'the way in from that tile enters the group again').toBe(firstIn);
-      for (let i = 0; i < 3; i++) {
-        await press(page, keys.prev, 350);
-      }
-      expect(await focusedDock(page), 'the group starts with the liner (tableau order), the edge felt').toBe(LINER);
-      await press(page, keys.next, 350);
-      expect(await focusedDock(page), 'the group\'s own axis walks to the second dock').toBe(HAULING);
-      await press(page, keys.next, 350);
+      expect(await focusedDock(page), 'reading order: ▶ from the last colony lands on the FIRST dock (tableau order)').toBe(LINER);
+      expect(await tileRects(page), 'walking onto the docks moves no planet tile').toEqual(grid0);
+      await press(page, DOCK_WALK.prev, 350);
+      expect(await focusedDock(page), '◀ off the first dock leaves the docks').toBe('');
+      expect(await focusedTile(page), '…onto the last colony').not.toBe('');
+      await press(page, DOCK_WALK.next, 350);
+      expect(await focusedDock(page), '▶ comes back onto it').toBe(LINER);
+      await press(page, DOCK_WALK.next, 350);
+      expect(await focusedDock(page), 'the row walks on to the second dock').toBe(HAULING);
+      await press(page, DOCK_WALK.next, 350);
       expect(await focusedDock(page), '…and the edge is felt (no wrap)').toBe(HAULING);
-      await press(page, keys.back, 350);
-      expect(await focusedTile(page), 'the way back returns to the very tile the cursor left, whichever dock it walked to').toBe(edgeTile);
-      await press(page, keys.into, 350);
-      await press(page, keys.prev, 350);
-      await press(page, keys.prev, 350);
-      expect(await focusedDock(page), 'walking back stops at the first dock').toBe(LINER);
+      await press(page, 'ArrowUp', 350);
+      expect(await focusedDock(page), '▲ leaves the docks for the row above').toBe('');
+      expect(await focusedTile(page), '…onto the colony over the dock').not.toBe('');
+      await press(page, 'ArrowDown', 350);
+      expect(await focusedDock(page), '▼ comes back down onto the same dock').toBe(HAULING);
+      await press(page, DOCK_WALK.prev, 350);
+      expect(await focusedDock(page), '◀ walks back to the first dock').toBe(LINER);
       await focusDockCard(page, LINER);
       await shoot(page, preset.id, '01-overview-two-docks');
 
@@ -476,12 +471,12 @@ for (const preset of PRESETS) {
 
       // ── 6. The colonies again: the liner holds its fleet, «Перевозка воды» is free — and plays TR06's scene.
       await openColonies(page);
-      await expect(page.locator(`.con-colonies__docks [data-fleet-dock="${LINER}"][data-fleet-dock-status="docked"]`), 'the liner reads «флот на карте»').toHaveCount(1);
-      await expect(page.locator(`.con-colonies__docks [data-fleet-dock="${LINER}"] .pcard-fleet .colony-fleet-icon`), 'the ship stands on the liner\'s ▲').toHaveCount(1);
-      await expect(page.locator(`.con-colonies__docks [data-fleet-dock="${HAULING}"][data-fleet-dock-status="free"]`), 'the other dock is still free').toHaveCount(1);
-      await expect(page.locator(`.con-colonies__docks [data-fleet-dock="${HAULING}"] .pcard-fleet .colony-fleet-icon`), 'no ship on it').toHaveCount(0);
+      await expect(page.locator(`.con-colonies__grid [data-fleet-dock="${LINER}"][data-fleet-dock-status="docked"]`), 'the liner reads «флот у причала»').toHaveCount(1);
+      await expect(page.locator(`.con-colonies__grid [data-fleet-dock="${LINER}"] .con-coltile__dock--occupied .colony-fleet-icon`), 'the ship berths at the liner\'s medallion').toHaveCount(1);
+      await expect(page.locator(`.con-colonies__grid [data-fleet-dock="${HAULING}"][data-fleet-dock-status="free"]`), 'the other dock is still free').toHaveCount(1);
+      await expect(page.locator(`.con-colonies__grid [data-fleet-dock="${HAULING}"] .con-coltile__dock--occupied .colony-fleet-icon`), 'no ship on it').toHaveCount(0);
       expect(await dockStatusLines(page), 'the taken dock says so in ITS OWN tile — nothing cuts it').toEqual([
-        {text: 'Флот на карте', insideTile: true, whole: true},
+        {text: 'Флот у причала', insideTile: true, whole: true},
         {text: 'Причал свободен', insideTile: true, whole: true},
       ]);
       // The cursor came back on a destination the open trade offers — never on the dock that is taken.

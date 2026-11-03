@@ -22301,6 +22301,15 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         0 calc(.4rem + .1rem * var(--con-cursor-on)) calc(1.2rem + .2rem * var(--con-cursor-on)) rgba(0, 0, 0, calc(.45 + .1 * var(--con-cursor-on)));
 
     &--focused { .con-cursor-on(); }
+    /* THE TRACK'S TONE — what the trade pays (the rail's resource keys; ConsoleColonyTile `toneKey`). */
+    --coltile-tone: @con-cyan;
+    &--tone-megacredits { --coltile-tone: @con-amber; }
+    &--tone-steel { --coltile-tone: #c98a4e; }
+    &--tone-titanium { --coltile-tone: #cfd9e8; }
+    &--tone-plants { --coltile-tone: @con-plants; }
+    &--tone-energy { --coltile-tone: @con-energy-violet; }
+    &--tone-heat { --coltile-tone: @con-heat-warm; }
+    &--tone-card { --coltile-tone: @con-mint; }
     &--inactive { filter: saturate(0.55) brightness(0.78); }
     &--blocked:not(&--focused) { filter: saturate(0.75) brightness(0.9); }
 
@@ -22398,9 +22407,26 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         margin-top: .25rem;
     }
     &__build {
+        position: relative;
         display: flex;
         gap: .4rem;
         flex: 0 0 auto;
+    }
+    /* «ЗА ПОСЕЛЕНИЕ» — the berths' kicker, the «ТОРГОВАТЬ» label's grammar (ledger EZ): a legend hung over the row's
+       left edge, in the head's free lower-left (absolute — the berths and the track keep their room). */
+    &__build-kicker {
+        position: absolute;
+        left: 0;
+        bottom: 100%;
+        margin-bottom: .12rem;
+        font-size: .5rem;
+        font-weight: 700;
+        letter-spacing: .07rem;
+        line-height: 1.1;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        white-space: nowrap;
+        pointer-events: none;
     }
     &__build-slot {
         position: relative;
@@ -22476,36 +22502,59 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         align-items: center;
         gap: .2rem;
     }
+    /* THE TRACK IN THE COLONY'S OWN TONE (ledger EZ — `--coltile-tone`, what the trade pays: the rail's resource
+       keys): ONE tone for the cells and the marker — a cell the marker has PASSED is a fill, a cell AHEAD a hairline
+       of the tone, the marker the solid tone on a dark kant. Material, never light. */
     &__track-cell {
         flex: 1;
         height: .45rem;
         border-radius: .2rem;
-        background: rgba(255, 255, 255, 0.1);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+        background: transparent;
+        box-shadow: inset 0 0 0 .05rem color-mix(in srgb, var(--coltile-tone) 38%, transparent);
 
-        &--passed { background: fade(@con-cyan, 25%); }
-        &--marker {
-            background: @con-cyan;
+        &--passed {
+            background: color-mix(in srgb, var(--coltile-tone) 42%, transparent);
             box-shadow: none;
         }
+        &--marker {
+            background: var(--coltile-tone);
+            box-shadow: inset 0 0 0 .05rem rgba(4, 9, 15, 0.55);
+        }
+        /* Where a standing offset takes the trade — the tone, a quarter-filled, on a firm hairline. */
         &--effective {
-            background: fade(@con-mint, 55%);
-            box-shadow: none;
+            background: color-mix(in srgb, var(--coltile-tone) 24%, transparent);
+            box-shadow: inset 0 0 0 .08rem color-mix(in srgb, var(--coltile-tone) 80%, transparent);
         }
     }
+    /* «4 / 7» — a PLACE on the track: the marker's cell is the voice, «/ 7» the dim length. */
     &__track-pos {
+        flex: 0 0 auto;
         font-size: .625rem;
-        font-weight: 700;
-        color: @con-text-dim;
+        font-weight: 800;
+        color: @con-text;
         margin-left: .15rem;
         letter-spacing: .025rem;
+        white-space: pre;
         font-variant-numeric: tabular-nums;
+    }
+    &__track-of {
+        font-weight: 600;
+        color: fade(@con-text-dim, 70%);
     }
 
     /* ── Trade reward · owner bonus — one two-cell row (fixed height). ── */
+    /* THE TWO CELLS ARE COLUMNS OF THE TILE, not of their content (ledger EZ): «ТОРГОВАТЬ» and «БОНУС» stand the
+       SAME width on every tile of the grid — the dock's included — so the cells of a row read as one table. The trade
+       column is the wider (it carries a composite income — «[Venus] + 2 [floaters]», Vesta's kinds — and the longer
+       label); 1.4 : 1 keeps «БОНУС 2 [M€]» whole at 4K (1.65 cut it to «БОН…» — the first box frame). The trade column
+       is never NARROWER than its own content (`max-content` floor — PL-006's law: the value never yields, and the
+       corpus `console-colony-tile-labels` holds every label whole): a composite income (the Redux Venus's levy + step,
+       Vesta's three kinds) widens its own tile's trade cell and nothing else — every ordinary tile keeps the grid's
+       one split. */
     &__rows {
         flex: 0 0 auto;
-        display: flex;
+        display: grid;
+        grid-template-columns: minmax(max-content, 1.4fr) minmax(0, 1fr);
         gap: .5rem;
         margin-top: .25rem;
     }
@@ -22527,13 +22576,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         overflow: hidden;
 
         &--trade { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 25%); }
-        /* THE ROW IS SHARED BY CONTENT, NOT IN HALVES (PL-006): «БОНУС» + one value never needs half the row, while
-           «ТОРГОВАТЬ» beside a composite income («[Venus] + 2 [floaters]», Vesta's three kinds) needed more than half —
-           the trade label read «ТОРГОВ…» on the Redux tiles at every profile and on EVERY tile on the TV. The bonus
-           cell is content-sized and capped at the old half (a wide bonus yields exactly as before); the trade cell
-           takes the rest. Corpus: `console-colony-tile-labels` (every colony × every position × three profiles). */
-        &--trade { flex: 1 1 0; }
-        &--bonus { flex: 0 1 auto; max-width: calc((100% - .5rem) / 2); }
+        /* A cell with no counterpart (a dock's «БОНУС» place): the frame stays so the rows align, the content is a
+           dim «—». Corpus: `console-colony-tile-labels` (every colony × every position × the profiles). */
+        &--empty {
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.02);
+        }
+    }
+    &__cell-none {
+        font-size: .8rem;
+        font-weight: 700;
+        color: fade(@con-text-dim, 55%);
     }
     &__cell-label {
         flex: 1;
@@ -22626,7 +22679,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: flex;
         align-items: center;
         gap: .4rem;
-        padding-top: .3rem;
+        padding-top: .15rem;
         border-top: .05rem solid transparent;
         font-size: .65rem;
         font-weight: 700;
@@ -22644,6 +22697,35 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--blocked { color: #ffc9c4; }
         &--inactive { color: @con-text-dim; }
     }
+    /* A STATUS STRIP in the band (the dock's — where a colony shows its track): a WORD on a KANT (ledger EZ), the
+       family's one status grammar — the word in its tone, an inset hairline of the same tone; never a dot. */
+    &__state {
+        min-width: 0;
+        height: 1.45rem;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .4rem;
+        padding: 0 .55rem;
+        border-radius: .35rem;
+        font-size: .68rem;
+        font-weight: 700;
+        letter-spacing: .02rem;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 0 0 .05rem currentColor;
+
+        &--free { color: @con-mint; }
+        &--docked { color: @con-text-dim; }
+        &--blocked { color: #ffc9c4; }
+    }
+    &__state-text {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
     &__status-dot {
         flex: 0 0 auto;
         width: .4rem;
@@ -22652,12 +22734,18 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         background: @con-mint;
         box-shadow: none;
     }
-    &__status-mark { font-size: .65rem; }
+    /* THE FOOT STATUS IS THE SAME GRAMMAR (ledger EZ): a word on a kant of its own tone — no dot, no «✕». */
     &__status-text {
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        padding: .05rem .35rem;
+        border-radius: .25rem;
+        /* The kant's box must fit the band at the couch's caption size (the TV profile's font): a 1.35 line under a
+           1.2rem band clipped the kant's bottom edge on the first box frame. */
+        line-height: 1.05;
+        box-shadow: inset 0 0 0 .05rem currentColor;
     }
     &__status-idle { min-height: .4rem; }
 }
@@ -28640,6 +28728,36 @@ body.con-start-barshold .con-status {
        recedes, never unmounts); the PLAYED DOCK is the compact
        destination-focused «РАЗЫГРАНО · owner» column on the right. */
     &__ceremony--hidden { opacity: 0; }
+    /* THE COLONIES STEP INSIDE THE DEPLOYMENT (P48 · ledger EY): the deployment RELEASES in place — its box kept,
+       nothing re-fits, nothing unmounts — and the step's zone takes exactly that box; on the way back the same nodes
+       reveal where they stood. Opacity only (the release is a hand-over, never a slide); `visibility` follows the
+       fade out (delayed) and comes back at once, so nothing hidden is ever focusable or hit-testable. */
+    &__ceremony > .con-start__deploy {
+        transition:
+            opacity calc(220ms * var(--motion-scale, 1)) @con-ease-enter,
+            visibility 0s linear 0s;
+    }
+    &__ceremony--stepped {
+        position: relative;
+        > .con-start__deploy {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition:
+                opacity calc(160ms * var(--motion-scale, 1)) @con-ease-exit,
+                visibility 0s linear calc(160ms * var(--motion-scale, 1));
+        }
+        > .con-start__colonystep {
+            position: absolute;
+            inset: 0;
+        }
+    }
+    /* The status rail keeps its box under the step (the body never re-fits) and says nothing: the step's crumb is the
+       voice. Same fade grammar as the deployment. */
+    &__statusrail--stepped {
+        visibility: hidden;
+        opacity: 0;
+    }
     &__ceremony {
         /* The deployment never scrolls — the root workspace is a bounded
            surface, and everything in it is planned to fit. */

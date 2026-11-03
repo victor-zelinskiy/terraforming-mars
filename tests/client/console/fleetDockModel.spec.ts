@@ -12,11 +12,11 @@ import {FLEET_DOCK_BUSY_REASON} from '@/common/colonies/fleetDock';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {isICardRenderItem} from '@/common/cards/render/Types';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {colonyNavStep} from '@/client/console/consoleColoniesModel';
+import {colonyGridCols, colonyGridLayout, colonyNavStep} from '@/client/console/consoleColoniesModel';
 import {
   ColonyCursor, DOCK_DOCKED_KEY, DOCK_DOCKED_SHORT_KEY, DOCK_FREE_KEY, FleetDockReasonInput, colonyCursorStep, fleetDockEffectNode,
   fleetDockOwnBlock, fleetDockReason, fleetDockRewardCategory, fleetDockScenePlan, fleetDockTileLabel, fleetDockTileStatus, fleetDockViews,
-  reactionRailSpecs, tradeKnownRailMoves, cardTargetTokens, printedRewardUnits, planDockFit, fleetDockPrintedReward, DockFitInput,
+  reactionRailSpecs, tradeKnownRailMoves, cardTargetTokens, printedRewardUnits, fleetDockPrintedReward, colonyCursorSlot,
 } from '@/client/console/colonyTrade/fleetDockModel';
 import {CardResource} from '@/common/CardResource';
 
@@ -30,7 +30,7 @@ const input = (extra: Partial<FleetDockReasonInput> = {}): FleetDockReasonInput 
   tradeable: [], viewerColor: 'blue', availableFleets: 1, myTurn: false, awaitingInput: false, ...extra,
 });
 
-describe('fleetDockModel — the «ПРИЧАЛЫ» column (TR06 Water Hauling)', () => {
+describe('fleetDockModel — the dock cells of the colony grid (TR06 Water Hauling)', () => {
   describe('fleetDockViews — which docks stand in the column', () => {
     it('only the viewer\'s DOCK cards stand (the manifest flag), in tableau order, each with its live verdict', () => {
       const views = fleetDockViews([card(CardName.BIRDS), card(DOCK)], isDock, [offer(true)]);
@@ -45,7 +45,7 @@ describe('fleetDockModel — the «ПРИЧАЛЫ» column (TR06 Water Hauling)'
       expect(views[0].dockedColor).eq('red');
     });
 
-    it('no dock in the tableau → no column', () => {
+    it('no dock in the tableau → no dock cell', () => {
       expect(fleetDockViews([card(CardName.BIRDS)], isDock, [])).deep.eq([]);
     });
   });
@@ -113,119 +113,54 @@ describe('fleetDockModel — the «ПРИЧАЛЫ» column (TR06 Water Hauling)'
     });
   });
 
-  describe('colonyCursorStep — the column is a stop of the overview\'s ring', () => {
+  describe('colonyCursorStep — the cursor walks ONE grid (ledger EZ: a dock is a cell, last in reading order)', () => {
     const at = (zone: ColonyCursor['zone'], index: number, dock = 0): ColonyCursor => ({zone, index, dock});
-    // Six colonies, 3 × 2.
-    const step = (dir: 'up' | 'down' | 'left' | 'right', cursor: ColonyCursor, docks = 1) => colonyCursorStep(dir, cursor, 6, 3, docks, colonyNavStep);
+    type Dir = 'up' | 'down' | 'left' | 'right';
+    /** The table's own columns — the layout counts colonies + docks (the shell's one derivation). */
+    const colsOf = (colonies: number, docks: number) => colonyGridCols(colonyGridLayout(colonies, false, docks), colonies + docks);
+    const step = (dir: Dir, cursor: ColonyCursor, colonies: number, docks: number) =>
+      colonyCursorStep(dir, cursor, colonies, colsOf(colonies, docks), docks, colonyNavStep);
 
-    it('▶ from a row\'s LAST tile enters the column at that row\'s height (clamped to the docks)', () => {
-      expect(step('right', at('grid', 2))).deep.eq(at('docks', 2, 0));
-      expect(step('right', at('grid', 5), 3)).deep.eq(at('docks', 5, 1));
-      expect(step('right', at('grid', 5), 1)).deep.eq(at('docks', 5, 0));
+    it('5 colonies + 1 dock = 3 + 3: ▶ from the last colony lands on the dock, which stands under the third', () => {
+      expect(step('right', at('grid', 4), 5, 1)).deep.eq(at('docks', 4, 0));
+      expect(step('down', at('grid', 2), 5, 1)).deep.eq(at('docks', 2, 0));
+      expect(step('up', at('docks', 4, 0), 5, 1)).deep.eq(at('grid', 2));
+      expect(step('left', at('docks', 4, 0), 5, 1)).deep.eq(at('grid', 4));
     });
 
-    it('▶ inside a row walks the grid as before', () => {
-      expect(step('right', at('grid', 0))).deep.eq(at('grid', 1));
-      expect(step('down', at('grid', 1))).deep.eq(at('grid', 4));
+    it('the edge is felt on the dock cell: ▶ and ▼ stay (no wrap, no third row)', () => {
+      expect(step('right', at('docks', 4, 0), 5, 1)).deep.eq(at('docks', 4, 0));
+      expect(step('down', at('docks', 4, 0), 5, 1)).deep.eq(at('docks', 4, 0));
     });
 
-    it('◀ returns to the VERY tile it left; ↑/↓ walk the column with the edge felt; ▶ stays', () => {
-      expect(step('left', at('docks', 5, 0))).deep.eq(at('grid', 5, 0));
-      expect(step('down', at('docks', 2, 0), 3)).deep.eq(at('docks', 2, 1));
-      expect(step('down', at('docks', 2, 2), 3)).deep.eq(at('docks', 2, 2));
-      expect(step('up', at('docks', 2, 0), 3)).deep.eq(at('docks', 2, 0));
-      expect(step('right', at('docks', 2, 0))).deep.eq(at('docks', 2, 0));
+    it('6 colonies + 1 dock = 4 + 3: the dock closes the centred short row; ▲ from it goes to the column above', () => {
+      expect(colsOf(6, 1)).eq(4);
+      expect(step('right', at('grid', 5), 6, 1)).deep.eq(at('docks', 5, 0));
+      expect(step('up', at('docks', 0, 0), 6, 1)).deep.eq(at('grid', 2));
+      // ▼ from the first row's last column (no cell under it) lands on the last cell — the dock — as a short row does.
+      expect(step('down', at('grid', 3), 6, 1)).deep.eq(at('docks', 3, 0));
     });
 
-    it('with no dock the grid is all there is; with no colony the cursor lives in the column', () => {
-      // (The grid's own step: ▶ at a row's end walks on into the next row, as it always has.)
-      expect(step('right', at('grid', 2), 0)).deep.eq(at('grid', colonyNavStep('right', 2, 6, 3)));
-      expect(colonyCursorStep('left', at('docks', 0, 0), 0, 3, 1, colonyNavStep)).deep.eq(at('docks', 0, 0));
+    it('6 colonies + 2 docks = 4 × 2 and 6 + 3 = 3 × 3: ◀ / ▶ walk the docks in tableau order, ▲ / ▼ the rows', () => {
+      expect(step('right', at('docks', 0, 0), 6, 2)).deep.eq(at('docks', 0, 1));
+      expect(step('left', at('docks', 0, 0), 6, 2)).deep.eq(at('grid', 5));
+      expect(step('up', at('docks', 0, 1), 6, 2)).deep.eq(at('grid', 3));
+      expect(step('down', at('grid', 2), 6, 3)).deep.eq(at('grid', 5));
+      expect(step('down', at('grid', 4), 6, 3)).deep.eq(at('docks', 4, 1));
+      expect(step('up', at('docks', 0, 2), 6, 3)).deep.eq(at('grid', 5));
     });
 
-    it('an incomplete last row: its last tile is a row end (5 colonies, 3 + 2)', () => {
-      expect(colonyCursorStep('right', at('grid', 4), 5, 3, 1, colonyNavStep)).deep.eq(at('docks', 4, 0));
-    });
-  });
-
-  describe('colonyCursorStep — the docks as a ROW under the grid (`below`)', () => {
-    const at = (zone: ColonyCursor['zone'], index: number, dock = 0): ColonyCursor => ({zone, index, dock});
-    // Five colonies, 3 + 2; the docks stand under them.
-    const step = (dir: 'up' | 'down' | 'left' | 'right', cursor: ColonyCursor, docks = 2) =>
-      colonyCursorStep(dir, cursor, 5, 3, docks, colonyNavStep, 'below');
-
-    it('▼ from the LAST row enters the row under the tile\'s own place; a higher row walks the grid', () => {
-      expect(step('down', at('grid', 3))).deep.eq(at('docks', 3, 0));
-      expect(step('down', at('grid', 4))).deep.eq(at('docks', 4, 1));
-      expect(step('down', at('grid', 0))).deep.eq(at('grid', 3));
-      expect(step('down', at('grid', 4), 1)).deep.eq(at('docks', 4, 0));
+    it('with no dock the grid is all there is; with no colony the cursor lives on the docks', () => {
+      expect(step('right', at('grid', 2), 6, 0)).deep.eq(at('grid', colonyNavStep('right', 2, 6, 3)));
+      expect(colonyCursorStep('left', at('docks', 0, 0), 0, 1, 1, colonyNavStep)).deep.eq(at('docks', 0, 0));
+      expect(colonyCursorStep('right', at('grid', 0, 0), 0, 2, 2, colonyNavStep)).deep.eq(at('docks', 0, 1));
     });
 
-    it('▶ at a row end walks the grid (the group is not to the side); ▲ returns to the VERY tile', () => {
-      expect(step('right', at('grid', 2))).deep.eq(at('grid', colonyNavStep('right', 2, 5, 3)));
-      expect(step('up', at('docks', 4, 1))).deep.eq(at('grid', 4, 1));
-    });
-
-    it('◀ / ▶ walk the row with the edge felt; ▼ stays', () => {
-      expect(step('right', at('docks', 3, 0))).deep.eq(at('docks', 3, 1));
-      expect(step('right', at('docks', 3, 1))).deep.eq(at('docks', 3, 1));
-      expect(step('left', at('docks', 3, 0))).deep.eq(at('docks', 3, 0));
-      expect(step('down', at('docks', 3, 0))).deep.eq(at('docks', 3, 0));
-    });
-  });
-
-  describe('planDockFit — ONE tile size for the grid and the docks group', () => {
-    // The 1080 opening's room around a 5-colony table (3 + 2), in px at ui-scale 1.
-    const base: DockFitInput = {
-      availW: 1650, availH: 900, cols: 3, rows: 2, docks: 1, baseW: 366, baseH: 214,
-      colGap: 18, rowGap: 16, padX: 36, padY: 26, slack: 12, groupGap: 28, caption: 24,
-    };
-    const fits = (i: DockFitInput, r: {scale: number, placement: 'side' | 'below'}): boolean => {
-      const k = r.scale;
-      if (r.placement === 'side') {
-        const w = 2 * i.padX + (i.cols + 1) * i.baseW * k + (i.cols - 1) * i.colGap + i.groupGap;
-        const h = Math.max(i.padY + i.rows * i.baseH * k + (i.rows - 1) * i.rowGap, i.padY + i.caption + i.docks * i.baseH * k + (i.docks - 1) * i.rowGap);
-        return w <= i.availW + 0.5 && h <= i.availH + 0.5;
-      }
-      const w = Math.max(i.padX + i.cols * i.baseW * k + (i.cols - 1) * i.colGap, i.padX + i.docks * i.baseW * k + (i.docks - 1) * i.colGap);
-      const h = 2 * i.padY + (i.rows + 1) * i.baseH * k + (i.rows - 1) * i.rowGap + i.groupGap + i.caption;
-      return w <= i.availW + 0.5 && h <= i.availH + 0.5;
-    };
-
-    it('a wide 3-column table puts the docks UNDER it (one more row costs less than one more column)', () => {
-      const plan = planDockFit(base);
-      expect(plan.placement).eq('below');
-      expect(fits(base, plan)).is.true;
-    });
-
-    it('a 2 × 2 table, height-bound, puts them BESIDE it', () => {
-      const input = {...base, cols: 2, rows: 2};
-      const plan = planDockFit(input);
-      expect(plan.placement).eq('side');
-      expect(fits(input, plan)).is.true;
-    });
-
-    it('whichever it picks, it is the LARGER tile of the two and it fits — three docks too', () => {
-      for (const docks of [1, 2, 3]) {
-        for (const [cols, rows] of [[1, 1], [2, 1], [3, 1], [2, 2], [3, 2]]) {
-          const input = {...base, cols, rows, docks};
-          const plan = planDockFit(input);
-          expect(fits(input, plan), `${cols}×${rows}, ${docks} docks`).is.true;
-          const other = plan.placement === 'side' ? 'below' : 'side';
-          // The other placement's own best is never larger by more than the tie margin.
-          let lo = 0;
-          let hi = 3;
-          for (let n = 0; n < 40; n++) {
-            const mid = (lo + hi) / 2;
-            if (fits(input, {scale: mid, placement: other})) {
-              lo = mid;
-            } else {
-              hi = mid;
-            }
-          }
-          expect(plan.scale, `${cols}×${rows}, ${docks} docks`).to.be.at.least(lo * 0.98 - 1e-3);
-        }
-      }
+    it('the slot: a colony is its index, a dock stands after every colony (clamped to the cells)', () => {
+      expect(colonyCursorSlot(at('grid', 3), 5, 2)).eq(3);
+      expect(colonyCursorSlot(at('docks', 3, 1), 5, 2)).eq(6);
+      expect(colonyCursorSlot(at('docks', 3, 9), 5, 2)).eq(6);
+      expect(colonyCursorSlot(at('docks', 3, 0), 5, 0), 'no dock — the colony half').eq(3);
     });
   });
 

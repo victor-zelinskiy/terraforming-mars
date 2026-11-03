@@ -1190,6 +1190,10 @@
 .pcard__art--loaded img { opacity: 1; }
 /* Already decoded at mount (PremiumCardArt `ready`): the card arrives WITH its art — no fade from black inside it. */
 .pcard__art--ready img { transition: none; }
+/* A TIER CHANGE crossfades (PremiumCardArt `prevSrc`): the picture being replaced stands under the new file at full
+   opacity, and the new one fades in over it — short, one beat (180 ms), never a fade from the black art box. */
+.pcard__art img.pcard__art-prev { opacity: 1; transition: none; }
+.pcard__art--swap img:not(.pcard__art-prev) { transition: opacity calc(180ms * var(--motion-scale, 1)) ease-out; }
 /* integration gradient: seats the art into the corpus + theme kiss of light */
 .pcard__art::after {
   content: '';
@@ -2760,7 +2764,8 @@
 @media (prefers-reduced-motion: reduce) {
   .pcard--interactive { transition: none; }
   .pcard--interactive:not(.pcard--tier-thumb):hover { transform: none; }
-  .pcard__art img { transition: none; }
+  .pcard__art img,
+  .pcard__art--swap img:not(.pcard__art-prev) { transition: none; }
 }
 
 /* ── legacy-glue: hosts that relied on the legacy card's built-in margin ──

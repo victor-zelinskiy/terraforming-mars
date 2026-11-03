@@ -5,7 +5,7 @@ import {
   bootFixtureSeats, fetchPlayerModel, openConsole, openInfoPlayedTable, playCardFromHand, press, pressUntil, pressUntilVisible, settle,
   waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
-import {dockKeys, dockStatusLines, docksApart, enterDocks, focusedDock, tileSizes} from './fleetDockDriver';
+import {DOCK_WALK, dockStatusLines, docksInGrid, enterDocks, focusedDock, tileSizes} from './fleetDockDriver';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 
 /**
@@ -253,7 +253,7 @@ function trail(samples: ReadonlyArray<Sample>): string {
     `${s.t}${s.tick ? 't' : 'm'} scene=${s.scene} recv=${+s.receiving} chips=${s.chips.map((c) => `${c.id}@${c.x},${c.y}`).join('/')} card=${s.counter} hero=${s.hero} vp=${s.vp} sat=${s.sat} prod=${s.prod} ws=${s.ws} bar=«${s.bar}»${s.degraded === '' ? '' : ` DEGRADED=${s.degraded}`}`).join('\n');
 }
 
-/** Stand on the station's stage from the board: the colonies, the docks column, A. */
+/** Stand on the station's stage from the board: the colonies, the station's cell (the first dock), A. */
 async function openStationStage(page: Page): Promise<void> {
   await openColonies(page);
   await enterDocks(page);
@@ -638,7 +638,7 @@ for (const preset of [...PRESETS, {id: 'deck', viewport: {width: 1280, height: 8
   test.describe(`TR27 Aurora Station · three docks · ${preset.id}`, () => {
     test.use({viewport: preset.viewport});
 
-    test('three docks in one tableau: one tile size, the group apart, every status whole in its tile, the ring, the station\'s own stage', async ({page, request}) => {
+    test('three docks in one tableau: one tile size, the docks the grid\'s last cells, every status whole in its tile, the walk, the station\'s own stage', async ({page, request}) => {
       test.setTimeout(300_000);
       const errors: Array<string> = [];
       page.on('pageerror', (err) => errors.push(String(err)));
@@ -646,7 +646,7 @@ for (const preset of [...PRESETS, {id: 'deck', viewport: {width: 1280, height: 8
       await bootFixtureSeats(page, request, 'aurora-station', {query: preset.query});
       await settle(page);
       await openColonies(page);
-      await expect(page.locator('.con-colonies__docks [data-fleet-dock]'), 'the control holds ONE dock').toHaveCount(1);
+      await expect(page.locator('.con-colonies__grid [data-fleet-dock]'), 'the control holds ONE dock').toHaveCount(1);
       const scaleOne = await tileScale(page);
       expect(Number(scaleOne), `the control's grid has a scale — got «${scaleOne}»`).toBeGreaterThan(0.3);
 
@@ -661,33 +661,23 @@ for (const preset of [...PRESETS, {id: 'deck', viewport: {width: 1280, height: 8
       });
       await settle(page);
       await openColonies(page);
-      const docks = page.locator('.con-colonies__docks [data-fleet-dock]');
-      await expect(docks, 'the column holds THREE docks').toHaveCount(3);
+      const docks = page.locator('.con-colonies__grid [data-fleet-dock]');
+      await expect(docks, 'the grid holds THREE dock cells').toHaveCount(3);
       expect(await docks.evaluateAll((els) => els.map((el) => el.getAttribute('data-fleet-dock'))), 'in tableau order').toEqual([AURORA, HAULING, LINER]);
       expect(await page.locator('[data-fleet-dock-status="free"]').count(), 'all three are free').toBe(3);
       const scaleThree = await tileScale(page);
       console.log(`[${preset.id}] --coltile-scale: one dock ${scaleOne} · three docks ${scaleThree}`);
-      // THE DOCKS ARE TILES OF THE COLONY FAMILY (the owner, 2026-10-25): one size for the whole surface, the group a
-      // step apart — the fit solves the grid and the group together (a column beside it or a row under it).
+      // THE DOCKS ARE CELLS OF THE COLONY GRID (the owner, 2026-10-25 + ledger EZ): one size for the whole grid, one fit
+      // over colonies + docks — six colonies + three docks are 3 × 3.
       const sizes = await tileSizes(page);
       expect(new Set([...sizes.colonies, ...sizes.docks]).size, `ONE tile size — ${JSON.stringify(sizes)}`).toBe(1);
       expect(Number(scaleThree), 'three docks cost the grid at most a step').toBeGreaterThanOrEqual(Number(scaleOne) * 0.8);
-      expect(await docksApart(page), 'the group stands inside the layer, clear of the grid').toEqual({measured: true, inside: true, clear: true});
+      expect(await docksInGrid(page), 'the docks are the grid\'s last row, inside it — 3 × 3').toEqual({measured: true, inside: true, last: true, rows: [3, 3, 3]});
       expect(await dockStatusLines(page), 'each status line reads whole, inside its tile').toEqual([0, 1, 2].map(() => ({text: 'Причал свободен', insideTile: true, whole: true})));
-      const cards = await settledRects(page, '.con-colonies__docks [data-fleet-dock]');
+      const cards = await settledRects(page, '.con-colonies__grid [data-fleet-dock]');
       expect(cards.length, 'three measurable dock tiles').toBe(3);
-      // The group's caption stands whole above them (an overfull group once shrank it to 0 px and the fit took that
-      // as its room), and every tile starts below it; no two tiles overlap.
-      const title = await page.evaluate(() => {
-        const el = document.querySelector<HTMLElement>('.con-colonies__docks-title');
-        const r = el?.getBoundingClientRect();
-        return {h: Math.round(r?.height ?? 0), b: Math.round(r?.bottom ?? 0), whole: el !== null && el.scrollHeight <= el.clientHeight + 1, text: (el?.textContent ?? '').trim()};
-      });
-      expect(title.text, 'the group is titled').toBe('Причалы');
-      expect(title.h, `the title has its height — ${JSON.stringify(title)}`).toBeGreaterThan(8);
-      expect(title.whole, 'the title is not cut').toBe(true);
+      // No two cells overlap.
       for (let i = 0; i < cards.length; i++) {
-        expect(cards[i].t, `dock ${i + 1} stands below the title`).toBeGreaterThanOrEqual(title.b - 0.5);
         for (let j = 0; j < i; j++) {
           const apart = cards[i].l >= cards[j].r - 0.5 || cards[i].t >= cards[j].b - 0.5;
           expect(apart, `dock ${i + 1} does not overlap dock ${j + 1} — ${JSON.stringify(cards[i])} vs ${JSON.stringify(cards[j])}`).toBe(true);
@@ -695,27 +685,23 @@ for (const preset of [...PRESETS, {id: 'deck', viewport: {width: 1280, height: 8
       }
       await shoot(page, preset.id, '08-overview-three-docks');
 
-      // The ring: the way in enters, the group's own axis walks all three with a felt edge, the way back returns.
-      const keys = await dockKeys(page);
+      // ONE WALK over ONE grid (ledger EZ): ▶ from the last colony lands on the first dock, the row walks all three
+      // with a felt edge, ◀ off the first dock goes back onto the last colony.
       await enterDocks(page);
-      const entered = await focusedDock(page);
-      expect([AURORA, HAULING, LINER], 'the cursor entered the group').toContain(entered);
-      for (let i = 0; i < 3; i++) {
-        await press(page, keys.prev, 350);
-      }
-      expect(await focusedDock(page), 'walking back stops at the first').toBe(AURORA);
-      await press(page, keys.next, 350);
+      expect(await focusedDock(page), 'reading order: the first dock is the station (tableau order)').toBe(AURORA);
+      await press(page, DOCK_WALK.next, 350);
       expect(await focusedDock(page), 'the second').toBe(HAULING);
-      await press(page, keys.next, 350);
+      await press(page, DOCK_WALK.next, 350);
       expect(await focusedDock(page), 'the third').toBe(LINER);
-      await press(page, keys.next, 350);
+      await press(page, DOCK_WALK.next, 350);
       expect(await focusedDock(page), '…and the edge is felt (no wrap)').toBe(LINER);
-      await press(page, keys.back, 350);
-      expect(await focusedDock(page), 'the way back leaves the group').toBe('');
-      await press(page, keys.into, 350);
-      for (let i = 0; i < 3 && await focusedDock(page) !== AURORA; i++) {
-        await press(page, keys.prev, 350);
+      for (let i = 0; i < 2; i++) {
+        await press(page, DOCK_WALK.prev, 350);
       }
+      expect(await focusedDock(page), 'walking back reaches the first dock').toBe(AURORA);
+      await press(page, DOCK_WALK.prev, 350);
+      expect(await focusedDock(page), '◀ off the first dock leaves the docks').toBe('');
+      await press(page, DOCK_WALK.next, 350);
       expect(await focusedDock(page), 'back on the station').toBe(AURORA);
 
       // A on the station opens ITS stage, and the reward is still read off the server: a card.
@@ -744,7 +730,7 @@ for (const preset of [...PRESETS, {id: 'deck', viewport: {width: 1280, height: 8
       await openColonies(page);
       await expect(page.locator('[data-fleet-dock-status="docked"]'), 'all three are taken').toHaveCount(3);
       expect(await dockStatusLines(page), 'each taken status reads its short form whole, inside its tile')
-        .toEqual([0, 1, 2].map(() => ({text: 'Флот на карте', insideTile: true, whole: true})));
+        .toEqual([0, 1, 2].map(() => ({text: 'Флот у причала', insideTile: true, whole: true})));
       const scaleThreeTaken = await tileScale(page);
       console.log(`[${preset.id}] --coltile-scale: three free ${scaleThreeFree} · three taken ${scaleThreeTaken}`);
       expect(scaleThreeTaken, 'a status never re-fits the surface').toBe(scaleThreeFree);

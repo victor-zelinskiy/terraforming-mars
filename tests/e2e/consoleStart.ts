@@ -3093,7 +3093,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'venus-orbital-survey-mixed' | 'venus-orbital-survey-venus' | 'venus-orbital-survey-none' | 'venus-orbital-survey-poor' | 'venus-orbital-survey-helion' |
   'played-table-polish' | 'played-table-draft' |
   // P91 WG Project — a prelude played in the middle of the game (ledger EH).
-  'wg-project-plain' | 'wg-project-fizzle' | 'wg-project-place' | 'wg-project-draw' | 'wg-project-nested' |
+  'wg-project-plain' | 'early-colonization-wg' | 'wg-project-fizzle' | 'wg-project-place' | 'wg-project-draw' | 'wg-project-nested' |
   'wg-project-not-chair' | 'wg-project-short-deck' |
   'valley-trust-burn' | 'wg-project-forest' | 'wg-project-aquifer' |
   // Prelude 2 P81 Soil Studies — «per Venus tag, plant tag (INCLUDING THIS ONE) and colony» (DJ): the play +5 (Venus

@@ -27,7 +27,7 @@
        :data-colony-city-beat="cityState.live ? cityState.beat : undefined"
        :data-colony-roster-degraded="rosterState.degraded !== '' ? rosterState.degraded : undefined"
        :data-colony-roster-beat="rosterState.live ? rosterState.beat : undefined"
-       :data-colony-mode="pick !== undefined ? 'pick' : 'browse'"
+       :data-colony-mode="pick === undefined ? 'browse' : (raiseTelling ? 'raise' : 'pick')"
        :style="{'--coltile-scale': String(tileScale), '--con-colonies-seat': seatReservePx + 'px'}">
     <div class="con-colonies__frame">
       <!-- ── THE WORKSPACE HEADER — the shared ConsoleWsHead: root «КОЛОНИИ»
@@ -56,7 +56,7 @@
                      :committed="crumbCommitted">
         <!-- The aux browse layer: the pick-mode chip only (crossfades away
              past the descent — the crumb tail then names the mode). -->
-        <span v-if="pick !== undefined" class="con-colonies__mode-chip">{{ $t(pick.labelKey) }}</span>
+        <span v-if="pick !== undefined && !raiseTelling" class="con-colonies__mode-chip">{{ $t(pick.labelKey) }}</span>
         <template #trailing>
           <!-- WHO ASKED, when it is a board cell (MSL Curiosity): the same source plate as the payment it follows. -->
           <console-source-dock v-if="cellGiverView !== undefined" class="con-colonies__giver" chip
@@ -76,7 +76,7 @@
         <ConsoleColonyFleetBar :chips="fleetChips" :launchingColor="launchingFleetColor" />
       </Teleport>
       <div v-else-if="embedded && (pick !== undefined || fleetBerth === '')" class="con-colonies__toolbar">
-        <span v-if="pick !== undefined" class="con-colonies__mode-chip"
+        <span v-if="pick !== undefined && !raiseTelling" class="con-colonies__mode-chip"
               :class="{'con-colonies__mode-chip--held': focusState.open}">{{ $t(pick.labelKey) }}</span>
         <ConsoleColonyFleetBar class="con-colonies__toolbar-fleets" :chips="fleetChips" :launchingColor="launchingFleetColor" />
       </div>
@@ -94,8 +94,7 @@
           <!-- The premium tile grid. The scroller + `margin: auto` wrapper is
                the anti-clip contract: content centres when it fits and scrolls
                FROM THE TOP when it doesn't. -->
-          <div class="con-colonies__body" ref="body"
-               :class="docks.length > 0 ? ['con-colonies__body--docks', 'con-colonies__body--docks-' + docksPlacement] : []">
+          <div class="con-colonies__body">
           <div class="con-colonies__scroll" ref="scroll" data-stick-scroll>
             <div class="con-colonies__grid" ref="grid" :style="gridStyle">
               <div v-for="(colony, i) in colonies"
@@ -114,26 +113,15 @@
                                    :cityProjection="tileCityProjection(colony)"
                                    :status="tileStatus(colony)" />
               </div>
-            </div>
-          </div>
-          <!-- «ПРИЧАЛЫ» — the viewer's FLEET DOCKS (Turmoil Redux TR06 Water
-               Hauling and its sisters: a card that is a destination of the trade
-               action). ONE MORE DIRECTION OF THE TRADE, drawn as TILES of the
-               colony family (the owner, 2026-10-25): the same chassis, the same
-               size (`--coltile-scale` — the fit solves the grid and the group
-               together), standing a step APART from the colonies under their own
-               caption — a column right of the grid or a row under it, whichever
-               lets the tiles be larger (`docksPlacement`, solved by `fit`). NOT a
-               slot of the planet grid (its layouts are designed per tile count).
-               Stands only while the viewer owns a dock; a rival's dock never
-               stands here (only its owner may trade with it). -->
-          <aside v-if="docks.length > 0" class="con-colonies__docks"
-                 :class="'con-colonies__docks--' + docksPlacement"
-                 ref="docksGroup" data-colonies-docks :data-docks-placement="docksPlacement">
-            <div class="con-colonies__docks-title">{{ $t('Docks') }}</div>
-            <div class="con-colonies__docks-tiles">
+              <!-- THE FLEET DOCKS — CELLS OF THIS GRID (ledger EZ, the owner 2026-11-03: «логично по 3 в 2 ряда — во
+                   втором ряду 2 колонии и 1 причал»). The viewer's dock cards (Turmoil Redux TR06 Water Hauling and
+                   its sisters: a card that is a destination of the trade action) stand LAST in reading order, in the
+                   colony tile's own chassis and size — the layout counts colonies + docks (`colonyGridCols`), the
+                   fit solves ONE scale for the whole grid, the d-pad walks ONE slot index (`colonyCursorStep`).
+                   Its own slot class (`__dockslot`) keeps every colony-only reader (the roster, the entry probes)
+                   counting colonies. Stands only while the viewer owns a dock; a rival's dock never stands here. -->
               <div v-for="(dock, i) in docks"
-                   :key="dock.card"
+                   :key="'dock:' + dock.card"
                    class="con-colonies__dockslot"
                    :class="{'con-colonies__dockslot--focused': dockCursorOn && i === dockCursor.index}"
                    :ref="dockCursorOn && i === dockCursor.index ? 'selectedDock' : undefined">
@@ -142,7 +130,7 @@
                                       :focused="dockCursorOn && i === dockCursor.index" />
               </div>
             </div>
-          </aside>
+          </div>
           </div>
 
           <!-- COMPACT STATUS RAIL — ONE line, fixed height: the quick summary
@@ -433,6 +421,7 @@
           <ConsoleFleetDockStage v-if="focusState.open && focusState.dock !== '' && focusDockView !== undefined"
                                  ref="dockStage"
                                  :roomHeight="dockRoomH"
+                                 :entering="dockEntering"
                                  :card="focusDockView.card"
                                  :model="focusDockView.model"
                                  :available="focusDockAvailable"
@@ -460,6 +449,7 @@
 </template>
 
 <script lang="ts">
+import {colonyTrackRaiseLive} from '@/client/console/colonyTrade/colonyTrackRaise';
 import {vEmbedZone} from '@/client/console/embedZoneRegistry';
 /**
  * Console-native COLONY WORKSPACE (iteration 3 — the workspace-family
@@ -483,6 +473,8 @@ import {defineComponent, PropType} from 'vue';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyName} from '@/common/colonies/ColonyName';
+import {CardName} from '@/common/cards/CardName';
+import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ChoiceContextSource, SelectOptionModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
@@ -520,7 +512,7 @@ import {fetchColonyTradePreview, fetchFleetDockPreview} from '@/client/component
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {FleetDockPreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {
-  FleetDockPlacement, FleetDockReasonInput, FleetDockTileStatus, FleetDockView, fleetDockReason, fleetDockTileStatus, planDockFit,
+  FleetDockReasonInput, FleetDockTileStatus, FleetDockView, fleetDockReason, fleetDockTileStatus,
 } from '@/client/console/colonyTrade/fleetDockModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {buildBenefitAt, ColonyMetadata, colonyCardResources} from '@/common/colonies/ColonyMetadata';
@@ -654,12 +646,6 @@ const COL_GAP = 18;
 const ROW_GAP = 16;
 const GRID_PAD_X = 36; // 18 each side
 const GRID_PAD_Y = 26; // 10 top + 16 bottom
-/** The air between the colony grid and the «ПРИЧАЛЫ» group — MUST match `.con-colonies__body--docks` (1.4rem). */
-const DOCKS_GAP = 28;
-/** The group's caption height when it cannot be measured yet (the fit reads the real one). */
-const DOCKS_CAPTION = 18;
-/** With docks the tiles may step a little smaller: the group is real content, never a scroll target. */
-const MIN_DOCKED_TILE_SCALE = 0.6;
 /** Rounding room (logical px): CSS `zoom` quantizes every tile to whole
  *  device pixels, so a planned N-across row can render 2–3px wider than
  *  `N × baseW × scale` — without slack the LAST tile flex-wraps to an
@@ -808,13 +794,23 @@ export default defineComponent({
       /** The dock stage's server preview (`?dock=`), re-asked on every state move. */
       dockPreview: undefined as FleetDockPreviewModel | undefined,
       dockPreviewSeq: 0,
-      /** Where the docks group stands beside the grid (solved by `fit` — whichever lets the tiles be larger). */
-      docksPlacement: 'side' as FleetDockPlacement,
       /** The stage's room, measured at the dock's press — the hero card is solved against it BEFORE the stage mounts. */
       dockRoomH: 0,
+      /**
+       * The dock stage's ENTRY is in flight — from the door until the descend phrase's own `done` (ledger EZ): the
+       * stage keeps the hero's zoom frozen and its art on the thumb tier until then.
+       */
+      dockEntering: false,
     };
   },
   computed: {
+    /**
+     * A PLAY'S RAISE IS BEING TOLD (P48 — `colonyTrackRaise.ts`): the grid is a show step until the last marker lands —
+     * the pick's ask («Выберите…») appears after it, the pad is locked meanwhile (`isColonyTradeInputLocked`).
+     */
+    raiseTelling(): boolean {
+      return this.pick !== undefined && colonyTrackRaiseLive();
+    },
     /** The grid stands as the RECEIPT of a finished roster change (the stage has folded home). */
     rosterReceiptOn(): boolean {
       return this.rosterState.receipt !== undefined && !this.rosterState.live && !this.focusState.open;
@@ -936,8 +932,9 @@ export default defineComponent({
     cardResourceKinds(): ReadonlyArray<CardResource> {
       return this.focusedMeta === undefined ? [] : colonyCardResources(this.focusedMeta);
     },
+    /** The grid's layout — chosen by its CELLS: the colonies and, last in reading order, the viewer's docks. */
     layout(): ColonyGridLayout {
-      return colonyGridLayout(this.colonies.length, this.pick !== undefined);
+      return colonyGridLayout(this.colonies.length, this.pick !== undefined, this.docks.length);
     },
     gridStyle(): Record<string, string> {
       // Catalog (>6) wraps freely; every other layout caps the width so the
@@ -1796,12 +1793,18 @@ export default defineComponent({
       this.dockPreview = undefined;
       if (card !== '') {
         // Every door into the dock's stage (a press, a restore, a prompt) solves its hero against the room BEFORE
-        // the stage renders (a `pre` watcher: the stage mounts in the update this one precedes).
+        // the stage renders (a `pre` watcher: the stage mounts in the update this one precedes) — ONE measurement,
+        // held until the entry has landed.
         const room = (this.$el as HTMLElement | null)?.querySelector<HTMLElement>('.con-colonies__stagewrap')?.clientHeight ?? 0;
         if (room > 0) {
           this.dockRoomH = room;
         }
+        this.dockEntering = true;
+        // The hero's FULL art is decoded while the FLIP flies the thumb (shown only once the entry has settled).
+        preloadPremiumCardArt([card as CardName], ['thumb', 'full']);
         void this.loadDockPreview(card);
+      } else {
+        this.dockEntering = false;
       }
     },
     // …and follows the GAME STATE: a response that moved the world (an undo,
@@ -1976,12 +1979,8 @@ export default defineComponent({
         this.scheduleFit();
         return;
       }
-      // With DOCKS the grid's scroller is content-sized (the grid and the docks group are ONE centred composition),
-      // so the room is the BODY's — the region both share; without them the scroller IS the body.
-      const body = this.$refs.body as HTMLElement | null | undefined;
-      const room = this.docks.length > 0 && body !== undefined && body !== null ? body : scroll;
-      const availW = room.clientWidth;
-      const availH = room.clientHeight;
+      const availW = scroll.clientWidth;
+      const availH = scroll.clientHeight;
       if (availW <= 0 || availH <= 0) {
         return; // not laid out yet / JSDOM / parked behind the focus stage
       }
@@ -1991,8 +1990,10 @@ export default defineComponent({
       // and collapse the whole grid fit.
       const baseW = cssLengthPx(cs.getPropertyValue('--coltile-base-w'), 366);
       const baseH = cssLengthPx(cs.getPropertyValue('--coltile-base-h'), 220);
-      const cols = Math.min(Math.max(1, colonyGridCols(this.layout, count)), count);
-      const rows = Math.max(1, Math.ceil(count / cols));
+      // THE CELLS ARE THE COLONIES AND THE DOCKS (ledger EZ): one grid, one layout over the total, ONE scale.
+      const cells = count + this.docks.length;
+      const cols = Math.min(Math.max(1, colonyGridCols(this.layout, cells)), cells);
+      const rows = Math.max(1, Math.ceil(cells / cols));
       // The CSS grid gaps/padding are rem-authored (they scale with the TV
       // profile); these constants mirror them, so they must scale too. The
       // tile scale itself stays relative — baseW/baseH come from the CSS
@@ -2003,27 +2004,9 @@ export default defineComponent({
       //  a padding on this surface's own root — see `seatReserveStyle` — so
       //  `scroll.clientWidth` is the room that is really free. One reserve,
       //  read by the grid and by the focus stage alike.)
-      let scale: number;
-      if (this.docks.length > 0) {
-        // THE DOCKS ARE TILES OF THE SAME SIZE: the grid and the group are solved together, and the group stands
-        // where the tiles come out larger (a column beside the grid, or a row under it — `planDockFit`).
-        const group = this.$refs.docksGroup as HTMLElement | null | undefined;
-        const title = group?.querySelector<HTMLElement>('.con-colonies__docks-title');
-        const groupGap = group === undefined || group === null ? 0 : parseFloat(getComputedStyle(group).rowGap) || 0;
-        const plan = planDockFit({
-          availW, availH, cols, rows, docks: this.docks.length, baseW, baseH,
-          colGap: COL_GAP * s, rowGap: ROW_GAP * s, padX: GRID_PAD_X * s, padY: GRID_PAD_Y * s, slack,
-          groupGap: DOCKS_GAP * s,
-          caption: (title?.offsetHeight ?? DOCKS_CAPTION * s) + groupGap,
-        });
-        scale = Math.max(MIN_DOCKED_TILE_SCALE, Math.min(MAX_TILE_SCALE, plan.scale));
-        this.docksPlacement = plan.placement;
-        colonyDockCursor.placement = plan.placement;
-      } else {
-        const scaleW = (availW - GRID_PAD_X * s - (cols - 1) * COL_GAP * s - slack) / (cols * baseW);
-        const scaleH = (availH - GRID_PAD_Y * s - (rows - 1) * ROW_GAP * s) / (rows * baseH);
-        scale = Math.max(MIN_TILE_SCALE, Math.min(MAX_TILE_SCALE, Math.min(scaleW, scaleH)));
-      }
+      const scaleW = (availW - GRID_PAD_X * s - (cols - 1) * COL_GAP * s - slack) / (cols * baseW);
+      const scaleH = (availH - GRID_PAD_Y * s - (rows - 1) * ROW_GAP * s) / (rows * baseH);
+      const scale = Math.max(MIN_TILE_SCALE, Math.min(MAX_TILE_SCALE, Math.min(scaleW, scaleH)));
       this.tileScale = Math.round(scale * 1000) / 1000;
       // The cap gets the SAME slack on top — zoom-rounded tiles need the
       // room, and a whole extra column would need ~baseW, so the planned
@@ -2218,8 +2201,8 @@ export default defineComponent({
         return r === undefined || r.width < 10 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
       };
       armColonyFocusOrigin(rectOf(tile), rectOf(face));
-      // The stage stands in the stagewrap (absolute, inset 0): its height is the room the hero card is solved in.
-      this.dockRoomH = (this.$el as HTMLElement | null)?.querySelector<HTMLElement>('.con-colonies__stagewrap')?.clientHeight ?? 0;
+      // (The stage's room — the height the hero card is solved in — is measured ONCE, by the `focusState.dock`
+      //  watcher every door shares, and held until the entry lands.)
       openFleetDockFocus(dock.card);
     },
     /** The shell ACCEPTED the dock's confirm — the stage becomes its own receipt. */
@@ -2550,13 +2533,22 @@ export default defineComponent({
     },
     // ── The descend transition hooks (consoleColonyFocusMotion) ────────────
     onFocusEnter(el: Element, done: () => void): void {
-      colonyFocusEnterHook(el, done);
+      colonyFocusEnterHook(el, () => {
+        done();
+        // The dock stage's entry has LANDED: its room and its art may follow from here (ledger EZ).
+        if ((el as HTMLElement).classList?.contains('con-fleetdock')) {
+          this.dockEntering = false;
+        }
+      });
     },
     onFocusLeave(el: Element, done: () => void): void {
       colonyFocusLeaveHook(el, done);
     },
     onFocusEnterCancelled(el: Element): void {
       colonyFocusEnterCancelledHook(el);
+      if ((el as HTMLElement).classList?.contains('con-fleetdock')) {
+        this.dockEntering = false;
+      }
     },
     onFocusLeaveCancelled(el: Element): void {
       colonyFocusLeaveCancelledHook(el);
@@ -2574,8 +2566,8 @@ export default defineComponent({
       playColonyStepEntry(this.$el as HTMLElement);
     }
     // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
-    // The BODY is the room the fit solves (the grid's scroller is content-sized beside a docks group).
-    const room = (this.$refs.body ?? this.$refs.scroll) as HTMLElement | undefined;
+    // The SCROLLER is the room the fit solves (the docks are cells of the grid — no group beside it).
+    const room = this.$refs.scroll as HTMLElement | undefined;
     if (room !== undefined) {
       this.stopResizeObs = useResizeObserver(room, () => this.scheduleFit()).stop;
     }
@@ -2626,7 +2618,7 @@ export default defineComponent({
     // …and the hand step's frame slot, for the same reason.
     setWorkspaceFrameSlot('colonies', '');
     // Leaving the section closes the flow: reopening always lands on browse
-    // (and on the grid — the docks column's cursor is part of the visit).
+    // (and on a colony — the cursor on a dock cell is part of the visit).
     closeColonyFocus();
     resetColonyDockCursor();
     resetColonyFocusMotion();

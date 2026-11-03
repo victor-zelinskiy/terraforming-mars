@@ -5,13 +5,13 @@
    on both levels, so walking from a colony to a dock changes the subject,
    never the screen.
 
-   · «ПРИЧАЛЫ» — a GROUP of dock tiles a step apart from the colony grid (a
-     column right of it or a row under it — `ConsoleColoniesSection.fit` /
-     `planDockFit` places it where the tiles come out larger), in the colony
-     tiles' own size (`--coltile-scale`) and under its own caption.
-   · the dock TILE — a `.con-coltile` of the family (`--dock`): the card where
-     the planet stands, the «ТОРГОВАТЬ» cell printing what the trade gives
-     where the track stands, the colony tile's own status line.
+   · the dock TILE — a CELL of the colony grid (ledger EZ, the owner
+     2026-11-03): the colonies and the docks are ONE grid (docks last in
+     reading order), ONE fit, ONE cursor walk; the tile is a `.con-coltile`
+     of the family (`--dock`) — its name on one line with the «ПРИЧАЛ» mark,
+     a round art medallion in the planet's place and diameter, its STATUS
+     strip in the track's place, «ТОРГОВАТЬ» printing what the trade gives in
+     the colony's own cell, the «БОНУС» place an empty dim «—».
    · the dock STAGE — the colony focus stage's own surface and columns
      (`.con-colfocus__surface / __hero / __main / __result`): the card as the
      hero, the payment rows, «ИТОГ ТОРГОВЛИ».
@@ -20,151 +20,66 @@
    `filter`, no `text-shadow` — the paint baseline strips them).
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── THE GROUP ────────────────────────────────────────────────────────────── */
+/* ── THE BODY — the grid's room (the docks are cells of the grid: nothing stands beside it) ── */
 .con-colonies__body {
     flex: 1;
     min-height: 0;
     display: flex;
 
     > .con-colonies__scroll { min-width: 0; }
-
-    /* WITH DOCKS the grid and the group are ONE centred composition: the grid's scroller is content-sized (the fit
-       solved both — `planDockFit`), the group stands a step apart. `--docks-gap` pairs with the fit's DOCKS_GAP. */
-    &--docks {
-        justify-content: center;
-        align-items: center;
-        gap: 1.4rem;
-
-        > .con-colonies__scroll {
-            flex: 0 1 auto;
-            max-width: 100%;
-            max-height: 100%;
-        }
-    }
-    &--docks-below { flex-direction: column; }
 }
-.con-colonies__docks {
-    position: relative;
-    flex: 0 0 auto;
-    min-width: 0;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    /* The caption → tiles gap the fit reads (`rowGap`) as part of the caption's height. */
-    row-gap: .35rem;
-}
-/* The tiles take the grid's own gaps and padding (the focus ring's lift and halo have the grid's room). */
-.con-colonies__docks-tiles {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: .8rem .9rem;
-    padding: .5rem .9rem .8rem;
-}
-.con-colonies__docks--below .con-colonies__docks-tiles { flex-direction: row; justify-content: center; }
-/* THE CAPTION — the group's name, quiet: a kicker and a hairline, the grid's own sec-title register. It never yields
-   (with `overflow: hidden` its flex minimum would be 0 and the fit would solve the tiles for a room without it). */
-.con-colonies__docks-title {
-    flex: 0 0 auto;
-    align-self: stretch;
-    margin: 0 .9rem;
-    font-size: .64rem;
-    font-weight: 800;
-    letter-spacing: .12rem;
-    text-transform: uppercase;
-    color: fade(@con-cyan, 82%);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding-bottom: .15rem;
-    border-bottom: .05rem solid fade(@con-cyan, 18%);
-}
-.con-colonies__dockslot { position: relative; flex: 0 0 auto; }
+.con-colonies__dockslot { position: relative; }
 
 /* The rail's chips (a focused dock: «→ [океан] 3 → 4 · [РТ] +1»). */
 .con-colonies__rail-chip { flex: 0 0 auto; }
 
-/* ── THE TILE — a `.con-coltile` of the family ────────────────────────────── */
+/* ── THE TILE — a `.con-coltile` of the family, row for row ──────────────── */
 .con-coltile--dock {
-    /* The card's box in the tile: the height of the head + the band, the width its card ratio (320 × 460). */
-    --dock-card-h: 8.35rem;
-    --dock-card-w: calc(var(--dock-card-h) * 320 / 460);
-    --dock-card-zoom: .363;
-
-    .con-coltile__dockbody {
+    /* «ПРИЧАЛ» — the mark where a colony has none: tracked caps, a quiet kant, never a fill. */
+    .con-coltile__kicker {
         flex: 0 0 auto;
-        display: flex;
-        gap: .6rem;
-        min-width: 0;
+        padding: .08rem .35rem;
+        border-radius: .25rem;
+        font-size: .55rem;
+        font-weight: 800;
+        letter-spacing: .1rem;
+        line-height: 1.2;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 85%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
+        white-space: nowrap;
     }
-    .con-coltile__dockinfo {
-        flex: 1 1 auto;
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
+    /* The MEDALLION — the planet disc's own box and light, the card's art cropped round (its art box's own focus). */
+    .con-coltile__dockart {
+        background-color: #090d13;
+        background-position: center 38% !important;
     }
-    /* The name may take TWO lines here (a card's name is longer than a colony's, and the card beside it is the
-       tile's height anyway) — the head keeps the colony tile's own height. */
-    .con-coltile__name--dock {
-        white-space: normal;
-        display: -webkit-box;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 2;
-        line-height: 1.12;
-        overflow-wrap: anywhere;
-    }
-    /* WHAT THE TRADE GIVES — the colony tile's «ТОРГОВАТЬ» cell, grown to the band the track and the cells take
-       (2.3 + .25 + 2.5 rem): the label on its line, the printed reward under it, at the face's own ink. */
-    .con-coltile__dockreward {
-        flex: 0 0 auto;
-        height: 5.05rem;
-        margin-top: .25rem;
-        flex-direction: column;
-        align-items: stretch;
-        justify-content: space-between;
-        padding: .35rem .6rem .4rem;
-    }
-    .con-coltile__dockreward > .con-coltile__cell-label { flex: 0 0 auto; }
+    /* The band's STATUS strip sits where the track stands: the whole band (no berths, no track on a dock). */
+    .con-coltile__mid { justify-content: stretch; }
+    .con-coltile__state { flex: 1 1 auto; }
+    .con-fleetdock-tile__status-ship.colony-fleet-icon { flex: 0 0 auto; width: .95rem; height: .95rem; }
+    /* What the trade gives — the card's own print at the face's ink, in the colony's cell. */
     .con-coltile__dockprint {
-        flex: 1 1 auto;
-        min-height: 0;
+        min-width: 0;
         display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-end;
         overflow: hidden;
     }
     .con-coltile__dockink {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 2px 5px; /* keep-px: inside the zoomed ink — the face's own spacing */
-        zoom: calc(1.5 * var(--con-ui-scale, 1));
+        gap: 2px 4px; /* keep-px: inside the zoomed ink — the face's own spacing */
+        zoom: 1.15;
         line-height: 1;
         .con-face-ink-tokens();
     }
-    /* THE CARD — the medallion's place, card-shaped; the real face under one zoom (its design box is 320 px). */
-    .con-coltile__dockcard {
-        flex: 0 0 auto;
-        width: var(--dock-card-w);
-        height: var(--dock-card-h);
-        border-radius: .4rem;
-        overflow: hidden;
-        box-shadow: inset 0 0 0 .05rem fade(@con-text, 16%), 0 .3rem .9rem rgba(0, 0, 0, 0.45);
-
-        /* 8.35rem = 167 logical px over the 460 px face. */
-        > * { zoom: calc(var(--dock-card-zoom) * var(--con-ui-scale, 1)); }
-    }
-    .con-fleetdock-tile__status-ship.colony-fleet-icon { flex: 0 0 auto; width: .9rem; height: .9rem; }
 }
-/* The handheld's compact tile (its head, band and cells are shorter — console.less § the handheld profile). */
-html.con-profile-handheld .con-coltile--dock {
-    --dock-card-h: 6.8rem;
-    --dock-card-zoom: .296;
-
-    .con-coltile__dockreward { height: 3.95rem; margin-top: .3rem; padding: .25rem .45rem .3rem; }
-    .con-coltile__dockink { zoom: calc(1 * var(--con-ui-scale, 1)); }
-}
+/* The handheld's compact cell: the print one step smaller. */
+html.con-profile-handheld .con-coltile--dock .con-coltile__dockink { zoom: .9; }
+/* The couch's floor for the mark. */
+html.con-profile-tv .con-coltile--dock .con-coltile__kicker { font-size: var(--con-t-floor); letter-spacing: .06rem; }
 
 /* ── THE STAGE — the colony focus stage's own surface and columns ─────────── */
 /* The root is the colony stage's root by its geometry and its TOKENS (the flat `.con-colfocus__*` children read
@@ -183,15 +98,15 @@ html.con-profile-handheld .con-coltile--dock {
 
     /* THE HERO — the card, the laconic line, the verdict: one poster centred in its column. */
     &__hero { justify-content: center; }
+    /* THE CARRIED CARD. NO transition on its transform at rest: the descend's FLIP drives this very element frame
+       by frame (GSAP), and a CSS transition on the same property re-eased every frame the tween wrote — the card
+       «скачет» on the way in (ledger EZ). The transition belongs to the departure pose alone (below). */
     &__card {
         position: relative;
         flex: 0 0 auto;
         border-radius: .6rem;
         box-shadow: 0 .6rem 2rem rgba(0, 0, 0, 0.55);
         transform-origin: 50% 50%;
-        transition:
-            opacity calc(300ms * var(--motion-scale, 1)) ease,
-            transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(.4, 0, .2, 1);
     }
     &__face { zoom: var(--con-fleetdock-zoom, 1); }
     /* THE CARD'S DEPARTURE IS A BEAT: it recedes on its own (the fleet mark, which sits ON its face, rides away
@@ -199,9 +114,19 @@ html.con-profile-handheld .con-coltile--dock {
     &--leaving &__card {
         opacity: 0;
         transform: translateY(-.6rem) scale(.96);
+        transition:
+            opacity calc(300ms * var(--motion-scale, 1)) ease,
+            transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(.4, 0, .2, 1);
     }
-    /* The configuration stands centred in its column (no track above it). */
-    &__main { justify-content: center; }
+    /* THE SURFACE'S FLOOR IS THE HERO'S OWN ROOM (`--fleetdock-hero-h` — the solved card + its column, known before
+       the first frame): the server's preview lands AFTER the entry and grows the result rail, and a surface sized by
+       content re-centred the hero under the eye. */
+    &__surface {
+        min-height: min(100%, max(var(--colfocus-h), var(--colfocus-need, 0px), var(--fleetdock-hero-h, 0px)));
+    }
+    /* The configuration stands from the TOP of its column: rows arriving with the preview grow downward and move
+       nothing above them. */
+    &__main { justify-content: flex-start; }
     &__config { flex: 0 1 auto; }
 
     /* «ИТОГ ТОРГОВЛИ» — the rail's own rows; the fleet's ship sits at the icon's place. */

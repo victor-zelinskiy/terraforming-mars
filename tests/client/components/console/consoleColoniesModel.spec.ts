@@ -73,6 +73,30 @@ describe('consoleColoniesModel — the COLONY WORKSPACE model', () => {
       expect(colonyGridCols('five', 5)).to.eq(3);
       expect(colonyGridCols('four', 4)).to.eq(2);
     });
+
+    it('THE TOTAL CELLS DECIDE THE COLUMNS — colonies + docks are one grid (ledger EZ)', () => {
+      // The owner's table: «5 колоний + причал — по 3 в 2 ряда», never a third row for the dock.
+      const table: ReadonlyArray<[colonies: number, docks: number, layout: string, cols: number]> = [
+        [5, 0, 'five', 3],
+        [5, 1, 'six', 3], // 3 + 3
+        [6, 1, 'seven', 4], // 4 + 3
+        [6, 2, 'eight', 4], // 4 + 4
+        [6, 3, 'nine', 3], // 3 × 3
+        [4, 1, 'five', 3], // 3 + 2
+        [3, 1, 'four', 2], // 2 × 2
+      ];
+      for (const [colonies, docks, layout, cols] of table) {
+        const l = colonyGridLayout(colonies, false, docks);
+        expect(l, `${colonies} + ${docks}`).to.eq(layout);
+        expect(colonyGridCols(l, colonies + docks), `${colonies} + ${docks}`).to.eq(cols);
+      }
+    });
+
+    it('the docks never make a pick a catalog — only more than six COLONIES do', () => {
+      expect(colonyGridLayout(5, true, 2)).to.eq('seven');
+      expect(colonyGridLayout(7, true, 1)).to.eq('catalog');
+      expect(colonyGridCols('catalog', 10)).to.eq(4);
+    });
   });
 
   /**

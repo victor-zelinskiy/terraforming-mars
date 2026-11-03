@@ -341,7 +341,20 @@ export function colonyPayoutPending(): boolean {
  * `awaiting` (a Pluto discard prompt between two bonus draws needs the pad)
  * and `settle` (pure decoration).
  */
+/**
+ * Other owners of the colonies' moment that lock the pad the same way (a play's raise owed before its pick —
+ * `colonyTrackRaise.ts`, P48). Registered, so this module never imports its own clients.
+ */
+const colonyInputLocks: Array<() => boolean> = [];
+
+export function registerColonyInputLock(lock: () => boolean): void {
+  colonyInputLocks.push(lock);
+}
+
 export function isColonyTradeInputLocked(): boolean {
+  if (colonyInputLocks.some((lock) => lock())) {
+    return true;
+  }
   // A LAW'S WAVE over every track (Unity Budget) owns the moment exactly as a trade's glide does: the
   // colonies stand as a SHOW step of the sitting, nothing is asked, and a press there could only open a
   // trade over a moving marker or fold the sitting under its own beat. Bounded by the wave's net.

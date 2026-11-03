@@ -52,8 +52,10 @@
     pointer-events: none;
     border-radius: 50%;
     background: radial-gradient(circle at 34% 30%, #ffffff 0%, #e8f4ff 52%, #b8d4e8 100%);
+    /* A BODY, not a light (ledger EZ — VISUAL RESTRAINT): the marker reads over the track by its white mass and a
+       dark kant, the drop seating it; no cyan halo. */
     box-shadow:
-        0 0 .4rem rgba(140, 220, 255, 0.75),
+        inset 0 0 0 .05rem rgba(4, 9, 15, 0.55),
         0 .12rem .3rem rgba(0, 0, 0, 0.55);
     will-change: transform, opacity;
 }
@@ -211,23 +213,25 @@
     62% { transform: scale(1.1); }
     100% { transform: scale(1); }
 }
+/* …and its frame answers by MATERIAL: an inset kant of the gain's mint for the beat (never a halo). */
 .con-colcell--dealt.con-colfocus__xcell .con-colfocus__xcell-body,
 .con-colcell--dealt .con-colfocus__ob-value {
-    box-shadow: 0 0 0 .07rem fade(@con-mint, 55%), 0 0 .8rem fade(@con-mint, 22%);
+    box-shadow: inset 0 0 0 .07rem fade(@con-mint, 70%);
     border-radius: .35rem;
     transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease;
 }
 
 /* ── The colony tile during the transaction ────────────────────────────── */
 
-/* A passed cell's one-shot impulse as the marker sweeps LEFT over it. */
+/* A passed cell's one-shot impulse as the marker sweeps LEFT over it — the SAME glide, told by MATERIAL (ledger EZ):
+   the cell fills with the colony's own tone (`--coltile-tone`) and gives it back, no `filter` (light is not a state). */
 .con-coltile__track-cell--sweep {
     animation: con-coltrade-cell-sweep calc(360ms * var(--motion-scale, 1)) ease-out 1 both;
 }
 @keyframes con-coltrade-cell-sweep {
-    0% { transform: scale(1); filter: brightness(1); }
-    35% { transform: scale(1.45); filter: brightness(2); }
-    100% { transform: scale(1); filter: brightness(1); }
+    0% { transform: scale(1); }
+    35% { transform: scale(1.45); background-color: var(--coltile-tone, @con-cyan); }
+    100% { transform: scale(1); }
 }
 
 /* While the proxy glides, the tile's own (still pre-reset) marker cell goes
@@ -236,14 +240,15 @@
     opacity: 0.25;
 }
 
-/* The landed cell's one-shot settle glow (the reset's touchdown). */
+/* The landed cell's one-shot settle — the reset's touchdown as ONE INNER KANT PULSE (ledger EZ): a firm inset hairline
+   comes and goes on the cell itself in 180 ms; never an outer glow. */
 .con-coltile__track-cell--settled {
-    animation: con-coltrade-cell-settle calc(720ms * var(--motion-scale, 1)) ease-out 1 both;
+    animation: con-coltrade-cell-settle calc(180ms * var(--motion-scale, 1)) ease-out 1 both;
 }
 @keyframes con-coltrade-cell-settle {
-    0% { box-shadow: 0 0 0 0 rgba(150, 230, 255, 0.0); }
-    25% { box-shadow: 0 0 .55rem .15rem rgba(150, 230, 255, 0.85); }
-    100% { box-shadow: 0 0 0 0 rgba(150, 230, 255, 0.0); }
+    0% { box-shadow: inset 0 0 0 0 rgba(255, 255, 255, 0); }
+    45% { box-shadow: inset 0 0 0 .1rem rgba(236, 246, 255, 0.95); }
+    100% { box-shadow: inset 0 0 0 0 rgba(255, 255, 255, 0); }
 }
 
 /* The trade value's keyed morph wrapper — inherits the cell-value's inline

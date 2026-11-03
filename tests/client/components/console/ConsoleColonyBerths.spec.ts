@@ -196,8 +196,8 @@ describe('a berth beyond the printed limit — the three hosts', () => {
       expect(slots[3].classes()).to.include.members(['con-coltile__build-slot--occupied', 'con-coltile__build-slot--overlimit']);
       expect(slots[3].find('[data-colony-build-seat]').exists()).to.eq(true);
       expect(slots.slice(0, 3).every((slot) => slot.attributes('data-colony-berth-overlimit') === undefined)).to.eq(true);
-      // The track still reads the server's marker — «5/7» for a marker lifted to the fourth colony's floor.
-      expect(w.find('.con-coltile__track-pos').text()).to.eq('5/7');
+      // The track still reads the server's marker — «5 / 7» for a marker lifted to the fourth colony's floor.
+      expect(w.find('.con-coltile__track-pos').text()).to.eq('5 / 7');
     });
 
     it('a door\'s cube projected into the FOURTH berth: the slot stands before the cube, as a ghost over its bonus', () => {

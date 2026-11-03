@@ -9,7 +9,7 @@
     no side panel needed for the common questions.
   -->
   <div class="con-coltile"
-       :class="{
+       :class="[{
          'con-coltile--focused': focused,
          'con-coltile--inactive': status.kind === 'inactive',
          'con-coltile--blocked': status.kind === 'blocked',
@@ -17,7 +17,7 @@
          'con-coltile--just-docked': justDocked,
          'con-coltile--marker-gliding': markerGliding,
          'con-coltile--orbit': orbit,
-       }"
+       }, 'con-coltile--tone-' + toneKey]"
        :data-colony-orbit="orbit ? '' : undefined"
        :data-test="'con-colony-' + colony.name">
     <header class="con-coltile__head">
@@ -65,6 +65,9 @@
            :class="{'con-coltile__build--over': overLimit, 'con-coltile__build--revealing': berthRevealing}"
            :style="overLimit ? {'--printed': printedCount} : undefined"
            @animationend="onBerthRevealEnd">
+        <!-- THE ROW'S KICKER (ledger EZ): what these three cells pay — «ЗА ПОСЕЛЕНИЕ», the «ТОРГОВАТЬ» cell's own
+             grammar. A legend over the row (absolute, zero layout): the berths and the track keep their room. -->
+        <span class="con-coltile__build-kicker" data-colony-build-kicker aria-hidden="true">{{ $t('For settlement') }}</span>
         <div v-for="berth in berths" :key="berth.index"
              class="con-coltile__build-slot"
              :class="{
@@ -116,11 +119,11 @@
                 'con-coltile__track-cell--passed': pos.passed,
                 'con-coltile__track-cell--settled': settledCell === pos.index,
               }"></span>
-        <!-- The «4/7» readout plays the premium flip exactly when the marker
-             LANDS (the presented position releases) — nested INSIDE the cell
-             per the ConsoleFlipValue layering contract. -->
+        <!-- The «4 / 7» readout — a POSITION on the track, not a fraction: the marker's cell is the voice, «/ 7» the
+             dim length (ledger EZ). The number plays the premium flip exactly when the marker LANDS (the presented
+             position releases) — nested INSIDE the cell per the ConsoleFlipValue layering contract. -->
         <span class="con-coltile__track-pos">
-          <ConsoleFlipValue :value="displayedTrackPosition" :text="trackPositionDisplay" accent="cyan" :flipOnDecrease="true" />
+          <ConsoleFlipValue :value="displayedTrackPosition" :text="trackPositionDisplay" accent="cyan" :flipOnDecrease="true" /><span class="con-coltile__track-of">{{ trackLengthDisplay }}</span>
         </span>
       </div>
     </div>
@@ -164,16 +167,10 @@
       </div>
     </div>
 
-    <!-- Honest availability status — information, never a button hint. -->
+    <!-- Honest availability status — information, never a button hint. A WORD on a kant (ledger EZ — the dock's
+         status strip's grammar): no dot, no «✕»; the tone is the kant's and the word's, and the word says it. -->
     <footer class="con-coltile__status" :class="'con-coltile__status--' + status.kind">
-      <template v-if="status.kind === 'ok'">
-        <span class="con-coltile__status-dot" aria-hidden="true"></span>
-        <span class="con-coltile__status-text">{{ status.text }}</span>
-      </template>
-      <template v-else-if="status.kind === 'blocked' || status.kind === 'inactive'">
-        <span class="con-coltile__status-mark" aria-hidden="true">✕</span>
-        <span class="con-coltile__status-text">{{ status.text }}</span>
-      </template>
+      <span v-if="status.kind !== 'none'" class="con-coltile__status-text">{{ status.text }}</span>
       <span v-else class="con-coltile__status-idle" aria-hidden="true"></span>
     </footer>
   </div>
@@ -184,6 +181,7 @@ import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyMetadata, colonyCardResources, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
 import {CardResource} from '@/common/CardResource';
+import {Resource} from '@/common/Resource';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
@@ -389,8 +387,32 @@ export default defineComponent({
       }
       return cells;
     },
+    /** The marker's cell, 1-based — the readout's voice. */
     trackPositionDisplay(): string {
-      return `${this.displayedTrackPosition + 1}/${this.trackMax + 1}`;
+      return String(this.displayedTrackPosition + 1);
+    },
+    /** The track's length, dim after the position («4 / 7» — a place on the track, not a fraction). */
+    trackLengthDisplay(): string {
+      return ` / ${this.trackMax + 1}`;
+    },
+    /**
+     * THE TRACK'S TONE — the colour of what this colony's trade PAYS at the cell a trade reads (the rail's own
+     * resource keys: M€ amber, steel, titanium, plants, energy, heat; a card resource mint; cards and every global
+     * reward cyan). One tone for the cells and the marker (ledger EZ — passed = fill, ahead = hairline).
+     */
+    toneKey(): string {
+      const income = tradeBenefitAt(this.metadata, this.effectivePosition);
+      switch (income.type) {
+      case ColonyBenefit.GAIN_RESOURCES:
+      case ColonyBenefit.GAIN_PRODUCTION:
+      case ColonyBenefit.LOSE_RESOURCES:
+        return typeof income.resource === 'string' && (Object.values(Resource) as Array<string>).includes(income.resource) ? income.resource : 'global';
+      case ColonyBenefit.ADD_RESOURCES_TO_CARD:
+      case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD:
+        return 'card';
+      default:
+        return 'global';
+      }
     },
   },
 });

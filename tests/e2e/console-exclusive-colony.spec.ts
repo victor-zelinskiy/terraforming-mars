@@ -585,7 +585,7 @@ for (const preset of PRESETS) {
       const redAfter = await tilesOf(redGrid, '.con-colonies');
       const redLuna = redAfter.find((t) => t.name === 'Luna')!;
       expect(redLuna.berths, 'red: Luna draws four berths').toBe(4);
-      expect(redLuna.track, 'red: «5/7»').toBe('5/7');
+      expect(redLuna.track, 'red: «5 / 7»').toBe('5 / 7');
       expect(redAfter.filter((t) => t.name !== 'Luna').map((t) => t.box), 'red: no other tile\'s box moved')
         .toEqual(restTiles.filter((t) => t.name !== 'Luna').map((t) => t.box));
       expect(redLuna.box, 'red: Luna\'s own box did not change').toBe(restTiles.find((t) => t.name === 'Luna')!.box);
@@ -597,7 +597,7 @@ for (const preset of PRESETS) {
       await openColoniesSection(page);
       await settle(page, {timeoutMs: 20_000});
       const home = (await tilesOf(page, '.con-colonies')).find((t) => t.name === 'Luna')!;
-      expect([home.berths, home.cubes, home.over, home.track], 'Luna at rest: four berths, four cubes, one beyond the limit, «5/7»').toEqual([4, 4, 1, '5/7']);
+      expect([home.berths, home.cubes, home.over, home.track], 'Luna at rest: four berths, four cubes, one beyond the limit, «5 / 7»').toEqual([4, 4, 1, '5 / 7']);
       await shoot(page, preset.id, '06-home-grid');
 
       expect(own.pageErrors, 'no page error').toEqual([]);

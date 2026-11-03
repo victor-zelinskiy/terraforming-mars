@@ -21,6 +21,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-card-reaction.spec.ts',
   // P90 Venus Trade Hub (2026-11-02): the card's answer to a trade — its rise and the births on its printed effect.
   'console-venus-trade-hub.spec.ts',
+  // P48 Early Colonization (2026-11-03): the hold of every tile at BEFORE, the wave's order against the pick, the
+  // step's mount count — sampled from before the press.
+  'console-early-colonization.spec.ts',
   // P46 Colony Trade Hub (2026-11-03): the card's answer to ANY colony built — its rise, the cause plate, the births.
   'console-colony-trade-hub.spec.ts',
   // TR81 Lotus Innovations (2026-10-26): the rating off the printed plates, the corporation rising in its start seat and

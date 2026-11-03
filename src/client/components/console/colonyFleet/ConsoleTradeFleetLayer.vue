@@ -170,14 +170,15 @@ export default defineComponent({
      * mark slot the premium face reserves there (`[data-fleet-berth="card:…"]`,
      * always laid out, empty while the dock is free). The ladder is MEASURED:
      * the hero face on the dock stage leads (the trade resolves there), the
-     * dock's own tile in the «ПРИЧАЛЫ» column follows; with neither standing
+     * dock's own tile — a cell of the colony grid, its medallion's berth —
+     * follows; with neither standing
      * there is no flight (the phases still advance — the gate resolves), and
      * never a document-wide guess (a card face in some other surface is not
      * where this trade is happening).
      */
     cardBerthEl(card: string): HTMLElement | null {
       const key = this.esc('card:' + card);
-      for (const sel of [`.con-fleetdock [data-fleet-berth="${key}"]`, `.con-colonies__docks [data-fleet-berth="${key}"]`]) {
+      for (const sel of [`.con-fleetdock [data-fleet-berth="${key}"]`, `.con-colonies__grid [data-fleet-berth="${key}"]`]) {
         for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
           const r = el.getBoundingClientRect();
           if (r.width > 2 && r.height > 2) {

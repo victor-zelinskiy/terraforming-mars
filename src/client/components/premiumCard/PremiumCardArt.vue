@@ -5,16 +5,26 @@
          'pcard__art--ready': ready,
          'pcard__art--fallback': onFallback,
          'pcard__art--void': exhausted,
+         'pcard__art--swap': prevSrc !== '',
        }"
        aria-hidden="true">
+    <!-- THE PICTURE BEING REPLACED (a tier change of a face that already painted one): it stays UNDER the new
+         file until that one has faded in over it — a crossfade, never a blink to the black art box. -->
+    <img v-if="prevSrc !== ''"
+         class="pcard__art-prev"
+         :src="prevSrc"
+         alt=""
+         decoding="async"
+         draggable="false" />
     <img v-if="!exhausted"
          :src="src"
          alt=""
          loading="lazy"
          decoding="async"
          draggable="false"
-         @load="loaded = true"
-         @error="onError" />
+         @load="onLoad"
+         @error="onError"
+         @transitionend="dropPrev" />
   </div>
 </template>
 
@@ -58,17 +68,14 @@ export default defineComponent({
       failedThumb: false,
       failedPrimary: false,
       exhausted: false,
+      /** The file a TIER CHANGE replaces, kept under the new one until it has faded in ('' = none). */
+      prevSrc: '',
+      prevTimer: 0,
     };
   },
   computed: {
     src(): string {
-      if (this.tier === 'thumb' && !this.failedThumb) {
-        return cardArtUrlAtTier(this.art.url, 'thumb');
-      }
-      if (!this.failedPrimary) {
-        return this.art.url;
-      }
-      return CARD_ART_FALLBACK_URL;
+      return this.srcAt(this.tier);
     },
     onFallback(): boolean {
       return this.art.fallback || this.failedPrimary;
@@ -77,9 +84,13 @@ export default defineComponent({
   watch: {
     // A re-pointed keyless card face re-arms the load chain for the new art.
     'art.url'() {
+      this.prevSrc = '';
       this.resetChain();
     },
-    'tier'() {
+    'tier'(_now: CardArtTier, was: CardArtTier) {
+      // A face that already PAINTED its picture keeps it under the new tier's file (the same art, another build):
+      // the new one fades in over it — a crossfade, never a fade from black.
+      this.prevSrc = this.loaded && !this.exhausted ? this.srcAt(was) : '';
       this.resetChain();
     },
   },
@@ -90,7 +101,29 @@ export default defineComponent({
       this.loaded = true;
     }
   },
+  beforeUnmount() {
+    window.clearTimeout(this.prevTimer);
+  },
   methods: {
+    /** The URL the chain would paint at `tier` right now (the failure links the chain has already taken included). */
+    srcAt(tier: CardArtTier): string {
+      if (tier === 'thumb' && !this.failedThumb) {
+        return cardArtUrlAtTier(this.art.url, 'thumb');
+      }
+      return this.failedPrimary ? CARD_ART_FALLBACK_URL : this.art.url;
+    },
+    onLoad(): void {
+      this.loaded = true;
+      if (this.prevSrc !== '') {
+        // The fade's own end drops the old picture; the bound covers a fade that never runs (reduced motion).
+        window.clearTimeout(this.prevTimer);
+        this.prevTimer = window.setTimeout(() => this.dropPrev(), 600);
+      }
+    },
+    dropPrev(): void {
+      window.clearTimeout(this.prevTimer);
+      this.prevSrc = '';
+    },
     resetChain(): void {
       this.ready = false;
       this.loaded = false;
