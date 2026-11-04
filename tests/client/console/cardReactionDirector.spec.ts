@@ -18,6 +18,7 @@ import {cardReactionState, registerCardReactionStage} from '@/client/console/car
 import {reactionToldOnStage, resetReactionTold} from '@/client/console/cardReaction/reactionToldOnStage';
 import {reduceMotionOverrideState} from '@/client/utils/reducedMotion';
 import {reactionIdentitySnapshot, resetReactionIdentity} from '@/client/console/cardReaction/reactionIdentity';
+import {registerReactorPlace, resetReactorPlaces} from '@/client/console/cardReaction/reactorPlaces';
 
 /*
  * «СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК» — the director's two shapes without a stage: a record whose rows a host
@@ -155,6 +156,46 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     flight?.onDone?.();
     // A second ask finds nothing — the record was claimed by the first flight.
     expect(cardReactionAnswerFlight({rows: ['stock:heat']})).is.undefined;
+  });
+
+  it('P64 · GF — A PLACE THAT SHOWS NO FACE IS NO PLACE: a registered host that promises the card but paints no face (the start shelf parked behind the same play\'s draw) hands the reactor to the stage — born on the stage face, never ticking with no cause', async () => {
+    const deal = CardName.TERRAFORMING_DEAL;
+    const emerged: Array<string> = [];
+    const unplace = registerReactorPlace({
+      id: 'faceless',
+      standsIn: (card) => card === deal,
+      emergeTarget: async (card) => {
+        emerged.push(card);
+      },
+      settleTarget: async () => {},
+      emergedFaceEl: () => undefined,
+    });
+    const face = document.createElement('div');
+    document.body.appendChild(face);
+    const unstage = registerCardReactionStage({faceEl: () => face, stageRect: () => ({left: 0, top: 0, width: 1920, height: 1080})});
+    try {
+      const answer: Array<ResourceTransferSpec> = [{channel: 'stock', resource: 'megacredits', amount: 6}];
+      beginPanelRewardHold(answer);
+      declareHeldAnswers(answer);
+      seedCardReactionHolds(view([]), view([record(80, {kind: 'card', card: deal, channel: 'tr-increase', printedEffect: 0,
+        impacts: [{kind: 'stock', resource: Resource.MEGACREDITS, amount: 6, to: BLUE}]})]), snapshotRailHolds());
+      const flight = cardReactionAnswerFlight({rows: ['stock:megacredits']});
+      expect(flight, 'the host gets the flight').is.not.undefined;
+      await flight?.prepare?.();
+      expect(emerged, 'the place was asked first').deep.eq([deal]);
+      const trail = transferTrailTail(40).map((e) => e.ev);
+      expect(trail, 'the faceless place is named in the trail').to.include('reaction:place-faceless');
+      expect(trail, '…and the reactor rose at the stage').to.include('reaction:rise');
+      const declared = reactionIdentitySnapshot().declared.filter((d) => d.card === deal);
+      expect(declared.map((d) => d.via), 'ONE live reactor, at the stage — the place\'s declaration is let go').deep.eq(['seat']);
+      expect(cardReactionState.degraded ?? '', 'nothing degraded — the stage face is the birth place').not.to.include(deal);
+      flight?.onDone?.();
+    } finally {
+      unstage();
+      unplace();
+      face.remove();
+      resetReactorPlaces();
+    }
   });
 
   it('a host\'s OWN promise on the row (undeclared — a standard project\'s production step) never absorbs the reaction: it is standalone, held HERE on top', () => {

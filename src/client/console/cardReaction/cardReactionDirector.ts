@@ -614,6 +614,16 @@ async function rise(group: CardReactionGroup, slot: number, view: PlayerViewMode
     liveRisen.set(key, risen);
     await place.emergeTarget(group.card);
     risen.face = place.emergedFaceEl(group.card);
+    if (risen.face === undefined) {
+      // A PLACE THAT SHOWS NO FACE IS NO PLACE (P64 · GF): a registered host may promise the card (the start holds every
+      // prelude of its tableau) while its face stands where the player cannot see it — the shelf parked behind the same
+      // play's draw. Its bounded wait gave nothing to lift and nothing to be born on, so the tokens ticked with no cause
+      // on screen. The reactor rises at the layer's stage instead — the stage's own slot, or the last free one.
+      liveRisen.delete(key);
+      noteReactorSettled(key);
+      noteTransferTrail('reaction:place-faceless', {card: group.card, places: describeReactorPlaces(group.card)});
+      return rise(group, slot >= 0 ? slot : freeStageSlot(opts.slots), view, emergence, {...opts, place: null});
+    }
     markReactionRow(risen.face, group.record.printedEffect, specs, opts.readMs);
     noteTransferTrail('reaction:rise', {card: group.card, via: 'place'});
     checkReactionIdentity(`rise:${group.card}`);
@@ -660,6 +670,20 @@ async function settleStrandedLifts(card: CardName): Promise<void> {
   console.warn(`[reaction] foreign face — stranded-lift: ${card} (its place settled another face; the lifted one is settled now)`);
   noteTransferTrail('reaction:stranded-lift', {card, n: stranded.length});
   await Promise.all(stranded.map((el) => settleInPlace(el)));
+}
+
+/**
+ * The stage slot a group that lost its place rises in — the LAST slot no live reactor sits in (the plan hands stage
+ * groups the first slots); none left → -1 (the group rises nowhere and is named, the overflow's own reading).
+ */
+function freeStageSlot(slots: ReadonlyArray<RectLike>): number {
+  const taken = new Set([...liveRisen.values()].map((r) => r.seat).filter((s) => s !== undefined));
+  for (let i = slots.length - 1; i >= 0; i--) {
+    if (!taken.has(slots[i])) {
+      return i;
+    }
+  }
+  return -1;
 }
 
 /** Where the group stands on screen — the host's own stage first, else a painted face; `undefined` = the stage. */
