@@ -3103,6 +3103,8 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   'valley-trust-burn' | 'wg-project-forest' | 'wg-project-aquifer' |
   // P54 Nobel Prize — the first start stand with a SEEDED project deck (ledger FM): the tape, the run-out, the WG road.
   'nobel-prize' | 'nobel-prize-exhausted' | 'nobel-prize-wg' |
+  // P56 Planetary Alliance — two named searches of one play (ledger FP): the tape, the Venus run-out, the WG road.
+  'planetary-alliance' | 'planetary-alliance-exhausted' | 'planetary-alliance-wg' |
   // Prelude 2 P81 Soil Studies — «per Venus tag, plant tag (INCLUDING THIS ONE) and colony» (DJ): the play +5 (Venus
   // Governor · Arctic Algae · this · one cube) · locked at −2 °C.
   'soil-studies' | 'soil-studies-locked' |

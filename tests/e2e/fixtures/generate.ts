@@ -13135,6 +13135,95 @@ wgProjectFixture('nobel-prize-wg', {
   },
 });
 
+// ── P56 · PLANETARY ALLIANCE — «Raise your TR 2 steps. Draw 1 Jovian card and 1 Venus card.» (docs/claude/prompts/
+//    prelude2-p56-planetary-alliance.md, ledger FP): TWO named searches in ONE play — one batch, two segments, each with
+//    its own rule. A solo Prelude 2 + Venus Next table answered through the real start flow (Teractor bought nothing,
+//    Planetary Alliance + Donation kept, the corporation played) at the deployment queue, the deck's TOP stacked by name:
+//      · `planetary-alliance`           — Power Plant ✗ (neither tag) → Io Mining Industries ✓ (Jovian) → Ganymede
+//                                          Colony ✗ (Jovian ONLY — the lie detector: the VENUS search throws it away)
+//                                          → Aerial Mappers ✓ (Venus): 4 turned over, 2 kept, 2 thrown away, each
+//                                          verdict by its OWN search. No card with both tags (it would satisfy the
+//                                          first search);
+//      · `planetary-alliance-exhausted` — the whole deck is TWO cards, Io Mining ✓ → Ganymede Colony ✗: the Jovian
+//                                          search keeps Io at once, the Venus search finds NOTHING and runs the deck
+//                                          out — its tape rides the batch as an EMPTY, exhausted segment (never two
+//                                          cards fewer than the gate's `canDraw(2)`; no reshuffle — the Jovian search
+//                                          threw nothing away);
+//      · `planetary-alliance-wg`        — the mid-game road: WG Project deals Planetary Alliance first, the tape on top.
+//    A DRY RUN plays the prelude on a copy through the real input path, so a merge or rule change fails HERE. ──
+const ALLIANCE_TAPE = [CardName.POWER_PLANT, CardName.IO_MINING_INDUSTRIES, CardName.GANYMEDE_COLONY, CardName.AERIAL_MAPPERS] as const;
+function planetaryAllianceFixture(name: string, deck: 'tape' | 'run-out'): void {
+  const [game, blue] = testGame(1, {
+    skipInitialCardSelection: false, preludeExtension: true, prelude2Expansion: true, venusNextExtension: true,
+    customPreludes: [CardName.PLANETARY_ALLIANCE, CardName.DONATION], customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
+  });
+  const initial = blue.getWaitingFor();
+  if (!(initial instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${initial?.type}`);
+  }
+  blue.process({type: 'initialCards', responses: [
+    {type: 'card', cards: [CardName.TERACTOR]},
+    {type: 'card', cards: [CardName.PLANETARY_ALLIANCE, CardName.DONATION]},
+    {type: 'card', cards: []},
+  ]});
+  runAllActions(game);
+  if (blue.getWaitingFor()?.startGamePrompt?.kind === 'corporationPlay') {
+    blue.process({type: 'card', cards: [CardName.TERACTOR]});
+    runAllActions(game);
+  }
+  const queue = blue.getWaitingFor();
+  if (queue?.startGamePrompt?.kind !== 'preludeSelection' || !blue.tableau.has(CardName.TERACTOR)) {
+    throw new Error(`${name}: expected the deployment queue with Teractor played — got ${queue?.type} ${JSON.stringify(queue?.startGamePrompt)}`);
+  }
+  if (deck === 'tape') {
+    stackDeckTop(game, ALLIANCE_TAPE);
+  } else {
+    stackDeckTop(game, [CardName.IO_MINING_INDUSTRIES, CardName.GANYMEDE_COLONY]);
+    const pile = game.projectDeck.drawPile;
+    pile.splice(0, pile.length - 2);
+    game.projectDeck.discardPile.length = 0;
+  }
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const seat = copy.getPlayerById(blue.id);
+  const tr = seat.terraformRating;
+  seat.process({type: 'card', cards: [CardName.PLANETARY_ALLIANCE]});
+  runAllActions(copy);
+  const hand = seat.cardsInHand.map((c) => c.name);
+  const reveals = seat.cardDrawReveals;
+  const segments = reveals[0]?.segments ?? [];
+  const want = deck === 'tape' ? [CardName.IO_MINING_INDUSTRIES, CardName.AERIAL_MAPPERS] : [CardName.IO_MINING_INDUSTRIES];
+  const wantCounts = deck === 'tape' ? [1, 1] : [1, 0];
+  const tape = reveals[0]?.sequence?.map((s) => s.card.name) ?? [];
+  const wantTape = deck === 'tape' ? [...ALLIANCE_TAPE] : [CardName.IO_MINING_INDUSTRIES, CardName.GANYMEDE_COLONY];
+  if (seat.terraformRating !== tr + 2 || JSON.stringify(hand) !== JSON.stringify(want) || reveals.length !== 1 ||
+    JSON.stringify(segments.map((s) => s.search?.tag)) !== JSON.stringify(['jovian', 'venus']) ||
+    JSON.stringify(segments.map((s) => s.count)) !== JSON.stringify(wantCounts) ||
+    JSON.stringify(tape) !== JSON.stringify(wantTape) || (reveals[0].exhausted === true) !== (deck === 'run-out')) {
+    throw new Error(`${name}: the dry run expected +2 TR, [${want.join(', ')}] in hand and ONE batch of two named segments ` +
+      `(jovian ${wantCounts[0]}, venus ${wantCounts[1]}), tape [${wantTape.join(', ')}], exhausted=${deck === 'run-out'} — got ` +
+      `${seat.terraformRating - tr} TR, [${hand.join(', ')}], ${reveals.length} batch(es), ` +
+      `${JSON.stringify(segments.map((s) => [s.search?.tag, s.count, s.exhausted]))}, tape [${tape.join(', ')}], exhausted=${reveals[0]?.exhausted}`);
+  }
+  write(name, game);
+}
+planetaryAllianceFixture('planetary-alliance', 'tape');
+planetaryAllianceFixture('planetary-alliance-exhausted', 'run-out');
+wgProjectFixture('planetary-alliance-wg', {
+  top: [CardName.PLANETARY_ALLIANCE, CardName.DONATION, CardName.SUPPLIER],
+  under: [CardName.LOAN],
+  megacredits: 20,
+  venus: true,
+  also: (game) => stackDeckTop(game, ALLIANCE_TAPE),
+  dry: {
+    pick: CardName.PLANETARY_ALLIANCE,
+    expect: (blue) => {
+      const hand = blue.cardsInHand.map((c) => c.name);
+      return blue.tableau.has(CardName.PLANETARY_ALLIANCE) && hand.includes(CardName.IO_MINING_INDUSTRIES) && hand.includes(CardName.AERIAL_MAPPERS) ?
+        undefined : `expected Planetary Alliance played and Io Mining + Aerial Mappers drawn — got tableau=${blue.tableau.has(CardName.PLANETARY_ALLIANCE)} hand=[${hand.join(', ')}]`;
+    },
+  },
+});
+
 // ── P43 · APPLIED SCIENCE — the TWENTY-SIXTH Prelude 2 card and the set's first PRELUDE (docs/claude/prompts/
 //    prelude2-p43-applied-science.md): «remove 1 science here → 1 resource on ANY card with a resource OR 1 standard
 //    resource» — the printed «?» ONE row, answered in the shared wild-resource choice (ledgers EN / EO). A 2p Venus +
