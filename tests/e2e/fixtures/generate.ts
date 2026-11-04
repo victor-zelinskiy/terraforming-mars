@@ -13902,3 +13902,103 @@ wgProjectFixture('soil-bacteria-wg', {
       `expected P61 played (4 plants, Tardigrades in hand) — got tableau=${blue.tableau.has(CardName.SOIL_BACTERIA)} plants=${blue.plants} hand=[${blue.cardsInHand.map((c) => c.name).join(', ')}]`,
   },
 });
+
+// ── P62 Space Lanes (docs/claude/prompts/prelude2-p62-space-lanes.md, ledger GA): the series' first STANDING DISCOUNT
+//    (2 M€ off per planet tag — Jovian · Earth · Venus · Mars) and 3 titanium. Corporation Mining Guild: no card discount
+//    of its own, so every price the stand reads is P62's alone. The hand (both fixtures):
+//      Earth Office (Earth, 1 → 0 — the discount past the floor, FREE with a tail) · Tharsis Alliance (Mars, 8 → 6) ·
+//      Saturn Surfing (Jovian + Earth, 13 → 9 — ONE row of one source «−4») · Power Plant (no planet tag, 4 — no tail).
+//      · `space-lanes-start` — the deployment queue (Mining Guild played, P62 + Donation kept): A on P62 → +3 titanium off
+//        the printed stars, the hand's prices fall with the answer (stand A);
+//      · `space-lanes-table` — the action phase, P62 on the table, 30 M€ (stand B · C);
+//      · `space-lanes-wg`    — the mid-game road: WG Project deals P62 first (stand D).
+//    A DRY RUN reads the prices on a copy, so a rule change fails HERE. ──
+const SPACE_LANES_HAND = [CardName.EARTH_OFFICE, CardName.THARSIS_ALLIANCE, CardName.SATURN_SURFING, CardName.POWER_PLANT] as const;
+const SPACE_LANES_PRICES: ReadonlyArray<[CardName, number, number]> = [
+  [CardName.EARTH_OFFICE, 1, 0], [CardName.THARSIS_ALLIANCE, 8, 6], [CardName.SATURN_SURFING, 13, 9], [CardName.POWER_PLANT, 4, 4],
+];
+function spaceLanesPricesOf(player: IPlayer): string | undefined {
+  for (const [card, base, final] of SPACE_LANES_PRICES) {
+    const c = player.cardsInHand.find((h) => h.name === card);
+    const b = c === undefined ? undefined : player.getCardCostBreakdown(c);
+    if (b?.base !== base || b.final !== final) {
+      return `${card}: expected ${base} → ${final}, got ${JSON.stringify(b)}`;
+    }
+  }
+  return undefined;
+}
+{
+  const name = 'space-lanes-start';
+  const [game, blue] = testGame(1, {
+    skipInitialCardSelection: false, preludeExtension: true, prelude2Expansion: true,
+    customPreludes: [CardName.SPACE_LANES, CardName.DONATION], customCorporationsList: [CardName.MINING_GUILD], startingCorporations: 1,
+  });
+  const initial = blue.getWaitingFor();
+  if (!(initial instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${initial?.type}`);
+  }
+  blue.process({type: 'initialCards', responses: [
+    {type: 'card', cards: [CardName.MINING_GUILD]},
+    {type: 'card', cards: [CardName.SPACE_LANES, CardName.DONATION]},
+    {type: 'card', cards: []},
+  ]});
+  runAllActions(game);
+  if (blue.getWaitingFor()?.startGamePrompt?.kind === 'corporationPlay') {
+    blue.process({type: 'card', cards: [CardName.MINING_GUILD]});
+    runAllActions(game);
+  }
+  const queue = blue.getWaitingFor();
+  if (queue?.startGamePrompt?.kind !== 'preludeSelection' || !blue.tableau.has(CardName.MINING_GUILD)) {
+    throw new Error(`${name}: expected the deployment queue with Mining Guild played — got ${queue?.type} ${JSON.stringify(queue?.startGamePrompt)}`);
+  }
+  blue.cardsInHand.length = 0;
+  for (const card of SPACE_LANES_HAND) {
+    blue.cardsInHand.push(newProjectCard(card)!);
+  }
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const seat = copy.getPlayerById(blue.id);
+  const before = seat.getCardCost(seat.cardsInHand.find((c) => c.name === CardName.SATURN_SURFING)!);
+  seat.process({type: 'card', cards: [CardName.SPACE_LANES]});
+  runAllActions(copy);
+  const prices = spaceLanesPricesOf(seat);
+  if (before !== 13 || seat.titanium !== 3 || prices !== undefined) {
+    throw new Error(`${name}: the dry run expected Saturn Surfing 13 before, 3 titanium and the discounted hand after — got ${before}, ${seat.titanium}, ${prices}`);
+  }
+  write(name, game);
+}
+{
+  const name = 'space-lanes-table';
+  const {game, player} = soloActionPhase({customCorporationsList: [CardName.MINING_GUILD], startingCorporations: 1});
+  player.playedCards.push(newPrelude(CardName.SPACE_LANES)!);
+  player.pendingInitialActions = [];
+  player.megaCredits = 30;
+  player.titanium = 3;
+  player.cardsInHand.length = 0;
+  for (const card of SPACE_LANES_HAND) {
+    player.cardsInHand.push(newProjectCard(card)!);
+  }
+  runAllActions(game);
+  const unplayable = player.cardsInHand.filter((c) => player.canPlay(c) === false).map((c) => c.name);
+  const prices = spaceLanesPricesOf(player);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== player.id || !(player.getWaitingFor() instanceof OrOptions) ||
+    unplayable.length > 0 || prices !== undefined) {
+    throw new Error(`${name}: expected blue on the move with all four cards playable at the discounted prices — got phase=${game.phase} wf=${player.getWaitingFor()?.constructor.name} unplayable=[${unplayable.join(', ')}] ${prices}`);
+  }
+  // The saved game prices the same (a discount is read LIVE off the table, never stored).
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const reloaded = spaceLanesPricesOf(copy.getPlayerById(player.id));
+  if (reloaded !== undefined) {
+    throw new Error(`${name}: the reloaded copy prices otherwise — ${reloaded}`);
+  }
+  write(name, game);
+}
+wgProjectFixture('space-lanes-wg', {
+  top: [CardName.SPACE_LANES, CardName.DONATION, CardName.SUPPLIER],
+  under: [CardName.LOAN],
+  megacredits: 20,
+  dry: {
+    pick: CardName.SPACE_LANES,
+    expect: (blue) => blue.tableau.has(CardName.SPACE_LANES) && blue.titanium === 3 ? undefined :
+      `expected P62 played (3 titanium) — got tableau=${blue.tableau.has(CardName.SPACE_LANES)} titanium=${blue.titanium}`,
+  },
+});

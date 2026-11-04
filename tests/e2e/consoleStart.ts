@@ -3265,6 +3265,9 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   // P61 Soil Bacteria — a prelude-reactor answering a tag INTO THE RAIL (ledger FY): the start (seeded microbe tape), the
   // action-phase table (P61 on it, four cards in hand), the WG road.
   'soil-bacteria-start' | 'soil-bacteria-table' | 'soil-bacteria-wg' |
+  // P62 Space Lanes — a standing discount per planet tag (ledger GA): the start (the hand's prices with the answer), the
+  // action-phase table (P62 on it, four priced cards in hand), the WG road.
+  'space-lanes-start' | 'space-lanes-table' | 'space-lanes-wg' |
   // The play sheet's worst payment (DJ): Space Elevator with every lane open — steel, titanium, Helion's heat,
   // Floodgates' steel, both mechs, graphene, M€ — the ledger stands in the sheet's body, the commit on the bottom line.
   'play-sheet-ledger' |

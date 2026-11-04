@@ -56,6 +56,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // P61 Soil Bacteria (2026-11-04): the plants row's two touchdowns (+3, then the own +1), the reactor's rise on its shelf vs
   // at the stage and the token's births are recorded off the product's writes from before the press, never logic.
   'console-soil-bacteria.spec.ts',
+  // P62 Space Lanes (2026-11-04): the titanium row's tick against the token's touchdown and the MOMENT the hand's prices
+  // fall against the transport's applied answer are recorded off the product's writes from before the press, never logic.
+  'console-space-lanes-start.spec.ts',
   // TRP2 Unity Campaign (2026-10-28): the campaign's rally inside the start — the plaque drawn cube by cube, the beats
   // with no count / coin, «no Parliament while the colonies step stands» are sampled from before the press, never logic.
   'console-unity-campaign.spec.ts',
