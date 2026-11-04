@@ -160,8 +160,12 @@ export abstract class StandardProjectCard extends Card implements IStandardProje
     if (events !== undefined) {
       // Discounts are recorded HERE (at pay time), never in getAdjustedCost —
       // that runs on every affordability check and would spam false savings.
+      // The FACT, never the offer (P62 · GB — the card price's law): the 0-floor is spent on the project's own
+      // cardless discount first, then on the cards in table order; a card the floor emptied saved nothing.
+      let room = Math.max(0, this.cost - this.discount(player));
       for (const card of player.tableau) {
-        const discount = card.getStandardProjectDiscount?.(player, this) ?? 0;
+        const discount = Math.min(card.getStandardProjectDiscount?.(player, this) ?? 0, room);
+        room -= discount;
         if (discount > 0) {
           events.recordDiscount(player, {kind: card.type === CardType.CORPORATION ? 'corporation' : 'card', card: card.name, owner: player.color}, discount, this.name);
         }
