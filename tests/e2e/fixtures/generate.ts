@@ -14405,3 +14405,86 @@ parliamentFixture('venus-contract-sitting', {
     }
   },
 });
+
+// ── P66 Venus L1 Shade (ledger GI · GJ): «Raise Venus 3 steps.» — fully declarative; the polish «A SCALE STEP AT THE START
+//    PAYS ITS RATING»: on the start host the HERO tells a prelude's scale steps' rating (one token per step off the k-th
+//    printed scale icon), the ruling Greens' answer after the last touchdown.
+//      · `venus-l1-shade-start`     — a 2p Redux table at blue's deployment queue (Teractor played, P66 + Donation kept,
+//        the fresh table's Greens ruling, Venus 0 %): A on P66 → three rating tokens off the three printed Venus icons,
+//        the cell ticking on each, +6 M€ after; the queue serves Donation (stand A · E · F);
+//      · `venus-l1-shade-enhancers` — the same table with Atmospheric Enhancers + Donation: the «ВАРИАНТ» step's Venus row
+//        → two tokens off the printed Venus icons (stand B — the class);
+//      · `venus-l1-shade-wg`        — mid-game: WG Project deals P66 first (the action phase — the FIELD tells the
+//        rating, never the hero twice; stand D).
+//    A DRY RUN plays each road on a copy, so a rule change fails HERE. ──
+function venusL1ShadeStartFixture(name: string, preludes: readonly [CardName, CardName]): void {
+  const pinned = [CardName.TERACTOR, CardName.ARIDOR];
+  const [game, blue, red] = testGame(2, {
+    skipInitialCardSelection: false, preludeExtension: true, prelude2Expansion: true, venusNextExtension: true,
+    coloniesExtension: true, turmoilReduxExpansion: true, startingCorporations: 1,
+    customCorporationsList: [...pinned], customPreludes: [...preludes, CardName.BUSINESS_EMPIRE, CardName.MOHOLE],
+  });
+  assignPinnedCorporations(name, [blue, red], pinned);
+  for (let guard = 0; guard < 30; guard++) {
+    let acted = false;
+    for (const seat of [blue, red]) {
+      const wf = seat.getWaitingFor();
+      if (wf instanceof SelectInitialCards) {
+        const kept = seat === blue ? [...preludes] : seat.dealtPreludeCards.slice(0, 2).map(toName);
+        seat.process({type: 'initialCards', responses: [
+          {type: 'card', cards: [toName(seat.dealtCorporationCards[0])]}, {type: 'card', cards: kept}, {type: 'card', cards: []},
+        ]});
+        runAllActions(game);
+        acted = true;
+        continue;
+      }
+      const kind = wf?.startGamePrompt?.kind;
+      if (kind === 'corporationPlay') {
+        seat.process({type: 'card', cards: [toName(seat.dealtCorporationCards[0])]});
+      } else if (kind === 'corporationPay') {
+        seat.process({type: 'option'});
+      } else {
+        continue;
+      }
+      runAllActions(game);
+      acted = true;
+    }
+    if (!acted) {
+      break;
+    }
+  }
+  const queue = blue.getWaitingFor();
+  if (queue?.startGamePrompt?.kind !== 'preludeSelection' || !blue.tableau.has(CardName.TERACTOR) || game.parliament?.rulingParty() !== PartyName.GREENS) {
+    throw new Error(`${name}: expected blue's deployment queue with Teractor played and the Greens ruling — got ${queue?.type} ${JSON.stringify(queue?.startGamePrompt)} ruling ${game.parliament?.rulingParty()}`);
+  }
+  // THE DRY RUN — the first prelude on a copy: the steps, their rating and the Greens' answer.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const seat = copy.getPlayerById(blue.id);
+  const [mc, tr] = [seat.megaCredits, seat.terraformRating];
+  seat.process({type: 'card', cards: [preludes[0]]});
+  runAllActions(copy);
+  const or = seat.getWaitingFor();
+  if (or instanceof OrOptions) {
+    const venus = or.options.findIndex((o) => typeof o.title === 'string' && /Venus/.test(o.title));
+    seat.process({type: 'or', index: venus, response: {type: 'option'}});
+    runAllActions(copy);
+  }
+  const steps = preludes[0] === CardName.VENUS_L1_SHADE ? 3 : 2;
+  if (copy.getVenusScaleLevel() !== 2 * steps || seat.terraformRating !== tr + steps || seat.megaCredits !== mc + 2 * steps) {
+    throw new Error(`${name}: the dry run expected Venus ${2 * steps} %, TR +${steps}, the Greens +${2 * steps} M€ — got ${copy.getVenusScaleLevel()} %, TR +${seat.terraformRating - tr}, ${seat.megaCredits - mc} M€`);
+  }
+  write(name, game);
+}
+venusL1ShadeStartFixture('venus-l1-shade-start', [CardName.VENUS_L1_SHADE, CardName.DONATION]);
+venusL1ShadeStartFixture('venus-l1-shade-enhancers', [CardName.ATMOSPHERIC_ENHANCERS, CardName.DONATION]);
+wgProjectFixture('venus-l1-shade-wg', {
+  top: [CardName.VENUS_L1_SHADE, CardName.DONATION, CardName.SUPPLIER],
+  under: [CardName.LOAN],
+  megacredits: 20,
+  venus: true,
+  dry: {
+    pick: CardName.VENUS_L1_SHADE,
+    expect: (blue, copy) => blue.tableau.has(CardName.VENUS_L1_SHADE) && copy.getVenusScaleLevel() === 6 ? undefined :
+      `expected P66 played and Venus 6 % — got tableau=${blue.tableau.has(CardName.VENUS_L1_SHADE)} Venus ${copy.getVenusScaleLevel()} %`,
+  },
+});

@@ -160,6 +160,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // P65 Venus Contract (2026-11-04): the M€ row's touchdowns (the price, then the card's +3 beside the Greens' +2), the
   // reactor's births off its printed «3 M€», the «ВАРИАНТ» row's «Сработает» are recorded off the product's writes.
   'console-venus-contract.spec.ts',
+  // P66 Venus L1 Shade (2026-11-04): a scale step's rating on the START HOST — the tokens' births on the printed Venus
+  // icons and the rating cell's touchdowns, the Greens' answer after the last, are recorded off the product's writes.
+  'console-venus-l1-shade.spec.ts',
   'hand-reveal-probe.spec.ts',
   'mat-stage-probe.spec.ts',
   'start-effect-flow-probe.spec.ts',

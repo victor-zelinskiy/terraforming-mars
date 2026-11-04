@@ -3277,6 +3277,8 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   // P65 Venus Contract — a prelude-reactor on the VENUS SCALE into the M€ rail (ledger GG · GH): the start (P44's «ВАРИАНТ» after
   // it), the Greens table (Venus Shuttles · Air Scrapping), the alternative board at 16 %, Venus at 28 %, the winner's sitting.
   'venus-contract-start' | 'venus-contract-table' | 'venus-contract-alt16' | 'venus-contract-max' | 'venus-contract-sitting' |
+  // P66 Venus L1 Shade — a scale step's rating on the START HOST (ledger GJ): the Redux start (P66 · P44 with the Greens), WG mid-game.
+  'venus-l1-shade-start' | 'venus-l1-shade-enhancers' | 'venus-l1-shade-wg' |
   // Prelude 2 P75 GHG Shipment — the classic Kelvinists read as the Greens (CW): the Greens rule (5 floaters, Manutech) · locked «0 of 2».
   'ghg-shipment' | 'ghg-shipment-locked' |
   // Prelude 2 P83 Sponsoring Nation — the play's live delegate grant with no board door (CX): 4 Earth tags (Teractor ·
