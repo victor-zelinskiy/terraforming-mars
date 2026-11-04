@@ -439,7 +439,10 @@
     &--list &__body { justify-content: flex-start; }
     &--column &__print,
     &--list &__print { flex: 0 0 auto; min-height: 0; }
-    &--column &__or { .con-vchoice-seam-across(); }
+    /* The seam's `flex-basis: 100%` is a whole LINE in a wrapping row; in a COLUMN it is the whole HEIGHT — every «ИЛИ»
+       grew as tall as its host's box and pushed the third row off the screen (P65 · GH: P44's Venus row — the one that
+       carries the table's «+6» — stood below the 4K frame with the cursor on it). A column's seam is its own height. */
+    &--column &__or { .con-vchoice-seam-across(); flex-basis: auto; }
     /* THE LIST ROW reads as ONE LINE — the name (its owner dot, a door's ›) on the left, the READING (the host's chips,
        the reason) right-aligned so the rows compare down a column, the seal in its reserved slot at the end. A row is
        a reading line, not a tile: no column of head-over-body (that was the slab of the owner's 2026-10-14 photo). */

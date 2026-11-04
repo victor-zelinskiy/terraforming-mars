@@ -29392,7 +29392,11 @@ body.con-start-barshold .con-status {
     &__qread-variants {
         margin-left: .5em;
         color: fade(@con-text-dim, 94%);
+        transition: opacity calc(160ms * var(--motion-scale, 1)) linear;
     }
+    /* The hero's «Выбор: …» names what the open step now SHOWS — it recedes with the queue (opacity only, its box kept),
+       never cut by the step's rows that stand over its tail (P65 · GH: «… · Венера» ran under the Venus row). */
+    &--variant &__qread-variants { opacity: 0; }
     &__firstact {
         position: absolute;
         left: 0;
