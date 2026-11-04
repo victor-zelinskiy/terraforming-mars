@@ -329,6 +329,16 @@ let heldReactions: ReadonlyArray<PlayReaction> = [];
  */
 let heldAnswers: Array<ResourceTransferSpec> = [];
 /**
+ * IS THE REWARD BEAT OWED? — ANY of what this scene holds for its landing: the card's own gains, the holders it feeds or
+ * wakes, the rail half (a rating to ride), the printed points, and the table's rail answers it held itself (PL-035). The
+ * last one was missing (P61 · FZ): a play whose ONLY result is the table's answer in the rail (Ants with Soil Bacteria
+ * on the table — no gain of its own, no rating, no points) skipped the beat, the ending released the hold, and the row
+ * ticked with its chip while the reactor — an ATTACHED group this scene had declared — never rose and flew nothing.
+ */
+export function rewardBeatOwed(held: {rewards: number, reactions: number, answers: number, rail: boolean, vp: boolean}): boolean {
+  return held.rewards > 0 || held.reactions > 0 || held.answers > 0 || held.rail || held.vp;
+}
+/**
  * …and WHERE an answer is caused on the landed card (T06 GMO Contract — «Сработает: +2 M€ · Контракты на ГМО»): the
  * printed TAG that woke a card's answer, by its rail row (`RailReward.answerTags`). Such an answer is not a number that
  * changes a beat after the wave — its token is BORN on that tag of the landed card and the row ticks on its touchdown.
@@ -1748,7 +1758,8 @@ export async function endPlayedHero(): Promise<void> {
   // THE CARD'S PRINTED POINTS (TR55): a card whose play changes nothing but the score (Reds News Outlet, a «2 VP»
   // card with no gain) still owes the beat — its token is the whole story of the landing's result.
   const vpOwed = holdsVpShares(PLAYED_HERO_VP_OWNER);
-  if ((pendingRewards.length > 0 || heldReactions.length > 0 || railKey !== undefined || vpOwed) && !consoleReducedMotionActive()) {
+  if (rewardBeatOwed({rewards: pendingRewards.length, reactions: heldReactions.length, answers: heldAnswers.length, rail: railKey !== undefined, vp: vpOwed}) &&
+    !consoleReducedMotionActive()) {
     // THE REWARD BEAT — the final chord of the play: the landed card is read
     // for a quiet moment, then its immediate gains emerge from it as
     // physical resource chips and land where they belong. Each touchdown

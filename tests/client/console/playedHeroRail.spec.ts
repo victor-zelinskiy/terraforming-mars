@@ -7,7 +7,7 @@ import {blockingAnimationHoldCount} from '@/client/components/presentation/anima
 import {Tag} from '@/common/cards/Tag';
 import {playRailReward} from '@/client/console/consoleActionCommit';
 import {
-  abortPlayedHero, armPlayedHero, playedHeroCardGainTotals, playedHeroCardTargets, playedHeroState, seedPlayedHeroRewardHold,
+  abortPlayedHero, armPlayedHero, playedHeroCardGainTotals, playedHeroCardTargets, playedHeroState, rewardBeatOwed, seedPlayedHeroRewardHold,
 } from '@/client/console/played/consolePlayedHero';
 import {PlayReaction} from '@/client/console/played/receivingStageModel';
 import {cardResourceLanded, clearPanelRewardHold, heldCardCapsule, heldProduction, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -257,5 +257,24 @@ describe('the played-card scene\'s rail half — PL-001 for plays', () => {
       expect(heldStock(RATING_RAIL_KEY)).eq(0);
       expect(railRewardState.entries).is.empty;
     });
+  });
+});
+
+describe('consolePlayedHero · the reward beat is owed by ANY held result (P61 · FZ)', () => {
+  const none = {rewards: 0, reactions: 0, answers: 0, rail: false, vp: false};
+
+  it('nothing held — no beat', () => {
+    expect(rewardBeatOwed(none)).eq(false);
+  });
+
+  it('the table rail answer ALONE owes the beat (Ants with Soil Bacteria on the table — no gain, no rating, no points)', () => {
+    expect(rewardBeatOwed({...none, answers: 1})).eq(true);
+  });
+
+  it('every other member still owes it on its own', () => {
+    expect(rewardBeatOwed({...none, rewards: 1})).eq(true);
+    expect(rewardBeatOwed({...none, reactions: 1})).eq(true);
+    expect(rewardBeatOwed({...none, rail: true})).eq(true);
+    expect(rewardBeatOwed({...none, vp: true})).eq(true);
   });
 });
