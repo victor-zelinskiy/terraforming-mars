@@ -27,6 +27,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // P55 Old Mining Colony (2026-11-04): two hosted steps of one start play — the order claims (no plate, the album never
   // nested in the colonies, the deployment node kept) are sampled from before the press.
   'console-old-mining-colony.spec.ts',
+  // P58 Project Eden (2026-11-04): three placements in the player's order — the order step's host, the start's returns
+  // (timed), no band, no plate, the ceremony body never removed — sampled from before the press.
+  'console-project-eden.spec.ts',
   // P46 Colony Trade Hub (2026-11-03): the card's answer to ANY colony built — its rise, the cause plate, the births.
   'console-colony-trade-hub.spec.ts',
   // TR81 Lotus Innovations (2026-10-26): the rating off the printed plates, the corporation rising in its start seat and

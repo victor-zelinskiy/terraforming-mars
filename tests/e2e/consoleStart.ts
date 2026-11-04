@@ -3100,7 +3100,7 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   // P91 WG Project — a prelude played in the middle of the game (ledger EH).
   'wg-project-plain' | 'early-colonization-wg' | 'wg-project-fizzle' | 'wg-project-place' | 'wg-project-draw' | 'wg-project-nested' |
   'wg-project-not-chair' | 'wg-project-short-deck' |
-  'valley-trust-burn' | 'wg-project-forest' | 'wg-project-aquifer' |
+  'valley-trust-burn' | 'wg-project-forest' | 'wg-project-aquifer' | 'project-eden-wg' | 'project-eden-wg-oceans-max' |
   // P54 Nobel Prize — the first start stand with a SEEDED project deck (ledger FM): the tape, the run-out, the WG road.
   'nobel-prize' | 'nobel-prize-exhausted' | 'nobel-prize-wg' |
   // P56 Planetary Alliance — two named searches of one play (ledger FP): the tape, the Venus run-out, the WG road.

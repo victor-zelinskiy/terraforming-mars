@@ -13138,6 +13138,36 @@ wgProjectFixture('wg-project-aquifer', {
   },
 });
 
+// ── P58 · PROJECT EDEN mid-game (docs/claude/prompts/prelude2-p58-project-eden.md, ledger FS, stands C / D): WG Project
+//    deals P58 first, blue holds four project cards beside WG Project (the discard of 3 is the play's last step). The
+//    dry run plays it and stands on the FIRST order step — «1 / 3», or «1 / 2» with nine oceans on the board (the ocean
+//    a named skip).
+for (const [name, oceansFull] of [['project-eden-wg', false], ['project-eden-wg-oceans-max', true]] as const) {
+  wgProjectFixture(name, {
+    top: [CardName.PROJECT_EDEN, CardName.DONATION, CardName.SUPPLIER],
+    under: [CardName.LOAN],
+    megacredits: 30,
+    also: (game) => {
+      const blue = viewerOf(game);
+      for (let i = 0; i < 4; i++) {
+        blue.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+      }
+      if (oceansFull) {
+        maxOutOceans(blue);
+      }
+    },
+    dry: {
+      pick: CardName.PROJECT_EDEN,
+      expect: (blue) => {
+        const wf = blue.getWaitingFor();
+        const of = oceansFull ? 2 : 3;
+        return wf instanceof OrOptions && wf.placementOrderPrompt?.index === 1 && wf.placementOrderPrompt.of === of ? undefined :
+          `expected the order step «1 / ${of}» — got ${wf?.type} ${JSON.stringify(wf instanceof OrOptions ? wf.placementOrderPrompt : undefined)}`;
+      },
+    },
+  });
+}
+
 // ── P54 · NOBEL PRIZE — «Gain 5 M€. Draw 2 cards with requirements.» (docs/claude/prompts/prelude2-p54-nobel-prize.md,
 //    ledger FM): the FIRST start stand with a SEEDED project deck — the API road seeds nothing, so a search at the start
 //    was only ever «the rule was seen» (P44 / P51). A solo Prelude 2 table answered through the real start flow
