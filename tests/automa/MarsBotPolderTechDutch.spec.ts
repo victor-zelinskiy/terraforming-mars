@@ -41,14 +41,15 @@ function polders(game: IGame, bot: IPlayer) {
 
 describe('MarsBot PolderTECH Dutch (CF3, the fork\'s own card) — «the Polder»', () => {
   describe('the card', () => {
-    it('an Earth tag, setup / effect / before-action-phase boxes, its own BC3, no module condition', () => {
+    it('an Earth tag, a plant-then-Earth draft plate, setup / effect / before-action-phase boxes, its own BC3, no module condition', () => {
       const info = marsBotCorpInfo(CF3);
       expect(info.original).eq(CardName.POLDERTECH_DUTCH);
       expect(info.cardNumber).eq('CF3');
       expect(info.startingTags).deep.eq([Tag.EARTH]);
       expect(info.corpBonusCards).deep.eq([BC3]);
       expect(info.requiresModules).is.undefined;
-      expect(info.sections.map((s) => s.kind)).deep.eq(['setup', 'effect', 'beforeActionPhase']);
+      expect(info.draftPriority).deep.eq({type: 'tags', tags: [Tag.PLANT, Tag.EARTH]});
+      expect(info.sections.map((s) => s.kind)).deep.eq(['draftPriority', 'setup', 'effect', 'beforeActionPhase']);
     });
 
     it('collides with the human PolderTECH Dutch', () => {

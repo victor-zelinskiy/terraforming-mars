@@ -46,7 +46,8 @@ describe('MarsBot Hartlan Heating (CF6, the fork\'s own card) — «the Construc
       expect(info.resource).eq('heat');
       expect(info.corpBonusCards).deep.eq([BC6]);
       expect(info.requiresModules).is.undefined;
-      expect(info.sections.map((s) => s.kind)).deep.eq(['effect', 'beforeActionPhase']);
+      expect(info.draftPriority).deep.eq({type: 'tags', tags: [Tag.BUILDING]});
+      expect(info.sections.map((s) => s.kind)).deep.eq(['draftPriority', 'effect', 'beforeActionPhase']);
     });
 
     it('collides with the human Hartlan Heating', () => {

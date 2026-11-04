@@ -149,7 +149,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   },
   [BonusCardId.BC5_OFF_THE_SLIPWAY]: {
     name: 'Off the Slipway',
-    text: 'Arwind Inc.: MarsBot spends 3 fighters, if able, then reveals project cards until one with a space tag and resolves it; the others are discarded. Recurs into the action deck every generation.',
+    text: 'Arwind Inc.: MarsBot spends 4 fighters, if able, then reveals project cards until one with a space tag and resolves it; the others are discarded. Recurs into the action deck every generation.',
   },
   [BonusCardId.BC6_HEATING_SEASON]: {
     name: 'Heating Season',
@@ -569,7 +569,7 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
     return {
       name,
       lines: [
-        {icon: 'fighter', text: 'MarsBot spends ${0} fighters from Arwind Inc., if able — otherwise nothing happens', params: ['3']},
+        {icon: 'fighter', text: 'MarsBot spends ${0} fighters from Arwind Inc., if able — otherwise nothing happens', params: ['4']},
         {icon: 'deck', text: 'MarsBot reveals project cards until one with a space tag and resolves it'},
         {text: 'The other revealed cards are discarded', muted: true},
       ],

@@ -1359,9 +1359,12 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
     startingTags: [Tag.JOVIAN, Tag.VENUS],
     // The fleets, the trades, the storage areas — Colonies is the corporation.
     requiresModules: ['colonies'],
+    // DRAFT PRIORITY (the retro-fit of 2026-11-05) — the very tags that put mechs in the hold (≈ +4.3 VP, §20).
+    draftPriority: {type: 'tags', tags: [Tag.JOVIAN, Tag.SPACE]},
     resource: 'mech',
     corpBonusCards: [BonusCardId.BC2_VEYNON_RUN],
     sections: [
+      {kind: 'draftPriority', lines: [{text: 'Jovian, then space'}]},
       {kind: 'setup', lines: [
         {icon: 'colony', text: 'MarsBot\'s first trade fleet sails from the first generation: Shipping Lines joins the action deck now'},
         {icon: 'mech', text: 'Place ${0} mech on this card', params: ['1']},
@@ -1381,8 +1384,11 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
     original: CardName.POLDERTECH_DUTCH,
     // The human card's corner — Earth.
     startingTags: [Tag.EARTH],
+    // DRAFT PRIORITY (the retro-fit of 2026-11-05) — the land first, then the Dutch corner (≈ +2.4 VP, §20).
+    draftPriority: {type: 'tags', tags: [Tag.PLANT, Tag.EARTH]},
     corpBonusCards: [BonusCardId.BC3_INPOLDERING],
     sections: [
+      {kind: 'draftPriority', lines: [{text: 'Plant, then Earth'}]},
       {kind: 'setup', lines: [
         {icon: 'ocean', text: 'MarsBot places an ocean and a greenery next to it, ignoring the greenery placement rules'},
       ]},
@@ -1406,8 +1412,12 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
     // THE FUND — M€ on the card, the ordinary `.pcard__res` capsule (C20's till): never the bot's own M€, so an
     // attack on MarsBot's M€ never reaches it.
     resource: 'megacredits',
+    // DRAFT PRIORITY (the retro-fit of 2026-11-05) — an insurer SPREADS its risk: the least advanced track, the very
+    // track its payout buys (≈ +1.1 VP; «most tags» 110.6 and «most expensive» 100.0 were too strong — §20).
+    draftPriority: {type: 'leastAdvancedTrack'},
     corpBonusCards: [BonusCardId.BC4_INSURANCE_PAYOUT],
     sections: [
+      {kind: 'draftPriority', lines: [{text: 'Least-advanced track'}]},
       {kind: 'setup', lines: [
         {icon: 'megacredits', text: 'Place ${0} M€ on this card', params: ['10']},
       ]},
@@ -1435,7 +1445,10 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
     corpBonusCards: [BonusCardId.BC5_OFF_THE_SLIPWAY],
     // The Mars Parliament, like the human card: the Agenda's fighters are half the hangar (87 VP without them — §20).
     requiresModules: ['turmoilRedux'],
+    // DRAFT PRIORITY (the retro-fit of 2026-11-05) — the hangar drafts what fills it; the launch went 3 → 4 for it (§20).
+    draftPriority: {type: 'tags', tags: [Tag.SPACE]},
     sections: [
+      {kind: 'draftPriority', lines: [{text: 'Space'}]},
       {kind: 'setup', lines: [
         {text: 'This corporation is only used in a game with Turmoil Redux', muted: true},
       ]},
@@ -1445,7 +1458,7 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
       {kind: 'beforeActionPhase', lines: [
         {icon: 'deck', text: 'Add Off the Slipway to MarsBot\'s action deck'},
-        {icon: 'deck', text: 'Off the Slipway spends ${0} fighters: MarsBot reveals cards until one with a space tag and resolves it', params: ['3'], muted: true},
+        {icon: 'deck', text: 'Off the Slipway spends ${0} fighters: MarsBot reveals cards until one with a space tag and resolves it', params: ['4'], muted: true},
       ]},
     ],
   },
@@ -1459,8 +1472,11 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
     startingTags: [Tag.SPACE, Tag.BUILDING],
     // THE BOILER — heat on the card, the standard heat icon in the `.pcard__res` capsule (Ecoline's plant precedent).
     resource: 'heat',
+    // DRAFT PRIORITY (the retro-fit of 2026-11-05) — the construction boiler drafts what it builds (≈ +2.4 VP, §20).
+    draftPriority: {type: 'tags', tags: [Tag.BUILDING]},
     corpBonusCards: [BonusCardId.BC6_HEATING_SEASON],
     sections: [
+      {kind: 'draftPriority', lines: [{text: 'Building'}]},
       {kind: 'effect', lines: [
         {icon: 'heat', text: 'Each tile MarsBot places — a city, a greenery or an ocean — puts ${0} heat on this card', params: ['2']},
       ]},

@@ -40,7 +40,7 @@ function inDeck(game: IGame, id: BonusCardId): number {
 
 describe('MarsBot Veynon Dynamics (CF2, the fork\'s own card) — «Mechs in the Hold»', () => {
   describe('the card', () => {
-    it('Jovian and Venus tags, a mech store, Colonies only, its own BC2 — setup and effect boxes', () => {
+    it('Jovian and Venus tags, a Jovian-then-space draft plate, a mech store, Colonies only, its own BC2 — setup and effect boxes', () => {
       const info = marsBotCorpInfo(CF2);
       expect(info.original).eq(CardName.VEYNON_DYNAMICS);
       expect(info.cardNumber).eq('CF2');
@@ -48,7 +48,8 @@ describe('MarsBot Veynon Dynamics (CF2, the fork\'s own card) — «Mechs in the
       expect(info.requiresModules).deep.eq(['colonies']);
       expect(info.resource).eq('mech');
       expect(info.corpBonusCards).deep.eq([BC2]);
-      expect(info.sections.map((s) => s.kind)).deep.eq(['setup', 'effect']);
+      expect(info.draftPriority).deep.eq({type: 'tags', tags: [Tag.JOVIAN, Tag.SPACE]});
+      expect(info.sections.map((s) => s.kind)).deep.eq(['draftPriority', 'setup', 'effect']);
     });
 
     it('never seated without Colonies; collides with the human Veynon Dynamics', () => {

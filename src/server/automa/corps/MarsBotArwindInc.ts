@@ -16,8 +16,8 @@ import {otherPlayersCardsWithTag, pileCount} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.CF5_ARWIND_INC);
 
-/** BC5 — the fighters one launch costs. */
-export const LAUNCH_FIGHTERS = 3;
+/** BC5 — the fighters one launch costs (3 → 4 with the Space draft plate, the retro-fit of 2026-11-05). */
+export const LAUNCH_FIGHTERS = 4;
 /** What puts a fighter on the card: every space tag MarsBot resolves; every step of its Agenda marker (Redux). */
 export const FIGHTERS_PER_SPACE_TAG = 1;
 export const FIGHTERS_PER_AGENDA_STEP = 1;
@@ -29,16 +29,17 @@ export const FIGHTERS_PER_AGENDA_STEP = 1;
  *
  *   MODULE               Turmoil Redux — the Mars Parliament (like the human card: its Agenda clause is half the hangar).
  *   STARTING TAG         Space (resolved like every starting tag — its own fighter: «including this»)
+ *   DRAFT PRIORITY       Space — the hangar drafts what fills it (the retro-fit of 2026-11-05).
  *   EFFECT               Each space tag MarsBot resolves puts a fighter on this card; each step of MarsBot's Agenda
  *                        marker puts one too (the human card's «Agenda step → a fighter»).
  *   BEFORE ACTION PHASE  Add Off the Slipway (BC5) to MarsBot's action deck.
  *
- *   BC5 OFF THE SLIPWAY  MarsBot spends 3 fighters, if able (else nothing). Then it reveals project cards until one
+ *   BC5 OFF THE SLIPWAY  MarsBot spends 4 fighters, if able (else nothing). Then it reveals project cards until one
  *                        with a space tag and resolves it — every tag of it advances a track; the other revealed cards
  *                        are discarded. Recurs every generation.
  *
  * THE LAUNCH IS A WHOLE EXTRA CARD — the one corporation effect that buys the bot a turn rather than a step, so its
- * price is fighters, and fighters come back from the very space tag the launch resolves: a launch nets −2, a hangar
+ * price is fighters, and fighters come back from the very space tag the launch resolves: a launch nets −3, a hangar
  * fed by the space track runs one a generation, a quiet space track waits.
  *
  * THE BALANCE (measured 2026-11-03, 30 seeded 8-generation games, the human passing — §20). The sim's political phase
@@ -47,6 +48,11 @@ export const FIGHTERS_PER_AGENDA_STEP = 1;
  * Agenda: 95.0 VP, Venus + Colonies + Prelude 106.6 (C38 94.1 / 105.3 · C42 96.3 / 107.8); cost 2 ran 103.9 / 112.6.
  * WITHOUT the Parliament the same card measured 87.3 / 99.1 — half its fighters gone — so it is a Redux corporation,
  * like the card it plays.
+ *
+ * THE DRAFT PLATE (the retro-fit of 2026-11-05, the sim now PLAYS the draft — the human drafts the first card). Without a
+ * plate, cost 3: 94.7 / 103.3. «Space» at cost 3 ran 101.8 / 115.8 — space feeds the hangar AND the launch — so the
+ * launch went to 4: **94.3 / 108.8** (cost 5: 91.2 / 103.4; «Space, then event» at 3: 104.4 / 117.1). References under
+ * the same driver: C38 95.3 / 103.6 · C42 94.8 / 106.9 · CF1 98.1 / 107.1 · CF7 95.5 / 106.6.
  */
 export const MarsBotArwindInc: MarsBotCorp = {
   info: INFO,
@@ -126,7 +132,7 @@ function offTheSlipway(game: IGame): BonusCardOutcome {
   }
   bumpCorpStat(game, 'slipwayPlayed');
   const bot = marsBotOf(game);
-  // «Spends 3 fighters, if able» — all or nothing, and no Failed Action: the card prints its own empty branch.
+  // «Spends 4 fighters, if able» — all or nothing, and no Failed Action: the card prints its own empty branch.
   if (automa.corpResources < LAUNCH_FIGHTERS) {
     AutomaTurnLog.setBonusBranch(game, {key: 'Fewer than ${0} fighters in the hangar — no launch this generation', params: [`${LAUNCH_FIGHTERS}`]});
     game.log('${0} has fewer than ${1} fighters — no launch this generation', (b) => b.player(bot).number(LAUNCH_FIGHTERS));

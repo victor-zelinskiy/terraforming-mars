@@ -565,9 +565,9 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
       b.effect(undefined, (eb) => {
         eb.tag(Tag.SPACE).slash().agendaStep(1).startEffect.resource(CardResource.FIGHTER);
       });
-      // BEFORE ACTION PHASE: Off the Slipway — 3 fighters launch a space card off the deck.
+      // BEFORE ACTION PHASE: Off the Slipway — 4 fighters launch a space card off the deck.
       b.action(undefined, (eb) => {
-        eb.resource(CardResource.FIGHTER, 3).startAction.cards(1, {secondaryTag: Tag.SPACE}).asterix();
+        eb.resource(CardResource.FIGHTER, 4).startAction.cards(1, {secondaryTag: Tag.SPACE}).asterix();
       });
     });
   case MarsBotCorpId.CF4_MONS_INSURANCE:

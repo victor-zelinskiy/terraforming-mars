@@ -39,7 +39,7 @@ function resolve(game: IGame) {
 
 describe('MarsBot Arwind Inc. (CF5, the fork\'s own card) — «the Orbital Shipyard»', () => {
   describe('the card', () => {
-    it('a Space tag, the hangar of fighters, its own BC5, the Mars Parliament required', () => {
+    it('a Space tag, a Space draft plate, the hangar of fighters, its own BC5, the Mars Parliament required', () => {
       const info = marsBotCorpInfo(CF5);
       expect(info.original).eq(CardName.ARWIND_INC);
       expect(info.cardNumber).eq('CF5');
@@ -47,7 +47,8 @@ describe('MarsBot Arwind Inc. (CF5, the fork\'s own card) — «the Orbital Ship
       expect(info.resource).eq('fighter');
       expect(info.corpBonusCards).deep.eq([BC5]);
       expect(info.requiresModules).deep.eq(['turmoilRedux']);
-      expect(info.sections.map((s) => s.kind)).deep.eq(['setup', 'effect', 'beforeActionPhase']);
+      expect(info.draftPriority).deep.eq({type: 'tags', tags: [Tag.SPACE]});
+      expect(info.sections.map((s) => s.kind)).deep.eq(['draftPriority', 'setup', 'effect', 'beforeActionPhase']);
     });
 
     it('collides with the human Arwind Inc.; never seated without the Parliament', () => {
@@ -97,7 +98,7 @@ describe('MarsBot Arwind Inc. (CF5, the fork\'s own card) — «the Orbital Ship
   });
 
   describe('BC5 OFF THE SLIPWAY — fighters launch a space card off the deck', () => {
-    it('3 fighters: a space card is revealed and resolved, the others discarded; its own space tag refuels the hangar', () => {
+    it('4 fighters: a space card is revealed and resolved, the others discarded; its own space tag refuels the hangar', () => {
       const [game] = arwindGame('-ar-launch');
       game.automa!.corpResources = LAUNCH_FIGHTERS;
       const pile = game.automa!.playedPile.length;
@@ -115,7 +116,7 @@ describe('MarsBot Arwind Inc. (CF5, the fork\'s own card) — «the Orbital Ship
       expect(game.automa!.recurringBonusCards).contains(BC5);
     });
 
-    it('fewer than 3 fighters → nothing at all', () => {
+    it('fewer than 4 fighters → nothing at all', () => {
       const [game] = arwindGame('-ar-short');
       game.automa!.corpResources = LAUNCH_FIGHTERS - 1;
       const pile = game.automa!.playedPile.length;

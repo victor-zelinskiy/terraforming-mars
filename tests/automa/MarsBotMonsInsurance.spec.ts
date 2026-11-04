@@ -43,7 +43,7 @@ function trackSum(game: IGame): number {
 
 describe('MarsBot Mons Insurance (CF4, the fork\'s own card) — «the Reserve Fund»', () => {
   describe('the card', () => {
-    it('no tag, setup / effect / before-action-phase boxes, the fund on the card, its own BC4, no module condition', () => {
+    it('no tag, a least-advanced-track draft plate, setup / effect / before-action-phase boxes, the fund on the card, its own BC4, no module condition', () => {
       const info = marsBotCorpInfo(CF4);
       expect(info.original).eq(CardName.MONS_INSURANCE);
       expect(info.cardNumber).eq('CF4');
@@ -51,7 +51,8 @@ describe('MarsBot Mons Insurance (CF4, the fork\'s own card) — «the Reserve F
       expect(info.resource).eq('megacredits');
       expect(info.corpBonusCards).deep.eq([BC4]);
       expect(info.requiresModules).is.undefined;
-      expect(info.sections.map((s) => s.kind)).deep.eq(['setup', 'effect', 'beforeActionPhase']);
+      expect(info.draftPriority).deep.eq({type: 'leastAdvancedTrack'});
+      expect(info.sections.map((s) => s.kind)).deep.eq(['draftPriority', 'setup', 'effect', 'beforeActionPhase']);
     });
 
     it('collides with the human Mons Insurance', () => {

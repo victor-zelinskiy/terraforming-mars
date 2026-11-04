@@ -682,8 +682,9 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
 
   it('Veynon Dynamics (CF2, the fork\'s own card) prints its hulls of mechs, never the human mech action', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.CF2_VEYNON_DYNAMICS);
-    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect']);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect']);
     const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the draft plate').contains('Jovian, then space');
     expect(text, 'the mechs').contains('mech');
     expect(text, 'the fleets').contains('trade fleet');
     expect(text, 'its own card').contains('Veynon Run');
@@ -711,8 +712,9 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
 
   it('Hartlan Heating (CF6, the fork\'s own card) prints its boiler, never the human 48 M€ or M€ production', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.CF6_HARTLAN_HEATING);
-    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation effect', 'Before action phase']);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation effect', 'Before action phase']);
     const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the draft plate').contains('Building');
     expect(text, 'its own card').contains('Heating Season');
     expect(text, 'the heat').contains('heat');
     // The human Hartlan Heating starts with 48 M€ and raises M€ production — none of that.
@@ -725,8 +727,10 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
 
   it('Arwind Inc. (CF5, the fork\'s own card) prints its shipyard, never the human 38 M€ or the fighter payment', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.CF5_ARWIND_INC);
-    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect', 'Before action phase']);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Before action phase']);
     const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the draft plate').contains('Space');
+    expect(text, 'the launch price').contains('spends 4 fighters');
     expect(text, 'its own card').contains('Off the Slipway');
     expect(text, 'the fighters').contains('fighter');
     expect(text, 'the Agenda').contains('Agenda');
@@ -740,8 +744,9 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
 
   it('Mons Insurance (CF4, the fork\'s own card) prints its reserve fund, never the human 48 M€ or the production attack', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.CF4_MONS_INSURANCE);
-    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect', 'Before action phase']);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Before action phase']);
     const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the draft plate').contains('Least-advanced track');
     expect(text, 'its own card').contains('Insurance Payout');
     expect(text, 'the fund').contains('fund');
     // The human Mons Insurance starts with 48 M€, +4 M€ production and cuts every opponent's — none of that.
@@ -754,8 +759,9 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
 
   it('PolderTECH Dutch (CF3, the fork\'s own card) prints its polders, never the human energy or M€ start', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.CF3_POLDERTECH_DUTCH);
-    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect', 'Before action phase']);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Before action phase']);
     const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the draft plate').contains('Plant, then Earth');
     expect(text, 'its own card').contains('Inpoldering');
     expect(text, 'the dikes\' price').contains('10 M€');
     // The human PolderTECH Dutch starts with 35 M€ and energy production — none of that.
