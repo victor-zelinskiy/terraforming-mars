@@ -46,7 +46,7 @@
  * (`handRevealState.rev`).
  */
 
-import {nextTick} from 'vue';
+import {nextTick, shallowRef} from 'vue';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -56,6 +56,7 @@ import {beginDockIntakeAccent} from '@/client/console/handDock/consoleDockAccent
 import {handCursor, handRevealState, RevealVisual} from '@/client/console/handDock/handRevealState';
 import {arriveCursor, holdCursor, releaseCursor} from '@/client/console/cursorArrival';
 import {probeTick} from '@/client/console/probeTick';
+import {reactivePredicate} from '@/client/components/presentation/reactivityWitness';
 import {
   handBodiesOracle, handBodiesState, handBodyEl, handBodyMode, setHandBodiesFlying, ensureHandBodyFaces,
   setHandBodyMode, resetHandBodies,
@@ -133,9 +134,22 @@ export function setHandRevealHooks(h: RevealHooks): void {
   hooks = h;
 }
 
-export function isHandRevealEpisodeRunning(): boolean {
-  return building || (episode !== undefined && !episode.finished);
+/**
+ * THE EPISODE'S REACTIVE EDGE (P55 · FO, invariant 17). `building`, `episode` and `episode.finished` are plain module
+ * state (a GSAP timeline must never be made reactive), so every write to them bumps this epoch — the shell's computed
+ * `handScrollActive` reads the predicate, and a plain read LATCHED it: a computed that saw «running» during the album's
+ * open kept that answer until an unrelated edge, and the right stick was dead in the album (the start's discard step).
+ */
+const episodeEdge = shallowRef(0);
+function markEpisodeEdge(): void {
+  episodeEdge.value++;
 }
+
+/** Declared to the reactivity witness: a write site that forgets its edge is NAMED (red in every unit / e2e run). */
+export const isHandRevealEpisodeRunning = reactivePredicate('hand-reveal-episode', (): boolean => {
+  void episodeEdge.value;
+  return building || (episode !== undefined && !episode.finished);
+});
 
 export function runningHandRevealKind(): Episode['kind'] | undefined {
   if (building) {
@@ -403,6 +417,7 @@ function teardown(): void {
   ep.accentRelease = undefined;
   ep.tl.kill();
   episode = undefined;
+  markEpisodeEdge();
 }
 
 /* ── OPEN: pack → album ─────────────────────────────────────────────── */
@@ -432,6 +447,7 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>, st
     return;
   }
   building = true;
+  markEpisodeEdge();
   buildingKind = 'open';
   pendingReverse = false;
   const seq = ++buildSeq;
@@ -503,6 +519,7 @@ function finalizeOpenForward(): void {
     return;
   }
   ep.finished = true;
+  markEpisodeEdge();
   handRevealState.phase = 'open';
   // The cursor keeps its REST pose through the handoff (the slots show under identical copies), and arrives once the
   // copies have gone — its own beat, never a ring revealed with the card.
@@ -522,6 +539,7 @@ function finalizeOpenReverse(): void {
     return;
   }
   ep.finished = true;
+  markEpisodeEdge();
   handRevealState.phase = 'docked';
   handRevealState.chrome = 'all';
   handRevealState.holdSlots = false;
@@ -558,6 +576,7 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
     return;
   }
   building = true;
+  markEpisodeEdge();
   buildingKind = 'close';
   pendingReverse = false;
   const seq = ++buildSeq;
@@ -649,6 +668,7 @@ function finalizeCloseForward(): void {
     return;
   }
   ep.finished = true;
+  markEpisodeEdge();
   handRevealState.phase = 'docked';
   handRevealState.chrome = 'all';
   handRevealState.holdSlots = false;
@@ -664,6 +684,7 @@ function finalizeCloseReverse(): void {
     return;
   }
   ep.finished = true;
+  markEpisodeEdge();
   handRevealState.phase = 'open';
   holdCursor(handCursor);
   handRevealState.holdSlots = false; // slots snap back under the page bodies
@@ -701,6 +722,7 @@ export async function runHandFilterEpisode(input: HandFilterInput): Promise<void
     return;
   }
   building = true;
+  markEpisodeEdge();
   buildingKind = 'filter';
   pendingReverse = false;
   const seq = ++buildSeq;
@@ -797,6 +819,7 @@ function finalizeFilter(visibleNow: ReadonlySet<string>): void {
     return;
   }
   ep.finished = true;
+  markEpisodeEdge();
   holdCursor(handCursor);
   handRevealState.holdSlots = false;
   handRevealState.filterActive = false;
@@ -851,8 +874,10 @@ function installEpisode(kind: Episode['kind'], tl: gsap.core.Timeline, els: Arra
     accentRelease: beginDockIntakeAccent(`hand-${kind}`),
   };
   episode = ep;
+  markEpisodeEdge();
   armLog(`arm ${kind} n=${pairs.length} rev=${handRevealState.rev}`);
   building = false;
+  markEpisodeEdge();
   buildingKind = undefined;
   if (pendingReverse) {
     pendingReverse = false;
@@ -942,6 +967,7 @@ export function resetHandReveal(): void {
   releaseCursor(handCursor);
   buildSeq++;
   building = false;
+  markEpisodeEdge();
   buildingKind = undefined;
   pendingReverse = false;
   // Captured BEFORE the modes are cleared: exactly the bodies that were away
