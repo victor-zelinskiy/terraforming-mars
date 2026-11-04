@@ -124,7 +124,7 @@ describe('PreservationProgram — the readings of a card\'s skipped rating', () 
       const header = new LogMessage(LogMessageType.DEFAULT, '${0} converted heat', [{type: LogMessageDataType.PLAYER, value: BLUE}]);
       header.correlationId = 40;
       header.role = 'root-action';
-      header.category = 'standard-action';
+      header.category = 'standard-project';
       const ev = (e: Partial<GameEvent> & Pick<GameEvent, 'id' | 'type'>): GameEvent =>
         ({generation: 2, phase: Phase.ACTION, correlationId: 40, visibility: 'journal', impact: {}, ...e} as GameEvent);
       const chain = [
