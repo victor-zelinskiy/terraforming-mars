@@ -26,7 +26,7 @@ import {readTransient, recordTransient} from './transientRecorder';
  *       card's +3 — both paid, the card's token off its own face;
  *   (E) Venus at 28 % (`venus-contract-max`): ONE step is made — «Сработает» promises +3, never +6, the server pays +3;
  *   (F) the sitting (`venus-contract-sitting` — blue wins the dev law that raises Venus 2 steps): the winner's REWARDED
- *       steps pay the card +6 — the server and the rail converge; the TELLING of a card's answer on the sitting is the known gap PL-1799 (P64's — the standalone chain is cut by the gate's presses): recorded in F-rail-trail, not judged.
+ *       steps pay the card +6, and the sitting TELLS it — the gate's presses answer the sitting, never cut the card's chain (PL-1799 / PL-1803): the tokens born on the card's printed «3 M€» land on the M€ row.
  * The rules are pinned by `tests/cards/prelude2/VenusContract.spec.ts`; the variant row's reading by
  * `tests/client/components/console/preludeVariantModel.spec.ts`. TIMING class (`timingSpecs.ts`). Storyboard:
  * `TM_E2E_STORYBOARD=1` → screenshots/p65/tv4k/story-*.
@@ -419,7 +419,7 @@ test.describe(`P65 Venus Contract · a prelude-reactor on the Venus scale · ${P
     expect(errors, 'no page error').toEqual([]);
   });
 
-  test('(F) the sitting: the winner\'s two Venus steps pay the card +6 — the server and the rail converge (the telling: PL-1799)', async ({page, request}) => {
+  test('(F) the sitting: the winner\'s two Venus steps pay the card +6 — and the sitting tells it off the card, no gate press cuts it', async ({page, request}) => {
     test.setTimeout(480_000);
     const errors: Array<string> = [];
     page.on('pageerror', (e) => errors.push(String(e)));
@@ -450,10 +450,12 @@ test.describe(`P65 Venus Contract · a prelude-reactor on the Venus scale · ${P
     expect(wire.game.venusScaleLevel, 'the server: the winner raised Venus 10 → 14 %').toBe(14);
     await expect.poll(async () => Number(((await page.locator(MC).first().textContent()) ?? '').replace(/\s+/g, '').match(/^-?\d+/)?.[0] ?? NaN),
       {timeout: 30_000, message: 'the M€ row converges on the server'}).toBe(wire.thisPlayer.megacredits);
-    // PL-1799 (P64's gap, the same class on this road): the card's answer on the sitting is not TOLD — recorded, not judged.
+    // PL-1799 / PL-1803 closed: the gate's presses answer the sitting, never the card's chain — its answer is TOLD.
     const births = witness.births.filter((b) => b.under.startsWith(`reactor:${CARD}`)).length;
-    writeText('F-told.txt', `P65 births on the sitting: ${births} (PL-1799 — the gap when 0)`);
-    expect(endsOverGlass(witness), 'F: no end over glass or nothing').toEqual([]);
+    writeText('F-told.txt', `P65 births on the sitting: ${births}`);
+    const cuts = (await readRailTrail(page, 'rail-F')).split('\n').filter((l) => l.includes('"reaction:cut"'));
+    expect(cuts, 'no press of the sitting cuts the card\'s chain').toEqual([]);
+    expectCardAnswer(witness, 'F');
     expect(poses.some((s) => s.v.atStage > 1), 'never two instances of P65').toBe(false);
     expect(errors, 'no page error').toEqual([]);
   });
