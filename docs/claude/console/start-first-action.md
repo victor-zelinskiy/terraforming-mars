@@ -115,6 +115,15 @@ carried from the seat's RESERVE. The briefing names the vote after the CONFIRM (
 A new first action that asks the Parliament is one more marker in that predicate. Contract:
 `docs/TURMOIL_REDUX_THE_DEIMOS_GROUP.md` §4.
 
+**…and a PRELUDE's grant rides the same push — a SERIES too** (P60 Rise to Power, 2026-11-04 — three delegates, each its
+own decision): the step names its PRELUDE (`startPreludeGrantOf` — a `party` prompt marked grant, a PRELUDE giver on
+`choiceContext`, the PRELUDES phase; never a title), the section's head counts the decision («СТАРТ ПАРТИИ › ВОСХОЖДЕНИЕ К
+ВЛАСТИ › ГОЛОСОВАНИЕ · 2 / 3» — `ConsoleParliamentSection.headSeries`, the hand's `grantSeriesShown` reading, latched
+through the leave), the vote mode returns to its selection IN PLACE between the decisions (`continueSeriesInPlace` —
+host-agnostic; measured: one Parliament node, the door standing in every sample) and the frame pops ONCE after the last
+cube. A reload inside the series stands the start back up around the grant (one more row of `startFrameLive`, the P55 / P58
+family) — never a Parliament of its own. Stand `console-rise-to-power` A–C.
+
 **A first action the TABLE answers** (TR81 Lotus Innovations, 2026-10-26 — «+2 TR», and the corporation's own data «including
 from this»): the preview carries the forecast (`corpFirstActionPreview` → `forecast`), the briefing draws «Сработает» under
 the result (`[data-start-firstact-forecast]`, the shared `ConsoleForecastRow`) and R3 opens the «Эффекты» layer as a LEVEL
