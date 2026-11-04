@@ -408,6 +408,19 @@ describe('effectForecastModel', () => {
       expect(discountTail(undefined)).to.be.undefined;
     });
 
+    // P62 · GB — a one-play discount the standing ones left nothing for is spent for nothing: never credited by the head,
+    // never a «−0» row (the modifiers group names it — its consumption reads `used: false`).
+    it('a ONE-PLAY discount is named by the head only when it takes something off THIS price', () => {
+      const catapult: EventSource = {kind: 'card', card: CardName.EARTH_CATAPULT};
+      const workers: EventSource = {kind: 'card', card: CardName.INDENTURED_WORKERS};
+      const used = forecast([], {discounts: {base: 6, final: 0, items: [{source: catapult, amount: 2}, {source: workers, amount: 8, saved: 4, oneShot: true}], other: 0}});
+      expect(discountTail(used)?.armedSource).to.eq(CardName.INDENTURED_WORKERS);
+      const wasted = forecast([], {discounts: {base: 2, final: 0, items: [{source: catapult, amount: 2}, {source: workers, amount: 8, saved: 0, oneShot: true}], other: 0}});
+      expect(discountTail(wasted)).to.deep.eq({base: 2, final: 0, saved: 2});
+      const rows = forecastGroups(wasted, []).find((g) => g.id === 'discounts')!.items;
+      expect(rows.map((r) => r.kind === 'discount' ? r.source : undefined), 'the standing row only').to.deep.eq([catapult]);
+    });
+
     it('an EMPTY forecast publishes nothing; a discount-only forecast keeps the layer but draws no row', () => {
       expect(forecastLayerAvailable(forecast([]))).to.be.false;
       expect(forecastRowPresent(forecast([]))).to.be.false;

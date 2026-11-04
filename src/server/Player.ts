@@ -76,6 +76,7 @@ import {ParliamentHandler} from './parliament/ParliamentHandler';
 import {withRatingVetoWatch} from './parliament/ratingVetoGate';
 import {isEarlySittingAck, isSittingAckPrompt, SittingAcks} from './parliament/SittingAcks';
 import {fromToEventSource} from './events/fromToEventSource';
+import {oneShotEffectsOf} from './cards/armedPlayEffects';
 import {recordRatingSkipped} from './cards/prelude2/preservationProgramSkip';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
 import {CanAffordOptions, CardAction, CardDrawReveal, CardIntakeSegmentLive, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard, CardDrawSearchOutcome, RequirementBonusEntry, GlobalWaiverProbe, CardCostDiscount} from './IPlayer';
@@ -115,6 +116,12 @@ const THROW_STATE_ERRORS = Boolean(process.env.THROW_STATE_ERRORS);
 // Project an event source onto the TR-source attribution shown in the end-game
 // "Cards & effects" breakdown. The card NAME lets the client refine the type
 // (prelude / CEO / active) via the manifest, so we stay coarse here.
+/** Does the card `armed` names (played last — the table or the replayed events) arm a ONE-PLAY discount right now? */
+function armedOneShotDiscount(player: IPlayer, armed: CardName): boolean {
+  const card = player.tableau.get(armed) ?? player.removedFromPlayCards.find((c) => c.name === armed);
+  return card !== undefined && oneShotEffectsOf(card).some((e) => e.kind === 'discount');
+}
+
 function eventSourceToTrAttribution(source: EventSource | undefined): {sourceType: TRSourceType, sourceName: string, sourceCardId?: string} {
   if (source === undefined) {
     return {sourceType: 'other', sourceName: 'Other effect'};
@@ -1474,9 +1481,15 @@ export class Player implements IPlayer {
       discounts.push({source: {kind: 'resolution', id: law.resolution, owner: this.color}, amount: law.amount});
     }
 
-    // The 0-floor: what each line REALLY took off the price. The cardless remainder (colonies) is spent first.
+    // The 0-floor: what each line REALLY took off the price. The cardless remainder (colonies) is spent first, the
+    // STANDING lines next, a ONE-PLAY line (TR49 class — Indentured Workers' «next card −8», armed while its card was
+    // played last) LAST: the rule spends it with the next play whatever it saves (the rest is lost), so its honest
+    // share is what it adds BEYOND the standing ones — a price they already took to 0 spends it for nothing.
+    const armed = this.lastCardPlayed;
+    const oneShot = (d: CardCostDiscount) => armed !== undefined && (d.source.kind === 'card' || d.source.kind === 'corporation') &&
+      d.source.card === armed && armedOneShotDiscount(this, armed);
     let room = Math.max(0, card.cost - this.colonies.cardDiscount);
-    for (const d of discounts) {
+    for (const d of [...discounts.filter((d) => !oneShot(d)), ...discounts.filter(oneShot)]) {
       const taken = Math.min(d.amount, room);
       room -= taken;
       if (taken < d.amount) {

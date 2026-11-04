@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
-import {setTemperature} from '../TestingUtils';
+import {fakeCard, setTemperature} from '../TestingUtils';
 import {Game} from '../../src/server/Game';
 import {CardName} from '../../src/common/cards/CardName';
 import {GlobalParameter} from '../../src/common/GlobalParameter';
@@ -18,6 +18,8 @@ import {armedPlayForecastOf} from '../../src/server/models/armedPlayForecast';
 import {Fish} from '../../src/server/cards/base/Fish';
 import {Comet} from '../../src/server/cards/base/Comet';
 import {BackroomDeal} from '../../src/server/cards/turmoilRedux/BackroomDeal';
+import {EarthCatapult} from '../../src/server/cards/base/EarthCatapult';
+import {Payment} from '../../src/common/inputs/Payment';
 
 /**
  * THE ONE READER OF ARMED ONE-PLAY EFFECTS (TR49 class): what the next card
@@ -129,6 +131,46 @@ describe('armedPlayForecastOf — what a play spends, and whether it uses it', (
     player.playCard(new IndenturedWorkers());
     expect(armedPlayForecastOf(player, new Comet())?.consumes[0].used).is.true;
     expect(armedPlayForecastOf(player, new IndenturedWorkers())?.consumes[0].used, 'a free card gains nothing from −8').is.false;
+  });
+
+  // P62 · GB — the one-play discount's share is what it adds BEYOND the standing ones: the 0-floor is spent on them first.
+  describe('beside a STANDING discount (the 0-floor spent on the standing ones first)', () => {
+    function armedBeside(cost: number) {
+      const [game, player] = testGame(1);
+      player.megaCredits = 50;
+      player.playCard(new IndenturedWorkers()); // arms «next card −8»
+      // The standing −2 stands AFTER the arming card on the table: the table's order must not decide who gets the floor.
+      player.playedCards.push(new EarthCatapult());
+      expect(player.lastCardPlayed).eq(CardName.INDENTURED_WORKERS);
+      const card = fakeCard({cost, name: 'p62-probe' as CardName});
+      return {game, player, card};
+    }
+
+    it('cost 2: Earth Catapult alone takes it to 0 — the −8 is spent for NOTHING, never credited', () => {
+      const {player, card} = armedBeside(2);
+      const breakdown = player.getCardCostBreakdown(card);
+      expect(breakdown.final).eq(0);
+      expect(breakdown.discounts.find((d) => d.source.kind === 'card' && d.source.card === CardName.EARTH_CATAPULT)?.saved, 'the standing −2 saved all 2').is.undefined;
+      expect(breakdown.discounts.find((d) => d.source.kind === 'card' && d.source.card === CardName.INDENTURED_WORKERS)?.saved).eq(0);
+      expect(armedPlayForecastOf(player, card)?.consumes[0].used, 'spent for nothing').is.false;
+    });
+
+    it('cost 6: the −8 adds 4 beyond the standing −2 — USED, its share 4 (the rest is lost)', () => {
+      const {player, card} = armedBeside(6);
+      const breakdown = player.getCardCostBreakdown(card);
+      expect(breakdown.discounts.find((d) => d.source.kind === 'card' && d.source.card === CardName.EARTH_CATAPULT)?.saved).is.undefined;
+      expect(breakdown.discounts.find((d) => d.source.kind === 'card' && d.source.card === CardName.INDENTURED_WORKERS)?.saved).eq(4);
+      expect(armedPlayForecastOf(player, card)?.consumes[0].used).is.true;
+    });
+
+    it('the RULE is unchanged: the next play spends the −8 whatever it saved — and the record says what it saved', () => {
+      const {game, player, card} = armedBeside(2);
+      player.playCard(card, Payment.EMPTY);
+      expect(armedPlayEffectsOf(player), 'spent by the play — nothing armed after it').deep.eq([]);
+      const saved = (name: CardName) => game.events.events.filter((e) => e.type === 'discount-applied' && e.source?.kind === 'card' && e.source.card === name).map((e) => e.impact.megacreditsSaved);
+      expect(saved(CardName.EARTH_CATAPULT), 'the standing −2 is credited with the 2 it took').deep.eq([2]);
+      expect(saved(CardName.INDENTURED_WORKERS), 'the −8 took nothing — no saving recorded').deep.eq([]);
+    });
   });
 
   it('a permanent modifier alone reads easings but spends nothing', () => {

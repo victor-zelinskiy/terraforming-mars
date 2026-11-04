@@ -417,7 +417,9 @@ export function discountTail(forecast: EffectForecast | undefined): DiscountTail
     return undefined;
   }
   const tail: DiscountTail = {base: forecast.discounts.base, final: forecast.discounts.final, saved: forecast.discounts.base - forecast.discounts.final};
-  const armed = forecast.discounts.items.find((d) => d.oneShot === true);
+  // Named only when it takes something off THIS price: a one-play discount the standing ones already left nothing for is
+  // spent for nothing — the modifiers group says so, the head does not credit it (P62 · GB).
+  const armed = forecast.discounts.items.find((d) => d.oneShot === true && (d.saved ?? d.amount) > 0);
   const armedSource = armed !== undefined ? sourceCardOf(armed.source) : undefined;
   if (armedSource !== undefined) {
     tail.armedSource = armedSource;
@@ -640,6 +642,9 @@ export function forecastGroups(
   const d = forecast.discounts;
   if (d.final < d.base) {
     for (const [i, item] of d.items.entries()) {
+      if (item.oneShot === true && item.saved === 0) {
+        continue; // spent for nothing — the modifiers group names it (`modifierItemsOf`, the consumption's `used`)
+      }
       items.discounts.push(item.saved === undefined ?
         {kind: 'discount', key: `discount-${i}`, source: item.source, amount: item.amount, group: 'discounts'} :
         {kind: 'discount', key: `discount-${i}`, source: item.source, amount: item.amount, saved: item.saved, group: 'discounts'});

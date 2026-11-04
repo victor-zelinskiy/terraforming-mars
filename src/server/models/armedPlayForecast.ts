@@ -23,7 +23,9 @@ export function armedPlayForecastOf(player: IPlayer, card: IProjectCard): ArmedP
   const breakdown = armed.some((a) => a.effect.kind === 'discount') ? player.getCardCostBreakdown(card) : undefined;
   const consumes: Array<ArmedPlayConsumption> = armed.map((a) => {
     if (a.effect.kind === 'discount') {
-      const lowered = breakdown?.discounts.some((d) => armedSourceNamed(d.source, a) && d.amount > 0) ?? false;
+      // USED by what it REALLY takes off — the breakdown spends the 0-floor on the standing discounts first (P62 · GB):
+      // a price they already took to 0 spends the one-play discount for nothing (the rule: the next play spends it anyway).
+      const lowered = breakdown?.discounts.some((d) => armedSourceNamed(d.source, a) && (d.saved ?? d.amount) > 0) ?? false;
       return {armed: a, used: lowered && card.cost > 0};
     }
     const used = easings.some((e) => e.decisive && e.sources.some((s) => armedSourceNamed(s.source, a)));
