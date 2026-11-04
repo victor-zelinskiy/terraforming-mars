@@ -18,6 +18,7 @@ import {Payment} from '../../../src/common/inputs/Payment';
 import {cast} from '../../../src/common/utils/utils';
 import {PowerPlant} from '../../../src/server/cards/base/PowerPlant';
 import {Ants} from '../../../src/server/cards/base/Ants';
+import {IndustrialMicrobes} from '../../../src/server/cards/base/IndustrialMicrobes';
 import {IProjectCard} from '../../../src/server/cards/IProjectCard';
 import {CardName} from '../../../src/common/cards/CardName';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
@@ -246,6 +247,17 @@ describe('SuitableInfrastructure', () => {
       player.playCard(new PowerPlant());
       runAllActions(player.game);
       expect(player.megaCredits - before).eq(2);
+    });
+
+    it('rule 4 · GD — a play raising TWO productions (Industrial Microbes): ONE fact, the promise equals the payout', () => {
+      const facts = factsOf(new IndustrialMicrobes());
+      expect(facts, 'one answer per operation — never «+2» per chip').has.lengthOf(1);
+      const promised = facts.flatMap((f) => f.effects).reduce((sum, e) => sum + (e.amount ?? 0), 0);
+      player.megaCredits = 20;
+      const before = player.megaCredits;
+      player.playCard(new IndustrialMicrobes());
+      runAllActions(player.game);
+      expect(player.megaCredits - before).eq(promised).eq(2);
     });
 
     it('rule 4 — a play that raises no production is promised nothing', () => {

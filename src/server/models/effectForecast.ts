@@ -639,7 +639,7 @@ function ratingFacts(
  * `grantForecast` twins, never a table of «who reacts to data». Read-only.
  */
 export function grantReactionFacts(player: IPlayer, card: ICard, effects: ReadonlyArray<ActionEffect>): Array<EffectForecastFact> {
-  return grantFacts(player, player, card, grantsOf(effects), {operation: 'play', card, tiles: []});
+  return forecast.oncePerOperation(grantFacts(player, player, card, grantsOf(effects), {operation: 'play', card, tiles: []}));
 }
 
 /**
@@ -1351,11 +1351,14 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
     }
   }
 
-  // The explicit target marker first (`host`), then the arrow rule over it.
-  const stripped = stripTouchedPools(facts.map((f) => stampHosts(f, card)), ownEffects, card);
+  // The explicit target marker first (`host`), then the arrow rule over it. ONE ANSWER PER OPERATION last (P63 · GD):
+  // a `once` reactor asked on every chip and in every cascade states its answer once — an option's list once beside
+  // what the play's own facts already said.
+  const stripped = forecast.oncePerOperation(stripTouchedPools(facts.map((f) => stampHosts(f, card)), ownEffects, card));
+  const stated = forecast.onceIdsOf(stripped);
   const strippedByBranch: Record<number, ReadonlyArray<EffectForecastFact>> = {};
   for (const pos of Object.keys(byBranch)) {
-    strippedByBranch[Number(pos)] = stripTouchedPools(byBranch[Number(pos)].map((f) => stampHosts(f, card)), ownEffects, card);
+    strippedByBranch[Number(pos)] = forecast.oncePerOperation(stripTouchedPools(byBranch[Number(pos)].map((f) => stampHosts(f, card)), ownEffects, card), stated);
   }
   const all = [...stripped, ...Object.values(strippedByBranch).flat()];
   const modifiers = operation === 'play' && isIProjectCard(card) ? armedPlayForecastOf(player, card) : undefined;
@@ -1417,7 +1420,7 @@ export function rewardReactionFacts(
       ...ratingFacts(player, card, grants, effects, [], ctx));
   }
   facts.push(...colonyBuiltFacts(player, card, opts.coloniesBuilt ?? 0, ctx));
-  return stripTouchedPools(facts.map((fact) => stampHosts(fact, card)), effects, card);
+  return forecast.oncePerOperation(stripTouchedPools(facts.map((fact) => stampHosts(fact, card)), effects, card));
 }
 
 /**
@@ -1488,7 +1491,7 @@ export function patentSaleFacts(player: IPlayer, project: ICard, count: number):
     sold.push(...(own ?? [unknownFor(reactor, player, player, 'standard-project', 'This card reacts to the sale, but its result is not described')]));
   }
   const answers = [...sold, ...cascadeFacts(player, project, sold, ctx)].map((fact) => stampHosts(fact, project));
-  return [...rewardReactionFacts(player, project, [stockGain(player, Resource.MEGACREDITS, count)]), ...answers];
+  return forecast.oncePerOperation([...rewardReactionFacts(player, project, [stockGain(player, Resource.MEGACREDITS, count)]), ...answers]);
 }
 
 /**
@@ -1508,7 +1511,7 @@ export function tradeReactionForecast(
 ): EffectForecast | undefined {
   const ctx: EffectForecastContext = {operation: 'action', ...(card !== undefined ? {card} : {}), tiles: []};
   const answers = [...reactors, ...cascadeFacts(player, card, reactors, ctx)].map((fact) => stampHosts(fact, card));
-  const facts = [...rewardReactionFacts(player, card, effects), ...answers];
+  const facts = forecast.oncePerOperation([...rewardReactionFacts(player, card, effects), ...answers]);
   return facts.length === 0 ? undefined : {...emptyEffectForecast(), facts, coverage: coverageOf(facts)};
 }
 

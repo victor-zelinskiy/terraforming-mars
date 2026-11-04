@@ -131,6 +131,19 @@ Chips are the shared `actionPreviews` vocabulary (`stockGain`, `stockCost`,
 `productionChange`, `cardGain`, `cardResourceGain`, `trGain`, `drawGain`) built
 against the RECIPIENT.
 
+**ONE ANSWER PER OPERATION** (P63 · GD, 2026-11-04). The engine asks a grant twin on EVERY chip and again in every
+cascade (a party's / a law's answer, a scale's bonus step), so a reactor that pays at most once — «once per action you
+take» (P63 Suitable Infrastructure; Greta CEO, Mining Market Insider are the same form, out of scope) — cannot be honest
+by itself: Industrial Microbes (steel + energy) got TWO «+2 M€» facts of P63 under one id for one payout. Such a twin
+declares its fact `once: true` beside a FIXED `id` (`FactOptions`; an `once` without an id throws — an auto id never
+repeats); the mark rides the id, the one field every copy keeps (`addressed`, `asBranchFact`). The engine's EXIT pass
+`oncePerOperation` keeps the FIRST such fact of the whole operation and drops the repeats — in every door that collects
+an operation's facts: `buildForecast` (an option's list against what the play's own facts already stated — `onceIdsOf`),
+`rewardReactionFacts` (a standard project, a colony, a conversion), `tradeReactionForecast`, `patentSaleFacts`,
+`grantReactionFacts` (the cell). Every other fact passes untouched (a per-step reactor — Manutech — still answers per
+chip). The twin never counts its own calls, and «this action has already paid» is the card's own read-only question
+(`OncePerAction.spent`). Guards: `effectForecast.spec` § one answer per operation, `SuitableInfrastructure.spec` § GD.
+
 **The engine** (`src/server/models/effectForecast.ts`) is a mirror of
 `Player.onCardPlayed`: own tableau `onCardPlayed` → Turmoil policy (`unknown`,
 `rule` source) → every seat in generation order `onCardPlayedByAnyPlayer` →

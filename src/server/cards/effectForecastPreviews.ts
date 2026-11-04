@@ -73,6 +73,14 @@ export function placesUncoveredOcean(tile: EffectForecastTile): boolean {
 export type FactOptions = {
   /** Overrides the auto id suffix (`n`) — use when a hook emits several facts. */
   id?: string;
+  /**
+   * ONE ANSWER PER OPERATION (P63 · GD — «once per action you take»): the source pays at most once whatever the
+   * operation grants, yet the engine asks a grant twin on EVERY chip (a card raising two productions) and again in
+   * every cascade. Declared, the fact's `id` (required beside it — an auto id never repeats) carries the mark and the
+   * engine's exit pass `oncePerOperation` keeps the FIRST such fact of the whole operation (an option of an `or`
+   * step: the first of the play's facts + that option's). The twin never counts its own calls.
+   */
+  once?: true;
   /** Defaults to `you` (the card's owner IS the actor). A reaction on someone
    *  else's card passes `recipientOf(activePlayer, cardOwner)`. */
   recipient?: EffectForecastRecipient;
@@ -91,6 +99,38 @@ export type FactOptions = {
 
 let autoId = 0;
 
+/** The id mark of a `once` fact — the id is the fact's only field every copy (`addressed`, `asBranchFact`) keeps. */
+const ONCE_PER_OPERATION = '#once';
+
+/** The fact was declared `once` (one answer per operation). */
+export function isOncePerOperation(fact: EffectForecastFact): boolean {
+  return fact.id.endsWith(ONCE_PER_OPERATION);
+}
+
+/**
+ * THE EXIT PASS of «one answer per operation»: keeps the FIRST `once` fact of each id and drops every repeat — and
+ * every `once` fact whose id `stated` already holds (an option's list against the play's own facts). Every other fact
+ * passes untouched, in order. Pure.
+ */
+export function oncePerOperation(facts: ReadonlyArray<EffectForecastFact>, stated: ReadonlySet<string> = new Set()): Array<EffectForecastFact> {
+  const seen = new Set(stated);
+  return facts.filter((fact) => {
+    if (!isOncePerOperation(fact)) {
+      return true;
+    }
+    if (seen.has(fact.id)) {
+      return false;
+    }
+    seen.add(fact.id);
+    return true;
+  });
+}
+
+/** The ids of the `once` facts of a list — what an option's list is filtered against. */
+export function onceIdsOf(facts: ReadonlyArray<EffectForecastFact>): Set<string> {
+  return new Set(facts.filter(isOncePerOperation).map((f) => f.id));
+}
+
 function baseFact(
   source: EffectForecastSource,
   certainty: EffectForecastCertainty,
@@ -99,8 +139,11 @@ function baseFact(
   timing: EffectForecastTiming,
   options?: FactOptions): EffectForecastFact {
   autoId = (autoId + 1) % 1_000_000;
+  if (options?.once === true && options.id === undefined) {
+    throw new Error(`a once-per-operation fact of ${source.name} needs its fixed id`);
+  }
   const fact: EffectForecastFact = {
-    id: `${source.owner}-${source.name}-${options?.id ?? autoId}`,
+    id: `${source.owner}-${source.name}-${options?.id ?? autoId}${options?.once === true ? ONCE_PER_OPERATION : ''}`,
     source,
     certainty,
     recipient: options?.recipient ?? {kind: 'you'},

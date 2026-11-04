@@ -27,8 +27,9 @@ const PAYOUT = 2;
  *     `production-gain` scope (the reaction record) and named in the standard log line. Upstream wrote its own
  *     `${0} gained ${1} ${2} from ${3}` line with the plain string «M€».
  *  4. The twin is HONEST about rule 2: silent where the hook is (rule 1) and for an action that has already paid
- *     (`paidThisAction`), and ONE fact per operation under a fixed id — the engine asks it on EVERY production chip
- *     (Industrial Microbes raises two).
+ *     (`paidThisAction`), and ONE fact per operation: the engine asks it on EVERY production chip (Industrial
+ *     Microbes raises two) and in every cascade, so the fact is declared `once` under a fixed id and the engine's exit
+ *     pass keeps the first (`effectForecastPreviews.oncePerOperation` — P63 · GD).
  */
 export class SuitableInfrastructure extends PreludeCard {
   constructor() {
@@ -90,6 +91,6 @@ export class SuitableInfrastructure extends PreludeCard {
       {...forecast.sourceOf(this, cardOwner, 'production-gain'), printedEffect: 0},
       [actionPreviews.stockGain(cardOwner, Resource.MEGACREDITS, PAYOUT)],
       'You raise a production this action',
-      {id: 'once-per-action', note: 'Once per action'})];
+      {id: 'once-per-action', once: true, note: 'Once per action'})];
   }
 }

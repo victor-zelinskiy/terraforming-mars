@@ -58,6 +58,9 @@ import {ICard} from '../../src/server/cards/ICard';
 import {IPlayer} from '../../src/server/IPlayer';
 import {asBranchFact, chipPool, ownTilesOf, sharedTilesOf, stripTouchedPools} from '../../src/server/models/effectForecast';
 import {EffectForecastTile} from '../../src/server/cards/EffectForecastContext';
+import {SuitableInfrastructure} from '../../src/server/cards/prelude2/SuitableInfrastructure';
+import {IndustrialMicrobes} from '../../src/server/cards/base/IndustrialMicrobes';
+import * as forecastPreviews from '../../src/server/cards/effectForecastPreviews';
 import {TileType} from '../../src/common/TileType';
 import {anyPlayerTagReason, tagReason} from '../../src/server/cards/effectForecastPreviews';
 import {ActionEffect} from '../../src/common/models/ActionPreviewModel';
@@ -737,5 +740,51 @@ describe('effectForecast — the bonus steps a raise crosses (PL-147)', () => {
     expect(temperature!.certainty).eq('skipped');
     expect(temperature!.note).eq('The temperature is at its maximum');
     expect(facts.find((f) => f.id.endsWith('greens-tr'))!.effects[0].amount, 'the oxygen step alone').eq(2);
+  });
+});
+
+describe('effectForecast — one answer per operation (P63 · GD)', () => {
+  const owner = 'red';
+  function fact(id: string, once: boolean): EffectForecastFact {
+    const source = {kind: 'card' as const, name: CardName.SUITABLE_INFRASTRUCTURE, owner: owner as never, channel: 'production-gain' as const};
+    return forecastPreviews.exact(source, [], 'You raise a production this action', once ? {id, once: true} : {id});
+  }
+
+  it('the pass keeps the FIRST `once` fact of an id, drops its repeats and what was already stated — every other fact untouched', () => {
+    const a = fact('once-per-action', true);
+    const b = fact('once-per-action', true);
+    const plain1 = fact('plain', false);
+    const plain2 = fact('plain', false);
+    expect(forecastPreviews.isOncePerOperation(a)).is.true;
+    expect(forecastPreviews.isOncePerOperation(plain1)).is.false;
+    expect(forecastPreviews.oncePerOperation([a, plain1, b, plain2])).deep.eq([a, plain1, plain2]);
+    // An option's list beside the play's own facts: what the play already said is not said again.
+    expect(forecastPreviews.oncePerOperation([b, plain1], forecastPreviews.onceIdsOf([a]))).deep.eq([plain1]);
+  });
+
+  it('a `once` fact without its fixed id is refused (an auto id never repeats — the pass could not see it)', () => {
+    const source = {kind: 'card' as const, name: CardName.SUITABLE_INFRASTRUCTURE, owner: owner as never, channel: 'production-gain' as const};
+    expect(() => forecastPreviews.exact(source, [], 'x', {once: true})).to.throw(/fixed id/);
+  });
+
+  it('a play raising TWO productions: the `once` reactor answers once, a per-step reactor (Manutech) per chip', () => {
+    const [game, player] = testGame(1);
+    game.phase = Phase.ACTION;
+    player.playedCards.push(new SuitableInfrastructure(), new Manutech());
+    const microbes = new IndustrialMicrobes();
+    player.cardsInHand.push(microbes);
+    const facts = effectForecastForPlay(player, microbes, cardPlayPreview(player, microbes)).facts;
+    expect(facts.filter((f) => f.source.name === CardName.SUITABLE_INFRASTRUCTURE)).has.lengthOf(1);
+    expect(facts.filter((f) => f.source.name === CardName.MANUTECH).map((f) => f.effects[0].icon)).deep.eq([Resource.STEEL, Resource.ENERGY]);
+  });
+
+  it('a reward whose raise crosses BOTH heat-production steps (the bonus pass grants two): the `once` reactor answers once', () => {
+    const [game, player] = testGame(1);
+    game.phase = Phase.ACTION;
+    player.playedCards.push(new SuitableInfrastructure());
+    setTemperature(game, TEMPERATURE_BONUS_FOR_HEAT_1 - 2);
+    const facts = rewardReactionForecast(player, undefined, [globalGain(player, 'temperature', 3)])?.facts ?? [];
+    expect(facts.filter((f) => f.id.includes('temperature-heat-bonus'))).has.lengthOf(2);
+    expect(facts.filter((f) => f.source.name === CardName.SUITABLE_INFRASTRUCTURE)).has.lengthOf(1);
   });
 });
