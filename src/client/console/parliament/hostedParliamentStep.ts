@@ -17,6 +17,11 @@
 import {agendaWalkFlow, agendaWalkLiveIn, agendaWalkOwedTo, dropAgendaWalkPromise} from './agendaWalk';
 import {neutralRallyFlow, neutralRallyLiveIn, neutralRallyOwedTo, dropNeutralRallyPromise} from './neutralRally';
 import {workspaceFrameDescended, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
+import {Phase} from '@/common/Phase';
+import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {CardName} from '@/common/cards/CardName';
+import {CardType} from '@/common/cards/CardType';
+import {getCard} from '@/client/cards/ClientCardManifest';
 
 export type HostedParliamentStepKind = 'walk' | 'rally';
 export type HostedParliamentStepHost = 'hand' | 'parliament' | 'start';
@@ -84,4 +89,21 @@ export function startHostedStepToEnter(): HostedParliamentStepKind | undefined {
     return 'walk';
   }
   return neutralRallyFlow.owed?.host === 'start' && !neutralRallyFlow.live ? 'rally' : undefined;
+}
+
+/**
+ * P60 · FW — A START PRELUDE'S DELEGATE GRANT (Rise to Power's series of three, High Circles' pair): the live `party`
+ * prompt marked as a GRANT (`votePrompt.source === 'grant'`) whose giver is a PRELUDE (`choiceContext.source` — the
+ * card, never a title), in the opening's PRELUDES phase. It is a SCENE STEP of the start that played the prelude
+ * («СТАРТ ПАРТИИ › <пролог> › ГОЛОСОВАНИЕ · k / n») — a reload mid-series stands the start back up around it (the
+ * P55 / P58 rows of `startFrameLive`), never a stand-alone Parliament. Returns the prelude's name, or undefined.
+ */
+export function startPreludeGrantOf(view: PlayerViewModel): CardName | undefined {
+  const wf = view.waitingFor;
+  const source = wf?.choiceContext?.source;
+  if (wf?.type !== 'party' || wf.votePrompt?.source !== 'grant' || view.game.phase !== Phase.PRELUDES ||
+      source?.kind !== 'card' || source.card === undefined) {
+    return undefined;
+  }
+  return getCard(source.card)?.type === CardType.PRELUDE ? source.card : undefined;
 }

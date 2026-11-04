@@ -23,6 +23,7 @@ import {DELEGATE_ICON, ReduxParty} from '../../../src/common/parliament/Parliame
 import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../../src/server/game/GameOptions';
 import {testAutomaGame} from '../../automa/AutomaTestGame';
 import {quietResolutionOf, seatEnacted, seatResolution} from '../../parliament/parliamentArrange';
+import {computePreludeOutlooks} from '../../../src/server/preludes/preludeOutlook';
 
 describe('RiseToPower', () => {
   let card: RiseToPower;
@@ -187,6 +188,17 @@ describe('RiseToPower — on a Turmoil Redux table', () => {
     drainReserve(u, 3);
     expect(u.card.canPlay(u.p1)).is.true;
     expect(unplayableReasons(u.p1, u.card)).deep.eq([]);
+  });
+
+  it('rule 5b — a BURN names its cause: the prelude outlook of a short reserve carries «2 of 3» (the card own hook)', () => {
+    const t = table();
+    drainReserve(t, 2);
+    expect(t.card.unplayableReason(t.p1)).deep.eq({type: 'party', message: 'Delegates in your reserve: ${0} of ${1}', params: ['2', '3'], current: 2});
+    const outlook = computePreludeOutlooks(t.p1, [t.card], []).get(CardName.RISE_TO_POWER);
+    expect(outlook?.state).eq('noEffect');
+    expect(outlook?.state === 'noEffect' ? outlook.reason?.params : undefined).deep.eq(['2', '3']);
+    const u = table();
+    expect(u.card.unplayableReason(u.p1), 'a full reserve has nothing to say').is.undefined;
   });
 
   it('rule 6 — no resolution up for the vote: the card is played, the production stands, every grant is a NAMED journal line', () => {

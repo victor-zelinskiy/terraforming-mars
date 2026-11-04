@@ -76,6 +76,7 @@
                    :subject="headSubject"
                    :subjectRaw="false"
                    :stage="headStage"
+                   :stageRaw="headSeries !== undefined"
                    :committed="headCommitted">
       <template #trailing>
         <!-- WHO ASKED, when it is a board cell (Vastitas Borealis' Viking): the same source plate as everywhere else. -->
@@ -357,7 +358,7 @@ import {RALLY_COUNT_CHIP_ID} from '@/client/console/parliament/parliamentBand';
 import {registerSupportDiscardHost, supportDiscardFlow} from '@/client/console/parliament/supportDiscard';
 import {supportAreaOf, supportCursorOrder, supportStartParty, supportStepStageOf} from '@/client/console/parliament/supportPickModel';
 import {BandBanner, BandDelegate, BandFocus, BandRally, BandSupport} from '@/client/console/parliament/parliamentBand';
-import {BannerPromptMeta, DelegatePromptMeta, SupportPromptMeta} from '@/common/models/PlayerInputModel';
+import {BannerPromptMeta, DelegatePromptMeta, GrantSeries, SupportPromptMeta} from '@/common/models/PlayerInputModel';
 import {
   AGENDA_WALK_READ_MS, AgendaWalkHooks, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, agendaWalkMotion, deliverAgendaStepReward,
 } from '@/client/console/parliament/agendaWalkDirector';
@@ -375,7 +376,8 @@ import {
   setWorkspaceFramePhase, setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameAnchor,
   workspaceFrameHasNested, workspaceFrameHost, workspaceFrameRenders, workspaceFrameStage, workspaceHostYieldsScene, workspaceStackCrumb,
 } from '@/client/console/consoleWorkspaceStack';
-import {AGENDA_WALK_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE} from '@/client/console/consoleTaskRouter';
+import {AGENDA_WALK_STEP_STAGE, DELEGATE_GRANT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE} from '@/client/console/consoleTaskRouter';
+import {grantSeriesCountText, grantSeriesShown} from '@/client/console/parliament/grantSeries';
 import {translateText} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
 import {useResizeObserver} from '@vueuse/core';
@@ -461,6 +463,8 @@ export default defineComponent({
        *  kept through the dissolve after the frame has left the stack, so the head leaves whole (never re-read). */
       sceneStepLatch: false,
       headLatch: undefined as ReturnType<typeof workspaceStackCrumb>,
+      /** The series count the head showed last while the frame stood — the leave keeps it (the head leaves whole). */
+      seriesLatch: undefined as GrantSeries | undefined,
       /**
        * THE LEAVE LATCH (v3 В1): the last COHERENT player view, frozen when the surface starts leaving —
        * the phase's end (the sitting's data gone in the same response that closes the frame), the flow's
@@ -1362,7 +1366,27 @@ export default defineComponent({
       return this.stackCrumb !== undefined ? (this.stackCrumb.subject?.text ?? '') : this.crumbSubject;
     },
     headStage(): string {
+      const series = this.headSeries;
+      if (series !== undefined) {
+        return `${translateText(DELEGATE_GRANT_STEP_STAGE)} · ${grantSeriesCountText(series)}`;
+      }
       return this.stackCrumb !== undefined ? (this.stackCrumb.stage ?? '') : this.crumbStage;
+    },
+    /**
+     * P60 · FW — A SERIES OF GRANTS ASKED FROM THE START (Rise to Power: three delegates, each its own decision): the
+     * start's scene step counts its decision the way the hand's tail does (`grantSeries.ts` — the decision on its way
+     * while its cube flies, the standing one once the mode is back in its selection) — «СТАРТ ПАРТИИ › ВОСХОЖДЕНИЕ К
+     * ВЛАСТИ › ГОЛОСОВАНИЕ · 2 / 3». Only the vote stage counts; a later stage of the step (a walk) counts nothing.
+     */
+    headSeries(): GrantSeries | undefined {
+      if (this.stackCrumb === undefined || this.stackCrumb.stage !== DELEGATE_GRANT_STEP_STAGE) {
+        return undefined;
+      }
+      return this.stackCrumbLive !== undefined ? this.headSeriesLive : this.seriesLatch;
+    },
+    headSeriesLive(): GrantSeries | undefined {
+      return this.stackCrumbLive?.stage !== DELEGATE_GRANT_STEP_STAGE ? undefined :
+        grantSeriesShown(parliamentFlow.voteSnapshot?.series, this.playerView.waitingFor);
     },
     headCommitted(): boolean {
       return this.stackCrumb?.committed ?? this.crumbCommitted;
@@ -1580,6 +1604,7 @@ export default defineComponent({
         if (!this.sceneStepOfStartLive) {
           this.sceneStepLatch = false;
           this.headLatch = undefined;
+          this.seriesLatch = undefined;
         }
       }
     },
@@ -1594,6 +1619,18 @@ export default defineComponent({
       handler(on: boolean): void {
         if (on) {
           this.sceneStepLatch = true;
+        }
+      },
+    },
+    'headSeriesLive': {
+      immediate: true,
+      flush: 'sync',
+      handler(series: GrantSeries | undefined): void {
+        if (series !== undefined) {
+          this.seriesLatch = series;
+        } else if (this.stackCrumbLive !== undefined) {
+          // The frame stands and counts nothing (a lone grant, a later stage): no count to keep for its leave.
+          this.seriesLatch = undefined;
         }
       },
     },

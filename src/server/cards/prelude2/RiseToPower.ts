@@ -1,6 +1,12 @@
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {PreludeCard} from '../prelude/PreludeCard';
+import {IPlayer} from '../../IPlayer';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {delegateReserveReason} from '../../models/actionUnavailableReasons';
+
+/** The printed delegates — read by the play, the gate and the burn's reason alike. */
+const DELEGATES = 3;
 
 
 export class RiseToPower extends PreludeCard {
@@ -16,7 +22,7 @@ export class RiseToPower extends PreludeCard {
       // The scan's asterisk is printed and stays: its referent is the text's last clause.
       behavior: {
         production: {megacredits: 3},
-        turmoil: {sendDelegates: {count: 3, manyParties: true}},
+        turmoil: {sendDelegates: {count: DELEGATES, manyParties: true}},
       },
 
       metadata: {
@@ -27,5 +33,15 @@ export class RiseToPower extends PreludeCard {
         description: 'Increase your M€ production 3 steps. Add 3 delegates — you may add them to different resolutions.',
       },
     });
+  }
+
+  /**
+   * A BURN NAMES ITS CAUSE (the P59 · FV class): a prelude is no project card, so the hand's reason engine never asks
+   * it — a prelude picked mid-game (WG Project, Board of Directors) whose reserve cannot cover the three delegates would
+   * burn with no reason on its rail. The card states its own, through the ONE builder of the class (the facade's
+   * reserve, the number `canExecute` gates on): «Delegates in your reserve: 2 of 3».
+   */
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    return delegateReserveReason(player, DELEGATES);
   }
 }

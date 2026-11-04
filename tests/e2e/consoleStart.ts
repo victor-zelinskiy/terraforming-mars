@@ -3112,6 +3112,8 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   // Prelude 2 P81 Soil Studies — «per Venus tag, plant tag (INCLUDING THIS ONE) and colony» (DJ): the play +5 (Venus
   // Governor · Arctic Algae · this · one cube) · locked at −2 °C.
   'soil-studies' | 'soil-studies-locked' |
+  // P60 Rise to Power — a series of three grants (ledger FW): the WG road (the series inside the hand), the short reserve.
+  'rise-to-power-wg' | 'rise-to-power-wg-reserve' |
   // The play sheet's worst payment (DJ): Space Elevator with every lane open — steel, titanium, Helion's heat,
   // Floodgates' steel, both mechs, graphene, M€ — the ledger stands in the sheet's body, the commit on the bottom line.
   'play-sheet-ledger' |
