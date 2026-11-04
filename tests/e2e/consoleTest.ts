@@ -336,6 +336,12 @@ const TRANSFER_SURFACE_FOLDED = '[transfer] surface folded under its token';
  */
 const TRANSFER_TOKEN_UNDER = '[transfer] token painted under';
 /**
+ * …and the ONE-TELLER sentinel's (P66 · GJ — the owner: «двойной показ — критический баг»): two stories of one response
+ * reached for the same unit (`resourceTransfer/oneTeller.ts` — a scale step's rating told by the field AND a host); the
+ * second yielded, and the exclusion that let it through is the bug.
+ */
+const TRANSFER_TOLD_TWICE = '[transfer] told twice';
+/**
  * …and the DISCARD PILE's (P86 — the owner's «СБРОШЕНО: 0»): an owner let go of the table's pile while it read LESS than
  * the server's discards it had declared (`discardPile.ts` — `expectDiscardPileCount` / `settleDiscardPile`): a lost
  * touchdown nobody settled. Healed on the spot by the product; red here, so the cause is never lost.
@@ -601,7 +607,7 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
       page.on('console', (message) => {
         const text = message.text();
         if (text.includes(TRANSFER_END_NOT_PAINTED) || text.includes(TRANSFER_SURFACE_FOLDED) || text.includes(TRANSFER_TOKEN_UNDER) ||
-            text.includes(DISCARD_PILE_UNDER)) {
+            text.includes(DISCARD_PILE_UNDER) || text.includes(TRANSFER_TOLD_TWICE)) {
           unpainted.push(text.slice(0, 300));
         }
       });
@@ -614,7 +620,7 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
       throw new Error(foreignFaces);
     }
     if (unpainted.length > 0) {
-      throw new Error(`${TRANSFER_END_NOT_PAINTED} / ${TRANSFER_SURFACE_FOLDED} / ${TRANSFER_TOKEN_UNDER} / ${DISCARD_PILE_UNDER} — a resource token was born on / landed over nothing, its surface folded under it, it was painted under a surface, or the discard pile was let go under the server's count (the laws of live flight ends, of the fold, of the paint and of the pile's truth):\n  ${unpainted.join('\n  ')}`);
+      throw new Error(`${TRANSFER_END_NOT_PAINTED} / ${TRANSFER_SURFACE_FOLDED} / ${TRANSFER_TOKEN_UNDER} / ${DISCARD_PILE_UNDER} / ${TRANSFER_TOLD_TWICE} — a resource token was born on / landed over nothing, its surface folded under it, it was painted under a surface, the discard pile was let go under the server's count, or one change reached for two stories (the laws of live flight ends, of the fold, of the paint, of the pile's truth and of one teller):\n  ${unpainted.join('\n  ')}`);
     }
   }, {auto: true}],
 

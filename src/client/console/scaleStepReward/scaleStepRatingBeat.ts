@@ -43,7 +43,9 @@
  *
  * ONE TELLER PER HOST (P66 · GJ): this beat is the ACTION phase's alone — on the START the board is covered for the
  * whole deployment (a field beat there parked 30 s, the 22:15 export), so a prelude's scale steps are told by the HERO
- * (`playRailReward(…, {startHost: true})` → one token per step off the k-th printed scale icon). Never both.
+ * (`playRailReward(…, {startHost: true})` → one token per step off the k-th printed scale icon). Never both — and that is
+ * not left to the phase gate alone: both tellers CLAIM the unit for the response (`resourceTransfer/oneTeller.ts`), the
+ * second yields and the sentinel `[transfer] told twice` turns every e2e spec red.
  */
 import {reactive, watch, WatchStopHandle} from 'vue';
 import {gsap} from 'gsap';
@@ -68,6 +70,7 @@ import {
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {SCALE_STEP_BREATH_MS, SCALE_STEP_STAGE_DUE_MS, scaleStepTokenOrigins} from '@/client/console/scaleStepReward/scaleStepRewardModel';
 import {freshCardReactions} from '@/client/console/cardReaction/cardReactionModel';
+import {SCALE_STEP_RATING_UNIT, claimTeller} from '@/client/console/resourceTransfer/oneTeller';
 
 /** The beat's own name — its notification-only hold, its ledger story, its park membership. */
 export const SCALE_STEP_RATING_KEY = 'scale-step-rating';
@@ -288,6 +291,11 @@ export function seedScaleStepRatingHold(before: PlayerViewModel | undefined, aft
   }
   const plan = scaleStepRatingPlan(before, after, heldThisResponse);
   if (plan === undefined || typeof document === 'undefined' || consoleReducedMotionActive()) {
+    return;
+  }
+  // ONE UNIT, ONE TELLER (P66 · GJ): a host of this response already tells the scale's rating (the start's hero, off the
+  // printed scale icons) — the field yields, by name; never a second story of the same steps.
+  if (!claimTeller(after, SCALE_STEP_RATING_UNIT, SCALE_STEP_RATING_KEY)) {
     return;
   }
   const origins = originsOf(plan);

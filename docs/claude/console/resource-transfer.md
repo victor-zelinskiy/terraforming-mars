@@ -202,7 +202,15 @@ whoever tells it must be the one place the player can SEE the step's cause. Two 
   the chain now carries a rating of its own). A refused step (RX42 / a P57-eaten step — `vetoed`) and a replaced unit
   (RX35 — `diverted`, implying none) fly nothing. The promise is the ordinary rail half: `verifyRailReward` checks the
   rating row (+ the M€ answer) against the two views; a rating that moved otherwise is not held and names itself.
-Guards: `tests/console/playRailRule.spec.ts` § P66 · GJ; e2e `console-venus-l1-shade` (A — three births on the three
+- **ONE UNIT, ONE TELLER — guarded, never left to the phase gate** (the owner, 2026-11-05: «двойной показ — критический
+  баг, защита архитектурная»; `resourceTransfer/oneTeller.ts`): both tellers CLAIM the unit `scale-step-rating` for the
+  response (keyed by the applied view) — `seedRailReward` for a RATING token born on a scale icon (RX35's data is not),
+  `seedScaleStepRatingHold` before it holds anything; the first tells, the second YIELDS (tells nothing), and the
+  sentinel `[transfer] told twice` names the collision in every build — red on every e2e spec (`transferEndsGuard`).
+  The table's answer (the Greens' M€) is ALWAYS told by the card-reaction framework (the party's emblem rises, its
+  tokens are born there): the host only gives it its moment through the answer ledger (`declareHeldAnswers` → the group
+  is ATTACHED, no standalone chain). A new pair of tellers for one unit = a new unit in `oneTeller.ts` + both claims.
+Guards: `tests/console/playRailRule.spec.ts` § P66 · GJ; `tests/client/console/oneTeller.spec.ts`; e2e `console-venus-l1-shade` (A — three births on the three
 printed Venus icons, the cell 20 → 21 → 22 → 23 with no tick before the first token, the Greens +6 after; B — P44's
 Venus row; D — mid-game the field alone).
 

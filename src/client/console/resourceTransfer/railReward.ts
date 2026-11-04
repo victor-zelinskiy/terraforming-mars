@@ -63,10 +63,14 @@ import {
   runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {noteVpHeldElsewhere} from '@/client/console/scoreCell/vpShareLedger';
+import {SCALE_STEP_RATING_UNIT, claimTeller} from '@/client/console/resourceTransfer/oneTeller';
 import type {Tag} from '@/common/cards/Tag';
 
 /** One printed cause of a card's answer on a played card: the tag that woke it and the share it pays (T06). */
 export type RailAnswerCause = {tag: Tag, amount: number};
+
+/** The scales whose step is a rating step — a cause born on one of their printed icons tells that rating (`oneTeller`). */
+const SCALE_RATING_ICONS: ReadonlySet<string> = new Set(['temperature', 'oxygen', 'venus']);
 
 /** What an owner promises the rail: the gains it will FLY, and the table's answer to them. */
 export type RailReward = {
@@ -378,6 +382,13 @@ export function seedRailReward(key: string, reward: RailReward, before: PlayerVi
     noteDegrade(key, 'mismatch', verdict.mismatches.join('; '));
   }
   if (verdict.cause.length === 0) {
+    return false;
+  }
+  // ONE UNIT, ONE TELLER (P66 · GJ): a cause born on a printed SCALE icon tells a scale step's rating — the unit the
+  // field's scale-step beat tells in the action phase. Claimed for this response; a second teller never tells it.
+  // (A RATING token only: RX35's data born on a struck scale icon is a card resource, not the scale's rating.)
+  if (verdict.cause.some((spec) => spec.resource === RATING_RAIL_KEY && spec.bornOn !== undefined && SCALE_RATING_ICONS.has(spec.bornOn)) &&
+      !claimTeller(after, SCALE_STEP_RATING_UNIT, `rail:${key}`)) {
     return false;
   }
   beginPanelRewardHold([...verdict.cause, ...verdict.reactions]);

@@ -16,7 +16,9 @@ import {readTransient, recordTransient} from './transientRecorder';
  * ticking on every touchdown, the Greens' +6 after the last one.
  *   (A) the start (fixture `venus-l1-shade-start` — 2p Redux, the fresh table's Greens ruling): A on P66 → three rating
  *       tokens, the k-th born on the k-th printed Venus icon, the cell ticking 20 → 21 → 22 → 23 (no tick before the first
- *       token is in the air), +6 M€ after the last tick; the queue serves Donation; no shadow finding, no stall;
+ *       token is in the air), +6 M€ after the last tick — told ONCE, by the card-reaction framework off the party's emblem
+ *       (one unit, one teller: `resourceTransfer/oneTeller.ts`; a second story would trip `[transfer] told twice`); the
+ *       queue serves Donation; no shadow finding, no stall;
  *   (E) a reload after A: the rail equals the server, nothing flies again;
  *   (B) the class (`venus-l1-shade-enhancers`): Atmospheric Enhancers' «ВАРИАНТ» Venus row → two tokens off its one
  *       printed Venus icon (a row printing fewer icons than tokens births them all on its first);
@@ -214,6 +216,12 @@ test.describe(`P66 Venus L1 Shade · a scale step at the start pays its rating �
       .toBeGreaterThanOrEqual(tr[tr.length - 1].t);
     const trLandings = witness.landings.filter((l) => l.under === 'rail:tr');
     expect(trLandings.length, `A: three tokens landed on the rating cell (trail:\n${transferTrail(witness)})`).toBe(3);
+    // ONE STORY OF THE ANSWER (oneTeller · the answer ledger): the Greens' +6 is told ONCE — by the card-reaction framework
+    // (born on the party's emblem), six +1 tokens onto the M€ row — never a second chain beside the host's.
+    const mcLandings = witness.landings.filter((l) => l.under.startsWith('rail:megacredits'));
+    const mcBirths = witness.births.filter((b) => mcLandings.some((l) => l.id === b.id));
+    expect(mcLandings.length, `A: the Greens' answer lands as ONE story of six tokens (trail:\n${transferTrail(witness)})`).toBe(6);
+    expect(mcBirths.every((b) => b.under.startsWith('reactor:Greens')), `A: …born on the party's emblem — the standard mechanism (trail:\n${transferTrail(witness)})`).toBe(true);
     expect(endsOverGlass(witness), 'A: no end over glass or nothing').toEqual([]);
     await expect(page.locator('.con-start [data-queue-slot="Donation"]'), 'the queue serves Donation').toHaveCount(1, {timeout: 20_000});
     expect(logs.filter((l) => /start-shadow|\[liveness\]|workspace-stall|rail-owed/.test(l)), 'no shadow finding, no stall, no owed rail').toEqual([]);
