@@ -658,8 +658,16 @@ trade registry (`tradeFlatBonuses`), paid by a bare `stock.add` outside any effe
     `freeStageSlot`; none → the overflow's named «nowhere»). A prelude-reactor on the RATING answers through the same
     road as any rating answer (`ratingAnswerSpecs` → the play's rail half, the rise one beat after the TR's touchdown).
     Guards: `cardReactionDirector.spec` § P64 · GF; e2e `console-terraforming-deal` A (the draw) / A2 (no draw — the shelf).
-    Open (PL-1799): a card's standalone record on a SITTING waits for the sitting's beats and the presses answering the
-    sitting's gates hurry / cut it before it rises — the told answer of a card on the sitting is the next polish.
+43. **A PRESS HURRIES ONLY WHAT IS ON SCREEN; A NAVIGATION THE PRODUCT MADE IS NOBODY'S HURRY** (P64 · PL-1799 /
+    PL-1811, 2026-11-05). The shell hurries reactions on every press and every section change while anything is owed —
+    so a card's standalone answer on a SITTING (it waits for the sitting's beats) was paced by the presses answering the
+    sitting's gates and then CUT before it ever rose; and the sitting stepping out to the board for a scale's story and
+    coming back counted as the player's navigation. `hurryCardReactions` now counts a press only while a reaction STANDS
+    ON SCREEN — `reactionOnStage()`: a face lifted in its place (`liveRisen`) or seated at the stage (a non-warm layer
+    face); judged by the FACE, never by the phase (`rising` is written when the chain is planned) — and a navigation
+    only within the gesture window of the player's own press (`hurry-ignored navigation:product` otherwise). The chain's
+    waits stay bounded, so a press that is no longer a cut can hang nothing. Guards: `cardReactionDirector.spec`
+    § PL-1799; e2e `console-terraforming-deal` D (the sitting tells P64's +4 off its printed «2 M€»).
 
 ## Files
 
