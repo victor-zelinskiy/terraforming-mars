@@ -8,6 +8,7 @@ import {Sabotage} from '@/server/cards/base/Sabotage';
 import {SelectPlayer} from '@/server/inputs/SelectPlayer';
 import {OrOptions} from '@/server/inputs/OrOptions';
 import {diffNegativeNotifications} from '@/client/components/notifications/notificationModel';
+import {Recession} from '@/server/cards/prelude2/Recession';
 
 /**
  * Guard for the premium RED "you were attacked" notification: a cross-player
@@ -73,5 +74,21 @@ describe('attack → victim red notification', () => {
     });
     expect(models.length, 'victim sees a negative notification').to.be.greaterThan(0);
     expect(models[0]).to.include({kind: 'negative', actor: attacker.color});
+  });
+  it('P59 Recession — TWO scopes of one hit (the M€, then the production) are ONE red card with BOTH chips', () => {
+    const [game, attacker, victim] = testGame(2);
+    victim.megaCredits = 20;
+    victim.production.override({megacredits: 2});
+    attacker.playCard(new Recession());
+    runAllActions(game);
+
+    const {models} = diffNegativeNotifications({
+      events: game.events.events, seen: new Set(), viewerColor: victim.color, generation: game.generation, createdAt: 1,
+    });
+    expect(models, 'ONE card for the action, never one per scope').to.have.length(1);
+    expect(models[0]).to.include({kind: 'negative', actor: attacker.color, variant: 'production-reduction', importance: 'critical'});
+    expect(models[0].negative?.sourceCard).to.eq('Recession');
+    expect(models[0].negative?.attacker).to.eq(attacker.color);
+    expect(models[0].negative?.loss).to.deep.eq([{icon: 'megacredits', text: '−5'}, {icon: 'megacredits', text: '−1', production: true}]);
   });
 });

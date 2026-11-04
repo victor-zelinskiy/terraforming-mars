@@ -79,6 +79,7 @@
 
 	"Recession": "Рецессия",
     "EACH OPPONENT loses 5 M€ and decreases their M€ production 1 step. You gain 10 M€.": "Каждый противник теряет 5 М€ и уменьшает своё производство М€ на 1. Вы получаете 10 М€.",
+    "EACH OPPONENT loses 5 M€ and their M€ production decreases 1 step. You gain 10 M€.": "Каждый соперник теряет 5 M€ и снижает производство M€ на 1 шаг. Вы получаете 10 M€.",
 	
 	"Rise To Power": "Восхождение к власти",
     "Increase your M€ production 3 steps and place 3 delegates. YOU MAY PLACE THEM IN SEPARATE PARTIES.": "Увеличьте своё производство М€ на 3 и разместите 3 делегата. Их можно разместить в разных партиях.",

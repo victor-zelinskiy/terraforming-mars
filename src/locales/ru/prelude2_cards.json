@@ -82,5 +82,7 @@
     "Requires that Mars First is ruling or that you have 2 delegates there. Decrease your energy production 1 step. Place a city tile and gain its printed placement bonus 2 additional times.": "Требуется: у власти «Марс вперёд» или 2 ваших делегата на резолюции этой партии. Понизьте производство энергии на 1. Разместите тайл города и получите бонус размещения его клетки ещё 2 раза.",
     "Requires 2 Jovian tags. Add 2 delegates to one resolution.": "Требуется 2 метки Юпитера. Добавьте 2 делегата на одну резолюцию.",
     "Action: Reveal the top 2 cards of the deck. Take any Venus cards into your hand for free. Buy or discard any other card.": "Действие: вскройте 2 верхние карты колоды. Карты Венеры возьмите в руку бесплатно, остальные купите или сбросьте.",
-    "Requires that you are Chairman. Draw 3 prelude cards from the prelude deck and play 1 of them; discard the other 2.": "Требуется быть председателем. Возьмите 3 пролога из колоды прологов и разыграйте 1 из них, остальные 2 сбросьте."
+    "Requires that you are Chairman. Draw 3 prelude cards from the prelude deck and play 1 of them; discard the other 2.": "Требуется быть председателем. Возьмите 3 пролога из колоды прологов и разыграйте 1 из них, остальные 2 сбросьте.",
+    "Each opponent loses 5 M€.": "Каждый соперник теряет 5 M€.",
+    "Each opponent decreases their M€ production 1 step.": "Каждый соперник снижает производство M€ на 1 шаг."
 }

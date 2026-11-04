@@ -60,8 +60,8 @@ type CrossPlayerFamily =
  *  family added to the union fails compilation here until it names a proof. */
 const FAMILY_PROOF: Record<CrossPlayerFamily, string> = {
   'reactive-owner-payout': 'S1/S2/S3/S5/S7 (Ares + passive hooks), S8 (deferred production), S10 (bot actor), S13 (multi-recipient)',
-  'production-attack': 'S6 (Mons Insurance), S11 (floor no-op + honest partial)',
-  'stock-attack': 'S4 (deferred victim pick, hostile band, no twin)',
+  'production-attack': 'S6 (Mons Insurance), S11 (floor no-op + honest partial), S24 (Recession: every opponent, no pick — one card, both chips)',
+  'stock-attack': 'S4 (deferred victim pick, hostile band, no twin), S24 (Recession: every opponent, no pick)',
   'stock-steal': 'S14 (steal: victim loss with attacker target + thief chain)',
   'card-resource-attack': 'S15 (blue-action door, deferred foreign card resource removal)',
   'table-payout': 'S6/S11 (every opponent hit, per-recipient bands)',
@@ -100,6 +100,9 @@ const MANUAL: Partial<Record<CardName, Classification>> = {
   // DP11: deploys a standing advancement ban against another player
   // (DeltaProjectExpansion.placeBlockade → delta-blockade-changed).
   [CardName.MODULAR_FLOODGATES]: {kind: 'cross-player', families: ['track-blockade'], why: 'blocks a foreign player\'s Hydronetwork advancement; delta-blockade-changed carries victim + attacker'},
+  // P59: EVERY opponent −1 M€ production (Production.add, from: {player}) and −5 M€ (stock.deduct, from: {player}; the
+  // bot through AutomaTargeting.removeFromBot) — no target pick, so no recognized attack API names it.
+  [CardName.RECESSION]: {kind: 'cross-player', families: ['production-attack', 'stock-attack'], why: 'every opponent loses M€ and M€ production, attributed to the player (S24)'},
   // (Aphrodite needs no row since TR24: its payout is the card's own `onGlobalParameterRaised`, a REACTIVE_HOOK.)
 };
 

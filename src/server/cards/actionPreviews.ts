@@ -20,7 +20,7 @@ import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX
 import {parameterRoom} from '../../common/parliament/parameterMove';
 import {altVenusBonusFor} from '../../common/venus/altVenusBonus';
 import {tileRemovalRoom} from '../../common/parliament/tileRemoval';
-import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis, ActionEffectBasisSetSide, ActionRevealDescriptor, ActionRevealSplitDescriptor, ActionRevealVerdictDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel, NeutralRallyModel} from '../../common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis, ActionEffectBasisSetSide, ActionRevealDescriptor, ActionRevealSplitDescriptor, ActionRevealVerdictDescriptor, StagedPlacementModel, TableImpactRow, VictoryPointsDelta, AgendaWalkModel, NeutralRallyModel} from '../../common/models/ActionPreviewModel';
 import {AllColonyBonusesModel} from '../../common/models/ColonyBonusLedgerModel';
 import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
 import {AmountConversionModel, AmountCostModel, AmountResultModel, DiscardPromptMeta, PlacementEffect, PlayerInputModel, SelectColonyModel} from '../../common/models/PlayerInputModel';
@@ -1330,6 +1330,15 @@ export function selectPlayerStep(
   options?: {icon?: string, amount?: number, scope?: 'stock' | 'production', disabled?: ReadonlyArray<{player: IPlayer, reason: string | Message}>},
 ): ActionPreviewStep {
   return {kind: 'input', input: new SelectPlayer(players, title, buttonLabel, options).toModel()};
+}
+
+/**
+ * The READ-ONLY step of a play that hits the OTHER SEATS without a choice (P59 Recession — `TableImpactStep`): every
+ * seat a row of the server's own `current → resulting`, a spared part named on its row. No rows → no step (a table
+ * with nobody to hit says so through its own note — the card's).
+ */
+export function tableImpactStep(title: string | Message, rows: ReadonlyArray<TableImpactRow>): ActionPreviewStep | undefined {
+  return rows.length === 0 ? undefined : {kind: 'tableImpact', title, rows};
 }
 
 /** One declared branch of a bespoke `or` action. */

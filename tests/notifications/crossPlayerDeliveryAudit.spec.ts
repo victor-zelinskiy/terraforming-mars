@@ -41,6 +41,7 @@ import {VoteOfNoConfidenceRedux} from '../../src/server/cards/turmoilRedux/VoteO
 import {quietResolutionOf, seatResolution} from '../parliament/parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Payment} from '../../src/common/inputs/Payment';
+import {Recession} from '../../src/server/cards/prelude2/Recession';
 
 /**
  * CROSS-PLAYER DELIVERY AUDIT — «игрок обязан узнать, что чужой ход дал или
@@ -945,5 +946,29 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     expect(victimCard?.header?.message, 'their delegate is back in their reserve — practical, never a loss statement')
       .eq('Your delegate left the chairmanship and returned to your reserve');
     expect(deliveredModels(game, builder.color).filter((m) => m.correlationId === root!.correlationId), 'the actor walked the flow — no card of it').has.length(0);
+  });
+  it('S24 — EVERY opponent hit with NO pick (P59 Recession): each victim reads ONE hostile card with BOTH chips, the attacker named; the actor gets none', () => {
+    const [g, actor, red, green] = testGame(3);
+    red.megaCredits = 30;
+    red.production.override({megacredits: 1});
+    green.megaCredits = 3;
+    const rootId = playThroughDoor(g, actor, new Recession());
+    runAllActions(g);
+    expect(red.megaCredits).eq(25);
+    expect(green.megaCredits, 'a victim with 3 M€ loses 3').eq(0);
+
+    const events = g.events.events.filter((e) => !(e.tags ?? []).some((t) => ANALYTICS_ONLY_TAGS.has(t)));
+    for (const [victim, stock] of [[red, '−5'], [green, '−3']] as const) {
+      const cards = deliveredModels(g, victim.color).filter((m) => m.correlationId === rootId);
+      expect(cards, `exactly ONE card for ${victim.color}`).has.length(1);
+      const [card] = cards;
+      expect(card.kind).eq('negative');
+      expect(card.viewerImpact?.attacker).eq(actor.color);
+      // The printed order: the M€, then the production — neither chip lost in the merge of two scopes.
+      expect(card.viewerImpact?.losses).deep.eq([{icon: 'megacredits', text: stock}, {icon: 'megacredits', text: '−1', production: true}]);
+      const neg = diffNegativeNotifications({events, seen: new Set([rootId]), viewerColor: victim.color, generation: g.getGeneration(), createdAt: 1000});
+      expect(neg.models, `no standalone hostile twin for ${victim.color}`).has.length(0);
+    }
+    expect(deliveredModels(g, actor.color).find((m) => m.correlationId === rootId)?.sign ?? 'positive', 'the actor walked the flow').not.eq('negative');
   });
 });

@@ -986,7 +986,32 @@ export type ActionPreviewStep =
      * degrades to the bare reason line.
      */
     skipped?: {label: string | Message, effect?: ActionEffect}}
-  | TabbedTargetsStep;
+  | TabbedTargetsStep
+  | TableImpactStep;
+
+/**
+ * WHAT A PLAY DOES TO THE OTHER SEATS — when it hits them WITHOUT a choice (P59 Recession: «EACH OPPONENT loses 5 M€
+ * and 1 M€ production»). Read-only: nothing is asked and nothing is answered (no `for`, no response), but no target is
+ * hidden either (invariant 3) — every seat the play hits stands as one row with the server's own `current → resulting`
+ * (`computeTargetImpact` — a MarsBot's track row VERBATIM, never a client branch on the bot), and a part of the attack
+ * a seat is spared is NAMED on its row (Private Security keeps the production, a bot track that cannot regress) — the
+ * same words the live record writes (`recordSkippedEffect`).
+ */
+export type TableImpactStep = {
+  kind: 'tableImpact';
+  /** The zone's head («Соперники»). */
+  title: string | Message;
+  rows: ReadonlyArray<TableImpactRow>;
+};
+
+export type TableImpactRow = {
+  /** The seat's colour (the row's dot) — its name is the client's (`players`), never sent twice. */
+  color: Color;
+  /** The server's rows for this seat: the stock and the production (a bot: its track), in the printed order. */
+  impact: import('./TargetImpactModel').TargetImpact;
+  /** The part of the attack this seat is spared — named with its reason (an English i18n key), never dropped. */
+  skipped?: {scope: 'production' | 'stock', icon: string, amount: number, reason: string};
+};
 
 /**
  * The staged twin of a `SelectSpaceModel` — everything the console board

@@ -1418,5 +1418,11 @@
     "The prelude is already played — each of its tiles is placed.": "Пролог уже разыгран — каждый его тайл будет размещён.",
     "Which tile do you place next?": "Какой тайл разместить следующим?",
     "The order of the placements is yours.": "Очерёдность размещений — на ваш выбор.",
-    "All oceans are on the board": "Все океаны уже на поле"
+    "All oceans are on the board": "Все океаны уже на поле",
+    "${0}: M€ production is already at −5": "${0}: производство M€ уже −5",
+    "Opponents": "Соперники",
+    "No opponents — only the +10 M€": "Соперников нет — только +10 M€",
+    "M€ production of ${0}": "Производство M€ · ${0}",
+    "The track cannot regress": "Трек не может отступить",
+    "Lose 5 M€ and 1 M€ production": "Потерять 5 M€ и 1 производство M€"
 }

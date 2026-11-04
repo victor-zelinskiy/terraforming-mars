@@ -111,6 +111,12 @@ export interface UnplayableReason {
    */
   chairmanNow?: {name: string; color: Color} | 'vacant';
   /**
+   * The SEAT the refusal is about, structurally (P59 Recession: «Red: M€ production is already at −5» — an opponent
+   * the card must hit cannot be hit): the reason line draws the seat's dot from `color`, `params[0]` carries the name
+   * for the template only.
+   */
+  seat?: {name: string; color: Color};
+  /**
    * For the LEADERSHIP requirement, NAMED (Turmoil Redux — TR73 Political Alliance: «the highest number of delegates
    * on 2 resolutions at once»): the resolutions of the voting area the player leads now, and for every other one who
    * leads it (a seat's name and colour, `neutral` — only neutral delegates stand there, none — empty) and how many of
