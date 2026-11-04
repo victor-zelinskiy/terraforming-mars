@@ -645,6 +645,22 @@ trade registry (`tradeFlatBonuses`), paid by a bare `stock.add` outside any effe
     fact is `exact` the reactor-hero plays IN the commit's beat (born on its printed effect icon — the stand's witness
     reads `reactor:Main Belt Asteroids:titanium`); when the pick decided it, the framework tells it after the commit.
 
+## P64 Terraforming Deal — A PLACE THAT SHOWS NO FACE IS NO PLACE (2026-11-04, ledger GF)
+
+42. **A REGISTERED PLACE ANSWERS «THE CARD IS HERE» — THE DIRECTOR STILL ASKS FOR ITS FACE.** A host that registers a
+    reactor place (`registerReactorPlace` — the start, the play's receiving stage) may promise a card it cannot show at
+    that moment: the start holds every prelude of its tableau, but a start play that DRAWS parks the shelf «РАЗЫГРАНО»
+    behind its reveal. The place's bounded face wait finds nothing, and a group left «in its place» with no face had no
+    birth for a single token — the rows ticked at once (P64 + UNMI Contractor: «Сработает» +6, then the M€ row jumping
+    30 → 36). `rise()` asks `emergedFaceEl` right after `emergeTarget`: none → the place's declaration is let go
+    (`noteReactorSettled`), the trail names it (`reaction:place-faceless` with every face's verdict —
+    `describeReactorPlaces`), and the group rises at the layer's stage (its planned slot, or the last free one —
+    `freeStageSlot`; none → the overflow's named «nowhere»). A prelude-reactor on the RATING answers through the same
+    road as any rating answer (`ratingAnswerSpecs` → the play's rail half, the rise one beat after the TR's touchdown).
+    Guards: `cardReactionDirector.spec` § P64 · GF; e2e `console-terraforming-deal` A (the draw) / A2 (no draw — the shelf).
+    Open (PL-1799): a card's standalone record on a SITTING waits for the sitting's beats and the presses answering the
+    sitting's gates hurry / cut it before it rises — the told answer of a card on the sitting is the next polish.
+
 ## Files
 
 Server: `common/models/CardReactionModel.ts`, `server/events/EventRecorder.ts` (`recordReaction`, the `cause`
