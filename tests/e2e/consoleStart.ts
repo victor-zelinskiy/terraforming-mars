@@ -3270,7 +3270,7 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   'space-lanes-start' | 'space-lanes-table' | 'space-lanes-wg' |
   // P63 Suitable Infrastructure — a prelude-reactor on PRODUCTION, once per action, into the M€ rail (ledger GC · GD): the
   // start (Business Empire after it), the action-phase table (three cards + the Power Plant standard project), the sitting.
-  'suitable-infrastructure-start' | 'suitable-infrastructure-table' | 'suitable-infrastructure-sitting' |
+  'suitable-infrastructure-start' | 'suitable-infrastructure-table' | 'suitable-infrastructure-sitting' | 'terraforming-deal-start' | 'terraforming-deal-start-nodraw' | 'terraforming-deal-table' | 'terraforming-deal-sitting' | 'terraforming-deal-wg' |
   // The play sheet's worst payment (DJ): Space Elevator with every lane open — steel, titanium, Helion's heat,
   // Floodgates' steel, both mechs, graphene, M€ — the ledger stands in the sheet's body, the commit on the bottom line.
   'play-sheet-ledger' |

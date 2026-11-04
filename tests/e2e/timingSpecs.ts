@@ -62,6 +62,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // P63 Suitable Infrastructure (2026-11-04): the M€ row's two touchdowns (the price, then the reactor's +2), the reactor's
   // rise in its place vs at the stage and the token's births are recorded off the product's writes from before the press.
   'console-suitable-infrastructure.spec.ts',
+  // P64 Terraforming Deal (2026-11-04): the empty play's «nothing flies, nothing waits», the M€ row's touchdowns (the rating's
+  // answer; the Greens and the card as two answers of one raise) and the reactor's births are recorded off the product's writes.
+  'console-terraforming-deal.spec.ts',
   // TRP2 Unity Campaign (2026-10-28): the campaign's rally inside the start — the plaque drawn cube by cube, the beats
   // with no count / coin, «no Parliament while the colonies step stands» are sampled from before the press, never logic.
   'console-unity-campaign.spec.ts',

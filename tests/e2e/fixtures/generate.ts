@@ -14121,3 +14121,126 @@ wgProjectFixture('space-lanes-wg', {
     },
   });
 }
+
+// ── P64 Terraforming Deal (docs/claude/prompts — the prompt of 2026-11-04, ledger GE · GF): the series' first prelude
+//    whose play gives NOTHING now (the card is its effect: +2 M€ per step of your own TR) and the first prelude-reactor on
+//    the RATING answering into the M€ rail; Redux reads upstream's `inTurmoil` as the PARLIAMENT phase.
+//      · `terraforming-deal-start`   — the deployment queue (Teractor played, P64 + UNMI Contractor kept, 30 M€, no
+//        Turmoil): A on P64 → nothing paid, the queue serves the next prelude; UNMI Contractor (+3 TR, a card) carries
+//        «Сработает» +6 and pays it (stand A);
+//      · `terraforming-deal-table`   — a 2p Redux table in the action phase, the Greens ruling (the empty slot), P64 on
+//        blue's table, 30 M€, 8 heat; in hand Release of Inert Gases (+2 TR): the party and the card answer ONE raise
+//        (+4 · +4); the heat conversion (+1 TR → +2 · +2) (stands B · C);
+//      · `terraforming-deal-sitting` — the Mohole Contest sitting one pass away, blue its winner at −20 °C (two steps, no
+//        threshold, no ocean): the winner's +2 TR pays P64 in the PARLIAMENT phase (stand D);
+//      · `terraforming-deal-wg`      — WG Project in blue's hand, P64 on top of the prelude deck: the mid-game pick whose
+//        play gives nothing (stand E).
+//    A DRY RUN plays each road on a copy, so a rule change fails HERE. ──
+for (const [name, second, steps, draws, ownMc] of [
+  ['terraforming-deal-start', CardName.UNMI_CONTRACTOR, 3, true, 0],
+  // The same road with NO draw beside the rating (Nitrogen Shipment: +1 TR, +5 M€) — the answer rides the rating alone.
+  ['terraforming-deal-start-nodraw', CardName.NITROGEN_SHIPMENT, 1, false, 5],
+] as const) {
+  const [game, blue] = testGame(1, {
+    skipInitialCardSelection: false, preludeExtension: true, prelude2Expansion: true,
+    customPreludes: [CardName.TERRAFORMING_DEAL, second], customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
+  });
+  const initial = blue.getWaitingFor();
+  if (!(initial instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${initial?.type}`);
+  }
+  blue.process({type: 'initialCards', responses: [
+    {type: 'card', cards: [CardName.TERACTOR]},
+    {type: 'card', cards: [CardName.TERRAFORMING_DEAL, second]},
+    {type: 'card', cards: []},
+  ]});
+  runAllActions(game);
+  if (blue.getWaitingFor()?.startGamePrompt?.kind === 'corporationPlay') {
+    blue.process({type: 'card', cards: [CardName.TERACTOR]});
+    runAllActions(game);
+  }
+  const queue = blue.getWaitingFor();
+  if (queue?.startGamePrompt?.kind !== 'preludeSelection' || !blue.tableau.has(CardName.TERACTOR)) {
+    throw new Error(`${name}: expected the deployment queue with Teractor played — got ${queue?.type} ${JSON.stringify(queue?.startGamePrompt)}`);
+  }
+  blue.megaCredits = 30;
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const seat = copy.getPlayerById(blue.id);
+  const tr = seat.terraformRating;
+  seat.process({type: 'card', cards: [CardName.TERRAFORMING_DEAL]});
+  runAllActions(copy);
+  const afterDeal = {mc: seat.megaCredits, tr: seat.terraformRating};
+  seat.process({type: 'card', cards: [second]});
+  runAllActions(copy);
+  const reactions = copy.cardReactions.filter((r) => r.card === CardName.TERRAFORMING_DEAL);
+  if (afterDeal.mc !== 30 || afterDeal.tr !== tr || seat.terraformRating !== tr + steps || seat.megaCredits !== 30 + ownMc + 2 * steps || reactions.length !== 1 ||
+    (seat.cardsInHand.length > 0) !== draws) {
+    throw new Error(`${name}: the dry run expected P64 to pay nothing (30 M€, TR ${tr}), then ${second} +${steps} TR and ONE reaction of +${2 * steps} — got ${JSON.stringify(afterDeal)}, TR ${seat.terraformRating}, ${seat.megaCredits} M€, ${reactions.length} reactions, hand ${seat.cardsInHand.length}`);
+  }
+  write(name, game);
+}
+{
+  const name = 'terraforming-deal-table';
+  const pinned = [CardName.TERACTOR, CardName.ARIDOR];
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  p1.playedCards.push(newPrelude(CardName.TERRAFORMING_DEAL)!);
+  p1.pendingInitialActions = [];
+  p2.pendingInitialActions = [];
+  p1.cardsInHand = p1.cardsInHand.filter((c) => c.name !== CardName.RELEASE_OF_INERT_GASES);
+  p1.cardsInHand.push(new ReleaseOfInertGases());
+  p1.megaCredits = 30;
+  p1.heat = 8;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  const parliament = game.parliament!;
+  if (parliament.rulingParty() !== PartyName.GREENS || game.phase !== Phase.ACTION || game.activePlayer.id !== p1.id || game.getTemperature() >= 6) {
+    throw new Error(`${name}: expected blue on the move in the action phase under the Greens with temperature room — got ruling=${parliament.rulingParty()} phase=${game.phase} active=${game.activePlayer.color} temperature=${game.getTemperature()}`);
+  }
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const seat = copy.getPlayerById(p1.id);
+  const release = seat.cardsInHand.find((c) => c.name === CardName.RELEASE_OF_INERT_GASES)!;
+  const before = seat.megaCredits; // `playCard` pays no price — the delta is the two answers alone
+  seat.playCard(release);
+  runAllActions(copy);
+  const deal = copy.cardReactions.filter((r) => r.card === CardName.TERRAFORMING_DEAL).flatMap((r) => r.impacts.map((i) => i.amount ?? 0));
+  if (seat.megaCredits - before !== 8 || deal.reduce((a, b) => a + b, 0) !== 4) {
+    throw new Error(`${name}: the dry run expected Release of Inert Gases to pay the Greens +4 and P64 +4 — got ${seat.megaCredits - before} M€, P64 ${JSON.stringify(deal)}`);
+  }
+  write(name, game);
+}
+parliamentFixture('terraforming-deal-sitting', {
+  resolution: MOHOLE_CONTEST_ID,
+  votes: [0],
+  agenda: [2, 1],
+  stopAt: 'pass',
+  arrange: ({game, p1}) => {
+    setTemperature(game, -20);
+    p1.playedCards.push(newPrelude(CardName.TERRAFORMING_DEAL)!);
+  },
+  expect: ({game, p1}) => {
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const blue = copy.getPlayerById(p1.id);
+    const tr = blue.terraformRating;
+    passTheViewer(copy);
+    answerEffects(copy, 'terraforming-deal-sitting');
+    const paid = copy.cardReactions.filter((r) => r.card === CardName.TERRAFORMING_DEAL).flatMap((r) => r.impacts.map((i) => i.amount ?? 0));
+    const gained = blue.terraformRating - tr;
+    if (copy.getTemperature() !== -16 || gained < 2 || paid.reduce((a, b) => a + b, 0) !== 2 * gained) {
+      throw new Error(`the terraforming-deal-sitting fixture expected the winner's two steps (−20 → −16 °C) to pay P64 2 M€ per TR step in the PARLIAMENT phase — got ${copy.getTemperature()} °C, +${gained} TR, P64 ${JSON.stringify(paid)}`);
+    }
+  },
+});
+wgProjectFixture('terraforming-deal-wg', {
+  top: [CardName.TERRAFORMING_DEAL, CardName.DONATION, CardName.SUPPLIER],
+  under: [CardName.LOAN],
+  megacredits: 20,
+  dry: {
+    pick: CardName.TERRAFORMING_DEAL,
+    expect: (blue) => blue.tableau.has(CardName.TERRAFORMING_DEAL) ? undefined : 'expected P64 on the table',
+  },
+});
