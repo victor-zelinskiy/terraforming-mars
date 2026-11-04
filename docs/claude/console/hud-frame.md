@@ -341,16 +341,17 @@ plates wider; the mockups `TM_E2E_STATUS_MOCK`, a mid-game table `TM_E2E_STATUS_
 frames extend net-zero by design (the conveyor's window, the ghost ring) — the stand reads their contents, not the frames
 (`NET_ZERO_FRAMES`).
 
-## THE MARKS OF THE RATING CELL — «Печати на ячейке РТ» (RX42 · R07 Pristar, 2026-10-24)
+## THE MARKS OF THE RATING CELL — «Печати на ячейке РТ» (RX42 · R07 Pristar, 2026-10-24; P57 Preservation Program, 2026-11-04)
 
 A seat's STATE that the rating governs is a MARK on the rating icon's wrap (`.con-score__iconwrap` — `position: relative`,
 the marks absolute inside it: the cell's box, the digits' baseline and `.con-score__value` — the flights' anchor — never move).
-Two marks exist, each in its OWN place, both may stand at once:
+Three marks exist, each in its OWN place, all may stand at once:
 
 | Mark | Place | Read off | States (by FORM, colour only helps) | Data |
 | --- | --- | --- | --- | --- |
 | RX42 UNMI Veto | the whole icon — a rim + a diagonal strike (`.con-score__veto`) | `parliament.enacted.trVeto` (the server's live leaders) | under the veto / none | `data-tr-vetoed="<tr>"` |
 | R07 Pristar | the lower-right CORNER — the preservation token (`.con-score__pristar`) | `PublicPlayerModel.ratingRaisedThisGeneration` × the corporation on the public tableau | `waiting` — the token whole in a thin gold line (the payout stands) · `spent` — the SAME node dimmed by its material + the card face's «cancelled» slash (a rise this generation) | `data-tr-pristar="waiting|spent"` |
+| P57 Preservation Program | the UPPER-LEFT CORNER — the rating's own tile in miniature, struck (`.con-score__skip`, a dark edge, never a light ring) | `PublicPlayerModel.ratingSkip` — computed by the SERVER (`models/skippedRating.ratingSkipMarkOf`: the card on the table × its flag) | `armed` — the struck glyph whole (the first TR gained in the ACTION phase will lose a step — the hint names the phase, because the flag stands armed through research and the preludes too) · `spent` — the SAME node dimmed by its material (this generation's step already eaten) | `data-tr-skip="armed|spent"` |
 
 Laws: ① the state is a SERVER FIELD read by a pure function (`console/railMarks.ts` `pristarMarkOf` — never the log, a rating
 delta or `terraformRatingFromCards`); ② the cell's ONE hint carries each standing mark's ONE sentence, joined by « · », the veto
@@ -363,7 +364,22 @@ else (the seat chips, the face) prints them; ⑥ a mark may be a flight's BIRTH 
 `con-income-charge`, a swell and a spread ring, waited for by its `animationend`) and then births the hook's +6 M€ and +1
 preservation on it at the featured pace (`generationScene.incomeHookOf` / `chargeHookMarks`) — the one flight of the beat, the
 standard income ticking as delta chips. A new corporation state on the rail is a new row of this table — a mark in its own
-place, a pure reader, one sentence in the hint.
+place, a pure reader, one sentence in the hint. ⑦ (P57) the mark is an INSTRUMENT — it reads the applied view at once
+(invariant 16): `armed → spent` flips with the view that carried the skip, while the reaction scene (the card rising, its
+struck icon and the cell marked once) tells the moment; the generation's re-arm is the same crossfade, never a pulse
+(e2e `console-preservation-program` D — no `@keyframes` on the node).
+
+### THE RAIL BY EYE (P57 · FR, 2026-11-04)
+
+The guard's «the rail at ZERO» read `box-shadow` alone — and the rating digits (`.con-score__value--tr`) wore a standing
+gold halo in `text-shadow` (`0 0 .55rem fade(@con-action-gold, 26%)`), on the very cell the marks stand in, under a guard
+that called the rail clean. The rail's blocks (`.con-res` · `.con-score` · `.con-tagmx` in `console.less`) are now read with
+the TOP STRIP's detectors too (`glowRestraintGuard.spec` § THE PLAYER RAIL BY EYE): a glowing text, a light drop-shadow, a
+bright outer ring, an endless loop. The halo is gone (the digits keep their warm ink and the engraving's dark offset). Four
+opaque spread rings stay as MATERIAL with their reasons (`RAIL_MATERIAL_RINGS` — the tag medal's bronze and steel rims, the
+count plate's rim, a negative production chip's red engraving hairline); a new outer ring on the rail fails until it is
+drawn inset or named there, and a named ring that disappears fails as stale. Witness: e2e `console-preservation-program` B
+(no light layer in the painted digits' `text-shadow`).
 
 ## Guards
 

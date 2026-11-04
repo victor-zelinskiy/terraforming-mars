@@ -245,6 +245,15 @@ The owner: «срабатывание эффектов карт резолюци
     REPLACEMENT gates (RX35 `terraforming-diverted`, RX42 `rating-vetoed`) leave no record at all — the struck icon
     under the law's seal, the pick's receive and the named skip are their telling; a reactor would tell it twice and
     fly the data a second time (`REPLACEMENT_TRIGGERS`, guarded in `DivertedResearch.spec`).
+    **A CARD's refusal DOES leave a record** (P57 Preservation Program, 2026-11-04 — channel `rating-skipped`, NOT a
+    replacement trigger): the card's standing skip ate a step of the viewer's rating inside their own press, and the
+    card is the only thing on screen that can say so. The recorder maps the `effect-skipped` fact on THAT channel alone
+    to the impact `{kind: 'skip', icon: 'tr', amount}` (`reactionImpactsOf` — any other skip stays the journal's row);
+    the client's group carries it apart (`CardReactionGroup.skips` — not a rail spec, not «elsewhere»), the chain
+    admits a skip-only group (nothing held), and its step RISES the card, marks its printed struck rating icon and the
+    rail's rating cell once (`markReactionCause` — the one-shot cause kant), births NO token and ticks nothing
+    (invariant 16: a rating that will not come never flies). A rival's skip rises nothing yet (gap). Guards:
+    `PreservationProgram.spec` § the card REACTS, `PreservationProgramReadings.spec` § the reaction.
 
 Guards: `CardReactionRecord.spec` (Forestry Support on a city beside two groves — kind, cause, the root ≡ the
 marker's correlation), `cardReactionDirector.spec` (the told marks: own / rival / no stage / reduced motion),
