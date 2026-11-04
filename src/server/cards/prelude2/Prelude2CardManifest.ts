@@ -102,7 +102,7 @@ export const PRELUDE2_CARD_MANIFEST = new ModuleManifest({
     [CardName.PRESERVATION_PROGRAM]: {Factory: PreservationProgram},
     [CardName.PROJECT_EDEN]: {Factory: ProjectEden},
     [CardName.RECESSION]: {Factory: Recession},
-    [CardName.RISE_TO_POWER]: {Factory: RiseToPower, compatibility: 'turmoil'},
+    [CardName.RISE_TO_POWER]: {Factory: RiseToPower, compatibility: 'turmoil', politics: 'redux'},
     [CardName.SOIL_BACTERIA]: {Factory: SoilBacteria},
     [CardName.SPACE_LANES]: {Factory: SpaceLanes},
     [CardName.SUITABLE_INFRASTRUCTURE]: {Factory: SuitableInfrastructure},

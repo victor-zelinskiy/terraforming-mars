@@ -8,6 +8,12 @@ export class RiseToPower extends PreludeCard {
     super({
       name: CardName.RISE_TO_POWER,
 
+      // DECLARATIVE WHOLE (P60 · ledger FW), Turmoil Redux voice. «Place them in separate parties» is a SERIES of
+      // grants: the political FACADE asks each of the three delegates as its own decision onto a resolution of the
+      // VOTING AREA (`PoliticalOps.placeDelegates {oneParty: false}` → three `PlaceDelegatesOnResolution(1)` marked
+      // `votePrompt.series {index, of}` — never the enacted law). The reserve must cover all three (`canExecute`, the
+      // named «Delegates in your reserve: N of 3»); the production resolves at play, the grants are deferred after it.
+      // The scan's asterisk is printed and stays: its referent is the text's last clause.
       behavior: {
         production: {megacredits: 3},
         turmoil: {sendDelegates: {count: 3, manyParties: true}},
@@ -18,7 +24,7 @@ export class RiseToPower extends PreludeCard {
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => pb.megacredits(3)).delegates(3).asterix().br;
         }),
-        description: 'Increase your M€ production 3 steps and place 3 delegates. YOU MAY PLACE THEM IN SEPARATE PARTIES.',
+        description: 'Increase your M€ production 3 steps. Add 3 delegates — you may add them to different resolutions.',
       },
     });
   }
