@@ -1922,6 +1922,11 @@ html.console-native {
        the descend phrase measures from. */
     min-width: 0;
     > * { grid-area: 1 / 1; min-width: 0; }
+    /* THE HEAD IS HONEST (P60 · FX — the 4K frame of Rise to Power's «ГОЛОСОВАНИЕ · 2 / 3»): a full line is absorbed
+       by ONE member in ONE order — the SUBJECT, by its own ellipsis. The stage's cell shrank beside it (`min-width: 0`
+       on a nowrap word that does not clip), so the tail kept its letters and painted them over the trailing zone —
+       the seats strip read «· 2 ConsoleTester / 3». The stage is the line's one moving word: it never yields. */
+    &--stage { flex-shrink: 0; }
 }
 .con-wshead-swap-enter-active,
 .con-wshead-swap-leave-active {

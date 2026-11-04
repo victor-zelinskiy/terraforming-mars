@@ -50,6 +50,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // P51 High Circles (2026-11-03): the named search seen on the reveal and «one Parliament all along» are sampled from
   // before the press, never logic.
   'console-high-circles.spec.ts',
+  // P60 Rise to Power (2026-11-04): the same road with a SERIES of three decisions — the probe samples the vote door, the
+  // crumb and the cubes' touchdowns from before each press (the series' «no fold» is an ORDER claim), never logic.
+  'console-rise-to-power.spec.ts',
   // TRP2 Unity Campaign (2026-10-28): the campaign's rally inside the start — the plaque drawn cube by cube, the beats
   // with no count / coin, «no Parliament while the colonies step stands» are sampled from before the press, never logic.
   'console-unity-campaign.spec.ts',

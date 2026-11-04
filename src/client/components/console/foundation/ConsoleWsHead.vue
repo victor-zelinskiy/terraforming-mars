@@ -60,8 +60,9 @@
                  and that gap is a visible blink on the one line whose whole job
                  is to prove the flow never broke. Both words share ONE grid
                  cell sized to the wider of them, so nothing beside them shifts
-                 mid-swap. -->
-            <span class="con-wshead__swap">
+                 mid-swap. The STAGE never yields width: the subject does, by its own
+                 ellipsis (`--stage`, P60 · FX). -->
+            <span class="con-wshead__swap con-wshead__swap--stage">
               <transition name="con-wshead-swap">
                 <span class="con-wshead__step"
                       :class="{'con-wshead__step--committed': committed}"

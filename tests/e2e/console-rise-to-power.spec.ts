@@ -5,6 +5,7 @@ import {
   bootFixture, createGameWithCards, crumbText, fetchPlayerModel, openConsole, pickCards, playCardFromHand, playQueueCard, press, pressUntil,
   reloadConsole, sendPlayerInput, settle, soloGameConfig, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
 } from './consoleStart';
+import {expectHeadHonest} from './headHonesty';
 
 /**
  * P60 RISE TO POWER — the forty-second Prelude 2 card, adapted STRAIGHT TO TURMOIL REDUX (ledger FW): «Increase your M€
@@ -293,6 +294,7 @@ test.describe('P60 — Rise to Power: a series of three grants is ONE visit, fro
       .toMatch(new RegExp(`СТАРТ ПАРТИИ.*${CARD_RU}.*ГОЛОСОВАНИЕ · 1 / 3`));
     const x = await cursorIndex(page);
     expect(x, 'the cursor stands on a resolution of the voting area').toBeGreaterThanOrEqual(0);
+    const heads = [await expectHeadHonest(page, 'decision 1 / 3')];
     await shoot(page, '02-vote-1');
     const posts0 = posts.length;
 
@@ -301,6 +303,7 @@ test.describe('P60 — Rise to Power: a series of three grants is ONE visit, fro
     await pressUntil(page, 'Enter', async () => posts.length >= posts0 + 1, {tries: 3, settleMs: 1500});
     await selectionAt(page, 2);
     expect(await cursorIndex(page), 'the cursor stays on the resolution the cube just landed on').toBe(x);
+    heads.push(await expectHeadHonest(page, 'decision 2 / 3'));
     await shoot(page, '03-vote-2');
 
     // ── decision 2: ▶ Y, A → «3 / 3» ──
@@ -310,6 +313,8 @@ test.describe('P60 — Rise to Power: a series of three grants is ONE visit, fro
     await stampPress(page, 2);
     await pressUntil(page, 'Enter', async () => posts.length >= posts0 + 2, {tries: 3, settleMs: 1500});
     await selectionAt(page, 3);
+    heads.push(await expectHeadHonest(page, 'decision 3 / 3'));
+    test.info().annotations.push({type: 'head', description: heads.join(' ‖ ')});
     await shoot(page, '04-vote-3');
 
     // ── decision 3: ◀ X, A → the Parliament leaves ONCE, the queue goes on ──
@@ -398,6 +403,7 @@ test.describe('P60 — Rise to Power: a series of three grants is ONE visit, fro
     await expect.poll(async () => (await crumbText(page)).toUpperCase(), {timeout: 20_000, message: 'the reloaded crumb'})
       .toMatch(new RegExp(`СТАРТ ПАРТИИ.*${CARD_RU}.*ГОЛОСОВАНИЕ · 2 / 3`));
     expect(reserveOf(await wireOf(request, playerId)), 'the first cube stays placed').toBe(reserve0 - 1);
+    await expectHeadHonest(page, 'reloaded at 2 / 3');
     await shoot(page, 'c-reloaded');
   });
 });
@@ -441,6 +447,7 @@ test.describe('P60 — Rise to Power mid-game (WG Project)', () => {
       const n = posts.length;
       await pressUntil(page, 'Enter', async () => posts.length >= n + 1, {tries: 3, settleMs: 1500});
       await selectionAt(page, k);
+      await expectHeadHonest(page, `the hand at ${k} / 3`);
       if (k === 2) {
         await press(page, 'ArrowRight', 400);
       } else {
