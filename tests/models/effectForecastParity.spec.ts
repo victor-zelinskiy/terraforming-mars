@@ -178,6 +178,10 @@ const VARIANTS: Partial<Record<CardName, ReadonlyArray<{label: string, arrange: 
   [CardName.SUITABLE_INFRASTRUCTURE]: [{label: 'the action phase', arrange: (_r, owner) => {
     owner.game.phase = Phase.ACTION;
   }}],
+  // P64 answers only in the ACTION / PRELUDES / PARLIAMENT phases (the same gate, `TerraformingDeal.paysNow`).
+  [CardName.TERRAFORMING_DEAL]: [{label: 'the action phase', arrange: (_r, owner) => {
+    owner.game.phase = Phase.ACTION;
+  }}],
 };
 
 function firedMarkers(events: ReadonlyArray<GameEvent>, fact: EffectForecastFact, recipientColor: string): Array<GameEvent> {
