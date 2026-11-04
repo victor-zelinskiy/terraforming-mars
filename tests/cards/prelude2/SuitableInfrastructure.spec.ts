@@ -27,6 +27,7 @@ import {buildStandardProjectPreview} from '../../../src/server/models/standardPr
 import {EffectForecastFact} from '../../../src/common/models/EffectForecastModel';
 import {PRELUDE2_CARDS_TO_ADAPT_IN_PLACE} from '../../../src/common/cards/prelude2Adaptation';
 import {TestPlayer} from '../../TestPlayer';
+import {Game} from '../../../src/server/Game';
 
 function assertIsTakeAction(input: PlayerInput | undefined) {
   const orOptions = cast(input, OrOptions);
@@ -235,6 +236,27 @@ describe('SuitableInfrastructure', () => {
       expect(named).has.lengthOf(1);
       // Upstream's hand-rolled line with the plain string «M€» is gone.
       expect(named[0].message).not.to.include('gained ${1} ${2} from');
+    });
+
+    it('rule 2 — an unserialized limit is safe: a reload restores an action BOUNDARY, the interrupted action replays whole and pays once', () => {
+      // Past the opening (a generation-1 save with no corporation reloads into the research phase).
+      player.game.generation = 2;
+      simulateFinishingAction(player);
+      // The save — taken only once the action's queue is drained (`Player.takeAction`), so it never holds a half-done action.
+      const saved = structuredClone(player.game.serialize());
+      expect(saved.deferredActions).deep.eq([]);
+      player.production.add(Resource.ENERGY, 1);
+      expect(player.megaCredits).eq(2);
+
+      // The server restarts mid-action: the payout of the interrupted action rolls back with everything else of it.
+      const restored = Game.deserialize(saved);
+      const again = restored.getPlayerById(player.id);
+      expect(restored.phase).eq(Phase.ACTION);
+      expect(again.megaCredits).eq(0);
+      expect(cast(again.tableau.get(CardName.SUITABLE_INFRASTRUCTURE), SuitableInfrastructure).paidThisAction(restored)).is.false;
+      again.production.add(Resource.ENERGY, 1);
+      again.production.add(Resource.STEEL, 1);
+      expect(again.megaCredits).eq(2);
     });
 
     it('rule 4 — the twin promises what the hook pays: Power Plant → one exact «+2 M€», once per action', () => {

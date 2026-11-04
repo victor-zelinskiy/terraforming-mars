@@ -21,8 +21,9 @@ const PAYOUT = 2;
  *  1. ONE gate — `answers`: the card's owner is the ACTIVE player, the step is positive, the phase is ACTION or
  *     PRELUDES (each prelude played is an action of its own — `Player.takeAction` counts it). The Parliament's
  *     reward, the production phase and another seat's card raising this seat's production pay nothing.
- *  2. ONCE PER ACTION — upstream's `OncePerAction` (by `game.getActionCount()`, deliberately NOT serialized: a
- *     server restart in the middle of an action with two raises pays the second raise again — upstream's, named).
+ *  2. ONCE PER ACTION — upstream's `OncePerAction` (by `game.getActionCount()`, deliberately NOT serialized, and
+ *     safely so: a game is saved only once an action's queue is drained, so a reload restores an action BOUNDARY —
+ *     the interrupted action, its first payout included, is lost whole and replays from its start, paying once).
  *  3. The 2 M€ are paid SYNCHRONOUSLY with the card as their source (`from: {card: this}`): inside the hook's
  *     `production-gain` scope (the reaction record) and named in the standard log line. Upstream wrote its own
  *     `${0} gained ${1} ${2} from ${3}` line with the plain string «M€».
