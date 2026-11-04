@@ -38,10 +38,9 @@ import {CardName} from './CardName';
  * Guard and worklist printer: `tests/cards/prelude2/Prelude2CardsHeldBack.spec.ts`.
  */
 
-/** ADAPT IN PLACE — 2 preludes, 5 corporations (ordered as the manifest prints them; every project card P68…P91 is adapted). */
+/** ADAPT IN PLACE — 1 prelude, 5 corporations (ordered as the manifest prints them; every project card P68…P91 is adapted). */
 export const PRELUDE2_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
   // ── Preludes (P43…P67; P47 Corridors of Power is REPLACED by TRP0 — below, crossed) ──
-  CardName.VENUS_L1_SHADE, // P66 · Venus · declarative — Venus 3 steps
   CardName.WORLD_GOVERNMENT_ADVISOR, // P67 · behavior + action (`ActivePreludeCard`)
   // ── Corporations (PC01…PC05; MarsBot already plays its own twins — the human card is a separate adaptation) ──
   CardName.NIRGAL_ENTERPRISES, // PC01 · declarative
