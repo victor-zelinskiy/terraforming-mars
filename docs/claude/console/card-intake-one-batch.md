@@ -38,6 +38,13 @@ stood between two draws.
   every flyer dissolves over the real cards at once. Two searches in one press, or a search alone, keep the one-tape
   theatre. Stand: `console-draw-one-batch-search-tape` (fixture `sb-olympus` — Olympus' card dealt first from its face,
   the search judged with its two rejects, one reveal of three).
+  **Two RULES of one batch are read per SEGMENT** (P56 Planetary Alliance, 2026-11-04 — a Jovian search, then a Venus
+  one, in one play): the batch-level `search` is the FIRST segment's and stays only for the one-segment readers; the
+  tally names every segment's rule in order (`drawSearchRules` → «с меткой [J] · [V]», the word once), a discard's
+  verdict is judged by the segment that owns its step on the batch tape (`searchOwningStep`, by the cumulative tapes),
+  one badge and one tape all the same. A named search that found NOTHING keeps its tape as a `count: 0` segment
+  (`Player.holdEmptySearch` — into the open batch of the root, or held for the batch the root's next draw opens);
+  `intakeSearchRun` skips it (no run of cards). A search with no batch to join still shows nothing (PL-1642's remainder).
 - **R5 · a foreign action's draw is its own channel** — `ExternalDrawIntake` never merges with a batch (different
   root by construction).
 - **R6 · the seal is read, not waited for** — `pendingAnswer` names what the open batch waits on (`{kind: 'discard' |
