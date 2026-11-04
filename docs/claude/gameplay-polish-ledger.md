@@ -4002,3 +4002,36 @@ P57 — исправлена), `test:client` 8168 (один таймаут по�
 | № | Что | Сделано | Свидетель |
 | --- | --- | --- | --- |
 | PL-1738 | Эпоха сброса `ConsoleTaskHost` ключевала вопрос по `type|title` — цепочка одноимённых OR делила ключ: взвод и курсор прошлого ответа переживали его, следующая лента открывалась «решённой» (прочие варианты отступали до невидимости под «ИЛИ» — кадры «ДО» 03 / 05) и ОДНО A коммитило фокус мимо «выбрать → подтвердить» | `baseKey` несёт серийник сервера (`promptId`): новый вопрос — новая эпоха (и его передача плиты), тот же (минимизация, повтор вью, отказ) — та же; клиентский промпт — свой ключ | `taskHostResetEpoch.spec` |
+
+## FU. P59 RECESSION — ЖЕРТВЫ ПОКАЗАНЫ ДО НАЖАТИЯ · БОТ ЧЕРЕЗ СВОЮ ДВЕРЬ · ЗАЩИТА НАЗВАНА · ОДНА КРАСНАЯ КАРТОЧКА · ОДИН РЕНДЕРЕР СТРОК (промт `prelude2-p59-recession.md`; сделано 2026-11-04)
+
+| № | Что | Сделано | Свидетель |
+| --- | --- | --- | --- |
+| PL-1750 | Жертвы скрыты до нажатия: превью «+10 M€» и ни слова о соперниках — кого бьёт, сколько останется (инвариант 3, класс «скрытая цель»); bespoke-карта без хука — `cardPlayPreviewCoverage` красный | read-only шаг `TableImpactStep {kind: 'tableImpact', rows: [{color, impact, skipped?}]}` (`ActionPreviewModel`), билдер `actionPreviews.tableImpactStep`, ко-локированный `cardPlayPreview` из `computeTargetImpact` (M€ + производство; бот — запас и ТРЕК дословно); +10 — чип `behavior`; без соперников — `note` | `Recession.spec` § preview ×3; `cardPlayPreviewCoverage` |
+| PL-1751 | Бот бит по плейсхолдеру: `stock.deduct(target.megaCredits)` мимо `removeFromBot` (Луна, `onBotHarmed`); плейсхолдер производства бота мог запереть карту | бот → `AutomaTargeting.removeFromBot` + `Production.add` (трек); пол читается только у людей; трек, который не отступает, — названный пропуск «Трек не может отступить» | `Recession.spec` § MarsBot ×2 |
+| PL-1752 | Private Security не учитывалась: апстрим снижал защищённое производство | `canHaveProductionReduced` ? шаг : `recordSkippedEffect` («Производство M€ · <место>» · «Производство защищено»); строка превью называет то же | `Recession.spec` § Private Security ×3; e2e C |
+| PL-1753 | Карта заперта без причины (соперник на полу −5) | ко-локированный `unplayableReason` + структурный `UnplayableReason.seat {name, color}` («${0}: производство M€ уже −5») | `Recession.spec` § seat; e2e D |
+| PL-1754 | Доставка жертве не доказана (два скоупа одного действия — одна ли карточка, не теряется ли чип) | потери в печатном порядке (M€, затем производство) через чоукпоинты с `from`: ОДНА карточка, ОБА чипа, атакующий, без близнеца; классификация `MANUAL {cross-player, ['production-attack', 'stock-attack']}` | S24 `crossPlayerDeliveryAudit`; `attackNotification` § P59; e2e B (MutationObserver с кадра ДО хода: 1 карточка, финальна с первого кадра; перезагрузка — без близнеца) |
+| PL-1755 | Второй рендерер строк `TargetImpactChange` был бы неизбежен (разметка жила внутри `ConsoleTaskHost`) | ОДИН рендерер `foundation/ConsoleTargetImpactRows.vue`; список целей хоста задач переведён на него (`toTargetRow` удалён); блок «Соперники» `foundation/ConsoleTableImpact.vue` над `tableImpact/tableImpactModel.ts` — композер (под РЕЗУЛЬТАТОМ) и рельс пика прологов; пропуск — «✕» + перечёркнутый `ActionEffectChip` (в rem — на 4K он был «пылинкой») | `recessionTableImpact.spec`; e2e B / C (кадры `screenshots/p59/tv4k/B-01`, `C-01`) |
+| PL-1756 | Риск «+10 с “−5”»: на лице три тайла M€ | резолвер выбирает тайл по знаку — закреплено на настоящем лице карты; на WG-дороге рождение на месте «РАЗЫГРАНО» (`prelude-seat`), ближайший тайл — «10» | `recessionTableImpact.spec` § +10; e2e B (свидетель + ближайший тайл) |
+| PL-1757 | RU / лор / арт / ворклист / стенд | новый ключ описания по стандарту (чужой RU не тронут), причины, «Соперники»; лор со скана; арт P59 1536×1024; строка ворклиста снята; фикстуры `recession-wg` · `-protected` · `-floor`; стенд `console-recession` (tv4k) B / C / D | `make:cards` 0 / 0 / 0; бокс — ниже |
+
+## FV. СГОРАНИЕ НАЗЫВАЕТ ПРИЧИНУ — ВЕРДИКТ ПРОЛОГА НЕСЁТ ПРИЧИНУ КАРТЫ (полировка-спутник P59 — область выбрана исполнителем на дороге P59 (случай пола), критерий «надёжность / инвариант 2», выбор записан в журнале серии; сделано 2026-11-04)
+
+| № | Что | Сделано | Свидетель |
+| --- | --- | --- | --- |
+| PL-1758 | Пролог, который не может сработать, сгорал без слова ПОЧЕМУ: пролог не проектная карта (`isIProjectCard`), движок причин руки его не спрашивает, `PreludeOutlook.noEffect` причины не нёс — пять прологов скоупа (Main Belt Asteroids, Industrial Complex, Old Mining Colony, Project Eden, Recession) называли причину хуком, которую игрок не видел | `computePreludeOutlooks` спрашивает `unplayableReason` карты для КАЖДОГО сгорающего вердикта (`withCause`; надежда `deferred` и играбельная карта — без причины, карта без хука — без выдумки); `PreludeOutlook.noEffect.reason?` | `preludeOutlook.spec` § a burn names its cause; спеки Industrial Complex / Old Mining Colony / Project Eden закрепляют причину |
+| PL-1759 | Пик прологов (WG Project / Board of Directors) печатал только «сгорит · +15 M€» | `candidateOutlook` сохраняет причину; рельс статуса печатает её рядом со словом сгорания (`[data-prelude-burn-reason]`, точка места, размер чтения рельса); сгорающий пролог не показывает строк жертв | e2e D (кадр `D-01`) |
+| PL-1760 | (гэпы, честно) второй читатель — очередь старта (`startPreludeRisk.ts` / `ConsoleStartScene.vue` держит P58) — не подключён; там же — третий хост строк жертв; стенд A (старт на двух людей, TIMING) и E (соло) не написаны — соло закреплено юнитом; бот — только юнитом; K16 опровергнут чтением кода (TTL — анимация смонтированной карточки, под холдом карточка не монтируется), K17 — спеками | — | — |
+
+Бокс (снапшот `p59`): `console-recession` B / C / D 3 / 3 (четыре прогона; кадры `screenshots/p59/tv4k/`); регрессии —
+`aaa-driver-canary`, `console-wg-project`, `console-board-of-directors`, `console-deck-pick`, `console-player-pick`
+(список целей — через ОДИН рендерер строк), `console-table-target-zone`, `console-virus-table-zone`, `console-bot-attack`,
+`console-notification-bonus-attack`, `console-preservation-program`, `console-old-mining-colony`,
+`console-main-belt-asteroids`, `console-play-composer-sheet` — 59 функц. + 5 тайминг зелёные. Единственный красный того
+прогона — мой D, прочитавший причину ПО-АНГЛИЙСКИ (и «OPPONENTS» в C): `assets/` на боксе — ОДНО зеркало на все задачи, и
+соседский синк подменил сгенерированный `assets/locales/ru.json` словарём без новых ключей посреди прогона — перепрогон
+зелёный по-русски (находка для `docs/claude/e2e-remote.md`). `test:server` 21172 ✓ (красные — таймауты под нагрузкой,
+зелёные поодиночке, и чужой транзиентный зонд `zz-spc-before`), `test:client` 8177 ✓ (`commitArrival` — таймерный флейк,
+зелёный поодиночке), `vue-tsc`, `build:test`, `make:cards` 0 / 0 / 0, гарды `glowRestraintGuard` / `readingParamsGuard` /
+`glyphLiteralGuard` / `e2eLiveness` / `crossPlayerCoverageGuard` зелёные.

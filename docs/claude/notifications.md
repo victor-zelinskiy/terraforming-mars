@@ -360,7 +360,10 @@ card-resource attack · S16 colony trade payout · S17 opponents' card draw ·
 S18 bot multi-change turn · S19 save/reload round-trip · S20 undo leaves
 nothing stale (client half: notificationState.spec «dropPreparing forgets an
 undone event»; prompt-open queueing: notificationState.spec blocking-foreground
-specs — delivery waits, never drops).
+specs — delivery waits, never drops) · S24 EVERY opponent hit with NO pick (P59 Recession — production + stock
+of one action: ONE hostile card per victim, BOTH chips, the attacker named, no standalone twin; MANUAL
+`{cross-player, [production-attack, stock-attack]}` — a card that hits the whole table through the chokepoints names
+no attack API, so the guard asks for the row).
 
 ## ⭐⭐ CROSS-PLAYER DELIVERY AUDIT (2026-09-01) — the viewer HEARS about every foreign action that touches them
 
