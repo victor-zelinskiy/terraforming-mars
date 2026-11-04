@@ -18,4 +18,8 @@ export class OncePerAction {
       cb();
     }
   }
+  /** READ-ONLY: has the effect already fired during the action now running? (A forecast twin asks it; it never spends.) */
+  public spent(game: IGame): boolean {
+    return this.lastAction === game.getActionCount();
+  }
 }

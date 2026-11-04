@@ -38,6 +38,8 @@
     "Any player plays a card with an event tag": "Любой игрок играет карту с меткой события",
     "Any player plays a space event": "Любой игрок играет космическое событие",
     "You raise the production of a resource": "Вы повышаете производство ресурса",
+    "You raise a production this action": "Вы повышаете производство в этом действии",
+    "Once per action": "Раз за действие",
     "You raise one production by 2 or more steps": "Вы повышаете одно производство на 2 и более шага",
     "You gain an animal on a card": "Вы получаете животное на карту",
     "You gain a microbe on a card": "Вы получаете микроба на карту",

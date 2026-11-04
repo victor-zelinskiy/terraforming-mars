@@ -6,6 +6,7 @@ import {runAllActions} from '../TestingUtils';
 import {cast} from '../../src/common/utils/utils';
 import {IGame} from '../../src/server/IGame';
 import {IPlayer} from '../../src/server/IPlayer';
+import {Phase} from '../../src/common/Phase';
 import {IActionCard, ICard} from '../../src/server/cards/ICard';
 import {IProjectCard} from '../../src/server/cards/IProjectCard';
 import {CardName} from '../../src/common/cards/CardName';
@@ -163,7 +164,7 @@ const TRIGGERS: ReadonlyArray<new () => IProjectCard> = [
 ];
 
 /** Extra STATES of a reactor that flip its answer (the same predicates the live hook reads). */
-const VARIANTS: Partial<Record<CardName, ReadonlyArray<{label: string, arrange: (reactor: ICard) => void}>>> = {
+const VARIANTS: Partial<Record<CardName, ReadonlyArray<{label: string, arrange: (reactor: ICard, owner: IPlayer) => void}>>> = {
   [CardName.OLYMPUS_CONFERENCE]: [{label: 'one science stored', arrange: (r) => {
     r.resourceCount = 1;
   }}],
@@ -172,6 +173,10 @@ const VARIANTS: Partial<Record<CardName, ReadonlyArray<{label: string, arrange: 
   }}],
   [CardName.PHARMACY_UNION]: [{label: 'one disease stored', arrange: (r) => {
     r.resourceCount = 1;
+  }}],
+  // P63 answers only in the ACTION / PRELUDES phases (`testGame` stands in RESEARCH).
+  [CardName.SUITABLE_INFRASTRUCTURE]: [{label: 'the action phase', arrange: (_r, owner) => {
+    owner.game.phase = Phase.ACTION;
   }}],
 };
 
@@ -227,11 +232,11 @@ function recipientColorOf(fact: EffectForecastFact, active: IPlayer): string {
 
 type Table = {game: IGame, player: TestPlayer, owner: TestPlayer, reactor: ICard};
 
-function arrange(F: Factory, foreign: boolean, variant: ((r: ICard) => void) | undefined, suffix: string): Table {
+function arrange(F: Factory, foreign: boolean, variant: ((r: ICard, owner: IPlayer) => void) | undefined, suffix: string): Table {
   const [game, player, opponent] = testGame(2, {aresExtension: true, deltaProjectExpansion: true} as never, suffix);
   const owner = foreign ? opponent : player;
   const reactor = new F();
-  variant?.(reactor);
+  variant?.(reactor, owner);
   owner.playedCards.push(reactor);
   player.megaCredits = 40;
   opponent.megaCredits = 40;
@@ -286,7 +291,7 @@ describe('effect-forecast ↔ execution parity', function() {
       // «Any player plays», «the scale is raised, whoever raised it» and «any player gains TR» all ask a FOREIGN owner.
       const foreignToo = probe.onCardPlayedByAnyPlayer !== undefined || probe.onGlobalParameterRaised !== undefined ||
         probe.onIncreaseTerraformRatingByAnyPlayer !== undefined;
-      const variants = [{label: 'default', arrange: undefined as ((r: ICard) => void) | undefined}, ...(VARIANTS[probe.name] ?? [])];
+      const variants = [{label: 'default', arrange: undefined as ((r: ICard, owner: IPlayer) => void) | undefined}, ...(VARIANTS[probe.name] ?? [])];
       for (const variant of variants) {
         for (const foreign of foreignToo ? [false, true] : [false]) {
           for (const T of TRIGGERS) {
