@@ -189,3 +189,28 @@ Robinson Industries (six «+1 production of your lowest» variants, the same uns
 production heroes. Guards: `variantChoiceModel.spec` § AN ACTION'S VARIANTS AS A PALETTE, `actionBranchPrinted.spec`
 (`KNOWN_UNSLICED`); e2e `console-utopia-invest` (A — tv4k + fhd: the palette, both axes with the server's numbers, three
 refusals stated, the fit, the grid walk; B — the sole variant).
+
+## 9 · A row carries what the TABLE answers to ITS branch — and every row stands in the frame (P65 Venus Contract · ledger GH, 2026-11-04)
+
+A prelude's «ВАРИАНТ» step (P44) is a choice BEFORE the press, so the table's answer to each branch belongs on that
+branch's row: Venus Contract on the table answers Atmospheric Enhancers' VENUS row with «+6 M€» and no other row. The
+server already states it as `EffectForecast.byBranch[pos]`; the step reads it:
+
+- **`variantRowReaction(variant, row, forecast)`** (`preludeVariantModel.ts`) — a variant row's branch-tied facts as the
+  composers' own «⚡ сработает» note (`ConsoleForecastReactions`, the row's line, `[data-prelude-variant-reaction]`); a
+  refused row, a resource row and a placement-order row carry nothing. `ConsolePreludeVariantStep` takes the play's WHOLE
+  forecast (`forecast` prop) — the start passes its preview's, «ВЫБОР ПРОЛОГА» (`ConsoleDeckPick`) its candidate's.
+- **Before the choice the play is read WHOLE** — `preludePlayForecast(card, preview, chosen)`: an unchosen variant keeps
+  the branch-tied facts in `byBranch` (the queue's «Сработает» row states only the unconditional ones, the layer titles
+  the rest by branch — `preludeForecastBranches` → `ConsoleForecastLayer.branches`); a chosen row fixes its branch
+  (`forecastForFixedBranch`). Folding branch 0 in before the choice promised the TEMPERATURE's answers for a play nobody
+  had chosen (Homeostasis Bureau's +6 on P44) and hid the Venus row's.
+- **A column's «ИЛИ» seam is its own height.** The seam mixin's `flex-basis: 100%` is a LINE in a wrapping row and the
+  whole HEIGHT in a column: in the start's lane (a definite height) each medallion grew as tall as the lane and the third
+  row — P44's Venus row, the one carrying «+6» — stood below the 4K frame with the cursor on it, since P44 (its stand
+  walked the row by the DOM focus attribute). `&--column &__or { flex-basis: auto }`. While the step stands the hero's
+  «Выбор: …» line recedes (opacity) — the step shows the choice, and its rows stood over that line's tail.
+
+Witness: `tests/client/components/console/preludeVariantModel.spec.ts` § P65 · GH; e2e `console-venus-contract` A (the
+rows «· · +6» in every painted frame, all three inside the frame above the status rail, the queue's rail without +6
+before the choice).
