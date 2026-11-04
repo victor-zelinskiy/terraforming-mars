@@ -245,7 +245,8 @@ ${trail})`).toBe('10');
     const why = page.locator(`${RAIL} [data-prelude-burn-reason]`);
     await expect(why, 'a burn names its cause').toHaveCount(1, {timeout: 20_000});
     await expect(why).toContainText('производство M€ уже −5');
-    await expect(why.locator('.player_bg_color_red'), 'the seat\'s dot — structural, never a parsed name').toHaveCount(1);
+    // The seat's dot — structural (the reason's `seat.color`), never a parsed name.
+    await expect(why.locator('.con-status__dot'), 'the dot in the colour of red').toHaveClass(/\bplayer_bg_color_red\b/);
     await expect(page.locator(`${RAIL} [data-table-impact]`), 'a burn hits nobody — no victims line').toHaveCount(0);
     await shoot(page, 'D-01-floor-reason');
   });
