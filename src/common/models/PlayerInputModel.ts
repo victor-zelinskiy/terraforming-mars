@@ -992,7 +992,33 @@ export type OrOptionsModel = BaseInputModel & {
   /** «TAKE FROM A CARD ON THE TABLE — the bot standing BESIDE the players» ({@link TableTargetPromptMeta}). Serialized
    *  on the input's own `toModel` (nesting-safe). */
   tableTargetPrompt?: TableTargetPromptMeta;
+  /** «WHICH TILE NEXT» — a card that places several tiles in an order of the player's choice ({@link PlacementOrderPromptMeta}).
+   *  Serialized on the input's own `toModel` (nesting-safe). */
+  placementOrderPrompt?: PlacementOrderPromptMeta;
 }
+
+/**
+ * THE ORDER OF A CARD'S PLACEMENTS IS THE PLAYER'S (P58 Project Eden — «Place 1 ocean tile, 1 city tile, and 1 greenery
+ * tile»): before every placement but the last the server asks ONE `OrOptions` of the tiles still owed, each option
+ * marked `{kind: 'placement', tileType}`. This marker says what the question IS — whose, which placement of how many,
+ * what is placed already, what is still owed, what was skipped (an ocean at the maximum) — so the console hosts it as a
+ * STEP of the play («… › ОЧЕРЁДНОСТЬ k / n») and never reads a title. The wire answer is the plain
+ * `{type: 'or', index, response: {type: 'option'}}`.
+ */
+export type PlacementOrderPromptMeta = {
+  /** The card whose tiles these are. */
+  source: CardName;
+  /** The tiles already placed, in the order they were placed. */
+  done: ReadonlyArray<import('../TileType').TileType>;
+  /** The tiles still owed — exactly the options, in the printed order. */
+  remaining: ReadonlyArray<import('../TileType').TileType>;
+  /** Printed tiles that will NOT be placed (an ocean with nine on the board — named, never silent). */
+  skipped?: ReadonlyArray<import('../TileType').TileType>;
+  /** 1-based: the placement being chosen now. */
+  index: number;
+  /** How many placements the play makes in all (the printed count minus the skipped ones). */
+  of: number;
+};
 
 /**
  * THE TABLE'S TARGETS ARE ONE ZONE (the owner, 2026-10-28): a «remove N <card resource> from ANY card» against a table
@@ -1046,7 +1072,12 @@ export type SelectInitialCardsModel = BaseInputModel & {
  */
 export type OptionMetadata = {
   /** Semantic kind — drives accent/icon defaults + playground status. */
-  kind?: 'resourceRemoval' | 'resourceGain' | 'steal' | 'globalParameter' | 'playerTarget' | 'skip' | 'confirm' | 'generic';
+  kind?: 'resourceRemoval' | 'resourceGain' | 'steal' | 'globalParameter' | 'playerTarget' | 'skip' | 'confirm' | 'placement' | 'generic';
+  /**
+   * The TILE an option of kind `placement` places (P58 Project Eden's order step — «which tile next»): the option's
+   * structural identity, so the client names and draws the tile off the marker, never off the translated title.
+   */
+  tileType?: import('../TileType').TileType;
   /** Icon key (a resource or global-parameter token), e.g. 'plants',
    *  'megacredits', 'steel', 'titanium', 'energy', 'heat', 'microbe',
    *  'animal', 'floater', 'temperature', 'venus', 'oxygen', 'oceans'. */

@@ -1,7 +1,7 @@
 import {PlayerInput} from '../PlayerInput';
 import {InputResponse, isOrOptionsResponse} from '../../common/inputs/InputResponse';
 import {IPlayer} from '../IPlayer';
-import {DisabledOptionModel, OrOptionsModel, TableTargetPromptMeta} from '../../common/models/PlayerInputModel';
+import {DisabledOptionModel, OrOptionsModel, PlacementOrderPromptMeta, TableTargetPromptMeta} from '../../common/models/PlayerInputModel';
 import {OptionsInput} from './OptionsPlayerInput';
 import {InputError} from './InputError';
 
@@ -12,6 +12,8 @@ export class OrOptions extends OptionsInput<undefined> {
   public disabledOptions: ReadonlyArray<DisabledOptionModel> = [];
   /** The table's targets with the bot beside the players (`TableTargetPromptMeta`) — `RemoveResourcesFromCard` sets it. */
   public tableTargetPrompt: TableTargetPromptMeta | undefined;
+  /** «Which tile next» of a card that places several in the player's order (`PlacementOrderPromptMeta`) — P58 sets it. */
+  public placementOrderPrompt: PlacementOrderPromptMeta | undefined;
 
   constructor(...options: Array<PlayerInput>) {
     super('or', 'Select one option', options);
@@ -26,6 +28,12 @@ export class OrOptions extends OptionsInput<undefined> {
   /** Mark this choice as the table's ONE target zone (chainable) — see {@link TableTargetPromptMeta}. */
   public markTableTargetPrompt(meta: TableTargetPromptMeta): this {
     this.tableTargetPrompt = meta;
+    return this;
+  }
+
+  /** Mark this choice as the ORDER STEP of a card's placements (chainable) — see {@link PlacementOrderPromptMeta}. */
+  public markPlacementOrderPrompt(meta: PlacementOrderPromptMeta): this {
+    this.placementOrderPrompt = meta;
     return this;
   }
 
@@ -53,6 +61,9 @@ export class OrOptions extends OptionsInput<undefined> {
     }
     if (this.tableTargetPrompt !== undefined) {
       model.tableTargetPrompt = this.tableTargetPrompt;
+    }
+    if (this.placementOrderPrompt !== undefined) {
+      model.placementOrderPrompt = this.placementOrderPrompt;
     }
     return model;
   }

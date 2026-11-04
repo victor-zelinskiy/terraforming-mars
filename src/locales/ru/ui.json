@@ -1413,5 +1413,10 @@
     "Pays": "Платят",
     "Hidden by the filter: ${0}": "Скрыто фильтром: ${0}",
     "Apply filter": "Применить фильтр",
-    "To the cards": "К картам"
+    "To the cards": "К картам",
+    "Fewer than 3 cards in hand to discard": "В руке меньше 3 карт для сброса",
+    "The prelude is already played — each of its tiles is placed.": "Пролог уже разыгран — каждый его тайл будет размещён.",
+    "Which tile do you place next?": "Какой тайл разместить следующим?",
+    "The order of the placements is yours.": "Очерёдность размещений — на ваш выбор.",
+    "All oceans are on the board": "Все океаны уже на поле"
 }

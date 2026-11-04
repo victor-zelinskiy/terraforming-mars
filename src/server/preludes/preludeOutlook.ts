@@ -70,6 +70,26 @@ function grantsMegacredits(behavior: Behavior | undefined): boolean {
 }
 
 /**
+ * How many cards this behaviour PROMISES to put in hand — the declared draws summed (a `keep` is what stays; a draw
+ * that may be refused (`pay`) or whose count is not a number promises nothing countable). Undefined: it draws, but
+ * how many cannot be read off the declaration.
+ */
+function declaredCardsDrawn(behavior: Behavior | undefined): number | undefined {
+  let sum = 0;
+  for (const draw of drawCardsOf(behavior)) {
+    if (typeof draw === 'number') {
+      sum += draw;
+      continue;
+    }
+    if (draw.pay === true || typeof draw.count !== 'number') {
+      return undefined;
+    }
+    sum += draw.keep ?? draw.count;
+  }
+  return sum;
+}
+
+/**
  * What playing `card` would CREATE for somebody else's `preludeNeeds`.
  *
  * Read off the declarative `behavior` wherever possible, so ordinary cards cost
@@ -149,12 +169,28 @@ export function computePreludeOutlooks(
       out.set(card.name, {state: 'noEffect'});
       continue;
     }
-    const enablers = pool
+    const providers = pool
       // A card cannot enable itself, and a would-be enabler that is not itself
       // playable right now is not advice — it is a second dead end.
       .filter((other) => other.name !== card.name && canPlayNow(other))
-      .filter((other) => preludeProvisions(other).has(need))
-      .map((other) => other.name);
+      .filter((other) => preludeProvisions(other).has(need));
+    const enablers = providers.map((other) => other.name);
+    // A COUNTED need (P58's three cards): the card says how much is missing; a single enabler GUARANTEES the fix only
+    // when its own declared draw covers all of it, the enablers together make it POSSIBLE when their declarations sum
+    // to it (or one cannot be counted), and short of that nothing at the table is known to fix it.
+    const amount = need === 'cardInHand' ? card.preludeNeedAmount?.(player) : undefined;
+    if (amount !== undefined && amount > 0) {
+      const drawn = providers.map((other) => declaredCardsDrawn(other.behavior));
+      const counted = drawn.filter((n): n is number => n !== undefined);
+      const certainty: 'guaranteed' | 'possible' | undefined =
+        counted.some((n) => n >= amount) ? 'guaranteed' :
+          (drawn.some((n) => n === undefined) || counted.reduce((a, b) => a + b, 0) >= amount) && providers.length > 0 ? 'possible' :
+            undefined;
+      out.set(card.name, certainty === undefined ?
+        {state: 'noEffect', need, amount} :
+        {state: 'deferred', certainty, enablers, need, amount});
+      continue;
+    }
     out.set(card.name, enablers.length === 0 ?
       {state: 'noEffect', need} :
       {state: 'deferred', certainty: CERTAINTY_OF_NEED[need], enablers, need});

@@ -30,6 +30,9 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
       // (`SelectSpace.printedBonusMultiplier` — the dossier's numbers) and to `addTile` (the ONE grant, the tile
       // language's record, the enacted law's repeat). Absent → 1.
       printedBonusMultiplier?: number,
+      // The SAME play's later placements (P58 Project Eden: the tiles still owed after this one) — see
+      // SelectSpace.followUpPlacements (the dossier's plan line).
+      followUpPlacements?: ReadonlyArray<{tileType?: TileType}>,
     }) {
     super(player, Priority.DEFAULT);
   }
@@ -60,6 +63,7 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
       placementContext: this.options?.placementContext,
       onCancel: this.options?.onCancel,
       printedBonusMultiplier: this.options?.printedBonusMultiplier,
+      followUpPlacements: this.options?.followUpPlacements,
     })
       .andThen((space) => {
         const multiplier = this.options?.printedBonusMultiplier;

@@ -653,6 +653,13 @@ export interface ICard {
   readonly preludeNeeds?: PreludeNeed;
 
   /**
+   * …and HOW MUCH of it is missing, when the need is a COUNT (P58 Project Eden discards THREE cards: a hand of two is
+   * one card short). Co-located with the card's own `canPlay`; absent → the need is a plain «there is none»
+   * (P55's one card). Read-only — the outlook engine compares it with what the enablers DECLARE they deliver.
+   */
+  preludeNeedAmount?(player: IPlayer): number;
+
+  /**
    * …and what playing this prelude CREATES for someone else's `preludeNeeds`,
    * BEYOND what the engine already reads off `behavior` (a declarative draw or
    * an M€ gain). Only bespoke cards whose effect is invisible to `behavior`

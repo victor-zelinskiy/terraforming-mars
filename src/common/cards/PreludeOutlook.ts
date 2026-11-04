@@ -28,6 +28,10 @@ import {CardName} from './CardName';
  *    a card in hand when it is played (a draw prelude that is itself playable
  *    always delivers), so the order fix is GUARANTEED. Distinct from
  *    `playableCard`, which money can also create and which no draw promises.
+ *    A need for SEVERAL cards (P58 Project Eden's «discard 3 cards») carries
+ *    its COUNT on the verdict (`amount` — how many the hand is short): one
+ *    draw prelude is a guarantee only when its own declared draw covers the
+ *    whole shortfall.
  */
 export type PreludeNeed = 'playedPrelude' | 'playableCard' | 'cash' | 'cardInHand';
 
@@ -59,5 +63,7 @@ export type PreludeOutlook =
      *  them, so a UI can never single one out arbitrarily. */
     enablers: ReadonlyArray<CardName>,
     need: PreludeNeed,
+    /** How much of the need is missing — only for a counted need (P58: the cards the hand is short of its discard). */
+    amount?: number,
   }
-  | {state: 'noEffect', need?: PreludeNeed};
+  | {state: 'noEffect', need?: PreludeNeed, amount?: number};

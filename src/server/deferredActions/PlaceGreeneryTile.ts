@@ -27,8 +27,11 @@ export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
     player: IPlayer,
     private on: PlacementType = 'greenery',
     // Cancellability (pay-on-commit Greenery standard project) + the card that
-    // asks (so the preview can include the card's own space-dependent effect).
-    private options?: {placementContext?: PlacementContext, onCancel?: () => void, sourceCard?: CardName},
+    // asks (so the preview can include the card's own space-dependent effect)
+    // + the SAME play's later placements (P58 Project Eden — the dossier's plan
+    // line, see SelectSpace.followUpPlacements).
+    private options?: {placementContext?: PlacementContext, onCancel?: () => void, sourceCard?: CardName,
+      followUpPlacements?: ReadonlyArray<{tileType?: TileType}>},
   ) {
     super(player, Priority.DEFAULT);
   }
@@ -61,6 +64,7 @@ export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
       sourceCard: this.options?.sourceCard,
       placementContext: this.options?.placementContext,
       onCancel: this.options?.onCancel,
+      followUpPlacements: this.options?.followUpPlacements,
     })
       .andThen((space) => {
         this.player.game.addGreenery(this.player, space);

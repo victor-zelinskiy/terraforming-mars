@@ -78,7 +78,6 @@ const OR_OPTIONS_ALLOWLIST: Readonly<Record<string, string>> = {
   // Prelude 2 is in scope CARD BY CARD: a card still on the hold-back list (`src/common/cards/prelude2Adaptation.ts`)
   // is neither dealt nor covered — its row goes when it crosses.
   'cards/prelude2/Ecotec.ts': 'Prelude 2 hold-back (PC04) — adapted when it crosses',
-  'cards/prelude2/ProjectEden.ts': 'Prelude 2 hold-back (P58) — adapted when it crosses',
   // Turmoil-only callers living in the shared directory — frontier; adapt
   // with the expansion (empty these rows in that checklist).
   'deferredActions/ChooseAlliedParty.ts': 'turmoil-only — frontier',
