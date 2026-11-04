@@ -382,7 +382,7 @@ play's `discount-applied` event, its journal line «… saved N M€ playing wit
 cardless remainder sums the facts. So the head and the layer say ONE saving: the head «1 → 0 · −1», the R3 row
 «−1 из 2 [M€] 1 → 0» (the cap stands WITH its number — beside the price line it read «из 21 → 0»), the dossier's «Что»
 the saving with «Цена не опускается ниже 0 — снято 1 из 2». Standard projects record their own discount at `commitCost`
-(never past their high prices in practice — not carried). Guards: `tests/cards/prelude2/SpaceLanes.spec.ts`,
+(never past their high prices in practice — not carried). A ONE-PLAY discount (TR49 class — Indentured Workers, Conscription, Eccentric Sponsor, Backroom Deal) takes the floor LAST — its share is what it adds BEYOND the standing ones (`armedOneShotDiscount`); the rule is untouched (the next play spends it whatever it saves), but the reading follows the share: `armedPlayForecast.used` = `(saved ?? amount) > 0` («spent for nothing» on a price the standing ones already took to 0), the head names the one-play source only with a share, and the group draws no «−0» row for it (PL-1793; `tests/cards/armedPlayEffects.spec.ts` § beside a STANDING discount). Guards: `tests/cards/prelude2/SpaceLanes.spec.ts`,
 `ConsoleEffectsExplorerDiscount.spec.ts`; e2e `console-space-lanes` (B · C).
 
 **FREE** (`ConsolePaymentPanel` `free` prop, `.con-pay--free`): when the
