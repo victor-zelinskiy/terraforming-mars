@@ -324,6 +324,8 @@ export class Player implements IPlayer {
   // Transient "you drew cards" reveal queue — NOT serialized (see serialize()).
   public cardDrawReveals: Array<CardDrawReveal> = [];
   private nextCardDrawRevealId = 1;
+  // Transient: an empty NAMED search waiting for the batch its action's next draw opens (`holdEmptySearch`).
+  private heldEmptySearches: Array<{actionId: number, segment: CardIntakeSegmentLive}> = [];
   // External-draw intakes awaiting the mandatory take — SERIALIZED game state
   // (the cards already left the deck). See deferredActions/ExternalDrawIntake.
   public pendingCardIntakes: Array<PendingCardIntake> = [];
@@ -2119,8 +2121,13 @@ export class Player implements IPlayer {
   }
 
   public enqueueCardDrawReveal(cards: ReadonlyArray<IProjectCard>, source?: CardDrawRevealSource, sequence?: ReadonlyArray<RevealedCard>, outcome?: CardDrawSearchOutcome): void {
-    // Never queue an empty reveal (deck exhausted / count 0) — it would show an empty modal.
+    // Never queue an empty reveal (deck exhausted / count 0) — it would show an empty modal. A NAMED search that found
+    // nothing is the exception when another draw of the same action carries cards (P56 Planetary Alliance: no Jovian
+    // card left, a Venus card found): its tape — the cards it turned over and threw away, the deck searched to the
+    // end — rides that batch as a segment of NO cards, so the reveal never loses it silently (PL-1642's remainder: a
+    // search with no batch to join still shows nothing — the journal's `deck-searched` row names it).
     if (cards.length === 0) {
+      this.holdEmptySearch(source, sequence, outcome);
       return;
     }
     // Keep the sequence ONLY when the search really discarded something. A
@@ -2175,11 +2182,8 @@ export class Player implements IPlayer {
      * one-segment readers consume are kept consistent below.
      */
     const actionId = this.game?.events?.currentRootId();
-    const last = this.cardDrawReveals[this.cardDrawReveals.length - 1];
-    const sameAction = last !== undefined && last.sealed !== true && (
-      (actionId !== undefined && last.actionId === actionId) ||
-      (trade !== undefined && last.source?.type === 'colony' && last.source.trade?.tradeId === trade.tradeId));
-    if (last !== undefined && sameAction) {
+    const last = this.openCardDrawRevealOf(actionId, trade?.tradeId);
+    if (last !== undefined) {
       const before = last.cards.length;
       last.cards = [...last.cards, ...cards];
       const tail = last.segments[last.segments.length - 1];
@@ -2209,16 +2213,67 @@ export class Player implements IPlayer {
       last.pendingAnswer = undefined;
       return;
     }
+    // The empty searches this action made BEFORE its first card open the batch, in the order they ran.
+    const held = actionId === undefined ? [] : this.heldEmptySearches.filter((h) => h.actionId === actionId).map((h) => h.segment);
+    this.heldEmptySearches = [];
+    const heldTape = held.flatMap((h) => h.sequence ?? []);
+    const tape = discarded || heldTape.length > 0 ? [...heldTape, ...(discarded ? (sequence ?? []) : cards.map((card) => ({card, matched: true})))] : undefined;
     this.cardDrawReveals.push({
       id: this.nextCardDrawRevealId++,
       actionId,
-      source,
-      segments: [segment],
+      source: held[0]?.source ?? source,
+      segments: [...held, segment],
       cards: [...cards],
-      sequence: discarded ? [...(sequence ?? [])] : undefined,
-      search,
-      exhausted: exhausted ? true : undefined,
+      sequence: tape,
+      search: held.find((h) => h.search !== undefined)?.search ?? search,
+      exhausted: exhausted || held.some((h) => h.exhausted === true) ? true : undefined,
     });
+  }
+
+  /** The batch of this action still open to merging (R1 / R3 of the card-intake law), if any. */
+  private openCardDrawRevealOf(actionId: number | undefined, tradeId: string | undefined): CardDrawReveal | undefined {
+    const last = this.cardDrawReveals[this.cardDrawReveals.length - 1];
+    const sameAction = last !== undefined && last.sealed !== true && (
+      (actionId !== undefined && last.actionId === actionId) ||
+      (tradeId !== undefined && last.source?.type === 'colony' && last.source.trade?.tradeId === tradeId));
+    return sameAction ? last : undefined;
+  }
+
+  /**
+   * A NAMED search that found NO card (see `enqueueCardDrawReveal`): its segment — `count: 0`, the tape, the rule,
+   * `exhausted` — joins the open batch of the same action, or waits (transient, never serialized) for the batch the
+   * action's next draw opens. A plain draw of nothing, or a search outside any action root, leaves nothing.
+   */
+  private holdEmptySearch(source: CardDrawRevealSource | undefined, sequence: ReadonlyArray<RevealedCard> | undefined, outcome: CardDrawSearchOutcome | undefined): void {
+    const search = outcome?.search;
+    const actionId = this.game?.events?.currentRootId();
+    if (search === undefined || actionId === undefined) {
+      return;
+    }
+    const segment: CardIntakeSegmentLive = {source, count: 0, search};
+    if (sequence !== undefined && sequence.length > 0) {
+      segment.sequence = [...sequence];
+    }
+    if (outcome?.exhausted === true) {
+      segment.exhausted = true;
+    }
+    const open = this.openCardDrawRevealOf(actionId, undefined);
+    if (open === undefined) {
+      this.heldEmptySearches = [...this.heldEmptySearches.filter((h) => h.actionId === actionId), {actionId, segment}];
+      return;
+    }
+    open.segments.push(segment);
+    if (segment.sequence !== undefined) {
+      const before = open.sequence ?? open.cards.map((card) => ({card, matched: true}));
+      open.sequence = [...before, ...segment.sequence];
+    }
+    if (open.search === undefined) {
+      open.search = search;
+    }
+    if (segment.exhausted === true) {
+      open.exhausted = true;
+    }
+    open.pendingAnswer = undefined;
   }
 
   public sealCardDrawReveal(pendingAnswer?: CardIntakePendingAnswer): void {

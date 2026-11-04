@@ -59,7 +59,7 @@ import {deriveGraphicIds, nodeGraphicToken, corpBoxFrameNodes, GraphicBlockRef} 
 import {ICardRenderEffect, isICardRenderEffect, isICardRenderItem, isICardRenderRoot, ItemType} from '../../../common/cards/render/Types';
 import {CardRenderItemType} from '../../../common/cards/render/CardRenderItemType';
 import {Size} from '../../../common/cards/render/Size';
-import {Behavior} from '../../behavior/Behavior';
+import {Behavior, drawCardsOf} from '../../behavior/Behavior';
 import {Card} from '../../cards/Card';
 import {drawSearchOf} from '../../deferredActions/drawSearch';
 import {DrawSearchModel} from '../../../common/models/CardDrawRevealModel';
@@ -620,24 +620,28 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
       push('tile.adjacencyCost', `Other players pay ${cost} M€ more to place a tile adjacent to it.`, ['tile-']);
     }
   }
-  if (b.drawCard !== undefined) {
-    if (typeof b.drawCard === 'number') {
-      push('drawCard', `Draw ${b.drawCard === 1 ? '1 card' : `${b.drawCard} cards`}.`, ['cards']);
+  // One block per draw, in the declared order; a LIST of draws (P56 — the Jovian search, then the Venus one) indexes
+  // its ids, so two sentences never share a block id.
+  const draws = drawCardsOf(b);
+  draws.forEach((drawCard, index) => {
+    const id = draws.length === 1 ? 'drawCard' : `drawCard:${index}`;
+    if (typeof drawCard === 'number') {
+      push(id, `Draw ${drawCard === 1 ? '1 card' : `${drawCard} cards`}.`, ['cards']);
     } else {
       // A FILTERED search («reveal until you find N cards that …») prints its
       // rule from the descriptor; a look-and-keep (keep / pay) or a counted
       // amount still needs a curated sentence. A corporation's setup draw keeps
       // its own corp-local line (`corpStartingBlocks` — «Draw a science card.»).
-      const count = numeric(b.drawCard.count);
-      const search = count === undefined ? undefined : drawSearchOf(count, b.drawCard);
-      if (search !== undefined && b.drawCard.keep === undefined && b.drawCard.pay === undefined && card.type !== CardType.CORPORATION) {
-        push('drawCard', drawSearchSentence(search), ['cards']);
+      const count = numeric(drawCard.count);
+      const search = count === undefined ? undefined : drawSearchOf(count, drawCard);
+      if (search !== undefined && drawCard.keep === undefined && drawCard.pay === undefined && card.type !== CardType.CORPORATION) {
+        push(id, drawSearchSentence(search), ['cards']);
       } else {
         complex = true;
         notes.push('drawCard is structured (keep/pay/filter)');
       }
     }
-  }
+  });
   if (b.addResources !== undefined) {
     const n = numeric(b.addResources);
     const res = card.resourceType;
@@ -915,15 +919,17 @@ function corpStartingBlocks(card: ICard, notes: Array<string>): Array<Pending> {
   for (const p of behaviorBlocks(card, notes) ?? []) {
     // A plain numeric draw is only Beginner Corporation's setup special («keep
     // all 10 for free, instead of choosing») — authored, not a bare «Draw 10».
-    if (p.block.id !== 'mech:drawCard') {
+    if (!p.block.id.startsWith('mech:drawCard')) {
       out.push(p);
     }
   }
   // Structured draws behaviorBlocks skips (it flags them complex): a corp's
   // tagged setup draw — Pharmacy Union «Draw a Science card».
   const b: Behavior | undefined = (card as {behavior?: Behavior}).behavior;
-  const draw = b?.drawCard;
-  if (draw !== undefined && typeof draw !== 'number') {
+  for (const draw of drawCardsOf(b)) {
+    if (typeof draw === 'number') {
+      continue;
+    }
     const count = typeof draw.count === 'number' ? draw.count : 1;
     const tag = draw.tag;
     const noun = count === 1 ? 'card' : 'cards';

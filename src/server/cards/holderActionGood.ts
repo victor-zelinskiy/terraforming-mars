@@ -1,5 +1,5 @@
 import {ICard, isIActionCard} from './ICard';
-import {Behavior} from '../behavior/Behavior';
+import {Behavior, drawCardsOf} from '../behavior/Behavior';
 import {ActionGood, HolderActionGood} from '../../common/cards/holderRole';
 import {Resource} from '../../common/Resource';
 
@@ -104,13 +104,15 @@ function goodsOf(variant: Behavior): ReadonlyArray<ActionGood> | undefined {
       break;
     }
     case 'drawCard': {
-      const draw = variant.drawCard;
-      if (typeof draw === 'number') {
-        goods.push({kind: 'cards', amount: draw});
-      } else if (draw !== undefined && typeof draw.count === 'number' && draw.keep === undefined && draw.pay !== true && draw.type === undefined && draw.resource === undefined) {
-        goods.push(draw.tag === undefined ? {kind: 'cards', amount: draw.count} : {kind: 'cards', amount: draw.count, tag: draw.tag});
-      } else {
-        return undefined;
+      // A list of draws (P56) is a good per draw, in the declared order.
+      for (const draw of drawCardsOf(variant)) {
+        if (typeof draw === 'number') {
+          goods.push({kind: 'cards', amount: draw});
+        } else if (typeof draw.count === 'number' && draw.keep === undefined && draw.pay !== true && draw.type === undefined && draw.resource === undefined) {
+          goods.push(draw.tag === undefined ? {kind: 'cards', amount: draw.count} : {kind: 'cards', amount: draw.count, tag: draw.tag});
+        } else {
+          return undefined;
+        }
       }
       break;
     }

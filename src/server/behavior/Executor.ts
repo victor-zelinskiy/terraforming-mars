@@ -16,7 +16,7 @@ import {PlaceMoonMineTile} from '../moon/PlaceMoonMineTile';
 import {PlaceMoonRoadTile} from '../moon/PlaceMoonRoadTile';
 import {PlaceSpecialMoonTile} from '../moon/PlaceSpecialMoonTile';
 import {CanAffordOptions, IPlayer} from '../IPlayer';
-import {Behavior} from './Behavior';
+import {Behavior, drawCardsOf} from './Behavior';
 import {Counter, ICounter} from './Counter';
 import {BehaviorExecutor} from './BehaviorExecutor';
 import {PlaceTile} from '../deferredActions/PlaceTile';
@@ -74,9 +74,10 @@ export class Executor implements BehaviorExecutor {
       }
     }
 
-    if (behavior.drawCard !== undefined) {
-      const drawCard = behavior.drawCard;
-      const count = typeof(drawCard) === 'number' ? drawCard : ctx.count(drawCard.count);
+    const draws = drawCardsOf(behavior);
+    if (draws.length > 0) {
+      // Several draws of one play (P56) are gated on their SUM — the deck must hold every card the play promises.
+      const count = draws.reduce<number>((sum, drawCard) => sum + (typeof(drawCard) === 'number' ? drawCard : ctx.count(drawCard.count)), 0);
       if (game.projectDeck.canDraw(count) === false) {
         return false;
       }
@@ -520,8 +521,9 @@ export class Executor implements BehaviorExecutor {
     if (behavior?.greeneryDiscount) {
       player.plantsNeededForGreenery -= behavior.greeneryDiscount;
     }
-    if (behavior.drawCard !== undefined) {
-      const drawCard = behavior.drawCard;
+    // In the DECLARED order, each draw naming the card (P56: the Jovian search, then the Venus one — two segments of
+    // one batch, each with its own rule).
+    for (const drawCard of drawCardsOf(behavior)) {
       const revealSource: CardDrawRevealSource = {type: 'card', cardName: card.name};
       if (typeof(drawCard) === 'number') {
         player.drawCard(drawCard, {source: revealSource});

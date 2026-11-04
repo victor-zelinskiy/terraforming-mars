@@ -413,6 +413,7 @@ describe('card information model', function() {
       ['Ishtar Expedition', 'the printed "draw 2 Venus cards" IS a search (P76 — `drawCard: {count: 2, tag: VENUS}`, the Aqueduct Systems class): the generated text says so from the ONE search descriptor, "Reveal … until you reveal 2 cards with a venus tag. Take them into your hand"; only the verb differs'],
       ['Stratospheric Expedition', 'the printed "Draw 2 Venus cards" IS the same search (P84 — `drawCard: {count: 2, tag: VENUS}`, the Ishtar Expedition class); only the verb differs'],
       ['Nobel Prize', 'the printed "Draw 2 cards with requirements" IS a search (P54 — `drawCard: {count: 2, requirement: true}`, the Aqueduct Systems class): the generated text says so from the ONE search descriptor, "Reveal … until you reveal 2 cards with a requirement. Take them into your hand"; only the verb and the number of the noun differ'],
+      ['Planetary Alliance', 'the printed "Draw 1 Jovian card and 1 Venus card" IS two searches (P56 — `drawCard: [{count: 1, tag: JOVIAN}, {count: 1, tag: VENUS}]`, the Ishtar Expedition class): the generated text names each from its ONE search descriptor, "Reveal … until you reveal a card with a jovian tag / a venus tag. Take it into your hand"; only the verb differs'],
     ]);
 
     const offenders: Array<string> = [];

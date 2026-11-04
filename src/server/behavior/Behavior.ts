@@ -116,8 +116,12 @@ export type Behavior = {
   titanumValue?: 1 | -1;
   steelValue?: 1;
 
-  /** Draw this many cards from the deck. */
-  drawCard?: number | DrawCard,
+  /**
+   * Draw this many cards from the deck — one draw, or a LIST of draws made in the declared order (P56 Planetary
+   * Alliance: «draw 1 Jovian card and 1 Venus card» — two named searches of one play). Every reader goes through
+   * `drawCardsOf`, never `behavior.drawCard` itself.
+   */
+  drawCard?: number | DrawCard | ReadonlyArray<DrawCard>,
 
   /** Greeneries cost one plant less. */
   greeneryDiscount?: 1,
@@ -182,6 +186,22 @@ export type Behavior = {
 
 export interface PlaceMoonTile {
   space?: NamedMoonSpace;
+}
+
+/**
+ * The draws a behaviour makes, IN THE DECLARED ORDER — the one reading of `Behavior.drawCard` (a single draw is the
+ * list of one). The gate sums their counts, the executor makes them one by one, the preview prints a chip each.
+ */
+export function drawCardsOf(behavior: Behavior | undefined): ReadonlyArray<number | DrawCard> {
+  const draw = behavior?.drawCard;
+  if (draw === undefined) {
+    return [];
+  }
+  return isDrawCardList(draw) ? draw : [draw];
+}
+
+function isDrawCardList(draw: number | DrawCard | ReadonlyArray<DrawCard>): draw is ReadonlyArray<DrawCard> {
+  return Array.isArray(draw);
 }
 
 export interface DrawCard {

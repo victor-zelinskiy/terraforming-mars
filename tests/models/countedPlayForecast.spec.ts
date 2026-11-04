@@ -4,7 +4,7 @@ import {ICard} from '../../src/server/cards/ICard';
 import {CardName} from '../../src/common/cards/CardName';
 import {Phase} from '../../src/common/Phase';
 import {SpaceName} from '../../src/common/boards/SpaceName';
-import {Behavior} from '../../src/server/behavior/Behavior';
+import {Behavior, drawCardsOf} from '../../src/server/behavior/Behavior';
 import {testGame} from '../TestGame';
 import {addCity, addGreenery, addOcean, fakeCard} from '../TestingUtils';
 import {countedPlayEffects} from '../../src/server/models/actionPreview';
@@ -53,7 +53,7 @@ function hasCountedMember(b: Behavior | undefined, card: ICard): boolean {
     Object.values(b.stock ?? {}).some(isVariable) ||
     Object.values(b.production ?? {}).some(isVariable) ||
     isVariable(b.tr) ||
-    (typeof b.drawCard === 'object' && isVariable(b.drawCard.count)) ||
+    drawCardsOf(b).some((d) => typeof d === 'object' && isVariable(d.count)) ||
     additions.some((a) => isVariable(a.count));
 }
 

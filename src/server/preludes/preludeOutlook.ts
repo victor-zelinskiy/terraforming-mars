@@ -2,7 +2,7 @@ import {CardName} from '../../common/cards/CardName';
 import {PreludeNeed, PreludeOutlook} from '../../common/cards/PreludeOutlook';
 import {IPlayer} from '../IPlayer';
 import {IPreludeCard} from '../cards/prelude/IPreludeCard';
-import {Behavior} from '../behavior/Behavior';
+import {Behavior, drawCardsOf} from '../behavior/Behavior';
 
 /*
  * ORDER-AWARE PRELUDE OUTLOOK
@@ -80,11 +80,12 @@ function grantsMegacredits(behavior: Behavior | undefined): boolean {
 export function preludeProvisions(card: IPreludeCard): ReadonlySet<PreludeNeed> {
   const out = new Set<PreludeNeed>(['playedPrelude']);
   const behavior = card.behavior;
-  if (behavior?.drawCard !== undefined || grantsMegacredits(behavior)) {
+  const draws = drawCardsOf(behavior).length > 0;
+  if (draws || grantsMegacredits(behavior)) {
     out.add('playableCard');
   }
   // A draw puts cards in hand (a discard's material); money never does.
-  if (behavior?.drawCard !== undefined) {
+  if (draws) {
     out.add('cardInHand');
   }
   // A price is paid out of the stock: only money in hand NOW covers it (production pays next generation).

@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {ICard} from '../../src/server/cards/ICard';
 import {GameModule} from '../../src/common/cards/GameModule';
-import {Behavior} from '../../src/server/behavior/Behavior';
+import {Behavior, drawCardsOf} from '../../src/server/behavior/Behavior';
 import {ActionEffect} from '../../src/common/models/ActionPreviewModel';
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
 import {actionPreview} from '../../src/server/models/actionPreview';
@@ -58,8 +58,7 @@ function variableClauses(behavior: Behavior | undefined): Array<Clause> {
   if (isVariable(behavior.tr)) {
     out.push({field: 'tr', icon: 'tr', production: false});
   }
-  const draw = behavior.drawCard;
-  if (draw !== undefined && typeof draw !== 'number' && isVariable(draw.count)) {
+  if (drawCardsOf(behavior).some((draw) => typeof draw !== 'number' && isVariable(draw.count))) {
     out.push({field: 'drawCard', icon: 'cards', production: false});
   }
   for (const sub of behavior.or?.behaviors ?? []) {

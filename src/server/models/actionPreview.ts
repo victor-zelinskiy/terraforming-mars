@@ -1,6 +1,6 @@
 import {IPlayer} from '../IPlayer';
 import {ICard, IActionCard} from '../cards/ICard';
-import {Behavior, TitledBehavior, AddResource} from '../behavior/Behavior';
+import {Behavior, TitledBehavior, AddResource, DrawCard, drawCardsOf} from '../behavior/Behavior';
 import {Counter} from '../behavior/Counter';
 import {CardType} from '../../common/cards/CardType';
 import {Tag} from '../../common/cards/Tag';
@@ -640,8 +640,9 @@ function declaredCountedPlayEffects(player: IPlayer, card: ICard): ReadonlyArray
   if (isVariableAmount(b.tr)) {
     counted.tr = b.tr;
   }
-  if (typeof b.drawCard === 'object' && isVariableAmount(b.drawCard.count)) {
-    counted.drawCard = b.drawCard;
+  const countedDraws = drawCardsOf(b).filter((d): d is DrawCard => typeof d === 'object' && isVariableAmount(d.count));
+  if (countedDraws.length > 0) {
+    counted.drawCard = countedDraws.length === 1 ? countedDraws[0] : countedDraws;
   }
   // «Add 1 delegate per colony» (P70) — the reserve chip moves with the table.
   if (b.turmoil?.sendDelegates !== undefined && isVariableAmount(b.turmoil.sendDelegates.count)) {
@@ -757,8 +758,8 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
       out.push({direction: n >= 0 ? 'gain' : 'cost', icon: 'tr', amount: Math.abs(n), current: player.terraformRating, resulting: player.terraformRating + n, basis: countableBasis(ctx, behavior.tr)});
     }
   }
-  if (behavior.drawCard !== undefined) {
-    const dc = behavior.drawCard;
+  // One chip per draw, in the declared order — two named searches of one play (P56) are two chips, each with its rule.
+  for (const dc of drawCardsOf(behavior)) {
     const raw = typeof dc === 'number' ? dc : dc.count;
     const n = ctx.count(raw);
     if (n > 0 || isVariableAmount(raw)) {

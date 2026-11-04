@@ -20,7 +20,7 @@
  */
 import {IPlayer} from '../IPlayer';
 import {ICard, IActionCard} from '../cards/ICard';
-import {Behavior} from '../behavior/Behavior';
+import {Behavior, drawCardsOf} from '../behavior/Behavior';
 import {Counter} from '../behavior/Counter';
 import {delegatesTermWords} from '../behavior/countedBasis';
 import {addToAnyCardTarget} from '../behavior/addToAnyCardTarget';
@@ -156,15 +156,17 @@ function yieldOf(player: IPlayer, card: ICard, behavior: Behavior): BehaviorYiel
     case 'drawCard': {
       // A COUNTED draw that comes to 0 cards draws nothing (TRP0 — «1 card per resolution with 2+ of your delegates»
       // with none). A fixed draw is a yield (an empty deck is the gate's business, not a verdict).
-      const draw = behavior.drawCard;
-      const raw = typeof draw === 'number' ? draw : draw?.count;
-      if (raw === undefined || typeof raw === 'number') {
-        return 'yields';
+      // Several draws of one play: the key yields when ANY of them does.
+      for (const draw of drawCardsOf(behavior)) {
+        const raw = typeof draw === 'number' ? draw : draw.count;
+        if (typeof raw === 'number') {
+          return 'yields';
+        }
+        if (counter.count(raw) > 0) {
+          return 'yields';
+        }
+        empties.push(raw.delegates !== undefined ? namedZeroYield(delegatesTermWords(raw.delegates.resolutionsWithAtLeast).zero) : zeroYield());
       }
-      if (counter.count(raw) > 0) {
-        return 'yields';
-      }
-      empties.push(raw.delegates !== undefined ? namedZeroYield(delegatesTermWords(raw.delegates.resolutionsWithAtLeast).zero) : zeroYield());
       break;
     }
     case 'addResourcesToAnyCard': {

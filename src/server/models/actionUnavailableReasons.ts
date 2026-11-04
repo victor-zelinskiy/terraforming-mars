@@ -1,6 +1,6 @@
 import {IPlayer} from '../IPlayer';
 import {ICard, IActionCard} from '../cards/ICard';
-import {Behavior} from '../behavior/Behavior';
+import {Behavior, drawCardsOf} from '../behavior/Behavior';
 import {Counter} from '../behavior/Counter';
 import {Resource} from '../../common/Resource';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
@@ -156,9 +156,10 @@ export function collectActionBehaviorReasons(
     }
   }
 
-  if (behavior.drawCard !== undefined) {
-    const drawCard = behavior.drawCard;
-    const count = typeof(drawCard) === 'number' ? drawCard : ctx.count(drawCard.count);
+  const draws = drawCardsOf(behavior);
+  if (draws.length > 0) {
+    // The executor's gate — the SUM of every draw of the play.
+    const count = draws.reduce<number>((sum, drawCard) => sum + (typeof(drawCard) === 'number' ? drawCard : ctx.count(drawCard.count)), 0);
     if (game.projectDeck.canDraw(count) === false) {
       out.push({type: 'rule', message: 'The deck is empty'});
     }

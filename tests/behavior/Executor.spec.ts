@@ -186,6 +186,26 @@ describe('Executor', () => {
     expect(player.megaCredits).eq(5);
   });
 
+  // P56 Planetary Alliance — a LIST of draws: made in the declared order, each naming the card, gated on the SUM.
+  it('drawCard, a list — declared order, a source each, the gate on the sum', () => {
+    expect(player.cardsInHand).has.length(0);
+    const behavior: Behavior = {drawCard: [{count: 1, tag: Tag.JOVIAN}, {count: 2, tag: Tag.VENUS}]};
+    executor.execute(behavior, player, fake);
+    expect(player.cardsInHand).has.length(3);
+    expect(player.cardsInHand[0].tags).contains(Tag.JOVIAN);
+    expect(player.cardsInHand[1].tags).contains(Tag.VENUS);
+    expect(player.cardsInHand[2].tags).contains(Tag.VENUS);
+    const segments = player.cardDrawReveals.flatMap((r) => r.segments);
+    expect(segments.map((s) => s.search)).deep.eq([{count: 1, tag: Tag.JOVIAN}, {count: 2, tag: Tag.VENUS}]);
+    expect(segments.every((s) => s.source?.type === 'card' && s.source.cardName === fake.name), 'every draw names the card').is.true;
+
+    game.projectDeck.drawPile.length = 2;
+    game.projectDeck.discardPile.length = 0;
+    expect(executor.canExecute(behavior, player, fake), 'a deck of 2 cannot supply 1 + 2').is.false;
+    game.projectDeck.drawPile.length = 3;
+    expect(executor.canExecute(behavior, player, fake)).is.true;
+  });
+
   it('drawCard, type and tag, keep some', () => {
     expect(player.cardsInHand).has.length(0);
     player.megaCredits = 5;
