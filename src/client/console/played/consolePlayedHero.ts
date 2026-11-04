@@ -1833,7 +1833,8 @@ export async function endPlayedHero(): Promise<void> {
       // up and turns over only after, P84 · DK), the rating and its VP cell tick on
       // the touchdown, and the table's answer (the ruling Greens' M€) one beat
       // after — `flyRailReward` resolves once all of it has ticked.
-      await flyRailReward(railKey, () => heroRailOrigin(playedHeroState.card ?? ''),
+      const born = new Map<string, number>();
+      await flyRailReward(railKey, (spec) => heroRailOrigin(playedHeroState.card ?? '', spec, born),
         heroAnswerFlight(playedHeroState.card ?? '', heldRailAnswerTags));
       heldRailKey = undefined;
       if (!playedHeroState.active) {
@@ -2012,7 +2013,8 @@ async function payBackFromStandingCard(mine: () => boolean): Promise<void> {
     return;
   }
   if (railKey !== undefined) {
-    await flyRailReward(railKey, () => heroRailOrigin(card), heroAnswerFlight(card, heldRailAnswerTags));
+    const born = new Map<string, number>();
+    await flyRailReward(railKey, (spec) => heroRailOrigin(card, spec, born), heroAnswerFlight(card, heldRailAnswerTags));
     heldRailKey = undefined;
   }
   // The card stands until every token born on it has LEFT it, and the composer until every token landing IN it (a holder's
@@ -2660,16 +2662,21 @@ function heroVpOrigin(card: string): TransferEnd | undefined {
  * WHERE THE PLAY'S TR TOKEN IS BORN — measured at fly time on the card that has just landed: the first VISIBLE place of
  * the reward ladder, and inside it the PRINTED TR icon (an EVENT's too — it pays face up before it turns over, P84 · DK);
  * a place that prints none is the card's body. Undefined only when nothing is visible: the rail reward names it.
+ * A token BORN ELSEWHERE (`bornOn` — a scale step's rating on the start host, P66 · GJ) is born on THAT printed icon,
+ * the k-th token of one icon on its k-th print (`born` counts them across one flight — three Venus icons, three sources).
  */
-function heroRailOrigin(card: string): TransferEnd | undefined {
+function heroRailOrigin(card: string, spec?: ResourceTransferSpec, born?: Map<string, number>): TransferEnd | undefined {
   const place = heroRewardPlace(card);
   if (place === undefined) {
     return undefined;
   }
-  const needles = iconNeedlesFor('tr') ?? [];
+  const key = spec?.bornOn ?? 'tr';
+  const needles = iconNeedlesFor(key) ?? [];
   const printed = Array.from(place.querySelectorAll<HTMLElement>('.pcard-ic'))
-    .find((icon) => needles.some((needle) => (icon.style.backgroundImage ?? '').includes(needle)));
-  return centreEndOf(printed) ?? centreEndOf(place);
+    .filter((icon) => needles.some((needle) => (icon.style.backgroundImage ?? '').includes(needle)));
+  const k = born?.get(key) ?? 0;
+  born?.set(key, k + 1);
+  return centreEndOf(printed[k] ?? printed[0]) ?? centreEndOf(place);
 }
 
 /**

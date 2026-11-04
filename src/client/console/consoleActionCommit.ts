@@ -429,26 +429,65 @@ export function playRailTrSpecs(
   branch: ActionPreviewBranch | undefined,
   effects: ReadonlyArray<ActionEffect>,
   stepResponses: Readonly<Record<number, unknown>> = {},
+  host: PlayRailHost = {},
 ): Array<ResourceTransferSpec> {
-  return directTrSpecs(branch, effects, stepResponses, {drawOwnsTr: false});
+  return directTrSpecs(branch, effects, stepResponses, {drawOwnsTr: false, scaleTellsTr: host.startHost !== true});
 }
+
+/**
+ * WHO TELLS A PLAY'S RATING — the host's own fact, never a phase read inside the rule (P66 · GJ). `startHost`: the
+ * start's ceremony plays the card ON ITS OWN STAGE while the start covers the board, so no field beat can tell a scale
+ * step's rating there (`scaleStepRatingPlan` refuses every phase but ACTION — and must: a field beat under the start's
+ * cover parked 30 s, the 22:15 export) — the hero tells it instead.
+ */
+export type PlayRailHost = {startHost?: boolean};
 
 /** The ONE rule behind both doors (see `actionRailTrSpecs`): a TR chip with no note that nothing ahead owns. */
 function directTrSpecs(
   branch: ActionPreviewBranch | undefined,
   branchEffects: ReadonlyArray<ActionEffect>,
   stepResponses: Readonly<Record<number, unknown>>,
-  opts: {drawOwnsTr: boolean},
+  opts: {drawOwnsTr: boolean, scaleTellsTr?: boolean},
 ): Array<ResourceTransferSpec> {
   if (branch === undefined || branch.reveal !== undefined || (branch.steps ?? []).some((s) => s.kind === 'boardPlacement')) {
     return [];
   }
   const effects = [...branchEffects, ...chosenStepEffects(branch, stepResponses)];
-  if (effects.some((e) => e.direction === 'gain' && (SCALE_ICONS.has(e.icon) || (opts.drawOwnsTr && e.icon === 'cards')))) {
+  if (opts.drawOwnsTr && effects.some((e) => e.direction === 'gain' && e.icon === 'cards')) {
     return [];
   }
-  // A rating the law REFUSES (RX42 — `vetoed`) flies nowhere: the rail never gets it.
-  return railRewardSpecs(effects.filter((e) => e.vetoed === undefined)).filter((spec) => spec.resource === RATING_RAIL_KEY);
+  const scaleGain = effects.some((e) => e.direction === 'gain' && SCALE_ICONS.has(e.icon));
+  if (scaleGain && opts.scaleTellsTr !== false) {
+    return [];
+  }
+  // A rating the law REFUSES (RX42 — `vetoed`; a step P57 eats carries the same mark) flies nowhere: the rail never gets it.
+  const direct = railRewardSpecs(effects.filter((e) => e.vetoed === undefined)).filter((spec) => spec.resource === RATING_RAIL_KEY);
+  return scaleGain ? [...scaleStepRatingSpecs(effects), ...direct] : direct;
+}
+
+/**
+ * A SCALE STEP PAYS ITS RATING — told by the HERO where no field beat can (P66 · GJ, the start host): every rating
+ * chip a scale's step implies (`implied`, right after its scale — `withImpliedRating`) becomes ONE token per step, each
+ * BORN ON the scale's printed icon (`bornOn` — the k-th token on the k-th icon: three printed Venus icons are three
+ * sources). A refused step (RX42 / P57 — `vetoed`) and a replaced unit (RX35 — `diverted`, which implies none) fly
+ * nothing. Pure.
+ */
+export function scaleStepRatingSpecs(effects: ReadonlyArray<ActionEffect>): Array<ResourceTransferSpec> {
+  const out: Array<ResourceTransferSpec> = [];
+  let scale: string | undefined;
+  for (const e of effects) {
+    if (e.direction === 'gain' && SCALE_ICONS.has(e.icon)) {
+      scale = e.diverted === undefined ? e.icon : undefined;
+      continue;
+    }
+    if (scale === undefined || e.icon !== 'tr' || e.direction !== 'gain' || e.implied !== true || e.vetoed !== undefined) {
+      continue;
+    }
+    for (let i = 0; i < Math.max(0, Math.round(e.amount)); i++) {
+      out.push({channel: 'stock', resource: RATING_RAIL_KEY, amount: 1, bornOn: scale});
+    }
+  }
+  return out;
 }
 
 /**
@@ -908,8 +947,9 @@ export function playRailReward(
   stepResponses: Readonly<Record<number, unknown>>,
   paid: Payment | undefined,
   promisedReactions: ReadonlyArray<ResourceTransferSpec>,
+  host: PlayRailHost = {},
 ): RailReward | undefined {
-  const cause = playRailTrSpecs(branch, effects, stepResponses);
+  const cause = playRailTrSpecs(branch, effects, stepResponses, host);
   const reactions = withoutAgendaWalkAnswers(branch, cause, withoutScaleStepAnswers(branch, stepResponses, cause, promisedReactions, effects));
   if (cause.length === 0 && reactions.length === 0) {
     return undefined;

@@ -185,6 +185,27 @@ covers (a party's share) ticks at the beat, as before.
   response (a reaction no forecast states, a concurrent seat) refuses the seed with its mismatch named in the trail. The
   bot's turn is NOT such a change — the server's scheduler plays it in its own response ≥ 1 s later.
 
+## 3b. A scale step's rating has ONE teller per host (P66 · GJ — «ШАГ ШКАЛЫ НА СТАРТЕ ПЛАТИТ РЕЙТИНГ»)
+
+A scale step's TR is the SCALE's (`Game.increaseVenusScaleLevel` → `{global: true}`), never a chip of the branch — so
+whoever tells it must be the one place the player can SEE the step's cause. Two hosts, two tellers, never both:
+- **The ACTION phase — the FIELD.** `directTrSpecs` refuses a TR beside a scale gain («the TR is the scale's») and the
+  board's scale-step beat (`scaleStepReward/scaleStepRatingBeat.ts`) flies one token per step off the marker's rim once
+  the board is watchable, the Greens' M€ a beat after (TR41).
+- **The START — the HERO.** The start covers the board for the whole deployment, and the field beat refuses every phase
+  but ACTION by design (a field beat under the start's cover parked 30 s — the 22:15 export; never bring it back). So the
+  start scene hands its HOST in (`playRailReward(…, {startHost: true})` — the host's own fact, never a phase read inside
+  the rule): every implied rating chip of a scale (`implied`, right after its scale — `withImpliedRating`) becomes ONE
+  token per step with `bornOn: <scale>` (`scaleStepRatingSpecs`), and the hero births the k-th token on the k-th printed
+  icon of that scale (`heroRailOrigin` — three printed Venus icons are three sources); the cell ticks on each touchdown,
+  the ruling Greens' answer rides as the chain's reaction one beat after the last (`withoutScaleStepAnswers` keeps it —
+  the chain now carries a rating of its own). A refused step (RX42 / a P57-eaten step — `vetoed`) and a replaced unit
+  (RX35 — `diverted`, implying none) fly nothing. The promise is the ordinary rail half: `verifyRailReward` checks the
+  rating row (+ the M€ answer) against the two views; a rating that moved otherwise is not held and names itself.
+Guards: `tests/console/playRailRule.spec.ts` § P66 · GJ; e2e `console-venus-l1-shade` (A — three births on the three
+printed Venus icons, the cell 20 → 21 → 22 → 23 with no tick before the first token, the Greens +6 after; B — P44's
+Venus row; D — mid-game the field alone).
+
 ## 4. The runtime sentinel — «оба конца окрашены», in every build
 
 `consoleResourceTransfer.reportEnds` → `sentinel`: a token born on, or touched down over, a BARE POINT where nothing is

@@ -27,6 +27,13 @@ import {IndustrialComplex} from '../../src/server/cards/prelude2/IndustrialCompl
 import {Manutech} from '../../src/server/cards/venusNext/Manutech';
 import {heroRewardEffectsOf} from '../../src/client/console/consolePlayCardComposer';
 import {reactionRailSpecs} from '../../src/client/console/colonyTrade/fleetDockModel';
+import {VenusL1Shade} from '../../src/server/cards/prelude2/VenusL1Shade';
+import {AtmosphericEnhancers} from '../../src/server/cards/prelude2/AtmosphericEnhancers';
+import {UNMI_VETO_ID} from '../../src/server/parliament/resolutions/reds/UnmiVeto';
+import {resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
+import {scaleStepRatingSpecs} from '../../src/client/console/consoleActionCommit';
+import {verifyRailReward} from '../../src/client/console/resourceTransfer/railReward';
+import {PlayerViewModel} from '../../src/common/models/PlayerModel';
 
 /**
  * PL-001 FOR PLAYS — «A DIRECT TR OF A PLAY IS A REWARD OF THE RAIL», swept over
@@ -195,5 +202,90 @@ describe('P52 · FH — THE PRICE OF A START PLAY leaves the rail FIRST (Industr
     expect(spends?.cause).deep.eq([{channel: 'stock', resource: 'megacredits', amount: 18, direction: 'loss'}]);
     expect(spends?.known?.['stock:megacredits'], 'Manutech: 1 for the M€ line + 1 for each of the ruling Greens\' two M€ steps').eq(3);
     expect(spends?.known?.['stock:steel']).eq(1);
+  });
+});
+
+
+/**
+ * P66 · GJ — «A SCALE STEP AT THE START PAYS ITS RATING»: on the start host no field beat can tell a scale step's
+ * rating (`scaleStepRatingPlan` refuses every phase but ACTION — the start's cover), so the HERO tells it: one rating
+ * token per step, born on the k-th printed scale icon (`bornOn`); the ruling Greens' M€ rides as the answer. Off the
+ * start host the rule is unchanged: the scale owns its rating (the field beat tells it).
+ */
+describe('P66 · GJ — a scale step on the START HOST pays its rating off the printed scale icons', () => {
+  function startTable(): {p: TestPlayer, rival: TestPlayer} {
+    const [game, p, rival] = testGame(2, {coloniesExtension: true, turmoilReduxExpansion: true, preludeExtension: true, venusNextExtension: true});
+    game.phase = Phase.PRELUDES;
+    return {p, rival};
+  }
+  const born = (scale: string, n: number) => Array.from({length: n}, () => ({channel: 'stock', resource: RATING_RAIL_KEY, amount: 1, bornOn: scale}));
+
+  it('Venus L1 Shade (Venus +3): three tokens, each born on a printed Venus icon; the Greens answer +6', () => {
+    const {p} = startTable();
+    const card = new VenusL1Shade();
+    const preview = cardPlayPreview(p, card);
+    const branch = preview.branches[0];
+    expect(playRailTrSpecs(branch, branch.effects, {}, {startHost: true})).deep.eq(born('venus', 3));
+    const reactions = reactionRailSpecs(effectForecastForPlay(p, card, preview).facts);
+    expect(reactions, "the fresh table's Greens: 2 M€ for each of the three rating steps").deep.eq([{channel: 'stock', resource: 'megacredits', amount: 6}]);
+    const rail = playRailReward(branch, branch.effects, {}, undefined, reactions, {startHost: true});
+    expect(rail?.cause).deep.eq(born('venus', 3));
+    expect(rail?.reactions, 'the cause is a rating of the chain — the scale-step beat takes no answer away').deep.eq(reactions);
+  });
+
+  it('off the start host the scale still owns its rating: nothing for the rail (the field beat tells it in the action phase)', () => {
+    const {p} = startTable();
+    const branch = cardPlayPreview(p, new VenusL1Shade()).branches[0];
+    expect(playRailTrSpecs(branch, branch.effects)).deep.eq([]);
+    expect(actionRailTrSpecs(branch)).deep.eq([]);
+  });
+
+  it('the promise equals the applied view: rating +3 and M€ +6 verify; one step less does not', () => {
+    const {p} = startTable();
+    const card = new VenusL1Shade();
+    const preview = cardPlayPreview(p, card);
+    const branch = preview.branches[0];
+    const rail = playRailReward(branch, branch.effects, {}, undefined, reactionRailSpecs(effectForecastForPlay(p, card, preview).facts), {startHost: true});
+    const view = (tr: number, mc: number) => ({id: 'p', thisPlayer: {terraformRating: tr, megacredits: mc, tableau: []}} as unknown as PlayerViewModel);
+    const ok = verifyRailReward(rail!, view(20, 0), view(23, 6));
+    expect(ok.mismatches).deep.eq([]);
+    expect(ok.cause).length(3);
+    expect(ok.reactions).deep.eq([{channel: 'stock', resource: 'megacredits', amount: 6}]);
+    expect(verifyRailReward(rail!, view(20, 0), view(22, 4)).cause, 'a rating that moved otherwise is not held').deep.eq([]);
+  });
+
+  it('Atmospheric Enhancers — the class: the CHOSEN Venus branch (+2) is two tokens off the Venus icons, the temperature branch two off the temperature', () => {
+    const {p} = startTable();
+    const preview = cardPlayPreview(p, new AtmosphericEnhancers());
+    const of = (icon: string) => preview.branches.find((b) => b.effects.some((e) => e.icon === icon && e.direction === 'gain'))!;
+    expect(playRailTrSpecs(of('venus'), of('venus').effects, {}, {startHost: true})).deep.eq(born('venus', 2));
+    expect(playRailTrSpecs(of('temperature'), of('temperature').effects, {}, {startHost: true})).deep.eq(born('temperature', 2));
+  });
+
+  it('UNMI Veto (RX42): the scale moves, the refused rating flies NOTHING on the start host either', () => {
+    const {p, rival} = startTable();
+    p.game.parliament!.enacted = resolutionInstanceId(UNMI_VETO_ID, 0);
+    p.terraformRating = 30;
+    rival.terraformRating = 20;
+    const branch = cardPlayPreview(p, new VenusL1Shade()).branches[0];
+    expect(branch.effects.find((e) => e.icon === 'tr')?.vetoed).is.not.undefined;
+    expect(playRailTrSpecs(branch, branch.effects, {}, {startHost: true})).deep.eq([]);
+  });
+
+  it('the pure reading: an implied rating only after its scale; a struck step and a replaced unit fly nothing; a direct TR keeps its own icon', () => {
+    expect(scaleStepRatingSpecs([
+      {direction: 'gain', icon: 'venus', amount: 2},
+      {direction: 'gain', icon: 'tr', amount: 1, implied: true},
+      {direction: 'gain', icon: 'tr', amount: 1, implied: true, vetoed: {} as never},
+    ])).deep.eq(born('venus', 1));
+    expect(scaleStepRatingSpecs([
+      {direction: 'gain', icon: 'oxygen', amount: 1, diverted: {} as never},
+      {direction: 'gain', icon: 'tr', amount: 1, implied: true},
+    ]), 'RX35: the replaced unit implies no rating').deep.eq([]);
+    expect(playRailTrSpecs({effects: [], steps: []} as never, [
+      {direction: 'gain', icon: 'temperature', amount: 1},
+      {direction: 'gain', icon: 'tr', amount: 1, implied: true},
+      {direction: 'gain', icon: 'tr', amount: 2},
+    ], {}, {startHost: true})).deep.eq([...born('temperature', 1), {channel: 'stock', resource: RATING_RAIL_KEY, amount: 2}]);
   });
 });

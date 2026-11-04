@@ -9368,8 +9368,10 @@ export default defineComponent({
         }
       }
       const facts = playForecast?.facts;
+      // THE START HOST (P66 · GJ): no field beat tells a scale step's rating under the start's cover — the hero does,
+      // one token per step off the printed scale icons.
       const rail = withRailAnswerTags(playRailReward(branch, branch.effects ?? [], {}, undefined,
-        [...reactionRailSpecs(facts), ...ratingAnswerSpecs(facts)]), railAnswerTags(facts));
+        [...reactionRailSpecs(facts), ...ratingAnswerSpecs(facts)], {startHost: true}), railAnswerTags(facts));
       if (this.rewardVersion === version) {
         if (rail !== undefined) {
           this.playRails.set(name, rail);

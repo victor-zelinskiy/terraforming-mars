@@ -40,6 +40,10 @@
  * player never came back to the board → the cell ticks, nothing flies). A
  * rating another owner already holds (the tile placement's, a direct TR's) is
  * never held twice (`heldStock`). Reduced motion holds nothing.
+ *
+ * ONE TELLER PER HOST (P66 · GJ): this beat is the ACTION phase's alone — on the START the board is covered for the
+ * whole deployment (a field beat there parked 30 s, the 22:15 export), so a prelude's scale steps are told by the HERO
+ * (`playRailReward(…, {startHost: true})` → one token per step off the k-th printed scale icon). Never both.
  */
 import {reactive, watch, WatchStopHandle} from 'vue';
 import {gsap} from 'gsap';
