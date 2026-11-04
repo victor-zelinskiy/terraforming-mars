@@ -3262,6 +3262,9 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   'soil-studies' | 'soil-studies-locked' |
   // P60 Rise to Power — a series of three grants (ledger FW): the WG road (the series inside the hand), the short reserve.
   'rise-to-power-wg' | 'rise-to-power-wg-reserve' |
+  // P61 Soil Bacteria — a prelude-reactor answering a tag INTO THE RAIL (ledger FY): the start (seeded microbe tape), the
+  // action-phase table (P61 on it, four cards in hand), the WG road.
+  'soil-bacteria-start' | 'soil-bacteria-table' | 'soil-bacteria-wg' |
   // The play sheet's worst payment (DJ): Space Elevator with every lane open — steel, titanium, Helion's heat,
   // Floodgates' steel, both mechs, graphene, M€ — the ledger stands in the sheet's body, the commit on the bottom line.
   'play-sheet-ledger' |

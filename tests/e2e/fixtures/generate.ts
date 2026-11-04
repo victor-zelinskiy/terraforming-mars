@@ -13804,3 +13804,101 @@ for (const [name, reserve] of [['rise-to-power-wg', undefined], ['rise-to-power-
     },
   });
 }
+
+// ── P61 Soil Bacteria (docs/claude/prompts/prelude2-p61-soil-bacteria.md, ledger FY): the series' first PRELUDE-REACTOR
+//    answering a TAG INTO THE RAIL (plants, «including this»).
+//      · `soil-bacteria-start` — the deployment queue (Teractor played, P61 + Donation kept), the deck SEEDED Power Plant ·
+//        Ants · Asteroid · Tardigrades: A on P61 → +3 plants off the card, its OWN +1 (the prelude's Microbe tag), the
+//        named search «ВСКРЫТО 4 · ПОЛУЧЕНО 2 · СБРОШЕНО 2 — с меткой микроба» (stand A);
+//      · `soil-bacteria-table` — the action phase, P61 on the table with Lichen (plant) + Small Animals (animal) beside it,
+//        10 plants, 40 M€, 4 % oxygen and 3 oceans; in hand Ants (microbe → +1) · Moss (plant → +1) · Advanced Ecosystems
+//        (plant + microbe + animal → +2) · Power Plant (nothing) (stand B);
+//      · `soil-bacteria-wg`    — the mid-game road: WG Project deals P61 first — the play inside the hand (stand C).
+//    A DRY RUN plays the prelude / the cards on a copy, so a rule change fails HERE. ──
+const SOIL_TAPE = [CardName.POWER_PLANT, CardName.ANTS, CardName.ASTEROID, CardName.TARDIGRADES] as const;
+{
+  const name = 'soil-bacteria-start';
+  const [game, blue] = testGame(1, {
+    skipInitialCardSelection: false, preludeExtension: true, prelude2Expansion: true,
+    customPreludes: [CardName.SOIL_BACTERIA, CardName.DONATION], customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
+  });
+  const initial = blue.getWaitingFor();
+  if (!(initial instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${initial?.type}`);
+  }
+  blue.process({type: 'initialCards', responses: [
+    {type: 'card', cards: [CardName.TERACTOR]},
+    {type: 'card', cards: [CardName.SOIL_BACTERIA, CardName.DONATION]},
+    {type: 'card', cards: []},
+  ]});
+  runAllActions(game);
+  if (blue.getWaitingFor()?.startGamePrompt?.kind === 'corporationPlay') {
+    blue.process({type: 'card', cards: [CardName.TERACTOR]});
+    runAllActions(game);
+  }
+  const queue = blue.getWaitingFor();
+  if (queue?.startGamePrompt?.kind !== 'preludeSelection' || !blue.tableau.has(CardName.TERACTOR)) {
+    throw new Error(`${name}: expected the deployment queue with Teractor played — got ${queue?.type} ${JSON.stringify(queue?.startGamePrompt)}`);
+  }
+  stackDeckTop(game, SOIL_TAPE);
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const seat = copy.getPlayerById(blue.id);
+  seat.process({type: 'card', cards: [CardName.SOIL_BACTERIA]});
+  runAllActions(copy);
+  const hand = seat.cardsInHand.map((c) => c.name);
+  const reveal = seat.cardDrawReveals[0];
+  const reaction = copy.cardReactions.find((r) => r.card === CardName.SOIL_BACTERIA);
+  if (seat.plants !== 4 || JSON.stringify(hand) !== JSON.stringify([CardName.ANTS, CardName.TARDIGRADES]) ||
+    reveal?.search?.tag !== Tag.MICROBE || reaction?.cause?.card !== CardName.SOIL_BACTERIA) {
+    throw new Error(`${name}: the dry run expected 4 plants, Ants + Tardigrades in hand, the microbe search and the own reaction — got ${seat.plants}, [${hand.join(', ')}], ${JSON.stringify(reveal?.search)}, ${JSON.stringify(reaction)}`);
+  }
+  write(name, game);
+}
+{
+  const name = 'soil-bacteria-table';
+  const {game, player} = soloActionPhase({customCorporationsList: [CardName.TERACTOR], startingCorporations: 1});
+  for (const card of [CardName.SOIL_BACTERIA, CardName.LICHEN, CardName.SMALL_ANIMALS]) {
+    player.playedCards.push((newPrelude(card) ?? newProjectCard(card))!);
+  }
+  player.pendingInitialActions = [];
+  player.plants = 10;
+  player.megaCredits = 40;
+  setOxygenLevel(game, 4);
+  for (let i = 0; i < 3; i++) {
+    addOcean(player);
+  }
+  player.plants = 10;
+  player.cardsInHand.length = 0;
+  for (const card of [CardName.ANTS, CardName.MOSS, CardName.ADVANCED_ECOSYSTEMS, CardName.POWER_PLANT]) {
+    player.cardsInHand.push(newProjectCard(card)!);
+  }
+  runAllActions(game);
+  const unplayable = player.cardsInHand.filter((c) => player.canPlay(c) === false).map((c) => c.name);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== player.id || !(player.getWaitingFor() instanceof OrOptions) || unplayable.length > 0) {
+    throw new Error(`${name}: expected blue on the move with all four cards playable — got phase=${game.phase} wf=${player.getWaitingFor()?.constructor.name} unplayable=[${unplayable.join(', ')}]`);
+  }
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const seat = copy.getPlayerById(player.id);
+  const owed: ReadonlyArray<[CardName, number]> = [[CardName.ANTS, 1], [CardName.ADVANCED_ECOSYSTEMS, 2], [CardName.POWER_PLANT, 0]];
+  for (const [card, gain] of owed) {
+    const before = seat.plants;
+    seat.playCard(seat.cardsInHand.find((c) => c.name === card)!);
+    runAllActions(copy);
+    if (seat.plants - before !== gain) {
+      throw new Error(`${name}: the dry run expected ${card} to pay +${gain} plants — got ${seat.plants - before}`);
+    }
+  }
+  write(name, game);
+}
+wgProjectFixture('soil-bacteria-wg', {
+  top: [CardName.SOIL_BACTERIA, CardName.DONATION, CardName.SUPPLIER],
+  under: [CardName.LOAN],
+  megacredits: 20,
+  also: (game) => stackDeckTop(game, SOIL_TAPE),
+  dry: {
+    pick: CardName.SOIL_BACTERIA,
+    expect: (blue) => blue.tableau.has(CardName.SOIL_BACTERIA) && blue.plants === 4 &&
+      blue.cardsInHand.some((c) => c.name === CardName.TARDIGRADES) ? undefined :
+      `expected P61 played (4 plants, Tardigrades in hand) — got tableau=${blue.tableau.has(CardName.SOIL_BACTERIA)} plants=${blue.plants} hand=[${blue.cardsInHand.map((c) => c.name).join(', ')}]`,
+  },
+});
