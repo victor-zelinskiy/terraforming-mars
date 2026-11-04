@@ -511,6 +511,14 @@ rating, no points) skipped the beat, the ending released the hold, the row ticke
 never rose. One pure gate, every held result a member; witness `console-soil-bacteria` B (`reactor:Soil Bacteria` →
 `rail:plants`, the reactor emerged from its place).
 
+**…and a prelude answering PRODUCTION, once per action** (P63 Suitable Infrastructure, 2026-11-04 — ledger GC · GD):
+nothing new on the client — the hook pays +2 M€ with the card as its source, the twin declares its fact `once` (the
+engine's exit pass states it ONCE per operation — Industrial Microbes' two productions read «+2», never «+4»). With two
+preludes the NEXT one is always the last, so its play ends the start: P63 answers as ONE face at the reaction stage over
+the board, its tokens born on its printed «2 M€» (`reactor:Suitable Infrastructure` → `rail:megacredits`) — no shelf, no
+second instance; the Power Plant standard project's answer lands after its price (two touchdowns). Witness
+`console-suitable-infrastructure` A · B · C · D.
+
 ## P82 Special Permit — THE IDENTITY OF A RISE (the owner's field report of 2026-10-31, ledger DB)
 
 «Иногда вместе с фактической картой сработавшего эффекта рядом поднимаются ещё ЛЕВЫЕ карты, а иногда карта поднимается
