@@ -143,7 +143,9 @@ export function intakeSearchRun(batch: {segments?: ReadonlyArray<CardIntakeSegme
   }
   const searches = batch.segments
     .map((segment, index) => ({segment, index}))
-    .filter(({segment}) => segment.sequence !== undefined && segment.sequence.some((step) => !step.matched));
+    // A search that found NOTHING (an empty exhausted segment, P56) has no run of cards to assemble — its tape plays
+    // on the batch-level tape with the rest.
+    .filter(({segment}) => segment.count > 0 && segment.sequence !== undefined && segment.sequence.some((step) => !step.matched));
   if (searches.length !== 1) {
     return undefined;
   }

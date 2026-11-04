@@ -4,8 +4,8 @@
        exactly as the card face prints it. Language-neutral where it can be
        (the tag never needs a declension), worded where it must be. -->
   <span class="con-dsearch" :class="'con-dsearch--' + size" :data-draw-search="signature">
-    <span v-for="(term, i) in terms" :key="i" class="con-dsearch__term" :data-draw-search-term="term.kind">
-      <span class="con-dsearch__label">{{ $t(labelOf(term)) }}</span>
+    <span v-for="({term, labelled}, i) in items" :key="i" class="con-dsearch__term" :data-draw-search-term="term.kind">
+      <span v-if="labelled" class="con-dsearch__label">{{ $t(labelOf(term)) }}</span>
       <span v-if="term.kind === 'with'" class="con-dsearch__tag" :data-tag="term.tag" :style="tagStyle(term.tag)" aria-hidden="true"></span>
       <span v-else-if="term.kind === 'resource'" class="con-dsearch__res" :style="resourceStyle(term.resource)" aria-hidden="true"></span>
       <span v-else-if="term.kind === 'floaterIcon'" class="con-dsearch__res" :style="resourceStyle(floater)" aria-hidden="true"></span>
@@ -23,7 +23,7 @@ import {defineComponent, PropType} from 'vue';
 import {Tag} from '@/common/cards/Tag';
 import {CardResource} from '@/common/CardResource';
 import {DrawSearchModel} from '@/common/models/CardDrawRevealModel';
-import {DrawSearchTerm, drawSearchTermLabel, drawSearchTerms} from '@/client/console/deckDraw/drawSearchReading';
+import {DrawSearchClause, DrawSearchTerm, drawSearchClauses, drawSearchTermLabel} from '@/client/console/deckDraw/drawSearchReading';
 import {CARD_REQUIREMENT_ICON, cardResourceIconUrl, tagIconStyle} from '@/client/components/premiumCard/premiumCardIcons';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
@@ -36,14 +36,18 @@ import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/Premiu
  * summary badge and the discard viewer's verdict. A second rendering is how
  * the chip and the tray would start describing two rules.
  *
- * Either the whole descriptor (`search`) or a ready list of clauses (`terms` —
- * the verdict of a card a positive filter refused) is passed.
+ * Either the whole descriptor (`search`), SEVERAL descriptors in order
+ * (`searches` — one batch's every rule, P56: «с меткой [J] · [V]»), or a ready
+ * list of clauses (`terms` — the verdict of a card a positive filter refused)
+ * is passed.
  */
 export default defineComponent({
   name: 'ConsoleDrawSearchRule',
   components: {PremiumPartyRequirementGlyph},
   props: {
     search: {type: Object as PropType<DrawSearchModel>, default: undefined},
+    /** Several rules of one batch, in segment order (`drawSearchRules`) — read as ONE phrase. */
+    searches: {type: Array as PropType<ReadonlyArray<DrawSearchModel>>, default: undefined},
     clauses: {type: Array as PropType<ReadonlyArray<DrawSearchTerm>>, default: undefined},
     /** `chip` — inside an effect chip / a badge; `line` — a sentence-sized row. */
     size: {type: String as PropType<'chip' | 'line'>, default: 'chip'},
@@ -56,8 +60,14 @@ export default defineComponent({
     requirementCard(): string {
       return CARD_REQUIREMENT_ICON;
     },
+    items(): ReadonlyArray<DrawSearchClause> {
+      if (this.clauses !== undefined) {
+        return this.clauses.map((term) => ({term, labelled: true}));
+      }
+      return drawSearchClauses(this.searches ?? (this.search === undefined ? [] : [this.search]));
+    },
     terms(): ReadonlyArray<DrawSearchTerm> {
-      return this.clauses ?? drawSearchTerms(this.search);
+      return this.items.map((item) => item.term);
     },
     /** A stable, language-free reading of the rule (`without:plant,microbe,animal`) — the e2e witness. */
     signature(): string {

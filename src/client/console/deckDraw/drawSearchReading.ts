@@ -126,6 +126,96 @@ export function drawDiscardVerdict(step: CardDrawRevealStep | undefined, search:
   return terms.length > 0 ? {kind: 'rule', terms} : undefined;
 }
 
+/**
+ * EVERY RULE a batch searched by, in SEGMENT order, each once (P56 Planetary Alliance — a Jovian search, then a Venus
+ * one, in one play: one batch, two segments, two rules). The batch-level `search` is the FIRST segment's — a reader
+ * that names the batch's rule from it alone tells half the story. Two segments with one rule (a count apart) read once.
+ */
+export function drawSearchRules(reveal: Pick<CardDrawRevealModel, 'search' | 'segments'> | undefined): Array<DrawSearchModel> {
+  if (reveal === undefined) {
+    return [];
+  }
+  const out: Array<DrawSearchModel> = [];
+  const seen = new Set<string>();
+  for (const search of [...(reveal.segments ?? []).map((segment) => segment.search), reveal.search]) {
+    if (search === undefined) {
+      continue;
+    }
+    const key = termsKey(drawSearchTerms(search));
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(search);
+    }
+  }
+  return out;
+}
+
+function termsKey(terms: ReadonlyArray<DrawSearchTerm>): string {
+  return JSON.stringify(terms);
+}
+
+/**
+ * ONE clause of a SEVERAL-RULE phrase, in reading order (the terms of every rule in turn — the rule chassis already
+ * draws «·» between two clauses); `labelled` — its word is printed. Two rules that are each one tag read «с меткой
+ * [J] · [V]»: the second medallion continues the first rule's word instead of repeating it.
+ */
+export type DrawSearchClause = {term: DrawSearchTerm, labelled: boolean};
+
+export function drawSearchClauses(rules: ReadonlyArray<DrawSearchModel>): Array<DrawSearchClause> {
+  const out: Array<DrawSearchClause> = [];
+  let previous: ReadonlyArray<DrawSearchTerm> | undefined;
+  for (const rule of rules) {
+    const terms = drawSearchTerms(rule);
+    const continues = previous !== undefined && isOneTag(previous) && isOneTag(terms);
+    terms.forEach((term, i) => out.push({term, labelled: !(continues && i === 0)}));
+    if (terms.length > 0) {
+      previous = terms;
+    }
+  }
+  return out;
+}
+
+function isOneTag(terms: ReadonlyArray<DrawSearchTerm>): boolean {
+  return terms.length === 1 && terms[0].kind === 'with';
+}
+
+/**
+ * The rule that turned over the batch tape's step `index` — the SEGMENT that owns it, by the segments' cumulative
+ * tape lengths (a segment's run on the batch tape is its own `sequence`, or its `count` matched steps when it threw
+ * nothing away — `Player.enqueueCardDrawReveal` builds the batch tape exactly so; an empty exhausted search is its
+ * tape alone). Falls back to the batch-level rule when the segments do not account for the tape.
+ */
+export function searchOwningStep(reveal: Pick<CardDrawRevealModel, 'search' | 'segments' | 'sequence'> | undefined, index: number): DrawSearchModel | undefined {
+  if (reveal === undefined) {
+    return undefined;
+  }
+  const segments = reveal.segments ?? [];
+  const lengths = segments.map((segment) => segment.sequence?.length ?? Math.max(0, Math.floor(segment.count)));
+  const total = lengths.reduce((n, length) => n + length, 0);
+  if (segments.length < 2 || reveal.sequence === undefined || total !== reveal.sequence.length) {
+    return reveal.search;
+  }
+  let end = 0;
+  for (let i = 0; i < segments.length; i++) {
+    end += lengths[i];
+    if (index < end) {
+      return segments[i].search;
+    }
+  }
+  return reveal.search;
+}
+
+/** WHY each discarded card went, in the tray's order (`discardedSteps`) — each judged by the rule of ITS OWN search. */
+export function discardVerdictsOf(reveal: Pick<CardDrawRevealModel, 'search' | 'segments' | 'sequence'> | undefined): Array<DrawDiscardVerdict | undefined> {
+  const out: Array<DrawDiscardVerdict | undefined> = [];
+  (reveal?.sequence ?? []).forEach((step, index) => {
+    if (!step.matched) {
+      out.push(drawDiscardVerdict(step, searchOwningStep(reveal, index)));
+    }
+  });
+  return out;
+}
+
 /** The discarded steps of a batch, in the server's order — what the tray holds, card by card. */
 export function discardedSteps(reveal: Pick<CardDrawRevealModel, 'sequence'> | undefined): Array<CardDrawRevealStep> {
   return (reveal?.sequence ?? []).filter((step) => !step.matched);

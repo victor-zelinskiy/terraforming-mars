@@ -50,6 +50,9 @@ describe('intakeAssemblyPlan — one row, several causes, in the rules\' order',
     expect(intakeSearchRun({segments: [olympus, clean]}), 'a search that threw nothing away is a plain run').eq(undefined);
     expect(intakeSearchRun({segments: [search, {...search, source: {type: 'card', cardName: CardName.RESEARCH}}]}), 'two searches — the batch-level tape').eq(undefined);
     expect(intakeSearchRun(undefined)).eq(undefined);
+    // P56 — a search that found NOTHING (an empty exhausted segment) is no run of cards: the batch-level tape.
+    const empty: CardIntakeSegment = {...search, count: 0, sequence: [step(CardName.COMET, false)], exhausted: true};
+    expect(intakeSearchRun({segments: [olympus, empty]}), 'an empty search — the batch-level tape').eq(undefined);
   });
 
   it('origins: the stage card deals off the deck; another card SURFACES; a visible cell deals itself; a covered board degrades to the deck, named', () => {

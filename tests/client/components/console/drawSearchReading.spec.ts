@@ -4,10 +4,11 @@ import {CardType} from '@/common/cards/CardType';
 import {CardResource} from '@/common/CardResource';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
-import {CardDrawRevealStep, DrawSearchModel} from '@/common/models/CardDrawRevealModel';
+import {CardDrawRevealModel, CardDrawRevealStep, DrawSearchModel} from '@/common/models/CardDrawRevealModel';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {
-  discardedSteps, drawDiscardVerdict, drawSearchTally, drawSearchTermLabel, drawSearchTerms,
+  discardedSteps, discardVerdictsOf, drawDiscardVerdict, drawSearchClauses, drawSearchRules, drawSearchTally, drawSearchTermLabel,
+  drawSearchTerms, searchOwningStep,
 } from '@/client/console/deckDraw/drawSearchReading';
 import {deckDrawTimings, planDeckDraw} from '@/client/console/deckDraw/deckDrawModel';
 import {SEARCH_NEXT_STEP_KEY, searchRows} from '@/client/console/consolePlacementNextStep';
@@ -160,6 +161,80 @@ describe('drawSearchReading', () => {
       const rows = searchRows([chip, plain, {direction: 'cost', icon: 'megacredits', amount: 5}], translate);
       expect(rows).deep.eq([{text: `${SEARCH_NEXT_STEP_KEY}|3`, constraint: '', full: `${SEARCH_NEXT_STEP_KEY}|3`, search: BIO}]);
       expect(searchRows([plain], translate)).deep.eq([]);
+    });
+  });
+
+  /*
+   * P56 Planetary Alliance — TWO named searches of one play: one batch, two segments, each with its rule. The batch's
+   * own `search` is the FIRST one's; a reader that judges the whole batch by it reads «с меткой Юпитер» on a card the
+   * Venus search threw away.
+   */
+  describe('two rules of one batch (P56)', () => {
+    const JOVIAN: DrawSearchModel = {count: 1, tag: Tag.JOVIAN};
+    const VENUS: DrawSearchModel = {count: 1, tag: Tag.VENUS};
+    type Batch = Pick<CardDrawRevealModel, 'cards' | 'search' | 'segments' | 'sequence' | 'exhausted'>;
+    const source = {type: 'card' as const, cardName: CardName.PLANETARY_ALLIANCE};
+    // Power Plant ✗ · Io Mining ✓ | Ganymede Colony ✗ (a Jovian card, thrown away by the VENUS search) · Aerial Mappers ✓
+    const jovianTape = [step(CardName.POWER_PLANT, false), step(CardName.IO_MINING_INDUSTRIES, true)];
+    const venusTape = [step(CardName.GANYMEDE_COLONY, false), step(CardName.AERIAL_MAPPERS, true)];
+    const batch: Batch = {
+      cards: [card(CardName.IO_MINING_INDUSTRIES), card(CardName.AERIAL_MAPPERS)],
+      search: JOVIAN,
+      segments: [
+        {source, count: 1, sequence: jovianTape, search: JOVIAN},
+        {source, count: 1, sequence: venusTape, search: VENUS},
+      ],
+      sequence: [...jovianTape, ...venusTape],
+    };
+
+    it('two rules in order — every segment\'s, never the batch\'s first alone', () => {
+      expect(drawSearchRules(batch)).deep.eq([JOVIAN, VENUS]);
+      expect(drawSearchRules({search: JOVIAN, segments: [{source, count: 2, search: JOVIAN}]}), 'one rule reads once').deep.eq([JOVIAN]);
+      expect(drawSearchRules({search: BIO, segments: undefined} as unknown as Batch), 'a one-search batch keeps its rule').deep.eq([BIO]);
+      // «с меткой [J] · [V]» — the word once, the second medallion continues it.
+      expect(drawSearchClauses([JOVIAN, VENUS])).deep.eq([
+        {term: {kind: 'with', tag: Tag.JOVIAN}, labelled: true},
+        {term: {kind: 'with', tag: Tag.VENUS}, labelled: false},
+      ]);
+      // A rule of another shape keeps its own word.
+      expect(drawSearchClauses([JOVIAN, BIO]).map((c) => c.labelled)).deep.eq([true, true]);
+    });
+
+    it('the verdict names the OWNING search — the Jovian card the Venus search threw away reads the Venus rule', () => {
+      expect(searchOwningStep(batch, 0)).deep.eq(JOVIAN);
+      expect(searchOwningStep(batch, 1), 'the boundary — the last step of the first tape').deep.eq(JOVIAN);
+      expect(searchOwningStep(batch, 2)).deep.eq(VENUS);
+      expect(discardVerdictsOf(batch)).deep.eq([
+        {kind: 'rule', terms: [{kind: 'with', tag: Tag.JOVIAN}]},
+        {kind: 'rule', terms: [{kind: 'with', tag: Tag.VENUS}]},
+      ]);
+      // A search that threw nothing away carries no tape of its own: its `count` matched steps stand on the batch tape.
+      const clean: Batch = {...batch, segments: [{source, count: 1, search: JOVIAN}, {source, count: 1, sequence: venusTape, search: VENUS}],
+        sequence: [step(CardName.IO_MINING_INDUSTRIES, true), ...venusTape]};
+      expect(discardVerdictsOf(clean)).deep.eq([{kind: 'rule', terms: [{kind: 'with', tag: Tag.VENUS}]}]);
+      // Segments that do not account for the tape fall back to the batch's rule.
+      expect(searchOwningStep({...batch, sequence: [...batch.sequence ?? [], step(CardName.ASTEROID, false)]}, 4)).deep.eq(JOVIAN);
+    });
+
+    it('an empty exhausted segment counts and names: its discards are tallied and judged by ITS rule', () => {
+      const noJovian = [step(CardName.POWER_PLANT, false), step(CardName.AERIAL_MAPPERS, false)];
+      const venus = [step(CardName.AERIAL_MAPPERS, true)];
+      const empty: Batch = {
+        cards: [card(CardName.AERIAL_MAPPERS)],
+        search: JOVIAN,
+        segments: [
+          {source, count: 0, sequence: noJovian, search: JOVIAN, exhausted: true},
+          {source, count: 1, search: VENUS},
+        ],
+        sequence: [...noJovian, ...venus],
+        exhausted: true,
+      };
+      expect(drawSearchTally(empty)).deep.eq({revealed: 3, taken: 1, discarded: 2, exhausted: true});
+      expect(drawSearchRules(empty)).deep.eq([JOVIAN, VENUS]);
+      expect(discardVerdictsOf(empty).map((v) => v?.kind === 'rule' ? v.terms : undefined)).deep.eq([
+        [{kind: 'with', tag: Tag.JOVIAN}], [{kind: 'with', tag: Tag.JOVIAN}],
+      ]);
+      expect(searchOwningStep(empty, 2)).deep.eq(VENUS);
     });
   });
 });

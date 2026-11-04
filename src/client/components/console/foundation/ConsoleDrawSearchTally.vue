@@ -18,7 +18,7 @@
       <b class="con-dsearch-tally__num">{{ tally.discarded }}</b>
     </template>
     <span class="con-dsearch-tally__dash" aria-hidden="true">—</span>
-    <ConsoleDrawSearchRule :search="reveal.search" />
+    <ConsoleDrawSearchRule :searches="rules" />
     <template v-if="tally.exhausted">
       <span class="con-dsearch-tally__sep" aria-hidden="true">·</span>
       <span class="con-dsearch-tally__end" data-search-end>{{ $t('the whole deck was turned over') }}</span>
@@ -28,8 +28,8 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
-import {CardDrawRevealModel} from '@/common/models/CardDrawRevealModel';
-import {DrawSearchTally, drawSearchTally} from '@/client/console/deckDraw/drawSearchReading';
+import {CardDrawRevealModel, DrawSearchModel} from '@/common/models/CardDrawRevealModel';
+import {DrawSearchTally, drawSearchRules, drawSearchTally} from '@/client/console/deckDraw/drawSearchReading';
 import ConsoleDrawSearchRule from './ConsoleDrawSearchRule.vue';
 
 /**
@@ -38,7 +38,9 @@ import ConsoleDrawSearchRule from './ConsoleDrawSearchRule.vue';
  * THE SEARCH'S SUMMARY (TR32 — K-4): what a filtered draw turned over, kept
  * and threw away, and by which rule. Rendered by the drawn reveal in BOTH
  * hosts — the embedded stage's badge and the standalone head's subtitle — so
- * the two can never state two outcomes. Nothing for a plain draw.
+ * the two can never state two outcomes. Nothing for a plain draw. The numbers
+ * are the batch's; the RULES are every segment's, in order (P56: two named
+ * searches of one play — «— с меткой [J] · [V]»), never the first one alone.
  */
 export default defineComponent({
   name: 'ConsoleDrawSearchTally',
@@ -49,6 +51,9 @@ export default defineComponent({
   computed: {
     tally(): DrawSearchTally | undefined {
       return drawSearchTally(this.reveal);
+    },
+    rules(): Array<DrawSearchModel> {
+      return drawSearchRules(this.reveal);
     },
   },
 });

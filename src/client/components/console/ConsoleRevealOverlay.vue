@@ -612,7 +612,7 @@ import {
 import {discardPileStackEl, ensureDiscardPileCount, openDiscardPile, releaseDiscardPile} from '@/client/console/discardPile/discardPile';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import ConsoleDrawSearchTally from '@/client/components/console/foundation/ConsoleDrawSearchTally.vue';
-import {discardedSteps, drawDiscardVerdict} from '@/client/console/deckDraw/drawSearchReading';
+import {discardVerdictsOf} from '@/client/console/deckDraw/drawSearchReading';
 import ConsoleRevealVerdict from '@/client/components/console/foundation/ConsoleRevealVerdict.vue';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
@@ -2937,12 +2937,13 @@ export default defineComponent({
         return;
       }
       // WHY each card went (TR32): the step's own reason, index for index — the pile is the
-      // sequence's discarded steps in the server's order, exactly the list above.
-      const steps = discardedSteps(this.drawnEvent);
-      const search = this.drawnEvent?.search;
+      // sequence's discarded steps in the server's order, exactly the list above — each judged by the
+      // rule of the SEARCH that threw it away (the segment owning its step: P56's Venus search discards a
+      // Jovian card, which must never read «с меткой Юпитер»).
+      const verdicts = discardVerdictsOf(this.drawnEvent);
       openConsoleCardZoom(list, 0, undefined, undefined, {
         statusLabel: 'Discarded card',
-        discardVerdictAt: (index) => drawDiscardVerdict(steps[index], search),
+        discardVerdictAt: (index) => verdicts[index],
         // The pile IS the physical origin — the viewer lifts out of the table's discard pile (beside the HUD deck).
         origin: {
           kind: 'physical',
