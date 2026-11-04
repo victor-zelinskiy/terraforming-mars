@@ -44,6 +44,11 @@ function view(reactions: ReadonlyArray<CardReactionRecord>, id = 'p-viewer'): Pl
   } as unknown as PlayerViewModel;
 }
 
+/** A face SEATED at the stage (no stage in this bundle: the layer's own state, stood by hand) — a reaction on screen. */
+function standFaceOnStage(seq: number, card: CardName = CardName.HARTLAN_HEATING): void {
+  cardReactionState.faces = [{key: `stood-${seq}`, name: card, seq, kind: 'corporation', seat: {left: 0, top: 0, width: 300, height: 420}, warm: false} as typeof cardReactionState.faces[number]];
+}
+
 describe('cardReactionDirector — attached to a host, or standalone', () => {
   afterEach(() => {
     reduceMotionOverrideState.enabled = false;
@@ -69,6 +74,10 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     const before = snapshotRailHolds();
     seedCardReactionHolds(view([]), view([record(60)]), before);
     expect(heldStock('heat')).eq(6);
+    // The chain stands ON STAGE — a face seated (stood here by hand: no stage in this bundle). A hurry is a press while a
+    // reaction is on screen; a press while the chain still waits is the next test's.
+    cardReactionState.phase = 'paying';
+    standFaceOnStage(60);
     hurryCardReactions('press');
     expect(cardReactionHurried(), 'hurried').is.true;
     expect(cardReactionState.hurried).is.true;
@@ -89,6 +98,63 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     expect(heldStock('heat'), 'released at once').eq(0);
     expect(cardReactionPending()).is.false;
     expect(cardReactionHurried(), 'the hurry is forgotten with the chain').is.false;
+  });
+
+  it('P64 · PL-1799 — NOTHING ON STAGE, NOTHING TO HURRY: presses and navigations while the chain still WAITS (a sitting\'s gates, a decision) answer that surface — the chain keeps its holds, is not hurried, and a later press is no cut', () => {
+    const before = snapshotRailHolds();
+    seedCardReactionHolds(view([]), view([record(61, {card: CardName.TERRAFORMING_DEAL, kind: 'card', channel: 'tr-increase',
+      impacts: [{kind: 'stock', resource: Resource.MEGACREDITS, amount: 4, to: BLUE}]})]), before);
+    expect(cardReactionState.phase, 'the chain waits for what stands before it').eq('waiting');
+    const count = (ev: string, reason?: RegExp) => transferTrailTail(40).filter((e) => e.ev === ev &&
+      (reason === undefined || reason.test(String((e.detail as {reason?: string} | undefined)?.reason)))).length;
+    const ignoredBefore = count('reaction:hurry-ignored');
+    const cutsBefore = count('reaction:cut', /again/);
+    expect(heldStock('megacredits')).eq(4);
+    const realNow = performance.now;
+    try {
+      // The sitting opens (a navigation), then two gate answers seconds apart — the old road: hurry, then CUT.
+      hurryCardReactions('navigation');
+      performance.now = () => realNow.call(performance) + 5000;
+      hurryCardReactions('press');
+      performance.now = () => realNow.call(performance) + 10000;
+      hurryCardReactions('press');
+    } finally {
+      performance.now = realNow;
+    }
+    expect(cardReactionHurried(), 'never hurried unseen').is.false;
+    expect(heldStock('megacredits'), 'the row stays held for the chain\'s own story').eq(4);
+    expect(cardReactionPending(), 'the chain is still owed').is.true;
+    expect(count('reaction:hurry-ignored') - ignoredBefore, 'named — the product navigation, then the waiting chain once').eq(2);
+    expect(count('reaction:cut', /again/) - cutsBefore, 'no cut').eq(0);
+    // PLANNED is not SHOWN: `rising` is written when the chain is planned, before any face is seated — a press then
+    // (the sitting's «adjourn») is still not about the reaction.
+    cardReactionState.phase = 'rising';
+    hurryCardReactions('press');
+    expect(cardReactionHurried(), 'phase rising with no face on screen — no hurry').is.false;
+    // Once a face stands the press is the player's: the pace, then the cut — the law of the test above.
+    standFaceOnStage(61, CardName.TERRAFORMING_DEAL);
+    hurryCardReactions('press');
+    expect(cardReactionHurried(), 'a press while it plays hurries').is.true;
+  });
+
+  it('P64 · PL-1799 — THE PRODUCT MOVED THE SCREEN, NOT THE PLAYER: a navigation with no press of the player in its gesture window (the sitting back from the board story) is no hurry while the chain plays; the player press is, and its own navigation rides it', () => {
+    seedCardReactionHolds(view([]), view([record(62)]), snapshotRailHolds());
+    cardReactionState.phase = 'paying';
+    standFaceOnStage(62);
+    const realNow = performance.now;
+    try {
+      hurryCardReactions('navigation');
+      expect(cardReactionHurried(), 'a navigation nobody pressed for spends no pace').is.false;
+      performance.now = () => realNow.call(performance) + 3000;
+      hurryCardReactions('press');
+      expect(cardReactionHurried(), 'the player press is the pace').is.true;
+      performance.now = () => realNow.call(performance) + 3200;
+      hurryCardReactions('navigation');
+      expect(cardReactionPending(), 'the press own navigation is the same gesture — no cut').is.true;
+      expect(heldStock('heat'), 'still held').eq(6);
+    } finally {
+      performance.now = realNow;
+    }
   });
 
   it('TOLD BY THE SCENE (iteration 4): an OWN record this block admits is marked for the feed by its chain root, seat and source — a rival\'s is not, no stage marks nothing, reduced motion marks nothing', () => {

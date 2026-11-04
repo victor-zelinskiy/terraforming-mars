@@ -25,9 +25,9 @@ import {readTransient, recordTransient} from './transientRecorder';
  *       jump; the server −14 + 8;
  *   (C) the heat conversion from the same table: 8 heat → +1 TR → the Greens +2 and P64 +2;
  *   (D) the sitting (fixture `terraforming-deal-sitting` — blue wins Mohole Contest at −20 °C): the winner's +2 TR pays P64
- *       +4 in the PARLIAMENT phase; the rail agrees with the server, never two instances. The told answer is a NAMED GAP
- *       (PL-1799): the card's standalone chain waits for the sitting's beats and the presses answering the sitting's
- *       gates cut it before it rises;
+ *       +4 in the PARLIAMENT phase, and it is TOLD: the card's standalone chain waits for the sitting's beats — the presses
+ *       that answer the sitting's gates no longer hurry / cut a chain with nothing on stage (PL-1799) — then rises at the
+ *       rail's edge, its +4 born on its printed «2 M€» landing on the M€ row; the rail agrees with the server;
  *   (E) WG Project → P64 mid-game (fixture `terraforming-deal-wg`): the pick plays a prelude with no immediate effect —
  *       the card lands on the table, nothing hangs.
  * The rules are pinned by `tests/cards/prelude2/TerraformingDeal.spec.ts`. TIMING class (`timingSpecs.ts`): the births
@@ -349,7 +349,7 @@ test.describe(`P64 Terraforming Deal · a prelude with no immediate effect, a re
     expect(errors, 'no page error').toEqual([]);
   });
 
-  test('(D) the sitting: the winner\'s +2 TR pays P64 +4 in the PARLIAMENT phase — the rail agrees with the server, one instance at most (the told answer is a named gap — PL-1799)', async ({page, request}) => {
+  test('(D) the sitting: the winner\'s +2 TR pays P64 +4 in the PARLIAMENT phase — and it is TOLD off the card once the sitting\'s beats have played, whatever the gates were pressed (PL-1799)', async ({page, request}) => {
     test.setTimeout(480_000);
     const errors: Array<string> = [];
     page.on('pageerror', (e) => errors.push(String(e)));
@@ -361,6 +361,12 @@ test.describe(`P64 Terraforming Deal · a prelude with no immediate effect, a re
     await recordReaction(page, 'p64-d');
     const stop = await storyboard(page, 'sitting');
     await recordRailTrail(page, 'rail-D');
+    // The holds standing through the sitting (which ones the card's chain waits out) — the diagnosis of PL-1799.
+    await recordTransient(page, 'holds-D', () => {
+      const ready = (window as unknown as {__conReady?: () => {holds?: ReadonlyArray<string>}}).__conReady;
+      const ws = Array.from(document.querySelectorAll('.con-ws')).map((e) => e.classList[0]).join(',');
+      return `${[...(ready?.().holds ?? [])].sort().join(' ')} | ws=${ws}`;
+    });
     await enterSittingByPass(page, request, playerId);
     await shoot(page, 'D-01-sitting');
     await closeSitting(page, request, playerId).catch(() => undefined);
@@ -373,16 +379,22 @@ test.describe(`P64 Terraforming Deal · a prelude with no immediate effect, a re
     const witness = await transferWitness(page);
     const trail = transferTrail(witness);
     const poses = await readTransient<ReactionPose>(page, 'p64-d');
-    writeText('D-trail.txt', trail);
-    writeText('D-console.txt', logs.join(String.fromCharCode(10)));
-    writeText('D-rail-trail.txt', await readRailTrail(page, 'rail-D'));
-    writeText('D-poses.txt', `ticks: ${mcTicks(poses).join(' → ')}\n${poses.map((s) => `${Math.round(s.t)} ${JSON.stringify(s.v)}`).join('\n')}`);
-    // THE GAP (PL-1799): the card's record on the sitting is a STANDALONE chain that waits for the sitting's beats, and the
-    // presses that answer the sitting's own gates hurry, then CUT it before it ever rose (`reaction:cut press:again` in
-    // phase `waiting`) — the +4 ticks without its story. Pinned here: the server's payout, the rail agreeing with it, and
-    // never a second instance; the told answer is the next polish's (the doc names it).
+    writeText(`D${test.info().repeatEachIndex}-trail.txt`, trail);
+    writeText(`D${test.info().repeatEachIndex}-console.txt`, logs.join(String.fromCharCode(10)));
+    writeText(`D${test.info().repeatEachIndex}-rail-trail.txt`, await readRailTrail(page, 'rail-D'));
+    writeText(`D${test.info().repeatEachIndex}-holds.txt`, (await readTransient<string>(page, 'holds-D')).map((x) => `${Math.round(x.t)} ${x.v}`).join(String.fromCharCode(10)));
+    writeText(`D${test.info().repeatEachIndex}-poses.txt`, `ticks: ${mcTicks(poses).join(' → ')}\n${poses.map((s) => `${Math.round(s.t)} ${JSON.stringify(s.v)}`).join('\n')}`);
+    // PL-1799: the card's record on the sitting is a STANDALONE chain that waits for the sitting's beats; the presses that
+    // answered the sitting's own gates used to hurry it, then CUT it before it ever rose (`reaction:cut press:again` in
+    // phase `waiting`) — the +4 ticked without its story. A chain with nothing on stage is not hurried now: it rises
+    // once the beats have played and its tokens are born on P64's printed «2 M€».
     const dealBirths = witness.births.filter((b) => b.under.startsWith(`reactor:${CARD}`));
-    writeText('D-told.txt', `births on the reactor: ${dealBirths.length}`);
+    writeText(`D${test.info().repeatEachIndex}-told.txt`, `births on the reactor: ${dealBirths.length}`);
+    const railTrail = await readRailTrail(page, 'rail-D');
+    expect(railTrail, 'no press cut the chain before it rose').not.toMatch(/reaction:cut[^\n]*press:again[^\n]*waiting/);
+    expect(dealBirths.length, `P64's answer born on its printed effect (trail:\n${trail})`).toBeGreaterThan(0);
+    expect(witness.landings.filter((l) => dealBirths.some((b) => b.id === l.id)).every((l) => l.under.startsWith('rail:megacredits')),
+      `…and landed on the M€ row (trail:\n${trail})`).toBe(true);
     const wire = await wireOf(request, playerId);
     await expect.poll(async () => Number(((await page.locator(MC).first().textContent()) ?? '').replace(/\s+/g, '').match(/^-?\d+/)?.[0] ?? NaN),
       {timeout: 20_000, message: 'the M€ row reads the server after the sitting'}).toBe(wire.thisPlayer.megacredits);

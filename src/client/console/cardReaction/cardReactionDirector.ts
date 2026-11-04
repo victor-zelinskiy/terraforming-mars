@@ -232,6 +232,10 @@ let faceSeq = 0;
 let hurried = false;
 let hurriedEpoch = -1;
 let hurriedAt = 0;
+/** The chain epoch a press was last IGNORED in (nothing on stage) — the trail names it once per chain. */
+let hurryIgnoredEpoch = -1;
+/** When the player last PRESSED (a navigation within the gesture window rides that press; any other is the product's). */
+let lastPlayerPressAt = Number.NEGATIVE_INFINITY;
 /** One gesture, one hurry: a press that opens a sheet is a press AND a navigation — within this window the second call is the same gesture. */
 const HURRY_REPEAT_WINDOW_MS = 700;
 
@@ -1409,12 +1413,44 @@ async function playRivals(myEpoch: number): Promise<void> {
 // ── HURRY / CUT / ABORT ────────────────────────────────────────────────────
 
 /**
+ * A REACTION STANDS ON SCREEN — a face lifted in its place or seated at the stage (never a warm face: it is painted
+ * invisible). What a press may hurry; a chain with none is still owed, not playing (P64 · PL-1799).
+ */
+function reactionOnStage(): boolean {
+  return liveRisen.size > 0 || cardReactionState.faces.some((f) => f.warm !== true);
+}
+
+/**
  * A PRESS or a NAVIGATION while reactions play (the owner, 2026-10-27): the FIRST hurry is a PACE — what is left plays
  * at `REACTION_HURRY_PACE` (the read beats shorten, the tweens in flight speed up, every face still rises, every
  * token still flies); the SECOND completes at once (`cutCardReactions`). The hosts' own holds are theirs.
  */
 export function hurryCardReactions(reason = 'press'): void {
   if (cardReactionState.phase === 'idle' && standaloneQueue.length === 0 && rivalQueue.length === 0) {
+    return;
+  }
+  const at = typeof performance === 'undefined' ? 0 : performance.now();
+  if (reason === 'press') {
+    lastPlayerPressAt = at;
+  } else if (reason === 'navigation' && at - lastPlayerPressAt > HURRY_REPEAT_WINDOW_MS) {
+    // THE PRODUCT MOVED THE SCREEN, NOT THE PLAYER (P64 · PL-1799): a sitting that steps out to the board for a scale's
+    // story and comes back, a door the server's next phase opens — no press of the player's made that navigation, so it
+    // is nobody's hurry. Counted, it spent the chain's one pace and the player's next press (the sitting's «adjourn»)
+    // CUT the card's answer mid-flight. A navigation the player made rides their press (the same gesture).
+    noteTransferTrail('reaction:hurry-ignored', {reason: 'navigation:product', phase: cardReactionState.phase});
+    return;
+  }
+  // NOTHING ON STAGE, NOTHING TO HURRY (P64 · PL-1799 — judged by a FACE, never by the phase word: `rising` is written when
+  // the chain is PLANNED, before any face is seated): a chain still WAITING (a sitting's beats, a decision standing, the
+  // rating's story, the cause's own scene) shows the player nothing, so a press then answers the surface the chain waits
+  // FOR — the sitting's gates, the decision — never the reaction. Counted, it hurried the chain unseen and the next
+  // press CUT it before it rose: a card's answer on the sitting ticked with no story. The waits stay bounded
+  // (`SITTING_QUIET_MAX_MS`, `BLOCKING_QUIET_MAX_MS`, the hold registry's ceiling), so nothing can hang on this.
+  if (!reactionOnStage()) {
+    if (hurryIgnoredEpoch !== epoch) {
+      hurryIgnoredEpoch = epoch;
+      noteTransferTrail('reaction:hurry-ignored', {reason, phase: cardReactionState.phase});
+    }
     return;
   }
   const now = typeof performance === 'undefined' ? 0 : performance.now();
@@ -1471,6 +1507,7 @@ export function abortCardReactions(): void {
 /** Test-only reset. */
 export function resetCardReactions(): void {
   abortCardReactions();
+  lastPlayerPressAt = Number.NEGATIVE_INFINITY;
   claimedSeqs.clear();
   seedBlockOpen = false;
   takeDeclaredAnswers();
