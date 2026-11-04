@@ -383,7 +383,10 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     color: @con-amber;
+    /* The rail's own reading size (the victims line's name — `.con-tblimpact__name`): on the 4K frame the inherited
+       size read a notch under the verdict beside it. */
+    font-size: .95rem;
     font-weight: 700;
 
-    .con-status__dot { width: .7rem; height: .7rem; flex: 0 0 auto; }
+    .con-status__dot { width: .75rem; height: .75rem; flex: 0 0 auto; }
 }

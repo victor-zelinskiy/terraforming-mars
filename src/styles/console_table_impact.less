@@ -78,6 +78,17 @@
         font-weight: 600;
     }
     &__spared-mark { color: #f0a07a; font-weight: 800; }
+    /* The struck chip is sized in REM (the decline plate's lesson): outside the console's chip-token surfaces it falls
+       back to the shared px sizes, which do not scale — at 4K the «−1 пр.» read as a speck. */
+    &__spared .action-effect-chip.action-effect-chip {
+        font-size: .85rem;
+        gap: .3rem;
+        padding: .2rem .55rem .2rem .35rem;
+    }
+    &__spared .action-effect-chip__icon.action-effect-chip__icon {
+        width: 1.2rem;
+        height: 1.2rem;
+    }
 
     /* ONE line for a status rail: the seats side by side, the head a kicker before them. */
     &--line {

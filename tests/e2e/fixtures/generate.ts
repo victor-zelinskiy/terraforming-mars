@@ -13702,3 +13702,75 @@ boardOfDirectorsFixture('board-of-directors-spent', {megacredits: 40, directors:
   }
   write(name, game);
 }
+
+// ── P59 Recession — EVERY opponent −5 M€ and −1 M€ production, +10 to the player (ledgers FU / FV), the WG road on the
+//    two-seat table (blue Thorgate / red Teractor, red 30 M€): `recession-wg` — red's production 1, its victims rows
+//    «30 → 25 · 1 → 0» in the pick's status rail, blue +10, red one hostile card; `-protected` — red holds Private
+//    Security (the production spared and NAMED); `-floor` — red at −5 (the card burns, its reason names red's seat). ──
+for (const [name, red] of [['recession-wg', 'plain'], ['recession-wg-protected', 'protected'], ['recession-wg-floor', 'floor']] as const) {
+  wgProjectFixture(name, {
+    top: [CardName.RECESSION, CardName.DONATION, CardName.SUPPLIER],
+    under: [CardName.LOAN],
+    megacredits: 20,
+    also: (game) => {
+      const victim = game.players[1];
+      victim.production.override({megacredits: red === 'floor' ? -5 : 1});
+      if (red === 'protected') {
+        const guard = newProjectCard(CardName.PRIVATE_SECURITY);
+        if (guard === undefined) {
+          throw new Error(`${name}: Private Security is no project card`);
+        }
+        victim.playedCards.push(guard);
+      }
+    },
+    dry: {
+      pick: CardName.RECESSION,
+      expect: (blue, copy) => {
+        const victim = copy.players[1];
+        if (red === 'floor') {
+          // The burn: the card cannot resolve (a human opponent at the floor) — 15 M€, no Recession on the table.
+          return blue.megaCredits === 20 - 9 + 15 && !blue.tableau.has(CardName.RECESSION) && victim.megaCredits === 30 ?
+            undefined : `expected the burn (26 M€, no Recession, red untouched) — got ${blue.megaCredits}, ${blue.tableau.has(CardName.RECESSION)}, red ${victim.megaCredits}`;
+        }
+        const production = red === 'protected' ? 1 : 0;
+        return blue.megaCredits === 20 - 9 + 10 && blue.tableau.has(CardName.RECESSION) && victim.megaCredits === 25 && victim.production.megacredits === production ?
+          undefined : `expected 21 M€, Recession on the table, red 25 M€ / production ${production} — got ${blue.megaCredits}, ${blue.tableau.has(CardName.RECESSION)}, red ${victim.megaCredits} / ${victim.production.megacredits}`;
+      },
+    },
+  });
+}
+
+// ── P60 Rise to Power mid-game (docs/claude/prompts/prelude2-p60-rise-to-power.md, ledger FW, stands D · E):
+//    WG Project deals P60 first — the series of three grants rises INSIDE the hand (the P70 road, one visit);
+//    `-reserve`: two delegates left in blue's reserve — the card cannot resolve (upstream's «3 or nothing»), named «2 of 3». ──
+for (const [name, reserve] of [['rise-to-power-wg', undefined], ['rise-to-power-wg-reserve', 2]] as const) {
+  wgProjectFixture(name, {
+    top: [CardName.RISE_TO_POWER, CardName.DONATION, CardName.SUPPLIER],
+    under: [CardName.LOAN],
+    megacredits: 20,
+    also: reserve === undefined ? undefined : (game) => {
+      const parliament = game.parliament!;
+      const blue = game.players[0];
+      const slot = parliament.slots[parliament.slots.length - 1];
+      while (parliament.reserve(blue) > reserve) {
+        parliament.placeVote(blue, slot, 'reserve');
+      }
+    },
+    dry: {
+      pick: CardName.RISE_TO_POWER,
+      expect: (blue, copy) => {
+        if (reserve !== undefined) {
+          // The burn: three delegates cannot be placed from a reserve of two — 15 M€, no Rise to Power on the table.
+          return blue.megaCredits === 20 - 9 + 15 && !blue.tableau.has(CardName.RISE_TO_POWER) ?
+            undefined : `expected the burn (26 M€, no Rise to Power) — got ${blue.megaCredits}, ${blue.tableau.has(CardName.RISE_TO_POWER)}`;
+        }
+        const grant = blue.getWaitingFor();
+        const series = grant instanceof SelectParty ? grant.votePrompt?.series : undefined;
+        // (`runAllActions` drains the queue past a standing prompt, so the dry run reads the series' LENGTH, not its index.)
+        return blue.tableau.has(CardName.RISE_TO_POWER) && blue.production.megacredits === 3 && series?.of === 3 &&
+          copy.parliament !== undefined ? undefined :
+          `expected P60 played (+3 M€ production) and a series of 3 asked — got ${grant?.type} ${JSON.stringify(series)} tableau=${blue.tableau.has(CardName.RISE_TO_POWER)} prod=${blue.production.megacredits}`;
+      },
+    },
+  });
+}
