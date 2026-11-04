@@ -289,6 +289,18 @@ portion and its «×N → ×2N» crossfade at the law's wave (PL-1237 / PL-1238)
 - The baseline hex contour gained an ~8 % interior well (board.less) — cells
   read as surveyed basins, separating the field from the terrain.
 
+## SEVERAL TILES OF ONE PLAY — the plan on the dossier, the order the player's (P58 · FS, 2026-11-04)
+
+A play that places several tiles says so on EVERY one of its placements: `followUpPlacements` (the tiles still owed
+after this one) is an option of all three `Place*Tile` actions now (`PlaceOceanTile` had it for the two-ocean cards;
+`PlaceCityTile` / `PlaceGreeneryTile` gained it with P58) and the dossier's identity head prints the plan line
+(`placementFollowUpLine` — «Затем ещё размещения (2): город · озеленение»), constant while the player points. Where the
+ORDER is the player's (Project Eden), the question between the placements is a marked `OrOptions`
+(`placementOrderPrompt` + option metadata `{kind: 'placement', tileType}` — never a title) hosted as a STEP of the play's
+own host (the start — `start-director.md` § hosted STEPS; the hand's prelude chain — `preludePlayChain.ts`), never a band
+over the board; the placement itself carries `sourceCard` and a non-cancellable `placementContext` (the prelude is
+played — the banner states the reason, no «Отменить»).
+
 ## A MOVE — the source level, the pickup pose, the vector (TR14 Re-settlement)
 
 A prompt carrying `tileMove` (`placementEffect: 'move'`) is ONE server question

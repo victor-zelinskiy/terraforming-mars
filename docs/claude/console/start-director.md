@@ -190,3 +190,16 @@ up around the step** — `startFrameLive` § 3: in the PRELUDES phase a prelude'
 prelude's colony pick (`choiceContext.source` naming a PRELUDE) are the start's steps, the same server-truth reading the
 sponsor's play-from-hand had (§ 2); the crumb's subject is re-read off the server's marker. A new step kind of a prelude
 is a row in that reading, never a standalone screen.
+
+**The fourth kind — the ORDER of a prelude's placements (P58 · FS, 2026-11-04).** Project Eden places three tiles in the
+PLAYER's order: between its placements the server asks a live `OrOptions` marked `placementOrderPrompt`
+(`startPlacementOrderOf` — the marker, a PRELUDE, the PRELUDES phase). It is the start's OWN step, not a hosted frame:
+the scene renders it in its body (`.con-start__orderstep`, the «ВАРИАНТ» family's `ConsolePreludeVariantStep` beside the
+prelude's face; rows = the card's printed hexes in the printed order, a placed tile SEALED in its row), the crumb reads
+«СТАРТ ПАРТИИ › <пролог> › ОЧЕРЁДНОСТЬ k / n», A answers the live OR through the ONE funnel (`startPressRefusal` gates a
+busy funnel), no B. Every reading knows it: `taskServedByHost` declines it (the task host never stands for it),
+`data-start-serves` answers `step` and the strand watchdog accepts a frameless `step` for it, `deploymentFlowStage` /
+`deploymentSettled` hold the deployment while it stands, `startFrameLive` § 3 stands the start back up around it after
+a reload. Through each placement the scene is `yielded` (collapsed, never closed) and comes back BY ITSELF with the next
+step once the board's story is told (`resumeYieldedStackOverQuietBoard` — the screen handoff); the answered step stays
+sealed on screen until the yield (no deployment flash between). The last tile asks nothing; the discard is P55's host.
