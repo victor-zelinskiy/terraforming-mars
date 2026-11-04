@@ -14002,3 +14002,104 @@ wgProjectFixture('space-lanes-wg', {
       `expected P62 played (3 titanium) — got tableau=${blue.tableau.has(CardName.SPACE_LANES)} titanium=${blue.titanium}`,
   },
 });
+
+// ── P63 Suitable Infrastructure (docs/claude/prompts — the prompt of 2026-11-04, ledger GC · GD): the series' first
+//    PRELUDE-REACTOR on PRODUCTION with a ONCE-PER-ACTION limit, answering into the M€ rail (+2).
+//      · `suitable-infrastructure-start`   — the deployment queue (Teractor played, P63 + Business Empire kept, 30 M€): A on
+//        P63 → +5 steel; Business Empire (+6 M€ production, pay 6) then carries «Сработает» +2 and pays it (stand A);
+//      · `suitable-infrastructure-table`   — the action phase, P63 on the table, 40 M€; in hand Power Plant (one
+//        production → +2) · Industrial Microbes (TWO productions → ONE +2 — GD) · Release of Inert Gases (none) (stands
+//        B · C — the Power Plant STANDARD project from the same table);
+//      · `suitable-infrastructure-sitting` — the Jovian Tax Rights sitting one pass away, P63 on blue's table: the law's
+//        +4 M€ production is paid in the PARLIAMENT phase — P63 neither promises nor pays (stand D).
+//    A DRY RUN plays each road on a copy, so a rule change fails HERE. ──
+{
+  const name = 'suitable-infrastructure-start';
+  const [game, blue] = testGame(1, {
+    skipInitialCardSelection: false, preludeExtension: true, prelude2Expansion: true,
+    customPreludes: [CardName.SUITABLE_INFRASTRUCTURE, CardName.BUSINESS_EMPIRE], customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
+  });
+  const initial = blue.getWaitingFor();
+  if (!(initial instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${initial?.type}`);
+  }
+  blue.process({type: 'initialCards', responses: [
+    {type: 'card', cards: [CardName.TERACTOR]},
+    {type: 'card', cards: [CardName.SUITABLE_INFRASTRUCTURE, CardName.BUSINESS_EMPIRE]},
+    {type: 'card', cards: []},
+  ]});
+  runAllActions(game);
+  if (blue.getWaitingFor()?.startGamePrompt?.kind === 'corporationPlay') {
+    blue.process({type: 'card', cards: [CardName.TERACTOR]});
+    runAllActions(game);
+  }
+  const queue = blue.getWaitingFor();
+  if (queue?.startGamePrompt?.kind !== 'preludeSelection' || !blue.tableau.has(CardName.TERACTOR)) {
+    throw new Error(`${name}: expected the deployment queue with Teractor played — got ${queue?.type} ${JSON.stringify(queue?.startGamePrompt)}`);
+  }
+  blue.megaCredits = 30;
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const seat = copy.getPlayerById(blue.id);
+  seat.process({type: 'card', cards: [CardName.SUITABLE_INFRASTRUCTURE]});
+  runAllActions(copy);
+  const steel = seat.steel;
+  seat.process({type: 'card', cards: [CardName.BUSINESS_EMPIRE]});
+  runAllActions(copy);
+  const reactions = copy.cardReactions.filter((r) => r.card === CardName.SUITABLE_INFRASTRUCTURE);
+  if (steel !== 5 || seat.megaCredits !== 26 || seat.production.megacredits !== 6 || reactions.length !== 1) {
+    throw new Error(`${name}: the dry run expected 5 steel, 30 − 6 + 2 = 26 M€, +6 M€ production and ONE reaction — got ${steel}, ${seat.megaCredits}, ${seat.production.megacredits}, ${reactions.length}`);
+  }
+  write(name, game);
+}
+{
+  const name = 'suitable-infrastructure-table';
+  const {game, player} = soloActionPhase({customCorporationsList: [CardName.TERACTOR], startingCorporations: 1});
+  player.playedCards.push(newPrelude(CardName.SUITABLE_INFRASTRUCTURE)!);
+  player.pendingInitialActions = [];
+  player.megaCredits = 40;
+  player.cardsInHand.length = 0;
+  for (const card of [CardName.POWER_PLANT, CardName.INDUSTRIAL_MICROBES, CardName.RELEASE_OF_INERT_GASES]) {
+    player.cardsInHand.push(newProjectCard(card)!);
+  }
+  runAllActions(game);
+  const unplayable = player.cardsInHand.filter((c) => player.canPlay(c) === false).map((c) => c.name);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== player.id || !(player.getWaitingFor() instanceof OrOptions) || unplayable.length > 0) {
+    throw new Error(`${name}: expected blue on the move with all three cards playable — got phase=${game.phase} wf=${player.getWaitingFor()?.constructor.name} unplayable=[${unplayable.join(', ')}]`);
+  }
+  // Each card is its own ACTION on a fresh copy (the hook's limit is per action — the action count moves between them).
+  const owed: ReadonlyArray<[CardName, number]> = [[CardName.POWER_PLANT, 2], [CardName.INDUSTRIAL_MICROBES, 2], [CardName.RELEASE_OF_INERT_GASES, 0]];
+  for (const [card, gain] of owed) {
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const seat = copy.getPlayerById(player.id);
+    const played = seat.cardsInHand.find((c) => c.name === card)!;
+    const before = seat.megaCredits; // `playCard` pays no price — the delta is the answer alone
+    seat.playCard(played);
+    runAllActions(copy);
+    if (seat.megaCredits - before !== gain) {
+      throw new Error(`${name}: the dry run expected ${card} to pay +${gain} M€ — got ${seat.megaCredits - before}`);
+    }
+  }
+  write(name, game);
+}
+{
+  const base = jovianTable('pass');
+  parliamentFixture('suitable-infrastructure-sitting', {
+    ...base,
+    arrange: (table) => {
+      base.arrange?.(table);
+      table.p1.playedCards.push(newPrelude(CardName.SUITABLE_INFRASTRUCTURE)!);
+    },
+    expect: (table) => {
+      base.expect?.(table);
+      const copy = Game.deserialize(structuredClone(table.game.serialize()));
+      const blue = copy.getPlayerById(table.p1.id);
+      const production = blue.production.megacredits;
+      passTheViewer(copy);
+      answerEffects(copy, 'suitable-infrastructure-sitting');
+      const paid = copy.cardReactions.filter((r) => r.card === CardName.SUITABLE_INFRASTRUCTURE);
+      if (blue.production.megacredits <= production || paid.length > 0) {
+        throw new Error(`the suitable-infrastructure-sitting fixture expected the law's production paid in the PARLIAMENT phase with NO answer of P63 — got production ${production} → ${blue.production.megacredits}, reactions ${paid.length}`);
+      }
+    },
+  });
+}

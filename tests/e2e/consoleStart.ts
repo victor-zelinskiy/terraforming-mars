@@ -3268,6 +3268,9 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   // P62 Space Lanes — a standing discount per planet tag (ledger GA): the start (the hand's prices with the answer), the
   // action-phase table (P62 on it, four priced cards in hand), the WG road.
   'space-lanes-start' | 'space-lanes-table' | 'space-lanes-wg' |
+  // P63 Suitable Infrastructure — a prelude-reactor on PRODUCTION, once per action, into the M€ rail (ledger GC · GD): the
+  // start (Business Empire after it), the action-phase table (three cards + the Power Plant standard project), the sitting.
+  'suitable-infrastructure-start' | 'suitable-infrastructure-table' | 'suitable-infrastructure-sitting' |
   // The play sheet's worst payment (DJ): Space Elevator with every lane open — steel, titanium, Helion's heat,
   // Floodgates' steel, both mechs, graphene, M€ — the ledger stands in the sheet's body, the commit on the bottom line.
   'play-sheet-ledger' |
