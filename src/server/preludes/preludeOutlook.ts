@@ -158,6 +158,16 @@ export function computePreludeOutlooks(
   };
 
   for (const card of candidates) {
+    /**
+     * A BURN NAMES ITS CAUSE (P59 · FV): a prelude is no project card, so the hand's reason engine
+     * (`unplayableReasons`) never asks it — the card's own co-located hook (`ICard.unplayableReason`: P59's seat at the
+     * floor, Main Belt Asteroids' 5 M€, Old Mining Colony's empty hand, …) is asked HERE, for every verdict that burns,
+     * so no surface ever shows «it will fizzle» without the reason the card itself states (invariant 2).
+     */
+    const withCause = (verdict: PreludeOutlook & {state: 'noEffect'}): PreludeOutlook => {
+      const reason = card.unplayableReason?.(player);
+      return reason === undefined ? verdict : {...verdict, reason};
+    };
     if (canPlayNow(card)) {
       out.set(card.name, {state: 'playable'});
       continue;
@@ -166,7 +176,7 @@ export function computePreludeOutlooks(
     if (need === undefined) {
       // The card never claimed the order could save it, so we must not invent
       // hope on its behalf: an unmet global parameter is not a waiting game.
-      out.set(card.name, {state: 'noEffect'});
+      out.set(card.name, withCause({state: 'noEffect'}));
       continue;
     }
     const providers = pool
@@ -187,12 +197,12 @@ export function computePreludeOutlooks(
           (drawn.some((n) => n === undefined) || counted.reduce((a, b) => a + b, 0) >= amount) && providers.length > 0 ? 'possible' :
             undefined;
       out.set(card.name, certainty === undefined ?
-        {state: 'noEffect', need, amount} :
+        withCause({state: 'noEffect', need, amount}) :
         {state: 'deferred', certainty, enablers, need, amount});
       continue;
     }
     out.set(card.name, enablers.length === 0 ?
-      {state: 'noEffect', need} :
+      withCause({state: 'noEffect', need}) :
       {state: 'deferred', certainty: CERTAINTY_OF_NEED[need], enablers, need});
   }
   return out;

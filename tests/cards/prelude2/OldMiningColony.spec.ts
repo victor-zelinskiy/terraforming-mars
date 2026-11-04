@@ -181,6 +181,7 @@ describe('OldMiningColony', () => {
     expect(computePreludeOutlooks(player, [card], player.preludeCardsInHand).get(CardName.OLD_MINING_COLONY))
       .deep.eq({state: 'deferred', certainty: 'guaranteed', enablers: [CardName.BIOLAB], need: 'cardInHand'});
     expect(computePreludeOutlooks(player, [card], [card, industries]).get(CardName.OLD_MINING_COLONY))
-      .deep.eq({state: 'noEffect', need: 'cardInHand'});
+      // A burn names its cause — the card's own hook (P59 · FV).
+      .deep.eq({state: 'noEffect', need: 'cardInHand', reason: {type: 'rule', message: 'No card in hand to discard'}});
   });
 });

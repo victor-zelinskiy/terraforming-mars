@@ -35,7 +35,9 @@ export function candidateOutlook(outlook: PreludeOutlook | undefined): PreludeOu
   if (outlook === undefined || outlook.state === 'playable') {
     return undefined;
   }
-  return {state: 'noEffect', need: outlook.need};
+  // The card's own named cause rides along (P59 — the seat at the floor): a burn is never told without it.
+  const reason = outlook.state === 'noEffect' ? outlook.reason : undefined;
+  return {state: 'noEffect', need: outlook.need, ...(reason !== undefined ? {reason} : {})};
 }
 
 /**

@@ -183,3 +183,31 @@ describe('preludeOutlook (order-aware prelude verdict)', () => {
     });
   });
 });
+
+/**
+ * A BURN NAMES ITS CAUSE (P59 · FV). A prelude is no project card, so the hand's reason engine never asks it; the
+ * card's own co-located `unplayableReason` rides every verdict that burns — the deck pick and the start queue print it
+ * beside «it will fizzle», never the bare word.
+ */
+describe('preludeOutlook — a burn names its cause', () => {
+  it('P59 Recession at a human opponent\'s floor: noEffect + the seat, structurally', async () => {
+    const {Recession} = await import('../../src/server/cards/prelude2/Recession');
+    const [/* game */, player, red] = testGame(2);
+    red.production.override({megacredits: -5});
+    const card = new Recession();
+    expect(computePreludeOutlooks(player, [card], [card]).get(CardName.RECESSION)).deep.eq({
+      state: 'noEffect',
+      reason: {type: 'production', message: '${0}: M€ production is already at −5', params: [red.name], resource: 'megacredits', seat: {name: red.name, color: red.color}},
+    });
+  });
+
+  it('Main Belt Asteroids short of its 5 M€: the money it is short of rides the burn', async () => {
+    const {MainBeltAsteroids} = await import('../../src/server/cards/prelude2/MainBeltAsteroids');
+    const [/* game */, player] = testGame(2);
+    player.megaCredits = 2;
+    const card = new MainBeltAsteroids();
+    const out = computePreludeOutlooks(player, [card], [card]).get(CardName.MAIN_BELT_ASTEROIDS);
+    expect(out?.state).eq('noEffect');
+    expect(out?.state === 'noEffect' ? out.reason?.type : undefined, JSON.stringify(out)).eq('megacredits');
+  });
+});

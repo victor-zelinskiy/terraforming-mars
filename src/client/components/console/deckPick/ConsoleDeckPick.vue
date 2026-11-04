@@ -84,6 +84,11 @@
           <div class="con-cards__verdict-inner">
             <span v-if="!committed" class="con-cards__verdict-name" :key="focusedName">{{ focusedName === '' ? '' : $t(focusedName) }}</span>
             <span v-if="statusText !== ''" class="con-cards__verdict" :class="statusToneClass">{{ statusText }}</span>
+            <!-- WHY it burns, when the card names it (P59 — the seat at the floor, its dot): never a burn without its cause. -->
+            <span v-if="focusedBurnReason !== undefined" class="con-deckpick__burnwhy" data-prelude-burn-reason>
+              <span v-if="focusedBurnReason.color !== undefined" :class="'con-status__dot player_bg_color_' + focusedBurnReason.color" aria-hidden="true"></span>
+              {{ focusedBurnReason.text }}
+            </span>
             <!-- WHOM THE PLAY HITS (P59 — every opponent, no choice): the victims with the server's `current → resulting`,
                  before the press (invariant 3). Read-only; the bar's verbs are untouched. -->
             <ConsoleTableImpact v-if="focusedTableImpact !== undefined" class="con-deckpick__tblimpact"
@@ -522,6 +527,18 @@ export default defineComponent({
       }
       const players = this.playerView.players;
       return tableImpactView(tableImpactOfPreview(this.candidatePreviews[name]), (color: Color) => displayNameForColor(players, color));
+    },
+    /** The focused burning prelude's NAMED cause (the server's outlook reason), with its seat when it names one. */
+    focusedBurnReason(): {text: string, color?: Color} | undefined {
+      if (!this.playMode || !this.interactive || this.committed || this.focusedName === '' || !this.burns(this.focusedName as CardName)) {
+        return undefined;
+      }
+      const outlook = this.liveModelFor(this.focusedName)?.preludeOutlook;
+      const reason = outlook?.state === 'noEffect' ? outlook.reason : undefined;
+      if (reason === undefined) {
+        return undefined;
+      }
+      return {text: translateTextWithParams(reason.message, [...(reason.params ?? [])]), ...(reason.seat !== undefined ? {color: reason.seat.color} : {})};
     },
     focusedAvailability(): CardAvailabilityView | undefined {
       if (!this.interactive || this.committed || this.focusedName === '' || this.playMode) {

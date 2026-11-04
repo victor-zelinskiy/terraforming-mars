@@ -371,3 +371,19 @@
     flex: 0 1 auto;
     min-width: 0;
 }
+
+/* A BURN NAMES ITS CAUSE (P59 · FV): the focused burning prelude's own reason (the server's outlook `reason`) beside
+   «it will fizzle», its seat's dot when it names one — a word and a dot, never light. */
+.con-deckpick__burnwhy {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: @con-amber;
+    font-weight: 700;
+
+    .con-status__dot { width: .7rem; height: .7rem; flex: 0 0 auto; }
+}

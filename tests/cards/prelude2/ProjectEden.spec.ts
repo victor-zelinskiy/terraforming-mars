@@ -237,7 +237,8 @@ describe('ProjectEden', () => {
       expect(computePreludeOutlooks(player, [card], [card, biolab]).get(CardName.PROJECT_EDEN))
         .deep.eq({state: 'deferred', certainty: 'guaranteed', enablers: [CardName.BIOLAB], need: 'cardInHand', amount: 2});
       expect(computePreludeOutlooks(player, [card], [card, io]).get(CardName.PROJECT_EDEN))
-        .deep.eq({state: 'noEffect', need: 'cardInHand', amount: 2});
+        // A burn names its cause — the card's own hook (P59 · FV).
+        .deep.eq({state: 'noEffect', need: 'cardInHand', amount: 2, reason: {type: 'rule', message: 'Fewer than 3 cards in hand to discard'}});
       expect(computePreludeOutlooks(player, [card], [card, io, unmi]).get(CardName.PROJECT_EDEN))
         .deep.eq({state: 'deferred', certainty: 'possible', enablers: [CardName.IO_RESEARCH_OUTPOST, CardName.UNMI_CONTRACTOR], need: 'cardInHand', amount: 2});
     });

@@ -204,7 +204,8 @@ describe('IndustrialComplex', () => {
     expect(computePreludeOutlooks(player, [card], [card, loan]).get(CardName.INDUSTRIAL_COMPLEX))
       .deep.eq({state: 'deferred', certainty: 'possible', enablers: [CardName.LOAN], need: 'cash'});
     expect(computePreludeOutlooks(player, [card], [card]).get(CardName.INDUSTRIAL_COMPLEX))
-      .deep.eq({state: 'noEffect', need: 'cash'});
+      // A burn names its cause — the card's own hook (P59 · FV).
+      .deep.eq({state: 'noEffect', need: 'cash', reason: {type: 'megacredits', message: 'Need ${0} more M€', params: ['8']}});
   });
 
   it('Manutech answers EACH raised line (six `production-gain` effects) and «Сработает» promises all six', () => {

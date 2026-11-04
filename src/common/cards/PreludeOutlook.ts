@@ -1,4 +1,5 @@
 import {CardName} from './CardName';
+import {UnplayableReason} from './UnplayableReason';
 
 /**
  * WHAT A PRELUDE'S EFFECT IS WAITING FOR — the one vocabulary shared by the
@@ -66,4 +67,14 @@ export type PreludeOutlook =
     /** How much of the need is missing — only for a counted need (P58: the cards the hand is short of its discard). */
     amount?: number,
   }
-  | {state: 'noEffect', need?: PreludeNeed, amount?: number};
+  | {
+    state: 'noEffect',
+    need?: PreludeNeed,
+    amount?: number,
+    /**
+     * WHY the card cannot resolve, when its own co-located hook names it (`ICard.unplayableReason` — P59 Recession:
+     * «Red: M€ production is already at −5», with the seat) — a burn is never shown without its cause (invariant 2).
+     * Absent for a card that declares no hook; the verdict alone then speaks.
+     */
+    reason?: UnplayableReason,
+  };
