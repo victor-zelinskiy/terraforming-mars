@@ -981,7 +981,13 @@ export default defineComponent({
     /** The PROMPT identity — a change means a genuinely new server ask. */
     baseKey(): string {
       const override = this.promptOverride !== undefined ? 'client|' : '';
-      return `${override}${this.parentWf?.type ?? ''}|${textOf(this.parentWf?.title)}`;
+      // K20 (P58 · FT) — THE SERVER'S SERIAL, not only the kind and the words: a chain of `OrOptions` that share one
+      // title («Select one option» — Project Eden's four questions upstream) shared ONE key, so the previous answer's
+      // armed selection and cursor OUTLIVED it — the next band opened «decided» (the other options receded to nothing
+      // under the «ИЛИ» seam) and a single A committed the focus, skipping the select → confirm guard. A new question
+      // is a new epoch; the same question (a minimize → restore, a re-sent view, a refused answer) keeps its serial.
+      const serial = this.promptOverride === undefined ? `|#${this.playerView.waitingFor?.promptId ?? '-'}` : '';
+      return `${override}${this.parentWf?.type ?? ''}|${textOf(this.parentWf?.title)}${serial}`;
     },
     taskKey(): string {
       return this.nested !== undefined ? `${this.baseKey}|n${this.nested.index}` : this.baseKey;
