@@ -610,6 +610,24 @@ export function corpFirstActionInStartFlow(view: PlayerViewModel): boolean {
   return view.game.generation === 1;
 }
 
+/**
+ * P55 · FN — A START PRELUDE'S OWN DISCARD (Old Mining Colony: «… Place 1 colony. Discard 1 card.»): the live
+ * `handSelect` whose server marker names a PRELUDE as the demanding card (`discardPrompt.source.kind === 'card'`),
+ * never a colony's own bonus discard (`colonyBonus` / `colonyRepeat` — those are steps of the colony resolution), in
+ * the opening generation. It is a STEP of the start workspace that played the prelude — hosted INSIDE the deployment's
+ * body (`start ⊃ hand`), never an interruption to announce. Structural only: the marker and the card's type, never a
+ * title. Returns the prelude's name, or undefined.
+ */
+export function startPreludeDiscardOf(view: PlayerViewModel): string | undefined {
+  const meta = view.waitingFor?.discardPrompt;
+  const source = meta?.source;
+  if (meta === undefined || source?.kind !== 'card' || source.card === undefined ||
+      meta.colonyBonus !== undefined || meta.colonyRepeat !== undefined || !corpFirstActionInStartFlow(view)) {
+    return undefined;
+  }
+  return getCard(source.card)?.type === CardType.PRELUDE ? source.card : undefined;
+}
+
 const WGT_TITLE = 'Select action for World Government Terraforming';
 
 /**

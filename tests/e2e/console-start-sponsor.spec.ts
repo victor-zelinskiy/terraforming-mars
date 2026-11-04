@@ -99,8 +99,12 @@ async function surfaces(page: Page) {
           Math.round(flow.left - tier.left - parseFloat(getComputedStyle(tierEl).paddingLeft));
       })(),
       flowConnector: document.querySelectorAll('.con-start__wshead .con-wshead__flow-connector').length,
+      // P55 · FN — the hand step stands INSIDE the deployment's body: the deployment is RELEASED in place (mounted, never
+      // painted — `visibility: hidden` past its fade), so «gone» is asked of what PAINTS, never of the DOM tree.
       startPlayed: document.querySelectorAll('.con-splayed').length,
       startQueue: document.querySelectorAll('.con-start__queue').length,
+      startPlayedPainted: [...document.querySelectorAll('.con-splayed')].filter((el) => getComputedStyle(el).visibility !== 'hidden').length,
+      startQueuePainted: [...document.querySelectorAll('.con-start__queue')].filter((el) => getComputedStyle(el).visibility !== 'hidden').length,
       /** The toolbar (counts + tag filters) sits ABOVE the cards, as on the
        *  normal hand screen — never floating in the middle of the body. */
       toolbarY: document.querySelector('.con-hand__toolbar')?.getBoundingClientRect().top ?? -1,
@@ -273,8 +277,8 @@ test.describe('console start — «Эпатажный спонсор» as a work
     expect(s.journeyContext).toContain('прологи');
     expect(Math.abs(s.flowLeftGap), 'compact flow keeps the root-side left anchor').toBeLessThanOrEqual(2);
     expect(s.flowConnector, 'compact flow keeps the root connector').toBe(1);
-    expect(s.startQueue, 'the deployment queue is gone').toBe(0);
-    expect(s.startPlayed, 'the compact played shelf is gone').toBe(0);
+    expect(s.startQueuePainted, 'the deployment queue is not painted (released in place)').toBe(0);
+    expect(s.startPlayedPainted, 'the compact played shelf is not painted (released in place)').toBe(0);
     expect(s.playedOverlay, 'the full played overlay must not open').toBeFalsy();
   });
 

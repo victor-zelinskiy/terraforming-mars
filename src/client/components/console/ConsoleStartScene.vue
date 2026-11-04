@@ -17,6 +17,8 @@
          'con-start--yielded': yielded,
          'con-start--bounded': shellBounded,
          'con-ws': shellBounded,
+         // A hand step stands INSIDE the deployment's body (P55 · FN) — the frame's gap is the deployment's own, never
+         // re-fitted for it; the class stays the family's marker.
          'con-start--sponsor': sponsorStep,
          'con-start--matcut': matCut,
          'con-start--materializing': state.flow === 'materializing',
@@ -432,7 +434,10 @@
              The zone is a plain full-size host: the hand teleports in and is
              laid out by its own engine, against the same box it would get as
              a normal screen. -->
-        <div v-if="sponsorStep" class="con-start__handstep" data-embed-slot="start-hand"></div>
+        <!-- P55 · FN — the hand step is a step like the colonies': its zone lives INSIDE the deployment's body below
+             and the deployment RELEASES in place (the same nodes come back — never the v-if sibling swap that blinked
+             on entry and on return). This outer zone is the fallback for a hand step outside the ceremony only. -->
+        <div v-if="sponsorStep && mode !== 'ceremony'" class="con-start__handstep con-start__handslot" data-embed-slot="start-hand"></div>
 
         <!-- THE COLONIES STEP — a prelude's SelectColony (Early Colonization's
              Build Colony …): the COLONY WORKSPACE is teleported into this zone
@@ -446,11 +451,12 @@
              the deployment RELEASES in place (opacity, its box kept — no
              re-fit), the zone takes exactly that box, and on the way back the
              same nodes reveal where they stood. -->
-        <div v-if="mode === 'ceremony' && !sponsorStep" class="con-start__body con-start__ceremony"
-             :class="{'con-start__ceremony--hidden': !ceremonyRevealed, 'con-start__ceremony--stepped': colonyStep}"
-             :data-start-step-zone="colonyStep ? 'colonies' : undefined"
+        <div v-if="mode === 'ceremony'" class="con-start__body con-start__ceremony"
+             :class="{'con-start__ceremony--hidden': !ceremonyRevealed && !sponsorStep, 'con-start__ceremony--stepped': colonyStep || sponsorStep}"
+             :data-start-step-zone="colonyStep ? 'colonies' : (sponsorStep ? 'hand' : undefined)"
              ref="ceremonyBody">
           <div v-if="colonyStep" class="con-start__handstep con-start__colonystep" data-embed-slot="start-colonies"></div>
+          <div v-if="sponsorStep" class="con-start__handstep con-start__handslot" data-embed-slot="start-hand"></div>
           <!-- ── THE DEPLOYMENT — one row, three physical places ──
                 · the QUEUE COLUMN (left, the protagonist): every unresolved
                   start card + the bought-projects purchase row; the embedded
@@ -665,7 +671,7 @@
                    // hero width from the flight's FIRST aim (no post-landing
                    // resize) and the briefing materializes around the settled
                    // card — two beats, never a chord over a flying card.
-                   'con-start__embed--live': embedPresenting || sponsorStep || firstActionOwnsRoom || bonusActionOwnsRoom,
+                   'con-start__embed--live': embedPresenting || firstActionOwnsRoom || bonusActionOwnsRoom,
                    'con-start__embed--sourced': embedSourceVisible !== undefined,
                    // THE HERO SIZE BELONGS TO THE BRIEFING, NOT TO THE STAGE.
                    // While the briefing is what the player is looking at, the
@@ -1005,8 +1011,8 @@
              Once the RISK STAGE is up the stage owns that sentence and the
              rail's chip goes quiet — one voice per statement, never the same
              warning printed twice on one screen. -->
-        <div v-if="mode === 'ceremony' && ceremonyRevealed && !sponsorStep"
-             class="con-start__statusrail" :class="[ceremonyRailClass, {'con-start__statusrail--stepped': colonyStep}]">
+        <div v-if="mode === 'ceremony' && ceremonyRevealed"
+             class="con-start__statusrail" :class="[ceremonyRailClass, {'con-start__statusrail--stepped': colonyStep || sponsorStep}]">
           <div class="con-start__status-inner">
             <span class="con-start__status-name" :key="ceremonyStatusName">{{ ceremonyStatusName }}</span>
             <span v-if="ceremonyStatusText !== ''" class="con-start__status-state">{{ ceremonyStatusText }}</span>
@@ -2255,7 +2261,7 @@ export default defineComponent({
      */
     stepSlot(): string {
       if (this.sponsorStep) {
-        return '.con-start__handstep';
+        return '.con-start__handslot';
       }
       return this.colonyStep ? '.con-start__colonystep' : '';
     },

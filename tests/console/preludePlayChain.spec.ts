@@ -52,6 +52,15 @@ describe('preludePlayChain', () => {
     expect(preludeChainOwesHand(deck)).is.true;
   });
 
+  // P55 · FN — the played prelude's own discard (the colony first, then «discard 1 card») is the album's next stage.
+  it('owed: the played prelude\'s OWN discard — never a colony bonus\'s', () => {
+    const discard = (extra: object) => view({
+      type: 'card', title: 'Select 1 card to discard', buttonLabel: 'Discard', cards: [{name: 'Birds'}, {name: 'Fish'}], min: 1, max: 1,
+      discardPrompt: {min: 1, max: 1, source: {kind: 'card', card: CardName.OLD_MINING_COLONY}, ...extra},
+    });
+    expect(preludeChainOwesHand(discard({}))).is.true;
+  });
+
   it('owed nothing: no prompt, or the action menu — the flow ends on the board (never a return into an empty hand)', () => {
     expect(preludeChainOwesHand(view(undefined))).is.false;
     expect(preludeChainOwesHand(view({type: 'or', title: 'Take your first action', options: [{type: 'option', title: 'Pass for this generation'}]}))).is.false;

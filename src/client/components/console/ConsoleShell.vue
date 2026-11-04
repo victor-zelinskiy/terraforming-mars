@@ -2041,7 +2041,7 @@ import {resetRevealHandoff} from '@/client/console/revealHandoff';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {generationSceneState, registerGenerationSceneHandoff, resetGenerationScene} from '@/client/console/generationScene/generationScene';
 import {openRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, AGENDA_WALK_SEAT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, partyStepStageOf, firstActionPartyStep} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, startPreludeDiscardOf, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, AGENDA_WALK_SEAT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, partyStepStageOf, firstActionPartyStep} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleBotAttack from '@/client/components/console/ConsoleBotAttack.vue';
@@ -5663,7 +5663,12 @@ export default defineComponent({
     colonyStepReturnGatesPrompt(): boolean {
       const wf = this.playerView.waitingFor;
       const host = workspaceFrameHost('colonies');
-      return wf !== undefined && wf.type !== 'colony' && wf.choiceContext?.source.kind === 'card' &&
+      // …and a CARD's own discard raised in the build's response (P55 Old Mining Colony — `DiscardCards` names its asker
+      // on the `discardPrompt` marker, not on `choiceContext`). The colony's own bonus discards (`colonyBonus` /
+      // `colonyRepeat`) are steps INSIDE the colony flow and never wait for it to leave.
+      const discard = wf?.discardPrompt;
+      const cardDiscard = discard?.source?.kind === 'card' && discard.colonyBonus === undefined && discard.colonyRepeat === undefined;
+      return wf !== undefined && wf.type !== 'colony' && (wf.choiceContext?.source.kind === 'card' || cardDiscard) &&
         host !== undefined && host !== 'parliament' &&
         workspaceFrameAnchor('colonies')?.type === 'prompt' && !workspaceFrameHasNested('colonies');
     },
@@ -6059,6 +6064,26 @@ export default defineComponent({
       return kind !== undefined && workspaceHostForStep() === 'start' && !this.consoleState.task.deferred && this.admits('followUp') &&
         cardReactionState.phase === 'idle' ? kind : '';
     },
+    /**
+     * P55 · FN — A START PRELUDE'S OWN DISCARD IS A STEP OF THE START (`startPreludeDiscardOf` — Old Mining Colony's
+     * «discard 1 card»): the start workspace that played the prelude hosts the hand INSIDE its body (`start ⊃ hand`,
+     * the deployment released in place), so it is never announced (no plate, no beacon) — OWED keeps it from being
+     * announced, DUE opens it.
+     */
+    startDiscardStepOwed(): boolean {
+      return taskFor(this.playerView)?.kind === 'handSelect' && startPreludeDiscardOf(this.playerView) !== undefined &&
+        workspaceFrameKnown('start');
+    },
+    /**
+     * …AND IT IS DUE once the start is the step's host again: the colony step the same play asked FIRST has left (its
+     * story told — `dwellColonyFollowUp`: the build's tokens, one read; the stage gate held the discard till then), a
+     * drawn batch it brought (Pluto's +2) has been taken (`followUp` waits for the reveal), and the hand is not open
+     * already. Rising edge, like the party step's.
+     */
+    startDiscardStepDue(): boolean {
+      return this.startDiscardStepOwed && workspaceHostForStep() === 'start' && !workspaceFrameKnown('hand') &&
+        !this.consoleState.task.deferred && this.admits('followUp');
+    },
     ledgerDiscardStepDue(): boolean {
       return this.ledgerDiscardStepOwed &&
         payoutDiscardDue({waitingFor: this.playerView.waitingFor, untaken: payoutUntaken, inFlight: false});
@@ -6287,6 +6312,10 @@ export default defineComponent({
       // an interruption: no plate, no beacon over the workspace that owes it,
       // no gate on a door the walk itself opens (`ledgerDiscardStepDue`).
       if (task?.kind === 'handSelect' && this.ledgerDiscardStepOwed) {
+        task = undefined;
+      }
+      // …and so is a START PRELUDE's own discard (P55 · FN): a step of the start workspace that played it.
+      if (task?.kind === 'handSelect' && this.startDiscardStepOwed) {
         task = undefined;
       }
       // THE FINALE SESSION owns its own prompt (PL-303): once the player is in the finale, the greenery prompt
@@ -7728,6 +7757,18 @@ export default defineComponent({
         return false;
       }
       const task = taskFor(this.playerView);
+      // 3. A PRELUDE's own step (P55 · FN): its discard (`startPreludeDiscardOf`) and its colony pick (the build names
+      //    its prelude on `choiceContext` — `Executor`'s `cause`, PL-1591) are steps of the start that played it — a
+      //    reload mid-step stands the start back up around them (the P48 gap: the colony pick came back as a screen of
+      //    its own, the discard as a plate over the board).
+      if (task?.kind === 'handSelect' && startPreludeDiscardOf(this.playerView) !== undefined) {
+        return true;
+      }
+      const source = this.playerView.waitingFor?.choiceContext?.source;
+      if (task?.kind === 'colony' && source?.kind === 'card' && source.card !== undefined &&
+          getCard(source.card)?.type === CardType.PRELUDE) {
+        return true;
+      }
       return task?.kind === 'projectCard' && task.mode === 'playFromHand';
     },
     /**
@@ -12566,6 +12607,13 @@ export default defineComponent({
       }
     },
     /** The first action's party step has come DUE (the banner pick, the delegate grant): the Parliament opens as its scene step. */
+    /** The start prelude's discard has come DUE (P55 · FN): the hand opens as the start's step. */
+    startDiscardStepDue(due: boolean): void {
+      const task = taskFor(this.playerView);
+      if (due && task?.kind === 'handSelect') {
+        this.openShellTaskSurface(task);
+      }
+    },
     startPartyStepDue(due: boolean): void {
       const task = taskFor(this.playerView);
       if (due && task?.kind === 'party') {
@@ -14796,6 +14844,12 @@ export default defineComponent({
       // for that step; every other pick keeps «ВЫБОР КОЛОНИИ». The same table the section publishes up from
       // (`followUpStepStage`), so the tail animates once.
       const stage = followUpStepStage('colony', this.playerView.waitingFor) ?? 'Colony selection';
+      // A PRELUDE's colony pick hosted by the start names the prelude in the start's crumb — after a reload the press
+      // that set the subject is gone, and the server's `choiceContext` names the asker (P55 · FN).
+      const asker = this.playerView.waitingFor?.choiceContext?.source;
+      if (host === 'start' && workspaceFrameSubject('start') === '' && asker?.kind === 'card' && asker.card !== undefined) {
+        setWorkspaceFrameSubject('start', asker.card);
+      }
       if (host === undefined) {
         enterWorkspace('colonies', {anchor});
       } else if (host === 'standard-projects' && this.colonyCancellable) {
@@ -21384,6 +21438,16 @@ export default defineComponent({
         // …and the step's stage name is the crumb's tail («… › КРАСНЫЕ ›
         // СБРОС КАРТ»), handed up like every hosted step's.
         if (marker !== undefined && marker.stage === 'discard' && workspaceFrameHost('hand') === 'card-actions') {
+          setWorkspaceFrameStage('hand', 'Card discard');
+        }
+        // …and a START PRELUDE's own discard (P55 · FN) is the start's step: «СТАРТ ПАРТИИ › <пролог> › СБРОС КАРТЫ».
+        // The prelude is the crumb's subject — named by the server's marker when the press that set it is gone (a
+        // reload mid-step).
+        const startDiscard = startPreludeDiscardOf(this.playerView);
+        if (startDiscard !== undefined && workspaceFrameHost('hand') === 'start') {
+          if (workspaceFrameSubject('start') === '') {
+            setWorkspaceFrameSubject('start', startDiscard);
+          }
           setWorkspaceFrameStage('hand', 'Card discard');
         }
         // AN ENACTED RESOLUTION'S DISCARD (Colonial Affairs — Pluto's «draw 1,

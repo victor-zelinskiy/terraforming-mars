@@ -25655,11 +25655,8 @@ body.con-start-ceremony {
             min-width: 0;
         }
     }
-    /* The workspace's own plate is the room now — the deployment's padding
-       would inset a full screen for no reason. */
-    &--sponsor .con-start__frame {
-        gap: .45rem;
-    }
+    /* (P55 · FN) the hand step stands INSIDE the deployment's body now — the frame keeps the deployment's own gap, so
+       nothing re-fits on the step's entry or return (the old sponsor gap re-flowed the frame). */
 
     /* Bounded: the plate is the family workspace panel — THE STAGE SURFACE
        (perimeter shell): square, welded right, safe-inset content line.
@@ -28750,7 +28747,8 @@ body.con-start-barshold .con-status {
                 opacity calc(160ms * var(--motion-scale, 1)) @con-ease-exit,
                 visibility 0s linear calc(160ms * var(--motion-scale, 1));
         }
-        > .con-start__colonystep {
+        > .con-start__colonystep,
+        > .con-start__handslot {
             position: absolute;
             inset: 0;
         }

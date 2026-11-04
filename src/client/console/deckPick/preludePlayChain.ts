@@ -76,6 +76,14 @@ export function preludeChainOwesHand(view: PlayerViewModel): boolean {
   if (task !== undefined && HAND_HOSTED_KINDS.has(task.kind)) {
     return true;
   }
+  // P55 · FN — the played prelude's OWN discard (Old Mining Colony: the colony first, then «discard 1 card»): a card
+  // the server names as the asker, never a colony's bonus discard. The pick stands in the album the chain already
+  // holds open, so the claim stays until it is answered.
+  const discard = view.waitingFor?.discardPrompt;
+  if (task?.kind === 'handSelect' && discard?.source?.kind === 'card' && discard.colonyBonus === undefined &&
+      discard.colonyRepeat === undefined) {
+    return true;
+  }
   const standing = currentRevealEvent();
   if (standing !== undefined && workspaceClaimsRevealSource(standing.source)) {
     return true;

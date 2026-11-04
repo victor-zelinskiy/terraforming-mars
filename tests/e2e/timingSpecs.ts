@@ -24,6 +24,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // P48 Early Colonization (2026-11-03): the hold of every tile at BEFORE, the wave's order against the pick, the
   // step's mount count — sampled from before the press.
   'console-early-colonization.spec.ts',
+  // P55 Old Mining Colony (2026-11-04): two hosted steps of one start play — the order claims (no plate, the album never
+  // nested in the colonies, the deployment node kept) are sampled from before the press.
+  'console-old-mining-colony.spec.ts',
   // P46 Colony Trade Hub (2026-11-03): the card's answer to ANY colony built — its rise, the cause plate, the births.
   'console-colony-trade-hub.spec.ts',
   // TR81 Lotus Innovations (2026-10-26): the rating off the printed plates, the corporation rising in its start seat and
