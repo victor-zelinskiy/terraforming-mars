@@ -6,7 +6,9 @@
        `focus` and the `pick` event) — the step owns no listener.
        P58 · FS — the SAME step asks a card's LIVE «which tile next» (`kind: 'placement-order'`): one row per printed
        tile, each its face's own hex; a tile already placed stays in its place SEALED (a kant and the word, the column
-       never reflows), an ocean at the maximum is shown with its reason. -->
+       never reflows), an ocean at the maximum is shown with its reason.
+       P65 · GH — a variant row carries what the TABLE answers to ITS branch (`forecast` — the play's whole forecast, its
+       `byBranch[pos]`): «⚡ сработает» on the row's own line, the Venus row's «+6 M€» and no other row's. -->
   <div class="con-pvariant" :class="{'con-pvariant--embedded': embedded, 'con-pvariant--order': variant.kind === 'placement-order'}"
        data-prelude-variant :data-prelude-variant-card="variant.card" :data-prelude-variant-kind="variant.kind">
     <ConsoleVariantChoice class="con-pvariant__choices" layout="column" :exclusive="variant.rows.length <= 3 && variant.kind !== 'placement-order'"
@@ -14,8 +16,11 @@
       <template #body="{index}">
         <template v-for="row in [variant.rows[index]]" :key="row.key">
           <GamepadGlyph v-if="focus === index && row.available && !sealed" control="confirm" class="con-pvariant__a" />
-          <div v-if="row.chips.length > 0" class="con-pvariant__chips" data-prelude-variant-chips>
+          <div v-if="row.chips.length > 0 || reactions[index].total > 0" class="con-pvariant__chips" data-prelude-variant-chips>
             <ActionEffectChip v-for="(chip, k) in row.chips" :key="k" :effect="chip" />
+            <!-- What the TABLE adds if THIS row is chosen (P65 · GH — the server's `byBranch[pos]`): the composers' own
+                 «⚡ сработает» note on the row's line, never on a row whose branch does not set it off. -->
+            <ConsoleForecastReactions :reaction="reactions[index]" :data-prelude-variant-reaction="String(index)" />
           </div>
         </template>
       </template>
@@ -32,16 +37,19 @@
 import {defineComponent, PropType} from 'vue';
 import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import ConsoleForecastReactions from '@/client/components/console/ConsoleForecastReactions.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {printedVariantRows, VariantChoiceOption} from '@/client/console/variantChoiceModel';
-import {PreludeVariant, placementTileKey} from '@/client/console/preludeVariant/preludeVariantModel';
+import {PreludeVariant, placementTileKey, variantRowReaction} from '@/client/console/preludeVariant/preludeVariantModel';
+import {VariantReaction} from '@/client/console/effectForecastModel';
+import {EffectForecast} from '@/common/models/EffectForecastModel';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {Message} from '@/common/logs/Message';
 
 export default defineComponent({
   name: 'ConsolePreludeVariantStep',
-  components: {ConsoleVariantChoice, ActionEffectChip, GamepadGlyph},
+  components: {ConsoleVariantChoice, ActionEffectChip, GamepadGlyph, ConsoleForecastReactions},
   props: {
     variant: {type: Object as PropType<PreludeVariant>, required: true},
     /** The cursor's row (the host's pad drives it). */
@@ -50,9 +58,15 @@ export default defineComponent({
     sealed: {type: Boolean, default: false},
     /** Hosted inside another surface's zone (the start's, the pick stage's) — no frame of its own. */
     embedded: {type: Boolean, default: true},
+    /** The play's WHOLE forecast (P65 · GH) — each row reads its own branch's facts out of `byBranch`. */
+    forecast: {type: Object as PropType<EffectForecast | undefined>, default: undefined},
   },
   emits: ['pick'],
   computed: {
+    /** Per row: what the table adds if THAT row is chosen (empty for a resource / order row). */
+    reactions(): ReadonlyArray<VariantReaction> {
+      return this.variant.rows.map((row) => variantRowReaction(this.variant, row, this.forecast));
+    },
     printed(): ReadonlyArray<ReadonlyArray<unknown>> | undefined {
       // A RESOURCE pre-step (P50 · FC) has no printed rows to cut — each row is a lane, named and iconed by its chip.
       if (this.variant.kind === 'resource') {

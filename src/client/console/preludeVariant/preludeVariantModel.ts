@@ -20,6 +20,10 @@
  * ADDRESSED by its `for`, riding the press's batch — the live palette never stands for it. The kind is `resource` and
  * the hosts' crumb reads «› РЕСУРС» (`preludePreStepStage`).
  *
+ * …AND WHAT THE TABLE ANSWERS (P65 Venus Contract · ledger GH): a row carries its own branch's «⚡ сработает»
+ * (`variantRowReaction` — the server's `byBranch[pos]`), the queue reads the play whole until a row is chosen
+ * (`preludePlayForecast`).
+ *
  * Pure: no DOM, no Vue, no translation — the hosts render keys.
  */
 import {CardName} from '@/common/cards/CardName';
@@ -33,6 +37,8 @@ import {CardComponent} from '@/common/cards/render/CardComponent';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {isICardRenderItem, ItemType} from '@/common/cards/render/Types';
 import {buildMechanics} from '@/client/components/premiumCard/mechanicsModel';
+import {EffectForecast} from '@/common/models/EffectForecastModel';
+import {ForecastBranchInfo, VariantReaction, forecastForFixedBranch, variantReactionChips} from '@/client/console/effectForecastModel';
 
 export type PreludeVariantRow = {
   key: string;
@@ -132,6 +138,38 @@ export function preludeVariantOf(card: CardName, preview: ActionPreview | undefi
     return row;
   });
   return {card, kind: 'variant', rows, shared};
+}
+
+/**
+ * THE TABLE'S ANSWER TO A PRELUDE'S PLAY — BEFORE AND AFTER ITS VARIANT (P65 · ledger GH, K40). A reaction that
+ * depends on the branch (Venus Contract's «+3 M€ per Venus step YOU raise» on Atmospheric Enhancers' Venus row) is the
+ * server's `byBranch[pos]`. Until the player chooses, the play's forecast is read WHOLE — the unconditional facts on
+ * the queue's «Сработает» row, each branch's own facts on ITS row of the «ВАРИАНТ» step (`variantRowReaction`) and in
+ * the layer's «depends» group under the branch's title (`preludeForecastBranches`); folding branch 0 in before the
+ * choice (`forecastForFixedBranch(…, 0)`) promised the temperature's reactions for a play nobody had chosen and hid
+ * the Venus row's. Once a row is chosen the forecast is that branch's, fixed. A play with no variant to choose (one
+ * branch, a resource pre-step) is its only branch, fixed.
+ */
+export function preludePlayForecast(card: CardName, preview: ActionPreview, chosen: number | undefined): EffectForecast | undefined {
+  if (chosen === undefined && preludeVariantOf(card, preview)?.kind === 'variant') {
+    return preview.forecast;
+  }
+  return forecastForFixedBranch(preview.forecast, chosen ?? 0);
+}
+
+/** The branches the layer titles its «depends» facts by — only while the variant is still to be chosen. */
+export function preludeForecastBranches(card: CardName, preview: ActionPreview | undefined, chosen: number | undefined): ReadonlyArray<ForecastBranchInfo> {
+  if (preview === undefined || chosen !== undefined || preludeVariantOf(card, preview)?.kind !== 'variant') {
+    return [];
+  }
+  return preview.branches.map((b, pos) => ({pos, title: b.title, available: b.available}));
+}
+
+const NO_REACTION: VariantReaction = {chips: [], more: 0, total: 0};
+
+/** What the TABLE adds if THIS row is chosen — a variant row's branch-tied facts only (a resource / order row: none). */
+export function variantRowReaction(variant: PreludeVariant, row: PreludeVariantRow, forecast: EffectForecast | undefined): VariantReaction {
+  return variant.kind === 'variant' && row.available ? variantReactionChips(forecast, row.position) : NO_REACTION;
 }
 
 /** The six lanes, in the grid's order (M€ · steel · titanium / plants · energy · heat). */

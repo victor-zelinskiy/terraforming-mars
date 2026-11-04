@@ -3,8 +3,9 @@ import {CardName} from '@/common/cards/CardName';
 import {ActionEffect, ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {
   AT_MAXIMUM_NOTICE, firstAvailableRow, preludePreStepStage, preludeVariantAnswer, preludeVariantOf, preludeVariantReading, preludeVariantRowOf,
-  preludeVariantStepResponses, stepVariantFocus,
+  preludeVariantStepResponses, stepVariantFocus, preludePlayForecast, preludeForecastBranches, variantRowReaction,
 } from '@/client/console/preludeVariant/preludeVariantModel';
+import {EffectForecast, EffectForecastFact} from '@/common/models/EffectForecastModel';
 
 const DRAW: ActionEffect = {direction: 'gain', icon: 'cards', amount: 2, note: 'draw', search: {count: 2, floaterIcon: true}};
 const TR: ActionEffect = {direction: 'gain', icon: 'tr', amount: 2, current: 20, resulting: 22};
@@ -117,5 +118,62 @@ describe('preludeVariantModel — the «РЕСУРС» pre-step (P50 · FC)', ()
     const spend = {...gainStep, input: {...gainStep.input, spendAmount: 1}};
     expect(preludeVariantOf(CardName.FOCUSED_ORGANIZATION, p50([spend]))).is.undefined;
     expect(preludeVariantOf(CardName.FOCUSED_ORGANIZATION, p50([]))).is.undefined;
+  });
+});
+
+describe('preludeVariantModel — what the TABLE answers to a branch (P65 · GH)', () => {
+  const SOURCE = {kind: 'card' as const, name: CardName.VENUS_CONTRACT, owner: 'red' as const, channel: 'global-parameter' as const, printedEffect: 0};
+  /** Venus Contract's «+6 M€» — tied to the VENUS branch (position 2), the way the server's `asBranchFact` writes it. */
+  const VENUS_FACT: EffectForecastFact = {
+    id: 'vc', source: SOURCE, certainty: 'conditional', recipient: {kind: 'you'}, timing: 'immediate',
+    effects: [{direction: 'gain', icon: 'megacredits', amount: 6, current: 0, resulting: 6}], reason: 'You raise Venus a step',
+    condition: {text: 'You raise Venus a step', state: 'depends', branchPos: 2, chosen: {certainty: 'exact'}},
+  };
+  function forecastOf(byBranch: Record<number, ReadonlyArray<EffectForecastFact>>): EffectForecast {
+    return {facts: [], byBranch, discounts: {base: 0, final: 0, other: 0, items: []}, paymentValues: [], coverage: 'complete'} as unknown as EffectForecast;
+  }
+  function withForecast(forecast: EffectForecast): ActionPreview {
+    return {...p44(), forecast} as ActionPreview;
+  }
+
+  it('the Venus row carries «⚡ +6 M€» — and the temperature / oxygen rows carry nothing', () => {
+    const forecast = forecastOf({2: [VENUS_FACT]});
+    const v = preludeVariantOf(CardName.ATMOSPHERIC_ENHANCERS, withForecast(forecast))!;
+    const reactions = v.rows.map((row) => variantRowReaction(v, row, forecast));
+    expect(reactions.map((r) => r.total)).deep.eq([0, 0, 1]);
+    expect(reactions[2].chips.map((c) => [c.effect.icon, c.effect.amount])).deep.eq([['megacredits', 6]]);
+  });
+
+  it('a refused row promises nothing, whatever its branch would have set off', () => {
+    const forecast = forecastOf({2: [VENUS_FACT]});
+    const preview = withForecast(forecast);
+    (preview.branches as Array<ActionPreviewBranch>)[2] = {...preview.branches[2], available: false, index: -1, unavailableReason: 'x'};
+    const v = preludeVariantOf(CardName.ATMOSPHERIC_ENHANCERS, preview)!;
+    expect(variantRowReaction(v, v.rows[2], forecast).total).eq(0);
+  });
+
+  it('BEFORE the choice the play is read WHOLE — branch 0 is never folded in; the layer titles the branches', () => {
+    const forecast = forecastOf({0: [{...VENUS_FACT, id: 'temp', condition: {...VENUS_FACT.condition!, branchPos: 0}}], 2: [VENUS_FACT]});
+    const preview = withForecast(forecast);
+    const before = preludePlayForecast(CardName.ATMOSPHERIC_ENHANCERS, preview, undefined)!;
+    expect(before.facts, 'the queue\'s «Сработает» row states no branch\'s answer as the play\'s').deep.eq([]);
+    expect(Object.keys(before.byBranch ?? {})).deep.eq(['0', '2']);
+    expect(preludeForecastBranches(CardName.ATMOSPHERIC_ENHANCERS, preview, undefined).map((b) => [b.pos, b.title]))
+      .deep.eq([[0, 'Raise temperature 2 steps'], [1, 'Raise oxygen 2 steps'], [2, 'Raise Venus 2 steps']]);
+  });
+
+  it('AFTER the choice the forecast is that branch\'s, fixed — the fact restored to `exact`, no branch list', () => {
+    const forecast = forecastOf({0: [{...VENUS_FACT, id: 'temp'}], 2: [VENUS_FACT]});
+    const preview = withForecast(forecast);
+    const chosen = preludePlayForecast(CardName.ATMOSPHERIC_ENHANCERS, preview, 2)!;
+    expect(chosen.facts.map((f) => [f.id, f.certainty])).deep.eq([['vc', 'exact']]);
+    expect(chosen.byBranch).is.undefined;
+    expect(preludeForecastBranches(CardName.ATMOSPHERIC_ENHANCERS, preview, 2)).deep.eq([]);
+  });
+
+  it('a play with nothing to choose (one branch) is its only branch, fixed', () => {
+    const one = {kind: 'declarative', branches: [branch(-1, '', DRAW)], forecast: forecastOf({})} as unknown as ActionPreview;
+    expect(preludePlayForecast(CardName.ATMOSPHERIC_ENHANCERS, one, undefined)?.byBranch).is.undefined;
+    expect(preludeForecastBranches(CardName.ATMOSPHERIC_ENHANCERS, one, undefined)).deep.eq([]);
   });
 });

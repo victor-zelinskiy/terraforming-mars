@@ -742,7 +742,7 @@
               <transition name="con-start-firstact">
                 <div v-if="variantStep !== undefined" class="con-start__variant" data-start-variant
                      :style="variantLane !== undefined ? {'--con-start-qfx-l': variantLane.left + 'px', '--con-start-qfx-r': variantLane.right + 'px'} : undefined">
-                  <ConsolePreludeVariantStep :variant="variantStep" :focus="variantFocus" :sealed="variantSealed" @pick="onVariantPick" />
+                  <ConsolePreludeVariantStep :variant="variantStep" :focus="variantFocus" :sealed="variantSealed" :forecast="variantForecast" @pick="onVariantPick" />
                 </div>
               </transition>
               <div class="con-start__fxhost" data-forecast-host
@@ -755,6 +755,7 @@
                                     host="start"
                                     :operation="firstActionPanelShown ? 'action' : 'play'"
                                     :forecast="startForecast"
+                                    :branches="startForecastBranches"
                                     :cards="playerView.thisPlayer?.tableau ?? []"
                                     :color="playerView.thisPlayer?.color ?? ''"
                                     :players="playerView.players"
@@ -1293,7 +1294,7 @@ import type {RailReward} from '@/client/console/resourceTransfer/railReward';
 import {playRailReward, startPlaySpendReward, withRailAnswerTags} from '@/client/console/consoleActionCommit';
 import {railAnswerTags, ratingAnswerSpecs} from '@/client/console/played/receivingStageModel';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
-import {forecastForFixedBranch, forecastLayerAvailable, forecastRowPresent} from '@/client/console/effectForecastModel';
+import {ForecastBranchInfo, forecastForFixedBranch, forecastLayerAvailable, forecastRowPresent} from '@/client/console/effectForecastModel';
 import {EffectForecast} from '@/common/models/EffectForecastModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {TransferEnd} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -1304,7 +1305,7 @@ import {InputResponse} from '@/common/inputs/InputResponse';
 import {
   firstAvailableRow, PreludeVariant, preludePreStepStage, preludeVariantAnswer, preludeVariantOf, preludeVariantReading, preludeVariantRowOf,
   preludeVariantStepResponses, stepVariantFocus, placementOrderStepOf, placementOrderAnswer, PLACEMENT_ORDER_STAGE,
-  placementOrderStageParams,
+  placementOrderStageParams, preludeForecastBranches, preludePlayForecast,
 } from '@/client/console/preludeVariant/preludeVariantModel';
 import {closeEffectForecastLayer, effectForecastOpen, forecastExplorerUi, forecastStageText} from '@/client/console/consoleEffectForecast';
 import {
@@ -1989,6 +1990,11 @@ export default defineComponent({
         return undefined;
       }
       return preludeVariantOf(card, this.playPreviews.get(card));
+    },
+    /** The «ВАРИАНТ» step's card's WHOLE forecast (P65 · GH): each row reads its own branch's table answer from it. */
+    variantForecast(): EffectForecast | undefined {
+      const card = this.variantCard;
+      return card === undefined ? undefined : this.playPreviews.get(card)?.forecast;
     },
     wsSubject(): string {
       return this.crumb.subject;
@@ -3216,6 +3222,16 @@ export default defineComponent({
     /** The ONE layer of the stage reads the door that opened it: the first action's briefing, else the queue's Prelude. */
     startForecast(): EffectForecast | undefined {
       return this.firstActionPanelShown ? this.firstActionForecast : this.queueForecast;
+    },
+    /** The layer titles a variant prelude's branch-tied facts by their branch — only while the variant is unchosen (P65 · GH). */
+    startForecastBranches(): ReadonlyArray<ForecastBranchInfo> {
+      const name = this.firstActionPanelShown ? undefined : this.queueForecastCard;
+      if (name === undefined) {
+        return [];
+      }
+      const preview = this.playPreviews.get(name);
+      const chosen = preludeVariantRowOf(preview === undefined ? undefined : preludeVariantOf(name, preview), this.variantChosen.get(name));
+      return preludeForecastBranches(name, preview, chosen?.position);
     },
     startForecastCanOpen(): boolean {
       return this.firstActionForecastCanOpen || this.queueForecastCanOpen;
@@ -9319,8 +9335,8 @@ export default defineComponent({
      * for a card with no choice, the CHOSEN branch once the «ВАРИАНТ» step answered (P44: the ceremony used to read
      * branch 0 whatever the player chose — the temperature's TR for a Venus play).
      */
-    applyPlayPreview(name: CardName, preview: ActionPreview, position: number, version: string, stepResponses: Readonly<Record<number, unknown>> = {}): void {
-      const branch = preview.branches?.[position] ?? preview.branches?.[0];
+    applyPlayPreview(name: CardName, preview: ActionPreview, position: number | undefined, version: string, stepResponses: Readonly<Record<number, unknown>> = {}): void {
+      const branch = preview.branches?.[position ?? 0] ?? preview.branches?.[0];
       if (branch === undefined) {
         return;
       }
@@ -9342,7 +9358,8 @@ export default defineComponent({
       }
       // The rail half — the ceremony pre-collects nothing; a rating's card answer (TR81 Lotus Innovations' data) rides it
       // after the TR, like the play composer's.
-      const playForecast = forecastForFixedBranch(preview.forecast, position);
+      // A variant not chosen yet is read WHOLE (P65 · GH): its branch-tied answers stay on their rows, never branch 0's.
+      const playForecast = preludePlayForecast(name, preview, position);
       if (this.rewardVersion === version) {
         if (playForecast !== undefined) {
           this.playForecasts.set(name, playForecast);
@@ -9430,7 +9447,7 @@ export default defineComponent({
             // Kept whole: a prelude with branches is chosen in the «ВАРИАНТ» step (P44) and re-read for the chosen one.
             this.playPreviews.set(name, preview);
             const chosen = preludeVariantRowOf(preludeVariantOf(name, preview), this.variantChosen.get(name));
-            this.applyPlayPreview(name, preview, chosen?.position ?? 0, version, preludeVariantStepResponses(chosen));
+            this.applyPlayPreview(name, preview, chosen?.position, version, preludeVariantStepResponses(chosen));
           })
           .catch(() => {
             // `fetchPreview` never rejects — an absent preview simply arrives

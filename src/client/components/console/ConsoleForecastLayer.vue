@@ -21,6 +21,7 @@
                                 :operation="operation"
                                 :explorerUi="ui"
                                 :forecast="forecast"
+                                :branches="branches"
                                 :cards="cards"
                                 :color="color"
                                 :players="players"
@@ -36,7 +37,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {EffectForecast} from '@/common/models/EffectForecastModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
-import {ForecastOperation} from '@/client/console/effectForecastModel';
+import {ForecastBranchInfo, ForecastOperation} from '@/client/console/effectForecastModel';
 import {EffectForecastHost, effectForecastOpen, forecastExplorerUi} from '@/client/console/consoleEffectForecast';
 import {EffectsExplorerUi} from '@/client/console/consoleEffectsExplorer';
 import {
@@ -58,6 +59,8 @@ export default defineComponent({
     statsByColor: {type: Object as PropType<Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>>>, default: () => ({})},
     /** The WHEN answer of an immediate reaction («сразу после выполнения» for a stage's act). */
     operation: {type: String as PropType<ForecastOperation>, default: 'action'},
+    /** The branches a host's «depends» facts are titled by (a prelude's unchosen variant — P65 · GH). */
+    branches: {type: Array as PropType<ReadonlyArray<ForecastBranchInfo>>, default: () => []},
   },
   computed: {
     open(): boolean {

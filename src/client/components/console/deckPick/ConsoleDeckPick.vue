@@ -153,7 +153,7 @@
       <transition name="con-start-firstact">
         <div v-if="variantStep !== undefined" class="con-deckpick__variant" data-deckpick-variant
              :style="variantLane !== undefined ? {'--con-dp-var-l': variantLane.left + 'px', '--con-dp-var-r': variantLane.right + 'px'} : undefined">
-          <ConsolePreludeVariantStep :variant="variantStep" :focus="variantFocus" @pick="onVariantPick" />
+          <ConsolePreludeVariantStep :variant="variantStep" :focus="variantFocus" :forecast="candidatePreviews[variantStep.card]?.forecast" @pick="onVariantPick" />
         </div>
       </transition>
 
