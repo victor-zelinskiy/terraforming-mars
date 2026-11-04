@@ -24,7 +24,12 @@ import {readTransient, recordTransient} from './transientRecorder';
  *       printed Venus icon (a row printing fewer icons than tokens births them all on its first);
  *   (D) mid-game (`venus-l1-shade-wg`, the action phase): WG Project deals P66 — the FIELD tells the rating as before,
  *       never the hero a second time (at most three rating tokens, none born on a card face);
- *   (F) the storyboard of A (`TM_E2E_STORYBOARD=1` → screenshots/p66/tv4k/story-*).
+ *   (F) the storyboard of A (`TM_E2E_STORYBOARD=1` → screenshots/p66/tv4k/story-*);
+ *   PL-1810 — the gaps' stands: (C) RX42 on the start (`venus-l1-shade-veto` — the two seats tie at the top): the scale
+ *       moves +3, NO rating token flies, the cell stands and wears the veto's mark; (B2) P44's TEMPERATURE row on the
+ *       start (`venus-l1-shade-temperature`): two tokens off its printed temperature icon; (G) the ACTION phase with P57
+ *       ARMED (`venus-l1-shade-wg-skip` — WG Project deals P66): the card eats the first step, the FIELD flies the two that
+ *       paid — the cell +1 on each touchdown, never a silent tick (before PL-1810 the exact «rise = steps» dropped it all).
  * RX42 on the start (the refused rating flies nothing) is pinned by `tests/console/playRailRule.spec.ts` § P66 · GJ; the
  * rules by `tests/cards/prelude2/VenusL1Shade.spec.ts`. TIMING class (`timingSpecs.ts`).
  */
@@ -274,6 +279,105 @@ test.describe(`P66 Venus L1 Shade · a scale step at the start pays its rating �
     expectToldByTheHero(poses, 2, 'B', false);
     expect(endsOverGlass(witness), 'B: no end over glass or nothing').toEqual([]);
     expect(logs.filter((l) => /start-shadow|\[liveness\]|workspace-stall|rail-owed/.test(l)), 'no shadow finding, no stall, no owed rail').toEqual([]);
+  });
+
+  test('(C) PL-1810 — RX42 on the start: the scale moves +3, the refused rating flies NOTHING, the cell wears the veto', async ({page, request}) => {
+    test.setTimeout(420_000);
+    const id = await bootFixture(page, request, 'venus-l1-shade-veto', {query: PRESET.query, landing: 'prompt'});
+    await settle(page, {timeoutMs: 30_000});
+    await expect(page.locator(`.con-start [data-queue-slot="${CARD}"]`), 'the prelude stands in the deployment queue').toHaveCount(1, {timeout: 60_000});
+    await settle(page, {timeoutMs: 30_000});
+    const before = await wireOf(request, id);
+    await armTransferWitness(page);
+    await recordRatingStory(page, 'p66-c', 'venus');
+    expect(await playQueueCard(page, CARD), 'P66 was played from the queue').toBe(true);
+    await expect.poll(async () => (await wireOf(request, id)).game.venusScaleLevel, {timeout: 40_000, message: 'the server: Venus 6 %'}).toBe(6);
+    await waitQueueIdle(page, 60_000);
+    await settle(page, {timeoutMs: 60_000}).catch(() => undefined);
+    await shoot(page, 'C-01-after');
+    const after = await wireOf(request, id);
+    expect(after.thisPlayer.terraformRating, 'the server: the rating refused').toBe(before.thisPlayer.terraformRating);
+    const poses = await readTransient<RatingPose>(page, 'p66-c');
+    const witness = await transferWitness(page);
+    writeText('C-trail.txt', transferTrail(witness));
+    expect(birthsOf(poses), 'C: no rating token for a refused rating').toEqual([]);
+    expect(ticksOf(poses, 'tr').length, 'C: the cell never moves').toBeLessThanOrEqual(1);
+    expect(witness.landings.filter((l) => l.under === 'rail:tr'), 'C: nothing lands on the rating cell').toEqual([]);
+    await expect(page.locator('.con-res .con-score__cell--tr.con-score__cell--vetoed'), 'C: the cell wears the veto\'s mark').toHaveCount(1, {timeout: 20_000});
+  });
+
+  test('(B2) PL-1810 — P44\'s TEMPERATURE row on the start: two rating tokens off its printed temperature icon', async ({page, request}) => {
+    test.setTimeout(420_000);
+    const id = await bootFixture(page, request, 'venus-l1-shade-temperature', {query: PRESET.query, landing: 'prompt'});
+    await settle(page, {timeoutMs: 30_000});
+    await expect(page.locator(`.con-start [data-queue-slot="${ENHANCERS}"]`), 'P44 stands in the deployment queue').toHaveCount(1, {timeout: 60_000});
+    await settle(page, {timeoutMs: 30_000});
+    const before = await wireOf(request, id);
+    const focused = () => page.evaluate(() => document.querySelector('.con-start__qcard--focused')?.getAttribute('data-queue-slot') ?? '');
+    expect(await walkFocusUntil(page, async () => await focused() === ENHANCERS, focused, 8), 'P44 focused in the queue').toBe(true);
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('[data-start-variant] [data-prelude-variant-row]').count() === 3,
+      {tries: 3, settleMs: 900}), 'the «ВАРИАНТ» step stands').toBe(true);
+    await settle(page);
+    for (let i = 0; i < 6 && await page.locator('[data-start-variant] .con-vchoice__opt--focused').getAttribute('data-prelude-variant-row') !== '0'; i++) {
+      await press(page, 'ArrowUp', 200);
+    }
+    await expect(page.locator('[data-start-variant] .con-vchoice__opt--focused')).toHaveAttribute('data-prelude-variant-row', '0');
+    await armTransferWitness(page);
+    await recordRatingStory(page, 'p66-b2', 'temperature');
+    await press(page, 'Enter', 400);
+    await expect.poll(async () => (await wireOf(request, id)).thisPlayer.terraformRating, {timeout: 40_000, message: 'the server: TR +2'})
+      .toBe(before.thisPlayer.terraformRating + 2);
+    await waitQueueIdle(page, 60_000);
+    await settle(page, {timeoutMs: 60_000}).catch(() => undefined);
+    await shoot(page, 'B2-after');
+    const poses = await readTransient<RatingPose>(page, 'p66-b2');
+    const witness = await transferWitness(page);
+    writeText('B2-poses.txt', poses.map((x) => `${Math.round(x.t)} ${JSON.stringify(x.v)}`).join('\n'));
+    writeText('B2-trail.txt', transferTrail(witness));
+    expectToldByTheHero(poses, 2, 'B2', false);
+    expect(endsOverGlass(witness), 'B2: no end over glass or nothing').toEqual([]);
+  });
+
+  test('(G) PL-1810 — the action phase with P57 ARMED: the card eats the first step, the FIELD flies the two that paid', async ({page, request}) => {
+    test.setTimeout(420_000);
+    const id = await bootFixture(page, request, 'venus-l1-shade-wg-skip', {query: PRESET.query});
+    await settle(page);
+    const before = await wireOf(request, id);
+    expect(await playCardFromHand(page, 'WG Project'), 'WG Project was played').toBeTruthy();
+    const pick = '.con-hand__outcome .con-deckpick--play';
+    await expect(page.locator(`${pick}[data-flow="choosing"]`), 'the prelude pick stands in the hand').toHaveCount(1, {timeout: 40_000});
+    const focused = () => page.evaluate(() => document.querySelector('.con-deckpick .con-cards__slot--focused')?.getAttribute('data-deckpick-slot') ?? '');
+    expect(await walkFocusUntil(page, async () => await focused() === CARD, focused, 12), `focused ${CARD}`).toBeTruthy();
+    await armTransferWitness(page);
+    await recordRatingStory(page, 'p66-g', 'venus');
+    await press(page, 'Enter', 400);
+    await settle(page, {timeoutMs: 20_000}).catch(() => undefined);
+    for (let i = 0; i < 3 && !(await wireOf(request, id)).thisPlayer.tableau.some((c) => c.name === CARD); i++) {
+      await press(page, 'Period', 1500);
+    }
+    await expect.poll(async () => (await wireOf(request, id)).game.venusScaleLevel, {timeout: 40_000, message: 'the server: Venus +6 %'})
+      .toBe(before.game.venusScaleLevel + 6);
+    // The field's beat plays on a board the player can see (the hand / workspace gone): wait for its two landings.
+    await expect.poll(async () => (await transferWitness(page)).landings.filter((l) => l.under === 'rail:tr').length,
+      {timeout: 60_000, message: 'G: the field\'s tokens land on the rating cell'}).toBe(2);
+    await settle(page, {timeoutMs: 60_000}).catch(() => undefined);
+    await shoot(page, 'G-01-after');
+    const after = await wireOf(request, id);
+    expect(after.thisPlayer.terraformRating - before.thisPlayer.terraformRating, 'the server: TR +2 — P57 ate one').toBe(2);
+    const poses = await readTransient<RatingPose>(page, 'p66-g');
+    const witness = await transferWitness(page);
+    writeText('G-poses.txt', poses.map((x) => `${Math.round(x.t)} ${JSON.stringify(x.v)}`).join('\n'));
+    writeText('G-trail.txt', transferTrail(witness));
+    const births = birthsOf(poses);
+    const tr = ticksOf(poses, 'tr');
+    const dump = `births ${JSON.stringify(births)} · tr ${tr.map((x) => `${x.v}@${Math.round(x.t)}`).join(' → ')}`;
+    expect(births.length, `G: two rating tokens — the steps that PAID (${dump})`).toBe(2);
+    expect(births.filter((b) => b.icon >= 0), `G: born on the marker, never on a card face (${dump})`).toEqual([]);
+    const tr0 = before.thisPlayer.terraformRating;
+    expect(tr.map((x) => x.v), `G: the cell +1 on each touchdown (${dump})`).toEqual([tr0, tr0 + 1, tr0 + 2]);
+    expect(tr[1].t, `G: no tick before the first token flies (${dump})`).toBeGreaterThanOrEqual(Math.min(...births.map((b) => b.t)));
+    await expect(page.locator('.con-res .con-score__cell--tr[data-tr-skip="spent"]'), 'G: P57\'s mark spent').toHaveCount(1, {timeout: 20_000});
+    expect(endsOverGlass(witness), 'G: no end over glass or nothing').toEqual([]);
   });
 
   test('(D) mid-game: WG Project deals P66 — the field tells the rating in the action phase, never the hero a second time', async ({page, request}) => {

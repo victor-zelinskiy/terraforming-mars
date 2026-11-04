@@ -21,7 +21,7 @@ import {Phase} from '@/common/Phase';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {
-  resetScaleStepRating, scaleStepRatingBusy, scaleStepRatingPlan, scaleStepRatingState, seedScaleStepRatingHold,
+  resetScaleStepRating, scaleStepRatingBusy, scaleStepRatingPlan, scaleStepRatingRefusal, scaleStepRatingState, seedScaleStepRatingHold,
 } from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {commitRailPlan, playRailReward, withoutAgendaWalkAnswers, withoutScaleStepAnswers} from '@/client/console/consoleActionCommit';
 import {noteScaleMarkerMoving, noteScaleMarkerSettled, resetScaleMarkerPoses} from '@/client/components/board/scaleMarkerArrival';
@@ -34,7 +34,7 @@ import {Color} from '@/common/Color';
 import {Resource} from '@/common/Resource';
 import {CardReactionRecord} from '@/common/models/CardReactionModel';
 
-type Seat = {terraformRating?: number, megacredits?: number};
+type Seat = {terraformRating?: number, megacredits?: number, ratingSkip?: 'armed' | 'spent'};
 type Scales = {temperature?: number, oxygenLevel?: number, venusScaleLevel?: number, oceans?: number, phase?: Phase, cardReactions?: ReadonlyArray<CardReactionRecord>};
 
 function view(seat: Seat, scales: Scales, id = 'p-blue'): PlayerViewModel {
@@ -102,6 +102,28 @@ describe('scaleStepRatingPlan (pure) — the promise off the diff', () => {
     expect(scaleStepRatingPlan(view({}, {venusScaleLevel: 6}), view({terraformRating: 21}, {venusScaleLevel: 8}, 'p-red')), 'another seat').is.undefined;
     expect(scaleStepRatingPlan(view({}, {venusScaleLevel: 8}), view({terraformRating: 21}, {venusScaleLevel: 6})), 'a lowering').is.undefined;
     expect(scaleStepRatingPlan(undefined, view({terraformRating: 21}, {venusScaleLevel: 8})), 'a first view').is.undefined;
+  });
+});
+
+describe('PL-1810 — a step a CARD ATE (P57 Preservation Program) is named by the server, never a refused story', () => {
+  it('Venus +3 with the skip ARMED → spent in the same response: the rise is 2 — the plan plays the 2 that paid, the Greens\' 4', () => {
+    const plan = scaleStepRatingPlan(view({ratingSkip: 'armed'}, {venusScaleLevel: 0}), view({terraformRating: 22, megacredits: 24, ratingSkip: 'spent'}, {venusScaleLevel: 6}));
+    expect(plan).deep.include({rating: 2, skipped: 1, reaction: 4, venusBonus: false});
+  });
+
+  it('the same shortfall with NO eaten step (the mark already spent, or no card) is no scale story — refused', () => {
+    expect(scaleStepRatingPlan(view({ratingSkip: 'spent'}, {venusScaleLevel: 0}), view({terraformRating: 22, ratingSkip: 'spent'}, {venusScaleLevel: 6}))).is.undefined;
+    expect(scaleStepRatingPlan(view({}, {venusScaleLevel: 0}), view({terraformRating: 22}, {venusScaleLevel: 6}))).is.undefined;
+  });
+
+  it('a WHOLE rise with the mark still armed plays every step — `skipped` absent', () => {
+    const plan = scaleStepRatingPlan(view({ratingSkip: 'armed'}, {venusScaleLevel: 0}), view({terraformRating: 23, ratingSkip: 'armed'}, {venusScaleLevel: 6}));
+    expect(plan?.rating).eq(3);
+    expect(plan).not.to.have.property('skipped');
+  });
+
+  it('one step, eaten: nothing rose — nothing to fly (the card\'s own reaction tells it)', () => {
+    expect(scaleStepRatingPlan(view({ratingSkip: 'armed'}, {venusScaleLevel: 6}), view({ratingSkip: 'spent'}, {venusScaleLevel: 8}))).is.undefined;
   });
 });
 
@@ -215,6 +237,24 @@ describe('scaleStepRatingBeat — cause before consequence', () => {
     seedScaleStepRatingHold(view({}, {oceans: 0}), view({terraformRating: 21}, {oceans: 1}));
     expect(heldStock(RATING_RAIL_KEY)).eq(0);
     expect(scaleStepRatingBusy()).is.false;
+  });
+
+  it('PL-1810 — the eaten step: the seed holds the TWO steps that paid (never three, never none) and the Greens\' 4', () => {
+    mountMarker();
+    watchable = false;
+    noteScaleMarkerSettled('venus', 0);
+    seedScaleStepRatingHold(view({ratingSkip: 'armed'}, {venusScaleLevel: 0}), view({terraformRating: 22, megacredits: 24, ratingSkip: 'spent'}, {venusScaleLevel: 6}));
+    expect(heldStock(RATING_RAIL_KEY), 'two tokens — the eaten step flies nothing').eq(2);
+    expect(heldStock('megacredits'), 'the Greens answer the rating that ROSE').eq(4);
+    expect(scaleStepRatingState.tokens).eq(2);
+  });
+
+  it('PL-1810 — an unexplained shortfall seeds nothing and NAMES itself', () => {
+    mountMarker();
+    seedScaleStepRatingHold(view({}, {venusScaleLevel: 0}), view({terraformRating: 22}, {venusScaleLevel: 6}));
+    expect(heldStock(RATING_RAIL_KEY)).eq(0);
+    expect(scaleStepRatingRefusal(view({}, {venusScaleLevel: 0}), view({terraformRating: 22}, {venusScaleLevel: 6}))).to.match(/rating .2 for 3 scale step/);
+    expect(scaleStepRatingRefusal(view({}, {oceans: 0}), view({terraformRating: 21}, {oceans: 1})), 'no scale moved — nothing to name').is.undefined;
   });
 
   it('the stage: the board watchable, the park\'s value released and the marker ARRIVED — the beat stays waiting until all three', async () => {

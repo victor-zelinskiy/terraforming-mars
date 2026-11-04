@@ -34,7 +34,9 @@
  * viewer's rating rose by exactly the steps the scales made (+ the 16 %
  * bonus), in the action phase, the same seat; the answer is the M€ delta only
  * when it is exactly 2 M€ per rating; a row that moved otherwise is not held
- * and names itself), the counters are held on the PANEL (`beginPanelRewardHold`
+ * and names itself — PL-1810: a rise ONE short is the steps less a step a card ATE, accepted only when P57's server
+ * mark flipped `armed → spent` in the same response (the eaten first step flies nothing; any other shortfall plays
+ * nothing and names itself in the trail `scale-step:refused`)), the counters are held on the PANEL (`beginPanelRewardHold`
  * — the rail paints `committed − held`), the named hold `scale-step-rating`
  * is NOTIFICATION-ONLY, and the stage is a ledger debt that degrades (the
  * player never came back to the board → the cell ticks, nothing flies). A
@@ -63,7 +65,7 @@ import {
 } from '@/client/console/boardBeatPark';
 import {verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {
-  beginPanelRewardHold, heldStock, releasePanelRewardHold, runResourceTransfers,
+  beginPanelRewardHold, heldStock, noteTransferTrail, releasePanelRewardHold, runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TransferPoint, railRowKey,
@@ -103,6 +105,13 @@ export type ScaleStepRatingPlan = {
   rating: number;
   /** The Venus 16 % crossing paid one of them. */
   venusBonus: boolean;
+  /**
+   * The steps a CARD ATE (PL-1810 — P57 Preservation Program: «skip the first TR you gain in each action phase»): the
+   * server's own mark flipped `armed → spent` in this very response, so the rise is the steps less that one. Those
+   * steps fly nothing (the card's own reaction rises and marks its struck icon); the tokens are the steps that PAID.
+   * Absent when nothing was eaten.
+   */
+  skipped?: number;
   /** The ruling Greens' answer (2 M€ per rating step) — only when the M€ moved by exactly that. */
   reaction?: number;
 };
@@ -169,7 +178,11 @@ export function scaleStepRatingPlan(
   const venusAfter = after.game.venusScaleLevel;
   const venusBonus = typeof venusBefore === 'number' && typeof venusAfter === 'number' &&
     venusBefore < VENUS_TR_BONUS_LEVEL && venusAfter >= VENUS_TR_BONUS_LEVEL;
-  if (rating !== steps + (venusBonus ? 1 : 0)) {
+  // A rise SHORT of the steps is honest only when the server says why in the same response: P57's mark flipped
+  // `armed → spent` (it ate the first rating step). Any other shortfall is not the scales' story — refused (PL-1810).
+  const paid = steps + (venusBonus ? 1 : 0);
+  const skipped = rating === paid ? 0 : 1;
+  if (skipped > 0 && !(ratingStepEaten(was, now) && rating === paid - 1)) {
     return undefined;
   }
   // A CARD's answer on the same row (the server's card-reaction record — Homeostasis Bureau's 3 M€ per step, CN) is
@@ -179,10 +192,35 @@ export function scaleStepRatingPlan(
     moves,
     rating,
     venusBonus,
+    ...(skipped > 0 ? {skipped} : {}),
     // The answer is recognized only on a rise that is the scales' alone — beside another owner's rating the M€ row
     // carries that owner's answer too, and a guessed split is never flown.
     ...(heldByOthers === 0 && megacredits === GREENS_MEGACREDITS_PER_TR * rating ? {reaction: megacredits} : {}),
   };
+}
+
+/** P57's server mark flipped `armed → spent` between the two views: one rating step of this response was EATEN. */
+function ratingStepEaten(was: {ratingSkip?: 'armed' | 'spent'}, now: {ratingSkip?: 'armed' | 'spent'}): boolean {
+  return was.ratingSkip === 'armed' && now.ratingSkip === 'spent';
+}
+
+/**
+ * WHY a diff with a scale step and a rating rise plays no beat (PL-1810 — a refusal NAMES itself): the rise matches
+ * neither the steps nor the steps less an eaten one. Undefined when there is nothing to name (no scale moved, no rise,
+ * another seat, another phase, or the plan played).
+ */
+export function scaleStepRatingRefusal(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined, heldByOthers = 0): string | undefined {
+  if (before === undefined || after === undefined || before.id !== after.id || after.game.phase !== Phase.ACTION ||
+      scaleStepRatingPlan(before, after, heldByOthers) !== undefined) {
+    return undefined;
+  }
+  const rise = (after.thisPlayer?.terraformRating ?? 0) - (before.thisPlayer?.terraformRating ?? 0) - heldByOthers;
+  const steps = SCALES.reduce((sum, scale) => {
+    const a = before.game[scale.field];
+    const b = after.game[scale.field];
+    return typeof a === 'number' && typeof b === 'number' && b > a ? sum + (b - a) / scale.unit : sum;
+  }, 0);
+  return rise > 0 && steps > 0 ? `rating +${rise} for ${steps} scale step(s) — not the scales' rating (no eaten step to explain it)` : undefined;
 }
 
 /** Where each token is BORN: on the marker of the scale that paid it — the 16 % bonus on its own chip. */
@@ -264,7 +302,8 @@ function originsOf(plan: ScaleStepRatingPlan): Array<TokenOrigin> {
   if (plan.venusBonus) {
     out.push({accent: 'venus', bonus: true});
   }
-  return out;
+  // The EATEN step is the FIRST rating step of the event (P57 skips the first TR gained) — it flies nothing.
+  return out.slice(plan.skipped ?? 0);
 }
 
 /** Release whatever the panel still holds for the entry — idempotent. */
@@ -290,7 +329,14 @@ export function seedScaleStepRatingHold(before: PlayerViewModel | undefined, aft
     return;
   }
   const plan = scaleStepRatingPlan(before, after, heldThisResponse);
-  if (plan === undefined || typeof document === 'undefined' || consoleReducedMotionActive()) {
+  if (plan === undefined) {
+    const why = scaleStepRatingRefusal(before, after, heldThisResponse);
+    if (why !== undefined) {
+      noteTransferTrail('scale-step:refused', {why});
+    }
+    return;
+  }
+  if (typeof document === 'undefined' || consoleReducedMotionActive()) {
     return;
   }
   // ONE UNIT, ONE TELLER (P66 · GJ): a host of this response already tells the scale's rating (the start's hero, off the

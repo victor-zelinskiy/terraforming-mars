@@ -14417,7 +14417,7 @@ parliamentFixture('venus-contract-sitting', {
 //      · `venus-l1-shade-wg`        — mid-game: WG Project deals P66 first (the action phase — the FIELD tells the
 //        rating, never the hero twice; stand D).
 //    A DRY RUN plays each road on a copy, so a rule change fails HERE. ──
-function venusL1ShadeStartFixture(name: string, preludes: readonly [CardName, CardName]): void {
+function venusL1ShadeStartFixture(name: string, preludes: readonly [CardName, CardName], opts: {veto?: boolean, branch?: RegExp} = {}): void {
   const pinned = [CardName.TERACTOR, CardName.ARIDOR];
   const [game, blue, red] = testGame(2, {
     skipInitialCardSelection: false, preludeExtension: true, prelude2Expansion: true, venusNextExtension: true,
@@ -14457,6 +14457,10 @@ function venusL1ShadeStartFixture(name: string, preludes: readonly [CardName, Ca
   if (queue?.startGamePrompt?.kind !== 'preludeSelection' || !blue.tableau.has(CardName.TERACTOR) || game.parliament?.rulingParty() !== PartyName.GREENS) {
     throw new Error(`${name}: expected blue's deployment queue with Teractor played and the Greens ruling — got ${queue?.type} ${JSON.stringify(queue?.startGamePrompt)} ruling ${game.parliament?.rulingParty()}`);
   }
+  // RX42 enacted (PL-1810 · C): the two seats tie at the top — the veto binds both, blue's rating is refused, the scale moves.
+  if (opts.veto === true) {
+    seatEnacted(game.parliament!, resolutionInstanceId(UNMI_VETO_ID, 0));
+  }
   // THE DRY RUN — the first prelude on a copy: the steps, their rating and the Greens' answer.
   const copy = Game.deserialize(structuredClone(game.serialize()));
   const seat = copy.getPlayerById(blue.id);
@@ -14464,19 +14468,27 @@ function venusL1ShadeStartFixture(name: string, preludes: readonly [CardName, Ca
   seat.process({type: 'card', cards: [preludes[0]]});
   runAllActions(copy);
   const or = seat.getWaitingFor();
+  const branch = opts.branch ?? /Venus/;
   if (or instanceof OrOptions) {
-    const venus = or.options.findIndex((o) => typeof o.title === 'string' && /Venus/.test(o.title));
-    seat.process({type: 'or', index: venus, response: {type: 'option'}});
+    const at = or.options.findIndex((o) => typeof o.title === 'string' && branch.test(o.title));
+    seat.process({type: 'or', index: at, response: {type: 'option'}});
     runAllActions(copy);
   }
   const steps = preludes[0] === CardName.VENUS_L1_SHADE ? 3 : 2;
-  if (copy.getVenusScaleLevel() !== 2 * steps || seat.terraformRating !== tr + steps || seat.megaCredits !== mc + 2 * steps) {
-    throw new Error(`${name}: the dry run expected Venus ${2 * steps} %, TR +${steps}, the Greens +${2 * steps} M€ — got ${copy.getVenusScaleLevel()} %, TR +${seat.terraformRating - tr}, ${seat.megaCredits - mc} M€`);
+  const venus = branch.source === 'Venus' ? 2 * steps : 0;
+  const rating = opts.veto === true ? 0 : steps;
+  const greens = opts.veto === true ? 0 : 2 * steps;
+  if (copy.getVenusScaleLevel() !== venus || seat.terraformRating !== tr + rating || seat.megaCredits !== mc + greens) {
+    throw new Error(`${name}: the dry run expected Venus ${venus} %, TR +${rating}, ${greens} M€ — got ${copy.getVenusScaleLevel()} %, TR +${seat.terraformRating - tr}, ${seat.megaCredits - mc} M€`);
   }
   write(name, game);
 }
 venusL1ShadeStartFixture('venus-l1-shade-start', [CardName.VENUS_L1_SHADE, CardName.DONATION]);
 venusL1ShadeStartFixture('venus-l1-shade-enhancers', [CardName.ATMOSPHERIC_ENHANCERS, CardName.DONATION]);
+// PL-1810 — the gaps' stands: RX42 on the start (C — the scale moves, the refused rating flies nothing) and P44's
+// TEMPERATURE row on the start (B2 — two tokens off the printed temperature icons; the fixture is the enhancers' one).
+venusL1ShadeStartFixture('venus-l1-shade-veto', [CardName.VENUS_L1_SHADE, CardName.DONATION], {veto: true});
+venusL1ShadeStartFixture('venus-l1-shade-temperature', [CardName.ATMOSPHERIC_ENHANCERS, CardName.DONATION], {branch: /temperature/i});
 wgProjectFixture('venus-l1-shade-wg', {
   top: [CardName.VENUS_L1_SHADE, CardName.DONATION, CardName.SUPPLIER],
   under: [CardName.LOAN],
@@ -14486,5 +14498,24 @@ wgProjectFixture('venus-l1-shade-wg', {
     pick: CardName.VENUS_L1_SHADE,
     expect: (blue, copy) => blue.tableau.has(CardName.VENUS_L1_SHADE) && copy.getVenusScaleLevel() === 6 ? undefined :
       `expected P66 played and Venus 6 % — got tableau=${blue.tableau.has(CardName.VENUS_L1_SHADE)} Venus ${copy.getVenusScaleLevel()} %`,
+  },
+});
+// PL-1810 · G — the ACTION phase with P57 Preservation Program ARMED on blue's table: WG Project deals P66, Venus +3, the
+// card eats the first rating step (TR +2) — the FIELD tells the two steps that paid, never a silent tick.
+wgProjectFixture('venus-l1-shade-wg-skip', {
+  top: [CardName.VENUS_L1_SHADE, CardName.DONATION, CardName.SUPPLIER],
+  under: [CardName.LOAN],
+  megacredits: 20,
+  venus: true,
+  also: (game) => {
+    const blue = game.players[0];
+    blue.playedCards.push(newPrelude(CardName.PRESERVATION_PROGRAM)!);
+    blue.preservationProgram = true;
+    blue.trThisGeneration = 0;
+  },
+  dry: {
+    pick: CardName.VENUS_L1_SHADE,
+    expect: (blue, copy) => copy.getVenusScaleLevel() === 6 && blue.tableau.has(CardName.PRESERVATION_PROGRAM) && blue.preservationProgram === false ? undefined :
+      `expected P66 played, Venus 6 % and the skip spent — got Venus ${copy.getVenusScaleLevel()} %, armed=${blue.preservationProgram}`,
   },
 });
