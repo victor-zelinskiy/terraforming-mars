@@ -1196,7 +1196,7 @@ import {
   buildInitialCardsResponse, campaignWizardExtra, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, deploymentJourneyItems,
   driftDockPile, ensureStartWizard, holdStartScene, initialCardsInputOf, initialCardsSignature,
   markStartDeploymentBegun, setStartCampaignCorpStage, startAwaitingOthers, startDeploymentBegun,
-  picksForStep, releaseStartScene, StartCrewMate, StartCrumb, StartDockPileModel, startFlowBusy,
+  picksForStep, releaseStartScene, setStartHeroPlaying, StartCrewMate, StartCrumb, StartDockPileModel, startFlowBusy,
   StartLaunchState, StartParticipant, startDockPiles, startJourneyItems, startLaunchState, startRailCommitted,
   sponsorCrumb, startCardAvailability, startParticipants, StartWizardStep, stepComplete,
   stepShowsAvailability, wizardCrumb, wizardSteps,
@@ -4351,6 +4351,18 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * THE START'S OWN PLAY ENDS WITH ITS HERO (P57 · FQ): the fact `armStartHero` raises is let go when the played-card
+     * hero finishes (or was never armed — immediate: a remount with no hero standing clears a stale one).
+     */
+    'heroState.active': {
+      immediate: true,
+      handler(active: boolean): void {
+        if (!active) {
+          setStartHeroPlaying(false);
+        }
+      },
+    },
     /** The queue's box is re-observed whenever the ceremony (re)mounts it; its count re-solves the size (TRP0 · DE). */
     'queueCards.length': {
       flush: 'post',
@@ -9132,6 +9144,8 @@ export default defineComponent({
         sourceFace: {lightweight: true},
         landingFace: {lightweight: true, model: 'none'},
       });
+      // THE START'S OWN PLAY IS IN FLIGHT (P57 · FQ): the frame lives while it runs, whatever the prompt admission says.
+      setStartHeroPlaying(true);
     },
     /**
      * Pre-fetch the on-play rewards of every card the player can press in the

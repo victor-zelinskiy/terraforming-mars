@@ -31,6 +31,7 @@
  * Pure + unit-tested (tests/client/components/console/consoleCardActions.spec.ts).
  */
 
+import {RatingRefusalSource, ratingRefusalOfEffects} from '@/client/console/ratingRefusal';
 import {reactive} from 'vue';
 import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
@@ -143,6 +144,8 @@ export type ConsoleActionTile = {
    * (`futile`, which outranks this note). Undefined when nothing is struck.
    */
   ratingVetoed?: number;
+  /** WHO refuses that rating — the law (RX42) or a card's standing skip (P57 Preservation Program); the note's words. */
+  ratingRefusal?: RatingRefusalSource;
   /**
    * The STRUCTURED semantics of that reason (undefined when available): does it
    * take the action out of the potential count, and which register does the
@@ -998,7 +1001,7 @@ function buildTiles(
       hasChoices: (preview?.preSteps ?? []).length > 0 || avail.branching || branchNeedsChoices(branch),
       choiceKinds: branchChoiceKinds(branch, preview, avail.branching),
       cardPickAmount: firstCardPickAmount(branch, preview),
-      ...(vetoedRatingOf(branch) > 0 ? {ratingVetoed: vetoedRatingOf(branch)} : {}),
+      ...(vetoedRatingOf(branch) > 0 ? {ratingVetoed: vetoedRatingOf(branch), ratingRefusal: ratingRefusalOfEffects(branch?.effects ?? []) ?? 'law'} : {}),
       reason,
       ...(futile !== undefined ? {futile} : {}),
       // A 'soft' variant is blocked by the WINDOW only (the card meets every

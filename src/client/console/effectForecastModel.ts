@@ -111,7 +111,7 @@ function mergeEffect(into: ActionEffect, add: ActionEffect): ActionEffect {
   const merged: ActionEffect = {...into, amount: into.amount + add.amount};
   const veto = into.vetoed ?? add.vetoed;
   if (veto !== undefined) {
-    merged.vetoed = {resolution: veto.resolution, steps: (into.vetoed?.steps ?? 0) + (add.vetoed?.steps ?? 0)};
+    merged.vetoed = {...veto, steps: (into.vetoed?.steps ?? 0) + (add.vetoed?.steps ?? 0)};
   }
   return merged;
 }

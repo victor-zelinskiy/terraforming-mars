@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {
   buildInitialCardsResponse, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, driftDockPile,
   ensureStartWizard, holdStartScene, initialCardsSignature, picksForStep, releaseStartScene,
-  startFlowBusy, startLaunchState, startParticipants, startSceneHeld, stepComplete, wizardCrumb,
+  startFlowBusy, startHeroPlaying, startLaunchState, startParticipants, startSceneHeld, setStartHeroPlaying, stepComplete, wizardCrumb,
   wizardSteps, startJourneyItems, deploymentJourneyItems, startDockPiles, campaignWizardExtra,
   startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startDeploymentBegun,
   markStartDeploymentBegun, startCardAvailability, startRailCommitted, stepShowsAvailability,
@@ -474,6 +474,18 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       expect(startSceneHeld()).to.eq(true);
       releaseStartScene();
       expect(startSceneHeld()).to.eq(false);
+    });
+
+    it("the start's own play keeps the frame alive apart from the lifetime hold, and a fresh deal clears it (P57 · FQ)", () => {
+      releaseStartScene();
+      setStartHeroPlaying(true);
+      expect(startHeroPlaying(), 'a play the start armed is running').to.eq(true);
+      expect(startSceneHeld(), 'never the lifetime hold — a reloaded start still leaves after its last prelude').to.eq(false);
+      setStartHeroPlaying(false);
+      expect(startHeroPlaying()).to.eq(false);
+      setStartHeroPlaying(true);
+      ensureStartWizard('p-rematch-2', 'sig-rematch-2');
+      expect(startHeroPlaying(), 'a fresh deal never inherits a play').to.eq(false);
     });
   });
 

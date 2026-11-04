@@ -273,6 +273,55 @@ function lawAnswerNotification(input: RootBuildInput, actor: Color): Notificatio
   };
 }
 
+/**
+ * A CARD'S REFUSAL INSIDE THE VIEWER'S OWN ACTION (P57 Preservation Program — the twin of `lawAnswerNotification` with
+ * a CARD as the source): the viewer's ordinary action is suppressed, but the step of rating their own card's standing
+ * effect ATE inside it is no part of what they pressed — without a card the rating would read as a rise that silently
+ * came one short (invariant 4). The chain's card-sourced `effect-triggered` marker on the `rating-skipped` channel
+ * becomes ONE `passive-effect` card: the card's own log line, the NAMED loss («ПРОПУЩЕНО · [РТ] +1 · reason»), the
+ * card as the source, the journal as the action. The reaction scene rose the card and marked its struck icon, but it
+ * prints no magnitude in words — so this card is never «told twice» and is not suppressed by it.
+ */
+function cardSkipNotification(input: RootBuildInput, actor: Color): NotificationModel | undefined {
+  const {chain} = input;
+  const marker = chain.find((e) => e.type === 'effect-triggered' && e.trigger === 'rating-skipped' &&
+    (e.source?.kind === 'card' || e.source?.kind === 'corporation') && e.player === actor);
+  const source = effectSourceOfMarker(marker);
+  if (marker === undefined || source?.kind !== 'card') {
+    return undefined;
+  }
+  const skipped = skippedLinesOf(chain.filter((e) => e.parentId === marker.id), actor);
+  if (skipped.length === 0) {
+    return undefined;
+  }
+  const own = input.children.find((m) => m.parentId === marker.id);
+  const header: LogMessage = own ?? new LogMessage(LogMessageType.DEFAULT, 'Effect triggered: ${0}', [{type: LogMessageDataType.CARD, value: source.card}]);
+  return {
+    id: `g${input.correlationId}:card-skip`,
+    kind: 'normal',
+    variant: 'passive-effect',
+    priority: NOTIFICATION_PRIORITY.normal,
+    sign: 'neutral',
+    importance: 'notable',
+    typeLabelKey: 'Effect triggered',
+    category: input.header.category,
+    actor,
+    affects: [actor],
+    header,
+    pills: [],
+    pillGroups: [],
+    detailCount: 0,
+    ...skippedField(skipped),
+    correlationId: input.correlationId,
+    generation: input.generation,
+    ttl: NOTIFICATION_TTL.normal,
+    persistent: false,
+    cta: effectCta(source),
+    createdAt: input.createdAt,
+    effectSource: source,
+  };
+}
+
 /** The status card's headline keys (RX42): the veto now binds the viewer / no longer does. */
 export const VETO_BINDS_YOU = '${0} now binds you: your terraform rating is the highest (${1})';
 export const VETO_RELEASES_YOU = '${0} no longer binds you — the highest terraform rating now: ${1} (${2})';
@@ -711,8 +760,9 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
   // just played. Highlights / threats / VP-pressure are worth a card even when
   // yours (kind !== 'normal'), so only ordinary actions are dropped.
   if (kind === 'normal' && actor !== undefined && actor === viewerColor) {
-    // …except what the LAW did to them inside it (see lawAnswerNotification).
-    return lawAnswerNotification(input, actor);
+    // …except what the LAW did to them inside it (see lawAnswerNotification), and what their own CARD refused in it
+    // (P57 — `cardSkipNotification`).
+    return lawAnswerNotification(input, actor) ?? cardSkipNotification(input, actor);
   }
   // …and the CHAIRMANSHIP is suppressed for its own actor whatever its kind:
   // the player who completed the quest walked through the whole flow

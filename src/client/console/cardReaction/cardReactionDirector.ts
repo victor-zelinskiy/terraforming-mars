@@ -337,7 +337,9 @@ export function seedCardReactionHolds(
   }
   lastView = after;
   const all = groupCardReactions(fresh, viewer);
-  const groups = all.filter((g) => g.own && (g.rail.length > 0 || g.cards.length > 0));
+  // A group whose whole impact is a REFUSED unit (P57's skipped rating — `skips`) still rises: nothing flies, the card
+  // is seen answering and its printed struck icon is marked.
+  const groups = all.filter((g) => g.own && (g.rail.length > 0 || g.cards.length > 0 || g.skips.length > 0));
   const rivals: Array<Rival> = all.filter((g) => !g.own && g.record.owner !== viewer)
     .map((g) => ({group: g, owner: g.record.owner, specs: rivalSpecsOf(g)}))
     .filter((r) => r.specs.length > 0);
@@ -394,6 +396,10 @@ export function seedCardReactionHolds(
     if (own.length > 0) {
       beginPanelRewardHold(own);
       standaloneQueue.push({group, held: own});
+      queued = true;
+    } else if (group.skips.length > 0 && rows.size === 0) {
+      // A SKIP alone: nothing to hold (nothing lands), the rise and the mark only.
+      standaloneQueue.push({group, held: []});
       queued = true;
     }
   }
@@ -954,6 +960,24 @@ export function markReactionCause(el: Element | null | undefined): void {
   window.setTimeout(() => el.removeAttribute('data-reaction-cause'), motionMs(700));
 }
 
+/**
+ * THE REFUSED UNIT, TOLD WITHOUT A TOKEN (P57 Preservation Program): the reactor's printed struck rating icon (the
+ * face's `.pcard-ic` the rating resolver finds) and the rail's rating cell each wear the one-shot cause mark — the
+ * card is seen refusing, the cell that did not move is named. Nothing is born, nothing ticks.
+ */
+function markSkippedUnits(risen: Risen): void {
+  if (risen.face !== undefined) {
+    const [end] = resolveEffectIconEnds(risen.face, risen.group.record.printedEffect, [{channel: 'stock', resource: RATING_RAIL_KEY, amount: 1}]);
+    if (end !== undefined) {
+      markReactionCause(end.el);
+    }
+  }
+  if (typeof document !== 'undefined') {
+    markReactionCause(document.querySelector('.con-score__cell--tr'));
+  }
+  noteTransferTrail('reaction:skip', {card: risen.group.card, units: risen.group.skips.reduce((sum, s) => sum + s.amount, 0)});
+}
+
 // ── STANDALONE: the chain ──────────────────────────────────────────────────
 
 function noteDegrade(why: string): void {
@@ -1094,6 +1118,12 @@ function runStep(entry: Standalone, slot: number, t: ReactionTempo, slots: Reado
         return;
       }
       cardReactionState.phase = 'paying';
+      // A REFUSED unit (P57 — the skipped rating step): the printed struck icon is marked once and the rating cell wears
+      // the cause — no token is born, nothing ticks (invariant 16: a rating that will not come never flies).
+      if (entry.group.skips.length > 0) {
+        markSkippedUnits(risen);
+        launchedResolve();
+      }
       // From here the entry holds TOKEN by token — what has not touched down yet is exactly what stays held
       // (the keeper above re-seeds it across a foreign clear; a cut releases it at once).
       const tokens = entry.held.flatMap((spec) => reactionTokensOf(spec));

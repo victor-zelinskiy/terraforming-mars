@@ -119,6 +119,7 @@ const TRIGGER_LABEL: Readonly<Record<EventTrigger, string>> = {
   'own-marker-built': 'for a tile on your marked area',
   'terraforming-diverted': 'for a replaced terraforming step',
   'rating-vetoed': 'for a vetoed terraform rating',
+  'rating-skipped': 'for a skipped terraform rating',
   'automa-corporation': 'MarsBot corporation effect',
 };
 

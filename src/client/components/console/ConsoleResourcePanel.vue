@@ -23,6 +23,7 @@
              :class="{'con-score__cell--vetoed': trVeto !== undefined, 'premium-tooltip': trHint !== ''}"
              :data-tr-vetoed="trVeto !== undefined ? trVeto.tr : undefined"
              :data-tr-pristar="trPristar"
+             :data-tr-skip="trSkip"
              :data-hint="trHint !== '' ? trHint : undefined"
              :aria-label="$t('Terraforming Rating') + ': ' + tr">
           <span class="con-score__iconwrap">
@@ -30,6 +31,11 @@
             <i v-if="trVeto !== undefined" class="con-score__veto" aria-hidden="true"></i>
             <i v-if="trPristar !== undefined" class="con-score__pristar"
                :class="'con-score__pristar--' + trPristar" :data-income-hook="pristarCard" aria-hidden="true"></i>
+            <!-- PRESERVATION PROGRAM (P57 — `railMarks.ratingSkipMarkOf`): the card's skip, a struck rating glyph in the
+                 UPPER-LEFT corner — «armed» (the next rise in the action phase loses a step), «spent» (dimmed). ONE node
+                 for both states: the change is the glyph's own 240 ms crossfade, never a remount or a pulse. -->
+            <i v-if="trSkip !== undefined" class="con-score__skip"
+               :class="'con-score__skip--' + trSkip" aria-hidden="true"></i>
           </span>
           <span class="con-score__valwrap">
             <span class="con-score__value con-score__value--tr" :class="wideClass(tr)">{{ tr }}</span>
@@ -441,7 +447,7 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {vpShareState} from '@/client/console/scoreCell/vpShareLedger';
 import {VpReasonView, vpReasonViews} from '@/client/console/scoreCell/vpReasonText';
-import {PRISTAR_MARK_HINT, PristarMark} from '@/client/console/railMarks';
+import {PRISTAR_MARK_HINT, PristarMark, RATING_SKIP_MARK_HINT, RatingSkipMark} from '@/client/console/railMarks';
 import {CardName} from '@/common/cards/CardName';
 
 /** How long the VP cell's named cause stands — one read (a reading time, never motion-scaled). */
@@ -572,6 +578,12 @@ export default defineComponent({
      */
     trPristar: {type: String as PropType<PristarMark | undefined>, default: undefined},
     /**
+     * PRESERVATION PROGRAM'S STATE ON THIS SEAT (P57 — `railMarks.ratingSkipMarkOf`, the server's `ratingSkip` on the
+     * DISPLAYED seat): «armed» — the first TR raise of the action phase will be skipped; «spent» — already eaten this
+     * generation. Undefined for a seat without the card.
+     */
+    trSkip: {type: String as PropType<RatingSkipMark | undefined>, default: undefined},
+    /**
      * The board section is the active view. The ДОП.РЕСУРСЫ satellite paints
      * over the board area, so it only renders here — never floating over the
      * hand / colonies / other section content.
@@ -696,6 +708,9 @@ export default defineComponent({
       }
       if (this.trPristar !== undefined) {
         lines.push(translateTextWithParams(PRISTAR_MARK_HINT[this.trPristar], [translateText(CardName.PRISTAR)]));
+      }
+      if (this.trSkip !== undefined) {
+        lines.push(translateTextWithParams(RATING_SKIP_MARK_HINT[this.trSkip], [translateText(CardName.PRESERVATION_PROGRAM)]));
       }
       return lines.join(' · ');
     },

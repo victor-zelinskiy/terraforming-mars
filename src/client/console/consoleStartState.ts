@@ -112,6 +112,15 @@ export const consoleStartState = reactive({
    */
   hold: false,
   /**
+   * A PLAY THE START ITSELF ARMED IS STILL RUNNING (P57 · FQ, 2026-11-04): from `armStartHero` until the played-card
+   * hero ends. The frame's life must not hang on the start TASK alone in that window — the task is withdrawn while the
+   * play's own blocking holds stand (`admits('scene')`), and after a RELOAD (no lifetime hold) a prelude with no claimed
+   * follow-up unmounted the whole start for one response and mounted it fresh (the bare board between, the play's
+   * tokens with no face to be born on). Narrower than the lifetime hold: it ends with the play, never with the
+   * deployment, so a reloaded start still leaves by itself after its last prelude.
+   */
+  heroPlaying: false,
+  /**
    * THE DEPLOYMENT HAS BEGUN — latched the first time the SERVER actually
    * hands this player their start sequence (the corporation play / a
    * prelude / a Merger pick).
@@ -217,6 +226,7 @@ export function ensureStartWizard(
   // A FRESH deal identity is a fresh game start — a stale lifetime hold from
   // an earlier game (rematch) must never leak into this one's preparation.
   consoleStartState.hold = false;
+  consoleStartState.heroPlaying = false;
   consoleStartState.deploymentBegun = false;
   consoleStartState.firstAct = {stage: 'idle', corp: undefined, submitting: false};
   consoleStartState.firstActionSeen = false;
@@ -296,6 +306,15 @@ export function releaseStartScene(): void {
 
 export function startSceneHeld(): boolean {
   return consoleStartState.hold;
+}
+
+/** The start's own play is running (see `consoleStartState.heroPlaying`). */
+export function setStartHeroPlaying(on: boolean): void {
+  consoleStartState.heroPlaying = on;
+}
+
+export function startHeroPlaying(): boolean {
+  return consoleStartState.heroPlaying;
 }
 
 /** The server handed this player their start sequence — see the latch. */

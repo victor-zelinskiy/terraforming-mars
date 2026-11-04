@@ -24,6 +24,7 @@
         }]"
         :data-diverted="diverted ? effect.diverted?.data : undefined"
         :data-vetoed="vetoed ? effect.vetoed?.steps : undefined"
+        :data-veto-source="vetoed ? vetoSource : undefined"
         :data-hint="vetoed ? vetoedHint : undefined">
     <!-- The icon is ALWAYS a real sprite (including `tr` → tr.png and `cards` →
          card.png, via iconClassFor) — never a drawn glyph, so it matches the game art.
@@ -158,7 +159,8 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {wildIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 import {divertedChip, gainHasNoEffect, vetoedChip, victoryPointsSteady} from '@/client/components/actions/actionEffectReading';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {CARD_SKIP_CHIP_HINT, RatingRefusalSource, ratingRefusalSourceOf} from '@/client/console/ratingRefusal';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
 
 export default defineComponent({
@@ -225,12 +227,20 @@ export default defineComponent({
     vetoed(): boolean {
       return vetoedChip(this.effect);
     },
+    /** WHO refuses the rating — a law (RX42) or a card's standing skip (P57); the hint and `data-veto-source` read it. */
+    vetoSource(): RatingRefusalSource {
+      return ratingRefusalSourceOf(this.effect.vetoed);
+    },
     vetoedHint(): string {
       const mark = this.effect.vetoed;
       if (mark === undefined) {
         return '';
       }
-      const law = getResolution(mark.resolution)?.text.name ?? mark.resolution;
+      // A CARD's skip (P57 Preservation Program): the card named, the first raise of the generation — never the law's words.
+      if (mark.card !== undefined) {
+        return translateTextWithParams(CARD_SKIP_CHIP_HINT, [translateText(mark.card), String(mark.steps)]);
+      }
+      const law = getResolution(mark.resolution ?? '')?.text.name ?? mark.resolution ?? '';
       return translateTextWithParams('Vetoed by ${0}: your terraform rating is the highest — ${1} TR not gained', [translateTextWithParams(law, []), String(mark.steps)]);
     },
     /** The hint names the LAW (the manifest's own name, never the catalog id) and the data. */

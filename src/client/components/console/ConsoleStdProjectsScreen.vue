@@ -154,7 +154,7 @@
                 <span v-if="focusedFutile !== undefined" class="con-stdp__context-futile" data-stdp-context-futile>○ {{ $t(focusedFutile) }} · {{ $t('the action will change nothing') }}</span>
                 <!-- The project moves the scale — and its RATING is refused (RX42 UNMI Veto): the struck chip above
                      names the law; the foot says it in words, in the law's own register. -->
-                <span v-else-if="focusedVeto" class="con-stdp__context-veto" data-stdp-context-veto>⊘ {{ $t('TR under the veto') }}</span>
+                <span v-else-if="focusedVeto" class="con-stdp__context-veto" data-stdp-context-veto :data-veto-source="focusedRefusal">⊘ {{ $t(focusedRefusalNote) }}</span>
                 <template v-else>
                   <span v-for="w in focusedWarnings" :key="w" class="con-stdp__context-warning">⚠ {{ $t(warningTextOf(w)) }}</span>
                 </template>
@@ -219,6 +219,7 @@ import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {DivertedTileWarning, divertedTileWarnings} from '@/client/components/actions/divertedTileWarning';
 import {Warning} from '@/common/cards/Warning';
 import {warningText} from '@/client/components/card/cardWarnings';
+import {RatingRefusalSource, ratingRefusalNote, ratingRefusalOfEffects} from '@/client/console/ratingRefusal';
 import {setWorkspaceFrameSlot, workspaceStackCrumb} from '@/client/console/consoleWorkspaceStack';
 import {armOutcomeOriginFrom} from '@/client/console/consoleActionOutcomeMotion';
 
@@ -318,6 +319,14 @@ export default defineComponent({
     focusedVeto(): boolean {
       const f = this.focused;
       return f !== undefined && this.rowVetoed(f);
+    },
+    /** WHO refuses the focused row's rating — the law (RX42) or a card's skip (P57 Preservation Program). */
+    focusedRefusal(): RatingRefusalSource {
+      return ratingRefusalOfEffects(this.focused?.preview?.effects ?? []) ?? 'law';
+    },
+    /** The foot's note in the refuser's own words («РТ под вето» · «Первый РТ пропускается»). */
+    focusedRefusalNote(): string {
+      return ratingRefusalNote(this.focusedRefusal);
     },
     /** The pay-on-commit follow-up, named BEFORE the descent (§7: only the
      *  guaranteed part is promised — target-dependent results arrive with the

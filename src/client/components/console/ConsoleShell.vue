@@ -119,6 +119,7 @@
                             :own="railShowsSelf"
                             :trVeto="railTrVeto"
                             :trPristar="railPristarMark"
+                            :trSkip="railRatingSkipMark"
                             :vpHidden="railVpHidden"
                             :automa="railAutoma"
                             :botCtx="botExtrasCtx"
@@ -1770,7 +1771,8 @@ import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} fro
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {getResolution, resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {seatRestricted} from '@/common/models/ParliamentModel';
-import {PristarMark, pristarMarkOf} from '@/client/console/railMarks';
+import {PristarMark, RatingSkipMark, pristarMarkOf, ratingSkipMarkOf} from '@/client/console/railMarks';
+import {RatingRefusalSource, ratingRefusalOfEffects} from '@/client/console/ratingRefusal';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
 import ConsolePartyAccessPanel from '@/client/components/console/parliament/ConsolePartyAccessPanel.vue';
 import {winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
@@ -1991,7 +1993,7 @@ import {releaseFleetDockHoldWhenGone, endFleetDockScene, fleetDockSceneState} fr
 import type {FleetDockConfirmPayload} from '@/client/components/console/ConsoleFleetDockStage.vue';
 import {consolePlayCardUi, releaseConsolePlayCardCommands, restoreConsolePlayCardCommands, setPlayComposerStagedDraft} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
-import {consoleStartState, releaseStartScene, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
+import {consoleStartState, releaseStartScene, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startHeroPlaying, startSceneHeld} from '@/client/console/consoleStartState';
 import {boardExcursionActive, boardExcursionQuiet, engageBoardExcursion, releaseBoardExcursion} from '@/client/console/boardExcursion';
 import {hydroBonusAdvancePlan, hydroBonusDoorAction, hydroBonusOffer} from '@/client/console/hydroFlow/hydroBonusOffer';
 import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
@@ -3048,7 +3050,7 @@ export default defineComponent({
     convertHeatFutile(): string | undefined {
       return findConvertHeatOption(this.playerView.waitingFor)?.option.metadata?.futile?.reason;
     },
-    /** The heat conversion's rating is refused by the standing law (RX42) — its option's own struck chip says so. */
+    /** The heat conversion's rating is refused — by the standing law (RX42) or a card's skip (P57): its own struck chip says so. */
     convertHeatVetoed(): boolean {
       return (findConvertHeatOption(this.playerView.waitingFor)?.option.metadata?.effects ?? []).some((e) => e.vetoed !== undefined);
     },
@@ -3076,6 +3078,14 @@ export default defineComponent({
      */
     railPristarMark(): PristarMark | undefined {
       return pristarMarkOf(this.railPlayer);
+    },
+    /** PRESERVATION PROGRAM'S SKIP ON THE DISPLAYED SEAT (P57 — `railMarks.ratingSkipMarkOf`): the server's field, nothing counted. */
+    railRatingSkipMark(): RatingSkipMark | undefined {
+      return ratingSkipMarkOf(this.railPlayer);
+    },
+    /** WHO refuses the heat conversion's rating — the law (RX42) or a card's skip (P57): the wheel's note names it. */
+    convertHeatRefusal(): RatingRefusalSource | undefined {
+      return ratingRefusalOfEffects(findConvertHeatOption(this.playerView.waitingFor)?.option.metadata?.effects ?? []);
     },
     playAction() {
       // A LAW'S PLAY PICK (RX36): the album and the composer play from the law's PROMISED pick (the live prompt's own
@@ -4969,7 +4979,9 @@ export default defineComponent({
       // draw had with it — the batch then opens a standalone modal over
       // nothing (Celestic's first action, and any draw at all once a reload
       // has wiped the lifetime hold).
-      return this.startTask !== undefined || startSceneHeld() ||
+      // …and while a play the START armed is still running (P57 · FQ — `startHeroPlaying`): its own blocking holds
+      // withdraw the task, and after a reload no lifetime hold stands behind it.
+      return this.startTask !== undefined || startSceneHeld() || startHeroPlaying() ||
         (corpFirstActionInStartFlow(this.playerView) && firstActionOwed(this.playerView)) ||
         // …and the same for an owed BONUS ACTION the player has NOT yet been
         // handed off for. The server stands on a plain action menu there, so
@@ -9385,6 +9397,7 @@ export default defineComponent({
           convertHeatAvailable: this.convertHeatReady,
           convertHeatFutile: this.convertHeatFutile,
           convertHeatVetoed: this.convertHeatVetoed,
+          convertHeatRefusal: this.convertHeatRefusal,
           plantsNeeded: this.thisPlayer.plantsNeededForGreenery,
           heatNeeded: this.thisPlayer.heatNeededForTemperature,
         });

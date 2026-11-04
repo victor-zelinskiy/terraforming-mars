@@ -46,6 +46,12 @@ export type CardReactionGroup = {
   cards: Array<ResourceTransferSpec>;
   /** Impacts this scene does not fly — named, never lost (their counters tick with the commit / their own scene). */
   elsewhere: Array<CardReactionImpact>;
+  /**
+   * The viewer's own units the card REFUSED (P57 Preservation Program — the skipped rating step): nothing landed, so
+   * nothing flies and nothing ticks — the reactor rises, its printed struck icon is marked once, the rating cell wears
+   * the cause mark. A rival's skip is named nowhere here (a gap of the first cut — the journal names it).
+   */
+  skips: Array<Extract<CardReactionImpact, {kind: 'skip'}>>;
 };
 
 /**
@@ -88,7 +94,14 @@ export function reactionGroupOf(record: CardReactionRecord, viewer: Color | unde
   const rail: Array<ResourceTransferSpec> = [];
   const cards: Array<ResourceTransferSpec> = [];
   const elsewhere: Array<CardReactionImpact> = [];
+  const skips: Array<Extract<CardReactionImpact, {kind: 'skip'}>> = [];
   for (const impact of record.impacts) {
+    if (impact.kind === 'skip') {
+      if (viewer !== undefined && impact.to === viewer) {
+        skips.push(impact);
+      }
+      continue;
+    }
     const spec = viewer !== undefined && impact.to === viewer ? reactionImpactSpec(impact) : undefined;
     if (spec === undefined) {
       elsewhere.push(impact);
@@ -98,7 +111,7 @@ export function reactionGroupOf(record: CardReactionRecord, viewer: Color | unde
       rail.push(spec);
     }
   }
-  return {record, own, card: record.card, rail, cards, elsewhere};
+  return {record, own, card: record.card, rail, cards, elsewhere, skips};
 }
 
 /**

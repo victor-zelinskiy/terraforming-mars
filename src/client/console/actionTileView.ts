@@ -8,6 +8,7 @@
  *
  * PURE: no DOM, no Vue (labels are i18n keys; the translated lines go through the one i18n door).
  */
+import {ratingRefusalNote} from '@/client/console/ratingRefusal';
 import {ActionStatus} from '@/client/components/actions/actionPlayability';
 import {actionRuleText} from '@/client/components/actions/actionDescription';
 import {reasonParams} from '@/client/cards/tagLabel';
@@ -115,8 +116,9 @@ export function slotMeta(tile: ConsoleActionTile, readonly = false): SlotMeta {
     return {kind: 'futile', text: translateText(tile.futile.reason), tone: 'warning'};
   }
   // AVAILABLE, doing something — and its RATING refused (RX42): said before the steps, in the third tone.
+  // …or skipped by a card's standing effect (P57) — the same slot, the source's own words.
   if (tile.ratingVetoed !== undefined && tile.ratingVetoed > 0 && (tile.status === 'available' || (readonly && tile.status === 'soft'))) {
-    return {kind: 'veto', text: translateText(TILE_VETO_NOTE), tone: 'warning'};
+    return {kind: 'veto', text: translateText(tile.ratingRefusal === 'card' ? ratingRefusalNote('card') : TILE_VETO_NOTE), tone: 'warning'};
   }
   if (!readonly && tile.choiceKinds.length > 0) {
     return {kind: 'continuation', text: choiceKindsLabel(tile), tone: 'danger'};

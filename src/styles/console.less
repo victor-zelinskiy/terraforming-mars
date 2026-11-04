@@ -5309,6 +5309,53 @@ each(@players, {
             animation: con-income-charge calc(560ms * var(--motion-scale, 1)) @con-ease-standard both;
         }
     }
+    /* PRESERVATION PROGRAM (P57 — `console/railMarks.ts`): the card's standing skip, a third mark of the same wrap —
+       the rating's own tile in miniature, STRUCK, in the UPPER-LEFT corner (the veto owns the whole icon, Pristar the
+       lower-right): «armed» — the struck glyph whole (the next rise in the action phase loses a step); «spent» — the
+       same glyph dimmed by its material (this generation's step already eaten). A dark edge, never a light ring; the
+       state change is ONE crossfade of the dim on the same node — no pulse, nothing on the re-arm. */
+    &__skip {
+        position: absolute;
+        left: -.18rem;
+        top: -.3rem;
+        width: .66rem;
+        height: .66rem;
+        border-radius: .14rem;
+        pointer-events: none;
+        background: url('./assets/resources/tr.png') center / contain no-repeat;
+        box-shadow: 0 0 0 .07rem rgba(9, 15, 23, 0.92);
+        &::before,
+        &::after {
+            content: '';
+            position: absolute;
+        }
+        &::before {
+            inset: 0;
+            border-radius: inherit;
+            background: rgba(9, 15, 23, 0.62);
+            opacity: 0;
+            transition: opacity calc(240ms * var(--motion-scale, 1)) @con-ease-standard;
+        }
+        &::after {
+            left: -16%;
+            right: -16%;
+            top: 50%;
+            height: .11rem;
+            margin-top: -.055rem;
+            background: #e03d3d;
+            transform: rotate(-38deg);
+            box-shadow: 0 0 0 .03rem rgba(0, 0, 0, 0.75);
+            transition: opacity calc(240ms * var(--motion-scale, 1)) @con-ease-standard;
+        }
+        &--spent {
+            &::before { opacity: 1; }
+            &::after { opacity: .55; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            &::before,
+            &::after { transition: none; }
+        }
+    }
     &__value {
         display: inline-block;   /* the score-num pulse transform target */
         transform-origin: center;

@@ -13,6 +13,7 @@
  * via the turnIntents walkers — the server tree stays the ONLY source of
  * truth for "can act right now"); this module only shapes them for the UI.
  */
+import {RatingRefusalSource, ratingRefusalNote} from '@/client/console/ratingRefusal';
 import {SELL_PATENTS_EXHAUSTED_REASON, SELL_PATENTS_ONCE_PER_GENERATION_NOTE} from '@/common/game/fastMode';
 import {CardName} from '@/common/cards/CardName';
 import {PatentSaleModel} from '@/common/models/PatentSaleModel';
@@ -223,6 +224,8 @@ export type LtQuickContext = {
   convertHeatFutile?: string,
   /** The heat conversion's rating is refused by the standing law (RX42) — the step still moves. */
   convertHeatVetoed?: boolean,
+  /** WHO refuses it — the law (RX42) or a card's standing skip (P57 Preservation Program); the note's words. */
+  convertHeatRefusal?: RatingRefusalSource,
   plantsNeeded: number,
   heatNeeded: number,
 };
@@ -301,7 +304,8 @@ export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
       meta: `${ctx.heatNeeded}`,
       ...turnGate(ctx.convertHeatAvailable, 'Not enough heat'),
       ...(ctx.convertHeatAvailable && ctx.convertHeatFutile !== undefined ? {futile: ctx.convertHeatFutile} : {}),
-      ...(ctx.convertHeatAvailable && ctx.convertHeatFutile === undefined && ctx.convertHeatVetoed === true ? {note: 'TR under the veto'} : {}),
+      ...(ctx.convertHeatAvailable && ctx.convertHeatFutile === undefined && ctx.convertHeatVetoed === true ?
+        {note: ratingRefusalNote(ctx.convertHeatRefusal ?? 'law')} : {}),
     },
   ];
 }
