@@ -43,6 +43,9 @@ export type PreludeRisk = {
   enablers: ReadonlyArray<CardName>;
 };
 
+/** The heading of a COUNTED discard's shortfall (P58: «discard 3 cards» over a hand of fewer). */
+export const COUNTED_DISCARD_TITLE = 'Not enough cards in hand to discard';
+
 /** The commit verb of a HOLD (the safe default) vs. a plain second press. */
 export const PRELUDE_RISK_HOLD_LABEL = 'Play with no effect';
 export const PRELUDE_RISK_PRESS_LABEL = 'Play anyway';
@@ -103,6 +106,19 @@ export function preludeRisk(
     // board cell with a steel/titanium bonus, Strategic Base Planning wants
     // 3 M€) — «нет доступного проекта» would point the player at their hand,
     // which is not where the blocker is.
+    // A COUNTED discard (P58 · FS — «discard 3 cards» over a hand of fewer): the shortfall is NAMED with its count —
+    // «no card in hand» would be a lie about a hand of two.
+    if (outlook.need === 'cardInHand' && outlook.amount !== undefined) {
+      return {
+        tone: 'final',
+        badge: 'Effect will not happen',
+        title: COUNTED_DISCARD_TITLE,
+        body: 'The discard needs ${0} more cards in hand, and nothing left to play draws them. Playing this prelude will lose its effect.',
+        bodyParams: [String(outlook.amount)],
+        commitLabel,
+        enablers: [],
+      };
+    }
     return {
       tone: 'final',
       badge: 'Effect will not happen',
@@ -111,6 +127,22 @@ export function preludeRisk(
       bodyParams: [],
       commitLabel,
       enablers: [],
+    };
+  }
+
+  if (outlook.need === 'cardInHand' && outlook.amount !== undefined) {
+    // …and the same shortfall with a prelude that draws: GUARANTEED when one enabler's declared draw covers it,
+    // POSSIBLE when only the enablers together may (the engine's certainty — never re-derived here).
+    return {
+      tone: outlook.certainty === 'guaranteed' ? 'guaranteed' : 'possible',
+      badge: 'Cards first',
+      title: COUNTED_DISCARD_TITLE,
+      body: only !== undefined ?
+        'Play ${0} first: it draws the cards the discard needs. Played now, this prelude loses its effect.' :
+        'Play preludes that draw cards first: the discard needs ${0} more cards in hand. Played now, this prelude loses its effect.',
+      bodyParams: only !== undefined ? [only] : [String(outlook.amount)],
+      commitLabel,
+      enablers,
     };
   }
 

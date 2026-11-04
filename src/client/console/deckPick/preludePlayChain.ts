@@ -57,14 +57,30 @@ export function preludeChainOn(host: PreludeChainHost): boolean {
   return preludePlayChainState.live && preludePlayChainState.host === host;
 }
 
-/** A placement now: the host steps aside instead of going home (the host carries the chain's play). */
+/**
+ * A placement now: the host steps aside instead of going home (the host carries the chain's play) — descended into the
+ * play, or standing in browse with a step of the chain hosted in its zone (P58 · FS: Project Eden's «which tile next»
+ * answered in the hand, the pick's descent long folded). Its return stays gated by `preludeChainOwesHand`.
+ */
 export function preludeChainYieldsToBoard(): boolean {
-  return preludePlayChainState.live && workspaceFrameDescended(preludePlayChainState.host);
+  return preludePlayChainState.live &&
+    (workspaceFrameDescended(preludePlayChainState.host) || workspaceFrameMounted(preludePlayChainState.host));
 }
 
-/** The play's claim survives the board step — it is a step of the flow, not its end. */
-export function preludeChainHoldsClaim(placementActive: boolean): boolean {
-  return preludePlayChainState.live && (placementActive || stackYieldedToBoard());
+/**
+ * The play's claim survives the board step — it is a step of the flow, not its end. …and the chain's OWN steps between
+ * its placements (P58 · FS — Project Eden's «which tile next», and the placement it asks before it is admitted to the
+ * board): released there, the hand concluded on the answer and the next step stood as a band of its own.
+ */
+export function preludeChainHoldsClaim(placementActive: boolean, view?: PlayerViewModel): boolean {
+  if (!preludePlayChainState.live) {
+    return false;
+  }
+  if (placementActive || stackYieldedToBoard()) {
+    return true;
+  }
+  const task = view === undefined ? undefined : taskFor(view);
+  return task?.kind === 'space' || (task?.kind === 'choice' && task.flavor === 'placementOrder');
 }
 
 /** The task kinds the hand hosts as the play's own next stage (the play claim's kinds + the hosted colony step). */
@@ -74,6 +90,11 @@ const HAND_HOSTED_KINDS: ReadonlySet<string> = new Set(['deckSelect', 'cardSelec
 export function preludeChainOwesHand(view: PlayerViewModel): boolean {
   const task = taskFor(view);
   if (task !== undefined && HAND_HOSTED_KINDS.has(task.kind)) {
+    return true;
+  }
+  // P58 · FS — the played prelude's «which tile next» between its placements (Project Eden): a step of the play the
+  // host stands in — the hand comes back for it, and for the discard the third tile hands it after (below).
+  if (task?.kind === 'choice' && task.flavor === 'placementOrder') {
     return true;
   }
   // P55 · FN — the played prelude's OWN discard (Old Mining Colony: the colony first, then «discard 1 card»): a card

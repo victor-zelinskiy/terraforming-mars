@@ -66,8 +66,8 @@
                        root="Start of the game"
                        mark="◈"
                        :subject="wsSubject"
-                       :stage="startFxStage ?? wsStage"
-                       :stageRaw="startFxStage !== undefined"
+                       :stage="startFxStage ?? orderStageText ?? wsStage"
+                       :stageRaw="startFxStage !== undefined || orderStageText !== undefined"
                        :committed="mode === 'ceremony'">
           <template #trailing>
             <!-- Card-step pick counter (wizard): a plain «Выбрано N из M»;
@@ -452,10 +452,27 @@
              re-fit), the zone takes exactly that box, and on the way back the
              same nodes reveal where they stood. -->
         <div v-if="mode === 'ceremony'" class="con-start__body con-start__ceremony"
-             :class="{'con-start__ceremony--hidden': !ceremonyRevealed && !sponsorStep, 'con-start__ceremony--stepped': colonyStep || sponsorStep}"
-             :data-start-step-zone="colonyStep ? 'colonies' : (sponsorStep ? 'hand' : undefined)"
+             :class="{'con-start__ceremony--hidden': !ceremonyRevealed && !sponsorStep, 'con-start__ceremony--stepped': colonyStep || sponsorStep || orderStep !== undefined}"
+             :data-start-step-zone="colonyStep ? 'colonies' : (sponsorStep ? 'hand' : (orderStep !== undefined ? 'order' : undefined))"
              ref="ceremonyBody">
           <div v-if="colonyStep" class="con-start__handstep con-start__colonystep" data-embed-slot="start-colonies"></div>
+          <!-- P58 · FS — «ОЧЕРЁДНОСТЬ»: a prelude that places several tiles in the PLAYER's order asks «which tile next»
+               between its placements (the LIVE `OrOptions` — `placementOrderPrompt`). A step of the start like the
+               colonies' and the hand's: its zone lives INSIDE the deployment's body and the deployment releases in
+               place (the same nodes come back); the prelude stands as the step's hero, its rows the card's own printed
+               hexes — the placed ones sealed where they stood. Through the board's placement the scene collapses
+               (`yielded`), it never closes, and it comes back with the next step. -->
+          <transition name="con-start-firstact">
+            <div v-if="orderStep !== undefined" class="con-start__handstep con-start__orderstep" data-start-order-step
+                 :data-start-order-index="orderStep.order?.index" :data-start-order-of="orderStep.order?.of">
+              <div class="con-start__orderhero" :data-zoom-slot="orderStep.card" :data-start-order-hero="orderStep.card">
+                <Card :card="{name: orderStep.card}" :key="orderStep.card" lightweight />
+              </div>
+              <div class="con-start__orderchoice">
+                <ConsolePreludeVariantStep :variant="orderStep" :focus="orderFocus" :sealed="orderSealed" @pick="onOrderPick" />
+              </div>
+            </div>
+          </transition>
           <div v-if="sponsorStep" class="con-start__handstep con-start__handslot" data-embed-slot="start-hand"></div>
           <!-- ── THE DEPLOYMENT — one row, three physical places ──
                 · the QUEUE COLUMN (left, the protagonist): every unresolved
@@ -1191,7 +1208,7 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction, ConsoleActionOverrides} from '@/client/console/composables/consoleActionModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {gateCursorUntilAnimationsEnd} from '@/client/console/cursorArrival';
-import {ConsoleTask, taskFor} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, startPlacementOrderOf, taskFor} from '@/client/console/consoleTaskRouter';
 import {
   buildInitialCardsResponse, campaignWizardExtra, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, deploymentJourneyItems,
   driftDockPile, ensureStartWizard, holdStartScene, initialCardsInputOf, initialCardsSignature,
@@ -1286,7 +1303,8 @@ import ConsolePreludeVariantStep from '@/client/components/console/foundation/Co
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {
   firstAvailableRow, PreludeVariant, preludePreStepStage, preludeVariantAnswer, preludeVariantOf, preludeVariantReading, preludeVariantRowOf,
-  preludeVariantStepResponses, stepVariantFocus,
+  preludeVariantStepResponses, stepVariantFocus, placementOrderStepOf, placementOrderAnswer, PLACEMENT_ORDER_STAGE,
+  placementOrderStageParams,
 } from '@/client/console/preludeVariant/preludeVariantModel';
 import {closeEffectForecastLayer, effectForecastOpen, forecastExplorerUi, forecastStageText} from '@/client/console/consoleEffectForecast';
 import {
@@ -1706,6 +1724,13 @@ export default defineComponent({
       variantSealed: false,
       /** The branch POSITION chosen per prelude — read by the reward prefetch and the press's batch. */
       variantChosen: new Map<CardName, number>(),
+      /**
+       * P58 · FS — THE «ОЧЕРЁДНОСТЬ» STEP: the cursor's row, and the answer on its way (A pressed — the seal stands, the
+       * step keeps standing on the answered prompt until the scene yields to the board: no deployment flash between).
+       */
+      orderFocus: 0,
+      orderSealed: false,
+      orderKept: undefined as PreludeVariant | undefined,
       /** The play preview per pressable card (this game-state version) — the variant step's rows. */
       playPreviews: new Map<CardName, ActionPreview>(),
       /** Fetched first-action previews by corp (`has(name)` = fetch settled) —
@@ -1872,6 +1897,10 @@ export default defineComponent({
           committed: true,
         });
       }
+      // P58 · FS — «СТАРТ ПАРТИИ › <пролог> › ОЧЕРЁДНОСТЬ k / n»: the prelude is played (post-commit — amber).
+      if (this.orderStep !== undefined) {
+        return sponsorCrumb({source: this.orderStep.card, stage: preludePreStepStage(this.orderStep), committed: true});
+      }
       if (this.sponsorStep) {
         // THE TAIL IS THE DEEPEST STEP'S, not the hosted hand's. The chain can
         // go one level further (a played card owing a colony:
@@ -1911,6 +1940,41 @@ export default defineComponent({
         bonusSource: this.bonusActionSourceCard,
         bonusNested: this.firstActionNested,
       });
+    },
+    /** The identity of the live order step (its card and its count) — '' when none stands. */
+    orderLiveKey(): string {
+      const live = this.orderLive;
+      return live === undefined ? '' : `${live.card}#${live.order?.index ?? 0}/${live.order?.of ?? 0}`;
+    },
+    /** P58 · FS — the LIVE «which tile next» of a start prelude (`startPlacementOrderOf`), or undefined. */
+    orderLive(): PreludeVariant | undefined {
+      if (this.mode !== 'ceremony') {
+        return undefined;
+      }
+      const source = startPlacementOrderOf(this.playerView);
+      return source === undefined ? undefined : placementOrderStepOf(this.playerView.waitingFor, getCard(source)?.metadata.renderData);
+    },
+    /** …the step on screen: the live one, or the answered one while its answer is on its way (sealed). */
+    orderStep(): PreludeVariant | undefined {
+      return this.orderLive ?? (this.orderSealed ? this.orderKept : undefined);
+    },
+    /** Would A on the order step be refused right now (the funnel busy, a hero in flight)? — the bar dims A on it. */
+    orderPressRefusal(): ReturnType<typeof startPressRefusal> {
+      return startPressRefusal('order', {
+        heroActive: isPlayedHeroActive(),
+        ceremony: this.mode === 'ceremony',
+        shellRevealed: this.ceremonyRevealed,
+        embedPresenting: this.embedPresenting,
+        queueArriving: this.queueArriving.size > 0,
+        requestInProgress: transportRequestInProgress(),
+        deliveryPending: false,
+      });
+    },
+    /** The crumb's stage of the order step, in the player's language with its count («ОЧЕРЁДНОСТЬ 2 / 3»). */
+    orderStageText(): string | undefined {
+      const step = this.orderStep;
+      const params = step === undefined ? undefined : placementOrderStageParams(step);
+      return params === undefined ? undefined : translateTextWithParams(PLACEMENT_ORDER_STAGE, [...params]);
     },
     /** The «ВАРИАНТ» step standing (P44) — the prelude's branches from its play preview; undefined = no step. */
     variantStep(): PreludeVariant | undefined {
@@ -1993,7 +2057,7 @@ export default defineComponent({
       }
       const effectOpen = this.heroState.active || this.embedActive || this.sponsorPending ||
         this.effectReturnPending || workspaceFrameHasNested('start') || this.yielded ||
-        currentRevealEvent() !== undefined;
+        currentRevealEvent() !== undefined || this.orderStep !== undefined;
       const sourceType = this.flowEffectCard === undefined ? undefined : getCard(this.flowEffectCard)?.type;
       // CAMPAIGN: the bonus press — its own chapter right after the base.
       if (this.bonusPrompt !== undefined) {
@@ -2467,6 +2531,10 @@ export default defineComponent({
       // source card's effect. READY may only begin after that surface has
       // returned to the Start frame, even when no startSequence prompt remains.
       if (this.yielded || workspaceFrameHasNested('start')) {
+        return false;
+      }
+      // P58 · FS — a prelude's «which tile next» is its own step (the next placements are still owed).
+      if (this.orderStep !== undefined) {
         return false;
       }
       // «ЭПАТАЖНЫЙ СПОНСОР» — a prelude whose effect is «play a card from your
@@ -4248,6 +4316,19 @@ export default defineComponent({
       if (this.legacyViewOn && this.legacyView.phase !== 'open') {
         return [];
       }
+      // P58 · FS — THE «ОЧЕРЁДНОСТЬ» STEP owns the bar: A places the row's tile next. No B — the prelude is played,
+      // the step cannot be backed out of.
+      if (this.orderStep !== undefined) {
+        if (this.orderSealed) {
+          return [];
+        }
+        const refused = this.orderPressRefusal !== undefined;
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: refused ? 'Performing…' : 'Place this tile next',
+            enabled: !refused && this.orderStep.rows[this.orderFocus]?.available === true},
+        ] as unknown as Array<StartCommand>;
+      }
       // THE «ВАРИАНТ» STEP (P44) owns the bar while it stands: A chooses the row AND plays, B back to the queue.
       if (this.variantStep !== undefined) {
         if (this.variantSealed) {
@@ -4308,7 +4389,7 @@ export default defineComponent({
       return startServesOf({
         mode: this.mode,
         yielded: this.yielded,
-        nestedStep: workspaceFrameHasNested('start'),
+        nestedStep: workspaceFrameHasNested('start') || this.orderStep !== undefined,
         flowBeat: this.state.flow !== 'idle' && this.state.flow !== 'deploying',
         motion: this.heroState.active || this.queueArriving.size > 0 || this.deal.state.active ||
           this.embedSourceArriving || this.embedSourceDeparting ||
@@ -4351,6 +4432,27 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * P58 · FS — a NEW «which tile next» (the first, or the next placement's): the cursor on its first takeable row,
+     * the previous answer's seal let go. The same step re-read (a poll of the standing prompt) keeps the cursor.
+     */
+    'orderLiveKey': {
+      immediate: true,
+      handler(key: string): void {
+        if (key === '') {
+          return;
+        }
+        this.releaseOrderStep();
+        const live = this.orderLive;
+        this.orderFocus = live === undefined ? 0 : firstAvailableRow(live);
+      },
+    },
+    /** …and the board took the screen for the placement the answer asked: the answered step's work is done. */
+    yielded(now: boolean): void {
+      if (now) {
+        this.releaseOrderStep();
+      }
+    },
     /**
      * THE START'S OWN PLAY ENDS WITH ITS HERO (P57 · FQ): the fact `armStartHero` raises is let go when the played-card
      * hero finishes (or was never armed — immediate: a remount with no hero standing clears a stale one).
@@ -6123,6 +6225,13 @@ export default defineComponent({
       return idx > 0 ? idx : 0;
     },
     onNav(dir: NavDirection): void {
+      // P58 · FS — the «ОЧЕРЁДНОСТЬ» step owns the pad: every direction walks its ONE column (sealed rows walked over).
+      if (this.orderStep !== undefined) {
+        if (!this.orderSealed) {
+          this.orderFocus = stepVariantFocus(this.orderStep, this.orderFocus, dir === 'down' || dir === 'right' ? 1 : -1);
+        }
+        return;
+      }
       // THE «ВАРИАНТ» STEP owns the pad while it stands (P44): every direction walks its ONE column.
       if (this.variantStep !== undefined) {
         if (!this.variantSealed) {
@@ -7323,6 +7432,11 @@ export default defineComponent({
         }
         return;
       case 'back':
+        // P58 · FS — the order step has no way back (the prelude is played) and is not minimized from here: the press
+        // is absorbed, the step's bar names no B.
+        if (this.orderStep !== undefined) {
+          return;
+        }
         // THE «ВАРИАНТ» STEP'S B is one level: back to the queue, nothing sent, the prelude where it stood (P44).
         if (this.variantStep !== undefined) {
           if (!this.variantSealed) {
@@ -7375,6 +7489,10 @@ export default defineComponent({
     /** A: wizard = single-pick commits + advances / multi-pick toggles (RT
      *  continues) / the SUMMARY's launch CTA; ceremony = act. */
     onPrimary(): void {
+      if (this.orderStep !== undefined) {
+        this.onOrderPick(this.orderFocus);
+        return;
+      }
       if (this.variantStep !== undefined) {
         this.onVariantPick(this.variantFocus);
         return;
@@ -7591,6 +7709,33 @@ export default defineComponent({
       this.variantFocus = firstAvailableRow(variant);
       this.variantSealed = false;
       this.variantCard = name;
+    },
+    /**
+     * P58 · FS — A on a row of the «ОЧЕРЁДНОСТЬ» step: the LIVE `OrOptions` answered with the row's own option
+     * (`placementOrderAnswer` — found by the option's tileType, never a title), through the ONE submit funnel. A press
+     * the funnel would drop (an answer still on the wire, a hero in flight) is refused and NAMED, never sent.
+     */
+    onOrderPick(index: number): void {
+      const step = this.orderLive;
+      const row = step?.rows[index];
+      if (step === undefined || row === undefined || this.orderSealed) {
+        return;
+      }
+      this.orderFocus = index;
+      const refusal = this.orderPressRefusal;
+      this.pressRefusal = refusal ?? '';
+      const answer = placementOrderAnswer(row);
+      if (refusal !== undefined || answer === undefined) {
+        return;
+      }
+      this.orderKept = step;
+      this.orderSealed = true;
+      this.$emit('submit', answer);
+    },
+    /** Lets the answered order step go (the scene yielded to the board, a new step arrived, the server refused). */
+    releaseOrderStep(): void {
+      this.orderSealed = false;
+      this.orderKept = undefined;
     },
     closeVariantStep(): void {
       this.variantCard = undefined;

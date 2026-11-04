@@ -15,7 +15,9 @@
  * submits — it only classifies.
  */
 
-import {PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {Phase} from '@/common/Phase';
+import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -52,7 +54,7 @@ export type ConsoleTask =
    * reconnect): the SAME dedicated workspace serves it through the espionage
    * pick door; structural off the input's own `deltaEspionage` type.
    */
-  | {kind: 'choice', flavor: 'generic' | 'contextual' | 'wgt' | 'confirm' | 'deltaBonus' | 'espionage'}
+  | {kind: 'choice', flavor: 'generic' | 'contextual' | 'wgt' | 'confirm' | 'deltaBonus' | 'espionage' | 'placementOrder'}
   /** FREE award funding (Vitor's start action) — served by the premium
    *  awards MA screen in free-sponsorship mode, NOT the generic task host
    *  (the desktop routes it to AwardsOverlay for the same reason). */
@@ -628,6 +630,22 @@ export function startPreludeDiscardOf(view: PlayerViewModel): string | undefined
   return getCard(source.card)?.type === CardType.PRELUDE ? source.card : undefined;
 }
 
+/**
+ * P58 · FS — A START PRELUDE'S «WHICH TILE NEXT» (Project Eden: «Place 1 ocean tile, 1 city tile, and 1 greenery
+ * tile» — the order the player's): the live `OrOptions` marked `placementOrderPrompt`, asked by a PRELUDE in the
+ * opening's PRELUDES phase. It is a STEP of the start workspace that played the prelude — the scene hosts it in its
+ * own body («СТАРТ ПАРТИИ › <пролог> › ОЧЕРЁДНОСТЬ k / n»), never a band of the task host. Structural only (the
+ * marker, the card's type, the phase). Returns the prelude's name, or undefined.
+ */
+export function startPlacementOrderOf(view: PlayerViewModel): CardName | undefined {
+  const wf = view.waitingFor;
+  const meta = wf?.type === 'or' ? (wf as OrOptionsModel).placementOrderPrompt : undefined;
+  if (meta === undefined || !corpFirstActionInStartFlow(view) || view.game.phase !== Phase.PRELUDES) {
+    return undefined;
+  }
+  return getCard(meta.source)?.type === CardType.PRELUDE ? meta.source : undefined;
+}
+
 const WGT_TITLE = 'Select action for World Government Terraforming';
 
 /**
@@ -752,6 +770,12 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     // STRUCTURAL, before the generic fallback: the Hydronetwork owns this one.
     if (wf.deltaBonusPrompt !== undefined) {
       return {kind: 'choice', flavor: 'deltaBonus'};
+    }
+    // P58 · FS — a card's «which tile next» (`placementOrderPrompt`): a STEP of the play that asked it, hosted by
+    // the play's own host (the start — `startPlacementOrderOf` — or the hand's prelude chain); the task host only
+    // where nobody hosts it. Before `contextual`: it carries a choiceContext too.
+    if ((wf as OrOptionsModel).placementOrderPrompt !== undefined) {
+      return {kind: 'choice', flavor: 'placementOrder'};
     }
     return {kind: 'choice', flavor: wf.choiceContext !== undefined ? 'contextual' : 'generic'};
   }
@@ -948,6 +972,10 @@ export function taskServedByHost(view: PlayerViewModel): ConsoleTask | undefined
     // it. (Rendering both is exactly what shipped: the contextual-choice modal
     // over a live Hydronetwork zone, one offer, two surfaces.)
     if (task.flavor === 'deltaBonus' || task.flavor === 'espionage') {
+      return undefined;
+    }
+    // P58 · FS — the start's own step in the opening; elsewhere the host serves it (a hand chain teleports it).
+    if (task.flavor === 'placementOrder' && startPlacementOrderOf(view) !== undefined) {
       return undefined;
     }
     if (wf?.type === 'option') {

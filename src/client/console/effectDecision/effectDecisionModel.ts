@@ -404,6 +404,11 @@ export function buildEffectDecision(
     return undefined; // not a marked decision — the ordinary picker owns it
   }
   const model = input as OrOptionsModel;
+  // P58 · FS — a card's «which tile next» is the «ВАРИАНТ» family's step on its host (the start, the hand's chain),
+  // never an effect decision: it carries a choiceContext only to NAME its asker.
+  if (model.placementOrderPrompt !== undefined) {
+    return undefined;
+  }
   if (model.options.length < 2 && choice.mode !== 'spend-source') {
     // `OrOptions.reduce()` resolves a single branch server-side, so a lone
     // option is normally an anomaly the ordinary host should keep. The ONE

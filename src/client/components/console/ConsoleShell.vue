@@ -1762,6 +1762,7 @@ import {agendaWalkFlow, AgendaWalkRailPromise, promiseAgendaWalk} from '@/client
 import {neutralRallyFlow, promiseNeutralRally} from '@/client/console/parliament/neutralRally';
 import {
   dropHostedStepPromises, HostedParliamentStepKind, hostedStepLiveBeat, hostedStepLiveIn, hostedStepOwedTo, hostedStepToEnter, startHostedStepToEnter,
+  startPreludeGrantOf,
 } from '@/client/console/parliament/hostedParliamentStep';
 import {clearSupportDiscard, promiseSupportDiscard} from '@/client/console/parliament/supportDiscard';
 import {parliamentSittingFlowBeat, parliamentSittingLive, sittingTailPlacementOf, sittingTailVenusBonusOf} from '@/client/console/parliament/consoleSittingFlow';
@@ -2043,7 +2044,7 @@ import {resetRevealHandoff} from '@/client/console/revealHandoff';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {generationSceneState, registerGenerationSceneHandoff, resetGenerationScene} from '@/client/console/generationScene/generationScene';
 import {openRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, startPreludeDiscardOf, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, AGENDA_WALK_SEAT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, partyStepStageOf, firstActionPartyStep} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, startPreludeDiscardOf, startPlacementOrderOf, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, AGENDA_WALK_SEAT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, partyStepStageOf, firstActionPartyStep} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleBotAttack from '@/client/components/console/ConsoleBotAttack.vue';
@@ -2083,7 +2084,7 @@ import {
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {revealSourcePeekState} from '@/client/console/revealSourcePeek';
-import {endPreludePlayChain, preludeChainHoldsClaim, preludeChainOwesHand, preludeChainYieldsToBoard, preludePlayChainState} from '@/client/console/deckPick/preludePlayChain';
+import {endPreludePlayChain, preludeChainHoldsClaim, preludeChainOn, preludeChainOwesHand, preludeChainYieldsToBoard, preludePlayChainState} from '@/client/console/deckPick/preludePlayChain';
 import {closeWorkspaceOutcomeChain, workspaceClaimsColonyRevealBatch, workspaceClaimsVenusBonus, workspaceClaimsDrawRevealBatch, workspaceClaimsRevealBatch, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkPending, boardBeatParkState, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
@@ -4981,7 +4982,10 @@ export default defineComponent({
       // has wiped the lifetime hold).
       // …and while a play the START armed is still running (P57 · FQ — `startHeroPlaying`): its own blocking holds
       // withdraw the task, and after a reload no lifetime hold stands behind it.
+      // …and its OWN step between a prelude's placements (P58 · FS — «which tile next»): after a reload nothing else
+      // says the scene serves it (no lifetime hold, no scene kind), and the step painted under a board-home bar.
       return this.startTask !== undefined || startSceneHeld() || startHeroPlaying() ||
+        startPlacementOrderOf(this.playerView) !== undefined ||
         (corpFirstActionInStartFlow(this.playerView) && firstActionOwed(this.playerView)) ||
         // …and the same for an owed BONUS ACTION the player has NOT yet been
         // handed off for. The server stands on a plain action menu there, so
@@ -5064,8 +5068,9 @@ export default defineComponent({
       // A HOSTED STEP serves only the question a frame of it answers: a step left standing past its own prompt (a
       // colony grid after its build, the server already asking the prelude's city) serves nothing — it is a strand
       // dressed as a step.
-      const serves = consoleStartState.serves === 'step' && task !== undefined && !stackServes(task.kind) ?
-        'none' : consoleStartState.serves;
+      // …except the start's OWN step (P58 · FS — a prelude's «which tile next»): the scene itself is its surface.
+      const serves = consoleStartState.serves === 'step' && task !== undefined && !stackServes(task.kind) &&
+        startPlacementOrderOf(this.playerView) === undefined ? 'none' : consoleStartState.serves;
       return this.startSceneMounted && !this.startStrandYield && startStranded({
         serves,
         promptLive: wf !== undefined && wf.optional !== true,
@@ -5157,7 +5162,9 @@ export default defineComponent({
         // the PAY stage's business (they fly on the pay press, which needs
         // the scene back), not part of any placement chain.
         handIntake: isHandDeliveryActive() || this.handDeliveryState.flights.length > 0,
-        followUpKind: taskFor(this.playerView)?.kind,
+        // P58 · FS — the start's OWN step between its placements («which tile next») ends the board trip: it is the
+        // workspace the excursion returns TO, never one more follow-up of the chain.
+        followUpKind: startPlacementOrderOf(this.playerView) !== undefined ? undefined : taskFor(this.playerView)?.kind,
       });
     },
     /**
@@ -5772,6 +5779,14 @@ export default defineComponent({
       if (this.parliamentStageTask && workspaceFrameMounted('parliament') && consoleParliamentUi.fieldStanding && consoleParliamentUi.stageZone) {
         return '.con-parl [data-embed-slot="parliament-stage"]';
       }
+      // P58 · FS — A PRELUDE CHAIN'S «WHICH TILE NEXT» (Project Eden played out of a mid-game pick): a step of the play
+      // the chain's host stands in — the order step teleports into the host's zone (the play's claim is kept through
+      // the board steps, `preludePlayChain.ts`), never a band over it.
+      if (this.hostTask?.kind === 'choice' && this.hostTask.flavor === 'placementOrder' &&
+          preludeChainOn(preludePlayChainState.host) && workspaceFrameMounted(preludePlayChainState.host)) {
+        const zone = workspaceOutcomeZone();
+        return zone === '' ? undefined : zone;
+      }
       if (!workspaceClaimsPick()) {
         return undefined;
       }
@@ -5784,6 +5799,11 @@ export default defineComponent({
       }
       const slot = workspaceOutcomeZone();
       return slot === '' ? undefined : slot;
+    },
+    /** P58 · FS — the prelude chain's «which tile next» stands in its host's zone (the crumb's tail names it). */
+    chainPlacementOrderEmbedded(): boolean {
+      return this.hostTask?.kind === 'choice' && this.hostTask.flavor === 'placementOrder' && this.taskEmbedTarget !== undefined &&
+        preludeChainOn(preludePlayChainState.host);
     },
     /** Something is (or is about to be) re-homed into the workspace's zone. */
     workspaceOutcomeEmbedded(): boolean {
@@ -7776,9 +7796,19 @@ export default defineComponent({
       if (task?.kind === 'handSelect' && startPreludeDiscardOf(this.playerView) !== undefined) {
         return true;
       }
+      // …and its «which tile next» (P58 · FS — `startPlacementOrderOf`): the order step between its placements stands
+      // the start back up around it after a reload, never a band of the task host.
+      if (startPlacementOrderOf(this.playerView) !== undefined) {
+        return true;
+      }
       const source = this.playerView.waitingFor?.choiceContext?.source;
       if (task?.kind === 'colony' && source?.kind === 'card' && source.card !== undefined &&
           getCard(source.card)?.type === CardType.PRELUDE) {
+        return true;
+      }
+      // …and its DELEGATE GRANT (P60 · FW — Rise to Power's series, `startPreludeGrantOf`): a reload inside «2 / 3» stood
+      // a Parliament of its own («ПАРЛАМЕНТ › ГОЛОСОВАНИЕ») — the start comes back and hosts the vote as its scene step.
+      if (task?.kind === 'party' && startPreludeGrantOf(this.playerView) !== undefined) {
         return true;
       }
       return task?.kind === 'projectCard' && task.mode === 'playFromHand';
@@ -12620,6 +12650,12 @@ export default defineComponent({
       }
     },
     /** The first action's party step has come DUE (the banner pick, the delegate grant): the Parliament opens as its scene step. */
+    /** …its crumb: «КАРТЫ В РУКЕ › <карта> › ОЧЕРЁДНОСТЬ» — the stage handed up to the chain's host frame. */
+    chainPlacementOrderEmbedded(now: boolean): void {
+      if (now) {
+        setWorkspaceFrameStage(preludePlayChainState.host, 'Order');
+      }
+    },
     /** The start prelude's discard has come DUE (P55 · FN): the hand opens as the start's step. */
     startDiscardStepDue(due: boolean): void {
       const task = taskFor(this.playerView);
@@ -21082,7 +21118,10 @@ export default defineComponent({
       // question a play's own card asked is a stage of that play, not the end
       // of the screen it was made in (the discard it opens, and the card that
       // discard buys, are still inside this workspace).
-      if (!this.taskBelongsToWorkspace && this.effectDecisionEmbedTarget === undefined && this.venusBonusEmbedTarget === undefined) {
+      // P58 · FS — a prelude chain's «which tile next» answered IN its host: the host stays (it steps aside for the
+      // placement and comes back for the next step) — closing the layers here ended the chain on the answer.
+      if (!this.taskBelongsToWorkspace && this.effectDecisionEmbedTarget === undefined && this.venusBonusEmbedTarget === undefined &&
+          !this.chainPlacementOrderEmbedded) {
         closeConsoleLayers();
       }
       this.consoleState.task.deferred = false;
@@ -21327,14 +21366,16 @@ export default defineComponent({
         // before the first render (`bridge.bannerPick` / `bridge.grant`).
         if (firstActionPartyStep(this.playerView.waitingFor) && workspaceHostForStep() === 'start' && !workspaceFrameKnown('parliament')) {
           this.consoleState.task.deferred = false;
+          // P60 · FW — a PRELUDE's grant names its prelude (`startPreludeGrantOf`): after a reload no start state does.
+          const giver = startPreludeGrantOf(this.playerView) ?? consoleStartState.firstAct.corp ?? '';
           pushWorkspaceFrame({
             kind: 'parliament',
-            subject: consoleStartState.firstAct.corp ?? '',
+            subject: giver,
             stage: partyStepStageOf(this.playerView.waitingFor),
             phase: 'committed',
             serves: ['party'],
             anchor: {type: 'prompt', promptType: 'party'},
-            sourceCard: consoleStartState.firstAct.corp ?? '',
+            sourceCard: giver,
           });
           return;
         }
@@ -22910,7 +22951,7 @@ export default defineComponent({
           this.ledgerPayoutClaimed ||
           // The PRELUDE CHAIN's board step (PL-1467): a placement the prelude asks is a step of the play, not «the
           // server asked for something else» — the claim waits for what the flow owes after it.
-          (isPlayOutcomeHost(workspaceOutcomeState.host) && preludeChainHoldsClaim(this.placementActive)) ||
+          (isPlayOutcomeHost(workspaceOutcomeState.host) && preludeChainHoldsClaim(this.placementActive, this.playerView)) ||
           // The HYDRO claim spans the advance's own resolution: the marker
           // gate delays the view (nothing is «asked» until the token locks),
           // the deck pick's closing beats outlive its prompt, and a PARKED
@@ -26009,6 +26050,13 @@ export default defineComponent({
       gateHeld: this.mandatoryGateHeld, presented: this.mandatoryActionPresented, plate: this.mandatoryAnnounceVisible,
       beacon: this.mandatoryChipAttention, servedHere: this.promptServedWhereIStand, ownedByClaim: this.promptOwnedByClaim,
       hostBlock: this.playerView.waitingFor === undefined ? '' : promptAdmissionBlock('host', this.admissionSignals) ?? '',
+      // The start's pad and the prelude chain (P58 · FS — the order step's two hosts).
+      start: {ownsPad: this.startSceneOwnsPad, visible: this.startSceneVisible, serves: this.startSceneServes,
+        promptSurface: this.startPromptSurfaceStands, excursion: this.startExcursionHolds, sheet: this.consoleState.sheet ?? '',
+        section: this.consoleState.section, deferred: this.consoleState.task.deferred, deckPick: this.deckPickServing},
+      chain: {live: preludePlayChainState.live, host: preludePlayChainState.host, yielded: stackYieldedToBoard(),
+        host2: this.hostTask === undefined ? '' : `${this.hostTask.kind}${'flavor' in this.hostTask ? ':' + String(this.hostTask.flavor) : ''}`,
+        embed: this.taskEmbedTarget ?? ''},
     }));
     // STEP 4 — the owner's armed classes (`SCREEN_CURE_DEFAULT_ARMED`: the blind announce); a stand names its own set
     // (`?screenCure=open,restore,yield,announce` / `all` / `none`).

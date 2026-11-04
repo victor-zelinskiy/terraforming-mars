@@ -104,6 +104,7 @@ const UNOBSERVED_FAMILY: ReadonlyArray<ScreenOwner> = ['task', 'decision', 'prod
  * narrows its row.
  */
 export const UNOBSERVED_SHAPES: Readonly<Record<string, string>> = {
+  'choice:placementOrder': 'new with P58 Project Eden (2026-11-04), no evidence written yet: in the opening the START hosts it as its own step (the start director judges it), mid-game the host of the prelude chain by `@host` (the task host teleported into its zone), with nobody to host it the band of the task host',
   'choice:confirm': 'never asked STANDALONE in scope: a bare SelectOption is an option of an OrOptions, and the one deferred alone (the remote colony bonus\'s collect) carries its marker and routes to colonyBonus',
   'composite': 'never asked STANDALONE in scope: every AndOptions is nested in the action menu (the party actions — `partyActionPrompt`, the colony trade) or routes to its own kind (Stormcraft\'s heat, the Venus bonus, a distribution)',
 };

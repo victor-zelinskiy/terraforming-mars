@@ -3,10 +3,14 @@
        start queue's zone and the «ВЫБОР ПРОЛОГА» stage (a layer over the candidates). It never titles itself — the
        host's crumb names the stage («… › ВАРИАНТ»); the rows ARE the card's printed rows (`printedVariantRows` cut at
        the printed slash), each with its own reading. The pad belongs to the HOST (it routes ↑↓ / A / B here through
-       `focus` and the `pick` event) — the step owns no listener. -->
-  <div class="con-pvariant" :class="{'con-pvariant--embedded': embedded}" data-prelude-variant :data-prelude-variant-card="variant.card">
-    <ConsoleVariantChoice class="con-pvariant__choices" layout="column" :exclusive="variant.rows.length <= 3"
-                          :options="options" :label="$t(variant.kind === 'resource' ? 'Resource' : 'Variant')" @pick="onPick">
+       `focus` and the `pick` event) — the step owns no listener.
+       P58 · FS — the SAME step asks a card's LIVE «which tile next» (`kind: 'placement-order'`): one row per printed
+       tile, each its face's own hex; a tile already placed stays in its place SEALED (a kant and the word, the column
+       never reflows), an ocean at the maximum is shown with its reason. -->
+  <div class="con-pvariant" :class="{'con-pvariant--embedded': embedded, 'con-pvariant--order': variant.kind === 'placement-order'}"
+       data-prelude-variant :data-prelude-variant-card="variant.card" :data-prelude-variant-kind="variant.kind">
+    <ConsoleVariantChoice class="con-pvariant__choices" layout="column" :exclusive="variant.rows.length <= 3 && variant.kind !== 'placement-order'"
+                          :options="options" :label="$t(groupLabel)" @pick="onPick">
       <template #body="{index}">
         <template v-for="row in [variant.rows[index]]" :key="row.key">
           <GamepadGlyph v-if="focus === index && row.available && !sealed" control="confirm" class="con-pvariant__a" />
@@ -31,7 +35,7 @@ import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {printedVariantRows, VariantChoiceOption} from '@/client/console/variantChoiceModel';
-import {PreludeVariant} from '@/client/console/preludeVariant/preludeVariantModel';
+import {PreludeVariant, placementTileKey} from '@/client/console/preludeVariant/preludeVariantModel';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {Message} from '@/common/logs/Message';
 
@@ -51,16 +55,32 @@ export default defineComponent({
   computed: {
     printed(): ReadonlyArray<ReadonlyArray<unknown>> | undefined {
       // A RESOURCE pre-step (P50 · FC) has no printed rows to cut — each row is a lane, named and iconed by its chip.
-      return this.variant.kind === 'resource' ? undefined : printedVariantRows(getCard(this.variant.card)?.metadata.renderData, this.variant.rows.length);
+      if (this.variant.kind === 'resource') {
+        return undefined;
+      }
+      // A PLACEMENT-ORDER row carries its own printed hex (the face's node of THAT tile) — all of them or the words.
+      if (this.variant.kind === 'placement-order') {
+        const prints = this.variant.rows.map((r) => r.print);
+        return prints.every((p) => p !== undefined && p.length > 0) ? prints as ReadonlyArray<ReadonlyArray<unknown>> : undefined;
+      }
+      return printedVariantRows(getCard(this.variant.card)?.metadata.renderData, this.variant.rows.length);
+    },
+    groupLabel(): string {
+      return this.variant.kind === 'resource' ? 'Resource' : this.variant.kind === 'placement-order' ? 'Placement' : 'Variant';
     },
     options(): ReadonlyArray<VariantChoiceOption> {
       return this.variant.rows.map((row, i): VariantChoiceOption => {
         const option: VariantChoiceOption = {
           key: row.key,
           state: {focused: this.focus === i, selected: this.sealed && this.focus === i, off: !row.available},
-          // The print speaks first; the server's words stay as the row's accessible name and its fallback.
-          title: this.printed !== undefined ? '' : this.text(row.title),
-          attrs: {'data-prelude-variant-row': String(i), 'data-prelude-variant-branch': String(row.branchIndex)},
+          // The print speaks first; the server's words stay as the row's accessible name and its fallback. A
+          // placement-order row keeps its tile's WORD beside the hex (a bare icon in a wide row reads as an empty plate).
+          title: this.printed !== undefined && this.variant.kind !== 'placement-order' ? '' : this.text(row.title),
+          attrs: {
+            'data-prelude-variant-row': String(i), 'data-prelude-variant-branch': String(row.branchIndex),
+            ...(row.tileType !== undefined ? {'data-prelude-variant-tile': placementTileKey(row.tileType)} : {}),
+            ...(row.sealed === true ? {'data-prelude-variant-sealed': ''} : {}),
+          },
         };
         const print = this.printed?.[i];
         if (print !== undefined) {

@@ -27,6 +27,12 @@ import {Message} from '@/common/logs/Message';
 import {ActionEffect, ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {addressed} from '@/common/inputs/preselectAddress';
+import {OrOptionsModel, PlacementOrderPromptMeta, PlayerInputModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
+import {TileType} from '@/common/TileType';
+import {CardComponent} from '@/common/cards/render/CardComponent';
+import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
+import {isICardRenderItem, ItemType} from '@/common/cards/render/Types';
+import {buildMechanics} from '@/client/components/premiumCard/mechanicsModel';
 
 export type PreludeVariantRow = {
   key: string;
@@ -51,12 +57,22 @@ export type PreludeVariantRow = {
   /** Why the rules refuse it (an English i18n template) + its params — a refused row is SHOWN, never dropped. */
   reason?: string | Message;
   reasonParams?: ReadonlyArray<string>;
+  /** A PLACEMENT-ORDER row (P58 · FS): the tile it places, and the card's own printed hex of it (its face's node). */
+  tileType?: TileType;
+  print?: ReadonlyArray<ItemType>;
+  /** Placed already — the row is SEALED in place (a kant and a mark, never removed: the column never reflows). */
+  sealed?: boolean;
 };
 
 export type PreludeVariant = {
   card: CardName;
-  /** `variant` — the branches (P44); `resource` — one branch's «?» (P50). */
-  kind: 'variant' | 'resource';
+  /**
+   * `variant` — the branches (P44); `resource` — one branch's «?» (P50); `placement-order` — the LIVE «which tile
+   * next» of a card that places several in the player's order (P58 · FS), asked between its placements.
+   */
+  kind: 'variant' | 'resource' | 'placement-order';
+  /** A placement-order step's place in the play — «2 / 3» (`PlacementOrderPromptMeta.index` / `of`). */
+  order?: {index: number, of: number};
   rows: ReadonlyArray<PreludeVariantRow>;
   /** What every branch brings (the draw of a floater search) — read once, beside the rows. */
   shared: ReadonlyArray<ActionEffect>;
@@ -160,9 +176,110 @@ const RESOURCE_TITLE: Readonly<Record<string, string>> = {
   megacredits: 'M€', steel: 'Steel', titanium: 'Titanium', plants: 'Plants', energy: 'Energy', heat: 'Heat',
 };
 
-/** The host's crumb stage of a pre-step: «› ВАРИАНТ» (a branch) · «› РЕСУРС» (a resource). */
+/** The host's crumb stage of a pre-step: «› ВАРИАНТ» (a branch) · «› РЕСУРС» (a resource) · «› ОЧЕРЁДНОСТЬ» (P58). */
 export function preludePreStepStage(variant: PreludeVariant): string {
-  return variant.kind === 'resource' ? 'Resource' : 'Variant';
+  return variant.kind === 'resource' ? 'Resource' : variant.kind === 'placement-order' ? 'Order' : 'Variant';
+}
+
+/** The crumb's stage of a placement-order step WITH its count — «ОЧЕРЁДНОСТЬ 2 / 3»: the key and its params. */
+export const PLACEMENT_ORDER_STAGE = 'Order ${0} / ${1}';
+export function placementOrderStageParams(variant: PreludeVariant): ReadonlyArray<string> | undefined {
+  return variant.order === undefined ? undefined : [String(variant.order.index), String(variant.order.of)];
+}
+
+/** The tile families in the order a card prints them (P58: «1 ocean, 1 city, 1 greenery») — a row's stable place. */
+const TILE_ORDER: ReadonlyArray<TileType> = [TileType.OCEAN, TileType.CITY, TileType.GREENERY];
+const TILE_ITEM: Readonly<Partial<Record<TileType, CardRenderItemType>>> = {
+  [TileType.OCEAN]: CardRenderItemType.OCEANS,
+  [TileType.CITY]: CardRenderItemType.CITY,
+  [TileType.GREENERY]: CardRenderItemType.GREENERY,
+};
+const TILE_TITLE: Readonly<Partial<Record<TileType, string>>> = {
+  [TileType.OCEAN]: 'Ocean', [TileType.CITY]: 'City', [TileType.GREENERY]: 'Greenery',
+};
+export const PLACED_NOTICE = 'Placed';
+/** The tile's STABLE key for a probe / a selector — `TileType` is numeric on the wire, a name is not. */
+const TILE_KEY: Readonly<Partial<Record<TileType, string>>> = {
+  [TileType.OCEAN]: 'ocean', [TileType.CITY]: 'city', [TileType.GREENERY]: 'greenery',
+};
+export function placementTileKey(tile: TileType | undefined): string | undefined {
+  return tile === undefined ? undefined : TILE_KEY[tile] ?? String(tile);
+}
+export const OCEANS_FULL_REASON = 'All oceans are on the board';
+
+/** The card face's own node for `tile` (its printed hex), or undefined. */
+function printedTile(renderData: CardComponent | undefined, tile: TileType): ReadonlyArray<ItemType> | undefined {
+  const type = TILE_ITEM[tile];
+  if (type === undefined) {
+    return undefined;
+  }
+  for (const group of buildMechanics(renderData).groups) {
+    const node = group.nodes.find((n) => isICardRenderItem(n) && n.type === type);
+    if (node !== undefined) {
+      return [node];
+    }
+  }
+  return undefined;
+}
+
+/** The marker of a live «which tile next» prompt (P58), or undefined — STRUCTURAL, never a title. */
+export function placementOrderPromptOf(wf: PlayerInputModel | undefined): PlacementOrderPromptMeta | undefined {
+  return wf?.type === 'or' ? (wf as OrOptionsModel).placementOrderPrompt : undefined;
+}
+
+/**
+ * THE «ОЧЕРЁДНОСТЬ» STEP of a live placement-order prompt (P58 · FS) — one row per printed tile in the card's order
+ * (never the order they are placed in: the column never reflows between steps): a tile still owed is a row the player
+ * takes (its OPTION found by the option's own `tileType` metadata — never by a title), a placed one SEALED in place, a
+ * skipped one (an ocean at the maximum) SHOWN with its reason. Each row is the card's own printed hex. Undefined when
+ * the prompt is no such step.
+ */
+export function placementOrderStepOf(wf: PlayerInputModel | undefined, renderData?: CardComponent): PreludeVariant | undefined {
+  const meta = placementOrderPromptOf(wf);
+  if (meta === undefined || wf === undefined) {
+    return undefined;
+  }
+  const options = (wf as OrOptionsModel).options;
+  const skipped = meta.skipped ?? [];
+  const tiles = [...meta.done, ...meta.remaining, ...skipped];
+  const ordered = [...TILE_ORDER.filter((t) => tiles.includes(t)), ...tiles.filter((t) => !TILE_ORDER.includes(t))];
+  const rows = ordered.map((tile, position): PreludeVariantRow => {
+    const optionIndex = options.findIndex((o) => o.type === 'option' && (o as SelectOptionModel).metadata?.tileType === tile);
+    const placed = meta.done.includes(tile);
+    const row: PreludeVariantRow = {
+      key: 't' + tile,
+      position,
+      choice: position,
+      branchIndex: optionIndex,
+      title: TILE_TITLE[tile] ?? 'Tile',
+      chips: [],
+      available: optionIndex >= 0 && !placed,
+      tileType: tile,
+    };
+    const print = printedTile(renderData, tile);
+    if (print !== undefined) {
+      row.print = print;
+    }
+    if (placed) {
+      row.sealed = true;
+      row.notice = PLACED_NOTICE;
+    } else if (skipped.includes(tile)) {
+      row.reason = tile === TileType.OCEAN ? OCEANS_FULL_REASON : 'Not available right now';
+    }
+    return row;
+  });
+  return {card: meta.source, kind: 'placement-order', rows, shared: [], order: {index: meta.index, of: meta.of}};
+}
+
+/**
+ * The answer of a placement-order row — the LIVE `OrOptions` answered in place (the prompt stands: never an addressed
+ * batch), the index the option's own. Undefined for a sealed / skipped row.
+ */
+export function placementOrderAnswer(row: PreludeVariantRow | undefined): InputResponse | undefined {
+  if (row === undefined || !row.available || row.branchIndex < 0) {
+    return undefined;
+  }
+  return {type: 'or', index: row.branchIndex, response: {type: 'option'}};
 }
 
 /** The row a host recorded (its `choice`). */
@@ -203,10 +320,23 @@ export function firstAvailableRow(variant: PreludeVariant): number {
   return i < 0 ? 0 : i;
 }
 
-/** One d-pad step down the column — wraps, walks over nothing (a refused row is a stop: its reason is read there). */
+/**
+ * One d-pad step down the column — wraps; a refused row is a stop (its reason is read there), a SEALED one (a tile
+ * already placed) is walked over: there is nothing left to read or take on it.
+ */
 export function stepVariantFocus(variant: PreludeVariant, focus: number, dir: 1 | -1): number {
   const n = variant.rows.length;
-  return n === 0 ? 0 : (focus + dir + n) % n;
+  if (n === 0) {
+    return 0;
+  }
+  let next = focus;
+  for (let i = 0; i < n; i++) {
+    next = (next + dir + n) % n;
+    if (variant.rows[next].sealed !== true) {
+      return next;
+    }
+  }
+  return focus;
 }
 
 /**

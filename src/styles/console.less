@@ -28797,10 +28797,31 @@ body.con-start-barshold .con-status {
                 visibility 0s linear calc(160ms * var(--motion-scale, 1));
         }
         > .con-start__colonystep,
-        > .con-start__handslot {
+        > .con-start__handslot,
+        > .con-start__orderstep {
             position: absolute;
             inset: 0;
         }
+    }
+    /* P58 · FS — THE «ОЧЕРЁДНОСТЬ» STEP (a prelude's «which tile next» between its placements): the prelude stands as
+       the step's hero at the queue's own card scale, its column of printed hexes beside it, both centred on the body's
+       height — the deployment released behind (the stepped body above). Nothing moves while the player points; a
+       sealed row (a tile placed) keeps its place. */
+    &__orderstep {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 3rem;
+    }
+    &__orderhero {
+        flex: none;
+        zoom: var(--con-start-qzoom, calc(0.62 * var(--con-ui-scale, 1)));
+        > :is(.card-container, .pcard) { margin: 0; }
+    }
+    &__orderchoice {
+        flex: 0 1 34rem;
+        min-width: 0;
     }
     /* The status rail keeps its box under the step (the body never re-fits) and says nothing: the step's crumb is the
        voice. Same fade grammar as the deployment. */
@@ -40008,6 +40029,12 @@ dialog.con-zoom {
     gap: .8rem;
     width: min(34rem, 100%);
     margin: 0 auto;
+
+    /* P58 · FS — a SEALED row (its tile placed) is MATERIAL, never light: a mint inset kant, the print quiet; the
+       word «Размещено» is its reading. */
+    [data-prelude-variant-sealed] {
+        box-shadow: inset 0 0 0 .06rem fade(@con-mint, 46%);
+    }
 
     &__chips {
         display: flex;

@@ -147,7 +147,13 @@
             </div>
 
             <!-- ── CHOICE ─────────────────────────────────────────── -->
-            <template v-if="activeTask.kind === 'choice'">
+            <!-- P58 · FS — A CARD'S «WHICH TILE NEXT» (`placementOrderPrompt`): the «ВАРИАНТ» family's step, the card's own
+                 printed hexes, the tiles placed sealed in place — the SAME component the start hosts in its body; here
+                 it stands in the hand's zone (a prelude played mid-game) or, with nobody to host it, in this band. -->
+            <ConsolePreludeVariantStep v-if="placementOrderVariant !== undefined" class="con-task__order"
+                                       :variant="placementOrderVariant" :focus="placementOrderFocusRow" :embedded="true"
+                                       @pick="onPlacementOrderPick" />
+            <template v-else-if="activeTask.kind === 'choice'">
               <!-- THE OPTIONS — the variant grammar (`ConsoleVariantChoice`, TR51): the cursor a cold lift, an ARMED option
                    (the generic select → confirm) the seal, «ИЛИ» between a few exclusive results. A CONTEXTUAL choice
                    commits on A in one press, so the badge ALWAYS advertises A — a risky option arms and the second A
@@ -678,6 +684,8 @@ import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
+import ConsolePreludeVariantStep from '@/client/components/console/foundation/ConsolePreludeVariantStep.vue';
+import {PreludeVariant, placementOrderPromptOf, placementOrderStepOf, preludePreStepStage} from '@/client/console/preludeVariant/preludeVariantModel';
 import {
   promptSwapEnterCancelledHook, promptSwapEnterHook, promptSwapLeaveCancelledHook, promptSwapLeaveHook,
 } from '@/client/console/surfaceMotion/promptHandoffMotion';
@@ -884,6 +892,7 @@ export default defineComponent({
   components: {
     ConsoleVariantChoice, ConsoleDeclinePlate, Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel, ConsoleTargetImpactRows,
     ConsoleWsStageHead, ConsoleAmountOperation, ConsoleInfluenceYield, ConsolePromptHead, ConsolePromptOutcome,
+    ConsolePreludeVariantStep,
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1062,6 +1071,10 @@ export default defineComponent({
       // PICK-THEN-PAY: the crumb's tail moves forward to the purchase's payment («› ОПЛАТА»).
       if (this.embedded && this.buyPayStage) {
         return 'Payment';
+      }
+      // P58 · FS — «… › ОЧЕРЁДНОСТЬ»: the order of a card's placements.
+      if (this.embedded && this.placementOrderVariant !== undefined) {
+        return preludePreStepStage(this.placementOrderVariant);
       }
       return this.embedded ? this.kickerKey : '';
     },
@@ -1357,7 +1370,22 @@ export default defineComponent({
      * destructive target is never a single mis-press. The console mirrors both.
      */
     choiceOnePress(): boolean {
-      return this.activeTask.kind === 'choice' && this.activeTask.flavor === 'contextual';
+      // P58 · FS — the order step is one press too: the row IS the answer (nothing irreversible to arm).
+      return this.activeTask.kind === 'choice' && (this.activeTask.flavor === 'contextual' || this.activeTask.flavor === 'placementOrder');
+    },
+    /** P58 · FS — the order step of a card's placements, read off the marker (`placementOrderStepOf`), or undefined. */
+    placementOrderVariant(): PreludeVariant | undefined {
+      if (this.activeTask.kind !== 'choice' || this.activeTask.flavor !== 'placementOrder' || this.nested !== undefined) {
+        return undefined;
+      }
+      const meta = placementOrderPromptOf(this.wf);
+      return meta === undefined ? undefined : placementOrderStepOf(this.wf, getCard(meta.source)?.metadata.renderData);
+    },
+    /** The step's row the cursor stands on: the row of the focused option (sealed / skipped rows are no options). */
+    placementOrderFocusRow(): number {
+      const entry = this.choiceEntries[this.focusIdx];
+      const rows = this.placementOrderVariant?.rows ?? [];
+      return entry === undefined ? -1 : rows.findIndex((r) => r.branchIndex === entry.index);
     },
     /**
      * The A verb of a one-press CHOICE. A LEAF option is decided on the spot, so
@@ -3149,9 +3177,10 @@ export default defineComponent({
         }
         return;
       }
-      // choice / player: vertical rows.
-      if (vertical) {
-        this.moveFocus(dir === 'down' ? 1 : -1);
+      // choice / player: vertical rows. P58 · FS — the «ОЧЕРЁДНОСТЬ» step is ONE column, and every direction walks
+      // it (the variant step's law — a direction that does nothing reads as a dropped input at couch distance).
+      if (vertical || this.placementOrderVariant !== undefined) {
+        this.moveFocus(dir === 'down' || dir === 'right' ? 1 : -1);
       }
     },
     moveFocus(step: number): void {
@@ -3977,6 +4006,16 @@ export default defineComponent({
       } else {
         this.armed = true;
       }
+    },
+    /** P58 · FS — a click / tap on an order row: the row's option focused and answered (one press). */
+    onPlacementOrderPick(rowIndex: number): void {
+      const row = this.placementOrderVariant?.rows[rowIndex];
+      const entry = row === undefined ? -1 : this.choiceEntries.findIndex((e) => e.index === row.branchIndex);
+      if (entry < 0) {
+        return;
+      }
+      this.focusIdx = entry;
+      this.onConfirm();
     },
     /** X: one-press confirm of the focused selection (risky arms first). */
     onConfirm(): void {
