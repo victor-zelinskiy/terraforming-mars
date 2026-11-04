@@ -51,3 +51,8 @@ already on the table — must match the preview's.
 A prelude whose effect answers its OWN play needs nothing new: the hook + its twin from one builder, `printedEffect`
 on the source, the start's reactor place (a carried prelude is held now), and a target pick it asks after a draw stands
 inside the start (`playOwesTargetPick`).
+
+**Confirmed by P61 Soil Bacteria (2026-11-04):** a prelude-reactor answering INTO THE RAIL (plants) inherited all of it
+with no client change — the carried prelude rose on its shelf, its own +1 born on its effect row, the plants row ticking
+0 → 3 → 4 in two touchdowns (stand `console-soil-bacteria` A). The one gap the road found was not the start's: a HAND
+play whose only result is the table's rail answer skipped the play scene's reward beat (ledger FZ).

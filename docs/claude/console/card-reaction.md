@@ -502,6 +502,15 @@ shelf's `data-played-key`, or the seat «Источник» while its pick stand
 Its «where?» pick after the draw stands INSIDE the start: `playOwesTargetPick` keeps the play claim through every seam
 of the take (PL-1117). Contract: `docs/TURMOIL_REDUX_MEDICAL_INSTITUTE.md`.
 
+**…and a prelude answering INTO THE RAIL** (P61 Soil Bacteria, 2026-11-04 — ledger FY · FZ): the same place, nothing new —
+the hero wave's +3 off the printed «3 [plant]», then the carried prelude rises on the shelf and its own +1 is born on its
+effect row; the row ticks on each touchdown. **A PLAY WHOSE ONLY RESULT IS THE TABLE'S RAIL ANSWER STILL OWES THE REWARD
+BEAT** (FZ): the play scene holds and DECLARES that answer (PL-035), so the seeder attaches the record to it — and the beat's
+gate (`consolePlayedHero.rewardBeatOwed`) once forgot `heldAnswers`: Ants with Soil Bacteria on the table (no gain, no
+rating, no points) skipped the beat, the ending released the hold, the row ticked with its chip and the ATTACHED reactor
+never rose. One pure gate, every held result a member; witness `console-soil-bacteria` B (`reactor:Soil Bacteria` →
+`rail:plants`, the reactor emerged from its place).
+
 ## P82 Special Permit — THE IDENTITY OF A RISE (the owner's field report of 2026-10-31, ledger DB)
 
 «Иногда вместе с фактической картой сработавшего эффекта рядом поднимаются ещё ЛЕВЫЕ карты, а иногда карта поднимается
