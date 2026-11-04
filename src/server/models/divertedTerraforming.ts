@@ -43,7 +43,7 @@ import {ResolutionId} from '../../common/parliament/ParliamentTypes';
 import * as divertedGate from '../parliament/divertedTerraformingGate';
 import {DIVERTED_NO_HOLDER_REASON, divertedDataPicker, divertedSource} from '../parliament/resolutions/DivertedTerraforming';
 import {ResolutionDefinition, TerraformingUnit} from '../parliament/resolutions/IResolution';
-import {cardResourceIcon, globalGain, globalParameterStepSize, oceanGain, targetVictoryPoints} from '../cards/actionPreviews';
+import {cardResourceIcon, globalGain, globalParameterStepSize, isWorldGovernmentMove, oceanGain, targetVictoryPoints} from '../cards/actionPreviews';
 import {TRSource} from '../../common/cards/TRSource';
 
 /** The law that replaces `player`'s terraforming right now — the dispatcher's own gate, read once per door. */
@@ -119,7 +119,8 @@ export function divertEffects(
   opts: {cardBeingPlayed?: ICard} = {},
 ): DivertedPreview {
   const law = divertingLaw(player);
-  if (law === undefined) {
+  // The World Government obeys no law of the player's (P67 — `Game.increase*` asks RX35 only outside SOLAR).
+  if (law === undefined || isWorldGovernmentMove(effects)) {
     return {effects: [...effects], steps: [...steps], data: 0};
   }
   const holder = divertedDataHolder(player, law.id, opts.cardBeingPlayed);

@@ -36,7 +36,7 @@ import {
   emptyEffectForecast,
 } from '../../common/models/EffectForecastModel';
 import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from '../cards/EffectForecastContext';
-import {cardResourceGain, cardResourceIcon, drawGain, globalGain, globalParameterStepSize, oceanGain, productionChange, stockGain, trGain} from '../cards/actionPreviews';
+import {cardResourceGain, cardResourceIcon, drawGain, globalGain, globalParameterStepSize, isWorldGovernmentMove, oceanGain, productionChange, stockGain, trGain} from '../cards/actionPreviews';
 import {divertedDataOf} from './divertedTerraforming';
 import {tileRatingEvents, vetoedStepsOf} from './vetoedRating';
 import {RATING_SKIP_CARD, RATING_SKIP_FORECAST_TITLE, RATING_SKIP_REASON, skippedRatingMark, skippedStepsOf} from './skippedRating';
@@ -1263,16 +1263,19 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   const byBranch: Record<number, Array<EffectForecastFact>> = {};
   // The grants the party effects read — the chips' own PLUS what the bonus steps they cross grant (PL-147).
   let ownGrants: Array<EffectForecastGrant> = [];
+  let ownWorld = false;
   const branchGrants: Record<number, Array<EffectForecastGrant>> = {};
   if (single) {
     // A lone branch the rules refuse (a blocked action's setup) grants and
     // places nothing — its reactions would describe an operation that cannot run.
     const effects = branches[0]?.available === false ? [] : (branches[0]?.effects ?? []);
     ownEffects.push(...effects);
-    const bonuses = scaleBonusPass(player, grantsOf(effects));
+    // A WORLD GOVERNMENT move (P67): no bonus step is the player's, no «when YOU raise» reactor answers (PL-052).
+    ownWorld = isWorldGovernmentMove(effects);
+    const bonuses = ownWorld ? {facts: [] as Array<EffectForecastFact>, grants: grantsOf(effects)} : scaleBonusPass(player, grantsOf(effects));
     ownGrants = bonuses.grants;
     facts.push(...bonuses.facts);
-    facts.push(...grantFacts(player, player, card, ownGrants, ctx));
+    facts.push(...grantFacts(player, player, card, ownGrants, ownWorld ? {...ctx, world: true} : ctx));
     facts.push(...basisGrantFacts(player, card, branches[0]?.available === false ? [] : (branches[0]?.steps ?? []), ctx));
     facts.push(...tileFacts(player, card, branches[0]?.available === false ? [] : sharedTiles, ctx));
     facts.push(...colonyBuiltFacts(player, card, branches[0] === undefined || branches[0].available === false ? 0 : colonyBuildsOfBranch(branches[0]), ctx));
@@ -1288,8 +1291,9 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
       ownEffects.push(...branch.effects);
       // The hooks see every tile THIS option would place (shared ones included);
       // only the option's OWN remainder is asked as a branch-tied tile pass.
-      const branchCtx: EffectForecastContext = {...baseCtx, tiles: perBranchTiles[pos], branchPos: pos};
-      const bonuses = scaleBonusPass(player, grantsOf(branch.effects));
+      const world = isWorldGovernmentMove(branch.effects);
+      const branchCtx: EffectForecastContext = {...baseCtx, tiles: perBranchTiles[pos], branchPos: pos, ...(world ? {world: true as const} : {})};
+      const bonuses = world ? {facts: [] as Array<EffectForecastFact>, grants: grantsOf(branch.effects)} : scaleBonusPass(player, grantsOf(branch.effects));
       branchGrants[pos] = bonuses.grants;
       const branchFacts = [
         ...bonuses.facts,
@@ -1318,7 +1322,8 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   const liveTiles = single && branches[0]?.available === false ? [] : sharedTiles;
   // A party's / a law's answer is a GRANT too, and the table answers it in turn (the live funnel: the Greens raise
   // the M€ production → Manutech pays 1 M€ for that step — P75 GHG Shipment, ledger CW): its cascade, like the cards'.
-  const answers = [
+  // A World Government move pays no party and no rating (the engine's SOLAR gate).
+  const answers = ownWorld ? [] : [
     ...partyFacts(player, ownGrants, liveTiles, single ? ownEffects : []),
     ...resolutionFacts(player, ownGrants, liveTiles, single ? ownEffects : []),
     ...skippedRatingFacts(player, single ? ownEffects : []),
@@ -1326,11 +1331,11 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   facts.push(
     ...answers,
     ...cascadeFacts(player, card, answers, ctx),
-    ...ratingFacts(player, card, ownGrants, single ? ownEffects : [], liveTiles, ctx));
+    ...(ownWorld ? [] : ratingFacts(player, card, ownGrants, single ? ownEffects : [], liveTiles, ctx)));
   if (!single) {
     for (let pos = 0; pos < branches.length; pos++) {
       const branch = branches[pos];
-      if (!branch.available) {
+      if (!branch.available || isWorldGovernmentMove(branch.effects)) {
         continue;
       }
       const branchTiles = ownTilesOf(perBranchTiles[pos], sharedTiles);

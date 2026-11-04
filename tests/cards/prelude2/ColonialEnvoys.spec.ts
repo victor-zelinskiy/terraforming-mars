@@ -144,6 +144,10 @@ describe('ColonialEnvoys — on a Turmoil Redux table', () => {
   function colonies(t: Table, n: number): void {
     for (let i = 0; i < n; i++) {
       t.game.colonies[i].addColony(t.p1);
+      // A tile's own build bonus that ASKS (Europa's ocean) is not this spec's subject — and the deal moves with the
+      // decks (a card leaving the hold-back list shifts the shuffle): drained, whichever tiles were dealt.
+      runAllActions(t.game);
+      t.p1.popWaitingFor();
     }
   }
 
@@ -243,9 +247,12 @@ describe('ColonialEnvoys — on a Turmoil Redux table', () => {
 
     it('two cubes of the player\'s on ONE tile are two colonies; a rival\'s cube is none', () => {
       const t = unityRuling();
-      t.game.colonies[0].addColony(t.p1);
-      t.game.colonies[0].addColony(t.p1);
-      t.game.colonies[1].addColony(t.p2);
+      // The build bonuses are not the subject (the deal varies — `colonies` above): each cube's own ask drained.
+      for (const [tile, seat] of [[0, t.p1], [0, t.p1], [1, t.p2]] as const) {
+        t.game.colonies[tile].addColony(seat);
+        runAllActions(t.game);
+        seat.popWaitingFor();
+      }
       play(t);
       expect(grant(t).votePrompt?.series).deep.eq({index: 1, of: 2});
     });

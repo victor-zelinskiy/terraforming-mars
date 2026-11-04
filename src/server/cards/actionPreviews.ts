@@ -361,8 +361,9 @@ const RATING_STEP_UNIT: Readonly<Record<string, number>> = {oxygen: 1, temperatu
  */
 export function impliedRatingOf(effect: ActionEffect): ActionEffect | undefined {
   const unit = RATING_STEP_UNIT[effect.icon];
-  // A struck chip (a law's replacement, RX35) pays no rating: the scale never moves.
-  if (unit === undefined || effect.direction !== 'gain' || effect.implied === true || effect.diverted !== undefined) {
+  // A struck chip (a law's replacement, RX35) pays no rating: the scale never moves. A World Government move (P67)
+  // credits nobody: the scale moves, the rating does not.
+  if (unit === undefined || effect.direction !== 'gain' || effect.implied === true || effect.diverted !== undefined || effect.world === true) {
     return undefined;
   }
   const delta = effect.current !== undefined && effect.resulting !== undefined ? effect.resulting - effect.current : effect.amount;
@@ -406,6 +407,15 @@ export function withImpliedRating(effects: ReadonlyArray<ActionEffect>): Array<A
     ratingAhead += implied.amount;
   });
   return out;
+}
+
+/**
+ * A branch whose chips are a WORLD GOVERNMENT move (`ActionEffect.world` — P67 World Government Advisor): nobody is
+ * credited, so the rating passes (RX35's replacement, RX42's veto, P57's skip) and the party / rating forecast leave
+ * it alone — the engine's SOLAR gates, read by every door from the chips.
+ */
+export function isWorldGovernmentMove(effects: ReadonlyArray<ActionEffect>): boolean {
+  return effects.some((effect) => effect.world === true);
 }
 
 /** Draw N cards (no single pool — shown as a "+N draw" chip). */

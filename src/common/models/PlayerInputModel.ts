@@ -995,7 +995,30 @@ export type OrOptionsModel = BaseInputModel & {
   /** «WHICH TILE NEXT» — a card that places several tiles in an order of the player's choice ({@link PlacementOrderPromptMeta}).
    *  Serialized on the input's own `toModel` (nesting-safe). */
   placementOrderPrompt?: PlacementOrderPromptMeta;
+  /** «THE WORLD GOVERNMENT RAISES ONE PARAMETER — WHO IS ASKING» ({@link WorldGovernmentPromptMeta}). Serialized on the
+   *  input's own `toModel` (nesting-safe). The console routes the question by THIS, never by its title. */
+  worldGovernmentPrompt?: WorldGovernmentPromptMeta;
 }
+
+/**
+ * THE WORLD GOVERNMENT'S QUESTION — WHO ASKS IT (P67 World Government Advisor · ledger GK). One `OrOptions` (one option
+ * per parameter the government may still raise, each `annotate`d with its `GlobalParameter`; Ares extreme solo adds the
+ * hazard removal) is asked by three hosts, and the console serves them differently:
+ *  · `solar-phase` — the generation's own World Government step (the end of the generation, the Redux first player's
+ *    debt): the «Поддержка правительства» dialog;
+ *  · `card` — a card's ACTION acting as the World Government for one action (World Government Advisor): a step of
+ *    «ДЕЙСТВИЯ КАРТ», normally pre-collected by the action's composer (the answer rides the press's batch);
+ *  · `colony` — a colony's bonus (Terra, `ColonyBenefit.WGT_RAISE_GLOBAL_PARAMETER` — module `community`, outside the
+ *    premium scope).
+ * The wire answer is unchanged: `{type: 'or', index, response}`.
+ */
+export type WorldGovernmentPromptMeta =
+  | {source: 'solar-phase'}
+  | {source: 'card', card: CardName}
+  | {source: 'colony', colony: string};
+
+/** Who makes a player the World Government for ONE action in the middle of the action phase (`IGame.temporarySolarPhase`). */
+export type WorldGovernmentActAsker = Exclude<WorldGovernmentPromptMeta, {source: 'solar-phase'}>;
 
 /**
  * THE ORDER OF A CARD'S PLACEMENTS IS THE PLAYER'S (P58 Project Eden — «Place 1 ocean tile, 1 city tile, and 1 greenery
@@ -1494,6 +1517,12 @@ export type SelectPlayerModel = BaseInputModel & {
 export type SelectSpaceModel = BaseInputModel & {
   type: 'space';
   spaces: ReadonlyArray<SpaceId>;
+  /**
+   * THE WORLD GOVERNMENT PLACES THIS TILE (P67 · GK): set by the client on a STAGED pick synthesized from
+   * `StagedPlacementModel.government` — the dossier asks the cell preview in that mode (`?government=1`). A live prompt
+   * in the borrowed SOLAR never needs it (the server reads its own phase).
+   */
+  governmentPlacement?: true;
   /**
    * Per-cell illegality reasons for the cells NOT in `spaces`. Optional
    * because not every SelectSpace caller derives them (small custom paths

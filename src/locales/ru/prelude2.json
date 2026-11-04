@@ -77,5 +77,16 @@
     "for a skipped terraform rating": "за пропущенный РТ",
     "${0}: ${1} TR not counted — the first raise in this generation": "${0}: ${1} РТ не засчитывается — первое повышение в этом поколении",
     "${0}: the first TR raise in this generation's action phase will be skipped": "${0}: первое повышение РТ в фазе действий этого поколения будет пропущено",
-    "${0}: the first TR raise of this generation was already skipped": "${0}: первое повышение РТ в этом поколении уже пропущено"
+    "${0}: the first TR raise of this generation was already skipped": "${0}: первое повышение РТ в этом поколении уже пропущено",
+    "World Government": "Мировое правительство",
+    "The World Government is already acting": "Мировое правительство уже действует",
+    "Every global parameter is at its maximum": "Все глобальные параметры на максимуме",
+    "The last step: Mars is terraformed": "Последний шаг: Марс терраформирован",
+    "no heat production": "без производства тепла",
+    "no cell bonus": "без бонуса клетки",
+    "no bonus card": "без бонусной карты",
+    "no bonus TR": "без бонусного РТ",
+    "no Venus bonus": "без бонуса Венеры",
+    "bonus ocean": "бонусный океан",
+    "bonus step": "бонусный шаг"
 }

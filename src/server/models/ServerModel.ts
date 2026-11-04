@@ -11,7 +11,7 @@ import {IPlayer} from '../IPlayer';
 import {SelectPaymentModel} from '../../common/models/PlayerInputModel';
 import type {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {PlayerInput} from '../PlayerInput';
-import {PlayerInputModel} from '../../common/models/PlayerInputModel';
+import {PlayerInputModel, WorldGovernmentPromptMeta} from '../../common/models/PlayerInputModel';
 import {PlayerViewModel, Protection, PublicPlayerModel, WaitingForKind} from '../../common/models/PlayerModel';
 import {SpaceHighlight, SpaceModel} from '../../common/models/SpaceModel';
 import {TileType} from '../../common/TileType';
@@ -59,12 +59,6 @@ import {ArmedPlayEffectModel} from '../../common/models/ArmedPlayEffectModel';
 
 const DEFAULT_HEAT_FOR_TEMPERATURE = 8;
 const KELVINISTS_HEAT_FOR_TEMPERATURE = 6;
-
-// Title patterns for World Government Terraforming. Single prompt; the title
-// is a fixed string set in `Game.worldGovernmentTerraformingInput()`.
-const WGT_TITLE_PATTERNS = [
-  'Select action for World Government Terraforming',
-];
 
 // Title patterns for Turmoil delegate / ruling-party prompts. These are set
 // in `SendDelegateToArea` (configurable per call) and `ChooseRulingPartyDeferred`.
@@ -143,11 +137,17 @@ function detectWaitingForKind(input: PlayerInput | undefined): WaitingForKind | 
       result = 'delegate';
       return true;
     }
-    const title = titleText(node.title);
-    if (WGT_TITLE_PATTERNS.some((p) => title.includes(p))) {
-      result = 'globalsupport';
-      return true;
+    // The World Government's question is read by its MARKER (P67 · GK — never its title). Only the GENERATION's own
+    // step is the seat's «government support»: a card's action acting as the government stays an action-phase turn.
+    const wgt = (node as unknown as {worldGovernmentPrompt?: WorldGovernmentPromptMeta}).worldGovernmentPrompt;
+    if (wgt !== undefined) {
+      if (wgt.source === 'solar-phase') {
+        result = 'globalsupport';
+        return true;
+      }
+      return false;
     }
+    const title = titleText(node.title);
     if (DELEGATE_TITLE_PATTERNS.some((p) => title.includes(p))) {
       result = 'delegate';
       return true;
@@ -227,6 +227,9 @@ export class Server {
       parliament: getParliamentModel(game, viewer),
       automa: this.getAutomaModel(game),
       phase: game.phase,
+      // P67 · GL — a player acting as the World Government mid-action: the generation is NOT in its solar phase.
+      worldGovernmentAct: game.worldGovernmentAct === undefined ? undefined :
+        {player: game.worldGovernmentAct.player.color, asker: game.worldGovernmentAct.asker},
       spaces: this.getSpaces(game.board, game.gagarinBase, game.stJosephCathedrals, game.nomadSpace),
       spectatorId: game.spectatorId,
       standardProjects: game.getStandardProjects().map((sp) => ({name: sp.name, cost: sp.cost})),

@@ -192,7 +192,36 @@ function portraitPiece(player: IPlayer, space: Space): CellPortraitPiece {
  * uses (`getAvailableSpacesForType` for legality, `placementCostInfo` for the
  * cost/deficit facts) — never a re-implemented rule.
  */
+/**
+ * THE WORLD GOVERNMENT PLACES THIS TILE (P67 · ledger GK). The engine's own gate is the phase (`Game.addTile` grants
+ * the cell's printed bonus and ocean adjacency only outside SOLAR; `increase*` pay no rating in it). A card's ACTION
+ * that acts as the World Government is previewed BEFORE its press — in the action phase — so the dossier is told the
+ * mode (`boardCellPreview({government})`) and reads it through this ONE predicate, never the phase alone. A read-only
+ * dynamic scope: nothing of the game is touched.
+ */
+let governmentReading = 0;
+
+function governmentActs(game: IPlayer['game']): boolean {
+  return game.phase === Phase.SOLAR || governmentReading > 0;
+}
+
 export function boardCellPreview(
+  player: IPlayer,
+  space: Space,
+  kind: BoardPlacementKind,
+  options?: Parameters<typeof boardCellPreviewOf>[3] & {government?: boolean}): BoardPlacementPreview {
+  if (options?.government !== true) {
+    return boardCellPreviewOf(player, space, kind, options);
+  }
+  governmentReading++;
+  try {
+    return boardCellPreviewOf(player, space, kind, options);
+  } finally {
+    governmentReading--;
+  }
+}
+
+function boardCellPreviewOf(
   player: IPlayer,
   space: Space,
   kind: BoardPlacementKind,
@@ -231,7 +260,8 @@ export function boardCellPreview(
   // which mirrors the placed tile's `covers` field (a removed hazard never
   // sets it) — the flag the survey-family hooks read.
   const bonusesCovered = space.tile !== undefined && !cleared;
-  const ctx = previewContext(kind, options?.tileType, cleared, covering, bonusesCovered, options?.placementEffect, stacking, options?.printedBonusMultiplier);
+  const ctx = previewContext(kind, options?.tileType, cleared, covering, bonusesCovered, options?.placementEffect, stacking, options?.printedBonusMultiplier,
+    governmentActs(player.game));
 
   if (ctx.removesTile) {
     // A REMOVAL is its own reading: nothing is paid, placed, triggered or
@@ -887,7 +917,7 @@ function partyReactionFacts(player: IPlayer, space: Space, ctx: PlacementPreview
   // The party answers A TILE PLACED on Mars (never a marker) — a city TIER
   // (Skyscrapers) is one too, though the cell itself pays it nothing again.
   if (parliament.hasPartyEffect(player, PartyName.MARS) && ctx.placesTile && ctx.firesTileTriggers &&
-      player.game.phase !== Phase.SOLAR && space.spaceType !== SpaceType.COLONY) {
+      !governmentActs(player.game) && space.spaceType !== SpaceType.COLONY) {
     out.push({
       ...gainFact('redux-mars-first-steel', 'placement-effect', 'Mars First', {icon: 'steel', amount: 1, direction: 'gain'}),
       description: 'Party effect: 1 steel for each tile you place on Mars',
@@ -923,8 +953,8 @@ function resolutionPassiveFacts(player: IPlayer, space: Space, ctx: PlacementPre
     space,
     onMars: space.spaceType !== SpaceType.COLONY,
     placesTile: ctx.placesTile,
-    firesTilePassive: ctx.placesTile && player.game.phase !== Phase.SOLAR,
-    grantsPlacementBonus: ctx.grantsPlacementBonus && player.game.phase !== Phase.SOLAR,
+    firesTilePassive: ctx.placesTile && !governmentActs(player.game),
+    grantsPlacementBonus: ctx.grantsPlacementBonus && !governmentActs(player.game),
     countsAsCity: ctx.countsAsCity,
     facts: mine,
     gain: (id, delta, description, opts) => ({
@@ -1051,7 +1081,7 @@ function intensifyEventFact(
  * preview exists to prevent.
  */
 function terraformRatingFact(player: IPlayer, id: string, steps: number, reason: string): Array<BoardFact> {
-  if (player.game.phase === Phase.SOLAR) {
+  if (governmentActs(player.game)) {
     return [];
   }
   const current = player.terraformRating;
@@ -1118,7 +1148,7 @@ function temperatureRaiseFacts(player: IPlayer, idPrefix: string, steps = 1): Ar
     ...terraformRatingFact(player, `${idPrefix}-tr-temperature`, applied, 'Temperature'),
   ];
   // Heat production steps are inside the `phase !== SOLAR` block upstream.
-  if (game.phase !== Phase.SOLAR) {
+  if (!governmentActs(game)) {
     const crossed = [constants.TEMPERATURE_BONUS_FOR_HEAT_1, constants.TEMPERATURE_BONUS_FOR_HEAT_2]
       .filter((threshold) => current < threshold && resulting >= threshold).length;
     if (crossed > 0) {
@@ -1435,7 +1465,8 @@ function previewContext(
   bonusesCovered: boolean,
   placementEffect: PlacementEffect = 'tile',
   stacking = false,
-  printedBonusMultiplier = 1): PlacementPreviewContext {
+  printedBonusMultiplier = 1,
+  government = false): PlacementPreviewContext {
   const placesTile = placementEffect === 'tile';
   const removesTile = placementEffect === 'remove';
   const tile = placesTile ? placedTileType(kind, tileType) : undefined;
@@ -1453,7 +1484,8 @@ function previewContext(
     // never reaches `grantPlacementBonuses` (it grants the ocean adjacency
     // alone, which the ocean fact reads off `stacking`). A REMOVAL grants nothing either:
     // the cell's bonuses were paid at the placement and are not returned.
-    grantsPlacementBonus: placementEffect !== 'marker' && !removesTile && !stacking,
+    // …nor does the WORLD GOVERNMENT's tile (`Game.addTile` — the bonuses only outside SOLAR; P67 · GK).
+    grantsPlacementBonus: placementEffect !== 'marker' && !removesTile && !stacking && !government,
     firesTileTriggers: placementEffect !== 'marker' && !removesTile,
     stacking,
     removesTile,

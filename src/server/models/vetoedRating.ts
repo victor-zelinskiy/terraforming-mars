@@ -44,7 +44,7 @@ import {ActionEffect, ActionPreview, ActionPreviewBranch, ActionPreviewStep, Vet
 import {ActionFutilityVerdict} from '../../common/models/ActionFutilityModel';
 import {MAX_OXYGEN_LEVEL} from '../../common/constants';
 import {REDUX_GREENERY_TILE_TR} from '../../common/parliament/winnerReward';
-import {NET_PHASE} from '../cards/actionPreviews';
+import {NET_PHASE, isWorldGovernmentMove} from '../cards/actionPreviews';
 import {highestOtherRating, ratingVetoed, ratingVetoLaw} from '../parliament/ratingVetoGate';
 import {ResolutionDefinition} from '../parliament/resolutions/IResolution';
 import {UNMI_VETO_REASON} from '../parliament/resolutions/reds/UnmiVeto';
@@ -127,7 +127,8 @@ function stepRatingChips(player: IPlayer, effects: ReadonlyArray<ActionEffect>, 
  */
 export function vetoEffects(player: IPlayer, effects: ReadonlyArray<ActionEffect>, steps: ReadonlyArray<ActionPreviewStep> = []): Array<ActionEffect> {
   const law = vetoingLaw(player);
-  if (law === undefined) {
+  // A World Government move (P67) pays nobody a rating — there is nothing to veto, its ocean step included.
+  if (law === undefined || isWorldGovernmentMove(effects)) {
     return [...effects];
   }
   const others = highestOtherRating(player);

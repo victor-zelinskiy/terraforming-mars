@@ -84,5 +84,7 @@
     "Action: Reveal the top 2 cards of the deck. Take any Venus cards into your hand for free. Buy or discard any other card.": "Действие: вскройте 2 верхние карты колоды. Карты Венеры возьмите в руку бесплатно, остальные купите или сбросьте.",
     "Requires that you are Chairman. Draw 3 prelude cards from the prelude deck and play 1 of them; discard the other 2.": "Требуется быть председателем. Возьмите 3 пролога из колоды прологов и разыграйте 1 из них, остальные 2 сбросьте.",
     "Each opponent loses 5 M€.": "Каждый соперник теряет 5 M€.",
-    "Each opponent decreases their M€ production 1 step.": "Каждый соперник снижает производство M€ на 1 шаг."
+    "Each opponent decreases their M€ production 1 step.": "Каждый соперник снижает производство M€ на 1 шаг.",
+    "Raise your TR 2 steps and draw 1 card.": "Повысьте свой РТ на 2 и возьмите 1 карту.",
+    "Action: As the World Government, raise 1 global parameter — you gain no TR and no other bonuses.": "Действие: от имени Мирового правительства поднимите 1 глобальный параметр — вы не получаете ни РТ, ни других бонусов."
 }

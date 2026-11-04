@@ -285,6 +285,16 @@ export type ActionEffect = {
    */
   vetoed?: VetoedRatingMark;
   /**
+   * A WORLD GOVERNMENT MOVE (P67 World Government Advisor · ledger GK): the scale / the ocean moves, but as the World
+   * Government — nobody is credited. No rating stands after it (`impliedRatingOf` adds none), no bonus step it crosses
+   * is paid to the player (the −24 / −20 °C heat production, Venus 8 % / 16 %, the alternative board's bonus, a cell's
+   * printed bonus and its ocean adjacency — the chip's `note` names the one that would have been), no party answers
+   * it, no law replaces it, no «when YOU raise» card answers it; a card answering ANY raise (Aphrodite, Venusian
+   * Census) does. A bonus step the government DOES take (the 0 °C ocean, the 8 % oxygen's temperature step) is a chip
+   * of its own, `world` too. Built by the card beside its action — never by an exit pass.
+   */
+  world?: true;
+  /**
    * For a VARIABLE amount computed from game state ("1 M€ per city on Mars"),
    * the live BASIS of that computation — so the player sees WHY the amount is
    * what it is (e.g. `[{count: 3, label: 'Cities on Mars'}]` → "+3 M€ · Cities
@@ -1072,6 +1082,18 @@ export type StagedPlacementModel = {
   printedBonusMultiplier?: number;
   /** Mirror of `SelectSpaceModel.printedBonusTimes` — the board's «×N» on every candidate of the staged pick. */
   printedBonusTimes?: number;
+  /**
+   * THE CELL IS THE ANSWER OF THE BRANCH PICK (P67 · GK): the live prompt nests the `SelectSpace` INSIDE its `OrOptions`
+   * (the World Government's «Add an ocean»), so the confirm folds `{type: 'space'}` into the batch's last `or` answer —
+   * `{type: 'or', index, response: {type: 'space', spaceId}}` — instead of appending it as the tail.
+   */
+  nestedInBranch?: true;
+  /**
+   * THE WORLD GOVERNMENT PLACES IT (P67 · GK): the cell pays nobody — no printed bonus, no ocean adjacency, no rating,
+   * no tile trigger of the placer's own. The dossier asks the cell preview in that mode (`?government=1`), never the
+   * phase the press is made in.
+   */
+  government?: true;
 };
 
 /**

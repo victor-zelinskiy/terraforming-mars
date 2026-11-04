@@ -173,7 +173,11 @@ export class ApiGameBoardCellPreview extends Handler {
       // bonus pays N times on the commit. Bounded small integer; anything else reads as the default 1.
       const bonusParam = Number(ctx.url.searchParams.get('bonus'));
       const printedBonusMultiplier = Number.isInteger(bonusParam) && bonusParam > 1 && bonusParam <= 4 ? bonusParam : undefined;
-      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind, {cleared, tileType, sourceCard, placementEffect, canAffordOptions, movedFrom, printedBonusMultiplier}));
+      // `government=1` → the WORLD GOVERNMENT places the tile (P67 · GK — a card's action, staged before its press):
+      // the cell pays nobody (`StagedPlacementModel.government`).
+      const government = ctx.url.searchParams.get('government') === '1';
+      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind,
+        {cleared, tileType, sourceCard, placementEffect, canAffordOptions, movedFrom, printedBonusMultiplier, government}));
     } else {
       responses.writeJson(res, ctx, boardCellInfo(player, space));
     }

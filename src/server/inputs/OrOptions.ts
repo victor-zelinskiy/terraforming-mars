@@ -1,7 +1,7 @@
 import {PlayerInput} from '../PlayerInput';
 import {InputResponse, isOrOptionsResponse} from '../../common/inputs/InputResponse';
 import {IPlayer} from '../IPlayer';
-import {DisabledOptionModel, OrOptionsModel, PlacementOrderPromptMeta, TableTargetPromptMeta} from '../../common/models/PlayerInputModel';
+import {DisabledOptionModel, OrOptionsModel, PlacementOrderPromptMeta, TableTargetPromptMeta, WorldGovernmentPromptMeta} from '../../common/models/PlayerInputModel';
 import {OptionsInput} from './OptionsPlayerInput';
 import {InputError} from './InputError';
 
@@ -14,6 +14,8 @@ export class OrOptions extends OptionsInput<undefined> {
   public tableTargetPrompt: TableTargetPromptMeta | undefined;
   /** «Which tile next» of a card that places several in the player's order (`PlacementOrderPromptMeta`) — P58 sets it. */
   public placementOrderPrompt: PlacementOrderPromptMeta | undefined;
+  /** The World Government's question and WHO asks it (`WorldGovernmentPromptMeta`) — `Game.worldGovernmentTerraformingInput` sets it. */
+  public worldGovernmentPrompt: WorldGovernmentPromptMeta | undefined;
 
   constructor(...options: Array<PlayerInput>) {
     super('or', 'Select one option', options);
@@ -34,6 +36,12 @@ export class OrOptions extends OptionsInput<undefined> {
   /** Mark this choice as the ORDER STEP of a card's placements (chainable) — see {@link PlacementOrderPromptMeta}. */
   public markPlacementOrderPrompt(meta: PlacementOrderPromptMeta): this {
     this.placementOrderPrompt = meta;
+    return this;
+  }
+
+  /** Mark this choice as the World Government's question (chainable) — see {@link WorldGovernmentPromptMeta}. */
+  public markWorldGovernmentPrompt(meta: WorldGovernmentPromptMeta): this {
+    this.worldGovernmentPrompt = meta;
     return this;
   }
 
@@ -64,6 +72,9 @@ export class OrOptions extends OptionsInput<undefined> {
     }
     if (this.placementOrderPrompt !== undefined) {
       model.placementOrderPrompt = this.placementOrderPrompt;
+    }
+    if (this.worldGovernmentPrompt !== undefined) {
+      model.worldGovernmentPrompt = this.worldGovernmentPrompt;
     }
     return model;
   }

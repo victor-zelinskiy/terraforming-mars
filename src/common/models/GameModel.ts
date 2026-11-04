@@ -23,6 +23,7 @@ import {ColonyName} from '../colonies/ColonyName';
 import {GlobalParameter} from '../GlobalParameter';
 import {Tag} from '../cards/Tag';
 import {CardName} from '../cards/CardName';
+import type {WorldGovernmentActAsker} from './PlayerInputModel';
 
 // Game-level snapshot of an available standard project. Players see the
 // full list in the Standard Projects overlay regardless of whose turn it
@@ -113,6 +114,13 @@ export type GameModel = {
   pathfinders: PathfindersModel | undefined;
   /** MarsBot (Automa) public state. Undefined in ordinary games. */
   automa: MarsBotModel | undefined;
+  /**
+   * `phase` is the ENGINE's truth, and SOLAR is also its suppression flag: a card's action that makes the player the
+   * World Government for one action (P67 World Government Advisor; the Terra colony's bonus) borrows it in the middle
+   * of the action phase. While it stands this fact is present — the generation is still in its ACTION phase, and the
+   * client's presenters of the generation read it through ONE helper (`generationPhaseOf`), never `phase` raw.
+   */
+  worldGovernmentAct?: WorldGovernmentActModel;
   phase: Phase;
   spaces: ReadonlyArray<SpaceModel>;
   spectatorId?: SpectatorId;
@@ -139,6 +147,12 @@ export type GameModel = {
 }
 
 /** The final greenery phase's public facts (see `GameModel.finalGreenery`). */
+/** A player acting as the World Government for one action of the action phase — who, and who made them so. */
+export type WorldGovernmentActModel = {
+  player: Color;
+  asker: WorldGovernmentActAsker;
+};
+
 export type FinalGreeneryPhaseModel = {
   done: ReadonlyArray<Color>;
 };

@@ -43,6 +43,7 @@ import {Logger} from './logs/Logger';
 import {GlobalParameter} from '../common/GlobalParameter';
 import {UnderworldData} from './underworld/UnderworldData';
 import {OrOptions} from './inputs/OrOptions';
+import type {WorldGovernmentActAsker, WorldGovernmentPromptMeta} from '../common/models/PlayerInputModel';
 import {IStandardProjectCard} from './cards/IStandardProjectCard';
 import {AutomaState} from './automa/AutomaState';
 import {Parliament} from './parliament/Parliament';
@@ -384,9 +385,17 @@ export interface IGame extends Logger {
   getDonePlayers(): Array<Color>;
   /* for testing */ worldGovernmentTerraforming(): void;
   /* for World Government Advisor and Terra colony */
-  worldGovernmentTerraformingInput(player: IPlayer): OrOptions;
-  /* for World Government Advisor and Terra colony */
-  temporarySolarPhase(player: IPlayer, cb: () => void): void;
+  worldGovernmentTerraformingInput(player: IPlayer, asker?: WorldGovernmentPromptMeta): OrOptions;
+  /* for World Government Advisor and Terra colony — `asker` names who makes the player the World Government (P67 · GL) */
+  temporarySolarPhase(player: IPlayer, cb: () => void, asker?: WorldGovernmentActAsker): void;
+  /**
+   * THE WORLD GOVERNMENT IS ACTING IN THE MIDDLE OF THE ACTION PHASE (P67 · ledger GL): set by `temporarySolarPhase`
+   * for exactly as long as the phase it borrows stands (its question and every placement it sets off — the 0 °C
+   * ocean included), cleared by the restore. `phase` stays the engine's truth (SOLAR — the suppression flag); this is
+   * the FACT the generation's presenters read instead (`GameModel.worldGovernmentAct`). Never serialized: no save is
+   * taken while it stands (`Player.takeAction` saves once the deferred queue — the restore included — has drained).
+   */
+  worldGovernmentAct: {player: IPlayer, asker: WorldGovernmentActAsker} | undefined;
   increaseOxygenLevel(player: IPlayer, increments: -2 | -1 | 1 | 2, options?: ParameterMoveOptions): void;
   getOxygenLevel(): number;
   increaseVenusScaleLevel(player: IPlayer, increments: -1 | 1 | 2 | 3, options?: ParameterMoveOptions): number;

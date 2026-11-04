@@ -97,7 +97,9 @@ import {PathfindersExpansion} from './pathfinders/PathfindersExpansion';
 import {PathfindersData} from './pathfinders/PathfindersData';
 import {AddResourcesToCard} from './deferredActions/AddResourcesToCard';
 import {PLACEMENT_BONUS_SOURCE_NAME, spaceSource} from './inputs/choiceContext';
-import type {ChoiceContextSource} from '../common/models/PlayerInputModel';
+import type {ChoiceContextSource, WorldGovernmentActAsker, WorldGovernmentPromptMeta} from '../common/models/PlayerInputModel';
+import {committedPlacement} from './inputs/placementContext';
+import {namedCardEffect} from './inputs/choiceContext';
 import {ColonyDeserializer} from './colonies/ColonyDeserializer';
 import {GameLoader} from './database/GameLoader';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from './game/GameOptions';
@@ -158,6 +160,11 @@ function stockSnapshot(player: IPlayer): Record<Resource, number> {
  * The printed bonuses `grantSpaceBonus` OFFERS once whatever its count (a purchase, a delegate): a multiplied
  * printed bonus (`grantSpaceBonuses`) offers them once per multiple instead of folding the multiple into a count.
  */
+/** The committed reason of the World Government's ocean (P67 · GK): the government already acts — the cell is owed. */
+export const WORLD_GOVERNMENT_ACTING_REASON = 'The World Government is already acting';
+/** The name of the World Government as a source (the generation's own step has no card). */
+export const WORLD_GOVERNMENT_SOURCE_NAME = 'World Government';
+
 const OFFERED_ONCE_SPACE_BONUSES: ReadonlySet<SpaceBonus> = new Set([
   SpaceBonus.OCEAN, SpaceBonus.TEMPERATURE_4MC, SpaceBonus.COLONY, SpaceBonus.DELEGATE,
 ]);
@@ -190,6 +197,7 @@ export class Game implements IGame, Logger {
 
   public generation: number = 1;
   public phase: Phase = Phase.RESEARCH;
+  public worldGovernmentAct: {player: IPlayer, asker: WorldGovernmentActAsker} | undefined = undefined;
   public projectDeck: ProjectDeck;
   public preludeDeck: PreludeDeck;
   public ceoDeck: CeoDeck;
@@ -1456,10 +1464,25 @@ export class Game implements IGame, Logger {
     return undefined;
   }
 
-  public worldGovernmentTerraformingInput(player: IPlayer): OrOptions {
+  /**
+   * THE WORLD GOVERNMENT'S QUESTION — one builder for every host (P67 · ledger GK): the generation's own step
+   * (`asker` `solar-phase`, the default), a card's action (`card` — World Government Advisor; its read-only preview
+   * builds its branches from THIS function), a colony's bonus (`colony`). The marker says who asks — the console routes
+   * by it, never by the title; a card's question is addressed to its card (`choiceContext`), so the action's
+   * pre-collected answer lands on it. Every option names its parameter (`annotate` — Venus too). The ocean names its
+   * source and is committed: the government is already acting. Building it mutates nothing (the options' effects
+   * live in `andThen`).
+   */
+  public worldGovernmentTerraformingInput(player: IPlayer, asker: WorldGovernmentPromptMeta = {source: 'solar-phase'}): OrOptions {
     const orOptions = new OrOptions()
       .setTitle('Select action for World Government Terraforming')
-      .setButtonLabel('Confirm');
+      .setButtonLabel('Confirm')
+      .markWorldGovernmentPrompt(asker);
+    if (asker.source === 'card') {
+      orOptions.markChoiceContext(namedCardEffect(asker.card, false, undefined, 'effect-choice'));
+    }
+    const oceanSource: ChoiceContextSource = asker.source === 'card' ? {kind: 'card', card: asker.card} :
+      asker.source === 'colony' ? {kind: 'colony', name: asker.colony} : {kind: 'system', name: WORLD_GOVERNMENT_SOURCE_NAME};
     if (this.getTemperature() < constants.MAX_TEMPERATURE) {
       orOptions.options.push(
         new SelectOption('Increase temperature', 'Increase')
@@ -1480,7 +1503,10 @@ export class Game implements IGame, Logger {
     }
     if (this.canAddOcean()) {
       orOptions.options.push(
-        createMarsSelectSpace(player, 'Add an ocean', this.board.getAvailableSpacesForOcean(player), {placementType: 'ocean'})
+        createMarsSelectSpace(player, 'Add an ocean', this.board.getAvailableSpacesForOcean(player), {
+          placementType: 'ocean',
+          placementContext: committedPlacement(WORLD_GOVERNMENT_ACTING_REASON, oceanSource),
+        })
           .annotate(GlobalParameter.OCEANS)
           .andThen((space) => this.wgtAct(player,
             () => this.log('${0} acted as World Government and placed ${1}', (b) => b.player(player).globalParameter(GlobalParameter.OCEANS)),
@@ -1489,7 +1515,7 @@ export class Game implements IGame, Logger {
     }
     if (this.getVenusScaleLevel() < constants.MAX_VENUS_SCALE && this.gameOptions.venusNextExtension) {
       orOptions.options.push(
-        new SelectOption('Increase Venus scale', 'Increase').andThen(() => this.wgtAct(player,
+        new SelectOption('Increase Venus scale', 'Increase').annotate(GlobalParameter.VENUS).andThen(() => this.wgtAct(player,
           () => this.log('${0} acted as World Government and raised ${1}', (b) => b.player(player).globalParameter(GlobalParameter.VENUS)),
           () => this.increaseVenusScaleLevel(player, 1))),
       );
@@ -1579,15 +1605,24 @@ export class Game implements IGame, Logger {
     });
   }
 
-  public temporarySolarPhase(player: IPlayer, cb: () => void): void {
+  public temporarySolarPhase(player: IPlayer, cb: () => void, asker?: WorldGovernmentActAsker): void {
     // This temporarily changes the game phase to Solar so the current player does not
     // benefit from the global parameter change.
     const savedPhase = this.phase;
     this.phase = Phase.SOLAR;
+    // THE FACT beside the engine's flag (P67 · GL): the generation is still in `savedPhase` — the client's presenters
+    // of the generation read this, never the borrowed SOLAR. Stands until the restore below.
+    const act = asker === undefined ? undefined : {player, asker};
+    if (act !== undefined) {
+      this.worldGovernmentAct = act;
+    }
     cb();
 
     this.defer(new SimpleDeferredAction(player, () => {
       this.phase = savedPhase;
+      if (act !== undefined && this.worldGovernmentAct === act) {
+        this.worldGovernmentAct = undefined;
+      }
       return undefined;
     }), Priority.BACK_OF_THE_LINE);
   }

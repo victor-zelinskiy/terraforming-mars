@@ -151,6 +151,10 @@ describe('actionBranchView · the printed row of ONE branch', () => {
     // ONE printed row («[?-production] → 4 [?]») over six branches (R33, 2026-10-23) — the «?» is every resource at
     // once, no seam to cut: the tiles speak by their own chips, and the commit's impulse is born on the printed «?».
     'Utopia Invest [turmoil]',
+    // ONE printed row («→ [ocean] [oxygen] [temperature] [Venus]*») over the World Government's options (P67, 2026-11-05)
+    // — the four icons stand side by side with no OR between them (the asterisk is the rule: ONE of them, as the World
+    // Government): no seam to cut. The tiles speak by their own chips, each a World Government move.
+    'World Government Advisor [prelude2]',
   ];
 
   it('corpus: a shared printed row is sliced WHOLE or not at all, every segment a face reference, no two branches the same', () => {

@@ -938,7 +938,7 @@ export abstract class Colony implements IColony {
     case ColonyBenefit.WGT_RAISE_GLOBAL_PARAMETER:
       const globalParameters = [GlobalParameter.TEMPERATURE, GlobalParameter.OXYGEN, GlobalParameter.OCEANS];
       const annotation = globalParameters[quantity];
-      const wgt = game.worldGovernmentTerraformingInput(player);
+      const wgt = game.worldGovernmentTerraformingInput(player, {source: 'colony', colony: this.name});
       const option = wgt.options.find((option) => option.annotation === annotation);
       if (option !== undefined) {
         game.defer(new SimpleDeferredAction(player, () => {
@@ -950,7 +950,7 @@ export abstract class Colony implements IColony {
             } else {
               option.cb();
             }
-          });
+          }, {source: 'colony', colony: this.name});
         }));
       }
       break;
