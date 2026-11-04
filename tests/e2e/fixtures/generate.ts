@@ -287,6 +287,8 @@ import {SpaceshipRecycling} from '../../../src/server/cards/turmoilRedux/Spacesh
 import {FormulaZero} from '../../../src/server/cards/turmoilRedux/FormulaZero';
 import {MechSports} from '../../../src/server/cards/turmoilRedux/MechSports';
 import {BribedCommittee} from '../../../src/server/cards/base/BribedCommittee';
+import {PreservationProgram} from '../../../src/server/cards/prelude2/PreservationProgram';
+import {ratingSkipMarkOf} from '../../../src/server/models/skippedRating';
 import {TerraformingGanymede} from '../../../src/server/cards/base/TerraformingGanymede';
 import {MagneticFieldDome} from '../../../src/server/cards/base/MagneticFieldDome';
 import {AuroraStation} from '../../../src/server/cards/turmoilRedux/AuroraStation';
@@ -12121,6 +12123,84 @@ parliamentFixture('pristar-veto', {
       throw new Error(`pristar-veto: expected red first by rating 30 / 27 with the flag down, got ${p2.terraformRating} / ${p1.terraformRating}`);
     }
     expectViewerOpensGeneration(table, p2, 'pristar-veto');
+  },
+});
+
+// ── P57 · PRESERVATION PROGRAM — «skip the first TR you gain in each generation's action phase» (ledger FQ): the card
+//    on the table after a real start, its skip ARMED (the flag up, nothing gained in this action phase yet), generation
+//    1's action phase on the move. 8 heat (the wheel's conversion — its rating struck, the temperature whole), 30 M€
+//    (the Asteroid standard project after the skip — its rating whole), «Bribed Committee» (+2 TR — «+1» and one
+//    struck) in hand.
+//      · `preservation-program`      — solo on Teractor (the stand's B / C / D / G);
+//      · `preservation-program-unmi` — solo on UNMI with the rating raised in the preludes (its +1 TR action open — and
+//        NO EFFECT while the skip is armed: the futility names the card, F).
+function preservationProgramFixture(name: string, corporation: CardName): void {
+  const {game, player} = soloActionPhase({customCorporationsList: [corporation], startingCorporations: 1});
+  player.playedCards.push(new PreservationProgram());
+  player.preservationProgram = true;
+  player.trThisGeneration = 0;
+  player.pendingInitialActions = [];
+  player.heat = 8;
+  player.megaCredits = 30;
+  player.cardsInHand.push(new BribedCommittee());
+  if (corporation === CardName.UNITED_NATIONS_MARS_INITIATIVE) {
+    player.hasIncreasedTerraformRatingThisGeneration = true;
+  }
+  runAllActions(game);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== player.id || !(player.getWaitingFor() instanceof OrOptions) ||
+      !player.playedCards.has(corporation) || ratingSkipMarkOf(player) !== 'armed') {
+    throw new Error(`${name}: expected ${corporation} on the move in the action phase with the skip armed, got phase=${game.phase} wf=${player.getWaitingFor()?.constructor.name} mark=${ratingSkipMarkOf(player)}`);
+  }
+  write(name, game);
+}
+preservationProgramFixture('preservation-program', CardName.TERACTOR);
+preservationProgramFixture('preservation-program-unmi', CardName.UNITED_NATIONS_MARS_INITIATIVE);
+//      · `preservation-program-start` — the deployment queue (Teractor played, P57 + Donation kept): the +5 off the card,
+//        the mark arming AFTER the landing — the prelude phase gains the rating whole (A);
+//      · `preservation-program-wg`    — the mid-game road: WG Project deals P57 in the action phase with nothing gained —
+//        the card's own preview «+4» and one struck step, the mark `spent` at once (upstream's +4, told — E).
+{
+  const name = 'preservation-program-start';
+  const [game, blue] = testGame(1, {
+    skipInitialCardSelection: false, preludeExtension: true, prelude2Expansion: true,
+    customPreludes: [CardName.PRESERVATION_PROGRAM, CardName.DONATION], customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
+  });
+  const initial = blue.getWaitingFor();
+  if (!(initial instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${initial?.type}`);
+  }
+  blue.process({type: 'initialCards', responses: [
+    {type: 'card', cards: [CardName.TERACTOR]},
+    {type: 'card', cards: [CardName.PRESERVATION_PROGRAM, CardName.DONATION]},
+    {type: 'card', cards: []},
+  ]});
+  runAllActions(game);
+  if (blue.getWaitingFor()?.startGamePrompt?.kind === 'corporationPlay') {
+    blue.process({type: 'card', cards: [CardName.TERACTOR]});
+    runAllActions(game);
+  }
+  const queue = blue.getWaitingFor();
+  if (queue?.startGamePrompt?.kind !== 'preludeSelection' || !blue.tableau.has(CardName.TERACTOR)) {
+    throw new Error(`${name}: expected the deployment queue with Teractor played — got ${queue?.type} ${JSON.stringify(queue?.startGamePrompt)}`);
+  }
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const seat = copy.getPlayerById(blue.id);
+  const tr = seat.terraformRating;
+  seat.process({type: 'card', cards: [CardName.PRESERVATION_PROGRAM]});
+  runAllActions(copy);
+  if (seat.terraformRating !== tr + 5 || ratingSkipMarkOf(seat) !== 'armed') {
+    throw new Error(`${name}: the dry run expected +5 TR whole and the skip armed — got ${seat.terraformRating - tr} TR, mark=${ratingSkipMarkOf(seat)}`);
+  }
+  write(name, game);
+}
+wgProjectFixture('preservation-program-wg', {
+  top: [CardName.PRESERVATION_PROGRAM, CardName.DONATION, CardName.SUPPLIER],
+  under: [CardName.LOAN],
+  megacredits: 20,
+  dry: {
+    pick: CardName.PRESERVATION_PROGRAM,
+    expect: (blue) => blue.tableau.has(CardName.PRESERVATION_PROGRAM) && ratingSkipMarkOf(blue) === 'spent' ?
+      undefined : `expected Preservation Program played mid-game with its skip spent on its own +5 — got tableau=${blue.tableau.has(CardName.PRESERVATION_PROGRAM)} mark=${ratingSkipMarkOf(blue)}`,
   },
 });
 

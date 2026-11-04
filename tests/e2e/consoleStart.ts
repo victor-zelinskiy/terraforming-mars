@@ -3105,6 +3105,8 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   'nobel-prize' | 'nobel-prize-exhausted' | 'nobel-prize-wg' |
   // P56 Planetary Alliance — two named searches of one play (ledger FP): the tape, the Venus run-out, the WG road.
   'planetary-alliance' | 'planetary-alliance-exhausted' | 'planetary-alliance-wg' |
+  // P57 Preservation Program — the card's skipped first TR, said (ledger FQ): the action phase, UNMI, the start, the WG road.
+  'preservation-program' | 'preservation-program-unmi' | 'preservation-program-start' | 'preservation-program-wg' |
   // Prelude 2 P81 Soil Studies — «per Venus tag, plant tag (INCLUDING THIS ONE) and colony» (DJ): the play +5 (Venus
   // Governor · Arctic Algae · this · one cube) · locked at −2 °C.
   'soil-studies' | 'soil-studies-locked' |
