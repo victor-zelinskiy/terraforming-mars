@@ -13,6 +13,7 @@ import {Resource} from '../../../common/Resource';
 import * as actionPreviews from '../actionPreviews';
 import {ActionFutility} from '../../../common/models/ActionFutilityModel';
 import {ratingVetoFutility} from '../../models/vetoedRating';
+import {ratingSkipFutility} from '../../models/skippedRating';
 export const ACTION_COST = 3;
 export class UnitedNationsMarsInitiative extends CorporationCard implements IActionCard, ICorporationCard {
   constructor() {
@@ -67,7 +68,9 @@ export class UnitedNationsMarsInitiative extends CorporationCard implements IAct
    * take it on purpose); the tile and the composer say why it changes nothing.
    */
   public actionFutility(player: IPlayer): ActionFutility | undefined {
-    const verdict = ratingVetoFutility(player);
+    // …and its one step eaten by a card's standing skip (P57 Preservation Program — the first TR of this generation's
+    // action phase): the same 3 M€ for nothing, named by the card.
+    const verdict = ratingVetoFutility(player) ?? ratingSkipFutility(player);
     return verdict === undefined ? undefined : {verdict};
   }
 

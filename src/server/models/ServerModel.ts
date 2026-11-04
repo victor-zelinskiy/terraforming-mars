@@ -1,4 +1,5 @@
 import {CardModel} from '../../common/models/CardModel';
+import {ratingSkipMarkOf} from './skippedRating';
 import {Color} from '../../common/Color';
 import {IGame} from '../IGame';
 import {GameOptions} from '../game/GameOptions';
@@ -757,6 +758,7 @@ export class Server {
       tagBonuses: ParliamentHandler.tagBonuses(player),
       terraformRating: player.terraformRating,
       ratingRaisedThisGeneration: player.hasIncreasedTerraformRatingThisGeneration,
+      ...ratingSkipField(player),
       timer: player.timer.serialize(),
       titanium: player.titanium,
       titaniumProduction: player.production.titanium,
@@ -1057,4 +1059,10 @@ function maPaymentPreviews(player: IPlayer): {payments?: Record<string, SelectPa
     }
   }
   return Object.keys(payments).length > 0 ? {payments} : {};
+}
+
+/** P57's standing mark for the rail — present only with the card on the table (`skippedRating.ratingSkipMarkOf`). */
+function ratingSkipField(player: IPlayer): {ratingSkip?: 'armed' | 'spent'} {
+  const mark = ratingSkipMarkOf(player);
+  return mark === undefined ? {} : {ratingSkip: mark};
 }

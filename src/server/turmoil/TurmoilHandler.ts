@@ -16,6 +16,7 @@ import {REDS_POLICY_2} from './parties/Reds';
 import {MoonExpansion} from '../moon/MoonExpansion';
 import {UNITY_POLICY_4} from './parties/Unity';
 import {TRSource} from '../../common/cards/TRSource';
+import {ratingSkipArmed} from '../cards/prelude2/preservationProgramSkip';
 import {IPolicy, policyDescription} from './Policy';
 
 export class TurmoilHandler {
@@ -163,7 +164,10 @@ export class TurmoilHandler {
 
     total += tr.tr ?? 0;
 
-    if (player.preservationProgram === true) {
+    // P57 Preservation Program eats the first step ONLY in the action phase, before any rating gained in it this
+    // generation (the funnel's own three terms — `skippedRating.ratingSkipArmed`): outside it the flag may stand armed
+    // and the Reds charge every step, so the bump must not count one less.
+    if (ratingSkipArmed(player)) {
       total = Math.max(total - 1, 0);
     }
 

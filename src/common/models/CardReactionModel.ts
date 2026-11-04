@@ -32,7 +32,13 @@ export type CardReactionImpact =
   | {kind: 'card-resource', resource: CardResource, amount: number, target: CardName, to: Color}
   | {kind: 'draw', amount: number, to: Color}
   | {kind: 'tr', amount: number, to: Color}
-  | {kind: 'global', parameter: GlobalParameter, amount: number, to: Color};
+  | {kind: 'global', parameter: GlobalParameter, amount: number, to: Color}
+  /**
+   * A unit the card's standing effect REFUSED (P57 Preservation Program — the first TR of this generation's action
+   * phase): nothing landed, so the scene births no token and ticks nothing — the reactor rises and its printed
+   * struck icon pulses once. Written only on the card's own `rating-skipped` channel.
+   */
+  | {kind: 'skip', icon: 'tr', amount: number, to: Color};
 
 /**
  * WHAT WOKE THE EFFECT — stated by the trigger site that knows it (`Player.onCardPlayed` → the played card;

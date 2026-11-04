@@ -140,8 +140,13 @@ type RecordInput = {
  * the kinds the reaction scene can play (a stock, a production, a card
  * resource, a draw, a rating, a scale step), each addressed to `to`.
  */
-function reactionImpactsOf(impact: EventImpact, to: Color): Array<CardReactionImpact> {
+function reactionImpactsOf(impact: EventImpact, to: Color, trigger?: EventTrigger): Array<CardReactionImpact> {
   const out: Array<CardReactionImpact> = [];
+  // A CARD's standing skip (P57 — the channel `rating-skipped`): the refused rating step is the reaction's whole
+  // impact. Any other skip stays out of the scene (a holderless resource is the journal's row, not a reaction).
+  if (trigger === 'rating-skipped' && impact.skipped?.effect?.icon === 'tr' && impact.skipped.effect.amount > 0) {
+    out.push({kind: 'skip', icon: 'tr', amount: impact.skipped.effect.amount, to});
+  }
   for (const [resource, amount] of Object.entries(impact.stock ?? {})) {
     if (amount !== undefined && amount !== 0) {
       out.push({kind: 'stock', resource: resource as Resource, amount, to});
@@ -254,7 +259,9 @@ export class EventRecorder {
    * later one. The scope is found walking OUTWARD from the top (a nested
    * `withSource` inside the effect is transparent), stopping at an action /
    * copied-action boundary (a nested action is a different chain). An impact
-   * kind the scene cannot play (a reveal, a discount, a skip) adds nothing.
+   * kind the scene cannot play (a reveal, a discount, a skip) adds nothing —
+   * except a CARD's own refused rating (P57, channel `rating-skipped`): that
+   * skip IS the card's reaction (`skip` impact — a pulse, no token).
    */
   private recordReaction(input: RecordInput): void {
     const ctx = this.reactionScope();
@@ -273,7 +280,7 @@ export class EventRecorder {
       return;
     }
     const to = input.player ?? ctx.playerColor;
-    const impacts = reactionImpactsOf(input.impact, to);
+    const impacts = reactionImpactsOf(input.impact, to, ctx.trigger);
     if (impacts.length === 0) {
       return;
     }

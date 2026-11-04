@@ -30,7 +30,12 @@ export type ActionFutilityKind =
    * Its whole result is a terraform rating the enacted law refuses (Turmoil Redux RX42 UNMI Veto: the player is
    * first by rating). A step of a scale under the veto is NOT this — the scale moves (the table moved, never nothing).
    */
-  | 'rating-vetoed';
+  | 'rating-vetoed'
+  /**
+   * Its whole result is ONE rating step a card's standing effect will eat (P57 Preservation Program: the first TR
+   * gained in this generation's action phase is skipped). A step of a scale is NOT this — the scale moves.
+   */
+  | 'rating-skipped';
 
 /** The global parameters a step of which can be all an action does. */
 export type FutileParameter = 'temperature' | 'oxygen' | 'oceans' | 'venus';

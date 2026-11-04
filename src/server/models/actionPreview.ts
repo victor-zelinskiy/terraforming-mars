@@ -29,6 +29,7 @@ import {withPreselectAddresses} from './preselectAddresses';
 import {withVenusBonusSteps} from './venusBonusSteps';
 import {withDivertedTerraforming} from './divertedTerraforming';
 import {withVetoedRating} from './vetoedRating';
+import {withSkippedRating} from './skippedRating';
 import * as divertedGate from '../parliament/divertedTerraformingGate';
 import {actionFutility} from './actionFutility';
 import {attachStagedPlacement, stagedPlacementForBehavior} from './stagedBehaviorPlacement';
@@ -57,11 +58,12 @@ import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResoluti
 export function actionPreview(player: IPlayer, card: ICard & IActionCard): ActionPreview {
   // The door's exit passes, in order: a replacing law strikes the printed units and pre-collects the «where»
   // (`divertedTerraforming.ts`, RX35), the rating pass states no rating for a struck chip, the rating veto strikes
-  // every rating the funnel will refuse (`vetoedRating.ts`, RX42 — after the ratings are all stated), every step is
+  // every rating the funnel will refuse (`vetoedRating.ts`, RX42 — after the ratings are all stated), a card's skip
+  // splitting the first rating the law let through (`skippedRating.ts`, P57), every step is
   // addressed to its own prompt (the pre-select law, `preselectAddresses.ts`) — the Venus bonus a step earns pre-selected
   // beside them (`venusBonusSteps.ts`, P89 · EK) — the «no effect» verdicts last.
   return withActionFutility(player, card,
-    withPreselectAddresses(withVenusBonusSteps(player, withVetoedRating(player, withImpliedRatings(withDivertedTerraforming(player, actionPreviewOf(player, card)))))));
+    withPreselectAddresses(withVenusBonusSteps(player, withSkippedRating(player, withVetoedRating(player, withImpliedRatings(withDivertedTerraforming(player, actionPreviewOf(player, card))))))));
 }
 
 /**

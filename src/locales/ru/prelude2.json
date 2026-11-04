@@ -70,5 +70,12 @@
     "No immediate effect — the hub acts from this generation on": "Эффекта при розыгрыше нет — действие узла доступно с этого поколения",
     "Spend which resource?": "Какой ресурс потратить?",
     "Discard which card?": "Какую карту сбросить?",
-    "No standard resources to spend": "Нет стандартных ресурсов, чтобы потратить"
+    "No standard resources to spend": "Нет стандартных ресурсов, чтобы потратить",
+    "Preservation Program skips the first TR you gain in each generation's action phase": "Программа сохранения пропускает первое повышение РТ в фазе действий каждого поколения",
+    "Preservation Program: the first TR of this generation is not gained": "Программа сохранения: первое повышение РТ в этом поколении не засчитывается",
+    "First TR is skipped": "Первый РТ пропускается",
+    "for a skipped terraform rating": "за пропущенный РТ",
+    "${0}: ${1} TR not counted — the first raise in this generation": "${0}: ${1} РТ не засчитывается — первое повышение в этом поколении",
+    "${0}: the first TR raise in this generation's action phase will be skipped": "${0}: первое повышение РТ в фазе действий этого поколения будет пропущено",
+    "${0}: the first TR raise of this generation was already skipped": "${0}: первое повышение РТ в этом поколении уже пропущено"
 }

@@ -1,38 +1,20 @@
 import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
-import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
-import {ICard, isIActionCard} from '../../src/server/cards/ICard';
+import {isIActionCard} from '../../src/server/cards/ICard';
 import {IProjectCard} from '../../src/server/cards/IProjectCard';
 import {ICorporationCard} from '../../src/server/cards/corporation/ICorporationCard';
-import {GameModule} from '../../src/common/cards/GameModule';
-import {CardName} from '../../src/common/cards/CardName';
 import {CardType} from '../../src/common/cards/CardType';
 import {Phase} from '../../src/common/Phase';
-import {Behavior} from '../../src/server/behavior/Behavior';
-import {IGame} from '../../src/server/IGame';
-import {PlayerInput} from '../../src/server/PlayerInput';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
-import {AndOptions} from '../../src/server/inputs/AndOptions';
-import {SelectOption} from '../../src/server/inputs/SelectOption';
-import {SelectCard} from '../../src/server/inputs/SelectCard';
-import {SelectAmount} from '../../src/server/inputs/SelectAmount';
-import {SelectPlayer} from '../../src/server/inputs/SelectPlayer';
-import {SelectPayment} from '../../src/server/inputs/SelectPayment';
-import {SelectSpace} from '../../src/server/inputs/SelectSpace';
-import {SelectColony} from '../../src/server/inputs/SelectColony';
-import {SelectParty} from '../../src/server/inputs/SelectParty';
-import {Payment} from '../../src/common/inputs/Payment';
-import {InputResponse} from '../../src/common/inputs/InputResponse';
 import {ActionPreview} from '../../src/common/models/ActionPreviewModel';
 import {resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
 import {UNMI_VETO_ID} from '../../src/server/parliament/resolutions/reds/UnmiVeto';
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
 import {actionPreview} from '../../src/server/models/actionPreview';
 import {testGame} from '../TestGame';
-import {TestPlayer} from '../TestPlayer';
 import {runAllActions} from '../TestingUtils';
-import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
+import {Table, Walk, answerOf, candidates, movesWorld, printedTiles, walkPrompts} from '../models/ratingRefusalWalk';
 
 /*
  * THE RATING VETO, SWEPT OVER THE WHOLE SCOPE (Turmoil Redux RX42 UNMI Veto — invariant 11: a guard is the
@@ -57,114 +39,9 @@ import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/prem
  * `LEFTOVER_VETO_WORKLIST` is EMPTY ON PURPOSE and fails BOTH ways: a new leak is a regression, a fixed entry must
  * be removed.
  */
-const SCOPE = PREMIUM_SCOPE_MODULES;
 const LEFTOVER_VETO_WORKLIST = new Set<string>([]);
 
 const VETO = resolutionInstanceId(UNMI_VETO_ID, 0);
-
-/** The module key → source directory (two differ: `ceo` ↔ `ceos`, `deltaProject` ↔ `delta`). */
-function dirOf(module: GameModule): string {
-  if (module === 'ceo') {
-    return 'ceos';
-  }
-  if (module === 'deltaProject') {
-    return 'delta';
-  }
-  return module;
-}
-
-/** The source text of every card class in scope, by class name (read once). */
-const SOURCE_BY_CLASS = new Map<string, string>();
-for (const module of SCOPE) {
-  const dir = path.join(__dirname, '../../src/server/cards', dirOf(module));
-  if (!fs.existsSync(dir)) {
-    continue;
-  }
-  const walk = (d: string): void => {
-    for (const entry of fs.readdirSync(d, {withFileTypes: true})) {
-      const full = path.join(d, entry.name);
-      if (entry.isDirectory()) {
-        walk(full);
-      } else if (entry.name.endsWith('.ts')) {
-        const text = fs.readFileSync(full, 'utf8');
-        for (const m of text.matchAll(/export class (\w+)/g)) {
-          SOURCE_BY_CLASS.set(m[1], text);
-        }
-      }
-    }
-  };
-  walk(dir);
-}
-
-/** A bespoke road to a rating: the funnel itself, or a scale / tile door whose rating rides the funnel. */
-const BESPOKE_DOOR = /increaseTerraformRating\(|PlaceGreeneryTile|PlaceOceanTile|increaseOxygenLevel|increaseTemperature|increaseVenusScaleLevel|addGreenery\(|addOcean\(/;
-
-/** The PRINTED rating roads a behavior declares — what the law may refuse (every step of a scale is a rating for the raiser). */
-function printedRatings(behavior: Behavior | undefined): number {
-  if (behavior === undefined) {
-    return 0;
-  }
-  let units = 0;
-  units += typeof behavior.tr === 'number' && behavior.tr > 0 ? behavior.tr : 0;
-  units += Math.max(0, behavior.global?.oxygen ?? 0);
-  units += Math.max(0, behavior.global?.temperature ?? 0);
-  units += Math.max(0, behavior.global?.venus ?? 0);
-  units += behavior.ocean !== undefined ? (behavior.ocean.count ?? 1) : 0;
-  units += behavior.greenery !== undefined ? 1 : 0;
-  return units;
-}
-
-/** The tiles a behavior prints (an ocean count, a greenery) — what the walk must have seated for its refusals to be whole. */
-function printedTiles(behavior: Behavior | undefined): number {
-  if (behavior === undefined) {
-    return 0;
-  }
-  return (behavior.ocean !== undefined ? (behavior.ocean.count ?? 1) : 0) + (behavior.greenery !== undefined ? 1 : 0);
-}
-
-/** Does the behavior move THE WORLD (a scale, a tile) — what must still happen under the veto? */
-function movesWorld(behavior: Behavior | undefined): boolean {
-  if (behavior === undefined) {
-    return false;
-  }
-  return (behavior.global?.oxygen ?? 0) > 0 || (behavior.global?.temperature ?? 0) > 0 || (behavior.global?.venus ?? 0) > 0 ||
-    behavior.ocean !== undefined || behavior.greenery !== undefined;
-}
-
-type Candidate = {Factory: new () => ICard, module: GameModule, name: CardName, play: number, action: number, bespoke: boolean};
-
-function candidates(): Array<Candidate> {
-  const out: Array<Candidate> = [];
-  for (const manifest of ALL_MODULE_MANIFESTS) {
-    if (!SCOPE.includes(manifest.module)) {
-      continue;
-    }
-    for (const group of [manifest.projectCards, manifest.corporationCards, manifest.preludeCards]) {
-      for (const name of Object.keys(group)) {
-        const Factory = (group as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
-        if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
-          continue;
-        }
-        let probe: ICard;
-        try {
-          probe = new Factory();
-        } catch {
-          continue;
-        }
-        const play = printedRatings(probe.behavior);
-        const action = printedRatings(probe.actionBehavior);
-        const text = SOURCE_BY_CLASS.get(Factory.name) ?? '';
-        const bespoke = BESPOKE_DOOR.test(text);
-        if (play > 0 || action > 0 || bespoke) {
-          out.push({Factory, module: manifest.module, name: probe.name, play, action, bespoke});
-        }
-      }
-    }
-  }
-  return out;
-}
-
-type Table = {game: IGame, player: TestPlayer, opponent: TestPlayer};
 
 function table(): Table {
   const [game, player, opponent] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true, venusNextExtension: true});
@@ -181,84 +58,6 @@ function table(): Table {
   opponent.megaCredits = 20;
   opponent.plants = 10;
   return {game, player, opponent};
-}
-
-type Walk = {unwalkable?: string};
-
-/** The cheapest valid answer of a live input — undefined when the guard cannot synthesize one. */
-function answerOf(input: PlayerInput, walk: Walk): InputResponse | undefined {
-  if (input instanceof SelectSpace) {
-    return input.spaces.length > 0 ? {type: 'space', spaceId: input.spaces[0].id} : undefined;
-  }
-  if (input instanceof OrOptions) {
-    for (let i = 0; i < input.options.length; i++) {
-      const inner = answerOf(input.options[i], walk);
-      if (inner !== undefined) {
-        return {type: 'or', index: i, response: inner};
-      }
-    }
-    return undefined;
-  }
-  if (input instanceof AndOptions) {
-    const responses: Array<InputResponse> = [];
-    for (const option of input.options) {
-      const inner = answerOf(option, walk);
-      if (inner === undefined) {
-        return undefined;
-      }
-      responses.push(inner);
-    }
-    return {type: 'and', responses};
-  }
-  if (input instanceof SelectOption) {
-    return {type: 'option'};
-  }
-  if (input instanceof SelectCard) {
-    const cards = (input as SelectCard<ICard>).cards;
-    const n = Math.max(input.config.min, Math.min(1, input.config.max));
-    if (cards.length < n) {
-      return n === 0 ? {type: 'card', cards: []} : undefined;
-    }
-    return {type: 'card', cards: cards.slice(0, n).map((c) => c.name)};
-  }
-  if (input instanceof SelectAmount) {
-    return {type: 'amount', amount: input.min};
-  }
-  if (input instanceof SelectPlayer) {
-    return input.players.length > 0 ? {type: 'player', player: input.players[0].color} : undefined;
-  }
-  if (input instanceof SelectPayment) {
-    return {type: 'payment', payment: Payment.of({megacredits: input.amount})};
-  }
-  if (input instanceof SelectColony) {
-    return input.colonies.length > 0 ? {type: 'colony', colonyName: input.colonies[0].name} : undefined;
-  }
-  if (input instanceof SelectParty) {
-    return input.parties.length > 0 ? {type: 'party', partyName: input.parties[0]} : undefined;
-  }
-  return undefined;
-}
-
-/** Drive the seat's prompts to the end (or to an answer the guard cannot give). */
-function walkPrompts(t: Table, walk: Walk): void {
-  for (let round = 0; round < 16; round++) {
-    runAllActions(t.game);
-    const input = t.player.getWaitingFor();
-    if (input === undefined) {
-      return;
-    }
-    const response = answerOf(input, walk);
-    if (response === undefined) {
-      walk.unwalkable = `a ${input.type} prompt the guard cannot answer`;
-      return;
-    }
-    try {
-      t.player.process(response);
-    } catch (e) {
-      walk.unwalkable = `answering a ${input.type} threw: ${(e as Error).message}`;
-      return;
-    }
-  }
 }
 
 /** What the LAW refused live for the seat — the magnitudes of its named skips, summed. */

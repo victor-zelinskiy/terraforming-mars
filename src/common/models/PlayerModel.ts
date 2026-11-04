@@ -216,6 +216,13 @@ export type PublicPlayerModel = {
    * Pristar mark reads it (`console/railMarks.ts`), never a guess off the log or a rating delta.
    */
   ratingRaisedThisGeneration: boolean;
+  /**
+   * P57 PRESERVATION PROGRAM's standing skip («skip the first TR you gain in each generation's action phase»), read by
+   * the SERVER (`models/skippedRating.ratingSkipMarkOf`): `armed` — the card's flag stands, the next rating gained in
+   * the action phase loses one step; `spent` — this generation's step was already eaten. Absent without the card.
+   * Public (the card is on the table). The rail's rating cell draws it (`console/railMarks.ratingSkipMarkOf`).
+   */
+  ratingSkip?: 'armed' | 'spent';
   timer: TimerModel;
   titanium: number;
   titaniumProduction: number;

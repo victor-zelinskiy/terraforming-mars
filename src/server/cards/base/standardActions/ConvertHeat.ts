@@ -11,6 +11,7 @@ import {rewardReactionForecast} from '../../../models/effectForecast';
 import {parameterMaxed} from '../../actionFutilities';
 import {divertEffects, divertedFutility} from '../../../models/divertedTerraforming';
 import {vetoEffects} from '../../../models/vetoedRating';
+import {skipEffects} from '../../../models/skippedRating';
 import * as divertedGate from '../../../parliament/divertedTerraformingGate';
 
 /**
@@ -30,7 +31,8 @@ export function heatConversionMetadata(player: IPlayer, heat: number): OptionMet
     actionPreviews.globalGain(player, 'temperature', 1),
   ], []);
   // …then the rating veto (RX42): the step's rating struck for a seat first by rating — the step itself moves.
-  const effects = vetoEffects(player, actionPreviews.withImpliedRating(diverted.effects));
+  // …and a card's skip (P57): the first rating of the generation's action phase not gained.
+  const effects = skipEffects(player, vetoEffects(player, actionPreviews.withImpliedRating(diverted.effects)));
   const forecast = rewardReactionForecast(player, undefined, effects);
   // NO EFFECT at the temperature's maximum: the step moves nothing and the engine pays nothing for it (no TR, no party
   // reward, no reaction) — the console must not count or warn about the conversion as an opportunity (never a block).

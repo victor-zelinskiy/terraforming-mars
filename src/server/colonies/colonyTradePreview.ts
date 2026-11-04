@@ -33,6 +33,7 @@ import {GrantVenusAltTrackBonusDeferred} from '../venusNext/GrantVenusAltTrackBo
 import {EffectForecastFact} from '../../common/models/EffectForecastModel';
 import {divertEffects, divertingLaw} from '../models/divertedTerraforming';
 import {vetoEffects} from '../models/vetoedRating';
+import {skipEffects} from '../models/skippedRating';
 import {divertedDataPicker} from '../parliament/resolutions/DivertedTerraforming';
 
 /**
@@ -232,7 +233,8 @@ function buildGrantEffects(player: IPlayer, colony: IColony, metadata: ColonyMet
   const build = buildBenefitAt(metadata, colony.colonies.length);
   // The family's exit passes (RX35, then RX42): a replacing law strikes the bonus's ocean — the forecast then grants
   // nothing for it and states the law's own data instead; the rating veto strikes a rating bonus the seat will not gain.
-  return vetoEffects(player, divertEffects(player, benefitGrantEffects(player, metadata, build.type, build.quantity, build.resource, lost), []).effects);
+  // A card's skip (P57) last: the first rating the law let through, not gained.
+  return skipEffects(player, vetoEffects(player, divertEffects(player, benefitGrantEffects(player, metadata, build.type, build.quantity, build.resource, lost), []).effects));
 }
 
 /** A card-resource follow-up whose target does not exist — the live income adds nothing and no reactor fires. */

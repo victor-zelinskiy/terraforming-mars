@@ -38,6 +38,7 @@ import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from '..
 import {cardResourceGain, cardResourceIcon, drawGain, globalGain, globalParameterStepSize, oceanGain, productionChange, stockGain, trGain} from '../cards/actionPreviews';
 import {divertedDataOf} from './divertedTerraforming';
 import {tileRatingEvents, vetoedStepsOf} from './vetoedRating';
+import {RATING_SKIP_CARD, RATING_SKIP_FORECAST_TITLE, RATING_SKIP_REASON, skippedRatingMark, skippedStepsOf} from './skippedRating';
 import {ratingVetoed} from '../parliament/ratingVetoGate';
 import * as forecast from '../cards/effectForecastPreviews';
 import {GREENS_MEGACREDITS_PER_TR} from '../parliament/parties/PartyEffects';
@@ -422,6 +423,21 @@ function resolutionFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGr
     drawGain: (count) => drawGain(count),
     cardResourceGain: (resource, amount) => cardResourceGain(resource, amount),
   });
+}
+
+/**
+ * P57 PRESERVATION PROGRAM — the card's standing skip answers the operation's first rating with its own SKIPPED fact
+ * («+1 [TR] not gained»), read off the exit pass's marks (`skippedStepsOf` — the chips the card struck), on the
+ * channel the live skip fires on. Nothing while no chip carries the card's mark.
+ */
+function skippedRatingFacts(player: IPlayer, effects: ReadonlyArray<ActionEffect>): Array<EffectForecastFact> {
+  const steps = skippedStepsOf(effects);
+  if (steps <= 0) {
+    return [];
+  }
+  const chip: ActionEffect = {direction: 'gain', icon: 'tr', amount: steps, vetoed: skippedRatingMark(steps)};
+  return [forecast.skipped({kind: 'card', name: RATING_SKIP_CARD, owner: player.color, channel: 'rating-skipped'}, [chip],
+    RATING_SKIP_FORECAST_TITLE, {id: 'preservation-program-rating', note: RATING_SKIP_REASON})];
 }
 
 /** The second-order reactors of ONE seat (+ the acting seat's own played card, «including this»). */
@@ -1296,6 +1312,7 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   const answers = [
     ...partyFacts(player, ownGrants, liveTiles, single ? ownEffects : []),
     ...resolutionFacts(player, ownGrants, liveTiles, single ? ownEffects : []),
+    ...skippedRatingFacts(player, single ? ownEffects : []),
   ];
   facts.push(
     ...answers,
@@ -1311,6 +1328,7 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
       const branchAnswers = [
         ...partyFacts(player, branchGrants[pos] ?? [], branchTiles, branch.effects),
         ...resolutionFacts(player, branchGrants[pos] ?? [], branchTiles, branch.effects),
+        ...skippedRatingFacts(player, branch.effects),
       ];
       const own = [
         ...branchAnswers,
@@ -1385,6 +1403,7 @@ export function rewardReactionFacts(
     facts.push(
       ...partyFacts(player, grants, [], effects),
       ...resolutionFacts(player, grants, [], effects),
+      ...skippedRatingFacts(player, effects),
       // The rating the reward pays (a standard asteroid's degree, a trade's +1 TR), to the rating reactors (TR81).
       ...ratingFacts(player, card, grants, effects, [], ctx));
   }

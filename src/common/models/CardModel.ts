@@ -129,8 +129,10 @@ export interface CardModel {
      * preview's exit pass struck (`ActionEffect.vetoed`, summed over the branch that strikes the most), read by the
      * server for the viewer's OWN hand while a vetoing law stands and the seat is in its aspect. The hand tile's plate
      * strikes them BEFORE the composer opens; the client counts nothing (invariant 2). Absent when nothing is struck.
+     * `card` names the refuser when it is a CARD's standing skip instead of the law (P57 Preservation Program — the
+     * first TR of this generation's action phase; `VetoedRatingMark.card`).
      */
-    ratingVetoed?: {steps: number};
+    ratingVetoed?: {steps: number, card?: CardName};
     /**
      * THE REQUIREMENT UNDER A MODIFIER (TR49 class): for each printed GLOBAL
      * requirement this player's modifiers touch — an armed Special Design (±2),

@@ -55,8 +55,17 @@ export function vetoingLaw(player: IPlayer): ResolutionDefinition | undefined {
   return ratingVetoLaw(player);
 }
 
-/** The rating steps every struck chip of `effects` promised and the seat will not gain, summed (0 when nothing is struck). */
+/**
+ * The rating steps every chip of `effects` the LAW struck promised and the seat will not gain, summed (0 when nothing
+ * is struck). A card's skip (P57 — `VetoedRatingMark.card`, `skippedRating.ts`) is not the law's: its own reader is
+ * `skippedStepsOf`, and `refusedStepsOf` sums both.
+ */
 export function vetoedStepsOf(effects: ReadonlyArray<ActionEffect>): number {
+  return effects.reduce((sum, e) => sum + (e.vetoed?.resolution !== undefined ? e.vetoed.steps : 0), 0);
+}
+
+/** Every refused rating step of `effects` — the law's veto and a card's skip alike (what the seat will not gain). */
+export function refusedStepsOf(effects: ReadonlyArray<ActionEffect>): number {
   return effects.reduce((sum, e) => sum + (e.vetoed?.steps ?? 0), 0);
 }
 

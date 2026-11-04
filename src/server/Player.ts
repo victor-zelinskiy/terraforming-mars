@@ -76,6 +76,7 @@ import {ParliamentHandler} from './parliament/ParliamentHandler';
 import {withRatingVetoWatch} from './parliament/ratingVetoGate';
 import {isEarlySittingAck, isSittingAckPrompt, SittingAcks} from './parliament/SittingAcks';
 import {fromToEventSource} from './events/fromToEventSource';
+import {recordRatingSkipped} from './cards/prelude2/preservationProgramSkip';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
 import {CanAffordOptions, CardAction, CardDrawReveal, CardIntakeSegmentLive, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard, CardDrawSearchOutcome, RequirementBonusEntry, GlobalWaiverProbe} from './IPlayer';
 import {IPreludeCard} from './cards/prelude/IPreludeCard';
@@ -597,8 +598,11 @@ export class Player implements IPlayer {
     }
     if (this.preservationProgram === true && inActionPhase && isFirstTrThisGeneration) {
       steps--;
-      this.game.log('${0} for ${1} is blocking 1 TR', (b) => b.cardName(CardName.PRESERVATION_PROGRAM).player(this));
       this.preservationProgram = false;
+      // P57: the skipped step NAMES itself (invariant 4) — the log line, the `effect-skipped` fact and the reaction's
+      // `skip` impact, under the card's own effect scope (`preservationProgramSkip.ts`); the preview family promised
+      // exactly this step struck (`models/skippedRating.ts`).
+      recordRatingSkipped(this);
       if (steps === 0) {
         return;
       }

@@ -27,6 +27,7 @@ import * as preview from '../cards/actionPreviews';
 import {standardProjectFutility} from './actionFutility';
 import {divertEffects, divertedUnitChip, divertingLaw} from './divertedTerraforming';
 import {vetoEffects} from './vetoedRating';
+import {skipEffects} from './skippedRating';
 
 /**
  * Build the guaranteed preview for one standard project.
@@ -90,9 +91,9 @@ export function buildStandardProjectPreview(
   }
   // The doors' exit passes (RX35, then PL-147, then RX42): a replacing law strikes the printed units and pre-collects
   // the «where»; the step's own rating after the scale that pays it — the same formula the card doors print; the
-  // rating veto strikes every rating the funnel will refuse.
+  // rating veto strikes every rating the funnel will refuse, a card's skip the first one it lets through (P57).
   const diverted = divertEffects(player, effects, []);
-  const model: StandardProjectPreviewModel = {effects: vetoEffects(player, preview.withImpliedRating(diverted.effects))};
+  const model: StandardProjectPreviewModel = {effects: skipEffects(player, vetoEffects(player, preview.withImpliedRating(diverted.effects)))};
   if (diverted.steps.length > 0) {
     model.steps = diverted.steps;
   }

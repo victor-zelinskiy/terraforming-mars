@@ -21,7 +21,8 @@ import {Message} from '../../common/logs/Message';
 import {isFleetDocked} from '../colonies/FleetDock';
 import {countedPlayEffects} from './actionPreview';
 import {cardPlayPreview} from './cardPlayPreview';
-import {vetoedStepsOf} from './vetoedRating';
+import {refusedStepsOf, vetoedStepsOf} from './vetoedRating';
+import {RATING_SKIP_CARD, ratingSkipArmed} from './skippedRating';
 import {ratingVetoLaw} from '../parliament/ratingVetoGate';
 import {requirementEasingOf} from './requirementEasing';
 import {actionFutility} from './actionFutility';
@@ -169,11 +170,14 @@ export function cardsToModel(
     // A BESPOKE play has no declaration and still counts (Interplanetary Trade — its `countedPlayForecast`).
     // THE RATING THE LAW WOULD REFUSE (RX42) — the own hand only, and only while a vetoing law stands over this seat:
     // the play preview's exit pass, read once here so the hand tile warns BEFORE the composer opens.
-    if (options.unplayableReasons === true && isIProjectCard(card) && ratingVetoLaw(player) !== undefined) {
+    // …and the rating a CARD's standing skip would eat (P57 Preservation Program — the same exit family, the card named).
+    if (options.unplayableReasons === true && isIProjectCard(card) && (ratingVetoLaw(player) !== undefined || ratingSkipArmed(player))) {
       try {
-        const steps = Math.max(0, ...cardPlayPreview(player, card).branches.map((b) => vetoedStepsOf(b.effects)));
+        const branches = cardPlayPreview(player, card).branches;
+        const steps = Math.max(0, ...branches.map((b) => refusedStepsOf(b.effects)));
+        const lawSteps = Math.max(0, ...branches.map((b) => vetoedStepsOf(b.effects)));
         if (steps > 0) {
-          model.ratingVetoed = {steps};
+          model.ratingVetoed = lawSteps > 0 ? {steps} : {steps, card: RATING_SKIP_CARD};
         }
       } catch {
         // A preview that cannot be built for this card leaves the plate silent — the composer's own reading stands.

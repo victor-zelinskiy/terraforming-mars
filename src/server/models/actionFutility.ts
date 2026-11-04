@@ -35,6 +35,7 @@ import {
 import {subAvailability} from './actionPreview';
 import {divertedFutility, divertingLaw, trSourceNamesDivertedUnit} from './divertedTerraforming';
 import {ratingVetoFutility} from './vetoedRating';
+import {ratingSkipFutility} from './skippedRating';
 import {milestoneThreshold} from '../milestones/IMilestone';
 import {QuestTracker} from '../parliament/quests/QuestTracker';
 import {asArray} from '../../common/utils/utils';
@@ -64,6 +65,7 @@ function yieldOf(player: IPlayer, card: ICard, behavior: Behavior): BehaviorYiel
   const diverted = divertedFutility(player);
   const diverting = divertingLaw(player) !== undefined;
   const vetoed = ratingVetoFutility(player);
+  const skipped = ratingSkipFutility(player);
   for (const key of Object.keys(behavior) as Array<keyof Behavior>) {
     if (NOT_A_YIELD.has(key) || behavior[key] === undefined) {
       continue;
@@ -122,6 +124,12 @@ function yieldOf(player: IPlayer, card: ICard, behavior: Behavior): BehaviorYiel
       // the law takes whole; the scale keys above stay yields (the table moves).
       if (key === 'tr' && n > 0 && vetoed !== undefined) {
         empties.push(vetoed);
+        break;
+      }
+      // ONE rating step a card's standing skip will eat (P57 Preservation Program — the first TR of this generation's
+      // action phase): only a single step is taken whole; «+2 TR» still gains one.
+      if (key === 'tr' && n === 1 && skipped !== undefined) {
+        empties.push(skipped);
         break;
       }
       if (n > 0) {

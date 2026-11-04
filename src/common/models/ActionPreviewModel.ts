@@ -175,12 +175,17 @@ export type DivertedTerraformingMark = {
 };
 
 /**
- * The LAW's VETO of a rating on a chip (see `ActionEffect.vetoed` — Turmoil Redux RX42 UNMI Veto): WHICH law (the
- * catalog id — the reader names it through the parliament manifest) and HOW MANY rating steps the chip promised and
- * the seat will NOT gain. Nothing stands in their place: the chip stays printed and is read STRUCK, with no tail.
+ * A REFUSED rating on a chip (see `ActionEffect.vetoed`): WHO refuses it and HOW MANY rating steps the chip promised
+ * and the seat will NOT gain. Nothing stands in their place: the chip stays printed and is read STRUCK, with no tail.
+ * The refuser is EXACTLY ONE of two sources, and every reader of the hint chooses by it:
+ *  - `resolution` — a LAW's veto (Turmoil Redux RX42 UNMI Veto: the seat is first by rating; the catalog id — the
+ *    reader names it through the parliament manifest);
+ *  - `card` — a CARD's standing skip (P57 Preservation Program: «skip the first TR you gain in each generation's
+ *    action phase» — one step, the first rating event of the generation's action phase; `models/skippedRating.ts`).
  */
 export type VetoedRatingMark = {
-  resolution: string;
+  resolution?: string;
+  card?: CardName;
   steps: number;
 };
 

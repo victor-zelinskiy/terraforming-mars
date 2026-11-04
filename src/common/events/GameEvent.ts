@@ -296,6 +296,13 @@ export type EventTrigger =
    * scale step / tile / bonus that carried the rating happened as printed, so their own events stand beside it.
    */
   | 'rating-vetoed'
+  /**
+   * A CARD's standing effect SKIPPED one step of a rating the seat was about to gain (P57 Preservation Program: «skip
+   * the first TR you gain in each generation's action phase») — inside the funnel, the rest of the event gained. The
+   * marker's child is the named loss (`effect-skipped`, 1 step). Unlike a law's refusal the card's reactor DOES rise:
+   * the record carries a `skip` impact (no token — the struck printed icon pulses).
+   */
+  | 'rating-skipped'
   | 'automa-corporation'; // a MarsBot corporation's printed effect fired (Rule Book B)
 
 /**

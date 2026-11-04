@@ -520,6 +520,7 @@
     "Remove a city tile you own on Mars and place it in an ADJACENT, NON-RESERVED, unoccupied space, ignoring other placement restrictions.": "Снимите свой тайл города на Марсе и разместите его на СОСЕДНЕЙ, НЕЗАРЕЗЕРВИРОВАННОЙ свободной клетке, игнорируя прочие ограничения размещения.",
     "You gain the placement bonus of that space, including adjacency bonuses.": "Вы получаете бонус размещения этой клетки, включая бонусы соседства.",
     "You may raise the colony track before trading": "Перед торговлей можно поднять трек колонии",
+    "First TR in each action phase is skipped": "Первый РТ в каждой фазе действий пропускается",
     "Space cards cost 4 M€ less": "Карты космоса дешевле на 4 M€",
     "New tag type in play: +1 M€ production": "Новый тип метки: +1 производство M€",
     "Buying a card to hand costs 5 M€": "Покупка карты в руку: 5 M€",
