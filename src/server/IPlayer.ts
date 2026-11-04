@@ -103,6 +103,15 @@ export type PlayabilityOptions = {
 export type GlobalWaiverProbe = CardName | {resolution: ResolutionId};
 
 /**
+ * One source's line of a card's price ({@link IPlayer.getCardCostBreakdown}). `amount` is the source's NOMINAL offer
+ * (what the forecast names: «Space Lanes −2»); `saved` is present only when the price's 0-floor took part of that offer
+ * — the share this source REALLY took off the price (the floor is spent in the breakdown's own order). The event, the
+ * journal and the analytics write `saved ?? amount` (the fact), never the offer (P62 · GB: Earth Office at 1 M€ under Space Lanes'
+ * −2 was «saved 2 M€»).
+ */
+export type CardCostDiscount = {source: EventSource; amount: number; saved?: number};
+
+/**
  * One card a conditional search turned over, with the verdict that decided
  * its fate (see CardDrawRevealStep — the serialized twin). A discarded card
  * is safe to hold: it lives on in the deck's discard pile.
@@ -699,7 +708,7 @@ export interface IPlayer {
   getCardCost(card: IProjectCard): number;
   /** `getCardCost` itemized: the printed cost, the final cost and every
    *  card / corporation / party discount by source (read-only). */
-  getCardCostBreakdown(card: IProjectCard): {base: number; final: number; discounts: Array<{source: EventSource; amount: number}>};
+  getCardCostBreakdown(card: IProjectCard): {base: number; final: number; discounts: Array<CardCostDiscount>};
 
   /** The number of resources on this card for this player, or 0 if the player does not have this card. */
   resourcesOnCard(name: CardName): number;

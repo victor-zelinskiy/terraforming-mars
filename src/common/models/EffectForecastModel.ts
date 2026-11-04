@@ -186,7 +186,11 @@ export type EffectForecastFact = {
 
 export type EffectForecastDiscountItem = {
   source: EventSource;
+  /** The source's NOMINAL offer («Space Lanes −2»). */
   amount: number;
+  /** Present only when the price's 0-floor cut the offer: what this source REALLY takes off the price (P62 · GB —
+   *  Earth Office at 1 M€ under Space Lanes' −2 saves 1). The row names the saving and its cap, never the offer alone. */
+  saved?: number;
   /** A ONE-PLAY discount (TR49 class — Indentured Workers' armed −8): this play spends it. */
   oneShot?: true;
 };
@@ -198,7 +202,7 @@ export type EffectForecastDiscounts = {
   final: number;
   /** Per-source discounts (cards / corporations / a party). */
   items: ReadonlyArray<EffectForecastDiscountItem>;
-  /** The remainder `base − final − Σitems` — a colony / rule discount with no
+  /** The remainder `base − final − Σ(item saved ?? amount)` — a colony / rule discount with no
    *  card source (clamped at 0). */
   other: number;
 };

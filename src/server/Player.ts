@@ -78,7 +78,7 @@ import {isEarlySittingAck, isSittingAckPrompt, SittingAcks} from './parliament/S
 import {fromToEventSource} from './events/fromToEventSource';
 import {recordRatingSkipped} from './cards/prelude2/preservationProgramSkip';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
-import {CanAffordOptions, CardAction, CardDrawReveal, CardIntakeSegmentLive, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard, CardDrawSearchOutcome, RequirementBonusEntry, GlobalWaiverProbe} from './IPlayer';
+import {CanAffordOptions, CardAction, CardDrawReveal, CardIntakeSegmentLive, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard, CardDrawSearchOutcome, RequirementBonusEntry, GlobalWaiverProbe, CardCostDiscount} from './IPlayer';
 import {IPreludeCard} from './cards/prelude/IPreludeCard';
 import {copyAndClear, inplaceRemove, sum, toName} from '../common/utils/utils';
 import {PreludesExpansion} from './preludes/PreludesExpansion';
@@ -1427,10 +1427,12 @@ export class Player implements IPlayer {
    * itemizes WHICH source gave WHICH discount, so the analytics layer can
    * record per-source `discount-applied` events ("Earth Catapult saved 2 M€").
    * Discount amounts are the nominal per-source offers (not capped against the
-   * 0-floor); `final` is the actual cost.
+   * 0-floor); `final` is the actual cost. A line whose offer the 0-floor cut
+   * also carries `saved` — the floor is spent in the breakdown's own order
+   * (the colonies' cardless remainder first, then the lines as listed).
    */
-  public getCardCostBreakdown(card: IProjectCard): {base: number; final: number; discounts: Array<{source: EventSource; amount: number}>} {
-    const discounts: Array<{source: EventSource; amount: number}> = [];
+  public getCardCostBreakdown(card: IProjectCard): {base: number; final: number; discounts: Array<CardCostDiscount>} {
+    const discounts: Array<CardCostDiscount> = [];
     let cost = card.cost;
     cost -= this.colonies.cardDiscount;
 
@@ -1472,6 +1474,15 @@ export class Player implements IPlayer {
       discounts.push({source: {kind: 'resolution', id: law.resolution, owner: this.color}, amount: law.amount});
     }
 
+    // The 0-floor: what each line REALLY took off the price. The cardless remainder (colonies) is spent first.
+    let room = Math.max(0, card.cost - this.colonies.cardDiscount);
+    for (const d of discounts) {
+      const taken = Math.min(d.amount, room);
+      room -= taken;
+      if (taken < d.amount) {
+        d.saved = taken;
+      }
+    }
     return {base: card.cost, final: Math.max(cost, 0), discounts};
   }
 
@@ -1719,7 +1730,7 @@ export class Player implements IPlayer {
     const costBreakdown = payment !== undefined ? this.getCardCostBreakdown(selectedCard) : undefined;
     if (payment !== undefined && costBreakdown !== undefined) {
       for (const discount of costBreakdown.discounts) {
-        this.game?.events?.recordDiscount(this, discount.source, discount.amount, selectedCard.name);
+        this.game?.events?.recordDiscount(this, discount.source, discount.saved ?? discount.amount, selectedCard.name);
       }
       this.game?.events?.recordPayment(this, costBreakdown.final, selectedCard.name);
       // Spent resources are attributed to "Payment" in the journal.
@@ -1753,9 +1764,11 @@ export class Player implements IPlayer {
       // previously-invisible M€ saving reads as a connected payment detail.
       if (costBreakdown !== undefined) {
         for (const discount of costBreakdown.discounts) {
-          if (discount.source.kind === 'card' || discount.source.kind === 'corporation') {
+          // The FACT, never the offer: a line the 0-floor emptied saved nothing and writes no line.
+          const saved = discount.saved ?? discount.amount;
+          if ((discount.source.kind === 'card' || discount.source.kind === 'corporation') && saved > 0) {
             const discountCard = discount.source.card;
-            this.game.log('${0} saved ${1} M€ playing with ${2}', (b) => b.player(this).number(discount.amount).cardName(discountCard));
+            this.game.log('${0} saved ${1} M€ playing with ${2}', (b) => b.player(this).number(saved).cardName(discountCard));
           }
         }
       }

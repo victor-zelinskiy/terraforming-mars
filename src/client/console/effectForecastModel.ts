@@ -473,7 +473,8 @@ export const FORECAST_GROUP_META: Readonly<Record<ForecastGroupId, {glyph: strin
  *  group carries the itemized discounts / the remainder / the payment values. */
 export type ForecastItem =
   | {kind: 'fact', key: string, fact: EffectForecastFact, group: ForecastGroupId, branchPos?: number}
-  | {kind: 'discount', key: string, source: EventSource, amount: number, group: 'discounts'}
+  // `saved` only when the 0-floor cut the offer (P62 · GB): the row says what it REALLY takes off, its offer as the cap.
+  | {kind: 'discount', key: string, source: EventSource, amount: number, saved?: number, group: 'discounts'}
   | {kind: 'other-discount', key: string, amount: number, group: 'discounts'}
   | {kind: 'payment', key: string, value: EffectForecastPaymentValue, group: 'discounts'}
   | {kind: 'branch-empty', key: string, branchPos: number, group: 'depends'}
@@ -639,7 +640,9 @@ export function forecastGroups(
   const d = forecast.discounts;
   if (d.final < d.base) {
     for (const [i, item] of d.items.entries()) {
-      items.discounts.push({kind: 'discount', key: `discount-${i}`, source: item.source, amount: item.amount, group: 'discounts'});
+      items.discounts.push(item.saved === undefined ?
+        {kind: 'discount', key: `discount-${i}`, source: item.source, amount: item.amount, group: 'discounts'} :
+        {kind: 'discount', key: `discount-${i}`, source: item.source, amount: item.amount, saved: item.saved, group: 'discounts'});
     }
     if (d.other > 0) {
       items.discounts.push({kind: 'other-discount', key: 'discount-other', amount: d.other, group: 'discounts'});

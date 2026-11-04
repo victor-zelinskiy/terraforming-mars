@@ -27,6 +27,7 @@ import {SelectCardModel} from '../../common/models/PlayerInputModel';
 import {
   EffectForecast,
   EffectForecastCertainty,
+  EffectForecastDiscountItem,
   EffectForecastDiscounts,
   EffectForecastFact,
   EffectForecastPaymentValue,
@@ -1047,7 +1048,8 @@ function discountsOf(player: IPlayer, card: ICard, operation: 'play' | 'action')
     return {base, final: base, items: [], other: 0};
   }
   const breakdown = player.getCardCostBreakdown(card);
-  const itemized = breakdown.discounts.reduce((sum, d) => sum + d.amount, 0);
+  // What the lines REALLY took off the price (the 0-floor spent in the breakdown's order — P62 · GB).
+  const itemized = breakdown.discounts.reduce((sum, d) => sum + (d.saved ?? d.amount), 0);
   // The ONE-PLAY discounts this play spends (TR49 class) — named as such in the payment group.
   const armedDiscounts = new Set(armedPlayEffectsOf(player).filter((a) => a.effect.kind === 'discount').map((a) => a.source));
   return {
@@ -1055,7 +1057,14 @@ function discountsOf(player: IPlayer, card: ICard, operation: 'play' | 'action')
     final: breakdown.final,
     items: breakdown.discounts.map((d) => {
       const oneShot = (d.source.kind === 'card' || d.source.kind === 'corporation') && armedDiscounts.has(d.source.card);
-      return oneShot ? {source: d.source, amount: d.amount, oneShot: true} : {source: d.source, amount: d.amount};
+      const item: EffectForecastDiscountItem = {source: d.source, amount: d.amount};
+      if (d.saved !== undefined) {
+        item.saved = d.saved;
+      }
+      if (oneShot) {
+        item.oneShot = true;
+      }
+      return item;
     }),
     other: Math.max(0, breakdown.base - breakdown.final - itemized),
   };

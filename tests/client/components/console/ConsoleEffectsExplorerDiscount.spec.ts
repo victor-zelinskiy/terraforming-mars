@@ -76,4 +76,21 @@ describe('ConsoleEffectsExplorer — a political discount is NAMED', () => {
     expect(tile.find('.con-efx__tile-src').text()).to.eq(translateText(CardName.EARTH_CATAPULT));
     expect(tile.find('.con-efx__party-emblem').exists()).to.be.false;
   });
+
+  // P62 · GB — THE SAVING IS WHAT WAS SAVED: Earth Office at 1 M€ under Space Lanes' −2.
+  it('a discount the 0-floor cut says what it REALLY takes off and names its offer as the cap', () => {
+    const source: EventSource = {kind: 'card', card: CardName.SPACE_LANES, owner: BLUE};
+    const w = mountExplorer({...emptyEffectForecast(1), discounts: {base: 1, final: 0, items: [{source, amount: 2, saved: 1}], other: 0}});
+    const tile = w.find('[data-forecast-item="discount"]');
+    expect(tile.find('.con-efx__meta-num').text(), 'the saving, never the offer').to.eq('−1');
+    expect(tile.find('[data-forecast-capped]').exists(), 'the cap is named').to.be.true;
+    expect(tile.find('[data-forecast-capped]').attributes('data-forecast-capped')).to.eq('2');
+  });
+
+  it('an uncut discount names no cap', () => {
+    const w = mountExplorer(forecastWith({kind: 'card', card: CardName.SPACE_LANES, owner: BLUE}));
+    const tile = w.find('[data-forecast-item="discount"]');
+    expect(tile.find('.con-efx__meta-num').text()).to.eq('−3');
+    expect(tile.find('[data-forecast-capped]').exists()).to.be.false;
+  });
 });

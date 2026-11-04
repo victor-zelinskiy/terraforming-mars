@@ -97,5 +97,6 @@
     "This card reacts to the trade, but its result is not described": "Карта реагирует на торговлю, но её результат не описан",
     "For each card sold": "За каждую проданную карту",
     "You play a green card that places a tile": "Вы играете зелёную карту, размещающую тайл",
-    "You raise your terraform rating": "Вы повышаете свой РТ"
+    "You raise your terraform rating": "Вы повышаете свой РТ",
+    "The price cannot go below 0 — ${0} of the ${1} offered": "Цена не опускается ниже 0 — снято ${0} из ${1}"
 }

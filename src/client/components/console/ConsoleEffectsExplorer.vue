@@ -211,7 +211,10 @@
                         <span v-if="ftileMeta(tile).label !== undefined" class="con-efx__meta-text" v-i18n>{{ ftileMeta(tile).label }}</span>
                       </template>
                       <template v-else-if="tile.item.kind === 'discount'">
-                        <span class="con-efx__meta-num">−{{ tile.item.amount }}</span>
+                        <!-- What this play REALLY saves; an offer the 0-floor cut names its cap («−1 из 2» — P62 · GB). -->
+                        <span class="con-efx__meta-num" :data-forecast-saved="tile.item.saved ?? tile.item.amount">−{{ tile.item.saved ?? tile.item.amount }}</span>
+                        <!-- the cap stands WITH its number («−1 из 2»), never beside the price line («из 21 → 0» on the 4K frame) -->
+                        <span v-if="tile.item.saved !== undefined" class="con-efx__meta-text" :data-forecast-capped="tile.item.amount">{{ discountCapText(tile.item.amount) }}</span>
                         <i class="resource_icon resource_icon--megacredits con-efx__meta-icon" aria-hidden="true"></i>
                         <span class="con-efx__meta-text">{{ discountTotal }}</span>
                       </template>
@@ -1293,7 +1296,7 @@ export default defineComponent({
     ftileMetaKey(tile: ForecastTileVm): string {
       const item = tile.item;
       if (item.kind !== 'fact') {
-        return item.kind === 'discount' || item.kind === 'other-discount' ? `${item.kind}:${item.amount}` :
+        return item.kind === 'discount' || item.kind === 'other-discount' ? `${item.kind}:${item.amount}:${item.kind === 'discount' ? item.saved ?? '' : ''}` :
           (item.kind === 'payment' ? `payment:${item.value.value}:${item.value.count}` : item.kind);
       }
       const sig = (e: ActionEffect) => `${e.icon}${e.amount}${e.current ?? ''}${e.resulting ?? ''}`;
@@ -1323,6 +1326,10 @@ export default defineComponent({
     },
     paymentAvailable(count: number): string {
       return translateTextWithParams('${0} available in payment', [String(count)]);
+    },
+    /** «из 2» — the offer an emptied-by-the-floor discount line names as its cap (P62 · GB). */
+    discountCapText(offer: number): string {
+      return translateTextWithParams('of ${0}', [String(offer)]);
     },
     stateLabel(state: 'met' | 'depends' | 'unmet'): string {
       switch (state) {
@@ -1377,7 +1384,10 @@ export default defineComponent({
         return out;
       }
       if (item.kind === 'discount' || item.kind === 'other-discount') {
-        out.push({id: 'what', label: 'What', chips: [{direction: 'gain', icon: 'megacredits', amount: item.amount, note: 'discount'}]});
+        // The saving, never the offer: an offer the 0-floor cut says so in words (invariant 4 — P62 · GB).
+        const saved = item.kind === 'discount' ? item.saved : undefined;
+        out.push({id: 'what', label: 'What', chips: [{direction: 'gain', icon: 'megacredits', amount: saved ?? item.amount, note: 'discount'}],
+          note: saved === undefined ? undefined : translateTextWithParams('The price cannot go below 0 — ${0} of the ${1} offered', [String(saved), String(item.amount)])});
         out.push({id: 'why', label: 'Why', text: item.kind === 'discount' ?
           translateTextWithParams('${0} lowers the printed cost', [this.ftileTitle(tile)]) :
           translateText('A discount with no card source')});
