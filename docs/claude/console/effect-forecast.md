@@ -360,6 +360,18 @@ line-height-bound so the head's height never moves (the panel's layout-shift
 contract; spec-pinned). Without a discount the head is byte-identical to
 before. Sources live in the layer only.
 
+**A discount past the 0-floor is the FACT, its offer the CAP** (P62 · GB, 2026-11-04). `Player.getCardCostBreakdown`
+keeps every source's NOMINAL offer as `amount` and spends the 0-floor in its own order (the colonies' cardless remainder
+first, then the lines as listed): a line whose offer the floor cut carries `saved` — what it REALLY took off the price
+(Earth Office at 1 M€ under Space Lanes' −2: `{amount: 2, saved: 1}`; a second line the floor emptied: `saved: 0`). The
+play's `discount-applied` event, its journal line «… saved N M€ playing with …» and the explorer's «Сэкономлено» write
+`saved ?? amount` (an emptied line writes neither); the forecast carries `saved` on `EffectForecastDiscountItem` and its
+cardless remainder sums the facts. So the head and the layer say ONE saving: the head «1 → 0 · −1», the R3 row
+«−1 из 2 [M€] 1 → 0» (the cap stands WITH its number — beside the price line it read «из 21 → 0»), the dossier's «Что»
+the saving with «Цена не опускается ниже 0 — снято 1 из 2». Standard projects record their own discount at `commitCost`
+(never past their high prices in practice — not carried). Guards: `tests/cards/prelude2/SpaceLanes.spec.ts`,
+`ConsoleEffectsExplorerDiscount.spec.ts`; e2e `console-space-lanes` (B · C).
+
 **FREE** (`ConsolePaymentPanel` `free` prop, `.con-pay--free`): when the
 server's `calculatedCost === 0` — a printed zero (Indentured Workers:
 «ЦЕНА 0 · БЕСПЛАТНО», no arrow, no pill) or discounts that ate the cost
