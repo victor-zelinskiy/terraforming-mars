@@ -522,8 +522,35 @@ nothing (`--stepped`). The step slot is an element of a body that already
 exists, so the teleport target is present the frame the flag rises — the
 `out-in` trap above never arises. Witness: e2e `console-early-colonization` A
 (the deployment node is the SAME node after the return; the zone mounted once).
-The sponsor's hand step keeps the old sibling swap (a full hand screen needs the
-whole room — not this step's subject).
+The hand step stands on the SAME law since P55 (ledger FN — closed 2026-11-04): its
+slot (`.con-start__handslot`, `data-embed-slot="start-hand"`) is a sibling of the colonies
+slot INSIDE `.con-start__ceremony`, the body is `--stepped` for either, and the old
+sibling swap (`v-if="… && !sponsorStep"` on the body, the frame's `--sponsor` gap) is gone —
+the sponsor's play-from-hand and a prelude's discard share the one host (witnesses
+`console-start-sponsor`: the queue NOT PAINTED, never unmounted; `console-old-mining-colony` A).
+
+### 5a′ · Two steps of ONE play in a row (P55 Old Mining Colony)
+
+The server asks the colony FIRST (`BUILD_COLONY`) and the play's own discard SECOND
+(`DISCARD_CARDS`) — the discard rides the build's own response, while the colonies frame
+still stands for its story. Three rules keep them ONE flow, never nested:
+1. **The discard waits for the colony step to hand the screen back** — the stage gate
+   `colonyStepReturnGatesPrompt` reads a card's discard by its `discardPrompt.source`
+   (`DiscardCards` names its asker there, not on `choiceContext`); a colony's own bonus
+   discard (`colonyBonus` / `colonyRepeat`) is a step INSIDE the colony flow and is never
+   gated. The return is the P48 dwell (`dwellColonyFollowUp`: the build's tokens ≤ 4 s,
+   one read) → `leaveWorkspace()`.
+2. **It opens in the START, never in the colonies** — `startDiscardStepDue` (owed ∧
+   `workspaceHostForStep() === 'start'` ∧ the hand not open ∧ `admits('followUp')`, a
+   rising edge) → the ordinary `handSelect` door → `start ⊃ hand`; the crumb reads
+   «СТАРТ ПАРТИИ › <пролог> › СБРОС КАРТ». A Pluto build's +2 cards are the colony
+   step's own follow-up (the reveal in its zone) and are taken before the discard.
+3. **It is never announced** — `startDiscardStepOwed` takes the task out of
+   `mandatoryBeat` (the `corpFirstAction` / ledger-discard precedent): no plate, no beacon.
+
+A reload mid-step stands the start back up around either step (`startFrameLive` § 3 —
+the P48 gap «the pick came back as a screen of its own» is closed), and the crumb's
+subject is re-read off the server's marker (`choiceContext` / `discardPrompt`).
 
 ### 5b · A play's raise before its pick (P48 Early Colonization)
 

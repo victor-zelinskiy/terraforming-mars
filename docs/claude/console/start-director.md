@@ -178,3 +178,15 @@ judges up to three presses, never one.
 3. **Switch one owner at a time**: the director's answer drives `startSceneVisible` / the stage entry for ONE owner
    class per step; each step is closed by the 4K GPU storyboards A/B (before / after) — a visible motion difference
    is a bug, never «by design».
+
+## The start's hosted STEPS — one host, in turn (P55 · FN, 2026-11-04)
+
+The start hosts three step kinds INSIDE its body — the colonies (P48), the hand (the sponsor's play-from-hand since its
+first day; a prelude's own DISCARD since P55) and the embedded outcome — and since P55 none of them re-mounts the
+deployment: the body is `--stepped` for each, the step slot is a sibling inside `.con-start__ceremony`, the deployment
+releases in place. Two steps of ONE prelude play come IN TURN (Old Mining Colony: the colony, its story, then the
+discard — `colony-focus-stage.md` § 5a′), never nested and never announced. **A RELOAD mid-step stands the start back
+up around the step** — `startFrameLive` § 3: in the PRELUDES phase a prelude's discard (`startPreludeDiscardOf`) and a
+prelude's colony pick (`choiceContext.source` naming a PRELUDE) are the start's steps, the same server-truth reading the
+sponsor's play-from-hand had (§ 2); the crumb's subject is re-read off the server's marker. A new step kind of a prelude
+is a row in that reading, never a standalone screen.
