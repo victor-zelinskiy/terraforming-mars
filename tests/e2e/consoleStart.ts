@@ -119,6 +119,85 @@ async function awaitDecisionSettled(page: Page, code: string): Promise<void> {
   }
 }
 
+/** `press`'s knobs. `absorbed: 'allow'` — the spec ASSERTS a swallow: no gate wait, no re-send. */
+export type PressOptions = {absorbed?: 'gate' | 'allow'};
+
+/** How long a press waits for the global gates in front of its button (the curtain, the settle, a commit arrival). */
+const ABSORB_PRE_WAIT_MS = 8_000;
+/** How long a press the product ABSORBED waits for the gates that took it to open before it is sent again. */
+const ABSORB_REOPEN_WAIT_MS = 10_000;
+/** How many times an absorbed press is sent again. */
+const ABSORB_RETRIES = 3;
+
+type AbsorbProbe = {active: Array<string>, activeGlobal: Array<string>, still?: Array<string>};
+
+async function absorbProbe(page: Page, code: string, names?: ReadonlyArray<string>): Promise<AbsorbProbe | undefined> {
+  try {
+    return await page.evaluate(({code, names}) => {
+      const w = window as unknown as {__conInputAbsorb?: (code?: string, names?: ReadonlyArray<string>) => AbsorbProbe};
+      return w.__conInputAbsorb === undefined ? undefined : w.__conInputAbsorb(code, names);
+    }, {code, names});
+  } catch {
+    return undefined; // a navigating / closing page
+  }
+}
+
+/**
+ * Wait until no GLOBAL gate would swallow this key's button (bounded). A page without the ledger falls back to the
+ * decision-settle read it always had.
+ */
+async function awaitInputAccepted(page: Page, code: string): Promise<void> {
+  const first = await absorbProbe(page, code);
+  if (first === undefined) {
+    await awaitDecisionSettled(page, code);
+    return;
+  }
+  const deadline = Date.now() + ABSORB_PRE_WAIT_MS;
+  let probe: AbsorbProbe | undefined = first;
+  while (probe !== undefined && probe.activeGlobal.length > 0) {
+    if (Date.now() >= deadline) {
+      console.log(`[press] ${code}: the gates [${probe.activeGlobal.join(', ')}] stayed closed ${ABSORB_PRE_WAIT_MS} ms — sent anyway`);
+      return;
+    }
+    await pollPause(page, 40);
+    probe = await absorbProbe(page, code);
+  }
+}
+
+/** The gates that ABSORBED this press (the product's own record of the press edge), [] — it was not absorbed. */
+async function pressAbsorbedBy(page: Page, code: string, sentAt: number): Promise<Array<string>> {
+  try {
+    return await page.evaluate(({code, sentAt}) => {
+      const w = window as unknown as {__conInputEcho?: () => {lastPress?: {code: string, outcome: string, at: number, absorbedBy?: Array<string>}}};
+      const last = w.__conInputEcho?.().lastPress;
+      // The page's clock and the driver's agree (one machine); a little slack for the hop.
+      if (last === undefined || last.code !== code || last.at < sentAt - 50 || last.outcome !== 'absorbed') {
+        return [];
+      }
+      return last.absorbedBy ?? ['(unnamed)'];
+    }, {code, sentAt});
+  } catch {
+    return [];
+  }
+}
+
+/** Wait until every gate in `names` is open for this key again (bounded) — true when they did. */
+async function awaitAbsorbersOpen(page: Page, code: string, names: ReadonlyArray<string>): Promise<boolean> {
+  const deadline = Date.now() + ABSORB_REOPEN_WAIT_MS;
+  for (;;) {
+    const probe = await absorbProbe(page, code, names);
+    if (probe === undefined || (probe.still ?? []).length === 0) {
+      // One frame more: the gate's last state change and the surface it guards settle in the same task.
+      await pollPause(page, 60);
+      return true;
+    }
+    if (Date.now() >= deadline) {
+      return false;
+    }
+    await pollPause(page, 40);
+  }
+}
+
 /**
  * A press + its settle. The one place a spec's cadence is defined.
  *
@@ -128,20 +207,53 @@ async function awaitDecisionSettled(page: Page, code: string): Promise<void> {
  * no longer race the bridge's install or a busy main thread. Soft by design:
  * an unmapped key never echoes and gives up quickly; a page without the probe
  * behaves exactly as before.
+ *
+ * ⭐ THE ABSORB GATE (the e2e flake architecture, CLASS 1 — `src/client/console/inputAbsorb.ts`): the console swallows a
+ * press ON PURPOSE in many places (the decision's settle, a commit row's arrival, the scene curtain, a batch still
+ * landing on a stage, a take in flight, the start's press refusal, «Добор карт»'s take beat), and every one of them
+ * used to look exactly like a press that arrived. Now ① a press waits out every GLOBAL gate that would swallow its
+ * button before it is sent (bounded, `ABSORB_PRE_WAIT_MS`); ② the product names the gate that swallowed a press
+ * (`__conInputEcho().lastPress.outcome === 'absorbed'`, `absorbedBy`), and the driver waits for exactly those gates to
+ * open and sends it again (`ABSORB_RETRIES`) — a press either ACTS or the run says which gate held it. A spec that
+ * ASSERTS a swallow passes `{absorbed: 'allow'}` (or presses raw, `page.keyboard.press`).
  */
-export async function press(page: Page, code: string, settleMs = 700): Promise<void> {
+export async function press(page: Page, code: string, settleMs = 700, opts: PressOptions = {}): Promise<void> {
   await timed('press', async () => {
-    await awaitDecisionSettled(page, code);
-    const before = await inputEchoSeq(page);
-    await page.keyboard.press(code);
-    if (before !== undefined) {
-      const deadline = Date.now() + 300;
-      for (;;) {
-        const now = await inputEchoSeq(page);
-        if (now === undefined || now > before || Date.now() >= deadline) {
-          break;
+    const gated = opts.absorbed !== 'allow';
+    if (gated) {
+      await awaitInputAccepted(page, code);
+    } else {
+      await awaitDecisionSettled(page, code);
+    }
+    for (let attempt = 0; ; attempt++) {
+      const before = await inputEchoSeq(page);
+      const sentAt = Date.now();
+      await page.keyboard.press(code);
+      if (before !== undefined) {
+        const deadline = Date.now() + 300;
+        for (;;) {
+          const now = await inputEchoSeq(page);
+          if (now === undefined || now > before || Date.now() >= deadline) {
+            break;
+          }
+          await pollPause(page, 25);
         }
-        await pollPause(page, 25);
+      }
+      if (!gated) {
+        break;
+      }
+      const by = await pressAbsorbedBy(page, code, sentAt);
+      if (by.length === 0) {
+        break;
+      }
+      if (attempt >= ABSORB_RETRIES) {
+        console.log(`[press] ${code} ABSORBED by [${by.join(', ')}] ${attempt + 1}× — the gate never opened; the press is lost`);
+        break;
+      }
+      const open = await awaitAbsorbersOpen(page, code, by);
+      if (!open) {
+        console.log(`[press] ${code} ABSORBED by [${by.join(', ')}] — still closed after ${ABSORB_REOPEN_WAIT_MS} ms; the press is lost`);
+        break;
       }
     }
     const t = Date.now();
@@ -2135,6 +2247,42 @@ export async function sendPlayerInput(
     `POST player/input rejected ${JSON.stringify(response)}: ${res.status()} ${await res.text()}`)
     .toBeTruthy();
   return res.json();
+}
+
+/**
+ * ⭐ THE CLIENT HAS APPLIED THE SERVER'S NOW (the e2e flake architecture, CLASS 3). A spec that answers over the API
+ * and then reads the SCREEN reads whatever the page held a beat earlier: the answer reaches the page by the socket / the
+ * poll, and the surface it causes lands after that (CI 2026-11-03, `console-early-colonization`: the probe recorded
+ * the PREVIOUS step's grid as this one's first mode). This waits until the page's applied view (`__conReady().
+ * transport.gameAge`) has caught up with the server's — the one fact that says «the screen can now be read», never
+ * «the view is not a question» (also true BEFORE the question reached the page). `minAge` — a game age already known
+ * (the model `sendPlayerInput` returned); else the server is asked. Bounded; the timeout names both ages.
+ */
+export async function syncClient(page: Page, request: APIRequestContext, playerId: string,
+  opts: {minAge?: number, timeoutMs?: number} = {}): Promise<void> {
+  const serverAge = opts.minAge ??
+    ((await fetchPlayerModel(request, playerId)) as unknown as {game?: {gameAge?: number}}).game?.gameAge;
+  if (serverAge === undefined) {
+    return;
+  }
+  const clientAge = () => page.evaluate(() => {
+    const w = window as unknown as {__conReady?: () => {transport?: {gameAge?: number}}};
+    return w.__conReady?.().transport?.gameAge ?? -1;
+  }).catch(() => -1);
+  await expect.poll(clientAge, {timeout: opts.timeoutMs ?? 30_000,
+    message: `the client applied the server's game age ${serverAge}`}).toBeGreaterThanOrEqual(serverAge);
+}
+
+/**
+ * `sendPlayerInput` + `syncClient`: answer over the API and return only once the PAGE has applied the answer — the
+ * form every spec that reads the screen after an API answer uses.
+ */
+export async function sendPlayerInputSynced(page: Page, request: APIRequestContext, playerId: string,
+  response: WireResponse): Promise<WirePlayerModel> {
+  const model = await sendPlayerInput(request, playerId, response);
+  const age = (model as unknown as {game?: {gameAge?: number}}).game?.gameAge;
+  await syncClient(page, request, playerId, {minAge: age});
+  return model;
 }
 
 /** What the API seeder should pick when the pregame offers a choice. */

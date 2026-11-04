@@ -1,8 +1,9 @@
 import {expect, test} from './consoleTest';
 import {
   bootFixture, crumbText, fetchPlayerModel, handCount, openQuickWheel, placementState,
-  press, pressUntilGone, readiness, reloadConsole, settle, workspaceOpen,
+  press, pressUntilGone, readiness, reloadConsole, settle, syncClient, workspaceOpen,
 } from './consoleStart';
+import {readTransient, recordTransient, stopTransient, transientDocuments} from './transientRecorder';
 
 /**
  * DRIVER CANARY — every load-bearing primitive lands ONCE, fast, first
@@ -55,5 +56,48 @@ test.describe('driver canary', () => {
     await reloadConsole(page);
     await settle(page);
     expect(await handCount(page)).toBeGreaterThan(0);
+  });
+
+  /**
+   * THE THREE FLAKE CLASSES' PRIMITIVES (the flake architecture, 2026-11-04) — each must be LIVE, or every spec that
+   * leans on them silently loses its protection.
+   */
+  test('the absorb ledger · the transient recorder across a reload · syncClient', async ({page, request}) => {
+    const playerId = await bootFixture(page, request, 'solo-actions');
+    await settle(page);
+
+    // CLASS 1 — the ledger is wired into the page: the global gates are registered, the echo knows «absorbed».
+    const ledger = await page.evaluate(() => {
+      const w = window as unknown as {
+        __conInputAbsorb?: (code?: string) => {registered: Array<string>, activeGlobal: Array<string>},
+        __conInputEcho?: () => {absorbed?: number},
+      };
+      return {absorb: w.__conInputAbsorb?.('Enter'), echoAbsorbed: w.__conInputEcho?.().absorbed};
+    });
+    expect(ledger.absorb, 'window.__conInputAbsorb is installed by the key bridge').toBeDefined();
+    for (const gate of ['prompt-settle', 'commit-arrival', 'scene-curtain']) {
+      expect(ledger.absorb!.registered, `the global gate «${gate}» is on the ledger`).toContain(gate);
+    }
+    expect(typeof ledger.echoAbsorbed, 'the echo counts absorbed presses').toBe('number');
+
+    // CLASS 2 — the recorder sees a product write, and SURVIVES the page being replaced.
+    await recordTransient(page, 'canary-mark', () => document.body.getAttribute('data-canary-mark'));
+    await page.evaluate(() => document.body.setAttribute('data-canary-mark', 'one'));
+    await expect.poll(async () => (await readTransient<string | null>(page, 'canary-mark')).map((x) => x.v))
+      .toContain('one');
+    await reloadConsole(page);
+    await settle(page);
+    await page.evaluate(() => document.body.setAttribute('data-canary-mark', 'two'));
+    await expect.poll(async () => (await readTransient<string | null>(page, 'canary-mark')).map((x) => x.v),
+      {message: 'the recording went on in the NEW document'}).toContain('two');
+    const samples = await stopTransient<string | null>(page, 'canary-mark');
+    expect(samples.map((x) => x.v), 'nothing recorded before the reload was lost').toContain('one');
+    expect(transientDocuments(samples).length, 'the samples name the two documents').toBeGreaterThanOrEqual(2);
+
+    // CLASS 3 — the page has applied the server's now.
+    await syncClient(page, request, playerId);
+    const age = (await readiness(page))?.transport?.gameAge ?? -1;
+    const server = ((await fetchPlayerModel(request, playerId)) as unknown as {game: {gameAge: number}}).game.gameAge;
+    expect(age, 'syncClient returned with the client at the server game age').toBeGreaterThanOrEqual(server);
   });
 });

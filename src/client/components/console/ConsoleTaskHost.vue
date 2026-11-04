@@ -785,6 +785,7 @@ import ConsolePromptHead from '@/client/components/console/foundation/ConsolePro
 import ConsolePromptOutcome, {PromptOutcomeItem} from '@/client/components/console/foundation/ConsolePromptOutcome.vue';
 import {PromptTone, promptCommitLabelKey, promptToneWithin} from '@/client/console/promptTone';
 import {promptSequenceKey} from '@/client/console/promptSequence';
+import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 import {purchasePriceHint, purchasePriceSource} from '@/client/console/purchasePriceSource';
 
 /** The prompt-modal family's SIZE tiers (`console_prompt.less` § SIZE RULES). */
@@ -887,6 +888,9 @@ const RESOURCE_FIELD: Record<string, {stock: string, production: string}> = {
   heat: {stock: 'heat', production: 'heatProduction'},
 };
 
+/** The stage's batch arrival — every verb absorbed until the cards have landed (the input-absorb ledger). */
+const TASK_HOST_ARRIVAL_ABSORBER = 'task-host-arrival';
+
 export default defineComponent({
   name: 'ConsoleTaskHost',
   components: {
@@ -957,6 +961,8 @@ export default defineComponent({
        *  never scrolls on focus). Observers run it on resize; NEVER per focus.
        *  VueUse stop-handles (auto-managed; no raw addEventListener). */
       stopStripObs: undefined as (() => void) | undefined,
+      /** The input-absorb ledger's registration of this stage's batch-arrival gate (`inputAbsorb.ts`). */
+      absorbOff: undefined as (() => void) | undefined,
       stopResize: undefined as (() => void) | undefined,
       fitScheduled: false,
       fitRetries: 0,
@@ -2727,8 +2733,12 @@ export default defineComponent({
     // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
     this.stopStripObs = useResizeObserver(this.$el as HTMLElement, () => this.scheduleFit()).stop;
     this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
+    // The batch arrival absorbs every verb (see `handleIntent`): the gate's live predicate, for a driver that was
+    // told its press was absorbed and waits for exactly this to open.
+    this.absorbOff = registerInputAbsorber(TASK_HOST_ARRIVAL_ABSORBER, () => this.arrivalPending, {scope: 'all'});
   },
   beforeUnmount() {
+    this.absorbOff?.();
     clearPanelCommands('taskHost');
     // Same rule as the panel commands: watchers do not fire on unmount, so the
     // rail's conversion focus is retracted explicitly (idempotent).
@@ -2833,6 +2843,7 @@ export default defineComponent({
       // they have landed and handed over. Absorbed, not queued — a press the
       // player made at an empty stage must not fire on whatever lands there.
       if (this.arrivalPending) {
+        noteInputAbsorbed(TASK_HOST_ARRIVAL_ABSORBER);
         return;
       }
       if (intent.kind === 'nav') {

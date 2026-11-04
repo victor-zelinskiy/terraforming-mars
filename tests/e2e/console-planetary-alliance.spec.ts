@@ -171,6 +171,15 @@ test.describe(`P56 Planetary Alliance · two named searches of one play, a rule 
     const before = await wireOf(request, id);
     await shoot(page, 'A-01-queue');
 
+    // A REPLACED DOCUMENT TAKES THE WITNESS WITH IT (CI 2026-11-04: the trail read EMPTY — not a birth, not a
+    // landing — while the retry's TR was born on the reactor): count the main frame's navigations from the arm, and read
+    // the product's own transfer trail, so the next red says «the page was replaced» or «the rating never flew».
+    let navigations = 0;
+    page.on('framenavigated', (f) => {
+      if (f === page.mainFrame()) {
+        navigations++;
+      }
+    });
     await armTransferWitness(page);
     await armProbe(page, 'start');
     const stop = await storyboard(page, 'start');
@@ -195,7 +204,10 @@ test.describe(`P56 Planetary Alliance · two named searches of one play, a rule 
 
     // The witness: the rating off the played card into the rating cell — never out of nothing, never over glass.
     const witness = await transferWitness(page);
-    const trail = transferTrail(witness);
+    const armed = await page.evaluate(() => (window as unknown as {__transferWitness?: unknown}).__transferWitness !== undefined);
+    const productTrail = await page.evaluate(() =>
+      (window as unknown as {__conReady?: () => {transfer?: {trail?: ReadonlyArray<unknown>}}}).__conReady?.().transfer?.trail ?? []);
+    const trail = `${transferTrail(witness)}\nwitness armed=${armed} navigations since arm=${navigations}\nproduct trail: ${JSON.stringify(productTrail)}`;
     fs.mkdirSync(OUT, {recursive: true});
     fs.writeFileSync(path.join(OUT, 'A-trail.txt'), `${trail}\n`);
     const trLandings = witness.landings.filter((l) => l.under === 'rail:tr');

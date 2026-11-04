@@ -345,7 +345,7 @@ function vpNetOfRating(probe: MuseumProbe): Array<[number, number]> {
  * score cell: they leave as their own token from the sealed tile after the card's gains, BEFORE the museum's scene, and
  * the cell ticks on that token (a loss on its departure); the museum's point then ticks on its second data touchdown.
  */
-function expectOwnScene(probe: MuseumProbe, from: number, label: string, cardVp = 0): void {
+function expectOwnScene(probe: MuseumProbe, from: number, label: string, cardVp = 0, tableAnswer = 0): void {
   const to = from + 2;
   expect(probe.ticks, `${label}: the probe sampled`).toBeGreaterThan(10);
   expect(probe.degraded, `${label}: the scene never degraded`).toBe(false);
@@ -395,18 +395,29 @@ function expectOwnScene(probe: MuseumProbe, from: number, label: string, cardVp 
   const auxUp = probe.aux_.find(([, v]) => Number(v) >= to);
   expect(auxUp, `${label}: the satellite cell reached ${to}: ${JSON.stringify(probe.aux_)}`).toBeDefined();
   expect(auxUp![0], `${label}: the satellite ticks after the last touchdown`).toBeGreaterThanOrEqual(second);
-  // Martian Fiber's +2 M€: a beat after the card went home — i.e. AFTER the satellite's tick. Judged by STATE: what the row
-  // gains from the satellite tick on is +2 in all, only rising (a reactor's answer may land as one token per unit). The
-  // rises BEFORE it are other causes and are not Fiber's: a staged tile's TR (Nuclear Zone's two temperature steps) is
-  // answered by the ruling Greens' 2 M€ per rating, four +1 tokens off their charter (the 2026-10-30 run read «17 → 10 →
-  // 11 → 12 → 13 → 14 → 16» — the old «first rise = +2» took the Greens' first token for Fiber's).
+  // Martian Fiber's +2 M€: a beat after the card went home — i.e. AFTER the satellite's tick, inside the scene (its
+  // «answering» phase). Judged by STATE: what the row gains from the satellite tick to the scene's end is +2 in all, only
+  // rising (a reactor's answer may land as one token per unit).
+  // THE TABLE'S ANSWER COMES AFTER THE BOARD'S STORY (card-reaction law: the standalone chain plays after the board's own
+  // story): a staged tile's TR (Nuclear Zone's two temperature steps) is answered by the ruling Greens' 2 M€ per rating,
+  // and that answer rises only once the museum's scene is GONE — never before the satellite tick, never inside the scene.
+  // (CI 2026-11-04: the order used to be the machine's — «17 → 10 → 11 → 12 → 13 → 14 → 16» on a fast frame, the Greens
+  // cutting into the scene, «17 → 10 → 12 → 13 → … → 16» on a slow one; the chain now waits for an OWED board scene too.)
   const mcTicks = probe.mc.map(([t, v]) => [t, Number(v.replace(/\D/g, ''))] as [number, number]);
-  const beforeFiber = [...mcTicks].reverse().find(([t]) => t < auxUp![0]);
+  const sceneEnd = probe.idleAt!;
+  const beforeSatellite = mcTicks.filter(([t]) => t < auxUp![0]);
+  expect(beforeSatellite.every(([, v], i) => i === 0 || v <= beforeSatellite[i - 1][1]),
+    `${label}: nothing rises on the M€ row before the satellite tick (only the price falls) — the table answers after the scene: ${JSON.stringify(probe.mc)}`).toBe(true);
+  const beforeFiber = beforeSatellite[beforeSatellite.length - 1];
   expect(beforeFiber, `${label}: the M€ row was read before the satellite tick: ${JSON.stringify(probe.mc)}`).toBeDefined();
-  const fiber = mcTicks.filter(([t]) => t >= auxUp![0]).map(([, v]) => v);
-  expect(fiber.length, `${label}: Martian Fiber's M€ landed after the satellite tick: ${JSON.stringify(probe.mc)}`).toBeGreaterThan(0);
-  expect(fiber.every((v, i) => v > (i === 0 ? beforeFiber![1] : fiber[i - 1])), `${label}: the M€ row only rises with Fiber's answer: ${JSON.stringify(probe.mc)}`).toBe(true);
-  expect(fiber[fiber.length - 1] - beforeFiber![1], `${label}: +2 M€ (Martian Fiber): ${JSON.stringify(probe.mc)}`).toBe(2);
+  const fiber = mcTicks.filter(([t]) => t >= auxUp![0] && t <= sceneEnd).map(([, v]) => v);
+  expect(fiber.length, `${label}: Martian Fiber's M€ landed after the satellite tick, inside the scene (idle ${sceneEnd}): ${JSON.stringify(probe.mc)}`).toBeGreaterThan(0);
+  expect(fiber.every((v, i) => v > (i === 0 ? beforeFiber[1] : fiber[i - 1])), `${label}: the M€ row only rises with Fiber's answer: ${JSON.stringify(probe.mc)}`).toBe(true);
+  expect(fiber[fiber.length - 1] - beforeFiber[1], `${label}: +2 M€ (Martian Fiber): ${JSON.stringify(probe.mc)}`).toBe(2);
+  const after = mcTicks.filter(([t]) => t > sceneEnd).map(([, v]) => v);
+  const answered = (after.length === 0 ? fiber[fiber.length - 1] : after[after.length - 1]) - fiber[fiber.length - 1];
+  expect(after.every((v, i) => v > (i === 0 ? fiber[fiber.length - 1] : after[i - 1])), `${label}: after the scene the row only rises (the table's answer): ${JSON.stringify(probe.mc)}`).toBe(true);
+  expect(answered, `${label}: the table's answer after the scene (idle ${sceneEnd}): ${JSON.stringify(probe.mc)}`).toBe(tableAnswer);
 }
 
 for (const preset of PRESETS) {
@@ -555,10 +566,16 @@ for (const preset of PRESETS) {
         {timeout: 30_000, message: 'Nuclear Zone never reached its cell on the server'}).toBe(TileType.NUCLEAR_ZONE);
       await expect.poll(async () => (await readProbe(page)).idleAt, {timeout: 40_000, message: 'the special tile\'s scene never ended'}).toBeDefined();
       await settle(page, {timeoutMs: 30_000});
+      // The table's answer plays AFTER the scene — wait for the M€ row to reach the server's number before reading.
+      const serverMc = (await wireOf(request, playerId)).thisPlayer.megacredits;
+      await expect.poll(async () => Number(((await readProbe(page)).mc.at(-1)?.[1] ?? '').replace(/\D/g, '')),
+        {timeout: 30_000, message: 'the M€ row never reached the server\'s number after the special tile'}).toBe(serverMc);
       await stopNz();
       const special = await readProbe(page);
       await shoot(page, preset.id, '06-after-special');
-      expectOwnScene(special, 2, 'Nuclear Zone', -2);
+      // The ruling Greens answer the tile's rating: 2 M€ per step of TR the rating cell gained.
+      const trGain = Number(special.tr.at(-1)?.[1] ?? 0) - Number(special.tr[0]?.[1] ?? 0);
+      expectOwnScene(special, 2, 'Nuclear Zone', -2, 2 * trGain);
       expect(dataOn(await wireOf(request, playerId), CARD), '2 → 4 data').toBe(4);
 
       expect(overflow, 'no [console-overflow]').toEqual([]);

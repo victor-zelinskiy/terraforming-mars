@@ -23,3 +23,25 @@ export function registerBoardSceneMember(busy: () => boolean): void {
 export function boardSceneMemberBusy(): boolean {
   return members.some((busy) => busy());
 }
+
+/**
+ * A member's OWED phase — the scene is decided (its record is in the response) and waits for the field's own story
+ * before it plays. Deliberately a SECOND list, never read by `boardSceneSettling()` (a member waiting for the board's
+ * quiet must not wait for itself); read by what must come AFTER the board's own story whatever its tempo — the card
+ * reaction chain (CI 2026-11-04, `console-red-museum`: the ruling Greens' answer to Nuclear Zone's rating rose INTO
+ * the museum's payout on a fast frame and after it on a slow one — the chain had slipped through the window where the
+ * scene still waited for the scales).
+ */
+const owed: Array<() => boolean> = [];
+
+/** Register a scene's «owed, not yet on stage» predicate (idempotent). */
+export function registerBoardSceneOwed(isOwed: () => boolean): void {
+  if (!owed.includes(isOwed)) {
+    owed.push(isOwed);
+  }
+}
+
+/** Is any registered member owed (decided, waiting for its turn)? */
+export function boardSceneOwedBusy(): boolean {
+  return owed.some((isOwed) => isOwed());
+}

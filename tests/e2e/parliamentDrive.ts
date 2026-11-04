@@ -1,5 +1,5 @@
 import {expect, Locator, Page, APIRequestContext} from './consoleTest';
-import {fetchPlayerModel, openMandatoryAnnounce, openQuickWheel, openZoomViewer, press, sendPlayerInput, settle, waitForBoardHome} from './consoleStart';
+import {fetchPlayerModel, openMandatoryAnnounce, openQuickWheel, openZoomViewer, press, sendPlayerInput, settle, syncClient, waitForBoardHome} from './consoleStart';
 
 /*
  * THE PARLIAMENT'S SHARED E2E DRIVER (Turmoil Redux) — the readers and the
@@ -188,8 +188,22 @@ export async function closeSitting(page: Page, request: APIRequestContext, viewe
   expect(await confirmationStands(request, viewer), 'A on the results closes the viewer\'s sitting').toBe(false);
 }
 
-/** Answer `seat`'s standing resolution asks over the API with the plainest legal answer until none stands (a card take: every card; a pick: the first). */
-export async function answerAsksAs(request: APIRequestContext, seat: string, rounds = 6): Promise<void> {
+/**
+ * Answer `seat`'s standing resolution asks over the API with the plainest legal answer until none stands (a card take:
+ * every card; a pick: the first). `syncPage` — a page that READS THE SCREEN next: it returns only once that page has
+ * applied the answers (`syncClient` — the flake architecture's CLASS 3).
+ */
+export async function answerAsksAs(request: APIRequestContext, seat: string, rounds = 6, syncPage?: {page: Page, playerId: string}): Promise<void> {
+  try {
+    await answerAsksAsInner(request, seat, rounds);
+  } finally {
+    if (syncPage !== undefined) {
+      await syncClient(syncPage.page, request, syncPage.playerId);
+    }
+  }
+}
+
+async function answerAsksAsInner(request: APIRequestContext, seat: string, rounds: number): Promise<void> {
   for (let i = 0; i < rounds; i++) {
     const wire = await parliamentWire(request, seat);
     const wf = wire.waitingFor;
@@ -227,7 +241,20 @@ export async function passAs(request: APIRequestContext, seat: string): Promise<
  * defect — the fit engines exist so nothing has to).
  */
 export async function expectParliamentFits(page: Page, label: string, rootSelector = '.con-parl'): Promise<void> {
-  const problems = await page.evaluate((rootSel) => {
+  // POLLED, never read once: a block ENTERING on a transform is scrollable overflow while it moves — the hand's
+  // verdict bar rises in from translateY(.4rem) (con-hand-chrome-in), exactly the 8 px of «clipped-y con-sit__zone
+  // 853>845» a one-shot read caught at 1080 (CI 2026-11-04, console-parliament-colonial · the discard). A real clip
+  // STANDS and fails here the same way, with the last read's list.
+  let problems: Array<string> = [];
+  await expect.poll(async () => {
+    problems = await parliamentFitProblems(page, rootSelector);
+    return problems;
+  }, {timeout: 4_000, intervals: [100, 200, 300]}).toEqual([]).catch(() => undefined);
+  expect(problems, `${label}: layout problems`).toEqual([]);
+}
+
+async function parliamentFitProblems(page: Page, rootSelector: string): Promise<Array<string>> {
+  return page.evaluate((rootSel) => {
     const root = document.querySelector(rootSel);
     if (root === null) {
       return [`no root ${rootSel}`];
@@ -287,7 +314,6 @@ export async function expectParliamentFits(page: Page, label: string, rootSelect
     }
     return out;
   }, rootSelector);
-  expect(problems, `${label}: layout problems`).toEqual([]);
 }
 
 /**

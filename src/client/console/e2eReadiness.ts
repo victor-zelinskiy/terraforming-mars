@@ -31,6 +31,7 @@ import {transportDiagFacts} from '@/client/console/transport/gameTransport';
 import {stackYieldedToBoard, workspaceStackDepth, workspaceStackState} from '@/client/console/consoleWorkspaceStack';
 import {notificationsSettled} from '@/client/components/notifications/notificationState';
 import {InputEchoSnapshot, inputEchoSnapshot} from '@/client/console/inputEcho';
+import {activeInputAbsorbers} from '@/client/console/inputAbsorb';
 import {parliamentRewardDiag} from '@/client/console/parliament/parliamentRewardBeat';
 import {boardCardBonusDiag} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {colonyTrackWaveDiag} from '@/client/console/colonyTrade/consoleColonyTrade';
@@ -48,6 +49,8 @@ import {planetFocusState} from '@/client/console/planetFocus';
 
 export type ConsoleReadinessSnapshot = {
   input: InputEchoSnapshot;
+  /** The deliberate input gates swallowing a press RIGHT NOW (`inputAbsorb.ts`) — a timeout names them. */
+  absorbers: Array<string>;
   /** Names of every live animation hold — empty when the screen owes nothing. */
   holds: Array<string>;
   transport: ReturnType<typeof transportDiagFacts>;
@@ -99,6 +102,7 @@ export type ConsoleReadinessSnapshot = {
 export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
   return {
     input: inputEchoSnapshot(),
+    absorbers: activeInputAbsorbers(),
     holds: activeAnimationHoldLabels(),
     transport: transportDiagFacts(),
     wsDepth: workspaceStackDepth(),

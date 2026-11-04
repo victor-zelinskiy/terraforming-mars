@@ -1346,6 +1346,7 @@ import {holdForGsapAnimation} from '@/client/components/presentation/animationHo
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {availabilityContextFor, CardAvailabilityView} from '@/client/console/cardAvailability';
+import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 
 
 function textOf(v: string | Message | undefined): string {
@@ -1483,6 +1484,9 @@ let queueBoxObserved: Element | undefined;
 /** How long the start waits for its corporation's face to stand before the reactor rises at the stage instead. */
 const START_REACTOR_FACE_WAIT_MS = 2400;
 
+/** The deployment refuses a press while its destination is not ready / the funnel is busy (the input-absorb ledger). */
+const START_PRESS_ABSORBER = 'start-press-refusal';
+
 export default defineComponent({
   name: 'ConsoleStartScene',
   directives: {embedZone: vEmbedZone},
@@ -1521,6 +1525,8 @@ export default defineComponent({
       riskArmed: undefined as CardName | undefined,
       /** WHY the last deployment press was refused (`startPressRefusal`) — '' when it was honoured; a probe's witness. */
       pressRefusal: '' as string,
+      /** The input-absorb ledger's registration of the press-refusal gate (`inputAbsorb.ts`). */
+      absorbOff: undefined as (() => void) | undefined,
       /**
        * The prelude the player COMMITTED knowing its effect would not happen.
        * Latched (not derived): by the time the beat is shown the card has left
@@ -5117,6 +5123,7 @@ export default defineComponent({
     },
   },
   mounted() {
+    this.absorbOff = registerInputAbsorber(START_PRESS_ABSORBER, () => this.pressBlockedNow !== undefined);
     this.$nextTick(() => this.observeQueueBox());
     // THE START IS A REACTOR'S PLACE (PL-1098 — TR84 Titan Holdings answers its OWN play): a corporation the ceremony
     // carries (the queue → the shelf «РАЗЫГРАНО» → the seat «Источник») may be in no painted place at the very moment its
@@ -5311,6 +5318,7 @@ export default defineComponent({
     }).stop;
   },
   beforeUnmount() {
+    this.absorbOff?.();
     queueBoxObserver?.disconnect();
     queueBoxObserver = undefined;
     queueBoxObserved = undefined;
@@ -7811,6 +7819,7 @@ export default defineComponent({
       });
       this.pressRefusal = refusal ?? '';
       if (refusal !== undefined) {
+        noteInputAbsorbed(START_PRESS_ABSORBER);
         return;
       }
       if (item === undefined || item.disabled) {

@@ -484,7 +484,7 @@ function sleepSiteOf(stack: string): string {
   return '<unknown>';
 }
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, livenessGuard: void, startShadowHarvest: void, screenShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, stallHarvest: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, livenessGuard: void, startShadowHarvest: void, screenShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, stallHarvest: void, productReloadGuard: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
   /**
    * CI's STARVED RENDERER ON DEMAND (`TM_E2E_CPU_THROTTLE=<rate>`, e.g. 4): every page of the test's context runs under
    * CDP CPU throttling. CI's 4K software raster on a shared runner starves the main thread for hundreds of ms — the
@@ -640,6 +640,45 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     if (latches.length > 0) {
       throw new Error(`REACTIVITY LATCH — a predicate that caches read changed without a reactive edge (make its term reactive at the source):\n  ${latches.join('\n  ')}`);
     }
+  }, {auto: true}],
+
+  /**
+   * A RELOAD THE PRODUCT MADE ON ITS OWN IS NAMED (the e2e flake architecture). When the page REPLACES itself (the
+   * transport on `INVALID_RUN_ID`, the loading screen's retry), every page-side witness of the run — the transfer /
+   * paint / peek / event-face / notification witnesses — went with the old document, and a spec then fails as an EMPTY
+   * trail three screens later (`console-planetary-alliance` A, CI 2026-11-04). The product says so first
+   * (`[transport] reload — <cause>`); a main-frame navigation within a few seconds of that line is the product's reload:
+   * annotated `product-reload` and printed with its cause. A spec's own `goto` / `reloadConsole` says nothing and is
+   * not counted. (`tests/e2e/transientRecorder.ts` survives a reload; the older witnesses are the worklist.)
+   */
+  productReloadGuard: [async ({context}, use, testInfo) => {
+    const t0 = Date.now();
+    const reloads: Array<{at: number, cause: string}> = [];
+    const watch = (page: Page) => {
+      let announced: {at: number, cause: string} | undefined;
+      page.on('console', (message) => {
+        const text = message.text();
+        if (text.includes('[transport] reload')) {
+          announced = {at: Date.now(), cause: text.slice(0, 200)};
+        }
+      });
+      page.on('framenavigated', (frame) => {
+        if (frame !== page.mainFrame() || announced === undefined || Date.now() - announced.at > 5_000) {
+          return;
+        }
+        reloads.push({at: Date.now() - t0, cause: announced.cause});
+        announced = undefined;
+      });
+    };
+    context.pages().forEach(watch);
+    context.on('page', watch);
+    await use();
+    if (reloads.length === 0) {
+      return;
+    }
+    const line = reloads.map((r) => `+${r.at}ms ${r.cause}`).join(' ‖ ');
+    testInfo.annotations.push({type: 'product-reload', description: line});
+    console.log(`[product-reload] the page replaced itself during the test — every page-side witness was reset: ${line}`);
   }, {auto: true}],
 
   stallHarvest: [async ({context}, use, testInfo) => {

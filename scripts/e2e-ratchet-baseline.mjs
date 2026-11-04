@@ -12,6 +12,10 @@
  *     compositor, which STOPS on a quiet screen: a rAF-clocked probe dies
  *     exactly when the bug it watches for fires. Probes are
  *     MutationObserver + setInterval, or pair rAF with the forceFrame pump.
+ *   · `setInterval(` — a sampler that asks «what does it look like now?» every
+ *     N ms SLEEPS THROUGH a short transient on the starved 4K software runner
+ *     (six CI flakes, 2026-10-30 … 11-04). A probe of a transient records off
+ *     the product's own writes: `tests/e2e/transientRecorder.ts`.
  *
  * The guard (`tests/console/e2eDriverGuard.spec.ts`) fails when a file GROWS
  * past its frozen count (new debt) and when it FALLS below it (an improvement
@@ -39,6 +43,7 @@ function stripComments(text) {
 const PATTERNS = {
   waitForTimeout: /\bwaitForTimeout\s*\(/g,
   requestAnimationFrame: /\brequestAnimationFrame\b/g,
+  setInterval: /\bsetInterval\s*\(/g,
 };
 
 function walk(dir) {

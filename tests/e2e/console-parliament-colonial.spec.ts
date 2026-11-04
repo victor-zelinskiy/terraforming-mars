@@ -288,6 +288,27 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     await expect.poll(() => crumbText(page), {timeout: 10_000}).toMatch(/получение|intake/i);
     await waitSittingAtRest(page, 30_000);
     await shoot(page, '05-take-one');
+    // THE ZONE'S OVERFLOW, SAMPLED FROM THE PRESS: every moment the sitting's zone scrolls by more than 2 px, with the
+    // CSS animations running in it then — so a clip is told apart as an ENTRY POSE (a chrome rising on a transform)
+    // or a standing layout.
+    await page.evaluate(() => {
+      const w = window as unknown as {__zoneOverflow?: {log: Array<string>, timer: number}};
+      if (w.__zoneOverflow !== undefined) {
+        window.clearInterval(w.__zoneOverflow.timer);
+      }
+      const log: Array<string> = [];
+      const t0 = performance.now();
+      const timer = window.setInterval(() => {
+        const zone = document.querySelector<HTMLElement>('.con-sit__zone');
+        if (zone === null || zone.scrollHeight <= zone.clientHeight + 2) {
+          return;
+        }
+        const anims = zone.getAnimations({subtree: true}).filter((a) => a.playState === 'running')
+          .map((a) => (a as CSSAnimation).animationName ?? 'waapi').join(',');
+        log.push(`${Math.round(performance.now() - t0)}ms ${zone.scrollHeight}>${zone.clientHeight} [${anims}]`);
+      }, 10);
+      w.__zoneOverflow = {log, timer};
+    });
     expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, playerId)).waitingFor?.discardPrompt !== undefined, {tries: 4, settleMs: 1800}),
       'A takes the card — the server asks for the discard').toBe(true);
 
@@ -310,6 +331,25 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     await shoot(page, '06-discard');
     try {
       await expectParliamentFits(page, `${PRESET.id} discard`);
+      const zoneLog = await page.evaluate(() => {
+        const w = window as unknown as {__zoneOverflow?: {log: Array<string>, timer: number}};
+        if (w.__zoneOverflow !== undefined) {
+          window.clearInterval(w.__zoneOverflow.timer);
+        }
+        return w.__zoneOverflow?.log ?? [];
+      });
+      test.info().annotations.push({type: 'zone-overflow', description: zoneLog.length === 0 ? 'none' : `${zoneLog.length}: ${zoneLog.slice(0, 6).join(' · ')}`});
+      const rest = await page.evaluate((stage) => {
+        const box = (sel: string) => {
+          const el = document.querySelector(sel);
+          const r = el?.getBoundingClientRect();
+          return r === undefined ? '-' : `${Math.round(r.top)}..${Math.round(r.bottom)}`;
+        };
+        const kids = Array.from(document.querySelector(`${stage} .con-hand__browse`)?.children ?? [])
+          .map((c) => `${c.className.toString().split(' ')[0]}:${Math.round(c.getBoundingClientRect().height)}`).join(',');
+        return `zone ${box('.con-sit__zone')} browse ${box(`${stage} .con-hand__browse`)} [${kids}]`;
+      }, STAGE);
+      test.info().annotations.push({type: 'discard-boxes', description: rest});
     } catch (error) {
       // Name the box the hand did not fit IN: the zone, the embed slot, the hand and every child of its frame.
       const boxes = await page.evaluate((stage) => {
@@ -326,7 +366,9 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
         const frame = hand?.querySelector('.con-hand__frame') ?? null;
         return [read(zone, 'zone'), read(document.querySelector(stage), 'embed'), read(hand, 'hand'), read(frame, 'frame'),
           ...Array.from(frame?.children ?? []).map((c) => read(c, 'frame>' + c.className.split(' ')[0])),
-          ...Array.from(frame?.querySelectorAll('.con-hand__browse, .con-hand__stagewrap, .con-cards__strip, .con-hand__album') ?? []).map((c) => read(c, c.className.split(' ')[0]))].join('\n');
+          ...Array.from(frame?.querySelectorAll('.con-hand__browse, .con-hand__stagewrap, .con-cards__strip, .con-hand__album') ?? []).map((c) => read(c, c.className.split(' ')[0])),
+          // What the browse layer holds beside the album — the row that does not fit is one of these.
+          ...Array.from(frame?.querySelector('.con-hand__browse')?.children ?? []).map((c) => read(c, 'browse>' + c.className.toString().split(' ')[0]))].join('\n');
       }, STAGE);
       throw new Error(`${(error as Error).message}\n[hand boxes]\n${boxes}`);
     }

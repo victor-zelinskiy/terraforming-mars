@@ -25,6 +25,7 @@ import {nextTick, reactive} from 'vue';
 import {CommitArrival, COMMIT_ARRIVAL_ABSORB_MS, commitPressAbsorbed} from '@/client/console/consoleCommitGate';
 import {SETTLE_FIRST_MS} from '@/client/console/promptSequence';
 import {probeTick} from '@/client/console/probeTick';
+import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 import {CURSOR_PENDING_MAX_MS} from '@/client/console/cursorArrival';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 
@@ -140,8 +141,15 @@ export function endCommitBreath(r: CommitArrivalRecord): void {
 
 /** Is a deciding press on the commit row, now, still the arrival (absorbed) rather than the move? */
 export function commitArrivalAbsorbs(r: CommitArrivalRecord): boolean {
-  return commitPressAbsorbed(r.arrival, now());
+  const absorbed = commitPressAbsorbed(r.arrival, now());
+  if (absorbed) {
+    noteInputAbsorbed(COMMIT_ARRIVAL_ABSORBER);
+  }
+  return absorbed;
 }
+
+/** The commit row's arrival window, a gate in front of every deciding press (the input-absorb ledger). */
+const COMMIT_ARRIVAL_ABSORBER = 'commit-arrival';
 
 /** The probe's read: how long a deciding press on a commit row would still be absorbed (0 = never; unpainted = a beat). */
 export function commitArrivalDiag(): {leftMs: number, armed: boolean} {
@@ -162,3 +170,4 @@ export function commitArrivalDiag(): {leftMs: number, armed: boolean} {
 if (typeof window !== 'undefined') {
   (window as unknown as {__conCommitArrival?: typeof commitArrivalDiag}).__conCommitArrival = commitArrivalDiag;
 }
+registerInputAbsorber(COMMIT_ARRIVAL_ABSORBER, () => commitArrivalDiag().leftMs > 0, {scope: 'deciding', global: true});

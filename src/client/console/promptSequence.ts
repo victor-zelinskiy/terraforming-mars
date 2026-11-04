@@ -38,6 +38,7 @@ import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {GamepadIntent, SemanticButton} from '@/client/gamepad/gamepadPollModel';
 import {PromptTone} from '@/client/console/promptTone';
+import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 
 /** A decision that opens a chain or stands alone: a double-tap guard only. */
 export const SETTLE_FIRST_MS = 300;
@@ -248,8 +249,14 @@ export function promptSettleAbsorbs(intent: GamepadIntent): boolean {
     return false;
   }
   promptSequenceState.nudge++;
+  noteInputAbsorbed(PROMPT_SETTLE_ABSORBER);
   return true;
 }
+
+/** The settle is ONE gate in front of every prompt surface (the input-absorb ledger, `inputAbsorb.ts`). */
+const PROMPT_SETTLE_ABSORBER = 'prompt-settle';
+registerInputAbsorber(PROMPT_SETTLE_ABSORBER, () => promptSequenceState.current !== undefined && settleUntil > now(),
+  {scope: 'deciding', global: true});
 
 /** The probe's read (`__conPromptSequence()` on the window) — the chain, the decision on screen and the window. */
 export function promptSequenceDiag(): {chain: PromptChain, current: PromptPresentation | undefined, settleLeftMs: number} {

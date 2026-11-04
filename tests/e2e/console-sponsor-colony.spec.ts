@@ -95,7 +95,11 @@ async function surfaces(page: Page) {
       // Fleet placement: the bar hugs the RIGHT edge of its host row.
       fleetsRightGap: fleets !== null && fleetsHost !== null && fleetsHost !== undefined ?
         Math.round(fleetsHost.getBoundingClientRect().right - fleets.getBoundingClientRect().right) : -1,
-      queueUp: vis('.con-start__queuecol') || document.querySelectorAll('.con-start [data-queue-slot]').length > 0,
+      // P55 · FN — a hosted step (the hand, the colonies inside it) stands INSIDE the deployment's body: the deployment is
+      // RELEASED in place (mounted, never painted past its fade), so «the queue is back» is asked of what PAINTS, never
+      // of the DOM tree (90a745f499 adapted `console-start-sponsor` the same way; this spec still counted the slots).
+      queueUp: vis('.con-start__queuecol') || [...document.querySelectorAll<HTMLElement>('.con-start [data-queue-slot]')]
+        .some((el) => el.checkVisibility({opacityProperty: true, visibilityProperty: true})),
       cubeFlying: document.querySelectorAll('.con-colonybuild__cube').length,
       stageCubes: document.querySelectorAll('.con-colfocus__berth-seat .player-cube').length,
       /** No prompt of the chain is left unserved (the stranded-prompt guard). */

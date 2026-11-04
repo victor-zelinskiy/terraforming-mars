@@ -28,6 +28,7 @@
 
 import {useEventListener} from '@vueuse/core';
 import {installInputEchoProbe, recordInputEcho} from '@/client/console/inputEcho';
+import {installInputAbsorbProbe, lastDispatchAbsorbedBy} from '@/client/console/inputAbsorb';
 import {installFieldRecorder} from '@/client/console/fieldRecorder';
 import {CONSOLE_KEY_BUTTON, CONSOLE_KEY_NAV, keyboardConsoleIntent} from '@/client/console/composables/consoleActionModel';
 import {GamepadIntent, SemanticButton} from '@/client/gamepad/gamepadPollModel';
@@ -43,6 +44,12 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   }
   const tag = target.tagName;
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+}
+
+/** A dispatched key's echo: `absorbed` when a deliberate gate took it (named — `inputAbsorb.ts`), else `consumed`. */
+function recordConsumedOrAbsorbed(code: string, kind: string): void {
+  const by = lastDispatchAbsorbedBy();
+  recordInputEcho(code, kind, by.length > 0 ? 'absorbed' : 'consumed', by);
 }
 
 function onKeydown(e: KeyboardEvent): void {
@@ -77,7 +84,7 @@ function onKeydown(e: KeyboardEvent): void {
     return;
   }
   if (dispatchConsoleIntent(intent)) {
-    recordInputEcho(e.code, intent.kind, 'consumed');
+    recordConsumedOrAbsorbed(e.code, intent.kind);
     e.preventDefault();
     e.stopImmediatePropagation();
   } else {
@@ -121,7 +128,7 @@ function onKeyup(e: KeyboardEvent): void {
     return;
   }
   if (dispatchConsoleIntent(intent)) {
-    recordInputEcho(e.code, intent.kind, 'consumed');
+    recordConsumedOrAbsorbed(e.code, intent.kind);
     e.preventDefault();
     e.stopImmediatePropagation();
   } else {
@@ -137,6 +144,7 @@ export function installConsoleKeyBridge(): void {
     return;
   }
   installInputEchoProbe();
+  installInputAbsorbProbe((code) => CONSOLE_KEY_NAV[code] !== undefined ? 'nav' : CONSOLE_KEY_BUTTON[code]);
   // THE FIELD FLIGHT RECORDER (phase 2 of the start director): the console's tagged warnings and the arbiter's
   // heartbeats, kept across a reload and posted to the embedded server beside the saves.
   installFieldRecorder();

@@ -1,10 +1,14 @@
 {
   "//": "Frozen per-file counts of e2e anti-patterns. Counts may only FALL. Regenerate with: node scripts/e2e-ratchet-baseline.mjs --write",
   "totals": {
+    "setInterval": 295,
     "waitForTimeout": 743,
-    "requestAnimationFrame": 44
+    "requestAnimationFrame": 46
   },
   "files": {
+    "beatWitness.ts": {
+      "setInterval": 1
+    },
     "campaignFixtures.ts": {
       "waitForTimeout": 1
     },
@@ -15,30 +19,62 @@
       "waitForTimeout": 2,
       "requestAnimationFrame": 2
     },
+    "console-action-price-fold.spec.ts": {
+      "setInterval": 1
+    },
     "console-action-resource-pick.spec.ts": {
       "waitForTimeout": 2
+    },
+    "console-aquatic-research-station.spec.ts": {
+      "setInterval": 2
+    },
+    "console-arboretum.spec.ts": {
+      "setInterval": 1
+    },
+    "console-arwind-inc.spec.ts": {
+      "setInterval": 1
+    },
+    "console-atmospheric-enhancers.spec.ts": {
+      "setInterval": 1
+    },
+    "console-aurora-station.spec.ts": {
+      "setInterval": 3
     },
     "console-auto-tile-landing.spec.ts": {
       "waitForTimeout": 7
     },
+    "console-banned-delegate.spec.ts": {
+      "setInterval": 1
+    },
     "console-batch-overlap-repro.spec.ts": {
-      "waitForTimeout": 2
+      "waitForTimeout": 2,
+      "setInterval": 1
+    },
+    "console-biological-simulations.spec.ts": {
+      "setInterval": 2
     },
     "console-blue-action-purchase.spec.ts": {
       "waitForTimeout": 6
     },
     "console-blue-action-receive.spec.ts": {
       "waitForTimeout": 5,
-      "requestAnimationFrame": 2
+      "requestAnimationFrame": 2,
+      "setInterval": 1
     },
     "console-board-card-bonus-concurrency.spec.ts": {
-      "waitForTimeout": 5
+      "waitForTimeout": 5,
+      "setInterval": 2
     },
     "console-board-framing.spec.ts": {
-      "waitForTimeout": 6
+      "waitForTimeout": 6,
+      "setInterval": 1
+    },
+    "console-board-of-directors.spec.ts": {
+      "setInterval": 1
     },
     "console-bonus-action-handoff.spec.ts": {
-      "waitForTimeout": 2
+      "waitForTimeout": 2,
+      "setInterval": 1
     },
     "console-bot-attack.spec.ts": {
       "waitForTimeout": 1
@@ -52,6 +88,9 @@
     "console-campaigns-list.spec.ts": {
       "waitForTimeout": 3
     },
+    "console-canyon-carving.spec.ts": {
+      "setInterval": 1
+    },
     "console-card-availability.spec.ts": {
       "waitForTimeout": 1
     },
@@ -61,8 +100,32 @@
     "console-card-lore.spec.ts": {
       "waitForTimeout": 5
     },
+    "console-card-reaction.spec.ts": {
+      "setInterval": 2
+    },
     "console-card-trade-resume.spec.ts": {
       "waitForTimeout": 3
+    },
+    "console-carryover-album.spec.ts": {
+      "setInterval": 2
+    },
+    "console-cell-dossier.spec.ts": {
+      "setInterval": 1
+    },
+    "console-ceres-tech-market.spec.ts": {
+      "setInterval": 1
+    },
+    "console-chip-conveyor.spec.ts": {
+      "setInterval": 1
+    },
+    "console-classic-gmo-contract.spec.ts": {
+      "setInterval": 1
+    },
+    "console-cloud-tourism.spec.ts": {
+      "setInterval": 1
+    },
+    "console-colonial-envoys.spec.ts": {
+      "setInterval": 1
     },
     "console-colony-build-flight.spec.ts": {
       "waitForTimeout": 4,
@@ -79,6 +142,9 @@
       "waitForTimeout": 10,
       "requestAnimationFrame": 6
     },
+    "console-colony-inspect-probe.spec.ts": {
+      "setInterval": 1
+    },
     "console-colony-miranda-bonus.spec.ts": {
       "waitForTimeout": 5,
       "requestAnimationFrame": 2
@@ -90,11 +156,31 @@
     "console-colony-remote-bonus.spec.ts": {
       "waitForTimeout": 3
     },
+    "console-colony-sponsors.spec.ts": {
+      "setInterval": 1
+    },
+    "console-colony-titan-split.spec.ts": {
+      "setInterval": 1
+    },
+    "console-colony-trade-hub.spec.ts": {
+      "setInterval": 1
+    },
     "console-colony-trade-probe.spec.ts": {
-      "waitForTimeout": 6
+      "waitForTimeout": 6,
+      "setInterval": 1
     },
     "console-colony-trade-receipt.spec.ts": {
-      "waitForTimeout": 3
+      "waitForTimeout": 3,
+      "setInterval": 1
+    },
+    "console-colony-venus-redux.spec.ts": {
+      "setInterval": 1
+    },
+    "console-colony-venus-trade.spec.ts": {
+      "setInterval": 1
+    },
+    "console-colony-vesta.spec.ts": {
+      "setInterval": 1
     },
     "console-community-marker.spec.ts": {
       "waitForTimeout": 4
@@ -102,36 +188,87 @@
     "console-composite-surfaces.spec.ts": {
       "waitForTimeout": 6
     },
+    "console-composting-initiative.spec.ts": {
+      "setInterval": 3
+    },
     "console-corp-first-action.spec.ts": {
       "waitForTimeout": 3
     },
     "console-corporate-espionage.spec.ts": {
       "waitForTimeout": 4
     },
+    "console-council-seat.spec.ts": {
+      "setInterval": 1
+    },
+    "console-cultural-metropolis.spec.ts": {
+      "setInterval": 1
+    },
+    "console-cutting-edge-design.spec.ts": {
+      "setInterval": 1
+    },
+    "console-decision-no-blink.spec.ts": {
+      "setInterval": 1
+    },
     "console-deck-draw.spec.ts": {
-      "waitForTimeout": 1
+      "waitForTimeout": 1,
+      "setInterval": 1
     },
     "console-deck-pick.spec.ts": {
-      "waitForTimeout": 6
+      "waitForTimeout": 6,
+      "setInterval": 2
+    },
+    "console-delegate-grant-pace.spec.ts": {
+      "setInterval": 1
     },
     "console-delta-card-advance.spec.ts": {
-      "waitForTimeout": 9
+      "waitForTimeout": 9,
+      "setInterval": 3
     },
     "console-delta-surge.spec.ts": {
-      "waitForTimeout": 2
+      "waitForTimeout": 2,
+      "setInterval": 1
     },
     "console-dp06-payment-mix.spec.ts": {
       "waitForTimeout": 3
     },
     "console-draft-workspace.spec.ts": {
       "waitForTimeout": 6,
-      "requestAnimationFrame": 2
+      "requestAnimationFrame": 2,
+      "setInterval": 1
+    },
+    "console-draw-one-batch-board-card.spec.ts": {
+      "setInterval": 1
+    },
+    "console-draw-one-batch-play-table.spec.ts": {
+      "setInterval": 1
+    },
+    "console-draw-one-batch-sealed-ledger.spec.ts": {
+      "setInterval": 1
+    },
+    "console-draw-one-batch-sealed-question.spec.ts": {
+      "setInterval": 1
+    },
+    "console-draw-one-batch-search-tape.spec.ts": {
+      "setInterval": 1
     },
     "console-dutch-mountains.spec.ts": {
       "waitForTimeout": 1
     },
+    "console-early-colonization.spec.ts": {
+      "setInterval": 1
+    },
+    "console-earth-army-contract.spec.ts": {
+      "setInterval": 1
+    },
+    "console-ecological-experiment.spec.ts": {
+      "setInterval": 1
+    },
+    "console-eden-alliance.spec.ts": {
+      "setInterval": 1
+    },
     "console-effect-chain-lock.spec.ts": {
-      "waitForTimeout": 8
+      "waitForTimeout": 8,
+      "setInterval": 2
     },
     "console-effect-decision-embed.spec.ts": {
       "waitForTimeout": 8
@@ -146,16 +283,39 @@
       "waitForTimeout": 1
     },
     "console-endgame-overview.spec.ts": {
-      "waitForTimeout": 14
+      "waitForTimeout": 14,
+      "setInterval": 1
     },
     "console-endgame.spec.ts": {
-      "waitForTimeout": 1
+      "waitForTimeout": 1,
+      "setInterval": 1
     },
     "console-energy-conversion-prompt.spec.ts": {
       "waitForTimeout": 2
     },
+    "console-envoys-from-venus.spec.ts": {
+      "setInterval": 1
+    },
+    "console-exclusive-colony.spec.ts": {
+      "setInterval": 1
+    },
+    "console-expedition-mechs.spec.ts": {
+      "setInterval": 1
+    },
     "console-external-draw.spec.ts": {
       "waitForTimeout": 3
+    },
+    "console-extras-explorer.spec.ts": {
+      "setInterval": 1
+    },
+    "console-ferrus-academy.spec.ts": {
+      "setInterval": 1
+    },
+    "console-finale-flash-budget.spec.ts": {
+      "setInterval": 1
+    },
+    "console-finale-podium.spec.ts": {
+      "setInterval": 2
     },
     "console-first-action-draw.spec.ts": {
       "waitForTimeout": 5
@@ -164,28 +324,62 @@
       "waitForTimeout": 2
     },
     "console-firstact-entry-probe.spec.ts": {
-      "waitForTimeout": 2
+      "waitForTimeout": 2,
+      "setInterval": 1
+    },
+    "console-firstact-lifecycle-probe.spec.ts": {
+      "setInterval": 1
+    },
+    "console-fringe-colony.spec.ts": {
+      "setInterval": 1
+    },
+    "console-frontier-labs.spec.ts": {
+      "setInterval": 1
     },
     "console-gamepad-reload-carryover.spec.ts": {
       "waitForTimeout": 5
     },
+    "console-generation-scene.spec.ts": {
+      "setInterval": 1
+    },
+    "console-green-allegiance.spec.ts": {
+      "setInterval": 2
+    },
+    "console-greens-campaign.spec.ts": {
+      "setInterval": 1
+    },
+    "console-habitat-science.spec.ts": {
+      "setInterval": 1
+    },
     "console-hand-close-landing.spec.ts": {
-      "waitForTimeout": 5
+      "waitForTimeout": 5,
+      "setInterval": 2
     },
     "console-hand-dock-anchor.spec.ts": {
-      "waitForTimeout": 7
+      "waitForTimeout": 7,
+      "setInterval": 1
     },
     "console-hand-open-parity.spec.ts": {
       "waitForTimeout": 4
     },
     "console-hand-play-return.spec.ts": {
-      "waitForTimeout": 2
+      "waitForTimeout": 2,
+      "setInterval": 2
     },
     "console-hand-workspace.spec.ts": {
       "waitForTimeout": 3
     },
+    "console-hartlan-heating.spec.ts": {
+      "setInterval": 1
+    },
     "console-hazard-placement.spec.ts": {
       "waitForTimeout": 1
+    },
+    "console-high-circles.spec.ts": {
+      "setInterval": 1
+    },
+    "console-hosted-hand-open.spec.ts": {
+      "setInterval": 1
     },
     "console-hosted-section-footer.spec.ts": {
       "waitForTimeout": 2
@@ -194,16 +388,20 @@
       "waitForTimeout": 9
     },
     "console-hydro-bonus-order.spec.ts": {
-      "waitForTimeout": 8
+      "waitForTimeout": 8,
+      "setInterval": 3
     },
     "console-hydro-cards-scene.spec.ts": {
-      "waitForTimeout": 2
+      "waitForTimeout": 2,
+      "setInterval": 1
     },
     "console-hydro-copied-colony.spec.ts": {
-      "waitForTimeout": 6
+      "waitForTimeout": 6,
+      "setInterval": 2
     },
     "console-hydro-copied-tile.spec.ts": {
-      "waitForTimeout": 4
+      "waitForTimeout": 4,
+      "setInterval": 1
     },
     "console-hydro-geometry.spec.ts": {
       "waitForTimeout": 2
@@ -212,10 +410,18 @@
       "waitForTimeout": 1
     },
     "console-hydro-repeat-embed.spec.ts": {
-      "waitForTimeout": 3
+      "waitForTimeout": 3,
+      "setInterval": 1
     },
     "console-hydro-stage-bound-repeat.spec.ts": {
-      "waitForTimeout": 5
+      "waitForTimeout": 5,
+      "setInterval": 1
+    },
+    "console-industrialists-campaign.spec.ts": {
+      "setInterval": 1
+    },
+    "console-info-dossier.spec.ts": {
+      "setInterval": 1
     },
     "console-info-workspace.spec.ts": {
       "waitForTimeout": 1
@@ -223,8 +429,24 @@
     "console-inspect-history.spec.ts": {
       "waitForTimeout": 1
     },
+    "console-ishtar-expedition.spec.ts": {
+      "setInterval": 1
+    },
+    "console-jovian-envoys.spec.ts": {
+      "setInterval": 1
+    },
+    "console-l1-trade-terminal.spec.ts": {
+      "setInterval": 1
+    },
+    "console-lobbying-campaign.spec.ts": {
+      "setInterval": 1
+    },
     "console-longgame-perf-probe.spec.ts": {
-      "waitForTimeout": 11
+      "waitForTimeout": 11,
+      "setInterval": 1
+    },
+    "console-lotus-innovations.spec.ts": {
+      "setInterval": 2
     },
     "console-ma-states.spec.ts": {
       "waitForTimeout": 5
@@ -232,17 +454,43 @@
     "console-ma-workspace.spec.ts": {
       "waitForTimeout": 3
     },
+    "console-mars-first-campaign.spec.ts": {
+      "setInterval": 1
+    },
+    "console-martian-census.spec.ts": {
+      "setInterval": 1
+    },
+    "console-martian-media-center.spec.ts": {
+      "setInterval": 1
+    },
+    "console-medical-institute.spec.ts": {
+      "setInterval": 3
+    },
+    "console-minority-representation.spec.ts": {
+      "setInterval": 1
+    },
+    "console-mu-colony-question.spec.ts": {
+      "setInterval": 1
+    },
     "console-multi-effect-sequence.spec.ts": {
-      "waitForTimeout": 2
+      "waitForTimeout": 2,
+      "setInterval": 1
+    },
+    "console-nationalist-movement.spec.ts": {
+      "setInterval": 2
     },
     "console-next-step-line.spec.ts": {
       "waitForTimeout": 3
+    },
+    "console-nobel-prize.spec.ts": {
+      "setInterval": 1
     },
     "console-nomads-hazard-dossier.spec.ts": {
       "waitForTimeout": 7
     },
     "console-notification-bonus-attack.spec.ts": {
-      "waitForTimeout": 3
+      "waitForTimeout": 3,
+      "setInterval": 1
     },
     "console-notification-cause.spec.ts": {
       "waitForTimeout": 1
@@ -251,10 +499,182 @@
       "waitForTimeout": 1
     },
     "console-notification-semantics.spec.ts": {
-      "waitForTimeout": 1
+      "waitForTimeout": 1,
+      "setInterval": 2
+    },
+    "console-notification-source.spec.ts": {
+      "setInterval": 1
+    },
+    "console-nova-city.spec.ts": {
+      "setInterval": 1
+    },
+    "console-nuclear-warhead-utilization.spec.ts": {
+      "setInterval": 2
+    },
+    "console-old-mining-colony.spec.ts": {
+      "setInterval": 1
+    },
+    "console-one-framework-draw.spec.ts": {
+      "setInterval": 1
     },
     "console-options-settings.spec.ts": {
       "waitForTimeout": 10
+    },
+    "console-overclocked-equipment.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-access-scene.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-actions.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-aquifer.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-ban.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-bot.spec.ts": {
+      "setInterval": 2
+    },
+    "console-parliament-budget.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-chairman-quest-last-action.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-chairman-quest.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-climate.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-cloud.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-colonial.spec.ts": {
+      "setInterval": 2
+    },
+    "console-parliament-colonization.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-colony.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-craze.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-forestry.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-gallery.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-gas.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-generous.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-greens.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-heat.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-into-draft.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-jovian.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-leave.spec.ts": {
+      "setInterval": 2
+    },
+    "console-parliament-live.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-manufacturing.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-marsfirst-budget.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-medical.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-migration.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-mohole.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-openip.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-payout-details.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-reds-budget.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-renewal.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-research.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-results-honesty.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-sitting-motion.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-sitting-reward.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-sitting-v3.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-sitting-v4.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-sitting.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-skyscrapers.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-softgates.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-sponsored.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-tax-breaks.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-tradeind.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-unity.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-v2.spec.ts": {
+      "setInterval": 3
+    },
+    "console-parliament-vote-geometry.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-water.spec.ts": {
+      "setInterval": 1
+    },
+    "console-parliament-zone-v5.spec.ts": {
+      "setInterval": 1
+    },
+    "console-party-sanctions.spec.ts": {
+      "setInterval": 1
     },
     "console-placement-confirm.spec.ts": {
       "waitForTimeout": 2
@@ -266,7 +686,8 @@
       "waitForTimeout": 2
     },
     "console-placement-relations.spec.ts": {
-      "waitForTimeout": 4
+      "waitForTimeout": 4,
+      "setInterval": 1
     },
     "console-placement-source.spec.ts": {
       "waitForTimeout": 1
@@ -275,38 +696,91 @@
       "waitForTimeout": 3,
       "requestAnimationFrame": 4
     },
+    "console-planetary-alliance.spec.ts": {
+      "setInterval": 1
+    },
+    "console-plasma-fans.spec.ts": {
+      "setInterval": 2
+    },
     "console-play-draw-embed.spec.ts": {
       "waitForTimeout": 9
     },
+    "console-play-landing-geometry.spec.ts": {
+      "setInterval": 1
+    },
     "console-play-landing-probe.spec.ts": {
-      "waitForTimeout": 12
+      "waitForTimeout": 12,
+      "setInterval": 1
+    },
+    "console-play-tr-reward.spec.ts": {
+      "setInterval": 1
     },
     "console-played-landing-probe.spec.ts": {
       "requestAnimationFrame": 2
     },
     "console-played-perf-probe.spec.ts": {
-      "waitForTimeout": 17
+      "waitForTimeout": 17,
+      "setInterval": 2
+    },
+    "console-played-polish.spec.ts": {
+      "setInterval": 1
     },
     "console-pluto-bonus-discard.spec.ts": {
       "waitForTimeout": 4
     },
+    "console-pluto-settlements.spec.ts": {
+      "setInterval": 1
+    },
     "console-pluto-two-colony-sequence.spec.ts": {
       "waitForTimeout": 6
+    },
+    "console-political-donation.spec.ts": {
+      "setInterval": 1
+    },
+    "console-political-science.spec.ts": {
+      "setInterval": 1
+    },
+    "console-political-think-tank.spec.ts": {
+      "setInterval": 1
+    },
+    "console-pregame-showcase.spec.ts": {
+      "setInterval": 3
     },
     "console-prelude-burn-gate.spec.ts": {
       "waitForTimeout": 10
     },
+    "console-preservation-program.spec.ts": {
+      "setInterval": 1
+    },
+    "console-pristar.spec.ts": {
+      "setInterval": 1
+    },
     "console-profiles.spec.ts": {
       "waitForTimeout": 10
+    },
+    "console-project-eden.spec.ts": {
+      "setInterval": 1
+    },
+    "console-promethean-alliance.spec.ts": {
+      "setInterval": 1
     },
     "console-prompt-admission.spec.ts": {
       "waitForTimeout": 1
     },
+    "console-prompt-family.spec.ts": {
+      "setInterval": 1
+    },
     "console-prompt-source.spec.ts": {
       "waitForTimeout": 3
     },
+    "console-proteus.spec.ts": {
+      "setInterval": 2
+    },
     "console-rail-contract.spec.ts": {
       "waitForTimeout": 1
+    },
+    "console-rail-landing.spec.ts": {
+      "setInterval": 1
     },
     "console-rail-protection.spec.ts": {
       "waitForTimeout": 3
@@ -314,14 +788,45 @@
     "console-rail-value-badges.spec.ts": {
       "waitForTimeout": 3
     },
+    "console-re-settlement.spec.ts": {
+      "setInterval": 2
+    },
+    "console-recession.spec.ts": {
+      "setInterval": 1
+    },
+    "console-recruitment.spec.ts": {
+      "setInterval": 1
+    },
     "console-recv-perf-probe.spec.ts": {
-      "waitForTimeout": 8
+      "waitForTimeout": 8,
+      "setInterval": 2
+    },
+    "console-red-appeasement.spec.ts": {
+      "setInterval": 1
+    },
+    "console-red-lawyers.spec.ts": {
+      "setInterval": 2
+    },
+    "console-red-museum.spec.ts": {
+      "setInterval": 1
+    },
+    "console-red-tech-convention.spec.ts": {
+      "setInterval": 2
+    },
+    "console-reds-campaign.spec.ts": {
+      "setInterval": 1
     },
     "console-repeat-pick.spec.ts": {
       "waitForTimeout": 4
     },
     "console-repeat-reveal-embed.spec.ts": {
       "waitForTimeout": 3
+    },
+    "console-research-startups.spec.ts": {
+      "setInterval": 2
+    },
+    "console-resolution-face.spec.ts": {
+      "setInterval": 1
     },
     "console-resource-distribute.spec.ts": {
       "waitForTimeout": 2
@@ -330,7 +835,8 @@
       "waitForTimeout": 4
     },
     "console-reveal-landing.spec.ts": {
-      "waitForTimeout": 5
+      "waitForTimeout": 5,
+      "setInterval": 1
     },
     "console-reveal-priority.spec.ts": {
       "waitForTimeout": 1
@@ -338,11 +844,27 @@
     "console-reveal-remote-bonus-collision.spec.ts": {
       "waitForTimeout": 1
     },
+    "console-rise-to-power.spec.ts": {
+      "setInterval": 1
+    },
+    "console-rival-payout-intake.spec.ts": {
+      "setInterval": 1
+    },
     "console-scale-marker.spec.ts": {
       "waitForTimeout": 5
     },
+    "console-scene-transition.spec.ts": {
+      "setInterval": 1
+    },
+    "console-scientific-breakthrough.spec.ts": {
+      "setInterval": 1
+    },
+    "console-scientists-campaign.spec.ts": {
+      "setInterval": 1
+    },
     "console-score-explorer.spec.ts": {
-      "waitForTimeout": 2
+      "waitForTimeout": 2,
+      "setInterval": 3
     },
     "console-score-header.spec.ts": {
       "waitForTimeout": 2
@@ -350,23 +872,45 @@
     "console-self-target.spec.ts": {
       "waitForTimeout": 7
     },
+    "console-septem-tribus.spec.ts": {
+      "setInterval": 2
+    },
     "console-social-heating.spec.ts": {
-      "waitForTimeout": 8
+      "waitForTimeout": 8,
+      "setInterval": 1
+    },
+    "console-spaceship-recycling.spec.ts": {
+      "setInterval": 1
     },
     "console-sponsor-colony.spec.ts": {
       "waitForTimeout": 6
     },
     "console-sponsor-play-outcome.spec.ts": {
-      "waitForTimeout": 7
+      "waitForTimeout": 7,
+      "setInterval": 1
+    },
+    "console-sponsoring-nation.spec.ts": {
+      "setInterval": 1
+    },
+    "console-staged-board-clarity.spec.ts": {
+      "setInterval": 1
     },
     "console-staged-play.spec.ts": {
-      "waitForTimeout": 3
+      "waitForTimeout": 3,
+      "setInterval": 1
+    },
+    "console-standalone-reveal.spec.ts": {
+      "setInterval": 1
     },
     "console-start-availability.spec.ts": {
       "waitForTimeout": 4
     },
+    "console-start-forecast-door.spec.ts": {
+      "setInterval": 1
+    },
     "console-start-motion.spec.ts": {
-      "waitForTimeout": 6
+      "waitForTimeout": 6,
+      "setInterval": 1
     },
     "console-start-multiplayer.spec.ts": {
       "waitForTimeout": 3
@@ -375,7 +919,8 @@
       "waitForTimeout": 2
     },
     "console-start-rail-commit.spec.ts": {
-      "waitForTimeout": 5
+      "waitForTimeout": 5,
+      "setInterval": 1
     },
     "console-start-sponsor.spec.ts": {
       "waitForTimeout": 10
@@ -387,6 +932,9 @@
     "console-start-summary.spec.ts": {
       "waitForTimeout": 4
     },
+    "console-stdp-open-stability.spec.ts": {
+      "setInterval": 1
+    },
     "console-stdp-stable-geometry.spec.ts": {
       "waitForTimeout": 4
     },
@@ -395,10 +943,17 @@
       "requestAnimationFrame": 4
     },
     "console-strategy-rail-states.spec.ts": {
-      "waitForTimeout": 8
+      "waitForTimeout": 8,
+      "setInterval": 1
     },
     "console-strategy-rail.spec.ts": {
       "waitForTimeout": 1
+    },
+    "console-summit-logistics.spec.ts": {
+      "setInterval": 1
+    },
+    "console-supercomputer.spec.ts": {
+      "setInterval": 1
     },
     "console-surface-motion.spec.ts": {
       "waitForTimeout": 5
@@ -406,56 +961,126 @@
     "console-system-menu.spec.ts": {
       "waitForTimeout": 4
     },
+    "console-terraformed-scene.spec.ts": {
+      "setInterval": 1
+    },
+    "console-tharsis-alliance.spec.ts": {
+      "setInterval": 2
+    },
+    "console-the-deimos-group.spec.ts": {
+      "setInterval": 1
+    },
+    "console-tile-language.spec.ts": {
+      "setInterval": 1
+    },
     "console-tile-replacement.spec.ts": {
-      "waitForTimeout": 9
+      "waitForTimeout": 9,
+      "setInterval": 1
+    },
+    "console-titan-holdings.spec.ts": {
+      "setInterval": 1
     },
     "console-trade-target-step.spec.ts": {
-      "waitForTimeout": 7
+      "waitForTimeout": 7,
+      "setInterval": 1
     },
     "console-triple-nest-blockade.spec.ts": {
       "waitForTimeout": 1
     },
+    "console-unexpected-application.spec.ts": {
+      "setInterval": 1
+    },
+    "console-unity-campaign.spec.ts": {
+      "setInterval": 1
+    },
+    "console-unmi-liner.spec.ts": {
+      "setInterval": 2
+    },
+    "console-utopia-invest.spec.ts": {
+      "setInterval": 1
+    },
+    "console-variant-settle.spec.ts": {
+      "setInterval": 1
+    },
+    "console-venus-bonus-hosts.spec.ts": {
+      "setInterval": 3
+    },
     "console-venus-bonus-park.spec.ts": {
       "waitForTimeout": 4
     },
+    "console-venus-orbital-survey.spec.ts": {
+      "setInterval": 1
+    },
+    "console-venus-trade-hub.spec.ts": {
+      "setInterval": 1
+    },
+    "console-venusian-census.spec.ts": {
+      "setInterval": 1
+    },
     "console-viron-repeat-draw.spec.ts": {
-      "waitForTimeout": 3
+      "waitForTimeout": 3,
+      "setInterval": 1
     },
     "console-vitor-award-step.spec.ts": {
       "waitForTimeout": 4
     },
+    "console-vote-of-no-confidence.spec.ts": {
+      "setInterval": 1
+    },
+    "console-water-hauling.spec.ts": {
+      "setInterval": 1
+    },
+    "console-wg-project.spec.ts": {
+      "setInterval": 1
+    },
     "console-wheel-commit-geometry.spec.ts": {
-      "waitForTimeout": 4
+      "waitForTimeout": 4,
+      "setInterval": 1
     },
     "console-workspace-band.spec.ts": {
       "waitForTimeout": 2
     },
+    "console-x87-shipment-to-earth.spec.ts": {
+      "setInterval": 1
+    },
     "consoleEndgameHarness.ts": {
-      "waitForTimeout": 1
+      "waitForTimeout": 1,
+      "setInterval": 1
     },
     "consoleStart.ts": {
       "waitForTimeout": 26
     },
     "draft-finale-probe.spec.ts": {
-      "waitForTimeout": 9
+      "waitForTimeout": 9,
+      "setInterval": 1
     },
     "established-methods-stdproj.spec.ts": {
       "waitForTimeout": 3
+    },
+    "eventFaceWitness.ts": {
+      "setInterval": 1
+    },
+    "focusWitness.ts": {
+      "setInterval": 1
     },
     "hand-album-capture.spec.ts": {
       "waitForTimeout": 6
     },
     "hand-album-continuity.spec.ts": {
-      "waitForTimeout": 10
+      "waitForTimeout": 10,
+      "setInterval": 1
     },
     "hand-album-probe.spec.ts": {
-      "waitForTimeout": 6
+      "waitForTimeout": 6,
+      "setInterval": 1
     },
     "hand-chip-scale.spec.ts": {
-      "waitForTimeout": 2
+      "waitForTimeout": 2,
+      "setInterval": 1
     },
     "hand-chrome-flash-probe.spec.ts": {
-      "waitForTimeout": 1
+      "waitForTimeout": 1,
+      "setInterval": 1
     },
     "hand-delivery-probe.spec.ts": {
       "waitForTimeout": 4
@@ -481,6 +1106,15 @@
       "waitForTimeout": 3,
       "requestAnimationFrame": 2
     },
+    "paintWitness.ts": {
+      "setInterval": 1
+    },
+    "parliamentDriveV2.ts": {
+      "setInterval": 1
+    },
+    "reactionWitness.ts": {
+      "setInterval": 1
+    },
     "start-effect-flow-probe.spec.ts": {
       "waitForTimeout": 4,
       "requestAnimationFrame": 2
@@ -498,6 +1132,12 @@
     "trade-fleet-probe.spec.ts": {
       "waitForTimeout": 4
     },
+    "transferWitness.ts": {
+      "setInterval": 1
+    },
+    "transientRecorder.ts": {
+      "requestAnimationFrame": 2
+    },
     "tv-decision-screens.spec.ts": {
       "waitForTimeout": 7
     },
@@ -508,7 +1148,8 @@
       "waitForTimeout": 14
     },
     "zz-nomads-visual.spec.ts": {
-      "waitForTimeout": 11
+      "waitForTimeout": 11,
+      "setInterval": 1
     }
   }
 }

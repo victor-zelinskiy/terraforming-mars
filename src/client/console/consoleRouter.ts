@@ -20,6 +20,7 @@ import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {AlbumFilter, HandTagFilter} from '@/client/components/console/consoleHandFilter';
 import {loadingScreenState, sceneTransitionInputLocked} from '@/client/console/loadingScreenState';
 import {recordVerbPress} from '@/client/console/inputEcho';
+import {beginInputDispatch, endInputDispatch, noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 import {
   closeWorkspaceSheet, workspaceStackSection, workspaceStackSheet,
 } from '@/client/console/consoleWorkspaceStack';
@@ -254,6 +255,17 @@ export function observeConsoleIntents(fn: (intent: GamepadIntent) => void): () =
 
 /** Returns true when the console shell consumed the intent. */
 export function dispatchConsoleIntent(intent: GamepadIntent): boolean {
+  // Every dispatch is BRACKETED for the input-absorb ledger (`inputAbsorb.ts`): a gate that swallows this intent on
+  // purpose says so during it, and the key bridge's echo reports the press as `absorbed` by name.
+  beginInputDispatch();
+  try {
+    return dispatchConsoleIntentInner(intent);
+  } finally {
+    endInputDispatch();
+  }
+}
+
+function dispatchConsoleIntentInner(intent: GamepadIntent): boolean {
   // The liveness arbiter's witness of «the player is trying»: A / B from any device (`inputEcho.verbPresses`), and
   // whether anybody TOOK it (`verbDropped`).
   const verb = intent.kind === 'press' && (intent.button === 'confirm' || intent.button === 'back');
@@ -268,6 +280,7 @@ export function dispatchConsoleIntent(intent: GamepadIntent): boolean {
   // STOPS something already running must never be swallowed (the
   // hold-to-confirm contract).
   if (sceneTransitionInputLocked() && !loadingScreenState.fullscreenLost) {
+    noteInputAbsorbed(SCENE_CURTAIN_ABSORBER);
     for (const observe of observers) {
       observe(intent);
     }
@@ -285,3 +298,8 @@ export function dispatchConsoleIntent(intent: GamepadIntent): boolean {
   }
   return taken;
 }
+
+/** The scene curtain absorbs every gameplay intent while it owns the frame — a gate in front of every surface. */
+const SCENE_CURTAIN_ABSORBER = 'scene-curtain';
+registerInputAbsorber(SCENE_CURTAIN_ABSORBER, () => sceneTransitionInputLocked() && !loadingScreenState.fullscreenLost,
+  {scope: 'all', global: true});

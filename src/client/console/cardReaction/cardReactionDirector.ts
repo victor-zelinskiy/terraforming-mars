@@ -75,6 +75,7 @@ import {
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RailAnswerFlight} from '@/client/console/resourceTransfer/railReward';
 import {waitRewardPayoutQuiet} from '@/client/console/rewardPayoutQuiet';
+import {boardSceneMemberBusy, boardSceneOwedBusy} from '@/client/console/boardSceneMembers';
 import {scaleStepRatingBusy} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {hydroCeremonyOwed, hydroFlowState} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {hydroTraversalPending, isHydroMarkerActive} from '@/client/console/hydroMarker/consoleHydroMarker';
@@ -1002,6 +1003,7 @@ async function runStandalone(): Promise<void> {
     // The board's own story first (a tile's landing, its cell's payout) — a reaction never cuts into the cause's scene;
     // and every BLOCKING scene (a sitting's beats, a landing) plays out before the chain — bounded, never a session.
     await waitRewardPayoutQuiet({alive: () => epoch === myEpoch && (standaloneQueue.length > 0 || rivalQueue.length > 0)});
+    await waitBoardScenesOwedQuiet(myEpoch);
     await waitBlockingQuiet(myEpoch);
     await waitSittingQuiet(myEpoch);
     await waitRatingStoryQuiet(myEpoch);
@@ -1160,6 +1162,26 @@ function runStep(entry: Standalone, slot: number, t: ReactionTempo, slots: Reado
     }
   })();
   return {launched, done};
+}
+
+/**
+ * THE BOARD'S OWN SCENES FIRST — OWED ONES INCLUDED (CI 2026-11-04, `console-red-museum` · Nuclear Zone): a scene the
+ * response decided but that still WAITS for the field (the tile's payout to its card waits for the scales' story first)
+ * holds the feed only — no blocking hold, no payout flag — so the chain slipped through that window and rose INTO the
+ * scene once it stood (the ruling Greens' answer to the rating landing on the M€ row between the museum's data and
+ * Martian Fiber's +2), while on a slower frame the blocking wait below caught the scene and the answer came after it.
+ * The order was the machine's. The chain now waits for every owed or standing board scene (`boardSceneMembers`) —
+ * the board's own story, then the table's answer. Bounded like the blocking wait.
+ */
+async function waitBoardScenesOwedQuiet(myEpoch: number): Promise<void> {
+  const started = typeof performance === 'undefined' ? 0 : performance.now();
+  while (epoch === myEpoch && (boardSceneOwedBusy() || boardSceneMemberBusy())) {
+    if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
+      return;
+    }
+    cardReactionState.waitingOnOther = true;
+    await nextPaintedFrame();
+  }
 }
 
 /** Wait out every BLOCKING animation hold (bounded) — the chain never cuts into a scene that owns the screen. */

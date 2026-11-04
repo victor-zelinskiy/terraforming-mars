@@ -170,6 +170,7 @@ import {
   markIntakeDealt, rollbackExternalDrawSend, shouldDealIntake,
 } from '@/client/console/externalDraw/consoleExternalDraw';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 
 /** Bounded retry while the row has no layout yet (JSDOM / mid-reload). */
 const FIT_RETRIES = 20;
@@ -186,6 +187,9 @@ type SlotEntry = {name: CardName, taken: boolean};
 function asElements(ref: unknown): Array<HTMLElement> {
   return Array.isArray(ref) ? (ref as Array<HTMLElement>).filter((el) => el instanceof HTMLElement) : [];
 }
+
+/** A take beat in flight (`sending`), the surface not yet ready — every verb absorbed (the input-absorb ledger). */
+const EXTERNAL_DRAW_ABSORBER = 'external-draw-beat';
 
 export default defineComponent({
   name: 'ConsoleExternalDrawWorkspace',
@@ -206,6 +210,8 @@ export default defineComponent({
   data() {
     return {
       focusIdx: 0,
+      /** The input-absorb ledger's registration of the beat gate (`inputAbsorb.ts`). */
+      absorbOff: undefined as (() => void) | undefined,
       /** The STABLE slot list for the whole batch (ghosts included). */
       slotsList: [] as Array<SlotEntry>,
       /** Names still owned by an arrival proxy (real slot held under it). */
@@ -415,6 +421,7 @@ export default defineComponent({
     },
   },
   mounted(): void {
+    this.absorbOff = registerInputAbsorber(EXTERNAL_DRAW_ABSORBER, () => !this.unmounting && !this.interactive, {scope: 'all'});
     this.scheduleFit();
     const box = (this.$el as HTMLElement | undefined)?.parentElement ??
       (this.$refs.frameEl as HTMLElement | undefined);
@@ -425,6 +432,7 @@ export default defineComponent({
     }
   },
   beforeUnmount(): void {
+    this.absorbOff?.();
     this.unmounting = true;
     this.goneWaiters.splice(0).forEach((release) => release());
     clearPanelCommands('externalDraw');
@@ -643,6 +651,7 @@ export default defineComponent({
     // ── INPUT ───────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): void {
       if (!this.interactive) {
+        noteInputAbsorbed(EXTERNAL_DRAW_ABSORBER);
         return; // a beat in flight absorbs the pad — no double take possible
       }
       if (intent.kind === 'nav') {

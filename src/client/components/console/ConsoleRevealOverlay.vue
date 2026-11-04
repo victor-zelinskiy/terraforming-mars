@@ -672,6 +672,7 @@ import {
 import {cardDiscardState} from '@/client/console/cardDiscard/cardDiscardState';
 import {claimNotificationCorner} from '@/client/components/notifications/notificationState';
 import {cardDiscardAskedBy, cardDiscardSettlementPair} from '@/client/console/cardDiscard/consoleCardDiscard';
+import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 
 /**
  * THE SETTLEMENT TABLE's place bodies + their running turns — DOM/GSAP handles, never reactive state (one instance
@@ -735,6 +736,9 @@ type SourceChip = {name: string, inspectable: boolean};
 
 /** One untaken strip card: the batch index (take key) + its strip position. */
 type StripEntry = {card: CardModel, index: number, pos: number};
+
+/** A drawn batch still landing, a take in flight, the final collection — every verb absorbed (the input-absorb ledger). */
+const REVEAL_BUSY_ABSORBER = 'reveal-busy';
 
 export default defineComponent({
   name: 'ConsoleRevealOverlay',
@@ -807,6 +811,8 @@ export default defineComponent({
        * during a take-in-place turn.
        */
       stagingTake: false,
+      /** The input-absorb ledger's registration of this surface's busy gate (`inputAbsorb.ts`). */
+      absorbOff: undefined as (() => void) | undefined,
       /**
        * IS THE HAND DOCK REACHABLE for this batch (sampled once per batch —
        * see `refreshDockReachable`)? It picks the take grammar (per-card
@@ -1995,6 +2001,9 @@ export default defineComponent({
     },
   },
   mounted() {
+    this.absorbOff = registerInputAbsorber(REVEAL_BUSY_ABSORBER, () => this.mode === 'drawn' &&
+      (this.arrivalPending || this.takingIdx !== undefined || this.stagingTake || this.collecting || this.placeTurnBusy || this.parked),
+    {scope: 'all'});
     // The take grammar is decided by WHERE THE CARDS CAN GO, so it is sampled
     // the moment this batch has a surface (and again per batch — see the
     // revealKey watcher). `nextTick` because an embedded host may still be
@@ -2026,6 +2035,7 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    this.absorbOff?.();
     claimNotificationCorner('reveal', false);
     closeRevealSourcePeek();
     if (this.discardPileLease !== '') {
@@ -2741,6 +2751,7 @@ export default defineComponent({
       // still empty, and a press there would act on a card that is not there.
       if (this.mode === 'drawn' &&
           (this.arrivalPending || this.takingIdx !== undefined || this.stagingTake || this.collecting || this.placeTurnBusy || this.parked)) {
+        noteInputAbsorbed(REVEAL_BUSY_ABSORBER);
         return;
       }
       // L3 = inspect the SOURCE card fullscreen (screen-specific stick). Drawn
@@ -2779,6 +2790,7 @@ export default defineComponent({
       // arriving, a take turn plays or the final collection runs, the frame
       // stays where it is (there is nothing under it to move between yet).
       if (this.arrivalPending || this.takingIdx !== undefined || this.stagingTake || this.collecting || this.placeTurnBusy) {
+        noteInputAbsorbed(REVEAL_BUSY_ABSORBER);
         return;
       }
       const count = this.focusCount;
@@ -2814,6 +2826,7 @@ export default defineComponent({
         // final collection: `taking`/`collecting` absorb EVERY verb, so a
         // near-simultaneous A+B is exactly one transaction by construction.
         if (this.arrivalPending || this.takingIdx !== undefined || this.stagingTake || this.collecting || this.placeTurnBusy || this.parked) {
+          noteInputAbsorbed(REVEAL_BUSY_ABSORBER);
           return;
         }
         if (action === 'primary') {

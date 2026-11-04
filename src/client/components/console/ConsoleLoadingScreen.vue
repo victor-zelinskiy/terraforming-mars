@@ -148,6 +148,7 @@ export default defineComponent({
   },
   methods: {
     retry(): void {
+      console.warn('[transport] reload — the loading screen\'s retry');
       window.location.reload();
     },
     restoreFullscreen(): void {

@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
   bootFixture, createGameWithCards, crumbText, fetchPlayerModel, openConsole, pickCards, playCardFromHand, playQueueCard, press,
-  reloadConsole, sendPlayerInput, settle, soloGameConfig, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
+  reloadConsole, sendPlayerInput, settle, soloGameConfig, syncClient, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
 } from './consoleStart';
 
 /**
@@ -192,12 +192,11 @@ async function startToQueue(page: Page, request: APIRequestContext): Promise<str
   // receipt (`colony-roster`) inside the start — and a probe armed meanwhile read THAT step's grid as this one's first
   // mode («browse → raise → pick»). The client must have APPLIED the server's view of now (its own game age — never «the
   // view is not a colony question», which also reads true BEFORE the question reached the page) and its frame popped.
-  const serverAge = ((await fetchPlayerModel(request, playerId)) as unknown as {game: {gameAge: number}}).game.gameAge;
-  await expect.poll(async () => page.evaluate((age) => {
-    const r = (window as unknown as {__conReady?: () => {transport?: {gameAge: number}, wsFrames: Array<string>}}).__conReady?.();
-    const applied = (r?.transport?.gameAge ?? -1) >= age;
-    return `${applied ? 'applied' : 'behind'} ${(r?.wsFrames ?? []).some((f) => f.startsWith('colonies')) ? 'colonies-step' : 'clear'}`;
-  }, serverAge), {timeout: 60_000, message: 'the setup colony step handed the screen back before the subject'}).toBe('applied clear');
+  await syncClient(page, request, playerId, {timeoutMs: 60_000});
+  await expect.poll(async () => page.evaluate(() => {
+    const r = (window as unknown as {__conReady?: () => {wsFrames: Array<string>}}).__conReady?.();
+    return (r?.wsFrames ?? []).some((f) => f.startsWith('colonies')) ? 'colonies-step' : 'clear';
+  }), {timeout: 60_000, message: 'the setup colony step handed the screen back before the subject'}).toBe('clear');
   await waitQueueIdle(page);
   await settle(page, {timeoutMs: 30_000});
   return playerId;

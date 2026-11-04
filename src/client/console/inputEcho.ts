@@ -24,7 +24,14 @@
  * `e2eReadiness.ts`) folds this snapshot in.
  */
 
-export type InputEchoOutcome = 'consumed' | 'system' | 'unconsumed' | 'update-gate';
+/**
+ * `absorbed` — the console TOOK the press on purpose and did nothing with it (a deliberate gate — the decision's settle,
+ * a batch still landing, a take in flight; `inputAbsorb.ts`): consumed, but not acted on. The gates are named in
+ * `last.absorbedBy`, so a driver waits for exactly them and presses again.
+ */
+export type InputEchoOutcome = 'consumed' | 'absorbed' | 'system' | 'unconsumed' | 'update-gate';
+
+export type InputEchoEvent = {code: string, kind: string, outcome: InputEchoOutcome, at: number, absorbedBy?: Array<string>};
 
 export type InputEchoSnapshot = {
   /** Every recognized console key event — the driver's «did my key arrive at all». */
@@ -44,7 +51,11 @@ export type InputEchoSnapshot = {
   system: number;
   unconsumed: number;
   updateGate: number;
-  last?: {code: string, kind: string, outcome: InputEchoOutcome, at: number};
+  /** Presses a deliberate gate swallowed (`absorbed`). */
+  absorbed: number;
+  last?: InputEchoEvent;
+  /** The last PRESS edge (a key press is down + up — `last` is usually the release; a driver reads this). */
+  lastPress?: InputEchoEvent;
 };
 
 const state: InputEchoSnapshot = {
@@ -56,9 +67,10 @@ const state: InputEchoSnapshot = {
   system: 0,
   unconsumed: 0,
   updateGate: 0,
+  absorbed: 0,
 };
 
-export function recordInputEcho(code: string, kind: string, outcome: InputEchoOutcome): void {
+export function recordInputEcho(code: string, kind: string, outcome: InputEchoOutcome, absorbedBy?: ReadonlyArray<string>): void {
   state.seq++;
   if (kind === 'press') {
     state.presses++;
@@ -68,8 +80,12 @@ export function recordInputEcho(code: string, kind: string, outcome: InputEchoOu
   case 'system': state.system++; break;
   case 'unconsumed': state.unconsumed++; break;
   case 'update-gate': state.updateGate++; break;
+  case 'absorbed': state.absorbed++; break;
   }
-  state.last = {code, kind, outcome, at: Date.now()};
+  state.last = {code, kind, outcome, at: Date.now(), ...(absorbedBy !== undefined && absorbedBy.length > 0 ? {absorbedBy: [...absorbedBy]} : {})};
+  if (kind === 'press') {
+    state.lastPress = state.last;
+  }
 }
 
 /** A/B reached the console router (any device) — see `verbPresses`; `taken` = a handler consumed it. */
@@ -81,7 +97,8 @@ export function recordVerbPress(taken: boolean): void {
 }
 
 export function inputEchoSnapshot(): InputEchoSnapshot {
-  return {...state, last: state.last === undefined ? undefined : {...state.last}};
+  return {...state, last: state.last === undefined ? undefined : {...state.last},
+    lastPress: state.lastPress === undefined ? undefined : {...state.lastPress}};
 }
 
 /** Idempotent; called from the key bridge's install so the probe exists
@@ -102,5 +119,7 @@ export function resetInputEchoForTest(): void {
   state.system = 0;
   state.unconsumed = 0;
   state.updateGate = 0;
+  state.absorbed = 0;
   state.last = undefined;
+  state.lastPress = undefined;
 }

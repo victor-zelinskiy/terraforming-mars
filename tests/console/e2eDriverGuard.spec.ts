@@ -152,6 +152,11 @@ describe('e2e driver guard', () => {
      *    dies exactly when the bug it watches fires. Probes are
      *    MutationObserver + setInterval (pair rAF with forceFrame if it must
      *    be a frame clock).
+     *  · `setInterval(` — a SAMPLER that asks «what does it look like now?»
+     *    every N ms sleeps through a short transient on the starved 4K
+     *    software runner (six CI flakes, 2026-10-30 … 11-04 — the flake
+     *    architecture's CLASS 2). A probe of a transient records off the
+     *    product's own writes: `tests/e2e/transientRecorder.ts`.
      *
      * GROWTH fails (new debt in an old file, any debt in a new file). A FALL
      * fails too, with the friendlier message — lock the improvement in by
@@ -162,6 +167,7 @@ describe('e2e driver guard', () => {
     const PATTERNS: Record<string, RegExp> = {
       waitForTimeout: /\bwaitForTimeout\s*\(/g,
       requestAnimationFrame: /\brequestAnimationFrame\b/g,
+      setInterval: /\bsetInterval\s*\(/g,
     };
 
     function allE2eFiles(dir = E2E_DIR, prefix = ''): Array<string> {

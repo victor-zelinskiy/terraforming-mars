@@ -10010,6 +10010,11 @@ html.console-mode {
         /* Inside a host zone there is no viewport boundary to compensate
            (three classes — must outrank the combined compensation rule). */
         .con-hand__verdictbar.con-cards__verdictbar { padding-right: .6rem; }
+        /* …and it ENTERS IN PLACE: the bar is the browse layer's last row, flush on the HOST's clipped edge (the
+           sitting's zone, the start's stage), so the shell's rise from translateY(.4rem) started it 8 px under that
+           edge — the bar's bottom cut off while it faded in, and the zone read «clipped-y 853>845» at 1080 (CI
+           2026-11-04, console-parliament-colonial · the discard). The same beat, the same delay, opacity alone. */
+        .con-hand__verdictbar { animation-name: con-hand-chrome-fade; }
         /* The host's ConsoleWsHead already carries the crumb; this is the
            screen's own TOOLBAR (counts · playable · tag filters · mode bars),
            laid out on the same line the header's aux zone used. */
@@ -17947,6 +17952,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 @keyframes con-hand-chrome-in {
     from { opacity: 0; transform: translateY(.4rem); }
     to { opacity: 1; transform: none; }
+}
+
+/* The embedded hand's verdict bar — the same beat with no travel (it stands on the host's clipped edge). */
+@keyframes con-hand-chrome-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 /* A CHANGED digit re-enters with a short drop-in (the element is re-keyed,

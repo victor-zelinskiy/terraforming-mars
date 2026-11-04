@@ -50,7 +50,7 @@ import {runResourceTransfers, transferEndPointNow} from '@/client/console/resour
 import {acceptSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/statusIntake';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {boardStorySettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
-import {registerBoardSceneMember} from '@/client/console/boardSceneMembers';
+import {registerBoardSceneMember, registerBoardSceneOwed} from '@/client/console/boardSceneMembers';
 import {ResourceTransferSpec, TransferEnd, TransferEndLike, TransferPoint, cardResourceKey, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnds';
 import {CardReceiveOutcome, runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
@@ -132,6 +132,9 @@ registerAnimationHoldSupplier('city-data-payout-pending', cityPayoutWaiting, {
 // ON STAGE it is a piece of the board's story: an automatic workspace transition (a yielded stack's return, the
 // endgame open) waits it out instead of covering the card standing by the field.
 registerBoardSceneMember(cityPayoutActive);
+// …and while it WAITS it is already the board's story: what plays after the board (the card reaction chain) waits for
+// it from here on, never only once it stands (`boardSceneOwedBusy` — never read by the board's own quiet).
+registerBoardSceneOwed(cityPayoutWaiting);
 
 /**
  * THE FIELD SPEAKS FIRST: the tile and the oxygen it raised are the board's own

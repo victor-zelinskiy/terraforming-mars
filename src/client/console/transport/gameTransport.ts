@@ -1620,7 +1620,12 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
         const resp = await response.json() as AppErrorResponse;
         let cb = () => {};
         if (resp.id === INVALID_RUN_ID) {
-          cb = () => setTimeout(() => window.location.reload(), 100);
+          // The page REPLACES itself — said out loud first (the e2e harness's `productReloadGuard` names a reload the
+          // product made on its own: every page-side witness of the run went with the old document).
+          cb = () => {
+            console.warn('[transport] reload — INVALID_RUN_ID: the server game is a different run than this page\'s');
+            setTimeout(() => window.location.reload(), 100);
+          };
         }
         if (resp.id === STALE_PROMPT) {
           /*
