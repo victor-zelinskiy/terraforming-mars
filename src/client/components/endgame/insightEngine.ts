@@ -3276,6 +3276,18 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 14,
         });
       }
+    } else if (corp.id === 'CF7') {
+      // Lotus Innovations (the fork's own card): what the table SAW is the bot's terraforming turned into leaps.
+      const leaps = stat('breakthroughs');
+      if (leaps >= 3) {
+        stories.push({
+          key: 'effect',
+          textKey: 'The lab of ${0}\'s ${1} kept leaping: ${2} breakthroughs paid with the data its terraforming produced.',
+          params: [raw(p.name), raw(corp.name), raw(leaps)],
+          measure: leaps,
+          scale: 6,
+        });
+      }
     } else if (corp.id === 'CF6') {
       // Hartlan Heating (the fork's own card): what the table SAW is the bot's building warming Mars, a card each time.
       const steps = stat('seasonSteps');

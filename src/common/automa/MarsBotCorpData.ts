@@ -28,7 +28,7 @@ export type {MarsBotCubeType} from './AutomaTypes';
  * C35's card either carries its white cube or it does not, and the count IS
  * the state (the printed effect only ever puts one there or takes it away).
  */
-export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white' | 'cube-black' | 'mech' | 'fighter' | 'heat';
+export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white' | 'cube-black' | 'mech' | 'fighter' | 'heat' | 'data';
 
 /**
  * How the bot picks (and protects) cards in the research draft — RB-B "Draft
@@ -1471,6 +1471,34 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.CF7_LOTUS_INNOVATIONS]: {
+    id: MarsBotCorpId.CF7_LOTUS_INNOVATIONS,
+    // THE FORK'S OWN BOT CARD (the owner, 2026-11-04) for the Turmoil Redux corporation TR81 — «the Scientific
+    // Breakthrough» (docs/AUTOMA_DATA_AUDIT.md §20): terraforming feeds the lab, the lab leaps the science track.
+    cardNumber: 'CF7',
+    original: CardName.LOTUS_INNOVATIONS,
+    // The human card's corner — Science.
+    startingTags: [Tag.SCIENCE],
+    // DRAFT PRIORITY (the owner, 2026-11-04: «не забывай про порядок драфта») — the lab drafts science first.
+    draftPriority: {type: 'tags', tags: [Tag.SCIENCE]},
+    // THE LAB — data on the card, the human card's own resource in the `.pcard__res` capsule.
+    resource: 'data',
+    corpBonusCards: [BonusCardId.BC7_LAB_BREAKTHROUGH],
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Science'}]},
+      {kind: 'setup', lines: [
+        {icon: 'tr', text: 'MarsBot increases its TR ${0} steps', params: ['2']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'data', text: 'Each step of TR MarsBot gains — including from this — puts ${0} data on this card', params: ['1']},
+        {icon: 'vp', text: 'At the end of the game: ${0} VP per ${1} data left here', params: ['1', '4']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'deck', text: 'Add Lab Breakthrough to MarsBot\'s action deck'},
+        {icon: 'science', text: 'Lab Breakthrough: ${0} data, +1 for each breakthrough made — MarsBot advances its science track', params: ['4'], muted: true},
+      ]},
+    ],
+  },
 };
 
 export function marsBotCorpInfo(id: MarsBotCorpId): MarsBotCorpInfo {
@@ -1552,6 +1580,9 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           over — TR is one per conversion) and pristarMc (the M€ they
  *           paid), plus pristarSkipped<Parameter> per parameter, so the
  *           finale can name WHICH of the four stood still.
+ * Lotus Innovations (CF7): lotusData (data its rating steps put on the card), breakthroughPlayed (BC7 resolved),
+ *           breakthroughs (track pushes the data bought), breakthroughSpread (pushes that went to the least advanced
+ *           track — the science track finished), breakthroughData (data spent).
  * Hartlan Heating (CF6): hartlanTileHeat (heat its tiles put on the card), hartlanProductionHeat (the before-action
  *           heat production), seasonPlayed (BC6 resolved), seasonSteps (temperature steps the boiler raised),
  *           seasonCards (cards played on a warm Mars instead), seasonHeat (heat spent).

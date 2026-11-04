@@ -533,6 +533,20 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.tag(Tag.POWER).startEffect.cards(1).asterix();
       });
     });
+  case MarsBotCorpId.CF7_LOTUS_INNOVATIONS:
+    return CardRenderer.builder((b) => {
+      // SETUP: the human card's two TR plates — the first action, drawn as printed.
+      b.tr(1).tr(1);
+      // EFFECT: each step of the bot's rating puts a datum here (the human card's own row).
+      b.effect(undefined, (eb) => {
+        eb.tr(1).startEffect.resource(CardResource.DATA);
+      });
+      // BEFORE ACTION PHASE: Lab Breakthrough — 4 data (+1 per breakthrough made, the asterisk) advance the
+      // science track.
+      b.action(undefined, (eb) => {
+        eb.resource(CardResource.DATA, 4).asterix().startAction.tag(Tag.SCIENCE);
+      });
+    });
   case MarsBotCorpId.CF6_HARTLAN_HEATING:
     return CardRenderer.builder((b) => {
       // EFFECT: the construction boiler — a tile of the bot's (the human card's empty hex) puts 2 heat here.
@@ -737,6 +751,9 @@ function corpResourceSocket(resource: MarsBotCorpResource): {type: CardResource,
   // CF5 Arwind Inc.'s hangar — the human card's own fighter.
   case 'fighter':
     return {type: CardResource.FIGHTER};
+  // CF7 Lotus Innovations' lab — the human card's own data.
+  case 'data':
+    return {type: CardResource.DATA};
   default: {
     const never: never = resource;
     void never;

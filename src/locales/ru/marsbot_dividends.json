@@ -310,5 +310,10 @@
     "${0} VP per ${1} cards with a building tag the other players played": "${0} ПО за каждые ${1} карт с меткой строительства, сыгранных другими игроками",
     "Thermal codes": "Тепловые нормы",
     "Cards with a temperature requirement in MarsBot's played pile": "карты с требованием по температуре",
-    "Cards with a building tag the other players played": "Карты с меткой строительства у других игроков"
+    "Cards with a building tag the other players played": "Карты с меткой строительства у других игроков",
+    "Research grants": "Научные гранты",
+    "${0} VP per ${1} cards with a science tag the other players played": "${0} ПО за каждые ${1} карт с меткой науки, сыгранных другими игроками",
+    "Standing on shoulders": "На плечах гигантов",
+    "Cards with a tag requirement in MarsBot's played pile": "карты с требованием по меткам",
+    "Cards with a science tag the other players played": "Карты с меткой науки у других игроков"
 }

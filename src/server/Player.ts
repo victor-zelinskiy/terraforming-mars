@@ -665,6 +665,10 @@ export class Player implements IPlayer {
           }
         }
       }
+      // MarsBot holds no tableau — its CORPORATION may answer its own rating (CF7 Lotus Innovations), once per raise.
+      if (this.isMarsBot === true && steps > 0) {
+        AutomaCorporations.onBotTerraformRatingRaised(this.game, steps);
+      }
     };
 
     if (PartyHooks.reds01PolicyInEffect(this)) {

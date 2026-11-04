@@ -75,6 +75,7 @@ import {MarsBotPolderTechDutch} from './MarsBotPolderTechDutch';
 import {MarsBotMonsInsurance} from './MarsBotMonsInsurance';
 import {MarsBotArwindInc} from './MarsBotArwindInc';
 import {MarsBotHartlanHeating} from './MarsBotHartlanHeating';
+import {MarsBotLotusInnovations} from './MarsBotLotusInnovations';
 
 /**
  * THE MarsBot corporation registry + dispatch layer (Rule Book B "Adding
@@ -152,6 +153,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.CF4_MONS_INSURANCE]: MarsBotMonsInsurance,
     [MarsBotCorpId.CF5_ARWIND_INC]: MarsBotArwindInc,
     [MarsBotCorpId.CF6_HARTLAN_HEATING]: MarsBotHartlanHeating,
+    [MarsBotCorpId.CF7_LOTUS_INNOVATIONS]: MarsBotLotusInnovations,
   };
 
   public static corpFor(id: MarsBotCorpId): MarsBotCorp {
@@ -353,6 +355,11 @@ export class AutomaCorporations {
   /** MarsBot's Agenda marker walked `steps` steps (`MarsBotCorp.onAgendaWalked`) — once per walk. */
   public static onBotAgendaWalked(game: IGame, steps: number): void {
     AutomaCorporations.activeCorp(game)?.onAgendaWalked?.(game, steps);
+  }
+
+  /** MarsBot's terraform rating rose `steps` steps (`MarsBotCorp.onTerraformRatingRaised`) — once per raise. */
+  public static onBotTerraformRatingRaised(game: IGame, steps: number): void {
+    AutomaCorporations.activeCorp(game)?.onTerraformRatingRaised?.(game, steps);
   }
 
   /** MarsBot's tile SEATED on its own marker (`MarsBotCorp.onOwnMarkerBuilt`) — the bot seat only. */

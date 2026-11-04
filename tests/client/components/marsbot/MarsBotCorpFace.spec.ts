@@ -695,6 +695,20 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(face.find('.pcard__res').exists(), 'the mech store').is.true;
   });
 
+  it('Lotus Innovations (CF7, the fork\'s own card) prints its lab and its draft plate, never the human 46 M€', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.CF7_LOTUS_INNOVATIONS);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'its own card').contains('Lab Breakthrough');
+    expect(text, 'the data').contains('data');
+    expect(text, 'the draft plate').contains('Science');
+    // The human Lotus Innovations starts with 46 M€ — not printed here.
+    expect(text).not.contains('46');
+    const face = mountFace(MarsBotCorpId.CF7_LOTUS_INNOVATIONS);
+    expect(face.findAll('.pcard__tags .pcard-tag'), 'Science').has.length(1);
+    expect(face.find('.pcard__res').exists(), 'the lab\'s capsule').is.true;
+  });
+
   it('Hartlan Heating (CF6, the fork\'s own card) prints its boiler, never the human 48 M€ or M€ production', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.CF6_HARTLAN_HEATING);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation effect', 'Before action phase']);

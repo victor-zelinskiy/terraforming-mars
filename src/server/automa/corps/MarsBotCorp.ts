@@ -327,6 +327,13 @@ export type MarsBotCorp = {
   onAgendaWalked?(game: IGame, steps: number): void;
 
   /**
+   * MarsBot's terraform rating has just risen `steps` steps — the ONE funnel (`Player.increaseTerraformRating`), after
+   * the rating moved, every source alike (a scale step, a card, a law, the corporation's own setup). What the funnel
+   * refused (the UNMI veto, an unpaid Reds tax) never reaches it (CF7 Lotus Innovations' data).
+   */
+  onTerraformRatingRaised?(game: IGame, steps: number): void;
+
+  /**
    * Resolves one of this corporation's OWN bonus cards (`info.corpBonusCards`,
    * the B22–B32 family) when the bot flips it from its action deck. Routing
    * (discard / destroy / recurring holding) stays with the caller.

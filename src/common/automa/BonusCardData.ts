@@ -155,6 +155,10 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     name: 'Heating Season',
     text: 'Hartlan Heating: for every full 11 heat on its corporation, MarsBot spends them, raises the temperature 1 step and draws and resolves a project card; once the temperature is at its maximum, only the card. Recurs into the action deck every generation.',
   },
+  [BonusCardId.BC7_LAB_BREAKTHROUGH]: {
+    name: 'Lab Breakthrough',
+    text: 'Lotus Innovations: a breakthrough costs 4 data on its corporation, +1 for each breakthrough already made; while the lab holds the price, MarsBot pays it and advances its science track — a finished science track spreads the breakthrough to its least advanced track. Recurs into the action deck every generation.',
+  },
 };
 
 export function bonusCardInfo(id: BonusCardId): BonusCardInfo {
@@ -580,6 +584,18 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'temperature', text: 'and raises the temperature 1 step — once per ${0} heat', params: ['11']},
         {icon: 'deck', text: 'and draws and resolves a project card — the card alone once the temperature is at its maximum'},
         {text: 'Less heat on the card: no season this generation — the boiler keeps heating', muted: true},
+      ],
+      fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
+    };
+  case BonusCardId.BC7_LAB_BREAKTHROUGH:
+    // CF7 Lotus Innovations' own card (the fork's design, docs/AUTOMA_DATA_AUDIT.md §20): the lab leaps forward.
+    return {
+      name,
+      lines: [
+        {icon: 'data', text: 'A breakthrough costs ${0} data on Lotus Innovations, +1 for each breakthrough already made', params: ['4']},
+        {icon: 'science', text: 'While the lab holds the price, MarsBot pays it and advances its science track'},
+        {icon: 'deck', text: 'Science track finished: the breakthrough spreads to its least advanced track'},
+        {text: 'Less data on the card: no breakthrough this generation — the data wait for the next, or score at the end', muted: true},
       ],
       fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
     };

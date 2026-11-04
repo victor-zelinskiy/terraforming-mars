@@ -13733,6 +13733,24 @@ boardOfDirectorsFixture('board-of-directors-spent', {megacredits: 40, directors:
   write(name, game);
 }
 
+// ── bot-lab: CF7 Lotus Innovations (the fork's own bot card, «the Scientific Breakthrough») — the lab at a known 6 data
+//    (docs/AUTOMA_DATA_AUDIT.md §20). Blue on the move; the bot's corporation face is the subject: Science, the Science
+//    draft plate, the capsule reads the data. ──
+{
+  const name = 'bot-lab';
+  const [game, human] = testAutomaGame({corporation: MarsBotCorpId.CF7_LOTUS_INNOVATIONS, keepInitialCardSelection: true});
+  answerStartFlow(game, [human]);
+  const automa = game.automa;
+  if (automa === undefined || automa.corporation !== MarsBotCorpId.CF7_LOTUS_INNOVATIONS) {
+    throw new Error(`${name}: expected Lotus Innovations seated`);
+  }
+  automa.corpResources = 6;
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id) {
+    throw new Error(`${name}: expected blue on the move — got phase=${game.phase} active=${game.activePlayer.color}`);
+  }
+  write(name, game);
+}
+
 // ── P59 Recession — EVERY opponent −5 M€ and −1 M€ production, +10 to the player (ledgers FU / FV), the WG road on the
 //    two-seat table (blue Thorgate / red Teractor, red 30 M€): `recession-wg` — red's production 1, its victims rows
 //    «30 → 25 · 1 → 0» in the pick's status rail, blue +10, red one hostile card; `-protected` — red holds Private

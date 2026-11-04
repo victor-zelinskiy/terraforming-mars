@@ -353,6 +353,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       [BonusCardId.BC4_INSURANCE_PAYOUT]: botOnly, // the fund pushes the bot's own weakest track (B28's shape)
       [BonusCardId.BC5_OFF_THE_SLIPWAY]: touchesHumans, // resolves a space card → the RB-B human reactors (B03's shape)
       [BonusCardId.BC6_HEATING_SEASON]: touchesHumans, // a temperature step + a resolved card → the RB-B human reactors
+      [BonusCardId.BC7_LAB_BREAKTHROUGH]: botOnly, // the lab's data push the bot's own science track (B28's shape)
     };
     expect(Object.keys(BONUS).length, 'every bonus card classified').eq(Object.values(BonusCardId).length);
   });
@@ -413,6 +414,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       [MarsBotCorpId.CF4_MONS_INSURANCE]: botOnly, // the fund, its premiums and the policy's repayment are the bot's own
       [MarsBotCorpId.CF5_ARWIND_INC]: botOnly, // fighters onto its own card — the launch is BC5's
       [MarsBotCorpId.CF6_HARTLAN_HEATING]: botOnly, // heat onto its own boiler — the season is BC6's
+      [MarsBotCorpId.CF7_LOTUS_INNOVATIONS]: botOnly, // data onto its own card; the setup TR is the bot's own
     };
     expect(Object.keys(CORPS).length, 'every bot corporation classified').eq(Object.values(MarsBotCorpId).length);
   });

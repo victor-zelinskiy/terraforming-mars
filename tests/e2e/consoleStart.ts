@@ -2883,7 +2883,7 @@ export type BootOptions = {
  * resumed prompt. Costs one request + one page load — a spec whose subject
  * lives in the late game stops replaying the game to reach it.
  */
-export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot-shipyard' | 'bot-boiler' | 'solo-pre-endgame' | 'venus-trade' | 'venus-trade-delegates' | 'venus-trade-unity' | 'venus-trade-unity-bonus' | 'venus-trade-unity-bonus-2p' | 'field-venus-unity-trade' |
+export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot-shipyard' | 'bot-boiler' | 'bot-lab' | 'solo-pre-endgame' | 'venus-trade' | 'venus-trade-delegates' | 'venus-trade-unity' | 'venus-trade-unity-bonus' | 'venus-trade-unity-bonus-2p' | 'field-venus-unity-trade' |
   // P90 Venus Trade Hub: the card's answer to a trade — a colony trade (`venus-trade-hub`) and a dock's (`-dock`).
   'venus-trade-hub' | 'venus-trade-hub-dock' |
   // P46 Colony Trade Hub: the card's answer to ANY colony built — blue's own build, red's, MarsBot's (B18).
