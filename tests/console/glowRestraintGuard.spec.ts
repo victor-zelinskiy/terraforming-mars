@@ -48,6 +48,19 @@ const ZERO_FILES: ReadonlyArray<string> = [
 ];
 /** …and the always-visible HUD blocks inside `console.less`, by the top-level selector they live under. */
 const ZERO_BLOCKS = /^\.(con-res|con-score|con-status|con-tagmx)\b/;
+/** The player RAIL's blocks inside `console.less` — read by eye too (text, drop-shadow, ring, loop), not by box-shadow alone. */
+const RAIL_BLOCKS = /^\.(con-res|con-score|con-tagmx)\b/;
+/**
+ * The rail's opaque SPREAD RINGS that are the OBJECT's own edge, never light (the T03 rail material — `hud-frame.md`
+ * § THE MATERIAL OF THE PLAYER BOARD): no blur, the medal's metal or an engraving. Each row says what it is; a new
+ * outer ring on the rail fails until it is drawn inset or named here with its reason.
+ */
+const RAIL_MATERIAL_RINGS: ReadonlyArray<{ring: string, why: string}> = [
+  {ring: '0 0 0 .05rem rgba(255, 110, 96, 0.6)', why: 'a NEGATIVE production chip\'s red engraving hairline — the sign is in the digits, the ring repeats it'},
+  {ring: '0 0 0 .08rem #b98b52', why: 'the bronze RIM of a collected tag medal — the medal\'s metal'},
+  {ring: '0 0 0 .11rem fade(#b98b52, 75%)', why: 'the bronze rim of the tag count\'s engraved plate'},
+  {ring: '0 0 0 .08rem #4a5463', why: 'the steel rim of a tag medal at zero — the material change that carries the state'},
+];
 /** A TRANSIENT OBJECT made of light — never a state: it exists for one flight and is gone. Each row says why. */
 const TRANSIENT_LIGHT: ReadonlyMap<string, string> = new Map([
   ['.con-parl__flight--spark', 'the alliance impulse (TR62) — one bead of light flown partner → ally by GSAP, unmounted on arrival'],
@@ -541,6 +554,23 @@ describe('glowRestraintGuard — a standing state is a kant, never a glow', () =
       ...stripLightsOf('console.less', STRIP_BLOCKS),
     ].map((h) => `  ${h.file}:${h.line} ${h.block} → ${h.layer}`);
     expect(offenders, `a standing light on the top strip — draw the state with a kant / fill / weight / word (\`console-ui.md\` § VISUAL RESTRAINT):\n${offenders.join('\n')}`).to.deep.eq([]);
+  });
+
+  /**
+   * THE PLAYER RAIL BY EYE (P57 · FR, 2026-11-04): the rail's ZERO above reads `box-shadow` alone, so a standing light
+   * in any other property was invisible to it — the rating digits wore a gold `text-shadow` halo
+   * (`.con-score__value--tr`, `0 0 .55rem fade(@con-action-gold, 26%)`) on the very cell P57's mark stands in, under a
+   * guard that called the rail clean. The rail's blocks are now read with the top strip's detectors: a glowing text, a
+   * light drop-shadow, a bright outer ring, an endless loop.
+   */
+  it('THE PLAYER RAIL BY EYE: no glowing text, light drop-shadow, bright ring or loop (P57 · FR)', () => {
+    const lights = stripLightsOf('console.less', RAIL_BLOCKS);
+    const material = lights.filter((h) => RAIL_MATERIAL_RINGS.some((r) => h.layer === `outer ring: ${r.ring}`));
+    const offenders = lights.filter((h) => !material.includes(h)).map((h) => `  ${h.file}:${h.line} ${h.block} → ${h.layer}`);
+    // Every material row still names a ring that exists — a row whose ring is gone is stale (the list only shrinks).
+    const stale = RAIL_MATERIAL_RINGS.filter((r) => !material.some((h) => h.layer === `outer ring: ${r.ring}`)).map((r) => r.ring);
+    expect(stale, 'RAIL_MATERIAL_RINGS rows whose ring is gone — remove them').to.deep.eq([]);
+    expect(offenders, `a standing light on the player rail — draw the state with a kant / fill / weight / word (\`console-ui.md\` § VISUAL RESTRAINT):\n${offenders.join('\n')}`).to.deep.eq([]);
   });
 
   it('THE MA WORKSPACE AND THE STRATEGY RAIL: no standing halo, glowing text, bright ring or loop (FB)', () => {

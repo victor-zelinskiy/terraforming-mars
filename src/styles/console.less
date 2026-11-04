@@ -5367,9 +5367,11 @@ each(@players, {
         text-shadow: 0 .1rem .3rem rgba(0, 0, 0, 0.6);
 
         /* TR is the fork's lead number — a touch warmer / brighter than VP. */
+        /* The rating's digits: a warm ink and the engraving's dark offset — never a gold halo (P57 · FR: the halo stood
+           here, on a rail the glow guard called clean, because the rail's zero read `box-shadow` alone). */
         &--tr {
             color: #ffe7c2;
-            text-shadow: 0 .1rem .3rem rgba(0, 0, 0, 0.6), 0 0 .55rem fade(@con-action-gold, 26%);
+            text-shadow: 0 .1rem .3rem rgba(0, 0, 0, 0.6);
         }
         /* 3+ characters step the type down INSIDE the reserved slot — the
            header's geometry never moves with the digit count. */
