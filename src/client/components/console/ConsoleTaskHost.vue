@@ -196,15 +196,9 @@
                     <span v-if="p.corp !== ''" class="con-task__opt-corp">{{ $t(p.corp) }}</span>
                     <!-- «Это вы»: only when it costs you AND another target was available. -->
                     <span v-if="p.selfHarm" class="con-task__opt-selfwarn">⚠ {{ $t('This is you') }}</span>
-                    <!-- Server-computed before→after rows — the SAME layout for a human row and a MarsBot track row. -->
-                    <span v-if="p.changes.length > 0" class="con-task__opt-previews">
-                      <span v-for="(row, ri) in p.changes" :key="ri" class="con-task__opt-preview" :class="{'con-task__opt-preview--prod': row.prod}">
-                        <Tag v-if="row.isTrack" :tag="row.tag!" size="small" type="secondary" class="con-task__opt-tag" />
-                        <i v-else :class="row.iconClass" class="con-task__opt-icon" aria-hidden="true"></i>
-                        {{ row.from }} → {{ row.to }}
-                        <span v-if="row.steps !== undefined && row.steps > 0" class="con-task__opt-steps">−{{ row.steps }}</span>
-                      </span>
-                    </span>
+                    <!-- Server-computed before→after rows — the ONE row renderer (`ConsoleTargetImpactRows`): the SAME
+                         layout for a human row and a MarsBot track row, and for a play's table-impact block (P59). -->
+                    <ConsoleTargetImpactRows v-if="p.raw.length > 0" class="con-task__opt-previews" :changes="p.raw" />
                     <GamepadGlyph v-if="focusIdx === index" :control="armed ? 'secondary' : 'confirm'" class="con-task__opt-a" />
                   </template>
                 </template>
@@ -725,11 +719,9 @@ import type {PlayedTargetImpact} from '@/client/console/played/consolePlayedTarg
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {TargetImpact, TargetImpactChange} from '@/common/models/TargetImpactModel';
 import TagComponent from '@/client/components/Tag.vue';
+import ConsoleTargetImpactRows from '@/client/components/console/foundation/ConsoleTargetImpactRows.vue';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 
-/** A render-ready target-impact row: a resource/M€ stock change (iconClass), or
- *  a MarsBot production hit shown as its track's Tag + step count. */
-type TargetRowVM = {isTrack: boolean, tag?: Tag, iconClass: string, from: number, to: number, steps?: number, prod: boolean};
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {productionLossLanes, standardGainLanes} from '@/client/console/compositePrompts';
@@ -890,7 +882,7 @@ const RESOURCE_FIELD: Record<string, {stock: string, production: string}> = {
 export default defineComponent({
   name: 'ConsoleTaskHost',
   components: {
-    ConsoleVariantChoice, ConsoleDeclinePlate, Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel,
+    ConsoleVariantChoice, ConsoleDeclinePlate, Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel, ConsoleTargetImpactRows,
     ConsoleWsStageHead, ConsoleAmountOperation, ConsoleInfluenceYield, ConsolePromptHead, ConsolePromptOutcome,
   },
   props: {
@@ -1504,7 +1496,7 @@ export default defineComponent({
       });
     },
     // ── player ───────────────────────────────────────────────────────
-    playerEntries(): Array<{color: Color, name: string, corp: string, selfHarm: boolean, changes: Array<TargetRowVM>}> {
+    playerEntries(): Array<{color: Color, name: string, corp: string, selfHarm: boolean, raw: ReadonlyArray<TargetImpactChange>}> {
       if (this.wf?.type !== 'player') {
         return [];
       }
@@ -1542,7 +1534,7 @@ export default defineComponent({
           // the card already warns about that case before it is played.
           selfHarm: color === this.playerView.thisPlayer.color &&
             model.players.length > 1 && targetImpactIsLoss(raw),
-          changes: raw.map((r) => this.toTargetRow(r)),
+          raw,
         };
       });
     },
@@ -2753,20 +2745,6 @@ export default defineComponent({
     impactText(imp: PlayedTargetImpact): string {
       // A value reading carries its «where» as a tail («Оплата: 3 M€ · за карты с меткой Венеры») — the whole line.
       return imp.value === true ? readingLineText(imp) : readingText(imp);
-    },
-    // Render-ready row for a server-computed target change (resource/M€ stock, or
-    // a MarsBot track regression shown as the track's Tag + step count).
-    toTargetRow(r: TargetImpactChange): TargetRowVM {
-      const isTrack = r.scope === 'track';
-      return {
-        isTrack,
-        tag: isTrack ? (r.icon as Tag) : undefined,
-        iconClass: isTrack ? '' : iconClassFor(r.icon) + ' con-task__opt-res',
-        from: r.from,
-        to: r.to,
-        steps: r.scope === 'track' ? r.steps : undefined,
-        prod: r.scope !== 'stock',
-      };
     },
     resetState(): void {
       this.focusIdx = 0;

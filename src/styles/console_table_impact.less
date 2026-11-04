@@ -1,0 +1,98 @@
+/* ══ A TARGET'S SERVER ROWS + «WHOM THE PLAY HITS» (P59 Recession) ══════════════════════════════════════════════════
+   `ConsoleTargetImpactRows.vue` — the ONE renderer of `TargetImpactChange` rows (`current → resulting`), a pill per row:
+   the player target list (`ConsoleTaskHost`) and the table-impact block (`ConsoleTableImpact.vue`) read the same
+   pills. A production row wears the production plate's brown; a MarsBot TRACK row wears the track's identity tag.
+   State by material — a fill and an inset hairline, never light. */
+.con-impact-rows {
+    display: inline-flex;
+    gap: .2rem;
+
+    &--stack {
+        flex-direction: column;
+        align-items: flex-end;
+    }
+    &--line {
+        flex-direction: row;
+        align-items: center;
+        gap: .35rem;
+    }
+}
+.con-impact-row {
+    padding: .15rem .6rem;
+    border-radius: 49.95rem;
+    background: fade(@con-cyan, 12%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%);
+    font-size: .95rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    white-space: nowrap;
+
+    &--prod {
+        background: linear-gradient(180deg, rgba(138, 90, 43, 0.5), rgba(107, 69, 32, 0.5));
+        box-shadow: inset 0 0 0 .05rem rgba(255, 220, 170, 0.4);
+    }
+    /* A MarsBot production hit renders the TRACK's identity Tag in the pill. */
+    &__tag .tag-count { transform: scale(0.62); margin: -.35rem; }
+    &__steps { font-size: .75rem; color: #f0c07a; }
+}
+
+/* «Соперники»: a head kicker, then a seat per line — dot · name · the pills · a spared part in the near-miss grammar
+   («✕» + the struck chip + its reason). Read-only: no cursor, no focus stop. */
+.con-tblimpact {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+    min-width: 0;
+
+    &__head {
+        font-size: .72rem;
+        font-weight: 800;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__row {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        min-width: 0;
+        white-space: nowrap;
+
+        .con-status__dot { width: .75rem; height: .75rem; flex: 0 0 auto; }
+    }
+    &__name {
+        font-size: .95rem;
+        font-weight: 700;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__spared {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        color: rgba(196, 212, 230, 0.7);
+        font-size: .82rem;
+        font-weight: 600;
+    }
+    &__spared-mark { color: #f0a07a; font-weight: 800; }
+
+    /* ONE line for a status rail: the seats side by side, the head a kicker before them. */
+    &--line {
+        flex-direction: row;
+        align-items: center;
+        gap: .8rem;
+        overflow: hidden;
+    }
+}
+
+html.con-profile-handheld {
+    .con-impact-row { font-size: .7rem; }
+    .con-tblimpact__name { font-size: .75rem; }
+    .con-tblimpact__spared { font-size: .65rem; }
+}
+
+/* The composer hosts it under the РЕЗУЛЬТАТ chips — one step down, never a heading of its own. */
+.con-composer__tblimpact { margin-top: .45rem; }

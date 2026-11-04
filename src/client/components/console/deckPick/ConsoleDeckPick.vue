@@ -84,6 +84,10 @@
           <div class="con-cards__verdict-inner">
             <span v-if="!committed" class="con-cards__verdict-name" :key="focusedName">{{ focusedName === '' ? '' : $t(focusedName) }}</span>
             <span v-if="statusText !== ''" class="con-cards__verdict" :class="statusToneClass">{{ statusText }}</span>
+            <!-- WHOM THE PLAY HITS (P59 — every opponent, no choice): the victims with the server's `current → resulting`,
+                 before the press (invariant 3). Read-only; the bar's verbs are untouched. -->
+            <ConsoleTableImpact v-if="focusedTableImpact !== undefined" class="con-deckpick__tblimpact"
+                                layout="line" :view="focusedTableImpact" />
             <!-- The focused card's FUTURE value in the shared draft voice —
                  informational beside the pick progress, never a gate (see
                  `focusedAvailability`). The shared one-line register, so the
@@ -233,6 +237,10 @@ import ConsolePreludeDeck from '@/client/components/console/deckPick/ConsolePrel
 import {runCardTransfer} from '@/client/console/cardDeal/cardExitDirector';
 import {armPlayedHero, isPlayedHeroActive, playedHeroState} from '@/client/console/played/consolePlayedHero';
 import {preludePickBurns, preludePickPreview, preludeRewardsOf, PRELUDE_SEAT_SELECTOR} from '@/client/console/deckPick/preludePick';
+import ConsoleTableImpact from '@/client/components/console/foundation/ConsoleTableImpact.vue';
+import {TableImpactView, tableImpactOfPreview, tableImpactView} from '@/client/console/tableImpact/tableImpactModel';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
+import {Color} from '@/common/Color';
 import ConsolePreludeVariantStep from '@/client/components/console/foundation/ConsolePreludeVariantStep.vue';
 import {
   firstAvailableRow, PreludeVariant, preludePreStepStage, preludeVariantAnswer, preludeVariantOf, preludeVariantRowOf, preludeVariantStepResponses,
@@ -292,7 +300,7 @@ export default defineComponent({
   // `console-source-dock` is registered GLOBALLY (main.ts) — deliberately not a
   // local import: it renders the real premium card face, and that import chain
   // zeroes this file's mochapack spec.
-  components: {Card, ConsoleCardAvailabilityPanel, ConsolePreludeDeck, ConsoleWsHead, ConsoleWsStageHead, ConsolePreludeVariantStep, ConsolePaymentPanel},
+  components: {Card, ConsoleCardAvailabilityPanel, ConsolePreludeDeck, ConsoleWsHead, ConsoleWsStageHead, ConsolePreludeVariantStep, ConsolePaymentPanel, ConsoleTableImpact},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** Teleported into a host workspace's zone → no shell of its own. */
@@ -503,6 +511,18 @@ export default defineComponent({
      * longer act (arriving cards / past the commit — the same window the
      * name line already respects).
      */
+    /** The focused prelude's victims — a play that hits every opponent shows them before the press (P59). */
+    focusedTableImpact(): TableImpactView | undefined {
+      if (!this.playMode || !this.interactive || this.committed || this.focusedName === '' || this.variantStep !== undefined) {
+        return undefined;
+      }
+      const name = this.focusedName as CardName;
+      if (this.burns(name)) {
+        return undefined; // a burn hits nobody — the reason speaks instead
+      }
+      const players = this.playerView.players;
+      return tableImpactView(tableImpactOfPreview(this.candidatePreviews[name]), (color: Color) => displayNameForColor(players, color));
+    },
     focusedAvailability(): CardAvailabilityView | undefined {
       if (!this.interactive || this.committed || this.focusedName === '' || this.playMode) {
         // A prelude played at once has no «for later» — its verdict is the burn mark on its face and the status line.

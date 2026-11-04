@@ -252,6 +252,10 @@
               <div v-else-if="hasVariants && (resultGains.length > 0 || vpCell !== undefined)" class="con-composer__hero-chips con-composer__result-chips">
                 <ConsolePlayResultGains :gains="resultGains" :vp="vpCell" />
               </div>
+              <!-- WHOM THE PLAY HITS (P59 class — every opponent, no choice): the victims under the result, each with the
+                   server's `current → resulting` through the ONE row renderer; a spared part named. Read-only — part of
+                   the РЕЗУЛЬТАТ block, never a stage (the crumb does not move). -->
+              <ConsoleTableImpact v-if="tableImpact !== undefined" class="con-composer__tblimpact" :view="tableImpact" />
               <!-- «ПОЧЕМУ» (PL-156, the owner's M1 2026-10-11): a walk whose length the card COUNTS (TR42) explains its
                    number as a READING of the result, at the chips' scale, right under them — never as a «ДАЛЕЕ» row (the
                    zero read «ДАЛЕЕ: маркер не двинется», a result told as a next step). Every number is the server's
@@ -986,6 +990,8 @@ import {PassLine, PassWarnings} from '@/client/console/passWarnings';
 import {ScoreFormula, formulaGlyph, formulaOperandsText, formulaTagIcon, shortfallText} from '@/client/console/scoreExplorerModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import ConsoleCountedWhy from '@/client/components/console/ConsoleCountedWhy.vue';
+import ConsoleTableImpact from '@/client/components/console/foundation/ConsoleTableImpact.vue';
+import {TableImpactView, tableImpactStepOf, tableImpactView} from '@/client/console/tableImpact/tableImpactModel';
 import PremiumModifierMarks from '@/client/components/premiumCard/PremiumModifierMarks.vue';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 import {ComposerConsumeNote, ComposerRequirementView, composerConsumeNotes, composerRequirementViews, requirementStateText} from '@/client/console/composerRequirementRow';
@@ -1142,7 +1148,7 @@ export default defineComponent({
   name: 'ConsolePlayCardConfirm',
   // ConsoleCardFaceLite — the answered target row's miniature (PL-269: it was used in the template and never
   // registered, so the row rendered an unknown <consolecardfacelite> tag — no miniature, ever).
-  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsolePlayedReceivingStage, ConsoleAmountOperation, ConsoleVenusBonusRow, ConsoleVenusBonusStep, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierMarks, PremiumPartyRequirementGlyph, ConsolePlayResultGains},
+  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsolePlayedReceivingStage, ConsoleAmountOperation, ConsoleVenusBonusRow, ConsoleVenusBonusStep, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierMarks, PremiumPartyRequirementGlyph, ConsolePlayResultGains, ConsoleTableImpact},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1710,6 +1716,11 @@ export default defineComponent({
     hostedStepDeclared(): string {
       const b = this.selectedBranch;
       return branchHostsParliamentStep(b) ? this.cardName : '';
+    },
+    /** The victims of a play that hits every opponent without a choice (the server's read-only `tableImpact` step). */
+    tableImpact(): TableImpactView | undefined {
+      const players = this.playerView.players;
+      return tableImpactView(tableImpactStepOf(this.selectedBranch ?? this.preview?.branches?.[0]), (color) => displayNameForColor(players, color));
     },
     selectedBranch(): ActionPreviewBranch | undefined {
       if (this.selectedPos !== undefined) {
