@@ -122,6 +122,12 @@ export type TransferFlightReport = {
   handover?: {turn: 'up' | 'down', q: number};
   /** Every moment the sentinel found the token painted UNDER something (in the lit layer) — empty when it never was. */
   paintedUnder?: Array<{at: TransferPaintMoment, under: string}>;
+  /**
+   * The flight fell behind the wall clock (a starved renderer — GSAP's lag smoothing) and its safety CAUGHT IT UP to
+   * its end: `arc` — it was in the air and was rendered to its landing (the touchdown at the destination);
+   * `unflown` — it had not left its source yet and was absorbed there.
+   */
+  caughtUp?: 'arc' | 'unflown';
 };
 
 export type TransferFlightHandles = {
@@ -190,7 +196,18 @@ function bornThenFlown(chip: HTMLElement, delayMs: number, fly: () => void, plac
   pendingStarts.set(chip, {cancel});
 }
 
-function guarded(run: (done: () => void) => void, budgetMs: number): Promise<void> {
+/**
+ * A beat with a WALL-CLOCK safety. ⚠ The beat itself runs on GSAP's clock, and on a starved renderer the two part:
+ * GSAP's lag smoothing counts a frame longer than 500 ms as 33 ms, so a live, healthy flight can fall seconds behind
+ * the wall clock (CI 2026-11-04, SwiftShader at 4K: `console-utopia-invest` C — the «+4» last painted mid-arc over the
+ * M€ row 2.27 s after its birth, its budget ≈ 2.16 s; `console-rail-landing` — the contact beat played at the
+ * destination while the chip stood short of it). Resolving there ABANDONED the token in the air: the touchdown fired,
+ * the absorb faded the chip where it hung and played its contact beat at a destination the chip never reached. So the
+ * safety first asks the beat (`catchUp`): a flight still in the air is CAUGHT UP to its end — the remaining arc is
+ * rendered to its last pose, its own touchdown runs AT the destination — and only a beat that has nothing to catch up
+ * (never started, killed) is resolved where it stands.
+ */
+function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: () => boolean): Promise<void> {
   return new Promise<void>((resolve) => {
     let settled = false;
     const done = () => {
@@ -200,10 +217,20 @@ function guarded(run: (done: () => void) => void, budgetMs: number): Promise<voi
         resolve();
       }
     };
-    const safety = window.setTimeout(done, budgetMs + 1200);
+    const safety = window.setTimeout(() => {
+      if (catchUp?.() === true) {
+        // Caught up: its own touchdown now runs at the destination — a short grace for it, then resolved anyway.
+        window.setTimeout(done, CATCH_UP_TOUCHDOWN_GRACE_MS);
+      } else {
+        done();
+      }
+    }, budgetMs + 1200);
     run(done);
   });
 }
+
+/** How long a caught-up flight's own touchdown may still take on the wall clock before the beat resolves anyway. */
+const CATCH_UP_TOUCHDOWN_GRACE_MS = 800;
 
 /** The lower edge of the cockpit's top rail (the status strip), 0 when none stands (a non-console host, a spec). */
 function topRailBottom(): number {
@@ -335,11 +362,14 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     launchedResolve = resolve;
   });
   let unborn = false;
+  // The flight's timeline, once it has started — what the safety catches up when the renderer starves (`guarded`).
+  let flight: gsap.core.Timeline | undefined;
   const touched = guarded((done) => bornThenFlown(chip, opts.delayMs, () => {
     // (The wave's stagger was the birth's — the flight starts the moment it is called.)
     // The birth frame has been painted (in its layer) — the sentinel asks what stands over it.
     askPaint('birth');
     const tl = gsap.timeline({onComplete: () => touchdown(done)});
+    flight = tl;
     // Materialize at the source — the chip is BORN there, never teleported in (its first frame is already painted).
     tl.to(chip, {autoAlpha: 1, duration: popMs / 1000, ease: 'power1.out'}, 0);
     // …and LEAVES it once whole: the launch is the end of the pop.
@@ -424,7 +454,29 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     planPaint(at);
     placeExpect(piece, opts.expectRect?.(), opts.uiScale, true);
     return true;
-  }), opts.delayMs + popMs + arcMs + settleMs + 200);
+  }), opts.delayMs + popMs + arcMs + settleMs + 200, () => {
+    // THE SAFETY ON A STARVED RENDERER (see `guarded`): a flight in the air is rendered to its end — the progress
+    // tween's last update places the chip on its (live-corrected) destination and the timeline's own completion runs
+    // the touchdown there (`guarded` gives that touchdown its short grace).
+    if (!chip.isConnected) {
+      return false;
+    }
+    if (flight !== undefined && flight.progress() < 1) {
+      report.caughtUp = 'arc';
+      flight.progress(1);
+      return true;
+    }
+    if (flight === undefined) {
+      // Never left its source (the birth itself starved): no flight to abandon — absorbed where it stands, its
+      // contact beat THERE (the counter ticks with it), never at a destination the chip did not reach.
+      pendingStarts.get(chip)?.cancel();
+      report.caughtUp = 'unflown';
+      report.end = 'lost';
+      restingAt = report.bornAt ?? opts.from;
+      report.restAt = restingAt;
+    }
+    return false;
+  });
 
   /** The final approach's read: the live end, else its stand-in, else undefined (lost). Fills the report. */
   function finalApproach(): TransferPoint | undefined {
@@ -544,6 +596,8 @@ export function runDetachedTransferFlight(piece: TransferStagePiece, opts: Detac
   });
   // Where the chip came to rest — its destination, or its source when it never left (read by the absorb, whatever ended the flight).
   let restingAt: TransferPoint = opts.from;
+  // The arc's timeline, once the destination has opened — what the safety catches up on a starved renderer (`guarded`).
+  let flight: gsap.core.Timeline | undefined;
   const touched = guarded((done) => bornThenFlown(chip, opts.delayMs, () => {
     // THE POP — the chip is born at its source and comes whole out of it; then it has LEFT its source.
     const pop = gsap.timeline({onComplete: () => {
@@ -566,6 +620,7 @@ export function runDetachedTransferFlight(piece: TransferStagePiece, opts: Detac
           report.restAt = to;
           done();
         }});
+        flight = arc;
         arc.to(prog, {
           q: 1,
           duration: arcMs / 1000,
@@ -605,7 +660,16 @@ export function runDetachedTransferFlight(piece: TransferStagePiece, opts: Detac
     report.born = 'painted';
     report.bornAt = at;
     return true;
-  }), opts.delayMs + popMs + opts.waitBudgetMs + arcMs + settleMs);
+  }), opts.delayMs + popMs + opts.waitBudgetMs + arcMs + settleMs, () => {
+    // A STARVED RENDERER (see `guarded`): an arc in the air is rendered to its landing — its own completion sets the
+    // resting point to the destination and resolves; a chip still waiting for its destination stays where it stands.
+    if (!chip.isConnected || flight === undefined || flight.progress() >= 1) {
+      return false;
+    }
+    report.caughtUp = 'arc';
+    flight.progress(1);
+    return true;
+  });
 
   const finished: Promise<'landed' | 'done'> = touched.then(() => (unborn ? undefined : absorbChip(piece, restingAt, motionMs(TRANSFER_BEAT_MS) * pace))).then(() => 'done' as const);
   const launched = Promise.race([launchedAt, touched]);
@@ -623,8 +687,10 @@ function absorbChip(piece: TransferStagePiece, at: TransferPoint, beatMs: number
   // ≈ 120 ms and fell inside one stalled frame on a loaded 4K runner. Only the piece's removal waits for it; the
   // touchdown (and so the next link's birth) was released before this ran.
   const haloMs = Math.max(beatMs, motionMs(TRANSFER_BEAT_MS));
+  let absorb: gsap.core.Timeline | undefined;
   return guarded((done) => {
     const tl = gsap.timeline({onComplete: done});
+    absorb = tl;
     if (piece.beat !== undefined) {
       const bw = piece.beat.offsetWidth || 56;
       gsap.set(piece.beat, {
@@ -637,7 +703,14 @@ function absorbChip(piece: TransferStagePiece, at: TransferPoint, beatMs: number
       tl.to(piece.beat, {scale: 1.35, autoAlpha: 0, duration: haloMs / 1000, ease: 'power2.out'}, 0);
     }
     tl.to(piece.chip, {scale: 0.5, autoAlpha: 0, duration: Math.min(0.24, beatMs / 1000), ease: 'power2.in'}, 0.02);
-  }, haloMs + 200);
+  }, haloMs + 200, () => {
+    // A STARVED RENDERER (see `guarded`): the absorb is RENDERED to its end — the chip gone, the halo spent — before the
+    // beat resolves; resolved while GSAP still lagged, the token's ends were released and its surface folded under a chip
+    // still painted at the touchdown (`console-utopia-invest` C under a forced starvation: the price «−1» seen over the
+    // board a second after its touchdown).
+    absorb?.progress(1);
+    return false;
+  });
 }
 
 /** Absorb a RESTING (hold-mode) chip — the sale's post-commit settle. */

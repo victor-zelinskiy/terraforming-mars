@@ -1147,6 +1147,8 @@ function reportEnds(runId: number, run: ResourceTransferRun, e: {id: number, spe
     id: e.id, born: report.born ?? null, end: report.end ?? null,
     ...(report.bornLayer !== undefined ? {layer: `${report.bornLayer}→${report.layer ?? report.bornLayer}`} : {}),
     ...(report.handover !== undefined ? {handover: report.handover} : {}),
+    // A flight its safety had to catch up on a starved renderer (`guarded`) — named, never silent.
+    ...(report.caughtUp !== undefined ? {caughtUp: report.caughtUp} : {}),
   });
   for (const under of report.paintedUnder ?? []) {
     paintSentinel(e.spec, under.at, under.under);
@@ -1435,7 +1437,10 @@ function flyDetached(
         run.onDegrade?.(e.spec, 'no-destination');
       }
     }
-    trail(runId, 'flight:ends', {id: e.id, born: handles.report.born ?? null, end: handles.report.end ?? null});
+    trail(runId, 'flight:ends', {
+      id: e.id, born: handles.report.born ?? null, end: handles.report.end ?? null,
+      ...(handles.report.caughtUp !== undefined ? {caughtUp: handles.report.caughtUp} : {}),
+    });
   });
   void handles.finished.then(() => removeFlight(e.id));
   return handles.launched.then(() => {

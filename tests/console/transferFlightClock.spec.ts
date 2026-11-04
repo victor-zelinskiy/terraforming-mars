@@ -54,6 +54,26 @@ describe('a resource chip is born at its source — the flight starts on the ani
     expect(flight, 'never a wall clock').to.not.match(/setTimeout|requestAnimationFrame/);
   });
 
+  it('a flight its SAFETY outlives is CAUGHT UP to its end — never abandoned in the air (a starved renderer)', () => {
+    // GSAP's lag smoothing counts a frame over 500 ms as 33 ms, so on a starved renderer a live flight falls behind the
+    // wall-clock safety; resolving there faded the chip mid-arc and played its contact beat at a destination it never
+    // reached (CI 2026-11-04: `console-utopia-invest` C, `console-rail-landing`).
+    const guard = raw.slice(raw.indexOf('function guarded('), raw.indexOf('function topRailBottom('));
+    expect(guard, 'the safety asks the beat to catch up before it resolves').to.include('if (catchUp?.() === true) {');
+    expect(guard, 'a caught-up beat gets its own touchdown\'s grace, then resolves anyway — never a hang').to.include('window.setTimeout(done, CATCH_UP_TOUCHDOWN_GRACE_MS);');
+    for (const name of ['runTransferFlight', 'runDetachedTransferFlight']) {
+      const flight = body(name);
+      expect(flight, `${name}: the timeline is kept for the safety`).to.match(/flight = (tl|arc);/);
+      expect(flight, `${name}: the safety renders a flight in the air to its end`).to.include('flight.progress(1);');
+      expect(flight, `${name}: and names it in the report`).to.include("report.caughtUp = 'arc';");
+    }
+    expect(body('runTransferFlight'), 'a flight that never left its source is absorbed THERE').to.include("report.caughtUp = 'unflown';");
+    // …and the ABSORB too: resolved while GSAP still lagged, the token's ends were released and its surface folded under
+    // a chip still painted at the touchdown.
+    const absorb = raw.slice(raw.indexOf('function absorbChip('), raw.indexOf('export function settleTransferChip('));
+    expect(absorb, 'the absorb is rendered to its end before the beat resolves').to.include('absorb?.progress(1);');
+  });
+
   it('a kill before the flight cancels the birth and the flight that has not been built yet', () => {
     const kill = body('killTransferPiece');
     expect(kill).to.include('pendingStarts.get(piece.chip)?.cancel();');

@@ -272,10 +272,34 @@ for (const profile of PROFILES) {
       await press(page, 'Enter', 1600);
       await page.waitForSelector('.con-cardactions', {timeout: 15_000});
       await press(page, 'Escape', 1600);
-      await page.waitForSelector('.con-hydro', {timeout: 15_000});
+      // THE CANCEL IS WITNESSED, then the summary is READ AS A STATE — never one frame right after the press (CI
+      // 2026-11-04: «the old pick survives a cancel» read «» once, green on the retry; 26 starved box runs with a
+      // MutationObserver over the round trip never saw the row lose its pick or leave the DOM — the selector leaves
+      // 200–460 ms after B and the row reads «Тихоходки» throughout). `.con-hydro` alone proves nothing here: the
+      // section stays MOUNTED under the selector (`v-show`), so the old `waitForSelector` returned at once.
+      await expect(page.locator('.con-cardactions'), 'B cancelled the selector').toHaveCount(0, {timeout: 15_000});
+      await expect(page.locator('.con-hydro'), 'the Hydronetwork is shown again').toBeVisible({timeout: 15_000});
+      const pickState = async () => page.evaluate(() => {
+        const rows = Array.from(document.querySelectorAll('.con-hydro__pickrow')) as Array<HTMLElement>;
+        const w = window as unknown as {__conReady?: () => {wsFrames?: unknown, holds?: unknown, input?: {lastPress?: unknown}}};
+        const r = w.__conReady?.();
+        return {
+          summary: rows[0]?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+          why: `rows=${rows.length} text=${JSON.stringify(rows.map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)))} ` +
+            `hydro=${document.querySelector('.con-hydro')?.className ?? '-'} stop=${document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '-'} ` +
+            `frames=${JSON.stringify(r?.wsFrames ?? null)} holds=${JSON.stringify(r?.holds ?? null)} lastPress=${JSON.stringify(r?.input?.lastPress ?? null)}`,
+        };
+      });
+      let lastPick = {summary: '', why: ''};
+      await expect.poll(async () => {
+        lastPick = await pickState();
+        return lastPick.summary;
+      }, {timeout: 10_000, message: 'the old pick survives a cancel'}).toMatch(/Tardigrades|Тихоходки/i)
+        .catch((error: unknown) => {
+          throw new Error(`${(error as Error).message}\n[pick state] ${lastPick.why}`);
+        });
       const cancelled = await lightProbe(page);
       expectLit(cancelled, 'after cancelling the selector');
-      expect(String(cancelled.pickedSummary), 'the old pick survives a cancel').toMatch(/Tardigrades|Тихоходки/i);
       await shoot(page, `${profile.tag}-05-cancel-return`);
     });
   });
