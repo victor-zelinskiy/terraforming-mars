@@ -3274,6 +3274,9 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   // The play sheet's worst payment (DJ): Space Elevator with every lane open — steel, titanium, Helion's heat,
   // Floodgates' steel, both mechs, graphene, M€ — the ledger stands in the sheet's body, the commit on the bottom line.
   'play-sheet-ledger' |
+  // P65 Venus Contract — a prelude-reactor on the VENUS SCALE into the M€ rail (ledger GG · GH): the start (P44's «ВАРИАНТ» after
+  // it), the Greens table (Venus Shuttles · Air Scrapping), the alternative board at 16 %, Venus at 28 %, the winner's sitting.
+  'venus-contract-start' | 'venus-contract-table' | 'venus-contract-alt16' | 'venus-contract-max' | 'venus-contract-sitting' |
   // Prelude 2 P75 GHG Shipment — the classic Kelvinists read as the Greens (CW): the Greens rule (5 floaters, Manutech) · locked «0 of 2».
   'ghg-shipment' | 'ghg-shipment-locked' |
   // Prelude 2 P83 Sponsoring Nation — the play's live delegate grant with no board door (CX): 4 Earth tags (Teractor ·

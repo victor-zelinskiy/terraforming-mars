@@ -157,6 +157,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'hand-dock-pose-transitions-probe.spec.ts',
   'hand-dock-probe.spec.ts',
   'hand-pose-sequence-probe.spec.ts',
+  // P65 Venus Contract (2026-11-04): the M€ row's touchdowns (the price, then the card's +3 beside the Greens' +2), the
+  // reactor's births off its printed «3 M€», the «ВАРИАНТ» row's «Сработает» are recorded off the product's writes.
+  'console-venus-contract.spec.ts',
   'hand-reveal-probe.spec.ts',
   'mat-stage-probe.spec.ts',
   'start-effect-flow-probe.spec.ts',

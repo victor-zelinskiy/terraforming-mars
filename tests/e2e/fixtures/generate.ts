@@ -181,6 +181,7 @@ import {LunaGovernor} from '../../../src/server/cards/colonies/LunaGovernor';
 import {Pluto} from '../../../src/server/colonies/Pluto';
 import {VenusRedux} from '../../../src/server/colonies/VenusRedux';
 import {AirScrappingStandardProjectVariant} from '../../../src/server/cards/venusNext/AirScrappingStandardProjectVariant';
+import {AirScrappingStandardProject} from '../../../src/server/cards/venusNext/AirScrappingStandardProject';
 import {VenusShuttles} from '../../../src/server/cards/prelude2/VenusShuttles';
 import {Vesta} from '../../../src/server/colonies/Vesta';
 import {AsteroidHollowing} from '../../../src/server/cards/promo/AsteroidHollowing';
@@ -14242,5 +14243,165 @@ wgProjectFixture('terraforming-deal-wg', {
   dry: {
     pick: CardName.TERRAFORMING_DEAL,
     expect: (blue) => blue.tableau.has(CardName.TERRAFORMING_DEAL) ? undefined : 'expected P64 on the table',
+  },
+});
+
+// ── P65 Venus Contract (ledger GG · GH): the series' first prelude-reactor on a SCALE — «each step YOU raise Venus, gain
+//    3 M€» — answering into the M€ rail; its play is a search for 1 Venus card + 1 TR.
+//      · `venus-contract-start`  — the deployment queue (Teractor played, P65 + Atmospheric Enhancers kept, 30 M€, Venus
+//        0 %), the deck's top stacked: Power Plant ✗ → Aerial Mappers ✓ (P65's Venus search), then Dirigibles · Floating
+//        Habs (P44's floater search). P65 first, then P44's «ВАРИАНТ» step: the Venus row (+2) carries «⚡ +6 M€», the
+//        temperature / oxygen rows carry nothing (stand A);
+//      · `venus-contract-table`  — a 2p Redux table in the action phase, the Greens ruling (the empty slot), P65 + Venus
+//        Shuttles + Dirigibles on blue's table, Venus 10 %, 30 M€: the action (−10 for two Venus tags) answered by the
+//        party (+2 for the step's rating) AND the card (+3); the Air Scrapping standard project the same way (B · C);
+//      · `venus-contract-alt16`  — solo, the alternative board at 16 %, the same table, 15 M€: the step reaches 18 % — the
+//        track's bonus (its own live step) AND the card's +3 (D);
+//      · `venus-contract-max`    — solo, Venus at 28 %, 15 M€: P44-free — the action's ONE step to 30 % pays +3 (E);
+//      · `venus-contract-sitting`— the dev law RDX_DEV_VENUS_STEP one pass away, blue its winner, Venus 10 %: the
+//        winner's two REWARDED steps pay the card +6 on the sitting (F).
+//    A DRY RUN plays each road on a copy, so a rule change fails HERE. ──
+const VENUS_CONTRACT_TAPE = [CardName.POWER_PLANT, CardName.AERIAL_MAPPERS, CardName.DIRIGIBLES, CardName.FLOATING_HABS] as const;
+function venusContractPaid(game: IGame): number {
+  return game.cardReactions.filter((r) => r.card === CardName.VENUS_CONTRACT).flatMap((r) => r.impacts.map((i) => i.amount ?? 0)).reduce((a, b) => a + b, 0);
+}
+{
+  const name = 'venus-contract-start';
+  const [game, blue] = testGame(1, {
+    skipInitialCardSelection: false, preludeExtension: true, prelude2Expansion: true, venusNextExtension: true,
+    customPreludes: [CardName.VENUS_CONTRACT, CardName.ATMOSPHERIC_ENHANCERS], customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
+  });
+  const initial = blue.getWaitingFor();
+  if (!(initial instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${initial?.type}`);
+  }
+  blue.process({type: 'initialCards', responses: [
+    {type: 'card', cards: [CardName.TERACTOR]},
+    {type: 'card', cards: [CardName.VENUS_CONTRACT, CardName.ATMOSPHERIC_ENHANCERS]},
+    {type: 'card', cards: []},
+  ]});
+  runAllActions(game);
+  if (blue.getWaitingFor()?.startGamePrompt?.kind === 'corporationPlay') {
+    blue.process({type: 'card', cards: [CardName.TERACTOR]});
+    runAllActions(game);
+  }
+  const queue = blue.getWaitingFor();
+  if (queue?.startGamePrompt?.kind !== 'preludeSelection' || !blue.tableau.has(CardName.TERACTOR)) {
+    throw new Error(`${name}: expected the deployment queue with Teractor played — got ${queue?.type} ${JSON.stringify(queue?.startGamePrompt)}`);
+  }
+  blue.megaCredits = 30;
+  stackDeckTop(game, VENUS_CONTRACT_TAPE);
+  // THE DRY RUN — P65 (its search keeps Aerial Mappers, +1 TR), then P44 on its Venus branch (+2 steps → +6 M€).
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const seat = copy.getPlayerById(blue.id);
+  const tr = seat.terraformRating;
+  seat.process({type: 'card', cards: [CardName.VENUS_CONTRACT]});
+  runAllActions(copy);
+  const afterContract = {mc: seat.megaCredits, tr: seat.terraformRating, hand: seat.cardsInHand.map((c) => c.name)};
+  seat.process({type: 'card', cards: [CardName.ATMOSPHERIC_ENHANCERS]});
+  runAllActions(copy);
+  const or = seat.getWaitingFor();
+  const venus = or instanceof OrOptions ? or.options.findIndex((o) => typeof o.title === 'string' && /Venus/.test(o.title)) : -1;
+  if (!(or instanceof OrOptions) || venus < 0) {
+    throw new Error(`${name}: expected P44's branches after its play — got ${or?.constructor.name}`);
+  }
+  seat.process({type: 'or', index: venus, response: {type: 'option'}});
+  runAllActions(copy);
+  if (afterContract.mc !== 30 || afterContract.tr !== tr + 1 || JSON.stringify(afterContract.hand) !== JSON.stringify([CardName.AERIAL_MAPPERS]) ||
+    copy.getVenusScaleLevel() !== 4 || seat.megaCredits !== 36 || venusContractPaid(copy) !== 6) {
+    throw new Error(`${name}: the dry run expected P65 → +1 TR + Aerial Mappers, then P44's Venus branch → 4 % and +6 M€ — got ${JSON.stringify(afterContract)}, Venus ${copy.getVenusScaleLevel()} %, ${seat.megaCredits} M€, paid ${venusContractPaid(copy)}`);
+  }
+  write(name, game);
+}
+{
+  const name = 'venus-contract-table';
+  const pinned = [CardName.TERACTOR, CardName.ARIDOR];
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true, venusNextExtension: true, prelude2Expansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  const take = (n: CardName) => {
+    moveToDeckTop(game, n);
+    return game.projectDeck.drawOrThrow(game);
+  };
+  p1.playedCards.push(newPrelude(CardName.VENUS_CONTRACT)!);
+  p1.playedCards.push(take(CardName.DIRIGIBLES));
+  p1.playedCards.push(take(CardName.VENUS_SHUTTLES));
+  p1.pendingInitialActions = [];
+  p2.pendingInitialActions = [];
+  p1.megaCredits = 30;
+  p2.megaCredits = 30;
+  setVenusScaleLevel(game, 10);
+  runAllActions(game);
+  const parliament = game.parliament!;
+  if (parliament.rulingParty() !== PartyName.GREENS || game.phase !== Phase.ACTION || game.activePlayer.id !== p1.id) {
+    throw new Error(`${name}: expected blue on the move in the action phase under the Greens — got ruling=${parliament.rulingParty()} phase=${game.phase} active=${game.activePlayer.color}`);
+  }
+  for (const road of ['action', 'project'] as const) {
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const seat = copy.getPlayerById(p1.id);
+    const before = seat.megaCredits;
+    let price: number;
+    if (road === 'action') {
+      const shuttles = seat.playedCards.get(CardName.VENUS_SHUTTLES) as IActionCard & ICard;
+      price = 12 - seat.tags.count(Tag.VENUS);
+      shuttles.action(seat);
+    } else {
+      const project = new AirScrappingStandardProject();
+      price = project.cost;
+      project.payAndExecute(seat, Payment.of({megacredits: price}));
+    }
+    runAllActions(copy);
+    if (copy.getVenusScaleLevel() !== 12 || venusContractPaid(copy) !== 3 || seat.megaCredits - before !== -price + 2 + 3) {
+      throw new Error(`${name}: the dry run (${road}) expected Venus 10 → 12 %, −${price} then the Greens +2 and P65 +3 — got ${copy.getVenusScaleLevel()} %, ${seat.megaCredits - before} M€, P65 ${venusContractPaid(copy)}`);
+    }
+  }
+  write(name, game);
+}
+for (const [name, venus, alt] of [['venus-contract-alt16', 16, true], ['venus-contract-max', 28, false]] as const) {
+  const {game, player} = soloActionPhase({
+    venusNextExtension: true, prelude2Expansion: true, customCorporationsList: [CardName.TERACTOR], startingCorporations: 1,
+    ...(alt ? {altVenusBoard: true} : {}),
+  });
+  const take = (n: CardName) => {
+    moveToDeckTop(game, n);
+    return game.projectDeck.drawOrThrow(game);
+  };
+  player.playedCards.push(newPrelude(CardName.VENUS_CONTRACT)!);
+  player.playedCards.push(take(CardName.DIRIGIBLES));
+  player.playedCards.push(take(CardName.VENUS_SHUTTLES));
+  player.megaCredits = 15;
+  setVenusScaleLevel(game, venus);
+  runAllActions(game);
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(player.id);
+  (blue.playedCards.get(CardName.VENUS_SHUTTLES) as IActionCard & ICard).action(blue);
+  runAllActions(copy);
+  const facts = {venus: copy.getVenusScaleLevel(), paid: venusContractPaid(copy), bonus: blue.getWaitingFor()?.venusBonusPrompt?.kind};
+  const want = {venus: alt ? 18 : 30, paid: 3, bonus: alt ? 'standard' : undefined};
+  if (JSON.stringify(facts) !== JSON.stringify(want)) {
+    throw new Error(`${name}: the dry run read ${JSON.stringify(facts)} — expected ${JSON.stringify(want)}`);
+  }
+  write(name, game);
+}
+parliamentFixture('venus-contract-sitting', {
+  resolution: DEV_VENUS_STEP_RESOLUTION_ID,
+  votes: [0],
+  agenda: [2, 1],
+  stopAt: 'pass',
+  options: {venusNextExtension: true, customCorporationsList: [...VENUS_TABLE_CORPORATIONS]},
+  arrange: ({game, p1}) => {
+    setVenusScaleLevel(game, 10);
+    p1.playedCards.push(newPrelude(CardName.VENUS_CONTRACT)!);
+  },
+  expect: ({game, p1}) => {
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    passTheViewer(copy);
+    answerEffects(copy, 'venus-contract-sitting');
+    if (copy.getVenusScaleLevel() !== 14 || venusContractPaid(copy) !== 6 || copy.getPlayerById(p1.id) === undefined) {
+      throw new Error(`the venus-contract-sitting fixture expected the winner's two steps (10 → 14 %) to pay P65 +6 on the sitting — got ${copy.getVenusScaleLevel()} %, P65 ${venusContractPaid(copy)}`);
+    }
   },
 });
