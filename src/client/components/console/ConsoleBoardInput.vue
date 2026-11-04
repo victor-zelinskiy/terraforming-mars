@@ -362,7 +362,8 @@ export default defineComponent({
         return;
       }
       const myToken = ++this.previewToken;
-      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId), this.playerinput.tileType, this.playerinput.sourceCard, this.playerinput.placementEffect, this.staged, this.movedFrom(), this.playerinput.printedBonusMultiplier).then((preview) => {
+      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId), this.playerinput.tileType, this.playerinput.sourceCard, this.playerinput.placementEffect, this.staged, this.movedFrom(), this.playerinput.printedBonusMultiplier,
+        this.playerinput.governmentPlacement === true).then((preview) => {
         if (myToken === this.previewToken && this.previewSpaceId === spaceId) {
           this.previewData = preview;
         }
@@ -549,7 +550,8 @@ export default defineComponent({
         return;
       }
       const myToken = ++this.confirmToken;
-      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId), this.playerinput.tileType, this.playerinput.sourceCard, this.playerinput.placementEffect, this.staged, this.movedFrom(), this.playerinput.printedBonusMultiplier).then((preview) => {
+      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId), this.playerinput.tileType, this.playerinput.sourceCard, this.playerinput.placementEffect, this.staged, this.movedFrom(), this.playerinput.printedBonusMultiplier,
+        this.playerinput.governmentPlacement === true).then((preview) => {
         if (myToken === this.confirmToken) {
           this.confirmPreview = preview;
         }

@@ -38,7 +38,7 @@ import {midPromptRefreshEnabled, serverAheadOfView} from '@/client/components/re
 import {registerTruthWitness} from '@/client/console/presentationLedger';
 import {apiUrl, identitySearch} from '@/client/utils/runtimeConfig';
 import {PlayerViewModel, PublicPlayerModel, ViewModel} from '@/common/models/PlayerModel';
-import {PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {SoundManager} from '@/client/utils/SoundManager';
 import {WaitingForModel} from '@/common/models/WaitingForModel';
@@ -48,7 +48,6 @@ import {statusCode} from '@/common/http/statusCode';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {INVALID_RUN_ID, STALE_PROMPT, AppErrorResponse} from '@/common/app/AppErrorId';
 import {Color} from '@/common/Color';
-import {Message} from '@/common/logs/Message';
 import {gameDocumentTitle} from '@/client/utils/documentTitle';
 import {setFaviconStatus, setFaviconTurnFrame} from '@/client/utils/favicon';
 import {shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
@@ -234,8 +233,6 @@ import {
   runHazardCleanup,
 } from '@/client/components/feedback/hazardCleanupTransition';
 
-const WGT_TITLE = 'Select action for World Government Terraforming';
-
 /*
  * After a World Government Terraforming choice that bumps a global
  * parameter (temperature / oxygen / venus), hold the playerkey++
@@ -271,13 +268,6 @@ const TURN_SEQUENCE = '◑◒◐◓';
 // favicons, so they keep animating the title instead.
 function isDesktopBrowser(): boolean {
   return !/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-}
-
-function titleText(title: string | Message | undefined): string | undefined {
-  if (title === undefined) {
-    return undefined;
-  }
-  return typeof title === 'string' ? title : title.message;
 }
 
 /**
@@ -653,7 +643,8 @@ function currentPromptIsWGT(): boolean {
   if (wf === undefined || wf.type !== 'or') {
     return false;
   }
-  return titleText(wf.title) === WGT_TITLE;
+  // The World Government's question by its marker (P67 · GK — never its title).
+  return (wf as OrOptionsModel).worldGovernmentPrompt !== undefined;
 }
 
 /**

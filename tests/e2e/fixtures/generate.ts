@@ -14519,3 +14519,49 @@ wgProjectFixture('venus-l1-shade-wg-skip', {
       `expected P66 played, Venus 6 % and the skip spent — got Venus ${copy.getVenusScaleLevel()} %, armed=${blue.preservationProgram}`,
   },
 });
+
+// ── P67 · WORLD GOVERNMENT ADVISOR — the World Government in the middle of the action phase (ledgers GK · GL): a 2p
+//    Venus table in the action phase, blue on the move with P67 on its table, red holding Aphrodite (a rival's «any
+//    Venus step pays»):
+//      · `wga-table`  — the temperature at −2 °C (the government's 0 °C ocean is one step away), oxygen 6 %;
+//      · `wga-maxed`  — every parameter the government may raise at its maximum (the action legal, futile).
+function worldGovernmentAdvisorFixture(name: string, variant: 'table' | 'maxed'): void {
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, venusNextExtension: true, prelude2Expansion: true,
+    customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1,
+  });
+  answerStartFlow(game, [p1, p2]);
+  game.projectDeck.discardPile.push(...p1.cardsInHand.splice(0));
+  p1.playedCards.push(newPrelude(CardName.WORLD_GOVERNMENT_ADVISOR)!);
+  p2.playCorporationCard(newCorporationCard(CardName.APHRODITE)!);
+  runAllActions(game);
+  p2.popWaitingFor();
+  if (variant === 'table') {
+    setTemperature(game, -2);
+    setOxygenLevel(game, 6);
+  } else {
+    setTemperature(game, MAX_TEMPERATURE);
+    setOxygenLevel(game, MAX_OXYGEN_LEVEL);
+    maxOutOceans(p2);
+    setVenusScaleLevel(game, 30);
+  }
+  p1.megaCredits = 30;
+  p2.megaCredits = 20;
+  runAllActions(game);
+  if (game.activePlayer.id !== p1.id) {
+    throw new Error(`the ${name} fixture expected blue on the move`);
+  }
+  // The dry run: the action asks the government's question marked as P67's — or, at the maximum, nothing.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(p1.id);
+  (blue.playedCards.get(CardName.WORLD_GOVERNMENT_ADVISOR) as IActionCard & ICard).action(blue);
+  runAllActions(copy);
+  const asked = blue.getWaitingFor();
+  const marked = asked instanceof OrOptions && asked.worldGovernmentPrompt?.source === 'card';
+  if (variant === 'table' ? !marked : marked) {
+    throw new Error(`the ${name} fixture: the action asked ${asked?.constructor.name ?? 'nothing'}`);
+  }
+  write(name, game);
+}
+worldGovernmentAdvisorFixture('wga-table', 'table');
+worldGovernmentAdvisorFixture('wga-maxed', 'maxed');

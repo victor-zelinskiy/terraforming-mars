@@ -32,7 +32,7 @@ const ROWS: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<strin
   {row: 'action menu', wf: {type: 'or', title: 'Take your first action', options: []}, kicker: 'Your turn'},
   {row: 'placement', wf: {type: 'space', title: 'Select space for city tile', spaces: []}, kicker: 'Tile placement'},
   {row: 'generic or', wf: {type: 'or', title: 'Choose an option', options: []}, kicker: 'Choice'},
-  {row: 'WGT or', wf: {type: 'or', title: 'Select action for World Government Terraforming', options: []}, kicker: 'Government Support'},
+  {row: 'WGT or', wf: {type: 'or', title: 'Select action for World Government Terraforming', options: [], worldGovernmentPrompt: {source: 'solar-phase'}}, kicker: 'Government Support'},
   {row: 'option confirm', wf: {type: 'option', title: 'Confirm'}, kicker: 'Confirmation'},
   {row: 'player target', wf: {type: 'player', title: 'Select player'}, kicker: 'Choose a player'},
   {row: 'amount', wf: {type: 'amount', title: 'Select amount'}, kicker: 'Amount'},

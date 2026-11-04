@@ -188,6 +188,24 @@ export function stagedPlacementOf(arm: StagedPlayArm | undefined = stagedPlaySta
   return arm?.target.kind === 'cell' ? arm.target.placement : undefined;
 }
 
+/**
+ * THE CELL IS THE BRANCH PICK'S ANSWER (P67 · GK — `StagedPlacementModel.nestedInBranch`): the live prompt nests its
+ * `SelectSpace` inside the `OrOptions` (the World Government's «Add an ocean»), so the cell replaces the RESPONSE of the
+ * batch's last `or` answer — its index and its pre-select address kept — instead of riding as the tail. A batch with no
+ * `or` answer is returned with the cell appended (never silently dropped). Pure.
+ */
+export function nestCellInBranchPick(batch: ReadonlyArray<unknown>, cell: {type: 'space', spaceId: string, movedFrom?: string}): Array<unknown> {
+  const out = [...batch];
+  for (let i = out.length - 1; i >= 0; i--) {
+    const answer = out[i] as {type?: unknown} | undefined;
+    if (answer !== undefined && answer !== null && answer.type === 'or') {
+      out[i] = {...answer, response: {type: 'space', spaceId: cell.spaceId}};
+      return out;
+    }
+  }
+  return [...out, cell];
+}
+
 /** The staged VOTE's prompt (undefined for a staged cell / nothing staged). */
 export function stagedVoteOf(arm: StagedPlayArm | undefined = stagedPlayState.arm): StagedVoteModel | undefined {
   return arm?.target.kind === 'resolution' ? arm.target.vote : undefined;

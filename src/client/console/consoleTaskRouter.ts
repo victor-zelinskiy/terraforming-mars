@@ -646,8 +646,6 @@ export function startPlacementOrderOf(view: PlayerViewModel): CardName | undefin
   return getCard(meta.source)?.type === CardType.PRELUDE ? meta.source : undefined;
 }
 
-const WGT_TITLE = 'Select action for World Government Terraforming';
-
 /**
  * Option types the task host can serve inside a `choice` (T9 one-level
  * wizard): leaves, board picks, and every nested input it has a native
@@ -764,8 +762,13 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     if (wf.awardFundingPrompt?.free === true) {
       return {kind: 'awardFunding'};
     }
-    if (title === WGT_TITLE) {
-      return {kind: 'choice', flavor: 'wgt'};
+    // THE WORLD GOVERNMENT'S QUESTION by its MARKER (P67 · GK — never its title): the generation's own step is the
+    // «Поддержка правительства» dialog; a card's ACTION acting as the government (World Government Advisor — normally
+    // pre-collected by its composer, so this is the reload / API fallback) or a colony's bonus is the source's own
+    // contextual choice — a step of the flow that asked it, hosted there, never the solar phase's dialog.
+    const wgt = (wf as OrOptionsModel).worldGovernmentPrompt;
+    if (wgt !== undefined) {
+      return {kind: 'choice', flavor: wgt.source === 'solar-phase' ? 'wgt' : 'contextual'};
     }
     // STRUCTURAL, before the generic fallback: the Hydronetwork owns this one.
     if (wf.deltaBonusPrompt !== undefined) {

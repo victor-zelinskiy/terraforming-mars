@@ -414,6 +414,8 @@ for (const profile of PROFILES) {
         }},
         {name: 'government-support', root: '.con-govsupport', tone: 'neutral', prompt: {
           type: 'or', promptId: 9206, title: 'Select action for World Government Terraforming', buttonLabel: 'Confirm',
+          // The console routes the World Government's question by its MARKER (P67 · GK), never its title.
+          worldGovernmentPrompt: {source: 'solar-phase'},
           options: [
             {type: 'option', title: 'Increase temperature', buttonLabel: 'Confirm'},
             {type: 'option', title: 'Increase oxygen', buttonLabel: 'Confirm'},

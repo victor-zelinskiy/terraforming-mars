@@ -1,6 +1,7 @@
 import {ViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
+import {generationPhaseOf} from '@/common/game/generationPhase';
 import {ActionLabel} from './ActionLabel';
 
 export function playerIndexInList(
@@ -33,7 +34,7 @@ export function isBotActiveTurn(
   if (player.isMarsBot !== true) {
     return false;
   }
-  if (playerView.game.phase !== Phase.ACTION || !player.isActive) {
+  if (generationPhaseOf(playerView.game) !== Phase.ACTION || !player.isActive) {
     return false;
   }
   return !playerView.players.some(
@@ -190,7 +191,8 @@ export function actionLabelForPlayer(
       // Для них лейбл вырождается в 'forcedaction' — тот же premium active-
       // визуал (cyan dot + glow), но `showCounter: false` в presenter'e,
       // потому что 1/2 счётчик у такой реакции не имеет смысла.
-      return (game.phase === Phase.ACTION && player.isActive) ?
+      // The GENERATION's phase (P67 · GL): a seat acting as the World Government mid-action still has the turn.
+      return (generationPhaseOf(game) === Phase.ACTION && player.isActive) ?
         'turn' :
         'forcedaction';
     }

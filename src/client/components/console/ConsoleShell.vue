@@ -1961,6 +1961,7 @@ import {
   externalDrawHolding, externalDrawIntakeKey, externalDrawResolutionOf, externalDrawTakeOf, resetExternalDraw,
 } from '@/client/console/externalDraw/consoleExternalDraw';
 import {Phase} from '@/common/Phase';
+import {generationPhaseOf} from '@/common/game/generationPhase';
 import ConsoleTradeFleetLayer from '@/client/components/console/colonyFleet/ConsoleTradeFleetLayer.vue';
 import {armTradeFleet, abortTradeFleet, isTradeFleetActive, tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import ConsoleColonyTradeLayer from '@/client/components/console/colonyTrade/ConsoleColonyTradeLayer.vue';
@@ -2330,6 +2331,7 @@ import {
   resolveStagedPinDropped,
   stagedPlayActive,
   stagedPlacementOf,
+  nestCellInBranchPick,
   stagedVoteOf,
   stagedColonyOf,
   stagedHostedTarget,
@@ -6286,7 +6288,7 @@ export default defineComponent({
      * nobody's turn is running and a law's live play from the hand legitimately hosts its own woken effect.
      */
     viewerAskedOffTurn(): boolean {
-      return this.playerView.waitingFor !== undefined && this.game.phase === Phase.ACTION && this.thisPlayer?.isActive !== true;
+      return this.playerView.waitingFor !== undefined && generationPhaseOf(this.game) === Phase.ACTION && this.thisPlayer?.isActive !== true;
     },
     viewerForcedReaction(): boolean {
       const label = actionLabelForPlayer(this.playerView, this.thisPlayer, liveWaitingSignal(this.waitingOnPlayers));
@@ -7051,6 +7053,8 @@ export default defineComponent({
         // board marks every candidate «×N» from the same number.
         printedBonusMultiplier: p.printedBonusMultiplier,
         printedBonusTimes: p.printedBonusTimes,
+        // The World Government places it (P67 · GK): the dossier asks the cell in the government's mode.
+        ...(p.government === true ? {governmentPlacement: true as const} : {}),
       };
     },
     /**
@@ -15280,7 +15284,7 @@ export default defineComponent({
       // judged «affordable» against the whole wallet). `movedFrom` — a move's
       // lifted city: the cell is read as that city's DESTINATION.
       fetchBoardCellPreview(spaceId, prompt.placementType, cleared, prompt.tileType, prompt.sourceCard, prompt.placementEffect,
-        this.placementStaged, this.placementMoveFrom, prompt.printedBonusMultiplier).then((preview) => {
+        this.placementStaged, this.placementMoveFrom, prompt.printedBonusMultiplier, prompt.governmentPlacement === true).then((preview) => {
         if (token === this.cellPreviewToken) {
           this.cellPreview = preview;
         }
@@ -24493,8 +24497,12 @@ export default defineComponent({
       // ocean that jumps the queue parks it instead of eating or dropping it
       // (deferredInputBatch; the parked state comes back as
       // `stagedPlacementPending` and is handled in placementWorldVersion).
+      // P67 · GK — a cell NESTED in the branch pick (the World Government's «Add an ocean» is a `SelectSpace` inside its
+      // `OrOptions`): the cell becomes the RESPONSE of the batch's last `or` answer instead of its tail.
       const responses = placement.fixed === true ?
-        [...arm.batch] : [...arm.batch, {...spaceResponse, stagedFor: placement.sourceCard}];
+        [...arm.batch] :
+        placement.nestedInBranch === true ? nestCellInBranchPick(arm.batch, spaceResponse) :
+          [...arm.batch, {...spaceResponse, stagedFor: placement.sourceCard}];
       this.submitBatch(responses);
     },
     /**

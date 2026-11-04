@@ -40,6 +40,7 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
+import {generationPhaseOf} from '@/common/game/generationPhase';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {
   turnHandoffState,
@@ -92,7 +93,7 @@ export default defineComponent({
   computed: {
     owner(): Color | undefined {
       const game = this.playerView.game;
-      if (game.phase !== Phase.ACTION) {
+      if (generationPhaseOf(game) !== Phase.ACTION) {
         return undefined;
       }
       return this.playerView.players.find((p) => p.isActive)?.color;

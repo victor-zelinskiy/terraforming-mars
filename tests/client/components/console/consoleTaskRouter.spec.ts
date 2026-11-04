@@ -28,7 +28,11 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '1b action menu (next)', wf: {type: 'or', title: 'Take your next action', options: []}, expect: {kind: 'actionMenu'}},
   {row: '2 card-driven or (contextual)', wf: {type: 'or', title: 'Select how to use your science tag', options: [], choiceContext: {source: {kind: 'card'}}}, expect: {kind: 'choice', flavor: 'contextual'}},
   {row: '2b generic or', wf: {type: 'or', title: 'Choose an option', options: []}, expect: {kind: 'choice', flavor: 'generic'}},
-  {row: '2c WGT or', wf: {type: 'or', title: 'Select action for World Government Terraforming', options: []}, expect: {kind: 'choice', flavor: 'wgt'}},
+  // The World Government's question by its MARKER (P67 · GK) — the generation's own step is the dialog; a card's action
+  // acting as the government is that card's contextual choice; the title alone routes nowhere special.
+  {row: '2c WGT or', wf: {type: 'or', title: 'Select action for World Government Terraforming', options: [], worldGovernmentPrompt: {source: 'solar-phase'}}, expect: {kind: 'choice', flavor: 'wgt'}},
+  {row: '2d WGT or of a card', wf: {type: 'or', title: 'Select action for World Government Terraforming', options: [], worldGovernmentPrompt: {source: 'card', card: 'World Government Advisor'}, choiceContext: {source: {kind: 'card', card: 'World Government Advisor'}}}, expect: {kind: 'choice', flavor: 'contextual'}},
+  {row: '2e WGT title without the marker', wf: {type: 'or', title: 'Select action for World Government Terraforming', options: []}, expect: {kind: 'choice', flavor: 'generic'}},
   {row: '3 option confirm', wf: {type: 'option', title: 'Confirm'}, expect: {kind: 'choice', flavor: 'confirm'}},
   {row: '4 player target', wf: {type: 'player', title: 'Select player'}, expect: {kind: 'player'}},
   {row: '5 amount', wf: {type: 'amount', title: 'Select amount'}, expect: {kind: 'amount', flavor: 'generic'}},
