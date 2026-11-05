@@ -49,6 +49,22 @@ function specFiles(): Array<string> {
     .sort();
 }
 
+/**
+ * ONE READ PER FILE PER RUN. Every rule below walks the whole e2e tree (~500 files); read per rule, the walk is
+ * seven full trees, and on a laptop loaded by neighbour builds one rule crossed mocha's 2 s default and went red
+ * with nothing wrong in the tree (2026-11-05: 2 of 46 timed out in one run of five). A static check of the source
+ * has no clock in its subject — its budget is the read, paid once.
+ */
+const E2E_SOURCES = new Map<string, string>();
+function readE2e(rel: string): string {
+  let text = E2E_SOURCES.get(rel);
+  if (text === undefined) {
+    text = fs.readFileSync(path.join(E2E_DIR, rel), 'utf8');
+    E2E_SOURCES.set(rel, text);
+  }
+  return text;
+}
+
 /** Strip line + block comments so a rule never fires on prose about itself. */
 function stripComments(text: string): string {
   return text
@@ -60,7 +76,10 @@ function lineOf(text: string, index: number): number {
   return text.slice(0, index).split('\n').length;
 }
 
-describe('e2e driver guard', () => {
+describe('e2e driver guard', function() {
+  // A tree walk, not a timing: the first rule pays the reads (the cache above), the budget is that walk on a busy box.
+  // eslint-disable-next-line no-invalid-this
+  this.timeout(30_000);
   describe('① every reload goes through reloadConsole', () => {
     /**
      * The ONE sanctioned exception: the driver's own implementation, which is
@@ -76,7 +95,7 @@ describe('e2e driver guard', () => {
         if (ALLOWED.includes(file)) {
           continue;
         }
-        const raw = fs.readFileSync(path.join(E2E_DIR, file), 'utf8');
+        const raw = readE2e(file);
         const text = stripComments(raw);
         for (const m of text.matchAll(/\bpage\.reload\s*\(/g)) {
           offenders.push(`${file}:${lineOf(text, m.index ?? 0)}`);
@@ -91,7 +110,7 @@ describe('e2e driver guard', () => {
 
   describe('② no spec shadows a shared primitive', () => {
     function exportedNames(): Set<string> {
-      const src = fs.readFileSync(path.join(E2E_DIR, DRIVER), 'utf8');
+      const src = readE2e(DRIVER);
       const out = new Set<string>();
       for (const m of src.matchAll(/^export (?:async )?function ([A-Za-z0-9_]+)/gm)) {
         out.add(m[1]);
@@ -119,7 +138,7 @@ describe('e2e driver guard', () => {
       const shared = exportedNames();
       const offenders: Array<string> = [];
       for (const file of specFiles()) {
-        const raw = fs.readFileSync(path.join(E2E_DIR, file), 'utf8');
+        const raw = readE2e(file);
         const text = stripComments(raw);
         for (const m of text.matchAll(/^(?:async )?function ([A-Za-z0-9_]+)/gm)) {
           if (shared.has(m[1])) {
@@ -190,7 +209,7 @@ describe('e2e driver guard', () => {
       const seen = new Set<string>();
       for (const rel of allE2eFiles()) {
         seen.add(rel);
-        const text = stripComments(fs.readFileSync(path.join(E2E_DIR, rel), 'utf8'));
+        const text = stripComments(readE2e(rel));
         for (const [name, re] of Object.entries(PATTERNS)) {
           const count = (text.match(re) ?? []).length;
           const frozen = baseline.files[rel]?.[name] ?? 0;
@@ -225,7 +244,7 @@ describe('e2e driver guard', () => {
     it("no spec imports from '@playwright/test' directly", () => {
       const offenders: Array<string> = [];
       for (const file of specFiles()) {
-        const raw = fs.readFileSync(path.join(E2E_DIR, file), 'utf8');
+        const raw = readE2e(file);
         const text = stripComments(raw);
         for (const m of text.matchAll(/from\s+'@playwright\/test'/g)) {
           offenders.push(`${file}:${lineOf(text, m.index ?? 0)}`);
@@ -260,7 +279,7 @@ describe('e2e driver guard', () => {
         if (ALLOWED.includes(file)) {
           continue;
         }
-        const raw = fs.readFileSync(path.join(E2E_DIR, file), 'utf8');
+        const raw = readE2e(file);
         const text = stripComments(raw);
         // THE SIGNATURE OF «I WALKED TO A CELL AND WILL NOW PRESS A» is reading
         // the board CURSOR — `.con-cell-sel`, which nothing else in the console
@@ -298,7 +317,7 @@ describe('e2e driver guard', () => {
       const grown: Array<string> = [];
       const fell: Array<string> = [];
       for (const file of specFiles()) {
-        const count = (stripComments(fs.readFileSync(path.join(E2E_DIR, file), 'utf8')).match(HAND_ROLLED) ?? []).length;
+        const count = (stripComments(readE2e(file)).match(HAND_ROLLED) ?? []).length;
         const frozen = FROZEN[file] ?? 0;
         if (count > frozen) {
           grown.push(`${file}: ${frozen} → ${count}`);
@@ -353,7 +372,7 @@ describe('e2e driver guard', () => {
     }
 
     it('the reader derivation still SEES the spec-local readers (a guard that finds none proves nothing)', () => {
-      const readers = (file: string) => readersOf(stripComments(fs.readFileSync(path.join(E2E_DIR, file), 'utf8')));
+      const readers = (file: string) => readersOf(stripComments(readE2e(file)));
       expect(readers('console-played-table.spec.ts')).to.include.members(['bar', 'crumb']);
       expect(readers('console-ma-workspace.spec.ts')).to.include('barText');
       expect(readers('console-strategic-shift.spec.ts')).to.include('bar');
@@ -362,7 +381,7 @@ describe('e2e driver guard', () => {
     it('no spec asserts the bar / the crumb / the hot verb with a one-shot read', () => {
       const offenders: Array<string> = [];
       for (const file of specFiles()) {
-        const text = stripComments(fs.readFileSync(path.join(E2E_DIR, file), 'utf8'));
+        const text = stripComments(readE2e(file));
         for (const name of readersOf(text)) {
           for (const m of text.matchAll(new RegExp(`expect\\(\\s*await\\s+${name}\\(`, 'g'))) {
             const site = `${file}:${lineOf(text, m.index ?? 0)}`;

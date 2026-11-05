@@ -13,6 +13,7 @@ import {
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {hydroMarkerState, resetHydroMarker} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {consoleState} from '@/client/console/consoleRouter';
+import {enterWorkspace, resetWorkspaceStack, resumeStackFromBoard, yieldStackForStagedPlay} from '@/client/console/consoleWorkspaceStack';
 import {presentationLedgerSnapshot} from '@/client/console/presentationLedger';
 
 function commitRec(over: Partial<Omit<HydroCommitRecord, 'phase'>> = {}): Omit<HydroCommitRecord, 'phase'> {
@@ -327,6 +328,7 @@ describe('the hydro flow-close witnesses', () => {
   after(() => {
     resetHydroFlow();
     resetHydroMarker();
+    resetWorkspaceStack();
     registerHydroFlowProbe(undefined);
     registerHydroCeremonyStarter(undefined);
     consoleState.task.deferred = false;
@@ -429,6 +431,23 @@ describe('the hydro flow-close witnesses', () => {
     expect(hydroFlowStuckLying(), 'a dead result timer = the auto-finish edge died').eq(true);
     registerHydroFlowProbe(undefined);
     expect(hydroFlowStuckLying(), 'no probe (no shell) → never guess').eq(false);
+  });
+
+  it('a frame standing ASIDE for the board is a hidden stage — the result is never walked to behind it', () => {
+    // CI 2026-11-05 (`console-hydro-copied-tile`): the stage-7 copy's placement yields the stack, the answer drops the
+    // last busy term while the frame is still away, and the result's read hold was spent behind the board.
+    registerHydroFlowProbe(probe({busy: () => false}));
+    enterWorkspace('hydro');
+    beginHydroCommit(commitRec({kind: 'repeat', toPosition: 7}));
+    advanceHydroCommitPhase('resolving');
+    expect(hydroFlowSetAside(), 'on screen').eq(false);
+    expect(yieldStackForStagedPlay(), 'the stack steps aside for the board').eq(true);
+    expect(hydroFlowSetAside(), 'a yielded frame is set aside').eq(true);
+    expect(hydroFlowStuckLying(), 'quiet resolving while away is a wait, not a wedge').eq(false);
+    expect(resumeStackFromBoard(), 'the frame comes back').eq(true);
+    expect(hydroFlowSetAside(), 'back on screen').eq(false);
+    expect(hydroFlowStuckLying(), 'and a quiet resolving on screen is a missed edge again').eq(true);
+    resetWorkspaceStack();
   });
 
   it('the stuck-flow heal routes each wedge through the flow’s own recovery door', () => {

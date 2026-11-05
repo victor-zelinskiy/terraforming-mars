@@ -1073,6 +1073,7 @@ import {delegateGrantFollowUpRow, nextRowText, playCommitVerb, playDoorNextStepK
 import {useResizeObserver} from '@vueuse/core';
 import {SettledColumn} from '@/client/console/settledColumn';
 import {STAGED_STEP_RELEASE_MS, StagedReceipt, stagedPlayState, stagedVoteOf} from '@/client/console/stagedPlay';
+import {syncReleaseToStepEntry} from '@/client/console/stepEntryClock';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTier';
 import {DeltaBlockadeInputModel, DeltaStageRewardInputModel, PlayerInputModel, SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
@@ -1488,6 +1489,8 @@ export type ComposerOutcome =
 
 /** The law's landed tableau dissolving under its card's outcome (RX36) — the hand composer's release beat. */
 const LAW_PLAYSTAGE_RELEASE_MS = 220;
+/** How long the release waits for its step to be inserted before it keeps its own clock (a mount, never a motion). */
+const STEP_ENTRY_BIND_MAX_MS = 4000;
 
 /** Where the action composer's ledger stands — the scope the shared wave looks its rows up under. */
 const CARD_LEDGER_SCOPE = '[data-colony-ledger-scope="card"]';
@@ -6910,6 +6913,18 @@ export default defineComponent({
         }
       };
       root.addEventListener('animationend', onEnd);
+      // …and COMMITTED together is not STARTED together: the step's entry is a compositor animation on a cold layer,
+      // the release a main-thread one — on a software renderer the release ran out a frame before the step rose (an
+      // empty stage, CI 2026-11-05 `console-martian-census` § gaps). The release takes the entry's own start time
+      // (`stepEntryClock.ts`), bound in the task the step is inserted in.
+      syncReleaseToStepEntry({
+        zones: Array.from(root.querySelectorAll('.con-composer__parlzone, .con-composer__handzone')),
+        followers: () => Array.from(root.querySelectorAll('.con-composer__actmain'))
+          .flatMap((el) => typeof el.getAnimations === 'function' ? el.getAnimations() : [])
+          .filter((a) => (a as CSSAnimation).animationName === 'con-composer-setup-release'),
+        alive: () => token === this.parliamentReleaseToken,
+        maxMs: STEP_ENTRY_BIND_MAX_MS,
+      });
     },
     /** RETURN — B out of the vote: the setup un-parks and surfaces where it stood, the cursor on the variant left. */
     restoreSetupFromParliament(): void {

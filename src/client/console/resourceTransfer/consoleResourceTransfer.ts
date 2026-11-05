@@ -47,6 +47,7 @@ import {
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   TransferFlightPaint, TransferFlightReport, TransferStagePiece, runDetachedTransferFlight, runTransferFlight, settleTransferChip, killTransferPiece,
+  TransferWaveSlot, createTransferWaveGate, releaseWaveSlot,
 } from '@/client/console/resourceTransfer/resourceTransferDirector';
 import {probeTick} from '@/client/console/probeTick';
 import {firstVisibleEnd, TransferEndOptions, TransferEndVerdict, transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
@@ -917,6 +918,15 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     fromEl: f.fromEl,
     toEl: f.toEl,
   }));
+  // THE WAVE'S BIRTHS ARE EVENTS (`TransferWaveGate`): token k is born after token k − 1's real birth, the same stagger
+  // later — a wave launched from a long task no longer finds every offset due in one tick (the tokens born together,
+  // flown as one chip, the counter ticking once for two).
+  const waveGate = createTransferWaveGate();
+  const waveSlots: Array<TransferWaveSlot> = entries.map((e, i) => ({
+    gate: waveGate,
+    index: i,
+    staggerMs: i === 0 ? 0 : Math.max(0, e.delayMs - entries[i - 1].delayMs),
+  }));
   // A DETACHED token waits for its surface to leave holding the FEED only (its wait must never be what keeps that
   // surface's flow from concluding); it turns into an ordinary flying chip once its arc starts (`onArc`).
   resourceTransferState.flights = [...resourceTransferState.flights,
@@ -933,7 +943,9 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
 
     const uiScale = conUiScale();
     const waveBudget = motionMs(transferFlightBudgetMs()) * pace +
-      motionMs(transferWaveDelayMs(entries.length - 1, entries.length)) * pace + 2200;
+      motionMs(transferWaveDelayMs(entries.length - 1, entries.length)) * pace + 2200 +
+      // A chained wave (`TransferWaveGate`) may stand each birth a frame or two later on a starved renderer.
+      entries.length * 400;
     let safetyFired = false;
     const safety = window.setTimeout(() => {
       // rAF stall / lost stage — release everything, never wedge the caller.
@@ -962,11 +974,13 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         }
         trail(runId, 'flight:no-piece', e.id);
         removeFlight(e.id);
+        // A token that will never be born lets the rest of its wave go on.
+        releaseWaveSlot(waveGate, e.index);
         return Promise.resolve();
       }
       const liveFrom = () => measureEndRef(e.fromRef, e.spec, 'source');
       if (e.detached) {
-        const detached = flyDetached(runId, run, piece, e, uiScale, pace, () => safetyFired, liveFrom);
+        const detached = flyDetached(runId, run, piece, e, uiScale, pace, () => safetyFired, liveFrom, waveSlots[e.index]);
         void detached.then(() => markTransferEndLeft(e.id));
         departures.push(detached);
         return detached;
@@ -977,6 +991,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         to: e.to,
         index: e.index,
         delayMs: e.delayMs,
+        wave: waveSlots[e.index],
         uiScale,
         hold: run.arrival === 'hold',
         pace,
@@ -1400,6 +1415,7 @@ function flyDetached(
   pace: number,
   safetyFired: () => boolean,
   liveFrom?: () => TransferPoint | undefined,
+  wave?: TransferWaveSlot,
 ): Promise<void> {
   const alive = () => resourceTransferState.flights.some((f) => f.id === e.id);
   let reached = false;
@@ -1408,6 +1424,7 @@ function flyDetached(
     to: e.from,
     index: e.index,
     delayMs: e.delayMs,
+    ...(wave !== undefined ? {wave} : {}),
     uiScale,
     hold: false,
     pace,

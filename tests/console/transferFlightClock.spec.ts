@@ -39,6 +39,29 @@ describe('a resource chip is born at its source — the flight starts on the ani
     expect(birth, 'never a wall clock').to.not.match(/setTimeout|requestAnimationFrame/);
   });
 
+  it('a WAVE\'s births are a phrase of EVENTS — token k is born after token k − 1\'s real birth, never on an offset from one start', () => {
+    // A wave launched from a long task (the response's apply at 4K on a software renderer) found every `delayedCall`
+    // offset (0, 110 ms…) due at the next tick: both rating tokens were born in one tick, flew one path and touched down
+    // together — the cell ticked once for two steps (CI 2026-11-05, `console-venus-l1-shade` B / B2: births 2 ms apart).
+    const birth = raw.slice(raw.indexOf('function bornThenFlown('), raw.indexOf('function guarded('));
+    expect(birth, 'the birth takes its wave slot').to.include('wave?: TransferWaveSlot');
+    expect(birth, 'a token waits for its predecessor before it is born').to.include('waveSlotReady(wave)');
+    expect(birth, 'its birth releases the next slot').to.include('markWave();');
+    const ready = raw.slice(raw.indexOf('function waveSlotReady('), raw.indexOf('function waveAllowanceMs('));
+    expect(ready, 'only after every predecessor is born (or never will be)').to.include('gate.next >= slot.index');
+    expect(ready, 'in a LATER frame, its stagger later on the animation clock').to.include('gsap.ticker.frame > gate.lastFrame');
+    expect(ready).to.include('gate.lastAtMs + slot.staggerMs');
+    const cancel = birth.slice(birth.indexOf('const cancel = (): void => {'));
+    expect(cancel, 'a token that will never be born lets the wave go on').to.include('markWave();');
+    for (const name of ['runTransferFlight', 'runDetachedTransferFlight']) {
+      expect(body(name), `${name}: the slot reaches the birth`).to.include('}, opts.wave), opts.delayMs');
+    }
+    const run = fs.readFileSync(path.resolve(path.dirname(DIRECTOR), 'consoleResourceTransfer.ts'), 'utf8');
+    expect(run, 'ONE gate per run').to.include('const waveGate = createTransferWaveGate();');
+    expect(run, 'every flight gets its slot').to.include('wave: waveSlots[e.index],');
+    expect(run, 'a token with no piece releases its slot').to.include('releaseWaveSlot(waveGate, e.index);');
+  });
+
   it('a DETACHED flight (PL-165) is born at its source the same way, leaves it on the pop, and builds its arc only once the destination is painted', () => {
     const flight = body('runDetachedTransferFlight');
     const deferred = flight.indexOf('guarded((done) => bornThenFlown(chip, opts.delayMs, () => {');

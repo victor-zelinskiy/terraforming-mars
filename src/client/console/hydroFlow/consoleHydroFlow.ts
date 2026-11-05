@@ -35,7 +35,7 @@ import type {Tag} from '@/common/cards/Tag';
 import type {DeltaStageOutcomeProjection} from '@/common/models/DeltaEspionageModel';
 import type {WorkspacePhase, WorkspaceBackVerb} from '@/client/console/consoleWorkspaceFlow';
 import {backVerbFor} from '@/client/console/consoleWorkspaceFlow';
-import {workspaceFrameEpoch, workspaceStackCollapsed} from '@/client/console/consoleWorkspaceStack';
+import {workspaceFrameEpoch, workspaceFrameYielded, workspaceStackCollapsed} from '@/client/console/consoleWorkspaceStack';
 import {consoleState} from '@/client/console/consoleRouter';
 import {isHydroMarkerActive, hydroTraversalPending} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {registerTruthWitness} from '@/client/console/presentationLedger';
@@ -548,9 +548,11 @@ export function hydroWorkspaceRestorePlan(input: {
  */
 
 /** The flow is deliberately set aside — a park is not a wedge, and nothing
- *  may start or settle on a hidden stage. */
+ *  may start or settle on a hidden stage. A frame standing ASIDE for the board
+ *  (the stage-7 copy's placement) is as hidden as a parked one: its result
+ *  walked to there was read by nobody (CI 2026-11-05, `console-hydro-copied-tile`). */
 export function hydroFlowSetAside(): boolean {
-  return workspaceStackCollapsed() || consoleState.task.deferred;
+  return workspaceStackCollapsed() || consoleState.task.deferred || workspaceFrameYielded('hydro');
 }
 
 /*

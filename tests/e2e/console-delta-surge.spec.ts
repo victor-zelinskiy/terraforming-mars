@@ -182,6 +182,7 @@ test.describe('Delta Surge — the ordered multi-reward traversal · fhd', () =>
       const w = window as unknown as {
         __doneSeq?: Array<number>, __viewerCells?: Array<number>,
         __deals?: number, __probeStop?: () => void,
+        __result?: {rows: number, excl: number},
       };
       w.__doneSeq = [];
       w.__viewerCells = [];
@@ -201,6 +202,17 @@ test.describe('Delta Surge — the ordered multi-reward traversal · fhd', () =>
           if (cells.length === 0 || cells[cells.length - 1] !== cell) {
             cells.push(cell);
           }
+        }
+        // THE RESULT IS A TRANSIENT — it reads for its hold and the flow leaves on its own, so it is RECORDED the
+        // moment it stands (tests.md ④), never looked for after a press whose settle waits out the table's answer
+        // (since PL-1799 and animations.md § slow frame law 8 that answer rises AFTER the result, inside the window).
+        const stages = document.querySelector('.con-hydro__result-stages');
+        if (w.__result === undefined && stages !== null && stages.getBoundingClientRect().height > 0 &&
+            getComputedStyle(stages).visibility !== 'hidden') {
+          w.__result = {
+            rows: document.querySelectorAll('.con-hydro__result-stagerow').length,
+            excl: document.querySelectorAll('.con-hydro__result-stagerow--excl').length,
+          };
         }
         document.querySelectorAll('.con-deal-proxy').forEach((el) => {
           if (!seenProxies.has(el)) {
@@ -271,11 +283,9 @@ test.describe('Delta Surge — the ordered multi-reward traversal · fhd', () =>
       {timeout: 30_000, message: 'the two picks reached the hand'}).toBe(handBefore + 2);
 
     // The per-stage result: five rows (stages 1..5), each named.
-    await page.waitForSelector('.con-hydro__result-stages', {timeout: 30_000});
-    const result = await page.evaluate(() => ({
-      rows: document.querySelectorAll('.con-hydro__result-stagerow').length,
-      excl: document.querySelectorAll('.con-hydro__result-stagerow--excl').length,
-    }));
+    const recorded = () => page.evaluate(() => (window as unknown as {__result?: {rows: number, excl: number}}).__result ?? null);
+    await expect.poll(recorded, {timeout: 30_000, message: 'the per-stage result stood on screen'}).not.toBeNull();
+    const result = (await recorded())!;
     expect(result.rows, 'five stages, one row each').toBe(5);
     expect(result.excl, 'nothing excluded on this path').toBe(0);
     await page.evaluate(() => (window as unknown as {__probeStop?: () => void}).__probeStop?.());
@@ -291,7 +301,10 @@ test.describe('Delta Surge — the ordered multi-reward traversal · fhd', () =>
     // A finished flow LEAVES (it never folds back to its own browse layer), so
     // the track is re-opened the way the player would: the wheel, then the
     // Hydronetwork — the same route this spec used at the start.
-    await press(page, 'Enter', 1600); // A — end the result, back to the board
+    // A — end the result, back to the board (only while it still reads: past its hold the flow left on its own).
+    if (await page.locator('.con-hydro__layer--result').count() > 0) {
+      await press(page, 'Enter', 1600);
+    }
     await waitForBoardHome(page, 25);
     await press(page, 'Period', 1100);
     await press(page, 'ArrowLeft', 1600);

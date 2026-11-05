@@ -2094,7 +2094,7 @@ import {
 } from '@/client/console/hydroMarker/consoleHydroMarker';
 import {
   HydroResolutionKind, HydroTraversalSegmentRecord, advanceHydroCommitPhase, beginHydroCommit, hydroCeremonyOwed,
-  hydroFlowState, hydroFlowTrail, hydroResolutionBusyOf, hydroWorkspacePhase, installHydroFlowWitnesses,
+  hydroFlowSetAside, hydroFlowState, hydroFlowTrail, hydroResolutionBusyOf, hydroWorkspacePhase, installHydroFlowWitnesses,
   isHydroCeremonyActive,
   registerHydroFlowProbe, resetHydroFlow, resolutionKindFor, rollbackHydroCommit, setHydroRepeatBridge,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
@@ -4686,6 +4686,10 @@ export default defineComponent({
      * decision, the ceremony. Its falling edge — never a timeout — is what
      * advances the flow to the result stage.
      */
+    /** The hydro frame is on the stack (reactive — the frames array): its RETURN from a park / a yield is an edge. */
+    hydroFrameStands(): boolean {
+      return workspaceFrameIndex('hydro') >= 0;
+    },
     hydroResolutionBusy(): boolean {
       // The predicate itself is pure + spec'd (`hydroResolutionBusyOf`): its
       // FALLING EDGE is what lets the flow reach its result stage, and the
@@ -12270,6 +12274,15 @@ export default defineComponent({
      */
     workspaceCollapsed(collapsed: boolean) {
       if (!collapsed) {
+        void this.$nextTick(() => this.settleHydroResolution());
+      }
+    },
+    // …the THIRD restore door: a frame back from standing aside for the board (`resumeStackFromBoard` — several callers)
+    // re-reads its phase (a phase written while it was away was dropped — `syncHydroFramePhase` writes only a frame on
+    // the stack) and re-asks the settle its absence refused.
+    hydroFrameStands(stands: boolean) {
+      if (stands) {
+        this.syncHydroFramePhase();
         void this.$nextTick(() => this.settleHydroResolution());
       }
     },
@@ -20957,7 +20970,13 @@ export default defineComponent({
      * is «ask again when the player is back», never «forget this one».
      */
     settleHydroResolution(): void {
-      if (this.consoleState.task.deferred || workspaceStackCollapsed() || this.hydroResolutionBusy) {
+      // …AND A FRAME STANDING ASIDE FOR THE BOARD is not on screen either (CI 2026-11-05, `console-hydro-copied-tile`):
+      // the stage-7 copy's placement YIELDS the stack, the placement's answer drops the last busy term, and the yield's
+      // return waits for what the board still owes (`screenHandoffOwed` — tokens in the air) — so the result was walked
+      // to and its read hold spent behind the board, and the frame came back wearing the `executing` it left with (the
+      // beat-stall guard tore it down 10 s later). `hydroFlowSetAside` is the one «hidden stage» answer (a park, a
+      // deferred task, a yield); the frame's return re-asks (`hydroFrameStands`).
+      if (hydroFlowSetAside() || this.hydroResolutionBusy) {
         return;
       }
       const c = this.hydroFlow.commit;

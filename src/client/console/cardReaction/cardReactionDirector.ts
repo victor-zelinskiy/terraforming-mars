@@ -1260,15 +1260,21 @@ async function waitSittingQuiet(myEpoch: number): Promise<void> {
  * the marker's glide onto the stage, a traversal's legs, the terminal ceremony — and its reward wave, which
  * `waitRewardPayoutQuiet` above already waits out — and only THEN the table's answer to that reward (the ruling Greens'
  * M€ production for a heat production step) rises at the rail's edge: never over the glide, never over the wave. The
- * flow's RESULT stage is deliberately NOT waited for: it opens on the falling edge of the rail's holds, and the chain
- * holds the party's row until its token lands — a wait for `result` was a mutual wait, broken only by the bound
+ * OPENING of the flow's RESULT stage is deliberately NOT waited for: it opens on the falling edge of the rail's holds,
+ * and the chain holds the party's row until its token lands — a wait for `result` was a mutual wait, broken by the bound
  * (the charter rose 13 s into `resolving` on the box). The hydro ceremony's hold is notification-only (the blocking
  * wait above never sees it), so the flow's own facts are asked. Bounded like the blocking wait.
+ * …BUT ONCE THE RESULT STANDS, IT IS WAITED THROUGH (CI 2026-11-05, `console-delta-surge` · `console-hydro-copied-tile`):
+ * the traversal's own term falls on the very edge that opens the result, so the chain rose 10–17 ms after it — at the
+ * opening's centre, OVER the summary — and the result's read hold ran out under the reaction (a press during the stop
+ * used to hurry the chain out of the way first; PL-1799 rightly stopped that). Past that edge nothing of the flow waits
+ * for the chain any more — the result ends on its own hold — so this is no mutual wait: the answer rises after the result.
  */
 async function waitHydroStoryQuiet(myEpoch: number): Promise<void> {
   const started = typeof performance === 'undefined' ? 0 : performance.now();
   const busy = (): boolean => hydroFlowState.commit !== undefined &&
-    (hydroFlowState.commit.phase === 'moving' || isHydroMarkerActive() || hydroTraversalPending() || hydroFlowState.ceremonyActive || hydroCeremonyOwed());
+    (hydroFlowState.commit.phase === 'moving' || hydroFlowState.commit.phase === 'result' || isHydroMarkerActive() ||
+      hydroTraversalPending() || hydroFlowState.ceremonyActive || hydroCeremonyOwed());
   while (epoch === myEpoch && busy()) {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
       return;

@@ -57,6 +57,11 @@ export type TransferFlightOpts = {
   index: number;
   /** Launch delay within the wave (already motion-scaled AND paced). */
   delayMs: number;
+  /**
+   * The token's place in its wave — its birth waits for its predecessor's real birth, its stagger later
+   * (`TransferWaveGate`). Absent: a lone flight, born on its delay alone.
+   */
+  wave?: TransferWaveSlot;
   uiScale: number;
   /** `true` → the chip RESTS on the destination after touchdown (the sale);
    *  `false` → contact beat + absorb right after arrival (the reward wave). */
@@ -162,11 +167,23 @@ const pendingStarts = new WeakMap<HTMLElement, {cancel: () => void}>();
  * first frame of the pop); the flight starts on the NEXT tick (a later frame — the birth has been painted between
  * them) and runs from there. Whatever the frames cost afterwards, the first thing the player sees is the source.
  * The cost is one frame.
+ *
+ * …AND A WAVE'S BIRTHS ARE A PHRASE OF EVENTS, never offsets from one start (`TransferWaveGate`; animations.md § A
+ * MOTION IS RIGHT ON A SLOW FRAME, law 2): token k is born only once token k − 1 has been born (or will never be), its
+ * stagger later on the animation clock, in a later frame.
  */
-function bornThenFlown(chip: HTMLElement, delayMs: number, fly: () => void, place?: () => boolean): void {
+function bornThenFlown(chip: HTMLElement, delayMs: number, fly: () => void, place?: () => boolean, wave?: TransferWaveSlot): void {
   pendingStarts.get(chip)?.cancel();
   let listener: (() => void) | undefined;
-  const birth = gsap.delayedCall(delayMs / 1000, () => {
+  let waiter: (() => void) | undefined;
+  let waveMarked = false;
+  const markWave = (): void => {
+    if (wave !== undefined && !waveMarked) {
+      waveMarked = true;
+      releaseWaveSlot(wave.gate, wave.index);
+    }
+  };
+  const born = (): void => {
     // THE BIRTH FRAME (T06): the source is measured HERE, in the tick the chip turns visible — a source that is no
     // longer painted gets no chip at all (`place` answers false and owns the outcome), never a token out of its old pose.
     if (place !== undefined && !place()) {
@@ -174,6 +191,7 @@ function bornThenFlown(chip: HTMLElement, delayMs: number, fly: () => void, plac
       return;
     }
     gsap.set(chip, {autoAlpha: TRANSFER_BIRTH_ALPHA});
+    markWave();
     const bornFrame = gsap.ticker.frame;
     // A listener added while this tick dispatches is called in this very tick — hence the frame count.
     listener = () => {
@@ -184,16 +202,83 @@ function bornThenFlown(chip: HTMLElement, delayMs: number, fly: () => void, plac
       fly();
     };
     gsap.ticker.add(listener);
+  };
+  const birth = gsap.delayedCall(delayMs / 1000, () => {
+    if (wave === undefined || waveSlotReady(wave)) {
+      born();
+      return;
+    }
+    // The predecessor is not born yet, or was born too recently: its stagger is counted from ITS birth.
+    waiter = () => {
+      if (!waveSlotReady(wave)) {
+        return;
+      }
+      if (waiter !== undefined) {
+        gsap.ticker.remove(waiter);
+        waiter = undefined;
+      }
+      born();
+    };
+    gsap.ticker.add(waiter);
   });
   const cancel = (): void => {
     birth.kill();
+    if (waiter !== undefined) {
+      gsap.ticker.remove(waiter);
+      waiter = undefined;
+    }
     if (listener !== undefined) {
       gsap.ticker.remove(listener);
       listener = undefined;
     }
     pendingStarts.delete(chip);
+    // A token that will never be born lets the wave go on (its followers never wait for it).
+    markWave();
   };
   pendingStarts.set(chip, {cancel});
+}
+
+/**
+ * A WAVE'S BIRTHS, AS EVENTS (one per run — `runResourceTransfers`). The wave's stagger used to be a set of
+ * `delayedCall` offsets (0, 110, 220 ms…) taken from ONE start — and GSAP's clock moves only at a tick: a wave launched
+ * from a long task (the response's own apply at 4K on a software renderer — hundreds of ms) found EVERY offset already
+ * due at the next tick, and all its tokens were born in that one tick, flew one path as one chip and touched down
+ * together — the rating cell ticked once for two steps (CI 2026-11-05, `console-venus-l1-shade` B / B2: births 2 ms
+ * apart, the cell 20 → 22 in one frame). Now each slot is RELEASED by its token's real birth (or by a token that will
+ * never be born — a refused source, a kill), and token k waits for slot k − 1, its own stagger later on the animation
+ * clock, in a later frame. On a healthy frame this is exactly the old schedule; on a starved one the tokens still go
+ * one after another.
+ */
+export type TransferWaveGate = {done: Array<boolean>, next: number, lastAtMs: number, lastFrame: number};
+/** One token's place in its wave: its index and the stagger it keeps after its predecessor's birth. */
+export type TransferWaveSlot = {gate: TransferWaveGate, index: number, staggerMs: number};
+
+export function createTransferWaveGate(): TransferWaveGate {
+  return {done: [], next: 0, lastAtMs: Number.NEGATIVE_INFINITY, lastFrame: -1};
+}
+
+/** Slot `index` is over (its token was born, or never will be): the next one may follow. Idempotent. */
+export function releaseWaveSlot(gate: TransferWaveGate, index: number): void {
+  if (gate.done[index] === true) {
+    return;
+  }
+  gate.done[index] = true;
+  gate.lastAtMs = gsap.ticker.time * 1000;
+  gate.lastFrame = gsap.ticker.frame;
+  while (gate.done[gate.next] === true) {
+    gate.next++;
+  }
+}
+
+function waveSlotReady(slot: TransferWaveSlot): boolean {
+  const gate = slot.gate;
+  return gate.next >= slot.index &&
+    (slot.index === 0 || (gsap.ticker.frame > gate.lastFrame && gsap.ticker.time * 1000 >= gate.lastAtMs + slot.staggerMs));
+}
+
+/** The wall-clock room a chained token may need beyond its scheduled delay (each predecessor a frame later at least). */
+function waveAllowanceMs(wave: TransferWaveSlot | undefined): number {
+  return wave === undefined ? 0 : wave.index * 400;
 }
 
 /**
@@ -454,7 +539,7 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     planPaint(at);
     placeExpect(piece, opts.expectRect?.(), opts.uiScale, true);
     return true;
-  }), opts.delayMs + popMs + arcMs + settleMs + 200, () => {
+  }, opts.wave), opts.delayMs + popMs + arcMs + settleMs + 200 + waveAllowanceMs(opts.wave), () => {
     // THE SAFETY ON A STARVED RENDERER (see `guarded`): a flight in the air is rendered to its end — the progress
     // tween's last update places the chip on its (live-corrected) destination and the timeline's own completion runs
     // the touchdown there (`guarded` gives that touchdown its short grace).
@@ -660,7 +745,7 @@ export function runDetachedTransferFlight(piece: TransferStagePiece, opts: Detac
     report.born = 'painted';
     report.bornAt = at;
     return true;
-  }), opts.delayMs + popMs + opts.waitBudgetMs + arcMs + settleMs, () => {
+  }, opts.wave), opts.delayMs + popMs + opts.waitBudgetMs + arcMs + settleMs + waveAllowanceMs(opts.wave), () => {
     // A STARVED RENDERER (see `guarded`): an arc in the air is rendered to its landing — its own completion sets the
     // resting point to the destination and resolves; a chip still waiting for its destination stays where it stands.
     if (!chip.isConnected || flight === undefined || flight.progress() >= 1) {

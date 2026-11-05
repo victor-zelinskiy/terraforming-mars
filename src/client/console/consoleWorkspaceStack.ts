@@ -1638,6 +1638,15 @@ export function stackYieldedToBoard(): boolean {
 }
 
 /**
+ * Is a frame of this kind standing aside for the board — off screen, coming back at the same depth? A PLAIN store
+ * (never reactive): ask it from a method at an edge, never from a computed — the frame's return is the edge to watch
+ * (`workspaceFrameIndex` reads the reactive frames it is spliced back into).
+ */
+export function workspaceFrameYielded(kind: WorkspaceFrameKind): boolean {
+  return boardYielded.some((f) => f.kind === kind);
+}
+
+/**
  * The cards the flow standing aside for the board CARRIES (its frames' subjects and source cards) — what a live
  * follow-up of that flow names as its giver (`cardGrantHost.cardGrantOwedTo`, T03).
  */

@@ -34415,7 +34415,10 @@ html.console-mode {
    setup had faded out whole before the Parliament's entry began (an empty stage — `console-martian-media-center`
    § gaps, CI). Keyed on the step's PRESENCE in its zone (the Parliament's or the hand album's — an empty zone holds
    only the teleport's text anchors), the release starts in the very style change that inserts it — whatever lies
-   between the flip and the mount. `:has()` anchored on the composer, never on the root. */
+   between the flip and the mount. `:has()` anchored on the composer, never on the root.
+   ⚠ Committed together is not STARTED together: the step's entry is composited on a cold layer, this release is not —
+   on a software renderer it ran out a frame before the entry began (CI 2026-11-05). The composer puts it on the entry's
+   own start time (`console/stepEntryClock.ts` — animations.md § slow frame, law 7). */
 .con-composer--parlrise:has(.con-composer__parlzone > *, .con-composer__handzone > *) .con-composer__actmain {
     animation: con-composer-setup-release calc(200ms * var(--motion-scale, 1)) ease-out forwards;
 }
