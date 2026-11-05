@@ -14565,3 +14565,70 @@ function worldGovernmentAdvisorFixture(name: string, variant: 'table' | 'maxed')
 }
 worldGovernmentAdvisorFixture('wga-table', 'table');
 worldGovernmentAdvisorFixture('wga-maxed', 'maxed');
+
+// ── PC01 · NIRGAL ENTERPRISES — «ЦЕНА ДОСТИЖЕНИЯ / НАГРАДЫ НАЗЫВАЕТ СВОЮ ПРИЧИНУ» (docs/claude/prompts/
+//    prelude2-pc01-nirgal-enterprises.md, ledger GO). A 2p table (Nirgal Enterprises · ThorGate — the MA fixtures' own
+//    shape), blue on the move with only 2 M€ and a TR of 35 (Terraformer claimable — for FREE):
+//      · `nirgal-ma`        — nothing funded: every price is waived (milestone 8 → 0; the awards 8 → 0 · 14 → 0 · 20 → 0);
+//      · `nirgal-ma-funded` — the first award funded by blue for 0 (`paid: 0`, waived by Nirgal), the second by red for 14
+//        through the real menu — what every seat's ladder must read as the slots' PAST;
+//      · `nirgal-ma-venus`  — `nirgal-ma` on a Venus table: SIX awards — the overview's capacity under a waived price.
+//    A DRY RUN checks the server's own facts (`maCosts.waiver`, the slots' `paid`), so a rule change fails HERE. ──
+function nirgalMaFixture(name: string, funded: boolean, venus = false): void {
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, venusNextExtension: venus,
+    customCorporationsList: [CardName.NIRGAL_ENTERPRISES, CardName.THORGATE], startingCorporations: 1,
+  });
+  // The list tops the corporation deck and the seats draw it in whatever order: hand blue the Nirgal half of it.
+  if (p1.dealtCorporationCards[0]?.name !== CardName.NIRGAL_ENTERPRISES) {
+    const [mine, theirs] = [p1.dealtCorporationCards[0], p2.dealtCorporationCards[0]];
+    p1.dealtCorporationCards.splice(0, 1, theirs);
+    p2.dealtCorporationCards.splice(0, 1, mine);
+  }
+  answerStartFlow(game, [p1, p2]);
+  if (!p1.playedCards.has(CardName.NIRGAL_ENTERPRISES)) {
+    throw new Error(`the ${name} fixture expected blue on Nirgal Enterprises`);
+  }
+  p1.setTerraformRating(35);
+  p1.megaCredits = 2;
+  p2.megaCredits = 40;
+  runAllActions(game);
+  if (game.activePlayer.id !== p1.id) {
+    throw new Error(`the ${name} fixture expected blue on the move`);
+  }
+  if (funded) {
+    // The real funding road (`Player.fundAward` → `Game.fundAward` with the price as charged), seat by seat.
+    const fundVia = (seat: TestPlayer, award: string): void => {
+      const menu = seat.getActions();
+      const option = menu.options
+        .flatMap((o) => o instanceof OrOptions ? o.options : [])
+        .find((o) => o.title === award);
+      if (option === undefined) {
+        throw new Error(`the ${name} fixture could not fund ${award} for ${seat.color}`);
+      }
+      option.cb(undefined);
+      runAllActions(game);
+    };
+    fundVia(p1, game.awards[0].name);
+    fundVia(p2, game.awards[1].name);
+    const [first, second] = game.fundedAwards;
+    if (first?.paid !== 0 || first.waivedBy !== CardName.NIRGAL_ENTERPRISES || second?.paid !== 14 || second.waivedBy !== undefined) {
+      throw new Error(`the ${name} fixture expected the slots 0 (Nirgal) · 14 — got ${JSON.stringify(game.fundedAwards.map((f) => [f.paid, f.waivedBy]))}`);
+    }
+    p2.megaCredits = 40;
+  }
+  // THE DRY RUN: the price's cause is published, the 0 bill asks nothing.
+  const costs = Server.getPlayerModel(p1).maCosts;
+  if (costs?.waiver?.milestone !== CardName.NIRGAL_ENTERPRISES || costs.waiver.award !== CardName.NIRGAL_ENTERPRISES ||
+    costs.milestone !== 0 || costs.award !== 0 || costs.payments !== undefined) {
+    throw new Error(`the ${name} fixture expected both prices waived by Nirgal — got ${JSON.stringify(costs)}`);
+  }
+  const terraformer = game.milestones.find((m) => m.name.startsWith('Terraformer'));
+  if (terraformer === undefined || !p1.claimableMilestones().includes(terraformer)) {
+    throw new Error(`the ${name} fixture expected Terraformer claimable at 2 M€`);
+  }
+  write(name, game);
+}
+nirgalMaFixture('nirgal-ma', false);
+nirgalMaFixture('nirgal-ma-funded', true);
+nirgalMaFixture('nirgal-ma-venus', false, true);

@@ -15,6 +15,9 @@
  * probes), the motion-grammar guards, and the four the first broad sample named.
  */
 export const TIMING_SPECS: ReadonlySet<string> = new Set([
+  // PC01 Nirgal Enterprises (2026-11-05): a waived price flies NOTHING — the transfer witness and the M€ row's transient
+  // record over the claim's whole ceremony are the subject; a frame budget, never logic.
+  'console-nirgal-enterprises.spec.ts',
   // TR80 Hartlan Heating + «СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК» (2026-10-26): the reactor's rise, the births on its effect
   // row and the chain's wall-clock ceiling are the subject — storyboards and timing, never logic.
   'console-hartlan-heating.spec.ts',

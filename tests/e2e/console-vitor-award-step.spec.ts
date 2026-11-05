@@ -165,6 +165,9 @@ test.describe('console Vitor · the free sponsorship is a start-workspace step',
     const detailCrumb = await maCrumbText(page);
     expect(detailCrumb, 'the root survives the descend').toContain('СТАРТ ПАРТИИ');
     expect(detailCrumb, 'the tail deepens to the funding stage').toContain('СПОНСОРСТВО');
+    // PC01 · GO: Vitor's sponsorship is FREE by its own rule — never a waived price, never a struck table price.
+    await expect(page.locator('.con-mafocus [data-ma-ladder-step][data-ma-price-kind="free"]'), 'the next step reads free').toHaveCount(1);
+    await expect(page.locator('.con-mafocus [data-ma-price-kind="waived"]'), 'nothing reads waived').toHaveCount(0);
     await shoot(page, '04-detail');
 
     // ── A commits the free funding → the ceremony plays INSIDE the workspace,

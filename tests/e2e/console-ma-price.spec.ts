@@ -78,6 +78,8 @@ test.describe(`MA · the price leaves the rail first, Helion pays inside · ${PR
     const before = await wireOf(request, id);
     await openTerraformer(page);
     await expect(page.locator('.con-mafocus [data-ma-price-target]'), 'the printed price on the detail').toHaveCount(1);
+    // PC01 · GO: a price nobody waived reads PAID — the number it always was, the flight's target kept.
+    await expect(page.locator('.con-mafocus [data-ma-price-target]'), 'a plain seat\'s price reads paid').toHaveAttribute('data-ma-price-kind', 'paid');
     await shoot(page, 'i-detail');
     await armTransferWitness(page);
     const posts = watchPosts(page);

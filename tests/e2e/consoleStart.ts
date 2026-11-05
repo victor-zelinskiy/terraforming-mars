@@ -3239,6 +3239,8 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   'focused-organization-stocked' | 'focused-organization-empty-hand' | 'focused-organization-empty-stock' |
   // PL-1621 / PL-1622 — the milestone's price off the rail, Helion's bill inside the detail.
   'ma-claim-price' | 'ma-claim-helion' |
+  // PC01 Nirgal Enterprises: the waived milestone / award price (`-funded`: the first slot went for 0 by Nirgal, the second for 14; `-venus`: six awards).
+  'nirgal-ma' | 'nirgal-ma-funded' | 'nirgal-ma-venus' |
   // P45 Board of Directors: the verdict after the reveal inside «ДЕЙСТВИЯ КАРТ» (play · discard · refused · burn · variant · tile · Helion · last · empty).
   'board-of-directors-loan' | 'board-of-directors-poor' | 'board-of-directors-burn' | 'board-of-directors-variant' | 'board-of-directors-tile' |
   'board-of-directors-helion' | 'board-of-directors-last' | 'board-of-directors-empty' | 'board-of-directors-spent' |
