@@ -549,6 +549,9 @@ const synergiesData: Array<[MilestoneName | AwardName, MilestoneName | AwardName
   ['Naturalist', 'Zoologist', 2],
 
   ['Risktaker', 'Kingpin', 9],
+  // vize1215 fork — Turmoil Redux: the Career steps Activist counts come mostly from WINNING sittings, which is
+  // what placing delegates (T. Politician) buys — the same seat chases both, but they are not one scoring vector.
+  ['Activist', 'T. Politician', 4],
   // ['Tunneler', 'Excavator', 8],
   // ['Excavator', 'Edgedancer', 9],
 ];

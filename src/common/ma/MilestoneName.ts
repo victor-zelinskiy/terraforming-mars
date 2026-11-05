@@ -75,6 +75,9 @@ export const milestoneNames = [
   // Ares Extreme
   'Purifier',
 
+  // Turmoil Redux
+  'Activist',
+
   // Modular
   'Briber',
   'Builder7',

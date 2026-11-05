@@ -134,5 +134,7 @@
     "Risktaker": "Авантюрист",
     "Have at least 3 NEGATIVE VPs among your cards. (Event cards count.)": "Имейте не менее 3 отрицательных ПО на ваших картах (события тоже считаются)",
     "Tunneler": "Проходчик",
-    "Have at least 7 underground tokens": "Имейте не менее 7 подземных жетонов"
+    "Have at least 7 underground tokens": "Имейте не менее 7 подземных жетонов",
+    "Activist": "Активист",
+    "Advance your Agenda marker at least 3 steps from its starting position (to the step that gives 2 influence)": "Продвиньте маркер Карьеры не менее чем на 3 шага от старта (до шага «Влияние 2»)"
 }

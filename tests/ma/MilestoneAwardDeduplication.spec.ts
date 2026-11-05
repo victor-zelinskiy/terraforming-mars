@@ -58,6 +58,18 @@ function allExpansions(extra: Partial<GameOptions> = {}): GameOptions {
   };
 }
 
+// The widest random pool under each Parliament: classic Turmoil and Turmoil Redux are mutually exclusive (Redux
+// also needs Colonies), so no single option set reaches every milestone/award.
+const RANDOM_POOLS: ReadonlyArray<[string, GameOptions]> = [
+  ['classic Turmoil', allExpansions({randomMA: RandomMAOptionType.ALL})],
+  ['Turmoil Redux', allExpansions({
+    randomMA: RandomMAOptionType.ALL,
+    turmoilExtension: false,
+    turmoilReduxExpansion: true,
+    expansions: {...allExpansions().expansions, turmoil: false, turmoilRedux: true},
+  })],
+];
+
 describe('Milestone/Award random-pool de-duplication (vize1215 fork)', () => {
   describe('exclusion-group metadata integrity', () => {
     it('every grouped name is a real milestone or award', () => {
@@ -92,63 +104,67 @@ describe('Milestone/Award random-pool de-duplication (vize1215 fork)', () => {
   });
 
   describe('Russian name uniqueness in the random pool', () => {
-    it('no two pool candidates share a Russian name unless they are in the same exclusion group', () => {
-      const [milestones, awards] = getCandidates(allExpansions({randomMA: RandomMAOptionType.ALL}));
-      const candidates: ReadonlyArray<MAName> = [...milestones, ...awards];
+    // Two pools, because the two Parliaments are mutually exclusive: the classic one (Lobbyist, Politician) and
+    // Turmoil Redux (Activist) never share a game, and each must read cleanly in Russian on its own.
+    for (const [pool, options] of RANDOM_POOLS) {
+      it(`no two pool candidates share a Russian name unless they are in the same exclusion group — ${pool}`, () => {
+        const [milestones, awards] = getCandidates(options);
+        const candidates: ReadonlyArray<MAName> = [...milestones, ...awards];
 
-      const byName = new Map<string, Array<MAName>>();
-      for (const name of candidates) {
-        const key = normalizeRu(russianName(name));
-        const list = byName.get(key) ?? [];
-        list.push(name);
-        byName.set(key, list);
-      }
-
-      for (const [ruName, members] of byName.entries()) {
-        if (members.length === 1) {
-          continue;
+        const byName = new Map<string, Array<MAName>>();
+        for (const name of candidates) {
+          const key = normalizeRu(russianName(name));
+          const list = byName.get(key) ?? [];
+          list.push(name);
+          byName.set(key, list);
         }
-        // A collision is only acceptable when every colliding MA shares ONE exclusion group, which
-        // guarantees the selector never offers two of them in the same game.
-        const groups = new Set(members.map((m) => randomExclusionGroup(m)));
-        expect(groups.size, `Russian name "${ruName}" is shared by ${members.join(', ')} across different ` +
-          `exclusion groups; rename one or group them`).to.equal(1);
-        expect([...groups][0], `Russian name "${ruName}" is shared by ${members.join(', ')} but none are in an ` +
-          `exclusion group; rename one or group them`).to.not.be.undefined;
-      }
-    });
 
-    it('no two pool candidates share a Russian DESCRIPTION unless they are in the same exclusion group', () => {
-      const [milestones, awards] = getCandidates(allExpansions({randomMA: RandomMAOptionType.ALL}));
-      const candidates: ReadonlyArray<MAName> = [...milestones, ...awards];
-
-      const byDescription = new Map<string, Array<MAName>>();
-      for (const name of candidates) {
-        const key = normalizeRu(russianDescription(name));
-        const list = byDescription.get(key) ?? [];
-        list.push(name);
-        byDescription.set(key, list);
-      }
-
-      for (const [description, members] of byDescription.entries()) {
-        if (members.length === 1) {
-          continue;
+        for (const [ruName, members] of byName.entries()) {
+          if (members.length === 1) {
+            continue;
+          }
+          // A collision is only acceptable when every colliding MA shares ONE exclusion group, which
+          // guarantees the selector never offers two of them in the same game.
+          const groups = new Set(members.map((m) => randomExclusionGroup(m)));
+          expect(groups.size, `Russian name "${ruName}" is shared by ${members.join(', ')} across different ` +
+            `exclusion groups; rename one or group them`).to.equal(1);
+          expect([...groups][0], `Russian name "${ruName}" is shared by ${members.join(', ')} but none are in an ` +
+            `exclusion group; rename one or group them`).to.not.be.undefined;
         }
-        const groups = new Set(members.map((m) => randomExclusionGroup(m)));
-        expect(groups.size, `Russian condition "${description}" is shared by ${members.join(', ')} across ` +
-          `different exclusion groups; fix the translation or group them`).to.equal(1);
-        expect([...groups][0], `Russian condition "${description}" is shared by ${members.join(', ')} but none ` +
-          `are in an exclusion group; fix the translation or group them`).to.not.be.undefined;
-      }
-    });
+      });
 
-    it('every pool candidate has a Russian name (no untranslated latin name leaks into the pool)', () => {
-      const [milestones, awards] = getCandidates(allExpansions({randomMA: RandomMAOptionType.ALL}));
-      for (const name of [...milestones, ...awards]) {
-        const ru = russianName(name);
-        expect(/[a-zA-Z]/.test(ru), `${name} has no Russian translation (resolves to "${ru}")`).to.be.false;
-      }
-    });
+      it(`no two pool candidates share a Russian DESCRIPTION unless they are in the same exclusion group — ${pool}`, () => {
+        const [milestones, awards] = getCandidates(options);
+        const candidates: ReadonlyArray<MAName> = [...milestones, ...awards];
+
+        const byDescription = new Map<string, Array<MAName>>();
+        for (const name of candidates) {
+          const key = normalizeRu(russianDescription(name));
+          const list = byDescription.get(key) ?? [];
+          list.push(name);
+          byDescription.set(key, list);
+        }
+
+        for (const [description, members] of byDescription.entries()) {
+          if (members.length === 1) {
+            continue;
+          }
+          const groups = new Set(members.map((m) => randomExclusionGroup(m)));
+          expect(groups.size, `Russian condition "${description}" is shared by ${members.join(', ')} across ` +
+            `different exclusion groups; fix the translation or group them`).to.equal(1);
+          expect([...groups][0], `Russian condition "${description}" is shared by ${members.join(', ')} but none ` +
+            `are in an exclusion group; fix the translation or group them`).to.not.be.undefined;
+        }
+      });
+
+      it(`every pool candidate has a Russian name (no untranslated latin name leaks into the pool) — ${pool}`, () => {
+        const [milestones, awards] = getCandidates(options);
+        for (const name of [...milestones, ...awards]) {
+          const ru = russianName(name);
+          expect(/[a-zA-Z]/.test(ru), `${name} has no Russian translation (resolves to "${ru}")`).to.be.false;
+        }
+      });
+    }
   });
 
   describe('the selector never offers two MAs from the same exclusion group', () => {
