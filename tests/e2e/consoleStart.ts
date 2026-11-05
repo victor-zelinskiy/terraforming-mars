@@ -3241,6 +3241,8 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   'ma-claim-price' | 'ma-claim-helion' |
   // PC01 Nirgal Enterprises: the waived milestone / award price (`-funded`: the first slot went for 0 by Nirgal, the second for 14; `-venus`: six awards).
   'nirgal-ma' | 'nirgal-ma-funded' | 'nirgal-ma-venus' |
+  // PC02 Palladin Shipping: the space event the table answers (one row for the price and the answer; two reactors; the «almost»), the action (thresholds, the maximum, refused).
+  'palladin-event' | 'palladin-event-aerobraking' | 'palladin-almost' | 'palladin-threshold' | 'palladin-threshold-heat' | 'palladin-max' | 'palladin-short' |
   // P45 Board of Directors: the verdict after the reveal inside «ДЕЙСТВИЯ КАРТ» (play · discard · refused · burn · variant · tile · Helion · last · empty).
   'board-of-directors-loan' | 'board-of-directors-poor' | 'board-of-directors-burn' | 'board-of-directors-variant' | 'board-of-directors-tile' |
   'board-of-directors-helion' | 'board-of-directors-last' | 'board-of-directors-empty' | 'board-of-directors-spent' |

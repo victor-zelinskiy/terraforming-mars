@@ -14651,3 +14651,87 @@ function nirgalMaFixture(name: string, funded: boolean, venus = false): void {
 nirgalMaFixture('nirgal-ma', false);
 nirgalMaFixture('nirgal-ma-funded', true);
 nirgalMaFixture('nirgal-ma-venus', false, true);
+
+// ── PC02 · PALLADIN SHIPPING — «СОБЫТИЕ, НА КОТОРОЕ ОТВЕТИЛ СТОЛ, — ОДНА ФРАЗА» (docs/claude/prompts/prelude2-pc02-
+//    palladin-shipping.md, ledger GQ). The OWNER'S table: SOLO AGAINST MARSBOT (base), Palladin Shipping GUARANTEED by
+//    `customCorporationsList` WITHOUT `prelude2Expansion` (the bot is never C43 — the collision by `original`), blue on
+//    the move in the action phase, the bot's deck opened by a calm bonus card:
+//      · `palladin-event`            — 0 M€ + 5 titanium: Imported GHG (Earth · Space event, 7 — paid with 3 titanium:
+//        the price and the answer on ONE row, 5 → 2 → 3) and Technology Demonstration (Science · Space event, 5 — a draw,
+//        no reward of its own into the rail: the table's answer is the phrase's only token);
+//      · `palladin-event-aerobraking` — the same + Optimal Aerobraking on the table: TWO reactors to one event (3 M€ +
+//        3 heat and 1 titanium), in turn, each once;
+//      · `palladin-almost`           — 30 M€, 0 titanium: Space Station (a space card, not an event) and Investment Loan
+//        (an event without the Space tag) — the «almost», nothing answers;
+//      · `palladin-threshold`        — −2 °C, 2 titanium, the action unused: the 0 °C ocean is the player's own
+//        placement after the scale's story; `palladin-threshold-heat` — −26 °C (the −24 °C heat production);
+//      · `palladin-max`              — +8 °C: the action stands «без эффекта», activatable;
+//      · `palladin-short`            — 1 titanium: the action shown refused with the engine's reason.
+//    A DRY RUN on a copy proves every answer the stand waits for. ──
+function palladinFixture(name: string): void {
+  const pinned = [CardName.PALLADIN_SHIPPING];
+  const [game, human] = testAutomaGame({startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned]});
+  assignPinnedCorporations(name, [human], pinned);
+  if (!(human.getWaitingFor() instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${human.getWaitingFor()?.constructor.name}`);
+  }
+  answerStartFlow(game, [human]);
+  if (!human.playedCards.has(CardName.PALLADIN_SHIPPING) || game.automa?.corporation === 'C43') {
+    throw new Error(`${name}: expected blue on Palladin Shipping and the bot off its twin — got bot ${game.automa?.corporation}`);
+  }
+  const automa = game.automa!;
+  automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}];
+  const take = (n: CardName) => {
+    moveToDeckTop(game, n);
+    return game.projectDeck.drawOrThrow(game);
+  };
+  human.cardsInHand.splice(0, human.cardsInHand.length);
+  const events = name === 'palladin-event' || name === 'palladin-event-aerobraking';
+  if (events) {
+    human.cardsInHand.push(take(CardName.IMPORTED_GHG), take(CardName.TECHNOLOGY_DEMONSTRATION));
+    human.megaCredits = 0;
+    human.titanium = 5;
+    if (name === 'palladin-event-aerobraking') {
+      human.playedCards.push(take(CardName.OPTIMAL_AEROBRAKING));
+    }
+  } else if (name === 'palladin-almost') {
+    human.cardsInHand.push(take(CardName.SPACE_STATION), take(CardName.INVESTMENT_LOAN));
+    human.megaCredits = 30;
+    human.titanium = 0;
+  } else {
+    human.megaCredits = 10;
+    human.titanium = name === 'palladin-short' ? 1 : 2;
+    setTemperature(game, name === 'palladin-threshold' ? -2 : name === 'palladin-threshold-heat' ? -26 : name === 'palladin-max' ? MAX_TEMPERATURE : -10);
+  }
+  runAllActions(game);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected blue on the move with the action menu — got phase=${game.phase} active=${game.activePlayer.color} wf=${human.getWaitingFor()?.constructor.name}`);
+  }
+  // THE DRY RUN — the real roads on a copy.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(human.id);
+  if (events) {
+    blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.IMPORTED_GHG)!, Payment.of({titanium: 3}));
+    runAllActions(copy);
+    const want = name === 'palladin-event-aerobraking' ? {titanium: 3, megacredits: 3, heat: 6} : {titanium: 3, megacredits: 0, heat: 3};
+    const got = {titanium: blue.titanium, megacredits: blue.megaCredits, heat: blue.heat};
+    if (JSON.stringify(got) !== JSON.stringify(want)) {
+      throw new Error(`${name}: the dry run read ${JSON.stringify(got)} — expected ${JSON.stringify(want)}`);
+    }
+  } else if (name === 'palladin-almost') {
+    blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.INVESTMENT_LOAN)!, Payment.of({megacredits: 3}));
+    runAllActions(copy);
+    if (blue.titanium !== 0) {
+      throw new Error(`${name}: a non-space event answered — titanium ${blue.titanium}`);
+    }
+  } else {
+    const palladin = blue.playedCards.get(CardName.PALLADIN_SHIPPING) as IActionCard & ICard;
+    if (palladin.canAct(blue) !== (name !== 'palladin-short')) {
+      throw new Error(`${name}: canAct read ${palladin.canAct(blue)}`);
+    }
+  }
+  write(name, game);
+}
+for (const name of ['palladin-event', 'palladin-event-aerobraking', 'palladin-almost', 'palladin-threshold', 'palladin-threshold-heat', 'palladin-max', 'palladin-short']) {
+  palladinFixture(name);
+}
