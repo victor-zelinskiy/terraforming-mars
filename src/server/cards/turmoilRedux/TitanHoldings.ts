@@ -1,4 +1,5 @@
 import {Tag} from '../../../common/cards/Tag';
+import {TITAN_TAGS} from '../../../common/cards/titanHoldingsTags';
 import {CardName} from '../../../common/cards/CardName';
 import {CardResource} from '../../../common/CardResource';
 import {DeclaredHolderRole} from '../../../common/cards/holderRole';
@@ -29,7 +30,8 @@ export const TITAN_EFFECT_TEXT_NO_VENUS = 'After you play a Mars, Earth, Jovian,
 export const TITAN_EFFECT_TEXT_NO_MOON_NO_VENUS = 'After you play a Mars, Earth, or Jovian tag (including these), add 1 leverage resource to this card.';
 
 /** The PLANET TAGS the effect answers — the five the scan's ringed-planet disc stands for. */
-export const TITAN_TAGS: ReadonlyArray<Tag> = [Tag.MARS, Tag.EARTH, Tag.VENUS, Tag.JOVIAN, Tag.MOON];
+// The list itself lives in `common` — the bot's CF10 reads the same one (`common/cards/titanHoldingsTags.ts`).
+export {TITAN_TAGS};
 
 /**
  * THE ONE MATCH PREDICATE (rule 2) — read by the live hook AND its forecast twin; never a second copy (client, preview

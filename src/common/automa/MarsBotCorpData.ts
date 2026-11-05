@@ -28,7 +28,7 @@ export type {MarsBotCubeType} from './AutomaTypes';
  * C35's card either carries its white cube or it does not, and the count IS
  * the state (the printed effect only ever puts one there or takes it away).
  */
-export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white' | 'cube-black' | 'mech' | 'fighter' | 'heat' | 'data' | 'journalism';
+export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white' | 'cube-black' | 'mech' | 'fighter' | 'heat' | 'data' | 'journalism' | 'leverage';
 
 /**
  * How the bot picks (and protects) cards in the research draft — RB-B "Draft
@@ -1584,6 +1584,35 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.CF10_TITAN_HOLDINGS]: {
+    id: MarsBotCorpId.CF10_TITAN_HOLDINGS,
+    // THE FORK'S OWN BOT CARD (the owner, 2026-11-05) for the Turmoil Redux corporation TR84 — «the Holding's Lobby»
+    // (docs/AUTOMA_DATA_AUDIT.md §20): planet tags bring leverage, leverage buys delegates where they still matter.
+    cardNumber: 'CF10',
+    original: CardName.TITAN_HOLDINGS,
+    // The human card's corner — Earth and Jovian (their own leverage: «including these»).
+    startingTags: [Tag.EARTH, Tag.JOVIAN],
+    // DRAFT PRIORITY — the planets the holding is built on.
+    draftPriority: {type: 'tags', tags: [Tag.EARTH, Tag.JOVIAN]},
+    // The Mars Parliament, like the human card.
+    requiresModules: ['turmoilRedux'],
+    // THE LEVERAGE — the human card's own resource in the `.pcard__res` capsule.
+    resource: 'leverage',
+    corpBonusCards: [],
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Earth, then Jovian'}]},
+      {kind: 'setup', lines: [
+        {text: 'This corporation is only used in a game with Turmoil Redux', muted: true},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'leverage', text: 'Each Mars, Earth, Venus, Jovian or Moon tag MarsBot resolves — including these — puts ${0} leverage on this card', params: ['1']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'delegate', text: 'For each leverage here, MarsBot spends it: a delegate from its reserve to the resolution it is closest to winning'},
+        {icon: 'deck', text: 'Where no delegate would change the vote — MarsBot already leads it, or has none left — the leverage advances its least advanced planet track instead'},
+      ]},
+    ],
+  },
 };
 
 export function marsBotCorpInfo(id: MarsBotCorpId): MarsBotCorpInfo {
@@ -1665,6 +1694,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           over — TR is one per conversion) and pristarMc (the M€ they
  *           paid), plus pristarSkipped<Parameter> per parameter, so the
  *           finale can name WHICH of the four stood still.
+ * Titan Holdings (CF10): titanLeverage (leverage its planet tags put on the card), titanDelegates / titanInvestments (what
+ *           the leverage bought — delegates sent where they could change the vote, planet-track pushes in their stead).
  * The Deimos Group (CF9): deimosSetupDelegates (the setup's delegate), deimosRumours (votes it did not win), deimosDelegates
  *           / deimosPushes (what the rumours bought — delegates sent, least-advanced-track pushes), deimosLastSitting (the
  *           number of the last sitting that paid a rumour — the reload guard, not a count).

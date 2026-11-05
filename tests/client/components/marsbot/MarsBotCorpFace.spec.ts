@@ -696,6 +696,21 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(face.find('.pcard__res').exists(), 'the mech store').is.true;
   });
 
+  it('Titan Holdings (CF10, the fork\'s own card) prints its leverage and the lobby, never the human 50 M€ or M€ production', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.CF10_TITAN_HOLDINGS);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the leverage').contains('leverage');
+    expect(text, 'the planet track').contains('planet track');
+    expect(text, 'the draft plate').contains('Earth, then Jovian');
+    // The human Titan Holdings starts with 50 M€ and 2 M€ production — none of that.
+    expect(text).not.contains('50');
+    expect(text).not.match(/M€ production/i);
+    const face = mountFace(MarsBotCorpId.CF10_TITAN_HOLDINGS);
+    expect(face.findAll('.pcard__tags .pcard-tag'), 'Earth + Jovian').has.length(2);
+    expect(face.find('.pcard__res').exists(), 'the leverage capsule').is.true;
+  });
+
   it('The Deimos Group (CF9, the fork\'s own card) prints its rumours and the hidden project, never the human 50 M€ or the waiver', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.CF9_DEIMOS_GROUP);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Before action phase']);

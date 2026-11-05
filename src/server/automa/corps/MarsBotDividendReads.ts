@@ -57,6 +57,15 @@ export function pileTagCount(game: IGame, tags: ReadonlyArray<Tag>): number {
   return n;
 }
 
+/** Cards the other players played that carry ANY of `tags` (a card is counted once — CF10's tenants). */
+export function otherPlayersCardsWithAnyTag(game: IGame, tags: ReadonlyArray<Tag>): number {
+  let n = 0;
+  for (const human of humansOf(game)) {
+    n += human.playedCards.asArray().filter((card) => card.tags.some((tag) => tags.includes(tag))).length;
+  }
+  return n;
+}
+
 /** Cards of the played pile satisfying `predicate`. */
 export function pileCount(game: IGame, predicate: (card: IProjectCard) => boolean): number {
   return pileCards(game).filter(predicate).length;

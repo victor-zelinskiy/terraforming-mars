@@ -324,5 +324,10 @@
     "${0} VP per ${1} cards with an Earth tag the other players played": "${0} ПО за каждые ${1} карты с меткой Земли, сыгранные другими игроками",
     "Cards with an Earth tag the other players played": "Карты с меткой Земли у других игроков",
     "No weak spots": "Без слабых мест",
-    "Space number of MarsBot's least advanced track": "номер клетки самого отстающего трека Бота"
+    "Space number of MarsBot's least advanced track": "номер клетки самого отстающего трека Бота",
+    "Tenants": "Арендаторы",
+    "${0} VP per ${1} cards with a planet tag the other players played": "${0} ПО за каждые ${1} карты с планетной меткой, сыгранные другими игроками",
+    "Cards with a planet tag the other players played": "Карты с планетной меткой у других игроков",
+    "Planetary portfolio": "Планетарный портфель",
+    "Planet tags in MarsBot's played pile": "планетные метки"
 }

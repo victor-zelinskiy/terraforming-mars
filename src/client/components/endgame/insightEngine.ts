@@ -3300,6 +3300,19 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 6,
         });
       }
+    } else if (corp.id === 'CF10') {
+      // Titan Holdings (the fork's own card): what the table SAW is the planets' leverage turned into the lobby's moves.
+      const delegates = stat('titanDelegates');
+      const investments = stat('titanInvestments');
+      if (delegates + investments >= 5) {
+        stories.push({
+          key: 'effect',
+          textKey: 'The lobby of ${0}\'s ${1} worked the Parliament: ${2} delegates and ${3} investments bought with leverage.',
+          params: [raw(p.name), raw(corp.name), raw(delegates), raw(investments)],
+          measure: delegates + investments,
+          scale: 10,
+        });
+      }
     } else if (corp.id === 'CF9') {
       // The Deimos Group (the fork's own card): what the table SAW is the bot's lost votes turned into pressure.
       const spent = stat('deimosPushes');

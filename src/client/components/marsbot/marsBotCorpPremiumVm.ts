@@ -533,6 +533,18 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.tag(Tag.POWER).startEffect.cards(1).asterix();
       });
     });
+  case MarsBotCorpId.CF10_TITAN_HOLDINGS:
+    return CardRenderer.builder((b) => {
+      // EFFECT: the human card's own row — a planet tag (the asterisk: Mars, Earth, Venus, Jovian, Moon) → leverage.
+      b.effect(undefined, (eb) => {
+        eb.tag(Tag.JOVIAN).asterix().startEffect.resource(CardResource.LEVERAGE);
+      });
+      // BEFORE ACTION PHASE: a leverage → a delegate (the human card's action) — or, where no delegate would change the
+      // vote, the planet track (the asterisk).
+      b.action(undefined, (eb) => {
+        eb.resource(CardResource.LEVERAGE).startAction.delegates(1).asterix();
+      });
+    });
   case MarsBotCorpId.CF9_DEIMOS_GROUP:
     return CardRenderer.builder((b) => {
       // SETUP: the human card's first action — one delegate — and the rumour that precedes the group.
@@ -785,6 +797,9 @@ function corpResourceSocket(resource: MarsBotCorpResource): {type: CardResource,
   // CF9 The Deimos Group's rumours — the press (the existing journalism resource).
   case 'journalism':
     return {type: CardResource.JOURNALISM};
+  // CF10 Titan Holdings' leverage — the human card's own resource.
+  case 'leverage':
+    return {type: CardResource.LEVERAGE};
   default: {
     const never: never = resource;
     void never;

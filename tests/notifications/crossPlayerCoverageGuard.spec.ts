@@ -419,6 +419,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       [MarsBotCorpId.CF7_LOTUS_INNOVATIONS]: botOnly, // data onto its own card; the setup TR is the bot's own
       [MarsBotCorpId.CF8_PROTEUS]: botOnly, // the imprint's cards go to the open discard, data onto its own card — the runs are BC8's
       [MarsBotCorpId.CF9_DEIMOS_GROUP]: touchesHumans, // its delegates change who wins the vote — the human's Agenda and the law's winner
+      [MarsBotCorpId.CF10_TITAN_HOLDINGS]: touchesHumans, // its leverage buys delegates that change who wins the vote
     };
     expect(Object.keys(CORPS).length, 'every bot corporation classified').eq(Object.values(MarsBotCorpId).length);
   });

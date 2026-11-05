@@ -911,5 +911,12 @@
     "${0} spent a rumour from its corporation ${1}": "${0} тратит слух с корпорации ${1}",
     "${0} has no delegate it can send for its corporation ${1}": "${0}: корпорации ${1} некого отправить — делегатов нет или голосование решено",
     "Place ${0} rumour on this card": "Положите на эту карту слухи: ${0}",
-    "${0} put ${1} rumour(s) on its corporation ${2}": "${0} кладёт на свою корпорацию ${2} слухи: ${1}"
+    "${0} put ${1} rumour(s) on its corporation ${2}": "${0} кладёт на свою корпорацию ${2} слухи: ${1}",
+    "Earth, then Jovian": "Земля, затем Юпитер",
+    "Each Mars, Earth, Venus, Jovian or Moon tag MarsBot resolves — including these — puts ${0} leverage on this card": "Каждая метка Марса, Земли, Венеры, Юпитера или Луны, которую разыгрывает Бот, — включая эти, — кладёт на эту карту сделки: ${0}",
+    "For each leverage here, MarsBot spends it: a delegate from its reserve to the resolution it is closest to winning": "За каждую сделку здесь Бот тратит её: делегат из резерва на резолюцию, где он ближе всего к победе",
+    "Where no delegate would change the vote — MarsBot already leads it, or has none left — the leverage advances its least advanced planet track instead": "Если делегат голосования не изменит — Бот уже впереди или делегатов не осталось, — сделка вместо этого продвигает самый отстающий планетный трек Бота",
+    "${0} put ${1} leverage on its corporation ${2}": "${0} кладёт на свою корпорацию ${2} сделки: ${1}",
+    "${0} spent ${1} leverage on a delegate": "${0} тратит сделку на делегата (${1})",
+    "${0} spent ${1} leverage on its planet track — no delegate would change the vote": "${0} тратит сделку на планетный трек (${1}) — делегат голосования бы не изменил"
 }
