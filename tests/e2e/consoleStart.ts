@@ -3945,7 +3945,14 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3, o
     await passDeferredTableQuestions(page);
     // The alternative board's Venus bonus is PRE-SELECTED on the sheet (P89 · EL): the commit is held until it is laid out.
     await answerVenusSpread(page, opts.venusLane);
-    for (let i = 0; i < 5 && await page.locator('.con-composer--play').count() > 0; i++) {
+    // THE PLAY IS MADE once the played-hero scene is ARMED (PL-1841 ⑤): an event that pays FACE UP keeps its composer
+    // standing through the pay-back on purpose, so «the composer is still there» is no witness — a press there hurries,
+    // then CUTS, the table's answer playing on stage (`console-terraforming-deal` B · `console-palladin-shipping` B).
+    const heroArmed = () => page.evaluate(() => {
+      const phase = (window as unknown as {__conReady?: () => {playedHero?: {phase?: string}}}).__conReady?.()?.playedHero?.phase;
+      return phase !== undefined && phase !== '' && phase !== 'idle';
+    }).catch(() => false);
+    for (let i = 0; i < 5 && await page.locator('.con-composer--play').count() > 0 && !await heroArmed(); i++) {
       await press(page, 'Enter', 900);
     }
     await page.waitForTimeout(4200); // the played-hero scene settles, the card lands

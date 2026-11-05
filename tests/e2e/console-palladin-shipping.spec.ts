@@ -29,8 +29,8 @@ import {readTransient, recordTransient} from './transientRecorder';
  *   C · `palladin-almost`: a space card that is not an event, an event without the Space tag — nothing answers.
  *   D · the action (`palladin-threshold-heat` at −26 °C): the crumb, the price off the titanium row FIRST, the step, the
  *       −24 °C heat production.
- *   E · `palladin-threshold` (−2 °C): the player's own 0 °C ocean is asked and lands; the grid lighting over a dial still
- *       on −2 is the named gap PL-1840 (recorded in the annotation, not asserted).
+ *   E · `palladin-threshold` (−2 °C): the action leaves, the marker glides −2 → 0 on the open board, and only then does
+ *       the player's own ocean grid light (PL-1840 — the placement takes the board for the scale's story).
  *   F · `palladin-max`: the action stands «без эффекта», activatable.  G · `palladin-short`: refused with a reason.
  *   H · a reload after B: the same numbers, nothing told again.
  *
@@ -198,6 +198,10 @@ test.describe(`PC02 Palladin Shipping · the event the table answered is ONE phr
     expect(ti[ti.length - 1], `the row ends on the server (${ti.join(' → ')})`).toBe(3);
     expect(ti.includes(2), `the price is read on its own — the row passes 2 (${ti.join(' → ')})`).toBe(true);
     expect(ti.indexOf(2), `the answer comes after the price (${ti.join(' → ')})`).toBeLessThan(ti.lastIndexOf(3));
+    // ① PL-1841 — the card's own price in titanium is a TOKEN: born on the titanium row, absorbed into the standing card,
+    // before the lift (its birth is a `shipping` birth of the phrase).
+    const priceBirths = witness.births.filter((b) => b.under === 'rail:titanium');
+    expect(priceBirths.length, `the price left the titanium row as a token (trail:\n${trail})`).toBe(1);
     // ③ ONE teller, born on a painted source — the reactor (the framework's law), landed on the titanium row.
     const answers = witness.births.filter((b) => b.under.startsWith(`reactor:${CORP}`) || b.under === `reactor-seat:${CORP}` || b.under.startsWith('tag:'));
     expect(answers.length, `the answer was born on the reactor (trail:\n${trail})`).toBeGreaterThan(0);
@@ -320,10 +324,15 @@ test.describe(`PC02 Palladin Shipping · the event the table answered is ONE phr
     const price = witness.births.filter((b) => b.under === 'rail:titanium');
     expect(price.length, `the price was born on the titanium row (trail:\n${trail})`).toBeGreaterThan(0);
     expect(witness.landings.filter((l) => price.some((b) => b.id === l.id)).every((l) => l.under === 'hero'), `…into the printed price (trail:\n${trail})`).toBe(true);
+    // PL-1841 ② — the −24 °C heat-production bonus is the SCALE's: born on the board (the track's printed chip), never on
+    // a «Сработает» chip of the setup sheet; landed on the heat row.
+    const heatBonus = witness.births.filter((b) => witness.landings.some((l) => l.id === b.id && l.under === 'rail:heat'));
+    expect(heatBonus.length, `the heat production flew (trail:\n${trail})`).toBe(1);
+    expect(heatBonus[0].under.startsWith('forecast:'), `…off the board, never the sheet (trail:\n${trail})`).toBe(false);
     expect(endsOverGlass(witness), 'no end over glass').toEqual([]);
   });
 
-  test('E · −2 °C: the action opens the player\'s own ocean placement, the ocean lands (the story\'s order — gap PL-1840, recorded)', async ({page, request}) => {
+  test('E · −2 °C: the scale\'s story first — the ocean grid lights only over a dial resting on 0 (PL-1840)', async ({page, request}) => {
     test.setTimeout(420_000);
     const id = await bootFixture(page, request, 'palladin-threshold', {query: PRESET.query});
     await settle(page, {timeoutMs: 30_000});
@@ -332,6 +341,9 @@ test.describe(`PC02 Palladin Shipping · the event the table answered is ONE phr
       // the TEMPERATURE marker's resting value (`undefined` while it glides — the scale's story)
       marker: document.querySelector<HTMLElement>('.scale-marker[data-scale-marker="temperature"]')?.dataset.scaleMarkerAt ?? '~',
       ws: document.querySelectorAll('.con-ws').length,
+      // what the park holds, the stack's frames — the diagnosis of an order that went wrong
+      held: (window as unknown as {__conReady?: () => {scaleStory?: {held?: string}}}).__conReady?.()?.scaleStory?.held ?? '?',
+      frames: ((window as unknown as {__conReady?: () => {wsFrames?: Array<string>}}).__conReady?.()?.wsFrames ?? []).join('+'),
     }));
     await openCardActions(page);
     const focusedTile = () => page.evaluate(() => document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-card') ?? '');
@@ -339,17 +351,27 @@ test.describe(`PC02 Palladin Shipping · the event the table answered is ONE phr
       await press(page, ['ArrowRight', 'ArrowDown', 'ArrowLeft'][i % 3], 260);
     }
     await openActionFocus(page);
-    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-board--placing').count() > 0, {tries: 3, settleMs: 2500}),
-      'the ocean placement opens').toBeTruthy();
-    const samples = await readTransient<{placing: boolean, marker: string, ws: number}>(page, 'pc02-e');
-    writeText('e-threshold.txt', samples.map((s) => `${Math.round(s.t)} ${JSON.stringify(s.v)}`).join('\n'));
+    // A commits the action (the server's titanium is the witness — never the grid: a press while the placement waits for
+    // the scale's story would land on the board), then the grid is waited for as a STATE.
+    const titanium = (await wireOf(request, id)).thisPlayer.titanium;
+    let samples: Array<{t: number, v: {placing: boolean, marker: string, ws: number}}> = [];
+    try {
+      expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, id)).thisPlayer.titanium === titanium - 2, {tries: 3, settleMs: 2500}),
+        'A commits the action').toBeTruthy();
+      await page.locator('.con-board--placing').waitFor({timeout: 30_000});
+    } finally {
+      samples = await readTransient<{placing: boolean, marker: string, ws: number}>(page, 'pc02-e');
+      const ready = await page.evaluate(() => JSON.stringify((window as unknown as {__conReady?: () => {transfer?: unknown}}).__conReady?.()?.transfer ?? null)).catch(() => 'n/a');
+      writeText('e-threshold.txt', [...samples.map((s) => `${Math.round(s.t)} ${JSON.stringify(s.v)}`), '--- transfer ---', ready].join('\n'));
+    }
     const firstPlacing = samples.findIndex((s) => s.v.placing);
     expect(firstPlacing, 'the grid lit').toBeGreaterThan(0);
-    // THE NAMED GAP (ledger GQ, PL-1840): the blue action's 0 °C ocean is admitted while the workspace still covers the
-    // board — `board-story` holds a placement only over a board in plain view — so the grid lights over a dial still
-    // resting on −2 and the scale's story is told after the landing. Recorded, not asserted: the frames are the gap's.
+    // THE SCALE'S STORY BEFORE THE BOARD'S DEMAND (PL-1840): the placement owed behind the park's story TAKES the board
+    // (`placementTakesBoardForStory`), `board-story` holds it there, the marker glides −2 → 0 — and only then the grid.
     const order = samples.map((s) => `${s.v.marker}/${s.v.placing ? 'P' : '-'}/${s.v.ws}`).join(' ');
-    test.info().annotations.push({type: 'gap-PL-1840', description: `marker/placing/workspaces: ${order}`});
+    test.info().annotations.push({type: 'story-order', description: `marker/placing/workspaces: ${order}`});
+    expect(samples[firstPlacing].v.marker, `the marker rests on 0 when the grid lights (${order})`).toBe('0');
+    expect(samples[firstPlacing].v.ws, `no workspace stands when the grid lights (${order})`).toBe(0);
     expect(await placeTile(page), 'the ocean lands').toBe(true);
     await expect.poll(async () => (await wireOf(request, id)).game.temperature, {timeout: 30_000}).toBe(0);
   });
