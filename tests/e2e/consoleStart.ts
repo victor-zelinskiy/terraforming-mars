@@ -3245,6 +3245,8 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   'palladin-event' | 'palladin-event-aerobraking' | 'palladin-almost' | 'palladin-threshold' | 'palladin-threshold-heat' | 'palladin-max' | 'palladin-short' |
   // PC04 Ecotec: a question per bio tag — three holders of three roles and a three-tag card (the series), no holder (the played card's own question), Viral Enhancers (the class's control).
   'ecotec-table' | 'ecotec-self' | 'ecotec-viral' |
+  // PC03 Sagitta Frontier Services: the reveal's three stories (the start at the corporation's play over a seeded tape), the table (no tag · one tag · an event · two tags · a lone wild).
+  'sagitta-start' | 'sagitta-table' | 'sagitta-twin' |
   // P45 Board of Directors: the verdict after the reveal inside «ДЕЙСТВИЯ КАРТ» (play · discard · refused · burn · variant · tile · Helion · last · empty).
   'board-of-directors-loan' | 'board-of-directors-poor' | 'board-of-directors-burn' | 'board-of-directors-variant' | 'board-of-directors-tile' |
   'board-of-directors-helion' | 'board-of-directors-last' | 'board-of-directors-empty' | 'board-of-directors-spent' |

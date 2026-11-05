@@ -14856,3 +14856,102 @@ function ecotecFixture(name: string): void {
 for (const name of ['ecotec-table', 'ecotec-self', 'ecotec-viral']) {
   ecotecFixture(name);
 }
+
+// ── PC03 · SAGITTA FRONTIER SERVICES — «ВСКРЫТИЕ КОРПОРАЦИИ — ТРИ ИСТОРИИ ОДНОГО НАЖАТИЯ» (docs/claude/prompts/
+//    prelude2-pc03-sagitta-frontier-services.md, ledger GT · GU). The owner's table: SOLO AGAINST MARSBOT (base),
+//    Sagitta GUARANTEED by `customCorporationsList` WITHOUT `prelude2Expansion` (the bot is never C44 — the collision
+//    by `original`):
+//      · `sagitta-start` — the start answered up to the corporation's play (`corporationPlay`), Sagitta waiting in the
+//        deployment queue; the deck's TOP stacked by name, turned over first → last: Mine ✗ (a Building tag) →
+//        Indentured Workers ✗ (an event) → Quantum Research ✗ (a lone wild tag — a PRINTED tag for the search) →
+//        Micro-Mills ✓ (no tag): ONE press = the printed start, the search, its own +4;
+//      · `sagitta-table` — the action phase, Sagitta on the table; in the hand Micro-Mills (no tag, +4), Mine (one tag,
+//        +1), Indentured Workers (an event with no printed tag, +1), Development Center (two tags, nothing) and Quantum
+//        Research (a lone wild tag, +4 — the effect's reading; its 3 science tags stand on the table: Research and
+//        Search For Life, neither answering a play);
+//      · `sagitta-twin` — the SAME table on a calm corporation (Teractor — nothing answers Mine): the control of the
+//        timing of the frequent «+1» answer (decision 11 of the prompt — the time from the press to the pad).
+//    A DRY RUN on a copy proves what the stand waits for. ──
+const SAGITTA_TAPE = [CardName.MINE, CardName.INDENTURED_WORKERS, CardName.QUANTUM_RESEARCH, CardName.MICRO_MILLS] as const;
+function sagittaFixture(name: 'sagitta-start' | 'sagitta-table' | 'sagitta-twin'): void {
+  const corp = name === 'sagitta-twin' ? CardName.TERACTOR : CardName.SAGITTA_FRONTIER_SERVICES;
+  const pinned = [corp];
+  const [game, human] = testAutomaGame({startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned]});
+  assignPinnedCorporations(name, [human], pinned);
+  if (!(human.getWaitingFor() instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${human.getWaitingFor()?.constructor.name}`);
+  }
+  // A card outside the base deck (Quantum Research — Delta) is PUT on the pile, never moved: nothing deals it.
+  const place = (n: CardName) => {
+    const pools = [game.projectDeck.drawPile, game.projectDeck.discardPile, human.dealtProjectCards];
+    for (const pool of pools) {
+      const i = pool.findIndex((c) => c.name === n);
+      if (i !== -1) {
+        return pool.splice(i, 1)[0];
+      }
+    }
+    return newProjectCard(n)!;
+  };
+  if (name === 'sagitta-start') {
+    human.process({type: 'initialCards', responses: [
+      {type: 'card', cards: [CardName.SAGITTA_FRONTIER_SERVICES]},
+      {type: 'card', cards: []},
+    ]});
+    runAllActions(game);
+    if (human.getWaitingFor()?.startGamePrompt?.kind !== 'corporationPlay' || game.automa?.corporation === 'C44') {
+      throw new Error(`${name}: expected the corporation's play with the bot off its twin — got ${JSON.stringify(human.getWaitingFor()?.startGamePrompt)} bot ${game.automa?.corporation}`);
+    }
+    for (const n of [...SAGITTA_TAPE].reverse()) {
+      game.projectDeck.drawPile.push(place(n));
+    }
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const seat = copy.getPlayerById(human.id);
+    seat.process({type: 'card', cards: [CardName.SAGITTA_FRONTIER_SERVICES]});
+    runAllActions(copy);
+    const hand = seat.cardsInHand.map((c) => c.name);
+    const reveal = seat.cardDrawReveals[0];
+    const discards = reveal?.sequence?.filter((s) => !s.matched).map((s) => `${s.card.name}:${(s.failedTags ?? []).join('+')}`);
+    if (seat.megaCredits !== 35 || seat.production.energy !== 1 || seat.production.megacredits !== 2 ||
+      JSON.stringify(hand) !== JSON.stringify([CardName.MICRO_MILLS]) || reveal?.search?.noTags !== true ||
+      JSON.stringify(discards) !== JSON.stringify(['Mine:building', 'Indentured Workers:event', 'Quantum Research:wild'])) {
+      throw new Error(`${name}: the dry run expected 35 M€, energy 1 / M€ 2, Micro-Mills in hand and the named search — got ${seat.megaCredits} M€, [${hand.join(', ')}], ${JSON.stringify(reveal?.search)} ${JSON.stringify(discards)}`);
+    }
+    write(name, game);
+    return;
+  }
+  answerStartFlow(game, [human]);
+  if (!human.playedCards.has(corp) || game.automa?.corporation === 'C44') {
+    throw new Error(`${name}: expected blue on ${corp} and the bot off Sagitta's twin — got bot ${game.automa?.corporation}`);
+  }
+  game.automa!.actionDeck = [{kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}];
+  human.cardsInHand.splice(0, human.cardsInHand.length);
+  human.megaCredits = 60;
+  human.playedCards.push(place(CardName.RESEARCH), place(CardName.SEARCH_FOR_LIFE));
+  for (const n of [CardName.MICRO_MILLS, CardName.MINE, CardName.INDENTURED_WORKERS, CardName.DEVELOPMENT_CENTER, CardName.QUANTUM_RESEARCH]) {
+    human.cardsInHand.push(place(n));
+  }
+  runAllActions(game);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected blue on the move with the action menu — got phase=${game.phase} active=${game.activePlayer.color} wf=${human.getWaitingFor()?.constructor.name}`);
+  }
+  // THE DRY RUN — every play of the hand on a copy, the price first, the answer after.
+  const want: ReadonlyArray<[CardName, number]> = name === 'sagitta-twin' ? [[CardName.MINE, 0]] : [
+    [CardName.MICRO_MILLS, 4], [CardName.MINE, 1], [CardName.INDENTURED_WORKERS, 1], [CardName.DEVELOPMENT_CENTER, 0], [CardName.QUANTUM_RESEARCH, 4],
+  ];
+  for (const [card, gain] of want) {
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const blue = copy.getPlayerById(human.id);
+    const played = blue.cardsInHand.find((c) => c.name === card)!;
+    const cost = blue.getCardCost(played);
+    const before = blue.megaCredits;
+    blue.playCard(played, Payment.of({megacredits: cost}));
+    runAllActions(copy);
+    if (blue.megaCredits - (before - cost) !== gain) {
+      throw new Error(`${name}: ${card} paid ${blue.megaCredits - (before - cost)} M€, expected ${gain}`);
+    }
+  }
+  write(name, game);
+}
+sagittaFixture('sagitta-start');
+sagittaFixture('sagitta-table');
+sagittaFixture('sagitta-twin');

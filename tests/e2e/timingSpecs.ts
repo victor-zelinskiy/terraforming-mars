@@ -15,6 +15,9 @@
  * probes), the motion-grammar guards, and the four the first broad sample named.
  */
 export const TIMING_SPECS: ReadonlySet<string> = new Set([
+  // PC03 Sagitta Frontier Services (2026-11-05): the corporation's reveal is THREE stories in turn — the M€ row's ticks
+  // between the printed start and its own +4, the search's tape and every token's ends are sampled from before the press.
+  'console-sagitta.spec.ts',
   // PC04 Ecotec (2026-11-05): a question per tag is ONE visit — the host's node identity sampled between question k and
   // k + 1 of a live series, and the start's token flight witnessed; a transient record, never logic.
   'console-ecotec.spec.ts',
