@@ -76,6 +76,18 @@ describe('buildCreateGamePayloadFromPremiumState', () => {
     expect(payload.solarPhaseOption).eq(false);
   });
 
+  it('carries Prelude 2 as the creator selected it — OFF when off, ON when switched (the default OFF: consoleCreateModel.spec)', () => {
+    const off = baseState();
+    off.selectedExpansions.prelude2 = false;
+    expect(buildCreateGamePayloadFromPremiumState(off).expansions.prelude2).eq(false);
+    const state = baseState();
+    state.selectedExpansions.prelude = true;
+    state.selectedExpansions.prelude2 = true;
+    const payload = buildCreateGamePayloadFromPremiumState(state);
+    expect(payload.expansions.prelude2).eq(true);
+    expect(payload.expansions.prelude).eq(true);
+  });
+
   it('maps random-all + specific board', () => {
     expect(buildCreateGamePayloadFromPremiumState(baseState()).board).eq(RandomBoardOption.ALL);
     const specific = buildCreateGamePayloadFromPremiumState({...baseState(), mapMode: 'specific', mapId: BoardName.HELLAS});

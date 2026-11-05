@@ -86,12 +86,15 @@
                 v-else
                 type="button"
                 class="cm-drow"
-                :class="[themeClass(row.entry.type), {'cm-drow--cursor': cardCursor === i, 'cm-drow--chosen': row.entry.chosen}]"
+                :class="[themeClass(row.entry.type), {'cm-drow--cursor': cardCursor === i, 'cm-drow--chosen': row.entry.chosen, 'cm-drow--gated': gateText(row.entry.name) !== ''}]"
+                :data-dev-gate="gateOf(row.entry.name)"
                 @click="toggleAt(i)"
                 @mousemove="cardCursor = i"
               >
                 <span class="cm-drow__dot" aria-hidden="true"></span>
                 <span class="cm-drow__name">{{ row.entry.title }}</span>
+                <!-- A GATED card is shown, marked with the module it waits for, and refused (never hidden). -->
+                <span v-if="gateText(row.entry.name) !== ''" class="cm-drow__off">{{ gateText(row.entry.name) }}</span>
                 <span v-if="row.entry.chosen" class="cm-drow__mark" aria-hidden="true">✓</span>
               </button>
             </template>
@@ -137,7 +140,7 @@
 import {defineComponent} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
-import {GameModule} from '@/common/cards/GameModule';
+import {Expansion, GameModule} from '@/common/cards/GameModule';
 import {CardModel} from '@/common/models/CardModel';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -152,6 +155,7 @@ import {
   GuaranteedPickRow,
   clearGuaranteedCards,
   guaranteedChosenEntries,
+  guaranteedGateOf,
   guaranteedModuleCounts,
   guaranteedNames,
   guaranteedPickRows,
@@ -160,7 +164,8 @@ import {
   removeGuaranteedCard,
   toggleGuaranteedCard,
 } from '@/client/components/create/premium/devGuaranteedCards';
-import {$t} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
+import {expansionLabelKey} from '@/client/components/create/premium/createGameMeta';
 
 type PickerView = 'picked' | 'modules' | 'cards';
 
@@ -229,6 +234,15 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The expansion this card's deal waits for (not selected in the creator), or undefined. */
+    gateOf(name: CardName): Expansion | undefined {
+      return guaranteedGateOf(name, createGameState.config.selectedExpansions);
+    },
+    /** «Требует «Венера»» — the gate in words; '' for a dealable card. */
+    gateText(name: CardName): string {
+      const gate = this.gateOf(name);
+      return gate === undefined ? '' : translateTextWithParams('Requires ${0}', [$t(expansionLabelKey(gate))]);
+    },
     typeLabelKey(type: CardType): string {
       return guaranteedTypeLabelKey(type);
     },
@@ -389,6 +403,10 @@ export default defineComponent({
         return;
       }
       this.cardCursor = i;
+      // A gated card is refused — unless it is already chosen (taking it back is always allowed).
+      if (!row.entry.chosen && this.gateOf(row.entry.name) !== undefined) {
+        return;
+      }
       toggleGuaranteedCard(this.picks, row.entry.name);
     },
     removeAt(i: number): void {
@@ -417,6 +435,9 @@ export default defineComponent({
       openConsoleCardZoom(list, at, {
         isSelected: (name) => this.chosenNames.has(name),
         toggle: (name) => {
+          if (!this.chosenNames.has(name) && this.gateOf(name) !== undefined) {
+            return;
+          }
           toggleGuaranteedCard(this.picks, name);
           if (this.view === 'picked') {
             this.pickedCursor = Math.min(this.pickedCursor, this.picked.length);

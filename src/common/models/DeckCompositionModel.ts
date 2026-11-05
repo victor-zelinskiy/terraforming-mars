@@ -62,5 +62,5 @@ export type DeckCompositionModel = DeckComposition & {
  * by `tests/client/console/menu/deckCompositionModel.spec.ts`.
  */
 export const DECK_COMPOSITION_EXPANSIONS: ReadonlyArray<Expansion> = [
-  'corpera', 'prelude', 'venus', 'colonies', 'promo', 'ares', 'deltaProject', 'turmoilRedux',
+  'corpera', 'prelude', 'prelude2', 'venus', 'colonies', 'promo', 'ares', 'deltaProject', 'turmoilRedux',
 ];

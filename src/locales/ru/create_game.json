@@ -136,5 +136,7 @@
     "${0} events": "${0} {событие|события|событий}",
     "Each player starts with prelude cards that shape the opening.": "Каждый игрок начинает с карт-прологов, задающих раннюю стратегию.",
     "Requires ${0}": "Требует «${0}»",
-    "Adds the Mars Parliament: delegates voting on resolutions, party effects and the Agenda track.": "Добавляет Марсианский парламент: голосование делегатов за резолюции, эффекты партий и трек Карьеры."
+    "Adds the Mars Parliament: delegates voting on resolutions, party effects and the Agenda track.": "Добавляет Марсианский парламент: голосование делегатов за резолюции, эффекты партий и трек Карьеры.",
+    "Adds more preludes, projects and corporations built around Venus, colonies and the Parliament.": "Добавляет новые прологи, проекты и корпорации — вокруг Венеры, колоний и Парламента.",
+    "Prelude 2 requires Prelude": "«Пролог 2» требует дополнение «Пролог»"
 }

@@ -26,6 +26,9 @@ export type PremiumExpansionMeta = {
 export const PREMIUM_EXPANSIONS: ReadonlyArray<PremiumExpansionMeta> = [
   {id: 'corpera', labelKey: 'Corporate Era', descKey: 'Adds broader economy and project cards — the standard full-game setting.'},
   {id: 'prelude', labelKey: 'Prelude', descKey: 'Each player starts with prelude cards that shape the opening.'},
+  // Prelude 2 — in the premium scope whole since 2026-11-05 (54 cards adapted one by one). OFF by default; its
+  // preludes are dealt from the Prelude deck, so «requires Prelude» is the plate's chip (`EXPANSION_REQUIRES`).
+  {id: 'prelude2', labelKey: 'Prelude 2', descKey: 'Adds more preludes, projects and corporations built around Venus, colonies and the Parliament.'},
   {id: 'venus', labelKey: 'Venus Next', descKey: 'Adds the Venus global parameter and Venus-focused cards.'},
   {id: 'colonies', labelKey: 'Colonies', descKey: 'Adds colony tiles, trading and resource engines.'},
   {id: 'promo', labelKey: 'Promo', descKey: 'Adds promotional cards to the project and corporation decks.'},
@@ -41,6 +44,8 @@ export const PREMIUM_EXPANSIONS: ReadonlyArray<PremiumExpansionMeta> = [
 /** Expansions another expansion depends on (the creator blocks the launch and names the missing one). */
 export const EXPANSION_REQUIRES: Partial<Record<Expansion, ReadonlyArray<Expansion>>> = {
   turmoilRedux: ['colonies'],
+  // Without Prelude the server deals the Prelude 1 deck (Valley Trust's fallback) — a creator rule, never the server's.
+  prelude2: ['prelude'],
 };
 
 export function expansionIcon(id: Expansion): string {

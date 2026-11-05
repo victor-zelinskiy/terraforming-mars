@@ -93,6 +93,24 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
     expect(c.contributions.colonies?.colonies).eq(pool.length - additions);
   });
 
+  it('+ Prelude 2 (in scope whole since 2026-11-05): its own cards by origin — the gated ones only with their module, its preludes only with Prelude, the replaced classic never under Redux', () => {
+    const bare = compositionOf(creatorConfig(['corpera', 'prelude', 'prelude2']));
+    const full = compositionOf(creatorConfig(['corpera', 'prelude', 'prelude2', 'venus', 'colonies', 'turmoilRedux']));
+    const p2 = (c: DeckCompositionModel) => c.contributions.prelude2!;
+    expect(p2(bare).projects, 'every Prelude 2 project is gated (Venus · Colonies · the Parliament)').eq(0);
+    expect(p2(bare).corporations, 'its five corporations need nothing').eq(5);
+    expect(p2(full).projects, 'Venus / Colonies / the Parliament open its projects').greaterThan(0);
+    expect(p2(full).preludes).greaterThan(p2(bare).preludes);
+    expect(p2(full).corporations).eq(5);
+    expect(p2(full).projects).eq(full.projects.byModule.prelude2);
+    // Without Prelude no prelude is dealt (the deal's condition) — the tile prints no prelude then.
+    expect(p2(compositionOf(creatorConfig(['corpera', 'prelude2']))).preludes).eq(0);
+    // Under Redux the classic Corridors of Power is out of the prelude deck (TRP0 counts under Redux).
+    const fresh = new GameCards(gameOptionsFromNewGameConfig(creatorConfig(['corpera', 'prelude', 'prelude2', 'venus', 'colonies', 'turmoilRedux']), RandomBoardOption.ALL));
+    expect(fresh.getPreludeCards().map((card) => card.name)).not.include(CardName.CORRIDORS_OF_POWER);
+    expect(p2(full).preludes).eq(full.preludes.byModule.prelude2);
+  });
+
   it('the resolution deck follows Venus Next (its Venus-only laws) — the deal\'s own filter', () => {
     const withVenus = compositionOf(creatorConfig(['venus', 'colonies', 'turmoilRedux']));
     const withoutVenus = compositionOf(creatorConfig(['colonies', 'turmoilRedux']));

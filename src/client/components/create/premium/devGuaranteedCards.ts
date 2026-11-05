@@ -22,7 +22,7 @@
 
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
-import {GameModule} from '@/common/cards/GameModule';
+import {Expansion, GameModule} from '@/common/cards/GameModule';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {TURMOIL_REDUX_REPLACED_CLASSIC_NAMES} from '@/common/cards/turmoilReduxReplacements';
 import {getCard, getCards} from '@/client/cards/ClientCardManifest';
@@ -120,10 +120,27 @@ function guaranteeable(card: ClientCard): boolean {
  * Redux table deals (`cardsToRemove`).
  */
 export function guaranteedModuleOf(card: ClientCard): GameModule | undefined {
-  if (card.module === 'turmoil') {
-    return TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(card.name) ? undefined : 'turmoilRedux';
+  // A classic card the Redux set replaces — classic Turmoil's, Prelude 2's Corridors of Power — is offered nowhere.
+  if (TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(card.name)) {
+    return undefined;
   }
-  return card.module;
+  return card.module === 'turmoil' ? 'turmoilRedux' : card.module;
+}
+
+/**
+ * THE GATE of a card's deal — the first expansion its `compatibility` needs that the creator has NOT selected
+ * (`undefined` when it can be dealt). A political card (`turmoil`) asks the creator's one political engine, Turmoil
+ * Redux. The picker SHOWS a gated card, marked and refused with the module it waits for — never hidden: a guaranteed
+ * card is forced onto the table after every filter, and a Venus card on a table without Venus is a broken deal.
+ */
+export function guaranteedGateOf(name: CardName, selected: Partial<Record<Expansion, boolean>>): Expansion | undefined {
+  for (const need of getCard(name)?.compatibility ?? []) {
+    const id: Expansion = need === 'turmoil' ? 'turmoilRedux' : need;
+    if (selected[id] !== true) {
+      return id;
+    }
+  }
+  return undefined;
 }
 
 function pickable(card: ClientCard, module: GameModule): boolean {

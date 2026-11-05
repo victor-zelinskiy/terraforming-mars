@@ -82,13 +82,18 @@ describe('expansionRows — the plate names what it requires', () => {
     resetCreateGameState();
   });
 
-  it('Turmoil Redux requires Colonies: met while Colonies is on, not met otherwise; nobody else requires anything', () => {
+  it('Turmoil Redux requires Colonies, Prelude 2 requires Prelude: met while the needed one is on, not met otherwise; nobody else requires anything', () => {
     createGameState.config.selectedExpansions.colonies = true;
     const redux = () => expansionRows().find((r) => r.meta.id === 'turmoilRedux')!;
     expect(redux().requires).deep.eq([{id: 'colonies', labelKey: 'Colonies', met: true}]);
     toggleExpansion('colonies');
     expect(redux().requires[0].met).is.false;
-    expect(expansionRows().filter((r) => r.meta.id !== 'turmoilRedux').every((r) => r.requires.length === 0)).is.true;
+    createGameState.config.selectedExpansions.prelude = true;
+    const prelude2 = () => expansionRows().find((r) => r.meta.id === 'prelude2')!;
+    expect(prelude2().requires).deep.eq([{id: 'prelude', labelKey: 'Prelude', met: true}]);
+    toggleExpansion('prelude');
+    expect(prelude2().requires[0].met).is.false;
+    expect(expansionRows().filter((r) => r.meta.id !== 'turmoilRedux' && r.meta.id !== 'prelude2').every((r) => r.requires.length === 0)).is.true;
   });
 });
 

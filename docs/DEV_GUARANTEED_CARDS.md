@@ -31,6 +31,11 @@ cinematics. Console native only — the frozen desktop create form is untouched.
      card to the pool anyway.
    - **CARDS** — that module's cards, grouped by card TYPE, alphabetical by the
      **localized** title. A toggles, LB/RB jump between type groups, ◄ ► page.
+     A card whose deal waits for ANOTHER module (`compatibility` — Venus, Colonies, the Parliament: every Prelude 2
+     project is one) is shown, marked «Требует «<модуль>»» (`guaranteedGateOf`, `data-dev-gate`) and refused until
+     that module is switched on in the creator — never hidden; an already-picked card can always be taken back.
+     **Prelude 2** is a module of its own since the full inclusion (2026-11-05): its projects, preludes and
+     corporations, minus Corridors of Power (the Redux set replaces it — TRP0 is offered under Turmoil Redux).
 3. X inspects the cursored card fullscreen (the console-wide inspect verb),
    reusing the shared `CardZoomModal`. `ConsoleShell` mounts that modal in-game
    and does not exist pre-game, so the picker **hosts its own instance** behind

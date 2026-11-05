@@ -596,6 +596,9 @@ function expansionRequirementText(id: Expansion, required: Expansion): string {
   if (id === 'turmoilRedux' && required === 'colonies') {
     return 'Turmoil Redux requires Colonies';
   }
+  if (id === 'prelude2' && required === 'prelude') {
+    return 'Prelude 2 requires Prelude';
+  }
   return 'An enabled expansion requires another one';
 }
 

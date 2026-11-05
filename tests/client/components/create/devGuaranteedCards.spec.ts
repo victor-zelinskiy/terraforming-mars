@@ -10,6 +10,7 @@ import {
   clearGuaranteedCards,
   guaranteedChosenEntries,
   guaranteedCount,
+  guaranteedGateOf,
   guaranteedListOf,
   guaranteedModuleCounts,
   guaranteedNames,
@@ -165,6 +166,26 @@ describe('devGuaranteedCards', () => {
       toggleGuaranteedCard(p, CardName.DIASPORA_MOVEMENT);
       expect(pruneGuaranteedCards(p)).to.eq(0);
       expect(p.projects).to.deep.eq([CardName.DIASPORA_MOVEMENT]);
+    });
+
+    it('offers Prelude 2 as a module of its own (the full inclusion): its projects, preludes and corporations — never the replaced classic', () => {
+      expect(GUARANTEED_MODULES.map((m) => m.id)).to.include('prelude2');
+      const named = guaranteedPickRows('prelude2', new Set()).flatMap((row) => row.kind === 'card' ? [row.entry.name] : []);
+      expect(named).to.include(CardName.SPIRE);
+      expect(named).to.include(CardName.NOBEL_PRIZE);
+      expect(named).to.include(CardName.CERES_TECH_MARKET);
+      expect(named, '54 less Corridors of Power (TRP0 is the card of the Redux table)').has.length(53);
+      expect(named).to.not.include(CardName.CORRIDORS_OF_POWER);
+    });
+
+    it('names the GATE of a card deal — the module it waits for, a political card asking Turmoil Redux', () => {
+      const none = {};
+      expect(guaranteedGateOf(CardName.SPIRE, none), 'a corporation needs nothing').to.eq(undefined);
+      expect(guaranteedGateOf(CardName.ISHTAR_EXPEDITION, none)).to.eq('venus');
+      expect(guaranteedGateOf(CardName.ISHTAR_EXPEDITION, {venus: true})).to.eq(undefined);
+      expect(guaranteedGateOf(CardName.CERES_TECH_MARKET, {venus: true})).to.eq('colonies');
+      expect(guaranteedGateOf(CardName.HIGH_CIRCLES, {colonies: true})).to.eq('turmoilRedux');
+      expect(guaranteedGateOf(CardName.HIGH_CIRCLES, {colonies: true, turmoilRedux: true})).to.eq(undefined);
     });
 
     it('marks the already-picked cards and counts them per module', () => {

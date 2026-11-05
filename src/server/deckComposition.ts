@@ -19,8 +19,7 @@ import {
 /**
  * THE PARTY'S DECKS, COUNTED BEFORE THE PARTY EXISTS (T04 «the deck is visible before
  * launch»). Read-only and pure over `GameOptions`: it builds the decks the way
- * `Game.newInstance` builds them — `GameCards` (banned, replaced, the Prelude 2 cards still held back,
- * Automa-banned, the two-corporation variant's Merger, the guaranteed cards), the prelude
+ * `Game.newInstance` builds them — `GameCards` (banned, replaced, Automa-banned, the two-corporation variant's Merger, the guaranteed cards), the prelude
  * deck only with the Prelude expansion (the deal's own condition), the colony pool of
  * `ColonyDealer` and the Parliament's resolution deck — and counts them. No game, no
  * player, no RNG draw: nothing here can change a table.
@@ -35,7 +34,10 @@ import {
  * The modules whose cards a creator toggle brings. Every toggle prints its own module; Turmoil
  * Redux also brings the classic Turmoil cards — part of the set since 2026-10-25 (every one
  * adapted in place, or kept out where the set prints a replacement, `turmoilReduxReplacements.ts`;
- * on a creator table they are dealt only with Redux), so they count as its projects.
+ * on a creator table they are dealt only with Redux), so they count as its projects. Prelude 2 prints its own module,
+ * its gated cards counted only where their module is on (the decks are built by `GameCards`), its preludes only with
+ * Prelude (the deal's condition); under Redux its replaced classic (Corridors of Power) is out and the replacement
+ * TRP0 counts under Redux.
  */
 const ORIGIN_MODULES: Readonly<Record<Expansion, ReadonlyArray<GameModule>>> = {
   corpera: ['corpera'], prelude: ['prelude'], prelude2: ['prelude2'], venus: ['venus'], colonies: ['colonies'],

@@ -331,6 +331,26 @@ describe('consoleCreateModel', () => {
     });
   });
 
+  describe('Prelude 2 — the ninth plate (the full inclusion, 2026-11-05)', () => {
+    it('stands right after Prelude, OFF by default, its chip naming Prelude', () => {
+      const rows = expansionRows();
+      const ids = rows.map((r) => r.meta.id);
+      expect(ids.indexOf('prelude2')).to.eq(ids.indexOf('prelude') + 1);
+      const row = rows.find((r) => r.meta.id === 'prelude2')!;
+      expect(row.value).to.eq(false);
+      expect(row.requires.map((r) => r.id)).to.deep.eq(['prelude']);
+    });
+
+    it('with Prelude off the launch is blocked by a NAMED reason; with Prelude on it is ready', () => {
+      createGameState.config.selectedExpansions.prelude = false;
+      toggleExpansion('prelude2');
+      expect(launchIssues().map((i) => i.textKey)).to.include('Prelude 2 requires Prelude');
+      expect(launchReady()).to.eq(false);
+      toggleExpansion('prelude');
+      expect(launchIssues().map((i) => i.textKey)).to.not.include('Prelude 2 requires Prelude');
+    });
+  });
+
   describe('launch readiness + jump-to-issue', () => {
     it('is ready with a clean default party', () => {
       expect(launchIssues()).to.deep.eq([]);
