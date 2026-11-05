@@ -18,6 +18,7 @@ export type DrawSearchFilter = {
   floaterIcon?: boolean,
   partyRequirement?: boolean,
   requirement?: boolean,
+  noTags?: boolean,
 };
 
 /**
@@ -38,7 +39,8 @@ export function drawSearchOf(count: number, filter: DrawSearchFilter | undefined
   const floaterIcon = filter.floaterIcon === true;
   const partyRequirement = filter.partyRequirement === true;
   const requirement = filter.requirement === true;
-  if (filter.tag === undefined && filter.type === undefined && filter.resource === undefined && withoutTags === undefined && !floaterIcon && !partyRequirement && !requirement) {
+  const noTags = filter.noTags === true;
+  if (filter.tag === undefined && filter.type === undefined && filter.resource === undefined && withoutTags === undefined && !floaterIcon && !partyRequirement && !requirement && !noTags) {
     return undefined;
   }
   const search: DrawSearchModel = {count};
@@ -62,6 +64,9 @@ export function drawSearchOf(count: number, filter: DrawSearchFilter | undefined
   }
   if (requirement) {
     search.requirement = true;
+  }
+  if (noTags) {
+    search.noTags = true;
   }
   return search;
 }

@@ -11,6 +11,7 @@
       <span v-else-if="term.kind === 'floaterIcon'" class="con-dsearch__res" :style="resourceStyle(floater)" aria-hidden="true"></span>
       <PremiumPartyRequirementGlyph v-else-if="term.kind === 'partyRequirement'" class="con-dsearch__pprq" />
       <span v-else-if="term.kind === 'requirement'" class="con-dsearch__res con-dsearch__req" :style="{backgroundImage: `url(${requirementCard})`}" aria-hidden="true"></span>
+      <span v-else-if="term.kind === 'noTags'" class="con-dsearch__tag" data-tag="none" :style="{backgroundImage: `url(${noTagsMark})`}" aria-hidden="true"></span>
       <template v-else-if="term.kind === 'without'">
         <span v-for="tag in term.tags" :key="tag" class="con-dsearch__tag con-dsearch__tag--struck" :data-tag="tag" :style="tagStyle(tag)" aria-hidden="true"></span>
       </template>
@@ -24,7 +25,7 @@ import {Tag} from '@/common/cards/Tag';
 import {CardResource} from '@/common/CardResource';
 import {DrawSearchModel} from '@/common/models/CardDrawRevealModel';
 import {DrawSearchClause, DrawSearchTerm, drawSearchClauses, drawSearchTermLabel} from '@/client/console/deckDraw/drawSearchReading';
-import {CARD_REQUIREMENT_ICON, cardResourceIconUrl, tagIconStyle} from '@/client/components/premiumCard/premiumCardIcons';
+import {CARD_REQUIREMENT_ICON, NO_TAGS_ICON, cardResourceIconUrl, tagIconStyle} from '@/client/components/premiumCard/premiumCardIcons';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
 /**
@@ -60,6 +61,10 @@ export default defineComponent({
     requirementCard(): string {
       return CARD_REQUIREMENT_ICON;
     },
+    /** «A card with no tags» — the crossed blank tag the face prints (`NO_TAGS`, the Sagitta corner mark). */
+    noTagsMark(): string {
+      return NO_TAGS_ICON;
+    },
     items(): ReadonlyArray<DrawSearchClause> {
       if (this.clauses !== undefined) {
         return this.clauses.map((term) => ({term, labelled: true}));
@@ -80,6 +85,7 @@ export default defineComponent({
         case 'floaterIcon': return 'floaterIcon';
         case 'partyRequirement': return 'partyRequirement';
         case 'requirement': return 'requirement';
+        case 'noTags': return 'noTags';
         }
       }).join(' ');
     },

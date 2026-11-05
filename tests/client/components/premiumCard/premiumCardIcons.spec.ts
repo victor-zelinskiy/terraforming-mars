@@ -99,6 +99,8 @@ describe('premiumCardIcons.mechItemIcon', () => {
     expect(corner(CardRenderItemType.MEGACREDITS, AltSecondaryTag.TITANIUM)).to.deep.equal({url: 'assets/resources/titanium.png'});
     expect(corner(CardRenderItemType.CARDS, AltSecondaryTag.FLOATER)).to.deep.equal({url: 'assets/resources/floater.png'});
     expect(corner(CardRenderItemType.CARDS, AltSecondaryTag.DIVERSE)).to.deep.equal({url: 'assets/tags/diverse.png'});
+    // «A card that has no tag» (PC03 Sagitta's draw) — the crossed blank tag, the face's own `noTags()` mark.
+    expect(corner(CardRenderItemType.CARDS, AltSecondaryTag.NO_TAGS)).to.deep.equal({url: 'assets/tags/tag-none.png'});
     // The oxygen greenery bakes its O₂ into the tile asset — a bubble would double it; elsewhere it is a corner.
     expect(corner(CardRenderItemType.GREENERY, AltSecondaryTag.OXYGEN)).is.undefined;
     expect(corner(CardRenderItemType.CARDS, AltSecondaryTag.OXYGEN)).to.deep.equal({url: 'assets/global-parameters/oxygen.png'});

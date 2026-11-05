@@ -30,7 +30,9 @@ export type DrawSearchTerm =
   /** «с требованием партии» — P51 High Circles (`DrawSearchModel.partyRequirement`); drawn as the requirement plate glyph. */
   | {kind: 'partyRequirement'}
   /** «с требованием» — P54 Nobel Prize (`DrawSearchModel.requirement`, ANY requirement); drawn as the bare MIN plate glyph. */
-  | {kind: 'requirement'};
+  | {kind: 'requirement'}
+  /** «без меток» — PC03 Sagitta (`DrawSearchModel.noTags` — no printed tag, not an event); drawn as the crossed blank tag. */
+  | {kind: 'noTags'};
 
 /** The word a clause opens with — an English i18n key. The tag / resource itself is drawn as its icon. */
 export function drawSearchTermLabel(term: DrawSearchTerm): string {
@@ -42,6 +44,7 @@ export function drawSearchTermLabel(term: DrawSearchTerm): string {
   case 'floaterIcon': return 'with a floater icon';
   case 'partyRequirement': return 'with a party requirement';
   case 'requirement': return 'with a requirement';
+  case 'noTags': return 'with no tags';
   }
 }
 
@@ -76,6 +79,9 @@ export function drawSearchTerms(search: DrawSearchModel | undefined): Array<Draw
   }
   if (search.requirement === true) {
     out.push({kind: 'requirement'});
+  }
+  if (search.noTags === true) {
+    out.push({kind: 'noTags'});
   }
   return out;
 }

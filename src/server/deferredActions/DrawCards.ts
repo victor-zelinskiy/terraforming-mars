@@ -13,6 +13,7 @@ import {DrawSearchModel} from '../../common/models/CardDrawRevealModel';
 import {hasFloaterIcon} from '../cards/venusNext/floaterCards';
 import {hasPartyRequirement} from '../cards/requirements/partyRequirementCards';
 import {hasRequirement} from '../cards/requirements/CardsWithRequirementsRequirement';
+import {tagsBarringNoTagsSearch} from '../cards/noTagsCards';
 
 /**
  * Best-effort attribution for the "you drew cards" reveal modal when the caller
@@ -61,6 +62,8 @@ export type DrawOptions = {
   partyRequirement?: boolean,
   /** Keep only cards WITH A REQUIREMENT of any kind (`Behavior.DrawCard.requirement` — P54 Nobel Prize): a NAMED rule. */
   requirement?: boolean,
+  /** Keep only cards WITH NO PRINTED TAG, not events (`Behavior.DrawCard.noTags` — PC03 Sagitta): a NAMED rule. */
+  noTags?: boolean,
   include?(card: IProjectCard): boolean,
   /**
    * Attribution for the "you drew cards" reveal modal, when cheaply known
@@ -103,10 +106,12 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
     const game = this.player.game;
     this.revealSequence.length = 0;
     const withoutTags = this.options.withoutTags;
+    const noTags = this.options.noTags === true;
     const onReveal = (card: IProjectCard, matched: boolean) => {
       // The REASON a discard was thrown away, when it is a tag it carries —
-      // read by the same function the verdict below used.
-      const failedTags = matched ? [] : forbiddenTagsOn(this.player, card, withoutTags);
+      // read by the same function the verdict below used (a «no tags» search:
+      // every tag the card carries — the event's own, a printed wild one).
+      const failedTags = matched ? [] : noTags ? tagsBarringNoTagsSearch(card) : forbiddenTagsOn(this.player, card, withoutTags);
       this.revealSequence.push(failedTags.length > 0 ? {card, matched, failedTags} : {card, matched});
     };
     const cards = game.projectDeck.drawByConditionLegacy(game, this.count, (card) => {
@@ -129,6 +134,9 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
         return false;
       }
       if (this.options.requirement === true && !hasRequirement(card)) {
+        return false;
+      }
+      if (noTags && tagsBarringNoTagsSearch(card).length > 0) {
         return false;
       }
       if (this.options.include !== undefined && !this.options.include(card)) {
@@ -156,6 +164,7 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
       floaterIcon: options.floaterIcon,
       partyRequirement: options.partyRequirement,
       requirement: options.requirement,
+      noTags: options.noTags,
     });
   }
 

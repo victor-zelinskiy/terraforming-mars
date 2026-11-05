@@ -43,6 +43,11 @@ const CARD_SCOPED_MULTI_EFFECT: ReadonlyArray<CardName> = [
   // Both effects fire on 'tile-placed' (ocean→energy / greenery→plant) —
   // the documented collision this fallback exists for.
   CardName.POLDERTECH_DUTCH,
+  // PC03: «no tags → 4 M€» and «exactly 1 tag → 1 M€» are BOTH paid by the one
+  // live `onCardPlayed` hook into the same M€ row — one channel, 'card-played';
+  // the FORECAST tells the rows apart through its declared `printedEffect`
+  // (the Pharmacy Union class).
+  CardName.SAGITTA_FRONTIER_SERVICES,
   // Both halves react to the same microbe-tag play (by any player).
   CardName.SPLICE,
 ];

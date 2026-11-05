@@ -152,6 +152,18 @@ describe('drawSearchReading', () => {
     });
   });
 
+  describe('a «no tags» search names itself (PC03 Sagitta Frontier Services)', () => {
+    const NO_TAGS: DrawSearchModel = {count: 1, noTags: true};
+    it('one clause «with no tags»; a discard names the tags that barred it — the event\'s own, a lone wild one', () => {
+      expect(drawSearchTerms(NO_TAGS)).deep.eq([{kind: 'noTags'}]);
+      expect(drawSearchTermLabel({kind: 'noTags'})).eq('with no tags');
+      expect(drawDiscardVerdict(step(CardName.MINE, false, [Tag.BUILDING]), NO_TAGS)).deep.eq({kind: 'tags', tags: [Tag.BUILDING]});
+      expect(drawDiscardVerdict(step(CardName.INDENTURED_WORKERS, false, [Tag.EVENT]), NO_TAGS)).deep.eq({kind: 'tags', tags: [Tag.EVENT]});
+      expect(drawDiscardVerdict(step(CardName.QUANTUM_RESEARCH, false, [Tag.WILD]), NO_TAGS)).deep.eq({kind: 'tags', tags: [Tag.WILD]});
+      expect(drawDiscardVerdict(step(CardName.MICRO_MILLS, true), NO_TAGS)).is.undefined;
+    });
+  });
+
   describe('the «Далее» row of a filtered draw', () => {
     const translate = (key: string, params: ReadonlyArray<string>) => `${key}|${params.join(',')}`;
 

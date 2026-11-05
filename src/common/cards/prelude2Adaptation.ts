@@ -38,10 +38,9 @@ import {CardName} from './CardName';
  * Guard and worklist printer: `tests/cards/prelude2/Prelude2CardsHeldBack.spec.ts`.
  */
 
-/** ADAPT IN PLACE — 0 preludes, 2 corporations (ordered as the manifest prints them; every project card P68…P91 and every prelude P43…P67 is adapted). */
+/** ADAPT IN PLACE — 0 preludes, 1 corporation (ordered as the manifest prints them; every project card P68…P91 and every prelude P43…P67 is adapted). */
 export const PRELUDE2_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
   // ── Corporations (PC01…PC05; MarsBot already plays its own twins — the human card is a separate adaptation) ──
-  CardName.SAGITTA_FRONTIER_SERVICES, // PC03 · behavior + bespokePlay + `onCardPlayed` hook
   CardName.SPIRE, // PC05 · `onCardPlayed` hook
 ];
 

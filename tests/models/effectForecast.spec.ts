@@ -26,7 +26,7 @@ import {ArtificialPhotosynthesis} from '../../src/server/cards/base/ArtificialPh
 import {Bushes} from '../../src/server/cards/base/Bushes';
 import {ViralEnhancers} from '../../src/server/cards/base/ViralEnhancers';
 import {NitriteReducingBacteria} from '../../src/server/cards/base/NitriteReducingBacteria';
-import {SagittaFrontierServices} from '../../src/server/cards/prelude2/SagittaFrontierServices';
+import {Spire} from '../../src/server/cards/prelude2/Spire';
 import {SaturnSystems} from '../../src/server/cards/corporation/SaturnSystems';
 import {IoMiningIndustries} from '../../src/server/cards/base/IoMiningIndustries';
 import {MediaGroup} from '../../src/server/cards/base/MediaGroup';
@@ -187,11 +187,11 @@ describe('effectForecast (engine)', () => {
 
   it('reports a live hook with NO forecast as `unknown` and marks the coverage partial — never silence', () => {
     const [/* game */, player] = testGame(2);
-    player.playedCards.push(new SagittaFrontierServices()); // prelude2 — held back, no forecast hook (P61 Soil Bacteria, then PC04 Ecotec — the old examples — got their twins)
+    player.playedCards.push(new Spire()); // prelude2 — held back, no forecast hook (P61 Soil Bacteria, PC04 Ecotec, then PC03 Sagitta — the old examples — got their twins)
     const bushes = new Bushes();
     player.cardsInHand.push(bushes);
     const forecast = playForecast(player, bushes);
-    const fact = forecast.facts.find((f) => f.source.name === CardName.SAGITTA_FRONTIER_SERVICES);
+    const fact = forecast.facts.find((f) => f.source.name === CardName.SPIRE);
     expect(fact?.certainty).to.eq('unknown');
     expect(fact?.note).to.eq('Not calculated');
     expect(forecast.coverage).to.eq('partial');

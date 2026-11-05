@@ -122,7 +122,8 @@ export type CardDrawRevealStep = {
    * WHY a discarded card was thrown away, when the reason is a TAG IT CARRIES —
    * the search's `withoutTags` it was found holding (Red Tech Convention: «a
    * plant tag»), read by the SAME reader as the search itself
-   * (`Tags.cardHasTag`). Absent on a matched card and on a card a POSITIVE
+   * (`Tags.cardHasTag`); for a «no tags» search (`search.noTags`), every tag
+   * the card carries (`tagsBarringNoTagsSearch` — the event's own, a wild one). Absent on a matched card and on a card a POSITIVE
    * filter refused: «it lacks the Space tag» is the search's own rule, already
    * named by `CardDrawRevealModel.search`.
    */
@@ -167,6 +168,12 @@ export type DrawSearchModel = {
    * (`hasRequirement`); a surface only names the rule («с требованием»).
    */
   requirement?: true;
+  /**
+   * Keep only cards WITH NO PRINTED TAG that are not events (PC03 Sagitta Frontier Services). The server owns the
+   * reading (`hasNoPrintedTags` — a wild tag is a printed tag here); a surface only names the rule («без меток», the
+   * crossed blank tag), and a discard's `failedTags` are the tags that barred it (the event's own, a wild one).
+   */
+  noTags?: true;
 };
 
 /**

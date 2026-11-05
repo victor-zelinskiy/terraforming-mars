@@ -498,6 +498,9 @@ export function drawSearchSentence(search: DrawSearchModel): string {
   if (search.requirement === true) {
     qualifiers.push('with a requirement');
   }
+  if (search.noTags === true) {
+    qualifiers.push('with no tags');
+  }
   const what = [`${amount} ${noun}`, ...qualifiers].join(' ');
   return `Reveal cards from the project deck until you reveal ${what}. Take ${one ? 'it' : 'them'} into your hand and discard the rest.`;
 }
@@ -931,6 +934,13 @@ function corpStartingBlocks(card: ICard, notes: Array<string>): Array<Pending> {
       continue;
     }
     const count = typeof draw.count === 'number' ? draw.count : 1;
+    // A NAMED search beyond a bare tag (PC03 Sagitta: «a card that has no tag») prints its rule from the ONE
+    // descriptor — the corp-local «Draw a card.» would drop the rule.
+    const search = drawSearchOf(count, draw);
+    if (search !== undefined && Object.keys(search).some((field) => field !== 'count' && field !== 'tag')) {
+      out.push({block: {id: 'mech:start.draw', kind: 'immediate', text: key(drawSearchSentence(search))}, tokens: ['cards']});
+      continue;
+    }
     const tag = draw.tag;
     const noun = count === 1 ? 'card' : 'cards';
     const article = count === 1 ? 'a' : `${count}`;

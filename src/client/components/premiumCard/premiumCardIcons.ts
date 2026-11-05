@@ -189,6 +189,13 @@ export function countedCardCoverUrl(): string {
  */
 export const CARD_REQUIREMENT_ICON = `${MISC}/card-requirement.webp`;
 
+/**
+ * «NO TAGS» — the crossed blank tag of the tag family (`tag-none.png`, the print's own glyph): the face's `noTags()`
+ * item, the corner mark of a card that has no tag (PC03 Sagitta's draw — `AltSecondaryTag.NO_TAGS`), the draw search's
+ * rule «без меток», the rail's «без меток» cell. One concept, one mark — never a second drawing.
+ */
+export const NO_TAGS_ICON = `${TAGS}/tag-none.png`;
+
 export function cardTypeBandMod(cardType: CardType.ACTIVE | CardType.AUTOMATED): string {
   return cardType === CardType.ACTIVE ? 'type-blue' : 'type-green';
 }
@@ -332,7 +339,7 @@ const ITEM_ICON_URL: Partial<Record<CardRenderItemType, string>> = {
   [CardRenderItemType.SELF_REPLICATING]: `${RES}/card.webp`,
 
   // Tag markers with dedicated art.
-  [CardRenderItemType.NO_TAGS]: `${TAGS}/tag-none.png`,
+  [CardRenderItemType.NO_TAGS]: NO_TAGS_ICON,
   [CardRenderItemType.DIVERSE_TAG]: `${TAGS}/diverse.png`,
 
   [CardRenderItemType.DELEGATES]: `${MISC}/delegate.svg`,
@@ -581,6 +588,10 @@ export function secondaryBubbleOf(item: ICardRenderItem): SecondaryBubbleSpec | 
   case AltSecondaryTag.DIVERSE:
     // «a card with a NEW tag» (Faraday) — the diverse-tag marker.
     return {url: `${TAGS}/diverse.png`};
+  case AltSecondaryTag.NO_TAGS:
+    // «a card that has NO tag» (PC03 Sagitta's draw — the scan's card back with a crossed disc in its corner): the
+    // crossed blank tag, round like every tag corner.
+    return {url: NO_TAGS_ICON};
   case AltSecondaryTag.MARS_TILE:
     // «a tile ON MARS» (Turmoil Redux — TR14): the set's pink hex, the owner's own asset.
     return {url: 'assets/misc/mars-tile.png', shape: 'tile'};

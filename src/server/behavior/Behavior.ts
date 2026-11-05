@@ -241,6 +241,12 @@ export interface DrawCard {
    * reading of the phrase; `partyRequirement` is its subset). A NAMED rule, never an opaque `include`.
    */
   requirement?: boolean,
+  /**
+   * Keep only cards WITH NO PRINTED TAG that are not events (PC03 Sagitta Frontier Services: «Draw a card that has no
+   * tag») — `hasNoPrintedTags`, the one reading of the search phrase: a wild tag is a printed tag here, an event's own
+   * tag is a tag. A NAMED rule, never an opaque `include`; a discard names the tags that barred it.
+   */
+  noTags?: boolean,
 }
 
 export interface AddResource {
