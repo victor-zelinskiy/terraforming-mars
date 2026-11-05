@@ -4,6 +4,7 @@ import {expect} from 'chai';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
 import {ConsoleMaItem, ConsoleMaKind} from '@/client/components/console/consoleMaModel';
 import type {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 
 /*
  * TWO WORKSPACES, ONE FAMILY (ledger FB′ — the owner, 2026-11-03: the one-screen split divided the player's attention
@@ -52,6 +53,36 @@ describe('ConsoleMaScreen — two workspaces, one family (FB′)', () => {
   it('the head-tally lives in the workspace header: the price of THIS kind\'s next slot', () => {
     expect(mountScreen('milestones', 0).find('.con-ma__wshead [data-ma-tally] [data-ma-price="milestones"]').text()).contains('8');
     expect(mountScreen('awards', 0).find('.con-ma__wshead [data-ma-tally] [data-ma-price="awards"]').text()).contains('14');
+  });
+
+  // PC01 · GO — the price NAMES ITS CAUSE: a waived next price is the table's price struck, 0 and the source's seal;
+  // a paid one stays the number it always was; Vitor's free sponsorship keeps its word.
+  it('a WAIVED price: the struck table price, the seal of the card, and the reading kind on the chip', () => {
+    const items = AWARDS.map((it) => ({...it, cost: 0}));
+    const w = mount(ConsoleMaScreen, {
+      ...globalConfig,
+      props: {kind: 'awards', items, index: 0, myMegacredits: 2,
+        priceWaiver: {printed: 14, waivedBy: CardName.NIRGAL_ENTERPRISES}},
+    });
+    const chip = w.find('[data-ma-price="awards"]');
+    expect(chip.attributes('data-ma-price-kind')).eq('waived');
+    expect(chip.find('[data-ma-price-printed]').attributes('data-ma-price-printed')).eq('14');
+    expect(chip.find('[data-ma-price-source]').attributes('data-ma-price-source')).eq(CardName.NIRGAL_ENTERPRISES);
+    expect(chip.find('.con-maprice__printed').text()).eq('14');
+    expect(chip.find('[data-req-mark="card"]').exists(), 'the seal of a standing card effect').is.true;
+    expect(chip.find('.con-ma__price-free').exists(), 'never the bare «Бесплатно»').is.false;
+  });
+
+  it('a PAID price and the FREE sponsorship of Vitor keep their readings', () => {
+    expect(mountScreen('awards', 0).find('[data-ma-price="awards"]').attributes('data-ma-price-kind')).eq('paid');
+    const free = mount(ConsoleMaScreen, {
+      ...globalConfig,
+      props: {kind: 'awards', items: AWARDS.map((it) => ({...it, cost: 0})), index: 0, myMegacredits: 2, free: true,
+        priceWaiver: {printed: 8, waivedBy: CardName.NIRGAL_ENTERPRISES}},
+    });
+    const chip = free.find('[data-ma-price="awards"]');
+    expect(chip.attributes('data-ma-price-kind')).eq('free');
+    expect(chip.find('.con-ma__price-free').exists()).is.true;
   });
 
   it('the cursor stands on ONE row, and a click picks it by index', () => {

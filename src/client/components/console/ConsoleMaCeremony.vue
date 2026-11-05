@@ -40,6 +40,11 @@
             <span class="con-macere__vp-unit">{{ $t('VP') }}</span>
           </div>
           <div v-else-if="event.free" class="con-macere__cost">{{ $t('Free sponsorship') }}</div>
+          <!-- PC01 · GO: the viewer's own waived price — the struck table price, 0 and the source's seal. -->
+          <div v-else-if="event.price !== undefined && event.price.kind === 'waived'" class="con-macere__cost" data-ma-price-kind="waived">
+            <span>{{ $t('Cost') }}:</span>
+            <ConsoleMaWaivedPrice :printed="event.price.printed" :waivedBy="event.price.waivedBy" />
+          </div>
           <div v-else-if="event.cost !== undefined" class="con-macere__cost">
             <span>{{ $t('Cost') }}: <b>{{ event.cost }}</b></span>
             <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
@@ -100,6 +105,7 @@ import {playCeremonyBurst, CeremonyBurstHandle} from '@/client/console/ceremony/
 import {$t} from '@/client/directives/i18n';
 import {flyMaVp} from '@/client/console/scoreCell/maVp';
 import PremiumChairGlyph from '@/client/components/premiumCard/PremiumChairGlyph.vue';
+import ConsoleMaWaivedPrice from '@/client/components/console/foundation/ConsoleMaWaivedPrice.vue';
 import {advanceQuestCeremony, questCeremonyState, QuestCeremonyEvent} from '@/client/console/parliament/questCeremony';
 
 /** The own coronation lingers a beat longer than the seal / a rival's beat. */
@@ -112,7 +118,7 @@ const REDUCED_LIFETIME_MS = 1600;
 
 export default defineComponent({
   name: 'ConsoleMaCeremony',
-  components: {MaHeroArt, PremiumChairGlyph},
+  components: {MaHeroArt, PremiumChairGlyph, ConsoleMaWaivedPrice},
   data() {
     return {
       visible: false,

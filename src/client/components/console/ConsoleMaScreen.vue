@@ -47,9 +47,13 @@
             </div>
             <div v-if="allTaken" class="con-ma__complete">✓ {{ $t(kind === 'awards' ? 'All funded' : 'All claimed') }}</div>
             <div v-else class="con-ma__count">{{ $t(kind === 'awards' ? 'Funded' : 'Claimed') }} <b>{{ takenCount }}/{{ maxSlots }}</b></div>
-            <div v-if="!allTaken" class="con-ma__price" :class="{'con-ma__price--free': free || nextCost === 0}" :data-ma-price="kind">
+            <!-- PC01 · GO: the price NAMES ITS CAUSE — a waived one is the table's price struck + the source's seal
+                 (one renderer); Vitor's free sponsorship keeps its word. -->
+            <div v-if="!allTaken" class="con-ma__price" :class="{'con-ma__price--free': chipReading.kind !== 'paid'}" :data-ma-price="kind"
+                 :data-ma-price-kind="chipReading.kind">
               <span class="con-ma__price-label">{{ $t('Cost') }}</span>
-              <span v-if="free || nextCost === 0" class="con-ma__price-free">{{ $t('Free') }}</span>
+              <ConsoleMaWaivedPrice v-if="chipReading.kind === 'waived'" :printed="chipReading.printed" :waivedBy="chipReading.waivedBy" />
+              <span v-else-if="chipReading.kind === 'free'" class="con-ma__price-free">{{ $t('Free') }}</span>
               <template v-else>
                 <b class="con-ma__price-value">{{ nextCost }}</b>
                 <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
@@ -248,6 +252,8 @@ import {buildMaRail, MaRailView} from '@/client/components/console/consoleMaRail
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import {MaConfirmView} from '@/client/components/ma/maConfirmModel';
+import ConsoleMaWaivedPrice from '@/client/components/console/foundation/ConsoleMaWaivedPrice.vue';
+import {MaPriceReading, maPriceReading, MaPriceWaiver, MaSponsorSlot} from '@/client/console/maPriceReading';
 import {MaInspectView} from '@/client/components/console/consoleMaInspectModel';
 import {PaymentView} from '@/client/console/paymentPlan';
 import {maArtFitStyle, maDisplayName} from '@/client/components/ma/maArt';
@@ -274,7 +280,7 @@ import {
 
 export default defineComponent({
   name: 'ConsoleMaScreen',
-  components: {ConsoleScrollArea, ConsoleWsHead, ConsoleMaFocusStage, ConsoleMaRail},
+  components: {ConsoleScrollArea, ConsoleWsHead, ConsoleMaFocusStage, ConsoleMaRail, ConsoleMaWaivedPrice},
   props: {
     /** Which of the family's two workspaces this is (the sheet). */
     kind: {type: String as PropType<ConsoleMaKind>, required: true},
@@ -297,8 +303,10 @@ export default defineComponent({
     /** «› ОПЛАТА» (PL-1622): the payment stage's panel view (undefined while it is closed) and its cursor's source. */
     payView: {type: Object as PropType<PaymentView | undefined>, default: undefined},
     payFocusUnit: {type: String, default: undefined},
-    /** The awards' sponsors in funding order (the detail's sponsorship ladder). */
-    sponsors: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+    /** The awards' funded slots in FUNDING order — each sponsor's seat and the price it went for (the detail's ladder). */
+    sponsors: {type: Array as PropType<ReadonlyArray<MaSponsorSlot>>, default: () => []},
+    /** PC01 · GO: the card that waived this kind's next price and the table's price it waived (the server's facts). */
+    priceWaiver: {type: Object as PropType<MaPriceWaiver | undefined>, default: undefined},
   },
   emits: ['ceremony-done', 'pick'],
   data() {
@@ -420,6 +428,15 @@ export default defineComponent({
      *  projects it, and the submit charges it. */
     nextCost(): number | undefined {
       return this.items.find((it) => it.cost !== undefined)?.cost;
+    },
+    /** The header chip's reading — the price with its cause (PC01 · GO): paid / waived / free. */
+    chipReading(): MaPriceReading {
+      return maPriceReading({
+        price: this.nextCost ?? 0,
+        printed: this.priceWaiver?.printed,
+        waivedBy: this.priceWaiver?.waivedBy,
+        free: this.free,
+      });
     },
     focused(): ConsoleMaItem | undefined {
       return this.items[this.index];

@@ -635,6 +635,7 @@
                        :focusAvailable="maFocusAvailable"
                        :focusBlockReason="maFocusBlockReason"
                        :sponsors="maAwardSponsors"
+                       :priceWaiver="maScreenPriceWaiver"
                        :payView="maPayView"
                        :billNames="maBillNames"
                        :payFocusUnit="maPayFocusUnit"
@@ -1681,6 +1682,7 @@ import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
 import ConsoleMaCeremony from '@/client/components/console/ConsoleMaCeremony.vue';
 import {buildConsoleMaItems, ConsoleMaItem, ConsoleMaKind, stepGrid} from '@/client/components/console/consoleMaModel';
 import {buildMaConfirm, MaConfirmView} from '@/client/components/ma/maConfirmModel';
+import {MaPriceWaiver, maPriceWaiverOf, MaSponsorSlot} from '@/client/console/maPriceReading';
 import {buildMaInspect, MaInspectView} from '@/client/components/console/consoleMaInspectModel';
 import {
   armMaCeremony,
@@ -9625,6 +9627,14 @@ export default defineComponent({
       const funded = this.game.awards.filter((a) => a.playerName !== undefined && a.playerName !== '').length;
       return this.playerView.maCosts?.award ?? (AWARD_COSTS[funded] ?? AWARD_COSTS[AWARD_COSTS.length - 1]);
     },
+    /**
+     * THE CARD THAT WAIVED A PRICE (PC01 Nirgal Enterprises · GO) and the table's price it waived — both off the
+     * server's `maCosts` (`printed` / `waiver`, published only beside a waiver); never derived from the constants.
+     */
+    maScreenPriceWaiver(): MaPriceWaiver | undefined {
+      const kind = this.maScreenKind;
+      return kind === undefined || (kind === 'awards' && this.awardFundingActive) ? undefined : this.maPriceWaiverOf(kind);
+    },
     /** The FREE award-funding prompt (Vitor's start action) is the pending
      *  shell task — the premium awards MA screen hosts it (desktop parity:
      *  the AwardsOverlay's free-sponsorship mode), never the generic list. */
@@ -9674,11 +9684,14 @@ export default defineComponent({
         }
       };
       const free = kind === 'award' && this.awardFundingActive;
+      const waiver = free ? undefined : this.maPriceWaiverOf(kind === 'milestone' ? 'milestones' : 'awards');
       return buildMaConfirm(kind, source, models, {
         myColor: this.thisPlayer.color,
         myMegacredits: this.thisPlayer.megacredits,
         cost: kind === 'milestone' ? this.milestoneCostValue : (free ? 0 : this.awardCostValue),
         free, // Vitor's free sponsorship — the stage shows the free chip.
+        // PC01 · GO: the price's CAUSE — the table's price and the card that waived it, both the server's facts.
+        ...(waiver !== undefined ? {printed: waiver.printed, waivedBy: waiver.waivedBy} : {}),
         maxSlots: 3,
         playerName: (c) => {
           const pl = this.playerView.players.find((candidate) => candidate.color === c);
@@ -9768,10 +9781,19 @@ export default defineComponent({
       return pay !== undefined && maPayCovers(this.maPayCost, this.maPayLaneList, pay.counts, maPayMcAvailable(this.thisPlayer));
     },
     /** The awards' sponsors in funding order — the detail's sponsorship ladder seats them on their slots. */
-    maAwardSponsors(): ReadonlyArray<string> {
+    maAwardSponsors(): ReadonlyArray<MaSponsorSlot> {
+      // FUNDING order, by the server's `slot` (PC01 · GO): the model lists the awards in BOARD order, so a ladder that
+      // paired board order with the slot prices seated a sponsor on somebody else's price. A model without the field
+      // keeps the board order (the degrade it always had).
       return this.game.awards
         .filter((a) => a.playerName !== undefined && a.playerName !== '' && a.color !== undefined)
-        .map((a) => a.color as string);
+        .map((a, i) => ({a, order: a.slot ?? i}))
+        .sort((x, y) => x.order - y.order)
+        .map(({a}) => ({
+          color: a.color as string,
+          ...(a.paid !== undefined ? {paid: a.paid} : {}),
+          ...(a.waivedBy !== undefined ? {waivedBy: a.waivedBy} : {}),
+        }));
     },
     /** The ceremony queue head — the commit watcher's reactive mirror. */
     maCurrentBeat(): MaCeremonyEvent | undefined {
@@ -14611,6 +14633,10 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The server's waiver of one kind's next price (PC01 · GO — `maCosts.waiver` / `.printed`). */
+    maPriceWaiverOf(kind: 'milestones' | 'awards'): MaPriceWaiver | undefined {
+      return maPriceWaiverOf(this.playerView.maCosts, kind);
+    },
     /** The view the play composer reads — frozen on the confirmed one while an event pays before its lift (P84 · DK). */
     playedHeroComposerView(): PlayerViewModel | undefined {
       return playedHeroComposerView();
@@ -18230,7 +18256,7 @@ export default defineComponent({
         {megacredits: payment.megacredits, heat: payment.heat} : {megacredits: view.cost});
       beginMaFocusCommit({gameAge: this.game.gameAge, undoCount: this.game.undoCount});
       claimMaCeremonyEmbed(item.kind, item.name);
-      armMaCeremony({kind: item.kind, name: item.name, cost: view.cost, free: view.free});
+      armMaCeremony({kind: item.kind, name: item.name, cost: view.cost, free: view.free, price: view.price});
       // THE SCORE CELL (TR55): the milestone's +5 / the award's place is the ceremony's to show — held to its token.
       claimMaVp(item.kind, item.name);
       this.armMaFocusSafety();

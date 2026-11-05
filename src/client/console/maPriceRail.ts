@@ -18,7 +18,8 @@
  *
  * Bounded and named: a seeded half nobody flies is released by its own hold's ceiling (`ma-price-owed`), a refused /
  * abandoned commit releases it at once (`releaseMaPrice`); reduced motion seeds nothing (`seedRailReward` refuses), so
- * the rows tick with the commit. A free claim (Van Allen, Nirgal, Vitor's sponsorship) arms nothing.
+ * the rows tick with the commit. A free claim (Van Allen, Nirgal, Vitor's sponsorship) arms nothing — a WAIVED price is
+ * named by its reading instead (`maPriceReading.ts`, PC01 · GO: the struck table price + the source's seal), never flown.
  */
 import {shallowRef} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';

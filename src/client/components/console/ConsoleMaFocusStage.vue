@@ -79,10 +79,14 @@
                      drawn link. The price cell is the PRINTED PRICE (PL-1621): the price token is drawn into it. -->
                 <div class="con-mafocus__exchange" data-ma-exchange>
                   <span class="con-mafocus__xcell con-mafocus__xcell--price"
-                        :data-ma-price-target="displayView.free || displayView.cost === 0 ? undefined : ''">
+                        :data-ma-price-target="charged ? '' : undefined"
+                        :data-ma-price-kind="displayView.price.kind">
                     <span class="con-mafocus__xlabel">{{ $t('Cost') }}</span>
                     <span class="con-mafocus__xvalue">
-                      <template v-if="displayView.free || displayView.cost === 0"><b>{{ $t('Free') }}</b></template>
+                      <!-- PC01 · GO: a waived price is the table's price struck → 0 + the source's seal; nothing flies into it. -->
+                      <ConsoleMaWaivedPrice v-if="displayView.price.kind === 'waived'"
+                                            :printed="displayView.price.printed" :waivedBy="displayView.price.waivedBy" />
+                      <template v-else-if="displayView.price.kind === 'free'"><b>{{ $t('Free') }}</b></template>
                       <template v-else><b>{{ displayView.cost }}</b><i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i></template>
                     </span>
                   </span>
@@ -103,13 +107,27 @@
               </template>
             </div>
             <div v-if="kind === 'award'" class="con-mafocus__ladder" data-ma-ladder>
+              <!-- THE THREE TIMES (PC01 · GO): a funded step prints what it WENT for (the server's `paid` — a waived slot
+                   reads «0» with its source's seal for every seat), the next step the price with its cause, the steps
+                   after it the table's rule — struck to 0 with the seal under a standing waiver. -->
               <span v-for="(step, si) in ladder" :key="si" class="con-mafocus__ladder-step"
-                    :class="{'con-mafocus__ladder-step--next': step.next, 'con-mafocus__ladder-step--funded': step.sponsor !== undefined}"
-                    :data-ma-ladder-step="si" :data-ma-price-target="step.next && !step.free ? '' : undefined">
+                    :class="{'con-mafocus__ladder-step--next': step.next, 'con-mafocus__ladder-step--funded': step.sponsor !== undefined,
+                             'con-mafocus__ladder-step--waived': step.reading.kind === 'waived'}"
+                    :data-ma-ladder-step="si" :data-ma-price-kind="step.reading.kind"
+                    :data-ma-price-target="step.next && step.charged ? '' : undefined">
                 <span v-if="step.sponsor !== undefined" class="con-mafocus__dot" :class="'player_bg_color_' + step.sponsor" aria-hidden="true"></span>
-                <b>{{ step.free ? $t('Free') : step.price }}</b>
-                <i v-if="!step.free" class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
+                <ConsoleMaWaivedPrice v-if="step.reading.kind === 'waived'" :printed="step.reading.printed" :waivedBy="step.reading.waivedBy" />
+                <template v-else-if="step.reading.kind === 'free'"><b>{{ $t('Free') }}</b></template>
+                <template v-else>
+                  <b>{{ step.reading.price }}</b>
+                  <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
+                </template>
               </span>
+            </div>
+            <!-- WHO waived the price, in words ONCE, here (the detail has the room and no corporation face on screen);
+                 the overview and the ceremony carry only the seal. -->
+            <div v-if="waiverSource !== undefined" class="con-mafocus__waiver" data-ma-waiver :data-ma-waiver-source="waiverSource">
+              {{ waiverLine }}
             </div>
           </div>
 
@@ -191,6 +209,10 @@
             <span class="con-mafocus__cere-vp-unit">{{ $t('VP') }}</span>
           </div>
           <div v-else-if="displayView.free" class="con-mafocus__cere-cost" data-ma-cere-line>{{ $t('Free sponsorship') }}</div>
+          <div v-else-if="displayView.price.kind === 'waived'" class="con-mafocus__cere-cost" data-ma-cere-line data-ma-price-kind="waived">
+            <span>{{ $t('Cost') }}:</span>
+            <ConsoleMaWaivedPrice :printed="displayView.price.printed" :waivedBy="displayView.price.waivedBy" />
+          </div>
           <div v-else class="con-mafocus__cere-cost" data-ma-cere-line>
             <span>{{ $t('Cost') }}: <b>{{ displayView.cost }}</b></span>
             <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
@@ -231,12 +253,16 @@ import {MaConfirmView} from '@/client/components/ma/maConfirmModel';
 import {MaInspectView} from '@/client/components/console/consoleMaInspectModel';
 import {maFocusState, MaFocusPhase} from '@/client/console/consoleMaFocus';
 import {AWARD_COSTS} from '@/common/constants';
+import ConsoleMaWaivedPrice from '@/client/components/console/foundation/ConsoleMaWaivedPrice.vue';
+import {maFundedSlotReading, maPriceCharged, MaPriceReading, maPriceReading, MaSponsorSlot} from '@/client/console/maPriceReading';
+import {CardName} from '@/common/cards/CardName';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {runMaCeremonyStage, stopMaCeremonyStage} from '@/client/console/consoleMaFocusMotion';
 import {$t} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'ConsoleMaFocusStage',
-  components: {MaHeroArt, ConsoleMaRail, ConsolePaymentPanel},
+  components: {MaHeroArt, ConsoleMaRail, ConsolePaymentPanel, ConsoleMaWaivedPrice},
   props: {
     item: {type: Object as PropType<ConsoleMaItem>, required: true},
     view: {type: Object as PropType<MaConfirmView>, required: true},
@@ -250,8 +276,8 @@ export default defineComponent({
     /** «› ОПЛАТА» (PL-1622): the payment panel's view (undefined while the stage is closed) and its cursor's source. */
     payView: {type: Object as PropType<PaymentView | undefined>, default: undefined},
     payFocusUnit: {type: String, default: undefined},
-    /** The awards' funded slots in order — each sponsor's colour (the ladder's seats). */
-    sponsors: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+    /** The awards' funded slots in FUNDING order — each sponsor's seat and the price it went for (the ladder's past). */
+    sponsors: {type: Array as PropType<ReadonlyArray<MaSponsorSlot>>, default: () => []},
   },
   emits: ['ceremony-done'],
   data() {
@@ -322,22 +348,48 @@ export default defineComponent({
     conditionMilestone(): boolean {
       return this.kind === 'milestone' && this.displayView.threshold === undefined;
     },
+    /** The press charges the rail (the PL-1621 flight arms its target) — never for a free / waived price. */
+    charged(): boolean {
+      return maPriceCharged(this.displayView.price);
+    },
     /**
-     * THE SPONSORSHIP LADDER (awards): one step per slot — a funded slot wears its sponsor's seat and the price it went
-     * for (the rules' ladder), the NEXT one the live price (the engine's own — a modifier is already in it) with a kant.
+     * THE SPONSORSHIP LADDER (awards) — the truth about THREE TIMES (PC01 · GO): one step per slot.
+     *  · PAST — a funded slot wears its sponsor's seat and what it WENT for: the server's `paid` (a waived slot reads
+     *    «0» with its source's seal, for every seat); a save without the fact prints the rules' price of the slot.
+     *  · PRESENT — the next step: the live price with its cause (the engine's own; the waiver's struck table price).
+     *  · FUTURE — the steps after it print the TABLE's rule (14 · 20 — true for whoever funds them); under a standing
+     *    waiver each is struck to 0 with the same seal: the seat reads the table's rule AND its own price.
      */
-    ladder(): Array<{price: number, sponsor?: string, next: boolean, free: boolean}> {
+    ladder(): Array<{reading: MaPriceReading, sponsor?: string, next: boolean, charged: boolean}> {
       const taken = this.displayView.takenCount;
+      const rule = (i: number) => AWARD_COSTS[i] ?? AWARD_COSTS[AWARD_COSTS.length - 1];
+      const nextWaiver = this.displayView.price.kind === 'waived' ? this.displayView.price.waivedBy : undefined;
       return Array.from({length: this.displayView.maxSlots}, (_, i) => {
         const sponsor = this.sponsors[i];
         const next = i === taken;
+        let reading: MaPriceReading;
+        if (sponsor !== undefined && i < taken) {
+          reading = maFundedSlotReading(sponsor, rule(i));
+        } else if (next) {
+          reading = this.displayView.price;
+        } else {
+          reading = maPriceReading({price: nextWaiver !== undefined ? 0 : rule(i), printed: rule(i), waivedBy: nextWaiver});
+        }
         return {
-          price: next ? this.displayView.cost : (AWARD_COSTS[i] ?? AWARD_COSTS[AWARD_COSTS.length - 1]),
-          ...(sponsor !== undefined ? {sponsor} : {}),
+          reading,
+          ...(sponsor !== undefined ? {sponsor: sponsor.color} : {}),
           next,
-          free: next && this.displayView.free,
+          charged: maPriceCharged(reading),
         };
       });
+    },
+    /** The card that waived THIS seat's price — named once, in words, under the exchange / the ladder. */
+    waiverSource(): CardName | undefined {
+      return this.displayView.price.kind === 'waived' ? this.displayView.price.waivedBy : undefined;
+    },
+    waiverLine(): string {
+      const source = this.waiverSource;
+      return source === undefined ? '' : translateTextWithParams('${0} — free for you', [translateText(source)]);
     },
     takenByMe(): boolean {
       return this.item.takenBy !== undefined && this.item.takenBy.color === this.item.myColor;

@@ -35,6 +35,7 @@ import {Color} from '@/common/Color';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {MaKind} from '@/client/components/ma/maArt';
+import {MaPriceReading} from '@/client/console/maPriceReading';
 
 export type MaCeremonyEvent = {
   kind: MaKind,
@@ -48,10 +49,12 @@ export type MaCeremonyEvent = {
   /** The exact paid price — known only for the viewer's own armed submit. */
   cost?: number,
   free: boolean,
+  /** The price's READING with its cause (PC01 · GO) — the viewer's own armed submit only; a rival's beat prints none. */
+  price?: MaPriceReading,
   at: number,
 };
 
-type PendingMaCeremony = {kind: MaKind, name: string, cost: number, free: boolean, armedAt: number};
+type PendingMaCeremony = {kind: MaKind, name: string, cost: number, free: boolean, price?: MaPriceReading, armedAt: number};
 
 /** A stale arm (a submit that never resolved) is dropped after this long. */
 const PENDING_TTL_MS = 90_000;
@@ -139,8 +142,9 @@ export function disarmMaCeremony(): void {
 }
 
 /** Called at the viewer's own submit — carries the exact cost/free context. */
-export function armMaCeremony(event: {kind: MaKind, name: string, cost: number, free: boolean}, now: number = Date.now()): void {
-  maCeremonyState.pending = {kind: event.kind, name: event.name, cost: event.cost, free: event.free, armedAt: now};
+export function armMaCeremony(event: {kind: MaKind, name: string, cost: number, free: boolean, price?: MaPriceReading}, now: number = Date.now()): void {
+  maCeremonyState.pending = {kind: event.kind, name: event.name, cost: event.cost, free: event.free, armedAt: now,
+    ...(event.price !== undefined ? {price: event.price} : {})};
 }
 
 /** The minimal slice of PlayerViewModel the observer needs (test-friendly). */
@@ -227,6 +231,7 @@ export function observeMaCeremony(view: MaCeremonyView | undefined, now: number 
         own,
         cost: own && matchesArm ? armed.cost : undefined,
         free: own && matchesArm ? armed.free : false,
+        ...(own && matchesArm && armed.price !== undefined ? {price: armed.price} : {}),
         at: now,
       });
       fired = true;

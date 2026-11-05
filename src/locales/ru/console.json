@@ -1273,5 +1273,8 @@
     "Not enough cards in hand to discard": "Не хватает карт в руке для сброса",
     "The discard needs ${0} more cards in hand, and nothing left to play draws them. Playing this prelude will lose its effect.": "Для сброса нужно ещё карт в руке: ${0}, а оставшиеся прологи их не дают. При розыгрыше пролога его эффект будет потерян.",
     "Play ${0} first: it draws the cards the discard needs. Played now, this prelude loses its effect.": "Сначала разыграйте «${0}»: он даёт карты для сброса. Если разыграть этот пролог сейчас, его эффект будет потерян.",
-    "Play preludes that draw cards first: the discard needs ${0} more cards in hand. Played now, this prelude loses its effect.": "Сначала разыграйте прологи, которые дают карты: для сброса нужно ещё карт в руке: ${0}. Если разыграть этот пролог сейчас, его эффект будет потерян."
+    "Play preludes that draw cards first: the discard needs ${0} more cards in hand. Played now, this prelude loses its effect.": "Сначала разыграйте прологи, которые дают карты: для сброса нужно ещё карт в руке: ${0}. Если разыграть этот пролог сейчас, его эффект будет потерян.",
+    "Free thanks to ${0}: the price was ${1} M€": "Бесплатно благодаря «${0}»: цена была ${1} M€",
+    "Free thanks to ${0}": "Бесплатно благодаря «${0}»",
+    "${0} — free for you": "${0} — для вас бесплатно"
 }

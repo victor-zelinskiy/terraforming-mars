@@ -25,7 +25,9 @@
  * action.
  */
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 import {maDisplayName, MaKind} from '@/client/components/ma/maArt';
+import {MaPriceReading, maPriceReading} from '@/client/console/maPriceReading';
 
 /** The common shape of ClaimedMilestoneModel / FundedAwardModel. */
 export type MaConfirmSource = {
@@ -58,6 +60,8 @@ export type MaConfirmView = {
   /** Effective price (0 in the free-sponsorship flow). */
   cost: number,
   free: boolean,
+  /** THE PRICE WITH ITS CAUSE (PC01 · GO) — paid / waived (struck table price + the source's seal) / free. */
+  price: MaPriceReading,
   mcBefore: number,
   mcAfter: number,
   /** Milestone progress (threshold meter). */
@@ -86,6 +90,10 @@ export type MaConfirmBuildOptions = {
   cost: number,
   /** Vitor-style free sponsorship — never blocks on M€. */
   free: boolean,
+  /** The table's price as if nothing waived it (the server's `maCosts.printed`) — only stated beside a waiver. */
+  printed?: number,
+  /** The card that waived this price (the server's `maCosts.waiver`). */
+  waivedBy?: CardName,
   maxSlots: number,
   /** Player-name lookup by colour ('' degrades gracefully). */
   playerName: (color: Color) => string,
@@ -139,6 +147,7 @@ export function buildMaConfirm(
     description,
     cost,
     free: opts.free,
+    price: maPriceReading({price: cost, printed: opts.printed, waivedBy: opts.waivedBy, free: opts.free}),
     mcBefore: opts.myMegacredits,
     mcAfter: opts.myMegacredits - cost,
     threshold: source.threshold,

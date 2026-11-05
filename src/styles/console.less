@@ -12723,6 +12723,8 @@ html.console-mode {
         font-variant-numeric: tabular-nums;
         color: #ffe2ad;
     }
+    /* PC01 · GO: a waived price in the chip speaks at the paid number's size — the reading changes, not the voice. */
+    &__price .con-maprice { font-size: 1.05rem; }
     &__price-free {
         font-size: .675rem;
         font-weight: 800;
@@ -13919,6 +13921,14 @@ html.console-mode {
 
         &--funded { color: fade(@con-text, 70%); text-decoration: line-through; text-decoration-thickness: .05rem; }
         &--next { color: #ffe2ad; box-shadow: inset 0 0 0 .075rem fade(@strat-gold, 80%); }
+    }
+    /* PC01 · GO: a step under a standing waiver keeps the step's chassis — the struck rule → 0 + the seal is the reading. */
+    &__ladder-step--waived { gap: .35rem; }
+    /* WHO waived the price — said in words once, a quiet line under the exchange / the ladder (never a plate). */
+    &__waiver {
+        margin-top: .5rem;
+        font-size: var(--mafocus-note, .75rem);
+        color: @con-text-dim;
     }
     /* The claimed milestone's HISTORY row, over the field's current values. */
     &__history {
@@ -40081,4 +40091,37 @@ dialog.con-zoom {
         color: fade(@con-text-dim, 94%);
         letter-spacing: .04em;
     }
+}
+
+/* ── A WAIVED MILESTONE / AWARD PRICE (PC01 Nirgal Enterprises · ledger GO) — `foundation/ConsoleMaWaivedPrice.vue`.
+   The table's price STRUCK → «0 M€» → the source's seal (the card silhouette of a standing corporation effect).
+   A state drawn by MATERIAL — a strike, weight, the seal; never light, never a special fill. Sized in `em`: it takes
+   the type size of the line it stands in (the overview chip, the exchange cell, a ladder step, the ceremony). ── */
+.con-maprice {
+    display: inline-flex;
+    align-items: center;
+    gap: .3em;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+
+    &__printed {
+        color: @con-text-dim;
+        font-weight: 600;
+        text-decoration: line-through;
+        text-decoration-thickness: .08em;
+    }
+    &__arrow {
+        color: @con-text-dim;
+        font-size: .85em;
+    }
+    &__value { font-weight: 800; }
+    .resource_icon {
+        display: inline-block;
+        width: 1.05em;
+        height: 1.05em;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+    &__seal { font-size: .95em; }
 }
