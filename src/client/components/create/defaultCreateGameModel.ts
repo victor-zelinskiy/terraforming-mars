@@ -37,6 +37,8 @@ export function defaultCreateGameModel(): CreateGameModel {
       venus: true,
       colonies: true,
       prelude: true,
+      // Prelude 2 — ON by default (the owner, 2026-11-06, after the full inclusion); it requires Prelude (on above).
+      prelude2: true,
       ares: true,
       deltaProject: true,
     },

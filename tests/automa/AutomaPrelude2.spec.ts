@@ -9,16 +9,17 @@ import {MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
 import {marsBotCorpInfo} from '../../src/common/automa/MarsBotCorpData';
 import {TestPlayer} from '../TestPlayer';
 import {runAllActions} from '../TestingUtils';
-import {testAutomaGame} from './AutomaTestGame';
+import {testAutomaGame, testAutomaMultiplayerGame} from './AutomaTestGame';
 
 /**
  * PRELUDE 2 WITH MARSBOT — the full inclusion (2026-11-05). The option was refused on a bot table
  * (`automaCompatibility` — «Prelude 2 (per the official rules, and out of POC scope)»); every one of its 54 cards
  * was adapted against the bot as one more seat («the bot is just another player»: each card's spec carries its
- * MarsBot block), and the official rules play the set with the Automa (only Recession leaves the deck — the fork
- * KEEPS it, a house rule: `docs/claude/marsbot-home-rules.md`). Pinned here: the table is created, the decks carry
- * the set, the bot plays its cards for several generations with no exception and no illegal state, and its
- * corporation is never the twin of a human's Prelude 2 corporation.
+ * MarsBot block), and the official rules play the set with the Automa — Recession leaves the deck. The owner's rule
+ * (2026-11-06): it leaves the SOLO game against the bot only (`AutomaBans`, Mons Insurance's shape); a table of two
+ * humans and the bot keeps it, and a guaranteed pick (the test mode) still deals it. Pinned here: the table is created,
+ * the decks carry the set, Recession's three cases, the bot plays its cards for several generations with no exception
+ * and no illegal state, and its corporation is never the twin of a human's Prelude 2 corporation.
  */
 
 const PROJECTS: ReadonlyArray<CardName> = CardManifest.keys(PRELUDE2_CARD_MANIFEST.projectCards);
@@ -45,13 +46,26 @@ describe('Prelude 2 with MarsBot (the full inclusion)', () => {
     } as Parameters<typeof automaConflicts>[0])).deep.eq([]);
   });
 
-  it('a bot table is created with the option ON, and its decks carry the set — Recession included (the house rule)', () => {
+  /** Every prelude a table holds: the deck, its discard, every seat's dealt preludes. */
+  const preludesOf = (game: IGame) =>
+    [...game.preludeDeck.drawPile, ...game.preludeDeck.discardPile, ...game.players.flatMap((p) => p.dealtPreludeCards)].map((c) => c.name);
+
+  it('a SOLO bot table is created with the option ON, its decks carry the set — and Recession leaves the deck (the official rule)', () => {
     const [game] = testAutomaGame(OPTIONS, '-p2-deal');
     const projects = [...game.projectDeck.drawPile, ...game.projectDeck.discardPile].map((c) => c.name);
-    const preludes = [...game.preludeDeck.drawPile, ...game.preludeDeck.discardPile, ...game.players.flatMap((p) => p.dealtPreludeCards)].map((c) => c.name);
     expect(projects.filter((name) => PROJECTS.includes(name)).length, 'Prelude 2 projects in the project deck').greaterThan(0);
-    expect(preludes.filter((name) => PRELUDES.includes(name)).length, 'Prelude 2 preludes in the prelude deck').greaterThan(0);
-    expect(preludes, 'Recession is NOT removed (the fork plays it against the bot)').to.include(CardName.RECESSION);
+    expect(preludesOf(game).filter((name) => PRELUDES.includes(name)).length, 'Prelude 2 preludes in the prelude deck').greaterThan(0);
+    expect(preludesOf(game), 'one human against the bot: no Recession').to.not.include(CardName.RECESSION);
+  });
+
+  it('two humans and the bot KEEP Recession (the owner, 2026-11-06)', () => {
+    const [game] = testAutomaMultiplayerGame(2, OPTIONS, '-p2-multi');
+    expect(preludesOf(game)).to.include(CardName.RECESSION);
+  });
+
+  it('a GUARANTEED Recession (the test mode) reaches the solo bot table anyway', () => {
+    const [game] = testAutomaGame({...OPTIONS, customPreludes: [CardName.RECESSION]}, '-p2-forced');
+    expect(preludesOf(game)).to.include(CardName.RECESSION);
   });
 
   it('the bot plays Prelude 2 projects off its action deck for six generations — no exception, no illegal state', () => {

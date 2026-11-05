@@ -337,18 +337,18 @@ describe('consoleCreateModel', () => {
   });
 
   describe('Prelude 2 — the ninth plate (the full inclusion, 2026-11-05)', () => {
-    it('stands right after Prelude, OFF by default, its chip naming Prelude', () => {
+    it('stands right after Prelude, ON by default (the owner, 2026-11-06), its chip naming Prelude', () => {
       const rows = expansionRows();
       const ids = rows.map((r) => r.meta.id);
       expect(ids.indexOf('prelude2')).to.eq(ids.indexOf('prelude') + 1);
       const row = rows.find((r) => r.meta.id === 'prelude2')!;
-      expect(row.value).to.eq(false);
+      expect(row.value).to.eq(true);
       expect(row.requires.map((r) => r.id)).to.deep.eq(['prelude']);
     });
 
     it('with Prelude off the launch is blocked by a NAMED reason; with Prelude on it is ready', () => {
+      createGameState.config.selectedExpansions.prelude2 = true;
       createGameState.config.selectedExpansions.prelude = false;
-      toggleExpansion('prelude2');
       expect(launchIssues().map((i) => i.textKey)).to.include('Prelude 2 requires Prelude');
       expect(launchReady()).to.eq(false);
       toggleExpansion('prelude');
@@ -358,7 +358,7 @@ describe('consoleCreateModel', () => {
     it('with MarsBot seated, Prelude 2 is no conflict (the full inclusion — the bot plays the set)', () => {
       seatBot();
       createGameState.config.selectedExpansions.prelude = true;
-      toggleExpansion('prelude2');
+      createGameState.config.selectedExpansions.prelude2 = true;
       expect(expansionRows().find((r) => r.meta.id === 'prelude2')?.conflictKey).to.eq(undefined);
       expect(launchIssues().filter((i) => i.target.deck === 'expansions')).to.deep.eq([]);
     });

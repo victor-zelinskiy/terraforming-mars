@@ -26,8 +26,9 @@ export type PremiumExpansionMeta = {
 export const PREMIUM_EXPANSIONS: ReadonlyArray<PremiumExpansionMeta> = [
   {id: 'corpera', labelKey: 'Corporate Era', descKey: 'Adds broader economy and project cards — the standard full-game setting.'},
   {id: 'prelude', labelKey: 'Prelude', descKey: 'Each player starts with prelude cards that shape the opening.'},
-  // Prelude 2 — in the premium scope whole since 2026-11-05 (54 cards adapted one by one). OFF by default; its
-  // preludes are dealt from the Prelude deck, so «requires Prelude» is the plate's chip (`EXPANSION_REQUIRES`).
+  // Prelude 2 — in the premium scope whole since 2026-11-05 (54 cards adapted one by one). ON by default (the owner,
+  // 2026-11-06 — `defaultCreateGameModel`); its preludes are dealt from the Prelude deck, so «requires Prelude» is the
+  // plate's chip (`EXPANSION_REQUIRES`).
   {id: 'prelude2', labelKey: 'Prelude 2', descKey: 'Adds more preludes, projects and corporations built around Venus, colonies and the Parliament.'},
   {id: 'venus', labelKey: 'Venus Next', descKey: 'Adds the Venus global parameter and Venus-focused cards.'},
   {id: 'colonies', labelKey: 'Colonies', descKey: 'Adds colony tiles, trading and resource engines.'},

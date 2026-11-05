@@ -10,7 +10,7 @@ import {CardName} from '../../src/common/cards/CardName';
  * The expansion is in the premium scope WHOLE: the creator offers it, the deck meter counts it, the test mode's picker
  * deals it, MarsBot plays it.
  *
- *   A · the creator: the plate «Пролог 2» right after «Пролог», OFF by default, its chip «требует Пролог»; with Prelude
+ *   A · the creator: the plate «Пролог 2» right after «Пролог», ON by default (the owner, 2026-11-06), its chip «требует Пролог»; with Prelude
  *       off the launch is flagged by name; with the bot seated no conflict; the choice persists; the deck fits (tv4k + deck).
  *   B · the deck meter: the plate's own contribution chips, the preludes total grows when it is switched on.
  *   C · the test mode's picker: the module «Пролог 2», a gated card marked and refused, a corporation, a prelude and a
@@ -166,7 +166,7 @@ for (const profile of [TV, DECK]) {
   test.describe(`Prelude 2 · the full inclusion · the creator · ${profile.id}`, () => {
     test.use({viewport: profile.viewport, deviceScaleFactor: 1, screen: profile.viewport});
 
-    test(`A · the plate after «Пролог», OFF by default, its chip, the named block, no bot conflict, persisted, the deck fits (${profile.id})`, async ({page}) => {
+    test(`A · the plate after «Пролог», ON by default, its chip, the named block, no bot conflict, persisted, the deck fits (${profile.id})`, async ({page}) => {
       test.setTimeout(300_000);
       await seedIdentity(page, 'Alice');
       await seedSettings(page, {gameMode: 'marsbot', players: [{name: 'Alice', color: 'blue'}], rules: {randomMilestonesAwards: false, randomBoardTiles: false}});
@@ -175,12 +175,12 @@ for (const profile of [TV, DECK]) {
       await settle(page, {timeoutMs: 15_000}).catch(() => undefined);
       const ids = await page.locator('.cm-exp[data-exp]').evaluateAll((els) => els.map((e) => e.getAttribute('data-exp')));
       expect(ids.indexOf('prelude2'), 'the plate stands right after Prelude').toBe(ids.indexOf('prelude') + 1);
-      expect(await plateOn(page, 'prelude2'), 'OFF by default').toBe(false);
+      expect(await plateOn(page, 'prelude2'), 'ON by default (the owner, 2026-11-06)').toBe(true);
       await expect(page.locator('.cm-exp[data-exp="prelude2"] [data-exp-needs="prelude"]'), 'its chip names Prelude').toHaveCount(1);
       await expect(page.locator('.cm-exp[data-exp="prelude2"] .cm-exp__name')).toHaveText('Пролог 2');
       const fit = await deckFits(page);
       expect(fit.fits, `nine plates fit the deck (${fit.why})`).toBe(true);
-      await shoot(page, profile.id, 'a-01-expansions-off');
+      await shoot(page, profile.id, 'a-01-expansions-default');
 
       if (profile.id === 'tv4k') {
         // ON with the bot seated: no conflict. Prelude off: the chip unmet, the deck flagged.
