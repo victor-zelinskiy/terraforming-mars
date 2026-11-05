@@ -44,7 +44,7 @@
 сдающего), план `planDeckDraw` от причины не зависит (юнит A/B на одной последовательности).
 Новое — ЧТО поиск искал и ПОЧЕМУ карта ушла, одним описателем сервера:
 
-- **Описатель поиска** `DrawSearchModel {count, tag?, type?, resource?, withoutTags?, floaterIcon?, partyRequirement?, requirement?}` рождается
+- **Описатель поиска** `DrawSearchModel {count, tag?, type?, resource?, withoutTags?, floaterIcon?, partyRequirement?, requirement?, noTags?}` рождается
   в `server/deferredActions/drawSearch.ts` (`drawSearchOf`) из того объявления, что ищет
   (`Behavior.DrawCard` / `DrawOptions`), и едет в чип добора (`ActionEffect.search`), в
   структурный текст лица (генератор печатает поиск сам) и в reveal (`CardDrawRevealModel.search`
@@ -55,7 +55,11 @@
   клауза «со значком аэростата», иконка аэростата), `partyRequirement` (P51 — `hasPartyRequirement`,
   «с требованием партии», плашка с партией), `requirement` (P54 Nobel Prize — `hasRequirement`, ЛЮБОЕ
   требование, «с требованием», ЕДИНЫЙ знак «карта с требованием» — рубашка карты с медным баннером лица,
-  `CARD_REQUIREMENT_ICON`, PL-1691; голой плашки «MIN» больше нет). Отброшенная
+  `CARD_REQUIREMENT_ICON`, PL-1691; голой плашки «MIN» больше нет); четвёртый — `noTags` (PC03 Sagitta — `hasNoPrintedTags`:
+  ни одной ПЕЧАТНОЙ метки и не событие, джокер здесь метка; «без меток», знак «перечёркнутая пустая метка»
+  `NO_TAGS_ICON` — тот же, что на лице и в ячейке рельса). Его отброшенная карта называет МЕТКИ, которые её
+  отбросили (`failedTags` от того же читателя — `tagsBarringNoTagsSearch`: метка события, печатные, джокер), и
+  вердикт — `{kind: 'tags'}` («за метку [медальон]»). Отброшенная
   положительным фильтром карта получает вердикт `{kind: 'rule', terms}` — правило ПОЗИТИВНО («Не подошла ·
   с требованием»), никогда «без …». Новый поиск — поле по всей цепочке (`Behavior.DrawCard` → `Executor` →
   `DrawOptions` + фильтр `DrawCards` → `drawSearchOf` → `DrawSearchModel` → `drawSearchSentence` → терм

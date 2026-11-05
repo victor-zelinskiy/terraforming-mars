@@ -546,6 +546,16 @@ flights, the directors, the latches) is untouched:
    rem (`.78rem`) once the size is solved — one A, the risk stage's face as before.
 Witness: e2e `console-start-queue-scene` (fhd · tv4k · deck).
 
+## A CORPORATION'S REVEAL IS THREE STORIES OF ONE PRESS (PC03 Sagitta, 2026-11-05 — ledger GU)
+
+A corporation whose own play SEARCHES the deck and ANSWERS ITSELF into the row its printed start fills (Sagitta: 31 M€ printed, «draw a card that has no tag», +4 M€ «including this») tells three stories with ONE press, each from its own printed cause, one teller each — and the stand `console-sagitta` (A) pins the order the product already plays:
+
+1. **The printed start** — the hero's wave: «+31» born on the printed M€ square, the productions off the production box; the row reads 0 → 31 on the touchdown. The corporation's own answer is NOT in it (`startBonusGain` / the setup stage read the printed start, the answer is the reaction framework's).
+2. **Its own answer** — the corporation rises as the reactor on the start scene and its +4 leaves the EFFECT row's printed «4», one token per M€; the row ticks 31 → 35 per touchdown.
+3. **The search** — the deck deals from its pile inside the start's body (`.con-start` — the host never swaps its body), the badge «ВСКРЫТО 4 · ПОЛУЧЕНО 1 · СБРОШЕНО 3 — БЕЗ МЕТОК ✕», the discards to «СБРОШЕННЫЕ» with their tags, the card to the hand on the take.
+
+The server's queue runs the draw BEFORE the payout (`Priority.DRAW_CARDS` < `GAIN_RESOURCE_OR_PRODUCTION`); the console tells the answer first because the reveal is a surface that asks the player (A to take) and its ENTRY waits for the table's answer of the same response (§ prompt admission, `table-answer`) — every frame stays true (the reveal touches no M€ row). No new teller, block or hold was added for this card; a fifth story of the same press must enter through the same doors. While the stories 1–2 play, the crumb already names the search («› ДОБОР КАРТ») over the outcome stage — the P54 grammar of a start draw (the hero presides as «ИСТОЧНИК»).
+
 ## Guards
 
 `tests/client/components/console/startFirstAction.spec.ts` (stage model + the
