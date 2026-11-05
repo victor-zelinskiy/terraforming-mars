@@ -73,6 +73,7 @@ import {Tactician4} from './modular/Tactician4';
 import {Briber} from './Briber';
 import {Activist} from './turmoilRedux/Activist';
 import {Aeronaut} from './turmoilRedux/Aeronaut';
+import {Dataminer} from './turmoilRedux/Dataminer';
 
 export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
   all: {
@@ -91,6 +92,8 @@ export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
     'Capitalist': {Factory: Capitalist},
     'Coastguard': {Factory: Coastguard, random: 'modular'},
     'Colonizer': {Factory: Colonizer, compatibility: 'colonies'},
+    // Turmoil Redux: data on cards (the Redux economy's science currency).
+    'Dataminer': {Factory: Dataminer, compatibility: 'turmoilRedux', random: 'both'},
     'Diversifier': {Factory: Diversifier, random: 'modular'},
     'Ecologist': {Factory: Ecologist, random: 'both'},
     'Economizer': {Factory: Economizer},

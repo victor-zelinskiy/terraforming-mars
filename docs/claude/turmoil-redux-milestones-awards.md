@@ -9,6 +9,7 @@ the checklist each next one follows.
 | --- | --- | --- | --- |
 | **Activist** | milestone | Advance your Agenda marker at least 3 steps from its starting position (i.e. to the step that gives you 2 Influence). | DONE 2026-11-05 — `src/server/milestones/turmoilRedux/Activist.ts` |
 | **Aeronaut** | milestone | Have a combined 4 fighter or mech resources across your cards. | DONE 2026-11-06 — `src/server/milestones/turmoilRedux/Aeronaut.ts` |
+| **Dataminer** | milestone | Have 7 data resources across your cards. | DONE 2026-11-06 — `src/server/milestones/turmoilRedux/Dataminer.ts` |
 | Influencer | award | — | not started (the glossary already reserves its star icon, § 4a) |
 
 ## Activist — the decisions
@@ -38,6 +39,13 @@ the checklist each next one follows.
 - **Synergy:** `Aeronaut ↔ Excentric = 5` (the most resources on cards — Hoverlord's weight). No exclusion group.
 - **RU:** «Аэронавт» · «Имейте на ваших картах в сумме не менее 4 истребителей и мехов» (`Fighter` → истребитель, `Mech` → мех).
 - **Art:** `assets/ma/aeronaut.png` + `maArtFit.json` (631c56d9eb).
+
+## Dataminer — the decisions
+
+- **Score = `getResourceCount(DATA)`**, threshold 7; declares `cardResourceCount = [DATA]` (Aeronaut's shape).
+- **Pools:** `compatibility: 'turmoilRedux'`, `random: 'both'`. **Synergy:** `Dataminer ↔ Excentric = 5`. No exclusion group.
+- **RU:** «Датамайнер» · «Имейте на ваших картах не менее 7 единиц данных» (the RU cards say «единицы данных»).
+- **Art:** `assets/ma/dataminer.png` + `maArtFit.json` (ed674abe47).
 
 ## Checklist for the next Redux milestone / award
 
