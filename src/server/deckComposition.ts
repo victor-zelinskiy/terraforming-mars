@@ -36,8 +36,8 @@ import {
  * adapted in place, or kept out where the set prints a replacement, `turmoilReduxReplacements.ts`;
  * on a creator table they are dealt only with Redux), so they count as its projects. Prelude 2 prints its own module,
  * its gated cards counted only where their module is on (the decks are built by `GameCards`), its preludes only with
- * Prelude (the deal's condition); under Redux its replaced classic (Corridors of Power) is out and the replacement
- * TRP0 counts under Redux.
+ * Prelude (the deal's condition). A REPLACEMENT counts for the module of the card it replaces (`countedModuleOf`):
+ * under Redux the classic Corridors of Power is out, and TRP0 — the same card adapted — still counts for Prelude 2.
  */
 const ORIGIN_MODULES: Readonly<Record<Expansion, ReadonlyArray<GameModule>>> = {
   corpera: ['corpera'], prelude: ['prelude'], prelude2: ['prelude2'], venus: ['venus'], colonies: ['colonies'],
@@ -103,10 +103,25 @@ function keyOf(options: GameOptions, table: DeckTable): string {
   return JSON.stringify(sorted({rest, seats: table.humans + (table.bot ? 1 : 0)}));
 }
 
-function countOf(cards: ReadonlyArray<ICard>): DeckCount {
+/**
+ * The module a dealt card COUNTS for. A REPLACEMENT (`metadata.reimplements` — Ares' `Capital:ares`,
+ * Promo's `Deimos Down:promo`, Redux's `Corridors of Power:redux`, …) only adapts the original card to the
+ * other expansion; the card is still the ORIGINAL's (the owner, 2026-11-05), so it counts for the original's
+ * module — as long as that module deals into the table. Without it the replacement replaces nothing and
+ * is its own module's card (Redux's TRP0 at a table without Prelude 2).
+ */
+function countedModuleOf(card: ICard, modulesInPlay: ReadonlySet<GameModule>): GameModule | undefined {
+  const original = card.metadata.reimplements === undefined ? undefined : MODULE_OF.get(card.metadata.reimplements);
+  if (original !== undefined && modulesInPlay.has(original)) {
+    return original;
+  }
+  return MODULE_OF.get(card.name);
+}
+
+function countOf(cards: ReadonlyArray<ICard>, modulesInPlay: ReadonlySet<GameModule>): DeckCount {
   const byModule: Partial<Record<GameModule, number>> = {};
   for (const card of cards) {
-    const module = MODULE_OF.get(card.name);
+    const module = countedModuleOf(card, modulesInPlay);
     if (module !== undefined) {
       byModule[module] = (byModule[module] ?? 0) + 1;
     }
@@ -136,6 +151,7 @@ function build(options: GameOptions, table: DeckTable): DeckComposition {
   const cards = new GameCards(options);
   const projects = cards.getProjectCards();
   const corporations = cards.getCorporationCards();
+  const modulesInPlay = cards.modulesInPlay;
   // `GameCards.getPreludeCards` fills an EMPTY prelude deck for Valley Trust; nobody is dealt
   // a prelude unless the Prelude expansion is on (`Game.newInstance`), so that pile is no deck.
   const preludes = options.preludeExtension ? cards.getPreludeCards() : [];
@@ -145,15 +161,15 @@ function build(options: GameOptions, table: DeckTable): DeckComposition {
   };
   return {
     projects: {
-      ...countOf(projects),
+      ...countOf(projects, modulesInPlay),
       byType: {
         automated: projects.filter((c) => c.type === CardType.AUTOMATED).length,
         active: projects.filter((c) => c.type === CardType.ACTIVE).length,
         event: projects.filter((c) => c.type === CardType.EVENT).length,
       },
     },
-    corporations: countOf(corporations),
-    preludes: countOf(preludes),
+    corporations: countOf(corporations, modulesInPlay),
+    preludes: countOf(preludes, modulesInPlay),
     extras,
   };
 }

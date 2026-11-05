@@ -40,7 +40,10 @@ export type DeckComposition = {
  * the difference charged Colonies with the Redux cards that merely REQUIRE Colonies, netted
  * Ares' 26 cards against the 14 it replaces, and took a guaranteed card (added whatever the
  * modules) off its own module. A card a module deals only together with another is that
- * other's: the classic Turmoil cards adapted to Redux are Turmoil Redux's projects.
+ * other's: the classic Turmoil cards adapted to Redux are Turmoil Redux's projects. A REPLACEMENT
+ * (`metadata.reimplements`) is still the ORIGINAL card, adapted (the owner, 2026-11-05): it counts for
+ * the original's module whenever that module deals into the table — Ares' `Capital:ares` is a base
+ * card, Redux's TRP0 a Prelude 2 prelude — so Ares prints the cards it truly adds and Prelude 2 its 25.
  */
 export type ExpansionContribution = {
   projects: number,

@@ -128,10 +128,16 @@ and on every next classic card.
   own module; Turmoil Redux also `turmoil`, the classic cards adapted to it — dealt only with it, so they are its
   PROJECTS, never a category of their own), as the deck holds them WITH the toggle on and the rest of the set as it stands
   (an OFF plate still says what it would add). Never «with it − without it»: that marginal charged Colonies with the eight
-  Redux cards that merely REQUIRE it (its «+48» became «+57» when Redux was switched on), netted Ares' 26 cards against
-  the 14 base cards it replaces («+12»), took a GUARANTEED card (dealt whatever the modules) off its own module
-  (Hydronetworks «+2» for its ten), and dressed Venus in Redux's Venus colony and laws. «Requires» is the dependency chip's
-  business (`EXPANSION_REQUIRES`), never the count's.
+  Redux cards that merely REQUIRE it (its «+48» became «+57» when Redux was switched on), took a GUARANTEED card (dealt
+  whatever the modules) off its own module (Hydronetworks «+2» for its ten), and dressed Venus in Redux's Venus colony and
+  laws. «Requires» is the dependency chip's business (`EXPANSION_REQUIRES`), never the count's.
+- **A REPLACEMENT is the ORIGINAL card, adapted** (the owner, 2026-11-05 — supersedes the 2026-10-21 reading that Ares
+  «prints» its 14 replacements): a card with `metadata.reimplements` counts for the module of the card it replaces, as
+  long as that module deals into the table (`deckComposition.ts` `countedModuleOf`, `GameCards.modulesInPlay`). So Ares'
+  `Capital:ares` & co. are base cards (Ares prints «+12», the cards it truly adds), Redux's TRP0 `Corridors of Power:redux`
+  is a Prelude 2 prelude (Prelude 2 prints the box's 25 under Redux, not 24), Redux's TR71…TR77 are Turmoil's (Redux's
+  origin anyway — its total is unchanged). Without the original's module the replacement replaces nothing and is its own
+  module's card (TRP0 at a table without Prelude 2 is Redux's).
 - **The model** — `console/menu/deckCompositionState.ts` (module reactive; the creator's mount starts the watch, its unmount
   stops it): one ask per task for a change of what the decks depend on (`deckCompositionKey` — names, the map and the seed
   never re-ask), an answer older than the latest ask dropped, the previous numbers kept while asking (`loading` — dimmed on

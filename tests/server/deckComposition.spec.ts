@@ -53,18 +53,18 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
 
   it('+ Colonies + Turmoil Redux: 70 Redux projects + the replacements authored + the adapted classic cards (ITS projects), the resolution deck, the colony table', () => {
     const c = compositionOf(creatorConfig(['corpera', 'prelude', 'venus', 'colonies', 'promo', 'turmoilRedux']));
-    expect(c.projects.byModule.turmoilRedux).eq(Object.keys(TURMOIL_REDUX_CARD_MANIFEST.projectCards).length);
-    // The printed 70 + the replacements authored so far (TR71 Aerial Lenses:redux the first) — each removes its classic card.
-    // The PROJECT replacements authored so far (the corporation TR77 is Redux's corporation, counted below).
+    // The PROJECT replacements (TR71 Aerial Lenses:redux … TR76) — each removes its classic card and COUNTS for the classic
+    // card's module (a replacement is the original, adapted — the owner, 2026-11-05): Turmoil's, which is Redux's origin anyway.
     const projectReplacements = [...TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove].filter((name) => name in TURMOIL_CARD_MANIFEST.projectCards).length;
-    expect(c.projects.byModule.turmoilRedux).eq(70 + projectReplacements);
+    expect(c.projects.byModule.turmoilRedux, 'the printed 70').eq(Object.keys(TURMOIL_REDUX_CARD_MANIFEST.projectCards).length - projectReplacements);
+    expect(c.projects.byModule.turmoilRedux).eq(70);
     // The classic project cards — part of Redux since 2026-10-25: every one but the six the set replaces (removed by
     // `cardsToRemove` — never dealt). 17 printed − 6 replaced = 11.
     const adaptedClassic = Object.keys(TURMOIL_CARD_MANIFEST.projectCards)
       .filter((name) => !TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(name as CardName)).length;
     expect(adaptedClassic).eq(11);
     expect(projectReplacements, 'TR71…TR76').eq(6);
-    expect(c.projects.byModule.turmoil, 'the classic cards adapted so far').eq(adaptedClassic);
+    expect(c.projects.byModule.turmoil, 'the classic cards adapted in place + their six replacements').eq(adaptedClassic + projectReplacements);
     expect(c.extras.resolutions).eq(REDUX_RESOLUTION_CATALOG.dealtInstances(compatibleWith(gameOptionsFromNewGameConfig(creatorConfig(['venus', 'colonies', 'turmoilRedux']), RandomBoardOption.ALL).expansions)).length);
     expect(c.extras.colonies?.inPlay, '2 seats: 2 + 2 + 1').eq(5);
     // The colony pool by the expansion that PRINTS each tile: Redux's additions are Redux's, the rest the Colonies'.
@@ -105,10 +105,19 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
     expect(p2(full).projects).eq(full.projects.byModule.prelude2);
     // Without Prelude no prelude is dealt (the deal's condition) — the tile prints no prelude then.
     expect(p2(compositionOf(creatorConfig(['corpera', 'prelude2']))).preludes).eq(0);
-    // Under Redux the classic Corridors of Power is out of the prelude deck (TRP0 counts under Redux).
+    // Under Redux the classic Corridors of Power is out of the prelude deck — and its replacement TRP0 is the same card,
+    // adapted, so it still counts for Prelude 2: the tile prints the box's 25, never 24 (the owner, 2026-11-05).
     const fresh = new GameCards(gameOptionsFromNewGameConfig(creatorConfig(['corpera', 'prelude', 'prelude2', 'venus', 'colonies', 'turmoilRedux']), RandomBoardOption.ALL));
     expect(fresh.getPreludeCards().map((card) => card.name)).not.include(CardName.CORRIDORS_OF_POWER);
+    expect(fresh.getPreludeCards().map((card) => card.name)).include(CardName.CORRIDORS_OF_POWER_REDUX);
     expect(p2(full).preludes).eq(full.preludes.byModule.prelude2);
+    expect(p2(full).preludes, 'all 25 printed preludes').eq(25);
+    const reduxPreludes = Object.keys(TURMOIL_REDUX_CARD_MANIFEST.preludeCards).length;
+    expect(full.contributions.turmoilRedux?.preludes, 'Redux keeps its own nine; TRP0 counts for Prelude 2').eq(reduxPreludes - 1);
+    // Without Prelude 2 TRP0 replaces nothing — it is Redux's own prelude then.
+    const noP2 = compositionOf(creatorConfig(['corpera', 'prelude', 'venus', 'colonies', 'turmoilRedux']));
+    expect(noP2.preludes.byModule.prelude2).eq(undefined);
+    expect(noP2.contributions.turmoilRedux?.preludes).eq(reduxPreludes);
   });
 
   it('the resolution deck follows Venus Next (its Venus-only laws) — the deal\'s own filter', () => {
@@ -138,13 +147,16 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
     expect(withRedux.contributions.venus).deep.eq(without.contributions.venus);
   });
 
-  it('an expansion that REPLACES base cards still prints all of its own (Ares — never netted against what it removes)', () => {
+  it('a REPLACEMENT counts for the card it replaces (Capital:ares is a base card, adapted) — Ares prints only what it adds', () => {
     const without = compositionOf(creatorConfig(['corpera']));
     const withAres = compositionOf(creatorConfig(['corpera', 'ares']));
     const ares = withAres.projects.byModule.ares ?? 0;
+    expect(ares).greaterThan(0);
     expect(withAres.contributions.ares?.projects).eq(ares);
     expect(without.contributions.ares?.projects).eq(ares);
-    expect(withAres.projects.total - without.projects.total, 'the replaced base cards leave — the difference undercounts').lessThan(ares);
+    // Every Ares replacement swaps a base card one for one, so the base count holds and Ares' chip is the deck's growth.
+    expect(withAres.projects.byModule.base).eq(without.projects.byModule.base);
+    expect(withAres.projects.total - without.projects.total).eq(ares);
   });
 
   it('a GUARANTEED card (dealt whatever the modules) still counts for the expansion that prints it', () => {

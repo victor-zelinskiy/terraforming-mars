@@ -11,6 +11,7 @@ import {PATHFINDERS_CARD_MANIFEST} from './cards/pathfinders/PathfindersCardMani
 import {CEO_CARD_MANIFEST} from './cards/ceos/CeoCardManifest';
 import {CardManifest, ModuleManifest} from './cards/ModuleManifest';
 import {CardName} from '../common/cards/CardName';
+import {GameModule} from '../common/cards/GameModule';
 import {ICard} from './cards/ICard';
 import {isCompatibleWith} from './cards/CardFactorySpec';
 import {GameOptions} from './game/GameOptions';
@@ -87,6 +88,11 @@ export class GameCards {
     this.moduleManifests = manifests
       .filter(([option, _manifest]) => option === true)
       .map(([_option, manifest]) => manifest);
+  }
+
+  /** The modules whose manifests deal into this table (the deck counter reads it — `deckComposition.ts`). */
+  public get modulesInPlay(): ReadonlySet<GameModule> {
+    return new Set(this.moduleManifests.map((manifest) => manifest.module));
   }
 
   private instantiate<T extends ICard>(manifest: CardManifest<T>): Array<T> {
