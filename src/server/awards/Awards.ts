@@ -59,6 +59,7 @@ import {MAManifest} from '../ma/MAManifest';
 import {Suburbian} from './modular/Suburbian';
 import {Blacksmith} from './Blacksmith';
 import {Influencer} from './turmoilRedux/Influencer';
+import {Politologist} from './turmoilRedux/Politologist';
 
 export const awardManifest: MAManifest<AwardName, IAward> = {
   all: {
@@ -105,6 +106,8 @@ export const awardManifest: MAManifest<AwardName, IAward> = {
     'Mogul': {Factory: Mogul, random: 'modular'},
     'Naturalist': {Factory: Naturalist},
     'Politician': {Factory: Politician, compatibility: 'turmoil', random: 'modular'},
+    // Turmoil Redux: played cards with a party requirement, events included (the Redux parties' requirements).
+    'Politologist': {Factory: Politologist, compatibility: 'turmoilRedux', random: 'both'},
     'Promoter': {Factory: Promoter, random: 'both'},
     'Rugged': {Factory: Rugged, compatibility: 'ares'},
     'Scientist': {Factory: Scientist, random: 'both'},

@@ -119,7 +119,7 @@ describe('MilestoneAwardSelector', () => {
     ].flat();
 
     avoidedMilestones.push('Pioneer', 'Martian', 'Colonizer', 'Activist', 'Aeronaut', 'Dataminer');
-    avoidedAwards.push('T. Politician', 'Influencer');
+    avoidedAwards.push('T. Politician', 'Influencer', 'Politologist');
     const [milestones, awards] = getCandidates({...DEFAULT_GAME_OPTIONS,
       randomMA: RandomMAOptionType.LIMITED,
       venusNextExtension: false,
@@ -254,7 +254,7 @@ describe('MilestoneAwardSelector', () => {
     // The Turmoil Redux milestones read what exists only under Redux (Activist — the Agenda track; Aeronaut — mechs; Dataminer — data), so
     // they are offered by EVERY random mode whenever Redux is on, and by none without it (the classic Parliament included).
     const REDUX_MILESTONES: ReadonlyArray<MilestoneName> = ['Activist', 'Aeronaut', 'Dataminer'];
-    const REDUX_AWARDS: ReadonlyArray<AwardName> = ['Influencer'];
+    const REDUX_AWARDS: ReadonlyArray<AwardName> = ['Influencer', 'Politologist'];
     it('the Turmoil Redux milestones and awards are in every random pool under Redux, and in none without it', () => {
       const modes: ReadonlyArray<[string, Partial<GameOptions>]> = [
         ['limited', {randomMA: RandomMAOptionType.LIMITED}],

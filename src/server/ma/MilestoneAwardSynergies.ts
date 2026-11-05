@@ -558,6 +558,11 @@ const synergiesData: Array<[MilestoneName | AwardName, MilestoneName | AwardName
   // The award twin of Activist — the same marker (they also share an exclusion group; this keeps the LIMITED budget honest).
   ['Activist', 'Influencer', 9],
   ['Influencer', 'T. Politician', 4],
+  // Every card with a party requirement is a card with a requirement — Forecaster / Tactician count a superset of the
+  // same tableau; delegates (T. Politician) are how a party requirement gets met.
+  ['Politologist', 'Forecaster', 6],
+  ['Politologist', 'Tactician', 5],
+  ['Politologist', 'T. Politician', 3],
   // ['Tunneler', 'Excavator', 8],
   // ['Excavator', 'Edgedancer', 9],
 ];

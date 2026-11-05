@@ -74,6 +74,7 @@ export const awardNames = [
 
   // Turmoil Redux
   'Influencer',
+  'Politologist',
 
   // Modular
   'Administrator',

@@ -19,7 +19,7 @@ import {PartyName} from '../../../common/turmoil/PartyName';
  *
  * Readers: High Circles (draw a card with a party requirement), Turmoil Redux
  * TR13 Political Think Tank (keep the revealed card if it has one), and the
- * future Politologist award — never a second inline lambda.
+ * Politologist award (`awards/turmoilRedux/Politologist.ts`) — never a second inline lambda.
  */
 export function hasPartyRequirement(card: Pick<ICard, 'requirements'>): boolean {
   return card.requirements.some((r) => r.party !== undefined);

@@ -1,7 +1,8 @@
 # Turmoil Redux — milestones & awards
 
-The Redux box prints its own milestones and awards. They are implemented one by one; this file is the registry and
-the checklist each next one follows.
+The Redux box prints its own milestones and awards. They were implemented one by one; this file is the registry and
+the checklist a further one follows. **The series is CLOSED (2026-11-06): 3 milestones + 2 awards, all in every random
+pool under Redux.**
 
 ## Registry
 
@@ -11,6 +12,7 @@ the checklist each next one follows.
 | **Aeronaut** | milestone | Have a combined 4 fighter or mech resources across your cards. | DONE 2026-11-06 — `src/server/milestones/turmoilRedux/Aeronaut.ts` |
 | **Dataminer** | milestone | Have 7 data resources across your cards. | DONE 2026-11-06 — `src/server/milestones/turmoilRedux/Dataminer.ts` |
 | **Influencer** | award | Furthest on the Agenda track. | DONE 2026-11-06 — `src/server/awards/turmoilRedux/Influencer.ts` |
+| **Politologist** | award | Highest number of cards with a party requirement. (Event cards count.) | DONE 2026-11-06 — `src/server/awards/turmoilRedux/Politologist.ts` |
 
 ## Activist — the decisions
 
@@ -57,7 +59,19 @@ the checklist each next one follows.
 - **RU:** «Карьерист» (the track is «Карьера» — glossary § 4) · «Дальше всех продвинутый маркер Карьеры».
 - **Art:** `assets/ma/influencer.png` + `maArtFit.json` (4dce233d2d).
 
-## Checklist for the next Redux milestone / award
+## Politologist — the decisions
+
+- **Score = played cards with `hasPartyRequirement`** — the ONE reading of «a card with a party requirement»
+  (`cards/requirements/partyRequirementCards.ts`: a `party`-kind requirement of any party; chairman / party leaders /
+  delegates on resolutions / influence are other kinds). `playedCards` holds the events pile too, so «(Event cards
+  count)» is the plain count; a card in hand never counts.
+- **Pools:** `compatibility: 'turmoilRedux'`, `random: 'both'`. No exclusion group — a party requirement is a SUBSET of
+  «a requirement», not the same vector; synergy `Politologist ↔ Forecaster = 6` (LIMITED's ceiling — the pair stays
+  possible), `↔ Tactician = 5`, `↔ T. Politician = 3`.
+- **RU:** «Политолог» · «Наибольшее количество карт с требованием партии (события тоже считаются)».
+- **Art:** `assets/ma/politologist.png` + `maArtFit.json` (3453186363).
+
+## Checklist for a further Redux milestone / award
 
 1. Class in `src/server/milestones/turmoilRedux/` (or `src/server/awards/turmoilRedux/`) reading the ENGINE's own number.
 2. Name in `MilestoneName.ts` / `AwardName.ts` under `// Turmoil Redux` — it must equal the art slug's source.
