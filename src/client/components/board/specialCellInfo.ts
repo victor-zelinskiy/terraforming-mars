@@ -197,6 +197,44 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
     description: 'No tiles can ever be placed on this space.',
     placement: 'top',
   },
+  // ── Arabia Terra — named locations ─────────────────────────────────
+  // The map's four volcanic cells, under the names the board itself printed: they were the last LEGACY SVG captions
+  // left in `Board.vue` (hardcoded there, outside `LEGENDS`), replaced by hover markers like every other map's.
+  // Each caption's dot fixed its cell: Tikhonarov the volcanic COVE on the eastern rim (its cove rule is the
+  // dossier's), Ladon / Flaugergues the two of row 7, Charybdis the last cell of the bottom row. Space IDs from the
+  // BoardBuilder row layout [5,6,7,8,9,8,7,6,5], idOffset=3: y=2 → 14–20 | y=7 → 53–58 | y=8 → 59–63.
+  {
+    id: 'arabia_tikhonarov',
+    boardName: BoardName.ARABIA_TERRA,
+    spaceId: '20', // y=2, cove(STEEL,TITANIUM) — volcanic
+    title: 'Tikhonarov',
+    description: 'Tikhonarov is a large crater in Arabia Terra. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'left',
+  },
+  {
+    id: 'arabia_ladon',
+    boardName: BoardName.ARABIA_TERRA,
+    spaceId: '55', // y=7, volcanic(STEEL,DRAW_CARD)
+    title: 'Ladon',
+    description: 'Ladon is a basin cut by an ancient river valley. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'top',
+  },
+  {
+    id: 'arabia_flaugergues',
+    boardName: BoardName.ARABIA_TERRA,
+    spaceId: '58', // y=7, volcanic(DRAW_CARD) — last space in row
+    title: 'Flaugergues',
+    description: 'Flaugergues is a crater in the southern highlands. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'left',
+  },
+  {
+    id: 'arabia_charybdis',
+    boardName: BoardName.ARABIA_TERRA,
+    spaceId: '63', // y=8, volcanic(STEEL) — last space in row
+    title: 'Charybdis',
+    description: 'Charybdis is a long escarpment in the southern highlands. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'top',
+  },
   // ── Vastitas Borealis — named locations ────────────────────────────
   {
     id: 'vastitas_elysium_mons',

@@ -9,9 +9,10 @@ import {AUTOMA_SUPPORTED_BOARDS} from '../../common/automa/automaCompatibility';
 //
 // Vastitas Borealis Nova left the list on 2026-10-31: its Viking delegate bonus
 // now reaches the Mars Parliament (Turmoil Redux) for humans and MarsBot alike.
-const RANDOM_ALL_EXCLUSIONS: ReadonlyArray<BoardName> = [
-  BoardName.ARABIA_TERRA,
-];
+// Arabia Terra left it on 2026-11-05: its data / science / energy-production cell
+// bonuses and its coves are in the premium scope (the dossier names a bonus no
+// card can hold before the press), and MarsBot plays the map on its own board.
+const RANDOM_ALL_EXCLUSIONS: ReadonlyArray<BoardName> = [];
 
 /** Facts about the game being created that narrow a random pool. */
 export type RandomBoardContext = {

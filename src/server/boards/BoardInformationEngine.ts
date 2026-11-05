@@ -579,6 +579,11 @@ function specialZoneFacts(
     // The first half ("A volcanic space") only repeated the title.
     out.push(rule('volcanic', 'map-special-zone', 'Volcanic area', 'Some cards may only place their tile on a volcanic space.', 'neutral'));
   }
+  // A COVE (Arabia Terra) is BOTH families at once — the map's own rule, and the one fact its look cannot say. It may
+  // be volcanic too (the cove on the eastern rim), so it is told beside the volcanic rule, never instead of it.
+  if (space.spaceType === SpaceType.COVE) {
+    out.push(rule('cove', 'map-special-zone', 'Cove', 'An ocean tile or a land tile may be placed here.', 'neutral'));
+  }
   return out;
 }
 
@@ -639,13 +644,25 @@ function printedBonusFacts(player: IPlayer, space: Space, covering: boolean, mul
  *    classic Turmoil sends it to a party; with neither, the printed rule says «ignore».
  * `undefined` = the bonus has no table-dependent reading — the generic description applies.
  */
+/**
+ * The printed cell bonuses that land on a CARD of the player's (`Game.grantSpaceBonus` → `cardBonus`): Amazonis'
+ * microbes and animals, Arabia Terra's data and science, the asteroid. One table, so a new such bonus is one row.
+ */
+const PRINTED_CARD_RESOURCE: ReadonlyMap<SpaceBonus, CardResource> = new Map([
+  [SpaceBonus.MICROBE, CardResource.MICROBE],
+  [SpaceBonus.ANIMAL, CardResource.ANIMAL],
+  [SpaceBonus.DATA, CardResource.DATA],
+  [SpaceBonus.SCIENCE, CardResource.SCIENCE],
+  [SpaceBonus.ASTEROID, CardResource.ASTEROID],
+]);
+
 function contextualBonusFacts(player: IPlayer, bonus: SpaceBonus, count: number): Array<BoardFact> | undefined {
   const game = player.game;
   const source = {type: 'board-cell' as const, label: 'Cell bonus'};
   // A printed CARD-RESOURCE bonus (Amazonis' microbes and animals) lands on a card of the player's — and with no card
   // that can hold it the engine SKIPS it by name (`AddResourcesToCard` → `SKIP_REASON.noHolder`). The dossier says so
   // before the press instead of promising a resource that will be lost.
-  const holderless = bonus === SpaceBonus.MICROBE ? CardResource.MICROBE : bonus === SpaceBonus.ANIMAL ? CardResource.ANIMAL : undefined;
+  const holderless = PRINTED_CARD_RESOURCE.get(bonus);
   if (holderless !== undefined) {
     if (player.getResourceCards(holderless).length === 0) {
       return [{
