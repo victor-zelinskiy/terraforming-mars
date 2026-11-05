@@ -216,6 +216,23 @@ describe('Milestone/Award random-pool de-duplication (vize1215 fork)', () => {
       }
     });
 
+    it('Activist / Influencer (both the Agenda marker) never co-occur under Turmoil Redux', () => {
+      const [, redux] = RANDOM_POOLS[1];
+      for (const mode of [RandomMAOptionType.LIMITED, RandomMAOptionType.UNLIMITED, RandomMAOptionType.ALL] as const) {
+        let activist = 0;
+        let influencer = 0;
+        for (let i = 0; i < 500; i++) {
+          const mas = chooseMilestonesAndAwards({...redux, randomMA: mode});
+          activist += mas.milestones.includes('Activist') ? 1 : 0;
+          influencer += mas.awards.includes('Influencer') ? 1 : 0;
+          const both = mas.milestones.includes('Activist') && mas.awards.includes('Influencer');
+          expect(both, `${mode}: Activist and Influencer offered together`).to.be.false;
+        }
+        expect(activist, `${mode}: Activist is still drawn`).to.be.greaterThan(0);
+        expect(influencer, `${mode}: Influencer is still drawn`).to.be.greaterThan(0);
+      }
+    });
+
     it('Smith / Blacksmith (both "Кузнец") never co-occur', () => {
       for (let i = 0; i < 500; i++) {
         const mas = chooseMilestonesAndAwards(allExpansions({randomMA: RandomMAOptionType.ALL}));

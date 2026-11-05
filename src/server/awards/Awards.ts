@@ -58,6 +58,7 @@ import {AwardName} from '../../common/ma/AwardName';
 import {MAManifest} from '../ma/MAManifest';
 import {Suburbian} from './modular/Suburbian';
 import {Blacksmith} from './Blacksmith';
+import {Influencer} from './turmoilRedux/Influencer';
 
 export const awardManifest: MAManifest<AwardName, IAward> = {
   all: {
@@ -90,6 +91,8 @@ export const awardManifest: MAManifest<AwardName, IAward> = {
     'Highlander': {Factory: Highlander, random: 'modular'},
     'Incorporator': {Factory: Incorporator, random: 'both'},
     'Industrialist': {Factory: Industrialist, random: 'both'},
+    // Turmoil Redux: the furthest Agenda (Career) marker — the track exists only under the Redux Parliament.
+    'Influencer': {Factory: Influencer, compatibility: 'turmoilRedux', random: 'both'},
     'Investor': {Factory: Investor, random: 'modular'},
     'Kingpin': {Factory: Kingpin, compatibility: 'underworld'},
     'Landlord': {Factory: Landlord, random: 'both'},

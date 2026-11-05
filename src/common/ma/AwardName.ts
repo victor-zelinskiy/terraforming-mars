@@ -72,6 +72,9 @@ export const awardNames = [
   // Ares Extreme
   'Rugged',
 
+  // Turmoil Redux
+  'Influencer',
+
   // Modular
   'Administrator',
   'Collector',

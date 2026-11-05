@@ -555,6 +555,9 @@ const synergiesData: Array<[MilestoneName | AwardName, MilestoneName | AwardName
   // Fighters and mechs are card resources — Excentric (the most resources on cards) rewards the same pile (Hoverlord's 5).
   ['Aeronaut', 'Excentric', 5],
   ['Dataminer', 'Excentric', 5],
+  // The award twin of Activist — the same marker (they also share an exclusion group; this keeps the LIMITED budget honest).
+  ['Activist', 'Influencer', 9],
+  ['Influencer', 'T. Politician', 4],
   // ['Tunneler', 'Excavator', 8],
   // ['Excavator', 'Edgedancer', 9],
 ];

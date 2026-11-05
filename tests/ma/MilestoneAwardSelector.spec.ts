@@ -119,7 +119,7 @@ describe('MilestoneAwardSelector', () => {
     ].flat();
 
     avoidedMilestones.push('Pioneer', 'Martian', 'Colonizer', 'Activist', 'Aeronaut', 'Dataminer');
-    avoidedAwards.push('T. Politician');
+    avoidedAwards.push('T. Politician', 'Influencer');
     const [milestones, awards] = getCandidates({...DEFAULT_GAME_OPTIONS,
       randomMA: RandomMAOptionType.LIMITED,
       venusNextExtension: false,
@@ -254,7 +254,8 @@ describe('MilestoneAwardSelector', () => {
     // The Turmoil Redux milestones read what exists only under Redux (Activist — the Agenda track; Aeronaut — mechs; Dataminer — data), so
     // they are offered by EVERY random mode whenever Redux is on, and by none without it (the classic Parliament included).
     const REDUX_MILESTONES: ReadonlyArray<MilestoneName> = ['Activist', 'Aeronaut', 'Dataminer'];
-    it('the Turmoil Redux milestones are in every random pool under Redux, and in none without it', () => {
+    const REDUX_AWARDS: ReadonlyArray<AwardName> = ['Influencer'];
+    it('the Turmoil Redux milestones and awards are in every random pool under Redux, and in none without it', () => {
       const modes: ReadonlyArray<[string, Partial<GameOptions>]> = [
         ['limited', {randomMA: RandomMAOptionType.LIMITED}],
         ['unlimited', {randomMA: RandomMAOptionType.UNLIMITED}],
@@ -271,10 +272,18 @@ describe('MilestoneAwardSelector', () => {
         expect(pool({turmoilRedux: true, colonies: true}), `${label}: Redux`).to.include.members(REDUX_MILESTONES);
         expect(intersection(pool({turmoil: true}), REDUX_MILESTONES), `${label}: classic Turmoil`).is.empty;
         expect(intersection(pool({}), REDUX_MILESTONES), `${label}: no Parliament`).is.empty;
+        const awards = (expansions: Partial<GameOptions['expansions']>) => getCandidates({
+          ...DEFAULT_GAME_OPTIONS,
+          ...mode,
+          expansions: {...DEFAULT_GAME_OPTIONS.expansions, ...expansions},
+        })[1];
+        expect(awards({turmoilRedux: true, colonies: true}), `${label}: Redux`).to.include.members(REDUX_AWARDS);
+        expect(intersection(awards({turmoil: true}), REDUX_AWARDS), `${label}: classic Turmoil`).is.empty;
+        expect(intersection(awards({}), REDUX_AWARDS), `${label}: no Parliament`).is.empty;
       }
     });
 
-    it('a Turmoil Redux milestone is never forced into a fixed board set', () => {
+    it('a Turmoil Redux milestone or award is never forced into a fixed board set', () => {
       const game = chooseMilestonesAndAwards({
         ...DEFAULT_GAME_OPTIONS,
         boardName: BoardName.THARSIS,
@@ -282,6 +291,7 @@ describe('MilestoneAwardSelector', () => {
         expansions: {...DEFAULT_GAME_OPTIONS.expansions, turmoilRedux: true, colonies: true},
       });
       expect(intersection(game.milestones, REDUX_MILESTONES)).is.empty;
+      expect(intersection(game.awards, REDUX_AWARDS)).is.empty;
     });
 
     it('respects enabled expansions', () => {

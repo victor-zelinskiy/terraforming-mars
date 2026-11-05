@@ -10,7 +10,7 @@ the checklist each next one follows.
 | **Activist** | milestone | Advance your Agenda marker at least 3 steps from its starting position (i.e. to the step that gives you 2 Influence). | DONE 2026-11-05 — `src/server/milestones/turmoilRedux/Activist.ts` |
 | **Aeronaut** | milestone | Have a combined 4 fighter or mech resources across your cards. | DONE 2026-11-06 — `src/server/milestones/turmoilRedux/Aeronaut.ts` |
 | **Dataminer** | milestone | Have 7 data resources across your cards. | DONE 2026-11-06 — `src/server/milestones/turmoilRedux/Dataminer.ts` |
-| Influencer | award | — | not started (the glossary already reserves its star icon, § 4a) |
+| **Influencer** | award | Furthest on the Agenda track. | DONE 2026-11-06 — `src/server/awards/turmoilRedux/Influencer.ts` |
 
 ## Activist — the decisions
 
@@ -46,6 +46,16 @@ the checklist each next one follows.
 - **Pools:** `compatibility: 'turmoilRedux'`, `random: 'both'`. **Synergy:** `Dataminer ↔ Excentric = 5`. No exclusion group.
 - **RU:** «Датамайнер» · «Имейте на ваших картах не менее 7 единиц данных» (the RU cards say «единицы данных»).
 - **Art:** `assets/ma/dataminer.png` + `maArtFit.json` (ed674abe47).
+
+## Influencer — the decisions
+
+- **Score = `Parliament.agendaOf(player)`** — the award twin of Activist (same marker, same reading); 0 without a Parliament.
+- **Pools:** `compatibility: 'turmoilRedux'`, `random: 'both'`.
+- **Never beside Activist:** both sit in the random exclusion group `agenda-track` (`MilestoneAwardExclusions.ts`) —
+  a milestone and an award for the same marker would be one race scored twice. Synergy `Activist ↔ Influencer = 9`
+  (Terraformer ↔ Benefactor's weight) and `Influencer ↔ T. Politician = 4` (Activist's).
+- **RU:** «Карьерист» (the track is «Карьера» — glossary § 4) · «Дальше всех продвинутый маркер Карьеры».
+- **Art:** `assets/ma/influencer.png` + `maArtFit.json` (4dce233d2d).
 
 ## Checklist for the next Redux milestone / award
 
