@@ -68,7 +68,7 @@
                IS the subject of the decision. Absent sources render no column
                at all (never an empty placeholder). -->
           <console-source-dock v-if="sourceView !== undefined" class="con-decision__source"
-                               :view="sourceView" ref="sourceCard" />
+                               :view="sourceView" :data-reaction-home="sourceView.card" ref="sourceCard" />
 
           <div class="con-decision__actions">
             <!-- THE ANSWERS — the console's ONE grammar of «choose one of these» (`ConsoleVariantChoice`, TR51; PL-383):

@@ -739,7 +739,8 @@
                          :playerView="playerView"
                          :task="(hostTask ?? seriesHeldVisit?.task)!"
                          :embedded="taskEmbedTarget !== undefined"
-                         :prompt-override="pendingClientPayment !== undefined ? pendingClientPayment.input : (pendingClientPick?.input ?? seriesHeldVisit?.input)"
+                         :prompt-override="pendingClientPayment !== undefined ? pendingClientPayment.input : pendingClientPick?.input"
+                         :held-prompt="hostTask === undefined ? seriesHeldVisit?.input : undefined"
                          :defer-label="pendingClientPayment !== undefined || pendingClientPick !== undefined ? 'Cancel' : 'Minimize'"
                          @submit="onTaskSubmit"
                          @submit-batch="onTaskSubmitBatch"
@@ -9853,6 +9854,11 @@ export default defineComponent({
       if (this.govScaleFocusState.holding || this.govScaleFocusState.closing) {
         return 'Board';
       }
+      // A SERIES' VISIT (PC04 · GS): the bar keeps the standing question's name — the board is not what the player sees.
+      const held = this.seriesHeld;
+      if (held !== undefined) {
+        return consoleTaskSummary(held.task, this.playerView, {prompt: held.input}).kickerKey;
+      }
       if (this.consoleState.fallbackActive) {
         // Lifecycle-aware naming: the wrapped premium flows read as PART of
         // the console experience, not a generic "waiting" veil.
@@ -10169,6 +10175,10 @@ export default defineComponent({
       // («зажать X Осмотреть ход» · «B Закрыть» in .con-notif__actions).
       // Scale-focus hold: an inert transition beat — no command hints.
       if (this.govScaleFocusState.holding || this.govScaleFocusState.closing) {
+        return [];
+      }
+      // …and so is a series' visit between two questions (PC04 · GS): every press is absorbed, no verb is promised.
+      if (this.seriesHeld !== undefined) {
         return [];
       }
       // THE EXTERNAL-DRAW WORKSPACE mirrors its live contract — ABOVE the

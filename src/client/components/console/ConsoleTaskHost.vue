@@ -131,7 +131,10 @@
               <b class="con-task__lawseal-name">{{ $t(divertedLawSeal.name) }}</b>
             </span>
           </div>
-          <console-source-dock v-if="dockedSource !== undefined" :view="dockedSource"
+          <!-- `data-reaction-home` (the card-reaction law «one object per card»): the asker standing here IS the card on
+               screen — its own answer (a series' plant, PC04) lifts THIS face in place, never a second instance risen over
+               the plate. -->
+          <console-source-dock v-if="dockedSource !== undefined" :view="dockedSource" :data-reaction-home="dockedSource.card"
                                :compact="sourceCompact" :boardName="playerView.game.gameOptions.boardName" ref="sourceCard">
             <!-- A resolution's payout reads under its face: influence → the
                  amount THIS pick adds (the server's own number). -->
@@ -908,6 +911,12 @@ export default defineComponent({
      * nothing is committed server-side, so B = CANCEL (`deferLabel`).
      */
     promptOverride: {type: Object as PropType<PlayerInputModel | undefined>, default: undefined},
+    /**
+     * THE SERVER'S QUESTION THIS HOST STANDS ON when it is no longer the live one (PC04 · GS — the shell holds the
+     * answered member of a series while the next is not admitted). Unlike `promptOverride` (a client-built prompt) it
+     * keeps the question's own identity — the same frame key, so the plate does not re-mount on the hold.
+     */
+    heldPrompt: {type: Object as PropType<PlayerInputModel | undefined>, default: undefined},
     /** The B affordance label: 'Minimize' (server prompt) / 'Cancel' (client). */
     deferLabel: {type: String, default: 'Minimize'},
     /**
@@ -946,7 +955,7 @@ export default defineComponent({
       payFlashNonce: 0,
       /** T9: the OPEN nested option (one-level wizard) — B returns to the list. An optional choice whose one answer is
        *  that step OPENS on it (`directNestedOf`) — B there is the decision's own (minimize). */
-      nested: directNestedOf(this.task, this.promptOverride ?? this.playerView.waitingFor, handNamesOf(this.playerView)),
+      nested: directNestedOf(this.task, this.promptOverride ?? this.heldPrompt ?? this.playerView.waitingFor, handNamesOf(this.playerView)),
       /** Blocks a duplicate submit between the emit and the next server response
        *  (e.g. rapid A presses in the pick phase) — cleared on every response. */
       submitting: false,
@@ -972,7 +981,7 @@ export default defineComponent({
   computed: {
     /** The TOP-LEVEL prompt (never the nested input). */
     parentWf(): PlayerInputModel | undefined {
-      return this.promptOverride ?? this.playerView.waitingFor;
+      return this.promptOverride ?? this.heldPrompt ?? this.playerView.waitingFor;
     },
     /** What the bodies render: the nested input while the wizard is open. */
     wf(): PlayerInputModel | undefined {
@@ -993,7 +1002,7 @@ export default defineComponent({
       // armed selection and cursor OUTLIVED it — the next band opened «decided» (the other options receded to nothing
       // under the «ИЛИ» seam) and a single A committed the focus, skipping the select → confirm guard. A new question
       // is a new epoch; the same question (a minimize → restore, a re-sent view, a refused answer) keeps its serial.
-      const serial = this.promptOverride === undefined ? `|#${this.playerView.waitingFor?.promptId ?? '-'}` : '';
+      const serial = this.promptOverride === undefined ? `|#${(this.heldPrompt ?? this.playerView.waitingFor)?.promptId ?? '-'}` : '';
       return `${override}${this.parentWf?.type ?? ''}|${textOf(this.parentWf?.title)}${serial}`;
     },
     taskKey(): string {
@@ -1099,12 +1108,12 @@ export default defineComponent({
     tone(): PromptTone {
       return promptToneWithin(this.parentWf, this.nested?.input);
     },
-    /** The decision's identity in the press's sequence (`promptSequence.ts`); '' while embedded (a stage, not a modal). */
     /** The question's place in a series (PC04 — `choiceContext.series`), counted by the head. */
     promptSeries(): GrantSeries | undefined {
       // The PARENT question's (a nested pick inside it is the same decision, not a second one of the series).
       return choiceSeriesOf(this.parentWf);
     },
+    /** The decision's identity in the press's sequence (`promptSequence.ts`); '' while embedded (a stage, not a modal). */
     sequenceKey(): string {
       return this.embedded ? '' : promptSequenceKey(this.parentWf, this.baseKey, this.nested?.index);
     },
