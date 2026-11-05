@@ -302,6 +302,26 @@ describe('Ecotec — the fork', () => {
     });
   });
 
+  describe('the series — every question names its place (GS: k of N, never a repeat)', () => {
+    it('three tags: the questions carry {index: k, of: 3} in turn; a lone question carries none', () => {
+      player.playedCards.push(new Tardigrades());
+      playFromHand(player, new AdvancedEcosystems());
+      for (let k = 1; k <= 3; k++) {
+        expect(question().choiceContext?.series, `question ${k}`).deep.eq({index: k, of: 3});
+        answerPlant();
+      }
+      playFromHand(player, new Heather());
+      expect(question().choiceContext?.series).is.undefined;
+    });
+
+    it('the pre-collected steps carry the same place (the composer reads the live grammar)', () => {
+      player.playedCards.push(new Tardigrades());
+      const steps = factsFor(new AdvancedEcosystems()).map((f) => f.preselect);
+      expect(steps.map((s) => s?.kind === 'input' ? s.input.choiceContext?.series : undefined))
+        .deep.eq([{index: 1, of: 3}, {index: 2, of: 3}, {index: 3, of: 3}]);
+    });
+  });
+
   describe('the forecast twin — the same predicate, the same builder', () => {
     it('no holder: one `exact` +N plants on printed effect #0; no bio tag: nothing', () => {
       const facts = factsFor(new AdvancedEcosystems());

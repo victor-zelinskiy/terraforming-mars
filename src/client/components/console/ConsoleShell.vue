@@ -732,12 +732,14 @@
              prompt) stays committed through the await, so without this term
              the band would stand over its own result. Safe: the transition is
              a registered animation hold, so the leak detector stays quiet. -->
-        <ConsoleTaskHost v-if="hostTask !== undefined && taskHostRendered"
+        <!-- A SERIES IS ONE VISIT (PC04 · GS): between answer k and question k + 1 of the same series the host STANDS on
+             the answered question (`seriesHeldVisit` — inert, the pad absorbed), and the next one arrives in place. -->
+        <ConsoleTaskHost v-if="(hostTask !== undefined && taskHostRendered) || seriesHeldVisit !== undefined"
                          ref="taskHost"
                          :playerView="playerView"
-                         :task="hostTask"
+                         :task="(hostTask ?? seriesHeldVisit?.task)!"
                          :embedded="taskEmbedTarget !== undefined"
-                         :prompt-override="pendingClientPayment !== undefined ? pendingClientPayment.input : pendingClientPick?.input"
+                         :prompt-override="pendingClientPayment !== undefined ? pendingClientPayment.input : (pendingClientPick?.input ?? seriesHeldVisit?.input)"
                          :defer-label="pendingClientPayment !== undefined || pendingClientPick !== undefined ? 'Cancel' : 'Minimize'"
                          @submit="onTaskSubmit"
                          @submit-batch="onTaskSubmitBatch"
@@ -762,10 +764,13 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleEffectDecision v-if="effectDecisionVm !== undefined && effectDecisionRendered"
+        <!-- …and a series is ONE visit here too (PC04 · GS): between two questions of one series the decision stands on
+             the answered one (`seriesHeldDecision`), inert, until the next arrives in place. -->
+        <ConsoleEffectDecision v-if="(effectDecisionVm !== undefined && effectDecisionRendered) || seriesHeldDecision !== undefined"
                                ref="effectDecision"
                                :playerView="playerView"
-                               :vm="effectDecisionVm"
+                               :prompt-override="effectDecisionRendered ? undefined : seriesHeldDecision?.input"
+                               :vm="(effectDecisionRendered ? effectDecisionVm : seriesHeldDecision?.vm)!"
                                :embedded="effectDecisionEmbedTarget !== undefined"
                                @submit="onTaskSubmit"
                                @defer="onTaskDefer"
@@ -1640,6 +1645,14 @@ import {isReduxParty, REDUX_PARTIES, ReduxParty} from '@/common/parliament/Parli
 import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
 import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, DiscardPromptMeta, PlacementEffect, SelectCardModel, SelectColonyModel, SelectOptionModel, SelectPaymentModel, SelectProjectCardToPlayModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
+import {ChoiceSeriesKey, choiceSeriesKeyOf, seriesVisitStands} from '@/client/console/promptSeries';
+import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
+
+/** PC04 · GS — the ledger's name of the series' visit standing between two questions (`seriesHeld`). */
+const SERIES_VISIT_ABSORBER = 'series-visit';
+
+/** PC04 · GS — the answered member of a series, on the surface that answered it (`noteSeriesAnswer`). */
+type SeriesVisit = {key: ChoiceSeriesKey, surface: 'host' | 'decision', task: ConsoleTask, input: PlayerInputModel, vm?: EffectDecisionViewModel};
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
 import {consoleCardActionsUi, partyTileKey, politicalSourceKey, resetCardActionsFilter} from '@/client/console/consoleCardActions';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
@@ -2681,6 +2694,9 @@ export default defineComponent({
   },
   data() {
     return {
+      /** PC04 · GS — the series member the standalone host answered last (`noteSeriesAnswer`); read by `seriesHeldVisit`. */
+      seriesVisit: undefined as SeriesVisit | undefined,
+      seriesAbsorbOff: undefined as (() => void) | undefined,
       /**
        * «ПРИЁМКА»: the reveal instance was last re-homed into the PARLIAMENT's draw stage — latched past the take (the
        * batch leaves the queue before the take's staged seam fires), so its two completion seams know the batch was
@@ -4808,6 +4824,30 @@ export default defineComponent({
         (this.productionLossActive && !this.consoleState.task.deferred);
     },
     /** What the ConsoleTaskHost renders: a server task OR the client payment. */
+    /**
+     * THE SERIES' VISIT, STANDING (PC04 · GS): question k of a series is answered and the next one is not admitted yet
+     * (the table tells answer k first — the `table-answer` entry wait), so nothing serves — the host would leave and
+     * come back for k + 1 («the modal blinks», measured 1.2 s of nothing on the stand). The host stands instead, on the
+     * answered question, inert (`SERIES_VISIT_ABSORBER`), while the server's prompt is that question in flight or the
+     * NEXT of the same series (`seriesVisitStands` — never another question, never past the series' end); the next one
+     * arrives through the host's own prompt handoff. No admission block, no hold: the presence stays the prompt's.
+     */
+    seriesHeld(): SeriesVisit | undefined {
+      const visit = this.seriesVisit;
+      if (visit === undefined || this.hostTask !== undefined || this.consoleState.task.deferred ||
+          !seriesVisitStands(visit.key, this.playerView.waitingFor)) {
+        return undefined;
+      }
+      return visit;
+    },
+    /** …held on the TASK HOST (the answered question was the host's). */
+    seriesHeldVisit(): SeriesVisit | undefined {
+      return this.seriesHeld?.surface === 'host' ? this.seriesHeld : undefined;
+    },
+    /** …held on the EFFECT DECISION (Viral Enhancers' question — the decision's own surface stands). */
+    seriesHeldDecision(): SeriesVisit | undefined {
+      return this.seriesHeld?.surface === 'decision' ? this.seriesHeld : undefined;
+    },
     hostTask(): ConsoleTask | undefined {
       if (this.pendingClientPayment !== undefined) {
         return CLIENT_PAYMENT_TASK;
@@ -15944,6 +15984,12 @@ export default defineComponent({
         host?.handleIntent(intent);
         return true;
       }
+      // …and while it stands between two questions of ONE series (PC04 · GS), the answered question is a picture: every
+      // press is absorbed on the ledger until the next one arrives in place.
+      if (this.seriesHeld !== undefined) {
+        noteInputAbsorbed(SERIES_VISIT_ABSORBER);
+        return true;
+      }
       // A DELTA PICK BRIDGE owns the pad while it stands — the asking composer
       // waits underneath with its captures intact (the hand-pick precedent;
       // routed BEFORE the composer branch, or the covered composer swallows
@@ -21154,8 +21200,31 @@ export default defineComponent({
           !this.chainPlacementOrderEmbedded) {
         closeConsoleLayers();
       }
+      this.noteSeriesAnswer();
       this.consoleState.task.deferred = false;
       this.submit(response);
+    },
+    /**
+     * A SERIES MEMBER ANSWERED (PC04 · GS): a standalone host answering question k of N (not the last) remembers it —
+     * the visit stands on it until question k + 1 of the same series is admitted (`seriesHeldVisit`).
+     */
+    noteSeriesAnswer(): void {
+      const wf = this.playerView.waitingFor;
+      const key = choiceSeriesKeyOf(wf);
+      const task = this.activeConsoleTask;
+      this.seriesVisit = undefined;
+      if (key === undefined || key.series.index >= key.series.of || task === undefined || wf === undefined ||
+          this.pendingClientPick !== undefined || this.pendingClientPayment !== undefined) {
+        return;
+      }
+      // EACH SURFACE HOLDS ITSELF: the effect decision submits through here too — its answered question is held on the
+      // decision (never a task host swapped into its place), the host's on the host; an embedded one is its host's.
+      const vm = this.effectDecisionVm;
+      if (this.effectDecisionRendered && vm !== undefined) {
+        this.seriesVisit = this.effectDecisionEmbedTarget === undefined ? {key, surface: 'decision', task, vm, input: wf} : undefined;
+      } else if (this.taskHostRendered && this.taskEmbedTarget === undefined) {
+        this.seriesVisit = {key, surface: 'host', task, input: wf};
+      }
     },
     /**
      * PICK-THEN-PAY in ONE submit (PL-1411): a workspace purchase whose price the server asks answers the pick AND its
@@ -26064,6 +26133,8 @@ export default defineComponent({
     },
   },
   mounted() {
+    // A SERIES' VISIT IS A DELIBERATE SWALLOW (PC04 · GS) — on the ledger, so a driver waits it out.
+    this.seriesAbsorbOff = registerInputAbsorber(SERIES_VISIT_ABSORBER, () => this.seriesHeld !== undefined, {scope: 'all'});
     // THE CURSOR ARRIVES (TR58): a step or a press during an arrival releases it — input never waits for a ring.
     installCursorArrivalInput();
     // THE START YIELDS ITS SCENE, NOT ITS FRAME (the reliability iteration): while it does, the board is on screen.
@@ -26567,6 +26638,7 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    this.seriesAbsorbOff?.();
     registerGenerationSceneHandoff(undefined); // a dead shell's director must not gate the next game's rise
     handoffPendingEntries.clear();
     window.clearTimeout(this.startStrandTimer); // the start watchdog dies with its shell

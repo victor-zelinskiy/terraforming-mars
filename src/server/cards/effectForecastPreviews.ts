@@ -177,7 +177,14 @@ function baseFact(
  * card's own choices; the batch lands it when the queue reaches the question (`deferredInputBatch`).
  */
 export function tableQuestion(card: ICard, player: IPlayer, question: PlayerInput): ActionPreviewStep {
-  return {kind: 'input', input: question.toModel(player), for: {role: question.type, source: cardSource(card)}};
+  // The model carries the question's own `choiceContext` (the live prompt's, serialized centrally there) — its source,
+  // and its place in a series (PC04 — `ChoiceContext.series`), so the composer reads a series row as the live one.
+  const model = question.toModel(player);
+  return {
+    kind: 'input',
+    input: question.choiceContext !== undefined ? {...model, choiceContext: question.choiceContext} : model,
+    for: {role: question.type, source: cardSource(card)},
+  };
 }
 
 /**

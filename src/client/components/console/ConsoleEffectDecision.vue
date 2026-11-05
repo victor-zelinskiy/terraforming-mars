@@ -39,7 +39,7 @@
         <!-- STANDALONE: the family's ONE head — the tone's crest, emblem and tag, the eyebrow, «РЕШЕНИЕ N» for a
              follow-up of the same press, the headline with its decline plate, and why the decision appeared. -->
         <ConsolePromptHead v-if="!embedded" class="con-decision__head" :tone="tone" :kicker="$t(vm.eyebrowKey)"
-                           :title="$t(vm.headlineKey)" :trigger="triggerText" :prompt-key="sequenceKey">
+                           :title="$t(vm.headlineKey)" :trigger="triggerText" :prompt-key="sequenceKey" :series="promptSeries">
           <template v-if="vm.decline !== undefined" #decline>
             <ConsoleDeclinePlate class="con-decision__decline" :label="vm.decline.title" :forgone="vm.decline.forgone" />
           </template>
@@ -109,6 +109,7 @@
 </template>
 
 <script lang="ts">
+import {choiceSeriesOf} from '@/client/console/promptSeries';
 /**
  * The decision SCREEN. It owns focus, the pad contract and the submit — and
  * nothing else: every judgement about what the prompt means was already made
@@ -127,7 +128,7 @@ import {VariantChoiceOption} from '@/client/console/variantChoiceModel';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {SelectCardModel} from '@/common/models/PlayerInputModel';
+import {GrantSeries, PlayerInputModel, SelectCardModel} from '@/common/models/PlayerInputModel';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -164,6 +165,11 @@ export default defineComponent({
     /** Hosted as a STEP of the workspace whose press raised this decision —
      *  the shell teleports THIS instance into that workspace's outcome zone. */
     embedded: {type: Boolean, default: false},
+    /**
+     * THE QUESTION THIS SURFACE STANDS ON when it is not the live one (PC04 · GS — the shell holds the answered member
+     * of a series while the next is not admitted): its head and sequence read it instead of the server's prompt.
+     */
+    promptOverride: {type: Object as PropType<PlayerInputModel | undefined>, default: undefined},
   },
   emits: ['submit', 'defer', 'hand-pick'],
   data() {
@@ -201,8 +207,12 @@ export default defineComponent({
       return promptToneOf(this.playerView.waitingFor).tone;
     },
     /** The decision's identity in the press's sequence (`promptSequence.ts`); '' while embedded (a stage, not a modal). */
+    /** The question's place in a series (PC04 — `choiceContext.series`), counted by the head. */
+    promptSeries(): GrantSeries | undefined {
+      return this.embedded ? undefined : choiceSeriesOf(this.promptOverride ?? this.playerView.waitingFor);
+    },
     sequenceKey(): string {
-      const wf = this.playerView.waitingFor;
+      const wf = this.promptOverride ?? this.playerView.waitingFor;
       return this.embedded || wf === undefined ? '' : promptSequenceKey(wf, promptIdentityKey(wf));
     },
     /** A seat is the subject of the answers (an attack's targets) → a pick LIST, one row per seat, no «ИЛИ»; otherwise

@@ -30,7 +30,11 @@
       <ConsolePromptEmblem :tone="tone" class="con-prompt-head__emblem" />
       <span class="con-prompt-head__category">{{ kicker }}</span>
       <slot name="kicker-extra" />
-      <span v-if="ordinal > 1" class="con-prompt-head__seq" data-prompt-seq :data-prompt-seq-ordinal="ordinal">{{ seqText }}</span>
+      <!-- ONE count: a question that is one of a SERIES (PC04 — the server's `choiceContext.series`) counts «МЕТКА k / N»
+           in the very place the press's «РЕШЕНИЕ N» stands, never beside it. -->
+      <span v-if="series !== undefined" class="con-prompt-head__seq" data-prompt-seq
+            :data-series-count="series.index + ' / ' + series.of">{{ seriesText }}</span>
+      <span v-else-if="ordinal > 1" class="con-prompt-head__seq" data-prompt-seq :data-prompt-seq-ordinal="ordinal">{{ seqText }}</span>
       <span v-if="tagKey !== undefined" class="con-prompt-head__tag" :class="'con-prompt-head__tag--' + tone" data-prompt-tag>
         <span class="con-prompt-head__tag-sign" aria-hidden="true">{{ tone === 'gain' ? '▲' : '▼' }}</span>
         <span>{{ $t(tagKey) }}</span>
@@ -52,6 +56,8 @@ import {PromptTone, promptToneTagKey} from '@/client/console/promptTone';
 import {PromptPresentation, presentPrompt, promptSequenceState, SETTLE_FOLLOW_MS, withdrawPrompt} from '@/client/console/promptSequence';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {promptHandoffDelayNow} from '@/client/console/surfaceMotion/promptHandoffModel';
+import {GrantSeries} from '@/common/models/PlayerInputModel';
+import {choiceSeriesCount} from '@/client/console/promptSeries';
 
 /**
  * @console-shared LIVE — the ONE head of the prompt-modal family.
@@ -77,6 +83,8 @@ export default defineComponent({
     /** The decision's identity in the sequence ('' = not a decision — no ordinal, no settle). */
     promptKey: {type: String, default: ''},
     titleTag: {type: String, default: 'h2'},
+    /** The question's place in a SERIES (`choiceContext.series` — PC04), when it is one; read by `choiceSeriesOf`. */
+    series: {type: Object as PropType<GrantSeries | undefined>, default: undefined},
   },
   data() {
     return {
@@ -100,6 +108,13 @@ export default defineComponent({
     },
     seqText(): string {
       return translateTextWithParams('Decision ${0}', [String(this.ordinal)]);
+    },
+    seriesText(): string {
+      if (this.series === undefined) {
+        return '';
+      }
+      const count = choiceSeriesCount(this.series);
+      return translateTextWithParams(count.key, [...count.params]);
     },
     /** The character FLIPPED since the last decision of this chain — the one-shot beat plays. */
     shiftBeat(): boolean {

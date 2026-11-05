@@ -64,4 +64,15 @@ describe('ViralEnhancers', () => {
     expect(player.plants).to.eq(1);
     expect(game.deferredActions).has.lengthOf(0);
   });
+
+  it('PC04 — each tag’s question names its place in the series; a lone one names none', () => {
+    card.play(player);
+    card.onCardPlayed(player, new EcologicalZone());
+    const first = cast(game.deferredActions.pop()!.execute(), OrOptions);
+    const second = cast(game.deferredActions.pop()!.execute(), OrOptions);
+    expect(first.choiceContext?.series).deep.eq({index: 1, of: 2});
+    expect(second.choiceContext?.series).deep.eq({index: 2, of: 2});
+    card.onCardPlayed(player, new Ants());
+    expect(cast(game.deferredActions.pop()!.execute(), OrOptions).choiceContext?.series).is.undefined;
+  });
 });

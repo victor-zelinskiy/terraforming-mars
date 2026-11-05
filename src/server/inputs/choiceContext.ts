@@ -76,6 +76,15 @@ export function namedCardEffect(card: CardName, isCorporation: boolean, trigger?
  */
 
 /** The card (or corporation) that caused a prompt a shared helper builds. */
+/**
+ * THE QUESTION'S PLACE IN ITS SERIES (PC04 — `ChoiceContext.series`): the `index`-th (1-based) of `of` equal questions
+ * one play asks (a card's question per tag). A lone question (`of` ≤ 1) carries nothing — the ONE writer of the field,
+ * shared by every card whose question repeats per unit (Ecotec, Viral Enhancers).
+ */
+export function inSeries(context: ChoiceContext, index: number, of: number): ChoiceContext {
+  return of > 1 ? {...context, series: {index, of}} : context;
+}
+
 export function cardSource(card: ICard): ChoiceContextSource {
   return {kind: card.type === CardType.CORPORATION ? 'corporation' : 'card', card: card.name};
 }

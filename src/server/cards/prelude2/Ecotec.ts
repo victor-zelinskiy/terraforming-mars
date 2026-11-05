@@ -11,7 +11,7 @@ import {SelectOption} from '../../inputs/SelectOption';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
 import {chip} from '../../inputs/optionMetadata';
-import {cardEffect, cardSource} from '../../inputs/choiceContext';
+import {cardEffect, cardSource, inSeries} from '../../inputs/choiceContext';
 import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import * as actionPreviews from '../actionPreviews';
 import * as forecast from '../effectForecastPreviews';
@@ -111,9 +111,10 @@ export class Ecotec extends CorporationCard implements ICorporationCard {
   /**
    * THE QUESTION one bio tag asks — ONE builder, read by the live defer and by the forecast's PRE-COLLECTED step (TR51,
    * `forecast.tableQuestion`). The upstream order: ① the pick «which card takes the microbe» — the shared step's own
-   * applied pick (marker, readings, record), ② «Gain plant».
+   * applied pick (marker, readings, record), ② «Gain plant». The `index`-th of `of` answers one play owes names its place
+   * in the series (`inSeries` — the console stands ONE visit through it and counts «k / N»).
    */
-  private question(player: IPlayer, cardBeingPlayed?: ICard): OrOptions {
+  private question(player: IPlayer, index: number, of: number, cardBeingPlayed?: ICard): OrOptions {
     return new OrOptions(
       this.microbeStep(player, cardBeingPlayed).appliedPick(),
       new SelectOption('Gain plant')
@@ -122,7 +123,7 @@ export class Ecotec extends CorporationCard implements ICorporationCard {
           this.gainPlants(player, 1);
           return undefined;
         }),
-    ).markChoiceContext(cardEffect(this, 'You played a plant, microbe, or animal tag.', 'effect-choice'));
+    ).markChoiceContext(inSeries(cardEffect(this, 'You played a plant, microbe, or animal tag.', 'effect-choice'), index, of));
   }
 
   /** Rules 4 · 5 — `count` answers: plants at once without a holder, else a question per answer. */
@@ -138,7 +139,7 @@ export class Ecotec extends CorporationCard implements ICorporationCard {
       // The holders are read when the question stands, never snapshotted at the play.
       player.defer(() => {
         if (this.hasHolder(player)) {
-          return this.question(player);
+          return this.question(player, i + 1, count);
         }
         this.gainPlants(player, 1);
         return undefined;
@@ -182,7 +183,7 @@ export class Ecotec extends CorporationCard implements ICorporationCard {
         // TR51 — every tag's question is independent of the others (Viral Enhancers): each is answered in the composer.
         reason, {
           id: `tag-${i}`, ...forecast.AFTER_CARD,
-          ...(cardOwner === activePlayer ? {preselect: forecast.tableQuestion(this, cardOwner, this.question(cardOwner, card))} : {}),
+          ...(cardOwner === activePlayer ? {preselect: forecast.tableQuestion(this, cardOwner, this.question(cardOwner, i + 1, count, card))} : {}),
         }));
     }
     return facts;

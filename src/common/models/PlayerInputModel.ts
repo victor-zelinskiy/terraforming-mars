@@ -203,6 +203,14 @@ export type ChoiceContext = {
    *  from the supply vs stored on a card — Modular Floodgates' steel), so the
    *  premium screen asks about the source, never «choose an effect». */
   mode?: 'optional-effect' | 'effect-choice' | 'attack' | 'reward' | 'spend-source';
+  /**
+   * A QUESTION THAT IS ONE OF A SERIES (PC04 Ecotec · Viral Enhancers: «per bio tag — 1 plant or 1 microbe on ANY
+   * card»): one play asks the SAME question once per tag, and this says which one — `index` of `of` (1-based), the
+   * grammar of P70's grant series (`VotePromptMeta.series`). The console reads it (never the title, never a count of
+   * equal prompts in a row) to stand ONE visit through the series and to count «k / N». Absent on a lone question; an
+   * old save without the field reads as one.
+   */
+  series?: GrantSeries;
 }
 
 /**
@@ -610,7 +618,10 @@ export type VotePromptMeta = {
   series?: GrantSeries;
 }
 
-/** `VotePromptMeta.series` — the decision `index` (1-based) of a series of `of` grants. */
+/**
+ * A decision's place in a SERIES — `index` (1-based) of `of`. One form for every series: `VotePromptMeta.series` (P70's
+ * grants) and `ChoiceContext.series` (a card's question per tag — PC04).
+ */
 export type GrantSeries = {index: number, of: number};
 
 /** One party's row of `VotePromptMeta.support`. */

@@ -62,7 +62,7 @@
              of the same press, the tone tag, the ask and why it appeared. THE QUESTION LINE carries an optional
              choice's DECLINE as a plate: the refusal is RT, never one more option among the answers (2026-10-13). -->
         <ConsolePromptHead v-else class="con-task__head" :tone="tone" :kicker="kickerText" :title="titleText"
-                           :trigger="triggerText" :prompt-key="sequenceKey">
+                           :trigger="triggerText" :prompt-key="sequenceKey" :series="promptSeries">
           <template v-if="taskDecline !== undefined" #decline>
             <ConsoleDeclinePlate class="con-task__decline" :label="taskDecline.label" :forgone="taskDecline.forgone" />
           </template>
@@ -652,6 +652,7 @@
 </template>
 
 <script lang="ts">
+import {choiceSeriesOf} from '@/client/console/promptSeries';
 /**
  * CONSOLE TASK HOST — CTS T1–T3 (docs/CONSOLE_MODE_CONCEPT.md §CTS-1). The
  * single console-native surface for the prompt kinds: T1 primitives
@@ -691,7 +692,7 @@ import {
 } from '@/client/console/surfaceMotion/promptHandoffMotion';
 import {VariantChoiceOption} from '@/client/console/variantChoiceModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {PlayerInputModel, OrOptionsModel, AndOptionsModel, CardResourceDistributionMeta, SelectAmountModel, SelectOptionModel, OptionMetadata, SelectCardModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
+import {GrantSeries, PlayerInputModel, OrOptionsModel, AndOptionsModel, CardResourceDistributionMeta, SelectAmountModel, SelectOptionModel, OptionMetadata, SelectCardModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {
   pourRemaining, spreadBlocked, spreadCardReading, spreadComplete, spreadFromPicks, spreadOn, spreadRemaining, SpreadState, spreadToPicks,
   spreadTotal, spreadVictoryPointsShift, stepSpread,
@@ -1099,6 +1100,11 @@ export default defineComponent({
       return promptToneWithin(this.parentWf, this.nested?.input);
     },
     /** The decision's identity in the press's sequence (`promptSequence.ts`); '' while embedded (a stage, not a modal). */
+    /** The question's place in a series (PC04 — `choiceContext.series`), counted by the head. */
+    promptSeries(): GrantSeries | undefined {
+      // The PARENT question's (a nested pick inside it is the same decision, not a second one of the series).
+      return choiceSeriesOf(this.parentWf);
+    },
     sequenceKey(): string {
       return this.embedded ? '' : promptSequenceKey(this.parentWf, this.baseKey, this.nested?.index);
     },

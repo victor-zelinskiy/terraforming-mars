@@ -11,7 +11,7 @@ import {CardResource} from '../../../common/CardResource';
 import {CardRenderer} from '../render/CardRenderer';
 import {message} from '../../logs/MessageBuilder';
 import {addResourceToCard, chip} from '../../inputs/optionMetadata';
-import {cardEffect} from '../../inputs/choiceContext';
+import {cardEffect, inSeries} from '../../inputs/choiceContext';
 import {ICard} from '../ICard';
 import {Resource} from '../../../common/Resource';
 import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
@@ -61,16 +61,17 @@ export class ViralEnhancers extends Card implements IProjectCard {
     }
 
     for (let i = 0; i < resourceCount; i++) {
-      player.defer(() => this.question(player, card));
+      player.defer(() => this.question(player, card, i + 1, resourceCount));
     }
     return undefined;
   }
 
   /**
    * THE QUESTION one tag asks — ONE builder, read by the live defer above and by the forecast's PRE-COLLECTED step
-   * (TR51, `forecast.tableQuestion`): a resource on THE PLAYED card, or a plant.
+   * (TR51, `forecast.tableQuestion`): a resource on THE PLAYED card, or a plant. The `index`-th of `of` questions one
+   * play asks names its place in the series (`inSeries` — PC04, the class's one helper).
    */
-  private question(player: IPlayer, card: ICard): OrOptions {
+  private question(player: IPlayer, card: ICard, index: number, of: number): OrOptions {
     return new OrOptions(
       new SelectOption(message('Add resource to card ${0}', (b) => b.card(card)), 'Add resource')
         .withMetadata(addResourceToCard(card.resourceType ?? CardResource.MICROBE))
@@ -84,7 +85,7 @@ export class ViralEnhancers extends Card implements IProjectCard {
           this.addPlant(player, 1);
           return undefined;
         }),
-    ).markChoiceContext(cardEffect(this, 'You played a plant, microbe, or animal tag.', 'effect-choice'));
+    ).markChoiceContext(inSeries(cardEffect(this, 'You played a plant, microbe, or animal tag.', 'effect-choice'), index, of));
   }
 
   public onNonCardTagAdded(player: IPlayer, tag: Tag) {
@@ -117,7 +118,7 @@ export class ViralEnhancers extends Card implements IProjectCard {
         // TR51 — every tag's question is independent of the others: each is answered in the composer.
         reason, {
           id: `tag-${i}`, ...forecast.AFTER_CARD,
-          ...(cardOwner === activePlayer ? {preselect: forecast.tableQuestion(this, cardOwner, this.question(cardOwner, card))} : {}),
+          ...(cardOwner === activePlayer ? {preselect: forecast.tableQuestion(this, cardOwner, this.question(cardOwner, card, i + 1, resourceCount))} : {}),
         }));
     }
     return facts;

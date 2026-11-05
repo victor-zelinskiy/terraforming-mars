@@ -1104,6 +1104,7 @@
     "Hidden by the active filter": "Скрыто активным фильтром",
     "Other effects": "Другие эффекты",
     "Will trigger": "Сработает",
+    "Answers left: ${0}": "Осталось ответов: ${0}",
     "After the action": "После действия",
     "You will be asked": "Вас спросят",
     "Depends on your choice": "Зависит от вашего выбора",

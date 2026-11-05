@@ -363,6 +363,7 @@
                             'con-composer__row--locked': row.kind === 'step' && tableRowView(row.choice)?.state.kind === 'locked',
                             'con-composer__row--deferred': row.kind === 'step' && tableRowView(row.choice)?.state.kind === 'deferred'}"
                    :data-reaction-card="row.kind === 'step' ? row.choice.reaction?.card : undefined"
+                   :data-series-index="row.kind === 'step' ? choiceSeriesOf(row.choice.input)?.index : undefined"
                    :data-tq-state="row.kind === 'step' ? tableRowView(row.choice)?.state.kind : undefined"
                    :data-seeded="row.kind === 'step' && soleMark(row.choice) !== undefined ? (seeded[row.choice.id] ?? 'sole') : undefined"
                    :ref="focusIdx === row.i ? 'focusedEl' : undefined">
@@ -711,7 +712,7 @@
                    label never moves when the play becomes possible. -->
               <GamepadGlyph v-else control="confirm" class="con-composer__cta-glyph"
                             :class="{'con-composer__cta-glyph--mute': !ctaPressMeaningful && !submitting}" />
-              <span class="con-composer__cta-label">{{ $t(ctaDisplayLabel) }}</span>
+              <span class="con-composer__cta-label">{{ ctaSeriesLeft !== '' ? ctaSeriesLeft : $t(ctaDisplayLabel) }}</span>
             </div>
           </div>
           </div><!-- /__playsheet -->
@@ -859,7 +860,7 @@ import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTier';
 import {CardType} from '@/common/cards/CardType';
 import {Message} from '@/common/logs/Message';
-import {SelectProjectCardToPlayModel, SelectAmountModel, SelectCardModel, SelectPlayerModel, OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {GrantSeries, SelectProjectCardToPlayModel, SelectAmountModel, SelectCardModel, SelectPlayerModel, OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedPlacementModel, AgendaWalkModel, NeutralRallyModel} from '@/common/models/ActionPreviewModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
@@ -902,6 +903,7 @@ import {targetImpactRows, targetImpactText, targetImpactIsLoss} from '@/client/c
 import {playedTargetSelfState} from '@/client/console/played/consolePlayedTargetSelf';
 import {TargetImpactChange} from '@/common/models/TargetImpactModel';
 import {translateMessage, translateText, translateCardName, translateTextWithParams} from '@/client/directives/i18n';
+import {choiceSeriesCount, choiceSeriesOf} from '@/client/console/promptSeries';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {
@@ -2542,6 +2544,21 @@ export default defineComponent({
      * expanded state always shows the player the way back into the main flow,
      * and the strip never has to unmount (which would move the column).
      */
+    /**
+     * THE COMMIT NAMES WHAT IS LEFT OF A SERIES (PC04 · GS): while the open question is a member of a series, the plate
+     * reads the number of answers still owed («Осталось ответов: 2»), never the first row's verb alone — '' otherwise.
+     */
+    ctaSeriesLeft(): string {
+      if (this.payExpanded || this.primaryActionState.kind !== 'need-preselect') {
+        return '';
+      }
+      const missing = this.decisionRows.filter((row) => this.rowMissing(row));
+      const open = missing[0];
+      if (open === undefined || open.kind !== 'step' || choiceSeriesOf(open.choice.input) === undefined || missing.length < 2) {
+        return '';
+      }
+      return translateTextWithParams('Answers left: ${0}', [String(missing.length)]);
+    },
     ctaDisplayLabel(): string {
       if (this.payExpanded) {
         return this.paymentReady ? 'Done' : 'Not enough resources';
@@ -4098,10 +4115,22 @@ export default defineComponent({
       this.captureFor(c, spendHeatResponse(plan, next));
     },
     // ── pick rows ───────────────────────────────────────────────────────
+    /** The row's place in a series (PC04 · GS) — the template's reader of the shared module. */
+    choiceSeriesOf(input: PlayerInputModel): GrantSeries | undefined {
+      return choiceSeriesOf(input);
+    },
     choiceTitle(c: ComposerChoice): string {
       // A QUESTION OF THE TABLE (TR51): the row names its asker — «Сработает · <карта> · ваш выбор» — never the
       // prompt's own title («Select an option for Olympus Conference»), which reads as one more step of THIS card.
       if (c.reaction !== undefined) {
+        // A SERIES (PC04 · GS — the question's own `choiceContext.series`): the rows of one asker stand as a GROUP — the
+        // first names the asker and its count, every next one only its count («Метка 2 / 3»), never N equal rows.
+        const series = choiceSeriesOf(c.input);
+        if (series !== undefined) {
+          const count = choiceSeriesCount(series);
+          const counted = translateTextWithParams(count.key, [...count.params]);
+          return series.index > 1 ? counted : `${translateText('Will trigger')} · ${translateCardName(c.reaction.card)} · ${counted}`;
+        }
         return `${translateText('Will trigger')} · ${translateCardName(c.reaction.card)} · ${translateText('your choice')}`;
       }
       // A MERGED pick (Astra) is ONE multi-select here — its per-slot titles
