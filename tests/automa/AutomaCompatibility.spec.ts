@@ -107,6 +107,11 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
     expect(automaConflicts({...cleanInput(), turmoilRedux: true, turmoil: true}).map((c) => c.key)).deep.eq(['expansion:turmoil']);
   });
 
+  it('PRELUDE 2 is allowed — a stated fact of the matrix (the full inclusion, 2026-11-05: every card adapted against the bot)', () => {
+    expect(automaConflicts({...cleanInput(), prelude2: true})).deep.eq([]);
+    expect(automaConflicts({...cleanInput(), prelude2: true, turmoilRedux: true})).deep.eq([]);
+  });
+
   it('keeps the exact server reject wording for the first conflict', () => {
     // AutomaSetup.validateOptions throws `MarsBot (Automa) does not support ${reason}`
     // with the FIRST conflict — these suffixes are the historical messages.

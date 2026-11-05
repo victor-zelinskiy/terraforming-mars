@@ -51,3 +51,17 @@ value is a track on the board, Wild, or in `AUTOMA_FLIP_TAGS` — a NEW tag fail
 ## 2. The M€ → VP ladder follows the table size (the owner, 2026-10-31)
 
 +2 generations per human beyond the first — see `marsbot-second-shift.md` § A separate fork rule.
+
+## 3. Prelude 2 is played with MarsBot — and Recession STAYS in the deck (the full inclusion, 2026-11-05)
+
+The official rules play Prelude 2 with the Automa and remove one card: **Recession** («each opponent loses 5 M€ and
+1 M€ production»). The fork keeps it. Every one of the set's 54 cards was adapted against the bot as one more seat
+(«the bot is just another player» — `table-target-zone`): Recession hits the bot through its own door
+(`AutomaTargeting.removeFromBot` — its M€ supply, the production step as the track's line), the skips are NAMED
+(Private Security, a track with no step to lose), and the victim hears one card. So nothing in the card is
+unplayable or one-sided against the bot, and removing it would only shrink the prelude deck. Hence: no row in
+`AutomaBans`, no conflict in `automaCompatibility.ts` (`prelude2` is read by no rule — a stated fact of the matrix).
+The bot's twins of the human corporations (C40 Ecotec · C42 Nirgal · C43 Palladin · C44 Sagitta · C45 Spire) stay
+apart from the human cards by the collision key (`original`). The official rule and the deviation are recorded in
+`docs/AUTOMA_DATA_AUDIT.md` § Recession; the decision is the owner's to confirm.
+Guards: `tests/automa/AutomaPrelude2.spec.ts`, `tests/automa/AutomaCompatibility.spec.ts`.

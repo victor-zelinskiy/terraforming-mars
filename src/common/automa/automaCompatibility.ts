@@ -17,7 +17,6 @@ import {RandomBoardOption} from '../boards/RandomBoardOption';
 export type AutomaConflictKey =
   | 'board'
   | 'expansion:turmoil'
-  | 'expansion:prelude2'
   | 'expansion:community'
   | 'expansion:moon'
   | 'expansion:pathfinders'
@@ -154,7 +153,11 @@ const RULES: ReadonlyArray<Rule> = [
   // law never pays or asks it). `turmoilRedux` is read by no rule on purpose;
   // it is in the input so the allowance is a stated fact of the matrix.
   // See docs/TURMOIL_REDUX_MARSBOT.md and AutomaCompatibility.spec.ts.
-  {key: 'expansion:prelude2', test: (o) => o.prelude2, reason: () => 'Prelude 2 (per the official rules, and out of POC scope)'},
+  // NOTE: PRELUDE 2 is NOT a conflict — the official rules play it with MarsBot (docs/AUTOMA_DATA_AUDIT.md: only
+  // Recession leaves the deck), and the fork adapted every one of its 54 cards against the bot as one more seat
+  // («the bot is just another player»: its twins C40…C45 kept apart by the collision key, each card's spec with its
+  // MarsBot block). The fork KEEPS Recession (a house rule — docs/claude/marsbot-home-rules.md). `prelude2` is read
+  // by no rule on purpose; it is in the input so the allowance is a stated fact of the matrix.
   // NOTE: PROMO is NOT a conflict — the official FAQ (rulebook p.11) covers it:
   // generic remove/steal/production adapters + the per-card rules for LawSuit,
   // St. Joseph of Cupertino Mission, Asteroid Deflection System, and the Mons

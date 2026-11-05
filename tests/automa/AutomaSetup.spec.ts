@@ -184,7 +184,8 @@ describe('AutomaSetup', () => {
   describe('rejects unsupported setups loudly', () => {
     const cases: ReadonlyArray<[string, object]> = [
       ['Turmoil', {turmoilExtension: true}],
-      ['Prelude 2', {prelude2Expansion: true}],
+      // NOTE: PRELUDE 2 is SUPPORTED (the full inclusion, 2026-11-05 — every card adapted against the bot, Recession kept
+      // by a house rule) — covered positively in AutomaPrelude2.spec.ts.
       // NOTE: PROMO is SUPPORTED (official FAQ p.11: generic adapters + the
       // LawSuit / St. Joseph / ADS per-card rules + the Mons Insurance ban) —
       // covered positively below + in AutomaPromoCards.spec.ts.

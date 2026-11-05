@@ -349,6 +349,14 @@ describe('consoleCreateModel', () => {
       toggleExpansion('prelude');
       expect(launchIssues().map((i) => i.textKey)).to.not.include('Prelude 2 requires Prelude');
     });
+
+    it('with MarsBot seated, Prelude 2 is no conflict (the full inclusion — the bot plays the set)', () => {
+      seatBot();
+      createGameState.config.selectedExpansions.prelude = true;
+      toggleExpansion('prelude2');
+      expect(expansionRows().find((r) => r.meta.id === 'prelude2')?.conflictKey).to.eq(undefined);
+      expect(launchIssues().filter((i) => i.target.deck === 'expansions')).to.deep.eq([]);
+    });
   });
 
   describe('launch readiness + jump-to-issue', () => {
