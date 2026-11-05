@@ -58,7 +58,7 @@ import {Purifier} from './Purifier';
 import {VSpacefarer} from './VSpacefarer';
 import {Agronomist} from './Agronomist';
 import {Merchant} from './modular/Merchant';
-import {MAManifest} from '../ma/MAManifest';
+import {MAManifest, RETIRED_WITH_CLASSIC_TURMOIL} from '../ma/MAManifest';
 import {MilestoneName} from '../../common/ma/MilestoneName';
 import {BoardName} from '../../common/boards/BoardName';
 import {Architect} from './Architect';
@@ -114,7 +114,9 @@ export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
     'Landshaper': {Factory: Landshaper, random: 'modular'},
     'Legend': {Factory: Legend},
     'Legend4': {Factory: Legend4, random: 'modular'},
-    'Lobbyist': {Factory: Lobbyist, compatibility: 'turmoil', random: 'modular'},
+    // vize1215 fork: RETIRED — the Redux FAQ bars it (delegates no longer sit in parties) and the classic Turmoil is not
+    // supported. Kept only so an old save loads; it can never enter a new game (`retired`).
+    'Lobbyist': {Factory: Lobbyist, compatibility: 'turmoil', deprecated: true, retired: RETIRED_WITH_CLASSIC_TURMOIL},
     'Lunarchitect': {Factory: Lunarchitect, compatibility: 'moon'},
     'Martian': {Factory: Martian, compatibility: 'pathfinders'},
     'Mayor': {Factory: Mayor, random: 'both'},

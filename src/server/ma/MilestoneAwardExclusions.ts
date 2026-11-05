@@ -70,8 +70,7 @@ export const RANDOM_EXCLUSION_GROUPS: Readonly<Record<string, ReadonlyArray<MANa
   'expensive-cards': ['Sponsor', 'Celebrity'],
   'cards-in-hand': ['Planner', 'Visionary'],
 
-  // --- Turmoil / Underworld -------------------------------------------------
-  'delegates-politics': ['T. Politician', 'Politician'],
+  // --- Turmoil Redux / Underworld --------------------------------------------
   'agenda-track': ['Activist', 'Influencer'], // Turmoil Redux: both read the Agenda (Career) marker's position
   'underground-tokens': ['Tunneler', 'Excavator'],
 } as const;

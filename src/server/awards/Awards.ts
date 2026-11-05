@@ -55,7 +55,7 @@ import {Incorporator} from './modular/Incorporator';
 import {Rugged} from './Rugged';
 import {BoardName} from '../../common/boards/BoardName';
 import {AwardName} from '../../common/ma/AwardName';
-import {MAManifest} from '../ma/MAManifest';
+import {MAManifest, RETIRED_WITH_CLASSIC_TURMOIL} from '../ma/MAManifest';
 import {Suburbian} from './modular/Suburbian';
 import {Blacksmith} from './Blacksmith';
 import {Influencer} from './turmoilRedux/Influencer';
@@ -105,7 +105,9 @@ export const awardManifest: MAManifest<AwardName, IAward> = {
     'Miner': {Factory: Miner, random: 'both'},
     'Mogul': {Factory: Mogul, random: 'modular'},
     'Naturalist': {Factory: Naturalist},
-    'Politician': {Factory: Politician, compatibility: 'turmoil', random: 'modular'},
+    // vize1215 fork: RETIRED — the Redux FAQ bars it (delegates no longer sit in parties) and the classic Turmoil is not
+    // supported. Kept only so an old save loads; it can never enter a new game (`retired`).
+    'Politician': {Factory: Politician, compatibility: 'turmoil', deprecated: true, retired: RETIRED_WITH_CLASSIC_TURMOIL},
     // Turmoil Redux: played cards with a party requirement, events included (the Redux parties' requirements).
     'Politologist': {Factory: Politologist, compatibility: 'turmoilRedux', random: 'both'},
     'Promoter': {Factory: Promoter, random: 'both'},
@@ -114,7 +116,7 @@ export const awardManifest: MAManifest<AwardName, IAward> = {
     'Space Baron': {Factory: SpaceBaron, random: 'both'},
     'Suburbian': {Factory: Suburbian, random: 'modular'},
     // Counts delegates PLACED — the core action of both Parliaments (classic Turmoil and the Redux Parliament,
-    // `Parliament.placeVote`); the Redux FAQ's ban covers Lobbyist / Politician only (delegates-in-parties).
+    // `Parliament.placeVote`); the Redux FAQ's ban covers Lobbyist / Politician only (delegates-in-parties — both retired).
     'T. Politician': {Factory: TPolitician, compatibility: ['turmoil', 'turmoilRedux']},
     'Thermalist': {Factory: Thermalist, random: 'both'},
     'Tourist': {Factory: Tourist},

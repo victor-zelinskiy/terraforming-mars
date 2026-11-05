@@ -139,6 +139,5 @@ export const MARSBOT_AWARD_DESCRIPTIONS: Partial<Record<AwardName, string>> = {
   // Modular
   'Administrator': 'Cards without tags in played pile + 2',
   'Collector': 'Tracks at space 3+',
-  'Politician': 'Always 5',
   'Visionary': 'Lowest track \u00d7 2 (2nd lowest with Venus)',
 };

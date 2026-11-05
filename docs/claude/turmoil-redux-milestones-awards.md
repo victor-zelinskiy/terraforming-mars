@@ -14,6 +14,21 @@ pool under Redux.**
 | **Influencer** | award | Furthest on the Agenda track. | DONE 2026-11-06 — `src/server/awards/turmoilRedux/Influencer.ts` |
 | **Politologist** | award | Highest number of cards with a party requirement. (Event cards count.) | DONE 2026-11-06 — `src/server/awards/turmoilRedux/Politologist.ts` |
 
+## Retired with the classic Turmoil — Lobbyist, Politician (2026-11-06)
+
+The Redux FAQ: «Can I use the Lobbyist Milestone or Politician Award with Turmoil Redux? No. Since the way that delegates
+work is completely different now, that milestone and award no longer work as intended. You should use this fan
+expansion's milestones and awards instead.» The fork does not support the classic Turmoil, so nothing can host them.
+
+- Manifest: `deprecated: true` + **`retired: RETIRED_WITH_CLASSIC_TURMOIL`** (`MAManifestSpec.retired` — stronger than
+  `deprecated`: no NEW game by ANY road; the factory stays only so an old save loads). No `random`.
+- `chooseMilestonesAndAwards` throws «Retired milestone/award reached a new game: … — choose a replacement» if a board /
+  expansion set ever names one; `tests/ma/RetiredMilestonesAwards.spec.ts` pins the list, every pool, every fixed set,
+  and fails on ANY new spelling of the names in `src/` outside the name lists, the manifests and the two classes.
+- Gone: the `delegates-politics` exclusion group (T. Politician has no peer left), the MarsBot description row, the
+  icons `assets/ma/lobbyist.png` / `politician.png` and their `maArtFit.json` entries + the desktop `@ma-name` rows.
+  The RU names stay (an old save still prints them).
+
 ## Activist — the decisions
 
 - **Score = `Parliament.agendaOf(player)`.** Every marker starts OFF the track at 0 (`Parliament.agenda`), so the

@@ -233,9 +233,10 @@ describe('MilestoneAwardSelector', () => {
     });
 
     // The Redux FAQ: «Can I use the Lobbyist Milestone or Politician Award with Turmoil Redux? No» — both count
-    // delegates SITTING in parties, which the Redux Parliament has no more. T. Politician counts delegates PLACED,
-    // the Redux Parliament's core action (`Parliament.placeVote`), so it stays offered under either Parliament.
-    it('the delegate MAs follow their Parliament: T. Politician under either, Lobbyist / Politician under the classic only', () => {
+    // delegates SITTING in parties, which the Redux Parliament has no more, and the fork does not support the classic
+    // Turmoil, so both are RETIRED (offered nowhere — `RetiredMilestonesAwards.spec.ts`). T. Politician counts delegates
+    // PLACED, the Redux Parliament's core action (`Parliament.placeVote`), so it stays offered under either Parliament.
+    it('the delegate MAs: T. Politician under either Parliament, Lobbyist / Politician under none', () => {
       const pool = (expansions: Partial<GameOptions['expansions']>) => getCandidates({
         ...DEFAULT_GAME_OPTIONS,
         randomMA: RandomMAOptionType.ALL,
@@ -245,8 +246,10 @@ describe('MilestoneAwardSelector', () => {
       expect(reduxAwards, 'Redux offers T. Politician').to.include('T. Politician');
       expect(reduxAwards, 'Redux never offers Politician').to.not.include('Politician');
       expect(reduxMilestones, 'Redux never offers Lobbyist').to.not.include('Lobbyist');
-      const [, classicAwards] = pool({turmoil: true});
+      const [classicMilestones, classicAwards] = pool({turmoil: true});
       expect(classicAwards).to.include('T. Politician');
+      expect(classicAwards, 'retired: not even the classic Turmoil offers Politician').to.not.include('Politician');
+      expect(classicMilestones, 'retired: not even the classic Turmoil offers Lobbyist').to.not.include('Lobbyist');
       const [, noneAwards] = pool({});
       expect(noneAwards, 'no Parliament, no delegate award').to.not.include('T. Politician');
     });

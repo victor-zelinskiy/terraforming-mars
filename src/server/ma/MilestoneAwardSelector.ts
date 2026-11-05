@@ -150,7 +150,24 @@ export function chooseMilestonesAndAwards(gameOptions: GameOptions, context: MAS
     throw new Error('Unknown milestone/award type: ' + gameOptions.randomMA);
   }
 
+  assertNoRetired(drawnMilestonesAndAwards);
   return drawnMilestonesAndAwards;
+}
+
+/**
+ * vize1215 fork: a RETIRED milestone / award (`MAManifestSpec.retired`) never enters a new game by any road. The random
+ * candidates already skip it (it is `deprecated`); this catches the other roads — a board set or an expansion set that
+ * starts naming one — loudly, at game creation, so a replacement is decided instead of a broken MA shipping.
+ */
+function assertNoRetired(drawn: DrawnMilestonesAndAwards): void {
+  const retired = [
+    ...drawn.milestones.map((name) => [name, milestoneManifest.all[name].retired] as const),
+    ...drawn.awards.map((name) => [name, awardManifest.all[name].retired] as const),
+  ].filter(([, reason]) => reason !== undefined);
+  if (retired.length > 0) {
+    const named = retired.map(([name, reason]) => `${name} (${reason})`).join(', ');
+    throw new Error(`Retired milestone/award reached a new game: ${named} — choose a replacement`);
+  }
 }
 
 /**
