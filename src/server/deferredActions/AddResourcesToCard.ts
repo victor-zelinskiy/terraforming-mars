@@ -323,17 +323,27 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
    * nothing is recorded as lost.
    */
   public buildOptionalChoice(cards: ReadonlyArray<ICard>): OrOptions {
-    const qty = this.options.count ?? 1;
-    const pick = this.buildSelectCard(cards).andThen(([card]) => {
-      this.addResource(card, qty, true);
-      return undefined;
-    });
+    const pick = this.appliedPick(cards);
     const decline = new SelectOption(message(DECLINE_ADDITION_KEY, (b) => b.string(this.resourceType ?? 'resources')))
       .withMetadata(skip());
     const choice = new OrOptions(pick, decline);
     return this.options.cause === undefined ?
       choice :
       choice.markChoiceContext({source: this.options.cause, mode: 'optional-effect'});
+  }
+
+  /**
+   * THE PICK WITH ITS APPLICATION — the very `SelectCard` the mandatory path presents (marker, readings, `cause`), its
+   * answer adding the units through the step's ONE addition (`asked`). The door a caller's OWN choice embeds as one
+   * branch («1 plant OR 1 microbe on ANY card» — PC04 Ecotec), as the optional choice embeds it beside its decline: a
+   * branch built from this step never re-describes the candidates, the marker or the record.
+   */
+  public appliedPick(cards: ReadonlyArray<ICard> = this.getCards()): SelectCard<ICard> {
+    const qty = this.options.count ?? 1;
+    return this.buildSelectCard(cards).andThen(([card]) => {
+      this.addResource(card, qty, true);
+      return undefined;
+    });
   }
 
   /** READ-ONLY: the optional choice the live path WOULD present (`buildOptionalChoice`), or `undefined` with no holder. */
