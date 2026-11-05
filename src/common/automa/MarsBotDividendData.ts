@@ -217,6 +217,9 @@ const DIVIDENDS: Readonly<Record<MarsBotCorpId, MarsBotDividendInfo>> = {
   [MarsBotCorpId.CF8_PROTEUS]: dividendBox('Many forms', {each: 1}, (r) => [
     {text: '${0} VP per card with two or more tags in MarsBot\'s played pile', params: [r.each]},
   ], dividendGoal('Proteus mirabilis', 'Microbe tags in MarsBot\'s played pile', 4, 5, 7)),
+  [MarsBotCorpId.CF9_DEIMOS_GROUP]: dividendBox('Earth lobbyists', {each: 4, per: 3}, (r) => [
+    {text: '${0} VP per ${1} cards with an Earth tag the other players played', params: [r.each, r.per]},
+  ], dividendGoal('Moon bases', 'Jovian tags in MarsBot\'s played pile', 2, 3, 5)),
 };
 
 export function marsBotDividendInfo(id: MarsBotCorpId): MarsBotDividendInfo {

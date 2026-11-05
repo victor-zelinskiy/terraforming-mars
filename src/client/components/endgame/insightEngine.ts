@@ -3300,6 +3300,18 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 6,
         });
       }
+    } else if (corp.id === 'CF9') {
+      // The Deimos Group (the fork's own card): what the table SAW is the bot's lost votes turned into pressure.
+      const spent = stat('deimosPushes');
+      if (spent >= 3) {
+        stories.push({
+          key: 'effect',
+          textKey: 'The rumours around ${0}\'s ${1} kept growing: ${2} lost votes turned into delegates and hidden projects.',
+          params: [raw(p.name), raw(corp.name), raw(spent)],
+          measure: spent,
+          scale: 6,
+        });
+      }
     } else if (corp.id === 'CF6') {
       // Hartlan Heating (the fork's own card): what the table SAW is the bot's building warming Mars, a card each time.
       const steps = stat('seasonSteps');

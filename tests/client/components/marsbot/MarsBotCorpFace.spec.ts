@@ -696,6 +696,22 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(face.find('.pcard__res').exists(), 'the mech store').is.true;
   });
 
+  it('The Deimos Group (CF9, the fork\'s own card) prints its rumours and the hidden project, never the human 50 M€ or the waiver', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.CF9_DEIMOS_GROUP);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the influence').contains('+2 influence');
+    expect(text, 'the rumours').contains('rumour');
+    expect(text, 'the hidden project').contains('least advanced track');
+    expect(text, 'the module').contains('Turmoil Redux');
+    // The human The Deimos Group starts with 50 M€ and ignores party requirements — not printed here.
+    expect(text).not.contains('50');
+    expect(text).not.match(/party requirement/i);
+    const face = mountFace(MarsBotCorpId.CF9_DEIMOS_GROUP);
+    expect(face.findAll('.pcard__tags .pcard-tag'), 'the Mars tag').has.length(1);
+    expect(face.find('.pcard__res').exists(), 'the rumours\' capsule').is.true;
+  });
+
   it('Proteus (CF8, the fork\'s own card) prints its imprint and its deep run, never the human 45 M€ or Preludes', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.CF8_PROTEUS);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Before action phase']);

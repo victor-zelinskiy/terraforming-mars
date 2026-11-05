@@ -341,6 +341,14 @@ export type MarsBotCorp = {
   onAgendaWalked?(game: IGame, steps: number): void;
 
   /**
+   * A sitting of the Mars Parliament decided its vote — dispatched ONCE per sitting from `ParliamentPhase.stepWinner`,
+   * after the winner is recorded and logged (CF9 The Deimos Group's rumours). `winner` is the winning seat's id
+   * (`'NEUTRAL'` or undefined when no player won); `seq` the sitting's number — a hook that keeps state guards on it,
+   * so a sitting re-entered after a reload never pays twice.
+   */
+  onVoteDecided?(game: IGame, winner: string | undefined, seq: number | undefined): void;
+
+  /**
    * MarsBot's terraform rating has just risen `steps` steps — the ONE funnel (`Player.increaseTerraformRating`), after
    * the rating moved, every source alike (a scale step, a card, a law, the corporation's own setup). What the funnel
    * refused (the UNMI veto, an unpaid Reds tax) never reaches it (CF7 Lotus Innovations' data).

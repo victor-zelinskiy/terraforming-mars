@@ -28,7 +28,7 @@ export type {MarsBotCubeType} from './AutomaTypes';
  * C35's card either carries its white cube or it does not, and the count IS
  * the state (the printed effect only ever puts one there or takes it away).
  */
-export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white' | 'cube-black' | 'mech' | 'fighter' | 'heat' | 'data';
+export type MarsBotCorpResource = 'plant' | 'science' | 'megacredits' | 'cube-white' | 'cube-black' | 'mech' | 'fighter' | 'heat' | 'data' | 'journalism';
 
 /**
  * How the bot picks (and protects) cards in the research draft — RB-B "Draft
@@ -1553,6 +1553,37 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.CF9_DEIMOS_GROUP]: {
+    id: MarsBotCorpId.CF9_DEIMOS_GROUP,
+    // THE FORK'S OWN BOT CARD (the owner, 2026-11-05) for the Turmoil Redux corporation TR83 — «the Conspiracy Theory»
+    // (docs/AUTOMA_DATA_AUDIT.md §20): every vote MarsBot loses feeds the rumours, the rumours buy delegates.
+    cardNumber: 'CF9',
+    original: CardName.THE_DEIMOS_GROUP,
+    // The human card's corner — the Mars tag (no track of its own on the mat: the flip home rule resolves it).
+    startingTags: [Tag.MARS],
+    // DRAFT PRIORITY — the least advanced track: the very track the hidden project feeds.
+    draftPriority: {type: 'leastAdvancedTrack'},
+    // The Mars Parliament, like the human card: votes, delegates and influence are the whole card.
+    requiresModules: ['turmoilRedux'],
+    // THE RUMOURS — the press, the existing journalism resource in the `.pcard__res` capsule.
+    resource: 'journalism',
+    corpBonusCards: [],
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'Least-advanced track'}]},
+      {kind: 'setup', lines: [
+        {text: 'This corporation is only used in a game with Turmoil Redux', muted: true},
+        {icon: 'delegate', text: 'MarsBot has +${0} influence', params: ['2']},
+        {icon: 'delegate', text: 'MarsBot sends ${0} delegate from its reserve to the resolution it is closest to winning', params: ['1']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'journalism', text: 'Each vote MarsBot does not win puts ${0} rumour on this card', params: ['1']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'delegate', text: 'For each rumour here, MarsBot spends it: a delegate from its reserve to the resolution it is closest to winning'},
+        {icon: 'deck', text: 'The hidden project: each spent rumour also advances MarsBot\'s least advanced track'},
+      ]},
+    ],
+  },
 };
 
 export function marsBotCorpInfo(id: MarsBotCorpId): MarsBotCorpInfo {
@@ -1634,6 +1665,9 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           over — TR is one per conversion) and pristarMc (the M€ they
  *           paid), plus pristarSkipped<Parameter> per parameter, so the
  *           finale can name WHICH of the four stood still.
+ * The Deimos Group (CF9): deimosSetupDelegates (the setup's delegate), deimosRumours (votes it did not win), deimosDelegates
+ *           / deimosPushes (what the rumours bought — delegates sent, least-advanced-track pushes), deimosLastSitting (the
+ *           number of the last sitting that paid a rumour — the reload guard, not a count).
  * Proteus (CF8): proteusImprint (tracks of the imprint), proteusData (data its matching tags put on the card),
  *           deepRunPlayed (BC8 resolved), deepRunColonies / deepRunOceans (what the data bought), deepRunData (data spent).
  * Lotus Innovations (CF7): lotusData (data its rating steps put on the card), breakthroughPlayed (BC7 resolved),

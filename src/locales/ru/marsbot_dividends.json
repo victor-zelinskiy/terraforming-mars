@@ -319,5 +319,10 @@
     "Many forms": "Многоликость",
     "${0} VP per card with two or more tags in MarsBot's played pile": "${0} ПО за каждую карту с двумя и более метками в стопке разыгранных карт Бота",
     "Cards with two or more tags in MarsBot's played pile": "Карты с двумя и более метками в стопке Бота",
-    "Microbe tags in MarsBot's played pile": "метки микробов"
+    "Microbe tags in MarsBot's played pile": "метки микробов",
+    "Earth lobbyists": "Лоббисты на Земле",
+    "${0} VP per ${1} cards with an Earth tag the other players played": "${0} ПО за каждые ${1} карты с меткой Земли, сыгранные другими игроками",
+    "Cards with an Earth tag the other players played": "Карты с меткой Земли у других игроков",
+    "Moon bases": "Базы на лунах",
+    "Jovian tags in MarsBot's played pile": "метки Юпитера"
 }

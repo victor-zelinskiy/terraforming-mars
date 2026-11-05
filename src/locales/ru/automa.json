@@ -902,5 +902,14 @@
     "${0} has no colony to build and no ocean to place — the data wait on Proteus": "${0}: негде строить колонию и некуда класть океан — данные ждут на Proteus",
     "${0} spent ${1} data from its corporation ${2}": "${0} тратит данные корпорации ${2}: ${1}",
     "No colony to build and no ocean to place — the data wait on Proteus": "Ни колонии, ни океана — данные ждут на Proteus",
-    "A deep run: ${0} colony(ies) and ${1} ocean(s) bought with data": "Глубинный рейс: колоний — ${0}, океанов — ${1}, куплено данными"
+    "A deep run: ${0} colony(ies) and ${1} ocean(s) bought with data": "Глубинный рейс: колоний — ${0}, океанов — ${1}, куплено данными",
+    "MarsBot has +${0} influence": "У Бота +${0} влияния",
+    "MarsBot sends ${0} delegate from its reserve to the resolution it is closest to winning": "Бот отправляет из резерва делегатов (${0}) на резолюцию, где он ближе всего к победе",
+    "Each vote MarsBot does not win puts ${0} rumour on this card": "Каждое голосование, которое Бот не выиграл, кладёт на эту карту слухи: ${0}",
+    "For each rumour here, MarsBot spends it: a delegate from its reserve to the resolution it is closest to winning": "За каждый слух здесь Бот тратит его: делегат из резерва на резолюцию, где он ближе всего к победе",
+    "The hidden project: each spent rumour also advances MarsBot's least advanced track": "Тайный проект: каждый потраченный слух ещё и продвигает самый отстающий трек Бота",
+    "${0} has +${1} influence from its corporation ${2}": "У ${0} +${1} влияния от корпорации ${2}",
+    "${0} did not win the vote — a rumour goes onto its corporation ${1}": "${0} не выиграл голосование — на корпорацию ${1} ложится слух",
+    "${0} spent a rumour from its corporation ${1}": "${0} тратит слух с корпорации ${1}",
+    "${0} has no delegate it can send for its corporation ${1}": "${0}: корпорации ${1} некого отправить — делегатов нет или голосование решено"
 }

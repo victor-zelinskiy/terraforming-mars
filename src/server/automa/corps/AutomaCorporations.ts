@@ -77,6 +77,7 @@ import {MarsBotArwindInc} from './MarsBotArwindInc';
 import {MarsBotHartlanHeating} from './MarsBotHartlanHeating';
 import {MarsBotLotusInnovations} from './MarsBotLotusInnovations';
 import {MarsBotProteus} from './MarsBotProteus';
+import {MarsBotDeimosGroup} from './MarsBotDeimosGroup';
 
 /**
  * THE MarsBot corporation registry + dispatch layer (Rule Book B "Adding
@@ -156,6 +157,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.CF6_HARTLAN_HEATING]: MarsBotHartlanHeating,
     [MarsBotCorpId.CF7_LOTUS_INNOVATIONS]: MarsBotLotusInnovations,
     [MarsBotCorpId.CF8_PROTEUS]: MarsBotProteus,
+    [MarsBotCorpId.CF9_DEIMOS_GROUP]: MarsBotDeimosGroup,
   };
 
   public static corpFor(id: MarsBotCorpId): MarsBotCorp {
@@ -352,6 +354,14 @@ export class AutomaCorporations {
   /** Another player made MarsBot lose resources or production (`MarsBotCorp.onHarmedByOpponent`) — once per attack. */
   public static onBotHarmed(game: IGame, lostMc: number): void {
     AutomaCorporations.activeCorp(game)?.onHarmedByOpponent?.(game, lostMc);
+  }
+
+  /**
+   * A sitting decided its vote (`MarsBotCorp.onVoteDecided`) — once per sitting, from `ParliamentPhase.stepWinner`;
+   * `winner` is the winning seat (`'NEUTRAL'` / undefined when no player won), `seq` the sitting's own number.
+   */
+  public static onVoteDecided(game: IGame, winner: string | undefined, seq: number | undefined): void {
+    AutomaCorporations.activeCorp(game)?.onVoteDecided?.(game, winner, seq);
   }
 
   /** MarsBot's Agenda marker walked `steps` steps (`MarsBotCorp.onAgendaWalked`) — once per walk. */

@@ -187,6 +187,8 @@ export enum MarsBotCorpId {
   CF7_LOTUS_INNOVATIONS = 'CF7',
   // CF8 — Proteus (TR82), «the Imprint of Form», 2026-11-05.
   CF8_PROTEUS = 'CF8',
+  // CF9 — The Deimos Group (TR83), «the Conspiracy Theory», 2026-11-05.
+  CF9_DEIMOS_GROUP = 'CF9',
 }
 
 /** The implemented set, in official card-number order. */
@@ -245,6 +247,7 @@ export const MARS_BOT_CORP_IDS: ReadonlyArray<MarsBotCorpId> = [
   MarsBotCorpId.CF6_HARTLAN_HEATING,
   MarsBotCorpId.CF7_LOTUS_INNOVATIONS,
   MarsBotCorpId.CF8_PROTEUS,
+  MarsBotCorpId.CF9_DEIMOS_GROUP,
 ];
 
 /**

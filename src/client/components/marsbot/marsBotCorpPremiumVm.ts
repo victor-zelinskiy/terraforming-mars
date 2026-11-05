@@ -533,6 +533,20 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.tag(Tag.POWER).startEffect.cards(1).asterix();
       });
     });
+  case MarsBotCorpId.CF9_DEIMOS_GROUP:
+    return CardRenderer.builder((b) => {
+      // SETUP: the human card's own row — +2 influence and the first action's one delegate.
+      b.plus().influence({amount: 2, digit: true}).nbsp.delegates(1);
+      // EFFECT: a vote MarsBot does not win (the asterisk) puts a rumour here.
+      b.effect(undefined, (eb) => {
+        eb.delegates(1).asterix().startEffect.resource(CardResource.JOURNALISM);
+      });
+      // BEFORE ACTION PHASE: each rumour → a delegate AND the hidden project — the wild symbol, as C14/C15/CF1/CF4 draw
+      // «the least advanced track».
+      b.action(undefined, (eb) => {
+        eb.resource(CardResource.JOURNALISM).startAction.delegates(1).nbsp.wild(1);
+      });
+    });
   case MarsBotCorpId.CF8_PROTEUS:
     return CardRenderer.builder((b) => {
       // SETUP: three revealed cards — the imprint (the asterisk: their tags, not the cards) — and the human card's two
@@ -768,6 +782,9 @@ function corpResourceSocket(resource: MarsBotCorpResource): {type: CardResource,
   // CF7 Lotus Innovations' lab — the human card's own data.
   case 'data':
     return {type: CardResource.DATA};
+  // CF9 The Deimos Group's rumours — the press (the existing journalism resource).
+  case 'journalism':
+    return {type: CardResource.JOURNALISM};
   default: {
     const never: never = resource;
     void never;

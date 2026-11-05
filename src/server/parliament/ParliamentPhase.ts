@@ -63,6 +63,7 @@ import {CardName} from '../../common/cards/CardName';
 import {ChairmanSeat} from './quests/ChairmanSeat';
 import {botWinnerRewardPlan, declaresWinnerPass, NO_BOT_EXECUTOR_REASON, payBotWinnerReward} from '../automa/BotWinnerReward';
 import {payBotTileGrant} from '../automa/BotTileGrant';
+import {AutomaCorporations} from '../automa/corps/AutomaCorporations';
 import {botPayoutSteps} from '../automa/BotResolutionPayout';
 import {payAgendaGrant} from './resolutions/ResolutionAgendaGrant';
 import {SeatGrantDeed, seatGrantsOf} from './resolutions/SeatGrants';
@@ -399,6 +400,8 @@ export class ParliamentPhase {
         this.game.log('Tie among players: ${0} placed a delegate earlier', (b) => b.player(player));
       }
     }
+    // A bot corporation that answers the vote's outcome (CF9 The Deimos Group) — once per sitting, after the record.
+    AutomaCorporations.onVoteDecided(this.game, verdict.player, p.summary.seq);
   }
 
   // ───────────────────────── step 1b: the winner's Agenda ─────────────────────────
