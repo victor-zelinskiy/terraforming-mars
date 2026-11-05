@@ -38,11 +38,11 @@ import {CardName} from './CardName';
  * Guard and worklist printer: `tests/cards/prelude2/Prelude2CardsHeldBack.spec.ts`.
  */
 
-/** ADAPT IN PLACE — 0 preludes, 1 corporation (ordered as the manifest prints them; every project card P68…P91 and every prelude P43…P67 is adapted). */
-export const PRELUDE2_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
-  // ── Corporations (PC01…PC05; MarsBot already plays its own twins — the human card is a separate adaptation) ──
-  CardName.SPIRE, // PC05 · `onCardPlayed` hook
-];
+/**
+ * ADAPT IN PLACE — EMPTY since 2026-11-05: PC05 Spire, the last row, crossed (54 / 54 — every project card P68…P91,
+ * every prelude P43…P67, every corporation PC01…PC05). The list goes with the file in the full inclusion (§2.4).
+ */
+export const PRELUDE2_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [];
 
 /**
  * REPLACED BY THE REDUX SET — the classic card never joins a Redux deck; a row leaves

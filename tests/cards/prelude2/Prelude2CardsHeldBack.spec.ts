@@ -173,26 +173,13 @@ describe('Prelude 2 cards under the hold-back list', () => {
       expect(isPrelude2CardHeldBack(CardName.MERGER)).is.false;
     });
 
-    // The dev road onto a table before a card's row goes: the guaranteed cards are
-    // added AFTER the filter, exactly like a card of a module that is off.
-    it('a held-back card can still be forced in as a guaranteed card', () => {
-      const project = PRELUDE2_CARDS_TO_ADAPT_IN_PLACE.find((name) => PROJECTS.includes(name));
-      const prelude = PRELUDE2_CARDS_TO_ADAPT_IN_PLACE.find((name) => PRELUDES.includes(name));
-      const corporation = PRELUDE2_CARDS_TO_ADAPT_IN_PLACE.find((name) => CORPORATIONS.includes(name));
-      // Every PROJECT card is adapted since P91 WG Project (2026-11-02), every PRELUDE since P67 World Government Advisor
-      // (2026-11-05) — the road is walked with what is still listed.
-      expect(corporation).is.not.undefined;
-      const cards = new GameCards(options({
-        ...OPEN_CLASSIC, customProjectCards: project !== undefined ? [project] : [], customPreludes: prelude !== undefined ? [prelude] : [],
-        customCorporationsList: [corporation!],
-      }));
-      if (project !== undefined) {
-        expect(cards.getProjectCards().map(toName)).to.contain(project);
-      }
-      if (prelude !== undefined) {
-        expect(cards.getPreludeCards().map(toName)).to.contain(prelude);
-      }
-      expect(cards.getCorporationCards().map(toName)).to.contain(corporation);
+    // The list is EMPTY since PC05 Spire (2026-11-05). The dev road it guarded stays: a guaranteed card is added AFTER
+    // every filter, exactly like a card of a module that is off — the stands put a Prelude 2 corporation on a table
+    // WITHOUT the option this way (the option with MarsBot is refused until the full inclusion).
+    it('the list is empty — and a Prelude 2 card can still be forced onto a table without the option', () => {
+      expect([...PRELUDE2_CARDS_HELD_BACK]).deep.eq([]);
+      const cards = new GameCards(options({...OFF, customCorporationsList: [CardName.SPIRE]}));
+      expect(cards.getCorporationCards().map(toName)).to.contain(CardName.SPIRE);
     });
   });
 

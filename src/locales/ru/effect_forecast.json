@@ -102,6 +102,7 @@
     "You play a green card that places a tile": "Вы играете зелёную карту, размещающую тайл",
     "You play a card with no tags": "Вы играете карту без меток",
     "You play a card with exactly 1 tag": "Вы играете карту ровно с 1 меткой",
+    "You play a card with at least 2 tags": "Вы играете карту хотя бы с 2 метками",
     "You raise your terraform rating": "Вы повышаете свой РТ",
     "The price cannot go below 0 — ${0} of the ${1} offered": "Цена не опускается ниже 0 — снято ${0} из ${1}"
 }

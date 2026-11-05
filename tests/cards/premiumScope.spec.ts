@@ -74,7 +74,9 @@ describe('premium scope', () => {
     expect(inPremiumScope({module: 'ares', name: CardName.CAPITAL_ARES}, narrowed)).is.false;
     expect(inPremiumScope({module: 'turmoil', name: CardName.VOTE_OF_NO_CONFIDENCE}, narrowed)).is.false;
     expect(inPremiumScope({module: 'turmoil', name: CardName.DIASPORA_MOVEMENT}, narrowed)).is.true;
-    expect(inPremiumScope({module: 'prelude2', name: CardName.SPIRE}, narrowed)).is.false;
+    // Prelude 2's last card crossed (PC05 Spire, 2026-11-05) — in scope like any other; the classic the Redux set replaces stays out.
+    expect(inPremiumScope({module: 'prelude2', name: CardName.SPIRE}, narrowed)).is.true;
+    expect(inPremiumScope({module: 'prelude2', name: CardName.CORRIDORS_OF_POWER}, narrowed)).is.false;
   });
 
   describe('no hand-written premium module list outside `premiumScope.ts`', function() {
