@@ -2,10 +2,11 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootSeededGame, commitFocusedSpace, createGameWithCards, fetchPlayerModel, openBotBoardDetail, press, settle,
-  soloGameConfig, walkToSpace,
+  bootFixture, bootSeededGame, cinematicBeat, commitFocusedSpace, createGameWithCards, fetchPlayerModel, openBotBoardDetail, press, settle,
+  soloGameConfig, takeRevealCard, walkToSpace,
 } from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
+import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
 /**
  * ARABIA TERRA on the console — the fourth fan map with a HOME-MADE MarsBot board (docs/AUTOMA_DATA_AUDIT.md §2i / §21)
@@ -16,8 +17,15 @@ import {armLeakWitness, strandedReports} from './parliamentDrive';
  *     the two faces of a cove, live: an OCEAN (the standard project) on one cove — the dossier says «Бухта» and its
  *     rule, the server counts the ocean; a GREENERY on the energy-production cove — the dossier draws the bonus as
  *     energy production before the press, and the server pays it. Nothing stranded on the way.
+ *     While the placement grid stands, a candidate cove KEEPS ITS FACE (the ocean half and the divider) — a legacy
+ *     rule erased it on every legal cell (the owner, 2026-11-05).
  *  2. THE BOT. MarsBot on this map: the home-made mat in the view (Power alone, Jovian riding Science, the free colony
  *     cell on space 5) and in «Планшет бота», the map's own rows, and the bot playing the round the player hands over.
+ *  3. THE CELLS THAT PAY, on the REAL board (fixture `arabia-receive` — the owner's audit of 2026-11-05): printed DATA
+ *     with two holders on the table (a live pick, then the board's scene on the chosen card), printed SCIENCE with one
+ *     holder (no question — the board's scene), and the energy-production cove (a token born on the cell, landing on
+ *     the rail's energy row — the production digit used to tick with no cause on screen). Both ends of every flight
+ *     are witnessed.
  * Evidence → screenshots/arabia-terra/.
  */
 
@@ -25,6 +33,8 @@ const OUT = path.resolve('screenshots', 'arabia-terra');
 const VOLCANIC = ['20', '55', '58', '63'];
 const OCEAN_COVES = ['44', '48', '46'];
 const ENERGY_COVE = '32';
+const DATA_CELL = '16';
+const SCIENCE_CELL = '34';
 const OCEAN_COST = 18;
 const GREENERY_COST = 23;
 
@@ -54,9 +64,11 @@ type View = {
     spaces: Array<{id: string, tileType?: number}>,
     automa?: {tracks: Array<BotTrack>},
   },
-  thisPlayer: {megacredits: number, energyProduction: number},
+  thisPlayer: {megacredits: number, energyProduction: number, tableau: Array<{name: string, resources?: number}>},
   waitingFor?: {type?: string},
 };
+
+const resourcesOn = (model: View, card: string): number => model.thisPlayer.tableau.find((c) => c.name === card)?.resources ?? 0;
 
 const view = async (request: APIRequestContext, playerId: string): Promise<View> =>
   await fetchPlayerModel(request, playerId) as unknown as View;
@@ -141,6 +153,13 @@ for (const profile of PROFILES) {
         }
       }
       expect(oceanCove, 'a cove is a legal ocean cell').toBeDefined();
+      // A CANDIDATE COVE KEEPS ITS FACE: the type layer of every legal cove still paints its half and its divider.
+      const coveFaces = await page.evaluate(() =>
+        Array.from(document.querySelectorAll<HTMLElement>('.board-space--available > .board-space-type-cove, .board-space--available > .board-space-type-volcanic-cove'))
+          .map((el) => getComputedStyle(el).backgroundImage));
+      console.log('── candidate coves ──', coveFaces.length, coveFaces[0]?.slice(0, 60));
+      expect(coveFaces.length, 'the ocean placement lights coves').toBeGreaterThan(0);
+      expect(coveFaces.filter((bg) => !/svg/.test(bg)), 'every candidate cove still paints its ocean half').toEqual([]);
       const oceanPanel = await dossier(page);
       console.log('── the cove dossier (ocean) ──', oceanPanel);
       expect(oceanPanel, 'the dossier names the cove').toMatch(/Бухта/);
@@ -183,6 +202,166 @@ for (const profile of PROFILES) {
       await shoot(page, '21-energy-cove-landed');
       const after = await view(request, playerId);
       expect(after.thisPlayer.energyProduction, 'the cove paid its energy production').toBe(mid.thisPlayer.energyProduction + 1);
+      expect(await strandedReports(page), 'no prompt was stranded on the way').toEqual([]);
+    });
+
+    /** The standard project's greenery, aimed at `cell` — legal, the dossier read, nothing committed yet. */
+    async function aimGreenery(page: Page, request: APIRequestContext, playerId: string, cell: string): Promise<string> {
+      await startStandardProject(page, request, playerId, /^\s*озеленение\s*$/i, 'Озеленение');
+      await walkToSpace(page, cell);
+      expect(await focusedCellAvailable(page, cell), `cell ${cell} is a legal greenery cell`).toBe(true);
+      return dossier(page);
+    }
+
+    /** What stands in the air right now: every token of the transfer layer, by its face and its place, and the open holds. */
+    const inTheAir = (page: Page) => page.evaluate(() => {
+      const ready = (window as unknown as {__conReady?: () => {holds?: ReadonlyArray<string>, transfer?: {trail: ReadonlyArray<unknown>}}}).__conReady?.();
+      return {
+        chips: Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).map((chip) => {
+          const r = chip.getBoundingClientRect();
+          return `#${chip.getAttribute('data-transfer-id')} «${(chip.textContent ?? '').replace(/\s+/g, '')}» @${Math.round(r.left + r.width / 2)},${Math.round(r.top + r.height / 2)} ` +
+            `layer=${chip.getAttribute('data-transfer-layer')} op=${getComputedStyle(chip).opacity}`;
+        }),
+        holds: ready?.holds ?? [],
+        trail: (ready?.transfer?.trail ?? []).slice(-14).map((t) => JSON.stringify(t)),
+      };
+    });
+
+    /**
+     * THE RECEIVED CARD STANDS, AND NOTHING HANGS OVER IT. Both cells also print a card: the drawn card's scene takes
+     * the opening and waits for the player's A — for as long as they like. Read twice, a beat apart: a token that
+     * stands in the same place over the standing scene is a flight that never ended.
+     */
+    async function revealStandsClean(page: Page, label: string): Promise<void> {
+      await expect(page.locator('.con-reveal'), `${label}: the drawn card's scene stands`).toBeVisible({timeout: 40_000});
+      await expect.poll(async () => await page.locator('.con-reveal').getAttribute('data-take'),
+        {timeout: 30_000, message: `${label}: the scene is ready for the take`}).toBe('ready');
+      const first = await inTheAir(page);
+      await cinematicBeat(page, 2500, 'two reads of the air a beat apart — a token standing in one place across it never ended its flight');
+      const second = await inTheAir(page);
+      console.log(`── ${label}: in the air over the standing reveal ──`, JSON.stringify({first: first.chips, second: second.chips, holds: second.holds}));
+      console.log(`── ${label}: transfer trail ──\n` + second.trail.join('\n'));
+      const standing = second.chips.filter((chip) => first.chips.includes(chip));
+      expect(standing, `${label}: a token hangs in the air over the standing «Получена карта»`).toEqual([]);
+      expect(second.holds.filter((h) => /resource-transfer/.test(h)), `${label}: no transfer hold stands under the reveal`).toEqual([]);
+    }
+
+    test('printed DATA, two holders: the plate asks, the chosen card takes the unit by the field', async ({page, request}) => {
+      test.setTimeout(400_000);
+      const playerId = await bootFixture(page, request, 'arabia-receive', {query: profile.query});
+      await settle(page);
+      await armLeakWitness(page);
+      const before = await view(request, playerId);
+      expect(before.game.gameOptions.boardName).toBe('arabia terra');
+
+      const panel = await aimGreenery(page, request, playerId, DATA_CELL);
+      console.log('── the data cell dossier ──', panel);
+      expect(panel, 'a holder stands on the table — the bonus is not announced as lost').not.toMatch(/будет пропущен/);
+      await shoot(page, '40-data-aimed');
+      await armTransferWitness(page);
+      expect(await commitFocusedSpace(page), 'the greenery landed on the data cell').toBeTruthy();
+
+      // THE CELL ALSO PRINTS A CARD: the drawn card's scene comes first, named by the cell's own face, and is taken.
+      await revealStandsClean(page, 'data');
+      await expect(page.locator('.con-task-host'), 'the question waits for the take — one surface at a time').toHaveCount(0);
+      await shoot(page, '40a-data-card-received');
+      expect(await takeRevealCard(page), 'the drawn card is taken').toBe(true);
+
+      // TWO holders → a real question, both shown.
+      await page.locator('.con-task-host .con-cards__slot').first().waitFor({timeout: 40_000});
+      await expect(page.locator('.con-task-host [data-zoom-slot="Supercomputer"]'), 'the empty holder is a candidate').toHaveCount(1);
+      await expect(page.locator('.con-task-host [data-zoom-slot="Habitat Science"]'), 'the other holder too').toHaveCount(1);
+      // (No `settle` here: while the plate stands the oxygen step's rating WAITS for a marker the player can see —
+      // its notification-only hold is the product's intended state, not noise to wait out.)
+      await expect.poll(async () => (await inTheAir(page)).holds.filter((h) => /scale-step-rating/.test(h)).length,
+        {timeout: 15_000, message: 'the step\'s rating waits while the plate covers its marker'}).toBe(1);
+      expect((await inTheAir(page)).chips, 'nothing flies from under the plate').toEqual([]);
+      await cinematicBeat(page, 700, 'the plate\'s entry paints before the storyboard frame');
+      await shoot(page, '41-data-pick');
+      const focused = () => page.evaluate(() => document.querySelector('.con-task-host .con-cards__slot--focused')?.getAttribute('data-zoom-slot') ?? '');
+      for (let i = 0; i < 4 && await focused() !== 'Supercomputer'; i++) {
+        await press(page, 'ArrowRight', 400);
+      }
+      expect(await focused(), 'the cursor stands on Supercomputer').toBe('Supercomputer');
+      await press(page, 'Enter', 300);
+      // The cell prints TWO data icons — one question, both units on the chosen card.
+      await expect.poll(async () => resourcesOn(await view(request, playerId), 'Supercomputer'),
+        {timeout: 40_000, message: 'both data landed on Supercomputer'}).toBe(resourcesOn(before, 'Supercomputer') + 2);
+      await expect(page.locator('.con-task-host'), 'the plate leaves').toHaveCount(0, {timeout: 30_000});
+      await settle(page, {timeoutMs: 30_000});
+      await shoot(page, '42-data-landed');
+
+      const after = await view(request, playerId);
+      expect(resourcesOn(after, 'Habitat Science'), 'the other holder is untouched').toBe(resourcesOn(before, 'Habitat Science'));
+      const witness = await transferWitness(page);
+      const trail = transferTrail(witness);
+      console.log('── data flights ──\n' + trail);
+      expect(endsOverGlass(witness), `no flight end over glass:\n${trail}`).toEqual([]);
+      expect(witness.landings.some((e) => e.under === 'recv:Supercomputer'), `the unit landed on the chosen card by the field:\n${trail}`).toBe(true);
+      // THE OXYGEN STEP'S RATING never leaves the plate: its marker stood under the «on which card» plate while the
+      // question was open, and the token was born on the plate's own card (it read as «Суперкомпьютер pays the rating»).
+      expect(witness.births.filter((e) => /^slot:/.test(e.under)).map((e) => `${e.under} @${Math.round(e.x)},${Math.round(e.y)}`),
+        `no token is born on a card of the plate:\n${trail}`).toEqual([]);
+      expect(witness.landings.some((e) => e.under === 'rail:tr'), `the step's rating still lands on the rating cell:\n${trail}`).toBe(true);
+      expect(await strandedReports(page), 'no prompt was stranded on the way').toEqual([]);
+    });
+
+    test('printed SCIENCE, one holder: no question — the board\'s scene pays the card', async ({page, request}) => {
+      test.setTimeout(400_000);
+      const playerId = await bootFixture(page, request, 'arabia-receive', {query: profile.query});
+      await settle(page);
+      await armLeakWitness(page);
+      const before = await view(request, playerId);
+
+      const panel = await aimGreenery(page, request, playerId, SCIENCE_CELL);
+      console.log('── the science cell dossier ──', panel);
+      expect(panel, 'a holder stands on the table — the bonus is not announced as lost').not.toMatch(/будет пропущен/);
+      await shoot(page, '50-science-aimed');
+      await armTransferWitness(page);
+      expect(await commitFocusedSpace(page), 'the greenery landed on the science cell').toBeTruthy();
+      await expect.poll(async () => resourcesOn(await view(request, playerId), 'Physics Complex'),
+        {timeout: 40_000, message: 'the science landed on Physics Complex'}).toBe(resourcesOn(before, 'Physics Complex') + 1);
+      // THE CELL ALSO PRINTS A CARD (and a steel): the drawn card's scene stands until the player takes it.
+      await revealStandsClean(page, 'science');
+      await shoot(page, '50a-science-card-received');
+      expect(await takeRevealCard(page), 'the drawn card is taken').toBe(true);
+      await settle(page, {timeoutMs: 30_000});
+      expect(await page.locator('.con-task-host').count(), 'one holder is no question').toBe(0);
+      await shoot(page, '51-science-landed');
+
+      const witness = await transferWitness(page);
+      const trail = transferTrail(witness);
+      console.log('── science flights ──\n' + trail);
+      expect(endsOverGlass(witness), `no flight end over glass:\n${trail}`).toEqual([]);
+      expect(witness.landings.some((e) => e.under === 'recv:Physics Complex'), `the unit landed on the holder by the field:\n${trail}`).toBe(true);
+      expect(await strandedReports(page), 'no prompt was stranded on the way').toEqual([]);
+    });
+
+    test('the energy-production cove: the token leaves the cell and lands on the rail\'s energy row', async ({page, request}) => {
+      test.setTimeout(400_000);
+      const playerId = await bootFixture(page, request, 'arabia-receive', {query: profile.query});
+      await settle(page);
+      await armLeakWitness(page);
+      const before = await view(request, playerId);
+
+      await aimGreenery(page, request, playerId, ENERGY_COVE);
+      await armTransferWitness(page);
+      expect(await commitFocusedSpace(page), 'the greenery landed on the energy cove').toBeTruthy();
+      await expect.poll(async () => (await view(request, playerId)).thisPlayer.energyProduction,
+        {timeout: 40_000, message: 'the cove paid its energy production'}).toBe(before.thisPlayer.energyProduction + 1);
+      await settle(page, {timeoutMs: 30_000});
+      await shoot(page, '60-energy-production-landed');
+
+      const witness = await transferWitness(page);
+      const trail = transferTrail(witness);
+      console.log('── energy-production flights ──\n' + trail);
+      expect(endsOverGlass(witness), `no flight end over glass:\n${trail}`).toEqual([]);
+      expect(witness.landings.some((e) => e.under === 'rail:energy'),
+        `the printed production flew from the cell into the rail's energy row (it used to tick with no cause on screen):\n${trail}`).toBe(true);
+      // The rail shows what the server holds once the token has landed.
+      await expect.poll(async () => await page.evaluate(() =>
+        document.querySelector('.con-res__row--energy .con-res__prod')?.textContent?.replace(/\s+/g, '') ?? ''),
+      {timeout: 15_000, message: 'the rail\'s energy production digit'}).toMatch(new RegExp(`${before.thisPlayer.energyProduction + 1}`));
       expect(await strandedReports(page), 'no prompt was stranded on the way').toEqual([]);
     });
 

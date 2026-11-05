@@ -105,8 +105,13 @@ const BONUS_ICON: Partial<Record<SpaceBonus, string>> = {
   [SpaceBonus.MEGACREDITS]: 'megacredits',
   [SpaceBonus.ENERGY]: 'energy',
   [SpaceBonus.MICROBE]: 'microbes',
+  // Amazonis Planitia's ANIMAL cells and Arabia Terra's ENERGY-PRODUCTION cove had no row here: the portrait of such
+  // a cell stood EMPTY and the source plate of a pick it caused named the cell with no face (the audit of 2026-11-05).
+  [SpaceBonus.ANIMAL]: 'animals',
+  [SpaceBonus.ENERGY_PRODUCTION]: 'energy-production',
   [SpaceBonus.DATA]: 'data',
   [SpaceBonus.SCIENCE]: 'science',
+  [SpaceBonus.ASTEROID]: 'asteroid',
   [SpaceBonus.DELEGATE]: 'delegate',
   [SpaceBonus.COLONY]: 'colony-tile',
   // Vastitas Borealis' North Pole — the board's own premium plate (thermometer · −4), never a bare thermometer.

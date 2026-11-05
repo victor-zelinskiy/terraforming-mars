@@ -2950,6 +2950,8 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   // miss); the FIELD's live pick and silent arrival (a printed microbe / an Ares animal with two holders each, a printed
   // data with one); a foreign trade on blue's Titan (red on the move) — docs/claude/prompts/project-tr53-frontier-labs.md.
   'frontier-labs' | 'receive-board' | 'receive-colony' | 'titan-split-trade' | 'hydro-terminal' | 'hydro-terminal-2p' | 'field-hydro-terminal' |
+  // Arabia Terra's own cells on the REAL board: printed DATA (two holders → a pick), SCIENCE (one holder), the energy-production cove.
+  'arabia-receive' |
   // The FIELD's first-action stage (phase 2 of the start director): four real tables saved ON the `corporationInitialAction` prompt.
   'field-first-action-inventrix' | 'field-first-action-vitor' | 'field-first-action-celestic' | 'field-first-action-inventrix-owner' |
   // The first field CURE of the start director (2026-10-31 21:48): the deployment's last prelude played, the menu asked, the scene standing empty.

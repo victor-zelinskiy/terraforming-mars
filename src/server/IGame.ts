@@ -66,10 +66,16 @@ export interface Score {
  * (`TilePlacementRecordModel`): stock units in the printed order and the cards drawn. A deferred purchase, a card
  * resource, a delegate are their own scenes and are not counted here.
  */
-export type CellBonusPaid = {paid: Array<{resource: TilePlacementPaidResource, amount: number}>, cards: number};
+export type CellBonusPaid = {
+  paid: Array<{resource: TilePlacementPaidResource, amount: number}>,
+  cards: number,
+  /** The production the printed bonus raised (an energy-production cell) — absent when none. */
+  produced?: Array<{resource: TilePlacementPaidResource, amount: number}>,
+};
 
 export type SpaceBonusGrant =
   | {kind: 'stock', resource: Resource}
+  | {kind: 'production', resource: Resource}
   | {kind: 'draw'}
   | {kind: 'other'};
 

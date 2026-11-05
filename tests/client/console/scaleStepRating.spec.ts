@@ -28,7 +28,7 @@ import {noteScaleMarkerMoving, noteScaleMarkerSettled, resetScaleMarkerPoses} fr
 import {boardBeatParkState, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {clearPanelRewardHold, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RATING_RAIL_KEY, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {resetPresentationLedger} from '@/client/console/presentationLedger';
+import {presentationLedgerSnapshot, resetPresentationLedger} from '@/client/console/presentationLedger';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Resource} from '@/common/Resource';
@@ -273,6 +273,43 @@ describe('scaleStepRatingBeat — cause before consequence', () => {
     await Promise.resolve();
     expect(scaleStepRatingState.phase, 'the marker has not arrived').eq('waiting');
     expect(heldStock(RATING_RAIL_KEY), 'still held').eq(1);
+  });
+
+  // The map audit of 2026-11-05 (Arabia Terra's data cell with two holders): the «on which card» plate stands over
+  // the board while the step is told, and the rating token left the plate's own card.
+  it('THE MARKER IS A FLIGHT END: under a standing decision plate the beat waits — and goes once the plate is gone', async () => {
+    const marker = mountMarker();
+    const plate = document.createElement('div');
+    plate.className = 'con-task-host con-ws';
+    const slot = document.createElement('div');
+    plate.appendChild(slot);
+    document.body.appendChild(plate);
+    const doc = document as unknown as {elementsFromPoint?: (x: number, y: number) => Array<Element>};
+    const original = doc.elementsFromPoint;
+    let covered = true;
+    doc.elementsFromPoint = () => covered ? [slot, plate, marker] : [marker];
+    try {
+      noteScaleMarkerSettled('venus', 8);
+      seedScaleStepRatingHold(view({}, {venusScaleLevel: 6}), view({terraformRating: 21, megacredits: 22}, {venusScaleLevel: 8}));
+      await Promise.resolve();
+      expect(presentationLedgerSnapshot().stories.map((s) => s.id), 'the stage is owed — the marker is under glass').to.have.length(1);
+      expect(heldStock(RATING_RAIL_KEY), 'the rating waits with its token').eq(1);
+      // The plate leaves (the answer was given): the ledger's re-drive asks the end again.
+      covered = false;
+      scaleStepRatingState.nudge++;
+      await Promise.resolve();
+      expect(presentationLedgerSnapshot().stories, 'the stage stands — nothing is owed any more').to.have.length(0);
+    } finally {
+      doc.elementsFromPoint = original;
+    }
+  });
+
+  it('…and a marker in plain view owes nothing (the control)', async () => {
+    mountMarker();
+    noteScaleMarkerSettled('venus', 8);
+    seedScaleStepRatingHold(view({}, {venusScaleLevel: 6}), view({terraformRating: 21, megacredits: 22}, {venusScaleLevel: 8}));
+    await Promise.resolve();
+    expect(presentationLedgerSnapshot().stories).to.have.length(0);
   });
 });
 

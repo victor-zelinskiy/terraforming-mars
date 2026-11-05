@@ -74,6 +74,7 @@ import {
 import {SCALE_STEP_BREATH_MS, SCALE_STEP_STAGE_DUE_MS, scaleStepTokenOrigins} from '@/client/console/scaleStepReward/scaleStepRewardModel';
 import {freshCardReactions} from '@/client/console/cardReaction/cardReactionModel';
 import {SCALE_STEP_RATING_UNIT, claimTeller} from '@/client/console/resourceTransfer/oneTeller';
+import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 
 /** The beat's own name — its notification-only hold, its ledger story, its park membership. */
 export const SCALE_STEP_RATING_KEY = 'scale-step-rating';
@@ -435,6 +436,16 @@ function stageReady(e: Entry): boolean {
     }
     // No cursor at all (a board without this dial): nothing will ever arrive — the beat degrades honestly.
     if (!scaleMarkerArrived(move.accent, move.after) && markerOf(move.accent) !== null) {
+      return false;
+    }
+    // THE MARKER IS A FLIGHT END (the law of visible ends — the map audit of 2026-11-05). A landing routinely raises
+    // a DECISION in the same response (Arabia Terra's data cell with two holders, Amazonis' microbes: «on which
+    // card?»), and a decision never waits on a story — so its plate stands over the board while the step is told,
+    // and the rating token was born UNDER it: on screen it left the plate's own card («Суперкомпьютер» seemed to pay
+    // the rating). The token waits for a marker the player can see; the watchable probe stays coverage facts only —
+    // this is the END's own verdict, asked on the ledger's re-drive (`nudge`), bounded by the stage's due.
+    const end = transferEndVerdict(markerOf(move.accent));
+    if (!end.visible && end.why === 'covered') {
       return false;
     }
   }

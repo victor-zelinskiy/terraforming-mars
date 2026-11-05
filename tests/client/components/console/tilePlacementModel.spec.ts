@@ -42,15 +42,26 @@ describe('tilePlacementModel (pure math of the placement hero scene)', () => {
       expect(out[2].spec.resource).to.eq('plants');
     });
 
-    it('carries ONLY panel stock resources — cards / oceans / card-resources ride their own flows', () => {
+    it('carries ONLY the panel\'s own counters — cards / oceans / card-resources ride their own flows', () => {
       const out = placementBonuses([
-        SpaceBonus.DRAW_CARD, SpaceBonus.OCEAN, SpaceBonus.ANIMAL, SpaceBonus.MICROBE,
-        SpaceBonus.TEMPERATURE_4MC, SpaceBonus.ENERGY_PRODUCTION, SpaceBonus.DELEGATE,
+        SpaceBonus.DRAW_CARD, SpaceBonus.OCEAN, SpaceBonus.ANIMAL, SpaceBonus.MICROBE, SpaceBonus.DATA, SpaceBonus.SCIENCE,
+        SpaceBonus.TEMPERATURE_4MC, SpaceBonus.DELEGATE,
         SpaceBonus.TITANIUM,
       ]);
       expect(out).to.have.length(1);
       expect(out[0].spec.resource).to.eq('titanium');
-      expect(out[0].bonusIndex).to.eq(7); // the printed ordinal survives filtering
+      expect(out[0].bonusIndex).to.eq(8); // the printed ordinal survives filtering
+    });
+
+    it('a printed PRODUCTION icon is one more token of the beat — born on its own sprite, landing on the production digit', () => {
+      // Arabia Terra's energy-production cove: the digit used to tick in the frame the view applied, with no cause on screen.
+      const out = placementBonuses([SpaceBonus.ENERGY_PRODUCTION]);
+      expect(out).to.have.length(1);
+      expect(out[0].spec).to.deep.eq({channel: 'production', resource: 'energy', amount: 1});
+      expect(out[0].icon).to.eq('energy-production');
+      // …and beside a stock icon of the SAME resource the two are two counters, in the printed order.
+      const both = placementBonuses([SpaceBonus.ENERGY, SpaceBonus.ENERGY_PRODUCTION]);
+      expect(both.map((b) => `${b.spec.channel}:${b.spec.resource}:${b.icon}`)).to.deep.eq(['stock:energy:energy', 'production:energy:energy-production']);
     });
 
     it('Ares megacredits transfer WITHOUT a printed sprite (hex-centre fallback)', () => {
@@ -611,6 +622,20 @@ describe('printedBonusRepeats — a multiplied printed bonus is read off the ser
     expect(printedBonusRepeats([record([{resource: 'steel', amount: 4}], '21')], '20', printed)).eq(1);
     expect(printedBonusRepeats([record([{resource: 'steel', amount: 3}])], '20', printed)).eq(1);
     expect(printedBonusRepeats([record([{resource: 'steel', amount: 4}])], '20', [])).eq(1);
+  });
+
+  it('a multiplied PRODUCTION icon is read off `produced` — and never confused with the stock of the same resource', () => {
+    const cove = bonusesOf([SpaceBonus.ENERGY_PRODUCTION]);
+    const produced = (amount: number): TilePlacementRecordModel => ({...record([]), produced: [{resource: 'energy', amount}]});
+    expect(printedBonusRepeats([produced(1)], '20', cove), 'the ordinary placement').eq(1);
+    expect(printedBonusRepeats([produced(2)], '20', cove), 'TR79 doubles it').eq(2);
+    expect(printedBonusRepeats([produced(3)], '20', cove), 'P74 triples it').eq(3);
+    // A record that paid energy STOCK says nothing about a printed production icon.
+    expect(printedBonusRepeats([record([{resource: 'energy', amount: 2}])], '20', cove)).eq(1);
+    // Mixed: both counters must agree on the multiple.
+    const mixed = bonusesOf([SpaceBonus.STEEL, SpaceBonus.ENERGY_PRODUCTION]);
+    expect(printedBonusRepeats([{...record([{resource: 'steel', amount: 2}]), produced: [{resource: 'energy', amount: 2}]}], '20', mixed)).eq(2);
+    expect(printedBonusRepeats([{...record([{resource: 'steel', amount: 2}]), produced: [{resource: 'energy', amount: 1}]}], '20', mixed)).eq(1);
   });
 });
 

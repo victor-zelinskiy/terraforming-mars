@@ -54,6 +54,29 @@ describe('TilePlacementRecord', () => {
     expect(record?.paid).to.deep.eq([{resource: 'plants', amount: 2}]);
   });
 
+  it('a printed PRODUCTION icon is recorded as production raised — never as stock, and absent where the cell prints none', () => {
+    // Arabia Terra's energy-production cove: the placer's own scene flies it into the rail's production digit.
+    const space = landCell([SpaceBonus.ENERGY_PRODUCTION, SpaceBonus.STEEL]);
+    const before = player.production.energy;
+    game.addTile(player, space, {tileType: TileType.GREENERY});
+    runAllActions(game);
+    const record = game.tilePlacements.at(-1);
+    expect(player.production.energy).eq(before + 1);
+    expect(record?.produced).to.deep.eq([{resource: 'energy', amount: 1}]);
+    expect(record?.paid, 'the steel beside it stays stock').to.deep.eq([{resource: 'steel', amount: 1}]);
+    // …multiplied with the rest of the printed bonus (TR79 / P74's road).
+    const twice = landCell([SpaceBonus.ENERGY_PRODUCTION]);
+    game.addTile(player, twice, {tileType: TileType.CITY}, {printedBonusMultiplier: 2});
+    runAllActions(game);
+    expect(game.tilePlacements.at(-1)?.produced).to.deep.eq([{resource: 'energy', amount: 2}]);
+    expect(player.production.energy).eq(before + 3);
+    // A cell with no production icon carries no field at all.
+    const plain = landCell([SpaceBonus.STEEL]);
+    game.addTile(player, plain, {tileType: TileType.GREENERY});
+    runAllActions(game);
+    expect(game.tilePlacements.at(-1)).to.not.have.property('produced');
+  });
+
   it('a card bonus is counted as cards drawn, never as stock', () => {
     const space = landCell([SpaceBonus.DRAW_CARD, SpaceBonus.PLANT]);
     const hand = player.cardsInHand.length;

@@ -421,19 +421,14 @@
 	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(@{grid-backing-c},0.42)' stroke-width='2.0' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFD66B' stroke-width='1.7' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23FFF1A8' stroke-opacity='0.55' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
-// Suppress the legacy hex_white.png baseline outline on legal cells so
-// the new amber double-outline reads cleanly — otherwise white + amber
-// stack into a muddy edge. Background-color (e.g. ocean blue tint, the
-// volcanic dark red) is preserved since we only zero `background-image`.
-//
-// SCOPED to the EMPTY-hex inner div (`board-space-type-{land|ocean|cove|…}`)
-// ONLY. An OCCUPIED target's inner div is `board-space-tile--{city|greenery|…}`
-// (carrying the real tile sprite) and must keep its `background-image` — else
-// the base tile vanishes during selection (St. Joseph's cathedral over a city,
-// picking an ocean to remove, placing over a hazard, …).
-.board-space.board-space--available > [class*="board-space-type-"] {
-	background-image: none;
-}
+// A LEGAL cell keeps the face of its TYPE (2026-11-05, the owner on Arabia Terra: «когда доска входит в режим
+// размещения тайла, выделение клеток "бухта" пропадает»). A rule stood here that zeroed `background-image` on the
+// type layer of every `--available` cell — written when that layer carried the legacy `hex_white.png` OUTLINE, so
+// white + amber would not stack into a muddy edge. The outline has long since moved to the wrapper's `::before`;
+// the type layer is IDENTITY only (the cove's ocean half and divider, the reserve's water, the volcanic tint), and
+// zeroing it erased exactly what the player needs while aiming: a cove — the one cell that takes an ocean AND a
+// land tile — read as bare land the moment it became a candidate. The amber contour is the `::before`'s; the two
+// layers no longer meet. Guard: `tests/console/boardCellTypeFaceGuard.spec.ts`.
 
 // A cell whose tile is being REMOVED right now (KaguyaTech / Lunar Mine
 // Urbanization mid-removal, or a remote placement held until its flight lands):
@@ -831,12 +826,19 @@
 	background-size: 16px;
 }
 
+// Arabia Terra's energy-production cove. It was the one printed bonus still drawn by a legacy sprite
+// (`assets/pathfinders/energy-production.png` — the old purple energy tile in a photographed brown box, ~250 px,
+// soft at 4K and foreign beside the premium icons of every other cell). It is the game's own PRODUCTION FRAME —
+// the dossier's (`.con-dossier-row__prod`) — with the premium energy icon inside: the same two things the dossier
+// row and the cell portrait draw for this bonus, so the field, the panel and the flying token read as one symbol.
 .board-space-bonus--energy-production {
-	background: url(./assets/pathfinders/energy-production.png) no-repeat;
-	// The production box and viz border require a size change.
-	background-size: 20px;
 	width: 20px;
 	height: 20px;
+	border-radius: 3px;
+	background:
+		url(./assets/resources/power.png) center / 14px no-repeat,
+		linear-gradient(180deg, #8d6136, #6a4325);
+	box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.35), inset 0 -2px 3px rgba(0, 0, 0, 0.35);
 }
 
 .board-space-bonus--energy {

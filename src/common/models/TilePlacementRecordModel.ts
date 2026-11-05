@@ -13,7 +13,9 @@ export type TilePlacementPaidResource = 'megacredits' | 'steel' | 'titanium' | '
  *  · WHO placed it (`color` — an ocean's placer too),
  *  · what the cell's PRINTED bonus paid that seat as stock (`paid` — the human's printed icons; MarsBot's 1 M€ per
  *    covered icon, the Automa rulebook's own exchange, p.9 — never the human's icons for a bot),
- *  · how many cards the printed bonus drew (`cards`).
+ *  · how many cards the printed bonus drew (`cards`),
+ *  · what PRODUCTION the printed bonus raised (`produced` — a printed production icon is a counter like any other:
+ *    the placer's own scene flies it from the cell into the rail's production digit).
  * Purely presentational (the `CardAdjacencyPayoutModel` / `TileMoveRecordModel` precedent): a bounded ring, never
  * serialized, each client consuming a record once by `seq`. A restart loses the animation, never the rule.
  */
@@ -28,4 +30,9 @@ export type TilePlacementRecordModel = {
   paid: ReadonlyArray<{resource: TilePlacementPaidResource, amount: number}>;
   /** Cards the printed bonus drew for the placer (0 when none). */
   cards: number;
+  /**
+   * The PRODUCTION the cell's printed bonus raised for the placer (Arabia Terra's energy-production cove), by the
+   * same sums as `paid`. Absent when the cell printed none — a multiplied bonus is read off it exactly as off `paid`.
+   */
+  produced?: ReadonlyArray<{resource: TilePlacementPaidResource, amount: number}>;
 };

@@ -2849,6 +2849,7 @@ export class Game implements IGame, Logger {
     this.tilePlacements.push({
       seq: base + Math.min(n, 99), spaceId: space.id, color: player.color, tileType,
       paid: cell.paid.map((p) => ({...p})), cards: cell.cards,
+      ...(cell.produced !== undefined && cell.produced.length > 0 ? {produced: cell.produced.map((p) => ({...p}))} : {}),
     });
     while (this.tilePlacements.length > 8) {
       this.tilePlacements.shift();
@@ -2984,6 +2985,8 @@ export class Game implements IGame, Logger {
         const grant = this.grantSpaceBonus(player, bonus, repeats > 1 ? printed : count, {spaceId: space.id});
         if (grant.kind === 'stock') {
           out.paid.push({resource: grant.resource as TilePlacementPaidResource, amount: count});
+        } else if (grant.kind === 'production') {
+          (out.produced ??= []).push({resource: grant.resource as TilePlacementPaidResource, amount: count});
         } else if (grant.kind === 'draw') {
           out.cards += count;
         }
@@ -3067,7 +3070,7 @@ export class Game implements IGame, Logger {
       return {kind: 'other'};
     case SpaceBonus.ENERGY_PRODUCTION:
       player.production.add(Resource.ENERGY, count, {log: true});
-      return {kind: 'other'};
+      return {kind: 'production', resource: Resource.ENERGY};
     case SpaceBonus.SCIENCE:
       this.defer(cardBonus(CardResource.SCIENCE));
       return {kind: 'other'};

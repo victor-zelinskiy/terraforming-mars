@@ -324,6 +324,7 @@ import {unplayableReasons} from '../../../src/server/models/unplayableReasons';
 import {adjacentCityTiers} from '../../../src/server/boards/cityStack';
 import {cityMoveOffer} from '../../../src/server/boards/cityMove';
 import {SpaceBonus} from '../../../src/common/boards/SpaceBonus';
+import {BoardName} from '../../../src/common/boards/BoardName';
 import {SpaceId} from '../../../src/common/Types';
 import {PartySanctions} from '../../../src/server/cards/turmoilRedux/PartySanctions';
 import {BannedDelegateRedux} from '../../../src/server/cards/turmoilRedux/BannedDelegateRedux';
@@ -8315,6 +8316,45 @@ parliamentFixture('receive-board', {
     parliament.assertLedger(game);
   },
 });
+
+// ── ARABIA TERRA · THE CELLS THAT PAY — the REAL board (never a dressed cell), solo, the action phase. The three
+//    printed bonuses no other in-scope map carries, each beside what receives it (the owner's audit of 2026-11-05:
+//    «в премиум-скоупе не на словах»):
+//      · cell 16 prints DATA — the table holds TWO data holders (Supercomputer 0, Habitat Science 1) → a live pick,
+//        then the board's scene on the chosen card;
+//      · cell 34 prints SCIENCE — ONE science holder (Physics Complex 0) → no question, the board's scene;
+//      · cell 32 is the ENERGY-PRODUCTION cove — the token off the cell into the rail's production digit.
+//    200 M€ for the standard project. The three cells must be free and legal for a greenery (no own tile on the
+//    board — a greenery goes anywhere on land). ──
+{
+  const {game, player} = soloActionPhase({boardName: BoardName.ARABIA_TERRA});
+  const seat = (name: CardName, resources: number) => {
+    const card = newProjectCard(name);
+    if (card === undefined) {
+      throw new Error(`arabia-receive: no project card «${name}»`);
+    }
+    card.resourceCount = resources;
+    player.playedCards.push(card);
+  };
+  seat(CardName.SUPERCOMPUTER, 0);
+  seat(CardName.HABITAT_SCIENCE, 1);
+  seat(CardName.PHYSICS_COMPLEX, 0);
+  player.megaCredits = 200;
+  runAllActions(game);
+  const cells: ReadonlyArray<[string, SpaceBonus]> = [['16', SpaceBonus.DATA], ['34', SpaceBonus.SCIENCE], ['32', SpaceBonus.ENERGY_PRODUCTION]];
+  const legal = new Set(game.board.getAvailableSpacesForGreenery(player).map((s) => s.id));
+  for (const [id, bonus] of cells) {
+    const space = game.board.getSpaceOrThrow(id as SpaceId);
+    if (!space.bonus.includes(bonus) || space.tile !== undefined || !legal.has(space.id)) {
+      throw new Error(`arabia-receive: cell ${id} must print ${SpaceBonus[bonus]}, stand empty and take a greenery — got bonus=[${space.bonus.map((b) => SpaceBonus[b])}] tile=${space.tile?.tileType} legal=${legal.has(space.id)}`);
+    }
+  }
+  if (game.gameOptions.boardName !== BoardName.ARABIA_TERRA || player.megaCredits !== 200 ||
+      player.getResourceCards(CardResource.DATA).length !== 2 || player.getResourceCards(CardResource.SCIENCE).length !== 1) {
+    throw new Error('arabia-receive: expected Arabia Terra, 200 M€, two data holders and one science holder');
+  }
+  write('arabia-receive', game);
+}
 
 // ── RECEIVE · THE COLONY — «somebody traded on my colony: which card takes the floater?» (the TR53 iteration, case 3,
 //    decision 3). A Venus table: blue owns a cube on Titan and TWO floater holders (Dirigibles 1, Aerial Mappers 0);

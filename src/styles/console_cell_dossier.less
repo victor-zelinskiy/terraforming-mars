@@ -150,6 +150,11 @@
         width: calc(var(--cp-c) * .24rem);
         height: calc(var(--cp-c) * .24rem);
     }
+    /* A PRODUCTION bonus (Arabia Terra's energy cove) is two layers — the bolt INSIDE the production frame; the
+       one-value `contain` above would stretch the bolt over the whole frame. */
+    &__bonus-ico.resource_icon--energy-production {
+        background-size: 70%, 100% 100%;
+    }
     /* A WIDE printed plate (the North Pole's thermometer · −4) keeps its own proportion — never squeezed square. */
     &__bonus-ico.resource_icon--bonus-temperature-4mc {
         width: calc(var(--cp-c) * .46rem);

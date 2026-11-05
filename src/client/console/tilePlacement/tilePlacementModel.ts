@@ -734,10 +734,10 @@ function easeInOut(k: number): number {
 
 // ── printed-bonus extraction (the reward beat's manifest) ───────────────────
 
-/** SpaceBonus → the left panel's stock resource key. ONLY these are
- *  physically collected by the placement scene — a card bonus keeps its own
- *  cinematic (ConsoleBoardCardBonusLayer), production / oceans / temperature
- *  / card-resources / delegates ride the ordinary game flow untouched. */
+/** SpaceBonus → the left panel's stock resource key. These and the printed PRODUCTION below are physically
+ *  collected by the placement scene — a card bonus keeps its own cinematic (ConsoleBoardCardBonusLayer), a card
+ *  resource the board's «ТАЙЛ ПЛАТИТ КАРТЕ» scene (`space-bonus`), oceans / temperature / delegates their own
+ *  offers. */
 const STOCK_BONUS: Partial<Record<SpaceBonus, string>> = {
   [SpaceBonus.STEEL]: 'steel',
   [SpaceBonus.TITANIUM]: 'titanium',
@@ -745,6 +745,16 @@ const STOCK_BONUS: Partial<Record<SpaceBonus, string>> = {
   [SpaceBonus.HEAT]: 'heat',
   [SpaceBonus.ENERGY]: 'energy',
   [SpaceBonus.MEGACREDITS]: 'megacredits',
+};
+
+/**
+ * SpaceBonus → the rail's PRODUCTION key (Arabia Terra's energy-production cove). A printed production icon is a
+ * counter like any other: until 2026-11-05 it «rode the ordinary game flow» — the row's production digit ticked in
+ * the frame the view applied, under the landing, with no cause on screen. It is one more token of the printed beat:
+ * born on its icon, landing on the production digit, the digit ticking on the touchdown.
+ */
+const PRODUCTION_BONUS: Partial<Record<SpaceBonus, string>> = {
+  [SpaceBonus.ENERGY_PRODUCTION]: 'energy',
 };
 
 /** The board's icon css suffix per bonus (Bonus.vue's map, stock subset).
@@ -756,6 +766,7 @@ const STOCK_BONUS_ICON: Partial<Record<SpaceBonus, string>> = {
   [SpaceBonus.PLANT]: 'plant',
   [SpaceBonus.HEAT]: 'heat',
   [SpaceBonus.ENERGY]: 'energy',
+  [SpaceBonus.ENERGY_PRODUCTION]: 'energy-production',
 };
 
 export type PlacementBonus = {
@@ -772,20 +783,21 @@ export type PlacementBonus = {
 
 /**
  * Which of the cell's PRINTED bonuses the placement scene physically
- * collects. One entry per printed stock icon (never merged here — each
- * printed symbol lifts off the field itself; the wave stagger + the panel's
- * merge window organize the arrival).
+ * collects. One entry per printed stock / production icon (never merged here
+ * — each printed symbol lifts off the field itself; the wave stagger + the
+ * panel's merge window organize the arrival).
  */
 export function placementBonuses(bonus: ReadonlyArray<SpaceBonus>): Array<PlacementBonus> {
   const out: Array<PlacementBonus> = [];
   bonus.forEach((b, i) => {
-    const resource = STOCK_BONUS[b];
-    if (resource === undefined) {
+    const stock = STOCK_BONUS[b];
+    const production = PRODUCTION_BONUS[b];
+    if (stock === undefined && production === undefined) {
       return;
     }
     out.push({
       bonusIndex: i,
-      spec: {channel: 'stock', resource, amount: 1},
+      spec: stock !== undefined ? {channel: 'stock', resource: stock, amount: 1} : {channel: 'production', resource: production as string, amount: 1},
       icon: STOCK_BONUS_ICON[b],
     });
   });
@@ -794,8 +806,8 @@ export function placementBonuses(bonus: ReadonlyArray<SpaceBonus>): Array<Placem
 
 /**
  * HOW MANY TIMES THE PRINTED ICONS PAID (TR79 Ferrus Academy's first city — «double the placement bonus»): read off the
- * SERVER's record of THIS placement (`TilePlacementRecordModel.paid` — the commit's own sums), never off the prompt. Every
- * stock icon of the cell paying exactly N × its printed count, N ≥ 2, is a MULTIPLE — the scene then plays the printed
+ * SERVER's record of THIS placement (`TilePlacementRecordModel.paid` / `.produced` — the commit's own sums), never off the
+ * prompt. Every stock / production icon of the cell paying exactly N × its printed count, N ≥ 2, is a MULTIPLE — the scene then plays the printed
  * beat N times (each icon sends one token per pass, the counter ticking on every touchdown). Anything else — no record,
  * an ordinary placement, a sum that does not divide evenly — is 1: the scene never invents a multiple.
  */
@@ -811,15 +823,20 @@ export function printedBonusRepeats(
   if (record === undefined) {
     return 1;
   }
+  // One key per (channel, resource): a cell may print energy AND energy production, and they are two counters.
   const printedBy = new Map<string, number>();
   for (const b of printed) {
-    if (b.spec.channel === 'stock') {
-      printedBy.set(b.spec.resource, (printedBy.get(b.spec.resource) ?? 0) + b.spec.amount);
+    if (b.spec.channel === 'stock' || b.spec.channel === 'production') {
+      const key = `${b.spec.channel}:${b.spec.resource}`;
+      printedBy.set(key, (printedBy.get(key) ?? 0) + b.spec.amount);
     }
   }
   const paidBy = new Map<string, number>();
   for (const p of record.paid) {
-    paidBy.set(p.resource, (paidBy.get(p.resource) ?? 0) + p.amount);
+    paidBy.set(`stock:${p.resource}`, (paidBy.get(`stock:${p.resource}`) ?? 0) + p.amount);
+  }
+  for (const p of record.produced ?? []) {
+    paidBy.set(`production:${p.resource}`, (paidBy.get(`production:${p.resource}`) ?? 0) + p.amount);
   }
   let repeats: number | undefined;
   for (const [resource, count] of printedBy) {

@@ -734,6 +734,21 @@ each(@resource_types, {
 .resource_icon--microbes {
   background-image: url(./assets/resources/microbe.png);
 }
+/* A cell's printed ANIMAL (Amazonis Planitia) as a chip / portrait icon — the board's own art. */
+.resource_icon--animals {
+  background-image: url(./assets/resources/animal.png);
+}
+/* A cell's printed ENERGY PRODUCTION (Arabia Terra's cove): the game's production frame with the premium energy
+   icon inside — the field's `.board-space-bonus--energy-production`, one symbol in every place. Two layers, so a
+   consumer that sizes the icon by `background-size: contain` still gets the frame behind the bolt. */
+.resource_icon--energy-production {
+  border-radius: 12%;
+  background-image: url(./assets/resources/power.png), linear-gradient(180deg, #8d6136, #6a4325);
+  background-size: 70%, 100% 100%;
+  background-position: center, center;
+  background-repeat: no-repeat, no-repeat;
+  box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.35);
+}
 .resource_icon--plants {
   background-image: url(./assets/resources/plant.png);
 }
