@@ -1739,16 +1739,16 @@
 		center / 100% 100% no-repeat;
 }
 
-// Volcanic cove — dual-surface volcanic version: warm half-fill marks
-// "this is a volcanic cove", divider line stays for the dual nature
-// but in neutral cool silver-blue (matches the unified grid). Rust
-// outline removed — contour comes from the wrapper.
+// Volcanic cove (Arabia Terra's Tikhonarov) — a COVE that is also volcanic, and it must read as BOTH: the LEFT
+// half is the cove's ocean (the very fill of `.board-space-type-cove` — the half that takes an ocean tile), the
+// RIGHT half is volcanic land (the volcanic cell's own dark-red tint, on that half only), the divider between
+// them. Until 2026-11-05 the left half was a warm rust and the whole cell wore the red wash: there was no water
+// in it at all (the owner: «есть ощущение, что там нет части океана») — the one cove of the map that looked
+// like plain volcanic land. Guard: `tests/console/boardCellTypeFaceGuard.spec.ts`.
 .board-space-type-volcanic-cove {
-	background-image:
-		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 23,50 1.5,37.7 1.5,13.3' fill='rgba(180,90,40,0.28)'/><line x1='23' y1='1' x2='23' y2='50' stroke='@{grid-divider}' stroke-width='0.55'/></svg>");
-	background-size: 100% 100%;
-	background-repeat: no-repeat;
-	background-color: #8304;
+	background:
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 23,50 1.5,37.7 1.5,13.3' fill='rgba(70,170,225,0.32)'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50' fill='rgba(128,40,8,0.34)'/><line x1='23' y1='1' x2='23' y2='50' stroke='@{grid-divider}' stroke-width='0.55'/></svg>")
+		center / 100% 100% no-repeat;
 }
 
 // Deflection-zone — gameplay overlay (shield-like), yellow wash + soft

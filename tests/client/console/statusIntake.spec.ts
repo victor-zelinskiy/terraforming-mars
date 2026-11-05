@@ -43,6 +43,46 @@ describe('statusIntake — the seat chip\'s intake', () => {
     expect(statusIntakeState.intakes[0].items).deep.eq([{resource: 'steel', expected: 3, received: 1}]);
   });
 
+  // A rival's printed PRODUCTION bonus (Arabia Terra's energy cove — the map audit of 2026-11-05).
+  it('PRODUCTION is an item of its own: energy and energy production are two counters, each ticking on its own token', () => {
+    const items = mergeIntakeItems([], [{resource: 'energy', amount: 1}, {resource: 'energy', amount: 1, channel: 'production'}, {resource: 'energy', amount: 1, channel: 'stock'}]);
+    expect(items).deep.eq([{resource: 'energy', expected: 2, received: 0}, {resource: 'energy', expected: 1, received: 0, production: true}]);
+    void openSeatIntake('red', [{resource: 'energy', amount: 1}, {resource: 'energy', amount: 1, channel: 'production'}]);
+    const intake = () => statusIntakeState.intakes.find((i) => i.seat === 'red');
+    acceptSeatIntake('red', {resource: 'energy', amount: 1, channel: 'production'});
+    expect(intake()?.items.map((i) => [i.production === true, i.received]), 'only the production item ticked').deep.eq([[false, 0], [true, 1]]);
+    expect(intake()?.phase, 'the stock token is still in the air').eq('expecting');
+    acceptSeatIntake('red', {resource: 'energy', amount: 1});
+    expect(intake()?.phase).eq('received');
+  });
+
+  it('…and each lands on the NUMBER of its own item', () => {
+    const plaque = document.createElement('span');
+    plaque.setAttribute('data-intake-seat', 'red');
+    const make = (production: boolean): HTMLElement => {
+      const item = document.createElement('span');
+      item.setAttribute('data-intake-resource', 'energy');
+      if (production) {
+        item.setAttribute('data-intake-production', '');
+      }
+      const num = document.createElement('span');
+      num.className = 'con-status__intake-num';
+      num.getBoundingClientRect = () => ({left: 10, top: 10, width: 20, height: 14, right: 30, bottom: 24, x: 10, y: 10, toJSON: () => ({})}) as DOMRect;
+      item.appendChild(num);
+      plaque.appendChild(item);
+      return num;
+    };
+    const stock = make(false);
+    const production = make(true);
+    document.body.appendChild(plaque);
+    try {
+      expect(seatIntakeEnd('red', 'energy')?.el, 'the stock token').eq(stock);
+      expect(seatIntakeEnd('red', 'energy', true)?.el, 'the production token').eq(production);
+    } finally {
+      plaque.remove();
+    }
+  });
+
   it('the token lands on the plaque\'s NUMBER for its resource — and nowhere while no plaque stands', () => {
     expect(seatIntakeEnd('red', 'steel')).eq(undefined);
     const plaque = document.createElement('span');

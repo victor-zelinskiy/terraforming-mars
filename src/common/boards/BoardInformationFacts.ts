@@ -279,6 +279,8 @@ export type CellPortraitPiece = {
   space: SpaceId;
   /** The printed kind of the square (land / ocean reserve / cove / …). */
   spaceType: SpaceType;
+  /** A VOLCANIC square (the board's own mark) — the portrait's ground wears it, as the field's cell does. */
+  volcanic?: true;
   /** The printed placement bonus — the cell's own face. */
   bonus: ReadonlyArray<SpaceBonus>;
   /** The piece on top (a pile's top, the city over its water) — absent on an empty square. */

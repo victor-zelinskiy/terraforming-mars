@@ -2,9 +2,10 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixture, bootSeededGame, cinematicBeat, commitFocusedSpace, createGameWithCards, fetchPlayerModel, openBotBoardDetail, press, settle,
-  soloGameConfig, takeRevealCard, walkToSpace,
+  NO_PAYMENT, bootFixture, bootFixtureSeats, bootSeededGame, cinematicBeat, commitFocusedSpace, createGameWithCards, fetchPlayerModel,
+  openBotBoardDetail, press, sendPlayerInput, settle, soloGameConfig, takeRevealCard, walkToSpace,
 } from './consoleStart';
+import {recordTransient, stopTransient} from './transientRecorder';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
@@ -26,6 +27,9 @@ import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from 
  *     holder (no question — the board's scene), and the energy-production cove (a token born on the cell, landing on
  *     the rail's energy row — the production digit used to tick with no cause on screen). Both ends of every flight
  *     are witnessed.
+ *  4. ANOTHER SEAT ON THE ENERGY COVE (fixture `arabia-rival`): red's greenery, watched from blue's screen — the
+ *     production token leaves the cell and lands on the PRODUCTION item of the plaque under red's chip.
+ *  A cove is TWO surfaces wherever it is drawn: the field (a volcanic cove too) and the dossier's portrait.
  * Evidence → screenshots/arabia-terra/.
  */
 
@@ -160,6 +164,28 @@ for (const profile of PROFILES) {
       console.log('── candidate coves ──', coveFaces.length, coveFaces[0]?.slice(0, 60));
       expect(coveFaces.length, 'the ocean placement lights coves').toBeGreaterThan(0);
       expect(coveFaces.filter((bg) => !/svg/.test(bg)), 'every candidate cove still paints its ocean half').toEqual([]);
+      // A COVE IS TWO SURFACES WHEREVER IT IS DRAWN: the field's cove (a VOLCANIC one too) carries the ocean's own
+      // blue on its left half, and the dossier's portrait of the aimed cove is the same two halves — never one flat tone.
+      // (The portrait arrives with the cell's preview — lazily; wait for it to stand before reading the faces.)
+      await expect.poll(async () => await page.evaluate(() => document.querySelector('.con-context .con-cellp__hex--c')?.className ?? ''),
+        {timeout: 20_000, message: 'the portrait of the aimed cove stands in the dossier'}).toMatch(/con-cellp__hex--cove/);
+      const faces = await page.evaluate(() => {
+        const ocean = /70,\s*170,\s*225/;
+        const field = (cls: string) => Array.from(document.querySelectorAll<HTMLElement>(`.${cls}`)).map((el) => ocean.test(decodeURIComponent(getComputedStyle(el).backgroundImage)));
+        const centre = document.querySelector<HTMLElement>('.con-context .con-cellp__hex--c');
+        return {
+          coves: field('board-space-type-cove'),
+          volcanicCoves: field('board-space-type-volcanic-cove'),
+          portraitClass: centre?.className ?? '',
+          portraitLayers: centre === null ? 0 : (getComputedStyle(centre, '::before').backgroundImage.match(/gradient\(/g) ?? []).length,
+        };
+      });
+      console.log('── cove faces ──', JSON.stringify(faces));
+      expect(faces.coves.length, 'empty coves on the field').toBeGreaterThan(0);
+      expect(faces.coves.every((v) => v), 'every cove on the field paints the ocean half').toBe(true);
+      expect(faces.volcanicCoves.every((v) => v), 'the volcanic cove paints the ocean half too').toBe(true);
+      expect(faces.portraitClass, 'the portrait of the aimed cove is a cove').toMatch(/con-cellp__hex--cove/);
+      expect(faces.portraitLayers, 'the portrait draws two halves and their divider').toBe(3);
       const oceanPanel = await dossier(page);
       console.log('── the cove dossier (ocean) ──', oceanPanel);
       expect(oceanPanel, 'the dossier names the cove').toMatch(/Бухта/);
@@ -362,6 +388,63 @@ for (const profile of PROFILES) {
       await expect.poll(async () => await page.evaluate(() =>
         document.querySelector('.con-res__row--energy .con-res__prod')?.textContent?.replace(/\s+/g, '') ?? ''),
       {timeout: 15_000, message: 'the rail\'s energy production digit'}).toMatch(new RegExp(`${before.thisPlayer.energyProduction + 1}`));
+      expect(await strandedReports(page), 'no prompt was stranded on the way').toEqual([]);
+    });
+
+    test('another seat on the energy cove: the production token lands on the PRODUCTION item of its plaque', async ({page, request}) => {
+      test.setTimeout(400_000);
+      const {playerId: blue, seats} = await bootFixtureSeats(page, request, 'arabia-rival', {query: profile.query});
+      const red = seats[1];
+      await settle(page);
+      await armLeakWitness(page);
+      type Seat = {color: string, energyProduction: number};
+      const redOf = async (): Promise<Seat> => {
+        const wire = await fetchPlayerModel(request, red) as unknown as {thisPlayer: Seat};
+        return wire.thisPlayer;
+      };
+      const before = await redOf();
+
+      // Blue hands the turn over (LT wheel → «Пас»); red is driven over the API.
+      await press(page, 'Comma', 1200);
+      await press(page, 'ArrowDown', 900);
+      await press(page, 'Enter', 1500);
+      type Menu = {type?: string, options?: Array<{type?: string, cards?: Array<{name: string, calculatedCost?: number}>}>, spaces?: Array<string>};
+      const menuOf = async (): Promise<Menu> => ((await fetchPlayerModel(request, red)) as unknown as {waitingFor?: Menu}).waitingFor ?? {};
+      await expect.poll(async () => (await menuOf()).type, {timeout: 60_000, message: 'red is on the move'}).toBe('or');
+      const menu = await menuOf();
+      const idx = (menu.options ?? []).findIndex((o) => o.type === 'projectCard' && (o.cards ?? []).some((c) => c.name === 'Greenery'));
+      expect(idx, 'red\'s menu offers the Greenery standard project').toBeGreaterThanOrEqual(0);
+      const cost = (menu.options?.[idx].cards ?? []).find((c) => c.name === 'Greenery')?.calculatedCost ?? GREENERY_COST;
+      await sendPlayerInput(request, red, {type: 'or', index: idx, response: {type: 'projectCard', card: 'Greenery', payment: {...NO_PAYMENT, megacredits: cost}}});
+      await expect.poll(async () => (await menuOf()).type, {timeout: 20_000, message: 'the project asks for its cell'}).toBe('space');
+      expect((await menuOf()).spaces, 'the energy cove is legal for red').toContain(ENERGY_COVE);
+
+      // The plaque is a transient — recorded off the product's own writes, never sampled.
+      await recordTransient(page, 'intake', () => Array.from(document.querySelectorAll<HTMLElement>('[data-intake-seat] .con-status__intake-item'))
+        .map((item) => `${item.closest('[data-intake-seat]')?.getAttribute('data-intake-seat')}|${item.getAttribute('data-intake-resource')}|` +
+          `${item.hasAttribute('data-intake-production') ? 'production' : 'stock'}|${item.querySelector('.con-status__intake-prod') !== null ? 'framed' : 'bare'}|` +
+          `${(item.querySelector('.con-status__intake-num')?.textContent ?? '').trim()}`).join(' ; '));
+      await armTransferWitness(page);
+      await sendPlayerInput(request, red, {type: 'space', spaceId: ENERGY_COVE});
+      await expect.poll(async () => (await redOf()).energyProduction,
+        {timeout: 40_000, message: 'the cove paid red its energy production'}).toBe(before.energyProduction + 1);
+      await expect.poll(async () => ((await view(request, blue)).game.spaces.find((s) => s.id === ENERGY_COVE)?.tileType) !== undefined,
+        {timeout: 40_000, message: 'blue\'s view carries red\'s tile'}).toBe(true);
+      await settle(page, {timeoutMs: 40_000});
+      await shoot(page, '70-rival-energy-production');
+
+      const plaque = (await stopTransient<string>(page, 'intake')).map((s) => s.v).filter((v) => v !== '');
+      const witness = await transferWitness(page);
+      const trail = transferTrail(witness);
+      console.log('── the rival\'s intake ──', JSON.stringify([...new Set(plaque)]));
+      console.log('── the rival\'s flights ──\n' + trail);
+      const item = `${before.color}|energy|production|framed|`;
+      expect(plaque.some((v) => v.includes(`${item}…`)), `the plaque opened EXPECTING a production of energy, in the production frame: ${JSON.stringify([...new Set(plaque)])}`).toBe(true);
+      expect(plaque.some((v) => v.includes(`${item}+1`)), `…and read «+1» on the touchdown: ${JSON.stringify([...new Set(plaque)])}`).toBe(true);
+      expect(plaque.some((v) => v.includes(`${before.color}|energy|stock|`)), 'never as energy STOCK').toBe(false);
+      expect(endsOverGlass(witness), `no flight end over glass:\n${trail}`).toEqual([]);
+      expect(witness.births.some((e) => e.under === `cell:${ENERGY_COVE}`), `the token is born on the cove:\n${trail}`).toBe(true);
+      expect(witness.landings.some((e) => e.under === `intake:${before.color}`), `…and lands on red's plaque:\n${trail}`).toBe(true);
       expect(await strandedReports(page), 'no prompt was stranded on the way').toEqual([]);
     });
 

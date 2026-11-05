@@ -8356,6 +8356,30 @@ parliamentFixture('receive-board', {
   write('arabia-receive', game);
 }
 
+// ── ARABIA TERRA · ANOTHER SEAT ON THE ENERGY-PRODUCTION COVE — two seats on the real board: blue (CrediCor, the
+//    viewer) on the move, red (Thorgate) with 100 M€, driven over the API once blue has passed. Red's greenery on
+//    cove 32 is the REMOTE landing of a printed PRODUCTION bonus: the token off the cell into red's intake, on the
+//    plaque's production item (the owner, 2026-11-05: «если для других клеток механизм есть — почему тут нет»). ──
+{
+  const name = 'arabia-rival';
+  const pinned = [CardName.CREDICOR, CardName.THORGATE];
+  const [game, blue, red] = testGame(2, {
+    skipInitialCardSelection: false, startingCorporations: 1, customCorporationsList: [...pinned], boardName: BoardName.ARABIA_TERRA,
+  });
+  assignPinnedCorporations(name, [blue, red], pinned);
+  answerStartFlow(game, [blue, red]);
+  blue.megaCredits = 60;
+  red.megaCredits = 100;
+  runAllActions(game);
+  const cove = game.board.getSpaceOrThrow('32' as SpaceId);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== blue.id || !(blue.getWaitingFor() instanceof OrOptions) ||
+      !cove.bonus.includes(SpaceBonus.ENERGY_PRODUCTION) || cove.tile !== undefined ||
+      !game.board.getAvailableSpacesForGreenery(red).some((s) => s.id === cove.id)) {
+    throw new Error(`${name}: expected blue on the move on Arabia Terra and cove 32 free, printing energy production, legal for red's greenery — got phase=${game.phase} active=${game.activePlayer.color} tile=${cove.tile?.tileType} bonus=[${cove.bonus.map((b) => SpaceBonus[b])}]`);
+  }
+  write(name, game);
+}
+
 // ── RECEIVE · THE COLONY — «somebody traded on my colony: which card takes the floater?» (the TR53 iteration, case 3,
 //    decision 3). A Venus table: blue owns a cube on Titan and TWO floater holders (Dirigibles 1, Aerial Mappers 0);
 //    RED IS ON THE MOVE with 3 energy and a free fleet — red's trade with Titan pays blue's owner bonus (one floater)

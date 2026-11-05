@@ -295,6 +295,9 @@ export type RemoteEvent = FreshPlacement & {
   /** What the cell's PRINTED bonus paid the placer, by the same record — flown from the cell to the placer's chip
    *  after the touchdown (W3). Undefined / empty: nothing to fly. */
   cellPaid?: TilePlacementRecordModel['paid'],
+  /** The PRODUCTION the printed bonus raised for the placer (the record's `produced` — Arabia Terra's energy cove):
+   *  flown to their chip in the same wave, landing on the plaque's production item. */
+  cellProduced?: TilePlacementRecordModel['produced'],
   /**
    * The plants the placer paid for this GREENERY (the conversion — W4), proven against the two views (the placer's
    * plants fell by exactly their own price, the cell's printed plants added back). The «−N» leaves their chip into the
@@ -636,6 +639,7 @@ export function stageRemoteTileEvents(
       ...(record !== undefined ? {
         placer: record.color,
         cellPaid: record.paid,
+        ...(record.produced !== undefined ? {cellProduced: record.produced} : {}),
         plantPrice: provenPlantPrice(record, events, opts),
       } : {}),
     });
@@ -1188,6 +1192,8 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   // The cell's printed icons, measured NOW — the held cell still paints them; the touchdown covers them, and the
   // placer's bonus tokens are born exactly where they were printed (W3).
   const iconCentres = !ev.own && (ev.cellPaid?.length ?? 0) > 0 ? bonusIconCentres(ev.spaceId) : [];
+  // …and each printed PRODUCTION icon by its own sprite (`<resource>-production`), measured in the same frame.
+  const productionCentres = ev.own ? [] : (ev.cellProduced ?? []).map((p) => bonusIconCentreOf(ev.spaceId, `${p.resource}-production`));
   remotePlacementState.active = true;
   remotePlacementState.tileType = ev.tileType;
   remotePlacementState.aresExtension = ev.aresExtension;
@@ -1316,9 +1322,10 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   // wakes at the edge it shares with the foreign build and sends the M€
   // home. Runs INSIDE the flight (the stage stays mounted), after the cube.
   const wave: Array<() => Promise<void>> = [];
-  const placerPaid = ev.cellPaid;
-  if (epoch === myEpoch && !ev.own && actor !== undefined && placerPaid !== undefined && placerPaid.length > 0) {
-    wave.push(() => runPlacerBonusBeat(placerPaid, iconCentres, hex, actor));
+  const placerPaid = ev.cellPaid ?? [];
+  const placerProduced = ev.cellProduced ?? [];
+  if (epoch === myEpoch && !ev.own && actor !== undefined && (placerPaid.length > 0 || placerProduced.length > 0)) {
+    wave.push(() => runPlacerBonusBeat(placerPaid, iconCentres, hex, actor, placerProduced, productionCentres));
   }
   if (epoch === myEpoch && ev.income.length > 0) {
     const breathMs = wave.length > 0 ? 0 : undefined;
@@ -1341,12 +1348,19 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
  * was printed as (in the printed order; a cell whose icons could not be measured sends it from the tile's centre) and
  * landing on the placer's chip in the strip — an OBJECT end, re-measured on the approach (the ribbon may carry the chip
  * along); no chip on screen, no flight. Nothing on the viewer's panel moves — it is somebody else's money.
+ *
+ * A printed PRODUCTION bonus (the record's `produced` — Arabia Terra's energy-production cove) is one more token of
+ * the same wave: a production chip born on its own printed icon, landing on the plaque's PRODUCTION item (its own
+ * number, in the production frame — never the stock's). The own-seat scene has flown it since the map audit of
+ * 2026-11-05; another seat's landing told nothing (the owner: «если для других клеток механизм есть — почему тут нет»).
  */
 async function runPlacerBonusBeat(
   paid: ReadonlyArray<{resource: string, amount: number}>,
   iconCentres: ReadonlyArray<TransferPoint>,
   hex: TileRect,
   actor: Color,
+  produced: ReadonlyArray<{resource: string, amount: number}> = [],
+  productionCentres: ReadonlyArray<TransferPoint | undefined> = [],
 ): Promise<void> {
   const chip = seatChipEnd(actor);
   if (chip === undefined) {
@@ -1364,6 +1378,12 @@ async function runPlacerBonusBeat(
     origins.push(iconCentres[unit] ?? centre);
     unit += p.amount;
   }
+  produced.forEach((p, i) => {
+    if (p.amount > 0) {
+      specs.push({channel: 'production', resource: p.resource, amount: p.amount});
+      origins.push(productionCentres[i] ?? centre);
+    }
+  });
   if (specs.length === 0) {
     return;
   }
@@ -1375,11 +1395,20 @@ async function runPlacerBonusBeat(
     origins,
     source: {point: centre},
     destination: chip,
-    destinationOf: (spec) => seatIntakeEnd(actor, spec.resource),
+    destinationOf: (spec) => seatIntakeEnd(actor, spec.resource, spec.channel === 'production'),
     arrival: 'auto',
     fromBoard: true,
     onArrive: (spec) => acceptSeatIntake(actor, spec),
   });
+}
+
+/** ONE printed icon of the cell by its sprite suffix (`.board-space-bonus--<suffix>`), its centre — undefined when not painted. */
+function bonusIconCentreOf(spaceId: string, suffix: string): TransferPoint | undefined {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+  const r = document.querySelector<HTMLElement>('.board-space[data_space_id="' + spaceId + '"] .board-space-bonus--' + suffix)?.getBoundingClientRect();
+  return r !== undefined && r.width > 2 && r.height > 2 ? {x: r.left + r.width / 2, y: r.top + r.height / 2} : undefined;
 }
 
 /** The cell's printed bonus icons (the board's own `.board-space-bonus` boxes), centres in the printed order. */

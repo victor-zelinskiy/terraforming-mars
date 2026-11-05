@@ -57,10 +57,13 @@
               :data-intake-phase="intake.phase"
               aria-hidden="true">
           <span v-for="item in intake.items"
-                :key="item.resource"
+                :key="(item.production === true ? 'production:' : '') + item.resource"
                 class="con-status__intake-item"
-                :data-intake-resource="item.resource">
-            <i class="con-status__intake-icon" :class="intakeIconClass(item.resource)"></i>
+                :data-intake-resource="item.resource"
+                :data-intake-production="item.production === true ? '' : undefined">
+            <!-- PRODUCTION (a printed production bonus the seat's cell paid) wears the game's production frame. -->
+            <span v-if="item.production === true" class="con-status__intake-prod"><i class="con-status__intake-icon" :class="intakeIconClass(item.resource)"></i></span>
+            <i v-else class="con-status__intake-icon" :class="intakeIconClass(item.resource)"></i>
             <span class="con-status__intake-num">{{ intakeText(item) }}</span>
           </span>
         </span>

@@ -156,6 +156,47 @@ describe('Arabia Terra — the cell markers sit on the cells that earn them', ()
   });
 });
 
+describe('Arabia Terra — a cove is TWO surfaces wherever it is drawn', () => {
+  it('the portrait piece carries the square\'s kind AND its volcanic mark — the client draws the two halves from it', () => {
+    const [game, player] = testGame(1, ARABIA) as [IGame, TestPlayer];
+    const piece = (id: string) => boardCellInfo(player, game.board.getSpaceOrThrow(id as never)).portrait;
+    expect(piece('44')).to.include({spaceType: SpaceType.COVE});
+    expect(piece('44'), 'a plain cove is not volcanic').to.not.have.property('volcanic');
+    expect(piece(VOLCANIC_COVE), 'Tikhonarov: a cove AND volcanic').to.include({spaceType: SpaceType.COVE, volcanic: true});
+    expect(piece('55'), 'a volcanic land cell').to.include({spaceType: SpaceType.LAND, volcanic: true});
+    expect(piece('05'), 'plain land').to.not.have.property('volcanic');
+    // …and a neighbour in the ring is the same piece (the ring of 19 holds the volcanic cove 20).
+    const ring = piece('19')?.neighbours.filter((n) => n !== null).map((n) => [n?.space, n?.volcanic === true]) ?? [];
+    expect(ring).to.deep.include(['20', true]);
+  });
+
+  it('the field, the portrait and the creator\'s miniature all draw the OCEAN half — a volcanic cove too', () => {
+    const board = readFileSync('src/styles/board.less', 'utf8');
+    const dossier = readFileSync('src/styles/console_cell_dossier.less', 'utf8');
+    const OCEAN_HALF = 'rgba(70,170,225,0.32)';
+    for (const type of ['cove', 'volcanic-cove']) {
+      const rule = new RegExp(`\\.board-space-type-${type} \\{[^}]*\\}`).exec(board.replace(/@\{[\w-]+\}/g, 'VAR'))?.[0] ?? '';
+      expect(rule, `the field's ${type}: the left half is water`).to.include(`<polygon points='23,1 23,50 1.5,37.7 1.5,13.3' fill='${OCEAN_HALF}'/>`);
+      expect(rule, `the field's ${type}: the divider`).to.include('<line x1=\'23\' y1=\'1\' x2=\'23\' y2=\'50\'');
+    }
+    // The volcanic cove's LAND half is volcanic — and nothing washes the whole cell red any more.
+    const volcanic = new RegExp('\\.board-space-type-volcanic-cove \\{[^}]*\\}').exec(board.replace(/@\{[\w-]+\}/g, 'VAR'))?.[0] ?? '';
+    expect(volcanic).to.include('<polygon points=\'23,1 44.5,13.3 44.5,37.7 23,50\'');
+    expect(volcanic, 'no whole-cell wash over the water').to.not.match(/background-color/);
+    // The portrait: both cove grounds are an ocean half (left) and a land half (right) with the divider.
+    for (const ground of ['cove', 'cove-volcanic']) {
+      const rule = new RegExp(`&--${ground} \\{[^}]*\\}`).exec(dossier)?.[0] ?? '';
+      expect(rule, `the portrait's ${ground}: the ocean half`).to.match(/#3f86b8[^;]*left \/ 50% 100% no-repeat/);
+      expect(rule, `the portrait's ${ground}: the land half`).to.match(/right \/ 50% 100% no-repeat/);
+    }
+    const portrait = readFileSync('src/client/components/console/ConsoleCellPortrait.vue', 'utf8');
+    expect(portrait).to.include('con-cellp__hex--cove-volcanic').and.include('con-cellp__hex--volcanic');
+    // The miniature: a half-hex of ocean over the cove's land tone.
+    const mini = readFileSync('src/client/components/create/premium/PremiumMapFingerprint.vue', 'utf8');
+    expect(mini).to.include('map-fp__hex-half').and.include('hexLeftHalf');
+  });
+});
+
 describe('Arabia Terra — the random pool', () => {
   it('is rolled by «random (all)» — for a human game and for a MarsBot game', () => {
     expect(boardOptions(RandomBoardOption.ALL)).to.include(BoardName.ARABIA_TERRA);

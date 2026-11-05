@@ -28,6 +28,8 @@
           <g v-for="cell in cells" :key="cell.key" :transform="cell.transform">
             <g class="map-fp__cell" :style="cell.style">
               <polygon :points="hexOutline" class="map-fp__hex" :class="cell.cls" :style="{fill: cell.fill}" />
+              <!-- A COVE is two surfaces — its ocean half, as the board draws it (left). -->
+              <polygon v-if="cell.half !== undefined" :points="hexLeftHalf" class="map-fp__hex-half" :style="{fill: cell.half}" />
               <g v-if="cell.glyphs.length > 0" class="map-fp__glyphs">
                 <g
                   v-for="(glyph, gi) in cell.glyphs"
@@ -85,6 +87,8 @@ type CellRender = {
   style: Record<string, string>,
   cls: Record<string, boolean>,
   fill: string,
+  /** A cove's OCEAN half (the fill of the left half-hex) — absent on every other cell. */
+  half?: string,
   glyphs: ReadonlyArray<CellGlyph>,
 };
 
@@ -136,6 +140,11 @@ export default defineComponent({
     },
     hexOutline(): string {
       return miniHexPoints();
+    },
+    /** The LEFT half of the hex (top · bottom · the two left vertices) — a cove's ocean half. */
+    hexLeftHalf(): string {
+      const pts = miniHexPoints().split(' ');
+      return [pts[0], pts[3], pts[4], pts[5]].join(' ');
     },
     /** Reveal wave: distance from the surface's own centre, normalized. */
     waveCenter(): {x: number, y: number, max: number} {
@@ -192,6 +201,7 @@ export default defineComponent({
             'map-fp__hex--special': s.t === SpaceType.RESTRICTED || s.t === SpaceType.DEFLECTION_ZONE,
           },
           fill: this.hexFill(s),
+          ...(s.t === SpaceType.COVE ? {half: 'rgba(56, 126, 208, 0.52)'} : {}),
           glyphs,
         };
       });
@@ -231,7 +241,7 @@ export default defineComponent({
   methods: {
     /**
      * The SURFACE is calm — Mars-toned land, the recognisable blue ocean
-     * reserves, teal coves, the special areas. Printed bonuses are GLYPHS
+     * reserves, coves in their two halves, the special areas. Printed bonuses are GLYPHS
      * inside their cells (like the real board), never a colour fill: a
      * plant bonus must not read as a placed greenery tile.
      */
@@ -240,7 +250,8 @@ export default defineComponent({
       case SpaceType.OCEAN:
         return 'rgba(56, 126, 208, 0.52)';
       case SpaceType.COVE:
-        return 'rgba(52, 158, 168, 0.44)';
+        // The LAND half's tone (volcanic or plain) — the ocean half is its own polygon over the left (`half`).
+        return s.v === true ? 'rgba(206, 112, 62, 0.26)' : 'rgba(186, 100, 62, 0.15)';
       case SpaceType.RESTRICTED:
         return 'rgba(16, 10, 9, 0.72)';
       case SpaceType.DEFLECTION_ZONE:

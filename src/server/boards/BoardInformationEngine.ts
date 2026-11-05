@@ -147,6 +147,9 @@ export function cellPortrait(player: IPlayer, space: Space): CellPortrait {
 
 function portraitPiece(player: IPlayer, space: Space): CellPortraitPiece {
   const piece: CellPortraitPiece = {space: space.id, spaceType: space.spaceType, bonus: [...space.bonus]};
+  if (space.volcanic === true) {
+    piece.volcanic = true;
+  }
   const tileType = space.tile?.tileType;
   if (tileType !== undefined) {
     piece.tileType = tileType;

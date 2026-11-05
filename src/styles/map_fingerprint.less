@@ -30,6 +30,8 @@
 .map-fp__hex { stroke: rgba(228, 158, 116, 0.30); stroke-width: 0.55; }
 .map-fp__hex--ocean { stroke: rgba(130, 196, 252, 0.72); }
 .map-fp__hex--cove { stroke: rgba(120, 220, 220, 0.6); }
+/* A cove's ocean half — the board's own split (left water, right land); the rim stays the whole hex's. */
+.map-fp__hex-half { stroke: none; pointer-events: none; }
 .map-fp__hex--special { stroke: rgba(214, 160, 120, 0.5); }
 
 .map-fp__glyphs { opacity: 0.95; }

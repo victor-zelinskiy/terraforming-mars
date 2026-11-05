@@ -92,7 +92,25 @@
         /* The square's printed kind as its ground. */
         &--land { --cp-ground: radial-gradient(70% 62% at 42% 34%, #b8693f, #7a3b22 62%, #4e2414); }
         &--ocean { --cp-ground: radial-gradient(70% 62% at 42% 34%, #3f86b8, #1d4e79 60%, #0f2c49); }
-        &--cove { --cp-ground: radial-gradient(70% 62% at 42% 34%, #4f9c9a, #24605f 60%, #12393a); }
+        /* Volcanic land — the field's dark-red cell, a shade deeper than plain land. */
+        &--volcanic { --cp-ground: radial-gradient(70% 62% at 42% 34%, #a8502f, #6b2716 62%, #401309); }
+        /* A COVE IS TWO SURFACES, here as on the field (the owner, 2026-11-05: «выглядит по-разному в разных
+           местах»): the LEFT half the ocean's ground, the RIGHT half the land's, the divider between them. It was
+           one flat teal — a third look for a cell the board draws split. Three layers of one `background`: the
+           divider, the ocean half, the land half (each a half-box of its kind's own gradient). */
+        &--cove {
+            --cp-ground:
+                linear-gradient(rgba(214, 232, 248, 0.62), rgba(214, 232, 248, 0.62)) center / .05rem 100% no-repeat,
+                radial-gradient(130% 62% at 78% 34%, #3f86b8, #1d4e79 60%, #0f2c49) left / 50% 100% no-repeat,
+                radial-gradient(130% 62% at 8% 34%, #b8693f, #7a3b22 62%, #4e2414) right / 50% 100% no-repeat;
+        }
+        /* …and a volcanic cove (Tikhonarov): the same ocean half, the land half volcanic. */
+        &--cove-volcanic {
+            --cp-ground:
+                linear-gradient(rgba(214, 232, 248, 0.62), rgba(214, 232, 248, 0.62)) center / .05rem 100% no-repeat,
+                radial-gradient(130% 62% at 78% 34%, #3f86b8, #1d4e79 60%, #0f2c49) left / 50% 100% no-repeat,
+                radial-gradient(130% 62% at 8% 34%, #a8502f, #6b2716 62%, #401309) right / 50% 100% no-repeat;
+        }
         &--deflection { --cp-ground: radial-gradient(70% 62% at 42% 34%, #8a6fb0, #4b3a6d 62%, #281e3d); }
         &--reserved {
             --cp-ground: repeating-linear-gradient(135deg, #2a3442 0 .32rem, #222b37 .32rem .64rem);

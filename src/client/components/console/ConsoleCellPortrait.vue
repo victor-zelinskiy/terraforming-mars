@@ -125,9 +125,10 @@ export default defineComponent({
       }
       switch (piece.spaceType) {
       case SpaceType.OCEAN: return 'con-cellp__hex--ocean';
-      case SpaceType.COVE: return 'con-cellp__hex--cove';
+      // A cove is TWO surfaces — the field's own two halves (ocean left, land right; a volcanic cove's land half volcanic).
+      case SpaceType.COVE: return piece.volcanic === true ? 'con-cellp__hex--cove-volcanic' : 'con-cellp__hex--cove';
       case SpaceType.DEFLECTION_ZONE: return 'con-cellp__hex--deflection';
-      default: return 'con-cellp__hex--land';
+      default: return piece.volcanic === true ? 'con-cellp__hex--volcanic' : 'con-cellp__hex--land';
       }
     },
     nbClasses(slot: CellRingSlot): Array<string> {

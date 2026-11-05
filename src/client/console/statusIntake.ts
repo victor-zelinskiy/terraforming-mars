@@ -23,9 +23,22 @@ import {ResourceTransferSpec, TransferEnd} from '@/client/console/resourceTransf
 import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 import {probeTick} from '@/client/console/probeTick';
 
+/** What the intake reads of a token: its resource, its amount and whether it is PRODUCTION (the spec's channel). */
+export type IntakeToken = Pick<ResourceTransferSpec, 'resource' | 'amount'> & Partial<Pick<ResourceTransferSpec, 'channel'>>;
+
+/** A token of PRODUCTION (a printed production bonus a rival's cell paid — Arabia Terra's energy cove). */
+function isProduction(token: Partial<Pick<ResourceTransferSpec, 'channel'>>): boolean {
+  return token.channel === 'production';
+}
+
 export type SeatIntakeItem = {
   /** The resource key of the token (`steel`, `data`, `megacredits`, …) — the icon the plaque prints. */
   resource: string;
+  /**
+   * PRODUCTION of that resource, never its stock: an item of its own (energy and energy PRODUCTION are two counters),
+   * printed in the game's production frame. Absent on a stock item.
+   */
+  production?: true;
   /** What the token(s) bring — the plaque's promise while it waits. */
   expected: number;
   /** What has touched down so far — the number it reads. */
@@ -60,16 +73,16 @@ export const statusIntakeState = reactive({
 
 const folds = new Map<Color, gsap.core.Tween>();
 
-/** PURE: the plaque's items with these specs merged in — one item per resource, the order of first arrival. */
-export function mergeIntakeItems(items: ReadonlyArray<SeatIntakeItem>, specs: ReadonlyArray<Pick<ResourceTransferSpec, 'resource' | 'amount'>>): Array<SeatIntakeItem> {
+/** PURE: the plaque's items with these specs merged in — one item per resource AND channel, the order of first arrival. */
+export function mergeIntakeItems(items: ReadonlyArray<SeatIntakeItem>, specs: ReadonlyArray<IntakeToken>): Array<SeatIntakeItem> {
   const out = items.map((item) => ({...item}));
   for (const spec of specs) {
     if (spec.amount <= 0) {
       continue;
     }
-    const item = out.find((i) => i.resource === spec.resource);
+    const item = out.find((i) => i.resource === spec.resource && (i.production === true) === isProduction(spec));
     if (item === undefined) {
-      out.push({resource: spec.resource, expected: spec.amount, received: 0});
+      out.push({resource: spec.resource, expected: spec.amount, received: 0, ...(isProduction(spec) ? {production: true as const} : {})});
     } else {
       item.expected += spec.amount;
     }
@@ -103,7 +116,7 @@ function cancelFold(seat: Color): void {
  * still with the compositor (a background window, a quiet screen) and a wait on it held a rival's payout forever.
  * Reduced motion opens nothing (the tokens are not flown there either) and resolves at once.
  */
-export function openSeatIntake(seat: Color, specs: ReadonlyArray<Pick<ResourceTransferSpec, 'resource' | 'amount'>>): Promise<void> {
+export function openSeatIntake(seat: Color, specs: ReadonlyArray<IntakeToken>): Promise<void> {
   if (consoleReducedMotionActive()) {
     return Promise.resolve();
   }
@@ -125,10 +138,10 @@ export function openSeatIntake(seat: Color, specs: ReadonlyArray<Pick<ResourceTr
  * mount, so the motion clock alone cannot promise it) — measured on `probeTick`, bounded by `INTAKE_PAINT_WAIT_MS`;
  * past the bound the tokens go anyway and land on the chip itself.
  */
-async function painted(seat: Color, specs: ReadonlyArray<Pick<ResourceTransferSpec, 'resource' | 'amount'>>): Promise<void> {
+async function painted(seat: Color, specs: ReadonlyArray<IntakeToken>): Promise<void> {
   await nextTick();
   const deadline = performance.now() + motionMs(INTAKE_PAINT_WAIT_MS);
-  const ready = () => specs.every((spec) => spec.amount <= 0 || seatIntakeEnd(seat, spec.resource) !== undefined);
+  const ready = () => specs.every((spec) => spec.amount <= 0 || seatIntakeEnd(seat, spec.resource, isProduction(spec)) !== undefined);
   while (!ready() && performance.now() < deadline) {
     await new Promise<void>((resolve) => probeTick(() => resolve()));
   }
@@ -138,12 +151,12 @@ async function painted(seat: Color, specs: ReadonlyArray<Pick<ResourceTransferSp
  * A TOKEN TOUCHED DOWN on the plaque (or was degraded — its units arrive all the same): the item ticks by its amount;
  * once every promised unit has landed the plaque reads RECEIVED and folds after one read.
  */
-export function acceptSeatIntake(seat: Color, spec: Pick<ResourceTransferSpec, 'resource' | 'amount'>): void {
+export function acceptSeatIntake(seat: Color, spec: IntakeToken): void {
   const intake = intakeOf(seat);
   if (intake === undefined) {
     return;
   }
-  const item = intake.items.find((i) => i.resource === spec.resource);
+  const item = intake.items.find((i) => i.resource === spec.resource && (i.production === true) === isProduction(spec));
   if (item !== undefined) {
     item.received = Math.min(item.expected, item.received + spec.amount);
   }
@@ -174,12 +187,14 @@ export function resetStatusIntakes(): void {
  * The plaque's NUMBER for a resource as an OBJECT end (the delta-chip anchor law — the token lands on the ink that
  * changes) — undefined while no plaque of that seat stands (the caller does not fly).
  */
-export function seatIntakeEnd(seat: Color | undefined, resource: string): TransferEnd | undefined {
+export function seatIntakeEnd(seat: Color | undefined, resource: string, production = false): TransferEnd | undefined {
   if (typeof document === 'undefined' || seat === undefined) {
     return undefined;
   }
   const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(resource) : resource;
-  const num = document.querySelector<HTMLElement>(`[data-intake-seat="${seat}"] [data-intake-resource="${esc}"] .con-status__intake-num`);
+  // A resource's stock and its PRODUCTION are two items of the plaque — the token lands on the number of its own.
+  const channel = production ? '[data-intake-production]' : ':not([data-intake-production])';
+  const num = document.querySelector<HTMLElement>(`[data-intake-seat="${seat}"] [data-intake-resource="${esc}"]${channel} .con-status__intake-num`);
   // Only a PAINTED number is a landing (the visible-end verdict); a plaque still unfolding answers none — the caller's
   // run then lands on the chip itself, never on a receiver the player cannot see yet.
   return num !== null && transferEndVerdict(num).visible ? {el: num, fx: 0.5, fy: 0.5} : undefined;

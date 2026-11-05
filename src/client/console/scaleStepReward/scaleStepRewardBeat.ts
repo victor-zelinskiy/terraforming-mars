@@ -404,7 +404,7 @@ async function pay(entry: ScaleStepEntry, myEpoch: number): Promise<void> {
     // Born on the board: under a workspace opened mid-flight the wave recedes with it.
     fromBoard: true,
     ...(chip !== undefined ? {destination: chip} : {}),
-    ...(seat !== undefined ? {destinationOf: (spec: ResourceTransferSpec) => seatIntakeEnd(seat, spec.resource)} : {}),
+    ...(seat !== undefined ? {destinationOf: (spec: ResourceTransferSpec) => seatIntakeEnd(seat, spec.resource, spec.channel === 'production')} : {}),
     onArrive: (spec: ResourceTransferSpec) => tickAt(() => {
       if (seat !== undefined) {
         acceptSeatIntake(seat, spec);
