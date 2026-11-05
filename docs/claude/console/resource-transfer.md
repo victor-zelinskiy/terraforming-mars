@@ -168,10 +168,21 @@ covers (a party's share) ticks at the beat, as before.
 
 **A price and an answer on ONE row** (PC02 Palladin Shipping · GQ, A6): a space event paid with titanium answers with
 titanium. The play's price rides `RailReward.known` on the SAME row the reactor's token lands on (`actionKnownRailMoves`
-with `paid`), so `verifyRailReward` holds «5 → 3» as −3 price + 1 answer and the row reads «5 → 2» at the commit (the
-price is the row's delta chip — the PL-163 law for a rail resource) and «2 → 3» on the answer's touchdown, never one jump;
-an unexplained difference on that row still holds nothing and names itself (`tests/console/playRailRule.spec.ts`
-§ Palladin; e2e `console-palladin-shipping` B).
+with `paid`), so `verifyRailReward` holds «5 → 3» as −3 price + 1 answer and the row reads «5 → 2» on the price and
+«2 → 3» on the answer's touchdown, never one jump; an unexplained difference on that row still holds nothing and names
+itself (`tests/console/playRailRule.spec.ts` § Palladin; e2e `console-palladin-shipping` B).
+
+**A card's own price in ALLOYS is a token** (PL-1841 ①, 2026-11-05): the steel / titanium of a play's payment leave
+their rows as tokens INTO the standing card's printed cost (`.pcard__cost-badge`) in the shipment beat, before the lift
+— `playAlloyPriceReward` (pure: one LOSS per alloy row, every other move of the row KNOWN, the table's answer on the same
+row included) → `consolePlayedHero.shipAlloyPrice` (a departure hold — the row ticks on the token's departure, the
+commit's block lets it go against the applied view). M€ keeps the row's delta chip (the prompt's decision), heat too.
+
+**A scale's printed track bonus is the SCALE's token** (PL-1841 ②): the temperature step that crosses −24 / −20 °C pays
++1 heat production; the forecast states it as a «Сработает» fact of the rule, and the rail half used to fly it off the
+setup sheet's chip. `scaleStepRatingBeat` now holds it (`heatBonus` — its own row check) and births it on the board's
+printed bonus chip (`temperature--24`) once the marker has arrived; the rail halves hand it over
+(`withoutScaleStepAnswers` → `withoutTemperatureHeatBonus`), except on the start host, whose hero tells the scale itself.
 
 ## 3a. The rail half's seed — owed is not refused; every road seeds; the verdict is in the trail (T09)
 
