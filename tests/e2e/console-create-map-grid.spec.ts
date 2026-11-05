@@ -4,7 +4,7 @@
  *
  * The «Карта» deck is a GRID solved from the measured stage (`mapGridPlan`), the d-pad the lobby's (`showcaseStep`):
  *  · every map of the page stands INSIDE the stage, and the cursored map is fully inside it on EVERY step of a walk
- *    (◀ ×12 · ▶ ×12 · ▲ ▼) — the carousel parked the cursor ~2560 px past the edge at Hollandia;
+ *    (◀ · ▶ a whole ring and one · ▲ ▼) — the carousel parked the cursor ~2560 px past the edge at Hollandia;
  *  · ◀ ▶ walk the ring (wrapping), ▲ ▼ a row with a wall;
  *  · A selects: «ТЕКУЩАЯ» moves to the cursored map (a kant, never a halo);
  *  · the dossier follows the cursor (wide creator); the fan boards say «ФАН»;
@@ -14,6 +14,9 @@
 import {test, expect, Page} from './consoleTest';
 import {press} from './consoleStart';
 import {campaignBase, seedIdentity} from './campaignFixtures';
+
+/** The creator's catalog: «random (all)» + the eleven boards (`PREMIUM_MAPS`) — a full 4 × 3 page on the TV. */
+const MAPS = 12;
 
 const PRESETS = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
@@ -69,9 +72,10 @@ for (const preset of PRESETS) {
       const pages = Number(await showcase.getAttribute('data-map-pages'));
       if (preset.id === 'tv4k') {
         expect([cols, Number(await showcase.getAttribute('data-map-rows')), pages], 'one page of 4 × 3').toEqual([4, 3, 1]);
-        await expect(page.locator('.cm-map')).toHaveCount(11);
+        await expect(page.locator('.cm-map')).toHaveCount(MAPS);
         await expect(page.locator('[data-map-dossier]')).toBeVisible();
-        await expect(page.locator('[data-map-tile="vastitas borealis"] [data-map-fan], [data-map-tile="amazonis p."] [data-map-fan]')).toHaveCount(2);
+        await expect(page.locator('[data-map-tile="vastitas borealis"] [data-map-fan], [data-map-tile="amazonis p."] [data-map-fan], [data-map-tile="arabia terra"] [data-map-fan]')).toHaveCount(3);
+        await expect(page.locator('[data-map-tile="tharsis"] [data-map-fan]'), 'an official board wears no fan chip').toHaveCount(0);
       } else {
         expect(pages, 'the Deck pages').toBeGreaterThan(1);
         await expect(page.locator('[data-map-spine]')).toBeVisible();
@@ -88,9 +92,9 @@ for (const preset of PRESETS) {
           expect(at.inside, `after ${trail.join(' ')}: ${at.rect}`).toBe(true);
         }
       };
-      await walk('ArrowRight', 12);
-      expect((await cursorInside(page)).index, '▶ ×12 over eleven maps wraps the ring once').toBe(1);
-      await walk('ArrowLeft', 12);
+      await walk('ArrowRight', MAPS + 1);
+      expect((await cursorInside(page)).index, 'a whole ring and one step more wraps once').toBe(1);
+      await walk('ArrowLeft', MAPS + 1);
       expect((await cursorInside(page)).index).toBe(0);
       await walk('ArrowDown', 3);
       await walk('ArrowUp', 3);

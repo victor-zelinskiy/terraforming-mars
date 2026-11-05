@@ -67,8 +67,9 @@ export type PremiumMapMeta = {
 };
 
 // Random-All first (default), then official boards, then the rest of the
-// random-all pool. The one random-all exclusion (Arabia Terra — its Pathfinders
-// bonuses are not adapted) is intentionally not offered — outside the fork's scope.
+// random-all pool — the fan boards, each saying so on its tile. EVERY board «random (all)» can roll and every board
+// MarsBot plays stands here (guard `tests/createGame/createGameMaps.spec.ts`): a map the pool deals but the creator
+// cannot pick is how Arabia Terra shipped adapted and unselectable (2026-11-05).
 export const PREMIUM_MAPS: ReadonlyArray<PremiumMapMeta> = [
   {id: 'random-all', random: true, accent: '240,168,80', labelKey: 'Random All', descKey: 'One of the maps in the current rotation will be chosen at game start.'},
   {id: BoardName.THARSIS, random: false, accent: '224,153,109', labelKey: 'Tharsis', descKey: 'The classic Mars map — balanced cities, oceans and plant-rich lowlands.'},
@@ -79,8 +80,9 @@ export const PREMIUM_MAPS: ReadonlyArray<PremiumMapMeta> = [
   {id: BoardName.VASTITAS_BOREALIS_NOVA, random: false, accent: '150,200,230', labelKey: 'Vastitas Borealis Nova', descKey: 'The ancient northern sea: a North Pole that buys heat for 4 M€, Viking delegate sites and four volcanoes.'},
   {id: BoardName.VASTITAS_BOREALIS, random: false, fan: true, accent: '200,184,70', labelKey: 'Vastitas Borealis', descKey: 'Vast northern plains with heat and temperature bonuses.'},
   {id: BoardName.AMAZONIS, random: false, fan: true, accent: '130,190,50', labelKey: 'Amazonis Planitia', descKey: 'Western plateau with plant, heat and life (microbe/animal) bonuses.'},
-  {id: BoardName.TERRA_CIMMERIA, random: false, accent: '200,60,150', labelKey: 'Terra Cimmeria', descKey: 'Rugged southern highlands with steel and energy bonuses.'},
-  {id: BoardName.HOLLANDIA, random: false, accent: '224,212,96', labelKey: 'Hollandia', descKey: 'Compact map with dense, high-value bonus clusters.'},
+  {id: BoardName.TERRA_CIMMERIA, random: false, fan: true, accent: '200,60,150', labelKey: 'Terra Cimmeria', descKey: 'Rugged southern highlands with steel and energy bonuses.'},
+  {id: BoardName.ARABIA_TERRA, random: false, fan: true, accent: '214,170,120', labelKey: 'Arabia Terra', descKey: 'Ancient highlands on a northern shore: coves that take an ocean or a land tile, with data, science and energy-production bonuses.'},
+  {id: BoardName.HOLLANDIA, random: false, fan: true, accent: '224,212,96', labelKey: 'Hollandia', descKey: 'Compact map with dense, high-value bonus clusters.'},
 ];
 
 export function mapMeta(id: BoardName | 'random-all'): PremiumMapMeta {

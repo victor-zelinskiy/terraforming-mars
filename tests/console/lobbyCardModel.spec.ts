@@ -216,10 +216,10 @@ describe('lobbyCardModel — one card of the pregame showcase', () => {
     /** The deck's own tile proportions at a rem of `r` px (ConsoleMapDeck's constants). */
     const opts = (r: number) => ({gap: 1 * r, minW: 9.5 * r, maxW: 17 * r, aspect: 0.62, chromeH: 6 * r});
 
-    it('the eleven maps are ONE page of 4 × 3 on the TV and on FHD (the stage beside the dossier)', () => {
-      const fhd = mapGridPlan(1100, 820, 11, opts(20));
+    it('the twelve maps are ONE full page of 4 × 3 on the TV and on FHD (the stage beside the dossier)', () => {
+      const fhd = mapGridPlan(1100, 820, 12, opts(20));
       expect([fhd.cols, fhd.rows, fhd.pages]).deep.eq([4, 3, 1]);
-      const tv = mapGridPlan(2200, 1640, 11, opts(40));
+      const tv = mapGridPlan(2200, 1640, 12, opts(40));
       expect([tv.cols, tv.rows, tv.pages]).deep.eq([4, 3, 1]);
       // Every tile inside the stage by construction.
       expect(fhd.cols * fhd.tileW + 3 * 20).to.be.at.most(1100);
@@ -227,10 +227,10 @@ describe('lobbyCardModel — one card of the pregame showcase', () => {
     });
 
     it('the Deck pages — strict pages, never a scroll; a page always fits', () => {
-      const deck = mapGridPlan(1100, 330, 11, opts(16));
+      const deck = mapGridPlan(1100, 330, 12, opts(16));
       expect(deck.pages).to.be.greaterThan(1);
       expect(deck.rows * deck.tileH + (deck.rows - 1) * 16).to.be.at.most(330);
-      expect(deck.perPage * deck.pages).to.be.at.least(11);
+      expect(deck.perPage * deck.pages).to.be.at.least(12);
     });
   });
 });
