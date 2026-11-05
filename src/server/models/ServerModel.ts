@@ -12,7 +12,7 @@ import {SelectPaymentModel} from '../../common/models/PlayerInputModel';
 import type {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {PlayerInput} from '../PlayerInput';
 import {PlayerInputModel, WorldGovernmentPromptMeta} from '../../common/models/PlayerInputModel';
-import {PlayerViewModel, Protection, PublicPlayerModel, WaitingForKind} from '../../common/models/PlayerModel';
+import {MaCostsModel, PlayerViewModel, Protection, PublicPlayerModel, WaitingForKind} from '../../common/models/PlayerModel';
 import {SpaceHighlight, SpaceModel} from '../../common/models/SpaceModel';
 import {TileType} from '../../common/TileType';
 import {buriedOceanOf} from '../../common/boards/cellPieces';
@@ -372,6 +372,7 @@ export class Server {
       maCosts: {
         milestone: player.milestoneCost(),
         award: player.awardFundingCost(),
+        ...maPriceCauses(player),
         ...maPaymentPreviews(player),
       },
     };
@@ -550,6 +551,10 @@ export class Server {
         color: funded?.player.color,
         name: award.name,
         scores: scores,
+        // PC01 · GO: what the slot WENT for — a server fact for every seat (funding order, paid, the waiving card).
+        ...(funded !== undefined ? {slot: fundedAwards.indexOf(funded)} : {}),
+        ...(funded?.paid !== undefined ? {paid: funded.paid} : {}),
+        ...(funded?.waivedBy !== undefined ? {waivedBy: funded.waivedBy} : {}),
       });
     }
 
@@ -1031,6 +1036,26 @@ export class Server {
     }
     return undefined;
   }
+}
+
+/**
+ * THE PRICE NAMES ITS CAUSE (PC01 Nirgal Enterprises · GO): beside a waiver, the table's prices (`printed`) and the
+ * card that waived each (`waiver`) — off the engine's ONE price function, so the console never derives a printed price
+ * from the constants. Nothing at all when nobody waives a price (the model stays as it was).
+ */
+function maPriceCauses(player: IPlayer): Pick<MaCostsModel, 'printed' | 'waiver'> {
+  const milestone = player.maPriceOf('milestone');
+  const award = player.maPriceOf('award');
+  if (milestone.waivedBy === undefined && award.waivedBy === undefined) {
+    return {};
+  }
+  return {
+    printed: {milestone: milestone.printed, award: award.printed},
+    waiver: {
+      ...(milestone.waivedBy !== undefined ? {milestone: milestone.waivedBy} : {}),
+      ...(award.waivedBy !== undefined ? {award: award.waivedBy} : {}),
+    },
+  };
 }
 
 /**

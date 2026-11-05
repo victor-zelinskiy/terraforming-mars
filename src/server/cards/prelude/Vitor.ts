@@ -47,7 +47,8 @@ export class Vitor extends CorporationCard implements ICorporationCard {
     // submitInnerActionResponse machinery — can map the option to its award and
     // submit it, exactly like the paid Fund-an-award action does.
     return new SelectOption(award.name).andThen(() => {
-      player.game.fundAward(player, award);
+      // FREE by Vitor's own rule — the slot went for 0, and NOTHING waived a price (PC01 · GO: no saving recorded).
+      player.game.fundAward(player, award, {printed: player.game.getAwardFundingCost(), price: 0});
       return undefined;
     });
   }

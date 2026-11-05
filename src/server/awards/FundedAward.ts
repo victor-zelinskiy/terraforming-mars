@@ -2,15 +2,21 @@ import {IAward} from './IAward';
 import {IPlayer} from '../IPlayer';
 import {PlayerId} from '../../common/Types';
 import {AwardName, maybeRenamedAward} from '../../common/ma/AwardName';
+import {CardName} from '../../common/cards/CardName';
 
 export type FundedAward = {
   award: IAward;
   player: IPlayer;
+  /** PC01 · GO — the M€ the slot cost its sponsor, and the card that waived the price. Absent on an old save. */
+  paid?: number;
+  waivedBy?: CardName;
 }
 
 export type SerializedFundedAward = {
   name: AwardName;
   playerId: PlayerId;
+  paid?: number;
+  waivedBy?: CardName;
 }
 
 export function serializeFundedAwards(fundedAwards: Array<FundedAward>) : Array<SerializedFundedAward> {
@@ -18,6 +24,8 @@ export function serializeFundedAwards(fundedAwards: Array<FundedAward>) : Array<
     return {
       name: fundedAward.award.name,
       playerId: fundedAward.player.id,
+      ...(fundedAward.paid !== undefined ? {paid: fundedAward.paid} : {}),
+      ...(fundedAward.waivedBy !== undefined ? {waivedBy: fundedAward.waivedBy} : {}),
     };
   });
 }
@@ -43,7 +51,7 @@ export function deserializeFundedAwards(
       console.error('Found duplicate award: ' + name);
       continue;
     } else {
-      filtered.push({name, playerId});
+      filtered.push({name, playerId, paid: fundedAward.paid, waivedBy: fundedAward.waivedBy});
       aw.add(name);
     }
   }
@@ -61,6 +69,11 @@ export function deserializeFundedAwards(
       throw new Error(`Player ${playerId} not found when rebuilding Funded Award ${awardName}`);
     }
 
-    return {award, player};
+    // An old save carries no price facts: the fields stay absent and the ladder prints the rules' price (PC01 · GO).
+    return {
+      award, player,
+      ...(element.paid !== undefined ? {paid: element.paid} : {}),
+      ...(element.waivedBy !== undefined ? {waivedBy: element.waivedBy} : {}),
+    };
   });
 }

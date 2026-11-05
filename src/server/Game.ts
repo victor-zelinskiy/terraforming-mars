@@ -1,3 +1,4 @@
+import {MaPrice} from '../common/ma/MaPrice';
 import * as constants from '../common/constants';
 import {altVenusBonusFor} from '../common/venus/altVenusBonus';
 import {automaModeFor, getAutomaMaxGeneration} from '../common/automa/AutomaTypes';
@@ -902,7 +903,7 @@ export class Game implements IGame, Logger {
     return 8 + (6 * this.fundedAwards.length);
   }
 
-  public fundAward(player: IPlayer, award: IAward): void {
+  public fundAward(player: IPlayer, award: IAward, price?: MaPrice): void {
     if (this.allAwardsFunded()) {
       throw new Error('All awards already funded');
     }
@@ -918,10 +919,17 @@ export class Game implements IGame, Logger {
       if (this.hasBeenFunded(award)) {
         throw new Error(award.name + ' cannot is already funded.');
       }
+      // What the slot WENT for is a server fact (PC01 · GO) — every seat's ladder reads it, never the rules' table.
       this.fundedAwards.push({
         award: award,
         player: player,
+        ...(price !== undefined ? {paid: price.price} : {}),
+        ...(price?.waivedBy !== undefined ? {waivedBy: price.waivedBy} : {}),
       });
+      if (price !== undefined) {
+        // The saving, inside the funding's own scope (the journal draws it under the root).
+        player.recordMaPriceWaiver(price);
+      }
     } finally {
       this.events.endScope();
     }

@@ -1,3 +1,4 @@
+import {MaPrice} from '../common/ma/MaPrice';
 import {PlayerId, isPlayerId} from '../common/Types';
 import type {IMilestone} from './milestones/IMilestone';
 import type {IAward} from './awards/IAward';
@@ -822,6 +823,10 @@ export interface IPlayer {
 
   /** Returns the cost a player must spend to claim a milestone. Public for Briber. */
   milestoneCost(): number;
+  /** The claim / funding price WITH ITS CAUSE — the table's price, the charge, the waiving card (PC01 · GO). */
+  maPriceOf(kind: 'milestone' | 'award'): MaPrice;
+  /** Record the saving of a waived price inside the caller's claim / funding scope (PC01 · GO). */
+  recordMaPriceWaiver(price: MaPrice): void;
 
   /** What funding the NEXT award costs this player (8/14/20, ± the card rules).
    *  Public so the player model can publish the live price the action charges. */

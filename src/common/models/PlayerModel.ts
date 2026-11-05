@@ -359,6 +359,13 @@ export type MaCostsModel = {
   milestone: number;
   award: number;
   /**
+   * PC01 · GO — THE PRICE NAMES ITS CAUSE: the table's price as if nothing waived it (`printed`) and the card that made
+   * the price 0 (`waiver` — Nirgal Enterprises for both kinds, Van Allen for a claim), both off the engine's ONE price
+   * function (`Player.maPriceOf`). Published only beside a waiver; the console never derives `printed` from constants.
+   */
+  printed?: {milestone: number; award: number};
+  waiver?: {milestone?: CardName; award?: CardName};
+  /**
    * THE BILL THE CLAIM / THE FUNDING WILL ASK (PL-1622 — Helion's heat, Stormcraft's floaters): per milestone / award
    * name not yet taken, the very `SelectPayment` the engine's deferred bill would raise
    * (`Player.milestonePayment` / `awardPayment` — ONE builder, `previewPaymentModel`), its `choiceContext` naming the

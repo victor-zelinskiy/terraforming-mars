@@ -1,3 +1,4 @@
+import {MaPrice} from '../common/ma/MaPrice';
 import * as constants from '../common/constants';
 import {PlayerId} from '../common/Types';
 import {MILESTONE_COST, REDS_RULING_POLICY_COST} from '../common/constants';
@@ -2455,6 +2456,8 @@ export class Player implements IPlayer {
     if (this.game.milestoneClaimed(milestone)) {
       throw new Error(milestone.name + ' is already claimed');
     }
+    // The price AS CHARGED, with its cause (PC01 · GO) — read at the press, like the bill below.
+    const price = this.maPriceOf('milestone');
 
     const recordClaim = () => {
       // Root the claim in an action scope so its log becomes a journal ROOT
@@ -2470,6 +2473,9 @@ export class Player implements IPlayer {
           player: this,
           milestone: milestone,
         });
+        // A WAIVED price is a saving the card made (PC01 · GO): ONE `discount-applied` inside the claim's own scope —
+        // the journal draws it under the root, «Ваши эффекты» counts the corporation's firing, the endgame sums it.
+        this.recordMaPriceWaiver(price);
         // VanAllen CEO Hook for Milestones
         const vanAllen = this.game.getCardPlayerOrUndefined(CardName.VANALLEN);
         if (vanAllen !== undefined) {
@@ -2533,26 +2539,60 @@ export class Player implements IPlayer {
     return stagedProtests?.generationUsed === this.game.generation;
   }
 
-  public milestoneCost() {
-    if (this.playedCards.has(CardName.VANALLEN) || this.playedCards.has(CardName.NIRGAL_ENTERPRISES)) {
-      return 0;
+  /**
+   * THE PRICE OF A CLAIM / A FUNDING WITH ITS CAUSE (PC01 Nirgal Enterprises · GO) — the ONE price function: the
+   * table's price (`printed` — the claim's 8, the award's climbing 8 / 14 / 20, Staged Protests' +8), what is charged
+   * (`price`) and the card that made it 0 (`waivedBy`), named by the very branch that returns the 0 — no second table
+   * of «who waives a price». `milestoneCost()` / `awardFundingCost()` are its `price`, byte for byte upstream's numbers.
+   * Read-only: no scope, no mutation. Briber's +12 and Merchant's reserve stay CONDITIONS on top (`milestonePayment`).
+   */
+  public maPriceOf(kind: 'milestone' | 'award'): MaPrice {
+    const surcharge = this.isStagedProtestsActive() ? 8 : 0;
+    if (kind === 'milestone') {
+      const printed = MILESTONE_COST + surcharge;
+      if (this.playedCards.has(CardName.VANALLEN)) {
+        return {printed, price: 0, waivedBy: CardName.VANALLEN};
+      }
+      if (this.playedCards.has(CardName.NIRGAL_ENTERPRISES)) {
+        return {printed, price: 0, waivedBy: CardName.NIRGAL_ENTERPRISES};
+      }
+      return {printed, price: printed};
     }
-    return this.isStagedProtestsActive() ? MILESTONE_COST + 8 : MILESTONE_COST;
+    const printed = this.game.getAwardFundingCost() + surcharge;
+    if (this.playedCards.has(CardName.NIRGAL_ENTERPRISES)) {
+      return {printed, price: 0, waivedBy: CardName.NIRGAL_ENTERPRISES};
+    }
+    return {printed, price: printed};
+  }
+
+  public milestoneCost() {
+    return this.maPriceOf('milestone').price;
   }
 
   // Public for tests.
   public awardFundingCost() {
-    if (this.playedCards.has(CardName.NIRGAL_ENTERPRISES)) {
-      return 0;
+    return this.maPriceOf('award').price;
+  }
+
+  /**
+   * The saving of a WAIVED price, recorded where the price would have been charged (PC01 · GO): one `discount-applied`
+   * naming the waiving card — called INSIDE the claim's / the funding's own scope, never in a preview.
+   */
+  public recordMaPriceWaiver(price: MaPrice): void {
+    if (price.waivedBy === undefined) {
+      return;
     }
-    const plus8 = this.isStagedProtestsActive() ? 8 : 0;
-    return this.game.getAwardFundingCost() + plus8;
+    const card = this.playedCards.get(price.waivedBy);
+    const kind = card?.type === CardType.CORPORATION ? 'corporation' : 'card';
+    this.game.events.recordDiscount(this, {kind, card: price.waivedBy, owner: this.color}, price.printed - price.price);
   }
 
   private fundAward(award: IAward): PlayerInput {
     return new SelectOption(award.name, 'Fund - ' + '(' + award.name + ')').andThen(() => {
+      // The price AS CHARGED, read before the funding moves the ladder (the bill below reads the same moment).
+      const price = this.maPriceOf('award');
       this.game.defer(this.awardPayment(award));
-      this.game.fundAward(this, award);
+      this.game.fundAward(this, award, price);
       return undefined;
     });
   }

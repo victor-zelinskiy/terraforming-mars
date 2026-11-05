@@ -1,3 +1,4 @@
+import {MaPrice} from '../common/ma/MaPrice';
 import {MarsBoard} from './boards/MarsBoard';
 import {CardName} from '../common/cards/CardName';
 import {ClaimedMilestone} from './milestones/ClaimedMilestone';
@@ -343,7 +344,8 @@ export interface IGame extends Logger {
   lastSoloGeneration(): number;
   isSoloModeWin(): boolean;
   getAwardFundingCost(): number;
-  fundAward(player: IPlayer, award: IAward): void;
+  /** `price` — what the funding charged and why (PC01 · GO); absent for a caller that states no price. */
+  fundAward(player: IPlayer, award: IAward, price?: MaPrice): void;
   hasBeenFunded(award: IAward): boolean;
   allAwardsFunded(): boolean;
   allMilestonesClaimed(): boolean;
