@@ -224,8 +224,10 @@ describe('StratosphericExpedition — premium', () => {
       expect(owner.cardsInHand.map((c) => c.name)).deep.eq([CardName.VENUSIAN_INSECTS, CardName.AERIAL_MAPPERS]);
     });
 
-    it('a MarsBot table refuses Prelude 2 today (§5 of the adaptation)', () => {
-      expect(() => testAutomaGame({venusNextExtension: true, prelude2Expansion: true})).to.throw(/does not support Prelude 2/);
+    it('a MarsBot table PLAYS Prelude 2 (the full inclusion, 2026-11-05) — the option is no conflict, its cards in the deck', () => {
+      const [game] = testAutomaGame({venusNextExtension: true, prelude2Expansion: true});
+      expect(game.gameOptions.prelude2Expansion).is.true;
+      expect([...game.projectDeck.drawPile, ...game.projectDeck.discardPile].map((c) => c.name)).to.include(CardName.STRATOSPHERIC_EXPEDITION);
     });
   });
 });
