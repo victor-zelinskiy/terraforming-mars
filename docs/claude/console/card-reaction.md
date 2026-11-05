@@ -669,6 +669,26 @@ trade registry (`tradeFlatBonuses`), paid by a bare `stock.add` outside any effe
     waits stay bounded, so a press that is no longer a cut can hang nothing. Guards: `cardReactionDirector.spec`
     § PL-1799; e2e `console-terraforming-deal` D (the sitting tells P64's +4 off its printed «2 M€»).
 
+## PC02 Palladin Shipping — THE TABLE'S ANSWER TO AN EVENT IS ONE PHRASE (2026-11-05, ledger GQ)
+
+44. **An event that pays FACE UP (P84 · DK) tells the table's answer BEFORE its lift, through the framework's ONE law —
+    never a second law «for events».** The order, each part started by the end of the previous one: ① the price leaves
+    its rail row (a rail resource — the row's delta chip, PL-163); ② the event pays its own rewards off its printed icons
+    (`payBackFromStandingCard`); ③ the table answers — `flyRailReward(…, heroAnswerFlight(…))` asks the ATTACHED flight
+    (law 6), the reactor rises (a corporation has no face on the hand's screen → the ONE stage of the layer, laws 5 / 42;
+    `payingFromStandingCard` gives no emergence), ONE token per unit born on the REACTOR's printed effect row (law 4 — the
+    woken tag of the standing card is marked, not a birth place), landing on its row, the row ticking on the touchdown;
+    ④ only then the lift, the arc with the turn and the landing face down (`surfaceClear`). Proven by frames, not built:
+    the «before» of `console-palladin-shipping` B / B2 / B3 found every part in order (one teller, births all in
+    `shipping`, the touchdown before `paid`, the lift after it, two reactors in turn) — the A5 hypotheses of the prompt
+    struck by name in GQ.
+45. **A CUT IN THE RECEDE OWNS THE FACES** (PL-1839). A second press past the gesture window during the recede cuts the
+    chain: the cut unseats every face and clears every declaration synchronously, and its `killReactorTweens` resolves the
+    recede through `onInterrupt` — so the recede's continuation ran BEFORE Vue's flush and its settle check read the
+    chain's OWN face, still painted, as a foreign one (`[reaction] foreign face — foreign-face … at settle:…`, red on every
+    spec). `recede` captures the epoch and leaves without the settle check when a cut took it. jsdom paints no face (zero
+    rects), so the witness is the e2e (B / B2 / H red «before», green «after»).
+
 ## Files
 
 Server: `common/models/CardReactionModel.ts`, `server/events/EventRecorder.ts` (`recordReaction`, the `cause`

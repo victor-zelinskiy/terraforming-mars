@@ -166,6 +166,13 @@ a beat after the wave. The forecast twin states ONE fact per matching printed ta
 per cause on the landed card's printed tag (`heroTagOrigin`), the row ticking on each touchdown. What no visible cause
 covers (a party's share) ticks at the beat, as before.
 
+**A price and an answer on ONE row** (PC02 Palladin Shipping · GQ, A6): a space event paid with titanium answers with
+titanium. The play's price rides `RailReward.known` on the SAME row the reactor's token lands on (`actionKnownRailMoves`
+with `paid`), so `verifyRailReward` holds «5 → 3» as −3 price + 1 answer and the row reads «5 → 2» at the commit (the
+price is the row's delta chip — the PL-163 law for a rail resource) and «2 → 3» on the answer's touchdown, never one jump;
+an unexplained difference on that row still holds nothing and names itself (`tests/console/playRailRule.spec.ts`
+§ Palladin; e2e `console-palladin-shipping` B).
+
 ## 3a. The rail half's seed — owed is not refused; every road seeds; the verdict is in the trail (T09)
 
 - **A view that has paid NOTHING of the promise yet is OWED, not wrong** (`railRewardOwed`): a poll / WS frame applied
