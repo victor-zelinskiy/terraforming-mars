@@ -130,6 +130,10 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     name: 'Corporate Competition (Terra Cimmeria)',
     text: 'With 5+ M€, MarsBot pushes the old Terra Cimmeria award race it is closest to being ahead on, then loses 5 M€.',
   },
+  [BonusCardId.BF4_CORPORATE_COMPETITION_ARABIA_TERRA]: {
+    name: 'Corporate Competition (Arabia Terra)',
+    text: 'With 5+ M€, MarsBot pushes the Arabia Terra award race it is closest to being ahead on, then loses 5 M€.',
+  },
   // ── The fork's own corporations' cards (BC-prefix) ──
   [BonusCardId.BC1_FIELD_PRACTICE]: {
     name: 'Field Practice',
@@ -453,6 +457,23 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'delegate', text: 'T. Politician sends a delegate to a resolution (only with the Mars Parliament)', muted: true},
         {icon: 'greenery', text: 'Urbanist places a greenery next to one of its cities', muted: true},
         {icon: 'cards', text: 'Warmonger reveals project cards until one attacks other players and resolves it', muted: true},
+        ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
+        {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
+        {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
+      ],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.BF4_CORPORATE_COMPETITION_ARABIA_TERRA:
+    // The fork's own face for the fan-made Arabia Terra (§21.6): Botanist / Zoologist / Promoter their official
+    // tracks, A. Manufacturer → a reveal until a blue card; Cosmic Settler has no helper (the official Politician's
+    // line), so it is not listed among the pushes.
+    return {
+      name,
+      lines: [
+        {icon: 'award', text: 'With 5+ M€: MarsBot pushes the award race it is closest to leading'},
+        {icon: 'tile', text: 'Botanist and Zoologist advance the animal track; Promoter the event track'},
+        {icon: 'cards', text: 'A. Manufacturer reveals project cards until a blue one and resolves it', muted: true},
+        {icon: 'city', text: 'Cosmic Settler has no push — MarsBot moves on to the next award', muted: true},
         ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
         {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
         {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},

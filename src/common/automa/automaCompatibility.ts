@@ -115,6 +115,9 @@ export const AUTOMA_SUPPORTED_BOARDS: ReadonlyArray<BoardName> = [
   // The OLD, fan-made Terra Cimmeria — the third home-made board (2026-11-03; §2h / §19). Not the official map
   // (`TERRA_CIMMERIA_NOVA`, B12 above): the same geography, another milestone / award row.
   BoardName.TERRA_CIMMERIA,
+  // The fan-made Arabia Terra — the fourth home-made board (2026-11-05; §2i / §21): coves and the Pathfinders-style
+  // cell bonuses.
+  BoardName.ARABIA_TERRA,
 ];
 
 /** «tharsis, hellas and elysium» — the list read out in the rejection reason. */

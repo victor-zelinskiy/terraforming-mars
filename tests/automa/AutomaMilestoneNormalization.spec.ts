@@ -85,6 +85,9 @@ const BOT_METRIC: ReadonlyArray<string> = [
   'T. Collector', // sets of green / blue / red cards in the PLAYED PILE ↔ in play (Legend / Tycoon's container)
   'Firestarter', // Earth (heat-badged) track 8 ↔ 20 heat (Fundraiser's calibration)
   'T. Spacefarer', // Space track 6 ↔ 6 space tags (the N ↔ N law)
+  // Arabia Terra, the FAN map (docs/AUTOMA_DATA_AUDIT.md §21.2).
+  'Economizer', // Power track 5 ↔ 5 heat production (Thermalist's association, Energizer's calibration)
+  'Martian', // Mars tags printed in the PLAYED PILE ↔ Mars tags in play
 ];
 
 /** Milestones the bot meets with the PLAYER's own metric — nothing to rescale. */
@@ -135,6 +138,10 @@ const SHARED_NAMES: ReadonlyMap<string, string> = new Map([
   ['Promoter', 'Vastitas Borealis Nova + Amazonis (fan): the event track on both'],
   ['A. Zoologist', 'Terra Cimmeria Nova + Amazonis (fan): bio + 5 on both'],
   ['Incorporator', 'Utopia Planitia + Terra Cimmeria (fan): cards ≤ 10 M€ in the played pile, events included, on both'],
+  ['Pioneer', 'Utopia Planitia + Arabia Terra (fan): unchanged — real colonies; the free colony cell on space 5 on both'],
+  ['Land Specialist', 'Utopia Planitia + Arabia Terra (fan): 3 destroyed bonus cards on both'],
+  ['Terran', 'Amazonis (fan) + Arabia Terra (fan): the City/Earth track at 6 on both'],
+  ['Botanist', 'Utopia Planitia + Arabia Terra (fan): bio − 2 on both'],
 ]);
 
 const SCOPE: ReadonlyArray<string> = [...BOT_METRIC, ...PLAYER_METRIC];
@@ -169,6 +176,8 @@ function supportedGames(): Array<[string, IGame, IPlayer]> {
     ['Amazonis (fan)+Venus+Colonies', {boardName: BoardName.AMAZONIS, venusNextExtension: true, coloniesExtension: true}],
     ['Terra Cimmeria (fan)', {boardName: BoardName.TERRA_CIMMERIA}],
     ['Terra Cimmeria (fan)+Venus+Colonies', {boardName: BoardName.TERRA_CIMMERIA, venusNextExtension: true, coloniesExtension: true}],
+    ['Arabia Terra (fan)', {boardName: BoardName.ARABIA_TERRA}],
+    ['Arabia Terra (fan)+Venus+Colonies', {boardName: BoardName.ARABIA_TERRA, venusNextExtension: true, coloniesExtension: true}],
   ];
   return combos.map(([label, options], i) => {
     const [game, /* human */, bot] = testAutomaGame(options, `-norm-${i}`);
@@ -195,6 +204,8 @@ function sweepBotState(game: IGame, bot: IPlayer, k: number): void {
     // Blue — the old Terra Cimmeria's T. Collector counts SETS of the three colours, so the pile must hold all three
     // or its weakest colour pins it at 0 and the criterion never crosses its threshold.
     ...new Array<CardName>(k).fill(CardName.AQUIFER_PUMPING), // blue
+    // A Mars-tagged card — Arabia Terra's Martian counts the PRINTED Mars tags of the pile.
+    ...new Array<CardName>(k).fill(CardName.LOBBYING_CAMPAIGN),
   ];
   // Utopia's Specialist reads the DESTROYED bonus pile — a quantity nothing
   // else in the sweep touches, so without this its criterion could never cross

@@ -313,6 +313,8 @@ export enum BonusCardId {
   BF2_CORPORATE_COMPETITION_AMAZONIS = 'BF2',
   // The fork's own Corporate Competition for the OLD (fan) Terra Cimmeria (`BoardName.TERRA_CIMMERIA`), 2026-11-03 — §19.6.
   BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN = 'BF3',
+  // The fork's own Corporate Competition for the fan-made Arabia Terra (`BoardName.ARABIA_TERRA`), 2026-11-05 — §21.6.
+  BF4_CORPORATE_COMPETITION_ARABIA_TERRA = 'BF4',
   // THE FORK'S OWN CORPORATIONS' cards (BC-prefix — BF is the fan MAPS' series): CF1 Ferrus Academy's recurring card.
   BC1_FIELD_PRACTICE = 'BC1',
   // CF2 Veynon Dynamics' third fleet's voyage.

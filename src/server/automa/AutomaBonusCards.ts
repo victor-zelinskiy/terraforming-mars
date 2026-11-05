@@ -265,6 +265,7 @@ function resolveBonusCardEffect(game: IGame, id: BonusCardId): BonusCardOutcome 
   case BonusCardId.BF1_CORPORATE_COMPETITION_VASTITAS_FAN:
   case BonusCardId.BF2_CORPORATE_COMPETITION_AMAZONIS:
   case BonusCardId.BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN:
+  case BonusCardId.BF4_CORPORATE_COMPETITION_ARABIA_TERRA:
     // One card, one resolver: the map only swaps the helper-action list.
     return corporateCompetition(game);
   case BonusCardId.B16_GOVERNMENT_INTERVENTION: return governmentIntervention(game);
@@ -1006,6 +1007,20 @@ function tryAwardHelper(game: IGame, awardName: string): boolean {
     // project deck until a card that reduces other players' resources or production, resolve it» — the award's own
     // predicate (`Warmonger.include`) decides, so the two readings cannot drift.
     return revealUntilAndResolve(game, (card) => Warmonger.include(card));
+  // ── Arabia Terra, the fan map (BF4 — the fork's own card, §21.6) ─────────
+  // Botanist and Promoter stand here under their official helpers above.
+  case 'Zoologist':
+    // OFFICIAL (Adding Expansions p.16): «Zoologist — Advance the [bio] track» (B12's A. Zoologist helper).
+    return advanceRole('bio');
+  case 'A. Manufacturer':
+    // HOME RULE — Magnate's helper for the other colour: «reveal cards from the project deck until a BLUE card is
+    // revealed, resolve it, discard the rest».
+    return revealUntilAndResolve(game, (card) => card.type === CardType.ACTIVE);
+  case 'Cosmic Settler':
+    // NO HELPER — the official Politician's line («This award has no corresponding competition effect to resolve»,
+    // p.16): the only thing that raises the bot's reading is a card placing a city off Mars, and a reveal-until for
+    // a handful of cards in the whole deck would burn it. Impossible ⇒ the card tries the next funded award.
+    return false;
   // ── Venus Next: added to ALL versions of the card ─────────────────────────
   case 'Venuphile': return advanceRole('venus');
   default:

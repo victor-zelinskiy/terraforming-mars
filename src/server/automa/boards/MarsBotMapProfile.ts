@@ -15,6 +15,7 @@ import {VASTITAS_BOREALIS_MARSBOT_BOARD, VASTITAS_VENUS_TRACK} from './VastitasB
 import {VASTITAS_FAN_MARSBOT_BOARD} from './VastitasBorealisFanMarsBot';
 import {AMAZONIS_MARSBOT_BOARD} from './AmazonisMarsBot';
 import {TERRA_CIMMERIA_FAN_MARSBOT_BOARD} from './TerraCimmeriaFanMarsBot';
+import {ARABIA_TERRA_MARSBOT_BOARD} from './ArabiaTerraMarsBot';
 
 /**
  * THE MAP PROFILE — everything that differs between MarsBot boards, and nothing
@@ -339,9 +340,25 @@ const TERRA_CIMMERIA_FAN_PROFILE: MarsBotMapProfile = {
   // The shared Venus row: the microbe tag lives on the bio row here.
 };
 
+/**
+ * ARABIA TERRA (`ARABIA_TERRA`) — the fourth HOME-MADE profile (Economizer … Terran / Cosmic Settler … A. Manufacturer;
+ * coves, data / science / energy-production cell bonuses). Seven of its ten names already carry a bot rule from
+ * another map; the rest are the fork's rules, every one marked. Design: docs/AUTOMA_DATA_AUDIT.md §2i / §21.
+ */
+const ARABIA_TERRA_PROFILE: MarsBotMapProfile = {
+  boardName: BoardName.ARABIA_TERRA,
+  tracks: ARABIA_TERRA_MARSBOT_BOARD,
+  corporateCompetition: BonusCardId.BF4_CORPORATE_COMPETITION_ARABIA_TERRA,
+  // The base pair. No criterion of this row counts WHERE the bot's tiles stand (Land Specialist is the bot's destroyed
+  // bonus cards, Cosmic Settler its played pile), so the map adds no step of its own. A COVE needs none either: it is
+  // a legal cell for an ocean and for a land tile alike, and the two steps read it like any other hex.
+  placementTiebreakers: [OCEAN_ADJACENCY, REWARD_ICONS],
+  // The shared Venus row: the microbe tag lives on the bio row here.
+};
+
 const PROFILES: ReadonlyArray<MarsBotMapProfile> =
   [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE, TERRA_CIMMERIA_PROFILE, VASTITAS_BOREALIS_PROFILE, VASTITAS_FAN_PROFILE, AMAZONIS_PROFILE,
-    TERRA_CIMMERIA_FAN_PROFILE];
+    TERRA_CIMMERIA_FAN_PROFILE, ARABIA_TERRA_PROFILE];
 
 /** Every board MarsBot can be played on. */
 export const MARSBOT_BOARDS: ReadonlyArray<BoardName> = PROFILES.map((p) => p.boardName);

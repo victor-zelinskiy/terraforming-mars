@@ -10,6 +10,7 @@ import {IProjectCard} from '../cards/IProjectCard';
 import {Founder} from '../awards/modular/Founder';
 import {AmazonisEngineer} from '../awards/amazonisPlanitia/AmazonisEngineer';
 import {Warmonger} from '../awards/terraCimmeria/Warmonger';
+import {CosmicSettler} from '../awards/arabiaTerra/CosmicSettler';
 import {isSpecialTileSpace} from '../boards/Board';
 import {TileType} from '../../common/TileType';
 import {newProjectCard} from '../createCard';
@@ -115,6 +116,18 @@ function botPlayedPile(game: IGame, matches: (card: IProjectCard) => boolean): n
     }
   }
   return count;
+}
+
+/** A per-card QUANTITY summed over MarsBot's played pile (printed tags of one kind, …) — the pile's other reading. */
+function botPlayedPileSum(game: IGame, amount: (card: IProjectCard) => number): number {
+  let sum = 0;
+  for (const name of game.automa?.playedPile ?? []) {
+    const card = newProjectCard(name);
+    if (card !== undefined) {
+      sum += amount(card);
+    }
+  }
+  return sum;
 }
 
 /** Green (automated) project cards in MarsBot's played pile. */
@@ -365,6 +378,23 @@ export class AutomaMAEvaluation {
       // HOME RULE by the N ↔ N law of a single-tag track (Spacefarer 4 space tags ↔ space 4, p.14): 6 space tags ↔
       // the space track at 6 — Space stands alone on every board.
       return {value: trackPosition(game, 'space'), target: 6};
+    // ── Arabia Terra, the fan map (docs/AUTOMA_DATA_AUDIT.md §21.2) ─────────
+    // Pioneer and Land Specialist stand here under Utopia Planitia's official rules, Terran under Amazonis' (the same
+    // milestones, by name).
+    case 'Economizer':
+      // HOME RULE (the owner's answer, 2026-11-05): «5 heat production» ↔ the POWER track at 5. The heat badge lives
+      // on the earth row, which Terran already reads on this map (two criteria never share a track), so the criterion
+      // takes the association the official Thermalist prints — heat ↔ the energy track (B08) — and Energizer's
+      // calibration on a Power-alone track (6 energy production ↔ space 6): N ↔ N.
+      return {value: trackPosition(game, 'power'), target: 5};
+    case 'Martian':
+      // HOME RULE, «as usual» in the bot's container: «4 Mars tags in play» read off its PLAYED PILE — the printed
+      // Mars tags of the cards it resolved (the board has no Mars track: the tag itself is flipped by the home rule
+      // `AUTOMA_FLIP_TAGS`, but the card stays a Mars card). Legend / Tycoon's official «As usual (… in played pile)».
+      return {
+        value: botPlayedPileSum(game, (card) => card.tags.filter((tag) => tag === Tag.MARS).length),
+        target: printedTarget(milestone, game, 4),
+      };
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Hoverlord': // Unchanged: 7 floater resources (Adding Expansions p.2).
       return {value: game.automa?.floaters ?? 0, target: 7};
@@ -659,6 +689,25 @@ export class AutomaMAEvaluation {
       // HOME RULE: «most cards in play that reduce other players' resources or production, events included» read off
       // the bot's PLAYED PILE (it has no tableau) through the award's own predicate, so the readings cannot drift.
       score = botPlayedPile(game, (card) => Warmonger.include(card));
+      break;
+    // ── Arabia Terra, the fan map (docs/AUTOMA_DATA_AUDIT.md §21.3) ─────────
+    // Botanist (bio − 2, Utopia's official) and Promoter (the event track, official) stand here under the cases they
+    // already have.
+    case 'Zoologist':
+      // OFFICIAL (Adding Expansions p.15): «Zoologist — [bio] track space +5» — the rule Terra Cimmeria's A. Zoologist
+      // carries under its own name.
+      score = trackPosition(game, 'bio') + 5;
+      break;
+    case 'A. Manufacturer':
+      // HOME RULE, «as usual» in the bot's container: «most active (blue) cards in play» read off its PLAYED PILE —
+      // Magnate's official shape («As usual (blue and green cards in played pile)», p.15), the blue half.
+      score = botPlayedPileCount(game, CardType.ACTIVE);
+      break;
+    case 'Cosmic Settler':
+      // HOME RULE: «most cities not on Mars» — the bot's cities come off its track icons, always on Mars, so the
+      // player's metric would read 0 for ever. Its off-Mars cities are the CARDS that place one, in its played pile
+      // (Ganymede Colony, Phobos Space Haven, …) — the award's own co-located predicate.
+      score = botPlayedPile(game, (card) => CosmicSettler.placesCityOffMars(card));
       break;
     // ── Venus Next ───────────────────────────────────────────────────────────
     case 'Venuphile': // Venus track position (Adding Expansions p.3).

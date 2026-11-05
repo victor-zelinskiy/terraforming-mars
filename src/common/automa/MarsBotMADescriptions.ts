@@ -53,6 +53,9 @@ export const MARSBOT_MILESTONE_DESCRIPTIONS: Partial<Record<MilestoneName, strin
   'Minimalist': 'At most 2 cards left in the action deck',
   'Terran': 'Earth track \u2265 6',
   'Tropicalist': 'Tiles in the equatorial rows (unchanged)',
+  // Arabia Terra, the fan map (docs/AUTOMA_DATA_AUDIT.md §21.2) — Pioneer, Land Specialist and Terran as above
+  'Economizer': 'Power track \u2265 5',
+  'Martian': 'Mars tags in the played pile (unchanged)',
   // The OLD (fan) Terra Cimmeria (docs/AUTOMA_DATA_AUDIT.md §19.2)
   'T. Collector': 'Sets of green, blue and red cards in the played pile (unchanged)',
   'Firestarter': 'Earth (heat) track ≥ 8',
@@ -123,6 +126,10 @@ export const MARSBOT_AWARD_DESCRIPTIONS: Partial<Record<AwardName, string>> = {
   'Curator': 'Most-advanced track',
   'A. Engineer': 'Production cards in the played pile',
   'Tourist': 'Empty areas beside its tiles (unchanged)',
+  // Arabia Terra, the fan map (docs/AUTOMA_DATA_AUDIT.md §21.3) — Botanist and Promoter as above
+  'Zoologist': 'Bio track + 5',
+  'A. Manufacturer': 'Blue cards in the played pile',
+  'Cosmic Settler': 'Cards placing a city off Mars in the played pile',
   // The OLD (fan) Terra Cimmeria (docs/AUTOMA_DATA_AUDIT.md §19.3) — Incorporator as above
   'Biologist': 'Bio track + 5',
   'T. Politician': 'Delegates it placed (unchanged)',
