@@ -323,6 +323,6 @@
     "Earth lobbyists": "Лоббисты на Земле",
     "${0} VP per ${1} cards with an Earth tag the other players played": "${0} ПО за каждые ${1} карты с меткой Земли, сыгранные другими игроками",
     "Cards with an Earth tag the other players played": "Карты с меткой Земли у других игроков",
-    "Moon bases": "Базы на лунах",
-    "Jovian tags in MarsBot's played pile": "метки Юпитера"
+    "No weak spots": "Без слабых мест",
+    "Space number of MarsBot's least advanced track": "номер клетки самого отстающего трека Бота"
 }

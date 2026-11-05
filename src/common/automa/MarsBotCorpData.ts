@@ -1572,8 +1572,8 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       {kind: 'draftPriority', lines: [{text: 'Least-advanced track'}]},
       {kind: 'setup', lines: [
         {text: 'This corporation is only used in a game with Turmoil Redux', muted: true},
-        {icon: 'delegate', text: 'MarsBot has +${0} influence', params: ['2']},
         {icon: 'delegate', text: 'MarsBot sends ${0} delegate from its reserve to the resolution it is closest to winning', params: ['1']},
+        {icon: 'journalism', text: 'Place ${0} rumour on this card', params: ['1']},
       ]},
       {kind: 'effect', lines: [
         {icon: 'journalism', text: 'Each vote MarsBot does not win puts ${0} rumour on this card', params: ['1']},

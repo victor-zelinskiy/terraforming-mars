@@ -700,8 +700,9 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.CF9_DEIMOS_GROUP);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Before action phase']);
     const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
-    expect(text, 'the influence').contains('+2 influence');
     expect(text, 'the rumours').contains('rumour');
+    // The human card's +2 influence is not carried over (the owner, 2026-11-05).
+    expect(text).not.match(/influence/i);
     expect(text, 'the hidden project').contains('least advanced track');
     expect(text, 'the module').contains('Turmoil Redux');
     // The human The Deimos Group starts with 50 M€ and ignores party requirements — not printed here.

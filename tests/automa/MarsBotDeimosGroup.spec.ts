@@ -8,7 +8,7 @@ import {IGame} from '../../src/server/IGame';
 import {IPlayer} from '../../src/server/IPlayer';
 import {Game} from '../../src/server/Game';
 import {AutomaCorporations} from '../../src/server/automa/corps/AutomaCorporations';
-import {INFLUENCE_BONUS, RUMOURS_PER_LOSS, SETUP_DELEGATES} from '../../src/server/automa/corps/MarsBotDeimosGroup';
+import {RUMOURS_PER_LOSS, SETUP_DELEGATES, SETUP_RUMOURS} from '../../src/server/automa/corps/MarsBotDeimosGroup';
 import {TheDeimosGroup} from '../../src/server/cards/turmoilRedux/TheDeimosGroup';
 import {TestPlayer} from '../TestPlayer';
 import {seatQuiet, settleParliamentGates} from '../parliament/parliamentArrange';
@@ -54,13 +54,16 @@ describe('MarsBot The Deimos Group (CF9, the fork\'s own card) — «the Conspir
     });
   });
 
-  describe('SETUP — the human card\'s influence and first delegate', () => {
-    it('+2 influence under the card\'s name, one delegate from the reserve on a resolution', () => {
+  describe('SETUP — the first delegate and the rumour that precedes the group', () => {
+    it('one delegate from the reserve on a resolution, a rumour on the card (spent at once by the before-action box), no influence bonus', () => {
       const [game, , bot] = deimosGame('-dg-setup');
       const parliament = game.parliament!;
-      expect(parliament.influenceSourcesOf(bot)).deep.contains({amount: INFLUENCE_BONUS, source: 'The Deimos Group'});
       expect(game.automa!.corpStats.deimosSetupDelegates).eq(SETUP_DELEGATES);
-      expect(parliament.votesOf(bot), 'the delegate stands on a resolution').to.be.at.least(SETUP_DELEGATES);
+      expect(parliament.votesOf(bot), 'the delegates stand on a resolution').to.be.at.least(SETUP_DELEGATES);
+      // The setup's rumour is spent by the before-action-phase box the shared gate runs right after the setup.
+      expect(game.automa!.corpStats.deimosPushes ?? 0).to.be.at.least(SETUP_RUMOURS);
+      // The human card's +2 influence is NOT carried over (the owner, 2026-11-05).
+      expect(parliament.influenceSourcesOf(bot).filter((e) => e.source === 'The Deimos Group')).deep.eq([]);
     });
   });
 
@@ -135,20 +138,21 @@ describe('MarsBot The Deimos Group (CF9, the fork\'s own card) — «the Conspir
   });
 
   describe('the dividend, its goal, save / load', () => {
-    it('«Earth lobbyists»: 4 VP per 3 Earth cards of the other players; the goal counts Jovian tags; the rumours survive a save', () => {
+    it('«Earth lobbyists»: 4 VP per 3 Earth cards of the other players; the goal reads the least advanced track; the rumours survive a save', () => {
       const [game] = deimosGame('-dg-div');
       const r = marsBotDividendInfo(CF9).rates;
       expect(r.each).eq(4);
       expect(r.per).eq(3);
-      const goal = corp().goal(game);
-      game.automa!.playedPile.push(CardName.IO_MINING_INDUSTRIES); // Jovian + space
-      game.automa!.playedPile.push(CardName.MINE); // building
-      expect(corp().goal(game)).eq(goal + 1);
+      const tracks = game.automa!.board.tracks;
+      for (const track of tracks) {
+        track.position = Math.min(6, track.maxPosition);
+      }
+      tracks[0].position = 2;
+      expect(corp().goal(game), 'the weakest spot').eq(2);
       game.automa!.corpResources = 3;
       const copy = Game.deserialize(game.serialize());
       expect(copy.automa!.corpResources).eq(3);
       expect(copy.automa!.corporation).eq(CF9);
-      expect(copy.parliament!.influenceSourcesOf(copy.players.find((pl) => pl.isMarsBot === true)!)).deep.contains({amount: INFLUENCE_BONUS, source: 'The Deimos Group'});
     });
   });
 });

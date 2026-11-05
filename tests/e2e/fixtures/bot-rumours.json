@@ -634,7 +634,7 @@
    "Tharsis Republic"
   ]
  },
- "createdTimeMs": 1793872608864,
+ "createdTimeMs": 1793895520338,
  "currentSeed": 860835932110,
  "deferredActions": [],
  "donePlayers": [],
@@ -644,7 +644,7 @@
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
- "gameAge": 12,
+ "gameAge": 14,
  "gameLog": [
   {
    "message": "First player this generation is ${0}",
@@ -654,7 +654,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1793872608864
+   "timestamp": 1793895520338
   },
   {
    "message": "Good luck ${0}!",
@@ -664,7 +664,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1793872608865,
+   "timestamp": 1793895520339,
    "playerId": "p-player1-id"
   },
   {
@@ -675,7 +675,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1793872608865,
+   "timestamp": 1793895520339,
    "type": 1
   },
   {
@@ -690,7 +690,7 @@
      "value": "ThorGate"
     }
    ],
-   "timestamp": 1793872608865,
+   "timestamp": 1793895520339,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -712,7 +712,7 @@
      "value": "energy"
     }
    ],
-   "timestamp": 1793872608865,
+   "timestamp": 1793895520339,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -729,7 +729,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1793872608865,
+   "timestamp": 1793895520339,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -746,32 +746,11 @@
      "value": "The Deimos Group"
     }
    ],
-   "timestamp": 1793872608865,
+   "timestamp": 1793895520340,
    "correlationId": 4,
    "parentId": 4,
    "role": "root-action",
    "category": "corporation-action"
-  },
-  {
-   "message": "${0} has +${1} influence from its corporation ${2}",
-   "data": [
-    {
-     "type": 2,
-     "value": "red"
-    },
-    {
-     "type": 1,
-     "value": "2"
-    },
-    {
-     "type": 0,
-     "value": "The Deimos Group"
-    }
-   ],
-   "timestamp": 1793872608865,
-   "correlationId": 4,
-   "parentId": 5,
-   "role": "effect-result"
   },
   {
    "message": "${0} sent a delegate from the reserve to ${1}",
@@ -785,7 +764,7 @@
      "value": "RDX_UNITY_COLONY_CONTEST"
     }
    ],
-   "timestamp": 1793872608866,
+   "timestamp": 1793895520340,
    "correlationId": 4,
    "parentId": 5,
    "role": "effect-result"
@@ -802,7 +781,28 @@
      "value": "RDX_UNITY_COLONY_CONTEST"
     }
    ],
-   "timestamp": 1793872608866,
+   "timestamp": 1793895520341,
+   "correlationId": 4,
+   "parentId": 5,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} put ${1} rumour(s) on its corporation ${2}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 0,
+     "value": "The Deimos Group"
+    }
+   ],
+   "timestamp": 1793895520341,
    "correlationId": 4,
    "parentId": 5,
    "role": "effect-result"
@@ -819,10 +819,44 @@
      "value": "mars"
     }
    ],
-   "timestamp": 1793872608866,
+   "timestamp": 1793895520341,
    "correlationId": 4,
    "parentId": 4,
    "role": "detail"
+  },
+  {
+   "message": "${0} spent a rumour from its corporation ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 0,
+     "value": "The Deimos Group"
+    }
+   ],
+   "timestamp": 1793895520341,
+   "correlationId": 6,
+   "parentId": 6,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} sent a delegate from the reserve to ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONY_CONTEST"
+    }
+   ],
+   "timestamp": 1793895520341,
+   "correlationId": 6,
+   "parentId": 6,
+   "role": "effect-result"
   }
  ],
  "gameEvents": [
@@ -938,9 +972,28 @@
     "passive-effect"
    ],
    "parentId": 4
+  },
+  {
+   "id": 6,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 6,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "The Deimos Group",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "automa-corporation",
+   "tags": [
+    "passive-effect"
+   ]
   }
  ],
- "eventSeq": 5,
+ "eventSeq": 6,
  "gameOptions": {
   "altVenusBoard": false,
   "aresExtension": false,
@@ -1032,7 +1085,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Active Neutron Surge",
+ "name": "Residual Matter Field",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1131,10 +1184,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1793872608865,
+    "startedAt": 1793895520339,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1793872608865
+    "lastStoppedAt": 1793895520339
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1227,11 +1280,11 @@
     "startedAt": 0,
     "running": false,
     "afterFirstAction": false,
-    "lastStoppedAt": 1793872608865
+    "lastStoppedAt": 1793895520339
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],
-   "totalDelegatesPlaced": 1,
+   "totalDelegatesPlaced": 2,
    "underworldData": {
     "corruption": 0,
     "tokens": []
@@ -1663,7 +1716,7 @@
   "difficulty": "normal",
   "tracks": [
    {
-    "position": 0,
+    "position": 1,
     "regressed": []
    },
    {
@@ -1767,7 +1820,9 @@
   "corporation": "CF9",
   "corpResources": 2,
   "corpStats": {
-   "deimosSetupDelegates": 1
+   "deimosSetupDelegates": 1,
+   "deimosDelegates": 1,
+   "deimosPushes": 1
   },
   "corpBapGeneration": 1,
   "corpRoundStartGeneration": 0
@@ -1785,6 +1840,10 @@
      {
       "owner": "p-game-id-marsbot",
       "seq": 1
+     },
+     {
+      "owner": "p-game-id-marsbot",
+      "seq": 2
      }
     ]
    },
@@ -1809,17 +1868,10 @@
    "p-player1-id",
    "p-game-id-marsbot"
   ],
-  "voteSeq": 1,
+  "voteSeq": 2,
   "popularSupport": {},
   "agenda": {},
-  "influenceBonus": {
-   "p-game-id-marsbot": [
-    {
-     "amount": 2,
-     "source": "The Deimos Group"
-    }
-   ]
-  },
+  "influenceBonus": {},
   "grantedEffects": {},
   "partyActionUses": {},
   "resolutionActionUses": {},

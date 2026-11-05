@@ -10,18 +10,16 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
 import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
-import {otherPlayersCardsWithTag, pileTagCount} from './MarsBotDividendReads';
+import {matTracks, otherPlayersCardsWithTag} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.CF9_DEIMOS_GROUP);
 
-/** SETUP — «You have +2 influence» (the human card's own number; every law MarsBot is paid by reads it, D16). */
-export const INFLUENCE_BONUS = 2;
 /** SETUP — the human card's first action: one delegate to a resolution. */
 export const SETUP_DELEGATES = 1;
+/** SETUP — the rumour that precedes the group (in place of the human card's +2 influence — the owner, 2026-11-05). */
+export const SETUP_RUMOURS = 1;
 /** EFFECT — rumours per vote MarsBot does not win. */
 export const RUMOURS_PER_LOSS = 1;
-/** The name the influence ledger keeps the bonus under (the human card's own entry name). */
-const INFLUENCE_SOURCE = 'The Deimos Group';
 
 /**
  * Nested pushes in flight (a space can open a cascade) — the depth the shared runaway guard reads, kept in the
@@ -33,14 +31,16 @@ let pushDepth = 0;
  * MarsBot The Deimos Group — CF9, the FORK'S OWN bot card (the owner, 2026-11-05) for the Turmoil Redux corporation
  * TR83. «The Conspiracy Theory» — the owner chose it over a blackmail file that sends a human's delegate home and a
  * puppet master whose every won vote adds influence: the villain of every conspiracy theory feeds on its DEFEATS. The
- * human card's +2 influence and first-action delegate carry over as they are; its party-requirement waiver has nothing
- * to say to MarsBot, which ignores every requirement anyway (RB-B).
+ * human card's first-action delegate carries over; its +2 influence does NOT (the owner, 2026-11-05: «не нравится что у
+ * бота сразу +2 влияния, лучше отбалансить другим инструментом») — a rumour on the card stands in its place; its
+ * party-requirement waiver has nothing to say to MarsBot, which ignores every requirement anyway (RB-B).
  *
  *   MODULE               Turmoil Redux — the Mars Parliament.
  *   STARTING TAG         Mars (no track of its own on the mat — the flip home rule resolves it).
  *   DRAFT PRIORITY       Least-advanced track — the track the hidden project feeds.
- *   SETUP                MarsBot has +2 influence (one entry of the influence ledger, under the card's name). MarsBot
- *                        sends 1 delegate from its reserve to the resolution it is closest to winning.
+ *   SETUP                MarsBot sends 1 delegate from its reserve to the resolution it is closest to winning, and
+ *                        puts 1 rumour on this card — the reputation that precedes the group (spent by the
+ *                        before-action-phase box, which the shared gate also runs right after setup).
  *   EFFECT               Each vote MarsBot does not win puts 1 rumour on this card — at the sitting itself
  *                        (`onVoteDecided`, guarded by the sitting's number); a neutral winner is a lost vote too.
  *   BEFORE ACTION PHASE  For each rumour here, MarsBot spends it: it sends a delegate from its reserve to the
@@ -56,8 +56,11 @@ let pushDepth = 0;
  * wins 35 % of the votes and walks 4.7 Agenda steps, the owner's real games' median 4 — §20). Politics alone stays
  * weak: rumours → delegates only 90.0 (C38 99.3 under the same driver); +6 influence and two delegates a loss 97.3;
  * influence that grows with every rumour 95.9. **Each rumour → a delegate AND a push of the least advanced track:
- * 100.7, Venus + Colonies + Prelude 110.1** (C38 112.1 · CF1 115.3); a push alone 100.8, two pushes a loss 111.2.
+ * 100.7, Venus + Colonies + Prelude 110.1** with the +2 influence (C38 112.1 · CF1 115.3); a push alone 100.8, two
+ * pushes a loss 111.2.
  * Plates: none 96.1 · Earth 98.5 · least-advanced track 100.7 · event 102.3 · most expensive 102.7.
+ * The +2 influence dropped (the owner's call): 98.0; a setup rumour in its place — 1: **101.8 / 110.8** (final), 2:
+ * 103.9 / 113.5; two setup delegates + 1 rumour 101.8.
  */
 export const MarsBotDeimosGroup: MarsBotCorp = {
   info: INFO,
@@ -72,13 +75,13 @@ export const MarsBotDeimosGroup: MarsBotCorp = {
 
   /** The box's GOAL — its own count, measured apart from the formula (docs/claude/marsbot-dividend-goals-catalog.md). */
   goal(game: IGame): number {
-    // «Moon bases» — Deimos is a moon, and so are the conspiracy's hiding places: the Jovian tags in MarsBot's pile.
-    return pileTagCount(game, [Tag.JOVIAN]);
+    // «No weak spots» — the conspiracy covers every front: the space number of MarsBot's least advanced track.
+    return Math.min(...matTracks(game).map((track) => track.position));
   },
 
   setup(game: IGame): void {
-    const parliament = game.parliament;
-    if (parliament === undefined) {
+    const automa = game.automa;
+    if (automa === undefined || game.parliament === undefined) {
       return;
     }
     const bot = marsBotOf(game);
@@ -86,9 +89,9 @@ export const MarsBotDeimosGroup: MarsBotCorp = {
     AutomaTurnLog.setCause(game, {kind: 'corporation'});
     game.events.beginEffect(bot, {kind: 'corporation', card: INFO.original, owner: bot.color}, 'automa-corporation');
     try {
-      parliament.addInfluenceBonus(bot, INFLUENCE_BONUS, INFLUENCE_SOURCE);
-      game.log('${0} has +${1} influence from its corporation ${2}', (b) => b.player(bot).number(INFLUENCE_BONUS).string('The Deimos Group'));
       bumpCorpStat(game, 'deimosSetupDelegates', sendDelegates(game, bot, SETUP_DELEGATES));
+      automa.corpResources += SETUP_RUMOURS;
+      game.log('${0} put ${1} rumour(s) on its corporation ${2}', (b) => b.player(bot).number(SETUP_RUMOURS).string('The Deimos Group'));
     } finally {
       game.events.endScope();
       AutomaTurnLog.setCause(game, prior);

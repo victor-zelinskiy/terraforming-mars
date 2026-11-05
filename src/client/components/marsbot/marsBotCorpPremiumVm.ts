@@ -535,8 +535,8 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
     });
   case MarsBotCorpId.CF9_DEIMOS_GROUP:
     return CardRenderer.builder((b) => {
-      // SETUP: the human card's own row — +2 influence and the first action's one delegate.
-      b.plus().influence({amount: 2, digit: true}).nbsp.delegates(1);
+      // SETUP: the human card's first action — one delegate — and the rumour that precedes the group.
+      b.delegates(1).nbsp.resource(CardResource.JOURNALISM);
       // EFFECT: a vote MarsBot does not win (the asterisk) puts a rumour here.
       b.effect(undefined, (eb) => {
         eb.delegates(1).asterix().startEffect.resource(CardResource.JOURNALISM);
