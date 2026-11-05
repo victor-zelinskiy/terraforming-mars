@@ -14753,3 +14753,106 @@ function palladinFixture(name: string): void {
 for (const name of ['palladin-event', 'palladin-event-aerobraking', 'palladin-almost', 'palladin-threshold', 'palladin-threshold-heat', 'palladin-max', 'palladin-short']) {
   palladinFixture(name);
 }
+
+// ── PC04 · ECOTEC — «ВОПРОС КАРТЫ ЗА КАЖДУЮ МЕТКУ — СЕРИЯ, А НЕ ПОВТОР» (docs/claude/prompts/prelude2-pc04-ecotec.md,
+//    ledger GR · GS). The owner's table: SOLO AGAINST MARSBOT (base), Ecotec GUARANTEED by `customCorporationsList`
+//    WITHOUT `prelude2Expansion` (the bot is never C40 — the collision by `original`), blue on the move:
+//      · `ecotec-table` — three microbe holders of three roles on the table (Tardigrades — VP per 4, Ants — VP per 2,
+//        GHG Producing Bacteria — its action's good) and Small Animals (the animal tag Advanced Ecosystems requires); in
+//        the hand Heather (ONE bio tag), Advanced Ecosystems (THREE — the series) and Power Plant (none); −10 °C;
+//      · `ecotec-self`  — no holder on the table: Tardigrades (a holder of its OWN question) and Heather (a plant, exact);
+//      · `ecotec-viral` — the class's control: Viral Enhancers on the table, Ecological Zone (two bio tags, an animal
+//        holder) in the hand beside a greenery of blue's — Viral asks twice, Ecotec pays its +2 plants exact.
+//    A DRY RUN on a copy proves every answer the stand waits for. ──
+function ecotecFixture(name: string): void {
+  const pinned = [CardName.ECOTEC];
+  const [game, human] = testAutomaGame({startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned]});
+  assignPinnedCorporations(name, [human], pinned);
+  if (!(human.getWaitingFor() instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${human.getWaitingFor()?.constructor.name}`);
+  }
+  answerStartFlow(game, [human]);
+  if (!human.playedCards.has(CardName.ECOTEC) || game.automa?.corporation === 'C40') {
+    throw new Error(`${name}: expected blue on Ecotec and the bot off its twin — got bot ${game.automa?.corporation}`);
+  }
+  const automa = game.automa!;
+  automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}];
+  const take = (n: CardName) => {
+    moveToDeckTop(game, n);
+    return game.projectDeck.drawOrThrow(game);
+  };
+  human.cardsInHand.splice(0, human.cardsInHand.length);
+  human.megaCredits = 60;
+  setTemperature(game, -10);
+  if (name === 'ecotec-table') {
+    human.playedCards.push(take(CardName.TARDIGRADES), take(CardName.ANTS), take(CardName.GHG_PRODUCING_BACTERIA), take(CardName.SMALL_ANIMALS));
+    human.cardsInHand.push(take(CardName.HEATHER), take(CardName.ADVANCED_ECOSYSTEMS), take(CardName.POWER_PLANT));
+  } else if (name === 'ecotec-self') {
+    human.cardsInHand.push(take(CardName.TARDIGRADES), take(CardName.HEATHER));
+  } else {
+    human.playedCards.push(take(CardName.VIRAL_ENHANCERS));
+    human.cardsInHand.push(take(CardName.ECOLOGICAL_ZONE));
+    addGreenery(human);
+  }
+  runAllActions(game);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected blue on the move with the action menu — got phase=${game.phase} active=${game.activePlayer.color} wf=${human.getWaitingFor()?.constructor.name}`);
+  }
+  // THE DRY RUN — the real roads on a copy.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(human.id);
+  const play = (card: CardName, mc: number) => {
+    blue.playCard(blue.cardsInHand.find((c) => c.name === card)!, Payment.of({megacredits: mc}));
+    runAllActions(copy);
+  };
+  const ask = (source: CardName): OrOptions => {
+    const wf = blue.getWaitingFor();
+    if (!(wf instanceof OrOptions) || wf.choiceContext?.source.card !== source) {
+      throw new Error(`${name}: expected ${source}'s question — got ${wf?.constructor.name} ${JSON.stringify(wf?.choiceContext?.source)}`);
+    }
+    return wf;
+  };
+  if (name === 'ecotec-table') {
+    const plants = blue.plants;
+    play(CardName.ADVANCED_ECOSYSTEMS, 11);
+    ask(CardName.ECOTEC);
+    blue.process({type: 'or', index: 1, response: {type: 'option'}});
+    ask(CardName.ECOTEC);
+    blue.process({type: 'or', index: 0, response: {type: 'card', cards: [CardName.TARDIGRADES]}});
+    ask(CardName.ECOTEC);
+    blue.process({type: 'or', index: 0, response: {type: 'card', cards: [CardName.GHG_PRODUCING_BACTERIA]}});
+    const got = {plants: blue.plants - plants, tardigrades: blue.playedCards.get(CardName.TARDIGRADES)?.resourceCount, ghg: blue.playedCards.get(CardName.GHG_PRODUCING_BACTERIA)?.resourceCount};
+    if (JSON.stringify(got) !== JSON.stringify({plants: 1, tardigrades: 1, ghg: 1}) || blue.getWaitingFor() instanceof OrOptions && blue.getWaitingFor()?.choiceContext !== undefined) {
+      throw new Error(`${name}: the series' dry run read ${JSON.stringify(got)}`);
+    }
+  } else if (name === 'ecotec-self') {
+    play(CardName.TARDIGRADES, 4);
+    const pick = ask(CardName.ECOTEC).options[0] as SelectCard<ICard>;
+    if (pick.cards.map((c) => c.name).join() !== CardName.TARDIGRADES) {
+      throw new Error(`${name}: the played holder is not its own question's candidate (${pick.cards.map((c) => c.name).join()})`);
+    }
+  } else {
+    const plants = blue.plants;
+    play(CardName.ECOLOGICAL_ZONE, 12);
+    // The zone's own tile first (beside a greenery of blue's), then the table's questions.
+    const space = blue.getWaitingFor();
+    if (!(space instanceof SelectSpace)) {
+      throw new Error(`${name}: expected the zone's placement — got ${space?.constructor.name}`);
+    }
+    blue.process({type: 'space', spaceId: space.spaces[0].id});
+    ask(CardName.VIRAL_ENHANCERS);
+    blue.process({type: 'or', index: 1, response: {type: 'option'}});
+    ask(CardName.VIRAL_ENHANCERS);
+    const zone = blue.playedCards.get(CardName.ECOLOGICAL_ZONE)?.resourceCount ?? 0;
+    blue.process({type: 'or', index: 0, response: {type: 'option'}});
+    const landed = (blue.playedCards.get(CardName.ECOLOGICAL_ZONE)?.resourceCount ?? 0) - zone;
+    // +2 plants of Ecotec (no microbe holder — exact) + the first answer's plant; the second answer an animal on the zone.
+    if (blue.plants - plants !== 3 || landed !== 1) {
+      throw new Error(`${name}: the viral dry run read plants +${blue.plants - plants}, zone +${landed}`);
+    }
+  }
+  write(name, game);
+}
+for (const name of ['ecotec-table', 'ecotec-self', 'ecotec-viral']) {
+  ecotecFixture(name);
+}

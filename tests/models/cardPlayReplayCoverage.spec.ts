@@ -39,6 +39,7 @@ import {ViralEnhancers} from '../../src/server/cards/base/ViralEnhancers';
 import {Recyclon} from '../../src/server/cards/promo/Recyclon';
 import {Splice} from '../../src/server/cards/promo/Splice';
 import {Supercomputer} from '../../src/server/cards/turmoilRedux/Supercomputer';
+import {Ecotec} from '../../src/server/cards/prelude2/Ecotec';
 import {DIVERTED_RESEARCH_ID} from '../../src/server/parliament/resolutions/reds/DivertedResearch';
 import {resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
 import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
@@ -149,6 +150,21 @@ const PROFILES: ReadonlyArray<Profile> = [
       // The holder — unless the card under test (in the hand) IS the holder (a tableau holds one of a name).
       if (!player.cardsInHand.some((c) => c.name === CardName.SUPERCOMPUTER)) {
         player.playedCards.push(new Supercomputer());
+      }
+    },
+  },
+  {
+    // PC04 Ecotec: a question PER BIO TAG («1 plant or 1 microbe on ANY card»), a SERIES of equal questions addressed to
+    // the corporation — every answer of the batch lands on ITS question in turn (the address), none is asked again.
+    label: 'ecotec',
+    options: REDUX,
+    apply: (_game, player) => {
+      if (!player.playedCards.has(CardName.ECOTEC)) {
+        player.playedCards.push(new Ecotec());
+      }
+      // A holder — unless the card under test (in the hand) IS one, or it stands already (a tableau holds one of a name).
+      if (!player.cardsInHand.some((c) => c.name === CardName.TARDIGRADES) && !player.playedCards.has(CardName.TARDIGRADES)) {
+        player.playedCards.push(new Tardigrades());
       }
     },
   },

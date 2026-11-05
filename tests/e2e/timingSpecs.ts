@@ -15,6 +15,9 @@
  * probes), the motion-grammar guards, and the four the first broad sample named.
  */
 export const TIMING_SPECS: ReadonlySet<string> = new Set([
+  // PC04 Ecotec (2026-11-05): a question per tag is ONE visit — the host's node identity sampled between question k and
+  // k + 1 of a live series, and the start's token flight witnessed; a transient record, never logic.
+  'console-ecotec.spec.ts',
   // PC02 Palladin Shipping (2026-11-05): the event the table answered is ONE phrase — the titanium row's ticks between the
   // price and the answer, the births before the lift and the reactor's rise are sampled from before the press.
   'console-palladin-shipping.spec.ts',
