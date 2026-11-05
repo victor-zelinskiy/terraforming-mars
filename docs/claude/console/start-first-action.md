@@ -556,6 +556,30 @@ A corporation whose own play SEARCHES the deck and ANSWERS ITSELF into the row i
 
 The server's queue runs the draw BEFORE the payout (`Priority.DRAW_CARDS` < `GAIN_RESOURCE_OR_PRODUCTION`); the console tells the answer first because the reveal is a surface that asks the player (A to take) and its ENTRY waits for the table's answer of the same response (§ prompt admission, `table-answer`) — every frame stays true (the reveal touches no M€ row). No new teller, block or hold was added for this card; a fifth story of the same press must enter through the same doors. While the stories 1–2 play, the crumb already names the search («› ДОБОР КАРТ») over the outcome stage — the P54 grammar of a start draw (the hero presides as «ИСТОЧНИК»).
 
+## A FIRST ACTION THAT DRAWS AND DISCARDS IS ONE PHRASE (PC05 Spire, 2026-11-05 — ledger GW)
+
+«Draw 4 cards, then discard 3 cards» (Spire) asks the discard in the DRAW's own response. The server seals the draw by
+the pause it names (`sealCardDrawReveal({kind: 'discard', card})` — the Pluto pair) and marks the discard
+(`discardPrompt.source = {kind: 'corporation', card}` — `cardDiscard` names a corporation by ITS kind). The phrase, as
+the stand `console-spire` (A · H) pins it:
+
+1. **The briefing names both steps** — the draw chip «+4» and «ДАЛЕЕ · Затем сбросьте 3 карты с руки — любые три, в том
+   числе только что взятые» (`firstActionPreview` — the discard is a promised STEP, never pre-collected).
+2. **The draw** — dealt from the deck pile INTO the start's body (the press's claim — `claimPlayOutcome`), taken as ONE
+   batch, the crumb «СТАРТ ПАРТИИ › SPIRE › ДОБОР КАРТ».
+3. **The discard** — only after the take: the start's HAND STEP (the P55 road — `startStepDiscardOf` reads a starting
+   corporation beside a prelude), the album in `.con-start__handslot` with every card of the hand, the drawn ones wearing
+   «НОВАЯ КАРТА» (`deferredDiscardFresh` armed at the press — the composer's own arm), the crumb «… › SPIRE › СБРОС
+   КАРТ», «RT СБРОСИТЬ 3», a full set a NAMED refusal («Лимит 3/3 достигнут — снимите выбор…», `data-hand-set-full`).
+4. **The crumb never steps back** — between the take and the album the start OWES the step and names it already
+   (`deploymentCrumb.owedStep` — «… › SPIRE › СБРОС КАРТ», never «КОРПОРАЦИЯ › ПЕРВОЕ ДЕЙСТВИЕ» for the gap).
+5. **A reload** in the draw or in the discard stands the start back up around its step — `startFrameLive` § 1b (the
+   ledger drained at the option take, so § 1 no longer holds; the action phase stands before the PRELUDES gate).
+
+The «ДО» frames (before any client edit) showed the class: the discard was a PLATE over the start («СБРОС КАРТЫ · A
+Открыть»), the A presses opened nothing, and a reload lost the step — the predicate of the start's discard step read a
+PRELUDE with `kind: 'card'` only. No new block, hold or surface: the step is the P55 step, the mark the composer's.
+
 ## Guards
 
 `tests/client/components/console/startFirstAction.spec.ts` (stage model + the

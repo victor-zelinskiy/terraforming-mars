@@ -186,7 +186,8 @@ first day; a prelude's own DISCARD since P55) and the embedded outcome — and s
 deployment: the body is `--stepped` for each, the step slot is a sibling inside `.con-start__ceremony`, the deployment
 releases in place. Two steps of ONE prelude play come IN TURN (Old Mining Colony: the colony, its story, then the
 discard — `colony-focus-stage.md` § 5a′), never nested and never announced. **A RELOAD mid-step stands the start back
-up around the step** — `startFrameLive` § 3: in the PRELUDES phase a prelude's discard (`startPreludeDiscardOf`) and a
+up around the step** — `startFrameLive` § 3: in the PRELUDES phase a prelude's discard (`startStepDiscardOf` — since PC05 also a starting corporation's
+first-action discard, § 1b, in the action phase) and a
 prelude's colony pick (`choiceContext.source` naming a PRELUDE) are the start's steps, the same server-truth reading the
 sponsor's play-from-hand had (§ 2); the crumb's subject is re-read off the server's marker. A new step kind of a prelude
 is a row in that reading, never a standalone screen.

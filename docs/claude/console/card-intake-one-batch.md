@@ -194,6 +194,12 @@ draw»): three defects of the presentation, one law each.
   A question's seal carries no ordinal (one place, no sequence — the «1» read as a count). e2e
   `console-draw-one-batch-sealed-question` (②: the zone hidden, no album card covered by the table).
 
+## A first action's draw sealed by its own discard (PC05 Spire, 2026-11-05)
+
+«Draw 4, then discard 3» is the Pluto pair's shape at the start: the draw seals itself with the discard it waits on
+(`sealCardDrawReveal({kind: 'discard', card: SPIRE})`), the batch of four is presented and taken INSIDE the start, and
+only then does the hand open as the start's step (`start-first-action.md` § A FIRST ACTION THAT DRAWS AND DISCARDS).
+
 ## The one named degrade left
 
 - **A tile's run under a COVERED board** stays `board-covered` → the deck, named in the plan. The L3 peek of the paying
