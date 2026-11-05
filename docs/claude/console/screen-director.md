@@ -346,3 +346,47 @@ anti-spam are the console's own rules.
     presented) beat are held;
   - `consoleMandatoryGate.spec` — the director's beacon opens nothing (the beat stays held) and dies with its beat;
   - `screenDirector.spec` — the plan, the verdict, the default arming.
+
+## The HIDDEN-SCENE class — planned (2026-11-05, a colleague's post-mortem of 2454d07888)
+**The incident.** The Hydronetwork's stage-7 copied MOVE set the frame ASIDE for the board. The placement's answer
+dropped the flow's last busy term while the frame was still aside, so the result played behind the board, unseen. The
+frame came back still `executing`; only the beat stall guard and the liveness arbiter (rung `workspace-beat`) took it
+down. 8655a62f80 (PL-1799) made the race deterministic. The same week had the same family twice more:
+- 8e3cf370f2 — the colony step's pause read `alive()` off the live stack, B parked it, the pause zeroed silently, and
+  «Вернуться к решению» restored a colony grid the server no longer asked;
+- 8e3cf370f2 — `goBoardHome()` inside the Hydronetwork from an early colony-completion timer.
+
+**The class.** «Is my scene on screen?» had three hand-written answers (the park, the deferred task) and missed the
+third way off screen (the yield for the board). Measured on 2026-11-05:
+- every frame WRITER of `consoleWorkspaceStack.ts` (`setWorkspaceFramePhase` / `Stage` / `Subject` / `SourceCard` /
+  `Serves` / `Slot`) addresses `workspaceFrameIndex` — the LIVE stack only. A write to a parked or yielded frame is
+  dropped silently, so the frame returns with a stale phase;
+- the hidden-scene checks are spread over the client: `workspaceStackCollapsed()` 13× alone, 3× with `task.deferred`,
+  and `stackYieldedToBoard()` 17×;
+- a frame comes back through four doors: `restoreWorkspaceStack`, `resumeStackFromBoard` ×5,
+  `restoreParkedWorkspace` ×10 and `restoreDeferredTask` ×6. Nothing makes «re-ask on return» a property of the
+  return;
+- `boardYielded` is a PLAIN array — a predicate over it read by a cached computed is a LATCH (invariant 17).
+
+**The plan** — structural; each step has a stand red before.
+1. **A frame write lands wherever the frame lives** (stack · park · aside). One lookup over the three homes, and every
+   setter goes through it. «A phase written while away is lost» becomes inexpressible, not re-read after the fact.
+2. **ONE predicate: `workspaceFrameOffStage(kind)`** — parked (THIS kind in the park, not the global collapse) ·
+   deferred · aside · any future way. It lives in the stack module, the stack's own question. Every flow asks it
+   (`hydroFlowSetAside` becomes a call to it). `boardYielded` becomes reactive (or carries a reactive epoch) and the
+   predicate is declared through `reactivePredicate`. A new way off screen is ONE row there, and a guard keeps
+   flow modules off the raw parts.
+3. **The return is ONE edge: `workspaceFrameReturned(kind)`** (an epoch bumped by every door that splices a frame back
+   in). Every flow with a completion subscribes once, then re-reads its phase and re-asks its own conclusion. The four
+   doors cannot forget it, because they no longer own it.
+4. **No conclusion on a hidden scene, by construction.** The stack refuses a terminal phase (`completing`, a result
+   stage) for a frame that is off stage and records it as OWED: it is applied on the return edge, with the flow's own
+   conclusion re-asked. An absorbing beat with nothing behind it then cannot be entered off screen, instead of being
+   torn down later by the beat stall guard and the arbiter.
+5. **The director judges it.** A new verdict input — a flow frame off stage while its flow wrote a phase or asked a
+   conclusion — logged `[screen-shadow]`, positive control in `screenShadow.spec`. The three incidents of the week are
+   the class's stands: `console-hydro-copied-tile`, `console-colony-entry-probe` A, `console-pristar` A,
+   `console-hydro-copied-colony`.
+
+The nets (`workspaceBeatStall`, `consoleLiveness`) stay as they are: they are the proof the class is closed when they
+stop firing on these paths.
