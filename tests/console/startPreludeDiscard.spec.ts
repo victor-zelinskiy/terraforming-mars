@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
-import {startPreludeDiscardOf, taskFor} from '@/client/console/consoleTaskRouter';
+import {startStepDiscardOf, taskFor} from '@/client/console/consoleTaskRouter';
 
 /*
  * P55 · FN — A START PRELUDE'S OWN DISCARD IS A STEP OF THE START (Old Mining Colony: the colony first, then «discard 1
@@ -9,7 +9,7 @@ import {startPreludeDiscardOf, taskFor} from '@/client/console/consoleTaskRouter
  * it stands on: the server's `discardPrompt` marker naming a PRELUDE in the opening generation — never a colony's bonus
  * discard (a step of the colony flow), never a project card's discard, never a later generation.
  */
-describe('startPreludeDiscardOf', () => {
+describe('startStepDiscardOf', () => {
   const view = (meta: object | undefined, generation = 1) => ({
     id: 'p-viewer',
     waitingFor: {
@@ -25,19 +25,25 @@ describe('startPreludeDiscardOf', () => {
   const prelude = {min: 1, max: 1, source: {kind: 'card', card: CardName.OLD_MINING_COLONY}};
 
   it('names the prelude of a start discard — and the router serves it as a hand pick', () => {
-    expect(startPreludeDiscardOf(view(prelude))).to.eq(CardName.OLD_MINING_COLONY);
+    expect(startStepDiscardOf(view(prelude))).to.eq(CardName.OLD_MINING_COLONY);
     expect(taskFor(view(prelude))?.kind).to.eq('handSelect');
   });
 
+  it('PC05 · GW — a starting corporation first-action discard (Spire) is a step of the start too, its subject the corporation', () => {
+    const corp = {min: 3, max: 3, source: {kind: 'corporation', card: CardName.SPIRE}};
+    expect(startStepDiscardOf(view(corp))).to.eq(CardName.SPIRE);
+    expect(startStepDiscardOf(view(corp, 2)), 'a later generation (a Merger) is not the start').is.undefined;
+  });
+
   it('a colony bonus discard (Pluto) is the colony flow\'s step, never the start\'s', () => {
-    expect(startPreludeDiscardOf(view({...prelude, colonyBonus: {colony: 'Pluto'}}))).is.undefined;
-    expect(startPreludeDiscardOf(view({...prelude, colonyRepeat: {colony: 'Pluto'}}))).is.undefined;
+    expect(startStepDiscardOf(view({...prelude, colonyBonus: {colony: 'Pluto'}}))).is.undefined;
+    expect(startStepDiscardOf(view({...prelude, colonyRepeat: {colony: 'Pluto'}}))).is.undefined;
   });
 
   it('a PROJECT card\'s discard, a system discard, or a later generation is not a start prelude\'s', () => {
-    expect(startPreludeDiscardOf(view({min: 1, max: 1, source: {kind: 'card', card: CardName.MARS_UNIVERSITY}}))).is.undefined;
-    expect(startPreludeDiscardOf(view({min: 1, max: 1, source: {kind: 'system'}}))).is.undefined;
-    expect(startPreludeDiscardOf(view(undefined))).is.undefined;
-    expect(startPreludeDiscardOf(view(prelude, 2))).is.undefined;
+    expect(startStepDiscardOf(view({min: 1, max: 1, source: {kind: 'card', card: CardName.MARS_UNIVERSITY}}))).is.undefined;
+    expect(startStepDiscardOf(view({min: 1, max: 1, source: {kind: 'system'}}))).is.undefined;
+    expect(startStepDiscardOf(view(undefined))).is.undefined;
+    expect(startStepDiscardOf(view(prelude, 2))).is.undefined;
   });
 });

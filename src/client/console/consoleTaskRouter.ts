@@ -619,15 +619,24 @@ export function corpFirstActionInStartFlow(view: PlayerViewModel): boolean {
  * the opening generation. It is a STEP of the start workspace that played the prelude — hosted INSIDE the deployment's
  * body (`start ⊃ hand`), never an interruption to announce. Structural only: the marker and the card's type, never a
  * title. Returns the prelude's name, or undefined.
+ *
+ * …AND A STARTING CORPORATION'S FIRST ACTION THAT DISCARDS (PC05 Spire · GW — «draw 4 cards, then discard 3 cards»):
+ * the same step of the same start, its subject the CORPORATION — the draw is taken first (`followUp` waits for the
+ * reveal), then the hand opens INSIDE the start's body, never a plate over it. Returns the corporation's name then.
  */
-export function startPreludeDiscardOf(view: PlayerViewModel): string | undefined {
+export function startStepDiscardOf(view: PlayerViewModel): string | undefined {
   const meta = view.waitingFor?.discardPrompt;
   const source = meta?.source;
-  if (meta === undefined || source?.kind !== 'card' || source.card === undefined ||
+  if (meta === undefined || source === undefined || source.card === undefined ||
       meta.colonyBonus !== undefined || meta.colonyRepeat !== undefined || !corpFirstActionInStartFlow(view)) {
     return undefined;
   }
-  return getCard(source.card)?.type === CardType.PRELUDE ? source.card : undefined;
+  // The server's marker names its kind: a prelude is a `card`, a corporation a `corporation` (`cardDiscard`).
+  const type = getCard(source.card)?.type;
+  if (source.kind === 'card' && type === CardType.PRELUDE) {
+    return source.card;
+  }
+  return source.kind === 'corporation' && type === CardType.CORPORATION ? source.card : undefined;
 }
 
 /**

@@ -531,6 +531,14 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       expect(deploymentCrumb({...base, variantSubject: ''})).to.deep.eq({subject: 'Preludes', stage: 'Playing'});
     });
 
+    it('deployment: an OWED step names the coming stage under its card (PC05 Spire · GW) — the embed still outranks it, the first action never takes it back', () => {
+      const base = {embedActive: false, corpPending: false, payPending: false, corpPick: false};
+      const owedStep = {subject: 'Spire', stage: 'Card discard'};
+      expect(deploymentCrumb({...base, owedStep, firstAction: true})).to.deep.eq({subject: 'Spire', stage: 'Card discard'});
+      expect(deploymentCrumb({...base, owedStep, embedActive: true, embedSubject: 'Spire', embedPhase: 'Card draw'}))
+        .to.deep.eq({subject: 'Spire', stage: 'Card draw'});
+    });
+
     it('deployment: the beat drives the tail — corp play / payment / preludes', () => {
       const base = {embedActive: false, corpPending: false, payPending: false, corpPick: false};
       expect(deploymentCrumb({...base, corpPending: true}))

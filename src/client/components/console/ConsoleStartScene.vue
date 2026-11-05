@@ -1209,7 +1209,7 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction, ConsoleActionOverrides} from '@/client/console/composables/consoleActionModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {gateCursorUntilAnimationsEnd} from '@/client/console/cursorArrival';
-import {ConsoleTask, startPlacementOrderOf, taskFor} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, startPlacementOrderOf, startStepDiscardOf, taskFor} from '@/client/console/consoleTaskRouter';
 import {
   buildInitialCardsResponse, campaignWizardExtra, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, deploymentJourneyItems,
   driftDockPile, ensureStartWizard, holdStartScene, initialCardsInputOf, initialCardsSignature,
@@ -1229,6 +1229,7 @@ import {
   bonusActionSource, BonusGainRow,
 } from '@/client/console/bonusAction';
 import {beginHoldConfirm, cancelHoldConfirm} from '@/client/console/consoleHoldConfirm';
+import {armDeferredDiscards, deferredDiscardKey} from '@/client/console/deferredDiscardFresh';
 import {
   isPreludeEnabler, preludeBadge, preludeEnablerBadge, PreludeRisk, preludeRisk,
 } from '@/client/console/startPreludeRisk';
@@ -1946,7 +1947,15 @@ export default defineComponent({
           this.candidatePrompt === undefined && !this.embedPresenting,
         bonusSource: this.bonusActionSourceCard,
         bonusNested: this.firstActionNested,
+        owedStep: this.owedDiscardStep !== undefined ? {subject: this.owedDiscardStep, stage: 'Card discard'} : undefined,
       });
+    },
+    /**
+     * PC05 Spire · GW — the start's discard step is OWED (the server asks it; the hand has not opened yet — the draw's
+     * cards are still being taken): its card. The crumb names the coming stage for that gap (`deploymentCrumb.owedStep`).
+     */
+    owedDiscardStep(): string | undefined {
+      return taskFor(this.playerView)?.kind === 'handSelect' ? startStepDiscardOf(this.playerView) : undefined;
     },
     /** The identity of the live order step (its card and its count) — '' when none stands. */
     orderLiveKey(): string {
@@ -8913,6 +8922,11 @@ export default defineComponent({
       // stands in its seat (the stage's emerge). Without this the claim
       // sits out the full BEAT_SAFETY before its surface may mount.
       markWorkspaceOutcomeBeatDone();
+      // A first action that DRAWS AND THEN ASKS a discard of its own (PC05 Spire — «draw 4, then discard 3»): the album
+      // of that discard marks the cards the draw brought «НОВАЯ КАРТА» — the same arm a composer takes at its commit
+      // (`deferredDiscardFresh`, scoped to this one action); a first action that asks nothing reads nothing.
+      armDeferredDiscards([corp as string], this.playerView.cardsInHand.map((c) => c.name),
+        deferredDiscardKey(this.playerView.game.generation, this.playerView.thisPlayer.actionsTakenThisGame));
       this.$emit('submit', {type: 'or', index, response: {type: 'option'}});
     },
     /** R3 / a click on the «Сработает» row — the layer unfolds out of the row over the PARKED briefing (law 9). */

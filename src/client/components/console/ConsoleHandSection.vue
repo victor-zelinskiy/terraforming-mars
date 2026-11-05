@@ -455,6 +455,9 @@
         <!-- Picked / pickable / blocked — with the concrete «why not» reason
              for a non-candidate card (the fork's always-explain rule). -->
         <span v-if="isSelectPicked(selected.name)" class="con-cards__verdict con-cards__verdict--picked"><span aria-hidden="true">{{ discard !== undefined ? '⌫' : '✓' }}</span> {{ $t(discard !== undefined ? 'Discarded' : 'Card selected') }}</span>
+        <!-- A FULL DISCARD SET is a NAMED refusal, never a silent no-op behind «Можно сбросить» (PC05 Spire · GW — the
+             fourth card of «discard 3»): the limit with its numbers, and how to change the set. -->
+        <span v-else-if="isSelectable(selected.name) && discardSetFull" class="con-cards__verdict con-cards__verdict--blocked" data-hand-set-full><span aria-hidden="true">✕</span> {{ discardSetFullText }}</span>
         <span v-else-if="isSelectable(selected.name)" class="con-cards__verdict con-cards__verdict--ok">{{ $t(discard !== undefined ? 'Can be discarded' : 'Not selected') }}</span>
         <template v-else>
           <span class="con-cards__verdict con-cards__verdict--blocked"><span aria-hidden="true">✕</span> {{ $t('Unavailable') }}</span>
@@ -1083,6 +1086,15 @@ export default defineComponent({
     /** The pre-derived discard presentation, or undefined for a normal pick. */
     discard(): DiscardIntent | undefined {
       return this.selectActive ? this.select?.discard : undefined;
+    },
+    /** A multi DISCARD holds as many cards as it may (`max` > 1) — another card is a named refusal (the limit's numbers). */
+    discardSetFull(): boolean {
+      const d = this.discard;
+      return d !== undefined && d.max > 1 && (this.select?.selected.length ?? 0) >= d.max;
+    },
+    discardSetFullText(): string {
+      const max = this.discard?.max ?? 0;
+      return translateTextWithParams('Limit ${0}/${1} reached — deselect one of the marked cards', [String(max), String(max)]);
     },
     /** The DECLINE of an optional pick (RT answers it; its plate stands in the question line). */
     pickDecline(): DeclineModel | undefined {

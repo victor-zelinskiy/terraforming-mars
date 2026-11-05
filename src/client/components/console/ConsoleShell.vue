@@ -2061,7 +2061,7 @@ import {resetRevealHandoff} from '@/client/console/revealHandoff';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {generationSceneState, registerGenerationSceneHandoff, resetGenerationScene} from '@/client/console/generationScene/generationScene';
 import {openRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, startPreludeDiscardOf, startPlacementOrderOf, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, AGENDA_WALK_SEAT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, partyStepStageOf, firstActionPartyStep} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, startStepDiscardOf, startPlacementOrderOf, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, AGENDA_WALK_SEAT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, partyStepStageOf, firstActionPartyStep} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleBotAttack from '@/client/components/console/ConsoleBotAttack.vue';
@@ -6209,13 +6209,13 @@ export default defineComponent({
         cardReactionState.phase === 'idle' ? kind : '';
     },
     /**
-     * P55 · FN — A START PRELUDE'S OWN DISCARD IS A STEP OF THE START (`startPreludeDiscardOf` — Old Mining Colony's
+     * P55 · FN — A START PRELUDE'S OWN DISCARD IS A STEP OF THE START (`startStepDiscardOf` — Old Mining Colony's
      * «discard 1 card»): the start workspace that played the prelude hosts the hand INSIDE its body (`start ⊃ hand`,
      * the deployment released in place), so it is never announced (no plate, no beacon) — OWED keeps it from being
      * announced, DUE opens it.
      */
     startDiscardStepOwed(): boolean {
-      return taskFor(this.playerView)?.kind === 'handSelect' && startPreludeDiscardOf(this.playerView) !== undefined &&
+      return taskFor(this.playerView)?.kind === 'handSelect' && startStepDiscardOf(this.playerView) !== undefined &&
         workspaceFrameKnown('start');
     },
     /**
@@ -7895,6 +7895,13 @@ export default defineComponent({
       if (corpFirstActionInStartFlow(this.playerView) && firstActionOwed(this.playerView)) {
         return true;
       }
+      const task = taskFor(this.playerView);
+      // 1b. A starting corporation's FIRST ACTION that discards (PC05 Spire — «draw 4, then discard 3»): the ledger
+      //     drained at the option take, so (1) no longer holds while the discard stands — the step stands the start
+      //     back up around it after a reload (in the action phase, before the PRELUDES gate below).
+      if (task?.kind === 'handSelect' && this.game.phase !== Phase.PRELUDES && startStepDiscardOf(this.playerView) !== undefined) {
+        return true;
+      }
       // 2. The PRELUDES phase IS the deployment, it survives a reload, and a
       //    play-from-hand raised in it can only be a prelude's effect
       //    (`PlayProjectCard`) — the same prompt would otherwise open a
@@ -7902,12 +7909,11 @@ export default defineComponent({
       if (this.game.phase !== Phase.PRELUDES) {
         return false;
       }
-      const task = taskFor(this.playerView);
-      // 3. A PRELUDE's own step (P55 · FN): its discard (`startPreludeDiscardOf`) and its colony pick (the build names
+      // 3. A PRELUDE's own step (P55 · FN): its discard (`startStepDiscardOf`) and its colony pick (the build names
       //    its prelude on `choiceContext` — `Executor`'s `cause`, PL-1591) are steps of the start that played it — a
       //    reload mid-step stands the start back up around them (the P48 gap: the colony pick came back as a screen of
       //    its own, the discard as a plate over the board).
-      if (task?.kind === 'handSelect' && startPreludeDiscardOf(this.playerView) !== undefined) {
+      if (task?.kind === 'handSelect' && startStepDiscardOf(this.playerView) !== undefined) {
         return true;
       }
       // …and its «which tile next» (P58 · FS — `startPlacementOrderOf`): the order step between its placements stands
@@ -21715,7 +21721,7 @@ export default defineComponent({
         // …and a START PRELUDE's own discard (P55 · FN) is the start's step: «СТАРТ ПАРТИИ › <пролог> › СБРОС КАРТЫ».
         // The prelude is the crumb's subject — named by the server's marker when the press that set it is gone (a
         // reload mid-step).
-        const startDiscard = startPreludeDiscardOf(this.playerView);
+        const startDiscard = startStepDiscardOf(this.playerView);
         if (startDiscard !== undefined && workspaceFrameHost('hand') === 'start') {
           if (workspaceFrameSubject('start') === '') {
             setWorkspaceFrameSubject('start', startDiscard);

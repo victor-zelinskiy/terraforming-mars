@@ -15013,3 +15013,114 @@ function sagittaFixture(name: 'sagitta-start' | 'sagitta-table' | 'sagitta-twin'
 sagittaFixture('sagitta-start');
 sagittaFixture('sagitta-table');
 sagittaFixture('sagitta-twin');
+
+// ── PC05 · SPIRE — «ПЕРВОЕ ДЕЙСТВИЕ „+4 / −3“ — ОДНА ФРАЗА» (docs/claude/prompts/prelude2-pc05-spire-and-full-inclusion.md,
+//    ledger GV · GW). The owner's table: SOLO AGAINST MARSBOT (base), Spire GUARANTEED by `customCorporationsList`
+//    WITHOUT `prelude2Expansion` (the bot is never C45 — the collision by `original`):
+//      · `spire-start` — the start answered up to the corporation's play (`corporationPlay`), THREE projects bought
+//        (Mine · Tardigrades · Lichen): ONE press = 50 M€ printed (−9 bought) and the corporation's own science
+//        («including this»), then the first action «+4 / −3» from a hand of seven;
+//      · `spire-table` — the action phase, the first action spent, 5 science on Spire; in the hand Development Center
+//        (two tags, +1), Mine (one tag, nothing), Asteroid (an event with one tag, +1), Research Coordination (a lone
+//        wild tag — ONE tag for Spire, nothing; no in-scope card prints a wild tag beside another — the spec pins it on a
+//        fake card); the standard projects open (60 M€).
+//    A DRY RUN on a copy proves what the stand waits for. ──
+const SPIRE_BOUGHT = [CardName.MINE, CardName.TARDIGRADES, CardName.LICHEN] as const;
+function spireFixture(name: 'spire-start' | 'spire-table'): void {
+  const pinned = [CardName.SPIRE];
+  const [game, human] = testAutomaGame({startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned]});
+  assignPinnedCorporations(name, [human], pinned);
+  if (!(human.getWaitingFor() instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${human.getWaitingFor()?.constructor.name}`);
+  }
+  const place = (n: CardName) => {
+    const pools = [game.projectDeck.drawPile, game.projectDeck.discardPile, human.dealtProjectCards];
+    for (const pool of pools) {
+      const i = pool.findIndex((c) => c.name === n);
+      if (i !== -1) {
+        return pool.splice(i, 1)[0];
+      }
+    }
+    return newProjectCard(n)!;
+  };
+  // The three bought cards are DEALT (the buy step offers what was dealt).
+  const bought = SPIRE_BOUGHT.map(place);
+  human.dealtProjectCards.splice(0, 3, ...bought);
+  human.process({type: 'initialCards', responses: [
+    {type: 'card', cards: [CardName.SPIRE]},
+    {type: 'card', cards: [...SPIRE_BOUGHT]},
+  ]});
+  runAllActions(game);
+  if (human.getWaitingFor()?.startGamePrompt?.kind !== 'corporationPlay' || game.automa?.corporation === 'C45') {
+    throw new Error(`${name}: expected the corporation's play with the bot off its twin — got ${JSON.stringify(human.getWaitingFor()?.startGamePrompt)} bot ${game.automa?.corporation}`);
+  }
+  if (name === 'spire-start') {
+    // THE DRY RUN — the reveal, then the first action up to its discard, then the discard of three bought cards.
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const seat = copy.getPlayerById(human.id);
+    seat.process({type: 'card', cards: [CardName.SPIRE]});
+    runAllActions(copy);
+    if (seat.getWaitingFor()?.startGamePrompt?.kind === 'corporationPay') {
+      seat.process({type: 'option'});
+      runAllActions(copy);
+    }
+    const spire = seat.playedCards.get(CardName.SPIRE);
+    if (seat.megaCredits !== 41 || spire?.resourceCount !== 1 || seat.pendingInitialActions.map(toName).join() !== CardName.SPIRE) {
+      throw new Error(`${name}: the dry run expected 41 M€, 1 science, the first action owed — got ${seat.megaCredits} M€, ${spire?.resourceCount}, [${seat.pendingInitialActions.map(toName).join(', ')}]`);
+    }
+    const ask = seat.getWaitingFor();
+    if (ask?.startGamePrompt?.kind !== 'corporationInitialAction') {
+      throw new Error(`${name}: the dry run expected the first action standing, got ${ask?.constructor.name} ${JSON.stringify(ask?.startGamePrompt)}`);
+    }
+    seat.process({type: 'or', index: 0, response: {type: 'option'}});
+    runAllActions(copy);
+    const discard = seat.getWaitingFor();
+    if (!(discard instanceof SelectCard) || discard.cards.length !== 7 || discard.discardPrompt === undefined) {
+      throw new Error(`${name}: the dry run expected the discard of 3 out of 7, got ${discard?.constructor.name} ${(discard as SelectCard<IProjectCard> | undefined)?.cards?.length}`);
+    }
+    seat.process({type: 'card', cards: [...SPIRE_BOUGHT]});
+    runAllActions(copy);
+    if (seat.cardsInHand.length !== 4 || copy.projectDeck.discardPile.slice(-3).map(toName).join() !== SPIRE_BOUGHT.join()) {
+      throw new Error(`${name}: the dry run expected 4 in hand and the three bought cards discarded in order — got ${seat.cardsInHand.length}, ${copy.projectDeck.discardPile.slice(-3).map(toName).join(', ')}`);
+    }
+    write(name, game);
+    return;
+  }
+  human.process({type: 'card', cards: [CardName.SPIRE]});
+  runAllActions(game);
+  if (human.getWaitingFor()?.startGamePrompt?.kind === 'corporationPay') {
+    human.process({type: 'option'});
+    runAllActions(game);
+  }
+  human.process({type: 'or', index: 0, response: {type: 'option'}});
+  runAllActions(game);
+  human.process({type: 'card', cards: [...SPIRE_BOUGHT]});
+  runAllActions(game);
+  const spire = human.playedCards.get(CardName.SPIRE)!;
+  game.automa!.actionDeck = [{kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}];
+  spire.resourceCount = 5;
+  human.cardsInHand.splice(0, human.cardsInHand.length);
+  human.megaCredits = 60;
+  for (const n of [CardName.DEVELOPMENT_CENTER, CardName.MINE, CardName.ASTEROID, CardName.RESEARCH_COORDINATION]) {
+    human.cardsInHand.push(place(n));
+  }
+  runAllActions(game);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions) || human.pendingInitialActions.length !== 0) {
+    throw new Error(`${name}: expected blue on the move with the action menu — got phase=${game.phase} active=${game.activePlayer.color} wf=${human.getWaitingFor()?.constructor.name}`);
+  }
+  // THE DRY RUN — every play of the hand on a copy, the price first, the science after.
+  for (const [card, gain] of [[CardName.DEVELOPMENT_CENTER, 1], [CardName.MINE, 0], [CardName.ASTEROID, 1], [CardName.RESEARCH_COORDINATION, 0]] as const) {
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const blue = copy.getPlayerById(human.id);
+    const played = blue.cardsInHand.find((c) => c.name === card)!;
+    blue.playCard(played, Payment.of({megacredits: blue.getCardCost(played)}));
+    runAllActions(copy);
+    const got = blue.playedCards.get(CardName.SPIRE)!.resourceCount - 5;
+    if (got !== gain) {
+      throw new Error(`${name}: ${card} put ${got} science on Spire, expected ${gain}`);
+    }
+  }
+  write(name, game);
+}
+spireFixture('spire-start');
+spireFixture('spire-table');

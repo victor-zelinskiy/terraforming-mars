@@ -879,6 +879,12 @@ export function deploymentCrumb(signals: {
   variantSubject?: string,
   /** The pre-step's stage — «Variant» (P44) or «Resource» (P50 · FC — the play's «?» chosen before the press). */
   variantStage?: string,
+  /**
+   * A step of the start is OWED and its door still waits (PC05 Spire · GW — the first action's discard, asked in the
+   * draw's own response: the cards are taken first, then the hand opens): the crumb already names the COMING stage under
+   * its card — the tail only moves forward (never back to «КОРПОРАЦИЯ › ПЕРВОЕ ДЕЙСТВИЕ» for the gap).
+   */
+  owedStep?: {subject: string, stage: string},
 }): StartCrumb {
   if (signals.variantSubject !== undefined && signals.variantSubject !== '') {
     return {subject: signals.variantSubject, stage: signals.variantStage ?? 'Variant'};
@@ -888,6 +894,9 @@ export function deploymentCrumb(signals: {
       subject: signals.embedSubject ?? 'Preludes',
       stage: signals.embedPhase !== undefined && signals.embedPhase !== '' ? signals.embedPhase : 'Card draw',
     };
+  }
+  if (signals.owedStep !== undefined) {
+    return {subject: signals.owedStep.subject, stage: signals.owedStep.stage};
   }
   if (signals.payPending) {
     return {subject: 'Projects', stage: 'Purchase'};
