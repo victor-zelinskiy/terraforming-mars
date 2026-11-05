@@ -130,6 +130,12 @@ export const EXPANSIONS_GRID_COLS = 2;
 /** Columns of the rules grid on a WIDE creator (TR68 — the rules stand in two columns of full-height rows). */
 export const RULES_WIDE_GRID_COLS = 2;
 /**
+ * Columns of the expansions grid on a WIDE creator — three since Prelude 2 joined (the full inclusion, 2026-11-05): nine
+ * plates in two columns ran a fifth row past the 4K opening (a scroll — measured 2082 > 1815 px); three by three fit.
+ * The Deck keeps two (`EXPANSIONS_GRID_COLS`). The stylesheet says the same under `@media (min-width: 1900px)`.
+ */
+export const EXPANSIONS_WIDE_GRID_COLS = 3;
+/**
  * THE WIDE CREATOR (TR68 «СОЗДАТЕЛЬ — БРИФИНГ МИССИИ»): from this viewport width (the logical 1920 layout — FHD and
  * the 4K TV alike) the crew stands as a ROW of seat cards and the rules in two columns; the Deck (1280×800) keeps its
  * vertical lists. ONE threshold for the stylesheet (`@media (min-width: 1900px)`) and the cursor's walk.
@@ -137,7 +143,7 @@ export const RULES_WIDE_GRID_COLS = 2;
 export const CREATE_WIDE_MIN_WIDTH = 1900;
 
 export type DeckNavLayout = {
-  /** The wide creator's layout (`CREATE_WIDE_MIN_WIDTH`): the crew is a row, the rules a two-column grid. */
+  /** The wide creator's layout (`CREATE_WIDE_MIN_WIDTH`): the crew is a row, the rules a two-column grid, the expansions three. */
   wide?: boolean;
   /** The map showcase's MEASURED columns (`mapGridPlan` — P44 · ER); absent before the first measurement. */
   mapCols?: number;
@@ -167,7 +173,7 @@ export function deckNavStep(deck: CreateDeckId, cursor: number, dir: NavDirectio
   }
   const clamp = (v: number) => Math.min(count - 1, Math.max(0, v));
   if (deck === 'expansions') {
-    return gridStep(cursor, dir, count, EXPANSIONS_GRID_COLS);
+    return gridStep(cursor, dir, count, layout.wide === true ? EXPANSIONS_WIDE_GRID_COLS : EXPANSIONS_GRID_COLS);
   }
   if (deck === 'rules' && layout.wide === true) {
     return gridStep(cursor, dir, count, RULES_WIDE_GRID_COLS);

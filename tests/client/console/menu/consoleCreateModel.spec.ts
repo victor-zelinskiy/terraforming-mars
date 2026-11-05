@@ -76,6 +76,11 @@ describe('consoleCreateModel', () => {
       expect(deckNavStep('expansions', 5, 'down', 7)).to.eq(5); // would exit grid
       expect(deckNavStep('expansions', 4, 'down', 7)).to.eq(6);
       expect(deckNavStep('expansions', 6, 'up', 7)).to.eq(4);
+      // The WIDE creator walks three columns (nine plates — Prelude 2): ▼ a whole row of three, the right edge at 2.
+      expect(deckNavStep('expansions', 1, 'down', 9, {wide: true})).to.eq(4);
+      expect(deckNavStep('expansions', 2, 'right', 9, {wide: true})).to.eq(2);
+      expect(deckNavStep('expansions', 1, 'right', 9, {wide: true})).to.eq(2);
+      expect(deckNavStep('expansions', 7, 'down', 9, {wide: true})).to.eq(7);
     });
 
     it('the WIDE creator (TR68): the crew is a ROW (◀ ▶ walk it, felt edges, ▲ ▼ stay), the rules a two-column grid', () => {

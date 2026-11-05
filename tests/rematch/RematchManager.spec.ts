@@ -245,6 +245,16 @@ describe('RematchManager', () => {
     expect(manager.getModel(game, p1.id).status).to.eq('created');
   });
 
+  it('an automa rematch keeps Prelude 2 (the full inclusion) — the option rides the copied settings', async () => {
+    const [game, human] = testAutomaGame({prelude2Expansion: true, preludeExtension: true, venusNextExtension: true});
+    const {loader, added} = fakeLoader();
+    await RematchManager.getInstance().offer(game, human.color, loader);
+    expect(added).to.have.length(1);
+    expect(added[0].gameOptions.prelude2Expansion).to.eq(true);
+    expect(added[0].gameOptions.preludeExtension).to.eq(true);
+    expect(added[0].automa).to.not.eq(undefined);
+  });
+
   it('an automa rematch creates immediately — MarsBot never votes', async () => {
     const [game, human, bot] = testAutomaGame({difficulty: 'hard'});
     const {loader, added} = fakeLoader();

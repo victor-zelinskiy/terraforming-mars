@@ -2507,8 +2507,14 @@ html.con-profile-handheld {
        them (one part-to-whole bar, each segment directly labelled), what else the party deals under it. */
     .cm-expdeck { gap: .8rem; }
     /* The tiles under the meter: a little tighter than TR68's (the meter takes its band out of the same opening). */
-    .cm-expdeck > .cm-expansions { gap: .7rem 1.2rem; grid-auto-rows: minmax(6rem, auto); }
-    .cm-expdeck .cm-exp { padding: .8rem 1.25rem; gap: 1.1rem; }
+    /* Three columns on the wide creator (`EXPANSIONS_WIDE_GRID_COLS` — the cursor walks the same grid): nine plates in two
+       ran a fifth row past the 4K opening. */
+    .cm-expdeck > .cm-expansions { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .55rem 1.2rem; grid-auto-rows: minmax(6rem, auto); }
+    .cm-expdeck .cm-exp { padding: .65rem 1.25rem; gap: 1.1rem; }
+    /* A third of the deck is narrow: the NAME wraps, the state keeps its place at the right (it dropped under a long name). */
+    .cm-expdeck .cm-exp__title { flex-wrap: nowrap; align-items: flex-start; }
+    .cm-expdeck .cm-exp__name { flex: 1 1 auto; min-width: 0; }
+    .cm-expdeck .cm-exp__state { flex: none; }
     .cm-expdeck .cm-exp__main { gap: .25rem; }
     .cm-exp__title { flex-wrap: wrap; gap: .25rem .7rem; }
     .cm-meter {
