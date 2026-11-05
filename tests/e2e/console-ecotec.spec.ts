@@ -177,6 +177,26 @@ async function answerPlantWithPad(page: Page, request: APIRequestContext, id: st
 }
 
 /**
+ * Answer the standing live question with its FIRST action — «Выберите карту — Бактерия: +1» — through the host's own
+ * target step: A on the option opens the step, A takes the focused candidate (a second A confirms when the step asks).
+ * Returns what the host showed in the step (its text) for the report.
+ */
+async function answerMicrobeWithPad(page: Page, request: APIRequestContext, id: string): Promise<string> {
+  const before = (await questionOf(request, id))?.promptId;
+  expect(before, 'Ecotec’s question stands').toBeDefined();
+  await expect(page.locator('.con-task-host').first(), 'the question is on screen').toBeVisible({timeout: 30_000});
+  await settle(page, {timeoutMs: 20_000}).catch(() => undefined);
+  const step = page.locator('.con-task-host .con-ptsel, .con-task-host .con-cards__slot');
+  const opened = await pressUntil(page, 'Enter', async () => await step.count() > 0, {tries: 3, settleMs: 1500});
+  expect(opened, 'A on «Бактерия» opens the host’s target step').toBe(true);
+  await settle(page, {timeoutMs: 20_000}).catch(() => undefined);
+  const seen = (await page.locator('.con-task-host').first().textContent() ?? '').replace(/\s+/g, ' ').slice(0, 300);
+  const moved = await pressUntil(page, 'Enter', async () => (await wireOf(request, id)).waitingFor?.promptId !== before, {tries: 4, settleMs: 1500});
+  expect(moved, `the target step answered Ecotec's question ${before} (${seen})`).toBe(true);
+  return seen;
+}
+
+/**
  * OPEN the play composer of `card` and STOP there — the hand through the quick wheel, the card focused by the shared
  * walk, ONE A (the composer); nothing else is pressed (`playCardFromHand` presses on into the rows to commit).
  */
@@ -368,6 +388,44 @@ test.describe(`PC04 Ecotec · a question per tag is a SERIES · ${PRESET.id}`, (
     // instance risen at the reaction layer over the plate.
     expect(poses.filter((p) => p.v.host !== 0 && p.v.faces > 0).map((p) => Math.round(p.t)), 'no second face over the standing host').toEqual([]);
     expect(after.thisPlayer.plants - before.thisPlayer.plants, 'the server: three plants').toBe(3);
+  });
+
+  test('F2 · the LIVE series answered with MICROBES through the host\'s target step: ONE visit over the nested pick', async ({page, request}) => {
+    test.setTimeout(420_000);
+    const id = await bootFixture(page, request, 'ecotec-table', {query: PRESET.query});
+    await settle(page, {timeoutMs: 30_000});
+    const before = await wireOf(request, id);
+    await recordSeries(page, 'pc04-f2');
+    const stop = await storyboard(page, 'f2-live-microbes');
+    await playLive(page, request, id, 'Advanced Ecosystems', 11);
+    const steps: Array<string> = [];
+    for (let k = 1; k <= 3; k++) {
+      await expect.poll(async () => (await questionOf(request, id))?.choiceContext?.series?.index, {timeout: 30_000, message: `question ${k}`}).toBe(k);
+      await expect(page.locator('[data-series-count]'), `the head counts question ${k}`).toHaveAttribute('data-series-count', `${k} / 3`, {timeout: 30_000});
+      if (k === 2) {
+        await answerPlantWithPad(page, request, id);
+      } else {
+        steps.push(await answerMicrobeWithPad(page, request, id));
+        await shoot(page, `f2-0${k}-after-microbe`);
+      }
+    }
+    await settle(page, {timeoutMs: 60_000}).catch(() => undefined);
+    await stop();
+    const after = await wireOf(request, id);
+    const poses = await readTransient<Pose>(page, 'pc04-f2');
+    const hosts = sequence(poses, 'host');
+    const holders = ['Tardigrades', 'Ants', 'GHG Producing Bacteria'];
+    const landed = holders.map((h) => `${h} +${onCard(after, h) - onCard(before, h)}`);
+    writeText('f2-series.txt', poseReport('F2 · the live series, microbes', poses, [
+      `host mounts: ${hosts.join(' → ')}`, `series: ${sequence(poses, 'series').join(' → ')}`, `landed: ${landed.join(' · ')}`,
+      ...steps.map((t, i) => `step ${i + 1}: ${t}`),
+    ]));
+    expect(after.thisPlayer.plants - before.thisPlayer.plants, 'the server: one plant (answer 2)').toBe(1);
+    expect(holders.reduce((n, h) => n + onCard(after, h) - onCard(before, h), 0), `the server: two microbes on holders (${landed.join(' · ')})`).toBe(2);
+    expect(hosts.filter((h) => h !== 0), `the host never left between two questions (${hosts.join(' → ')})`).toHaveLength(1);
+    expect(sequence(poses, 'series').filter((v) => v !== ''), 'the count only moves forward').toEqual(['1 / 3', '2 / 3', '3 / 3']);
+    expect(poses.filter((p) => p.v.host !== 0 && p.v.faces > 0).map((p) => Math.round(p.t)), 'no second face over the standing host').toEqual([]);
+    expect(after.waitingFor?.choiceContext?.source?.card, 'no question asked again').not.toBe(CORP);
   });
 
   test('G · the class\'s control: Viral Enhancers on Ecological Zone counts the same series', async ({page, request}) => {
