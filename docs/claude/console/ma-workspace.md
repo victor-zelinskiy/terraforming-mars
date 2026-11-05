@@ -224,6 +224,39 @@ and never in both:
   `blocker` is empty by design). The price chip stays — a price is information,
   a projection is a promise.
 
+### THE PRICE NAMES ITS CAUSE (PC01 Nirgal Enterprises · ledger GO, 2026-11-05)
+
+A 0 used to reach the console as a bare number, so the chip printed «БЕСПЛАТНО» — Vitor's word, with no cause, no
+printed price, and two corporations of a Merger table indistinguishable. Now:
+
+- **ONE price function on the server** — `Player.maPriceOf(kind)` → `{printed, price, waivedBy?}` (`common/ma/MaPrice.ts`):
+  the table's price (Staged Protests' surcharge included), the charge, and the waiving card named by the SAME branch of
+  upstream's condition that returns the 0 (Van Allen first, then Nirgal — no second table). `milestoneCost()` /
+  `awardFundingCost()` are its `price`, byte for byte upstream's numbers. The model publishes `maCosts.printed` +
+  `maCosts.waiver` ONLY beside a waiver.
+- **THREE readings, one pure function** — `console/maPriceReading.ts` → `paid` (the number, pixel for pixel as before;
+  the PL-1621 flight arms only for it — `maPriceCharged`) · `waived` (the struck table price → «0 M€» → the source's
+  seal, ONE renderer `foundation/ConsoleMaWaivedPrice.vue` over `PremiumModifierMarks` — the card silhouette of a
+  standing corporation effect) · `free` (Vitor's sponsorship, its own words; also the degrade of an unnamed 0). Every
+  host states the kind on its own element: `data-ma-price-kind`; the renderer carries `data-ma-price-printed` /
+  `data-ma-price-source`. **WHO waived it is said in words ONCE** — the detail's quiet line `[data-ma-waiver]`
+  («Nirgal Enterprises — для вас бесплатно»); the overview chip and the ceremony carry only the seal; the strategy rail
+  prints no price, so it gained nothing (calm by default).
+- **A waived price flies NOTHING** — no `data-ma-price-target`, `armMaPrice` arms no spec (its `megacredits` is 0), the
+  M€ row never ticks; the ceremony states «Цена: 8 → 0 [seal]».
+- **The ladder tells THREE TIMES** — PAST: a funded slot prints what it WENT for, the server's fact on every seat's
+  model (`FundedAwardModel.paid` / `waivedBy` / `slot` — funding order; the ladder used to pair BOARD order with the slot
+  prices); a waived slot reads «0» with the seal for everybody; a save without the fact prints the rules' price.
+  PRESENT: the next step's reading. FUTURE: the table's rule (14 · 20 — `AWARD_COSTS`, the rule is true for whoever
+  funds), struck to 0 with the seal under a standing waiver.
+- **The saving is a RECORD** — one `discount-applied` inside the claim's / the funding's own scope
+  (`Player.recordMaPriceWaiver`; `Game.fundAward(player, award, price)` carries the price as charged): the journal's
+  child «−8 · Nirgal Enterprises», «Ваши эффекты» (firings + saved), the endgame's biggest saving — for free. Never for
+  Vitor's sponsorship (FREE by its own rule — it passes `{printed, price: 0}` with no waiver), a plain seat, a preview.
+
+Guards: `tests/models/maPriceCause.spec.ts`, `tests/console/maPriceReading.spec.ts`, `ConsoleMaScreen.spec` § WAIVED;
+e2e `console-nirgal-enterprises` (B–G), `console-ma-price` I (`paid`), `console-vitor-award-step` (`free`).
+
 **Roles, one each** (the duplication this iteration removed): the BADGE says
 which state («МОЖНО ПОЛУЧИТЬ» / «СЕЙЧАС НЕДОСТУПНО» / «ПОЛУЧЕНО») and is
 bounded by the hero column — the copy stays short by contract, `max-width` +
