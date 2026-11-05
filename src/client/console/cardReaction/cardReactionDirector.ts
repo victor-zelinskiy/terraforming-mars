@@ -697,8 +697,16 @@ function placeOf(group: CardReactionGroup, emergence: ReactorEmergence | undefin
 
 async function recede(risen: Risen): Promise<void> {
   liveRisen.delete(risen.key);
+  // A CUT IN THE RECEDE OWNS THE FACES (PC02 · GQ): it unseats every face and clears every declaration in its own
+  // synchronous half, and its `killReactorTweens` resolves this recede through `onInterrupt` — so this continuation
+  // runs BEFORE Vue's flush takes the faces out of the DOM, and a settle check there read the chain's OWN face, still
+  // painted, as a foreign one (`[reaction] foreign face` on every double press during a space event's answer).
+  const mine = epoch;
   if (risen.via === 'place' && risen.emergence !== undefined) {
     await risen.emergence.settleTarget(risen.group.card);
+    if (epoch !== mine) {
+      return;
+    }
     noteReactorSettled(risen.key);
     await settleStrandedLifts(risen.group.card);
     checkReactionIdentity(`settle:${risen.group.card}`);
@@ -707,6 +715,9 @@ async function recede(risen: Risen): Promise<void> {
   const el = reactorEl(risen.key);
   if (el !== undefined) {
     await recedeReactor(el, risen.seat, tempoFor(cardReactionState.chain?.cards.length ?? 1), consoleReducedMotionActive());
+  }
+  if (epoch !== mine) {
+    return;
   }
   unseatReactor(risen.key);
   noteReactorSettled(risen.key);

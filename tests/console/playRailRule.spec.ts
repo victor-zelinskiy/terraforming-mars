@@ -34,6 +34,8 @@ import {resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes'
 import {scaleStepRatingSpecs} from '../../src/client/console/consoleActionCommit';
 import {verifyRailReward} from '../../src/client/console/resourceTransfer/railReward';
 import {PlayerViewModel} from '../../src/common/models/PlayerModel';
+import {PalladinShipping} from '../../src/server/cards/prelude2/PalladinShipping';
+import {ImportedGHG} from '../../src/server/cards/base/ImportedGHG';
 
 /**
  * PL-001 FOR PLAYS — «A DIRECT TR OF A PLAY IS A REWARD OF THE RAIL», swept over
@@ -287,5 +289,47 @@ describe('P66 · GJ — a scale step on the START HOST pays its rating off the p
       {direction: 'gain', icon: 'tr', amount: 1, implied: true},
       {direction: 'gain', icon: 'tr', amount: 2},
     ], {}, {startHost: true})).deep.eq([...born('temperature', 1), {channel: 'stock', resource: RATING_RAIL_KEY, amount: 2}]);
+  });
+});
+
+/**
+ * PC02 Palladin Shipping (ledger GQ, A6) — THE PRICE AND THE ANSWER IN ONE ROW. A space event paid with titanium answers
+ * with titanium: the play's price rides `known` on the SAME row the reactor's token lands on, so the applied view reads
+ * «5 → 3» (−3 price, +1 answer) and the promise holds; a row that moved otherwise still holds nothing and names itself.
+ */
+describe('the card play\'s rail rule — a price and the table\'s answer on ONE row (Palladin Shipping)', () => {
+  function palladinTable(): {p: TestPlayer} {
+    const [game, p] = testGame(2);
+    game.phase = Phase.ACTION;
+    p.playCorporationCard(new PalladinShipping());
+    p.megaCredits = 0;
+    return {p};
+  }
+  const view = (titanium: number) => ({id: 'p', thisPlayer: {terraformRating: 20, megacredits: 0, titanium, tableau: []}} as unknown as PlayerViewModel);
+
+  it('Imported GHG paid with 3 titanium: the answer +1 titanium is a reaction, the price −3 a known move of the same row', () => {
+    const {p} = palladinTable();
+    const card = new ImportedGHG();
+    const preview = cardPlayPreview(p, card);
+    const branch = preview.branches[0];
+    const reactions = reactionRailSpecs(effectForecastForPlay(p, card, preview).facts);
+    expect(reactions).deep.eq([{channel: 'stock', resource: 'titanium', amount: 1}]);
+    const rail = playRailReward(branch, heroRewardEffectsOf(branch), {}, {...Payment.EMPTY, titanium: 3}, reactions);
+    expect(rail?.known).deep.include({'stock:titanium': -3});
+    const ok = verifyRailReward(rail!, view(5), view(3));
+    expect(ok.mismatches).deep.eq([]);
+    expect(ok.reactions).deep.eq([{channel: 'stock', resource: 'titanium', amount: 1}]);
+  });
+
+  it('an unexplained difference on that row holds nothing and names itself', () => {
+    const {p} = palladinTable();
+    const card = new ImportedGHG();
+    const preview = cardPlayPreview(p, card);
+    const branch = preview.branches[0];
+    const rail = playRailReward(branch, heroRewardEffectsOf(branch), {}, {...Payment.EMPTY, titanium: 3},
+      reactionRailSpecs(effectForecastForPlay(p, card, preview).facts));
+    const bad = verifyRailReward(rail!, view(5), view(2));
+    expect(bad.reactions).deep.eq([]);
+    expect(bad.mismatches.join(' ')).contains('titanium');
   });
 });
