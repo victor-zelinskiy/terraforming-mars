@@ -72,6 +72,7 @@ import {Trader} from './modular/Trader';
 import {Tactician4} from './modular/Tactician4';
 import {Briber} from './Briber';
 import {Activist} from './turmoilRedux/Activist';
+import {Aeronaut} from './turmoilRedux/Aeronaut';
 
 export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
   all: {
@@ -79,6 +80,8 @@ export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
     // pool (`random: 'both'` — the built-in random sets, the modular set and the unified «all» pool) whenever
     // Redux is on; the fixed board sets stay the official layouts.
     'Activist': {Factory: Activist, compatibility: 'turmoilRedux', random: 'both'},
+    // Turmoil Redux: fighters + mechs on cards (mechs exist only under Redux).
+    'Aeronaut': {Factory: Aeronaut, compatibility: 'turmoilRedux', random: 'both'},
     'Agronomist': {Factory: Agronomist},
     'Architect': {Factory: Architect},
     'Briber': {Factory: Briber, random: 'modular'},

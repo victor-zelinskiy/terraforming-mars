@@ -77,6 +77,7 @@ export const milestoneNames = [
 
   // Turmoil Redux
   'Activist',
+  'Aeronaut',
 
   // Modular
   'Briber',

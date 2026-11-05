@@ -118,7 +118,7 @@ describe('MilestoneAwardSelector', () => {
       milestoneManifest.expansions['underworld'],
     ].flat();
 
-    avoidedMilestones.push('Pioneer', 'Martian', 'Colonizer', 'Activist');
+    avoidedMilestones.push('Pioneer', 'Martian', 'Colonizer', 'Activist', 'Aeronaut');
     avoidedAwards.push('T. Politician');
     const [milestones, awards] = getCandidates({...DEFAULT_GAME_OPTIONS,
       randomMA: RandomMAOptionType.LIMITED,
@@ -251,9 +251,10 @@ describe('MilestoneAwardSelector', () => {
       expect(noneAwards, 'no Parliament, no delegate award').to.not.include('T. Politician');
     });
 
-    // Activist counts steps of the Agenda (Career) track, which exists only under the Redux Parliament — so it is
-    // offered by EVERY random mode whenever Redux is on, and by none without it (the classic Parliament included).
-    it('Activist (Turmoil Redux) is in every random pool under Redux, and in none without it', () => {
+    // The Turmoil Redux milestones read what exists only under Redux (Activist — the Agenda track; Aeronaut — mechs), so
+    // they are offered by EVERY random mode whenever Redux is on, and by none without it (the classic Parliament included).
+    const REDUX_MILESTONES: ReadonlyArray<MilestoneName> = ['Activist', 'Aeronaut'];
+    it('the Turmoil Redux milestones are in every random pool under Redux, and in none without it', () => {
       const modes: ReadonlyArray<[string, Partial<GameOptions>]> = [
         ['limited', {randomMA: RandomMAOptionType.LIMITED}],
         ['unlimited', {randomMA: RandomMAOptionType.UNLIMITED}],
@@ -267,20 +268,20 @@ describe('MilestoneAwardSelector', () => {
           ...mode,
           expansions: {...DEFAULT_GAME_OPTIONS.expansions, ...expansions},
         })[0];
-        expect(pool({turmoilRedux: true, colonies: true}), `${label}: Redux`).to.include('Activist');
-        expect(pool({turmoil: true}), `${label}: classic Turmoil`).to.not.include('Activist');
-        expect(pool({}), `${label}: no Parliament`).to.not.include('Activist');
+        expect(pool({turmoilRedux: true, colonies: true}), `${label}: Redux`).to.include.members(REDUX_MILESTONES);
+        expect(intersection(pool({turmoil: true}), REDUX_MILESTONES), `${label}: classic Turmoil`).is.empty;
+        expect(intersection(pool({}), REDUX_MILESTONES), `${label}: no Parliament`).is.empty;
       }
     });
 
-    it('Activist is never forced into a fixed board set', () => {
+    it('a Turmoil Redux milestone is never forced into a fixed board set', () => {
       const game = chooseMilestonesAndAwards({
         ...DEFAULT_GAME_OPTIONS,
         boardName: BoardName.THARSIS,
         randomMA: RandomMAOptionType.NONE,
         expansions: {...DEFAULT_GAME_OPTIONS.expansions, turmoilRedux: true, colonies: true},
       });
-      expect(game.milestones).to.not.include('Activist');
+      expect(intersection(game.milestones, REDUX_MILESTONES)).is.empty;
     });
 
     it('respects enabled expansions', () => {

@@ -8,6 +8,7 @@ the checklist each next one follows.
 | Name | Kind | Rule (printed) | Status |
 | --- | --- | --- | --- |
 | **Activist** | milestone | Advance your Agenda marker at least 3 steps from its starting position (i.e. to the step that gives you 2 Influence). | DONE 2026-11-05 — `src/server/milestones/turmoilRedux/Activist.ts` |
+| **Aeronaut** | milestone | Have a combined 4 fighter or mech resources across your cards. | DONE 2026-11-06 — `src/server/milestones/turmoilRedux/Aeronaut.ts` |
 | Influencer | award | — | not started (the glossary already reserves its star icon, § 4a) |
 
 ## Activist — the decisions
@@ -27,6 +28,16 @@ the checklist each next one follows.
 - **RU:** «Активист» (the key `Activist` moved from `console.json` — the underworld resource name, same value — into
   `milestones.json`, so the pool guard reads it); the condition speaks the glossary (§ 4: «маркер Карьеры», never «Повестка»).
 - **Art:** `assets/ma/activist.png` + its `maArtFit.json` entry (43dda30819) — the slug is derived from the name.
+
+## Aeronaut — the decisions
+
+- **Score = `getResourceCount(FIGHTER) + getResourceCount(MECH)`** — the engine's count on the player's cards (Farmer's
+  reading); either kind alone reaches 4. Declares `cardResourceCount = [FIGHTER, MECH]`, so a fighter / mech gain is never
+  «for nothing» while the milestone is live (`models/actionFutility.ts`).
+- **Pools:** `compatibility: 'turmoilRedux'` (fighters are base, mechs exist only under Redux), `random: 'both'`.
+- **Synergy:** `Aeronaut ↔ Excentric = 5` (the most resources on cards — Hoverlord's weight). No exclusion group.
+- **RU:** «Аэронавт» · «Имейте на ваших картах в сумме не менее 4 истребителей и мехов» (`Fighter` → истребитель, `Mech` → мех).
+- **Art:** `assets/ma/aeronaut.png` + `maArtFit.json` (631c56d9eb).
 
 ## Checklist for the next Redux milestone / award
 

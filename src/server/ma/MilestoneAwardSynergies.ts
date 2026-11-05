@@ -552,6 +552,8 @@ const synergiesData: Array<[MilestoneName | AwardName, MilestoneName | AwardName
   // vize1215 fork — Turmoil Redux: the Career steps Activist counts come mostly from WINNING sittings, which is
   // what placing delegates (T. Politician) buys — the same seat chases both, but they are not one scoring vector.
   ['Activist', 'T. Politician', 4],
+  // Fighters and mechs are card resources — Excentric (the most resources on cards) rewards the same pile (Hoverlord's 5).
+  ['Aeronaut', 'Excentric', 5],
   // ['Tunneler', 'Excavator', 8],
   // ['Excavator', 'Edgedancer', 9],
 ];
