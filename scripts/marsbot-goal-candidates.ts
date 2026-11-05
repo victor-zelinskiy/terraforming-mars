@@ -304,7 +304,8 @@ function evaluate(file: string): Row | undefined {
     goalVp[id] = result.terms.filter((t) => isGoal(t.label)).reduce((s, t) => s + t.vp, 0);
   }
   const primary = game.automa.corporation;
-  const eligible = AutomaCorporations.eligibleCorpIds(game).filter((id) => id !== primary);
+  // Every corporation is measured, the creator's switch for the fork's own CF series aside.
+  const eligible = AutomaCorporations.eligibleCorpIds(game, {extraCorporations: true}).filter((id) => id !== primary);
   if (primary !== undefined) eligible.push(primary);
   return {
     id: d.id, board: d.gameOptions.boardName, hard: d.gameOptions.automa.difficulty === 'hard', redux: d.gameOptions.turmoilReduxExpansion === true,

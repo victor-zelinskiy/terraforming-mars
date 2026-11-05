@@ -78,6 +78,11 @@ export type PremiumCreateGameState = {
   /** «Вторая смена» of the bot (`common/automa/SecondShift.ts`) — on for a new game; the editor's switch beside the difficulty. */
   botSecondShift: boolean;
   /**
+   * «Дополнительные корпорации бота» (`AutomaGameOptions.extraCorporations`): the fork's own CF series joins the
+   * bot's corporation pool — OFF for a new setup, remembered with the rest of it; the editor's switch beside the difficulty.
+   */
+  botExtraCorporations: boolean;
+  /**
    * Mode B (frame §12 Q14): seat MarsBot as an EXTRA participant of the
    * ordinary multiplayer party (2–4 humans + the bot). Only meaningful while
    * `gameMode === 'multiplayer'`; the solo 'marsbot' mode implies the bot.
@@ -133,6 +138,7 @@ export function defaultPremiumState(): PremiumCreateGameState {
     gameMode: 'multiplayer',
     botDifficulty: 'normal',
     botSecondShift: true,
+    botExtraCorporations: false,
     seatMarsBot: false,
     players,
     selectedExpansions,
@@ -311,6 +317,12 @@ export function setBotDifficulty(difficulty: DifficultyLevel): void {
 /** «Вторая смена» on / off (`common/automa/SecondShift.ts`); the info plate stays on the bot. */
 export function setBotSecondShift(on: boolean): void {
   createGameState.config.botSecondShift = on;
+  createGameState.info = {kind: 'bot', difficulty: createGameState.config.botDifficulty};
+}
+
+/** «Дополнительные корпорации бота» on / off; the info plate stays on the bot. */
+export function setBotExtraCorporations(on: boolean): void {
+  createGameState.config.botExtraCorporations = on;
   createGameState.info = {kind: 'bot', difficulty: createGameState.config.botDifficulty};
 }
 
@@ -646,6 +658,8 @@ function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
     base.botDifficulty;
   // A setup saved before the rule existed keeps the default (on).
   const botSecondShift = typeof saved.botSecondShift === 'boolean' ? saved.botSecondShift : base.botSecondShift;
+  // A setup saved before the switch existed keeps the default (off).
+  const botExtraCorporations = typeof saved.botExtraCorporations === 'boolean' ? saved.botExtraCorporations : base.botExtraCorporations;
 
   const selectedExpansions = {...base.selectedExpansions};
   const savedExpansions = asRecord(saved.selectedExpansions);
@@ -682,6 +696,7 @@ function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
     gameMode,
     botDifficulty,
     botSecondShift,
+    botExtraCorporations,
     seatMarsBot,
     players,
     selectedExpansions,

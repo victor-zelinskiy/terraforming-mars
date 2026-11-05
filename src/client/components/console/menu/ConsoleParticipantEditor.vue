@@ -78,6 +78,15 @@
             </span>
           </template>
 
+          <!-- «Дополнительные корпорации бота» (option `extraCorporations`) — the fork's own CF series in the bot's pool -->
+          <template v-else-if="field.id === 'extraCorporations'">
+            <span class="cm-field__value cm-field__value--stepper" data-field="extraCorporations">
+              <span class="cm-field__arrow" aria-hidden="true">◄</span>
+              <span class="cm-field__stepval">{{ $t(extraCorporationsOn ? 'On' : 'Off') }}</span>
+              <span class="cm-field__arrow" aria-hidden="true">►</span>
+            </span>
+          </template>
+
           <!-- Remove -->
           <template v-else-if="field.id === 'remove'">
             <span class="cm-field__value cm-field__value--danger">
@@ -89,6 +98,7 @@
         <div v-if="nameIssue !== ''" class="cm-field__issue">{{ $t(nameIssue) }}</div>
         <div v-if="target.kind === 'bot'" class="cm-editor__note">{{ $t(difficultyDesc) }}</div>
         <div v-if="target.kind === 'bot'" class="cm-editor__note" data-second-shift-note>{{ $t(secondShiftDesc) }}</div>
+        <div v-if="target.kind === 'bot'" class="cm-editor__note" data-extra-corporations-note>{{ $t(extraCorporationsDesc) }}</div>
         <div v-if="target.kind === 'bot'" class="cm-editor__note cm-editor__note--dim">{{ $t('The cube colour is assigned automatically at game start.') }}</div>
       </div>
 
@@ -236,6 +246,15 @@ export default defineComponent({
       }
       return SECOND_SHIFT_DESC_ON;
     },
+    extraCorporationsOn(): boolean {
+      return createGameState.config.botExtraCorporations;
+    },
+    /** What the switch puts in the bot's pool — the official set alone, or the fork's own series beside it. */
+    extraCorporationsDesc(): string {
+      return this.extraCorporationsOn ?
+        'Extra corporations on: besides the official ones, MarsBot may get one of the corporations made for this edition.' :
+        'Extra corporations off: MarsBot gets only corporations from the official Automa set.';
+    },
     /** Saved friends offered for this seat + a final "type a new name" row.
      * A friend already used by ANOTHER seat is shown disabled (case-insensitive). */
     friendPickRows(): ReadonlyArray<FriendPickRow> {
@@ -333,6 +352,7 @@ export default defineComponent({
       case 'trBoost':
       case 'difficulty':
       case 'secondShift':
+      case 'extraCorporations':
         editorAdjust(this.target, field.id, 1);
         break;
       case 'remove':

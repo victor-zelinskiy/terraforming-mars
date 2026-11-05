@@ -73,7 +73,7 @@ describe('premium create — settings persistence', () => {
 
     expect(saved).is.not.undefined;
     expect(Object.keys(saved!).sort()).deep.eq(
-      ['botDifficulty', 'botSecondShift', 'gameMode', 'guaranteedCards', 'mapId', 'mapMode', 'players', 'rules', 'seatMarsBot', 'selectedExpansions', 'sessionMode'].sort());
+      ['botDifficulty', 'botExtraCorporations', 'botSecondShift', 'gameMode', 'guaranteedCards', 'mapId', 'mapMode', 'players', 'rules', 'seatMarsBot', 'selectedExpansions', 'sessionMode'].sort());
     expect(saved).to.not.have.property('creating');
     expect(saved).to.not.have.property('error');
     expect(saved).to.not.have.property('mapPickerOpen');
@@ -121,6 +121,12 @@ describe('premium create — settings persistence', () => {
     expect(createGameState.config.botSecondShift).eq(false);
   });
 
+  it('restores «дополнительные корпорации бота» switched on — the switch is remembered for the user', () => {
+    storage.saveSettings({gameMode: 'marsbot', botExtraCorporations: true, players: [{name: 'Solo', color: 'green'}]} as any);
+    expect(restoreCreateGameState(storage)).is.true;
+    expect(createGameState.config.botExtraCorporations).eq(true);
+  });
+
   it('safely restores a partial / stale / invalid blob', () => {
     storage.saveSettings({
       gameMode: 'marsbot',
@@ -141,6 +147,8 @@ describe('premium create — settings persistence', () => {
     // Invalid difficulty / map fall back to the defaults; a blob saved before «вторая смена» keeps it ON.
     expect(createGameState.config.botDifficulty).eq('normal');
     expect(createGameState.config.botSecondShift).eq(true);
+    // …and a blob saved before «дополнительные корпорации бота» keeps them OFF.
+    expect(createGameState.config.botExtraCorporations).eq(false);
     expect(createGameState.config.mapId).eq(BoardName.THARSIS);
     // A known rule is applied; an unknown one is dropped.
     expect(createGameState.config.rules.draftVariant).eq(false);

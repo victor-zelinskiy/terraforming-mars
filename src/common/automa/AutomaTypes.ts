@@ -115,6 +115,14 @@ export type AutomaOptions = {
    * every test config that does not ask for it).
    */
   secondShift?: boolean;
+  /**
+   * «ДОПОЛНИТЕЛЬНЫЕ КОРПОРАЦИИ БОТА» (the owner, 2026-11-05): the fork's OWN bot corporations (the CF series —
+   * `isExtraMarsBotCorp`) join MarsBot's corporation pool — the random primary and the campaign's holdings. The
+   * game creator's switch beside the difficulty, OFF by default and remembered per user; absent ⇒ off (every
+   * older game, every config that does not ask for it): the official C01–C46 alone. A dev/test request
+   * (`corporation`) names its card on purpose and is honoured either way.
+   */
+  extraCorporations?: boolean;
 };
 
 /**

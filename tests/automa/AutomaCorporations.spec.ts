@@ -3,7 +3,7 @@ import {CardName} from '../../src/common/cards/CardName';
 import {Tag} from '../../src/common/cards/Tag';
 import {TileType} from '../../src/common/TileType';
 import {BonusCardId, MARS_BOT_CORP_IDS, MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
-import {marsBotCorpInfo} from '../../src/common/automa/MarsBotCorpData';
+import {isExtraMarsBotCorp, marsBotCorpInfo} from '../../src/common/automa/MarsBotCorpData';
 import {Game} from '../../src/server/Game';
 import {IGame} from '../../src/server/IGame';
 import {AutomaCorporations} from '../../src/server/automa/corps/AutomaCorporations';
@@ -71,6 +71,55 @@ describe('AutomaCorporations — the MarsBot corporation framework', () => {
     it('Spire stays eligible in the current matrix (its human counterpart needs Prelude 2, which conflicts with the bot)', () => {
       const [game] = testAutomaGame({corporation: 'random'}, '-elig');
       expect(AutomaCorporations.eligibleCorpIds(game)).contains(MarsBotCorpId.C45_SPIRE);
+    });
+  });
+
+  describe('«Дополнительные корпорации бота» — the fork\'s own CF series behind the creator\'s switch', () => {
+    const REDUX = {coloniesExtension: true, turmoilReduxExpansion: true} as const;
+
+    it('the series is exactly the CF card numbers — and each of them is one', () => {
+      const extra = MARS_BOT_CORP_IDS.filter(isExtraMarsBotCorp);
+      expect(extra).has.length(10);
+      for (const id of MARS_BOT_CORP_IDS) {
+        expect(isExtraMarsBotCorp(id), id).eq(marsBotCorpInfo(id).cardNumber.startsWith('CF'));
+      }
+    });
+
+    it('OFF: the pool is the official set alone; ON: the series joins it; a bench reader may ask for every corporation', () => {
+      const [off] = testAutomaGame({...REDUX, corporation: 'random', extraCorporations: false}, '-x-off');
+      const pool = AutomaCorporations.eligibleCorpIds(off);
+      expect(pool.filter(isExtraMarsBotCorp)).is.empty;
+      expect(pool).contains(MarsBotCorpId.C01_CREDICOR);
+      expect(AutomaCorporations.eligibleCorpIds(off, {extraCorporations: true})).contains(MarsBotCorpId.CF10_TITAN_HOLDINGS);
+      const [on] = testAutomaGame({...REDUX, corporation: 'random', extraCorporations: true}, '-x-on');
+      expect(AutomaCorporations.eligibleCorpIds(on).filter(isExtraMarsBotCorp)).has.length(10);
+    });
+
+    it('a game created without the field (every older game, every plain config) is OFF', () => {
+      const human = TestPlayer.BLUE.newPlayer({name: 'player1', idSuffix: '-x-absent'});
+      const game = Game.newInstance('game-id-x-absent', [human], human, 'spectator-id-x-absent', {automa: {difficulty: 'normal'}});
+      expect(game.gameOptions.automa?.extraCorporations).is.undefined;
+      expect(AutomaCorporations.eligibleCorpIds(game).filter(isExtraMarsBotCorp)).is.empty;
+    });
+
+    it('the random primary never draws the series while OFF, and does while ON', () => {
+      const drawn = (extraCorporations: boolean) => {
+        const ids = new Set<MarsBotCorpId>();
+        for (let seed = 0; seed < 40; seed++) {
+          const [game, human] = testAutomaGame({...REDUX, corporation: 'random', extraCorporations, seed: (seed + 1) / 41}, `-x-draw-${extraCorporations}-${seed}`);
+          game.playerIsFinishedWithResearchPhase(human);
+          ids.add(game.automa!.corporation!);
+        }
+        return [...ids];
+      };
+      expect(drawn(false).filter(isExtraMarsBotCorp)).is.empty;
+      expect(drawn(true).filter(isExtraMarsBotCorp)).is.not.empty;
+    });
+
+    it('a REQUESTED corporation names its card on purpose: a CF corporation is seated with the switch OFF', () => {
+      const [game, human] = testAutomaGame({...REDUX, corporation: MarsBotCorpId.CF10_TITAN_HOLDINGS, extraCorporations: false}, '-x-forced');
+      game.playerIsFinishedWithResearchPhase(human);
+      expect(game.automa!.corporation).eq(MarsBotCorpId.CF10_TITAN_HOLDINGS);
     });
   });
 

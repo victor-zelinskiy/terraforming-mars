@@ -39,6 +39,7 @@ import {
   seatBotNeedsConfirm,
   selectMap,
   toggleBotSecondShift,
+  toggleBotExtraCorporations,
   toggleExpansion,
   toggleRule,
   unseatBot,
@@ -187,10 +188,21 @@ describe('consoleCreateModel', () => {
       expect(botSeated()).to.eq(false);
     });
 
-    it('exposes difficulty + second shift + remove fields for the bot editor', () => {
+    it('exposes difficulty + second shift + extra corporations + remove fields for the bot editor', () => {
       seatBot();
       const fields = editorFields({kind: 'bot'}).map((f) => f.id);
-      expect(fields).to.deep.eq(['difficulty', 'secondShift', 'remove']);
+      expect(fields).to.deep.eq(['difficulty', 'secondShift', 'extraCorporations', 'remove']);
+    });
+
+    it('«дополнительные корпорации бота» is a switch beside the difficulty: OFF for a new setup, ◄/► and A flip it, the bot row names it', () => {
+      seatBot();
+      expect(createGameState.config.botExtraCorporations).to.eq(false);
+      expect(crewRows().find((r) => r.kind === 'bot')).to.include({extraCorporations: false});
+      expect(editorAdjust({kind: 'bot'}, 'extraCorporations', 1)).to.eq(true);
+      expect(createGameState.config.botExtraCorporations).to.eq(true);
+      expect(crewRows().find((r) => r.kind === 'bot')).to.include({extraCorporations: true});
+      toggleBotExtraCorporations();
+      expect(createGameState.config.botExtraCorporations).to.eq(false);
     });
 
     it('«вторая смена» is a switch beside the difficulty: ◄/► flip it, the cap follows the difficulty, Easy has it too', () => {

@@ -1,6 +1,6 @@
 import {CardName} from '../../common/cards/CardName';
 import {Expansion} from '../../common/cards/GameModule';
-import {MARS_BOT_CORP_IDS, MarsBotCorpId, marsBotCorpInfo} from '../../common/automa/MarsBotCorpData';
+import {MARS_BOT_CORP_IDS, MarsBotCorpId, isExtraMarsBotCorp, marsBotCorpInfo} from '../../common/automa/MarsBotCorpData';
 import {SeededRandom} from '../../common/utils/Random';
 import {AutomaCorporations} from '../automa/corps/AutomaCorporations';
 
@@ -35,6 +35,8 @@ export type DrawHoldingsInput = {
   humanCorporations: ReadonlySet<CardName>;
   /** The campaign's own seed — the draw is reproducible per campaign and mission. */
   seed: number;
+  /** «Дополнительные корпорации бота» (`AutomaGameOptions.extraCorporations`, frozen with the settings): the CF series may be drawn. */
+  extraCorporations?: boolean;
 };
 
 /**
@@ -42,7 +44,8 @@ export type DrawHoldingsInput = {
  * new draws until the slot's count is reached. A candidate is any
  * corporation the bot could legally use this campaign — its printed module
  * condition met (stable: the campaign's expansions are frozen), not the
- * primary, not already a holding, not a human's lineage corporation. A
+ * primary, not already a holding, not a human's lineage corporation, and one
+ * of the fork's own CF series only behind the creator's switch. A
  * relaunch of the same slot draws nothing new (the count is already there).
  */
 export function drawBotHoldings(input: DrawHoldingsInput): Array<MarsBotCorpId> {
@@ -56,6 +59,7 @@ export function drawBotHoldings(input: DrawHoldingsInput): Array<MarsBotCorpId> 
     const pool = MARS_BOT_CORP_IDS.filter((id) => {
       const info = marsBotCorpInfo(id);
       return id !== input.primary && !holdings.includes(id) &&
+        (input.extraCorporations === true || !isExtraMarsBotCorp(id)) &&
         AutomaCorporations.hasRequiredModules(info, input.expansions) &&
         !input.humanCorporations.has(info.original);
     });

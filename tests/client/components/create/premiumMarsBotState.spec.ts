@@ -79,11 +79,15 @@ describe('premium create — MarsBot mode', () => {
       setBotDifficulty('hard');
       createGameState.config.selectedExpansions.venus = true;
       const payload = buildCreateGamePayloadFromPremiumState(createGameState.config);
-      expect(payload.automa).deep.eq({difficulty: 'hard', secondShift: true});
+      expect(payload.automa).deep.eq({difficulty: 'hard', secondShift: true, extraCorporations: false});
       // The switch rides the same option — off is sent as off, never dropped.
       createGameState.config.botSecondShift = false;
-      expect(buildCreateGamePayloadFromPremiumState(createGameState.config).automa).deep.eq({difficulty: 'hard', secondShift: false});
+      expect(buildCreateGamePayloadFromPremiumState(createGameState.config).automa).deep.eq({difficulty: 'hard', secondShift: false, extraCorporations: false});
       createGameState.config.botSecondShift = true;
+      // «Дополнительные корпорации бота» ride the same option — OFF by default, sent either way.
+      createGameState.config.botExtraCorporations = true;
+      expect(buildCreateGamePayloadFromPremiumState(createGameState.config).automa).deep.eq({difficulty: 'hard', secondShift: true, extraCorporations: true});
+      createGameState.config.botExtraCorporations = false;
       expect(payload.solarPhaseOption).is.false;
       expect(payload.players).has.length(createGameState.config.players.length);
       // Mode B keeps the start-of-game draft template values (§12 Q8) —
@@ -176,7 +180,7 @@ describe('premium create — MarsBot mode', () => {
     createGameState.config.selectedExpansions.venus = true;
 
     const payload = buildCreateGamePayloadFromPremiumState(createGameState.config);
-    expect(payload.automa).deep.eq({difficulty: 'brutal', secondShift: true});
+    expect(payload.automa).deep.eq({difficulty: 'brutal', secondShift: true, extraCorporations: false});
     expect(payload.players).has.length(1);
     expect(payload.players[0].first).is.true;
     expect(payload.solarPhaseOption).is.false;

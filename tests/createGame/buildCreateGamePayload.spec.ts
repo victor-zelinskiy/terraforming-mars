@@ -17,6 +17,7 @@ function baseState(): PremiumCreateGameState {
     gameMode: 'multiplayer',
     botDifficulty: 'normal',
     botSecondShift: true,
+    botExtraCorporations: false,
     seatMarsBot: false,
     players: [
       {slot: 0, name: 'Victor', color: 'green', trBoost: 0, isCreator: true},

@@ -25,6 +25,18 @@
 
 Пустой eligible-пул — invariant error (Spire всегда eligible: её human-двойник требует Prelude 2, конфликтующий с ботом). Легаси-сейв без корпорации, ушедший дальше 1-го поколения, живёт corpless (гард `generation === 1`); все его пути (random-драфт, discard shuffle-first) байт-идентичны прежним.
 
+## ДОПОЛНИТЕЛЬНЫЕ КОРПОРАЦИИ БОТА — серия CF за переключателем создателя (2026-11-05)
+
+Собственные корпорации форка (серия CF — `isExtraMarsBotCorp`, номер карты начинается с «CF») входят в пул бота только за переключателем «Дополнительные корпорации бота» в редакторе бота (рядом со сложностью и «Динамическим балансом»): `AutomaGameOptions.extraCorporations`, **по умолчанию ВЫКЛ**, запоминается вместе с остальной настройкой создателя (`createGameState.botExtraCorporations`, `sanitizePremiumState` — блоб без поля = выкл.). Поле отсутствует ⇒ выкл.: каждая старая партия и каждый конфиг, который его не просит, — только официальные C01–C46.
+
+- **Один пул**: `AutomaCorporations.eligibleCorpIds(game)` = `legalCorpIds(game)` (коллизия с людьми + условие модуля) минус CF при выключенном переключателе. Случайная главная корпорация и `withoutHoldings` читают его.
+- **Явный запрос называет карту нарочно**: dev/test `corporation` и `portfolio` судятся по `legalCorpIds` — CF-корпорация, попрошенная явно, садится и при выключенном переключателе (e2e-фикстуры и стенды карт CF не ломаются).
+- **Кампания**: держания тянет `drawBotHoldings` — CF в пуле только при `campaign.settings.automa.extraCorporations` (настройка заморожена вместе с кампанией); главная корпорация миссии 1 выбирается тем же пулом, что и в одиночной партии.
+- **Стенды дивидендов** (`marsbot-dividends-calibrate`, `marsbot-goal-candidates`) меряют ВСЕ корпорации: `eligibleCorpIds(game, {extraCorporations: true})`.
+- **Тестовый помощник** `testAutomaGame` по умолчанию включает переключатель (пул спеков = всё реализованное, как до него); спек о самом переключателе передаёт `false`.
+
+Гарды: `AutomaCorporations.spec` § «Дополнительные корпорации бота», `botPortfolio.spec` (держания), `consoleCreateModel.spec` / `premiumMarsBotState.spec` / `premiumCreateGamePersistence.spec` (переключатель, полезная нагрузка, восстановление).
+
 ## Драфт (RB-B)
 
 Pick: приоритет корпорации; равные → случайно (seeded), нет совпадений → случайно. Дискард: shuffle → первый НЕзащищённый уходит; защищено всё → сброса нет → **колода действий из 5 карт** (никаких `length === 4` assumptions). «Most tags» = печатный ряд `AutomaResolver.printedTags` (event-метка и wild считаются; исключение wild в RB-B скоуплено на tag-chain приоритеты). Corpless / без приоритета: официальный random + discard-first (rng-идентично старому коду).

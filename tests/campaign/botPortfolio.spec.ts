@@ -5,7 +5,7 @@ import {CampaignManager} from '../../src/server/campaign/CampaignManager';
 import {GameLoader} from '../../src/server/database/GameLoader';
 import {drawBotHoldings, holdingsForSlot} from '../../src/server/campaign/botPortfolio';
 import {CardName} from '../../src/common/cards/CardName';
-import {MarsBotCorpId, marsBotCorpInfo} from '../../src/common/automa/MarsBotCorpData';
+import {MARS_BOT_CORP_IDS, MarsBotCorpId, isExtraMarsBotCorp, marsBotCorpInfo} from '../../src/common/automa/MarsBotCorpData';
 import {CampaignId} from '../../src/common/Types';
 import {campaignTestConfig} from './CampaignManager.spec';
 import {computeMissionStandings} from '../../src/server/campaign/missionStandings';
@@ -42,6 +42,22 @@ describe('the bot\'s campaign portfolio', () => {
           expect(info.requiresAnyModule, `${id} needs a module`).is.undefined;
         }
       }
+    });
+
+    it('the fork\'s own CF series is drawn only behind the creator\'s «Дополнительные корпорации бота» switch', () => {
+      const drawn = (extraCorporations: boolean | undefined) => {
+        const ids = new Set<MarsBotCorpId>();
+        for (let i = 0; i < 40; i++) {
+          for (const id of drawBotHoldings({...BASE, slot: 3, seed: (i + 1) / 41, extraCorporations})) {
+            ids.add(id);
+          }
+        }
+        return [...ids];
+      };
+      expect(drawn(undefined).filter(isExtraMarsBotCorp), 'absent ⇒ off').is.empty;
+      expect(drawn(false).filter(isExtraMarsBotCorp)).is.empty;
+      expect(drawn(true).filter(isExtraMarsBotCorp)).is.not.empty;
+      expect(MARS_BOT_CORP_IDS.filter(isExtraMarsBotCorp)).is.not.empty;
     });
 
     it('the acquired holdings are kept as they are, and a relaunch draws nothing new', () => {

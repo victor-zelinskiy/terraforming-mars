@@ -38,6 +38,10 @@
               <span class="cm-row__dot" aria-hidden="true">·</span>
               <span>{{ $t('Dynamic balance') }}</span>
             </template>
+            <template v-if="row.extraCorporations">
+              <span class="cm-row__dot" aria-hidden="true">·</span>
+              <span data-crew-extra-corporations>{{ $t('Extra corporations') }}</span>
+            </template>
             <span class="cm-row__dot" aria-hidden="true">·</span>
             <span>{{ $t('Takes its turns automatically') }}</span>
           </span>

@@ -521,6 +521,7 @@ export class CampaignManager {
       expansions,
       humanCorporations,
       seed: campaign.generator.seed,
+      extraCorporations: campaign.settings.automa?.extraCorporations === true,
     });
     return progression.botHoldings;
   }

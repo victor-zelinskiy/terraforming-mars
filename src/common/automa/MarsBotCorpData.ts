@@ -1619,6 +1619,14 @@ export function marsBotCorpInfo(id: MarsBotCorpId): MarsBotCorpInfo {
   return CORP_INFO[id];
 }
 
+/**
+ * The fork's OWN bot corporations — the CF series (cards the official set does not print). They enter MarsBot's
+ * pool only behind the creator's «Дополнительные корпорации бота» switch (`AutomaGameOptions.extraCorporations`).
+ */
+export function isExtraMarsBotCorp(id: MarsBotCorpId): boolean {
+  return CORP_INFO[id].cardNumber.startsWith('CF');
+}
+
 /** The corp that owns a corporation-specific bonus card (B22–B32), if implemented. */
 export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefined {
   return MARS_BOT_CORP_IDS.map(marsBotCorpInfo).find((corp) => corp.corpBonusCards.includes(id));

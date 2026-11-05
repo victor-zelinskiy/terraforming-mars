@@ -4,7 +4,7 @@ import {Expansion} from '../../../common/cards/GameModule';
 import {Tag} from '../../../common/cards/Tag';
 import {BonusCardId, TrackAction} from '../../../common/automa/AutomaTypes';
 import {FailedActionReason} from '../../../common/automa/MarsBotTurn';
-import {MARS_BOT_CORP_IDS, MarsBotCorpCubeModel, MarsBotCorpId, MarsBotCorpInfo, MarsBotDraftPriority, MarsBotTrackCube, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
+import {MARS_BOT_CORP_IDS, MarsBotCorpCubeModel, MarsBotCorpId, MarsBotCorpInfo, MarsBotDraftPriority, MarsBotTrackCube, isExtraMarsBotCorp, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
 import {inplaceShuffle} from '../../utils/shuffle';
 import {IGame} from '../../IGame';
 import {IPlayer} from '../../IPlayer';
@@ -223,11 +223,26 @@ export class AutomaCorporations {
   }
 
   /**
-   * The implemented corporations still eligible for this game, in card-number
-   * order: neither colliding with a human corporation nor missing a module its
-   * printed card requires.
+   * MarsBot's corporation POOL for this game, in card-number order: the
+   * corporations it may legally use (`legalCorpIds`) — the fork's own CF
+   * series only while the creator's «Дополнительные корпорации бота» switch is
+   * on (`AutomaGameOptions.extraCorporations`; absent ⇒ off). `extraCorporations`
+   * overrides the switch for a reader that measures every corporation (the
+   * dividend benches over the owner's real games).
    */
-  public static eligibleCorpIds(game: IGame): Array<MarsBotCorpId> {
+  public static eligibleCorpIds(game: IGame, options: {extraCorporations?: boolean} = {}): Array<MarsBotCorpId> {
+    const extra = options.extraCorporations ?? game.gameOptions.automa?.extraCorporations === true;
+    return AutomaCorporations.legalCorpIds(game).filter((id) => extra || !isExtraMarsBotCorp(id));
+  }
+
+  /**
+   * The implemented corporations the bot may LEGALLY use in this game, the
+   * switch aside: neither colliding with a human corporation nor missing a
+   * module its printed card requires. An explicit request — a dev/test
+   * `corporation`, a `portfolio` the campaign already drew under its own
+   * switch — is judged against this list, so it names its card on purpose.
+   */
+  public static legalCorpIds(game: IGame): Array<MarsBotCorpId> {
     const humanCorporations = AutomaCorporations.humanCorporationNames(game);
     const expansions = game.gameOptions.expansions ?? {};
     return MARS_BOT_CORP_IDS.filter((id) => {
@@ -293,12 +308,13 @@ export class AutomaCorporations {
     // DEV/TEST override (the customBonusCards twin): honored only while
     // eligible — a request colliding with a human corporation falls back to
     // the normal random selection rather than seating an illegal corp.
+    const legal = AutomaCorporations.legalCorpIds(game);
     const requested = game.gameOptions.automa?.corporation;
-    const id = requested !== undefined && allEligible.includes(requested) ?
+    const id = requested !== undefined && legal.includes(requested) ?
       requested :
       eligible[game.rng.nextInt(eligible.length)];
     automa.corporation = id;
-    automa.holdings = AutomaCorporations.seatableHoldings(portfolio, id, allEligible);
+    automa.holdings = AutomaCorporations.seatableHoldings(portfolio, id, legal);
     const corp = AutomaCorporations.REGISTRY[id];
     const bot = marsBotOf(game);
     game.events.beginAction(bot, {kind: 'corporation', card: corp.info.original, owner: bot.color}, {category: 'corporation-action'});

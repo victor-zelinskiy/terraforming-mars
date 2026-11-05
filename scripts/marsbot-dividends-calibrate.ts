@@ -83,7 +83,8 @@ function evaluate(file: string): Row | undefined {
   const best = humans.reduce((a, b) => a.getVictoryPoints().total >= b.getVictoryPoints().total ? a : b);
   const primary = game.automa.corporation;
   // The holdings this game could have seated: eligible by module and collision, never the primary.
-  const eligible = AutomaCorporations.eligibleCorpIds(game).filter((id) => id !== primary);
+  // Every corporation is measured, the creator's switch for the fork's own CF series aside.
+  const eligible = AutomaCorporations.eligibleCorpIds(game, {extraCorporations: true}).filter((id) => id !== primary);
   return {
     id: d.id, slot: d.gameOptions.campaign?.missionSlot, difficulty: d.gameOptions.automa.difficulty, generation: game.generation,
     board: d.gameOptions.boardName, redux: d.gameOptions.turmoilReduxExpansion === true, primary,

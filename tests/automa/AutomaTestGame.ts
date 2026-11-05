@@ -31,6 +31,12 @@ export type AutomaTestOptions = Partial<GameOptions> & {
   corporation?: MarsBotCorpId | 'random';
   /** The bot's campaign HOLDINGS (dividend only) — `AutomaOptions.portfolio`. */
   portfolio?: ReadonlyArray<MarsBotCorpId>;
+  /**
+   * «Дополнительные корпорации бота» — `AutomaOptions.extraCorporations`. DEFAULT here: ON, so the pool a spec
+   * reads is the whole implemented set (C01–C46 + the fork's CF series), as it was before the switch existed; a
+   * spec about the switch itself passes `false` (a real game without the field is OFF).
+   */
+  extraCorporations?: boolean;
   /** Keep the human's SelectInitialCards prompt (default: popped, like testGame). */
   keepInitialCardSelection?: boolean;
   /**
@@ -47,11 +53,14 @@ export type AutomaTestOptions = Partial<GameOptions> & {
  * the bot the engine seats itself. Returns [game, human, bot].
  */
 export function testAutomaGame(customOptions?: AutomaTestOptions, idSuffix = ''): [IGame, TestPlayer, IPlayer] {
-  const {difficulty, corporation, keepInitialCardSelection, seed, botParliamentMode, portfolio, ...gameOptions} = customOptions ?? {};
+  const {difficulty, corporation, keepInitialCardSelection, seed, botParliamentMode, portfolio, extraCorporations, ...gameOptions} = customOptions ?? {};
   const forced = corporation ?? MarsBotCorpId.C01_CREDICOR;
   const human = TestPlayer.BLUE.newPlayer({name: 'player1', idSuffix});
   const game = Game.newInstance(`game-id${idSuffix}`, [human], human, `spectator-id${idSuffix}`, {
-    automa: {difficulty: difficulty ?? 'normal', ...(forced !== 'random' ? {corporation: forced} : {}), ...(portfolio !== undefined ? {portfolio} : {})},
+    automa: {
+      difficulty: difficulty ?? 'normal', ...(forced !== 'random' ? {corporation: forced} : {}), ...(portfolio !== undefined ? {portfolio} : {}),
+      extraCorporations: extraCorporations ?? true,
+    },
     ...gameOptions,
   }, seed ?? 0);
   if (botParliamentMode !== undefined && game.parliament !== undefined) {

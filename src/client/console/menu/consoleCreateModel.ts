@@ -53,6 +53,7 @@ import {
   setPlayerCount,
   setSeatMarsBot,
   setBotSecondShift,
+  setBotExtraCorporations,
   setSlotColor,
   setSlotTrBoost,
   slotNameIssue,
@@ -207,7 +208,7 @@ export type CrewRow =
       removable: boolean,
       nameIssue: SlotNameIssue | undefined,
     }
-  | {kind: 'bot', difficulty: DifficultyLevel, secondShift: boolean}
+  | {kind: 'bot', difficulty: DifficultyLevel, secondShift: boolean, extraCorporations: boolean}
   | {kind: 'add', enabled: boolean, reasonKey: string | undefined};
 
 export function botSeated(): boolean {
@@ -240,7 +241,12 @@ export function crewRows(): ReadonlyArray<CrewRow> {
     nameIssue: slotNameIssue(index),
   }));
   if (botSeated()) {
-    rows.push({kind: 'bot', difficulty: config.botDifficulty, secondShift: config.botSecondShift && secondShiftRuleApplies(config.botDifficulty)});
+    rows.push({
+      kind: 'bot',
+      difficulty: config.botDifficulty,
+      secondShift: config.botSecondShift && secondShiftRuleApplies(config.botDifficulty),
+      extraCorporations: config.botExtraCorporations,
+    });
   }
   const reason = addDisabledReason();
   rows.push({kind: 'add', enabled: reason === undefined, reasonKey: reason});
@@ -333,7 +339,7 @@ export function participantTypeOptions(): ReadonlyArray<ParticipantTypeOption> {
 
 export type EditorTarget = {kind: 'human', index: number} | {kind: 'bot'};
 
-export type EditorFieldId = 'name' | 'color' | 'trBoost' | 'difficulty' | 'secondShift' | 'remove';
+export type EditorFieldId = 'name' | 'color' | 'trBoost' | 'difficulty' | 'secondShift' | 'extraCorporations' | 'remove';
 
 export type EditorField = {
   id: EditorFieldId,
@@ -346,6 +352,7 @@ export function editorFields(target: EditorTarget): ReadonlyArray<EditorField> {
     return [
       {id: 'difficulty', labelKey: 'Difficulty'},
       {id: 'secondShift', labelKey: 'Dynamic balance'},
+      {id: 'extraCorporations', labelKey: 'Extra MarsBot corporations'},
       {id: 'remove', labelKey: 'Remove MarsBot', danger: true},
     ];
   }
@@ -384,6 +391,11 @@ export function toggleBotSecondShift(): void {
   setBotSecondShift(!createGameState.config.botSecondShift);
 }
 
+/** «Дополнительные корпорации бота» (option `extraCorporations`) — the fork's own CF series in the bot's pool (◄/► and A flip it). */
+export function toggleBotExtraCorporations(): void {
+  setBotExtraCorporations(!createGameState.config.botExtraCorporations);
+}
+
 /** The creator's reading of the rule for the CURRENT difficulty: the most it can ever draw in one generation (the ladder's top rung). */
 export function botSecondShiftCap(): number {
   return secondShiftMaxCap(createGameState.config.botDifficulty);
@@ -406,6 +418,10 @@ export function editorAdjust(target: EditorTarget, field: EditorFieldId, step: 1
     }
     if (field === 'secondShift') {
       toggleBotSecondShift();
+      return true;
+    }
+    if (field === 'extraCorporations') {
+      toggleBotExtraCorporations();
       return true;
     }
     return false;
