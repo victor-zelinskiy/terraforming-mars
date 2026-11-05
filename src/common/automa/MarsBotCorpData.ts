@@ -148,6 +148,12 @@ export type MarsBotCorpInfo = {
    * paints, with `markerLegend` naming the effect it reminds of.
    */
   whiteMarkerTracks?: ReadonlyArray<Tag>;
+  /**
+   * The white markers are decided IN PLAY, not printed (CF8 Proteus — its imprint is read off the cards its setup
+   * reveals): the corporation's `markerTags(game)` names them, and `markerLegend` still says what they remind of.
+   * Exclusive with a static `whiteMarkerTracks`.
+   */
+  markerTracksInPlay?: true;
   /** EN i18n key explaining what the white markers remind of. */
   markerLegend?: string;
   /**
@@ -1515,6 +1521,38 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.CF8_PROTEUS]: {
+    id: MarsBotCorpId.CF8_PROTEUS,
+    // THE FORK'S OWN BOT CARD (the owner, 2026-11-05) for the Turmoil Redux corporation TR82 — «the Imprint of Form»
+    // (docs/AUTOMA_DATA_AUDIT.md §20): MarsBot has no Preludes, so the cards its setup reveals stand in for them — their
+    // tags are the form the corporation took, and every tag that matches it feeds the card.
+    cardNumber: 'CF8',
+    original: CardName.PROTEUS,
+    // The human card's corner — the Wild tag (it resolves like every Wild: the least advanced track; it never matches).
+    startingTags: [Tag.WILD],
+    // DRAFT PRIORITY «The imprint's tags» — decided in play (`MarsBotProteus.draftPriorityInPlay`): Proteus keeps to
+    // its form, so no printed chain here.
+    // THE IMPRINT — the white markers are decided in play (`MarsBotProteus.markerTags`).
+    markerTracksInPlay: true,
+    markerLegend: 'A tag MarsBot resolves on this track puts 1 data on Proteus',
+    // THE DATA — the human card's own resource in the `.pcard__res` capsule.
+    resource: 'data',
+    corpBonusCards: [BonusCardId.BC8_DEEP_RUN],
+    sections: [
+      {kind: 'draftPriority', lines: [{text: 'The imprint\'s tags, in the order they were revealed'}]},
+      {kind: 'setup', lines: [
+        {icon: 'cards', text: 'MarsBot reveals ${0} project cards — its Preludes: their tags are the IMPRINT, a white marker on each of their tracks; the cards are discarded', params: ['3']},
+        {icon: 'data', text: 'Place ${0} data on this card', params: ['2']},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'data', text: 'Each non-wild tag MarsBot resolves on a track of the imprint puts ${0} data on this card', params: ['1']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'deck', text: 'Add Deep Run to MarsBot\'s action deck'},
+        {icon: 'colony', text: 'Deep Run: ${0} data — MarsBot builds a colony, or places an ocean with no colony to build', params: ['6'], muted: true},
+      ]},
+    ],
+  },
 };
 
 export function marsBotCorpInfo(id: MarsBotCorpId): MarsBotCorpInfo {
@@ -1596,6 +1634,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           over — TR is one per conversion) and pristarMc (the M€ they
  *           paid), plus pristarSkipped<Parameter> per parameter, so the
  *           finale can name WHICH of the four stood still.
+ * Proteus (CF8): proteusImprint (tracks of the imprint), proteusData (data its matching tags put on the card),
+ *           deepRunPlayed (BC8 resolved), deepRunColonies / deepRunOceans (what the data bought), deepRunData (data spent).
  * Lotus Innovations (CF7): lotusData (data its rating steps put on the card), breakthroughPlayed (BC7 resolved),
  *           breakthroughs (track pushes the data bought), breakthroughSpread (pushes that went to the least advanced
  *           track — the science track finished), breakthroughData (data spent).

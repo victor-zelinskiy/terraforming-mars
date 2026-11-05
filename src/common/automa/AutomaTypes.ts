@@ -185,6 +185,8 @@ export enum MarsBotCorpId {
   CF6_HARTLAN_HEATING = 'CF6',
   // CF7 — Lotus Innovations (TR81), «the Scientific Breakthrough», 2026-11-04.
   CF7_LOTUS_INNOVATIONS = 'CF7',
+  // CF8 — Proteus (TR82), «the Imprint of Form», 2026-11-05.
+  CF8_PROTEUS = 'CF8',
 }
 
 /** The implemented set, in official card-number order. */
@@ -242,6 +244,7 @@ export const MARS_BOT_CORP_IDS: ReadonlyArray<MarsBotCorpId> = [
   MarsBotCorpId.CF5_ARWIND_INC,
   MarsBotCorpId.CF6_HARTLAN_HEATING,
   MarsBotCorpId.CF7_LOTUS_INNOVATIONS,
+  MarsBotCorpId.CF8_PROTEUS,
 ];
 
 /**
@@ -324,6 +327,8 @@ export enum BonusCardId {
   BC6_HEATING_SEASON = 'BC6',
   // CF7 Lotus Innovations' breakthrough — the lab's data push the science track.
   BC7_LAB_BREAKTHROUGH = 'BC7',
+  // CF8 Proteus' deep run — the data found a colony, or an ocean where no colony can be built.
+  BC8_DEEP_RUN = 'BC8',
 }
 
 /** The set of bonus cards used in the base game (no expansions). */

@@ -1,4 +1,5 @@
 import {CardName} from '../../common/cards/CardName';
+import {Tag} from '../../common/cards/Tag';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {SpaceId} from '../../common/Types';
 import {BonusCardId, DifficultyLevel} from '../../common/automa/AutomaTypes';
@@ -78,6 +79,8 @@ export type SerializedAutomaState = {
   /** Corporation track cubes already triggered, keyed `trackIndex:position`
    *  (absent = none). A regressed track never re-arms a spent cube (RB-B). */
   corpCubesTriggered?: Array<string>;
+  /** CF8 Proteus: the IMPRINT — the tags its setup read off the revealed cards (absent = none / another corporation). */
+  corpImprint?: Array<Tag>;
   /** Turmoil Redux: the generation's lobbying mandate (D14). Absent = not drawn yet — drawn at the bot's first lobbying check. */
   lobbyMandate?: LobbyMandate;
   /** Campaign HOLDINGS of the bot's portfolio (dividend only). Absent = none (an ordinary game, mission 1, an older save). */
@@ -178,6 +181,11 @@ export class AutomaState {
    */
   public corpCubesTriggered: Set<string> = new Set();
   /**
+   * CF8 Proteus: the IMPRINT — the non-wild tags printed on the project cards its setup revealed. Open table
+   * information (the cards went to the open discard; the mat paints the imprint's tracks white). Empty = none.
+   */
+  public corpImprint: Array<Tag> = [];
+  /**
    * Turmoil Redux: the generation's LOBBYING MANDATE (`LobbyMandate.ts`, D14) —
    * hidden information, like the action deck: never sent to a client model.
    * A mandate of an earlier generation is stale and is redrawn.
@@ -275,6 +283,9 @@ export class AutomaState {
       if (this.corpCubesTriggered.size > 0) {
         result.corpCubesTriggered = Array.from(this.corpCubesTriggered);
       }
+      if (this.corpImprint.length > 0) {
+        result.corpImprint = [...this.corpImprint];
+      }
     }
     if (this.neuralInstanceSpaceId !== undefined) {
       result.neuralInstanceSpaceId = this.neuralInstanceSpaceId;
@@ -349,6 +360,7 @@ export class AutomaState {
     // the honest reading for a game that had no round-start box.
     state.corpRoundStartGeneration = d.corpRoundStartGeneration ?? 0;
     state.corpCubesTriggered = new Set(d.corpCubesTriggered ?? []);
+    state.corpImprint = [...(d.corpImprint ?? [])];
     state.lobbyMandate = d.lobbyMandate !== undefined ? {...d.lobbyMandate} : undefined;
     state.holdings = [...(d.holdings ?? [])];
     state.failedActions = d.failedActions ?? 0;

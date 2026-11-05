@@ -3288,6 +3288,18 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 6,
         });
       }
+    } else if (corp.id === 'CF8') {
+      // Proteus (the fork's own card): what the table SAW is the imprint's data turned into colonies and oceans.
+      const runs = stat('deepRunColonies') + stat('deepRunOceans');
+      if (runs >= 3) {
+        stories.push({
+          key: 'effect',
+          textKey: 'The data of ${0}\'s ${1} ran deep: ${2} colonies and oceans came out of its imprint.',
+          params: [raw(p.name), raw(corp.name), raw(runs)],
+          measure: runs,
+          scale: 6,
+        });
+      }
     } else if (corp.id === 'CF6') {
       // Hartlan Heating (the fork's own card): what the table SAW is the bot's building warming Mars, a card each time.
       const steps = stat('seasonSteps');

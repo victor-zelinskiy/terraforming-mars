@@ -159,6 +159,10 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     name: 'Lab Breakthrough',
     text: 'Lotus Innovations: a breakthrough costs 4 data on its corporation, +1 for each breakthrough already made; while the lab holds the price, MarsBot pays it and advances its science track — a finished science track spreads the breakthrough to its least advanced track. Recurs into the action deck every generation.',
   },
+  [BonusCardId.BC8_DEEP_RUN]: {
+    name: 'Deep Run',
+    text: 'Proteus: while its corporation holds 6 data, MarsBot spends them to build a colony — or, with no colony to build, to place an ocean tile; with neither, the data wait. Recurs into the action deck every generation.',
+  },
 };
 
 export function bonusCardInfo(id: BonusCardId): BonusCardInfo {
@@ -596,6 +600,18 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'science', text: 'While the lab holds the price, MarsBot pays it and advances its science track'},
         {icon: 'deck', text: 'Science track finished: the breakthrough spreads to its least advanced track'},
         {text: 'Less data on the card: no breakthrough this generation — the data wait for the next, or score at the end', muted: true},
+      ],
+      fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
+    };
+  case BonusCardId.BC8_DEEP_RUN:
+    // CF8 Proteus' own card (the fork's design, docs/AUTOMA_DATA_AUDIT.md §20): the data found a colony or an ocean.
+    return {
+      name,
+      lines: [
+        {icon: 'data', text: 'A deep run costs ${0} data on Proteus — as many runs as the card holds', params: ['6']},
+        {icon: 'colony', text: 'Each run builds a colony by MarsBot\'s own rule'},
+        {icon: 'ocean', text: 'No colony to build: the run places an ocean tile instead'},
+        {text: 'Less data on the card, or no colony and no ocean left: the data wait', muted: true},
       ],
       fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
     };

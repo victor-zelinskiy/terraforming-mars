@@ -103,8 +103,10 @@ describe('MarsBotCorpData', () => {
     // unexplained decoration on the mat (C04 is the first to paint any).
     for (const id of MARS_BOT_CORP_IDS) {
       const info = marsBotCorpInfo(id);
-      expect(info.whiteMarkerTracks === undefined, `${id}`).eq(info.markerLegend === undefined);
-      expect((info.whiteMarkerTracks ?? []).length === 0, `${id}`).eq(info.markerLegend === undefined);
+      // A marker decided IN PLAY (CF8's imprint) carries the legend without a printed list — never both.
+      const marked = (info.whiteMarkerTracks ?? []).length > 0 || info.markerTracksInPlay === true;
+      expect(info.whiteMarkerTracks !== undefined && info.markerTracksInPlay === true, `${id}`).is.false;
+      expect(marked, `${id}`).eq(info.markerLegend !== undefined);
     }
     expect(marsBotCorpInfo(MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS).whiteMarkerTracks)
       .deep.eq([Tag.BUILDING, Tag.EVENT]);

@@ -533,6 +533,20 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
         eb.tag(Tag.POWER).startEffect.cards(1).asterix();
       });
     });
+  case MarsBotCorpId.CF8_PROTEUS:
+    return CardRenderer.builder((b) => {
+      // SETUP: three revealed cards — the imprint (the asterisk: their tags, not the cards) — and the human card's two
+      // data plates, drawn as printed.
+      b.cards(3).asterix().nbsp.resource(CardResource.DATA).resource(CardResource.DATA);
+      // EFFECT: the human card's own row — a matching tag (the imprint's, the asterisk) puts a datum here.
+      b.effect(undefined, (eb) => {
+        eb.tag(Tag.WILD).asterix().startEffect.resource(CardResource.DATA);
+      });
+      // BEFORE ACTION PHASE: Deep Run — the human card's action: 6 data → a colony OR an ocean.
+      b.action(undefined, (eb) => {
+        eb.resource(CardResource.DATA, {amount: 6, digit: true}).startAction.colonies(1).or().oceans(1);
+      });
+    });
   case MarsBotCorpId.CF7_LOTUS_INNOVATIONS:
     return CardRenderer.builder((b) => {
       // SETUP: the human card's two TR plates — the first action, drawn as printed.

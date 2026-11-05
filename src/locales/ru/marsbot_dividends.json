@@ -315,5 +315,9 @@
     "${0} VP per ${1} cards with a science tag the other players played": "${0} ПО за каждые ${1} карт с меткой науки, сыгранных другими игроками",
     "Standing on shoulders": "На плечах гигантов",
     "Cards with a tag requirement in MarsBot's played pile": "карты с требованием по меткам",
-    "Cards with a science tag the other players played": "Карты с меткой науки у других игроков"
+    "Cards with a science tag the other players played": "Карты с меткой науки у других игроков",
+    "Many forms": "Многоликость",
+    "${0} VP per card with two or more tags in MarsBot's played pile": "${0} ПО за каждую карту с двумя и более метками в стопке разыгранных карт Бота",
+    "Cards with two or more tags in MarsBot's played pile": "Карты с двумя и более метками в стопке Бота",
+    "Microbe tags in MarsBot's played pile": "метки микробов"
 }

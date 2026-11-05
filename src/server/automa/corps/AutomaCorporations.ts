@@ -4,7 +4,7 @@ import {Expansion} from '../../../common/cards/GameModule';
 import {Tag} from '../../../common/cards/Tag';
 import {BonusCardId, TrackAction} from '../../../common/automa/AutomaTypes';
 import {FailedActionReason} from '../../../common/automa/MarsBotTurn';
-import {MARS_BOT_CORP_IDS, MarsBotCorpCubeModel, MarsBotCorpId, MarsBotCorpInfo, MarsBotTrackCube, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
+import {MARS_BOT_CORP_IDS, MarsBotCorpCubeModel, MarsBotCorpId, MarsBotCorpInfo, MarsBotDraftPriority, MarsBotTrackCube, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
 import {inplaceShuffle} from '../../utils/shuffle';
 import {IGame} from '../../IGame';
 import {IPlayer} from '../../IPlayer';
@@ -76,6 +76,7 @@ import {MarsBotMonsInsurance} from './MarsBotMonsInsurance';
 import {MarsBotArwindInc} from './MarsBotArwindInc';
 import {MarsBotHartlanHeating} from './MarsBotHartlanHeating';
 import {MarsBotLotusInnovations} from './MarsBotLotusInnovations';
+import {MarsBotProteus} from './MarsBotProteus';
 
 /**
  * THE MarsBot corporation registry + dispatch layer (Rule Book B "Adding
@@ -154,6 +155,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.CF5_ARWIND_INC]: MarsBotArwindInc,
     [MarsBotCorpId.CF6_HARTLAN_HEATING]: MarsBotHartlanHeating,
     [MarsBotCorpId.CF7_LOTUS_INNOVATIONS]: MarsBotLotusInnovations,
+    [MarsBotCorpId.CF8_PROTEUS]: MarsBotProteus,
   };
 
   public static corpFor(id: MarsBotCorpId): MarsBotCorp {
@@ -386,7 +388,7 @@ export class AutomaCorporations {
    */
   public static secondShiftPick(game: IGame, cards: ReadonlyArray<IProjectCard>): IProjectCard {
     const automa = game.automa;
-    const priority = AutomaCorporations.activeCorp(game)?.info.draftPriority;
+    const priority = AutomaCorporations.draftPriorityOf(game);
     if (automa === undefined || priority === undefined) {
       return cards[game.rng.nextInt(cards.length)];
     }
@@ -394,9 +396,18 @@ export class AutomaCorporations {
     return resolver.pickCard(cards, priority).card;
   }
 
+  /**
+   * The draft priority the corporation drafts by NOW — the plate decided in play (CF8 Proteus: the imprint's tags,
+   * `draftPriorityInPlay`) or the printed one. The ONE read of the pick, the discard and the second shift.
+   */
+  public static draftPriorityOf(game: IGame): MarsBotDraftPriority | undefined {
+    const corp = AutomaCorporations.activeCorp(game);
+    return corp?.draftPriorityInPlay?.(game) ?? corp?.info.draftPriority;
+  }
+
   public static draftPick(game: IGame, hand: ReadonlyArray<IProjectCard>): IProjectCard {
     const automa = game.automa;
-    const priority = AutomaCorporations.activeCorp(game)?.info.draftPriority;
+    const priority = AutomaCorporations.draftPriorityOf(game);
     if (automa === undefined || priority === undefined) {
       return hand[game.rng.nextInt(hand.length)];
     }
@@ -418,7 +429,7 @@ export class AutomaCorporations {
    */
   public static draftDiscard(game: IGame, drafted: Array<IProjectCard>): {kept: Array<IProjectCard>, discarded: Array<IProjectCard>} {
     const automa = game.automa;
-    const priority = AutomaCorporations.activeCorp(game)?.info.draftPriority;
+    const priority = AutomaCorporations.draftPriorityOf(game);
     if (automa === undefined || priority === undefined) {
       inplaceShuffle(drafted, game.rng);
       const discarded = drafted.shift();
@@ -468,10 +479,11 @@ export class AutomaCorporations {
     return resolved;
   }
 
-  /** Track indexes whose MARKER the corporation's setup paints white (C04). */
+  /** Track indexes whose MARKER the corporation's setup paints white (C04) — or decides in play (CF8, `markerTags`). */
   public static whiteMarkerTrackIndexes(game: IGame): ReadonlyArray<number> {
     const automa = game.automa;
-    const tags = AutomaCorporations.activeCorp(game)?.info.whiteMarkerTracks;
+    const corp = AutomaCorporations.activeCorp(game);
+    const tags = corp?.markerTags?.(game) ?? corp?.info.whiteMarkerTracks;
     if (automa === undefined || tags === undefined) {
       return [];
     }

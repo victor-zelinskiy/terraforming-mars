@@ -696,6 +696,21 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(face.find('.pcard__res').exists(), 'the mech store').is.true;
   });
 
+  it('Proteus (CF8, the fork\'s own card) prints its imprint and its deep run, never the human 45 M€ or Preludes', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.CF8_PROTEUS);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text, 'the imprint').contains('IMPRINT');
+    expect(text, 'its own card').contains('Deep Run');
+    expect(text, 'the draft plate').contains('The imprint\'s tags');
+    // The human Proteus starts with 45 M€ and reads the tags of its owner's played Preludes — not printed here.
+    expect(text).not.contains('45');
+    expect(text).not.match(/played Prelude|Preludes count/i);
+    const face = mountFace(MarsBotCorpId.CF8_PROTEUS);
+    expect(face.findAll('.pcard__tags .pcard-tag'), 'the Wild tag').has.length(1);
+    expect(face.find('.pcard__res').exists(), 'the data capsule').is.true;
+  });
+
   it('Lotus Innovations (CF7, the fork\'s own card) prints its lab and its draft plate, never the human 46 M€', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.CF7_LOTUS_INNOVATIONS);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation setup', 'Corporation effect', 'Before action phase']);

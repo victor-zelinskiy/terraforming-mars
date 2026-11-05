@@ -354,6 +354,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       [BonusCardId.BC5_OFF_THE_SLIPWAY]: touchesHumans, // resolves a space card → the RB-B human reactors (B03's shape)
       [BonusCardId.BC6_HEATING_SEASON]: touchesHumans, // a temperature step + a resolved card → the RB-B human reactors
       [BonusCardId.BC7_LAB_BREAKTHROUGH]: botOnly, // the lab's data push the bot's own science track (B28's shape)
+      [BonusCardId.BC8_DEEP_RUN]: touchesHumans, // a colony → the any-player colony reactors; the ocean instead → the tile reactors
     };
     expect(Object.keys(BONUS).length, 'every bonus card classified').eq(Object.values(BonusCardId).length);
   });
@@ -415,6 +416,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       [MarsBotCorpId.CF5_ARWIND_INC]: botOnly, // fighters onto its own card — the launch is BC5's
       [MarsBotCorpId.CF6_HARTLAN_HEATING]: botOnly, // heat onto its own boiler — the season is BC6's
       [MarsBotCorpId.CF7_LOTUS_INNOVATIONS]: botOnly, // data onto its own card; the setup TR is the bot's own
+      [MarsBotCorpId.CF8_PROTEUS]: botOnly, // the imprint's cards go to the open discard, data onto its own card — the runs are BC8's
     };
     expect(Object.keys(CORPS).length, 'every bot corporation classified').eq(Object.values(MarsBotCorpId).length);
   });

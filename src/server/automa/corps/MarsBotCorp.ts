@@ -1,6 +1,6 @@
 import {BonusCardId, TrackAction} from '../../../common/automa/AutomaTypes';
 import {GlobalParameter} from '../../../common/GlobalParameter';
-import {MarsBotCorpInfo, MarsBotTrackCube} from '../../../common/automa/MarsBotCorpData';
+import {MarsBotCorpInfo, MarsBotDraftPriority, MarsBotTrackCube} from '../../../common/automa/MarsBotCorpData';
 import {Tag} from '../../../common/cards/Tag';
 import {ColonyName} from '../../../common/colonies/ColonyName';
 import {FailedActionReason} from '../../../common/automa/MarsBotTurn';
@@ -67,6 +67,20 @@ export type MarsBotCorp = {
    * fired), so a corporation that reacts to a tag reacts to a finished event.
    */
   onTagResolved?(game: IGame, tag: Tag): void;
+
+  /**
+   * The tracks whose MARKER is painted white, when the corporation decides them IN PLAY (CF8 Proteus — its imprint is
+   * read off the cards its setup revealed). Overrides the static `info.whiteMarkerTracks`; the legend stays
+   * `info.markerLegend`. Pure: a read of state, addressed by TAG like the static list.
+   */
+  markerTags?(game: IGame): ReadonlyArray<Tag>;
+
+  /**
+   * The DRAFT PRIORITY decided in play (CF8 Proteus — «the imprint's tags», a chain known only once its setup has
+   * revealed the cards). Overrides `info.draftPriority` in the pick, the post-draft discard and the second shift
+   * (`AutomaCorporations.draftPriorityOf`); `undefined` = no plate this time (a random pick, the corpless rule).
+   */
+  draftPriorityInPlay?(game: IGame): MarsBotDraftPriority | undefined;
 
   /**
    * MarsBot received a MICROBE ADVANCEMENT that was not a resolved tag — the

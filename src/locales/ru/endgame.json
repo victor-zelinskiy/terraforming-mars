@@ -896,5 +896,6 @@
     "The capital of ${0}'s ${1} worked: the reserve fund paid out ${2} times.": "Капитал ${1} работал: резервный фонд сделал выплат — ${2}.",
     "The slipways of ${0}'s ${1} never stood idle: ${2} ships were launched off them.": "Стапели ${1} не простаивали: со стапеля сошло кораблей — ${2}.",
     "The boiler of ${0}'s ${1} kept Mars warm: ${2} temperature steps and ${3} cards came out of it.": "Котельная ${1} грела Марс: из неё вышло шагов температуры — ${2}, карт — ${3}.",
-    "The lab of ${0}'s ${1} kept leaping: ${2} breakthroughs paid with the data its terraforming produced.": "Лаборатория ${1} шла рывками: прорывов, оплаченных данными терраформирования, — ${2}."
+    "The lab of ${0}'s ${1} kept leaping: ${2} breakthroughs paid with the data its terraforming produced.": "Лаборатория ${1} шла рывками: прорывов, оплаченных данными терраформирования, — ${2}.",
+    "The data of ${0}'s ${1} ran deep: ${2} colonies and oceans came out of its imprint.": "Данные ${1} уходили в глубину: колоний и океанов из отпечатка — ${2}."
 }
