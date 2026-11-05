@@ -866,7 +866,7 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentTypes';
 import {extractPlayRewards} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {actionKnownRailMoves, playRailReward, playSpendReward, playTargetSpendSpecs, withRailAnswerTags} from '@/client/console/consoleActionCommit';
+import {actionKnownRailMoves, playAlloyPriceReward, playRailReward, playSpendReward, playTargetSpendSpecs, withRailAnswerTags} from '@/client/console/consoleActionCommit';
 import {preselectedDiscardsOf} from '@/client/console/cardDiscard/preselectedDiscards';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
 import {playCardReactions, railAnswerTags, ratingAnswerSpecs} from '@/client/console/played/receivingStageModel';
@@ -6052,6 +6052,9 @@ export default defineComponent({
         // stock cost chips (X87's plants and steel), flown by the landing scene INTO the standing card before it
         // lifts, each row ticking on its token's departure. Never the card's own price (the payment panel's).
         spends: playSpendReward(this.cardName, b, this.captured, payment),
+        // …and THE CARD'S OWN PRICE IN ALLOYS (PL-1841 ①): the steel / titanium of the payment, a token off the row into
+        // the standing card's printed cost before the lift — the table's answer on the same row a known move (Palladin).
+        alloyPrice: playAlloyPriceReward(b, this.captured, payment, reactionRailSpecs(forecastForFixedBranch(this.forecast, this.selectedPos ?? -1)?.facts)),
         // …and THE PLAY'S OWN MOVES on the rail's rows (its price, its chips) — a law that plays this card for a price of
         // its own (RX36's bill, PL-725) checks its token against them: the bill departs first, this price at the landing.
         known: actionKnownRailMoves(b, this.captured, payment),

@@ -22,6 +22,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {ActionEffect, ActionPreviewBranch, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
+import {TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2} from '@/common/constants';
 import {OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {Payment} from '@/common/inputs/Payment';
 import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '@/common/inputs/Spendable';
@@ -950,7 +951,7 @@ export function playRailReward(
   host: PlayRailHost = {},
 ): RailReward | undefined {
   const cause = playRailTrSpecs(branch, effects, stepResponses, host);
-  const reactions = withoutAgendaWalkAnswers(branch, cause, withoutScaleStepAnswers(branch, stepResponses, cause, promisedReactions, effects));
+  const reactions = withoutAgendaWalkAnswers(branch, cause, withoutScaleStepAnswers(branch, stepResponses, cause, promisedReactions, effects, host));
   if (cause.length === 0 && reactions.length === 0) {
     return undefined;
   }
@@ -983,6 +984,8 @@ export function withoutScaleStepAnswers(
   cause: ReadonlyArray<ResourceTransferSpec>,
   reactions: ReadonlyArray<ResourceTransferSpec>,
   branchEffects: ReadonlyArray<ActionEffect> = branch?.effects ?? [],
+  /** The START host tells the scale's story itself (P66 · GJ — the field beat yields): its track bonus stays the rail's. */
+  host: PlayRailHost = {},
 ): ReadonlyArray<ResourceTransferSpec> {
   if (branch === undefined || cause.some((spec) => spec.resource === RATING_RAIL_KEY)) {
     return reactions;
@@ -990,7 +993,41 @@ export function withoutScaleStepAnswers(
   const effects = [...branchEffects, ...chosenStepEffects(branch, stepResponses)];
   const scaleStep = effects.some((e) => e.direction === 'gain' && e.amount > 0 && SCALE_ICONS.has(e.icon) && e.icon !== 'oceans');
   // …and a card's answer to that rating (TR81 Lotus Innovations' data) goes with it: the scale's story owns the rating.
-  return scaleStep ? reactions.filter((spec) => !(spec.channel === 'stock' && spec.resource === 'megacredits') && spec.channel !== 'card-resource') : reactions;
+  const kept = scaleStep ? reactions.filter((spec) => !(spec.channel === 'stock' && spec.resource === 'megacredits') && spec.channel !== 'card-resource') : reactions;
+  return host.startHost === true ? kept : withoutTemperatureHeatBonus(effects, kept);
+}
+
+/**
+ * THE TRACK'S OWN BONUS IS THE SCALE'S (PL-1841 ②, Palladin's action at −26 °C): the temperature step that crosses
+ * −24 / −20 °C pays +1 heat production per crossing, and the forecast states it as a «Сработает» fact of the RULE — so
+ * the rail half flew it off the sheet's chip, the board's printed bonus chip never in the story. The scale-step beat
+ * (`scaleStepRatingBeat` — `heatBonus`) now tells it off that chip once the marker has arrived; the rail half hands the
+ * crossings' heat production over (pure — the crossings read off the branch's own temperature chip).
+ */
+function withoutTemperatureHeatBonus(effects: ReadonlyArray<ActionEffect>, reactions: ReadonlyArray<ResourceTransferSpec>): ReadonlyArray<ResourceTransferSpec> {
+  const temperature = effects.find((e) => e.direction === 'gain' && e.icon === 'temperature');
+  const from = temperature?.current;
+  const to = temperature?.resulting;
+  if (from === undefined || to === undefined) {
+    return reactions;
+  }
+  let owed = [TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2].filter((step) => from < step && to >= step).length;
+  if (owed === 0) {
+    return reactions;
+  }
+  const out: Array<ResourceTransferSpec> = [];
+  for (const spec of reactions) {
+    if (owed > 0 && spec.channel === 'production' && spec.resource === 'heat') {
+      const take = Math.min(owed, spec.amount);
+      owed -= take;
+      if (spec.amount > take) {
+        out.push({...spec, amount: spec.amount - take});
+      }
+      continue;
+    }
+    out.push(spec);
+  }
+  return out;
 }
 
 /**
@@ -1115,6 +1152,42 @@ export function playSpendReward(
     return undefined;
   }
   return {cause, reactions: [], known: withoutChainRows(actionKnownRailMoves(branch, stepResponses, paid), cause)};
+}
+
+/** The rail rows a play's OWN price leaves as a TOKEN (PL-1841 ①): the alloys. M€ stays the row's delta chip. */
+export const PLAY_PRICE_TOKEN_ROWS: ReadonlyArray<'steel' | 'titanium'> = ['steel', 'titanium'];
+
+/**
+ * THE CARD'S OWN PRICE PAID WITH ALLOYS (PL-1841 ① — PC02 Palladin Shipping: a space event paid with 3 titanium told
+ * its price as the titanium row's «−3» chip, the token law of PL-099 never reaching the play door). One LOSS token per
+ * alloy row of the payment, flown by the landing scene off the row's digits INTO the standing card's printed cost before
+ * the lift, the row ticking on the departure; checked against the two views with every other move of that row KNOWN —
+ * the play's own chips and the table's answer on the same row (`answers` — Palladin's +1 titanium), so «5 → 3» reads
+ * −3 then +1. M€ is never one (the row's chip stays its cause, the prompt's decision). Pure; undefined — nothing to fly.
+ */
+export function playAlloyPriceReward(
+  branch: ActionPreviewBranch | undefined,
+  stepResponses: Readonly<Record<number, unknown>>,
+  paid: Payment | undefined,
+  answers: ReadonlyArray<ResourceTransferSpec> = [],
+): RailReward | undefined {
+  if (paid === undefined) {
+    return undefined;
+  }
+  const cause: Array<ResourceTransferSpec> = PLAY_PRICE_TOKEN_ROWS
+    .filter((resource) => (paid[resource] ?? 0) > 0)
+    .map((resource) => ({channel: 'stock', resource, amount: paid[resource], direction: 'loss'}));
+  if (cause.length === 0) {
+    return undefined;
+  }
+  const known = withoutChainRows(actionKnownRailMoves(branch, stepResponses, paid), cause);
+  for (const spec of answers) {
+    if (spec.channel === 'stock' || spec.channel === 'production') {
+      const row = railRowKey(spec);
+      known[row] = (known[row] ?? 0) + (spec.direction === 'loss' ? -spec.amount : spec.amount);
+    }
+  }
+  return {cause, reactions: [], known};
 }
 
 /**

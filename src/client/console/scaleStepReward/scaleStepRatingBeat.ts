@@ -52,6 +52,7 @@
 import {reactive, watch, WatchStopHandle} from 'vue';
 import {gsap} from 'gsap';
 import {Phase} from '@/common/Phase';
+import {TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2} from '@/common/constants';
 import {GameModel} from '@/common/models/GameModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
@@ -84,6 +85,12 @@ const VENUS_TR_BONUS_LEVEL = 16;
  * element carries: the lookup always missed and the token silently fell back to the marker's rim.
  */
 const VENUS_TR_BONUS_CHIP = 'venus-16';
+/**
+ * The temperature track's printed HEAT-PRODUCTION bonuses (`constants.TEMPERATURE_BONUS_FOR_HEAT_1/2`) — PL-1841 ②: the
+ * step that crosses one pays +1 heat production, and that token is the SCALE's (born on the bonus chip the board prints
+ * there, `temperature-<step>` → `data-arc-marker`, once the marker has arrived), never a «Сработает» chip of the sheet.
+ */
+const TEMPERATURE_HEAT_BONUS_STEPS: ReadonlyArray<number> = [TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2];
 /** The ruling Greens' answer per rating step (`PartyEffects.GREENS_MEGACREDITS_PER_TR`) — the only answer this beat recognizes. */
 const GREENS_MEGACREDITS_PER_TR = 2;
 
@@ -114,6 +121,11 @@ export type ScaleStepRatingPlan = {
   skipped?: number;
   /** The ruling Greens' answer (2 M€ per rating step) — only when the M€ moved by exactly that. */
   reaction?: number;
+  /**
+   * The temperature track's heat-production bonuses the steps crossed (PL-1841 ② — −24 / −20 °C), each a token born on
+   * its printed chip; only when the viewer's heat production rose by exactly that many (else nothing — the row ticks).
+   */
+  heatBonus?: ReadonlyArray<number>;
 };
 
 const SCALES: ReadonlyArray<{accent: ScaleStepRatingAccent, key: keyof HeldGlobalParams, field: keyof GameModel, unit: number}> = [
@@ -188,10 +200,16 @@ export function scaleStepRatingPlan(
   // A CARD's answer on the same row (the server's card-reaction record — Homeostasis Bureau's 3 M€ per step, CN) is
   // subtracted before the match: the party's answer stands beside it, never refused for it.
   const megacredits = now.megacredits - was.megacredits - cardReactionMegacredits(before, after);
+  const tBefore = before.game.temperature;
+  const tAfter = after.game.temperature;
+  const crossed = typeof tBefore === 'number' && typeof tAfter === 'number' ?
+    TEMPERATURE_HEAT_BONUS_STEPS.filter((step) => tBefore < step && tAfter >= step) : [];
+  const heatBonus = crossed.length > 0 && now.heatProduction - was.heatProduction === crossed.length ? crossed : [];
   return {
     moves,
     rating,
     venusBonus,
+    ...(heatBonus.length > 0 ? {heatBonus} : {}),
     ...(skipped > 0 ? {skipped} : {}),
     // The answer is recognized only on a rise that is the scales' alone — beside another owner's rating the M€ row
     // carries that owner's answer too, and a guessed split is never flown.
@@ -223,8 +241,8 @@ export function scaleStepRatingRefusal(before: PlayerViewModel | undefined, afte
   return rise > 0 && steps > 0 ? `rating +${rise} for ${steps} scale step(s) — not the scales' rating (no eaten step to explain it)` : undefined;
 }
 
-/** Where each token is BORN: on the marker of the scale that paid it — the 16 % bonus on its own chip. */
-type TokenOrigin = {accent: ScaleStepRatingAccent, bonus: boolean};
+/** Where each token is BORN: on the marker of the scale that paid it — a track bonus on its own chip (`chip`). */
+type TokenOrigin = {accent: ScaleStepRatingAccent, bonus: boolean, chip?: string};
 
 export type ScaleStepRatingPhase = 'idle' | 'waiting' | 'flying';
 
@@ -300,10 +318,15 @@ function originsOf(plan: ScaleStepRatingPlan): Array<TokenOrigin> {
     }
   }
   if (plan.venusBonus) {
-    out.push({accent: 'venus', bonus: true});
+    out.push({accent: 'venus', bonus: true, chip: VENUS_TR_BONUS_CHIP});
   }
   // The EATEN step is the FIRST rating step of the event (P57 skips the first TR gained) — it flies nothing.
   return out.slice(plan.skipped ?? 0);
+}
+
+/** The heat-production bonus tokens of the plan, one per crossed chip — after the rating (the chip lights as the marker passes). */
+function heatBonusOriginsOf(plan: ScaleStepRatingPlan): Array<TokenOrigin> {
+  return (plan.heatBonus ?? []).map((step) => ({accent: 'temperature', bonus: true, chip: `temperature-${step}`}));
 }
 
 /** Release whatever the panel still holds for the entry — idempotent. */
@@ -368,6 +391,15 @@ export function seedScaleStepRatingHold(before: PlayerViewModel | undefined, aft
   if (verdict.cause.length === 0) {
     scaleStepRatingState.degraded = true;
     return;
+  }
+  // THE TRACK'S HEAT-PRODUCTION BONUS (PL-1841 ②) — checked on its OWN row, so a foreign move of heat production in
+  // the same response costs the bonus its token (the row ticks), never the rating its tokens.
+  const heatOrigins = heatBonusOriginsOf(plan);
+  const heatSpecs: Array<ResourceTransferSpec> = heatOrigins.map(() => ({channel: 'production', resource: 'heat', amount: 1}));
+  const heatHeld = heatSpecs.length > 0 && verifyRailReward({cause: heatSpecs, reactions: []}, before, after).cause.length > 0;
+  if (heatHeld) {
+    origins.push(...heatOrigins);
+    verdict.cause.push(...heatSpecs);
   }
   beginPanelRewardHold([...verdict.cause, ...verdict.reactions]);
   // A beat still owed for an earlier response plays this one's tokens too.
@@ -465,9 +497,9 @@ function birthPoints(origins: ReadonlyArray<TokenOrigin>): Array<TransferPoint |
   const out: Array<TransferPoint | undefined> = origins.map(() => undefined);
   const perMarker = new Map<ScaleStepRatingAccent, Array<number>>();
   origins.forEach((origin, i) => {
-    if (origin.bonus) {
+    if (origin.bonus && origin.chip !== undefined) {
       const chip = typeof document === 'undefined' ? null :
-        document.querySelector<HTMLElement>(`.bonus-zone[data-arc-marker="${VENUS_TR_BONUS_CHIP}"]`);
+        document.querySelector<HTMLElement>(`.bonus-zone[data-arc-marker="${origin.chip}"]`);
       const box = chip?.getBoundingClientRect();
       if (box !== undefined && box.width > 1) {
         out[i] = {x: box.left + box.width / 2, y: box.top + box.height / 2};

@@ -22,7 +22,7 @@ import {Resource} from '../../src/common/Resource';
 import {Phase} from '../../src/common/Phase';
 import {Payment} from '../../src/common/inputs/Payment';
 import {RATING_RAIL_KEY} from '../../src/client/console/resourceTransfer/resourceTransferModel';
-import {actionRailTrSpecs, playRailReward, playRailTrSpecs, playSpendReward, playTargetSpendSpecs, startPlaySpendReward} from '../../src/client/console/consoleActionCommit';
+import {actionRailTrSpecs, playAlloyPriceReward, playRailReward, playRailTrSpecs, playSpendReward, playTargetSpendSpecs, startPlaySpendReward} from '../../src/client/console/consoleActionCommit';
 import {IndustrialComplex} from '../../src/server/cards/prelude2/IndustrialComplex';
 import {Manutech} from '../../src/server/cards/venusNext/Manutech';
 import {heroRewardEffectsOf} from '../../src/client/console/consolePlayCardComposer';
@@ -319,6 +319,22 @@ describe('the card play\'s rail rule — a price and the table\'s answer on ONE 
     const ok = verifyRailReward(rail!, view(5), view(3));
     expect(ok.mismatches).deep.eq([]);
     expect(ok.reactions).deep.eq([{channel: 'stock', resource: 'titanium', amount: 1}]);
+  });
+
+  it('PL-1841 ① — the card own price in titanium is a TOKEN off the row: −3 leaves, the answer +1 is a known move', () => {
+    const {p} = palladinTable();
+    const card = new ImportedGHG();
+    const preview = cardPlayPreview(p, card);
+    const branch = preview.branches[0];
+    const answers = reactionRailSpecs(effectForecastForPlay(p, card, preview).facts);
+    const price = playAlloyPriceReward(branch, {}, {...Payment.EMPTY, titanium: 3}, answers);
+    expect(price?.cause).deep.eq([{channel: 'stock', resource: 'titanium', amount: 3, direction: 'loss'}]);
+    expect(price?.known?.['stock:titanium'], 'the answer on the same row').eq(1);
+    const ok = verifyRailReward(price!, view(5), view(3));
+    expect(ok.mismatches).deep.eq([]);
+    expect(ok.cause).length(1);
+    expect(verifyRailReward(price!, view(5), view(2)).cause, 'a row that moved otherwise flies nothing').deep.eq([]);
+    expect(playAlloyPriceReward(branch, {}, {...Payment.EMPTY, megacredits: 7}, answers), 'M€ keeps the row chip').is.undefined;
   });
 
   it('an unexplained difference on that row holds nothing and names itself', () => {

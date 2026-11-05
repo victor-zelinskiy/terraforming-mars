@@ -216,6 +216,11 @@ export const playedHeroState = reactive({
    */
   price: '' as string,
   /**
+   * THE CARD'S OWN PRICE IN ALLOYS (PL-1841 ①), named: '' — the play paid none; `flying` → `flown`; or why it was not
+   * flown (`reduced`, `mismatch: …` — the row moved otherwise, `no-source`).
+   */
+  alloyPrice: '' as string,
+  /**
    * THE PRICE OFF A CARD THE COMPOSER CHOSE (PL-268, TR52), named: '' — none; `flying` → `flown`; or why it was not
    * flown (`reduced`, `mismatch: …` — the holder moved otherwise, `no-row` — the target row was not on screen).
    */
@@ -412,6 +417,13 @@ let pendingSpends: RailReward | undefined;
  * (`verifyRailReward` — a holder that moved otherwise is not flown and names itself in `playedHeroState.price`).
  */
 let pendingPrice: PlayCardPrice | undefined;
+/**
+ * THE CARD'S OWN PRICE PAID WITH ALLOYS (PL-1841 ① — `playAlloyPriceReward`): the steel / titanium of the payment leave
+ * their rail rows as tokens INTO the standing card's printed cost badge in the same shipment beat — the row ticking on
+ * the departure (a departure hold, the shipment's own law), the commit's block letting it go against the applied view.
+ * M€ keeps the row's delta chip. Checked against the two views first; a row that moved otherwise ticks with the commit.
+ */
+let pendingAlloyPrice: RailReward | undefined;
 /**
  * THE PRICE OFF A CARD THE COMPOSER CHOSE (PL-268, TR52): what the play takes off a holder picked in the composer's
  * own step — any seat's card. Flown in the shipment beat beside the rail's and the pay rows' tokens.
@@ -822,6 +834,8 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   spends?: RailReward,
   /** The card's price paid with CARD resources — a token off each pay row into the cost badge, before the lift (PL-163). */
   price?: PlayCardPrice,
+  /** The card's own price paid with ALLOYS — a token off the steel / titanium row into the cost badge, before the lift (PL-1841 ①). */
+  alloyPrice?: RailReward,
   /** The price taken off a card the composer's own step chose — off the answered target row (PL-268). */
   targetSpends?: ReadonlyArray<ResourceTransferSpec>,
   /** The price paid BEFORE this play (PL-725 — RX36's law; P45's verdict): off the rail (and the source card's capsule)
@@ -858,10 +872,12 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   releaseDepartures();
   pendingSpends = opts.spends;
   pendingPrice = opts.price;
+  pendingAlloyPrice = opts.alloyPrice;
   pendingTargetSpends = opts.targetSpends ?? [];
   pendingBill = opts.bill;
   playedHeroState.bill = '';
   playedHeroState.price = '';
+  playedHeroState.alloyPrice = '';
   playedHeroState.targetSpend = '';
   pendingDiscardDeparture = undefined;
   playedHeroState.discard = '';
@@ -1303,6 +1319,7 @@ async function shipPrice(mine: () => boolean): Promise<void> {
   shipAbsorbs.splice(0);
   const stock = shipStockSpends(mine);
   const cards = shipCardPrice(price, mine);
+  const alloys = shipAlloyPrice(mine);
   const target = shipTargetSpends(mine);
   // THE ONE-PLAY CLASS (TR49): an armed effect this play spends is drawn into the card, and what the card arms
   // leaves its printed glyph for the dock — in the same beat, while the card stands in its composer.
@@ -1311,11 +1328,11 @@ async function shipPrice(mine: () => boolean): Promise<void> {
   // the card lifts once the packet has LEFT (its carry started; never its touchdown — PL-099 / PL-104: a row ticks on
   // the departure), and the packet's landing on the pile runs beside the flight. No beat of its own (the P84 budget).
   const discard = shipDiscardPrice(mine);
-  if (stock === undefined && cards === undefined && target === undefined && armed === undefined && discard === undefined) {
+  if (stock === undefined && cards === undefined && alloys === undefined && target === undefined && armed === undefined && discard === undefined) {
     return;
   }
   playedHeroState.phase = 'shipping';
-  await Promise.all([stock, cards, target, armed, discard]);
+  await Promise.all([stock, cards, alloys, target, armed, discard]);
   if (!mine()) {
     return;
   }
@@ -1498,6 +1515,56 @@ function shipCardPrice(price: PlayCardPrice | undefined, mine: () => boolean): P
     }));
   }
   return flights.length === 0 ? undefined : Promise.all(flights).then(() => undefined);
+}
+
+/**
+ * THE CARD'S OWN PRICE IN ALLOYS (PL-1841 ① — see `pendingAlloyPrice`): one token per alloy row, born on the row's
+ * digits (the loss walks the geometry backwards — destination the rail row, absorbed at the origin), absorbed into the
+ * standing card's printed COST badge, the row ticking on the departure. Undefined — nothing to fly. Never rejects.
+ */
+function shipAlloyPrice(mine: () => boolean): Promise<void> | undefined {
+  const reward = pendingAlloyPrice;
+  pendingAlloyPrice = undefined;
+  if (reward === undefined || playedHeroState.card === undefined || !mine()) {
+    return undefined;
+  }
+  if (consoleReducedMotionActive()) {
+    playedHeroState.alloyPrice = 'reduced';
+    return undefined;
+  }
+  const verdict = verifyRailReward(reward, beforeView, landingView);
+  if (verdict.cause.length === 0) {
+    playedHeroState.alloyPrice = `mismatch: ${verdict.mismatches.join('; ')}`;
+    return undefined;
+  }
+  const el = standingSourceEl();
+  if (el === undefined) {
+    playedHeroState.alloyPrice = 'no-source';
+    return undefined;
+  }
+  const badge = el.querySelector<HTMLElement>('.pcard__cost-badge') ?? el.querySelector<HTMLElement>('.pcard__cost') ?? el;
+  const absorb: TransferEnd = {el: badge, fx: 0.5, fy: 0.5};
+  playedHeroState.alloyPrice = 'flying';
+  return runResourceTransfers({
+    specs: verdict.cause,
+    source: {end: absorb},
+    origins: verdict.cause.map(() => absorb),
+    arrival: 'auto',
+    absorb: 'quick',
+    onArrive: (spec) => {
+      if (mine()) {
+        seedDeparture(spec);
+      }
+    },
+    onAbsorbed: shipAbsorb(),
+    onDegrade: (spec, why) => {
+      playedHeroState.alloyPrice = `degraded: ${why} (${spec.resource})`;
+    },
+  }).then(() => {
+    if (mine() && playedHeroState.alloyPrice === 'flying') {
+      playedHeroState.alloyPrice = 'flown';
+    }
+  });
 }
 
 /**
@@ -2133,6 +2200,7 @@ export function abortPlayedHero(): void {
   releaseDepartures();
   pendingSpends = undefined;
   pendingPrice = undefined;
+  pendingAlloyPrice = undefined;
   pendingBill = undefined;
   pendingDiscardDeparture = undefined;
   beforeView = undefined;
@@ -2182,6 +2250,7 @@ function finish(): void {
   settleArmedEffectHolds(); // safety — the commit settled them; an ending that skipped the commit lets go (TR49 class)
   pendingSpends = undefined;
   pendingPrice = undefined;
+  pendingAlloyPrice = undefined;
   pendingBill = undefined;
   pendingDiscardDeparture = undefined;
   beforeView = undefined;

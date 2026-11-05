@@ -65,6 +65,8 @@ export type ConsolePlayPickScene = {
   reactions?: ReadonlyArray<PlayReaction>;
   rail?: RailReward;
   spends?: RailReward;
+  /** The card's own price in alloys (PL-1841 ①). */
+  alloyPrice?: RailReward;
   targetSpends?: ReadonlyArray<ResourceTransferSpec>;
   draws?: number;
   /**

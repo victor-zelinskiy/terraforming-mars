@@ -275,3 +275,45 @@ describe('scaleStepRatingBeat — cause before consequence', () => {
     expect(heldStock(RATING_RAIL_KEY), 'still held').eq(1);
   });
 });
+
+/*
+ * PL-1841 ② (PC02 Palladin Shipping — the action at −26 °C): the temperature track's HEAT-PRODUCTION bonus is the
+ * SCALE's. The plan names the crossed chips only when the viewer's heat production rose by exactly that many; the rail
+ * halves hand that production over (it no longer flies off the sheet's «Сработает» chip) — except on the START host,
+ * whose hero tells the scale's story itself.
+ */
+describe('scale-step rating — the temperature track\'s heat-production bonus is the scale\'s (PL-1841 ②)', () => {
+  const heatView = (temperature: number, tr: number, heatProduction: number) =>
+    ({...view({terraformRating: tr}, {temperature}), thisPlayer: {color: 'blue', terraformRating: tr, megacredits: 20, heatProduction}} as unknown as PlayerViewModel);
+  const heatProd = (amount: number): ResourceTransferSpec => ({channel: 'production', resource: 'heat', amount});
+  const temperatureBranch = (from: number, to: number) => ({
+    index: -1, title: '', available: true, renderKeys: [], steps: [],
+    effects: [
+      {direction: 'cost', icon: 'titanium', amount: 2, current: 2, resulting: 0},
+      {direction: 'gain', icon: 'temperature', amount: 1, current: from, resulting: to},
+    ],
+  } as unknown as ActionPreviewBranch);
+
+  it('−26 → −24 °C with +1 heat production: the plan names the −24 chip', () => {
+    const plan = scaleStepRatingPlan(heatView(-26, 20, 0), heatView(-24, 21, 1));
+    expect(plan?.heatBonus).deep.eq([-24]);
+  });
+
+  it('a heat production that moved otherwise names no chip (the row ticks), the rating still flies', () => {
+    const plan = scaleStepRatingPlan(heatView(-26, 20, 0), heatView(-24, 21, 3));
+    expect(plan?.rating).eq(1);
+    expect(plan?.heatBonus).is.undefined;
+  });
+
+  it('a step that crosses nothing names no chip', () => {
+    expect(scaleStepRatingPlan(heatView(-10, 20, 0), heatView(-8, 21, 0))?.heatBonus).is.undefined;
+  });
+
+  it('the rail halves hand the crossing\'s heat production over; another production answer stays; the start host keeps it', () => {
+    const branch = temperatureBranch(-26, -24);
+    expect(withoutScaleStepAnswers(branch, {}, [], [heatProd(1), mcProd(1)])).deep.eq([mcProd(1)]);
+    expect(withoutScaleStepAnswers(branch, {}, [], [heatProd(2)]), 'only the crossings\' share').deep.eq([heatProd(1)]);
+    expect(withoutScaleStepAnswers(temperatureBranch(-10, -8), {}, [], [heatProd(1)]), 'no crossing — nothing handed over').deep.eq([heatProd(1)]);
+    expect(withoutScaleStepAnswers(branch, {}, [], [heatProd(1)], branch.effects, {startHost: true}), 'the start\'s hero tells it').deep.eq([heatProd(1)]);
+  });
+});

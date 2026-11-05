@@ -2018,7 +2018,7 @@ import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
 import {bonusActionInStartFlow, bonusActionOnBoard, bonusActionOwed, bonusActionTurnControlReason} from '@/client/console/bonusAction';
 import {SKIP_TURN_FAST_MODE_REASON} from '@/common/game/fastMode';
 import {firstActionOwed} from '@/client/console/startFirstAction';
-import {isResourceTransferActive, resourceTransferDiagnostics, surfaceClear, surfaceHoldsTokens} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {isResourceTransferActive, noteTransferTrail, resourceTransferDiagnostics, surfaceClear, surfaceHoldsTokens} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {actionCentreLeavesOnPromptChange} from '@/client/console/actionCentreLeave';
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
@@ -2731,6 +2731,11 @@ export default defineComponent({
        * live for a foreign tile owed to the board, and never tears a live aim down for one (the tile lands beside it).
        */
       placementLiveLatch: false,
+      /**
+       * PL-1840 — the prompt (`promptPresenceIdentity`) whose placement waits for a scale story under a cover: latched by
+       * `boardStoryCoverCandidate`'s rising edge, let go once the park owes nothing or the server asks something else.
+       */
+      boardStoryCoverFor: '',
       /**
        * THE WARM MOUNT IS ARMED FROM THE COMPOSER'S READING PAUSE (PL-127): the composer declared a hosted step and
        * its own unfold has settled — the Parliament's surface is mounted invisible NOW, while nothing moves, not in
@@ -4217,6 +4222,17 @@ export default defineComponent({
      */
     rawAdmissionSignals(): AdmissionSignals {
       return {
+        ...this.admissionSignalsBeforeStory,
+        // The board owes a scale story over a board in plain view (PL-336) — or under a cover the placement takes (PL-1840).
+        boardStory: this.boardStoryBeforePlacement,
+      };
+    },
+    /**
+     * Every signal but the board's story (PL-1840): `boardStoryBeforePlacement` asks «would anything ELSE hold the
+     * placement?» of these, so the story's own signal is never read by the question that raises it (no cycle).
+     */
+    admissionSignalsBeforeStory(): AdmissionSignals {
+      return {
         revealOpen: this.consoleRevealMode !== undefined,
         revealPending: this.rawDrawnRevealPending,
         playedHero: this.playedHeroHolds,
@@ -4234,8 +4250,7 @@ export default defineComponent({
         // cell the marker has not settled on yet (see the block's own doc).
         stageGated: this.hydroQueuedPromptForLaterStep || this.sittingRiseGatesPrompt || this.colonyStepReturnGatesPrompt,
         anyAnimation: isAnimationHoldActive(),
-        // The board owes a scale story over a board in plain view (PL-336): a new placement waits for it.
-        boardStory: this.boardStoryBeforePlacement,
+        boardStory: false,
         // Another seat's tile is owed to this board (state delivery, 2026-10-28): the board's truth lands first.
         remoteLanding: this.remoteLandingBeforePlacement,
         // A card's reaction to the cause is being told (the owner, 2026-11-01): a decision of the same response after it.
@@ -4281,6 +4296,19 @@ export default defineComponent({
         promptAdmissionBlock('placement', this.admissionSignals) === 'remote-landing';
     },
     /**
+     * …AND A SERVER PLACEMENT OWED BEHIND A SCALE STORY THE COVERED BOARD CANNOT TELL takes the board too (PL-1840, the
+     * Palladin action at −2 °C): `board-story` is raised only over a board in plain view, so a placement arriving under a
+     * workspace was admitted at once — its rising edge then stepped the workspace aside and the grid lit over a dial still
+     * resting on −2, the park's story told after the landing. When nothing but that story would hold the placement (the
+     * block `board-story`, the board as if uncovered), the hold's edge does what the placement's would: the stack yields
+     * (or the screen goes board-home), `board-story` now holds the placement over the board in plain view, the park drains
+     * — the marker glides, the rating flies — and only then does the grid light.
+     */
+    placementTakesBoardForStory(): boolean {
+      return this.playerView.waitingFor?.type === 'space' && !this.boardInPlainViewForStory &&
+        promptAdmissionBlock('placement', this.admissionSignals) === 'board-story';
+    },
+    /**
      * PL-336 (TR47 «ВВЕРХ И ОБРАТНО»): the park holds scale values (or drains them) while the board is in plain view
      * BUT FOR a placement — the term of `boardBeatsWatchable` deliberately left out here, because it is the very thing
      * this signal holds back (reading it would close a reactivity cycle through `placementHeld`). The CAMERA is left
@@ -4290,10 +4318,45 @@ export default defineComponent({
      */
     boardStoryBeforePlacement(): boolean {
       void boardBeatParkState.heldParams;
-      const plainView = this.consoleState.section === 'board' &&
+      if (!(boardBeatParkPending() || boardBeatParkState.draining)) {
+        return false;
+      }
+      if (this.boardInPlainViewForStory) {
+        return true;
+      }
+      // PL-1840 — UNDER A COVER, the placement the story is owed BEFORE: the board is taken first
+      // (`placementTakesBoardForStory`), the drain runs there, then the grid lights. The LIVE candidate answers the very
+      // flush the placement would come alive in (the presence latch's watcher runs before the cover's — a placement
+      // admitted for one tick stays present, and `board-story` never withdraws a present surface); the LATCH keeps it
+      // from then on, so the camera's own hold can never flip it back (see the candidate).
+      return this.playerView.waitingFor?.type === 'space' &&
+        ((this.boardStoryCoverFor !== '' && this.boardStoryCoverFor === this.promptPresenceIdentity) || this.boardStoryCoverCandidate);
+    },
+    /**
+     * PL-1840 — THE CANDIDATE: a server placement nothing ELSE holds (the workspace's own commit flights, a reveal — that
+     * block's), while the park owes a scale story the covered board cannot tell. Its rising edge LATCHES the cover for this
+     * prompt (`boardStoryCoverFor`), never a live term of the signal itself: the signal releases the camera
+     * (`placementHeldForBoardStory`), the camera's exit raises the blocking `planet-focus` hold, and a live «nothing else
+     * holds» would then drop the story, re-engage the camera and ping-pong until the page crashed (the box, 2026-11-05).
+     * Any other surface never waits on a story under a cover (no drain can run there).
+     */
+    boardStoryCoverCandidate(): boolean {
+      void boardBeatParkState.heldParams;
+      return this.playerView.waitingFor?.type === 'space' && !this.placementLiveLatch && !this.boardInPlainViewForStory &&
+        boardBeatParkPending() &&
+        promptAdmissionBlock('placement', guardedAdmissionSignals(this.admissionSignalsBeforeStory)) === undefined;
+    },
+    /** PL-1840 — the latched cover still owes its story (the park pending or draining, the same prompt). */
+    boardStoryCoverOwed(): boolean {
+      void boardBeatParkState.heldParams;
+      return this.boardStoryCoverFor !== '' && this.boardStoryCoverFor === this.promptPresenceIdentity &&
+        (boardBeatParkPending() || boardBeatParkState.draining);
+    },
+    /** The board the park drains on: the board section, no sheet, no workspace screen. */
+    boardInPlainViewForStory(): boolean {
+      return this.consoleState.section === 'board' &&
         this.consoleState.sheet === undefined &&
         !this.workspaceScreenUp;
-      return plainView && (boardBeatParkPending() || boardBeatParkState.draining);
     },
     /**
      * The server's placement is held WHILE the board owes its scale story (PL-336) — the one state that releases the
@@ -13445,6 +13508,30 @@ export default defineComponent({
       }
       closeConsoleLayers();
     },
+    /** PL-1840 — the cover is LATCHED for this prompt on the candidate's rising edge (see `boardStoryCoverCandidate`). */
+    boardStoryCoverCandidate(now: boolean) {
+      if (now) {
+        this.boardStoryCoverFor = this.promptPresenceIdentity;
+        noteTransferTrail('board-story:cover', {prompt: this.boardStoryCoverFor});
+      }
+    },
+    /** …and let go once the story is told (the park owes nothing) or the server asks something else. */
+    boardStoryCoverOwed(owed: boolean) {
+      if (!owed) {
+        this.boardStoryCoverFor = '';
+      }
+    },
+    /** See `placementTakesBoardForStory` — the board is uncovered for the scale story the placement waits for (PL-1840). */
+    placementTakesBoardForStory(now: boolean) {
+      if (!now) {
+        return;
+      }
+      noteTransferTrail('board-story:take-board', {waitingFor: this.playerView.waitingFor?.type});
+      if (!yieldStackToBoard() && !(preludeChainYieldsToBoard() && yieldStackForStagedPlay())) {
+        goBoardHome();
+      }
+      closeConsoleLayers();
+    },
     placementActive(now: boolean) {
       this.placementLiveLatch = now;
       if (now) {
@@ -18615,6 +18702,7 @@ export default defineComponent({
           reactions: play.scene.reactions,
           rail: withBill(play.scene.rail),
           spends: withBill(play.scene.spends),
+          alloyPrice: play.scene.alloyPrice,
           targetSpends: play.scene.targetSpends,
           price: playCardPriceReward(play.payment, [...(play.scene.rewards ?? []), ...(play.scene.reactions ?? []).map((r) => r.spec)]),
           ...(billMc > 0 ? {
@@ -18881,7 +18969,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, reactions?: ReadonlyArray<PlayReaction>, rail?: RailReward, spends?: RailReward, known?: Readonly<Record<string, number>>, targetSpends?: ReadonlyArray<ResourceTransferSpec>, discards?: ReadonlyArray<PreselectedDiscard>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, agendaWalkRail?: AgendaWalkRailPromise, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, armedSpends?: ReadonlyArray<ArmedPlayEffectModel>, composerDraft?: PlayComposerDraft}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, reactions?: ReadonlyArray<PlayReaction>, rail?: RailReward, spends?: RailReward, alloyPrice?: RailReward, known?: Readonly<Record<string, number>>, targetSpends?: ReadonlyArray<ResourceTransferSpec>, discards?: ReadonlyArray<PreselectedDiscard>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, agendaWalkRail?: AgendaWalkRailPromise, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, armedSpends?: ReadonlyArray<ArmedPlayEffectModel>, composerDraft?: PlayComposerDraft}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -18904,7 +18992,7 @@ export default defineComponent({
           cost: card?.calculatedCost ?? 0,
           scene: {
             rewards: payload.rewards, reactions: payload.reactions, rail: payload.rail, spends: payload.spends,
-            targetSpends: payload.targetSpends, draws: payload.draws, known: payload.known,
+            alloyPrice: payload.alloyPrice, targetSpends: payload.targetSpends, draws: payload.draws, known: payload.known,
           },
           // …and EVERY DOOR the composer opened (the design rule of 2026-10-20): the staged cell / vote / colony and a
           // composed repeat ride the result — the law's commit stages them where an ordinary play would, at its commit.
@@ -19106,6 +19194,8 @@ export default defineComponent({
         rail: payload.rail,
         // The price the play takes OFF THE RAIL (X87's shipment): flown into the standing card before the lift.
         spends: payload.spends,
+        // …and the card's own price in ALLOYS (PL-1841 ①): off the steel / titanium row into its printed cost.
+        alloyPrice: payload.alloyPrice,
         // …and the price taken off a card the composer's own step chose (PL-268, TR52): off the answered target row.
         targetSpends: payload.targetSpends,
         // …and the card's price paid with CARD resources (PL-163 — a floater of Dirigibles, a mech of EVA): a token off
