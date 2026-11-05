@@ -13,7 +13,6 @@ import {Game} from '@/server/Game';
 import {GameCards} from '@/server/GameCards';
 import {Parliament} from '@/server/parliament/Parliament';
 import {PRELUDE2_CARD_MANIFEST} from '@/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '@/server/models/cardPlayPreview';
 import {unplayableReasons} from '@/server/models/unplayableReasons';
 import {CardName} from '@/common/cards/CardName';
@@ -285,11 +284,10 @@ describe('JovianEnvoys — on a Turmoil Redux table', () => {
       return new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
     }
 
-    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2; off the hold-back list', () => {
+    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2', () => {
       const redux = {turmoilReduxExpansion: true, coloniesExtension: true};
       expect(dealt({...redux, prelude2Expansion: true})).include(CardName.JOVIAN_ENVOYS);
       expect(dealt({...redux, prelude2Expansion: false})).not.include(CardName.JOVIAN_ENVOYS);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.JOVIAN_ENVOYS)).is.false;
     });
 
     it('save / reload under the grant: the event is played, the reserve untouched (T03\'s shape)', () => {

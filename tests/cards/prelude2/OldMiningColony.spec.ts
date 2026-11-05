@@ -15,7 +15,6 @@ import {CardName} from '@/common/cards/CardName';
 import {Biolab} from '@/server/cards/prelude/Biolab';
 import {MartianIndustries} from '@/server/cards/prelude/MartianIndustries';
 import {computePreludeOutlooks} from '@/server/preludes/preludeOutlook';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {Priority} from '@/server/deferredActions/Priority';
 import {TestPlayer} from '../../TestPlayer';
 import {testGame} from '../../TestGame';
@@ -30,10 +29,6 @@ describe('OldMiningColony', () => {
     card = new OldMiningColony();
     [game, player] = testGame(2, {coloniesExtension: true});
     game.colonies = [new Callisto(), new Ceres(), new Miranda()];
-  });
-
-  it('is adapted — dealt and covered', () => {
-    expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.OLD_MINING_COLONY)).is.false;
   });
 
   it('canPlay', () => {

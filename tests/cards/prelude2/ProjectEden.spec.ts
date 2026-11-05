@@ -22,7 +22,6 @@ import {Whales} from '../../../src/server/cards/underworld/Whales';
 import {cast} from '../../../src/common/utils/utils';
 import {TileType} from '../../../src/common/TileType';
 import {CardName} from '../../../src/common/cards/CardName';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {computePreludeOutlooks} from '../../../src/server/preludes/preludeOutlook';
 import {Biolab} from '../../../src/server/cards/prelude/Biolab';
 import {IoResearchOutpost} from '../../../src/server/cards/prelude/IoResearchOutpost';
@@ -62,10 +61,6 @@ describe('ProjectEden', () => {
     input.cb(input.spaces[0]);
     runAllActions(game);
   }
-
-  it('is adapted — dealt and covered', () => {
-    expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.PROJECT_EDEN)).is.false;
-  });
 
   it('canPlay — three cards in hand', () => {
     player.cardsInHand.push(fakeCard(), fakeCard());

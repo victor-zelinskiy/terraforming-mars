@@ -17,7 +17,6 @@ import {runAllActions} from '../../TestingUtils';
 import {Game} from '@/server/Game';
 import {GameCards} from '@/server/GameCards';
 import {PRELUDE2_CARD_MANIFEST} from '@/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '@/server/models/cardPlayPreview';
 import {actionPreview, countedPlayEffects} from '@/server/models/actionPreview';
 import {CardName} from '@/common/cards/CardName';
@@ -296,7 +295,6 @@ describe('CeresTechMarket — premium', () => {
       expect(dealt({prelude2Expansion: true, coloniesExtension: true})).include(CardName.CERES_TECH_MARKET);
       expect(dealt({prelude2Expansion: true, coloniesExtension: false})).not.include(CardName.CERES_TECH_MARKET);
       expect(dealt({prelude2Expansion: false, coloniesExtension: true})).not.include(CardName.CERES_TECH_MARKET);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.CERES_TECH_MARKET)).is.false;
     });
 
     it('save / reload: the card on the table, the hand and the M€ kept', () => {

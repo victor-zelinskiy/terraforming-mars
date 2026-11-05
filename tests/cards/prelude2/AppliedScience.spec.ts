@@ -20,7 +20,6 @@ import {SelectCardModel, SelectResourceModel} from '../../../src/common/models/P
 import {replayBatch, parkedBatchTailLength} from '../../../src/server/inputs/deferredInputBatch';
 import {InputResponse} from '../../../src/common/inputs/InputResponse';
 import {promptAddressOf} from '../../../src/common/inputs/preselectAddress';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {ICard} from '../../../src/server/cards/ICard';
 import {Behavior} from '../../../src/server/behavior/Behavior';
 
@@ -40,10 +39,6 @@ describe('AppliedScience', () => {
     player.playedCards.push(card);
     card.resourceCount = science;
   }
-
-  it('is adapted (no longer held back)', () => {
-    expect(PRELUDE2_CARDS_HELD_BACK).not.include(CardName.APPLIED_SCIENCE);
-  });
 
   it('play: 6 science on the card, previewed as «6 on this card»', () => {
     player.playedCards.push(card);

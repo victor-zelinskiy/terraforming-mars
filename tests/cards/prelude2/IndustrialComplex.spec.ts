@@ -14,7 +14,6 @@ import {effectForecastForPlay} from '../../../src/server/models/effectForecast';
 import {computePreludeOutlooks} from '../../../src/server/preludes/preludeOutlook';
 import {Loan} from '../../../src/server/cards/prelude/Loan';
 import {Manutech} from '../../../src/server/cards/venusNext/Manutech';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {ActionEffect} from '../../../src/common/models/ActionPreviewModel';
 import {Message} from '../../../src/common/logs/Message';
@@ -127,10 +126,6 @@ describe('IndustrialComplex', () => {
   const effectsOf = () => cardPlayPreview(player, card).branches.flatMap((b) => b.effects);
   const stepsOf = () => cardPlayPreview(player, card).branches.flatMap((b) => b.steps);
   const production = (effects: ReadonlyArray<ActionEffect>) => effects.filter((e) => e.note === 'production');
-
-  it('is off the hold-back list (adapted)', () => {
-    expect(PRELUDE2_CARDS_HELD_BACK).not.include(CardName.INDUSTRIAL_COMPLEX);
-  });
 
   it('preview — all six lines at zero: six chips `0 → 1`, the price chip LAST (execution order), no note; read-only', () => {
     player.stock.override({megacredits: 40});

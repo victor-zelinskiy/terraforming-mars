@@ -12,7 +12,6 @@ import {Payment} from '@/common/inputs/Payment';
 import {Tag} from '@/common/cards/Tag';
 import {Phase} from '@/common/Phase';
 import {MAX_TEMPERATURE} from '@/common/constants';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {allForecastFacts} from '@/common/models/EffectForecastModel';
 import {effectForecastForPlay} from '@/server/models/effectForecast';
 import {cardPlayPreview} from '@/server/models/cardPlayPreview';
@@ -119,10 +118,6 @@ describe('PalladinShipping — the fork', () => {
     [game, player, rival] = testGame(2);
     player.playCorporationCard(card);
     runAllActions(game);
-  });
-
-  it('is no longer held back (the second corporation of the set to cross)', () => {
-    expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.PALLADIN_SHIPPING)).is.false;
   });
 
   describe('rule 1 — the start', () => {

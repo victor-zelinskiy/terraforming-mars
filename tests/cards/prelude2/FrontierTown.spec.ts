@@ -24,7 +24,6 @@ import {Parliament} from '@/server/parliament/Parliament';
 import {Game} from '@/server/Game';
 import {GameCards} from '@/server/GameCards';
 import {PRELUDE2_CARD_MANIFEST} from '@/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '@/server/models/cardPlayPreview';
 import {PARTY_REQUIREMENT_REASON, unplayableReasons} from '@/server/models/unplayableReasons';
 import {requiredPartyOf} from '@/server/cards/requirements/partyRequirementCards';
@@ -310,11 +309,10 @@ describe('FrontierTown — on a Turmoil Redux table', () => {
       expect(facts.some((f) => f.delta?.icon === 'energy' && f.delta.production === true), JSON.stringify(facts.map((f) => f.id))).is.true;
     });
 
-    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2; off the hold-back list', () => {
+    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2', () => {
       const dealt = (opts: Partial<GameOptions>) => new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
       expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, prelude2Expansion: true})).include(CardName.FRONTIER_TOWN);
       expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, prelude2Expansion: false})).not.include(CardName.FRONTIER_TOWN);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.FRONTIER_TOWN)).is.false;
     });
 
     it('save / reload: the replayed play asks the same multiplied city', () => {

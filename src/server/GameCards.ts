@@ -27,7 +27,6 @@ import {UNDERWORLD_CARD_MANIFEST} from './cards/underworld/UnderworldCardManifes
 import {DELTA_PROJECT_CARD_MANIFEST} from './cards/delta/DeltaProjectCardManifest';
 import {TURMOIL_REDUX_CARD_MANIFEST} from './cards/turmoilRedux/TurmoilReduxCardManifest';
 import {isCardBannedForAutoma} from './automa/AutomaBans';
-import {isPrelude2CardHeldBack} from './cards/prelude2/prelude2Adaptation';
 
 /**
  * Returns the cards available to a game based on its `GameOptions`.
@@ -53,9 +52,9 @@ export class GameCards {
       [true, BASE_CARD_MANIFEST],
       [gameOptions.corporateEra, CORP_ERA_CARD_MANIFEST],
       [gameOptions.preludeExtension, PRELUDE_CARD_MANIFEST],
-      // Prelude 2 joins the premium layer CARD BY CARD (since 2026-10-29): only
-      // the ADAPTED ones reach a deck — `filterHeldBackPrelude2` below holds the
-      // rest (`cards/prelude2/prelude2Adaptation.ts`, the worklist).
+      // Prelude 2 — in the premium layer WHOLE since 2026-11-05 (all 54 cards adapted one by one,
+      // `docs/PRELUDE2_ADAPTATION.md`); its classic Corridors of Power leaves a Redux table through
+      // the Redux manifest's `cardsToRemove` (`filterReplacedCards`).
       [gameOptions.prelude2Expansion, PRELUDE2_CARD_MANIFEST],
       [gameOptions.venusNextExtension, VENUS_CARD_MANIFEST],
       [gameOptions.coloniesExtension, COLONIES_CARD_MANIFEST],
@@ -163,18 +162,7 @@ export class GameCards {
 
     cards = this.filterBannedCards(cards);
     cards = this.filterReplacedCards(cards);
-    cards = this.filterHeldBackPrelude2(cards);
     return cards;
-  }
-
-  /**
-   * Remove the Prelude 2 cards not yet adapted to the premium layer from every
-   * deck. TEMPORARY — goes with the hold-back list in
-   * `cards/prelude2/prelude2Adaptation.ts` once every card has crossed. Runs
-   * before the custom lists are added, so a guaranteed card still wins.
-   */
-  private filterHeldBackPrelude2<T extends ICard>(cards: Array<T>): Array<T> {
-    return cards.filter((card) => !isPrelude2CardHeldBack(card.name));
   }
 
   /* Remove cards excluded by choice in game options */

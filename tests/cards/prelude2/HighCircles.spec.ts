@@ -17,7 +17,6 @@ import {newProjectCard} from '../../../src/server/createCard';
 import {hasPartyRequirement} from '../../../src/server/cards/requirements/partyRequirementCards';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {PRELUDE2_CARD_MANIFEST} from '../../../src/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {GameCards} from '../../../src/server/GameCards';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../../src/server/game/GameOptions';
 import {DELEGATE_ICON, ReduxParty} from '../../../src/common/parliament/ParliamentTypes';
@@ -87,7 +86,6 @@ describe('HighCircles — on a Turmoil Redux table', () => {
     const spec = PRELUDE2_CARD_MANIFEST.preludeCards[CardName.HIGH_CIRCLES];
     expect(spec?.compatibility).eq('turmoil');
     expect(spec?.politics, 'the console creator has no classic Turmoil — Redux only').eq('redux');
-    expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.HIGH_CIRCLES)).is.false;
   });
 
   it('rule 2 — the play: +1 TR, the draw first, then ONE grant prompt for 2 (the giver named, every resolution shown)', () => {

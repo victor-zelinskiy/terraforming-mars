@@ -23,7 +23,6 @@ import {Phase} from '@/common/Phase';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {OrOptionsModel, SelectCardModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {allForecastFacts} from '@/common/models/EffectForecastModel';
 import {effectForecastForPlay} from '@/server/models/effectForecast';
 import {cardPlayPreview} from '@/server/models/cardPlayPreview';
@@ -157,10 +156,6 @@ describe('Ecotec — the fork', () => {
     [game, player, rival] = testGame(2);
     player.playCorporationCard(card);
     runAllActions(game);
-  });
-
-  it('is no longer held back (the third corporation of the set to cross)', () => {
-    expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.ECOTEC)).is.false;
   });
 
   describe('rule 1 — the start, «including these 2»', () => {

@@ -18,7 +18,6 @@ import {COLONIAL_AFFAIRS_ID} from '../../../src/server/parliament/resolutions/un
 import {PRELUDE2_CARD_MANIFEST} from '../../../src/server/cards/prelude2/Prelude2CardManifest';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../../src/server/game/GameOptions';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {CardName} from '../../../src/common/cards/CardName';
 import {CardType} from '../../../src/common/cards/CardType';
 import {Phase} from '../../../src/common/Phase';
@@ -244,11 +243,10 @@ describe('ColonialRepresentation — on a Turmoil Redux table', () => {
       expect(JSON.stringify(t.game.serialize()), 'the preview never mutates').eq(before);
     });
 
-    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2; off the hold-back list', () => {
+    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2', () => {
       const dealt = (opts: Partial<GameOptions>) => new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
       expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, prelude2Expansion: true})).include(CardName.COLONIAL_REPRESENTATION);
       expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, prelude2Expansion: false})).not.include(CardName.COLONIAL_REPRESENTATION);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.COLONIAL_REPRESENTATION)).is.false;
     });
 
     it('save / reload: the bonus survives with its source, the influence is read the same', () => {

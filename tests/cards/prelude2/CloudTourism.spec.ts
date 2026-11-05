@@ -12,7 +12,6 @@ import {CardResource} from '../../../src/common/CardResource';
 import {Phase} from '../../../src/common/Phase';
 import {ActionEffect} from '../../../src/common/models/ActionPreviewModel';
 import {PRELUDE2_CARD_MANIFEST} from '../../../src/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {actionPreview, countedPlayEffects} from '../../../src/server/models/actionPreview';
 import {GameCards} from '../../../src/server/GameCards';
@@ -285,10 +284,9 @@ describe('CloudTourism — premium (P69)', () => {
       return new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
     }
 
-    it('dealt with Prelude 2 + Venus; absent without Venus; off the hold-back list', () => {
+    it('dealt with Prelude 2 + Venus; absent without Venus', () => {
       expect(dealt({prelude2Expansion: true, venusNextExtension: true})).include(CardName.CLOUD_TOURISM);
       expect(dealt({prelude2Expansion: true, venusNextExtension: false})).not.include(CardName.CLOUD_TOURISM);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.CLOUD_TOURISM)).is.false;
     });
 
     it('save / reload: the card on the table with its floaters', () => {

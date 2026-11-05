@@ -13,7 +13,6 @@ import {ICard} from '../../../src/server/cards/ICard';
 import {newProjectCard, corporationCardsFromJSON} from '../../../src/server/createCard';
 import {hasNoPrintedTags, tagsBarringNoTagsSearch} from '../../../src/server/cards/noTagsCards';
 import {drawSearchSentence} from '../../../src/server/tools/cardInfo/buildCardInformation';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {Payment} from '../../../src/common/inputs/Payment';
 import {allForecastFacts} from '../../../src/common/models/EffectForecastModel';
 import {effectForecastForPlay} from '../../../src/server/models/effectForecast';
@@ -109,10 +108,6 @@ describe('SagittaFrontierServices — the fork', () => {
 
   beforeEach(() => {
     [game, player, rival] = testGame(2);
-  });
-
-  it('is no longer held back (the fourth corporation of the set to cross)', () => {
-    expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.SAGITTA_FRONTIER_SERVICES)).is.false;
   });
 
   it('keeps its art and lore keyed on PC03 (the number upstream marks «Renumber» stays)', () => {

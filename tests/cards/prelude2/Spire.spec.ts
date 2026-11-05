@@ -20,7 +20,6 @@ import {CardType} from '@/common/cards/CardType';
 import {Phase} from '@/common/Phase';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {allForecastFacts} from '@/common/models/EffectForecastModel';
 import {effectForecastForPlay} from '@/server/models/effectForecast';
 import {cardPlayPreview} from '@/server/models/cardPlayPreview';
@@ -114,10 +113,6 @@ describe('Spire — the fork', () => {
 
   beforeEach(() => {
     [game, player, rival] = testGame(2);
-  });
-
-  it('is no longer held back (the fifth and last corporation of the set to cross)', () => {
-    expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.SPIRE)).is.false;
   });
 
   it('keeps its art and lore keyed on PC05 (the number upstream marks «Renumber» stays)', () => {

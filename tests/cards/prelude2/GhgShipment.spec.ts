@@ -20,7 +20,6 @@ import {GameCards} from '@/server/GameCards';
 import {Parliament} from '@/server/parliament/Parliament';
 import {Payment} from '@/common/inputs/Payment';
 import {PRELUDE2_CARD_MANIFEST} from '@/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '@/server/models/cardPlayPreview';
 import {effectForecastForPlay} from '@/server/models/effectForecast';
 import {countedPlayEffects} from '@/server/models/actionPreview';
@@ -321,10 +320,9 @@ describe('GhgShipment — on a Turmoil Redux table', () => {
       return new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
     }
 
-    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2; off the hold-back list', () => {
+    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2', () => {
       expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, prelude2Expansion: true})).include(CardName.GHG_SHIPMENT);
       expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, prelude2Expansion: false})).not.include(CardName.GHG_SHIPMENT);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.GHG_SHIPMENT)).is.false;
     });
 
     it('save / reload: the production and the heat kept, the card among the played', () => {

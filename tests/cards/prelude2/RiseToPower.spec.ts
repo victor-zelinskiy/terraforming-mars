@@ -12,7 +12,6 @@ import {Game} from '../../../src/server/Game';
 import {GameCards} from '../../../src/server/GameCards';
 import {Parliament} from '../../../src/server/parliament/Parliament';
 import {PRELUDE2_CARD_MANIFEST} from '../../../src/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {unplayableReasons} from '../../../src/server/models/unplayableReasons';
 import {CardName} from '../../../src/common/cards/CardName';
@@ -127,7 +126,6 @@ describe('RiseToPower — on a Turmoil Redux table', () => {
     const spec = PRELUDE2_CARD_MANIFEST.preludeCards[CardName.RISE_TO_POWER];
     expect(spec?.compatibility).eq('turmoil');
     expect(spec?.politics, 'the console creator has no classic Turmoil — Redux only').eq('redux');
-    expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.RISE_TO_POWER)).is.false;
   });
 
   it('rule 2 — the play: +3 M€ production FIRST, then the first of three grants of 1, the giver named, marked «1 of 3»', () => {

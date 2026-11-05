@@ -16,7 +16,6 @@ import {Resource} from '../../../src/common/Resource';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {effectForecastForPlay} from '../../../src/server/models/effectForecast';
 import {EffectForecastFact} from '../../../src/common/models/EffectForecastModel';
-import {PRELUDE2_CARDS_TO_ADAPT_IN_PLACE} from '../../../src/common/cards/prelude2Adaptation';
 import {runAllActions} from '../../TestingUtils';
 
 describe('SoilBacteria', () => {
@@ -60,10 +59,6 @@ describe('SoilBacteria', () => {
 
     beforeEach(() => {
       game.phase = Phase.ACTION;
-    });
-
-    it('leaves the hold-back list (the forty-third Prelude 2 card)', () => {
-      expect(PRELUDE2_CARDS_TO_ADAPT_IN_PLACE).not.to.include(CardName.SOIL_BACTERIA);
     });
 
     it('rule 1 — ONE count: the twin promises exactly what the hook pays, per tag', () => {

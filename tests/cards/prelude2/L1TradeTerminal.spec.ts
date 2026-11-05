@@ -20,7 +20,6 @@ import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {SKIP_REASON, SKIPPED_LABEL} from '../../../src/server/cards/actionPreviews';
 import {ActionPreviewStep} from '../../../src/common/models/ActionPreviewModel';
 import {SelectCardModel} from '../../../src/common/models/PlayerInputModel';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../../src/server/game/GameOptions';
 import {CardType} from '../../../src/common/cards/CardType';
 import {Tag} from '../../../src/common/cards/Tag';
@@ -354,10 +353,9 @@ describe('L1TradeTerminal', () => {
         return new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
       }
 
-      it('dealt with Colonies + Prelude 2; absent without Colonies; off the hold-back list', () => {
+      it('dealt with Colonies + Prelude 2; absent without Colonies', () => {
         expect(dealt({coloniesExtension: true, prelude2Expansion: true})).include(CardName.L1_TRADE_TERMINAL);
         expect(dealt({coloniesExtension: false, prelude2Expansion: true})).not.include(CardName.L1_TRADE_TERMINAL);
-        expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.L1_TRADE_TERMINAL)).is.false;
       });
 
       it('save / reload keeps the offset', () => {

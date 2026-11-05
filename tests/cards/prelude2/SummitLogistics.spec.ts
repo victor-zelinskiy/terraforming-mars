@@ -14,7 +14,6 @@ import {Game} from '@/server/Game';
 import {GameCards} from '@/server/GameCards';
 import {Parliament} from '@/server/parliament/Parliament';
 import {PRELUDE2_CARD_MANIFEST} from '@/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '@/server/models/cardPlayPreview';
 import {countedPlayEffects} from '@/server/models/actionPreview';
 import {PARTY_REQUIREMENT_REASON, unplayableReasons} from '@/server/models/unplayableReasons';
@@ -358,10 +357,9 @@ describe('SummitLogistics — on a Turmoil Redux table', () => {
       return new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
     }
 
-    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2; off the hold-back list', () => {
+    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2', () => {
       expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, prelude2Expansion: true})).include(CardName.SUMMIT_LOGISTICS);
       expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, prelude2Expansion: false})).not.include(CardName.SUMMIT_LOGISTICS);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.SUMMIT_LOGISTICS)).is.false;
     });
 
     it('save / reload: the card in the tableau, the drawn cards in the hand, the M€ kept', () => {

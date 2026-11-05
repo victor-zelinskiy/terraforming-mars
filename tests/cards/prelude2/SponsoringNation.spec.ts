@@ -16,7 +16,6 @@ import {GameCards} from '@/server/GameCards';
 import {Parliament} from '@/server/parliament/Parliament';
 import {SelectParty} from '@/server/inputs/SelectParty';
 import {PRELUDE2_CARD_MANIFEST} from '@/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '@/server/models/cardPlayPreview';
 import {unplayableReasons} from '@/server/models/unplayableReasons';
 import {ratingVetoed} from '@/server/parliament/ratingVetoGate';
@@ -304,10 +303,9 @@ describe('SponsoringNation — on a Turmoil Redux table', () => {
       return new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
     }
 
-    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2; off the hold-back list', () => {
+    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2', () => {
       expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, prelude2Expansion: true})).include(CardName.SPONSORING_NATION);
       expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, prelude2Expansion: false})).not.include(CardName.SPONSORING_NATION);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.SPONSORING_NATION)).is.false;
     });
 
     it('save / reload under the grant: the card and its TR stand, the reserve untouched (T03\'s shape)', () => {

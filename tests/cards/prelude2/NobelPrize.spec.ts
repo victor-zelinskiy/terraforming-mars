@@ -12,7 +12,6 @@ import {newProjectCard} from '../../../src/server/createCard';
 import {hasRequirement} from '../../../src/server/cards/requirements/CardsWithRequirementsRequirement';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {drawSearchSentence} from '../../../src/server/tools/cardInfo/buildCardInformation';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 
 /**
  * P54 — NOBEL PRIZE IN THE PREMIUM SCOPE (`docs/PRELUDE2_ADAPTATION.md` §3.1, form 1 — FULLY DECLARATIVE; ledger FM):
@@ -124,9 +123,8 @@ describe('NobelPrize', () => {
     expect(player.getWaitingFor()).is.undefined;
   });
 
-  it('rule 8 — 2 VP on the table; the card is out of the hold-back list', () => {
+  it('rule 8 — 2 VP on the table', () => {
     play();
     expect(card.getVictoryPoints(player)).eq(2);
-    expect(PRELUDE2_CARDS_HELD_BACK).not.include(CardName.NOBEL_PRIZE);
   });
 });

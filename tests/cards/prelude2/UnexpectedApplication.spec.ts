@@ -17,7 +17,6 @@ import {CardType} from '../../../src/common/cards/CardType';
 import {Game} from '../../../src/server/Game';
 import {GameCards} from '../../../src/server/GameCards';
 import {PRELUDE2_CARD_MANIFEST} from '../../../src/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {unplayableReasons} from '../../../src/server/models/unplayableReasons';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../../src/server/game/GameOptions';
@@ -217,11 +216,10 @@ describe('UnexpectedApplication — premium', () => {
       return new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
     }
 
-    it('dealt with Prelude 2 + Venus; absent without either; off the hold-back list', () => {
+    it('dealt with Prelude 2 + Venus; absent without either', () => {
       expect(dealt({prelude2Expansion: true, venusNextExtension: true})).include(CardName.UNEXPECTED_APPLICATION);
       expect(dealt({prelude2Expansion: false, venusNextExtension: true})).not.include(CardName.UNEXPECTED_APPLICATION);
       expect(dealt({prelude2Expansion: true, venusNextExtension: false})).not.include(CardName.UNEXPECTED_APPLICATION);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.UNEXPECTED_APPLICATION)).is.false;
     });
 
     it('save / reload: the event on the played pile, the discard on the pile, the rest of the hand kept', () => {

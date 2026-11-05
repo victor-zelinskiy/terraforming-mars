@@ -15,7 +15,6 @@ import {PRELUDE2_CARD_MANIFEST} from '../../../src/server/cards/prelude2/Prelude
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {countedPlayEffects} from '../../../src/server/models/actionPreview';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../../src/server/game/GameOptions';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {CardName} from '../../../src/common/cards/CardName';
 import {CardType} from '../../../src/common/cards/CardType';
 import {Tag} from '../../../src/common/cards/Tag';
@@ -234,11 +233,10 @@ describe('SoilStudies — one count for the preview and the play, «including th
       return new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
     }
 
-    it('dealt with Prelude 2 + Venus + Colonies; absent without either; off the hold-back list', () => {
+    it('dealt with Prelude 2 + Venus + Colonies; absent without either', () => {
       expect(dealt({prelude2Expansion: true, venusNextExtension: true, coloniesExtension: true})).include(CardName.SOIL_STUDIES);
       expect(dealt({prelude2Expansion: true, venusNextExtension: false, coloniesExtension: true})).not.include(CardName.SOIL_STUDIES);
       expect(dealt({prelude2Expansion: true, venusNextExtension: true, coloniesExtension: false})).not.include(CardName.SOIL_STUDIES);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.SOIL_STUDIES)).is.false;
     });
 
     it('save / reload: an ordinary played event, the plants kept', () => {

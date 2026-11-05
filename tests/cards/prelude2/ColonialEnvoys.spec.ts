@@ -13,7 +13,6 @@ import {Game} from '@/server/Game';
 import {GameCards} from '@/server/GameCards';
 import {Parliament} from '@/server/parliament/Parliament';
 import {PRELUDE2_CARD_MANIFEST} from '@/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '@/server/models/cardPlayPreview';
 import {PARTY_REQUIREMENT_REASON, unplayableReasons} from '@/server/models/unplayableReasons';
 import {CardName} from '@/common/cards/CardName';
@@ -145,7 +144,7 @@ describe('ColonialEnvoys — on a Turmoil Redux table', () => {
     for (let i = 0; i < n; i++) {
       t.game.colonies[i].addColony(t.p1);
       // A tile's own build bonus that ASKS (Europa's ocean) is not this spec's subject — and the deal moves with the
-      // decks (a card leaving the hold-back list shifts the shuffle): drained, whichever tiles were dealt.
+      // decks (a card joining the deck shifts the shuffle): drained, whichever tiles were dealt.
       runAllActions(t.game);
       t.p1.popWaitingFor();
     }
@@ -375,11 +374,10 @@ describe('ColonialEnvoys — on a Turmoil Redux table', () => {
       return new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
     }
 
-    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2; off the hold-back list', () => {
+    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2', () => {
       const redux = {turmoilReduxExpansion: true, coloniesExtension: true};
       expect(dealt({...redux, prelude2Expansion: true})).include(CardName.COLONIAL_ENVOYS);
       expect(dealt({...redux, prelude2Expansion: false})).not.include(CardName.COLONIAL_ENVOYS);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.COLONIAL_ENVOYS)).is.false;
     });
 
     it('save / reload in the middle of the series: the event is played, the delegate already placed stays placed', () => {

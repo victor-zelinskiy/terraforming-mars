@@ -17,7 +17,6 @@ import {effectForecastForAction} from '../../../src/server/models/effectForecast
 import {SelectCardModel} from '../../../src/common/models/PlayerInputModel';
 import {ActionPreviewStep} from '../../../src/common/models/ActionPreviewModel';
 import {RotatorImpacts} from '../../../src/server/cards/venusNext/RotatorImpacts';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {CardName} from '../../../src/common/cards/CardName';
 import {AddResourcesToCard} from '../../../src/server/deferredActions/AddResourcesToCard';
 import {CardResource} from '../../../src/common/CardResource';
@@ -134,10 +133,6 @@ describe('MainBeltAsteroids', () => {
     expect(step, 'the pick is pre-collected').not.undefined;
     return (step as {input: SelectCardModel}).input;
   }
-
-  it('is adapted (no longer held back)', () => {
-    expect(PRELUDE2_CARDS_HELD_BACK).not.include(CardName.MAIN_BELT_ASTEROIDS);
-  });
 
   it('preview — the price chip (the start’s price gesture flies off it), read-only', () => {
     player.megaCredits = 40;

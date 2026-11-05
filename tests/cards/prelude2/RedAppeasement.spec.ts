@@ -16,7 +16,6 @@ import {OrOptions} from '@/server/inputs/OrOptions';
 import {SelectProjectCardToPlay} from '@/server/inputs/SelectProjectCardToPlay';
 import {Payment} from '@/common/inputs/Payment';
 import {PRELUDE2_CARD_MANIFEST} from '@/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '@/server/models/cardPlayPreview';
 import {PARTY_REQUIREMENT_REASON, unplayableReasons} from '@/server/models/unplayableReasons';
 import {requiredPartyOf} from '@/server/cards/requirements/partyRequirementCards';
@@ -265,10 +264,9 @@ describe('RedAppeasement — on a Turmoil Redux table', () => {
       return new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
     }
 
-    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2; off the hold-back list', () => {
+    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2', () => {
       expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, prelude2Expansion: true})).include(CardName.RED_APPEASEMENT);
       expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, prelude2Expansion: false})).not.include(CardName.RED_APPEASEMENT);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.RED_APPEASEMENT)).is.false;
     });
 
     it('save / reload after the play: p1 is still a seat that passed, its production kept', () => {

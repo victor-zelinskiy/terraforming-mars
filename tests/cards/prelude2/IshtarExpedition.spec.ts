@@ -12,7 +12,6 @@ import {newProjectCard} from '@/server/createCard';
 import {MorningStarInc} from '@/server/cards/venusNext/MorningStarInc';
 import {TitanHoldings} from '@/server/cards/turmoilRedux/TitanHoldings';
 import {PRELUDE2_CARD_MANIFEST} from '@/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '@/server/models/cardPlayPreview';
 import {effectForecastForPlay} from '@/server/models/effectForecast';
 import {unplayableReasons} from '@/server/models/unplayableReasons';
@@ -257,7 +256,6 @@ describe('IshtarExpedition — premium', () => {
       expect(dealt({prelude2Expansion: true, venusNextExtension: true})).include(CardName.ISHTAR_EXPEDITION);
       expect(dealt({prelude2Expansion: false, venusNextExtension: true})).not.include(CardName.ISHTAR_EXPEDITION);
       expect(dealt({prelude2Expansion: true, venusNextExtension: false})).not.include(CardName.ISHTAR_EXPEDITION);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.ISHTAR_EXPEDITION)).is.false;
     });
 
     it('save / reload: the event on the played pile, the found cards in the hand, the titanium kept', () => {

@@ -11,7 +11,6 @@ import {CouncilSeat} from '../../../src/server/cards/turmoilRedux/CouncilSeat';
 import {SaturnSurfing} from '../../../src/server/cards/promo/SaturnSurfing';
 import {InterstellarColonyShip} from '../../../src/server/cards/base/InterstellarColonyShip';
 import {CardName} from '../../../src/common/cards/CardName';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {effectForecastForPlay} from '../../../src/server/models/effectForecast';
 import {IProjectCard} from '../../../src/server/cards/IProjectCard';
@@ -33,10 +32,6 @@ describe('SpaceLanes', () => {
   beforeEach(() => {
     card = new SpaceLanes();
     [/* game */, player] = testGame(2);
-  });
-
-  it('is adapted — no longer held back', () => {
-    expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.SPACE_LANES)).is.false;
   });
 
   it('play', () => {

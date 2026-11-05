@@ -17,7 +17,6 @@ import {Parliament} from '@/server/parliament/Parliament';
 import {Game} from '@/server/Game';
 import {GameCards} from '@/server/GameCards';
 import {PRELUDE2_CARD_MANIFEST} from '@/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '@/server/models/cardPlayPreview';
 import {PARTY_REQUIREMENT_REASON, unplayableReasons} from '@/server/models/unplayableReasons';
 import {requiredPartyOf} from '@/server/cards/requirements/partyRequirementCards';
@@ -283,11 +282,10 @@ describe('SpecialPermit — on a Turmoil Redux table', () => {
       expect(JSON.stringify(t.game.serialize()), 'the preview never mutates').eq(before);
     });
 
-    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2; off the hold-back list', () => {
+    it('dealt with Turmoil Redux + Prelude 2 (the marker); absent without Prelude 2', () => {
       const dealt = (opts: Partial<GameOptions>) => new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
       expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, prelude2Expansion: true})).include(CardName.SPECIAL_PERMIT);
       expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, prelude2Expansion: false})).not.include(CardName.SPECIAL_PERMIT);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.SPECIAL_PERMIT)).is.false;
     });
 
     it('save / reload: the save point is the action start (the deferred steal is never serialized) — the replayed play asks the same question', () => {

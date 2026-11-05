@@ -15,7 +15,6 @@ import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {countedPlayEffects} from '../../../src/server/models/actionPreview';
 import {effectForecastForPlay} from '../../../src/server/models/effectForecast';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../../src/server/game/GameOptions';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {CardName} from '../../../src/common/cards/CardName';
 import {CardType} from '../../../src/common/cards/CardType';
 import {Tag} from '../../../src/common/cards/Tag';
@@ -206,11 +205,10 @@ describe('VenusAllies — the declaration in the premium scope', () => {
       return new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
     }
 
-    it('dealt with Prelude 2 + Venus + Colonies; absent without either; off the hold-back list', () => {
+    it('dealt with Prelude 2 + Venus + Colonies; absent without either', () => {
       expect(dealt({prelude2Expansion: true, venusNextExtension: true, coloniesExtension: true})).include(CardName.VENUS_ALLIES);
       expect(dealt({prelude2Expansion: true, venusNextExtension: false, coloniesExtension: true})).not.include(CardName.VENUS_ALLIES);
       expect(dealt({prelude2Expansion: true, venusNextExtension: true, coloniesExtension: false})).not.include(CardName.VENUS_ALLIES);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.VENUS_ALLIES)).is.false;
     });
 
     it('save / reload: an ordinary played card, the Venus scale kept', () => {

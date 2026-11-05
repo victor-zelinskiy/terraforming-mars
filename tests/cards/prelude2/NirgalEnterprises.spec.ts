@@ -13,7 +13,6 @@ import {Tag} from '../../../src/common/cards/Tag';
 import {MarsBotCorpId} from '../../../src/common/automa/AutomaTypes';
 import {marsBotCorpInfo} from '../../../src/common/automa/MarsBotCorpData';
 import {corporationCardsFromJSON} from '../../../src/server/createCard';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {AWARD_COSTS, MILESTONE_COST} from '../../../src/common/constants';
 import {testGame} from '../../TestGame';
 import {TestPlayer} from '../../TestPlayer';
@@ -80,10 +79,6 @@ describe('NirgalEnterprises', () => {
   beforeEach(() => {
     card = new NirgalEnterprises();
     [game, player, player2] = testGame(2);
-  });
-
-  it('is no longer held back (the first corporation of the set to cross)', () => {
-    expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.NIRGAL_ENTERPRISES)).is.false;
   });
 
   describe('rule 1 — the start', () => {

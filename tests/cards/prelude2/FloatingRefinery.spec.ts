@@ -21,7 +21,6 @@ import {CardResource} from '../../../src/common/CardResource';
 import {Resource} from '../../../src/common/Resource';
 import {SelectCardModel} from '../../../src/common/models/PlayerInputModel';
 import {PRELUDE2_CARD_MANIFEST} from '../../../src/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {actionPreview, countedPlayEffects} from '../../../src/server/models/actionPreview';
 import {holderActionGoodOf} from '../../../src/server/cards/holderActionGood';
 import {GameCards} from '../../../src/server/GameCards';
@@ -268,11 +267,10 @@ describe('FloatingRefinery — premium (P73)', () => {
     });
   });
 
-  it('the deal: dealt with Prelude 2 + Venus, absent without Venus, off the hold-back list', () => {
+  it('the deal: dealt with Prelude 2 + Venus, absent without Venus', () => {
     const dealt = (opts: Partial<GameOptions>) => new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
     expect(dealt({prelude2Expansion: true, venusNextExtension: true})).include(CardName.FLOATING_REFINERY);
     expect(dealt({prelude2Expansion: true, venusNextExtension: false})).not.include(CardName.FLOATING_REFINERY);
-    expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.FLOATING_REFINERY)).is.false;
   });
 
   it('save / reload: the card keeps its floaters', () => {

@@ -75,8 +75,6 @@ const OR_OPTIONS_ALLOWLIST: Readonly<Record<string, string>> = {
   // family's own review (PROMPT_PREMIUM_AUDIT § C, the delta carve-out).
   'cards/delta/ModularFloodgates.ts': 'Hydronetwork-owned prompts — deliberate carve-out',
   'cards/delta/StormSurgeBarrier.ts': 'Hydronetwork-owned prompts — deliberate carve-out',
-  // Prelude 2 is in scope CARD BY CARD: a card still on the hold-back list (`src/common/cards/prelude2Adaptation.ts`)
-  // is neither dealt nor covered — its row goes when it crosses.
   // Turmoil-only callers living in the shared directory — frontier; adapt
   // with the expansion (empty these rows in that checklist).
   'deferredActions/ChooseAlliedParty.ts': 'turmoil-only — frontier',

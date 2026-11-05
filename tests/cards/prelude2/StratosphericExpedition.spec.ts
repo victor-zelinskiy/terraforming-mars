@@ -20,7 +20,6 @@ import {Phase} from '../../../src/common/Phase';
 import {Game} from '../../../src/server/Game';
 import {GameCards} from '../../../src/server/GameCards';
 import {PRELUDE2_CARD_MANIFEST} from '../../../src/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {skippedAddToCard} from '../../../src/server/cards/actionPreviews';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../../src/server/game/GameOptions';
@@ -204,11 +203,10 @@ describe('StratosphericExpedition — premium', () => {
       return new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((c) => c.name);
     }
 
-    it('dealt with Prelude 2 + Venus; absent without either; off the hold-back list', () => {
+    it('dealt with Prelude 2 + Venus; absent without either', () => {
       expect(dealt({prelude2Expansion: true, venusNextExtension: true})).include(CardName.STRATOSPHERIC_EXPEDITION);
       expect(dealt({prelude2Expansion: false, venusNextExtension: true})).not.include(CardName.STRATOSPHERIC_EXPEDITION);
       expect(dealt({prelude2Expansion: true, venusNextExtension: false})).not.include(CardName.STRATOSPHERIC_EXPEDITION);
-      expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.STRATOSPHERIC_EXPEDITION)).is.false;
     });
 
     it('save / reload: the event on the played pile, the floaters on the holder, the found cards in the hand', () => {

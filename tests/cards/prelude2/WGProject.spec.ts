@@ -25,7 +25,6 @@ import {Server} from '@/server/models/ServerModel';
 import {cardPlayPreview, previewableCard} from '@/server/models/cardPlayPreview';
 import {CHAIRMAN_REQUIREMENT_REASON, unplayableReasons} from '@/server/models/unplayableReasons';
 import {PRELUDE2_CARD_MANIFEST} from '@/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '@/common/cards/prelude2Adaptation';
 import {MetalsCompany} from '@/server/cards/prelude/MetalsCompany';
 import {Supplier} from '@/server/cards/prelude/Supplier';
 import {ValleyTrust} from '@/server/cards/prelude/ValleyTrust';
@@ -122,7 +121,7 @@ describe('WGProject — on a Turmoil Redux table (P91: a prelude played in the m
     return cast(t.p1.popWaitingFor(), SelectCard<IPreludeCard>);
   }
 
-  it('the printed card: automated, 9, an Earth tag, the chairman\'s requirement, P91; political, marked for Redux; off the hold-back list', () => {
+  it('the printed card: automated, 9, an Earth tag, the chairman\'s requirement, P91; political, marked for Redux', () => {
     const c = new WGProject();
     expect(c.type).eq(CardType.AUTOMATED);
     expect(c.cost).eq(9);
@@ -132,7 +131,6 @@ describe('WGProject — on a Turmoil Redux table (P91: a prelude played in the m
     expect(JSON.stringify(c.requirements[0])).to.include('"chairman":true');
     const spec = PRELUDE2_CARD_MANIFEST.projectCards[CardName.WG_PROJECT];
     expect(spec?.politics, 'the console creator has no classic Turmoil — Redux only').eq('redux');
-    expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.WG_PROJECT)).is.false;
     const dealt = (opts: Partial<GameOptions>) => new GameCards({...DEFAULT_GAME_OPTIONS, ...opts}).getProjectCards().map((x) => x.name);
     expect(dealt({turmoilReduxExpansion: true, coloniesExtension: true, preludeExtension: true, prelude2Expansion: true})).include(CardName.WG_PROJECT);
   });

@@ -17,7 +17,6 @@ import {Tag} from '../../../src/common/cards/Tag';
 import {SelectOption} from '../../../src/server/inputs/SelectOption';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {PRELUDE2_CARD_MANIFEST} from '../../../src/server/cards/prelude2/Prelude2CardManifest';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 import {Celestic} from '../../../src/server/cards/venusNext/Celestic';
 
 describe('AtmosphericEnhancers', () => {
@@ -133,7 +132,6 @@ describe('AtmosphericEnhancers — premium', () => {
     expect(c.tags).deep.eq([Tag.VENUS]);
     expect(c.metadata.cardNumber).eq('P44');
     expect(PRELUDE2_CARD_MANIFEST.preludeCards[CardName.ATMOSPHERIC_ENHANCERS]?.compatibility).eq('venus');
-    expect(PRELUDE2_CARDS_HELD_BACK.has(CardName.ATMOSPHERIC_ENHANCERS), 'off the hold-back list').is.false;
   });
 
   it('the live OR: three printed rows in the printed order, each with its `current → resulting`, under the effect-choice marker', () => {

@@ -13,7 +13,6 @@ import {newProjectCard} from '../../../src/server/createCard';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {buildCardInformation, drawSearchSentence} from '../../../src/server/tools/cardInfo/buildCardInformation';
 import {computePreludeOutlooks, preludeProvisions} from '../../../src/server/preludes/preludeOutlook';
-import {PRELUDE2_CARDS_HELD_BACK} from '../../../src/common/cards/prelude2Adaptation';
 
 /**
  * P56 — PLANETARY ALLIANCE IN THE PREMIUM SCOPE (`docs/PRELUDE2_ADAPTATION.md` §3.1, form 1 — DECLARATIVE after the
@@ -176,9 +175,5 @@ describe('PlanetaryAlliance', () => {
     player.preludeCardsInHand.push(biolab);
     expect(computePreludeOutlooks(player, [colony], player.preludeCardsInHand).get(CardName.OLD_MINING_COLONY))
       .deep.include({enablers: [CardName.PLANETARY_ALLIANCE, CardName.BIOLAB]});
-  });
-
-  it('rule 11 — the card is out of the hold-back list', () => {
-    expect(PRELUDE2_CARDS_HELD_BACK).not.include(CardName.PLANETARY_ALLIANCE);
   });
 });
