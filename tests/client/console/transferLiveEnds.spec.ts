@@ -135,6 +135,37 @@ describe('a flight end is an object — measured now', () => {
     expect(ends.map((e) => e?.el)).deep.eq([f1, f2, plant, energy, mc, undefined]);
   });
 
+  it('a PRODUCTION\'s M€ is born on the M€ tile printed ON the plate, a stock M€ on the tile OFF it — whatever the print order (PC03 · PL-1860)', () => {
+    const face = document.createElement('div');
+    const tile = (text: string, parent: HTMLElement, at: number) => {
+      const el = document.createElement('span');
+      el.className = 'pcard-mi pcard-mi--mc';
+      el.textContent = text;
+      parent.appendChild(el);
+      box(el, {left: at, top: 10, width: 20, height: 20});
+      return el;
+    };
+    // The plate FIRST in print order — a reading that took «the first M€ tile» gave the stock the production's «2».
+    const prod = document.createElement('div');
+    prod.className = 'pcard-prod';
+    face.appendChild(prod);
+    box(prod, {left: 0, top: 0, width: 60, height: 40});
+    const energy = document.createElement('span');
+    energy.className = 'pcard-ic';
+    energy.style.backgroundImage = 'url(assets/resources/power.png)';
+    prod.appendChild(energy);
+    box(energy, {left: 5, top: 10, width: 20, height: 20});
+    const prodMc = tile('2', prod, 30);
+    const stockMc = tile('31', face, 100);
+    root.appendChild(face);
+    const ends = resolvePlayGainIconEnds(face, [
+      {channel: 'stock', resource: 'megacredits', amount: 31},
+      {channel: 'production', resource: 'energy', amount: 1},
+      {channel: 'production', resource: 'megacredits', amount: 2},
+    ]);
+    expect(ends.map((e) => e?.el)).deep.eq([stockMc, energy, prodMc]);
+  });
+
   it('another seat\'s chip is the destination as an OBJECT — and no chip on screen is no destination (never the top of the screen)', () => {
     expect(seatChipEnd('red'), 'no strip').eq(undefined);
     const chip = document.createElement('span');

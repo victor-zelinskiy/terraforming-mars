@@ -284,7 +284,11 @@ test.describe(`PC03 Sagitta Frontier Services · the reveal's three stories · $
     expect(mc[mc.length - 1], 'its own +4 on top: 35').toBe('35');
     expect(mc.every((v) => ['0', '31', '32', '33', '34', '35'].includes(v)), `never a count past the touchdowns (${mc.join(' → ')})`).toBe(true);
     const births = witness.births.filter((b) => b.under.startsWith(`reactor:${CORP}:megacredit`));
-    expect(births.map((b) => b.value), `the printed 31, then four units off the effect row (trail:\n${trail})`).toEqual(['+31', '+1', '+1', '+1', '+1']);
+    // The printed 31, the production's «2» off the M€ tile printed ON the production plate (PL-1860 — never the plate's
+    // centre / the seat), then four units off the effect row.
+    expect(births.map((b) => b.value), `the printed 31, the production's 2, then four units off the effect row (trail:\n${trail})`)
+      .toEqual(['+31', '+2', '+1', '+1', '+1', '+1']);
+    expect(witness.births.filter((b) => b.under.startsWith('start-seat')), `no token born on the bare seat (trail:\n${trail})`).toEqual([]);
     const lastAnswer = poses.findIndex((p) => p.v.mc === '35');
     const firstRule = poses.findIndex((p) => p.v.rule === 'noTags');
     expect(lastAnswer >= 0 && firstRule > lastAnswer, 'the search reveals after the row has told both M€ stories').toBe(true);
@@ -362,6 +366,30 @@ test.describe(`PC03 Sagitta Frontier Services · the reveal's three stories · $
       }
     });
   }
+
+  /**
+   * F · THE FACE in the premium playground's catalog (the prelude2 module): the start row «31 · [⚡ 2] · [card ✕]» — the
+   * card back wearing the crossed blank tag in its corner — and the effect rows «[✕] : 4» · «[○]* : 1», at ×1 and ×0.3.
+   */
+  test('F · the face in the playground: the corner mark on the card back, the two effect marks, ×1 and ×0.3', async ({page}) => {
+    test.setTimeout(240_000);
+    await page.goto(`/?premiumCardsPlayground${PRESET.query}`);
+    const chip = page.locator('.pcpg__chip', {hasText: 'prelude2'});
+    await expect(chip, 'the catalog offers the prelude2 module').toHaveCount(1, {timeout: 60_000});
+    await chip.click();
+    const face = page.locator('.pcpg__row--catalog .pcard', {has: page.locator('.pcard__title', {hasText: CORP})}).first();
+    await expect(face, 'Sagitta stands in the catalog').toBeVisible({timeout: 30_000});
+    await face.scrollIntoViewIfNeeded();
+    await expect(face.locator('.pcard-mi__bubble'), 'the start row\'s card back wears its corner mark').toHaveCount(1);
+    await expect(face.locator('.pcard-mi__bubble'), '…the crossed blank tag').toHaveAttribute('style', /tag-none\.png/);
+    const dir = path.join(OUT, PRESET.id);
+    fs.mkdirSync(dir, {recursive: true});
+    await face.screenshot({path: path.join(dir, 'f-face-x1.png')});
+    await face.evaluate((el) => {
+      (el as HTMLElement).style.zoom = '0.3';
+    });
+    await face.screenshot({path: path.join(dir, 'f-face-x03.png')});
+  });
 
   /**
    * T · THE FREQUENT ANSWER COSTS NO TIME (decision 11): one play of Mine (one tag) on the table WITH Sagitta and on its

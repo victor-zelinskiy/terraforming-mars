@@ -340,6 +340,13 @@ function resolveIconEls(scope: HTMLElement, specs: ReadonlyArray<ResourceTransfe
   // chip answers «where did this come from» with the very number that caused it.
   const mcTiles = Array.from(scope.querySelectorAll<HTMLElement>('.pcard-mi--mc')).filter(keep);
   const printsNegative = (el: HTMLElement): boolean => /^[−-]/.test((el.textContent ?? '').trim());
+  // The M€ tile of the SIGN the spec moves, among `tiles` (a loss on the negative one, a gain on a non-negative one).
+  const mcTileOf = (tiles: ReadonlyArray<HTMLElement>, spec: ResourceTransferSpec): HTMLElement | undefined =>
+    tiles.find((el) => printsNegative(el) === (spec.direction === 'loss')) ?? tiles[0];
+  // A PRODUCTION's M€ is the M€ tile printed ON the production plate (PC03 Sagitta's «[⚡] [2]»: the M€ step is the
+  // «2», never the plate's centre), and a STOCK M€ is a tile OFF it — the start's «31» is not the production's «2».
+  const prodMcTiles = prod === undefined ? [] : mcTiles.filter((el) => prod.contains(el));
+  const stockMcTiles = mcTiles.filter((el) => !prodMcTiles.includes(el));
   // TWO PRINTED ICONS ARE TWO SOURCES: the k-th token of one resource is born on the k-th icon that prints it
   // (TR27's «[floater·V] [floater·V]» — each token from its own icon), the first icon when the row prints fewer.
   const seen = new Map<string, number>();
@@ -357,14 +364,12 @@ function resolveIconEls(scope: HTMLElement, specs: ReadonlyArray<ResourceTransfe
   };
   return specs.map((spec) => {
     if (spec.channel === 'production') {
-      const inProd = prod !== undefined ?
-        Array.from(prod.querySelectorAll<HTMLElement>('.pcard-ic')).find((el) => iconMatches(el, spec.resource)) :
-        undefined;
+      const inProd = prod === undefined ? undefined : spec.resource === 'megacredits' ? mcTileOf(prodMcTiles, spec) :
+        Array.from(prod.querySelectorAll<HTMLElement>('.pcard-ic')).find((el) => iconMatches(el, spec.resource));
       return centerOf(inProd) ?? centerOf(prod);
     }
     if (spec.resource === 'megacredits') {
-      const wantNegative = spec.direction === 'loss';
-      const mc = mcTiles.find((el) => printsNegative(el) === wantNegative) ?? mcTiles[0];
+      const mc = mcTileOf(stockMcTiles, spec) ?? mcTileOf(mcTiles, spec);
       return centerOf(mc) ?? centerOf(icons.find((el) => iconMatches(el, 'megacredits'))) ?? (wildChosen(spec) ? fromWild() : undefined);
     }
     // The RATING rides the stock channel under the rail's own key; its printed icon is the TR disc. A token BORN
