@@ -117,6 +117,34 @@ Height is content-sized up to the band. Profiles override TOKENS only (`html.con
   BEFORE the board binder starts the transport, and wiping the presentation there left the next decision with no
   predecessor to differ from (caught by the e2e on a reload).
 
+## A SERIES — one count, one visit (PC04 Ecotec · ledger GS, 2026-11-05)
+
+One play may ask the SAME question once per unit — Ecotec and Viral Enhancers per bio tag («1 plant or 1 microbe / a
+resource on the card»). The «before» frames (box, tv4k): the server named neither k nor N; live, the surface LEFT the screen
+after every answer while the table told it (the `table-answer` entry wait — 1.2 s for the task host, 2.2 s for the effect
+decision) and came back as a new mount; the composer stood N equal rows and a commit saying «Выберите вариант». The law:
+
+- **The server names the place** — `ChoiceContext.series {index, of}` (the ONE form of P70's grant series, `GrantSeries`),
+  written by ONE helper `inSeries` from the card's one builder; the pre-collected step's model carries the question's own
+  `choiceContext` (`forecast.tableQuestion`). The client reads it through `console/promptSeries.ts` — never a title, never
+  a count of equal prompts in a row.
+- **One count** — the head (`ConsolePromptHead` `series`) prints «МЕТКА k / N» (`data-series-count`) in the very place of
+  the press's «РЕШЕНИЕ N», never beside it.
+- **One visit** — the surface that answered question k (not the last) remembers it (`ConsoleShell.noteSeriesAnswer` — the
+  task host and the effect decision each hold THEMSELVES, never one swapped into the other's place) and stands on it,
+  inert (the input ledger's `series-visit` absorber), while the server's prompt is that question in flight or the NEXT of
+  the same series not yet admitted (`seriesVisitStands`); the next arrives through the surface's own prompt handoff
+  (PL-384). No admission block, no hold — the presence stays the prompt's; a re-asked question, another giver, the
+  series' end or no prompt ends the visit. The held question rides `heldPrompt` (the server's prompt with its own frame
+  key — `promptOverride` is a CLIENT prompt and re-keys the plate), the bar names the question with no verb, and the
+  source dock carries `data-reaction-home`: the asker's own answer told meanwhile lifts THAT face in place — never a
+  second instance risen over the plate (the card-reaction law «one object per card»).
+- **The composer reads a group** — the first row names the asker and its count, every next one only its count; the commit
+  names the answers still owed («Осталось ответов: N») while the open question is a series member.
+
+Guards: `tests/console/promptSeries.spec.ts`; e2e `console-ecotec` (C composer · F live task host · G live effect decision
+· H a reload mid-series).
+
 ## Rows — one chassis (`.con-prompt-row*` mixins)
 
 Plate, the one cyan cursor (`.con-focus()` — its couch weight rides the ring tokens), a row holding part of the answer in

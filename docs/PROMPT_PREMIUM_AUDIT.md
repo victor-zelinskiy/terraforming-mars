@@ -243,3 +243,8 @@ that is the expansion checklist's step, like every other guard's SCOPE set.
 expansion-adaptation checklist; the `composite`/`unknown` red list (documented
 carve-outs); the deliberately-two-step `player`/`resource` task-host kinds
 (they empty as their producers migrate to marked flat shapes).
+
+**PC04 Ecotec (2026-11-05, ledger GR · GS):** the bare upstream `OrOptions` (a naked `SelectCard` + `SelectOption`, no marker)
+became the card's ONE question builder — `cardEffect(…, 'effect-choice')` on the choice (with `inSeries` — its place in the
+series of one play), the shared step's marked pick (`resourceGainPrompt`, `reward` source), the plant's chip; the allow-list
+row of `promptMarkerGuard` is gone.

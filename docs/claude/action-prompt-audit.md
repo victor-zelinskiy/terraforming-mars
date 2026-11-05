@@ -419,7 +419,12 @@ read by the live `defer` AND by its `cardPlayedForecast`, which hands the `asks`
 function) — appends those steps to `preview.preSteps` (branch-independent: they answer the PLAY). (3) The replay lands them by address:
 the live queue asks the table at its own priorities, so `replayBatch` / `drainBatchTail` let the first LATER answer addressed to the
 standing prompt (`own`) step forward when the head is foreign. (4) The composer renders them as rows «⚡ Сработает · <карта> · ваш выбор»
-and posts them in the play's ONE POST.
+and posts them in the play's ONE POST. (5) **A question asked PER UNIT is a SERIES** (PC04 Ecotec · Viral Enhancers — one per
+bio tag): each live question and each pre-collected step names its place (`ChoiceContext.series {index, of}`, ONE writer
+`inSeries`, the step's model carrying the question's own `choiceContext` — `forecast.tableQuestion`); the rows of one series
+stand as a group («⚡ Сработает · <карта> · Метка 1 / N», then «Метка k / N»), the commit names what is left («Осталось
+ответов: N»), every answer lands on ITS question in turn (`cardPlayReplayCoverage` profile `ecotec`); asked live, the surface
+stands ONE visit through the series (`docs/claude/console/prompt-modal-family.md` § A SERIES; ledger GS).
 
 **Honest follow-ups, named (not pre-selected):**
 

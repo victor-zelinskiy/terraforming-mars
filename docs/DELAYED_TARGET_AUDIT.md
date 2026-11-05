@@ -388,3 +388,11 @@ attacker is the viewer, so `diffNegativeNotifications` skips it).
 3. No opponent has plants → no picker, no follow-up (consistent with the live rules).
 4. Comet / Giant Ice Asteroid → the plant attack + the tile placement both ride the
    post-confirm follow-up (PlacementBanner + the OrOptions), as documented.
+
+## PC04 Ecotec (Prelude 2, 2026-11-05 — ledger GR)
+
+`prelude2/Ecotec.ts` — «per bio tag: 1 plant OR 1 microbe on ANY card». **No auto-apply threshold**: with a holder the
+question is ALWAYS asked, a single candidate included — the pick is the shared step's own (`AddResourcesToCard.appliedPick`,
+`autoSelect: false`), the holders read AT THE QUESTION (`getCards()`), the played card a candidate when it holds microbes.
+With no holder the plants come at once — the branch is one, no target is hidden (rule 5). Pre-collected by the forecast twin
+(`asks` + `tableQuestion`, `cardBeingPlayed`); the composer seeds a sole candidate shown and marked (T14).
