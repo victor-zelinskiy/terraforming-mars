@@ -306,7 +306,7 @@ for (const preset of PRESETS) {
         'the rail\'s bumper keys open nothing inside the peek — not drawn').toBe('hidden');
       await expect(page.locator('[data-board-peek] [data-count-why]'), 'the strip stands on the HUD').toHaveCount(1);
       const cells = await peekCells(page);
-      expect(cells.excluded, 'Ganymede stands amber — named, not counted').toEqual(['01']);
+      expect(cells.excluded, 'Ganymede stands amber — named, not counted').toEqual(['c01']);
       expect(cells.counted.length, 'the counted cells are marked (a stack is ONE cell of 2 tiles)').toBe(13);
       await shoot(page, preset.id, 'a-03-peek');
       await press(page, 'KeyC', 900);

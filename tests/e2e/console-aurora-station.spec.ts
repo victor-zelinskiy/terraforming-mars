@@ -486,7 +486,7 @@ for (const preset of PRESETS) {
       expect(await pressUntil(red, 'Escape', redOnBoard, {tries: 4, settleMs: 1200}), 'red stands on its board').toBe(true);
       // The flank's fifth cell on the WATCHER's board, carrying blue's city (a held tile reads `--placement-cleared`).
       expect(await red.evaluate(() => {
-        const tile = document.querySelector('.board-space[data_space_id="80"] [class*="board-space-tile--"]');
+        const tile = document.querySelector('.board-space[data_space_id="c80"] [class*="board-space-tile--"]');
         return tile !== null && !tile.className.includes('board-space-tile--placement-cleared');
       }), 'red\'s board draws the flank\'s fifth cell with blue\'s city on it').toBe(true);
       await settle(red, {timeoutMs: 30_000, notifications: true});
@@ -582,14 +582,15 @@ for (const preset of PRESETS) {
           blue.cardsInHand = [...blue.cardsInHand, AURORA];
           blue.megaCredits = 14;
           const board = (serialized as unknown as {board: {spaces: Array<{id: string, tile?: unknown, player?: string}>}}).board;
-          const cell = board.spaces.find((space) => space.id === '80')!;
+          // A save from before upstream c24eae02b6 still says '80' (the load migrates it to 'c80').
+          const cell = board.spaces.find((space) => space.id === 'c80' || space.id === '80')!;
           delete cell.tile;
           delete cell.player;
         },
       });
       await settle(page);
-      const cellRect = async () => (await settledRects(page, '.board-space[data_space_id="80"]'))[0];
-      const neighbours = await page.evaluate(() => ['70', '71', '72', '73'].map((id) => {
+      const cellRect = async () => (await settledRects(page, '.board-space[data_space_id="c80"]'))[0];
+      const neighbours = await page.evaluate(() => ['c70', 'c71', 'c72', 'c73'].map((id) => {
         const r = document.querySelector(`.board-space[data_space_id="${id}"]`)?.getBoundingClientRect();
         return r === undefined ? undefined : {l: r.left, t: r.top, r: r.right, b: r.bottom};
       }));
@@ -607,7 +608,7 @@ for (const preset of PRESETS) {
         const w = window as unknown as {__cell: Array<{ws: number, tile: boolean, proxy: boolean}>};
         w.__cell = [];
         const read = () => {
-          const tile = document.querySelector('.board-space[data_space_id="80"] [class*="board-space-tile--"]');
+          const tile = document.querySelector('.board-space[data_space_id="c80"] [class*="board-space-tile--"]');
           w.__cell.push({
             ws: document.querySelectorAll('.con-ws').length,
             tile: tile !== null && !tile.className.includes('board-space-tile--placement-cleared'),
@@ -618,7 +619,7 @@ for (const preset of PRESETS) {
         window.setInterval(read, 30);
       });
       expect(await playCardFromHand(page, AURORA), 'the station was played').toBe(true);
-      await expect.poll(async () => (await wireOf(request, playerId)).game.spaces.find((s) => s.id === '80')?.tileType !== undefined, {timeout: 30_000, message: 'the server placed the city'}).toBe(true);
+      await expect.poll(async () => (await wireOf(request, playerId)).game.spaces.find((s) => s.id === 'c80')?.tileType !== undefined, {timeout: 30_000, message: 'the server placed the city'}).toBe(true);
       await waitForBoardHome(page);
       await settle(page, {timeoutMs: 30_000});
       const cellSamples = await page.evaluate(() => (window as unknown as {__cell: Array<{ws: number, tile: boolean, proxy: boolean}>}).__cell);

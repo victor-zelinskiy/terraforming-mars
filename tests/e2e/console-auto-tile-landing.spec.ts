@@ -30,7 +30,7 @@ const OUT_DIR = path.join(__dirname, '..', '..', 'screenshots', 'auto-tile');
  *  the tile, and it lands on a slot nobody picks. */
 const TILE_CARD = 'Ganymede Colony';
 /** The reserved slot's own id (`SpaceName.GANYMEDE_COLONY`). */
-const TILE_SPACE = '01';
+const TILE_SPACE = 'c01';
 const FILLER = ['Acquired Company', 'Rover Construction', 'Investment Loan'];
 
 function newGameConfig() {

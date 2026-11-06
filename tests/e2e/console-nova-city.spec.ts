@@ -47,7 +47,7 @@ import {openColoniesSection} from './cardTradeDoor';
 const CARD = 'Nova City';
 const CARD_RU = 'Нова-Сити';
 const ROOT_RU = 'Карты в руке';
-const HOSTED_CELL = '79';
+const HOSTED_CELL = 'c79';
 const TILES = ['Luna', 'Ceres', 'Titan', 'Europa', 'Io'] as const;
 const OUT = path.resolve('screenshots', 'nova-city');
 
