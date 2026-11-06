@@ -103,6 +103,7 @@ const REGION_LABEL: Record<PlacementRegionId, string> = {
   notOceanAdjacent: 'away from every ocean',
   ownCityAdjacent: 'next to its own city',
   allNeighboursEmpty: 'with every neighbour empty',
+  volcanicOrAdjacent: 'on or next to a volcanic area',
 };
 
 function label(text: string): LogMessageData {

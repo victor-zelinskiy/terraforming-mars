@@ -3,7 +3,9 @@ import {Tag} from '../../../common/cards/Tag';
 import {Resource} from '../../../common/Resource';
 import {BotTokenKind, MarsBotTrackRole, TrackAction, TrackDefinition} from '../../../common/automa/AutomaTypes';
 import {MARSBOT_BOARDS, MarsBotMapProfile, marsBotMapProfile} from '../boards/MarsBotMapProfile';
-import {BotCriterion, TrackRef} from './BotMARule';
+import {BotCriterion, PlacementBias, PlacementStepId, TrackRef} from './BotMARule';
+import {PlacementRegionId} from './placementRegions';
+import {cellArrivals, DeckTagMix} from './matPressure';
 import {botAwardRule, botMilestoneRule} from './botMAInterpreter';
 import {libraryRows, rowDistance, rowKey} from './matRowLibrary';
 import {MAT_ROLE_ORDER, matViolations} from './matLaw';
@@ -21,7 +23,18 @@ import {MAT_ROLE_ORDER, matViolations} from './matLaw';
  */
 
 /** Bumped whenever the generator's output for some input changes — a save keeps the mat it was dealt. */
-export const MAT_GENERATOR_VERSION = 1;
+export const MAT_GENERATOR_VERSION = 2;
+
+/**
+ * THE PRESSURE WINDOW — the expected generation (the pressure model's own units, `matPressure.ts`) at which a
+ * single-track milestone's threshold cell may be reached: the span the model gives the six OFFICIAL boards' own track
+ * criteria at its late end (C. Forester 14.4…14.6 with the deck's mix — docs/AUTOMA_DATA_AUDIT.md §22.6), so no official
+ * row is ever moved for its own set; at
+ * its early end the A&M module's own calibrations (Spacefarer 4 ↔ space 4 on the Tharsis row, gen 6.0) sit below the six
+ * boards' earliest (Rim Settler 6.8) and are official too — only a criterion faster than any official one is slowed.
+ */
+export const PRESSURE_WINDOW = {min: 5.0, max: 15.0};
+const PRESSURE_MAX_MOVES = 3;
 
 type PairedRole = 'science' | 'power' | 'earth';
 
@@ -156,7 +169,8 @@ function ownTags(criterion: BotCriterion): Array<Tag> {
 
 const FLOATING_TAGS: ReadonlyArray<Tag> = [Tag.JOVIAN, Tag.CITY, Tag.MICROBE];
 
-type SetRule = {name: string, kind: 'milestone' | 'award', criterion: BotCriterion, target?: number, pair?: readonly [Tag, Tag]};
+type SetRule = {name: string, kind: 'milestone' | 'award', criterion: BotCriterion, target?: number, pair?: readonly [Tag, Tag],
+  placement?: PlacementBias};
 
 function setRules(milestones: ReadonlyArray<string>, awards: ReadonlyArray<string>): Array<SetRule> {
   const rules: Array<SetRule> = [];
@@ -164,13 +178,13 @@ function setRules(milestones: ReadonlyArray<string>, awards: ReadonlyArray<strin
     const rule = botMilestoneRule(name);
     if (rule !== undefined) {
       rules.push({name, kind: 'milestone', criterion: rule.randomSetCriterion ?? rule.criterion,
-        target: typeof rule.target === 'number' ? rule.target : undefined, pair: rule.pair});
+        target: typeof rule.target === 'number' ? rule.target : undefined, pair: rule.pair, placement: rule.placement});
     }
   }
   for (const name of awards) {
     const rule = botAwardRule(name);
     if (rule !== undefined) {
-      rules.push({name, kind: 'award', criterion: rule.criterion});
+      rules.push({name, kind: 'award', criterion: rule.criterion, placement: rule.placement});
     }
   }
   return rules;
@@ -287,6 +301,17 @@ export type MatContext = {
   readonly awards: ReadonlyArray<string>;
   readonly venus: boolean;
   readonly colonies: boolean;
+  /** The game's project deck as printed-tag occurrences per card — the pressure model's flow. Absent = no pressure layer. */
+  readonly deckTags?: DeckTagMix;
+};
+
+/**
+ * The PLACEMENT a generated mat plays (the map layer): the tiebreaker steps in order, by stable id, and the regions
+ * whose spaces count one more reward icon for tiebreakers. Serializable — the profile rebuilds the functions.
+ */
+export type MatPlacement = {
+  readonly steps: ReadonlyArray<'oceans' | 'reward-icons' | PlacementStepId | `region:${PlacementRegionId}`>;
+  readonly iconBonus: ReadonlyArray<PlacementRegionId>;
 };
 
 export type MatReport = {
@@ -305,7 +330,11 @@ export type MatReport = {
   readonly shares: ReadonlyArray<{readonly role: MarsBotTrackRole, readonly names: ReadonlyArray<string>}>;
   /** Per criterion of the set: the tracks it reads and, for a single-track milestone, its threshold cell. */
   readonly criteria: ReadonlyArray<{readonly name: string, readonly kind: 'milestone' | 'award',
-    readonly roles: ReadonlyArray<MarsBotTrackRole>, readonly threshold?: {readonly role: MarsBotTrackRole, readonly cell: number}}>;
+    readonly roles: ReadonlyArray<MarsBotTrackRole>, readonly threshold?: {readonly role: MarsBotTrackRole, readonly cell: number},
+    /** The pressure model's expected generation of the threshold cell (with a deck mix). */
+    readonly arrival?: number}>;
+  /** The placement the set's tile criteria asked for, each step / bonus named by the rule that asked. */
+  readonly placement: ReadonlyArray<string>;
 };
 
 export type GeneratedMat = {
@@ -316,8 +345,115 @@ export type GeneratedMat = {
   readonly tracks: ReadonlyArray<TrackDefinition>;
   /** Microbe on the science track → the Venus row whose microbe cell follows it (Vastitas Nova's). */
   readonly venusRow: 'shared' | 'microbe-on-science';
+  /** The map layer — tiebreakers and «+1 icon» regions from the set ∩ the map. */
+  readonly placement: MatPlacement;
   readonly report: MatReport;
 };
+
+/**
+ * THE MAP LAYER (the prompt's § Генератор, п. 8): the tiebreakers and the «+1 icon» bullets come from the SET — each
+ * tile-counting rule declares its bias with the very region predicate its award counts (`BotMARule.placement`).
+ * Order: the oceans (unless a rule lowers them — Highlander) → the set's steps before the icons, in row order (a
+ * milestone's region, Hellas' Polar place) → the reward icons (+1 for every bonus region a space is in) → the steps
+ * after the icons (an award's region, Elysium's Southern place) → the lowered oceans. The map's special cells (the
+ * poles, Viking, the coves, `colony5`) stay the map's own rules (`AutomaPlacementBonus`).
+ */
+function placementOf(rules: ReadonlyArray<SetRule>): {placement: MatPlacement, named: Array<string>, competing?: PlacementBias} {
+  const before: Array<PlacementStepId> = [];
+  const after: Array<MatPlacement['steps'][number]> = [];
+  const iconBonus: Array<PlacementRegionId> = [];
+  const named: Array<string> = [];
+  let lowerOceans = false;
+  // ONE rule may COMPETE with the icons (a step before them, a «+1 icon», oceans lowered) — as on every official board,
+  // each of which prints at most one. Stacked, they make the bot stop covering icons and stop earning its ocean bonus
+  // (the yield the band holds — §22.6: 54 of 300 sets fell under it before this cap). The first one in row order keeps
+  // its official form; every later one takes the after-the-icons place (Elysium's form) — still a preference, now only
+  // among equal icons.
+  let competing: string | undefined;
+  let competingBias: PlacementBias | undefined;
+  const addAfter = (step: MatPlacement['steps'][number], why: string) => {
+    if (!after.includes(step) && !before.includes(step as PlacementStepId)) {
+      after.push(step);
+    }
+    named.push(`${step} after the icons (${why})`);
+  };
+  for (const rule of rules) {
+    const bias = rule.placement;
+    if (bias === undefined) {
+      continue;
+    }
+    if (bias.mode === 'step-after-icons') {
+      addAfter(bias.step, rule.name);
+      continue;
+    }
+    if (competing !== undefined) {
+      const demoted = `${rule.name} — ${competing} already competes with the icons`;
+      if (bias.mode === 'step-before-icons') {
+        addAfter(bias.step, demoted);
+      } else if (bias.mode === 'icon-bonus') {
+        addAfter(`region:${bias.region}`, demoted);
+      } else {
+        named.push(`oceans stay first (${demoted})`);
+      }
+      continue;
+    }
+    competing = rule.name;
+    competingBias = bias;
+    switch (bias.mode) {
+    case 'step-before-icons':
+      before.push(bias.step);
+      named.push(`${bias.step} before the icons (${rule.name})`);
+      break;
+    case 'icon-bonus':
+      iconBonus.push(bias.region);
+      named.push(`+1 icon ${bias.region} (${rule.name})`);
+      break;
+    case 'lower-oceans':
+      lowerOceans = true;
+      named.push(`oceans below the icons (${rule.name})`);
+      break;
+    }
+  }
+  const steps: Array<MatPlacement['steps'][number]> = [
+    ...(lowerOceans ? [] : ['oceans' as const]), ...before, 'reward-icons', ...after, ...(lowerOceans ? ['oceans' as const] : []),
+  ];
+  return {placement: {steps, iconBonus}, named, competing: competingBias};
+}
+
+/**
+ * THE YIELD COMPENSATION of a rule competing with the icons (the owner's decision, 2026-11-06 — «A + компенсация»): a
+ * bot chasing a tile award's region forgoes covered icons and its ocean bonus (the bench: 46 of 300 such sets fell
+ * under the band's mat M€). The mat gives the yield back in kind — MORE tiles within the game: the latest tile cells
+ * (city / greenery / ocean) of the rows no criterion reads move onto their row's earliest empty cells (the law's «swap
+ * two cells inside a row» — every count stays put), as many as the bias costs (`compensationSwaps`).
+ */
+/**
+ * Swaps per competing bias — sized by the deficit the bench measured for each (docs/AUTOMA_DATA_AUDIT.md §22.6: mean
+ * mat-M€ below the sets with no competing rule): Polar Region −9.1, the edge «+1 icon» −7.1, the lowered oceans −5.3,
+ * Suburbian −3.1, the equatorial rows −3.0, the own city −2.6; the volcanoes −0.6 and the special tiles 0 need none.
+ */
+function compensationSwaps(bias: PlacementBias): number {
+  switch (bias.mode) {
+  case 'step-before-icons':
+    return bias.step === 'polar-region' ? 1 : 0;
+  case 'icon-bonus':
+    return bias.region === 'edge' ? 1 : 0;
+  case 'lower-oceans':
+    return 0;
+  case 'step-after-icons':
+    return 0;
+  }
+}
+const TILE_CELLS: ReadonlyArray<TrackAction> = ['city', 'greenery', 'ocean'];
+
+function lastEmptyBefore(row: ReadonlyArray<TrackAction | undefined>, before: number, protectedCell: (i: number) => boolean): number | undefined {
+  for (let i = Math.min(before - 1, 17); i >= 1; i--) {
+    if (row[i] === undefined && !protectedCell(i)) {
+      return i;
+    }
+  }
+  return undefined;
+}
 
 /** The map's own profile, or Tharsis for a map with no MarsBot board (Hollandia — the A&M module's «Tharsis board»). */
 export function matBase(boardName: BoardName): {profile: MarsBotMapProfile, fallback: boolean} {
@@ -459,6 +595,90 @@ export function generateBotMat(context: MatContext): GeneratedMat {
     }
   }
 
+  // PRESSURE (decision R3 — the threshold never moves; the MAT does): a single-track milestone whose threshold cell the
+  // deck's tag flow reaches outside the window gets an «advance» moved INTO its row before the threshold (too late) or
+  // OUT of it (too early), taken from / given to a row no criterion of the set reads. The law's counts stay put.
+  const arrivals = new Map<string, number>();
+  if (context.deckTags !== undefined) {
+    const mix = context.deckTags;
+    const readRoles = new Set(rules.flatMap((r) => criterionRoles(r.criterion, t)));
+    const donors = MAT_ROLE_ORDER.filter((role) => !readRoles.has(role));
+    const arrivalOf = (th: {role: MarsBotTrackRole, cell: number}) =>
+      cellArrivals({...assembly.tracks[roleIndex(th.role)], layout: layouts[roleIndex(th.role)]}, mix)[th.cell];
+    for (const th of thresholds) {
+      const row = layouts[roleIndex(th.role)];
+      const guard = (i: number) => protectedCell(th.role, i) || i >= th.cell - 1;
+      for (let move = 0; move < PRESSURE_MAX_MOVES; move++) {
+        const arrival = arrivalOf(th);
+        if (arrival > PRESSURE_WINDOW.max) {
+          const into = lastEmptyBefore(row, th.cell - 1, guard);
+          // The donor is the LATEST «advance» of a row no criterion reads — the step that buys the least on its own row.
+          const donor = donors.map((role) => ({role, i: layouts[roleIndex(role)].lastIndexOf('advance')}))
+            .filter((d) => d.i > 0).sort((a, b) => b.i - a.i)[0];
+          if (into === undefined || donor === undefined) {
+            break;
+          }
+          layouts[roleIndex(donor.role)][donor.i] = undefined;
+          row[into] = 'advance';
+          repairs.push(`pressure ${donor.role} ${donor.i} → ${th.role} ${into} (${th.name} at ${th.cell}: gen ${arrival.toFixed(1)})`);
+        } else if (arrival < PRESSURE_WINDOW.min) {
+          const out = row.findIndex((a, i) => a === 'advance' && i < th.cell - 1);
+          const donor = donors.map((role) => ({role, i: lastEmptyBefore(layouts[roleIndex(role)], 18, (i) => protectedCell(role, i)) ?? -1}))
+            .find((d) => d.i > 0);
+          if (out < 1 || donor === undefined) {
+            break;
+          }
+          row[out] = undefined;
+          layouts[roleIndex(donor.role)][donor.i] = 'advance';
+          repairs.push(`pressure ${th.role} ${out} → ${donor.role} ${donor.i} (${th.name} at ${th.cell}: gen ${arrival.toFixed(1)})`);
+        } else {
+          break;
+        }
+      }
+      arrivals.set(th.name, arrivalOf(th));
+    }
+  }
+
+  const {placement, named, competing} = placementOf(rules);
+  // The base map's OWN rule costs nothing — the base was balanced with it (Hellas' Polar Region, Utopia's edge icon).
+  const native = competing !== undefined && (
+    (competing.mode === 'step-before-icons' && base.placementTiebreakers.some((tb) => tb.id === competing.step)) ||
+    (competing.mode === 'icon-bonus' && base.iconBonusRegion === competing.region));
+  if (competing !== undefined && !native) {
+    const readRoles = new Set(rules.flatMap((r) => criterionRoles(r.criterion, t)));
+    const rows = (['space', 'building', 'event', 'bio', 'earth', 'power', 'science'] as const).filter((role) => !readRoles.has(role));
+    let swaps = compensationSwaps(competing);
+    for (const role of rows) {
+      const row = layouts[roleIndex(role)];
+      while (swaps > 0) {
+        let late = -1;
+        for (let i = 17; i >= 12; i--) {
+          const cell = row[i];
+          if (cell !== undefined && TILE_CELLS.includes(cell)) {
+            late = i;
+            break;
+          }
+        }
+        let early = -1;
+        for (let i = 2; i <= 9; i++) {
+          if (row[i] === undefined && !protectedCell(role, i)) {
+            early = i;
+            break;
+          }
+        }
+        if (late < 0 || early < 0) {
+          break;
+        }
+        row[early] = row[late];
+        row[late] = undefined;
+        repairs.push(`compensate ${role} ${late}→${early} (${row[early]} — a rule competes with the icons)`);
+        swaps--;
+      }
+      if (swaps === 0) {
+        break;
+      }
+    }
+  }
   const tracks: Array<TrackDefinition> = assembly.tracks.map((track, i) => ({...track, layout: layouts[i]}));
   const violations = matViolations(tracks);
   if (violations.length > 0) {
@@ -472,6 +692,7 @@ export function generateBotMat(context: MatContext): GeneratedMat {
     topology: t.id,
     tracks,
     venusRow: t.microbe === 'science' ? 'microbe-on-science' : 'shared',
+    placement,
     report: {
       base: base.boardName,
       baseIsFallback: fallback,
@@ -487,7 +708,9 @@ export function generateBotMat(context: MatContext): GeneratedMat {
         kind: rule.kind,
         roles: criterionRoles(rule.criterion, t),
         threshold: thresholds.find((th) => th.name === rule.name),
+        arrival: arrivals.get(rule.name),
       })),
+      placement: named,
     },
   };
 }

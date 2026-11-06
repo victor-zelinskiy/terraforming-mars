@@ -8,7 +8,8 @@ import {MARSBOT_BOARDS, marsBotMapProfile} from '../../../src/server/automa/boar
 import {milestoneManifest} from '../../../src/server/milestones/Milestones';
 import {awardManifest} from '../../../src/server/awards/Awards';
 import {matViolations} from '../../../src/server/automa/ma/matLaw';
-import {GeneratedMat, generateBotMat, MAT_GENERATOR_VERSION, MAT_TOPOLOGIES, MatContext, topologyOf} from '../../../src/server/automa/ma/matGenerator';
+import {GeneratedMat, generateBotMat, MAT_GENERATOR_VERSION, MAT_TOPOLOGIES, MatContext, PRESSURE_WINDOW, topologyOf} from '../../../src/server/automa/ma/matGenerator';
+import {AutomaSetup} from '../../../src/server/automa/AutomaSetup';
 import {AutomaResolver} from '../../../src/server/automa/AutomaResolver';
 import {Game} from '../../../src/server/Game';
 import {Server} from '../../../src/server/models/ServerModel';
@@ -168,5 +169,65 @@ describe('MarsBot mat generator', () => {
     // A fixed-row game has no such list.
     const [fixed] = testAutomaGame({}, '-b14-fixed');
     expect(Server.getGameModel(fixed).automa!.competition).is.undefined;
+  });
+});
+
+describe('MarsBot mat generator — stage 4: the map layer, the pressure, the compensation', () => {
+  const deckMix = () => {
+    const [game] = testAutomaGame({}, '-mix');
+    return AutomaSetup.deckTagMix(game);
+  };
+
+  it('the map layer rebuilds an official map\'s own tiebreakers from its own row (where the module prints the same form)', () => {
+    const steps = (boardName: BoardName) => generateBotMat(fixedSet(boardName, false)).placement.steps;
+    expect(steps(BoardName.THARSIS)).deep.eq(['oceans', 'reward-icons']);
+    expect(steps(BoardName.HELLAS), 'Polar Explorer — the step before the icons').deep.eq(['oceans', 'polar-region', 'reward-icons']);
+    expect(steps(BoardName.ELYSIUM), 'Desert Settler — the step after them').deep.eq(['oceans', 'reward-icons', 'southern-region']);
+    expect(generateBotMat(fixedSet(BoardName.UTOPIA_PLANITIA, false)).placement.iconBonus, 'Edgedancer — «+1 icon» at the edge').deep.eq(['edge']);
+    expect(steps(BoardName.AMAZONIS)).deep.eq(['oceans', 'equatorial-region', 'reward-icons', 'empty-neighbours']);
+  });
+
+  it('Highlander lowers the oceans below the icons; only ONE rule competes with the icons, the rest go after them', () => {
+    const mat = generateBotMat({boardName: BoardName.THARSIS, milestones: ['Polar Explorer', 'Tropicalist'], awards: ['Highlander', 'Suburbian'], venus: false, colonies: false});
+    expect(mat.placement.steps, 'Polar Explorer competes; Tropicalist and Suburbian wait after the icons; the oceans stay first')
+      .deep.eq(['oceans', 'polar-region', 'reward-icons', 'equatorial-region', 'region:suburbianEdge']);
+    expect(mat.placement.iconBonus).deep.eq([]);
+    const highlander = generateBotMat({boardName: BoardName.THARSIS, milestones: [], awards: ['Highlander'], venus: false, colonies: false});
+    expect(highlander.placement.steps).deep.eq(['reward-icons', 'oceans']);
+  });
+
+  it('the generated placement is what the bot plays — and it survives a save', () => {
+    const [game] = testAutomaRandomSetGame({milestones: ['Polar Explorer', 'Mayor', 'Gardener', 'Builder', 'Planner'],
+      awards: ['Landlord', 'Scientist', 'Banker', 'Thermalist', 'Miner']}, {}, '-placement');
+    expect(game.automa!.profile.placementTiebreakers.map((t) => t.id)).deep.eq(['oceans', 'polar-region', 'reward-icons']);
+    const restored = Game.deserialize(structuredClone(game.serialize()));
+    expect(restored.automa!.profile.placementTiebreakers.map((t) => t.id)).deep.eq(['oceans', 'polar-region', 'reward-icons']);
+  });
+
+  it('a competing rule that costs the bot its icons is compensated in kind — a late tile cell moves early (the owner\'s «A + компенсация»)', () => {
+    const mat = generateBotMat({boardName: BoardName.THARSIS, milestones: ['Polar Explorer'], awards: [], venus: false, colonies: false});
+    expect(mat.report.repairs.filter((r) => r.startsWith('compensate')), mat.report.repairs.join(' · ')).has.length(1);
+    expect(matViolations(mat.tracks)).deep.eq([]);
+    const quiet = generateBotMat({boardName: BoardName.THARSIS, milestones: ['Geologist'], awards: ['Founder'], venus: false, colonies: false});
+    expect(quiet.report.repairs.filter((r) => r.startsWith('compensate')), 'a bias the bench found free costs nothing').deep.eq([]);
+  });
+
+  it('PRESSURE: no official row is moved for its own set; a criterion past the window gets an «advance» before its threshold', () => {
+    const mix = deckMix();
+    for (const boardName of AUTOMA_SUPPORTED_BOARDS) {
+      const mat = generateBotMat({...fixedSet(boardName, false), deckTags: mix});
+      expect(mat.report.repairs.filter((r) => r.startsWith('pressure')), boardName).deep.eq(
+        boardName === BoardName.TERRA_CIMMERIA ? mat.report.repairs.filter((r) => r.startsWith('pressure')) : []);
+    }
+    // C. Forester (the plant-badge track at 10) on Utopia's bio row — a row with no «advance» — is past the window.
+    const plain = generateBotMat({boardName: BoardName.UTOPIA_PLANITIA, milestones: ['C. Forester'], awards: [], venus: false, colonies: false});
+    const mat = generateBotMat({boardName: BoardName.UTOPIA_PLANITIA, milestones: ['C. Forester'], awards: [], venus: false, colonies: false, deckTags: mix});
+    const moves = mat.report.repairs.filter((r) => r.startsWith('pressure'));
+    expect(moves.length, mat.report.repairs.join(' · ')).is.greaterThan(0);
+    expect(moves.every((m) => m.includes('→ bio')), 'the advance goes INTO the row the criterion reads').is.true;
+    const bio = (m: GeneratedMat) => m.tracks.find((t) => t.role === 'bio')!.layout.filter((a) => a === 'advance').length;
+    expect(bio(mat)).eq(bio(plain) + moves.length);
+    expect(matViolations(mat.tracks), 'every count of the law stays put').deep.eq([]);
+    expect(PRESSURE_WINDOW.max).eq(15);
   });
 });

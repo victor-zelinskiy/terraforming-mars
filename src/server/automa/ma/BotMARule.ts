@@ -107,6 +107,22 @@ export type BotHelper =
   /** No helper — the card then tries the next funded award; the reason is said on the card face. */
   | {readonly kind: 'none', readonly reasonKey: string};
 
+/**
+ * What a TILE-COUNTING criterion asks of the bot's placements (the map layer — checklist §A: «every milestone / award
+ * that counts tile POSITION gives the bot a tiebreak step towards those cells»), in the official forms:
+ * `step-before-icons` — a YES/NO step before «the most reward icons» (Hellas' Polar Region for a milestone);
+ * `step-after-icons` — after them (Elysium's Southern Region for an award); `icon-bonus` — the region's spaces count
+ * one more reward icon for tiebreakers (Geologist, Founder, Suburbian — RB-C pp.13–15); `lower-oceans` — the ocean
+ * step drops below the icons (Highlander, RB-C p.15).
+ */
+export type PlacementBias =
+  | {readonly mode: 'step-before-icons' | 'step-after-icons', readonly step: PlacementStepId}
+  | {readonly mode: 'icon-bonus', readonly region: PlacementRegionId}
+  | {readonly mode: 'lower-oceans'};
+
+/** The ids of the map tiebreaker steps a rule may ask for (`MarsBotPlacementTiebreaker.id`). */
+export type PlacementStepId = 'polar-region' | 'southern-region' | 'equatorial-region' | 'empty-neighbours' | 'own-city' | 'special-tile' | 'edge';
+
 /** Where a rule comes from — an official sheet / page, or a HOME rule with its official analog. */
 export type BotMAProvenance =
   | {readonly source: 'RB-A' | 'RB-C' | 'B08' | 'B09' | 'B10' | 'B11' | 'B12' | 'B13', readonly page?: number}
@@ -144,11 +160,15 @@ export type BotMilestoneRule = {
    * the zero the framework forbids — so it leaves the absent track out (Planner's «every track except Venus»).
    */
   readonly randomSetCriterion?: BotCriterion;
+  /** The placement bias the rule's tiles ask for (the generator's map layer). */
+  readonly placement?: PlacementBias;
   readonly provenance: BotMAProvenance;
 };
 
 export type BotAwardRule = {
   readonly criterion: BotCriterion;
   readonly helper: BotHelper;
+  /** The placement bias the rule's tiles ask for (the generator's map layer). */
+  readonly placement?: PlacementBias;
   readonly provenance: BotMAProvenance;
 };

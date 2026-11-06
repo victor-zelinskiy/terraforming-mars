@@ -12,6 +12,8 @@ import {AutomaColonies} from './AutomaColonies';
 import {AutomaState, AutomaActionCard} from './AutomaState';
 import {marsBotMapProfile} from './boards/MarsBotMapProfile';
 import {GeneratedMat, generateBotMat} from './ma/matGenerator';
+import {DeckTagMix} from './ma/matPressure';
+import {AutomaResolver} from './AutomaResolver';
 import {milestoneManifest} from '../milestones/Milestones';
 
 export class AutomaSetup {
@@ -119,7 +121,20 @@ export class AutomaSetup {
       awards: game.awards.map((a) => a.name),
       venus: options.venusNextExtension,
       colonies: options.coloniesExtension,
+      deckTags: AutomaSetup.deckTagMix(game),
     });
+  }
+
+  /** The game's project deck as printed-tag occurrences per card (the bot's own reading — `printedTags`). */
+  public static deckTagMix(game: IGame): DeckTagMix {
+    const cards = [...game.projectDeck.drawPile, ...game.projectDeck.discardPile];
+    const mix: DeckTagMix = {};
+    for (const card of cards) {
+      for (const tag of AutomaResolver.printedTags(card)) {
+        mix[tag] = (mix[tag] ?? 0) + 1 / cards.length;
+      }
+    }
+    return mix;
   }
 
   /**

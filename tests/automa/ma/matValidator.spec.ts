@@ -18,6 +18,8 @@ import {botMilestoneRule} from '../../../src/server/automa/ma/botMAInterpreter';
 import {describeAwardHelper} from '../../../src/server/automa/ma/botMADescribe';
 import {profileForMat} from '../../../src/server/automa/ma/matProfile';
 import {VENUS_TRACK} from '../../../src/server/automa/boards/VenusMarsBot';
+import {AutomaSetup} from '../../../src/server/automa/AutomaSetup';
+import {DeckTagMix} from '../../../src/server/automa/ma/matPressure';
 import {testAutomaGame} from '../AutomaTestGame';
 
 /**
@@ -69,7 +71,7 @@ function pick<T extends string>(candidates: ReadonlyArray<T>, n: number, rnd: ()
   return out;
 }
 
-type Prepared = {config: Config, options: GameOptions, deck: ReadonlyArray<CardName>, thresholds: Map<string, number | undefined>};
+type Prepared = {config: Config, options: GameOptions, deck: ReadonlyArray<CardName>, mix: DeckTagMix, thresholds: Map<string, number | undefined>};
 
 function prepare(config: Config): Prepared {
   const [game] = testAutomaGame(config.options, `-validator-${config.label}`);
@@ -78,7 +80,7 @@ function prepare(config: Config): Prepared {
   for (const name of Object.keys(milestoneManifest.all)) {
     thresholds.set(name, milestoneThreshold(milestoneManifest.createOrThrow(name), game));
   }
-  return {config, options: game.gameOptions, deck, thresholds};
+  return {config, options: game.gameOptions, deck, mix: AutomaSetup.deckTagMix(game), thresholds};
 }
 
 describe('MarsBot mat generator — the static validator', () => {
@@ -103,7 +105,7 @@ describe('MarsBot mat generator — the static validator', () => {
           const label = `#${s} ${p.config.label}${modular ? '/modular' : ''} ${boardName} [${milestones.join(', ')} | ${awards.join(', ')}]`;
           let mat;
           try {
-            mat = generateBotMat({boardName, milestones, awards, venus, colonies: p.options.coloniesExtension});
+            mat = generateBotMat({boardName, milestones, awards, venus, colonies: p.options.coloniesExtension, deckTags: p.mix});
           } catch (e) {
             failures.push(`${label}: ${(e as Error).message}`);
             continue;
@@ -112,7 +114,7 @@ describe('MarsBot mat generator — the static validator', () => {
           if (matViolations(mat.tracks).length > 0) {
             failures.push(`${label}: unlawful`);
           }
-          if (s % 50 === 0 && JSON.stringify(mat) !== JSON.stringify(generateBotMat({boardName, milestones, awards, venus, colonies: p.options.coloniesExtension}))) {
+          if (s % 50 === 0 && JSON.stringify(mat) !== JSON.stringify(generateBotMat({boardName, milestones, awards, venus, colonies: p.options.coloniesExtension, deckTags: p.mix}))) {
             failures.push(`${label}: not deterministic`);
           }
           // The game's tracks: the mat's seven + the Venus row with Venus Next (the one a generated mat picks).

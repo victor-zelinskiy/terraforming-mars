@@ -6,6 +6,7 @@ import {IGame} from '../../IGame';
 import {IPlayer} from '../../IPlayer';
 import {AutomaAres} from '../AutomaAres';
 import {botRewardIcons} from '../AutomaPlacementBonus';
+import {PlacementRegionId, placementRegion} from '../ma/placementRegions';
 import {ELYSIUM_MARSBOT_BOARD} from './ElysiumMarsBot';
 import {HELLAS_MARSBOT_BOARD} from './HellasMarsBot';
 import {TERRA_CIMMERIA_MARSBOT_BOARD} from './TerraCimmeriaMarsBot';
@@ -31,7 +32,8 @@ import {ARABIA_TERRA_MARSBOT_BOARD} from './ArabiaTerraMarsBot';
 /** One ordered placement tiebreaker. Highest score wins; ties fall through. */
 export type MarsBotPlacementTiebreaker = {
   /** Stable id — what the specs pin and what a future placement log would name. */
-  readonly id: 'oceans' | 'polar-region' | 'special-tile' | 'reward-icons' | 'southern-region' | 'edge' | 'equatorial-region' | 'empty-neighbours' | 'own-city';
+  readonly id: 'oceans' | 'polar-region' | 'special-tile' | 'reward-icons' | 'southern-region' | 'edge' | 'equatorial-region' | 'empty-neighbours' | 'own-city' |
+    `region:${PlacementRegionId}`;
   readonly score: (game: IGame, bot: IPlayer, space: Space) => number;
 };
 
@@ -186,6 +188,8 @@ export type MarsBotMapProfile = {
    * (1 M€ per PRINTED icon), so an edge hex never pays for its virtual icon.
    */
   readonly tiebreakRewardBonus?: (game: IGame, space: Space) => number;
+  /** The region `tiebreakRewardBonus` rewards, named (what the random-set generator knows the base was balanced with). */
+  readonly iconBonusRegion?: PlacementRegionId;
   /**
    * The Venus row this map appends when Venus Next is on. Absent = the shared
    * `VENUS_TRACK`, whose cell-9 microbe advances the bio row. A map that moves
@@ -233,6 +237,7 @@ const UTOPIA_PROFILE: MarsBotMapProfile = {
   // canonical edge predicate (`MarsBoard.isEdge`), shared with the Edgedancer
   // award and B11's Suburban helper.
   tiebreakRewardBonus: (game, space) => (game.board.isEdge(space) ? 1 : 0),
+  iconBonusRegion: 'edge',
 };
 
 /**
@@ -273,6 +278,7 @@ const VASTITAS_BOREALIS_PROFILE: MarsBotMapProfile = {
   // only: the payout stays the printed icons.
   tiebreakRewardBonus: (game, space) =>
     (space.volcanic === true || game.board.getAdjacentSpaces(space).some((s) => s.volcanic === true) ? 1 : 0),
+  iconBonusRegion: 'volcanicOrAdjacent',
   venusTrack: VASTITAS_VENUS_TRACK,
 };
 
@@ -301,6 +307,7 @@ const VASTITAS_FAN_PROFILE: MarsBotMapProfile = {
   // icon for purposes of tiebreakers»), adopted for the same award
   // (Edgedancer = Suburban). Tiebreak only — the payout stays the printed icons.
   tiebreakRewardBonus: (game, space) => (game.board.isEdge(space) ? 1 : 0),
+  iconBonusRegion: 'edge',
   // The shared Venus row: the microbe tag lives on the bio row here.
 };
 
@@ -355,6 +362,28 @@ const ARABIA_TERRA_PROFILE: MarsBotMapProfile = {
   placementTiebreakers: [OCEAN_ADJACENCY, REWARD_ICONS],
   // The shared Venus row: the microbe tag lives on the bio row here.
 };
+
+/**
+ * The map layer's vocabulary (the random-set generator): the base steps and every region step a rule may ask for, by
+ * its stable id — what a generated mat SERIALIZES (functions do not survive a save; ids do).
+ */
+const TIEBREAKERS: ReadonlyArray<MarsBotPlacementTiebreaker> = [
+  OCEAN_ADJACENCY, REWARD_ICONS, HELLAS_POLAR_REGION, ELYSIUM_SOUTHERN_REGION, TERRA_CIMMERIA_SPECIAL_TILE, VASTITAS_EDGE,
+  AMAZONIS_EQUATORIAL_REGION, AMAZONIS_EMPTY_NEIGHBOURS, TERRA_CIMMERIA_FAN_OWN_CITY,
+];
+
+export function tiebreakerById(id: MarsBotPlacementTiebreaker['id']): MarsBotPlacementTiebreaker {
+  if (id.startsWith('region:')) {
+    // A rule's region as a plain YES/NO step (a random-set mat's demoted «+1 icon» — Elysium's after-the-icons form).
+    const region = id.substring(7) as PlacementRegionId;
+    return {id, score: (game, bot, space) => (placementRegion(region, game, bot)(space) ? 1 : 0)};
+  }
+  const found = TIEBREAKERS.find((t) => t.id === id);
+  if (found === undefined) {
+    throw new Error(`Unknown MarsBot tiebreaker ${id}`);
+  }
+  return found;
+}
 
 const PROFILES: ReadonlyArray<MarsBotMapProfile> =
   [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE, TERRA_CIMMERIA_PROFILE, VASTITAS_BOREALIS_PROFILE, VASTITAS_FAN_PROFILE, AMAZONIS_PROFILE,

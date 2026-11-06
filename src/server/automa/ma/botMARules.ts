@@ -61,7 +61,7 @@ export const BOT_MILESTONE_RULES: Partial<Record<MilestoneName, BotMilestoneRule
   'Tactician': {criterion: {kind: 'megacredits'}, target: 35, provenance: {source: 'B09'}},
   'Energizer': {criterion: {kind: 'track', track: ENERGY_BADGE}, target: 6, provenance: {source: 'B09'}},
   'Rim Settler': {criterion: {kind: 'track', track: JOVIAN_TAG}, target: 6, provenance: {source: 'B09'}},
-  'Polar Explorer': asUsualMilestone('Hellas: real tiles in the polar rows'),
+  'Polar Explorer': {...asUsualMilestone('Hellas: real tiles in the polar rows'), placement: {mode: 'step-before-icons', step: 'polar-region'}},
   // ── Elysium (B10) ──────────────────────────────────────────────────────────
   // «At least space 2 on EVERY track (excl. [V])» — Planner's shape: Venus leaves the set entirely.
   'Generalist': {criterion: {kind: 'tracks', op: 'min', of: 'martian'}, target: 2, provenance: {source: 'B10'}},
@@ -101,7 +101,7 @@ export const BOT_MILESTONE_RULES: Partial<Record<MilestoneName, BotMilestoneRule
   'Engineer': {criterion: {kind: 'tracks', op: 'sum', of: [HEAT_BADGE, ENERGY_BADGE]}, target: 10, provenance: {source: 'B13'}},
   // «EITHER [Microbe/Science] OR [Animal/Plant] at 6» — the further of the two, never their sum.
   'Farmer': {criterion: {kind: 'tracks', op: 'max', of: [MICROBE_TAG, ANIMAL_TAG]}, target: 6, provenance: {source: 'B13'}},
-  'Geologist': asUsualMilestone('Vastitas Borealis Nova: real tiles on / beside the volcanoes'),
+  'Geologist': {...asUsualMilestone('Vastitas Borealis Nova: real tiles on / beside the volcanoes'), placement: {mode: 'icon-bonus', region: 'volcanicOrAdjacent'}},
   // ── Vastitas Borealis, the fan map (§17.2) ─────────────────────────────────
   'V. Electrician': {criterion: {kind: 'track', track: POWER_TAG}, target: 4,
     provenance: {source: 'home', analog: 'Researcher 4 ↔ 4 (B11)', law: 'tags-single'}},
@@ -116,7 +116,7 @@ export const BOT_MILESTONE_RULES: Partial<Record<MilestoneName, BotMilestoneRule
   'Minimalist': {criterion: {kind: 'counter', counter: 'smallActionDeck'}, target: 1,
     provenance: {source: 'home', analog: 'the action deck as the hand'}},
   'Colonizer': asUsualMilestone('the A&M Pioneer at 4 — real colonies; the cubes are the board\'s colony5 cells'),
-  'Tropicalist': asUsualMilestone('real tiles in the equatorial rows'),
+  'Tropicalist': {...asUsualMilestone('real tiles in the equatorial rows'), placement: {mode: 'step-before-icons', step: 'equatorial-region'}},
   // ── The OLD (fan) Terra Cimmeria (§19.2) ───────────────────────────────────
   // «3 sets of automated, active and event cards» in the played pile — the weakest colour is the number of sets.
   'T. Collector': {criterion: {kind: 'pile', minOf: ['green', 'blue', 'event']}, target: 'printed', printedFallback: 3,
@@ -201,13 +201,13 @@ export const BOT_AWARD_RULES: Partial<Record<AwardName, BotAwardRule>> = {
   // «As usual, but MarsBot INCLUDES EVENTS» — the pile, red cards counted, 20 exactly included.
   'Celebrity': {criterion: {kind: 'pile', count: 'cost20plus'}, helper: {kind: 'reveal', predicate: 'cost20plus'}, provenance: {source: 'B10'}},
   'Industrialist': {criterion: {kind: 'track', track: ENERGY_BADGE, plus: 5}, helper: {kind: 'advance', track: ENERGY_BADGE}, provenance: {source: 'B10'}},
-  'Desert Settler': {criterion: {kind: 'player'}, helper: {kind: 'greenery', restrict: 'southern'}, provenance: {source: 'B10'}},
+  'Desert Settler': {criterion: {kind: 'player'}, helper: {kind: 'greenery', restrict: 'southern'}, provenance: {source: 'B10'}, placement: {mode: 'step-after-icons', step: 'southern-region'}},
   'Estate Dealer': {criterion: {kind: 'player'}, helper: {kind: 'greenery', restrict: 'oceanAdjacent'}, provenance: {source: 'B10'}},
   // «Reduce MarsBot's TR by 15 FOR THE PURPOSE OF THIS AWARD» — evaluation only, the real TR untouched.
   'Benefactor': {criterion: {kind: 'rating', plus: -15}, helper: {kind: 'raiseRating', steps: 2}, provenance: {source: 'B10'}},
   // ── Utopia Planitia (B11) ──────────────────────────────────────────────────
   // The board's «Suburban» slot — real edge tiles; the helper's edge is the award's own predicate.
-  'Edgedancer': {criterion: {kind: 'player'}, helper: {kind: 'greenery', restrict: 'edge'}, provenance: {source: 'B11'}},
+  'Edgedancer': {criterion: {kind: 'player'}, helper: {kind: 'greenery', restrict: 'edge'}, provenance: {source: 'B11'}, placement: {mode: 'icon-bonus', region: 'edge'}},
   'Investor': {criterion: {kind: 'track', track: EARTH_TAG}, helper: {kind: 'advance', track: EARTH_TAG}, provenance: {source: 'B11'}},
   'Botanist': {criterion: {kind: 'track', track: PLANT_BADGE, plus: -2}, helper: {kind: 'advance', track: PLANT_BADGE}, provenance: {source: 'B11'}},
   'Incorporator': {criterion: {kind: 'pile', count: 'cost10minus'}, helper: {kind: 'reveal', predicate: 'cost10minus'}, provenance: {source: 'B11'}},
@@ -215,7 +215,7 @@ export const BOT_AWARD_RULES: Partial<Record<AwardName, BotAwardRule>> = {
   // ── Terra Cimmeria Nova (B12) ──────────────────────────────────────────────
   'Electrician': {criterion: {kind: 'track', track: POWER_TAG}, helper: {kind: 'advance', track: POWER_TAG}, provenance: {source: 'B12'}},
   // «Unchanged» for the bot (its asymmetry is on the HUMAN side — `AutomaMAEvaluation.humanAwardScore`).
-  'Founder': {criterion: {kind: 'player'}, helper: {kind: 'city', restrict: 'specialTileAdjacent'}, provenance: {source: 'B12'}},
+  'Founder': {criterion: {kind: 'player'}, helper: {kind: 'city', restrict: 'specialTileAdjacent'}, provenance: {source: 'B12'}, placement: {mode: 'icon-bonus', region: 'specialTileAdjacent'}},
   // «The most-advanced track's space number doubled.»
   'Mogul': {criterion: {kind: 'tracks', op: 'max', of: 'all', times: 2},
     helper: {kind: 'advanceExtreme', which: 'mostMovable'}, provenance: {source: 'B12'}},
@@ -227,7 +227,7 @@ export const BOT_AWARD_RULES: Partial<Record<AwardName, BotAwardRule>> = {
   'Traveller': {criterion: {kind: 'tracks', op: 'max', of: [JOVIAN_TAG, EARTH_TAG], plus: 5},
     helper: {kind: 'advance', track: {pick: 'most', of: [JOVIAN_TAG, EARTH_TAG]}}, provenance: {source: 'B13'}},
   'Landscaper': {criterion: {kind: 'player'}, helper: {kind: 'greenery'}, provenance: {source: 'B13'}},
-  'Highlander': {criterion: {kind: 'player'}, helper: {kind: 'greenery', restrict: 'notOceanAdjacent'}, provenance: {source: 'B13'}},
+  'Highlander': {criterion: {kind: 'player'}, helper: {kind: 'greenery', restrict: 'notOceanAdjacent'}, provenance: {source: 'B13'}, placement: {mode: 'lower-oceans'}},
   'Promoter': {criterion: {kind: 'track', track: EVENT_TAG}, helper: {kind: 'advance', track: EVENT_TAG}, provenance: {source: 'B13'}},
   // «[Building] OR [Space], whichever is more-advanced» — the further of the two; the helper pushes the further.
   'Blacksmith': {criterion: {kind: 'tracks', op: 'max', of: [STEEL_BADGE, TITANIUM_BADGE]},
@@ -247,13 +247,13 @@ export const BOT_AWARD_RULES: Partial<Record<AwardName, BotAwardRule>> = {
     provenance: {source: 'home', analog: 'Mogul without the doubling (B12)'}},
   'A. Engineer': {criterion: {kind: 'pile', count: 'altersProduction'}, helper: {kind: 'reveal', predicate: 'altersProduction'},
     provenance: {source: 'home', analog: 'Magnate «As usual (… in played pile)» (B09)', law: 'pile'}},
-  'Tourist': asUsualAward('real tiles and their real empty neighbours', {kind: 'city', restrict: 'allNeighboursEmpty'}),
+  'Tourist': {...asUsualAward('real tiles and their real empty neighbours', {kind: 'city', restrict: 'allNeighboursEmpty'}), placement: {mode: 'step-after-icons', step: 'empty-neighbours'}},
   // ── The OLD (fan) Terra Cimmeria (BF3, §19.3 / §19.6) ──────────────────────
   'Biologist': {criterion: {kind: 'track', track: PLANT_TAG, plus: 5}, helper: {kind: 'advance', track: PLANT_TAG}, provenance: {source: 'RB-C', page: 14}},
   'Warmonger': {criterion: {kind: 'pile', count: 'warmonger'}, helper: {kind: 'reveal', predicate: 'warmonger'},
     provenance: {source: 'home', analog: 'Magnate «As usual (… in played pile)» (B09)', law: 'pile'}},
   'T. Politician': asUsualAward('the delegates the bot really placed', {kind: 'delegate'}),
-  'Urbanist': asUsualAward('the VP of greeneries beside its real cities', {kind: 'greenery', restrict: 'ownCityAdjacent'}),
+  'Urbanist': {...asUsualAward('the VP of greeneries beside its real cities', {kind: 'greenery', restrict: 'ownCityAdjacent'}), placement: {mode: 'step-before-icons', step: 'own-city'}},
   // ── Arabia Terra, the fan map (BF4, §21.3 / §21.6) ─────────────────────────
   'Zoologist': {criterion: {kind: 'track', track: ANIMAL_TAG, plus: 5}, helper: {kind: 'advance', track: ANIMAL_TAG}, provenance: {source: 'RB-C', page: 15}},
   'A. Manufacturer': {criterion: {kind: 'pile', count: 'blue'}, helper: {kind: 'reveal', predicate: 'blue'},
@@ -279,7 +279,7 @@ export const BOT_AWARD_RULES: Partial<Record<AwardName, BotAwardRule>> = {
     helper: {kind: 'advance', track: {pick: 'least', of: [BUILDING, POWER]}}, provenance: {source: 'RB-C', page: 15}},
   // «As usual (tiles owned on the edge of the board)»; helper «a greenery on the edge of the map» — the award's OWN
   // edge set (`Suburbian.onEdge`), never a second definition.
-  'Suburbian': {criterion: {kind: 'player'}, helper: {kind: 'greenery', restrict: 'suburbianEdge'}, provenance: {source: 'RB-C', page: 15}},
+  'Suburbian': {criterion: {kind: 'player'}, helper: {kind: 'greenery', restrict: 'suburbianEdge'}, provenance: {source: 'RB-C', page: 15}, placement: {mode: 'icon-bonus', region: 'suburbianEdge'}},
   // ── Turmoil Redux (home) ───────────────────────────────────────────────────
   // The award twin of Activist — the bot's own Agenda marker. No door moves the bot's Agenda on demand (it walks when
   // the bot WINS a sitting), and the framework invents no Parliament mechanic.

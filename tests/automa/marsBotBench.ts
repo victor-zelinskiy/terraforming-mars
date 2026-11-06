@@ -3,6 +3,8 @@ import {CardType} from '../../src/common/cards/CardType';
 import {newProjectCard} from '../../src/server/createCard';
 import {resolveProjectCardForBot} from '../../src/server/automa/AutomaCardDraw';
 import {AutomaMAEvaluation} from '../../src/server/automa/AutomaMAEvaluation';
+import {botMilestoneClaimCost} from '../../src/server/automa/ma/botMAInterpreter';
+import {FAILED_ACTION_MC} from '../../src/common/automa/AutomaTypes';
 import {Board} from '../../src/server/boards/Board';
 import {IGame} from '../../src/server/IGame';
 import {testGame} from '../TestGame';
@@ -68,6 +70,14 @@ export type BenchRun = {
   awardsFunded: number;
   /** The generation of each milestone the bot claimed, in claim order. */
   claimGenerations: Array<number>;
+  /** The milestones the bot claimed, in claim order. */
+  claimed: Array<string>;
+  /**
+   * The M€ the MAT paid — the bot's M€ minus what its Failed Actions paid, plus what its claims cost (Briber's 12).
+   * A set the bot can claim more of turns Failed Actions (5 M€) into milestones (5 VP): the raw M€ then reads «poorer»
+   * while the mat's own yield — its covered icons — is the same. This is the yield a mat is compared by.
+   */
+  mcIcons: number;
   /** Per milestone of the row: the first generation its bot criterion was met. */
   criterionMet: Record<string, number | undefined>;
   /** Per milestone / award cell of the tracks (`<role>:M<i>` / `<role>:A<i>`): the generation it was reached. */
@@ -131,6 +141,8 @@ export function benchConfig(config: BenchConfig, sequences: ReadonlyArray<Readon
         claimGenerations.push(generation);
       }
     }
+    const claimedNames = game.claimedMilestones.filter((m) => m.player === bot).map((m) => m.milestone.name);
+    const claimPrices = claimedNames.reduce((sum, name) => sum + botMilestoneClaimCost(name), 0);
     const awardScores: Record<string, number> = {};
     for (const a of game.awards) {
       awardScores[a.name] = AutomaMAEvaluation.botAwardScore(a, game);
@@ -149,6 +161,8 @@ export function benchConfig(config: BenchConfig, sequences: ReadonlyArray<Readon
       milestonesClaimed: claimed,
       awardsFunded: game.fundedAwards.filter((a) => a.player === bot).length,
       claimGenerations,
+      claimed: claimedNames,
+      mcIcons: bot.megaCredits - FAILED_ACTION_MC * automa.failedActions + claimPrices,
       criterionMet,
       cellReached,
       awardScores,
@@ -168,6 +182,8 @@ export type BenchSummary = {
   label: string;
   tr: number;
   mc: number;
+  /** The M€ the mat itself paid (see `BenchRun.mcIcons`). */
+  mcIcons: number;
   tiles: number;
   failed: number;
   milestonesClaimed: number;
@@ -208,6 +224,7 @@ export function summarize(label: string, runs: ReadonlyArray<BenchRun>, cards: n
     label,
     tr: mean(runs.map((r) => r.tr)),
     mc: mean(runs.map((r) => r.mc)),
+    mcIcons: mean(runs.map((r) => r.mcIcons)),
     tiles: mean(runs.map((r) => r.greenery + r.city)),
     failed: mean(runs.map((r) => r.failed)),
     milestonesClaimed: mean(runs.map((r) => r.milestonesClaimed)),
@@ -223,7 +240,7 @@ export function summarize(label: string, runs: ReadonlyArray<BenchRun>, cards: n
 
 /** The metrics a band spans, in print order. */
 export const BAND_METRICS: ReadonlyArray<keyof Omit<BenchSummary, 'label'>> = [
-  'tr', 'mc', 'tiles', 'failed', 'milestonesClaimed', 'awardsFunded', 'firstClaim', 'criterionMet', 'criterionNever',
+  'tr', 'mc', 'mcIcons', 'tiles', 'failed', 'milestonesClaimed', 'awardsFunded', 'firstClaim', 'criterionMet', 'criterionNever',
   'milestoneCell', 'awardCell', 'awardScore',
 ];
 

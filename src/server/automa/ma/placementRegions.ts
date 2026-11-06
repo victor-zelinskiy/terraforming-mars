@@ -19,7 +19,8 @@ export type PlacementRegionId =
   | 'specialTileAdjacent' // Founder — beside a special tile (the Neural Instance included)
   | 'notOceanAdjacent' // Highlander — beside no ocean tile and no space reserved for one
   | 'ownCityAdjacent' // Urbanist — beside one of the bot's own cities
-  | 'allNeighboursEmpty'; // Tourist — every neighbour empty
+  | 'allNeighboursEmpty' // Tourist — every neighbour empty
+  | 'volcanicOrAdjacent'; // Geologist — a volcanic area or a space beside one (Vastitas Nova's «+1 icon» bullet)
 
 export function placementRegion(id: PlacementRegionId, game: IGame, bot: IPlayer): (space: Space) => boolean {
   const board = game.board;
@@ -41,6 +42,8 @@ export function placementRegion(id: PlacementRegionId, game: IGame, bot: IPlayer
       adj.spaceType === SpaceType.OCEAN || Board.isOceanSpace(adj));
   case 'ownCityAdjacent':
     return (space) => board.getAdjacentSpaces(space).some((adj) => Board.isCitySpace(adj) && adj.player === bot);
+  case 'volcanicOrAdjacent':
+    return (space) => space.volcanic === true || board.getAdjacentSpaces(space).some((s) => s.volcanic === true);
   case 'allNeighboursEmpty':
     return (space) => board.getAdjacentSpaces(space).every((adj) => adj.tile === undefined);
   }
