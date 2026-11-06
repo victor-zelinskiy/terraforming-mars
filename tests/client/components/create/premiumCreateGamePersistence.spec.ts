@@ -73,13 +73,27 @@ describe('premium create — settings persistence', () => {
 
     expect(saved).is.not.undefined;
     expect(Object.keys(saved!).sort()).deep.eq(
-      ['botDifficulty', 'botExtraCorporations', 'botSecondShift', 'gameMode', 'guaranteedCards', 'mapId', 'mapMode', 'players', 'rules', 'seatMarsBot', 'selectedExpansions', 'sessionMode'].sort());
+      ['botDifficulty', 'botExtraCorporations', 'botSecondShift', 'campaignRandomMAChance', 'gameMode', 'guaranteedCards', 'mapId', 'mapMode', 'players', 'rules', 'seatMarsBot', 'selectedExpansions', 'sessionMode'].sort());
     expect(saved).to.not.have.property('creating');
     expect(saved).to.not.have.property('error');
     expect(saved).to.not.have.property('mapPickerOpen');
     expect(saved).to.not.have.property('info');
     expect(saved).to.not.have.property('seed');
     expect(saved).to.not.have.property('clonedGamedId');
+  });
+
+  it('round-trips the campaign per-mission chance; a stray saved value falls back to the default', () => {
+    createGameState.config.campaignRandomMAChance = 40;
+    saveCreateGameState(storage);
+    resetCreateGameState();
+    expect(createGameState.config.campaignRandomMAChance).eq(20);
+    expect(restoreCreateGameState(storage)).is.true;
+    expect(createGameState.config.campaignRandomMAChance).eq(40);
+
+    storage.saveSettings({...storage.loadSettings()!, campaignRandomMAChance: 33});
+    resetCreateGameState();
+    expect(restoreCreateGameState(storage)).is.true;
+    expect(createGameState.config.campaignRandomMAChance).eq(20);
   });
 
   it('round-trips the dev guaranteed-card picks', () => {
