@@ -1340,7 +1340,10 @@ async function shipPrice(mine: () => boolean): Promise<void> {
   // resolve at the TOUCHDOWN, so this beat is what keeps the card standing until the last token has been absorbed —
   // a shorter one lifted the card out from under a token still being absorbed: the TR52 transfer witness). An armed
   // spend alone resolves only once ABSORBED (its quick beat is its own) — no second beat (TR49, measured A/B).
-  if (stock !== undefined || cards !== undefined || target !== undefined) {
+  // EVERY shipment absorbed INTO the card is in this list — the alloy price (PL-1841 ①) was not, and the card lifted at
+  // its touchdown: five stands saw the steel / titanium token absorbed under the hand's glass (2026-11-06).
+  const intoCard = [stock, cards, alloys, target];
+  if (intoCard.some((run) => run !== undefined)) {
     const beat = new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
     // …and every token drawn into the card has finished its absorb (`shipAbsorbs`) — bounded: a guarded absorb always
     // reports, but the lift must never wait on a run that lost its callback.

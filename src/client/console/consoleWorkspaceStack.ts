@@ -1638,6 +1638,23 @@ export function stackYieldedToBoard(): boolean {
 }
 
 /**
+ * CAN THE BOARD BE TAKEN FROM THIS STACK — would `yieldStackToBoard` / `goBoardHome` leave no frame standing over it?
+ * A PHASE-anchored root that does not yield to the board (the start, the draft, the endgame) survives both, so the
+ * board stays covered by its frame (the park's `boardBeatsWatchable` reads `workspaceScreenUp`) for as long as the
+ * phase lasts: a placement must never be held for a scale story under such a cover (PL-1840 — the start's prelude city
+ * and Great Aquifer's second ocean waited out the park's 30 s safety). Reactive (reads the frames).
+ */
+export function boardTakeableFromStack(): boolean {
+  const frames = workspaceStackState.frames;
+  const root = frames[0];
+  if (root === undefined || root.anchor.type !== 'phase') {
+    return true;
+  }
+  const top = frames[frames.length - 1];
+  return workspaceKindSpec(root.kind).yieldsToBoard === true || workspaceKindSpec(top.kind).yieldsToBoard === true;
+}
+
+/**
  * Is a frame of this kind standing aside for the board — off screen, coming back at the same depth? A PLAIN store
  * (never reactive): ask it from a method at an edge, never from a computed — the frame's return is the edge to watch
  * (`workspaceFrameIndex` reads the reactive frames it is spliced back into).

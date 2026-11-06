@@ -1848,6 +1848,7 @@ import {
   workspaceStackRootKind,
   resumeStackFromBoard,
   stackYieldedToBoard,
+  boardTakeableFromStack,
   yieldedStackCards,
   descendWorkspaceFrame,
   enterWorkspace,
@@ -4338,12 +4339,14 @@ export default defineComponent({
      * prompt (`boardStoryCoverFor`), never a live term of the signal itself: the signal releases the camera
      * (`placementHeldForBoardStory`), the camera's exit raises the blocking `planet-focus` hold, and a live «nothing else
      * holds» would then drop the story, re-engage the camera and ping-pong until the page crashed (the box, 2026-11-05).
-     * Any other surface never waits on a story under a cover (no drain can run there).
+     * Any other surface never waits on a story under a cover (no drain can run there) — and neither does a placement
+     * under a cover the board cannot TAKE (`boardTakeableFromStack`: the start's phase root stands through its own
+     * placements, so the drain cannot run until the phase ends — the hold only waited out the park's safety).
      */
     boardStoryCoverCandidate(): boolean {
       void boardBeatParkState.heldParams;
       return this.playerView.waitingFor?.type === 'space' && !this.placementLiveLatch && !this.boardInPlainViewForStory &&
-        boardBeatParkPending() &&
+        boardTakeableFromStack() && boardBeatParkPending() &&
         promptAdmissionBlock('placement', guardedAdmissionSignals(this.admissionSignalsBeforeStory)) === undefined;
     },
     /** PL-1840 — the latched cover still owes its story (the park pending or draining, the same prompt). */
