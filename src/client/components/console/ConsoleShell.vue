@@ -1835,7 +1835,14 @@ import {tagLabel} from '@/client/cards/tagLabel';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import type {ConsoleHandStage} from '@/client/components/console/ConsoleHandSection.vue';
 import {
+  closePhaseRoot,
   closeWorkspaceRoot,
+  deadLiveFrames,
+  offStageDeadFrames,
+  phaseRootAnywhere,
+  pruneOffStageDeadFrames,
+  registerAnchorDropListener,
+  registerFrameAnchorDead,
   closeWorkspaceSheet,
   discardWorkspacePark,
   collapseWorkspaceStack,
@@ -2727,6 +2734,8 @@ export default defineComponent({
       beatStallTimer: undefined as number | undefined,
       /** The shell's own rungs of the liveness ladder — unregistered with the shell. */
       livenessRungStops: [] as Array<() => void>,
+      /** Consecutive 1 Hz passes a LIVE frame of a phase that is over has stood with no leave pending (`reapDeadPhaseFrames`). */
+      deadLiveFramePasses: 0,
       startStrandPrompt: undefined as number | undefined,
       /** THE START SHADOW (`startDirector.ts`, phase 0): the confirm timer of a disagreement / a long hold. */
       startShadowTimer: undefined as number | undefined,
@@ -5392,6 +5401,30 @@ export default defineComponent({
      */
     parliamentSittingFrameLive(): boolean {
       return parliamentSittingLive(this.playerView);
+    },
+    /**
+     * THE PHASE ANCHORS' WORD, as ONE reactive fact (the anchor rule — `consoleWorkspaceStack.ts` § A FRAME LIVES ONLY
+     * WHILE ITS ANCHOR HOLDS): which phase roots are PROVABLY over. The same predicates the lifecycle watchers close on
+     * — the draft's, the sitting's (per seat), the endgame's. The START is not judged here: its life is the opening
+     * director's (the scene's own release beat), and no server fact says «over» before it does.
+     */
+    deadPhaseAnchors(): ReadonlyArray<string> {
+      const dead: Array<string> = [];
+      if (!this.draftFrameLive) {
+        dead.push('draft');
+      }
+      if (!this.parliamentSittingFrameLive) {
+        dead.push(Phase.PARLIAMENT);
+      }
+      if (!this.endgameFrameLive) {
+        dead.push('end');
+      }
+      return dead;
+    },
+    /** Off-stage frames (parked / aside for the board) whose phase is over — the prune watcher's key. Reads the phase
+     *  facts THROUGH `deadPhaseAnchors` (a reactive edge), never only through the stack's registered predicate. */
+    offStageDeadAnchorKey(): string {
+      return this.deadPhaseAnchors.length === 0 ? '' : offStageDeadFrames().join(',');
     },
     /** The Parliament frame is in the stack (the section's `v-show`) — invariant 1's presence, read as visibility. */
     parliamentShown(): boolean {
@@ -13005,7 +13038,7 @@ export default defineComponent({
       immediate: true,
       handler(live: boolean): void {
         if (!live) {
-          closeWorkspaceRoot('draft');
+          closePhaseRoot('draft');
           // The per-generation latches + presentation memory reset with the
           // flow (the NEXT generation's draft starts clean).
           resetDraftWorkspace();
@@ -13016,14 +13049,19 @@ export default defineComponent({
     // (the political phase is over) closes a PHASE-anchored Parliament root,
     // parked or standing. A Parliament the player walked into on their own
     // (an `always` anchor) is not the sitting's and stays.
+    offStageDeadAnchorKey(key: string): void {
+      if (key !== '') {
+        pruneOffStageDeadFrames();
+      }
+    },
     parliamentSittingFrameLive: {
       immediate: true,
       handler(live: boolean): void {
-        if (!live && workspaceFrameKnown('parliament') && workspaceFrameAnchor('parliament')?.type === 'phase') {
+        if (!live && phaseRootAnywhere('parliament')) {
           if (this.handSittingToDraft()) {
             return;
           }
-          closeWorkspaceRoot('parliament');
+          closePhaseRoot('parliament');
           // …and the layers the sitting stood over close with it. This used to ride the section's own
           // `flow-complete`, which the v3 leave latch no longer emits (the surface keeps its last coherent
           // view and simply leaves) — the intent belongs to whoever ends the phase, and that is here.
@@ -13240,8 +13278,8 @@ export default defineComponent({
             this.openEndgameWorkspaceOverQuietBoard();
           }
         } else {
-          if (workspaceFrameKnown('endgame')) {
-            closeWorkspaceRoot('endgame');
+          if (phaseRootAnywhere('endgame')) {
+            closePhaseRoot('endgame');
             resetConsoleEndgame();
           }
           // AFTER the reset — the falling edge fires exactly once, and a
@@ -17756,8 +17794,8 @@ export default defineComponent({
       // closed explicitly in the same synchronous block — its leave and the draft's entrance play together, and no
       // render ever stands between them.
       const swap = (): void => {
-        if (workspaceFrameKnown('parliament') && workspaceFrameAnchor('parliament')?.type === 'phase') {
-          closeWorkspaceRoot('parliament');
+        if (phaseRootAnywhere('parliament')) {
+          closePhaseRoot('parliament');
         }
         closeConsoleLayers();
         if (!workspaceFrameKnown('draft')) {
@@ -17773,8 +17811,8 @@ export default defineComponent({
       // intermediate state, it has something to show — and the draft follows by itself once the board is quiet (no
       // plate, no second press: the beat is already acknowledged).
       if (screenHandoffOwed({only: ['board-story', 'remote-landing']})) {
-        if (workspaceFrameKnown('parliament') && workspaceFrameAnchor('parliament')?.type === 'phase') {
-          closeWorkspaceRoot('parliament');
+        if (phaseRootAnywhere('parliament')) {
+          closePhaseRoot('parliament');
         }
         closeConsoleLayers();
         this.enterWorkspaceAfterHandoff('draft', {anchor: {type: 'phase', phase: 'draft'}});
@@ -17788,8 +17826,8 @@ export default defineComponent({
         handoffPendingEntries.delete('draft');
         setConsoleTaskHandoffPending(handoffPendingEntries.size > 0);
         if (outcome === 'dead') {
-          if (workspaceFrameKnown('parliament') && workspaceFrameAnchor('parliament')?.type === 'phase') {
-            closeWorkspaceRoot('parliament');
+          if (phaseRootAnywhere('parliament')) {
+            closePhaseRoot('parliament');
           }
           return;
         }
@@ -17834,8 +17872,8 @@ export default defineComponent({
         return;
       }
       if (kind === 'sitting') {
-        if (!parliamentSittingLive(this.playerView) && workspaceFrameAnchor('parliament')?.type === 'phase') {
-          closeWorkspaceRoot('parliament');
+        if (!parliamentSittingLive(this.playerView) && phaseRootAnywhere('parliament')) {
+          closePhaseRoot('parliament');
           closeConsoleLayers();
         }
         return;
@@ -22414,7 +22452,38 @@ export default defineComponent({
      * is provably in flight. Every term is the console's own fact; the beat stall guard's verdict is one of the «not
      * accepting» witnesses, the leak detector's stranded verdict another.
      */
+    /** Is this anchor PROVABLY over? (registered into the stack — its return doors and prunes ask it). */
+    frameAnchorIsDead(anchor: FrameAnchor): boolean {
+      return anchor.type === 'phase' && this.deadPhaseAnchors.includes(anchor.phase);
+    },
+    /**
+     * THE ANCHOR RULE'S BACKSTOP (1 Hz, beside the arbiter): the off-stage homes are pruned again (a level, never an
+     * edge), and a LIVE phase root whose phase is over — past its own leave — is closed by its phase's verb. A phase's
+     * own leave keeps its frame for a bounded beat (the sitting's frozen results while the card it owes lands —
+     * `handoffPendingEntries`; the section's own dissolve — `parliamentLeaving`), so a live dead frame is closed only
+     * after three passes with no such leave pending. A close here means a lifecycle edge was missed: it is named.
+     */
+    reapDeadPhaseFrames(): void {
+      pruneOffStageDeadFrames();
+      const dead = deadLiveFrames();
+      if (dead.length === 0 || handoffPendingEntries.size > 0 || this.parliamentLeaving) {
+        this.deadLiveFramePasses = 0;
+        return;
+      }
+      this.deadLiveFramePasses++;
+      if (this.deadLiveFramePasses < 3) {
+        return;
+      }
+      this.deadLiveFramePasses = 0;
+      for (const kind of dead) {
+        closePhaseRoot(kind);
+      }
+      closeConsoleLayers();
+      console.warn(`[workspace-anchor] reaped a live frame of a phase that is over: ${dead.join(', ')} — ` +
+        `asked: ${this.playerView.waitingFor?.type ?? 'none'}; a lifecycle edge was missed`);
+    },
     checkLiveness(): void {
+      this.reapDeadPhaseFrames();
       const wf = this.playerView.waitingFor;
       const beat = this.judgedTransientBeat();
       const inFlight: Array<string> = [];
@@ -22454,7 +22523,13 @@ export default defineComponent({
         focused === null ? '' : `${focused.className.toString().slice(0, 40)}:${(focused.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)}`,
         String(transport?.requestInProgress ?? false),
       ].join('|');
-      const accepting = beat === undefined && leakDetectorState.stranded === undefined && !isSurfaceAwaitingHandoff();
+      // …and a screen standing on a frame of a phase that is OVER serves nothing, whatever its own handlers take (the
+      // Parliament field lock of 2026-11-06 read `accepting: true` for three minutes over the next action menu).
+      // (A phase's own bounded leave — the sitting's frozen results while its card lands, the section's dissolve — is
+      // not that state: it is the hand-over the screen director names and bounds.)
+      const standsOnDeadFrame = deadLiveFrames().length > 0 && handoffPendingEntries.size === 0 && !this.parliamentLeaving;
+      const accepting = beat === undefined && leakDetectorState.stranded === undefined && !isSurfaceAwaitingHandoff() &&
+        !standsOnDeadFrame;
       // THE FIELD FLIGHT RECORDER's heartbeat (phase 2): what the arbiter sees, once a second, kept across a reload.
       recordFieldHeartbeat({
         prompt: wf === undefined ? '' : `${promptIdentityKey(wf)}#${wf.promptId ?? ''}`,
@@ -26321,6 +26396,11 @@ export default defineComponent({
     // (`?screenCure=open,restore,yield,announce` / `all` / `none`).
     screenCureArming.armed = screenCureArmingFor(new URLSearchParams(window.location.search).get('screenCure'));
     registerScreenCureExecutor((plan) => this.runScreenDirectorCure(plan));
+    // THE ANCHOR RULE: the stack's return doors and prunes ask the shell which phases are over, and name what they drop.
+    registerFrameAnchorDead((anchor) => this.frameAnchorIsDead(anchor));
+    registerAnchorDropListener(({home, kinds}) => {
+      console.warn(`[workspace-anchor] dropped ${kinds.join(', ')} (${home}) — its phase is over; it does not come back`);
+    });
     // THE CURE STAND'S SEAM (`?screenControl=1` only): a latch bug put in on purpose — the stack dropped, or a foreign
     // workspace stood up, behind the product's back.
     if (new URLSearchParams(window.location.search).get('screenControl') === '1') {
@@ -26807,6 +26887,8 @@ export default defineComponent({
     delete (window as unknown as {__conStartShadow?: unknown}).__conStartShadow;
     registerScreenShadowContext(undefined);
     registerScreenCureExecutor(undefined);
+    registerFrameAnchorDead(undefined);
+    registerAnchorDropListener(undefined);
     registerReadinessDecisionDiag(undefined);
     delete (window as unknown as {__conScreenShadow?: unknown}).__conScreenShadow;
     delete (window as unknown as {__conScreenControl?: unknown}).__conScreenControl;

@@ -1654,6 +1654,10 @@ export function discardYieldedStack(): void {
 
 /** The board's business is over — take the screen back at the SAME depth. */
 export function resumeStackFromBoard(): boolean {
+  // THE RETURN DOOR ASKS THE ANCHOR (the Parliament field lock of 2026-11-06): a frame that stepped aside for the board
+  // may come back only for a phase that still stands — the sitting's world trip outlived the sitting, the frame came
+  // back over the next generation's action menu, and no edge was left to close it.
+  dropDeadAnchoredFrom(boardYielded, 'aside');
   if (boardYielded.length === 0) {
     return false;
   }
@@ -1693,6 +1697,101 @@ export function boardTakeableFromStack(): boolean {
 /** Is a frame of this kind standing aside for the board — off screen, coming back at the same depth? (Reactive.) */
 export function workspaceFrameYielded(kind: WorkspaceFrameKind): boolean {
   return boardYielded.some((f) => f.kind === kind);
+}
+
+/*
+ * ── A FRAME LIVES ONLY WHILE ITS ANCHOR HOLDS — wherever it stands, at every moment ─────────────────────────────────
+ * The Parliament field lock (2026-11-06, game gc0de10842197): the sitting's world trip stood the stack ASIDE for the
+ * board, the server closed the sitting, drafted, researched and asked the next generation's action menu — and the
+ * trip's end put `parliament:committed` back over all of it. A PHASE root's life was decided by EDGE watchers (one per
+ * kind) that addressed only the live stack (`closeWorkspaceRoot`) or the live stack + the park (`workspaceFrameKnown`):
+ * a frame off stage when its phase ended was never closed, and the return door brought it back for a phase that no
+ * longer existed. The screen stood on a dead frame that «accepted» input, so even the liveness arbiter looked away.
+ *
+ * The anchor is now judged as a LEVEL, in all three homes: the shell registers what is PROVABLY over
+ * (`registerFrameAnchorDead` — the phase anchors, from the server's own facts), the return doors drop a dead frame
+ * before it can come back (`resumeStackFromBoard` / `restoreWorkspaceStack`), the off-stage homes are pruned the moment
+ * a phase ends (`pruneOffStageDeadFrames`), a phase's lifecycle owner closes its root wherever it stands
+ * (`closePhaseRoot`), and a live frame whose anchor is dead is named for the shell's backstop (`deadLiveFrames`).
+ * An inner frame never outlives an outer one: a home is cut at its first dead frame (the reconciler's rule).
+ */
+let anchorDead: (anchor: FrameAnchor) => boolean = () => false;
+
+/** The shell's word on which anchors are PROVABLY over (a false here keeps a frame — the predicate must be sure). */
+export function registerFrameAnchorDead(predicate: ((anchor: FrameAnchor) => boolean) | undefined): void {
+  anchorDead = predicate ?? (() => false);
+}
+
+export function frameAnchorDead(anchor: FrameAnchor): boolean {
+  return anchorDead(anchor);
+}
+
+/** What the anchor rule dropped, and from where — the shell names it (`[workspace-anchor] …`). */
+export type DroppedFrames = {home: 'live' | 'parked' | 'aside', kinds: ReadonlyArray<WorkspaceFrameKind>};
+let anchorDropListener: ((dropped: DroppedFrames) => void) | undefined;
+export function registerAnchorDropListener(listener: ((dropped: DroppedFrames) => void) | undefined): void {
+  anchorDropListener = listener;
+}
+
+/** Cut a home at its first dead-anchored frame (everything above it goes too). */
+function dropDeadAnchoredFrom(home: Array<WorkspaceFrame>, name: DroppedFrames['home']): ReadonlyArray<WorkspaceFrameKind> {
+  const at = home.findIndex((f) => anchorDead(f.anchor));
+  if (at === -1) {
+    return [];
+  }
+  const kinds = home.splice(at).map((f) => f.kind);
+  traceVerb(`anchor-drop:${name} ` + kinds.join(','));
+  anchorDropListener?.({home: name, kinds});
+  return kinds;
+}
+
+/** The OFF-STAGE homes (the park, aside for the board) cut at their first dead frame — a frame off screen has nothing
+ *  left to show once its phase is over, so it goes at once. Returns what went. */
+export function pruneOffStageDeadFrames(): ReadonlyArray<WorkspaceFrameKind> {
+  return [
+    ...dropDeadAnchoredFrom(workspaceStackState.parked, 'parked'),
+    ...dropDeadAnchoredFrom(boardYielded, 'aside'),
+  ];
+}
+
+/** Off-stage frames whose anchor is dead (reactive — the shell's prune watcher keys on it). */
+export function offStageDeadFrames(): ReadonlyArray<WorkspaceFrameKind> {
+  return [...workspaceStackState.parked, ...boardYielded].filter((f) => anchorDead(f.anchor)).map((f) => f.kind);
+}
+
+/** LIVE frames whose anchor is dead (reactive) — never a legitimate state past a phase's own leave: the shell's backstop
+ *  closes them, and the liveness arbiter never counts a screen standing on one as accepting. */
+export function deadLiveFrames(): ReadonlyArray<WorkspaceFrameKind> {
+  return workspaceStackState.frames.filter((f) => anchorDead(f.anchor)).map((f) => f.kind);
+}
+
+/** Does a PHASE root of this kind stand anywhere (live, parked, aside)? — the lifecycle owners' «is my phase's frame
+ *  still somewhere», which `workspaceFrameKnown` + `workspaceFrameAnchor` (live / live + park) answered for part of it. */
+export function phaseRootAnywhere(kind: WorkspaceFrameKind): boolean {
+  return [...workspaceStackState.frames, ...workspaceStackState.parked, ...boardYielded]
+    .some((f) => f.kind === kind && f.anchor.type === 'phase');
+}
+
+/** Is a frame of this kind ANYWHERE — on the live stack, in the park, or aside for the board? */
+export function workspaceFrameAnywhere(kind: WorkspaceFrameKind): boolean {
+  return workspaceFrameKnown(kind) || workspaceFrameYielded(kind);
+}
+
+/**
+ * A PHASE IS OVER — its root goes from EVERY home it stands in (the live stack, the park, aside for the board), and
+ * takes whatever stands above it there. The verb of a phase's lifecycle owner (the start / draft / sitting / endgame
+ * watchers): `closeWorkspaceRoot` closes the LIVE instance alone, which is right for a flow (a fresh instance beside
+ * a park must not take the park with it) and wrong for a phase, which has exactly one root wherever it stands.
+ */
+export function closePhaseRoot(kind: WorkspaceFrameKind): void {
+  traceVerb('closePhaseRoot:' + kind);
+  closeWorkspaceRoot(kind);
+  for (const home of [workspaceStackState.parked, boardYielded]) {
+    const at = home.findIndex((f) => f.kind === kind);
+    if (at !== -1) {
+      home.splice(at);
+    }
+  }
 }
 
 /*
@@ -1773,6 +1872,8 @@ export function collapseWorkspaceStack(): void {
  * surface into a detached node.
  */
 export function restoreWorkspaceStack(): void {
+  // The same return-door rule as `resumeStackFromBoard`: a parked frame of a phase that is over never comes back.
+  dropDeadAnchoredFrom(workspaceStackState.parked, 'parked');
   if (workspaceStackState.parked.length === 0) {
     return;
   }

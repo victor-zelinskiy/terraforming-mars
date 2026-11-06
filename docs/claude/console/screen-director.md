@@ -423,3 +423,43 @@ write to an absent frame lands, and an ending on a hidden scene is owed and re-a
 failure is a stack that NEVER comes back from the board. It already has its nets: the beat stall guard for a transient
 beat, and the liveness arbiter's ladder for a stalled screen. A director verdict would only restate them. It is built
 the day a field log shows a frame that never returned and that neither net named.
+
+**Step 6 — THE LIFECYCLE HALF (2026-11-06, the Parliament field lock, game `gc0de10842197`).** Steps 1–4 made a frame's
+WRITES land wherever it stands; its LIFE was still decided by edges that saw part of it. The field log: for three
+minutes the server asked the next generation's action menu while the screen stood on `parliament:committed`, the arbiter
+reading `accepting: true` with nothing in flight, and B could not minimize it. The chain:
+- the sitting's world trip (`parliamentWorldBeat.runWorldMoveBeat`) stood the stack ASIDE for the board;
+- the server closed the sitting, then drafted, researched and asked the action menu;
+- the sitting's falling edge looked for its frame with `workspaceFrameKnown` (live + park) and closed it with
+  `closeWorkspaceRoot` (live only), so it found nothing;
+- the trip's end (`resumeStackFromBoard`, unconditional) put the frame back for a phase that no longer existed, over
+  whatever stood live;
+- no edge was left to close it.
+
+The rule now — **A FRAME LIVES ONLY WHILE ITS ANCHOR HOLDS, in every home, judged as a LEVEL**
+(`consoleWorkspaceStack.ts`):
+- **The anchor's word is the shell's.** `registerFrameAnchorDead` ← `ConsoleShell.frameAnchorIsDead`, reading
+  `deadPhaseAnchors`: the draft's, the sitting's (per seat) and the endgame's own lifecycle predicates. These are the
+  phase anchors, the ones the server ends unambiguously. The START is not judged: its life is the opening director's.
+  A flow's anchor (`always` / `cardInHand` / `prompt`) is not judged either, because a flow legitimately outlives a
+  neighbouring prompt to present its result.
+- **Both return doors ask it first.** `resumeStackFromBoard` / `restoreWorkspaceStack` cut their home at the first dead
+  frame. Nothing of a phase that is over comes back, and a door with nothing left leaves the live stack untouched.
+- **The off-stage homes are pruned the moment a phase ends** (`pruneOffStageDeadFrames`). It is driven by
+  `offStageDeadAnchorKey`, which reads the phase facts itself (a reactive edge, never a latch on the registry), and runs
+  again on every 1 Hz pass.
+- **A phase's lifecycle owner closes its root wherever it stands** (`closePhaseRoot`; `phaseRootAnywhere` for «is it
+  still somewhere»). `closeWorkspaceRoot` stays the flow's verb: a fresh instance beside a park must not take the park
+  with it.
+- **A live frame of a phase that is over is named and closed** (`deadLiveFrames` → `ConsoleShell.reapDeadPhaseFrames`).
+  It waits for three 1 Hz passes with no phase leave pending (the sitting's frozen results while its card lands, the
+  section's dissolve), then logs `[workspace-anchor] reaped …`. That line is RED in every e2e spec (`beatStallGuard`):
+  a reap means an edge was missed. A prune of an off-stage home logs `[workspace-anchor] dropped …`; that is the rule
+  working, harvested and not red.
+- **The arbiter is no longer fooled.** A screen standing on a dead frame is not `accepting` (past the phase's own
+  bounded leave), so the A / B presses count and the grace runs.
+
+Proof:
+- `consoleWorkspaceStack.spec` § a frame lives only while its anchor holds: the exact field chain, plus the park, the
+  prune, `closePhaseRoot` and the live naming.
+- `hiddenSceneGuard` ③ (a phase root is never closed by the live-only verb) and ④ (both return doors ask the anchor).

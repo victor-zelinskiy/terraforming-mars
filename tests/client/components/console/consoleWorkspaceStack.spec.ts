@@ -2,6 +2,14 @@ import {expect} from 'chai';
 import {computed} from 'vue';
 import {consoleState} from '@/client/console/consoleRouter';
 import {
+  closePhaseRoot,
+  deadLiveFrames,
+  phaseRootAnywhere,
+  pruneOffStageDeadFrames,
+  registerAnchorDropListener,
+  registerFrameAnchorDead,
+  stackYieldedToBoard,
+  yieldStackToBoard,
   resumeStackFromBoard,
   setWorkspaceFrameSubject,
   workspaceFrameOffStage,
@@ -1225,3 +1233,95 @@ describe('a frame off stage — one answer, writes that land, one return edge', 
     expect(seen).deep.eq([true, false, true, false, true, false, true]);
   });
 });
+
+/*
+ * A FRAME LIVES ONLY WHILE ITS ANCHOR HOLDS — wherever it stands, at every moment (the Parliament field lock of
+ * 2026-11-06, game gc0de10842197): the sitting's world trip stood the stack aside for the board, the server ended the
+ * sitting, drafted, researched and asked the next action menu, and the trip's end put `parliament:committed` back over
+ * all of it — a frame for a phase that no longer existed, which nothing was left to close.
+ */
+describe('a frame lives only while its anchor holds — in every home, at every return door', () => {
+  const SITTING: FrameAnchor = {type: 'phase', phase: 'parliament'};
+  let over: Set<string>;
+  let dropped: Array<string>;
+  beforeEach(() => {
+    resetWorkspaceStack();
+    over = new Set();
+    dropped = [];
+    registerFrameAnchorDead((anchor) => anchor.type === 'phase' && over.has(anchor.phase));
+    registerAnchorDropListener(({home, kinds}) => dropped.push(`${home}:${kinds.join(',')}`));
+  });
+  afterEach(() => {
+    registerFrameAnchorDead(undefined);
+    registerAnchorDropListener(undefined);
+    resetWorkspaceStack();
+  });
+
+  it('THE FIELD LOCK: the sitting steps aside for the board, the phase ends meanwhile — the trip\'s return brings NOTHING back', () => {
+    enterWorkspace('parliament', {anchor: SITTING});
+    setWorkspaceFramePhase('parliament', 'committed');
+    expect(yieldStackToBoard(), 'the world trip').eq(true);
+    over.add('parliament'); // the server closed the sitting while the frame was away
+    enterWorkspace('hand'); // …and the player moved on (the next generation's screens)
+    expect(resumeStackFromBoard(), 'nothing of a dead phase comes back').eq(false);
+    expect(workspaceStackState.frames.map((f) => f.kind), 'the live stack is untouched').deep.eq(['hand']);
+    expect(stackYieldedToBoard()).eq(false);
+    expect(dropped).deep.eq(['aside:parliament']);
+  });
+
+  it('…while a sitting still LIVE comes back exactly as it left (the trip\'s ordinary return)', () => {
+    enterWorkspace('parliament', {anchor: SITTING});
+    setWorkspaceFramePhase('parliament', 'committed');
+    yieldStackToBoard();
+    expect(resumeStackFromBoard()).eq(true);
+    expect(workspaceFramePhase('parliament')).eq('committed');
+    expect(dropped).deep.eq([]);
+  });
+
+  it('a PARKED frame of a phase that is over never comes back through the restore door', () => {
+    enterWorkspace('parliament', {anchor: SITTING});
+    collapseWorkspaceStack();
+    over.add('parliament');
+    restoreWorkspaceStack();
+    expect(workspaceStackState.frames).deep.eq([]);
+    expect(workspaceStackState.parked).deep.eq([]);
+    expect(dropped).deep.eq(['parked:parliament']);
+  });
+
+  it('the off-stage homes are pruned as a LEVEL — the park and the aside are cut at their first dead frame, inner frames with it', () => {
+    enterWorkspace('parliament', {anchor: SITTING});
+    pushWorkspaceFrame({kind: 'card-actions', subject: '', stage: '', phase: 'configure', serves: [], anchor: {type: 'always'}});
+    yieldStackToBoard();
+    enterWorkspace('draft', {anchor: {type: 'phase', phase: 'draft'}});
+    collapseWorkspaceStack();
+    expect(pruneOffStageDeadFrames(), 'nothing is over yet').deep.eq([]);
+    over.add('parliament');
+    expect(pruneOffStageDeadFrames()).deep.eq(['parliament', 'card-actions']);
+    expect(stackYieldedToBoard(), 'the aside is empty').eq(false);
+    expect(workspaceStackState.parked.map((f) => f.kind), 'the live draft park is untouched').deep.eq(['draft']);
+  });
+
+  it('a phase root is closed by its phase\'s verb WHEREVER it stands — `closeWorkspaceRoot` alone reached the live stack only', () => {
+    enterWorkspace('parliament', {anchor: SITTING});
+    yieldStackToBoard();
+    closeWorkspaceRoot('parliament');
+    expect(phaseRootAnywhere('parliament'), 'the live-only close missed the frame aside').eq(true);
+    closePhaseRoot('parliament');
+    expect(phaseRootAnywhere('parliament')).eq(false);
+    enterWorkspace('draft', {anchor: {type: 'phase', phase: 'draft'}});
+    collapseWorkspaceStack();
+    closePhaseRoot('draft');
+    expect(workspaceStackState.parked).deep.eq([]);
+  });
+
+  it('a LIVE frame of a phase that is over is named (the shell\'s backstop and the liveness arbiter read it); a flow\'s anchor is never judged', () => {
+    enterWorkspace('parliament', {anchor: SITTING});
+    expect(deadLiveFrames()).deep.eq([]);
+    over.add('parliament');
+    expect(deadLiveFrames()).deep.eq(['parliament']);
+    resetWorkspaceStack();
+    enterWorkspace('parliament', {anchor: {type: 'always'}}); // the player walked in on their own
+    expect(deadLiveFrames(), 'not the sitting\'s frame').deep.eq([]);
+  });
+});
+

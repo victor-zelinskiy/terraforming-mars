@@ -85,4 +85,31 @@ describe('hidden-scene guard — one answer to «is my scene on stage?»', () =>
     expect(offenders, 'a flow asks `workspaceSceneHidden(kind)` — a new way off screen is a term in the stack, never a flag here').deep.eq([]);
     expect(Object.keys(ALLOWED_COMBINATIONS).filter((k) => !seen.has(k)), 'an allowed row no longer matches — drop it').deep.eq([]);
   });
+
+  /*
+   * A FRAME LIVES ONLY WHILE ITS ANCHOR HOLDS (the Parliament field lock of 2026-11-06): a phase root off stage when its
+   * phase ended was closed by nobody and came back through a return door. The phase's verb closes it in every home,
+   * and both return doors ask the anchor before anything comes back.
+   */
+  it('③ a phase root (draft · parliament · endgame) is closed only by its phase\'s verb — `closePhaseRoot`, every home', () => {
+    const offenders: Array<string> = [];
+    for (const {rel, lines} of FILES) {
+      lines.forEach((line, i) => {
+        if (/\bcloseWorkspaceRoot\(\s*'(draft|parliament|endgame)'\s*\)/.test(line)) {
+          offenders.push(`${rel}:${i + 1}  ${line.trim()}`);
+        }
+      });
+    }
+    expect(offenders, 'a phase\'s root stands in the park or aside for the board too — `closeWorkspaceRoot` reaches the live stack alone').deep.eq([]);
+  });
+
+  it('④ both return doors drop a dead-anchored frame before anything comes back', () => {
+    const stack = stripComments(fs.readFileSync(STACK, 'utf8'));
+    for (const door of ['export function resumeStackFromBoard(', 'export function restoreWorkspaceStack(']) {
+      const at = stack.indexOf(door);
+      expect(at, door).to.be.greaterThan(-1);
+      const body = stack.slice(at, stack.indexOf('\n}\n', at));
+      expect(body, `${door} asks the anchor first`).to.match(/dropDeadAnchoredFrom\(/);
+    }
+  });
 });

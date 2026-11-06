@@ -260,6 +260,13 @@ const START_STRANDED = '[start-stranded]';
  */
 const BEAT_STALL = '[workspace-stall] beat';
 /**
+ * THE ANCHOR RULE's backstop marker (`ConsoleShell.reapDeadPhaseFrames`, the Parliament field lock of 2026-11-06): a LIVE
+ * frame of a phase that is over stood on screen past its phase's own leave and was closed by the 1 Hz net. Every
+ * lifecycle owner closes its phase root wherever it stands and the return doors drop a dead frame, so a reap means an
+ * edge was missed — red, like the beat stall (the `dropped` line of an off-stage prune is the rule working, not a fault).
+ */
+const ANCHOR_REAP = '[workspace-anchor] reaped';
+/**
  * The LIVENESS ARBITER's marker (`src/client/console/consoleLiveness.ts`, the owner's Venus-trade freeze of
  * 2026-10-31): the player could not act — no surface accepting for the grace, or presses changing NOTHING — with
  * nothing in flight, and a rung of the cure ladder ran (stories degraded, holds expired, a flow concluded, the stack
@@ -423,7 +430,7 @@ const REACTIVITY_LATCH = 'changed without a reactive edge';
  */
 const STALL_MARKERS: ReadonlyArray<string> = [
   '[presentation-ledger]', '[workspace-stall]', '[console-foreground-watchdog]', '[bot-turn]', '[notifications]',
-  '[animation-hold]', '[console-leak-detector]', '[deferred-refresh]', '[reactivity]',
+  '[animation-hold]', '[console-leak-detector]', '[deferred-refresh]', '[reactivity]', '[workspace-anchor]',
 ];
 
 /**
@@ -820,7 +827,7 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     const watch = (page: Page) => {
       page.on('console', (message) => {
         const text = message.text();
-        if (text.includes(BEAT_STALL)) {
+        if (text.includes(BEAT_STALL) || text.includes(ANCHOR_REAP)) {
           stalls.push(text.slice(0, 1200));
         }
       });
@@ -829,7 +836,7 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     context.on('page', watch);
     await use();
     if (stalls.length > 0) {
-      throw new Error(`BEAT STALL — a workspace stood in a machine beat with nothing in flight:\n  ${stalls.join('\n  ')}`);
+      throw new Error(`BEAT STALL — a workspace stood in a machine beat with nothing in flight, or on a frame of a phase that is over:\n  ${stalls.join('\n  ')}`);
     }
   }, {auto: true}],
 
