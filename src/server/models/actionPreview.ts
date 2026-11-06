@@ -8,7 +8,7 @@ import {CardResource} from '../../common/CardResource';
 import {Resource} from '../../common/Resource';
 import {Units} from '../../common/Units';
 import {TileType} from '../../common/TileType';
-import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE, MAX_OCEAN_TILES} from '../../common/constants';
+import {MIN_TEMPERATURE} from '../../common/constants';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis} from '../../common/models/ActionPreviewModel';
 import {_Countable} from '../behavior/Countable';
@@ -35,6 +35,7 @@ import {actionFutility} from './actionFutility';
 import {attachStagedPlacement, stagedPlacementForBehavior} from './stagedBehaviorPlacement';
 import {delegateIsTheActionsResult} from '../politics/delegateIsTheActionsResult';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
+import {venusLevelAfterSteps} from '../venusNext/venusScale';
 
 /**
  * READ-ONLY preview of an activatable action — the analog of
@@ -382,10 +383,11 @@ const STANDARD: ReadonlyArray<{key: keyof Units, resource: Resource}> = [
   {key: 'heat', resource: Resource.HEAT},
 ];
 
-const GLOBAL: ReadonlyArray<{key: 'oxygen' | 'temperature' | 'venus', step: number, min: number, max: number, unit: string, get: (game: IPlayer['game']) => number}> = [
-  {key: 'oxygen', step: 1, min: 0, max: MAX_OXYGEN_LEVEL, unit: '%', get: (g) => g.getOxygenLevel()},
-  {key: 'temperature', step: 2, min: MIN_TEMPERATURE, max: MAX_TEMPERATURE, unit: '°C', get: (g) => g.getTemperature()},
-  {key: 'venus', step: 2, min: 0, max: MAX_VENUS_SCALE, unit: '%', get: (g) => g.getVenusScaleLevel()},
+// The maximum is the MAP's (`game.max` — Amazonis Planitia's tracks are longer).
+const GLOBAL: ReadonlyArray<{key: 'oxygen' | 'temperature' | 'venus', step: number, min: number, max: (game: IPlayer['game']) => number, unit: string, get: (game: IPlayer['game']) => number}> = [
+  {key: 'oxygen', step: 1, min: 0, max: (g) => g.max.oxygen, unit: '%', get: (g) => g.getOxygenLevel()},
+  {key: 'temperature', step: 2, min: MIN_TEMPERATURE, max: (g) => g.max.temperature, unit: '°C', get: (g) => g.getTemperature()},
+  {key: 'venus', step: 2, min: 0, max: (g) => g.max.venus, unit: '%', get: (g) => g.getVenusScaleLevel()},
 ];
 
 function clampValue(v: number, lo: number, hi: number): number {
@@ -713,8 +715,9 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
     const steps = behavior.global?.[g.key];
     if (typeof steps === 'number') {
       const cur = g.get(game);
-      const delta = steps * g.step;
-      out.push({direction: delta >= 0 ? 'gain' : 'cost', icon: g.key, amount: Math.abs(delta), current: cur, resulting: clampValue(cur + delta, g.min, g.max), unit: g.unit,
+      // Venus above 30 % (Amazonis Planitia) moves 1 % per step — the engine's own arithmetic.
+      const delta = g.key === 'venus' ? venusLevelAfterSteps(cur, steps) - cur : steps * g.step;
+      out.push({direction: delta >= 0 ? 'gain' : 'cost', icon: g.key, amount: Math.abs(delta), current: cur, resulting: clampValue(cur + delta, g.min, g.max(player.game)), unit: g.unit,
         ...(g.key === 'venus' ? actionPreviews.altVenusBonusMark(game, steps) : {})});
     }
   }
@@ -1146,7 +1149,7 @@ export function stepsForBehavior(
     // opponent's Neptunian question) for a tile that never lands.
     // …except under a law that REPLACES the ocean (RX35): the PRINTED count is promised whole — the law takes every
     // printed unit and the ceiling cuts nothing («even if the parameter is maxed»); the exit pass strikes it.
-    const remaining = Math.max(0, MAX_OCEAN_TILES - player.game.board.getOceanSpaces().length);
+    const remaining = Math.max(0, player.game.max.oceans - player.game.board.getOceanSpaces().length);
     const printed = behavior.ocean.count ?? 1;
     const count = divertedGate.divertsTerraforming(player) ? printed : Math.min(printed, remaining);
     // What the board has no room for is a NAMED skip with its magnitude (`SKIPPED_LABEL.placeOcean` — the coverage

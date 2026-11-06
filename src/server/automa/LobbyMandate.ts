@@ -79,7 +79,7 @@ export function gameTempo(game: IGame): number {
     temperature: game.getTemperature(),
     oxygenLevel: game.getOxygenLevel(),
     oceans: game.board.getOceanSpaces().length,
-  }).total;
+  }, game.max).total;
 }
 
 /** The mandate's odds at `tempo` — a straight blend of the anchors (percent, aligned with `LOBBY_MANDATE_CARDS`). */

@@ -16,7 +16,6 @@ import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {CardName} from '../../common/cards/CardName';
 import {CardResource} from '../../common/CardResource';
-import {MAX_TEMPERATURE, MAX_OXYGEN_LEVEL, MAX_VENUS_SCALE} from '../../common/constants';
 import {Counter} from '../behavior/Counter';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {MoonExpansion} from '../moon/MoonExpansion';
@@ -227,11 +226,11 @@ function parameterCanStillDecrease(game: IGame, parameter: GlobalParameter): boo
   }
   switch (parameter) {
   case GlobalParameter.TEMPERATURE:
-    return game.getTemperature() < MAX_TEMPERATURE;
+    return game.getTemperature() < game.max.temperature;
   case GlobalParameter.OXYGEN:
-    return game.getOxygenLevel() < MAX_OXYGEN_LEVEL;
+    return game.getOxygenLevel() < game.max.oxygen;
   case GlobalParameter.VENUS:
-    return game.getVenusScaleLevel() < MAX_VENUS_SCALE;
+    return game.getVenusScaleLevel() < game.max.venus;
   default:
     return true;
   }

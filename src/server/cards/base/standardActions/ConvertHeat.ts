@@ -64,7 +64,7 @@ export class ConvertHeat extends StandardActionCard {
 
   public canAct(player: IPlayer): boolean {
     // The ceiling wastes nothing under a law that REPLACES the step (RX35, decision Р5): no warning then.
-    if (player.game.getTemperature() === MAX_TEMPERATURE && !divertedGate.divertsTerraforming(player)) {
+    if (player.game.getTemperature() >= player.game.max.temperature && !divertedGate.divertsTerraforming(player)) {
       this.addWarning('maxtemp');
     }
 

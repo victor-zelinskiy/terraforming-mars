@@ -7,7 +7,6 @@ import {CardType} from '../../../common/cards/CardType';
 import {IActionCard} from '../ICard';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {CardResource} from '../../../common/CardResource';
-import * as constants from '../../../common/constants';
 import {Resource} from '../../../common/Resource';
 import {cardSource} from '../../inputs/choiceContext';
 import {TITLES} from '../../inputs/titles';

@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {readFileSync} from 'node:fs';
 import {BoardName} from '../../src/common/boards/BoardName';
+import {isBoardInPremiumScope} from '../../src/common/boards/boardPremiumScope';
 import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
 import {SpaceType} from '../../src/common/boards/SpaceType';
 import {cellBonusIcons} from '../../src/client/console/revealStageHead';
@@ -57,7 +58,8 @@ describe('a printed cell bonus has a face and a story on every board', () => {
     [SpaceBonus.ASTEROID, 'the board pays a card (`space-bonus`)'],
   ]);
 
-  const boards = Object.values(BoardName);
+  // A board outside the premium scope (Amazonis Planitia's standard-resource cell) gets its faces with its full adaptation.
+  const boards = Object.values(BoardName).filter(isBoardInPremiumScope);
   const seen = new Set<SpaceBonus>();
 
   for (const boardName of boards) {

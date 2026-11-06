@@ -1,4 +1,3 @@
-import * as constants from '../../common/constants';
 import {AutomaCorporations} from './corps/AutomaCorporations';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Board} from '../boards/Board';
@@ -39,22 +38,24 @@ export function stepsToNextTarget(current: number, targets: ReadonlyArray<number
   return (Math.min(...ahead) - current) / stepSize;
 }
 
-/** Temperature bonus steps: heat at −24/−20, the ocean at 0, completion at +8. */
-export function temperatureStepsToTarget(game: IGame): number | undefined {
-  return stepsToNextTarget(game.getTemperature(),
-    [constants.TEMPERATURE_BONUS_FOR_HEAT_1, constants.TEMPERATURE_BONUS_FOR_HEAT_2, constants.TEMPERATURE_FOR_OCEAN_BONUS, constants.MAX_TEMPERATURE], 2);
+/** The printed bonus steps of the map's `type` track, then its completion (`game.globalParameterTracks` / `game.max`). */
+function trackTargets(game: IGame, type: 'temperature' | 'oxygen' | 'venus'): Array<number> {
+  return [...game.globalParameterTracks[type].map(({value}) => value), game.max[type]];
 }
 
-/** Oxygen bonus steps: the temperature raise at 8%, completion at 14%. */
+/** Temperature bonus steps: heat at −24/−20, the ocean at 0, completion at +8 (the standard board). */
+export function temperatureStepsToTarget(game: IGame): number | undefined {
+  return stepsToNextTarget(game.getTemperature(), trackTargets(game, 'temperature'), 2);
+}
+
+/** Oxygen bonus steps: the temperature raise at 8%, completion at 14% (the standard board). */
 export function oxygenStepsToTarget(game: IGame): number | undefined {
-  return stepsToNextTarget(game.getOxygenLevel(),
-    [constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS, constants.MAX_OXYGEN_LEVEL], 1);
+  return stepsToNextTarget(game.getOxygenLevel(), trackTargets(game, 'oxygen'), 1);
 }
 
 /** Venus bonus steps: the card draw at 8%, the TR at 16%, completion at 30% (standard board). */
 export function venusStepsToTarget(game: IGame): number | undefined {
-  return stepsToNextTarget(game.getVenusScaleLevel(),
-    [constants.VENUS_LEVEL_FOR_CARD_BONUS, constants.VENUS_LEVEL_FOR_TR_BONUS, constants.MAX_VENUS_SCALE], 2);
+  return stepsToNextTarget(game.getVenusScaleLevel(), trackTargets(game, 'venus'), 2);
 }
 
 /**

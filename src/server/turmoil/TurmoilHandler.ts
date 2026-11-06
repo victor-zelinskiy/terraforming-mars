@@ -18,6 +18,7 @@ import {UNITY_POLICY_4} from './parties/Unity';
 import {TRSource} from '../../common/cards/TRSource';
 import {ratingSkipArmed} from '../cards/prelude2/preservationProgramSkip';
 import {IPolicy, policyDescription} from './Policy';
+import {venusLevelAfterSteps, venusStepsBetween} from '../venusNext/venusScale';
 
 export class TurmoilHandler {
   private constructor() {}
@@ -108,40 +109,51 @@ export class TurmoilHandler {
     tr = {...tr};
 
     let total = 0;
+    const game = player.game;
+    // The map's own track layout and maximums (upstream b745cb9a00 / 91a4605bd2): Amazonis Planitia's oxygen step
+    // sits at 11 %, its Venus rating at 22 %, and its Venus moves 1 % per step above 30 %.
+    const globalParameterTracks = game.globalParameterTracks;
 
     if (tr.oxygen !== undefined) {
-      const availableSteps = player.game.max.oxygen - player.game.getOxygenLevel();
+      const oxygenLevel = game.getOxygenLevel();
+      const availableSteps = game.max.oxygen - oxygenLevel;
       const steps = Math.min(availableSteps, tr.oxygen);
       total = total + steps;
-      if (player.game.getOxygenLevel() < constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS &&
-          player.game.getOxygenLevel() + steps >= constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS) {
-        tr.temperature = (tr.temperature ?? 0) + 1;
+      for (const {value, bonus} of globalParameterTracks.oxygen) {
+        if (bonus === 'temperature' && oxygenLevel < value && oxygenLevel + steps >= value) {
+          tr.temperature = (tr.temperature ?? 0) + 1;
+        }
       }
     }
 
     if (tr.temperature !== undefined) {
-      const availableSteps = Math.floor((player.game.max.temperature - player.game.getTemperature()) / 2);
+      const temperature = game.getTemperature();
+      const availableSteps = Math.floor((game.max.temperature - temperature) / 2);
       const steps = Math.min(availableSteps, tr.temperature);
       total = total + steps;
-      if (player.game.getTemperature() < constants.TEMPERATURE_FOR_OCEAN_BONUS &&
-        player.game.getTemperature() + (steps * 2) >= constants.TEMPERATURE_FOR_OCEAN_BONUS) {
-        tr.oceans = (tr.oceans ?? 0) + 1;
+      for (const {value, bonus} of globalParameterTracks.temperature) {
+        if (bonus === 'ocean' && temperature < value && temperature + (steps * 2) >= value) {
+          tr.oceans = (tr.oceans ?? 0) + 1;
+        }
       }
     }
 
     if (tr.oceans !== undefined) {
-      const availableSteps = player.game.max.oceans - player.game.board.getOceanSpaces().length;
+      const availableSteps = game.max.oceans - game.board.getOceanSpaces().length;
       const steps = Math.min(availableSteps, tr.oceans);
       total = total + steps;
     }
 
     if (tr.venus !== undefined) {
-      const availableSteps = Math.floor((player.game.max.venus - player.game.getVenusScaleLevel()) / 2);
+      const venusLevel = game.getVenusScaleLevel();
+      const availableSteps = venusStepsBetween(venusLevel, game.max.venus);
       const steps = Math.min(availableSteps, tr.venus);
       total = total + steps;
-      if (player.game.getVenusScaleLevel() < constants.VENUS_LEVEL_FOR_TR_BONUS &&
-        player.game.getVenusScaleLevel() + (steps * 2) >= constants.VENUS_LEVEL_FOR_TR_BONUS) {
-        tr.tr = (tr.tr ?? 0) + 1;
+      const newVenusLevel = venusLevelAfterSteps(venusLevel, steps);
+      for (const {value, bonus} of globalParameterTracks.venus) {
+        if (bonus === 'tr' && venusLevel < value && newVenusLevel >= value) {
+          tr.tr = (tr.tr ?? 0) + 1;
+        }
       }
     }
 

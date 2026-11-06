@@ -12,7 +12,8 @@ import {WorldGovernmentActAsker} from '../../../common/models/PlayerInputModel';
 import {BranchSpec} from '../actionPreviews';
 import * as actionPreviews from '../actionPreviews';
 import {parameterMaxed} from '../actionFutilities';
-import * as constants from '../../../common/constants';
+import {crossesTrackBonus} from '../../boards/GlobalParameterTracks';
+import {venusLevelAfterSteps} from '../../venusNext/venusScale';
 
 /** The printed order of the action's row — `oceans · oxygen · temperature · Venus`. */
 const PRINTED: ReadonlyArray<FutileParameter> = ['oceans', 'oxygen', 'temperature', 'venus'];
@@ -183,15 +184,15 @@ function worldMoveEffects(player: IPlayer, parameter: FutileParameter): Array<Ac
     return [world(actionPreviews.oceanGain(player, 1), WORLD_MOVE_NO_CELL_BONUS_NOTE)];
   case 'temperature': {
     const from = game.getTemperature();
-    const out = [world(actionPreviews.globalGain(player, 'temperature', 1), crossesHeatBonus(from) ? WORLD_MOVE_NO_HEAT_NOTE : undefined)];
+    const out = [world(actionPreviews.globalGain(player, 'temperature', 1), crossesHeatBonus(game, from) ? WORLD_MOVE_NO_HEAT_NOTE : undefined)];
     out.push(...temperatureBonusOcean(player, from));
     return out;
   }
   case 'oxygen': {
     const from = game.getOxygenLevel();
     const out = [world(actionPreviews.globalGain(player, 'oxygen', 1), undefined)];
-    if (from < constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS && from + 1 >= constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS &&
-        game.getTemperature() < constants.MAX_TEMPERATURE) {
+    if (crossesTrackBonus(game.globalParameterTracks, 'oxygen', 'temperature', from, from + 1) &&
+        game.getTemperature() < game.max.temperature) {
       const t = game.getTemperature();
       out.push({...actionPreviews.globalGain(player, 'temperature', 1), world: true, note: WORLD_BONUS_TEMPERATURE_NOTE});
       out.push(...temperatureBonusOcean(player, t));
@@ -200,26 +201,26 @@ function worldMoveEffects(player: IPlayer, parameter: FutileParameter): Array<Ac
   }
   case 'venus': {
     const from = game.getVenusScaleLevel();
-    const to = Math.min(constants.MAX_VENUS_SCALE, from + 2);
+    const to = Math.min(game.max.venus, venusLevelAfterSteps(from, 1));
     const chip = actionPreviews.globalGain(player, 'venus', 1);
     // The alternative board's bonus is a REWARD (the engine's reward gate): the government earns none of it.
     const {altVenusBonus: _withheld, ...plain} = chip;
-    const note = from < constants.VENUS_LEVEL_FOR_CARD_BONUS && to >= constants.VENUS_LEVEL_FOR_CARD_BONUS ? WORLD_MOVE_NO_VENUS_CARD_NOTE :
-      from < constants.VENUS_LEVEL_FOR_TR_BONUS && to >= constants.VENUS_LEVEL_FOR_TR_BONUS ? WORLD_MOVE_NO_VENUS_RATING_NOTE :
+    const note = crossesTrackBonus(game.globalParameterTracks, 'venus', 'drawcard', from, to) ? WORLD_MOVE_NO_VENUS_CARD_NOTE :
+      crossesTrackBonus(game.globalParameterTracks, 'venus', 'tr', from, to) ? WORLD_MOVE_NO_VENUS_RATING_NOTE :
         _withheld !== undefined ? WORLD_MOVE_NO_ALT_VENUS_NOTE : undefined;
     return [world(plain, note)];
   }
   }
 }
 
-function crossesHeatBonus(from: number): boolean {
-  return [constants.TEMPERATURE_BONUS_FOR_HEAT_1, constants.TEMPERATURE_BONUS_FOR_HEAT_2].some((t) => from < t && from + 2 >= t);
+function crossesHeatBonus(game: IPlayer['game'], from: number): boolean {
+  return crossesTrackBonus(game.globalParameterTracks, 'temperature', 'heatproduction', from, from + 2);
 }
 
 /** The 0 °C ocean a temperature step from `from` sets off — placed by the government too (the engine's own rule). */
 function temperatureBonusOcean(player: IPlayer, from: number): Array<ActionEffect> {
   const game = player.game;
-  if (from < constants.TEMPERATURE_FOR_OCEAN_BONUS && from + 2 >= constants.TEMPERATURE_FOR_OCEAN_BONUS && game.canAddOcean()) {
+  if (crossesTrackBonus(game.globalParameterTracks, 'temperature', 'ocean', from, from + 2) && game.canAddOcean()) {
     return [{...actionPreviews.oceanGain(player, 1), world: true, note: WORLD_BONUS_OCEAN_NOTE}];
   }
   return [];
@@ -262,21 +263,21 @@ function closesMars(player: IPlayer, parameter: FutileParameter): boolean {
   }
   const raiseTemperature = () => {
     const from = temperature;
-    temperature = Math.min(constants.MAX_TEMPERATURE, temperature + 2);
-    if (from < constants.TEMPERATURE_FOR_OCEAN_BONUS && temperature >= constants.TEMPERATURE_FOR_OCEAN_BONUS) {
-      oceans = Math.min(constants.MAX_OCEAN_TILES, oceans + 1);
+    temperature = Math.min(game.max.temperature, temperature + 2);
+    if (crossesTrackBonus(game.globalParameterTracks, 'temperature', 'ocean', from, temperature)) {
+      oceans = Math.min(game.max.oceans, oceans + 1);
     }
   };
   if (parameter === 'oceans') {
-    oceans = Math.min(constants.MAX_OCEAN_TILES, oceans + 1);
+    oceans = Math.min(game.max.oceans, oceans + 1);
   } else if (parameter === 'temperature') {
     raiseTemperature();
   } else {
     const from = oxygen;
-    oxygen = Math.min(constants.MAX_OXYGEN_LEVEL, oxygen + 1);
-    if (from < constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS && oxygen >= constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS) {
+    oxygen = Math.min(game.max.oxygen, oxygen + 1);
+    if (crossesTrackBonus(game.globalParameterTracks, 'oxygen', 'temperature', from, oxygen)) {
       raiseTemperature();
     }
   }
-  return temperature >= constants.MAX_TEMPERATURE && oxygen >= constants.MAX_OXYGEN_LEVEL && oceans >= constants.MAX_OCEAN_TILES;
+  return temperature >= game.max.temperature && oxygen >= game.max.oxygen && oceans >= game.max.oceans;
 }

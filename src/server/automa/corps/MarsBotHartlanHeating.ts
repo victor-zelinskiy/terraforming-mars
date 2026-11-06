@@ -1,5 +1,4 @@
 import {Tag} from '../../../common/cards/Tag';
-import {MAX_TEMPERATURE} from '../../../common/constants';
 import {BonusCardId} from '../../../common/automa/AutomaTypes';
 import {MarsBotCorpId, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
 import {IGame} from '../../IGame';
@@ -141,7 +140,7 @@ function heatingSeason(game: IGame): BonusCardOutcome {
     while (automa.corpResources >= SEASON_HEAT) {
       automa.corpResources -= SEASON_HEAT;
       bumpCorpStat(game, 'seasonHeat', SEASON_HEAT);
-      if (game.getTemperature() < MAX_TEMPERATURE) {
+      if (game.getTemperature() < game.max.temperature) {
         // The shared raise: a law that diverts it, the TR, the bonuses and the journal line are its own.
         game.log('${0} spent ${1} heat from its boiler to raise the temperature', (b) => b.player(bot).number(SEASON_HEAT));
         AutomaTerraformer.raiseTemperature(game);

@@ -65,6 +65,8 @@ export type TileRemovalTable = {
   oceans: number;
   /** Absent when the reader cannot tell plain oceans from upgraded ones: then every ocean is assumed plain. */
   removableOceans?: number;
+  /** The map's ocean maximum (`game.max.oceans` — 11 on Amazonis Planitia). Absent: the standard nine. */
+  maxOceans?: number;
 };
 
 /**
@@ -73,7 +75,7 @@ export type TileRemovalTable = {
  * reads) and its own filter (`getOceanSpaces({upgradedOceans: false})`).
  */
 export function tileRemovalRoom(_declaration: TileRemovalDeclaration, table: TileRemovalTable): TileRemovalRoom {
-  const max = MAX_OCEAN_TILES;
+  const max = table.maxOceans ?? MAX_OCEAN_TILES;
   const current = Math.max(0, table.oceans);
   const atMax = current >= max;
   const removable = Math.max(0, Math.min(current, table.removableOceans ?? current));

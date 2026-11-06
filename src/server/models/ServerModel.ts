@@ -46,7 +46,7 @@ import {ColonyTradeBlockModel} from '../../common/models/ColonyModel';
 import {newProjectCard} from '../createCard';
 import {runId} from '../utils/server-ids';
 import {toName} from '../../common/utils/utils';
-import {MAX_AWARDS, MAX_MILESTONES, MAX_TEMPERATURE} from '../../common/constants';
+import {MAX_AWARDS, MAX_MILESTONES} from '../../common/constants';
 import {isActionMenuTitle} from '../../common/inputs/actionMenuTitles';
 import {Message} from '../../common/logs/Message';
 import {PartyHooks} from '../turmoil/parties/PartyHooks';
@@ -682,7 +682,7 @@ export class Server {
     // Heat→temperature is pointless once temperature is maxed (no parameter rise,
     // no TR): suppress the dedicated button AND the pass warning there, even though
     // the legacy action menu still technically offers it with a 'maxtemp' warning.
-    const canConvertHeat = inActionSelection && game.getTemperature() < MAX_TEMPERATURE && (
+    const canConvertHeat = inActionSelection && game.getTemperature() < game.max.temperature && (
       PartyHooks.shouldApplyPolicy(player, PartyName.KELVINISTS, 'kp03') ?
         KELVINISTS_POLICY_3.canAct(player) :
         new ConvertHeat().canAct(player));

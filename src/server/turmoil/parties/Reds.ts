@@ -6,7 +6,7 @@ import {Bonus, IBonus} from '../Bonus';
 import {IPolicy} from '../Policy';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {IPlayer} from '../../IPlayer';
-import {MAXIMUM_HABITAT_RATE, MAXIMUM_LOGISTIC_RATE, MAXIMUM_MINING_RATE, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MAX_VENUS_SCALE, MIN_OXYGEN_LEVEL, MIN_TEMPERATURE, MIN_VENUS_SCALE, POLITICAL_AGENDAS_MAX_ACTION_USES} from '../../../common/constants';
+import {MAXIMUM_HABITAT_RATE, MAXIMUM_LOGISTIC_RATE, MAXIMUM_MINING_RATE, MIN_OXYGEN_LEVEL, MIN_TEMPERATURE, MIN_VENUS_SCALE, POLITICAL_AGENDAS_MAX_ACTION_USES} from '../../../common/constants';
 import {RemoveOceanTile} from '../../deferredActions/RemoveOceanTile';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';

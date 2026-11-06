@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
 import {Merchant3} from '@/server/milestones/Merchant3';
-import {TestPlayer} from '@tests/TestPlayer';
+import {TestPlayer} from '../TestPlayer';
 
 describe('Merchant3', () => {
   let player: TestPlayer;

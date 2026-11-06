@@ -37,7 +37,7 @@ import {ExcavateSpacesDeferred} from '../underworld/ExcavateSpacesDeferred';
 import {UnderworldExpansion} from '../underworld/UnderworldExpansion';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
 import {isIProjectCard} from '../cards/IProjectCard';
-import {MAXIMUM_HABITAT_RATE, MAXIMUM_LOGISTIC_RATE, MAXIMUM_MINING_RATE, MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
+import {MAXIMUM_HABITAT_RATE, MAXIMUM_LOGISTIC_RATE, MAXIMUM_MINING_RATE} from '../../common/constants';
 import {CardName} from '../../common/cards/CardName';
 import {asArray} from '../../common/utils/utils';
 import {spendCardsDiscardPrompt} from './spendCardsDiscard';
@@ -51,6 +51,7 @@ import {DisabledOptionModel, OptionMetadata} from '../../common/models/PlayerInp
 import {globalParameter} from '../inputs/optionMetadata';
 import {collectActionBehaviorReasons} from '../models/actionUnavailableReasons';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
+import {venusLevelAfterSteps} from '../venusNext/venusScale';
 
 export class Executor implements BehaviorExecutor {
   public canExecute(behavior: Behavior, player: IPlayer, card: ICard, canAffordOptions?: CanAffordOptions) {
@@ -88,7 +89,7 @@ export class Executor implements BehaviorExecutor {
     const diverts = divertedGate.divertsTerraforming(player);
     if (behavior.global !== undefined) {
       const g = behavior.global;
-      if (g.temperature !== undefined && game.getTemperature() >= MAX_TEMPERATURE && !diverts) {
+      if (g.temperature !== undefined && game.getTemperature() >= game.max.temperature && !diverts) {
         card.addWarning('maxtemp');
       }
       if (g.oxygen !== undefined && game.getOxygenLevel() >= game.max.oxygen) {
@@ -103,7 +104,7 @@ export class Executor implements BehaviorExecutor {
       }
     }
 
-    if (behavior.ocean !== undefined && game.board.getOceanSpaces().length >= MAX_OCEAN_TILES && !diverts) {
+    if (behavior.ocean !== undefined && game.board.getOceanSpaces().length >= game.max.oceans && !diverts) {
       card.addWarning('maxoceans');
     }
 
@@ -932,15 +933,15 @@ export function orBranchMetadata(player: IPlayer, sub: Behavior): OptionMetadata
   const game = player.game;
   if (g.temperature !== undefined && g.temperature > 0) {
     const now = game.getTemperature();
-    return globalParameter('temperature', g.temperature, now, Math.min(MAX_TEMPERATURE, now + 2 * g.temperature), '°C');
+    return globalParameter('temperature', g.temperature, now, Math.min(game.max.temperature, now + 2 * g.temperature), '°C');
   }
   if (g.oxygen !== undefined && g.oxygen > 0) {
     const now = game.getOxygenLevel();
-    return globalParameter('oxygen', g.oxygen, now, Math.min(MAX_OXYGEN_LEVEL, now + g.oxygen), '%');
+    return globalParameter('oxygen', g.oxygen, now, Math.min(game.max.oxygen, now + g.oxygen), '%');
   }
   if (g.venus !== undefined && g.venus > 0) {
     const now = game.getVenusScaleLevel();
-    return globalParameter('venus', g.venus, now, Math.min(MAX_VENUS_SCALE, now + 2 * g.venus), '%');
+    return globalParameter('venus', g.venus, now, Math.min(game.max.venus, venusLevelAfterSteps(now, g.venus)), '%');
   }
   return undefined;
 }

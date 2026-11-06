@@ -112,7 +112,7 @@ export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
     'Hydrologist': {Factory: Hydrologist, random: 'modular'},
     'Irrigator': {Factory: Irrigator, deprecated: true},
     'Land Specialist': {Factory: LandSpecialist},
-    'Landshaper': {Factory: Landshaper, random: 'both'},
+    'Landshaper': {Factory: Landshaper, random: 'modular'},
     'Legend': {Factory: Legend},
     'Legend4': {Factory: Legend4, random: 'modular'},
     // vize1215 fork: RETIRED — the Redux FAQ bars it (delegates no longer sit in parties) and the classic Turmoil is not
@@ -157,7 +157,7 @@ export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
     'Terraformer': {Factory: Terraformer, deprecated: true},
     'Terraformer29': {Factory: Terraformer29, random: 'modular'},
     'Terran': {Factory: Terran},
-    'Terran5': {Factory: Terran5, random: 'both'},
+    'Terran5': {Factory: Terran5, random: 'modular'},
     'Thawer': {Factory: Thawer, random: 'modular'},
     // vize1215 fork: Trader (3 different card-resource types) is an effect clone of Tradesman (the same,
     // plus a corruption bonus), which has a board home (Vastitas Borealis). Tradesman is the canonical

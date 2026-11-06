@@ -342,10 +342,15 @@ describe('MilestoneAwardSelector', () => {
     });
   });
 
-  it('Amazonis Planitia uses its own milestones and awards when not randomized', () => {
+  // vize1215 fork: the printed set carries Lobbyist, RETIRED here with the classic Turmoil — until the board's full
+  // adaptation names the Redux substitute, a non-random game draws the unified pool (like Hollandia), never a throw.
+  it('Amazonis Planitia keeps its printed set in the manifest, and a non-random game draws the pool instead', () => {
+    expect(milestoneManifest.boards[BoardName.AMAZONIS_PLANITIA]).deep.eq(['Terran5', 'Landshaper', 'Merchant3', 'Sponsor', 'Lobbyist']);
+    expect(awardManifest.boards[BoardName.AMAZONIS_PLANITIA]).deep.eq(['Collector', 'Innovator', 'Constructor', 'Manufacturer', 'Physicist']);
     const mas = choose({boardName: BoardName.AMAZONIS_PLANITIA, randomMA: RandomMAOptionType.NONE});
-    expect(mas.milestones).deep.eq(milestoneManifest.boards[BoardName.AMAZONIS_PLANITIA]);
-    expect(mas.awards).deep.eq(awardManifest.boards[BoardName.AMAZONIS_PLANITIA]);
+    expect(mas.milestones).has.length(5);
+    expect(mas.awards).has.length(5);
+    expect(mas.milestones).does.not.include('Lobbyist');
   });
 
   function choose(options: Partial<GameOptions>) {

@@ -1,7 +1,6 @@
 import {Tag} from '../../../common/cards/Tag';
 import {Resource} from '../../../common/Resource';
 import {SpaceType} from '../../../common/boards/SpaceType';
-import {MAX_OCEAN_TILES} from '../../../common/constants';
 import {BonusCardId} from '../../../common/automa/AutomaTypes';
 import {MarsBotCorpId, marsBotCorpInfo} from '../../../common/automa/MarsBotCorpData';
 import {IGame} from '../../IGame';
@@ -151,7 +150,7 @@ function freeOceanSpaces(game: IGame): ReadonlyArray<Space> {
  */
 export function drainableSpaces(game: IGame): ReadonlyArray<Space> {
   const free = AutomaAres.withoutHazardSpaces(game, freeOceanSpaces(game));
-  const oceansLeft = Math.max(0, MAX_OCEAN_TILES - game.board.getOceanSpaces().length);
+  const oceansLeft = Math.max(0, game.max.oceans - game.board.getOceanSpaces().length);
   if (free.length - 1 < oceansLeft) {
     return [];
   }

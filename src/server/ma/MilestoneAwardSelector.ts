@@ -69,6 +69,16 @@ const UNIFIED_POOL_EXCLUSIONS: ReadonlySet<string> = new Set<MilestoneName | Awa
   'Legend4', // -> Legend (5 events)
   'Tactician4', // -> Tactician (5 cards with requirements)
   'Pioneer4', // -> Pioneer (identical class)
+  'Merchant3', // -> Merchant (the same six standard resources, 3 of each instead of 2 — Amazonis Planitia's printed clone)
+]);
+
+// vize1215 fork: the milestones / awards that arrived with Amazonis Planitia's BASE adaptation (upstream fc8bd8e0e1,
+// 2026-11-06) — no RU name, no premium badge, no MarsBot row yet. No random mode offers them (the board's own set is not
+// dealt either — see the NONE branch); they join the pools with the board's full adaptation.
+const PENDING_ADAPTATION_MA: ReadonlySet<string> = new Set<MilestoneName | AwardName>([
+  'Merchant3',
+  'Innovator',
+  'Physicist',
 ]);
 
 // vize1215 fork: board-derived facts needed to avoid offering an unclaimable milestone in
@@ -194,6 +204,9 @@ export function getCandidates(gameOptions: GameOptions, context: MASelectionCont
     // Never include deprecated MAs in random candidates.  They generally have "more official" versions that will be
     // considered for inclusion.
     if (manifest.all[name].deprecated) {
+      return false;
+    }
+    if (PENDING_ADAPTATION_MA.has(name)) {
       return false;
     }
 

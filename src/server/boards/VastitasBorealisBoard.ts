@@ -5,7 +5,7 @@ import {Space} from './Space';
 import {BoardBuilder} from './BoardBuilder';
 import {Random} from '../../common/utils/Random';
 import {GameOptions} from '../game/GameOptions';
-import {MAX_TEMPERATURE, VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST} from '../../common/constants';
+import {VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST} from '../../common/constants';
 import {MarsBoard} from './MarsBoard';
 import type {IGame} from '../IGame';
 
@@ -46,7 +46,7 @@ export class VastitasBorealisBoard extends MarsBoard {
 
   public override spaceCosts(space: Space, game?: IGame): SpaceCosts {
     const costs = super.spaceCosts(space, game);
-    const stepPossible = game === undefined || game.getTemperature() < MAX_TEMPERATURE;
+    const stepPossible = game === undefined || game.getTemperature() < game.max.temperature;
     if (space.id === SpaceName.VASTITAS_BOREALIS_NORTH_POLE && stepPossible) {
       costs.megacredits = VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST;
       costs.tr.temperature = 1;

@@ -12,10 +12,9 @@ import {Resource} from '../../common/Resource';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {SpaceType} from '../../common/boards/SpaceType';
 import {BASE_OCEAN_TILES, CITY_TILES, GREENERY_TILES, OCEAN_TILES, TileType} from '../../common/TileType';
-import {
-  ALT_VENUS_MINIMUM_BONUS, MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MAX_VENUS_SCALE, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS,
-  TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2, TEMPERATURE_FOR_OCEAN_BONUS, VENUS_LEVEL_FOR_CARD_BONUS, VENUS_LEVEL_FOR_TR_BONUS,
-} from '../../common/constants';
+import {ALT_VENUS_MINIMUM_BONUS, TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2} from '../../common/constants';
+import {GlobalParameterTrackBonus, crossesTrackBonus} from '../boards/GlobalParameterTracks';
+import {venusLevelAfterSteps} from '../venusNext/venusScale';
 import {Behavior} from '../behavior/Behavior';
 import {PartyHooks} from '../turmoil/parties/PartyHooks';
 import {PartyName} from '../../common/turmoil/PartyName';
@@ -715,19 +714,25 @@ function scaleBonusPass(player: IPlayer, grants: ReadonlyArray<EffectForecastGra
   const extra: Array<EffectForecastGrant> = [];
   const cursor: Record<BonusScale, number> = {venus: game.getVenusScaleLevel(), oxygen: game.getOxygenLevel(), temperature: game.getTemperature()};
   const crosses = (from: number, to: number, threshold: number): boolean => from < threshold && to >= threshold;
+  // The MAP's track layout (`game.globalParameterTracks`, upstream b745cb9a00): Amazonis Planitia moves the oxygen
+  // step to 11 % and the Venus rating to 22 %. The reasons still name the classic values, and the larger board's own
+  // extra bonuses (7 % oxygen card, 16 % Venus colony, −12 °C plant) are not forecast yet — its full adaptation.
+  const tracks = game.globalParameterTracks;
+  const crossesBonus = (type: BonusScale, bonus: GlobalParameterTrackBonus, from: number, to: number): boolean =>
+    crossesTrackBonus(tracks, type, bonus, from, to);
   const visit = (scale: BonusScale, steps: number): void => {
     if (steps <= 0) {
       return;
     }
     const from = cursor[scale];
     if (scale === 'venus') {
-      const to = Math.min(MAX_VENUS_SCALE, from + steps * globalParameterStepSize('venus'));
+      const to = Math.min(game.max.venus, venusLevelAfterSteps(from, steps));
       cursor.venus = to;
       const source = ruleSource('Venus track bonus', player);
-      if (crosses(from, to, VENUS_LEVEL_FOR_CARD_BONUS) && !player.isMarsBot) {
+      if (crossesBonus('venus', 'drawcard', from, to) && !player.isMarsBot) {
         facts.push(forecast.exact(source, [drawGain(1)], 'Crossing 8 % Venus draws a card', {id: 'venus-card-bonus'}));
       }
-      if (crosses(from, to, VENUS_LEVEL_FOR_TR_BONUS)) {
+      if (crossesBonus('venus', 'tr', from, to)) {
         // …refused for a seat first by rating under the veto (RX42) — a named skip, no grant.
         if (ratingVetoed(player)) {
           facts.push(forecast.skipped(source, [trGain(player, 1)], 'Crossing 16 % Venus raises your TR a step', {id: 'venus-tr-bonus', note: 'Your terraform rating is the highest — the enacted resolution ignores the gain'}));
@@ -736,19 +741,19 @@ function scaleBonusPass(player: IPlayer, grants: ReadonlyArray<EffectForecastGra
           extra.push({kind: 'tr', amount: 1});
         }
       }
-      if (game.gameOptions.altVenusBoard && (Math.min(to, MAX_VENUS_SCALE) - Math.max(from, ALT_VENUS_MINIMUM_BONUS) > 0 || to >= MAX_VENUS_SCALE)) {
+      if (game.gameOptions.altVenusBoard && (Math.min(to, game.max.venus) - Math.max(from, ALT_VENUS_MINIMUM_BONUS) > 0 || to >= game.max.venus)) {
         facts.push(forecast.unknown(source, 'The alternate Venus track pays a bonus of your choice past 16 %'));
       }
       return;
     }
     if (scale === 'oxygen') {
-      const to = Math.min(MAX_OXYGEN_LEVEL, from + steps * globalParameterStepSize('oxygen'));
+      const to = Math.min(game.max.oxygen, from + steps * globalParameterStepSize('oxygen'));
       cursor.oxygen = to;
-      if (crosses(from, to, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS)) {
+      if (crossesBonus('oxygen', 'temperature', from, to)) {
         const source = ruleSource('Oxygen track bonus', player);
         const reason = 'Crossing 8 % oxygen raises the temperature a step';
         // The chip reads the temperature where the operation has already left it (a card raising both scales).
-        const chip: ActionEffect = {...globalGain(player, 'temperature', 1), current: cursor.temperature, resulting: Math.min(MAX_TEMPERATURE, cursor.temperature + globalParameterStepSize('temperature'))};
+        const chip: ActionEffect = {...globalGain(player, 'temperature', 1), current: cursor.temperature, resulting: Math.min(game.max.temperature, cursor.temperature + globalParameterStepSize('temperature'))};
         const grant = grantOfEffect(chip);
         if (grant === undefined) {
           facts.push(forecast.skipped(source, [chip], reason, {id: 'oxygen-temperature-bonus', note: 'The temperature is at its maximum'}));
@@ -760,7 +765,7 @@ function scaleBonusPass(player: IPlayer, grants: ReadonlyArray<EffectForecastGra
       }
       return;
     }
-    const to = Math.min(MAX_TEMPERATURE, from + steps * globalParameterStepSize('temperature'));
+    const to = Math.min(game.max.temperature, from + steps * globalParameterStepSize('temperature'));
     cursor.temperature = to;
     const source = ruleSource('Temperature track bonus', player);
     const heatSteps: ReadonlyArray<{threshold: number, reason: string, id: string}> = [
@@ -773,7 +778,7 @@ function scaleBonusPass(player: IPlayer, grants: ReadonlyArray<EffectForecastGra
         extra.push({kind: 'production', resource: Resource.HEAT, amount: 1});
       }
     }
-    if (crosses(from, to, TEMPERATURE_FOR_OCEAN_BONUS)) {
+    if (crossesBonus('temperature', 'ocean', from, to)) {
       const reason = 'Crossing 0 °C places an ocean tile';
       if (game.canAddOcean()) {
         facts.push(forecast.exact(source, [oceanGain(player, 1)], reason, {id: 'temperature-ocean-bonus', timing: 'after-card', note: 'Asked once the step is made'}));
@@ -858,7 +863,7 @@ export function tilesOfBranch(player: IPlayer, branch: ActionPreviewBranch, beha
   // the live `PlaceOceanTile` silently skips otherwise), and a two-ocean card
   // with one ocean left places ONE. The declarative walker already clamps its
   // step; this is the engine's own floor for a bespoke preview that does not.
-  let oceansLeft = Math.max(0, MAX_OCEAN_TILES - player.game.board.getOceanSpaces().length);
+  let oceansLeft = Math.max(0, player.game.max.oceans - player.game.board.getOceanSpaces().length);
   for (const step of branch.steps) {
     if (step.kind !== 'boardPlacement' || step.placementType === 'colony' || step.tileType === undefined) {
       continue;

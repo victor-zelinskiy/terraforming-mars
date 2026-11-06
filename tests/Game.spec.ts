@@ -920,6 +920,8 @@ describe('Game', () => {
       // is taken while it stands (WorldGovernmentAdvisor.spec § A10): a restart reloads the save from before the action.
       'worldGovernmentAct',
       'max',
+      // Derived from the board name at construction (upstream b745cb9a00) — never stored.
+      'globalParameterTracks',
     ];
     const serializedValuesNotInGame: Array<keyof SerializedGame> = [
       'seed',

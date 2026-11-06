@@ -45,6 +45,7 @@ import {
 } from '../../common/boards/BoardInformationFacts';
 import {Color} from '../../common/Color';
 import {SpaceId} from '../../common/Types';
+import {crossesTrackBonus} from './GlobalParameterTracks';
 
 /**
  * BoardInformationEngine — the read-only fact collector behind the premium
@@ -690,7 +691,7 @@ function contextualBonusFacts(player: IPlayer, bonus: SpaceBonus, count: number)
     if (divertsTerraforming(player)) {
       return undefined; // A standing law takes the step — its own fact family speaks for it.
     }
-    if (game.getTemperature() >= constants.MAX_TEMPERATURE) {
+    if (game.getTemperature() >= game.max.temperature) {
       return [{
         ...rule('printed-temperature-maxed', 'printed-placement-bonus', 'Raise temperature',
           'The temperature is already at its maximum — this cell bonus does nothing.', 'neutral'),
@@ -1131,10 +1132,10 @@ function terraformRatingFact(player: IPlayer, id: string, steps: number, reason:
 function oxygenRaiseFacts(player: IPlayer, idPrefix: string, steps = 1): Array<BoardFact> {
   const game = player.game;
   const current = game.getOxygenLevel();
-  if (current >= constants.MAX_OXYGEN_LEVEL) {
+  if (current >= game.max.oxygen) {
     return [];
   }
-  const applied = Math.min(steps, constants.MAX_OXYGEN_LEVEL - current);
+  const applied = Math.min(steps, game.max.oxygen - current);
   const resulting = current + applied;
   const out: Array<BoardFact> = [
     gainFact(`${idPrefix}-oxygen`, 'placement-effect', 'Raises oxygen',
@@ -1143,8 +1144,9 @@ function oxygenRaiseFacts(player: IPlayer, idPrefix: string, steps = 1): Array<B
   ];
   // The 8% bonus step. NOT gated on the solar phase — `increaseOxygenLevel`
   // raises the temperature outside its `phase !== SOLAR` block.
-  if (current < constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS &&
-      resulting >= constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS) {
+  // The map's own step (8 %; 11 % on Amazonis Planitia — `game.globalParameterTracks`). The note names the classic
+  // 8 %: the larger board's copy is part of its full adaptation.
+  if (crossesTrackBonus(game.globalParameterTracks, 'oxygen', 'temperature', current, resulting)) {
     out.push(chainNote(`${idPrefix}-oxygen-chain`, 'Oxygen bonus step',
       'Reaching 8% oxygen also raises the temperature one step.'));
     out.push(...temperatureRaiseFacts(player, `${idPrefix}-oxygen-bonus`, 1));
@@ -1167,10 +1169,10 @@ function oxygenRaiseFacts(player: IPlayer, idPrefix: string, steps = 1): Array<B
 function temperatureRaiseFacts(player: IPlayer, idPrefix: string, steps = 1): Array<BoardFact> {
   const game = player.game;
   const current = game.getTemperature();
-  if (current >= constants.MAX_TEMPERATURE) {
+  if (current >= game.max.temperature) {
     return [];
   }
-  const applied = Math.min(steps, (constants.MAX_TEMPERATURE - current) / 2);
+  const applied = Math.min(steps, (game.max.temperature - current) / 2);
   const resulting = current + applied * 2;
   const out: Array<BoardFact> = [
     gainFact(`${idPrefix}-temperature`, 'placement-effect', 'Raises temperature',

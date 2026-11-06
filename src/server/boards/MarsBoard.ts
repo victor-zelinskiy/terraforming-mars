@@ -16,7 +16,8 @@ import {Tile} from '../Tile';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {PlacementIllegalReason, PlacementIllegalSpace} from '../../common/inputs/PlacementIllegalReason';
 import * as constants from '../../common/constants';
-import {GlobalParameterMaximums} from '../IGame';
+import {GlobalParameterMaximums, getGlobalParameterMaximums} from '../../common/boards/GlobalParameterMaximums';
+import {BoardName} from '../../common/boards/BoardName';
 
 /**
  * The M€ an in-flight action has already earmarked, as the PLAYER would count it:
@@ -35,19 +36,14 @@ function committedMegacredits(player: IPlayer, canAffordOptions?: CanAffordOptio
 export class MarsBoard extends Board {
   private readonly edges: ReadonlyArray<Space>;
   private readonly edgeIds: ReadonlySet<SpaceId>;
-  public readonly max: GlobalParameterMaximums;
+  public readonly max: Readonly<GlobalParameterMaximums>;
 
   public constructor(
     spaces: ReadonlyArray<Space>,
     noctisCitySpaceId?: SpaceId | undefined,
-    max?: Partial<GlobalParameterMaximums>) {
+    max: Readonly<GlobalParameterMaximums> = getGlobalParameterMaximums(BoardName.THARSIS)) {
     super(spaces, noctisCitySpaceId);
-    this.max = {
-      temperature: max?.temperature ?? constants.MAX_TEMPERATURE,
-      oxygen: max?.oxygen ?? constants.MAX_OXYGEN_LEVEL,
-      oceans: max?.oceans ?? constants.MAX_OCEAN_TILES,
-      venus: max?.venus ?? constants.MAX_VENUS_SCALE,
-    };
+    this.max = max;
     this.edges = this.computeEdges();
     this.edgeIds = new Set(this.edges.map((space) => space.id));
   }
@@ -620,7 +616,7 @@ export class MarsBoard extends Board {
     if (space.bonus.includes(SpaceBonus.OCEAN) && game.canAddOcean()) {
       cost += constants.HELLAS_BONUS_OCEAN_COST;
     }
-    if (space.bonus.includes(SpaceBonus.TEMPERATURE_4MC) && game.getTemperature() < constants.MAX_TEMPERATURE) {
+    if (space.bonus.includes(SpaceBonus.TEMPERATURE_4MC) && game.getTemperature() < game.max.temperature) {
       cost += constants.VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST;
     }
     if (space.bonus.includes(SpaceBonus.COLONY)) {

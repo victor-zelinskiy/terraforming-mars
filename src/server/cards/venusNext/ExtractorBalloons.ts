@@ -7,7 +7,6 @@ import {OrOptions} from '../../inputs/OrOptions';
 import {effectChoice} from '../../inputs/choiceContext';
 import {SelectOption} from '../../inputs/SelectOption';
 import {CardName} from '../../../common/cards/CardName';
-import {MAX_VENUS_SCALE} from '../../../common/constants';
 import {LogHelper} from '../../LogHelper';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
@@ -66,7 +65,7 @@ export class ExtractorBalloons extends Card implements IActionCard {
 
   // Branch order MUST match action(): spend-floaters pushed first, add second.
   public actionPreview(player: IPlayer) {
-    const venusMaxed = player.game.getVenusScaleLevel() === MAX_VENUS_SCALE;
+    const venusMaxed = player.game.getVenusScaleLevel() >= player.game.max.venus;
     const canSpend = this.resourceCount >= 2 && !venusMaxed && player.canAfford({cost: 0, tr: {venus: 1}});
     return actionPreviews.orBranches(this, [
       {
@@ -88,7 +87,7 @@ export class ExtractorBalloons extends Card implements IActionCard {
   }
 
   public action(player: IPlayer) {
-    const venusMaxed = player.game.getVenusScaleLevel() === MAX_VENUS_SCALE;
+    const venusMaxed = player.game.getVenusScaleLevel() >= player.game.max.venus;
     const canAffordReds = player.canAfford({cost: 0, tr: {venus: 1}});
     if (this.resourceCount < 2 || venusMaxed || !canAffordReds) {
       player.addResourceTo(this, {log: true});

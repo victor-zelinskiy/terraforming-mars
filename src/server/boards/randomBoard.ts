@@ -1,6 +1,7 @@
 import {BoardName} from '../../common/boards/BoardName';
 import {RandomBoardOption} from '../../common/boards/RandomBoardOption';
 import {AUTOMA_SUPPORTED_BOARDS} from '../../common/automa/automaCompatibility';
+import {isBoardInPremiumScope} from '../../common/boards/boardPremiumScope';
 
 // Maps temporarily excluded from the "Random (all)" pool: their space bonuses are
 // tied to expansions this fork hasn't adapted yet. Drop an entry once that map's
@@ -13,10 +14,9 @@ import {AUTOMA_SUPPORTED_BOARDS} from '../../common/automa/automaCompatibility';
 // bonuses and its coves are in the premium scope (the dossier names a bonus no
 // card can hold before the press), and MarsBot plays the map on its own board.
 //
-// Amazonis Planitia (the official eleven-row board, upstream 900e758a78) joined on 2026-11-06 with its BASE adaptation
-// only: the engine plays it, the premium scope does not cover it yet (the larger scales, the board fit, MarsBot).
-// It leaves the list with its full adaptation.
-const RANDOM_ALL_EXCLUSIONS: ReadonlyArray<BoardName> = [BoardName.AMAZONIS_PLANITIA];
+// A board outside the premium scope (`BOARDS_PENDING_PREMIUM_ADAPTATION` — Amazonis Planitia since 2026-11-06) is
+// never drawn either: it is not on this list, the pool reads that one.
+const RANDOM_ALL_EXCLUSIONS: ReadonlyArray<BoardName> = [];
 
 /** Facts about the game being created that narrow a random pool. */
 export type RandomBoardContext = {
@@ -30,7 +30,7 @@ export function boardOptions(board: RandomBoardOption | BoardName, context: Rand
 
   let pool: Array<BoardName>;
   if (board === RandomBoardOption.ALL) {
-    pool = allBoards.filter((name) => !RANDOM_ALL_EXCLUSIONS.includes(name));
+    pool = allBoards.filter((name) => !RANDOM_ALL_EXCLUSIONS.includes(name) && isBoardInPremiumScope(name));
   } else if (board === RandomBoardOption.OFFICIAL) {
     pool = allBoards.filter((name) =>
       name === BoardName.THARSIS ||

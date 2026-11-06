@@ -6,10 +6,7 @@ import {GameOptions} from '../game/GameOptions';
 import {MarsBoard} from './MarsBoard';
 import {Turmoil} from '../turmoil/Turmoil';
 import {Space} from './Space';
-import {
-  MAX_TEMPERATURE,
-  VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST,
-} from '../../common/constants';
+import {VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST} from '../../common/constants';
 import {SpaceCosts} from './Board';
 import type {IGame} from '../IGame';
 
@@ -65,7 +62,7 @@ export class VastitasBorealisNovaBoard extends MarsBoard {
     const costs = super.spaceCosts(space, game);
     // The North Pole's step with the scale full charges nothing (`Game.grantSpaceBonus`), so it costs nothing to
     // stand on either — the cell stays legal for a player without 4 M€.
-    const stepPossible = game === undefined || game.getTemperature() < MAX_TEMPERATURE;
+    const stepPossible = game === undefined || game.getTemperature() < game.max.temperature;
     if (space.bonus.includes(SpaceBonus.TEMPERATURE_4MC) && stepPossible) {
       costs.megacredits = VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST;
       costs.tr.temperature = 1;

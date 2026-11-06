@@ -1,10 +1,5 @@
 import {BoardName} from '../../common/boards/BoardName';
-import {
-  HELLAS_BONUS_OCEAN_COST,
-  MAX_TEMPERATURE,
-  TERRA_CIMMERIA_COLONY_COST,
-  VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST,
-} from '../../common/constants';
+import {HELLAS_BONUS_OCEAN_COST, TERRA_CIMMERIA_COLONY_COST, VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST} from '../../common/constants';
 import {Resource} from '../../common/Resource';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {SpaceName} from '../../common/boards/SpaceName';
@@ -120,7 +115,7 @@ export function boardPrintsNorthPole(game: IGame): boolean {
  * the bot's «hex without rewards» while the law stands, exactly as on Hellas.
  */
 export function vastitasNorthPoleUsable(game: IGame, bot: IPlayer): boolean {
-  return game.getTemperature() < MAX_TEMPERATURE &&
+  return game.getTemperature() < game.max.temperature &&
     bot.megaCredits >= VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST &&
     !botDivertsTerraforming(game);
 }

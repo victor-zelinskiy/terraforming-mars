@@ -203,6 +203,7 @@ export class EcologicalExperiment extends Card implements IProjectCard {
       const room = tileRemovalRoom({tile: 'ocean', executor: 'first-player'}, {
         oceans: peak.oceans,
         removableOceans: game.board.getOceanSpaces({upgradedOceans: false}).length,
+        maxOceans: game.max.oceans,
       });
       if (room.atMax) {
         recordSkippedEffect(player, OCEANS_AT_MAX_NOT_LOWERED_REASON, skippedOceanRemoval());

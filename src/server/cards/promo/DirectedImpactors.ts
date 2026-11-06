@@ -8,7 +8,6 @@ import {Tag} from '../../../common/cards/Tag';
 import {IPlayer} from '../../IPlayer';
 import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
-import {MAX_TEMPERATURE} from '../../../common/constants';
 import {LogHelper} from '../../LogHelper';
 import {AddResourcesToCard, Options as AddResourceOptions} from '../../deferredActions/AddResourcesToCard';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
@@ -54,7 +53,7 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
     const cardHasResources = this.resourceCount > 0;
     const canPayForAsteroid = this.canPayForAsteroid(player);
 
-    if (player.game.getTemperature() === MAX_TEMPERATURE && cardHasResources) {
+    if (player.game.getTemperature() >= player.game.max.temperature && cardHasResources) {
       return true;
     }
     if (canPayForAsteroid) {
@@ -91,7 +90,7 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
     if (this.resourceCount === 0) {
       return false;
     }
-    const raiseIsWorthIt = player.game.getTemperature() !== MAX_TEMPERATURE &&
+    const raiseIsWorthIt = player.game.getTemperature() < player.game.max.temperature &&
       player.canAfford({cost: 0, tr: {temperature: 1}});
     return raiseIsWorthIt || !this.canPayForAsteroid(player);
   }
@@ -111,7 +110,7 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
         // One blocker, named — checked in the order the rule reads.
         unavailableReason: this.resourceCount === 0 ?
           actionReason.ruleReason('No asteroid on this card') :
-          (player.game.getTemperature() === MAX_TEMPERATURE ?
+          (player.game.getTemperature() >= player.game.max.temperature ?
             actionReason.ruleReason('Temperature is already maxed') :
             actionReason.ruleReason('Can\'t afford the Reds tax')),
       },

@@ -33,14 +33,26 @@ export const MIN_TEMPERATURE = -30;
 export const MIN_OXYGEN_LEVEL = 0;
 export const MIN_VENUS_SCALE = 0;
 export const MAX_VENUS_SCALE = 30;
+// Amazonis Planitia, the larger official board (upstream 3a2cd5ebf6 / 91a4605bd2) — read through
+// `getGlobalParameterMaximums(boardName)` / `game.max`, never directly.
+export const MAX_OCEAN_TILES_AMAZONIS = 11;
+export const MAX_TEMPERATURE_AMAZONIS = 14;
+export const MAX_OXYGEN_LEVEL_AMAZONIS = 18;
+// Above 30%, Venus moves 1% per step.
+export const MAX_VENUS_SCALE_AMAZONIS = 33;
 
 export const OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS = 8;
+export const OXYGEN_LEVEL_FOR_AMAZONIS_TEMPERATURE_BONUS = 11;
+export const OXYGEN_LEVEL_FOR_AMAZONIS_CARD_BONUS = 7;
 export const TEMPERATURE_FOR_OCEAN_BONUS = 0;
 export const VENUS_LEVEL_FOR_CARD_BONUS = 8;
 export const VENUS_LEVEL_FOR_TR_BONUS = 16;
 export const ALT_VENUS_MINIMUM_BONUS = 16;
 export const TEMPERATURE_BONUS_FOR_HEAT_1 = -24;
 export const TEMPERATURE_BONUS_FOR_HEAT_2 = -20;
+export const TEMPERATURE_BONUS_FOR_PLANT = -12;
+export const VENUS_LEVEL_FOR_AMAZONIS_COLONY_BONUS = 16;
+export const VENUS_LEVEL_FOR_AMAZONIS_TR_BONUS = 22;
 
 // Colonies
 export const MAX_COLONY_TRACK_POSITION = 6;

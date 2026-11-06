@@ -1,10 +1,8 @@
-import {
-  MAX_OCEAN_TILES,
-  MAX_OXYGEN_LEVEL,
-  MAX_TEMPERATURE,
-  MAX_VENUS_SCALE,
-  MIN_TEMPERATURE,
-} from '../constants';
+import {MIN_TEMPERATURE} from '../constants';
+import {GlobalParameterMaximums, getGlobalParameterMaximums} from '../boards/GlobalParameterMaximums';
+import {BoardName} from '../boards/BoardName';
+
+const STANDARD_MAXIMUMS = getGlobalParameterMaximums(BoardName.THARSIS);
 
 /**
  * The ONE shared "how terraformed is Mars" calculation, used by the console
@@ -48,10 +46,14 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
-export function terraformingProgress(input: TerraformingProgressInput): TerraformingProgress {
-  const temperature = clamp01((input.temperature - MIN_TEMPERATURE) / (MAX_TEMPERATURE - MIN_TEMPERATURE));
-  const oxygen = clamp01(input.oxygenLevel / MAX_OXYGEN_LEVEL);
-  const oceans = clamp01(input.oceans / MAX_OCEAN_TILES);
+/**
+ * `max` is the MAP's (`getGlobalParameterMaximums(boardName)` — Amazonis Planitia's tracks are longer); absent, the
+ * standard maximums every other map shares.
+ */
+export function terraformingProgress(input: TerraformingProgressInput, max: Readonly<GlobalParameterMaximums> = STANDARD_MAXIMUMS): TerraformingProgress {
+  const temperature = clamp01((input.temperature - MIN_TEMPERATURE) / (max.temperature - MIN_TEMPERATURE));
+  const oxygen = clamp01(input.oxygenLevel / max.oxygen);
+  const oceans = clamp01(input.oceans / max.oceans);
   const total = (temperature + oxygen + oceans) / 3;
   const complete = temperature >= 1 && oxygen >= 1 && oceans >= 1;
   const percent = complete ? 100 : Math.min(Math.round(total * 100), 99);
@@ -63,6 +65,6 @@ export function terraformingProgress(input: TerraformingProgressInput): Terrafor
  * shares one clamp/scale, but as a SEPARATE function: it can never leak
  * into the total above.
  */
-export function venusDisplayProgress(venusScaleLevel: number): number {
-  return clamp01(venusScaleLevel / MAX_VENUS_SCALE);
+export function venusDisplayProgress(venusScaleLevel: number, max: Readonly<GlobalParameterMaximums> = STANDARD_MAXIMUMS): number {
+  return clamp01(venusScaleLevel / max.venus);
 }

@@ -108,8 +108,11 @@ import {CorporationDeck, PreludeDeck, ProjectDeck, CeoDeck} from './cards/Deck';
 import {Logger} from './logs/Logger';
 import {addDays, stringToNumber} from './database/utils';
 import {Tag} from '../common/cards/Tag';
-import {AddTileOptions, CellBonusPaid, GlobalParameterMaximums, IGame, ParameterMoveOptions, Score, SpaceBonusGrant, TileMoveOrigin} from './IGame';
+import {AddTileOptions, CellBonusPaid, IGame, ParameterMoveOptions, Score, SpaceBonusGrant, TileMoveOrigin} from './IGame';
 import {MarsBoard} from './boards/MarsBoard';
+import {GlobalParameterMaximums} from '../common/boards/GlobalParameterMaximums';
+import {GlobalParameterThreshold, GlobalParameterTracks, getGlobalParameterTracks} from './boards/GlobalParameterTracks';
+import {venusLevelAfterSteps, venusStepsBetween} from './venusNext/venusScale';
 import {liftTopCity} from './boards/cityStack';
 import {buriedOceanOf, liftOcean} from './boards/cellPieces';
 import {buriedOceanUnder} from '../common/boards/cellPieces';
@@ -216,7 +219,8 @@ export class Game implements IGame, Logger {
   // bonus was passed during World Government terraforming (claimed by no one).
   // Public, additive — surfaced to every client so the claim shows for all.
   public scaleBonusClaims: Map<string, Color> = new Map();
-  public readonly max: GlobalParameterMaximums;
+  public readonly max: Readonly<GlobalParameterMaximums>;
+  public readonly globalParameterTracks: GlobalParameterTracks;
 
   // Player data
   public activePlayer: IPlayer;
@@ -347,6 +351,7 @@ export class Game implements IGame, Logger {
     this.ceoDeck = ceoDeck;
     this.board = board;
     this.max = board.max;
+    this.globalParameterTracks = getGlobalParameterTracks(gameOptions.boardName);
 
     this.players.forEach((player) => {
       player.setup(this);
@@ -829,7 +834,7 @@ export class Game implements IGame, Logger {
     const temperatureMaxed = this.temperature >= this.max.temperature;
     const oceansMaxed = !this.canAddOcean();
     let globalParametersMaxed = oxygenMaxed && temperatureMaxed && oceansMaxed;
-    const venusMaxed = this.getVenusScaleLevel() === constants.MAX_VENUS_SCALE;
+    const venusMaxed = this.getVenusScaleLevel() >= this.max.venus;
 
     MoonExpansion.ifMoon(this, (moonData) => {
       if (this.gameOptions.requiresMoonTrackCompletion) {
@@ -1498,7 +1503,7 @@ export class Game implements IGame, Logger {
     }
     const oceanSource: ChoiceContextSource = asker.source === 'card' ? {kind: 'card', card: asker.card} :
       asker.source === 'colony' ? {kind: 'colony', name: asker.colony} : {kind: 'system', name: WORLD_GOVERNMENT_SOURCE_NAME};
-    if (this.getTemperature() < constants.MAX_TEMPERATURE) {
+    if (this.getTemperature() < this.max.temperature) {
       orOptions.options.push(
         new SelectOption('Increase temperature', 'Increase')
           .annotate(GlobalParameter.TEMPERATURE)
@@ -1902,6 +1907,21 @@ export class Game implements IGame, Logger {
     }
   }
 
+  /**
+   * The thresholds of this MAP's `type` track a raise from `from` to `to` crosses (upstream b745cb9a00 —
+   * `GlobalParameterTracks.ts`): the standard maps share the classic layout, Amazonis Planitia's longer tracks print
+   * a richer set. The fork keeps its own grant code per bonus (MarsBot's substitutions, the rating attribution, the
+   * scale-bonus claims) and reads only WHICH bonuses the map prints and where.
+   */
+  private crossedTrackBonuses(type: keyof GlobalParameterTracks, from: number, to: number): ReadonlyArray<GlobalParameterThreshold> {
+    return this.globalParameterTracks[type].filter(({value}) => from < value && to >= value);
+  }
+
+  /** Every printed threshold of this map's `type` track — the claim registry's steps. */
+  private trackBonusSteps(type: keyof GlobalParameterTracks): Array<number> {
+    return this.globalParameterTracks[type].map(({value}) => value);
+  }
+
   // Record claims for every scale-bonus threshold an increase just crossed.
   private claimCrossedScaleBonuses(player: IPlayer, scale: 'venus' | 'oxygen' | 'temperature', from: number, to: number, steps: ReadonlyArray<number>, neutral = false): void {
     for (const step of steps) {
@@ -1918,7 +1938,7 @@ export class Game implements IGame, Logger {
         ParliamentHandler.divertTerraforming(player, {kind: 'parameter', parameter: GlobalParameter.OXYGEN, steps: increments})) {
       return undefined;
     }
-    if (this.oxygenLevel >= constants.MAX_OXYGEN_LEVEL) {
+    if (this.oxygenLevel >= this.max.oxygen) {
       return undefined;
     }
     const government = this.phase === Phase.SOLAR;
@@ -1945,7 +1965,12 @@ export class Game implements IGame, Logger {
     // Literal typing makes |increments| a const
     const steps = Math.min(increments, this.max.oxygen - this.oxygenLevel);
 
+    const oxygenBonuses = this.crossedTrackBonuses('oxygen', this.oxygenLevel, this.oxygenLevel + steps);
     if (rewarded) {
+      // Amazonis Planitia's 7 % card (upstream b745cb9a00). MarsBot has no hand — skipped, as the Venus 8 % card is.
+      if (oxygenBonuses.some(({bonus}) => bonus === 'drawcard') && !player.isMarsBot) {
+        player.drawCard(1, {source: {type: 'globalParameter', parameter: GlobalParameter.OXYGEN}});
+      }
       TurmoilHandler.onGlobalParameterIncrease(player, GlobalParameter.OXYGEN, steps);
       player.onGlobalParameterIncrease(GlobalParameter.OXYGEN, steps);
       player.increaseTerraformRating(steps, {global: true});
@@ -1958,9 +1983,9 @@ export class Game implements IGame, Logger {
     // «Each time the scale is terraformed» — outside the reward gate (see the Venus scale).
     this.globalParameterRaised(GlobalParameter.OXYGEN, steps, rewarded ? player : undefined,
       {before: this.oxygenLevel, after: this.oxygenLevel + steps});
-    if (this.oxygenLevel < constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS &&
-      this.oxygenLevel + steps >= constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS) {
-      if (player.isMarsBot && this.temperature >= constants.MAX_TEMPERATURE) {
+    // The temperature step printed on the oxygen track (8 %; 11 % on Amazonis Planitia).
+    if (oxygenBonuses.some(({bonus}) => bonus === 'temperature')) {
+      if (player.isMarsBot && this.temperature >= this.max.temperature) {
         // "If MarsBot increases the temperature or oxygen to a bonus step that
         // gives another terraforming action, it resolves that other terraforming
         // action immediately (taking a Failed Action if it cannot resolve it)."
@@ -1972,7 +1997,7 @@ export class Game implements IGame, Logger {
       }
     }
 
-    this.claimCrossedScaleBonuses(player, 'oxygen', this.oxygenLevel, this.oxygenLevel + steps, [constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS], !rewarded);
+    this.claimCrossedScaleBonuses(player, 'oxygen', this.oxygenLevel, this.oxygenLevel + steps, this.trackBonusSteps('oxygen'), !rewarded);
 
     this.oxygenLevel += steps;
     this.maybeLogMarsIsTerraformed();
@@ -2008,7 +2033,7 @@ export class Game implements IGame, Logger {
   }
 
   public increaseVenusScaleLevel(player: IPlayer, increments: -1 | 1 | 2 | 3, options?: ParameterMoveOptions): number {
-    if (this.venusScaleLevel >= constants.MAX_VENUS_SCALE) {
+    if (this.venusScaleLevel >= this.max.venus) {
       return 0;
     }
     const government = this.phase === Phase.SOLAR;
@@ -2017,9 +2042,10 @@ export class Game implements IGame, Logger {
     // PoliticalAgendas Reds P3 hook
     if (increments === -1) {
       const before = this.venusScaleLevel;
-      this.venusScaleLevel = Math.max(constants.MIN_VENUS_SCALE, this.venusScaleLevel + increments * 2);
+      // Above 30 % (Amazonis Planitia) a step is 1 %, below it 2 % — `venusScale.ts` (upstream 91a4605bd2).
+      this.venusScaleLevel = venusLevelAfterSteps(this.venusScaleLevel, increments);
       // The lowering, with its sign — see `increaseOxygenLevel`.
-      const lowered = (this.venusScaleLevel - before) / 2;
+      const lowered = venusStepsBetween(before, this.venusScaleLevel);
       if (lowered < 0) {
         this.events.recordGlobalParameterChange(rewarded ? player : undefined, GlobalParameter.VENUS, lowered);
       }
@@ -2027,11 +2053,12 @@ export class Game implements IGame, Logger {
     }
 
     // Literal typing makes |increments| a const
-    const steps = Math.min(increments, (this.max.venus - this.venusScaleLevel) / 2);
+    const steps = Math.min(increments, venusStepsBetween(this.venusScaleLevel, this.max.venus));
+    const venusAfter = venusLevelAfterSteps(this.venusScaleLevel, steps);
+    const venusBonuses = this.crossedTrackBonuses('venus', this.venusScaleLevel, venusAfter);
 
     if (rewarded) {
-      if (this.venusScaleLevel < constants.VENUS_LEVEL_FOR_CARD_BONUS &&
-        this.venusScaleLevel + steps * 2 >= constants.VENUS_LEVEL_FOR_CARD_BONUS) {
+      if (venusBonuses.some(({bonus}) => bonus === 'drawcard')) {
         // MarsBot has no hand — the official Automa material never grants the bot
         // the Venus 8% card-draw bonus (OQ-7 in docs/AUTOMA_DATA_AUDIT.md), so it is
         // skipped for it. The 16% TR bonus below applies normally ("per the
@@ -2044,8 +2071,12 @@ export class Game implements IGame, Logger {
           player.drawCard(1, {source: {type: 'globalParameter', parameter: GlobalParameter.VENUS}});
         }
       }
-      if (this.venusScaleLevel < constants.VENUS_LEVEL_FOR_TR_BONUS &&
-        this.venusScaleLevel + steps * 2 >= constants.VENUS_LEVEL_FOR_TR_BONUS) {
+      // Amazonis Planitia's 16 % colony (upstream b745cb9a00). MarsBot builds its colonies by its own rules — skipped.
+      if (venusBonuses.some(({bonus}) => bonus === 'colony') && !player.isMarsBot) {
+        this.defer(new BuildColony(player));
+      }
+      // The rating step printed on the track (16 %; 22 % on Amazonis Planitia).
+      if (venusBonuses.some(({bonus}) => bonus === 'tr')) {
         // The Venus 8% threshold TR bonus is a one-time effect, NOT a parameter
         // step — attribute it to "Cards & effects" (so it never leaks into the
         // clean base rating), not `{global: true}`.
@@ -2097,7 +2128,7 @@ export class Game implements IGame, Logger {
     // their kin answer HERE, OUTSIDE the reward gate: the World Government
     // and a resolution's world move terraform too (`globalParameterRaised`).
     this.globalParameterRaised(GlobalParameter.VENUS, steps, rewarded ? player : undefined,
-      {before: this.venusScaleLevel, after: this.venusScaleLevel + steps * 2});
+      {before: this.venusScaleLevel, after: venusAfter});
     // … and the BOT's own Aphrodite (C28), which is not a card in a tableau.
     // Deliberately HERE, beside its human twin's dispatch and OUTSIDE the SOLAR
     // guard above: both entities print one rule, and the printed «or the card
@@ -2107,11 +2138,11 @@ export class Game implements IGame, Logger {
     }
 
     const venusBonusSteps = this.gameOptions.altVenusBoard ?
-      [constants.VENUS_LEVEL_FOR_CARD_BONUS, constants.VENUS_LEVEL_FOR_TR_BONUS, 18, 20, 22, 24, 26, 28, 30] :
-      [constants.VENUS_LEVEL_FOR_CARD_BONUS, constants.VENUS_LEVEL_FOR_TR_BONUS];
-    this.claimCrossedScaleBonuses(player, 'venus', this.venusScaleLevel, this.venusScaleLevel + steps * 2, venusBonusSteps, !rewarded);
+      [...new Set([...this.trackBonusSteps('venus'), 18, 20, 22, 24, 26, 28, 30])] :
+      this.trackBonusSteps('venus');
+    this.claimCrossedScaleBonuses(player, 'venus', this.venusScaleLevel, venusAfter, venusBonusSteps, !rewarded);
 
-    this.venusScaleLevel += steps * 2;
+    this.venusScaleLevel = venusAfter;
     this.maybeLogMarsIsTerraformed();
 
     return steps;
@@ -2127,7 +2158,7 @@ export class Game implements IGame, Logger {
         ParliamentHandler.divertTerraforming(player, {kind: 'parameter', parameter: GlobalParameter.TEMPERATURE, steps: increments})) {
       return undefined;
     }
-    if (this.temperature >= constants.MAX_TEMPERATURE) {
+    if (this.temperature >= this.max.temperature) {
       return undefined;
     }
     const government = this.phase === Phase.SOLAR;
@@ -2146,26 +2177,21 @@ export class Game implements IGame, Logger {
 
     // Literal typing makes |increments| a const
     const steps = Math.min(increments, (this.max.temperature - this.temperature) / 2);
+    const temperatureBonuses = this.crossedTrackBonuses('temperature', this.temperature, this.temperature + steps * 2);
 
     if (rewarded) {
-      // BONUS FOR HEAT PRODUCTION AT -20 and -24
+      // BONUS FOR HEAT PRODUCTION AT -20 and -24 (and Amazonis Planitia's plant production at -12)
       // MarsBot has no production: "If MarsBot raises the temperature to a bonus
       // step that gives a heat production (-24 C and -20 C), MarsBot gains 2 MC
-      // instead of the heat bonus." (Automa rulebook p.9)
-      if (this.temperature < constants.TEMPERATURE_BONUS_FOR_HEAT_1 &&
-        this.temperature + steps * 2 >= constants.TEMPERATURE_BONUS_FOR_HEAT_1) {
-        if (player.isMarsBot) {
-          player.stock.add(Resource.MEGACREDITS, 2, {log: true});
-        } else {
-          player.production.add(Resource.HEAT, 1, {log: true});
+      // instead of the heat bonus." (Automa rulebook p.9) — the plant step takes the same substitution.
+      for (const {bonus} of temperatureBonuses) {
+        if (bonus !== 'heatproduction' && bonus !== 'plant') {
+          continue;
         }
-      }
-      if (this.temperature < constants.TEMPERATURE_BONUS_FOR_HEAT_2 &&
-        this.temperature + steps * 2 >= constants.TEMPERATURE_BONUS_FOR_HEAT_2) {
         if (player.isMarsBot) {
           player.stock.add(Resource.MEGACREDITS, 2, {log: true});
         } else {
-          player.production.add(Resource.HEAT, 1, {log: true});
+          player.production.add(bonus === 'plant' ? Resource.PLANTS : Resource.HEAT, 1, {log: true});
         }
       }
 
@@ -2190,7 +2216,7 @@ export class Game implements IGame, Logger {
     // where the World Government's phase leaves it: the ocean of 0 °C is placed
     // even by a move nobody is credited for (`unrewarded` is WGT parity, not a
     // stricter mode of its own).
-    if (this.temperature < constants.TEMPERATURE_FOR_OCEAN_BONUS && this.temperature + steps * 2 >= constants.TEMPERATURE_FOR_OCEAN_BONUS) {
+    if (temperatureBonuses.some(({bonus}) => bonus === 'ocean')) {
       if (player.isMarsBot) {
         // The bonus terraforming action resolves immediately for MarsBot — its
         // own deterministic placement, or a Failed Action when no ocean is left
@@ -2209,7 +2235,7 @@ export class Game implements IGame, Logger {
     }
 
     this.claimCrossedScaleBonuses(player, 'temperature', this.temperature, this.temperature + steps * 2,
-      [constants.TEMPERATURE_BONUS_FOR_HEAT_1, constants.TEMPERATURE_BONUS_FOR_HEAT_2, constants.TEMPERATURE_FOR_OCEAN_BONUS], !rewarded);
+      this.trackBonusSteps('temperature'), !rewarded);
 
     this.temperature += steps * 2;
     this.maybeLogMarsIsTerraformed();
@@ -2232,6 +2258,7 @@ export class Game implements IGame, Logger {
       temperature: this.temperature,
       oceans: this.board.getOceanSpaces().length,
       venusScaleLevel: this.gameOptions.venusNextExtension ? this.venusScaleLevel : undefined,
+      boardName: this.gameOptions.boardName,
     };
   }
 
@@ -3092,7 +3119,7 @@ export class Game implements IGame, Logger {
       return {kind: 'other'};
     case SpaceBonus.TEMPERATURE_4MC:
       // …and the Vastitas step likewise: the replacing law takes the step the ceiling would refuse.
-      if (this.getTemperature() < constants.MAX_TEMPERATURE || ParliamentHandler.divertsTerraforming(player)) {
+      if (this.getTemperature() < this.max.temperature || ParliamentHandler.divertsTerraforming(player)) {
         this.defer(new SelectPaymentDeferred(
           player,
           constants.VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST,

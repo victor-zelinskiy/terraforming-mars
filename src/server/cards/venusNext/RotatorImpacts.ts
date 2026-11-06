@@ -5,7 +5,6 @@ import {IPlayer} from '../../IPlayer';
 import {CardResource} from '../../../common/CardResource';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
-import {MAX_VENUS_SCALE} from '../../../common/constants';
 import {CardName} from '../../../common/cards/CardName';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {cardSource, effectChoice} from '../../inputs/choiceContext';
@@ -56,7 +55,7 @@ export class RotatorImpacts extends Card implements IActionCard {
   }
 
   public canAct(player: IPlayer): boolean {
-    if (player.game.getVenusScaleLevel() === MAX_VENUS_SCALE) {
+    if (player.game.getVenusScaleLevel() >= player.game.max.venus) {
       this.addWarning('maxvenus');
     }
     return this.canAddResource(player) || this.canSpendResource(player);

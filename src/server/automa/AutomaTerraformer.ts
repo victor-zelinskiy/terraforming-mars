@@ -1,4 +1,3 @@
-import * as constants from '../../common/constants';
 import {AutomaCorporations} from './corps/AutomaCorporations';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {IGame} from '../IGame';
@@ -30,7 +29,7 @@ export class AutomaTerraformer {
     if (divertBotRaise(game, GlobalParameter.TEMPERATURE, 1)) {
       return;
     }
-    if (game.getTemperature() >= constants.MAX_TEMPERATURE) {
+    if (game.getTemperature() >= game.max.temperature) {
       failedAction(game, 'temperature-maxed');
       return;
     }

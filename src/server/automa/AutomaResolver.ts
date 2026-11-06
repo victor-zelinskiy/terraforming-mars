@@ -1,4 +1,3 @@
-import * as constants from '../../common/constants';
 import {CardType} from '../../common/cards/CardType';
 import {CardResource} from '../../common/CardResource';
 import {GlobalParameter} from '../../common/GlobalParameter';
@@ -373,7 +372,7 @@ export class AutomaResolver {
     if (AutomaCorporations.replacesParameterRaise(game, GlobalParameter.VENUS)) {
       return;
     }
-    if (game.getVenusScaleLevel() >= constants.MAX_VENUS_SCALE) {
+    if (game.getVenusScaleLevel() >= game.max.venus) {
       failedAction(game, 'venus-maxed');
       return;
     }

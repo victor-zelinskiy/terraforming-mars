@@ -1,4 +1,6 @@
 import {MaPrice} from '../common/ma/MaPrice';
+import {GlobalParameterMaximums} from '../common/boards/GlobalParameterMaximums';
+import {GlobalParameterTracks} from './boards/GlobalParameterTracks';
 import {MarsBoard} from './boards/MarsBoard';
 import {CardName} from '../common/cards/CardName';
 import {ClaimedMilestone} from './milestones/ClaimedMilestone';
@@ -138,13 +140,6 @@ export type AddTileOptions = {
    */
   printedBonusMultiplier?: number,
 };
-/** The maximum values of the global parameters. */
-export interface GlobalParameterMaximums {
-  readonly temperature: number;
-  readonly oxygen: number;
-  readonly oceans: number;
-  readonly venus: number;
-}
 
 export interface IGame extends Logger {
   readonly id: GameId;
@@ -417,7 +412,10 @@ export interface IGame extends Logger {
   getVenusScaleLevel(): number;
   increaseTemperature(player: IPlayer, increments: -2 | -1 | 1 | 2 | 3, options?: ParameterMoveOptions): undefined;
   getTemperature(): number;
-  readonly max: GlobalParameterMaximums;
+  /** The global parameters' maximums on this map (`board.max`) — Amazonis Planitia's are larger. */
+  readonly max: Readonly<GlobalParameterMaximums>;
+  /** The bonuses printed along this map's temperature, oxygen and Venus tracks (`GlobalParameterTracks.ts`). */
+  readonly globalParameterTracks: GlobalParameterTracks;
   getGeneration(): number;
   getPassedPlayers():ReadonlyArray<Color>;
   /**

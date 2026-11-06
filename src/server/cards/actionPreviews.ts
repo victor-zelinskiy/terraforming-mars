@@ -16,7 +16,9 @@ import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
 import {TileType} from '../../common/TileType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
-import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS, TEMPERATURE_FOR_OCEAN_BONUS} from '../../common/constants';
+import {MIN_TEMPERATURE} from '../../common/constants';
+import {crossesTrackBonus} from '../boards/GlobalParameterTracks';
+import {venusLevelAfterSteps} from '../venusNext/venusScale';
 import {parameterRoom} from '../../common/parliament/parameterMove';
 import {altVenusBonusFor} from '../../common/venus/altVenusBonus';
 import {tileRemovalRoom} from '../../common/parliament/tileRemoval';
@@ -185,10 +187,12 @@ export function trGain(player: IPlayer, amount: number): ActionEffect {
   return {direction: 'gain', icon: 'tr', amount, current: player.terraformRating, resulting: player.terraformRating + amount};
 }
 
+// The maximum is the MAP's (`game.max` — Amazonis Planitia's tracks are longer), and Venus above 30 % moves 1 % per
+// step there (`venusScale.ts`), so `step` is the size of a step BELOW that ceiling.
 const GLOBAL_META = {
-  oxygen: {step: 1, min: 0, max: MAX_OXYGEN_LEVEL, unit: '%', get: (p: IPlayer) => p.game.getOxygenLevel()},
-  temperature: {step: 2, min: MIN_TEMPERATURE, max: MAX_TEMPERATURE, unit: '°C', get: (p: IPlayer) => p.game.getTemperature()},
-  venus: {step: 2, min: 0, max: MAX_VENUS_SCALE, unit: '%', get: (p: IPlayer) => p.game.getVenusScaleLevel()},
+  oxygen: {step: 1, min: 0, max: (p: IPlayer) => p.game.max.oxygen, unit: '%', get: (p: IPlayer) => p.game.getOxygenLevel()},
+  temperature: {step: 2, min: MIN_TEMPERATURE, max: (p: IPlayer) => p.game.max.temperature, unit: '°C', get: (p: IPlayer) => p.game.getTemperature()},
+  venus: {step: 2, min: 0, max: (p: IPlayer) => p.game.max.venus, unit: '%', get: (p: IPlayer) => p.game.getVenusScaleLevel()},
 } as const;
 
 /**
@@ -205,8 +209,8 @@ export function globalParameterStepSize(parameter: 'oxygen' | 'temperature' | 'v
 export function globalGain(player: IPlayer, parameter: 'oxygen' | 'temperature' | 'venus', steps: number): ActionEffect {
   const m = GLOBAL_META[parameter];
   const cur = m.get(player);
-  const delta = steps * m.step;
-  const chip: ActionEffect = {direction: delta >= 0 ? 'gain' : 'cost', icon: parameter, amount: Math.abs(delta), current: cur, resulting: clampValue(cur + delta, m.min, m.max), unit: m.unit};
+  const delta = parameter === 'venus' ? venusLevelAfterSteps(cur, steps) - cur : steps * m.step;
+  const chip: ActionEffect = {direction: delta >= 0 ? 'gain' : 'cost', icon: parameter, amount: Math.abs(delta), current: cur, resulting: clampValue(cur + delta, m.min, m.max(player)), unit: m.unit};
   return parameter === 'venus' ? {...chip, ...altVenusBonusMark(player.game, steps)} : chip;
 }
 /**
@@ -228,7 +232,7 @@ export function altVenusBonusMark(game: IPlayer['game'], steps: number): {altVen
  */
 export function oceanGain(player: IPlayer, amount: number): ActionEffect {
   const current = player.game.board.getOceanSpaces().length;
-  return {direction: 'gain', icon: 'oceans', amount, current, resulting: Math.min(MAX_OCEAN_TILES, current + amount)};
+  return {direction: 'gain', icon: 'oceans', amount, current, resulting: Math.min(player.game.max.oceans, current + amount)};
 }
 /** The chip's own word that a phase begins here — the printed «THEN» of a card whose formula has two halves (TR47). */
 export const THEN_PHASE = 'Then';
@@ -290,28 +294,28 @@ export function parameterSwingTail(player: IPlayer, raise: ParameterSwingRaise):
   let plainOceans = game.board.getOceanSpaces({upgradedOceans: false}).length;
   let rating = 0;
   const placeOcean = (): void => {
-    if (oceans < MAX_OCEAN_TILES) {
+    if (oceans < game.max.oceans) {
       oceans++;
       plainOceans++;
       rating++;
     }
   };
   const raiseTemperature = (steps: number): void => {
-    for (let i = 0; i < steps && temperature < MAX_TEMPERATURE; i++) {
+    for (let i = 0; i < steps && temperature < game.max.temperature; i++) {
       const from = temperature;
       temperature += 2;
       rating++;
-      if (from < TEMPERATURE_FOR_OCEAN_BONUS && temperature >= TEMPERATURE_FOR_OCEAN_BONUS) {
+      if (crossesTrackBonus(game.globalParameterTracks, 'temperature', 'ocean', from, temperature)) {
         placeOcean();
       }
     }
   };
   raiseTemperature(raise.temperature);
-  for (let i = 0; i < raise.oxygen && oxygenLevel < MAX_OXYGEN_LEVEL; i++) {
+  for (let i = 0; i < raise.oxygen && oxygenLevel < game.max.oxygen; i++) {
     const from = oxygenLevel;
     oxygenLevel++;
     rating++;
-    if (from < OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS && oxygenLevel >= OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS) {
+    if (crossesTrackBonus(game.globalParameterTracks, 'oxygen', 'temperature', from, oxygenLevel)) {
       raiseTemperature(1);
     }
   }
@@ -332,7 +336,7 @@ export function parameterSwingTail(player: IPlayer, raise: ParameterSwingRaise):
       ...(atMax ? {note: STAYS_AT_MAXIMUM_NOTE} : {}),
     };
   };
-  const oceanRoom = tileRemovalRoom({tile: 'ocean', executor: 'first-player'}, {oceans, removableOceans: plainOceans});
+  const oceanRoom = tileRemovalRoom({tile: 'ocean', executor: 'first-player'}, {oceans, removableOceans: plainOceans, maxOceans: game.max.oceans});
   const oceanChip: ActionEffect = oceanRoom.removes ?
     {direction: 'cost', icon: 'oceans', amount: 1, current: oceans, resulting: oceans - 1, note: REMOVE_ANY_OCEAN_NOTE} :
     {direction: 'cost', icon: 'oceans', amount: 1, current: oceans, resulting: oceans, ...(oceanRoom.atMax ? {note: STAYS_AT_MAXIMUM_NOTE} : {})};

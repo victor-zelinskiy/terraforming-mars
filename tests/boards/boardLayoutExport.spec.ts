@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {buildBoardLayout, buildBoardLayouts} from '../../src/server/boards/boardLayoutExport';
 import {BoardName} from '../../src/common/boards/BoardName';
+import {isBoardInPremiumScope} from '../../src/common/boards/boardPremiumScope';
 import {SpaceType} from '../../src/common/boards/SpaceType';
 
 /**
@@ -14,7 +15,7 @@ describe('boardLayoutExport', () => {
 
   it('exports every board with the full 61-hex Mars silhouette', () => {
     const layouts = buildBoardLayouts();
-    for (const name of Object.values(BoardName)) {
+    for (const name of Object.values(BoardName).filter(isBoardInPremiumScope)) {
       const layout = layouts[name];
       expect(layout, name).to.not.be.undefined;
       expect(layout.length, name).to.eq(61);

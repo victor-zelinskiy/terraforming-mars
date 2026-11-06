@@ -8,6 +8,7 @@ import {chooseMilestonesAndAwards, getCandidates} from '../../src/server/ma/Mile
 import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../src/server/game/GameOptions';
 import {RandomMAOptionType} from '../../src/common/ma/RandomMAOptionType';
 import {BoardName} from '../../src/common/boards/BoardName';
+import {isBoardInPremiumScope} from '../../src/common/boards/boardPremiumScope';
 import {MilestoneName} from '../../src/common/ma/MilestoneName';
 import {AwardName} from '../../src/common/ma/AwardName';
 import {intersection} from '../../src/common/utils/utils';
@@ -75,9 +76,13 @@ describe('Retired milestones / awards (Lobbyist, Politician)', function() {
   });
 
   it('no board set and no expansion set names a retired MA', () => {
+    // A board outside the premium scope keeps its PRINTED set (Amazonis Planitia's Lobbyist) and never deals it — the
+    // selector draws the pool for it (MilestoneAwardSelector). Its full adaptation names the replacement and leaves
+    // `BOARDS_PENDING_PREMIUM_ADAPTATION`, and this guard then holds it too.
+    const inScope = ([board]: [string, unknown]) => isBoardInPremiumScope(board as BoardName);
     const sets: Array<[string, ReadonlyArray<string>]> = [
-      ...Object.entries(milestoneManifest.boards).map(([board, names]): [string, ReadonlyArray<string>] => [`milestones of ${board}`, names]),
-      ...Object.entries(awardManifest.boards).map(([board, names]): [string, ReadonlyArray<string>] => [`awards of ${board}`, names]),
+      ...Object.entries(milestoneManifest.boards).filter(inScope).map(([board, names]): [string, ReadonlyArray<string>] => [`milestones of ${board}`, names]),
+      ...Object.entries(awardManifest.boards).filter(inScope).map(([board, names]): [string, ReadonlyArray<string>] => [`awards of ${board}`, names]),
       ...Object.entries(milestoneManifest.expansions).map(([e, names]): [string, ReadonlyArray<string>] => [`milestones of ${e}`, names]),
       ...Object.entries(awardManifest.expansions).map(([e, names]): [string, ReadonlyArray<string>] => [`awards of ${e}`, names]),
     ];

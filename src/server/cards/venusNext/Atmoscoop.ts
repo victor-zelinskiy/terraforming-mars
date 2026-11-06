@@ -17,6 +17,7 @@ import {globalParameter} from '../../inputs/optionMetadata';
 import {ActionPreview, ActionPreviewStep, ActionEffect} from '../../../common/models/ActionPreviewModel';
 import {stepsForBehavior} from '../../models/actionPreview';
 import * as actionPreviews from '../actionPreviews';
+import {venusLevelAfterSteps} from '../../venusNext/venusScale';
 
 export class Atmoscoop extends Card implements IProjectCard {
   constructor() {
@@ -93,14 +94,14 @@ export class Atmoscoop extends Card implements IProjectCard {
     const tempNow = game.getTemperature();
     const venusNow = game.getVenusScaleLevel();
     const increaseTemp = new SelectOption('Raise temperature 2 steps', 'Raise temperature')
-      .withMetadata(globalParameter('temperature', 2, tempNow, Math.min(constants.MAX_TEMPERATURE, tempNow + 4), '°C'))
+      .withMetadata(globalParameter('temperature', 2, tempNow, Math.min(player.game.max.temperature, tempNow + 4), '°C'))
       .andThen(() => {
         game.increaseTemperature(player, 2);
         LogHelper.logTemperatureIncrease(player, 2);
         return undefined;
       });
     const increaseVenus = new SelectOption('Raise Venus 2 steps', 'Raise Venus')
-      .withMetadata(globalParameter('venus', 2, venusNow, Math.min(constants.MAX_VENUS_SCALE, venusNow + 4), '%'))
+      .withMetadata(globalParameter('venus', 2, venusNow, Math.min(player.game.max.venus, venusLevelAfterSteps(venusNow, 2)), '%'))
       .andThen(() => {
         game.increaseVenusScaleLevel(player, 2);
         LogHelper.logVenusIncrease(player, 2);

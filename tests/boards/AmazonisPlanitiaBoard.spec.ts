@@ -10,9 +10,9 @@ import {Board} from '@/server/boards/Board';
 import {Game} from '@/server/Game';
 import {testGame} from '../TestGame';
 import {IGame} from '@/server/IGame';
-import {TestPlayer} from '@tests/TestPlayer';
+import {TestPlayer} from '../TestPlayer';
 import {cast, toID} from '@/common/utils/utils';
-import {setTemperature, setOxygenLevel, maxOutOceans} from '@tests/TestingUtils';
+import {setTemperature, setOxygenLevel, maxOutOceans} from '../TestingUtils';
 
 describe('AmazonisPlanitiaBoard', () => {
   it('sanity test', () => {
@@ -127,7 +127,7 @@ describe('AmazonisPlanitiaBoard', () => {
     expect(board.max.oceans).to.eq(11);
     expect(board.max.temperature).to.eq(14);
     expect(board.max.oxygen).to.eq(18);
-    expect(board.max.venus).to.eq(30);
+    expect(board.max.venus).to.eq(33);
   });
 
   it('serialize/deserialize round-trip', () => {

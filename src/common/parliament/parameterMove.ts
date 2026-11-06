@@ -21,11 +21,11 @@
  * client (the vote reading, the sitting's stage, the results, the stand). No
  * i18n, no DOM: every label is the reader's.
  */
-import {
-  MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MAX_VENUS_SCALE,
-  MIN_OXYGEN_LEVEL, MIN_TEMPERATURE, MIN_VENUS_SCALE,
-  OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS, TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2, TEMPERATURE_FOR_OCEAN_BONUS,
-} from '../constants';
+import {MIN_OXYGEN_LEVEL, MIN_TEMPERATURE, MIN_VENUS_SCALE} from '../constants';
+import {BoardName} from '../boards/BoardName';
+import {getGlobalParameterMaximums} from '../boards/GlobalParameterMaximums';
+import {crossesTrackBonus, getGlobalParameterTracks} from '../boards/GlobalParameterTracks';
+import {venusLevelAfterSteps, venusStepsBetween} from '../venus/venusScale';
 
 /** Every global parameter a resolution can move — the winner's tile moves two of them, a world move any. */
 export type ParameterMoveId = 'oxygen' | 'oceans' | 'venus' | 'temperature';
@@ -54,6 +54,11 @@ export type ParameterTable = {
   oceans: number;
   /** Absent in a game without Venus Next — a Venus move is then simply impossible. */
   venusScaleLevel?: number;
+  /**
+   * The MAP — its maximums and its track bonuses (Amazonis Planitia's tracks are longer and print more, upstream
+   * 3a2cd5ebf6 / b745cb9a00). Absent: the standard layout every other map shares.
+   */
+  boardName?: BoardName;
 };
 
 /** How big ONE step of a parameter is on its own scale (Venus and temperature move 2 per step). */
@@ -63,12 +68,13 @@ export function parameterStepSize(parameter: ParameterMoveId): number {
 
 export type ParameterBounds = {min: number; max: number};
 
-export function parameterBounds(parameter: ParameterMoveId): ParameterBounds {
+export function parameterBounds(parameter: ParameterMoveId, boardName: BoardName = BoardName.THARSIS): ParameterBounds {
+  const max = getGlobalParameterMaximums(boardName);
   switch (parameter) {
-  case 'oxygen': return {min: MIN_OXYGEN_LEVEL, max: MAX_OXYGEN_LEVEL};
-  case 'oceans': return {min: 0, max: MAX_OCEAN_TILES};
-  case 'venus': return {min: MIN_VENUS_SCALE, max: MAX_VENUS_SCALE};
-  case 'temperature': return {min: MIN_TEMPERATURE, max: MAX_TEMPERATURE};
+  case 'oxygen': return {min: MIN_OXYGEN_LEVEL, max: max.oxygen};
+  case 'oceans': return {min: 0, max: max.oceans};
+  case 'venus': return {min: MIN_VENUS_SCALE, max: max.venus};
+  case 'temperature': return {min: MIN_TEMPERATURE, max: max.temperature};
   }
 }
 
@@ -120,18 +126,24 @@ export type ParameterRoom = {
  */
 export function parameterRoom(move: {parameter: ParameterMoveId; steps: number}, table: ParameterTable): ParameterRoom {
   const {parameter, steps} = move;
-  const {min, max} = parameterBounds(parameter);
+  const {min, max} = parameterBounds(parameter, table.boardName);
   const current = parameterValue(parameter, table);
   const size = parameterStepSize(parameter);
-  const room = steps >= 0 ? (max - current) / size : (current - min) / size;
+  // Venus above 30 % (Amazonis Planitia) moves 1 % per step — the engine's own arithmetic (`venusScale.ts`).
+  const room = parameter === 'venus' ?
+    (steps >= 0 ? venusStepsBetween(current, max) : venusStepsBetween(min, current)) :
+    (steps >= 0 ? (max - current) / size : (current - min) / size);
   // `+ 0` normalises the negative zero a clamped lowering produces: a reading
   // that prints «−0» and an `Object.is` comparison in a spec both deserve 0.
   const applied = (steps >= 0 ? Math.min(steps, Math.floor(room)) : -Math.min(-steps, Math.floor(room))) + 0;
-  const resulting = current + applied * size;
+  const resulting = parameter === 'venus' ? venusLevelAfterSteps(current, applied) : current + applied * size;
   // The temperature track's own thresholds — crossed only by a RAISE (a lowering re-arms them; the engine
-  // claims each once): the two heat-production steps and the ocean of 0 °C.
+  // claims each once): the heat-production steps and the ocean of 0 °C, as THIS map prints them.
+  const tracks = getGlobalParameterTracks(table.boardName ?? BoardName.THARSIS);
   const raisesTemperature = parameter === 'temperature' && applied > 0;
+  const heatSteps = tracks.temperature.filter(({bonus}) => bonus === 'heatproduction').map(({value}) => value);
   const crosses = (threshold: number): boolean => raisesTemperature && current < threshold && resulting >= threshold;
+  const maxima = getGlobalParameterMaximums(table.boardName ?? BoardName.THARSIS);
   return {
     parameter,
     current,
@@ -143,10 +155,10 @@ export function parameterRoom(move: {parameter: ParameterMoveId; steps: number},
     atLimit: applied === 0,
     resulting,
     temperatureBonus: parameter === 'oxygen' && applied > 0 &&
-      current < OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS && resulting >= OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS &&
-      table.temperature < MAX_TEMPERATURE,
-    heatProductionBonus: [TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2].filter(crosses).length,
-    oceanBonus: crosses(TEMPERATURE_FOR_OCEAN_BONUS) && table.oceans < MAX_OCEAN_TILES,
+      crossesTrackBonus(tracks, 'oxygen', 'temperature', current, resulting) &&
+      table.temperature < maxima.temperature,
+    heatProductionBonus: heatSteps.filter(crosses).length,
+    oceanBonus: raisesTemperature && crossesTrackBonus(tracks, 'temperature', 'ocean', current, resulting) && table.oceans < maxima.oceans,
   };
 }
 

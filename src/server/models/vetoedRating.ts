@@ -42,7 +42,6 @@
 import {IPlayer} from '../IPlayer';
 import {ActionEffect, ActionPreview, ActionPreviewBranch, ActionPreviewStep, VetoedRatingMark} from '../../common/models/ActionPreviewModel';
 import {ActionFutilityVerdict} from '../../common/models/ActionFutilityModel';
-import {MAX_OXYGEN_LEVEL} from '../../common/constants';
 import {REDUX_GREENERY_TILE_TR} from '../../common/parliament/winnerReward';
 import {NET_PHASE, isWorldGovernmentMove} from '../cards/actionPreviews';
 import {highestOtherRating, ratingVetoed, ratingVetoLaw} from '../parliament/ratingVetoGate';
@@ -84,7 +83,7 @@ export function tileRatingEvents(player: IPlayer, kind: 'greenery' | 'ocean'): A
   if (kind === 'ocean') {
     return [1];
   }
-  const oxygen = player.game.getOxygenLevel() < MAX_OXYGEN_LEVEL ? [1] : [];
+  const oxygen = player.game.getOxygenLevel() < player.game.max.oxygen ? [1] : [];
   return player.game.parliament === undefined ? oxygen : [...oxygen, REDUX_GREENERY_TILE_TR];
 }
 

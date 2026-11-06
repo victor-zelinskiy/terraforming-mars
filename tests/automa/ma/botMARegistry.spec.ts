@@ -23,8 +23,13 @@ const OUT_OF_SCOPE: ReadonlyMap<string, string> = new Map([
   ['Risktaker', 'Underworld'], ['Tunneler', 'Underworld'], ['Excavator', 'Underworld'], ['Kingpin', 'Underworld'],
 ]);
 
-/** Names still waiting for a bot rule — EMPTY since stage 2 of the framework; a new manifest name lands here never. */
-const PENDING: ReadonlySet<string> = new Set();
+/**
+ * Names still waiting for a bot rule — EMPTY since stage 2 of the framework, until Amazonis Planitia's BASE adaptation
+ * (2026-11-06) brought its printed newcomers: no random mode offers them and no board deals them yet
+ * (`PENDING_ADAPTATION_MA` in MilestoneAwardSelector), so no bot can meet them. Their rows land with the board's full
+ * adaptation — then this list is empty again.
+ */
+const PENDING: ReadonlySet<string> = new Set(['Merchant3', 'Innovator', 'Physicist']);
 
 /** The ONE honest zero (decision R5). */
 const ZERO: ReadonlySet<string> = new Set(['Entrepreneur']);

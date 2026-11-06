@@ -1,4 +1,3 @@
-import * as constants from '../../common/constants';
 import {AutomaTerraformer} from './AutomaTerraformer';
 import {castBotVote} from './AutomaPolitics';
 import {BonusCardId} from '../../common/automa/AutomaTypes';
@@ -62,9 +61,9 @@ export type BonusCardOutcome = 'discard' | 'destroy' | 'return-to-deck';
  */
 export function advanceFurthestMartianParameter(game: IGame): boolean {
   const bot = marsBotOf(game);
-  const oxygenLeft = constants.MAX_OXYGEN_LEVEL - game.getOxygenLevel();
-  const oceansLeft = constants.MAX_OCEAN_TILES - game.board.getOceanSpaces().length;
-  const temperatureLeft = (constants.MAX_TEMPERATURE - game.getTemperature()) / 2;
+  const oxygenLeft = game.max.oxygen - game.getOxygenLevel();
+  const oceansLeft = game.max.oceans - game.board.getOceanSpaces().length;
+  const temperatureLeft = (game.max.temperature - game.getTemperature()) / 2;
   const most = Math.max(oxygenLeft, oceansLeft, temperatureLeft);
   if (most <= 0) {
     return false;
@@ -805,7 +804,7 @@ function governmentIntervention(game: IGame): BonusCardOutcome {
   const savedPhase = game.phase;
   game.phase = Phase.SOLAR;
   try {
-    const venusComplete = game.getVenusScaleLevel() >= constants.MAX_VENUS_SCALE;
+    const venusComplete = game.getVenusScaleLevel() >= game.max.venus;
     const raiseMartian = game.generation % 2 === 0 || venusComplete;
     // The review shows this ONE trigger branch, not the card's full rule text;
     // the effect (Temperature / Venus +1) is the flow's own consequence line.
@@ -813,7 +812,7 @@ function governmentIntervention(game: IGame): BonusCardOutcome {
     if (raiseMartian && advanceFurthestMartianParameter(game)) {
       return 'discard';
     }
-    if (game.getVenusScaleLevel() < constants.MAX_VENUS_SCALE &&
+    if (game.getVenusScaleLevel() < game.max.venus &&
         !AutomaCorporations.replacesParameterRaise(game, GlobalParameter.VENUS)) {
       game.increaseVenusScaleLevel(bot, 1);
       game.log('${0} raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(1));

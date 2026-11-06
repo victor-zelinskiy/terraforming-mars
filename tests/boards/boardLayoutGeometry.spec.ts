@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {buildBoardLayout} from '../../src/server/boards/boardLayoutExport';
 import {BoardName} from '../../src/common/boards/BoardName';
+import {isBoardInPremiumScope} from '../../src/common/boards/boardPremiumScope';
 import {
   MINI_HEX_R,
   MINI_HEX_W,
@@ -24,7 +25,8 @@ describe('boardLayoutGeometry — the miniature grid mapping', () => {
   const EPS = 1e-6;
 
   it('every row of every board is centred on ONE axis (the big-board relation)', () => {
-    for (const name of Object.values(BoardName)) {
+    // A board outside the premium scope (the eleven-row Amazonis Planitia) has no miniature yet — its full adaptation.
+    for (const name of Object.values(BoardName).filter(isBoardInPremiumScope)) {
       const layout = buildBoardLayout(name);
       const rowMid = new Map<number, number>();
       for (let y = 0; y < MINI_ROWS.length; y++) {
@@ -75,7 +77,7 @@ describe('boardLayoutGeometry — the miniature grid mapping', () => {
   });
 
   it('every cell of every board sits fully inside its own bounds (nothing overflows the frame)', () => {
-    for (const name of Object.values(BoardName)) {
+    for (const name of Object.values(BoardName).filter(isBoardInPremiumScope)) {
       const layout = buildBoardLayout(name);
       const b = miniLayoutBounds(layout);
       for (const s of layout) {
