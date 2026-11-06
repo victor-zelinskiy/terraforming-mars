@@ -122,7 +122,7 @@ for (const profile of PROFILES) {
       const board = await page.evaluate(() => ({
         captions: document.querySelector('#board_legend')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
         markers: Array.from(document.querySelectorAll('.special-cell-marker')).map((m) =>
-          Array.from(m.classList).find((c) => /^board-space-\d+$/.test(c)) ?? '?').filter((c) => !/^board-space-0[12]$/.test(c)).sort(),
+          Array.from(m.classList).find((c) => /^board-space-c?\d+$/.test(c)) ?? '?').filter((c) => !/^board-space-c0[12]$/.test(c)).sort(),
         coves: document.querySelectorAll('.board-space-type-cove, .board-space-type-volcanic-cove').length,
       }));
       console.log('── the board ──', JSON.stringify(board));

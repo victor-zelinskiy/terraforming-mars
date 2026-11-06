@@ -287,7 +287,7 @@ test.describe('Colonization Funding · standard-1080', () => {
     const wire = await fetchPlayerModel(request, playerId) as unknown as Wire;
     const mine = wire.game.parliament.phase?.outcomes?.find((o) => o.player === wire.thisPlayer.color);
     expect(mine).toMatchObject({kind: 'production', amount: 6, count: 2, influence: 3, uncapped: 7});
-    expect(mine?.countedSpaces).toEqual(['01', '02']);
+    expect(mine?.countedSpaces).toEqual(['c01', 'c02']);
     expect(wire.thisPlayer.megacreditProduction).toBe(9);
 
     // ── A card that asks nothing: the results follow the wave; at rest the reading says «received».

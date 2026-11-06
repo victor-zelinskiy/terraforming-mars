@@ -78,7 +78,7 @@ for (const profile of PROFILES) {
         return {
           captions: document.querySelector('#board_legend')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
           markers: Array.from(document.querySelectorAll('.special-cell-marker')).map((m) =>
-            Array.from(m.classList).find((c) => /^board-space-\d+$/.test(c)) ?? '?').sort(),
+            Array.from(m.classList).find((c) => /^board-space-c?\d+$/.test(c)) ?? '?').sort(),
           pole: el === null || el === undefined ? undefined : getComputedStyle(el).backgroundImage,
         };
       }, NORTH_POLE);
@@ -87,7 +87,7 @@ for (const profile of PROFILES) {
       expect(board.captions, 'no legacy SVG caption is left on this map').not.toMatch(/Mons|Fossae|Pole/);
       // The two off-Mars colony cells (01, 02) carry their global markers on every map; on the SURFACE exactly the
       // four volcanoes and the pole do.
-      const surfaceMarkers = board.markers.filter((m) => !/^board-space-0[12]$/.test(m));
+      const surfaceMarkers = board.markers.filter((m) => !/^board-space-c0[12]$/.test(m));
       expect(surfaceMarkers, 'exactly the four volcanoes and the pole carry a marker').toEqual(MARKERS.map((id) => `board-space-${id}`));
       expect(board.pole, 'the North Pole prints its premium plate').toBeDefined();
       expect(board.pole!).toContain('bonus_temperature-4mc');

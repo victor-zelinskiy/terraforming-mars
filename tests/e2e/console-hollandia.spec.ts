@@ -146,7 +146,7 @@ test.describe(`Hollandia (fan map) · ${PROFILE.id}`, () => {
     const board = await page.evaluate(() => ({
       captions: document.querySelector('#board_legend')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
       markers: Array.from(document.querySelectorAll('.special-cell-marker')).map((m) =>
-        Array.from(m.classList).find((c) => /^board-space-\d+$/.test(c)) ?? '?').filter((c) => !/^board-space-0[12]$/.test(c)).sort(),
+        Array.from(m.classList).find((c) => /^board-space-c?\d+$/.test(c)) ?? '?').filter((c) => !/^board-space-c0[12]$/.test(c)).sort(),
     }));
     const layers = await zoneLayers(page);
     console.log('── the field ──', JSON.stringify(board), JSON.stringify(layers.map((l) => `${l.id}${l.covered ? '*' : ''}`)));
