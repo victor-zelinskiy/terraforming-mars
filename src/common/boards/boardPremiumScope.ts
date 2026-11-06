@@ -11,7 +11,8 @@ import {BoardName} from './BoardName';
  *
  * Amazonis Planitia — the official eleven-row board (upstream 900e758a78 and its chain), base-adapted 2026-11-06:
  * its larger scales (+14 °C, 18 % oxygen, 11 oceans, Venus to 33 % in 1 % steps above 30), the 91-hex render
- * (upstream 27db80e67e — not taken), the standard-resource cell face and its printed set's retired Lobbyist are the
+ * (upstream 27db80e67e — not taken, nor its art: the fork's scales are dynamic), the standard-resource cell face, Alt
+ * Venus on the 33 % track and its printed set's retired Lobbyist (→ Activist, the owner's word) are the
  * full adaptation's.
  */
 export const BOARDS_PENDING_PREMIUM_ADAPTATION: ReadonlyArray<BoardName> = [

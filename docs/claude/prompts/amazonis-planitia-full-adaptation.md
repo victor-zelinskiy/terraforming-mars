@@ -1,75 +1,170 @@
-# Промт исполнителю · Amazonis Planitia — полная премиум-адаптация большой (11-рядной) карты
+# Промт исполнителю · Amazonis Planitia — ФАЗА 1: премиум-адаптация большой (11-рядной) карты, без MarsBot
 
-Выдан 2026-11-06. **Базовая адаптация СДАНА** (синк апстрима, окно `369c76aded..19e09fe8e6`, раздел G
-`docs/UPSTREAM_DEFERRED_WORKLIST.md`). Движок играет карту, её правила держатся, партию можно создать через API — но
-карта стоит в `BOARDS_PENDING_PREMIUM_ADAPTATION` (`src/common/boards/boardPremiumScope.ts`): создатель её не
-предлагает, случайные пулы её не тянут, премиум-гарды её освобождают. **Задача этого промта** — провести карту через
-КАЖДУЮ поверхность console native и снять её с этого списка. Процедура — `docs/claude/expansion-adaptation-checklist.md`
-в части «карта»; эталон уже сделанной фан-карты — `marsbot-map-profiles` (Hollandia / Arabia Terra), правило аудита:
-«в премиум-скоупе» = каждая механика карты сыграна e2e на НАСТОЯЩЕЙ доске, а не заявлена.
+Выдан 2026-11-06, переписан по слову владельца в тот же день. **Базовая адаптация СДАНА** (синк апстрима, окно
+`369c76aded..19e09fe8e6`, раздел G `docs/UPSTREAM_DEFERRED_WORKLIST.md`): движок играет карту, её правила держатся,
+партию можно создать через API. Карта стоит в `BOARDS_PENDING_PREMIUM_ADAPTATION`
+(`src/common/boards/boardPremiumScope.ts`): создатель её не предлагает, случайные пулы не тянут, премиум-гарды
+освобождают.
+
+**Задача — ФАЗА 1:** провести карту через КАЖДУЮ поверхность console native так, чтобы она была премиум-картой наравне
+с Tharsis, и снять её с этого списка. **MarsBot в эту фазу НЕ входит** — карта остаётся вне `AUTOMA_SUPPORTED_BOARDS`,
+бот на ней не играет. ФАЗА 2 (отдельный промт после сдачи этой) — MarsBot: свой планшет бота с увеличенными треками,
+его баланс, профиль карты. Ничего в фазе 1 не должно предрешать решения фазы 2.
+
+Это **комплексная и вдумчивая** адаптация ПРЕМИУМ-ПОДАЧИ, а не «чтобы рендерилось». Мерило — игрок на 4K-ТВ с геймпадом
+с дивана: всё читается без усилия, ничего не скроллится, каждое событие поля проигрывается нашими анимациями и
+объясняется нашими поверхностями. Перед работой прочитать: `CLAUDE.md` (North star, «A workspace is one flow»,
+инварианты 15–17), `docs/CONSOLE_MODE_CONCEPT.md`, `.claude/rules/console-ui.md`, `.claude/rules/board.md`,
+`.claude/rules/animations.md`, `docs/claude/expansion-adaptation-checklist.md` (часть «карта»). Эталоны прошлых карт —
+память `marsbot-map-profiles` (Hollandia, Arabia Terra); правило аудита оттуда же: **«в премиум-скоупе» = каждая
+механика карты сыграна e2e на НАСТОЯЩЕЙ доске, а не заявлена.**
+
+## Решения владельца (не пересматривать)
+
+1. **Никакой апстримной картинки поля.** `mars-large.png` апстрима НЕ берём (из репозитория уже удалены): шкалы у нас
+   рисуются ДИНАМИЧЕСКИ, а `assets/board/mars.webp` уже высокодетализированный. Апстримный рендер `27db80e67e`
+   (`board--large`, перепроекция циферблатов с картинки) — только как справка о геометрии 91 гекса, не как образец.
+2. **Масштаб гексов — максимальный.** Расширенное поле (11 рядов, 91 гекс) должно сохранить гексы ПРЕДЕЛЬНО крупными —
+   допустимо, что крайние гексы слегка выходят за край диска Марса; главное — читаемость с ТВ (бонусы, тайлы, маркеры,
+   владелец, курсор). Не «втиснуть 91 гекс в старый круг», а построить раскладку, где гекс почти не теряет в размере
+   против Tharsis. Цифры зафиксировать (размер гекса на 4K в обоих случаях) и закрепить спеком/e2e-зондом.
+3. **Шкалы масштабируются.** Температура до +14 °C, кислород до 18 %, 11 океанов, Venus до 33 % (выше 30 % шаг 1 %) —
+   динамические дуги и счётчики удлиняются и остаются читаемыми; ни одна шкала не обрезана, не сжата до мусора и не
+   наезжает на гексы / HUD.
+4. **Alt Venus СОВМЕСТИМ — обязательно.** Апстрим объявил Alt Venus несовместимым с картой (предупреждение
+   `8424b2e87e`) — для нас это неприемлемо: у нас почти всегда играют с включённым Alt Venus. Совместимость нужно
+   СПРОЕКТИРОВАТЬ и довести до конца (см. пункт 4 worklist'а).
+5. **Lobbyist → Activist.** В печатном наборе карты веха Lobbyist (у нас retired — FAQ Redux) заменяется на
+   **Activist**.
 
 ## Что уже есть (не переписывать — опираться)
 
-- **Доска**: `src/server/boards/AmazonisPlanitiaBoard.ts` (91 гекс, `TILES_PER_ROW = [6…11…6]`, A9-метки строк A–L без
-  I, вулканы E1/H7/H9/J8/K7), `BoardBuilder` / `MarsBoard.computeEdges` обобщены за пределы 9 рядов (`65ba6147fa`).
-  Колониальные клетки — id с префиксом `c` (`c01`, `c69`…`c80`, вкл. наши Nova City `c79` и Aurora Station `c80`),
-  миграция старых сейвов в `GameSetup.migrateColonySpaceIds` + `ColonyDeserializer` (хостовые `Colony.tiles`).
+- **Доска**: `src/server/boards/AmazonisPlanitiaBoard.ts` (91 гекс, ряды `[6…11…6]`, A9-метки A–L без I, вулканы
+  E1/H7/H9/J8/K7). `BoardBuilder` / `MarsBoard.computeEdges` обобщены за 9 рядов. Колониальные клетки — id с
+  префиксом `c` (`c01`, `c69`…`c80`, вкл. наши Nova City `c79`, Aurora Station `c80`); миграция старых сейвов —
+  `GameSetup.migrateColonySpaceIds` + `ColonyDeserializer`. ⚠ Mars-клетки большой доски занимают id `03`…`93` — те же
+  классы `.board-space-NN`, что у стандартной раскладки (`board_items_positions.less`, `console.less`): раскладка
+  большой доски должна жить под СВОИМ классом-областью, не переопределяя стандартную.
 - **Глобальные параметры карты** (`src/common/boards/GlobalParameterMaximums.ts`, `GlobalParameterTracks.ts`,
-  `src/common/venus/venusScale.ts`): `game.max` = +14 °C, 18 % O₂, 11 океанов, Venus 33 % (выше 30 % — шаг 1 %).
-  Бонусы треков — `game.globalParameterTracks`: −12 °C → +1 произв. растений, 7 % O₂ → карта, 11 % O₂ → шаг
-  температуры, 16 % Venus → колония, 22 % Venus → РТ. Выдачу делает НАШ код `Game.increase*` (MarsBot-замены, атрибуция
-  РТ, претензии шкал `scaleBonusClaims`). Спеки: `tests/boards/AmazonisPlanitiaTracks.spec.ts` (апстримные).
-- **Серверные читатели уже переведены** на карту: превью (`actionPreviews`, `actionPreview`, `Executor`-метаданные),
-  `effectForecast` (пороги — по таблице карты), `BoardInformationEngine` (цепочка O₂→температура), Парламент
-  (`parameterMove` / `tileRemoval` принимают `boardName` / `maxOceans`), WGA, Turmoil-бамп РТ, MarsBot-хелперы,
-  `terraformingProgress(input, max)`.
-- **Бонус клетки «стандартный ресурс»** (`SpaceBonus.STANDARD_RESOURCE`): выбор `SelectResource` после размещения;
-  реакции карт — `ICard.onStandardResourcePlacementBonus` (Mining Guild, Solar Farm, Geological/Ecological Survey,
-  Specialized Settlement), Mining Rights/Area и Boom Town принимают такую клетку.
-- **Регионы вех/наград** — по геометрии доски (`board.isSouthern / isPolar / isEquatorial`), статики MarsBot — 9-рядные.
-- **Правила**: две делегата на H7 (классический Turmoil; Redux уже ставил все), +1 поколение в стандартном соло,
-  45 подземных жетонов на карте (Underworld), `SpaceModel.a9` с сервера, арт `assets/board/mars-large*.png`.
+  `src/common/venus/venusScale.ts`): `game.max`, `game.globalParameterTracks`. Бонусы треков карты: −12 °C → +1
+  произв. растений, 7 % O₂ → карта, 11 % O₂ → шаг температуры, 16 % Venus → колония, 22 % Venus → РТ. Выдачу делает НАШ
+  `Game.increase*` (атрибуция РТ, претензии `scaleBonusClaims`). Спеки: `tests/boards/AmazonisPlanitiaTracks.spec.ts`.
+- **Серверные читатели уже на карте**: превью (`actionPreviews`, `actionPreview`, `Executor`), `effectForecast`
+  (пороги — по таблице карты), `BoardInformationEngine` (цепочка O₂→температура), Парламент (`parameterMove`
+  принимает `boardName`, `tileRemoval` — `maxOceans`), WGA, Turmoil-бамп РТ, `terraformingProgress(input, max)`.
+- **Бонус клетки «стандартный ресурс»** (`SpaceBonus.STANDARD_RESOURCE`, 3 клетки: E3, E9, K3): `SelectResource`
+  после размещения; реакции карт — `ICard.onStandardResourcePlacementBonus` (Mining Guild, Solar Farm,
+  Geological/Ecological Survey, Specialized Settlement); Mining Rights/Area и Boom Town принимают такую клетку.
+- **Регионы вех/наград** — по геометрии доски (`board.isSouthern / isPolar / isEquatorial`).
+- **Правила**: две делегата на H7, +1 поколение в стандартном соло, `SpaceModel.a9` с сервера.
+- **Вехи/награды**: Merchant3 / Innovator / Physicist в манифесте, RU есть («Новатор», «Физик», описание Merchant3);
+  исключены из всех пулов (`PENDING_ADAPTATION_MA`), в реестре бота — `PENDING`. Пока Lobbyist в наборе, карта тянет
+  общий пул (ветка NONE `MilestoneAwardSelector`).
 
-## Что сделать (worklist)
+## Worklist фазы 1
 
-1. **Рендер большой доски в консоли.** Апстримный `27db80e67e` («Render the larger board» — `board--large`,
-   LESS-цикл позиций 91 гекса, перепроекция циферблатов, Venus 31–33, сдвиг колониальных клеток) НЕ взят: наша доска
-   (`Board.vue` в `ConsoleBoardSection` через `GameBoardView`, `src/styles/board*.less`, `console.less` — позиции
-   `.board-space-cNN` флангов) живёт по своим правилам. Фит под 4K-ТВ, без скролла (цель 1 CLAUDE.md), курсор доски и
-   навигация паддом по 11 рядам (`placementCursorStart.ts` и соседи), A9-метки на клиенте (клиентская половина
-   `17c0acbd5a`: `spacesById`, `BoardSpace` / журнал читают `space.a9` вместо `common/boards/spaces.ts`).
-2. **Увеличенные шкалы** — клиент читает максимумы из `getGlobalParameterMaximums(boardName)`, НЕ из констант.
-   Сейчас константы в: `ConsoleStatusStrip.vue`, `consoleActionCommit.ts`, `consoleGovernmentSupport.ts`,
-   `scaleStepReward/scaleStepRatingBeat.ts`, `scaleStepReward/venusBonusCellBeat.ts`, `GlobalParameterValue.vue`;
-   вызовы без карты: `terraformingProgress` / `venusDisplayProgress` (`ConsoleStatusStrip`,
-   `gameProgress/terraformingCelebration.ts`), `parameterRoom` (`parliament/worldMoveModel.ts` — передать
-   `boardName`), `tileRemovalRoom` (`parliament/tileRemovalModel.ts` — `maxOceans`). Шкала Venus 31–33 % — шаг 1 %
-   (`venusScale.ts` из common). Новые пороговые бонусы треков — их ячейки/маркеры/претензии на шкалах и в сцене награды
-   шага (`scaleStepReward`). Апстрим `201e359e18` — график конца игры по максимумам карты.
-3. **Прогноз/превью новых бонусов треков** — `effectForecast.scaleBonusPass` пока не прогнозирует 7 % карту, 16 %
-   колонию и −12 °C растения, а причины («Crossing 8 % oxygen…», «16 % Venus») называют классические значения; то же в
-   заметке `BoardInformationEngine` («Reaching 8% oxygen…»). Новые английские ключи + RU (не переписывать чужие).
-4. **Клетка «стандартный ресурс»** — премиум-лицо: иконка портрета клетки (`Bonus.vue`), спрайт доски (`board.less`),
-   «история посадки» (гард `tests/boards/cellBonusFaceCoverage.spec.ts` её назовёт, как только карта уйдёт из списка),
-   досье клетки (`BoardInformationEngine` / `specialCellInfo.ts`), choice-context у промпта выбора ресурса (кто спросил —
-   клетка, как `cellGiver()` у колонии MSL), превью Solar Farm / Mining Card / Survey на такой клетке (сейчас — 0, пока
-   игрок не выбрал), миниатюра (сейчас нейтральный «?» в `boardMiniatureArt.ts`).
-5. **Создатель** — карта в `createGameMeta.ts` (официальная, с акцентом), миниатюра 11 рядов (`boardLayoutGeometry` —
-   `MINI_ROWS` фиксирован на 9; гарды `boardLayoutExport` / `boardLayoutGeometry` её назовут), предупреждение «Alt Venus
-   + Amazonis Planitia» (апстрим `8424b2e87e` — у нас нет `validateNewGameConfig`, сделать в консольном создателе).
-6. **Вехи/награды** — печатный набор `['Terran5', 'Landshaper', 'Merchant3', 'Sponsor', 'Lobbyist']` /
-   `['Collector', 'Innovator', 'Constructor', 'Manufacturer', 'Physicist']`. **Lobbyist у нас RETIRED** (Redux FAQ) —
-   решение ВЛАДЕЛЬЦА о замене (Redux-аналог), до тех пор `MilestoneAwardSelector` тянет для карты общий пул (ветка
-   NONE). Merchant3 / Innovator / Physicist: исключены из всех пулов (`PENDING_ADAPTATION_MA`), в реестре бота —
-   `PENDING` (`tests/automa/ma/botMARegistry.spec.ts`): строки `botMARules.ts`, премиум-бейджи (апстрим `9b24651245` —
-   только как плейсхолдеры, конвейер `docs/claude/ma-premium-icons-worklist.md`), RU уже есть (Новатор, Физик,
-   описание Merchant3). Terran5 / Landshaper — `random: 'modular'` (апстрим расширял до `both`).
-7. **MarsBot** — профиль карты (`MarsBotMapProfile`, `AUTOMA_SUPPORTED_BOARDS`), тайбрейкеры (апстрим `d443cfe7ec` —
-   сверить), бот на длинных треках (его выдачи за 7 % / 16 % / −12 °C: сейчас карта и колония пропускаются, растения —
-   2 M€ как теплo), `AutomaNearBonusPush` уже читает таблицу карты.
-8. **Снять карту с `BOARDS_PENDING_PREMIUM_ADAPTATION`** → гарды назовут оставшееся; e2e на НАСТОЯЩЕЙ доске
-   (снапшот → бокс, `npm run e2e:remote`): посадка на «стандартный ресурс» с выбором, 7 % / 11 % / 16 % / 22 %,
-   Venus 31→33, делегаты H7, 11-й океан, конец партии на +14 °C.
+### 1. ПОЛЕ: раскладка 91 гекса — максимальный масштаб, ТВ-читаемость
+- Раскладка большой доски в `Board.vue` (рендерится в консоли через `ConsoleBoardSection` → `GameBoardView`): своя
+  класс-область, позиции 91 гекса считаются от геометрии (ряды разной длины, общий центр) — не табличкой «на глаз».
+- Масштаб гекса — решение №2: замерить гекс Tharsis на 4K-профиле (`tv`), целиться в ≈ тот же размер; поле может
+  слегка выходить за диск `mars.webp`. Проверить фит на ВСЕХ профилях консоли (`tv`, 1080p, 720p e2e) — без скролла,
+  без наезда на рельсы HUD, стрип, фланги колоний.
+- Внешние клетки (колонии, фланг Venus, Aurora `c80`, Nova City хостовая) отодвинуть от большого поля и удлинённых шкал
+  конструктивно (гард `tests/console/offMarsCellPlacement.spec.ts` — «flank is a construction, never a nudge»).
+- Курсор доски и навигация паддом по 11 рядам (`placementCursorStart.ts` и соседи), подсветка легальных клеток,
+  фокус-камера/зум (`planetFocus`), «показать на карте» из журнала, A9-метки на клиенте (клиентская половина
+  `17c0acbd5a`: читать `space.a9` вместо `common/boards/spaces.ts`).
+- Названия мест (Olympus Mons H7, Ascraeus Mons H9, Pavonis Mons J8, Arsia Mons K7, Hecates Tholus E1) — в нашей
+  системе особых клеток (`specialCellInfo.ts`, маркеры/досье), а не надписями-картинками.
+
+### 2. ШКАЛЫ: динамические дуги на удлинённых треках
+- `src/client/components/board/arcScaleConfigs.ts` — таблицы точек дуг сейчас заданы для Venus 0–30, O₂ 0–14,
+  температуры −30…+8; `OceanArcScale.vue` — 9 океанов. Нужны дуги до 33 / 18 / +14 / 11, построенные так, чтобы
+  шаги оставались различимыми (Venus 31–33 — шаг 1 %), а шкалы — читаемыми на ТВ и не наезжали на увеличенное поле.
+- `scaleBonusZones.ts` — якоря порогов сейчас ЗАШИТЫ (`t-heat-24`, `o-temp-8`, `v-tr-16`, `v30-final`…): брать их из
+  `getGlobalParameterTracks(boardName)` (src/common), включая новые бонусы карты (−12 °C растения, 7 % карта, 11 %
+  температура, 16 % колония, 22 % РТ); претензии (`scaleBonusClaimState.ts`), маркеры-чипы
+  (`ArcScaleMarkerChip.vue`, `BonusZone.vue`), угрозы Ares на шкалах (`aresThresholdMarkers.ts`).
+- Клиентские читатели констант максимумов → `getGlobalParameterMaximums(boardName)`: `ConsoleStatusStrip.vue`,
+  `consoleActionCommit.ts`, `consoleGovernmentSupport.ts`, `scaleStepReward/scaleStepRatingBeat.ts`,
+  `scaleStepReward/venusBonusCellBeat.ts`, `GlobalParameterValue.vue`; вызовы без карты:
+  `terraformingProgress` / `venusDisplayProgress` (`ConsoleStatusStrip`, `gameProgress/terraformingCelebration.ts`),
+  `parameterRoom` (`parliament/worldMoveModel.ts` — передать `boardName`), `tileRemovalRoom`
+  (`parliament/tileRemovalModel.ts` — `maxOceans`). Апстрим `201e359e18` — график конца игры по максимумам карты.
+- Сцена награды шага (`scaleStepReward`) для КАЖДОГО нового порога: что получил игрок, откуда прилетело, куда легло
+  (физическая причинность, CLAUDE.md), с удержаниями анимации, а не таймерами.
+
+### 3. ВСЕ БОНУСЫ РЕАЛЬНО РАБОТАЮТ — и проигрываются нашими анимациями и реакциями поля
+Пройти КАЖДЫЙ вид бонуса, напечатанный на карте (сталь, титан, растения, карты, энергия, делегаты, «стандартный
+ресурс», океанские клетки с бонусами, вулканы), и каждый новый бонус трека — на живой партии:
+- выдача правильная (сервер) и видна в журнале типизированными токенами;
+- **поле реагирует**: досье клетки и превью размещения (`BoardInformationEngine`, `placementPreviews`), причины
+  недоступности, «история посадки» тайла (сцена посадки / reveal / board beat), монеты/жетоны летят из клетки в
+  рельсу, претензии и маркеры шкал, нотификации;
+- **«стандартный ресурс»**: выбор ресурса — в нашей подаче (choice-context: кто спросил — клетка, как `cellGiver()`
+  у колонии MSL; встраивается в текущий воркспейс/сцену посадки, не модалкой из ниоткуда), выбранный ресурс летит из
+  клетки; реакции карт (Mining Guild +1 произв. стали, Solar Farm, Surveys, Specialized Settlement) показаны как
+  срабатывания карт (`withEffect`, оверлей ЭФФЕКТЫ — статистика «за партию»); превью Mining Card / Solar Farm / Survey
+  на такой клетке честно называют выбор («стали или титана — на выбор»), а не 0;
+- **прогноз** (`effectForecast.scaleBonusPass`): прогнозировать 7 % карту, 16 % колонию, −12 °C растения; причины
+  сейчас называют классические значения («Crossing 8 % oxygen…», «16 % Venus», заметка `BoardInformationEngine`
+  «Reaching 8% oxygen…») — новые английские ключи с порогом карты + RU (не переписывать чужие ключи);
+- две делегата H7 (Парламент Redux), 11-й океан и конец партии на +14 °C, Venus 31→33.
+Гард `tests/boards/cellBonusFaceCoverage.spec.ts` назовёт недостающие лица бонусов, как только карта уйдёт из
+`BOARDS_PENDING_PREMIUM_ADAPTATION`.
+
+### 4. ALT VENUS — совместимость (решение №4)
+- Спроектировать правило Alt Venus на треке до 33 % и записать его (док + спеки): база — уже работающая серверная
+  арифметика апстрима для этой пары (стандартный ресурс за каждый шаг выше 16 %, включая шаги 31–33 по 1 %, и
+  дикий ресурс — на МАКСИМУМЕ трека карты) либо обоснованная альтернатива; если правило не очевидно — 2–3 варианта
+  владельцу с рекомендацией, до реализации.
+- `src/common/venus/altVenusBonus.ts` (`altVenusBonusFor`) сейчас зашит на 30 % — сделать картозависимым; им читают
+  движок (`Game.increaseVenusScaleLevel`), превью (`altVenusBonusMark`), прогноз, WGA, MarsBot-ветка (не трогать
+  поведение бота, только не сломать).
+- Динамическая шкала Alt Venus (ячейки ресурсов, `v30-final` → финал на максимуме карты), сцена
+  `venusBonusCellBeat`, промпт выбора ресурсов, создатель — Alt Venus + Amazonis Planitia разрешено и не
+  предупреждает.
+
+### 5. ИКОНКИ — аудит legacy-растра → высококачественный SVG
+Пройти каждый глиф, который рисуется НА этом поле и его шкалах, и сдать СПИСОК (что, где, каким было, чем стало).
+Известные кандидаты (проверить, не верить на слово):
+- маркеры шкал `src/styles/bonus_zones.less`: `bonus-zone-icon--temperature` → `assets/global-parameters/temperature.png`
+  (163×547 растр), `--tr` → `assets/resources/tr.png` (535×396), `--ocean` → `assets/tiles/ocean.png` (836×966),
+  `--card` → `card.webp`; для новых порогов карты нужны иконки, которых нет: **колония** (16 % Venus) и **произв.
+  растений** (−12 °C);
+- бонусы клеток `src/styles/board.less` (`.board-space-bonus--*`): ресурсы — премиум-растры 512² (сталь, титан,
+  растения, тепло, энергия, `wild.png` для «стандартного ресурса», `card.webp`), делегат — уже SVG; решить по каждому:
+  оставить премиум-растр или перевести в SVG — с обоснованием в списке;
+- любые legacy-PNG контуры/маркеры, которые всплывут на большой доске (вулкан, океанская клетка, особые клетки);
+- миниатюра создателя: «стандартный ресурс» сейчас нейтральный «?» (`boardMiniatureArt.ts`) — дать настоящий глиф.
+Новые SVG — в стиле существующих (см. `delegate.svg`, глифы `boardMiniatureArt.ts`, премиум-семья иконок ресурсов —
+память `resource-icon-premium-family`); никаких свечений (инвариант 15).
+
+### 6. ВЕХИ / НАГРАДЫ
+- Печатный набор карты: `['Terran5', 'Landshaper', 'Merchant3', 'Sponsor', 'Activist']` /
+  `['Collector', 'Innovator', 'Constructor', 'Manufacturer', 'Physicist']` (решение №5), карта возвращается в фиксированную
+  ветку `MilestoneAwardSelector` (убрать временный уход в пул; гард `RetiredMilestonesAwards` снова держит её).
+  Activist — веха Redux (`compatibility: 'turmoilRedux'`): спроектировать партию на этой карте БЕЗ Парламента
+  (предложение владельцу: слот добирается совместимой вехой из пула, названной и объяснённой) — до реализации.
+- Merchant3 / Innovator / Physicist: премиум-бейджи (конвейер `docs/claude/ma-premium-icons-worklist.md`, апстримный
+  `9b24651245` — максимум как плейсхолдер), консольные воркспейсы вех/наград (два воркспейса одной семьи), счёт,
+  объяснения, эндгейм. Вход в случайные пулы — решить с учётом дедупликации RU-имён (Merchant3 клонирует Merchant —
+  в пул не входит). Строки бота (`botMARules.ts`, `PENDING` в `botMARegistry.spec.ts`) — ФАЗА 2.
+- Terran5 / Landshaper — `random: 'modular'` (апстрим расширял до `both`) — оставить.
+
+### 7. СОЗДАТЕЛЬ
+- Карта в `createGameMeta.ts` (официальная, со своим акцентом), миниатюра 11 рядов (`boardLayoutGeometry.ts` —
+  `MINI_ROWS` зашит на 9; гарды `boardLayoutExport` / `boardLayoutGeometry` её назовут), карточка карты, случайный пул
+  (`randomBoard.ts` — карта входит, когда уходит из списка), Alt Venus + эта карта — без предупреждения (решение №4).
+- Партия с MarsBot на этой карте в фазе 1 недоступна — создатель говорит это словами, а не прячет.
+
+### 8. СДАЧА
+- Снять карту с `BOARDS_PENDING_PREMIUM_ADAPTATION` → гарды назовут оставшееся, закрыть всё.
+- e2e на НАСТОЯЩЕЙ доске (сборка → `npm run e2e:snapshot <task>` → `npm run e2e:remote -- <task> <specs>`, ноут
+  Playwright не запускает): фит и масштаб гекса на `tv`; посадка на «стандартный ресурс» с выбором и реакцией Mining
+  Guild; 7 % / 11 % / 16 % / 22 % / −12 °C; Venus 31→33 с Alt Venus; делегаты H7; 11-й океан; финал на +14 °C;
+  раскадровка ключевых анимаций (`TM_E2E_STORYBOARD=1`) — смотреть кадры, не только зелёный статус.
+- Список иконок (пункт 5) и решение по Alt Venus — в отчёте и в `docs/claude/` рядом с этим промтом.
 
 Необязательно: апстримный `c5df02c9b1` (API строк `BoardBuilder.row(r => …)` + сериализуемый `Space.edge`) — чистый
-рефакторинг, нужен только если будущие апстримные доски начнут на нём конфликтовать.
+рефакторинг, брать только если он нужен раскладке или будущие апстримные доски начнут на нём конфликтовать.

@@ -462,7 +462,8 @@ resource's card reactions (`b263e36d73` + `279d4eebb6` infra): `ICard.onStandard
 Amazonis Planitia's printed MA set names **Lobbyist** (retired here) — a non-random game on it draws the pool until
 the full adaptation names the substitute; Merchant3 / Innovator / Physicist stay out of every pool
 (`PENDING_ADAPTATION_MA`) and the bot registry lists them as PENDING; Terran5 / Landshaper keep their modular-only
-reading. Large-board art (`assets/board/mars-large*.png`, final versions incl. `c4cebf6fb4`) taken; its render is not.
+reading. Upstream's large-board art (`mars-large*.png`, `c4cebf6fb4`) is NOT taken (the owner, 2026-11-06): the fork's
+scales are drawn dynamically and `mars.webp` is already high-detail; its render `27db80e67e` is reference only.
 
 **Taken — the rest:** `3ee3262592`, `c887f26aac`, `c6c0fc3958` (the wrapper dropped, the fork's `onReveal` kept),
 `5ce61da93a`, `e67724a870` (+ the specs on the fork's cube TILES; Expedition Vehicles ignores a cube neighbour),
@@ -513,7 +514,9 @@ typed tokens + a new RU key.
   deleted desktop components, Vitest track).
 
 **Deferred — worth their own iteration:**
-- **Amazonis Planitia's full adaptation** — `docs/claude/prompts/amazonis-planitia-full-adaptation.md` (the 91-hex
+- **Amazonis Planitia's full adaptation** — phase 1 (premium UI, no MarsBot): `docs/claude/prompts/amazonis-planitia-full-adaptation.md`;
+  phase 2 — MarsBot with its own enlarged bot board, after phase 1. Owner decisions: Lobbyist → Activist, Alt Venus MUST
+  stay compatible (upstream `8424b2e87e` declared it not), hexes kept as large as possible (the 91-hex
   render `27db80e67e`, the client half of `3a2cd5ebf6` / `17c0acbd5a`, `201e359e18`, the MA icons `9b24651245`
   as placeholders, `c5df02c9b1` if the builder API is wanted).
 - **The deferred-action queue rewrite** — `91282ac11f` (iterative drain) → `ae0a119cdf` (`Game.drainQueue`, all 4
