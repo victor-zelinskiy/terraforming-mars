@@ -34,6 +34,7 @@ import {ParliamentHandler} from '../parliament/ParliamentHandler';
 import {GameModel} from '../../common/models/GameModel';
 import {MarsBotModel} from '../../common/models/MarsBotModel';
 import {corporateCompetitionLines} from '../automa/ma/botMACompetition';
+import {botMilestoneThresholds, botRuleLines, botSetBriefing} from '../automa/ma/botMABriefing';
 import {createPathfindersModel} from './PathfindersModel';
 import {MoonModel} from '../../common/models/MoonModel';
 import {CardName} from '../../common/cards/CardName';
@@ -479,6 +480,15 @@ export class Server {
     }
     if (automa.mat !== undefined) {
       model.competition = corporateCompetitionLines(game);
+      model.briefing = botSetBriefing(game);
+    }
+    model.maRules = botRuleLines(game);
+    const thresholds = botMilestoneThresholds(game);
+    if (thresholds.length > 0) {
+      model.thresholds = thresholds;
+    }
+    if (automa.board.tracks.some((t) => t.definition.layout.some((a) => a?.startsWith('token') === true))) {
+      model.tokens = {...automa.tokens};
     }
     return model;
   }

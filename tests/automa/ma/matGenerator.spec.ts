@@ -144,6 +144,12 @@ describe('MarsBot mat generator', () => {
     expect(game.automa!.board.tracks).has.length(8);
     const restored = Game.deserialize(structuredClone(game.serialize()));
     expect(restored.automa!.mat).deep.eq(mat);
+    // Through JSON — the database's road: an empty space is written as `null`, and comes back as the hole it was.
+    const viaJson = Game.deserialize(JSON.parse(JSON.stringify(game.serialize())));
+    expect(JSON.stringify(viaJson.automa!.mat)).eq(JSON.stringify(mat));
+    expect(viaJson.automa!.mat!.tracks.map((t) => t.layout), 'the holes are holes again').deep.eq(mat.tracks.map((t) => t.layout));
+    expect(viaJson.automa!.board.tracks.flatMap((t) => t.definition.layout).some((a) => a === null), 'no null hole').is.false;
+    expect(() => Server.getGameModel(viaJson), 'the model of a reloaded random-set game serializes').not.to.throw();
     expect(restored.automa!.board.tracks.map((t) => t.definition.tags)).deep.eq(game.automa!.board.tracks.map((t) => t.definition.tags));
     // An ordinary game carries no mat; its save rebuilds the printed board from the map name.
     const [fixed] = testAutomaGame({}, '-fixed-save');

@@ -185,7 +185,13 @@ const RULES: ReadonlyArray<Rule> = [
   // never joins the human's starting picks, so they DEGENERATE into the
   // standard setup. `Game.newInstance` normalizes them off for automa games
   // instead of rejecting (the resulting setup is identical either way).
-  {key: 'rule:randomMilestonesAwards', test: (o) => o.randomMA, reason: () => 'random milestones and awards'},
+  // RANDOM MILESTONES AND AWARDS play on every supported board since the random-set framework
+  // (docs/claude/marsbot-dynamic-ma-framework.md): the generator deals the bot a mat, a placement layer and a B14
+  // «Corporate Competition · this game's set» for the drawn set. A board MarsBot does not cover (Hollandia) is refused by
+  // the `board` rule above; this one stays for that case only, so the matrix still names the box.
+  {key: 'rule:randomMilestonesAwards', test: (o) => o.randomMA && o.boardName !== RandomBoardOption.ALL &&
+    o.boardName !== RandomBoardOption.OFFICIAL && !AUTOMA_SUPPORTED_BOARDS.includes(o.boardName as BoardName),
+  reason: () => 'random milestones and awards on a board MarsBot does not cover'},
   {key: 'variant:soloTR', test: (o) => o.soloTR, reason: () => 'the 63 TR solo variant (the win condition is beating MarsBot)'},
   {key: 'variant:twoCorps', test: (o) => o.twoCorpsVariant, reason: () => 'the two-corporations variant'},
   {key: 'variant:escapeVelocity', test: (o) => o.escapeVelocity, reason: () => 'Escape Velocity'},

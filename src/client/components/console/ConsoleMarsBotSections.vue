@@ -79,7 +79,7 @@
       <!-- The door's object: the printed board itself, in miniature (inert — the board's own screen is one A away). -->
       <div class="con-botscr__minboard" aria-hidden="true">
         <div class="con-botscr__minboard-scale">
-          <MarsBotTracks :tracks="automa.tracks" :botColor="bot.color" :corporation="automa.corporation" />
+          <MarsBotTracks :tracks="automa.tracks" :botColor="bot.color" :corporation="automa.corporation" :thresholds="automa.thresholds ?? []" :tokens="automa.tokens" />
         </div>
       </div>
       <p class="con-botscr__prose con-botscr__prose--door">{{ $t('The printed tracks, the cube and the teaching notes') }}</p>
@@ -98,6 +98,13 @@
         </span>
       </div>
       <p v-for="(body, i) in bodyOf('scoring')" :key="'s' + i" class="con-botscr__prose" v-i18n>{{ body }}</p>
+    </section>
+
+    <!-- A RANDOM milestone / award set: what the set changed on the bot's mat and in its placements — the server's
+         briefing, one sentence each (docs/claude/marsbot-dynamic-ma-framework.md). -->
+    <section v-if="(automa.briefing ?? []).length > 0" class="con-botscr__plate con-botscr__plate--extra" data-bot-briefing>
+      <h3 class="con-botscr__kicker">{{ $t('The set of this game') }}</h3>
+      <p v-for="(line, i) in automa.briefing" :key="'b' + i" class="con-botscr__prose">{{ briefingText(line) }}</p>
     </section>
 
     <section v-if="hasSection('shipping')" class="con-botscr__plate con-botscr__plate--extra">
@@ -126,7 +133,7 @@
        (its turn, the trackers, the failed action) beside it. A nested route of «Экран бота»: B returns to the hub. -->
   <div v-else-if="mode === 'botBoard'" class="con-botboard">
     <div class="con-botboard__stage">
-      <MarsBotTracks :tracks="automa.tracks" :botColor="bot.color" :corporation="automa.corporation" large />
+      <MarsBotTracks :tracks="automa.tracks" :botColor="bot.color" :corporation="automa.corporation" :thresholds="automa.thresholds ?? []" :tokens="automa.tokens" large />
     </div>
     <div class="con-botboard__legend con-bot__legend">{{ $t('The cube marks the current position; ✕ marks regressed spaces whose action will not trigger again') }}</div>
     <div class="mb-guide con-botboard__guide">
@@ -160,6 +167,8 @@
 </template>
 
 <script lang="ts">
+import {Message} from '@/common/logs/Message';
+import {translateMessage} from '@/client/directives/i18n';
 /**
  * «ЭКРАН БОТА» + its two nested routes — the MarsBot internals of the
  * console Information workspace. The participant SUMMARY shows the bot as
@@ -267,6 +276,10 @@ export default defineComponent({
     this.hubObserver = undefined;
   },
   methods: {
+    /** A briefing line — a server Message through the one translation road (a copy, never the model's object). */
+    briefingText(line: Message): string {
+      return translateMessage({message: line.message, data: line.data.map((d) => ({...d}))});
+    },
     /**
      * THE HUB SITS IN ITS OPENING: every plate's content must stand inside its plate. The prose is the one part that
      * yields — measured, never guessed: the reading size steps down (`data-botscr-fit` 0 → 1 → 2, the type ladder's

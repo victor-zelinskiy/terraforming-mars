@@ -18,7 +18,9 @@
             'mb-cell--start': cell.index === 0,
             'mb-cell--cube': cell.cube !== undefined && !cell.cube.spent,
             'mb-cell--reminder': reminderColumns.has(cell.index),
+            'mb-cell--threshold': cell.thresholds !== undefined,
           }"
+          :data-threshold="cell.thresholds?.join(',')"
           :data-hint="hintFor(cell, ti)"
         >
           <!-- The current cell is marked by the bright `mb-cell--current`
@@ -44,7 +46,14 @@
             </span>
             <span v-else-if="glyphFor(cell).kind === 'colony'" class="mb-glyph mb-glyph--ma">◉<span v-if="colonyPrice(cell) !== undefined" class="mb-glyph__multi">−{{ colonyPrice(cell) }}</span></span>
             <span v-else-if="glyphFor(cell).kind === 'ma'" class="mb-glyph mb-glyph--ma">{{ maGlyph(cell) }}</span>
+            <span v-else-if="glyphFor(cell).kind === 'token'" class="mb-glyph" :data-token-cell="tokenKind(cell)">
+              <i class="mb-ico" :class="'mb-ico--' + tokenKind(cell)" aria-hidden="true"></i>
+              <span v-if="tokenCount(cell) === 2" class="mb-glyph__multi">×2</span>
+            </span>
           </template>
+          <!-- The THRESHOLD a milestone of this game needs on this track (decision R6) — a kant on the cell, never a
+               glow: the cell the bot must REACH to meet the criterion, the same number the player's row shows. -->
+          <span v-if="cell.thresholds !== undefined" class="mb-cell__threshold" aria-hidden="true">🏆</span>
           <span v-if="cell.regressed" class="mb-cell__regress" aria-hidden="true">✕</span>
           <!-- A corporation CUBE seeded on this space (RB-B special cubes).
                Corner-pinned so the cell's own bonus glyph stays readable; a
@@ -73,6 +82,13 @@
     </div>
     <!-- The corporation's cube legend — what each colour does, in the printed
          card's own words, so a cube on the mat explains itself. -->
+    <!-- The bot's TOKENS off its token cells (decision R8) — the count its «resources on cards» milestone reads. -->
+    <div v-if="tokenRows.length > 0" class="mb-tokens">
+      <span v-for="row in tokenRows" :key="row.kind" class="mb-tokens__item" :data-bot-tokens="row.kind">
+        <i class="mb-ico" :class="'mb-ico--' + row.kind" aria-hidden="true"></i>
+        <span class="mb-tokens__count">{{ row.count }}</span>
+      </span>
+    </div>
     <div v-if="legendRows.length > 0" class="mb-cubelegend">
       <div v-for="row in legendRows" :key="row.key" class="mb-cubelegend__row">
         <span v-if="row.marker" class="mb-cell__marker mb-cell__marker--legend" aria-hidden="true"></span>
@@ -97,7 +113,8 @@ import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {Tag as CardTag} from '@/common/cards/Tag';
 import {MarsBotCorpCubeModel, MarsBotCorpModel, MarsBotCubeType, marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
-import {MarsBotTrackModel} from '@/common/models/MarsBotModel';
+import {BotMilestoneThreshold, MarsBotTrackModel} from '@/common/models/MarsBotModel';
+import {BotTokenKind} from '@/common/automa/AutomaTypes';
 import {TrackCell, TrackActionGlyph, trackActionGlyph, trackActionLabel, trackCells} from './marsBotView';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import Tag from '@/client/components/Tag.vue';
@@ -113,10 +130,14 @@ export default defineComponent({
     /** The bot's corporation — its seeded cubes are drawn on the tracks
      *  (RB-B special cubes) and its legend explains them. */
     corporation: {type: Object as PropType<MarsBotCorpModel | undefined>, default: undefined},
+    /** The game's milestone thresholds on the bot's tracks (decision R6 — `MarsBotModel.thresholds`). */
+    thresholds: {type: Array as PropType<ReadonlyArray<BotMilestoneThreshold>>, default: () => []},
+    /** The bot's tokens (decision R8 — `MarsBotModel.tokens`), present when its mat prints token cells. */
+    tokens: {type: Object as PropType<Partial<Record<BotTokenKind, number>> | undefined>, default: undefined},
   },
   methods: {
     cellsFor(track: MarsBotTrackModel, trackIndex: number): Array<TrackCell> {
-      return trackCells(track, this.cubesByTrack.get(trackIndex) ?? []);
+      return trackCells(track, this.cubesByTrack.get(trackIndex) ?? [], this.thresholds.filter((t) => t.trackIndex === trackIndex));
     },
     glyphFor(cell: TrackCell): TrackActionGlyph {
       return cell.action !== undefined ? trackActionGlyph(cell.action) : {kind: 'advance'};
@@ -152,6 +173,14 @@ export default defineComponent({
     colonyPrice(cell: TrackCell): number | undefined {
       const g = this.glyphFor(cell);
       return g.kind === 'colony' ? g.price : undefined;
+    },
+    tokenKind(cell: TrackCell): BotTokenKind | undefined {
+      const g = this.glyphFor(cell);
+      return g.kind === 'token' ? g.token : undefined;
+    },
+    tokenCount(cell: TrackCell): number {
+      const g = this.glyphFor(cell);
+      return g.kind === 'token' ? g.count : 0;
     },
     maGlyph(cell: TrackCell): string {
       const g = this.glyphFor(cell);
@@ -198,10 +227,28 @@ export default defineComponent({
       if (column !== undefined && this.reminderColumns.has(cell.index)) {
         parts.push(`${translateText('Marked column')} — ${column}`);
       }
+      for (const milestone of cell.thresholds ?? []) {
+        parts.push(translateTextWithParams('The bot meets ${0} here', [translateText(milestone)]));
+      }
       return parts.join(' · ');
     },
   },
   computed: {
+    /** The bot's token counts, one row per kind its mat prints (decision R8). */
+    tokenRows(): Array<{kind: BotTokenKind, count: number}> {
+      if (this.tokens === undefined) {
+        return [];
+      }
+      const kinds = new Set<BotTokenKind>();
+      for (const track of this.tracks) {
+        for (const action of track.layout) {
+          if (action !== undefined && action !== null && action.startsWith('token')) {
+            kinds.add(action.split('_')[1] as BotTokenKind);
+          }
+        }
+      }
+      return [...kinds].map((kind) => ({kind, count: this.tokens?.[kind] ?? 0}));
+    },
     /** Tracks whose TRACKER the corporation's setup paints white (C04). */
     whiteMarkerTracks(): Set<number> {
       return new Set(this.corporation?.whiteMarkerTracks ?? []);

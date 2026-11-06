@@ -11,10 +11,10 @@ import {AutomaTestOptions, testAutomaGame} from '../AutomaTestGame';
 
 /**
  * A MarsBot game that plays a RANDOM milestone / award set — the set is GIVEN (the draw is unseeded), and the bot's mat
- * is dealt by the production path (`AutomaSetup.matFor` → the generator). Until the creator lets the «random
- * milestones and awards» box through with the bot (stage 6 of the framework), a game cannot be CREATED that way, so
- * the helper builds an ordinary one, swaps its set in and re-seats the bot's state on the generated mat — everything
- * else the state already held (decks, corporation, positions) carried over through the save path.
+ * is dealt by the production path (`AutomaSetup.matFor` → the generator). A game CREATED with the box draws its set at
+ * random; a spec that needs a known set builds an ordinary game, swaps the set in and re-seats the bot's state on the
+ * generated mat — everything else the state already held (decks, corporation, positions) carried over through the
+ * save path.
  */
 export function testAutomaRandomSetGame(
   set: {milestones: ReadonlyArray<string>, awards: ReadonlyArray<string>},

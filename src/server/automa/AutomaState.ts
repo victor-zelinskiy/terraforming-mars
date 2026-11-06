@@ -358,10 +358,19 @@ export class AutomaState {
     return result;
   }
 
+  /**
+   * A save goes through JSON, which writes an EMPTY track space (`undefined` inside the layout array) as `null`: every
+   * reader of a layout asks `!== undefined`, so the holes are revived here — the mat comes back exactly as it was dealt.
+   */
+  private static reviveMat(mat: GeneratedMat): GeneratedMat {
+    return {...mat, tracks: mat.tracks.map((t) => ({...t, layout: t.layout.map((a) => a ?? undefined)}))};
+  }
+
   public static deserialize(d: SerializedAutomaState, gameOptions: GameOptions): AutomaState {
     // The mat a save carries is the mat the game was DEALT — never regenerated, whatever the generator's version now.
-    const profile = AutomaState.profileFor(gameOptions, d.mat);
-    const state = new AutomaState(d.difficulty, AutomaState.boardFor(gameOptions, profile), profile, d.mat);
+    const mat = d.mat === undefined ? undefined : AutomaState.reviveMat(d.mat);
+    const profile = AutomaState.profileFor(gameOptions, mat);
+    const state = new AutomaState(d.difficulty, AutomaState.boardFor(gameOptions, profile), profile, mat);
     if (d.tracks.length !== state.board.tracks.length) {
       throw new Error(`Corrupt automa save: ${d.tracks.length} serialized tracks, expected ${state.board.tracks.length}`);
     }

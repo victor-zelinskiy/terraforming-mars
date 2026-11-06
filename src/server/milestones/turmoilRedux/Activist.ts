@@ -13,9 +13,8 @@ export const ACTIVIST_AGENDA_STEPS = 3;
  * steps walked, by whatever engine walked them (the sitting's winner step, the chairman quest, a card,
  * a law — all through `ChairmanSeat.walkAgenda`). Position 3 is the second influence step (2 influence).
  *
- * MarsBot's marker walks the same track, so its score is the player's own metric — but a MarsBot game
- * never draws random milestones (`automaConflicts` — `rule:randomMilestonesAwards`), and Activist lives
- * only in the random pools, so it never reaches a bot table today.
+ * MarsBot's marker walks the same track, so its score is the player's own metric — the bot-rule registry
+ * reads it as such (`src/server/automa/ma/botMARules.ts`, kind `player`) when a random set draws Activist.
  */
 export class Activist extends BaseMilestone {
   constructor() {

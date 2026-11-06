@@ -200,7 +200,9 @@ describe('AutomaSetup', () => {
       ['Underworld', {underworldExpansion: true}],
       // NOTE: the Delta Project is SUPPORTED (Solo Delta Project reference
       // card) — covered positively in AutomaDeltaProject.spec.ts.
-      ['random MA', {randomMA: RandomMAOptionType.LIMITED}],
+      // NOTE: RANDOM milestones and awards are SUPPORTED on every board MarsBot covers (the framework of
+      // docs/claude/marsbot-dynamic-ma-framework.md: a generated mat + B14) — covered positively below and in
+      // tests/automa/ma/. A board with no profile stays rejected (the row below).
       ['solo TR', {soloTR: true}],
       ['two corps', {twoCorpsVariant: true}],
       ['solar phase / WGT', {solarPhaseOption: true}],
@@ -219,6 +221,18 @@ describe('AutomaSetup', () => {
         expect(() => testAutomaGame(options as object)).to.throw(/MarsBot \(Automa\) does not support/);
       });
     }
+  });
+
+  it('accepts RANDOM milestones and awards on a supported board — a generated mat and the B14 of the set', () => {
+    for (const randomMA of [RandomMAOptionType.LIMITED, RandomMAOptionType.UNLIMITED]) {
+      const [game] = testAutomaGame({randomMA});
+      const automa = automaOf(game);
+      expect(automa.mat, 'the bot plays a mat generated for the drawn set').is.not.undefined;
+      expect(allBonusCards(automa)).contains(BonusCardId.B14_CORPORATE_COMPETITION_MA);
+    }
+    // A board without a MarsBot profile stays rejected whatever the M&A option (Hollandia — not in scope).
+    expect(() => testAutomaGame({randomMA: RandomMAOptionType.LIMITED, boardName: BoardName.HOLLANDIA}))
+      .to.throw(/MarsBot \(Automa\) does not support/);
   });
 
   it('accepts custom CARD lists — a rigged deck still gives the human an opponent', () => {

@@ -289,8 +289,6 @@ export function setGameMode(mode: GameMode): void {
         config.mapId = BoardName.THARSIS;
       } else if (conflict.key.startsWith('expansion:')) {
         config.selectedExpansions[conflict.key.substring('expansion:'.length) as Expansion] = false;
-      } else if (conflict.key === 'rule:randomMilestonesAwards') {
-        config.rules.randomMilestonesAwards = false;
       } else if (conflict.key === 'rule:randomBoardTiles') {
         config.rules.randomBoardTiles = false;
       }
@@ -359,8 +357,6 @@ export function setSeatMarsBot(on: boolean): void {
         config.mapId = BoardName.THARSIS;
       } else if (conflict.key.startsWith('expansion:')) {
         config.selectedExpansions[conflict.key.substring('expansion:'.length) as Expansion] = false;
-      } else if (conflict.key === 'rule:randomMilestonesAwards') {
-        config.rules.randomMilestonesAwards = false;
       } else if (conflict.key === 'rule:randomBoardTiles') {
         config.rules.randomBoardTiles = false;
       }
@@ -501,7 +497,8 @@ export function stateAutomaConflictKeys(): ReadonlySet<string> {
  */
 const AUTOMA_BLOCKER_TEXT: Partial<Record<string, string>> = {
   'board': 'MarsBot has no adaptation for this map yet — pick a supported one or a random option',
-  'rule:randomMilestonesAwards': 'MarsBot uses the printed milestones and awards',
+  // Fires only beside 'board' (a random set plays on every board MarsBot covers — pinning one clears it).
+  'rule:randomMilestonesAwards': 'Random milestones and awards with MarsBot need a map it covers',
   'rule:randomBoardTiles': 'MarsBot needs the printed board layout',
 };
 

@@ -13,7 +13,11 @@
           <i v-if="iconClass(line.icon) !== ''" class="mb-face__icon" :class="iconClass(line.icon)"></i>
           <span v-else-if="glyph(line.icon) !== ''" class="mb-face__glyph">{{ glyph(line.icon) }}</span>
         </span>
-        <span class="mb-face__text">{{ lineText(line) }}</span>
+        <span class="mb-face__text">
+          <!-- A random set's B14 line (decision R7): the AWARD this push serves, then the push itself. -->
+          <b v-if="line.award !== undefined" class="mb-face__award" :data-competition-award="line.award">{{ $t(line.award) }}:</b>
+          {{ lineText(line) }}
+        </span>
       </div>
     </div>
     <div class="mb-face__fate-note">{{ fateText }}</div>
@@ -34,7 +38,7 @@ import {defineComponent, PropType} from 'vue';
 import {BonusCardId} from '@/common/automa/AutomaTypes';
 import {BonusCardContext, BonusCardEffectLine, BonusCardView, buildBonusCardView} from '@/common/automa/BonusCardData';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 /** MarsBot-specific icon keys the shared vocabulary doesn't cover. */
 const OWN_ICONS: Record<string, string> = {
@@ -118,6 +122,10 @@ export default defineComponent({
       return key !== undefined ? (GLYPHS[key] ?? '') : '';
     },
     lineText(line: BonusCardEffectLine): string {
+      // A ready Message (the server's generated helper sentence) — its label params translate through the one road.
+      if (line.message !== undefined) {
+        return translateMessage({message: line.message.message, data: line.message.data.map((d) => ({...d}))});
+      }
       if (line.params !== undefined && line.params.length > 0) {
         return translateTextWithParams(line.text, [...line.params]);
       }

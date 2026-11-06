@@ -115,6 +115,7 @@ export default defineComponent({
       case 'floater': return {iconClass: 'mb-ico mb-ico--floater', symbol: ''};
       case 'colony': return {iconClass: '', symbol: '◉'};
       case 'ma': return {iconClass: '', symbol: g.which === 'milestone' ? '🏆' : '🏅'};
+      case 'token': return {iconClass: 'mb-ico mb-ico--' + g.token, symbol: ''};
       }
     },
     actionText(action: TrackAction | undefined): string {

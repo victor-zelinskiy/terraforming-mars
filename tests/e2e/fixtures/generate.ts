@@ -333,6 +333,10 @@ import {VoteOfNoConfidenceRedux} from '../../../src/server/cards/turmoilRedux/Vo
 import {hasPartyRequirement} from '../../../src/server/cards/requirements/partyRequirementCards';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
+import {seatRandomSet} from '../../automa/ma/matTestGame';
+import {botMilestoneThresholds} from '../../../src/server/automa/ma/botMABriefing';
+import {AutomaMAEvaluation} from '../../../src/server/automa/AutomaMAEvaluation';
+import {AutomaMilestonesAwards} from '../../../src/server/automa/AutomaMilestonesAwards';
 import {BonusCardId, MarsBotCorpId} from '../../../src/common/automa/AutomaTypes';
 import {AutomaCorporations} from '../../../src/server/automa/corps/AutomaCorporations';
 import {Phase} from '../../../src/common/Phase';
@@ -15148,3 +15152,158 @@ function spireFixture(name: 'spire-start' | 'spire-table'): void {
 }
 spireFixture('spire-start');
 spireFixture('spire-table');
+
+// ── marsbot-random-set: MarsBot × a RANDOM milestone / award set (docs/claude/marsbot-dynamic-ma-framework.md, stage 6).
+//    A solo table vs MarsBot (Credicor) on Tharsis with a GIVEN random set — Dataminer in it, so the generated mat prints
+//    TOKEN cells — and the bot's mat dealt by the production generator. Arranged so the round blue hands over plays the
+//    whole framework on the board: the bot's deck is two one-tag project cards and B14 «Корпоративная конкуренция ·
+//    набор партии». The first card walks a track ONTO its milestone cell while another milestone of the set is MET
+//    (its track sits on the threshold mark) → the bot CLAIMS by the cell; the second walks a track onto its award cell
+//    while the bot leads an award → it FUNDS by the cell; B14 then helps the funded award with ITS row of this game's
+//    face. Every step is proven below on a dry-run copy. For console-marsbot-random-set.spec.ts. ──
+const RANDOM_SET = {
+  milestones: ['Builder', 'Dataminer', 'Rim Settler', 'Polar Explorer', 'Energizer'],
+  awards: ['Scientist', 'Highlander', 'Banker', 'Thermalist', 'Miner'],
+} as const;
+
+/** A one-tag project card the bot resolves on `trackTags` (no event — except a tagless event for the event track). */
+function oneTagCardFor(trackTags: ReadonlyArray<Tag>, avoid: ReadonlyArray<CardName>): CardName {
+  for (const name of Object.values(CardName)) {
+    if (avoid.includes(name)) {
+      continue;
+    }
+    const card = newProjectCard(name);
+    // The EVENT track advances on an event card — a tagless one, so nothing else moves.
+    const fits = trackTags.includes(Tag.EVENT) ?
+      card?.type === CardType.EVENT && card.tags.length === 0 :
+      card !== undefined && card.type !== CardType.EVENT && card.tags.length === 1 && trackTags.includes(card.tags[0]);
+    if (card === undefined || !fits) {
+      continue;
+    }
+    if (!(card.cost > 0) || card.cost > 20) {
+      continue;
+    }
+    return name;
+  }
+  throw new Error(`no one-tag project card for the tags ${trackTags.join('+')}`);
+}
+
+{
+  const name = 'marsbot-random-set';
+  const pinned = [CardName.TERACTOR];
+  const [game, human, bot] = testAutomaGame({startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned]});
+  assignPinnedCorporations(name, [human], pinned);
+  answerStartFlow(game, [human]);
+  seatRandomSet(game, RANDOM_SET);
+  const automa = game.automa!;
+  const tracks = automa.board.tracks;
+  const cellOf = (kind: 'milestone' | 'award', exclude?: number) => tracks.map((t, i) => ({i, at: t.definition.layout.findIndex((a, j) => j > 0 && a === kind)}))
+    .find((e) => e.at > 0 && e.i !== exclude);
+  const milestoneCell = cellOf('milestone');
+  const awardCell = cellOf('award', milestoneCell?.i);
+  if (milestoneCell === undefined || awardCell === undefined || milestoneCell.i === awardCell.i) {
+    throw new Error(`${name}: expected a milestone cell and an award cell on two different tracks (milestone=${JSON.stringify(milestoneCell)} award=${JSON.stringify(awardCell)})`);
+  }
+  // A milestone of the set MET on a third track: its cube on the threshold mark (decision R6 — the mark the spec reads).
+  const met = botMilestoneThresholds(game).find((m) => m.trackIndex !== milestoneCell.i && m.trackIndex !== awardCell.i);
+  if (met === undefined) {
+    throw new Error(`${name}: no single-track milestone of the set off the two cell tracks (${JSON.stringify(botMilestoneThresholds(game))})`);
+  }
+  tracks[met.trackIndex].position = met.cell;
+  tracks[milestoneCell.i].position = milestoneCell.at - 1;
+  tracks[awardCell.i].position = awardCell.at - 1;
+  // The award the bot leads: the science track far ahead of the human's science tags (Scientist reads that track).
+  const science = tracks.findIndex((t) => t.definition.tags.includes(Tag.SCIENCE));
+  if (science !== met.trackIndex && science !== milestoneCell.i && science !== awardCell.i && tracks[science].position < 6) {
+    tracks[science].position = 6;
+  }
+  const first = oneTagCardFor(tracks[milestoneCell.i].definition.tags, []);
+  const second = oneTagCardFor(tracks[awardCell.i].definition.tags, [first]);
+  automa.actionDeck = [{kind: 'project', name: first}, {kind: 'project', name: second}, {kind: 'bonus', id: BonusCardId.B14_CORPORATE_COMPETITION_MA}];
+  bot.megaCredits = 30;
+  runAllActions(game);
+  const metName = game.milestones.find((m) => m.name === met.milestone);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions) ||
+      metName === undefined || !AutomaMAEvaluation.botMilestoneMet(metName, game) || AutomaMilestonesAwards.selectAwardToFund(game) === undefined ||
+      automa.mat === undefined || !automa.mat.tracks.some((t) => t.layout.some((a) => a?.startsWith('token') === true))) {
+    throw new Error(`${name}: expected blue on the move, ${met.milestone} met, an award the bot leads and token cells on the mat — got phase=${game.phase} wf=${human.getWaitingFor()?.constructor.name} met=${metName !== undefined && AutomaMAEvaluation.botMilestoneMet(metName, game)} fund=${AutomaMilestonesAwards.selectAwardToFund(game)?.name}`);
+  }
+  // THE DRY RUN — blue's pass on a copy: the bot's whole round resolves inline.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(human.id);
+  const menu = blue.getWaitingFor();
+  const titleOf = (o: {title: unknown}) => typeof o.title === 'string' ? o.title : (o.title as {message?: string} | undefined)?.message ?? '';
+  const passIndex = menu instanceof OrOptions ? menu.options.findIndex((o) => titleOf(o) === 'Pass for this generation') : -1;
+  if (passIndex < 0) {
+    throw new Error(`${name}: blue holds no pass option (wf=${menu?.constructor.name})`);
+  }
+  blue.process({type: 'or', index: passIndex, response: {type: 'option'}});
+  runAllActions(copy);
+  const botId = bot.id;
+  const claimed = copy.claimedMilestones.filter((c) => c.player.id === botId).map((c) => c.milestone.name);
+  const funded = copy.fundedAwards.filter((f) => f.player.id === botId).map((f) => f.award.name);
+  // B14's helper for the award the bot just funded — the turn review's branch line names it.
+  const helped = JSON.stringify(copy.automa?.serialize() ?? {}).includes('Helped the closest funded award');
+  if (claimed.length !== 1 || funded.length !== 1 || !helped) {
+    throw new Error(`${name}: the dry run's bot round should claim ONE milestone by the cell and fund ONE award — claimed=${claimed.join(',')} funded=${funded.join(',')} helped=${helped}`);
+  }
+  console.log(`${name}: deck ${first} → milestone cell (track ${milestoneCell.i}), ${second} → award cell (track ${awardCell.i}), B14; met ${met.milestone} on track ${met.trackIndex}@${met.cell}; dry run claimed ${claimed.join(',')} funded ${funded.join(',')}`);
+  write(name, game);
+}
+
+// ── marsbot-random-set-ares-finale: Ares house rule 4 on a real finale — the bot's FINAL greenery covers a hazard it can
+//    pay for (docs/AUTOMA_DATA_AUDIT.md §22.7). A solo table vs MarsBot with Ares (hazards placed by hand, so the cell is
+//    known), a random set; every global parameter at its max; one of the bot's
+//    tracks one space before a greenery icon (its final greenery), every other track maxed; the bot holds 30 M€. Blue
+//    passes → the generation ends → the game ends → the bot's final greenery lands ON the hazard. Proven on a copy. ──
+{
+  const name = 'marsbot-random-set-ares-finale';
+  const pinned = [CardName.TERACTOR];
+  const [game, human, bot] = testAutomaGame({
+    aresExtension: true, aresHazards: false, startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [human], pinned);
+  answerStartFlow(game, [human]);
+  seatRandomSet(game, RANDOM_SET);
+  game.generation = 12;
+  setTemperature(game, MAX_TEMPERATURE);
+  maxOutOceans(human);
+  setOxygenLevel(game, MAX_OXYGEN_LEVEL);
+  addGreenery(bot);
+  // The hazard: a free greenery-legal land cell of the bot's — none of its icons richer than the ordinary cells.
+  const legal = game.board.getAvailableSpacesForGreenery(bot).filter((s) => s.tile === undefined);
+  const hazard = legal[0];
+  if (hazard === undefined) {
+    throw new Error(`${name}: no greenery-legal cell for the bot`);
+  }
+  hazard.tile = {tileType: TileType.DUST_STORM_MILD, protectedHazard: false};
+  const tracks = game.automa!.board.tracks;
+  const greeneryTrack = tracks.find((t) => t.definition.layout.some((a, j) => j > 0 && a === 'greenery'))!;
+  greeneryTrack.position = greeneryTrack.definition.layout.findIndex((a, j) => j > 0 && a === 'greenery') - 1;
+  for (const t of tracks) {
+    if (t !== greeneryTrack) {
+      t.position = t.maxPosition;
+    }
+  }
+  game.automa!.actionDeck = [];
+  bot.megaCredits = 30;
+  human.plants = 0;
+  human.megaCredits = 20;
+  runAllActions(game);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected blue on the move — got phase=${game.phase} wf=${human.getWaitingFor()?.constructor.name}`);
+  }
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(human.id);
+  const menu = blue.getWaitingFor();
+  const titleOf = (o: {title: unknown}) => typeof o.title === 'string' ? o.title : (o.title as {message?: string} | undefined)?.message ?? '';
+  const passIndex = menu instanceof OrOptions ? menu.options.findIndex((o) => titleOf(o) === 'Pass for this generation') : -1;
+  blue.process({type: 'or', index: passIndex, response: {type: 'option'}});
+  runAllActions(copy);
+  const covered = copy.board.getSpaceOrThrow(hazard.id);
+  if (covered.tile?.tileType !== TileType.GREENERY || covered.player?.id !== bot.id) {
+    throw new Error(`${name}: the dry run's final greenery should cover the hazard on ${hazard.id} — got phase=${copy.phase} tile=${covered.tile?.tileType} owner=${covered.player?.color}`);
+  }
+  console.log(`${name}: the hazard on ${hazard.id}; dry run phase=${copy.phase}, the bot's final greenery covers it`);
+  write(name, game);
+}

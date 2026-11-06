@@ -4833,7 +4833,9 @@ export default defineComponent({
      */
     botCardContext(): BonusCardContext {
       const expansions = this.playerView.game.gameOptions.expansions;
-      return {venus: expansions.venus === true, colonies: expansions.colonies === true};
+      // A random-set game's B14 face lists THIS game's awards (`MarsBotModel.competition` — the server's lines).
+      const competition = this.playerView.game.automa?.competition;
+      return {venus: expansions.venus === true, colonies: expansions.colonies === true, ...(competition !== undefined ? {competition} : {})};
     },
     /** The attack's whole meaning, derived from the SERVER's own marker. */
     botAttackVm(): BotAttackViewModel | undefined {
@@ -9825,7 +9827,11 @@ export default defineComponent({
       }
       // Resolve every participant label through the ONE display-name helper
       // (a MarsBot reads «Бот» in the standings, never a raw «MarsBot»).
-      return buildMaInspect(item, this.playerView.players.map((p) => ({...p, name: participantDisplayName(p)})));
+      const inspect = buildMaInspect(item, this.playerView.players.map((p) => ({...p, name: participantDisplayName(p)})));
+      // The bot's own rule for this name (the server's registry line) rides the inspect — the stage only renders it.
+      const rule = this.playerView.game.automa?.maRules?.find((l) => l.name === item.name && l.kind === inspect.kind);
+      return rule === undefined ? inspect :
+        {...inspect, botRule: {criterion: rule.criterion, ...(rule.kind === 'award' ? {helper: rule.helper} : {})}};
     },
     /** LIVE availability for the open detail stage (waitingFor = the truth). */
     maFocusAvailable(): boolean {

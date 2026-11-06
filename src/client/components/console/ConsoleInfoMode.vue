@@ -416,7 +416,10 @@ export default defineComponent({
     /** The expansion context — resolves bonus-card faces + guide sections for THIS game. */
     botCardContext(): MarsBotGuideContext {
       const expansions = this.playerView.game.gameOptions.expansions;
-      return {venus: expansions.venus === true, colonies: expansions.colonies === true, deltaProject: expansions.deltaProject === true};
+      // A random-set game's B14 face lists THIS game's awards (`MarsBotModel.competition` — the server's lines).
+      const competition = this.playerView.game.automa?.competition;
+      return {venus: expansions.venus === true, colonies: expansions.colonies === true, deltaProject: expansions.deltaProject === true,
+        ...(competition !== undefined ? {competition} : {})};
     },
     /** What the current route presents for the current participant —
      *  'summary' | 'content' | 'fallback' (the capability contract). */

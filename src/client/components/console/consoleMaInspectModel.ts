@@ -26,6 +26,7 @@
  * exactly like `consoleMaModel` / `maConfirmModel`.
  */
 import {Color} from '@/common/Color';
+import {Message} from '@/common/logs/Message';
 import {maDisplayName} from '@/client/components/ma/maArt';
 import {ConsoleMaItem} from '@/client/components/console/consoleMaModel';
 
@@ -65,6 +66,11 @@ export type MaInspectSummary =
   | {tone: 'claimed-other', name: string, color: Color};
 
 export type MaInspectView = {
+  /**
+   * How MarsBot counts this milestone / award in THIS game — the bot-rule registry's generated line (the server's
+   * `MarsBotModel.maRules`); an award adds its Corporate Competition push. Absent without the bot.
+   */
+  botRule?: {criterion: Message, helper?: Message},
   mode: MaInspectMode,
   kind: 'milestone' | 'award',
   name: string,

@@ -141,6 +141,13 @@
               <span>{{ $t('Claimed') }} · <b>{{ displayInspect.owner.name }}</b></span>
             </div>
             <div v-if="displayInspect.nobodyLeads" class="con-mafocus__nolead" data-ma-nolead>{{ $t('Nobody leads yet') }}</div>
+            <!-- How the BOT counts this one in THIS game (the registry's generated line) — and an award's push. -->
+            <div v-if="displayInspect.botRule !== undefined" class="con-mafocus__botrule" data-ma-bot-rule>
+              <span>{{ ruleText(displayInspect.botRule.criterion) }}</span>
+              <span v-if="displayInspect.botRule.helper !== undefined" class="con-mafocus__botrule-helper" data-ma-bot-helper>
+                {{ $t('Corporate Competition') }}: {{ ruleText(displayInspect.botRule.helper) }}
+              </span>
+            </div>
             <div class="con-mafocus__rows">
               <div v-for="r in displayInspect.rows" :key="r.color"
                    class="con-mafocus__row"
@@ -256,7 +263,8 @@ import {AWARD_COSTS} from '@/common/constants';
 import ConsoleMaWaivedPrice from '@/client/components/console/foundation/ConsoleMaWaivedPrice.vue';
 import {maFundedSlotReading, maPriceCharged, MaPriceReading, maPriceReading, MaSponsorSlot} from '@/client/console/maPriceReading';
 import {CardName} from '@/common/cards/CardName';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {Message} from '@/common/logs/Message';
 import {runMaCeremonyStage, stopMaCeremonyStage} from '@/client/console/consoleMaFocusMotion';
 import {$t} from '@/client/directives/i18n';
 
@@ -513,6 +521,12 @@ export default defineComponent({
     // A torn-down stage must never fire a late completion into the shell.
     stopMaCeremonyStage();
   },
-  methods: {$t},
+  methods: {
+    $t,
+    /** A server Message (the bot's registry line) through the one translation road — a copy, never the model's object. */
+    ruleText(message: Message): string {
+      return translateMessage({message: message.message, data: message.data.map((d) => ({...d}))});
+    },
+  },
 });
 </script>

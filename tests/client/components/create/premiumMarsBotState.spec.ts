@@ -54,6 +54,19 @@ describe('premium create — MarsBot mode', () => {
     expect(firstBlocker()).eq('MarsBot needs the printed board layout');
   });
 
+  it('random milestones and awards are no conflict on a supported board — only beside an uncovered one', () => {
+    createGameState.config.rules.randomMilestonesAwards = true;
+    setGameMode('marsbot');
+    expect(createGameState.config.rules.randomMilestonesAwards, 'the preset keeps the random set').is.true;
+    createGameState.config.mapMode = 'specific';
+    createGameState.config.mapId = BoardName.ELYSIUM;
+    expect(stateAutomaConflictKeys().has('rule:randomMilestonesAwards')).is.false;
+    createGameState.config.mapId = BoardName.HOLLANDIA;
+    const keys = stateAutomaConflictKeys();
+    expect(keys.has('board')).is.true;
+    expect(keys.has('rule:randomMilestonesAwards')).is.true;
+  });
+
   it('entering marsbot mode keeps promo enabled (the preset only drops genuine conflicts)', () => {
     createGameState.config.selectedExpansions.promo = true;
     setGameMode('marsbot');
@@ -67,8 +80,8 @@ describe('premium create — MarsBot mode', () => {
       expect(stateAutomaConflicts()).is.empty; // No bot — no automa rules.
       setSeatMarsBot(true);
       expect(createGameState.config.seatMarsBot).is.true;
-      // The preset dropped the genuine conflict; the rules now apply.
-      expect(createGameState.config.rules.randomMilestonesAwards).is.false;
+      // A random set plays with the bot on a board it covers — the preset keeps it (the dynamic-M&A framework).
+      expect(createGameState.config.rules.randomMilestonesAwards).is.true;
       expect(stateAutomaConflicts()).is.empty;
       createGameState.config.rules.randomBoardTiles = true;
       expect(stateAutomaConflictKeys().has('rule:randomBoardTiles')).is.true;

@@ -1,4 +1,19 @@
 import {CompetitionHelperLine} from '../automa/BonusCardData';
+import {Message} from '../logs/Message';
+import {MilestoneName} from '../ma/MilestoneName';
+import {BotTokenKind} from '../automa/AutomaTypes';
+
+/**
+ * The bot's rule for one milestone / award of THIS game — generated on the server from the bot-rule registry
+ * (`describeMilestone` / `describeAward` / `describeAwardHelper`): the criterion next to a milestone row, the score and
+ * the Corporate Competition push next to an award row. Rendered through the one `translateMessage` road.
+ */
+export type BotRuleLine =
+  | {kind: 'milestone', name: string, criterion: Message}
+  | {kind: 'award', name: string, criterion: Message, helper: Message};
+
+/** The track cell a single-track milestone needs (decision R6): a mark on the bot's mat. */
+export type BotMilestoneThreshold = {trackIndex: number, cell: number, milestone: MilestoneName};
 import {BonusCardId, DifficultyLevel, MarsBotCorpId, TrackAction} from '../automa/AutomaTypes';
 import type {MarsBotDividendResult} from '../automa/MarsBotDividend';
 import {MarsBotCorpModel} from '../automa/MarsBotCorpData';
@@ -92,4 +107,12 @@ export type MarsBotModel = {
    * lists (`BonusCardContext.competition`). Absent = a fixed-row game (its printed card says it all).
    */
   competition?: ReadonlyArray<CompetitionHelperLine>;
+  /** The bot's rule for every milestone / award of this game (the registry's generated lines). */
+  maRules?: ReadonlyArray<BotRuleLine>;
+  /** The threshold marks of the game's unclaimed single-track milestones on the bot's tracks (R6). */
+  thresholds?: ReadonlyArray<BotMilestoneThreshold>;
+  /** The tokens the bot collected off its token cells (decision R8) — present when the mat prints any. */
+  tokens?: Partial<Record<BotTokenKind, number>>;
+  /** A random-set game: what the set changed on the bot's mat and placements, one sentence each. */
+  briefing?: ReadonlyArray<Message>;
 };

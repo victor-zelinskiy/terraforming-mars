@@ -13961,6 +13961,14 @@ html.console-mode {
         font-size: var(--mafocus-note, .75rem);
         color: @con-text-dim;
     }
+    /* The bot's own rule for this milestone / award (the registry's line): a quiet note, the push on its own line. */
+    &__botrule {
+        display: flex; flex-direction: column; gap: .15rem;
+        margin-bottom: .45rem;
+        font-size: var(--mafocus-note, .75rem);
+        color: @con-text-dim;
+    }
+    &__botrule-helper { opacity: .85; }
     /* A PLATE is the console's grouped-block material: its own ground, one
        inset edge light, real padding. Naked text lines on the panel is what
        made this stage read as a form rather than an exhibition. */

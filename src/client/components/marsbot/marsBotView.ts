@@ -8,8 +8,9 @@
  * re-derives bot rules.
  */
 import {CardModel} from '@/common/models/CardModel';
-import {MarsBotModel, MarsBotTrackModel} from '@/common/models/MarsBotModel';
-import {COLONY_CELL_PRICE_MC, DifficultyLevel, TrackAction} from '@/common/automa/AutomaTypes';
+import {BotMilestoneThreshold, MarsBotModel, MarsBotTrackModel} from '@/common/models/MarsBotModel';
+import {BotTokenKind, COLONY_CELL_PRICE_MC, DifficultyLevel, TrackAction} from '@/common/automa/AutomaTypes';
+import {MilestoneName} from '@/common/ma/MilestoneName';
 import {MarsBotCorpCubeModel, MarsBotCubeType} from '@/common/automa/MarsBotCorpData';
 import {Tag} from '@/common/cards/Tag';
 
@@ -29,7 +30,9 @@ export type TrackActionGlyph =
   | {kind: 'tile', tile: 'greenery' | 'city'}
   | {kind: 'floater', count: 1 | 2}
   | {kind: 'colony', price?: number}
-  | {kind: 'ma', which: 'milestone' | 'award'};
+  | {kind: 'ma', which: 'milestone' | 'award'}
+  /** A random-set mat's TOKEN cell (decision R8): gain 1 / 2 tokens of a kind (data — Dataminer, fighters — Aeronaut). */
+  | {kind: 'token', token: BotTokenKind, count: 1 | 2};
 
 export function trackActionGlyph(action: TrackAction): TrackActionGlyph {
   if (action === 'advance') {
@@ -40,6 +43,10 @@ export function trackActionGlyph(action: TrackAction): TrackActionGlyph {
   }
   if (/^tr\d$/.test(action)) {
     return {kind: 'tr', steps: Number(action.substring(2))};
+  }
+  if (action.startsWith('token')) {
+    const [cell, token] = action.split('_') as [string, BotTokenKind];
+    return {kind: 'token', token, count: cell === 'token2' ? 2 : 1};
   }
   switch (action) {
   case 'temperature': return {kind: 'param', icon: 'temperature', count: 1};
@@ -85,6 +92,10 @@ export function trackActionLabel(action: TrackAction): {message: string, params:
       {message: 'Place a colony', params: []} :
       {message: 'Place a colony and lose ${0} M€', params: [String(glyph.price)]};
   case 'ma': return {message: glyph.which === 'milestone' ? 'Claim a milestone' : 'Fund an award', params: []};
+  case 'token':
+    return glyph.token === 'data' ?
+      {message: glyph.count === 2 ? 'Gain 2 data tokens' : 'Gain 1 data token', params: []} :
+      {message: glyph.count === 2 ? 'Gain 2 fighter tokens' : 'Gain 1 fighter token', params: []};
   }
 }
 
@@ -96,6 +107,8 @@ export type TrackCell = {
   regressed: boolean;
   /** A corporation cube seeded on this space (RB-B special cubes), if any. */
   cube?: {cubeType: MarsBotCubeType, spent: boolean};
+  /** The milestones whose bot threshold is THIS cell (decision R6 — the server's `MarsBotModel.thresholds`). */
+  thresholds?: ReadonlyArray<MilestoneName>;
 };
 
 /**
@@ -103,10 +116,12 @@ export type TrackCell = {
  * `cubes` are THIS track's corporation cubes (already filtered by the host) —
  * an empty list for every corporation that seeds none.
  */
-export function trackCells(track: MarsBotTrackModel, cubes: ReadonlyArray<MarsBotCorpCubeModel> = []): Array<TrackCell> {
+export function trackCells(track: MarsBotTrackModel, cubes: ReadonlyArray<MarsBotCorpCubeModel> = [],
+  thresholds: ReadonlyArray<BotMilestoneThreshold> = []): Array<TrackCell> {
   const cells: Array<TrackCell> = [];
   for (let i = 0; i <= track.maxPosition; i++) {
     const cube = cubes.find((c) => c.position === i);
+    const marks = thresholds.filter((t) => t.cell === i).map((t) => t.milestone);
     cells.push({
       index: i,
       // The layout's empty slots are authored as `undefined`, but JSON
@@ -116,6 +131,7 @@ export function trackCells(track: MarsBotTrackModel, cubes: ReadonlyArray<MarsBo
       current: track.position === i,
       regressed: track.regressed.includes(i),
       ...(cube !== undefined ? {cube: {cubeType: cube.cubeType, spent: cube.spent}} : {}),
+      ...(marks.length > 0 ? {thresholds: marks} : {}),
     });
   }
   return cells;

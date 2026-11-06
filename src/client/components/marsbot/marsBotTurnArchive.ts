@@ -87,7 +87,9 @@ export function recordBotTurnsFromView(prev: ViewModel | undefined, next: ViewMo
   // Defensive: expansions are always present on a real view; a narrow test /
   // spectator mock without them degrades to the base context.
   const expansions = next.game.gameOptions?.expansions;
-  const ctx: BonusCardContext = {venus: expansions?.venus === true, colonies: expansions?.colonies === true};
+  const competition = next.game.automa?.competition;
+  const ctx: BonusCardContext = {venus: expansions?.venus === true, colonies: expansions?.colonies === true,
+    ...(competition !== undefined ? {competition} : {})};
   const difficulty: DifficultyLevel = next.game.automa?.difficulty ?? 'normal';
   const corporation = next.game.automa?.corporation?.id;
   const trackTags = trackTagsOfView(next);
