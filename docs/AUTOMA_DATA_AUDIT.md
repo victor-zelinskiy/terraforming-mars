@@ -1798,3 +1798,315 @@ Pioneer требует трёх колоний (с Колониями бенч �
   58 Flaugergues · 63 Charybdis; жёстко прошитый блок SVG-подписей в `Board.vue` удалён (шаблон поля больше не
   называет ни одну карту — пин в спеке).
 - Спеки `tests/boards/arabiaTerraCells.spec.ts`, e2e `tests/e2e/console-arabia-terra.spec.ts`.
+
+## 22. Случайный набор вех и наград — ФРЕЙМВОРК НАБОРА ПАРТИИ (RB-C «Awards & Milestones expansion» + ДОМАШНИЕ)
+
+Проект: `docs/claude/marsbot-dynamic-ma-framework.md`; промт: `docs/claude/prompts/marsbot-dynamic-ma-framework.md`;
+журнал хода: `docs/claude/marsbot-dynamic-ma-progress.md`. Этот раздел — ДАННЫЕ: источник (§22.1), реестр всех имён
+(§22.2), законы калибровки (§22.3), полоса баланса (§22.4, снята ДО генератора — решение Р9).
+
+### 22.1. RB-C стр. 13–16 — транскрипция со значками треков
+
+Источник: `TM-Automa-rulebook-C-11-14-2023.pdf`, стр. 13–16; текст — `pdftotext -layout`, значки — рендер страниц
+(`pypdfium2`, ×2.2), прочитаны глазами 2026-11-06. **Значки — это треки ПЛАНШЕТА THARSIS** (setup модуля: «Use the
+MarsBot board and reference card for Tharsis… regardless of which board you are using»): [здание] = building,
+[звезда] = space, [стрелка] = event, [атом] = science, [молния] = power (на Tharsis — Power + **Jovian**),
+[Земля] = earth (Earth + **City**), [лист] = bio (Plant + Animal + Microbe), [V] = Venus.
+
+**Setup модуля.** ① планшет и справочная карта Tharsis на любой карте; ② B08 → **B14** (значок «MA»). Предупреждение
+(жёлтая плашка): не ставить в одну партию вехи / награды с одинаковым или очень похожим способом подсчёта бота —
+«swingy or easier to game»; для давления — второе правило Hard (стр. 11 RB-A).
+
+**Вехи (стр. 13–14):**
+
+| Веха | Правило бота (значок → роль) |
+|---|---|
+| Briber | Has 20 MC+, lose 12 MC |
+| Builder | [building] track space 7 |
+| Coastguard | Owns 4+ tiles adjacent to ocean tiles |
+| Diversifier | Reached track space 3 on 7+ tracks |
+| Ecologist | Reached space 4 on the [bio] track |
+| Energizer | Reached space 6 on the [power] track |
+| Engineer | [power] and [earth] track spaces combined at 10+ |
+| Farmer | Reached space 7 on the [bio] track |
+| Filantrope | As usual (5 cards with non-negative VP in played pile) |
+| Forester | Reached space 6 on the [bio] track |
+| Fundraiser | Reached space 8 on [event] track |
+| Gardener | As usual (owns 3+ greenery) |
+| Generalist | Reached space 2 on every track except [Venus] |
+| Geologist | As usual (owns 3 tiles on or adjacent to volcanic sites) · volcanic sites & adjacent spaces +1 placement bonus icon |
+| Hydrologist | As usual (4 oceans placed) · track both your and MarsBot's oceans separately |
+| Landshaper | Owns 1+ city and 1+ greenery, and reached space 5 on the [building] track |
+| Legend | As usual (4 red cards in played pile) |
+| Lobbyist | Controls the Chairman and at least 2 Party Leaders *(в форке RETIRED)* |
+| Mayor | As usual (owns 3+ cities) |
+| Merchant | Reached space 2 on every track except [Venus] |
+| Metallurgist | [building] and [space] tracks combined at 9 or higher |
+| Pioneer | As usual (owns 4 colonies) · cube on [space] #7, #10 and [power] #8: reached → MarsBot loses 5 MC and builds a colony; remove the cube |
+| Planetologist | Reached space 3 on two tracks out of [power], [earth], [Venus] |
+| Planner | Reached space 4 on every track except [Venus] |
+| Producer | Any three tracks (except [Venus]) combined at 16+ |
+| Researcher | Reached space 4 on the [science] track |
+| Rim Settler | Reached space 5 on the [power] track (Jovian на Tharsis — power) |
+| Spacefarer | Reached space 4 on the [space] track |
+| Sponsor | 3 cards costing 20 MC or more in MarsBot's played pile, BUT including events |
+| Tactician | Has 30 MC+ |
+| Terraformer | NOT SUPPORTED AGAINST THE AUTOMA |
+| Terran | Reached space 5 on the [earth] track |
+| Thawer | As usual (has increased temperature 5 times) · track both your and MarsBot's increases separately |
+| Trader | Reached space 2 on [bio], [earth], [Venus] |
+| Tycoon | As usual (10 blue/green cards in played pile) |
+
+**Награды (стр. 14–15):**
+
+| Награда | Правило бота |
+|---|---|
+| Administrator | Cards without tags in MarsBot's played pile +2 |
+| Banker | Sum of [building] and [event] track spaces |
+| Benefactor | Reduce MarsBot's TR by 15 for this |
+| Biologist | [bio] track space +5 |
+| Botanist | [bio] track space −2 |
+| Celebrity | Cards costing 20 MC or more in played pile, BUT including events |
+| Collector | Number of tracks that reached space 3 |
+| Constructor | As usual (cities and colonies owned) · кубы колоний — как у Pioneer |
+| Contractor | [building] track space |
+| Cultivator | As usual (greenery owned) |
+| Electrician | [power] track space |
+| Estate Dealer | As usual (tiles owned next to ocean) |
+| Excentric | 5 MC = 1 requirement *(sic — ресурс)* |
+| Forecaster | 7 MC = 1 requirement |
+| Founder | As usual, but for MarsBot the Neural Instance also counts as special tile · spaces adjacent to special tiles (incl. LNI) +1 placement bonus icon |
+| Highlander | As usual (tiles not adjacent to ocean) · the «adjacent to ocean» tiebreaker is lower than «most placement bonus» |
+| Incorporator | Cards costing 10 MC or less in played pile, BUT including events |
+| Investor | [earth] track space |
+| Landlord | As usual (tiles owned on the board) |
+| Landscaper | As usual (group of connected tiles) |
+| Magnate | As usual (blue and green cards in played pile) |
+| Manufacturer | Sum of [building] and [power] tracks combined |
+| Metropolist | As usual (cities owned) |
+| Miner | [space] track space +5 |
+| Mogul | Highest track space doubled |
+| Politician | MarsBot is always considered to have 5 *(в форке RETIRED)* |
+| Promoter | [event] track space |
+| Scientist | [science] track space |
+| Space Baron | [space] track space |
+| Suburbian | As usual (tiles owned on the edge of the board) · edge spaces +1 placement bonus icon |
+| Supplier | [power] track space +5 *(в форке нет такой награды)* |
+| Thermalist | [power] track space +5 |
+| Traveller | [power] track space OR [earth] track space, whichever is higher +5 |
+| Visionary | Lowest track space (2nd lowest if playing with Venus) doubled |
+| Zoologist | [bio] track space +5 |
+
+**Помощники B14 (стр. 16):** Administrator — reveal until a card without a tag, resolve it, MarsBot gains (an
+additional) 5 MC · Banker — advance [building] or [event], least advanced, building if tied · Benefactor — raises its
+TR 2 steps · Biologist — advance [bio] · Botanist — advance [bio] · Celebrity — reveal until a card costing 20+ MC,
+resolve · Collector — advance the least advanced track · Constructor — places a city tile · Contractor — advance
+[building] · Cultivator — greenery + oxygen · Electrician — advance [power] · Estate Dealer — greenery adjacent to an
+ocean · Excentric — you must lose 1 [animal] or 1 [microbe] (highest scoring) · Forecaster — reveal until a card
+with requirements, resolve, MarsBot gains 5 MC · Founder — city adjacent to a special tile · Highlander — greenery not
+adjacent to an ocean · Incorporator — reveal until a card costing 10 MC or less · Investor — advance [earth] · Landlord /
+Landscaper — greenery + oxygen · Magnate — reveal until a green card · Manufacturer — advance [building] or [power],
+least advanced, building if tied · Metropolist — places a city tile · Miner — advance [space] · Mogul — advance the most
+advanced track · Politician — no competition effect · Promoter — advance [event] · Scientist — advance [science] ·
+Space Baron — advance [space] · Suburbian — greenery on the edge · Supplier / Thermalist — advance [power] · Traveller —
+advance [Jovian] or [earth], whichever is more advanced · Visionary — advance the least advanced track, excluding Venus ·
+Zoologist — advance [bio]. *(Значок у Traveller на стр. 16 — отдельный круг Юпитера, а не молния: «трек, несущий метку
+Юпитера».)*
+
+**Чем модуль отличается от форка (выводы, на которых стоит реестр §22.2):**
+- **Порог модуля — функция планшета, а не имени** (Fundraiser 8 на Tharsis в модуле ↔ 10 на Terra Cimmeria в B12; Rim
+  Settler 5 на power Tharsis ↔ 6 на Jovian/Science Hellas; Tactician 30 ↔ 35 на Hellas). Форк держит ОДИН порог на имя
+  (решение Р3) — тот, что уже стоит на родной доске имени; генератор подгоняет планшет под порог, а не наоборот.
+- Модуль указывает значок там, где форк уже читает метку/значок производства: «[power]» у Rim Settler — это Jovian
+  на Tharsis, у Thermalist/Manufacturer — тепло через энергию (ассоциация Thermalist), у Energizer — энергия.
+  Реестр ссылается на СМЫСЛ (метка / значок / роль) — решение Р10.
+- Builder модуля (7) = `Builder7` форка; Spacefarer модуля (4) = `Spacefarer4`; Terran (5) = `Terran5`; Pioneer (4) =
+  `Pioneer4`; Legend (4) = `Legend4`; Tycoon (10) = `Tycoon10` — у двойников форка правило берётся прямо из модуля.
+
+### 22.2. Реестр — ВСЕ имена манифестов (снято 2026-11-06, HEAD `ea935c438b`)
+
+Обозначения класса: **трек** (позиция трека / сумма / максимум / минимум) · **M€** · **стопка** (сыгранная стопка
+бота с предикатом) · **игрок** («как у игрока» — у бота та же величина в том же месте) · **счётчик** (свой счётчик
+бота) · **жетоны** (клетки-жетоны, Р8) · **составной** · **ноль** (ровно одно имя — Р5). «Сегодня» — состояние кода
+на HEAD; «→» — что делает этап 2. Пороги человека — `milestoneThreshold` форка. Происхождение: RB-C p.N · B08…B13 ·
+BF1…BF4 · дом (+ аналог).
+
+**Вехи (67 + 6 устаревших на досках / в старых сейвах; Lobbyist — retired, правила не получает):**
+
+| Веха | Порог чел. | Класс | Правило бота (target — КОНСТАНТА имени) | Происхождение |
+|---|---|---|---|---|
+| Activist | 3 шага Повестки | игрок | сегодня: нет → Повестка бота (`agendaOf`), если движется (проверяется спеком этапа 2) | дом (Redux) |
+| Aeronaut | 4 истребителя/меха | жетоны | сегодня: нет → жетоны `fighter` на клетках трека, ≥ 4 | дом (Р8, аналог Hoverlord) |
+| Agronomist | 4 метки растений | трек | bio ≥ 4 (VBN: Animal/Plant) → трек с меткой Plant | B13 |
+| Architect | 3 метки городов | трек | science ≥ 6 (TC: City/Science) → трек с меткой City | B12 |
+| Briber | — (оплата) | M€ | сегодня: нет → M€ ≥ 20, при взятии −12 M€ | RB-C p.13 |
+| Builder | 8 меток зданий | трек | building ≥ 8 → трек с меткой Building | RB-A (Tharsis) |
+| Builder7 | 7 | трек | сегодня: ветка игрока (0 навсегда) → building ≥ 7 | RB-C p.13 |
+| C. Forester | 3 произв. растений | трек | bio ≥ 10 → трек со значком растений | B12 |
+| Capitalist | 64 M€ | игрок | реальные M€ бота | дом (BF1 §17.2) |
+| Coastguard | 3 тайла у океана | игрок | реальные тайлы | B12 / RB-C p.13 («As usual») |
+| Colonizer | 4 колонии | игрок | реальные колонии + `colony5` на планшете Amazonis | дом (BF2, Pioneer4) |
+| Dataminer | 7 данных | жетоны | сегодня: нет → жетоны `data`, ≥ 7 | дом (Р8, аналог Hoverlord) |
+| Diversifier | 8 разных меток | трек | 3 на 7 из 8 треков (Венера заменяема) | B09 / RB-C p.13 |
+| Ecologist | 4 bio-метки | трек | bio ≥ 4 → треки с метками Plant/Animal/Microbe | B10 / RB-C p.13 |
+| Economizer | 5 произв. тепла | трек | power ≥ 5 (ассоциация Thermalist) | дом (BF4) |
+| Energizer | 6 произв. энергии | трек | power ≥ 6 → трек со значком энергии | B09 / RB-C p.13 |
+| Engineer | 10 энергии+тепла | трек | power + earth ≥ 10 → значки энергии и тепла | B13 / RB-C p.13 |
+| Farmer | 5 животных+микробов | трек | max(science, bio) ≥ 6 → max треков с метками Microbe/Animal | B13 |
+| Firestarter | 20 тепла | трек | earth ≥ 8 → значок тепла | дом (BF3, калибровка Fundraiser) |
+| Forester *(устар., Amazonis)* | 4 произв. растений | трек | bio ≥ 6 → значок растений | RB-C p.13 |
+| Fundraiser | 12 произв. M€ | трек | event ≥ 10 → значок M€ | B12 (модуль: 8 — см. §22.1) |
+| Gambler | 2 награды | игрок | награды, профинансированные ботом | дом (BF3) |
+| Gardener | 3 озеленения | игрок | реальные тайлы | RB-A / RB-C p.13 |
+| Generalist | 6 производств | трек | 2 на каждом марсианском треке | B10 / RB-C p.13 |
+| Geologist | 3 тайла у вулканов | игрок | реальные тайлы (+1 значок у вулканов — правило размещения) | B13 / RB-C p.13 |
+| Hoverlord | 7 флоатеров | счётчик | флоатеры бота ≥ 7 | RB-C p.2 |
+| Hydrologist | 4 океана | игрок/счётчик | сегодня: нет → океаны, положенные БОТОМ (`globalParameterSteps`, если бот туда пишет — проверяется) | RB-C p.13 |
+| Irrigator *(устар., VB fan)* | 4 тайла у океана | игрок | реальные тайлы | дом (BF1) |
+| Land Specialist | 3 особых тайла | счётчик | уничтоженные бонус-карты ≥ 3 | B11 |
+| Landshaper | город+озел.+особый | составной | сегодня: нет → 1+ город И 1+ озеленение И building ≥ 5 | RB-C p.13 |
+| Legend | 5 событий | стопка | красные в стопке, порог печатный | B10 |
+| Legend4 | 4 | стопка | то же, порог 4 | RB-C p.13 |
+| Martian | 4 метки Марса | стопка | метки Марса в стопке; без Pathfinders в колоде — `reachable: нет` | дом (BF4) |
+| Mayor | 3 города | игрок | реальные тайлы | RB-A / RB-C p.13 |
+| Merchant | 2 каждого ресурса | трек | сегодня: нет → 2 на каждом треке, кроме Венеры | RB-C p.13 |
+| Metallurgist *(устар., старые сейвы)* | 6 стали+титана | трек | = Smith | B11 |
+| Minimalist | ≤ 2 карт в руке | трек-иное | колода действий ≤ 2 | дом (BF2) |
+| Networker | 3 тайла у бонус-тайлов | игрок | `aresData` | Ares (дом) |
+| Philantropist | 5 карт с ПО ≥ 0 | стопка | сегодня: нет → карты стопки с неотрицательными ПО | RB-C p.13 |
+| Pioneer | 3 колонии | игрок | реальные колонии | B11 |
+| Pioneer4 | 4 колонии | игрок | реальные колонии (+ кубы колоний при генераторе) | RB-C p.14 |
+| Planetologist | 2+2+2 метки | трек | earth + venus ≥ 5 → треки с Jovian/Earth + Venus | B12 (модуль: 3 на двух из трёх) |
+| Planner | 16 карт | трек | 4 на каждом марсианском треке | RB-A p.2 / RB-C p.14 |
+| Polar Explorer | 3 тайла в полярных рядах | игрок | реальные тайлы | B09 |
+| Producer | 16 производства | трек | сегодня: нет → три трека (без Венеры) в сумме ≥ 16 | RB-C p.14 |
+| Purifier | 3 убранных опасности | игрок | `purifierCount` (этап 5 — бот начинает расчищать) | RB-C — нет; дом |
+| Researcher | 4 метки науки | трек | science ≥ 4 → трек с меткой Science | B11 / RB-C p.14 |
+| Rim Settler | 3 метки Юпитера | трек | science ≥ 6 → трек с меткой Jovian | B09 (модуль: 5 на power) |
+| Smith | 6 стали+титана | трек | building + space ≥ 7 → значки стали и титана | B11 |
+| Spacefarer4 | 4 метки космоса | трек | сегодня: ветка игрока (0) → space ≥ 4 | RB-C p.14 |
+| Specialist | 10 одного производства | трек | лучший трек ≥ 10 (Венера кандидат) | B10 |
+| Sponsor | 3 карты ≥ 20 M€ | стопка | сегодня: нет → стопка, cost ≥ 20, события считаются | RB-C p.14 |
+| T. Collector | 3 набора цветов | стопка | min(зелёные, синие, красные) | дом (BF3) |
+| T. Spacefarer | 6 меток космоса | трек | space ≥ 6 | дом (BF3, N ↔ N) |
+| Tactician | 5 карт с требованиями | M€ | M€ ≥ 35 | B09 (модуль: 30) |
+| Tactician4 | 4 | M€ | сегодня: ветка игрока (0) → M€ ≥ 28 (закон Forecaster: 7 M€ = 1 карта) | дом (калибровка B12) |
+| Terra Pioneer | 5 тайлов | игрок | реальные тайлы | дом (BF3) |
+| Terraformer29 | 29 РТ | игрок | реальный РТ (решение Р4) | дом |
+| Terraformer *(устар.)* | 35 РТ | игрок | реальный РТ | — |
+| Terran | 6 меток Земли | трек | earth ≥ 6 → трек с меткой Earth | дом (калибровка RB-C p.14) |
+| Terran5 | 5 | трек | сегодня: ветка игрока (0) → earth ≥ 5 | RB-C p.14 |
+| Thawer | 5 подъёмов темп. | игрок/счётчик | сегодня: нет → подъёмы ботом (`globalParameterSteps`, если пишет — проверяется) | RB-C p.14 |
+| Trader *(устар.)* | 3 типа ресурсов | трек | = Tradesman | B11 |
+| Tradesman | 3 типа ресурсов | трек | min(power, earth, venus) ≥ 2 (роли названы оригиналом) | B11 |
+| Tropicalist | 3 тайла на экваторе | игрок | реальные тайлы | дом (BF2) |
+| Tycoon10 | 10 синих+зелёных | стопка | стопка, порог печатный | RB-C p.14 |
+| Tycoon *(устар.)* | 15 | стопка | то же, порог 15 | B10 |
+| V. Electrician | 4 метки энергии | трек | power ≥ 4 → трек с меткой Power | дом (BF1) |
+| V. Spacefarer | 4 метки космоса | трек | space ≥ 5 | B13 |
+| Lunarchitect, One Giant Step (Moon), Risktaker, Tunneler (Underworld) | — | ВНЕ СКОУПА | модули несовместимы с ботом (`automaConflicts`) | — |
+
+**Награды (57):**
+
+| Награда | Класс | Правило бота (сегодня → этап 2) | Помощник (сегодня → этап 2) | Происхождение |
+|---|---|---|---|---|
+| A. Engineer | стопка | меняют производство (`AmazonisEngineer.altersProduction`) | вскрыть до такой карты | дом (BF2) |
+| A. Manufacturer | стопка | синие | вскрыть до синей | дом (BF4) |
+| A. Zoologist | трек | bio + 5 | продвинуть bio | B12 |
+| Administrator | стопка | сегодня: нет → карты без меток + 2 | → вскрыть до карты без меток, +5 M€ | RB-C p.14 / p.16 |
+| Banker | трек | building + event | меньший из building / event (building при ничьей) | RB-A |
+| Benefactor | игрок−15 | РТ − 15 | РТ +2 | B10 |
+| Biologist | трек | bio + 5 | продвинуть bio | RB-C p.14 / p.16 |
+| Blacksmith | трек | max(building, space) | больший из двух (building при ничьей) | B13 |
+| Botanist | трек | bio − 2 | продвинуть bio | B11 |
+| Celebrity | стопка | cost ≥ 20, события считаются | вскрыть до cost ≥ 20 | B10 |
+| Collector | трек | сегодня: нет → число треков на 3+ | → продвинуть самый отстающий | RB-C p.14 / p.16 |
+| Constructor | игрок | города + колонии (реальные) | сегодня: нет → поставить город | RB-C p.14 / p.16 |
+| Contractor | трек | building | продвинуть building | B09 |
+| Cosmic Settler | стопка | карты с городом вне Марса | НЕТ (образец Politician) | дом (BF4) |
+| Cultivator | игрок | реальные озеленения | озеленение | B09 |
+| Curator | трек | лучший трек | продвинуть лучший | дом (BF2) |
+| Desert Settler | игрок | реальные тайлы на юге | озеленение на юге | B10 |
+| Edgedancer | игрок | реальные тайлы на краю | озеленение на краю | B11 |
+| Electrician | трек | power | продвинуть power | B12 |
+| Entrepreneur | НОЛЬ | у бота нет тайлов с бонусом соседства (Р5) | НЕТ — с причиной | решение владельца |
+| Estate Dealer | игрок | реальные тайлы у океана | озеленение у океана | B10 |
+| Excentric | M€ | ⌊M€ / 5⌋ | игрок теряет лучший куб животного/микроба | B09 |
+| Forecaster | M€ | ⌊M€ / 7⌋ | вскрыть до карты с требованием, +5 M€, бесплатно | B12 |
+| Founder | игрок | реальные тайлы у особых | город у особого тайла | B12 |
+| Highlander | игрок | реальные тайлы не у океана | озеленение не у океана | B13 |
+| Incorporator | стопка | cost ≤ 10, события считаются | вскрыть до cost ≤ 10 | B11 |
+| Industrialist | трек | power + 5 | продвинуть power | B10 |
+| Influencer | игрок | сегодня: нет → Повестка бота | → дверь, двигающая Повестку бота, если есть; иначе НЕТ с причиной | дом (Redux) |
+| Investor | трек | earth | продвинуть earth | B11 |
+| Landlord | игрок | реальные тайлы | озеленение | RB-A |
+| Landscaper | игрок | реальная связная группа | озеленение | B13 |
+| Magnate | стопка | зелёные | вскрыть до зелёной | B09 |
+| Manufacturer | трек | сегодня: нет → building + power | → меньший из building / power (building при ничьей) | RB-C p.15 / p.16 |
+| Metropolist | игрок | реальные города | город | B11 |
+| Miner | трек | space + 5 | продвинуть space | RB-A |
+| Mogul | трек | лучший × 2 | продвинуть лучший | B12 |
+| Naturalist | трек | bio + earth | меньший из earth / bio | дом (BF1) |
+| Politologist | стопка | сегодня: нет → карты с требованием партии (`hasPartyRequirement`) | → вскрыть до такой карты | дом (Redux) |
+| Promoter | трек | event | продвинуть event | B13 |
+| Rugged | игрок | реальные тайлы у опасностей | сегодня: нет → озеленение у опасности, если не нарушает избегание; иначе НЕТ с причиной | дом (Ares) |
+| Scientist | трек | science | продвинуть science | RB-A |
+| Space Baron | трек | space | продвинуть space | B09 |
+| Suburbian | игрок | реальные тайлы на краю | сегодня: нет → озеленение на краю | RB-C p.15 / p.16 |
+| T. Politician | игрок | поставленные делегаты | делегат (дверь `castBotVote`) | дом (BF3) |
+| Thermalist | трек | power + 5 | продвинуть power | RB-A |
+| Tourist | игрок | пустые соседи | город со всеми пустыми соседями | дом (BF2) |
+| Traveller | трек | earth + 5 → max(трек Jovian, трек Earth) + 5 | продвинуть earth → больший из двух | B13 / RB-C p.15 |
+| Urbanist | игрок | ПО озеленений у своих городов | озеленение у своего города | дом (BF3) |
+| Venuphile | трек | venus | продвинуть venus | RB-C p.3 |
+| Visionary | трек | min × 2 (второй min с Венерой) | продвинуть самый отстающий | RB-C p.15 |
+| Voyager | трек | ⌊трек Jovian / 2⌋ | продвинуть трек Jovian | дом (BF1) |
+| Warmonger | стопка | `Warmonger.include` | вскрыть до такой карты | дом (BF3) |
+| Zoologist | трек | bio + 5 | продвинуть bio | RB-C p.15 / p.16 |
+| Excavator, Kingpin (Underworld), Full Moon, Lunar Magnate (Moon) | ВНЕ СКОУПА | — | — | — |
+
+**Итого на HEAD:** вехи — своё правило 33 · ветка игрока 14 · без правила 11 · двойники вне пула ALL 5 (Builder7,
+Spacefarer4, Terran5, Tactician4 — читают ветку игрока и навсегда 0; Pioneer4 — честно игрок) · вне скоупа 4;
+награды — своё 33 · игрок 15 · без правила 5 · вне скоупа 4. Помощника нет у Constructor, Suburbian, Rugged,
+Entrepreneur (+ Cosmic Settler — НЕТ по образцу Politician, решение BF4). Двойники попадают в набор при
+`randomMA ∈ {LIMITED, UNLIMITED}` с модульным пулом — поэтому реестр закрывает их правилом из модуля.
+
+### 22.3. Законы калибровки (данные — `src/server/automa/ma/calibration.ts`, этап 1+)
+*(заполняется на этапе 1: таблица законов с источником каждого)*
+
+### 22.4. ПОЛОСА БАЛАНСА — снята со всех десяти статических планшетов ДО генератора (Р9)
+
+Стенд `tests/automa/MarsBotBoardBalance.dev.spec.ts` (библиотека `tests/automa/marsBotBench.ts`), `TM_BOT_BALANCE=1`,
+2026-11-06: 12 посеянных последовательностей × 48 карт (base + corpera), **3 карты = 1 поколение** (конвенция стенда —
+официальное исследование даёт боту 3 проектные карты; всё сравнивается в этой единице). Песочница: без бонус-карт,
+без человека, без производства — чистый выход планшета.
+
+| Карта (base) | РТ+ | M€ | тайлы | Failed | вех | наград | 1-я веха (пок.) | критерий (пок.) | «никогда» | клетка M | клетка A | счёт в награде |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Tharsis | 45.7 | 81.5 | 16.4 | 4.1 | 3.0 | 2.7 | 6.3 | 7.3 | 0.00 | 9.4 | 12.6 | 17.7 |
+| Hellas | 50.7 | 76.2 | 15.6 | 4.1 | 3.0 | 2.7 | 6.0 | 7.2 | 0.00 | 9.3 | 12.6 | 15.3 |
+| Elysium | 50.0 | 91.9 | 16.3 | 4.1 | 3.0 | 2.7 | 6.3 | 6.9 | 0.02 | 9.1 | 12.6 | 18.9 |
+| Utopia Planitia | 42.5 | 80.0 | 16.0 | 4.9 | 2.0 | 2.7 | 6.1 | 12.0 | 0.60 | 9.1 | 12.8 | 10.8 |
+| Terra Cimmeria Nova | 43.3 | 76.4 | 16.5 | 4.3 | 2.5 | 2.9 | 7.7 | 10.7 | 0.12 | 10.4 | 11.4 | 14.4 |
+| Vastitas Borealis Nova | 45.8 | 76.0 | 15.8 | 4.3 | 2.9 | 2.4 | 6.9 | 6.9 | 0.02 | 9.3 | 13.0 | 12.8 |
+| Vastitas Borealis (fan) | 46.5 | 78.3 | 16.1 | 4.4 | 2.7 | 2.7 | 6.3 | 10.8 | 0.25 | 9.3 | 12.6 | 12.1 |
+| Amazonis (fan) | 40.4 | 74.9 | 16.4 | 4.6 | 2.3 | 2.7 | 8.0 | 11.9 | 0.43 | 10.2 | 12.6 | 16.3 |
+| Terra Cimmeria (fan) | 46.3 | 80.1 | 16.9 | 4.6 | 2.6 | 2.7 | 8.4 | 9.7 | 0.03 | 9.5 | 12.6 | 13.4 |
+| Arabia Terra (fan) | 48.4 | 80.3 | 15.1 | 5.5 | 1.6 | 2.7 | 9.4 | 14.3 | 0.62 | 9.8 | 12.6 | 10.0 |
+| **ПОЛОСА** | **40.4…50.7** | **74.9…91.9** | **15.1…16.9** | **4.1…5.5** | **1.6…3.0** | **2.4…2.9** | **6.0…9.4** | 6.9…14.3 | 0.00…0.62 | **9.1…10.4** | **11.4…13.0** | 10.0…18.9 |
+
+С Венерой + Колониями: РТ 41.8…51.7 · M€ 64.5…92.8 · тайлы 15.1…16.9 · Failed 4.1…5.3 · вех 1.8…3.0 · наград
+2.4…2.9 · 1-я веха 6.0…9.4 · клетка M 9.1…10.4 · клетка A 11.4…13.0.
+
+**Окно поколений ТРЕКОВЫХ критериев** (среднее поколение, когда критерий бота впервые выполнен, на родной доске
+имени; «никогда» — из 12): Smith 4.3–4.8 · Researcher 4.4 · Ecologist 5.1 · Rim Settler 5.3 · Generalist 5.7 ·
+Farmer 5.8 · V. Electrician 6.3 · Architect 6.8 · Specialist 7.7 · Engineer 8.0 · Builder 8.1 · V. Spacefarer 8.1 ·
+Energizer 8.3 · Economizer 8.3 · Agronomist 8.6 (1) · Forester 8.7 (1) · T. Spacefarer 8.8 · Diversifier 9.1 ·
+Tactician 9.8 (M€) · Planner 10.3 · Planetologist 10.5 · Terran 12.2 (1) · C. Forester 12.3 (4) · Fundraiser 13.3 (3) ·
+Firestarter 13.9 (2). **Окно официальных досок: 4.3 … 13.3** — генератор держит каждое трековое правило набора внутри
+него (с запасом: ≤ 13.3 и «никогда» ≤ 4 из 12).
+
+**Как читать полосу.** Метрики «критерий» / «никогда» / «счёт в награде» зависят от РЯДА (песочница не умеет колонии,
+уничтоженные бонус-карты, Minimalist — Utopia, Arabia, Amazonis «никогда» поэтому высокие); сравнение сгенерированных
+планшетов идёт по выходу планшета (РТ, M€, тайлы, Failed, клетки M/A, взятые вехи и награды) и по окну трековых
+критериев, а метрики ряда — по тому же набору на родном планшете, где он есть.
