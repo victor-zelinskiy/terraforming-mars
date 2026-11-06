@@ -7,7 +7,7 @@ import {Thermalist} from '../src/server/awards/Thermalist';
 import {Birds} from '../src/server/cards/base/Birds';
 import {WaterImportFromEuropa} from '../src/server/cards/base/WaterImportFromEuropa';
 import {Phase} from '../src/common/Phase';
-import {addCity, addGreenery, addOcean, forceGenerationEnd, maxOutOceans, runAllActions, setOxygenLevel, setTemperature, setVenusScaleLevel} from './TestingUtils';
+import {addCity, addGreenery, addOcean, forceGenerationEnd, maxOutOceans, runAllActions, setOxygenLevel, setTemperature, setVenusScaleLevel, testGame} from './TestingUtils';
 import {cast, toName} from '../src/common/utils/utils';
 import {TestPlayer} from './TestPlayer';
 import {SaturnSystems} from '../src/server/cards/corporation/SaturnSystems';
@@ -316,6 +316,21 @@ describe('Game', () => {
     expect(game.phase).to.eq(Phase.END);
 
     expect(game.isSoloModeWin()).is.not.true;
+  });
+
+  it('Amazonis Planitia solo games take one more generation', () => {
+    const [game] = testGame(1, {boardName: BoardName.AMAZONIS_PLANITIA});
+    expect(game.lastSoloGeneration()).eq(15);
+  });
+
+  it('Amazonis Planitia solo games with prelude take one more generation', () => {
+    const [game] = testGame(1, {boardName: BoardName.AMAZONIS_PLANITIA, preludeExtension: true});
+    expect(game.lastSoloGeneration()).eq(13);
+  });
+
+  it('Amazonis Planitia solo games in TR63 mode do not take one more generation', () => {
+    const [game] = testGame(1, {boardName: BoardName.AMAZONIS_PLANITIA, soloTR: true});
+    expect(game.lastSoloGeneration()).eq(14);
   });
 
   it('Should not finish solo game before last generation if Mars is already terraformed', () => {

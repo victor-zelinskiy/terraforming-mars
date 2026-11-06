@@ -883,6 +883,10 @@ export class Game implements IGame, Logger {
         lastGeneration += 2;
       }
     }
+    // Amazonis Planitia's longer tracks: the standard solo game gets one more generation (upstream 16da0a0117).
+    if (!options.soloTR && options.boardName === BoardName.AMAZONIS_PLANITIA) {
+      lastGeneration += 1;
+    }
     return lastGeneration;
   }
 
@@ -3147,7 +3151,7 @@ export class Game implements IGame, Logger {
       if (this.parliament !== undefined) {
         this.defer(new PlaceDelegatesOnResolution(player, count, cellGiver()));
       } else {
-        Turmoil.ifTurmoil(this, () => this.defer(new SendDelegateToArea(player)));
+        Turmoil.ifTurmoil(this, () => this.defer(new SendDelegateToArea(player, undefined, {count})));
       }
       return {kind: 'other'};
     case SpaceBonus.COLONY:
