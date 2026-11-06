@@ -116,5 +116,9 @@
     "Influencer": "Карьерист",
     "Furthest on the Agenda track": "Дальше всех продвинутый маркер Карьеры",
     "Politologist": "Политолог",
-    "Have the most cards with a party requirement. (Event cards count)": "Наибольшее количество карт с требованием партии (события тоже считаются)"
+    "Have the most cards with a party requirement. (Event cards count)": "Наибольшее количество карт с требованием партии (события тоже считаются)",
+    "Innovator": "Новатор",
+    "Have played the most green, blue, and red cards (events included).": "Наибольшее количество разыгранных зелёных, синих и красных карт (события тоже считаются)",
+    "Physicist": "Физик",
+    "Have the most science and space tags in play, combined.": "Наибольшее количество меток науки и космоса в сумме"
 }

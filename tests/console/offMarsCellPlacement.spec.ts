@@ -40,7 +40,8 @@ const OFF_MARS: ReadonlyArray<SpaceId> = [
 function consoleCells(): Map<string, {top: number, left: number, line: string}> {
   const cells = new Map<string, {top: number, left: number, line: string}>();
   for (const line of CONSOLE_LESS.split('\n')) {
-    const match = /\.board-space-(\d\d)\s*\{\s*margin:\s*([^;]+);\s*\}/.exec(line);
+    // Space colony ids lead with 'c' (upstream c24eae02b6 — the eleven-row Amazonis Planitia owns '69'…'93').
+    const match = /\.board-space-(c?\d\d)\s*\{\s*margin:\s*([^;]+);\s*\}/.exec(line);
     if (match === null || !OFF_MARS.includes(match[1] as SpaceId)) {
       continue;
     }
