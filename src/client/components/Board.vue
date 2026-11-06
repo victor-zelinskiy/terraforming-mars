@@ -126,7 +126,8 @@
               A compact premium arc in the free bottom window, concentric with
               the scales above. See OceanArcScale.vue / arcScaleGeometry.ts.
             -->
-            <ocean-arc-scale class="global-numbers-shell" :value="oceans_count" :aresMarkers="oceanAresMarkers" :players="players" />
+            <ocean-arc-scale class="global-numbers-shell" :value="oceans_count" :aresMarkers="oceanAresMarkers" :players="players"
+              :config="arcs.oceans" :eventsOutside="layoutKind === 'large'" />
         </div>
 
         <div class="board" id="main_board">
@@ -178,7 +179,8 @@ import {aresThresholdMarkers, aresDynamicMarkerView, ScaleEventMarkerView} from 
 import {GlobalParameterThresholdMarker} from '@/client/components/board/oceanThresholdMarkers';
 import {glidedThreshold} from '@/client/components/board/aresMarkerGlide';
 import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
-import {OXYGEN_ARC, TEMPERATURE_ARC, VENUS_ARC} from '@/client/components/board/arcScaleConfigs';
+import {BoardArcConfigs, DynamicArcConfig} from '@/client/components/board/arcScaleConfigs';
+import {BoardLayoutKind, arcConfigsFor, boardLayoutKind} from '@/client/components/board/largeBoardLayout';
 import BonusZone from '@/client/components/board/BonusZone.vue';
 import {scaleBonusZoneViews, ScaleBonusZoneView, ScaleBonusClaim, resolveScaleBonusClaim} from '@/client/components/board/scaleBonusZones';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -268,9 +270,6 @@ export default defineComponent({
       // Dynamic global-parameter bands (default) — themed code bands for the
       // O₂ / temperature / Venus scales (mars.png is now planet-only). Constants.
       arcThemes: ARC_SCALE_THEMES,
-      oxygenArc: OXYGEN_ARC,
-      temperatureArc: TEMPERATURE_ARC,
-      venusArc: VENUS_ARC,
     };
   },
   mounted() {
@@ -379,7 +378,8 @@ export default defineComponent({
       // whether or not Venus is in play — the Venus SCALE is toggled dynamically
       // by `expansions.venus` on its <arc-scale> + digit container. The legacy
       // `board-without-venus` (mars-without-venus.png) variant is retired.
-      return 'board-cont board-with-venus';
+      // The ELEVEN-ROW field (Amazonis Planitia) scopes its own hex positions and planet (`board_large_positions.less`).
+      return this.layoutKind === 'large' ? 'board-cont board-with-venus board-cont--large' : 'board-cont board-with-venus';
     },
     // The full BonusZone prop set for a scale-bonus view (bound via v-bind so
     // the same markup serves all three scale containers). The return type is
@@ -406,6 +406,23 @@ export default defineComponent({
     // `spaces` changed — it only "refreshed" because the board full-remounts on every
     // poll (a latent staleness bug). As a computed it tracks `this.spaces` correctly,
     // with zero behavior change today, and unblocks moving the board off the remount.
+    /** The board's layout family (`largeBoardLayout.ts` — Amazonis Planitia's eleven rows). */
+    layoutKind(): BoardLayoutKind {
+      return boardLayoutKind(this.boardName);
+    },
+    /** The board's four dials — the classic ring or the eleven-row field's own circles (`LARGE_ARCS`). */
+    arcs(): BoardArcConfigs {
+      return arcConfigsFor(this.boardName);
+    },
+    temperatureArc(): DynamicArcConfig {
+      return this.arcs.temperature;
+    },
+    oxygenArc(): DynamicArcConfig {
+      return this.arcs.oxygen;
+    },
+    venusArc(): DynamicArcConfig {
+      return this.arcs.venus;
+    },
     spaceMap(): Map<string, SpaceModel> {
       return new Map<string, SpaceModel>(this.spaces.map((s) => [s.id, s]));
     },
@@ -429,7 +446,7 @@ export default defineComponent({
       const views = scaleBonusZoneViews({
         venus: this.expansions.venus === true,
         altVenus: this.altVenusBoard === true,
-      });
+      }, this.boardName);
       return views.map((z) => ({
         ...z,
         ...resolveScaleBonusClaim(this.scaleBonusClaims, z.scale, z.step, this.players),
@@ -463,12 +480,12 @@ export default defineComponent({
     temperatureEventMarkers(): ReadonlyArray<ScaleEventMarkerView> {
       return this.aresMarkers
         .filter((m) => m.parameter === 'temperature')
-        .map((m) => aresDynamicMarkerView(m, this.temperature, glidedThreshold(m.id, m.value)));
+        .map((m) => aresDynamicMarkerView(m, this.temperature, glidedThreshold(m.id, m.value), this.arcs));
     },
     oxygenEventMarkers(): ReadonlyArray<ScaleEventMarkerView> {
       return this.aresMarkers
         .filter((m) => m.parameter === 'oxygen')
-        .map((m) => aresDynamicMarkerView(m, this.oxygen_level, glidedThreshold(m.id, m.value)));
+        .map((m) => aresDynamicMarkerView(m, this.oxygen_level, glidedThreshold(m.id, m.value), this.arcs));
     },
     /**
      * Mars-surface cells (non-colony) for which a special-cell info entry

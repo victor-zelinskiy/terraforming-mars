@@ -4,6 +4,7 @@ import {Phase} from '../../src/common/Phase';
 import {cast} from '../../src/common/utils/utils';
 import {fakeCard, runAllActions, setOxygenLevel, setTemperature, setVenusScaleLevel, testGame} from '../TestingUtils';
 import {assertBuildColony} from '../colonies/coloniesAssertions';
+import {GrantVenusAltTrackBonusDeferred} from '../../src/server/venusNext/GrantVenusAltTrackBonusDeferred';
 
 /**
  * Amazonis Planitia's longer tracks — upstream's own specs of b745cb9a00 (per-map track bonuses) and 91a4605bd2 (Venus
@@ -176,5 +177,30 @@ describe('Amazonis Planitia — the global-parameter tracks', () => {
     setVenusScaleLevel(game, 28);
     expect(game.increaseVenusScaleLevel(player, 3)).eq(1);
     expect(game.getVenusScaleLevel()).eq(30);
+  });
+
+  // The owner's rule for Alt Venus on the 33 % track (2026-11-06): a standard resource per step from 16 %, 31 · 32 · 33
+  // included, and the wild resource on the map's maximum — and every one of those cells is a claimable scale bonus.
+  describe('the alternative Venus board on the 33 % track', () => {
+    for (const run of [
+      {from: 28, steps: 1, standard: 1, wild: false, to: 30},
+      {from: 30, steps: 1, standard: 1, wild: false, to: 31},
+      {from: 31, steps: 2, standard: 2, wild: true, to: 33},
+    ]) {
+      it(JSON.stringify(run), () => {
+        const [game, player] = testGame(1, {venusNextExtension: true, altVenusBoard: true, boardName: BoardName.AMAZONIS_PLANITIA});
+        setVenusScaleLevel(game, run.from);
+        game.increaseVenusScaleLevel(player, run.steps as 1 | 2);
+        expect(game.getVenusScaleLevel()).eq(run.to);
+        const bonus = game.deferredActions.queuedFor(player).find((d) => d instanceof GrantVenusAltTrackBonusDeferred) as GrantVenusAltTrackBonusDeferred | undefined;
+        expect(bonus, 'the bonus is asked').is.not.undefined;
+        expect([bonus!.standardResourceCount, bonus!.wildResource]).deep.eq([run.standard, run.wild]);
+        for (let level = run.from + 1; level <= run.to; level++) {
+          if (level > 30 || level % 2 === 0) {
+            expect(game.scaleBonusClaims.get(`venus-${level}`), `venus-${level} claimed`).eq(player.color);
+          }
+        }
+      });
+    }
   });
 });

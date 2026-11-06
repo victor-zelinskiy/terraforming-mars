@@ -59,6 +59,7 @@ import {
   MINI_HEX_R,
   MINI_HEX_W,
   MINI_ROWS,
+  miniRowsOf,
   MINI_V_STEP,
   miniCellCenter,
   miniHexPoints,
@@ -156,9 +157,11 @@ export default defineComponent({
     cells(): ReadonlyArray<CellRender> {
       const showGlyphs = this.variant !== 'thumb';
       const wave = this.waveCenter;
+      const rows = miniRowsOf(this.layout);
+      const maxLen = Math.max(...rows);
       return this.layout.map((s) => {
-        const rowLen = MINI_ROWS[s.y] ?? 9;
-        const {cx, cy} = miniCellCenter(s.x, s.y, rowLen);
+        const rowLen = rows[s.y] ?? maxLen;
+        const {cx, cy} = miniCellCenter(s.x, s.y, rowLen, maxLen);
         const style: Record<string, string> = {};
         if (this.reveal) {
           const d = Math.hypot(cx - wave.x, cy - wave.y) / wave.max;

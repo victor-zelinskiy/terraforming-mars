@@ -42,6 +42,7 @@
  */
 import {Color} from '@/common/Color';
 import {SpaceId} from '@/common/Types';
+import {BoardName} from '@/common/boards/BoardName';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {resolutionIdOf} from '@/common/parliament/ParliamentTypes';
@@ -85,12 +86,16 @@ export type WinnerRewardReading = {
  * in a game without Venus Next, which is exactly what «a Venus move is
  * impossible here» means.
  */
-export function winnerRewardTableOf(game: {oxygenLevel: number, temperature: number, oceans: number, venusScaleLevel?: number} | undefined): WinnerRewardTable | undefined {
+export function winnerRewardTableOf(
+  game: {oxygenLevel: number, temperature: number, oceans: number, venusScaleLevel?: number, gameOptions?: {boardName: BoardName}} | undefined,
+): WinnerRewardTable | undefined {
   return game === undefined ? undefined : {
     oxygenLevel: game.oxygenLevel,
     temperature: game.temperature,
     oceans: game.oceans,
     ...(game.venusScaleLevel === undefined ? {} : {venusScaleLevel: game.venusScaleLevel}),
+    // The MAP's maximums and track bonuses (Amazonis Planitia) — the shared arithmetic reads them off the table.
+    ...(game.gameOptions === undefined ? {} : {boardName: game.gameOptions.boardName}),
   };
 }
 

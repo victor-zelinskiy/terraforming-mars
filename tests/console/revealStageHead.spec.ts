@@ -144,9 +144,10 @@ describe('revealSourceReading — where the cards came from, in the player\'s wo
     expect(revealSourceReading({type: 'tile', spaceId: '07'}, [SpaceBonus.OCEAN])?.nameKey).eq('Tile bonus');
   });
 
-  it('the Venus 8 % names its scale; a party\'s action / a law take the host\'s translated name; nothing invented', () => {
+  it('the Venus 8 % and Amazonis Planitia\'s oxygen 7 % name their scale; a party\'s action / a law take the host\'s translated name; nothing invented', () => {
     expect(revealSourceReading({type: 'globalParameter', parameter: GlobalParameter.VENUS})?.nameKey).eq('Venus scale bonus');
-    expect(revealSourceReading({type: 'globalParameter', parameter: GlobalParameter.OXYGEN})).is.undefined;
+    expect(revealSourceReading({type: 'globalParameter', parameter: GlobalParameter.OXYGEN})?.nameKey).eq('Oxygen scale bonus');
+    expect(revealSourceReading({type: 'globalParameter', parameter: GlobalParameter.TEMPERATURE})).is.undefined;
     expect(revealSourceReading({type: 'resolution', resolution: 'X'}, undefined, 'Открытая торговля')).deep.eq(
       {labelKey: 'Source', nameKey: '', nameText: 'Открытая торговля', icons: [], inspectable: false});
     expect(revealSourceReading({type: 'other'})).is.undefined;

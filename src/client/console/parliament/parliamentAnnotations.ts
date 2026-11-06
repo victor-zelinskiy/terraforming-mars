@@ -182,7 +182,7 @@ export function resolutionAnnotations(
   world?: {
     table: WorldMoveTable | undefined, enacted?: boolean, outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>, colonies?: ReadonlyArray<ColonyModel>,
     /** The BOARD for a law that takes a tile off it (Water Export): the ocean count and how many are plain — `tileRemovalTableOf`. */
-    removal?: {oceans: number, removableOceans?: number},
+    removal?: {oceans: number, removableOceans?: number, maxOceans?: number},
     /** …and the seats' names, so the record can say who chose the cell. */
     nameOf?: (color: Color) => string,
     /** WHAT THE TABLE ANSWERS to the world move, for the viewer (`ParliamentSlotModel.worldForecast`, PL-052). */

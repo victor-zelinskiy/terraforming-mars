@@ -26,7 +26,8 @@ import {reactive, watch, WatchStopHandle} from 'vue';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {MAX_VENUS_SCALE} from '@/common/constants';
+import {MAX_VENUS_SCALE, MAX_VENUS_SCALE_AMAZONIS} from '@/common/constants';
+import {altVenusResourceCells} from '@/common/venus/altVenusBonus';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {scaleMarkerArrived, scaleMarkerPoses} from '@/client/components/board/scaleMarkerArrival';
@@ -41,9 +42,6 @@ import {scaleStepRatingBusy, scaleStepRatingQuiet} from '@/client/console/scaleS
 
 /** The beat's own name — its notification-only hold, its ledger story, its park membership. */
 export const VENUS_BONUS_CELL_KEY = 'venus-bonus-cell';
-
-/** The first level of the alternative board's resource cells (16 % is the TR bonus — the rating beat's own chip). */
-const FIRST_RESOURCE_CELL = 18;
 
 /** What the bonus surface SENT — the promise the views are checked against. */
 export type VenusBonusCellArm = {
@@ -65,18 +63,16 @@ const PRESELECT_ARM_MAX_MS = 60_000;
 
 /**
  * THE CELLS a raise reached, in the scale's order — the board's own chip keys (`Board.bonusZoneProps`:
- * `<scale>-<step>` → `venus-18 … venus-30`, the 30 % gold cube included; `data-arc-marker` on the chip). Pure. Empty
+ * `<scale>-<step>` → `venus-18 … venus-30` (… `venus-33` on Amazonis Planitia), the finish's gold cube included; `data-arc-marker` on the chip). Pure. Empty
  * when the raise reached no resource cell (no step known — an older save).
  */
 export function venusBonusCells(step: {from: number, to: number} | undefined): Array<string> {
   if (step === undefined) {
     return [];
   }
-  const out: Array<string> = [];
-  for (let level = Math.max(step.from + 2, FIRST_RESOURCE_CELL); level <= Math.min(step.to, MAX_VENUS_SCALE); level += 2) {
-    out.push(`venus-${level}`);
-  }
-  return out;
+  // Every map's cells (`altVenusResourceCells` of the longest track — 18 … 30, then Amazonis Planitia's 31 … 33): a raise
+  // never passes its own map's maximum, so the longer list names exactly the cells the step reached.
+  return altVenusResourceCells(MAX_VENUS_SCALE_AMAZONIS).filter((level) => level > step.from && level <= step.to).map((level) => `venus-${level}`);
 }
 
 /**

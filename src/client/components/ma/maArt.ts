@@ -37,7 +37,9 @@ type MaArtFit = {s: number, x: number, y: number, c?: string};
  * measurement time, so they never blur). Unknown asset → contain fallback.
  */
 export function maArtFitStyle(name: string): Record<string, string> {
-  const fit = (maArtFit as Record<string, MaArtFit>)[maArtFileSlug(maArtSlug(name), getPreferences().lang)];
+  const slug = maArtFileSlug(maArtSlug(name), getPreferences().lang);
+  // An OWN key only (the `constructor` slug — see `maArtFileSlug`).
+  const fit = Object.hasOwn(maArtFit, slug) ? (maArtFit as Record<string, MaArtFit>)[slug] : undefined;
   if (fit === undefined) {
     return {backgroundImage: `url(${maArtUrl(name)})`, backgroundSize: 'contain'};
   }

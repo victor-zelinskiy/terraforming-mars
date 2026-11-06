@@ -325,6 +325,42 @@ export function spreadValues(positions: ReadonlyArray<number>, minGap: number): 
 }
 
 /**
+ * CLUSTER-WISE spread — like {@link spreadValues}, but only the chips that actually crowd each other move, and each
+ * crowded run is centred on ITS OWN mean (a lone chip far down the row stays on its threshold instead of dragging the
+ * dense run sideways). The eleven-row field's Venus row needs it: the card at 8 % sits alone, and a whole-row re-centre
+ * pushed the 16 … 33 run past the track's end (`scaleBonusZoneViews` — opt-in, the classic rows keep their look).
+ */
+export function spreadClusters(positions: ReadonlyArray<number>, minGap: number): Array<number> {
+  const order = positions.map((p, i) => ({p, i})).sort((a, b) => a.p - b.p);
+  type Block = {members: Array<{p: number, i: number}>, start: number};
+  const place = (members: Array<{p: number, i: number}>): Block => {
+    const mean = members.reduce((sum, m) => sum + m.p, 0) / members.length;
+    return {members, start: mean - (members.length - 1) * minGap / 2};
+  };
+  const blocks: Array<Block> = [];
+  for (const o of order) {
+    blocks.push(place([o]));
+    // Merge back while the newest block overlaps the one before it.
+    while (blocks.length > 1) {
+      const last = blocks[blocks.length - 1];
+      const prev = blocks[blocks.length - 2];
+      const prevEnd = prev.start + (prev.members.length - 1) * minGap;
+      if (last.start - prevEnd >= minGap) {
+        break;
+      }
+      blocks.splice(blocks.length - 2, 2, place([...prev.members, ...last.members]));
+    }
+  }
+  const result = new Array<number>(positions.length);
+  for (const block of blocks) {
+    block.members.forEach((m, k) => {
+      result[m.i] = block.start + k * minGap;
+    });
+  }
+  return result;
+}
+
+/**
  * Back-compat thin wrapper (ocean scale): the original `markerChip` shape, now
  * computed via `placeArcMarker`. Also surfaces `pointerLen` so the ocean event
  * chips draw the same luminous connector as the reward chips.

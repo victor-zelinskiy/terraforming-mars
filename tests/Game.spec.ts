@@ -930,6 +930,8 @@ describe('Game', () => {
       'tileMoves',
       // …and the tile-placement ring (the tile language, W3 — who placed, what the cell paid): the same law.
       'tilePlacements',
+      // …and a cell's chosen standard resource (Amazonis Planitia — `cellResourcePayouts`): the same law.
+      'cellResourcePayouts',
       'underworldDraftEnabled',
       // A player acting as the World Government mid-action (P67 · GL) — set and cleared inside one action, and no save
       // is taken while it stands (WorldGovernmentAdvisor.spec § A10): a restart reloads the save from before the action.

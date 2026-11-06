@@ -20,7 +20,9 @@ export const LOCALIZED_MA_ART: Readonly<Record<string, ReadonlyArray<string>>> =
 
 /** The art FILE's slug for a language — `<slug>-<lang>` where that variant exists, else the slug. */
 export function maArtFileSlug(slug: string, lang: string): string {
-  return LOCALIZED_MA_ART[slug]?.includes(lang) === true ? `${slug}-${lang}` : slug;
+  // An OWN key only: the slug `constructor` (the Constructor award — Amazonis Planitia's printed set) read
+  // `Object.prototype.constructor` off the plain table and threw, taking the whole awards rail down with it.
+  return Object.hasOwn(LOCALIZED_MA_ART, slug) && LOCALIZED_MA_ART[slug].includes(lang) ? `${slug}-${lang}` : slug;
 }
 
 /** The art's path — `assets/ma/<file>.png` for the language. Every surface draws an MA emblem from here. */

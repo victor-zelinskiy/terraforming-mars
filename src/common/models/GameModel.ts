@@ -2,7 +2,7 @@ import {GameOptionsModel} from './GameOptionsModel';
 import {AresAdjacencyGrantModel} from './AresAdjacencyGrantModel';
 import {TileMoveRecordModel} from '../boards/TileMove';
 import {CardAdjacencyPayoutModel} from './CardAdjacencyPayoutModel';
-import {TilePlacementRecordModel} from './TilePlacementRecordModel';
+import {CellResourcePayoutModel, TilePlacementRecordModel} from './TilePlacementRecordModel';
 import {ScaleStepRewardModel} from './ScaleStepRewardModel';
 import {CardReactionRecord} from './CardReactionModel';
 import {ParameterSwingModel} from './ParameterSwingModel';
@@ -54,6 +54,9 @@ export type GameModel = {
    *  what its cell's printed bonus paid them — the remote landing's script on every other seat's screen.
    *  Presentation only; consumed once by `seq`. See `TilePlacementRecordModel`. */
   tilePlacements?: ReadonlyArray<TilePlacementRecordModel>;
+  /** The latest chosen standard resources of a cell (Amazonis Planitia). Presentation only; consumed once by `seq`.
+   *  See `CellResourcePayoutModel`. */
+  cellResourcePayouts?: ReadonlyArray<CellResourcePayoutModel>;
   /** Latest SCALE-STEP PAYOUTS (Turmoil Redux TR24 Venusian Census, Aphrodite):
    *  a card that answers «each time the scale is terraformed» paid its owner —
    *  the board scene's script (tokens born at the scale's marker) for the paid

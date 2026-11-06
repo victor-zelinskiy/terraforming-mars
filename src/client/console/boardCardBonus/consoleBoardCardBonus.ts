@@ -41,7 +41,11 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 export type BonusCoverSource =
   | {kind: 'board-cell', spaceId: string}
   | {kind: 'board-tile', spaceId: string}
-  | {kind: 'venus-scale'}
+  /**
+   * A SCALE's printed card (`parameter`, default Venus): the Venus 8 % marker, or Amazonis Planitia's oxygen 7 % — the
+   * cover lifts off that scale's own `[data-arc-marker="<scale>-<step>"]` pictogram.
+   */
+  | {kind: 'venus-scale', parameter?: 'venus' | 'oxygen'}
   | {kind: 'colony-cell', colonyName: string, slotIndex: number}
   /**
    * The Parliament's Agenda track (Turmoil Redux): a card step the viewer's
@@ -80,9 +84,9 @@ export function agendaTrackOnScreen(): boolean {
   return typeof document !== 'undefined' && document.querySelector('.con-parl:not(.con-parl--handed-over) [data-parl-agenda]') !== null;
 }
 
-/** The reveal source a `venus-scale` scene claims (the Venus 8% draw). */
+/** The reveal source a `venus-scale` scene claims — a SCALE's printed card (the Venus 8 %; Amazonis Planitia's oxygen 7 %). */
 export function isVenusScaleReveal(source: CardDrawRevealSource | undefined): boolean {
-  return source?.type === 'globalParameter' && source.parameter === 'venus';
+  return source?.type === 'globalParameter' && (source.parameter === 'venus' || source.parameter === 'oxygen');
 }
 
 /** Does a reveal batch belong to a scene armed from `sceneSource`? */

@@ -342,15 +342,18 @@ describe('MilestoneAwardSelector', () => {
     });
   });
 
-  // vize1215 fork: the printed set carries Lobbyist, RETIRED here with the classic Turmoil — until the board's full
-  // adaptation names the Redux substitute, a non-random game draws the unified pool (like Hollandia), never a throw.
-  it('Amazonis Planitia keeps its printed set in the manifest, and a non-random game draws the pool instead', () => {
-    expect(milestoneManifest.boards[BoardName.AMAZONIS_PLANITIA]).deep.eq(['Terran5', 'Landshaper', 'Merchant3', 'Sponsor', 'Lobbyist']);
+  // vize1215 fork: the printed Lobbyist is RETIRED (the Redux FAQ) — Activist takes its slot under the Redux Parliament,
+  // and with no Redux Parliament the owner's FIXED substitute Terraformer29 (2026-11-06).
+  it('Amazonis Planitia deals its printed set — Activist under Redux, Terraformer29 without it', () => {
+    expect(milestoneManifest.boards[BoardName.AMAZONIS_PLANITIA]).deep.eq(['Terran5', 'Landshaper', 'Merchant3', 'Sponsor', 'Activist']);
     expect(awardManifest.boards[BoardName.AMAZONIS_PLANITIA]).deep.eq(['Collector', 'Innovator', 'Constructor', 'Manufacturer', 'Physicist']);
-    const mas = choose({boardName: BoardName.AMAZONIS_PLANITIA, randomMA: RandomMAOptionType.NONE});
-    expect(mas.milestones).has.length(5);
-    expect(mas.awards).has.length(5);
-    expect(mas.milestones).does.not.include('Lobbyist');
+    const plain = choose({boardName: BoardName.AMAZONIS_PLANITIA, randomMA: RandomMAOptionType.NONE});
+    expect(plain.milestones).deep.eq(['Terran5', 'Landshaper', 'Merchant3', 'Sponsor', 'Terraformer29']);
+    expect(plain.awards).deep.eq(['Collector', 'Innovator', 'Constructor', 'Manufacturer', 'Physicist']);
+    const redux = choose({boardName: BoardName.AMAZONIS_PLANITIA, randomMA: RandomMAOptionType.NONE, turmoilReduxExpansion: true, coloniesExtension: true});
+    expect(redux.milestones).deep.eq(['Terran5', 'Landshaper', 'Merchant3', 'Sponsor', 'Activist']);
+    const venus = choose({boardName: BoardName.AMAZONIS_PLANITIA, randomMA: RandomMAOptionType.NONE, venusNextExtension: true});
+    expect(venus.milestones).deep.eq(['Terran5', 'Landshaper', 'Merchant3', 'Sponsor', 'Terraformer29', 'Hoverlord']);
   });
 
   function choose(options: Partial<GameOptions>) {

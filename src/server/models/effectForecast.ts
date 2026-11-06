@@ -13,7 +13,7 @@ import {GlobalParameter} from '../../common/GlobalParameter';
 import {SpaceType} from '../../common/boards/SpaceType';
 import {BASE_OCEAN_TILES, CITY_TILES, GREENERY_TILES, OCEAN_TILES, TileType} from '../../common/TileType';
 import {ALT_VENUS_MINIMUM_BONUS, TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2} from '../../common/constants';
-import {GlobalParameterTrackBonus, crossesTrackBonus} from '../boards/GlobalParameterTracks';
+import {GlobalParameterTrackBonus, crossesTrackBonus, trackBonusReason} from '../boards/GlobalParameterTracks';
 import {venusLevelAfterSteps} from '../venusNext/venusScale';
 import {Behavior} from '../behavior/Behavior';
 import {PartyHooks} from '../turmoil/parties/PartyHooks';
@@ -715,11 +715,13 @@ function scaleBonusPass(player: IPlayer, grants: ReadonlyArray<EffectForecastGra
   const cursor: Record<BonusScale, number> = {venus: game.getVenusScaleLevel(), oxygen: game.getOxygenLevel(), temperature: game.getTemperature()};
   const crosses = (from: number, to: number, threshold: number): boolean => from < threshold && to >= threshold;
   // The MAP's track layout (`game.globalParameterTracks`, upstream b745cb9a00): Amazonis Planitia moves the oxygen
-  // step to 11 % and the Venus rating to 22 %. The reasons still name the classic values, and the larger board's own
-  // extra bonuses (7 % oxygen card, 16 % Venus colony, −12 °C plant) are not forecast yet — its full adaptation.
+  // step to 11 % and the Venus rating to 22 %, and prints its own extra bonuses (7 % oxygen card, 16 % Venus colony,
+  // −12 °C plant production). Every reason names the MAP's threshold (`trackBonusReason`).
   const tracks = game.globalParameterTracks;
   const crossesBonus = (type: BonusScale, bonus: GlobalParameterTrackBonus, from: number, to: number): boolean =>
     crossesTrackBonus(tracks, type, bonus, from, to);
+  const reasonOf = (type: BonusScale, bonus: GlobalParameterTrackBonus, classic: string): string =>
+    trackBonusReason(tracks, type, bonus) ?? classic;
   const visit = (scale: BonusScale, steps: number): void => {
     if (steps <= 0) {
       return;
@@ -730,14 +732,24 @@ function scaleBonusPass(player: IPlayer, grants: ReadonlyArray<EffectForecastGra
       cursor.venus = to;
       const source = ruleSource('Venus track bonus', player);
       if (crossesBonus('venus', 'drawcard', from, to) && !player.isMarsBot) {
-        facts.push(forecast.exact(source, [drawGain(1)], 'Crossing 8 % Venus draws a card', {id: 'venus-card-bonus'}));
+        facts.push(forecast.exact(source, [drawGain(1)], reasonOf('venus', 'drawcard', 'Crossing 8 % Venus draws a card'), {id: 'venus-card-bonus'}));
+      }
+      // Amazonis Planitia's 16 % colony (`Game.increaseVenusScaleLevel` defers a BuildColony) — asked after the step.
+      if (crossesBonus('venus', 'colony', from, to) && !player.isMarsBot) {
+        const reason = reasonOf('venus', 'colony', 'Crossing 16 % Venus builds a colony');
+        if (game.gameOptions.coloniesExtension) {
+          facts.push(forecast.exact(source, [], reason, {id: 'venus-colony-bonus', timing: 'after-card', note: 'Asked once the step is made'}));
+        } else {
+          facts.push(forecast.skipped(source, [], reason, {id: 'venus-colony-bonus', note: 'No colonies in this game'}));
+        }
       }
       if (crossesBonus('venus', 'tr', from, to)) {
+        const reason = reasonOf('venus', 'tr', 'Crossing 16 % Venus raises your TR a step');
         // …refused for a seat first by rating under the veto (RX42) — a named skip, no grant.
         if (ratingVetoed(player)) {
-          facts.push(forecast.skipped(source, [trGain(player, 1)], 'Crossing 16 % Venus raises your TR a step', {id: 'venus-tr-bonus', note: 'Your terraform rating is the highest — the enacted resolution ignores the gain'}));
+          facts.push(forecast.skipped(source, [trGain(player, 1)], reason, {id: 'venus-tr-bonus', note: 'Your terraform rating is the highest — the enacted resolution ignores the gain'}));
         } else {
-          facts.push(forecast.exact(source, [trGain(player, 1)], 'Crossing 16 % Venus raises your TR a step', {id: 'venus-tr-bonus'}));
+          facts.push(forecast.exact(source, [trGain(player, 1)], reason, {id: 'venus-tr-bonus'}));
           extra.push({kind: 'tr', amount: 1});
         }
       }
@@ -749,9 +761,14 @@ function scaleBonusPass(player: IPlayer, grants: ReadonlyArray<EffectForecastGra
     if (scale === 'oxygen') {
       const to = Math.min(game.max.oxygen, from + steps * globalParameterStepSize('oxygen'));
       cursor.oxygen = to;
+      // Amazonis Planitia's 7 % card (MarsBot has no hand — the engine skips it for the bot, as the Venus 8 % one).
+      if (crossesBonus('oxygen', 'drawcard', from, to) && !player.isMarsBot) {
+        facts.push(forecast.exact(ruleSource('Oxygen track bonus', player), [drawGain(1)],
+          reasonOf('oxygen', 'drawcard', 'Crossing 7 % oxygen draws a card'), {id: 'oxygen-card-bonus'}));
+      }
       if (crossesBonus('oxygen', 'temperature', from, to)) {
         const source = ruleSource('Oxygen track bonus', player);
-        const reason = 'Crossing 8 % oxygen raises the temperature a step';
+        const reason = reasonOf('oxygen', 'temperature', 'Crossing 8 % oxygen raises the temperature a step');
         // The chip reads the temperature where the operation has already left it (a card raising both scales).
         const chip: ActionEffect = {...globalGain(player, 'temperature', 1), current: cursor.temperature, resulting: Math.min(game.max.temperature, cursor.temperature + globalParameterStepSize('temperature'))};
         const grant = grantOfEffect(chip);
@@ -777,6 +794,12 @@ function scaleBonusPass(player: IPlayer, grants: ReadonlyArray<EffectForecastGra
         facts.push(forecast.exact(source, [productionChange(player, Resource.HEAT, 1)], step.reason, {id: step.id}));
         extra.push({kind: 'production', resource: Resource.HEAT, amount: 1});
       }
+    }
+    // Amazonis Planitia's −12 °C plant production (MarsBot takes 2 M€ instead — the engine's substitution).
+    if (crossesBonus('temperature', 'plant', from, to) && !player.isMarsBot) {
+      facts.push(forecast.exact(source, [productionChange(player, Resource.PLANTS, 1)],
+        reasonOf('temperature', 'plant', 'Crossing −12 °C raises your plant production a step'), {id: 'temperature-plant-bonus'}));
+      extra.push({kind: 'production', resource: Resource.PLANTS, amount: 1});
     }
     if (crossesBonus('temperature', 'ocean', from, to)) {
       const reason = 'Crossing 0 °C places an ocean tile';

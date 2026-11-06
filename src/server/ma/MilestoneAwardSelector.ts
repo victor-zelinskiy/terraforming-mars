@@ -72,14 +72,35 @@ const UNIFIED_POOL_EXCLUSIONS: ReadonlySet<string> = new Set<MilestoneName | Awa
   'Merchant3', // -> Merchant (the same six standard resources, 3 of each instead of 2 — Amazonis Planitia's printed clone)
 ]);
 
-// vize1215 fork: the milestones / awards that arrived with Amazonis Planitia's BASE adaptation (upstream fc8bd8e0e1,
-// 2026-11-06) — no RU name, no premium badge, no MarsBot row yet. No random mode offers them (the board's own set is not
-// dealt either — see the NONE branch); they join the pools with the board's full adaptation.
+// vize1215 fork: the milestones / awards that arrived with Amazonis Planitia (upstream fc8bd8e0e1, 2026-11-06). Phase 1
+// of the board's adaptation (2026-11-06) dealt them through the board's OWN printed set (the NONE branch) with their RU
+// names and faces; no RANDOM mode offers them yet, because a random set reaches MarsBot's games and the bot has no row
+// for them (`botMARules.ts`, `PENDING` in botMARegistry.spec) — their pool entry lands with phase 2 (the bot's rows).
+// Merchant3 never joins a pool at all: it clones Merchant (UNIFIED_POOL_EXCLUSIONS — two «Торговец» in one game).
 const PENDING_ADAPTATION_MA: ReadonlySet<string> = new Set<MilestoneName | AwardName>([
   'Merchant3',
   'Innovator',
   'Physicist',
 ]);
+
+/**
+ * vize1215 fork: Amazonis Planitia's milestone with NO Redux Parliament in the game — the owner's FIXED substitute for
+ * Activist (2026-11-06: «фиксированная замена» — the board's set stays deterministic, never a draw). Terraformer29 (a
+ * flat 29 TR, the fork's one Terraformer) — the nearest «push the planet forward» goal that needs no Agenda track, and
+ * in no other slot of the board's set (decision record: `docs/claude/amazonis-planitia-phase-1.md`).
+ */
+export const AMAZONIS_PLANITIA_NO_PARLIAMENT_MILESTONE: MilestoneName = 'Terraformer29';
+
+/** vize1215 fork: board-row names the fork put in place of a retired printed one — not a «printed on this board» fact. */
+const FORK_SUBSTITUTE_SLOTS: Partial<Record<BoardName, ReadonlyArray<string>>> = {
+  [BoardName.AMAZONIS_PLANITIA]: ['Activist'],
+};
+
+/** Amazonis Planitia's printed milestones for THIS game — Activist only under the Redux Parliament. */
+export function amazonisPlanitiaMilestones(gameOptions: Pick<GameOptions, 'turmoilReduxExpansion'>): Array<MilestoneName> {
+  return milestoneManifest.boards[BoardName.AMAZONIS_PLANITIA].map((name) =>
+    name === 'Activist' && gameOptions.turmoilReduxExpansion !== true ? AMAZONIS_PLANITIA_NO_PARLIAMENT_MILESTONE : name);
+}
 
 // vize1215 fork: board-derived facts needed to avoid offering an unclaimable milestone in
 // the random pool. Defaults assume the board is unknown (don't exclude anything), so callers
@@ -132,10 +153,10 @@ export function chooseMilestonesAndAwards(
     case BoardName.VASTITAS_BOREALIS_NOVA:
       push(milestoneManifest.boards[boardName], awardManifest.boards[gameOptions.boardName]);
       break;
+    case BoardName.AMAZONIS_PLANITIA:
+      push(amazonisPlanitiaMilestones(gameOptions), awardManifest.boards[boardName]);
+      break;
     default:
-      // vize1215 fork: Amazonis Planitia's printed set (the manifest's `boards` row, upstream fc8bd8e0e1) carries Lobbyist,
-      // RETIRED here with the classic Turmoil — the base adaptation (2026-11-06) draws it like Hollandia until its full
-      // adaptation names the Redux substitute.
       // vize1215 fork: boards without a fixed MA set (e.g. Hollandia) draw from the unified
       // "all" pool — pure random, deduped, expansion-filtered — same as the ALL button,
       // instead of the old synergy-limited classic-only fallback.
@@ -231,8 +252,10 @@ export function getCandidates(gameOptions: GameOptions, context: MASelectionCont
         return false;
       }
     } else {
-      // The game boards this MA appears in, if any.
-      const boards = Object.values(BoardName).filter((boardName) => manifest.boards[boardName].includes(name));
+      // The game boards this MA appears in, if any. A slot the fork FILLED (Amazonis Planitia's Activist, the retired
+      // Lobbyist's substitute) is not a printed appearance — the MA keeps its own random standing.
+      const boards = Object.values(BoardName).filter((boardName) =>
+        manifest.boards[boardName].includes(name) && !(FORK_SUBSTITUTE_SLOTS[boardName] ?? []).includes(name));
 
       // Always include the milestones and awards from the official boards
       if (intersection(boards, [BoardName.THARSIS, BoardName.ELYSIUM, BoardName.HELLAS]).length > 0) {

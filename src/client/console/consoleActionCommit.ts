@@ -22,7 +22,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {ActionEffect, ActionPreviewBranch, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
-import {TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2} from '@/common/constants';
+import {TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2, TEMPERATURE_BONUS_FOR_PLANT} from '@/common/constants';
 import {OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {Payment} from '@/common/inputs/Payment';
 import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '@/common/inputs/Spendable';
@@ -1011,15 +1011,21 @@ function withoutTemperatureHeatBonus(effects: ReadonlyArray<ActionEffect>, react
   if (from === undefined || to === undefined) {
     return reactions;
   }
-  let owed = [TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2].filter((step) => from < step && to >= step).length;
-  if (owed === 0) {
+  const owed: Record<string, number> = {
+    heat: [TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2].filter((step) => from < step && to >= step).length,
+    // Amazonis Planitia's −12 °C plant production (the only map that prints it — its forecast fact is the only plant
+    // production a crossing of −12 °C reads as) — the scale-step beat tells it off its chip (`plantBonus`).
+    plants: from < TEMPERATURE_BONUS_FOR_PLANT && to >= TEMPERATURE_BONUS_FOR_PLANT ? 1 : 0,
+  };
+  if (owed.heat === 0 && owed.plants === 0) {
     return reactions;
   }
   const out: Array<ResourceTransferSpec> = [];
   for (const spec of reactions) {
-    if (owed > 0 && spec.channel === 'production' && spec.resource === 'heat') {
-      const take = Math.min(owed, spec.amount);
-      owed -= take;
+    const left = spec.channel === 'production' ? owed[spec.resource] ?? 0 : 0;
+    if (left > 0) {
+      const take = Math.min(left, spec.amount);
+      owed[spec.resource] = left - take;
       if (spec.amount > take) {
         out.push({...spec, amount: spec.amount - take});
       }

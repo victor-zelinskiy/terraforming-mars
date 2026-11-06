@@ -2199,6 +2199,7 @@ import {
 } from '@/client/console/colonyBuild/consoleColonyBuild';
 import {buildSiteOf, nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
+import {getGlobalParameterMaximums} from '@/common/boards/GlobalParameterMaximums';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
 import type {HydroDeltaLine} from '@/client/components/hydronetwork/hydroReward';
@@ -7616,7 +7617,7 @@ export default defineComponent({
       return {
         titleKey: theme.title,
         nounKey: theme.noun,
-        valueText: accent === 'oceans' ? `${value}/9` : `${value}${theme.unit}`,
+        valueText: accent === 'oceans' ? `${value}/${getGlobalParameterMaximums(this.game.gameOptions.boardName).oceans}` : `${value}${theme.unit}`,
         descriptionKey: theme.description,
       };
     },
@@ -11417,7 +11418,7 @@ export default defineComponent({
      * records (`worldMoveModel`): «Кислород: 5 % → 4 %», «Венера: 10 % →
      * 14 %, РТ никому».
      */
-    zoomResolutionWorld(): {table: WinnerRewardTable | undefined, enacted: boolean, outcomes: ReadonlyArray<ParliamentEnactOutcomeModel> | undefined, colonies: ReadonlyArray<ColonyModel>, removal: {oceans: number, removableOceans: number} | undefined, nameOf: (color: Color) => string, forecast: EffectForecast | undefined} {
+    zoomResolutionWorld(): {table: WinnerRewardTable | undefined, enacted: boolean, outcomes: ReadonlyArray<ParliamentEnactOutcomeModel> | undefined, colonies: ReadonlyArray<ColonyModel>, removal: {oceans: number, removableOceans?: number, maxOceans?: number} | undefined, nameOf: (color: Color) => string, forecast: EffectForecast | undefined} {
       const id = this.zoomResolutionId;
       const model = this.game.parliament;
       const enacted = id !== undefined && model?.enacted?.resolution === id;
@@ -11432,7 +11433,7 @@ export default defineComponent({
         // …and the COLONY TABLE, for a law that advances its tracks (Unity Budget — `colonyTrackModel`).
         colonies: this.game.colonies,
         // …and the BOARD, for a law that takes a tile off it (Water Export — `tileRemovalModel`): the ocean count and the plain ones.
-        removal: tileRemovalTableOf(this.game.spaces),
+        removal: tileRemovalTableOf(this.game.spaces, this.game.gameOptions.boardName),
         nameOf: (color: Color) => this.playerView.players.find((p) => p.color === color)?.name ?? String(color),
       };
     },

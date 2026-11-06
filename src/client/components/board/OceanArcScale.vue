@@ -9,7 +9,7 @@
     in a normal game — see oceanThresholdMarkers.ts / aresThresholdMarkers.ts).
   -->
   <div class="global-numbers-oceans" aria-hidden="true">
-    <arc-scale :theme="oceanTheme" :config="oceanConfig" :value="value" />
+    <arc-scale :theme="oceanTheme" :config="oceanConfig" :value="value" :identityOutside="eventsOutside" />
 
     <scale-event-marker
       v-for="m in eventMarkers"
@@ -32,33 +32,19 @@ import {defineComponent, PropType} from 'vue';
 import ArcScale from '@/client/components/board/ArcScale.vue';
 import ScaleEventMarker from '@/client/components/board/ScaleEventMarker.vue';
 import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
-import {OCEAN_ARC} from '@/client/components/board/arcScaleConfigs';
+import {DynamicArcConfig, OCEAN_ARC} from '@/client/components/board/arcScaleConfigs';
 import {ArcScaleConfig, markerChip} from '@/client/components/board/arcScaleGeometry';
 import {GlobalParameterThresholdMarker, oceanThresholdMarkers} from '@/client/components/board/oceanThresholdMarkers';
 import {glidedThreshold} from '@/client/components/board/aresMarkerGlide';
 
-// Geometry — must match OCEAN_ARC so the event chips line up with the band.
-// RADIUS 264: aligned with the bottom ends of the side arcs (oxygen 0 /
-// temperature -30 sit at ~267 from the centre) so the ocean reads as a
-// concentric continuation, not a smaller inner arc. MUST match OCEAN_ARC `radius`.
-const CENTER = {x: 300, y: 301};
-const RADIUS = 264;
-const START_ANGLE = 116;
-const END_ANGLE = 64;
-const OCEAN_STEPS = 9;
-const BAND = 22; // matches OCEAN_ARC.bandWidth so the event chips hug the band
+// Geometry — the band's own config (`OCEAN_ARC` on the classic ring; the eleven-row field's `LARGE_ARCS.oceans`):
+// the event chips line up with the band by reading the same circle.
 // Match the standard scale-bonus markers (scaleBonusZones.ts): size 25, gap 2,
 // connector 7 — one unified size + distance for events AND reward bonuses.
 const CHIP = 25;
 const MARKER_POINTER = 7;
 const MARKER_GAP = 2;
 
-const OUTER_R = RADIUS + BAND / 2;
-const INNER_R = RADIUS - BAND / 2;
-
-const CFG: ArcScaleConfig = {
-  center: CENTER, radius: RADIUS, startAngle: START_ANGLE, endAngle: END_ANGLE, startValue: 1, endValue: OCEAN_STEPS,
-};
 
 type EventMarkerView = {
   marker: GlobalParameterThresholdMarker;
@@ -80,14 +66,28 @@ export default defineComponent({
     aresMarkers: {type: Array as PropType<ReadonlyArray<GlobalParameterThresholdMarker>>, default: undefined},
     /** Players (colour + name) — passed to the event markers to name a claimer. */
     players: {type: Array as PropType<ReadonlyArray<{color: string, name: string}>>, default: () => []},
+    /** The band (the classic ring's `OCEAN_ARC` by default; Amazonis Planitia's flat arc under its grid). */
+    config: {type: Object as PropType<DynamicArcConfig>, default: () => OCEAN_ARC},
+    /**
+     * The event chips stand OUTSIDE the band (under it) — the eleven-row field's grid reaches the band's inner edge,
+     * so a chip toward the planet would sit on row L.
+     */
+    eventsOutside: {type: Boolean, default: false},
   },
   data() {
     return {
       oceanTheme: ARC_SCALE_THEMES.oceans,
-      oceanConfig: OCEAN_ARC,
     };
   },
   computed: {
+    oceanConfig(): DynamicArcConfig {
+      return this.config;
+    },
+    /** The pure geometry view of the band (centre, radius, the value range). */
+    geometry(): ArcScaleConfig {
+      const c = this.config;
+      return {center: c.center, radius: c.bandRadius, startAngle: c.startAngle, endAngle: c.endAngle, startValue: c.startValue, endValue: c.endValue};
+    },
     sourceMarkers(): ReadonlyArray<GlobalParameterThresholdMarker> {
       if (this.aresMarkers !== undefined && this.aresMarkers.length > 0) {
         return this.aresMarkers;
@@ -99,8 +99,9 @@ export default defineComponent({
         // INSIDE the band (toward the planet) — above the bottom arc — pointer
         // aiming down at the threshold. Mirror of the Venus chips. Position uses
         // the GLIDED threshold so a Butterfly-Effect shift animates along the arc.
-        const chip = markerChip(CFG, glidedThreshold(marker.id, marker.value), 'inside', {
-          bandInner: INNER_R, bandOuter: OUTER_R, gap: MARKER_GAP, pointer: MARKER_POINTER, size: CHIP,
+        const band = this.config.bandWidth;
+        const chip = markerChip(this.geometry, glidedThreshold(marker.id, marker.value), this.eventsOutside ? 'outside' : 'inside', {
+          bandInner: this.config.bandRadius - band / 2, bandOuter: this.config.bandRadius + band / 2, gap: MARKER_GAP, pointer: MARKER_POINTER, size: CHIP,
         });
         return {
           marker,

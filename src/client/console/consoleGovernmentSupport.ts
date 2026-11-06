@@ -25,6 +25,8 @@
  */
 
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {GlobalParameterMaximums} from '@/common/boards/GlobalParameterMaximums';
+import {venusLevelAfterSteps} from '@/common/venus/venusScale';
 import {Message} from '@/common/logs/Message';
 import * as constants from '@/common/constants';
 
@@ -74,6 +76,8 @@ export type GovGameState = {
   venusScaleLevel: number;
   /** Whether the Venus expansion is in this game (gates the maxed synthesis). */
   venusInGame: boolean;
+  /** The MAP's maximums (Amazonis Planitia: +14 °C, 18 %, 11 oceans, 33 %); absent = the classic ones. */
+  maxima?: Readonly<GlobalParameterMaximums>;
 };
 
 type ParamSpec = {
@@ -145,21 +149,33 @@ function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
 }
 
-function fractionOf(spec: ParamSpec, value: number): number {
-  const span = spec.max - spec.min;
+/** The parameter's ceiling on THIS map. */
+function maxOf(spec: ParamSpec, g: GovGameState): number {
+  const key = spec.param as keyof GlobalParameterMaximums;
+  return g.maxima?.[key] ?? spec.max;
+}
+
+function fractionOf(spec: ParamSpec, value: number, g: GovGameState): number {
+  const span = maxOf(spec, g) - spec.min;
   return span <= 0 ? 0 : clamp01((value - spec.min) / span);
 }
 
-function valueText(spec: ParamSpec, value: number): string {
+function valueText(spec: ParamSpec, value: number, g: GovGameState): string {
   if (spec.showMax) {
-    return `${value} / ${spec.max}`;
+    return `${value} / ${maxOf(spec, g)}`;
   }
   return `${value}${spec.unit}`;
 }
 
+/** One government step — Venus walks 1 % steps above 30 % (Amazonis Planitia's longer track). */
+function nextOf(spec: ParamSpec, current: number, g: GovGameState): number {
+  const raised = spec.param === 'venus' ? venusLevelAfterSteps(current, 1) : current + spec.step;
+  return Math.min(maxOf(spec, g), raised);
+}
+
 function availableCard(spec: ParamSpec, option: PlayerInputModel, index: number, g: GovGameState): GovCard {
   const current = spec.value(g);
-  const next = Math.min(spec.max, current + spec.step);
+  const next = nextOf(spec, current, g);
   return {
     key: `${spec.param}#${index}`,
     param: spec.param,
@@ -170,10 +186,10 @@ function availableCard(spec: ParamSpec, option: PlayerInputModel, index: number,
     accent: spec.accent,
     isSpace: spec.isSpace,
     hasPreview: true,
-    currentText: valueText(spec, current),
-    nextText: valueText(spec, next),
-    fraction: fractionOf(spec, current),
-    nextFraction: fractionOf(spec, next),
+    currentText: valueText(spec, current, g),
+    nextText: valueText(spec, next, g),
+    fraction: fractionOf(spec, current, g),
+    nextFraction: fractionOf(spec, next, g),
     available: true,
     disabledReason: '',
   };
@@ -213,7 +229,7 @@ function maxedCard(spec: ParamSpec, g: GovGameState): GovCard {
     accent: spec.accent,
     isSpace: spec.isSpace,
     hasPreview: false,
-    currentText: valueText(spec, current),
+    currentText: valueText(spec, current, g),
     nextText: '',
     fraction: 1,
     nextFraction: 1,

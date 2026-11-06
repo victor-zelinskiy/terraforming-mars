@@ -137,10 +137,10 @@
             variant="global-parameter" />
         </span>
         <span class="con-status__param con-status__param--oceans" :class="{'con-status__param--ghost': ghostParam === 'oceans'}"
-              :style="{'--con-param-steps': String(Math.max(0, Math.min(MAX_OCEAN_TILES, game.oceans)))}">
+              :style="{'--con-param-steps': String(Math.max(0, Math.min(maxima.oceans, game.oceans)))}">
           <i class="wgt-icon wgt-icon--ocean con-status__icon" aria-hidden="true"></i>
           <span class="con-status__value">
-            <ConsoleFlipValue :value="game.oceans" :text="`${game.oceans}/9`" flip-on-decrease />
+            <ConsoleFlipValue :value="game.oceans" :text="`${game.oceans}/${maxima.oceans}`" flip-on-decrease />
           </span>
           <AnimatedMetricValue
             :value="game.oceans"
@@ -228,7 +228,8 @@
  * "your turn" transition that replaced the central «ВАШ ХОД» pill.
  */
 import {defineComponent, markRaw, PropType} from 'vue';
-import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MAX_VENUS_SCALE, MIN_TEMPERATURE} from '@/common/constants';
+import {MIN_TEMPERATURE} from '@/common/constants';
+import {GlobalParameterMaximums, getGlobalParameterMaximums} from '@/common/boards/GlobalParameterMaximums';
 import {GameModel} from '@/common/models/GameModel';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
@@ -322,7 +323,6 @@ export default defineComponent({
   },
   data() {
     return {
-      MAX_OCEAN_TILES,
       /** One-shot "turn passed to YOU" attention burst on the viewer's chip. */
       turnBurst: false,
       burstTimer: undefined as number | undefined,
@@ -372,6 +372,10 @@ export default defineComponent({
      * net change ZERO): its peak is presented until each leg's turn, so the fall is seen as a fall — the view's
      * value is the scene's END, which the strip reaches with the last leg.
      */
+    /** The MAP's maximums (Amazonis Planitia's tracks are longer — +14 °C, 18 %, 11 oceans, 33 %). */
+    maxima(): Readonly<GlobalParameterMaximums> {
+      return getGlobalParameterMaximums(this.playerView.game.gameOptions.boardName);
+    },
     game(): GameModel {
       if (boardBeatParkState.swingParams === undefined) {
         return this.playerView.game;
@@ -428,7 +432,7 @@ export default defineComponent({
     /** The SHARED terraforming-progress math (same helper the desktop
      *  sidebar gauge uses) — Temperature + Oxygen + Oceans ONLY. */
     progress(): TerraformingProgress {
-      return terraformingProgress(this.game);
+      return terraformingProgress(this.game, this.maxima);
     },
     /**
      * THE GENERATION THIS SEAT IS IN (Turmoil Redux, the soft gates): the sitting's while the seat has not closed it —
@@ -623,12 +627,12 @@ export default defineComponent({
   methods: {
     /**
      * A DIAL's reading (T05 · CG) — how far the shown value stands along its scale, 0…1: the temperature from −30 to
-     * +8 °C, the oxygen from 0 to 14 %. The value is the one the cell prints (the board-beat park's display included).
+     * the map's maximum (+8 °C; +14 °C on Amazonis Planitia), the oxygen from 0 to its maximum. The value is the one the cell prints (the board-beat park's display included).
      */
     paramFill(param: 'temperature' | 'oxygen' | 'venus'): string {
       const fill = param === 'temperature' ?
-        (this.game.temperature - MIN_TEMPERATURE) / (MAX_TEMPERATURE - MIN_TEMPERATURE) :
-        param === 'oxygen' ? this.game.oxygenLevel / MAX_OXYGEN_LEVEL : this.game.venusScaleLevel / MAX_VENUS_SCALE;
+        (this.game.temperature - MIN_TEMPERATURE) / (this.maxima.temperature - MIN_TEMPERATURE) :
+        param === 'oxygen' ? this.game.oxygenLevel / this.maxima.oxygen : this.game.venusScaleLevel / this.maxima.venus;
       return String(Math.max(0, Math.min(1, fill)));
     },
     /**

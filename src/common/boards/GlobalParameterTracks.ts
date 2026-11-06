@@ -92,3 +92,28 @@ export function getGlobalParameterTracks(boardName: BoardName): GlobalParameterT
     return STANDARD;
   }
 }
+
+/**
+ * The English i18n key that names crossing a printed track bonus AT THE MAP'S OWN THRESHOLD (vize1215 fork — the
+ * forecast and the board's chain note say «Crossing 11 % oxygen…» on Amazonis Planitia, «8 %» elsewhere). Literal keys
+ * (the locale audit reads them); `undefined` when the map prints no such bonus, or at a threshold with no key yet — the
+ * caller falls back to its classic key.
+ */
+export function trackBonusReason(tracks: GlobalParameterTracks, type: keyof GlobalParameterTracks, bonus: GlobalParameterTrackBonus): string | undefined {
+  const value = tracks[type].find((threshold) => threshold.bonus === bonus)?.value;
+  if (value === undefined) {
+    return undefined;
+  }
+  return TRACK_BONUS_REASONS[`${type}:${bonus}:${value}`];
+}
+
+const TRACK_BONUS_REASONS: Readonly<Record<string, string>> = {
+  'venus:drawcard:8': 'Crossing 8 % Venus draws a card',
+  'venus:tr:16': 'Crossing 16 % Venus raises your TR a step',
+  'venus:tr:22': 'Crossing 22 % Venus raises your TR a step',
+  'venus:colony:16': 'Crossing 16 % Venus builds a colony',
+  'oxygen:temperature:8': 'Crossing 8 % oxygen raises the temperature a step',
+  'oxygen:temperature:11': 'Crossing 11 % oxygen raises the temperature a step',
+  'oxygen:drawcard:7': 'Crossing 7 % oxygen draws a card',
+  'temperature:plant:-12': 'Crossing −12 °C raises your plant production a step',
+};

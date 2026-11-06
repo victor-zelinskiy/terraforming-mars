@@ -197,8 +197,10 @@ export function aresDynamicMarkerView(
   // glided value so the marker animates along the arc when the threshold shifts
   // (Butterfly Effect). `reached` always uses the REAL threshold (marker.value).
   positionValue: number = marker.value,
+  /** The board's own dials (Amazonis Planitia's `LARGE_ARCS`); absent = the classic ones. */
+  arcs: {temperature: DynamicArcConfig, oxygen: DynamicArcConfig} = {temperature: TEMPERATURE_ARC, oxygen: OXYGEN_ARC},
 ): ScaleEventMarkerView {
-  const cfg = marker.parameter === 'temperature' ? TEMPERATURE_ARC : OXYGEN_ARC;
+  const cfg = marker.parameter === 'temperature' ? arcs.temperature : arcs.oxygen;
   const pl = placeArcMarker({
     center: cfg.center,
     thresholdAngle: digitAngle(cfg, positionValue),

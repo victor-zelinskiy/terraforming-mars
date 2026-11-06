@@ -37,7 +37,7 @@
          Absolute (the cluster never moves), material not light, an ATTRIBUTE on the cell beside it (never a class). -->
     <span v-if="bonusTimes !== undefined && showBonus" class="board-space-bonus-times" data-bonus-times-mark>×{{ bonusTimes }}</span>
     <template v-if="tileView === 'coords'">
-      <div class="board-space-coords">{{ getSpaceName(space.id) }}</div>
+      <div class="board-space-coords">{{ space.a9 ?? getSpaceName(space.id) }}</div>
     </template>
     <template v-if="tileView === 'show'">
       <player-cube

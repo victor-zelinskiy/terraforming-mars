@@ -11,18 +11,22 @@ import {SpaceType} from '../../src/common/boards/SpaceType';
  * renderer cannot draw, this is where it fails — with the board named.
  */
 describe('boardLayoutExport', () => {
-  const ROWS = [5, 6, 7, 8, 9, 8, 7, 6, 5];
+  const STANDARD = [5, 6, 7, 8, 9, 8, 7, 6, 5];
+  // The eleven-row field (Amazonis Planitia — 91 hexes).
+  const LARGE = [6, 7, 8, 9, 10, 11, 10, 9, 8, 7, 6];
 
-  it('exports every board with the full 61-hex Mars silhouette', () => {
+  it('exports every board with its full Mars silhouette (61 hexes; 91 on the eleven-row field)', () => {
     const layouts = buildBoardLayouts();
     for (const name of Object.values(BoardName).filter(isBoardInPremiumScope)) {
       const layout = layouts[name];
       expect(layout, name).to.not.be.undefined;
-      expect(layout.length, name).to.eq(61);
+      const ROWS = name === BoardName.AMAZONIS_PLANITIA ? LARGE : STANDARD;
+      const widest = Math.max(...ROWS);
+      expect(layout.length, name).to.eq(ROWS.reduce((a, b) => a + b, 0));
       for (let y = 0; y < ROWS.length; y++) {
         const row = layout.filter((s) => s.y === y);
         expect(row.length, `${name} row ${y}`).to.eq(ROWS[y]);
-        const xOffset = 9 - ROWS[y];
+        const xOffset = widest - ROWS[y];
         const xs = row.map((s) => s.x).sort((a, b) => a - b);
         expect(xs, `${name} row ${y} xs`).to.deep.eq(
           Array.from({length: ROWS[y]}, (_, i) => xOffset + i));

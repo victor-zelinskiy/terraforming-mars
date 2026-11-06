@@ -31,7 +31,7 @@ import {AresData} from '../common/ares/AresData';
 import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel';
 import {TileMoveRecordModel} from '../common/boards/TileMove';
 import {CardAdjacencyPayoutModel} from '../common/models/CardAdjacencyPayoutModel';
-import {TilePlacementPaidResource, TilePlacementRecordModel} from '../common/models/TilePlacementRecordModel';
+import {CellResourcePayoutModel, TilePlacementPaidResource, TilePlacementRecordModel} from '../common/models/TilePlacementRecordModel';
 import {ScaleStepRewardModel} from '../common/models/ScaleStepRewardModel';
 import {CardReactionRecord} from '../common/models/CardReactionModel';
 import {ParameterSwingDown, ParameterSwingModel} from '../common/models/ParameterSwingModel';
@@ -232,6 +232,12 @@ export interface IGame extends Logger {
    * bonus paid them — see `TilePlacementRecordModel`. Written by `addTile` alone. Not serialized.
    */
   tilePlacements: Array<TilePlacementRecordModel>;
+  /**
+   * Bounded ring of the latest CELL STANDARD RESOURCES CHOSEN (Amazonis Planitia's «a standard resource of your
+   * choice» cells) — see `CellResourcePayoutModel`. Written by `grantSpaceBonus` alone. Not serialized.
+   */
+  cellResourcePayouts: Array<CellResourcePayoutModel>;
+  publishCellResourcePayout(payout: Omit<CellResourcePayoutModel, 'seq'>): void;
   /**
    * Bounded ring of the latest SCALE-STEP PAYOUTS (Turmoil Redux TR24 Venusian
    * Census, Aphrodite): what a card answering «each time the scale is

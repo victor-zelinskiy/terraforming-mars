@@ -120,6 +120,7 @@ import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
 import {TileType} from '@/common/TileType';
 import {initialPlacementCursor} from '@/client/console/tilePlacement/placementCursorStart';
 import type {BonusZone} from '@/client/components/console/ConsoleBoardCursor.vue';
+import {boardLayoutKind} from '@/client/components/board/largeBoardLayout';
 
 const SELECT_CLASS = 'con-cell-sel';
 /** A MOVE's lifted city — its cell while the player picks where it lands (console.less § the move). */
@@ -277,6 +278,13 @@ const SCALE_BOOST = 1.0;
  * promise.
  */
 const PFOCUS_FRAME = {x: 92, y: 84, w: 451, h: 451}; /* keep-px: board-cont local space */
+/**
+ * The ELEVEN-ROW field's frames (Amazonis Planitia — `board_large_positions.less`): the planet grows ×1.147 behind
+ * the grid (the visible disc r 258 around the grid's centre 316 / 312), and the grid's corner hexes overhang the rim —
+ * so the focus frames the disc UNITED with the grid (x 48…584, y 81…543); the terraformed breath keeps the disc.
+ */
+const LARGE_PFOCUS_FRAME = {x: 48, y: 53, w: 536, h: 518}; /* keep-px: board-cont local space */
+const LARGE_DISC_FRAME = {x: 58, y: 54, w: 516, h: 516}; /* keep-px: board-cont local space */
 /**
  * THE INSTRUMENT FRAME — the ceremony's (TR70 «МАРС ТЕРРАФОРМИРОВАН»): the disc WITH its three arcs, because
  * the scales finishing their story IS the show. Measured ONCE per engagement off the arcs' own geometry
@@ -567,7 +575,16 @@ export default defineComponent({
     },
     /** The alpha disc in board px (keep-px — the layer rides the planet's transform). */
     terraformedBreathStyle(): Record<string, string> {
-      return {left: `${PFOCUS_FRAME.x}px`, top: `${PFOCUS_FRAME.y}px`, width: `${PFOCUS_FRAME.w}px`, height: `${PFOCUS_FRAME.h}px`};
+      const disc = this.largeLayout ? LARGE_DISC_FRAME : PFOCUS_FRAME;
+      return {left: `${disc.x}px`, top: `${disc.y}px`, width: `${disc.w}px`, height: `${disc.h}px`};
+    },
+    /** The eleven-row field (Amazonis Planitia) — its own planet and focus frame. */
+    largeLayout(): boolean {
+      return boardLayoutKind(this.playerView.game.gameOptions?.boardName) === 'large';
+    },
+    /** The placement focus frame of THIS board (the alpha disc; on the eleven-row field the disc ∪ the grid). */
+    focusFrame(): {x: number, y: number, w: number, h: number} {
+      return this.largeLayout ? LARGE_PFOCUS_FRAME : PFOCUS_FRAME;
     },
     selectedAvailable(): boolean {
       const id = this.selectedSpaceId;
@@ -1147,7 +1164,7 @@ export default defineComponent({
       // the way back, which is the jump this whole approach exists to kill.
       const bleed = this.pfocusBleedPx();
       // THE FRAME by mode: the placement's alpha disc, or the ceremony's instrument frame (the disc with its arcs).
-      const frame = this.planetFocusState.mode === 'ceremony' ? this.ceremonyFrameOf(stage) : PFOCUS_FRAME;
+      const frame = this.planetFocusState.mode === 'ceremony' ? this.ceremonyFrameOf(stage) : this.focusFrame;
       // No breathing pads on purpose: the disc's border IS meant to land on
       // the stage border («буквально на границе экрана по высоте»).
       const scale = Math.min(r.width / frame.w, (r.height + bleed) / frame.h);
@@ -1176,10 +1193,11 @@ export default defineComponent({
       const board = stage.querySelector<HTMLElement>(':scope > .board-cont');
       const br = board?.getBoundingClientRect();
       const scale = br !== undefined && br.width > 40 ? br.width / BOARD_CONT_W : 0;
-      let left = PFOCUS_FRAME.x;
-      let top = PFOCUS_FRAME.y;
-      let right = PFOCUS_FRAME.x + PFOCUS_FRAME.w;
-      let bottom = PFOCUS_FRAME.y + PFOCUS_FRAME.h;
+      const disc = this.focusFrame;
+      let left = disc.x;
+      let top = disc.y;
+      let right = disc.x + disc.w;
+      let bottom = disc.y + disc.h;
       let measured = 0;
       if (br !== undefined && scale > 0) {
         for (const el of stage.querySelectorAll<HTMLElement>(ARC_BAND_SELECTOR)) {

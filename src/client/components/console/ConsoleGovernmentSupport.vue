@@ -104,6 +104,7 @@ import {SCALE_FOCUS_PARAMS} from '@/client/console/consoleGovScaleFocus';
 import ConsolePromptHead from '@/client/components/console/foundation/ConsolePromptHead.vue';
 import {promptSequenceKey} from '@/client/console/promptSequence';
 import {promptIdentityKey} from '@/client/console/turnIntents';
+import {getGlobalParameterMaximums} from '@/common/boards/GlobalParameterMaximums';
 
 /** Two columns → up/down step by a row, left/right by one card. */
 const COLS = 2;
@@ -150,6 +151,7 @@ export default defineComponent({
         oceans: game.oceans,
         venusScaleLevel: game.venusScaleLevel,
         venusInGame: game.gameOptions.expansions.venus === true,
+        maxima: getGlobalParameterMaximums(game.gameOptions.boardName),
       });
     },
     /** The decision's identity in the press's sequence (`promptSequence.ts`). */

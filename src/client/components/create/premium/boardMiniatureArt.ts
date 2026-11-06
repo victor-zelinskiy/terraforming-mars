@@ -31,8 +31,8 @@ export const SPACE_BONUS_RGB: Record<SpaceBonus, string> = {
   [SpaceBonus.DELEGATE]: '208,160,220',
   [SpaceBonus.COLONY]: '198,140,236',
   [SpaceBonus.TEMPERATURE_4MC]: '244,128,128',
-  // Amazonis Planitia's «a standard resource of your choice» (upstream 14cace7baa) — the board's full adaptation
-  // gives it its premium face; the miniature reads it as the wild «?».
+  // Amazonis Planitia's «a standard resource of your choice» (upstream 14cace7baa) — the silver of the board's own
+  // premium face (`resources/wild.png`: a silver plate carrying «?»).
   [SpaceBonus.STANDARD_RESOURCE]: '220,220,220',
 };
 
@@ -60,7 +60,9 @@ export const SPACE_BONUS_GLYPHS: Record<SpaceBonus, string> = {
   [SpaceBonus.DELEGATE]: `<path transform="translate(5.5 3.5) scale(0.325)" d="${DELEGATE_PATH}" fill="currentColor"/>`,
   [SpaceBonus.COLONY]: '<circle cx="12" cy="12" r="7.5" stroke="currentColor" stroke-width="2.2" fill="none"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none"/>',
   [SpaceBonus.TEMPERATURE_4MC]: stroke('M12 4 V15 M12 4 A2.2 2.2 0 0 1 14.2 6.2 V14 A4 4 0 1 1 9.8 14 V6.2 A2.2 2.2 0 0 1 12 4 Z', 1.8),
-  [SpaceBonus.STANDARD_RESOURCE]: stroke('M9 9 A3 3 0 1 1 13.5 11.6 C12.5 12.2 12 13 12 14.2 M12 18 V18.2', 2.2),
+  // The board's premium face in line: the PLATE (the six standard resources are squares) carrying the choice's «?».
+  [SpaceBonus.STANDARD_RESOURCE]: '<rect x="3.5" y="3.5" width="17" height="17" rx="2.6" stroke="currentColor" stroke-width="1.8" fill="none"/>' +
+    stroke('M9.6 9.6 A2.5 2.5 0 1 1 13.4 11.8 C12.6 12.3 12 12.9 12 13.9 M12 16.8 V17', 2),
 };
 
 /**
@@ -81,6 +83,7 @@ export const SIGNATURE_BONUSES: ReadonlySet<SpaceBonus> = new Set([
   SpaceBonus.DELEGATE,
   SpaceBonus.COLONY,
   SpaceBonus.TEMPERATURE_4MC,
+  SpaceBonus.STANDARD_RESOURCE,
 ]);
 
 export function spaceBonusGlyphSvg(bonus: SpaceBonus): string {

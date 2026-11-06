@@ -103,6 +103,50 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
     description: 'Arsia Mons is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
     placement: 'left',
   },
+  // ── Amazonis Planitia (the eleven-row board) — its five named volcanoes ──
+  // The printed names (upstream's 27db80e67e baked them into the board picture, never taken) live here as markers:
+  // E1 Hecates Tholus (33), H7 Olympus Mons (70 — two delegates), H9 Ascraeus Mons (72), J8 Pavonis Mons (80),
+  // K7 Arsia Mons (87). Guard: tests/boards/amazonisPlanitiaCells.spec.ts.
+  {
+    id: 'amazonis_planitia_hecates_tholus',
+    boardName: BoardName.AMAZONIS_PLANITIA,
+    spaceId: '33',
+    title: 'Hecates Tholus',
+    description: 'Hecates Tholus is a volcano in the Elysium region. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'right',
+  },
+  {
+    id: 'amazonis_planitia_olympus_mons',
+    boardName: BoardName.AMAZONIS_PLANITIA,
+    spaceId: '70',
+    title: 'Olympus Mons',
+    description: 'Olympus Mons is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'left',
+  },
+  {
+    id: 'amazonis_planitia_ascraeus_mons',
+    boardName: BoardName.AMAZONIS_PLANITIA,
+    spaceId: '72',
+    title: 'Ascraeus Mons',
+    description: 'Ascraeus Mons is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'left',
+  },
+  {
+    id: 'amazonis_planitia_pavonis_mons',
+    boardName: BoardName.AMAZONIS_PLANITIA,
+    spaceId: '80',
+    title: 'Pavonis Mons',
+    description: 'Pavonis Mons is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'left',
+  },
+  {
+    id: 'amazonis_planitia_arsia_mons',
+    boardName: BoardName.AMAZONIS_PLANITIA,
+    spaceId: '87',
+    title: 'Arsia Mons',
+    description: 'Arsia Mons is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'left',
+  },
   // ── Terra Cimmeria Nova — named locations ──────────────────────────
   // All five legacy SVG text labels replaced by hover markers.
   // Space IDs derived from BoardBuilder row layout [5,6,7,8,9,8,7,6,5],

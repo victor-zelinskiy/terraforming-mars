@@ -52,7 +52,9 @@
 import {reactive, watch, WatchStopHandle} from 'vue';
 import {gsap} from 'gsap';
 import {Phase} from '@/common/Phase';
-import {TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2} from '@/common/constants';
+import {getGlobalParameterTracks} from '@/common/boards/GlobalParameterTracks';
+import {BoardName} from '@/common/boards/BoardName';
+import {venusStepsBetween} from '@/common/venus/venusScale';
 import {GameModel} from '@/common/models/GameModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
@@ -78,20 +80,25 @@ import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndV
 
 /** The beat's own name — its notification-only hold, its ledger story, its park membership. */
 export const SCALE_STEP_RATING_KEY = 'scale-step-rating';
-/** The Venus level whose crossing pays the track's one-time TR (`constants.VENUS_LEVEL_FOR_TR_BONUS`). */
-const VENUS_TR_BONUS_LEVEL = 16;
 /**
- * The 16 % chip as the BOARD marks it (`Board.bonusZoneProps` → `claimKey` `<scale>-<step>` → `data-arc-marker`) — the
- * token of the track bonus is born on it. It read the zone DEFINITION's key `v-tr-16` until P89 · EE (PL-1436), which no
- * element carries: the lookup always missed and the token silently fell back to the marker's rim.
+ * The Venus level whose crossing pays the track's one-time TR — the MAP's (`getGlobalParameterTracks`: 16 %; 22 % on
+ * Amazonis Planitia). Its chip as the BOARD marks it (`Board.bonusZoneProps` → `claimKey` `<scale>-<step>` →
+ * `data-arc-marker`, `venus-<level>`) carries the token's birth. It read the zone DEFINITION's key `v-tr-16` until
+ * P89 · EE (PL-1436), which no element carries: the lookup always missed and the token silently fell back to the rim.
  */
-const VENUS_TR_BONUS_CHIP = 'venus-16';
+function venusTrBonusLevel(game: GameModel): number | undefined {
+  return getGlobalParameterTracks(game.gameOptions?.boardName ?? BoardName.THARSIS).venus.find((t) => t.bonus === 'tr')?.value;
+}
 /**
- * The temperature track's printed HEAT-PRODUCTION bonuses (`constants.TEMPERATURE_BONUS_FOR_HEAT_1/2`) — PL-1841 ②: the
- * step that crosses one pays +1 heat production, and that token is the SCALE's (born on the bonus chip the board prints
- * there, `temperature-<step>` → `data-arc-marker`, once the marker has arrived), never a «Сработает» chip of the sheet.
+ * The temperature track's printed PRODUCTION bonuses — the heat steps (−24 / −20 °C) on every map and Amazonis
+ * Planitia's plant step (−12 °C) — PL-1841 ②: the step that crosses one pays +1 production, and that token is the
+ * SCALE's (born on the bonus chip the board prints there, `temperature-<step>` → `data-arc-marker`, once the marker has
+ * arrived), never a «Сработает» chip of the sheet.
  */
-const TEMPERATURE_HEAT_BONUS_STEPS: ReadonlyArray<number> = [TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2];
+function temperatureProductionSteps(game: GameModel, resource: 'heat' | 'plants'): ReadonlyArray<number> {
+  const bonus = resource === 'heat' ? 'heatproduction' : 'plant';
+  return getGlobalParameterTracks(game.gameOptions?.boardName ?? BoardName.THARSIS).temperature.filter((t) => t.bonus === bonus).map((t) => t.value);
+}
 /** The ruling Greens' answer per rating step (`PartyEffects.GREENS_MEGACREDITS_PER_TR`) — the only answer this beat recognizes. */
 const GREENS_MEGACREDITS_PER_TR = 2;
 
@@ -111,8 +118,10 @@ export type ScaleStepRatingPlan = {
   moves: ReadonlyArray<ScaleStepMove>;
   /** The rating steps paid: the scales' steps, plus the Venus 16 % track bonus when it was crossed. */
   rating: number;
-  /** The Venus 16 % crossing paid one of them. */
+  /** The Venus track's TR bonus (16 %; 22 % on Amazonis Planitia) paid one of them. */
   venusBonus: boolean;
+  /** …at this level — the chip its token is born on (`venus-<level>`). */
+  venusBonusLevel?: number;
   /**
    * The steps a CARD ATE (PL-1810 — P57 Preservation Program: «skip the first TR you gain in each action phase»): the
    * server's own mark flipped `armed → spent` in this very response, so the rise is the steps less that one. Those
@@ -127,6 +136,8 @@ export type ScaleStepRatingPlan = {
    * its printed chip; only when the viewer's heat production rose by exactly that many (else nothing — the row ticks).
    */
   heatBonus?: ReadonlyArray<number>;
+  /** Amazonis Planitia's −12 °C plant-production bonus, the same way (its own row, its own chip). */
+  plantBonus?: ReadonlyArray<number>;
 };
 
 const SCALES: ReadonlyArray<{accent: ScaleStepRatingAccent, key: keyof HeldGlobalParams, field: keyof GameModel, unit: number}> = [
@@ -134,6 +145,11 @@ const SCALES: ReadonlyArray<{accent: ScaleStepRatingAccent, key: keyof HeldGloba
   {accent: 'oxygen', key: 'oxygenLevel', field: 'oxygenLevel', unit: 1},
   {accent: 'venus', key: 'venusScaleLevel', field: 'venusScaleLevel', unit: 2},
 ];
+
+/** The steps a scale made — Venus walks 1 % steps above 30 % (Amazonis Planitia), the engine's own arithmetic. */
+function scaleSteps(scale: {accent: ScaleStepRatingAccent, unit: number}, from: number, to: number): number {
+  return scale.accent === 'venus' ? venusStepsBetween(from, to) : (to - from) / scale.unit;
+}
 
 /**
  * THE PROMISE OFF THE DIFF (pure): the viewer's own rating rose, in the action
@@ -181,7 +197,7 @@ export function scaleStepRatingPlan(
     if (typeof a !== 'number' || typeof b !== 'number' || b <= a) {
       continue;
     }
-    moves.push({accent: scale.accent, key: scale.key, steps: (b - a) / scale.unit, after: b});
+    moves.push({accent: scale.accent, key: scale.key, steps: scaleSteps(scale, a, b), after: b});
   }
   const steps = moves.reduce((sum, move) => sum + move.steps, 0);
   if (steps <= 0 || moves.some((move) => !Number.isInteger(move.steps))) {
@@ -189,8 +205,9 @@ export function scaleStepRatingPlan(
   }
   const venusBefore = before.game.venusScaleLevel;
   const venusAfter = after.game.venusScaleLevel;
-  const venusBonus = typeof venusBefore === 'number' && typeof venusAfter === 'number' &&
-    venusBefore < VENUS_TR_BONUS_LEVEL && venusAfter >= VENUS_TR_BONUS_LEVEL;
+  const trLevel = venusTrBonusLevel(after.game);
+  const venusBonus = trLevel !== undefined && typeof venusBefore === 'number' && typeof venusAfter === 'number' &&
+    venusBefore < trLevel && venusAfter >= trLevel;
   // A rise SHORT of the steps is honest only when the server says why in the same response: P57's mark flipped
   // `armed → spent` (it ate the first rating step). Any other shortfall is not the scales' story — refused (PL-1810).
   const paid = steps + (venusBonus ? 1 : 0);
@@ -203,14 +220,19 @@ export function scaleStepRatingPlan(
   const megacredits = now.megacredits - was.megacredits - cardReactionMegacredits(before, after);
   const tBefore = before.game.temperature;
   const tAfter = after.game.temperature;
-  const crossed = typeof tBefore === 'number' && typeof tAfter === 'number' ?
-    TEMPERATURE_HEAT_BONUS_STEPS.filter((step) => tBefore < step && tAfter >= step) : [];
+  const crossedOf = (resource: 'heat' | 'plants'): ReadonlyArray<number> => typeof tBefore === 'number' && typeof tAfter === 'number' ?
+    temperatureProductionSteps(after.game, resource).filter((step) => tBefore < step && tAfter >= step) : [];
+  const crossed = crossedOf('heat');
   const heatBonus = crossed.length > 0 && now.heatProduction - was.heatProduction === crossed.length ? crossed : [];
+  const crossedPlant = crossedOf('plants');
+  const plantBonus = crossedPlant.length > 0 && now.plantProduction - was.plantProduction === crossedPlant.length ? crossedPlant : [];
   return {
     moves,
     rating,
     venusBonus,
+    ...(venusBonus && trLevel !== undefined ? {venusBonusLevel: trLevel} : {}),
     ...(heatBonus.length > 0 ? {heatBonus} : {}),
+    ...(plantBonus.length > 0 ? {plantBonus} : {}),
     ...(skipped > 0 ? {skipped} : {}),
     // The answer is recognized only on a rise that is the scales' alone — beside another owner's rating the M€ row
     // carries that owner's answer too, and a guessed split is never flown.
@@ -237,7 +259,7 @@ export function scaleStepRatingRefusal(before: PlayerViewModel | undefined, afte
   const steps = SCALES.reduce((sum, scale) => {
     const a = before.game[scale.field];
     const b = after.game[scale.field];
-    return typeof a === 'number' && typeof b === 'number' && b > a ? sum + (b - a) / scale.unit : sum;
+    return typeof a === 'number' && typeof b === 'number' && b > a ? sum + scaleSteps(scale, a, b) : sum;
   }, 0);
   return rise > 0 && steps > 0 ? `rating +${rise} for ${steps} scale step(s) — not the scales' rating (no eaten step to explain it)` : undefined;
 }
@@ -319,7 +341,7 @@ function originsOf(plan: ScaleStepRatingPlan): Array<TokenOrigin> {
     }
   }
   if (plan.venusBonus) {
-    out.push({accent: 'venus', bonus: true, chip: VENUS_TR_BONUS_CHIP});
+    out.push({accent: 'venus', bonus: true, chip: `venus-${plan.venusBonusLevel ?? 16}`});
   }
   // The EATEN step is the FIRST rating step of the event (P57 skips the first TR gained) — it flies nothing.
   return out.slice(plan.skipped ?? 0);
@@ -328,6 +350,11 @@ function originsOf(plan: ScaleStepRatingPlan): Array<TokenOrigin> {
 /** The heat-production bonus tokens of the plan, one per crossed chip — after the rating (the chip lights as the marker passes). */
 function heatBonusOriginsOf(plan: ScaleStepRatingPlan): Array<TokenOrigin> {
   return (plan.heatBonus ?? []).map((step) => ({accent: 'temperature', bonus: true, chip: `temperature-${step}`}));
+}
+
+/** The plant-production bonus tokens (Amazonis Planitia's −12 °C), the same way. */
+function plantBonusOriginsOf(plan: ScaleStepRatingPlan): Array<TokenOrigin> {
+  return (plan.plantBonus ?? []).map((step) => ({accent: 'temperature', bonus: true, chip: `temperature-${step}`}));
 }
 
 /** Release whatever the panel still holds for the entry — idempotent. */
@@ -401,6 +428,12 @@ export function seedScaleStepRatingHold(before: PlayerViewModel | undefined, aft
   if (heatHeld) {
     origins.push(...heatOrigins);
     verdict.cause.push(...heatSpecs);
+  }
+  const plantOrigins = plantBonusOriginsOf(plan);
+  const plantSpecs: Array<ResourceTransferSpec> = plantOrigins.map(() => ({channel: 'production', resource: 'plants', amount: 1}));
+  if (plantSpecs.length > 0 && verifyRailReward({cause: plantSpecs, reactions: []}, before, after).cause.length > 0) {
+    origins.push(...plantOrigins);
+    verdict.cause.push(...plantSpecs);
   }
   beginPanelRewardHold([...verdict.cause, ...verdict.reactions]);
   // A beat still owed for an earlier response plays this one's tokens too.

@@ -197,6 +197,7 @@ export class Server {
       tileMoves: game.tileMoves.length > 0 ? game.tileMoves : undefined,
       cardAdjacencyPayouts: game.cardAdjacencyPayouts.length > 0 ? game.cardAdjacencyPayouts : undefined,
       tilePlacements: game.tilePlacements.length > 0 ? game.tilePlacements : undefined,
+      cellResourcePayouts: game.cellResourcePayouts.length > 0 ? game.cellResourcePayouts : undefined,
       scaleStepRewards: game.scaleStepRewards.length > 0 ? game.scaleStepRewards : undefined,
       parameterSwings: game.parameterSwings.length > 0 ? game.parameterSwings : undefined,
       cardReactions: game.cardReactions.length > 0 ? game.cardReactions : undefined,

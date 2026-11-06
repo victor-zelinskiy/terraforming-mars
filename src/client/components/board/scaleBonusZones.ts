@@ -33,8 +33,13 @@
  */
 
 import {OXYGEN_ARC, TEMPERATURE_ARC, VENUS_ARC, DynamicArcConfig} from '@/client/components/board/arcScaleConfigs';
+import {arcConfigsFor, boardLayoutKind} from '@/client/components/board/largeBoardLayout';
+import {BoardName} from '@/common/boards/BoardName';
+import {getGlobalParameterTracks} from '@/common/boards/GlobalParameterTracks';
+import {getGlobalParameterMaximums} from '@/common/boards/GlobalParameterMaximums';
+import {altVenusResourceCells} from '@/common/venus/altVenusBonus';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
-import {placeArcMarker, spreadValues, MarkerSide} from '@/client/components/board/arcScaleGeometry';
+import {placeArcMarker, spreadClusters, spreadValues, MarkerSide} from '@/client/components/board/arcScaleGeometry';
 
 export type BonusZoneTier = 'regular' | 'final';
 
@@ -71,6 +76,8 @@ const CONFIG: Record<BonusScale, DynamicArcConfig> = {
 const GAP = 2;
 /** Base connector length (px) for a radial chip; fan-out lengthens it. */
 const CONNECTOR = 7;
+/** The eleven-row field's Venus chip (see `scaleBonusZoneViews`). */
+const LARGE_VENUS_CHIP = 15;
 /** Extra breathing room (px) added to the chip size for the fan-out min-gap. */
 const FAN_BREATHING = 4;
 
@@ -92,23 +99,56 @@ const res = (key: string, step: number): AnchorDef => ({
   tier: 'regular', requires: 'altVenus', size: 18,
 });
 
-const ANCHOR_DEFS: ReadonlyArray<AnchorDef> = [
+/**
+ * THE MAP'S PRINTED TRACK BONUSES as chips (`getGlobalParameterTracks` — Amazonis Planitia prints more and elsewhere:
+ * −12 °C plant production, 7 % oxygen card, 11 % oxygen temperature, 16 % Venus colony, 22 % Venus TR) plus the
+ * alternative Venus board's resource cells up to the map's maximum (`altVenusResourceCells` — the last is the finish's
+ * gold cube). The classic map yields exactly the historical defs, keys included (`t-heat-24`, `v-tr-16`, `v30-final`…).
+ */
+function anchorDefsFor(boardName: BoardName): ReadonlyArray<AnchorDef> {
+  const tracks = getGlobalParameterTracks(boardName);
+  const defs: Array<AnchorDef> = [];
   // Temperature track (base game) — OUTSIDE the band.
-  {key: 't-heat-24', scale: 'temperature', step: -24, side: 'outer', icon: 'bonus-zone-icon--heat', reward: 'Gain 1 heat production', tier: 'regular', requires: 'always', size: 25},
-  {key: 't-heat-20', scale: 'temperature', step: -20, side: 'outer', icon: 'bonus-zone-icon--heat', reward: 'Gain 1 heat production', tier: 'regular', requires: 'always', size: 25},
-  {key: 't-ocean-0', scale: 'temperature', step: 0, side: 'outer', icon: 'bonus-zone-icon--ocean', reward: 'Place an ocean', tier: 'regular', requires: 'always', size: 25},
+  for (const {value, bonus} of tracks.temperature) {
+    if (bonus === 'heatproduction') {
+      defs.push({key: `t-heat${value}`, scale: 'temperature', step: value, side: 'outer', icon: 'bonus-zone-icon--heat', reward: 'Gain 1 heat production', tier: 'regular', requires: 'always', size: 25});
+    } else if (bonus === 'plant') {
+      defs.push({key: `t-plant${value}`, scale: 'temperature', step: value, side: 'outer', icon: 'bonus-zone-icon--plant-production', reward: 'Gain 1 plant production', tier: 'regular', requires: 'always', size: 25});
+    } else if (bonus === 'ocean') {
+      defs.push({key: `t-ocean-${value}`, scale: 'temperature', step: value, side: 'outer', icon: 'bonus-zone-icon--ocean', reward: 'Place an ocean', tier: 'regular', requires: 'always', size: 25});
+    }
+  }
   // Oxygen track (base game) — OUTSIDE the band.
-  {key: 'o-temp-8', scale: 'oxygen', step: 8, side: 'outer', icon: 'bonus-zone-icon--temperature', reward: 'Raise temperature 1 step', tier: 'regular', requires: 'always', size: 25},
-  // Venus base bonuses (Venus expansion) — INSIDE (toward the planet), same
-  // size/system as the alt resources so the whole Venus scale reads as ONE row.
-  {key: 'v-card-8', scale: 'venus', step: 8, side: 'inner', icon: 'bonus-zone-icon--card', reward: 'Draw a card', tier: 'regular', requires: 'venus', size: 18},
-  {key: 'v-tr-16', scale: 'venus', step: 16, side: 'inner', icon: 'bonus-zone-icon--tr', reward: 'Gain 1 TR', tier: 'regular', requires: 'venus', size: 18},
-  // Venus Alternative Board resources (steps 18–28) — INSIDE the band.
-  res('v18', 18), res('v20', 20), res('v22', 22),
-  res('v24', 24), res('v26', 26), res('v28', 28),
-  // Venus Alternative Board FINAL bonus — ONE gold cube anchored to 30%.
-  {key: 'v30-final', scale: 'venus', step: 30, side: 'inner', icon: 'bonus-zone-icon--gold-cube', reward: 'Gain a standard resource and a wild resource', tier: 'final', requires: 'altVenus', size: 18},
-];
+  for (const {value, bonus} of tracks.oxygen) {
+    if (bonus === 'temperature') {
+      defs.push({key: `o-temp-${value}`, scale: 'oxygen', step: value, side: 'outer', icon: 'bonus-zone-icon--temperature', reward: 'Raise temperature 1 step', tier: 'regular', requires: 'always', size: 25});
+    } else if (bonus === 'drawcard') {
+      defs.push({key: `o-card-${value}`, scale: 'oxygen', step: value, side: 'outer', icon: 'bonus-zone-icon--card', reward: 'Draw a card', tier: 'regular', requires: 'always', size: 25});
+    }
+  }
+  // Venus base bonuses (Venus expansion) — INSIDE (toward the planet), same size/system as the alt resources so the
+  // whole Venus scale reads as ONE row.
+  for (const {value, bonus} of tracks.venus) {
+    if (bonus === 'drawcard') {
+      defs.push({key: `v-card-${value}`, scale: 'venus', step: value, side: 'inner', icon: 'bonus-zone-icon--card', reward: 'Draw a card', tier: 'regular', requires: 'venus', size: 18});
+    } else if (bonus === 'colony') {
+      defs.push({key: `v-colony-${value}`, scale: 'venus', step: value, side: 'inner', icon: 'bonus-zone-icon--colony', reward: 'Build a colony', tier: 'regular', requires: 'venus', size: 18});
+    } else if (bonus === 'tr') {
+      defs.push({key: `v-tr-${value}`, scale: 'venus', step: value, side: 'inner', icon: 'bonus-zone-icon--tr', reward: 'Gain 1 TR', tier: 'regular', requires: 'venus', size: 18});
+    }
+  }
+  // Venus Alternative Board — a resource per step from 16 %, INSIDE the band; the FINISH (the map's maximum) is ONE
+  // gold cube (a standard + the wild resource).
+  const cells = altVenusResourceCells(getGlobalParameterMaximums(boardName).venus);
+  cells.forEach((step, i) => {
+    defs.push(i === cells.length - 1 ?
+      {key: `v${step}-final`, scale: 'venus', step, side: 'inner', icon: 'bonus-zone-icon--gold-cube', reward: 'Gain a standard resource and a wild resource', tier: 'final', requires: 'altVenus', size: 18} :
+      res(`v${step}`, step));
+  });
+  return defs;
+}
+
+const ANCHOR_DEFS: ReadonlyArray<AnchorDef> = anchorDefsFor(BoardName.THARSIS);
 
 export type ScaleBonusZoneDef = AnchorDef & {
   /** Margin (top/left) of the marker in `.global-numbers` space. */
@@ -127,16 +167,16 @@ function sideOf(d: AnchorDef): MarkerSide {
 }
 
 /** Exact clock angle (deg) of a value, from the live config digit ring. */
-function angleFor(scale: BonusScale, step: number): number {
-  return CONFIG[scale].digits.find((x) => x.value === step)?.angle ?? 0;
+function angleFor(scale: BonusScale, step: number, configs: Record<BonusScale, DynamicArcConfig> = CONFIG): number {
+  return configs[scale].digits.find((x) => x.value === step)?.angle ?? 0;
 }
 
 /** Place one marker (radial unless `chipAngle` fans it off its threshold). */
-function place(d: AnchorDef, chipAngle?: number) {
-  const cfg = CONFIG[d.scale];
+function place(d: AnchorDef, chipAngle?: number, configs: Record<BonusScale, DynamicArcConfig> = CONFIG) {
+  const cfg = configs[d.scale];
   return placeArcMarker({
     center: cfg.center,
-    thresholdAngle: angleFor(d.scale, d.step),
+    thresholdAngle: angleFor(d.scale, d.step, configs),
     chipAngle,
     bandRadius: cfg.bandRadius,
     bandWidth: cfg.bandWidth,
@@ -233,8 +273,8 @@ export function scaleBonusRewardKey(claimKey: string): string {
   return SCALE_BONUS_ZONES.find((z) => `${z.scale}-${z.step}` === claimKey)?.reward ?? '';
 }
 
-function viewFrom(d: AnchorDef, chipAngle: number): ScaleBonusZoneView {
-  const pl = place(d, chipAngle);
+function viewFrom(d: AnchorDef, chipAngle: number, configs: Record<BonusScale, DynamicArcConfig>): ScaleBonusZoneView {
+  const pl = place(d, chipAngle, configs);
   const top = Math.round(pl.chipCenter.y - d.size / 2);
   const left = Math.round(pl.chipCenter.x - d.size / 2);
   return {
@@ -259,22 +299,38 @@ function viewFrom(d: AnchorDef, chipAngle: number): ScaleBonusZoneView {
  * + the chip radius), then re-place each chip at its spread angle — the
  * connector re-aims at the true threshold so the value link is preserved.
  */
-export function scaleBonusZoneViews(v: ScaleBonusVisibility): ReadonlyArray<ScaleBonusZoneView> {
+export function scaleBonusZoneViews(v: ScaleBonusVisibility, boardName: BoardName = BoardName.THARSIS): ReadonlyArray<ScaleBonusZoneView> {
+  // The board's own dials and printed bonuses (Amazonis Planitia — `LARGE_ARCS`, its longer tracks).
+  const arcs = arcConfigsFor(boardName);
+  const configs: Record<BonusScale, DynamicArcConfig> = {venus: arcs.venus, oxygen: arcs.oxygen, temperature: arcs.temperature};
+  const large = boardLayoutKind(boardName) === 'large';
+  // The large field's Venus chips are a size smaller (15 px — ≈ 45 px at 4K): ten resource cells, the colony and the
+  // TR share the 16 … 33 % run, and at 18 px they would not fit inside the track's own length.
+  const defs = (boardName === BoardName.THARSIS ? ANCHOR_DEFS : anchorDefsFor(boardName))
+    .map((d) => (large && d.scale === 'venus' ? {...d, size: LARGE_VENUS_CHIP} : d));
   const out: Array<ScaleBonusZoneView> = [];
   for (const scale of ['venus', 'oxygen', 'temperature'] as ReadonlyArray<BonusScale>) {
-    const group = ANCHOR_DEFS.filter((d) => d.scale === scale && isVisible(d, v));
+    const group = defs.filter((d) => d.scale === scale && isVisible(d, v));
     if (group.length === 0) {
       continue;
     }
-    const cfg = CONFIG[scale];
+    const cfg = configs[scale];
     const maxSize = Math.max(...group.map((d) => d.size));
     const half = cfg.bandWidth / 2;
     const off = GAP + CONNECTOR + maxSize / 2;
     // Approx chip radius on this scale's side → the angular gap the chips need.
     const chipRadius = group[0].side === 'inner' ? cfg.bandRadius - half - off : cfg.bandRadius + half + off;
     const minGapDeg = ((maxSize + FAN_BREATHING) / chipRadius) * (180 / Math.PI);
-    const fanned = spreadValues(group.map((d) => angleFor(scale, d.step)), minGapDeg);
-    group.forEach((d, i) => out.push(viewFrom(d, fanned[i])));
+    // The eleven-row field's Venus row is denser than the arc's own step (13 chips over 16 … 33 %): its crowded run is
+    // spread on its own (`spreadClusters`), never dragged by the lone 8 % card.
+    const spread = large ? spreadClusters : spreadValues;
+    const fanned = spread(group.map((d) => angleFor(scale, d.step, configs)), minGapDeg);
+    group.forEach((d, i) => out.push(viewFrom(d, fanned[i], configs)));
   }
   return out;
+}
+
+/** The reward i18n key of a claim key (`<scale>-<step>`) on a board (its own printed bonuses). */
+export function scaleBonusRewardKeyOn(boardName: BoardName, claimKey: string): string {
+  return anchorDefsFor(boardName).find((z) => `${z.scale}-${z.step}` === claimKey)?.reward ?? '';
 }

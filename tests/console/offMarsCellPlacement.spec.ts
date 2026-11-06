@@ -25,6 +25,8 @@ const read = (file: string) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 
 const BOARD_VUE = read('src/client/components/Board.vue');
 const CONSOLE_LESS = read('src/styles/console.less');
+/** The eleven-row field's own flank (Amazonis Planitia — `.board-cont--large`), a construction of its own. */
+const LARGE_FLANK_LESS = read('src/styles/console_board_large.less');
 
 const SPACE_KEYS = Object.entries(SpaceName) as Array<[string, string]>;
 const keyOf = (id: string) => SPACE_KEYS.find(([, value]) => value === id)?.[0];
@@ -37,9 +39,9 @@ const OFF_MARS: ReadonlyArray<SpaceId> = [
 ];
 
 /** The console's positioned off-Mars cells: id → the margin's (top, left) in board px-space. */
-function consoleCells(): Map<string, {top: number, left: number, line: string}> {
+function consoleCells(source: string = CONSOLE_LESS): Map<string, {top: number, left: number, line: string}> {
   const cells = new Map<string, {top: number, left: number, line: string}>();
-  for (const line of CONSOLE_LESS.split('\n')) {
+  for (const line of source.split('\n')) {
     // Space colony ids lead with 'c' (upstream c24eae02b6 — the eleven-row Amazonis Planitia owns '69'…'93').
     const match = /\.board-space-(c?\d\d)\s*\{\s*margin:\s*([^;]+);\s*\}/.exec(line);
     if (match === null || !OFF_MARS.includes(match[1] as SpaceId)) {
@@ -74,26 +76,46 @@ describe('off-Mars cells — drawn by name, placed by construction', () => {
     expect(consoleCells().has(SpaceName.AURORA_STATION), 'console.less positions it').is.true;
   });
 
-  it('the console flank is board px-space and no two cells stand closer than its arm', () => {
-    const cells = [...consoleCells().entries()];
-    expect(cells.length, 'anti-vacuous: the Venus flank, its mirror and Aurora').gte(8);
-    const ARM = 58; // the arm is ≈59 (Stanford ↔ Ganymede reads 58.8 after the left flank's +6 px oxygen-rail clearance)
-    for (let i = 0; i < cells.length; i++) {
-      for (let j = i + 1; j < cells.length; j++) {
-        const [a, pa] = cells[i];
-        const [b, pb] = cells[j];
-        const distance = Math.hypot(pa.left - pb.left, pa.top - pb.top);
-        expect(distance, `${a} ↔ ${b}: ${distance.toFixed(1)} px\n  ${pa.line}\n  ${pb.line}`).gte(ARM);
+  // Two constructions: the classic ring's flank (console.less) and the eleven-row field's honeycomb in the board's top
+  // corners (Amazonis Planitia — console_board_large.less, `.board-cont--large`).
+  const FLANKS: ReadonlyArray<[string, string]> = [['the classic flank', CONSOLE_LESS], ['the eleven-row field\'s flank', LARGE_FLANK_LESS]];
+  for (const [label, source] of FLANKS) {
+    it(`${label} is board px-space and no two cells stand closer than its arm`, () => {
+      const cells = [...consoleCells(source).entries()];
+      expect(cells.length, 'anti-vacuous: the Venus flank, its mirror and Aurora').gte(8);
+      const ARM = 58; // the arm is ≈59 (Stanford ↔ Ganymede reads 58.8 after the left flank's +6 px oxygen-rail clearance)
+      for (let i = 0; i < cells.length; i++) {
+        for (let j = i + 1; j < cells.length; j++) {
+          const [a, pa] = cells[i];
+          const [b, pb] = cells[j];
+          const distance = Math.hypot(pa.left - pb.left, pa.top - pb.top);
+          expect(distance, `${a} ↔ ${b}: ${distance.toFixed(1)} px\n  ${pa.line}\n  ${pb.line}`).gte(ARM);
+        }
       }
-    }
-  });
+    });
 
-  it('Aurora Station closes the Venus flank as Dawn City does — the mirror of Maxwell about Dawn', () => {
-    const cells = consoleCells();
-    const maxwell = cells.get(SpaceName.MAXWELL_BASE)!;
-    const dawn = cells.get(SpaceName.DAWN_CITY)!;
-    const aurora = cells.get(SpaceName.AURORA_STATION)!;
-    expect(aurora.top, 'Maxwell\'s row').eq(maxwell.top);
-    expect(aurora.left - dawn.left, 'the same arm as Dawn − Maxwell').eq(dawn.left - maxwell.left);
+    it(`${label}: Aurora Station closes the Venus flank as Dawn City does — the mirror of Maxwell about Dawn`, () => {
+      const cells = consoleCells(source);
+      const maxwell = cells.get(SpaceName.MAXWELL_BASE)!;
+      const dawn = cells.get(SpaceName.DAWN_CITY)!;
+      const aurora = cells.get(SpaceName.AURORA_STATION)!;
+      expect(aurora.top, 'Maxwell\'s row').eq(maxwell.top);
+      expect(aurora.left - dawn.left, 'the same arm as Dawn − Maxwell').eq(dawn.left - maxwell.left);
+    });
+  }
+
+  it('the eleven-row field\'s left flank mirrors the right one about the dials\' centre (x 316)', () => {
+    const cells = consoleCells(LARGE_FLANK_LESS);
+    const pairs: ReadonlyArray<[SpaceId, SpaceId]> = [
+      [SpaceName.PHOBOS_SPACE_HAVEN, SpaceName.LUNA_METROPOLIS],
+      [SpaceName.STANFORD_TORUS, SpaceName.MAXWELL_BASE],
+      [SpaceName.GANYMEDE_COLONY, SpaceName.STRATOPOLIS],
+    ];
+    for (const [left, right] of pairs) {
+      const l = cells.get(left)!;
+      const r = cells.get(right)!;
+      expect(l.top, `${left} ↔ ${right}: one row`).eq(r.top);
+      expect((l.left + 23) + (r.left + 23), `${left} ↔ ${right}: mirrored about x 316`).eq(632);
+    }
   });
 });

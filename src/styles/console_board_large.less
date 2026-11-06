@@ -1,0 +1,22 @@
+/* ── THE ELEVEN-ROW FIELD'S OFF-MARS FLANK — Amazonis Planitia (`.board-cont--large`) ─────────────────────────────
+   The 91-hex grid and its four dials (`LARGE_ARCS`) take the whole ring the classic flank stood on, so the off-Mars
+   cells move to the two TOP CORNERS of the board's box — above the side dials' ends, beside the flat Venus arc — and
+   stand as a HONEYCOMB, BY CONSTRUCTION (never a nudge; `tests/console/offMarsCellPlacement.spec.ts`):
+   · every cell is board px-space (`keep-px`), its centre on a lattice of the flank's own arm — 59 px across a row,
+     (30, 51) to the next row: ≥ 58.7 px between any two centres (the 46 × 51 hexes never touch);
+   · RIGHT (the Venus cluster, five cells): Luna ↖ Dawn ↗ on the top row, Maxwell ↙ Aurora ↘ beneath them —
+     Aurora closes Maxwell's row as Dawn closes Luna's (the classic flank's own relation: Aurora − Dawn = Dawn −
+     Maxwell), Stratopolis at the foot;
+   · LEFT: the mirror about the dials' centre (x 316): Phobos ↔ Luna, Stanford ↔ Maxwell, Ganymede ↔ Stratopolis.
+   The top row's top (8) keeps the box's top where the Venus arc already puts it; the left column reaches −21 and the
+   right 683 — into the side room the height-bound fit leaves free. */
+html.console-mode .board-cont--large {
+    .board-space-c70 { margin: 8px 0 0 548px; } /* keep-px: board px-space */   /* Luna */
+    .board-space-c71 { margin: 8px 0 0 607px; } /* keep-px: board px-space */   /* Dawn City */
+    .board-space-c73 { margin: 59px 0 0 577px; } /* keep-px: board px-space */  /* Maxwell Base */
+    .board-space-c80 { margin: 59px 0 0 637px; } /* keep-px: board px-space */  /* Aurora Station */
+    .board-space-c72 { margin: 110px 0 0 607px; } /* keep-px: board px-space */ /* Stratopolis */
+    .board-space-c02 { margin: 8px 0 0 38px; } /* keep-px: board px-space */    /* Phobos — mirror of Luna */
+    .board-space-c69 { margin: 59px 0 0 9px; } /* keep-px: board px-space */    /* Stanford — mirror of Maxwell */
+    .board-space-c01 { margin: 110px 0 0 -21px; } /* keep-px: board px-space */ /* Ganymede — mirror of Stratopolis */
+}

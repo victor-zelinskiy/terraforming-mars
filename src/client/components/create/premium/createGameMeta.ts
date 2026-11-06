@@ -84,6 +84,9 @@ export const PREMIUM_MAPS: ReadonlyArray<PremiumMapMeta> = [
   {id: BoardName.UTOPIA_PLANITIA, random: false, accent: '96,150,196', labelKey: 'Utopia Planitia', descKey: 'Northern lowlands rich in oceans, with energy placement bonuses.'},
   {id: BoardName.TERRA_CIMMERIA_NOVA, random: false, accent: '210,80,160', labelKey: 'Terra Cimmeria Nova', descKey: 'Metal-rich highlands with colony placement bonuses.'},
   {id: BoardName.VASTITAS_BOREALIS_NOVA, random: false, accent: '150,200,230', labelKey: 'Vastitas Borealis Nova', descKey: 'The ancient northern sea: a North Pole that buys heat for 4 M€, Viking delegate sites and four volcanoes.'},
+  // The official eleven-row map (2024): 91 hexes and longer scales — its own field and dials on the console
+  // (`largeBoardLayout.ts`). Labelled apart from the fan «Amazonis Planitia» (`BoardName.AMAZONIS`) beside it.
+  {id: BoardName.AMAZONIS_PLANITIA, random: false, accent: '232,118,64', labelKey: 'Amazonis Planitia · large map', descKey: 'The official eleven-row map: 91 hexes and longer scales (+14 °C, 18 % oxygen, 11 oceans, Venus to 33 %), standard-resource cells and two delegates on Olympus Mons.'},
   {id: BoardName.VASTITAS_BOREALIS, random: false, fan: true, accent: '200,184,70', labelKey: 'Vastitas Borealis', descKey: 'Vast northern plains with heat and temperature bonuses.'},
   {id: BoardName.AMAZONIS, random: false, fan: true, accent: '130,190,50', labelKey: 'Amazonis Planitia', descKey: 'Western plateau with plant, heat and life (microbe/animal) bonuses.'},
   {id: BoardName.TERRA_CIMMERIA, random: false, fan: true, accent: '200,60,150', labelKey: 'Terra Cimmeria', descKey: 'Rugged southern highlands with steel and energy bonuses.'},

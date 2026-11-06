@@ -66,6 +66,7 @@ import {drawnBatchGoesFullscreen} from '@/client/console/consoleRevealPresentati
 import {intakeAssemblyOwnsBatch} from '@/client/console/cardIntake/intakeAssemblyPlan';
 import {continueIntakeAssembly, releaseIntakeGuest} from '@/client/console/cardIntake/intakeAssembly';
 import {parliamentDrawReady} from '@/client/console/parliament/parliamentDraw';
+import {getGlobalParameterTracks} from '@/common/boards/GlobalParameterTracks';
 
 /** The natural (unscaled) FaceLite height — mirrors the premium card frame (320×460). */
 const CARD_NATURAL_H = 460;
@@ -277,7 +278,8 @@ export default defineComponent({
           const named = e.source?.type === 'agenda' ? e.source.step : undefined;
           armBoardCardBonus({kind: 'agenda-step', step: named ?? advance?.steps.find((s) => s.bonus === 'card')?.to ?? advance?.to ?? 0});
         } else {
-          armBoardCardBonus({kind: 'venus-scale'});
+          // The scale that printed the card (Venus 8 %; Amazonis Planitia's oxygen 7 %).
+          armBoardCardBonus({kind: 'venus-scale', parameter: e.source?.type === 'globalParameter' && e.source.parameter === 'oxygen' ? 'oxygen' : 'venus'});
         }
       }
       this.onRevealArrived(e);
@@ -367,6 +369,10 @@ export default defineComponent({
       } else if (source.kind === 'agenda-step') {
         // The Agenda step's printed card glyph (the Parliament's track).
         sel = `.con-parl [data-parl-agenda] .con-parl__step[data-step="${source.step}"] .con-parl__step-res`;
+      } else if (source.kind === 'venus-scale' && source.parameter === 'oxygen') {
+        // Amazonis Planitia's oxygen card — the step the MAP prints it at (`getGlobalParameterTracks`).
+        const step = getGlobalParameterTracks(this.playerView.game.gameOptions.boardName).oxygen.find((t) => t.bonus === 'drawcard')?.value;
+        sel = `[data-arc-marker="oxygen-${step ?? 7}"] .bonus-zone__icon`;
       } else {
         sel = VENUS_MARKER_SEL;
       }

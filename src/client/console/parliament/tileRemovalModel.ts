@@ -37,7 +37,9 @@ import {SpaceModel} from '@/common/models/SpaceModel';
 import {Color} from '@/common/Color';
 import {SpaceId} from '@/common/Types';
 import {TileType} from '@/common/TileType';
-import {TILE_REMOVAL_STEP_KEY, TileRemovalDeclaration, TileRemovalRoom, tileRemovalRoom} from '@/common/parliament/tileRemoval';
+import {TILE_REMOVAL_STEP_KEY, TileRemovalDeclaration, TileRemovalRoom, TileRemovalTable, tileRemovalRoom} from '@/common/parliament/tileRemoval';
+import {BoardName} from '@/common/boards/BoardName';
+import {getGlobalParameterMaximums} from '@/common/boards/GlobalParameterMaximums';
 import {REWARD_ADDRESS} from '@/common/parliament/rewardAddress';
 
 export type TileRemovalContext = 'reference' | 'conditional' | 'pending' | 'applied';
@@ -80,7 +82,7 @@ export function tileRemovalRecordOf(outcomes: ReadonlyArray<ParliamentEnactOutco
  * (the only ones the step offers). Read off the game model's cells — a reading
  * of the board's state, never a rule of its own.
  */
-export function tileRemovalTableOf(spaces: ReadonlyArray<SpaceModel> | undefined): {oceans: number; removableOceans: number} | undefined {
+export function tileRemovalTableOf(spaces: ReadonlyArray<SpaceModel> | undefined, boardName?: BoardName): TileRemovalTable | undefined {
   if (spaces === undefined) {
     return undefined;
   }
@@ -96,7 +98,8 @@ export function tileRemovalTableOf(spaces: ReadonlyArray<SpaceModel> | undefined
       oceans++;
     }
   }
-  return {oceans, removableOceans};
+  // The map's ceiling (11 oceans on Amazonis Planitia) — the shared arithmetic's `maxOceans`.
+  return {oceans, removableOceans, ...(boardName === undefined ? {} : {maxOceans: getGlobalParameterMaximums(boardName).oceans})};
 }
 
 /**
@@ -107,7 +110,7 @@ export function tileRemovalTableOf(spaces: ReadonlyArray<SpaceModel> | undefined
  */
 export function tileRemovalReadingOf(
   resolution: IClientResolution | undefined,
-  table: {oceans: number; removableOceans?: number} | undefined,
+  table: TileRemovalTable | undefined,
   opts: {enacted?: boolean; outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>} = {},
 ): TileRemovalReading | undefined {
   const declaration = resolution?.tileRemoval;

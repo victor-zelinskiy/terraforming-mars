@@ -39,6 +39,8 @@ describe('ApiCreateGame', () => {
       BoardName.UTOPIA_PLANITIA,
       BoardName.VASTITAS_BOREALIS_NOVA,
       BoardName.TERRA_CIMMERIA_NOVA,
+      // The official eleven-row board joined the pool with its phase-1 premium adaptation (2026-11-06).
+      BoardName.AMAZONIS_PLANITIA,
       BoardName.ARABIA_TERRA,
       BoardName.VASTITAS_BOREALIS,
       BoardName.AMAZONIS,

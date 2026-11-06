@@ -214,6 +214,20 @@
 .bonus-zone-icon--heat        { background-image: url(./assets/resources/heat.png); }
 .bonus-zone-icon--temperature { background-image: url(./assets/global-parameters/temperature.png); }
 .bonus-zone-icon--ocean       { background-image: url(./assets/tiles/ocean.png); }
+/* Amazonis Planitia's 16 % Venus colony — the premium colony tile the card faces print (746 × 648, high-res). */
+.bonus-zone-icon--colony      { background-image: url(./assets/tiles/colony.png); }
+/*
+ * Amazonis Planitia's −12 °C PLANT PRODUCTION — the game's own production frame (the dossier's, the board's
+ * energy-production cove: `.board-space-bonus--energy-production`) with the premium plant icon inside, so the chip,
+ * the dossier row and the token that flies off it read as one symbol.
+ */
+.bonus-zone-icon--plant-production {
+  border-radius: 2px;
+  background:
+    url(./assets/resources/plant.png) center / 74% no-repeat,
+    linear-gradient(180deg, #8d6136, #6a4325);
+  box-shadow: inset 0 0 0 0.6px rgba(255, 220, 170, 0.35), inset 0 -1px 2px rgba(0, 0, 0, 0.35);
+}
 
 /*
  * The FINAL Venus bonus — ONE premium GOLD CUBE (the brief's "один золотой

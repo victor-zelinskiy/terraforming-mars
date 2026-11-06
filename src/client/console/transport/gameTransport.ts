@@ -123,6 +123,7 @@ import {openReactionSeedBlock, seedCardReactionHolds, snapshotRailHolds} from '@
 import {detectTableAnswerPayout, endTableAnswerPayout, runTableAnswerPayout, seedTableAnswers} from '@/client/console/parliament/tableAnswerBeat';
 import {seedScaleStepRatingHold} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {seedVenusBonusCellHold} from '@/client/console/scaleStepReward/venusBonusCellBeat';
+import {seedCellResourceHolds} from '@/client/console/cellResource/cellResourceBeat';
 import {seedParameterSwings} from '@/client/console/scaleSwing/scaleSwingDirector';
 import {heldStock as heldRailStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -836,6 +837,9 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // …and the alternative Venus board's BONUS the player just chose (P89 · EE, PL-1436): its rows keep their pre-bonus
   // numbers until each token born on the bonus CELL the step reached has landed — after the step's own rating.
   seedVenusBonusCellHold(currentView(), newView);
+  // …and a CELL'S CHOSEN STANDARD RESOURCE (Amazonis Planitia — the cell asked, the answer is the server's record): the
+  // row keeps its number until the token born on the cell has landed (another seat's flies to its plaque).
+  seedCellResourceHolds(currentView(), newView);
   // …and WHICH CARD REACTED («СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК», TR80 Hartlan Heating): the server's record of every
   // card effect that fired in this response (`cardReactions`). A row a host above holds is the host's answer — its
   // flight asks this module for the reactor; a row nobody holds is held HERE and flown by the reactor's own chain.

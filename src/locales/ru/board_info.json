@@ -166,6 +166,9 @@
   "Reaching 8% oxygen also raises the temperature one step.": "Достижение 8% кислорода дополнительно повышает температуру на 1 шаг.",
   "Temperature bonus step": "Бонусная отметка температуры",
   "Crossing the bonus step raises your heat production.": "Прохождение бонусной отметки повышает ваше производство тепла.",
+  "Crossing the bonus step raises your plant production.": "Прохождение бонусной отметки повышает ваше производство растений.",
+  "Crossing the bonus step draws you a card.": "Прохождение бонусной отметки даёт вам карту.",
+  "Reaching 11% oxygen also raises the temperature one step.": "Достижение 11% кислорода дополнительно повышает температуру на 1 шаг.",
   "Reaching 0 °C lets you place a free ocean tile.": "Достижение 0 °C позволяет бесплатно разместить тайл океана.",
 
   "Capital will score for adjacent oceans": "«Столица» будет приносить ПО за соседние океаны",
@@ -187,6 +190,7 @@
   "Building on an area you reserved grants M€.": "Строительство на зарезервированной вами клетке даёт M€.",
 
   "Energy production from the area's plant bonuses": "Производство энергии за бонусы растений клетки",
+  "Energy production if you choose plants as the cell bonus": "Производство энергии, если бонусом клетки выбрать растения",
   "+1 step per plant bonus printed on the chosen area.": "+1 шаг за каждый бонус растений, напечатанный на выбранной клетке.",
   "No plant bonus on this area — no energy production": "На этой клетке нет бонуса растений — производство энергии не вырастет",
   "This card raises energy production by 1 per plant bonus on the chosen area.": "Эта карта повышает производство энергии на 1 за каждый бонус растений на выбранной клетке.",

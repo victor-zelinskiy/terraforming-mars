@@ -15382,3 +15382,63 @@ function oneTagCardFor(trackTags: ReadonlyArray<Tag>, avoid: ReadonlyArray<CardN
   console.log(`${name}: the hazard on ${hazard.id}; dry run phase=${copy.phase}, the bot's final greenery covers it`);
   write(name, game);
 }
+
+// ── AMAZONIS PLANITIA · THE BONUSES — phase 1 of the eleven-row board (`docs/claude/amazonis-planitia-phase-1.md`).
+//    Two seats on the REAL board with Venus, the alternative Venus board and Colonies; blue's corporation is Mining Guild
+//    (its answer to a chosen steel). Every track stands ONE STEP below a bonus the map prints: temperature −14 °C
+//    (→ −12 °C plant production), oxygen 6 % (→ 7 % card), Venus 14 % (→ 16 % colony). 300 M€ and 16 plants. A
+//    «standard resource of your choice» cell (E3 35 · E9 41 · K3 83) is free and legal for a greenery. For
+//    console-amazonis-planitia. ──
+{
+  const name = 'amazonis-planitia-bonuses';
+  // Two seats — a solo table with Colonies opens on a live colony-removal pick; blue (the viewer) is on the move.
+  const pinned = [CardName.MINING_GUILD, CardName.THORGATE];
+  const [game, player, red] = testGame(2, {
+    skipInitialCardSelection: false, startingCorporations: 1, customCorporationsList: [...pinned],
+    boardName: BoardName.AMAZONIS_PLANITIA, venusNextExtension: true, altVenusBoard: true, coloniesExtension: true,
+  });
+  assignPinnedCorporations(name, [player, red], pinned);
+  answerStartFlow(game, [player, red]);
+  setTemperature(game, -14);
+  setOxygenLevel(game, 6);
+  setVenusScaleLevel(game, 14);
+  player.megaCredits = 300;
+  player.plants = 16;
+  runAllActions(game);
+  const legal = new Set(game.board.getAvailableSpacesForGreenery(player).map((s) => s.id));
+  const cells = game.board.spaces.filter((s) => s.bonus.includes(SpaceBonus.STANDARD_RESOURCE) && s.tile === undefined && legal.has(s.id));
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== player.id || !(player.getWaitingFor() instanceof OrOptions) || cells.length === 0 ||
+      !player.tableau.has(CardName.MINING_GUILD) || game.getTemperature() !== -14 || game.getOxygenLevel() !== 6 || game.getVenusScaleLevel() !== 14) {
+    throw new Error(`${name}: expected the action phase on Amazonis Planitia, Mining Guild, −14 °C / 6 % / 14 % and a free standard-resource cell — got phase=${game.phase} wf=${player.getWaitingFor()?.constructor.name}/${JSON.stringify(player.getWaitingFor()?.startGamePrompt)} cells=${cells.length}`);
+  }
+  write(name, game);
+}
+
+// ── AMAZONIS PLANITIA · THE FINISH — the eleven-row board's longer tracks at their last steps: Venus 30 % (→ 31 · 32 ·
+//    33 in 1 % steps, each an alternative-board resource cell, the wild on 33), 10 oceans (→ the 11th), +12 °C
+//    (→ +14 °C), 17 % oxygen (→ 18 %). 400 M€, 16 heat, 16 plants. For console-amazonis-planitia. ──
+{
+  const name = 'amazonis-planitia-finish';
+  const pinned = [CardName.CREDICOR];
+  const [game, player] = testGame(1, {
+    skipInitialCardSelection: false, startingCorporations: 1, customCorporationsList: [...pinned],
+    boardName: BoardName.AMAZONIS_PLANITIA, venusNextExtension: true, altVenusBoard: true,
+  });
+  assignPinnedCorporations(name, [player], pinned);
+  answerStartFlow(game, [player]);
+  setTemperature(game, 12);
+  setOxygenLevel(game, 17);
+  setVenusScaleLevel(game, 30);
+  while (game.board.getOceanSpaces().length < 10) {
+    addOcean(player);
+  }
+  player.megaCredits = 400;
+  player.heat = 16;
+  player.plants = 16;
+  runAllActions(game);
+  if (game.phase !== Phase.ACTION || !(player.getWaitingFor() instanceof OrOptions) || game.board.getOceanSpaces().length !== 10 ||
+      game.getTemperature() !== 12 || game.getOxygenLevel() !== 17 || game.getVenusScaleLevel() !== 30) {
+    throw new Error(`${name}: expected the action phase at +12 °C / 17 % / 30 % / 10 oceans — got phase=${game.phase} oceans=${game.board.getOceanSpaces().length}`);
+  }
+  write(name, game);
+}

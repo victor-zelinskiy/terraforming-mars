@@ -120,6 +120,8 @@ export default defineComponent({
     theme: {type: Object as PropType<ArcScaleTheme>, required: true},
     config: {type: Object as PropType<DynamicArcConfig>, required: true},
     value: {type: Number, required: true},
+    /** The identity badge stands OUTSIDE whatever the scale's habit (the eleven-row field's ocean — its grid reaches the band). */
+    identityOutside: {type: Boolean, default: false},
   },
   data() {
     return {
@@ -255,7 +257,7 @@ export default defineComponent({
     },
     /** Venus + oceans: bonuses (and thus the identity badge) sit inside. */
     identityInside(): boolean {
-      return this.theme.accent === 'venus' || this.theme.accent === 'oceans';
+      return !this.identityOutside && (this.theme.accent === 'venus' || this.theme.accent === 'oceans');
     },
     ariaLabel(): string {
       return `${this.theme.noun}: ${this.value}${this.theme.unit}`;

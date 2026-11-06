@@ -140,6 +140,45 @@ export const OCEAN_ARC = buildLinearArcConfig('oceans', {
   startValue: 1, endValue: 9, startAngle: 116, endAngle: 64, radius: 264, bandWidth: BAND_WIDTH,
 });
 
+/**
+ * A band whose values are EVENLY spaced by INDEX along a circle of its own (a value list, not a 1-step range — the
+ * Venus track walks 2 % steps to 30 and 1 % steps after it, and every step is one step on the dial).
+ */
+export function buildValuesArcConfig(name: ArcScaleName, values: ReadonlyArray<number>, opts: {
+  center: Point; radius: number; startAngle: number; endAngle: number; bandWidth: number;
+}): DynamicArcConfig {
+  const {center, radius, startAngle, endAngle, bandWidth} = opts;
+  const last = values.length - 1;
+  const digits = values.map((value, i) => ({value, angle: startAngle + (last === 0 ? 0 : i / last) * (endAngle - startAngle), radius}));
+  return {name, center, bandRadius: radius, bandWidth, startValue: values[0], endValue: values[last], startAngle, endAngle, digits};
+}
+
+/** The four dials of one board layout. */
+export type BoardArcConfigs = {temperature: DynamicArcConfig, oxygen: DynamicArcConfig, venus: DynamicArcConfig, oceans: DynamicArcConfig};
+
+export const STANDARD_ARCS: BoardArcConfigs = {temperature: TEMPERATURE_ARC, oxygen: OXYGEN_ARC, venus: VENUS_ARC, oceans: OCEAN_ARC};
+
+/**
+ * THE ELEVEN-ROW BOARD'S DIALS (Amazonis Planitia — `largeBoardLayout.ts`, `docs/claude/amazonis-planitia-phase-1.md`
+ * § the field). The 91-hex grid keeps the standard hex (46 × 51, pitch 49 × 41) and fills the planet's ring almost to
+ * the scales, so the four dials are no longer ONE circle (a common ring clearing the grid's six corners would have
+ * to grow to r ≈ 318 and cost the hexes ~15 % of their size on screen). Each dial is its OWN circle, solved against
+ * the grid (scripted: every band edge ≥ 12 px off every hex, every inner chip ≥ 8 px, ≥ 16 px between neighbours):
+ *  · VENUS (0 … 30 in 2 % steps, 31 · 32 · 33 in 1 % — 19 values): a FLAT arc over the grid's flat top (centre
+ *    145 px below the planet's, r 440) — its inner chips clear row A, its spacing ≈ 24 px per step;
+ *  · OCEANS (1 … 11): the same flat arc under the flat bottom (centre 165 px above, r 440), ≈ 26 px per step;
+ *  · OXYGEN (0 … 18) and TEMPERATURE (−30 … +14, 23 values): one circle each, almost the planet's (r 287, centres
+ *    14 px out to their side and 8 px up), wrapping the grid's left / right vertices between the two flat arcs.
+ * Measured: the content's height grows 554 → ~592 board px against Tharsis — the hex keeps ≈ 94 % of its 4K size.
+ */
+const LARGE_VENUS_VALUES: ReadonlyArray<number> = [...Array.from({length: 16}, (_, i) => i * 2), 31, 32, 33];
+export const LARGE_ARCS: BoardArcConfigs = {
+  venus: buildValuesArcConfig('venus', LARGE_VENUS_VALUES, {center: {x: 300, y: 446}, radius: 440, startAngle: -118, endAngle: -63, bandWidth: BAND_WIDTH}),
+  oxygen: buildValuesArcConfig('oxygen', Array.from({length: 19}, (_, i) => i), {center: {x: 286, y: 293}, radius: 287, startAngle: 122, endAngle: 223, bandWidth: BAND_WIDTH}),
+  temperature: buildValuesArcConfig('temperature', Array.from({length: 23}, (_, i) => -30 + i * 2), {center: {x: 314, y: 293}, radius: 287, startAngle: 58, endAngle: -40, bandWidth: BAND_WIDTH}),
+  oceans: buildValuesArcConfig('oceans', Array.from({length: 11}, (_, i) => i + 1), {center: {x: 300, y: 136}, radius: 440, startAngle: 107, endAngle: 73, bandWidth: BAND_WIDTH}),
+};
+
 /** Angle (deg) of a value, or the nearest tick's angle when between ticks. */
 export function arcAngleForValue(config: DynamicArcConfig, value: number): number {
   let best = config.digits[0];

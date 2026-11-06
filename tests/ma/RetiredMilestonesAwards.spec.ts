@@ -76,9 +76,9 @@ describe('Retired milestones / awards (Lobbyist, Politician)', function() {
   });
 
   it('no board set and no expansion set names a retired MA', () => {
-    // A board outside the premium scope keeps its PRINTED set (Amazonis Planitia's Lobbyist) and never deals it — the
-    // selector draws the pool for it (MilestoneAwardSelector). Its full adaptation names the replacement and leaves
-    // `BOARDS_PENDING_PREMIUM_ADAPTATION`, and this guard then holds it too.
+    // A board outside the premium scope may keep a PRINTED retired name until its full adaptation names the replacement
+    // and leaves `BOARDS_PENDING_PREMIUM_ADAPTATION` (Amazonis Planitia's Lobbyist → Activist, 2026-11-06); this guard
+    // then holds it too.
     const inScope = ([board]: [string, unknown]) => isBoardInPremiumScope(board as BoardName);
     const sets: Array<[string, ReadonlyArray<string>]> = [
       ...Object.entries(milestoneManifest.boards).filter(inScope).map(([board, names]): [string, ReadonlyArray<string>] => [`milestones of ${board}`, names]),

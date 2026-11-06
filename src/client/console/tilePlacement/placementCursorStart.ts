@@ -14,7 +14,7 @@
  * caller's own fallback.
  */
 import {SpaceId} from '@/common/Types';
-import {MINI_ROWS, miniCellCenter} from '@/common/boards/boardLayoutGeometry';
+import {miniCellCenter, miniRowsOf} from '@/common/boards/boardLayoutGeometry';
 
 /** The bits of a board cell the law reads (a `SpaceModel` is one). */
 export type CursorStartCell = {
@@ -29,13 +29,14 @@ export type CursorStartCell = {
 
 type Point = {cx: number, cy: number};
 
-/** A cell's centre on the plane — undefined off the Mars grid (a colony slot, a negative row). */
-function planeOf(cell: CursorStartCell): Point | undefined {
-  const rowLen = MINI_ROWS[cell.y];
+/** A cell's centre on the plane — undefined off the Mars grid (a colony slot, a negative row). `rows` is the board's
+ *  silhouette (the standard nine or the eleven-row field — `miniRowsOf`). */
+function planeOfCell(cell: CursorStartCell, rows: ReadonlyArray<number>): Point | undefined {
+  const rowLen = rows[cell.y];
   if (rowLen === undefined || cell.x < 0) {
     return undefined;
   }
-  return miniCellCenter(cell.x, cell.y, rowLen);
+  return miniCellCenter(cell.x, cell.y, rowLen, Math.max(...rows));
 }
 
 function centroid(points: ReadonlyArray<Point>): Point | undefined {
@@ -65,6 +66,8 @@ export function initialPlacementCursor(opts: {
   viewer: string,
 }): SpaceId | undefined {
   const byId = new Map(opts.cells.map((c) => [c.id, c]));
+  const rows = miniRowsOf(opts.cells);
+  const planeOf = (cell: CursorStartCell) => planeOfCell(cell, rows);
   const onMars = opts.cells.map(planeOf).filter((p): p is Point => p !== undefined);
   const boardCentre = centroid(onMars);
   if (boardCentre === undefined) {

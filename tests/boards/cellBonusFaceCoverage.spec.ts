@@ -56,9 +56,9 @@ describe('a printed cell bonus has a face and a story on every board', () => {
     [SpaceBonus.DATA, 'the board pays a card (`space-bonus`)'],
     [SpaceBonus.SCIENCE, 'the board pays a card (`space-bonus`)'],
     [SpaceBonus.ASTEROID, 'the board pays a card (`space-bonus`)'],
+    [SpaceBonus.STANDARD_RESOURCE, 'the cell asks (its source plate), the token of the answer leaves the cell (`cellResourceBeat`)'],
   ]);
 
-  // A board outside the premium scope (Amazonis Planitia's standard-resource cell) gets its faces with its full adaptation.
   const boards = Object.values(BoardName).filter(isBoardInPremiumScope);
   const seen = new Set<SpaceBonus>();
 

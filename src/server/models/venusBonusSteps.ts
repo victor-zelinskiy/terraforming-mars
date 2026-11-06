@@ -40,7 +40,7 @@ function withBranchBonus(player: IPlayer, branch: ActionPreviewBranch, source: C
   }
   const marks: Array<{mark: AltVenusBonus, when?: {step: number, option: number}}> =
     branch.effects.flatMap((effect) => effect.altVenusBonus === undefined ? [] : [{mark: effect.altVenusBonus}]);
-  marks.push(...optionMarks(branch.steps));
+  marks.push(...optionMarks(branch.steps, player.game.max.venus));
   if (marks.length === 0) {
     return branch;
   }
@@ -61,7 +61,7 @@ function withBranchBonus(player: IPlayer, branch: ActionPreviewBranch, source: C
  * the same reading the option card prints) names the raise, the engine's ONE arithmetic (`altVenusBonusFor`) the
  * bonus it earns. The step it adds is CONDITIONAL — `when` the step is answered with that option.
  */
-function optionMarks(steps: ReadonlyArray<ActionPreviewStep>): Array<{mark: AltVenusBonus, when: {step: number, option: number}}> {
+function optionMarks(steps: ReadonlyArray<ActionPreviewStep>, maxVenus: number): Array<{mark: AltVenusBonus, when: {step: number, option: number}}> {
   const out: Array<{mark: AltVenusBonus, when: {step: number, option: number}}> = [];
   steps.forEach((step, i) => {
     if (step.kind !== 'input' || step.input.type !== 'or') {
@@ -72,7 +72,7 @@ function optionMarks(steps: ReadonlyArray<ActionPreviewStep>): Array<{mark: AltV
       if (meta?.kind !== 'globalParameter' || meta.icon !== 'venus' || meta.global?.current === undefined || meta.amount === undefined) {
         return;
       }
-      const mark = altVenusBonusFor(meta.global.current, meta.amount);
+      const mark = altVenusBonusFor(meta.global.current, meta.amount, maxVenus);
       if (mark !== undefined) {
         out.push({mark, when: {step: i, option: k}});
       }

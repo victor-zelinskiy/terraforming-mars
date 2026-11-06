@@ -762,6 +762,9 @@ function describeSpaceBonus(bonus: SpaceBonus, count: number): BonusDescription 
   case SpaceBonus.TEMPERATURE_4MC: return {title: 'Raise temperature', deferred: true, description: 'Pay M€ to raise temperature one step (+1 TR)'};
   case SpaceBonus.COLONY: return {title: 'Build a colony', deferred: true, description: 'Pay M€ to build a colony'};
   case SpaceBonus.DELEGATE: return {title: 'Send a delegate', deferred: true};
+  // Amazonis Planitia's cell asks AFTER the tile lands («a standard resource of your choice») — the dossier names the
+  // choice with the board's own «?» face, never a silent «Cell bonus».
+  case SpaceBonus.STANDARD_RESOURCE: return {title: 'Cell bonus', deferred: true, delta: gain('wild'), description: 'Gain a standard resource of your choice'};
   case SpaceBonus._RESTRICTED:
   default: return {title: 'Cell bonus', deferred: false};
   }
@@ -1144,11 +1147,19 @@ function oxygenRaiseFacts(player: IPlayer, idPrefix: string, steps = 1): Array<B
   ];
   // The 8% bonus step. NOT gated on the solar phase — `increaseOxygenLevel`
   // raises the temperature outside its `phase !== SOLAR` block.
-  // The map's own step (8 %; 11 % on Amazonis Planitia — `game.globalParameterTracks`). The note names the classic
-  // 8 %: the larger board's copy is part of its full adaptation.
+  // Amazonis Planitia's 7 % card — inside the reward gate (`Game.increaseOxygenLevel`), never for MarsBot (no hand).
+  if (!governmentActs(game) && !player.isMarsBot &&
+    crossesTrackBonus(game.globalParameterTracks, 'oxygen', 'drawcard', current, resulting)) {
+    out.push({
+      ...gainFact(`${idPrefix}-oxygen-card`, 'placement-effect', 'Oxygen bonus step', {icon: 'cards', amount: 1, direction: 'gain'}),
+      description: 'Crossing the bonus step draws you a card.',
+    });
+  }
+  // The map's own step (8 %; 11 % on Amazonis Planitia — `game.globalParameterTracks`), named at the map's threshold.
   if (crossesTrackBonus(game.globalParameterTracks, 'oxygen', 'temperature', current, resulting)) {
+    const eleven = game.globalParameterTracks.oxygen.some((t) => t.bonus === 'temperature' && t.value === 11);
     out.push(chainNote(`${idPrefix}-oxygen-chain`, 'Oxygen bonus step',
-      'Reaching 8% oxygen also raises the temperature one step.'));
+      eleven ? 'Reaching 11% oxygen also raises the temperature one step.' : 'Reaching 8% oxygen also raises the temperature one step.'));
     out.push(...temperatureRaiseFacts(player, `${idPrefix}-oxygen-bonus`, 1));
   }
   // Ares: `increaseOxygenLevel` runs `onOxygenChange` LAST, after the 8%
@@ -1189,6 +1200,15 @@ function temperatureRaiseFacts(player: IPlayer, idPrefix: string, steps = 1): Ar
         ...gainFact(`${idPrefix}-temperature-heat`, 'placement-effect', 'Temperature bonus step',
           {icon: 'heat', amount: crossed, direction: 'gain', production: true, current: heat, resulting: heat + crossed}),
         description: 'Crossing the bonus step raises your heat production.',
+      });
+    }
+    // Amazonis Planitia's −12 °C plant production (MarsBot takes 2 M€ instead — the engine's substitution).
+    if (!player.isMarsBot && crossesTrackBonus(game.globalParameterTracks, 'temperature', 'plant', current, resulting)) {
+      const plants = player.production.get(Resource.PLANTS);
+      out.push({
+        ...gainFact(`${idPrefix}-temperature-plant`, 'placement-effect', 'Temperature bonus step',
+          {icon: 'plants', amount: 1, direction: 'gain', production: true, current: plants, resulting: plants + 1}),
+        description: 'Crossing the bonus step raises your plant production.',
       });
     }
   }

@@ -222,7 +222,7 @@ export function altVenusBonusMark(game: IPlayer['game'], steps: number): {altVen
   if (game.gameOptions.altVenusBoard !== true || steps <= 0) {
     return {};
   }
-  const bonus = altVenusBonusFor(game.getVenusScaleLevel(), steps);
+  const bonus = altVenusBonusFor(game.getVenusScaleLevel(), steps, game.max.venus);
   return bonus === undefined ? {} : {altVenusBonus: bonus};
 }
 /**

@@ -15,8 +15,13 @@ import {test, expect, Page} from './consoleTest';
 import {press} from './consoleStart';
 import {campaignBase, seedIdentity} from './campaignFixtures';
 
-/** The creator's catalog: «random (all)» + the eleven boards (`PREMIUM_MAPS`) — a full 4 × 3 page on the TV. */
-const MAPS = 12;
+/**
+ * The creator's catalog: «random (all)» + the twelve boards (`PREMIUM_MAPS`). The TV's stage holds 4 × 3 at the tile's
+ * minimum width, so the thirteenth (Amazonis Planitia's eleven-row board, 2026-11-06) opens a SECOND page — the spine
+ * reads «1 / 2» and the walk turns it.
+ */
+const MAPS = 13;
+const PER_PAGE_TV = 12;
 
 const PRESETS = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
@@ -71,11 +76,13 @@ for (const preset of PRESETS) {
       const cols = Number(await showcase.getAttribute('data-map-cols'));
       const pages = Number(await showcase.getAttribute('data-map-pages'));
       if (preset.id === 'tv4k') {
-        expect([cols, Number(await showcase.getAttribute('data-map-rows')), pages], 'one page of 4 × 3').toEqual([4, 3, 1]);
-        await expect(page.locator('.cm-map')).toHaveCount(MAPS);
+        expect([cols, Number(await showcase.getAttribute('data-map-rows')), pages], 'pages of 4 × 3, two of them').toEqual([4, 3, 2]);
+        await expect(page.locator('.cm-map')).toHaveCount(PER_PAGE_TV);
+        await expect(page.locator('[data-map-spine]')).toBeVisible();
         await expect(page.locator('[data-map-dossier]')).toBeVisible();
         await expect(page.locator('[data-map-tile="vastitas borealis"] [data-map-fan], [data-map-tile="amazonis p."] [data-map-fan], [data-map-tile="arabia terra"] [data-map-fan]')).toHaveCount(3);
         await expect(page.locator('[data-map-tile="tharsis"] [data-map-fan]'), 'an official board wears no fan chip').toHaveCount(0);
+        await expect(page.locator('[data-map-tile="amazonis planitia"] [data-map-fan]'), 'the official eleven-row board wears no fan chip').toHaveCount(0);
       } else {
         expect(pages, 'the Deck pages').toBeGreaterThan(1);
         await expect(page.locator('[data-map-spine]')).toBeVisible();

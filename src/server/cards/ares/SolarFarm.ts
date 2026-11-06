@@ -110,6 +110,12 @@ export class SolarFarm extends Card implements IProjectCard {
    */
   public placementPreview(player: IPlayer, space: Space): ReadonlyArray<BoardFact> {
     const energy = this.energyFor(space);
+    // Amazonis Planitia's «a standard resource of your choice» cell: PLANTS chosen there count as a plant bonus
+    // (`onStandardResourcePlacementBonus`) — the step is the player's choice, named as such, never a silent 0.
+    if (space.bonus.includes(SpaceBonus.STANDARD_RESOURCE)) {
+      return [placementPreviews.productionChange(player, this, Resource.ENERGY, energy + 1,
+        'Energy production if you choose plants as the cell bonus')];
+    }
     if (energy === 0) {
       return [placementPreviews.noEffectHere(this,
         'No plant bonus on this area — no energy production',

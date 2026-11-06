@@ -46,10 +46,10 @@ describe('the creator\'s map catalog', () => {
     expect(new Set(offered).size, 'one tile per board').eq(offered.length);
   });
 
-  it('marks exactly the fan boards as fan — the six official maps wear no chip', () => {
+  it('marks exactly the fan boards as fan — the seven official maps wear no chip', () => {
     const official: ReadonlyArray<BoardName> = [
       BoardName.THARSIS, BoardName.HELLAS, BoardName.ELYSIUM, BoardName.UTOPIA_PLANITIA,
-      BoardName.TERRA_CIMMERIA_NOVA, BoardName.VASTITAS_BOREALIS_NOVA,
+      BoardName.TERRA_CIMMERIA_NOVA, BoardName.VASTITAS_BOREALIS_NOVA, BoardName.AMAZONIS_PLANITIA,
     ];
     for (const meta of PREMIUM_MAPS.filter((m) => !m.random)) {
       expect(meta.fan === true, `${meta.id}`).eq(!official.includes(meta.id as BoardName));

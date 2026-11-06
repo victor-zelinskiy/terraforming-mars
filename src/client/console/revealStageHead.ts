@@ -116,6 +116,8 @@ const BONUS_ICON: Partial<Record<SpaceBonus, string>> = {
   [SpaceBonus.COLONY]: 'colony-tile',
   // Vastitas Borealis' North Pole — the board's own premium plate (thermometer · −4), never a bare thermometer.
   [SpaceBonus.TEMPERATURE_4MC]: 'bonus-temperature-4mc',
+  // Amazonis Planitia's «a standard resource of your choice» — the board's own premium face (`resources/wild.png`).
+  [SpaceBonus.STANDARD_RESOURCE]: 'wild',
 };
 
 export function cellBonusIcons(bonuses: ReadonlyArray<SpaceBonus>): Array<string> {
@@ -147,7 +149,9 @@ export function revealSourceReading(source: CardDrawRevealSource | undefined, ce
       {labelKey: 'Source', nameKey: 'Tile bonus', icons: [], inspectable: false};
   }
   case 'globalParameter':
-    return source.parameter === 'venus' ? {labelKey: 'Source', nameKey: 'Venus scale bonus', icons: [], inspectable: false} : undefined;
+    // The Venus 8 % card; Amazonis Planitia's oxygen 7 % card.
+    return source.parameter === 'venus' ? {labelKey: 'Source', nameKey: 'Venus scale bonus', icons: [], inspectable: false} :
+      source.parameter === 'oxygen' ? {labelKey: 'Source', nameKey: 'Oxygen scale bonus', icons: [], inspectable: false} : undefined;
   case 'campaign':
     return {labelKey: 'Source', nameKey: 'Carried from the previous mission', icons: [], inspectable: false};
   case 'party':

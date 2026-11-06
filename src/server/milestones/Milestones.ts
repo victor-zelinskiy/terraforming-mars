@@ -190,7 +190,10 @@ export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
     [BoardName.VASTITAS_BOREALIS_NOVA]: ['Agronomist', 'V. Spacefarer', 'Geologist', 'Engineer', 'Farmer'],
     [BoardName.TERRA_CIMMERIA_NOVA]: ['Planetologist', 'Architect', 'Coastguard', 'C. Forester', 'Fundraiser'],
     [BoardName.HOLLANDIA]: [],
-    [BoardName.AMAZONIS_PLANITIA]: ['Terran5', 'Landshaper', 'Merchant3', 'Sponsor', 'Lobbyist'],
+    // vize1215 fork: the printed Lobbyist is RETIRED with the classic Turmoil (the Redux FAQ) — Activist, the Redux
+    // Parliament's own milestone, takes its slot (the owner, 2026-11-06). A game with no Redux Parliament plays the
+    // FIXED substitute `AMAZONIS_PLANITIA_NO_PARLIAMENT_MILESTONE` instead (MilestoneAwardSelector).
+    [BoardName.AMAZONIS_PLANITIA]: ['Terran5', 'Landshaper', 'Merchant3', 'Sponsor', 'Activist'],
   },
   expansions: {
     venus: ['Hoverlord'],

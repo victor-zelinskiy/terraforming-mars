@@ -64,7 +64,7 @@ function venusBonusFollowUp(player: IPlayer, metadata: ColonyMetadata): ColonyTr
   if (fixed?.type !== ColonyBenefit.INCREASE_VENUS_SCALE || player.game.gameOptions.altVenusBoard !== true || player.isMarsBot === true) {
     return undefined;
   }
-  const bonus = altVenusBonusFor(player.game.getVenusScaleLevel(), fixed.quantity);
+  const bonus = altVenusBonusFor(player.game.getVenusScaleLevel(), fixed.quantity, player.game.max.venus);
   if (bonus === undefined) {
     return undefined;
   }

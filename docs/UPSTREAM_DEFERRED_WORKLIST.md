@@ -514,7 +514,10 @@ typed tokens + a new RU key.
   deleted desktop components, Vitest track).
 
 **Deferred — worth their own iteration:**
-- **Amazonis Planitia's full adaptation** — phase 1 (premium UI, no MarsBot): `docs/claude/prompts/amazonis-planitia-full-adaptation.md`;
+- **Amazonis Planitia's full adaptation** — phase 1 (premium UI, no MarsBot) ✅ DONE 2026-11-06
+  (`docs/claude/amazonis-planitia-phase-1.md`: the 91-hex field at the Tharsis hex, the board's own dials, Alt Venus to
+  33 %, Activist / Terraformer29, the standard-resource cell's question and token, the MA badges; the board left
+  `BOARDS_PENDING_PREMIUM_ADAPTATION`); `docs/claude/prompts/amazonis-planitia-full-adaptation.md` —
   phase 2 — MarsBot with its own enlarged bot board, after phase 1. Owner decisions: Lobbyist → Activist, Alt Venus MUST
   stay compatible (upstream `8424b2e87e` declared it not), hexes kept as large as possible (the 91-hex
   render `27db80e67e`, the client half of `3a2cd5ebf6` / `17c0acbd5a`, `201e359e18`, the MA icons `9b24651245`

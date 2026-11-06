@@ -1,6 +1,6 @@
 import {MaPrice} from '../common/ma/MaPrice';
 import * as constants from '../common/constants';
-import {altVenusBonusFor} from '../common/venus/altVenusBonus';
+import {altVenusBonusFor, altVenusResourceCells} from '../common/venus/altVenusBonus';
 import {automaModeFor, getAutomaMaxGeneration} from '../common/automa/AutomaTypes';
 import {AutomaController} from './automa/AutomaController';
 import {AutomaCorporations} from './automa/corps/AutomaCorporations';
@@ -75,7 +75,7 @@ import {AresData} from '../common/ares/AresData';
 import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel';
 import {AdjacencyVpChange, TileMoveFact, TileMoveRecordModel} from '../common/boards/TileMove';
 import {CardAdjacencyPayoutModel} from '../common/models/CardAdjacencyPayoutModel';
-import {TilePlacementPaidResource, TilePlacementRecordModel} from '../common/models/TilePlacementRecordModel';
+import {CellResourcePayoutModel, TilePlacementPaidResource, TilePlacementRecordModel} from '../common/models/TilePlacementRecordModel';
 import {ScaleStepRewardModel} from '../common/models/ScaleStepRewardModel';
 import {CARD_REACTION_RING_DEPTH, CardReactionRecord} from '../common/models/CardReactionModel';
 import {ParameterSwingDown, ParameterSwingModel} from '../common/models/ParameterSwingModel';
@@ -256,6 +256,7 @@ export class Game implements IGame, Logger {
   public tileMoves: Array<TileMoveRecordModel> = []; // Not serialized (presentation ring — see IGame.tileMoves)
   public cardAdjacencyPayouts: Array<CardAdjacencyPayoutModel> = []; // Not serialized (presentation ring — see IGame.cardAdjacencyPayouts)
   public tilePlacements: Array<TilePlacementRecordModel> = []; // Not serialized (presentation ring — see IGame.tilePlacements)
+  public cellResourcePayouts: Array<CellResourcePayoutModel> = []; // Not serialized (presentation ring — see IGame.cellResourcePayouts)
   public scaleStepRewards: Array<ScaleStepRewardModel> = []; // Not serialized (presentation ring — see IGame.scaleStepRewards)
   public parameterSwings: Array<ParameterSwingModel> = []; // Not serialized (presentation ring — see IGame.parameterSwings)
   public cardReactions: Array<CardReactionRecord> = []; // Not serialized (presentation ring — see IGame.cardReactions)
@@ -2091,7 +2092,7 @@ export class Game implements IGame, Logger {
       }
       if (this.gameOptions.altVenusBoard) {
         // The ONE arithmetic of the bonus (`common/venus/altVenusBonus.ts`) — the previews name it from the same function.
-        const bonus = altVenusBonusFor(this.venusScaleLevel, steps);
+        const bonus = altVenusBonusFor(this.venusScaleLevel, steps, this.max.venus);
         const standardResourcesGranted = bonus?.standard ?? 0;
         const grantWildResource = bonus?.wild === true;
         if (bonus !== undefined) {
@@ -2145,7 +2146,7 @@ export class Game implements IGame, Logger {
     }
 
     const venusBonusSteps = this.gameOptions.altVenusBoard ?
-      [...new Set([...this.trackBonusSteps('venus'), 18, 20, 22, 24, 26, 28, 30])] :
+      [...new Set([...this.trackBonusSteps('venus'), ...altVenusResourceCells(this.max.venus)])] :
       this.trackBonusSteps('venus');
     this.claimCrossedScaleBonuses(player, 'venus', this.venusScaleLevel, venusAfter, venusBonusSteps, !rewarded);
 
@@ -2908,6 +2909,19 @@ export class Game implements IGame, Logger {
     }
   }
 
+  /**
+   * PUBLISH a cell's chosen standard resource (Amazonis Planitia — `CellResourcePayoutModel`): the answer of the cell's
+   * own question, for the token that leaves the cell. The same bounded ring and `seq` law; written by `grantSpaceBonus`.
+   */
+  public publishCellResourcePayout(payout: Omit<CellResourcePayoutModel, 'seq'>): void {
+    const base = this.gameAge * 100;
+    const n = this.cellResourcePayouts.filter((p) => p.seq >= base).length;
+    this.cellResourcePayouts.push({...payout, seq: base + Math.min(n, 99)});
+    while (this.cellResourcePayouts.length > 8) {
+      this.cellResourcePayouts.shift();
+    }
+  }
+
   public publishCardAdjacencyPayout(payout: Omit<CardAdjacencyPayoutModel, 'seq'>): void {
     const base = this.gameAge * 100;
     const n = this.cardAdjacencyPayouts.filter((p) => p.seq >= base).length;
@@ -3032,7 +3046,15 @@ export class Game implements IGame, Logger {
   public grantSpaceBonuses(player: IPlayer, space: Space, multiplier: number = 1, options?: {asPlacement?: boolean}): CellBonusPaid {
     const out: CellBonusPaid = {paid: [], cards: 0};
     const onStandardResource = options?.asPlacement === true ?
-      (resource: Resource) => this.triggerForAllCards((p, c) => c.onStandardResourcePlacementBonus?.(p, player, space, resource)) :
+      // Each card's answer is a recorded REACTION of the placement (`withEffect` — the card-reaction framework tells it,
+      // the effects overlay counts it «за партию»), the same trigger as its printed steel / titanium twin in `onTilePlaced`.
+      (resource: Resource) => this.triggerForAllCards((p, c) => {
+        if (c.onStandardResourcePlacementBonus === undefined) {
+          return;
+        }
+        this.events.withEffect(p, c, 'tile-placed', () => c.onStandardResourcePlacementBonus?.(p, player, space, resource),
+          {...(space.tile === undefined ? {} : {tile: space.tile.tileType}), space: space.id});
+      }) :
       undefined;
     const bonuses = MultiSet.from(space.bonus);
     bonuses.forEachMultiplicity((printed: number, bonus: SpaceBonus) => {
@@ -3182,10 +3204,17 @@ export class Game implements IGame, Logger {
       return {kind: 'other'};
     case SpaceBonus.STANDARD_RESOURCE:
       // A space has this bonus at most once. If one ever has more, use SelectResources (see Philares).
+      // The CELL asks (its giver — the console's source plate «ИСТОЧНИК · клетка [?]»), and the answer is published
+      // (`publishCellResourcePayout`) so the chosen unit leaves the cell on every seat's screen.
       player.defer(new SelectResource('Select a standard resource to gain')
         .withGainAmount(1)
+        .markChoiceContext({source: cellGiver(), mode: 'reward'})
         .andThen((resource) => {
           player.stock.add(resource, 1, {log: true});
+          const cellId = source?.spaceId ?? source?.placedSpaceId;
+          if (cellId !== undefined) {
+            this.publishCellResourcePayout({spaceId: cellId, color: player.color, resource: resource as TilePlacementPaidResource, amount: 1});
+          }
           // `keyof Units` and `Resource` share their string values.
           source?.onStandardResource?.(resource as Resource);
           return undefined;

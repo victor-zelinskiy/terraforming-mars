@@ -570,7 +570,7 @@ export default defineComponent({
       // …and a TILE TAKEN OFF THE BOARD (Water Export): the ocean count as the planet's own chip — the
       // record's before → after once the first player has chosen, the live room while the question stands,
       // or the named edge (the maximum, nothing to remove).
-      const removal = tileRemovalReadingOf(this.resolution, tileRemovalTableOf(this.playerView.game.spaces), {enacted: true, outcomes});
+      const removal = tileRemovalReadingOf(this.resolution, tileRemovalTableOf(this.playerView.game.spaces, this.playerView.game.gameOptions.boardName), {enacted: true, outcomes});
       const chip = removal === undefined ? undefined : tileRemovalChipOf(removal);
       if (chip !== undefined) {
         out.push(chip);

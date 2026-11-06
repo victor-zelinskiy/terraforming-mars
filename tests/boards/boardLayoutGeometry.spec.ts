@@ -9,6 +9,7 @@ import {
   MINI_V_STEP,
   miniCellCenter,
   miniLayoutBounds,
+  miniRowsOf,
 } from '../../src/common/boards/boardLayoutGeometry';
 
 /**
@@ -25,13 +26,14 @@ describe('boardLayoutGeometry — the miniature grid mapping', () => {
   const EPS = 1e-6;
 
   it('every row of every board is centred on ONE axis (the big-board relation)', () => {
-    // A board outside the premium scope (the eleven-row Amazonis Planitia) has no miniature yet — its full adaptation.
+    // The eleven-row Amazonis Planitia rides the same mapping on its own silhouette (`miniRowsOf` — 6 … 11 … 6).
     for (const name of Object.values(BoardName).filter(isBoardInPremiumScope)) {
       const layout = buildBoardLayout(name);
+      const rows = miniRowsOf(layout);
       const rowMid = new Map<number, number>();
-      for (let y = 0; y < MINI_ROWS.length; y++) {
+      for (let y = 0; y < rows.length; y++) {
         const row = layout.filter((s) => s.y === y);
-        const cxs = row.map((s) => miniCellCenter(s.x, s.y, MINI_ROWS[s.y]).cx);
+        const cxs = row.map((s) => miniCellCenter(s.x, s.y, rows[s.y], Math.max(...rows)).cx);
         rowMid.set(y, (Math.min(...cxs) + Math.max(...cxs)) / 2);
       }
       const mids = [...rowMid.values()];
@@ -79,14 +81,23 @@ describe('boardLayoutGeometry — the miniature grid mapping', () => {
   it('every cell of every board sits fully inside its own bounds (nothing overflows the frame)', () => {
     for (const name of Object.values(BoardName).filter(isBoardInPremiumScope)) {
       const layout = buildBoardLayout(name);
+      const rows = miniRowsOf(layout);
       const b = miniLayoutBounds(layout);
       for (const s of layout) {
-        const {cx, cy} = miniCellCenter(s.x, s.y, MINI_ROWS[s.y]);
+        const {cx, cy} = miniCellCenter(s.x, s.y, rows[s.y], Math.max(...rows));
         expect(cx - MINI_HEX_W / 2, `${name} (${s.x},${s.y}) left`).gte(b.minX - EPS);
         expect(cx + MINI_HEX_W / 2, `${name} (${s.x},${s.y}) right`).lte(b.maxX + EPS);
         expect(cy - MINI_HEX_R, `${name} (${s.x},${s.y}) top`).gte(b.minY - EPS);
         expect(cy + MINI_HEX_R, `${name} (${s.x},${s.y}) bottom`).lte(b.maxY + EPS);
       }
     }
+  });
+
+  it('the eleven-row field (Amazonis Planitia): symmetric, 11 hexes wide, 11 rows tall', () => {
+    const layout = buildBoardLayout(BoardName.AMAZONIS_PLANITIA);
+    expect(layout.length).eq(91);
+    const b = miniLayoutBounds(layout);
+    expect(Math.abs(b.width - 11 * MINI_HEX_W)).lessThan(EPS);
+    expect(Math.abs(b.height - (10 * MINI_V_STEP + 2 * MINI_HEX_R))).lessThan(EPS);
   });
 });

@@ -36,3 +36,19 @@ export type TilePlacementRecordModel = {
    */
   produced?: ReadonlyArray<{resource: TilePlacementPaidResource, amount: number}>;
 };
+
+/**
+ * A CELL'S «STANDARD RESOURCE OF YOUR CHOICE» PAID — Amazonis Planitia's cells (E3, E9, K3; `SpaceBonus.STANDARD_RESOURCE`).
+ * The cell's reward is a QUESTION (`SelectResource`, named by the cell — `choiceContext.source` kind `space`), so its
+ * answer lands in a LATER response than the tile: the tile record cannot carry it. `Game.grantSpaceBonus` writes this
+ * record when the answer is applied — who chose, which resource, from which cell — so the viewer's own token leaves the
+ * cell for the rail row and another seat's leaves it for that seat's intake plaque. The same bounded ring and `seq` law
+ * as `TilePlacementRecordModel`; never serialized.
+ */
+export type CellResourcePayoutModel = {
+  seq: number;
+  spaceId: SpaceId;
+  color: Color;
+  resource: TilePlacementPaidResource;
+  amount: number;
+};

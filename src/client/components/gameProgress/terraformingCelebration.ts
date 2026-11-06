@@ -1,5 +1,7 @@
 import {reactive} from 'vue';
 import {terraformingProgress} from '@/client/components/gameProgress/terraformingProgress';
+import {BoardName} from '@/common/boards/BoardName';
+import {getGlobalParameterMaximums} from '@/common/boards/GlobalParameterMaximums';
 
 /**
  * terraformingCelebration — the shared "Terraforming complete / final
@@ -50,6 +52,8 @@ export type TerraformingObservationView = {
     isTerraformed: boolean;
     generation: number;
     lastSoloGeneration: number;
+    /** The map — its maximums decide «complete» (Amazonis Planitia's tracks are longer). */
+    gameOptions?: {boardName: BoardName};
   };
   players: {length: number};
 };
@@ -100,7 +104,8 @@ export function finalGenerationActive(view: TerraformingObservationView): boolea
  */
 export function observeTerraformingProgress(view: TerraformingObservationView): boolean {
   const state = terraformingCelebrationState;
-  const complete = terraformingProgress(view.game).complete;
+  const board = view.game.gameOptions?.boardName;
+  const complete = terraformingProgress(view.game, board === undefined ? undefined : getGlobalParameterMaximums(board)).complete;
   const finalGeneration = finalGenerationActive(view);
   const fresh = state.seeded && !state.complete && complete;
   state.seeded = true;

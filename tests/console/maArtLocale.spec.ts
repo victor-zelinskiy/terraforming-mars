@@ -28,4 +28,12 @@ describe('MA art · per-language variants', () => {
     expect(maArtFileSlug('landscaper', 'ru')).eq('landscaper');
     expect(maArtPath('t-politician', 'ru')).eq('assets/ma/t-politician.png');
   });
+
+  // The Constructor award (Amazonis Planitia's printed set): its slug is a key of Object.prototype — a plain-table
+  // lookup returned a FUNCTION and threw, emptying the whole awards rail (phase 1, 2026-11-06).
+  it('a slug that names an Object.prototype key is an ordinary slug', () => {
+    for (const slug of ['constructor', 'toString', 'hasOwnProperty', 'valueOf']) {
+      expect(maArtFileSlug(slug, 'ru'), slug).eq(slug);
+    }
+  });
 });

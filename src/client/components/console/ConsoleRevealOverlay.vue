@@ -1311,6 +1311,10 @@ export default defineComponent({
       if (s.type === 'globalParameter' && s.parameter === 'venus') {
         return {name: translateText('Venus scale bonus'), inspectable: false};
       }
+      if (s.type === 'globalParameter' && s.parameter === 'oxygen') {
+        // Amazonis Planitia's 7 % oxygen card.
+        return {name: translateText('Oxygen scale bonus'), inspectable: false};
+      }
       if (s.type === 'campaign') {
         // «Наследие проектов» — carried, never bought; the price of PLAYING
         // them stays normal (the chip must not imply otherwise).
