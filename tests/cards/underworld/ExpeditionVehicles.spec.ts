@@ -40,7 +40,8 @@ describe('ExpeditionVehicles', () => {
     const neighbor = spaces[0];
     const space = game.board.getAdjacentSpaces(neighbor)[0];
 
-    neighbor.cube = 'martian-nature-wonders';
+    // The fork keeps a neutral cube as a cube TILE (`CUBE_TILES`), not a `Space.cube` field.
+    neighbor.tile = {tileType: TileType.MARTIAN_NATURE_WONDERS};
 
     player.playedCards.push(card);
 

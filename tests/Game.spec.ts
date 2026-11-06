@@ -28,7 +28,6 @@ import {IColony} from '../src/server/colonies/IColony';
 import {IAward} from '../src/server/awards/IAward';
 import {SerializedGame} from '../src/server/SerializedGame';
 import {SelectInitialCards} from '../src/server/inputs/SelectInitialCards';
-import {SelectCard} from '../src/server/inputs/SelectCard';
 import {SelectSpace} from '../src/server/inputs/SelectSpace';
 import {GlobalParameter} from '../src/common/GlobalParameter';
 import {assertPlaceOcean} from './assertions';

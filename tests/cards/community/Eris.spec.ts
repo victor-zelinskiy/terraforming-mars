@@ -37,7 +37,8 @@ describe('Eris', () => {
 
     const cubeSpace = game.board.getSpaceOrThrow('15');
     const adjacentSpace = game.board.getSpaceOrThrow('08');
-    cubeSpace.cube = 'martian-nature-wonders';
+    // The fork keeps a neutral cube as a cube TILE (`CUBE_TILES`), not a `Space.cube` field.
+    cubeSpace.tile = {tileType: TileType.MARTIAN_NATURE_WONDERS};
 
     // With no hazards on the board there is only one option, so it resolves directly.
     cast(card.action(player), undefined);
