@@ -5,6 +5,8 @@ import {IGame} from '@/server/IGame';
 import {TestPlayer} from '../../TestPlayer';
 import {testGame} from '../../TestGame';
 import {addCity, addOcean, setOxygenLevel} from '../../TestingUtils';
+import {testAutomaGame} from '../../automa/AutomaTestGame';
+import {SpaceType} from '@/common/boards/SpaceType';
 
 describe('RedShips', () => {
   let card: RedShips;
@@ -70,5 +72,17 @@ describe('RedShips', () => {
     player.megaCredits = 0;
     card.action(player);
     expect(player.megaCredits).to.eq(1);
+  });
+
+  // Upstream 9c7de4989f — the Neural Instance is a special tile only when that helps MarsBot (Founder's reading).
+  it('action does not count MarsBot\'s Neural Instance', () => {
+    const [game, human, bot] = testAutomaGame({}, '-redships');
+    const oceanSpace = addOcean(human);
+    const space = game.board.getAdjacentSpaces(oceanSpace).find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined)!;
+    game.simpleAddTile(bot, space, {tileType: TileType.NEURAL_INSTANCE});
+
+    human.megaCredits = 0;
+    card.action(human);
+    expect(human.megaCredits).to.eq(0);
   });
 });

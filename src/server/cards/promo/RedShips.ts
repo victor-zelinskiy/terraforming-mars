@@ -6,6 +6,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {Resource} from '../../../common/Resource';
 import {Board, isSpecialTileSpace} from '../../boards/Board';
+import {TileType} from '../../../common/TileType';
 import {IActionCard} from '../ICard';
 import * as actionPreviews from '../actionPreviews';
 import {futilityOf, zeroYield} from '../actionFutilities';
@@ -38,8 +39,10 @@ export class RedShips extends Card implements IActionCard {
   /** The M€ the action pays: every city and special tile next to an ocean — one count for the preview, the verdict and the action. */
   private paidTiles(player: IPlayer): number {
     const board = player.game.board;
+    // The Neural Instance tile is MarsBot's. It is not a special tile for anyone else (upstream 9c7de4989f — the same
+    // reading as Founder's `humanAwardScore`).
     const candidates = board.spaces.filter((space) => {
-      return Board.isCitySpace(space) || isSpecialTileSpace(space);
+      return Board.isCitySpace(space) || (isSpecialTileSpace(space) && space.tile?.tileType !== TileType.NEURAL_INSTANCE);
     });
     return candidates.filter(
       (space) => board.getAdjacentSpaces(space).some((adj) => Board.isOceanSpace(adj))).length;
