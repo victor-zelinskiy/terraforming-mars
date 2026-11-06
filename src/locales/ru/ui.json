@@ -1432,5 +1432,7 @@
     "No opponents — only the +10 M€": "Соперников нет — только +10 M€",
     "M€ production of ${0}": "Производство M€ · ${0}",
     "The track cannot regress": "Трек не может отступить",
-    "Lose 5 M€ and 1 M€ production": "Потерять 5 M€ и 1 производство M€"
+    "Lose 5 M€ and 1 M€ production": "Потерять 5 M€ и 1 производство M€",
+    "Page out of date": "Страница устарела",
+    "This page is out of date. Click OK to refresh it.": "Страница устарела. Нажмите OK, чтобы обновить её."
 }
