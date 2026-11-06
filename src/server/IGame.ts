@@ -472,7 +472,7 @@ export interface IGame extends Logger {
    * @param coveringExistingTile when true, don't grant placement bonuses like when covering
    * a hazard tile, or overplacing one tile on top of another.
    */
-  grantPlacementBonuses(player: IPlayer, space: Space, coveringExistingTile?: boolean, arcadianCommunityBonus?: boolean, printedBonusMultiplier?: number): CellBonusPaid
+  grantPlacementBonuses(player: IPlayer, space: Space, coveringExistingTile?: boolean, arcadianCommunityBonus?: boolean, printedBonusMultiplier?: number, options?: {markerMove?: boolean}): CellBonusPaid
   /**
    * Calls f(cardOwner, card) for every card in every player's tableau,
    * in generation order.

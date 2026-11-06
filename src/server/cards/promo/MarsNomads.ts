@@ -205,7 +205,7 @@ export class MarsNomads extends Card implements IActionCard {
         // Don't grant bonuses when moving onto hazard tiles. Even though you're allowed
         // to move Mars Nomads onto that space.
         const coveringExistingSpace = AresHandler.hasHazardTile(space);
-        player.game.grantPlacementBonuses(player, space, coveringExistingSpace);
+        player.game.grantPlacementBonuses(player, space, coveringExistingSpace, false, 1, {markerMove: true});
 
         // Trigger onTilePlaced callbacks even though no actual tile is placed.
         // Note: all onTilePlaced callbacks must handle space.tile being undefined.

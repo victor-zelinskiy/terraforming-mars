@@ -2603,7 +2603,7 @@ export class Game implements IGame, Logger {
     }
   }
 
-  public grantPlacementBonuses(player: IPlayer, space: Space, coveringExistingTile: boolean = false, arcadianCommunityBonus: boolean = false, printedBonusMultiplier: number = 1): CellBonusPaid {
+  public grantPlacementBonuses(player: IPlayer, space: Space, coveringExistingTile: boolean = false, arcadianCommunityBonus: boolean = false, printedBonusMultiplier: number = 1, options?: {markerMove?: boolean}): CellBonusPaid {
     let cell: CellBonusPaid = {paid: [], cards: 0};
     if (!coveringExistingTile) {
       if (player.isMarsBot) {
@@ -2642,7 +2642,9 @@ export class Game implements IGame, Logger {
 
     // TODO(kberg): these might not apply for some bonuses, e.g. Frontier Town.
     // https://boardgamegeek.com/thread/3344366/article/44658730#44658730
-    if (space.tile !== undefined) {
+    // A MARKER MOVE places no tile (Mars Nomads — upstream 662e79052a): a destination that holds a hazard tile used to
+    // pass this guard and pay the Ares adjacency bonuses and the «when you place a tile» passives for nothing placed.
+    if (space.tile !== undefined && options?.markerMove !== true) {
       AresHandler.ifAres(this, () => {
         AresHandler.earnAdjacencyBonuses(player, space);
       });
