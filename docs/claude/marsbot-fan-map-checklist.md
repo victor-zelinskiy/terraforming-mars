@@ -125,12 +125,12 @@ Forecaster /7) и, по той же логике, у парного трека �
       (1 M€ за иконку, как прочие) и вес.
 - [ ] Все прямые размещения бота уже идут через `placeAndSettle` (B05/B17/Philares) — новых обходов не делать.
 
-### 4. Вехи и награды для бота (`AutomaMAEvaluation.ts`)
-- [ ] Каждая веха ряда: `botMilestoneProgress` (value/target) или «как у игрока» (default) — с обоснованием.
-- [ ] Каждая награда: `botAwardScore` или default; асимметрия на стороне человека — `humanAwardScore`.
-- [ ] Гард `noNameServesTwoBoards` (`tests/automa/AutomaMilestoneNormalization.spec.ts`): имя не должно уже
-      значить другое на поддерживаемой карте; при коллизии — спросить владельца.
-- [ ] `src/common/automa/MarsBotMADescriptions.ts` — строки для бота.
+### 4. Вехи и награды для бота (реестр `src/server/automa/ma/botMARules.ts`, с 2026-11-06)
+- [ ] Каждая веха и награда ряда — СТРОКА реестра (критерий + target-константа имени / помощник + происхождение);
+      `AutomaMAEvaluation` и `tryAwardHelper` только читают реестр. Имя = один объект = одно правило на всех
+      картах (гард `tests/automa/ma/botMARegistry.spec.ts`); асимметрия на стороне человека — `humanAwardScore`.
+- [ ] Текст для игрока генерируется из строки (`ma/botMADescribe.ts`); новый шаблон / подпись — RU-ключ в
+      `ru/marsbot_ma.json` (гард рендерит каждую строку по-русски).
 
 ### 5. Своя Corporate Competition
 - [ ] `BonusCardId`: **свой префикс, не B##** (официальные номера заняты) — предложить владельцу (напр. `BF1…`).
@@ -283,7 +283,7 @@ e2e `tests/e2e/console-vastitas-borealis-fan.spec.ts`. Решения владе
 - Нормализация: `tests/automa/AutomaMilestoneNormalization.spec.ts` требует для КАЖДОЙ вехи новой карты запись в
   `BOT_METRIC` или `PLAYER_METRIC`, а список `supportedGames()` надо расширить новой картой (± Venus/Colonies).
   Заодно вскрылось, что Nova туда никогда не входила — добавлены и её вехи. `familyGuard` докажет семью сам.
-- `MarsBotMADescriptions.ts` сегодня никем не читается (мёртвые данные) — поддерживать, но не рассчитывать на UI.
+- ~~`MarsBotMADescriptions.ts`~~ удалён 2026-11-06 — тексты генерируются из реестра (`ma/botMADescribe.ts`).
 - Имя карты Corporate Competition: в UI карта зовётся с именем поля в скобках; официальная Nova теперь
   «(Vastitas Borealis Nova)», фанатская — «(Vastitas Borealis)» (решение владельца). RU-имена наград на лице карты
   берутся с листа наград (`awards.json`): «Приспособленец», не «Синоптик» (исправлено и у B12).

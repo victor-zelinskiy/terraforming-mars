@@ -1,8 +1,6 @@
 import {expect} from 'chai';
 import {BoardName} from '../../src/common/boards/BoardName';
-import {AUTOMA_SUPPORTED_BOARDS} from '../../src/common/automa/automaCompatibility';
-import {milestoneManifest} from '../../src/server/milestones/Milestones';
-import {awardManifest} from '../../src/server/awards/Awards';
+import {BOT_MILESTONE_RULES} from '../../src/server/automa/ma/botMARules';
 import {BonusCardId} from '../../src/common/automa/AutomaTypes';
 import {CardName} from '../../src/common/cards/CardName';
 import {IGame} from '../../src/server/IGame';
@@ -28,132 +26,34 @@ import {testAutomaGame} from './AutomaTestGame';
  * leaves it, and the client stays bot-agnostic.
  *
  * ⚠️ WORKLIST. `scopeGuard` below fails with the EXACT list of milestone names
- * that reached an automa game without a decision recorded here. When a new map
- * / expansion enters `AUTOMA_SUPPORTED_BOARDS`, that list is the work: for each
- * name either add its rule to `AutomaMAEvaluation.botMilestoneProgress` (value
- * + target — the normalization is then automatic) or add it to
- * `PLAYER_METRIC` because the bot is judged by the player's own metric.
+ * that reached an automa game without a row in the bot-rule registry
+ * (`src/server/automa/ma/botMARules.ts`): a criterion of its own + a target (the
+ * normalization is then automatic) or a `player` row (the bot is judged by the
+ * player's own metric).
  *
  * And the two lists are not just labels: `familyGuard` PROVES each membership
  * against the real evaluator, so a milestone cannot be filed as "unchanged"
  * while quietly carrying its own criterion (or the other way round).
  */
 
-/** Milestones whose bot criterion is its own — the ones that get rescaled. */
-const BOT_METRIC: ReadonlyArray<string> = [
-  'Builder', // Building track 8 ↔ 8 building tags
-  'Planner', // every track 4 ↔ 16 cards in hand
-  'Diversifier', // every track 3 ↔ 8 different tags
-  'Tactician', // 35 M€ ↔ 5 cards with requirements
-  'Energizer', // Power track 6 ↔ 6 energy production
-  'Rim Settler', // Science track 6 ↔ 3 Jovian tags
-  'Generalist', // every MARTIAN track 2 ↔ 6 raised productions (Venus excluded outright)
-  'Specialist', // any track 10 ↔ 10 in one production (the Venus track counts)
-  'Ecologist', // Bio track 4 ↔ 4 bio tags
-  // Tycoon and Legend are worded «Unchanged» and DO use the player's metric —
-  // but the bot keeps its cards in `automa.playedPile`, not a tableau, so the
-  // player evaluator would read a permanent 0. They are here for that
-  // container difference alone; their target is the milestone's own printed
-  // threshold, which makes the rescale the identity.
-  'Tycoon', // covers the fork's Tycoon10 (10 green/blue in the played pile)
-  'Legend', // covers the modular Legend4
-  // Utopia Planitia — the fork's canonical names for the board's slots
-  // (the reference card prints Specialist / Trader / Metallurgist).
-  'Land Specialist', // 3 DESTROYED bonus cards ↔ 3 special tiles
-  'Tradesman', // Jovian/Energy + Earth/City + Venus all at 2 ↔ 3 resource types
-  'Smith', // Building + Space combined 7 ↔ 6 steel+titanium production
-  'Researcher', // Science track 4 ↔ 4 science tags
-  // Terra Cimmeria — the fork's canonical names for the board's slots (the
-  // reference card prints Coast Guard / Forester / Financier).
-  'Planetologist', // Jovian/Earth + Venus combined 5 ↔ 2+2+2 Earth/Venus/Jovian tags
-  'Architect', // City/Science track 6 ↔ 3 city tags
-  'C. Forester', // Bio track 10 ↔ 3 plant production
-  'Fundraiser', // Event track 10 ↔ 12 M€ production
-  'Hoverlord', // 7 floaters ↔ 7 floaters
-  // Vastitas Borealis NOVA — the official board (Adding Expansions p.11).
-  'Agronomist', // Animal/Plant track 4 ↔ 4 bio tags
-  'V. Spacefarer', // Space track 5 ↔ 5 space tags
-  'Engineer', // Jovian/Earth + City/Energy combined 10 ↔ energy + heat production
-  'Farmer', // Microbe/Science OR Animal/Plant 6 ↔ plant / microbe / animal resources
-  // Vastitas Borealis, the FAN map — the fork's own rules (docs/AUTOMA_DATA_AUDIT.md §17.2).
-  'V. Electrician', // Power track 4 ↔ 4 power tags (Smith / Tradesman stand here under their Utopia rows above)
-  // Amazonis Planitia, the FAN map (docs/AUTOMA_DATA_AUDIT.md §18.2).
-  'Forester', // Bio track 6 ↔ 4 plant production (the A&M list's official rule)
-  'Terran', // Earth track 6 ↔ 6 Earth tags (the A&M list's Terran 5 ↔ 5, scaled)
-  'Minimalist', // the action deck ≤ 2 ↔ ≤ 2 cards in hand (the bot has no hand)
-  // The OLD (fan) Terra Cimmeria (docs/AUTOMA_DATA_AUDIT.md §19.2).
-  'T. Collector', // sets of green / blue / red cards in the PLAYED PILE ↔ in play (Legend / Tycoon's container)
-  'Firestarter', // Earth (heat-badged) track 8 ↔ 20 heat (Fundraiser's calibration)
-  'T. Spacefarer', // Space track 6 ↔ 6 space tags (the N ↔ N law)
-  // Arabia Terra, the FAN map (docs/AUTOMA_DATA_AUDIT.md §21.2).
-  'Economizer', // Power track 5 ↔ 5 heat production (Thermalist's association, Energizer's calibration)
-  'Martian', // Mars tags printed in the PLAYED PILE ↔ Mars tags in play
-];
-
-/** Milestones the bot meets with the PLAYER's own metric — nothing to rescale. */
-const PLAYER_METRIC: ReadonlyArray<string> = [
-  'Terraformer', // real TR
-  'Mayor', // real city tiles
-  'Gardener', // real greenery tiles
-  'Polar Explorer', // real tiles in the polar rows
-  'Networker', // Ares: the bot is tallied in aresData like any player
-  'Purifier', // Ares: honestly 0 — the bot never covers a hazard
-  // Utopia Planitia's Pioneer is the CONTROL CASE for the Tycoon/Legend note
-  // above: worded "Unchanged" like they are, and genuinely belonging here,
-  // because the bot's colonies really do live where the player metric looks.
-  'Pioneer', // real colonies (`AutomaColonies.botBuildColony` puts its id on the tile)
-  // Terra Cimmeria's Coast Guard is the second control case: «Unchanged», and
-  // the criterion (tiles next to oceans) is one the bot's real tiles satisfy.
-  'Coastguard', // real tiles adjacent to real ocean tiles
-  // Vastitas Borealis Nova's Geologist: «Unchanged» — the bot's real tiles on or next to the volcanoes.
-  'Geologist',
-  // Vastitas Borealis, the FAN map (docs/AUTOMA_DATA_AUDIT.md §17.2): Irrigator
-  // IS the Coastguard class at 4 («As usual», Adding Expansions p.13), and
-  // Capitalist reads the M€ the bot really holds — the bot's number is the
-  // very quantity the milestone looks at.
-  'Irrigator', // real tiles adjacent to real ocean tiles
-  'Capitalist', // the bot's real M€
-  // Amazonis Planitia, the FAN map (docs/AUTOMA_DATA_AUDIT.md §18.2): Colonizer is the A&M list's
-  // Pioneer at 4 («As usual» — the bot's real colonies; the three cubes are the board's `colony5`
-  // cells), Tropicalist the bot's real tiles in the equatorial rows.
-  'Colonizer',
-  'Tropicalist',
-  // The OLD (fan) Terra Cimmeria (docs/AUTOMA_DATA_AUDIT.md §19.2): Terra Pioneer counts the bot's real tiles
-  // on Mars (Landlord's «As usual»), Gambler the awards it really funded (its award cells fund them).
-  'Terra Pioneer',
-  'Gambler',
-];
-
-/**
- * Names that stand on TWO supported boards — allowed only here, with the
- * reason: a name is ONE milestone / award object with ONE human criterion, so
- * the bot's one branch serves both boards. A new collision still fails
- * `noNameServesTwoBoards` below.
- */
-const SHARED_NAMES: ReadonlyMap<string, string> = new Map([
-  ['Smith', 'Utopia Planitia (Metallurgist) + Vastitas Borealis (fan): Building + Space ≥ 7 on both'],
-  ['Tradesman', 'Utopia Planitia (Trader) + Vastitas Borealis (fan): power / earth / venus ≥ 2 by ROLE on both'],
-  ['Edgedancer', 'Utopia Planitia (Suburban) + Vastitas Borealis (fan): unchanged — real edge tiles'],
-  ['Forecaster', 'Terra Cimmeria Nova + Vastitas Borealis (fan): floor(M€ / 7) on both'],
-  ['Promoter', 'Vastitas Borealis Nova + Amazonis (fan): the event track on both'],
-  ['A. Zoologist', 'Terra Cimmeria Nova + Amazonis (fan): bio + 5 on both'],
-  ['Incorporator', 'Utopia Planitia + Terra Cimmeria (fan): cards ≤ 10 M€ in the played pile, events included, on both'],
-  ['Pioneer', 'Utopia Planitia + Arabia Terra (fan): unchanged — real colonies; the free colony cell on space 5 on both'],
-  ['Land Specialist', 'Utopia Planitia + Arabia Terra (fan): 3 destroyed bonus cards on both'],
-  ['Terran', 'Amazonis (fan) + Arabia Terra (fan): the City/Earth track at 6 on both'],
-  ['Botanist', 'Utopia Planitia + Arabia Terra (fan): bio − 2 on both'],
-]);
-
-const SCOPE: ReadonlyArray<string> = [...BOT_METRIC, ...PLAYER_METRIC];
-
-/** Each board's printed milestone / award row, straight from the manifests. */
-const MILESTONES_BY_BOARD = milestoneManifest.boards;
-const AWARDS_BY_BOARD = awardManifest.boards;
-
 /** The fork ships threshold variants under suffixed names (Terraformer29, Tycoon10). */
 function baseName(name: string): string {
   return name.replace(/[0-9]+$/, '');
 }
+
+/**
+ * The two families, READ OFF THE REGISTRY (`src/server/automa/ma/botMARules.ts`): a row with a criterion of its own
+ * and a target is rescaled; a `player` row is judged by the player's own metric. A name is ONE object with ONE rule on
+ * every board by construction (the registry is keyed by name), which retired the old `SHARED_NAMES` /
+ * `noNameServesTwoBoards` pair — `familyGuard` below still PROVES each membership against the real evaluator.
+ */
+const BOT_METRIC: ReadonlyArray<string> = Object.entries(BOT_MILESTONE_RULES)
+  .filter(([, rule]) => rule!.target !== undefined).map(([name]) => baseName(name));
+
+const PLAYER_METRIC: ReadonlyArray<string> = Object.entries(BOT_MILESTONE_RULES)
+  .filter(([, rule]) => rule!.criterion.kind === 'player').map(([name]) => baseName(name));
+
+const SCOPE: ReadonlyArray<string> = [...BOT_METRIC, ...PLAYER_METRIC];
 
 /** Every board × expansion combination MarsBot is allowed to play. */
 function supportedGames(): Array<[string, IGame, IPlayer]> {
@@ -238,35 +138,6 @@ describe('AutomaMAEvaluation — milestone normalization (the bot reads as a pla
       'milestones with no normalization decision — for each, either add its rule to ' +
       'AutomaMAEvaluation.botMilestoneProgress (value + target) or list it in PLAYER_METRIC: ' +
       names.join(', ')).is.empty;
-  });
-
-  it('noNameServesTwoBoards: a milestone/award NAME on two supported boards is listed in SHARED_NAMES with its reason', () => {
-    // `botMilestoneProgress` and `botAwardScore` are keyed by NAME, which is
-    // sound exactly because a name is ONE milestone / award object with ONE
-    // human criterion — so one branch honestly serves every board it stands
-    // on. The fan-made Vastitas Borealis shares four names with Utopia /
-    // Terra Cimmeria Nova (listed above with the rule each shares). A NEW
-    // collision still fails here with the offending name, so a board can
-    // never silently inherit a rule nobody checked against its own row.
-    const seen = new Map<string, string>();
-    const collisions: Array<string> = [];
-    for (const boardName of AUTOMA_SUPPORTED_BOARDS) {
-      for (const name of [...MILESTONES_BY_BOARD[boardName], ...AWARDS_BY_BOARD[boardName]]) {
-        const owner = seen.get(name);
-        if (owner !== undefined && owner !== boardName && !SHARED_NAMES.has(name)) {
-          collisions.push(`${name}: ${owner} + ${boardName}`);
-        }
-        seen.set(name, boardName);
-      }
-    }
-    expect(collisions,
-      'a name on two supported boards must be listed in SHARED_NAMES with the rule it shares — ' +
-      'check the branch against BOTH rows before adding it: ' + collisions.join(' · ')).is.empty;
-    // …and the list is not decoration: every shared name really stands on two boards.
-    for (const [name] of SHARED_NAMES) {
-      const boards = AUTOMA_SUPPORTED_BOARDS.filter((b) => (MILESTONES_BY_BOARD[b] as ReadonlyArray<string>).includes(name) || (AWARDS_BY_BOARD[b] as ReadonlyArray<string>).includes(name));
-      expect(boards, `${name} is listed as shared`).has.length.greaterThan(1);
-    }
   });
 
   it('familyGuard: the declared family is the family the evaluator actually uses', () => {
