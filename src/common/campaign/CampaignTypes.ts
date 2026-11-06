@@ -43,8 +43,13 @@ export type TitleEntry = {
   titlePoints: number;
 };
 
-/** v1: never generated, never rendered when empty. The typed extension point only. */
-export type MissionModifier = {id: string};
+/**
+ * A rolled condition of ONE mission slot — the roguelike layer of the route
+ * (`missionModifiers.ts`). Generated with the route, frozen with it, shown on
+ * the map before the mission is played. Never rendered when empty.
+ */
+export type MissionModifierId = 'randomMA';
+export type MissionModifier = {id: MissionModifierId};
 
 export type CampaignSeatKind = 'human' | 'bot';
 

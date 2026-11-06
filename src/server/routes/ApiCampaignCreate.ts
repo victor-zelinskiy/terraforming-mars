@@ -15,7 +15,7 @@ import {Request} from '../Request';
 import {Response} from '../Response';
 import {NewGameConfig} from '../../common/game/NewGameConfig';
 import {normalizePlayerName} from '../../common/utils/playerName';
-import {CampaignManager} from '../campaign/CampaignManager';
+import {CampaignCreateOptions, CampaignManager} from '../campaign/CampaignManager';
 import {readRequestBody} from './ApiCampaign';
 
 export class ApiCampaignCreate extends Handler {
@@ -28,7 +28,7 @@ export class ApiCampaignCreate extends Handler {
   public override async post(req: Request, res: Response, ctx: Context): Promise<void> {
     const body = await readRequestBody(req);
     try {
-      const parsed = JSON.parse(body) as {key?: string, name?: string, config?: NewGameConfig};
+      const parsed = JSON.parse(body) as {key?: string, name?: string, config?: NewGameConfig, options?: CampaignCreateOptions};
       if (typeof parsed.key !== 'string' || parsed.key.length < 8) {
         responses.badRequest(req, res, 'missing idempotency key');
         return;
@@ -45,7 +45,7 @@ export class ApiCampaignCreate extends Handler {
         return;
       }
       const manager = CampaignManager.getInstance();
-      const campaign = await manager.createCampaign(parsed.key, parsed.config);
+      const campaign = await manager.createCampaign(parsed.key, parsed.config, {randomMAChance: parsed.options?.randomMAChance});
       responses.writeJson(res, ctx, manager.getModel(campaign, creatorName));
     } catch (err) {
       responses.badRequest(req, res, err instanceof Error ? err.message : 'invalid request');

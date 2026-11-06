@@ -71,6 +71,7 @@ import {
   PremiumRuleMeta,
 } from '@/client/components/create/premium/createGameMeta';
 import {secondShiftMaxCap, secondShiftRuleApplies} from '@/common/automa/SecondShift';
+import {CAMPAIGN_RANDOM_MA_CHANCES, CampaignRandomMAChance} from '@/common/campaign/missionModifiers';
 
 // ── Decks (LB/RB ring) ──────────────────────────────────────────────────────
 
@@ -458,14 +459,34 @@ export function ruleRows(): ReadonlyArray<RuleRow> {
 }
 
 /**
- * The rules DECK is the toggles plus, when «Тестовый режим» is on for the admin
- * seat, its one SUB-setting — a dev card picker, which is a count and a
- * drill-in, not a switch. It is APPENDED, so every rule keeps its row index
- * (jump-to-issue targets rules by index).
+ * The rules DECK is the toggles plus two SUB-settings: in a campaign with
+ * «Случайные цели и награды» on, the per-mission CHANCE (a dial, right under
+ * its rule); when «Тестовый режим» is on for the admin seat, a dev card picker
+ * (a count and a drill-in, appended). Jump-to-issue resolves a rule's row by
+ * its id (`automaConflictTarget`), never by a fixed index.
  */
 export type RulesDeckRow =
   | {kind: 'rule', rule: RuleRow}
+  | {kind: 'maChance', chance: CampaignRandomMAChance}
   | {kind: 'devCards', count: number};
+
+/**
+ * CAMPAIGN ONLY: «Случайные цели и награды» is ROLLED per mission at a chosen
+ * chance — the rule's one sub-setting, reachable while the rule is on.
+ */
+export function maChanceAvailable(): boolean {
+  const config = createGameState.config;
+  return isCampaignMode() && config.rules.randomMilestonesAwards;
+}
+
+/** Step the campaign chance along `CAMPAIGN_RANDOM_MA_CHANCES`; `wrap` cycles (A), else clamps (◄ ►). */
+export function stepMaChance(step: 1 | -1, wrap: boolean): void {
+  const config = createGameState.config;
+  const values = CAMPAIGN_RANDOM_MA_CHANCES;
+  const at = Math.max(0, values.indexOf(config.campaignRandomMAChance));
+  const next = wrap ? (at + step + values.length) % values.length : Math.min(values.length - 1, Math.max(0, at + step));
+  config.campaignRandomMAChance = values[next];
+}
 
 /** True while the test-mode sub-setting is reachable at all. */
 export function devCardsAvailable(): boolean {
@@ -480,6 +501,14 @@ export function devCardsCount(): number {
 
 export function rulesDeckRows(): ReadonlyArray<RulesDeckRow> {
   const rows: Array<RulesDeckRow> = ruleRows().map((rule) => ({kind: 'rule' as const, rule}));
+  if (maChanceAvailable()) {
+    // The sub-setting stands RIGHT UNDER its parent rule — in the wide
+    // creator's grid that is one whole row of columns further, so the dial
+    // shares its parent's column (the d-pad's grid walk reads the same order).
+    const parent = rows.findIndex((r) => r.kind === 'rule' && r.rule.meta.id === 'randomMilestonesAwards');
+    const step = createLayout.wide ? RULES_WIDE_GRID_COLS : 1;
+    rows.splice(Math.min(rows.length, parent + step), 0, {kind: 'maChance', chance: createGameState.config.campaignRandomMAChance});
+  }
   if (devCardsAvailable()) {
     rows.push({kind: 'devCards', count: devCardsCount()});
   }
@@ -641,6 +670,17 @@ export type CreateOverlay =
   | {kind: 'confirm', id: ConfirmId, index?: number, cursor: number}
   | {kind: 'devCards'}
   | {kind: 'launch'};
+
+/**
+ * The creator's LAYOUT fact the model needs (the wide two-column decks, TR68 —
+ * `CREATE_WIDE_MIN_WIDTH`), published by the screen. Read where the ORDER of
+ * rows follows the grid (the rules deck's sub-setting under its parent).
+ */
+export const createLayout = reactive<{wide: boolean}>({wide: false});
+
+export function setCreateLayoutWide(wide: boolean): void {
+  createLayout.wide = wide;
+}
 
 export const consoleCreateUi = reactive<{
   /** Stage 0 = the session-mode pick («Отдельная партия» / «Кампания»); then the decks. */

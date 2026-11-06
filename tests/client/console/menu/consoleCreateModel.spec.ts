@@ -6,8 +6,11 @@ import {
   resetCreateGameState,
   setGameMode,
   setPlayerCount,
+  setSessionMode,
   setSlotName,
 } from '@/client/components/create/premium/createGameState';
+import {buildCreateGamePayloadFromPremiumState} from '@/client/components/create/premium/buildCreateGamePayload';
+import {RandomMAOptionType} from '@/common/ma/RandomMAOptionType';
 import {
   addDisabledReason,
   addHuman,
@@ -38,6 +41,9 @@ import {
   seatBot,
   seatBotNeedsConfirm,
   selectMap,
+  stepMaChance,
+  maChanceAvailable,
+  setCreateLayoutWide,
   toggleBotSecondShift,
   toggleBotExtraCorporations,
   toggleExpansion,
@@ -295,6 +301,47 @@ describe('consoleCreateModel', () => {
       });
       expect(rows[rows.length - 1].kind).to.eq('devCards');
       expect(deckRowCount('rules')).to.eq(rows.length);
+    });
+
+    it('CAMPAIGN: the per-mission chance dial stands right under «Случайные цели и награды», only while it is on', () => {
+      const chanceRow = () => rulesDeckRows().findIndex((r) => r.kind === 'maChance');
+      const ruleRow = () => rulesDeckRows().findIndex((r) => r.kind === 'rule' && r.rule.meta.id === 'randomMilestonesAwards');
+      createGameState.config.rules.randomMilestonesAwards = true;
+      // A single game rolls nothing — the rule is the rule.
+      expect(maChanceAvailable()).to.be.false;
+      expect(chanceRow()).to.eq(-1);
+
+      setSessionMode('campaign');
+      expect(maChanceAvailable()).to.be.true;
+      expect(chanceRow()).to.eq(ruleRow() + 1);
+      expect(rulesDeckRows()[chanceRow()]).to.deep.eq({kind: 'maChance', chance: 20});
+
+      // The WIDE creator's grid: one whole row of columns further — the parent's own column.
+      setCreateLayoutWide(true);
+      expect(chanceRow()).to.eq(ruleRow() + 2);
+      setCreateLayoutWide(false);
+
+      toggleRule('randomMilestonesAwards');
+      expect(chanceRow()).to.eq(-1);
+    });
+
+    it('CAMPAIGN: ◄ ► clamp along 10 · 15 · 20 · 30 · 40 · 50, A cycles with wrap; the rule still freezes as ALL', () => {
+      setSessionMode('campaign');
+      createGameState.config.rules.randomMilestonesAwards = true;
+      const seen: Array<number> = [];
+      for (let i = 0; i < 6; i++) {
+        stepMaChance(1, false);
+        seen.push(createGameState.config.campaignRandomMAChance);
+      }
+      expect(seen).to.deep.eq([30, 40, 50, 50, 50, 50]);
+      stepMaChance(1, true);
+      expect(createGameState.config.campaignRandomMAChance).to.eq(10);
+      stepMaChance(-1, false);
+      expect(createGameState.config.campaignRandomMAChance).to.eq(10);
+      stepMaChance(-1, true);
+      expect(createGameState.config.campaignRandomMAChance).to.eq(50);
+      // The chance never enters the game config — the frozen rule is still «on».
+      expect(buildCreateGamePayloadFromPremiumState(createGameState.config).randomMA).to.eq(RandomMAOptionType.ALL);
     });
 
     it('counts the picks across all three target lists', () => {

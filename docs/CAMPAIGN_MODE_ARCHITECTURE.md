@@ -10,6 +10,19 @@
 > (`foundation/ConsoleCardAlbum` + the spine + `ConsoleWsHead`; keeping is a toggle in place; the entry a deal from the
 > seat row, the confirm a flight into the next mission's card) — `docs/claude/console/card-album.md`.
 >
+> **Addendum 2026-11-06 — the first MISSION MODIFIER (the roguelike layer, §4.6 filled):** «Случайные цели и
+> награды» is ROLLED per mission. The creator (campaign mode, the rule on) shows the sub-setting «Шанс на миссию»
+> (10 · 15 · 20 · 30 · 40 · 50 %, default 20 — `common/campaign/missionModifiers.ts`), sent as the create body's
+> `options.randomMAChance` (never in the frozen `NewGameConfig`). At generation every slot rolls from the route's seeded
+> stream (`server/campaign/missionModifiers.ts` `rollSlotModifiers`); a board with no printed row (Hollandia) carries
+> the modifier ALWAYS, rule on or off; a D12 repair onto such a board adds it. `generator.randomMAChance` (0 = rule off)
+> marks a rolled route; ABSENT = a pre-roll campaign, whose every mission keeps the frozen rule — `slotModifiersOf` is
+> the ONE reader of the launch (`missionRandomMA` → the mission's `randomMA`) and of the wire model alike. Client: the
+> registry `console/campaign/missionModifierMeta.ts` (a new modifier = a row there), the badge
+> `CampaignModifierBadge.vue` (violet kant + glyph + word, absolute in the route card's board corner — zero layout; a
+> one-shot seal at the reveal), named in full in the mission inspect. Specs: `tests/campaign/missionModifiers.spec.ts`,
+> e2e `console-campaign-modifiers`.
+>
 > Shipped: the server campaign domain (`src/server/campaign/` — manager, standings,
 > mission setup; `IDatabase` ×3 backends; routes `api/campaign[/create|/launch|
 > /carryover|/dev]`; rollback guards; purge exemption; durable create-idempotency via
@@ -430,7 +443,7 @@ export type TitleEntry = {
   titlePoints: number;          // copied from config at commit time (table changes never rewrite history)
 };
 
-export type MissionModifier = { id: string };  // v1: the array is always empty; see §4.6
+export type MissionModifier = { id: MissionModifierId };  // rolled per slot since 2026-11-06 (randomMA); see §4.6 + the header addendum
 
 export type CampaignSeatKind = 'human' | 'bot';
 export type CampaignSeat = {

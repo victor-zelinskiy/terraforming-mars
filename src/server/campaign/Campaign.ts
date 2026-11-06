@@ -24,7 +24,10 @@ import {
 export type SerializedMissionSlot = {
   slot: number;
   board: BoardName;
-  /** v1: always empty; the typed modifier extension point. */
+  /**
+   * The slot's rolled conditions (`missionModifiers.ts`), generated with the
+   * route. Read through `slotModifiersOf` — a pre-roll campaign derives them.
+   */
   modifiers: Array<MissionModifier>;
   gameId?: GameId;
   /** seat → that seat's PlayerId in this mission's game (captured at launch). */
@@ -79,8 +82,14 @@ export type SerializedCampaign = {
    * creation: missions can't drift by construction.
    */
   settings: NewGameConfig;
-  /** Provenance of the generated route; `missions[].board` is authoritative. */
-  generator: {seed: number, version: number, pool: Array<BoardName>};
+  /**
+   * Provenance of the generated route; `missions[].board` / `.modifiers` are
+   * authoritative. `randomMAChance` (percent, 0 = the rule was off) marks a
+   * route whose «Случайные цели и награды» was ROLLED per slot; ABSENT on a
+   * campaign generated before the roll — every mission then followed the
+   * frozen rule (`slotModifiersOf`).
+   */
+  generator: {seed: number, version: number, pool: Array<BoardName>, randomMAChance?: number};
   missions: Array<SerializedMissionSlot>;
   /** Index of the current slot (the active mission, or the next to launch). */
   pointer: number;

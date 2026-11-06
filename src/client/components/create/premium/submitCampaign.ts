@@ -53,7 +53,14 @@ export async function submitPremiumCreateCampaign(): Promise<boolean> {
     saveCreateGameState();
     const res = await fetch(apiUrl(paths.API_CAMPAIGN_CREATE), {
       method: 'POST',
-      body: JSON.stringify({key, name: createGameState.config.players[0]?.name ?? '', config}),
+      body: JSON.stringify({
+        key,
+        name: createGameState.config.players[0]?.name ?? '',
+        config,
+        // Campaign-only: the per-mission roll of «Случайные цели и награды»
+        // (ignored by the server while the rule is off).
+        options: {randomMAChance: createGameState.config.campaignRandomMAChance},
+      }),
       headers: {'Content-Type': 'application/json'},
     });
     const text = await res.text();

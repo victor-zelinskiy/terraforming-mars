@@ -13,6 +13,18 @@
         <span v-if="mission.final" class="cminsp__final">{{ $t('Finale') }}</span>
       </div>
       <div class="cminsp__state" :class="`cminsp__state--${mission.state}`">{{ $t(stateLabel) }}</div>
+      <!-- The mission's rolled conditions, named in full: the badge the route
+           card wears + what it changes. Every state — a played mission keeps
+           the condition it was played under. -->
+      <div v-if="modifiers.length > 0" class="cminsp__mods">
+        <div v-for="m in modifiers" :key="m.id" class="cminsp__mod">
+          <CampaignModifierBadge :meta="m" />
+          <span class="cminsp__mod-text">
+            <span class="cminsp__mod-name">{{ $t(m.labelKey) }}</span>
+            <span class="cminsp__mod-desc">{{ $t(m.descKey) }}</span>
+          </span>
+        </div>
+      </div>
     </div>
 
     <!-- The DETAIL half follows the mission's state. -->
@@ -65,6 +77,8 @@
 import {defineComponent, PropType} from 'vue';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import CampaignMissionResults from './CampaignMissionResults.vue';
+import CampaignModifierBadge from './CampaignModifierBadge.vue';
+import {MissionModifierMeta, missionModifierMetas} from '@/client/console/campaign/missionModifierMeta';
 import {MissionDetailsVm, OverviewMissionCard} from '@/client/console/campaign/campaignOverviewModel';
 import {mapLabelKey, mapMeta} from '@/client/components/create/premium/createGameMeta';
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
@@ -83,7 +97,7 @@ import {translateTextWithParams} from '@/client/directives/i18n';
  */
 export default defineComponent({
   name: 'CampaignMissionInspect',
-  components: {CampaignMissionResults, PremiumMapFingerprint},
+  components: {CampaignMissionResults, CampaignModifierBadge, PremiumMapFingerprint},
   props: {
     mission: {type: Object as PropType<OverviewMissionCard>, required: true},
     /** The committed results (only meaningful for state 'committed'). */
@@ -97,6 +111,9 @@ export default defineComponent({
     missionCount: {type: Number, default: 4},
   },
   computed: {
+    modifiers(): ReadonlyArray<MissionModifierMeta> {
+      return missionModifierMetas(this.mission.modifiers);
+    },
     accent(): string {
       return mapMeta(this.mission.board).accent;
     },

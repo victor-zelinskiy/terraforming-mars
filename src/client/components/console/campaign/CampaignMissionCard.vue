@@ -3,6 +3,17 @@
     <div v-if="mission.final" class="ccard__final-banner">{{ $t('Finale') }}</div>
     <div class="ccard__map">
       <PremiumMapFingerprint :map-id="mission.board" variant="card" :accent="accent" :reveal="reveal" :reveal-delay-ms="revealDelayMs" />
+      <!-- The mission's rolled conditions — the roguelike layer of the route.
+           Absolute over the board's empty corner: zero layout, every card of
+           the route keeps one height whatever it rolled. -->
+      <div v-if="modifiers.length > 0" class="ccard__mods">
+        <CampaignModifierBadge
+          v-for="(m, i) in modifiers"
+          :key="m.id"
+          :meta="m"
+          :stamp="reveal"
+          :stamp-delay-ms="revealDelayMs + 520 + i * 120" />
+      </div>
     </div>
     <div class="ccard__board-name">{{ $t(boardLabel) }}</div>
     <div class="ccard__state" :class="`ccard__state--${mission.state}`">{{ $t(stateLabel) }}</div>
@@ -22,6 +33,8 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
+import CampaignModifierBadge from './CampaignModifierBadge.vue';
+import {MissionModifierMeta, missionModifierMetas} from '@/client/console/campaign/missionModifierMeta';
 import {OverviewMissionCard} from '@/client/console/campaign/campaignOverviewModel';
 import {mapLabelKey, mapMeta} from '@/client/components/create/premium/createGameMeta';
 import {translateTextWithParams} from '@/client/directives/i18n';
@@ -38,7 +51,7 @@ import {TitleName} from '@/common/campaign/CampaignTypes';
  */
 export default defineComponent({
   name: 'CampaignMissionCard',
-  components: {PremiumMapFingerprint},
+  components: {PremiumMapFingerprint, CampaignModifierBadge},
   props: {
     mission: {type: Object as PropType<OverviewMissionCard>, required: true},
     cursor: {type: Boolean, default: false},
@@ -48,12 +61,16 @@ export default defineComponent({
   computed: {
     rootClasses(): Record<string, boolean> {
       return {
+        'ccard--modified': this.modifiers.length > 0,
         'ccard--cursor': this.cursor,
         'ccard--done': this.mission.state === 'committed',
         'ccard--current': this.mission.isCurrent,
         'ccard--future': this.mission.state === 'locked' && !this.mission.isCurrent,
         'ccard--final': this.mission.final,
       };
+    },
+    modifiers(): ReadonlyArray<MissionModifierMeta> {
+      return missionModifierMetas(this.mission.modifiers);
     },
     accent(): string {
       return mapMeta(this.mission.board).accent;

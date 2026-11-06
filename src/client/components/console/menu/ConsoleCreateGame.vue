@@ -183,7 +183,7 @@
  * Data / validation / persistence / submit are the SHARED premium create
  * modules, so desktop and console can never drift.
  */
-import {computed, defineComponent} from 'vue';
+import {computed, defineComponent, watch} from 'vue';
 import {vueRoot} from '@/client/components/vueRoot';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -224,6 +224,8 @@ import {
   selectMap,
   toggleExpansion,
   toggleRule,
+  setCreateLayoutWide,
+  stepMaChance,
   unseatBot,
 } from '@/client/console/menu/consoleCreateModel';
 import {
@@ -283,6 +285,8 @@ export default defineComponent({
     // THE WIDE CREATOR (TR68): the stylesheet's `@media (min-width: 1900px)` and the cursor's walk read ONE threshold.
     const viewport = useConsoleViewport();
     const creatorWide = computed(() => viewport.width.value >= CREATE_WIDE_MIN_WIDTH);
+    // The model orders a sub-setting by the grid it stands in.
+    watch(creatorWide, (wide) => setCreateLayoutWide(wide), {immediate: true});
     return {creatorWide};
   },
   data() {
@@ -470,6 +474,9 @@ export default defineComponent({
       }
       case 'rules': {
         const row = this.rules[this.ui.cursor.rules];
+        if (row?.kind === 'maChance') {
+          return {label: 'Change', enabled: true};
+        }
         return {label: row?.kind === 'devCards' ? 'Open' : 'Toggle', enabled: true};
       }
       case 'expansions':
@@ -596,6 +603,13 @@ export default defineComponent({
       // ── Deck level ──
       if (intent.kind === 'nav') {
         const deck = this.ui.deck;
+        // The campaign chance row is a DIAL: ◄ ► move its value (the console
+        // settings stepper idiom), not the section ring.
+        if (deck === 'rules' && (intent.dir === 'left' || intent.dir === 'right') &&
+          this.rules[this.ui.cursor.rules]?.kind === 'maChance') {
+          stepMaChance(intent.dir === 'right' ? 1 : -1, false);
+          return true;
+        }
         const next = deckNavStep(deck, this.ui.cursor[deck], intent.dir, deckRowCount(deck), {wide: this.creatorWide, mapCols: this.mapCols});
         if (next !== undefined) {
           this.ui.cursor[deck] = next;
@@ -705,6 +719,10 @@ export default defineComponent({
       }
       if (row.kind === 'devCards') {
         this.ui.overlay = {kind: 'devCards'};
+        return;
+      }
+      if (row.kind === 'maChance') {
+        stepMaChance(1, true);
         return;
       }
       toggleRule(row.rule.meta.id);

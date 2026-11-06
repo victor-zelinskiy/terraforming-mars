@@ -1,0 +1,39 @@
+<template>
+  <span class="cmod" :class="{'cmod--stamp': stamp}" :style="stampStyle" :data-mission-modifier="meta.id">
+    <span class="cmod__glyph" aria-hidden="true">
+      <svg v-if="meta.glyph === 'dice'" viewBox="0 0 16 16" class="cmod__svg">
+        <rect x="1.6" y="1.6" width="12.8" height="12.8" rx="3" class="cmod__die" />
+        <circle cx="5.2" cy="5.2" r="1.25" class="cmod__pip" />
+        <circle cx="8" cy="8" r="1.25" class="cmod__pip" />
+        <circle cx="10.8" cy="10.8" r="1.25" class="cmod__pip" />
+      </svg>
+    </span>
+    <span class="cmod__label">{{ $t(meta.shortKey) }}</span>
+  </span>
+</template>
+
+<script lang="ts">
+import {defineComponent, PropType} from 'vue';
+import {MissionModifierMeta} from '@/client/console/campaign/missionModifierMeta';
+
+/**
+ * ONE mission modifier's badge — the roguelike mark a route card wears when
+ * its mission was generated with a rolled condition. Material, never light:
+ * a dark plate, a bronze hairline, a glyph and a tracked-caps word. `stamp`
+ * plays the ONE-SHOT seal at the route's reveal (the modifier is an event of
+ * the generation the player must not miss — then it simply stands).
+ */
+export default defineComponent({
+  name: 'CampaignModifierBadge',
+  props: {
+    meta: {type: Object as PropType<MissionModifierMeta>, required: true},
+    stamp: {type: Boolean, default: false},
+    stampDelayMs: {type: Number, default: 0},
+  },
+  computed: {
+    stampStyle(): Record<string, string> | undefined {
+      return this.stamp ? {'--cmod-delay': `${this.stampDelayMs}`} : undefined;
+    },
+  },
+});
+</script>

@@ -69,7 +69,20 @@
      OWN aspect (viewBox ≈ 164×148 incl. frame pad), so the real geometry
      fills the card's full inner width at every profile — no letterbox
      bands, the planet's surface is what the card is. */
-  &__map { width: 100%; aspect-ratio: ~"164 / 148"; }
+  &__map { position: relative; width: 100%; aspect-ratio: ~"164 / 148"; }
+  /* The rolled conditions stand in the board's empty top-left corner (the
+     silhouette is a hex — the corner is sky): absolute, zero layout. */
+  &__mods {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    pointer-events: none;
+    z-index: 1;
+  }
   &__board-name {
     font-size: 0.78rem;
     font-weight: 700;
@@ -489,6 +502,59 @@
   &__party-chip { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.76rem; color: #d5dfec; }
   &__party-cube { width: 0.6rem; height: 0.6rem; border-radius: 0.13rem; box-shadow: inset 0 0 0 0.04rem rgba(0, 0, 0, 0.45); }
   &__note { font-size: 0.68rem; color: #8fa1b5; }
+  &__mods {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 0.2rem;
+    padding-top: 0.45rem;
+    border-top: 0.05rem solid rgba(150, 180, 215, 0.14);
+  }
+  &__mod { display: flex; align-items: flex-start; gap: 0.55rem; }
+  &__mod-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+  &__mod-name { font-size: 0.74rem; font-weight: 700; color: #e6eef8; }
+  &__mod-desc { font-size: 0.64rem; line-height: 1.35; color: #a9bacd; }
+}
+
+/* MISSION MODIFIER badge (CampaignModifierBadge) — the roguelike mark of a
+   route card. Its own tone (an arcane violet no other campaign state wears:
+   gold = current, bronze = finale, mint = done, cyan = the cursor), drawn by
+   MATERIAL — a dark plate, an inset hairline, a glyph, a tracked word. The
+   one licence of light it takes is the one-shot SEAL at the route's reveal. */
+@cmod-tone: #b8a3ec;
+.cmod {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.1rem 0.42rem 0.1rem 0.24rem;
+  border-radius: 0.3rem;
+  background: linear-gradient(180deg, rgba(38, 30, 62, 0.96), rgba(24, 19, 40, 0.96));
+  box-shadow: inset 0 0 0 0.05rem fade(@cmod-tone, 55%), 0 0.15rem 0.4rem rgba(0, 0, 0, 0.45);
+  color: mix(#ffffff, @cmod-tone, 35%);
+  white-space: nowrap;
+
+  &__glyph { display: inline-flex; width: 0.8rem; height: 0.8rem; flex: 0 0 auto; }
+  &__svg { width: 100%; height: 100%; }
+  &__die { fill: fade(@cmod-tone, 18%); stroke: @cmod-tone; stroke-width: 1.2; }
+  &__pip { fill: mix(#ffffff, @cmod-tone, 45%); }
+  &__label {
+    font-size: 0.54rem;
+    font-weight: 700;
+    letter-spacing: 0.1rem;
+    text-transform: uppercase;
+  }
+
+  /* The SEAL: pressed onto the card once the board has revealed — a short
+     scale-down from slightly large, ending on its own (never a loop). */
+  &--stamp {
+    animation: cmod-stamp calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1)
+      calc(var(--cmod-delay, 0) * 1ms * var(--motion-scale, 1)) backwards;
+  }
+}
+@keyframes cmod-stamp {
+  from { opacity: 0; transform: scale(1.35) rotate(-6deg); }
+  60% { opacity: 1; }
+  to { opacity: 1; transform: none; }
 }
 
 .cov-step-enter-active {
@@ -527,5 +593,6 @@ html.con-profile-tv .con-cmpov__stage { padding-top: 1.4rem; }
 @media (prefers-reduced-motion: reduce) {
   .con-cmpov__node, .con-cmpov__seat, .con-cmpov__lane-fill, .con-cmpov__party { animation: none; }
   .ccard { transition: none; }
+  .cmod--stamp { animation: none; }
   .cov-step-enter-active, .cov-step-leave-active { transition: none; }
 }

@@ -1,7 +1,7 @@
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {BoardName} from '@/common/boards/BoardName';
-import {CampaignSeatKind, MissionSlotState, TitleName} from '@/common/campaign/CampaignTypes';
+import {CampaignSeatKind, MissionModifier, MissionSlotState, TitleName} from '@/common/campaign/CampaignTypes';
 import {CampaignMissionModel, CampaignModel} from '@/common/campaign/CampaignModel';
 import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 
@@ -63,6 +63,8 @@ export type OverviewMissionCard = {
    *  participant-name helper (the bot never prints its raw save name). */
   podium?: ReadonlyArray<{seat: number, place: number, color: Color, name: string, isBot: boolean, score: number, title?: TitleName}>;
   generations?: number;
+  /** The slot's rolled conditions (the roguelike layer) — the card wears a badge per modifier. */
+  modifiers: ReadonlyArray<MissionModifier>;
 };
 
 export type CampaignOverviewVm = {
@@ -207,6 +209,7 @@ export function buildCampaignOverview(model: CampaignModel, live?: OverviewLiveC
           };
         }),
     generations: m.result?.generations,
+    modifiers: m.modifiers ?? [],
   }));
 
   const seats: Array<OverviewSeatRow> = model.seats.map((seat) => ({

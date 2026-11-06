@@ -58,6 +58,20 @@ import {Player} from '../Player';
 import {generateRandomId} from '../utils/server-ids';
 import {CarryoverSeatState, SerializedCampaign, SerializedMissionSlot} from './Campaign';
 import {computeMissionStandings} from './missionStandings';
+import {boardAlwaysDrawsMA, missionRandomMA, rollSlotModifiers, slotModifiersOf} from './missionModifiers';
+import {RandomMAOptionType} from '../../common/ma/RandomMAOptionType';
+import {
+  DEFAULT_CAMPAIGN_RANDOM_MA_CHANCE,
+  RANDOM_MA_MODIFIER,
+  hasMissionModifier,
+  isCampaignRandomMAChance,
+} from '../../common/campaign/missionModifiers';
+
+/** Campaign-only creation choices — never part of the frozen game settings. */
+export type CampaignCreateOptions = {
+  /** Percent; one of `CAMPAIGN_RANDOM_MA_CHANCES` (anything else → the default). */
+  randomMAChance?: number;
+};
 import {carryoverLimitFor, carryoverLimitOf} from './carryoverLimit';
 
 export class CampaignManager {
@@ -184,7 +198,7 @@ export class CampaignManager {
 
   // ------------------------------------------------------------- creation --
 
-  public async createCampaign(key: string, config: NewGameConfig): Promise<SerializedCampaign> {
+  public async createCampaign(key: string, config: NewGameConfig, options: CampaignCreateOptions = {}): Promise<SerializedCampaign> {
     const id = CampaignManager.campaignIdForKey(key);
     const existing = await this.load(id);
     if (existing !== undefined) {
@@ -199,7 +213,7 @@ export class CampaignManager {
       if (again !== undefined) {
         return again;
       }
-      const campaign = this.buildCampaign(id, config);
+      const campaign = this.buildCampaign(id, config, options);
       await this.save(campaign);
       return campaign;
     } finally {
@@ -207,7 +221,7 @@ export class CampaignManager {
     }
   }
 
-  private buildCampaign(id: CampaignId, config: NewGameConfig): SerializedCampaign {
+  private buildCampaign(id: CampaignId, config: NewGameConfig, options: CampaignCreateOptions): SerializedCampaign {
     const hasBot = config.automa !== undefined;
     const humans = config.players;
     if (humans.length < 1 || humans.length > 5) {
@@ -281,10 +295,17 @@ export class CampaignManager {
 
     const frozen: NewGameConfig = {...config, clonedGamedId: undefined, customProjectCards: config.customProjectCards ?? []};
 
+    // The roguelike layer: each slot rolls its «Случайные цели и награды»
+    // from the same seeded stream (a roll per slot, always), at the chosen
+    // chance — 0 when the rule is off. A board with no printed row carries
+    // the modifier whatever the roll.
+    const randomMAChance = config.randomMA !== undefined && config.randomMA !== RandomMAOptionType.NONE ?
+      (isCampaignRandomMAChance(options.randomMAChance) ? options.randomMAChance : DEFAULT_CAMPAIGN_RANDOM_MA_CHANCE) :
+      0;
     const missions: Array<SerializedMissionSlot> = boards.map((board, slot) => ({
       slot,
       board,
-      modifiers: [],
+      modifiers: rollSlotModifiers(board, randomMAChance, rng.next()),
     }));
 
     return {
@@ -295,7 +316,7 @@ export class CampaignManager {
       createdTimeMs: Date.now(),
       seats,
       settings: frozen,
-      generator: {seed, version: CAMPAIGN_GENERATOR_VERSION, pool: [...pool]},
+      generator: {seed, version: CAMPAIGN_GENERATOR_VERSION, pool: [...pool], randomMAChance},
       missions,
       pointer: 0,
       phase: 'generated',
@@ -439,6 +460,8 @@ export class CampaignManager {
     const missionConfig: NewGameConfig = {
       ...settings,
       board: slot.board,
+      // The slot's rolled modifier decides — never the frozen rule alone.
+      randomMA: missionRandomMA(campaign, slot),
       seed: Math.random(),
       clonedGamedId: undefined,
       bannedCards: [...banned],
@@ -850,6 +873,11 @@ export class CampaignManager {
     const replacement = pool[Math.floor(Math.random() * pool.length)];
     slot.repairs = [...(slot.repairs ?? []), {atMs: Date.now(), fromBoard: slot.board, toBoard: replacement}];
     slot.board = replacement;
+    // A replacement with no printed row draws its set — the badge follows.
+    if (campaign.generator.randomMAChance !== undefined && boardAlwaysDrawsMA(replacement) &&
+      !hasMissionModifier(slot.modifiers, RANDOM_MA_MODIFIER)) {
+      slot.modifiers = [...slot.modifiers, {id: RANDOM_MA_MODIFIER}];
+    }
     await this.save(campaign);
     return campaign;
   }
@@ -1287,7 +1315,7 @@ export class CampaignManager {
         board: slot.board,
         final: slot.slot === finalIndex,
         state,
-        modifiers: slot.modifiers,
+        modifiers: slotModifiersOf(campaign, slot),
         blockedReason,
         gameId: slot.gameId,
         yourPlayerId: viewerSeat !== undefined ? slot.playerIds?.[viewerSeat.seat] : undefined,

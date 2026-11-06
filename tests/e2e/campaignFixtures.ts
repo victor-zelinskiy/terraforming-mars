@@ -68,10 +68,11 @@ export function campaignConfig(overrides: Record<string, unknown> = {}) {
 export async function createCampaign(
   request: APIRequestContext,
   configOverrides: Record<string, unknown> = {},
+  options: {randomMAChance?: number} = {},
 ): Promise<{id: string, name: string}> {
   const key = `e2e-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
   const res = await request.post(`${campaignBase()}/api/campaign/create`, {
-    data: {key, name: 'Alice', config: campaignConfig(configOverrides)},
+    data: {key, name: 'Alice', config: campaignConfig(configOverrides), options},
   });
   expect(res.ok(), await res.text()).toBeTruthy();
   const model = await res.json();

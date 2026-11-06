@@ -10,6 +10,7 @@ import {Expansion} from '@/common/cards/GameModule';
 import {BoardName} from '@/common/boards/BoardName';
 import {RandomBoardOption} from '@/common/boards/RandomBoardOption';
 import {RandomMAOptionType} from '@/common/ma/RandomMAOptionType';
+import {CampaignRandomMAChance, DEFAULT_CAMPAIGN_RANDOM_MA_CHANCE, isCampaignRandomMAChance} from '@/common/campaign/missionModifiers';
 import {DifficultyLevel} from '@/common/automa/AutomaTypes';
 import {AutomaConflict, automaConflicts} from '@/common/automa/automaCompatibility';
 import {normalizePlayerName, validatePlayerName} from '@/common/utils/playerName';
@@ -93,6 +94,12 @@ export type PremiumCreateGameState = {
   mapMode: MapMode;
   mapId: BoardName;
   rules: PremiumRules;
+  /**
+   * CAMPAIGN ONLY: the per-mission chance (percent) «Случайные цели и
+   * награды» is rolled for each mission of the route — reachable while the
+   * rule is on in campaign mode (`CAMPAIGN_RANDOM_MA_CHANCES`).
+   */
+  campaignRandomMAChance: CampaignRandomMAChance;
   /** Only reachable while `rules.testMode` is on for the admin seat. */
   guaranteedCards: GuaranteedCardPicks;
 };
@@ -154,6 +161,7 @@ export function defaultPremiumState(): PremiumCreateGameState {
       showOtherPlayersVP: d.showOtherPlayersVP,
       testMode: d.testMode,
     },
+    campaignRandomMAChance: DEFAULT_CAMPAIGN_RANDOM_MA_CHANCE,
     guaranteedCards: {corporations: [], preludes: [], projects: []},
   };
 }
@@ -700,6 +708,8 @@ function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
     mapMode,
     mapId,
     rules,
+    // A setup saved before the chance existed (or a stray value) keeps the default.
+    campaignRandomMAChance: isCampaignRandomMAChance(saved.campaignRandomMAChance) ? saved.campaignRandomMAChance : base.campaignRandomMAChance,
     guaranteedCards: sanitizeGuaranteedCards(saved.guaranteedCards),
   };
 }

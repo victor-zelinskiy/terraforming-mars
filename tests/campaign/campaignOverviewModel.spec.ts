@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {buildCampaignOverview, buildMissionDetails, buildSeatLegacy, corpOrigins, tpStatusLabel} from '@/client/console/campaign/campaignOverviewModel';
 import {CampaignModel, MissionResultModel} from '@/common/campaign/CampaignModel';
+import {missionModifierMetas} from '@/client/console/campaign/missionModifierMeta';
 import {BoardName} from '@/common/boards/BoardName';
 import {CardName} from '@/common/cards/CardName';
 
@@ -80,6 +81,16 @@ function midCampaign(): CampaignModel {
 }
 
 describe('campaignOverviewModel', () => {
+  it('mission modifiers ride the card VM as the server sent them (the badge reads them; unknown ids are skipped by the meta)', () => {
+    const model = baseModel();
+    (model.missions[1] as any).modifiers = [{id: 'randomMA'}];
+    const cards = buildCampaignOverview(model).missions;
+    expect(cards[0].modifiers).deep.eq([]);
+    expect(cards[1].modifiers).deep.eq([{id: 'randomMA'}]);
+    expect(missionModifierMetas(cards[1].modifiers).map((m) => m.shortKey)).deep.eq(['Random goals']);
+    expect(missionModifierMetas([{id: 'fromTheFuture' as any}, {id: 'randomMA'}, {id: 'randomMA'}]).map((m) => m.id)).deep.eq(['randomMA']);
+  });
+
   it('TP semantics: accrues on missions 1–3, included on the live final, included-final in the chronicle', () => {
     expect(buildCampaignOverview(midCampaign()).seats[0].tpStatus).eq('accrues-final');
 
