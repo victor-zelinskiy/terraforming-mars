@@ -33,8 +33,15 @@ describe('the hydro result is handed over — never spent off screen, never unde
     const arm = watcher.slice(0, watcher.indexOf('\n    },\n'));
     expect(arm, 'a phase written while away is re-read').to.include('this.syncHydroFramePhase();');
     expect(arm, 'the refused settle is asked again').to.include('this.settleHydroResolution()');
+    // A frame aside for the board is a hidden stage — asked through the STACK's one answer (the hidden-scene class,
+    // `hiddenSceneGuard.spec`): the flow asks `workspaceSceneHidden`, and the stack's off-stage set reads the yield.
     const flow = read('console/hydroFlow/consoleHydroFlow.ts');
     const aside = flow.slice(flow.indexOf('export function hydroFlowSetAside('));
-    expect(aside.slice(0, aside.indexOf('\n}\n')), 'a frame aside for the board is a hidden stage').to.include("workspaceFrameYielded('hydro')");
+    expect(aside.slice(0, aside.indexOf('\n}\n')), 'the flow asks the stack\'s one answer').to.include("workspaceSceneHidden('hydro')");
+    const stack = read('console/consoleWorkspaceStack.ts');
+    const hidden = stack.slice(stack.indexOf('export function workspaceSceneHidden('));
+    expect(hidden.slice(0, hidden.indexOf('\n}\n')), 'a hidden scene includes a frame off the live stack').to.include('workspaceFrameOffStage(kind)');
+    const offStage = stack.slice(stack.indexOf("const offStageKinds = reactivePredicate('workspace-off-stage'"));
+    expect(offStage.slice(0, offStage.indexOf('\n});\n')), 'a frame aside for the board is off stage').to.include('for (const f of boardYielded) {');
   });
 });
