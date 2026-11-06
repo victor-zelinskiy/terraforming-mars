@@ -288,7 +288,7 @@ describe('influenceYieldModel', () => {
     count: {id: 'spaceCities', per: 2}, cap: 6, recipient: 'each',
   };
   const funding = {...resolution, id: 'RDX_FUNDING', scaled: [FUNDING_PRODUCTION]};
-  const withCities = (s: ParliamentPlayerModel, spaces: Array<'01' | '02' | '69' | '75'>): ParliamentPlayerModel =>
+  const withCities = (s: ParliamentPlayerModel, spaces: Array<'c01' | 'c02' | 'c69' | 'c75'>): ParliamentPlayerModel =>
     ({...s, counts: [{id: 'spaceCities', count: spaces.length, cards: [], spaces}]});
 
   it('the shipped catalog declares Colonization Funding as a BOARD count at its own rate (2 per space city + 1 per influence), capped at 6, for every player', () => {
@@ -311,18 +311,18 @@ describe('influenceYieldModel', () => {
 
   it('a board-counted vote reading: «[city] 2 + [influence] 3 → +6», the cap named (the sum 7 kept), the CELLS carried — and no forecast where a win adds nothing', () => {
     // Agenda 5 = influence 3; the next step (6) is a TR step, so a win raises nothing: ONE number, at the maximum.
-    const blue = withCities(seat('blue' as Color, 5, 3), ['01', '02']);
+    const blue = withCities(seat('blue' as Color, 5, 3), ['c01', 'c02']);
     const yields = voteYieldsOf(funding, model([blue]), 'blue' as Color);
     expect(yields.map((y) => y.context)).deep.eq(['estimate']);
     expect(yields[0]).deep.include({influence: 3, count: 2, amount: 6, uncapped: 7});
-    expect(yields[0].countedSpaces, 'the cells explain the number').deep.eq(['01', '02']);
+    expect(yields[0].countedSpaces, 'the cells explain the number').deep.eq(['c01', 'c02']);
     expect(yields[0].counted, 'no card in the list').deep.eq([]);
     expect(yieldAtCap(yields[0])).is.true;
     expect(yieldCapped(yields[0]), 'the cap bit: 7 owed, 6 paid').is.true;
     expect(yieldCaptionOf(yields[0])).deep.eq({key: 'If enacted now'});
     expect(winSuffixesOf(yields), 'no suffix at the maximum').deep.eq([]);
     // Two cities and influence 1 → +5; a win (step 3 → influence 2) makes it +6 exactly: the suffix says «+1 · max».
-    const red = withCities(seat('red' as Color, 2, 1), ['01', '02']);
+    const red = withCities(seat('red' as Color, 2, 1), ['c01', 'c02']);
     const growing = voteYieldsOf(funding, model([red]), 'red' as Color);
     expect(growing[0]).deep.include({influence: 1, count: 2, amount: 5, uncapped: 5});
     expect(growing[1]).deep.include({context: 'forecast', influence: 2, count: 2, amount: 6, agendaStep: 3});
@@ -342,25 +342,25 @@ describe('influenceYieldModel', () => {
   });
 
   it('an enacted board count reads the RECORDED cells, never today\'s board', () => {
-    const blue = withCities(seat('blue' as Color, 12, 5), ['01', '02', '69']);
+    const blue = withCities(seat('blue' as Color, 12, 5), ['c01', 'c02', 'c69']);
     const m = model([blue], {
       lastPhase: {
         generation: 3, final: false, winner: {instance: 'RDX_FUNDING#0', resolution: 'RDX_FUNDING', party: PartyName.UNITY, votes: 1},
         outcomes: [{
           player: 'blue' as Color, step: 'production', effect: 'production', kind: 'production', production: Resource.MEGACREDITS,
-          amount: 5, influence: 1, count: 2, counted: [], countedSpaces: ['01', '02'], uncapped: 5, before: 3, after: 8,
+          amount: 5, influence: 1, count: 2, counted: [], countedSpaces: ['c01', 'c02'], uncapped: 5, before: 3, after: 8,
         }],
         support: [], enacted: {instance: 'RDX_FUNDING#0', resolution: 'RDX_FUNDING', party: PartyName.UNITY}, refreshed: [], lobbyRefilled: [],
       },
     });
     const [y] = enactedYieldsOf(funding, m, 'blue' as Color);
     expect(y).deep.include({context: 'applied', amount: 5, influence: 1, count: 2, uncapped: 5});
-    expect(y.countedSpaces, 'the cells of the enactment, not the three of today').deep.eq(['01', '02']);
+    expect(y.countedSpaces, 'the cells of the enactment, not the three of today').deep.eq(['c01', 'c02']);
     expect(yieldCaptionOf(y)).deep.eq({key: 'Received'});
   });
 
   it('the cells are named by the board information layer, and a cell it does not name is left unnamed — never christened', () => {
-    const names = countedCellNames({countedSpaces: ['01', '02', '69', '75']}, (key) => `t:${key}`);
+    const names = countedCellNames({countedSpaces: ['c01', 'c02', 'c69', 'c75']}, (key) => `t:${key}`);
     expect(names).deep.eq(['t:Ganymede Colony', 't:Phobos Space Haven', 't:Stanford Torus', undefined]);
     expect(countedCellNames({countedSpaces: undefined}, (key) => key)).deep.eq([]);
   });
@@ -441,19 +441,19 @@ describe('influenceYieldModel', () => {
     expect(y.countedTiers, 'the heights of the enactment').deep.eq([1, 2, 1]);
     expect(yieldCaptionOf(y)).deep.eq({key: 'Received'});
     // Colonization Funding's own readings carry no heights — the `cells` measure has none.
-    const funded = voteYieldsOf(funding, model([withCities(seat('blue' as Color, 5, 3), ['01', '02'])]), 'blue' as Color);
-    expect(funded[0].countedSpaces).deep.eq(['01', '02']);
+    const funded = voteYieldsOf(funding, model([withCities(seat('blue' as Color, 5, 3), ['c01', 'c02'])]), 'blue' as Color);
+    expect(funded[0].countedSpaces).deep.eq(['c01', 'c02']);
     expect(funded[0].countedTiers).is.undefined;
   });
 
   it('a counted cell reads with its weight — «Noctis City ×2» — the way a card or a colony worth two does; an unnamed cell keeps its height and no name', () => {
     // The names are the board layer's: without a board only the reserved areas are named (Noctis City and the mountains
     // are Tharsis's), so an ordinary Mars cell reads as unnamed here and the row prints the number instead.
-    const entries = countedCellEntries({countedSpaces: ['01', '02', '31'], countedTiers: [2, 1, 3]}, (key) => `t:${key}`);
+    const entries = countedCellEntries({countedSpaces: ['c01', 'c02', '31'], countedTiers: [2, 1, 3]}, (key) => `t:${key}`);
     expect(entries).deep.eq([{name: 't:Ganymede Colony', tiers: 2}, {name: 't:Phobos Space Haven', tiers: 1}, {name: undefined, tiers: 3}]);
     expect(countedCellLabel({name: 't:Noctis City', tiers: 2})).eq('t:Noctis City ×2');
     expect(countedCellLabel({name: 't:Ganymede Colony', tiers: 1})).eq('t:Ganymede Colony');
-    expect(countedCellEntries({countedSpaces: ['01', '75'], countedTiers: undefined}, (key) => key), 'no column → every cell is worth 1').deep.eq(
+    expect(countedCellEntries({countedSpaces: ['c01', 'c75'], countedTiers: undefined}, (key) => key), 'no column → every cell is worth 1').deep.eq(
       [{name: 'Ganymede Colony', tiers: 1}, {name: undefined, tiers: 1}]);
     expect(countedCellEntries({countedSpaces: undefined, countedTiers: undefined}, (key) => key)).deep.eq([]);
   });
@@ -533,7 +533,7 @@ describe('influenceYieldModel', () => {
     expect(winnerForecastCount(GENEROUS_MEGACREDITS, count, 4), 'Agenda 4 → step 5, an influence step').deep.eq(count);
     expect(winnerForecastCount(GENEROUS_MEGACREDITS, count, 12), 'the end of the track — no step').deep.eq(count);
     expect(winnerForecastCount(GENEROUS_MEGACREDITS, undefined, 5)).is.undefined;
-    const cities = {count: 2, cards: [], spaces: ['01', '02'] as ReadonlyArray<SpaceId>};
+    const cities = {count: 2, cards: [], spaces: ['c01', 'c02'] as ReadonlyArray<SpaceId>};
     expect(winnerForecastCount(FUNDING_PRODUCTION, cities, 5), 'a board count never moves in the phase').deep.eq(cities);
     // …and at an influence step the win changes the influence alone: Agenda 4 (influence 2) → step 5 (influence 3): +6 becomes +8.
     const red = withRating(seat('red' as Color, 4, 2), 24);

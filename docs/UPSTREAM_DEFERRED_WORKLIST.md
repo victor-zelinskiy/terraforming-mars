@@ -425,3 +425,116 @@ the last one retires PUT /game, which the fork's load-game form still calls).
 - Console-backlog ideas from declined desktop commits: the tag-substitution marker on Earth/Science tags
   (`aaa9095a1e`), the conditional hand-discount marker (`747567d4b1`), the prelude-drawing warning for
   the creator (`2979458aad` / `preludeDrawingCards.ts`).
+
+
+---
+
+## G. The 2026-11 window (191 upstream commits, `369c76aded..19e09fe8e6`, audited 2026-11-06)
+
+The window's centre is **Amazonis Planitia** — the official ELEVEN-row board (91 hexes, longer tracks). It is taken
+with its **BASE adaptation only**: the engine plays it, its rules hold, a game can be created through the API; the
+premium scope does not cover it yet (`src/common/boards/boardPremiumScope.ts` — ONE list the random pools and the
+premium guards read). The full adaptation has its own prompt: `docs/claude/prompts/amazonis-planitia-full-adaptation.md`.
+
+**Taken — the Amazonis Planitia chain** (cherry-picks `-x`, conflicts resolved in the fork's shape):
+`5ee8e1eb11` / `197dd0b4db` / `81da043921` (`game.max` from the board), `c24eae02b6` + `847156fb27` (space-colony ids
+lead with `c` — the fork's own `NOVA_CITY` / `AURORA_STATION` became `c79` / `c80`, the console's `.board-space-cNN`
+lines followed, a hosted `Colony.tiles` id migrates on load), `65ba6147fa` (geometry beyond nine rows), `94c7c9d663`
+(Suburbian on `board.getEdges()` — `Suburbian.onEdge(board, space)` for MarsBot), `14cace7baa` (the standard-resource
+cell bonus), `900e758a78` (the board), `fc8bd8e0e1` (Innovator / Physicist / Merchant3 — the fork's retired /
+deprecated marks kept), `01df63ffcf` (server half: COLONY by type, `SpaceModel.x/y` KEPT — the console reads them),
+`b79b41c674` (regional MAs on the board's geometry — `board.isSouthern / isPolar / isEquatorial`; MarsBot's nine-row
+statics stay, `boardRegions.spec` pins the agreement; Desert Settler re-keyed with the fork's RU wording),
+`17c0acbd5a` (server half: `SpaceModel.a9`; the client keeps `common/boards/spaces.ts`), `df5a7916a8` / `b581f02a28` /
+`d180d2faa1` (underground tokens), `49716e6782` (+ the fork's preview / reason helpers on the same rule),
+`73d355a418`, `43303ccfd8`, `6be635b167`, `279d4eebb6` (card half), `bcf9ecaf3a`, `d0267f8d72`.
+
+**Adapted by hand — Amazonis Planitia:** the per-map global parameters (`4392799414`, `91a4605bd2`, `21f2547133`,
+`b745cb9a00`, server half of `3a2cd5ebf6`) on the fork's `Game.increase*` (claims, the unrewarded mode, MarsBot's
+substitutions, the rating attribution): `GlobalParameterMaximums` / `GlobalParameterTracks` / `venusScale` live in
+`src/common` (the server keeps upstream's paths as re-exports), upstream's `grantGlobalParameterTrackBonuses` is not
+ported — the fork's grant code reads which bonuses the map prints. The SWEEP upstream could not do: every fork-only
+reader of the classic maximums / thresholds (previews, forecast, BoardInformationEngine, the Parliament's
+`parameterMove` / `tileRemoval`, WGA, Turmoil's rating bump, MarsBot helpers, terraformingProgress). The standard
+resource's card reactions (`b263e36d73` + `279d4eebb6` infra): `ICard.onStandardResourcePlacementBonus`,
+`SpaceBonusSource.onStandardResource`, `grantSpaceBonuses(…, {asPlacement: true})`; the Survey cards' reaction
+(`a3badd8c3d`) on their `previewBonuses()` table. `93ae54da71` (two delegates) and `16da0a0117` (+1 solo generation).
+Amazonis Planitia's printed MA set names **Lobbyist** (retired here) — a non-random game on it draws the pool until
+the full adaptation names the substitute; Merchant3 / Innovator / Physicist stay out of every pool
+(`PENDING_ADAPTATION_MA`) and the bot registry lists them as PENDING; Terran5 / Landshaper keep their modular-only
+reading. Large-board art (`assets/board/mars-large*.png`, final versions incl. `c4cebf6fb4`) taken; its render is not.
+
+**Taken — the rest:** `3ee3262592`, `c887f26aac`, `c6c0fc3958` (the wrapper dropped, the fork's `onReveal` kept),
+`5ce61da93a`, `e67724a870` (+ the specs on the fork's cube TILES; Expedition Vehicles ignores a cube neighbour),
+`00d3395cd3`, `9b403918b4`, `f8a39f134c`, `4152b2c95a`, `53b18bf63c`, `aae23ea0cc`, `b9f39e3150`, `90e4995b31`,
+`adb73e0fe9`, `4d30aa07f1`, `851ebf5df9`, `3b926ee941`, `548c705ebc`, `8438c5b169`, `2196330a9e`, `ae2f63862c`,
+`fb75a6638b`, `12e69b41d5` (strict input validation — + `ShiftAresGlobalParameters` throws `InputError`, and
+`console-msl-curiosity` paid with a camelCase key the strict check now refuses), `8e54247406`, `3c528bbf0e` +
+`c51c92f4d0` (lazy reshuffle — the deck meter reads 0 after the last card until the next draw), the PlayedCards half of
+`8a1151f2f8`, `662e79052a` (as a `markerMove` option), `c794c37438` (`isWithinQuota` + `record` after the create),
+`eec7892cde` + `31f1669f9a` (the clock starts with the corporation pick — every fork road through
+`playerHasPickedCorporationCard` enables it), `36391c7b6c` (+ RU), `0388daecdf`, `3e0ff5bc6b` (WikiLinks + Draft).
+MarsBot rule fixes ported into the fork's own bot: **`9c7de4989f`** (Red Ships skips the Neural Instance) and
+**`096553e950`** (Media Archives counts the bot's event track). Locales `873ad9ac5d` (fi), `dfc97f7bc6` (fr),
+`d1e9ede9c5` (de) value by value onto keys the fork has; the HE3 Production Quotas player-name fix of `693109c979` in
+typed tokens + a new RU key.
+
+**Declined:**
+- **The «resources in logs» series** — `ed5ad81389`, `2cab7b4137`, `186dbf78f9`, `d79dd7b494`, `e62d32347f`,
+  `596d7a8d62`, `117b8aa945`, `0de7d36a06`, `92b5335b12`, `1322158cc3`, `b8385870e2`, `d001583b68`, `a6e4cb5f22`,
+  `7fb2d76018`, `973694909d`. Upstream bakes markdown shortcodes (`:r:mc:`) into the log TEMPLATES (new i18n keys) for
+  a markdown renderer the fork does not have; the fork shipped the same feature as a typed `RESOURCE` token
+  (`logResourceToken.ts`, the journal's premium chip) that keeps the keys. Taking it would print raw `:r:…:` in the
+  journal, notifications and the bot review, re-key ~64 RU templates, and its new `LogMessageDataType` values
+  (`PRODUCTION = 16` …) collide with the fork's `RESOLUTION = 16` stored in saves. Upstream's list of ~65 converted
+  templates is a ready worklist for migrating baked words onto the fork's `.resource()` / `.cardResource()` tokens.
+  Future upstream cards will carry shortcode templates — translate them back to `${N}` + a token when absorbed.
+- MA: `f5baa1e183` (Terran → 5: our fan Amazonis / Arabia Terra print 6; Amazonis Planitia already names Terran5),
+  `a60db43054` (Edgedancer is printed on MarsBot's B11 and the Vastitas profile; never take its `AWARD_RENAMES` entry
+  — it would turn saved Edgedancer games into Suburbian), `e28eb99365` (Pioneer 4 vs Utopia's printed 3),
+  `8017aeb5ea`, `a4590b8bd1` (already both ways), the synergy data (`e2291f6cb5`, `ddfa2421e9`, `e07e87adff`,
+  `75b9fb44ef`, `cf9b1a988f`, `c7f7d8683b` — the console creator never sends LIMITED; take `c7f7d8683b`'s file whole if
+  LIMITED is ever exposed), `7d99b90f3f`, `42fd7e0ed2`, `cbfd9d6407`, `3239aa542b`, `e20897381a`.
+- Upstream's own MarsBot (`4423f18ac6`, `872c5ba01c`, `ff936fe0a0` — ours drops Venus explicitly for Visionary,
+  `0e62d6180e`, `0c199176d6` — Farmer keeps the B13 board value, `cf34e3b4c4`, `4767971dc9`, `d443cfe7ec` — our
+  profiles already order per map; we keep the map's own tiebreak in random-MA games).
+- Server refactors with no behaviour or against fork structure: `dd4439adf4` (the fork rewrote `Colony.giveBonus`),
+  `d709e05b01` (fork-only callers), `784e6b40b2` (`Turmoil.getTurmoil` throws without classic Turmoil), `eeabbec385`,
+  `4dc3c37698` (loses the fork's per-unit payment values), `9ed7fa66c8` (removes `playActionCard`, fork specs call it),
+  `0e40b9a203`, `7f785fc5a7` / `b550216033` (already in the fork), `b4de9df694` (the fork's `promptStaleness` covers it),
+  `927bef050f` / `8424b2e87e` / `3b08861681` (`validateNewGameConfig` — not in the fork), `02887557e9` (the transport
+  re-arms its poll), `3feee1ddce` (classic Turmoil policies — not supported), `2576d51d99` / `d35e38eec5` /
+  `36ac4f082e` (desktop alpha gating; the fork gates by `boardPremiumScope`).
+- Desktop / legacy Vue and style: `78e1c00f25`, `951fb5c574`, `226b1814a8`, `fba421bb3d`, `5f8dcb22f0`,
+  `cd80ec291e`, `70ae9d6265`, `7236b89d5e`, `9c914b7873`, `ac1dcbfdf7`, `e50171598f`, `4dab3019c0`, `19c23082b7`,
+  `f24b74a9e7`, `f4c5501c0c`, `0d8cd76f9c`, `c1f05256ee`, `0cdade2252` (the fork resolves one `board` through
+  `randomBoard`), `1d474a18d8` (the fork's pool already skips the board), `d47d64f8b7`, `21e4ba165a`, `9a063d9a37`,
+  `c27e344a91`, `02e02354ae`, `549905a630` (key not in the tree), `3a47906b7d` / `d65c9b4285` / `0c4ca61d7e` (specs of
+  deleted desktop components, Vitest track).
+
+**Deferred — worth their own iteration:**
+- **Amazonis Planitia's full adaptation** — `docs/claude/prompts/amazonis-planitia-full-adaptation.md` (the 91-hex
+  render `27db80e67e`, the client half of `3a2cd5ebf6` / `17c0acbd5a`, `201e359e18`, the MA icons `9b24651245`
+  as placeholders, `c5df02c9b1` if the builder API is wanted).
+- **The deferred-action queue rewrite** — `91282ac11f` (iterative drain) → `ae0a119cdf` (`Game.drainQueue`, all 4
+  fork `runWhenEmpty` sites) → `d48bb4a98e` → `0b869753da` (+ the `takeAction` half of `8a1151f2f8`). The fork's
+  queue carries the event-context capture (`runWithContext`), the `notifyStateChange` pause broadcast, `queuedFor`,
+  the open correlations — a naive take silently drops the journal / notification correlation.
+- **Standard projects built once** — `c39983e7b0` (warnings in `bespokeCanAct`; the fork overrides `canAct` in 12
+  projects) → `8acb40f506` (shared instances; audit the per-instance warnings the read-only engines write first).
+- **MarsBot rulings** — `d0ecb7f84a` (greenery = own minus opponent cities; B05/B17 «≥2 then the city rule»; the
+  cost-0 flip takes the last space) and `3c46e56008` (all-protected draft discards the fewest-match card; Aridor's
+  least-advanced track sums its tags). Real gaps in ours (`AutomaTilePlacer.placeGreenery`,
+  `AutomaBonusCards.tryCitySurroundedByTwo`, `MarsBotDraftResolver`); they move seeded outcomes — rebaseline the
+  goldens / the band bench deliberately and note in `AUTOMA_DATA_AUDIT.md` which ruling replaced which reading.
+  **Owner check:** `acb1d92bfe` prints Tharsis event:6 / power:2/4 as floaters; our audit transcribes Venus steps.
+- `bc913f3c08` + `eb4fd408d3` — `customMA` (manual milestones / awards) server side; its validator must refuse retired
+  / incompatible names; the console creator needs its own surface.
+- Luna Trade Federation (`7cf19ebbd6`, `21dfef5cfa` — the latter regresses Helion's heat default unless the console's
+  `paymentPlan.ts` sets `nonGreedy`), Moon — frontier.
+- The typo group (`95ff5df628`, `4bd3404323`, `45a4a344ca` — CardName renames need `CardRenames` + the fork-only
+  references in `specialCellInfo.ts`, `premiumCardIcons.ts`, `Player.ts`).
+- `ba18c70253` (owner call — the serverId gate would break the Electron load form), `a59a36f15c` (turquoise / clear
+  player colours — the console needs their styles).
+- A deps pass: `26bfd976f5`, `13f9bbd88b`, `6eb0134ad4` (prom-client replaced), `ce5daf676f`, `031be21da0`,
+  `cc9a259d4d`, `fb6971189d`, `4232efc32c`, `aa4f15bc71` (vitest 5), `69d351fe97`, `19e09fe8e6` (.nvmrc / .env).
