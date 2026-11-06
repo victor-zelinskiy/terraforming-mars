@@ -40,10 +40,10 @@ export class ShiftAresGlobalParameters extends BasePlayerInput<AresGlobalParamet
 
   private validateNumber(val: number) {
     if (!Number.isInteger(val)) {
-      throw new Error('value is not a number');
+      throw new InputError('value is not a number');
     }
     if (val < -1 || val > 1) {
-      throw new Error('value is out of range');
+      throw new InputError('value is out of range');
     }
   }
 }

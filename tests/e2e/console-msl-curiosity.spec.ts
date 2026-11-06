@@ -77,7 +77,7 @@ for (const profile of PROFILES) {
         const bill = (await page.locator('.con-src').first().innerText()).replace(/\s+/g, ' ');
         console.log('── the bill\'s source ──', bill);
         expect(bill, 'the bill names the cell').toMatch(/Кьюриосити/);
-        await sendPlayerInput(request, playerId, {type: 'payment', payment: {...NO_PAYMENT, megaCredits: 5}});
+        await sendPlayerInput(request, playerId, {type: 'payment', payment: {...NO_PAYMENT, megacredits: 5}});
       }
 
       // THE COLONY PICK — the colonies head names the cell at its trailing edge.
