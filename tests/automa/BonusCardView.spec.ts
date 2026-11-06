@@ -312,9 +312,15 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(view.fate.kind).eq('recurring');
   });
 
-  it('an out-of-scope card degrades to its printed summary', () => {
+  it('B14 (a random set\'s Corporate Competition) without its set\'s list still reads as the card: the race, the price, the fallback', () => {
+    // The per-award lines come from the server (`MarsBotModel.competition`) — tests/automa/ma/matGenerator.spec.ts.
     const view = buildBonusCardView(BonusCardId.B14_CORPORATE_COMPETITION_MA, BASE);
-    expect(view.lines).has.length(1);
+    expect(view.name).eq('Corporate Competition · this game\'s set');
+    expect(view.lines.map((l) => l.text)).deep.eq([
+      'With 5+ M€: MarsBot pushes the award race it is closest to leading',
+      'Then it pays ${0} M€',
+      'With no funded award it can help, it draws another bonus card instead',
+    ]);
     expect(view.fate.kind).eq('discard');
   });
 });

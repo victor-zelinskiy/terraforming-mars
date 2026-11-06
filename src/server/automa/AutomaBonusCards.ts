@@ -36,7 +36,7 @@ import {AutomaTilePlacer} from './AutomaTilePlacer';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {humansOf, marsBotOf, pickVictim} from './AutomaUtil';
 import {divertBotRaise} from './BotDivertedTerraforming';
-import {marsBotMapProfile} from './boards/MarsBotMapProfile';
+import {botMapProfile} from './boards/MarsBotMapProfile';
 import {botAwardHelper, resolveTrackIndex} from './ma/botMAInterpreter';
 import {pilePredicate} from './ma/pilePredicates';
 import {placementRegion} from './ma/placementRegions';
@@ -260,6 +260,7 @@ function resolveBonusCardEffect(game: IGame, id: BonusCardId): BonusCardOutcome 
   case BonusCardId.B11_CORPORATE_COMPETITION_UTOPIA:
   case BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA:
   case BonusCardId.B13_CORPORATE_COMPETITION_BOREALIS:
+  case BonusCardId.B14_CORPORATE_COMPETITION_MA:
   case BonusCardId.BF1_CORPORATE_COMPETITION_VASTITAS_FAN:
   case BonusCardId.BF2_CORPORATE_COMPETITION_AMAZONIS:
   case BonusCardId.BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN:
@@ -546,9 +547,9 @@ function localNeuralInstance(game: IGame): BonusCardOutcome {
   return 'destroy';
 }
 
-/** The Corporate Competition card THIS map plays with — B08…B13 and the fan maps' BF-cards, one per map. */
+/** The Corporate Competition card THIS game plays with — B08…B13, the fan maps' BF-cards, B14 on a generated mat. */
 export function mapCorporateCompetition(game: IGame): BonusCardId {
-  return marsBotMapProfile(game.gameOptions.boardName).corporateCompetition;
+  return botMapProfile(game).corporateCompetition;
 }
 
 /**

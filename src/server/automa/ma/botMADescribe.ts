@@ -7,7 +7,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {Resource} from '../../../common/Resource';
 import {MarsBotTrackRole} from '../../../common/automa/AutomaTypes';
 import {BotCounterId, BotCriterion, BotHelper, HelperTrack, TrackRef, TrackSet} from './BotMARule';
-import {botAwardHelper, botAwardRule, botMilestoneRule} from './botMAInterpreter';
+import {botAwardHelper, botAwardRule, botMilestoneRule, milestoneCriterion} from './botMAInterpreter';
 import {PilePredicateId, PileAmountId} from './pilePredicates';
 import {PlacementRegionId} from './placementRegions';
 
@@ -343,7 +343,7 @@ export function describeMilestone(milestone: IMilestone, game: IGame): Message |
     // Briber: the price of the claim is part of the rule the player must read.
     return msg('MarsBot: ${0} M€, then pays ${1} M€ to claim', num(target ?? 0), num(rule.claimCost.megacredits));
   }
-  return milestoneText(rule.criterion, target);
+  return milestoneText(milestoneCriterion(rule, game), target);
 }
 
 /** The bot's score line for an award — `undefined` when the name has no registry row. */

@@ -4,7 +4,7 @@ import {CardResource} from '../../common/CardResource';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Resource} from '../../common/Resource';
 import {Tag} from '../../common/cards/Tag';
-import {COLONY_CELL_PRICE_MC, TrackAction} from '../../common/automa/AutomaTypes';
+import {BotTokenKind, COLONY_CELL_PRICE_MC, TrackAction} from '../../common/automa/AutomaTypes';
 import {AUTOMA_FLIP_MAX_CARDS, AUTOMA_FLIP_TAGS} from '../../common/automa/AutomaFlipTags';
 import {MarsBotTagFlip} from '../../common/automa/MarsBotTurn';
 import {IGame} from '../IGame';
@@ -29,6 +29,12 @@ const MAX_CASCADE_DEPTH = 32;
  * it immediately (which may cascade); a maxed track / a tagless card is a
  * Failed Action; the icon of an expansion that is not in use is ignored.
  */
+/** The card resource a token kind is shown as in the journal (the bot keeps it off its mat, never on a card). */
+const TOKEN_RESOURCE: Record<BotTokenKind, CardResource> = {
+  data: CardResource.DATA,
+  fighter: CardResource.FIGHTER,
+};
+
 export class AutomaResolver {
   /**
    * The printed top-right tag row. The engine stores a card's tags WITHOUT the
@@ -247,6 +253,16 @@ export class AutomaResolver {
     if (/^tr\d$/.test(action)) {
       const steps = Number(action.substring(2));
       bot.increaseTerraformRating(steps, {log: true});
+      return;
+    }
+    if (action.startsWith('token')) {
+      // A random-set mat's TOKEN cell (decision R8 — docs/claude/marsbot-dynamic-ma-framework.md): the bot gains 1 / 2
+      // tokens of the kind, the stand-in for «resources on cards» it has no cards for (Dataminer → data, Aeronaut →
+      // fighters). Hoverlord's floater cells are the official shape; the count lives in `automa.tokens`, nothing spends it.
+      const [cell, kind] = action.split('_') as [string, BotTokenKind];
+      const count = cell === 'token2' ? 2 : 1;
+      automa.tokens[kind] = (automa.tokens[kind] ?? 0) + count;
+      game.log('${0} gained ${1} ${2}', (b) => b.player(bot).number(count).cardResource(TOKEN_RESOURCE[kind]));
       return;
     }
     switch (action) {

@@ -1,3 +1,5 @@
+import {Message} from '../logs/Message';
+import {AwardName} from '../ma/AwardName';
 import {BonusCardId} from './AutomaTypes';
 
 /**
@@ -70,8 +72,9 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     text: 'With 5+ M€, MarsBot pushes the Vastitas Borealis Nova award race it is closest to being ahead on, then loses 5 M€.',
   },
   [BonusCardId.B14_CORPORATE_COMPETITION_MA]: {
-    name: 'Corporate Competition (Milestones & Awards)',
-    text: 'The Milestones & Awards module version of Corporate Competition.',
+    // Decision R7 — the card of a RANDOM milestone / award set: its helper list is built from THIS game's awards.
+    name: 'Corporate Competition · this game\'s set',
+    text: 'With 5+ M€, MarsBot pushes the award race of this game\'s set it is closest to being ahead on, then loses 5 M€ — each award of the set has its own push.',
   },
   [BonusCardId.B15_LOBBYISTS_VENUS]: {
     name: 'Lobbyists (Venus)',
@@ -186,10 +189,26 @@ export function bonusCardInfo(id: BonusCardId): BonusCardInfo {
 // a bare "you".
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * One award of a RANDOM set on the B14 face — «Corporate Competition · this game's set» (decision R7). Built on the
+ * SERVER from the bot-rule registry (`describeAwardHelper`) and shipped in the bot's model, never a client table by id.
+ */
+export type CompetitionHelperLine = {
+  award: AwardName;
+  /** The helper's own sentence — a `Message` whose label params translate on the client («advances the Power track»). */
+  helper: Message;
+  /** The helper does not cost the card's 5 M€ (Forecaster). */
+  free?: boolean;
+  /** The award has no helper at all — the card moves on to the next funded award (the line says why). */
+  none?: boolean;
+};
+
 /** The option subset that changes what a bonus card actually does. */
 export type BonusCardContext = {
   venus: boolean;
   colonies: boolean;
+  /** A random-set game: the awards of THIS game and their helpers, in row order (Venuphile last). */
+  competition?: ReadonlyArray<CompetitionHelperLine>;
 };
 
 /**
@@ -207,6 +226,10 @@ export type BonusCardEffectLine = {
   keyParams?: boolean;
   /** A secondary, quieter clarification line. */
   muted?: boolean;
+  /** An award this line belongs to (the B14 face names the award, then its push). */
+  award?: AwardName;
+  /** A ready `Message` (label params translated on the client) — the B14 face's per-award push. */
+  message?: Message;
 };
 
 /** What happens to the card after it resolves — the player-facing FATE. */
@@ -476,6 +499,27 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'city', text: 'Cosmic Settler has no push — MarsBot moves on to the next award', muted: true},
         ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
         {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
+        {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
+      ],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.B14_CORPORATE_COMPETITION_MA:
+    // «Corporate Competition · this game's set» (decision R7): ONE line per award of the game's random set — its push,
+    // generated from the bot-rule registry on the server — then the payment. An award with no push says so.
+    return {
+      name,
+      lines: [
+        {icon: 'award', text: 'With 5+ M€: MarsBot pushes the award race it is closest to leading'},
+        ...(ctx.competition ?? []).map((line): BonusCardEffectLine => ({
+          icon: line.none === true ? undefined : 'award',
+          award: line.award,
+          message: line.helper,
+          text: line.helper.message,
+          muted: line.none === true,
+        })),
+        {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
+        ...((ctx.competition ?? []).some((line) => line.free === true) ?
+          [{icon: 'megacredits', text: 'Forecaster instead GAINS ${0} M€ — that option costs the card nothing', params: ['5']}] : []),
         {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
       ],
       fate: FATE_DISCARD,

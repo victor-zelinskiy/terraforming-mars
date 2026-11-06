@@ -9,7 +9,7 @@ import {IPlayer} from '../IPlayer';
 import {AutomaAres} from './AutomaAres';
 import {AutomaColonies} from './AutomaColonies';
 import {failedAction} from './AutomaFailedAction';
-import {marsBotMapProfile} from './boards/MarsBotMapProfile';
+import {botMapProfile} from './boards/MarsBotMapProfile';
 import {
   HELLAS_SOUTH_POLE_REBATE,
   MSL_CURIOSITY_REBATE,
@@ -116,7 +116,7 @@ export class AutomaTilePlacer {
     }
     const bot = marsBotOf(game);
     let tied: ReadonlyArray<Space> = candidates;
-    for (const tiebreaker of marsBotMapProfile(game.gameOptions.boardName).placementTiebreakers) {
+    for (const tiebreaker of botMapProfile(game).placementTiebreakers) {
       if (tied.length <= 1) {
         break;
       }

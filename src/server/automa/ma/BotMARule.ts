@@ -55,7 +55,9 @@ export type BotCriterion =
    * have reads 0 (Venus without Venus Next — the honest answer for a criterion that names a track nobody has).
    */
   | {readonly kind: 'tracks', readonly op: 'sum' | 'max' | 'min' | 'countAtLeast' | 'sumTop', readonly of: TrackSet,
-     readonly drop?: DropRule, readonly at?: number, readonly top?: number, readonly times?: number, readonly plus?: number}
+     readonly drop?: DropRule, readonly at?: number, readonly top?: number, readonly times?: number, readonly plus?: number,
+     /** A named ref the mat does not have: read as 0 (default — the honest reading of a printed sheet) or left out of the set. */
+     readonly missing?: 'zero' | 'leave-out'}
   /** The bot's M€, `÷ per` (floored). */
   | {readonly kind: 'megacredits', readonly per?: number}
   /**
@@ -130,6 +132,18 @@ export type BotMilestoneRule = {
    * else 0 — the very scale the human row uses (Merchant). Absent = the raw value (Briber shows M€ like the human).
    */
   readonly display?: 'flag';
+  /**
+   * A PAIRING the criterion's calibration assumes (the generator's topology layer): Planetologist's «Jovian/Earth +
+   * Venus at 5» (B12) counts the Jovian tags only while Jovian rides the Earth track.
+   */
+  readonly pair?: readonly [Tag, Tag];
+  /**
+   * The criterion a RANDOM-SET game reads where it must differ from the printed sheet's (the generator's games only —
+   * a fixed-row game keeps its sheet, decision R1). Tradesman names the Venus track (B11): on Utopia without Venus Next
+   * that is the sheet's own answer, but a random set has no sheet, and a criterion naming a track nobody has would be
+   * the zero the framework forbids — so it leaves the absent track out (Planner's «every track except Venus»).
+   */
+  readonly randomSetCriterion?: BotCriterion;
   readonly provenance: BotMAProvenance;
 };
 

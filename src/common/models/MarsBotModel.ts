@@ -1,3 +1,4 @@
+import {CompetitionHelperLine} from '../automa/BonusCardData';
 import {BonusCardId, DifficultyLevel, MarsBotCorpId, TrackAction} from '../automa/AutomaTypes';
 import type {MarsBotDividendResult} from '../automa/MarsBotDividend';
 import {MarsBotCorpModel} from '../automa/MarsBotCorpData';
@@ -85,4 +86,10 @@ export type MarsBotModel = {
    * `deltaProject` model like any player's.
    */
   deltaPower?: {available: number, consumed: number};
+  /**
+   * A RANDOM milestone / award set (docs/claude/marsbot-dynamic-ma-framework.md): the awards of THIS game and each
+   * one's Corporate Competition push, in row order — what the B14 face «Corporate Competition · this game's set»
+   * lists (`BonusCardContext.competition`). Absent = a fixed-row game (its printed card says it all).
+   */
+  competition?: ReadonlyArray<CompetitionHelperLine>;
 };

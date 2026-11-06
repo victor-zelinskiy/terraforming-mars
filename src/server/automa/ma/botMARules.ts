@@ -79,7 +79,8 @@ export const BOT_MILESTONE_RULES: Partial<Record<MilestoneName, BotMilestoneRule
   'Land Specialist': {criterion: {kind: 'counter', counter: 'destroyedBonusCards'}, target: 3, provenance: {source: 'B11'}},
   // «All 3 of [Jovian/Energy], [Earth/City], [Venus] at space 2» — the original NAMES the rows: by role.
   'Trader': {criterion: {kind: 'tracks', op: 'min', of: [POWER, EARTH, VENUS]}, target: 2, provenance: {source: 'B11'}},
-  'Tradesman': {criterion: {kind: 'tracks', op: 'min', of: [POWER, EARTH, VENUS]}, target: 2, provenance: {source: 'B11'}},
+  'Tradesman': {criterion: {kind: 'tracks', op: 'min', of: [POWER, EARTH, VENUS]}, target: 2,
+    randomSetCriterion: {kind: 'tracks', op: 'min', of: [POWER, EARTH, VENUS], missing: 'leave-out'}, provenance: {source: 'B11'}},
   // «[Building] and [Space] combined 7» (the current rulebook; the board aid still prints the pre-errata 5).
   'Metallurgist': {criterion: {kind: 'tracks', op: 'sum', of: [STEEL_BADGE, TITANIUM_BADGE]}, target: 7, provenance: {source: 'B11'}},
   'Smith': {criterion: {kind: 'tracks', op: 'sum', of: [STEEL_BADGE, TITANIUM_BADGE]}, target: 7, provenance: {source: 'B11'}},
@@ -88,7 +89,8 @@ export const BOT_MILESTONE_RULES: Partial<Record<MilestoneName, BotMilestoneRule
   'Pioneer': asUsualMilestone('Utopia Planitia: real colonies'),
   'Pioneer4': asUsualMilestone('Utopia Planitia: real colonies (the A&M Pioneer at 4)'),
   // ── Terra Cimmeria Nova (B12) ──────────────────────────────────────────────
-  'Planetologist': {criterion: {kind: 'tracks', op: 'sum', of: [EARTH_TAG, VENUS_TAG]}, target: 5, provenance: {source: 'B12'}},
+  'Planetologist': {criterion: {kind: 'tracks', op: 'sum', of: [EARTH_TAG, VENUS_TAG]}, target: 5, pair: [Tag.JOVIAN, Tag.EARTH],
+    provenance: {source: 'B12'}},
   'Architect': {criterion: {kind: 'track', track: CITY_TAG}, target: 6, provenance: {source: 'B12'}},
   'C. Forester': {criterion: {kind: 'track', track: PLANT_BADGE}, target: 10, provenance: {source: 'B12'}},
   'Fundraiser': {criterion: {kind: 'track', track: MC_BADGE}, target: 10, provenance: {source: 'B12'}},

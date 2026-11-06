@@ -11,6 +11,8 @@ import {Player} from '../Player';
 import {AutomaColonies} from './AutomaColonies';
 import {AutomaState, AutomaActionCard} from './AutomaState';
 import {marsBotMapProfile} from './boards/MarsBotMapProfile';
+import {GeneratedMat, generateBotMat} from './ma/matGenerator';
+import {milestoneManifest} from '../milestones/Milestones';
 
 export class AutomaSetup {
   /** Normalize the server `GameOptions` into the shared compatibility input. */
@@ -79,7 +81,7 @@ export class AutomaSetup {
    * step 18) — B08 on Tharsis, B09 on Hellas. B16 is never IN the bonus deck —
    * it recurs through the action deck each generation.
    */
-  public static bonusDeckContents(gameOptions: GameOptions): Array<BonusCardId> {
+  public static bonusDeckContents(gameOptions: GameOptions, corporateCompetition: BonusCardId = marsBotMapProfile(gameOptions.boardName).corporateCompetition): Array<BonusCardId> {
     const deck: Array<BonusCardId> = [
       BonusCardId.B01_METEOR_SHOWER,
       BonusCardId.B02_INVASIVE_SPECIES,
@@ -92,12 +94,32 @@ export class AutomaSetup {
         BonusCardId.B15_LOBBYISTS_VENUS :
         BonusCardId.B06_LOBBYISTS,
       BonusCardId.B07_LOCAL_NEURAL_INSTANCE,
-      marsBotMapProfile(gameOptions.boardName).corporateCompetition,
+      corporateCompetition,
     ];
     if (gameOptions.coloniesExtension) {
       deck.push(BonusCardId.B18_OUTER_SYSTEM_FOOTHOLD);
     }
     return deck;
+  }
+
+  /**
+   * The mat the random-set generator deals THIS game, or undefined for the map's own printed board (decision R1): only
+   * a game that DRAWS its milestones and awards (`randomMA` ≠ NONE) — or a map with no fixed row, which always draws
+   * — plays a generated mat. The generator reads the drawn set, the map and the expansions; nothing else.
+   */
+  public static matFor(game: IGame): GeneratedMat | undefined {
+    const options = game.gameOptions;
+    const fixedRow = milestoneManifest.boards[options.boardName]?.length > 0;
+    if (options.randomMA === RandomMAOptionType.NONE && fixedRow) {
+      return undefined;
+    }
+    return generateBotMat({
+      boardName: options.boardName,
+      milestones: game.milestones.map((m) => m.name),
+      awards: game.awards.map((a) => a.name),
+      venus: options.venusNextExtension,
+      colonies: options.coloniesExtension,
+    });
   }
 
   /**
@@ -113,7 +135,7 @@ export class AutomaSetup {
     if (options.automa === undefined) {
       throw new Error('Not an automa game');
     }
-    const state = AutomaState.newInstance(options.automa.difficulty, options);
+    const state = AutomaState.newInstance(options.automa.difficulty, options, AutomaSetup.matFor(game));
 
     if (options.coloniesExtension) {
       // Every colony tile starts active with its tracker on the highlighted
@@ -121,7 +143,7 @@ export class AutomaSetup {
       AutomaColonies.setupColonies(game);
     }
 
-    state.bonusDeck = AutomaSetup.bonusDeckContents(options).map((id) => ({kind: 'bonus' as const, id}));
+    state.bonusDeck = AutomaSetup.bonusDeckContents(options, state.profile.corporateCompetition).map((id) => ({kind: 'bonus' as const, id}));
     inplaceShuffle(state.bonusDeck, game.rng);
     // DEV "custom bonus cards": lift them to the TOP of the bonus deck, AFTER
     // the shuffle — the automa twin of `customProjectCards`, and the only way

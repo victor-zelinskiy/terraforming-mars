@@ -15,6 +15,7 @@ export type TrackAction =
   | 'floater' | 'floater2' // Venus Next MarsBot board: gain 1 / 2 floaters (Adding Expansions p.2)
   | 'colony' // Utopia Planitia: «Place a Colony» — the ordinary bot colony build
   | 'colony5' // Amazonis (fan): the A&M Pioneer cube in printed form — build a colony, then lose COLONY_CELL_PRICE_MC
+  | `token_${BotTokenKind}` | `token2_${BotTokenKind}` // a random-set mat: gain 1 / 2 tokens of a kind (decision R8)
   | `tag_${number}`;
 
 /**

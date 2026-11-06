@@ -33,6 +33,7 @@ import {getParliamentModel} from '../parliament/ParliamentModel';
 import {ParliamentHandler} from '../parliament/ParliamentHandler';
 import {GameModel} from '../../common/models/GameModel';
 import {MarsBotModel} from '../../common/models/MarsBotModel';
+import {corporateCompetitionLines} from '../automa/ma/botMACompetition';
 import {createPathfindersModel} from './PathfindersModel';
 import {MoonModel} from '../../common/models/MoonModel';
 import {CardName} from '../../common/cards/CardName';
@@ -475,6 +476,9 @@ export class Server {
         available: AutomaDeltaProject.availablePower(game),
         consumed: automa.deltaPowerConsumed,
       };
+    }
+    if (automa.mat !== undefined) {
+      model.competition = corporateCompetitionLines(game);
     }
     return model;
   }

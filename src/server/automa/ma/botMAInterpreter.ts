@@ -38,12 +38,15 @@ function position(board: MarsBotBoard, ref: TrackRef): number {
   return resolveTrack(board, ref)?.position ?? 0;
 }
 
-function setPositions(board: MarsBotBoard, of: TrackSet): Array<number> {
+function setPositions(board: MarsBotBoard, of: TrackSet, missing?: 'zero' | 'leave-out'): Array<number> {
   if (of === 'all') {
     return board.tracks.map((t) => t.position);
   }
   if (of === 'martian') {
     return board.tracks.filter((t) => t.definition.role !== 'venus').map((t) => t.position);
+  }
+  if (missing === 'leave-out') {
+    return of.map((ref) => resolveTrack(board, ref)?.position).filter((p): p is number => p !== undefined);
   }
   return of.map((ref) => position(board, ref));
 }
@@ -76,7 +79,7 @@ export function criterionValue(criterion: BotCriterion, game: IGame): number | u
     return Math.floor((raw * (criterion.times ?? 1)) / (criterion.div ?? 1)) + (criterion.plus ?? 0);
   }
   case 'tracks': {
-    const positions = board === undefined ? [] : setPositions(board, criterion.of);
+    const positions = board === undefined ? [] : setPositions(board, criterion.of, criterion.missing);
     let value: number;
     switch (criterion.op) {
     case 'sum':
@@ -181,7 +184,7 @@ export function botMilestoneProgress(milestone: IMilestone, game: IGame): {value
   if (rule === undefined || rule.target === undefined) {
     return undefined;
   }
-  const value = criterionValue(rule.criterion, game);
+  const value = criterionValue(milestoneCriterion(rule, game), game);
   if (value === undefined) {
     return undefined;
   }
@@ -189,6 +192,11 @@ export function botMilestoneProgress(milestone: IMilestone, game: IGame): {value
     milestoneThreshold(milestone, game) ?? rule.printedFallback ?? 1 :
     rule.target;
   return {value, target};
+}
+
+/** The criterion THIS game reads — a random-set game takes the rule's `randomSetCriterion` where one is declared. */
+export function milestoneCriterion(rule: BotMilestoneRule, game: IGame | undefined): BotCriterion {
+  return game?.automa?.mat !== undefined && rule.randomSetCriterion !== undefined ? rule.randomSetCriterion : rule.criterion;
 }
 
 /** What the bot pays when it claims this milestone (Briber's 12 M€) — 0 for every other name. */

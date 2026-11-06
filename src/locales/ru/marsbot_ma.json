@@ -117,5 +117,7 @@
   "MarsBot: the higher of ${0} and ${1} + ${2}": "Бот: больший из треков — ${0} или ${1} — + ${2}",
   "MarsBot: ${0} M€, then pays ${1} M€ to claim": "Бот: ${0} M€, за заявку платит ${1} M€",
   "MarsBot owns no tiles granting adjacency bonuses": "У бота нет тайлов с бонусом соседства",
-  "Its Agenda marker moves only when it wins a sitting — there is no action to take": "Его маркер Повестки движется, только когда он побеждает на заседании, — действия нет"
+  "Its Agenda marker moves only when it wins a sitting — there is no action to take": "Его маркер Повестки движется, только когда он побеждает на заседании, — действия нет",
+  "Corporate Competition · this game's set": "Корпоративная конкуренция · набор партии",
+  "With 5+ M€, MarsBot pushes the award race of this game's set it is closest to being ahead on, then loses 5 M€ — each award of the set has its own push.": "Имея 5+ M€, бот подталкивает ту гонку за награду из набора партии, в которой ближе всего к лидерству, и теряет 5 M€ — у каждой награды набора своё действие."
 }

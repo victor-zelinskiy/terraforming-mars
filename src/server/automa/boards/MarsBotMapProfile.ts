@@ -57,7 +57,7 @@ const REWARD_ICONS: MarsBotPlacementTiebreaker = {
   score: (game, bot, space) =>
     botRewardIcons(game, bot, space) +
     AutomaAres.adjacencyBonusUnits(game, space) +
-    (marsBotMapProfile(game.gameOptions.boardName).tiebreakRewardBonus?.(game, space) ?? 0),
+    (botMapProfile(game).tiebreakRewardBonus?.(game, space) ?? 0),
 };
 
 /**
@@ -362,6 +362,15 @@ const PROFILES: ReadonlyArray<MarsBotMapProfile> =
 
 /** Every board MarsBot can be played on. */
 export const MARSBOT_BOARDS: ReadonlyArray<BoardName> = PROFILES.map((p) => p.boardName);
+
+/**
+ * The profile THIS GAME's MarsBot plays: the mat the random-set generator dealt (`AutomaState.profile`), else the map's
+ * own. Every consumer of a profile at play time reads this one — the tiebreakers, the «+1 icon» bullet, the Corporate
+ * Competition card — so a generated mat is honoured everywhere at once.
+ */
+export function botMapProfile(game: IGame): MarsBotMapProfile {
+  return game.automa?.profile ?? marsBotMapProfile(game.gameOptions.boardName);
+}
 
 /**
  * The profile for this board. Falls back to Tharsis so a save from a

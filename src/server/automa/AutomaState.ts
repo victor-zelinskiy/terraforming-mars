@@ -9,7 +9,9 @@ import type {MarsBotTurnRecording} from './AutomaTurnLog';
 import type {LobbyMandate} from './LobbyMandate';
 import {GameOptions} from '../game/GameOptions';
 import {MarsBotBoard} from './MarsBotBoard';
-import {marsBotMapProfile} from './boards/MarsBotMapProfile';
+import {MarsBotMapProfile, marsBotMapProfile} from './boards/MarsBotMapProfile';
+import {GeneratedMat} from './ma/matGenerator';
+import {profileForMat} from './ma/matProfile';
 import {VENUS_TRACK} from './boards/VenusMarsBot';
 
 /**
@@ -93,6 +95,12 @@ export type SerializedAutomaState = {
   secondShift?: SecondShiftState;
   /** The tokens collected off the mat's token cells, by kind (decision R8). Absent = none (every older save). */
   tokens?: Partial<Record<BotTokenKind, number>>;
+  /**
+   * The mat the random-set generator dealt this game (docs/claude/marsbot-dynamic-ma-framework.md) — kept WHOLE with
+   * its generator version, so a running game never changes its mat after an update. Absent = the map's own printed
+   * board (every fixed-row game, every older save).
+   */
+  mat?: GeneratedMat;
 };
 
 /** «Вторая смена» — the generation's count of extra cards; a new generation starts a new count. */
@@ -234,27 +242,36 @@ export class AutomaState {
 
   private constructor(
     public readonly difficulty: DifficultyLevel,
-    public readonly board: MarsBotBoard) {
+    public readonly board: MarsBotBoard,
+    /** The profile this game's mat plays as — the map's own, or the generated mat's (`profileForMat`). */
+    public readonly profile: MarsBotMapProfile,
+    /** The generated mat, when the game draws a random milestone / award set (absent = the printed board). */
+    public readonly mat: GeneratedMat | undefined) {
   }
 
   /**
    * The track set is derived from the game options: the MAP's own board («Use
    * the MarsBot board that corresponds to the map you are using» — Adding
-   * Expansions p.8) plus the separate Venus track when Venus Next is on.
+   * Expansions p.8) — or the mat the random-set generator dealt — plus the
+   * separate Venus track when Venus Next is on.
    *
-   * Only the map NAME needs to survive a save: the board definition is static
-   * data rebuilt from `gameOptions.boardName` on every load.
+   * A printed board needs only the map NAME to survive a save (static data
+   * rebuilt on every load); a generated mat is serialized whole.
    */
-  private static boardFor(gameOptions: GameOptions): MarsBotBoard {
-    const profile = marsBotMapProfile(gameOptions.boardName);
+  private static boardFor(gameOptions: GameOptions, profile: MarsBotMapProfile): MarsBotBoard {
     const tracks = gameOptions.venusNextExtension ?
       [...profile.tracks, profile.venusTrack ?? VENUS_TRACK] :
       [...profile.tracks];
     return new MarsBotBoard(tracks);
   }
 
-  public static newInstance(difficulty: DifficultyLevel, gameOptions: GameOptions): AutomaState {
-    return new AutomaState(difficulty, AutomaState.boardFor(gameOptions));
+  private static profileFor(gameOptions: GameOptions, mat: GeneratedMat | undefined): MarsBotMapProfile {
+    return mat === undefined ? marsBotMapProfile(gameOptions.boardName) : profileForMat(gameOptions.boardName, mat);
+  }
+
+  public static newInstance(difficulty: DifficultyLevel, gameOptions: GameOptions, mat?: GeneratedMat): AutomaState {
+    const profile = AutomaState.profileFor(gameOptions, mat);
+    return new AutomaState(difficulty, AutomaState.boardFor(gameOptions, profile), profile, mat);
   }
 
   public serialize(): SerializedAutomaState {
@@ -328,11 +345,16 @@ export class AutomaState {
     if (Object.keys(this.tokens).length > 0) {
       result.tokens = {...this.tokens};
     }
+    if (this.mat !== undefined) {
+      result.mat = this.mat;
+    }
     return result;
   }
 
   public static deserialize(d: SerializedAutomaState, gameOptions: GameOptions): AutomaState {
-    const state = new AutomaState(d.difficulty, AutomaState.boardFor(gameOptions));
+    // The mat a save carries is the mat the game was DEALT — never regenerated, whatever the generator's version now.
+    const profile = AutomaState.profileFor(gameOptions, d.mat);
+    const state = new AutomaState(d.difficulty, AutomaState.boardFor(gameOptions, profile), profile, d.mat);
     if (d.tracks.length !== state.board.tracks.length) {
       throw new Error(`Corrupt automa save: ${d.tracks.length} serialized tracks, expected ${state.board.tracks.length}`);
     }
