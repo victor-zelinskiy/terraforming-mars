@@ -8,6 +8,7 @@ import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {sum} from '../../../common/utils/utils';
+import {AutomaTargeting} from '../../automa/AutomaTargeting';
 import {ActionEffect, ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 
@@ -32,7 +33,9 @@ export class MediaArchives extends Card implements IProjectCard {
   // Shared by `bespokePlay` and the on-play preview (1 M€ per event ever played by
   // any player) so the previewed gain can't drift from what's applied.
   private megacreditGain(player: IPlayer): number {
-    return sum(player.game.players.map((p) => p.getPlayedEventsCount()));
+    // MarsBot has no played events: its event track counts instead («use the respective tracks on MarsBot's board
+    // instead of its played cards», rulebook p.5 — upstream 096553e950).
+    return sum(player.game.players.map((p) => p.isMarsBot ? AutomaTargeting.effectiveTagCount(p, Tag.EVENT) : p.getPlayedEventsCount()));
   }
 
   public override bespokePlay(player: IPlayer) {
