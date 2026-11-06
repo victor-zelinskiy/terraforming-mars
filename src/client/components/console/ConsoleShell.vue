@@ -1890,6 +1890,9 @@ import {
   workspaceStackCollapsed,
   workspaceStackCrumb,
   workspaceStackState,
+  workspaceFrameOffStage,
+  workspaceSceneHidden,
+  workspaceSceneOnStage,
   stackServes,
   workspaceStackTopAxis,
   workspaceStepsEmbeddedIn,
@@ -4753,8 +4756,13 @@ export default defineComponent({
      * advances the flow to the result stage.
      */
     /** The hydro frame is on the stack (reactive — the frames array): its RETURN from a park / a yield is an edge. */
+    /**
+     * THE HYDRONETWORK'S SCENE IS ON STAGE — its frame on the live stack and nothing hiding it (`workspaceSceneOnStage`).
+     * The RISING EDGE is the frame's RETURN, whichever door brought it back (the board's resume, the restore card, a
+     * deferral lifted): the one edge on which the flow re-reads its phase and re-asks its conclusion.
+     */
     hydroFrameStands(): boolean {
-      return workspaceFrameIndex('hydro') >= 0;
+      return workspaceSceneOnStage('hydro');
     },
     hydroResolutionBusy(): boolean {
       // The predicate itself is pure + spec'd (`hydroResolutionBusyOf`): its
@@ -9657,11 +9665,14 @@ export default defineComponent({
         return '';
       }
       const kind = owed.kind;
-      if (!workspaceFrameKnown(kind)) {
+      if (!workspaceFrameKnown(kind) && !workspaceFrameOffStage(kind)) {
         return 'gone';
       }
       const task = taskFor(this.playerView);
       return [
+        // THE FRAME'S RETURN is an ingredient (the hidden-scene class): an ending owed while the frame stood aside for
+        // the board is re-asked on the very edge it comes back on (`workspaceFrameOffStage` is reactive).
+        workspaceFrameOffStage(kind) ? 'off-stage' : '',
         workspaceFrameHasNested(kind) ? 'nested' : '',
         (this.followUpStepOwed && workspaceHostForStep() === kind) || (kind === 'card-actions' && this.politicalDiscardOwed) ? 'owed-step' : '',
         kind === 'card-actions' && this.politicalPayoutOwed ? 'payout' : '',
@@ -22163,7 +22174,9 @@ export default defineComponent({
      * the intake aims at a still-covered dock.
      */
     concludeWorkspaceFlow(kind: WorkspaceFrameKind, servedPromptHolds = true): boolean {
-      if (!workspaceFrameKnown(kind)) {
+      // Gone = on no stack at all. A frame standing ASIDE for the board is NOT gone: it comes back at the same depth, and
+      // reporting it «ended» closed nothing and let it return to a finished flow (the hidden-scene class — `off-stage`).
+      if (!workspaceFrameKnown(kind) && !workspaceFrameOffStage(kind)) {
         return true; // already gone (a second, idempotent report) — nothing to end
       }
       // MY claim, never «somebody holds one»: a foreign host's live outcome
@@ -22208,6 +22221,9 @@ export default defineComponent({
           // play pick a bill with a payment of its own raised after it — neither a prompt this frame «serves» by registry.
           (kind === 'card-actions' && this.lawStepOwed),
         parked: workspaceFrameParked(kind),
+        // …and a frame off the live stack in any other way (aside for the board): a flow never finishes where nobody
+        // sees it — owed, re-asked on the frame's return (`owedConclusionSignal` reads the same predicate).
+        offStage: workspaceFrameOffStage(kind),
       });
       if (conclusion.verdict === 'hold') {
         lastConclusionHold = {kind, reason: conclusion.reason, at: Date.now()};
@@ -22280,7 +22296,7 @@ export default defineComponent({
       if (owed === undefined) {
         return;
       }
-      if (!workspaceFrameKnown(owed.kind)) {
+      if (!workspaceFrameKnown(owed.kind) && !workspaceFrameOffStage(owed.kind)) {
         this.owedConclusion = undefined;
         this.owedConclusionSince = 0;
         this.owedConclusionGhostSince = 0;
@@ -22341,6 +22357,8 @@ export default defineComponent({
     stuckWorkspaceIsGhost(kind: WorkspaceFrameKind): boolean {
       return !workspaceFrameHasNested(kind) &&
         !workspaceFrameParked(kind) &&
+        // A frame AWAY for the board is waiting for the board, not a phantom — its return re-asks the conclusion.
+        !workspaceFrameOffStage(kind) &&
         !this.workspaceOutcomeServingNow && // no live prompt/batch it serves
         !this.followUpStepOwed && // no second effect still owed a door
         !(kind === 'hand' && (hostedStepOwedTo('hand') || hostedStepLiveIn('hand'))) && // no walk / rally owed or playing (TR04 / TR31)
@@ -23191,7 +23209,8 @@ export default defineComponent({
           // follow-up (deferred / collapsed) still owns its restore.
           (workspaceOutcomeState.host === 'hydro' &&
             (isHydroMarkerActive() || hydroTraversalPending() || this.deckPickActive ||
-              this.consoleState.task.deferred || workspaceStackCollapsed())) ||
+              // …set aside by ANY way off screen — the stack's one answer (a park, the deferred plate, aside for the board).
+              workspaceSceneHidden('hydro'))) ||
           (isPlayOutcomeHost(workspaceOutcomeState.host) ?
             // A PLAY CLAIM IS ABOUT CARDS. Read the RAW prompt, never «the gate
             // is holding something»: the play's own cinematic holds the task

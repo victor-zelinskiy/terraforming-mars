@@ -35,8 +35,7 @@ import type {Tag} from '@/common/cards/Tag';
 import type {DeltaStageOutcomeProjection} from '@/common/models/DeltaEspionageModel';
 import type {WorkspacePhase, WorkspaceBackVerb} from '@/client/console/consoleWorkspaceFlow';
 import {backVerbFor} from '@/client/console/consoleWorkspaceFlow';
-import {workspaceFrameEpoch, workspaceFrameYielded, workspaceStackCollapsed} from '@/client/console/consoleWorkspaceStack';
-import {consoleState} from '@/client/console/consoleRouter';
+import {workspaceFrameEpoch, workspaceSceneHidden} from '@/client/console/consoleWorkspaceStack';
 import {isHydroMarkerActive, hydroTraversalPending} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {registerTruthWitness} from '@/client/console/presentationLedger';
 import type {HydroDeltaLine} from '@/client/components/hydronetwork/hydroReward';
@@ -552,7 +551,8 @@ export function hydroWorkspaceRestorePlan(input: {
  *  (the stage-7 copy's placement) is as hidden as a parked one: its result
  *  walked to there was read by nobody (CI 2026-11-05, `console-hydro-copied-tile`). */
 export function hydroFlowSetAside(): boolean {
-  return workspaceStackCollapsed() || consoleState.task.deferred || workspaceFrameYielded('hydro');
+  // The STACK's one answer for every way off screen (a park, the deferred plate, aside for the board, any future one).
+  return workspaceSceneHidden('hydro');
 }
 
 /*

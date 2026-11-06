@@ -190,6 +190,19 @@ describe('consoleWorkspaceFlow — the commit boundary', () => {
         .to.deep.eq({verdict: 'hold', reason: 'parked'});
     });
 
+    /**
+     * THE HIDDEN-SCENE CLASS (2026-11-05 — the Hydronetwork's stage-7 copied tile): a flow whose frame stands ASIDE for
+     * the board does not finish where nobody sees it — owed, re-asked on the frame's return. The player's park keeps its
+     * own (stronger) reason.
+     */
+    it('never concludes a flow whose frame is OFF STAGE (aside for the board) — the park keeps its own reason', () => {
+      expect(workspaceConclusionFor({...done, offStage: true}))
+        .to.deep.eq({verdict: 'hold', reason: 'off-stage'});
+      expect(workspaceConclusionFor({...done, parked: true, offStage: true}))
+        .to.deep.eq({verdict: 'hold', reason: 'parked'});
+      expect(workspaceConclusionFor({...done, offStage: false})).to.deep.eq({verdict: 'dismiss'});
+    });
+
     it('reports the STRONGEST reason when several hold at once', () => {
       expect(workspaceConclusionFor(
         {nested: true, owedStep: true, outcomeLive: true, ownsPrompt: true, parked: true}))

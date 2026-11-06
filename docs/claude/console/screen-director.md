@@ -390,3 +390,36 @@ third way off screen (the yield for the board). Measured on 2026-11-05:
 
 The nets (`workspaceBeatStall`, `consoleLiveness`) stay as they are: they are the proof the class is closed when they
 stop firing on these paths.
+
+**Steps 1–3 DONE (2026-11-05, ledger GY).**
+- **The writes** (`consoleWorkspaceStack.frameAnywhere`). Phase, stage, subject, source card and serves land on the
+  frame in the live stack, the park or aside. The slot stays live-only, because a frame off the stack has no DOM and
+  every door clears it.
+- **The one answer.** `workspaceFrameOffStage` / `workspaceSceneHidden` / `workspaceSceneOnStage` are declared through
+  `reactivePredicate('workspace-off-stage')`. `boardYielded` is reactive; the router hands over the deferred flag.
+  `hydroFlowSetAside` is a call to `workspaceSceneHidden('hydro')`, and the hydro claim's «parked follow-up» arm in
+  `reconcileWorkspaceOutcome` asks it too, so it now also holds while aside for the board.
+- **The edge.** The shell's `hydroFrameStands` is `workspaceSceneOnStage('hydro')`. Its rising edge now also fires
+  when a deferral is lifted with no park, not only on the frame's splice back.
+- **Guard** `hiddenSceneGuard.spec`.
+- **Positive controls** (`consoleWorkspaceStack.spec` § a frame off stage): a write while aside and while parked
+  survives the return; a live instance wins over the parked one; the slot is not written to an absent frame; one
+  answer for every way out; a cached `computed` flips at every edge — the return is reactive, no latch.
+
+**Step 4 DONE (2026-11-05, the same diff — the owner: «сразу сделаем шаг 4, чтобы не гонять полный e2e дважды»).**
+A flow does not FINISH on a hidden scene, and the stack refuses it through the ONE guarded conclusion, never a new path.
+- `workspaceConclusionFor` gains the hold `off-stage` (after `parked` — the player's park keeps its own reason): a frame
+  aside for the board does not conclude. The ending is OWED (`concludeWorkspaceFlowOrOwe`).
+- The frame's return is an ingredient of `owedConclusionSignal` (reactive since step 2), so the owed ending is re-asked
+  on the very edge the frame comes back on.
+- Three places counted a frame aside as GONE and are fixed: `concludeWorkspaceFlow`'s idempotence check answered
+  «already gone, done» and closed nothing; `owedConclusionSignal` read `gone`; `retryOwedConclusion` dropped the debt.
+  A frame aside is never a ghost either (`stuckWorkspaceIsGhost`), so the force teardown never fires on a flow that is
+  waiting for the board.
+- Proof: the policy spec (`consoleWorkspaceFlow.spec` § off stage) and the whole e2e suite (see the commit).
+
+**Step 5 — reassessed, not built.** After steps 1–4 both signals it was meant to judge are closed by construction: a
+write to an absent frame lands, and an ending on a hidden scene is owed and re-asked on the return. The one residual
+failure is a stack that NEVER comes back from the board. It already has its nets: the beat stall guard for a transient
+beat, and the liveness arbiter's ladder for a stalled screen. A director verdict would only restate them. It is built
+the day a field log shows a frame that never returned and that neither net named.

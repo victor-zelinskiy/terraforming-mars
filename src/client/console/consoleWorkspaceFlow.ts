@@ -286,7 +286,15 @@ export type WorkspaceHoldReason =
   | 'owned-prompt'
   /** The player set the flow aside. Coming back to it is THEIR decision, and a
    *  conclusion here would silently turn «свернуть» into «закрыть». */
-  | 'parked';
+  | 'parked'
+  /**
+   * THE SCENE IS OFF STAGE — the frame stands aside for the board (a placement the flow's own step raised), or off the
+   * live stack in any other way that is not the player's park. A flow does not FINISH where nobody sees it (the
+   * hidden-scene class, 2026-11-05 — the Hydronetwork's stage-7 copied tile): its ending would close a frame that is
+   * not on the stack, the frame would come back to nothing, and the result it owed the player would have played behind
+   * the board. The conclusion is OWED instead, and the frame's RETURN — an ingredient of the owed signal — re-asks it.
+   */
+  | 'off-stage';
 
 export type WorkspaceConclusion =
   /** The operation is over — the workspace goes, and takes its stack with it. */
@@ -310,6 +318,8 @@ export function workspaceConclusionFor(signals: {
   ownsPrompt: boolean,
   /** This workspace is in the PARK rather than on screen. */
   parked: boolean,
+  /** This workspace's frame is OFF the live stack in another way — aside for the board (`workspaceFrameOffStage`). */
+  offStage?: boolean,
 }): WorkspaceConclusion {
   if (signals.nested) {
     return {verdict: 'hold', reason: 'nested-step'};
@@ -325,6 +335,9 @@ export function workspaceConclusionFor(signals: {
   }
   if (signals.parked) {
     return {verdict: 'hold', reason: 'parked'};
+  }
+  if (signals.offStage === true) {
+    return {verdict: 'hold', reason: 'off-stage'};
   }
   return {verdict: 'dismiss'};
 }

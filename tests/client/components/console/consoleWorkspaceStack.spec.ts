@@ -1,5 +1,15 @@
 import {expect} from 'chai';
+import {computed} from 'vue';
+import {consoleState} from '@/client/console/consoleRouter';
 import {
+  resumeStackFromBoard,
+  setWorkspaceFrameSubject,
+  workspaceFrameOffStage,
+  workspaceFramePhase,
+  workspaceFrameKnownPhase,
+  workspaceSceneHidden,
+  workspaceSceneOnStage,
+  yieldStackForStagedPlay,
   FrameAnchor,
   WORKSPACE_FRAME_KINDS,
   WORKSPACE_STACK_SCHEMA,
@@ -1119,5 +1129,99 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
         'take the scene, and an undeclared pair silently reads as \'embed\' (the repeat-pick hole)')
         .to.eq('scene');
     }
+  });
+});
+
+/*
+ * THE HIDDEN-SCENE CLASS (2026-11-05 — the Hydronetwork's stage-7 copied tile, 2454d07888). A frame leaves the screen
+ * three ways (the park, aside for the board, the deferred plate); the stack answers «is the scene on stage?» once for
+ * all of them, a write to an absent frame lands on it, and the return is ONE reactive edge.
+ */
+describe('a frame off stage — one answer, writes that land, one return edge', () => {
+  beforeEach(() => {
+    resetWorkspaceStack();
+    consoleState.task.deferred = false;
+  });
+  afterEach(() => {
+    resetWorkspaceStack();
+    consoleState.task.deferred = false;
+  });
+
+  it('a phase / stage / subject written while the frame stands ASIDE for the board lands on it and comes back with it', () => {
+    enterWorkspace('hydro');
+    setWorkspaceFramePhase('hydro', 'executing');
+    expect(yieldStackForStagedPlay()).eq(true);
+    expect(workspaceFrameIndex('hydro'), 'off the live stack').eq(-1);
+    setWorkspaceFramePhase('hydro', 'committed');
+    setWorkspaceFrameStage('hydro', 'Result');
+    setWorkspaceFrameSubject('hydro', 'Ice Asteroid');
+    expect(resumeStackFromBoard()).eq(true);
+    expect(workspaceFramePhase('hydro'), 'the write made while away was NOT lost').eq('committed');
+    expect(workspaceStackState.frames[0].stage).eq('Result');
+    expect(workspaceStackState.frames[0].subject).eq('Ice Asteroid');
+  });
+
+  it('…and the same for a PARKED frame; a live frame of the kind wins over the parked one', () => {
+    enterWorkspace('hand');
+    collapseWorkspaceStack();
+    setWorkspaceFramePhase('hand', 'committed');
+    expect(workspaceFrameKnownPhase('hand'), 'written into the park').eq('committed');
+    enterWorkspace('hand'); // a fresh instance beside the park
+    setWorkspaceFramePhase('hand', 'configure');
+    expect(workspaceFramePhase('hand'), 'the live one took it').eq('configure');
+    goBoardHome();
+    restoreWorkspaceStack();
+    expect(workspaceFramePhase('hand'), 'the parked one kept its own').eq('committed');
+  });
+
+  it('a SLOT stays a live-only write — a frame off the stack has no DOM, and every door clears it on return', () => {
+    enterWorkspace('hydro');
+    expect(yieldStackForStagedPlay()).eq(true);
+    setWorkspaceFrameSlot('hydro', '[data-embed-slot="x"]');
+    expect(resumeStackFromBoard()).eq(true);
+    expect(workspaceStackState.frames[0].slot).eq('');
+  });
+
+  it('ONE answer for every way off screen: parked · aside · deferred; a fresh instance beside a park is on stage', () => {
+    expect(workspaceFrameOffStage('hydro'), 'known nowhere').eq(false);
+    expect(workspaceSceneOnStage('hydro')).eq(false);
+    enterWorkspace('hydro');
+    expect(workspaceSceneOnStage('hydro'), 'live').eq(true);
+    expect(workspaceSceneHidden('hydro')).eq(false);
+    yieldStackForStagedPlay();
+    expect(workspaceFrameOffStage('hydro'), 'aside for the board').eq(true);
+    expect(workspaceSceneHidden('hydro')).eq(true);
+    resumeStackFromBoard();
+    collapseWorkspaceStack();
+    expect(workspaceFrameOffStage('hydro'), 'parked').eq(true);
+    enterWorkspace('hydro');
+    expect(workspaceFrameOffStage('hydro'), 'a fresh live instance beside the park is on stage').eq(false);
+    goBoardHome();
+    restoreWorkspaceStack();
+    consoleState.task.deferred = true;
+    expect(workspaceFrameOffStage('hydro'), 'the frame itself stands').eq(false);
+    expect(workspaceSceneHidden('hydro'), 'but the player set the task aside').eq(true);
+    expect(workspaceSceneOnStage('hydro')).eq(false);
+  });
+
+  it('the RETURN is a reactive edge — a cached computed sees every way out and every way back (no latch)', () => {
+    const onStage = computed(() => workspaceSceneOnStage('hydro'));
+    const seen: Array<boolean> = [];
+    const read = () => seen.push(onStage.value);
+    enterWorkspace('hydro');
+    read();
+    yieldStackForStagedPlay();
+    read();
+    resumeStackFromBoard();
+    read();
+    collapseWorkspaceStack();
+    read();
+    restoreWorkspaceStack();
+    read();
+    consoleState.task.deferred = true;
+    read();
+    consoleState.task.deferred = false;
+    read();
+    expect(seen).deep.eq([true, false, true, false, true, false, true]);
   });
 });

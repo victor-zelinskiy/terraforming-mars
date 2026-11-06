@@ -62,6 +62,7 @@
  * no i18n. The surfaces own rendering; this owns the shape of the flow.
  */
 import {reactive} from 'vue';
+import {reactivePredicate} from '@/client/components/presentation/reactivityWitness';
 import {
   WorkspacePhase,
   WorkspaceBackVerb,
@@ -1447,27 +1448,54 @@ export function truncateWorkspaceStack(depth: number): void {
   workspaceStackState.frames.splice(keep);
 }
 
-/** The top frame names the step it is showing (the crumb's tail). */
-export function setWorkspaceFrameStage(kind: WorkspaceFrameKind, stage: string): void {
+/**
+ * THE FRAME OF THIS KIND WHEREVER IT LIVES — the live stack (the deepest), the park, or aside for the board.
+ *
+ * THE HIDDEN-SCENE CLASS (2026-11-05 — the Hydronetwork's stage-7 copied tile, 2454d07888): every setter here used to
+ * address `workspaceFrameIndex` alone — the LIVE stack — so a write to a frame that had stepped aside for the board, or
+ * been parked, was dropped without a word, and the frame came back with the phase it left with (`executing`, an
+ * absorbing beat with nothing behind it, torn down only by the beat stall guard and the liveness arbiter). A frame's
+ * meaning (its phase, its stage, what it carries, what it serves) belongs to the FRAME, not to the screen it happens to
+ * stand on: the write lands where the frame is, and «a phase written while away is lost» stops being expressible. A
+ * live frame wins over a parked one of the same kind (a fresh instance opened beside the park is the one on screen).
+ */
+function frameAnywhere(kind: WorkspaceFrameKind): WorkspaceFrame | undefined {
   const depth = workspaceFrameIndex(kind);
   if (depth !== -1) {
-    workspaceStackState.frames[depth].stage = stage;
+    return workspaceStackState.frames[depth];
+  }
+  const away = (list: ReadonlyArray<WorkspaceFrame>) => {
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].kind === kind) {
+        return list[i];
+      }
+    }
+    return undefined;
+  };
+  return away(workspaceStackState.parked) ?? away(boardYielded);
+}
+
+/** The top frame names the step it is showing (the crumb's tail). */
+export function setWorkspaceFrameStage(kind: WorkspaceFrameKind, stage: string): void {
+  const frame = frameAnywhere(kind);
+  if (frame !== undefined) {
+    frame.stage = stage;
   }
 }
 
 /** The carried object changed (a different card picked up in the same frame). */
 export function setWorkspaceFrameSubject(kind: WorkspaceFrameKind, subject: string): void {
-  const depth = workspaceFrameIndex(kind);
-  if (depth !== -1) {
-    workspaceStackState.frames[depth].subject = subject;
+  const frame = frameAnywhere(kind);
+  if (frame !== undefined) {
+    frame.subject = subject;
   }
 }
 
 /** The host publishes the card its step is being done FOR (see the field). */
 export function setWorkspaceFrameSourceCard(kind: WorkspaceFrameKind, card: string): void {
-  const depth = workspaceFrameIndex(kind);
-  if (depth !== -1) {
-    workspaceStackState.frames[depth].sourceCard = card;
+  const frame = frameAnywhere(kind);
+  if (frame !== undefined) {
+    frame.sourceCard = card;
   }
 }
 
@@ -1504,21 +1532,25 @@ export function workspaceStepSourceCard(kind: WorkspaceFrameKind, isCard: (name:
  * the crumb claims a move that was never made.
  */
 export function setWorkspaceFramePhase(kind: WorkspaceFrameKind, phase: WorkspacePhase): void {
-  const depth = workspaceFrameIndex(kind);
-  if (depth !== -1) {
-    workspaceStackState.frames[depth].phase = phase;
+  const frame = frameAnywhere(kind);
+  if (frame !== undefined) {
+    frame.phase = phase;
   }
 }
 
 /** What this frame is entitled to serve changed (a follow-up was promised). */
 export function setWorkspaceFrameServes(kind: WorkspaceFrameKind, serves: ReadonlyArray<TaskKind>): void {
-  const depth = workspaceFrameIndex(kind);
-  if (depth !== -1) {
-    workspaceStackState.frames[depth].serves = [...serves];
+  const frame = frameAnywhere(kind);
+  if (frame !== undefined) {
+    frame.serves = [...serves];
   }
 }
 
-/** The frame's zone mounted (or went away) — publish the target for its child. */
+/**
+ * The frame's zone mounted (or went away) — publish the target for its child. LIVE frames only, deliberately: a slot
+ * is a DOM selector, and a frame off the stack has no DOM — every door that brings a frame back clears its slot for
+ * the re-mounted host to publish again (`restoreWorkspaceStack`, `resumeStackFromBoard`).
+ */
 export function setWorkspaceFrameSlot(kind: WorkspaceFrameKind, selector: string): void {
   const depth = workspaceFrameIndex(kind);
   if (depth !== -1) {
@@ -1545,8 +1577,12 @@ export function setWorkspaceFrameSlot(kind: WorkspaceFrameKind, selector: string
  * lands on the board with the server's prompt intact, which is the honest
  * recovery — a resurrected mid-walk workspace would be a lie about a client
  * sequence the server never knew about.
+ *
+ * REACTIVE (2026-11-05): it was a plain array, so a predicate over it read by a cached computed was a LATCH
+ * (invariant 17) and «is my frame aside?» could only be asked from a method at an edge. The off-stage predicate
+ * (`workspaceFrameOffStage`) reads it, and the frame's return is that predicate's falling edge.
  */
-const boardYielded: Array<WorkspaceFrame> = [];
+const boardYielded: Array<WorkspaceFrame> = reactive([]);
 
 /**
  * The board is taking the screen. If the root DECLARES that it yields (see
@@ -1654,13 +1690,60 @@ export function boardTakeableFromStack(): boolean {
   return workspaceKindSpec(root.kind).yieldsToBoard === true || workspaceKindSpec(top.kind).yieldsToBoard === true;
 }
 
-/**
- * Is a frame of this kind standing aside for the board — off screen, coming back at the same depth? A PLAIN store
- * (never reactive): ask it from a method at an edge, never from a computed — the frame's return is the edge to watch
- * (`workspaceFrameIndex` reads the reactive frames it is spliced back into).
- */
+/** Is a frame of this kind standing aside for the board — off screen, coming back at the same depth? (Reactive.) */
 export function workspaceFrameYielded(kind: WorkspaceFrameKind): boolean {
   return boardYielded.some((f) => f.kind === kind);
+}
+
+/*
+ * ── IS THE SCENE ON STAGE? — ONE answer for every way a frame leaves the screen ─────────────────────────────────────
+ * The hidden-scene class (2026-11-05): «is my scene visible?» had a hand-written answer per flow — the park, the
+ * deferred task — and the Hydronetwork's missed the third way off screen, the yield for the board: its result played
+ * behind the board, unseen, and the frame came back still `executing`. The question is the STACK's own, so it is
+ * answered here, once, for every way out (a new one is a term here, never a flag in a flow):
+ *   · `workspaceFrameOffStage(kind)` — the FRAME is off the live stack: parked (this kind, not the global collapse —
+ *     a fresh instance opened beside the park is on screen) or aside for the board;
+ *   · `workspaceSceneHidden(kind)` — what a FLOW asks: its frame is off stage, or the player set the task aside (the
+ *     deferred plate — a minimized decision's surfaces unmount; the router supplies the flag,
+ *     `registerWorkspaceTaskSetAside`, the stack cannot import it);
+ *   · `workspaceSceneOnStage(kind)` — its frame stands on the live stack and nothing hides it: its RISING EDGE is the
+ *     frame's RETURN, whichever door brought it back (the restore card, the board's resume, a deferral lifted) — the
+ *     one edge on which a flow re-reads its phase and re-asks its own conclusion.
+ * Reactive end to end and declared through the reactivity witness: a cache may read it, and its edges are real.
+ */
+let taskSetAside: () => boolean = () => false;
+/** The router hands the stack its «the player set the task aside» flag (`consoleState.task.deferred`). */
+export function registerWorkspaceTaskSetAside(read: () => boolean): void {
+  taskSetAside = read;
+}
+
+const offStageKinds = reactivePredicate('workspace-off-stage', (): string => {
+  const live = new Set<string>(workspaceStackState.frames.map((f) => f.kind));
+  const out = new Set<string>();
+  for (const f of workspaceStackState.parked) {
+    if (!live.has(f.kind)) {
+      out.add(f.kind);
+    }
+  }
+  for (const f of boardYielded) {
+    out.add(f.kind);
+  }
+  return [...out].sort().join(',');
+});
+
+/** Is the frame of this kind OFF the live stack — parked, or aside for the board? (False for a kind known nowhere.) */
+export function workspaceFrameOffStage(kind: WorkspaceFrameKind): boolean {
+  return offStageKinds().split(',').includes(kind);
+}
+
+/** THE flow's question — is its scene hidden from the player (frame off stage, or the task set aside)? */
+export function workspaceSceneHidden(kind: WorkspaceFrameKind): boolean {
+  return workspaceFrameOffStage(kind) || taskSetAside();
+}
+
+/** Its frame stands on the live stack and nothing hides it — the rising edge is the frame's RETURN. */
+export function workspaceSceneOnStage(kind: WorkspaceFrameKind): boolean {
+  return workspaceFrameIndex(kind) !== -1 && !workspaceSceneHidden(kind);
 }
 
 /**

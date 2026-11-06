@@ -22,6 +22,7 @@ import {loadingScreenState, sceneTransitionInputLocked} from '@/client/console/l
 import {recordVerbPress} from '@/client/console/inputEcho';
 import {beginInputDispatch, endInputDispatch, noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 import {
+  registerWorkspaceTaskSetAside,
   closeWorkspaceSheet, workspaceStackSection, workspaceStackSheet,
 } from '@/client/console/consoleWorkspaceStack';
 
@@ -121,6 +122,10 @@ export const consoleState = reactive({
    */
   cardBrowser: {key: '' as string, picks: [] as Array<string>},
 });
+
+// The stack's one «is the scene hidden?» answer (`workspaceSceneHidden`) counts the deferred plate too — the stack
+// cannot import this module, so the flag is handed over here.
+registerWorkspaceTaskSetAside(() => consoleState.task.deferred);
 
 /**
  * Persist the card-browser picks under the host's current reset key so a
