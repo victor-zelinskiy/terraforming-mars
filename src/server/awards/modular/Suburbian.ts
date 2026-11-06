@@ -1,5 +1,6 @@
 import {IPlayer} from '../../IPlayer';
 import {IAward} from '../IAward';
+import {Space} from '../../boards/Space';
 import {hazardSeverity} from '../../../common/AresTileType';
 
 // This could probably be computed with board.getAdjacentSpaces().length < 6.
@@ -19,10 +20,18 @@ const EDGE_IDS = new Set([
 export class Suburbian implements IAward {
   public readonly name = 'Suburbian';
   public readonly description = 'Most tiles on areas along the edges of the map';
+  /**
+   * «An area along the edge of the map» as this award counts it — ONE predicate, read by the player's score and by
+   * MarsBot's Corporate Competition helper («a greenery on the edge of the map», Adding Expansions p.16).
+   */
+  public static onEdge(space: Space): boolean {
+    return EDGE_IDS.has(space.id);
+  }
+
   public getScore(player: IPlayer): number {
     const board = player.game.board;
     return board.spaces.filter((space) => {
-      if (!EDGE_IDS.has(space.id)) {
+      if (!Suburbian.onEdge(space)) {
         return false;
       }
       if (space.tile === undefined || hazardSeverity(space.tile.tileType) !== 'none') {

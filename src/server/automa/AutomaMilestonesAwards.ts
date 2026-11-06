@@ -6,6 +6,8 @@ import {IGame} from '../IGame';
 import {failedAction} from './AutomaFailedAction';
 import {AutomaMAEvaluation} from './AutomaMAEvaluation';
 import {humansOf, marsBotOf} from './AutomaUtil';
+import {botMilestoneClaimCost} from './ma/botMAInterpreter';
+import {Resource} from '../../common/Resource';
 
 /**
  * The Claim Milestone / Fund Award track actions (rulebook p.8). Evaluation
@@ -99,6 +101,12 @@ export class AutomaMilestonesAwards {
     try {
       game.log('${0} claimed ${1} milestone', (b) => b.player(bot).milestone(milestone));
       game.claimedMilestones.push({player: bot, milestone});
+      // A rule that PRICES the claim (Briber: «Has 20 MC+, lose 12 MC», Adding Expansions p.13) — paid inside the claim's
+      // own scope, so the journal roots the loss under the milestone. The bot met «20 MC+» to get here, so it can pay.
+      const price = botMilestoneClaimCost(milestone.name);
+      if (price > 0) {
+        bot.stock.deduct(Resource.MEGACREDITS, Math.min(price, bot.megaCredits), {log: true});
+      }
     } finally {
       game.events.endScope();
     }

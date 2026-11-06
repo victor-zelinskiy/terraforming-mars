@@ -23,15 +23,8 @@ const OUT_OF_SCOPE: ReadonlyMap<string, string> = new Map([
   ['Risktaker', 'Underworld'], ['Tunneler', 'Underworld'], ['Excavator', 'Underworld'], ['Kingpin', 'Underworld'],
 ]);
 
-/**
- * STAGE 2 OF THE FRAMEWORK — the names with no bot rule yet (docs/AUTOMA_DATA_AUDIT.md §22.2). Today they read the
- * player branch (0 for most). This list may only SHRINK; stage 2 empties it.
- */
-const PENDING: ReadonlySet<string> = new Set([
-  'Activist', 'Aeronaut', 'Briber', 'Builder7', 'Dataminer', 'Hydrologist', 'Landshaper', 'Merchant', 'Philantropist',
-  'Producer', 'Spacefarer4', 'Sponsor', 'Tactician4', 'Terran5', 'Thawer',
-  'Administrator', 'Collector', 'Constructor', 'Influencer', 'Manufacturer', 'Politologist', 'Suburbian',
-]);
+/** Names still waiting for a bot rule — EMPTY since stage 2 of the framework; a new manifest name lands here never. */
+const PENDING: ReadonlySet<string> = new Set();
 
 /** The ONE honest zero (decision R5). */
 const ZERO: ReadonlySet<string> = new Set(['Entrepreneur']);
@@ -73,7 +66,7 @@ function renderRu(message: Message, ru: Record<string, string>, missing: Set<str
 }
 
 describe('bot-rule registry — the worklist', () => {
-  it('every milestone and award name has a bot rule (or is out of scope / pending stage 2)', () => {
+  it('every milestone and award name has a bot rule (or is out of scope)', () => {
     const {milestones, awards} = manifestNames();
     const missing = [
       ...milestones.filter((n) => BOT_MILESTONE_RULES[n as keyof typeof BOT_MILESTONE_RULES] === undefined),
@@ -116,7 +109,7 @@ describe('bot-rule registry — the worklist', () => {
   it('`zero` is the ONE honest zero (decision R5) — no other name may read 0 by construction', () => {
     const zeros = [...Object.entries(BOT_MILESTONE_RULES), ...Object.entries(BOT_AWARD_RULES)]
       .filter(([, rule]) => rule!.criterion.kind === 'zero').map(([name]) => name);
-    expect(zeros.every((n) => ZERO.has(n)), `unexpected zero rules: ${zeros.join(', ')}`).is.true;
+    expect(zeros.sort(), 'the zero rules').deep.eq([...ZERO].sort());
   });
 
   it('every home rule names its official analog, and every named law exists', () => {
@@ -168,10 +161,11 @@ describe('bot-rule registry — the worklist', () => {
     const [game] = testAutomaGame({}, '-describe-pin');
     const energizer = describeMilestone(milestoneManifest.createOrThrow('Energizer'), game)!;
     expect(energizer.message).eq('MarsBot: ${0} at space ${1}');
-    expect(energizer.data.map((d) => d.value)).deep.eq(['the Power track', '6']);
+    expect(energizer.data.map((d) => d.value), 'a production criterion names the BADGE (decision R10)').deep.eq(['the energy-badge track', '6']);
     const tycoon = describeMilestone(milestoneManifest.createOrThrow('Tycoon10'), game)!;
     expect(tycoon.data.map((d) => d.value), 'a printed target reads the milestone\'s own threshold').deep.eq(['10', 'green and blue cards']);
-    expect(describeAward('Thermalist')!.data.map((d) => d.value)).deep.eq(['the Power track', '5']);
+    expect(describeAward('Thermalist')!.data.map((d) => d.value)).deep.eq(['the energy-badge track', '5']);
+    expect(describeMilestone(milestoneManifest.createOrThrow('Rim Settler'), game)!.data.map((d) => d.value), 'a tag criterion names the TAG').deep.eq(['the Jovian-tag track', '6']);
     expect(describeAwardHelper('Forecaster').data.map((d) => d.value)).deep.eq(['a card with a requirement', '5']);
     expect(describeAwardHelper('Cosmic Settler').message).contains('no action');
   });

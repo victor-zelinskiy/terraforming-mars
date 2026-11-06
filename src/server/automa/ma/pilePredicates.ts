@@ -5,6 +5,9 @@ import {hasRequirement} from '../../cards/requirements/CardsWithRequirementsRequ
 import {AmazonisEngineer} from '../../awards/amazonisPlanitia/AmazonisEngineer';
 import {Warmonger} from '../../awards/terraCimmeria/Warmonger';
 import {CosmicSettler} from '../../awards/arabiaTerra/CosmicSettler';
+import {Philantropist} from '../../milestones/modular/Philantropist';
+import {Administrator} from '../../awards/modular/Administrator';
+import {hasPartyRequirement} from '../../cards/requirements/partyRequirementCards';
 
 /**
  * The PREDICATES a bot rule asks of a project card — what a played-pile criterion counts and what a
@@ -25,7 +28,10 @@ export type PilePredicateId =
   | 'hasRequirement' // Forecaster's search
   | 'altersProduction' // A. Engineer
   | 'warmonger' // Warmonger
-  | 'cityOffMars'; // Cosmic Settler
+  | 'cityOffMars' // Cosmic Settler
+  | 'philanthropic' // Philantropist — non-negative VP (`Philantropist.counts`)
+  | 'noTags' // Administrator — no tags (`Administrator.untagged`)
+  | 'partyRequirement'; // Politologist — a party requirement (`hasPartyRequirement`, events included)
 
 const PREDICATES: Record<PilePredicateId, (card: IProjectCard) => boolean> = {
   green: (card) => card.type === CardType.AUTOMATED,
@@ -38,6 +44,9 @@ const PREDICATES: Record<PilePredicateId, (card: IProjectCard) => boolean> = {
   altersProduction: (card) => AmazonisEngineer.altersProduction(card),
   warmonger: (card) => Warmonger.include(card),
   cityOffMars: (card) => CosmicSettler.placesCityOffMars(card),
+  philanthropic: (card) => Philantropist.counts(card),
+  noTags: (card) => Administrator.untagged(card),
+  partyRequirement: (card) => hasPartyRequirement(card),
 };
 
 export function pilePredicate(id: PilePredicateId): (card: IProjectCard) => boolean {

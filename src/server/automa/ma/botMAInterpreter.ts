@@ -99,6 +99,9 @@ export function criterionValue(criterion: BotCriterion, game: IGame): number | u
     case 'countAtLeast':
       value = positions.filter((p) => p >= (criterion.at ?? 0)).length;
       break;
+    case 'sumTop':
+      value = [...positions].sort((a, b) => b - a).slice(0, criterion.top ?? positions.length).reduce((a, b) => a + b, 0);
+      break;
     }
     return value * (criterion.times ?? 1) + (criterion.plus ?? 0);
   }
@@ -124,6 +127,9 @@ export function criterionValue(criterion: BotCriterion, game: IGame): number | u
     return marsBotOf(game).terraformRating + (criterion.plus ?? 0);
   case 'counter':
     return counterValue(criterion.counter, game);
+  case 'allOf':
+    // The number of parts met — each part a criterion and its own target (Landshaper's three conditions).
+    return criterion.of.filter((part) => (criterionValue(part.criterion, game) ?? 0) >= part.target).length;
   case 'zero':
     return 0;
   }
@@ -137,6 +143,14 @@ function counterValue(counter: BotCounterId, game: IGame): number {
     return game.automa?.destroyedBonusCards.length ?? 0;
   case 'smallActionDeck':
     return (game.automa?.actionDeck.length ?? 0) <= 2 ? 1 : 0;
+  case 'cities':
+    return game.board.getCities(marsBotOf(game)).length;
+  case 'greeneries':
+    return game.board.getGreeneries(marsBotOf(game)).length;
+  case 'tokens:data':
+    return game.automa?.tokens.data ?? 0;
+  case 'tokens:fighter':
+    return game.automa?.tokens.fighter ?? 0;
   }
 }
 
@@ -175,6 +189,16 @@ export function botMilestoneProgress(milestone: IMilestone, game: IGame): {value
     milestoneThreshold(milestone, game) ?? rule.printedFallback ?? 1 :
     rule.target;
   return {value, target};
+}
+
+/** What the bot pays when it claims this milestone (Briber's 12 M€) — 0 for every other name. */
+export function botMilestoneClaimCost(name: MilestoneName | string): number {
+  return botMilestoneRule(name)?.claimCost?.megacredits ?? 0;
+}
+
+/** True when the bot's progress on this milestone is shown as a 0 / 1 flag (a human row with no numeric threshold). */
+export function botMilestoneShownAsFlag(name: MilestoneName | string): boolean {
+  return botMilestoneRule(name)?.display === 'flag';
 }
 
 /**

@@ -3,6 +3,7 @@ import {Board, isSpecialTileSpace} from '../../boards/Board';
 import {Space} from '../../boards/Space';
 import {IGame} from '../../IGame';
 import {IPlayer} from '../../IPlayer';
+import {Suburbian} from '../../awards/modular/Suburbian';
 
 /**
  * The placement REGIONS a bot rule names — a helper's HARD constraint («a greenery in the Southern Region»), and,
@@ -13,7 +14,8 @@ import {IPlayer} from '../../IPlayer';
 export type PlacementRegionId =
   | 'southern' // Elysium's Desert Settler — the four bottom rows
   | 'oceanAdjacent' // Estate Dealer — beside an ocean tile
-  | 'edge' // Edgedancer / Suburbian — the board edge
+  | 'edge' // Edgedancer — the board edge (`MarsBoard.isEdge`)
+  | 'suburbianEdge' // Suburbian — the award's own edge set (`Suburbian.onEdge`)
   | 'specialTileAdjacent' // Founder — beside a special tile (the Neural Instance included)
   | 'notOceanAdjacent' // Highlander — beside no ocean tile and no space reserved for one
   | 'ownCityAdjacent' // Urbanist — beside one of the bot's own cities
@@ -28,6 +30,8 @@ export function placementRegion(id: PlacementRegionId, game: IGame, bot: IPlayer
     return (space) => board.getAdjacentSpaces(space).some(Board.isOceanSpace);
   case 'edge':
     return (space) => board.isEdge(space);
+  case 'suburbianEdge':
+    return Suburbian.onEdge;
   case 'specialTileAdjacent':
     return (space) => board.getAdjacentSpaces(space).some(isSpecialTileSpace);
   case 'notOceanAdjacent':

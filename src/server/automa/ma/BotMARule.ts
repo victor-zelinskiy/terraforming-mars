@@ -39,18 +39,23 @@ export type DropRule = number | 'venus';
 export type BotCounterId =
   | 'floaters' // Venus Next: the bot's floater pool (Hoverlord, RB-C p.2)
   | 'destroyedBonusCards' // Utopia Planitia's Specialist: the bot's permanently destroyed bonus cards (B11)
-  | 'smallActionDeck'; // Amazonis' Minimalist (home): 1 while at most 2 cards are left in the action deck, else 0
+  | 'smallActionDeck' // Amazonis' Minimalist (home): 1 while at most 2 cards are left in the action deck, else 0
+  | 'cities' // the bot's REAL city tiles on Mars (Landshaper's «owns 1+ city», RB-C p.13)
+  | 'greeneries' // the bot's REAL greenery tiles (Landshaper's «owns 1+ greenery»)
+  | 'tokens:data' // the bot's DATA tokens off its token cells (Dataminer — decision R8, Hoverlord's shape)
+  | 'tokens:fighter'; // the bot's FIGHTER tokens off its token cells (Aeronaut — decision R8)
 
 export type BotCriterion =
   /** One track's position, `× times ÷ div` (floored) `+ plus`. */
   | {readonly kind: 'track', readonly track: TrackRef, readonly plus?: number, readonly times?: number, readonly div?: number}
   /**
    * A reading over a SET of tracks. `sum` / `max` / `min` (with `drop` — the least-advanced positions it may
-   * ignore) / `countAtLeast` (how many reach `at`). The result is `× times` then `+ plus`. A named ref the mat does not
+   * ignore) / `countAtLeast` (how many reach `at`) / `sumTop` (the `top` most-advanced, summed — Producer's «any three
+   * tracks combined»). The result is `× times` then `+ plus`. A named ref the mat does not
    * have reads 0 (Venus without Venus Next — the honest answer for a criterion that names a track nobody has).
    */
-  | {readonly kind: 'tracks', readonly op: 'sum' | 'max' | 'min' | 'countAtLeast', readonly of: TrackSet,
-     readonly drop?: DropRule, readonly at?: number, readonly times?: number, readonly plus?: number}
+  | {readonly kind: 'tracks', readonly op: 'sum' | 'max' | 'min' | 'countAtLeast' | 'sumTop', readonly of: TrackSet,
+     readonly drop?: DropRule, readonly at?: number, readonly top?: number, readonly times?: number, readonly plus?: number}
   /** The bot's M€, `÷ per` (floored). */
   | {readonly kind: 'megacredits', readonly per?: number}
   /**
@@ -66,6 +71,11 @@ export type BotCriterion =
   | {readonly kind: 'rating', readonly plus?: number}
   /** A bot counter (`BotCounterId`). */
   | {readonly kind: 'counter', readonly counter: BotCounterId}
+  /**
+   * Several conditions at once (Landshaper: «1+ city AND 1+ greenery AND the building track at 5»). The value is the
+   * number of parts met — the player's own scale when the human milestone counts its parts the same way.
+   */
+  | {readonly kind: 'allOf', readonly of: ReadonlyArray<{readonly criterion: BotCriterion, readonly target: number}>}
   /** THE ONE honest zero (decision R5): the bot owns nothing this counts, and the reason is said in words. */
   | {readonly kind: 'zero', readonly reasonKey: string};
 
@@ -110,6 +120,16 @@ export type BotMilestoneRule = {
   readonly target?: number | 'printed';
   /** Fallback when `'printed'` meets a milestone with no numeric threshold — never a division by zero. */
   readonly printedFallback?: number;
+  /**
+   * What the bot PAYS when it claims (Briber: «Has 20 MC+, lose 12 MC», RB-C p.13) — on top of the free claim the
+   * track action gives it.
+   */
+  readonly claimCost?: {readonly megacredits: number};
+  /**
+   * How the bot's progress is SHOWN when the human milestone prints no numeric threshold: `'flag'` = 1 when met,
+   * else 0 — the very scale the human row uses (Merchant). Absent = the raw value (Briber shows M€ like the human).
+   */
+  readonly display?: 'flag';
   readonly provenance: BotMAProvenance;
 };
 

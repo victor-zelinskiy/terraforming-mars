@@ -18,6 +18,13 @@ export type TrackAction =
   | `tag_${number}`;
 
 /**
+ * A TOKEN MarsBot collects off a token cell of its mat (`token_<kind>` / `token2_<kind>`) — the random-set framework's
+ * stand-in for «resources on cards» milestones the bot has no cards for (decision R8: Dataminer → data, Aeronaut →
+ * fighters; Hoverlord's official shape, the bot's floaters off the `floater` cells). The bot keeps a count per kind.
+ */
+export type BotTokenKind = 'data' | 'fighter';
+
+/**
  * What a `colony5` cell charges once its colony is built — «MarsBot loses 5 MC
  * and resolves a "Build a Colony" action» (Adding Expansions p.14, the Pioneer /
  * Constructor cube of the Awards & Milestones module), printed on the fan-made

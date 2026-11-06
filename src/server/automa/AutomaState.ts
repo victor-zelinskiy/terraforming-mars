@@ -2,7 +2,7 @@ import {CardName} from '../../common/cards/CardName';
 import {Tag} from '../../common/cards/Tag';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {SpaceId} from '../../common/Types';
-import {BonusCardId, DifficultyLevel} from '../../common/automa/AutomaTypes';
+import {BonusCardId, DifficultyLevel, BotTokenKind} from '../../common/automa/AutomaTypes';
 import {MarsBotCorpId, MarsBotCorpResource, MarsBotCorpStats} from '../../common/automa/MarsBotCorpData';
 import {MarsBotTurn} from '../../common/automa/MarsBotTurn';
 import type {MarsBotTurnRecording} from './AutomaTurnLog';
@@ -91,6 +91,8 @@ export type SerializedAutomaState = {
   trades?: number;
   /** «Вторая смена»: the extra cards drawn in `generation` so far (`SecondShift.ts`). Absent = none drawn yet. */
   secondShift?: SecondShiftState;
+  /** The tokens collected off the mat's token cells, by kind (decision R8). Absent = none (every older save). */
+  tokens?: Partial<Record<BotTokenKind, number>>;
 };
 
 /** «Вторая смена» — the generation's count of extra cards; a new generation starts a new count. */
@@ -117,6 +119,12 @@ export class AutomaState {
   /** Colonies: B19/B20 wait here until their unlock rule moves them to `recurringBonusCards`. */
   public setAsideBonusCards: Array<BonusCardId> = [];
   public floaters: number = 0;
+  /**
+   * The bot's TOKENS by kind, gained off the `token_<kind>` / `token2_<kind>` cells a random-set mat prints for a
+   * «resources on cards» milestone (Dataminer, Aeronaut — decision R8, Hoverlord's floaters as the official shape).
+   * Read only by the bot-rule registry's `tokens:<kind>` counters; nothing spends them.
+   */
+  public tokens: Partial<Record<BotTokenKind, number>> = {};
   /** Colonies shipping board storage areas (absent key = 0 resources). */
   public shippingStorage: Partial<Record<ColonyName, number>> = {};
   public secondFleetUnlocked: boolean = false;
@@ -317,6 +325,9 @@ export class AutomaState {
     if (this.secondShift !== undefined) {
       result.secondShift = {...this.secondShift};
     }
+    if (Object.keys(this.tokens).length > 0) {
+      result.tokens = {...this.tokens};
+    }
     return result;
   }
 
@@ -366,6 +377,7 @@ export class AutomaState {
     state.failedActions = d.failedActions ?? 0;
     state.trades = d.trades ?? 0;
     state.secondShift = d.secondShift !== undefined ? {...d.secondShift} : undefined;
+    state.tokens = {...(d.tokens ?? {})};
     return state;
   }
 }

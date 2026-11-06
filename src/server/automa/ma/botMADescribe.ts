@@ -69,6 +69,9 @@ const PILE_PLURAL: Record<PilePredicateId, string> = {
   altersProduction: 'cards altering its production',
   warmonger: 'cards hurting other players',
   cityOffMars: 'cards placing a city off Mars',
+  philanthropic: 'cards with non-negative VP',
+  noTags: 'cards without tags',
+  partyRequirement: 'cards with a party requirement (events count)',
 };
 
 const PILE_SINGULAR: Record<PilePredicateId, string> = {
@@ -82,6 +85,9 @@ const PILE_SINGULAR: Record<PilePredicateId, string> = {
   altersProduction: 'a card altering production',
   warmonger: 'a card hurting other players',
   cityOffMars: 'a card placing a city off Mars',
+  philanthropic: 'a card with non-negative VP',
+  noTags: 'a card without tags',
+  partyRequirement: 'a card with a party requirement',
 };
 
 const PILE_AMOUNT: Record<PileAmountId, string> = {
@@ -92,6 +98,7 @@ const REGION_LABEL: Record<PlacementRegionId, string> = {
   southern: 'in the Southern Region',
   oceanAdjacent: 'next to an ocean',
   edge: 'on the board edge',
+  suburbianEdge: 'on the edge of the map',
   specialTileAdjacent: 'next to a special tile',
   notOceanAdjacent: 'away from every ocean',
   ownCityAdjacent: 'next to its own city',
@@ -135,6 +142,9 @@ function milestoneText(criterion: BotCriterion, target: number | undefined): Mes
     if (criterion.op === 'countAtLeast') {
       return msg('MarsBot: ${0} tracks at space ${1} or higher', num(t), num(criterion.at ?? 0));
     }
+    if (criterion.op === 'sumTop') {
+      return msg('MarsBot: its ${0} best tracks except Venus combined at ${1}', num(criterion.top ?? 0), num(t));
+    }
     if (refs === undefined) {
       if (criterion.op === 'max') {
         return msg('MarsBot: any one track at space ${0}', num(t));
@@ -177,6 +187,15 @@ function milestoneText(criterion: BotCriterion, target: number | undefined): Mes
     return msg('MarsBot: a TR of ${0}', num(t));
   case 'counter':
     return counterText(criterion.counter, t);
+  case 'allOf': {
+    // Landshaper's three parts (RB-C p.13) — the one composite the registry holds; a new shape fails the guard here.
+    const [city, greenery, track] = criterion.of;
+    if (criterion.of.length === 3 && city.criterion.kind === 'counter' && city.criterion.counter === 'cities' &&
+        greenery.criterion.kind === 'counter' && greenery.criterion.counter === 'greeneries' && track.criterion.kind === 'track') {
+      return msg('MarsBot: a city, a greenery and ${0} at space ${1}', label(trackLabel(track.criterion.track)), num(track.target));
+    }
+    throw new Error(`No milestone text for this composite: ${JSON.stringify(criterion)}`);
+  }
   case 'zero':
     return msg(criterion.reasonKey);
   }
@@ -190,6 +209,14 @@ function counterText(counter: BotCounterId, target: number): Message {
     return msg('MarsBot: ${0} destroyed bonus cards', num(target));
   case 'smallActionDeck':
     return msg('MarsBot: at most 2 cards left in its action deck');
+  case 'cities':
+    return msg('MarsBot: ${0} cities', num(target));
+  case 'greeneries':
+    return msg('MarsBot: ${0} greeneries', num(target));
+  case 'tokens:data':
+    return msg('MarsBot: ${0} data tokens off its mat', num(target));
+  case 'tokens:fighter':
+    return msg('MarsBot: ${0} fighter tokens off its mat', num(target));
   }
 }
 
@@ -216,6 +243,9 @@ function awardText(criterion: BotCriterion): Message {
     if (criterion.op === 'countAtLeast') {
       return msg('MarsBot: the number of its tracks at space ${0} or higher', num(criterion.at ?? 0));
     }
+    if (criterion.op === 'sumTop') {
+      return msg('MarsBot: its ${0} best tracks combined', num(criterion.top ?? 0));
+    }
     if (refs === undefined) {
       if (criterion.op === 'max') {
         return doubled ? msg('MarsBot: its highest track space, doubled') : msg('MarsBot: its highest track space');
@@ -232,7 +262,9 @@ function awardText(criterion: BotCriterion): Message {
       return msg('MarsBot: ${0} + ${1} spaces', labels[0], labels[1]);
     }
     if (criterion.op === 'max' && refs.length === 2) {
-      return msg('MarsBot: the higher of ${0} and ${1}', labels[0], labels[1]);
+      return (criterion.plus ?? 0) > 0 ?
+        msg('MarsBot: the higher of ${0} and ${1} + ${2}', labels[0], labels[1], num(criterion.plus ?? 0)) :
+        msg('MarsBot: the higher of ${0} and ${1}', labels[0], labels[1]);
     }
     throw new Error(`No award text for a ${criterion.op} over ${refs.length} tracks`);
   }
@@ -251,7 +283,8 @@ function awardText(criterion: BotCriterion): Message {
   case 'rating':
     return msg('MarsBot: its TR − ${0}', num(-(criterion.plus ?? 0)));
   case 'counter':
-    return msg('MarsBot: counted as for a player');
+  case 'allOf':
+    throw new Error(`No award text for ${criterion.kind}`);
   case 'zero':
     return msg(criterion.reasonKey);
   }
@@ -306,6 +339,10 @@ export function describeMilestone(milestone: IMilestone, game: IGame): Message |
   const target = rule.target === 'printed' ?
     milestoneThreshold(milestone, game) ?? rule.printedFallback :
     rule.target;
+  if (rule.claimCost !== undefined && rule.criterion.kind === 'megacredits') {
+    // Briber: the price of the claim is part of the rule the player must read.
+    return msg('MarsBot: ${0} M€, then pays ${1} M€ to claim', num(target ?? 0), num(rule.claimCost.megacredits));
+  }
   return milestoneText(rule.criterion, target);
 }
 

@@ -7,7 +7,7 @@ import {Founder} from '../awards/modular/Founder';
 import {isSpecialTileSpace} from '../boards/Board';
 import {TileType} from '../../common/TileType';
 import {marsBotOf} from './AutomaUtil';
-import {botAwardRawScore, botMilestoneProgress} from './ma/botMAInterpreter';
+import {botAwardRawScore, botMilestoneProgress, botMilestoneShownAsFlag} from './ma/botMAInterpreter';
 
 /**
  * How MarsBot evaluates milestones & awards — the PUBLIC face of the bot-rule registry. Each name's rule is ONE row
@@ -77,8 +77,11 @@ export class AutomaMAEvaluation {
     }
     const threshold = milestoneThreshold(milestone, game);
     if (threshold === undefined || progress.target <= 0) {
-      // A milestone with no numeric threshold has no scale to map onto; the
-      // raw progress is the only honest thing left to say.
+      // A milestone with no numeric threshold has no scale to map onto. A human row that is a 0 / 1 flag (Merchant)
+      // gets the bot's flag; otherwise the raw progress is the only honest thing left to say (Briber: M€ on both rows).
+      if (botMilestoneShownAsFlag(milestone.name)) {
+        return progress.value >= progress.target ? 1 : 0;
+      }
       return progress.value;
     }
     return Math.floor((progress.value * threshold) / progress.target);

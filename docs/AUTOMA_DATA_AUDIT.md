@@ -2071,8 +2071,47 @@ Spacefarer4, Terran5, Tactician4 — читают ветку игрока и н�
 Entrepreneur (+ Cosmic Settler — НЕТ по образцу Politician, решение BF4). Двойники попадают в набор при
 `randomMA ∈ {LIMITED, UNLIMITED}` с модульным пулом — поэтому реестр закрывает их правилом из модуля.
 
-### 22.3. Законы калибровки (данные — `src/server/automa/ma/calibration.ts`, этап 1+)
-*(заполняется на этапе 1: таблица законов с источником каждого)*
+**ЭТАП 2 СДАН (2026-11-06): у каждого имени — строка реестра.** Новые: Briber (M€ ≥ 20, при взятии −12 M€, строка в M€
+как у человека) · Builder7 / Spacefarer4 / Terran5 (трек метки, порог модуля) · Tactician4 (28 M€ — закон Forecaster)
+· Hydrologist / Thawer — ИГРОК: движок уже относит боту ЕГО океаны / подъёмы (`globalParameterSteps`), а подъёмы
+Government Intervention (под SOLAR) — нет, ровно «track MarsBot's … separately» · Landshaper (город + озеленение +
+трек метки строительства ≥ 5, три части на шкале человека) · Merchant (2 на каждом треке, кроме Венеры; показ — флаг
+0 / 1, как у человека) · Philantropist (предикат вехи `Philantropist.counts` на стопке) · Producer (три лучших трека
+без Венеры ≥ 16) · Sponsor (стопка, cost ≥ 20, события считаются) · Activist / Influencer — ИГРОК (маркер Повестки
+бота ходит по тому же треку; двери «сдвинуть Повестку бота» нет → помощник Influencer НЕТ с причиной) · Dataminer /
+Aeronaut — жетоны (`AutomaState.tokens`, сериализуются; клетки — генератор) · Administrator (стопка без меток + 2;
+помощник — вскрыть до карты без меток, +5 M€ сверх оплаты: карта без меток для бота ещё и Failed Action) · Collector
+(треков на 3+; помощник — самый отстающий) · Constructor (игрок; помощник — город) · Manufacturer (building + power;
+помощник — меньший, building при ничьей) · Politologist (`hasPartyRequirement` на стопке; помощник — вскрыть) ·
+Suburbian (игрок; помощник — озеленение на краю по СОБСТВЕННОМУ набору клеток награды `Suburbian.onEdge`) ·
+Entrepreneur — `zero` (Р5). Rugged — помощник НЕТ: озеленение у опасной зоны — это ровно то, чего бот избегает
+(правило избегания Ares). Предикаты — статики классов (`Philantropist.counts`, `Administrator.untagged` — его читает и
+`Tags.numberOfCardsWithNoTags`, `Suburbian.onEdge`). Спек — `tests/automa/ma/botMAStage2Rules.spec.ts`.
+
+### 22.3. Законы калибровки (данные — `src/server/automa/ma/calibration.ts`)
+
+Каждое домашнее правило реестра называет официальный аналог (`provenance.analog`), трековое / стопочное — закон
+(`provenance.law`); гард `tests/automa/ma/botMARegistry.spec.ts` проверяет оба. Генератор (этап 3) читает законы,
+чтобы решить, на каком треке может лежать критерий.
+
+| Закон | Формулировка | Официальные образцы |
+|---|---|---|
+| `tags-single` | N меток одного вида ↔ клетка N на треке этой метки | Researcher 4 ↔ 4 (B11), Spacefarer 4 ↔ 4, Terran 5 ↔ 5 (RB-C p.14), Agronomist 4 ↔ 4 (B13) |
+| `tags-paired` | N меток второстепенной метки парного трека ↔ клетка 2N | Rim Settler 3 Jovian ↔ Jovian/Science 6 (B09), Architect 3 City ↔ City/Science 6 (B12) |
+| `production-badge` | производство ресурса ↔ трек с печатным значком (сталь → building, титан → space, M€ → event, энергия → power, тепло → earth, растения → bio); тепло может ехать на power по ассоциации Thermalist | Energizer 6 ↔ 6 (B09), Forester 4 ↔ bio 6 (RB-C p.13), Fundraiser 12 ↔ event 10 (B12), Thermalist тепло ↔ power (RB-A) |
+| `production-sum` | сумма двух производств ↔ сумма двух значковых треков, без добавки | Banker building + event (RB-A), Manufacturer building + power (RB-C p.15), Smith ≥ 7 (B11) |
+| `resources-mc` | ресурсы на руках ↔ M€ ÷ 5; карты с требованиями ↔ M€ ÷ 7 | Excentric ÷ 5 (B09), Forecaster ÷ 7 (B12), Tactician 35 = 5 карт × 7 (B09) |
+| `pile` | карты в игре ↔ сыгранная стопка; события считаются там, где человек их не считает | Celebrity (B10), Incorporator (B11), Sponsor (RB-C p.14), Tycoon / Legend «As usual (… in played pile)» |
+| `tiles` | тайлы на поле ↔ реальные тайлы бота, счёт человека | Mayor / Gardener / Landlord (RB-A), Desert Settler / Estate Dealer (B10), Coastguard (RB-C p.13) |
+| `award-offset` | +5 у наград за РЕСУРСЫ (трек меряет производство, не запас); гандикап, где трек шире критерия | Thermalist / Miner +5 (RB-A), Industrialist +5 (B10), A. Zoologist +5 (B12), Botanist −2 (B11), Benefactor −15 (B10) |
+
+**Ссылка на трек — по СМЫСЛУ (решение Р10, этап 2).** Критерий, считающий метки, ссылается на трек МЕТКИ (`{tag}`),
+считающий производство — на трек ЗНАЧКА (`{production}`), и только там, где оригинал называет сами строки (Banker,
+Tradesman, Manufacturer, Planner / Generalist — «каждый трек»), — на роль. На десяти статических планшетах роль и
+значок совпадают всегда, метки — нет: перенаправленные Rim Settler (трек Jovian), Architect (трек City), Farmer (трек
+Microbe ИЛИ Animal), Traveller (трек Jovian ИЛИ Earth, +5 — как в модуле RB-C p.15) совпадают со старым правилом на
+родной карте имени (пин — `botMARegistryDifferential.spec.ts`, `REPOINTED`) и следуют метке на планшете, где она
+переехала.
 
 ### 22.4. ПОЛОСА БАЛАНСА — снята со всех десяти статических планшетов ДО генератора (Р9)
 

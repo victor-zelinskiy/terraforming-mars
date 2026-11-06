@@ -1,5 +1,6 @@
 // Methods for a player's relationship to their card tags
 
+import {Administrator} from '../awards/modular/Administrator';
 import {CardName} from '../../common/cards/CardName';
 import {CardType} from '../../common/cards/CardType';
 import {ALL_TAGS, Tag} from '../../common/cards/Tag';
@@ -395,7 +396,7 @@ export class Tags {
       if (card.name === CardName.PHARMACY_UNION && card.isDisabled === true) {
         return false;
       }
-      return card.type !== CardType.EVENT && card.tags.every((tag) => tag === Tag.WILD);
+      return Administrator.untagged(card);
     });
     return filtered.length;
   }

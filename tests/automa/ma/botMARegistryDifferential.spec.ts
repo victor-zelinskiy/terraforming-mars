@@ -28,8 +28,28 @@ import {addOcean} from '../../TestingUtils';
  * (docs/claude/marsbot-dynamic-ma-progress.md § deviations).
  */
 
-/** Names the registry deliberately re-pointed after the migration → the boards where it must still agree. */
-const REPOINTED: ReadonlyMap<string, ReadonlyArray<string>> = new Map();
+/**
+ * Names the registry deliberately RE-POINTED after the migration → the boards where it must still agree (stage 2,
+ * decision R10): a tag-counting criterion follows its TAG, which rides another track on the other maps — the old
+ * switch read a ROLE that was only right on the name's home board.
+ */
+const REPOINTED: ReadonlyMap<string, ReadonlyArray<string>> = new Map([
+  ['Rim Settler', ['hellas']], // the Jovian-tag track (Jovian/Science on Hellas)
+  ['Architect', ['terra cimmeria nova']], // the City-tag track (City/Science on Terra Cimmeria Nova)
+  ['Farmer', ['vastitas borealis nova']], // the Microbe- or Animal-tag track (Microbe/Science, Animal/Plant on Nova)
+  ['Traveller', ['vastitas borealis nova']], // the Jovian- or Earth-tag track (both on Jovian/Earth on Nova)
+]);
+
+/**
+ * Names the legacy switch had NO rule for (they read the player branch — 0 for most) and stage 2 gave one
+ * (docs/AUTOMA_DATA_AUDIT.md §22.2): there is nothing to agree with. Their own specs pin them.
+ */
+const NEW_IN_STAGE_2: ReadonlySet<string> = new Set([
+  'Briber', 'Builder7', 'Landshaper', 'Merchant', 'Philantropist', 'Producer', 'Spacefarer4', 'Sponsor', 'Tactician4',
+  'Terran5', 'Dataminer', 'Aeronaut', 'Administrator', 'Collector', 'Manufacturer', 'Politologist',
+  // A helper of their own where the legacy switch had none (the score stays the player's):
+  'Constructor', 'Suburbian',
+]);
 
 function lcg(seed: number): () => number {
   let state = (seed * 2654435761) >>> 0;
@@ -106,6 +126,9 @@ function firstDifference(a: unknown, b: unknown, path = ''): string | undefined 
 }
 
 function mustAgree(name: string, boardName: string): boolean {
+  if (NEW_IN_STAGE_2.has(name)) {
+    return false;
+  }
   const homes = REPOINTED.get(name);
   return homes === undefined || homes.includes(boardName);
 }
