@@ -7,7 +7,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {Resource} from '../../../common/Resource';
 import {MarsBotTrackRole} from '../../../common/automa/AutomaTypes';
 import {BotCounterId, BotCriterion, BotHelper, HelperTrack, TrackRef, TrackSet} from './BotMARule';
-import {botAwardHelper, botAwardRule, botMilestoneRule, milestoneCriterion} from './botMAInterpreter';
+import {botAwardHelper, botAwardRule, botMilestoneRule, milestoneCriterion, resolveTrackIndex} from './botMAInterpreter';
 import {PilePredicateId, PileAmountId} from './pilePredicates';
 import {PlacementRegionId} from './placementRegions';
 
@@ -170,6 +170,12 @@ function milestoneText(criterion: BotCriterion, target: number | undefined): Mes
     if (criterion.op === 'min' && refs.length === 3) {
       return msg('MarsBot: ${0}, ${1} and ${2} each at space ${3}', labels[0], labels[1], labels[2], num(t));
     }
+    if (criterion.op === 'min' && refs.length === 2) {
+      return msg('MarsBot: ${0} and ${1} each at space ${2}', labels[0], labels[1], num(t));
+    }
+    if (criterion.op === 'min' && refs.length === 1) {
+      return msg('MarsBot: ${0} at space ${1}', labels[0], num(t));
+    }
     throw new Error(`No milestone text for a ${criterion.op} over ${refs.length} tracks`);
   }
   case 'megacredits':
@@ -307,7 +313,10 @@ export function describeHelper(helper: BotHelper): Message {
   case 'advance':
     return helperTrackText(helper.track);
   case 'advanceExtreme':
-    return helper.which === 'least' ? msg('advances its lowest track') : msg('advances its highest track');
+    if (helper.which === 'least') {
+      return helper.excluding === 'venus' ? msg('advances its lowest track, the Venus track aside') : msg('advances its lowest track');
+    }
+    return msg('advances its highest track');
   case 'greenery':
     return helper.restrict === undefined ?
       msg('places a greenery') :
@@ -344,7 +353,20 @@ export function describeMilestone(milestone: IMilestone, game: IGame): Message |
     // Briber: the price of the claim is part of the rule the player must read.
     return msg('MarsBot: ${0} M€, then pays ${1} M€ to claim', num(target ?? 0), num(rule.claimCost.megacredits));
   }
-  return milestoneText(milestoneCriterion(rule, game), target);
+  return milestoneText(liveCriterion(milestoneCriterion(rule, game), game), target);
+}
+
+/**
+ * The criterion as THIS mat reads it: a track the criterion leaves out when the mat does not have it (`missing:
+ * 'leave-out'` — Tradesman's Venus track in a game without Venus Next) is left out of the sentence too. The line named
+ * «the Venus track» in a game that has none (the review of 2026-11-06).
+ */
+function liveCriterion(criterion: BotCriterion, game: IGame): BotCriterion {
+  const board = game.automa?.board;
+  if (board === undefined || criterion.kind !== 'tracks' || criterion.missing !== 'leave-out' || typeof criterion.of === 'string') {
+    return criterion;
+  }
+  return {...criterion, of: criterion.of.filter((ref) => resolveTrackIndex(board, ref) !== undefined)};
 }
 
 /** The bot's score line for an award — `undefined` when the name has no registry row. */

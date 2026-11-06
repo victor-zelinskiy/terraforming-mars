@@ -44,6 +44,10 @@ export function botMilestoneThresholds(game: IGame): Array<BotMilestoneThreshold
   if (board === undefined) {
     return [];
   }
+  // Once every milestone slot is taken a mark promises a claim nobody can make.
+  if (game.allMilestonesClaimed()) {
+    return [];
+  }
   const marks: Array<BotMilestoneThreshold> = [];
   for (const milestone of game.milestones) {
     const rule = botMilestoneRule(milestone.name);
@@ -57,7 +61,9 @@ export function botMilestoneThresholds(game: IGame): Array<BotMilestoneThreshold
       criterion.kind === 'tracks' && criterion.op === 'max' && typeof criterion.of !== 'string' ? criterion.of : [];
     for (const ref of refs) {
       const trackIndex = resolveTrackIndex(board, ref);
-      if (trackIndex !== undefined && target !== undefined && target <= board.tracks[trackIndex].maxPosition) {
+      // Two refs of one criterion may ride ONE track on this mat (Farmer's Microbe and Animal on a bio row) — one mark.
+      if (trackIndex !== undefined && target !== undefined && target <= board.tracks[trackIndex].maxPosition &&
+          !marks.some((m) => m.trackIndex === trackIndex && m.cell === target && m.milestone === milestone.name)) {
         marks.push({trackIndex, cell: target, milestone: milestone.name as MilestoneName});
       }
     }
@@ -120,16 +126,33 @@ export function botSetBriefing(game: IGame): Array<Message> {
       continue;
     }
     const token = isMilestone ? milestoneToken(name) : awardToken(name);
+    // WHAT THE MAT PLAYS, never what the rule's row would ask for alone: only ONE rule of a set competes with the
+    // icons (`placementOf`), every later one is demoted to a step after them — and the briefing used to state the
+    // declared form of each (a set with Polar Explorer, Highlander and Suburbian said «no longer seeks the oceans
+    // first» and «counts the edge as one more icon» about a mat that does neither — the review of 2026-11-06).
+    const played = mat.placement;
+    const towards = (where: string) =>
+      out.push({message: 'For ${0} the bot places its tiles towards ${1}', data: [token, label(PLACEMENT_LABEL[where] ?? where)]});
     switch (placement.mode) {
     case 'step-before-icons':
     case 'step-after-icons':
-      out.push({message: 'For ${0} the bot places its tiles towards ${1}', data: [token, label(PLACEMENT_LABEL[placement.step] ?? placement.step)]});
+      // Before the icons or after them, the step is a preference towards the region — true of both forms.
+      if (played === undefined || played.steps.includes(placement.step)) {
+        towards(placement.step);
+      }
       break;
     case 'icon-bonus':
-      out.push({message: 'For ${0} the bot counts ${1} as one more bonus icon', data: [token, label(PLACEMENT_LABEL[placement.region] ?? placement.region)]});
+      if (played === undefined || played.iconBonus.includes(placement.region)) {
+        out.push({message: 'For ${0} the bot counts ${1} as one more bonus icon', data: [token, label(PLACEMENT_LABEL[placement.region] ?? placement.region)]});
+      } else if (played.steps.includes(`region:${placement.region}`)) {
+        towards(placement.region);
+      }
       break;
     case 'lower-oceans':
-      out.push({message: 'For ${0} the bot no longer seeks the oceans first', data: [token]});
+      // Said only when the oceans really stand below the icons on this mat; a demoted rule changes nothing.
+      if (played === undefined || played.steps.indexOf('oceans') > played.steps.indexOf('reward-icons')) {
+        out.push({message: 'For ${0} the bot no longer seeks the oceans first', data: [token]});
+      }
       break;
     }
   }

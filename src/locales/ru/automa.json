@@ -693,7 +693,7 @@
     "Highlander places a greenery away from every ocean and raises oxygen 1 step": "«Горец» ставит озеленение вдали от любого океана и поднимает кислород на 1 шаг",
     "Blacksmith advances the building or space track, whichever is further": "«Кузнец» продвигает трек зданий или космоса — тот, что дальше",
     "Edgedancer places a greenery on the board edge and raises oxygen 1 step": "«Гранетанцор» ставит озеленение на краю поля и поднимает кислород на 1 шаг",
-    "Visionary advances the least-advanced track (the topmost one if tied)": "«Накопитель» продвигает самый отстающий трек (при равенстве — верхний)",
+    "Visionary advances the least-advanced track, the Venus track aside (the topmost one if tied)": "«Накопитель» продвигает самый отстающий трек, кроме трека Венеры (при равенстве — верхний)",
     "Naturalist advances the plant track or the Earth track, whichever is behind": "«Натуралист» продвигает растительный или земной трек — тот, что отстаёт",
     "Voyager advances the Jovian track": "«Вояджер» продвигает трек Юпитера",
     "Curator advances the most-advanced track (the topmost one if tied)": "«Куратор» продвигает самый дальний трек (при равенстве — верхний)",

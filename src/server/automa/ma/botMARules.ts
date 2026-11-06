@@ -157,9 +157,10 @@ export const BOT_MILESTONE_RULES: Partial<Record<MilestoneName, BotMilestoneRule
   'Spacefarer4': {criterion: {kind: 'track', track: SPACE_TAG}, target: 4, provenance: {source: 'RB-C', page: 14}},
   // «3 cards costing 20 MC or more in MarsBot's played pile, BUT including events».
   'Sponsor': {criterion: {kind: 'pile', count: 'cost20plus'}, target: 'printed', printedFallback: 3, provenance: {source: 'RB-C', page: 14}},
-  // 4 cards with requirements ↔ 28 M€: Forecaster's 7 M€ a card (B12), the law Tactician's 35 = 5 × 7 already follows.
-  'Tactician4': {criterion: {kind: 'megacredits'}, target: 28,
-    provenance: {source: 'home', analog: 'Tactician 35 M€ = 5 cards × Forecaster\'s 7 (B09, B12)', law: 'resources-mc'}},
+  // «Tactician — Has 30 MC+» (RB-C p.14): the module's Tactician IS the 4-card one — its row stands in the module's
+  // list of reduced twins (Builder 7, Spacefarer 4, Terran 5, Legend 4, Tycoon 10), beside Hellas' own 35 for 5 cards.
+  // OFFICIAL, never the home «7 M€ a card» (28) it shipped with — the review of 2026-11-06.
+  'Tactician4': {criterion: {kind: 'megacredits'}, target: 30, provenance: {source: 'RB-C', page: 14}},
   'Terran5': {criterion: {kind: 'track', track: EARTH_TAG}, target: 5, provenance: {source: 'RB-C', page: 14}},
   // «As usual (increased temperature 5 times) — track MarsBot's increases separately» — Hydrologist's reading.
   'Thawer': asUsualMilestone('RB-C p.14 «As usual (5 temperature raises)» — the bot\'s own raises, globalParameterSteps'),
@@ -235,7 +236,8 @@ export const BOT_AWARD_RULES: Partial<Record<AwardName, BotAwardRule>> = {
   // ── Vastitas Borealis, the fan map (BF1, §17.3 / §17.6) ────────────────────
   // OFFICIAL criterion (RB-C p.15): «Lowest track space (2nd lowest with Venus) doubled»; the helper lifts the floor.
   'Visionary': {criterion: {kind: 'tracks', op: 'min', of: 'all', drop: 'venus', times: 2},
-    helper: {kind: 'advanceExtreme', which: 'least'}, provenance: {source: 'RB-C', page: 15}},
+    // «Advance the least advanced track, excluding the Venus track» (RB-C p.16) — the track the criterion drops.
+    helper: {kind: 'advanceExtreme', which: 'least', excluding: 'venus'}, provenance: {source: 'RB-C', page: 15}},
   'Naturalist': {criterion: {kind: 'tracks', op: 'sum', of: [PLANT_BADGE, HEAT_BADGE]},
     helper: {kind: 'advance', track: {pick: 'least', of: [HEAT_BADGE, PLANT_BADGE]}},
     provenance: {source: 'home', analog: 'Manufacturer / Banker — the sum of two badge tracks (RB-C p.15)', law: 'production-sum'}},

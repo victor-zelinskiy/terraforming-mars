@@ -101,16 +101,34 @@ describe('Ares house rule 4 — MarsBot clears hazards', () => {
     expect(AutomaAres.clearanceCandidates(game, legal, ordinary, 'turn'), 'no better than the ordinary cells').is.undefined;
   });
 
-  it('IN THE GAME: a hazard strictly better than every ordinary cell is covered — once a generation', () => {
-    const [game, bot] = aresGame('-clear-turn-yes');
-    const land = freeLand(game, bot);
-    const hazard = land[0];
+  it('IN THE GAME: the icons printed UNDER a hazard are not its merit — a covering tile is paid none of them', () => {
+    const [game, bot] = aresGame('-clear-turn-icons');
+    const [hazard] = freeLand(game, bot);
     putHazard(hazard);
-    // Make the hazard the richest cell on the board by far: three printed icons beyond any other.
+    // The richest cell of the board by far — on paper: six icons the cover would never be paid.
     hazard.bonus = [SpaceBonus.STEEL, SpaceBonus.STEEL, SpaceBonus.STEEL, SpaceBonus.STEEL, SpaceBonus.STEEL, SpaceBonus.STEEL];
     for (const space of game.board.spaces.filter((s) => s !== hazard)) {
       space.bonus = [];
     }
+    bot.megaCredits = 30;
+    game.generation = CLEARANCE.fromGeneration;
+    const legal = legalGreenery(game, bot);
+    expect(AutomaAres.clearanceCandidates(game, legal, AutomaAres.withoutHazardSpaces(game, legal), 'turn'),
+      'eight M€ for a TR step is break-even — the unpaid icons add nothing').is.undefined;
+    AutomaTilePlacer.placeGreenery(game);
+    expect(hazard.tile?.tileType, 'the storm is left alone').eq(TileType.DUST_STORM_MILD);
+    expect(bot.megaCredits, 'and nothing was paid for it').is.at.least(30);
+  });
+
+  it('IN THE GAME: a hazard worth its price (the Purifier chase) is covered — once a generation, 5 M€ kept', () => {
+    const [game, bot] = aresGame('-clear-turn-yes');
+    const hazard = freeLand(game, bot)[0];
+    putHazard(hazard);
+    for (const space of game.board.spaces) {
+      space.bonus = [];
+    }
+    // The merit that is REAL: the milestone the clearance counts towards (+4 while the bot chases it).
+    game.milestones.push(new Purifier());
     bot.megaCredits = 30;
     game.generation = CLEARANCE.fromGeneration;
     const before = purifierCount(game, bot);
@@ -118,11 +136,10 @@ describe('Ares house rule 4 — MarsBot clears hazards', () => {
     expect(hazard.tile?.tileType).eq(TileType.GREENERY);
     expect(purifierCount(game, bot) - before).eq(1);
     expect(game.automa!.lastClearanceGeneration).eq(CLEARANCE.fromGeneration);
-    // A second rich hazard in the SAME generation is left alone.
+    // A second hazard in the SAME generation is left alone.
     // A greenery must now touch the bot's own tiles, so the next legal cells are the new greenery's neighbours.
     const second = freeLand(game, bot, [hazard])[0];
     putHazard(second);
-    second.bonus = [SpaceBonus.STEEL, SpaceBonus.STEEL, SpaceBonus.STEEL, SpaceBonus.STEEL, SpaceBonus.STEEL, SpaceBonus.STEEL];
     const legal = legalGreenery(game, bot);
     expect(AutomaAres.clearanceCandidates(game, legal, AutomaAres.withoutHazardSpaces(game, legal), 'turn'), 'once a generation').is.undefined;
     game.generation++;

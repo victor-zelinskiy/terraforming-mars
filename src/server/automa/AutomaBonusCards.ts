@@ -728,6 +728,19 @@ export function tryAwardHelper(game: IGame, awardName: string): boolean {
   case 'advanceExtreme':
     // «The least-advanced track, the topmost if tied» (B28's form — that track maxed ⇒ impossible), or «the
     // most-advanced track» among those that can still move, topmost of the tied (B12 Mogul).
+    if (helper.which === 'least' && helper.excluding !== undefined) {
+      // «…excluding the Venus track» (Visionary, RB-C p.16) — the same reading over the other tracks: the topmost of
+      // the tied, that track maxed ⇒ impossible. Without it the helper pushed a Venus track the award's own criterion
+      // drops (the bot paid 5 M€ and its Visionary score did not move — the review of 2026-11-06).
+      const excluded = board.getTrackIndexOfRole(helper.excluding);
+      let least: number | undefined;
+      board.tracks.forEach((track, index) => {
+        if (index !== excluded && (least === undefined || track.position < board.tracks[least].position)) {
+          least = index;
+        }
+      });
+      return advanceIndex(least);
+    }
     return advanceIndex(helper.which === 'least' ?
       board.getLeastAdvancedTrackIndex() :
       board.getMostAdvancedNonMaxedTrackIndex());

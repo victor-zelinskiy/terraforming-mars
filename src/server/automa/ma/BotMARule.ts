@@ -92,8 +92,10 @@ export type BotHelper =
   /**
    * «Advance the least-advanced track» (B28 Diversification's form — the board's own `getLeastAdvancedTrackIndex`,
    * topmost on ties; that track maxed ⇒ impossible) or «the most-advanced track that can still move» (Mogul, B12).
+   * `excluding` — «…the least advanced track, EXCLUDING the Venus track» (Visionary, RB-C p.16): the same reading over
+   * the Martian tracks only.
    */
-  | {readonly kind: 'advanceExtreme', readonly which: 'least' | 'mostMovable'}
+  | {readonly kind: 'advanceExtreme', readonly which: 'least' | 'mostMovable', readonly excluding?: 'venus'}
   /** «MarsBot places a greenery / city tile» — the ordinary bot pipeline; `restrict` is a HARD constraint. */
   | {readonly kind: 'greenery' | 'city', readonly restrict?: PlacementRegionId}
   /** «Reveal until a <matching> card, resolve it» (+ M€; `free` = does not cost the card's 5 M€ — Forecaster). */

@@ -15,6 +15,7 @@ import {GeneratedMat, generateBotMat} from './ma/matGenerator';
 import {DeckTagMix} from './ma/matPressure';
 import {AutomaResolver} from './AutomaResolver';
 import {milestoneManifest} from '../milestones/Milestones';
+import {GameCards} from '../GameCards';
 
 export class AutomaSetup {
   /** Normalize the server `GameOptions` into the shared compatibility input. */
@@ -125,9 +126,17 @@ export class AutomaSetup {
     });
   }
 
-  /** The game's project deck as printed-tag occurrences per card (the bot's own reading — `printedTags`). */
+  /**
+   * The game's project deck as printed-tag occurrences per card (the bot's own reading — `printedTags`).
+   *
+   * The WHOLE card set of the game's options (`GameCards` — what the deck is built from), never the piles as they
+   * stand: the bot is seated after the humans are dealt, so the piles lack the dealt hands — and a mix read off them
+   * made the mat depend on the DEAL (the review of 2026-11-06: one set, map and options gave three different layouts
+   * across seeds wherever a threshold's arrival sat on the pressure window's edge). The generator's input is the set,
+   * the map and the options — nothing a shuffle moves.
+   */
   public static deckTagMix(game: IGame): DeckTagMix {
-    const cards = [...game.projectDeck.drawPile, ...game.projectDeck.discardPile];
+    const cards = new GameCards(game.gameOptions).getProjectCards();
     const mix: DeckTagMix = {};
     for (const card of cards) {
       for (const tag of AutomaResolver.printedTags(card)) {

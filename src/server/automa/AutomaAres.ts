@@ -46,10 +46,14 @@ import {marsBotOf} from './AutomaUtil';
  */
 /**
  * THE IN-GAME CLEARANCE PARAMETERS (house rule 4, the owner's decision): «only when it truly pays, not early, not
- * aggressively». A hazard's score = its reward icons + adjacency units − 2 per adjacent hazard + 8 per TR step − its
- * price (+ 4 while chasing Purifier); it must beat the best ordinary cell's (icons + units − 2 per adjacent hazard)
- * STRICTLY. 8 M€ a TR step is the price itself — a cleared hazard wins on its own merits (more icons than any other
- * cell), never on the TR alone. Tuned on the Ares bench (docs/AUTOMA_DATA_AUDIT.md §22.7).
+ * aggressively». A hazard's score = WHAT THE CELL PAYS THE BOT — its Ares adjacency units, and NOT the icons printed
+ * under the hazard: a tile that covers a hazard is paid no printed bonus (`Game.grantPlacementBonuses`, the
+ * `coveringExistingTile` branch — the hazard is the tile already on the cell) — − 2 per adjacent hazard + 8 per TR
+ * step − its price (+ 4 while chasing Purifier); it must beat the best ordinary cell's (icons + units − 2 per
+ * adjacent hazard) STRICTLY. 8 M€ a TR step is the price itself — a cleared hazard wins on its own merits (the
+ * adjacency it earns, the milestone it chases), never on the TR alone. (Until the review of 2026-11-06 the score
+ * counted the printed icons too: a storm on a 3-steel cell beat every 2-icon cell and the bot paid 8 M€ for nothing
+ * it was then paid.) Tuned on the Ares bench (docs/AUTOMA_DATA_AUDIT.md §22.7).
  */
 export const CLEARANCE = {
   fromGeneration: 4,
@@ -115,13 +119,14 @@ export class AutomaAres {
     if (game.generation < CLEARANCE.fromGeneration || game.automa.lastClearanceGeneration === game.generation) {
       return undefined;
     }
-    const value = (space: Space) => botRewardIcons(game, bot, space) + AutomaAres.adjacencyBonusUnits(game, space) -
-      CLEARANCE.perAdjacentHazard * AutomaAres.hazardAdjacencyCount(game, space);
-    const bestOrdinary = ordinary.length === 0 ? Number.NEGATIVE_INFINITY : Math.max(...ordinary.map(value));
+    // What the cell pays: the printed icons only where they ARE paid — never under a hazard the tile covers.
+    const value = (space: Space, coversHazard = false) => (coversHazard ? 0 : botRewardIcons(game, bot, space)) +
+      AutomaAres.adjacencyBonusUnits(game, space) - CLEARANCE.perAdjacentHazard * AutomaAres.hazardAdjacencyCount(game, space);
+    const bestOrdinary = ordinary.length === 0 ? Number.NEGATIVE_INFINITY : Math.max(...ordinary.map((space) => value(space)));
     const purifierChase = AutomaAres.chasesPurifier(game) ? CLEARANCE.purifierBonus : 0;
     const worth = priced
       .filter((p) => bot.megaCredits - p.cost >= CLEARANCE.keepMegacredits)
-      .map((p) => ({space: p.space, score: value(p.space) + CLEARANCE.megacreditsPerTr * p.steps - p.cost + purifierChase}))
+      .map((p) => ({space: p.space, score: value(p.space, true) + CLEARANCE.megacreditsPerTr * p.steps - p.cost + purifierChase}))
       .filter((p) => p.score > bestOrdinary);
     if (worth.length === 0) {
       return undefined;

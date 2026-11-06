@@ -438,7 +438,8 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'award', text: 'With 5+ M€: MarsBot pushes the award race it is closest to leading'},
         {icon: 'cards', text: 'Forecaster reveals project cards until one has requirements and resolves it', muted: true},
         {icon: 'greenery', text: 'Edgedancer places a greenery on the board edge and raises oxygen 1 step', muted: true},
-        {icon: 'tile', text: 'Visionary advances the least-advanced track (the topmost one if tied)', muted: true},
+        // «…excluding the Venus track» — the module's own wording (RB-C p.16); the criterion drops that track too.
+        {icon: 'tile', text: 'Visionary advances the least-advanced track, the Venus track aside (the topmost one if tied)', muted: true},
         {icon: 'tile', text: 'Naturalist advances the plant track or the Earth track, whichever is behind', muted: true},
         {icon: 'tile', text: 'Voyager advances the Jovian track', muted: true},
         ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),

@@ -498,6 +498,21 @@ describe('VASTITAS BOREALIS (fan map) + MarsBot — BF1 Corporate Competition (�
     expect(bot.megaCredits).eq(1);
   });
 
+  it('Visionary with Venus Next: the Venus track is EXCLUDED (RB-C p.16) — the lowest MARTIAN track moves', () => {
+    const [game, human, bot] = fanGame({venusNextExtension: true});
+    fund(game, human, 'Visionary');
+    setAll(game, 5);
+    setPosition(game, 'venus', 0); // the lowest track of all — the one the criterion drops
+    setPosition(game, 'event', 1); // the lowest Martian one; lands on 2, which is empty
+    bot.megaCredits = 6;
+    const before = score(game, 'Visionary');
+    resolve(game, BF1);
+    expect(position(game, 'venus'), 'the Venus track never moves on this helper').eq(0);
+    expect(position(game, 'event')).eq(2);
+    expect(score(game, 'Visionary'), 'the 5 M€ bought a real step of the award').is.greaterThan(before);
+    expect(bot.megaCredits).eq(1);
+  });
+
   it('Visionary: the TOPMOST of the tied least-advanced tracks moves', () => {
     const [game, human, bot] = fanGame();
     fund(game, human, 'Visionary');

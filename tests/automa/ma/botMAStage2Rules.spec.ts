@@ -52,7 +52,7 @@ describe('bot-rule registry — stage 2 rules', () => {
     expect(bot.megaCredits, 'lose 12 MC').eq(13);
   });
 
-  it('the module twins: Builder7 / Spacefarer4 / Terran5 read their tag track; Tactician4 reads 28 M€', () => {
+  it('the module twins: Builder7 / Spacefarer4 / Terran5 read their tag track; Tactician4 reads the module\'s 30 M€', () => {
     const [game, , bot] = testAutomaGame({}, '-twins');
     const cases: Array<[string, string, number]> = [['Builder7', 'building', 7], ['Spacefarer4', 'space', 4], ['Terran5', 'earth', 5]];
     for (const [name, role, target] of cases) {
@@ -64,10 +64,12 @@ describe('bot-rule registry — stage 2 rules', () => {
       expect(AutomaMAEvaluation.botMilestoneScore(m, game), `${name} shows its printed threshold`).eq(target);
     }
     const tactician4 = milestone(game, 'Tactician4');
-    bot.megaCredits = 27;
+    // «Tactician — Has 30 MC+» (RB-C p.14, the module's 4-card Tactician) — official, never the home «7 M€ a card».
+    bot.megaCredits = 29;
     expect(AutomaMAEvaluation.botMilestoneMet(tactician4, game)).is.false;
-    expect(AutomaMAEvaluation.botMilestoneScore(tactician4, game), 'floor(27·4/28) = 3 of 4').eq(3);
-    bot.megaCredits = 28;
+    expect(AutomaMAEvaluation.botMilestoneScore(tactician4, game), 'floor(29·4/30) = 3 of 4').eq(3);
+    bot.megaCredits = 30;
+    expect(AutomaMAEvaluation.botMilestoneMet(tactician4, game)).is.true;
     expect(AutomaMAEvaluation.botMilestoneScore(tactician4, game)).eq(4);
   });
 

@@ -159,9 +159,17 @@ test.describe(`MarsBot × random milestones and awards · ${PROFILE.id}`, () => 
     await expect(mat.locator('.mb-cell--threshold'), 'one mark per single-track milestone cell').toHaveCount(thresholds.length);
     const mark = mat.locator('.mb-cell--threshold[data-threshold*="Rim Settler"]');
     await expect(mark, 'Rim Settler\'s mark').toHaveCount(1);
-    const kant = await mark.evaluate((el) => getComputedStyle(el).boxShadow);
-    expect(kant, 'the mark is an inset KANT').toMatch(/inset/);
-    expect(kant, 'never an outer glow').not.toMatch(/\) 0px 0px [1-9]/);
+    // The mark is an OUTLINE drawn inside the cell — a kant of its own that never replaces the cube's contour (the
+    // cell's box-shadow is the current / passed marker's: the bot stands on this very mark in the fixture).
+    const kant = await mark.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return {style: s.outlineStyle, offset: parseFloat(s.outlineOffset), width: parseFloat(s.outlineWidth), current: el.classList.contains('mb-cell--current'), shadow: s.boxShadow};
+    });
+    expect(kant.style, 'the mark is a solid KANT').toBe('solid');
+    expect(kant.offset, 'drawn INSIDE the cell').toBeLessThan(0);
+    expect(kant.width, 'a hairline, never a band').toBeLessThanOrEqual(2);
+    expect(kant.current, 'the cube stands on the mark').toBe(true);
+    expect(kant.shadow, 'and keeps its own contour under it').toMatch(/inset/);
     await expect(mat.locator('[data-token-cell="data"]').first(), 'the token cells wear their glyph').toBeVisible();
     await expect(page.locator('[data-bot-tokens="data"]'), 'the data-token count').toHaveCount(1);
     await shoot(page, '11-mat-marks');
