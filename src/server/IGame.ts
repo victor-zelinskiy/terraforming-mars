@@ -75,6 +75,16 @@ export type CellBonusPaid = {
   produced?: Array<{resource: TilePlacementPaidResource, amount: number}>,
 };
 
+/**
+ * WHO PAYS ONE CELL BONUS: the cell that sends it, the cell the tile landed on (an Ares neighbour), and — for a
+ * PLACEMENT's standard resource (Amazonis Planitia) — the reaction to the chosen resource (upstream 279d4eebb6).
+ */
+export type SpaceBonusSource = {
+  spaceId?: SpaceId,
+  placedSpaceId?: SpaceId,
+  onStandardResource?: (resource: Resource) => void,
+};
+
 export type SpaceBonusGrant =
   | {kind: 'stock', resource: Resource}
   | {kind: 'production', resource: Resource}
@@ -473,7 +483,7 @@ export interface IGame extends Logger {
    * Gives all the bonuses from a space on the map — each printed icon `multiplier` times (`AddTileOptions
    * .printedBonusMultiplier`; 1 for every repeated grant: Frontier Town, Jansson, Development Craze, …).
    */
-  grantSpaceBonuses(player: IPlayer, space: Space, multiplier?: number): CellBonusPaid;
+  grantSpaceBonuses(player: IPlayer, space: Space, multiplier?: number, options?: {asPlacement?: boolean}): CellBonusPaid;
   /**
    * The ocean adjacency M€ of a placement on `space`, paid and logged; the
    * paying neighbours returned as the presentation breakdown, `undefined` when
@@ -487,7 +497,7 @@ export interface IGame extends Logger {
    * bonus was delivered — presentation metadata for the Ares adjacency
    * manifest (co-located with the branches so it can never drift).
    */
-  grantSpaceBonus(player: IPlayer, spaceBonus: SpaceBonus, count?: number, source?: {spaceId?: SpaceId, placedSpaceId?: SpaceId}): SpaceBonusGrant;
+  grantSpaceBonus(player: IPlayer, spaceBonus: SpaceBonus, count?: number, source?: SpaceBonusSource): SpaceBonusGrant;
   addGreenery(player: IPlayer, space: Space, shouldRaiseOxygen?: boolean): void;
   addCity(player: IPlayer, space: Space, cardName?: CardName | undefined): void;
   canAddOcean(): boolean;

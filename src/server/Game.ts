@@ -108,7 +108,7 @@ import {CorporationDeck, PreludeDeck, ProjectDeck, CeoDeck} from './cards/Deck';
 import {Logger} from './logs/Logger';
 import {addDays, stringToNumber} from './database/utils';
 import {Tag} from '../common/cards/Tag';
-import {AddTileOptions, CellBonusPaid, IGame, ParameterMoveOptions, Score, SpaceBonusGrant, TileMoveOrigin} from './IGame';
+import {AddTileOptions, CellBonusPaid, IGame, SpaceBonusSource, ParameterMoveOptions, Score, SpaceBonusGrant, TileMoveOrigin} from './IGame';
 import {MarsBoard} from './boards/MarsBoard';
 import {GlobalParameterMaximums} from '../common/boards/GlobalParameterMaximums';
 import {GlobalParameterThreshold, GlobalParameterTracks, getGlobalParameterTracks} from './boards/GlobalParameterTracks';
@@ -2627,7 +2627,7 @@ export class Game implements IGame, Logger {
         }
       } else {
         // Attribute the hex's printed bonuses to "cell bonus" in the journal.
-        cell = this.events.withSource({kind: 'spaceBonus'}, () => this.grantSpaceBonuses(player, space, printedBonusMultiplier));
+        cell = this.events.withSource({kind: 'spaceBonus'}, () => this.grantSpaceBonuses(player, space, printedBonusMultiplier, {asPlacement: true}));
       }
     }
 
@@ -3018,8 +3018,17 @@ export class Game implements IGame, Logger {
     return {spaceId: space.id, oceanSpaceIds: spaceIds, perOcean: player.oceanBonus, megacredits};
   }
 
-  public grantSpaceBonuses(player: IPlayer, space: Space, multiplier: number = 1): CellBonusPaid {
+  /**
+   * `options.asPlacement`: the bonuses are a PLACEMENT's (`addTile`, Survey Mission's claim) — a chosen standard
+   * resource is then announced to every card (`ICard.onStandardResourcePlacementBonus`, upstream 279d4eebb6), as a
+   * printed steel / titanium cell is announced through `onTilePlaced`. A re-grant (Jansson, Frontier Town's repeats,
+   * an erosion) is not a placement and announces nothing.
+   */
+  public grantSpaceBonuses(player: IPlayer, space: Space, multiplier: number = 1, options?: {asPlacement?: boolean}): CellBonusPaid {
     const out: CellBonusPaid = {paid: [], cards: 0};
+    const onStandardResource = options?.asPlacement === true ?
+      (resource: Resource) => this.triggerForAllCards((p, c) => c.onStandardResourcePlacementBonus?.(p, player, space, resource)) :
+      undefined;
     const bonuses = MultiSet.from(space.bonus);
     bonuses.forEachMultiplicity((printed: number, bonus: SpaceBonus) => {
       // THE ONE PLACE the multiplier applies (`AddTileOptions.printedBonusMultiplier`): a counted bonus is granted
@@ -3029,7 +3038,7 @@ export class Game implements IGame, Logger {
       const count = printed * multiplier;
       const repeats = OFFERED_ONCE_SPACE_BONUSES.has(bonus) ? multiplier : 1;
       for (let i = 0; i < repeats; i++) {
-        const grant = this.grantSpaceBonus(player, bonus, repeats > 1 ? printed : count, {spaceId: space.id});
+        const grant = this.grantSpaceBonus(player, bonus, repeats > 1 ? printed : count, {spaceId: space.id, onStandardResource});
         if (grant.kind === 'stock') {
           out.paid.push({resource: grant.resource as TilePlacementPaidResource, amount: count});
         } else if (grant.kind === 'production') {
@@ -3049,7 +3058,7 @@ export class Game implements IGame, Logger {
    * it protects the REPEATED grants (Frontier Town, Jansson, the enacted
    * Development Craze), whose second bill nobody vetted.
    */
-  public grantSpaceBonus(player: IPlayer, spaceBonus: SpaceBonus, count: number = 1, source?: {spaceId?: SpaceId, placedSpaceId?: SpaceId}): SpaceBonusGrant {
+  public grantSpaceBonus(player: IPlayer, spaceBonus: SpaceBonus, count: number = 1, source?: SpaceBonusSource): SpaceBonusGrant {
     // A CARD-RESOURCE bonus the field pays (a printed cell, an Ares neighbour's default branch): the cell that sends
     // the units NAMES the prompt (`spaceSource` — the dock reads «КЛЕТКА · бонус размещения», the console lights the
     // cell) and the addition writes the board scene's ONE record (`AddResourcesToCard.boardPayout`), so a silent single
@@ -3172,6 +3181,8 @@ export class Game implements IGame, Logger {
         .withGainAmount(1)
         .andThen((resource) => {
           player.stock.add(resource, 1, {log: true});
+          // `keyof Units` and `Resource` share their string values.
+          source?.onStandardResource?.(resource as Resource);
           return undefined;
         }));
       return {kind: 'other'};

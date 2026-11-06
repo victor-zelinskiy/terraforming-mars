@@ -468,6 +468,13 @@ export interface ICard {
   patentsSoldForecast?(owner: IPlayer, count: number): ReadonlyArray<EffectForecastFact>;
   onTilePlaced?(cardOwner: IPlayer, activePlayer: IPlayer, space: Space, boardType: BoardType): void;
   /**
+   * Called when `activePlayer` places a tile on `space` which rewards a standard resource bonus.
+   *
+   * In this case the player has chosen `resource`. Cards that implement this react as if this space had that resource bonus.
+   * (Upstream b263e36d73 / 279d4eebb6 — the bonus exists only on Amazonis Planitia.)
+   */
+  onStandardResourcePlacementBonus?(cardOwner: IPlayer, activePlayer: IPlayer, space: Space, resource: Resource): void;
+  /**
    * The OWNER placed a tile on a cell their OWN cube reserved (TR79 Ferrus Academy: «whenever you place a tile in a
    * space that has your player cube»). Asked ONCE per placement by `Game.addTile`, which reads the marker before the
    * tile overwrites it (`space.player` answers both «a cube» and «a tile» afterwards — so a hook could not tell them
