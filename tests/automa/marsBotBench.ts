@@ -92,6 +92,10 @@ export type BenchConfig = {
   options: AutomaTestOptions;
   /** Runs once the game is built — the hook a generated-mat bench uses to seat its mat. */
   prepare?: (game: IGame) => void;
+  /** Keep `game.generation` on the bench's own clock (rules that read the generation — the Ares clearance). */
+  trackGeneration?: boolean;
+  /** Runs after the last card — the end-of-game step a bench may add (the final greenery). */
+  finish?: (game: IGame) => void;
 };
 
 /** Resolves every sequence on one configuration and returns one record per sequence. */
@@ -124,6 +128,9 @@ export function benchConfig(config: BenchConfig, sequences: ReadonlyArray<Readon
       if (card === undefined) {
         continue;
       }
+      if (config.trackGeneration === true) {
+        game.generation = benchGeneration(i);
+      }
       resolveProjectCardForBot(game, card);
       const generation = benchGeneration(i);
       for (const m of game.milestones) {
@@ -141,6 +148,7 @@ export function benchConfig(config: BenchConfig, sequences: ReadonlyArray<Readon
         claimGenerations.push(generation);
       }
     }
+    config.finish?.(game);
     const claimedNames = game.claimedMilestones.filter((m) => m.player === bot).map((m) => m.milestone.name);
     const claimPrices = claimedNames.reduce((sum, name) => sum + botMilestoneClaimCost(name), 0);
     const awardScores: Record<string, number> = {};

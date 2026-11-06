@@ -95,6 +95,8 @@ export type SerializedAutomaState = {
   secondShift?: SecondShiftState;
   /** The tokens collected off the mat's token cells, by kind (decision R8). Absent = none (every older save). */
   tokens?: Partial<Record<BotTokenKind, number>>;
+  /** Ares: the generation of the bot's last in-game hazard clearance (house rule 4). Absent = never. */
+  lastClearanceGeneration?: number;
   /**
    * The mat the random-set generator dealt this game (docs/claude/marsbot-dynamic-ma-framework.md) — kept WHOLE with
    * its generator version, so a running game never changes its mat after an update. Absent = the map's own printed
@@ -133,6 +135,8 @@ export class AutomaState {
    * Read only by the bot-rule registry's `tokens:<kind>` counters; nothing spends them.
    */
   public tokens: Partial<Record<BotTokenKind, number>> = {};
+  /** Ares house rule 4: the generation of the last IN-GAME hazard clearance — at most one a generation. */
+  public lastClearanceGeneration: number | undefined = undefined;
   /** Colonies shipping board storage areas (absent key = 0 resources). */
   public shippingStorage: Partial<Record<ColonyName, number>> = {};
   public secondFleetUnlocked: boolean = false;
@@ -348,6 +352,9 @@ export class AutomaState {
     if (this.mat !== undefined) {
       result.mat = this.mat;
     }
+    if (this.lastClearanceGeneration !== undefined) {
+      result.lastClearanceGeneration = this.lastClearanceGeneration;
+    }
     return result;
   }
 
@@ -400,6 +407,7 @@ export class AutomaState {
     state.trades = d.trades ?? 0;
     state.secondShift = d.secondShift !== undefined ? {...d.secondShift} : undefined;
     state.tokens = {...(d.tokens ?? {})};
+    state.lastClearanceGeneration = d.lastClearanceGeneration;
     return state;
   }
 }

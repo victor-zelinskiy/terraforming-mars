@@ -362,6 +362,15 @@ export class AresHandler {
     return game.phase === Phase.SOLAR;
   }
 
+  /**
+   * The placement's costs — M€ (adjacency costs + 8 per hazard step of the cell), production (adjacent hazards) and
+   * the TR a cleared hazard gives. PURE: the ONE price rule, read by the payment below and by MarsBot's clearance
+   * decision (`AutomaAres.clearanceCandidates`) — never a second copy.
+   */
+  public static placementCosts(player: IPlayer, space: Space, subjectToHazardAdjacency: boolean): AdjacencyCost {
+    return AresHandler.computePlacementCosts(player, space, subjectToHazardAdjacency);
+  }
+
   private static computePlacementCosts(player: IPlayer, space: Space, subjectToHazardAdjacency: boolean): AdjacencyCost {
     // Defence in depth: every caller already resolves the flag through
     // `subjectToHazardAdjacency()`, but a direct `assertCanPay(…, true)` must

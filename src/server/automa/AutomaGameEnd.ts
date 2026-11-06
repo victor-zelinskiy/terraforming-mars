@@ -41,7 +41,8 @@ export class AutomaGameEnd {
         try {
           track.advance();
           game.log('${0} advances a track for a final greenery', (b) => b.player(bot));
-          AutomaTilePlacer.placeGreenery(game);
+          // Ares house rule 4: the final greenery covers a hazard the bot can pay for — the most TR first.
+          AutomaTilePlacer.placeGreenery(game, {finalGreenery: true});
         } finally {
           game.events.endScope();
         }

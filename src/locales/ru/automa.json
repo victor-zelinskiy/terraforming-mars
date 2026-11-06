@@ -918,5 +918,7 @@
     "Where no delegate would change the vote — MarsBot already leads it, or has none left — the leverage advances its least advanced planet track instead": "Если делегат голосования не изменит — Бот уже впереди или делегатов не осталось, — сделка вместо этого продвигает самый отстающий планетный трек Бота",
     "${0} put ${1} leverage on its corporation ${2}": "${0} кладёт на свою корпорацию ${2} сделки: ${1}",
     "${0} spent ${1} leverage on a delegate": "${0} тратит сделку на делегата (${1})",
-    "${0} spent ${1} leverage on its planet track — no delegate would change the vote": "${0} тратит сделку на планетный трек (${1}) — делегат голосования бы не изменил"
+    "${0} spent ${1} leverage on its planet track — no delegate would change the vote": "${0} тратит сделку на планетный трек (${1}) — делегат голосования бы не изменил",
+    "${0} covers an Ares hazard with a final greenery — the cleanup TR it can pay for": "${0} накрывает опасную зону финальным озеленением — РТ за расчистку, которую он может оплатить",
+    "${0} covers an Ares hazard — that cell beats every other one even after the cleanup price": "${0} накрывает опасную зону — эта клетка лучше любой другой даже с ценой расчистки"
 }

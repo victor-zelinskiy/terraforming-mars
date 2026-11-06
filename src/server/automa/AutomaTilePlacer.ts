@@ -47,6 +47,8 @@ export type BotTileOptions = {
   readonly onEmpty?: 'failed-action' | 'impossible';
   /** The cell's printed bonus counts this many times (CF1 Ferrus Academy's founding city — `AddTileOptions.printedBonusMultiplier`). */
   readonly printedBonusMultiplier?: number;
+  /** The end-of-game greenery: it covers a hazard it can pay for (Ares house rule 4, `AutomaAres.clearanceCandidates`). */
+  readonly finalGreenery?: boolean;
 };
 
 /** Keep the items with the highest score. */
@@ -169,10 +171,14 @@ export class AutomaTilePlacer {
       return true;
     }
     const bot = marsBotOf(game);
-    // Ares: the bot never places ON a hazard (cleanup is a human economic
-    // decision — see AutomaAres); identity without Ares.
-    let available = AutomaAres.withoutHazardSpaces(game, AutomaTilePlacer.candidatesFor(game, bot,
-      (opts) => game.board.getAvailableSpacesForGreenery(bot, opts)));
+    // Ares: the bot places ON a hazard only through house rule 4 (clearance — see AutomaAres); identity without Ares.
+    const legal = AutomaTilePlacer.candidatesFor(game, bot, (opts) => game.board.getAvailableSpacesForGreenery(bot, opts));
+    let available = AutomaAres.withoutHazardSpaces(game, legal);
+    const clearing = options?.restrict === undefined ?
+      AutomaAres.clearanceCandidates(game, legal, available, options?.finalGreenery === true ? 'final' : 'turn') : undefined;
+    if (clearing !== undefined) {
+      available = [...clearing];
+    }
     // A card's HARD CONSTRAINT ("in the Southern Region", "adjacent to an
     // ocean") narrows the LEGAL set — it is not a preference and never a
     // tiebreaker, so it is applied before any strategy and an empty result is
@@ -192,6 +198,9 @@ export class AutomaTilePlacer {
     }
     let candidates = keepMax(available, (space) => AutomaTilePlacer.adjacentCitiesOf(game, space, bot));
     candidates = keepMin(candidates, (space) => AutomaTilePlacer.adjacentOpponentCities(game, space, bot));
+    if (clearing !== undefined) {
+      AutomaAres.noteClearance(game, options?.finalGreenery === true);
+    }
     // Ares: strong hazard avoidance — after the printed strategy above, before
     // the generic tiebreakers, so a hazard-adjacent space survives only when it
     // strictly wins on the greenery's own placement criteria.
@@ -211,9 +220,14 @@ export class AutomaTilePlacer {
    */
   public static placeCity(game: IGame, options?: BotTileOptions): boolean {
     const bot = marsBotOf(game);
-    // Ares: never ON a hazard; identity without Ares (see placeGreenery).
-    let available = AutomaAres.withoutHazardSpaces(game, AutomaTilePlacer.candidatesFor(game, bot,
-      (opts) => game.board.getAvailableSpacesForCity(bot, opts)));
+    // Ares: ON a hazard only through house rule 4 (see placeGreenery); identity without Ares.
+    const legal = AutomaTilePlacer.candidatesFor(game, bot, (opts) => game.board.getAvailableSpacesForCity(bot, opts));
+    let available = AutomaAres.withoutHazardSpaces(game, legal);
+    const clearing = options?.restrict === undefined ? AutomaAres.clearanceCandidates(game, legal, available, 'turn') : undefined;
+    if (clearing !== undefined) {
+      available = [...clearing];
+      AutomaAres.noteClearance(game, false);
+    }
     if (options?.restrict !== undefined) {
       available = available.filter(options.restrict);
     }

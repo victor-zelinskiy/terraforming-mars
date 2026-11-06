@@ -1,6 +1,8 @@
-import {hazardSeverity} from '../../common/AresTileType';
+import {HAZARD_STEPS, hazardSeverity} from '../../common/AresTileType';
 import {Space} from '../boards/Space';
 import {IGame} from '../IGame';
+import {AresHandler} from '../ares/AresHandler';
+import {botRewardIcons} from './AutomaPlacementBonus';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
 
@@ -27,10 +29,14 @@ import {marsBotOf} from './AutomaUtil';
  *    standard regression marker guarantees a crossed track bonus never fires
  *    a second time when the track re-advances.
  *
- * The bot never places ON a hazard tile (`withoutHazardSpaces`): hazard
- * cleanup (8/16 M€ for 1/2 TR) is a human economic decision the automa has no
- * rules for, and it would otherwise require a payment prompt the bot cannot
- * answer.
+ * 4. CLEARANCE (the owner's decision 2026-11-06 — docs/AUTOMA_DATA_AUDIT.md §22.7, HOME): the bot places ON a
+ *    hazard only by `clearanceCandidates` — its FINAL greenery always covers one it can pay for («free points — the
+ *    players always grab them»), the one giving the most TR first; during the game only when it truly pays, never
+ *    early and never greedily (from generation 4, once a generation, 5 M€ kept for Corporate Competition, the hazard
+ *    strictly better than the best ordinary cell by the placement evaluation with the TR counted; Purifier in the set
+ *    and unclaimed lifts the priority while the bot has cleared fewer than three). The price and the reward are the
+ *    human's, through the ONE pipeline (`Game.addTile` → `AresHandler`: the M€ deducted without a prompt, the TR, the
+ *    Purifier count). Every other placement still never lands on a hazard (`withoutHazardSpaces`).
  *
  * Every helper is a no-op / identity without the Ares expansion, so non-Ares
  * games are byte-identical. The read-only helpers NEVER mutate game state —
@@ -38,6 +44,21 @@ import {marsBotOf} from './AutomaUtil';
  * evaluation (it is called from the commit path in
  * `AresHandler.payAdjacencyAndHazardCosts`).
  */
+/**
+ * THE IN-GAME CLEARANCE PARAMETERS (house rule 4, the owner's decision): «only when it truly pays, not early, not
+ * aggressively». A hazard's score = its reward icons + adjacency units − 2 per adjacent hazard + 8 per TR step − its
+ * price (+ 4 while chasing Purifier); it must beat the best ordinary cell's (icons + units − 2 per adjacent hazard)
+ * STRICTLY. 8 M€ a TR step is the price itself — a cleared hazard wins on its own merits (more icons than any other
+ * cell), never on the TR alone. Tuned on the Ares bench (docs/AUTOMA_DATA_AUDIT.md §22.7).
+ */
+export const CLEARANCE = {
+  fromGeneration: 4,
+  keepMegacredits: 5,
+  megacreditsPerTr: 8,
+  perAdjacentHazard: 2,
+  purifierBonus: 4,
+} as const;
+
 export class AutomaAres {
   /** Adjacent hazard tiles of `space` (0 without Ares — hazards cannot exist). */
   public static hazardAdjacencyCount(game: IGame, space: Space): number {
@@ -63,6 +84,77 @@ export class AutomaAres {
       units += adj.adjacency?.bonus.length ?? 0;
     }
     return units;
+  }
+
+  /**
+   * HOUSE RULE 4 — the hazards the bot will COVER with this placement, or undefined (none — place as usual). `legal`
+   * is the full legal list (hazards included), `ordinary` the list without them. Read-only.
+   *
+   * `final`: the end-of-game greenery — any hazard it can pay for, the most TR first (the placement strategy then
+   * picks among them). `turn`: the in-game test, every gate of the owner's decision — see `CLEARANCE`.
+   */
+  public static clearanceCandidates(game: IGame, legal: ReadonlyArray<Space>, ordinary: ReadonlyArray<Space>,
+    mode: 'final' | 'turn'): ReadonlyArray<Space> | undefined {
+    if (!game.gameOptions.aresExtension || game.automa === undefined) {
+      return undefined;
+    }
+    const bot = marsBotOf(game);
+    const priced = legal.filter((space) => hazardSeverity(space.tile?.tileType) !== 'none').map((space) => ({
+      space,
+      steps: HAZARD_STEPS[hazardSeverity(space.tile?.tileType)],
+      cost: AresHandler.placementCosts(bot, space, AresHandler.subjectToHazardAdjacency(bot, undefined)).megacredits,
+    }));
+    if (mode === 'final') {
+      const affordable = priced.filter((p) => p.cost <= bot.megaCredits);
+      if (affordable.length === 0) {
+        return undefined;
+      }
+      const most = Math.max(...affordable.map((p) => p.steps));
+      return affordable.filter((p) => p.steps === most).map((p) => p.space);
+    }
+    if (game.generation < CLEARANCE.fromGeneration || game.automa.lastClearanceGeneration === game.generation) {
+      return undefined;
+    }
+    const value = (space: Space) => botRewardIcons(game, bot, space) + AutomaAres.adjacencyBonusUnits(game, space) -
+      CLEARANCE.perAdjacentHazard * AutomaAres.hazardAdjacencyCount(game, space);
+    const bestOrdinary = ordinary.length === 0 ? Number.NEGATIVE_INFINITY : Math.max(...ordinary.map(value));
+    const purifierChase = AutomaAres.chasesPurifier(game) ? CLEARANCE.purifierBonus : 0;
+    const worth = priced
+      .filter((p) => bot.megaCredits - p.cost >= CLEARANCE.keepMegacredits)
+      .map((p) => ({space: p.space, score: value(p.space) + CLEARANCE.megacreditsPerTr * p.steps - p.cost + purifierChase}))
+      .filter((p) => p.score > bestOrdinary);
+    if (worth.length === 0) {
+      return undefined;
+    }
+    const best = Math.max(...worth.map((p) => p.score));
+    return worth.filter((p) => p.score === best).map((p) => p.space);
+  }
+
+  /**
+   * The bot decided to cover a hazard (house rule 4): the journal says WHY in one line before the placement's own
+   * lines (the price, the TR — `AresHandler`), and an in-game clearance spends the generation's one.
+   */
+  public static noteClearance(game: IGame, final: boolean): void {
+    const bot = marsBotOf(game);
+    if (final) {
+      game.log('${0} covers an Ares hazard with a final greenery — the cleanup TR it can pay for', (b) => b.player(bot));
+      return;
+    }
+    if (game.automa !== undefined) {
+      game.automa.lastClearanceGeneration = game.generation;
+    }
+    game.log('${0} covers an Ares hazard — that cell beats every other one even after the cleanup price', (b) => b.player(bot));
+  }
+
+  /** Purifier stands in the game, nobody has claimed it, and the bot has cleared fewer than three hazards. */
+  private static chasesPurifier(game: IGame): boolean {
+    const purifier = game.milestones.find((m) => m.name === 'Purifier');
+    if (purifier === undefined || game.milestoneClaimed(purifier)) {
+      return false;
+    }
+    const bot = marsBotOf(game);
+    const entry = game.aresData?.milestoneResults.find((e) => e.id === bot.id);
+    return (entry?.purifierCount ?? 0) < 3;
   }
 
   /** Bot placement candidates never include hazard-COVER spaces (see the module doc). */
