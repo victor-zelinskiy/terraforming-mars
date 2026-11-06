@@ -197,6 +197,19 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
     description: 'No tiles can ever be placed on this space.',
     placement: 'top',
   },
+  // ── Hollandia — the Asteroid Deflection Zone ───────────────────────
+  {
+    // The map's one special REGION — twelve cells in the north-east, every one in the zone's violet. ONE marker names
+    // the rule, in the dossier's own words (the engine's `deflection-zone` fact), on the wedge's central cell: y=2,
+    // the middle of its three, which prints no bonus — the «i» covers nothing. Space IDs from the BoardBuilder row
+    // layout [5,6,7,8,9,8,7,6,5], idOffset=3: the zone is 07 · 12–13 · 18–20 · 26–28 · 35–37.
+    id: 'hollandia_deflection_zone',
+    boardName: BoardName.HOLLANDIA,
+    spaceId: '19',
+    title: 'Deflection Zone',
+    description: 'Protects you from plant destruction while ALL your tiles are inside this zone.',
+    placement: 'bottom',
+  },
   // ── Arabia Terra — named locations ─────────────────────────────────
   // The map's four volcanic cells, under the names the board itself printed: they were the last LEGACY SVG captions
   // left in `Board.vue` (hardcoded there, outside `LEGENDS`), replaced by hover markers like every other map's.

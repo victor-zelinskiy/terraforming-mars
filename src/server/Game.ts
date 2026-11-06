@@ -515,7 +515,11 @@ export class Game implements IGame, Logger {
     }
 
     const hasVolcanicSpaces = board.spaces.some((space) => space.volcanic === true);
-    const {milestones, awards} = chooseMilestonesAndAwards(gameOptions, {hasVolcanicSpaces});
+    // The set's draw reads a seeded stream OF ITS OWN (derived from the game's seed, never the deal's `rng` — the
+    // deal of every existing seed stays what it was): a game that draws its milestones and awards is reproducible by
+    // its seed, and on Hollandia — no row of its own — that is every game.
+    const maRng = new SeededRandom(seed, (Math.floor(seed * 4294967296) ^ 0x4D415257) >>> 0);
+    const {milestones, awards} = chooseMilestonesAndAwards(gameOptions, {hasVolcanicSpaces}, maRng);
     game.milestones = milestones.map(milestoneManifest.createOrThrow);
     game.awards = awards.map(awardManifest.createOrThrow);
 
@@ -2448,7 +2452,16 @@ export class Game implements IGame, Logger {
       if (this.gameOptions.boardName === BoardName.HOLLANDIA) {
         const spaces = this.board.spaces.filter(Board.ownedBy(player));
         const [inside, outside] = partition(spaces, ((space) => space.spaceType === SpaceType.DEFLECTION_ZONE));
-        player.withinDeflectionZone = inside.length > 0 && outside.length === 0;
+        const within = inside.length > 0 && outside.length === 0;
+        if (within !== player.withinDeflectionZone) {
+          // The zone's shelter is a standing state a PLACEMENT moves — and the seat it moves for is not always the one
+          // reading the board (a rival's tile, MarsBot's): the journal names the moment for every seat, the rail's
+          // shield and the dossier carry the state.
+          this.log(within ?
+            '${0}\'s plants are now protected by the Deflection Zone' :
+            '${0}\'s plants are no longer protected by the Deflection Zone', (b) => b.player(player));
+        }
+        player.withinDeflectionZone = within;
       }
     } else {
       space.player = undefined;

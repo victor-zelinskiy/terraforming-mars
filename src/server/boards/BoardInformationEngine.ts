@@ -121,6 +121,11 @@ export function boardCellInfo(player: IPlayer, space: Space): BoardCellInfo {
   }
   const zoneProtection = space.spaceType === SpaceType.DEFLECTION_ZONE ?
     buildZoneProtection(player) : undefined;
+  if (zoneProtection !== undefined) {
+    // The console's dossier reads FACTS on one chassis: who the zone shelters RIGHT NOW is a row per seat of the zone's
+    // own section (the viewer first — `buildZoneProtection`'s order), beside the standing rule.
+    facts.push(...zoneStatusFacts(zoneProtection));
+  }
   return {space: space.id, status, description: cellDescription(space, status), zoneProtection, facts, portrait: cellPortrait(player, space)};
 }
 
@@ -354,7 +359,12 @@ function boardCellPreviewOf(
   // (it places "regardless of placement rules"), so don't surface volcanic /
   // reserved / restricted notes that no longer apply — nor for a tier on an
   // occupied cell, whose placement rules were settled by the first city.
-  facts.push(...specialZoneFacts(player, space, {includePlacementRules: !cleared && !stacking}));
+  // What THIS placement does to the viewer's shelter (`deflection-impact`) carries the zone's condition in its own
+  // sentence — the standing rule beside it was the same title a second time (the panel is finite: a fact earns its
+  // line). A pick that places no tile states no impact, and keeps the rule.
+  const impactStated = facts.some((f) => f.id === 'deflection-impact');
+  facts.push(...specialZoneFacts(player, space, {includePlacementRules: !cleared && !stacking})
+    .filter((f) => !(impactStated && f.id === 'deflection-zone')));
 
   const preview = classifyPlacementFacts(stripRedundantSource(facts, options?.sourceCard), player, space.id, kind, legal);
   // What this pick PUTS DOWN — so the panel's "nothing else happens" line can
@@ -2743,6 +2753,24 @@ function buildZoneProtection(player: IPlayer): ZoneProtection {
   players.sort((a, b) => (a.id === player.id ? -1 : b.id === player.id ? 1 : 0));
   const statuses: Array<ZonePlayerProtection> = players.map((p) => ({color: p.color, status: deflectionStatusOf(p)}));
   return {zoneName: 'Deflection Zone', statuses};
+}
+
+const ZONE_STATUS_TITLE: Record<ZonePlayerProtection['status'], string> = {
+  'active': 'Plants are protected',
+  'inactive-no-zone-tiles': 'No tiles in the zone',
+  'inactive-has-tiles-outside': 'Tiles outside the zone',
+};
+
+/** One fact per seat — the zone's shelter as it stands (MarsBot is a seat: the rule holds for it as for any player). */
+function zoneStatusFacts(zone: ZoneProtection): Array<BoardFact> {
+  return zone.statuses.map((s): BoardFact => ({
+    id: `deflection-status-${s.color}`,
+    category: 'map-special-zone',
+    timing: 'rule',
+    severity: s.status === 'active' ? 'positive' : 'info',
+    recipient: {kind: 'player', color: s.color},
+    title: ZONE_STATUS_TITLE[s.status],
+  }));
 }
 
 /** The impact of placing on `space` on the CURRENT player's deflection protection. */

@@ -117,6 +117,11 @@ export const AUTOMA_SUPPORTED_BOARDS: ReadonlyArray<BoardName> = [
   // The fan-made Arabia Terra — the fourth home-made board (2026-11-05; §2i / §21): coves and the Pathfinders-style
   // cell bonuses.
   BoardName.ARABIA_TERRA,
+  // The fan-made Hollandia — the fifth fan map and the LAST one (2026-11-06; §2j / §23): no milestone / award row of
+  // its own, so every game on it draws its set and MarsBot plays the random-set generator's mat on a borrowed Tharsis
+  // base, with the B14 «Corporate Competition · this game's set» (docs/claude/marsbot-dynamic-ma-framework.md). With it
+  // every board of the game is covered — the `board` rule below now stands for a map a future sync brings.
+  BoardName.HOLLANDIA,
 ];
 
 /** «tharsis, hellas and elysium» — the list read out in the rejection reason. */
@@ -187,8 +192,9 @@ const RULES: ReadonlyArray<Rule> = [
   // instead of rejecting (the resulting setup is identical either way).
   // RANDOM MILESTONES AND AWARDS play on every supported board since the random-set framework
   // (docs/claude/marsbot-dynamic-ma-framework.md): the generator deals the bot a mat, a placement layer and a B14
-  // «Corporate Competition · this game's set» for the drawn set. A board MarsBot does not cover (Hollandia) is refused by
-  // the `board` rule above; this one stays for that case only, so the matrix still names the box.
+  // «Corporate Competition · this game's set» for the drawn set. A board MarsBot does not cover (none today — Hollandia,
+  // the last one, plays since 2026-11-06) is refused by the `board` rule above; this one stays for that case only, so
+  // the matrix still names the box.
   {key: 'rule:randomMilestonesAwards', test: (o) => o.randomMA && o.boardName !== RandomBoardOption.ALL &&
     o.boardName !== RandomBoardOption.OFFICIAL && !AUTOMA_SUPPORTED_BOARDS.includes(o.boardName as BoardName),
   reason: () => 'random milestones and awards on a board MarsBot does not cover'},

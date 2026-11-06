@@ -152,7 +152,8 @@ export default defineComponent({
       return this.facts.filter((f) => f.category === 'city-greenery-scoring' || f.category === 'future-scoring');
     },
     zoneFacts(): ReadonlyArray<BoardFact> {
-      return this.facts.filter((f) => f.category === 'map-special-zone');
+      // The per-seat status facts are the console dossier's rows; here they are the status block below.
+      return this.facts.filter((f) => f.category === 'map-special-zone' && !f.id.startsWith('deflection-status-'));
     },
     externalFacts(): ReadonlyArray<BoardFact> {
       return this.facts.filter((f) => f.category === 'external-area');

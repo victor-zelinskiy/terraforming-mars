@@ -2954,6 +2954,7 @@ export type FixtureName = 'solo-actions' | 'bot-polder' | 'bot-insurance' | 'bot
   'arabia-receive' |
   // …and two seats on it: red's greenery on the energy-production cove — the REMOTE landing of a printed production bonus.
   'arabia-rival' |
+  'hollandia-zone' | 'hollandia-marsbot' |
   // The FIELD's first-action stage (phase 2 of the start director): four real tables saved ON the `corporationInitialAction` prompt.
   'field-first-action-inventrix' | 'field-first-action-vitor' | 'field-first-action-celestic' | 'field-first-action-inventrix-owner' |
   // The first field CURE of the start director (2026-10-31 21:48): the deployment's last prelude played, the menu asked, the scene standing empty.

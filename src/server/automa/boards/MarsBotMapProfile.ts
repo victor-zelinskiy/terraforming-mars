@@ -197,6 +197,14 @@ export type MarsBotMapProfile = {
    * own, because «advance the track that tag belongs to» follows the tag.
    */
   readonly venusTrack?: TrackDefinition;
+  /**
+   * A map that PRINTS NO MarsBot board: its tracks are the named map's — the Awards & Milestones module's rule («use
+   * the Tharsis board», RB-C p.12), which is the only official word on a map with no row of its own. Such a map never
+   * plays these tracks as they stand: with no fixed milestone / award row every game DRAWS its set, so the random-set
+   * generator always deals a mat re-cut from them (`AutomaSetup.matFor`), and the generator's base stays the lender
+   * (`matBase` — the row library holds the lender's rows once, the briefing names the loan).
+   */
+  readonly borrowedBoard?: BoardName;
 };
 
 const THARSIS_PROFILE: MarsBotMapProfile = {
@@ -364,6 +372,35 @@ const ARABIA_TERRA_PROFILE: MarsBotMapProfile = {
 };
 
 /**
+ * HOLLANDIA (`HOLLANDIA`) — the fifth fan map, and the one with NO milestone / award row of its own: every game on it
+ * draws its set from the whole pool (`chooseMilestonesAndAwards`), so MarsBot ALWAYS plays a generated mat and the B14
+ * «Corporate Competition · this game's set» here (docs/claude/marsbot-dynamic-ma-framework.md). It therefore prints no
+ * board, no Corporate Competition and no row rules of its own — and gets none invented:
+ *
+ * - the BASE is the Tharsis board, borrowed — the A&M module's own rule for any map (RB-C p.12), re-cut for the drawn
+ *   set by the generator;
+ * - the tiebreakers are the base rulebook's pair; whatever the drawn set's tile criteria ask for comes from the
+ *   generator's map layer (`MatPlacement`), exactly as on every other map with a random set;
+ * - the cells print steel / plant / card / titanium / heat only — 1 M€ an icon, no special cell (`AutomaPlacementBonus`
+ *   has nothing to add);
+ * - the ASTEROID DEFLECTION ZONE is plain land to place on, and its rule holds for the bot as for any player (the
+ *   engine's one reading, `Player.plantsAreProtected` ← `withinDeflectionZone`): while every tile the bot owns stands
+ *   inside the zone its plants cannot be removed, and a human inside the zone is safe from Meteor Shower. HOME by
+ *   symmetry — «MarsBot is another player» — never a placement step of its own: no milestone or award counts the zone
+ *   (the §A law gives a step only to a criterion that counts WHERE tiles stand), and a bot that hunted the zone's
+ *   twelve cells would be an attack on the map's one shelter that no rule prints.
+ * Design: docs/AUTOMA_DATA_AUDIT.md §2j / §23.
+ */
+const HOLLANDIA_PROFILE: MarsBotMapProfile = {
+  boardName: BoardName.HOLLANDIA,
+  tracks: THARSIS_MARSBOT_BOARD,
+  borrowedBoard: BoardName.THARSIS,
+  // Never the map's printed card (it prints none): the set's own — what every game here plays anyway.
+  corporateCompetition: BonusCardId.B14_CORPORATE_COMPETITION_MA,
+  placementTiebreakers: [OCEAN_ADJACENCY, REWARD_ICONS],
+};
+
+/**
  * The map layer's vocabulary (the random-set generator): the base steps and every region step a rule may ask for, by
  * its stable id — what a generated mat SERIALIZES (functions do not survive a save; ids do).
  */
@@ -387,7 +424,7 @@ export function tiebreakerById(id: MarsBotPlacementTiebreaker['id']): MarsBotPla
 
 const PROFILES: ReadonlyArray<MarsBotMapProfile> =
   [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE, TERRA_CIMMERIA_PROFILE, VASTITAS_BOREALIS_PROFILE, VASTITAS_FAN_PROFILE, AMAZONIS_PROFILE,
-    TERRA_CIMMERIA_FAN_PROFILE, ARABIA_TERRA_PROFILE];
+    TERRA_CIMMERIA_FAN_PROFILE, ARABIA_TERRA_PROFILE, HOLLANDIA_PROFILE];
 
 /** Every board MarsBot can be played on. */
 export const MARSBOT_BOARDS: ReadonlyArray<BoardName> = PROFILES.map((p) => p.boardName);

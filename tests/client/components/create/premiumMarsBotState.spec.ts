@@ -61,7 +61,11 @@ describe('premium create — MarsBot mode', () => {
     createGameState.config.mapMode = 'specific';
     createGameState.config.mapId = BoardName.ELYSIUM;
     expect(stateAutomaConflictKeys().has('rule:randomMilestonesAwards')).is.false;
+    // Hollandia (no row of its own — always a random set) is covered since 2026-11-06…
     createGameState.config.mapId = BoardName.HOLLANDIA;
+    expect(stateAutomaConflictKeys().size).eq(0);
+    // …so «an uncovered board» is a name the engine does not know.
+    createGameState.config.mapId = 'Nowhere Planitia' as BoardName;
     const keys = stateAutomaConflictKeys();
     expect(keys.has('board')).is.true;
     expect(keys.has('rule:randomMilestonesAwards')).is.true;
@@ -142,17 +146,23 @@ describe('premium create — MarsBot mode', () => {
 
     setGameMode('multiplayer');
     createGameState.config.mapMode = 'specific';
-    createGameState.config.mapId = BoardName.HOLLANDIA;
+    createGameState.config.mapId = 'Nowhere Planitia' as BoardName;
     setGameMode('marsbot');
     expect(createGameState.config.mapMode).eq('specific');
     expect(createGameState.config.mapId).eq(BoardName.THARSIS);
+
+    // A covered map is kept — Hollandia, the last one to join (2026-11-06), included.
+    setGameMode('multiplayer');
+    createGameState.config.mapId = BoardName.HOLLANDIA;
+    setGameMode('marsbot');
+    expect(createGameState.config.mapId).eq(BoardName.HOLLANDIA);
   });
 
   it('a map without a MarsBot board conflicts in marsbot mode', () => {
     setGameMode('marsbot');
     setSlotName(0, 'Astronaut');
     createGameState.config.mapMode = 'specific';
-    createGameState.config.mapId = BoardName.HOLLANDIA;
+    createGameState.config.mapId = 'Nowhere Planitia' as BoardName;
     expect(stateAutomaConflictKeys().has('board')).is.true;
     expect(canCreateGame()).is.false;
 

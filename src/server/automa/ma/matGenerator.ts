@@ -455,10 +455,16 @@ function lastEmptyBefore(row: ReadonlyArray<TrackAction | undefined>, before: nu
   return undefined;
 }
 
-/** The map's own profile, or Tharsis for a map with no MarsBot board (Hollandia — the A&M module's «Tharsis board»). */
+/**
+ * The map's own printed board — or, for a map that prints none, the board it BORROWS (Hollandia's profile names Tharsis,
+ * the A&M module's «Tharsis board»; a map with no profile at all takes Tharsis too). `fallback` says the base is a loan.
+ */
 export function matBase(boardName: BoardName): {profile: MarsBotMapProfile, fallback: boolean} {
-  const own = MARSBOT_BOARDS.includes(boardName);
-  return {profile: marsBotMapProfile(own ? boardName : BoardName.THARSIS), fallback: !own};
+  const profile = MARSBOT_BOARDS.includes(boardName) ? marsBotMapProfile(boardName) : undefined;
+  if (profile !== undefined && profile.borrowedBoard === undefined) {
+    return {profile, fallback: false};
+  }
+  return {profile: marsBotMapProfile(profile?.borrowedBoard ?? BoardName.THARSIS), fallback: true};
 }
 
 /** Token cells per kind a set asks for: ≥ the milestone's threshold + a margin, Hoverlord's shape (1 single + doubles). */

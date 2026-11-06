@@ -62,6 +62,9 @@ describe('ApiCreateGame', () => {
       BoardName.VASTITAS_BOREALIS,
       BoardName.AMAZONIS,
       BoardName.TERRA_CIMMERIA,
+      // The last one (2026-11-06): no row of its own, a generated mat on a borrowed Tharsis base (§2j / §23) — with it
+      // the bot's pool IS the whole pool.
+      BoardName.HOLLANDIA,
     ]);
     // All three official boards have MarsBot adaptations — the pool is unchanged.
     expect(ApiCreateGame.boardOptions(RandomBoardOption.OFFICIAL, {automa: true}))

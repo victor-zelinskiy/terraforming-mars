@@ -29,7 +29,15 @@ Full write-up: `docs/claude/marsbot-dynamic-ma-framework.md` (architecture + dec
    the generator's output bumps `MAT_GENERATOR_VERSION`; a saved mat is replayed whole (`AutomaState.mat`), never
    regenerated. Gates: the static validator (`matValidator.spec.ts`), the golden test (the ten official rows
    re-assembled — topology identical), the band bench (`MarsBotRandomSetBalance.dev.spec.ts`).
-5. **A map without a profile** falls back to the Tharsis base (`MatReport.baseIsFallback`, named in the briefing); it
-   is still REJECTED by the creator until it has its own profile (`AUTOMA_SUPPORTED_BOARDS`).
+5. **A map that prints no MarsBot board BORROWS one** — Hollandia's profile names `borrowedBoard: THARSIS` (the A&M
+   module's own rule): the generator's base is the lender (`matBase` → `fallback: true`, named in the briefing), the row
+   library, the balance band and the legacy differential count PRINTED boards only (`borrowedBoard === undefined`). A
+   map with no profile at all takes Tharsis the same way and is REJECTED by the creator (`AUTOMA_SUPPORTED_BOARDS`).
+5a. **The generator's input is the set, the map and the options — never the deal**: the deck mix is the game's card set
+   (`GameCards`), not the piles after the hands were dealt; the set's own draw reads the game's seeded stream.
+5b. **«No jump» binds a single-track milestone** (`track`, «the higher of two») — the shape the six official boards keep
+   it for; a «weakest of several tracks» milestone is outside it, as the official boards print it (guard
+   `tests/automa/ma/botMAReview.spec.ts` § scope). **The briefing states what the MAT plays** (`mat.placement`), never
+   a rule's declared form.
 6. **The client re-derives nothing**: the rule lines, the threshold marks, the tokens and the briefing ride
    `MarsBotModel` (`maRules` · `thresholds` · `tokens` · `briefing`), messages with STRING params translated client-side.

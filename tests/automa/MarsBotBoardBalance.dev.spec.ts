@@ -1,5 +1,6 @@
 import {AUTOMA_SUPPORTED_BOARDS} from '../../src/common/automa/automaCompatibility';
 import {bandOf, BAND_METRICS, benchConfig, benchSequences, formatSummary, neverGeneration, summarize} from './marsBotBench';
+import {marsBotMapProfile} from '../../src/server/automa/boards/MarsBotMapProfile';
 
 /**
  * THE BOT-BOARD BALANCE BENCH — a DEV spec, run on demand:
@@ -23,7 +24,8 @@ describeBench('MarsBot board balance bench (TM_BOT_BALANCE=1)', () => {
     it(`tallies every supported board's yield and the band (${variant})`, () => {
       const sequences = benchSequences(SEEDS, CARDS);
       const perMilestone: Array<string> = [];
-      const summaries = AUTOMA_SUPPORTED_BOARDS.map((boardName) => {
+      // The PRINTED mats only: a map that borrows its board (Hollandia) always plays a generated one — the random-set bench's.
+      const summaries = AUTOMA_SUPPORTED_BOARDS.filter((boardName) => marsBotMapProfile(boardName).borrowedBoard === undefined).map((boardName) => {
         const runs = benchConfig({label: `${boardName}-${variant}`, options: {boardName, ...extra}}, sequences);
         // The per-milestone window: when each criterion of the row was first met (mean over the sequences; never = 17).
         for (const name of Object.keys(runs[0].criterionMet)) {

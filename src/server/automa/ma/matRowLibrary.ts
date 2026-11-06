@@ -29,7 +29,12 @@ export function libraryRows(key: string): ReadonlyArray<LibraryRow> {
   if (library === undefined) {
     library = new Map();
     for (const board of MARSBOT_BOARDS) {
-      for (const definition of marsBotMapProfile(board).tracks) {
+      const profile = marsBotMapProfile(board);
+      if (profile.borrowedBoard !== undefined) {
+        // A map that prints no board lends nothing: its rows are the lender's, already in the library under its name.
+        continue;
+      }
+      for (const definition of profile.tracks) {
         const key = rowKey(definition.role, definition.tags);
         const rows = library.get(key) ?? [];
         const same = rows.find((r) => JSON.stringify(r.definition.layout) === JSON.stringify(definition.layout));

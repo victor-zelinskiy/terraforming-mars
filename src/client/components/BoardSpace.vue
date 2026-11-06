@@ -24,6 +24,12 @@
       :placementCleared="placementCleared"
       :topArt="topArt"
     ></board-space-tile>
+    <!-- THE DEFLECTION ZONE'S GROUND (Hollandia) — right over the cell's type layer and UNDER the printed bonus and
+         every piece. Its clip-path makes it a painted layer of its own, so its place in the DOM is its place in the
+         paint: standing last (the legacy overlay did) it washed the bonus icons with the zone's colour. Over a TILE only
+         its kant comes up — the rule counts the tiles inside. -->
+    <div v-if="space.spaceType === SpaceType.DEFLECTION_ZONE" class="board-space-type-deflection-zone"
+         :class="{'board-space-type-deflection-zone--covered': space.tileType !== undefined && tileView === 'show'}" data-deflection-zone></div>
     <div class="board-space-text" v-if="text" v-i18n>{{ text }}</div>
     <bonus :bonus="space.bonus" v-if="showBonus"></bonus>
     <!-- THE CELL'S REWARD, ON THE CELL (P74): while a MULTIPLIED placement stands, a legal candidate that prints a bonus
@@ -78,7 +84,6 @@
       </template>
       <underground-token v-if="claimedToken !== undefined" :token="claimedToken" location="board"></underground-token>
       <div v-if="space.excavator !== undefined" class="underground-excavator" :class="'underground-excavator--' + space.excavator"></div>
-      <div v-if="space.spaceType === SpaceType.DEFLECTION_ZONE" class="board-space-type-deflection-zone"></div>
     </template>
     <div class="board-log-highlight" :data_log_highlight_id="space.id"></div>
     </div>

@@ -9,6 +9,7 @@ import {Game} from '../../../src/server/Game';
 import {IMilestone} from '../../../src/server/milestones/IMilestone';
 import {IAward} from '../../../src/server/awards/IAward';
 import {marsBotOf} from '../../../src/server/automa/AutomaUtil';
+import {marsBotMapProfile} from '../../../src/server/automa/boards/MarsBotMapProfile';
 import {botAwardRawScore, botMilestoneProgress} from '../../../src/server/automa/ma/botMAInterpreter';
 import {tryAwardHelper} from '../../../src/server/automa/AutomaBonusCards';
 import {testAutomaGame} from '../AutomaTestGame';
@@ -51,6 +52,13 @@ const NEW_IN_STAGE_2: ReadonlySet<string> = new Set([
   'Constructor', 'Suburbian',
 ]);
 
+/**
+ * Helpers the REVIEW corrected to the official text after the migration (2026-11-06) → compared only where the two
+ * readings coincide. Visionary: «advance the least advanced track, EXCLUDING the Venus track» (RB-C p.16) — the legacy
+ * switch (BF1's home helper, written before the module's list was read) pushed the Venus track too.
+ */
+const HELPER_CORRECTED_WITH_VENUS: ReadonlySet<string> = new Set(['Visionary']);
+
 function lcg(seed: number): () => number {
   let state = (seed * 2654435761) >>> 0;
   return () => {
@@ -85,7 +93,9 @@ function randomizeBot(game: IGame, rnd: () => number): void {
 }
 
 function configs(): Array<[string, object]> {
-  return AUTOMA_SUPPORTED_BOARDS.flatMap((boardName) => [
+  // The boards that PRINT a mat — the ones the legacy switch ever evaluated. A map on a borrowed board (Hollandia) plays
+  // a generated mat every game: it has no legacy reading to be equal to (its rules are the registry's from day one).
+  return AUTOMA_SUPPORTED_BOARDS.filter((boardName) => marsBotMapProfile(boardName).borrowedBoard === undefined).flatMap((boardName) => [
     [`${boardName}`, {boardName}],
     [`${boardName}+venus+colonies`, {boardName, venusNextExtension: true, coloniesExtension: true}],
   ] as Array<[string, object]>);
@@ -200,6 +210,9 @@ describe('bot-rule registry — differential against the legacy switch', () => {
         const snapshot = game.serialize();
         for (const name of Object.keys(awardManifest.all)) {
           if (!mustAgree(name, boardName)) {
+            continue;
+          }
+          if (HELPER_CORRECTED_WITH_VENUS.has(name) && game.gameOptions.venusNextExtension) {
             continue;
           }
           const a = Game.deserialize(structuredClone(snapshot));

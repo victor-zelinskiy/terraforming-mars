@@ -318,7 +318,7 @@ function actionLineOf(opts: {
 
 // ── sections ─────────────────────────────────────────────────────────
 
-export type DossierSectionKey = 'effect' | 'gain' | 'reactions' | 'uncovers' | 'others' | 'tile' | 'source' | 'departure' | 'progress' | 'endgame' | 'rules';
+export type DossierSectionKey = 'effect' | 'gain' | 'reactions' | 'uncovers' | 'others' | 'tile' | 'source' | 'departure' | 'progress' | 'zone' | 'endgame' | 'rules';
 
 /**
  * The card a reward THE CELL DECIDES will land on, as the staged play chose it
@@ -344,6 +344,11 @@ export type DossierSection = {
   rows: ReadonlyArray<DossierRow>;
   /** Only the `others` section groups by recipient (player dot + name). */
   groups?: ReadonlyArray<DossierRecipientGroup>;
+  /**
+   * Rows that stand BEFORE the groups, addressed to nobody — a map zone's standing rule over the seats it sorts
+   * (Hollandia's Deflection Zone). Read only by a grouped section.
+   */
+  lead?: ReadonlyArray<DossierRow>;
   /** Timings the section head already states — rows drop the matching tag. */
   stated: ReadonlyArray<BoardFactTiming>;
   /**

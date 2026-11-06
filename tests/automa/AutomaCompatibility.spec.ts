@@ -75,11 +75,21 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
   });
 
   it('a board without a MarsBot profile conflicts and names it', () => {
-    const conflicts = automaConflicts({...cleanInput(), boardName: BoardName.HOLLANDIA});
+    // Every board of the game is covered since Hollandia joined (2026-11-06), so the rule now stands for a map a future
+    // sync brings — its subject here is a board name the engine does not know.
+    const conflicts = automaConflicts({...cleanInput(), boardName: 'Nowhere Planitia' as BoardName});
     expect(conflicts).has.length(1);
     expect(conflicts[0].key).eq('board');
     expect(conflicts[0].reason)
-      .eq('the Hollandia board yet — MarsBot covers tharsis, hellas, elysium, utopia planitia, terra cimmeria nova, vastitas borealis nova, vastitas borealis, amazonis p., t. cimmeria and arabia terra');
+      .eq('the Nowhere Planitia board yet — MarsBot covers tharsis, hellas, elysium, utopia planitia, terra cimmeria nova, vastitas borealis nova, vastitas borealis, amazonis p., t. cimmeria, arabia terra and Hollandia');
+  });
+
+  it('Hollandia — the map with no milestone row of its own — is covered, with and without the random-set box', () => {
+    expect(automaConflicts({...cleanInput(), boardName: BoardName.HOLLANDIA})).is.empty;
+    expect(automaConflicts({...cleanInput(), boardName: BoardName.HOLLANDIA, randomMA: true})).is.empty;
+    // …and the random-set rule still names a map nobody covers.
+    expect(automaConflicts({...cleanInput(), boardName: 'Nowhere Planitia' as BoardName, randomMA: true}).map((c) => c.key))
+      .deep.eq(['board', 'rule:randomMilestonesAwards']);
   });
 
   it('reports EVERY conflict (the UI highlights all of them at once)', () => {

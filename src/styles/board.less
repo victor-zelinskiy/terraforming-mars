@@ -1751,17 +1751,32 @@
 		center / 100% 100% no-repeat;
 }
 
-// Deflection-zone — gameplay overlay (shield-like), yellow wash + soft
-// warm outline so it doesn't fight other cell visuals while still
-// reading as "shielded".
+// THE ASTEROID DEFLECTION ZONE (Hollandia) — the map's one REGION: twelve cells whose rule asks on which side of
+// the line a player's tiles stand («while ALL your tiles are inside the zone, your plants are protected»). A TYPE
+// of cell, so it is drawn by material, in one hue in all three places a cell is drawn (the owner's law of
+// 2026-11-05): a violet ground and an inset kant here, the same violet in the dossier's portrait
+// (`con-cellp__hex--deflection`) and in the creator's miniature (`map-fp__hex--zone`). Violet, never the legacy
+// yellow wash: yellow is the neighbour of the amber that lights a LEGAL candidate, and a zone cell among the
+// candidates read as «twice available»; violet is the one hue no surface, tile, or highlight of the board owns.
+// A layer of its own right over the cell's type layer (`BoardSpace.vue` mounts it BEFORE the bonus): the printed
+// bonus, the pieces and the candidate's ring paint over it — the legacy overlay stood last and washed the icons.
 .board-space-type-deflection-zone {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
 	background:
-		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(255,240,140,0.85)' stroke-width='1.2' stroke-linejoin='round'/></svg>")
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,2.6 43.1,14.1 43.1,36.9 23,48.4 2.9,36.9 2.9,14.1' fill='rgba(148,108,236,0.24)' stroke='rgba(198,174,255,0.78)' stroke-width='1' stroke-linejoin='round'/></svg>")
 		center / 100% 100% no-repeat;
 	clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
-	background-color: rgba(251, 255, 16, 0.3);
-	width: 100%;
-	height: 100%;
+}
+
+// …and a cell of the zone a TILE stands on. The rule counts the tiles, so «this tile is inside» must read on the
+// occupied cell too — where the ground is under the tile's art. Only the KANT comes up over the tile (no fill: a
+// wash over a city or a greenery would repaint the piece), inset from the rim the tile's own material owns.
+.board-space-type-deflection-zone--covered {
+	background:
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,4 41.8,14.8 41.8,36.2 23,47 4.2,36.2 4.2,14.8' fill='none' stroke='rgba(206,184,255,0.92)' stroke-width='1.3' stroke-linejoin='round'/></svg>")
+		center / 100% 100% no-repeat;
 }
 
 .board-hidden-tile{

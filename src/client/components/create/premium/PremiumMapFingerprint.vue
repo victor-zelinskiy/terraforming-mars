@@ -198,7 +198,8 @@ export default defineComponent({
           cls: {
             'map-fp__hex--ocean': s.t === SpaceType.OCEAN,
             'map-fp__hex--cove': s.t === SpaceType.COVE,
-            'map-fp__hex--special': s.t === SpaceType.RESTRICTED || s.t === SpaceType.DEFLECTION_ZONE,
+            'map-fp__hex--special': s.t === SpaceType.RESTRICTED,
+            'map-fp__hex--zone': s.t === SpaceType.DEFLECTION_ZONE,
           },
           fill: this.hexFill(s),
           ...(s.t === SpaceType.COVE ? {half: 'rgba(56, 126, 208, 0.52)'} : {}),
@@ -255,7 +256,8 @@ export default defineComponent({
       case SpaceType.RESTRICTED:
         return 'rgba(16, 10, 9, 0.72)';
       case SpaceType.DEFLECTION_ZONE:
-        return 'rgba(152, 102, 232, 0.30)';
+        // The field's own violet ground (`board-space-type-deflection-zone`) — one hue for the zone wherever it is drawn.
+        return 'rgba(148, 108, 236, 0.30)';
       default:
         return s.v === true ? 'rgba(206, 112, 62, 0.26)' : 'rgba(186, 100, 62, 0.15)';
       }

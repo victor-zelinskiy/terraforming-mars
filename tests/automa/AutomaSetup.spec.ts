@@ -202,7 +202,8 @@ describe('AutomaSetup', () => {
       // card) — covered positively in AutomaDeltaProject.spec.ts.
       // NOTE: RANDOM milestones and awards are SUPPORTED on every board MarsBot covers (the framework of
       // docs/claude/marsbot-dynamic-ma-framework.md: a generated mat + B14) — covered positively below and in
-      // tests/automa/ma/. A board with no profile stays rejected (the row below).
+      // tests/automa/ma/. A board with no profile stays rejected (the last row — a name the engine does not know: every
+      // real board is covered since Hollandia, 2026-11-06).
       ['solo TR', {soloTR: true}],
       ['two corps', {twoCorpsVariant: true}],
       ['solar phase / WGT', {solarPhaseOption: true}],
@@ -214,7 +215,7 @@ describe('AutomaSetup', () => {
       // covered positively below. A custom COLONY list stays rejected: it is
       // direct bot data (the 11-area shipping board).
       ['a custom colony list', {coloniesExtension: true, customColoniesList: [ColonyName.IAPETUS]}],
-      ['a board with no MarsBot profile', {boardName: BoardName.HOLLANDIA}],
+      ['a board with no MarsBot profile', {boardName: 'Nowhere Planitia' as BoardName}],
     ];
     for (const [label, options] of cases) {
       it(label, () => {
@@ -230,8 +231,8 @@ describe('AutomaSetup', () => {
       expect(automa.mat, 'the bot plays a mat generated for the drawn set').is.not.undefined;
       expect(allBonusCards(automa)).contains(BonusCardId.B14_CORPORATE_COMPETITION_MA);
     }
-    // A board without a MarsBot profile stays rejected whatever the M&A option (Hollandia — not in scope).
-    expect(() => testAutomaGame({randomMA: RandomMAOptionType.LIMITED, boardName: BoardName.HOLLANDIA}))
+    // A board without a MarsBot profile stays rejected whatever the M&A option.
+    expect(() => testAutomaGame({randomMA: RandomMAOptionType.LIMITED, boardName: 'Nowhere Planitia' as BoardName}))
       .to.throw(/MarsBot \(Automa\) does not support/);
   });
 

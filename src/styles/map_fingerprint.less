@@ -33,6 +33,8 @@
 /* A cove's ocean half — the board's own split (left water, right land); the rim stays the whole hex's. */
 .map-fp__hex-half { stroke: none; pointer-events: none; }
 .map-fp__hex--special { stroke: rgba(214, 160, 120, 0.5); }
+/* Hollandia's Deflection Zone — the field's violet kant, so the region reads as ONE area on the tile. */
+.map-fp__hex--zone { stroke: rgba(198, 174, 255, 0.66); }
 
 .map-fp__glyphs { opacity: 0.95; }
 
@@ -44,6 +46,7 @@
 .map-fp--card .map-fp__hex--ocean { stroke: rgba(130, 196, 252, 0.66); stroke-width: 0.55; }
 .map-fp--card .map-fp__hex--cove { stroke: rgba(120, 220, 220, 0.56); stroke-width: 0.55; }
 .map-fp--card .map-fp__hex--special { stroke: rgba(214, 160, 120, 0.44); stroke-width: 0.5; }
+.map-fp--card .map-fp__hex--zone { stroke: rgba(198, 174, 255, 0.6); stroke-width: 0.55; }
 
 .map-fp__legend { display: flex; gap: 6px; justify-content: center; padding-top: 8px; flex: 0 0 auto; }
 .map-fp__legend-chip {

@@ -81,9 +81,20 @@ const EFFECT_IDS: ReadonlyArray<string> = ['hazard-identity'];
 /** What a tile placed BESIDE this one receives — the cell's standing mechanic for its neighbours. */
 const STANDING_IDS: ReadonlyArray<string> = ['hazard-adjacency', 'ocean-neighbour-rule'];
 
+/**
+ * A MAP ZONE that sorts the seats (Hollandia's Asteroid Deflection Zone — the engine's own fact ids): its standing rule
+ * and one status per seat. A section of its own, by seat — never a line among the field rules: «who is sheltered right
+ * now» is the whole point of inspecting a cell of the zone.
+ */
+const ZONE_RULE_ID = 'deflection-zone';
+const ZONE_STATUS_PREFIX = 'deflection-status-';
+
 function sectionOf(fact: BoardFact): DossierSectionKey {
   if (EFFECT_IDS.includes(fact.id)) {
     return 'effect';
+  }
+  if (fact.id === ZONE_RULE_ID || fact.id.startsWith(ZONE_STATUS_PREFIX)) {
+    return 'zone';
   }
   if (STANDING_IDS.includes(fact.id) || fact.category === 'ares-adjacency-bonus' || fact.category === 'tile-owner-benefit') {
     return 'tile';
@@ -107,6 +118,7 @@ const ORDER: ReadonlyArray<{key: DossierSectionKey, titleKey: string, stated: Re
   {key: 'gain', titleKey: 'When placing here', stated: ['immediate', 'on-confirm', 'rule']},
   {key: 'uncovers', titleKey: 'Under the tile', stated: ['rule', 'future']},
   {key: 'tile', titleKey: 'When placed adjacent', stated: ['rule']},
+  {key: 'zone', titleKey: 'Deflection Zone', stated: ['rule']},
   {key: 'endgame', titleKey: 'At game end', stated: ['endgame']},
   {key: 'rules', titleKey: 'Field rules', stated: ['rule']},
 ];
@@ -117,6 +129,18 @@ const ORDER: ReadonlyArray<{key: DossierSectionKey, titleKey: string, stated: Re
  */
 function relabel(fact: BoardFact): BoardFact {
   return fact.category === 'uncovered-bonus' && fact.title === 'Under the tile' ? {...fact, title: 'Cell bonus'} : fact;
+}
+
+/**
+ * The zone's rule is titled by its SECTION («Зона отклонения») — the row is the rule's own sentence, never the section's
+ * words a second time.
+ */
+function zoneRuleRow(fact: BoardFact): BoardFact {
+  if (fact.description === undefined) {
+    return fact;
+  }
+  const {description, ...rest} = fact;
+  return {...rest, title: description};
 }
 
 /**
@@ -156,6 +180,16 @@ export function cellDossierSections(info: BoardCellInfo, viewerColor?: Color, op
       const groups: Array<DossierRecipientGroup> = groupFactsByRecipient(facts, viewerColor)
         .map((g) => ({key: g.key, recipient: g.recipient, rows: buildDossierRows(g.facts, stated)}));
       out.push({key, titleKey, rows: groups.flatMap((g) => g.rows), groups, stated});
+      continue;
+    }
+    if (key === 'zone') {
+      // The rule first (addressed to nobody), then the seats in the server's order — the viewer first. On the cell that
+      // carries the zone's curated LORE (its marker) the foot already prints that very sentence — the rule is not said
+      // twice in one column (the `LORE_EXPLAINS` law).
+      const lead = opts.lore === true ? [] : buildDossierRows(facts.filter((f) => f.id === ZONE_RULE_ID).map(zoneRuleRow), stated);
+      const groups: Array<DossierRecipientGroup> = groupFactsByRecipient(facts.filter((f) => f.id !== ZONE_RULE_ID), viewerColor)
+        .map((g) => ({key: g.key, recipient: g.recipient, rows: buildDossierRows(g.facts, stated)}));
+      out.push({key, titleKey, rows: [...lead, ...groups.flatMap((g) => g.rows)], lead, groups, stated});
       continue;
     }
     out.push({key, titleKey, rows: buildDossierRows(facts, stated), stated});

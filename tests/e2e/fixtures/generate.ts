@@ -8384,6 +8384,81 @@ parliamentFixture('receive-board', {
   write(name, game);
 }
 
+// ── HOLLANDIA · THE DEFLECTION ZONE — the real board, two seats: blue (CrediCor, the viewer) on the move with 120 M€
+//    and NO tile yet; red (Thorgate) with a greenery INSIDE the zone (cell 37) and one OUTSIDE it (cell 61) — so red's
+//    row in the zone's dossier reads «Тайлы вне зоны» and an occupied zone cell is on the field (the kant over a tile).
+//    Blue's first greenery goes on zone cell 26 (the shelter turns ON — the rail's shield), its second on 25, the
+//    neighbour OUTSIDE the wedge (the dossier warns before the press, the shelter turns OFF). For console-hollandia. ──
+{
+  const name = 'hollandia-zone';
+  const pinned = [CardName.CREDICOR, CardName.THORGATE];
+  const [game, blue, red] = testGame(2, {
+    skipInitialCardSelection: false, startingCorporations: 1, customCorporationsList: [...pinned], boardName: BoardName.HOLLANDIA,
+  });
+  assignPinnedCorporations(name, [blue, red], pinned);
+  answerStartFlow(game, [blue, red]);
+  blue.megaCredits = 120;
+  blue.plants = 6;
+  red.megaCredits = 60;
+  red.plants = 5;
+  const cell = (id: string) => game.board.getSpaceOrThrow(id as SpaceId);
+  game.addTile(red, cell('37'), {tileType: TileType.GREENERY});
+  game.addTile(red, cell('61'), {tileType: TileType.GREENERY});
+  runAllActions(game);
+  const legal = new Set(game.board.getAvailableSpacesForGreenery(blue).map((s) => s.id));
+  const zone = game.board.spaces.filter((s) => s.spaceType === SpaceType.DEFLECTION_ZONE).map((s) => s.id).sort();
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== blue.id || !(blue.getWaitingFor() instanceof OrOptions) ||
+      zone.length !== 12 || cell('26').spaceType !== SpaceType.DEFLECTION_ZONE || cell('25').spaceType !== SpaceType.LAND ||
+      cell('26').tile !== undefined || cell('25').tile !== undefined || !legal.has(cell('26').id) ||
+      !game.board.getAdjacentSpaces(cell('26')).some((s) => s.id === '25') ||
+      red.withinDeflectionZone !== false || blue.withinDeflectionZone !== false || blue.plantsAreProtected()) {
+    throw new Error(`${name}: expected blue on the move on Hollandia, zone cell 26 free and legal with 25 beside it outside the zone, red inside AND outside — got phase=${game.phase} active=${game.activePlayer.color} zone=[${zone}] 26=${cell('26').spaceType}/${cell('26').tile?.tileType} 25=${cell('25').spaceType}/${cell('25').tile?.tileType}`);
+  }
+  write(name, game);
+}
+
+// ── HOLLANDIA · MARSBOT — a solo table vs MarsBot (Credicor) on the map with no milestone row of its own: the set is
+//    DRAWN (the box is off — the map always draws), the mat is the generator's on the borrowed Tharsis base, the deck
+//    holds B14. The bot's one tile stands INSIDE the zone (cell 36), so its row in the zone's dossier reads «Растения
+//    защищены» — the rule holds for it as for any player. The round blue hands over is proven on a copy: the bot plays
+//    it to the end and the next generation begins. For console-hollandia. ──
+{
+  const name = 'hollandia-marsbot';
+  const pinned = [CardName.TERACTOR];
+  const [game, human, bot] = testAutomaGame({
+    boardName: BoardName.HOLLANDIA, startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [human], pinned);
+  answerStartFlow(game, [human]);
+  human.megaCredits = 80;
+  bot.megaCredits = 20;
+  game.addTile(bot, game.board.getSpaceOrThrow('36' as SpaceId), {tileType: TileType.GREENERY});
+  runAllActions(game);
+  const automa = game.automa!;
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions) ||
+      automa.mat === undefined || automa.mat.report.baseIsFallback !== true || game.milestones.length !== 5 || game.awards.length !== 5 ||
+      bot.withinDeflectionZone !== true || !bot.plantsAreProtected() ||
+      ![...automa.bonusDeck, ...automa.actionDeck].some((c) => c.kind === 'bonus' && c.id === BonusCardId.B14_CORPORATE_COMPETITION_MA)) {
+    throw new Error(`${name}: expected blue on the move, a generated mat on the borrowed base, a drawn set, B14 in the deck and the bot sheltered by the zone — got phase=${game.phase} wf=${human.getWaitingFor()?.constructor.name} mat=${automa.mat?.base} zone=${bot.withinDeflectionZone}`);
+  }
+  // THE DRY RUN — blue's pass on a copy: the bot's whole round resolves and the next generation stands.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(human.id);
+  const menu = blue.getWaitingFor();
+  const titleOf = (o: {title: unknown}) => typeof o.title === 'string' ? o.title : (o.title as {message?: string} | undefined)?.message ?? '';
+  const passIndex = menu instanceof OrOptions ? menu.options.findIndex((o) => titleOf(o) === 'Pass for this generation') : -1;
+  if (passIndex < 0) {
+    throw new Error(`${name}: blue holds no pass option (wf=${menu?.constructor.name})`);
+  }
+  blue.process({type: 'or', index: passIndex, response: {type: 'option'}});
+  runAllActions(copy);
+  if (copy.generation !== game.generation + 1) {
+    throw new Error(`${name}: the dry run's bot round should end the generation — generation ${copy.generation}, phase ${copy.phase}`);
+  }
+  console.log(`${name}: set ${game.milestones.map((m) => m.name).join(', ')} / ${game.awards.map((a) => a.name).join(', ')}; mat ${automa.mat.topology}, repairs ${automa.mat.report.repairs.length}; dry run → generation ${copy.generation}`);
+  write(name, game);
+}
+
 // ── RECEIVE · THE COLONY — «somebody traded on my colony: which card takes the floater?» (the TR53 iteration, case 3,
 //    decision 3). A Venus table: blue owns a cube on Titan and TWO floater holders (Dirigibles 1, Aerial Mappers 0);
 //    RED IS ON THE MOVE with 3 energy and a free fleet — red's trade with Titan pays blue's owner bonus (one floater)

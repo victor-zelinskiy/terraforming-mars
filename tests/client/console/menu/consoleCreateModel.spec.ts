@@ -326,13 +326,12 @@ describe('consoleCreateModel', () => {
       toggleExpansion('promo');
       const promoRow = expansionRows().find((r) => r.meta.id === 'promo');
       expect(promoRow?.conflictKey).to.eq(undefined);
-      // Hellas (B09) and Elysium (B10) both have a MarsBot board; Hollandia has none (Amazonis got its home-made board, 2026-11-02).
-      selectMap(BoardName.HELLAS);
-      expect(mapRows().find((m) => m.selected)?.conflict).to.eq(false);
-      selectMap(BoardName.ELYSIUM);
-      expect(mapRows().find((m) => m.selected)?.conflict).to.eq(false);
-      selectMap(BoardName.HOLLANDIA);
-      expect(mapRows().find((m) => m.selected)?.conflict).to.eq(true);
+      // Every map of the catalog plays with MarsBot since Hollandia (the last one, 2026-11-06) — none wears a conflict.
+      for (const map of [BoardName.HELLAS, BoardName.ELYSIUM, BoardName.HOLLANDIA]) {
+        selectMap(map);
+        expect(mapRows().find((m) => m.selected)?.conflict, map).to.eq(false);
+      }
+      expect(mapRows().filter((m) => m.conflict), 'no map of the catalog is refused with the bot').to.deep.eq([]);
     });
   });
 
@@ -405,7 +404,7 @@ describe('consoleCreateModel', () => {
       // Promo is automa-supported now — a RULES conflict stands in for the
       // former expansions-deck one.
       createGameState.config.rules.randomBoardTiles = true;
-      selectMap(BoardName.HOLLANDIA); // Hollandia has no MarsBot board.
+      selectMap('Nowhere Planitia' as BoardName); // A map MarsBot does not cover — no real one is left (2026-11-06).
       const issues = launchIssues();
       const decks = issues.map((i) => i.target.deck);
       expect(decks).to.include('rules');

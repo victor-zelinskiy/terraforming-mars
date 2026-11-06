@@ -4,7 +4,7 @@ import {GameOptions} from '../game/GameOptions';
 import {milestoneManifest} from '../milestones/Milestones';
 import {RandomMAOptionType} from '../../common/ma/RandomMAOptionType';
 import {inplaceShuffle} from '../utils/shuffle';
-import {UnseededRandom} from '../../common/utils/Random';
+import {Random, UnseededRandom} from '../../common/utils/Random';
 import {MilestoneName, milestoneNames} from '../../common/ma/MilestoneName';
 import {AwardName, awardNames} from '../../common/ma/AwardName';
 import {synergies} from './MilestoneAwardSynergies';
@@ -84,7 +84,16 @@ export type MASelectionContext = {
 
 const DEFAULT_MA_CONTEXT: MASelectionContext = {hasVolcanicSpaces: true};
 
-export function chooseMilestonesAndAwards(gameOptions: GameOptions, context: MASelectionContext = DEFAULT_MA_CONTEXT): DrawnMilestonesAndAwards {
+/**
+ * @param rng the stream the DRAW reads. A game hands in its own seeded one (`Game.newInstance` — a stream of its own,
+ *   beside the deal's), so a game that draws its set — the «random milestones and awards» box, and EVERY game on a map
+ *   with no row of its own (Hollandia) — is reproducible by its seed like the rest of its setup. Absent = unseeded, as
+ *   upstream draws it (the statistical specs of the selector).
+ */
+export function chooseMilestonesAndAwards(
+  gameOptions: GameOptions,
+  context: MASelectionContext = DEFAULT_MA_CONTEXT,
+  rng: Random = UnseededRandom.INSTANCE): DrawnMilestonesAndAwards {
   let drawnMilestonesAndAwards: DrawnMilestonesAndAwards = {
     milestones: [],
     awards: [],
@@ -117,7 +126,7 @@ export function chooseMilestonesAndAwards(gameOptions: GameOptions, context: MAS
       // vize1215 fork: boards without a fixed MA set (e.g. Hollandia) draw from the unified
       // "all" pool — pure random, deduped, expansion-filtered — same as the ALL button,
       // instead of the old synergy-limited classic-only fallback.
-      return getRandomMilestonesAndAwards({...gameOptions, randomMA: RandomMAOptionType.ALL}, requiredQty, UNLIMITED_SYNERGY, context);
+      return getRandomMilestonesAndAwards({...gameOptions, randomMA: RandomMAOptionType.ALL}, requiredQty, UNLIMITED_SYNERGY, context, 1, rng);
     }
     if (gameOptions.venusNextExtension) {
       push(milestoneManifest.expansions['venus'], awardManifest.expansions['venus']);
@@ -128,7 +137,7 @@ export function chooseMilestonesAndAwards(gameOptions: GameOptions, context: MAS
     // candidates when Ares is enabled). With randomMA === NONE they stay out.
     if (gameOptions.moonExpansion) {
       // One MA will reward moon tags, the other will reward moon tiles.
-      if (Math.random() > 0.5) {
+      if (rng.next() > 0.5) {
         push(['One Giant Step'], ['Lunar Magnate']);
       } else {
         push(['Lunarchitect'], ['Full Moon']);
@@ -137,14 +146,14 @@ export function chooseMilestonesAndAwards(gameOptions: GameOptions, context: MAS
     break;
 
   case RandomMAOptionType.LIMITED:
-    drawnMilestonesAndAwards = getRandomMilestonesAndAwards(gameOptions, requiredQty, LIMITED_SYNERGY, context);
+    drawnMilestonesAndAwards = getRandomMilestonesAndAwards(gameOptions, requiredQty, LIMITED_SYNERGY, context, 1, rng);
     break;
   case RandomMAOptionType.UNLIMITED:
-    drawnMilestonesAndAwards = getRandomMilestonesAndAwards(gameOptions, requiredQty, UNLIMITED_SYNERGY, context);
+    drawnMilestonesAndAwards = getRandomMilestonesAndAwards(gameOptions, requiredQty, UNLIMITED_SYNERGY, context, 1, rng);
     break;
   case RandomMAOptionType.ALL:
     // vize1215 fork: pure random from the full deduplicated, expansion-filtered pool.
-    drawnMilestonesAndAwards = getRandomMilestonesAndAwards(gameOptions, requiredQty, UNLIMITED_SYNERGY, context);
+    drawnMilestonesAndAwards = getRandomMilestonesAndAwards(gameOptions, requiredQty, UNLIMITED_SYNERGY, context, 1, rng);
     break;
   default:
     throw new Error('Unknown milestone/award type: ' + gameOptions.randomMA);
@@ -245,7 +254,8 @@ function getRandomMilestonesAndAwards(gameOptions: GameOptions,
   numberMARequested: number,
   constraints: Constraints,
   context: MASelectionContext = DEFAULT_MA_CONTEXT,
-  attempt: number = 1): DrawnMilestonesAndAwards {
+  attempt: number = 1,
+  rng: Random = UnseededRandom.INSTANCE): DrawnMilestonesAndAwards {
   // 5 is a fine number of attempts. A sample of 100,000 runs showed that this algorithm
   // didn't get past 3.
   // https://github.com/terraforming-mars/terraforming-mars/pull/1637#issuecomment-711411034
@@ -272,26 +282,26 @@ function getRandomMilestonesAndAwards(gameOptions: GameOptions,
 
   const [candidateMilestones, candidateAwards] = getCandidates(gameOptions, context);
 
-  inplaceShuffle(candidateMilestones, UnseededRandom.INSTANCE);
-  inplaceShuffle(candidateAwards, UnseededRandom.INSTANCE);
+  inplaceShuffle(candidateMilestones, rng);
+  inplaceShuffle(candidateAwards, rng);
 
   const accum = new Accumulator(constraints);
 
   // Keep adding milestones or awards until there are as many as requested
   while (accum.milestones.length + accum.awards.length < numberMARequested * 2) {
     // If there is enough award, add a milestone. And vice versa. If still need both, flip a coin to decide which to add.
-    if (accum.awards.length === numberMARequested || (accum.milestones.length !== numberMARequested && Math.round(Math.random()))) {
+    if (accum.awards.length === numberMARequested || (accum.milestones.length !== numberMARequested && Math.round(rng.next()))) {
       const newMilestone = candidateMilestones.splice(0, 1)[0];
       // If not enough milestone are left to satisfy the constraints, restart the function with a recursive call.
       if (newMilestone === undefined) {
-        return getRandomMilestonesAndAwards(gameOptions, numberMARequested, constraints, context, attempt+1);
+        return getRandomMilestonesAndAwards(gameOptions, numberMARequested, constraints, context, attempt+1, rng);
       }
       accum.add(newMilestone, true);
     } else {
       const newAward = candidateAwards.splice(0, 1)[0];
       // If not enough awards are left to satisfy the constraints, restart the function with a recursive call.
       if (newAward === undefined) {
-        return getRandomMilestonesAndAwards(gameOptions, numberMARequested, constraints, context, attempt+1);
+        return getRandomMilestonesAndAwards(gameOptions, numberMARequested, constraints, context, attempt+1, rng);
       }
       accum.add(newAward, false);
     }

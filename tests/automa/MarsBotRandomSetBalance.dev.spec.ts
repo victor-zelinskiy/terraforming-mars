@@ -12,6 +12,7 @@ import {seatRandomSet} from './ma/matTestGame';
 import {testAutomaGame} from './AutomaTestGame';
 import {IGame} from '../../src/server/IGame';
 import {AutomaCorporations} from '../../src/server/automa/corps/AutomaCorporations';
+import {marsBotMapProfile} from '../../src/server/automa/boards/MarsBotMapProfile';
 
 /**
  * THE RANDOM-SET BENCH — a DEV spec, run on demand (the prompt's § Баланс 4):
@@ -30,6 +31,10 @@ const SEEDS = 12;
 const CARDS = 48;
 const SETS = Number(process.env.TM_BOT_SETS ?? 300);
 const VARIANT = process.env.TM_BOT_VARIANT ?? 'base';
+
+/** The maps that print a mat of their own — the band's members. */
+const PRINTED_BOARDS = AUTOMA_SUPPORTED_BOARDS.filter((boardName) => marsBotMapProfile(boardName).borrowedBoard === undefined);
+const PINNED_BOARD = AUTOMA_SUPPORTED_BOARDS.find((boardName) => boardName === process.env.TM_BOT_BOARD);
 
 /** The official window of the track criteria (§22.4): earliest / latest mean generation on the six official boards. */
 const OFFICIAL_WINDOW = {min: 4.3, max: 13.3};
@@ -107,7 +112,8 @@ describeBench(`MarsBot random-set bench (TM_BOT_BALANCE=1, ${VARIANT})`, () => {
         AutomaCorporations.onActionPhaseStart(game);
       }
     };
-    const statics = AUTOMA_SUPPORTED_BOARDS.map((boardName, b) =>
+    // (A map that prints no board — Hollandia, on its borrowed Tharsis rows — has no static mat to put in the band.)
+    const statics = PRINTED_BOARDS.map((boardName, b) =>
       summarize(boardName, benchConfig({label: `static-${boardName}`,
         options: {boardName, ...extra, ...(corps[b % corps.length] !== undefined ? {corporation: corps[b % corps.length]} : {})},
         prepare: seat}, sequences), CARDS));
@@ -125,7 +131,8 @@ describeBench(`MarsBot random-set bench (TM_BOT_BALANCE=1, ${VARIANT})`, () => {
       const [milestonePool, awardPool] = getCandidates(poolOptions);
       const used = new Set<string>();
       const set = {milestones: pick(milestonePool, 5, rnd, used), awards: pick(awardPool, 5, rnd, used)};
-      const boardName = AUTOMA_SUPPORTED_BOARDS[s % AUTOMA_SUPPORTED_BOARDS.length];
+      // `TM_BOT_BOARD=<name>` pins every set to one map (Hollandia's own numbers — docs/AUTOMA_DATA_AUDIT.md §23).
+      const boardName = PINNED_BOARD ?? AUTOMA_SUPPORTED_BOARDS[s % AUTOMA_SUPPORTED_BOARDS.length];
       const corporation = corps[s % corps.length];
       const runs = benchConfig({
         label: `rs-${s}`,

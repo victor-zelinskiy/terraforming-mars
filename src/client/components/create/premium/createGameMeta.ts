@@ -88,7 +88,7 @@ export const PREMIUM_MAPS: ReadonlyArray<PremiumMapMeta> = [
   {id: BoardName.AMAZONIS, random: false, fan: true, accent: '130,190,50', labelKey: 'Amazonis Planitia', descKey: 'Western plateau with plant, heat and life (microbe/animal) bonuses.'},
   {id: BoardName.TERRA_CIMMERIA, random: false, fan: true, accent: '200,60,150', labelKey: 'Terra Cimmeria', descKey: 'Rugged southern highlands with steel and energy bonuses.'},
   {id: BoardName.ARABIA_TERRA, random: false, fan: true, accent: '214,170,120', labelKey: 'Arabia Terra', descKey: 'Ancient highlands on a northern shore: coves that take an ocean or a land tile, with data, science and energy-production bonuses.'},
-  {id: BoardName.HOLLANDIA, random: false, fan: true, accent: '224,212,96', labelKey: 'Hollandia', descKey: 'Compact map with dense, high-value bonus clusters.'},
+  {id: BoardName.HOLLANDIA, random: false, fan: true, accent: '224,212,96', labelKey: 'Hollandia', descKey: 'Plant-rich lowlands with an asteroid deflection zone: keep ALL your tiles inside it and your plants cannot be removed. No milestone row of its own — every game draws its set.'},
 ];
 
 export function mapMeta(id: BoardName | 'random-all'): PremiumMapMeta {

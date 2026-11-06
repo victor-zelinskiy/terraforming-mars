@@ -18,6 +18,8 @@
       </span>
     </h3>
     <template v-if="section.groups !== undefined">
+      <!-- A grouped section's own lead rows (a map zone's rule over the seats it sorts) — addressed to nobody. -->
+      <console-placement-fact-row v-for="row in section.lead ?? []" :key="row.key" :row="row" />
       <div v-for="group in section.groups" :key="group.key" class="con-context__grp">
         <div class="con-context__grp-head">
           <span v-if="groupDot(group) !== undefined" class="con-context__grp-dot"
