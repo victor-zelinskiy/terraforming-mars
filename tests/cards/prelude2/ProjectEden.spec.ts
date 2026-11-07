@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {TestPlayer} from '../../TestPlayer';
 import {testGame} from '../../TestGame';
-import {ProjectEden, OCEANS_AT_MAXIMUM, PROJECT_EDEN_PLACEMENT_REASON} from '../../../src/server/cards/prelude2/ProjectEden';
+import {ProjectEden, PROJECT_EDEN_PLACEMENT_REASON} from '../../../src/server/cards/prelude2/ProjectEden';
 import {IGame} from '../../../src/server/IGame';
 import {fakeCard, maxOutOceans, runAllActions} from '../../TestingUtils';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
@@ -27,6 +27,7 @@ import {Biolab} from '../../../src/server/cards/prelude/Biolab';
 import {IoResearchOutpost} from '../../../src/server/cards/prelude/IoResearchOutpost';
 import {UNMIContractor} from '../../../src/server/cards/prelude/UNMIContractor';
 import {OrOptionsModel, SelectOptionModel} from '../../../src/common/models/PlayerInputModel';
+import {SKIP_REASON} from '../../../src/server/cards/actionPreviews';
 
 /**
  * P58 Project Eden — the FORK's rules, pinned on purpose (upstream's own spec encoded four OR questions with «Discard
@@ -151,7 +152,7 @@ describe('ProjectEden', () => {
       source: CardName.PROJECT_EDEN, done: [], remaining: [TileType.CITY, TileType.GREENERY], skipped: [TileType.OCEAN], index: 1, of: 2,
     });
     const skips = game.events.events.filter((e) => e.type === 'effect-skipped').map((e) => e.impact.skipped);
-    expect(skips).deep.eq([{label: 'Placing an ocean tile', reason: OCEANS_AT_MAXIMUM, effect: {direction: 'gain', icon: 'oceans', amount: 1}}]);
+    expect(skips).deep.eq([{label: 'Placing an ocean tile', reason: SKIP_REASON.oceansMaxed, effect: {direction: 'gain', icon: 'oceans', amount: 1}}]);
     choose(or, TileType.CITY);
     place(cast(player.popWaitingFor(), SelectSpace));
     // The greenery is the last placement — no question.

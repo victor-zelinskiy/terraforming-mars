@@ -15,11 +15,13 @@ import {SKIP_REASON, SKIPPED_LABEL} from '../../src/server/cards/actionPreviews'
 import {AddResourcesToCards} from '../../src/server/deferredActions/AddResourcesToCards';
 import {StealResources} from '../../src/server/deferredActions/StealResources';
 import {RemoveResourcesFromCard} from '../../src/server/deferredActions/RemoveResourcesFromCard';
-import {fakeCard, runAllActions} from '../TestingUtils';
+import {fakeCard, maxOutOceans, runAllActions} from '../TestingUtils';
 import {SupremeExpertise} from '../../src/server/cards/turmoilRedux/SupremeExpertise';
 import {PoliticalScience} from '../../src/server/cards/turmoilRedux/PoliticalScience';
 import {ImportedNitrogen} from '../../src/server/cards/base/ImportedNitrogen';
 import {Asteroid} from '../../src/server/cards/base/Asteroid';
+import {Flooding} from '../../src/server/cards/base/Flooding';
+import {IceCapMelting} from '../../src/server/cards/base/IceCapMelting';
 import {HeatTrappers} from '../../src/server/cards/base/HeatTrappers';
 import {HiredRaiders} from '../../src/server/cards/base/HiredRaiders';
 import {Sabotage} from '../../src/server/cards/base/Sabotage';
@@ -201,6 +203,25 @@ const SCENARIOS: ReadonlyArray<Scenario> = [
       }
     },
     expected: [{label: COLONY_TILE_LABEL, reason: NO_VACANT_COLONY_TILE_REASON}],
+  },
+  {
+    // The ocean class: `PlaceOceanTile` at the ceiling names a CARD's ocean in the words of the declaration's preview.
+    name: 'Ice Cap Melting (declarative ocean) — nine oceans stand',
+    card: () => new IceCapMelting(),
+    arrange: (_game, player) => {
+      maxOutOceans(player);
+    },
+    expected: [{label: SKIPPED_LABEL.placeOcean, reason: SKIP_REASON.oceansMaxed, effect: {direction: 'gain', icon: 'oceans', amount: 1}}],
+  },
+  {
+    // A bespoke ocean: its preview promised the placement (and the attack beside it) at nine oceans, and the play lost
+    // both in silence — now the same named skip before the press and after it.
+    name: 'Flooding (bespoke ocean + its attack) — nine oceans stand',
+    card: () => new Flooding(),
+    arrange: (_game, player) => {
+      maxOutOceans(player);
+    },
+    expected: [{label: SKIPPED_LABEL.placeOcean, reason: SKIP_REASON.oceansMaxed, effect: {direction: 'gain', icon: 'oceans', amount: 1}}],
   },
   {
     name: 'Virus — the only plants are PROTECTED: the cause says so',

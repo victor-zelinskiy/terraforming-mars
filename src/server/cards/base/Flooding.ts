@@ -21,6 +21,8 @@ import * as actionPreviews from '../actionPreviews';
 import * as placementPreviews from '../placementPreviews';
 import {Priority} from '../../deferredActions/Priority';
 import {recordSkippedEffect} from '../../deferredActions/skippedEffect';
+import {stepsForBehavior} from '../../models/actionPreview';
+import * as divertedGate from '../../parliament/divertedTerraformingGate';
 
 export class Flooding extends Card implements IProjectCard {
   constructor() {
@@ -48,9 +50,29 @@ export class Flooding extends Card implements IProjectCard {
     });
   }
 
+  /** Nine oceans stand (and no law replaces the ocean — RX35): the play places nothing, and so can hit nobody. */
+  private oceanSkipped(player: IPlayer): boolean {
+    return !player.game.canAddOcean() && !divertedGate.divertsTerraforming(player);
+  }
+
+  // THE CEILING IS NAMED BEFORE THE PRESS — `Executor.canExecute`'s `maxoceans` for this bespoke ocean: at nine oceans
+  // the card stays playable (the rules allow it) and plays for its −1 VP alone, so the player must be told.
+  public override bespokeCanPlay(player: IPlayer): boolean {
+    if (this.oceanSkipped(player)) {
+      this.addWarning('maxoceans');
+    }
+    return true;
+  }
+
   // The ocean placement (and the placement-dependent M€ removal that follows) is
   // bespoke — surface a note so the play modal isn't mute about the board step.
   public cardPlayPreview(player: IPlayer): ActionPreview {
+    if (this.oceanSkipped(player)) {
+      // No placement and no attack are promised: the declaration's own named skip («Размещение океана +1», «все
+      // океаны уже на поле» — `stepsForBehavior`, P58 Project Eden's road), which `PlaceOceanTile` records after the
+      // press in the same words. The removal hangs on the ocean's neighbours — with no ocean it has no subject.
+      return actionPreviews.playPreview(this, player, [], stepsForBehavior(player, this, {ocean: {}}));
+    }
     // The tile is a plain OCEAN — the card's own name is not the tile's. The
     // adjacent-opponent attack is a SEPARATE follow-up, not a placement rule,
     // so it keeps its own note instead of bloating the placement line.

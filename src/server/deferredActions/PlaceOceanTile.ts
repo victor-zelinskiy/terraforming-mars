@@ -12,6 +12,8 @@ import {PlacementContext} from '../../common/models/PlayerInputModel';
 import {TileType} from '../../common/TileType';
 import * as divertedGate from '../parliament/divertedTerraformingGate';
 import {TerraformingOrigin} from '../parliament/resolutions/IResolution';
+import {recordSkippedEffect} from './skippedEffect';
+import {SKIP_REASON, skippedOcean} from '../cards/actionPreviews';
 
 type Options = {
   title?: string | Message,
@@ -55,6 +57,12 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
       return undefined;
     }
     if (!this.player.game.canAddOcean()) {
+      // NO SILENT LOSS, the live half: a CARD's ocean the board has no room for is named after the fact in the words
+      // its preview used before the press (`OCEANS_MAXED_NOTE` / the partly-placed note — `skippedOcean`). Only a card's
+      // ocean: the engine's own (the 0 °C bonus, a colony, a law, a global event) belongs to a story that names itself.
+      if (this.options.sourceCard !== undefined) {
+        recordSkippedEffect(this.creditedPlayer, SKIP_REASON.oceansMaxed, skippedOcean(1));
+      }
       const whales = this.creditedPlayer.tableau.get(CardName.WHALES);
       if (whales !== undefined) {
         this.player.addResourceTo(whales, {qty: 1, log: true});

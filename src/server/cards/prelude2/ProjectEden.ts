@@ -35,8 +35,6 @@ export const PROJECT_EDEN_PLACEMENT_REASON = 'The prelude is already played — 
 /** The order step's question and its «why». */
 export const PROJECT_EDEN_ORDER_TITLE = 'Which tile do you place next?';
 export const PROJECT_EDEN_ORDER_TRIGGER = 'The order of the placements is yours.';
-/** The ocean the board has no room for — the CAUSE the record names. */
-export const OCEANS_AT_MAXIMUM = 'All oceans are on the board';
 
 /**
  * P58 · Project Eden — «Place 1 ocean tile, 1 city tile, and 1 greenery tile. Discard 3 cards.»
@@ -128,8 +126,7 @@ export class ProjectEden extends PreludeCard {
     if (!this.placed.includes('ocean') && !game.canAddOcean() && !player.playedCards.has(CardName.WHALES)) {
       this.placed.push('ocean');
       this.oceanSkipped = true;
-      recordSkippedEffect(player, OCEANS_AT_MAXIMUM, {label: actionPreviews.SKIPPED_LABEL.placeOcean,
-        effect: {direction: 'gain', icon: 'oceans', amount: 1}});
+      recordSkippedEffect(player, actionPreviews.SKIP_REASON.oceansMaxed, actionPreviews.skippedOcean(1));
     }
     const remaining = this.remaining();
     if (remaining.length === 0) {

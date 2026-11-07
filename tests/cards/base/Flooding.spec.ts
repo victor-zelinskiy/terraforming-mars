@@ -12,6 +12,8 @@ import {CardName} from '../../../src/common/cards/CardName';
 import {addGreenery, formatMessage, maxOutOceans, runAllActions} from '../../TestingUtils';
 import {testGame} from '../../TestGame';
 import {cast} from '../../../src/common/utils/utils';
+import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
+import {OCEANS_MAXED_NOTE, SKIP_REASON, SKIPPED_LABEL, skippedOcean} from '../../../src/server/cards/actionPreviews';
 
 describe('Flooding', () => {
   let card: Flooding;
@@ -231,5 +233,41 @@ describe('Flooding', () => {
     expect(card.canPlay(player)).is.true;
 
     cast(card.play(player), undefined);
+  });
+
+  describe('nine oceans stand — the card plays for its −1 VP alone, and says so', () => {
+    beforeEach(() => {
+      maxOutOceans(player);
+    });
+
+    it('still playable, with the engine\'s own «all oceans are on the board» warning', () => {
+      card.clearWarnings();
+      expect(card.canPlay(player)).is.true;
+      expect(Array.from(card.warnings)).deep.eq(['maxoceans']);
+    });
+
+    it('…and no warning while an ocean is left', () => {
+      [game, player, player2] = testGame(2);
+      card.clearWarnings();
+      expect(card.canPlay(player)).is.true;
+      expect(Array.from(card.warnings)).deep.eq([]);
+    });
+
+    it('the preview promises no placement and no attack: the lost ocean is NAMED', () => {
+      const steps = cardPlayPreview(player, card).branches.flatMap((b) => b.steps);
+      expect(steps.some((s) => s.kind === 'boardPlacement'), 'no ocean placement promised').is.false;
+      expect(steps.some((s) => s.kind === 'note' && s.text === 'An adjacent opponent may lose 4 M€'), 'no attack promised').is.false;
+      const warnings = steps.filter((s) => s.kind === 'note' && s.noteKind === 'warning');
+      expect(warnings.map((s) => s.kind === 'note' ? s.text : undefined)).deep.eq([OCEANS_MAXED_NOTE]);
+      expect(warnings[0].kind === 'note' ? warnings[0].skipped : undefined).deep.eq(skippedOcean(1));
+    });
+
+    it('the play records the lost ocean once, in the preview\'s own words — and asks nothing', () => {
+      player.playCard(card);
+      runAllActions(game);
+      expect(player.popWaitingFor()).is.undefined;
+      const skips = game.events.events.filter((e) => e.type === 'effect-skipped').map((e) => e.impact.skipped);
+      expect(skips).deep.eq([{label: SKIPPED_LABEL.placeOcean, reason: SKIP_REASON.oceansMaxed, effect: {direction: 'gain', icon: 'oceans', amount: 1}}]);
+    });
   });
 });

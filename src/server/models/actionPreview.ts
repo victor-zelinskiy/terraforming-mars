@@ -1153,8 +1153,9 @@ export function stepsForBehavior(
     const printed = behavior.ocean.count ?? 1;
     const count = divertedGate.divertsTerraforming(player) ? printed : Math.min(printed, remaining);
     // What the board has no room for is a NAMED skip with its magnitude (`SKIPPED_LABEL.placeOcean` — the coverage
-    // guard's «every warning names the skipped effect»), never a silent count.
-    const lost = (n: number) => ({label: actionPreviews.SKIPPED_LABEL.placeOcean, effect: {direction: 'gain' as const, icon: 'oceans', amount: n}});
+    // guard's «every warning names the skipped effect»), never a silent count — the description `PlaceOceanTile`'s
+    // live record repeats (`skippedOcean`).
+    const lost = actionPreviews.skippedOcean;
     if (count > 0) {
       steps.push({kind: 'boardPlacement', placementType: 'ocean', tileType: TileType.OCEAN, count: count > 1 ? count : undefined});
       if (count < printed) {

@@ -997,7 +997,18 @@ export const SKIP_REASON = {
   deckEmpty: 'The deck is empty',
   noActionToRepeat: 'No used action to repeat',
   noRequirementCard: 'No card with a requirement in hand',
+  // Nine oceans stand: a card's ocean is skipped (`PlaceOceanTile` at the ceiling, P58 Project Eden's own step).
+  oceansMaxed: 'All oceans are on the board',
 } as const;
+
+/**
+ * WHAT an ocean the board has no room for loses — ONE description for the preview's named skip (the declaration's
+ * `OCEANS_MAXED_NOTE` / `OCEANS_PARTLY_PLACED_NOTE`) and for the live record `PlaceOceanTile` writes at the ceiling, so
+ * the promise before the commit and the record after it read alike («Размещение океана +N»).
+ */
+export function skippedOcean(amount: number): SkippedEffect {
+  return {label: SKIPPED_LABEL.placeOcean, effect: {direction: 'gain', icon: 'oceans', amount}};
+}
 
 /**
  * WHAT an «add N <resource> to a card» loses when no card can hold it — ONE
