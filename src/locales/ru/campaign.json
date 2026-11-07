@@ -254,5 +254,13 @@
   "Fourteen folders instead of ten. The intern is no longer with us.": "Четырнадцать папок вместо десяти. Стажёр больше с нами не работает.",
   "One megacredit less per card. Science has never been so affordable — or so suspicious.": "На один мегакредит дешевле за карту. Наука ещё никогда не была такой доступной — и такой подозрительной.",
   "Everything back in the box. Shake. Hope.": "Всё обратно в коробку. Встряхнуть. Надеяться.",
-  "Committee": "Комитет"
+  "Committee": "Комитет",
+  "Carry up to ${0} played prelude(s) — played again in mission ${1} (Programme Extension)": "До ${0} {сыгранного пролога|сыгранных прологов|сыгранных прологов} — снова в игре в миссии ${1} («Продление программы»)",
+  "Prelude: ${0} / ${1}": "Пролог: ${0} / ${1}",
+  "Carry the prelude": "Взять пролог в финал",
+  "Leave the prelude behind": "Оставить пролог",
+  "Only ${0} prelude(s) can be carried — leave one behind first": "Можно перенести только ${0} — сначала оставьте один",
+  "No prelude was played in that mission — nothing to carry.": "В той миссии не было сыграно ни одного пролога — переносить нечего.",
+  "No. ${0}": "№ ${0}",
+  "Into the finale": "В финал"
 }

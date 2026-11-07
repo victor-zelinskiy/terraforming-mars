@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {CardName} from '../../src/common/cards/CardName';
-import {carryoverAskText, carryoverBandText, carryoverSeats} from '../../src/client/console/campaign/carryoverPicker';
+import {carryoverAskText, carryoverBandText, carryoverPreludeAskText, carryoverSeats} from '../../src/client/console/campaign/carryoverPicker';
 import {buildCampaignMapVm} from '../../src/client/console/campaign/campaignMapModel';
 
 /*
@@ -24,6 +24,20 @@ describe('carryoverPicker — the readings of the seat limit (P87)', () => {
     expect(carryoverAskText(2, 3)).include('2').include('3');
     expect(carryoverAskText(5, 2)).include('5');
     expect(carryoverAskText(0, 2)).include('2').not.include('${');
+  });
+
+  it('«Тендеры»: the LAST seats of the limit are the TENDER seats («Расширенное наследие») — marked, never a second limit', () => {
+    expect(carryoverSeats(3, [], 1)).deep.eq([{n: 1}, {n: 2}, {n: 3, tender: true}]);
+    expect(carryoverSeats(4, [CardName.ANTS], 2)).deep.eq([{n: 1, name: CardName.ANTS}, {n: 2}, {n: 3, tender: true}, {n: 4, tender: true}]);
+    // A kept card fills the tender seat like any other — the mark stays on the place, not on the card.
+    expect(carryoverSeats(3, [CardName.ANTS, CardName.BIRDS, CardName.FISH], 1)[2]).deep.eq({n: 3, name: CardName.FISH, tender: true});
+    // No tender seats (a titles campaign, the default): the manifest is unchanged.
+    expect(carryoverSeats(2, [])).deep.eq([{n: 1}, {n: 2}]);
+    expect(carryoverSeats(2, [], 5)).deep.eq([{n: 1, tender: true}, {n: 2, tender: true}]);
+  });
+
+  it('the prelude band\'s ask («Продление программы») carries the allowance and the mission as PARAMETERS', () => {
+    expect(carryoverPreludeAskText(1, 3)).include('1').include('3').not.include('${');
   });
 
   it('a kept card\'s band names the mission and its seat', () => {
@@ -58,5 +72,21 @@ describe('campaignMapModel — yourCarryLimit is the model\'s number (P87)', () 
 
   it('no window, no limit: 0 (the client never invents the default)', () => {
     expect(vmWith(undefined)?.yourCarryLimit).eq(0);
+  });
+
+  it('«Тендеры»: the tender seats, the played preludes, the prelude allowance and the selection come off the model; absent → none', () => {
+    const vm = vmWith({
+      sourceSlot: 0, bySeat: [{seat: 0, status: 'pending', count: 0, limit: 3}], yourCards: [], yourEligible: [], yourLimit: 3,
+      yourTenderSeats: 1, yourEligiblePreludes: [CardName.ALLIED_BANK, CardName.BIOFUELS], yourPreludeLimit: 1, yourPreludes: [CardName.BIOFUELS],
+    });
+    expect(vm?.yourTenderSeats).eq(1);
+    expect(vm?.yourEligiblePreludes).deep.eq([CardName.ALLIED_BANK, CardName.BIOFUELS]);
+    expect(vm?.yourPreludeLimit).eq(1);
+    expect(vm?.yourPreludes).deep.eq([CardName.BIOFUELS]);
+    const plain = vmWith({sourceSlot: 0, bySeat: [{seat: 0, status: 'pending', count: 0, limit: 2}], yourCards: [], yourEligible: [], yourLimit: 2});
+    expect(plain?.yourTenderSeats).eq(0);
+    expect(plain?.yourEligiblePreludes).deep.eq([]);
+    expect(plain?.yourPreludeLimit).eq(0);
+    expect(plain?.yourPreludes).deep.eq([]);
   });
 });

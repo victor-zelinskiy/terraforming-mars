@@ -225,4 +225,56 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     await press(page, 'Period', 600);
     await page.waitForSelector('.cmap__wait-strip--ready', {timeout: 20_000});
   });
+  test('E — «Тендеры» before the finale: a tender seat on the manifest, the played prelude carried by «Продление программы» — one POST carries both', async ({page, request}) => {
+    test.setTimeout(240_000);
+    // A three-mission tenders campaign: Bruno won «Расширенное наследие» + «Продление программы» at mission 1 (granted
+    // outright by the dev fixture), mission 2 committed with the carryover round OPEN and his played preludes recorded.
+    const {id} = await createCampaign(request, {}, {rewardMode: 'tenders', missionCount: 3});
+    await launchMission(request, id);
+    await devCommit(request, id, [1, 0], {tenders: {1: ['extendedLegacy', 'programExtension']}});
+    // Mission 2 is LAUNCHED before its commit — the carryover's source seat is the bearer of the POST (`interlude()`).
+    await launchMission(request, id);
+    await devCommit(request, id, [0, 1], {
+      carryoverPending: true, carryover: {0: [], 1: HAND}, finalPreludes: {1: ['Allied Bank', 'Biofuels']},
+    });
+    const before = await campaignModelAs(request, id, 'Bruno');
+    expect(before.carryover?.yourLimit, 'the seat\'s limit already counts the tender seat').toBe(3);
+    const posts = watchCarryPosts(page);
+    await openMapAs(page, id, 'Bruno');
+    await page.waitForSelector('.con-carry .con-album', {timeout: 20_000});
+    await expect.poll(() => page.locator(`${SLOT}--held`).count(), {timeout: 10_000}).toBe(0);
+    // The frames below are for the eye: the boot loader paints OVER the standing map for a while — wait it out.
+    await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 30_000}).catch(() => undefined);
+
+    // The manifest: three seats, the third the TENDER's (its tag); the band stands with the two played preludes.
+    await expect(page.locator('.con-carry [data-carry-seat]')).toHaveCount(3);
+    await expect(page.locator('.con-carry [data-carry-seat="3"]')).toHaveAttribute('data-carry-seat-tender', 'yes');
+    await expect(page.locator('.con-carry [data-carry-prelude]')).toHaveCount(2);
+    await expect(page.locator('.con-carry [data-carry-prelude-count]')).toHaveText('0 / 1');
+    await shoot(page, 'e-01-tenders-interlude');
+
+    // Keep one card (A), then ↑ to the band and carry the second prelude (▶ A) — the summary names both.
+    await press(page, 'Enter', 700);
+    await expect(page.locator('.con-carry [data-carry-seat="1"]')).toHaveAttribute('data-carry-seat-card', HAND[0]);
+    await press(page, 'ArrowUp', 500);
+    await expect(page.locator('.con-carry [data-carry-preludes].con-carry__preludes--active')).toHaveCount(1);
+    await expect.poll(() => page.locator('.con-cmdbar').innerText(), {timeout: 5_000}).toMatch(/Взять пролог в финал/i);
+    await press(page, 'ArrowRight', 400);
+    await press(page, 'Enter', 700);
+    await expect(page.locator('.con-carry [data-carry-prelude="Biofuels"]')).toHaveAttribute('data-carry-prelude-picked', 'yes');
+    await expect(page.locator('.con-carry [data-carry-prelude-count]')).toHaveText('1 / 1');
+    await expect(page.locator('.con-carry [data-carry-prelude-summary]')).toBeVisible();
+    await shoot(page, 'e-02-prelude-carried');
+
+    // RT confirms: ONE POST carries the cards AND the prelude; the server records both.
+    await press(page, 'Period', 1200);
+    await expect.poll(() => posts.length, {timeout: 10_000}).toBe(1);
+    const body = JSON.parse(posts[0]);
+    expect(body.cards).toEqual([HAND[0]]);
+    expect(body.preludes).toEqual(['Biofuels']);
+    await expect.poll(async () => (await campaignModelAs(request, id, 'Bruno')).carryover?.bySeat.find((b) => b.seat === 1)?.status, {timeout: 10_000}).toBe('confirmed');
+    const after = await campaignModelAs(request, id, 'Bruno');
+    expect(after.carryover?.yourCards).toEqual([HAND[0]]);
+    expect(after.carryover?.yourPreludes).toEqual(['Biofuels']);
+  });
 });

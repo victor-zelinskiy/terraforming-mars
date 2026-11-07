@@ -119,7 +119,8 @@ export async function bidAs(request: APIRequestContext, id: string, playerId: st
 /** The viewer-scoped campaign model (per-seat fields like `yourPlayerId`). */
 export async function campaignModelAs(request: APIRequestContext, id: string, name: string): Promise<{
   missions: Array<{gameId?: string, yourPlayerId?: string, bidding?: {done: boolean, offer: Array<{instance: string, id: string, takenBy?: number, withdrawn?: boolean}>}}>,
-  carryover?: {bySeat: Array<{seat: number, status: string, count: number, limit: number}>, yourCards?: Array<string>, yourLimit?: number},
+  carryover?: {bySeat: Array<{seat: number, status: string, count: number, limit: number}>, yourCards?: Array<string>, yourLimit?: number,
+    yourTenderSeats?: number, yourEligiblePreludes?: Array<string>, yourPreludeLimit?: number, yourPreludes?: Array<string>},
   rewardMode?: string,
   bidding?: {sourceSlot: number, done: boolean, pointer: number, order: Array<number>, yourTurn: boolean,
     offer: Array<{instance: string, id: string, takenBy?: number, withdrawn?: boolean}>},

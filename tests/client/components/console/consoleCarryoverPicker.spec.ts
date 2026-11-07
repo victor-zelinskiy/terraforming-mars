@@ -109,6 +109,58 @@ describe('ConsoleCarryoverPicker — the album chassis (P87)', () => {
     expect(w.emitted('confirm')).to.have.length(1);
   });
 
+  it('«Тендеры»: a tender seat wears its tag; the PRELUDE BAND stands above the album — ↑ from the top row reaches it, A toggles, ↓ returns', async () => {
+    const wrapper = mountPicker({
+      limit: 3, tenderSeats: 1,
+      eligiblePreludes: [CardName.ALLIED_BANK, CardName.BIOFUELS], preludeLimit: 1, selectedPreludes: [],
+    });
+    const vm = wrapper.vm as unknown as PickerApi & {zone: string, preludeCursor: number};
+    // The manifest: three seats, the third a TENDER's — a tag on the place.
+    expect(wrapper.findAll('[data-carry-seat]')).has.length(3);
+    expect(wrapper.find('[data-carry-seat="3"]').attributes('data-carry-seat-tender')).eq('yes');
+    expect(wrapper.find('[data-carry-seat="2"]').attributes('data-carry-seat-tender')).is.undefined;
+    expect(wrapper.find('[data-carry-seat="3"] .con-carry__seat-tag').exists()).is.true;
+    // The band: two played preludes, the count 0 / 1.
+    expect(wrapper.findAll('[data-carry-prelude]')).has.length(2);
+    expect(wrapper.find('[data-carry-prelude-count]').text()).eq('0 / 1');
+    // ↑ against the album's top row reaches the band; the bar's verb turns to the prelude's.
+    vm.handleIntent(nav('up'));
+    await wrapper.vm.$nextTick();
+    expect(vm.zone).eq('preludes');
+    expect(wrapper.emitted('bar')?.at(-1)?.[0]).deep.include({primary: 'Carry the prelude'});
+    // ▶ walks the band; A emits the prelude toggle (the host owns the draft).
+    vm.handleIntent(nav('right'));
+    vm.handleIntent(press('confirm'));
+    expect(wrapper.emitted('togglePrelude')?.[0]).deep.eq([CardName.BIOFUELS]);
+    expect(wrapper.emitted('toggle')).is.undefined;
+    // The host's answer: the carried prelude wears its kant and band, the summary says so, the verb flips.
+    await wrapper.setProps({selectedPreludes: [CardName.BIOFUELS]});
+    expect(wrapper.find('[data-carry-prelude="Biofuels"]').attributes('data-carry-prelude-picked')).eq('yes');
+    expect(wrapper.find('[data-carry-prelude-count]').text()).eq('1 / 1');
+    expect(wrapper.find('[data-carry-prelude-summary]').text()).contains('1');
+    expect(wrapper.emitted('bar')?.at(-1)?.[0]).deep.include({primary: 'Leave the prelude behind'});
+    // A full allowance: A on the other prelude is a NAMED refusal, nothing emitted.
+    vm.handleIntent(nav('left'));
+    vm.handleIntent(press('confirm'));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.emitted('togglePrelude')).has.length(1);
+    expect(wrapper.find('[data-carry-notice]').exists()).is.true;
+    // ↓ returns to the album; A there is the card toggle again.
+    vm.handleIntent(nav('down'));
+    expect(vm.zone).eq('album');
+    vm.handleIntent(press('confirm'));
+    expect(wrapper.emitted('toggle')?.[0]).deep.eq([HAND[0]]);
+  });
+
+  it('no prelude allowance (a titles campaign): no band, ↑ on the top row stays in the album', () => {
+    const wrapper = mountPicker();
+    const vm = wrapper.vm as unknown as PickerApi & {zone: string};
+    expect(wrapper.find('[data-carry-preludes]').exists()).is.false;
+    vm.handleIntent(nav('up'));
+    expect(vm.zone).eq('album');
+    expect(vm.cursor).eq(0);
+  });
+
   it('the bar facts follow the focus: «keep» on a free card, «return» on a kept one', async () => {
     const w = mountPicker({selected: [CardName.ALGAE]});
     const bars = () => w.emitted('bar') as Array<Array<{primary: string}>>;

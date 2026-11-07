@@ -7,16 +7,31 @@
 import {CardName} from '@/common/cards/CardName';
 import {translateTextWithParams} from '@/client/directives/i18n';
 
-/** One seat of the manifest: its 1-based number and the card that took it (in pick order). */
-export type CarryoverSeat = {n: number, name?: CardName};
+/**
+ * One seat of the manifest: its 1-based number, the card that took it (in pick order) and whether a TENDER added it
+ * (the «Тендеры» mode's «Расширенное наследие» — the LAST `tenderSeats` places; the server's `yourTenderSeats`).
+ */
+export type CarryoverSeat = {n: number, name?: CardName, tender?: true};
 
-/** The manifest — one place per seat of the limit, filled in the order the cards were kept. */
-export function carryoverSeats(limit: number, selected: ReadonlyArray<CardName>): Array<CarryoverSeat> {
+/** The manifest — one place per seat of the limit, filled in the order the cards were kept; the tender seats last. */
+export function carryoverSeats(limit: number, selected: ReadonlyArray<CardName>, tenderSeats: number = 0): Array<CarryoverSeat> {
   const seats: Array<CarryoverSeat> = [];
-  for (let i = 0; i < Math.max(0, Math.floor(limit)); i++) {
-    seats.push(selected[i] !== undefined ? {n: i + 1, name: selected[i]} : {n: i + 1});
+  const total = Math.max(0, Math.floor(limit));
+  const firstTender = total - Math.max(0, Math.min(total, Math.floor(tenderSeats)));
+  for (let i = 0; i < total; i++) {
+    const seat: CarryoverSeat = selected[i] !== undefined ? {n: i + 1, name: selected[i]} : {n: i + 1};
+    if (i >= firstTender) {
+      seat.tender = true;
+    }
+    seats.push(seat);
   }
   return seats;
+}
+
+/** The prelude band's ask («Продление программы»): how many played preludes, into which mission — parameters, never words. */
+export function carryoverPreludeAskText(limit: number, nextMission: number): string {
+  return translateTextWithParams('Carry up to ${0} played prelude(s) — played again in mission ${1} (Programme Extension)',
+    [String(limit), String(nextMission)]);
 }
 
 /** The question line: how many cards, into which mission — the limit is a parameter, never a word. */

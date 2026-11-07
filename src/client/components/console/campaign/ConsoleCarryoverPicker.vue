@@ -47,6 +47,9 @@
               <span class="con-hand__salebar-label">{{ $t('free of charge') }}</span>
             </span>
           </template>
+          <span v-if="preludeLimit > 0 && selectedPreludes.length > 0" class="con-hand__salebar-item con-hand__salebar-item--gain">
+            <b class="con-hand__salebar-num" data-carry-prelude-summary>{{ preludeSummaryText }}</b>
+          </span>
         </span>
       </div>
 
@@ -55,12 +58,35 @@
       <div v-if="limit > 0" class="con-carry__seats" data-carry-seats>
         <TransitionGroup name="con-carry-seat" tag="span" class="con-carry__seats-row">
           <span v-for="seat in seats" :key="'seat' + seat.n"
-                class="con-carry__seat" :class="{'con-carry__seat--taken': seat.name !== undefined}"
-                :data-carry-seat="seat.n" :data-carry-seat-card="seat.name">
+                class="con-carry__seat" :class="{'con-carry__seat--taken': seat.name !== undefined, 'con-carry__seat--tender': seat.tender === true}"
+                :data-carry-seat="seat.n" :data-carry-seat-card="seat.name" :data-carry-seat-tender="seat.tender === true ? 'yes' : undefined">
             <b class="con-carry__seat-num">{{ seat.n }}</b>
             <span v-if="seat.name !== undefined" :key="seat.name" class="con-carry__seat-name">{{ $t(seat.name) }}</span>
+            <!-- A seat a TENDER added («Расширенное наследие») says so — a tag, never a glow. -->
+            <span v-if="seat.tender === true" class="con-carry__seat-tag">{{ $t('Tender') }}</span>
           </span>
         </TransitionGroup>
+      </div>
+
+      <!-- THE PRELUDE BAND — the «Тендеры» mode's «Продление программы»: the viewer's played preludes of the finished
+           mission, up to `preludeLimit` of them travel into the finale and are played AGAIN. A strip above the album
+           (↑ from the album's top row reaches it, ↓ returns), the same toggle-in-place grammar, the same X. -->
+      <div v-if="preludeLimit > 0" class="con-carry__preludes" :class="{'con-carry__preludes--active': zone === 'preludes'}" data-carry-preludes>
+        <div class="con-carry__preludes-head">
+          <span class="con-carry__preludes-ask" data-carry-prelude-ask>{{ preludeAskText }}</span>
+          <b class="con-carry__preludes-count" data-carry-prelude-count>{{ selectedPreludes.length }} / {{ preludeLimit }}</b>
+        </div>
+        <div class="con-carry__preludes-row">
+          <div v-for="(name, i) in eligiblePreludes" :key="name"
+               class="con-carry__prelude"
+               :class="{'con-carry__prelude--picked': selectedPreludes.includes(name), 'con-carry__prelude--focused': zone === 'preludes' && preludeCursor === i}"
+               :data-carry-prelude="name" :data-carry-prelude-picked="selectedPreludes.includes(name) ? 'yes' : undefined"
+               @click="onPreludeClick(i)">
+            <Card :card="preludeCard(name)" lightweight :inert="true" />
+            <span v-if="selectedPreludes.includes(name)" class="con-carry__prelude-band" aria-hidden="true">{{ preludeBandText }}</span>
+          </div>
+          <div v-if="eligiblePreludes.length === 0" class="con-carry__preludes-empty" v-i18n>No prelude was played in that mission — nothing to carry.</div>
+        </div>
       </div>
 
       <ConsoleCardAlbum v-if="eligible.length > 0"
@@ -105,7 +131,8 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleCardAlbum, {CardAlbumEntry, CardAlbumPosition} from '@/client/components/console/foundation/ConsoleCardAlbum.vue';
 import ConsoleAlbumSpine from '@/client/components/console/foundation/ConsoleAlbumSpine.vue';
-import {carryoverAskText, carryoverBandText, carryoverSeats, CarryoverSeat} from '@/client/console/campaign/carryoverPicker';
+import Card from '@/client/components/card/CardFace.vue';
+import {carryoverAskText, carryoverBandText, carryoverPreludeAskText, carryoverSeats, CarryoverSeat} from '@/client/console/campaign/carryoverPicker';
 
 type AlbumApi = {
   step(from: number, dir: 'left' | 'right' | 'up' | 'down'): number,
@@ -120,7 +147,7 @@ const NOTICE_MS = 2400;
 
 export default defineComponent({
   name: 'ConsoleCarryoverPicker',
-  components: {ConsoleWsHead, ConsoleCardAlbum, ConsoleAlbumSpine},
+  components: {ConsoleWsHead, ConsoleCardAlbum, ConsoleAlbumSpine, Card},
   props: {
     /** The recorded terminal hand (owner-only wire data). */
     eligible: {type: Array as PropType<ReadonlyArray<CardName>>, required: true},
@@ -136,8 +163,15 @@ export default defineComponent({
     submitting: {type: Boolean, default: false},
     error: {type: String, default: ''},
     embedded: {type: Boolean, default: false},
+    /** The «Тендеры» mode: how many of `limit` are seats a held «Расширенное наследие» adds (the manifest marks them). */
+    tenderSeats: {type: Number, default: 0},
+    /** The «Тендеры» mode: the viewer's played preludes of the finished mission («Продление программы» candidates). */
+    eligiblePreludes: {type: Array as PropType<ReadonlyArray<CardName>>, default: () => []},
+    /** The «Тендеры» mode: how many preludes may travel (one per held «Продление программы»); 0 = no band. */
+    preludeLimit: {type: Number, default: 0},
+    selectedPreludes: {type: Array as PropType<ReadonlyArray<CardName>>, default: () => []},
   },
-  emits: ['toggle', 'confirm', 'back', 'armChange', 'bar'],
+  emits: ['toggle', 'togglePrelude', 'confirm', 'back', 'armChange', 'bar'],
   data() {
     return {
       cursor: 0,
@@ -151,6 +185,9 @@ export default defineComponent({
       heldNames: [] as Array<string>,
       flights: [] as Array<CloneFlightHandle>,
       zoomOpenedHere: false,
+      /** Where the cursor stands: the album, or the prelude band above it (↑ from the album's top row). */
+      zone: 'album' as 'album' | 'preludes',
+      preludeCursor: 0,
     };
   },
   computed: {
@@ -173,7 +210,20 @@ export default defineComponent({
       });
     },
     seats(): Array<CarryoverSeat> {
-      return carryoverSeats(this.limit, this.selected);
+      return carryoverSeats(this.limit, this.selected, this.tenderSeats);
+    },
+    preludeAskText(): string {
+      return carryoverPreludeAskText(this.preludeLimit, this.nextMission);
+    },
+    /** The carried prelude's band — it always travels into the FINALE (the only mission a «Продление программы» reaches). */
+    preludeBandText(): string {
+      return '✓ ' + translateText('Into the finale');
+    },
+    preludeSummaryText(): string {
+      return translateTextWithParams('Prelude: ${0} / ${1}', [String(this.selectedPreludes.length), String(this.preludeLimit)]);
+    },
+    preludeFull(): boolean {
+      return this.selectedPreludes.length >= this.preludeLimit;
     },
     missionLabel(): string {
       return translateTextWithParams('Mission ${0}', [String(this.nextMission)]);
@@ -190,8 +240,12 @@ export default defineComponent({
     barFacts(): {primary: string, pages: number} {
       return {primary: this.primaryLabel, pages: this.position?.pages ?? 1};
     },
-    /** The A verb for the focused card — the bar reads it (one key, one object, two words). */
+    /** The A verb for the focused object — the bar reads it (one key, one object, two words). */
     primaryLabel(): string {
+      if (this.zone === 'preludes') {
+        const prelude = this.eligiblePreludes[this.preludeCursor];
+        return prelude !== undefined && this.selectedPreludes.includes(prelude) ? 'Leave the prelude behind' : 'Carry the prelude';
+      }
       const name = this.eligible[this.cursor];
       return name !== undefined && this.selected.includes(name) ? 'Return to hand' : 'Keep for the next mission';
     },
@@ -242,8 +296,34 @@ export default defineComponent({
       }, motionMs(NOTICE_MS));
     },
     onCardClick(i: number): void {
+      this.zone = 'album';
       this.cursor = i;
       this.toggleAt(i);
+    },
+    onPreludeClick(i: number): void {
+      this.zone = 'preludes';
+      this.preludeCursor = i;
+      this.togglePreludeAt(i);
+    },
+    preludeCard(name: CardName): CardModel {
+      return {name} as CardModel;
+    },
+    /** THE PRELUDE TOGGLE — carry / leave the same prelude with the same key; a full allowance is a NAMED refusal. */
+    togglePreludeAt(i: number): void {
+      const name = this.eligiblePreludes[i];
+      if (name === undefined || this.submitting) {
+        return;
+      }
+      this.disarm();
+      if (this.selectedPreludes.includes(name)) {
+        this.$emit('togglePrelude', name);
+        return;
+      }
+      if (this.preludeFull) {
+        this.say('Only ${0} prelude(s) can be carried — leave one behind first');
+        return;
+      }
+      this.$emit('togglePrelude', name);
     },
     /** THE TOGGLE IN PLACE — keep / return the same card with the same key; a full set of seats is a NAMED refusal. */
     toggleAt(i: number): void {
@@ -279,9 +359,29 @@ export default defineComponent({
       }
       if (intent.kind === 'nav') {
         this.disarm();
+        if (this.zone === 'preludes') {
+          // The band: ◀ ▶ along the preludes; ▼ (or ▲ with no album to fall into) returns to the album.
+          const n = this.eligiblePreludes.length;
+          if (intent.dir === 'left' || intent.dir === 'right') {
+            const step = intent.dir === 'left' ? -1 : 1;
+            this.preludeCursor = Math.max(0, Math.min(Math.max(0, n - 1), this.preludeCursor + step));
+          } else if (intent.dir === 'down' && this.eligible.length > 0) {
+            this.zone = 'album';
+          }
+          return true;
+        }
         const album = this.album();
         if (album !== undefined) {
-          this.cursor = album.step(this.cursor, intent.dir);
+          const next = album.step(this.cursor, intent.dir);
+          // ▲ against the album's top row reaches the prelude band (when it stands).
+          if (intent.dir === 'up' && next === this.cursor && this.preludeLimit > 0 && this.eligiblePreludes.length > 0) {
+            this.zone = 'preludes';
+            this.preludeCursor = Math.min(this.preludeCursor, this.eligiblePreludes.length - 1);
+            return true;
+          }
+          this.cursor = next;
+        } else if (intent.dir === 'up' && this.preludeLimit > 0 && this.eligiblePreludes.length > 0) {
+          this.zone = 'preludes';
         }
         return true;
       }
@@ -297,11 +397,19 @@ export default defineComponent({
       const action = consoleActionOf(intent, {});
       switch (action) {
       case 'primary':
-        this.toggleAt(this.cursor);
+        if (this.zone === 'preludes') {
+          this.togglePreludeAt(this.preludeCursor);
+        } else {
+          this.toggleAt(this.cursor);
+        }
         return true;
       case 'inspect':
         this.disarm();
-        this.openZoom(this.cursor);
+        if (this.zone === 'preludes') {
+          this.openPreludeZoom(this.preludeCursor);
+        } else {
+          this.openZoom(this.cursor);
+        }
         return true;
       case 'prevSection':
       case 'nextSection':
@@ -346,6 +454,37 @@ export default defineComponent({
           // LB / RB inside the viewer keeps the album's cursor (and its page) in lockstep.
           onBrowse: (i) => {
             this.cursor = i;
+          },
+        },
+      });
+    },
+    /** X on the band — the same ONE zoom pipeline over the played preludes; A there is the same toggle. */
+    openPreludeZoom(at: number): void {
+      if (this.eligiblePreludes.length === 0) {
+        return;
+      }
+      const list = this.eligiblePreludes.map((name) => ({name} as CardModel));
+      const index = Math.min(Math.max(at, 0), list.length - 1);
+      this.zoomOpenedHere = true;
+      openConsoleCardZoom(list, index, {
+        isSelected: (name) => this.selectedPreludes.includes(name),
+        toggle: (name) => {
+          const i = this.eligiblePreludes.indexOf(name);
+          if (i >= 0) {
+            this.togglePreludeAt(i);
+          }
+        },
+      }, undefined, {
+        contextLabel: 'Programme Extension',
+        origin: {
+          kind: 'physical',
+          resolve: (i) => {
+            const name = this.eligiblePreludes[i];
+            const root = this.$el as HTMLElement | undefined;
+            return name !== undefined ? root?.querySelector<HTMLElement>(`[data-carry-prelude="${CSS.escape(name)}"]`) ?? null : null;
+          },
+          onBrowse: (i) => {
+            this.preludeCursor = i;
           },
         },
       });

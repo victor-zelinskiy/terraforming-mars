@@ -280,7 +280,7 @@ export async function launchCampaignMission(): Promise<{gameId: string, yourPlay
  * проектов»). `playerId` is the OWNER's seat in the source mission — the
  * bearer credential the server validates against.
  */
-export async function submitCampaignCarryover(playerId: PlayerId, cards: ReadonlyArray<CardName>): Promise<boolean> {
+export async function submitCampaignCarryover(playerId: PlayerId, cards: ReadonlyArray<CardName>, preludes: ReadonlyArray<CardName> = []): Promise<boolean> {
   const id = campaignState.id;
   if (id === undefined || campaignState.submittingCarryover) {
     return false;
@@ -289,7 +289,7 @@ export async function submitCampaignCarryover(playerId: PlayerId, cards: Readonl
   try {
     const res = await fetch(apiUrl(paths.API_CAMPAIGN_CARRYOVER) + `?id=${encodeURIComponent(id)}`, {
       method: 'POST',
-      body: JSON.stringify({playerId, cards}),
+      body: JSON.stringify({playerId, cards, preludes}),
       headers: {'Content-Type': 'application/json'},
     });
     const text = await res.text();

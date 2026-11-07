@@ -194,12 +194,17 @@
           :eligible="vm.yourEligibleCards"
           :selected="carryDraft"
           :limit="vm.yourCarryLimit"
+          :tender-seats="vm.yourTenderSeats"
+          :eligible-preludes="vm.yourEligiblePreludes"
+          :prelude-limit="vm.yourPreludeLimit"
+          :selected-preludes="preludeDraft"
           :next-mission="vm.currentSlot + 1"
           :root="embedded ? 'Game results' : 'Campaign'"
           :confirmed="vm.carryoverConfirmed && !carryDirty"
           :submitting="state.submittingCarryover"
           :error="state.error"
           @toggle="toggleCarry($event)"
+          @toggle-prelude="togglePreludeCarry($event)"
           @confirm="confirmCarry"
           @back="closeOverlay"
           @arm-change="carryArmed = $event"
@@ -331,6 +336,8 @@ export default defineComponent({
       revealPlaying: false,
       /** Local carryover draft — seeded from the server selection on open. */
       carryDraft: [] as Array<CardName>,
+      /** The «Тендеры» mode: the played preludes carried by «Продление программы» (seeded from the server on open). */
+      preludeDraft: [] as Array<CardName>,
       carryDirty: false,
       /** The picker's ARMED zero-carry confirm (mirrored up for the bar). */
       carryArmed: false,
@@ -1066,6 +1073,7 @@ export default defineComponent({
     // ── Carryover ────────────────────────────────────────────────────────
     openCarryover(): void {
       this.carryDraft = [...(this.vm?.yourCarryCards ?? [])];
+      this.preludeDraft = [...(this.vm?.yourPreludes ?? [])];
       this.carryDirty = false;
       this.carryArmed = false;
       // A REVISION (Y) opens with the kept cards already in their kant — they are «here» already, nothing is dealt.
@@ -1135,6 +1143,16 @@ export default defineComponent({
       }
       this.carryDirty = true;
     },
+    /** The «Тендеры» mode: a played prelude carried by «Продление программы» — the same toggle, the seat's own limit. */
+    togglePreludeCarry(name: CardName): void {
+      const idx = this.preludeDraft.indexOf(name);
+      if (idx >= 0) {
+        this.preludeDraft.splice(idx, 1);
+      } else if (this.preludeDraft.length < (this.vm?.yourPreludeLimit ?? 0)) {
+        this.preludeDraft.push(name);
+      }
+      this.carryDirty = true;
+    },
     async confirmCarry(): Promise<void> {
       const vm = this.vm;
       const model = this.state.model;
@@ -1149,7 +1167,7 @@ export default defineComponent({
       // ARM → DETECT: the kept faces are measured before the POST; only a confirmed answer flies them.
       const picker = this.$refs.carryPicker as {keptFaces?: () => Map<CardName, {el: HTMLElement, rect: DOMRect}>} | undefined;
       const kept = picker?.keptFaces?.() ?? new Map<CardName, {el: HTMLElement, rect: DOMRect}>();
-      const ok = await submitCampaignCarryover(playerId, this.carryDraft);
+      const ok = await submitCampaignCarryover(playerId, this.carryDraft, this.preludeDraft);
       if (ok) {
         this.carryDirty = false;
         this.carryArmed = false;

@@ -107,6 +107,13 @@ export type CampaignMapVm = {
    * names no limit for the viewer.
    */
   yourCarryLimit: number;
+  /** The «Тендеры» mode: how many of `yourCarryLimit` are seats a held «Расширенное наследие» adds (the manifest marks them). */
+  yourTenderSeats: number;
+  /** The «Тендеры» mode: the viewer's played preludes of the source mission — a «Продление программы» may carry one. */
+  yourEligiblePreludes: ReadonlyArray<CardName>;
+  /** The «Тендеры» mode: how many preludes the viewer may carry (one per held «Продление программы»); 0 = no band. */
+  yourPreludeLimit: number;
+  yourPreludes: ReadonlyArray<CardName>;
   championSeats: ReadonlyArray<number>;
 };
 
@@ -257,6 +264,10 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
     yourCarryCards: model.carryover?.yourCards ?? [],
     yourEligibleCards: model.carryover?.yourEligible ?? [],
     yourCarryLimit: model.carryover?.yourLimit ?? 0,
+    yourTenderSeats: model.carryover?.yourTenderSeats ?? 0,
+    yourEligiblePreludes: model.carryover?.yourEligiblePreludes ?? [],
+    yourPreludeLimit: model.carryover?.yourPreludeLimit ?? 0,
+    yourPreludes: model.carryover?.yourPreludes ?? [],
     championSeats,
   };
 }
