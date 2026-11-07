@@ -86,7 +86,15 @@ async function runStandardProject(page: Page, name: RegExp, done: () => Promise<
   expect(await pressUntil(page, 'Enter', done, {tries: 3, settleMs: 1500}), `A runs ${name}`).toBe(true);
 }
 
-type FieldReading = {hex: number, hexes: number, overlaps: Array<string>, scroll: boolean, offMars: number};
+type FieldReading = {hex: number, hexes: number, overlaps: Array<string>, scroll: boolean, offMars: number, ring: RingReading};
+
+/**
+ * THE RING ON THE STAGE (the owner, 2026-11-07: the planet off-centre, Venus under the status strip, the oxygen and
+ * temperature bands sliced left and right): the four rails' union centred on the stage, the whole ring inside the
+ * stage between the status strip and the hand dock's clearance, and every rail inside its own canvas (an `<svg>` clips
+ * at its box — the slice was the canvas edge).
+ */
+type RingReading = {dx: number, dy: number, top: number, statusBottom: number, bottom: number, stageBottom: number, clipped: Array<string>};
 
 /** The painted field: one hex's width, the hexes, and every scale piece / off-Mars cell that touches a Mars hex. */
 async function readField(page: Page): Promise<FieldReading> {
@@ -111,7 +119,29 @@ async function readField(page: Page): Promise<FieldReading> {
       }
     }
     const root = document.scrollingElement ?? document.documentElement;
+    const rails = Array.from(document.querySelectorAll<SVGPathElement>('.con-board__stage .arc-scale__rail'));
+    const stage = document.querySelector('.con-board__stage')?.getBoundingClientRect();
+    const box = rails.map((r) => r.getBoundingClientRect());
+    const union = {
+      left: Math.min(...box.map((b) => b.left)), right: Math.max(...box.map((b) => b.right)),
+      top: Math.min(...box.map((b) => b.top)), bottom: Math.max(...box.map((b) => b.bottom)),
+    };
+    const clipped = rails.filter((rail) => {
+      const r = rail.getBoundingClientRect();
+      const c = rail.ownerSVGElement?.getBoundingClientRect();
+      return c === undefined || r.left < c.left || r.right > c.right || r.top < c.top || r.bottom > c.bottom;
+    }).map((rail) => rail.closest('.arc-scale')?.className ?? '?');
+    const ring: RingReading = {
+      dx: stage === undefined ? NaN : (union.left + union.right) / 2 - (stage.left + stage.right) / 2,
+      dy: stage === undefined ? NaN : (union.top + union.bottom) / 2 - (stage.top + stage.bottom) / 2,
+      top: union.top,
+      statusBottom: document.querySelector('.con-status')?.getBoundingClientRect().bottom ?? 0,
+      bottom: union.bottom,
+      stageBottom: stage?.bottom ?? 0,
+      clipped,
+    };
     return {
+      ring,
       hex: rects.length > 0 ? rects[0].r.width : 0,
       hexes: rects.length,
       overlaps,
@@ -132,7 +162,7 @@ for (const profile of PROFILES) {
   test.describe(`Amazonis Planitia · ${profile.id}`, () => {
     test.use({viewport: profile.viewport, deviceScaleFactor: 1, screen: profile.viewport});
 
-    test('the field: 91 hexes at ≥ 90 % of the Tharsis hex, nothing on a hex, no scroll', async ({page, request}) => {
+    test('the field: 91 hexes at ≥ 92.5 % of the Tharsis hex, one centred ring, nothing on a hex, no scroll', async ({page, request}) => {
       test.setTimeout(300_000);
       await boot(page, request, 'tharsis', profile.query);
       const tharsis = await readField(page);
@@ -157,7 +187,13 @@ for (const profile of PROFILES) {
       await shoot(page, '01-field');
       console.log('── the field ──', JSON.stringify({tharsisHex: tharsis.hex, hex: field.hex, ratio: field.hex / tharsis.hex, hexes: field.hexes, offMars: field.offMars, overlaps: field.overlaps}));
       expect(field.hexes, 'the eleven-row grid').toBe(91);
-      expect(field.hex / tharsis.hex, `hex ${field.hex.toFixed(1)} px vs Tharsis ${tharsis.hex.toFixed(1)} px`).toBeGreaterThanOrEqual(0.9);
+      console.log('── the ring ──', JSON.stringify(field.ring));
+      expect(field.hex / tharsis.hex, `hex ${field.hex.toFixed(1)} px vs Tharsis ${tharsis.hex.toFixed(1)} px`).toBeGreaterThanOrEqual(0.925);
+      expect(field.ring.clipped, 'every rail inside its own canvas').toEqual([]);
+      expect(Math.abs(field.ring.dx), 'the ring centred across the stage (± 2 board px)').toBeLessThanOrEqual(6);
+      expect(Math.abs(field.ring.dy), 'the ring centred down the stage (± 2 board px)').toBeLessThanOrEqual(6);
+      expect(field.ring.top, 'Venus clear of the status strip').toBeGreaterThanOrEqual(field.ring.statusBottom);
+      expect(field.ring.bottom, 'the oceans above the dock\'s clearance').toBeLessThanOrEqual(field.ring.stageBottom + 1);
       expect(field.overlaps, 'nothing of the scales or the off-Mars flank sits on a hex').toEqual([]);
       expect(field.scroll, 'the page never scrolls').toBe(false);
       // The printed set on the strategy rail: five + Venus's Hoverlord, five + Venuphile.

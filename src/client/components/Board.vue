@@ -71,7 +71,7 @@
             -->
             <arc-scale class="global-numbers-shell" :theme="arcThemes.temperature" :config="temperatureArc" :value="temperature" />
             <arc-scale class="global-numbers-shell" :theme="arcThemes.oxygen" :config="oxygenArc" :value="oxygen_level" />
-            <arc-scale v-if="expansions.venus" class="global-numbers-shell" :theme="arcThemes.venus" :config="venusArc" :value="venusScaleLevel" />
+            <arc-scale v-if="expansions.venus" class="global-numbers-shell" :theme="arcThemes.venus" :config="venusArc" :value="venusScaleLevel" :identityOutside="layoutKind === 'large'" />
             <!--
               The 1–N digit anchors (`.global-numbers-value.val-N`) and the
               gliding <AnimatedScaleMarker> are rendered INSIDE each <arc-scale>

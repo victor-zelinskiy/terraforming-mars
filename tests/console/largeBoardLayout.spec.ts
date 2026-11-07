@@ -2,9 +2,10 @@ import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-  HEX_H, HEX_PITCH_X, HEX_PITCH_Y, HEX_W, LARGE_BOARD_ROWS, arcConfigsFor, boardLayoutKind, largeBoardHexMargins,
+  HEX_H, HEX_PITCH_X, HEX_PITCH_Y, HEX_W, LARGE_BOARD_ROWS, LARGE_CHIP_CLEARANCE, arcConfigsFor, boardLayoutKind, largeBoardGridPolygons,
+  largeBoardHexMargins, largeChipClearance, largeGridClearance,
 } from '../../src/client/components/board/largeBoardLayout';
-import {DynamicArcConfig, LARGE_ARCS, STANDARD_ARCS} from '../../src/client/components/board/arcScaleConfigs';
+import {DynamicArcConfig, LARGE_ARCS, LARGE_RING_GAP, LARGE_RING_RADIUS, STANDARD_ARCS} from '../../src/client/components/board/arcScaleConfigs';
 import {scaleBonusZoneViews} from '../../src/client/components/board/scaleBonusZones';
 import {BoardName} from '../../src/common/boards/BoardName';
 import {SpaceType} from '../../src/common/boards/SpaceType';
@@ -15,62 +16,14 @@ import {SeededRandom} from '../../src/common/utils/Random';
 /*
  * THE ELEVEN-ROW FIELD IS A CONSTRUCTION (Amazonis Planitia, phase 1 — `docs/claude/amazonis-planitia-phase-1.md` §
  * the field). The hex margins in `board_large_positions.less` are recomputed from `largeBoardHexMargins()` line by line,
- * the grid matches the server's own board row by row, and the four dials (`LARGE_ARCS`) are checked against the grid
- * the same way they were solved: every band edge clears every hex by ≥ 12 px, every Venus chip (the alternative board's
- * full row — 13 chips) by ≥ 6 px, the dials do not touch one another, and the content's height stays within the budget
- * that keeps the hex ≈ 94 % of its Tharsis size on screen (the owner, 2026-11-06: «гексы предельно крупные»).
+ * the grid matches the server's own board row by row, and the four dials (`LARGE_ARCS`) are ONE RING (the owner,
+ * 2026-11-07: «each scale looks at the next one by its EDGES», as on the classic board) checked against the grid the way
+ * it was solved: one centre and one radius, one gap between every two ends, every band edge ≥ 6 px off every hex, every
+ * Venus chip (the alternative board's full row — 10 chips) ≥ 4 px off it, every step readable, and the ring's height —
+ * the binding axis of the fit — no taller than its radius allows (the owner: «гексы предельно крупные»).
  */
 const ROOT = path.resolve(__dirname, '..', '..');
 const LESS = fs.readFileSync(path.join(ROOT, 'src/styles/board_large_positions.less'), 'utf8');
-
-/** The grid's hexes as polygons in `.global-numbers` space (the dials' space): `.board` + (93, 85) − (16, 11). */
-function gridPolygons(): Array<Array<{x: number, y: number}>> {
-  return largeBoardHexMargins().map(({top, left}) => {
-    const cx = left + HEX_W / 2 + 93 - 16;
-    const cy = top + HEX_H / 2 + 85 - 11;
-    const hw = HEX_W / 2;
-    const hh = HEX_H / 2;
-    return [
-      {x: cx, y: cy - hh}, {x: cx + hw, y: cy - hh / 2}, {x: cx + hw, y: cy + hh / 2},
-      {x: cx, y: cy + hh}, {x: cx - hw, y: cy + hh / 2}, {x: cx - hw, y: cy - hh / 2},
-    ];
-  });
-}
-
-function segmentDistance(p: {x: number, y: number}, a: {x: number, y: number}, b: {x: number, y: number}): number {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)));
-  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
-}
-
-function inside(p: {x: number, y: number}, poly: ReadonlyArray<{x: number, y: number}>): boolean {
-  let sign = 0;
-  for (let k = 0; k < poly.length; k++) {
-    const a = poly[k];
-    const b = poly[(k + 1) % poly.length];
-    const cross = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
-    const s = Math.sign(cross);
-    if (s !== 0 && sign !== 0 && s !== sign) {
-      return false;
-    }
-    sign = s === 0 ? sign : s;
-  }
-  return true;
-}
-
-function gridClearance(p: {x: number, y: number}, grid: ReadonlyArray<ReadonlyArray<{x: number, y: number}>>): number {
-  let best = Infinity;
-  for (const poly of grid) {
-    if (inside(p, poly)) {
-      return 0;
-    }
-    for (let k = 0; k < poly.length; k++) {
-      best = Math.min(best, segmentDistance(p, poly[k], poly[(k + 1) % poly.length]));
-    }
-  }
-  return best;
-}
 
 function bandEdge(cfg: DynamicArcConfig, offset: number, samples = 40): Array<{x: number, y: number}> {
   const out: Array<{x: number, y: number}> = [];
@@ -112,19 +65,36 @@ describe('the eleven-row field (Amazonis Planitia) — a construction', function
     expect(lines.length, 'one line per Mars cell, nothing else').eq(91);
   });
 
-  it('every dial clears the grid: band edges ≥ 12 px, the alternative Venus row\'s chips ≥ 6 px', () => {
-    const grid = gridPolygons();
+  it('the four dials are ONE ring: one centre, one radius, one gap between every two ends, Venus and the oceans centred', () => {
+    const {venus, oxygen, temperature, oceans} = LARGE_ARCS;
     for (const [name, cfg] of Object.entries(LARGE_ARCS)) {
-      const worst = Math.min(...bandEdge(cfg, -cfg.bandWidth / 2).map((p) => gridClearance(p, grid)));
-      expect(worst, `${name}: the band's inner edge off the grid`).gte(12);
+      expect([cfg.center, cfg.bandRadius], name).deep.eq([venus.center, LARGE_RING_RADIUS]);
+    }
+    const gap = (a: number, b: number) => Math.round(Math.abs(((a - b) % 360 + 540) % 360 - 180) * 1000) / 1000;
+    expect(gap(venus.startAngle, oxygen.endAngle), 'Venus 0 % ↔ oxygen 18 %').eq(LARGE_RING_GAP);
+    expect(gap(venus.endAngle, temperature.endAngle), 'Venus 33 % ↔ +14 °C').eq(LARGE_RING_GAP);
+    expect(gap(oceans.startAngle, oxygen.startAngle), 'the first ocean ↔ oxygen 0 %').eq(LARGE_RING_GAP);
+    expect(gap(oceans.endAngle, temperature.startAngle), 'the eleventh ocean ↔ −30 °C').eq(LARGE_RING_GAP);
+    expect((venus.startAngle + venus.endAngle) / 2, 'Venus over 12 o\'clock').closeTo(-90, 1e-9);
+    expect((oceans.startAngle + oceans.endAngle) / 2, 'the oceans under 6 o\'clock').closeTo(90, 1e-9);
+    expect(Math.abs(oxygen.endAngle - oxygen.startAngle), 'the side dials mirror each other').closeTo(Math.abs(temperature.endAngle - temperature.startAngle), 1e-9);
+  });
+
+  it('every dial clears the grid: band edges ≥ 6 px, the alternative Venus row\'s chips ≥ 4 px', () => {
+    const grid = largeBoardGridPolygons();
+    for (const [name, cfg] of Object.entries(LARGE_ARCS)) {
+      const worst = Math.min(...bandEdge(cfg, -cfg.bandWidth / 2).map((p) => largeGridClearance(p, grid)));
+      expect(worst, `${name}: the band's inner edge off the grid`).gte(6);
     }
     const chips = scaleBonusZoneViews({venus: true, altVenus: true}, BoardName.AMAZONIS_PLANITIA).filter((z) => z.scale === 'venus');
-    expect(chips.length, 'anti-vacuous: card · colony · TR · ten resource cells').eq(13);
+    expect(chips.map((c) => c.step), 'card · colony · TR · the alternative board\'s seven cells, starting later (24 %)')
+      .deep.eq([8, 16, 22, 24, 26, 28, 30, 31, 32, 33]);
     const venus = LARGE_ARCS.venus;
     const step = (venus.endAngle - venus.startAngle) / (venus.digits.length - 1);
     for (const chip of chips) {
       const centre = {x: chip.left + chip.size / 2, y: chip.top + chip.size / 2};
-      expect(gridClearance(centre, grid) - chip.size / 2, `${chip.key} off the grid`).gte(6);
+      // ½ px for the chip's margin rounded to whole pixels.
+      expect(largeChipClearance(centre, chip.size, grid), `${chip.key} off the grid`).gte(LARGE_CHIP_CLEARANCE - 0.5);
       // …and the row stays on its own track: no chip past half a step beyond the 0 % / 33 % ends.
       const angle = Math.atan2(centre.y - venus.center.y, centre.x - venus.center.x) * 180 / Math.PI;
       expect(angle, `${chip.key} within the track`).within(venus.startAngle - step / 2, venus.endAngle + step / 2);
@@ -158,7 +128,7 @@ describe('the eleven-row field (Amazonis Planitia) — a construction', function
     }
     const ys = Object.values(LARGE_ARCS).flatMap((cfg) => [...bandEdge(cfg, -cfg.bandWidth / 2), ...bandEdge(cfg, cfg.bandWidth / 2)].map((p) => p.y));
     const height = Math.max(...ys) - Math.min(...ys);
-    // Tharsis measures 554; the field's budget is +8 % (the hex keeps ≥ 92 % of its size on screen).
-    expect(height, 'the dials\' height in board px').lte(600);
+    // Tharsis measures 554; the ring is its diameter plus the band — nothing stands above or below it.
+    expect(height, 'the dials\' height in board px').closeTo(2 * LARGE_RING_RADIUS + 22, 0.5);
   });
 });

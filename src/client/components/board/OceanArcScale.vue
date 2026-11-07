@@ -9,7 +9,7 @@
     in a normal game — see oceanThresholdMarkers.ts / aresThresholdMarkers.ts).
   -->
   <div class="global-numbers-oceans" aria-hidden="true">
-    <arc-scale :theme="oceanTheme" :config="oceanConfig" :value="value" :identityOutside="eventsOutside" />
+    <arc-scale :theme="oceanTheme" :config="oceanConfig" :value="value" :identityMiddle="eventsOutside" />
 
     <scale-event-marker
       v-for="m in eventMarkers"
@@ -70,7 +70,7 @@ export default defineComponent({
     config: {type: Object as PropType<DynamicArcConfig>, default: () => OCEAN_ARC},
     /**
      * The event chips stand OUTSIDE the band (under it) — the eleven-row field's grid reaches the band's inner edge,
-     * so a chip toward the planet would sit on row L.
+     * so a chip toward the planet would sit on row L; the identity badge then stands inside at 6 o'clock (`identityMiddle`).
      */
     eventsOutside: {type: Boolean, default: false},
   },

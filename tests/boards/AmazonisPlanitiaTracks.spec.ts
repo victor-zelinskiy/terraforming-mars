@@ -179,10 +179,19 @@ describe('Amazonis Planitia — the global-parameter tracks', () => {
     expect(game.getVenusScaleLevel()).eq(30);
   });
 
-  // The owner's rule for Alt Venus on the 33 % track (2026-11-06): a standard resource per step from 16 %, 31 · 32 · 33
-  // included, and the wild resource on the map's maximum — and every one of those cells is a claimable scale bonus.
+  // The owner's rule for Alt Venus on the 33 % track (2026-11-07): the classic board's SEVEN cells, starting later — a
+  // standard resource per step from 22 % (24 … 30, 31 · 32 · 33), the wild resource on the map's maximum — and every one
+  // of those cells is a claimable scale bonus.
   describe('the alternative Venus board on the 33 % track', () => {
+    it('the steps below the first cell pay no alternative bonus (20 → 22 is the map\'s TR step only)', () => {
+      const [game, player] = testGame(1, {venusNextExtension: true, altVenusBoard: true, boardName: BoardName.AMAZONIS_PLANITIA});
+      setVenusScaleLevel(game, 20);
+      game.increaseVenusScaleLevel(player, 1);
+      expect(game.deferredActions.queuedFor(player).some((d) => d instanceof GrantVenusAltTrackBonusDeferred)).is.false;
+      expect(game.scaleBonusClaims.get('venus-22'), 'the TR cell is claimed').eq(player.color);
+    });
     for (const run of [
+      {from: 22, steps: 1, standard: 1, wild: false, to: 24},
       {from: 28, steps: 1, standard: 1, wild: false, to: 30},
       {from: 30, steps: 1, standard: 1, wild: false, to: 31},
       {from: 31, steps: 2, standard: 2, wild: true, to: 33},

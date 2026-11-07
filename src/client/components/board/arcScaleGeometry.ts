@@ -361,6 +361,60 @@ export function spreadClusters(positions: ReadonlyArray<number>, minGap: number)
 }
 
 /**
+ * A ROW THAT STEPS AROUND WHAT IT MAY NOT COVER (the eleven-row field's Venus chips — the grid's corner hexes reach
+ * into the ring's inner side). `keepOut` lists the angle intervals a chip CENTRE may not take (sorted, disjoint); every
+ * chip keeps to the free stretch it stands in — one standing inside an interval takes the nearer side — and each
+ * stretch's chips are spread by `spreadClusters`, then pressed against the stretch's end they overrun (the chips
+ * nearest the edge give way, the farther ones only as much as the gap demands). Pure; input order.
+ */
+export function spreadAroundKeepOut(positions: ReadonlyArray<number>, minGap: number, keepOut: ReadonlyArray<readonly [number, number]>): Array<number> {
+  const stretches: Array<[number, number]> = [];
+  let from = -Infinity;
+  for (const [a, b] of keepOut) {
+    stretches.push([from, a]);
+    from = b;
+  }
+  stretches.push([from, Infinity]);
+  const stretchOf = (p: number): number => {
+    let best = 0;
+    let bestD = Infinity;
+    stretches.forEach(([a, b], k) => {
+      const d = p >= a && p <= b ? 0 : Math.min(Math.abs(p - a), Math.abs(p - b));
+      if (d < bestD) {
+        bestD = d;
+        best = k;
+      }
+    });
+    return best;
+  };
+  const result = [...positions];
+  stretches.forEach(([lo, hi], k) => {
+    const members = positions.map((p, i) => ({p, i})).filter((m) => stretchOf(m.p) === k).sort((a, b) => a.p - b.p);
+    if (members.length === 0) {
+      return;
+    }
+    const spread = spreadClusters(members.map((m) => Math.min(hi, Math.max(lo, m.p))), minGap);
+    const n = spread.length;
+    if (spread[n - 1] > hi) {
+      spread[n - 1] = hi;
+      for (let j = n - 2; j >= 0; j--) {
+        spread[j] = Math.min(spread[j], spread[j + 1] - minGap);
+      }
+    }
+    if (spread[0] < lo) {
+      spread[0] = lo;
+      for (let j = 1; j < n; j++) {
+        spread[j] = Math.max(spread[j], spread[j - 1] + minGap);
+      }
+    }
+    members.forEach((m, j) => {
+      result[m.i] = spread[j];
+    });
+  });
+  return result;
+}
+
+/**
  * Back-compat thin wrapper (ocean scale): the original `markerChip` shape, now
  * computed via `placeArcMarker`. Also surfaces `pointerLen` so the ocean event
  * chips draw the same luminous connector as the reward chips.

@@ -160,23 +160,38 @@ export const STANDARD_ARCS: BoardArcConfigs = {temperature: TEMPERATURE_ARC, oxy
 
 /**
  * THE ELEVEN-ROW BOARD'S DIALS (Amazonis Planitia — `largeBoardLayout.ts`, `docs/claude/amazonis-planitia-phase-1.md`
- * § the field). The 91-hex grid keeps the standard hex (46 × 51, pitch 49 × 41) and fills the planet's ring almost to
- * the scales, so the four dials are no longer ONE circle (a common ring clearing the grid's six corners would have
- * to grow to r ≈ 318 and cost the hexes ~15 % of their size on screen). Each dial is its OWN circle, solved against
- * the grid (scripted: every band edge ≥ 12 px off every hex, every inner chip ≥ 8 px, ≥ 16 px between neighbours):
- *  · VENUS (0 … 30 in 2 % steps, 31 · 32 · 33 in 1 % — 19 values): a FLAT arc over the grid's flat top (centre
- *    145 px below the planet's, r 440) — its inner chips clear row A, its spacing ≈ 24 px per step;
- *  · OCEANS (1 … 11): the same flat arc under the flat bottom (centre 165 px above, r 440), ≈ 26 px per step;
- *  · OXYGEN (0 … 18) and TEMPERATURE (−30 … +14, 23 values): one circle each, almost the planet's (r 287, centres
- *    14 px out to their side and 8 px up), wrapping the grid's left / right vertices between the two flat arcs.
- * Measured: the content's height grows 554 → ~592 board px against Tharsis — the hex keeps ≈ 94 % of its 4K size.
+ * § the field). ONE RING, like the classic board's (the owner, 2026-11-07: «each scale looks at the next one by its
+ * EDGES»): the four dials stand on ONE circle around the grid's centre (the dials' own (300, 301)), each end facing
+ * its neighbour's end across the same gap, Venus centred over the top and the oceans under the bottom, oxygen and
+ * temperature down the sides. The radius is the smallest that clears the grid's two farthest points — the middle row's
+ * end hexes (≈ 268 px) — so the hexes get every pixel of height the ring can spare (the content is 594 px tall against
+ * the classic 556, never more). Every dimension is a ROLE:
+ *  · `LARGE_RING_RADIUS` 286 — the band's inner edge 275, ≥ 6 px off every hex;
+ *  · Venus 0 … 30 % in 2 % steps, 31 · 32 · 33 % in 1 % (18 steps) at 4.95° (25 px) — centred on 12 o'clock;
+ *  · the oceans 1 … 11 (10 steps) at 4.45° (22 px) — centred on 6 o'clock;
+ *  · `LARGE_RING_GAP` 8° between two dials' ends (18 px of open space between the bands);
+ *  · oxygen 0 … 18 % and temperature −30 … +14 °C share what is left, one side each (97.2° — 22 px per temperature
+ *    step, the densest dial, 27 px per oxygen one).
+ * The Venus chips stand inside the ring and step around the corner hexes (`scaleBonusZones` — the grid's keep-out).
  */
+export const LARGE_RING_RADIUS = 286;
+export const LARGE_RING_GAP = 8;
+const LARGE_RING_CENTER: Point = {x: 300, y: 301};
+const LARGE_VENUS_STEP = 4.95;
+const LARGE_OCEAN_STEP = 4.45;
 const LARGE_VENUS_VALUES: ReadonlyArray<number> = [...Array.from({length: 16}, (_, i) => i * 2), 31, 32, 33];
+const LARGE_VENUS_HALF = LARGE_VENUS_STEP * (LARGE_VENUS_VALUES.length - 1) / 2;
+const LARGE_OCEAN_HALF = LARGE_OCEAN_STEP * 10 / 2;
+/** One side dial's sweep: the half-turn less half of Venus, half of the oceans and two gaps. */
+const LARGE_SIDE_SPAN = 180 - LARGE_VENUS_HALF - LARGE_OCEAN_HALF - 2 * LARGE_RING_GAP;
+const ring = {center: LARGE_RING_CENTER, radius: LARGE_RING_RADIUS, bandWidth: BAND_WIDTH};
 export const LARGE_ARCS: BoardArcConfigs = {
-  venus: buildValuesArcConfig('venus', LARGE_VENUS_VALUES, {center: {x: 300, y: 446}, radius: 440, startAngle: -118, endAngle: -63, bandWidth: BAND_WIDTH}),
-  oxygen: buildValuesArcConfig('oxygen', Array.from({length: 19}, (_, i) => i), {center: {x: 286, y: 293}, radius: 287, startAngle: 122, endAngle: 223, bandWidth: BAND_WIDTH}),
-  temperature: buildValuesArcConfig('temperature', Array.from({length: 23}, (_, i) => -30 + i * 2), {center: {x: 314, y: 293}, radius: 287, startAngle: 58, endAngle: -40, bandWidth: BAND_WIDTH}),
-  oceans: buildValuesArcConfig('oceans', Array.from({length: 11}, (_, i) => i + 1), {center: {x: 300, y: 136}, radius: 440, startAngle: 107, endAngle: 73, bandWidth: BAND_WIDTH}),
+  venus: buildValuesArcConfig('venus', LARGE_VENUS_VALUES, {...ring, startAngle: -90 - LARGE_VENUS_HALF, endAngle: -90 + LARGE_VENUS_HALF}),
+  oxygen: buildValuesArcConfig('oxygen', Array.from({length: 19}, (_, i) => i),
+    {...ring, startAngle: 90 + LARGE_OCEAN_HALF + LARGE_RING_GAP, endAngle: 90 + LARGE_OCEAN_HALF + LARGE_RING_GAP + LARGE_SIDE_SPAN}),
+  temperature: buildValuesArcConfig('temperature', Array.from({length: 23}, (_, i) => -30 + i * 2),
+    {...ring, startAngle: 90 - LARGE_OCEAN_HALF - LARGE_RING_GAP, endAngle: 90 - LARGE_OCEAN_HALF - LARGE_RING_GAP - LARGE_SIDE_SPAN}),
+  oceans: buildValuesArcConfig('oceans', Array.from({length: 11}, (_, i) => i + 1), {...ring, startAngle: 90 + LARGE_OCEAN_HALF, endAngle: 90 - LARGE_OCEAN_HALF}),
 };
 
 /** Angle (deg) of a value, or the nearest tick's angle when between ticks. */

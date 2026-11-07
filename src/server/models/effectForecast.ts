@@ -12,7 +12,8 @@ import {Resource} from '../../common/Resource';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {SpaceType} from '../../common/boards/SpaceType';
 import {BASE_OCEAN_TILES, CITY_TILES, GREENERY_TILES, OCEAN_TILES, TileType} from '../../common/TileType';
-import {ALT_VENUS_MINIMUM_BONUS, TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2} from '../../common/constants';
+import {TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2} from '../../common/constants';
+import {altVenusBonusFor, altVenusMinimumFor} from '../../common/venus/altVenusBonus';
 import {GlobalParameterTrackBonus, crossesTrackBonus, trackBonusReason} from '../boards/GlobalParameterTracks';
 import {venusLevelAfterSteps} from '../venusNext/venusScale';
 import {Behavior} from '../behavior/Behavior';
@@ -705,7 +706,7 @@ const BONUS_SCALE_OF: Partial<Record<GlobalParameter, BonusScale>> = {
  * scale twice (a card's own step, then the oxygen bonus's), so a CURSOR per
  * scale carries the level forward instead of re-reading the board. A step
  * the ceiling cuts crosses nothing. The alternate Venus track pays resources
- * of the player's choice past 16 % — an honest unknown. The 0 °C ocean with
+ * of the player's choice past the board's first cell (16 %; 22 % on a 33 % track) — an honest unknown. The 0 °C ocean with
  * no ocean left is a named skip, never silence. Read-only.
  */
 function scaleBonusPass(player: IPlayer, grants: ReadonlyArray<EffectForecastGrant>): {facts: Array<EffectForecastFact>, grants: Array<EffectForecastGrant>} {
@@ -753,8 +754,11 @@ function scaleBonusPass(player: IPlayer, grants: ReadonlyArray<EffectForecastGra
           extra.push({kind: 'tr', amount: 1});
         }
       }
-      if (game.gameOptions.altVenusBoard && (Math.min(to, game.max.venus) - Math.max(from, ALT_VENUS_MINIMUM_BONUS) > 0 || to >= game.max.venus)) {
-        facts.push(forecast.unknown(source, 'The alternate Venus track pays a bonus of your choice past 16 %'));
+      // The map's seven cells (`altVenusBonusFor` — the engine's own arithmetic: past 16 % classic, past 22 % on a 33 % track).
+      if (game.gameOptions.altVenusBoard && altVenusBonusFor(from, steps, game.max.venus) !== undefined) {
+        facts.push(forecast.unknown(source, altVenusMinimumFor(game.max.venus) === 22 ?
+          'The alternate Venus track pays a bonus of your choice past 22 %' :
+          'The alternate Venus track pays a bonus of your choice past 16 %'));
       }
       return;
     }

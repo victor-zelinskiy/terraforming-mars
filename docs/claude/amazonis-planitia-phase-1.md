@@ -7,13 +7,17 @@ it in words with the bot seated («MarsBot does not cover …»), the bot-seated
 
 ## Owner's decisions taken during the work (2026-11-06)
 
-1. **Alt Venus on the 33 % track — «a step = a resource, the wild on 33»** (upstream's own arithmetic for the pair):
-   one standard resource per STEP made at or above 16 % (18 … 30 in 2 % steps, then 31 · 32 · 33 in 1 % steps — 10
-   resource cells), the wild resource on the map's MAXIMUM (33 %). One function: `common/venus/altVenusBonus.ts`
-   (`altVenusBonusFor(level, steps, maxVenus)`, `altVenusResourceCells(maxVenus)`); the engine, the previews, the colony
-   trade preview, the composer's pre-select, the scale's claims and the client's bonus-cell beat read it with
+1. **Alt Venus on the 33 % track — the classic board's SEVEN cells, starting later** (revised by the owner 2026-11-07:
+   «the NUMBER of bonuses identical to the ordinary alternative board, starting correspondingly later, the last double
+   bonus at the very end»; the first take, 2026-11-06, paid a resource for every step from 16 % — ten cells, «too
+   many»). One standard resource per STEP made into one of the cells 24 · 26 · 28 · 30 · 31 · 32 · 33 (from 22 % — the
+   map's TR step, which pays no alternative bonus), the wild resource on the map's MAXIMUM (33 %). One function:
+   `common/venus/altVenusBonus.ts` (`ALT_VENUS_CELL_COUNT` = the classic 16 → 30 run; `altVenusMinimumFor(maxVenus)`;
+   `altVenusBonusFor(level, steps, maxVenus)`; `altVenusResourceCells(maxVenus)`); the engine, the previews, the colony
+   trade preview, the composer's pre-select, the scale's claims, the forecast («… past 22 %») and the client's
+   bonus-cell beat (`venusBonusCells(step, maxVenus)` — the board's own maximum off the view) read it with
    `game.max.venus`. Alt Venus + Amazonis Planitia is allowed with no warning (upstream's `altVenusBoardOnAmazonis` was
-   never ported). The scale draws the ten cells and the finish's gold cube on 33 (`scaleBonusZones.anchorDefsFor`).
+   never ported). The scale draws the seven cells, the finish's gold cube on 33 (`scaleBonusZones.anchorDefsFor`).
 2. **Activist without the Redux Parliament — a FIXED substitute**: Terraformer29
    (`AMAZONIS_PLANITIA_NO_PARLIAMENT_MILESTONE`, `amazonisPlanitiaMilestones(gameOptions)` in `MilestoneAwardSelector.ts`).
    The printed row reads `… 'Sponsor', 'Activist'`; the fork's substitute slot is not a «printed on this board»
@@ -33,17 +37,37 @@ it in words with the bot seated («MarsBot does not cover …»), the bot-seated
 - **Hexes keep the Tharsis size** (46 × 51, pitch 49 × 41): `largeBoardLayout.largeBoardHexMargins()` constructs the 91
   margins, `src/styles/board_large_positions.less` carries them under `.board-cont--large`; the planet grows ×1.147
   behind the grid (the disc r 225 → 258) and the corner hexes overhang its rim by ≈ 10–14 px, as the owner allowed.
-- **Measured on the TV profile (4K, the box, e2e `console-amazonis-planitia` § the field)**: Tharsis hex 151.7 px,
-  Amazonis Planitia hex 138.8 px — **91.5 %** of the Tharsis size, nothing of the scales or the flank on a hex, no scroll.
-  The spec asserts ≥ 90 %; the layout spec asserts the dials' height ≤ 600 board px (Tharsis 554).
-- **The dials** (`arcScaleConfigs.LARGE_ARCS`) are four circles of their own, solved against the grid by script: Venus a
-  flat arc over the grid's flat top (19 values, ≈ 24 px a step), oceans the same under its flat bottom (11 values,
-  ≈ 26 px), oxygen / temperature one circle each wrapping the side vertices (19 / 23 values). Guard
-  `tests/console/largeBoardLayout.spec.ts`: band edges ≥ 12 px off every hex, the Venus row's 13 chips ≥ 6 px off it and
-  inside the track, the dials ≥ 16 px apart, ≥ 22 px a step. The Venus chips are 15 px on this board and spread
-  cluster-wise (`spreadClusters`); the ocean's identity badge and event chips stand OUTSIDE its band.
-- **The off-Mars flank**: a honeycomb in the board's top corners (`src/styles/console_board_large.less`), the right
-  cluster Luna · Dawn / Maxwell · Aurora / Stratopolis, the left its mirror — guarded by `offMarsCellPlacement.spec.ts`.
+- **The dials are ONE RING** (the owner, 2026-11-07, over the first take's 4K frame: «the planet is not centred — Venus
+  runs off the screen while space is left under the bottom scale; the scales are DISHARMONIOUS — on the classic board
+  every scale looks at the next by its EDGES; the heat and oxygen scales are cut left and right»). The first take had
+  four circles of their own (Venus / the oceans flat arcs over the grid's flat top / bottom, the side dials one circle
+  each); the content measured past the fit's 620 px clamp, so the fit framed less than was there and Venus slid under
+  the status strip, and the side circles crossed the arc canvas's 600 × 600 box — an `<svg>` clips at its box, the
+  bands were sliced on a straight line. Now (`arcScaleConfigs.LARGE_ARCS`): one circle round the grid's centre,
+  `LARGE_RING_RADIUS` 286 (the band's inner edge ≥ 6 px off the middle row's end hexes — the grid's farthest points),
+  Venus centred over 12 o'clock (4.95° = 25 px a step), the oceans under 6 o'clock (4.45° = 22 px), `LARGE_RING_GAP`
+  8° between every two ends (18 px of open space), oxygen / temperature mirroring each other down the sides (97.2° —
+  27 / 22 px a step). Content height = the ring: 594 board px (Tharsis 554) — nothing stands above or below it.
+- **The Venus row steps around the corner hexes**: the top row's corner hexes reach into the ring's inner side, so the
+  row's chips (15 px, a 5 px connector) keep out of the grid's own keep-out (`largeBoardLayout.largeChipKeepOut` —
+  sampled from the construction, ≥ 4 px off every hex) and each free stretch is spread on its own
+  (`arcScaleGeometry.spreadAroundKeepOut`); the connector re-aims at the true value as everywhere. The Venus badge stands
+  outside the ring beside the flank; the oceans' badge INSIDE at 6 o'clock (`ArcScale.identityMiddle` — at the first
+  value it sat on the corner hex inside, or hung 10 px under the ring outside and cost the planet that height).
+- **The arc canvas** (`ArcScale.vue`) reaches 60 px past the dials' square on every side (`SVG_PAD`, the viewBox starts
+  at −60): no ring can be sliced by its own canvas again.
+- **The fit centres the RING across** (`ConsoleBoardSection.calibrate` — the four rails' union; the flank is not
+  symmetric, Aurora closes the right honeycomb only); down the stage the content is the ring.
+- **Measured on the TV profile (4K, the box, e2e `console-amazonis-planitia` § the field)**: first take — Tharsis hex
+  151.7 px, Amazonis Planitia 138.8 px (91.5 %); THE RING — 141.3 px (**93.1 %**), the content 593 board px in a
+  1826 px stage (the fit is honest — no clamp; a single ring cannot go tighter: below R 286 the Venus row no longer
+  fits between the corner hexes). The spec asserts ≥ 92.5 %, the ring centred on the stage (± 2 board px), Venus clear of the status strip, the oceans above the dock's
+  clearance and every rail inside its canvas. Guard `tests/console/largeBoardLayout.spec.ts`: one centre / radius /
+  gap, band edges ≥ 6 px off every hex, the Venus row's 10 chips ≥ 4 px off it and inside the track, the dials ≥ 16 px
+  apart, ≥ 22 px a step, the height = the ring.
+- **The off-Mars flank**: a honeycomb in the board's top corners outside the ring (`src/styles/console_board_large.less`
+  — its top row on the ring's own top, 15), the right cluster Luna · Dawn / Maxwell · Aurora / Stratopolis, the left its
+  mirror — guarded by `offMarsCellPlacement.spec.ts`.
 - **The camera**: the focus frame is the disc ∪ the grid (`ConsoleBoardSection.LARGE_PFOCUS_FRAME`); the cursor's
   first cell reads the eleven-row silhouette (`miniRowsOf`); d-pad travel is the generic geometric walk.
 - **Names**: the five volcanoes are hover markers (`specialCellInfo` — E1 Hecates Tholus, H7 Olympus Mons, H9 Ascraeus

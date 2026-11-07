@@ -26,7 +26,9 @@ import {reactive, watch, WatchStopHandle} from 'vue';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {MAX_VENUS_SCALE, MAX_VENUS_SCALE_AMAZONIS} from '@/common/constants';
+import {MAX_VENUS_SCALE} from '@/common/constants';
+import {BoardName} from '@/common/boards/BoardName';
+import {getGlobalParameterMaximums} from '@/common/boards/GlobalParameterMaximums';
 import {altVenusResourceCells} from '@/common/venus/altVenusBonus';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -63,24 +65,28 @@ const PRESELECT_ARM_MAX_MS = 60_000;
 
 /**
  * THE CELLS a raise reached, in the scale's order — the board's own chip keys (`Board.bonusZoneProps`:
- * `<scale>-<step>` → `venus-18 … venus-30` (… `venus-33` on Amazonis Planitia), the finish's gold cube included; `data-arc-marker` on the chip). Pure. Empty
+ * `<scale>-<step>` → `venus-18 … venus-30` (`venus-24 … venus-33` on Amazonis Planitia), the finish's gold cube included; `data-arc-marker` on the chip). Pure. Empty
  * when the raise reached no resource cell (no step known — an older save).
  */
-export function venusBonusCells(step: {from: number, to: number} | undefined): Array<string> {
+export function venusBonusCells(step: {from: number, to: number} | undefined, maxVenus: number = MAX_VENUS_SCALE): Array<string> {
   if (step === undefined) {
     return [];
   }
-  // Every map's cells (`altVenusResourceCells` of the longest track — 18 … 30, then Amazonis Planitia's 31 … 33): a raise
-  // never passes its own map's maximum, so the longer list names exactly the cells the step reached.
-  return altVenusResourceCells(MAX_VENUS_SCALE_AMAZONIS).filter((level) => level > step.from && level <= step.to).map((level) => `venus-${level}`);
+  // The MAP's seven cells (`altVenusResourceCells` — 18 … 30 classic, 24 … 33 on Amazonis Planitia's longer track).
+  return altVenusResourceCells(maxVenus).filter((level) => level > step.from && level <= step.to).map((level) => `venus-${level}`);
+}
+
+/** The Venus maximum of the board a view plays on (the cells of its alternative board). */
+function maxVenusOf(view: PlayerViewModel | undefined): number {
+  return getGlobalParameterMaximums(view?.game.gameOptions?.boardName ?? BoardName.THARSIS).venus;
 }
 
 /**
  * THE SPECS of an arm, in birth order — one token per unit (the standard rows in the rail's order, the card last) — and
  * the cell each is born on (the cells in turn; more tokens than cells ride the last one). Pure.
  */
-export function venusBonusCellPlan(arm: VenusBonusCellArm): Array<{spec: ResourceTransferSpec, cell: string | undefined}> {
-  const cells = venusBonusCells(arm.step);
+export function venusBonusCellPlan(arm: VenusBonusCellArm, maxVenus: number = MAX_VENUS_SCALE): Array<{spec: ResourceTransferSpec, cell: string | undefined}> {
+  const cells = venusBonusCells(arm.step, maxVenus);
   const order = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
   const specs: Array<ResourceTransferSpec> = [];
   for (const unit of order) {
@@ -172,7 +178,7 @@ export function seedVenusBonusCellHold(before: PlayerViewModel | undefined, afte
   if (typeof document === 'undefined' || consoleReducedMotionActive()) {
     return;
   }
-  const plan = venusBonusCellPlan(arm);
+  const plan = venusBonusCellPlan(arm, maxVenusOf(after));
   if (plan.length === 0) {
     return;
   }

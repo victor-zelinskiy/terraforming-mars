@@ -1476,7 +1476,25 @@ export default defineComponent({
       const natH = Math.min(NATURAL_H_MAX, Math.max(NATURAL_H_MIN, (bottom - top) / scale));
       // True-centre offset (screen px): where the content centre sits vs the
       // stage centre — folded into the child translate CSS vars.
-      const dx = (sr.left + sr.width / 2) - (left + right) / 2;
+      // The eleven-row field centres its RING across (Amazonis Planitia — the four rails are one circle round the
+      // planet): its off-Mars flank is not symmetric (Aurora Station closes the right honeycomb only), and the content's
+      // own middle would push the planet off the stage's by half that column. The width is never the binding axis.
+      let midX = (left + right) / 2;
+      if (this.largeLayout) {
+        let ringLeft = Infinity;
+        let ringRight = -Infinity;
+        for (const el of stage.querySelectorAll<SVGElement>('.arc-scale__rail')) {
+          const r = el.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) {
+            ringLeft = Math.min(ringLeft, r.left);
+            ringRight = Math.max(ringRight, r.right);
+          }
+        }
+        if (Number.isFinite(ringLeft)) {
+          midX = (ringLeft + ringRight) / 2;
+        }
+      }
+      const dx = (sr.left + sr.width / 2) - midX;
       const dy = (sr.top + sr.height / 2) - (top + bottom) / 2;
       const sizeDrift = Math.abs(natW - this.naturalW) > CALIBRATE_SIZE_EPS ||
         Math.abs(natH - this.naturalH) > CALIBRATE_SIZE_EPS;

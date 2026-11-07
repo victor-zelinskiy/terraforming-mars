@@ -17,7 +17,7 @@
     for the same language applied to the (already code-rendered) ocean scale.
   -->
   <div class="arc-scale" :class="`arc-scale--${theme.name}`" :style="themeStyle" aria-hidden="true">
-    <svg class="arc-scale__svg" :viewBox="`0 0 ${SVG}`" :width="SVG_W" :height="SVG_H">
+    <svg class="arc-scale__svg" :viewBox="SVG" :width="SVG_W + 2 * SVG_PAD" :height="SVG_H + 2 * SVG_PAD" :style="svgStyle">
       <defs>
         <linearGradient :id="gradId" gradientUnits="userSpaceOnUse"
           :x1="gradFrom.x" :y1="gradFrom.y" :x2="gradTo.x" :y2="gradTo.y">
@@ -102,6 +102,14 @@ import {consoleState} from '@/client/console/consoleRouter';
 
 const SVG_W = 600;
 const SVG_H = 600;
+/**
+ * The canvas reaches this far past the dials' 600 × 600 square on every side. A ring may sit anywhere around its centre
+ * (the eleven-row field's one ring stands right at the square's edge, its rail and caps past it), and an `<svg>` that
+ * clips at its own box cuts the band along a straight line — the left oxygen / right temperature bands of Amazonis
+ * Planitia's first ring were sliced exactly at x 0 / 600 on the TV. The square stays the coordinate space (the viewBox
+ * starts at −PAD), so nothing drawn moves.
+ */
+const SVG_PAD = 60;
 // Uniform digit box across every scale (kept small enough for the dense
 // temperature track — 20 values — not to overlap).
 const ARC_DIGIT = 19;
@@ -122,11 +130,18 @@ export default defineComponent({
     value: {type: Number, required: true},
     /** The identity badge stands OUTSIDE whatever the scale's habit (the eleven-row field's ocean — its grid reaches the band). */
     identityOutside: {type: Boolean, default: false},
+    /**
+     * The identity badge stands INSIDE the band at its MIDDLE value (the eleven-row field's oceans: under the grid's flat
+     * bottom row there is room at 6 o'clock, while a badge at the first value — inside or out — would sit on the corner
+     * hex or hang below the ring and cost the planet its height).
+     */
+    identityMiddle: {type: Boolean, default: false},
   },
   data() {
     return {
       SVG_W,
       SVG_H,
+      SVG_PAD,
       displayValue: arcFillBaseline[this.theme.name] ?? this.value,
     };
   },
@@ -149,7 +164,10 @@ export default defineComponent({
   },
   computed: {
     SVG(): string {
-      return `${SVG_W} ${SVG_H}`;
+      return `${-SVG_PAD} ${-SVG_PAD} ${SVG_W + 2 * SVG_PAD} ${SVG_H + 2 * SVG_PAD}`;
+    },
+    svgStyle(): Record<string, string> {
+      return {left: `${-SVG_PAD}px`, top: `${-SVG_PAD}px`};
     },
     gradId(): string {
       return `arcFill-${this.theme.name}`;
@@ -246,8 +264,9 @@ export default defineComponent({
       // band (toward the planet), so the identity badge follows them inside
       // — it clears the outer off-Mars cells AND reads consistent with the
       // scale's own bonus direction. The other scales keep the outer badge.
-      const radius = this.identityInside ? this.innerR - 16 : this.outerR + 16;
-      const p = pointAtAngle(this.center, radius, this.config.startAngle);
+      const radius = this.identityMiddle ? this.innerR - 18 : this.identityInside ? this.innerR - 16 : this.outerR + 16;
+      const angle = this.identityMiddle ? (this.config.startAngle + this.config.endAngle) / 2 : this.config.startAngle;
+      const p = pointAtAngle(this.center, radius, angle);
       return {
         left: `${Math.round(p.x - size / 2)}px`,
         top: `${Math.round(p.y - size / 2)}px`,

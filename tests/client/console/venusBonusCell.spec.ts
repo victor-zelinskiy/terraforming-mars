@@ -38,6 +38,9 @@ describe('venusBonusCellBeat — the bonus is born on its cell', () => {
     expect(venusBonusCells({from: 16, to: 22})).deep.eq(['venus-18', 'venus-20', 'venus-22']);
     expect(venusBonusCells({from: 28, to: 30})).deep.eq(['venus-30']);
     expect(venusBonusCells(undefined)).deep.eq([]);
+    // Amazonis Planitia's 33 % track: the same seven cells, starting later (24 … 33).
+    expect(venusBonusCells({from: 20, to: 26}, 33)).deep.eq(['venus-24', 'venus-26']);
+    expect(venusBonusCells({from: 30, to: 33}, 33)).deep.eq(['venus-31', 'venus-32', 'venus-33']);
   });
 
   it('one token per unit, in the rail’s order, each on its cell (more tokens than cells ride the last); the card last', () => {

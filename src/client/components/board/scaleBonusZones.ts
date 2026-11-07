@@ -33,13 +33,13 @@
  */
 
 import {OXYGEN_ARC, TEMPERATURE_ARC, VENUS_ARC, DynamicArcConfig} from '@/client/components/board/arcScaleConfigs';
-import {arcConfigsFor, boardLayoutKind} from '@/client/components/board/largeBoardLayout';
+import {arcConfigsFor, boardLayoutKind, largeChipKeepOut} from '@/client/components/board/largeBoardLayout';
 import {BoardName} from '@/common/boards/BoardName';
 import {getGlobalParameterTracks} from '@/common/boards/GlobalParameterTracks';
 import {getGlobalParameterMaximums} from '@/common/boards/GlobalParameterMaximums';
 import {altVenusResourceCells} from '@/common/venus/altVenusBonus';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
-import {placeArcMarker, spreadClusters, spreadValues, MarkerSide} from '@/client/components/board/arcScaleGeometry';
+import {placeArcMarker, spreadAroundKeepOut, spreadClusters, spreadValues, MarkerSide} from '@/client/components/board/arcScaleGeometry';
 
 export type BonusZoneTier = 'regular' | 'final';
 
@@ -78,6 +78,10 @@ const GAP = 2;
 const CONNECTOR = 7;
 /** The eleven-row field's Venus chip (see `scaleBonusZoneViews`). */
 const LARGE_VENUS_CHIP = 15;
+/** …its connector (a hair shorter — the row stands nearer its band, clear of the top row's corner hexes). */
+const LARGE_VENUS_CONNECTOR = 5;
+/** …and its fan's breathing room (ten chips round the corner hexes). */
+const LARGE_VENUS_BREATHING = 3;
 /** Extra breathing room (px) added to the chip size for the fan-out min-gap. */
 const FAN_BREATHING = 4;
 
@@ -91,6 +95,8 @@ type AnchorDef = {
   tier: BonusZoneTier;
   requires: BonusZoneRequires;
   size: number;
+  /** The connector's base length (`CONNECTOR` unless a layout shortens it). */
+  pointer?: number;
 };
 
 const WILD = 'Gain a standard resource of your choice';
@@ -137,7 +143,7 @@ function anchorDefsFor(boardName: BoardName): ReadonlyArray<AnchorDef> {
       defs.push({key: `v-tr-${value}`, scale: 'venus', step: value, side: 'inner', icon: 'bonus-zone-icon--tr', reward: 'Gain 1 TR', tier: 'regular', requires: 'venus', size: 18});
     }
   }
-  // Venus Alternative Board — a resource per step from 16 %, INSIDE the band; the FINISH (the map's maximum) is ONE
+  // Venus Alternative Board — its seven resource cells (18 … 30; 24 … 33 on a 33 % track), INSIDE the band; the FINISH (the map's maximum) is ONE
   // gold cube (a standard + the wild resource).
   const cells = altVenusResourceCells(getGlobalParameterMaximums(boardName).venus);
   cells.forEach((step, i) => {
@@ -182,7 +188,7 @@ function place(d: AnchorDef, chipAngle?: number, configs: Record<BonusScale, Dyn
     bandWidth: cfg.bandWidth,
     side: sideOf(d),
     gap: GAP,
-    pointer: CONNECTOR,
+    pointer: d.pointer ?? CONNECTOR,
     size: d.size,
     value: d.step,
   });
@@ -304,10 +310,10 @@ export function scaleBonusZoneViews(v: ScaleBonusVisibility, boardName: BoardNam
   const arcs = arcConfigsFor(boardName);
   const configs: Record<BonusScale, DynamicArcConfig> = {venus: arcs.venus, oxygen: arcs.oxygen, temperature: arcs.temperature};
   const large = boardLayoutKind(boardName) === 'large';
-  // The large field's Venus chips are a size smaller (15 px — ≈ 45 px at 4K): ten resource cells, the colony and the
-  // TR share the 16 … 33 % run, and at 18 px they would not fit inside the track's own length.
+  // The large field's Venus chips are a size smaller (15 px — ≈ 45 px at 4K): ten chips (the card, the colony, the TR
+  // and the alternative board's seven cells) share the ring's inner side with the top row's corner hexes.
   const defs = (boardName === BoardName.THARSIS ? ANCHOR_DEFS : anchorDefsFor(boardName))
-    .map((d) => (large && d.scale === 'venus' ? {...d, size: LARGE_VENUS_CHIP} : d));
+    .map((d) => (large && d.scale === 'venus' ? {...d, size: LARGE_VENUS_CHIP, pointer: LARGE_VENUS_CONNECTOR} : d));
   const out: Array<ScaleBonusZoneView> = [];
   for (const scale of ['venus', 'oxygen', 'temperature'] as ReadonlyArray<BonusScale>) {
     const group = defs.filter((d) => d.scale === scale && isVisible(d, v));
@@ -317,14 +323,23 @@ export function scaleBonusZoneViews(v: ScaleBonusVisibility, boardName: BoardNam
     const cfg = configs[scale];
     const maxSize = Math.max(...group.map((d) => d.size));
     const half = cfg.bandWidth / 2;
-    const off = GAP + CONNECTOR + maxSize / 2;
+    const off = GAP + (group[0].pointer ?? CONNECTOR) + maxSize / 2;
     // Approx chip radius on this scale's side → the angular gap the chips need.
     const chipRadius = group[0].side === 'inner' ? cfg.bandRadius - half - off : cfg.bandRadius + half + off;
-    const minGapDeg = ((maxSize + FAN_BREATHING) / chipRadius) * (180 / Math.PI);
-    // The eleven-row field's Venus row is denser than the arc's own step (13 chips over 16 … 33 %): its crowded run is
-    // spread on its own (`spreadClusters`), never dragged by the lone 8 % card.
-    const spread = large ? spreadClusters : spreadValues;
-    const fanned = spread(group.map((d) => angleFor(scale, d.step, configs)), minGapDeg);
+    const breathing = large && scale === 'venus' ? LARGE_VENUS_BREATHING : FAN_BREATHING;
+    const minGapDeg = ((maxSize + breathing) / chipRadius) * (180 / Math.PI);
+    const angles = group.map((d) => angleFor(scale, d.step, configs));
+    let fanned: Array<number>;
+    if (large && group[0].side === 'inner') {
+      // The eleven-row field's grid reaches the ring's inner side at the top row's corner hexes: the row steps AROUND
+      // them (`largeChipKeepOut` — the grid's own construction), each crowded run spread on its own, never dragged by
+      // a lone chip across a corner.
+      const lo = Math.min(cfg.startAngle, cfg.endAngle) - 15;
+      const hi = Math.max(cfg.startAngle, cfg.endAngle) + 15;
+      fanned = spreadAroundKeepOut(angles, minGapDeg, largeChipKeepOut(cfg.center, chipRadius, maxSize, lo, hi));
+    } else {
+      fanned = (large ? spreadClusters : spreadValues)(angles, minGapDeg);
+    }
     group.forEach((d, i) => out.push(viewFrom(d, fanned[i], configs)));
   }
   return out;
