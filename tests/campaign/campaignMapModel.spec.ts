@@ -134,6 +134,39 @@ describe('campaignMapModel', () => {
     expect(after.biddingOpen).is.false;
   });
 
+  it('«Тендеры»: the rail row carries the seat\'s holdings and the mode; a result row names the lot the seat took; the rail\'s note is the tenders\'', () => {
+    const model = baseModel({
+      phase: 'interlude', pointer: 1, rewardMode: 'tenders',
+      progression: {lineages: {}, titles: [], titlePoints: {0: 0, 1: 0, 2: 0}, pendingBonuses: {},
+        tenders: {1: [{instance: 't0-0', id: 'openCall', wonAtSlot: 0, place: 1, status: 'held'}]}},
+    } as never);
+    (model.missions[0] as any).state = 'committed';
+    (model.missions[0] as any).result = {
+      gameId: 'g1', generations: 9,
+      standings: [
+        {seat: 1, place: 1, score: 60, megaCredits: 20, corporations: [], tiedWith: []},
+        {seat: 0, place: 2, score: 50, megaCredits: 20, corporations: [], tiedWith: []},
+        {seat: 2, place: 3, score: 40, megaCredits: 0, corporations: [], tiedWith: []},
+      ],
+      titles: [], bonuses: [],
+    };
+    (model.missions[0] as any).bidding = {sourceSlot: 0, offer: [{instance: 't0-0', id: 'openCall', takenBy: 1}, {instance: 't0-1', id: 'gamble', withdrawn: true}], order: [1, 0, 2], lots: [], pointer: 1, done: true};
+    const vm = buildCampaignMapVm(model);
+    expect(vm.rewardMode).eq('tenders');
+    expect(vm.tenderNote).include('finale');
+    const bruno = vm.rail.find((r) => r.seat === 1)!;
+    expect(bruno.rewardMode).eq('tenders');
+    expect(bruno.tenders.map((t) => `${t.id}:${t.status}`)).deep.eq(['openCall:held']);
+    expect(vm.rail.find((r) => r.seat === 0)!.tenders).deep.eq([]);
+    const results = vm.missions[0].results!;
+    expect(results[0].tender).eq('openCall');
+    expect(results[1].tender).is.undefined;
+    // A titles campaign: the mode says so, no holdings anywhere.
+    const titles = buildCampaignMapVm(baseModel());
+    expect(titles.rewardMode).eq('titles');
+    expect(titles.rail.every((r) => r.tenders.length === 0)).is.true;
+  });
+
   it('interlude: a confirmed non-creator stands READY — waiting CTA with the auto-join promise', () => {
     const model = baseModel({
       you: {seat: 1},

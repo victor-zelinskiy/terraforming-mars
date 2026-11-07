@@ -258,6 +258,36 @@ describe('campaignOverviewModel', () => {
     expect(bruno.bonus).deep.eq({amount: 5, status: 'pending'});
   });
 
+  it('«Тендеры»: the seat rows, the podium, the mission details and the seat legacy all read the holdings off the ONE reader', () => {
+    const base = baseModel({phase: 'interlude', pointer: 1});
+    const bidding = {sourceSlot: 0, offer: [{instance: 't0-0', id: 'openCall', takenBy: 1}, {instance: 't0-1', id: 'gamble', withdrawn: true}], order: [1, 0, 2], lots: [], pointer: 1, done: true};
+    const m = {
+      ...base,
+      rewardMode: 'tenders',
+      progression: {...base.progression, tenders: {1: [{instance: 't0-0', id: 'openCall', wonAtSlot: 0, place: 1, status: 'executed'}]}},
+      missions: base.missions.map((mi, i) => i === 0 ? {
+        ...mi, state: 'committed', bidding,
+        result: result([{seat: 1, place: 1, score: 60, corporations: []}, {seat: 0, place: 2, score: 50, corporations: []}, {seat: 2, place: 3, score: 40, corporations: []}]),
+      } : mi),
+    } as unknown as CampaignModel;
+    const vm = buildCampaignOverview(m);
+    expect(vm.rewardMode).eq('tenders');
+    expect(vm.tenderNote).include('finale');
+    expect(vm.seats.find((s) => s.seat === 1)!.tenders.map((t) => `${t.id}:${t.status}`)).deep.eq(['openCall:executed']);
+    expect(vm.seats.find((s) => s.seat === 0)!.tenders).deep.eq([]);
+    expect(vm.missions[0].podium!.find((p) => p.seat === 1)!.tender).eq('openCall');
+    expect(vm.missions[0].podium!.find((p) => p.seat === 0)!.tender).is.undefined;
+    const details = buildMissionDetails(m, 0)!;
+    expect(details.rows.find((r) => r.seat === 1)!.tender).eq('openCall');
+    const legacy = buildSeatLegacy(m, 1, {contextSlot: 1})!;
+    expect(legacy.rewardMode).eq('tenders');
+    expect(legacy.tenders.map((t) => t.id)).deep.eq(['openCall']);
+    // A titles campaign reads titles only.
+    const titles = buildCampaignOverview(base);
+    expect(titles.rewardMode).eq('titles');
+    expect(titles.seats.every((s) => s.tenders.length === 0)).is.true;
+  });
+
   it('the overview podium orders a committed card by place and marks the current mission', () => {
     const vm = buildCampaignOverview(midCampaign());
     expect(vm.missions[0].podium?.map((p) => p.seat)).deep.eq([0, 1, 2]);

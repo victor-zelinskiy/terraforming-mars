@@ -106,7 +106,7 @@ import {
   mapMeta,
 } from '@/client/components/create/premium/createGameMeta';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleDeckMeter from '@/client/components/console/menu/ConsoleDeckMeter.vue';
@@ -122,7 +122,8 @@ export default defineComponent({
     },
     /** The campaign's route in one line — its length (the creator's dial) and how the boards come. */
     routeLine(): string {
-      return translateTextWithParams('Missions: ${0} · unique boards, generated at assembly', [String(createGameState.config.campaignMissionCount)]);
+      return translateTextWithParams('Missions: ${0} · unique boards, generated at assembly', [String(createGameState.config.campaignMissionCount)]) +
+        ' · ' + translateText(createGameState.config.campaignRewardMode === 'tenders' ? 'Tenders' : 'Titles');
     },
     humanChips(): ReadonlyArray<{index: number, name: string, color: Color}> {
       return createGameState.config.players.map((p, index) => ({index, name: p.name.trim(), color: p.color}));

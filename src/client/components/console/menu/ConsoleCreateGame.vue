@@ -118,7 +118,7 @@
             </span>
           </div>
           <div class="cm-routebrief__body" v-i18n>Unique boards are generated when the campaign is assembled, one per mission. The route never changes afterwards.</div>
-          <div class="cm-routebrief__note" v-i18n>The last mission is the finale: titles and corporations count into its VP.</div>
+          <div class="cm-routebrief__note" data-route-reward-note>{{ $t(routeRewardNote) }}</div>
           <div class="cm-routebrief__note" v-if="botSeated" v-i18n>With the MarsBot seated, the route draws only from the boards it supports.</div>
           <div class="cm-routebrief__note" v-i18n>Corporations merge between missions; Merger itself is excluded from the campaign prelude pool.</div>
         </div>
@@ -245,6 +245,7 @@ import {
   toggleRule,
   setCreateLayoutWide,
   stepCampaignChance,
+  stepCampaignRewardMode,
   stepCampaignMissionCount,
   unseatBot,
 } from '@/client/console/menu/consoleCreateModel';
@@ -341,6 +342,12 @@ export default defineComponent({
     },
     missionCount(): number {
       return createGameState.config.campaignMissionCount;
+    },
+    /** What the finale does with the road's rewards — the briefing's note follows the reward dial. */
+    routeRewardNote(): string {
+      return createGameState.config.campaignRewardMode === 'tenders' ?
+        'The last mission is the finale: the tenders won on the way execute at its start, corporations count into its VP.' :
+        'The last mission is the finale: titles and corporations count into its VP.';
     },
     modeOptions(): ReadonlyArray<SessionModeOption> {
       return SESSION_MODE_OPTIONS;
@@ -642,6 +649,10 @@ export default defineComponent({
           stepCampaignChance(dial.id, intent.dir === 'right' ? 1 : -1, false);
           return true;
         }
+        if (dial?.kind === 'rewardMode' && (intent.dir === 'left' || intent.dir === 'right')) {
+          stepCampaignRewardMode(intent.dir === 'right' ? 1 : -1, false);
+          return true;
+        }
         const next = deckNavStep(deck, this.ui.cursor[deck], intent.dir, deckRowCount(deck), {wide: this.creatorWide, mapCols: this.mapCols});
         if (next !== undefined) {
           this.ui.cursor[deck] = next;
@@ -755,6 +766,10 @@ export default defineComponent({
       }
       if (row.kind === 'chance') {
         stepCampaignChance(row.id, 1, true);
+        return;
+      }
+      if (row.kind === 'rewardMode') {
+        stepCampaignRewardMode(1, true);
         return;
       }
       toggleRule(row.rule.meta.id);

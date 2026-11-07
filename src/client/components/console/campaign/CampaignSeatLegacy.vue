@@ -40,18 +40,35 @@
           <span class="cleg__fact-value">+{{ legacy.bonus.amount }} M€</span>
           <span class="cleg__fact-status" :class="`cleg__fact-status--${legacy.bonus.status}`">{{ $t(bonusStatusLabel) }}</span>
         </div>
-        <div class="cleg__fact">
-          <span class="cleg__fact-label">{{ $t('Title Points') }}</span>
-          <span class="cleg__fact-value">{{ tpText }}</span>
-          <span class="cleg__fact-status">{{ $t(tpNote) }}</span>
-        </div>
-        <div v-if="legacy.titles.length > 0" class="cleg__titles">
-          <span v-for="(t, i) in legacy.titles" :key="i" class="cleg__title">
-            <img class="cleg__title-art" :src="titleArtUrl(t.title)" :alt="$t(titleLabel(t.title))">
-            <span class="cleg__title-text">{{ titleLine(t) }}</span>
-          </span>
-        </div>
-        <div v-else class="cleg__muted">{{ $t('No titles earned') }}</div>
+        <!-- The «Тендеры» mode: the holdings take the title ledger's place — each with where it was won and its status. -->
+        <template v-if="legacy.rewardMode === 'tenders'">
+          <div class="cleg__fact">
+            <span class="cleg__fact-label">{{ $t('Tenders') }}</span>
+            <span class="cleg__fact-value">{{ legacy.tenders.length }}</span>
+            <span class="cleg__fact-status">{{ $t(tenderNote) }}</span>
+          </div>
+          <div v-if="legacy.tenders.length > 0" class="cleg__titles cleg__tenders" data-cleg-tenders>
+            <span v-for="t in legacy.tenders" :key="t.instance" class="cleg__title cleg__tender">
+              <ConsoleTenderChip :id="t.id" :status="t.status" />
+              <span class="cleg__title-text">{{ tenderLine(t) }}</span>
+            </span>
+          </div>
+          <div v-else class="cleg__muted">{{ $t('No tenders yet') }}</div>
+        </template>
+        <template v-else>
+          <div class="cleg__fact">
+            <span class="cleg__fact-label">{{ $t('Title Points') }}</span>
+            <span class="cleg__fact-value">{{ tpText }}</span>
+            <span class="cleg__fact-status">{{ $t(tpNote) }}</span>
+          </div>
+          <div v-if="legacy.titles.length > 0" class="cleg__titles">
+            <span v-for="(t, i) in legacy.titles" :key="i" class="cleg__title">
+              <img class="cleg__title-art" :src="titleArtUrl(t.title)" :alt="$t(titleLabel(t.title))">
+              <span class="cleg__title-text">{{ titleLine(t) }}</span>
+            </span>
+          </div>
+          <div v-else class="cleg__muted">{{ $t('No titles earned') }}</div>
+        </template>
       </section>
     </div>
   </div>
@@ -62,6 +79,8 @@ import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {CardModel} from '@/common/models/CardModel';
 import {OverviewTitle, SeatLegacyVm, tpStatusLabel} from '@/client/console/campaign/campaignOverviewModel';
+import {TenderHoldingView} from '@/client/console/campaign/tenderHoldings';
+import ConsoleTenderChip from './ConsoleTenderChip.vue';
 import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
 import {TitleName} from '@/common/campaign/CampaignTypes';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -78,7 +97,7 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
  */
 export default defineComponent({
   name: 'CampaignSeatLegacy',
-  components: {Card},
+  components: {Card, ConsoleTenderChip},
   props: {
     legacy: {type: Object as PropType<SeatLegacyVm>, required: true},
     /**
@@ -127,8 +146,14 @@ export default defineComponent({
     tpNote(): string {
       return tpStatusLabel(this.legacy.tpStatus);
     },
+    tenderNote(): string {
+      return 'Tenders execute at the finale\'s start; an unexecuted one pays 3 M€';
+    },
   },
   methods: {
+    tenderLine(t: TenderHoldingView): string {
+      return translateTextWithParams('won at mission ${0}', [String(t.wonAtSlot + 1)]);
+    },
     titleArtUrl,
     titleLabel(title: TitleName): string {
       return TITLE_LABEL[title];

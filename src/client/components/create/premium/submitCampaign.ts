@@ -64,6 +64,8 @@ export async function submitPremiumCreateCampaign(): Promise<boolean> {
           shuffleMapChance: createGameState.config.campaignShuffleMapChance,
           // The route's length — the last mission is the finale.
           missionCount: createGameState.config.campaignMissionCount,
+          // How the places are rewarded — titles, or the «Тендеры» bidding.
+          rewardMode: createGameState.config.campaignRewardMode,
         },
       }),
       headers: {'Content-Type': 'application/json'},

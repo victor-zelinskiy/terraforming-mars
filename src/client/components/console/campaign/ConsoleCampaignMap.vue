@@ -103,16 +103,26 @@
             <span class="cmap__seat-label">{{ seatRowName(row) }}</span>
             <span v-if="row.isYou" class="cmap__seat-you" v-i18n>you</span>
           </span>
-          <span class="cmap__seat-titles">
-            <img
-              v-for="(t, ti) in row.titles"
-              :key="ti"
-              class="cmap__seat-title"
-              :src="titleArtUrl(t.title)"
-              :alt="$t(titleLabel(t.title))"
-            />
-          </span>
-          <span class="cmap__seat-tp">{{ tpText(row.titlePoints) }}</span>
+          <!-- The «Тендеры» mode: the seat's holdings stand where the titles and the TP stood (one row, one grammar). -->
+          <template v-if="row.rewardMode === 'tenders'">
+            <span class="cmap__seat-titles cmap__seat-tenders" data-cmap-seat-tenders>
+              <ConsoleTenderChip v-for="t in row.tenders" :key="t.instance" :id="t.id" :status="t.status" />
+              <span v-if="row.tenders.length === 0" class="cmap__seat-tp cmap__seat-tp--none">{{ $t('No tenders yet') }}</span>
+            </span>
+            <span class="cmap__seat-tp">{{ row.tenders.length > 0 ? tenderCountText(row.tenders.length) : '' }}</span>
+          </template>
+          <template v-else>
+            <span class="cmap__seat-titles">
+              <img
+                v-for="(t, ti) in row.titles"
+                :key="ti"
+                class="cmap__seat-title"
+                :src="titleArtUrl(t.title)"
+                :alt="$t(titleLabel(t.title))"
+              />
+            </span>
+            <span class="cmap__seat-tp">{{ tpText(row.titlePoints) }}</span>
+          </template>
           <!-- The corporation LINEAGE lives on the row itself (the old
                campaign-dossier modal, folded onto the screen). -->
           <span class="cmap__seat-corps">
@@ -142,7 +152,8 @@
           </span>
           <span v-if="row.isChampion" class="cmap__seat-crown" v-i18n>Campaign champion</span>
         </div>
-        <div class="cmap__rail-note">{{ $t('TP') }} — {{ $t(tpNote) }}</div>
+        <div v-if="vm.rewardMode === 'tenders'" class="cmap__rail-note" data-cmap-rail-note="tenders">{{ $t('Tenders') }} — {{ $t(vm.tenderNote) }}</div>
+        <div v-else class="cmap__rail-note">{{ $t('TP') }} — {{ $t(tpNote) }}</div>
         <div v-if="state.error !== '' && vm !== undefined" class="cmap__inline-error">{{ $t(state.error) }}</div>
       </div>
 
@@ -270,6 +281,7 @@ import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/Con
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleCarryoverPicker from './ConsoleCarryoverPicker.vue';
 import ConsoleTenderBidding from './ConsoleTenderBidding.vue';
+import ConsoleTenderChip from './ConsoleTenderChip.vue';
 import {biddingRevealKey, tenderBiddingUi} from '@/client/console/campaign/tenderBiddingUi';
 import {CloneFlightHandle, flyCardClones} from '@/client/console/cardFlight/cloneFlights';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -316,7 +328,7 @@ const REVEAL_LATCH = 'tm_campaign_reveal';
 
 export default defineComponent({
   name: 'ConsoleCampaignMap',
-  components: {ConsoleCommandBar, GamepadGlyph, ConsoleCarryoverPicker, ConsoleTenderBidding, CampaignMissionCard, CampaignMissionInspect, CampaignSeatLegacy},
+  components: {ConsoleCommandBar, GamepadGlyph, ConsoleCarryoverPicker, ConsoleTenderBidding, ConsoleTenderChip, CampaignMissionCard, CampaignMissionInspect, CampaignSeatLegacy},
   props: {
     /** Hosted as an endgame scene: no own bg/pad/command bar; the host routes
      *  intents into `handleIntent` and reads `commands` for its own bar. */
@@ -810,6 +822,9 @@ export default defineComponent({
     },
     tpText(points: number): string {
       return translateTextWithParams('${0} TP', [String(points)]);
+    },
+    tenderCountText(count: number): string {
+      return translateTextWithParams('${0} tender(s)', [String(count)]);
     },
     /** The reveal latch's key — ONE per bidding on this client (`tenderBiddingUi`). */
     biddingRevealKeyOf(campaignId: string, slot: number): string {

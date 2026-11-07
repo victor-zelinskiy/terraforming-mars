@@ -132,7 +132,8 @@
             <ConsoleDossierCampaign :missionSlot="campaignContract.missionSlot" :missionCount="campaignContract.missionCount"
                                     :board="campaignBoard" :missionText="campaignMissionText"
                                     :titles="campaignViewedTitles.map((t) => ({art: titleArtUrl(t.title), label: $t(titleLabel(t.title))}))"
-                                    :tpText="campaignTpText" :tpNote="campaignTpNote" :corpCount="campaignCorpCount" />
+                                    :tpText="campaignTpText" :tpNote="campaignTpNote" :corpCount="campaignCorpCount"
+                                    :tenders="campaignViewedTenders" />
           </section>
         </div>
       </div>
@@ -355,6 +356,7 @@ import {campaignState, openCampaign, setCampaignViewerName} from '@/client/conso
 import {CampaignGameContract} from '@/common/campaign/CampaignGameContract';
 import {TitleName} from '@/common/campaign/CampaignTypes';
 import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
+import {campaignRewardModeOf, seatTenderHoldings, TenderHoldingView} from '@/client/console/campaign/tenderHoldings';
 import {tpStatusLabel} from '@/client/console/campaign/campaignOverviewModel';
 
 /** How many faces a dossier pile shows — ONE, the newest, on top of the paper edges of the rest. */
@@ -498,8 +500,20 @@ export default defineComponent({
       return translateTextWithParams('${0} TP', [String(model.progression.titlePoints[seat] ?? 0)]);
     },
     campaignTpNote(): string {
+      if (this.campaignViewedTenders !== undefined) {
+        return 'Tenders execute at the finale\'s start; an unexecuted one pays 3 M€';
+      }
       return this.campaignContract?.final === true ?
         tpStatusLabel('included-now') : tpStatusLabel('accrues-final');
+    },
+    /** The «Тендеры» mode: the viewed seat's holdings off the campaign document; `undefined` on a titles campaign. */
+    campaignViewedTenders(): ReadonlyArray<TenderHoldingView> | undefined {
+      const seat = this.campaignViewedSeat;
+      const model = campaignState.model;
+      if (seat === undefined || model === undefined || campaignRewardModeOf(model) !== 'tenders') {
+        return undefined;
+      }
+      return seatTenderHoldings(model, seat);
     },
     campaignCorpCount(): string {
       const seat = this.campaignViewedSeat;

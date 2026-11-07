@@ -47,10 +47,18 @@
               <span v-if="seat.isYou" class="con-cmpov__seat-you">{{ $t('you') }}</span>
               <span v-if="seat.isChampion" class="con-cmpov__seat-crown">{{ $t('Campaign champion') }}</span>
             </span>
-            <span class="con-cmpov__seat-titles">
-              <img v-for="(t, ti) in seat.titles" :key="ti" class="con-cmpov__seat-title" :src="titleArtUrl(t.title)" :alt="$t(titleLabel(t.title))">
-            </span>
-            <span class="con-cmpov__seat-tp">{{ tpText(seat.titlePoints) }}</span>
+            <template v-if="vm.rewardMode === 'tenders'">
+              <span class="con-cmpov__seat-titles con-cmpov__seat-tenders" data-cmpov-seat-tenders>
+                <ConsoleTenderChip v-for="t in seat.tenders" :key="t.instance" :id="t.id" :status="t.status" />
+              </span>
+              <span class="con-cmpov__seat-tp">{{ seat.tenders.length > 0 ? tenderCountText(seat.tenders.length) : $t('No tenders yet') }}</span>
+            </template>
+            <template v-else>
+              <span class="con-cmpov__seat-titles">
+                <img v-for="(t, ti) in seat.titles" :key="ti" class="con-cmpov__seat-title" :src="titleArtUrl(t.title)" :alt="$t(titleLabel(t.title))">
+              </span>
+              <span class="con-cmpov__seat-tp">{{ tpText(seat.titlePoints) }}</span>
+            </template>
             <span class="con-cmpov__seat-corps">
               <span v-for="corp in seat.corps" :key="corp.name" class="con-cmpov__seat-corp"
                     :data-bot-holding="corp.holding === true ? 'true' : undefined">
@@ -60,7 +68,8 @@
             </span>
             <span class="con-cmpov__seat-bonus">{{ seat.pendingBonus > 0 ? pendingBonusText(seat.pendingBonus) : '' }}</span>
           </div>
-          <div class="con-cmpov__seats-note">{{ $t('TP') }} — {{ $t(tpNote) }}</div>
+          <div v-if="vm.rewardMode === 'tenders'" class="con-cmpov__seats-note" data-cmpov-note="tenders">{{ $t('Tenders') }} — {{ $t(vm.tenderNote) }}</div>
+          <div v-else class="con-cmpov__seats-note">{{ $t('TP') }} — {{ $t(tpNote) }}</div>
         </div>
       </div>
 
@@ -130,6 +139,7 @@ import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import CampaignMissionCard from './CampaignMissionCard.vue';
 import CampaignMissionInspect from './CampaignMissionInspect.vue';
 import CampaignSeatLegacy from './CampaignSeatLegacy.vue';
+import ConsoleTenderChip from './ConsoleTenderChip.vue';
 
 /**
  * THE IN-GAME CAMPAIGN OVERVIEW — the Information workspace's «Кампания»
@@ -147,7 +157,7 @@ import CampaignSeatLegacy from './CampaignSeatLegacy.vue';
  */
 export default defineComponent({
   name: 'ConsoleCampaignOverview',
-  components: {CampaignMissionCard, CampaignMissionInspect, CampaignSeatLegacy},
+  components: {CampaignMissionCard, CampaignMissionInspect, CampaignSeatLegacy, ConsoleTenderChip},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     viewedColor: {type: String as PropType<Color>, required: true},
@@ -354,6 +364,9 @@ export default defineComponent({
     },
     tpText(points: number): string {
       return translateTextWithParams('${0} TP', [String(points)]);
+    },
+    tenderCountText(count: number): string {
+      return translateTextWithParams('${0} tender(s)', [String(count)]);
     },
     pendingBonusText(amount: number): string {
       return translateTextWithParams('Next mission: +${0} M€', [String(amount)]);

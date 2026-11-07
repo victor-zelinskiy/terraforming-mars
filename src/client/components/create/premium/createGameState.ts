@@ -3,6 +3,7 @@
  * by the desktop-UI deprecation. Full quality bar applies (tests, guards, i18n).
  * Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDIT.md.
  */
+import {CampaignRewardMode, isCampaignRewardMode} from '@/common/campaign/tenders';
 import {reactive} from 'vue';
 import {Color, PLAYER_COLORS} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
@@ -110,6 +111,8 @@ export type PremiumCreateGameState = {
   campaignShuffleMapChance: CampaignModifierChance;
   /** CAMPAIGN ONLY: the route's length — 3…6 missions, the last the finale (default 4). */
   campaignMissionCount: CampaignMissionCount;
+  /** CAMPAIGN ONLY: how a mission's places are rewarded — titles (the default) or the «Тендеры» bidding. */
+  campaignRewardMode: CampaignRewardMode;
   /** Only reachable while `rules.testMode` is on for the admin seat. */
   guaranteedCards: GuaranteedCardPicks;
 };
@@ -174,6 +177,7 @@ export function defaultPremiumState(): PremiumCreateGameState {
     campaignRandomMAChance: DEFAULT_CAMPAIGN_RANDOM_MA_CHANCE,
     campaignShuffleMapChance: DEFAULT_CAMPAIGN_SHUFFLE_MAP_CHANCE,
     campaignMissionCount: CAMPAIGN_MISSION_COUNT,
+    campaignRewardMode: 'titles',
     guaranteedCards: {corporations: [], preludes: [], projects: []},
   };
 }
@@ -719,6 +723,7 @@ function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
     campaignRandomMAChance: isCampaignModifierChance(saved.campaignRandomMAChance) ? saved.campaignRandomMAChance : base.campaignRandomMAChance,
     campaignShuffleMapChance: isCampaignModifierChance(saved.campaignShuffleMapChance) ? saved.campaignShuffleMapChance : base.campaignShuffleMapChance,
     campaignMissionCount: isCampaignMissionCount(saved.campaignMissionCount) ? saved.campaignMissionCount : base.campaignMissionCount,
+    campaignRewardMode: isCampaignRewardMode(saved.campaignRewardMode) ? saved.campaignRewardMode : base.campaignRewardMode,
     guaranteedCards: sanitizeGuaranteedCards(saved.guaranteedCards),
   };
 }

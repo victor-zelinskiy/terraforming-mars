@@ -1,3 +1,5 @@
+import {CampaignRewardMode, TenderId} from '@/common/campaign/tenders';
+import {campaignRewardModeOf, seatTenderAtMission, seatTenderHoldings, TenderHoldingView, tenderNoteKey} from '@/client/console/campaign/tenderHoldings';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {BoardName} from '@/common/boards/BoardName';
@@ -46,6 +48,8 @@ export type OverviewSeatRow = {
   titles: ReadonlyArray<OverviewTitle>;
   titlePoints: number;
   tpStatus: CampaignTpStatus;
+  /** The «Тендеры» mode: the seat's holdings (the title columns' place). */
+  tenders: ReadonlyArray<TenderHoldingView>;
   /** Full current lineage with provenance (bot: its single corp identity). */
   corps: ReadonlyArray<OverviewCorp>;
   /** Bonus M€ pending for the NEXT mission (interlude only). */
@@ -61,7 +65,7 @@ export type OverviewMissionCard = {
   /** Compact place-ordered strip for a committed card. `name` is the RAW
    *  seat name — the renderer resolves the visible label through the ONE
    *  participant-name helper (the bot never prints its raw save name). */
-  podium?: ReadonlyArray<{seat: number, place: number, color: Color, name: string, isBot: boolean, score: number, title?: TitleName}>;
+  podium?: ReadonlyArray<{seat: number, place: number, color: Color, name: string, isBot: boolean, score: number, tender?: TenderId, title?: TitleName}>;
   generations?: number;
   /** The slot's rolled conditions (the roguelike layer) — the card wears a badge per modifier. */
   modifiers: ReadonlyArray<MissionModifier>;
@@ -82,6 +86,9 @@ export type CampaignOverviewVm = {
   championSeats: ReadonlyArray<number>;
   /** The slot whose frame defines TP semantics (the open/current mission). */
   contextSlot: number;
+  /** The campaign's reward mode and, for tenders, the one-line note (an i18n key). */
+  rewardMode: CampaignRewardMode;
+  tenderNote: string;
 };
 
 /** Optional live-game context (the in-game Information host knows more). */
@@ -206,6 +213,7 @@ export function buildCampaignOverview(model: CampaignModel, live?: OverviewLiveC
             isBot: seatModel?.kind === 'bot',
             score: s.score,
             title: m.result?.titles.find((t) => t.seat === s.seat)?.title,
+            tender: seatTenderAtMission(model, m.slot, s.seat)?.id,
           };
         }),
     generations: m.result?.generations,
@@ -223,6 +231,7 @@ export function buildCampaignOverview(model: CampaignModel, live?: OverviewLiveC
       .map((t) => ({title: t.title, missionSlot: t.missionSlot, titlePoints: t.titlePoints})),
     titlePoints: model.progression.titlePoints[seat.seat] ?? 0,
     tpStatus,
+    tenders: seatTenderHoldings(model, seat.seat),
     corps: seatCorps(model, seat.seat, seat.kind, live),
     pendingBonus: model.progression.pendingBonuses[seat.seat] ?? 0,
   }));
@@ -240,6 +249,8 @@ export function buildCampaignOverview(model: CampaignModel, live?: OverviewLiveC
     youSeat: model.you?.seat,
     championSeats: model.championSeats ?? [],
     contextSlot,
+    rewardMode: campaignRewardModeOf(model),
+    tenderNote: tenderNoteKey(model),
   };
 }
 
@@ -255,6 +266,8 @@ export type MissionDetailsRow = {
   score: number;
   megaCredits: number;
   title?: {title: TitleName, titlePoints: number};
+  /** The «Тендеры» mode: the lot this seat took at that mission's bidding. */
+  tender?: TenderId;
   /** The seat's corporations AT THAT mission's end (historic composition). */
   corporations: ReadonlyArray<CardName>;
   /** The bot's holdings at that mission's end and what their dividends paid (inside `score`). */
@@ -310,6 +323,7 @@ export function buildMissionDetails(model: CampaignModel, slot: number): Mission
         score: s.score,
         megaCredits: s.megaCredits,
         title: title === undefined ? undefined : {title: title.title, titlePoints: title.titlePoints},
+        tender: seatTenderAtMission(model, slot, s.seat)?.id,
         corporations: s.corporations,
         ...(s.dividends !== undefined ? {
           dividends: {holdings: s.dividends.holdings.map((id) => marsBotCorpInfo(id).original), vp: s.dividends.vp},
@@ -397,6 +411,9 @@ export type SeatLegacyVm = {
   titles: ReadonlyArray<OverviewTitle>;
   titlePoints: number;
   tpStatus: CampaignTpStatus;
+  /** The campaign's reward mode and, for tenders, the seat's holdings (the title ledger's place). */
+  rewardMode: CampaignRewardMode;
+  tenders: ReadonlyArray<TenderHoldingView>;
 };
 
 export function buildSeatLegacy(
@@ -469,5 +486,7 @@ export function buildSeatLegacy(
       .map((t) => ({title: t.title, missionSlot: t.missionSlot, titlePoints: t.titlePoints})),
     titlePoints: model.progression.titlePoints[seat] ?? 0,
     tpStatus: tpStatusOf(model, contextSlot),
+    rewardMode: campaignRewardModeOf(model),
+    tenders: seatTenderHoldings(model, seat),
   };
 }

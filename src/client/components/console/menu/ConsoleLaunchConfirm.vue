@@ -92,7 +92,7 @@ import {BoardName} from '@/common/boards/BoardName';
 import {Expansion} from '@/common/cards/GameModule';
 import {deckCompositionState} from '@/client/console/menu/deckCompositionState';
 import {deckLine} from '@/client/console/menu/deckCompositionModel';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'ConsoleLaunchConfirm',
@@ -108,7 +108,8 @@ export default defineComponent({
     },
     /** The campaign's route in one line — its length (the creator's dial) and how the boards come. */
     routeLine(): string {
-      return translateTextWithParams('Missions: ${0} · unique boards, generated at assembly', [String(createGameState.config.campaignMissionCount)]);
+      return translateTextWithParams('Missions: ${0} · unique boards, generated at assembly', [String(createGameState.config.campaignMissionCount)]) +
+        ' · ' + translateText(createGameState.config.campaignRewardMode === 'tenders' ? 'Tenders' : 'Titles');
     },
     humanChips(): ReadonlyArray<{index: number, name: string, color: Color}> {
       return createGameState.config.players.map((p, index) => ({index, name: p.name.trim(), color: p.color}));

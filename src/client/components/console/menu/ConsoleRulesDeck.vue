@@ -59,6 +59,33 @@
       </button>
 
       <!--
+        CAMPAIGN ONLY — the REWARD MODE of the whole campaign («Титулы» · «Тендеры»): a dial (◄ ► / A flips), heading
+        the deck — what a mission's places earn is the campaign's own rule, never a sub-setting of another.
+      -->
+      <button
+        v-else-if="row.kind === 'rewardMode'"
+        type="button"
+        class="cm-row cm-rule cm-rule--on cm-rule--reward"
+        data-rule-sub="rewardMode"
+        :data-reward-mode="row.mode"
+        :class="{'cm-row--cursor': i === cursor, 'cm-row--shake': i === shakeRow}"
+        @click="$emit('activate', i)"
+        @mousemove="$emit('hover', i)"
+      >
+        <span class="cm-row__main">
+          <span class="cm-row__name">{{ $t('Mission rewards') }}</span>
+          <span class="cm-row__sub">
+            <span class="cm-rule__desc">{{ $t(rewardModeDesc(row.mode)) }}</span>
+          </span>
+        </span>
+        <span class="cm-field__value cm-field__value--stepper cm-rule__dial" aria-hidden="true">
+          <span class="cm-field__arrow">◄</span>
+          <span class="cm-field__stepval cm-rule__dial-value" data-reward-mode-value>{{ $t(rewardModeLabel(row.mode)) }}</span>
+          <span class="cm-field__arrow">►</span>
+        </span>
+      </button>
+
+      <!--
         The test-mode SUB-setting. Indented under its parent and marked DEV: it
         is not a rule variant, and it is not a switch — the value is a count and
         A drills into the picker.
@@ -99,7 +126,8 @@
  * for the blocker reason and carries the red conflict rim. Pure presentation.
  */
 import {defineComponent, PropType} from 'vue';
-import {CampaignChanceRule, RulesDeckRow, campaignChanceRule} from '@/client/console/menu/consoleCreateModel';
+import {CampaignChanceRule, RulesDeckRow, campaignChanceRule, campaignRewardModeDesc, campaignRewardModeLabel} from '@/client/console/menu/consoleCreateModel';
+import {CampaignRewardMode} from '@/common/campaign/tenders';
 import {MissionModifierId} from '@/common/campaign/CampaignTypes';
 import {automaBlockerText} from '@/client/components/create/premium/createGameState';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -131,6 +159,12 @@ export default defineComponent({
     },
     chanceIndex(chance: number): number {
       return CAMPAIGN_MODIFIER_CHANCES.indexOf(chance as CampaignModifierChance);
+    },
+    rewardModeLabel(mode: CampaignRewardMode): string {
+      return campaignRewardModeLabel(mode);
+    },
+    rewardModeDesc(mode: CampaignRewardMode): string {
+      return campaignRewardModeDesc(mode);
     },
     blockerText(key: string): string {
       return automaBlockerText(key);

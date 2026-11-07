@@ -16,13 +16,23 @@
               :class="{'con-dcmp__node--done': i - 1 < missionSlot, 'con-dcmp__node--now': i - 1 === missionSlot}"></span>
       </div>
       <span class="con-dcmp__mission" data-dossier-mission>{{ missionText }}</span>
-      <div class="con-dcmp__tp con-info__cmp-tprow">
-        <span v-if="titles.length > 0" class="con-info__ctitles">
-          <img v-for="(t, i) in titles" :key="i" class="con-info__ctitle" :src="t.art" :alt="t.label">
-        </span>
-        <b class="con-info__cmp-tp">{{ tpText }}</b>
-      </div>
-      <span class="con-info__note con-info__note--tp con-dcmp__tpnote">{{ $t(tpNote) }}</span>
+      <!-- The «Тендеры» mode: the seat's holdings where the titles and the TP stood. -->
+      <template v-if="tenders !== undefined">
+        <div class="con-dcmp__tp con-info__cmp-tprow con-dcmp__tenders" data-dossier-tenders>
+          <ConsoleTenderChip v-for="t in tenders" :key="t.instance" :id="t.id" :status="t.status" />
+          <b v-if="tenders.length === 0" class="con-info__cmp-tp">{{ $t('No tenders yet') }}</b>
+        </div>
+        <span class="con-info__note con-info__note--tp con-dcmp__tpnote">{{ $t(tpNote) }}</span>
+      </template>
+      <template v-else>
+        <div class="con-dcmp__tp con-info__cmp-tprow">
+          <span v-if="titles.length > 0" class="con-info__ctitles">
+            <img v-for="(t, i) in titles" :key="i" class="con-info__ctitle" :src="t.art" :alt="t.label">
+          </span>
+          <b class="con-info__cmp-tp">{{ tpText }}</b>
+        </div>
+        <span class="con-info__note con-info__note--tp con-dcmp__tpnote">{{ $t(tpNote) }}</span>
+      </template>
       <span class="con-dcmp__corps"><b>{{ corpCount }}</b> {{ $t('Corporations') }}</span>
     </div>
   </div>
@@ -32,10 +42,12 @@
 import {defineComponent, PropType} from 'vue';
 import {BoardName} from '@/common/boards/BoardName';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
+import ConsoleTenderChip from '@/client/components/console/campaign/ConsoleTenderChip.vue';
+import {TenderHoldingView} from '@/client/console/campaign/tenderHoldings';
 
 export default defineComponent({
   name: 'ConsoleDossierCampaign',
-  components: {PremiumMapFingerprint},
+  components: {PremiumMapFingerprint, ConsoleTenderChip},
   props: {
     /** The mission being played, 0-based. */
     missionSlot: {type: Number, required: true},
@@ -49,6 +61,8 @@ export default defineComponent({
     /** The title points' scoring semantics (an i18n key). */
     tpNote: {type: String, required: true},
     corpCount: {type: String, required: true},
+    /** The «Тендеры» mode: the viewed seat's holdings — present (even empty) only on a tenders campaign. */
+    tenders: {type: Array as PropType<ReadonlyArray<TenderHoldingView> | undefined>, default: undefined},
   },
 });
 </script>

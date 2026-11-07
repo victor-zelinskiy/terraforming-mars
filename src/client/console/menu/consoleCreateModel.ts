@@ -23,6 +23,7 @@
  * seat-bot confirm step is deleted and nothing else moves.
  */
 
+import {CampaignRewardMode} from '@/common/campaign/tenders';
 import {showcaseStep} from '@/client/console/menu/lobbyCardModel';
 import {reactive} from 'vue';
 import {Color, PLAYER_COLORS} from '@/common/Color';
@@ -470,7 +471,35 @@ export function ruleRows(): ReadonlyArray<RuleRow> {
 export type RulesDeckRow =
   | {kind: 'rule', rule: RuleRow}
   | {kind: 'chance', id: MissionModifierId, chance: CampaignModifierChance}
+  | {kind: 'rewardMode', mode: CampaignRewardMode}
   | {kind: 'devCards', count: number};
+
+/** The reward modes in dial order — titles first (the default), the «Тендеры» bidding second. */
+export const CAMPAIGN_REWARD_MODES: ReadonlyArray<CampaignRewardMode> = ['titles', 'tenders'];
+
+/** The dial's printed value (an i18n key). */
+export function campaignRewardModeLabel(mode: CampaignRewardMode): string {
+  return mode === 'tenders' ? 'Tenders' : 'Titles';
+}
+
+/** The dial's one sentence (an i18n key) — what a place EARNS under this mode. */
+export function campaignRewardModeDesc(mode: CampaignRewardMode): string {
+  return mode === 'tenders' ?
+    'The places pick tenders — reward cards executed at the finale\'s start; an unexecuted one pays 3 M€.' :
+    'The places earn titles — title points that count in the finale\'s VP.';
+}
+
+/**
+ * CAMPAIGN ONLY: how a mission's places are rewarded. Two values, so every step flips it (◄ ► and A alike); a single
+ * game knows no reward mode (`isCampaignMode` gates the row).
+ */
+export function stepCampaignRewardMode(step: 1 | -1, wrap: boolean): void {
+  const config = createGameState.config;
+  const values = CAMPAIGN_REWARD_MODES;
+  const at = Math.max(0, values.indexOf(config.campaignRewardMode));
+  const next = wrap ? (at + step + values.length) % values.length : Math.min(values.length - 1, Math.max(0, at + step));
+  config.campaignRewardMode = values[next];
+}
 
 /** A rule a campaign ROLLS per mission — the mission modifier it becomes, and where its chance lives. */
 export type CampaignChanceRule = {
@@ -545,6 +574,10 @@ export function devCardsCount(): number {
 
 export function rulesDeckRows(): ReadonlyArray<RulesDeckRow> {
   const rows: Array<RulesDeckRow> = ruleRows().map((rule) => ({kind: 'rule' as const, rule}));
+  // CAMPAIGN: the reward mode heads the deck — a campaign-wide choice, never a rule's sub-setting.
+  if (isCampaignMode()) {
+    rows.unshift({kind: 'rewardMode', mode: createGameState.config.campaignRewardMode});
+  }
   // Each chance dial stands RIGHT UNDER its parent rule — in the wide
   // creator's grid that is one whole row of columns further, so the dial
   // shares its parent's column (the d-pad's grid walk reads the same order).

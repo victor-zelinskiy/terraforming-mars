@@ -43,6 +43,7 @@ import {
   selectMap,
   stepCampaignChance,
   stepCampaignMissionCount,
+  stepCampaignRewardMode,
   campaignChanceAvailable,
   setCreateLayoutWide,
   toggleBotSecondShift,
@@ -385,6 +386,26 @@ describe('consoleCreateModel', () => {
       // The campaign's map deck stays ONE row (the route briefing IS the dial).
       expect(deckRowCount('map')).to.eq(1);
       expect(buildCreateGamePayloadFromPremiumState(createGameState.config)).to.not.have.property('campaignMissionCount');
+    });
+
+    it('CAMPAIGN: the reward mode heads the rules deck — titles by default, ◄ ► / A flip it, never in a single game, never in the game config', () => {
+      setSessionMode('single');
+      expect(rulesDeckRows().some((r) => r.kind === 'rewardMode'), 'a single game knows no reward mode').to.be.false;
+      setSessionMode('campaign');
+      const rows = rulesDeckRows();
+      expect(rows[0]).to.deep.eq({kind: 'rewardMode', mode: 'titles'});
+      expect(deckRowCount('rules')).to.eq(rows.length);
+      stepCampaignRewardMode(1, false);
+      expect(createGameState.config.campaignRewardMode).to.eq('tenders');
+      stepCampaignRewardMode(1, false);
+      expect(createGameState.config.campaignRewardMode, '◄ ► clamp').to.eq('tenders');
+      stepCampaignRewardMode(1, true);
+      expect(createGameState.config.campaignRewardMode, 'A cycles').to.eq('titles');
+      stepCampaignRewardMode(-1, true);
+      expect(createGameState.config.campaignRewardMode).to.eq('tenders');
+      expect(rulesDeckRows()[0]).to.deep.eq({kind: 'rewardMode', mode: 'tenders'});
+      expect(buildCreateGamePayloadFromPremiumState(createGameState.config)).to.not.have.property('campaignRewardMode');
+      stepCampaignRewardMode(-1, false);
     });
 
     it('counts the picks across all three target lists', () => {

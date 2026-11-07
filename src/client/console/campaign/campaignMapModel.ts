@@ -2,6 +2,8 @@
 // server runner). Builds everything the map renders from the wire
 // CampaignModel + the viewer resolution the server already did.
 
+import {CampaignRewardMode, TenderId} from '@/common/campaign/tenders';
+import {campaignRewardModeOf, seatTenderAtMission, seatTenderHoldings, TenderHoldingView, tenderNoteKey} from '@/client/console/campaign/tenderHoldings';
 import {CampaignModel, CampaignMissionModel} from '@/common/campaign/CampaignModel';
 import {CampaignSeat, MissionSlotState, TitleName} from '@/common/campaign/CampaignTypes';
 import {Color} from '@/common/Color';
@@ -19,6 +21,8 @@ export type CmapResultRow = {
   /** Shared place partners (competition ranking) — rendered as «делят место». */
   tied: boolean;
   title?: TitleName;
+  /** The «Тендеры» mode: the lot this seat took at the mission's bidding. */
+  tender?: TenderId;
 };
 
 export type CmapMissionVm = {
@@ -46,6 +50,10 @@ export type CmapRailRow = {
   /** Earned titles in mission order (compact icon row). */
   titles: ReadonlyArray<{title: TitleName, missionSlot: number}>;
   titlePoints: number;
+  /** The campaign's reward mode — the row speaks titles or tenders, never both. */
+  rewardMode: CampaignRewardMode;
+  /** The «Тендеры» mode: the seat's holdings in acquisition order (the title row's place). */
+  tenders: ReadonlyArray<TenderHoldingView>;
   /** The seat's corporation LINEAGE («Наследие») — acquisition-ordered, on
    *  the rail row itself (the old campaign-dossier modal folded in here). */
   lineage: ReadonlyArray<CardName>;
@@ -115,6 +123,9 @@ export type CampaignMapVm = {
   yourPreludeLimit: number;
   yourPreludes: ReadonlyArray<CardName>;
   championSeats: ReadonlyArray<number>;
+  /** The campaign's reward mode and, for tenders, the rail's one-line note (an i18n key). */
+  rewardMode: CampaignRewardMode;
+  tenderNote: string;
 };
 
 function stateLabelOf(mission: CampaignMissionModel, phase: CampaignModel['phase']): string {
@@ -147,6 +158,7 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
           score: s.score,
           tied: s.tiedWith.length > 0,
           title: m.result?.titles.find((t) => t.seat === s.seat)?.title,
+          tender: seatTenderAtMission(model, m.slot, s.seat)?.id,
         };
       });
     return {
@@ -193,6 +205,8 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
       titles: model.progression.titles.filter((t) => t.seat === seat.seat)
         .map((t) => ({title: t.title, missionSlot: t.missionSlot})),
       titlePoints: model.progression.titlePoints[seat.seat] ?? 0,
+      rewardMode: campaignRewardModeOf(model),
+      tenders: seatTenderHoldings(model, seat.seat),
       lineage: model.progression.lineages[seat.seat] ?? [],
       pendingBonus: model.progression.pendingBonuses[seat.seat] ?? 0,
       carry: seat.kind === 'human' && model.phase === 'interlude' && entry !== undefined ?
@@ -269,6 +283,8 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
     yourPreludeLimit: model.carryover?.yourPreludeLimit ?? 0,
     yourPreludes: model.carryover?.yourPreludes ?? [],
     championSeats,
+    rewardMode: campaignRewardModeOf(model),
+    tenderNote: tenderNoteKey(model),
   };
 }
 

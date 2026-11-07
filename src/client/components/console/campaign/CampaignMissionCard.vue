@@ -23,6 +23,7 @@
         <span class="ccard__result-cube" :class="`player_bg_color_${p.color}`"></span>
         <span class="ccard__result-name">{{ podiumName(p) }}</span>
         <img v-if="p.title !== undefined" class="ccard__result-title" :src="titleArtUrl(p.title)" :alt="$t(titleLabel(p.title))">
+        <ConsoleTenderChip v-else-if="p.tender !== undefined" :id="p.tender" class="ccard__result-tender" />
         <span class="ccard__result-score">{{ p.score }} {{ $t('VP') }}</span>
       </div>
       <div v-if="mission.generations !== undefined" class="ccard__gens">{{ generationsText }}</div>
@@ -31,6 +32,7 @@
 </template>
 
 <script lang="ts">
+import ConsoleTenderChip from './ConsoleTenderChip.vue';
 import {defineComponent, PropType} from 'vue';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import CampaignModifierBadge from './CampaignModifierBadge.vue';
@@ -51,7 +53,7 @@ import {TitleName} from '@/common/campaign/CampaignTypes';
  */
 export default defineComponent({
   name: 'CampaignMissionCard',
-  components: {PremiumMapFingerprint, CampaignModifierBadge},
+  components: {PremiumMapFingerprint, CampaignModifierBadge, ConsoleTenderChip},
   props: {
     mission: {type: Object as PropType<OverviewMissionCard>, required: true},
     cursor: {type: Boolean, default: false},

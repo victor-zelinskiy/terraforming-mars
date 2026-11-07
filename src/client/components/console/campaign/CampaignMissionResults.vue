@@ -18,8 +18,11 @@
           </template>
         </span>
         <span class="cmres__title-slot">
-          <img v-if="row.title !== undefined" class="cmres__title" :src="titleArtUrl(row.title.title)" :alt="$t(titleLabel(row.title.title))">
-          <span v-if="row.title !== undefined" class="cmres__tp">+{{ row.title.titlePoints }} {{ $t('TP') }}</span>
+          <ConsoleTenderChip v-if="row.tender !== undefined" :id="row.tender" class="cmres__tender" />
+          <template v-else>
+            <img v-if="row.title !== undefined" class="cmres__title" :src="titleArtUrl(row.title.title)" :alt="$t(titleLabel(row.title.title))">
+            <span v-if="row.title !== undefined" class="cmres__tp">+{{ row.title.titlePoints }} {{ $t('TP') }}</span>
+          </template>
         </span>
         <span class="cmres__score">{{ row.score }} {{ $t('VP') }}</span>
       </div>
@@ -63,6 +66,7 @@
 </template>
 
 <script lang="ts">
+import ConsoleTenderChip from './ConsoleTenderChip.vue';
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {CardModel} from '@/common/models/CardModel';
@@ -87,7 +91,7 @@ import {translateTextWithParams} from '@/client/directives/i18n';
  */
 export default defineComponent({
   name: 'CampaignMissionResults',
-  components: {Card},
+  components: {Card, ConsoleTenderChip},
   props: {
     details: {type: Object as PropType<MissionDetailsVm>, required: true},
     youSeat: {type: Number as PropType<number | undefined>, default: undefined},

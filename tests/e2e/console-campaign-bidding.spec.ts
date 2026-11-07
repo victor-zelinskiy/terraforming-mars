@@ -1,6 +1,6 @@
 import {expect, test} from './consoleTest';
 import {press, reloadConsole} from './consoleStart';
-import {bidAs, campaignModelAs, createCampaign, launchMission} from './campaignFixtures';
+import {bidAs, campaignModelAs, createCampaign, launchMission, openMapAs} from './campaignFixtures';
 import {journeyToEndgame, waitWithFrames, shoot} from './consoleEndgameHarness';
 
 /*
@@ -98,5 +98,17 @@ test.describe('campaign «Тендеры» — the bidding', () => {
     await page.waitForSelector('.con-endgame', {timeout: 60_000});
     await expect.poll(() => page.locator('[data-eg-tender]').count()).toBe(1);
     expect(await page.locator('[data-bidding-stage].con-bidding--revealing').count()).toBe(0);
+
+    // ── The campaign map speaks tenders: the winner's row wears the holding's chip, the rail's note is the tenders'. ──
+    await openMapAs(page, id, winner === 0 ? 'Alice' : 'Bruno');
+    await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 30_000}).catch(() => undefined);
+    await expect(page.locator('[data-cmap-rail-note="tenders"]')).toHaveCount(1);
+    await expect(page.locator('[data-cmap-seat-tenders]'), 'every human row shows the tenders zone').toHaveCount(2);
+    // The holding stands in TWO places by design — the rail's seat row and the mission card's podium (the lot the
+    // seat took there) — each its own zone, so the counts are read per zone.
+    await expect(page.locator('[data-cmap-seat-tenders] [data-cmap-tender]'), 'one holding on the winner\'s row').toHaveCount(1);
+    await expect(page.locator('[data-cmap-seat-tenders] [data-cmap-tender]')).toHaveAttribute('data-cmap-tender-status', 'held');
+    await expect(page.locator('.ccard__result-tender'), 'the mission card\'s podium names the lot the winner took').toHaveCount(1);
+    await shoot(page, SHOT_DIR, 'map-rail');
   });
 });
