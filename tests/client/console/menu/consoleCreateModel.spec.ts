@@ -41,8 +41,8 @@ import {
   seatBot,
   seatBotNeedsConfirm,
   selectMap,
-  stepMaChance,
-  maChanceAvailable,
+  stepCampaignChance,
+  campaignChanceAvailable,
   setCreateLayoutWide,
   toggleBotSecondShift,
   toggleBotExtraCorporations,
@@ -303,45 +303,67 @@ describe('consoleCreateModel', () => {
       expect(deckRowCount('rules')).to.eq(rows.length);
     });
 
-    it('CAMPAIGN: the per-mission chance dial stands right under «Случайные цели и награды», only while it is on', () => {
-      const chanceRow = () => rulesDeckRows().findIndex((r) => r.kind === 'maChance');
-      const ruleRow = () => rulesDeckRows().findIndex((r) => r.kind === 'rule' && r.rule.meta.id === 'randomMilestonesAwards');
+    it('CAMPAIGN: each rolled rule\u2019s chance dial stands right under it, only while it is on', () => {
+      const dialAt = (id: string) => rulesDeckRows().findIndex((r) => r.kind === 'chance' && r.id === id);
+      const ruleAt = (id: string) => rulesDeckRows().findIndex((r) => r.kind === 'rule' && r.rule.meta.id === id);
       createGameState.config.rules.randomMilestonesAwards = true;
+      createGameState.config.rules.randomBoardTiles = true;
       // A single game rolls nothing — the rule is the rule.
-      expect(maChanceAvailable()).to.be.false;
-      expect(chanceRow()).to.eq(-1);
+      expect(campaignChanceAvailable('randomMA')).to.be.false;
+      expect(campaignChanceAvailable('shuffleMap')).to.be.false;
+      expect(dialAt('randomMA')).to.eq(-1);
+      expect(dialAt('shuffleMap')).to.eq(-1);
 
       setSessionMode('campaign');
-      expect(maChanceAvailable()).to.be.true;
-      expect(chanceRow()).to.eq(ruleRow() + 1);
-      expect(rulesDeckRows()[chanceRow()]).to.deep.eq({kind: 'maChance', chance: 20});
+      expect(dialAt('randomMA')).to.eq(ruleAt('randomMilestonesAwards') + 1);
+      expect(dialAt('shuffleMap')).to.eq(ruleAt('randomBoardTiles') + 1);
+      expect(rulesDeckRows()[dialAt('randomMA')]).to.deep.eq({kind: 'chance', id: 'randomMA', chance: 20});
+      // «Случайные места для тайлов» rolls at 10 % by default.
+      expect(rulesDeckRows()[dialAt('shuffleMap')]).to.deep.eq({kind: 'chance', id: 'shuffleMap', chance: 10});
 
-      // The WIDE creator's grid: one whole row of columns further — the parent's own column.
+      // The WIDE creator's grid: one whole row of columns further — each dial in its parent's own column, both standing.
       setCreateLayoutWide(true);
-      expect(chanceRow()).to.eq(ruleRow() + 2);
+      expect(dialAt('randomMA')).to.eq(ruleAt('randomMilestonesAwards') + 2);
+      expect(dialAt('shuffleMap')).to.eq(ruleAt('randomBoardTiles') + 2);
       setCreateLayoutWide(false);
 
       toggleRule('randomMilestonesAwards');
-      expect(chanceRow()).to.eq(-1);
+      expect(dialAt('randomMA')).to.eq(-1);
+      expect(dialAt('shuffleMap')).to.eq(ruleAt('randomBoardTiles') + 1);
+      toggleRule('randomBoardTiles');
+      expect(dialAt('shuffleMap')).to.eq(-1);
     });
 
-    it('CAMPAIGN: ◄ ► clamp along 10 · 15 · 20 · 30 · 40 · 50, A cycles with wrap; the rule still freezes as ALL', () => {
+    it('CAMPAIGN: ◄ ► clamp along 10 · 15 · 20 · 30 · 40 · 50, A cycles with wrap — per dial; the rules still freeze as on', () => {
       setSessionMode('campaign');
       createGameState.config.rules.randomMilestonesAwards = true;
+      createGameState.config.rules.randomBoardTiles = true;
       const seen: Array<number> = [];
       for (let i = 0; i < 6; i++) {
-        stepMaChance(1, false);
+        stepCampaignChance('randomMA', 1, false);
         seen.push(createGameState.config.campaignRandomMAChance);
       }
       expect(seen).to.deep.eq([30, 40, 50, 50, 50, 50]);
-      stepMaChance(1, true);
+      stepCampaignChance('randomMA', 1, true);
       expect(createGameState.config.campaignRandomMAChance).to.eq(10);
-      stepMaChance(-1, false);
+      stepCampaignChance('randomMA', -1, false);
       expect(createGameState.config.campaignRandomMAChance).to.eq(10);
-      stepMaChance(-1, true);
+      stepCampaignChance('randomMA', -1, true);
       expect(createGameState.config.campaignRandomMAChance).to.eq(50);
-      // The chance never enters the game config — the frozen rule is still «on».
-      expect(buildCreateGamePayloadFromPremiumState(createGameState.config).randomMA).to.eq(RandomMAOptionType.ALL);
+
+      // The shuffle dial moves its OWN value only.
+      expect(createGameState.config.campaignShuffleMapChance).to.eq(10);
+      stepCampaignChance('shuffleMap', 1, false);
+      expect(createGameState.config.campaignShuffleMapChance).to.eq(15);
+      stepCampaignChance('shuffleMap', -1, true);
+      stepCampaignChance('shuffleMap', -1, true);
+      expect(createGameState.config.campaignShuffleMapChance).to.eq(50);
+      expect(createGameState.config.campaignRandomMAChance).to.eq(50);
+
+      // The chances never enter the game config — the frozen rules are still «on».
+      const payload = buildCreateGamePayloadFromPremiumState(createGameState.config);
+      expect(payload.randomMA).to.eq(RandomMAOptionType.ALL);
+      expect(payload.shuffleMapOption).to.eq(true);
     });
 
     it('counts the picks across all three target lists', () => {
@@ -448,9 +470,9 @@ describe('consoleCreateModel', () => {
 
     it('maps automa conflicts to their decks', () => {
       seatBot();
-      // Promo is automa-supported now — a RULES conflict stands in for the
-      // former expansions-deck one.
-      createGameState.config.rules.randomBoardTiles = true;
+      // Promo and the shuffled map are automa-supported now — the one RULES conflict left is a random set beside a
+      // map the bot does not cover, which is also the MAP conflict.
+      createGameState.config.rules.randomMilestonesAwards = true;
       selectMap('Nowhere Planitia' as BoardName); // A map MarsBot does not cover — no real one is left (2026-11-06).
       const issues = launchIssues();
       const decks = issues.map((i) => i.target.deck);

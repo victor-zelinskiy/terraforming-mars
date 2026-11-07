@@ -10,7 +10,12 @@ import {Expansion} from '@/common/cards/GameModule';
 import {BoardName} from '@/common/boards/BoardName';
 import {RandomBoardOption} from '@/common/boards/RandomBoardOption';
 import {RandomMAOptionType} from '@/common/ma/RandomMAOptionType';
-import {CampaignRandomMAChance, DEFAULT_CAMPAIGN_RANDOM_MA_CHANCE, isCampaignRandomMAChance} from '@/common/campaign/missionModifiers';
+import {
+  CampaignModifierChance,
+  DEFAULT_CAMPAIGN_RANDOM_MA_CHANCE,
+  DEFAULT_CAMPAIGN_SHUFFLE_MAP_CHANCE,
+  isCampaignModifierChance,
+} from '@/common/campaign/missionModifiers';
 import {DifficultyLevel} from '@/common/automa/AutomaTypes';
 import {AutomaConflict, automaConflicts} from '@/common/automa/automaCompatibility';
 import {normalizePlayerName, validatePlayerName} from '@/common/utils/playerName';
@@ -99,7 +104,9 @@ export type PremiumCreateGameState = {
    * награды» is rolled for each mission of the route — reachable while the
    * rule is on in campaign mode (`CAMPAIGN_RANDOM_MA_CHANCES`).
    */
-  campaignRandomMAChance: CampaignRandomMAChance;
+  campaignRandomMAChance: CampaignModifierChance;
+  /** CAMPAIGN ONLY: the same for «Случайные места для тайлов» (default 10 %). */
+  campaignShuffleMapChance: CampaignModifierChance;
   /** Only reachable while `rules.testMode` is on for the admin seat. */
   guaranteedCards: GuaranteedCardPicks;
 };
@@ -162,6 +169,7 @@ export function defaultPremiumState(): PremiumCreateGameState {
       testMode: d.testMode,
     },
     campaignRandomMAChance: DEFAULT_CAMPAIGN_RANDOM_MA_CHANCE,
+    campaignShuffleMapChance: DEFAULT_CAMPAIGN_SHUFFLE_MAP_CHANCE,
     guaranteedCards: {corporations: [], preludes: [], projects: []},
   };
 }
@@ -297,8 +305,6 @@ export function setGameMode(mode: GameMode): void {
         config.mapId = BoardName.THARSIS;
       } else if (conflict.key.startsWith('expansion:')) {
         config.selectedExpansions[conflict.key.substring('expansion:'.length) as Expansion] = false;
-      } else if (conflict.key === 'rule:randomBoardTiles') {
-        config.rules.randomBoardTiles = false;
       }
     }
   } else {
@@ -365,8 +371,6 @@ export function setSeatMarsBot(on: boolean): void {
         config.mapId = BoardName.THARSIS;
       } else if (conflict.key.startsWith('expansion:')) {
         config.selectedExpansions[conflict.key.substring('expansion:'.length) as Expansion] = false;
-      } else if (conflict.key === 'rule:randomBoardTiles') {
-        config.rules.randomBoardTiles = false;
       }
     }
     createGameState.info = {kind: 'bot', difficulty: config.botDifficulty};
@@ -507,7 +511,6 @@ const AUTOMA_BLOCKER_TEXT: Partial<Record<string, string>> = {
   'board': 'MarsBot has no adaptation for this map yet — pick a supported one or a random option',
   // Fires only beside 'board' (a random set plays on every board MarsBot covers — pinning one clears it).
   'rule:randomMilestonesAwards': 'Random milestones and awards with MarsBot need a map it covers',
-  'rule:randomBoardTiles': 'MarsBot needs the printed board layout',
 };
 
 export function automaBlockerText(key: string): string {
@@ -709,7 +712,8 @@ function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
     mapId,
     rules,
     // A setup saved before the chance existed (or a stray value) keeps the default.
-    campaignRandomMAChance: isCampaignRandomMAChance(saved.campaignRandomMAChance) ? saved.campaignRandomMAChance : base.campaignRandomMAChance,
+    campaignRandomMAChance: isCampaignModifierChance(saved.campaignRandomMAChance) ? saved.campaignRandomMAChance : base.campaignRandomMAChance,
+    campaignShuffleMapChance: isCampaignModifierChance(saved.campaignShuffleMapChance) ? saved.campaignShuffleMapChance : base.campaignShuffleMapChance,
     guaranteedCards: sanitizeGuaranteedCards(saved.guaranteedCards),
   };
 }

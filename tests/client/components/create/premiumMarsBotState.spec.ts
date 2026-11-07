@@ -44,14 +44,17 @@ describe('premium create — MarsBot mode', () => {
     createGameState.config.mapId = BoardName.THARSIS;
     expect(canCreateGame()).is.true;
 
-    // Promo is SUPPORTED with MarsBot (official FAQ p.11) — never a conflict.
+    // Promo is SUPPORTED with MarsBot (official FAQ p.11) — never a conflict; the shuffled map too (2026-11-07).
     createGameState.config.selectedExpansions.promo = true;
     createGameState.config.rules.randomBoardTiles = true;
+    expect(stateAutomaConflictKeys().has('expansion:promo')).is.false;
+    expect(stateAutomaConflictKeys().has('rule:randomBoardTiles')).is.false;
+    expect(canCreateGame()).is.true;
+    createGameState.config.selectedExpansions.moon = true;
     const keys = stateAutomaConflictKeys();
-    expect(keys.has('expansion:promo')).is.false;
-    expect(keys.has('rule:randomBoardTiles')).is.true;
+    expect(keys.has('expansion:moon')).is.true;
     expect(canCreateGame()).is.false;
-    expect(firstBlocker()).eq('MarsBot needs the printed board layout');
+    expect(firstBlocker()).eq('This option is not supported with MarsBot yet');
   });
 
   it('random milestones and awards are no conflict on a supported board — only beside an uncovered one', () => {
@@ -88,7 +91,7 @@ describe('premium create — MarsBot mode', () => {
       expect(createGameState.config.rules.randomMilestonesAwards).is.true;
       expect(stateAutomaConflicts()).is.empty;
       createGameState.config.rules.randomBoardTiles = true;
-      expect(stateAutomaConflictKeys().has('rule:randomBoardTiles')).is.true;
+      expect(stateAutomaConflicts(), 'the shuffled map plays with the bot (2026-11-07)').is.empty;
     });
 
     it('the payload seats the bot and turns the solar phase off; drafts stay for the humans', () => {

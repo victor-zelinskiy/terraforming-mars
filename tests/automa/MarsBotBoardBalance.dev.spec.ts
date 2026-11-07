@@ -20,7 +20,8 @@ const CARDS = 48;
 const describeBench = process.env.TM_BOT_BALANCE === '1' ? describe : describe.skip;
 
 describeBench('MarsBot board balance bench (TM_BOT_BALANCE=1)', () => {
-  for (const [variant, extra] of [['base', {}], ['venus+colonies', {venusNextExtension: true, coloniesExtension: true}]] as const) {
+  // `shuffled` — «Random tile placement» with the bot (supported since 2026-11-07): the same sequences on boards whose bonuses moved.
+  for (const [variant, extra] of [['base', {}], ['venus+colonies', {venusNextExtension: true, coloniesExtension: true}], ['shuffled', {shuffleMapOption: true}]] as const) {
     it(`tallies every supported board's yield and the band (${variant})`, () => {
       const sequences = benchSequences(SEEDS, CARDS);
       const perMilestone: Array<string> = [];

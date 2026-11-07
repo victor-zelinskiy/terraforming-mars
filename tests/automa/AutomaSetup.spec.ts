@@ -210,7 +210,8 @@ describe('AutomaSetup', () => {
       ['Venus completion requirement', {requiresVenusTrackCompletion: true}],
       // NOTE: the ALTERNATE Venus board is SUPPORTED (its bonus spaces resolve
       // as fixed bot gains) — covered positively below + in AutomaResolver.spec.ts.
-      ['shuffled map', {shuffleMapOption: true}],
+      // NOTE: the SHUFFLED MAP is SUPPORTED (2026-11-07) — the bot reads the board live; covered positively below and
+      // in tests/automa/MarsBotShuffledBoard.spec.ts.
       // NOTE: custom CARD lists are SUPPORTED (they only reshape the decks) —
       // covered positively below. A custom COLONY list stays rejected: it is
       // direct bot data (the 11-area shipping board).
@@ -222,6 +223,13 @@ describe('AutomaSetup', () => {
         expect(() => testAutomaGame(options as object)).to.throw(/MarsBot \(Automa\) does not support/);
       });
     }
+  });
+
+  it('accepts the SHUFFLED map — the bot is seated on a board whose bonuses moved', () => {
+    const [game] = testAutomaGame({shuffleMapOption: true, seed: 0.37}, '-shuffled');
+    expect(game.gameOptions.shuffleMapOption).is.true;
+    expect(automaOf(game)).is.not.undefined;
+    expect(game.board.spaces.filter((s) => s.bonus.length > 0).length, 'the icons are all there, only moved').is.greaterThan(30);
   });
 
   it('accepts RANDOM milestones and awards on a supported board — a generated mat and the B14 of the set', () => {

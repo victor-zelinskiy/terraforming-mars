@@ -317,6 +317,8 @@ import {Enceladus} from '../../../src/server/colonies/Enceladus';
 import {JupiterFloatingStation} from '../../../src/server/cards/colonies/JupiterFloatingStation';
 import {GanymedeColony} from '../../../src/server/cards/base/GanymedeColony';
 import {Game} from '../../../src/server/Game';
+import {SeededRandom} from '../../../src/common/utils/Random';
+import {GameSetup} from '../../../src/server/GameSetup';
 import {Server} from '../../../src/server/models/ServerModel';
 import {SerializedGame} from '../../../src/server/SerializedGame';
 import {CeresTechMarket} from '../../../src/server/cards/prelude2/CeresTechMarket';
@@ -8512,6 +8514,48 @@ parliamentFixture('receive-board', {
     throw new Error(`${name}: the dry run's bot round should end the generation — generation ${copy.generation}, phase ${copy.phase}`);
   }
   console.log(`${name}: building at ${tracks[0].position}/${tracks[0].maxPosition}; dry run → generation ${copy.generation}, the copy's tracks ${copy.automa!.board.tracks.map((t) => t.position).join(',')}`);
+  write(name, game);
+}
+
+// ── MARSBOT · THE SHUFFLED BOARD — «Random tile placement» with the bot (supported since 2026-11-07): a solo table vs
+//    MarsBot (Credicor) on Tharsis with the cells' bonuses SHUFFLED (the generator proves they moved against the printed
+//    board), blue on the move with its action menu. The round blue hands over is proven on a copy: the bot plays it to
+//    the end on the shuffled board and the next generation begins. For console-marsbot-shuffled-board. ──
+{
+  const name = 'marsbot-shuffled-board';
+  const pinned = [CardName.TERACTOR];
+  const [game, human, bot] = testAutomaGame({
+    shuffleMapOption: true, seed: 0.61, startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [human], pinned);
+  answerStartFlow(game, [human]);
+  human.megaCredits = 80;
+  bot.megaCredits = 20;
+  runAllActions(game);
+  const printed = GameSetup.newBoard({...game.gameOptions, shuffleMapOption: false}, new SeededRandom(1));
+  const moved = game.board.spaces.filter((s) => {
+    const p = printed.getSpaceOrThrow(s.id);
+    return p.bonus.join(',') !== s.bonus.join(',') || p.spaceType !== s.spaceType;
+  }).length;
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions) ||
+      game.gameOptions.shuffleMapOption !== true || moved <= 10 || game.automa === undefined) {
+    throw new Error(`${name}: expected blue on the move on a SHUFFLED Tharsis with the bot — got phase=${game.phase} wf=${human.getWaitingFor()?.constructor.name} shuffled=${game.gameOptions.shuffleMapOption} moved=${moved}`);
+  }
+  // THE DRY RUN — blue's pass on a copy: the bot's whole round resolves on the shuffled board and the next generation stands.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(human.id);
+  const menu = blue.getWaitingFor();
+  const titleOf = (o: {title: unknown}) => typeof o.title === 'string' ? o.title : (o.title as {message?: string} | undefined)?.message ?? '';
+  const passIndex = menu instanceof OrOptions ? menu.options.findIndex((o) => titleOf(o) === 'Pass for this generation') : -1;
+  if (passIndex < 0) {
+    throw new Error(`${name}: blue holds no pass option (wf=${menu?.constructor.name})`);
+  }
+  blue.process({type: 'or', index: passIndex, response: {type: 'option'}});
+  runAllActions(copy);
+  if (copy.generation !== game.generation + 1) {
+    throw new Error(`${name}: the dry run's bot round should end the generation — generation ${copy.generation}, phase ${copy.phase}`);
+  }
+  console.log(`${name}: ${moved} cells moved; dry run → generation ${copy.generation}, the bot's tiles ${copy.board.spaces.filter((s) => s.player?.id === bot.id).length}`);
   write(name, game);
 }
 

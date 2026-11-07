@@ -29,7 +29,6 @@ export type AutomaConflictKey =
   | 'variant:escapeVelocity'
   | 'variant:solarPhase'
   | 'variant:venusCompletion'
-  | 'rule:randomBoardTiles'
   | 'variant:customColonies';
 
 export type AutomaConflict = {
@@ -212,7 +211,12 @@ const RULES: ReadonlyArray<Rule> = [
   // prompts, so its alt-track bonus resolves as fixed gains (house rule):
   // 1 M€ per crossed bonus space, +1 floater for the 30% wild resource.
   // See the isMarsBot branch in Game.increaseVenusScaleLevel.
-  {key: 'rule:randomBoardTiles', test: (o) => o.shuffleMapOption, reason: () => 'the shuffled map (MarsBot tile placement uses the printed board)'},
+  // NOTE: the SHUFFLED MAP («Random tile placement») is NOT a conflict (2026-11-07, the owner's question — it had been a
+  // leftover of the UI rework's caution): the bot reads the board LIVE — its candidates from `getAvailableSpaces…`,
+  // its reward icons from `space.bonus` as the cell lies, its pay-to-use cells by their BONUS (Curiosity by COLONY, the
+  // North Pole by TEMPERATURE_4MC, a Viking site by DELEGATE) and the shuffle itself keeps the printed exceptions in
+  // place (Noctis, Hellas' South Pole, Curiosity, the North Pole, the volcanoes); its regions are geometric. Guard:
+  // tests/automa/MarsBotShuffledBoard.spec.ts; the balance band with the shuffle: docs/AUTOMA_DATA_AUDIT.md §25.
   // NOTE: custom CARD lists (corporations / preludes / project cards / banned /
   // included) are NOT a conflict — they only reshape the DECKS, which reaches
   // MarsBot indirectly at most. The bot is dealt no corporation, no prelude and

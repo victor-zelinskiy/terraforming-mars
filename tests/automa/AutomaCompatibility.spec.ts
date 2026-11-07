@@ -102,8 +102,8 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
       shuffleMapOption: true,
       randomMA: true,
     });
-    expect(conflicts.map((c) => c.key), 'random milestones and awards play on a supported board (the random-set framework)').deep.eq(
-      ['expansion:community', 'expansion:moon', 'rule:randomBoardTiles']);
+    expect(conflicts.map((c) => c.key), 'random milestones and awards play on a supported board (the random-set framework); the shuffled map is no conflict (2026-11-07)').deep.eq(
+      ['expansion:community', 'expansion:moon']);
     expect(conflictFor(conflicts, 'expansion:moon')?.reason).eq('The Moon');
     expect(conflictFor(conflicts, 'expansion:community')?.reason).eq('community cards');
     expect(conflictFor(conflicts, 'expansion:turmoil')).is.undefined;
