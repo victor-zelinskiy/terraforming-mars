@@ -1,6 +1,7 @@
 import {PlayerId} from '../common/Types';
 import {PendingBonusGain} from '../common/BonusGain';
 import {CardName} from '../common/cards/CardName';
+import {PlayerTender} from '../common/campaign/tenders';
 import {Color} from '../common/Color';
 import {SerializedCard} from './SerializedCard';
 import {SerializedTimer} from '../common/SerializedTimer';
@@ -112,6 +113,14 @@ export interface SerializedPlayer extends DeprecatedFields{
   campaignBonusGranted?: boolean;
   /** Initial-cards selection completed (needed by the corp-less final mission). Absent → false. */
   initialCardSelectionDone?: boolean;
+  // Campaign «Тендеры» — the finale only; every field absent in ordinary saves and on a titles campaign.
+  campaignTenders?: Array<PlayerTender>;
+  campaignTendersCompensated?: boolean;
+  campaignCarriedPreludes?: Array<CardName>;
+  campaignCarriedPreludesGranted?: boolean;
+  campaignLineageOverride?: Array<CardName>;
+  campaignPreludePickBonus?: number;
+  campaignStartingHandDiscount?: number;
   plantProduction: number;
   plants: number;
   plantsNeededForGreenery: number;

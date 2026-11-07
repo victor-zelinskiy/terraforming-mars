@@ -6,6 +6,7 @@ import {ApiCampaign} from '../../src/server/routes/ApiCampaign';
 import {ApiCampaignCreate} from '../../src/server/routes/ApiCampaignCreate';
 import {ApiCampaignLaunch} from '../../src/server/routes/ApiCampaignLaunch';
 import {ApiCampaignDev} from '../../src/server/routes/ApiCampaignDev';
+import {ApiCampaignBid} from '../../src/server/routes/ApiCampaignBid';
 import {CampaignManager} from '../../src/server/campaign/CampaignManager';
 import {CampaignModel} from '../../src/common/campaign/CampaignModel';
 import {setTestDatabase, restoreTestDatabase} from '../testing/setup';
@@ -101,6 +102,38 @@ describe('ApiCampaign routes', () => {
     const answer = JSON.parse(res.content) as {gameId: string, yourPlayerId?: string};
     expect(answer.gameId.startsWith('g')).is.true;
     expect(answer.yourPlayerId?.startsWith('p')).is.true;
+  });
+
+  it('bid: the «Тендеры» mode\'s pick is bearer-authenticated by the source-mission PlayerId', async () => {
+    const manager = CampaignManager.getInstance();
+    const created = await manager.createCampaign(key(), campaignTestConfig(), {rewardMode: 'tenders'});
+    await manager.launchMission(created.id, 'Alice');
+    const pending = (await manager.load(created.id))!;
+    // The real mission ends: the bidding opens, the first of the standings picks.
+    const game = (await (await import('../../src/server/database/GameLoader')).GameLoader.getInstance().getGame(pending.missions[0].gameId!))!;
+    await manager.commitMissionResult(game);
+    const open = (await manager.load(created.id))!;
+    expect(open.bidding?.done).is.false;
+    const first = open.bidding!.order[0];
+    const firstPid = open.missions[0].playerIds![first];
+    const instance = open.bidding!.offer[0].instance;
+
+    scaffolding.url = `/api/campaign/bid?id=${created.id}`;
+    await postJson(ApiCampaignBid.INSTANCE, {playerId: 'p-forged', instance});
+    expect(res.statusCode).eq(statusCode.badRequest);
+
+    req = new MockRequest();
+    res = new MockResponse();
+    scaffolding = new RouteTestScaffolding(req);
+    scaffolding.url = `/api/campaign/bid?id=${created.id}`;
+    await postJson(ApiCampaignBid.INSTANCE, {playerId: firstPid, instance});
+    expect(res.statusCode).eq(statusCode.ok);
+    const model = JSON.parse(res.content) as CampaignModel;
+    expect(model.rewardMode).eq('tenders');
+    expect(model.bidding, 'two seats: one pick closes the bidding').is.undefined;
+    expect(model.missions[0].bidding?.done).is.true;
+    expect(model.progression.tenders?.[first]).has.length(1);
+    expect(model.you?.seat, 'the answer is the picker\'s own view').eq(first);
   });
 
   it('dev fast-forward is gated on the admin name', async () => {

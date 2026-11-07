@@ -14,7 +14,7 @@ const SUMMARY_KEYS = [
   'id', 'rev', 'name', 'createdTimeMs', 'lastActivityMs', 'phase', 'pointer',
   'missionCount', 'completedMissions', 'missionGamesCount', 'currentBoard',
   'seats', 'you', 'isCreator', 'state', 'blockedReason', 'missionGameId',
-  'championSeats', 'yourTitlePoints',
+  'championSeats', 'yourTitlePoints', 'rewardMode', 'yourTenders',
 ];
 
 describe('CampaignManager.listSummaries', () => {

@@ -9,6 +9,7 @@
 import {BoardName} from '../boards/BoardName';
 import {CampaignId, GameId} from '../Types';
 import {CampaignPhase, CampaignSeat} from './CampaignTypes';
+import {CampaignRewardMode} from './tenders';
 
 /**
  * The ONE viewer-state a row leads with, priority-resolved server-side:
@@ -17,6 +18,7 @@ import {CampaignPhase, CampaignSeat} from './CampaignTypes';
 export type CampaignViewerState =
   | 'yourTurn'        // active mission, and it is the viewer's move
   | 'chooseCarryover' // interlude, the viewer's own carryover selection is pending
+  | 'chooseTender'    // interlude, the «Тендеры» bidding waits for the viewer's pick
   | 'launchReady'     // the viewer is the creator and the next mission can launch
   | 'missionActive'   // a mission is running (not the viewer's move right now)
   | 'waitingOthers'   // viewer confirmed, other seats are still choosing
@@ -52,6 +54,10 @@ export type CampaignSummaryModel = {
   missionGameId?: GameId;
   /** Champions of a finished campaign (seat indices). */
   championSeats?: ReadonlyArray<number>;
-  /** The viewer's accumulated title points (the row's light emblem). */
+  /** The viewer's accumulated title points (the row's light emblem — the `titles` reward mode). */
   yourTitlePoints: number;
+  /** How the campaign rewards a mission's placement (always sent; absent in an older row = `titles`). */
+  rewardMode?: CampaignRewardMode;
+  /** The «Тендеры» mode: how many tenders the viewer holds (the row's light emblem there). */
+  yourTenders?: number;
 };

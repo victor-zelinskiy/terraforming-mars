@@ -100,6 +100,7 @@ const CORS_PATHS: ReadonlySet<string> = new Set<string>([
   paths.API_CAMPAIGN_CREATE,
   paths.API_CAMPAIGN_LAUNCH,
   paths.API_CAMPAIGN_CARRYOVER,
+  paths.API_CAMPAIGN_BID,
   paths.API_CAMPAIGN_DEV,
   // «Мои кампании»: the list runs in the console main menu (desktop shell),
   // and the cascade delete is the campaign family's own creator-gated verb.

@@ -45,7 +45,29 @@ import {isAdminName} from '../../common/utils/adminName';
 import {Phase} from '../../common/Phase';
 import {boardOptions} from '../boards/randomBoard';
 import {drawCampaignRoute} from './campaignRoute';
-import {newProjectCard} from '../createCard';
+import {newPrelude, newProjectCard} from '../createCard';
+import {CardType} from '../../common/cards/CardType';
+import {Resource} from '../../common/Resource';
+import {PRELUDE_CARDS_DEALT_PER_PLAYER} from '../../common/constants';
+import {
+  BiddingState,
+  CampaignRewardMode,
+  TENDER_COMPENSATION_MC,
+  TenderHolding,
+  TenderId,
+  biddingOfferSize,
+  biddingOpenCards,
+  biddingTurnSeat,
+  botTenderPick,
+  heldTenderCount,
+  isCampaignRewardMode,
+  isTenderId,
+  tenderDef,
+} from '../../common/campaign/tenders';
+import {BiddingModel} from '../../common/campaign/CampaignModel';
+import {advanceBots, applyBid, biddingHoldings, biddingOrder, buildTenderRegister, dealTenderOffer, openBidding} from './tenderBidding';
+import {TenderApplicabilityContext, tenderApplicable} from './tenderWindows';
+import {marsBotOf} from '../automa/AutomaUtil';
 import {Database} from '../database/Database';
 import {GameLoader} from '../database/GameLoader';
 import {Game} from '../Game';
@@ -78,8 +100,60 @@ export type CampaignCreateOptions = {
   shuffleMapChance?: number;
   /** The route's length; one of `CAMPAIGN_MISSION_COUNTS` (anything else → `CAMPAIGN_MISSION_COUNT`). The last is the finale. */
   missionCount?: number;
+  /** How the campaign rewards a mission's placement (anything else → `titles`). */
+  rewardMode?: CampaignRewardMode;
 };
 import {carryoverLimitFor, carryoverLimitOf} from './carryoverLimit';
+
+/** The ONE reader of a document's reward mode — a document written before the mode existed is a titles campaign. */
+export function campaignRewardMode(campaign: Pick<SerializedCampaign, 'rewardMode'>): CampaignRewardMode {
+  return campaign.rewardMode ?? 'titles';
+}
+
+/** A float seed per (campaign, mission) for the bidding's lots — `SeededRandom` wants a fraction, never an integer. */
+function biddingSeedFor(campaignSeed: number, slot: number): number {
+  const mixed = (campaignSeed + 0.7548776662 * (slot + 1)) % 1;
+  return mixed < 0 ? mixed + 1 : mixed;
+}
+
+/**
+ * The seat's carry limit as the «Тендеры» mode reads it before the FINALE:
+ * the stored base plus one seat per held «Расширенное наследие». Every other
+ * interlude (and every titles campaign) reads the base alone.
+ */
+export function carryoverLimitWithTenders(campaign: SerializedCampaign, seat: number, state: Pick<CarryoverSeatState, 'limit'>, sourceSlot: number): number {
+  return carryoverLimitOf(state) + tenderSeatsOf(campaign, seat, sourceSlot);
+}
+
+/** How many legacy seats the held «Расширенное наследие» tenders add on the carryover INTO the finale. */
+function tenderSeatsOf(campaign: SerializedCampaign, seat: number, sourceSlot: number): number {
+  if (campaignRewardMode(campaign) !== 'tenders' || sourceSlot !== campaign.missions.length - 2) {
+    return 0;
+  }
+  return heldTenderCount(campaign.progression.tenders?.[seat] ?? [], 'extendedLegacy');
+}
+
+/** How many played preludes the held «Продление программы» tenders carry on the carryover INTO the finale. */
+function tenderPreludeLimitOf(campaign: SerializedCampaign, seat: number, sourceSlot: number): number {
+  if (campaignRewardMode(campaign) !== 'tenders' || sourceSlot !== campaign.missions.length - 2) {
+    return 0;
+  }
+  return heldTenderCount(campaign.progression.tenders?.[seat] ?? [], 'programExtension');
+}
+
+/** Marks `count` held tenders of `id` of the seat with `status` (acquisition order) — the launch's consumption. */
+function markHeldTenders(campaign: SerializedCampaign, seat: number, id: TenderId, count: number, status: TenderHolding['status']): void {
+  let left = count;
+  for (const holding of campaign.progression.tenders?.[seat] ?? []) {
+    if (left <= 0) {
+      break;
+    }
+    if (holding.id === id && holding.status === 'held') {
+      holding.status = status;
+      left--;
+    }
+  }
+}
 
 export class CampaignManager {
   private static instance: CampaignManager | undefined;
@@ -316,6 +390,13 @@ export class CampaignManager {
       return {slot, board, modifiers: rollSlotModifiers(board, {randomMA: randomMAChance, shuffleMap: shuffleMapChance}, rolls)};
     });
 
+    // The «Тендеры» reward mode: the Register is printed and shuffled from the
+    // same stream, AFTER every roll — a titles campaign's route and rolls are
+    // byte-identical to before the mode existed.
+    const rewardMode: CampaignRewardMode = isCampaignRewardMode(options.rewardMode) ? options.rewardMode : 'titles';
+    const register = rewardMode === 'tenders' ?
+      buildTenderRegister(this.tenderApplicability(frozen, missionCount), rng) : undefined;
+
     return {
       version: 1,
       id,
@@ -330,8 +411,34 @@ export class CampaignManager {
       phase: 'generated',
       // A bot campaign starts its portfolio EMPTY (not absent): absent is the
       // marker of a campaign created before the portfolio existed (D7).
-      progression: hasBot ? {lineages: {}, titles: [], botHoldings: []} : {lineages: {}, titles: []},
+      progression: {
+        lineages: {},
+        titles: [],
+        ...(hasBot ? {botHoldings: []} : {}),
+        ...(rewardMode === 'tenders' ? {tenders: {}} : {}),
+      },
+      ...(rewardMode === 'tenders' ? {rewardMode, register} : {}),
     };
+  }
+
+  /**
+   * Which tenders this campaign can ever use — computed ONCE from the frozen
+   * settings (the pools never change over a campaign's life): the Prelude
+   * expansion for every prelude tender, and the pools' sizes for the tenders
+   * that widen a deal (`tenderWindows.ts`).
+   */
+  private tenderApplicability(settings: NewGameConfig, missionCount: number): (id: TenderId) => boolean {
+    const options = gameOptionsFromNewGameConfig({...settings, board: BoardName.THARSIS}, BoardName.THARSIS);
+    const cards = new GameCards(options);
+    const ctx: TenderApplicabilityContext = {
+      preludes: options.preludeExtension === true,
+      humans: settings.players.length,
+      missionCount,
+      preludePool: options.preludeExtension === true ? cards.getPreludeCards().length : 0,
+      startingPreludes: Math.max(options.startingPreludes ?? 0, PRELUDE_CARDS_DEALT_PER_PLAYER),
+      corporationPool: cards.getCorporationCards().length,
+    };
+    return (id) => tenderApplicable(tenderDef(id), ctx);
   }
 
   /**
@@ -385,6 +492,18 @@ export class CampaignManager {
       if (blockers.length > 0) {
         throw new Error(blockers[0]);
       }
+      // The «Тендеры» mode: a legacy tender is realized BY USE — every seat
+      // taken beyond the base limit consumed an «Расширенное наследие», every
+      // carried prelude a «Продление программы». Marked BEFORE the game is
+      // built, so only the tenders still held ride into the finale (the
+      // portfolio's `growBotHoldings` precedent: the launch's save persists it).
+      if (campaign.carryover !== undefined && campaign.carryover.sourceSlot === slot.slot - 1) {
+        for (const [seatKey, state] of Object.entries(campaign.carryover.bySeat)) {
+          const seat = Number(seatKey);
+          markHeldTenders(campaign, seat, 'extendedLegacy', Math.max(0, state.cards.length - carryoverLimitOf(state)), 'executed');
+          markHeldTenders(campaign, seat, 'programExtension', (state.preludes ?? []).length, 'executed');
+        }
+      }
       const game = this.buildMissionGame(campaign, slot);
       // Invariant 3: the GAME is on disk before the campaign points at it.
       await Database.getInstance().saveGame(game);
@@ -401,10 +520,11 @@ export class CampaignManager {
       // durable per-mission legacy history.
       if (campaign.carryover !== undefined && campaign.carryover.sourceSlot === slot.slot - 1) {
         const carried: Record<number, Array<CardName>> = {};
-        for (const [seat, state] of Object.entries(campaign.carryover.bySeat)) {
+        for (const [seatKey, state] of Object.entries(campaign.carryover.bySeat)) {
+          const seat = Number(seatKey);
           state.consumed = true;
           if (state.cards.length > 0) {
-            carried[Number(seat)] = [...state.cards];
+            carried[seat] = [...state.cards];
           }
         }
         slot.carriedBySeat = carried;
@@ -501,6 +621,18 @@ export class CampaignManager {
         if (state !== undefined && state.cards.length > 0) {
           player.campaignCarriedCards = [...state.cards];
         }
+        if (state !== undefined && state.preludes !== undefined && state.preludes.length > 0) {
+          player.campaignCarriedPreludes = [...state.preludes];
+        }
+      }
+      // The «Тендеры» mode, the FINALE: the seat's HELD tenders ride into the
+      // game as the player's own (the start executes them); a realized or
+      // bought-back one has nothing left to do here.
+      if (final && campaignRewardMode(campaign) === 'tenders') {
+        const held = (campaign.progression.tenders?.[seat.seat] ?? []).filter((t) => t.status === 'held');
+        if (held.length > 0) {
+          player.campaignTenders = held.map((t) => ({instance: t.instance, id: t.id, status: 'held' as const}));
+        }
       }
       return player;
     });
@@ -522,6 +654,21 @@ export class CampaignManager {
       const bot = game.players.find((p) => p.isMarsBot);
       if (bot !== undefined) {
         bot.campaignSeat = botSeat.seat;
+      }
+      // The «Тендеры» mode: THE BOT ALWAYS CASHES OUT — every tender it took
+      // (on denial) is bought back at the finale's launch, the M€ landing in
+      // its stock (its leftover M€ score at the end, so the sum is honest
+      // and small). Marked here; the launch's save persists it.
+      if (final && campaignRewardMode(campaign) === 'tenders') {
+        const held = (campaign.progression.tenders?.[botSeat.seat] ?? []).filter((t) => t.status === 'held');
+        if (held.length > 0) {
+          const bot2 = marsBotOf(game);
+          bot2.stock.add(Resource.MEGACREDITS, held.length * TENDER_COMPENSATION_MC, {log: true});
+          for (const holding of held) {
+            holding.status = 'cashed';
+          }
+          game.log('${0} received ${1} M€ for ${2} unexecuted tender(s)', (b) => b.player(bot2).number(held.length * TENDER_COMPENSATION_MC).number(held.length));
+        }
       }
     }
     return game;
@@ -567,13 +714,18 @@ export class CampaignManager {
       const bonus = seat.kind === 'human' ?
         (previous?.bonuses.find((b) => b.seat === seat.seat)?.megaCredits ?? 0) :
         0; // The bot never plays a corporation, so a bonus would silently never apply — honesty demands none.
+      const rewardMode = campaignRewardMode(campaign);
+      const heldTenders = final && rewardMode === 'tenders' && seat.kind === 'human' ?
+        (campaign.progression.tenders?.[seat.seat] ?? []).filter((t) => t.status === 'held').map((t) => ({instance: t.instance, id: t.id})) :
+        undefined;
       return {
         seat: seat.seat,
         color: seat.color,
         bonusMegaCredits: bonus,
         corporations: seat.kind === 'human' ? [...(campaign.progression.lineages[seat.seat] ?? [])] : [],
-        titlePoints: final ? campaign.progression.titles.filter((t) => t.seat === seat.seat)
+        titlePoints: final && rewardMode === 'titles' ? campaign.progression.titles.filter((t) => t.seat === seat.seat)
           .map((t) => ({missionSlot: t.missionSlot, title: t.title, titlePoints: t.titlePoints})) : [],
+        ...(heldTenders !== undefined && heldTenders.length > 0 ? {tenders: heldTenders} : {}),
       };
     });
     return {
@@ -582,6 +734,7 @@ export class CampaignManager {
       missionSlot: slot,
       missionCount: campaign.missions.length,
       final,
+      ...(campaignRewardMode(campaign) === 'tenders' ? {rewardMode: 'tenders' as const} : {}),
       grants,
     };
   }
@@ -612,12 +765,13 @@ export class CampaignManager {
     const standings = computeMissionStandings(game);
     const seatCount = campaign.seats.length;
     const humanSeats = new Set(campaign.seats.filter((s) => s.kind === 'human').map((s) => s.seat));
+    const tenderMode = campaignRewardMode(campaign) === 'tenders';
 
     const titles: Array<{seat: number} & TitleEntry> = [];
     const bonuses: Array<{seat: number, megaCredits: number}> = [];
     if (!final || FINAL_MISSION_AWARDS_TITLES) {
       for (const standing of standings) {
-        const title = titleForPlace(standing.place, seatCount);
+        const title = tenderMode ? undefined : titleForPlace(standing.place, seatCount);
         if (title !== undefined && title !== null) {
           titles.push({seat: standing.seat, missionSlot: slot.slot, title, titlePoints: TITLE_TABLE[title].titlePoints});
         }
@@ -662,6 +816,22 @@ export class CampaignManager {
       campaign.phase = 'finished';
       campaign.championSeats = [...(result.championSeats ?? [])];
       campaign.carryover = undefined;
+      // The «Тендеры» mode: what each player did with their tenders in the
+      // finale is the chronicle's record (executed / bought back).
+      if (tenderMode) {
+        for (const player of game.players) {
+          const seat = player.campaignSeat;
+          if (seat === undefined || !humanSeats.has(seat)) {
+            continue;
+          }
+          for (const own of player.campaignTenders ?? []) {
+            const holding = campaign.progression.tenders?.[seat]?.find((h) => h.instance === own.instance);
+            if (holding !== undefined) {
+              holding.status = own.status === 'held' ? 'cashed' : own.status;
+            }
+          }
+        }
+      }
     } else {
       // Record the terminal hands (SERVER-PRIVATE) and open the carryover
       // window. EVERY human starts 'pending' — the confirmation doubles as
@@ -669,6 +839,9 @@ export class CampaignManager {
       // human has explicitly confirmed (an empty hand confirms «готов» with
       // zero cards, but the press is still theirs to make).
       slot.finalHands = {};
+      if (tenderMode) {
+        slot.finalPreludes = {};
+      }
       const bySeat: Record<number, CarryoverSeatState> = {};
       for (const player of game.players) {
         const seat = player.campaignSeat;
@@ -677,13 +850,85 @@ export class CampaignManager {
         }
         const hand = player.cardsInHand.map((c) => c.name);
         slot.finalHands[seat] = hand;
+        if (slot.finalPreludes !== undefined) {
+          slot.finalPreludes[seat] = player.playedCards.filter((c) => c.type === CardType.PRELUDE).map((c) => c.name);
+        }
         bySeat[seat] = {status: 'pending', cards: [], consumed: false, limit: carryoverLimitFor(campaign, seat, slot.modifiers)};
       }
       campaign.carryover = {sourceSlot: slot.slot, bySeat};
       campaign.pointer = slot.slot + 1;
       campaign.phase = 'interlude';
+      // The «Тендеры» mode: THE BIDDING opens — the Register deals the table,
+      // the standings set the order (a lot inside every full tie), and the bot
+      // picks at once wherever its turn comes before a human's.
+      if (tenderMode) {
+        this.openBiddingFor(campaign, slot, standings);
+      }
     }
     await this.save(campaign);
+  }
+
+  /** Deal the table, set the order, let the bot pick — the bidding of one committed mission. */
+  private openBiddingFor(campaign: SerializedCampaign, slot: SerializedMissionSlot, standings: ReadonlyArray<{seat: number, place: number}>): void {
+    const rng = new SeededRandom(biddingSeedFor(campaign.generator.seed, slot.slot));
+    const applicable = this.tenderApplicability(campaign.settings, campaign.missions.length);
+    const register = campaign.register ?? buildTenderRegister(applicable, rng);
+    const dealt = dealTenderOffer(register, biddingOfferSize(campaign.seats.length), slot.slot, applicable, rng);
+    campaign.register = dealt.register;
+    const {order, lots} = biddingOrder(standings.map((s) => ({seat: s.seat, place: s.place, score: 0, megaCredits: 0, corporations: [], tiedWith: []})), rng);
+    const bidding = advanceBots(openBidding(slot.slot, dealt.offer, order, lots), (seat) => campaign.seats[seat]?.kind === 'bot');
+    this.settleBidding(campaign, bidding);
+  }
+
+  /** A finished bidding becomes the slot's record and the seats' holdings; an open one stands on the campaign. */
+  private settleBidding(campaign: SerializedCampaign, bidding: BiddingState): void {
+    if (!bidding.done) {
+      campaign.bidding = bidding;
+      return;
+    }
+    campaign.bidding = undefined;
+    const slot = campaign.missions[bidding.sourceSlot];
+    if (slot !== undefined) {
+      slot.bidding = bidding;
+    }
+    const tenders = campaign.progression.tenders ?? {};
+    for (const {seat, holding} of biddingHoldings(bidding)) {
+      const list = tenders[seat] ?? [];
+      if (!list.some((h) => h.instance === holding.instance)) {
+        list.push(holding);
+      }
+      tenders[seat] = list;
+    }
+    campaign.progression.tenders = tenders;
+  }
+
+  // ------------------------------------------------------------ bidding --
+
+  /**
+   * ONE SEAT'S PICK at the open bidding. The bearer is the picker's PlayerId in
+   * the source mission. The pure engine refuses out of turn / a card not on the
+   * table; the bot's picks that follow are applied at once; the last pick
+   * closes the bidding and records the holdings.
+   */
+  public async submitBid(id: CampaignId, playerId: PlayerId, instance: string): Promise<{campaign: SerializedCampaign, viewerName: string | undefined}> {
+    const campaign = await this.load(id);
+    if (campaign === undefined) {
+      throw new Error('Campaign not found');
+    }
+    const bidding = campaign.bidding;
+    if (bidding === undefined || bidding.done) {
+      throw new Error('No tender bidding is open');
+    }
+    const sourceSlot = campaign.missions[bidding.sourceSlot];
+    const seatEntry = Object.entries(sourceSlot.playerIds ?? {}).find(([, pid]) => pid === playerId);
+    if (seatEntry === undefined) {
+      throw new Error('Not a participant of the source mission');
+    }
+    const seat = Number(seatEntry[0]);
+    const next = advanceBots(applyBid(bidding, seat, instance), (s) => campaign.seats[s]?.kind === 'bot');
+    this.settleBidding(campaign, next);
+    await this.save(campaign);
+    return {campaign, viewerName: campaign.seats[seat]?.name};
   }
 
   private async loadWithoutReconcile(id: CampaignId): Promise<SerializedCampaign | undefined> {
@@ -700,7 +945,7 @@ export class CampaignManager {
 
   // ----------------------------------------------------------- carryover --
 
-  public async submitCarryover(id: CampaignId, playerId: PlayerId, cards: ReadonlyArray<CardName>): Promise<SerializedCampaign> {
+  public async submitCarryover(id: CampaignId, playerId: PlayerId, cards: ReadonlyArray<CardName>, preludes: ReadonlyArray<CardName> = []): Promise<SerializedCampaign> {
     const campaign = await this.load(id);
     if (campaign === undefined) {
       throw new Error('Campaign not found');
@@ -708,6 +953,11 @@ export class CampaignManager {
     const carryover = campaign.carryover;
     if (carryover === undefined || campaign.phase !== 'interlude') {
       throw new Error('No project carryover is open');
+    }
+    // The «Тендеры» mode: the bidding decides what the legacy may carry — the
+    // carryover waits for it (the same readiness regime: everybody waits).
+    if (campaign.bidding !== undefined && !campaign.bidding.done) {
+      throw new Error('The tender bidding must finish first');
     }
     const sourceSlot = campaign.missions[carryover.sourceSlot];
     const seatEntry = Object.entries(sourceSlot.playerIds ?? {}).find(([, pid]) => pid === playerId);
@@ -722,7 +972,7 @@ export class CampaignManager {
     if (state.consumed) {
       throw new Error('The selection was already applied by the next mission');
     }
-    const limit = carryoverLimitOf(state);
+    const limit = carryoverLimitWithTenders(campaign, seat, state, carryover.sourceSlot);
     if (cards.length > limit) {
       throw new Error(`This seat can carry at most ${limit} project card(s) over`);
     }
@@ -741,7 +991,31 @@ export class CampaignManager {
         throw new Error(`Card ${name} is not available in this build`);
       }
     }
+    // «Продление программы»: one PLAYED prelude per held copy, from the recorded set.
+    const preludeLimit = tenderPreludeLimitOf(campaign, seat, carryover.sourceSlot);
+    if (preludes.length > preludeLimit) {
+      throw new Error(preludeLimit === 0 ? 'This seat carries no prelude' : `This seat can carry at most ${preludeLimit} prelude(s)`);
+    }
+    if (new Set(preludes).size !== preludes.length) {
+      throw new Error('Duplicate preludes in the carryover selection');
+    }
+    const playedPreludes = [...(sourceSlot.finalPreludes?.[seat] ?? [])];
+    for (const name of preludes) {
+      const idx = playedPreludes.indexOf(name);
+      if (idx === -1) {
+        throw new Error(`Prelude ${name} was not played by you in that mission`);
+      }
+      playedPreludes.splice(idx, 1);
+      if (newPrelude(name) === undefined) {
+        throw new Error(`Prelude ${name} is not available in this build`);
+      }
+    }
     state.cards = [...cards];
+    if (preludes.length > 0) {
+      state.preludes = [...preludes];
+    } else {
+      delete state.preludes;
+    }
     state.status = 'confirmed';
     await this.save(campaign);
     return campaign;
@@ -779,10 +1053,24 @@ export class CampaignManager {
       }
       slot.result = undefined;
       slot.finalHands = undefined;
+      slot.finalPreludes = undefined;
       campaign.carryover = undefined;
       campaign.championSeats = undefined;
       campaign.pointer = slot.slot;
       campaign.phase = 'missionActive';
+      // The «Тендеры» mode: the revoked mission's bidding and what it gave are
+      // withdrawn (the Register's cards stay drawn — the next printing covers
+      // an exhausted deck; an honest loss, never a doubled card).
+      if (slot.bidding !== undefined || campaign.bidding?.sourceSlot === slot.slot) {
+        slot.bidding = undefined;
+        campaign.bidding = undefined;
+        const tenders = campaign.progression.tenders;
+        if (tenders !== undefined) {
+          for (const [seat, list] of Object.entries(tenders)) {
+            tenders[Number(seat)] = list.filter((h) => h.wonAtSlot !== slot.slot);
+          }
+        }
+      }
       this.rebuildProgression(campaign);
       await this.save(campaign);
       return true;
@@ -988,6 +1276,8 @@ export class CampaignManager {
       yourTitlePoints: campaign.progression.titles
         .filter((t) => t.seat === viewerSeat.seat)
         .reduce((sum, t) => sum + t.titlePoints, 0),
+      rewardMode: campaignRewardMode(campaign),
+      yourTenders: (campaign.progression.tenders?.[viewerSeat.seat] ?? []).filter((t) => t.status === 'held').length,
     };
   }
 
@@ -1006,6 +1296,11 @@ export class CampaignManager {
     }
     // generated | interlude — the launch window.
     const carryover = campaign.carryover;
+    const bidding = campaign.bidding;
+    if (bidding !== undefined && !bidding.done && campaign.phase === 'interlude') {
+      // The «Тендеры» mode: the open bidding is the viewer's own action only on their turn.
+      return {state: biddingTurnSeat(bidding) === viewerSeat.seat ? 'chooseTender' : 'waitingOthers'};
+    }
     if (carryover !== undefined && campaign.phase === 'interlude') {
       const own = carryover.bySeat[viewerSeat.seat];
       if (own !== undefined && own.status !== 'confirmed') {
@@ -1013,7 +1308,7 @@ export class CampaignManager {
       }
     }
     const blockers = this.launchBlockersOf(campaign)
-      .filter((b) => b !== 'Waiting for the project carryover selections');
+      .filter((b) => b !== 'Waiting for the project carryover selections' && b !== 'Waiting for the tender bidding');
     if (blockers.length > 0) {
       return {state: 'blocked', blockedReason: blockers[0]};
     }
@@ -1159,6 +1454,19 @@ export class CampaignManager {
     carryoverPending?: boolean,
     /** seat → the seat's carry limit, overriding `carryoverLimitFor` (a stand sees 1 / 3 / 5 live). */
     carryoverLimits?: Record<number, number>,
+    /**
+     * The «Тендеры» mode: leave the bidding OPEN for the humans (the real
+     * regime — the endgame's bidding scene is testable without playing a
+     * mission). Default: every human's pick is resolved by the bot's own
+     * denial order, so a fast-forward never waits.
+     */
+    biddingPending?: boolean,
+    /** The «Тендеры» mode: seat → the tender KIND that seat picks at this bidding (when it lies on the table). */
+    tenderPicks?: Record<number, TenderId>,
+    /** The «Тендеры» mode: seat → tenders granted OUTRIGHT by the fabricated mission (no bidding dealt for them). */
+    tenders?: Record<number, Array<TenderId>>,
+    /** The «Тендеры» mode: seat → the preludes the fabricated mission recorded as PLAYED (a «Продление» candidate set). */
+    finalPreludes?: Record<number, Array<CardName>>,
   }): Promise<SerializedCampaign> {
     const campaign = await this.load(id);
     if (campaign === undefined) {
@@ -1192,9 +1500,10 @@ export class CampaignManager {
       tiedWith: [],
     }));
     const humanSeats = new Set(campaign.seats.filter((s) => s.kind === 'human').map((s) => s.seat));
+    const tenderMode = campaignRewardMode(campaign) === 'tenders';
     if (!final) {
       for (const standing of standings) {
-        const title = titleForPlace(standing.place, seatCount);
+        const title = tenderMode ? undefined : titleForPlace(standing.place, seatCount);
         if (title !== undefined && title !== null) {
           titles.push({seat: standing.seat, missionSlot: slot.slot, title, titlePoints: TITLE_TABLE[title].titlePoints});
         }
@@ -1218,16 +1527,38 @@ export class CampaignManager {
       championSeats: final ? [placements[0]] : undefined,
     };
     campaign.progression.titles.push(...titles);
+    // The «Тендеры» mode: tenders granted OUTRIGHT by the fixture (a finale
+    // stand needs holdings, not a bidding).
+    if (tenderMode && fixture?.tenders !== undefined) {
+      const tenders = campaign.progression.tenders ?? {};
+      for (const [seatKey, ids] of Object.entries(fixture.tenders)) {
+        const seat = Number(seatKey);
+        const list = tenders[seat] ?? [];
+        ids.forEach((tenderId, k) => {
+          if (isTenderId(tenderId)) {
+            list.push({instance: `dev${slot.slot}-${seat}-${k}`, id: tenderId, wonAtSlot: slot.slot, place: 1, status: 'held'});
+          }
+        });
+        tenders[seat] = list;
+      }
+      campaign.progression.tenders = tenders;
+    }
     if (final) {
       campaign.phase = 'finished';
       campaign.championSeats = [placements[0]];
       campaign.carryover = undefined;
     } else {
       slot.finalHands = {};
+      if (tenderMode) {
+        slot.finalPreludes = {};
+      }
       const bySeat: Record<number, CarryoverSeatState> = {};
       for (const seat of humanSeats) {
         const carried = fixture?.carryover?.[seat] ?? [];
         slot.finalHands[seat] = [...carried];
+        if (slot.finalPreludes !== undefined) {
+          slot.finalPreludes[seat] = [...(fixture?.finalPreludes?.[seat] ?? [])];
+        }
         const limit = fixture?.carryoverLimits?.[seat] ?? carryoverLimitFor(campaign, seat, slot.modifiers);
         bySeat[seat] = fixture?.carryoverPending === true ?
           {status: 'pending', cards: [], consumed: false, limit} :
@@ -1236,9 +1567,39 @@ export class CampaignManager {
       campaign.carryover = {sourceSlot: slot.slot, bySeat};
       campaign.pointer = slot.slot + 1;
       campaign.phase = 'interlude';
+      // The «Тендеры» mode: the REAL bidding opens over the fabricated
+      // standings; a human's pick comes from the fixture (`tenderPicks`), or is
+      // resolved by the bot's own order so the fast-forward never waits — unless
+      // the stand asks for the open bidding itself (`biddingPending`).
+      if (tenderMode && fixture?.tenders === undefined) {
+        this.openBiddingFor(campaign, slot, standings);
+        if (fixture?.biddingPending !== true) {
+          this.resolveHumanBids(campaign, fixture?.tenderPicks);
+        }
+      }
     }
     await this.save(campaign);
     return campaign;
+  }
+
+  /** The dev fast-forward's answer for every human turn of an open bidding. */
+  private resolveHumanBids(campaign: SerializedCampaign, picks?: Record<number, TenderId>): void {
+    const isBot = (seat: number) => campaign.seats[seat]?.kind === 'bot';
+    let guard = 0;
+    while (campaign.bidding !== undefined && !campaign.bidding.done && guard++ < 10) {
+      const bidding = campaign.bidding;
+      const turn = biddingTurnSeat(bidding);
+      if (turn === undefined) {
+        break;
+      }
+      const open = biddingOpenCards(bidding);
+      const wanted = picks?.[turn];
+      const card = open.find((c) => c.id === wanted) ?? botTenderPick(open);
+      if (card === undefined) {
+        break;
+      }
+      this.settleBidding(campaign, advanceBots(applyBid(bidding, turn, card.instance), isBot));
+    }
   }
 
   // --------------------------------------------------------------- model --
@@ -1275,6 +1636,9 @@ export class CampaignManager {
     if (!this.boardIsAvailable(slot.board, hasBot)) {
       blockers.push('The mission board is unavailable in this build');
     }
+    if (campaign.bidding !== undefined && !campaign.bidding.done) {
+      blockers.push('Waiting for the tender bidding');
+    }
     const carryover = campaign.carryover;
     if (carryover !== undefined && carryover.sourceSlot === slot.slot - 1) {
       for (const state of Object.values(carryover.bySeat)) {
@@ -1284,7 +1648,8 @@ export class CampaignManager {
         }
       }
       for (const state of Object.values(carryover.bySeat)) {
-        if (state.cards.some((name) => newProjectCard(name) === undefined)) {
+        if (state.cards.some((name) => newProjectCard(name) === undefined) ||
+            (state.preludes ?? []).some((name) => newPrelude(name) === undefined)) {
           blockers.push('A carried project card is unavailable in this build');
           break;
         }
@@ -1334,6 +1699,7 @@ export class CampaignManager {
         result: slot.result !== undefined ? this.resultModel(slot.result) : undefined,
         carriedCounts,
         yourCarried: viewerSeat !== undefined ? slot.carriedBySeat?.[viewerSeat.seat] : undefined,
+        ...(slot.bidding !== undefined ? {bidding: slot.bidding} : {}),
       };
     });
 
@@ -1354,20 +1720,40 @@ export class CampaignManager {
 
     let carryoverModel: CampaignCarryoverModel | undefined = undefined;
     if (campaign.carryover !== undefined) {
-      const source = campaign.missions[campaign.carryover.sourceSlot];
+      const sourceIndex = campaign.carryover.sourceSlot;
+      const source = campaign.missions[sourceIndex];
+      const tenderMode = campaignRewardMode(campaign) === 'tenders';
+      const own = viewerSeat !== undefined ? campaign.carryover.bySeat[viewerSeat.seat] : undefined;
       carryoverModel = {
-        sourceSlot: campaign.carryover.sourceSlot,
+        sourceSlot: sourceIndex,
         bySeat: Object.entries(campaign.carryover.bySeat).map(([seat, state]) => ({
           seat: Number(seat),
           status: state.status,
           count: state.cards.length,
-          limit: carryoverLimitOf(state),
+          limit: carryoverLimitWithTenders(campaign, Number(seat), state, sourceIndex),
+          ...(tenderMode ? {preludeCount: (state.preludes ?? []).length} : {}),
         })),
         // PRIVACY: card identities go to their owner alone.
-        yourCards: viewerSeat !== undefined ? campaign.carryover.bySeat[viewerSeat.seat]?.cards : undefined,
+        yourCards: own?.cards,
         yourEligible: viewerSeat !== undefined ? source.finalHands?.[viewerSeat.seat] : undefined,
-        yourLimit: viewerSeat !== undefined && campaign.carryover.bySeat[viewerSeat.seat] !== undefined ?
-          carryoverLimitOf(campaign.carryover.bySeat[viewerSeat.seat]) : undefined,
+        yourLimit: viewerSeat !== undefined && own !== undefined ?
+          carryoverLimitWithTenders(campaign, viewerSeat.seat, own, sourceIndex) : undefined,
+        // The «Тендеры» mode before the finale: the seats the held «Расширенное
+        // наследие» add, and the played preludes a «Продление программы» may carry.
+        ...(tenderMode && viewerSeat !== undefined && own !== undefined ? {
+          yourTenderSeats: tenderSeatsOf(campaign, viewerSeat.seat, sourceIndex),
+          yourEligiblePreludes: source.finalPreludes?.[viewerSeat.seat] ?? [],
+          yourPreludeLimit: tenderPreludeLimitOf(campaign, viewerSeat.seat, sourceIndex),
+          yourPreludes: own.preludes ?? [],
+        } : {}),
+      };
+    }
+
+    let biddingModel: BiddingModel | undefined = undefined;
+    if (campaign.bidding !== undefined) {
+      biddingModel = {
+        ...campaign.bidding,
+        yourTurn: viewerSeat !== undefined && biddingTurnSeat(campaign.bidding) === viewerSeat.seat,
       };
     }
 
@@ -1396,9 +1782,12 @@ export class CampaignManager {
         titles: campaign.progression.titles,
         titlePoints,
         pendingBonuses,
+        ...(campaign.progression.tenders !== undefined ? {tenders: campaign.progression.tenders} : {}),
       },
       carryover: carryoverModel,
       championSeats: campaign.championSeats,
+      rewardMode: campaignRewardMode(campaign),
+      ...(biddingModel !== undefined ? {bidding: biddingModel} : {}),
     };
   }
 

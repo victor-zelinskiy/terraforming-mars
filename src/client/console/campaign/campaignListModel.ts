@@ -65,7 +65,7 @@ export function isArchivedCampaign(c: CampaignSummaryModel): boolean {
   return c.phase === 'finished' || c.phase === 'abandoned';
 }
 
-const ACTION_STATES: ReadonlySet<CampaignViewerState> = new Set(['yourTurn', 'chooseCarryover']);
+const ACTION_STATES: ReadonlySet<CampaignViewerState> = new Set(['yourTurn', 'chooseCarryover', 'chooseTender']);
 
 /** «От меня требуется действие» — the row's turn accent and the bar's highlight. */
 export function campaignActionRequired(c: CampaignSummaryModel): boolean {
@@ -125,6 +125,7 @@ export function campaignStateLabelKey(c: CampaignSummaryModel): string {
   switch (c.state) {
   case 'yourTurn': return 'Your turn';
   case 'chooseCarryover': return 'Choose projects to carry over';
+  case 'chooseTender': return 'Pick your tender';
   case 'waitingOthers': return 'Waiting for the project carryover selections';
   case 'waitingLaunch': return 'Waiting for the campaign creator to launch the mission';
   case 'launchReady': return 'Mission ready to launch';

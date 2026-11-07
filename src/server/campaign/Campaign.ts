@@ -20,6 +20,8 @@ import {
   MissionResult,
   TitleEntry,
 } from '../../common/campaign/CampaignTypes';
+import {BiddingState, CampaignRewardMode, TenderHolding} from '../../common/campaign/tenders';
+import {TenderRegister} from './tenderBidding';
 
 export type SerializedMissionSlot = {
   slot: number;
@@ -52,6 +54,18 @@ export type SerializedMissionSlot = {
   carriedBySeat?: Record<number, Array<CardName>>;
   /** D12 board repairs of a blocked slot — part of the public chronicle. */
   repairs?: Array<{atMs: number, fromBoard: BoardName, toBoard: BoardName}>;
+  /**
+   * The «Тендеры» mode: each human seat's PLAYED preludes at the mission's end
+   * (public — they lay face-up on the table), recorded at commit — the ONLY set
+   * a «Продление программы» may carry from.
+   */
+  finalPreludes?: Record<number, Array<CardName>>;
+  /**
+   * The «Тендеры» mode: this mission's bidding once it is DONE — the table, the
+   * order, the lots, who took what. The chronicle's record; the live bidding
+   * stands on the campaign (`bidding`) while open.
+   */
+  bidding?: BiddingState;
 };
 
 export type CarryoverSeatState = {
@@ -61,9 +75,16 @@ export type CarryoverSeatState = {
   /**
    * How many cards this seat may carry — a VARIABLE OF THE SEAT, written once
    * by `carryoverLimitFor` when the window opens. Absent on an older save:
-   * read through `carryoverLimitOf` (the default).
+   * read through `carryoverLimitOf` (the default). In the «Тендеры» mode the
+   * seat's held «Расширенное наследие» tenders add to it at READ time
+   * (`carryoverLimitWithTenders`) — the stored number stays the base.
    */
   limit?: number;
+  /**
+   * The «Тендеры» mode: the played preludes this seat carries into the finale
+   * («Продление программы» — one per held copy). Absent = none.
+   */
+  preludes?: Array<CardName>;
   /** Set atomically by the next mission's launch — re-launch can never re-apply. */
   consumed: boolean;
 };
@@ -108,6 +129,12 @@ export type SerializedCampaign = {
      */
     botHoldings?: Array<MarsBotCorpId>;
     titles: Array<{seat: number} & TitleEntry>;
+    /**
+     * The «Тендеры» mode: seat → every tender the seat won, in acquisition
+     * order, with its status. Rebuilt from the slots' bidding records on a
+     * revoke. Absent on a titles campaign.
+     */
+    tenders?: Record<number, Array<TenderHolding>>;
   };
   /** Present between missions while the project carryover is being decided. */
   carryover?: {
@@ -115,6 +142,15 @@ export type SerializedCampaign = {
     bySeat: Record<number, CarryoverSeatState>;
   };
   championSeats?: Array<number>;
+  /**
+   * How the campaign rewards a mission's placement (docs/CAMPAIGN_CONCESSIONS_DESIGN.md).
+   * Absent on a document written before the mode existed = `titles`. Frozen at creation.
+   */
+  rewardMode?: CampaignRewardMode;
+  /** The «Тендеры» mode: the shuffled tender deck and its cursor (`tenderBidding.ts`). */
+  register?: TenderRegister;
+  /** The «Тендеры» mode: the LIVE bidding of the interlude — present from the commit until every pick is made. */
+  bidding?: BiddingState;
   /**
    * DELETION TOMBSTONE. Set (and persisted) BEFORE the first mission game is
    * deleted; the campaign document itself is deleted only after the whole

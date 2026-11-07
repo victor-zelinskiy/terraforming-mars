@@ -43,7 +43,7 @@ import {SpaceId} from '../../common/Types';
 import {cardsToModel, coloniesToModel} from './ModelUtils';
 import {ColoniesHandler} from '../colonies/ColoniesHandler';
 import {ColonyTradeBlockModel} from '../../common/models/ColonyModel';
-import {newProjectCard} from '../createCard';
+import {newPrelude, newProjectCard} from '../createCard';
 import {runId} from '../utils/server-ids';
 import {toName} from '../../common/utils/utils';
 import {MAX_AWARDS, MAX_MILESTONES} from '../../common/constants';
@@ -283,6 +283,17 @@ export class Server {
         undefined,
       campaignBonusGranted: player.game.gameOptions.campaign !== undefined ?
         player.campaignBonusGranted === true : undefined,
+      // CAMPAIGN «ТЕНДЕРЫ», self-only: the carried preludes beside the carried
+      // projects, and the player's tenders with their status.
+      campaignCarriedPreludes: player.campaignCarriedPreludes !== undefined && player.campaignCarriedPreludes.length > 0 ?
+        cardsToModel(player, player.campaignCarriedPreludes.flatMap((name) => {
+          const card = newPrelude(name);
+          return card === undefined ? [] : [card];
+        })) :
+        undefined,
+      campaignTenders: player.campaignTenders !== undefined && player.campaignTenders.length > 0 ?
+        player.campaignTenders.map((t) => ({instance: t.instance, id: t.id, status: t.status})) :
+        undefined,
       preludeCardsInHand: cardsToModel(player, player.preludeCardsInHand),
       pendingInitialActions: player.pendingInitialActions.map((c) => c.name),
       thisPlayer: thisPlayer,

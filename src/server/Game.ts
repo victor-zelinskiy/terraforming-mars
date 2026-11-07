@@ -25,7 +25,7 @@ import {ColoniesHandler} from './colonies/ColoniesHandler';
 import {IColony} from './colonies/IColony';
 import {Color} from '../common/Color';
 import {ICorporationCard, isICorporationCard} from './cards/corporation/ICorporationCard';
-import {campaignCorporationQueue, campaignSelectionSkipsCorpStep, campaignSetupExtrasOwed, campaignSetupResumeInput, expectedCorporationCount, initialSelectionDoneOf, reserveCarriedProjectCards} from './campaign/CampaignMissionSetup';
+import {campaignCorporationQueue, campaignSelectionSkipsCorpStep, campaignSetupExtrasOwed, campaignSetupResumeInput, expectedCorporationCount, initialSelectionDoneOf, reserveCarriedPreludes, reserveCarriedProjectCards} from './campaign/CampaignMissionSetup';
 import {Database} from './database/Database';
 import {FundedAward, serializeFundedAwards, deserializeFundedAwards} from './awards/FundedAward';
 import {IAward} from './awards/IAward';
@@ -492,6 +492,9 @@ export class Game implements IGame, Logger {
     // second copy can never be dealt, drawn or reshuffled in.
     if (gameOptions.campaign !== undefined) {
       reserveCarriedProjectCards(projectDeck, players);
+      // The «Тендеры» mode's «Продление программы»: a carried prelude leaves
+      // the prelude deck the same way, before any deal.
+      reserveCarriedPreludes(preludeDeck, players);
     }
 
     const activePlayer = firstPlayer.id;

@@ -212,6 +212,7 @@ function startSequenceKicker(prompt: string): string {
   case 'corporationMerge': return 'Merger stage';
   case 'campaignBonus': return 'Campaign bonus';
   case 'campaignLegacy': return 'Project legacy';
+  case 'tenderCompensation': return 'Tender compensation';
   case 'preludeSelection': return 'Prelude';
   default: return 'Start of the game';
   }

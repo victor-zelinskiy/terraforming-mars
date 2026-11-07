@@ -35,7 +35,7 @@ export class ApiCampaignCarryover extends Handler {
     }
     const body = await readRequestBody(req);
     try {
-      const parsed = JSON.parse(body) as {playerId?: string, cards?: Array<CardName>};
+      const parsed = JSON.parse(body) as {playerId?: string, cards?: Array<CardName>, preludes?: Array<CardName>};
       if (typeof parsed.playerId !== 'string' || !isPlayerId(parsed.playerId)) {
         responses.badRequest(req, res, 'invalid player id');
         return;
@@ -44,8 +44,13 @@ export class ApiCampaignCarryover extends Handler {
         responses.badRequest(req, res, 'invalid cards');
         return;
       }
+      // The «Тендеры» mode: the played preludes a «Продление программы» carries (absent = none).
+      if (parsed.preludes !== undefined && (!Array.isArray(parsed.preludes) || parsed.preludes.some((c) => typeof c !== 'string'))) {
+        responses.badRequest(req, res, 'invalid preludes');
+        return;
+      }
       const manager = CampaignManager.getInstance();
-      const campaign = await manager.submitCarryover(id, parsed.playerId, parsed.cards);
+      const campaign = await manager.submitCarryover(id, parsed.playerId, parsed.cards, parsed.preludes ?? []);
       // The response is the OWNER's view: resolve the viewer by their seat.
       const seatEntry = campaign.carryover !== undefined ?
         Object.entries(campaign.missions[campaign.carryover.sourceSlot].playerIds ?? {})

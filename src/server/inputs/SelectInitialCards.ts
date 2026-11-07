@@ -8,9 +8,17 @@ import {CardName} from '../../common/cards/CardName';
 import {SelectInitialCardsModel} from '../../common/models/PlayerInputModel';
 import {InputError} from './InputError';
 import {OptionsInput} from './OptionsPlayerInput';
-import {InputResponse, isSelectInitialCardsResponse} from '../../common/inputs/InputResponse';
+import {InputResponse, isSelectInitialCardsResponse, isTenderResponse} from '../../common/inputs/InputResponse';
 import {PlayerInput} from '../PlayerInput';
-import {campaignSelectionSkipsCorpStep, campaignStartingBudget} from '../campaign/CampaignMissionSetup';
+import {
+  campaignPreludePickCount,
+  campaignSelectionSkipsCorpStep,
+  campaignStartingBudget,
+  campaignTendersOf,
+  campaignTenderWindowOpen,
+  executeTender,
+  grantCarriedPreludes,
+} from '../campaign/CampaignMissionSetup';
 
 type Inputs = {
   corp: PlayerInput | undefined,
@@ -61,11 +69,14 @@ export class SelectInitialCards extends OptionsInput<undefined> {
     }
 
     if (game.gameOptions.preludeExtension) {
+      // The pick count is READ at answer time: a campaign «Дополнительный
+      // пролог» executed mid-selection raises it (`syncPreludePick`).
+      const pickCount = () => campaignPreludePickCount(player);
       this.push('prelude',
-        new SelectCard(titles.SELECT_PRELUDE_TITLE, undefined, player.dealtPreludeCards, {min: 2, max: 2})
+        new SelectCard(titles.SELECT_PRELUDE_TITLE, undefined, player.dealtPreludeCards, {min: pickCount(), max: pickCount()})
           .andThen((preludeCards) => {
-            if (preludeCards.length !== 2) {
-              throw new InputError('Only select 2 preludes');
+            if (preludeCards.length !== pickCount()) {
+              throw new InputError(`Only select ${pickCount()} preludes`);
             }
             player.preludeCardsInHand.push(...preludeCards);
             return undefined;
@@ -156,6 +167,9 @@ export class SelectInitialCards extends OptionsInput<undefined> {
         game.preludeDeck.discard(card);
       }
     }
+    // Campaign «Продление программы»: the carried preludes join the picked ones
+    // here — reserved from the deck at creation, never dealt, played with them.
+    grantCarriedPreludes(player);
 
     for (const card of player.dealtCeoCards) {
       if (player.ceoCardsInHand.has(card) === false) {
@@ -165,15 +179,50 @@ export class SelectInitialCards extends OptionsInput<undefined> {
   }
 
   public toModel(player: IPlayer): SelectInitialCardsModel {
-    return {
+    const model: SelectInitialCardsModel = {
       title: this.title,
       buttonLabel: this.buttonLabel,
       type: 'initialCards',
       options: this.options.map((option) => option.toModel(player)),
     };
+    // Campaign «Тендеры», the finale: the player's tenders ride the selection
+    // (structural — the start's «НАСЛЕДИЕ › ТЕНДЕРЫ» page reads them here).
+    const tenders = campaignTendersOf(player);
+    if (tenders.length > 0) {
+      model.tenders = tenders.map((t) => ({
+        instance: t.instance,
+        id: t.id,
+        status: t.status,
+        ...(t.offer !== undefined ? {offer: [...t.offer]} : {}),
+      }));
+    }
+    return model;
+  }
+
+  /** A campaign «Дополнительный пролог» changed the pick count under the standing step. */
+  private syncPreludePick(player: IPlayer): void {
+    const prelude = this.inputs.prelude;
+    if (prelude instanceof SelectCard) {
+      const count = campaignPreludePickCount(player);
+      prelude.config.min = count;
+      prelude.config.max = count;
+    }
   }
 
   public process(input: InputResponse, player: IPlayer) {
+    if (isTenderResponse(input)) {
+      // CAMPAIGN «ТЕНДЕРЫ»: a tender executed from inside the selection. The
+      // effect lands on the player's deal; the SAME selection is served again
+      // (a fresh prompt identity — the client applies the returned view), and
+      // the selection itself stays unanswered.
+      if (!campaignTenderWindowOpen(player)) {
+        throw new InputError('No tender can be executed now');
+      }
+      executeTender(player, input);
+      this.syncPreludePick(player);
+      player.setWaitingFor(this);
+      return undefined;
+    }
     if (!isSelectInitialCardsResponse(input)) {
       throw new InputError('Not a valid SelectInitialCardsResponse');
     }

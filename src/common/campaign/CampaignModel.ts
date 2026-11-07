@@ -18,6 +18,16 @@ import {
   MissionStanding,
   TitleEntry,
 } from './CampaignTypes';
+import {BiddingState, CampaignRewardMode, TenderHolding} from './tenders';
+
+/**
+ * The live BIDDING as every viewer sees it (the «Тендеры» reward mode): the
+ * table, the pick order with its lots, whose turn it is — plus the viewer's own
+ * `yourTurn`. Nothing here is private: the cards were dealt face-up.
+ */
+export type BiddingModel = BiddingState & {
+  yourTurn: boolean;
+};
 
 /** Public projection of a committed mission result (no private hand data). */
 export type MissionResultModel = {
@@ -49,6 +59,8 @@ export type CampaignMissionModel = {
   carriedCounts?: Record<number, number>;
   /** Owner-only: the viewer's own cards carried INTO this mission. */
   yourCarried?: ReadonlyArray<CardName>;
+  /** The «Тендеры» reward mode: this mission's finished bidding — the table, the order, the lots, who took what. */
+  bidding?: BiddingState;
 };
 
 export type CarryoverSeatPublic = {
@@ -57,6 +69,8 @@ export type CarryoverSeatPublic = {
   count: number;
   /** The seat's carry limit (public — a limit is not a secret; the cards are). */
   limit: number;
+  /** The «Тендеры» mode: how many played preludes this seat carries («Продление программы»). */
+  preludeCount?: number;
 };
 
 export type CampaignCarryoverModel = {
@@ -66,8 +80,19 @@ export type CampaignCarryoverModel = {
   yourCards?: ReadonlyArray<CardName>;
   /** Owner-only: the recorded terminal hand the viewer may pick from. */
   yourEligible?: ReadonlyArray<CardName>;
-  /** The viewer's own carry limit — THE one number every carryover surface reads. */
+  /**
+   * The viewer's own carry limit — THE one number every carryover surface reads. In the «Тендеры» mode before the
+   * finale it already INCLUDES the seats the viewer's held «Расширенное наследие» tenders add (`yourTenderSeats`).
+   */
   yourLimit?: number;
+  /** The «Тендеры» mode: how many of `yourLimit` are seats a tender adds (the picker marks them). */
+  yourTenderSeats?: number;
+  /** The «Тендеры» mode: the viewer's played preludes of the source mission (a «Продление программы» candidate set). */
+  yourEligiblePreludes?: ReadonlyArray<CardName>;
+  /** The «Тендеры» mode: how many preludes the viewer may carry (one per held «Продление программы»). */
+  yourPreludeLimit?: number;
+  /** The «Тендеры» mode: the viewer's currently selected preludes. */
+  yourPreludes?: ReadonlyArray<CardName>;
 };
 
 export type CampaignModel = {
@@ -96,7 +121,21 @@ export type CampaignModel = {
     titlePoints: Record<number, number>;
     /** seat → bonus M€ pending for the next mission (empty when none). */
     pendingBonuses: Record<number, number>;
+    /** The «Тендеры» mode: seat → every tender the seat won, in acquisition order (public). */
+    tenders?: Record<number, ReadonlyArray<TenderHolding>>;
   };
   carryover?: CampaignCarryoverModel;
   championSeats?: ReadonlyArray<number>;
+  /**
+   * How the campaign rewards a mission's placement. The server always sends it; a model without one (an older server,
+   * a fixture) reads `titles` — `campaignModelRewardMode` is the ONE reader.
+   */
+  rewardMode?: CampaignRewardMode;
+  /** The «Тендеры» mode: the LIVE bidding of the interlude, while one is open. */
+  bidding?: BiddingModel;
 };
+
+/** The ONE reader of a model's reward mode — absent is a titles campaign. */
+export function campaignModelRewardMode(model: Pick<CampaignModel, 'rewardMode'> | undefined): CampaignRewardMode {
+  return model?.rewardMode ?? 'titles';
+}

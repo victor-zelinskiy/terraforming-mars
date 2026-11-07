@@ -7,6 +7,7 @@ import {BonusActionPromptMeta} from '../common/models/PlayerInputModel';
 import {PendingBonusGain} from '../common/BonusGain';
 import {cardsFromJSON, ceosFromJSON, corporationCardsFromJSON, newCorporationCard, preludesFromJSON} from './createCard';
 import {CardName} from '../common/cards/CardName';
+import {PlayerTender} from '../common/campaign/tenders';
 import {CardType} from '../common/cards/CardType';
 import {Color} from '../common/Color';
 import {ICorporationCard} from './cards/corporation/ICorporationCard';
@@ -237,6 +238,15 @@ export class Player implements IPlayer {
    * step, so completion needs its own persisted fact. Set for every game.
    */
   public initialCardSelectionDone: boolean = false;
+  // Campaign «Тендеры» (docs/CAMPAIGN_CONCESSIONS_DESIGN.md) — the finale only;
+  // every field absent / zero in an ordinary game and on a titles campaign.
+  public campaignTenders?: Array<PlayerTender>;
+  public campaignTendersCompensated: boolean = false;
+  public campaignCarriedPreludes?: Array<CardName>;
+  public campaignCarriedPreludesGranted: boolean = false;
+  public campaignLineageOverride?: Array<CardName>;
+  public campaignPreludePickBonus: number = 0;
+  public campaignStartingHandDiscount: number = 0;
 
   // Terraforming Rating
   public terraformRating: number = 20;
@@ -2030,7 +2040,10 @@ export class Player implements IPlayer {
     let megacreditsPaid = 0;
     if (additionalCorp === false && corporationCard.name !== CardName.BEGINNER_CORPORATION) {
       cardsBought = this.cardsInHand.length;
-      megacreditsPaid = cardsBought * this.cardCost;
+      // Campaign «Субсидия на исследования»: every card of the STARTING hand
+      // costs 1 M€ less per executed copy (never below 0) — the one purchase
+      // the tender names; the research buys keep the ordinary price.
+      megacreditsPaid = cardsBought * Math.max(0, this.cardCost - this.campaignStartingHandDiscount);
     }
     const payForBoughtCards = () => {
       this.stock.deduct(Resource.MEGACREDITS, megacreditsPaid);
@@ -3735,6 +3748,13 @@ export class Player implements IPlayer {
       campaignMergeFeesPaid: this.campaignMergeFeesPaid > 0 ? this.campaignMergeFeesPaid : undefined,
       campaignBonusGranted: this.campaignBonusGranted === true ? true : undefined,
       initialCardSelectionDone: this.initialCardSelectionDone === true ? true : undefined,
+      campaignTenders: this.campaignTenders !== undefined && this.campaignTenders.length > 0 ? this.campaignTenders : undefined,
+      campaignTendersCompensated: this.campaignTendersCompensated === true ? true : undefined,
+      campaignCarriedPreludes: this.campaignCarriedPreludes !== undefined && this.campaignCarriedPreludes.length > 0 ? this.campaignCarriedPreludes : undefined,
+      campaignCarriedPreludesGranted: this.campaignCarriedPreludesGranted === true ? true : undefined,
+      campaignLineageOverride: this.campaignLineageOverride,
+      campaignPreludePickBonus: this.campaignPreludePickBonus > 0 ? this.campaignPreludePickBonus : undefined,
+      campaignStartingHandDiscount: this.campaignStartingHandDiscount > 0 ? this.campaignStartingHandDiscount : undefined,
       // Terraforming Rating
       terraformRating: this.terraformRating,
       hasIncreasedTerraformRatingThisGeneration: this.hasIncreasedTerraformRatingThisGeneration,
@@ -3930,6 +3950,13 @@ export class Player implements IPlayer {
     player.campaignMergeFeesPaid = d.campaignMergeFeesPaid ?? 0;
     player.campaignBonusGranted = d.campaignBonusGranted ?? false;
     player.initialCardSelectionDone = d.initialCardSelectionDone ?? false;
+    player.campaignTenders = d.campaignTenders;
+    player.campaignTendersCompensated = d.campaignTendersCompensated ?? false;
+    player.campaignCarriedPreludes = d.campaignCarriedPreludes;
+    player.campaignCarriedPreludesGranted = d.campaignCarriedPreludesGranted ?? false;
+    player.campaignLineageOverride = d.campaignLineageOverride;
+    player.campaignPreludePickBonus = d.campaignPreludePickBonus ?? 0;
+    player.campaignStartingHandDiscount = d.campaignStartingHandDiscount ?? 0;
 
     player.pendingInitialActions = corporationCardsFromJSON(d.pendingInitialActions ?? []);
     player.dealtCorporationCards = corporationCardsFromJSON(d.dealtCorporationCards);

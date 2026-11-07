@@ -12,6 +12,7 @@ import {Context} from './IHandler';
 import {Request} from '../Request';
 import {Response} from '../Response';
 import {CardName} from '../../common/cards/CardName';
+import {TenderId} from '../../common/campaign/tenders';
 import {isCampaignId} from '../../common/Types';
 import {isAdminName} from '../../common/utils/adminName';
 import {CampaignManager} from '../campaign/CampaignManager';
@@ -32,7 +33,13 @@ export class ApiCampaignDev extends Handler {
     }
     const body = await readRequestBody(req);
     try {
-      const parsed = JSON.parse(body) as {campaignId?: string, placements?: Array<number>, lineages?: Record<number, Array<CardName>>, carryover?: Record<number, Array<CardName>>, carryoverPending?: boolean, carryoverLimits?: Record<number, number>};
+      const parsed = JSON.parse(body) as {
+        campaignId?: string, placements?: Array<number>, lineages?: Record<number, Array<CardName>>,
+        carryover?: Record<number, Array<CardName>>, carryoverPending?: boolean, carryoverLimits?: Record<number, number>,
+        // The «Тендеры» mode: leave the bidding open for the humans (the real regime), resolve their picks, or grant tenders outright.
+        biddingPending?: boolean, tenderPicks?: Record<number, TenderId>, tenders?: Record<number, Array<TenderId>>,
+        finalPreludes?: Record<number, Array<CardName>>,
+      };
       if (typeof parsed.campaignId !== 'string' || !isCampaignId(parsed.campaignId)) {
         responses.badRequest(req, res, 'invalid campaign id');
         return;
@@ -42,8 +49,12 @@ export class ApiCampaignDev extends Handler {
         return;
       }
       const manager = CampaignManager.getInstance();
-      const campaign = await manager.devCommit(parsed.campaignId, parsed.placements,
-        {lineages: parsed.lineages, carryover: parsed.carryover, carryoverPending: parsed.carryoverPending === true, carryoverLimits: parsed.carryoverLimits});
+      const campaign = await manager.devCommit(parsed.campaignId, parsed.placements, {
+        lineages: parsed.lineages, carryover: parsed.carryover, carryoverPending: parsed.carryoverPending === true,
+        carryoverLimits: parsed.carryoverLimits,
+        biddingPending: parsed.biddingPending === true, tenderPicks: parsed.tenderPicks, tenders: parsed.tenders,
+        finalPreludes: parsed.finalPreludes,
+      });
       responses.writeJson(res, ctx, manager.getModel(campaign, undefined));
     } catch (err) {
       responses.badRequest(req, res, err instanceof Error ? err.message : 'invalid request');

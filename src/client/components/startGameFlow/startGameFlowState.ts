@@ -235,6 +235,17 @@ export function startFlowLegacyPrompt(view: PlayerViewModel | undefined): {cards
 }
 
 /**
+ * The campaign «Тендеры» 'receive the compensation for your unexecuted
+ * tenders' prompt (marker kind `tenderCompensation`): the LAST deployment
+ * press of the finale — the Committee buys the leftover tenders back. The
+ * marker carries the count and the M€.
+ */
+export function startFlowCompensationPrompt(view: PlayerViewModel | undefined): {tenders: number, megaCredits: number} | undefined {
+  const marker = view?.waitingFor?.startGamePrompt;
+  return marker?.kind === 'tenderCompensation' ? (marker.compensation ?? {tenders: 0, megaCredits: 0}) : undefined;
+}
+
+/**
  * The DEFERRED 'pay for the project cards you bought' prompt (marker kind
  * `corporationPay`). Offered ONLY when cards were actually bought; the
  * marker carries the exact cost, so the CTA names it without parsing text.
@@ -575,7 +586,7 @@ export function startFlowHasFocusedSubAction(view: PlayerViewModel | undefined):
     return false;
   }
   if (startFlowMergePrompt(view) !== undefined || startFlowLegacyPrompt(view) !== undefined ||
-      startFlowBonusPrompt(view) !== undefined) {
+      startFlowBonusPrompt(view) !== undefined || startFlowCompensationPrompt(view) !== undefined) {
     return false;
   }
   if (ACTION_MENU_TITLES.has(titleText(wf.title))) {

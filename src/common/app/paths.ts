@@ -30,6 +30,9 @@ export const paths = {
   API_CAMPAIGN_CREATE: 'api/campaign/create',
   API_CAMPAIGN_LAUNCH: 'api/campaign/launch',
   API_CAMPAIGN_CARRYOVER: 'api/campaign/carryover',
+  // The «Тендеры» reward mode: one seat's pick at the interlude's bidding
+  // (bearer-authenticated by the source-mission PlayerId, like the carryover).
+  API_CAMPAIGN_BID: 'api/campaign/bid',
   API_CAMPAIGN_DEV: 'api/campaign/dev',
   // «Мои кампании»: the participant-scoped campaign list (one safe summary
   // per campaign the named viewer holds a seat in), and the creator-only

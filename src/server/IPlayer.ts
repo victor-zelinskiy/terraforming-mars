@@ -5,6 +5,7 @@ import type {IAward} from './awards/IAward';
 import type {SelectPaymentDeferred} from './deferredActions/SelectPaymentDeferred';
 import {PendingBonusGain} from '../common/BonusGain';
 import {CardName} from '../common/cards/CardName';
+import {PlayerTender} from '../common/campaign/tenders';
 import {ICorporationCard} from './cards/corporation/ICorporationCard';
 import {IGame, isIGame} from './IGame';
 import {Payment, PaymentOptions} from '../common/inputs/Payment';
@@ -282,6 +283,28 @@ export interface IPlayer {
   campaignBonusGranted: boolean;
   /** Initial-cards selection completed (campaign-final has no corp pick to infer from). */
   initialCardSelectionDone: boolean;
+  /**
+   * Campaign «Тендеры»: the HELD tenders this player brought into the finale,
+   * with their status (`CampaignMissionSetup` executes them while the initial
+   * selection stands; the compensation press buys the rest back).
+   */
+  campaignTenders?: Array<PlayerTender>;
+  /** Campaign «Тендеры»: the compensation press has been answered (exactly-once). */
+  campaignTendersCompensated: boolean;
+  /** Campaign «Тендеры»: the played preludes carried from the previous mission («Продление программы»). */
+  campaignCarriedPreludes?: Array<CardName>;
+  /** Campaign «Тендеры»: the carried preludes already joined `preludeCardsInHand`. */
+  campaignCarriedPreludesGranted: boolean;
+  /**
+   * Campaign «Тендеры»: the lineage AFTER a «Реструктуризация» — the contract's
+   * corporations with one replaced. Read by `campaignLineageOf`; absent = the
+   * contract's lineage.
+   */
+  campaignLineageOverride?: Array<CardName>;
+  /** Campaign «Тендеры»: «Дополнительный пролог» copies executed — each raises the prelude pick by one. */
+  campaignPreludePickBonus: number;
+  /** Campaign «Тендеры»: «Субсидия на исследования» copies executed — each takes 1 M€ off every starting-hand card. */
+  campaignStartingHandDiscount: number;
 
   // Terraforming Rating
   hasIncreasedTerraformRatingThisGeneration: boolean;

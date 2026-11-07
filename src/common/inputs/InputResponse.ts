@@ -50,6 +50,35 @@ export function isSelectInitialCardsResponse(response: InputResponse): response 
   return response.type === 'initialCards' && matches(response, ['type', 'responses']);
 }
 
+/**
+ * CAMPAIGN «ТЕНДЕРЫ» — the player EXECUTES one of their held tenders while the
+ * initial selection stands (the finale's start). Answered on the SAME
+ * `initialCards` prompt: the server applies the effect to the player's deal
+ * and serves the selection again — the selection itself is not answered.
+ *  · `keep`    — a review («оставь не более одного»): the dealt cards to keep;
+ *  · `take` / `replace` — a restructuring's RESOLUTION: the dealt candidate
+ *    joining the lineage in place of `replace`;
+ *  · `decline` — a restructuring's candidates are let go (the tender stays
+ *    held — the compensation buys it back).
+ */
+export interface TenderResponse {
+  type: 'tender',
+  instance: string;
+  keep?: Array<CardName>;
+  take?: CardName;
+  replace?: CardName;
+  decline?: boolean;
+}
+
+export function isTenderResponse(response: InputResponse): response is TenderResponse {
+  if (response.type !== 'tender') {
+    return false;
+  }
+  const allowed = ['type', 'instance', 'keep', 'take', 'replace', 'decline'];
+  const keys = Object.keys(response);
+  return keys.includes('instance') && keys.every((k) => allowed.includes(k));
+}
+
 export interface SelectCardResponse {
   type: 'card',
   cards: Array<CardName>;
@@ -477,6 +506,7 @@ export type InputResponse =
   CancelResponse |
   OrOptionsResponse |
   SelectInitialCardsResponse |
+  TenderResponse |
   SelectAmountResponse |
   DeltaProjectInputResponse |
   DeltaEspionageResponse |

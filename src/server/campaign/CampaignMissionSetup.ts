@@ -9,15 +9,29 @@ import * as constants from '../../common/constants';
 import {CardName} from '../../common/cards/CardName';
 import {Resource} from '../../common/Resource';
 import {CampaignGameContract, CampaignGrant} from '../game/GameOptions';
+import {contractRewardMode} from '../../common/campaign/CampaignGameContract';
+import {
+  CampaignRewardMode,
+  PlayerTender,
+  TENDER_BROAD_PORTFOLIO_PROJECTS,
+  TENDER_COMPENSATION_MC,
+  TENDER_OPEN_CALL_PRELUDES,
+  TENDER_RESTRUCTURING_CANDIDATES,
+  tenderDef,
+  tenderNameKey,
+} from '../../common/campaign/tenders';
+import {TenderResponse} from '../../common/inputs/InputResponse';
 import {ICorporationCard, isICorporationCard} from '../cards/corporation/ICorporationCard';
 import {IProjectCard} from '../cards/IProjectCard';
-import {newCorporationCard, newProjectCard} from '../createCard';
+import {IPreludeCard} from '../cards/prelude/IPreludeCard';
+import {newCorporationCard, newPrelude, newProjectCard} from '../createCard';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
-import {ProjectDeck} from '../cards/Deck';
+import {PreludeDeck, ProjectDeck} from '../cards/Deck';
 import {VictoryPointsBreakdownBuilder} from '../game/VictoryPointsBreakdownBuilder';
 import {PlayerInput} from '../PlayerInput';
 import {Priority} from '../deferredActions/Priority';
+import {InputError} from '../inputs/InputError';
 import {SelectCard} from '../inputs/SelectCard';
 import {SelectOption} from '../inputs/SelectOption';
 import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
@@ -29,6 +43,11 @@ export function campaignContractOf(game: IGame): CampaignGameContract | undefine
   return game.gameOptions.campaign;
 }
 
+/** The campaign's reward mode as the mission sees it (`titles` outside campaigns and on older contracts). */
+export function campaignRewardModeOf(game: IGame): CampaignRewardMode {
+  return contractRewardMode(campaignContractOf(game));
+}
+
 /** The player's public campaign grant, keyed by the immutable seat index. */
 export function campaignGrantFor(player: IPlayer): CampaignGrant | undefined {
   const contract = campaignContractOf(player.game);
@@ -38,8 +57,13 @@ export function campaignGrantFor(player: IPlayer): CampaignGrant | undefined {
   return contract.grants.find((g) => g.seat === player.campaignSeat);
 }
 
+/**
+ * THE lineage this mission deploys — the contract's, or the one a
+ * «Реструктуризация» rewrote (`campaignLineageOverride`, the one replaced
+ * corporation swapped in place). Every deployment reader asks here.
+ */
 export function campaignLineageOf(player: IPlayer): ReadonlyArray<CardName> {
-  return campaignGrantFor(player)?.corporations ?? [];
+  return player.campaignLineageOverride ?? campaignGrantFor(player)?.corporations ?? [];
 }
 
 /**
@@ -180,7 +204,7 @@ export function campaignSetupExtrasOwed(player: IPlayer): boolean {
     return false;
   }
   return campaignBonusPending(player) > 0 || campaignMergeFeesOwed(player) > 0 ||
-    campaignLegacyPending(player) > 0;
+    campaignLegacyPending(player) > 0 || tenderCompensationPending(player).tenders > 0;
 }
 
 /** Carried cards that still owe their «Наследие» press. */
@@ -212,6 +236,9 @@ export function campaignLegacyPending(player: IPlayer): number {
  *      was budgeted against the WHOLE merged stack, so the bill only arrives
  *      once every corporation's capital has assembled and every fee is paid.
  *   5. «НАСЛЕДИЕ» (when cards were carried) — BACK_OF_THE_LINE, free.
+ *   6. «КОМПЕНСАЦИЯ» (the «Тендеры» mode, when tenders were left unexecuted)
+ *      — BACK_OF_THE_LINE after the legacy: the Committee buys them back,
+ *      3 M€ each, in front of the player.
  * The ONE research release at the end drains the whole chain in order and
  * completes the barrier only after the last stage is answered.
  */
@@ -230,6 +257,7 @@ export function runCampaignDeploymentChain(player: IPlayer, options?: {deferCard
   deferCampaignBonus(player);
   player.defer(() => campaignMergeInput(player));
   deferCampaignLegacy(player);
+  deferTenderCompensation(player);
   player.game.playerIsFinishedWithResearchPhase(player);
 }
 
@@ -368,6 +396,7 @@ export function campaignSetupResumeInput(player: IPlayer): PlayerInput | undefin
         grantCampaignBonus(player);
         player.defer(() => campaignMergeInput(player));
         deferCampaignLegacy(player);
+        deferTenderCompensation(player);
         player.game.playerIsFinishedWithResearchPhase(player);
         return undefined;
       });
@@ -382,6 +411,7 @@ export function campaignSetupResumeInput(player: IPlayer): PlayerInput | undefin
         deferMergePayment(player);
         player.defer(() => campaignMergeInput(player));
         deferCampaignLegacy(player);
+        deferTenderCompensation(player);
         player.game.playerIsFinishedWithResearchPhase(player);
         return undefined;
       });
@@ -404,6 +434,7 @@ export function campaignSetupResumeInput(player: IPlayer): PlayerInput | undefin
             deferMergePayment(player);
           }
           deferCampaignLegacy(player);
+          deferTenderCompensation(player);
           player.game.playerIsFinishedWithResearchPhase(player);
           return undefined;
         });
@@ -418,9 +449,14 @@ export function campaignSetupResumeInput(player: IPlayer): PlayerInput | undefin
       .markStartGamePrompt({kind: 'campaignLegacy', legacy: {cards: legacyCount}})
       .andThen(() => {
         grantCarriedProjectCards(player);
+        deferTenderCompensation(player);
         player.game.playerIsFinishedWithResearchPhase(player);
         return undefined;
       });
+  }
+  const compensation = tenderCompensationPending(player);
+  if (compensation.tenders > 0) {
+    return tenderCompensationInput(player, () => player.game.playerIsFinishedWithResearchPhase(player));
   }
   return undefined;
 }
@@ -458,6 +494,8 @@ export function campaignStartingBudget(player: IPlayer, newCorporation: ICorpora
   if (corps.length > 1) {
     megaCredits -= Merger.mergerCost * (corps.length - 1);
   }
+  // «Субсидия на исследования»: the starting hand's price per card, after every executed copy.
+  cardCost -= player.campaignStartingHandDiscount;
   return {megaCredits, cardCost: Math.max(cardCost, 0)};
 }
 
@@ -518,15 +556,289 @@ export function grantCarriedProjectCards(player: IPlayer): void {
   player.game.log('${0} received ${1} project cards carried from the previous mission', (b) => b.player(player).number(cards.length));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// «ТЕНДЕРЫ» (docs/CAMPAIGN_CONCESSIONS_DESIGN.md) — the finale's start.
+//
+// Every tender of the START window is EXECUTED from the finale's initial
+// selection («НАСЛЕДИЕ › ТЕНДЕРЫ»), through a `tender` answer on the very
+// `initialCards` prompt: the effect lands on the player's deal in place — the
+// `SelectCard` steps hold the dealt arrays by reference — and the selection is
+// served again. A tender unexecuted when the selection completes is bought
+// back by the «КОМПЕНСАЦИЯ» press of the deployment chain.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The tenders this player brought into the mission (the finale of a «Тендеры» campaign; empty elsewhere). */
+export function campaignTendersOf(player: IPlayer): ReadonlyArray<PlayerTender> {
+  return player.campaignTenders ?? [];
+}
+
+/** A tender of the START window may be executed only while the finale's initial selection stands. */
+export function campaignTenderWindowOpen(player: IPlayer): boolean {
+  const contract = campaignContractOf(player.game);
+  return contract !== undefined && contract.final === true && contractRewardMode(contract) === 'tenders' &&
+    !player.isMarsBot && player.campaignSeat !== undefined && player.initialCardSelectionDone !== true;
+}
+
+/** How many preludes this player picks at the start: 2, plus one per executed «Дополнительный пролог». */
+export function campaignPreludePickCount(player: IPlayer): number {
+  return 2 + Math.max(0, player.campaignPreludePickBonus);
+}
+
+function redealInPlace<T extends IProjectCard>(
+  game: IGame,
+  dealt: Array<T>,
+  keep: ReadonlySet<CardName>,
+  draw: (count: number) => Array<T>,
+  discard: (cards: Array<T>) => void,
+): void {
+  const kept = dealt.filter((c) => keep.has(c.name));
+  const gone = dealt.filter((c) => !keep.has(c.name));
+  // Draw FIRST, discard after: a redeal never hands the same card straight back.
+  const fresh = draw(gone.length);
+  discard(gone);
+  dealt.splice(0, dealt.length, ...kept, ...fresh);
+  void game;
+}
+
+function keepSetOf(response: TenderResponse, dealt: ReadonlyArray<{name: CardName}>, keepMax: number): Set<CardName> {
+  const keep = response.keep ?? [];
+  if (keep.length > keepMax) {
+    throw new InputError(`This tender keeps at most ${keepMax} card(s)`);
+  }
+  const names = new Set(dealt.map((c) => c.name));
+  for (const name of keep) {
+    if (!names.has(name)) {
+      throw new InputError(`Card ${name} is not in your deal`);
+    }
+  }
+  return new Set(keep);
+}
+
 /**
- * Campaign «Титулы» as a VP category — FINAL missions only (approved D2/D8).
+ * EXECUTE one held tender of the START window. Refuses by name: an unknown
+ * instance, a tender already executed, a window that is closed, a prelude
+ * tender without the Prelude expansion, a keep that is not in the deal.
+ * Idempotent per instance (a second execution is refused, never doubled).
+ */
+export function executeTender(player: IPlayer, response: TenderResponse): void {
+  if (!campaignTenderWindowOpen(player)) {
+    throw new InputError('Tenders can be executed only while the finale\'s starting selection stands');
+  }
+  const tender = campaignTendersOf(player).find((t) => t.instance === response.instance);
+  if (tender === undefined) {
+    throw new InputError('You hold no such tender');
+  }
+  if (tender.status !== 'held') {
+    throw new InputError('This tender was already executed');
+  }
+  const def = tenderDef(tender.id);
+  if (def.window !== 'start') {
+    throw new InputError('This tender is realized on the carryover step, not at the start');
+  }
+  const game = player.game;
+  if (def.needsPreludes && game.gameOptions.preludeExtension !== true) {
+    throw new InputError('This tender needs the Prelude expansion');
+  }
+  const drawPreludes = (n: number) => game.preludeDeck.drawN(game, n);
+  const drawProjects = (n: number) => game.projectDeck.drawN(game, n);
+  switch (tender.id) {
+  case 'additionalPrelude':
+    if (player.dealtPreludeCards.length < campaignPreludePickCount(player) + 1) {
+      throw new InputError('Not enough preludes were dealt for an additional pick');
+    }
+    player.campaignPreludePickBonus++;
+    break;
+  case 'openCall':
+    player.dealtPreludeCards.push(...drawPreludes(TENDER_OPEN_CALL_PRELUDES));
+    break;
+  case 'broadPortfolio':
+    player.dealtProjectCards.push(...drawProjects(TENDER_BROAD_PORTFOLIO_PROJECTS));
+    break;
+  case 'researchSubsidy':
+    player.campaignStartingHandDiscount++;
+    break;
+  case 'preludeReview': {
+    const keep = keepSetOf(response, player.dealtPreludeCards, 1);
+    redealInPlace<IPreludeCard>(game, player.dealtPreludeCards, keep, drawPreludes, (cards) => game.preludeDeck.discard(...cards));
+    break;
+  }
+  case 'projectReview': {
+    const keep = keepSetOf(response, player.dealtProjectCards, 1);
+    redealInPlace<IProjectCard>(game, player.dealtProjectCards, keep, drawProjects, (cards) => game.projectDeck.discard(...cards));
+    break;
+  }
+  case 'gamble':
+    redealInPlace<IPreludeCard>(game, player.dealtPreludeCards, new Set(), drawPreludes, (cards) => game.preludeDeck.discard(...cards));
+    redealInPlace<IProjectCard>(game, player.dealtProjectCards, new Set(), drawProjects, (cards) => game.projectDeck.discard(...cards));
+    break;
+  case 'restructuring':
+    executeRestructuring(player, tender, response);
+    return; // its own status handling: the deal keeps the tender held until the choice
+  case 'programExtension':
+  case 'extendedLegacy':
+    throw new InputError('This tender is realized on the carryover step');
+  default:
+    throw new InputError(`Unknown tender ${tender.id}`);
+  }
+  tender.status = 'executed';
+  game.log('${0} executed the tender ${1}', (b) => b.player(player).string(tenderNameKey(tender.id)));
+}
+
+/**
+ * «РЕСТРУКТУРИЗАЦИЯ» — two answers on one tender. The first DEALS the
+ * candidates (the tender stays held, its `offer` names them); the second takes
+ * one of them in place of a lineage corporation (`campaignLineageOverride`)
+ * or declines — either way the candidates not taken go back to the deck. It
+ * works whether or not the finale drafts a corporation of its own: the
+ * override rewrites the LINEAGE, the draft's pick stays the draft's.
+ */
+function executeRestructuring(player: IPlayer, tender: PlayerTender, response: TenderResponse): void {
+  const game = player.game;
+  if (tender.offer === undefined) {
+    if (response.take !== undefined || response.replace !== undefined || response.decline === true) {
+      throw new InputError('Deal the candidates first');
+    }
+    const dealt = game.corporationDeck.drawN(game, TENDER_RESTRUCTURING_CANDIDATES);
+    if (dealt.length === 0) {
+      throw new InputError('No corporation is left to deal');
+    }
+    tender.offer = dealt.map((c) => c.name);
+    game.log('${0} opened a restructuring: ${1} corporations dealt', (b) => b.player(player).number(dealt.length));
+    return;
+  }
+  const offer = tender.offer;
+  const letGo = (names: ReadonlyArray<CardName>) => {
+    for (const name of names) {
+      const card = newCorporationCard(name);
+      if (card !== undefined) {
+        game.corporationDeck.discard(card);
+      }
+    }
+  };
+  if (response.decline === true) {
+    tender.offer = undefined;
+    letGo(offer);
+    game.log('${0} declined the restructuring', (b) => b.player(player));
+    return;
+  }
+  const take = response.take;
+  const replace = response.replace;
+  if (take === undefined || !offer.includes(take)) {
+    throw new InputError('Take one of the dealt corporations');
+  }
+  const lineage = campaignLineageOf(player);
+  if (replace === undefined || !lineage.includes(replace)) {
+    throw new InputError('Name the lineage corporation it replaces');
+  }
+  player.campaignLineageOverride = lineage.map((name) => (name === replace ? take : name));
+  tender.offer = undefined;
+  tender.status = 'executed';
+  letGo(offer.filter((name) => name !== take));
+  game.log('${0} restructured: ${1} replaces ${2}', (b) => b.player(player).cardName(take).cardName(replace));
+}
+
+/** The tenders still held once the selection is over — what the compensation press buys back. */
+export function tenderCompensationPending(player: IPlayer): {tenders: number, megaCredits: number} {
+  if (player.campaignTendersCompensated === true || player.initialCardSelectionDone !== true) {
+    return {tenders: 0, megaCredits: 0};
+  }
+  const held = campaignTendersOf(player).filter((t) => t.status === 'held').length;
+  return {tenders: held, megaCredits: held * TENDER_COMPENSATION_MC};
+}
+
+/**
+ * «КОМПЕНСАЦИЯ» — the deliberate buy-back press (marker `tenderCompensation`):
+ * the Committee pays `TENDER_COMPENSATION_MC` per tender left unexecuted, in
+ * front of the player, as the last stage of the deployment.
+ */
+export function tenderCompensationInput(player: IPlayer, after?: () => void): PlayerInput | undefined {
+  const pending = tenderCompensationPending(player);
+  if (pending.tenders === 0) {
+    return undefined;
+  }
+  return new SelectOption(
+    message('Receive ${0} M€ for ${1} unexecuted tender(s)', (b) => b.number(pending.megaCredits).number(pending.tenders)),
+    'Receive')
+    .markStartGamePrompt({kind: 'tenderCompensation', compensation: pending})
+    .andThen(() => {
+      grantTenderCompensation(player);
+      after?.();
+      return undefined;
+    });
+}
+
+/** Buys every held tender back exactly once (serialized flag). */
+export function grantTenderCompensation(player: IPlayer): void {
+  const pending = tenderCompensationPending(player);
+  if (pending.tenders === 0) {
+    return;
+  }
+  for (const tender of campaignTendersOf(player)) {
+    if (tender.status === 'held') {
+      tender.status = 'cashed';
+      tender.offer = undefined;
+    }
+  }
+  player.campaignTendersCompensated = true;
+  player.stock.add(Resource.MEGACREDITS, pending.megaCredits);
+  player.game.log('${0} received ${1} M€ for ${2} unexecuted tender(s)', (b) => b.player(player).number(pending.megaCredits).number(pending.tenders));
+}
+
+function deferTenderCompensation(player: IPlayer): void {
+  if (tenderCompensationPending(player).tenders > 0) {
+    // After the legacy press, same lane: the last thing the deployment says.
+    player.defer(() => tenderCompensationInput(player), Priority.BACK_OF_THE_LINE);
+  }
+}
+
+/**
+ * «Продление программы»: a carried prelude leaves the prelude deck BEFORE any
+ * deal — the single instance enters the game only through
+ * `grantCarriedPreludes`, so a second copy can never be dealt or reshuffled in.
+ */
+export function reserveCarriedPreludes(preludeDeck: PreludeDeck, players: ReadonlyArray<IPlayer>): void {
+  for (const player of players) {
+    for (const name of player.campaignCarriedPreludes ?? []) {
+      const idx = preludeDeck.drawPile.findIndex((c) => c.name === name);
+      if (idx === -1) {
+        throw new Error(`Carried prelude ${name} is not available in this mission's prelude deck`);
+      }
+      preludeDeck.drawPile.splice(idx, 1);
+    }
+  }
+}
+
+/**
+ * Hands the carried preludes to the player's prelude hand exactly once — at
+ * the end of the initial selection, beside the preludes just picked, so the
+ * prelude phase plays them all in the player's order.
+ */
+export function grantCarriedPreludes(player: IPlayer): void {
+  const names = player.campaignCarriedPreludes ?? [];
+  if (names.length === 0 || player.campaignCarriedPreludesGranted === true) {
+    return;
+  }
+  for (const name of names) {
+    const card = newPrelude(name);
+    if (card === undefined) {
+      throw new Error(`Carried prelude ${name} cannot be instantiated`);
+    }
+    player.preludeCardsInHand.push(card);
+  }
+  player.campaignCarriedPreludesGranted = true;
+  player.game.log('${0} carries ${1} prelude(s) from the previous mission', (b) => b.player(player).number(names.length));
+}
+
+/**
+ * Campaign «Титулы» as a VP category — FINAL missions only (approved D2/D8),
+ * the `titles` reward mode only (a «Тендеры» campaign scores no titles).
  * Every seat of a final mission materializes the field (0 included) so the
  * category renders consistently; ordinary games and missions 1–3 never touch
  * it, keeping their wire shape byte-identical.
  */
 export function calculateCampaignTitleVictoryPoints(player: IPlayer, builder: VictoryPointsBreakdownBuilder): void {
   const contract = campaignContractOf(player.game);
-  if (contract === undefined || contract.final !== true) {
+  if (contract === undefined || contract.final !== true || contractRewardMode(contract) !== 'titles') {
     return;
   }
   const grant = campaignGrantFor(player);

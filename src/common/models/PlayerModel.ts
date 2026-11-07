@@ -270,6 +270,13 @@ export interface PlayerViewModel extends ViewModel {
   // press). Lets the in-game campaign overview state «Получен» honestly
   // instead of guessing from the setup chain. Undefined outside campaigns.
   campaignBonusGranted?: boolean;
+  // CAMPAIGN «ТЕНДЕРЫ», self-only: the preludes carried from the previous
+  // mission («Продление программы») — face-up beside the carried projects.
+  campaignCarriedPreludes?: ReadonlyArray<CardModel>;
+  // CAMPAIGN «ТЕНДЕРЫ», self-only: the tenders this player brought into the
+  // finale with their status (held / executed / cashed) — the start's
+  // «НАСЛЕДИЕ › ТЕНДЕРЫ» page and the compensation row read it.
+  campaignTenders?: ReadonlyArray<{instance: string, id: string, status: 'held' | 'executed' | 'cashed'}>;
   preludeCardsInHand: ReadonlyArray<CardModel>;
   // Corporations whose MANDATORY first action this player still owes (server's
   // `pendingInitialActions`, projected to names). Self-only — corp identity is

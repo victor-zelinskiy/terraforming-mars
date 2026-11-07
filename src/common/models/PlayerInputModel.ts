@@ -71,14 +71,16 @@ import {ClaimedToken} from '../underworld/UnderworldPlayerData';
  */
 export type StartGamePromptMeta = {
   kind: 'corporationPlay' | 'corporationPay' | 'corporationInitialAction' | 'corporationSelection' | 'preludeSelection'
-    | 'corporationMerge' | 'campaignBonus' | 'campaignLegacy';
+    | 'corporationMerge' | 'campaignBonus' | 'campaignLegacy' | 'tenderCompensation';
   preludeMode?: 'hand' | 'draw' | 'copy';
   /** corporationPay: exactly what answering this prompt deducts. */
   payment?: {megacredits: number, cards: number};
   /** campaignBonus: how many M€ this press receives. */
   bonus?: {megaCredits: number};
-  /** campaignLegacy: how many carried cards this press receives. */
-  legacy?: {cards: number};
+  /** campaignLegacy: how many carried cards this press receives (`preludes` — the carried preludes beside them). */
+  legacy?: {cards: number, preludes?: number};
+  /** tenderCompensation: the tenders the Committee buys back at this press and what it pays for them. */
+  compensation?: {tenders: number, megaCredits: number};
 }
 
 /**
@@ -1090,9 +1092,29 @@ export type DisabledOptionModel = {
   reason: string | Message;
 }
 
+/**
+ * CAMPAIGN «ТЕНДЕРЫ» — one held tender as the finale's selection shows it
+ * (`SelectInitialCardsModel.tenders`): what it is, whether it was executed,
+ * and — for a restructuring in progress — the corporations it dealt.
+ */
+export type TenderInSelectionModel = {
+  instance: string;
+  id: string;
+  status: 'held' | 'executed' | 'cashed';
+  /** A restructuring's dealt candidates, while its resolution is still owed. */
+  offer?: Array<CardName>;
+};
+
 export type SelectInitialCardsModel = BaseInputModel & {
   type: 'initialCards';
   options: Array<PlayerInputModel>;
+  /**
+   * CAMPAIGN «ТЕНДЕРЫ», the finale only: the player's tenders of the START
+   * window, in acquisition order. Absent everywhere else (the ordinary wire
+   * shape is untouched). Structural — the client never derives a tender from a
+   * title.
+   */
+  tenders?: Array<TenderInSelectionModel>;
 }
 
 /**
