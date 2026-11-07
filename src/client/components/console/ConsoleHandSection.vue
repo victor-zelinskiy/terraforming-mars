@@ -600,7 +600,7 @@ import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleD
 import ConsoleDeferPlate from '@/client/components/console/foundation/ConsoleDeferPlate.vue';
 import type {DeferPlateModel} from '@/client/console/tableQuestionRow';
 import {setWorkspaceFrameSlot, workspaceFrameHost, workspaceFrameParked} from '@/client/console/consoleWorkspaceStack';
-import {colonyFleetBerth, setColonyFleetBerth} from '@/client/console/consoleColoniesModel';
+import {offerColonyFleetBerth, retractColonyFleetBerth} from '@/client/console/consoleColoniesModel';
 import {
   releaseWorkspaceOutcome, setWorkspaceOutcomeSlot, workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
@@ -978,10 +978,6 @@ export default defineComponent({
     /** …and this header lends them its fleet berth (only the root header exists to lend it). */
     berthOffered(): boolean {
       return !this.embedded && this.colonyStepHosted;
-    },
-    /** Another host (the action centre) is lending the berth right now — never ours to retract. */
-    berthHeldElsewhere(): boolean {
-      return workspaceFrameHost('colonies') === 'card-actions';
     },
     /**
      * THIS workspace holds the outcome claim of the play it is standing in —
@@ -1473,9 +1469,9 @@ export default defineComponent({
       flush: 'post',
       handler(on: boolean) {
         if (on) {
-          setColonyFleetBerth('[data-colony-fleet-berth]');
-        } else if (colonyFleetBerth.selector === '[data-colony-fleet-berth]' && !this.berthHeldElsewhere) {
-          setColonyFleetBerth('');
+          offerColonyFleetBerth('hand', '[data-colony-fleet-berth]');
+        } else {
+          retractColonyFleetBerth('hand');
         }
       },
     },
@@ -1945,9 +1941,11 @@ export default defineComponent({
     // does not fire (Vue tears the component down before its watchers run).
     setWorkspaceFrameSlot('hand', '');
     // …and the fleet berth this header lent the hosted colonies, by the same law.
-    if (this.berthOffered) {
-      setColonyFleetBerth('');
-    }
+    // UNCONDITIONALLY — by the time the hand unmounts the colonies frame is
+    // usually gone, so «am I offering?» already reads false while the berth we
+    // lent is still published (the field crash of game-pdb19bfa). Only OUR berth
+    // is taken back.
+    retractColonyFleetBerth('hand');
     // …AND THE OUTCOME ZONE IS THE SAME LAW — PARK INCLUDED. The CLAIM
     // deliberately survives «свернуть» (below); the DOM node does not, and the
     // slot describes a NODE. Left published, it is not merely stale: a

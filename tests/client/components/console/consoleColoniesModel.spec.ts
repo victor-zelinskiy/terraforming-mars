@@ -18,6 +18,9 @@ import {
   openFleetDockFocus,
   colonyDockCursor,
   fleetDockUi,
+  offerColonyFleetBerth,
+  retractColonyFleetBerth,
+  colonyFleetBerthFor,
 } from '@/client/console/consoleColoniesModel';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {CardName} from '@/common/cards/CardName';
@@ -223,5 +226,28 @@ describe('consoleColoniesModel — the COLONY WORKSPACE model', () => {
       expect(consoleColoniesUi.composerReady).to.eq(false);
       expect(consoleColoniesUi.composerEditable).to.eq(false);
     });
+  });
+});
+
+describe('the fleet berth is OWNED (game-pdb19bfa — a stale berth crashed the colony step)', () => {
+  afterEach(() => {
+    retractColonyFleetBerth('hand');
+    retractColonyFleetBerth('card-actions');
+  });
+
+  it('is good only for the host that lent it', () => {
+    offerColonyFleetBerth('hand', '[data-colony-fleet-berth]');
+    expect(colonyFleetBerthFor('hand')).to.eq('[data-colony-fleet-berth]');
+    // The standard projects lend none: the hand's berth is not theirs to use.
+    expect(colonyFleetBerthFor('standard-projects')).to.eq('');
+    expect(colonyFleetBerthFor(undefined)).to.eq('');
+  });
+
+  it('a host retracts only its own berth', () => {
+    offerColonyFleetBerth('card-actions', '[data-colony-fleet-berth]');
+    retractColonyFleetBerth('hand');
+    expect(colonyFleetBerthFor('card-actions')).to.eq('[data-colony-fleet-berth]');
+    retractColonyFleetBerth('card-actions');
+    expect(colonyFleetBerthFor('card-actions')).to.eq('');
   });
 });

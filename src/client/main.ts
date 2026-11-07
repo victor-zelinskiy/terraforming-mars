@@ -14,6 +14,7 @@ import {applyReducedMotionClass} from '@/client/utils/reducedMotion';
 import {applyConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {installConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
 import {warmDisplayFonts} from '@/client/utils/fontWarmup';
+import {installVueErrorReport} from '@/client/console/vueErrorReport';
 // Registered globally so ColonyTradePaymentModal can host the card-target
 // picker WITHOUT a static import — Card.vue's import chain breaks the
 // mochapack client-test bundle (the known baseline class), and the picker
@@ -91,6 +92,7 @@ async function bootstrap() {
   }
 
   const app = createApp(App);
+  installVueErrorReport(app);
 
   app.use(i18nPlugin);
 

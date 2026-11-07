@@ -395,11 +395,37 @@ export function openFleetDockFocus(card: CardName): void {
  *
  * A selector rather than a boolean for the same reason `setWorkspaceFrameSlot`
  * is one: the host owns where, the step owns what.
+ *
+ * ⚠ A berth is OWNED, and it is good only for the host that is hosting the
+ * colonies NOW (`colonyFleetBerthFor`). It used to be a bare global string:
+ * the hand lent it for a card's colony, left without retracting it (its
+ * post-flush watcher never ran on the way out, and `beforeUnmount` asked
+ * «am I offering?» of a stack the colonies had already left), and the next
+ * host — the standard projects, which lend none — got the hand's selector. The
+ * dock teleported into a node that was not in the document, Vue mounted
+ * nothing and the next patch crashed the colony step (game-pdb19bfa,
+ * 2026-11-07). A host can no longer read another host's berth, and a host
+ * retracts only its own.
  */
-export const colonyFleetBerth = reactive({selector: ''});
+export const colonyFleetBerth = reactive({selector: '', owner: ''});
 
-export function setColonyFleetBerth(selector: string): void {
+/** The host `owner` lends its header berth (`selector`) to the hosted colonies. */
+export function offerColonyFleetBerth(owner: string, selector: string): void {
   colonyFleetBerth.selector = selector;
+  colonyFleetBerth.owner = owner;
+}
+
+/** The host `owner` takes its berth back — a berth another host lent stays. */
+export function retractColonyFleetBerth(owner: string): void {
+  if (colonyFleetBerth.owner === owner) {
+    colonyFleetBerth.selector = '';
+    colonyFleetBerth.owner = '';
+  }
+}
+
+/** The berth the colonies may use while hosted by `host` (`''` = none — the section's own toolbar). */
+export function colonyFleetBerthFor(host: string | undefined): string {
+  return host !== undefined && colonyFleetBerth.owner === host ? colonyFleetBerth.selector : '';
 }
 
 export function setColonyFocusStage(stage: string): void {

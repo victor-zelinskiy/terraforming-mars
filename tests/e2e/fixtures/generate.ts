@@ -173,6 +173,7 @@ import {Luna} from '../../../src/server/colonies/Luna';
 import {Titan} from '../../../src/server/colonies/Titan';
 import {Europa} from '../../../src/server/colonies/Europa';
 import {Callisto} from '../../../src/server/colonies/Callisto';
+import {Ganymede} from '../../../src/server/colonies/Ganymede';
 import {Miranda} from '../../../src/server/colonies/Miranda';
 import {LawSuit} from '../../../src/server/cards/promo/LawSuit';
 import {Ceres} from '../../../src/server/colonies/Ceres';
@@ -8139,6 +8140,41 @@ parliamentFixture('parliament-unmi-veto-vote', {
   blue.cardsInHand.length = 0;
   blue.cardsInHand.push(game.projectDeck.drawOrThrow(game));
   while (blue.cardsInHand.length < 13) {
+    blue.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  }
+  blue.megaCredits = 100;
+  red.megaCredits = 40;
+  runAllActions(game);
+  const card = blue.cardsInHand.find((c) => c.name === CardName.RESEARCH_COLONY);
+  if (game.activePlayer.id !== blue.id || !(blue.getWaitingFor() instanceof OrOptions) ||
+      card === undefined || !blue.canPlay(card)) {
+    throw new Error(`${name}: expected blue on the move with Research Colony playable (active=${game.activePlayer.id})`);
+  }
+  write(name, game);
+}
+
+// ── colony-host-handover: THE FIELD CRASH of 2026-11-07 (game-pdb19bfa). «Научная колония» from the hand builds a
+//    colony INSIDE the hand (the hand lends its header's fleet berth to the hosted colonies); right after, the Build
+//    Colony STANDARD PROJECT opens the colonies again — hosted by the standard projects, which lend no berth. The
+//    hand's stale berth reached them, the fleet dock teleported into a node that was not in the document, Vue mounted
+//    nothing and the next patch crashed the colony step (no surface for the server's `colony` question). Two seats,
+//    Luna / Europa / Callisto / Ganymede open (no build asks a question), 100 M€, Research Colony + 5 cards in hand. ──
+{
+  const name = 'colony-host-handover';
+  const [game, blue, red] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true,
+    customCorporationsList: [CardName.CREDICOR, CardName.CREDICOR], startingCorporations: 1,
+  });
+  answerStartFlow(game, [blue, red]);
+  const colonies = [new Luna(), new Europa(), new Callisto(), new Ganymede()];
+  for (const colony of colonies) {
+    colony.isActive = true;
+  }
+  game.colonies = colonies;
+  moveToDeckTop(game, CardName.RESEARCH_COLONY);
+  blue.cardsInHand.length = 0;
+  blue.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  while (blue.cardsInHand.length < 6) {
     blue.cardsInHand.push(game.projectDeck.drawOrThrow(game));
   }
   blue.megaCredits = 100;

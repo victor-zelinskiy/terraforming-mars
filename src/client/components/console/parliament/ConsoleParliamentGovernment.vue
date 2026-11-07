@@ -29,7 +29,7 @@
       </div>
       <!-- The enacted card is ONE instance: while the resolution pays out it is TELEPORTED onto the enactment
            stage's hero slot (and FLIPs there and back) — never a copy beside the government. -->
-      <Teleport v-if="enactedVm !== undefined" defer to="[data-parl-sit-hero]" :disabled="!enactCarried">
+      <ConsoleTeleport v-if="enactedVm !== undefined" defer to="[data-parl-sit-hero]" :disabled="!enactCarried">
         <div class="con-parl__gov-carry" :class="{'con-parl__gov-carry--career': careerSource}" data-parl-gov-carry>
           <!-- THE SOURCE OF A CAREER STEP (PL-784 · FG): while the law the card prints walks the seats' markers (Reds Budget
                — the КАРЬЕРА beat), the card says so by MATERIAL for the whole beat — its printed edge turns gold (the
@@ -43,7 +43,7 @@
             <premium-card-face :vmOverride="enactedVm" :lightweight="!enactCarried" :artTier="artTier" :inert="true" />
           </div>
         </div>
-      </Teleport>
+      </ConsoleTeleport>
       <!-- THE EMPTY SEAT — until the first political phase: an honest outline where the law will stand, no words. -->
       <div v-else class="con-parl__gov-empty" data-parl-gov-empty>
         <span class="con-parl__gov-empty-mark" aria-hidden="true">◇</span>
@@ -68,9 +68,11 @@ import {fitParliamentCards} from '@/client/console/parliament/parliamentCardFit'
 import {CardArtTier} from '@/client/cards/cardArt';
 import {AgendaVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {partyTileKey} from '@/client/console/parliament/partyActionKey';
+import ConsoleTeleport from '@/client/components/console/foundation/ConsoleTeleport.vue';
 
 export default defineComponent({
   name: 'ConsoleParliamentGovernment',
+  components: {ConsoleTeleport},
 
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},

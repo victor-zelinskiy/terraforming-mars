@@ -72,9 +72,9 @@
            player had arrived somewhere ELSE: same screen, ships in a different
            place, and a row of vertical space stolen from the grid — which is
            what shrank the tiles, because the fit is height-bound. -->
-      <Teleport v-if="embedded && fleetBerth !== ''" :to="fleetBerth">
+      <ConsoleTeleport v-if="embedded && fleetBerth !== ''" :to="fleetBerth">
         <ConsoleColonyFleetBar :chips="fleetChips" :launchingColor="launchingFleetColor" />
-      </Teleport>
+      </ConsoleTeleport>
       <div v-else-if="embedded && (pick !== undefined || fleetBerth === '')" class="con-colonies__toolbar">
         <span v-if="pick !== undefined && !raiseTelling" class="con-colonies__mode-chip"
               :class="{'con-colonies__mode-chip--held': focusState.open}">{{ $t(pick.labelKey) }}</span>
@@ -484,7 +484,7 @@ import {choiceSourceView, PromptSourceView} from '@/client/console/promptSource'
 import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {
   colonyGridLayout, colonyGridCols, ColonyGridLayout, ColonyFocusIntent,
-  colonyFleetBerth, colonyFocusState, openColonyFocus, closeColonyFocus, switchColonyFocusIntent,
+  colonyFleetBerthFor, colonyFocusState, openColonyFocus, closeColonyFocus, switchColonyFocusIntent,
   colonyDockCursor, openFleetDockFocus, resetColonyDockCursor, colonyPickIntent, consoleColoniesUi,
 } from '@/client/console/consoleColoniesModel';
 import {ColonyTrackMove} from '@/common/parliament/colonyTrackAdvance';
@@ -521,6 +521,7 @@ import {holdsAnyOf} from '@/client/console/parliament/influenceYieldModel';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
+import ConsoleTeleport from '@/client/components/console/foundation/ConsoleTeleport.vue';
 import ConsoleColonyFleetBar, {ColonyFleetChip} from '@/client/components/console/ConsoleColonyFleetBar.vue';
 import ConsoleColonyTile, {ConsoleColonyTileStatus} from '@/client/components/console/ConsoleColonyTile.vue';
 import ConsoleColonyFocusStage from '@/client/components/console/ConsoleColonyFocusStage.vue';
@@ -666,7 +667,7 @@ const COMPLETION_SETTLE_MS = 300;
 export default defineComponent({
   name: 'ConsoleColoniesSection',
   directives: {embedZone: vEmbedZone},
-  components: {ConsoleWsHead, ConsoleSourceDock, ConsoleColonyFleetBar, ConsoleColonyTile, ConsoleColonyFocusStage, ConsoleColonyInspect, ConsoleFleetDockTile, ConsoleFleetDockStage, ActionEffectChip, ColonyFleetIcon, BenefitGlyph, PlayerCube, PremiumCountGlyph},
+  components: {ConsoleWsHead, ConsoleTeleport, ConsoleSourceDock, ConsoleColonyFleetBar, ConsoleColonyTile, ConsoleColonyFocusStage, ConsoleColonyInspect, ConsoleFleetDockTile, ConsoleFleetDockStage, ActionEffectChip, ColonyFleetIcon, BenefitGlyph, PlayerCube, PremiumCountGlyph},
   props: {
     colonies: {type: Array as PropType<ReadonlyArray<ColonyModel>>, required: true},
     index: {type: Number, required: true},
@@ -1096,9 +1097,9 @@ export default defineComponent({
       }
       return '';
     },
-    /** The berth the HOST offers for our fleet dock ('' = keep it locally). */
+    /** The berth the HOST hosting us NOW offers for our fleet dock ('' = keep it locally) — never another host's. */
     fleetBerth(): string {
-      return colonyFleetBerth.selector;
+      return this.embedded ? colonyFleetBerthFor(workspaceFrameHost('colonies')) : '';
     },
     /** The pair handed up to a HOSTING workspace's breadcrumb (see the watcher). */
     /**

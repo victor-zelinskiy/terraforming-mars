@@ -120,10 +120,10 @@ describe('the paint of a flight — the source guards (T12 / CA)', () => {
     expect(template.replace(/<!--[\s\S]*?-->/g, '')).not.match(/con-flight-to-board/);
   });
 
-  it('the twin layers exist, and a token moves between them as the SAME element (`<Teleport :disabled>`), never re-rendered', () => {
+  it('the twin layers exist, and a token moves between them as the SAME element (`<ConsoleTeleport :disabled>` — the native one, mount-safe), never re-rendered', () => {
     expect(layer).match(/class="con-transfer con-transfer--under" data-transfer-under/);
-    expect(layer).match(/<Teleport defer to="\[data-transfer-under\]" :disabled="layerOf\(f\.id, 'chip'\) !== 'under'">/);
-    expect(layer).match(/<Teleport defer to="\[data-transfer-under\]" :disabled="layerOf\(f\.id, 'end'\) !== 'under'">/);
+    expect(layer).match(/<ConsoleTeleport defer to="\[data-transfer-under\]" :disabled="layerOf\(f\.id, 'chip'\) !== 'under'">/);
+    expect(layer).match(/<ConsoleTeleport defer to="\[data-transfer-under\]" :disabled="layerOf\(f\.id, 'end'\) !== 'under'">/);
     expect(layer).match(/:data-transfer-layer="layerOf\(f\.id, 'chip'\)"/);
   });
 

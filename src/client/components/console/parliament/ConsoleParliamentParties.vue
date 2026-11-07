@@ -7,7 +7,7 @@
        row — the director FLIPs both from where they stood. -->
   <div class="con-parl__parties" data-parl-parties>
     <template v-for="(p, i) in view.parties" :key="p.party">
-      <Teleport defer to="[data-parl-ruler-slot]" :disabled="p.party !== rulerShown">
+      <ConsoleTeleport defer to="[data-parl-ruler-slot]" :disabled="p.party !== rulerShown">
         <div class="con-parl__party"
              :class="[
                'con-parl__party--' + shownStates[i].kind,
@@ -44,12 +44,13 @@
                               :supportCounted="rallyCountedPlaces(p.party)"
                               reason="" />
         </div>
-      </Teleport>
+      </ConsoleTeleport>
     </template>
   </div>
 </template>
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import ConsoleTeleport from '@/client/components/console/foundation/ConsoleTeleport.vue';
 import {Color} from '@/common/Color';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
@@ -85,7 +86,7 @@ const ALLIANCE_IMPULSE_WAIT_MS = 6_000;
  */
 export default defineComponent({
   name: 'ConsoleParliamentParties',
-  components: {ConsolePartyPlaque},
+  components: {ConsolePartyPlaque, ConsoleTeleport},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     partyStates: {type: Array as PropType<ReadonlyArray<PartyStateVm>>, required: true},

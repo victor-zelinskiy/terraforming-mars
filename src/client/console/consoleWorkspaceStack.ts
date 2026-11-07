@@ -771,10 +771,14 @@ export function workspaceFrameIsOverlay(kind: WorkspaceFrameKind): boolean {
  * screen — and the death of the `…HeldForWorkspace` family.
  *
  * A frame at depth 0 stands in its own band. A NESTED frame must wait for its
- * host's zone: a `<Teleport>` whose target is missing AT MOUNT keeps its
- * content in place, and the later arrival of the target does NOT reliably
+ * host's zone. A native `<Teleport>` RE-TARGETED to a missing node keeps its
+ * content where it was, and the later arrival of the target does NOT reliably
  * relocate an already-mounted subtree — that is how a restored workspace once
- * stood up around a hand trapped under its own plate. So the claimant renders
+ * stood up around a hand trapped under its own plate. (One MOUNTED enabled
+ * into a missing node is worse: it mounts nothing and the next patch crashes —
+ * every console teleport into a target that can be absent is therefore a
+ * `ConsoleTeleport`, which renders nowhere until the target exists — the field
+ * crash of game-pdb19bfa, 2026-11-07.) So the claimant renders
  * NOWHERE for the gap frame (embed rule 4), never in its standalone band
  * first, and invariant 1 is what makes that gap provably transient: the host
  * frame exists, so the host is mounted, so its zone is coming.

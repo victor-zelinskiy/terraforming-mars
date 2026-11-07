@@ -29,7 +29,7 @@
           <div class="con-parl__slot-empty-card" data-parl-slot-empty-card aria-hidden="true"
                :data-parl-slot-empty-why="holds.departed.has(slot.instance) ? 'discarded' : 'enacted'"></div>
         </div>
-        <Teleport v-else defer to="[data-parl-vrow]" :disabled="!slotsCarried">
+        <ConsoleTeleport v-else defer to="[data-parl-vrow]" :disabled="!slotsCarried">
           <div class="con-parl__slot"
                :class="{
                  'con-parl__slot--selected': voteSelecting && flow.slotIndex === i,
@@ -143,7 +143,7 @@
               </span>
             </div>
           </div>
-        </Teleport>
+        </ConsoleTeleport>
       </div>
       <!-- AN EMPTY SLOT NAMES ITSELF. While few parties have real
            resolutions the refresh finds nothing for a slot (distinct
@@ -166,6 +166,7 @@
 </template>
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import ConsoleTeleport from '@/client/components/console/foundation/ConsoleTeleport.vue';
 import {Color} from '@/common/Color';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
@@ -199,7 +200,7 @@ import {delegateExchangeArrival, delegateRemovalGhostVote} from '@/client/consol
  */
 export default defineComponent({
   name: 'ConsoleParliamentVotingArea',
-  components: {PlayerDelegate},
+  components: {PlayerDelegate, ConsoleTeleport},
   setup() {
     const {isHandheld, isTv} = useConsoleViewport();
     return {isHandheld, isTv};

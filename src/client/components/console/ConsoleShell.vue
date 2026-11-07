@@ -209,7 +209,7 @@
            the reveal / task host / play composer already use. One instance,
            one input path, one set of captures — never a second copy and
            never a picker standing in for the player's real hand. -->
-      <Teleport :to="handEmbedTarget ?? 'body'" :disabled="handEmbedTarget === undefined">
+      <ConsoleTeleport :to="handEmbedTarget ?? 'body'" :disabled="handEmbedTarget === undefined">
       <!-- v-show (NOT v-if) while a HYDRO frame stands over the hand (the
            espionage target pick / execution): the two sections are flex
            siblings of ONE row, so the covered hand yields the row — with its
@@ -250,7 +250,7 @@
                           :filterBusy="handRevealState.filterActive"
                           :underScene="sceneOverHand || consoleRevealMode !== undefined" />
       </transition>
-      </Teleport>
+      </ConsoleTeleport>
       <!-- Surface-motion 'section': a workspace switch gets a light rise
            (no dim) — never the bare v-if pop it used to be. The wheel's
            «Торговля» slot hands off directionally into it. -->
@@ -264,7 +264,7 @@
              (`:embedded`) — one instance, one input path, one set of captures
              (workspace-embed rules 1-4; `workspaceFrameRenders` covers the
              claim-to-slot gap frame). -->
-        <Teleport :to="colonySectionTarget ?? 'body'" :disabled="colonySectionTarget === undefined">
+        <ConsoleTeleport :to="colonySectionTarget ?? 'body'" :disabled="colonySectionTarget === undefined">
         <!-- `data-motion-surface` is part of what the `embedded` prop STRIPS
              (host-agnostic rule 1). Left on, the band-surface director gave a
              hosted STEP the standalone workspace-switch entrance — a full
@@ -309,7 +309,7 @@
                                 @flow-complete="onColonyFlowComplete"
                                 @inspect-enter="onColonyInspectEnter()"
                              @pick-confirm="onColonyPickConfirm()" />
-        </Teleport>
+        </ConsoleTeleport>
       </transition>
       <!-- The console-NATIVE Hydronetwork screen (the full rework — the
            desktop overlay is no longer re-hosted here). One shared brain:
@@ -372,7 +372,7 @@
            dress (`embedded` strips the frame, the head, `con-ws` and the motion
            id — the colonies' own pattern, one screen above). One instance, one
            input path, one submit funnel — never a copy. -->
-      <Teleport :to="parliamentEmbedTeleportTo" :disabled="!parliamentEmbedActive">
+      <ConsoleTeleport :to="parliamentEmbedTeleportTo" :disabled="!parliamentEmbedActive">
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook" @after-leave="onParliamentAfterLeave"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="onParliamentLeaveCancelled">
@@ -400,7 +400,7 @@
                                   @collapse="collapseWorkspace()"
                                   @close="leaveWorkspace()" />
       </transition>
-      </Teleport>
+      </ConsoleTeleport>
 
       <!-- THE ACTION WORKSPACE («Действия карт») — the console-native
            blue-card action center as an ABSOLUTE child of .con-main filling
@@ -701,7 +701,7 @@
          edge, which waits out the last take's flight (`externalDrawHolding`).
          Non-minimizable by construction: it emits no defer and B is «Забрать
          все». -->
-    <Teleport :to="externalDrawEmbedTarget ?? 'body'" :disabled="externalDrawEmbedTarget === undefined">
+    <ConsoleTeleport :to="externalDrawEmbedTarget ?? 'body'" :disabled="externalDrawEmbedTarget === undefined">
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
@@ -711,7 +711,7 @@
                                       :embedded="externalDrawEmbedTarget !== undefined"
                                       @submit="onExternalDrawSubmit" />
       </transition>
-    </Teleport>
+    </ConsoleTeleport>
 
     <!-- EMBEDDED HOSTING (consoleWorkspaceOutcome): a card PICK the player's
          own workspace produced (Inventors' Guild / Business Network revealing
@@ -719,7 +719,7 @@
          THAT flow, not a new demand — so the same host is teleported into the
          workspace's outcome slot instead of rising as its own band. Same
          instance, same submit path, same command contract. -->
-    <Teleport :to="taskEmbedTarget ?? 'body'" :disabled="taskEmbedTarget === undefined">
+    <ConsoleTeleport :to="taskEmbedTarget ?? 'body'" :disabled="taskEmbedTarget === undefined">
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
@@ -749,7 +749,7 @@
                          @space-pick="onTaskSpacePick"
                          @hand-pick="onTaskHandPick" />
       </transition>
-    </Teleport>
+    </ConsoleTeleport>
 
     <!-- EFFECT DECISION — the ONE screen for a MARKED optional decision
          ("use the effect / pay the price / go and pick" vs a deliberate
@@ -761,7 +761,7 @@
          NEXT STAGE of the play, not a window that arrived over it. Same
          instance teleported into the workspace's outcome zone, same submit
          path, same command contract. -->
-    <Teleport :to="effectDecisionEmbedTarget ?? 'body'" :disabled="effectDecisionEmbedTarget === undefined">
+    <ConsoleTeleport :to="effectDecisionEmbedTarget ?? 'body'" :disabled="effectDecisionEmbedTarget === undefined">
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
@@ -777,7 +777,7 @@
                                @defer="onTaskDefer"
                                @hand-pick="onTaskHandPick" />
       </transition>
-    </Teleport>
+    </ConsoleTeleport>
 
     <!-- FINAL GREENERY has no surface of its own: the finale is played ON THE BOARD (2026-10-14, PL-295) — the
          placement dossier carries its block (`finalePanel`), the bar its finish hold. See finalGreeneryModel.ts. -->
@@ -805,7 +805,7 @@
          EMBEDDED when the player's own workspace produced the draw — the SAME
          instance teleported into that workspace's outcome zone, so a prelude's
          effect deepens the start workspace instead of replacing it. -->
-    <Teleport :to="deckPickEmbedTarget ?? 'body'" :disabled="deckPickEmbedTarget === undefined">
+    <ConsoleTeleport :to="deckPickEmbedTarget ?? 'body'" :disabled="deckPickEmbedTarget === undefined">
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
@@ -817,7 +817,7 @@
                          @submit-batch="onTaskSubmitBatch"
                          @defer="onTaskDefer" />
       </transition>
-    </Teleport>
+    </ConsoleTeleport>
 
     <!-- Production loss (Ares hazard-adjacency penalty) — the dedicated
          premium "reduce your production" surface (replaces the generic host
@@ -848,7 +848,7 @@
          bonus the press's Venus step earned stands INSIDE the workspace the press was made in («ДЕЙСТВИЯ КАРТ ›
          <карта> › БОНУС ВЕНЕРЫ», the hand's play, the standard projects, the trade) — the same instance teleported into
          the host's zone; a band of its own only when no surface hosts it, and then after the board's story. -->
-    <Teleport :to="venusBonusEmbedTarget ?? 'body'" :disabled="venusBonusEmbedTarget === undefined">
+    <ConsoleTeleport :to="venusBonusEmbedTarget ?? 'body'" :disabled="venusBonusEmbedTarget === undefined">
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
@@ -859,7 +859,7 @@
                            @submit="onTaskSubmit"
                            @defer="onTaskDefer" />
       </transition>
-    </Teleport>
+    </ConsoleTeleport>
     <transition :css="false" appear
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
@@ -933,7 +933,7 @@
          The motion hooks stay bound in BOTH homes and need no branch: the
          embedded root drops its `data-motion-surface`, and an absent id is
          exactly the director's documented pass-through. -->
-    <Teleport :to="revealEmbedTarget ?? 'body'" :disabled="revealEmbedTarget === undefined">
+    <ConsoleTeleport :to="revealEmbedTarget ?? 'body'" :disabled="revealEmbedTarget === undefined">
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
@@ -952,7 +952,7 @@
                               @drawn-complete="onEmbeddedDrawnComplete"
                               @discard-pick="onRevealDiscardPick" />
       </transition>
-    </Teleport>
+    </ConsoleTeleport>
 
     <!-- CTS T0: the honest guard for a prompt NO surface serves (the
          leak detector's stranded check) — never a silent pill again. -->
@@ -1557,7 +1557,7 @@
          entrance. The hooks stay bound in BOTH homes and need no branch: the
          embedded root drops its `data-motion-surface`, and an absent id is
          exactly the director's documented pass-through. -->
-    <Teleport :to="playEmbedTarget ?? 'body'" :disabled="playEmbedTarget === undefined">
+    <ConsoleTeleport :to="playEmbedTarget ?? 'body'" :disabled="playEmbedTarget === undefined">
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
@@ -1576,7 +1576,7 @@
                                 @confirm="onPlayCardConfirmNative($event)"
                                 @cancel="onPlayCardCancel" />
       </transition>
-    </Teleport>
+    </ConsoleTeleport>
 
     <!-- (The repeat-pick ДЕЙСТВИЯ КАРТ surface moved INTO .con-main — the
          action workspace geometry next to the rail; see there.) -->
@@ -1829,6 +1829,7 @@ import {sealLiveGameSurfaces} from '@/client/console/endgame/consoleEndgameSeal'
 import {boardSceneSettling, scaleStorySceneSettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
+import ConsoleTeleport from '@/client/components/console/foundation/ConsoleTeleport.vue';
 import type {DrawDiscardVerdict} from '@/client/console/deckDraw/drawSearchReading';
 import {tagIconStyle} from '@/client/components/premiumCard/premiumCardIcons';
 import {tagLabel} from '@/client/cards/tagLabel';
@@ -2596,6 +2597,7 @@ const COLONY_STEP_HANDOFF_MAX_MS = 4_000;
 export default defineComponent({
   name: 'ConsoleShell',
   components: {
+    ConsoleTeleport,
     ConsoleCountedWhy,
     ConsoleActionConfirm,
     ConsoleDrawSearchRule,

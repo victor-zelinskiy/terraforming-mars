@@ -467,7 +467,7 @@ import {closeWorkspaceRoot, leaveWorkspace, pushWorkspaceFrame, setWorkspaceFram
 import {beginCardColonyTrade, clearCardColonyTrade, colonyStepCrumbParts} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {beginCardDeltaAdvance} from '@/client/console/hydroFlow/deltaAdvanceEntry';
 import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
-import {setColonyFleetBerth} from '@/client/console/consoleColoniesModel';
+import {offerColonyFleetBerth, retractColonyFleetBerth} from '@/client/console/consoleColoniesModel';
 import {backVerbFor, isCommitted, WorkspacePhase, workspacePhaseOf} from '@/client/console/consoleWorkspaceFlow';
 import {reportSurfaceBeat} from '@/client/console/workspaceBeatStall';
 import {
@@ -1447,7 +1447,11 @@ export default defineComponent({
         // Offer the header berth while the step stands; retract it the moment
         // it leaves, so the section falls back to its own toolbar for hosts
         // that have no header to lend.
-        setColonyFleetBerth(on ? '[data-colony-fleet-berth]' : '');
+        if (on) {
+          offerColonyFleetBerth('card-actions', '[data-colony-fleet-berth]');
+        } else {
+          retractColonyFleetBerth('card-actions');
+        }
         if (!on && !workspaceFrameKnown('colonies')) {
           clearCardColonyTrade();
         }
@@ -1897,7 +1901,7 @@ export default defineComponent({
     // module stores only.
     // The berth dies with the header that offers it — a teleport into a
     // detached node drops its content silently.
-    setColonyFleetBerth('');
+    retractColonyFleetBerth('card-actions');
     // The bar's stage word dies with the crumb that published it (PL-090).
     setConsoleActionStageKey('');
     if (!workspaceFrameKnown('colonies')) {

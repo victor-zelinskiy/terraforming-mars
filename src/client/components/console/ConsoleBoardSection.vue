@@ -10,7 +10,7 @@
          positioned in intrinsic board px and rides the planet's scale/pan
          transform for free. One persistent element that GLIDES between
          hexes; the hero scene taking the cell is what retires it. -->
-    <Teleport v-if="cursorHost !== undefined" :to="cursorHost">
+    <ConsoleTeleport v-if="cursorHost !== undefined" :to="cursorHost">
       <!-- «МАРС ТЕРРАФОРМИРОВАН» (TR70): the ATMOSPHERE BREATHES on the real disc — a layer in board px over
            the alpha-measured circle (the placement frame), riding the planet's transform like the reticle; the
            limb's light and the mint rim are one-shot keyframes keyed on the scene's show, and the shared
@@ -65,7 +65,7 @@
           :marker="cursorMarker"
           :data-landing-marker="cursorMarker ? tilePlacementState.spaceId : undefined" />
       </transition>
-    </Teleport>
+    </ConsoleTeleport>
     <!-- Cell details live in the shell-level ConsoleContextPanel (feedback
          iteration 2) — this component owns the STAGE + selection only. -->
   </div>
@@ -89,6 +89,7 @@
  * router owns WHEN, this component owns HOW (it has the DOM).
  */
 import {defineComponent, PropType} from 'vue';
+import ConsoleTeleport from '@/client/components/console/foundation/ConsoleTeleport.vue';
 import GameBoardView from '@/client/components/GameBoardView.vue';
 import ConsoleBoardCursor from '@/client/components/console/ConsoleBoardCursor.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -320,7 +321,7 @@ const LATE_VERIFY_MAX = 4;
 
 export default defineComponent({
   name: 'ConsoleBoardSection',
-  components: {GameBoardView, ConsoleBoardCursor, PlayerCube},
+  components: {GameBoardView, ConsoleBoardCursor, PlayerCube, ConsoleTeleport},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     placementActive: {type: Boolean, required: true},

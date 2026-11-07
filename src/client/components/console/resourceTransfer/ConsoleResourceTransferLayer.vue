@@ -26,7 +26,7 @@
   <div v-if="resourceTransferState.flights.length > 0" class="con-transfer con-transfer--under" data-transfer-under aria-hidden="true"></div>
   <div v-if="resourceTransferState.flights.length > 0" class="con-transfer" data-transfer-lit aria-hidden="true">
     <template v-for="f in resourceTransferState.flights" :key="f.id">
-      <Teleport defer to="[data-transfer-under]" :disabled="layerOf(f.id, 'chip') !== 'under'">
+      <ConsoleTeleport defer to="[data-transfer-under]" :disabled="layerOf(f.id, 'chip') !== 'under'">
         <div class="con-transfer__chip"
              :class="chipClass(f.spec)"
              :data-transfer-id="f.id"
@@ -39,8 +39,8 @@
           <!-- A LOSS reads «−N»: the same token, the same seat, the sign of what actually happened. -->
           <span class="con-transfer__amt" :class="{'con-transfer__amt--mc': isMegacredits(f.spec)}">{{ f.spec.direction === 'loss' ? '−' : '+' }}{{ f.spec.amount }}</span>
         </div>
-      </Teleport>
-      <Teleport defer to="[data-transfer-under]" :disabled="layerOf(f.id, 'end') !== 'under'">
+      </ConsoleTeleport>
+      <ConsoleTeleport defer to="[data-transfer-under]" :disabled="layerOf(f.id, 'end') !== 'under'">
         <div class="con-transfer__beat"
              :class="{'con-transfer__beat--production': f.spec.channel === 'production', 'con-transfer__beat--vp': isVp(f.spec)}"
              :ref="(el) => setBeatRef(f.id, el as HTMLElement | null)"></div>
@@ -50,7 +50,7 @@
              class="con-transfer__expect"
              :data-expect-resource="f.spec.resource"
              :ref="(el) => setExpectRef(f.id, el as HTMLElement | null)"></div>
-      </Teleport>
+      </ConsoleTeleport>
     </template>
   </div>
   <!-- THE FLIGHTS' TRAIL ON SCREEN (T09, decision 8 — `?trail=1`): the last events of the transfer trail — the seeds'
@@ -63,6 +63,7 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
+import ConsoleTeleport from '@/client/components/console/foundation/ConsoleTeleport.vue';
 import {resourceTransferState, registerResourceTransferStage, transferTrailState, transferTrailTail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {TransferStagePiece} from '@/client/console/resourceTransfer/resourceTransferDirector';
@@ -73,7 +74,7 @@ import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 
 export default defineComponent({
   name: 'ConsoleResourceTransferLayer',
-  components: {ConsoleVpBadge},
+  components: {ConsoleVpBadge, ConsoleTeleport},
   data() {
     return {
       resourceTransferState,

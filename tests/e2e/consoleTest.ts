@@ -424,6 +424,8 @@ function armReactionFaceGuard(context: import('@playwright/test').BrowserContext
  * A heal that had to run is a defect at the predicate's source.
  */
 const REACTIVITY_LATCH = 'changed without a reactive edge';
+/** The app's Vue `errorHandler` tag (`src/client/console/vueErrorReport.ts` VUE_ERROR_TAG — kept literal: the harness imports no client module). */
+const VUE_ERROR_TAG = '[vue-error]';
 
 /**
  * THE STALL HARVEST — every product warning a test's pages print, kept (2026-10-14, the field «залипания»).
@@ -503,7 +505,7 @@ function sleepSiteOf(stack: string): string {
   return '<unknown>';
 }
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, livenessGuard: void, startShadowHarvest: void, screenShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, stallHarvest: void, productReloadGuard: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, livenessGuard: void, startShadowHarvest: void, screenShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, vueErrorGuard: void, stallHarvest: void, productReloadGuard: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
   /**
    * CI's STARVED RENDERER ON DEMAND (`TM_E2E_CPU_THROTTLE=<rate>`, e.g. 4): every page of the test's context runs under
    * CDP CPU throttling. CI's 4K software raster on a shared runner starves the main thread for hundreds of ms — the
@@ -658,6 +660,30 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     await use();
     if (latches.length > 0) {
       throw new Error(`REACTIVITY LATCH — a predicate that caches read changed without a reactive edge (make its term reactive at the source):\n  ${latches.join('\n  ')}`);
+    }
+  }, {auto: true}],
+
+  /**
+   * EVERY TEST, EVERY PAGE: Vue never caught an exception while rendering / patching (`[vue-error] …` — the app's
+   * `errorHandler`, `src/client/console/vueErrorReport.ts`). Such an error never reaches `pageerror`: Vue catches it,
+   * and the subtree it was patching simply stops updating — the colony step of game-pdb19bfa (2026-11-07) went dark
+   * that way behind fourteen identical lines that no spec read. The line names the component chain.
+   */
+  vueErrorGuard: [async ({context}, use) => {
+    const errors: Array<string> = [];
+    const watch = (page: Page) => {
+      page.on('console', (message) => {
+        const text = message.text();
+        if (text.startsWith(VUE_ERROR_TAG)) {
+          errors.push(text.slice(0, 400));
+        }
+      });
+    };
+    context.pages().forEach(watch);
+    context.on('page', watch);
+    await use();
+    if (errors.length > 0) {
+      throw new Error(`${VUE_ERROR_TAG} — Vue caught an exception while rendering / patching; the subtree it was patching stopped updating:\n  ${[...new Set(errors)].join('\n  ')}`);
     }
   }, {auto: true}],
 
