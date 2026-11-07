@@ -231,6 +231,44 @@ export function buildErrorDigest(entries: ConsoleEntry[], limit: number = DIGEST
   return [head, ...shown.map(formatConsoleEntry)].join('\n') + '\n';
 }
 
+/**
+ * THE SCREEN, SECOND BY SECOND — the field recorder's heartbeat ring (`window.__conFieldRecorder()`: what the server
+ * asked, whether a surface accepted, what was in flight, the workspace stack, how long nothing moved) printed under the
+ * errors. PURE (unit-tested). The owner's export of 2026-11-07 01:06 was taken ON a frozen screen and carried no line
+ * that named it — the console prints nothing while a screen merely stands — and the recorder's ring, kept in the page,
+ * was the only witness of what stood. A run of identical heartbeats is one row with its span.
+ */
+export function buildScreenDigest(recordJson: string, now: Date): string {
+  type Beat = {at: number, prompt?: string, accepting?: boolean, inFlight?: Array<string>, frames?: Array<string>,
+    section?: string, quietS?: number, presses?: number, block?: string, start?: string};
+  let beats: Array<Beat> = [];
+  try {
+    const record = JSON.parse(recordJson) as {heartbeats?: Array<Beat>};
+    beats = Array.isArray(record?.heartbeats) ? record.heartbeats : [];
+  } catch {
+    beats = [];
+  }
+  if (beats.length === 0) {
+    return 'SCREEN: no heartbeats recorded\n';
+  }
+  const key = (b: Beat) => [b.prompt ?? '', b.accepting === true ? 'accepting' : 'NOT accepting', (b.inFlight ?? []).join(',') || '-',
+    (b.frames ?? []).join(';') || '-', b.section ?? '', b.block ?? '', b.start ?? ''].join(' | ');
+  const rows: Array<string> = [];
+  let runStart = 0;
+  for (let i = 1; i <= beats.length; i++) {
+    if (i < beats.length && key(beats[i]) === key(beats[runStart])) {
+      continue;
+    }
+    const first = beats[runStart];
+    const last = beats[i - 1];
+    const span = i - runStart > 1 ? `${clock(first.at)}–${clock(last.at)}` : clock(first.at);
+    rows.push(`[${span}] ${key(first)} | quiet ${last.quietS ?? 0}s, presses ${last.presses ?? 0}`);
+    runStart = i;
+  }
+  return [`SCREEN: the last ${beats.length} s before ${clock(now.getTime())} (prompt | accepting | in flight | frames | section | block | start)`,
+    ...rows].join('\n') + '\n';
+}
+
 /** The capture buffer + the exporter, bound to one window's renderer. */
 export interface ConsoleExporter {
   /** Read the current game name from the renderer + write the dump. Resolves with the outcome. */
@@ -576,7 +614,7 @@ export function installConsoleCapture(app: App, win: BrowserWindow): ConsoleExpo
   const drainTimer = setInterval(() => void drain(), 8000);
   win.on('closed', () => clearInterval(drainTimer));
 
-  const dump = (gameName: string, when: Date, entries: ConsoleEntry[], rich: boolean): string => {
+  const dump = (gameName: string, when: Date, entries: ConsoleEntry[], rich: boolean, screen = ''): string => {
     const rule = '─'.repeat(60);
     const header = [
       `Terraforming Mars — console export`,
@@ -587,6 +625,7 @@ export function installConsoleCapture(app: App, win: BrowserWindow): ConsoleExpo
       rule,
       // Errors first: this file is read because something broke, so lead with what broke.
       buildErrorDigest(entries) + rule,
+      buildScreenDigest(screen, when) + rule,
       '',
     ].join('\n');
     return header + entries.map(formatConsoleEntry).join('\n') + '\n';
@@ -594,20 +633,27 @@ export function installConsoleCapture(app: App, win: BrowserWindow): ConsoleExpo
 
   // Shared by export() and copyToClipboard(): drain up to this instant, then MERGE both buffers —
   // each sees red lines the other structurally cannot, so neither may be dropped.
-  const gather = async (): Promise<{gameName: string, when: Date, entries: ConsoleEntry[], rich: boolean}> => {
+  const gather = async (): Promise<{gameName: string, when: Date, entries: ConsoleEntry[], rich: boolean, screen: string}> => {
     await drain();
     const gameName = String(await win.webContents.executeJavaScript(GAME_NAME_PROBE, true));
-    return {gameName, when: new Date(), entries: mergeCaptures(richLog, fallback), rich: richLog.length > 0};
+    let screen = '';
+    try {
+      screen = String(await win.webContents.executeJavaScript(
+        'window.__conFieldRecorder ? JSON.stringify(window.__conFieldRecorder()) : ""', true));
+    } catch {
+      screen = '';
+    }
+    return {gameName, when: new Date(), entries: mergeCaptures(richLog, fallback), rich: richLog.length > 0, screen};
   };
 
   return {
     async export() {
       try {
-        const {gameName, when, entries, rich} = await gather();
+        const {gameName, when, entries, rich, screen} = await gather();
         const dir = resolveExportDir(app);
         const file = path.join(dir, buildExportFilename(gameName, when));
         await fs.promises.mkdir(dir, {recursive: true});
-        await fs.promises.writeFile(file, dump(gameName, when, entries, rich), 'utf8');
+        await fs.promises.writeFile(file, dump(gameName, when, entries, rich, screen), 'utf8');
         // eslint-disable-next-line no-console
         console.log(`[console-export] wrote ${entries.length} lines, ${entries.filter((e) => isErrorLevel(e.level)).length} error(s) (${rich ? 'rich' : 'fallback'}) → ${file}`);
         return {ok: true, path: file};
@@ -620,12 +666,12 @@ export function installConsoleCapture(app: App, win: BrowserWindow): ConsoleExpo
     },
     async copyToClipboard() {
       try {
-        const {gameName, when, entries, rich} = await gather();
+        const {gameName, when, entries, rich, screen} = await gather();
         // Electron 44 rearchitected `clipboard` to match the W3C Clipboard API — the
         // read/write methods now return Promises. Awaiting keeps the success log + `ok`
         // honest (the write has actually landed) and keeps a rejection inside the catch
         // below instead of escaping as an unhandled rejection.
-        await clipboard.writeText(dump(gameName, when, entries, rich));
+        await clipboard.writeText(dump(gameName, when, entries, rich, screen));
         // eslint-disable-next-line no-console
         console.log(`[console-export] copied ${entries.length} lines, ${entries.filter((e) => isErrorLevel(e.level)).length} error(s) (${rich ? 'rich' : 'fallback'}) to the clipboard`);
         return {ok: true, length: entries.length};

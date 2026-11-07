@@ -38,7 +38,8 @@ import {bootFixture, fetchPlayerModel, openActionFocus, openCardActions, press, 
  * beat first appears in) is inside the target's ink box (a quarter chip of
  * slack); the counter ticked no earlier than the touchdown (a price: no earlier
  * than its departure); the result is born only after the price has landed; the
- * whole run fired no foreground-watchdog recovery and no «Экран завис» notice.
+ * whole run fired no foreground-watchdog recovery (the console's own marker — the player-facing notice is gone since
+ * 2026-11-07: a heal is silent).
  */
 
 const OUT = path.resolve('screenshots', 'rail-landing');
@@ -53,7 +54,7 @@ type Rect = {l: number, t: number, r: number, b: number} | null;
 type Chip = {id: string, v: string, x: number, y: number, w: number, op: number};
 type Sample = {
   t: number, chips: Array<Chip>, beats: Array<{x: number, y: number}>,
-  targets: Record<string, Rect>, readouts: Record<string, string>, toast: string, ws: number,
+  targets: Record<string, Rect>, readouts: Record<string, string>, ws: number,
 };
 
 /** Arm the landing probe: `targets` — the INK boxes tokens must land on / leave from; `readouts` — the counters. */
@@ -106,7 +107,6 @@ async function armProbe(page: Page, targets: Record<string, string>, readouts: R
       }
       const s = {
         t: +(performance.now() - t0).toFixed(1), chips, beats, targets, readouts,
-        toast: Array.from(document.querySelectorAll('[role="status"]')).map((e) => (e.textContent ?? '').trim()).find((x) => x.includes('завис')) ?? '',
         ws: document.querySelectorAll('.con-ws').length,
       };
       const key = JSON.stringify({...s, t: 0});
@@ -316,7 +316,6 @@ for (const profile of PROFILES) {
       const samples = await readProbe(page);
       await shoot(page, `${profile.tag}-tr13-board`);
       expectLanding(`tr13-${profile.tag}`, samples, '+5', 'mc', 'mc', '12', '17');
-      expect(samples.filter((s) => s.toast !== '').map((s) => s.toast), 'no «Экран завис» notice').toEqual([]);
       expect(seen.watchdog, 'no foreground-watchdog recovery during the verdict\'s handoff').toEqual([]);
       expect(seen.errors, 'no page errors').toEqual([]);
       expect(await mcOf(request, playerId)).toBe(17);
@@ -347,7 +346,6 @@ for (const profile of PROFILES) {
       expectLanding(tag, samples, '+7', 'mc', 'mc', String(mc0), String(mc0 + 7));
       const born = birthOf(samples, '+7')!;
       expect(mcTiles.some((r) => inside(born.chip, r, born.chip.w * 0.25)), `the +7 is born INSIDE a printed M€ tile — born ${born.chip.x},${born.chip.y} vs tiles ${JSON.stringify(mcTiles)}`).toBe(true);
-      expect(samples.filter((s) => s.toast !== '').map((s) => s.toast), 'no «Экран завис» notice').toEqual([]);
       expect(seen.watchdog, 'no foreground-watchdog recovery').toEqual([]);
       expect(seen.errors, 'no page errors').toEqual([]);
       expect(await mcOf(request, playerId)).toBe(mc0 + 7);
@@ -373,7 +371,6 @@ for (const profile of PROFILES) {
       const tag = `mirrors-${profile.tag}`;
       expectDeparture(tag, samples, '−7', 'mc', 'mc', String(mc0), String(mc0 - 7), mcTiles, '+1');
       expectLanding(tag, samples, '+1', 'eprod', 'eprod', '+0', '+1');
-      expect(samples.filter((s) => s.toast !== '').map((s) => s.toast), 'no «Экран завис» notice').toEqual([]);
       expect(seen.watchdog, 'no foreground-watchdog recovery').toEqual([]);
       expect(seen.errors, 'no page errors').toEqual([]);
       expect(await mcOf(request, playerId)).toBe(mc0 - 7);

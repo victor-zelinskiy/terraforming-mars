@@ -87,6 +87,13 @@ export const FIELD_LINE_CHARS = 1200;
 /** Heartbeats kept (one a second — the last half minute before whatever happened). */
 export const FIELD_HEARTBEATS_MAX = 45;
 export const FIELD_BATCH_MS = 1500;
+/**
+ * A SCREEN THAT STANDS IS POSTED BEFORE ITS RING FORGETS IT (the owner's field lock of 2026-11-07 01:06: no warn line
+ * was printed, the player did not reload, and the ring of 45 heartbeats had rolled past the freeze by the next post —
+ * the one incident of the evening with no evidence at all). Once a live question has stood this long with nothing in
+ * flight, the whole ring goes to the server ONCE per quiet episode — a line is not needed to make a freeze evidence.
+ */
+export const FIELD_QUIET_POST_S = 15;
 /** The diagnostic convention: a tagged line. Anything else the console prints is not ours to ship. */
 const TAGGED = /^\[[a-z][a-z0-9-]*\]/i;
 
@@ -99,6 +106,8 @@ export class FieldRecorder {
   private readonly batchMs: number;
   private readonly schedule: (fn: () => void, ms: number) => unknown;
   private persistQueued = false;
+  /** The current quiet episode was already posted (`FIELD_QUIET_POST_S`) — re-armed when the screen moves again. */
+  private quietPosted = false;
 
   constructor(private readonly deps: FieldRecorderDeps) {
     this.batchMs = deps.batchMs ?? FIELD_BATCH_MS;
@@ -167,12 +176,23 @@ export class FieldRecorder {
       this.record.heartbeats.splice(0, this.record.heartbeats.length - FIELD_HEARTBEATS_MAX);
     }
     this.persist();
+    // A player thinking at the board home (no frame, accepting) is not a standing screen — every turn would post.
+    const standing = h.prompt !== '' && h.inFlight.length === 0 && h.quietS >= FIELD_QUIET_POST_S &&
+      (h.frames.length > 0 || !h.accepting);
+    if (!standing) {
+      this.quietPosted = false;
+    } else if (!this.quietPosted) {
+      this.quietPosted = true;
+      this.flush(false, true);
+    }
   }
 
   /** The pending lines (and the latest heartbeats) go to the server; `final` on `pagehide` (a beacon, never awaited). */
-  flush(final: boolean): void {
-    this.batchTimer = undefined;
-    if (this.pendingLines.length === 0 && !final) {
+  flush(final: boolean, ring = false): void {
+    if (!ring) {
+      this.batchTimer = undefined;
+    }
+    if (this.pendingLines.length === 0 && !final && !ring) {
       return;
     }
     const lines = this.pendingLines;

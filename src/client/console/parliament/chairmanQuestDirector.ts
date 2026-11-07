@@ -158,7 +158,17 @@ export function startChairmanQuestBeats(ctx: ChairmanQuestDirectorContext): void
   killChairmanQuestBeats();
   run = {
     ctx,
-    hold: beginAnimationHold('parliament-chairman-quest', {maxHoldMs: 20000}),
+    // THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT (animations.md § the ceiling MASKS the hold — the field lock of
+    // 2026-11-07 01:20: a beat that never landed held this past 20 s, the ceiling dropped the count, and the run stood
+    // «in a beat» — B absorbed, A «дожать» with nothing left to drive — over the next action menu, `accepting` and
+    // quiet). The flow's own honest end runs instead: every beat cut, every flight landed, `done` — A / B close it.
+    hold: beginAnimationHold('parliament-chairman-quest', {
+      maxHoldMs: 20000,
+      diagnose: () => ({beat: chairmanQuestFlow.beat, answered: chairmanQuestFlow.answered,
+        seatPick: run?.awaitingSeatPick ?? false, reaction: run?.awaitingReaction ?? false,
+        chairAwaits: parliamentHolds.chairAwaits !== undefined, agendaAwaits: parliamentHolds.agendaAwaits !== undefined}),
+      expire: () => settleChairmanQuestBeats('the beats outlived their 20 s ceiling'),
+    }),
     beats: [],
     readDone: false,
     seatStarted: false,

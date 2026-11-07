@@ -299,7 +299,7 @@ function dispatchConsoleIntentInner(intent: GamepadIntent): boolean {
   }
   const taken = handler !== undefined ? handler(intent) : false;
   if (verb) {
-    recordVerbPress(taken);
+    recordVerbPress(taken, intent.kind === 'press' && intent.button === 'back');
   }
   return taken;
 }

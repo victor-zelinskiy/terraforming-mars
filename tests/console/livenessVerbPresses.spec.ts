@@ -21,4 +21,14 @@ describe('liveness · the presses it counts', () => {
     dispatchConsoleIntent({kind: 'press', button: 'back'});
     expect(inputEchoSnapshot().verbPresses).to.equal(2);
   });
+
+  it('counts the B presses a handler TOOK apart (the arbiter judges them on a frame past its commit)', () => {
+    resetInputEchoForTest();
+    dispatchConsoleIntent({kind: 'press', button: 'back'});
+    dispatchConsoleIntent({kind: 'press', button: 'confirm'});
+    const echo = inputEchoSnapshot();
+    // No handler is registered here: both are DROPPED, so neither is a taken B.
+    expect(echo.verbDropped).to.equal(2);
+    expect(echo.backTaken).to.equal(0);
+  });
 });

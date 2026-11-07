@@ -66,9 +66,7 @@ import {
   acknowledgeFlowHoldingCards,
   pendingSummary,
   promoteFromQueue,
-  pushWarning,
 } from '@/client/components/notifications/notificationState';
-import {translateText} from '@/client/directives/i18n';
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
 
 /** The admission signals the watchdog may expire (never `announceGate`). */
@@ -362,10 +360,7 @@ export function recoverStalledForeground(): ReadonlyArray<string> {
     `${permanent ? 'QUARANTINED (recurring leak, suppressed for the session)' : 'expired'} ` +
     `${expired.length > 0 ? expired.join(', ') : '(nothing)'} ` +
     `(claims at the time: ${claims.length > 0 ? claims.join(', ') : 'none'})`);
-  // The notice goes out BEFORE the drain: with the slot free it is delivered
-  // rather than queued, and the backlog it just unblocked follows behind it
-  // instead of being evicted by it. Explain, then show.
-  pushWarning(translateText('The screen was stuck and has been released'));
+  // NO NOTICE TO THE PLAYER (the owner, 2026-11-07): the queue simply moves on — the warn above is the evidence.
   promoteFromQueue();
   return expired;
 }

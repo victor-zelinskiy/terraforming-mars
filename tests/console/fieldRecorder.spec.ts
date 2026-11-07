@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  FIELD_HEARTBEATS_MAX, FIELD_LINES_MAX, FieldPost, FieldRecorder, FieldRecorderDeps, FieldStorage,
+  FIELD_HEARTBEATS_MAX, FIELD_LINES_MAX, FIELD_QUIET_POST_S, FieldPost, FieldRecorder, FieldRecorderDeps, FieldStorage,
 } from '../../src/client/console/fieldRecorder';
 
 /**
@@ -114,6 +114,34 @@ describe('fieldRecorder — the console\'s flight recorder', () => {
     expect(snap.heartbeats).length(FIELD_HEARTBEATS_MAX);
     expect(snap.heartbeats[0].quietS).to.eq(5);
     expect(snap.game).to.eq('g777');
+  });
+
+  it('a screen that STANDS posts its ring once per quiet episode — a freeze with no warn line is evidence too (2026-11-07 01:06)', () => {
+    const h = harness();
+    const r = h.make();
+    const beat = (quietS: number, over: Record<string, unknown> = {}) =>
+      r.heartbeat({prompt: 'or:menu#1', accepting: true, inFlight: [], frames: ['parliament:committed'], section: 'parliament/', quietS, presses: 0, ...over});
+    for (let q = 1; q < FIELD_QUIET_POST_S; q++) {
+      beat(q);
+    }
+    expect(h.posts, 'not yet').length(0);
+    beat(FIELD_QUIET_POST_S);
+    expect(h.posts).length(1);
+    expect(h.posts[0].body.kind).to.eq('live');
+    expect(h.posts[0].body.record.heartbeats.length).to.eq(FIELD_QUIET_POST_S);
+    beat(FIELD_QUIET_POST_S + 1);
+    beat(FIELD_QUIET_POST_S + 30);
+    expect(h.posts, 'once per episode').length(1);
+    // The screen moved → the next standing episode posts again.
+    beat(1);
+    beat(FIELD_QUIET_POST_S);
+    expect(h.posts).length(2);
+    // A player THINKING at the board home (no frame, accepting) or a screen with something in flight posts nothing.
+    beat(1);
+    beat(FIELD_QUIET_POST_S + 5, {frames: []});
+    beat(FIELD_QUIET_POST_S + 6, {inFlight: ['transport@1s']});
+    beat(FIELD_QUIET_POST_S + 7, {prompt: ''});
+    expect(h.posts).length(2);
   });
 
   it('the record is PERSISTED (debounced) so a reload does not erase it', () => {

@@ -139,3 +139,50 @@ A (take → the discard's door → discard → home). The two stories the field 
 they are the HONEST multiplayer wait: the park holds the Venus value while the trade's surfaces cover the board, and
 releases without the show. The field's freeze itself did not reproduce on the box; its cure is the arbiter, and its
 next occurrence will carry a `[liveness]` line naming the rung that freed the screen.
+
+## The deaf screen that TAKES every press (2026-11-07, ledger HA)
+
+The field lock of 2026-11-07 01:20 (game `p593bded`):
+1. A card closed the chairman quest, and the Parliament stood `committed` for its beats.
+2. A beat never landed. Its hold hit the 20 s ceiling, and the ceiling dropped the count while the director's run stayed
+   «in a beat».
+3. From then on the section's handler TOOK every B («a beat absorbs it») and every A («дожать» with nothing left to
+   drive). Nothing was in flight, and the server asked the next action menu.
+
+The arbiter read `accepting: true` for the screen's whole life, because on an accepting screen it counted only the
+presses NO handler took.
+
+Three changes, each general:
+- **A taken B on a frame past its commit is evidence.** B collapses such a frame by contract (`backVerbFor('committed')`),
+  so a taken B that moved nothing is a handler swallowing the verb over a wedged flow.
+  - Counted from `inputEcho.backTaken` while `LivenessSample.backJudged` (`ConsoleShell.backOwedOnStandingFrame`).
+  - That needs the deepest live frame `committed`, no park / yield / placement, a question asked, and no surface of its
+    own over the frame (reveal · plate · viewer · journal · system menu · task host).
+  - A player who is merely reading is never judged: nothing happens until they press and nothing answers.
+- **`phase-root-park` (rank 31).** `stack-home` keeps a phase root by definition, so a deaf sitting / draft / opening
+  survived every rung. The last rung PARKS it: the plate re-announces it, and the restore mounts the section fresh.
+- **The ceiling ends the wedge, ratcheted.** The quest's hold declares `expire` (`settleChairmanQuestBeats`). Every
+  other hold declares `expire` or `hold-expire: none — <reason>`. The 44 that predate the rule are the worklist of
+  `tests/console/holdExpireRatchet.spec.ts`.
+
+**Evidence.** The field recorder posts a standing screen's ring once per quiet episode (`FIELD_QUIET_POST_S`), and the
+console export prints that ring under its errors (`buildScreenDigest`). The 01:06 freeze of the same evening left no
+line and no reload, so nothing named it; the next one will be named either way.
+
+## Silent, and automatic over the free turn (2026-11-07)
+
+The owner: «чтобы для пользователя выглядело как будто зависания нет». Two changes:
+- **The heal shows nothing.** The «Экран завис» notice is gone, both the arbiter's and the foreground watchdog's. The
+  warn line stays: the field log and every e2e spec read it.
+- **A finished frame over the free turn leaves by itself** (`ConsoleShell.reapStaleFreeTurnFrame`), with no press
+  needed. It fires when the server asks the action menu and the deepest live frame meets all of these:
+  - it stands `committed`;
+  - it is not phase-anchored (phases are the anchor rule's);
+  - it does not serve the turn;
+  - nothing is in flight, and the picture has been still for `STALE_FREE_TURN_MS` (8 s).
+
+  Then it is concluded through the ONE guarded conclusion. That conclusion still holds for every named reason — cards
+  to take, a verdict, a nested or owed step, an owned prompt, a park — so a frame genuinely waiting for the player stays.
+  A conclusion is `[workspace-stale] concluded`, red in every e2e spec, because a flow that did not end itself is a
+  defect upstream. A hold is named once, as evidence.
+

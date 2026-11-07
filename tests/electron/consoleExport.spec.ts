@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  buildErrorDigest, buildExportFilename, CONSOLE_CAPTURE, ConsoleEntry, formatConsoleEntry,
+  buildErrorDigest, buildExportFilename, buildScreenDigest, CONSOLE_CAPTURE, ConsoleEntry, formatConsoleEntry,
   formatStamp, isErrorLevel, makeRichFormatter, mergeCaptures, normalizeConsoleLevel,
   RICH_FORMAT_SOURCE, sanitizeForFilename,
 } from '../../electron/consoleExport';
@@ -471,6 +471,32 @@ describe('electron/consoleExport', () => {
       expect(isErrorLevel('error')).to.be.true;   // console-message hands them lowercase
       expect(isErrorLevel('WARNING')).to.be.false;
       expect(isErrorLevel('INFO')).to.be.false;
+    });
+  });
+
+  describe('buildScreenDigest — the screen, second by second (the frozen export of 2026-11-07 01:06 named nothing)', () => {
+    const at = (s: number) => new Date(2026, 10, 7, 1, 20, s).getTime();
+    const beat = (s: number, over: Record<string, unknown> = {}) => ({at: at(s), prompt: 'or|menu#1865', accepting: true, inFlight: [],
+      frames: ['parliament:committed'], section: 'parliament/', quietS: s, presses: 0, block: 'presentation', start: '', ...over});
+
+    it('folds a run of identical seconds into ONE row with its span, the last quiet and presses', () => {
+      const record = JSON.stringify({heartbeats: [
+        beat(17, {frames: [], section: 'board/', block: 'card-arrival'}),
+        beat(18, {inFlight: ['parliament-chairman-quest[blocking]']}),
+        beat(38), beat(39), beat(40, {presses: 3}),
+      ]});
+      const out = buildScreenDigest(record, new Date(at(41)));
+      const rows = out.trim().split('\n');
+      expect(rows[0]).to.match(/^SCREEN: the last 5 s before 01:20:41/);
+      expect(rows).length(4);
+      expect(rows[3]).to.contain('[01:20:38–01:20:40] or|menu#1865 | accepting | - | parliament:committed');
+      expect(rows[3]).to.contain('quiet 40s, presses 3');
+      expect(rows[2]).to.contain('parliament-chairman-quest[blocking]');
+    });
+
+    it('says so when the page recorded nothing (no recorder, a malformed record)', () => {
+      expect(buildScreenDigest('', new Date(at(0)))).to.eq('SCREEN: no heartbeats recorded\n');
+      expect(buildScreenDigest('{"heartbeats":[]}', new Date(at(0)))).to.eq('SCREEN: no heartbeats recorded\n');
     });
   });
 });

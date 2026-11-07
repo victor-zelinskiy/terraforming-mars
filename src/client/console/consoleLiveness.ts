@@ -68,6 +68,15 @@ export type LivenessSample = {
    * surface took and answered with nothing visible (A on a disabled tile while the player thinks) is no evidence.
    */
   dropped?: number;
+  /**
+   * B presses a handler TOOK (`inputEcho.backTaken`) — counted toward «presses with no effect» on an accepting screen
+   * only while `backJudged`: a frame stands PAST ITS COMMIT, where B is never an honest no-op (it collapses the frame),
+   * the server asks the player something and nothing is in flight. A taken B that moved nothing there is a handler
+   * swallowing the verb over a wedged flow — the chairman quest's leaked beat (2026-11-07), whose screen read
+   * `accepting: true` for its whole life because every press was «taken».
+   */
+  backTaken?: number;
+  backJudged?: boolean;
   /** An OBSERVABLE-STATE signature: the prompt's identity, the stack, the surfaces, the bar, the focus. A press that
    *  changes nothing leaves it equal; anything the player would SEE change moves it. */
   signature: string;
@@ -81,6 +90,7 @@ export type LivenessState = {
   pressesSinceProgress: number;
   lastPresses: number;
   lastDropped: number;
+  lastBackTaken: number;
   lastInFlight: ReadonlyArray<string>;
   /** The ladder: the next rung to run (0 = none run yet for this stall) and when the last one ran. */
   rung: number;
@@ -90,7 +100,7 @@ export type LivenessState = {
 };
 
 export function initialLivenessState(now = 0): LivenessState {
-  return {signature: '', progressAt: now, pressesSinceProgress: 0, lastPresses: 0, lastDropped: 0, lastInFlight: [], rung: 0, rungAt: 0, reported: false};
+  return {signature: '', progressAt: now, pressesSinceProgress: 0, lastPresses: 0, lastDropped: 0, lastBackTaken: 0, lastInFlight: [], rung: 0, rungAt: 0, reported: false};
 }
 
 export type LivenessVerdict =
@@ -116,11 +126,14 @@ export function observeLiveness(state: LivenessState, sample: LivenessSample): {
   const next: LivenessState = {...state, lastInFlight: sample.inFlight.length > 0 ? [...sample.inFlight] : state.lastInFlight};
   const dropped = sample.dropped ?? 0;
   // An ACCEPTING screen is judged by the presses nobody took; an absorbed one by every A / B (see `LivenessSample`).
+  // …and, on a frame past its commit, every B a handler took (it must have collapsed something — see `backJudged`).
+  const backTaken = sample.backTaken ?? 0;
   const newPresses = sample.accepting ?
-    Math.max(0, dropped - state.lastDropped) :
+    Math.max(0, dropped - state.lastDropped) + (sample.backJudged === true ? Math.max(0, backTaken - state.lastBackTaken) : 0) :
     Math.max(0, sample.presses - state.lastPresses);
   next.lastPresses = sample.presses;
   next.lastDropped = dropped;
+  next.lastBackTaken = backTaken;
   const moved = sample.signature !== state.signature;
   next.signature = sample.signature;
   next.pressesSinceProgress = state.pressesSinceProgress + newPresses;

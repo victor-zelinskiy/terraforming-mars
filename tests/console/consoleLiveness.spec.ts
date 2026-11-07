@@ -97,6 +97,29 @@ describe('consoleLiveness', () => {
     expect(last.stalled && last.reason).to.equal('presses-no-effect');
   });
 
+  it('…and on a frame PAST ITS COMMIT a B a handler TOOK that moved nothing is the deaf screen too (the chairman quest, 2026-11-07)', () => {
+    // The quest's leaked beat: the section's handler took every B («a beat absorbs it») with nothing left in flight,
+    // over the next action menu — `accepting: true` for the screen's whole life.
+    const deaf = walk(seconds(LIVENESS_PRESSED_GRACE_MS / 1000, (t) => {
+      const n = Math.min(3, Math.floor(t / 1000));
+      return {promptLive: true, accepting: true, presses: n, dropped: 0, backTaken: n, backJudged: true};
+    }));
+    const last = deaf[deaf.length - 1];
+    expect(last.stalled && last.reason).to.equal('presses-no-effect');
+    // A taken B anywhere else (a browse layer, a verdict, a board home) is no evidence — it may honestly do nothing.
+    const honest = walk(seconds(30, (t) => {
+      const n = Math.min(6, Math.floor(t / 1000));
+      return {promptLive: true, accepting: true, presses: n, dropped: 0, backTaken: n, backJudged: false};
+    }));
+    expect(honest.some((x) => x.stalled), 'a taken B off a committed frame').is.false;
+    // …and a B that DID move the picture restarts the clock, judged or not.
+    const moving = walk(seconds(30, (t) => {
+      const n = Math.min(6, Math.floor(t / 1000));
+      return {promptLive: true, accepting: true, presses: n, backTaken: n, backJudged: true, signature: `s${n}`};
+    }));
+    expect(moving.some((x) => x.stalled), 'a B that collapsed something').is.false;
+  });
+
   it('an idle accepting screen with no question and no presses is not judged at all', () => {
     const v = walk(seconds(60, () => ({promptLive: false, accepting: true})));
     expect(v.some((x) => x.stalled)).is.false;

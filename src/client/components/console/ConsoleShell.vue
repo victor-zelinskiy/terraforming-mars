@@ -1684,7 +1684,7 @@ import {LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnaps
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
 import {ANIMATION_STALL_GRACE_MS} from '@/client/console/consoleForegroundWatchdog';
-import {notificationState, notificationFeedReadForDecision, acknowledgeFlowHoldingCards, dismiss as dismissNotification, pushWarning, registerNotificationCornerProbe} from '@/client/components/notifications/notificationState';
+import {notificationState, notificationFeedReadForDecision, acknowledgeFlowHoldingCards, dismiss as dismissNotification, registerNotificationCornerProbe} from '@/client/components/notifications/notificationState';
 import {beginNotifHold, cancelNotifHold, consumeNotifHoldRelease, resetNotifHold} from '@/client/console/consoleNotifHold';
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -2495,6 +2495,12 @@ const FINALE_FINISH_HOLD = 'final-greenery-finish';
  * refusal must not become a render dependency of anything.
  */
 let lastConclusionHold: {kind: WorkspaceFrameKind, reason: string, at: number} | undefined;
+/**
+ * A FINISHED FRAME OVER THE FREE TURN LEAVES BY ITSELF after this long with nothing moving (`reapStaleFreeTurnFrame`).
+ * Long enough that a player reading a result that asks nothing of them still has it; short enough that a wedged one is
+ * a hiccup, not a freeze.
+ */
+const STALE_FREE_TURN_MS = 8_000;
 
 /**
  * THE FRESH-CARD FOCUS of the open hand pick has been given (2026-10-15): a question left for after a draw opens on the
@@ -2734,6 +2740,8 @@ export default defineComponent({
       beatStallTimer: undefined as number | undefined,
       /** The shell's own rungs of the liveness ladder — unregistered with the shell. */
       livenessRungStops: [] as Array<() => void>,
+      /** The stale frame over the free turn already judged (`<kind>|<promptId>`) — one conclusion attempt per standing. */
+      staleFreeTurnKey: '',
       /** Consecutive 1 Hz passes a LIVE frame of a phase that is over has stood with no leave pending (`reapDeadPhaseFrames`). */
       deadLiveFramePasses: 0,
       startStrandPrompt: undefined as number | undefined,
@@ -22452,6 +22460,45 @@ export default defineComponent({
      * is provably in flight. Every term is the console's own fact; the beat stall guard's verdict is one of the «not
      * accepting» witnesses, the leak detector's stranded verdict another.
      */
+    /**
+     * A FINISHED FRAME OVER THE FREE TURN LEAVES BY ITSELF — the automatic, silent half of «the player can always act»
+     * (the owner, 2026-11-07: «чтобы для пользователя выглядело как будто зависания нет»). Every field lock of that week
+     * had ONE shape: the server asked the player's ordinary turn (the action menu) while the screen stood on a frame PAST
+     * its commit that does not serve that turn, with nothing in flight — the sitting's frame returned after its phase,
+     * the chairman quest's run wedged in a beat, the unexplained 01:06. Such a frame owes the player nothing the stack
+     * can name, so after `STALE_FREE_TURN_MS` with nothing moving it is concluded through the ONE guarded conclusion —
+     * which still HOLDS for every named reason (a nested step, a step owed, a live outcome of its own: cards to take, a
+     * verdict to read; a prompt it owns; a park; off stage), so a frame that is genuinely waiting for the player stays.
+     * Never a frame of a phase (their life is the anchor rule's), never a question other than the free turn (the screen
+     * director judges those), once per frame and prompt. A conclusion here means a flow did not end itself — named
+     * (`[workspace-stale] concluded`, red in every e2e spec); a hold is named once too, as evidence.
+     */
+    reapStaleFreeTurnFrame(inFlight: ReadonlyArray<string>): void {
+      const wf = this.playerView.waitingFor;
+      const top = workspaceStackTop();
+      const stale = wf !== undefined && top !== undefined && taskFor(this.playerView)?.kind === 'actionMenu' &&
+        top.phase === 'committed' && top.anchor.type !== 'phase' && !top.serves.includes('actionMenu') &&
+        !workspaceStackCollapsed() && !stackYieldedToBoard() && !this.placementActive && inFlight.length === 0 &&
+        Date.now() - livenessStateSnapshot().progressAt >= STALE_FREE_TURN_MS;
+      if (!stale) {
+        this.staleFreeTurnKey = '';
+        return;
+      }
+      const key = `${top.kind}|${wf.promptId ?? ''}`;
+      if (this.staleFreeTurnKey === key) {
+        return;
+      }
+      this.staleFreeTurnKey = key;
+      const quiet = Math.round((Date.now() - livenessStateSnapshot().progressAt) / 1000);
+      if (this.concludeWorkspaceFlow(top.kind)) {
+        console.warn(`[workspace-stale] concluded «${top.kind}» — it stood committed over the free turn ${quiet}s with ` +
+          `nothing in flight (frames: ${workspaceStackState.frames.map((f) => f.kind + ':' + f.phase).join(';') || 'none'}); ` +
+          'its flow did not end itself');
+      } else {
+        console.warn(`[workspace-stale] «${top.kind}» stands committed over the free turn ${quiet}s with nothing in flight — ` +
+          `held: ${lastConclusionHold?.kind === top.kind ? lastConclusionHold.reason : 'unknown'}`);
+      }
+    },
     /** Is this anchor PROVABLY over? (registered into the stack — its return doors and prunes ask it). */
     frameAnchorIsDead(anchor: FrameAnchor): boolean {
       return anchor.type === 'phase' && this.deadPhaseAnchors.includes(anchor.phase);
@@ -22512,6 +22559,7 @@ export default defineComponent({
           inFlight.push(`story:${story.id}`);
         }
       }
+      this.reapStaleFreeTurnFrame(inFlight);
       const dom = (s: string) => document.querySelectorAll(s).length;
       const focused = document.querySelector('[class*="--focused"]');
       const signature = [
@@ -22551,6 +22599,11 @@ export default defineComponent({
         // screen is judged only by the A / B nobody took.
         presses: inputEchoSnapshot().verbPresses,
         dropped: inputEchoSnapshot().verbDropped,
+        // …and a B a handler TOOK on a frame past its commit, the server asking the player and nothing in flight: B
+        // collapses such a frame by contract (`backVerbFor('committed')`), so a taken B that moved nothing is a handler
+        // swallowing the verb over a wedged flow (the chairman quest's leaked beat, the owner's field lock of 2026-11-07).
+        backTaken: inputEchoSnapshot().backTaken,
+        backJudged: this.backOwedOnStandingFrame(),
         signature,
       });
       if (!verdict.stalled || verdict.rung === undefined) {
@@ -22563,9 +22616,25 @@ export default defineComponent({
         `asked: ${wf?.type ?? 'none'}; beat: ${beat ?? 'none'}; stranded: ${leakDetectorState.stranded?.inputType ?? 'no'}; ` +
         `last in flight: ${verdict.lastInFlight.join(', ') || 'nothing'}; claim: ${claim}; holds: ${activeAnimationHoldLabels().join(', ') || 'none'} — ` +
         (did === undefined ? 'the ladder is spent' : `rung ${verdict.rung}: ${did}`));
-      if (verdict.first) {
-        pushWarning(translateText('The screen was stuck and has been released'));
+      // NO NOTICE TO THE PLAYER (the owner, 2026-11-07: «чтобы для пользователя выглядело как будто зависания нет»):
+      // the screen simply comes back. The line above is the evidence — the field log and every e2e spec read it.
+    },
+    /**
+     * MUST B MOVE SOMETHING RIGHT NOW? The deepest live frame stands PAST ITS COMMIT (`committed` — B collapses it,
+     * `backVerbFor`), on screen (no park, no yield, no placement owning the pad), and the server asks the player a
+     * question. A `verdict` (B = none) and a transient beat (the pad absorbed by contract) are not judged here.
+     */
+    backOwedOnStandingFrame(): boolean {
+      const wf = this.playerView.waitingFor;
+      if (wf === undefined || wf.optional === true || workspaceStackCollapsed() || stackYieldedToBoard() || this.placementActive) {
+        return false;
       }
+      if (workspaceStackTop()?.phase !== 'committed') {
+        return false;
+      }
+      // A surface of its OWN standing over the frame takes B by its own contract (a reveal is taken with A, the
+      // announce plate is answered, the viewer / journal / system menu own the pad): there B may honestly do nothing.
+      return document.querySelector('.con-reveal, .con-mandatory, .con-zoom, .con-journal, .con-sys, .con-task, .con-stranded') === null;
     },
     /** The transient beat the arbiter judges (`workspaceBeatStall.ts`): the stack's TOP frame's (`<kind>:<phase>`), or
      *  the surface report of the kind that IS the top frame (card-actions derives its phase inside the component). */
@@ -22718,6 +22787,24 @@ export default defineComponent({
             goBoardHome();
             closeConsoleLayers();
             return `home from ${where}`;
+          },
+        }),
+        registerLivenessRelease({
+          // THE PHASE ROOT THAT STAYED (2026-11-07): `goBoardHome` keeps a phase-anchored root by definition (it IS the
+          // phase), so a sitting / draft / opening whose own surface went deaf survived every rung above. It is PARKED —
+          // never closed: its phase still stands, the plate re-announces it, and the player's restore mounts the section
+          // FRESH (its unmount kills whatever run was wedged). Nothing is answered for the player.
+          rank: 31,
+          name: 'phase-root-park',
+          release: () => {
+            const root = workspaceStackState.frames[0];
+            if (root === undefined || root.anchor.type !== 'phase') {
+              return '';
+            }
+            const kinds = workspaceStackState.frames.map((f) => f.kind).join(';');
+            collapseWorkspaceStack();
+            closeConsoleLayers();
+            return `parked the phase root [${kinds}]`;
           },
         }),
       ];

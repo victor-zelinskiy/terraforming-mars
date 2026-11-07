@@ -47,6 +47,13 @@ export type InputEchoSnapshot = {
   verbPresses: number;
   /** …of those, the ones NO handler took (`dispatchConsoleIntent` answered false) — the deaf screen's signature. */
   verbDropped: number;
+  /**
+   * …and the B presses a handler DID take. B is never an honest no-op on a frame standing past its commit (it collapses
+   * it — `backVerbFor`), so a taken B that changed nothing there is the OTHER deaf screen: a surface whose own handler
+   * swallows the verb while nothing is in flight (the chairman quest's leaked beat, 2026-11-07). The arbiter counts these
+   * only on such a frame (`LivenessSample.backJudged`).
+   */
+  backTaken: number;
   consumed: number;
   system: number;
   unconsumed: number;
@@ -63,6 +70,7 @@ const state: InputEchoSnapshot = {
   presses: 0,
   verbPresses: 0,
   verbDropped: 0,
+  backTaken: 0,
   consumed: 0,
   system: 0,
   unconsumed: 0,
@@ -89,10 +97,12 @@ export function recordInputEcho(code: string, kind: string, outcome: InputEchoOu
 }
 
 /** A/B reached the console router (any device) — see `verbPresses`; `taken` = a handler consumed it. */
-export function recordVerbPress(taken: boolean): void {
+export function recordVerbPress(taken: boolean, back = false): void {
   state.verbPresses++;
   if (!taken) {
     state.verbDropped++;
+  } else if (back) {
+    state.backTaken++;
   }
 }
 
@@ -115,6 +125,7 @@ export function resetInputEchoForTest(): void {
   state.presses = 0;
   state.verbPresses = 0;
   state.verbDropped = 0;
+  state.backTaken = 0;
   state.consumed = 0;
   state.system = 0;
   state.unconsumed = 0;

@@ -69,8 +69,21 @@ async function openPassConfirm(page: Page): Promise<boolean> {
   return page.locator('.con-confirm').first().waitFor({state: 'visible', timeout: 4000}).then(() => true).catch(() => false);
 }
 
-/** Every «Экран завис» notice on the page (the arbiter's and the watchdog's own words). */
-const stuckNotices = (page: Page) => page.getByText('Экран завис', {exact: false}).count();
+/**
+ * Every recovery the page logged — the arbiter's stall and the watchdog's expiry. Since 2026-11-07 a heal shows the
+ * player NOTHING (the owner: «чтобы для пользователя выглядело как будто зависания нет»), so the console's own markers
+ * are the only witness of a press read as a wedge.
+ */
+function watchRecoveries(page: Page): Array<string> {
+  const seen: Array<string> = [];
+  page.on('console', (m) => {
+    const text = m.text();
+    if (text.includes('[liveness] stall') || text.includes('[console-foreground-watchdog]')) {
+      seen.push(text.slice(0, 300));
+    }
+  });
+  return seen;
+}
 
 for (const profile of PROFILES) {
   test.describe(`liveness · a no-op press is not a wedge · ${profile.tag}`, () => {
@@ -82,6 +95,7 @@ for (const profile of PROFILES) {
 
     test('three unbound X and three ← on the live pass-confirm panel wake nothing; B still answers', async ({page, request}) => {
       test.setTimeout(240_000);
+      const recoveries = watchRecoveries(page);
       const playerId = await createGameWithCards(request, [], {config: cfg()});
       await bootSeededGame(page, request, playerId, {buy: 2, query: profile.query});
       await toBoard(page);
@@ -90,7 +104,7 @@ for (const profile of PROFILES) {
       // The panel's entry (its unfold, the bar relabelling) is progress to the arbiter: let it finish before the presses,
       // or the first X lands inside it and the count restarts (the TV reached the panel later than the Deck).
       await settle(page);
-      expect(await stuckNotices(page), 'a clean start — no notice before the presses').toBe(0);
+      expect(recoveries, 'a clean start — no recovery before the presses').toEqual([]);
 
       // THE HESITATING PLAYER, in two separate phases — each a different no-op, each followed by nothing: a button
       // the panel does not bind (X — exactly `console-workspace-band`'s three presses), then a flick against a wall
@@ -101,17 +115,17 @@ for (const profile of PROFILES) {
         }
         await expect(page.locator('.con-confirm'), `the panel stands through ${what} ×3`).toBeVisible();
         // Longer than the arbiter's pressed grace (5 s) and its rung gap: if the presses were read as a wedge, the
-        // ladder has run and the notice is up by now. A healthy screen shows NOTHING — which is why this is a beat,
+        // ladder has run and logged its rung by now. A healthy screen logs NOTHING — which is why this is a beat,
         // not a wait on state: the state that must not appear has no witness but time.
         await cinematicBeat(page, 9_000, `the arbiter's pressed grace must pass with ${what} ×3 on record and nothing else moving`);
-        expect(await stuckNotices(page), `no «Экран завис» over a live panel after ${what} ×3`).toBe(0);
+        expect(recoveries, `no recovery over a live panel after ${what} ×3`).toEqual([]);
         await expect(page.locator('.con-confirm'), `the panel still stands after ${what} ×3 — nothing folded it`).toBeVisible();
       }
 
       // THE PANEL'S OWN VERB still answers: B cancels the pass, the board home comes back.
       await press(page, 'Escape', 900);
       await expect(page.locator('.con-confirm'), 'B closed the confirmation').toHaveCount(0, {timeout: 8_000});
-      expect(await stuckNotices(page), 'still no notice').toBe(0);
+      expect(recoveries, 'still no recovery').toEqual([]);
     });
   });
 }

@@ -267,6 +267,12 @@ const BEAT_STALL = '[workspace-stall] beat';
  */
 const ANCHOR_REAP = '[workspace-anchor] reaped';
 /**
+ * THE STALE FREE-TURN FRAME's marker (`ConsoleShell.reapStaleFreeTurnFrame`, the owner's field locks of 2026-11-07): a
+ * frame past its commit stood over the player's ordinary turn with nothing in flight for 8 s and was concluded by the net
+ * — silently for the player, but a flow that did not end itself is a defect upstream: red, like the beat stall.
+ */
+const STALE_CONCLUDED = '[workspace-stale] concluded';
+/**
  * The LIVENESS ARBITER's marker (`src/client/console/consoleLiveness.ts`, the owner's Venus-trade freeze of
  * 2026-10-31): the player could not act — no surface accepting for the grace, or presses changing NOTHING — with
  * nothing in flight, and a rung of the cure ladder ran (stories degraded, holds expired, a flow concluded, the stack
@@ -430,7 +436,7 @@ const REACTIVITY_LATCH = 'changed without a reactive edge';
  */
 const STALL_MARKERS: ReadonlyArray<string> = [
   '[presentation-ledger]', '[workspace-stall]', '[console-foreground-watchdog]', '[bot-turn]', '[notifications]',
-  '[animation-hold]', '[console-leak-detector]', '[deferred-refresh]', '[reactivity]', '[workspace-anchor]',
+  '[animation-hold]', '[console-leak-detector]', '[deferred-refresh]', '[reactivity]', '[workspace-anchor]', '[workspace-stale]',
 ];
 
 /**
@@ -827,7 +833,7 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     const watch = (page: Page) => {
       page.on('console', (message) => {
         const text = message.text();
-        if (text.includes(BEAT_STALL) || text.includes(ANCHOR_REAP)) {
+        if (text.includes(BEAT_STALL) || text.includes(ANCHOR_REAP) || text.includes(STALE_CONCLUDED)) {
           stalls.push(text.slice(0, 1200));
         }
       });
