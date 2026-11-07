@@ -9,6 +9,31 @@ Close`. The old `ConsoleMaConfirm` modal is GONE from the console-native flow
 (the desktop `MaConfirmContent` path is untouched); the per-item CTA is gone
 from the overview.
 
+## «WHAT CAN I TAKE NOW?» AT A GLANCE (2026-11-07 — players spent seconds hunting for the claimable milestone)
+
+Supersedes the «available now = a mint inset kant + the word» line below. **Root cause**: the cursor is seeded onto the
+first claimable tile (`seedSheetCursor`), and its inset cyan ring painted over the state's inset mint kant — the one
+tile the player had to find wore the same cyan ring as any other focus, plus a 0.6rem word. Availability now has
+geometries the cursor cannot cover, and the screen answers in three places, all MATERIAL (invariant 15 — nothing glows):
+
+- **THE CLAIM SHELF** (`.con-ma__claimbar`, `[data-ma-claimbar]`): a solid mint bar across the tile's foot, above the
+  cursor layer — left bar = whose · bottom shelf = claimable · ring = cursor, three states, three geometries again.
+- **THE FILLED PLATE**: `--now` is a mint-FILLED plate with the solid pill «МОЖНО ВЗЯТЬ» (`Ready to claim`) in its
+  fixed foot; «met but not offered» (`--ready`) stays an OUTLINE. Fill vs outline survives desaturation by form.
+- **THE REST STEP BACK** (`.con-ma--offer`): while anything is offered, every other open milestone's emblem and name
+  go one step quieter (milder than `--dead` — «not now» never reads «never»); transitioned, never a pop.
+- **THE HEADER COUNTS** (`[data-ma-offer]`, «✓ МОЖНО ВЗЯТЬ: N» — `Ready to claim: ${0}`): a solid chip before the
+  slot tray, absent when nothing is offered. Milestones only (P29 — an award's accent stays the tray's next slot).
+- **THE OPENING ROLL CALL** (`.con-ma--rollcall`, one-shot, ~1 s): on mount and on the LB/RB arrive — and only when
+  something is offered — the chip stamps, then each offered tile in reading order (`--ma-roll-i`, 120 ms apart): the
+  shelf draws out from its centre, the plate stamps (a press of scale), the check draws, the pill rises, the emblem
+  swells once. Transform / opacity / stroke only; reduced motion shows the standing state. This deliberately relaxes
+  P33's «mount seeds silently»: the live-edge `--arriving` reveal is unchanged, the roll call is the screen's answer
+  to the question the player opened it with, not a replayed ceremony (no rim, no light).
+
+Unit: `ConsoleMaScreen.spec` § the claimable milestone reads at a glance. Guards: `glowRestraintGuard` § 4 (the
+`.con-ma*` block stays at zero), `consoleTvTypeFloor` (the TV pill / chip are ≥ 0.8rem).
+
 ## TWO WORKSPACES · ONE FAMILY · MATERIAL · A FULL RIGHT COLUMN · THE LAW'S EXIT (iterations FB + FB′, 2026-11-03)
 
 Supersedes the light grammar below wherever they disagree (the P33 text is kept as history). Ledger FB (PL-1612…1622),

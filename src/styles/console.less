@@ -12669,6 +12669,43 @@ html.console-mode {
         gap: .45rem;
         padding-right: .1rem;
     }
+    /* THE OFFER COUNT — the header's answer to «can I take anything?»: a solid mint chip, dark ink, a drawn check and
+       the number. Absent when the answer is no (a «0» chip would be a placeholder). */
+    &__offer {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .25rem .75rem .25rem .6rem;
+        border-radius: 49.95rem;
+        background: @con-mint;
+        color: #052a1c;
+        white-space: nowrap;
+    }
+    &__offer-tick {
+        display: block;
+        width: .8rem;
+
+        svg {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+        svg path {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2.6;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 14;
+            stroke-dashoffset: 0;
+        }
+    }
+    &__offer-text {
+        font-size: .7rem;
+        font-weight: 900;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+    }
     &__slot {
         width: .7rem;
         height: .7rem;
@@ -12840,11 +12877,15 @@ html.console-mode {
 
         &--focused { .con-cursor-on(); }
 
-        /* AVAILABLE NOW (a milestone — P29: never an award): a MINT KANT on the row and the word «ДОСТУПНО» on its
-           reading plate. No light — no pooled pedestal, no shelf, no gold rim (VISUAL RESTRAINT). */
+        /* AVAILABLE NOW (a milestone — P29: never an award) — THE OFFERED MATERIAL, read in under a second at couch
+           distance and never by light (VISUAL RESTRAINT): a mint KANT on the row, the CLAIM SHELF it stands on
+           (`__claimbar` — a geometry of its own: the cursor seeds onto the first claimable tile and its inset ring
+           paints over any edge kant, which is exactly how the state used to vanish under the focus), YOUR PLATE
+           turned into a FILLED plate with the «МОЖНО ВЗЯТЬ» stamp, and — while anything is offered — every other open
+           tile one step quieter (`.con-ma--offer`). Fill vs outline, a bar vs none: it survives desaturation by FORM. */
         &--go {
             box-shadow:
-                inset 0 0 0 .075rem fade(@con-mint, 62%),
+                inset 0 0 0 .1rem fade(@con-mint, 78%),
                 inset 0 .05rem 0 rgba(255, 255, 255, 0.04);
         }
         &--taken {
@@ -12870,9 +12911,29 @@ html.console-mode {
            motion language in both places. */
         &--arriving {
             .con-ma__art { animation: strat-activate-art calc(880ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.2, 0.5, 1) both; }
+            .con-ma__claimbar { animation: ma-claim-shelf calc(460ms * var(--motion-scale, 1)) @con-ease-standard both calc(220ms * var(--motion-scale, 1)); }
+            .con-ma__metric--now { animation: ma-claim-stamp calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.3, 0.5, 1) both calc(360ms * var(--motion-scale, 1)); }
             .con-ma__avail { animation: strat-activate-avail calc(380ms * var(--motion-scale, 1)) ease-out both calc(640ms * var(--motion-scale, 1)); }
             .con-ma__readymark svg path { animation: strat-activate-check calc(360ms * var(--motion-scale, 1)) ease-out both calc(120ms * var(--motion-scale, 1)); }
         }
+    }
+    /* THE OPENING ROLL CALL (one-shot, `--rollcall` — mount / LB·RB arrive, only when something is offered): the
+       question «what can I take?» is answered by MOTION in the first second — each claimable tile in turn
+       (`--ma-roll-i`, 120 ms apart, after the panel has landed): the shelf DRAWS out from its centre, the plate STAMPS
+       (a press of scale, no light), the check draws, the stamp rises, the emblem swells once — then everything stands
+       still. Transform / opacity / stroke only (perf-lite safe); the header chip stamps first, its check draws. */
+    &--rollcall {
+        .con-ma__card--go {
+            --ma-roll-at: calc((240ms + var(--ma-roll-i, 0) * 120ms) * var(--motion-scale, 1));
+
+            .con-ma__claimbar { animation: ma-claim-shelf calc(460ms * var(--motion-scale, 1)) @con-ease-standard both var(--ma-roll-at); }
+            .con-ma__metric--now { animation: ma-claim-stamp calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.3, 0.5, 1) both calc(var(--ma-roll-at) + 120ms * var(--motion-scale, 1)); }
+            .con-ma__readymark svg path { animation: strat-activate-check calc(360ms * var(--motion-scale, 1)) ease-out both calc(var(--ma-roll-at) + 220ms * var(--motion-scale, 1)); }
+            .con-ma__avail { animation: strat-activate-avail calc(340ms * var(--motion-scale, 1)) ease-out both calc(var(--ma-roll-at) + 300ms * var(--motion-scale, 1)); }
+            .con-ma__art { animation: strat-activate-art calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.2, 0.5, 1) both var(--ma-roll-at); }
+        }
+        .con-ma__offer { animation: ma-claim-stamp calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.3, 0.5, 1) both calc(160ms * var(--motion-scale, 1)); }
+        .con-ma__offer-tick svg path { animation: strat-activate-check calc(360ms * var(--motion-scale, 1)) ease-out both calc(280ms * var(--motion-scale, 1)); }
     }
     /* State rail on the card's left edge — the OWNER's colour only. The
        old mint «act now» rail moved to the bottom shelf light (the card's
@@ -12887,6 +12948,29 @@ html.console-mode {
 
         &--owner {
             box-shadow: 0 0 .4rem rgba(0, 0, 0, 0.4);
+        }
+    }
+    /* THE CLAIM SHELF — a SOLID mint bar across the tile's foot, set in from the corners like a tab's edge: the
+       claimable geometry (left bar = whose · bottom shelf = claimable · ring = cursor). Above the cursor's layer, so a
+       focused claimable tile shows BOTH. Paint, never light: no blur, no bloom. */
+    &__claimbar {
+        position: absolute;
+        left: .7rem;
+        right: .7rem;
+        bottom: 0;
+        z-index: 5;
+        height: .22rem;
+        border-radius: .2rem .2rem 0 0;
+        background: linear-gradient(90deg, fade(@con-mint, 70%), @con-mint 18%, @con-mint 82%, fade(@con-mint, 70%));
+        pointer-events: none;
+    }
+    /* ANYTHING OFFERED → THE REST STEP BACK. The claimable tile wins by CONTRAST, not by adding light: every other
+       open milestone's emblem and name go one step quieter (milder than a closed race's `--dead`, so «not now» never
+       reads as «never»). Transitioned — a live offer rising or falling fades, never pops. */
+    &--offer {
+        .con-ma__card:not(.con-ma__card--go):not(.con-ma__card--taken):not(.con-ma__card--dead) {
+            .con-ma__art { filter: saturate(0.72) brightness(0.8) drop-shadow(0 .4rem .7rem rgba(0, 0, 0, 0.55)); }
+            .con-ma__name { color: fade(#e8f1fa, 74%); }
         }
     }
 
@@ -12932,6 +13016,7 @@ html.console-mode {
         background-position: center;
         background-repeat: no-repeat;
         filter: drop-shadow(0 .4rem .7rem rgba(0, 0, 0, 0.55)) saturate(1.1);
+        transition: filter calc(260ms * var(--motion-scale, 1)) ease;
     }
 
     /* ── the SPONSOR SOCKET (awards, funded) — the trophy rail's provenance
@@ -13169,13 +13254,17 @@ html.console-mode {
             .con-ma__metric-value { color: #d7ffe9; }
             .con-ma__meter i { background: linear-gradient(90deg, fade(@con-mint, 75%), @con-mint); }
         }
-        /* Offered RIGHT NOW: the green facts stay, the box joins the emblem's
-           gold-white activation light. */
+        /* Offered RIGHT NOW: the plate is FILLED (the «met» plate beside it stays an outline — fill vs outline is
+           the difference between «yours, waiting» and «take it now»), its kant solid, and the foot carries the
+           solid «МОЖНО ВЗЯТЬ» stamp. A fill of the plate is material; nothing glows. */
         &--now {
-            background: rgba(14, 19, 22, 0.8);
-            box-shadow: inset 0 0 0 .075rem rgba(246, 232, 198, 0.6);
+            background: linear-gradient(180deg, fade(@con-mint, 24%), fade(@con-mint, 13%));
+            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 92%);
 
-            .con-ma__metric-value { color: #d7ffe9; }
+            .con-ma__metric-label { color: #c4f5df; }
+            .con-ma__metric-value { color: #f0fff8; }
+            .con-ma__metric-req { color: fade(#d7ffe9, 72%); }
+            .con-ma__readymark svg path { stroke: #eafff5; }
             .con-ma__meter i { background: linear-gradient(90deg, fade(@con-mint, 75%), @con-mint); }
         }
     }
@@ -13238,17 +13327,26 @@ html.console-mode {
         align-items: center;
         justify-content: flex-end;
         width: 100%;
-        height: .8rem;
+        height: .95rem;
         margin-top: .1rem;
     }
+    /* THE STAMP — the only solid-filled word on a tile: dark ink on mint, a pill. Sized to the foot's fixed line
+       (the swap with the meter never moves the numbers). */
     &__avail {
-        font-size: .625rem;
-        font-weight: 800;
-        letter-spacing: .11rem;
+        display: inline-flex;
+        align-items: center;
+        height: 100%;
+        padding: 0 .45rem 0 .55rem;
+        border-radius: 49.95rem;
+        background: @con-mint;
+        font-size: .6rem;
+        font-weight: 900;
+        line-height: 1;
+        letter-spacing: .1rem;
         text-transform: uppercase;
-        color: #f2e3bd;
+        color: #052a1c;
         white-space: nowrap;
-        margin-right: -.11rem;
+        margin-right: -.3rem;
     }
     &__meter {
         width: 100%;
@@ -16276,6 +16374,18 @@ html.con-profile-handheld .con-mafocus {
     0% { stroke-dashoffset: 14; }
     100% { stroke-dashoffset: 0; }
 }
+/* The MA claim shelf draws out from its centre (the roll call / a live offer). */
+@keyframes ma-claim-shelf {
+    0% { opacity: 0; transform: scaleX(0); }
+    35% { opacity: 1; }
+    100% { opacity: 1; transform: none; }
+}
+/* The offered plate STAMPS: a short press of scale settling on its rest — weight, never light. */
+@keyframes ma-claim-stamp {
+    0% { opacity: 0.4; transform: scale(0.9); }
+    60% { opacity: 1; transform: scale(1.035); }
+    100% { opacity: 1; transform: none; }
+}
 /* The re-gained offer: one calm swell of the standing light. */
 /* The offer came BACK: the rim swells once and goes out (never a standing light). */
 @keyframes strat-rim-once {
@@ -16325,6 +16435,15 @@ html.con-profile-handheld .con-mafocus {
     .con-ma__card--arriving .con-ma__art,
     .con-ma__card--arriving .con-ma__avail,
     .con-ma__card--arriving .con-ma__readymark svg path,
+    .con-ma__card--arriving .con-ma__claimbar,
+    .con-ma__card--arriving .con-ma__metric--now,
+    .con-ma--rollcall .con-ma__card--go .con-ma__claimbar,
+    .con-ma--rollcall .con-ma__card--go .con-ma__metric--now,
+    .con-ma--rollcall .con-ma__card--go .con-ma__readymark svg path,
+    .con-ma--rollcall .con-ma__card--go .con-ma__avail,
+    .con-ma--rollcall .con-ma__card--go .con-ma__art,
+    .con-ma--rollcall .con-ma__offer,
+    .con-ma--rollcall .con-ma__offer-tick svg path,
     .con-ma__browse--arrive-l .con-ma__scroll-host,
     .con-ma__browse--arrive-l .con-ma__foot,
     .con-ma__browse--arrive-r .con-ma__scroll-host,

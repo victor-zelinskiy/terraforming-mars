@@ -2,7 +2,7 @@
   <!-- data-motion-*: the director animates the panel (NON_SHADE_OWNERS —
        the OWN dim stays by design; density lives in the panel materials). -->
   <div class="con-ma con-ws con-ws--dockcover" role="dialog" :aria-label="$t(title)"
-       :class="['con-ma--' + kind, {'con-ma--focus': focusState.open}]"
+       :class="['con-ma--' + kind, {'con-ma--focus': focusState.open, 'con-ma--offer': offerCount > 0, 'con-ma--rollcall': rollcall}]"
        data-motion-surface="ma-screen">
     <div class="con-ma__backdrop" aria-hidden="true"></div>
     <div class="con-ma__panel" data-motion-panel>
@@ -37,6 +37,14 @@
           <!-- THE HEAD-TALLY: whose slots, how many taken, the price of the next one — the SYSTEM's facts, never a
                wallet delta (that is the status rail's, whole and in one place). -->
           <div class="con-ma__tally" data-ma-tally>
+            <!-- THE OFFER COUNT (milestones): «is there anything I can take, and how much» answered before the eye reaches
+                 a tile — a solid mint chip with a number, rendered only when the answer is yes (calm by default). -->
+            <div v-if="offerCount > 0" class="con-ma__offer" data-ma-offer>
+              <i class="con-ma__offer-tick" aria-hidden="true">
+                <svg viewBox="0 0 12 10"><path d="M1.6 5.4 L4.6 8.3 L10.4 1.7" /></svg>
+              </i>
+              <span class="con-ma__offer-text">{{ offerText }}</span>
+            </div>
             <!-- The NEXT free slot arms while the fund action is genuinely offered (awards only — the strategy rail's
                  door grammar: the accent lives at the ACTION level, never as a per-row glow). -->
             <div class="con-ma__slots" aria-hidden="true">
@@ -91,9 +99,13 @@
                        'con-ma__card--arriving': revealNames.includes(it.name),
                      }"
                      :data-ma-row="it.name"
+                     :style="rollStyle(it)"
                      :ref="i === index ? 'focusedCard' : undefined"
                      @click="onCardClick(i)">
               <span v-if="railClass(it) !== ''" class="con-ma__rail" :class="railClass(it)" aria-hidden="true"></span>
+              <!-- THE CLAIM SHELF — «you can take this now» in its OWN geometry (a solid bar the tile stands on), never the
+                   edge ring: the cursor seeds onto the first claimable tile and its ring would paint over a state kant. -->
+              <span v-if="isOffered(it)" class="con-ma__claimbar" data-ma-claimbar aria-hidden="true"></span>
 
               <!-- The medallion: ONE optical size on every row (the measured fit `maArtFitStyle` — the same the
                    strategy rail draws), on a plain plate; a taken emblem desaturates. The FLIP twin of the detail
@@ -153,7 +165,7 @@
                         <template v-else><b>{{ it.myScore }}</b><span class="con-ma__metric-req">/{{ it.threshold }}</span></template>
                       </span>
                       <span class="con-ma__metric-foot">
-                        <span v-if="it.available" class="con-ma__avail">{{ $t('Available now') }}</span>
+                        <span v-if="it.available" class="con-ma__avail">{{ $t('Ready to claim') }}</span>
                         <span v-else-if="it.threshold !== undefined && it.scores.length > 0" class="con-ma__meter" aria-hidden="true"><i :style="{width: meterWidth(it)}"></i></span>
                       </span>
                     </div>
@@ -323,6 +335,13 @@ export default defineComponent({
       /** The LB/RB ARRIVE beat — the side the family's other workspace came in from ('' = standing). */
       kindArrive: '' as '' | 'left' | 'right',
       arriveTimer: undefined as number | undefined,
+      /**
+       * THE OPENING ROLL CALL — the one-shot phrase that answers «what can I take?» the moment the milestones screen
+       * stands (mount / LB·RB arrive): the claimable tiles' shelves draw, their plates stamp, their checks draw, one
+       * after another. It ENDS on its own; the standing state is the material it leaves behind.
+       */
+      rollcall: false,
+      rollcallTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -346,6 +365,16 @@ export default defineComponent({
     /** The fund/claim action is genuinely offered on some item right now. */
     anyAvailable(): boolean {
       return this.items.some((it) => it.available && it.takenBy === undefined);
+    },
+    /** The milestones the claim is genuinely offered on right now, in reading order (the roll call's order too). */
+    offeredNames(): Array<string> {
+      return this.items.filter((it) => this.isOffered(it)).map((it) => it.name);
+    },
+    offerCount(): number {
+      return this.offeredNames.length;
+    },
+    offerText(): string {
+      return translateTextWithParams('Ready to claim: ${0}', [String(this.offerCount)]);
     },
     /** The descended item (undefined = the stage has nothing to stand on). */
     focusItem(): ConsoleMaItem | undefined {
@@ -497,6 +526,7 @@ export default defineComponent({
       this.arriveTimer = window.setTimeout(() => {
         this.kindArrive = '';
       }, motionMs(260));
+      this.startRollcall();
     },
     /**
      * THE AVAILABILITY REVEAL — seed-then-diff over the items' own identity.
@@ -508,7 +538,7 @@ export default defineComponent({
       immediate: true,
       handler(next: ReadonlyArray<ConsoleMaItem>) {
         const now = new Set(next
-          .filter((it) => it.kind === 'milestone' && it.available && it.takenBy === undefined)
+          .filter((it) => this.isOffered(it))
           .map((it) => it.name));
         const seed = this.availSeed;
         this.availSeed = now;
@@ -532,10 +562,13 @@ export default defineComponent({
     // so the browse layer must be parked here or it shows under the stage.
     if (maFocusState.open) {
       parkMaBrowse(this.$el as Element);
+    } else {
+      this.startRollcall();
     }
   },
   beforeUnmount() {
     window.clearTimeout(this.arriveTimer);
+    window.clearTimeout(this.rollcallTimer);
     if (maFocusState.open) {
       if (maFocusState.phase === 'detail') {
         // A lateral move / a defer under a live PRE-COMMIT detail — keep the
@@ -551,6 +584,29 @@ export default defineComponent({
     }
   },
   methods: {
+    /** «The claim is offered on this milestone right now» — the one predicate of the tile's offered material. */
+    isOffered(it: ConsoleMaItem): boolean {
+      return it.kind === 'milestone' && it.available && it.takenBy === undefined;
+    },
+    /** The roll call's place of an offered tile (a CSS index — the stagger is the stylesheet's, on the motion clock). */
+    rollStyle(it: ConsoleMaItem): Record<string, string> | undefined {
+      const i = this.offeredNames.indexOf(it.name);
+      return i === -1 ? undefined : {'--ma-roll-i': String(i)};
+    },
+    /**
+     * Play the opening roll call once (nothing offered → nothing plays). The tiles of a fresh list are fresh nodes
+     * (keyed by name), so an LB/RB arrive replays it on them by construction — no frame-apart re-arm is needed.
+     */
+    startRollcall(): void {
+      window.clearTimeout(this.rollcallTimer);
+      this.rollcall = this.offerCount > 0 && !maFocusState.open;
+      if (!this.rollcall) {
+        return;
+      }
+      this.rollcallTimer = window.setTimeout(() => {
+        this.rollcall = false;
+      }, motionMs(1100 + 120 * this.offerCount));
+    },
     /** The emblem at ONE optical size — the measured fit the strategy rail reads (the player's language's file). */
     artStyle(it: ConsoleMaItem): Record<string, string> {
       return maArtFitStyle(it.name);

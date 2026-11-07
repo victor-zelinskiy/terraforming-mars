@@ -351,6 +351,8 @@
     "Playable now": "Можно разыграть",
     "Discounts": "Скидки",
     "Available now": "Доступно",
+    "Ready to claim": "Можно взять",
+    "Ready to claim: ${0}": "Можно взять: ${0}",
     "Score is hidden until the end of the game": "Очки скрыты до конца игры",
     "To overview": "К обзору",
     "VP overview": "Обзор ПО",

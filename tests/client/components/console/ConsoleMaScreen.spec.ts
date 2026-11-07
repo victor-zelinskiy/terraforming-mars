@@ -121,3 +121,52 @@ describe('ConsoleMaScreen — two workspaces, one family (FB′)', () => {
     expect([...main.find('.con-ma__top').element.children].map((c) => c.className)).deep.eq(['con-ma__body', 'con-ma__status']);
   });
 });
+
+/*
+ * «WHAT CAN I TAKE RIGHT NOW?» answered at a glance (players spent seconds hunting for it): the claimable milestone
+ * stands on its own SHELF (a geometry the cursor's ring cannot paint over — the cursor seeds onto that very tile), its
+ * plate is FILLED with the «МОЖНО ВЗЯТЬ» stamp, the header counts the offers, the rest step back, and the opening plays
+ * ONE roll call over the offered tiles in order. Material, never light — the glow guard holds the stylesheet.
+ */
+describe('ConsoleMaScreen — the claimable milestone reads at a glance', () => {
+  const OFFERED = MILESTONES.map((it) => it.name === 'Mayor' || it.name === 'Planner' ?
+    {...it, myReady: true, myScore: 4, available: true} : it);
+
+  it('an offered tile wears the shelf and the stamp; a met-but-not-offered one wears neither', () => {
+    const items = OFFERED.map((it) => it.name === 'Builder' ? {...it, myReady: true, myScore: 4} : it);
+    const w = mountScreen('milestones', 0, items);
+    const tile = (name: string) => w.find(`[data-ma-row="${name}"]`);
+    expect(tile('Mayor').find('[data-ma-claimbar]').exists()).is.true;
+    expect(tile('Mayor').find('.con-ma__metric--now .con-ma__avail').exists()).is.true;
+    expect(tile('Builder').find('[data-ma-claimbar]').exists(), '«yours, waiting» is not an offer').is.false;
+    expect(tile('Builder').find('.con-ma__metric--ready').exists()).is.true;
+    expect(tile('Terraformer').find('[data-ma-claimbar]').exists()).is.false;
+  });
+
+  it('the header counts the offers; with none it renders nothing (no «0» placeholder)', () => {
+    const w = mountScreen('milestones', 0, OFFERED);
+    expect(w.find('.con-ma__wshead [data-ma-tally] [data-ma-offer]').text()).contains('2');
+    expect(w.find('.con-ma').classes()).contains('con-ma--offer');
+    const none = mountScreen('milestones', 0);
+    expect(none.find('[data-ma-offer]').exists()).is.false;
+    expect(none.find('.con-ma').classes()).not.contains('con-ma--offer');
+  });
+
+  it('an AWARD is never an offered tile (P29 — its accent is the header tray\'s next slot)', () => {
+    const w = mountScreen('awards', 0, AWARDS.map((it) => ({...it, available: true})));
+    expect(w.find('[data-ma-claimbar]').exists()).is.false;
+    expect(w.find('[data-ma-offer]').exists()).is.false;
+  });
+
+  it('the opening ROLL CALL plays over the offered tiles in reading order, and only when something is offered', async () => {
+    const w = mountScreen('milestones', 0, OFFERED);
+    await w.vm.$nextTick();
+    expect(w.find('.con-ma').classes()).contains('con-ma--rollcall');
+    expect(w.find('[data-ma-row="Mayor"]').attributes('style')).contains('--ma-roll-i: 0');
+    expect(w.find('[data-ma-row="Planner"]').attributes('style')).contains('--ma-roll-i: 1');
+    expect(w.find('[data-ma-row="Terraformer"]').attributes('style') ?? '').not.contains('--ma-roll-i');
+    const none = mountScreen('milestones', 0);
+    await none.vm.$nextTick();
+    expect(none.find('.con-ma').classes()).not.contains('con-ma--rollcall');
+  });
+});
