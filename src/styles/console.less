@@ -17,6 +17,9 @@
 
 @con-cyan: #6ab0e6;
 @con-mint: #58d6a6;
+/* The milestones' «offered now» — the activation family's champagne (a brushed gold-white leaf and its deeper edge). */
+@ma-champagne: #e6cf98;
+@ma-champagne-deep: #b8955a;
 @con-amber: #f2c14e;
 @con-orange: #ff9d4d;
 @con-red: #e0564d;
@@ -12669,16 +12672,20 @@ html.console-mode {
         gap: .45rem;
         padding-right: .1rem;
     }
-    /* THE OFFER COUNT — the header's answer to «can I take anything?»: a solid mint chip, dark ink, a drawn check and
-       the number. Absent when the answer is no (a «0» chip would be a placeholder). */
+    /* THE OFFER COUNT — the header's answer to «can I take anything?»: the tile's champagne plaque at the header's
+       voice — a quiet warm ground, a metallic hairline, ivory type, the drawn check and the number. Absent when the
+       answer is no (a «0» chip would be a placeholder). */
     &__offer {
         display: inline-flex;
         align-items: center;
-        gap: .35rem;
-        padding: .25rem .75rem .25rem .6rem;
+        gap: .4rem;
+        padding: .25rem .8rem .25rem .65rem;
         border-radius: 49.95rem;
-        background: @con-mint;
-        color: #052a1c;
+        background: linear-gradient(180deg, fade(@ma-champagne, 18%), fade(@ma-champagne-deep, 8%));
+        box-shadow:
+            inset 0 0 0 .075rem fade(@ma-champagne, 66%),
+            inset 0 .05rem 0 fade(#fff6e0, 14%);
+        color: #fbefd2;
         white-space: nowrap;
     }
     &__offer-tick {
@@ -12692,8 +12699,8 @@ html.console-mode {
         }
         svg path {
             fill: none;
-            stroke: currentColor;
-            stroke-width: 2.6;
+            stroke: @ma-champagne;
+            stroke-width: 2.4;
             stroke-linecap: round;
             stroke-linejoin: round;
             stroke-dasharray: 14;
@@ -12701,9 +12708,9 @@ html.console-mode {
         }
     }
     &__offer-text {
-        font-size: .7rem;
-        font-weight: 900;
-        letter-spacing: .07rem;
+        font-size: .675rem;
+        font-weight: 800;
+        letter-spacing: .1rem;
         text-transform: uppercase;
     }
     &__slot {
@@ -12878,15 +12885,18 @@ html.console-mode {
         &--focused { .con-cursor-on(); }
 
         /* AVAILABLE NOW (a milestone — P29: never an award) — THE OFFERED MATERIAL, read in under a second at couch
-           distance and never by light (VISUAL RESTRAINT): a mint KANT on the row, the CLAIM SHELF it stands on
-           (`__claimbar` — a geometry of its own: the cursor seeds onto the first claimable tile and its inset ring
-           paints over any edge kant, which is exactly how the state used to vanish under the focus), YOUR PLATE
-           turned into a FILLED plate with the «МОЖНО ВЗЯТЬ» stamp, and — while anything is offered — every other open
-           tile one step quieter (`.con-ma--offer`). Fill vs outline, a bar vs none: it survives desaturation by FORM. */
+           distance and never by light (VISUAL RESTRAINT). Its tone is the console's ACTIVATION family — CHAMPAGNE,
+           the gold-white the strategy rail already speaks for «offered now» (mint stays «the requirement is met»; a
+           saturated mint fill read as poison, not premium — the owner, 2026-11-07): a champagne hairline on the row,
+           the CLAIM SHELF it stands on (`__claimbar` — a geometry of its own: the cursor seeds onto the first claimable
+           tile and its inset ring paints over any edge kant, which is how the state used to vanish under the focus),
+           YOUR PLATE dressed as a champagne PLAQUE with the engraved «МОЖНО ВЗЯТЬ» tab, and — while anything is offered
+           — every other open tile one step quieter (`.con-ma--offer`). Plaque vs outline, a bar vs none: it survives
+           desaturation by FORM. */
         &--go {
             box-shadow:
-                inset 0 0 0 .1rem fade(@con-mint, 78%),
-                inset 0 .05rem 0 rgba(255, 255, 255, 0.04);
+                inset 0 0 0 .075rem fade(@ma-champagne, 46%),
+                inset 0 .05rem 0 rgba(255, 255, 255, 0.05);
         }
         &--taken {
             background: linear-gradient(165deg, rgba(17, 25, 36, 0.95), rgba(11, 16, 24, 0.95));
@@ -12950,27 +12960,36 @@ html.console-mode {
             box-shadow: 0 0 .4rem rgba(0, 0, 0, 0.4);
         }
     }
-    /* THE CLAIM SHELF — a SOLID mint bar across the tile's foot, set in from the corners like a tab's edge: the
-       claimable geometry (left bar = whose · bottom shelf = claimable · ring = cursor). Above the cursor's layer, so a
-       focused claimable tile shows BOTH. Paint, never light: no blur, no bloom. */
+    /* THE CLAIM SHELF — a fine CHAMPAGNE stroke across the tile's foot, brightest at its centre and dissolving into
+       the corners (a struck metal edge, never a neon bar): the claimable geometry (left bar = whose · bottom shelf =
+       claimable · ring = cursor). Above the cursor's layer, so a focused claimable tile shows BOTH. Paint, never
+       light: no blur, no bloom. */
     &__claimbar {
         position: absolute;
-        left: .7rem;
-        right: .7rem;
+        left: 8%;
+        right: 8%;
         bottom: 0;
         z-index: 5;
-        height: .22rem;
-        border-radius: .2rem .2rem 0 0;
-        background: linear-gradient(90deg, fade(@con-mint, 70%), @con-mint 18%, @con-mint 82%, fade(@con-mint, 70%));
+        height: .16rem;
+        border-radius: .16rem .16rem 0 0;
+        background: linear-gradient(90deg,
+            fade(@ma-champagne-deep, 0%),
+            fade(@ma-champagne-deep, 85%) 16%,
+            @ma-champagne 50%,
+            fade(@ma-champagne-deep, 85%) 84%,
+            fade(@ma-champagne-deep, 0%));
         pointer-events: none;
     }
     /* ANYTHING OFFERED → THE REST STEP BACK. The claimable tile wins by CONTRAST, not by adding light: every other
-       open milestone's emblem and name go one step quieter (milder than a closed race's `--dead`, so «not now» never
-       reads as «never»). Transitioned — a live offer rising or falling fades, never pops. */
+       open milestone's emblem and name go one step quieter (`--dead` aside, so «not now» never reads as «never»).
+       OPACITY, never `filter`: the console's paint baseline strips every filter (`console_paint_baseline.less`) — a
+       filter here simply did nothing on the box. The emblem stands on the tile's own opaque plate, so it DARKENS, it
+       never goes see-through. Transitioned — a live offer rising or falling fades, never pops. */
     &--offer {
         .con-ma__card:not(.con-ma__card--go):not(.con-ma__card--taken):not(.con-ma__card--dead) {
-            .con-ma__art { filter: saturate(0.72) brightness(0.8) drop-shadow(0 .4rem .7rem rgba(0, 0, 0, 0.55)); }
-            .con-ma__name { color: fade(#e8f1fa, 74%); }
+            .con-ma__art { opacity: 0.58; }
+            .con-ma__name { color: fade(#e8f1fa, 66%); }
+            .con-ma__desc { color: fade(@con-text-dim, 78%); }
         }
     }
 
@@ -13016,7 +13035,7 @@ html.console-mode {
         background-position: center;
         background-repeat: no-repeat;
         filter: drop-shadow(0 .4rem .7rem rgba(0, 0, 0, 0.55)) saturate(1.1);
-        transition: filter calc(260ms * var(--motion-scale, 1)) ease;
+        transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
     }
 
     /* ── the SPONSOR SOCKET (awards, funded) — the trophy rail's provenance
@@ -13254,17 +13273,20 @@ html.console-mode {
             .con-ma__metric-value { color: #d7ffe9; }
             .con-ma__meter i { background: linear-gradient(90deg, fade(@con-mint, 75%), @con-mint); }
         }
-        /* Offered RIGHT NOW: the plate is FILLED (the «met» plate beside it stays an outline — fill vs outline is
-           the difference between «yours, waiting» and «take it now»), its kant solid, and the foot carries the
-           solid «МОЖНО ВЗЯТЬ» stamp. A fill of the plate is material; nothing glows. */
+        /* Offered RIGHT NOW: the plate becomes a CHAMPAGNE PLAQUE — a warm ground a step above the dark glass, a
+           metallic hairline, ivory numbers — while the «met» plate beside it stays a mint OUTLINE (plaque vs outline
+           is the difference between «take it now» and «yours, waiting»). The drawn check keeps the met fact in a
+           muted jade; the foot carries the engraved «МОЖНО ВЗЯТЬ» tab. Material; nothing glows. */
         &--now {
-            background: linear-gradient(180deg, fade(@con-mint, 24%), fade(@con-mint, 13%));
-            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 92%);
+            background: linear-gradient(180deg, fade(@ma-champagne, 15%), fade(@ma-champagne-deep, 7%) 70%, fade(@ma-champagne-deep, 4%));
+            box-shadow:
+                inset 0 0 0 .075rem fade(@ma-champagne, 62%),
+                inset 0 .075rem 0 fade(#fff6e0, 16%);
 
-            .con-ma__metric-label { color: #c4f5df; }
-            .con-ma__metric-value { color: #f0fff8; }
-            .con-ma__metric-req { color: fade(#d7ffe9, 72%); }
-            .con-ma__readymark svg path { stroke: #eafff5; }
+            .con-ma__metric-label { color: fade(@ma-champagne, 82%); }
+            .con-ma__metric-value { color: #fff7e6; }
+            .con-ma__metric-req { color: fade(@ma-champagne, 70%); }
+            .con-ma__readymark svg path { stroke: #9fd9bf; }
             .con-ma__meter i { background: linear-gradient(90deg, fade(@con-mint, 75%), @con-mint); }
         }
     }
@@ -13330,21 +13352,25 @@ html.console-mode {
         height: .95rem;
         margin-top: .1rem;
     }
-    /* THE STAMP — the only solid-filled word on a tile: dark ink on mint, a pill. Sized to the foot's fixed line
-       (the swap with the meter never moves the numbers). */
+    /* THE TAB — the plaque's engraved word: dark warm ink on a brushed champagne leaf (a vertical metal gradient + a
+       fine top highlight and a darker foot edge — the medal's own material, never a flat highlighter fill). Sized to
+       the foot's fixed line (the swap with the meter never moves the numbers). */
     &__avail {
         display: inline-flex;
         align-items: center;
         height: 100%;
-        padding: 0 .45rem 0 .55rem;
-        border-radius: 49.95rem;
-        background: @con-mint;
-        font-size: .6rem;
-        font-weight: 900;
+        padding: 0 .5rem 0 .6rem;
+        border-radius: .22rem;
+        background: linear-gradient(180deg, #f6ebcf, @ma-champagne 55%, @ma-champagne-deep);
+        box-shadow:
+            inset 0 .05rem 0 rgba(255, 255, 255, 0.45),
+            inset 0 -.05rem 0 rgba(90, 64, 20, 0.35);
+        font-size: .575rem;
+        font-weight: 800;
         line-height: 1;
-        letter-spacing: .1rem;
+        letter-spacing: .12rem;
         text-transform: uppercase;
-        color: #052a1c;
+        color: #2b2110;
         white-space: nowrap;
         margin-right: -.3rem;
     }

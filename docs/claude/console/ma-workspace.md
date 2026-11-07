@@ -14,25 +14,36 @@ from the overview.
 Supersedes the «available now = a mint inset kant + the word» line below. **Root cause**: the cursor is seeded onto the
 first claimable tile (`seedSheetCursor`), and its inset cyan ring painted over the state's inset mint kant — the one
 tile the player had to find wore the same cyan ring as any other focus, plus a 0.6rem word. Availability now has
-geometries the cursor cannot cover, and the screen answers in three places, all MATERIAL (invariant 15 — nothing glows):
+geometries the cursor cannot cover, and the screen answers in three places, all MATERIAL (invariant 15 — nothing glows).
 
-- **THE CLAIM SHELF** (`.con-ma__claimbar`, `[data-ma-claimbar]`): a solid mint bar across the tile's foot, above the
-  cursor layer — left bar = whose · bottom shelf = claimable · ring = cursor, three states, three geometries again.
-- **THE FILLED PLATE**: `--now` is a mint-FILLED plate with the solid pill «МОЖНО ВЗЯТЬ» (`Ready to claim`) in its
-  fixed foot; «met but not offered» (`--ready`) stays an OUTLINE. Fill vs outline survives desaturation by form.
-- **THE REST STEP BACK** (`.con-ma--offer`): while anything is offered, every other open milestone's emblem and name
-  go one step quieter (milder than `--dead` — «not now» never reads «never»); transitioned, never a pop.
-- **THE HEADER COUNTS** (`[data-ma-offer]`, «✓ МОЖНО ВЗЯТЬ: N» — `Ready to claim: ${0}`): a solid chip before the
-  slot tray, absent when nothing is offered. Milestones only (P29 — an award's accent stays the tray's next slot).
+**THE TONE IS CHAMPAGNE, never mint** (the owner, same day: the first pass's saturated mint fills read «ядовито», not
+premium). It is also the honest semantic: the strategy rail already speaks gold-white for «offered now», mint for «the
+requirement is met». Tokens `@ma-champagne` (#e6cf98, the brushed leaf) / `@ma-champagne-deep` (#b8955a, its edge).
+
+- **THE CLAIM SHELF** (`.con-ma__claimbar`, `[data-ma-claimbar]`): a fine champagne stroke on the tile's foot,
+  brightest at its centre, dissolving into the corners; above the cursor layer — left bar = whose · bottom shelf =
+  claimable · ring = cursor, three states, three geometries again.
+- **THE PLAQUE**: `--now` is a champagne plaque (a warm ground a step above the glass, a metallic hairline, ivory
+  numbers, the met check in muted jade) with the engraved tab «МОЖНО ВЗЯТЬ» (`Ready to claim` — dark warm ink on a
+  brushed champagne gradient); «met but not offered» (`--ready`) stays a mint OUTLINE. Plaque vs outline survives
+  desaturation by form.
+- **THE REST STEP BACK** (`.con-ma--offer`): while anything is offered, every other open milestone's emblem (opacity
+  .58 on its own opaque plate), name and rule go one step quieter; transitioned. ⚠ **Never `filter`** —
+  `console_paint_baseline.less` strips every filter in console (`filter: none !important`), so a filter-drawn state is
+  dead on arrival (the first pass's recede measured identical pixels; the older `--taken` / `--dead` emblem
+  desaturation is dead the same way).
+- **THE HEADER COUNTS** (`[data-ma-offer]`, «✓ МОЖНО ВЗЯТЬ: N» — `Ready to claim: ${0}`): the same plaque at the
+  header's voice, before the slot tray; absent when nothing is offered. Milestones only (P29 — an award's accent stays
+  the tray's next slot).
 - **THE OPENING ROLL CALL** (`.con-ma--rollcall`, one-shot, ~1 s): on mount and on the LB/RB arrive — and only when
   something is offered — the chip stamps, then each offered tile in reading order (`--ma-roll-i`, 120 ms apart): the
-  shelf draws out from its centre, the plate stamps (a press of scale), the check draws, the pill rises, the emblem
+  shelf draws out from its centre, the plaque stamps (a press of scale), the check draws, the tab rises, the emblem
   swells once. Transform / opacity / stroke only; reduced motion shows the standing state. This deliberately relaxes
   P33's «mount seeds silently»: the live-edge `--arriving` reveal is unchanged, the roll call is the screen's answer
   to the question the player opened it with, not a replayed ceremony (no rim, no light).
 
-Unit: `ConsoleMaScreen.spec` § the claimable milestone reads at a glance. Guards: `glowRestraintGuard` § 4 (the
-`.con-ma*` block stays at zero), `consoleTvTypeFloor` (the TV pill / chip are ≥ 0.8rem).
+Unit: `ConsoleMaScreen.spec` § the claimable milestone reads at a glance. e2e: `console-ma-states` (4K frames 20 / 21).
+Guards: `glowRestraintGuard` § 4 (the `.con-ma*` block stays at zero), `consoleTvTypeFloor`.
 
 ## TWO WORKSPACES · ONE FAMILY · MATERIAL · A FULL RIGHT COLUMN · THE LAW'S EXIT (iterations FB + FB′, 2026-11-03)
 
