@@ -68,7 +68,7 @@ export function campaignConfig(overrides: Record<string, unknown> = {}) {
 export async function createCampaign(
   request: APIRequestContext,
   configOverrides: Record<string, unknown> = {},
-  options: {randomMAChance?: number, shuffleMapChance?: number, missionCount?: number} = {},
+  options: {randomMAChance?: number, shuffleMapChance?: number, missionCount?: number, rewardMode?: 'titles' | 'tenders'} = {},
 ): Promise<{id: string, name: string}> {
   const key = `e2e-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
   const res = await request.post(`${campaignBase()}/api/campaign/create`, {
@@ -97,6 +97,11 @@ export async function devCommit(
     carryoverPending?: boolean,
     /** seat → the seat's carry limit (the server's default otherwise). */
     carryoverLimits?: Record<number, number>,
+    /** The «Тендеры» mode: leave the bidding open for the humans / resolve their picks / grant tenders outright. */
+    biddingPending?: boolean,
+    tenderPicks?: Record<number, string>,
+    tenders?: Record<number, Array<string>>,
+    finalPreludes?: Record<number, Array<string>>,
   } = {},
 ): Promise<void> {
   const res = await request.post(`${campaignBase()}/api/campaign/dev?name=admin`, {
@@ -105,10 +110,20 @@ export async function devCommit(
   expect(res.ok(), await res.text()).toBeTruthy();
 }
 
+/** The «Тендеры» mode: one seat's pick at the open bidding (the bearer is that seat's source-mission PlayerId). */
+export async function bidAs(request: APIRequestContext, id: string, playerId: string, instance: string): Promise<void> {
+  const res = await request.post(`${campaignBase()}/api/campaign/bid?id=${id}`, {data: {playerId, instance}});
+  expect(res.ok(), await res.text()).toBeTruthy();
+}
+
 /** The viewer-scoped campaign model (per-seat fields like `yourPlayerId`). */
 export async function campaignModelAs(request: APIRequestContext, id: string, name: string): Promise<{
-  missions: Array<{gameId?: string, yourPlayerId?: string}>,
+  missions: Array<{gameId?: string, yourPlayerId?: string, bidding?: {done: boolean, offer: Array<{instance: string, id: string, takenBy?: number, withdrawn?: boolean}>}}>,
   carryover?: {bySeat: Array<{seat: number, status: string, count: number, limit: number}>, yourCards?: Array<string>, yourLimit?: number},
+  rewardMode?: string,
+  bidding?: {sourceSlot: number, done: boolean, pointer: number, order: Array<number>, yourTurn: boolean,
+    offer: Array<{instance: string, id: string, takenBy?: number, withdrawn?: boolean}>},
+  progression?: {tenders?: Record<number, Array<{instance: string, id: string, status: string}>>},
 }> {
   const res = await request.get(`${campaignBase()}/api/campaign?id=${id}&name=${encodeURIComponent(name)}`);
   expect(res.ok(), await res.text()).toBeTruthy();

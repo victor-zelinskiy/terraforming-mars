@@ -207,6 +207,25 @@
         />
       </Transition>
 
+      <!-- The «Тендеры» mode: the BIDDING as the map's own stage — for the player who comes back to the campaign while
+           the table still waits (the endgame shows the very same surface first). -->
+      <ConsoleTenderBidding
+        v-if="overlay?.kind === 'bidding' && state.model?.bidding !== undefined"
+        ref="biddingStage"
+        class="cmap__bidding-overlay"
+        :bidding="state.model.bidding"
+        :seats="state.model.seats"
+        :you-seat="state.model.you?.seat"
+        :mission-label="missionOrdinal(state.model.bidding.sourceSlot)"
+        :reveal-key="biddingRevealKeyOf(state.model.id, state.model.bidding.sourceSlot)"
+        :root="embedded ? 'Game results' : 'Campaign'"
+        :submitting="state.submittingBid"
+        :error="state.error"
+        :embedded="embedded"
+        @bid="onBid"
+        @back="closeOverlay"
+      />
+
     </template>
 
     <!-- Embedded (an endgame scene): the HOST owns the command bar. -->
@@ -245,6 +264,8 @@ import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleCarryoverPicker from './ConsoleCarryoverPicker.vue';
+import ConsoleTenderBidding from './ConsoleTenderBidding.vue';
+import {biddingRevealKey, tenderBiddingUi} from '@/client/console/campaign/tenderBiddingUi';
 import {CloneFlightHandle, flyCardClones} from '@/client/console/cardFlight/cloneFlights';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import CampaignMissionCard from './CampaignMissionCard.vue';
@@ -269,6 +290,7 @@ import {
   refreshCampaign,
   startCampaignWatch,
   stopCampaignWatch,
+  submitCampaignBid,
   submitCampaignCarryover,
 } from '@/client/console/campaign/campaignState';
 import {CampaignMapVm, buildCampaignMapVm} from '@/client/console/campaign/campaignMapModel';
@@ -281,13 +303,15 @@ import {$t, translateTextWithParams} from '@/client/directives/i18n';
 type MapOverlay =
   | {kind: 'mission', slot: number}
   | {kind: 'legacy', seat: number}
-  | {kind: 'carryover'};
+  | {kind: 'carryover'}
+  /** The «Тендеры» mode: the open bidding's table (the same surface the endgame shows first). */
+  | {kind: 'bidding'};
 
 const REVEAL_LATCH = 'tm_campaign_reveal';
 
 export default defineComponent({
   name: 'ConsoleCampaignMap',
-  components: {ConsoleCommandBar, GamepadGlyph, ConsoleCarryoverPicker, CampaignMissionCard, CampaignMissionInspect, CampaignSeatLegacy},
+  components: {ConsoleCommandBar, GamepadGlyph, ConsoleCarryoverPicker, ConsoleTenderBidding, CampaignMissionCard, CampaignMissionInspect, CampaignSeatLegacy},
   props: {
     /** Hosted as an endgame scene: no own bg/pad/command bar; the host routes
      *  intents into `handleIntent` and reads `commands` for its own bar. */
@@ -324,6 +348,8 @@ export default defineComponent({
        * re-opens it). The latch keeps a deliberate B honest.
        */
       carryAutoOpened: false,
+      /** The «Тендеры» mode: the open bidding opened itself once this visit (the same latch law as the carryover). */
+      biddingAutoOpened: false,
       /**
        * AUTO-JOIN armed: the viewer reached the READY waiting state on this
        * surface. When the current slot flips to `active` with a seat link
@@ -437,6 +463,9 @@ export default defineComponent({
       if (this.overlay?.kind === 'carryover') {
         return 'Project legacy';
       }
+      if (this.overlay?.kind === 'bidding') {
+        return 'Bidding';
+      }
       if (this.overlay?.kind === 'mission') {
         return 'Mission dossier';
       }
@@ -449,6 +478,11 @@ export default defineComponent({
       const vm = this.vm;
       if (vm === undefined) {
         return [{control: 'confirm', label: 'Retry'}, {control: 'back', label: 'Main menu'}];
+      }
+      if (this.overlay?.kind === 'bidding') {
+        // The bidding scene's OWN verbs, mirrored whole (its root B closes the overlay).
+        return tenderBiddingUi.commands.map((c) =>
+          c.control === 'back' && c.label === 'Minimize' ? {...c, label: 'Close', priority: 5} : c);
       }
       if (this.overlay?.kind === 'carryover') {
         // X = inspect (the console-wide verb); RT = confirm (the standard
@@ -545,6 +579,10 @@ export default defineComponent({
         return {label: 'Open mission results', enabled: true};
       }
       if (m.state === 'ready' && m.isCurrent) {
+        if (vm.biddingOpen) {
+          // The «Тендеры» mode: the table is open for everyone — the turn seat picks, the rest watch.
+          return {label: 'Open the bidding', enabled: true};
+        }
         if (vm.cta.kind === 'carryover') {
           return {label: vm.cta.label, enabled: true};
         }
@@ -569,6 +607,10 @@ export default defineComponent({
      *  is the campaign's next move. */
     carryStepDue(): boolean {
       return this.vm?.cta.kind === 'carryover';
+    },
+    /** The «Тендеры» mode: a bidding is open this interlude — the table is the campaign's next move for everyone. */
+    biddingStepDue(): boolean {
+      return this.vm?.biddingOpen === true;
     },
     /** The confirm verb of the carryover step (English i18n key, no params). */
     carryConfirmLabel(): string {
@@ -634,6 +676,19 @@ export default defineComponent({
         if (due && !this.carryAutoOpened && this.overlay === undefined && !this.revealPlaying) {
           this.carryAutoOpened = true;
           this.openCarryover();
+        }
+      },
+    },
+    // The «Тендеры» mode: the open bidding stands BEFORE the carryover — it opens itself once per visit; a finished
+    // bidding closes its own overlay (the carryover step then opens by the watcher above).
+    'biddingStepDue': {
+      immediate: true,
+      handler(due: boolean): void {
+        if (due && !this.biddingAutoOpened && this.overlay === undefined && !this.revealPlaying) {
+          this.biddingAutoOpened = true;
+          this.overlay = {kind: 'bidding'};
+        } else if (!due && this.overlay?.kind === 'bidding') {
+          this.overlay = undefined;
         }
       },
     },
@@ -749,6 +804,10 @@ export default defineComponent({
     tpText(points: number): string {
       return translateTextWithParams('${0} TP', [String(points)]);
     },
+    /** The reveal latch's key — ONE per bidding on this client (`tenderBiddingUi`). */
+    biddingRevealKeyOf(campaignId: string, slot: number): string {
+      return biddingRevealKey(campaignId, slot);
+    },
     missionOrdinal(slot: number): string {
       return translateTextWithParams('Mission ${0}', [String(slot + 1)]);
     },
@@ -756,12 +815,17 @@ export default defineComponent({
       return translateTextWithParams('carrying ${0}', [String(count)]);
     },
     /** The roster chip's English i18n key per status. */
-    waitStatusLabel(status: 'ready' | 'choosing' | 'launching'): string {
+    waitStatusLabel(status: 'ready' | 'choosing' | 'launching' | 'tendering'): string {
       switch (status) {
       case 'ready': return 'is ready';
       case 'launching': return 'launching the mission…';
+      case 'tendering': return 'picking a tender…';
       default: return 'choosing projects…';
       }
+    },
+    /** The «Тендеры» mode: the viewer's pick — the server decides, the push presents the result on every table. */
+    async onBid(instance: string): Promise<void> {
+      await submitCampaignBid(instance);
     },
     revealDelay(slot: number): Record<string, string> {
       return this.revealPlaying ? {'--cmap-reveal-delay': `${420 + slot * 300}ms`} : {};
@@ -794,6 +858,11 @@ export default defineComponent({
       if (this.overlay?.kind === 'carryover') {
         const picker = this.$refs.carryPicker as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         picker?.handleIntent?.(intent);
+        return true;
+      }
+      if (this.overlay?.kind === 'bidding') {
+        const stage = this.$refs.biddingStage as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        stage?.handleIntent?.(intent);
         return true;
       }
       if (this.overlay?.kind === 'mission') {
@@ -926,6 +995,11 @@ export default defineComponent({
         return;
       }
       if (m.state === 'ready' && m.isCurrent) {
+        if (vm.biddingOpen) {
+          // The «Тендеры» mode: the open bidding is the mission's next move — the table, whosever turn it is.
+          this.overlay = {kind: 'bidding'};
+          return;
+        }
         if (vm.cta.kind === 'carryover') {
           this.openCarryover();
           return;

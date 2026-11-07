@@ -1,0 +1,513 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   CAMPAIGN «ТЕНДЕРЫ» — the Committee's LOT (a document, never a playing card) and the BIDDING stage
+   (docs/CAMPAIGN_CONCESSIONS_DESIGN.md §6, §9). Every state is MATERIAL: a kant, a stamp, a word — this file carries
+   ZERO standing halos (the glow ratchet). The only light events are the deal, the turn and the taking — one-shot
+   keyframes that end on their own.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@tender-paper: #dfe4ea;
+@tender-paper-deep: #c9d0d9;
+@tender-ink: #141b25;
+@tender-ink-soft: rgba(20, 27, 37, 0.66);
+@tender-rule-line: rgba(20, 27, 37, 0.08);
+@tender-oxide: #9b3b2e;
+@tender-oxide-ink: #f6e9e5;
+
+/* ── THE DOCUMENT ───────────────────────────────────────────────────────── */
+.con-tender {
+  --tender-w: 14rem;
+  position: relative;
+  box-sizing: border-box;
+  width: var(--tender-w);
+  aspect-ratio: 1 / 1.42;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0 0.9rem 0.8rem;
+  color: @tender-ink;
+  font-family: @con-font-read;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 1.05rem, @tender-rule-line 1.05rem calc(1.05rem + 1px)),
+    linear-gradient(180deg, @tender-paper 0%, @tender-paper-deep 100%);
+  border-radius: 0.3rem;
+  /* The notched corner — the one silhouette no playing card has. */
+  clip-path: polygon(0 0, calc(100% - 1.1rem) 0, 100% 1.1rem, 100% 100%, 0 100%);
+  box-shadow: inset 0 0 0 0.06rem rgba(20, 27, 37, 0.38);
+  overflow: hidden;
+  user-select: none;
+
+  /* The Committee's band — the lot's provenance, printed, never translated by tone. */
+  &__band {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin: 0 -0.9rem;
+    padding: 0.42rem 0.9rem 0.38rem;
+    background: @tender-oxide;
+    color: @tender-oxide-ink;
+    font-family: @con-font;
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  &__committee { overflow: hidden; text-overflow: ellipsis; }
+  &__lot { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+
+  /* The rank — chevrons by tier (three · two · one), a die for the gamble. Form, never colour alone. */
+  &__rank {
+    display: flex;
+    align-items: center;
+    gap: 0.28rem;
+    font-family: @con-font;
+    font-size: 0.6rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: @tender-ink-soft;
+  }
+  &__chev {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-right: 0.12rem solid @tender-ink;
+    border-bottom: 0.12rem solid @tender-ink;
+    transform: translateY(-0.12rem) rotate(45deg);
+  }
+  &__die {
+    display: inline-block;
+    width: 0.62rem;
+    height: 0.62rem;
+    border: 0.12rem solid @tender-ink;
+    border-radius: 0.14rem;
+    background:
+      radial-gradient(circle at 30% 30%, @tender-ink 0.07rem, transparent 0.09rem),
+      radial-gradient(circle at 70% 70%, @tender-ink 0.07rem, transparent 0.09rem);
+  }
+  &__tier { margin-left: 0.2rem; }
+
+  &__name {
+    font-family: @con-font;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.12;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: @tender-ink;
+  }
+
+  /* The emblem — a hairline ring with the family glyph, the one picture the document has (the owner's arts arrive
+     later into the same ring). */
+  &__emblem {
+    align-self: center;
+    width: 4.6rem;
+    height: 4.6rem;
+    margin: 0.3rem 0;
+    border-radius: 50%;
+    border: 0.08rem solid rgba(20, 27, 37, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.35) 0%, transparent 70%);
+  }
+  &__glyph {
+    width: 62%;
+    height: 62%;
+    fill: none;
+    stroke: @tender-ink;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  &__window {
+    font-family: @con-font;
+    font-size: 0.58rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: @tender-oxide;
+  }
+  &__rule {
+    flex: 1 1 auto;
+    font-size: 0.74rem;
+    line-height: 1.32;
+  }
+  &__lore {
+    font-size: 0.7rem;
+    line-height: 1.3;
+    font-style: italic;
+    color: @tender-ink-soft;
+    padding-top: 0.3rem;
+    border-top: 0.05rem solid rgba(20, 27, 37, 0.25);
+  }
+
+  /* The coupon — the compensation floor, printed on a perforated stub. */
+  &__coupon {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin: 0.2rem -0.9rem 0;
+    padding: 0.45rem 0.9rem 0;
+    border-top: 0.07rem dashed rgba(20, 27, 37, 0.5);
+    font-family: @con-font;
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: @tender-ink-soft;
+  }
+  &__coupon-value {
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    color: @tender-ink;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* THE STAMP — a state in ink, diagonal, never a glow. The owner's stamp carries the seat's cube. */
+  &__stamp {
+    position: absolute;
+    left: 50%;
+    top: 46%;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.7rem;
+    border: 0.16rem solid @tender-oxide;
+    border-radius: 0.25rem;
+    transform: translate(-50%, -50%) rotate(-12deg);
+    font-family: @con-font;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: @tender-oxide;
+    background: rgba(223, 228, 234, 0.82);
+    white-space: nowrap;
+    max-width: 95%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 2;
+  }
+  &__stamp-cube {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 0.14rem;
+    box-shadow: inset 0 0 0 0.06rem rgba(0, 0, 0, 0.35);
+  }
+  &__stamp--withdrawn,
+  &__stamp--cashed {
+    border-color: @tender-ink-soft;
+    color: @tender-ink-soft;
+  }
+  &__stamp--executed {
+    border-color: #2f6b4a;
+    color: #2f6b4a;
+  }
+
+  /* A taken / withdrawn / bought-back lot recedes by MATERIAL: the paper dims, the ink stays legible. */
+  &--taken,
+  &--withdrawn,
+  &--cashed {
+    background:
+      repeating-linear-gradient(180deg, transparent 0 1.05rem, @tender-rule-line 1.05rem calc(1.05rem + 1px)),
+      linear-gradient(180deg, #c3c9d1 0%, #aeb5be 100%);
+  }
+  &--withdrawn .con-tender__name,
+  &--withdrawn .con-tender__rule { color: @tender-ink-soft; }
+
+  /* The cursor — a kant inside the paper's edge (the focus material of the console), the host's own transition. */
+  &--focused {
+    box-shadow: inset 0 0 0 0.16rem @con-cyan, inset 0 0 0 0.06rem rgba(20, 27, 37, 0.38);
+  }
+
+  /* ── sizes ── */
+  &--reader {
+    --tender-w: 22rem;
+    .con-tender__rule { font-size: 0.92rem; }
+    .con-tender__name { font-size: 1.35rem; }
+    .con-tender__emblem { width: 6rem; height: 6rem; }
+  }
+  &--plaque {
+    --tender-w: auto;
+    aspect-ratio: auto;
+    width: auto;
+    max-width: 14rem;
+    padding: 0 0.6rem 0.35rem;
+    gap: 0.15rem;
+    clip-path: polygon(0 0, calc(100% - 0.6rem) 0, 100% 0.6rem, 100% 100%, 0 100%);
+    .con-tender__band { margin: 0 -0.6rem; padding: 0.22rem 0.6rem 0.2rem; font-size: 0.46rem; }
+    .con-tender__name { font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .con-tender__stamp { display: none; }
+  }
+}
+
+/* ── THE BIDDING STAGE ─────────────────────────────────────────────────── */
+.con-bidding {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+
+  &__shade {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(120% 85% at 50% 0%, rgba(24, 38, 56, 0.55), transparent 62%),
+      #070d15;
+  }
+  &__stage {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 1.1rem 2.6rem 3.4rem;
+  }
+  &__head { flex: 0 0 auto; }
+
+  /* THE ORDER STRIP — the places in a row; the turn is a kant, the done a tick-weight, the last a word. */
+  &__order {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    padding: 0 0.3rem;
+    font-family: @con-font;
+  }
+  &__order-cap {
+    font-size: 0.62rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(214, 223, 233, 0.6);
+    margin-right: 0.3rem;
+  }
+  &__seat {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.28rem 0.7rem 0.28rem 0.5rem;
+    border-radius: 0.3rem;
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow: inset 0 0 0 0.05rem rgba(214, 223, 233, 0.22);
+    color: #d6dfe9;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    transition: box-shadow var(--con-cursor-ms, 160ms) ease, opacity 200ms ease;
+  }
+  &__seat--turn {
+    box-shadow: inset 0 0 0 0.12rem @con-cyan;
+    color: #ffffff;
+  }
+  &__seat--done { opacity: 0.72; }
+  &__seat--none { opacity: 0.6; }
+  &__seat-place {
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    color: rgba(214, 223, 233, 0.75);
+  }
+  &__seat-cube {
+    width: 0.78rem;
+    height: 0.78rem;
+    border-radius: 0.14rem;
+    box-shadow: inset 0 0 0 0.05rem rgba(0, 0, 0, 0.4);
+  }
+  &__seat-tag {
+    font-size: 0.58rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(214, 223, 233, 0.6);
+    padding-left: 0.3rem;
+    border-left: 0.05rem solid rgba(214, 223, 233, 0.28);
+  }
+  &__seat-tag--lot { color: @con-amber; }
+
+  /* THE TABLE — the Register at the left, the lots in one row at the album's rhythm. */
+  &__table {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    gap: 2.2rem;
+    padding: 0.4rem 0.3rem;
+  }
+  &__register {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  &__register-stack {
+    position: relative;
+    width: 7.5rem;
+    aspect-ratio: 1 / 1.42;
+    i {
+      position: absolute;
+      inset: 0;
+      border-radius: 0.3rem;
+      clip-path: polygon(0 0, calc(100% - 0.6rem) 0, 100% 0.6rem, 100% 100%, 0 100%);
+      background:
+        repeating-linear-gradient(135deg, rgba(20, 27, 37, 0.14) 0 0.35rem, transparent 0.35rem 0.7rem),
+        linear-gradient(180deg, #4a5663 0%, #2f3842 100%);
+      box-shadow: inset 0 0 0 0.06rem rgba(20, 27, 37, 0.6);
+    }
+    i:nth-child(1) { transform: translate(0.5rem, 0.5rem); opacity: 0.6; }
+    i:nth-child(2) { transform: translate(0.25rem, 0.25rem); opacity: 0.8; }
+  }
+  &__register-cap {
+    font-family: @con-font;
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(214, 223, 233, 0.6);
+    white-space: nowrap;
+  }
+  &__row {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.4rem;
+    perspective: 60rem;
+  }
+  &__slot {
+    position: relative;
+    flex: 0 0 auto;
+  }
+  &__flip {
+    position: relative;
+    transform-style: preserve-3d;
+  }
+  &__back,
+  &__face {
+    backface-visibility: hidden;
+  }
+  &__back {
+    position: absolute;
+    inset: 0;
+    border-radius: 0.3rem;
+    clip-path: polygon(0 0, calc(100% - 1.1rem) 0, 100% 1.1rem, 100% 100%, 0 100%);
+    background:
+      repeating-linear-gradient(135deg, rgba(20, 27, 37, 0.14) 0 0.35rem, transparent 0.35rem 0.7rem),
+      linear-gradient(180deg, #4a5663 0%, #2f3842 100%);
+    box-shadow: inset 0 0 0 0.06rem rgba(20, 27, 37, 0.6);
+    transform: rotateY(0deg);
+    opacity: 0;
+  }
+  &__face { transform: rotateY(0deg); }
+
+  /* THE REVEAL — each lot DEALS from the Register (a travel from the left, face-down), then TURNS in place; the back
+     is painted only while the cinematic runs (a settled stage paints faces alone). */
+  &__slot--reveal {
+    animation: con-tender-deal calc(420ms * var(--motion-scale, 1)) @con-ease-enter both;
+    animation-delay: calc(var(--i, 0) * 110ms * var(--motion-scale, 1));
+    .con-bidding__back { opacity: 1; }
+    .con-bidding__flip {
+      animation: con-tender-flip calc(520ms * var(--motion-scale, 1)) @con-ease-standard both;
+      animation-delay: calc((760ms + var(--i, 0) * 150ms) * var(--motion-scale, 1));
+    }
+  }
+  /* THE TAKING — the lot answers its new owner with one short press before the stamp lands (ends on its own). */
+  &__slot--taking .con-tender {
+    animation: con-tender-taking calc(640ms * var(--motion-scale, 1)) @con-ease-standard both;
+  }
+  &__slot--taking {
+    animation: con-tender-taking-slot calc(640ms * var(--motion-scale, 1)) @con-ease-standard both;
+  }
+
+  /* THE READER (X) — the lot in full, over the table, never a second instance left standing after B. */
+  &__reader {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(7, 13, 21, 0.86);
+    z-index: 4;
+  }
+
+  &__foot {
+    flex: 0 0 auto;
+    height: var(--con-ws-foot-h);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0 0.3rem;
+    overflow: hidden;
+    white-space: nowrap;
+    font-family: @con-font;
+    font-size: 0.82rem;
+    letter-spacing: 0.06em;
+  }
+  &__status { color: rgba(214, 223, 233, 0.78); overflow: hidden; text-overflow: ellipsis; }
+  &__status--yours { color: #d6f3ff; font-weight: 700; }
+  &__error { color: #f0a0a0; }
+}
+
+@keyframes con-tender-deal {
+  from { opacity: 0; transform: translate(-9rem, 0.4rem) rotate(-4deg); }
+  to { opacity: 1; transform: none; }
+}
+/* The back faces the player until the turn; the flip wrapper rotates from the back (180°) to the face (0°). */
+@keyframes con-tender-flip {
+  from { transform: rotateY(180deg); }
+  to { transform: rotateY(0deg); }
+}
+@keyframes con-tender-taking {
+  0% { transform: none; }
+  40% { transform: translateY(-0.5rem) scale(1.03); }
+  100% { transform: none; }
+}
+@keyframes con-tender-taking-slot {
+  0% { filter: none; }
+  100% { filter: none; }
+}
+
+/* Hosts: the endgame's scene and the map's overlay are pure position. */
+.cmap__bidding-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+}
+
+/* The seat's TENDER PLAQUE on the podium — the crest anchor the title wears in the other mode (`.con-eg__title`):
+   absolute, centred on the seat's top edge, zero layout. */
+.con-eg__tender {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -62%);
+  z-index: 3;
+  box-shadow: 0 0.2rem 0.8rem rgba(0, 0, 0, 0.55);
+  border-radius: 0.3rem;
+}
+/* The plaque arrives after the winner beat the way the title crest does (transform / opacity only) while the
+   «ПОБЕДИТЕЛЬ» ribbon yields on the same anchor; a settled screen mounts it without the class. */
+.con-eg__tender--animate {
+  opacity: 0;
+  animation: con-eg-tender-in calc(420ms * var(--motion-scale, 1)) @con-ease-enter forwards;
+  animation-delay: calc(260ms * var(--motion-scale, 1));
+}
+@keyframes con-eg-tender-in {
+  from { opacity: 0; transform: translate(-50%, -30%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -62%) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .con-eg__tender--animate {
+    animation: none;
+    opacity: 1;
+  }
+  .con-bidding__slot--reveal,
+  .con-bidding__slot--reveal .con-bidding__flip,
+  .con-bidding__slot--taking,
+  .con-bidding__slot--taking .con-tender {
+    animation: none;
+  }
+}

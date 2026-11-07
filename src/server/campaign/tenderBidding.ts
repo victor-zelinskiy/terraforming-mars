@@ -16,6 +16,7 @@ import {
   TenderHolding,
   TenderId,
   biddingOpenCards,
+  biddingPickerCount,
   biddingTurnSeat,
   botTenderPick,
 } from '../../common/campaign/tenders';
@@ -133,10 +134,7 @@ export function biddingOrder(standings: ReadonlyArray<MissionStanding>, rng: Ran
   return {order, lots};
 }
 
-/** The seats that PICK: every seat of the order but the last (the last place leaves with nothing). */
-export function biddingPickerCount(order: ReadonlyArray<number>): number {
-  return Math.max(0, order.length - 1);
-}
+export {biddingPickerCount};
 
 /**
  * Is the bidding over? Every picking seat has picked, or nothing is left on

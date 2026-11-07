@@ -8,6 +8,7 @@ import {Color} from '@/common/Color';
 import {BoardName} from '@/common/boards/BoardName';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerId} from '@/common/Types';
+import {biddingTurnSeat} from '@/common/campaign/tenders';
 
 export type CmapResultRow = {
   seat: number;
@@ -59,7 +60,7 @@ export type CmapRailRow = {
    * reads (never a separate roster panel). Humans only; the creator's chip
    * flips to `launching` once everyone is ready.
    */
-  readiness?: 'ready' | 'choosing' | 'launching';
+  readiness?: 'ready' | 'choosing' | 'launching' | 'tendering';
   isChampion: boolean;
 };
 
@@ -68,6 +69,8 @@ export type CmapCta =
   | {kind: 'join', label: string, playerId: PlayerId}
   | {kind: 'waiting', label: string, ready?: boolean}
   | {kind: 'carryover', label: string}
+  /** The «Тендеры» mode: the open bidding waits for the VIEWER's pick. */
+  | {kind: 'bidding', label: string}
   | {kind: 'chronicle', label: string}
   | {kind: 'none'};
 
@@ -91,6 +94,8 @@ export type CampaignMapVm = {
    * `active` with a seat link, the client enters the mission by itself.
    */
   readyWaiting: boolean;
+  /** The «Тендеры» mode: a bidding is OPEN this interlude (any seat's turn) — the map offers the table. */
+  biddingOpen: boolean;
   /** The viewer's own carryover door (interlude, unconsumed). */
   carryoverOpen: boolean;
   carryoverConfirmed: boolean;
@@ -154,6 +159,10 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
 
   const carry = model.carryover;
   const yourCarry = youSeat !== undefined ? carry?.bySeat.find((s) => s.seat === youSeat) : undefined;
+  // The «Тендеры» mode: an open bidding comes BEFORE the carryover round — the
+  // turn seat is «picking a tender», everybody else waits for the table.
+  const bidding = model.bidding !== undefined && !model.bidding.done ? model.bidding : undefined;
+  const biddingTurn = bidding !== undefined ? biddingTurnSeat(bidding) : undefined;
   // The READINESS round is open: current slot ready, interlude, carryover live.
   const currentMission = model.missions[model.pointer];
   const readinessOpen = currentMission?.state === 'ready' &&
@@ -162,7 +171,9 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
   const rail: Array<CmapRailRow> = model.seats.map((seat) => {
     const entry = carry?.bySeat.find((s) => s.seat === seat.seat);
     let readiness: CmapRailRow['readiness'];
-    if (readinessOpen && seat.kind === 'human' && entry !== undefined) {
+    if (bidding !== undefined && model.phase === 'interlude') {
+      readiness = seat.seat === biddingTurn ? 'tendering' : undefined;
+    } else if (readinessOpen && seat.kind === 'human' && entry !== undefined) {
       readiness = entry.status === 'confirmed' ?
         (seat.seat === 0 && allReady ? 'launching' : 'ready') : 'choosing';
     }
@@ -197,7 +208,12 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
   } else if (current?.state === 'ready') {
     // The viewer's own unresolved carryover outranks the launch/wait line —
     // it is the one thing THEY can do to move the campaign.
-    if (yourCarry !== undefined && yourCarry.status === 'pending') {
+    if (bidding !== undefined) {
+      // The «Тендеры» mode: the bidding stands before everything else of the interlude.
+      cta = biddingTurn === youSeat ?
+        {kind: 'bidding', label: 'Pick your tender'} :
+        {kind: 'waiting', label: 'Waiting for the tender bidding'};
+    } else if (yourCarry !== undefined && yourCarry.status === 'pending') {
       // READINESS: every human confirms explicitly — an empty hand confirms
       // «готов» with zero cards, and the door must name that honestly.
       cta = (model.carryover?.yourEligible ?? []).length === 0 ?
@@ -235,6 +251,7 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
     isCreator,
     cta,
     readyWaiting,
+    biddingOpen: bidding !== undefined,
     carryoverOpen: yourCarry !== undefined && !isCarryLocked(model),
     carryoverConfirmed: yourCarry?.status === 'confirmed',
     yourCarryCards: model.carryover?.yourCards ?? [],

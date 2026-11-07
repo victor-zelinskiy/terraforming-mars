@@ -178,6 +178,11 @@ export function biddingOfferSize(seatCount: number): number {
   return Math.max(seatCount - 1, Math.min(seatCount, 2));
 }
 
+/** The seats that PICK: every seat of the order but the last (the last place leaves with nothing). */
+export function biddingPickerCount(order: ReadonlyArray<number>): number {
+  return Math.max(0, order.length - 1);
+}
+
 /** The seat whose pick it is now — undefined once the bidding is done. */
 export function biddingTurnSeat(bidding: Pick<BiddingState, 'order' | 'pointer' | 'done'>): number | undefined {
   if (bidding.done) {

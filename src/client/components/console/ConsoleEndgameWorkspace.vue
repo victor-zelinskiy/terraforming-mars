@@ -110,7 +110,7 @@
             <transition name="con-eg-fade">
               <div v-if="rowRibbon(color) !== undefined" class="con-eg__ribbon"
                    :class="{'con-eg__ribbon--defeat': soloDefeat, 'con-eg__ribbon--yield': ribbonYields(color)}"
-                   :style="ribbonYields(color) ? {'--egb-i': rowTitleBadge(color)!.order} : undefined">{{ $t(rowRibbon(color)!) }}</div>
+                   :style="ribbonYields(color) ? {'--egb-i': rowCrestOrder(color)} : undefined">{{ $t(rowRibbon(color)!) }}</div>
             </transition>
             <div v-if="championPlateFor(color)" class="con-eg__champline"
                  :class="{'con-eg__champline--animate': campaignCodaAnimated}">
@@ -149,6 +149,14 @@
                 <span class="con-eg__title-label">{{ $t(rowTitleBadge(color)!.label) }}</span>
                 <span v-if="rowTitleBadge(color)!.tp > 0" class="con-eg__title-tp">+{{ rowTitleBadge(color)!.tp }} <span v-i18n>TP</span></span>
               </span>
+            </div>
+            <!-- THE SEAT'S TENDER (the «Тендеры» mode) — the lot this seat took at the mission's bidding, as a PLAQUE
+                 on the very crest anchor the title wears in the other mode: the band and the name, the seat's own
+                 record of the bidding. Hidden while the bidding scene itself stands over the podium. -->
+            <div v-if="rowTenderPlaque(color) !== undefined" class="con-eg__tender"
+                 :class="{'con-eg__tender--animate': campaignCodaAnimated}"
+                 :data-eg-tender="rowTenderPlaque(color)!.id">
+              <ConsoleTenderCard size="plaque" :id="rowTenderPlaque(color)!.id" state="taken" />
             </div>
             <!-- THE STAND — the face and the LINEAGE behind it: the seat's other corporations stand BEHIND the face as
                  charters (the deepest first in paint order), each one nameplate higher and a step narrower, so their
@@ -343,6 +351,22 @@
     <div v-if="campaignScene === 'map'" class="con-eg-campaign-scene">
       <ConsoleCampaignMap ref="campaignMap" :embedded="true" @close="closeCampaignScene" />
     </div>
+    <!-- ── THE BIDDING SCENE (the «Тендеры» mode) — the mission's reward right after the ceremony: the Register deals
+         the table, the places pick in turn. The same host-agnostic surface the campaign map shows later. -->
+    <div v-if="campaignScene === 'bidding' && missionBidding !== undefined && campaignState.model !== undefined" class="con-eg-campaign-scene" data-eg-bidding-scene>
+      <ConsoleTenderBidding ref="bidding"
+                            :bidding="{...missionBidding, yourTurn: liveBidding !== undefined ? liveBidding.yourTurn : false}"
+                            :seats="campaignState.model.seats"
+                            :you-seat="campaignState.model.you?.seat"
+                            :mission-label="missionOrdinalLabel"
+                            :reveal-key="biddingRevealKey"
+                            :submitting="campaignState.submittingBid"
+                            :error="campaignState.error"
+                            root="Game results"
+                            embedded
+                            @bid="onBid"
+                            @back="closeCampaignScene" />
+    </div>
   </div>
 </template>
 
@@ -404,11 +428,15 @@ import ConsoleEndgameOverview from '@/client/components/console/ConsoleEndgameOv
 // (mandatory carryover step → launch / ready-waiting with auto-join).
 import {TitleName} from '@/common/campaign/CampaignTypes';
 import {CampaignGameContract} from '@/common/campaign/CampaignGameContract';
-import {MissionResultModel} from '@/common/campaign/CampaignModel';
+import {BiddingModel, MissionResultModel, campaignModelRewardMode} from '@/common/campaign/CampaignModel';
+import {BiddingState, TenderId} from '@/common/campaign/tenders';
 import {
-  campaignState, openCampaign, setCampaignViewerName, startCampaignWatch, stopCampaignWatch,
+  campaignState, openCampaign, setCampaignViewerName, startCampaignWatch, stopCampaignWatch, submitCampaignBid,
 } from '@/client/console/campaign/campaignState';
 import {campaignMapUi} from '@/client/console/campaign/campaignMapUi';
+import {biddingRevealKey, tenderBiddingUi} from '@/client/console/campaign/tenderBiddingUi';
+import ConsoleTenderBidding from '@/client/components/console/campaign/ConsoleTenderBidding.vue';
+import ConsoleTenderCard from '@/client/components/console/campaign/ConsoleTenderCard.vue';
 import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
 import {recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
 import {currentServerEndpoint} from '@/client/utils/runtimeConfig';
@@ -503,7 +531,7 @@ function paintLightWash(canvas: HTMLCanvasElement, light: LightPaint): void {
 
 export default defineComponent({
   name: 'ConsoleEndgameWorkspace',
-  components: {ConsoleEndgameOverview, ConsoleCampaignMap, ConsoleScoreDisc, ConsoleVpBadge, ConsoleCardFaceLite, MarsBotCorpFace},
+  components: {ConsoleEndgameOverview, ConsoleCampaignMap, ConsoleTenderBidding, ConsoleTenderCard, ConsoleScoreDisc, ConsoleVpBadge, ConsoleCardFaceLite, MarsBotCorpFace},
   props: {
     playerView: {type: Object as PropType<ViewModel>, required: true},
   },
@@ -512,7 +540,7 @@ export default defineComponent({
     const {width: vpWidth} = useConsoleViewport();
     // The light's live paint (hotspot + tone) — a plain object, never reactive: a glide writes it every frame.
     const light: LightPaint = {x: 0.5, r: 138, g: 164, b: 192};
-    return {reduced, vpWidth, light};
+    return {reduced, vpWidth, light, campaignState};
   },
   data() {
     return {
@@ -542,8 +570,12 @@ export default defineComponent({
       stageObserver: undefined as ResizeObserver | undefined,
       totalEls: {} as Record<string, HTMLElement | undefined>,
       /** The campaign scene — internal, the overview pattern (park + return).
-       *  ONE scene: the map hosts the whole interlude flow itself. */
-      campaignScene: undefined as undefined | 'map',
+       *  `map`: the map hosts the whole interlude flow itself. `bidding`: the
+       *  «Тендеры» mode's BIDDING right after the ceremony (the same surface
+       *  the map hosts for a player who comes back later). */
+      campaignScene: undefined as undefined | 'map' | 'bidding',
+      /** The bidding scene opened itself once for this bidding (`campaignId:slot`). */
+      biddingAutoOpened: '',
       /** The coda animates only when the ceremony itself played live. */
       campaignCodaAnimated: false,
       /** T08: the category whose light stands over the podium (its tone on the beam), undefined while dark. */
@@ -591,6 +623,58 @@ export default defineComponent({
         }
       });
       return out;
+    },
+    /**
+     * The «Тендеры» mode: THIS mission's bidding — live while open (the campaign
+     * document), the slot's record once done. Undefined on a titles campaign.
+     */
+    missionBidding(): BiddingModel | BiddingState | undefined {
+      const contract = this.campaignContract;
+      const model = campaignState.model;
+      if (contract === undefined || model === undefined || campaignModelRewardMode(model) !== 'tenders') {
+        return undefined;
+      }
+      if (model.bidding !== undefined && model.bidding.sourceSlot === contract.missionSlot) {
+        return model.bidding;
+      }
+      return model.missions[contract.missionSlot]?.bidding;
+    },
+    liveBidding(): BiddingModel | undefined {
+      const model = campaignState.model;
+      const contract = this.campaignContract;
+      const bidding = model?.bidding;
+      return bidding !== undefined && contract !== undefined && bidding.sourceSlot === contract.missionSlot && !bidding.done ?
+        bidding : undefined;
+    },
+    biddingRevealKey(): string {
+      const model = campaignState.model;
+      const contract = this.campaignContract;
+      return model !== undefined && contract !== undefined ? biddingRevealKey(model.id, contract.missionSlot) : '';
+    },
+    /** The bidding scene is DUE: the ceremony settled, a bidding is open for this mission, no scene stands. */
+    biddingDue(): boolean {
+      return this.ui.phase === 'actions' && !this.ui.collapsed && this.campaignScene === undefined &&
+        this.liveBidding !== undefined && this.biddingAutoOpened !== this.biddingRevealKey;
+    },
+    /** Color → the tender the seat TOOK at this mission's bidding (the crest plaque). */
+    campaignRowTenders(): Partial<Record<Color, {id: TenderId, instance: string}>> {
+      const out: Partial<Record<Color, {id: TenderId, instance: string}>> = {};
+      const bidding = this.missionBidding;
+      if (bidding === undefined) {
+        return out;
+      }
+      for (const card of bidding.offer) {
+        if (card.takenBy !== undefined) {
+          const seat = this.campaignSeatName(card.takenBy);
+          out[seat.color] = {id: card.id, instance: card.instance};
+        }
+      }
+      return out;
+    },
+    /** «Миссия N» — the bidding scene's subject (already in the player's language). */
+    missionOrdinalLabel(): string {
+      const contract = this.campaignContract;
+      return contract === undefined ? '' : translateTextWithParams('Mission ${0}', [String(contract.missionSlot + 1)]);
     },
     campaignSeatName(): (seat: number) => {name: string, color: Color} {
       return (seat: number) => {
@@ -651,6 +735,9 @@ export default defineComponent({
       }
       if (this.campaignNextLink !== undefined) {
         return $t('mission started — enter');
+      }
+      if (this.liveBidding !== undefined) {
+        return $t('the tender bidding is on');
       }
       if (this.viewerHasCarryDoor && !this.carryConfirmed) {
         return $t('choose the project legacy');
@@ -930,6 +1017,11 @@ export default defineComponent({
           c.control === 'back' && c.label === 'Main menu' ?
             {...c, label: 'Game results', priority: 5} : c);
       }
+      if (this.campaignScene === 'bidding') {
+        // The bidding scene's OWN verbs (the same mirror law); its root B returns to the results.
+        return tenderBiddingUi.commands.map((c) =>
+          c.control === 'back' && c.label === 'Minimize' ? {...c, label: 'Game results', priority: 5} : c);
+      }
       if (this.overviewParked) {
         // The overview scene: its own level's verbs, nothing inherited.
         if (this.ov.detail !== undefined) {
@@ -974,6 +1066,16 @@ export default defineComponent({
       deep: true,
       handler(cmds: ReadonlyArray<ConsoleCommand>): void {
         setPanelCommands('endgame', cmds);
+      },
+    },
+    // The «Тендеры» mode: the BIDDING opens itself once the ceremony has settled — the mission's reward is the next
+    // thing on this screen, never a button to hunt for (the latch keeps a deliberate B honest; the CTA re-opens it).
+    'biddingDue': {
+      immediate: true,
+      handler(due: boolean): void {
+        if (due) {
+          this.openBiddingScene();
+        }
       },
     },
     // The list is live (rematch states arrive by poll) — the cursor must
@@ -1383,7 +1485,10 @@ export default defineComponent({
       // mission is won first, the campaign crowns second. On missions 1–3 it
       // yields the same way to the winner's title crest (`ribbonYields`) — and
       // a settled screen (a reload, reduced replay) shows the crest alone.
-      if (this.rowTitleBadge(color) !== undefined && !this.campaignCodaAnimated) {
+      // A title crest on the LIVE coda yields in place (the CSS-timed fade below); every other crest — a settled
+      // title, a seat's TENDER (the «Тендеры» mode: the lot lands while the bidding scene covers the podium, so the
+      // ribbon's leave plays unseen and only the plaque meets the eye on B) — simply takes the anchor.
+      if (this.rowCrest(color) && (!this.campaignCodaAnimated || this.rowTitleBadge(color) === undefined)) {
         return undefined;
       }
       return this.championPlateOn ? undefined : 'Winner';
@@ -1392,6 +1497,23 @@ export default defineComponent({
      *  ride the title's ascending delay, so the swap is one motion — never two objects on one anchor). */
     ribbonYields(color: Color): boolean {
       return this.campaignCodaAnimated && this.rowTitleBadge(color) !== undefined;
+    },
+    /** A CREST stands on this row's anchor — the mission's title (the titles mode) or the seat's tender (the
+     *  «Тендеры» mode — HELD counts, scene or no scene: the plaque is only hidden under the bidding scene); the
+     *  «ПОБЕДИТЕЛЬ» ribbon never shares the anchor with one. */
+    rowCrest(color: Color): boolean {
+      return this.rowTitleBadge(color) !== undefined || (this.ui.winnerShown && this.campaignRowTenders[color] !== undefined);
+    },
+    /** The crest's place in the ascending reveal — the title's own order; a tender plaque is the first (and only) beat. */
+    rowCrestOrder(color: Color): number {
+      return this.rowTitleBadge(color)?.order ?? 0;
+    },
+    /** The seat's tender plaque — after the winner beat like the title, never under the bidding scene itself. */
+    rowTenderPlaque(color: Color): {id: TenderId, instance: string} | undefined {
+      if (!this.ui.winnerShown || this.campaignScene === 'bidding') {
+        return undefined;
+      }
+      return this.campaignRowTenders[color];
     },
     /** The champion plate — every row that shares first place, equally. */
     championPlateFor(color: Color): boolean {
@@ -1803,6 +1925,15 @@ export default defineComponent({
     openCampaignScene(): void {
       this.campaignScene = 'map';
     },
+    /** The «Тендеры» mode: the BIDDING scene — opened by itself once the ceremony settles, re-opened by the one CTA. */
+    openBiddingScene(): void {
+      this.biddingAutoOpened = this.biddingRevealKey;
+      this.campaignScene = 'bidding';
+    },
+    /** The viewer's pick — the server decides; the model's push presents the result on every seat's table. */
+    async onBid(instance: string): Promise<void> {
+      await submitCampaignBid(instance);
+    },
     /**
      * «СЛЕДУЮЩАЯ МИССИЯ» — the one continuation press. A live mission is
      * entered directly (the launch already happened); otherwise the map scene
@@ -1827,6 +1958,11 @@ export default defineComponent({
             missionCount: contract.missionCount,
             resume: false,
           });
+        return;
+      }
+      // The «Тендеры» mode: while the bidding is open it IS the next step.
+      if (this.liveBidding !== undefined) {
+        this.openBiddingScene();
         return;
       }
       this.openCampaignScene();
@@ -1858,6 +1994,10 @@ export default defineComponent({
       // THE CAMPAIGN SCENE owns the pad while it stands (the same law).
       if (this.campaignScene === 'map') {
         (this.$refs.campaignMap as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent);
+        return;
+      }
+      if (this.campaignScene === 'bidding') {
+        (this.$refs.bidding as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent);
         return;
       }
       // THE MANDATORY CHAMPION CEREMONY absorbs the whole pad: no skip (X),

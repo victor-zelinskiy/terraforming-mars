@@ -29,6 +29,8 @@ export const campaignState = reactive<{
   launching: boolean,
   /** True while a carryover POST is in flight. */
   submittingCarryover: boolean,
+  /** True while a tender BID is in flight (the «Тендеры» mode). */
+  submittingBid: boolean,
 }>({
   id: undefined,
   model: undefined,
@@ -36,6 +38,7 @@ export const campaignState = reactive<{
   error: '',
   launching: false,
   submittingCarryover: false,
+  submittingBid: false,
 });
 
 let pollTimer: number | undefined;
@@ -199,6 +202,45 @@ export function resetCampaignState(): void {
   campaignState.error = '';
   campaignState.launching = false;
   campaignState.submittingCarryover = false;
+  campaignState.submittingBid = false;
+}
+
+/**
+ * The viewer's PICK at the open tender bidding (the «Тендеры» mode). The
+ * bearer is the viewer's seat in the SOURCE mission (the model names it); the
+ * server decides whose turn it is and refuses by name.
+ */
+export async function submitCampaignBid(instance: string): Promise<boolean> {
+  const id = campaignState.id;
+  const model = campaignState.model;
+  const bidding = model?.bidding;
+  const playerId = bidding !== undefined ? model?.missions[bidding.sourceSlot]?.yourPlayerId : undefined;
+  if (id === undefined || playerId === undefined || campaignState.submittingBid) {
+    return false;
+  }
+  campaignState.submittingBid = true;
+  try {
+    const res = await fetch(apiUrl(paths.API_CAMPAIGN_BID) + `?id=${encodeURIComponent(id)}`, {
+      method: 'POST',
+      body: JSON.stringify({playerId, instance}),
+      headers: {'Content-Type': 'application/json'},
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(text || 'bid failed');
+    }
+    const next = JSON.parse(text) as CampaignModel;
+    if (campaignState.model === undefined || next.rev >= campaignState.model.rev) {
+      campaignState.model = next;
+    }
+    campaignState.error = '';
+    return true;
+  } catch (err) {
+    campaignState.error = 'Could not submit the pick. Please try again.';
+    return false;
+  } finally {
+    campaignState.submittingBid = false;
+  }
 }
 
 /**

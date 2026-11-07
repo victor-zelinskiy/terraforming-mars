@@ -93,6 +93,47 @@ describe('campaignMapModel', () => {
     expect(bruno.carry).deep.eq({status: 'confirmed', count: 2});
   });
 
+  it('«Тендеры»: an open bidding stands BEFORE the carryover — the turn seat picks, everyone else waits for the table', () => {
+    const model = baseModel({
+      phase: 'interlude',
+      pointer: 1,
+      canLaunch: false,
+      launchBlockers: ['Waiting for the tender bidding'],
+      rewardMode: 'tenders',
+      carryover: {
+        sourceSlot: 0,
+        bySeat: [
+          {seat: 0, status: 'pending', count: 0, limit: 2},
+          {seat: 1, status: 'pending', count: 0, limit: 2},
+        ],
+        yourCards: [],
+        yourEligible: [CardName.ANTS],
+      },
+      bidding: {
+        sourceSlot: 0,
+        offer: [{instance: 't0-0', id: 'gamble'}, {instance: 't0-1', id: 'restructuring'}],
+        order: [1, 0, 2],
+        lots: [],
+        pointer: 0,
+        done: false,
+        yourTurn: false,
+      },
+    });
+    (model.missions[0] as any).state = 'committed';
+    (model.missions[1] as any).state = 'ready';
+    const bruno = buildCampaignMapVm({...model, you: {seat: 1}, bidding: {...model.bidding!, yourTurn: true}} as CampaignModel);
+    expect(bruno.cta).deep.eq({kind: 'bidding', label: 'Pick your tender'});
+    expect(bruno.biddingOpen).is.true;
+    const alice = buildCampaignMapVm(model);
+    expect(alice.cta).deep.eq({kind: 'waiting', label: 'Waiting for the tender bidding'});
+    // The rail: the turn seat is «picking a tender», nobody wears a carryover chip yet.
+    expect(alice.rail.map((r) => r.readiness)).deep.eq([undefined, 'tendering', undefined]);
+    // The bidding over → the ordinary carryover round.
+    const after = buildCampaignMapVm({...model, bidding: undefined} as CampaignModel);
+    expect(after.cta.kind).eq('carryover');
+    expect(after.biddingOpen).is.false;
+  });
+
   it('interlude: a confirmed non-creator stands READY — waiting CTA with the auto-join promise', () => {
     const model = baseModel({
       you: {seat: 1},
