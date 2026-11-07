@@ -2443,10 +2443,15 @@ export default defineComponent({
             confirm, ...this.sourceHint, defer,
           ];
         }
+        // RT places what is LEFT on the focused lane — named so (never «МАКС.»).
+        // The layout's own verbs and its commit (X here) are the LAST to drop
+        // from a crowded bar: at the default bumper rank LB/RB went first,
+        // before the generic Source — the bar then hid how to distribute at all.
         return [
           {control: 'dpad', label: 'Navigate'},
-          {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
-          {control: 'triggerR', label: 'MAX'}, confirm, ...this.sourceHint, defer,
+          {control: 'bumperL', control2: 'bumperR', label: 'Distribute −1 / +1', priority: 0},
+          {control: 'triggerR', label: 'Rest here', enabled: this.distributedSum < this.distributeTarget, priority: 0},
+          {...confirm, priority: 0}, ...this.sourceHint, defer,
         ];
       }
       case 'payment':
@@ -2491,14 +2496,22 @@ export default defineComponent({
           ];
         }
         if (this.isSpreadMode) {
-          // THE LAYOUT speaks the console's existing amount grammar and nothing
-          // new: LB / RB move one unit on the focused card, RT pours the rest
-          // onto it, A confirms — enabled only once everything is placed (the
-          // status line says why not yet). Inspect and Source as on any pick.
+          // THE LAYOUT: LB / RB move one unit on the focused card, RT pours the
+          // REST onto it, A confirms — enabled only once everything is placed
+          // (the status line says why not yet). Inspect and Source as on any
+          // pick. The verbs NAME the layout (the owner, 2026-11-08: a bare
+          // «−1 · +1 · МАКС.» did not read as «this is how you distribute», and
+          // «МАКС.» hid that RT places what is LEFT, not a maximum). They are
+          // the LAST to drop from a crowded bar (beside A): at the default
+          // bumper rank they went before Inspect / Source.
+          const focused = this.focusedCardEntry;
+          const live = focused !== undefined && !focused.disabled;
+          const canTake = live && this.spreadOnCard(focused.card.name) > 0;
+          const canPut = live && this.spreadLeft > 0;
           return [
             nav,
-            {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
-            {control: 'triggerR', label: 'MAX'},
+            {control: 'bumperL', control2: 'bumperR', label: 'Distribute −1 / +1', enabled: canTake || canPut, priority: 0},
+            {control: 'triggerR', label: 'Rest here', enabled: canPut, priority: 0},
             {control: 'confirm', label: this.confirmLabel, enabled: this.spreadReady, priority: 0},
             inspect, ...this.sourceHint, defer,
           ];

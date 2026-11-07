@@ -962,6 +962,8 @@ export type PlayFootContext = {
    * there's no quick-adjust (complex / auto payment).
    */
   quickAdjust?: {canDecrease: boolean, canIncrease: boolean};
+  /** The focused LAYOUT row's units still to place (`focusedKind === 'distribute'`) — RT «Остаток сюда» dims at 0. */
+  distributeLeft?: number;
   /**
    * The EFFECT FORECAST has something to show (a reaction, a discount, a
    * payment value) — R3 opens the «Эффекты» layer. Absent / false on an
@@ -1070,9 +1072,14 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
   } else if (ctx.focusedKind === 'spendHeat') {
     hints.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'});
   } else if (ctx.focusedKind === 'distribute') {
-    // The LAYOUT's lanes: ←→ walk the holders, LB/RB move one unit on the focused one, RT pours what is left there.
+    // The LAYOUT's lanes: ←→ walk the holders, LB/RB move one unit on the focused one, RT pours what is LEFT there —
+    // named «Раздача» / «Остаток сюда» (a bare «−1 / +1 · МАКС.» hid both what the bumpers do and what RT places),
+    // and the last to drop from a crowded bar (the default bumper rank dropped them before Inspect).
     hints.push({control: 'dpadH', label: 'Card'});
-    hints.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'}, {control: 'triggerR', label: 'MAX'});
+    hints.push(
+      {control: 'bumperL', control2: 'bumperR', label: 'Distribute −1 / +1', priority: 0},
+      {control: 'triggerR', label: 'Rest here', priority: 0, ...(ctx.distributeLeft !== undefined ? {enabled: ctx.distributeLeft > 0} : {})},
+    );
   } else if (ctx.quickAdjust !== undefined) {
     // Inline payment quick-adjust — split so each side reflects its own limit.
     hints.push({control: 'bumperL', label: '−1', enabled: ctx.quickAdjust.canDecrease});

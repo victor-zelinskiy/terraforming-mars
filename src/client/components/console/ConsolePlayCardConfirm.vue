@@ -2712,6 +2712,8 @@ export default defineComponent({
         primaryLabel: this.primaryFooter.label,
         primaryEnabled: this.primaryFooter.enabled,
         quickAdjust,
+        distributeLeft: this.focusedRow?.kind === 'step' && this.focusedRow.choice.kind === 'distribute' ?
+          this.laneRemaining(this.focusedRow.choice) : undefined,
         forecast: this.forecastCanOpen,
         boardPeek: this.sub === undefined && peekable(this.countWhy),
         boardPeekOpen: this.boardPeekUi.peek !== undefined,

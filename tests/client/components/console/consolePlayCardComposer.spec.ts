@@ -204,6 +204,16 @@ describe('consolePlayCardComposer.playComposerFootHints', () => {
     expect(labels(hints)).to.include('MAX');
   });
 
+  /** A LAYOUT row names its verbs: the bumpers DISTRIBUTE, RT places what is LEFT (never a bare «−1 / +1 · МАКС.»). */
+  it('a focused layout row says «Distribute −1 / +1» and «Rest here» (dimmed once nothing is left)', () => {
+    const hints = playComposerFootHints(ctx({focusedKind: 'distribute', distributeLeft: 3}));
+    expect(hints.find((h) => h.control === 'bumperL')).to.deep.include({control2: 'bumperR', label: 'Distribute −1 / +1'});
+    expect(hints.find((h) => h.control === 'triggerR')).to.deep.include({label: 'Rest here', enabled: true});
+    expect(labels(hints)).to.not.include('MAX');
+    const done = playComposerFootHints(ctx({focusedKind: 'distribute', distributeLeft: 0}));
+    expect(done.find((h) => h.control === 'triggerR')).to.deep.include({label: 'Rest here', enabled: false});
+  });
+
   it('a focused spend-heat stepper gets LB/RB but NOT MAX', () => {
     const hints = playComposerFootHints(ctx({focusedKind: 'spendHeat'}));
     expect(hints.some((h) => h.control === 'bumperL')).to.be.true;
